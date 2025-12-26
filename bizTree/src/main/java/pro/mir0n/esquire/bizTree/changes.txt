@@ -1,3 +1,17 @@
 Esquire BizTree Microservice
 
+12/26/2025 mir0n refine API doc
+
+controller.BizTreeController
+  - refine API doc
+dto.EsqEntity  
+  - refine API doc
+dto.EsqEntityField
+  - refine API doc
+dto.EsqEntityLayer  
+  - refine API doc
+dto.EsqTreeNode
+  - refine API doc
+
+  
 12/26/2025 mir0n initial

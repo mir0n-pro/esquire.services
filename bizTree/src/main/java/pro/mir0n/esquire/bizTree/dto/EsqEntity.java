@@ -6,6 +6,7 @@
  *  mailto:mir0n.the.programmer@gmail.com
  *
  *  History:
+ * 12/26/2025 mir0n  refine API doc
  */
 
 package pro.mir0n.esquire.bizTree.dto;
@@ -20,17 +21,33 @@ import java.util.List;
 
 @Data
 @Schema(
-        name = "Entity",
-        description = "Schema to holdGeneric Entity information"
+        name = "EsqEntity",
+        description = "Holds generic entity information; abstract object, actual entity implementations: " +
+                "EsqAcct, EsqOrg, EsqUsr have their specific fields including custom ones"
 )
 
 public abstract class EsqEntity {
+    @Schema(
+            description = "Entity ID", example = ""
+    )
     abstract public String getId();
     abstract public void setId(String id);
+
+    @Schema(
+            description = "Type of entity", example = "1 for system"
+    )
     abstract public Integer getKind();
     abstract public void setKind(Integer kind);
+
+    @Schema(
+            description = "Entity name", example = "System"
+    )
     abstract public String getName();
     abstract public void setName(String name);
+
+    @Schema(
+            description = "Entity description", example = "Entity description"
+    )
     abstract public String getDesc();
     abstract public void setDesc(String desc);
 

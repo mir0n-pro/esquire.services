@@ -6,6 +6,7 @@
  *  mailto:mir0n.the.programmer@gmail.com
  *
  *  History:
+ * 12/26/2025 mir0n  refine API doc
  */
 
 package pro.mir0n.esquire.bizTree.dto;
@@ -21,7 +22,7 @@ import java.util.List;
 
 @Data
 @Schema(
-        name = "field",
+        name = "EsqEntityField",
         description = "Entity Field metadata"
 )
 @JacksonXmlRootElement(localName = "field")
@@ -95,7 +96,3 @@ public class EsqEntityField {
     @JacksonXmlProperty(localName = "format")
     private String format;
 };
-
-
-
-

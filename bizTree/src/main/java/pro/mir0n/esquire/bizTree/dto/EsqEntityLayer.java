@@ -6,6 +6,7 @@
  *  mailto:mir0n.the.programmer@gmail.com
  *
  *  History:
+ * 12/26/2025 mir0n  refine API doc
  */
 
 package pro.mir0n.esquire.bizTree.dto;
@@ -24,8 +25,8 @@ import java.util.List;
 //@JacksonXmlRootElement(localName = "Dictionary")
 @Data
 @Schema(
-        name = "layer",
-        description = "Entity fields layer description"
+        name = "EsqEntityLayer",
+        description = "Describes an Entity Layer, includes list fields"
 )
 @JacksonXmlRootElement(localName = "layer")
 @Getter @Setter @AllArgsConstructor @NoArgsConstructor

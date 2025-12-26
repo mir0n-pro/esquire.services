@@ -6,6 +6,7 @@
  *  mailto:mir0n.the.programmer@gmail.com
  *
  *  History:
+ * 12/26/2025 mir0n  refine API doc
  */
 
 package pro.mir0n.esquire.bizTree.controller;
@@ -20,6 +21,7 @@ import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.AllArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -35,8 +37,8 @@ import java.util.List;
  */
 
 @Tag(
-        name = "REST Esquire Biz Tree",
-        description = "REST APIs to navigate over Business Tree"
+        name = "Esquire tree REST API",
+        description = "REST API to navigate over backoffice tree"
 )
 
 @RestController
@@ -49,12 +51,17 @@ public class BizTreeController {
 
     @Operation(
             summary = "Esquire Tree REST API",
-            description = "REST API to navigate over Esquire Tree"
+            description = "REST API to navigate over backoffice tree"
     )
     @ApiResponses({
             @ApiResponse(
                     responseCode = "200",
-                    description = "HTTP Status OK"
+                    description = "HTTP Status OK",
+                    content = @Content(schema = @Schema(oneOf = {EsqTreeNode.class
+                            , String.class
+                            , EsqEntityLayer.class
+                            , EsqEntity.class
+                    }))
             ),
             @ApiResponse(
                     responseCode = "500",
@@ -67,9 +74,12 @@ public class BizTreeController {
 
     @GetMapping("/esq")
     public ResponseEntity<List<EsqTreeNode>> esquire(
-          @RequestParam(name = "id", required = false)  String id
-        , @RequestParam(name = "skip", required = false) Integer skip
-        , @RequestParam(name = "take", required = false) Integer take
+        @Parameter(description = "Tree node id, a parent node to retrieve children")
+        @RequestParam(name = "id", required = false)  String id,
+        @Parameter(description = "Support flat tree, how many nodes to skips from response, not in use")
+        @RequestParam(name = "skip", required = false) Integer skip,
+        @Parameter(description = "Support flat tree, how many nodes to have in response, not in use")
+        @RequestParam(name = "take", required = false) Integer take
     ) {
         List<EsqTreeNode> nodes = iBizTreeService.esquire(id, skip == null ? 0 : skip, take == null? 0 : take);
         System.out.println(nodes);
@@ -78,9 +88,12 @@ public class BizTreeController {
 
     @GetMapping("/esq-enode")
     public ResponseEntity<EsqTreeNode> esquireEntityNode(
-         @RequestParam(name = "kind", required = true) Integer kind
-        , @RequestParam(name = "id", required = false) String id
-        , @RequestParam(name = "name", required = false) String name
+          @Parameter(description = "Entity kind code")
+          @RequestParam(name = "kind", required = true) Integer kind,
+          @Parameter(description = "Entity id, id or name is required")
+          @RequestParam(name = "id", required = false) String id,
+          @Parameter(description = "Entity name, id or name is required")
+          @RequestParam(name = "name", required = false) String name
     ) {
         EsqTreeNode node = iBizTreeService.esquireEntityNode(kind, id, name);
         System.out.println(node);
@@ -89,7 +102,8 @@ public class BizTreeController {
 
     @GetMapping("/esq-path")
     public ResponseEntity<List<String>> esquirePath(
-        @RequestParam String id
+        @Parameter(description = "Tree node id")
+        @RequestParam(name = "id", required = true) String id
     ) {
         List<String> path = iBizTreeService.esquirePath(id);
         System.out.println(path);
@@ -97,7 +111,8 @@ public class BizTreeController {
     }
     @GetMapping("/esq-dict")
     public ResponseEntity<List<EsqEntityLayer>>  esquireDictionary(
-            @RequestParam Integer kind
+            @Parameter(description = "Entity kind code")
+            @RequestParam(name = "kind", required = true) Integer kind
     ) {
         List<EsqEntityLayer> layers = iBizTreeService.esquireDictionary(kind);
         System.out.println(layers);
@@ -106,9 +121,12 @@ public class BizTreeController {
 
     @GetMapping("/esq-cmd")
     public ResponseEntity<EsqEntity>  esquireCommand(
-           @RequestParam Integer kind
-        ,  @RequestParam String id
-        ,  @RequestParam(name = "cmd", required = false, defaultValue = "details") String cmd
+           @Parameter(description = "Entity kind code")
+           @RequestParam(name = "kind", required = true) Integer kind,
+           @Parameter(description = "Entity id")
+           @RequestParam(name = "id", required = true) String id,
+           @Parameter(description = "Command code: 'details' only for now")
+           @RequestParam(name = "cmd", required = false, defaultValue = "details") String cmd
     ) {
         EsqEntity entity = iBizTreeService.esquireCommand(kind, id, cmd);
         System.out.println(entity);

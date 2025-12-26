@@ -6,6 +6,7 @@
  *  mailto:mir0n.the.programmer@gmail.com
  *
  *  History:
+ * 12/26/2025 mir0n  refine API doc
  */
 
 package pro.mir0n.esquire.bizTree.dto;
@@ -15,8 +16,8 @@ import lombok.Data;
 
 @Data
 @Schema(
-        name = "TreeNode",
-        description = "Schema to hold Tree node information"
+        name = "EsqTreeNode",
+        description = "Holds Tree Node information"
 )
 
 public class EsqTreeNode {
