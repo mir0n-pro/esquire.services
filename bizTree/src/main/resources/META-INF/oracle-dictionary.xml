@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<entity-mappings xmlns="http://java.sun.com/xml/ns/persistence/orm"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://java.sun.com/xml/ns/persistence/orm http://java.sun.com/xml/ns/persistence/orm_2_0.xsd"
+    version="2.0">
+<!--
+        <query><![CDATA[ ]]>
+-->
+
+    <named-native-query name="EsqCustomEntityFieldJpa.findCustom" result-set-mapping="EsqCustomEntityFieldJpaMapping">
+        <query>
+            SELECT
+             par_et_pk
+            ,par_name
+            ,par_type
+            ,par_label
+            ,par_readwrite
+            ,par_layer
+            ,par_sort
+            ,par_tooltip
+            ,par_nullmeaning
+            ,par_nullable_flg
+            ,par_validation
+            ,par_listvalues
+            ,par_format
+            FROM esq_parameter
+            WHERE par_et_pk = :kind
+        </query>
+    </named-native-query>
+
+    <sql-result-set-mapping name="EsqCustomEntityFieldJpaMapping">
+        <entity-result entity-class="pro.mir0n.esquire.bizTree.jpa.EsqCustomEntityFieldJpa">
+            <field-result name="name" column="par_name"/>
+            <field-result name="kind" column="par_et_pk"/>
+            <field-result name="layer" column="par_layer"/>
+            <field-result name="type" column="par_type"/>
+            <field-result name="label" column="par_label"/>
+            <field-result name="readwrite" column="par_readwrite"/>
+            <field-result name="sort" column="par_sort"/>
+            <field-result name="tooltip" column="par_tooltip"/>
+            <field-result name="listvalues" column="par_listvalues"/>
+            <field-result name="nullable" column="par_nullable_flg"/>
+            <field-result name="nullmeaning" column="par_nullmeaning"/>
+            <field-result name="validation" column="par_validation"/>
+            <field-result name="format" column="par_format"/>
+        </entity-result>
+    </sql-result-set-mapping>
+
+</entity-mappings>
