@@ -1,0 +1,42 @@
+--------------------------------------------------------------------------
+Release notes: from HEAD~1 till HEAD
+--------------------------------------------------------------------------
+Top Commit: 0fcb1d7
+Notes from: doc/release_notes.txt
+v1.0.0-2512.2717 refine API doc (part 2)
+  - correct extension of 'lombok-ed' entity object  
+
+--------------------------------------------------------------------------
+Branch : esquire.services/develop
+--------------------------------------------------------------------------
+Code changes:
+--------------------------------------------------------------------------
+Changes from: bizTree/src/main/java/pro/mir0n/esquire/bizTree/changes.txt
+12/27/2025 mir0n refine API doc (part 2)
+controller.BizTreeController
+  - added entity implementations 
+dto.EsqEntity
+  - use @SuperBuilder
+  - add actual fields isntead of absract set/get methods
+dto.EsqNameValue
+  - correct name
+dto.entity.EsqAcct
+  - extend EsqEntity correctly
+dto.entity.EsqOrg
+  - extend EsqEntity correctly
+dto.entity.EsqUsr
+  - extend EsqEntity correctly
+
+
+--------------------------------------------------------------------------
+
+-- 2025-12-27 | commit: 0fcb1d7 | mir0n.the.programmer |  refine API doc (part 2) --
+M	bizTree/src/main/java/pro/mir0n/esquire/bizTree/changes.txt
+M	bizTree/src/main/java/pro/mir0n/esquire/bizTree/controller/BizTreeController.java
+M	bizTree/src/main/java/pro/mir0n/esquire/bizTree/dto/EsqEntity.java
+M	bizTree/src/main/java/pro/mir0n/esquire/bizTree/dto/EsqNameValue.java
+M	bizTree/src/main/java/pro/mir0n/esquire/bizTree/dto/entity/EsqAcct.java
+M	bizTree/src/main/java/pro/mir0n/esquire/bizTree/dto/entity/EsqOrg.java
+M	bizTree/src/main/java/pro/mir0n/esquire/bizTree/dto/entity/EsqUsr.java
+M	doc/release_notes.txt
+ 8 files changed, 81 insertions(+), 89 deletions(-)
