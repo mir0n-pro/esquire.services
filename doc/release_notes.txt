@@ -1,6 +1,9 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v1.0.0-2512.2717 refine API doc (part 2)
+  - correct extension of 'lombok-ed' entity object  
+
 v1.0.0-2512.2618  Refine Api Doc
 
 v1.0.0-2512.2615  initial version 

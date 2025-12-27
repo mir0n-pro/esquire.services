@@ -6,6 +6,7 @@
  *  mailto:mir0n.the.programmer@gmail.com
  *
  *  History:
+ * 12/27/2025  mir0n extend EsqEntity correctly
  */
 
 package pro.mir0n.esquire.bizTree.dto.entity;
@@ -15,6 +16,8 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
+import lombok.experimental.SuperBuilder;
 import pro.mir0n.esquire.bizTree.dto.EsqEntity;
 import pro.mir0n.esquire.bizTree.dto.EsqNameValue;
 import pro.mir0n.esquire.bizTree.jpa.EsqEntityJpa;
@@ -27,46 +30,28 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-@Data //xxx:important
+@Data
 @Schema(
-        name = "Account",
-        description = "Schema to holdGeneric Entity information"
+        name = "EsqOrg",
+        description = "Holds Organization entity state, possible custom fields. Extends EsqEntity"
 )
-
+@EqualsAndHashCode(callSuper = true)
+@SuperBuilder
 public class EsqOrg extends EsqEntity {
-    @Schema(
-            description = "Entity ID", example = ""
-    )
-    private String id;
+    public EsqOrg() {
+        super();
+    }
 
-    @Schema(
-            description = "Type of entity", example = "1 for system"
-    )
-    private Integer kind;
-
-    @Schema(
-            description = "Entity name", example = "System"
-    )
-    private String name;
-
-    @Schema(
-            description = "Entity description", example = "Entity description"
-    )
-    @JsonInclude(JsonInclude.Include.NON_NULL)
-    private String desc;
-
-    @Schema(
+   @Schema(
             description = "Organization full name", example = "xxx"
     )
     private String fullName;
 
-//    @Schema(
-//            description = "Custom fields", example = ""
-//    )
-
-//    @JsonSerialize(using = EsqNameValueSerializer.class)
-    //    @JsonUnwrapped // Ensures fields are not nested under an "attributes" key
-    @JsonIgnore
+//    @JsonIgnore
+    @Schema(
+            description = "Custom fields, The list is  converting into fields for serialization.",
+            example = "DB_VERSION: '2.0.0', DB_NAME: 'Esquire'"
+    )
     private List<EsqNameValue> customFields;
 
     @JsonAnyGetter

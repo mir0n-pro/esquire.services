@@ -6,6 +6,7 @@
  *  mailto:mir0n.the.programmer@gmail.com
  *
  *  History:
+ * 12/27/2025  mir0n extend EsqEntity correctly
  */
 
 package pro.mir0n.esquire.bizTree.dto.entity;
@@ -14,6 +15,8 @@ import com.fasterxml.jackson.annotation.JsonAnyGetter;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
+import lombok.experimental.SuperBuilder;
 import pro.mir0n.esquire.bizTree.dto.EsqEntity;
 import pro.mir0n.esquire.bizTree.dto.EsqEntityFactory;
 import pro.mir0n.esquire.bizTree.dto.EsqNameValue;
@@ -30,31 +33,15 @@ import java.util.stream.Collectors;
 
 @Data //xxx:important
 @Schema(
-        name = "User",
-        description = "Schema to hold User information"
+        name = "EsqUsr",
+        description = "Holds User entity state, possible custom fields. Extends EsqEntity"
 )
-
+@EqualsAndHashCode(callSuper = true)
+@SuperBuilder
 public class EsqUsr extends EsqEntity {
-    @Schema(
-            description = "Entity ID", example = ""
-    )
-    private String id;
-
-    @Schema(
-            description = "Type of entity", example = "1 for system"
-    )
-    private Integer kind;
-
-    @Schema(
-            description = "Entity name", example = "System"
-    )
-    private String name;
-
-    @Schema(
-            description = "Entity description", example = "Entity description"
-    )
-    private String desc;
-
+    public EsqUsr() {
+        super();
+    }
     @Schema(
             description = "Login Id", example = "pupkin"
     )
@@ -73,7 +60,11 @@ public class EsqUsr extends EsqEntity {
     @JsonIgnore
     private Map<String, List<String>> children = new HashMap<>();
 
-    @JsonIgnore
+    //@JsonIgnore
+    @Schema(
+            description = "Custom fields, The list is  converting into fields for serialization.",
+            example = "CUSTOM_FIELD: 'Sand box example'"
+    )
     private List<EsqNameValue> customFields;
 
     @JsonAnyGetter

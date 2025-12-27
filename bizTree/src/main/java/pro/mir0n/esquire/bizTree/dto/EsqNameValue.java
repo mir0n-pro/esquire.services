@@ -6,6 +6,7 @@
  *  mailto:mir0n.the.programmer@gmail.com
  *
  *  History:
+ * 12/27/2024 mir0n correct name
  */
 
 package pro.mir0n.esquire.bizTree.dto;
@@ -15,7 +16,7 @@ import lombok.Data;
 
 @Data
 @Schema(
-        name = "Name - Value pair",
+        name = "EsqNameValue",
         description = "Name - Value pair"
 )
 

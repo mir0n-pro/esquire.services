@@ -7,6 +7,7 @@
  *
  *  History:
  * 12/26/2025 mir0n  refine API doc
+ * 12/27/2025 mir0n  added entity implementations 
  */
 
 package pro.mir0n.esquire.bizTree.controller;
@@ -15,6 +16,9 @@ import pro.mir0n.esquire.bizTree.dto.EsqEntity;
 import pro.mir0n.esquire.bizTree.dto.EsqEntityLayer;
 import pro.mir0n.esquire.bizTree.dto.EsqTreeNode;
 import pro.mir0n.esquire.bizTree.dto.ErrorResponse;
+import pro.mir0n.esquire.bizTree.dto.entity.EsqAcct;
+import pro.mir0n.esquire.bizTree.dto.entity.EsqOrg;
+import pro.mir0n.esquire.bizTree.dto.entity.EsqUsr;
 import pro.mir0n.esquire.bizTree.service.IBizTreeService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -61,6 +65,9 @@ public class BizTreeController {
                             , String.class
                             , EsqEntityLayer.class
                             , EsqEntity.class
+                            , EsqAcct.class
+                            , EsqOrg.class
+                            , EsqUsr.class
                     }))
             ),
             @ApiResponse(

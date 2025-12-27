@@ -1,5 +1,21 @@
 Esquire BizTree Microservice
 
+12/27/2025 mir0n refine API doc (part 2)
+controller.BizTreeController
+  - added entity implementations 
+dto.EsqEntity
+  - use @SuperBuilder
+  - add actual fields isntead of absract set/get methods
+dto.EsqNameValue
+  - correct name
+dto.entity.EsqAcct
+  - extend EsqEntity correctly
+dto.entity.EsqOrg
+  - extend EsqEntity correctly
+dto.entity.EsqUsr
+  - extend EsqEntity correctly
+
+
 12/26/2025 mir0n refine API doc
 
 controller.BizTreeController
