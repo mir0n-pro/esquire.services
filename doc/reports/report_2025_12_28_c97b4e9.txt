@@ -1,0 +1,39 @@
+--------------------------------------------------------------------------
+Release notes: from HEAD~1 till HEAD
+--------------------------------------------------------------------------
+Top Commit: c97b4e9
+Notes from: doc/release_notes.txt
+v1.0.0-2512.2821 logging & postgres
+  - logging added (using Slf4j)
+  - added postgres environement profiel
+
+--------------------------------------------------------------------------
+Branch : esquire.services/develop
+--------------------------------------------------------------------------
+Code changes:
+--------------------------------------------------------------------------
+Changes from: bizTree/src/main/java/pro/mir0n/esquire/bizTree/changes.txt
+12/28/2025 mir0n logging
+BizTreeApplication  
+  - logging added using Slf4j
+storage.EsqEntityDictionaryStorage
+  - logging added using Slf4j
+controller.BizTreeController
+  - logging added using Slf4j
+
+
+--------------------------------------------------------------------------
+
+-- 2025-12-28 | commit: c97b4e9 | mir0n.the.programmer | v1.0.0-2512.2821 logging & postgres --
+M	bizTree/pom.xml
+M	bizTree/src/main/java/pro/mir0n/esquire/bizTree/BizTreeApplication.java
+M	bizTree/src/main/java/pro/mir0n/esquire/bizTree/changes.txt
+M	bizTree/src/main/java/pro/mir0n/esquire/bizTree/controller/BizTreeController.java
+M	bizTree/src/main/java/pro/mir0n/esquire/bizTree/storage/EsqEntityDictionaryStorage.java
+A	bizTree/src/main/resources/META-INF/postgres-custom-field.xml
+A	bizTree/src/main/resources/META-INF/postgres-dictionary.xml
+A	bizTree/src/main/resources/META-INF/postgres-entity.xml
+A	bizTree/src/main/resources/META-INF/postgres-tree-node.xml
+M	bizTree/src/main/resources/application.yml
+M	doc/release_notes.txt
+ 11 files changed, 430 insertions(+), 22 deletions(-)
