@@ -8,10 +8,12 @@
  *  History:
  * 12/26/2025 mir0n  refine API doc
  * 12/27/2025 mir0n  added entity implementations 
+ * 12/28/2025 mir0n logging added using Slf4j
  */
 
 package pro.mir0n.esquire.bizTree.controller;
 
+import lombok.extern.slf4j.Slf4j;
 import pro.mir0n.esquire.bizTree.dto.EsqEntity;
 import pro.mir0n.esquire.bizTree.dto.EsqEntityLayer;
 import pro.mir0n.esquire.bizTree.dto.EsqTreeNode;
@@ -45,6 +47,7 @@ import java.util.List;
         description = "REST API to navigate over backoffice tree"
 )
 
+@Slf4j
 @RestController
 @RequestMapping(path="", produces = {MediaType.APPLICATION_JSON_VALUE})
 @AllArgsConstructor
@@ -89,7 +92,7 @@ public class BizTreeController {
         @RequestParam(name = "take", required = false) Integer take
     ) {
         List<EsqTreeNode> nodes = iBizTreeService.esquire(id, skip == null ? 0 : skip, take == null? 0 : take);
-        System.out.println(nodes);
+        log.debug("esquire: id:{}, result:{}", id, String.valueOf(nodes));
         return ResponseEntity.status(HttpStatus.OK).body(nodes);
     }
 
@@ -103,7 +106,7 @@ public class BizTreeController {
           @RequestParam(name = "name", required = false) String name
     ) {
         EsqTreeNode node = iBizTreeService.esquireEntityNode(kind, id, name);
-        System.out.println(node);
+        log.debug("esquireEntityNode: kind:{}, id:{}, name:{}, result:{}", kind, id, name, String.valueOf(node));
         return ResponseEntity.status(HttpStatus.OK).body(node);
     }
 
@@ -114,6 +117,7 @@ public class BizTreeController {
     ) {
         List<String> path = iBizTreeService.esquirePath(id);
         System.out.println(path);
+        log.debug("esquirePath: id:{}, result:{}", id, String.valueOf(path));
         return ResponseEntity.status(HttpStatus.OK).body(path);
     }
     @GetMapping("/esq-dict")
@@ -122,7 +126,7 @@ public class BizTreeController {
             @RequestParam(name = "kind", required = true) Integer kind
     ) {
         List<EsqEntityLayer> layers = iBizTreeService.esquireDictionary(kind);
-        System.out.println(layers);
+        log.debug("esquirePath: kind:{}, result:{}", kind, String.valueOf(layers));
         return ResponseEntity.status(HttpStatus.OK).body(layers);
     }
 
@@ -136,7 +140,7 @@ public class BizTreeController {
            @RequestParam(name = "cmd", required = false, defaultValue = "details") String cmd
     ) {
         EsqEntity entity = iBizTreeService.esquireCommand(kind, id, cmd);
-        System.out.println(entity);
+        log.debug("esquireCommand: kind:{}, id:{}, cmd:{}, result:{}", kind, id, cmd, String.valueOf(entity));
         return ResponseEntity.status(HttpStatus.OK).body(entity);
     }
 

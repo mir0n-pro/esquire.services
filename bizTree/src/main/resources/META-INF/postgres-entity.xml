@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<entity-mappings xmlns="http://java.sun.com/xml/ns/persistence/orm"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://java.sun.com/xml/ns/persistence/orm http://java.sun.com/xml/ns/persistence/orm_2_0.xsd"
+    version="2.0">
+<!--
+        <query><![CDATA[ ]]>
+-->
+    <named-native-query name="EsqEntityJpa.detailOrg"  result-set-mapping="EsqOrgJpaMapping">
+        <query>
+SELECT 
+    org_pk AS "pk",
+    org_et_pk AS "kind",
+    org_name AS "name",
+    org_desc AS "desc",
+    org_full_name
+FROM esq_org
+WHERE org_pk = CAST(:id AS bigint)
+        </query>
+    </named-native-query>
+
+    <named-native-query name="EsqEntityJpa.detailUsr"  result-set-mapping="EsqUsrJpaMapping">
+        <query>
+SELECT 
+    usr_pk AS "pk",
+    usr_et_pk AS "kind",
+    usr_name AS "name",
+    usr_desc AS "desc",
+    usr_login_id,
+    usr_reg_option,
+    usr_deleted_flg
+FROM esq_user
+WHERE usr_pk = CAST(:id AS bigint)
+        </query>
+    </named-native-query>
+
+    <named-native-query name="EsqEntityJpa.detailAcct"  result-set-mapping="EsqAcctJpaMapping">
+        <query>
+SELECT 
+    acc_pk AS "pk",
+    acc_et_pk AS "kind",
+    acc_id AS "name",
+    acc_desc AS "desc",
+    acc_ccy,
+    acc_balance,
+    acc_status
+FROM esq_account
+WHERE acc_pk = CAST(:id AS bigint)
+        </query>
+    </named-native-query>
+
+    <sql-result-set-mapping name="EsqAcctJpaMapping">
+        <entity-result entity-class="pro.mir0n.esquire.bizTree.jpa.entity.EsqAcctJpa">
+            <field-result name="id" column="pk"/>
+            <field-result name="kind" column="kind"/>
+            <field-result name="name" column="name"/>
+            <field-result name="desc" column="desc"/>
+            <field-result name="ccy" column="acc_ccy"/>
+            <field-result name="balance" column="acc_balance"/>
+            <field-result name="status" column="acc_status"/>
+        </entity-result>
+    </sql-result-set-mapping>
+
+    <sql-result-set-mapping name="EsqUsrJpaMapping">
+        <entity-result entity-class="pro.mir0n.esquire.bizTree.jpa.entity.EsqUsrJpa">
+            <field-result name="id" column="pk"/>
+            <field-result name="kind" column="kind"/>
+            <field-result name="name" column="name"/>
+            <field-result name="desc" column="desc"/>
+            <field-result name="loginId" column="usr_login_id"/>
+            <field-result name="registration" column="usr_reg_option"/>
+            <field-result name="deleted" column="usr_deleted_flg"/>
+        </entity-result>
+    </sql-result-set-mapping>
+
+    <sql-result-set-mapping name="EsqOrgJpaMapping">
+        <entity-result entity-class="pro.mir0n.esquire.bizTree.jpa.entity.EsqOrgJpa">
+            <field-result name="id" column="pk"/>
+            <field-result name="kind" column="kind"/>
+            <field-result name="name" column="name"/>
+            <field-result name="desc" column="desc"/>
+            <field-result name="fullName" column="org_full_name"/>
+        </entity-result>
+    </sql-result-set-mapping>
+
+
+
+</entity-mappings>

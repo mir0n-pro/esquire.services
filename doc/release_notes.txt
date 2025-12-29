@@ -1,6 +1,10 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v1.0.0-2512.2821 logging & postgres
+  - logging added (using Slf4j)
+  - added postgres environement profiel
+
 v1.0.0-2512.2717 refine API doc (part 2)
   - correct extension of 'lombok-ed' entity object  
 

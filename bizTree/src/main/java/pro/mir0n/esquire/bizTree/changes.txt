@@ -1,5 +1,14 @@
 Esquire BizTree Microservice
 
+12/28/2025 mir0n logging
+BizTreeApplication  
+  - logging added using Slf4j
+storage.EsqEntityDictionaryStorage
+  - logging added using Slf4j
+controller.BizTreeController
+  - logging added using Slf4j
+
+
 12/27/2025 mir0n refine API doc (part 2)
 controller.BizTreeController
   - added entity implementations 

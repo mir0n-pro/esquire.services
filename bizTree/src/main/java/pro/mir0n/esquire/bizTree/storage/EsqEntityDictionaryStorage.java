@@ -6,10 +6,12 @@
  *  mailto:mir0n.the.programmer@gmail.com
  *
  *  History:
+ * 12/28/2025 mir0n logging added using Slf4j
  */
 
 package pro.mir0n.esquire.bizTree.storage;
 
+import lombok.extern.slf4j.Slf4j;
 import pro.mir0n.esquire.bizTree.dto.EsqEntityDictionaryShell;
 import pro.mir0n.esquire.bizTree.dto.EsqEntityDictionary;
 import com.fasterxml.jackson.dataformat.xml.XmlMapper;
@@ -21,6 +23,7 @@ import org.springframework.core.io.ResourceLoader;
 import org.springframework.util.FileCopyUtils;
 
 
+import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.Reader;
 import java.nio.charset.StandardCharsets;
@@ -28,6 +31,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
+@Slf4j
 public class EsqEntityDictionaryStorage {
 
     private static EsqEntityDictionaryStorage itSelf = new EsqEntityDictionaryStorage();
@@ -54,41 +58,40 @@ public class EsqEntityDictionaryStorage {
          return ret;
      }
 
-    private String loadResourceContent(String fileName) {
+    private String loadResourceContent(String fileName) throws IOException {
         ResourceLoader resourceLoader = new DefaultResourceLoader();
         Resource resource = resourceLoader.getResource(fileName == null ? "esq-entity-dictionaries.xml"  : fileName);
 
         try (Reader reader = new InputStreamReader(resource.getInputStream(), StandardCharsets.UTF_8)) {
             return FileCopyUtils.copyToString(reader);
-        } catch (Exception e) {
-            throw new RuntimeException("Error reading Spring resource", e);
         }
     }
 
-     public boolean init(String file_name) {
+     public boolean init(String fileName) {
 
 //         serializationExample();
 
          XmlMapper xmlMapper = new XmlMapper();
          boolean ret = false;
         try {
-            String xml = loadResourceContent(file_name);
+            String xml = loadResourceContent(fileName);
             EsqEntityDictionaryShell shell = xmlMapper.readValue(xml, EsqEntityDictionaryShell.class);
             if (shell != null && shell.getDictionaries() != null) {
                 storage.addAll(shell.getDictionaries());
                 shell.sortLayers();
             }
-            System.out.println("Dictionaries loaded successfully:");
+            log.info("Dictionaries loaded successfully");
+            log.error("Dictionaries loaded successfully");
             //System.out.println(shell);
             ret = true;
         } catch (Exception e) {
-            e.printStackTrace();
+            log.error("init:{}", fileName, e);
         }
          return ret;
     }
 
 
-
+/*
     public void serializationExample() {
          try {
              EsqEntityField f1 = new EsqEntityField(
@@ -154,6 +157,6 @@ public class EsqEntityDictionaryStorage {
              e.printStackTrace();
          }
     }
-
+*/
 }
 
