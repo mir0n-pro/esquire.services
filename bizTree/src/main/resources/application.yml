@@ -1,8 +1,8 @@
 spring:
   profiles:
-    active: dev-postgres
+    active: ${DB_VENDOR:dev-postgres}
   application:
-    name: bizTree
+    name: biztree
   jpa:
     hibernate:
       ddl-auto: none
@@ -12,11 +12,11 @@ logging:
     format:
       console: ecs  # Use ecs,'logstash' or 'gelf' for other common formats
   level:
-    root: ERROR
+    root: ${LOG_LEVEL_ROOT:ERROR}
     org:
-      springframework: ERROR
+      springframework: ${LOG_LEVEL_SF:ERROR}
     pro:
-      mir0n: DEBUG
+      mir0n: ${LOG_LEVEL_MIR0N:ERROR}
 
 ---
 # Development Oracle
@@ -25,12 +25,16 @@ spring:
     activate:
       on-profile: dev-oracle
   datasource:
-    url: jdbc:oracle:thin:@//localhost:1521/MIR0N
+    url: jdbc:oracle:thin:@//${DB_HOST:localhost}:${DB_PORT:1521}/${DB_NAME:MIR0N}
     driverClassName: oracle.jdbc.OracleDriver
-    username: esq2025
-    password: q        
-#    username: ${DB_USERNAME:esquser}
-#    password: ${DB_PASSWORD:esqpassword}   
+    username: ${DB_USERNAME:esq2025}
+    password: ${DB_PASSWORD:q}   
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 20
+      connection-timeout: 30000 
+      max-lifetime: 1800000 
+      idle-timeout: 600000    
   jpa:
     mapping-resources:
       - META-INF/oracle-tree-node.xml
@@ -41,7 +45,7 @@ spring:
       hibernate:
         dialect: org.hibernate.dialect.OracleDialect
 server:
-  port: 3000
+  port: ${PORT:3000}
 
 ---
 # Development Postgres
@@ -51,10 +55,14 @@ spring:
       on-profile: dev-postgres
   datasource:
     url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:esq2025}
-    username: esq2025
-    password: q
-#    username: ${DB_USERNAME:esquser}
-#    password: ${DB_PASSWORD:esqpassword}   
+    username: ${DB_USERNAME:esq2025}
+    password: ${DB_PASSWORD:q}   
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 20
+      connection-timeout: 30000 
+      max-lifetime: 1800000 
+      idle-timeout: 600000    
   jpa:
     mapping-resources:
       - META-INF/postgres-tree-node.xml
@@ -65,4 +73,4 @@ spring:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
 server:
-  port: 3000
+  port: ${PORT:3000}

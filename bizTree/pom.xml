@@ -5,13 +5,13 @@
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>3.4.1</version>
+        <version>4.0.1</version>
         <relativePath/> <!-- lookup parent from repository -->
     </parent>
     <groupId>pro.mir0n.equire</groupId>
-    <artifactId>bizTree</artifactId>
-    <version>0.0.1-SNAPSHOT</version>
-    <name>bizTree</name>
+    <artifactId>biztree</artifactId>
+    <version>1.0.0</version>
+    <name>biztree</name>
     <description>Esquire BizTree Microservice</description>
     <url/>
     <licenses>

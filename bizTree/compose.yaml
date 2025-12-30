@@ -1,0 +1,24 @@
+services:
+  biztree:
+    build:
+      context: .
+    image: esquire.biztree
+    ports:
+      - "3000:3001"
+    environment:
+      - PORT=3001
+      - LOG_LEVEL_ROOT=ERROR
+      - LOG_LEVEL_SF=ERROR
+      - LOG_LEVEL_MIR0N=DEBUG
+      - DB_VENDOR=dev-postgres
+      - DB_PORT=5432
+      - DB_HOST=host.docker.internal
+      - DB_USERNAME=esq2025
+      - DB_PASSWORD=q
+    command: ["java", "-jar", "biztree.jar"]
+    networks:
+      - esquirenet
+networks:
+  esquirenet:
+    driver: "bridge"
+   
