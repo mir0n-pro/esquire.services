@@ -35,7 +35,7 @@ WHERE t.tree_tree_pk_parent IS NULL
 
     <named-native-query name="EsqTreeNodeJpa.findByEntityId" result-set-mapping="EsqTreeNodeJpaMapping">
         <query>
-SELECT 
+SELECT
     tree_pk,
     tree_tree_pk_parent,
     tree_tree_pk_link,
@@ -56,7 +56,7 @@ FROM esq_tree
 JOIN esq_entity_type ON tree_et_pk = et_pk
 LEFT JOIN esq_user ON usr_pk = tree_usr_pk
 LEFT JOIN esq_account ON acc_pk = tree_acc_pk
-WHERE tree_entity_pk = :id
+WHERE tree_entity_pk = CAST(:id as bigint)
   AND tree_tree_pk_link IS NULL
 FETCH NEXT 1 ROWS ONLY
          </query>
@@ -85,7 +85,7 @@ FROM esq_tree
 JOIN esq_entity_type ON tree_et_pk = et_pk
 LEFT JOIN esq_user ON usr_pk = tree_usr_pk
 LEFT JOIN esq_account ON acc_pk = tree_acc_pk
-WHERE tree_name = :'name'
+WHERE tree_name = :name
   AND tree_et_pk = :kind
 FETCH NEXT 1 ROWS ONLY
         </query>

@@ -1,20 +1,17 @@
 services:
-  biztree:
+  gateway:
     build:
       context: .
-    image: esquire.biztree
+    image: esquire.gateway
     ports:
-      - "3002:3001"
+      - "3000:8080"
     environment:
+      - GATEWAY_PORT=8080
       - BIZTREE_PORT=3001
+      - BIZTREE_HOST=172.18.0.2
       - LOG_LEVEL_ROOT=ERROR
       - LOG_LEVEL_SF=ERROR
       - LOG_LEVEL_MIR0N=DEBUG
-      - DB_BIZTREE_VENDOR=dev-postgres
-      - DB_BIZTREE_PORT=5432
-      - DB_BIZTREE_HOST=host.docker.internal
-      - DB_BIZTREE_USERNAME=esq2025
-      - DB_BIZTREE_PASSWORD=q
     command: ["java", "-jar", "app.jar"]
     networks:
       - esquirenet

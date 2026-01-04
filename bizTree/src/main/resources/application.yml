@@ -1,6 +1,6 @@
 spring:
   profiles:
-    active: ${DB_VENDOR:dev-postgres}
+    active: ${DB_BIZTREE_VENDOR:dev-postgres}
   application:
     name: biztree
   jpa:
@@ -25,10 +25,10 @@ spring:
     activate:
       on-profile: dev-oracle
   datasource:
-    url: jdbc:oracle:thin:@//${DB_HOST:localhost}:${DB_PORT:1521}/${DB_NAME:MIR0N}
+    url: jdbc:oracle:thin:@//${DB_BIZTREE_HOST:localhost}:${DB_BIZTREE_PORT:1521}/${DB_BIZTREE_NAME:MIR0N}
     driverClassName: oracle.jdbc.OracleDriver
-    username: ${DB_USERNAME:esq2025}
-    password: ${DB_PASSWORD:q}   
+    username: ${DB_BIZTREE_USERNAME:esq2025}
+    password: ${DB_BIZTREE_PASSWORD:q}   
     hikari:
       maximum-pool-size: 20
       minimum-idle: 20
@@ -45,7 +45,7 @@ spring:
       hibernate:
         dialect: org.hibernate.dialect.OracleDialect
 server:
-  port: ${PORT:3000}
+  port: ${BIZTREE_PORT:3000}
 
 ---
 # Development Postgres
@@ -54,9 +54,9 @@ spring:
     activate:
       on-profile: dev-postgres
   datasource:
-    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:esq2025}
-    username: ${DB_USERNAME:esq2025}
-    password: ${DB_PASSWORD:q}   
+    url: jdbc:postgresql://${DB_BIZTREE_HOST:localhost}:${DB_BIZTREE_PORT:5432}/${DB_BIZTREE_NAME:esq2025}
+    username: ${DB_BIZTREE_USERNAME:esq2025}
+    password: ${DB_BIZTREE_PASSWORD:q}   
     hikari:
       maximum-pool-size: 20
       minimum-idle: 20
@@ -73,4 +73,4 @@ spring:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
 server:
-  port: ${PORT:3000}
+  port: ${BIZTREE_PORT:3000}

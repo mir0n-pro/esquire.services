@@ -1,0 +1,36 @@
+server:
+  port: ${GATEWAY_PORT:8080} 
+spring:
+  application:
+    name: "gateway"
+  cloud:
+    gateway:
+      routes:
+        - id: biztree-route
+          uri: http://${BIZTREE_HOST:biztree}:${BIZTREE_PORT:3001}
+          # uri: http://biztree:3001
+          predicates:
+            - Path=/**
+          filters:
+            - RewritePath=/(?<segment>.*), /$\{segment}
+  autoconfigure:
+   exclude: org.springframework.boot.autoconfigure.security.reactive.ReactiveSecurityAutoConfiguration
+
+
+info:
+  app:
+    name: "gateway"
+    description: "Facade Esquire Server"
+    version: "1.0.0"
+
+logging:
+  structured:
+    format:
+      console: ecs  # Use ecs,'logstash' or 'gelf' for other common formats
+  level:
+    root: ${LOG_LEVEL_ROOT:ERROR}
+    org:
+      springframework: ${LOG_LEVEL_SF:ERROR}
+    pro:
+      mir0n: ${LOG_LEVEL_MIR0N:ERROR}
+
