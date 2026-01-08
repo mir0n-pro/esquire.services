@@ -1,4 +1,10 @@
 Esquire Gateway Microservice
 
+01/08/2026 mir0n Keycloak added
+GatewayApplication
+  - @ConfigurationPropertiesScan is required now
++ added config.KeycloakRoleConverter
++ added config.SecurityConfig
++ added CORS_ALLOWED_ORIGIN and KEYCLOAK_* env parameters
  
 01/03/2026 mir0n initial

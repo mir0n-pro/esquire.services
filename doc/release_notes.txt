@@ -1,6 +1,11 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v1.0.1-2601.0800
+  Keycloak added
+  gateway modification as required
+  compose.yaml has added kecloack and explorer components
+
 v1.0.0-2601.0420 
    Gateway service added
    Configuration parameters generalized 

@@ -1,0 +1,21 @@
+services:
+  keycloak:
+    container_name: keycloak
+    image: quay.io/keycloak/keycloak:26.4.7
+    command: start-dev --import-realm
+    ports:
+      - "8080:8080"
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: q
+    volumes:
+      # Mount your local file into the magic import directory
+      - ./import/esquire.json:/opt/keycloak/data/import/realm.json
+      # have data volume mounted
+      - ./data:/opt/keycloak/data
+    networks:
+      - esquirenet
+networks:
+  esquirenet:
+    driver: "bridge"
+      

@@ -1,0 +1,19 @@
+KNOW-HOW: at least was able
+
+keycloak container (running with volumed/mounted data and having data/export folder)
+
+in docker container : go to debug - stop the container - run container again
+cd opt/keycloak/
+bin/kc.sh export --realm esquire --users same_file --file data/export/esquire.json
+grab the file from data/export folder on mounted volume
+
+to run keycloak with import
+
+docker run -d --name esq-keycloak -p 8080:8080 -v %cd%/data:/opt/keycloak/data -v %cd%/import/esquire.json:/opt/keycloak/data/import/realm.json -e KC_BOOTSTRAP_ADMIN_USERNAME=admin -e KC_BOOTSTRAP_ADMIN_PASSWORD=q quay.io/keycloak/keycloak:26.4.7 start-dev --import-realm
+
+
+
+
+
+
+
