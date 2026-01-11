@@ -1,0 +1,105 @@
+/*
+ *  Esquire frameworks (tm)
+ *  BizTree service
+ *
+ *  Copyright(c) 2001, 2025 mir0n&co www.mir0n.me
+ *  mailto:mir0n.the.programmer@gmail.com
+ *
+ *  History:
+ */
+
+package pro.mir0n.esquire.bizTree.security;
+
+import io.jsonwebtoken.Claims;
+import jakarta.servlet.FilterChain;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.lang.NonNull;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
+import org.springframework.stereotype.Component;
+import org.springframework.web.filter.OncePerRequestFilter;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import pro.mir0n.esquire.bizTree.constants.BizTreeConstants;
+
+@Slf4j
+@Component
+@RequiredArgsConstructor
+public class JwtAuthenticationFilter extends OncePerRequestFilter {
+
+    private final JwtService jwtService;
+    @Override
+    protected boolean shouldNotFilter(@NonNull HttpServletRequest request) throws ServletException {
+        String path = request.getServletPath();
+//log.debug("shouldNotFilter: request {} : {}", request.getMethod(), path);
+        return path.startsWith("/api/public/")
+                || path.startsWith("/swagger-ui/")
+                || path.startsWith("/actuator/health")
+                || path.startsWith("/v3/api-docs");
+    }
+
+    @Override
+    protected void doFilterInternal(
+            @NonNull HttpServletRequest request,
+            @NonNull HttpServletResponse response,
+            @NonNull FilterChain filterChain
+    ) throws ServletException, IOException {
+        final String authHeader = request.getHeader("Authorization");
+        final String jwt;
+        final String username;
+
+
+//log.debug("request {} : {}", request.getMethod(),request.getServletPath());
+//log.debug("authHeader: {}", authHeader);
+        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+            filterChain.doFilter(request, response);
+            return;
+        }
+
+        jwt = authHeader.substring(7);
+        try {
+            Claims claims = jwtService.extractAllClaims(jwt);
+            username = claims.getSubject();
+
+            // REJECT if username is missing or some required custom claim is missing
+            if (username == null
+            || claims.get(BizTreeConstants.JWT_CLAIM_ENTITY_ID) == null
+            || claims.get(BizTreeConstants.JWT_CLAIM_ENTITY_ROOTPATH) == null
+// todo: add validation of rootpath length > 1 & and has "."
+            ) {
+                sendErrorResponse(response, "Missing required claims ");
+                log.debug("Missing required claims {}", claims);
+                return;
+            }
+
+            if (SecurityContextHolder.getContext().getAuthentication() == null) {
+                UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
+                        claims, // Pass claims as principal
+                        null,
+                        new ArrayList<>()
+                );
+               authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+               SecurityContextHolder.getContext().setAuthentication(authToken);
+           }
+        } catch (Exception e) {
+            log.error("error on claims",e);
+            sendErrorResponse(response, "Invalid or expired token");
+            return; // STOP the chain here
+        }
+        filterChain.doFilter(request, response);
+
+    }
+
+    private void sendErrorResponse(HttpServletResponse response, String message) throws IOException {
+        response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+        response.setContentType("application/json");
+        response.getWriter().write("{\"error\": \"" + message + "\"}");
+    }
+
+}

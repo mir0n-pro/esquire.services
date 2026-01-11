@@ -1,5 +1,12 @@
 Esquire Gateway Microservice
 
+
+01/10/2026 mir0n 
+filters.RequestTraceFilter
+  - log expanded
+config.SecurityConfig
+  - make sure TREE role is in place  
+
 01/08/2026 mir0n Keycloak added
 GatewayApplication
   - @ConfigurationPropertiesScan is required now

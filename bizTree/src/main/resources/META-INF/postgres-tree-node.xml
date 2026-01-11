@@ -8,124 +8,124 @@
 -->
     <named-native-query name="EsqTreeNodeJpa.findRoot"  result-set-mapping="EsqTreeNodeJpaMapping">
         <query>
-SELECT 
-    t.tree_pk,
-    t.tree_tree_pk_parent,
-    t.tree_tree_pk_link,
-    t.tree_name,
-    t.tree_et_pk,
-    CASE COALESCE(u.usr_deleted_flg, a.acc_status)
+ SELECT t.tree_pk
+     ,t.tree_tree_pk_parent
+     ,t.tree_tree_pk_link
+     ,t.tree_name
+     ,t.tree_et_pk
+     ,CASE COALESCE(u.usr_deleted_flg, a.acc_status)
         WHEN 'Y' THEN 1
         WHEN 'C' THEN 1
         WHEN 'L' THEN 2
         ELSE 0
-    END AS status_code,
-    t.tree_entity_pk,
-    et.et_tree_flgs,
-    t.tree_level,
-    t.tree_desc,
-    t.tree_path
-FROM esq_tree t
-JOIN esq_entity_type et ON t.tree_et_pk = et.et_pk
-LEFT JOIN esq_user u ON t.tree_usr_pk = u.usr_pk
-LEFT JOIN esq_account a ON t.tree_acc_pk = a.acc_pk
-WHERE t.tree_tree_pk_parent IS NULL
+      END AS status_code
+    ,t.tree_entity_pk
+    ,et.et_tree_flgs
+    ,t.tree_level - :rootLevel AS tree_level
+    ,t.tree_desc
+    ,t.tree_path
+ FROM esq_tree t
+ JOIN esq_entity_type et ON t.tree_et_pk = et.et_pk
+ LEFT JOIN esq_user u ON t.tree_usr_pk = u.usr_pk
+ LEFT JOIN esq_account a ON t.tree_acc_pk = a.acc_pk
+ WHERE t.tree_pk = :rootId
+   AND t.tree_entity_path LIKE :rootPath || '%'
         </query>
     </named-native-query>
 
     <named-native-query name="EsqTreeNodeJpa.findByEntityId" result-set-mapping="EsqTreeNodeJpaMapping">
         <query>
-SELECT
-    tree_pk,
-    tree_tree_pk_parent,
-    tree_tree_pk_link,
-    tree_name,
-    tree_et_pk,
-    CASE COALESCE(usr_deleted_flg, acc_status)
+ SELECT tree_pk
+     ,tree_tree_pk_parent
+     ,tree_tree_pk_link
+     ,tree_name
+     ,tree_et_pk
+     ,CASE COALESCE(usr_deleted_flg, acc_status)
         WHEN 'Y' THEN 1
         WHEN 'C' THEN 1
         WHEN 'L' THEN 2
         ELSE 0
-    END AS status_code,
-    tree_entity_pk,
-    et_tree_flgs,
-    tree_level,
-    tree_desc,
-    tree_path
-FROM esq_tree
-JOIN esq_entity_type ON tree_et_pk = et_pk
-LEFT JOIN esq_user ON usr_pk = tree_usr_pk
-LEFT JOIN esq_account ON acc_pk = tree_acc_pk
-WHERE tree_entity_pk = CAST(:id as bigint)
+      END AS status_code
+    ,tree_entity_pk
+    ,et_tree_flgs
+    ,tree_level - :rootLevel AS tree_level
+    ,tree_desc
+    ,tree_path
+ FROM esq_tree
+ JOIN esq_entity_type ON tree_et_pk = et_pk
+ LEFT JOIN esq_user ON usr_pk = tree_usr_pk
+ LEFT JOIN esq_account ON acc_pk = tree_acc_pk
+ WHERE tree_entity_pk = CAST(:id as bigint)
   AND tree_tree_pk_link IS NULL
-FETCH NEXT 1 ROWS ONLY
+  AND tree_entity_path LIKE :rootPath || '%'
+ FETCH NEXT 1 ROWS ONLY
          </query>
     </named-native-query>
 
     <named-native-query name="EsqTreeNodeJpa.findByNameKind" result-set-mapping="EsqTreeNodeJpaMapping">
         <query>
-SELECT 
-    tree_pk,
-    tree_tree_pk_parent,
-    tree_tree_pk_link,
-    tree_name,
-    tree_et_pk,
-    CASE COALESCE(usr_deleted_flg, acc_status)
+ SELECT tree_pk
+     ,tree_tree_pk_parent
+     ,tree_tree_pk_link
+     ,tree_name
+     ,tree_et_pk
+     ,CASE COALESCE(usr_deleted_flg, acc_status)
         WHEN 'Y' THEN 1
         WHEN 'C' THEN 1
         WHEN 'L' THEN 2
         ELSE 0
-    END AS status_code,
-    tree_entity_pk,
-    et_tree_flgs,
-    tree_level,
-    tree_desc,
-    tree_path
-FROM esq_tree
-JOIN esq_entity_type ON tree_et_pk = et_pk
-LEFT JOIN esq_user ON usr_pk = tree_usr_pk
-LEFT JOIN esq_account ON acc_pk = tree_acc_pk
-WHERE tree_name = :name
+     END AS status_code
+    ,tree_entity_pk
+    ,et_tree_flgs
+    ,tree_level - :rootLevel AS tree_level
+    ,tree_desc
+    ,tree_path
+ FROM esq_tree
+ JOIN esq_entity_type ON tree_et_pk = et_pk
+ LEFT JOIN esq_user ON usr_pk = tree_usr_pk
+ LEFT JOIN esq_account ON acc_pk = tree_acc_pk
+ WHERE tree_name = :name
   AND tree_et_pk = :kind
-FETCH NEXT 1 ROWS ONLY
+  AND tree_entity_path LIKE :rootPath || '%'
+ FETCH NEXT 1 ROWS ONLY
         </query>
     </named-native-query>
 
     <named-native-query name="EsqTreeNodeJpa.findNodes" result-set-mapping="EsqTreeNodeJpaMapping">
         <query>
-SELECT 
-    tree_pk,
-    tree_tree_pk_parent,
-    tree_tree_pk_link,
-    tree_name,
-    tree_et_pk,
-    CASE COALESCE(usr_deleted_flg, acc_status)
+ SELECT tree_pk
+    ,tree_tree_pk_parent
+    ,tree_tree_pk_link
+    ,tree_name
+    ,tree_et_pk
+    ,CASE COALESCE(usr_deleted_flg, acc_status)
         WHEN 'Y' THEN 1
         WHEN 'C' THEN 1
         WHEN 'L' THEN 2
         ELSE 0
-    END AS status_code,
-    tree_entity_pk,
-    et_tree_flgs,
-    tree_level,
-    tree_desc,
-    tree_path
-FROM esq_tree
-JOIN esq_entity_type ON tree_et_pk = et_pk
-LEFT JOIN esq_user ON usr_pk = tree_usr_pk
-LEFT JOIN esq_account ON acc_pk = tree_acc_pk
-WHERE tree_tree_pk_parent = :id
-         </query>
+     END AS status_code
+    ,tree_entity_pk
+    ,et_tree_flgs
+    ,tree_level - :rootLevel AS tree_level
+    ,tree_desc
+    ,tree_path
+ FROM esq_tree
+ JOIN esq_entity_type ON tree_et_pk = et_pk
+ LEFT JOIN esq_user ON usr_pk = tree_usr_pk
+ LEFT JOIN esq_account ON acc_pk = tree_acc_pk
+ WHERE tree_tree_pk_parent = :id
+   AND tree_entity_path LIKE :rootPath || '%'
+        </query>
     </named-native-query>
 
 
     <named-native-query name="EsqTreeNodeJpa.findPath">
         <query>
-SELECT tree_path
-FROM esq_tree
-WHERE tree_pk = :id
+ SELECT tree_path
+ FROM esq_tree
+ WHERE tree_pk = :id
   AND tree_tree_pk_link IS NULL
-FETCH NEXT 1 ROWS ONLY
+ FETCH NEXT 1 ROWS ONLY
         </query>
     </named-native-query>
 

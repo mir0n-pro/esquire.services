@@ -6,6 +6,7 @@
  *  mailto:mir0n.the.programmer@gmail.com
  *
  *  History:
+ * 01/10/2026 mir0n rootPath and uid params added were required
  */
 
 package pro.mir0n.esquire.bizTree.service;
@@ -18,11 +19,11 @@ import pro.mir0n.esquire.bizTree.dto.EsqEntityLayer;
 
 public interface IBizTreeService {
 
-    List<EsqTreeNode> esquire(String id, Integer skip, Integer take);
+    List<EsqTreeNode> esquire(String id, Integer skip, Integer take, String rootPath, String uid);
     List<EsqEntityLayer> esquireDictionary(Integer kind);
-    EsqTreeNode esquireEntityNode(Integer kind, String id, String name);
-    List<String> esquirePath(String id);
-    public EsqEntity esquireCommand(Integer kind, String id, String cmd);
+    EsqTreeNode esquireEntityNode(Integer kind, String id, String name, String rootPath, String uid);
+    List<String> esquirePath(String id, String rootPath);
+    public EsqEntity esquireCommand(Integer kind, String id, String cmd, String rootPath, String uid );
 
 
     }

@@ -6,6 +6,7 @@
  *  mailto:mir0n.the.programmer@gmail.com
  *
  *  History:
+ * 01/10/2026 mir0n let's have '.' as path separator as generic
  */
 
 package pro.mir0n.esquire.bizTree.dto;
@@ -45,7 +46,7 @@ public class EsqTreeNodeMapper {
     public static List<String> pathArray(String path) {
         List<String> ret = new ArrayList<>();
         if (path != null && !path.isEmpty()) {
-            String[] pathArr = path.split("/");
+            String[] pathArr = path.split("[.]");
             Collections.addAll(ret, pathArr);
         }
         return ret;

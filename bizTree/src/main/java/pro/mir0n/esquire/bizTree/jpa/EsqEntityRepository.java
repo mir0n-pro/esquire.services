@@ -6,6 +6,7 @@
  *  mailto:mir0n.the.programmer@gmail.com
  *
  *  History:
+ * 01/10/2006 mir0n rootPath param added
  */
 
 package pro.mir0n.esquire.bizTree.jpa;
@@ -19,9 +20,9 @@ import org.springframework.stereotype.Repository;
 public interface EsqEntityRepository extends JpaRepository<EsqEntityJpa, String> {
 
     @NativeQuery
-    EsqEntityJpa detailAcct (@Param("id") String id);
+    EsqEntityJpa detailAcct (@Param("id") String id, @Param("rootPath") String rootPath);
     @NativeQuery
-    EsqEntityJpa detailUsr (@Param("id") String id);
+    EsqEntityJpa detailUsr (@Param("id") String id, @Param("rootPath") String rootPath);
     @NativeQuery
-    EsqEntityJpa detailOrg (@Param("id") String id);
+    EsqEntityJpa detailOrg (@Param("id") String id, @Param("rootPath") String rootPath);
 }

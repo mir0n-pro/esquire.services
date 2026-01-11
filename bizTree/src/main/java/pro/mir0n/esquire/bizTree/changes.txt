@@ -1,5 +1,26 @@
 Esquire BizTree Microservice
 
+01/10/2026 mir0n User claims
+constants.BizTreeConstants
+  - added JWT_CLAIM_ENTITY_ID, JWT_CLAIM_ENTITY_ROOTPATH
+controller.BizTreeController  
+  - added processing of user claims
+dto.EsqTreeNodeMapper  
+  - let's have '.' as path separator as generic
+jpa.EsqEntityRepository
+  - rootPath param added
+jpa.EsqTreeNodeRepository
+  - root* params added
+added security.JwtAuthenticationFilter
+added security.JwtService
+added security.SecurityConfiguration
+service.IBizTreeService
+  - rootPath and uid params added were required
+service.impl.BizTreeService.java
+  - rootPath and uid params added were required
+
+
+
 12/28/2025 mir0n logging
 BizTreeApplication  
   - logging added using Slf4j

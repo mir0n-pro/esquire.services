@@ -6,6 +6,7 @@
  *  mailto:mir0n.the.programmer@gmail.com
  *
  *  History:
+ * 01/10/2026 mir0n root* params added
  */
 
 package pro.mir0n.esquire.bizTree.jpa;
@@ -27,18 +28,19 @@ public interface EsqTreeNodeRepository extends JpaRepository<EsqTreeNodeJpa, Str
     //List<TreeNode> findAll();
 
     @NativeQuery
-    List<EsqTreeNodeJpa> findRoot();
+    List<EsqTreeNodeJpa> findRoot(@Param("rootId") String rootId, @Param("rootLevel") int rootLevel, @Param("rootPath") String rootPath);
 
     @NativeQuery
-    List<EsqTreeNodeJpa> findNodes(@Param("id") String id);
+    List<EsqTreeNodeJpa> findNodes(@Param("id") String id, @Param("rootLevel") int rootLevel, @Param("rootPath")
+    String rootPath);
 
     @NativeQuery
     String findPath(@Param("id") String id);
 
     @NativeQuery
-    EsqTreeNodeJpa findByEntityId(@Param("id") String id);
+    EsqTreeNodeJpa findByEntityId(@Param("id") String id, @Param("rootLevel") int rootLevel, @Param("rootPath") String rootPath);
 
     @NativeQuery
-    EsqTreeNodeJpa findByNameKind(@Param("name") String id, @Param("kind") Integer kind);
+    EsqTreeNodeJpa findByNameKind(@Param("name") String id, @Param("kind") Integer kind, @Param("rootLevel") int rootLevel, @Param("rootPath") String rootPath);
 
 }

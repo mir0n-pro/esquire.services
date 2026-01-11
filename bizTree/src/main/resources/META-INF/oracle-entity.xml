@@ -8,41 +8,44 @@
 -->
     <named-native-query name="EsqEntityJpa.detailOrg"  result-set-mapping="EsqOrgJpaMapping">
         <query>
-            SELECT org_pk as "pk"
-            , org_et_pk  as "kind"
-            , org_name as "name"
-            , org_desc as "desc"
-            , org_full_name
-            FROM esq_org
-            WHERE  org_pk = :id
+ SELECT org_pk as "pk"
+     ,org_et_pk  as "kind"
+     ,org_name as "name"
+     ,org_desc as "desc"
+     ,org_full_name
+ FROM esq_org
+ WHERE org_pk = :id
+ AND org_path LIKE :rootPath || '%'
         </query>
     </named-native-query>
 
     <named-native-query name="EsqEntityJpa.detailUsr"  result-set-mapping="EsqUsrJpaMapping">
         <query>
-            SELECT usr_pk as "pk"
-            , usr_et_pk as "kind"
-            , usr_name as "name"
-            , usr_desc as "desc"
-            , usr_login_id
-            , usr_reg_option
-            , usr_deleted_flg
-            FROM esq_user
-            WHERE  usr_pk = :id
+ SELECT usr_pk as "pk"
+     ,usr_et_pk as "kind"
+     ,usr_name as "name"
+     ,usr_desc as "desc"
+     ,usr_login_id
+     ,usr_reg_option
+     ,usr_deleted_flg
+ FROM esq_user
+ WHERE usr_pk = :id
+ AND usr_path LIKE :rootPath || '%'
         </query>
     </named-native-query>
 
     <named-native-query name="EsqEntityJpa.detailAcct"  result-set-mapping="EsqAcctJpaMapping">
         <query>
-            SELECT acc_pk as "pk"
-            , acc_et_pk as "kind"
-            , acc_id as "name"
-            , acc_desc as "desc"
-            , acc_ccy
-            , acc_balance
-            , acc_status
-            FROM esq_account
-            WHERE  acc_pk = :id
+ SELECT acc_pk as "pk"
+     ,acc_et_pk as "kind"
+     ,acc_id as "name"
+     ,acc_desc as "desc"
+     ,acc_ccy
+     ,acc_balance
+     ,acc_status
+ FROM esq_account
+ WHERE acc_pk = :id
+ AND acc_path LIKE :rootPath || '%'
         </query>
     </named-native-query>
 

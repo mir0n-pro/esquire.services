@@ -443,21 +443,26 @@
   "webAuthnPolicyPasswordlessAcceptableAaguids" : [ ],
   "webAuthnPolicyPasswordlessExtraOrigins" : [ ],
   "users" : [ {
-    "id" : "ee815529-090d-4493-9fb5-0bc51cf00209",
+    "id" : "8df118cc-72af-45a3-b19b-554277990396",
     "username" : "client",
-    "firstName" : "Department",
-    "lastName" : "Client",
+    "firstName" : "Cli",
+    "lastName" : "Ent",
     "email" : "littletowerhill6@gmail.com",
     "emailVerified" : true,
+    "attributes" : {
+      "esq_uid" : [ "9" ],
+      "esq_rootid" : [ "9" ],
+      "esq_rootpath" : [ "1.2.3.9." ]
+    },
     "enabled" : true,
-    "createdTimestamp" : 1767846676126,
+    "createdTimestamp" : 1767843970020,
     "totp" : false,
     "credentials" : [ {
-      "id" : "7c20c624-c563-40cb-a973-e2197e432bae",
+      "id" : "2b089510-5aa8-4e73-8a1d-2b245272b3f8",
       "type" : "password",
       "userLabel" : "My password",
-      "createdDate" : 1767846684502,
-      "secretData" : "{\"value\":\"tFXpHZdAkCGU832NmiHswRqRbhvitIa+z18NJWUcAjE=\",\"salt\":\"LXLR0GplVJX5UdRMNo4RIg==\",\"additionalParameters\":{}}",
+      "createdDate" : 1767843986423,
+      "secretData" : "{\"value\":\"jrvZpTlBS4UnGJliK+txdJjkwmUzZkglkHvUo+ImbOc=\",\"salt\":\"HRB6EnOsS7DM7JR8s5l26g==\",\"additionalParameters\":{}}",
       "credentialData" : "{\"hashIterations\":5,\"algorithm\":\"argon2\",\"additionalParameters\":{\"hashLength\":[\"32\"],\"memory\":[\"7168\"],\"type\":[\"id\"],\"version\":[\"1.3\"],\"parallelism\":[\"1\"]}}"
     } ],
     "disableableCredentialTypes" : [ ],
@@ -466,35 +471,45 @@
     "notBefore" : 0,
     "groups" : [ "/Angular users" ]
   }, {
-    "id" : "70f879c0-eeec-4dac-9766-3c38c8683472",
+    "id" : "1c1874a2-cda2-4324-ae77-6fcd8c4e030b",
     "username" : "departmentadmin",
     "firstName" : "Department",
     "lastName" : "Manager",
-    "email" : "littletowerhill3@gmail.com",
+    "email" : "littletowerhill4@gmail.com",
     "emailVerified" : true,
+    "attributes" : {
+      "esq_uid" : [ "8" ],
+      "esq_rootid" : [ "3" ],
+      "esq_rootpath" : [ "1.2.3." ]
+    },
     "enabled" : true,
-    "createdTimestamp" : 1767846458999,
+    "createdTimestamp" : 1767843218658,
     "totp" : false,
     "credentials" : [ {
-      "id" : "477d2d22-22c4-4832-91bc-78326da20d9f",
+      "id" : "d19d8e72-d540-4e9e-95db-42e673c778fe",
       "type" : "password",
       "userLabel" : "My password",
-      "createdDate" : 1767846468538,
-      "secretData" : "{\"value\":\"xdLG+mugsbKmeIqtDhTSoy8z3HyzuTku+434PPX7n5M=\",\"salt\":\"AP1q4PfOWoTgozrytHE0Ng==\",\"additionalParameters\":{}}",
+      "createdDate" : 1767843228598,
+      "secretData" : "{\"value\":\"JR+1Ptb+hr7pYi0DtM89bigy9xyGsvjVstgSEsej4LM=\",\"salt\":\"JZVxChQLzKFyaT2sUy3ixA==\",\"additionalParameters\":{}}",
       "credentialData" : "{\"hashIterations\":5,\"algorithm\":\"argon2\",\"additionalParameters\":{\"hashLength\":[\"32\"],\"memory\":[\"7168\"],\"type\":[\"id\"],\"version\":[\"1.3\"],\"parallelism\":[\"1\"]}}"
     } ],
     "disableableCredentialTypes" : [ ],
     "requiredActions" : [ ],
-    "realmRoles" : [ "default-roles-esquire" ],
+    "realmRoles" : [ "MANAGER", "default-roles-esquire", "TREE" ],
     "notBefore" : 0,
     "groups" : [ "/Angular users" ]
   }, {
     "id" : "ef39ea2e-30e0-4576-870b-2b46caad6c06",
     "username" : "mainadmin",
-    "firstName" : "System",
-    "lastName" : "Administrator",
+    "firstName" : "Super",
+    "lastName" : "Vizor",
     "email" : "littletowerhill@gmail.com",
     "emailVerified" : true,
+    "attributes" : {
+      "esq_uid" : [ "4" ],
+      "esq_rootid" : [ "1" ],
+      "esq_rootpath" : [ "1." ]
+    },
     "enabled" : true,
     "createdTimestamp" : 1767770755789,
     "totp" : false,
@@ -511,21 +526,26 @@
     "notBefore" : 0,
     "groups" : [ "/Angular users" ]
   }, {
-    "id" : "bc323fad-319f-4430-acb9-e7725fe3a273",
+    "id" : "dfef3f31-410f-4305-84b9-e29dc53c0c02",
     "username" : "merchant",
-    "firstName" : "Office",
-    "lastName" : "Merchant",
+    "firstName" : "Mer",
+    "lastName" : "Chant",
     "email" : "littletowerhill5@gmail.com",
     "emailVerified" : true,
+    "attributes" : {
+      "esq_uid" : [ "7" ],
+      "esq_rootid" : [ "7" ],
+      "esq_rootpath" : [ "1.2.7." ]
+    },
     "enabled" : true,
-    "createdTimestamp" : 1767846598097,
+    "createdTimestamp" : 1767843323265,
     "totp" : false,
     "credentials" : [ {
-      "id" : "2e2990d4-e360-4d7c-8f2b-f5bf3c3f1075",
+      "id" : "6f75bce2-fdc9-4e53-9391-4b74893a31f0",
       "type" : "password",
       "userLabel" : "My password",
-      "createdDate" : 1767846607736,
-      "secretData" : "{\"value\":\"DILwam19w/HzUzdq7WUSKFOb8gvtWqj3QVTLsHHkGIU=\",\"salt\":\"2pgjZ/qhtwhzT9onbNbIIw==\",\"additionalParameters\":{}}",
+      "createdDate" : 1767843334444,
+      "secretData" : "{\"value\":\"as4YkBpoMh6wPbvohFUIAnNKC487tY0mH/f6PjwRzKk=\",\"salt\":\"vw3kgqwMUaxTvJvO4K9eVQ==\",\"additionalParameters\":{}}",
       "credentialData" : "{\"hashIterations\":5,\"algorithm\":\"argon2\",\"additionalParameters\":{\"hashLength\":[\"32\"],\"memory\":[\"7168\"],\"type\":[\"id\"],\"version\":[\"1.3\"],\"parallelism\":[\"1\"]}}"
     } ],
     "disableableCredentialTypes" : [ ],
@@ -534,32 +554,44 @@
     "notBefore" : 0,
     "groups" : [ "/Angular users" ]
   }, {
-    "id" : "28281c48-b072-417d-8083-519f563567b2",
+    "id" : "d076abb8-c665-4e22-90a2-98f7a3443cad",
     "username" : "officeadmin",
     "firstName" : "Office",
     "lastName" : "Manager",
     "email" : "littletowerhill2@gmail.com",
     "emailVerified" : true,
+    "attributes" : {
+      "esq_uid" : [ "6" ],
+      "esq_rootid" : [ "2" ],
+      "esq_rootpath" : [ "1.2." ]
+    },
     "enabled" : true,
-    "createdTimestamp" : 1767846388571,
+    "createdTimestamp" : 1767842917076,
     "totp" : false,
     "credentials" : [ {
-      "id" : "fd2d658d-e7e5-4c65-9bab-9cbbb5b55bf1",
+      "id" : "33c7931f-0edf-431b-b03b-9551c4e435d7",
       "type" : "password",
       "userLabel" : "My password",
-      "createdDate" : 1767846416989,
-      "secretData" : "{\"value\":\"2YbvJFn9daPjpFYXkIygp7E4u/ktg7aK19klAd1UQ2U=\",\"salt\":\"qcY4AGF/eAcW2GXa7MMgQA==\",\"additionalParameters\":{}}",
+      "createdDate" : 1767842934895,
+      "secretData" : "{\"value\":\"BB8qM44tBPmrqcodfDlU1WnMAY68hOPfszdVpq7mu10=\",\"salt\":\"GJgJGdIj5xdiam0ds8iIlQ==\",\"additionalParameters\":{}}",
       "credentialData" : "{\"hashIterations\":5,\"algorithm\":\"argon2\",\"additionalParameters\":{\"hashLength\":[\"32\"],\"memory\":[\"7168\"],\"type\":[\"id\"],\"version\":[\"1.3\"],\"parallelism\":[\"1\"]}}"
     } ],
     "disableableCredentialTypes" : [ ],
     "requiredActions" : [ ],
     "realmRoles" : [ "MANAGER", "default-roles-esquire", "TREE" ],
     "notBefore" : 0,
-    "groups" : [ "/Angular users" ]
+    "groups" : [ ]
   }, {
     "id" : "2ab86a74-419d-4999-ac73-27d088a49b2f",
     "username" : "service-account-esq-rest",
+    "firstName" : "Mir",
+    "lastName" : "On",
+    "email" : "mir0n.the.programmer@gmail.com",
     "emailVerified" : false,
+    "attributes" : {
+      "esq_uid" : [ "4" ],
+      "esq_rootpath" : [ "1." ]
+    },
     "enabled" : true,
     "createdTimestamp" : 1767747592964,
     "totp" : false,
@@ -571,21 +603,26 @@
     "notBefore" : 0,
     "groups" : [ ]
   }, {
-    "id" : "6b14876d-5574-4d51-ae79-292c4148a487",
+    "id" : "1608956a-ea47-42b0-ab16-fe4d4eb8df96",
     "username" : "support",
     "firstName" : "Office",
     "lastName" : "Support",
-    "email" : "littletowerhill4@gmail.com",
+    "email" : "littletowerhill3@gmail.com",
     "emailVerified" : true,
+    "attributes" : {
+      "esq_uid" : [ "5" ],
+      "esq_rootid" : [ "2" ],
+      "esq_rootpath" : [ "1.2." ]
+    },
     "enabled" : true,
-    "createdTimestamp" : 1767846505935,
+    "createdTimestamp" : 1767843071595,
     "totp" : false,
     "credentials" : [ {
-      "id" : "76188848-8b23-428b-84b6-e7d9f07f6bbe",
+      "id" : "3e17b09a-562e-46f6-91e3-05ed1c0b8291",
       "type" : "password",
       "userLabel" : "My password",
-      "createdDate" : 1767846522985,
-      "secretData" : "{\"value\":\"OY/GQn7cj2XurkPhzkd5XZBD5ZMtqaWBAHqz0OmFWkc=\",\"salt\":\"cbrQ8ZUA3s/MuYXSRj4oLw==\",\"additionalParameters\":{}}",
+      "createdDate" : 1767843082512,
+      "secretData" : "{\"value\":\"bVf+bI3GVU8zSj9rjk8PzFvpstnFkUQVPDL6vHdJnDc=\",\"salt\":\"Ug4r/HeXuqgEdc8MP3RyKQ==\",\"additionalParameters\":{}}",
       "credentialData" : "{\"hashIterations\":5,\"algorithm\":\"argon2\",\"additionalParameters\":{\"hashLength\":[\"32\"],\"memory\":[\"7168\"],\"type\":[\"id\"],\"version\":[\"1.3\"],\"parallelism\":[\"1\"]}}"
     } ],
     "disableableCredentialTypes" : [ ],
@@ -783,12 +820,51 @@
       "protocolMapper" : "oidc-usermodel-realm-role-mapper",
       "consentRequired" : false,
       "config" : {
-        "user.attribute" : "foo",
         "introspection.token.claim" : "true",
+        "multivalued" : "true",
+        "userinfo.token.claim" : "false",
+        "user.attribute" : "foo",
+        "id.token.claim" : "false",
+        "lightweight.claim" : "false",
         "access.token.claim" : "true",
         "claim.name" : "realm_access.roles",
-        "jsonType.label" : "String",
-        "multivalued" : "true"
+        "jsonType.label" : "String"
+      }
+    }, {
+      "id" : "082ff893-c36f-4fe7-9e27-98662b6f908d",
+      "name" : "esq_id_mapper",
+      "protocol" : "openid-connect",
+      "protocolMapper" : "oidc-usermodel-attribute-mapper",
+      "consentRequired" : false,
+      "config" : {
+        "aggregate.attrs" : "false",
+        "introspection.token.claim" : "false",
+        "multivalued" : "false",
+        "userinfo.token.claim" : "true",
+        "user.attribute" : "esq_uid",
+        "id.token.claim" : "false",
+        "lightweight.claim" : "false",
+        "access.token.claim" : "true",
+        "claim.name" : "esq_uid",
+        "jsonType.label" : "String"
+      }
+    }, {
+      "id" : "e15e697a-e3a2-437a-b6a4-3acc0e5b2528",
+      "name" : "esq_rootpath_mapper",
+      "protocol" : "openid-connect",
+      "protocolMapper" : "oidc-usermodel-attribute-mapper",
+      "consentRequired" : false,
+      "config" : {
+        "aggregate.attrs" : "false",
+        "introspection.token.claim" : "false",
+        "multivalued" : "false",
+        "userinfo.token.claim" : "true",
+        "user.attribute" : "esq_rootpath",
+        "id.token.claim" : "false",
+        "lightweight.claim" : "false",
+        "access.token.claim" : "true",
+        "claim.name" : "esq_rootpath",
+        "jsonType.label" : "String"
       }
     } ],
     "defaultClientScopes" : [ "web-origins", "acr", "openid", "roles", "profile", "basic", "email" ],
@@ -805,7 +881,7 @@
     "enabled" : true,
     "alwaysDisplayInConsole" : false,
     "clientAuthenticatorType" : "client-secret",
-    "secret" : "yc2s0uiUJTrtbVuZnvIQEjhj6ainXdut",
+    "secret" : "1mXokFBz5b0jJKPnELER1ondN7aMiBZl",
     "redirectUris" : [ "/*" ],
     "webOrigins" : [ "/*" ],
     "notBefore" : 0,
@@ -833,7 +909,7 @@
       "request.object.encryption.enc" : "any",
       "dpop.bound.access.tokens" : "false",
       "id.token.as.detached.signature" : "false",
-      "client.secret.creation.time" : "1767807858",
+      "client.secret.creation.time" : "1768095305",
       "request.object.encryption.alg" : "any",
       "client.introspection.response.allow.jwt.claim.enabled" : "false",
       "standard.token.exchange.enabled" : "false",
@@ -848,6 +924,43 @@
     "authenticationFlowBindingOverrides" : { },
     "fullScopeAllowed" : true,
     "nodeReRegistrationTimeout" : -1,
+    "protocolMappers" : [ {
+      "id" : "b9b9afe9-fcf1-4361-b16a-00fbd17e5acf",
+      "name" : "esq_uid_mapper",
+      "protocol" : "openid-connect",
+      "protocolMapper" : "oidc-usermodel-attribute-mapper",
+      "consentRequired" : false,
+      "config" : {
+        "aggregate.attrs" : "false",
+        "introspection.token.claim" : "false",
+        "multivalued" : "false",
+        "userinfo.token.claim" : "false",
+        "user.attribute" : "esq_uid",
+        "id.token.claim" : "false",
+        "lightweight.claim" : "false",
+        "access.token.claim" : "true",
+        "claim.name" : "esq_uid",
+        "jsonType.label" : "String"
+      }
+    }, {
+      "id" : "61c8e830-cbc7-4dde-9db7-390ad792e47d",
+      "name" : "esq_rootpath_mapper",
+      "protocol" : "openid-connect",
+      "protocolMapper" : "oidc-usermodel-attribute-mapper",
+      "consentRequired" : false,
+      "config" : {
+        "aggregate.attrs" : "false",
+        "introspection.token.claim" : "false",
+        "multivalued" : "false",
+        "userinfo.token.claim" : "false",
+        "user.attribute" : "esq_rootpath",
+        "id.token.claim" : "false",
+        "lightweight.claim" : "false",
+        "access.token.claim" : "true",
+        "claim.name" : "esq_rootpath",
+        "jsonType.label" : "String"
+      }
+    } ],
     "defaultClientScopes" : [ "web-origins", "service_account", "acr", "openid", "roles", "profile", "basic", "email" ],
     "optionalClientScopes" : [ "address", "phone", "organization", "offline_access", "microprofile-jwt" ]
   }, {
@@ -1596,7 +1709,7 @@
       "subType" : "anonymous",
       "subComponents" : { },
       "config" : {
-        "allowed-protocol-mapper-types" : [ "oidc-sha256-pairwise-sub-mapper", "saml-role-list-mapper", "oidc-full-name-mapper", "oidc-usermodel-property-mapper", "oidc-address-mapper", "saml-user-property-mapper", "saml-user-attribute-mapper", "oidc-usermodel-attribute-mapper" ]
+        "allowed-protocol-mapper-types" : [ "saml-role-list-mapper", "oidc-address-mapper", "oidc-usermodel-attribute-mapper", "oidc-usermodel-property-mapper", "saml-user-attribute-mapper", "oidc-sha256-pairwise-sub-mapper", "saml-user-property-mapper", "oidc-full-name-mapper" ]
       }
     }, {
       "id" : "43e9cc26-1379-4eeb-b3aa-037bc45223f2",
@@ -1637,7 +1750,7 @@
       "subType" : "authenticated",
       "subComponents" : { },
       "config" : {
-        "allowed-protocol-mapper-types" : [ "saml-role-list-mapper", "oidc-sha256-pairwise-sub-mapper", "oidc-usermodel-attribute-mapper", "saml-user-attribute-mapper", "saml-user-property-mapper", "oidc-address-mapper", "oidc-full-name-mapper", "oidc-usermodel-property-mapper" ]
+        "allowed-protocol-mapper-types" : [ "oidc-full-name-mapper", "saml-user-property-mapper", "saml-user-attribute-mapper", "saml-role-list-mapper", "oidc-usermodel-property-mapper", "oidc-usermodel-attribute-mapper", "oidc-address-mapper", "oidc-sha256-pairwise-sub-mapper" ]
       }
     }, {
       "id" : "6c100d76-9cde-4128-9dff-6cbc1864df52",
@@ -1657,6 +1770,14 @@
       "subComponents" : { },
       "config" : {
         "allow-default-scopes" : [ "true" ]
+      }
+    } ],
+    "org.keycloak.userprofile.UserProfileProvider" : [ {
+      "id" : "eb7386d4-0b4c-4a2f-8165-a3a364fee480",
+      "providerId" : "declarative-user-profile",
+      "subComponents" : { },
+      "config" : {
+        "kc.user.profile.config" : [ "{\"attributes\":[{\"name\":\"username\",\"displayName\":\"${username}\",\"validations\":{\"length\":{\"min\":3,\"max\":255},\"username-prohibited-characters\":{},\"up-username-not-idn-homograph\":{}},\"permissions\":{\"view\":[\"admin\",\"user\"],\"edit\":[\"admin\",\"user\"]},\"multivalued\":false},{\"name\":\"email\",\"displayName\":\"${email}\",\"validations\":{\"email\":{},\"length\":{\"max\":255}},\"required\":{\"roles\":[\"user\"]},\"permissions\":{\"view\":[\"admin\",\"user\"],\"edit\":[\"admin\",\"user\"]},\"multivalued\":false},{\"name\":\"firstName\",\"displayName\":\"${firstName}\",\"validations\":{\"length\":{\"max\":255},\"person-name-prohibited-characters\":{}},\"required\":{\"roles\":[\"user\"]},\"permissions\":{\"view\":[\"admin\",\"user\"],\"edit\":[\"admin\",\"user\"]},\"multivalued\":false},{\"name\":\"lastName\",\"displayName\":\"${lastName}\",\"validations\":{\"length\":{\"max\":255},\"person-name-prohibited-characters\":{}},\"required\":{\"roles\":[\"user\"]},\"permissions\":{\"view\":[\"admin\",\"user\"],\"edit\":[\"admin\",\"user\"]},\"multivalued\":false},{\"name\":\"esq_rootpath\",\"displayName\":\"\",\"validations\":{},\"annotations\":{},\"permissions\":{\"view\":[\"admin\",\"user\"],\"edit\":[\"admin\"]},\"selector\":{\"scopes\":[\"profile\"]},\"multivalued\":false},{\"name\":\"esq_uid\",\"displayName\":\"\",\"validations\":{},\"annotations\":{},\"permissions\":{\"view\":[\"admin\",\"user\"],\"edit\":[\"admin\"]},\"selector\":{\"scopes\":[\"profile\"]},\"multivalued\":false}],\"groups\":[{\"name\":\"user-metadata\",\"displayHeader\":\"User metadata\",\"displayDescription\":\"Attributes, which refer to user metadata\"}]}" ]
       }
     } ],
     "org.keycloak.keys.KeyProvider" : [ {

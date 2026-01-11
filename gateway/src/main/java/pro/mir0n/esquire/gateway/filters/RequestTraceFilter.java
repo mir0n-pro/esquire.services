@@ -6,6 +6,7 @@
  *  mailto:mir0n.the.programmer@gmail.com
  *
  *  History:
+ * 01/10/2026 mir0n  log expanded
  */
 package pro.mir0n.esquire.gateway.filters;
 
@@ -38,7 +39,8 @@ public class RequestTraceFilter implements GlobalFilter {
         } else {
             String correlationID = generateCorrelationId();
             exchange = filterUtility.setCorrelationId(exchange, correlationID);
-            log.debug("esq-correlation-id generated in RequestTraceFilter : {}", correlationID);
+            log.debug("esq-correlation-id generated in RequestTraceFilter : {} uri:{}:{}"
+                , correlationID,exchange.getRequest().getMethod(),exchange.getRequest().getURI());
         }
         return chain.filter(exchange);
     }

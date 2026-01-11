@@ -6,6 +6,7 @@
  *  mailto:mir0n.the.programmer@gmail.com
  *
  *  History:
+ * 01/10/2026 mir0n  make sure TREE role is in place
  */
 package pro.mir0n.esquire.gateway.config;
 
@@ -84,11 +85,11 @@ public class SecurityConfig {
  */
         serverHttpSecurity
                 .csrf(csrfSpec -> csrfSpec.disable())
-//                .cors(Customizer.withDefaults()) // to let global cors setting works!!! Bit it Does not work !!!
                 .cors(cors -> cors.configurationSource(corsConfigurationSource(props)))
                 .authorizeExchange(exchanges -> exchanges
                   .pathMatchers(HttpMethod.OPTIONS,"/**").permitAll()
-                  .pathMatchers(HttpMethod.GET, "/esq*").authenticated() // Protect your endpoint
+                  .pathMatchers("/esq*").authenticated() // Protect your endpoint
+                  .pathMatchers("/esq*").hasRole("TREE") // Protect your endpoint
                   .anyExchange().permitAll()
                 )
                 .oauth2ResourceServer(oauth2 -> oauth2.jwt(Customizer.withDefaults()))
