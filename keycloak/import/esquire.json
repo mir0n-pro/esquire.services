@@ -34,7 +34,7 @@
   "loginWithEmailAllowed" : true,
   "duplicateEmailsAllowed" : false,
   "resetPasswordAllowed" : false,
-  "editUsernameAllowed" : false,
+  "editUsernameAllowed" : true,
   "bruteForceProtected" : false,
   "permanentLockout" : false,
   "maxTemporaryLockouts" : 0,
@@ -55,17 +55,17 @@
       "containerId" : "80458a9a-9909-42ad-9ff0-398f36e3b4dc",
       "attributes" : { }
     }, {
-      "id" : "fed13a33-2ad3-461e-87d1-88e7b683099d",
-      "name" : "MERCHANT",
-      "description" : "Esquire merchant",
+      "id" : "04a23ce9-5612-4065-b5f1-d5405ca8d21c",
+      "name" : "offline_access",
+      "description" : "${role_offline-access}",
       "composite" : false,
       "clientRole" : false,
       "containerId" : "80458a9a-9909-42ad-9ff0-398f36e3b4dc",
       "attributes" : { }
     }, {
-      "id" : "04a23ce9-5612-4065-b5f1-d5405ca8d21c",
-      "name" : "offline_access",
-      "description" : "${role_offline-access}",
+      "id" : "6f6735c0-929e-4ae3-937f-9eb9f713e630",
+      "name" : "ENDUSER",
+      "description" : "Esquire end-user: Client and Merchant have this",
       "composite" : false,
       "clientRole" : false,
       "containerId" : "80458a9a-9909-42ad-9ff0-398f36e3b4dc",
@@ -105,14 +105,6 @@
           "account" : [ "view-profile", "manage-account" ]
         }
       },
-      "clientRole" : false,
-      "containerId" : "80458a9a-9909-42ad-9ff0-398f36e3b4dc",
-      "attributes" : { }
-    }, {
-      "id" : "2430aac4-3e01-45cd-9371-51d12f4cb901",
-      "name" : "CLIENT",
-      "description" : "Esquire client",
-      "composite" : false,
       "clientRole" : false,
       "containerId" : "80458a9a-9909-42ad-9ff0-398f36e3b4dc",
       "attributes" : { }
@@ -467,7 +459,7 @@
     } ],
     "disableableCredentialTypes" : [ ],
     "requiredActions" : [ ],
-    "realmRoles" : [ "default-roles-esquire", "CLIENT", "TREE" ],
+    "realmRoles" : [ "ENDUSER", "default-roles-esquire", "TREE" ],
     "notBefore" : 0,
     "groups" : [ "/Angular users" ]
   }, {
@@ -550,7 +542,7 @@
     } ],
     "disableableCredentialTypes" : [ ],
     "requiredActions" : [ ],
-    "realmRoles" : [ "MERCHANT", "default-roles-esquire", "TREE" ],
+    "realmRoles" : [ "ENDUSER", "default-roles-esquire", "TREE" ],
     "notBefore" : 0,
     "groups" : [ "/Angular users" ]
   }, {
@@ -1709,7 +1701,7 @@
       "subType" : "anonymous",
       "subComponents" : { },
       "config" : {
-        "allowed-protocol-mapper-types" : [ "saml-role-list-mapper", "oidc-address-mapper", "oidc-usermodel-attribute-mapper", "oidc-usermodel-property-mapper", "saml-user-attribute-mapper", "oidc-sha256-pairwise-sub-mapper", "saml-user-property-mapper", "oidc-full-name-mapper" ]
+        "allowed-protocol-mapper-types" : [ "saml-user-property-mapper", "oidc-usermodel-attribute-mapper", "oidc-sha256-pairwise-sub-mapper", "oidc-full-name-mapper", "oidc-usermodel-property-mapper", "saml-user-attribute-mapper", "oidc-address-mapper", "saml-role-list-mapper" ]
       }
     }, {
       "id" : "43e9cc26-1379-4eeb-b3aa-037bc45223f2",
@@ -1750,7 +1742,7 @@
       "subType" : "authenticated",
       "subComponents" : { },
       "config" : {
-        "allowed-protocol-mapper-types" : [ "oidc-full-name-mapper", "saml-user-property-mapper", "saml-user-attribute-mapper", "saml-role-list-mapper", "oidc-usermodel-property-mapper", "oidc-usermodel-attribute-mapper", "oidc-address-mapper", "oidc-sha256-pairwise-sub-mapper" ]
+        "allowed-protocol-mapper-types" : [ "saml-user-property-mapper", "oidc-address-mapper", "oidc-sha256-pairwise-sub-mapper", "oidc-usermodel-property-mapper", "saml-role-list-mapper", "oidc-usermodel-attribute-mapper", "oidc-full-name-mapper", "saml-user-attribute-mapper" ]
       }
     }, {
       "id" : "6c100d76-9cde-4128-9dff-6cbc1864df52",

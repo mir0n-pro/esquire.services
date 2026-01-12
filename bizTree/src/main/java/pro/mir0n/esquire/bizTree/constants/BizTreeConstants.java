@@ -7,6 +7,7 @@
  *
  *  History:
  * 01/10/2026 mir0n  added JWT_CLAIM_ENTITY_ID, JWT_CLAIM_ENTITY_ROOTPATH
+ * 01/12/2026 mir0n  added CMD_DETAILS, CMD_PROFILE
  */
 
 package pro.mir0n.esquire.bizTree.constants;
@@ -28,4 +29,8 @@ public final class BizTreeConstants {
 
     public static final String  JWT_CLAIM_ENTITY_ID = "esq_uid";
     public static final String  JWT_CLAIM_ENTITY_ROOTPATH = "esq_rootpath";
+
+    public static final String  CMD_DETAILS = "details";
+    public static final String  CMD_PROFILE = "profile";
+
 }

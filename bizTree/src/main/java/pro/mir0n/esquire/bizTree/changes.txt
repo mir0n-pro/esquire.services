@@ -1,5 +1,11 @@
 Esquire BizTree Microservice
 
+01/10/2026 mir0n "profile" command
+constants.BizTreeConstants
+  - added CMD_DETAILS, CMD_PROFILE
+service.impl.BizTreeService  
+  - added "profile" command
+
 01/10/2026 mir0n User claims
 constants.BizTreeConstants
   - added JWT_CLAIM_ENTITY_ID, JWT_CLAIM_ENTITY_ROOTPATH

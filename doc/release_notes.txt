@@ -1,6 +1,11 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+
+v1.0.1-2601.1217 
+  KeyCloak UI/UX: "OK-for-now" 
+    : added "profile" command
+
 v1.0.1-2601.1022 
   User claims for visibility authorization
     : modification are in every component: bizTree, gateway, keycloak

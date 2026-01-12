@@ -7,7 +7,8 @@
  *
  *  History:
  * 01/10/2026 mir0n rootPath and uid params added were required
- */
+ * 01/12/2026 mir0n added "profile" command
+*/
 
 package pro.mir0n.esquire.bizTree.service.impl;
 
@@ -21,6 +22,8 @@ import pro.mir0n.esquire.bizTree.exception.ResourceNotFoundException;
 import pro.mir0n.esquire.bizTree.service.IBizTreeService;
 import lombok.AllArgsConstructor;
 import org.springframework.stereotype.Service;
+
+import pro.mir0n.esquire.bizTree.constants.BizTreeConstants;
 
 @Slf4j
 @Service
@@ -110,25 +113,31 @@ public class BizTreeService  implements IBizTreeService {
 
     @Override
     public EsqEntity esquireCommand(Integer kind, String id, String cmd, String rootPath, String uid) {
-        int k = (int)Math.floor( (double) kind/2 ) * 2;
-        EsqEntityFactory.EsqEntityKind eek = EsqEntityFactory.EsqEntityKind.getKind(k);
+        EsqEntityFactory.EsqEntityKind eek = EsqEntityFactory.EsqEntityKind.ADMIN;
+        String upk = id;
+        if (BizTreeConstants.CMD_PROFILE.equals(cmd)) {
+            eek = EsqEntityFactory.EsqEntityKind.ADMIN;
+            upk = uid;
+        } else {
+            int k = (int)Math.floor( (double) kind/2 ) * 2;
+            eek = EsqEntityFactory.EsqEntityKind.getKind(k);
+        }
         EsqEntityJpa jpa = null;
         List<EsqNameValueJpa> custom = null;
         List<EsqTreeNodeJpa> children = null;
         // xxx: path is safe
         List<String> path = EsqTreeNodeMapper.pathArray(rootPath);
-
         if (eek.isOrg()) {
             jpa = entityRepository.detailOrg(id, rootPath);
             custom = customEntityRepository.customOrg(id);
         } else if (eek.isUsr()) {
-            jpa = entityRepository.detailUsr(id, rootPath);
-            custom = customEntityRepository.customUsr(id);
+            jpa = entityRepository.detailUsr(upk, rootPath);
+            custom = customEntityRepository.customUsr(upk);
         } else if (eek.isAcct()) {
             jpa = entityRepository.detailAcct(id, rootPath);
         }
         if (jpa == null) {
-            throw new ResourceNotFoundException("esquireEntity", "kind, id", kind + "," +  id );
+            throw new ResourceNotFoundException("esquireEntity", "kind, id", kind + "," + id);
         }
         if (eek.isChildrenDetailed()) {
             children = treeNodeRepository.findNodes(id, rootLevel(path, uid), rootPath);
