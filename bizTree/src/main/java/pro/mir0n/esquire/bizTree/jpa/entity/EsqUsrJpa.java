@@ -6,6 +6,7 @@
  *  mailto:mir0n.the.programmer@gmail.com
  *
  *  History:
+ * 01/14/2026 mir0n  email field added
  */
 
 package pro.mir0n.esquire.bizTree.jpa.entity;
@@ -20,5 +21,6 @@ public class EsqUsrJpa extends EsqEntityJpa {
     private String loginId;
     private String registration;
     private String deleted;
+    private String email;
 }
 

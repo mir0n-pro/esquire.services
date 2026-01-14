@@ -1,5 +1,15 @@
 Esquire BizTree Microservice
 
+01/14/2026 mir0n ERD refactoring
+dto.entity.EsqUsr
+  - email field added
+dto.EsqEntityDictionaryMapper
+  - "personal" field added
+dto.EsqEntityField  
+  - "personal" field added
+jpa.entity.EsqUsrJpa
+  - email field added
+ 
 01/10/2026 mir0n "profile" command
 constants.BizTreeConstants
   - added CMD_DETAILS, CMD_PROFILE

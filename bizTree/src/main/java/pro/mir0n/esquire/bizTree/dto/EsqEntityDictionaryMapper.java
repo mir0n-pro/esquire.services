@@ -6,6 +6,7 @@
  *  mailto:mir0n.the.programmer@gmail.com
  *
  *  History:
+ * 01/14/2026 mir0n  "personal" field added
  */
 
 package pro.mir0n.esquire.bizTree.dto;
@@ -43,6 +44,7 @@ public class EsqEntityDictionaryMapper {
                 newField.setValidation(field.getValidation());
                 newField.setReadwrite(field.getReadwrite());
                 newField.setFormat(field.getFormat());
+                newField.setPersonal(field.getPersonal());
                 currentLayer.getFields().add(newField);
             }
             dictDto.sortLayers();

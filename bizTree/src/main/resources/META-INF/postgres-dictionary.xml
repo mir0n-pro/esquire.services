@@ -22,7 +22,8 @@ SELECT
     par_nullable_flg,
     par_validation,
     par_listvalues,
-    par_format
+    par_format,
+    par_personal_flg
 FROM esq_parameter
 WHERE par_et_pk = :kind
         </query>
@@ -43,6 +44,7 @@ WHERE par_et_pk = :kind
             <field-result name="nullmeaning" column="par_nullmeaning"/>
             <field-result name="validation" column="par_validation"/>
             <field-result name="format" column="par_format"/>
+            <field-result name="personal" column="par_personal_flg"/>
         </entity-result>
     </sql-result-set-mapping>
 

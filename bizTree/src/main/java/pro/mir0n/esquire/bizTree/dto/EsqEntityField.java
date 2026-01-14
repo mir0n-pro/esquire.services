@@ -7,6 +7,7 @@
  *
  *  History:
  * 12/26/2025 mir0n  refine API doc
+ * 01/14/2026 mir0n  "personal" field added
  */
 
 package pro.mir0n.esquire.bizTree.dto;
@@ -95,4 +96,10 @@ public class EsqEntityField {
     )
     @JacksonXmlProperty(localName = "format")
     private String format;
+
+    @Schema(
+            description = "personal"
+    )
+    @JacksonXmlProperty(localName = "personal")
+    private String personal;
 };

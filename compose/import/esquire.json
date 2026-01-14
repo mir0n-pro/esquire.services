@@ -439,7 +439,7 @@
     "username" : "client",
     "firstName" : "Cli",
     "lastName" : "Ent",
-    "email" : "littletowerhill6@gmail.com",
+    "email" : "mir0n.the.progammer.9@gmail.com",
     "emailVerified" : true,
     "attributes" : {
       "esq_uid" : [ "9" ],
@@ -467,7 +467,7 @@
     "username" : "departmentadmin",
     "firstName" : "Department",
     "lastName" : "Manager",
-    "email" : "littletowerhill4@gmail.com",
+    "email" : "mir0n.the.progammer.8@gmail.com",
     "emailVerified" : true,
     "attributes" : {
       "esq_uid" : [ "8" ],
@@ -495,7 +495,7 @@
     "username" : "mainadmin",
     "firstName" : "Super",
     "lastName" : "Vizor",
-    "email" : "littletowerhill@gmail.com",
+    "email" : "mir0n.the.progammer@gmail.com",
     "emailVerified" : true,
     "attributes" : {
       "esq_uid" : [ "4" ],
@@ -522,7 +522,7 @@
     "username" : "merchant",
     "firstName" : "Mer",
     "lastName" : "Chant",
-    "email" : "littletowerhill5@gmail.com",
+    "email" : "mir0n.the.progammer.7@gmail.com",
     "emailVerified" : true,
     "attributes" : {
       "esq_uid" : [ "7" ],
@@ -550,7 +550,7 @@
     "username" : "officeadmin",
     "firstName" : "Office",
     "lastName" : "Manager",
-    "email" : "littletowerhill2@gmail.com",
+    "email" : "mir0n.the.progammer.6@gmail.com",
     "emailVerified" : true,
     "attributes" : {
       "esq_uid" : [ "6" ],
@@ -599,7 +599,7 @@
     "username" : "support",
     "firstName" : "Office",
     "lastName" : "Support",
-    "email" : "littletowerhill3@gmail.com",
+    "email" : "mir0n.the.progammer.5@gmail.com",
     "emailVerified" : true,
     "attributes" : {
       "esq_uid" : [ "5" ],
@@ -1686,6 +1686,10 @@
     "strictTransportSecurity" : "max-age=31536000; includeSubDomains"
   },
   "smtpServer" : { },
+  "loginTheme" : "base",
+  "accountTheme" : "base",
+  "adminTheme" : "base",
+  "emailTheme" : "base",
   "eventsEnabled" : false,
   "eventsListeners" : [ "jboss-logging" ],
   "enabledEventTypes" : [ ],
@@ -2522,17 +2526,18 @@
   "firstBrokerLoginFlow" : "first broker login",
   "attributes" : {
     "cibaBackchannelTokenDeliveryMode" : "poll",
-    "cibaExpiresIn" : "120",
     "cibaAuthRequestedUserHint" : "login_hint",
-    "oauth2DeviceCodeLifespan" : "600",
     "clientOfflineSessionMaxLifespan" : "0",
     "oauth2DevicePollingInterval" : "5",
     "clientSessionIdleTimeout" : "0",
-    "parRequestUriLifespan" : "60",
-    "clientSessionMaxLifespan" : "0",
     "clientOfflineSessionIdleTimeout" : "0",
     "cibaInterval" : "5",
-    "realmReusableOtpCode" : "false"
+    "realmReusableOtpCode" : "false",
+    "cibaExpiresIn" : "120",
+    "oauth2DeviceCodeLifespan" : "600",
+    "parRequestUriLifespan" : "60",
+    "clientSessionMaxLifespan" : "0",
+    "darkMode" : "false"
   },
   "keycloakVersion" : "26.4.7",
   "userManagedAccessAllowed" : false,

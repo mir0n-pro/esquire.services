@@ -7,6 +7,7 @@
  *
  *  History:
  * 12/27/2025  mir0n extend EsqEntity correctly
+ * 01/14/2026 mir0n  email field added
  */
 
 package pro.mir0n.esquire.bizTree.dto.entity;
@@ -57,6 +58,11 @@ public class EsqUsr extends EsqEntity {
     )
     private String deleted;
 
+    @Schema(
+            description = "Email address", example = "pupkin@example.com"
+    )
+    private String email;
+
     @JsonIgnore
     private Map<String, List<String>> children = new HashMap<>();
 
@@ -83,6 +89,7 @@ public class EsqUsr extends EsqEntity {
         this.loginId = ((EsqUsrJpa)jpa).getLoginId();
         this.registration = ((EsqUsrJpa)jpa).getRegistration();
         this.deleted = ((EsqUsrJpa)jpa).getDeleted();
+        this.email = ((EsqUsrJpa)jpa).getEmail();
     }
 
     @Override

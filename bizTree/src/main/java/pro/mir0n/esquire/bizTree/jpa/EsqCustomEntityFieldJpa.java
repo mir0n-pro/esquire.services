@@ -30,6 +30,7 @@ public class EsqCustomEntityFieldJpa {
     private String validation;
     private Integer readwrite;
     private String format;
+    private String personal;
 };
 
 

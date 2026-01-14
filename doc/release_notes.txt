@@ -2,6 +2,13 @@ Esquire Frameworks(tm) 2.0
 Esquire services
 
 
+v1.0.1-2601.1412
+  bizTree: ERD refactoring
+    : added "email" to user
+    : added "personal" flag to field metadata
+  keyCloak: a touch
+    : email synch with db seed
+
 v1.0.1-2601.1217 
   KeyCloak UI/UX: "OK-for-now" 
     : added "profile" command
