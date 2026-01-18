@@ -8,6 +8,7 @@
  *  History:
  * 12/27/2025  mir0n extend EsqEntity correctly
  * 01/14/2026 mir0n  email field added
+ * 01/18/2026 mir0n  minor touch
  */
 
 package pro.mir0n.esquire.bizTree.dto.entity;
@@ -42,6 +43,7 @@ import java.util.stream.Collectors;
 public class EsqUsr extends EsqEntity {
     public EsqUsr() {
         super();
+        children = new HashMap<>();
     }
     @Schema(
             description = "Login Id", example = "pupkin"
@@ -64,7 +66,7 @@ public class EsqUsr extends EsqEntity {
     private String email;
 
     @JsonIgnore
-    private Map<String, List<String>> children = new HashMap<>();
+    private Map<String, List<String>> children;
 
     //@JsonIgnore
     @Schema(

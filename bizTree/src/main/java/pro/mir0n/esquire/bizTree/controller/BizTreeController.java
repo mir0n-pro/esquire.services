@@ -9,18 +9,20 @@
  * 12/26/2025 mir0n  refine API doc
  * 12/27/2025 mir0n  added entity implementations 
  * 12/28/2025 mir0n logging added using Slf4j
- * 01/10/2006 mir0n added processing of user claims
+ * 01/10/2026 mir0n added processing of user claims
+ * 01/18/2026 mir0n BizTreeConstants moved to common package
+ *                  ErrorResponse replaced with ProblemDetail
  */
 
 package pro.mir0n.esquire.bizTree.controller;
 
 import io.jsonwebtoken.Claims;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.ProblemDetail;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import pro.mir0n.esquire.bizTree.dto.EsqEntity;
 import pro.mir0n.esquire.bizTree.dto.EsqEntityLayer;
 import pro.mir0n.esquire.bizTree.dto.EsqTreeNode;
-import pro.mir0n.esquire.bizTree.dto.ErrorResponse;
 import pro.mir0n.esquire.bizTree.dto.entity.EsqAcct;
 import pro.mir0n.esquire.bizTree.dto.entity.EsqOrg;
 import pro.mir0n.esquire.bizTree.dto.entity.EsqUsr;
@@ -41,7 +43,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
-import pro.mir0n.esquire.bizTree.constants.BizTreeConstants;
+import pro.mir0n.esquire.common.EsqConstants;
 
 /**
  * @author mir0n
@@ -82,7 +84,7 @@ public class BizTreeController {
                     responseCode = "500",
                     description = "HTTP Status Internal Server Error",
                     content = @Content(
-                            schema = @Schema(implementation = ErrorResponse.class)
+                            schema = @Schema(implementation = ProblemDetail.class)
                     )
             )
     })
@@ -97,8 +99,8 @@ public class BizTreeController {
         @RequestParam(name = "take", required = false) Integer take
        ,@AuthenticationPrincipal Claims claims
     ) {
-        String rootPath = claims.get(BizTreeConstants.JWT_CLAIM_ENTITY_ROOTPATH, String.class);
-        String uid = claims.get(BizTreeConstants.JWT_CLAIM_ENTITY_ID, String.class);
+        String rootPath = claims.get(EsqConstants.JWT_CLAIM_ENTITY_ROOTPATH, String.class);
+        String uid = claims.get(EsqConstants.JWT_CLAIM_ENTITY_ID, String.class);
 
         List<EsqTreeNode> nodes = iBizTreeService.esquire(id, skip == null ? 0 : skip, take == null? 0 : take, rootPath, uid);
         log.debug("esquire: id:{}, rootPath:{}, uid:{}, result:{}", id, rootPath,uid, String.valueOf(nodes));
@@ -115,8 +117,8 @@ public class BizTreeController {
           @RequestParam(name = "name", required = false) String name
           ,@AuthenticationPrincipal Claims claims
     ) {
-        String rootPath = claims.get(BizTreeConstants.JWT_CLAIM_ENTITY_ROOTPATH, String.class);
-        String uid = claims.get(BizTreeConstants.JWT_CLAIM_ENTITY_ID, String.class);
+        String rootPath = claims.get(EsqConstants.JWT_CLAIM_ENTITY_ROOTPATH, String.class);
+        String uid = claims.get(EsqConstants.JWT_CLAIM_ENTITY_ID, String.class);
 
         EsqTreeNode node = iBizTreeService.esquireEntityNode(kind, id, name, rootPath, uid);
         log.debug("esquireEntityNode: kind:{}, id:{}, name:{}, rootPath:{}, result:{}", kind, id, name, rootPath, String.valueOf(node));
@@ -129,7 +131,7 @@ public class BizTreeController {
         @RequestParam(name = "id", required = true) String id,
         @AuthenticationPrincipal Claims claims
     ) {
-        String rootPath = claims.get(BizTreeConstants.JWT_CLAIM_ENTITY_ROOTPATH, String.class);
+        String rootPath = claims.get(EsqConstants.JWT_CLAIM_ENTITY_ROOTPATH, String.class);
 
         List<String> path = iBizTreeService.esquirePath(id, rootPath);
         log.debug("esquirePath: id:{}, result:{}, claims:{}", id, String.valueOf(path), String.valueOf(claims));
@@ -156,8 +158,8 @@ public class BizTreeController {
            @RequestParam(name = "cmd", required = false, defaultValue = "details") String cmd,
            @AuthenticationPrincipal Claims claims
     ) {
-        String rootPath = claims.get(BizTreeConstants.JWT_CLAIM_ENTITY_ROOTPATH, String.class);
-        String uid = claims.get(BizTreeConstants.JWT_CLAIM_ENTITY_ID, String.class);
+        String rootPath = claims.get(EsqConstants.JWT_CLAIM_ENTITY_ROOTPATH, String.class);
+        String uid = claims.get(EsqConstants.JWT_CLAIM_ENTITY_ID, String.class);
 
         EsqEntity entity = iBizTreeService.esquireCommand(kind, id, cmd, rootPath,  uid);
         log.debug("esquireCommand: kind:{}, id:{}, cmd:{}, rootPath:{}, result:{}", kind, id, cmd, rootPath, String.valueOf(entity));

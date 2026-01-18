@@ -74,6 +74,7 @@ services:
       - LOG_LEVEL_ROOT=ERROR
       - LOG_LEVEL_SF=ERROR
       - LOG_LEVEL_MIR0N=DEBUG
+      #- GW_SERVICE_METRICS_ENABLED=false 
     command: ["java", "-jar", "app.jar"]
     depends_on:
       keycloak:

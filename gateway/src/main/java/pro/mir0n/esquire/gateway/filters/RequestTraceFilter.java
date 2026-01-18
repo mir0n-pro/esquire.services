@@ -7,17 +7,22 @@
  *
  *  History:
  * 01/10/2026 mir0n  log expanded
+ * 01/18/2026 mir0n  Optional capture metrics
+ *                   Request/Collabration IDs
+ *                   INFO logs generalized
  */
 package pro.mir0n.esquire.gateway.filters;
 
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Component;
 import org.springframework.web.server.ServerWebExchange;
+import pro.mir0n.esquire.common.EsqConstants;
+import pro.mir0n.esquire.common.EsqUtils;
 import reactor.core.publisher.Mono;
 
 @Slf4j
@@ -25,36 +30,67 @@ import reactor.core.publisher.Mono;
 @Component
 public class RequestTraceFilter implements GlobalFilter {
 
-    //private static final Logger logger = LoggerFactory.getLogger(RequestTraceFilter.class);
-
-    @Autowired
-    FilterUtility filterUtility;
+    @Value("${esquire.gateway.service-metrics.enabled:true}")
+    private boolean serviceMetricsEnabled;
 
     @Override
-    public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
+    public Mono<Void> filter(ServerWebExchange origExchange, GatewayFilterChain chain) {
+        ServerWebExchange exchange = origExchange;
         HttpHeaders requestHeaders = exchange.getRequest().getHeaders();
-        if (isCorrelationIdPresent(requestHeaders)) {
-            log.debug("esq-correlation-id found in RequestTraceFilter : {}",
-                filterUtility.getCorrelationId(requestHeaders));
+
+        String correlationId = null;
+        boolean updateCorrelationId = false;
+        String requestId = requestHeaders.getFirst(EsqConstants.X_REQUEST_ID);
+        if (requestHeaders.get(EsqConstants.ESQ_CORRELATION_ID) != null) {
+            correlationId = requestHeaders.getFirst(EsqConstants.ESQ_CORRELATION_ID);
+            log.trace("esq-correlation-id found in RequestTraceFilter : {}", correlationId);
         } else {
-            String correlationID = generateCorrelationId();
-            exchange = filterUtility.setCorrelationId(exchange, correlationID);
-            log.debug("esq-correlation-id generated in RequestTraceFilter : {} uri:{}:{}"
-                , correlationID,exchange.getRequest().getMethod(),exchange.getRequest().getURI());
+            correlationId = obtainCorrelationId(requestHeaders);
+            updateCorrelationId = true;
         }
+
+        String finalCorrelationId = correlationId;
+        boolean finalUpdateCorrelationId = updateCorrelationId;
+        if (finalUpdateCorrelationId || serviceMetricsEnabled) {
+            exchange = exchange.mutate()
+                    .request(r -> {
+                        if (finalUpdateCorrelationId) {
+                            r.header(EsqConstants.ESQ_CORRELATION_ID, finalCorrelationId);
+                        }
+                        if (serviceMetricsEnabled) {
+                            r.header(EsqConstants.ESQ_CAPTURE_METRICS, "true");
+                        }
+                    })
+                    .build();
+            log.trace("esq-correlation-id generated in RequestTraceFilter : {} uri:{}:{}"
+                    , correlationId, exchange.getRequest().getMethod(), exchange.getRequest().getURI());
+        }
+
+
+        // THE MISSING LINK: Save to attributes so the Error Handler can find it!
+        exchange.getAttributes().put(EsqConstants.ESQ_CORRELATION_ID, correlationId);
+        exchange.getAttributes().put(EsqConstants.ESQ_START_TIME, System.currentTimeMillis());
+        exchange.getAttributes().put(EsqConstants.ESQ_CAPTURE_METRICS, serviceMetricsEnabled);
+
+        log.info("INCOMING: correlationId={}, requestId={}, {} {}",
+            correlationId,
+            requestId,
+            exchange.getRequest().getMethod(),
+            exchange.getRequest().getURI()
+        );
         return chain.filter(exchange);
     }
 
-    private boolean isCorrelationIdPresent(HttpHeaders requestHeaders) {
-        if (filterUtility.getCorrelationId(requestHeaders) != null) {
-            return true;
+    public String obtainCorrelationId(HttpHeaders requestHeaders) {
+        String ret = null;
+        if (requestHeaders.get(EsqConstants.ESQ_CORRELATION_ID) != null) {
+            ret = requestHeaders.getFirst(EsqConstants.ESQ_CORRELATION_ID);
+        } else if (requestHeaders.get(EsqConstants.X_CORRELATION_ID) != null) {
+            ret = requestHeaders.getFirst(EsqConstants.X_CORRELATION_ID);
         } else {
-            return false;
+            ret = EsqUtils.generateCorrelationId();
         }
-    }
-
-    private String generateCorrelationId() {
-        return java.util.UUID.randomUUID().toString();
+        return ret;
     }
 
 }

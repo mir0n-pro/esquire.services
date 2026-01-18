@@ -7,6 +7,7 @@
  *
  *  History:
  * 01/10/2026 mir0n  make sure TREE role is in place
+ * 01/18/2026 miron  added exposedHeaders to CORS 
  */
 package pro.mir0n.esquire.gateway.config;
 
@@ -25,6 +26,7 @@ import org.springframework.security.oauth2.server.resource.authentication.JwtAut
 import org.springframework.security.oauth2.server.resource.authentication.ReactiveJwtAuthenticationConverterAdapter;
 import org.springframework.security.web.server.SecurityWebFilterChain;
 import org.springframework.security.web.server.context.NoOpServerSecurityContextRepository;
+import pro.mir0n.esquire.common.EsqConstants;
 import reactor.core.publisher.Mono;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.cors.CorsConfiguration;
@@ -44,6 +46,7 @@ public class SecurityConfig {
              List<String> allowedOrigins,
              List<String> allowedMethods,
              List<String> allowedHeaders,
+             List<String> exposedHeaders,
              boolean allowCredentials,
              Long maxAge
      ) {}
@@ -54,6 +57,8 @@ public class SecurityConfig {
         config.setAllowedOrigins(props.allowedOrigins());
         config.setAllowedMethods(props.allowedMethods()); // Ensure OPTIONS is included
         config.setAllowedHeaders(props.allowedHeaders());
+        config.setExposedHeaders(props.exposedHeaders());
+
         config.setAllowCredentials(props.allowCredentials());
         config.setMaxAge(props.maxAge());
 
@@ -87,10 +92,13 @@ public class SecurityConfig {
                 .csrf(csrfSpec -> csrfSpec.disable())
                 .cors(cors -> cors.configurationSource(corsConfigurationSource(props)))
                 .authorizeExchange(exchanges -> exchanges
-                  .pathMatchers(HttpMethod.OPTIONS,"/**").permitAll()
-                  .pathMatchers("/esq*").authenticated() // Protect your endpoint
-                  .pathMatchers("/esq*").hasRole("TREE") // Protect your endpoint
-                  .anyExchange().permitAll()
+                    .pathMatchers(HttpMethod.OPTIONS,"/**").permitAll()
+                    //XXX: hasRole already implies the user must be authenticated.
+                    // for some reason it does not work well
+                    // we keep Double-checks authentication and TREE role for esq* paths for a while
+                    .pathMatchers("/esq*").authenticated() // Protect your endpoint
+                    .pathMatchers("/esq*").hasRole("TREE")
+                    .anyExchange().permitAll()
                 )
                 .oauth2ResourceServer(oauth2 -> oauth2.jwt(Customizer.withDefaults()))
                 .oauth2Client(Customizer.withDefaults())

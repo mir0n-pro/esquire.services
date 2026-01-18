@@ -1,5 +1,22 @@
 Esquire Gateway Microservice
 
+01/18/2026 mir0n Error handling, request/correlation/trace IDs, performance metrics
++ added pro.mir0n.esquire.common package
+config.SecurityConfig
+  - added exposedHeaders to CORS 
++ added error.ErrorConfig
++ added error.GatewayErrorWebExceptionHandler
++ added error.ProblemDetailMill
+x removed filters.FilterUtility
+filters.RequestTraceFilter
+  - Optional capture metrics
+  - Request/Collabration IDs
+  - INFO logs generalized
+filters.ResponseTraceFilter
+  - Optional capture metrics
+  - Request/Collabration IDs
+  - INFO logs generalized
+
 
 01/10/2026 mir0n 
 filters.RequestTraceFilter

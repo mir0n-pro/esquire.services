@@ -1,6 +1,14 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v1.0.1-2601.1817
+  Error handling
+  Request/Correlation/trace IDs
+  Performance metrics
+  Generalize logging
+  Handle end user headers: X-Correlation-ID, X-Request-ID, X-Response-Time, X-Capture-Metrics
+  Components updated : bizTree, gateway
+  Added gateway parameter: GW_SERVICE_METRICS_ENABLED, default true
 
 v1.0.1-2601.1412
   bizTree: ERD refactoring

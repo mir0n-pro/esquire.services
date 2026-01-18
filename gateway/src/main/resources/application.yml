@@ -1,6 +1,17 @@
+esquire:
+  gateway:
+    service-metrics:
+      enabled: ${GW_SERVICE_METRICS_ENABLED:true} # Control whether to collect metrics for the gateway on backend services
 server:
   port: ${GATEWAY_PORT:8080} 
 spring:
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+    time-zone: UTC
+  webflux:
+    problemdetails:
+      enabled: true
   application:
     name: "gateway"
   cloud:
@@ -8,7 +19,7 @@ spring:
        #default-filters:
        #  - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_FIRST #RETAIN_UNIQUE
        globalcors:
-         # globalcors somehow do not work: used custom config 
+         # globalcors somehow do not work: used custom config: see spring.security.cors
          add-to-simple-url-handler-mapping: true 
          cors-configurations:
            '[/**]':
@@ -37,9 +48,10 @@ spring:
     cors:
       allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:4200}
       allowed-methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
-      allowed-headers: ["Authorization", "Content-Type"]
+      allowed-headers: ["Authorization", "Content-Type", "X-Request-ID", "X-Correlation-ID", "X-Capture-Metrics"]
       allow-credentials: true
-      max-age: 3600    
+      max-age: 3600
+      exposed-headers: ["X-Request-ID", "X-Correlation-ID","X-Response-Time", "Esq-Service-Time", "Esq-Backend-Time"]
     oauth2:
       client:
         registration:

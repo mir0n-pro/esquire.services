@@ -10,6 +10,7 @@
 
 package pro.mir0n.esquire.bizTree.security;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.jsonwebtoken.Claims;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -17,6 +18,9 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ProblemDetail;
 import org.springframework.lang.NonNull;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -26,7 +30,9 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import pro.mir0n.esquire.bizTree.constants.BizTreeConstants;
+
+import pro.mir0n.esquire.bizTree.exception.ProblemDetailMill;
+import pro.mir0n.esquire.common.EsqConstants;
 
 @Slf4j
 @Component
@@ -69,11 +75,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
             // REJECT if username is missing or some required custom claim is missing
             if (username == null
-            || claims.get(BizTreeConstants.JWT_CLAIM_ENTITY_ID) == null
-            || claims.get(BizTreeConstants.JWT_CLAIM_ENTITY_ROOTPATH) == null
+            || claims.get(EsqConstants.JWT_CLAIM_ENTITY_ID) == null
+            || claims.get(EsqConstants.JWT_CLAIM_ENTITY_ROOTPATH) == null
 // todo: add validation of rootpath length > 1 & and has "."
             ) {
-                sendErrorResponse(response, "Missing required claims ");
+                sendErrorResponse(request, response, "Missing required claims ");
                 log.debug("Missing required claims {}", claims);
                 return;
             }
@@ -89,17 +95,25 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
            }
         } catch (Exception e) {
             log.error("error on claims",e);
-            sendErrorResponse(response, "Invalid or expired token");
+            sendErrorResponse(request, response, "Invalid or expired token");
             return; // STOP the chain here
         }
         filterChain.doFilter(request, response);
 
     }
 
-    private void sendErrorResponse(HttpServletResponse response, String message) throws IOException {
+    private void sendErrorResponse(HttpServletRequest request, HttpServletResponse response, String message) throws IOException {
+        ProblemDetail problem = ProblemDetailMill.createProblemDetail(
+                request,
+                HttpStatus.UNAUTHORIZED,
+                "Authentication Failed",
+                message,
+                null
+        );
         response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-        response.setContentType("application/json");
-        response.getWriter().write("{\"error\": \"" + message + "\"}");
+        response.setContentType(MediaType.APPLICATION_PROBLEM_JSON_VALUE);
+        // Use Jackson to write the ProblemDetail object as JSON
+        new ObjectMapper().writeValue(response.getWriter(), problem);
     }
 
 }

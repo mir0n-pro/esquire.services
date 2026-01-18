@@ -1,5 +1,27 @@
 Esquire BizTree Microservice
 
+01/18/2026 mir0n Error handling, request/correlation/trace IDs, performance metrics
+- BizTreeConstants moved to common package as pro.mir0n.esquire.common.EsqConstants
+- pro.mir0n.esquire.common.EsqUtils introduced
+controller.BizTreeController
+  - BizTreeConstants moved to common package
+  - ErrorResponse replaced with ProblemDetail
+x removed dto.ErrorResponse.java
+dto.entity.EsqUsr
+  - minor touch
+exception.BizTreeExceptionHandler.java renamed with exception.GlobalExceptionHandler
+exception.GlobalExceptionHandler
+  - Error handling with rfc9457 compliance
++ added exception.ProblemDetailMill  
+security.JwtAuthenticationFilter
+  - BizTreeConstants moved to common package
+  - Error handling with rfc9457 compliance
+added service.MdcFilter
+added service.PerformanceAspect
+added service.RequestContextUtils
+added service.RequestPerformance
+
+
 01/14/2026 mir0n ERD refactoring
 dto.entity.EsqUsr
   - email field added

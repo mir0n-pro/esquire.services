@@ -7,7 +7,12 @@ spring:
     hibernate:
       ddl-auto: none
     show-sql: false
+  mvc:
+    problemdetails:
+      enabled: true
 logging:
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss, UTC} %-5level [%X{correlationId:-no-cid}] [%X{requestId:-no-rid}] %logger{36} - %msg%n"
   structured:
     format:
       console: ecs  # Use ecs,'logstash' or 'gelf' for other common formats
