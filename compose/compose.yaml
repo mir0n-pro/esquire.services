@@ -74,51 +74,13 @@ services:
       - LOG_LEVEL_ROOT=ERROR
       - LOG_LEVEL_SF=ERROR
       - LOG_LEVEL_MIR0N=DEBUG
-      #- GW_SERVICE_METRICS_ENABLED=false 
+      - GW_SERVICE_METRICS_ENABLED=true 
     command: ["java", "-jar", "app.jar"]
     depends_on:
       keycloak:
         condition: service_healthy    
     networks:
       - esquirenet
-      
-  frontend:
-    container_name: esq-frontend
-    build:
-      context: .
-      secrets:
-        - npmrc        
-    image: esquire.frontend
-    ports:
-      - "4200:4200"
-    environment:
-      # These variables are injected into assets/config.json at container start
-      - BACKEND_HOST=localhost
-      - BACKEND_PORT=3000
-      - KEYCLOAK_FACADE_HOST=localhost
-      - KEYCLOAK_FACADE_PORT=8080
-      - KEYCLOAK_REALM=esquire
-      - KEYCLOAK_CLIENT_ID=esq-angular
-    # Command overrides angular.json for Docker without changing local code
-    command: >
-          /bin/sh -c "
-          envsubst < ./public/assets/config.json.template > ./public/assets/config.json && 
-          npx ng serve --host 0.0.0.0 --port 4200 --poll 2000
-          "
-    depends_on:
-      gateway:
-        condition: service_healthy
-    networks:
-      - esquirenet
-      
-#    volumes:
-#      - .:/app
-#      - /app/node_modules # Prevents local node_modules from overwriting container's
-# Mount ONLY the template as read-only
-#      - ./public/assets/config.json.template:/public/assets/config.json.template:ro
-secrets:
-  npmrc:
-    file: ./.npmrc_composer 
 
 networks:
   esquirenet:

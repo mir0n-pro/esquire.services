@@ -5,7 +5,7 @@
 
     <groupId>pro.mir0n.esquire</groupId>
     <artifactId>gateway</artifactId>
-    <version>1.0.1</version>
+    <version>1.2.0</version>
     <name>gateway</name>
     <description>Facade Server for Esquire microservices</description>
 

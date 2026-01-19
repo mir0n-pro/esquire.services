@@ -1,6 +1,11 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v1.2.0-2601.1917 Observability Stack completed
+   ProblemDetail: make stack trace optional
+   Components updated : bizTree, gateway
+   Added Esquire.ObservabilityStack.docx
+
 v1.0.1-2601.1817
   Error handling
   Request/Correlation/trace IDs

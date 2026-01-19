@@ -1,5 +1,15 @@
 Esquire Gateway Microservice
 
+
+error.ErrorConfig
+  - read serviceMetricsEnabled configuration
+    bypass it to exception handler
+error.GatewayErrorWebExceptionHandler
+  - bypass shouldCaptureException to ProblemDetailMill
+error.ProblemDetailMill
+  - let stack trace optional
+  
+  
 01/18/2026 mir0n Error handling, request/correlation/trace IDs, performance metrics
 + added pro.mir0n.esquire.common package
 config.SecurityConfig

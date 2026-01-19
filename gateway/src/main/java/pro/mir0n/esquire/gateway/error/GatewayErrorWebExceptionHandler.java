@@ -6,12 +6,14 @@
  *  mailto:mir0n.the.programmer@gmail.com
  *
  *  History:
+ * 01/18/2026 mir0n  bypass shouldCaptureException to ProblemDetailMill
  */
 //properties:
 //spring.webflux.problemdetails.enabled=true
 package pro.mir0n.esquire.gateway.error;
 
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.web.WebProperties;
 import org.springframework.boot.autoconfigure.web.reactive.error.AbstractErrorWebExceptionHandler;
 import org.springframework.boot.web.reactive.error.ErrorAttributes;
@@ -33,11 +35,17 @@ import java.time.ZoneOffset;
 @Slf4j
 public class GatewayErrorWebExceptionHandler extends AbstractErrorWebExceptionHandler {
 
-    public GatewayErrorWebExceptionHandler(ErrorAttributes errorAttributes, WebProperties webProperties,
-                                           ApplicationContext applicationContext, ServerCodecConfigurer configurer) {
+    private final boolean shouldCaptureException;
+    
+public GatewayErrorWebExceptionHandler(ErrorAttributes errorAttributes,
+           WebProperties webProperties,
+           ApplicationContext applicationContext,
+           ServerCodecConfigurer configurer,
+            boolean shouldCaptureException) {
         super(errorAttributes, webProperties.getResources(), applicationContext);
         this.setMessageWriters(configurer.getWriters());
         this.setMessageReaders(configurer.getReaders());
+        this.shouldCaptureException = shouldCaptureException;
     }
 
     @Override
@@ -74,6 +82,7 @@ public class GatewayErrorWebExceptionHandler extends AbstractErrorWebExceptionHa
             status,
             title,
             detail,
+            shouldCaptureException,
             error
         );
 

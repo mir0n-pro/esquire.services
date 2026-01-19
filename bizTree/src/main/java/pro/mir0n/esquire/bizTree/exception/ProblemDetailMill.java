@@ -6,6 +6,7 @@
  *  mailto:mir0n.the.programmer@gmail.com
  *
  *  History:
+ * 01/18/2026 mir0n let stack trace optional
  */
 
 package pro.mir0n.esquire.bizTree.exception;
@@ -37,11 +38,11 @@ public class ProblemDetailMill {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(status, details);
         problem.setTitle(title);
         problem.setInstance(URI.create(request.getRequestURI()));
-        if (rootCause != null) {
-            problem.setProperty(EsqConstants.PD_STACK_TRACE, ExceptionUtils.getStackTrace(rootCause));
-        } else if (ex != null) {
-            problem.setProperty(EsqConstants.PD_STACK_TRACE, ExceptionUtils.getStackTrace(ex));
+        boolean shouldCapture = ex != null && "true".equals(request.getHeader(EsqConstants.ESQ_CAPTURE_METRICS));
+        if (shouldCapture) {
+            problem.setProperty(EsqConstants.PD_STACK_TRACE, ExceptionUtils.getStackTrace(rootCause != null ?  rootCause : ex));
         }
+
         problem.setProperty(EsqConstants.PD_TIMESTAMP, OffsetDateTime.now(ZoneOffset.UTC));
         String correlationId = getCorrelationId(request);
         if (correlationId == null) {

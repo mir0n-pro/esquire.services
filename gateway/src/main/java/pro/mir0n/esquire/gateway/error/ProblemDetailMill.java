@@ -6,7 +6,8 @@
  *  mailto:mir0n.the.programmer@gmail.com
  *
  *  History:
- */
+  * 01/18/2026 mir0n  let stack trace optional
+*/
 
 package pro.mir0n.esquire.gateway.error;
 
@@ -26,7 +27,7 @@ import java.time.ZoneOffset;
 public class ProblemDetailMill {
     private ProblemDetailMill () {};
 
-    public static ProblemDetail createProblemDetail(ServerRequest request, HttpStatus status, String title, String msg, Throwable ex ) {
+    public static ProblemDetail createProblemDetail(ServerRequest request, HttpStatus status, String title, String msg, boolean shouldCapture, Throwable ex ) {
         // Create standard problem detail
         String details = msg;
         Throwable rootCause = ex == null? null : ExceptionUtils.getRootCause(ex);
@@ -39,10 +40,11 @@ public class ProblemDetailMill {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(status, details);
         problem.setTitle(title);
         problem.setInstance(URI.create(request.path()));
-        if (rootCause != null) {
-            problem.setProperty(EsqConstants.PD_STACK_TRACE, ExceptionUtils.getStackTrace(rootCause));
-        } else if (ex != null) {
-            problem.setProperty(EsqConstants.PD_STACK_TRACE, ExceptionUtils.getStackTrace(ex));
+        if (shouldCapture) {
+            Throwable target = (rootCause != null) ? rootCause : ex;
+            if (target != null) {
+                problem.setProperty(EsqConstants.PD_STACK_TRACE, ExceptionUtils.getStackTrace(target));
+            }
         }
 
         problem.setProperty(EsqConstants.PD_TIMESTAMP, OffsetDateTime.now(ZoneOffset.UTC));

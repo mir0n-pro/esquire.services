@@ -1,5 +1,9 @@
 Esquire BizTree Microservice
 
+01/19/2026 mir0n Observability, polishing
+exception.ProblemDetailMill
+  - let stack trace optional
+
 01/18/2026 mir0n Error handling, request/correlation/trace IDs, performance metrics
 - BizTreeConstants moved to common package as pro.mir0n.esquire.common.EsqConstants
 - pro.mir0n.esquire.common.EsqUtils introduced
