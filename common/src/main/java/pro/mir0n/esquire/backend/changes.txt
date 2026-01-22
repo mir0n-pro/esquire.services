@@ -1,0 +1,4 @@
+Esquire Backend common microservice classes 
+
+
+01/22/2026 mir0n initial

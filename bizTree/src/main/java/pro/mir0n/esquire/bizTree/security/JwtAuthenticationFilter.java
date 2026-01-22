@@ -6,6 +6,7 @@
  *  mailto:mir0n.the.programmer@gmail.com
  *
  *  History:
+ * 01/21/2024 mir0n  ProblemDetailMill moved to backend common package
  */
 
 package pro.mir0n.esquire.bizTree.security;
@@ -31,7 +32,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 import java.io.IOException;
 import java.util.ArrayList;
 
-import pro.mir0n.esquire.bizTree.exception.ProblemDetailMill;
+import pro.mir0n.esquire.backend.error.ProblemDetailMill;
 import pro.mir0n.esquire.common.EsqConstants;
 
 @Slf4j

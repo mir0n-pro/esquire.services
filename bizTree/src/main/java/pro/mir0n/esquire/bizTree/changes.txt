@@ -1,5 +1,13 @@
 Esquire BizTree Microservice
 
+01/21/2026 mir0n Module structure
+~ exception.ProblemDetailMill moved to backend common module
+~ common package moved common module
+exception.GlobalExceptionHandler
+  - ProblemDetailMill moved to backend common module
+security.JwtAuthenticationFilter
+  - ProblemDetailMill moved to backend common module
+
 01/19/2026 mir0n Observability, polishing
 exception.ProblemDetailMill
   - let stack trace optional

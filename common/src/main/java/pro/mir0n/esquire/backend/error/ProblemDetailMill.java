@@ -9,7 +9,7 @@
  * 01/18/2026 mir0n let stack trace optional
  */
 
-package pro.mir0n.esquire.bizTree.exception;
+package pro.mir0n.esquire.backend.error;
 
 import jakarta.servlet.http.HttpServletRequest;
 import org.apache.commons.lang3.exception.ExceptionUtils;

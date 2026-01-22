@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>pro.mir0n.esquire</groupId>
+        <artifactId>esquire-parent</artifactId>
+<!--xxx: we need a stable parent version to be referenced correctly -->
+        <version>1.2.0</version>
+        <relativePath>../pom.xml</relativePath>
+    </parent>
+
+    <artifactId>esquire-common</artifactId>
+    <version>${common.version}</version>
+<!--xxx: there would be WARNING but that is OK -->
+    <!--version>1.2.0</version-->
+
+    <name>EsquireCommon</name>
+    <description>Common classes of Esquire microservices</description>
+    <packaging>jar</packaging>
+
+    <dependencies>
+<!--        
+        <dependency>
+            <groupId>org.jetbrains</groupId>
+            <artifactId>annotations</artifactId>
+            <version>RELEASE</version>
+            <scope>compile</scope>
+        </dependency>
+-->        
+
+        <dependency>
+            <groupId>jakarta.servlet</groupId>
+            <artifactId>jakarta.servlet-api</artifactId>
+            <version>6.0.0</version>
+            <!-- Use 'provided' so the library doesn't bundle Spring into its own JAR -->
+            <!--scope>provided</scope-->
+        </dependency>
+        <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-lang3</artifactId>
+            <!--version>3.17.0</version-->
+            <scope>provided</scope> 
+        </dependency>
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-web</artifactId>
+            <scope>provided</scope> 
+        </dependency>
+        
+    </dependencies>
+
+    <build>
+        <!-- finalName>${project.artifactId}</finalName -->
+        <finalName>${project.artifactId}-${project.version}</finalName>
+
+    </build>
+
+</project>

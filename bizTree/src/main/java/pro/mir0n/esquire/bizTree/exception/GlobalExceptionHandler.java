@@ -8,6 +8,7 @@
  *  History:
  *  01/14/2026 mir0n  BizTreeExceptionHandler.java renamed with GlobalExceptionHandler
  *                    Error handling with rfc9457 compliance
+ * 01/21/2024 mir0n  ProblemDetailMill moved to backend common package
  */
 
 package pro.mir0n.esquire.bizTree.exception;
@@ -29,6 +30,7 @@ import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExcep
 import java.util.HashMap;
 import java.util.Map;
 
+import pro.mir0n.esquire.backend.error.ProblemDetailMill;
 import pro.mir0n.esquire.common.EsqConstants;
 
 @RestControllerAdvice

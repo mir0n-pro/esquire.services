@@ -1,6 +1,11 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v1.2.1-2601.2114 
+  Modular structure
+  common module introduced
+  Corresponding modifications in: bizTree, gateway
+
 v1.2.0-2601.1917 Observability Stack completed
    ProblemDetail: make stack trace optional
    Components updated : bizTree, gateway
