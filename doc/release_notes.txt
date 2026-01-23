@@ -1,6 +1,9 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v1.2.1-2601.2219
+  enyMan service added
+
 v1.2.1-2601.2114 
   Modular structure
   common module introduced

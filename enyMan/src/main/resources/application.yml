@@ -1,0 +1,81 @@
+spring:
+  profiles:
+    active: ${DB_ENYMAN_VENDOR:dev-postgres}
+  application:
+    name: enyman
+  jpa:
+    hibernate:
+      ddl-auto: none
+    show-sql: false
+  mvc:
+    problemdetails:
+      enabled: true
+logging:
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss, UTC} %-5level [%X{correlationId:-no-cid}] [%X{requestId:-no-rid}] %logger{36} - %msg%n"
+  structured:
+    format:
+      console: ecs  # Use ecs,'logstash' or 'gelf' for other common formats
+  level:
+    root: ${LOG_LEVEL_ROOT:ERROR}
+    org:
+      springframework: ${LOG_LEVEL_SF:ERROR}
+    pro:
+      mir0n: ${LOG_LEVEL_MIR0N:ERROR}
+
+---
+# Development Oracle
+spring:
+  config:
+    activate:
+      on-profile: dev-oracle
+  datasource:
+    url: jdbc:oracle:thin:@//${DB_ENYMAN_HOST:localhost}:${DB_ENYMAN_PORT:1521}/${DB_ENYMAN_NAME:MIR0N}
+    driverClassName: oracle.jdbc.OracleDriver
+    username: ${DB_ENYMAN_USERNAME:esq2025}
+    password: ${DB_ENYMAN_PASSWORD:q}   
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 20
+      connection-timeout: 30000 
+      max-lifetime: 1800000 
+      idle-timeout: 600000    
+  jpa:
+    mapping-resources:
+      - META-INF/oracle-tree-node.xml
+      - META-INF/oracle-dictionary.xml
+      - META-INF/oracle-entity.xml
+      - META-INF/oracle-custom-field.xml
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.OracleDialect
+server:
+  port: ${ENYMAN_PORT:3000}
+
+---
+# Development Postgres
+spring:
+  config:
+    activate:
+      on-profile: dev-postgres
+  datasource:
+    url: jdbc:postgresql://${DB_ENYMAN_HOST:localhost}:${DB_ENYMAN_PORT:5432}/${DB_ENYMAN_NAME:esq2025}
+    username: ${DB_ENYMAN_USERNAME:esq2025}
+    password: ${DB_ENYMAN_PASSWORD:q}   
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 20
+      connection-timeout: 30000 
+      max-lifetime: 1800000 
+      idle-timeout: 600000    
+  jpa:
+    mapping-resources:
+      - META-INF/postgres-tree-node.xml
+      - META-INF/postgres-dictionary.xml
+      - META-INF/postgres-entity.xml
+      - META-INF/postgres-custom-field.xml
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+server:
+  port: ${ENYMAN_PORT:3000}

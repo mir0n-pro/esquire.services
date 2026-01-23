@@ -31,9 +31,9 @@ services:
       context: .
     image: esquire.biztree
     ports:
-      - "3002:3001"
+      - "3002:3002"
     environment:
-      - BIZTREE_PORT=3001
+      - BIZTREE_PORT=3002
       - LOG_LEVEL_ROOT=ERROR
       - LOG_LEVEL_SF=ERROR
       - LOG_LEVEL_MIR0N=DEBUG
@@ -46,6 +46,31 @@ services:
       - DB_BIZTREE_HOST=host.docker.internal
       - DB_BIZTREE_USERNAME=esq2025
       - DB_BIZTREE_PASSWORD=q
+    command: ["java", "-jar", "app.jar"]
+    networks:
+      - esquirenet
+
+  enyman:
+    container_name: esq-enyman
+    build:
+      context: .
+    image: esquire.enyman
+    ports:
+      - "3003:3003"
+    environment:
+      - ENYMAN_PORT=3003
+      - LOG_LEVEL_ROOT=ERROR
+      - LOG_LEVEL_SF=ERROR
+      - LOG_LEVEL_MIR0N=DEBUG
+      - DB_ENYMAN_VENDOR=dev-postgres
+      - DB_ENYMAN_PORT=5432
+      - DB_ENYMAN_NAME=esq2025
+      #- DB_ENYMAN_VENDOR=dev-oracle
+      #- DB_ENYMAN_PORT=1521
+      #- DB_ENYMAN_NAME=MIR0N
+      - DB_ENYMAN_HOST=host.docker.internal
+      - DB_ENYMAN_USERNAME=esq2025
+      - DB_ENYMAN_PASSWORD=q
     command: ["java", "-jar", "app.jar"]
     networks:
       - esquirenet
@@ -63,14 +88,16 @@ services:
       interval: 10s
     environment:
       - GATEWAY_PORT=7070
-      - BIZTREE_PORT=3001
+      - BIZTREE_PORT=3002
+      - BIZTREE_HOST=biztree
+      - ENYMAN_PORT=3003
+      - ENYMAN_HOST=enyman
       - BACKEND_HOST=localhost
       - KEYCLOAK_HOST=esq-keycloak
       - KEYCLOAK_PORT=8080
       - KEYCLOAK_REALM=esquire
       - KEYCLOAK_CLIENT_ID=esq-angular
       - CORS_ALLOWED_ORIGINS=http://localhost:4200
-      - BIZTREE_HOST=biztree
       - LOG_LEVEL_ROOT=ERROR
       - LOG_LEVEL_SF=ERROR
       - LOG_LEVEL_MIR0N=DEBUG

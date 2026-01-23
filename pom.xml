@@ -20,6 +20,7 @@
         <module>common</module>
         <module>bizTree</module>
         <module>gateway</module>
+        <module>enyMan</module>
      </modules>
 
     <properties>
@@ -46,6 +47,7 @@
         <common.version>${esquire.version}</common.version>
         <bizTree.version>${esquire.version}</bizTree.version>
         <gateway.version>${esquire.version}</gateway.version>
+        <enyMan.version>${esquire.version}</enyMan.version>
         <!-- war version -->
         <!-- war.version>${esquire.version}</war.version -->
 

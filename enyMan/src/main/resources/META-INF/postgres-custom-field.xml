@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<entity-mappings xmlns="http://java.sun.com/xml/ns/persistence/orm"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://java.sun.com/xml/ns/persistence/orm http://java.sun.com/xml/ns/persistence/orm_2_0.xsd"
+    version="2.0">
+<!--
+        <query><![CDATA[ ]]>
+-->
+
+    <named-native-query name="EsqNameValueJpa.customOrg"  result-set-mapping="EsqNameValueJpaMapping">
+        <query>
+SELECT 
+    opr_par_name AS "name",
+    opr_value AS "value"
+FROM esq_org_par
+WHERE opr_org_pk = CAST(:id AS bigint)
+        </query>
+    </named-native-query>
+
+    <named-native-query name="EsqNameValueJpa.customUsr"  result-set-mapping="EsqNameValueJpaMapping">
+        <query>
+SELECT 
+    upr_par_name AS "name", 
+    upr_value AS "value"
+FROM esq_usr_par
+WHERE upr_usr_pk = CAST(:id AS bigint)
+        </query>
+    </named-native-query>
+
+
+    <sql-result-set-mapping name="EsqNameValueJpaMapping">
+    <entity-result entity-class="pro.mir0n.esquire.enyMan.jpa.EsqNameValueJpa">
+        <field-result name="name" column="name"/>
+        <field-result name="value" column="value"/>
+    </entity-result>
+    </sql-result-set-mapping>
+
+    </entity-mappings>

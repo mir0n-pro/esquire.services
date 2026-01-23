@@ -28,16 +28,28 @@ spring:
              allowedMethods: "*"
        routes:
         - id: biztree-route
-          uri: http://${BIZTREE_HOST:biztree}:${BIZTREE_PORT:3001}
-          # uri: http://biztree:3001
+          uri: http://${BIZTREE_HOST:biztree}:${BIZTREE_PORT:3002}
           predicates:
-            - Path=/**
+            - Path=/esq,/esq-path
           metadata:
               allowedMethods:
                 - GET
                 - POST
           filters:
              #RETAIN_UNIQUE
+            - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_FIRST
+            - RewritePath=/(?<segment>.*), /$\{segment}
+            - TokenRelay=
+        - id: enyman-route
+          uri: http://${ENYMAN_HOST:enyman}:${ENYMAN_PORT:3003}
+          predicates:
+            - Path=/esq-enode,/esq-cmd,/esq-dict
+          metadata:
+            allowedMethods:
+              - GET
+              - POST
+          filters:
+            #RETAIN_UNIQUE
             - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_FIRST
             - RewritePath=/(?<segment>.*), /$\{segment}
             - TokenRelay=
