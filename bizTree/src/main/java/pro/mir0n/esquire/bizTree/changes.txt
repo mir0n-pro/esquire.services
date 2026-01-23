@@ -1,5 +1,23 @@
 Esquire BizTree Microservice
 
+01/23/2026 mir0n 
+x DTO package moved to common library
+x JPA package moved to common library
+controller.BizTreeController
+  - use common library
+  - only EsqTreeNode requests
+jpa.EsqTreeNodeRepository
+  - use common library
+service.IBizTreeService
+  - use common library
+  - only EsqTreeNode requests
+service.impl.BizTreeService
+  - use common library
+  - only EsqTreeNode requests
+x storage.EsqEntityDictionaryStorage moved to common library
+BizTreeApplication
+  -no needs for BizTreeApplicationStartingListener
+
 01/21/2026 mir0n Module structure
 ~ exception.ProblemDetailMill moved to backend common module
 ~ common package moved common module

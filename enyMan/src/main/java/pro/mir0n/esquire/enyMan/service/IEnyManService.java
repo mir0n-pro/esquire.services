@@ -7,22 +7,21 @@
  *
  *  History:
  * 01/10/2026 mir0n rootPath and uid params added were required
+ * 01/23/2026 mir0n use common library
+ *                  no more EsqTreeNode methods  
  */
 
 package pro.mir0n.esquire.enyMan.service;
 
 import java.util.List;
 
-import pro.mir0n.esquire.enyMan.dto.EsqEntity;
-import pro.mir0n.esquire.enyMan.dto.EsqTreeNode;
-import pro.mir0n.esquire.enyMan.dto.EsqEntityLayer;
+import pro.mir0n.esquire.backend.dto.EsqEntity;
+import pro.mir0n.esquire.backend.dto.EsqTreeNode;
+import pro.mir0n.esquire.backend.dto.EsqEntityLayer;
 
 public interface IEnyManService {
 
-    List<EsqTreeNode> esquire(String id, Integer skip, Integer take, String rootPath, String uid);
     List<EsqEntityLayer> esquireDictionary(Integer kind);
-    EsqTreeNode esquireEntityNode(Integer kind, String id, String name, String rootPath, String uid);
-    List<String> esquirePath(String id, String rootPath);
     public EsqEntity esquireCommand(Integer kind, String id, String cmd, String rootPath, String uid );
 
 

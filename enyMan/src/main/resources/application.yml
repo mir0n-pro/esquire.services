@@ -42,7 +42,6 @@ spring:
       idle-timeout: 600000    
   jpa:
     mapping-resources:
-      - META-INF/oracle-tree-node.xml
       - META-INF/oracle-dictionary.xml
       - META-INF/oracle-entity.xml
       - META-INF/oracle-custom-field.xml
@@ -70,7 +69,6 @@ spring:
       idle-timeout: 600000    
   jpa:
     mapping-resources:
-      - META-INF/postgres-tree-node.xml
       - META-INF/postgres-dictionary.xml
       - META-INF/postgres-entity.xml
       - META-INF/postgres-custom-field.xml

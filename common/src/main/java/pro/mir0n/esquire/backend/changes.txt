@@ -1,4 +1,11 @@
 Esquire Backend common microservice classes 
 
+01/23/2026 mir0n generalization of entities
++ added package backend.dto
++ added package backend.jpa
++ added package backend.storage
++ added resources\esq-entity-dictionaries.xml
+
+
 
 01/22/2026 mir0n initial

@@ -11,6 +11,8 @@
  * 01/12/2026 mir0n BizTreeConstants moved to common package
  *                  Error handling with rfc9457 compliance
  *                  Debug logs added
+ * 01/23/2026 mir0n use common library
+ *                  only EsqTreeNode requests
  */
 
 package pro.mir0n.esquire.bizTree.service.impl;
@@ -18,16 +20,16 @@ package pro.mir0n.esquire.bizTree.service.impl;
 import java.util.*;
 
 import lombok.extern.slf4j.Slf4j;
-import pro.mir0n.esquire.bizTree.dto.*;
-import pro.mir0n.esquire.bizTree.jpa.*;
+import pro.mir0n.esquire.backend.dto.*;
+import pro.mir0n.esquire.backend.jpa.*;
+import pro.mir0n.esquire.bizTree.jpa.EsqTreeNodeRepository;
 import pro.mir0n.esquire.bizTree.service.RequestContextUtils;
-import pro.mir0n.esquire.bizTree.storage.EsqEntityDictionaryStorage;
 import pro.mir0n.esquire.bizTree.exception.ResourceNotFoundException;
 import pro.mir0n.esquire.bizTree.service.IBizTreeService;
 import lombok.AllArgsConstructor;
 import org.springframework.stereotype.Service;
 
-import pro.mir0n.esquire.common.EsqConstants;
+//import pro.mir0n.esquire.common.EsqConstants;
 
 @Slf4j
 @Service
@@ -35,9 +37,6 @@ import pro.mir0n.esquire.common.EsqConstants;
 public class BizTreeService  implements IBizTreeService {
 
     private EsqTreeNodeRepository treeNodeRepository;
-    private EsqEntityDictionaryRepository entityDictionaryRepository;
-    private EsqEntityRepository entityRepository;
-    private EsqCustomFieldRepository customEntityRepository;
 
     @Override
     public List<EsqTreeNode> esquire(String id, Integer skip, Integer take, String rootPath, String uid) {
@@ -107,71 +106,6 @@ public class BizTreeService  implements IBizTreeService {
         }
         log.debug("srvc: esquirePath(2): path:{}", id, path);
         return path;
-    }
-
-    @Override
-    public List<EsqEntityLayer> esquireDictionary(Integer kind) {
-        String correlationId = RequestContextUtils.getCorrelationId();
-        String requestId = RequestContextUtils.getRequestId();
-        log.debug("srvc: esquireDictionary: kind:{}",  kind);
-
-        List<EsqEntityLayer> ret = null;
-        EsqEntityDictionary dict  = EsqEntityDictionaryStorage.getInstance().get(kind);
-        if  (dict != null) {
-            if(!dict.isCompleted()) {
-                List<EsqCustomEntityFieldJpa> custom = entityDictionaryRepository.findCustom(kind);
-                if   (custom != null && !custom.isEmpty()) {
-                    EsqEntityDictionaryMapper.mapTo(custom, dict);
-                }
-                dict.setCompleted(true);
-            }
-            ret = dict.getLayers();
-        }
-        if (ret == null) {
-            throw new ResourceNotFoundException("esquireDictionary", "kind", kind == null?"''":kind.toString());
-        }
-        log.debug("srvc: esquireDictionary(2): ret:{}",  ret);
-        return ret;
-    }
-
-    @Override
-    public EsqEntity esquireCommand(Integer kind, String id, String cmd, String rootPath, String uid) {
-        String correlationId = RequestContextUtils.getCorrelationId();
-        String requestId = RequestContextUtils.getRequestId();
-        log.debug("srvc: esquireCommand: kind:{}, id:{}, cmd:{}, rootPath:{}, uid:{}",  kind, id, cmd, rootPath, uid);
-
-        EsqEntityFactory.EsqEntityKind eek = EsqEntityFactory.EsqEntityKind.ADMIN;
-        String upk = id;
-        if (EsqConstants.CMD_PROFILE.equals(cmd)) {
-            eek = EsqEntityFactory.EsqEntityKind.ADMIN;
-            upk = uid;
-        } else {
-            int k = (int)Math.floor( (double) kind/2 ) * 2;
-            eek = EsqEntityFactory.EsqEntityKind.getKind(k);
-        }
-        EsqEntityJpa jpa = null;
-        List<EsqNameValueJpa> custom = null;
-        List<EsqTreeNodeJpa> children = null;
-        // xxx: path is safe
-        List<String> path = EsqTreeNodeMapper.pathArray(rootPath);
-        if (eek.isOrg()) {
-            jpa = entityRepository.detailOrg(id, rootPath);
-            custom = customEntityRepository.customOrg(id);
-        } else if (eek.isUsr()) {
-            jpa = entityRepository.detailUsr(upk, rootPath);
-            custom = customEntityRepository.customUsr(upk);
-        } else if (eek.isAcct()) {
-            jpa = entityRepository.detailAcct(id, rootPath);
-        }
-        if (jpa == null) {
-            throw new ResourceNotFoundException("esquireEntity", "kind, id", kind + "," + id);
-        }
-        if (eek.isChildrenDetailed()) {
-            children = treeNodeRepository.findNodes(id, rootLevel(path, uid), rootPath);
-        }
-        EsqEntity ret = EsqEntityFactory.getInstance().createEntity(jpa, custom, children);
-        log.debug("srvc: esquireCommand(2): entity:{}",  ret);
-        return  ret;
     }
 
     private int rootLevel(List<String> path, String uid) {

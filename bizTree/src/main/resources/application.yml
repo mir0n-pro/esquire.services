@@ -43,9 +43,6 @@ spring:
   jpa:
     mapping-resources:
       - META-INF/oracle-tree-node.xml
-      - META-INF/oracle-dictionary.xml
-      - META-INF/oracle-entity.xml
-      - META-INF/oracle-custom-field.xml
     properties:
       hibernate:
         dialect: org.hibernate.dialect.OracleDialect
@@ -71,9 +68,6 @@ spring:
   jpa:
     mapping-resources:
       - META-INF/postgres-tree-node.xml
-      - META-INF/postgres-dictionary.xml
-      - META-INF/postgres-entity.xml
-      - META-INF/postgres-custom-field.xml
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect

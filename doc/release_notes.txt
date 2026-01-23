@@ -1,6 +1,17 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v1.2.1-2601.2301
+  Routes cleanup
+  DTO object generalization
+  JPA object generalization
+    : modified components
+      - common
+      - bizTree
+      - enyMan
+      - gateway
+  
+
 v1.2.1-2601.2219
   enyMan service added
 

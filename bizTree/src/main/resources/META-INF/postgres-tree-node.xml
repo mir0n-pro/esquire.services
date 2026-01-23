@@ -130,7 +130,7 @@
     </named-native-query>
 
     <sql-result-set-mapping name="EsqTreeNodeJpaMapping">
-        <entity-result entity-class="pro.mir0n.esquire.bizTree.jpa.EsqTreeNodeJpa">
+        <entity-result entity-class="pro.mir0n.esquire.backend.jpa.EsqTreeNodeJpa">
             <field-result name="id" column="tree_pk"/>
             <field-result name="name" column="tree_name"/>
             <field-result name="entityId" column="tree_entity_pk"/>

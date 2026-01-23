@@ -29,7 +29,7 @@ WHERE upr_usr_pk = CAST(:id AS bigint)
 
 
     <sql-result-set-mapping name="EsqNameValueJpaMapping">
-    <entity-result entity-class="pro.mir0n.esquire.enyMan.jpa.EsqNameValueJpa">
+    <entity-result entity-class="pro.mir0n.esquire.backend.jpa.EsqNameValueJpa">
         <field-result name="name" column="name"/>
         <field-result name="value" column="value"/>
     </entity-result>

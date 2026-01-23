@@ -12,6 +12,8 @@
  * 01/10/2026 mir0n added processing of user claims
  * 01/18/2026 mir0n BizTreeConstants moved to common package
  *                  ErrorResponse replaced with ProblemDetail
+ * 01/23/2026 mir0n use common library
+ *                  only EsqTreeNode requests
  */
 
 package pro.mir0n.esquire.bizTree.controller;
@@ -20,12 +22,7 @@ import io.jsonwebtoken.Claims;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ProblemDetail;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import pro.mir0n.esquire.bizTree.dto.EsqEntity;
-import pro.mir0n.esquire.bizTree.dto.EsqEntityLayer;
-import pro.mir0n.esquire.bizTree.dto.EsqTreeNode;
-import pro.mir0n.esquire.bizTree.dto.entity.EsqAcct;
-import pro.mir0n.esquire.bizTree.dto.entity.EsqOrg;
-import pro.mir0n.esquire.bizTree.dto.entity.EsqUsr;
+import pro.mir0n.esquire.backend.dto.EsqTreeNode;
 import pro.mir0n.esquire.bizTree.service.IBizTreeService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -71,13 +68,9 @@ public class BizTreeController {
             @ApiResponse(
                     responseCode = "200",
                     description = "HTTP Status OK",
-                    content = @Content(schema = @Schema(oneOf = {EsqTreeNode.class
+                    content = @Content(schema = @Schema(oneOf = {
+                              EsqTreeNode.class
                             , String.class
-                            , EsqEntityLayer.class
-                            , EsqEntity.class
-                            , EsqAcct.class
-                            , EsqOrg.class
-                            , EsqUsr.class
                     }))
             ),
             @ApiResponse(
@@ -109,13 +102,13 @@ public class BizTreeController {
 
     @GetMapping("/esq-enode")
     public ResponseEntity<EsqTreeNode> esquireEntityNode(
-          @Parameter(description = "Entity kind code")
-          @RequestParam(name = "kind", required = true) Integer kind,
-          @Parameter(description = "Entity id, id or name is required")
-          @RequestParam(name = "id", required = false) String id,
-          @Parameter(description = "Entity name, id or name is required")
-          @RequestParam(name = "name", required = false) String name
-          ,@AuthenticationPrincipal Claims claims
+            @Parameter(description = "Entity kind code")
+            @RequestParam(name = "kind", required = true) Integer kind,
+            @Parameter(description = "Entity id, id or name is required")
+            @RequestParam(name = "id", required = false) String id,
+            @Parameter(description = "Entity name, id or name is required")
+            @RequestParam(name = "name", required = false) String name
+            ,@AuthenticationPrincipal Claims claims
     ) {
         String rootPath = claims.get(EsqConstants.JWT_CLAIM_ENTITY_ROOTPATH, String.class);
         String uid = claims.get(EsqConstants.JWT_CLAIM_ENTITY_ID, String.class);
@@ -136,34 +129,6 @@ public class BizTreeController {
         List<String> path = iBizTreeService.esquirePath(id, rootPath);
         log.debug("esquirePath: id:{}, result:{}, claims:{}", id, String.valueOf(path), String.valueOf(claims));
         return ResponseEntity.status(HttpStatus.OK).body(path);
-    }
-    @GetMapping("/esq-dict")
-    public ResponseEntity<List<EsqEntityLayer>>  esquireDictionary(
-            @Parameter(description = "Entity kind code")
-            @RequestParam(name = "kind", required = true) Integer kind,
-            @AuthenticationPrincipal Claims claims
-    ) {
-        List<EsqEntityLayer> layers = iBizTreeService.esquireDictionary(kind);
-        log.debug("esquireDictionary: kind:{}, result:{}, claims:{}", kind, String.valueOf(layers), String.valueOf(claims));
-        return ResponseEntity.status(HttpStatus.OK).body(layers);
-    }
-
-    @GetMapping("/esq-cmd")
-    public ResponseEntity<EsqEntity>  esquireCommand(
-           @Parameter(description = "Entity kind code")
-           @RequestParam(name = "kind", required = true) Integer kind,
-           @Parameter(description = "Entity id")
-           @RequestParam(name = "id", required = true) String id,
-           @Parameter(description = "Command code: 'details' only for now")
-           @RequestParam(name = "cmd", required = false, defaultValue = "details") String cmd,
-           @AuthenticationPrincipal Claims claims
-    ) {
-        String rootPath = claims.get(EsqConstants.JWT_CLAIM_ENTITY_ROOTPATH, String.class);
-        String uid = claims.get(EsqConstants.JWT_CLAIM_ENTITY_ID, String.class);
-
-        EsqEntity entity = iBizTreeService.esquireCommand(kind, id, cmd, rootPath,  uid);
-        log.debug("esquireCommand: kind:{}, id:{}, cmd:{}, rootPath:{}, result:{}", kind, id, cmd, rootPath, String.valueOf(entity));
-        return ResponseEntity.status(HttpStatus.OK).body(entity);
     }
 
 }

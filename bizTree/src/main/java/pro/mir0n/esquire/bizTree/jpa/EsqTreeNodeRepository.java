@@ -7,6 +7,7 @@
  *
  *  History:
  * 01/10/2026 mir0n root* params added
+ * 01/23/2026 mir0n use common library
  */
 
 package pro.mir0n.esquire.bizTree.jpa;
@@ -17,6 +18,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 import org.springframework.data.repository.query.Param;
 import org.springframework.data.jpa.repository.NativeQuery;
+import pro.mir0n.esquire.backend.jpa.EsqTreeNodeJpa;
 
 @Repository
 public interface EsqTreeNodeRepository extends JpaRepository<EsqTreeNodeJpa, String> {

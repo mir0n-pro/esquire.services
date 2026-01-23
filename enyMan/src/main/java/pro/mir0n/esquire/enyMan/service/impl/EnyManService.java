@@ -11,6 +11,9 @@
  * 01/12/2026 mir0n BizTreeConstants moved to common package
  *                  Error handling with rfc9457 compliance
  *                  Debug logs added
+ * 01/23/2026 mir0n use common library
+ *                  no more EsqTreeNode methods  
+ *                  use entityRepository.acctsAsNodes()
  */
 
 package pro.mir0n.esquire.enyMan.service.impl;
@@ -18,10 +21,14 @@ package pro.mir0n.esquire.enyMan.service.impl;
 import java.util.*;
 
 import lombok.extern.slf4j.Slf4j;
-import pro.mir0n.esquire.enyMan.dto.*;
-import pro.mir0n.esquire.enyMan.jpa.*;
+import org.springframework.data.repository.query.Param;
+import pro.mir0n.esquire.backend.dto.*;
+import pro.mir0n.esquire.backend.jpa.*;
+import pro.mir0n.esquire.enyMan.jpa.EsqCustomFieldRepository;
+import pro.mir0n.esquire.enyMan.jpa.EsqEntityDictionaryRepository;
+import pro.mir0n.esquire.enyMan.jpa.EsqEntityRepository;
 import pro.mir0n.esquire.enyMan.service.RequestContextUtils;
-import pro.mir0n.esquire.enyMan.storage.EsqEntityDictionaryStorage;
+import pro.mir0n.esquire.backend.storage.EsqEntityDictionaryStorage;
 import pro.mir0n.esquire.enyMan.exception.ResourceNotFoundException;
 import pro.mir0n.esquire.enyMan.service.IEnyManService;
 import lombok.AllArgsConstructor;
@@ -34,80 +41,10 @@ import pro.mir0n.esquire.common.EsqConstants;
 @AllArgsConstructor
 public class EnyManService  implements IEnyManService {
 
-    private EsqTreeNodeRepository treeNodeRepository;
     private EsqEntityDictionaryRepository entityDictionaryRepository;
     private EsqEntityRepository entityRepository;
     private EsqCustomFieldRepository customEntityRepository;
 
-    @Override
-    public List<EsqTreeNode> esquire(String id, Integer skip, Integer take, String rootPath, String uid) {
-        //xxx: ignore skip, take for now
-        String correlationId = RequestContextUtils.getCorrelationId();
-        String requestId = RequestContextUtils.getRequestId();
-
-        List<EsqTreeNodeJpa> nodes;
-        // xxx: path is safe
-        List<String> path = EsqTreeNodeMapper.pathArray(rootPath);
-        //xxx: for non-admins, it needs to make root-level  "path.size() -2"
-        int rootLevel = rootLevel(path, uid);
-        log.debug("srvc: esquire: id:{}, rootPath:{}, uid:{}, level:{} cid:{} rid:{}", id, rootPath,uid, rootLevel, correlationId, requestId );
-
-        if (id != null && !id.isEmpty()) {
-            nodes = treeNodeRepository.findNodes(id, rootLevel, rootPath);
-        } else {
-            //log.debug("srvc: esquire(0): id:{}, rootPath:{}, uid:{}, level:{}", path.get(path.size() -1), rootPath,uid, rootLevel);
-            nodes = treeNodeRepository.findRoot(path.get(path.size() -1),rootLevel, rootPath);
-            //log.debug("srvc: esquire(1): nodes:{}", nodes);
-        }
-        if (nodes == null) {// || nodes.isEmpty()) {
-            throw new ResourceNotFoundException("esquire", "id", id==null?"''":id);
-        }
-        log.debug("srvc: esquire(2): nodes:{}", nodes);
-        return EsqTreeNodeMapper.mapTo(nodes, new ArrayList<>());
-    }
-
-    @Override
-    public EsqTreeNode esquireEntityNode(Integer kind, String id, String name, String rootPath, String uid) {
-        String correlationId = RequestContextUtils.getCorrelationId();
-        String requestId = RequestContextUtils.getRequestId();
-        EsqTreeNodeJpa node = null;
-        // xxx: path is safe
-        List<String> path = EsqTreeNodeMapper.pathArray(rootPath);
-        int rootLevel = rootLevel(path, uid);
-        log.debug("srvc: esquireEntityNode: kind:{}, id:{}, name:{}, rootPath:{}, uid{}, rootLevel:{}", kind, id, name, rootPath, uid, rootLevel);
-
-        if (id != null && !id.isEmpty()) {
-            node = treeNodeRepository.findByEntityId(id, rootLevel, rootPath);
-        } else if (name != null && kind != null) {
-            node = treeNodeRepository.findByNameKind(name, kind, rootLevel, rootPath);
-        }
-        if (node == null) {
-            throw new ResourceNotFoundException("esquireEntityNode", "id,name,kind", id + "," + name + "," + kind);
-        }
-        log.debug("srvc: esquireEntityNode(2): node:{}", node);
-        return EsqTreeNodeMapper.mapTo(node, new EsqTreeNode());
-    }
-
-    @Override
-    public List<String> esquirePath(String id, String rootPath) {
-        String correlationId = RequestContextUtils.getCorrelationId();
-        String requestId = RequestContextUtils.getRequestId();
-        log.debug("srvc: esquirePath: id:{}, rootPath:{}",  id, rootPath);
-
-        String ret = treeNodeRepository.findPath(id);
-        List<String> rpath = EsqTreeNodeMapper.pathArray(rootPath);
-
-        List<String> path =  EsqTreeNodeMapper.pathArray(ret);
-        if (rpath.size() <= 1) {
-            //return path;
-        }else if (rpath.size() >= path.size()) {
-            path = new ArrayList<>();
-        } else {
-            path = path.subList(rpath.size() -1, path.size());
-        }
-        log.debug("srvc: esquirePath(2): path:{}", id, path);
-        return path;
-    }
 
     @Override
     public List<EsqEntityLayer> esquireDictionary(Integer kind) {
@@ -140,7 +77,7 @@ public class EnyManService  implements IEnyManService {
         String requestId = RequestContextUtils.getRequestId();
         log.debug("srvc: esquireCommand: kind:{}, id:{}, cmd:{}, rootPath:{}, uid:{}",  kind, id, cmd, rootPath, uid);
 
-        EsqEntityFactory.EsqEntityKind eek = EsqEntityFactory.EsqEntityKind.ADMIN;
+        EsqEntityFactory.EsqEntityKind eek;
         String upk = id;
         if (EsqConstants.CMD_PROFILE.equals(cmd)) {
             eek = EsqEntityFactory.EsqEntityKind.ADMIN;
@@ -166,9 +103,12 @@ public class EnyManService  implements IEnyManService {
         if (jpa == null) {
             throw new ResourceNotFoundException("esquireEntity", "kind, id", kind + "," + id);
         }
-        if (eek.isChildrenDetailed()) {
-            children = treeNodeRepository.findNodes(id, rootLevel(path, uid), rootPath);
+
+        if (eek.isChildrenDetailed() && eek.isUsr()) {
+            //xxx: returning level will be incorrect, but that is ok: it does not matter here
+            children = entityRepository.acctsAsNodes(id, rootPath);
         }
+
         EsqEntity ret = EsqEntityFactory.getInstance().createEntity(jpa, custom, children);
         log.debug("srvc: esquireCommand(2): entity:{}",  ret);
         return  ret;

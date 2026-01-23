@@ -6,7 +6,7 @@ services:
     ports:
       - "3003:3003"
     environment:
-      - ENYMANTREE_PORT=3003
+      - ENYMAN_PORT=3003
       - LOG_LEVEL_ROOT=ERROR
       - LOG_LEVEL_SF=ERROR
       - LOG_LEVEL_MIR0N=DEBUG

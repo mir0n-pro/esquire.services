@@ -49,9 +49,27 @@
  AND acc_path LIKE :rootPath || '%'
         </query>
     </named-native-query>
-
+    
+    <named-native-query name="EsqEntityJpa.acctsAsNodes" result-set-mapping="EsqAccNodeJpaMapping">
+        <query>
+ SELECT acc_pk AS tree_pk
+    ,acc_usr_pk
+    ,NULL as pk_link
+    ,acc_id
+    ,acc_et_pk
+    ,DECODE(acc_status,'C',1,'L',2,0) as status_code
+    ,acc_pk
+    ,'b' AS tree_flgs
+    ,-1 AS tree_level
+    ,acc_desc
+    ,acc_path
+ FROM esq_account
+ WHERE acc_usr_pk = :id
+ AND acc_path LIKE :rootPath || '%'
+        </query>
+    </named-native-query>
     <sql-result-set-mapping name="EsqAcctJpaMapping">
-        <entity-result entity-class="pro.mir0n.esquire.enyMan.jpa.entity.EsqAcctJpa">
+        <entity-result entity-class="pro.mir0n.esquire.backend.jpa.entity.EsqAcctJpa">
             <field-result name="id" column="pk"/>
             <field-result name="kind" column="kind"/>
             <field-result name="name" column="name"/>
@@ -63,7 +81,7 @@
     </sql-result-set-mapping>
 
     <sql-result-set-mapping name="EsqUsrJpaMapping">
-        <entity-result entity-class="pro.mir0n.esquire.enyMan.jpa.entity.EsqUsrJpa">
+        <entity-result entity-class="pro.mir0n.esquire.backend.jpa.entity.EsqUsrJpa">
             <field-result name="id" column="pk"/>
             <field-result name="kind" column="kind"/>
             <field-result name="name" column="name"/>
@@ -76,7 +94,7 @@
     </sql-result-set-mapping>
 
     <sql-result-set-mapping name="EsqOrgJpaMapping">
-        <entity-result entity-class="pro.mir0n.esquire.enyMan.jpa.entity.EsqOrgJpa">
+        <entity-result entity-class="pro.mir0n.esquire.backend.jpa.entity.EsqOrgJpa">
             <field-result name="id" column="pk"/>
             <field-result name="kind" column="kind"/>
             <field-result name="name" column="name"/>
@@ -85,6 +103,20 @@
         </entity-result>
     </sql-result-set-mapping>
 
-
+    <sql-result-set-mapping name="EsqAccNodeJpaMapping">
+        <entity-result entity-class="pro.mir0n.esquire.backend.jpa.EsqTreeNodeJpa">
+            <field-result name="id" column="tree_pk"/>
+            <field-result name="name" column="acc_id"/>
+            <field-result name="entityId" column="acc_pk"/>
+            <field-result name="kind" column="acc_et_pk"/>
+            <field-result name="parentId" column="acc_usr_pk"/>
+            <field-result name="linkId" column="pk_link"/>
+            <field-result name="statusCode" column="status_code"/>
+            <field-result name="treeFlags" column="tree_flgs"/>
+            <field-result name="level" column="tree_level"/>
+            <field-result name="desc" column="acc_desc"/>
+            <field-result name="path" column="acc_path"/>
+        </entity-result>
+    </sql-result-set-mapping>
 
 </entity-mappings>

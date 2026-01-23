@@ -30,7 +30,7 @@
     </named-native-query>
 
     <sql-result-set-mapping name="EsqCustomEntityFieldJpaMapping">
-        <entity-result entity-class="pro.mir0n.esquire.enyMan.jpa.EsqCustomEntityFieldJpa">
+        <entity-result entity-class="pro.mir0n.esquire.backend.jpa.EsqCustomEntityFieldJpa">
             <field-result name="name" column="par_name"/>
             <field-result name="kind" column="par_et_pk"/>
             <field-result name="layer" column="par_layer"/>

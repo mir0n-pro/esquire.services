@@ -1,3 +1,28 @@
 Esquire enyMan Microservice
 
-01/22/2025 mir0n initial
+01/23/2026 mir0n 
+controller.EnyManController
+  - use common library
+  - no more EsqTreeNode methods  
+x remove dto package
+x remove jpa package
+jpa.EsqCustomFieldRepository  
+  - use common library
+jpa.EsqEntityDictionaryRepository
+  - use common library
+jpa.EsqEntityRepository  
+  - use common library
+  - added acctsAsNodes method
+service.IEnyManService
+  - use common library
+  - no more EsqTreeNode methods  
+service.impl.EnyManService
+  - use common library
+  - no more EsqTreeNode methods  
+  - use entityRepository.acctsAsNodes()
+x removed storage.EsqEntityDictionaryStorage
+EnyManApplication
+  - explicitly EntityScan, EnableJpaRepositories
+
+
+01/22/2026 mir0n initial
