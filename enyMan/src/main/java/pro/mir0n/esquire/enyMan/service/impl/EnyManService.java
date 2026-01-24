@@ -14,6 +14,8 @@
  * 01/23/2026 mir0n use common library
  *                  no more EsqTreeNode methods  
  *                  use entityRepository.acctsAsNodes()
+ * 01/24/2026 mir0n  ResourceNotFoundException moved to common lib
+ *                   detailAcct() removed (moved to pacMan)
  */
 
 package pro.mir0n.esquire.enyMan.service.impl;
@@ -29,7 +31,7 @@ import pro.mir0n.esquire.enyMan.jpa.EsqEntityDictionaryRepository;
 import pro.mir0n.esquire.enyMan.jpa.EsqEntityRepository;
 import pro.mir0n.esquire.enyMan.service.RequestContextUtils;
 import pro.mir0n.esquire.backend.storage.EsqEntityDictionaryStorage;
-import pro.mir0n.esquire.enyMan.exception.ResourceNotFoundException;
+import pro.mir0n.esquire.backend.error.ResourceNotFoundException;
 import pro.mir0n.esquire.enyMan.service.IEnyManService;
 import lombok.AllArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -97,8 +99,6 @@ public class EnyManService  implements IEnyManService {
         } else if (eek.isUsr()) {
             jpa = entityRepository.detailUsr(upk, rootPath);
             custom = customEntityRepository.customUsr(upk);
-        } else if (eek.isAcct()) {
-            jpa = entityRepository.detailAcct(id, rootPath);
         }
         if (jpa == null) {
             throw new ResourceNotFoundException("esquireEntity", "kind, id", kind + "," + id);

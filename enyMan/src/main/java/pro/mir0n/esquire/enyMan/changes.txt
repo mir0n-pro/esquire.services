@@ -1,5 +1,18 @@
 Esquire enyMan Microservice
 
+01/24/2026 mir0n
+clean code heading
+x exception.ResourceNotFoundException moved to common lib
+exception.GlobalExceptionHandler
+  - ResourceNotFoundException moved to common lib
+jpa.EsqEntityRepository  
+  - detailAcct() removed (moved to pacMan)
+service.impl.EnyManService
+  - ResourceNotFoundException moved to common lib
+  - detailAcct() removed (moved to pacMan)
+  
+
+
 01/23/2026 mir0n 
 controller.EnyManController
   - use common library

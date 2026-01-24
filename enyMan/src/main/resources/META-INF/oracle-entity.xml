@@ -35,21 +35,6 @@
         </query>
     </named-native-query>
 
-    <named-native-query name="EsqEntityJpa.detailAcct"  result-set-mapping="EsqAcctJpaMapping">
-        <query>
- SELECT acc_pk as "pk"
-     ,acc_et_pk as "kind"
-     ,acc_id as "name"
-     ,acc_desc as "desc"
-     ,acc_ccy
-     ,acc_balance
-     ,acc_status
- FROM esq_account
- WHERE acc_pk = :id
- AND acc_path LIKE :rootPath || '%'
-        </query>
-    </named-native-query>
-    
     <named-native-query name="EsqEntityJpa.acctsAsNodes" result-set-mapping="EsqAccNodeJpaMapping">
         <query>
  SELECT acc_pk AS tree_pk
@@ -68,17 +53,6 @@
  AND acc_path LIKE :rootPath || '%'
         </query>
     </named-native-query>
-    <sql-result-set-mapping name="EsqAcctJpaMapping">
-        <entity-result entity-class="pro.mir0n.esquire.backend.jpa.entity.EsqAcctJpa">
-            <field-result name="id" column="pk"/>
-            <field-result name="kind" column="kind"/>
-            <field-result name="name" column="name"/>
-            <field-result name="desc" column="desc"/>
-            <field-result name="ccy" column="acc_ccy"/>
-            <field-result name="balance" column="acc_balance"/>
-            <field-result name="status" column="acc_status"/>
-        </entity-result>
-    </sql-result-set-mapping>
 
     <sql-result-set-mapping name="EsqUsrJpaMapping">
         <entity-result entity-class="pro.mir0n.esquire.backend.jpa.entity.EsqUsrJpa">

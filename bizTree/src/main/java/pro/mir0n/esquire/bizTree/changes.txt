@@ -1,5 +1,12 @@
 Esquire BizTree Microservice
 
+01/24/2026 mir0n 
+x ResourceNotFoundException.java moved to common lib
+exception.GlobalExceptionHandler
+ - ResourceNotFoundException.java moved to common lib
+service.impl.BizTreeService
+ - ResourceNotFoundException.java moved to common lib
+
 01/23/2026 mir0n 
 x DTO package moved to common library
 x JPA package moved to common library

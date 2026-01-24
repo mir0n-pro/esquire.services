@@ -21,6 +21,7 @@
         <module>bizTree</module>
         <module>gateway</module>
         <module>enyMan</module>
+        <module>pacMan</module>
      </modules>
 
     <properties>
@@ -48,6 +49,7 @@
         <bizTree.version>${esquire.version}</bizTree.version>
         <gateway.version>${esquire.version}</gateway.version>
         <enyMan.version>${esquire.version}</enyMan.version>
+        <pacMan.version>${esquire.version}</pacMan.version>
         <!-- war version -->
         <!-- war.version>${esquire.version}</war.version -->
 

@@ -1,5 +1,10 @@
 Esquire Backend common microservice classes 
 
+
+01/24/2026 mir0n generalization of exception
+code heading cleanup
++ added error.ResourceNotFoundException
+
 01/23/2026 mir0n generalization of entities
 + added package backend.dto
 + added package backend.jpa

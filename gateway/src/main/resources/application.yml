@@ -40,6 +40,20 @@ spring:
             - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_FIRST
             - RewritePath=/(?<segment>.*), /$\{segment}
             - TokenRelay=
+        - id: pacman-route
+          uri: http://${PACMAN_HOST:enyman}:${PACMAN_PORT:3003}
+          predicates:
+            - Path=/esq-cmd
+            - Query=kind, ^(18|19|20|21)$     # kind=18, 20: accounts and their shortcuts
+          metadata:
+            allowedMethods:
+              - GET
+              - POST
+          filters:
+            #RETAIN_UNIQUE
+            - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_FIRST
+            - RewritePath=/(?<segment>.*), /$\{segment}
+            - TokenRelay=
         - id: enyman-route
           uri: http://${ENYMAN_HOST:enyman}:${ENYMAN_PORT:3003}
           predicates:
@@ -100,4 +114,18 @@ logging:
       springframework: ${LOG_LEVEL_SF:ERROR}
     pro:
       mir0n: ${LOG_LEVEL_MIR0N:ERROR}
-
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  health:
+    redis:
+      enabled: false
+endpoint:
+    health:
+      db:
+        enabled: false
+      probes:
+        enabled: true
+      show-details: always        

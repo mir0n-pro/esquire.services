@@ -75,6 +75,31 @@ services:
     networks:
       - esquirenet
 
+  pacman:
+    container_name: esq-pacman
+    build:
+      context: .
+    image: esquire.pacman
+    ports:
+      - "3004:3004"
+    environment:
+      - PACMAN_PORT=3004
+      - LOG_LEVEL_ROOT=ERROR
+      - LOG_LEVEL_SF=ERROR
+      - LOG_LEVEL_MIR0N=DEBUG
+      - DB_PACMAN_VENDOR=dev-postgres
+      - DB_PACMAN_PORT=5432
+      - DB_PACMAN_NAME=esq2025
+      #- DB_PACMAN_VENDOR=dev-oracle
+      #- DB_PACMAN_PORT=1521
+      #- DB_PACMAN_NAME=MIR0N
+      - DB_PACMAN_HOST=host.docker.internal
+      - DB_PACMAN_USERNAME=esq2025
+      - DB_PACMAN_PASSWORD=q
+    command: ["java", "-jar", "app.jar"]
+    networks:
+      - esquirenet
+
   gateway:
     container_name: esq-gateway
     build:
@@ -86,12 +111,17 @@ services:
       # Use localhost:7070 because this command runs INSIDE the container
       test: ["CMD", "curl", "-f", "http://localhost:7070/actuator/health"]
       interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 30s
     environment:
       - GATEWAY_PORT=7070
       - BIZTREE_PORT=3002
       - BIZTREE_HOST=biztree
       - ENYMAN_PORT=3003
       - ENYMAN_HOST=enyman
+      - PACMAN_PORT=3004
+      - PACMAN_HOST=pacman
       - BACKEND_HOST=localhost
       - KEYCLOAK_HOST=esq-keycloak
       - KEYCLOAK_PORT=8080
@@ -108,6 +138,44 @@ services:
         condition: service_healthy    
     networks:
       - esquirenet
+
+  frontend:
+    container_name: esq-frontend
+    build:
+      context: .
+      secrets:
+        - npmrc        
+    image: esquire.frontend
+    ports:
+      - "4200:4200"
+    environment:
+      # These variables are injected into assets/config.json at container start
+      - BACKEND_HOST=localhost
+      - BACKEND_PORT=3000
+      - KEYCLOAK_FACADE_HOST=localhost
+      - KEYCLOAK_FACADE_PORT=8080
+      - KEYCLOAK_REALM=esquire
+      - KEYCLOAK_CLIENT_ID=esq-angular
+    # Command overrides angular.json for Docker without changing local code
+    command: >
+          /bin/sh -c "
+          envsubst < ./public/assets/config.json.template > ./public/assets/config.json && 
+          npx ng serve --host 0.0.0.0 --port 4200 --poll 2000
+          "
+    depends_on:
+      gateway:
+        condition: service_healthy
+    networks:
+      - esquirenet
+      
+#    volumes:
+#      - .:/app
+#      - /app/node_modules # Prevents local node_modules from overwriting container's
+# Mount ONLY the template as read-only
+#      - ./public/assets/config.json.template:/public/assets/config.json.template:ro
+secrets:
+  npmrc:
+    file: ./.npmrc_composer 
 
 networks:
   esquirenet:

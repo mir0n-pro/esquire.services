@@ -1,6 +1,6 @@
 /*
  *  Esquire frameworks (tm)
- *  BizTree service
+ *  EnyMan service
  *
  *  Copyright(c) 2001, 2025 mir0n&co www.mir0n.me
  *  mailto:mir0n.the.programmer@gmail.com
@@ -9,6 +9,7 @@
  * 01/10/2006 mir0n rootPath param added
  * 01/23/206 mir0n  use common library
  *                  added acctsAsNodes method
+ * 01/24/2026 mir0n detailAcct() removed (moved to pacMan)
  */
 
 package pro.mir0n.esquire.enyMan.jpa;
@@ -25,8 +26,6 @@ import java.util.List;
 @Repository
 public interface EsqEntityRepository extends JpaRepository<EsqEntityJpa, String> {
 
-    @NativeQuery
-    EsqEntityJpa detailAcct (@Param("id") String id, @Param("rootPath") String rootPath);
     @NativeQuery
     EsqEntityJpa detailUsr (@Param("id") String id, @Param("rootPath") String rootPath);
     @NativeQuery

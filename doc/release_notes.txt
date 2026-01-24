@@ -1,6 +1,12 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v1.2.1-2601.2415
+  Code heading cleanup
+  Generalized ResourceNotFoundException 
+  pacMan service introduced
+  make sure frontend works good in docker
+
 v1.2.1-2601.2301
   Routes cleanup
   DTO object generalization
