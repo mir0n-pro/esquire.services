@@ -6,6 +6,7 @@
  *  mailto:mir0n.the.programmer@gmail.com
  *
  *  History:
+ * 01/25/2006 mir0n  Paper Client Account added
  */
 
 package pro.mir0n.esquire.backend.dto;
@@ -32,6 +33,7 @@ public class EsqEntityFactory {
         ADMIN("admin", 16, false, true, false, false),
         ACCT_CLIENT("account", 18, false, false, true, false),
         ACCT_MERCHANT("maccount", 20, false, false, true, false),
+        PACCT_CLIENT("paccount", 22, false, false, true, false),
         ;
 
         private final int kind;

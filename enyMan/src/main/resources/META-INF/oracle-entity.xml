@@ -25,12 +25,13 @@
      ,usr_et_pk as "kind"
      ,usr_name as "name"
      ,usr_desc as "desc"
-     ,usr_login_id
+     ,au_login_id
      ,usr_reg_option
      ,usr_deleted_flg
-     ,usr_email
- FROM esq_user
+     ,au_email
+ FROM esq_user, esq_auth
  WHERE usr_pk = :id
+ AND usr_pk = au_usr_pk
  AND usr_path LIKE :rootPath || '%'
         </query>
     </named-native-query>
@@ -60,10 +61,10 @@
             <field-result name="kind" column="kind"/>
             <field-result name="name" column="name"/>
             <field-result name="desc" column="desc"/>
-            <field-result name="loginId" column="usr_login_id"/>
+            <field-result name="loginId" column="au_login_id"/>
             <field-result name="registration" column="usr_reg_option"/>
             <field-result name="deleted" column="usr_deleted_flg"/>
-            <field-result name="email" column="usr_email"/>
+            <field-result name="email" column="au_email"/>
         </entity-result>
     </sql-result-set-mapping>
 

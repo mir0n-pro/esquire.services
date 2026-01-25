@@ -1,5 +1,8 @@
 Esquire Backend common microservice classes 
 
+01/25/2026 mir0n Paper Client Account added
+dto.EsqEntityFactory
+  - Paper Client Account added
 
 01/24/2026 mir0n generalization of exception
 code heading cleanup

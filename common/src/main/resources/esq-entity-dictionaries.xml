@@ -153,6 +153,20 @@
     	                </field>
     	  	        </fields>
                 </layer>
+                <layer>
+                    <layer>4</layer>
+                    <title>Paper Accounts</title>
+                    <fields>
+                        <field>
+                            <name>paccounts</name>
+                            <sort>1</sort>
+                            <label>Paper Accounts</label>
+                            <type>tablist</type>
+                            <readwrite>1</readwrite>
+                            <format>kind=22</format>
+                        </field>
+                    </fields>
+                </layer>
 				<layer>
                     <layer>99</layer>
 	  	            <title>Description</title>
@@ -429,6 +443,70 @@
                 </layer>	
             </layers>
         </dictionary>
+
+    <!--  Paper Client Account -->
+		<dictionary>
+			<kind>22</kind>
+			<layers>
+				<layer>
+					<layer>1</layer>
+  		            <title>Generic</title>
+    		        <fields>
+  			            <field>
+                            <name>name</name>
+                            <sort>1</sort>
+                            <label>Account ID</label>
+                            <type>string</type>
+                            <tooltip>Account ID</tooltip>
+                            <readwrite>1</readwrite>
+                        </field>
+          			    <field>
+                            <name>ccy</name>
+                            <sort>2</sort>
+                            <label>Currency</label>
+                            <type>string</type>
+                            <tooltip>Account Currency</tooltip>
+                            <readwrite>1</readwrite>
+                        </field>
+                        <field>
+                            <name>balance</name>
+                            <sort>3</sort>
+                            <label>Balance</label>
+                            <type>number</type>
+                            <tooltip>Balance in account currency</tooltip>
+                            <readwrite>1</readwrite>
+                        </field>
+          			    <field>
+                            <name>status</name>
+                            <sort>4</sort>
+                            <label>Status</label>
+                            <type>string</type>
+                            <tooltip>Account Status</tooltip>
+                            <listvalues>
+                                <value>O~Open</value>
+                                <value>L~Locked</value>
+                                <value>C~Closed</value>
+                            </listvalues>
+                            <readwrite>1</readwrite>
+                        </field>
+                    </fields>
+                </layer>
+				<layer>
+                    <layer>99</layer>
+                    <title>Description</title>
+                    <fields>
+                        <field>
+                            <name>desc</name>
+                            <sort>1</sort>
+                            <label>Description</label>
+                            <type>tabstring</type>
+                            <tooltip>Account Description</tooltip>
+                            <readwrite>1</readwrite>
+                        </field>
+                    </fields>
+				</layer>	
+			</layers>
+		</dictionary>
 
 
     </dictionaries>

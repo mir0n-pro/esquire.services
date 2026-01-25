@@ -1,6 +1,10 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v1.2.1-2601.2517
+  Modification of ERD with support of keySmith
+  Paper Client Account
+
 v1.2.1-2601.2415
   Code heading cleanup
   Generalized ResourceNotFoundException 
@@ -12,7 +16,7 @@ v1.2.1-2601.2301
   DTO object generalization
   JPA object generalization
     : modified components
-      - common
+      + common
       - bizTree
       - enyMan
       - gateway
