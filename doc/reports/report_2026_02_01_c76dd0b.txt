@@ -1,0 +1,637 @@
+--------------------------------------------------------------------------
+Release notes: from v1.2.0 till HEAD
+--------------------------------------------------------------------------
+Top Commit: c76dd0b
+Notes from: doc/release_notes.txt
+v1.2.1-2602.0113
+  - keySmith service added
+  - added AccessProfile. Roles, Permissions
+  - remove custom JSON encoding for user's accounts property
+
+v1.2.1-2601.2517
+  Modification of ERD with support of keySmith
+  Paper Client Account
+
+v1.2.1-2601.2415
+  Code heading cleanup
+  Generalized ResourceNotFoundException 
+  pacMan service introduced
+  make sure frontend works good in docker
+
+v1.2.1-2601.2301
+  Routes cleanup
+  DTO object generalization
+  JPA object generalization
+    : modified components
+      + common
+      - bizTree
+      - enyMan
+      - gateway
+  
+
+v1.2.1-2601.2219
+  enyMan service added
+
+v1.2.1-2601.2114 
+  Modular structure
+  common module introduced
+  Corresponding modifications in: bizTree, gateway
+
+--------------------------------------------------------------------------
+Branch : esquire.services/develop
+--------------------------------------------------------------------------
+Code changes:
+--------------------------------------------------------------------------
+Changes from: bizTree/src/main/java/pro/mir0n/esquire/bizTree/changes.txt
+01/24/2026 mir0n 
+x ResourceNotFoundException.java moved to common lib
+exception.GlobalExceptionHandler
+ - ResourceNotFoundException.java moved to common lib
+service.impl.BizTreeService
+ - ResourceNotFoundException.java moved to common lib
+
+01/23/2026 mir0n 
+x DTO package moved to common library
+x JPA package moved to common library
+controller.BizTreeController
+  - use common library
+  - only EsqTreeNode requests
+jpa.EsqTreeNodeRepository
+  - use common library
+service.IBizTreeService
+  - use common library
+  - only EsqTreeNode requests
+service.impl.BizTreeService
+  - use common library
+  - only EsqTreeNode requests
+x storage.EsqEntityDictionaryStorage moved to common library
+BizTreeApplication
+  -no needs for BizTreeApplicationStartingListener
+
+01/21/2026 mir0n Module structure
+~ exception.ProblemDetailMill moved to backend common module
+~ common package moved common module
+exception.GlobalExceptionHandler
+  - ProblemDetailMill moved to backend common module
+security.JwtAuthenticationFilter
+  - ProblemDetailMill moved to backend common module
+
+--------------------------------------------------------------------------
+Changes from: common/src/main/java/pro/mir0n/esquire/backend/changes.txt
+Esquire Backend common microservice classes 
+
+02/01/2026 mir0n 
++ added dto.access package:
+   + EsqAccessProfile
+   + EsqRole
+   + EsqPermission
+dto.EsqEntityDictionary
+   - removed @AllArgsConstructor 
+dto.EsqEntity
+   - made class concrete
+dto.entity.EsqUsr
+   - List<String>> children replaced with List<EsqEntity>
+     "accounts" field does not require custom JsonAnyGetter anymore
++ added jpa.access package:
+   + EsqAccessProfileJpa
+   + EsqRoleJpa
+   + EsqPermissionJpa
+
+
+01/25/2026 mir0n Paper Client Account added
+dto.EsqEntityFactory
+  - Paper Client Account added
+
+01/24/2026 mir0n generalization of exception
+code heading cleanup
++ added error.ResourceNotFoundException
+
+01/23/2026 mir0n generalization of entities
++ added package backend.dto
++ added package backend.jpa
++ added package backend.storage
++ added resources\esq-entity-dictionaries.xml
+
+
+
+01/22/2026 mir0n initial
+--------------------------------------------------------------------------
+Changes from: common/src/main/java/pro/mir0n/esquire/common/changes.txt
+Esquire Common microservice classes 
+
+02/01/2026 mir0n 
+EsqConstants
+  - added DICT_ACCESS_PROFILE as a virtual entity kind for dictionary
+ 
+
+01/22/2026 mir0n initial
+--------------------------------------------------------------------------
+Changes from: enyMan/src/main/java/pro/mir0n/esquire/enyMan/changes.txt
+Esquire enyMan Microservice
+
+01/24/2026 mir0n
+clean code heading
+x exception.ResourceNotFoundException moved to common lib
+exception.GlobalExceptionHandler
+  - ResourceNotFoundException moved to common lib
+jpa.EsqEntityRepository  
+  - detailAcct() removed (moved to pacMan)
+service.impl.EnyManService
+  - ResourceNotFoundException moved to common lib
+  - detailAcct() removed (moved to pacMan)
+  
+
+
+01/23/2026 mir0n 
+controller.EnyManController
+  - use common library
+  - no more EsqTreeNode methods  
+x remove dto package
+x remove jpa package
+jpa.EsqCustomFieldRepository  
+  - use common library
+jpa.EsqEntityDictionaryRepository
+  - use common library
+jpa.EsqEntityRepository  
+  - use common library
+  - added acctsAsNodes method
+service.IEnyManService
+  - use common library
+  - no more EsqTreeNode methods  
+service.impl.EnyManService
+  - use common library
+  - no more EsqTreeNode methods  
+  - use entityRepository.acctsAsNodes()
+x removed storage.EsqEntityDictionaryStorage
+EnyManApplication
+  - explicitly EntityScan, EnableJpaRepositories
+
+
+01/22/2026 mir0n initial
+--------------------------------------------------------------------------
+Changes from: gateway/src/main/java/pro/mir0n/esquire/gateway/changes.txt
+--------------------------------------------------------------------------
+Changes from: keySmith/src/main/java/pro/mir0n/esquire/keySmith/changes.txt
+Esquire keySmith Microservice
+
+02/01/2026 mir0n initial
+--------------------------------------------------------------------------
+Changes from: pacMan/src/main/java/pro/mir0n/esquire/pacMan/changes.txt
+Esquire pacMan Microservice
+
+
+01/24/2026 mir0n initial
+--------------------------------------------------------------------------
+
+-- 2026-02-01 | commit: c76dd0b | mir0n.the.programmer | v1.2.1 Added keySmith service, AccessProfile. Roles, Permissions --
+M	README.md
+M	common/src/main/java/pro/mir0n/esquire/backend/changes.txt
+M	common/src/main/java/pro/mir0n/esquire/backend/dto/EsqEntity.java
+M	common/src/main/java/pro/mir0n/esquire/backend/dto/EsqEntityDictionary.java
+A	common/src/main/java/pro/mir0n/esquire/backend/dto/access/EsqAccessProfile.java
+A	common/src/main/java/pro/mir0n/esquire/backend/dto/access/EsqPermission.java
+A	common/src/main/java/pro/mir0n/esquire/backend/dto/access/EsqRole.java
+M	common/src/main/java/pro/mir0n/esquire/backend/dto/entity/EsqUsr.java
+A	common/src/main/java/pro/mir0n/esquire/backend/jpa/access/EsqAccessProfileJpa.java
+A	common/src/main/java/pro/mir0n/esquire/backend/jpa/access/EsqPermissionJpa.java
+A	common/src/main/java/pro/mir0n/esquire/backend/jpa/access/EsqRoleJpa.java
+M	common/src/main/java/pro/mir0n/esquire/common/EsqConstants.java
+M	common/src/main/java/pro/mir0n/esquire/common/changes.txt
+M	common/src/main/resources/esq-entity-dictionaries.xml
+M	compose/compose.yaml
+M	doc/release_notes.txt
+A	doc/reports/report_2026_02_01_596a0ab.txt
+M	gateway/src/main/resources/application.yml
+A	keySmith/.dockerignore
+A	keySmith/Dockerfile
+A	keySmith/compose.yaml
+A	keySmith/pom.xml
+A	keySmith/src/main/java/pro/mir0n/esquire/keySmith/KeySmithApplication.java
+A	keySmith/src/main/java/pro/mir0n/esquire/keySmith/changes.txt
+A	keySmith/src/main/java/pro/mir0n/esquire/keySmith/controller/KeySmithController.java
+A	keySmith/src/main/java/pro/mir0n/esquire/keySmith/exception/GlobalExceptionHandler.java
+A	keySmith/src/main/java/pro/mir0n/esquire/keySmith/jpa/EsqAccessProfileRepository.java
+A	keySmith/src/main/java/pro/mir0n/esquire/keySmith/security/JwtAuthenticationFilter.java
+A	keySmith/src/main/java/pro/mir0n/esquire/keySmith/security/JwtService.java
+A	keySmith/src/main/java/pro/mir0n/esquire/keySmith/security/SecurityConfiguration.java
+A	keySmith/src/main/java/pro/mir0n/esquire/keySmith/service/IKeySmithService.java
+A	keySmith/src/main/java/pro/mir0n/esquire/keySmith/service/MdcFilter.java
+A	keySmith/src/main/java/pro/mir0n/esquire/keySmith/service/PerformanceAspect.java
+A	keySmith/src/main/java/pro/mir0n/esquire/keySmith/service/RequestContextUtils.java
+A	keySmith/src/main/java/pro/mir0n/esquire/keySmith/service/RequestPerformance.java
+A	keySmith/src/main/java/pro/mir0n/esquire/keySmith/service/impl/KeySmithService.java
+A	keySmith/src/main/resources/META-INF/oracle-access-profile.xml
+A	keySmith/src/main/resources/META-INF/postgres-access-profile.xml
+A	keySmith/src/main/resources/application.yml
+M	pom.xml
+ 40 files changed, 2345 insertions(+), 264 deletions(-)
+
+-- 2026-01-25 | commit: 2a187fc | mir0n.the.programmer | Paper Client Account added --
+M	common/src/main/java/pro/mir0n/esquire/backend/changes.txt
+M	common/src/main/java/pro/mir0n/esquire/backend/dto/EsqEntityFactory.java
+M	common/src/main/resources/esq-entity-dictionaries.xml
+M	compose/compose.yaml
+M	doc/release_notes.txt
+M	enyMan/src/main/resources/META-INF/oracle-entity.xml
+M	enyMan/src/main/resources/META-INF/postgres-entity.xml
+M	gateway/src/main/resources/application.yml
+ 8 files changed, 139 insertions(+), 49 deletions(-)
+
+-- 2026-01-24 | commit: fe65838 | mir0n.the.programmer | pacMan service introduced --
+D	bizTree/mvnw
+D	bizTree/mvnw.cmd
+M	bizTree/src/main/java/pro/mir0n/esquire/bizTree/changes.txt
+M	bizTree/src/main/java/pro/mir0n/esquire/bizTree/exception/GlobalExceptionHandler.java
+D	bizTree/src/main/java/pro/mir0n/esquire/bizTree/exception/ResourceNotFoundException.java
+M	bizTree/src/main/java/pro/mir0n/esquire/bizTree/service/impl/BizTreeService.java
+M	common/pom.xml
+M	common/src/main/java/pro/mir0n/esquire/backend/changes.txt
+M	common/src/main/java/pro/mir0n/esquire/backend/dto/EsqEntity.java
+M	common/src/main/java/pro/mir0n/esquire/backend/dto/EsqEntityDictionary.java
+M	common/src/main/java/pro/mir0n/esquire/backend/dto/EsqEntityDictionaryMapper.java
+M	common/src/main/java/pro/mir0n/esquire/backend/dto/EsqEntityDictionaryShell.java
+M	common/src/main/java/pro/mir0n/esquire/backend/dto/EsqEntityFactory.java
+M	common/src/main/java/pro/mir0n/esquire/backend/dto/EsqEntityField.java
+M	common/src/main/java/pro/mir0n/esquire/backend/dto/EsqEntityLayer.java
+M	common/src/main/java/pro/mir0n/esquire/backend/dto/EsqNameValue.java
+M	common/src/main/java/pro/mir0n/esquire/backend/dto/EsqNameValueSerializer.java
+M	common/src/main/java/pro/mir0n/esquire/backend/dto/EsqTreeNode.java
+M	common/src/main/java/pro/mir0n/esquire/backend/dto/EsqTreeNodeMapper.java
+M	common/src/main/java/pro/mir0n/esquire/backend/dto/Response.java
+M	common/src/main/java/pro/mir0n/esquire/backend/dto/entity/EsqAcct.java
+M	common/src/main/java/pro/mir0n/esquire/backend/dto/entity/EsqOrg.java
+M	common/src/main/java/pro/mir0n/esquire/backend/dto/entity/EsqUsr.java
+M	common/src/main/java/pro/mir0n/esquire/backend/error/ProblemDetailMill.java
+R090	enyMan/src/main/java/pro/mir0n/esquire/enyMan/exception/ResourceNotFoundException.java	common/src/main/java/pro/mir0n/esquire/backend/error/ResourceNotFoundException.java
+M	common/src/main/java/pro/mir0n/esquire/backend/jpa/EsqCustomEntityFieldJpa.java
+M	common/src/main/java/pro/mir0n/esquire/backend/jpa/EsqEntityJpa.java
+M	common/src/main/java/pro/mir0n/esquire/backend/jpa/EsqNameValueJpa.java
+M	common/src/main/java/pro/mir0n/esquire/backend/jpa/EsqTreeNodeJpa.java
+M	common/src/main/java/pro/mir0n/esquire/backend/jpa/entity/EsqAcctJpa.java
+M	common/src/main/java/pro/mir0n/esquire/backend/jpa/entity/EsqOrgJpa.java
+M	common/src/main/java/pro/mir0n/esquire/backend/jpa/entity/EsqUsrJpa.java
+M	common/src/main/java/pro/mir0n/esquire/backend/storage/EsqEntityDictionaryStorage.java
+M	common/src/main/java/pro/mir0n/esquire/common/EsqConstants.java
+M	common/src/main/java/pro/mir0n/esquire/common/EsqUtils.java
+M	compose/compose.yaml
+M	doc/release_notes.txt
+D	enyMan/mvnw
+D	enyMan/mvnw.cmd
+M	enyMan/src/main/java/pro/mir0n/esquire/enyMan/changes.txt
+M	enyMan/src/main/java/pro/mir0n/esquire/enyMan/exception/GlobalExceptionHandler.java
+M	enyMan/src/main/java/pro/mir0n/esquire/enyMan/jpa/EsqCustomFieldRepository.java
+M	enyMan/src/main/java/pro/mir0n/esquire/enyMan/jpa/EsqEntityDictionaryRepository.java
+M	enyMan/src/main/java/pro/mir0n/esquire/enyMan/jpa/EsqEntityRepository.java
+M	enyMan/src/main/java/pro/mir0n/esquire/enyMan/service/impl/EnyManService.java
+M	enyMan/src/main/resources/META-INF/oracle-entity.xml
+M	enyMan/src/main/resources/META-INF/postgres-entity.xml
+D	gateway/mvnw
+D	gateway/mvnw.cmd
+M	gateway/pom.xml
+M	gateway/src/main/resources/application.yml
+A	pacMan/.dockerignore
+A	pacMan/Dockerfile
+A	pacMan/compose.yaml
+A	pacMan/pom.xml
+A	pacMan/src/main/java/pro/mir0n/esquire/pacMan/PacManApplication.java
+A	pacMan/src/main/java/pro/mir0n/esquire/pacMan/changes.txt
+A	pacMan/src/main/java/pro/mir0n/esquire/pacMan/controller/PacManController.java
+A	pacMan/src/main/java/pro/mir0n/esquire/pacMan/exception/GlobalExceptionHandler.java
+A	pacMan/src/main/java/pro/mir0n/esquire/pacMan/jpa/EsqAcctRepository.java
+A	pacMan/src/main/java/pro/mir0n/esquire/pacMan/security/JwtAuthenticationFilter.java
+A	pacMan/src/main/java/pro/mir0n/esquire/pacMan/security/JwtService.java
+A	pacMan/src/main/java/pro/mir0n/esquire/pacMan/security/SecurityConfiguration.java
+A	pacMan/src/main/java/pro/mir0n/esquire/pacMan/service/IPacManService.java
+A	pacMan/src/main/java/pro/mir0n/esquire/pacMan/service/MdcFilter.java
+A	pacMan/src/main/java/pro/mir0n/esquire/pacMan/service/PerformanceAspect.java
+A	pacMan/src/main/java/pro/mir0n/esquire/pacMan/service/RequestContextUtils.java
+A	pacMan/src/main/java/pro/mir0n/esquire/pacMan/service/RequestPerformance.java
+A	pacMan/src/main/java/pro/mir0n/esquire/pacMan/service/impl/PacManService.java
+A	pacMan/src/main/resources/META-INF/oracle-acct.xml
+A	pacMan/src/main/resources/META-INF/postgres-acct.xml
+A	pacMan/src/main/resources/application.yml
+M	pom.xml
+ 73 files changed, 1480 insertions(+), 1659 deletions(-)
+
+-- 2026-01-23 | commit: d59a7fd | mir0n.the.programmer | Routes cleanup, Entity generalization --
+D	bizTree/bizTree.iml
+M	bizTree/src/main/java/pro/mir0n/esquire/bizTree/BizTreeApplication.java
+M	bizTree/src/main/java/pro/mir0n/esquire/bizTree/changes.txt
+M	bizTree/src/main/java/pro/mir0n/esquire/bizTree/controller/BizTreeController.java
+D	bizTree/src/main/java/pro/mir0n/esquire/bizTree/jpa/EsqCustomFieldRepository.java
+D	bizTree/src/main/java/pro/mir0n/esquire/bizTree/jpa/EsqEntityDictionaryRepository.java
+D	bizTree/src/main/java/pro/mir0n/esquire/bizTree/jpa/EsqEntityRepository.java
+M	bizTree/src/main/java/pro/mir0n/esquire/bizTree/jpa/EsqTreeNodeRepository.java
+M	bizTree/src/main/java/pro/mir0n/esquire/bizTree/service/IBizTreeService.java
+M	bizTree/src/main/java/pro/mir0n/esquire/bizTree/service/impl/BizTreeService.java
+D	bizTree/src/main/resources/META-INF/oracle-custom-field.xml
+D	bizTree/src/main/resources/META-INF/oracle-dictionary.xml
+D	bizTree/src/main/resources/META-INF/oracle-entity.xml
+M	bizTree/src/main/resources/META-INF/oracle-tree-node.xml
+D	bizTree/src/main/resources/META-INF/postgres-custom-field.xml
+D	bizTree/src/main/resources/META-INF/postgres-dictionary.xml
+D	bizTree/src/main/resources/META-INF/postgres-entity.xml
+M	bizTree/src/main/resources/META-INF/postgres-tree-node.xml
+M	bizTree/src/main/resources/application.yml
+M	common/pom.xml
+M	common/src/main/java/pro/mir0n/esquire/backend/changes.txt
+R090	bizTree/src/main/java/pro/mir0n/esquire/bizTree/dto/EsqEntity.java	common/src/main/java/pro/mir0n/esquire/backend/dto/EsqEntity.java
+R097	bizTree/src/main/java/pro/mir0n/esquire/bizTree/dto/EsqEntityDictionary.java	common/src/main/java/pro/mir0n/esquire/backend/dto/EsqEntityDictionary.java
+R095	bizTree/src/main/java/pro/mir0n/esquire/bizTree/dto/EsqEntityDictionaryMapper.java	common/src/main/java/pro/mir0n/esquire/backend/dto/EsqEntityDictionaryMapper.java
+R096	bizTree/src/main/java/pro/mir0n/esquire/bizTree/dto/EsqEntityDictionaryShell.java	common/src/main/java/pro/mir0n/esquire/backend/dto/EsqEntityDictionaryShell.java
+R088	bizTree/src/main/java/pro/mir0n/esquire/bizTree/dto/EsqEntityFactory.java	common/src/main/java/pro/mir0n/esquire/backend/dto/EsqEntityFactory.java
+R098	bizTree/src/main/java/pro/mir0n/esquire/bizTree/dto/EsqEntityField.java	common/src/main/java/pro/mir0n/esquire/backend/dto/EsqEntityField.java
+R097	bizTree/src/main/java/pro/mir0n/esquire/bizTree/dto/EsqEntityLayer.java	common/src/main/java/pro/mir0n/esquire/backend/dto/EsqEntityLayer.java
+R094	bizTree/src/main/java/pro/mir0n/esquire/bizTree/dto/EsqNameValue.java	common/src/main/java/pro/mir0n/esquire/backend/dto/EsqNameValue.java
+R095	bizTree/src/main/java/pro/mir0n/esquire/bizTree/dto/EsqNameValueSerializer.java	common/src/main/java/pro/mir0n/esquire/backend/dto/EsqNameValueSerializer.java
+R097	bizTree/src/main/java/pro/mir0n/esquire/bizTree/dto/EsqTreeNode.java	common/src/main/java/pro/mir0n/esquire/backend/dto/EsqTreeNode.java
+R094	bizTree/src/main/java/pro/mir0n/esquire/bizTree/dto/EsqTreeNodeMapper.java	common/src/main/java/pro/mir0n/esquire/backend/dto/EsqTreeNodeMapper.java
+R094	bizTree/src/main/java/pro/mir0n/esquire/bizTree/dto/Response.java	common/src/main/java/pro/mir0n/esquire/backend/dto/Response.java
+R081	bizTree/src/main/java/pro/mir0n/esquire/bizTree/dto/entity/EsqAcct.java	common/src/main/java/pro/mir0n/esquire/backend/dto/entity/EsqAcct.java
+R085	bizTree/src/main/java/pro/mir0n/esquire/bizTree/dto/entity/EsqOrg.java	common/src/main/java/pro/mir0n/esquire/backend/dto/entity/EsqOrg.java
+R089	bizTree/src/main/java/pro/mir0n/esquire/bizTree/dto/entity/EsqUsr.java	common/src/main/java/pro/mir0n/esquire/backend/dto/entity/EsqUsr.java
+R094	bizTree/src/main/java/pro/mir0n/esquire/bizTree/jpa/EsqCustomEntityFieldJpa.java	common/src/main/java/pro/mir0n/esquire/backend/jpa/EsqCustomEntityFieldJpa.java
+R091	bizTree/src/main/java/pro/mir0n/esquire/bizTree/jpa/EsqEntityJpa.java	common/src/main/java/pro/mir0n/esquire/backend/jpa/EsqEntityJpa.java
+R091	bizTree/src/main/java/pro/mir0n/esquire/bizTree/jpa/EsqNameValueJpa.java	common/src/main/java/pro/mir0n/esquire/backend/jpa/EsqNameValueJpa.java
+R094	bizTree/src/main/java/pro/mir0n/esquire/bizTree/jpa/EsqTreeNodeJpa.java	common/src/main/java/pro/mir0n/esquire/backend/jpa/EsqTreeNodeJpa.java
+R081	bizTree/src/main/java/pro/mir0n/esquire/bizTree/jpa/entity/EsqAcctJpa.java	common/src/main/java/pro/mir0n/esquire/backend/jpa/entity/EsqAcctJpa.java
+R079	bizTree/src/main/java/pro/mir0n/esquire/bizTree/jpa/entity/EsqOrgJpa.java	common/src/main/java/pro/mir0n/esquire/backend/jpa/entity/EsqOrgJpa.java
+R083	bizTree/src/main/java/pro/mir0n/esquire/bizTree/jpa/entity/EsqUsrJpa.java	common/src/main/java/pro/mir0n/esquire/backend/jpa/entity/EsqUsrJpa.java
+R093	bizTree/src/main/java/pro/mir0n/esquire/bizTree/storage/EsqEntityDictionaryStorage.java	common/src/main/java/pro/mir0n/esquire/backend/storage/EsqEntityDictionaryStorage.java
+R100	bizTree/src/main/resources/esq-entity-dictionaries.xml	common/src/main/resources/esq-entity-dictionaries.xml
+M	doc/release_notes.txt
+D	enyMan/bizTree.iml
+M	enyMan/compose.yaml
+M	enyMan/src/main/java/pro/mir0n/esquire/enyMan/EnyManApplication.java
+M	enyMan/src/main/java/pro/mir0n/esquire/enyMan/changes.txt
+M	enyMan/src/main/java/pro/mir0n/esquire/enyMan/controller/EnyManController.java
+D	enyMan/src/main/java/pro/mir0n/esquire/enyMan/dto/EsqEntity.java
+D	enyMan/src/main/java/pro/mir0n/esquire/enyMan/dto/EsqEntityDictionary.java
+D	enyMan/src/main/java/pro/mir0n/esquire/enyMan/dto/EsqEntityDictionaryMapper.java
+D	enyMan/src/main/java/pro/mir0n/esquire/enyMan/dto/EsqEntityDictionaryShell.java
+D	enyMan/src/main/java/pro/mir0n/esquire/enyMan/dto/EsqEntityFactory.java
+D	enyMan/src/main/java/pro/mir0n/esquire/enyMan/dto/EsqEntityField.java
+D	enyMan/src/main/java/pro/mir0n/esquire/enyMan/dto/EsqEntityLayer.java
+D	enyMan/src/main/java/pro/mir0n/esquire/enyMan/dto/EsqNameValue.java
+D	enyMan/src/main/java/pro/mir0n/esquire/enyMan/dto/EsqNameValueSerializer.java
+D	enyMan/src/main/java/pro/mir0n/esquire/enyMan/dto/EsqTreeNode.java
+D	enyMan/src/main/java/pro/mir0n/esquire/enyMan/dto/EsqTreeNodeMapper.java
+D	enyMan/src/main/java/pro/mir0n/esquire/enyMan/dto/Response.java
+D	enyMan/src/main/java/pro/mir0n/esquire/enyMan/dto/entity/EsqAcct.java
+D	enyMan/src/main/java/pro/mir0n/esquire/enyMan/dto/entity/EsqOrg.java
+D	enyMan/src/main/java/pro/mir0n/esquire/enyMan/dto/entity/EsqUsr.java
+D	enyMan/src/main/java/pro/mir0n/esquire/enyMan/jpa/EsqCustomEntityFieldJpa.java
+M	enyMan/src/main/java/pro/mir0n/esquire/enyMan/jpa/EsqCustomFieldRepository.java
+M	enyMan/src/main/java/pro/mir0n/esquire/enyMan/jpa/EsqEntityDictionaryRepository.java
+D	enyMan/src/main/java/pro/mir0n/esquire/enyMan/jpa/EsqEntityJpa.java
+M	enyMan/src/main/java/pro/mir0n/esquire/enyMan/jpa/EsqEntityRepository.java
+D	enyMan/src/main/java/pro/mir0n/esquire/enyMan/jpa/EsqNameValueJpa.java
+D	enyMan/src/main/java/pro/mir0n/esquire/enyMan/jpa/EsqTreeNodeJpa.java
+D	enyMan/src/main/java/pro/mir0n/esquire/enyMan/jpa/EsqTreeNodeRepository.java
+D	enyMan/src/main/java/pro/mir0n/esquire/enyMan/jpa/entity/EsqAcctJpa.java
+D	enyMan/src/main/java/pro/mir0n/esquire/enyMan/jpa/entity/EsqOrgJpa.java
+D	enyMan/src/main/java/pro/mir0n/esquire/enyMan/jpa/entity/EsqUsrJpa.java
+M	enyMan/src/main/java/pro/mir0n/esquire/enyMan/service/IEnyManService.java
+M	enyMan/src/main/java/pro/mir0n/esquire/enyMan/service/impl/EnyManService.java
+D	enyMan/src/main/java/pro/mir0n/esquire/enyMan/storage/EsqEntityDictionaryStorage.java
+M	enyMan/src/main/resources/META-INF/oracle-custom-field.xml
+M	enyMan/src/main/resources/META-INF/oracle-dictionary.xml
+M	enyMan/src/main/resources/META-INF/oracle-entity.xml
+D	enyMan/src/main/resources/META-INF/oracle-tree-node.xml
+M	enyMan/src/main/resources/META-INF/postgres-custom-field.xml
+M	enyMan/src/main/resources/META-INF/postgres-dictionary.xml
+M	enyMan/src/main/resources/META-INF/postgres-entity.xml
+D	enyMan/src/main/resources/META-INF/postgres-tree-node.xml
+M	enyMan/src/main/resources/application.yml
+D	enyMan/src/main/resources/esq-entity-dictionaries.xml
+M	gateway/src/main/resources/application.yml
+ 91 files changed, 342 insertions(+), 2990 deletions(-)
+
+-- 2026-01-22 | commit: 79e9562 | mir0n.the.programmer | enyMan service added --
+M	bizTree/compose.yaml
+M	compose/compose.yaml
+M	doc/release_notes.txt
+A	enyMan/.dockerignore
+A	enyMan/Dockerfile
+A	enyMan/bizTree.iml
+A	enyMan/compose.yaml
+A	enyMan/mvnw
+A	enyMan/mvnw.cmd
+A	enyMan/pom.xml
+A	enyMan/src/main/java/pro/mir0n/esquire/enyMan/EnyManApplication.java
+A	enyMan/src/main/java/pro/mir0n/esquire/enyMan/changes.txt
+A	enyMan/src/main/java/pro/mir0n/esquire/enyMan/controller/EnyManController.java
+A	enyMan/src/main/java/pro/mir0n/esquire/enyMan/dto/EsqEntity.java
+A	enyMan/src/main/java/pro/mir0n/esquire/enyMan/dto/EsqEntityDictionary.java
+A	enyMan/src/main/java/pro/mir0n/esquire/enyMan/dto/EsqEntityDictionaryMapper.java
+A	enyMan/src/main/java/pro/mir0n/esquire/enyMan/dto/EsqEntityDictionaryShell.java
+A	enyMan/src/main/java/pro/mir0n/esquire/enyMan/dto/EsqEntityFactory.java
+A	enyMan/src/main/java/pro/mir0n/esquire/enyMan/dto/EsqEntityField.java
+A	enyMan/src/main/java/pro/mir0n/esquire/enyMan/dto/EsqEntityLayer.java
+A	enyMan/src/main/java/pro/mir0n/esquire/enyMan/dto/EsqNameValue.java
+A	enyMan/src/main/java/pro/mir0n/esquire/enyMan/dto/EsqNameValueSerializer.java
+A	enyMan/src/main/java/pro/mir0n/esquire/enyMan/dto/EsqTreeNode.java
+A	enyMan/src/main/java/pro/mir0n/esquire/enyMan/dto/EsqTreeNodeMapper.java
+A	enyMan/src/main/java/pro/mir0n/esquire/enyMan/dto/Response.java
+A	enyMan/src/main/java/pro/mir0n/esquire/enyMan/dto/entity/EsqAcct.java
+A	enyMan/src/main/java/pro/mir0n/esquire/enyMan/dto/entity/EsqOrg.java
+A	enyMan/src/main/java/pro/mir0n/esquire/enyMan/dto/entity/EsqUsr.java
+A	enyMan/src/main/java/pro/mir0n/esquire/enyMan/exception/GlobalExceptionHandler.java
+A	enyMan/src/main/java/pro/mir0n/esquire/enyMan/exception/ResourceNotFoundException.java
+A	enyMan/src/main/java/pro/mir0n/esquire/enyMan/jpa/EsqCustomEntityFieldJpa.java
+A	enyMan/src/main/java/pro/mir0n/esquire/enyMan/jpa/EsqCustomFieldRepository.java
+A	enyMan/src/main/java/pro/mir0n/esquire/enyMan/jpa/EsqEntityDictionaryRepository.java
+A	enyMan/src/main/java/pro/mir0n/esquire/enyMan/jpa/EsqEntityJpa.java
+A	enyMan/src/main/java/pro/mir0n/esquire/enyMan/jpa/EsqEntityRepository.java
+A	enyMan/src/main/java/pro/mir0n/esquire/enyMan/jpa/EsqNameValueJpa.java
+A	enyMan/src/main/java/pro/mir0n/esquire/enyMan/jpa/EsqTreeNodeJpa.java
+A	enyMan/src/main/java/pro/mir0n/esquire/enyMan/jpa/EsqTreeNodeRepository.java
+A	enyMan/src/main/java/pro/mir0n/esquire/enyMan/jpa/entity/EsqAcctJpa.java
+A	enyMan/src/main/java/pro/mir0n/esquire/enyMan/jpa/entity/EsqOrgJpa.java
+A	enyMan/src/main/java/pro/mir0n/esquire/enyMan/jpa/entity/EsqUsrJpa.java
+A	enyMan/src/main/java/pro/mir0n/esquire/enyMan/security/JwtAuthenticationFilter.java
+A	enyMan/src/main/java/pro/mir0n/esquire/enyMan/security/JwtService.java
+A	enyMan/src/main/java/pro/mir0n/esquire/enyMan/security/SecurityConfiguration.java
+A	enyMan/src/main/java/pro/mir0n/esquire/enyMan/service/IEnyManService.java
+A	enyMan/src/main/java/pro/mir0n/esquire/enyMan/service/MdcFilter.java
+A	enyMan/src/main/java/pro/mir0n/esquire/enyMan/service/PerformanceAspect.java
+A	enyMan/src/main/java/pro/mir0n/esquire/enyMan/service/RequestContextUtils.java
+A	enyMan/src/main/java/pro/mir0n/esquire/enyMan/service/RequestPerformance.java
+A	enyMan/src/main/java/pro/mir0n/esquire/enyMan/service/impl/EnyManService.java
+A	enyMan/src/main/java/pro/mir0n/esquire/enyMan/storage/EsqEntityDictionaryStorage.java
+A	enyMan/src/main/resources/META-INF/oracle-custom-field.xml
+A	enyMan/src/main/resources/META-INF/oracle-dictionary.xml
+A	enyMan/src/main/resources/META-INF/oracle-entity.xml
+A	enyMan/src/main/resources/META-INF/oracle-tree-node.xml
+A	enyMan/src/main/resources/META-INF/postgres-custom-field.xml
+A	enyMan/src/main/resources/META-INF/postgres-dictionary.xml
+A	enyMan/src/main/resources/META-INF/postgres-entity.xml
+A	enyMan/src/main/resources/META-INF/postgres-tree-node.xml
+A	enyMan/src/main/resources/application.yml
+A	enyMan/src/main/resources/esq-entity-dictionaries.xml
+M	gateway/src/main/resources/application.yml
+M	pom.xml
+ 63 files changed, 4492 insertions(+), 9 deletions(-)
+
+-- 2026-01-22 | commit: 28908c0 | mir0n.the.programmer | Modular structure, common module introduced --
+M	bizTree/Dockerfile
+M	bizTree/pom.xml
+M	bizTree/src/main/java/pro/mir0n/esquire/bizTree/changes.txt
+M	bizTree/src/main/java/pro/mir0n/esquire/bizTree/exception/GlobalExceptionHandler.java
+M	bizTree/src/main/java/pro/mir0n/esquire/bizTree/security/JwtAuthenticationFilter.java
+A	common/pom.xml
+A	common/src/main/java/pro/mir0n/esquire/backend/changes.txt
+R098	bizTree/src/main/java/pro/mir0n/esquire/bizTree/exception/ProblemDetailMill.java	common/src/main/java/pro/mir0n/esquire/backend/error/ProblemDetailMill.java
+R100	bizTree/src/main/java/pro/mir0n/esquire/common/EsqConstants.java	common/src/main/java/pro/mir0n/esquire/common/EsqConstants.java
+R100	bizTree/src/main/java/pro/mir0n/esquire/common/EsqUtils.java	common/src/main/java/pro/mir0n/esquire/common/EsqUtils.java
+A	common/src/main/java/pro/mir0n/esquire/common/changes.txt
+M	doc/release_notes.txt
+M	gateway/Dockerfile
+M	gateway/pom.xml
+D	gateway/src/main/java/pro/mir0n/esquire/common/EsqConstants.java
+D	gateway/src/main/java/pro/mir0n/esquire/common/EsqUtils.java
+A	pom.xml
+ 17 files changed, 351 insertions(+), 218 deletions(-)
+--------------------------------------------------------------------------
+List of files modified
+--------------------------------------------------------------------------
+M	README.md
+M	bizTree/Dockerfile
+D	bizTree/bizTree.iml
+M	bizTree/compose.yaml
+D	bizTree/mvnw
+D	bizTree/mvnw.cmd
+M	bizTree/pom.xml
+M	bizTree/src/main/java/pro/mir0n/esquire/bizTree/BizTreeApplication.java
+M	bizTree/src/main/java/pro/mir0n/esquire/bizTree/changes.txt
+M	bizTree/src/main/java/pro/mir0n/esquire/bizTree/controller/BizTreeController.java
+M	bizTree/src/main/java/pro/mir0n/esquire/bizTree/exception/GlobalExceptionHandler.java
+M	bizTree/src/main/java/pro/mir0n/esquire/bizTree/jpa/EsqTreeNodeRepository.java
+M	bizTree/src/main/java/pro/mir0n/esquire/bizTree/security/JwtAuthenticationFilter.java
+M	bizTree/src/main/java/pro/mir0n/esquire/bizTree/service/IBizTreeService.java
+M	bizTree/src/main/java/pro/mir0n/esquire/bizTree/service/impl/BizTreeService.java
+M	bizTree/src/main/resources/META-INF/oracle-tree-node.xml
+M	bizTree/src/main/resources/META-INF/postgres-tree-node.xml
+M	bizTree/src/main/resources/application.yml
+D	bizTree/src/main/resources/esq-entity-dictionaries.xml
+A	common/pom.xml
+A	common/src/main/java/pro/mir0n/esquire/backend/changes.txt
+R077	bizTree/src/main/java/pro/mir0n/esquire/bizTree/dto/EsqEntity.java	common/src/main/java/pro/mir0n/esquire/backend/dto/EsqEntity.java
+R090	bizTree/src/main/java/pro/mir0n/esquire/bizTree/dto/EsqEntityDictionary.java	common/src/main/java/pro/mir0n/esquire/backend/dto/EsqEntityDictionary.java
+R095	bizTree/src/main/java/pro/mir0n/esquire/bizTree/dto/EsqEntityDictionaryMapper.java	common/src/main/java/pro/mir0n/esquire/backend/dto/EsqEntityDictionaryMapper.java
+R095	bizTree/src/main/java/pro/mir0n/esquire/bizTree/dto/EsqEntityDictionaryShell.java	common/src/main/java/pro/mir0n/esquire/backend/dto/EsqEntityDictionaryShell.java
+R084	bizTree/src/main/java/pro/mir0n/esquire/bizTree/dto/EsqEntityFactory.java	common/src/main/java/pro/mir0n/esquire/backend/dto/EsqEntityFactory.java
+R097	bizTree/src/main/java/pro/mir0n/esquire/bizTree/dto/EsqEntityField.java	common/src/main/java/pro/mir0n/esquire/backend/dto/EsqEntityField.java
+R096	bizTree/src/main/java/pro/mir0n/esquire/bizTree/dto/EsqEntityLayer.java	common/src/main/java/pro/mir0n/esquire/backend/dto/EsqEntityLayer.java
+R092	bizTree/src/main/java/pro/mir0n/esquire/bizTree/dto/EsqNameValue.java	common/src/main/java/pro/mir0n/esquire/backend/dto/EsqNameValue.java
+R093	bizTree/src/main/java/pro/mir0n/esquire/bizTree/dto/EsqNameValueSerializer.java	common/src/main/java/pro/mir0n/esquire/backend/dto/EsqNameValueSerializer.java
+R096	bizTree/src/main/java/pro/mir0n/esquire/bizTree/dto/EsqTreeNode.java	common/src/main/java/pro/mir0n/esquire/backend/dto/EsqTreeNode.java
+R093	bizTree/src/main/java/pro/mir0n/esquire/bizTree/dto/EsqTreeNodeMapper.java	common/src/main/java/pro/mir0n/esquire/backend/dto/EsqTreeNodeMapper.java
+R091	bizTree/src/main/java/pro/mir0n/esquire/bizTree/dto/Response.java	common/src/main/java/pro/mir0n/esquire/backend/dto/Response.java
+A	common/src/main/java/pro/mir0n/esquire/backend/dto/access/EsqAccessProfile.java
+A	common/src/main/java/pro/mir0n/esquire/backend/dto/access/EsqPermission.java
+A	common/src/main/java/pro/mir0n/esquire/backend/dto/access/EsqRole.java
+R080	bizTree/src/main/java/pro/mir0n/esquire/bizTree/dto/entity/EsqAcct.java	common/src/main/java/pro/mir0n/esquire/backend/dto/entity/EsqAcct.java
+R084	bizTree/src/main/java/pro/mir0n/esquire/bizTree/dto/entity/EsqOrg.java	common/src/main/java/pro/mir0n/esquire/backend/dto/entity/EsqOrg.java
+R068	bizTree/src/main/java/pro/mir0n/esquire/bizTree/dto/entity/EsqUsr.java	common/src/main/java/pro/mir0n/esquire/backend/dto/entity/EsqUsr.java
+R097	bizTree/src/main/java/pro/mir0n/esquire/bizTree/exception/ProblemDetailMill.java	common/src/main/java/pro/mir0n/esquire/backend/error/ProblemDetailMill.java
+R090	bizTree/src/main/java/pro/mir0n/esquire/bizTree/exception/ResourceNotFoundException.java	common/src/main/java/pro/mir0n/esquire/backend/error/ResourceNotFoundException.java
+R092	bizTree/src/main/java/pro/mir0n/esquire/bizTree/jpa/EsqCustomEntityFieldJpa.java	common/src/main/java/pro/mir0n/esquire/backend/jpa/EsqCustomEntityFieldJpa.java
+R087	bizTree/src/main/java/pro/mir0n/esquire/bizTree/jpa/EsqEntityJpa.java	common/src/main/java/pro/mir0n/esquire/backend/jpa/EsqEntityJpa.java
+R087	bizTree/src/main/java/pro/mir0n/esquire/bizTree/jpa/EsqNameValueJpa.java	common/src/main/java/pro/mir0n/esquire/backend/jpa/EsqNameValueJpa.java
+R091	bizTree/src/main/java/pro/mir0n/esquire/bizTree/jpa/EsqTreeNodeJpa.java	common/src/main/java/pro/mir0n/esquire/backend/jpa/EsqTreeNodeJpa.java
+A	common/src/main/java/pro/mir0n/esquire/backend/jpa/access/EsqAccessProfileJpa.java
+A	common/src/main/java/pro/mir0n/esquire/backend/jpa/access/EsqPermissionJpa.java
+A	common/src/main/java/pro/mir0n/esquire/backend/jpa/access/EsqRoleJpa.java
+R077	bizTree/src/main/java/pro/mir0n/esquire/bizTree/jpa/entity/EsqAcctJpa.java	common/src/main/java/pro/mir0n/esquire/backend/jpa/entity/EsqAcctJpa.java
+R075	bizTree/src/main/java/pro/mir0n/esquire/bizTree/jpa/entity/EsqOrgJpa.java	common/src/main/java/pro/mir0n/esquire/backend/jpa/entity/EsqOrgJpa.java
+R080	bizTree/src/main/java/pro/mir0n/esquire/bizTree/jpa/entity/EsqUsrJpa.java	common/src/main/java/pro/mir0n/esquire/backend/jpa/entity/EsqUsrJpa.java
+R093	bizTree/src/main/java/pro/mir0n/esquire/bizTree/storage/EsqEntityDictionaryStorage.java	common/src/main/java/pro/mir0n/esquire/backend/storage/EsqEntityDictionaryStorage.java
+R091	bizTree/src/main/java/pro/mir0n/esquire/common/EsqConstants.java	common/src/main/java/pro/mir0n/esquire/common/EsqConstants.java
+R094	bizTree/src/main/java/pro/mir0n/esquire/common/EsqUtils.java	common/src/main/java/pro/mir0n/esquire/common/EsqUtils.java
+A	common/src/main/java/pro/mir0n/esquire/common/changes.txt
+A	common/src/main/resources/esq-entity-dictionaries.xml
+M	compose/compose.yaml
+M	doc/release_notes.txt
+A	doc/reports/report_2026_02_01_596a0ab.txt
+A	enyMan/.dockerignore
+A	enyMan/Dockerfile
+A	enyMan/compose.yaml
+A	enyMan/pom.xml
+A	enyMan/src/main/java/pro/mir0n/esquire/enyMan/EnyManApplication.java
+A	enyMan/src/main/java/pro/mir0n/esquire/enyMan/changes.txt
+A	enyMan/src/main/java/pro/mir0n/esquire/enyMan/controller/EnyManController.java
+A	enyMan/src/main/java/pro/mir0n/esquire/enyMan/exception/GlobalExceptionHandler.java
+R081	bizTree/src/main/java/pro/mir0n/esquire/bizTree/jpa/EsqCustomFieldRepository.java	enyMan/src/main/java/pro/mir0n/esquire/enyMan/jpa/EsqCustomFieldRepository.java
+R079	bizTree/src/main/java/pro/mir0n/esquire/bizTree/jpa/EsqEntityDictionaryRepository.java	enyMan/src/main/java/pro/mir0n/esquire/enyMan/jpa/EsqEntityDictionaryRepository.java
+R063	bizTree/src/main/java/pro/mir0n/esquire/bizTree/jpa/EsqEntityRepository.java	enyMan/src/main/java/pro/mir0n/esquire/enyMan/jpa/EsqEntityRepository.java
+A	enyMan/src/main/java/pro/mir0n/esquire/enyMan/security/JwtAuthenticationFilter.java
+A	enyMan/src/main/java/pro/mir0n/esquire/enyMan/security/JwtService.java
+A	enyMan/src/main/java/pro/mir0n/esquire/enyMan/security/SecurityConfiguration.java
+A	enyMan/src/main/java/pro/mir0n/esquire/enyMan/service/IEnyManService.java
+A	enyMan/src/main/java/pro/mir0n/esquire/enyMan/service/MdcFilter.java
+A	enyMan/src/main/java/pro/mir0n/esquire/enyMan/service/PerformanceAspect.java
+A	enyMan/src/main/java/pro/mir0n/esquire/enyMan/service/RequestContextUtils.java
+A	enyMan/src/main/java/pro/mir0n/esquire/enyMan/service/RequestPerformance.java
+A	enyMan/src/main/java/pro/mir0n/esquire/enyMan/service/impl/EnyManService.java
+R094	bizTree/src/main/resources/META-INF/oracle-custom-field.xml	enyMan/src/main/resources/META-INF/oracle-custom-field.xml
+R096	bizTree/src/main/resources/META-INF/oracle-dictionary.xml	enyMan/src/main/resources/META-INF/oracle-dictionary.xml
+R058	bizTree/src/main/resources/META-INF/oracle-entity.xml	enyMan/src/main/resources/META-INF/oracle-entity.xml
+R094	bizTree/src/main/resources/META-INF/postgres-custom-field.xml	enyMan/src/main/resources/META-INF/postgres-custom-field.xml
+R096	bizTree/src/main/resources/META-INF/postgres-dictionary.xml	enyMan/src/main/resources/META-INF/postgres-dictionary.xml
+A	enyMan/src/main/resources/META-INF/postgres-entity.xml
+A	enyMan/src/main/resources/application.yml
+M	gateway/Dockerfile
+D	gateway/mvnw
+D	gateway/mvnw.cmd
+M	gateway/pom.xml
+D	gateway/src/main/java/pro/mir0n/esquire/common/EsqConstants.java
+D	gateway/src/main/java/pro/mir0n/esquire/common/EsqUtils.java
+M	gateway/src/main/resources/application.yml
+A	keySmith/.dockerignore
+A	keySmith/Dockerfile
+A	keySmith/compose.yaml
+A	keySmith/pom.xml
+A	keySmith/src/main/java/pro/mir0n/esquire/keySmith/KeySmithApplication.java
+A	keySmith/src/main/java/pro/mir0n/esquire/keySmith/changes.txt
+A	keySmith/src/main/java/pro/mir0n/esquire/keySmith/controller/KeySmithController.java
+A	keySmith/src/main/java/pro/mir0n/esquire/keySmith/exception/GlobalExceptionHandler.java
+A	keySmith/src/main/java/pro/mir0n/esquire/keySmith/jpa/EsqAccessProfileRepository.java
+A	keySmith/src/main/java/pro/mir0n/esquire/keySmith/security/JwtAuthenticationFilter.java
+A	keySmith/src/main/java/pro/mir0n/esquire/keySmith/security/JwtService.java
+A	keySmith/src/main/java/pro/mir0n/esquire/keySmith/security/SecurityConfiguration.java
+A	keySmith/src/main/java/pro/mir0n/esquire/keySmith/service/IKeySmithService.java
+A	keySmith/src/main/java/pro/mir0n/esquire/keySmith/service/MdcFilter.java
+A	keySmith/src/main/java/pro/mir0n/esquire/keySmith/service/PerformanceAspect.java
+A	keySmith/src/main/java/pro/mir0n/esquire/keySmith/service/RequestContextUtils.java
+A	keySmith/src/main/java/pro/mir0n/esquire/keySmith/service/RequestPerformance.java
+A	keySmith/src/main/java/pro/mir0n/esquire/keySmith/service/impl/KeySmithService.java
+A	keySmith/src/main/resources/META-INF/oracle-access-profile.xml
+A	keySmith/src/main/resources/META-INF/postgres-access-profile.xml
+A	keySmith/src/main/resources/application.yml
+A	pacMan/.dockerignore
+A	pacMan/Dockerfile
+A	pacMan/compose.yaml
+A	pacMan/pom.xml
+A	pacMan/src/main/java/pro/mir0n/esquire/pacMan/PacManApplication.java
+A	pacMan/src/main/java/pro/mir0n/esquire/pacMan/changes.txt
+A	pacMan/src/main/java/pro/mir0n/esquire/pacMan/controller/PacManController.java
+A	pacMan/src/main/java/pro/mir0n/esquire/pacMan/exception/GlobalExceptionHandler.java
+A	pacMan/src/main/java/pro/mir0n/esquire/pacMan/jpa/EsqAcctRepository.java
+A	pacMan/src/main/java/pro/mir0n/esquire/pacMan/security/JwtAuthenticationFilter.java
+A	pacMan/src/main/java/pro/mir0n/esquire/pacMan/security/JwtService.java
+A	pacMan/src/main/java/pro/mir0n/esquire/pacMan/security/SecurityConfiguration.java
+A	pacMan/src/main/java/pro/mir0n/esquire/pacMan/service/IPacManService.java
+A	pacMan/src/main/java/pro/mir0n/esquire/pacMan/service/MdcFilter.java
+A	pacMan/src/main/java/pro/mir0n/esquire/pacMan/service/PerformanceAspect.java
+A	pacMan/src/main/java/pro/mir0n/esquire/pacMan/service/RequestContextUtils.java
+A	pacMan/src/main/java/pro/mir0n/esquire/pacMan/service/RequestPerformance.java
+A	pacMan/src/main/java/pro/mir0n/esquire/pacMan/service/impl/PacManService.java
+A	pacMan/src/main/resources/META-INF/oracle-acct.xml
+R065	bizTree/src/main/resources/META-INF/postgres-entity.xml	pacMan/src/main/resources/META-INF/postgres-acct.xml
+A	pacMan/src/main/resources/application.yml
+A	pom.xml
+ 136 files changed, 6004 insertions(+), 2044 deletions(-)
+--------------------------------------------------------------------------
+The End: From v1.2.0 till HEAD
+--------------------------------------------------------------------------
