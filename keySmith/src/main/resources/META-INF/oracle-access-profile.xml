@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<entity-mappings xmlns="http://java.sun.com/xml/ns/persistence/orm"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://java.sun.com/xml/ns/persistence/orm http://java.sun.com/xml/ns/persistence/orm_2_0.xsd"
+    version="2.0">
+<!--
+        <query><![CDATA[ ]]>
+-->
+    <named-native-query name="EsqAccessProfileJpa.access"  result-set-mapping="EsqAccessProfileMapping">
+        <query>
+ SELECT usr_pk
+   ,usr_et_pk 
+   ,au_login_id
+   ,au_email
+   ,NVL(au_force_change_flg,'N') AS au_force_change_flg
+   ,au_tfa_method
+  FROM esq_user, esq_auth   
+ WHERE usr_pk = au_usr_pk
+   AND usr_pk = :id
+   AND usr_path LIKE :rootPath || '%'
+        </query>
+    </named-native-query>
+
+    <named-native-query name="EsqAccessProfileJpa.roles"  result-set-mapping="EsqRoleMapping">
+        <query>
+ SELECT role_pk
+   , role_name
+  FROM esq_role, esq_usr_role
+ WHERE ur_role_pk = role_pk
+   AND ur_usr_pk = :id
+        </query>
+    </named-native-query>
+
+    <named-native-query name="EsqAccessProfileJpa.permissions" result-set-mapping="EsqPermissionMapping">
+        <query>
+ SELECT prm_pk
+   ,pt_name
+   ,NVL(prm_et_pk,0) AS prm_et_pk
+   ,prm_name
+   ,rp_allowed_flgs
+FROM esq_permission_type
+ ,esq_permission
+ ,esq_role_prm
+ ,esq_usr_role
+WHERE pt_pk = prm_pt_pk 
+ AND  rp_prm_pk = prm_pk
+ AND rp_role_pk = ur_role_pk
+ AND ur_usr_pk :id
+        </query>
+    </named-native-query>
+
+    <sql-result-set-mapping name="EsqAccessProfileMapping">
+        <entity-result entity-class="pro.mir0n.esquire.backend.jpa.access.EsqAccessProfileJpa">
+            <field-result name="id" column="usr_pk"/>
+            <field-result name="kind" column="usr_et_pk"/>
+            <field-result name="loginId" column="au_login_id"/>
+            <field-result name="email" column="au_email"/>
+            <field-result name="pwdChangeForced" column="au_force_change_flg"/>
+            <field-result name="tfaMethod" column="au_tfa_method"/>
+        </entity-result>
+    </sql-result-set-mapping>
+
+    <sql-result-set-mapping name="EsqRoleMapping">
+        <entity-result entity-class="pro.mir0n.esquire.backend.jpa.access.EsqRoleJpa">
+            <field-result name="id" column="role_pk"/>
+            <field-result name="name" column="role_name"/>
+        </entity-result>
+    </sql-result-set-mapping>
+
+    <sql-result-set-mapping name="EsqPermissionMapping">
+        <entity-result entity-class="pro.mir0n.esquire.backend.jpa.access.EsqPermissionJpa">
+            <field-result name="id" column="prm_pk"/>
+            <field-result name="type" column="pt_name"/>
+            <field-result name="entityKind" column="prm_et_pk"/>
+            <field-result name="name" column="prm_name"/>
+            <field-result name="flags" column="rp_allowed_flgs"/>
+        </entity-result>
+    </sql-result-set-mapping>
+
+</entity-mappings>

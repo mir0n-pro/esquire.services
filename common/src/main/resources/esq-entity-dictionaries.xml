@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <dictionary-shell>
     <dictionaries>
-    <!-- System -->   
+    <!-- System -->
         <dictionary>
             <kind>0</kind>
             <layers>
@@ -14,51 +14,51 @@
                             <sort>1</sort>
                             <label>Name</label>
                             <type>string</type>
-                            <tooltip>Sytem name</tooltip>
+                            <tooltip>System name</tooltip>
                             <readwrite>1</readwrite>
                         </field>
                     </fields>
-                </layer>	
-          	<layer>
-            	<layer>99</layer>
-    				<title>Description</title>
-              		<fields>
-              			<field>
-                        	<name>desc</name>
-                        	<sort>1</sort>
-                        	<label>Description</label>
-                        	<!-- type>TAB-STRING</type -->
-                        	<type>tabstring</type>
-                        	<tooltip>system Description</tooltip>
-    						<readwrite>1</readwrite>
-                      	</field>
-					</fields>
-    			</layer>	
-    		</layers>
+                </layer>
+            <layer>
+                <layer>99</layer>
+                    <title>Description</title>
+                    <fields>
+                        <field>
+                            <name>desc</name>
+                            <sort>1</sort>
+                            <label>Description</label>
+                            <!-- type>TAB-STRING</type -->
+                            <type>tabstring</type>
+                            <tooltip>system Description</tooltip>
+                            <readwrite>1</readwrite>
+                        </field>
+                    </fields>
+                </layer>
+            </layers>
         </dictionary>
 
-    <!-- Organization -->   
+    <!-- Organization -->
         <dictionary>
-			<kind>10</kind>
-			<layers>
-				<layer>
-					<layer>1</layer>
-	              	<title>Generic</title>
-        	      	<fields>
-        	      		<field>
-            	            <name>name</name>
-            	            <sort>1</sort>
-            	            <label>Name</label>
-            	            <type>string</type>
-            	            <tooltip>Organization short name</tooltip>
-            	            <readwrite>1</readwrite>
-            	            <!-- listvalues></listvalues -->
-            	            <!-- nullable></nullable -->
-            	            <!-- nullmeaning></nullmeaning -->
-            	            <!-- validation></validation -->
-            	            <!-- format></format -->
+            <kind>10</kind>
+            <layers>
+                <layer>
+                    <layer>1</layer>
+                    <title>Generic</title>
+                    <fields>
+                        <field>
+                            <name>name</name>
+                            <sort>1</sort>
+                            <label>Name</label>
+                            <type>string</type>
+                            <tooltip>Organization short name</tooltip>
+                            <readwrite>1</readwrite>
+                            <!-- listvalues></listvalues -->
+                            <!-- nullable></nullable -->
+                            <!-- nullmeaning></nullmeaning -->
+                            <!-- validation></validation -->
+                            <!-- format></format -->
                         </field>
-                		<field>
+                        <field>
                             <name>fullName</name>
                             <sort>2</sort>
                             <label>Full Name</label>
@@ -66,34 +66,33 @@
                             <tooltip>Organization full name</tooltip>
                             <readwrite>1</readwrite>
                         </field>
-					</fields>
-				</layer>	
-				<layer>
-					<layer>99</layer>
+                    </fields>
+                </layer>
+                <layer>
+                    <layer>99</layer>
                     <title>Description</title>
                     <fields>
-    					<field>
-            	          	<name>desc</name>
-            	          	<sort>1</sort>
-            	          	<label>Description</label>
-            	          	<!--type>TAB-STRING</type -->
-            	          	<type>tabstring</type>
-            	          	<tooltip>Organization Description</tooltip>
-            	          	<readwrite>1</readwrite>
-        	        	</field>
-    		    	</fields>
-				</layer>	
-			</layers>
-		</dictionary>
+                        <field>
+                            <name>desc</name>
+                            <sort>1</sort>
+                            <label>Description</label>
+                            <type>tabstring</type>
+                            <tooltip>Organization Description</tooltip>
+                            <readwrite>1</readwrite>
+                        </field>
+                    </fields>
+                </layer>
+            </layers>
+        </dictionary>
 
     <!-- "Client" -->
-		<dictionary>
-			<kind>12</kind>
-			<layers>
-				<layer>
-		    	    <layer>1</layer>
-					<title>Generic</title>
-    		    	<fields>
+        <dictionary>
+            <kind>12</kind>
+            <layers>
+                <layer>
+                    <layer>1</layer>
+                    <title>Generic</title>
+                    <fields>
                         <field>
                             <name>name</name>
                             <sort>1</sort>
@@ -122,11 +121,9 @@
                             <name>email</name>
                             <sort>3</sort>
                             <label>Email</label>
-                            <!-- type>FLAG</type -->
                             <type>string</type>
                             <tooltip>Email address</tooltip>
                             <readwrite>1</readwrite>
-                            <personal>Y</personal>
                         </field>
                         <field>
                             <name>deleted</name>
@@ -139,58 +136,42 @@
                         </field>
                     </fields>
                 </layer>
-				<layer>
-		        	<layer>3</layer>
-					<title>Accounts</title>
-    		    	<fields>
-    				  	<field>
-    	          	        <name>accounts</name>
-    	            	    <sort>1</sort>
-    	                    <label>Accounts</label>
-    	                    <type>tablist</type>
-    	                    <readwrite>1</readwrite>
-    	                    <format>kind=18</format>
-    	                </field>
-    	  	        </fields>
-                </layer>
                 <layer>
-                    <layer>4</layer>
-                    <title>Paper Accounts</title>
+                    <layer>3</layer>
+                    <title>Accounts</title>
                     <fields>
                         <field>
-                            <name>paccounts</name>
+                            <name>accounts</name>
                             <sort>1</sort>
-                            <label>Paper Accounts</label>
-                            <type>tablist</type>
+                            <label>Account ID</label>
+                            <type>tab-ikn-list</type>
                             <readwrite>1</readwrite>
-                            <format>kind=22</format>
                         </field>
                     </fields>
                 </layer>
-				<layer>
+                <layer>
                     <layer>99</layer>
-	  	            <title>Description</title>
+                    <title>Description</title>
                     <fields>
                         <field>
-            	          	<name>desc</name>
-            	          	<sort>1</sort>
-            	          	<label>Description</label>
-            	          	<!--type>TAB-STRING</type -->
-            	          	<type>tabstring</type>
-            	          	<tooltip>Client Description</tooltip>
-            	          	<readwrite>1</readwrite>
-        	        	</field>
-		    	    </fields>
-				</layer>	
-			</layers>
-		</dictionary>
+                            <name>desc</name>
+                            <sort>1</sort>
+                            <label>Description</label>
+                            <type>tabstring</type>
+                            <tooltip>Client Description</tooltip>
+                            <readwrite>1</readwrite>
+                        </field>
+                    </fields>
+                </layer>
+            </layers>
+        </dictionary>
 
-		<!-- Merchant -->
-		<dictionary>
-			<kind>14</kind>
-			<layers>
-				<layer>
-    			    <layer>1</layer>
+        <!-- Merchant -->
+        <dictionary>
+            <kind>14</kind>
+            <layers>
+                <layer>
+                    <layer>1</layer>
                     <title>Generic</title>
                     <fields>
                         <field>
@@ -217,66 +198,63 @@
                             <type>string</type>
                             <tooltip>Email address</tooltip>
                             <readwrite>1</readwrite>
-                            <personal>Y</personal>
                         </field>
                         <field>
                             <name>deleted</name>
                             <sort>4</sort>
                             <label>Deleted</label>
-                            <!-- type>FLAG</type -->
                             <type>string</type>
                             <tooltip>Deleted Flag</tooltip>
                             <readwrite>1</readwrite>
                         </field>
                     </fields>
-     		    </layer>
-				<layer>
-		    	    <layer>3</layer>
-					<title>Accounts</title>
-		    	    <fields>
-				  	    <field>
-	          	            <name>maccounts</name>
-	            	        <sort>1</sort>
-	                        <label>Accounts</label>
-	                        <type>tablist</type>
-	                        <readwrite>1</readwrite>
-	                        <format>kind=20</format>
-	                    </field>
-	  	            </fields>
                 </layer>
-			    <layer>
-				    <layer>99</layer>
-  	                <title>Description</title>
-    	            <fields>
-					    <field>
-    	          	        <name>desc</name>
-    	          	        <sort>1</sort>
-    	          	        <label>Description</label>
-    	          	        <type>tabstring</type>
-    	          	        <tooltip>Merchant Description</tooltip>
-    	          	        <readwrite>1</readwrite>
-    	        	    </field>
-    		    	</fields>
-    			</layer>	
-    		</layers>
-		</dictionary>
+                <layer>
+                    <layer>3</layer>
+                    <title>Accounts</title>
+                    <fields>
+                        <field>
+                            <name>accounts</name>
+                            <sort>1</sort>
+                            <label>Account ID</label>
+                            <type>tab-ikn-list</type>
+                            <readwrite>1</readwrite>
+                        </field>
+                    </fields>
+                </layer>
+                <layer>
+                    <layer>99</layer>
+                    <title>Description</title>
+                    <fields>
+                        <field>
+                            <name>desc</name>
+                            <sort>1</sort>
+                            <label>Description</label>
+                            <type>tabstring</type>
+                            <tooltip>Merchant Description</tooltip>
+                            <readwrite>1</readwrite>
+                        </field>
+                    </fields>
+                </layer>
+            </layers>
+        </dictionary>
 
-   	<!-- Admin --> 
-		<dictionary>
-			<kind>16</kind>
-			<layers>
-				<layer>
-        	        <layer>1</layer>
-        	        <title>Generic</title>
-					<fields>
-						<field>
-    					    <name>name</name>
-    					    <sort>1</sort>
-    					    <label>Name</label>
-    					    <type>string</type>
-    					    <tooltip>User name</tooltip>
-    					    <readwrite>1</readwrite>
-						</field>
+    <!-- Admin -->
+        <dictionary>
+            <kind>16</kind>
+            <layers>
+                <layer>
+                    <layer>1</layer>
+                    <title>Generic</title>
+                    <fields>
+                        <field>
+                            <name>name</name>
+                            <sort>1</sort>
+                            <label>Name</label>
+                            <type>string</type>
+                            <tooltip>User name</tooltip>
+                            <readwrite>1</readwrite>
+                        </field>
                         <field>
                             <name>loginId</name>
                             <sort>2</sort>
@@ -289,41 +267,38 @@
                             <name>email</name>
                             <sort>3</sort>
                             <label>Email</label>
-                            <!-- type>FLAG</type -->
                             <type>string</type>
                             <tooltip>Email address</tooltip>
                             <readwrite>1</readwrite>
-                            <!-- personal>Y</personal -->
                         </field>
                   </fields>
                 </layer>
-				<layer>
-					<layer>99</layer>
-	  	            <title>Description</title>
-	    	        <fields>
-						<field>
-            	          	<name>desc</name>
-            	          	<sort>1</sort>
-            	          	<label>Description</label>
-            	          	<!--type>TAB-STRING</type -->
-            	          	<type>tabstring</type>
-            	          	<tooltip>Admin Description</tooltip>
-            	          	<readwrite>1</readwrite>
-        	        	</field>
-		        	</fields>
-				</layer>	
-			</layers>
-		</dictionary>
+                <layer>
+                    <layer>99</layer>
+                    <title>Description</title>
+                    <fields>
+                        <field>
+                            <name>desc</name>
+                            <sort>1</sort>
+                            <label>Description</label>
+                            <type>tabstring</type>
+                            <tooltip>Admin Description</tooltip>
+                            <readwrite>1</readwrite>
+                        </field>
+                    </fields>
+                </layer>
+            </layers>
+        </dictionary>
 
     <!--  Client Account -->
-		<dictionary>
-			<kind>18</kind>
-			<layers>
-				<layer>
-					<layer>1</layer>
-  		            <title>Generic</title>
-    		        <fields>
-  			            <field>
+        <dictionary>
+            <kind>18</kind>
+            <layers>
+                <layer>
+                    <layer>1</layer>
+                    <title>Generic</title>
+                    <fields>
+                        <field>
                             <name>name</name>
                             <sort>1</sort>
                             <label>Account ID</label>
@@ -331,7 +306,7 @@
                             <tooltip>Account ID</tooltip>
                             <readwrite>1</readwrite>
                         </field>
-          			    <field>
+                        <field>
                             <name>ccy</name>
                             <sort>2</sort>
                             <label>Currency</label>
@@ -347,7 +322,7 @@
                             <tooltip>Balance in account currency</tooltip>
                             <readwrite>1</readwrite>
                         </field>
-          			    <field>
+                        <field>
                             <name>status</name>
                             <sort>4</sort>
                             <label>Status</label>
@@ -362,7 +337,7 @@
                         </field>
                     </fields>
                 </layer>
-				<layer>
+                <layer>
                     <layer>99</layer>
                     <title>Description</title>
                     <fields>
@@ -375,17 +350,17 @@
                             <readwrite>1</readwrite>
                         </field>
                     </fields>
-				</layer>	
-			</layers>
-		</dictionary>
+                </layer>
+            </layers>
+        </dictionary>
 
 
     <!--  Merchant Account -->
-		<dictionary>
+        <dictionary>
             <kind>20</kind>
             <layers>
                 <layer>
-                	<layer>1</layer>
+                    <layer>1</layer>
                     <title>Generic</title>
                     <fields>
                         <field>
@@ -428,10 +403,10 @@
                     </fields>
                 </layer>
                 <layer>
-                	<layer>99</layer>
+                    <layer>99</layer>
                     <title>Description</title>
                     <fields>
-                		<field>
+                        <field>
                             <name>desc</name>
                             <sort>1</sort>
                             <label>Description</label>
@@ -440,19 +415,19 @@
                             <readwrite>1</readwrite>
                         </field>
                     </fields>
-                </layer>	
+                </layer>
             </layers>
         </dictionary>
 
     <!--  Paper Client Account -->
-		<dictionary>
-			<kind>22</kind>
-			<layers>
-				<layer>
-					<layer>1</layer>
-  		            <title>Generic</title>
-    		        <fields>
-  			            <field>
+        <dictionary>
+            <kind>22</kind>
+            <layers>
+                <layer>
+                    <layer>1</layer>
+                    <title>Generic</title>
+                    <fields>
+                        <field>
                             <name>name</name>
                             <sort>1</sort>
                             <label>Account ID</label>
@@ -460,7 +435,7 @@
                             <tooltip>Account ID</tooltip>
                             <readwrite>1</readwrite>
                         </field>
-          			    <field>
+                        <field>
                             <name>ccy</name>
                             <sort>2</sort>
                             <label>Currency</label>
@@ -476,7 +451,7 @@
                             <tooltip>Balance in account currency</tooltip>
                             <readwrite>1</readwrite>
                         </field>
-          			    <field>
+                        <field>
                             <name>status</name>
                             <sort>4</sort>
                             <label>Status</label>
@@ -491,7 +466,7 @@
                         </field>
                     </fields>
                 </layer>
-				<layer>
+                <layer>
                     <layer>99</layer>
                     <title>Description</title>
                     <fields>
@@ -504,10 +479,122 @@
                             <readwrite>1</readwrite>
                         </field>
                     </fields>
-				</layer>	
-			</layers>
-		</dictionary>
+                </layer>
+            </layers>
+        </dictionary>
 
+
+    <!--  Access Profile -->
+        <dictionary>
+            <kind>998</kind>
+            <layers>
+                <layer>
+                    <layer>1</layer>
+                    <title>Identity</title>
+                    <fields>
+                        <field>
+                            <name>id</name>
+                            <sort>0</sort>
+                            <label>ID</label>
+                            <type>string</type>
+                            <tooltip>Permission ID</tooltip>
+                            <readwrite>0</readwrite>
+                        </field>
+                        <field>
+                            <name>kind</name>
+                            <sort>0</sort>
+                            <label>Kind</label>
+                            <type>integer</type>
+                            <tooltip>Entity Kind</tooltip>
+                            <readwrite>0</readwrite>
+                        </field>
+                        <field>
+                            <name>loginId</name>
+                            <sort>1</sort>
+                            <label>Login ID</label>
+                            <type>string</type>
+                            <tooltip>Login ID</tooltip>
+                            <readwrite>3</readwrite>
+                            <personal>Y</personal>
+                        </field>
+                        <field>
+                            <name>email</name>
+                            <sort>2</sort>
+                            <label>Email</label>
+                            <type>string</type>
+                            <tooltip>Email address</tooltip>
+                            <readwrite>3</readwrite>
+                            <personal>Y</personal>
+                        </field>
+                        <field>
+                            <name>pwdChangeForced</name>
+                            <sort>3</sort>
+                            <label>Password Change</label>
+                            <type>flag</type>
+                            <tooltip>Force Password Change</tooltip>
+                            <readwrite>3</readwrite>
+                            <personal>Y</personal>
+                        </field>
+                        <field>
+                            <name>tfaMethod</name>
+                            <sort>4</sort>
+                            <label>Two-Factor Auth</label>
+                            <type>string</type>
+                            <tooltip>Two-Factor Authentication</tooltip>
+                            <listvalues>
+                                <value>N~Disable</value>
+                                <value>G~Enabled</value>
+                                <value>g~Pending</value>
+                            </listvalues>
+                            <readwrite>3</readwrite>
+                            <personal>Y</personal>
+                        </field>
+                    </fields>
+                </layer>
+                <layer>
+                    <layer>2</layer>
+                    <title>Roles</title>
+                    <fields>
+                        <field>
+                            <name>roles</name>
+                            <sort>1</sort>
+                            <label>Role Name</label>
+                            <type>tab-ikn-list</type>
+                            <tooltip>List of roles assigned</tooltip>
+                            <readwrite>3</readwrite>
+                        </field>
+                    </fields>
+                </layer>
+                <layer>
+                    <layer>3</layer>
+                    <title>Admin</title>
+                    <fields>
+                        <field>
+                            <name>admin</name>
+                            <sort>1</sort>
+                            <label>Entity Name,Create,Update,Delete,Auth,Acct </label>
+                            <type>tab-iknf-table</type>
+                            <tooltip>List of administrative permissions</tooltip>
+                            <readwrite>1</readwrite>
+                        </field>
+                    </fields>
+                </layer>
+                <layer>
+                    <layer>4</layer>
+                    <title>Tools</title>
+                    <fields>
+                        <field>
+                            <name>tools</name>
+                            <sort>1</sort>
+                            <label>Tool Name,Allowed</label>
+                            <type>tab-iknf-table</type>
+                            <tooltip>List of tools aviable</tooltip>
+                            <readwrite>1</readwrite>
+                        </field>
+                    </fields>
+                </layer>
+            </layers>
+        </dictionary>
 
     </dictionaries>
 </dictionary-shell>

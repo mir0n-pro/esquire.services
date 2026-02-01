@@ -1,4 +1,8 @@
 Esquire Common microservice classes 
 
+02/01/2026 mir0n 
+EsqConstants
+  - added DICT_ACCESS_PROFILE as a virtual entity kind for dictionary
+ 
 
 01/22/2026 mir0n initial

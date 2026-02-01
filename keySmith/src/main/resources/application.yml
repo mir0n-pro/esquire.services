@@ -1,0 +1,75 @@
+spring:
+  profiles:
+    active: ${DB_KEYSMITH_VENDOR:dev-postgres}
+  application:
+    name: keysmith
+  jpa:
+    hibernate:
+      ddl-auto: none
+    show-sql: true
+  mvc:
+    problemdetails:
+      enabled: true
+logging:
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss, UTC} %-5level [%X{correlationId:-no-cid}] [%X{requestId:-no-rid}] %logger{36} - %msg%n"
+  structured:
+    format:
+      console: ecs  # Use ecs,'logstash' or 'gelf' for other common formats
+  level:
+    root: ${LOG_LEVEL_ROOT:ERROR}
+    org:
+      springframework: ${LOG_LEVEL_SF:ERROR}
+    pro:
+      mir0n: ${LOG_LEVEL_MIR0N:ERROR}
+
+---
+# Development Oracle
+spring:
+  config:
+    activate:
+      on-profile: dev-oracle
+  datasource:
+    url: jdbc:oracle:thin:@//${DB_KEYSMITH_HOST:localhost}:${DB_KEYSMITH_PORT:1521}/${DB_KEYSMITH_NAME:MIR0N}
+    driverClassName: oracle.jdbc.OracleDriver
+    username: ${DB_KEYSMITH_USERNAME:esq2025}
+    password: ${DB_KEYSMITH_PASSWORD:q}   
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 20
+      connection-timeout: 30000 
+      max-lifetime: 1800000 
+      idle-timeout: 600000    
+  jpa:
+    mapping-resources:
+      - META-INF/oracle-access-profile.xml
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.OracleDialect
+server:
+  port: ${KEYSMITH_PORT:3000}
+
+---
+# Development Postgres
+spring:
+  config:
+    activate:
+      on-profile: dev-postgres
+  datasource:
+    url: jdbc:postgresql://${DB_KEYSMITH_HOST:localhost}:${DB_KEYSMITH_PORT:5432}/${DB_KEYSMITH_NAME:esq2025}
+    username: ${DB_KEYSMITH_USERNAME:esq2025}
+    password: ${DB_KEYSMITH_PASSWORD:q}   
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 20
+      connection-timeout: 30000 
+      max-lifetime: 1800000 
+      idle-timeout: 600000    
+  jpa:
+    mapping-resources:
+      - META-INF/postgres-access-profile.xml
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+server:
+  port: ${KEYSMITH_PORT:3000}

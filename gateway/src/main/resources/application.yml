@@ -27,6 +27,19 @@ spring:
              allowedHeaders: "*"
              allowedMethods: "*"
        routes:
+        - id: keysmith-route
+          uri: http://${KEYSMITH_HOST:biztree}:${KEYSMITH_PORT:3002}
+          predicates:
+            - Path=/esq-key
+          metadata:
+              allowedMethods:
+                - GET
+                - POST
+          filters:
+             #RETAIN_UNIQUE
+            - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_FIRST
+            - RewritePath=/(?<segment>.*), /$\{segment}
+            - TokenRelay=
         - id: biztree-route
           uri: http://${BIZTREE_HOST:biztree}:${BIZTREE_PORT:3002}
           predicates:

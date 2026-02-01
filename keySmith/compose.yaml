@@ -1,0 +1,24 @@
+services:
+  keysmith:
+    build:
+      context: .
+    image: esquire.keysmith
+    ports:
+      - "3005:3005"
+    environment:
+      - ENYMAN_PORT=3005
+      - LOG_LEVEL_ROOT=ERROR
+      - LOG_LEVEL_SF=ERROR
+      - LOG_LEVEL_MIR0N=DEBUG
+      - DB_ENYMAN_VENDOR=dev-postgres
+      - DB_ENYMAN_PORT=5432
+      - DB_ENYMAN_HOST=host.docker.internal
+      - DB_ENYMAN_USERNAME=esq2025
+      - DB_ENYMAN_PASSWORD=q
+    command: ["java", "-jar", "app.jar"]
+    networks:
+      - esquirenet
+networks:
+  esquirenet:
+    driver: "bridge"
+   

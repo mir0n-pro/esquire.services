@@ -9,6 +9,7 @@
  * 12/26/2025 mir0n  refine API doc
  * 12/27/2025 mir0n  use @SuperBuilder
  *                   add actual fields isntead of absract set/get methods
+ * 02/01/2026 mir0n  made class concrete
  */
 
 package pro.mir0n.esquire.backend.dto;
@@ -29,7 +30,7 @@ import java.util.List;
                 "EsqAcct, EsqOrg, EsqUsr have their specific fields including custom ones"
 )
 @SuperBuilder
-public abstract class EsqEntity {
+public class EsqEntity {
     public EsqEntity() {}
 
     @Schema(
@@ -52,9 +53,9 @@ public abstract class EsqEntity {
     )
     private String desc;
 
-    protected abstract void fillDetails(EsqEntityJpa jpa);
-    protected abstract void fillCustom(List<EsqNameValueJpa> custom);
-    protected abstract void fillChildren(List<EsqTreeNodeJpa> children);
+    protected void fillDetails(EsqEntityJpa jpa) {};
+    protected void fillCustom(List<EsqNameValueJpa> custom) {};
+    protected void fillChildren(List<EsqTreeNodeJpa> children) {};
 
     public void fill (EsqEntityJpa jpa, List<EsqNameValueJpa> custom, List<EsqTreeNodeJpa> children) {
         setId(jpa.getId());

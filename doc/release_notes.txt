@@ -1,6 +1,11 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v1.2.1-2602.0113
+  - keySmith service added
+  - added AccessProfile. Roles, Permissions
+  - remove custom JSON encoding for user's accounts property
+
 v1.2.1-2601.2517
   Modification of ERD with support of keySmith
   Paper Client Account

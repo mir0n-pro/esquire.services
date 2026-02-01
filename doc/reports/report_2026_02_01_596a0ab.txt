@@ -1,0 +1,373 @@
+--------------------------------------------------------------------------
+Release notes: from v1.0.0 till v1.2.0
+--------------------------------------------------------------------------
+Top Commit: 596a0ab
+Notes from: doc/release_notes.txt
+v1.2.0-2601.1917 Observability Stack completed
+   ProblemDetail: make stack trace optional
+   Components updated : bizTree, gateway
+   Added Esquire.ObservabilityStack.docx
+
+v1.0.1-2601.1817
+  Error handling
+  Request/Correlation/trace IDs
+  Performance metrics
+  Generalize logging
+  Handle end user headers: X-Correlation-ID, X-Request-ID, X-Response-Time, X-Capture-Metrics
+  Components updated : bizTree, gateway
+  Added gateway parameter: GW_SERVICE_METRICS_ENABLED, default true
+
+v1.0.1-2601.1412
+  bizTree: ERD refactoring
+    : added "email" to user
+    : added "personal" flag to field metadata
+  keyCloak: a touch
+    : email synch with db seed
+
+v1.0.1-2601.1217 
+  KeyCloak UI/UX: "OK-for-now" 
+    : added "profile" command
+
+v1.0.1-2601.1022 
+  User claims for visibility authorization
+    : modification are in every component: bizTree, gateway, keycloak
+
+v1.0.1-2601.0800
+  Keycloak added
+  gateway modification as required
+  compose.yaml has added kecloack and explorer components
+
+v1.0.0-2601.0420 
+   Gateway service added
+   Configuration parameters generalized 
+   biztree: Postgress enode queries corrected
+
+--------------------------------------------------------------------------
+Branch : esquire.services/develop
+--------------------------------------------------------------------------
+Code changes:
+--------------------------------------------------------------------------
+Changes from: bizTree/src/main/java/pro/mir0n/esquire/bizTree/changes.txt
+01/19/2026 mir0n Observability, polishing
+exception.ProblemDetailMill
+  - let stack trace optional
+
+01/18/2026 mir0n Error handling, request/correlation/trace IDs, performance metrics
+- BizTreeConstants moved to common package as pro.mir0n.esquire.common.EsqConstants
+- pro.mir0n.esquire.common.EsqUtils introduced
+controller.BizTreeController
+  - BizTreeConstants moved to common package
+  - ErrorResponse replaced with ProblemDetail
+x removed dto.ErrorResponse.java
+dto.entity.EsqUsr
+  - minor touch
+exception.BizTreeExceptionHandler.java renamed with exception.GlobalExceptionHandler
+exception.GlobalExceptionHandler
+  - Error handling with rfc9457 compliance
++ added exception.ProblemDetailMill  
+security.JwtAuthenticationFilter
+  - BizTreeConstants moved to common package
+  - Error handling with rfc9457 compliance
+added service.MdcFilter
+added service.PerformanceAspect
+added service.RequestContextUtils
+added service.RequestPerformance
+
+
+01/14/2026 mir0n ERD refactoring
+dto.entity.EsqUsr
+  - email field added
+dto.EsqEntityDictionaryMapper
+  - "personal" field added
+dto.EsqEntityField  
+  - "personal" field added
+jpa.entity.EsqUsrJpa
+  - email field added
+ 
+01/10/2026 mir0n "profile" command
+constants.BizTreeConstants
+  - added CMD_DETAILS, CMD_PROFILE
+service.impl.BizTreeService  
+  - added "profile" command
+
+01/10/2026 mir0n User claims
+constants.BizTreeConstants
+  - added JWT_CLAIM_ENTITY_ID, JWT_CLAIM_ENTITY_ROOTPATH
+controller.BizTreeController  
+  - added processing of user claims
+dto.EsqTreeNodeMapper  
+  - let's have '.' as path separator as generic
+jpa.EsqEntityRepository
+  - rootPath param added
+jpa.EsqTreeNodeRepository
+  - root* params added
+added security.JwtAuthenticationFilter
+added security.JwtService
+added security.SecurityConfiguration
+service.IBizTreeService
+  - rootPath and uid params added were required
+service.impl.BizTreeService.java
+  - rootPath and uid params added were required
+
+
+
+--------------------------------------------------------------------------
+Changes from: gateway/src/main/java/pro/mir0n/esquire/gateway/changes.txt
+Esquire Gateway Microservice
+
+
+error.ErrorConfig
+  - read serviceMetricsEnabled configuration
+    bypass it to exception handler
+error.GatewayErrorWebExceptionHandler
+  - bypass shouldCaptureException to ProblemDetailMill
+error.ProblemDetailMill
+  - let stack trace optional
+  
+  
+01/18/2026 mir0n Error handling, request/correlation/trace IDs, performance metrics
++ added pro.mir0n.esquire.common package
+config.SecurityConfig
+  - added exposedHeaders to CORS 
++ added error.ErrorConfig
++ added error.GatewayErrorWebExceptionHandler
++ added error.ProblemDetailMill
+x removed filters.FilterUtility
+filters.RequestTraceFilter
+  - Optional capture metrics
+  - Request/Collabration IDs
+  - INFO logs generalized
+filters.ResponseTraceFilter
+  - Optional capture metrics
+  - Request/Collabration IDs
+  - INFO logs generalized
+
+
+01/10/2026 mir0n 
+filters.RequestTraceFilter
+  - log expanded
+config.SecurityConfig
+  - make sure TREE role is in place  
+
+01/08/2026 mir0n Keycloak added
+GatewayApplication
+  - @ConfigurationPropertiesScan is required now
++ added config.KeycloakRoleConverter
++ added config.SecurityConfig
++ added CORS_ALLOWED_ORIGIN and KEYCLOAK_* env parameters
+ 
+01/03/2026 mir0n initial
+--------------------------------------------------------------------------
+
+-- 2026-01-20 | commit: 596a0ab | mir0n.the.programmer | v1.2.0 Observability Stack completed --
+M	README.md
+M	bizTree/pom.xml
+M	bizTree/src/main/java/pro/mir0n/esquire/bizTree/changes.txt
+M	bizTree/src/main/java/pro/mir0n/esquire/bizTree/exception/ProblemDetailMill.java
+M	compose/compose.yaml
+A	doc/Esquire.ObservabilityStack.docx
+A	doc/Esquire.ObservabilityStack.md
+A	doc/media/94045cb936d79e912287bd755dbb2972.jpeg
+M	doc/release_notes.txt
+M	gateway/pom.xml
+M	gateway/src/main/java/pro/mir0n/esquire/gateway/changes.txt
+M	gateway/src/main/java/pro/mir0n/esquire/gateway/error/ErrorConfig.java
+M	gateway/src/main/java/pro/mir0n/esquire/gateway/error/GatewayErrorWebExceptionHandler.java
+M	gateway/src/main/java/pro/mir0n/esquire/gateway/error/ProblemDetailMill.java
+M	gateway/src/main/resources/application.yml
+ 15 files changed, 292 insertions(+), 58 deletions(-)
+
+-- 2026-01-18 | commit: 2602ac0 | mir0n.the.programmer | Error handling, Request/Correlation/trace IDs, Performance metrics, Generalize logging --
+M	bizTree/src/main/java/pro/mir0n/esquire/bizTree/changes.txt
+D	bizTree/src/main/java/pro/mir0n/esquire/bizTree/constants/BizTreeConstants.java
+M	bizTree/src/main/java/pro/mir0n/esquire/bizTree/controller/BizTreeController.java
+D	bizTree/src/main/java/pro/mir0n/esquire/bizTree/dto/ErrorResponse.java
+M	bizTree/src/main/java/pro/mir0n/esquire/bizTree/dto/entity/EsqUsr.java
+D	bizTree/src/main/java/pro/mir0n/esquire/bizTree/exception/BizTreeExceptionHandler.java
+A	bizTree/src/main/java/pro/mir0n/esquire/bizTree/exception/GlobalExceptionHandler.java
+A	bizTree/src/main/java/pro/mir0n/esquire/bizTree/exception/ProblemDetailMill.java
+M	bizTree/src/main/java/pro/mir0n/esquire/bizTree/security/JwtAuthenticationFilter.java
+A	bizTree/src/main/java/pro/mir0n/esquire/bizTree/service/MdcFilter.java
+A	bizTree/src/main/java/pro/mir0n/esquire/bizTree/service/PerformanceAspect.java
+A	bizTree/src/main/java/pro/mir0n/esquire/bizTree/service/RequestContextUtils.java
+A	bizTree/src/main/java/pro/mir0n/esquire/bizTree/service/RequestPerformance.java
+M	bizTree/src/main/java/pro/mir0n/esquire/bizTree/service/impl/BizTreeService.java
+A	bizTree/src/main/java/pro/mir0n/esquire/common/EsqConstants.java
+A	bizTree/src/main/java/pro/mir0n/esquire/common/EsqUtils.java
+M	bizTree/src/main/resources/application.yml
+M	compose/compose.yaml
+M	doc/release_notes.txt
+M	gateway/pom.xml
+A	gateway/src/main/java/pro/mir0n/esquire/common/EsqConstants.java
+A	gateway/src/main/java/pro/mir0n/esquire/common/EsqUtils.java
+M	gateway/src/main/java/pro/mir0n/esquire/gateway/changes.txt
+M	gateway/src/main/java/pro/mir0n/esquire/gateway/config/SecurityConfig.java
+A	gateway/src/main/java/pro/mir0n/esquire/gateway/error/ErrorConfig.java
+A	gateway/src/main/java/pro/mir0n/esquire/gateway/error/GatewayErrorWebExceptionHandler.java
+A	gateway/src/main/java/pro/mir0n/esquire/gateway/error/ProblemDetailMill.java
+D	gateway/src/main/java/pro/mir0n/esquire/gateway/filters/FilterUtility.java
+M	gateway/src/main/java/pro/mir0n/esquire/gateway/filters/RequestTraceFilter.java
+M	gateway/src/main/java/pro/mir0n/esquire/gateway/filters/ResponseTraceFilter.java
+M	gateway/src/main/resources/application.yml
+ 31 files changed, 1071 insertions(+), 261 deletions(-)
+
+-- 2026-01-14 | commit: 2611f39 | mir0n.the.programmer | ERD refactoring --
+M	bizTree/src/main/java/pro/mir0n/esquire/bizTree/changes.txt
+M	bizTree/src/main/java/pro/mir0n/esquire/bizTree/dto/EsqEntityDictionaryMapper.java
+M	bizTree/src/main/java/pro/mir0n/esquire/bizTree/dto/EsqEntityField.java
+M	bizTree/src/main/java/pro/mir0n/esquire/bizTree/dto/entity/EsqUsr.java
+M	bizTree/src/main/java/pro/mir0n/esquire/bizTree/jpa/EsqCustomEntityFieldJpa.java
+M	bizTree/src/main/java/pro/mir0n/esquire/bizTree/jpa/entity/EsqUsrJpa.java
+M	bizTree/src/main/resources/META-INF/oracle-dictionary.xml
+M	bizTree/src/main/resources/META-INF/oracle-entity.xml
+M	bizTree/src/main/resources/META-INF/postgres-dictionary.xml
+M	bizTree/src/main/resources/META-INF/postgres-entity.xml
+M	bizTree/src/main/resources/esq-entity-dictionaries.xml
+M	compose/import/esquire.json
+M	doc/release_notes.txt
+M	keycloak/import/esquire.json
+ 14 files changed, 440 insertions(+), 359 deletions(-)
+
+-- 2026-01-12 | commit: aba9fce | mir0n.the.programmer | KeyCloak UI/UX: "OK-for-now" --
+M	bizTree/src/main/java/pro/mir0n/esquire/bizTree/changes.txt
+M	bizTree/src/main/java/pro/mir0n/esquire/bizTree/constants/BizTreeConstants.java
+M	bizTree/src/main/java/pro/mir0n/esquire/bizTree/service/impl/BizTreeService.java
+M	compose/import/esquire.json
+M	doc/release_notes.txt
+M	keycloak/import/esquire.json
+ 6 files changed, 54 insertions(+), 45 deletions(-)
+
+-- 2026-01-10 | commit: 44c351a | mir0n.the.programmer | User claims for visibility authorization --
+M	bizTree/pom.xml
+M	bizTree/src/main/java/pro/mir0n/esquire/bizTree/changes.txt
+M	bizTree/src/main/java/pro/mir0n/esquire/bizTree/constants/BizTreeConstants.java
+M	bizTree/src/main/java/pro/mir0n/esquire/bizTree/controller/BizTreeController.java
+M	bizTree/src/main/java/pro/mir0n/esquire/bizTree/dto/EsqTreeNodeMapper.java
+M	bizTree/src/main/java/pro/mir0n/esquire/bizTree/jpa/EsqEntityRepository.java
+M	bizTree/src/main/java/pro/mir0n/esquire/bizTree/jpa/EsqTreeNodeRepository.java
+A	bizTree/src/main/java/pro/mir0n/esquire/bizTree/security/JwtAuthenticationFilter.java
+A	bizTree/src/main/java/pro/mir0n/esquire/bizTree/security/JwtService.java
+A	bizTree/src/main/java/pro/mir0n/esquire/bizTree/security/SecurityConfiguration.java
+M	bizTree/src/main/java/pro/mir0n/esquire/bizTree/service/IBizTreeService.java
+M	bizTree/src/main/java/pro/mir0n/esquire/bizTree/service/impl/BizTreeService.java
+M	bizTree/src/main/resources/META-INF/oracle-entity.xml
+M	bizTree/src/main/resources/META-INF/oracle-tree-node.xml
+M	bizTree/src/main/resources/META-INF/postgres-entity.xml
+M	bizTree/src/main/resources/META-INF/postgres-tree-node.xml
+M	compose/compose.yaml
+M	compose/import/esquire.json
+M	doc/release_notes.txt
+M	gateway/pom.xml
+M	gateway/src/main/java/pro/mir0n/esquire/gateway/changes.txt
+M	gateway/src/main/java/pro/mir0n/esquire/gateway/config/SecurityConfig.java
+M	gateway/src/main/java/pro/mir0n/esquire/gateway/filters/RequestTraceFilter.java
+M	keycloak/import/esquire.json
+ 24 files changed, 924 insertions(+), 304 deletions(-)
+
+-- 2026-01-08 | commit: f5d2410 | mir0n.the.programmer | v1.0.1  Keycloak added --
+M	compose/compose.yaml
+A	compose/import/esquire.json
+M	doc/release_notes.txt
+M	gateway/compose.yaml
+M	gateway/pom.xml
+M	gateway/src/main/java/pro/mir0n/esquire/gateway/GatewayApplication.java
+M	gateway/src/main/java/pro/mir0n/esquire/gateway/changes.txt
+A	gateway/src/main/java/pro/mir0n/esquire/gateway/config/KeycloakRoleConverter.java
+A	gateway/src/main/java/pro/mir0n/esquire/gateway/config/SecurityConfig.java
+M	gateway/src/main/resources/application.yml
+A	keycloak/compose.yaml
+A	keycloak/import/esquire.json
+A	keycloak/kh-export.txt
+ 13 files changed, 5222 insertions(+), 7 deletions(-)
+
+-- 2026-01-03 | commit: 367c6c5 | mir0n.the.programmer | Gateway service added --
+M	bizTree/Dockerfile
+M	bizTree/compose.yaml
+M	bizTree/pom.xml
+M	bizTree/src/main/resources/META-INF/postgres-tree-node.xml
+M	bizTree/src/main/resources/application.yml
+A	compose/compose.yaml
+M	doc/release_notes.txt
+A	gateway/Dockerfile
+A	gateway/compose.yaml
+A	gateway/mvnw
+A	gateway/mvnw.cmd
+A	gateway/pom.xml
+A	gateway/src/main/java/pro/mir0n/esquire/gateway/GatewayApplication.java
+A	gateway/src/main/java/pro/mir0n/esquire/gateway/changes.txt
+A	gateway/src/main/java/pro/mir0n/esquire/gateway/filters/FilterUtility.java
+A	gateway/src/main/java/pro/mir0n/esquire/gateway/filters/RequestTraceFilter.java
+A	gateway/src/main/java/pro/mir0n/esquire/gateway/filters/ResponseTraceFilter.java
+A	gateway/src/main/resources/application.yml
+ 18 files changed, 1022 insertions(+), 21 deletions(-)
+--------------------------------------------------------------------------
+List of files modified
+--------------------------------------------------------------------------
+M	README.md
+M	bizTree/Dockerfile
+M	bizTree/compose.yaml
+M	bizTree/pom.xml
+M	bizTree/src/main/java/pro/mir0n/esquire/bizTree/changes.txt
+D	bizTree/src/main/java/pro/mir0n/esquire/bizTree/constants/BizTreeConstants.java
+M	bizTree/src/main/java/pro/mir0n/esquire/bizTree/controller/BizTreeController.java
+D	bizTree/src/main/java/pro/mir0n/esquire/bizTree/dto/ErrorResponse.java
+M	bizTree/src/main/java/pro/mir0n/esquire/bizTree/dto/EsqEntityDictionaryMapper.java
+M	bizTree/src/main/java/pro/mir0n/esquire/bizTree/dto/EsqEntityField.java
+M	bizTree/src/main/java/pro/mir0n/esquire/bizTree/dto/EsqTreeNodeMapper.java
+M	bizTree/src/main/java/pro/mir0n/esquire/bizTree/dto/entity/EsqUsr.java
+D	bizTree/src/main/java/pro/mir0n/esquire/bizTree/exception/BizTreeExceptionHandler.java
+A	bizTree/src/main/java/pro/mir0n/esquire/bizTree/exception/GlobalExceptionHandler.java
+A	bizTree/src/main/java/pro/mir0n/esquire/bizTree/exception/ProblemDetailMill.java
+M	bizTree/src/main/java/pro/mir0n/esquire/bizTree/jpa/EsqCustomEntityFieldJpa.java
+M	bizTree/src/main/java/pro/mir0n/esquire/bizTree/jpa/EsqEntityRepository.java
+M	bizTree/src/main/java/pro/mir0n/esquire/bizTree/jpa/EsqTreeNodeRepository.java
+M	bizTree/src/main/java/pro/mir0n/esquire/bizTree/jpa/entity/EsqUsrJpa.java
+A	bizTree/src/main/java/pro/mir0n/esquire/bizTree/security/JwtAuthenticationFilter.java
+A	bizTree/src/main/java/pro/mir0n/esquire/bizTree/security/JwtService.java
+A	bizTree/src/main/java/pro/mir0n/esquire/bizTree/security/SecurityConfiguration.java
+M	bizTree/src/main/java/pro/mir0n/esquire/bizTree/service/IBizTreeService.java
+A	bizTree/src/main/java/pro/mir0n/esquire/bizTree/service/MdcFilter.java
+A	bizTree/src/main/java/pro/mir0n/esquire/bizTree/service/PerformanceAspect.java
+A	bizTree/src/main/java/pro/mir0n/esquire/bizTree/service/RequestContextUtils.java
+A	bizTree/src/main/java/pro/mir0n/esquire/bizTree/service/RequestPerformance.java
+M	bizTree/src/main/java/pro/mir0n/esquire/bizTree/service/impl/BizTreeService.java
+A	bizTree/src/main/java/pro/mir0n/esquire/common/EsqConstants.java
+A	bizTree/src/main/java/pro/mir0n/esquire/common/EsqUtils.java
+M	bizTree/src/main/resources/META-INF/oracle-dictionary.xml
+M	bizTree/src/main/resources/META-INF/oracle-entity.xml
+M	bizTree/src/main/resources/META-INF/oracle-tree-node.xml
+M	bizTree/src/main/resources/META-INF/postgres-dictionary.xml
+M	bizTree/src/main/resources/META-INF/postgres-entity.xml
+M	bizTree/src/main/resources/META-INF/postgres-tree-node.xml
+M	bizTree/src/main/resources/application.yml
+M	bizTree/src/main/resources/esq-entity-dictionaries.xml
+A	compose/compose.yaml
+A	compose/import/esquire.json
+A	doc/Esquire.ObservabilityStack.docx
+A	doc/Esquire.ObservabilityStack.md
+A	doc/media/94045cb936d79e912287bd755dbb2972.jpeg
+M	doc/release_notes.txt
+A	gateway/Dockerfile
+A	gateway/compose.yaml
+A	gateway/mvnw
+A	gateway/mvnw.cmd
+A	gateway/pom.xml
+A	gateway/src/main/java/pro/mir0n/esquire/common/EsqConstants.java
+A	gateway/src/main/java/pro/mir0n/esquire/common/EsqUtils.java
+A	gateway/src/main/java/pro/mir0n/esquire/gateway/GatewayApplication.java
+A	gateway/src/main/java/pro/mir0n/esquire/gateway/changes.txt
+A	gateway/src/main/java/pro/mir0n/esquire/gateway/config/KeycloakRoleConverter.java
+A	gateway/src/main/java/pro/mir0n/esquire/gateway/config/SecurityConfig.java
+A	gateway/src/main/java/pro/mir0n/esquire/gateway/error/ErrorConfig.java
+A	gateway/src/main/java/pro/mir0n/esquire/gateway/error/GatewayErrorWebExceptionHandler.java
+A	gateway/src/main/java/pro/mir0n/esquire/gateway/error/ProblemDetailMill.java
+A	gateway/src/main/java/pro/mir0n/esquire/gateway/filters/RequestTraceFilter.java
+A	gateway/src/main/java/pro/mir0n/esquire/gateway/filters/ResponseTraceFilter.java
+A	gateway/src/main/resources/application.yml
+A	keycloak/compose.yaml
+A	keycloak/import/esquire.json
+A	keycloak/kh-export.txt
+ 64 files changed, 8686 insertions(+), 716 deletions(-)
+--------------------------------------------------------------------------
+The End: From v1.0.0 till v1.2.0
+--------------------------------------------------------------------------

@@ -6,6 +6,7 @@
  *  mailto:mir0n.the.programmer@gmail.com
  *
  *  History:
+ * 02/01/2026 mir0n removed @AllArgsConstructor 
  */
 
 package pro.mir0n.esquire.backend.dto;
@@ -27,7 +28,7 @@ import java.util.List;
         name = "dictionary",
         description = "Entity dictionary"
 )
-@Data @Getter @Setter @AllArgsConstructor @NoArgsConstructor
+@Data @Getter @Setter @NoArgsConstructor
 @JacksonXmlRootElement(localName = "dictionary")
 @JsonIgnoreProperties({"completed"})
 public class EsqEntityDictionary {
@@ -47,7 +48,7 @@ public class EsqEntityDictionary {
     @JacksonXmlProperty(localName = "layer")
     private List<EsqEntityLayer> layers = new ArrayList<>();
 
-     public void sortLayers() {
+    public void sortLayers() {
          layers.sort(Comparator.comparing(EsqEntityLayer::getLayer));
      }
 

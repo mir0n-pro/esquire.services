@@ -9,6 +9,8 @@
  * 12/27/2025  mir0n extend EsqEntity correctly
  * 01/14/2026 mir0n  email field added
  * 01/18/2026 mir0n  minor touch
+ * 02/01/2026 mir0n List<String>> children replaced with List<EsqEntity>
+ *                  "accounts" field does not require custom JsonAnyGetter anymore
  */
 
 package pro.mir0n.esquire.backend.dto.entity;
@@ -43,7 +45,7 @@ import java.util.stream.Collectors;
 public class EsqUsr extends EsqEntity {
     public EsqUsr() {
         super();
-        children = new HashMap<>();
+        accounts = new ArrayList<>();
     }
     @Schema(
             description = "Login Id", example = "pupkin"
@@ -65,23 +67,22 @@ public class EsqUsr extends EsqEntity {
     )
     private String email;
 
-    @JsonIgnore
-    private Map<String, List<String>> children;
-
-    //@JsonIgnore
     @Schema(
-            description = "Custom fields, The list is  converting into fields for serialization.",
-            example = "CUSTOM_FIELD: 'Sand box example'"
+            description = "List of accounts belonging to user"
     )
+    private List<EsqEntity> accounts;
+
+    @JsonIgnore
     private List<EsqNameValue> customFields;
 
     @JsonAnyGetter
     public Map<String, Object> getAttributesAsFields() {
         // Converts List<Attribute> into a Map for serialization as fields
         Map<String, Object> allFields = new HashMap<>();
-        allFields.putAll(children);
-        allFields.putAll(customFields.stream()
-                .collect(Collectors.toMap(EsqNameValue::getName, EsqNameValue::getValue)));
+        if(customFields != null) {
+            allFields.putAll(customFields.stream()
+                    .collect(Collectors.toMap(EsqNameValue::getName, EsqNameValue::getValue)));
+        }
         return allFields;
     }
 
@@ -111,14 +112,11 @@ public class EsqUsr extends EsqEntity {
     protected void fillChildren(List<EsqTreeNodeJpa> childNodes) {
         if (childNodes != null) {
             for (EsqTreeNodeJpa node : childNodes) {
-                EsqEntityFactory.EsqEntityKind entityKind = findKind(node.getKind());
-                String field = entityKind.getPlural();
-                List<String> fields = children.get(field);
-                if (fields == null) {
-                    fields = new ArrayList<>();
-                    children.put(field, fields);
-                }
-                fields.add(node.getName());
+                EsqEntity en = new EsqEntity();
+                en.setId(node.getId());
+                en.setName(node.getName());
+                en.setKind(node.getKind());
+                accounts.add(en);
             }
         }
     }

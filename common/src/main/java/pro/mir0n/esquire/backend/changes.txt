@@ -1,5 +1,23 @@
 Esquire Backend common microservice classes 
 
+02/01/2026 mir0n 
++ added dto.access package:
+   + EsqAccessProfile
+   + EsqRole
+   + EsqPermission
+dto.EsqEntityDictionary
+   - removed @AllArgsConstructor 
+dto.EsqEntity
+   - made class concrete
+dto.entity.EsqUsr
+   - List<String>> children replaced with List<EsqEntity>
+     "accounts" field does not require custom JsonAnyGetter anymore
++ added jpa.access package:
+   + EsqAccessProfileJpa
+   + EsqRoleJpa
+   + EsqPermissionJpa
+
+
 01/25/2026 mir0n Paper Client Account added
 dto.EsqEntityFactory
   - Paper Client Account added

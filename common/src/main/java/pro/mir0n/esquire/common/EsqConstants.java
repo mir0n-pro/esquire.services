@@ -6,6 +6,7 @@
  *  mailto:mir0n.the.programmer@gmail.com
  *
  *  History:
+ * 02/01/2026 mir0n added DICT_ACCESS_PROFILE as a virtual entity kind for dictionary
  */
 package pro.mir0n.esquire.common;
 
@@ -40,5 +41,6 @@ public class EsqConstants {
     public static final String  CMD_DETAILS = "details";
     public static final String  CMD_PROFILE = "profile";
 
+    public static final int  DICT_ACCESS_PROFILE = 998;
 
 }

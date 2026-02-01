@@ -22,6 +22,7 @@
         <module>gateway</module>
         <module>enyMan</module>
         <module>pacMan</module>
+        <module>keySmith</module>
      </modules>
 
     <properties>
@@ -50,6 +51,7 @@
         <gateway.version>${esquire.version}</gateway.version>
         <enyMan.version>${esquire.version}</enyMan.version>
         <pacMan.version>${esquire.version}</pacMan.version>
+        <keySmith.version>${esquire.version}</keySmith.version>
         <!-- war version -->
         <!-- war.version>${esquire.version}</war.version -->
 
