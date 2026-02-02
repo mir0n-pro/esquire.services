@@ -1,5 +1,10 @@
 Esquire Backend common microservice classes 
 
+02/02/2026 mir0n 
+dto.EsqEntityFactory
+  - SYSADMIN added
+  - gaps in Entity Kind enumeration: system objects - orgs - users - accounts
+
 02/01/2026 mir0n 
 + added dto.access package:
    + EsqAccessProfile

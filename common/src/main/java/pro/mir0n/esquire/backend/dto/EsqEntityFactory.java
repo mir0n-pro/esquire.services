@@ -6,7 +6,9 @@
  *  mailto:mir0n.the.programmer@gmail.com
  *
  *  History:
- * 01/25/2006 mir0n  Paper Client Account added
+ * 01/25/2026 mir0n  Paper Client Account added
+ * 02/02/2026 mir0n  SYSADMIN added
+ *                   gaps in Entity Kind enumeration: system objects - orgs - users - accounts
  */
 
 package pro.mir0n.esquire.backend.dto;
@@ -27,13 +29,14 @@ public class EsqEntityFactory {
     public enum EsqEntityKind {
         UNKNOWN("unknown", -1, false, false, false, false),
         SYSTEM("system",0, true, false, false, false),
-        ORG("organization", 10, true, false, false, false),
-        CLIENT("client", 12, false, true, false, true),
-        MERCHANT("merchant", 14, false, true, false, true),
-        ADMIN("admin", 16, false, true, false, false),
-        ACCT_CLIENT("account", 18, false, false, true, false),
-        ACCT_MERCHANT("maccount", 20, false, false, true, false),
-        PACCT_CLIENT("paccount", 22, false, false, true, false),
+        ORG("organization", 20, true, false, false, false),
+        SYSADMIN("sysadmin", 30, false, true, false, false),
+        ADMIN("admin", 32, false, true, false, false),
+        CLIENT("client", 34, false, true, false, true),
+        MERCHANT("merchant", 36, false, true, false, true),
+        ACCT_CLIENT("account", 50, false, false, true, false),
+        ACCT_MERCHANT("maccount", 52, false, false, true, false),
+        PACCT_CLIENT("paccount", 54, false, false, true, false),
         ;
 
         private final int kind;

@@ -57,7 +57,7 @@ spring:
           uri: http://${PACMAN_HOST:enyman}:${PACMAN_PORT:3003}
           predicates:
             - Path=/esq-cmd
-            - Query=kind, ^(18|19|20|21|22|23)$     # kind=18,20,22: accounts and their shortcuts
+            - Query=kind, ^(50|51|52|53|54|55)$     # kind=50,52,54: accounts and their shortcuts
           metadata:
             allowedMethods:
               - GET

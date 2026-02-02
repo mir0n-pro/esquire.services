@@ -45,7 +45,7 @@ FROM esq_permission_type
 WHERE pt_pk = prm_pt_pk 
  AND  rp_prm_pk = prm_pk
  AND rp_role_pk = ur_role_pk
- AND ur_usr_pk :id
+ AND ur_usr_pk = :id
         </query>
     </named-native-query>
 

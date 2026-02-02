@@ -55,17 +55,33 @@
       "containerId" : "80458a9a-9909-42ad-9ff0-398f36e3b4dc",
       "attributes" : { }
     }, {
-      "id" : "04a23ce9-5612-4065-b5f1-d5405ca8d21c",
-      "name" : "offline_access",
-      "description" : "${role_offline-access}",
+      "id" : "7564fd6e-9713-423f-abb7-24d7045c511e",
+      "name" : "CLIENT",
+      "description" : "Client Role",
       "composite" : false,
       "clientRole" : false,
       "containerId" : "80458a9a-9909-42ad-9ff0-398f36e3b4dc",
       "attributes" : { }
     }, {
-      "id" : "6f6735c0-929e-4ae3-937f-9eb9f713e630",
-      "name" : "ENDUSER",
-      "description" : "Esquire end-user: Client and Merchant have this",
+      "id" : "8e57cef7-cbd7-40ff-b508-899e1f452634",
+      "name" : "SYSADMIN",
+      "description" : "System Administrator role",
+      "composite" : false,
+      "clientRole" : false,
+      "containerId" : "80458a9a-9909-42ad-9ff0-398f36e3b4dc",
+      "attributes" : { }
+    }, {
+      "id" : "1a3c3a4d-25cd-4127-8d40-e5ced59bad26",
+      "name" : "MERCHANT",
+      "description" : "Merchant role",
+      "composite" : false,
+      "clientRole" : false,
+      "containerId" : "80458a9a-9909-42ad-9ff0-398f36e3b4dc",
+      "attributes" : { }
+    }, {
+      "id" : "04a23ce9-5612-4065-b5f1-d5405ca8d21c",
+      "name" : "offline_access",
+      "description" : "${role_offline-access}",
       "composite" : false,
       "clientRole" : false,
       "containerId" : "80458a9a-9909-42ad-9ff0-398f36e3b4dc",
@@ -439,12 +455,12 @@
     "username" : "client",
     "firstName" : "Cli",
     "lastName" : "Ent",
-    "email" : "mir0n.the.progammer.9@gmail.com",
+    "email" : "mir0n.the.programmer10@gmail.com",
     "emailVerified" : true,
     "attributes" : {
-      "esq_uid" : [ "9" ],
+      "esq_uid" : [ "10" ],
       "esq_rootid" : [ "9" ],
-      "esq_rootpath" : [ "1.2.3.9." ]
+      "esq_rootpath" : [ "1.2.3.10." ]
     },
     "enabled" : true,
     "createdTimestamp" : 1767843970020,
@@ -459,7 +475,7 @@
     } ],
     "disableableCredentialTypes" : [ ],
     "requiredActions" : [ ],
-    "realmRoles" : [ "ENDUSER", "default-roles-esquire", "TREE" ],
+    "realmRoles" : [ "CLIENT", "default-roles-esquire", "TREE" ],
     "notBefore" : 0,
     "groups" : [ "/Angular users" ]
   }, {
@@ -467,10 +483,10 @@
     "username" : "departmentadmin",
     "firstName" : "Department",
     "lastName" : "Manager",
-    "email" : "mir0n.the.progammer.8@gmail.com",
+    "email" : "mir0n.the.programmer9@gmail.com",
     "emailVerified" : true,
     "attributes" : {
-      "esq_uid" : [ "8" ],
+      "esq_uid" : [ "9" ],
       "esq_rootid" : [ "3" ],
       "esq_rootpath" : [ "1.2.3." ]
     },
@@ -495,10 +511,10 @@
     "username" : "mainadmin",
     "firstName" : "Super",
     "lastName" : "Vizor",
-    "email" : "mir0n.the.progammer@gmail.com",
+    "email" : "mir0n.the.programmer5@gmail.com",
     "emailVerified" : true,
     "attributes" : {
-      "esq_uid" : [ "4" ],
+      "esq_uid" : [ "5" ],
       "esq_rootid" : [ "1" ],
       "esq_rootpath" : [ "1." ]
     },
@@ -522,10 +538,10 @@
     "username" : "merchant",
     "firstName" : "Mer",
     "lastName" : "Chant",
-    "email" : "mir0n.the.progammer.7@gmail.com",
+    "email" : "mir0n.the.programmer8@gmail.com",
     "emailVerified" : true,
     "attributes" : {
-      "esq_uid" : [ "7" ],
+      "esq_uid" : [ "8" ],
       "esq_rootid" : [ "7" ],
       "esq_rootpath" : [ "1.2.7." ]
     },
@@ -542,7 +558,7 @@
     } ],
     "disableableCredentialTypes" : [ ],
     "requiredActions" : [ ],
-    "realmRoles" : [ "ENDUSER", "default-roles-esquire", "TREE" ],
+    "realmRoles" : [ "MERCHANT", "default-roles-esquire", "TREE" ],
     "notBefore" : 0,
     "groups" : [ "/Angular users" ]
   }, {
@@ -550,10 +566,10 @@
     "username" : "officeadmin",
     "firstName" : "Office",
     "lastName" : "Manager",
-    "email" : "mir0n.the.progammer.6@gmail.com",
+    "email" : "mir0n.the.programmer7@gmail.com",
     "emailVerified" : true,
     "attributes" : {
-      "esq_uid" : [ "6" ],
+      "esq_uid" : [ "7" ],
       "esq_rootid" : [ "2" ],
       "esq_rootpath" : [ "1.2." ]
     },
@@ -599,10 +615,10 @@
     "username" : "support",
     "firstName" : "Office",
     "lastName" : "Support",
-    "email" : "mir0n.the.progammer.5@gmail.com",
+    "email" : "mir0n.the.programmer6@gmail.com",
     "emailVerified" : true,
     "attributes" : {
-      "esq_uid" : [ "5" ],
+      "esq_uid" : [ "6" ],
       "esq_rootid" : [ "2" ],
       "esq_rootpath" : [ "1.2." ]
     },
@@ -622,6 +638,26 @@
     "realmRoles" : [ "default-roles-esquire", "SUPPORT", "TREE" ],
     "notBefore" : 0,
     "groups" : [ "/Angular users" ]
+  }, {
+    "id" : "7ba70091-808b-42ab-b2d4-e512b5c81c96",
+    "username" : "system",
+    "firstName" : "System",
+    "lastName" : "Administrator",
+    "email" : "mir0n.the.programmer4@gmail.com",
+    "emailVerified" : true,
+    "attributes" : {
+      "esq_uid" : [ "4" ],
+      "esq_rootpath" : [ "1." ]
+    },
+    "enabled" : true,
+    "createdTimestamp" : 1770054664286,
+    "totp" : false,
+    "credentials" : [ ],
+    "disableableCredentialTypes" : [ ],
+    "requiredActions" : [ ],
+    "realmRoles" : [ "SYSADMIN", "default-roles-esquire" ],
+    "notBefore" : 0,
+    "groups" : [ ]
   } ],
   "scopeMappings" : [ {
     "clientScope" : "offline_access",
@@ -873,7 +909,7 @@
     "enabled" : true,
     "alwaysDisplayInConsole" : false,
     "clientAuthenticatorType" : "client-secret",
-    "secret" : "1mXokFBz5b0jJKPnELER1ondN7aMiBZl",
+    "secret" : "ggk4pLb5hEzP9qaB5U48UZZEIDW1kdL0",
     "redirectUris" : [ "/*" ],
     "webOrigins" : [ "/*" ],
     "notBefore" : 0,
@@ -901,7 +937,7 @@
       "request.object.encryption.enc" : "any",
       "dpop.bound.access.tokens" : "false",
       "id.token.as.detached.signature" : "false",
-      "client.secret.creation.time" : "1768095305",
+      "client.secret.creation.time" : "1769477359",
       "request.object.encryption.alg" : "any",
       "client.introspection.response.allow.jwt.claim.enabled" : "false",
       "standard.token.exchange.enabled" : "false",

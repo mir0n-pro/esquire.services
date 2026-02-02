@@ -1,6 +1,20 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+
+v1.2.2-2602.0216 
+  "SysAdmin" and "Sys Admin-s" added
+  Gaps in Entity Kind enumeration: system objects <> orgs <> users <> accounts
+  : modified components
+    - common
+    - compose (keyCloak dump refreshed)
+    - gateway
+    - keycloak (dump refreshed)
+    - keySmith (bug in oracle queries)
+    
+    
+    
+
 v1.2.1-2602.0113
   - keySmith service added
   - added AccessProfile. Roles, Permissions

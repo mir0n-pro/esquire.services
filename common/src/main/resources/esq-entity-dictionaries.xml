@@ -39,7 +39,7 @@
 
     <!-- Organization -->
         <dictionary>
-            <kind>10</kind>
+            <kind>20</kind>
             <layers>
                 <layer>
                     <layer>1</layer>
@@ -85,9 +85,111 @@
             </layers>
         </dictionary>
 
+        <!-- SysAdmin -->
+        <dictionary>
+            <kind>30</kind>
+            <layers>
+                <layer>
+                    <layer>1</layer>
+                    <title>Generic</title>
+                    <fields>
+                        <field>
+                            <name>name</name>
+                            <sort>1</sort>
+                            <label>Name</label>
+                            <type>string</type>
+                            <tooltip>User name</tooltip>
+                            <readwrite>1</readwrite>
+                        </field>
+                        <field>
+                            <name>loginId</name>
+                            <sort>2</sort>
+                            <label>Login ID</label>
+                            <type>string</type>
+                            <tooltip>Login ID</tooltip>
+                            <readwrite>1</readwrite>
+                        </field>
+                        <field>
+                            <name>email</name>
+                            <sort>3</sort>
+                            <label>Email</label>
+                            <type>string</type>
+                            <tooltip>Email address</tooltip>
+                            <readwrite>1</readwrite>
+                        </field>
+                    </fields>
+                </layer>
+                <layer>
+                    <layer>99</layer>
+                    <title>Description</title>
+                    <fields>
+                        <field>
+                            <name>desc</name>
+                            <sort>1</sort>
+                            <label>Description</label>
+                            <type>tabstring</type>
+                            <tooltip>Admin Description</tooltip>
+                            <readwrite>1</readwrite>
+                        </field>
+                    </fields>
+                </layer>
+            </layers>
+        </dictionary>
+
+        <!-- Admin -->
+        <dictionary>
+            <kind>32</kind>
+            <layers>
+                <layer>
+                    <layer>1</layer>
+                    <title>Generic</title>
+                    <fields>
+                        <field>
+                            <name>name</name>
+                            <sort>1</sort>
+                            <label>Name</label>
+                            <type>string</type>
+                            <tooltip>User name</tooltip>
+                            <readwrite>1</readwrite>
+                        </field>
+                        <field>
+                            <name>loginId</name>
+                            <sort>2</sort>
+                            <label>Login ID</label>
+                            <type>string</type>
+                            <tooltip>Login ID</tooltip>
+                            <readwrite>1</readwrite>
+                        </field>
+                        <field>
+                            <name>email</name>
+                            <sort>3</sort>
+                            <label>Email</label>
+                            <type>string</type>
+                            <tooltip>Email address</tooltip>
+                            <readwrite>1</readwrite>
+                        </field>
+                    </fields>
+                </layer>
+                <layer>
+                    <layer>99</layer>
+                    <title>Description</title>
+                    <fields>
+                        <field>
+                            <name>desc</name>
+                            <sort>1</sort>
+                            <label>Description</label>
+                            <type>tabstring</type>
+                            <tooltip>Admin Description</tooltip>
+                            <readwrite>1</readwrite>
+                        </field>
+                    </fields>
+                </layer>
+            </layers>
+        </dictionary>
+
     <!-- "Client" -->
         <dictionary>
-            <kind>12</kind>
+            <kind>34</kind>
             <layers>
                 <layer>
                     <layer>1</layer>
@@ -168,7 +270,7 @@
 
         <!-- Merchant -->
         <dictionary>
-            <kind>14</kind>
+            <kind>36</kind>
             <layers>
                 <layer>
                     <layer>1</layer>
@@ -239,60 +341,9 @@
             </layers>
         </dictionary>
 
-    <!-- Admin -->
-        <dictionary>
-            <kind>16</kind>
-            <layers>
-                <layer>
-                    <layer>1</layer>
-                    <title>Generic</title>
-                    <fields>
-                        <field>
-                            <name>name</name>
-                            <sort>1</sort>
-                            <label>Name</label>
-                            <type>string</type>
-                            <tooltip>User name</tooltip>
-                            <readwrite>1</readwrite>
-                        </field>
-                        <field>
-                            <name>loginId</name>
-                            <sort>2</sort>
-                            <label>Login ID</label>
-                            <type>string</type>
-                            <tooltip>Login ID</tooltip>
-                            <readwrite>1</readwrite>
-                        </field>
-                        <field>
-                            <name>email</name>
-                            <sort>3</sort>
-                            <label>Email</label>
-                            <type>string</type>
-                            <tooltip>Email address</tooltip>
-                            <readwrite>1</readwrite>
-                        </field>
-                  </fields>
-                </layer>
-                <layer>
-                    <layer>99</layer>
-                    <title>Description</title>
-                    <fields>
-                        <field>
-                            <name>desc</name>
-                            <sort>1</sort>
-                            <label>Description</label>
-                            <type>tabstring</type>
-                            <tooltip>Admin Description</tooltip>
-                            <readwrite>1</readwrite>
-                        </field>
-                    </fields>
-                </layer>
-            </layers>
-        </dictionary>
-
     <!--  Client Account -->
         <dictionary>
-            <kind>18</kind>
+            <kind>50</kind>
             <layers>
                 <layer>
                     <layer>1</layer>
@@ -357,7 +408,7 @@
 
     <!--  Merchant Account -->
         <dictionary>
-            <kind>20</kind>
+            <kind>52</kind>
             <layers>
                 <layer>
                     <layer>1</layer>
@@ -421,7 +472,7 @@
 
     <!--  Paper Client Account -->
         <dictionary>
-            <kind>22</kind>
+            <kind>54</kind>
             <layers>
                 <layer>
                     <layer>1</layer>
@@ -588,7 +639,7 @@
                             <sort>1</sort>
                             <label>Tool Name,Allowed</label>
                             <type>tab-iknf-table</type>
-                            <tooltip>List of tools aviable</tooltip>
+                            <tooltip>List of tools available</tooltip>
                             <readwrite>1</readwrite>
                         </field>
                     </fields>
