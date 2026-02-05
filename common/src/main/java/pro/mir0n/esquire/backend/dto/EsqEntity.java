@@ -10,6 +10,8 @@
  * 12/27/2025 mir0n  use @SuperBuilder
  *                   add actual fields isntead of absract set/get methods
  * 02/01/2026 mir0n  made class concrete
+ * 02/03/2026 mir0n  extends EsqThing
+ *                   back to abstract
  */
 
 package pro.mir0n.esquire.backend.dto;
@@ -30,32 +32,18 @@ import java.util.List;
                 "EsqAcct, EsqOrg, EsqUsr have their specific fields including custom ones"
 )
 @SuperBuilder
-public class EsqEntity {
-    public EsqEntity() {}
+@EqualsAndHashCode(callSuper = true)
+@NoArgsConstructor
+public abstract class EsqEntity extends EsqThing{
+
+    protected abstract void fillDetails(EsqEntityJpa jpa);
+    protected abstract void fillCustom(List<EsqNameValueJpa> custom);
+    protected abstract void fillChildren(List<EsqTreeNodeJpa> children);
 
     @Schema(
-            description = "Entity ID", example = ""
-    )
-    private String id;
-
-    @Schema(
-            description = "Type of entity", example = "1 for system"
-    )
-    private Integer kind;
-
-    @Schema(
-            description = "Entity name", example = "System"
-    )
-    private String name;
-
-    @Schema(
-            description = "Entity description", example = "Entity description"
+            description = "Object description", example = "Entity description"
     )
     private String desc;
-
-    protected void fillDetails(EsqEntityJpa jpa) {};
-    protected void fillCustom(List<EsqNameValueJpa> custom) {};
-    protected void fillChildren(List<EsqTreeNodeJpa> children) {};
 
     public void fill (EsqEntityJpa jpa, List<EsqNameValueJpa> custom, List<EsqTreeNodeJpa> children) {
         setId(jpa.getId());

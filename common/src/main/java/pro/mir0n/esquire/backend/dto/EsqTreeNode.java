@@ -7,12 +7,17 @@
  *
  *  History:
  * 12/26/2025 mir0n  refine API doc
+ * 02/03/2026 mir0n  extends EsqThing
  */
 
 package pro.mir0n.esquire.backend.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
+import lombok.Builder;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
+import lombok.NoArgsConstructor;
+import lombok.experimental.SuperBuilder;
 
 @Data
 @Schema(
@@ -20,11 +25,10 @@ import lombok.Data;
         description = "Holds Tree Node information"
 )
 
-public class EsqTreeNode {
-    @Schema(
-            description = "Node ID", example = ""
-    )
-    private String id;
+@EqualsAndHashCode(callSuper = true)
+@SuperBuilder
+@NoArgsConstructor
+public class EsqTreeNode extends EsqThing {
 
     @Schema(
             description = "Parent Node ID", example = ""
@@ -35,16 +39,6 @@ public class EsqTreeNode {
             description = "Shortcut Node ID", example = "3"
     )
     private String linkId;
-
-    @Schema(
-            description = "Node name", example = "System"
-    )
-    private String name;
-
-    @Schema(
-            description = "Type of node", example = "1 for system"
-    )
-    private Integer kind;
 
     @Schema(
             description = "Entity ID", example = "1"
@@ -64,21 +58,23 @@ public class EsqTreeNode {
     @Schema(
             description = "More remaining ", example = "false for now always"
     )
+    @Builder.Default
     private Boolean moreRemaining = false;
 
     @Schema(
             description = "Tree level ", example = "1"
     )
+    @Builder.Default
     private Integer level = 0;
 
-    @Schema(
-            description = "Node description", example = "1"
-    )
-
-    private String desc;
     @Schema(
             description = "Node path", example = "[1,2,3]"
     )
     private java.util.List<String> path;
+
+    @Schema(
+            description = "Object description", example = "Entity description"
+    )
+    private String desc;
 
 }

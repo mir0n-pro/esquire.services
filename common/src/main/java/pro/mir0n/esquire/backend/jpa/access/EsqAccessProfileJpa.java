@@ -6,6 +6,7 @@
  *  mailto:mir0n.the.programmer@gmail.com
  *
  *  History:
+ * 02/04/2026 mir0n name added
  */
 
 package pro.mir0n.esquire.backend.jpa.access;
@@ -19,6 +20,7 @@ public class EsqAccessProfileJpa {
     @Id
     private String id;
     private Integer kind;
+    private String name;
     private String loginId;
     private String email;
     private String pwdChangeForced;

@@ -1,4 +1,9 @@
 Esquire pacMan Microservice
 
 
+02/04/2026 mir0n 
+service.PerformanceAspect
+  - cleanup: @Around("execution(* pro.mir0n.esquire.pacMan.jpa.*.*(..))")
+
+
 01/24/2026 mir0n initial

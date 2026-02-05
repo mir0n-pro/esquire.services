@@ -6,6 +6,7 @@
  *  mailto:mir0n.the.programmer@gmail.com
  *
  *  History:
+ * 02/04/2026 mir0n  entityKind renamed with [just] kind
  */
 
 package pro.mir0n.esquire.backend.jpa.access;
@@ -19,7 +20,7 @@ public class EsqPermissionJpa {
     @Id
     private int id;
     private String type;
-    private Integer entityKind;
+    private Integer kind;
     private String name;
     private String flags;
 }

@@ -6,6 +6,7 @@
  *  mailto:mir0n.the.programmer@gmail.com
  *
  *  History:
+ * 02/24/2026  mir0n cleanup: @Around("execution(* pro.mir0n.esquire.pacMan.jpa.*.*(..))")
  */
 package pro.mir0n.esquire.pacMan.service;
 
@@ -35,7 +36,7 @@ public class PerformanceAspect {
 
     private final RequestPerformance performance;
 
-    @Around("execution(* pro.mir0n.esquire.enyMan.jpa.*.*(..))")
+    @Around("execution(* pro.mir0n.esquire.pacMan.jpa.*.*(..))")
     public Object trackJpaTime(ProceedingJoinPoint joinPoint) throws Throwable {
         // If the flag is false, just proceed immediately without timing
         if (!performance.isMetricsCaptured()) {

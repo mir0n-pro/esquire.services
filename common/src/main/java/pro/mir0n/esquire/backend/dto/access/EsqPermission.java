@@ -6,6 +6,7 @@
  *  mailto:mir0n.the.programmer@gmail.com
  *
  *  History:
+ * 02/03/2026 mir0n  extends EsqThing
  */
 
 package pro.mir0n.esquire.backend.dto.access;
@@ -14,6 +15,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.*;
 import lombok.experimental.SuperBuilder;
+import pro.mir0n.esquire.backend.dto.EsqThing;
 import pro.mir0n.esquire.backend.jpa.access.EsqPermissionJpa;
 
 import java.util.List;
@@ -24,29 +26,13 @@ import java.util.List;
         description = "Holds user entitlements"
 )
 @SuperBuilder
-@JsonIgnoreProperties({"type"})
-public class EsqPermission {
-    public EsqPermission() {}
-
-    @Schema(
-            description = "Permission ID", example = "112"
-    )
-    private int id;
-
-    @Schema(
-            description = "Kind  of user were access defined", example = "12 for client"
-    )
-    private Integer entityKind;
-
+@NoArgsConstructor
+@EqualsAndHashCode(callSuper = true)
+public class EsqPermission extends EsqThing {
     @Schema(
             description = "Type of permission", example = "Admin rights"
     )
     private String type;
-
-    @Schema(
-            description = "Name of permission", example = "Client"
-    )
-    private String name;
 
     @Schema(
             description = "Permission flags", example = "set of Y/N flag, create, update, delete, security, accounting"
@@ -55,10 +41,10 @@ public class EsqPermission {
 
 
     public EsqPermission fill (EsqPermissionJpa jpa) {
-        setId(jpa.getId());
-        setType(jpa.getType());
-        setEntityKind(jpa.getEntityKind());
+        setId(String.valueOf(jpa.getId()));
+        setKind(jpa.getKind());
         setName(jpa.getName());
+        setType(jpa.getType());
         setFlags(List.of(jpa.getFlags().split(",")));
         return this;
     }

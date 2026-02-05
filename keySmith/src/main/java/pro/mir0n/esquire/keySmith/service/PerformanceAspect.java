@@ -35,7 +35,7 @@ public class PerformanceAspect {
 
     private final RequestPerformance performance;
 
-    @Around("execution(* pro.mir0n.esquire.enyMan.jpa.*.*(..))")
+    @Around("execution(* pro.mir0n.esquire.keySmith.jpa.*.*(..))")
     public Object trackJpaTime(ProceedingJoinPoint joinPoint) throws Throwable {
         // If the flag is false, just proceed immediately without timing
         if (!performance.isMetricsCaptured()) {

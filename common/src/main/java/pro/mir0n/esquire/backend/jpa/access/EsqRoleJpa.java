@@ -6,6 +6,7 @@
  *  mailto:mir0n.the.programmer@gmail.com
  *
  *  History:
+ * 02/04/2026 mir0n adminFlg added
  */
 
 package pro.mir0n.esquire.backend.jpa.access;
@@ -19,4 +20,5 @@ public class EsqRoleJpa {
     @Id
     private int id;
     private String name;
+    private String adminFlg;
 }

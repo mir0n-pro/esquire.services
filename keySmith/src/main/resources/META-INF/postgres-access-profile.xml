@@ -10,6 +10,7 @@
         <query>
  SELECT usr_pk
   ,usr_et_pk
+  ,usr_name
   ,au_login_id
   ,au_email
   ,COALESCE(au_force_change_flg, 'N') AS au_force_change_flg
@@ -26,6 +27,7 @@
         <query>
  SELECT role_pk
   ,role_name
+  ,role_admin_flg
  FROM esq_usr_role
  JOIN esq_role
   ON role_pk = ur_role_pk
@@ -55,6 +57,7 @@
         <entity-result entity-class="pro.mir0n.esquire.backend.jpa.access.EsqAccessProfileJpa">
             <field-result name="id" column="usr_pk"/>
             <field-result name="kind" column="usr_et_pk"/>
+            <field-result name="name" column="usr_name"/>
             <field-result name="loginId" column="au_login_id"/>
             <field-result name="email" column="au_email"/>
             <field-result name="pwdChangeForced" column="au_force_change_flg"/>
@@ -66,6 +69,7 @@
         <entity-result entity-class="pro.mir0n.esquire.backend.jpa.access.EsqRoleJpa">
             <field-result name="id" column="role_pk"/>
             <field-result name="name" column="role_name"/>
+            <field-result name="adminFlg" column="role_admin_flg"/>
         </entity-result>
     </sql-result-set-mapping>
 
@@ -73,7 +77,7 @@
         <entity-result entity-class="pro.mir0n.esquire.backend.jpa.access.EsqPermissionJpa">
             <field-result name="id" column="prm_pk"/>
             <field-result name="type" column="pt_name"/>
-            <field-result name="entityKind" column="prm_et_pk"/>
+            <field-result name="kind" column="prm_et_pk"/>
             <field-result name="name" column="prm_name"/>
             <field-result name="flags" column="rp_allowed_flgs"/>
         </entity-result>

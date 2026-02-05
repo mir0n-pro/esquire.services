@@ -11,6 +11,7 @@
  * 01/18/2026 mir0n  minor touch
  * 02/01/2026 mir0n List<String>> children replaced with List<EsqEntity>
  *                  "accounts" field does not require custom JsonAnyGetter anymore
+ * 02/03/2023 mir0n accounts are things
  */
 
 package pro.mir0n.esquire.backend.dto.entity;
@@ -24,6 +25,7 @@ import lombok.experimental.SuperBuilder;
 import pro.mir0n.esquire.backend.dto.EsqEntity;
 import pro.mir0n.esquire.backend.dto.EsqEntityFactory;
 import pro.mir0n.esquire.backend.dto.EsqNameValue;
+import pro.mir0n.esquire.backend.dto.EsqThing;
 import pro.mir0n.esquire.backend.jpa.EsqEntityJpa;
 import pro.mir0n.esquire.backend.jpa.EsqNameValueJpa;
 import pro.mir0n.esquire.backend.jpa.EsqTreeNodeJpa;
@@ -70,7 +72,7 @@ public class EsqUsr extends EsqEntity {
     @Schema(
             description = "List of accounts belonging to user"
     )
-    private List<EsqEntity> accounts;
+    private List<EsqThing> accounts;
 
     @JsonIgnore
     private List<EsqNameValue> customFields;
@@ -112,11 +114,11 @@ public class EsqUsr extends EsqEntity {
     protected void fillChildren(List<EsqTreeNodeJpa> childNodes) {
         if (childNodes != null) {
             for (EsqTreeNodeJpa node : childNodes) {
-                EsqEntity en = new EsqEntity();
-                en.setId(node.getId());
-                en.setName(node.getName());
-                en.setKind(node.getKind());
-                accounts.add(en);
+                EsqThing child = new EsqThing();
+                child.setId(node.getId());
+                child.setName(node.getName());
+                child.setKind(node.getKind());
+                accounts.add(child);
             }
         }
     }

@@ -6,6 +6,7 @@
  *  mailto:mir0n.the.programmer@gmail.com
  *
  *  History:
+ * 02/03/2026 mir0n  extends EsqThing
  */
 
 package pro.mir0n.esquire.backend.dto.access;
@@ -16,6 +17,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.*;
 import lombok.experimental.SuperBuilder;
 import pro.mir0n.esquire.backend.dto.EsqNameValue;
+import pro.mir0n.esquire.backend.dto.EsqThing;
 import pro.mir0n.esquire.backend.jpa.access.EsqAccessProfileJpa;
 import pro.mir0n.esquire.backend.jpa.access.EsqPermissionJpa;
 import pro.mir0n.esquire.backend.jpa.access.EsqRoleJpa;
@@ -32,18 +34,9 @@ import java.util.stream.Collectors;
         description = "Holds access profile: indetity, roles and entitlements"
 )
 @SuperBuilder
-public class EsqAccessProfile {
-    public EsqAccessProfile() {}
-
-    @Schema(
-            description = "User ID", example = "6"
-    )
-    private String id;
-
-    @Schema(
-            description = "Kind  of user", example = "12 for client"
-    )
-    private Integer kind;
+@NoArgsConstructor
+@EqualsAndHashCode(callSuper = true)
+public class EsqAccessProfile extends EsqThing {
 
     @Schema(
             description = "User Login ID", example = "mainadmin"
@@ -83,8 +76,9 @@ public class EsqAccessProfile {
 
 
     public EsqAccessProfile fill (EsqAccessProfileJpa jpa, List<EsqRoleJpa> roles, List<EsqPermissionJpa> permissions) {
-        setId(jpa.getId());
+        setId(String.valueOf(jpa.getId()));
         setKind(jpa.getKind());
+        setName(jpa.getName());
         setLoginId(jpa.getLoginId());
         setEmail(jpa.getEmail());
         setPwdChangeForced(jpa.getPwdChangeForced());

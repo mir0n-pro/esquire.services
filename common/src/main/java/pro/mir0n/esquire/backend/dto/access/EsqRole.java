@@ -6,6 +6,7 @@
  *  mailto:mir0n.the.programmer@gmail.com
  *
  *  History:
+ * 02/04/2026 mir0n adminFlg added
  */
 
 package pro.mir0n.esquire.backend.dto.access;
@@ -34,9 +35,15 @@ public class EsqRole {
     )
     private String name;
 
+    @Schema(
+            description = "Role Admin Flag", example = "Y"
+    )
+    private String adminFlg;
+
     public EsqRole fill (EsqRoleJpa jpa) {
         setId(jpa.getId());
         setName(jpa.getName());
+        setAdminFlg(jpa.getAdminFlg());
         return this;
     }
 

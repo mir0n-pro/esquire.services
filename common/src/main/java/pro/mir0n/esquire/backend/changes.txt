@@ -1,5 +1,28 @@
 Esquire Backend common microservice classes 
 
+02/03/2026 mir0n
++ added dto.EsqThing 
+dto.EsqTreeNode
+   - extends EsqThing
+dto.EsqEntity
+   - extends EsqThing
+   - back to abstract
+dto.entity.EsqUsr
+   - accounts are things
+dto.access.EsqAccessProfile
+   - extends EsqThing
+dto.access.EsqPermission
+   - extends EsqThing
+dto.access.EsqRole
+   - adminFlg added
+jpa.access.EsqAccessProfileJpa
+  - name added
+jpa.access.EsqPermissionJpa
+  - entityKind renamed with [just] kind
+jpa.access.EsqRoleJpa
+  - adminFlg added
+
+
 02/02/2026 mir0n 
 dto.EsqEntityFactory
   - SYSADMIN added
