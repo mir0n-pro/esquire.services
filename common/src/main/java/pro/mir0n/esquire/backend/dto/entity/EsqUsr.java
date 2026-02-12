@@ -11,7 +11,8 @@
  * 01/18/2026 mir0n  minor touch
  * 02/01/2026 mir0n List<String>> children replaced with List<EsqEntity>
  *                  "accounts" field does not require custom JsonAnyGetter anymore
- * 02/03/2023 mir0n accounts are things
+ * 02/03/2026 mir0n accounts are things
+ * 02/12/2026 mir0n use EsqObjectKind instead of EsqEntityKind
  */
 
 package pro.mir0n.esquire.backend.dto.entity;
@@ -22,14 +23,12 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.experimental.SuperBuilder;
-import pro.mir0n.esquire.backend.dto.EsqEntity;
-import pro.mir0n.esquire.backend.dto.EsqEntityFactory;
-import pro.mir0n.esquire.backend.dto.EsqNameValue;
-import pro.mir0n.esquire.backend.dto.EsqThing;
+import pro.mir0n.esquire.backend.dto.*;
 import pro.mir0n.esquire.backend.jpa.EsqEntityJpa;
 import pro.mir0n.esquire.backend.jpa.EsqNameValueJpa;
 import pro.mir0n.esquire.backend.jpa.EsqTreeNodeJpa;
 import pro.mir0n.esquire.backend.jpa.entity.EsqUsrJpa;
+import pro.mir0n.esquire.backend.storage.EsqObjectKindStorage;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -105,11 +104,11 @@ public class EsqUsr extends EsqEntity {
         }
     }
 
-    private EsqEntityFactory.EsqEntityKind findKind(int kind) {
+    private EsqObjectKind findKind(int kind) {
         int k = (int)Math.floor((double)kind/2) * 2;
-        return EsqEntityFactory.EsqEntityKind.getKind(kind);
-
+        return EsqObjectKindStorage.getInstance().get(kind);
     }
+
     @Override
     protected void fillChildren(List<EsqTreeNodeJpa> childNodes) {
         if (childNodes != null) {

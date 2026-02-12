@@ -7,6 +7,8 @@
  *
  *  History:
  * 02/01/2026 mir0n added DICT_ACCESS_PROFILE as a virtual entity kind for dictionary
+ * 02/12/2026 mir0n  removed CMD_DETAILS
+ *                   DICT_ACCESS_PROFILE renamed with KIND_ACCESS_PROFILE
  */
 package pro.mir0n.esquire.common;
 
@@ -38,9 +40,6 @@ public class EsqConstants {
     public static final String  JWT_CLAIM_ENTITY_ID = "esq_uid";
     public static final String  JWT_CLAIM_ENTITY_ROOTPATH = "esq_rootpath";
 
-    public static final String  CMD_DETAILS = "details";
-    public static final String  CMD_PROFILE = "profile";
-
-    public static final int  DICT_ACCESS_PROFILE = 998;
+    public static final int  KIND_ACCESS_PROFILE = 998;
 
 }

@@ -14,6 +14,8 @@
  * 01/23/2026 mir0n use common library
  *                  no more EsqTreeNode methods  
  *                  use entityRepository.acctsAsNodes()
+ * 02/12/2026 mir0n EsqObjectKind instead if EsqEntityKind
+ *                  removed "profile" command
  */
 
 package pro.mir0n.esquire.pacMan.service.impl;
@@ -24,6 +26,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.repository.query.Param;
 import pro.mir0n.esquire.backend.dto.*;
 import pro.mir0n.esquire.backend.jpa.*;
+import pro.mir0n.esquire.backend.storage.EsqObjectKindStorage;
 import pro.mir0n.esquire.pacMan.jpa.EsqAcctRepository;
 import pro.mir0n.esquire.pacMan.service.RequestContextUtils;
 import pro.mir0n.esquire.backend.error.ResourceNotFoundException;
@@ -47,15 +50,9 @@ public class PacManService  implements IPacManService {
         String requestId = RequestContextUtils.getRequestId();
         log.debug("srvc: esquireCommand: kind:{}, id:{}, cmd:{}, rootPath:{}, uid:{}",  kind, id, cmd, rootPath, uid);
 
-        EsqEntityFactory.EsqEntityKind eek;
-        String upk = id;
-        if (EsqConstants.CMD_PROFILE.equals(cmd)) {
-            eek = EsqEntityFactory.EsqEntityKind.ADMIN;
-            upk = uid;
-        } else {
-            int k = (int)Math.floor( (double) kind/2 ) * 2;
-            eek = EsqEntityFactory.EsqEntityKind.getKind(k);
-        }
+        int k = (int)Math.floor( (double) kind/2 ) * 2;
+        EsqObjectKind eek = EsqObjectKindStorage.getInstance().get(k);
+
         EsqEntityJpa jpa = null;
         List<EsqNameValueJpa> custom = null;
         List<EsqTreeNodeJpa> children = null;

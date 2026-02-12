@@ -70,7 +70,7 @@ spring:
         - id: enyman-route
           uri: http://${ENYMAN_HOST:enyman}:${ENYMAN_PORT:3003}
           predicates:
-            - Path=/esq-cmd,/esq-dict
+            - Path=/esq-cmd,/esq-dict,/esq-kinds
           metadata:
             allowedMethods:
               - GET

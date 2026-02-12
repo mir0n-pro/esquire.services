@@ -16,6 +16,8 @@
  *                  use entityRepository.acctsAsNodes()
  * 01/24/2026 mir0n  ResourceNotFoundException moved to common lib
  *                   detailAcct() removed (moved to pacMan)
+ * 02/12/2026 mir0n  EsqObjectKind instead if EsqEntityKind
+ *                   removed "profile" command
  */
 
 package pro.mir0n.esquire.enyMan.service.impl;
@@ -26,6 +28,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.repository.query.Param;
 import pro.mir0n.esquire.backend.dto.*;
 import pro.mir0n.esquire.backend.jpa.*;
+import pro.mir0n.esquire.backend.storage.EsqObjectKindStorage;
 import pro.mir0n.esquire.enyMan.jpa.EsqCustomFieldRepository;
 import pro.mir0n.esquire.enyMan.jpa.EsqEntityDictionaryRepository;
 import pro.mir0n.esquire.enyMan.jpa.EsqEntityRepository;
@@ -79,15 +82,8 @@ public class EnyManService  implements IEnyManService {
         String requestId = RequestContextUtils.getRequestId();
         log.debug("srvc: esquireCommand: kind:{}, id:{}, cmd:{}, rootPath:{}, uid:{}",  kind, id, cmd, rootPath, uid);
 
-        EsqEntityFactory.EsqEntityKind eek;
-        String upk = id;
-        if (EsqConstants.CMD_PROFILE.equals(cmd)) {
-            eek = EsqEntityFactory.EsqEntityKind.ADMIN;
-            upk = uid;
-        } else {
-            int k = (int)Math.floor( (double) kind/2 ) * 2;
-            eek = EsqEntityFactory.EsqEntityKind.getKind(k);
-        }
+        int k = (int)Math.floor( (double) kind/2 ) * 2;
+        EsqObjectKind eek = EsqObjectKindStorage.getInstance().get(k);
         EsqEntityJpa jpa = null;
         List<EsqNameValueJpa> custom = null;
         List<EsqTreeNodeJpa> children = null;
@@ -97,8 +93,8 @@ public class EnyManService  implements IEnyManService {
             jpa = entityRepository.detailOrg(id, rootPath);
             custom = customEntityRepository.customOrg(id);
         } else if (eek.isUsr()) {
-            jpa = entityRepository.detailUsr(upk, rootPath);
-            custom = customEntityRepository.customUsr(upk);
+            jpa = entityRepository.detailUsr(id, rootPath);
+            custom = customEntityRepository.customUsr(id);
         }
         if (jpa == null) {
             throw new ResourceNotFoundException("esquireEntity", "kind, id", kind + "," + id);

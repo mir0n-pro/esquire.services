@@ -8,15 +8,20 @@
  *  History:
  * 12/28/2025 mir0n logging added using Slf4j
  * 01/23/2026 mir0n explicitly EntityScan, EnableJpaRepositories
+ * 02/12/2026 mir0n  initiate EsqObjectKindStorage
  */
 
 package pro.mir0n.esquire.pacMan;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.domain.EntityScan;
+import org.springframework.boot.context.event.ApplicationStartingEvent;
+import org.springframework.context.ApplicationListener;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import pro.mir0n.esquire.backend.storage.EsqEntityDictionaryStorage;
+import pro.mir0n.esquire.backend.storage.EsqObjectKindStorage;
 
 @Slf4j
 @SpringBootApplication
@@ -26,7 +31,22 @@ public class PacManApplication {
 
     public static void main(String[] args) {
         SpringApplication app = new SpringApplication( PacManApplication.class);
+        app.addListeners(new EnyManApplicationStartingListener());
         app.run(args);
+}
+
+public static class EnyManApplicationStartingListener implements ApplicationListener<ApplicationStartingEvent> {
+    @Override
+    public void onApplicationEvent(ApplicationStartingEvent event) {
+        log.debug("ApplicationStartingEvent received: {}", event.getTimestamp());
+
+        boolean result = EsqObjectKindStorage.getInstance().init((String)null);
+        if (!result) {
+            System.out.println("Failed to load esq-object-kinds.xml");
+            System.exit(-1); // Exit the JVM immediately
+        }
+        log.debug("EsqObjectKindStorage loaded");
     }
+}
 
 }

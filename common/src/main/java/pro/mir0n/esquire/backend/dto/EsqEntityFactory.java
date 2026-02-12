@@ -9,6 +9,7 @@
  * 01/25/2026 mir0n  Paper Client Account added
  * 02/02/2026 mir0n  SYSADMIN added
  *                   gaps in Entity Kind enumeration: system objects - orgs - users - accounts
+ * 02/12/2026 mir0n  remove EsqEntityKind, use EsqObjectKind instead
  */
 
 package pro.mir0n.esquire.backend.dto;
@@ -21,59 +22,12 @@ import pro.mir0n.esquire.backend.jpa.EsqEntityJpa;
 import pro.mir0n.esquire.backend.jpa.EsqNameValueJpa;
 import pro.mir0n.esquire.backend.jpa.EsqTreeNodeJpa;
 import org.jetbrains.annotations.NotNull;
+import pro.mir0n.esquire.backend.storage.EsqObjectKindStorage;
 
 import java.util.List;
 
 public class EsqEntityFactory {
 
-    public enum EsqEntityKind {
-        UNKNOWN("unknown", -1, false, false, false, false),
-        SYSTEM("system",0, true, false, false, false),
-        ORG("organization", 20, true, false, false, false),
-        SYSADMIN("sysadmin", 30, false, true, false, false),
-        ADMIN("admin", 32, false, true, false, false),
-        CLIENT("client", 34, false, true, false, true),
-        MERCHANT("merchant", 36, false, true, false, true),
-        ACCT_CLIENT("account", 50, false, false, true, false),
-        ACCT_MERCHANT("maccount", 52, false, false, true, false),
-        PACCT_CLIENT("paccount", 54, false, false, true, false),
-        ;
-
-        private final int kind;
-        @Getter
-        private final String name;
-        @Getter
-        private final String plural;
-        @Getter
-        private final boolean org;
-        @Getter
-        private final  boolean usr;
-        @Getter
-        private final boolean acct;
-        @Getter
-        private final boolean childrenDetailed;
-
-        private EsqEntityKind(String name, int kind, boolean org, boolean usr, boolean acct, boolean childrenDetailed) {
-            this.name = name;
-            this.plural = name + "s";
-            this.kind = kind;
-            this.org = org;
-            this.usr = usr;
-            this.acct = acct;
-            this.childrenDetailed = childrenDetailed;
-        }
-
-        public static EsqEntityKind getKind(int kind) {
-            for (EsqEntityKind e : EsqEntityKind.values()) {
-                if (e.kind == kind) {
-                    return e;
-                }
-            }
-            return EsqEntityKind.UNKNOWN;
-        }
-
-
-    }
     private static final EsqEntityFactory itSelf = new EsqEntityFactory();
 
     public static EsqEntityFactory getInstance() {
@@ -81,7 +35,7 @@ public class EsqEntityFactory {
      }
 
     public EsqEntity createEntity (int kind ) {
-        EsqEntityKind eek = EsqEntityKind.getKind(kind);
+        EsqObjectKind eek = EsqObjectKindStorage.getInstance().get(kind);
         EsqEntity ret = null;
         //todo
         if (eek.isOrg()) {

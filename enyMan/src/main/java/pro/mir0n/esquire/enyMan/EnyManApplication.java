@@ -8,6 +8,7 @@
  *  History:
  * 12/28/2025 mir0n logging added using Slf4j
  * 01/23/2026 mir0n explicitly EntityScan, EnableJpaRepositories
+ * 02/12/2026 mir0n initiate EsqObjectKindStorage
  */
 
 package pro.mir0n.esquire.enyMan;
@@ -20,6 +21,7 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.event.ApplicationStartingEvent;
 import org.springframework.context.ApplicationListener;
+import pro.mir0n.esquire.backend.storage.EsqObjectKindStorage;
 
 @Slf4j
 @SpringBootApplication
@@ -38,11 +40,20 @@ public class EnyManApplication {
         @Override
         public void onApplicationEvent(ApplicationStartingEvent event) {
             log.debug("ApplicationStartingEvent received: {}", event.getTimestamp());
-            boolean result = EsqEntityDictionaryStorage.getInstance().init((String)null);
+
+            boolean result = EsqObjectKindStorage.getInstance().init((String)null);
+            if (!result) {
+                System.out.println("Failed to load esq-object-kinds.xml");
+                System.exit(-1); // Exit the JVM immediately
+            }
+            log.debug("EsqObjectKindStorage loaded");
+
+            result = EsqEntityDictionaryStorage.getInstance().init((String)null);
             if (!result) {
                 System.out.println("Failed to load esq-entity-dictionaries.xml");
                 System.exit(-1); // Exit the JVM immediately
             }
+            log.debug("EsqEntityDictionaryStorage loaded");
         }
     }
 

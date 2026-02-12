@@ -1,5 +1,14 @@
 Esquire enyMan Microservice
 
+02/12/2026 mir0n 
+controller.EnyManController
+  - added "/esq-kinds" access point
+service.impl.EnyManService.java
+  - EsqObjectKind instead if EsqEntityKind
+  - removed "profile" command
+EnyManApplication
+  - initiate EsqObjectKindStorage
+
 01/24/2026 mir0n
 clean code heading
 x exception.ResourceNotFoundException moved to common lib

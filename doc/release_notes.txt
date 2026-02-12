@@ -2,6 +2,12 @@ Esquire Frameworks(tm) 2.0
 Esquire services
 
 
+v1.2.2-2602.1217
+  let set of Object Kinds configured in server side, and not hardcoded
+    : refactoring: EsqObjectKind instead of EsqEntityKind
+    : let set of EsqEntityKind-s configured in xml, not hardcoded
+    : added "/esq-kinds" REST API entry point
+  
 v1.2.2-2602.0418
    normalization of entity objects structure: EsqThing added
    some cleanup @Around("execution ...

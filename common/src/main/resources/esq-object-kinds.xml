@@ -1,0 +1,474 @@
+<object-kinds>
+  <kinds>
+
+<!-- System -->
+    <kind>
+      <id>0</id>
+      <name>system</name>
+      <title>System</title>
+      <plural>systems</plural>
+      <desc>Esquire system root</desc>
+      <org>true</org>
+      <icon>img/folders/system.ico</icon>
+      <detailed>true</detailed>
+      <childrenDetailed>false</childrenDetailed>
+      <treeFlags>BT</treeFlags>
+      <listHeaders>
+        <column-header>
+          <columnDef>name</columnDef>
+          <header>Name</header>
+        </column-header>
+        <column-header>
+          <columnDef>desc</columnDef>
+          <header>Description</header>
+        </column-header>
+      </listHeaders>
+      <childKinds>
+        <kind>20</kind>
+      </childKinds>
+    </kind>
+
+<!-- Sys Admin-s -->
+    <kind>
+      <id>2</id>
+      <name>sysadmins</name>
+      <title>Sys Admin-s</title>
+      <plural>sysadmins</plural>
+      <desc>System Admins virtual folder</desc>
+      <icon>img/folders/folder.ico</icon>
+      <detailed>false</detailed>
+      <childrenDetailed>false</childrenDetailed>
+      <treeFlags>BTb</treeFlags>
+      <listHeaders>
+        <column-header>
+          <columnDef>name</columnDef>
+          <header>Name</header>
+        </column-header>
+        <column-header>
+          <columnDef>desc</columnDef>
+          <header>Description</header>
+        </column-header>
+      </listHeaders>
+      <childKinds>
+        <kind>30</kind>
+        <kind>32</kind>
+      </childKinds>
+    </kind>
+
+<!-- All Admin-s -->
+    <kind>
+      <id>4</id>
+      <name>alladmins</name>
+      <title>All Admin-s</title>
+      <plural>alladmins</plural>
+      <desc>All Admins virtual folder</desc>
+      <icon>img/folders/folder.ico</icon>
+      <detailed>false</detailed>
+      <childrenDetailed>false</childrenDetailed>
+      <treeFlags>BTb</treeFlags>
+      <listHeaders>
+        <column-header>
+          <columnDef>name</columnDef>
+          <header>Administrator</header>
+        </column-header>
+        <column-header>
+          <columnDef>desc</columnDef>
+          <header>Description</header>
+        </column-header>
+      </listHeaders>
+      <childKinds>
+        <kind>32</kind>
+      </childKinds>
+    </kind>
+
+<!-- All accounts -->
+    <kind>
+      <id>6</id>
+      <name>allaccts</name>
+      <title>All accounts</title>
+      <plural>allaccts</plural>
+      <desc>All accounts virtual folder</desc>
+      <icon>img/folders/folder.ico</icon>
+      <detailed>false</detailed>
+      <childrenDetailed>false</childrenDetailed>
+      <treeFlags>BTb</treeFlags>
+      <listHeaders>
+        <column-header>
+          <columnDef>name</columnDef>
+          <header>Account ID</header>
+        </column-header>
+        <column-header>
+          <columnDef>desc</columnDef>
+          <header>Description</header>
+        </column-header>
+      </listHeaders>
+    </kind>
+
+<!-- All clients -->
+    <kind>
+      <id>8</id>
+      <name>allclients</name>
+      <title>All clients</title>
+      <plural>allclients</plural>
+      <desc>All clients virtual folder</desc>
+      <icon>img/folders/folder.ico</icon>
+      <detailed>false</detailed>
+      <childrenDetailed>false</childrenDetailed>
+      <treeFlags>BTb</treeFlags>
+      <listHeaders>
+        <column-header>
+          <columnDef>name</columnDef>
+          <header>Client</header>
+        </column-header>
+        <column-header>
+          <columnDef>desc</columnDef>
+          <header>Description</header>
+        </column-header>
+      </listHeaders>
+      <childKinds>
+        <kind>34</kind>
+      </childKinds>
+    </kind>
+
+<!-- All merchants -->
+    <kind>
+      <id>10</id>
+      <name>allmerchants</name>
+      <title>All merchants</title>
+      <plural>allmerchants</plural>
+      <desc>All merchants virtual folder</desc>
+      <icon>img/folders/folder.ico</icon>
+      <detailed>false</detailed>
+      <childrenDetailed>false</childrenDetailed>
+      <treeFlags>BTb</treeFlags>
+      <listHeaders>
+        <column-header>
+          <columnDef>name</columnDef>
+          <header>Merchant</header>
+        </column-header>
+        <column-header>
+          <columnDef>desc</columnDef>
+          <header>Description</header>
+        </column-header>
+      </listHeaders>
+      <childKinds>
+        <kind>36</kind>
+      </childKinds>
+    </kind>
+
+<!-- Organization -->
+    <kind>
+      <id>20</id>
+      <name>org</name>
+      <title>Organization</title>
+      <plural>orgs</plural>
+      <desc>Organization entity</desc>
+      <icon>img/org.ico</icon>
+      <org>true</org>
+      <detailed>true</detailed>
+      <childrenDetailed>false</childrenDetailed>
+      <treeFlags>BTb</treeFlags>
+      <listHeaders>
+        <column-header>
+          <columnDef>name</columnDef>
+          <header>Name</header>
+        </column-header>
+        <column-header>
+          <columnDef>desc</columnDef>
+          <header>Description</header>
+        </column-header>
+      </listHeaders>
+      <childKinds>
+        <kind>20</kind>
+      </childKinds>
+      <commands>
+        <command>move</command>
+      </commands>
+    </kind>
+
+<!-- SysAdmin -->
+    <kind>
+      <id>30</id>
+      <name>sysadmin</name>
+      <title>SysAdmin</title>
+      <plural>sysadmins</plural>
+      <desc>SysAdmin user entity</desc>
+      <icon>img/sysadmin.ico</icon>
+      <usr>true</usr>
+      <detailed>true</detailed>
+      <childrenDetailed>false</childrenDetailed>
+      <treeFlags>b</treeFlags>
+      <commands>
+        <command>move</command>
+        <command>key</command>
+      </commands>
+    </kind>
+
+<!-- SysAdmin Link-->
+    <kind>
+      <id>31</id>
+      <name>sysadminlnk</name>
+      <title>SysAdmin</title>
+      <plural>sysadminlnks</plural>
+      <desc>Shortcut to SysAdmin user entity</desc>
+      <icon>img/sysadmin.ico</icon>
+      <usr>false</usr>
+      <detailed>true</detailed>
+      <childrenDetailed>false</childrenDetailed>
+      <treeFlags>b</treeFlags>
+      <commands>
+        <command>key</command>
+      </commands>
+    </kind>
+
+<!-- Admin -->
+    <kind>
+      <id>32</id>
+      <name>admin</name>
+      <title>Admin</title>
+      <plural>admin</plural>
+      <desc>Admin user entity </desc>
+      <icon>img/admin.ico</icon>
+      <usr>true</usr>
+      <detailed>true</detailed>
+      <childrenDetailed>false</childrenDetailed>
+      <treeFlags>b</treeFlags>
+      <commands>
+        <command>move</command>
+        <command>key</command>
+      </commands>
+    </kind>
+
+<!-- Admin Link-->
+    <kind>
+      <id>33</id>
+      <name>adminlnk</name>
+      <title>Admin</title>
+      <plural>adminlnks</plural>
+      <desc>Shortcut to Admin user entity</desc>
+      <icon>img/sysadmin.ico</icon>
+      <usr>false</usr>
+      <detailed>true</detailed>
+      <childrenDetailed>false</childrenDetailed>
+      <treeFlags>b</treeFlags>
+      <commands>
+        <command>key</command>
+      </commands>
+    </kind>
+
+
+<!-- Client -->
+    <kind>
+      <id>34</id>
+      <name>client</name>
+      <title>Client</title>
+      <plural>clients</plural>
+      <desc>Client user entity</desc>
+      <icon>img/client.ico</icon>
+      <usr>true</usr>
+      <detailed>true</detailed>
+      <childrenDetailed>true</childrenDetailed>
+      <treeFlags>BTb</treeFlags>
+      <listHeaders>
+        <column-header>
+          <columnDef>name</columnDef>
+          <header>Account ID</header>
+        </column-header>
+        <column-header>
+          <columnDef>desc</columnDef>
+          <header>Description</header>
+        </column-header>
+      </listHeaders>      
+      <commands>
+        <command>move</command>
+        <command>key</command>
+      </commands>
+    </kind>
+
+<!-- Client Link-->
+    <kind>
+      <id>35</id>
+      <name>clientlnk</name>
+      <title>Client</title>
+      <plural>clientlnks</plural>
+      <desc>Shortcut to Client user entity</desc>
+      <icon>img/client.ico</icon>
+      <usr>false</usr>
+      <detailed>true</detailed>
+      <childrenDetailed>true</childrenDetailed>
+      <treeFlags>b</treeFlags>
+      <commands>
+        <command>key</command>
+      </commands>
+    </kind>
+
+
+<!-- Merchant -->
+    <kind>
+      <id>36</id>
+      <name>merchant</name>
+      <title>Merchant</title>
+      <plural>merchants</plural>
+      <desc>Merchant user entity</desc>
+      <icon>img/merchant.ico</icon>
+      <usr>true</usr>
+      <detailed>true</detailed>
+      <childrenDetailed>true</childrenDetailed>
+      <treeFlags>BTb</treeFlags>
+      <listHeaders>
+        <column-header>
+          <columnDef>name</columnDef>
+          <header>Account ID</header>
+        </column-header>
+        <column-header>
+          <columnDef>desc</columnDef>
+          <header>Description</header>
+        </column-header>
+      </listHeaders>      
+      <commands>
+        <command>move</command>
+        <command>key</command>
+      </commands>
+    </kind>
+
+<!-- Merchant Link-->
+    <kind>
+      <id>37</id>
+      <name>merchantlnk</name>
+      <title>Merchant</title>
+      <plural>merchantlnks</plural>
+      <desc>Shortcut to Merchant user entity</desc>
+      <icon>img/merchant.ico</icon>
+      <usr>false</usr>
+      <detailed>true</detailed>
+      <childrenDetailed>true</childrenDetailed>
+      <treeFlags>b</treeFlags>
+      <commands>
+        <command>key</command>
+      </commands>
+    </kind>
+
+<!-- Client Account -->
+    <kind>
+      <id>50</id>
+      <name>cacct</name>
+      <title>Client Account</title>
+      <plural>caccts</plural>
+      <desc>Client Account entity</desc>
+      <icon>img/acct.ico</icon>
+      <acct>true</acct>
+      <detailed>true</detailed>
+      <childrenDetailed>false</childrenDetailed>
+      <treeFlags>b</treeFlags>
+      <commands>
+        <command>acct</command>
+      </commands>
+    </kind>
+
+<!-- Client Account Link-->
+    <kind>
+      <id>51</id>
+      <name>cacctlnk</name>
+      <title>Client Account</title>
+      <plural>acctlnks</plural>
+      <desc>Shortcut to Client Account entity</desc>
+      <icon>img/acctl.ico</icon>
+      <acct>false</acct>
+      <detailed>true</detailed>
+      <childrenDetailed>false</childrenDetailed>
+      <treeFlags>b</treeFlags>
+      <commands>
+        <command>acct</command>
+      </commands>
+    </kind>
+
+<!-- Merchant Account -->
+    <kind>
+      <id>52</id>
+      <name>macct</name>
+      <title>Merchant Account</title>
+      <plural>maccts</plural>
+      <desc>Merchant Account entity</desc>
+      <icon>img/macct.ico</icon>
+      <acct>true</acct>
+      <detailed>true</detailed>
+      <childrenDetailed>false</childrenDetailed>
+      <treeFlags>b</treeFlags>
+      <commands>
+        <command>acct</command>
+      </commands>
+    </kind>
+
+<!-- Merchant Account Link-->
+    <kind>
+      <id>53</id>
+      <name>macctlnk</name>
+      <title>Merchant Account</title>
+      <plural>macctlnks</plural>
+      <desc>Shortcut to Merchant Account entity</desc>
+      <icon>img/macctl.ico</icon>
+      <acct>false</acct>
+      <detailed>true</detailed>
+      <childrenDetailed>false</childrenDetailed>
+      <treeFlags>b</treeFlags>
+      <commands>
+        <command>acct</command>
+      </commands>
+    </kind>
+
+
+<!-- Paper Client Account -->
+    <kind>
+      <id>54</id>
+      <name>pacct</name>
+      <title>Paper Client Account</title>
+      <plural>paccts</plural>
+      <desc>Paper Client  Account entity</desc>
+      <icon>img/pacct.ico</icon>
+      <acct>true</acct>
+      <detailed>true</detailed>
+      <childrenDetailed>false</childrenDetailed>
+      <treeFlags>b</treeFlags>
+      <commands>
+        <command>acct</command>
+      </commands>
+    </kind>
+
+<!-- Paper Client Account Link-->
+    <kind>
+      <id>55</id>
+      <name>pacctlnk</name>
+      <title>Paper Client</title>
+      <plural>pacctlnks</plural>
+      <desc>Shortcut to Paper Client  Account  entity</desc>
+      <icon>img/pacctl.ico</icon>
+      <acct>false</acct>
+      <detailed>true</detailed>
+      <childrenDetailed>false</childrenDetailed>
+      <treeFlags>b</treeFlags>
+      <commands>
+        <command>acct</command>
+      </commands>
+    </kind>
+
+<!-- Access Profile -->
+    <kind>
+      <id>998</id>
+      <name>aprofile</name>
+      <title>Access Profile</title>
+      <desc>Access Profile object</desc>
+    </kind>
+
+<!-- More... -->
+<!--
+    <kind>
+      <id>999</id>
+      <name>more</name>
+      <title>More...</title>
+      <desc>More object</desc>
+    </kind>
+-->
+
+  </kinds>
+  
+</object-kinds>

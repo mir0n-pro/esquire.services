@@ -1,5 +1,14 @@
 Esquire Backend common microservice classes 
 
+02/12/2026 mir0n 
++ added dto.EsqColumnHeaderDef
++ addded dto.EsqObjectKind, dto.EsqObjectKinds
+dto.EsqEntityFactory
+  - remove EsqEntityKind, use EsqObjectKind instead
+dto.entity.EsqUsr
+  - use EsqObjectKind instead of EsqEntityKind
++ added storage.EsqObjectKindStorage
+
 02/03/2026 mir0n
 + added dto.EsqThing 
 dto.EsqTreeNode

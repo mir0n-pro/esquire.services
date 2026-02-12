@@ -1,6 +1,10 @@
 Esquire Gateway Microservice
 
+02/12/2026 mir0n 
+config.SecurityConfig
+  - let "/esq-kinds" pass thru without validation
 
+02/01/2026 mir0n
 error.ErrorConfig
   - read serviceMetricsEnabled configuration
     bypass it to exception handler

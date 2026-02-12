@@ -7,7 +7,8 @@
  *
  *  History:
  * 01/10/2026 mir0n  make sure TREE role is in place
- * 01/18/2026 miron  added exposedHeaders to CORS 
+ * 01/18/2026 mir0n  added exposedHeaders to CORS 
+ * 02/12/2026 mir0n  let "/esq-kinds" pass thru without validation
  */
 package pro.mir0n.esquire.gateway.config;
 
@@ -96,6 +97,7 @@ public class SecurityConfig {
                     //XXX: hasRole already implies the user must be authenticated.
                     // for some reason it does not work well
                     // we keep Double-checks authentication and TREE role for esq* paths for a while
+                    .pathMatchers("/esq-kinds").permitAll() // Protect your endpoint
                     .pathMatchers("/esq*").authenticated() // Protect your endpoint
                     .pathMatchers("/esq*").hasRole("TREE")
                     .anyExchange().permitAll()

@@ -14,6 +14,7 @@
  *                  ErrorResponse replaced with ProblemDetail
  * 01/23/206 mir0n  use common library
  *                  no more EsqTreeNode methods  
+ * 02/12/2026 mir0n added "/esq-kinds" access point
  */
 
 package pro.mir0n.esquire.enyMan.controller;
@@ -24,6 +25,7 @@ import org.springframework.http.ProblemDetail;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import pro.mir0n.esquire.backend.dto.*;
 import pro.mir0n.esquire.backend.dto.entity.*;
+import pro.mir0n.esquire.backend.storage.EsqObjectKindStorage;
 import pro.mir0n.esquire.enyMan.service.IEnyManService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -115,4 +117,15 @@ public class EnyManController {
         return ResponseEntity.status(HttpStatus.OK).body(entity);
     }
 
+    @GetMapping("/esq-kinds")
+    public ResponseEntity<List<EsqObjectKind>>  esquireKinds(
+            @AuthenticationPrincipal Claims claims
+    ) {
+        //String rootPath = claims.get(EsqConstants.JWT_CLAIM_ENTITY_ROOTPATH, String.class);
+        //String uid = claims.get(EsqConstants.JWT_CLAIM_ENTITY_ID, String.class);
+
+        List<EsqObjectKind> ret  = EsqObjectKindStorage.getInstance().getAll();
+        log.debug("esquireKinds: result:{}",String.valueOf(ret));
+        return ResponseEntity.status(HttpStatus.OK).body(ret);
+    }
 }
