@@ -13,6 +13,7 @@
  *                  "accounts" field does not require custom JsonAnyGetter anymore
  * 02/03/2026 mir0n accounts are things
  * 02/12/2026 mir0n use EsqObjectKind instead of EsqEntityKind
+ * 02/13/2026 mir0n  use EsqEntityJpa for children
  */
 
 package pro.mir0n.esquire.backend.dto.entity;
@@ -110,9 +111,9 @@ public class EsqUsr extends EsqEntity {
     }
 
     @Override
-    protected void fillChildren(List<EsqTreeNodeJpa> childNodes) {
+    protected void fillChildren(List<EsqEntityJpa> childNodes) {
         if (childNodes != null) {
-            for (EsqTreeNodeJpa node : childNodes) {
+            for (EsqEntityJpa node : childNodes) {
                 EsqThing child = new EsqThing();
                 child.setId(node.getId());
                 child.setName(node.getName());

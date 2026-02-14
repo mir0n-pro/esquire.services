@@ -7,6 +7,7 @@
  *
  *  History:
  * 12/27/2025  mir0n extend EsqEntity correctly
+ * 02/13/2026 mir0n  use EsqEntityJpa for children
  */
 
 package pro.mir0n.esquire.backend.dto.entity;
@@ -22,7 +23,6 @@ import pro.mir0n.esquire.backend.dto.EsqEntity;
 import pro.mir0n.esquire.backend.dto.EsqNameValue;
 import pro.mir0n.esquire.backend.jpa.EsqEntityJpa;
 import pro.mir0n.esquire.backend.jpa.EsqNameValueJpa;
-import pro.mir0n.esquire.backend.jpa.EsqTreeNodeJpa;
 import pro.mir0n.esquire.backend.jpa.entity.EsqOrgJpa;
 
 import java.util.ArrayList;
@@ -74,7 +74,7 @@ public class EsqOrg extends EsqEntity {
         }
     }
     @Override
-    protected void fillChildren(List<EsqTreeNodeJpa> children) {}
+    protected void fillChildren(List<EsqEntityJpa> children) {}
 
 }
 

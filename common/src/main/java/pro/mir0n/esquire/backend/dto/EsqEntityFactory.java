@@ -10,6 +10,7 @@
  * 02/02/2026 mir0n  SYSADMIN added
  *                   gaps in Entity Kind enumeration: system objects - orgs - users - accounts
  * 02/12/2026 mir0n  remove EsqEntityKind, use EsqObjectKind instead
+ * 02/13/2026 mir0n  use EsqEntityJpa for children
  */
 
 package pro.mir0n.esquire.backend.dto;
@@ -48,7 +49,7 @@ public class EsqEntityFactory {
         return ret;
      }
 
-    public EsqEntity createEntity (@NotNull EsqEntityJpa jpa, List<EsqNameValueJpa> custom, List<EsqTreeNodeJpa> children ) {
+    public EsqEntity createEntity (@NotNull EsqEntityJpa jpa, List<EsqNameValueJpa> custom, List<EsqEntityJpa> children ) {
         EsqEntity ret = createEntity (jpa.getKind());
         if (ret != null) {
             ret.fill(jpa, custom, children);

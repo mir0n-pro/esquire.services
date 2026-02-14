@@ -7,6 +7,7 @@
  *
  *  History:
  * 01/10/2026 mir0n let's have '.' as path separator as generic
+ * 02/13/2026 mir0n removed treeFlags
  */
 
 package pro.mir0n.esquire.backend.dto;
@@ -28,7 +29,6 @@ public class EsqTreeNodeMapper {
         nodeDto.setKind(node.getKind());
         nodeDto.setEntityId(node.getEntityId());
         nodeDto.setStatusCode(node.getStatusCode());
-        nodeDto.setTreeFlags(node.getTreeFlags());
         nodeDto.setLevel(node.getLevel());
         nodeDto.setDesc(node.getDesc());
         nodeDto.setPath(pathArray(node.getPath()));

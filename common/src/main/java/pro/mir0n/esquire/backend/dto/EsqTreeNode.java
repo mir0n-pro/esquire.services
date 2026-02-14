@@ -8,6 +8,7 @@
  *  History:
  * 12/26/2025 mir0n  refine API doc
  * 02/03/2026 mir0n  extends EsqThing
+ * 02/13/2026 mir0n removed treeFlags
  */
 
 package pro.mir0n.esquire.backend.dto;
@@ -44,11 +45,6 @@ public class EsqTreeNode extends EsqThing {
             description = "Entity ID", example = "1"
     )
     private Long entityId;
-
-    @Schema(
-            description = "Tree flags", example = "BTb"
-    )
-    private String treeFlags;
 
     @Schema(
             description = "Status Code: 0: normal, 1: deleted or closed 2: locked", example = "1"

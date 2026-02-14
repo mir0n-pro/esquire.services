@@ -10,6 +10,7 @@
  * 01/23/206 mir0n  use common library
  *                  added acctsAsNodes method
  * 01/24/2026 mir0n detailAcct() removed (moved to pacMan)
+ * 02/13/2026 mir0n userAccts() instead of acctsAsNodes
  */
 
 package pro.mir0n.esquire.enyMan.jpa;
@@ -31,5 +32,5 @@ public interface EsqEntityRepository extends JpaRepository<EsqEntityJpa, String>
     @NativeQuery
     EsqEntityJpa detailOrg (@Param("id") String id, @Param("rootPath") String rootPath);
     @NativeQuery
-    List<EsqTreeNodeJpa> acctsAsNodes(@Param("id") String id, @Param("rootPath") String rootPath);
+    List<EsqEntityJpa> userAccts(@Param("id") String id, @Param("rootPath") String rootPath);
 }

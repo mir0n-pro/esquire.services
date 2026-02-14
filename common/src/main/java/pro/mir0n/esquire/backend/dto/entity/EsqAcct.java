@@ -7,6 +7,7 @@
  *
  *  History:
  * 12/27/2025  mir0n extend EsqEntity correctly
+ * 02/13/2026 mir0n  use EsqEntityJpa for children
  */
 
 
@@ -61,7 +62,7 @@ public class EsqAcct extends EsqEntity {
     protected void fillCustom(List<EsqNameValueJpa> custom) {}
 
     @Override
-    protected void fillChildren(List<EsqTreeNodeJpa> children) {}
+    protected void fillChildren(List<EsqEntityJpa> children) {}
 
 
 }

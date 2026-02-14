@@ -18,6 +18,7 @@
  *                   detailAcct() removed (moved to pacMan)
  * 02/12/2026 mir0n  EsqObjectKind instead if EsqEntityKind
  *                   removed "profile" command
+ * 02/13/2026 mir0n userAccts() instead of acctsAsNodes
  */
 
 package pro.mir0n.esquire.enyMan.service.impl;
@@ -86,7 +87,7 @@ public class EnyManService  implements IEnyManService {
         EsqObjectKind eek = EsqObjectKindStorage.getInstance().get(k);
         EsqEntityJpa jpa = null;
         List<EsqNameValueJpa> custom = null;
-        List<EsqTreeNodeJpa> children = null;
+        List<EsqEntityJpa> children = null;
         // xxx: path is safe
         List<String> path = EsqTreeNodeMapper.pathArray(rootPath);
         if (eek.isOrg()) {
@@ -102,7 +103,7 @@ public class EnyManService  implements IEnyManService {
 
         if (eek.isChildrenDetailed() && eek.isUsr()) {
             //xxx: returning level will be incorrect, but that is ok: it does not matter here
-            children = entityRepository.acctsAsNodes(id, rootPath);
+            children = entityRepository.userAccts(id, rootPath);
         }
 
         EsqEntity ret = EsqEntityFactory.getInstance().createEntity(jpa, custom, children);

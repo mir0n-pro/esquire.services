@@ -6,6 +6,7 @@
  *  mailto:mir0n.the.programmer@gmail.com
  *
  *  History:
+ * 02/13/2026 mir0n @MappedSuperclass
  */
 
 package pro.mir0n.esquire.backend.jpa;
@@ -13,7 +14,7 @@ package pro.mir0n.esquire.backend.jpa;
 import jakarta.persistence.*;
 import lombok.*;
 
-@Entity
+@MappedSuperclass
 @Getter @Setter @ToString //@AllArgsConstructor @NoArgsConstructor
 public class EsqEntityJpa {
     @Id

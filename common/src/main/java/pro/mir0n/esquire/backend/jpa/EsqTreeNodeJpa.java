@@ -6,6 +6,7 @@
  *  mailto:mir0n.the.programmer@gmail.com
  *
  *  History:
+ * 02/13/2026 mir0n removed treeFlags
  */
 
 package pro.mir0n.esquire.backend.jpa;
@@ -24,7 +25,6 @@ public class EsqTreeNodeJpa {
     private Integer kind;
     private Long entityId;
     private Integer statusCode;
-    private String treeFlags;
     private Integer level;
     private String desc;
     private String path;

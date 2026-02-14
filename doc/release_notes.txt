@@ -1,6 +1,10 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v1.2.2-2602.1322
+  refactoring/cleanup in progress
+    - removed treeFlags from EsqTreeNode*
+    - children in EsqEntityJpa are EsqEntityJpa
 
 v1.2.2-2602.1217
   let set of Object Kinds configured in server side, and not hardcoded

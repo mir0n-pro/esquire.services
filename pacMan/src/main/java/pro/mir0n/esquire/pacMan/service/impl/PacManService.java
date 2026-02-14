@@ -16,6 +16,7 @@
  *                  use entityRepository.acctsAsNodes()
  * 02/12/2026 mir0n EsqObjectKind instead if EsqEntityKind
  *                  removed "profile" command
+ * 02/13/2026 mir0n removed unused variables
  */
 
 package pro.mir0n.esquire.pacMan.service.impl;
@@ -54,18 +55,15 @@ public class PacManService  implements IPacManService {
         EsqObjectKind eek = EsqObjectKindStorage.getInstance().get(k);
 
         EsqEntityJpa jpa = null;
-        List<EsqNameValueJpa> custom = null;
-        List<EsqTreeNodeJpa> children = null;
         // xxx: path is safe
         if (eek.isAcct()) {
             jpa = entityRepository.detailAcct(id, rootPath);
         }
-        List<String> path = EsqTreeNodeMapper.pathArray(rootPath);
         if (jpa == null) {
             throw new ResourceNotFoundException("esquireEntity", "kind, id", kind + "," + id);
         }
 
-        EsqEntity ret = EsqEntityFactory.getInstance().createEntity(jpa, custom, children);
+        EsqEntity ret = EsqEntityFactory.getInstance().createEntity(jpa, null, null);
         log.debug("srvc: esquireCommand(2): entity:{}",  ret);
         return  ret;
     }

@@ -12,6 +12,7 @@
  * 02/01/2026 mir0n  made class concrete
  * 02/03/2026 mir0n  extends EsqThing
  *                   back to abstract
+ * 02/13/2026 mir0n  use EsqEntityJpa for children
  */
 
 package pro.mir0n.esquire.backend.dto;
@@ -38,14 +39,14 @@ public abstract class EsqEntity extends EsqThing{
 
     protected abstract void fillDetails(EsqEntityJpa jpa);
     protected abstract void fillCustom(List<EsqNameValueJpa> custom);
-    protected abstract void fillChildren(List<EsqTreeNodeJpa> children);
+    protected abstract void fillChildren(List<EsqEntityJpa> children);
 
     @Schema(
             description = "Object description", example = "Entity description"
     )
     private String desc;
 
-    public void fill (EsqEntityJpa jpa, List<EsqNameValueJpa> custom, List<EsqTreeNodeJpa> children) {
+    public void fill (EsqEntityJpa jpa, List<EsqNameValueJpa> custom, List<EsqEntityJpa> children) {
         setId(jpa.getId());
         setKind(jpa.getKind());
         setName (jpa.getName());

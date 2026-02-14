@@ -1,6 +1,26 @@
 Esquire Backend common microservice classes 
 
 02/12/2026 mir0n 
+jpa.EsqTreeNodeJpa
+  - removed treeFlags
+jpa.EsqEntityJpa
+  - @MappedSuperclass
+dto.EsqTreeNode
+  - removed treeFlags
+dto.EsqTreeNodeMapper
+  - removed treeFlags
+dto.EsqEntity
+  - use EsqEntityJpa for children
+dto.EsqEntityFactory
+  - use EsqEntityJpa for children
+dto.entity.EsqUsr
+  - use EsqEntityJpa for children
+dto.entity.EsqOrg  
+  - use EsqEntityJpa for children
+dto.entity.EsqAcct
+  - use EsqEntityJpa for children
+
+02/12/2026 mir0n 
 + added dto.EsqColumnHeaderDef
 + addded dto.EsqObjectKind, dto.EsqObjectKinds
 dto.EsqEntityFactory

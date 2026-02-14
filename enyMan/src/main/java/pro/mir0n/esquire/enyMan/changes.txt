@@ -1,5 +1,14 @@
 Esquire enyMan Microservice
 
+02/13/2026 mir0n 
+jpa.EsqEntityRepository
+  - userAccts() instead of acctsAsNodes
+service.impl.EnyManService
+  - userAccts() instead of acctsAsNodes
+service.impl.PacManService
+  - removed unused variables
+
+
 02/12/2026 mir0n 
 controller.EnyManController
   - added "/esq-kinds" access point

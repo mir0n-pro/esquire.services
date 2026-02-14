@@ -20,12 +20,10 @@
         ELSE 0
       END AS status_code
     ,t.tree_entity_pk
-    ,et.et_tree_flgs
     ,t.tree_level - :rootLevel AS tree_level
     ,t.tree_desc
     ,t.tree_path
  FROM esq_tree t
- JOIN esq_entity_type et ON t.tree_et_pk = et.et_pk
  LEFT JOIN esq_user u ON t.tree_usr_pk = u.usr_pk
  LEFT JOIN esq_account a ON t.tree_acc_pk = a.acc_pk
  WHERE t.tree_pk = :rootId
@@ -47,12 +45,10 @@
         ELSE 0
       END AS status_code
     ,tree_entity_pk
-    ,et_tree_flgs
     ,tree_level - :rootLevel AS tree_level
     ,tree_desc
     ,tree_path
  FROM esq_tree
- JOIN esq_entity_type ON tree_et_pk = et_pk
  LEFT JOIN esq_user ON usr_pk = tree_usr_pk
  LEFT JOIN esq_account ON acc_pk = tree_acc_pk
  WHERE tree_entity_pk = CAST(:id as bigint)
@@ -76,12 +72,10 @@
         ELSE 0
      END AS status_code
     ,tree_entity_pk
-    ,et_tree_flgs
     ,tree_level - :rootLevel AS tree_level
     ,tree_desc
     ,tree_path
  FROM esq_tree
- JOIN esq_entity_type ON tree_et_pk = et_pk
  LEFT JOIN esq_user ON usr_pk = tree_usr_pk
  LEFT JOIN esq_account ON acc_pk = tree_acc_pk
  WHERE tree_name = :name
@@ -105,12 +99,10 @@
         ELSE 0
      END AS status_code
     ,tree_entity_pk
-    ,et_tree_flgs
     ,tree_level - :rootLevel AS tree_level
     ,tree_desc
     ,tree_path
  FROM esq_tree
- JOIN esq_entity_type ON tree_et_pk = et_pk
  LEFT JOIN esq_user ON usr_pk = tree_usr_pk
  LEFT JOIN esq_account ON acc_pk = tree_acc_pk
  WHERE tree_tree_pk_parent = :id
@@ -138,7 +130,6 @@
             <field-result name="parentId" column="tree_tree_pk_parent"/>
             <field-result name="linkId" column="tree_tree_pk_link"/>
             <field-result name="statusCode" column="status_code"/>
-            <field-result name="treeFlags" column="et_tree_flgs"/>
             <field-result name="level" column="tree_level"/>
             <field-result name="desc" column="tree_desc"/>
             <field-result name="path" column="tree_path"/>

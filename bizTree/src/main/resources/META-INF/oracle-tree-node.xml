@@ -15,13 +15,11 @@
      ,tree_et_pk
      ,DECODE(NVL(usr_deleted_flg, acc_status),'Y', 1, 'C',1,'L',2,0) as status_code
      ,tree_entity_pk
-     ,et_tree_flgs
      ,tree_level - :rootLevel AS tree_level
      ,tree_desc
      ,tree_path
- FROM esq_tree, esq_entity_type, esq_user,  esq_account
- WHERE tree_et_pk = et_pk
-  AND usr_pk (+)= tree_usr_pk
+ FROM esq_tree, esq_user,  esq_account
+ WHERE usr_pk (+)= tree_usr_pk
   AND acc_pk (+)= tree_acc_pk
   AND tree_pk = :rootId
   AND tree_entity_path LIKE :rootPath || '%'
@@ -37,13 +35,11 @@
      ,tree_et_pk
      ,DECODE(NVL(usr_deleted_flg, acc_status),'Y', 1, 'C',1,'L',2,0) as status_code
      ,tree_entity_pk
-     ,et_tree_flgs
      ,tree_level - :rootLevel AS tree_level
      ,tree_desc
      ,tree_path
- FROM esq_tree, esq_entity_type, esq_user,  esq_account
- WHERE tree_et_pk = et_pk
-  AND usr_pk (+)= tree_usr_pk
+ FROM esq_tree, esq_user,  esq_account
+ WHERE usr_pk (+)= tree_usr_pk
   AND acc_pk (+)= tree_acc_pk
   AND tree_entity_pk = :id
   AND tree_tree_pk_link IS NULL
@@ -61,13 +57,11 @@
      ,tree_et_pk
      ,DECODE(NVL(usr_deleted_flg, acc_status),'Y', 1, 'C',1,'L',2,0) as status_code
      ,tree_entity_pk
-     ,et_tree_flgs
      ,tree_level - :rootLevel AS tree_level
      ,tree_desc
      ,tree_path
- FROM esq_tree, esq_entity_type, esq_user,  esq_account
- WHERE tree_et_pk = et_pk
-  AND usr_pk (+)= tree_usr_pk
+ FROM esq_tree, esq_user,  esq_account
+ WHERE usr_pk (+)= tree_usr_pk
   AND acc_pk (+)= tree_acc_pk
   AND tree_name = :name
   AND tree_et_pk = :kind
@@ -85,13 +79,11 @@
      ,tree_et_pk
      ,DECODE(NVL(usr_deleted_flg, acc_status),'Y', 1, 'C',1,'L',2,0) as status_code
      ,tree_entity_pk
-     ,et_tree_flgs
      ,tree_level - :rootLevel AS tree_level
      ,tree_desc
      ,tree_path
- FROM esq_tree, esq_entity_type, esq_user,  esq_account
- WHERE tree_et_pk = et_pk
-  AND usr_pk (+)= tree_usr_pk
+ FROM esq_tree, esq_user,  esq_account
+ WHERE usr_pk (+)= tree_usr_pk
   AND acc_pk (+)= tree_acc_pk
   AND tree_tree_pk_parent = :id
   AND tree_entity_path LIKE :rootPath || '%'
@@ -118,7 +110,6 @@
             <field-result name="parentId" column="tree_tree_pk_parent"/>
             <field-result name="linkId" column="tree_tree_pk_link"/>
             <field-result name="statusCode" column="status_code"/>
-            <field-result name="treeFlags" column="et_tree_flgs"/>
             <field-result name="level" column="tree_level"/>
             <field-result name="desc" column="tree_desc"/>
             <field-result name="path" column="tree_path"/>
