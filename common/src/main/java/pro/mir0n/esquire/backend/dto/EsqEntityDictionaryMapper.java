@@ -7,6 +7,7 @@
  *
  *  History:
  * 01/14/2026 mir0n  "personal" field added
+ * 02/19/2026 mir0n  nullable mapping updated (Boolean -> String passthrough)
  */
 
 package pro.mir0n.esquire.backend.dto;
@@ -39,7 +40,7 @@ public class EsqEntityDictionaryMapper {
                 newField.setType(field.getType());
                 newField.setTooltip(field.getTooltip());
                 newField.setListvalues(listvaluesArray(field.getListvalues()));
-                newField.setNullable("Y".equals(field.getNullable()));
+                newField.setNullable(field.getNullable());
                 newField.setNullmeaning(field.getNullmeaning());
                 newField.setValidation(field.getValidation());
                 newField.setReadwrite(field.getReadwrite());

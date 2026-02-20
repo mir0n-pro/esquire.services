@@ -80,6 +80,42 @@ spring:
             - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_FIRST
             - RewritePath=/(?<segment>.*), /$\{segment}
             - TokenRelay=
+        - id: enyman-save-route
+          uri: http://${ENYMAN_HOST:enyman}:${ENYMAN_PORT:3003}
+          predicates:
+            - Path=/esq-cmd-save
+            - Method=POST
+          metadata:
+            allowedMethods:
+              - POST
+          filters:
+            - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_FIRST
+            - RewritePath=/(?<segment>.*), /$\{segment}
+            - TokenRelay=
+        - id: pacman-save-route
+          uri: http://${PACMAN_HOST:enyman}:${PACMAN_PORT:3003}
+          predicates:
+            - Path=/esq-cmd-asave
+            - Method=POST
+          metadata:
+            allowedMethods:
+              - POST
+          filters:
+            - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_FIRST
+            - RewritePath=/(?<segment>.*), /$\{segment}
+            - TokenRelay=
+        - id: keysmith-save-route
+          uri: http://${KEYSMITH_HOST:biztree}:${KEYSMITH_PORT:3002}
+          predicates:
+            - Path=/esq-key-save
+            - Method=POST
+          metadata:
+            allowedMethods:
+              - POST
+          filters:
+            - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_FIRST
+            - RewritePath=/(?<segment>.*), /$\{segment}
+            - TokenRelay=
 
 #  autoconfigure:
 #   exclude: org.springframework.boot.autoconfigure.security.reactive.ReactiveSecurityAutoConfiguration

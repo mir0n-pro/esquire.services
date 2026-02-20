@@ -7,7 +7,7 @@
         <query><![CDATA[ ]]>
 -->
 
-    <named-native-query name="EsqNameValueJpa.customOrg"  result-set-mapping="EsqNameValueJpaMapping">
+    <named-native-query name="EsqOrgJpa.customOrg"  result-set-mapping="EsqNameValueJpaMapping">
         <query>
 SELECT 
     opr_par_name AS "name",
@@ -17,13 +17,37 @@ WHERE opr_org_pk = CAST(:id AS bigint)
         </query>
     </named-native-query>
 
-    <named-native-query name="EsqNameValueJpa.customUsr"  result-set-mapping="EsqNameValueJpaMapping">
+    <named-native-query name="EsqUsrJpa.customUsr"  result-set-mapping="EsqNameValueJpaMapping">
         <query>
-SELECT 
-    upr_par_name AS "name", 
+SELECT
+    upr_par_name AS "name",
     upr_value AS "value"
 FROM esq_usr_par
 WHERE upr_usr_pk = CAST(:id AS bigint)
+        </query>
+    </named-native-query>
+
+    <named-native-query name="EsqUsrJpa.updateCustomUsr">
+        <query>
+UPDATE esq_usr_par
+SET upr_value = :value
+  ,upr_crl_id = :correlationId
+  ,upr_req_id = :requestId
+  ,upr_uid = :uid
+WHERE upr_usr_pk = CAST(:id AS bigint)
+AND upr_par_name = :name
+        </query>
+    </named-native-query>
+
+    <named-native-query name="EsqOrgJpa.updateCustomOrg">
+        <query>
+UPDATE esq_org_par
+SET opr_value = :value
+  ,opr_crl_id = :correlationId
+  ,opr_req_id = :requestId
+  ,opr_uid = :uid
+WHERE opr_org_pk = CAST(:id AS bigint)
+AND opr_par_name = :name
         </query>
     </named-native-query>
 

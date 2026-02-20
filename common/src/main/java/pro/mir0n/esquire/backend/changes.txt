@@ -1,4 +1,19 @@
-Esquire Backend common microservice classes 
+Esquire Backend common microservice classes
+
+02/19/2026 mir0n  dictionary and object kinds extended
+dto.EsqEntityField
+  - nullable field type changed from Boolean to String
+  - minmax field added
+dto.EsqEntityDictionaryMapper
+  - nullable mapping updated (Boolean -> String passthrough)
+resources/esq-entity-dictionaries.xml (for inital testing)
+  - nullable, readwrite (bumped to 3), minmax, validation, format attributes added
+    to org/usr/acct/access profile fields
+  - deleted field type changed from string to flag
+  - roles-list field added
+resources/esq-object-kinds.xml
+  - usr=true for sysadminlnks, adminlnks, clientlnks, merchantlnks
+  - acct=true for macctlnks, pacctlnks
 
 02/12/2026 mir0n 
 jpa.EsqTreeNodeJpa

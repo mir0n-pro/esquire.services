@@ -212,7 +212,7 @@
       <plural>sysadminlnks</plural>
       <desc>Shortcut to SysAdmin user entity</desc>
       <icon>img/sysadmin.ico</icon>
-      <usr>false</usr>
+      <usr>true</usr>
       <detailed>true</detailed>
       <childrenDetailed>false</childrenDetailed>
       <treeFlags>b</treeFlags>
@@ -247,7 +247,7 @@
       <plural>adminlnks</plural>
       <desc>Shortcut to Admin user entity</desc>
       <icon>img/sysadmin.ico</icon>
-      <usr>false</usr>
+      <usr>true</usr>
       <detailed>true</detailed>
       <childrenDetailed>false</childrenDetailed>
       <treeFlags>b</treeFlags>
@@ -293,7 +293,7 @@
       <plural>clientlnks</plural>
       <desc>Shortcut to Client user entity</desc>
       <icon>img/client.ico</icon>
-      <usr>false</usr>
+      <usr>true</usr>
       <detailed>true</detailed>
       <childrenDetailed>true</childrenDetailed>
       <treeFlags>b</treeFlags>
@@ -339,7 +339,7 @@
       <plural>merchantlnks</plural>
       <desc>Shortcut to Merchant user entity</desc>
       <icon>img/merchant.ico</icon>
-      <usr>false</usr>
+      <usr>true</usr>
       <detailed>true</detailed>
       <childrenDetailed>true</childrenDetailed>
       <treeFlags>b</treeFlags>
@@ -407,7 +407,7 @@
       <plural>macctlnks</plural>
       <desc>Shortcut to Merchant Account entity</desc>
       <icon>img/macctl.ico</icon>
-      <acct>false</acct>
+      <acct>true</acct>
       <detailed>true</detailed>
       <childrenDetailed>false</childrenDetailed>
       <treeFlags>b</treeFlags>
@@ -442,7 +442,7 @@
       <plural>pacctlnks</plural>
       <desc>Shortcut to Paper Client  Account  entity</desc>
       <icon>img/pacctl.ico</icon>
-      <acct>false</acct>
+      <acct>true</acct>
       <detailed>true</detailed>
       <childrenDetailed>false</childrenDetailed>
       <treeFlags>b</treeFlags>

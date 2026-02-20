@@ -7,7 +7,7 @@
         <query><![CDATA[ ]]>
 -->
 
-    <named-native-query name="EsqEntityJpa.detailAcct"  result-set-mapping="EsqAcctJpaMapping">
+    <named-native-query name="EsqAcctJpa.detailAcct"  result-set-mapping="EsqAcctJpaMapping">
         <query>
  SELECT acc_pk AS "pk"
     ,acc_et_pk AS "kind"
@@ -19,6 +19,34 @@
  FROM esq_account
  WHERE acc_pk = CAST(:id AS bigint)
  AND acc_path LIKE :rootPath || '%'
+        </query>
+    </named-native-query>
+
+    <named-native-query name="EsqAcctJpa.detailAcctForUpdate"  result-set-mapping="EsqAcctJpaMapping">
+        <query>
+ SELECT acc_pk AS "pk"
+    ,acc_et_pk AS "kind"
+    ,acc_id AS "name"
+    ,acc_desc AS "desc"
+    ,acc_ccy
+    ,acc_balance
+    ,acc_status
+ FROM esq_account
+ WHERE acc_pk = CAST(:id AS bigint)
+ AND acc_path LIKE :rootPath || '%'
+ FOR UPDATE
+        </query>
+    </named-native-query>
+
+    <named-native-query name="EsqAcctJpa.updateAcct">
+        <query>
+ UPDATE esq_account
+ SET acc_desc = :desc
+    ,acc_status = :status
+    ,acc_crl_id = :correlationId
+    ,acc_req_id = :requestId
+    ,acc_uid = :uid
+ WHERE acc_pk = CAST(:id AS bigint)
         </query>
     </named-native-query>
 

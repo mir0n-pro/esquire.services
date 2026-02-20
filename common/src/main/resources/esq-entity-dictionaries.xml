@@ -27,7 +27,6 @@
                             <name>desc</name>
                             <sort>1</sort>
                             <label>Description</label>
-                            <!-- type>TAB-STRING</type -->
                             <type>tabstring</type>
                             <tooltip>system Description</tooltip>
                             <readwrite>1</readwrite>
@@ -50,8 +49,12 @@
                             <sort>1</sort>
                             <label>Name</label>
                             <type>string</type>
-                            <tooltip>Organization short name</tooltip>
-                            <readwrite>1</readwrite>
+                            <tooltip>Organization short name. No special characters</tooltip>
+                            <readwrite>3</readwrite>
+                            <nullable>N</nullable>
+                            <readwrite>3</readwrite>
+                            <minmax>50</minmax>
+                            <validation>^[a-zA-Z0-9 ']+$</validation>
                             <!-- listvalues></listvalues -->
                             <!-- nullable></nullable -->
                             <!-- nullmeaning></nullmeaning -->
@@ -64,7 +67,9 @@
                             <label>Full Name</label>
                             <type>string</type>
                             <tooltip>Organization full name</tooltip>
-                            <readwrite>1</readwrite>
+                            <nullable>Y</nullable>
+                            <readwrite>3</readwrite>
+                            <minmax>200</minmax>
                         </field>
                     </fields>
                 </layer>
@@ -78,7 +83,9 @@
                             <label>Description</label>
                             <type>tabstring</type>
                             <tooltip>Organization Description</tooltip>
-                            <readwrite>1</readwrite>
+                            <nullable>Y</nullable>
+                            <readwrite>3</readwrite>
+                            <minmax>100</minmax>
                         </field>
                     </fields>
                 </layer>
@@ -129,7 +136,8 @@
                             <label>Description</label>
                             <type>tabstring</type>
                             <tooltip>Admin Description</tooltip>
-                            <readwrite>1</readwrite>
+                            <nullable>Y</nullable>
+                            <readwrite>3</readwrite>
                         </field>
                     </fields>
                 </layer>
@@ -180,7 +188,8 @@
                             <label>Description</label>
                             <type>tabstring</type>
                             <tooltip>Admin Description</tooltip>
-                            <readwrite>1</readwrite>
+                            <nullable>Y</nullable>
+                            <readwrite>3</readwrite>
                         </field>
                     </fields>
                 </layer>
@@ -215,9 +224,12 @@
                             <name>registration</name>
                             <sort>2</sort>
                             <label>Register as</label>
+                            <nullable>Y</nullable>
+                            <nullmeaning>[inherited]</nullmeaning>
                             <type>string</type>
                             <tooltip>Registration option</tooltip>
-                            <readwrite>1</readwrite>
+                            <personal>Y</personal>
+                            <readwrite>3</readwrite>
                         </field>
                         <field>
                             <name>email</name>
@@ -231,10 +243,9 @@
                             <name>deleted</name>
                             <sort>4</sort>
                             <label>Deleted</label>
-                            <!-- type>FLAG</type -->
-                            <type>string</type>
+                            <type>flag</type>
                             <tooltip>Deleted Flag</tooltip>
-                            <readwrite>1</readwrite>
+                            <readwrite>3</readwrite>
                         </field>
                     </fields>
                 </layer>
@@ -261,7 +272,8 @@
                             <label>Description</label>
                             <type>tabstring</type>
                             <tooltip>Client Description</tooltip>
-                            <readwrite>1</readwrite>
+                            <nullable>Y</nullable>
+                            <readwrite>3</readwrite>
                         </field>
                     </fields>
                 </layer>
@@ -296,7 +308,6 @@
                             <name>email</name>
                             <sort>3</sort>
                             <label>Email</label>
-                            <!-- type>FLAG</type -->
                             <type>string</type>
                             <tooltip>Email address</tooltip>
                             <readwrite>1</readwrite>
@@ -305,7 +316,7 @@
                             <name>deleted</name>
                             <sort>4</sort>
                             <label>Deleted</label>
-                            <type>string</type>
+                            <type>flag</type>
                             <tooltip>Deleted Flag</tooltip>
                             <readwrite>1</readwrite>
                         </field>
@@ -334,7 +345,8 @@
                             <label>Description</label>
                             <type>tabstring</type>
                             <tooltip>Merchant Description</tooltip>
-                            <readwrite>1</readwrite>
+                            <nullable>Y</nullable>
+                            <readwrite>3</readwrite>
                         </field>
                     </fields>
                 </layer>
@@ -372,6 +384,7 @@
                             <type>number</type>
                             <tooltip>Balance in account currency</tooltip>
                             <readwrite>1</readwrite>
+                            <format>#,##0.00</format>
                         </field>
                         <field>
                             <name>status</name>
@@ -398,7 +411,8 @@
                             <label>Description</label>
                             <type>tabstring</type>
                             <tooltip>Account Description</tooltip>
-                            <readwrite>1</readwrite>
+                            <nullable>Y</nullable>
+                            <readwrite>3</readwrite>
                         </field>
                     </fields>
                 </layer>
@@ -449,7 +463,10 @@
                                 <value>L~Locked</value>
                                 <value>C~Closed</value>
                             </listvalues>
-                            <readwrite>1</readwrite>
+                            <nullable>Y</nullable>
+                            <nullmeaning>[inherited]</nullmeaning>
+                            <readwrite>3</readwrite>
+                            <minmax>100</minmax>
                         </field>
                     </fields>
                 </layer>
@@ -463,7 +480,8 @@
                             <label>Description</label>
                             <type>tabstring</type>
                             <tooltip>Account Description</tooltip>
-                            <readwrite>1</readwrite>
+                            <nullable>Y</nullable>
+                            <readwrite>3</readwrite>
                         </field>
                     </fields>
                 </layer>
@@ -499,8 +517,10 @@
                             <sort>3</sort>
                             <label>Balance</label>
                             <type>number</type>
-                            <tooltip>Balance in account currency</tooltip>
-                            <readwrite>1</readwrite>
+                            <tooltip>Balance in account currency, any number: 100-100000</tooltip>
+                            <readwrite>4</readwrite>
+                            <format>#,##0.00</format>
+                            <minmax>100,100000</minmax>
                         </field>
                         <field>
                             <name>status</name>
@@ -527,7 +547,8 @@
                             <label>Description</label>
                             <type>tabstring</type>
                             <tooltip>Account Description</tooltip>
-                            <readwrite>1</readwrite>
+                            <nullable>Y</nullable>
+                            <readwrite>3</readwrite>
                         </field>
                     </fields>
                 </layer>
@@ -581,6 +602,8 @@
                             <name>pwdChangeForced</name>
                             <sort>3</sort>
                             <label>Password Change</label>
+                            <nullable>Y</nullable>
+                            <nullmeaning>(n/a)</nullmeaning>
                             <type>flag</type>
                             <tooltip>Force Password Change</tooltip>
                             <readwrite>3</readwrite>
@@ -613,6 +636,11 @@
                             <type>tab-ikn-list</type>
                             <tooltip>List of roles assigned</tooltip>
                             <readwrite>3</readwrite>
+                        </field>
+                        <field>
+                            <name>roles-list</name>
+                            <type>listvalues</type>
+                            <readwrite>0</readwrite>
                         </field>
                     </fields>
                 </layer>

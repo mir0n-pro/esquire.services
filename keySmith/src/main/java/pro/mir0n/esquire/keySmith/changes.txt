@@ -1,5 +1,21 @@
 Esquire keySmith Microservice
 
+02/19/2026 mir0n  save (update) functionality added
+controller.KeySmithController
+  - added esquireKeySave() POST /esq-key-save
+service.IKeySmithService
+  - added esquireKeySave()
+service.impl.KeySmithService
+  - EntityManager and TransactionTemplate injected
+  - FlushModeType.COMMIT prevents Hibernate auto-flush before native queries
+  - esquireKeySave() with saveAccess() helper
+  - ACCESS_WRITABLE = {email, loginId, pwdChangeForced, tfaMethod}
+jpa.EsqAccessProfileRepository
+  - added accessForUpdate (SELECT FOR UPDATE OF esq_user)
+  - added updateAccess @Modifying native query (UPDATE esq_auth with audit columns)
+META-INF/oracle-access-profile.xml, postgres-access-profile.xml
+  - added accessForUpdate (SELECT FOR UPDATE OF esq_user)
+  - added updateAccess (UPDATE esq_auth with audit columns)
 
 02/04/2026 mir0n 
 service.PerformanceAspect

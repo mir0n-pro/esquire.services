@@ -51,6 +51,37 @@ WHERE pt_pk = prm_pt_pk
         </query>
     </named-native-query>
 
+    <named-native-query name="EsqAccessProfileJpa.accessForUpdate"  result-set-mapping="EsqAccessProfileMapping">
+        <query>
+ SELECT usr_pk
+   ,usr_et_pk
+   ,usr_name
+   ,au_login_id
+   ,au_email
+   ,NVL(au_force_change_flg,'N') AS au_force_change_flg
+   ,au_tfa_method
+  FROM esq_user, esq_auth
+ WHERE usr_pk = au_usr_pk
+   AND usr_pk = :id
+   AND usr_path LIKE :rootPath || '%'
+ FOR UPDATE OF usr_pk
+        </query>
+    </named-native-query>
+
+    <named-native-query name="EsqAccessProfileJpa.updateAccess">
+        <query>
+ UPDATE esq_auth
+ SET au_email = :email
+    ,au_login_id = :loginId
+    ,au_force_change_flg = :pwdChangeForced
+    ,au_tfa_method = :tfaMethod
+    ,au_crl_id = :correlationId
+    ,au_req_id = :requestId
+    ,au_uid = :uid
+ WHERE au_usr_pk = :id
+        </query>
+    </named-native-query>
+
     <sql-result-set-mapping name="EsqAccessProfileMapping">
         <entity-result entity-class="pro.mir0n.esquire.backend.jpa.access.EsqAccessProfileJpa">
             <field-result name="id" column="usr_pk"/>

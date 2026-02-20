@@ -1,5 +1,27 @@
 Esquire enyMan Microservice
 
+02/19/2026 mir0n  save (update) functionality added
+x jpa.EsqEntityRepository replaced by EsqOrgRepository and EsqUsrRepository
+x jpa.EsqCustomFieldRepository replaced by queries in EsqOrgRepository / EsqUsrRepository
++ added jpa.EsqOrgRepository
++ added jpa.EsqUsrRepository
+controller.EnyManController
+  - added esquireCommandSave() POST /esq-cmd-save
+service.IEnyManService
+  - added esquireCommandSave()
+service.impl.EnyManService
+  - EntityManager and TransactionTemplate injected
+  - FlushModeType.COMMIT prevents Hibernate auto-flush before native queries
+  - esquireCommandSave() with saveOrg() / saveUsr() helpers
+  - applyFields() via BeanWrapper; ORG_WRITABLE / USR_WRITABLE field sets
+META-INF/oracle-entity.xml, postgres-entity.xml
+  - query names renamed EsqEntityJpa.* -> EsqOrgJpa.* / EsqUsrJpa.*
+  - added detailOrgForUpdate, detailUsrForUpdate (SELECT FOR UPDATE OF primary table)
+  - added updateOrg, updateUsr (UPDATE with audit columns)
+META-INF/oracle-custom-field.xml, postgres-custom-field.xml
+  - query names renamed EsqNameValueJpa.* -> EsqOrgJpa.* / EsqUsrJpa.*
+  - added updateCustomOrg, updateCustomUsr (UPDATE with audit columns)
+
 02/13/2026 mir0n 
 jpa.EsqEntityRepository
   - userAccts() instead of acctsAsNodes

@@ -6,7 +6,7 @@
 <!--
         <query><![CDATA[ ]]>
 -->
-    <named-native-query name="EsqEntityJpa.detailOrg"  result-set-mapping="EsqOrgJpaMapping">
+    <named-native-query name="EsqOrgJpa.detailOrg"  result-set-mapping="EsqOrgJpaMapping">
         <query>
  SELECT org_pk AS "pk"
      ,org_et_pk AS "kind"
@@ -19,7 +19,7 @@
         </query>
     </named-native-query>
 
-    <named-native-query name="EsqEntityJpa.detailUsr"  result-set-mapping="EsqUsrJpaMapping">
+    <named-native-query name="EsqUsrJpa.detailUsr"  result-set-mapping="EsqUsrJpaMapping">
         <query>
  SELECT usr_pk AS "pk"
      ,usr_et_pk AS "kind"
@@ -37,7 +37,7 @@
         </query>
     </named-native-query>
 
-    <named-native-query name="EsqEntityJpa.userAccts" result-set-mapping="EsqAcctJpaMapping">
+    <named-native-query name="EsqUsrJpa.userAccts" result-set-mapping="EsqAcctJpaMapping">
         <query>
  SELECT acc_pk
     ,acc_id
@@ -48,6 +48,76 @@
    AND acc_path LIKE :rootPath || '%'
         </query>
     </named-native-query>
+
+    <named-native-query name="EsqOrgJpa.detailOrgForUpdate" result-set-mapping="EsqOrgJpaMapping">
+        <query>
+ SELECT org_pk AS "pk"
+     ,org_et_pk AS "kind"
+     ,org_name AS "name"
+     ,org_desc AS "desc"
+     ,org_full_name
+ FROM esq_org
+ WHERE org_pk = CAST(:id AS bigint)
+ AND org_path LIKE :rootPath || '%'
+ FOR UPDATE
+        </query>
+    </named-native-query>
+
+    <named-native-query name="EsqUsrJpa.detailUsrForUpdate" result-set-mapping="EsqUsrJpaMapping">
+        <query>
+ SELECT usr_pk AS "pk"
+     ,usr_et_pk AS "kind"
+     ,usr_name AS "name"
+     ,usr_desc AS "desc"
+     ,au_login_id
+     ,usr_reg_option
+     ,usr_deleted_flg
+     ,au_email
+ FROM esq_user u
+ JOIN esq_auth a
+  ON a.au_usr_pk = u.usr_pk
+ WHERE usr_pk = CAST(:id AS bigint)
+ AND usr_path LIKE :rootPath || '%'
+ FOR UPDATE OF u
+        </query>
+    </named-native-query>
+
+    <named-native-query name="EsqOrgJpa.updateOrg">
+        <query>
+ UPDATE esq_org
+ SET org_name = :name
+    ,org_desc = :desc
+    ,org_full_name = :fullName
+    ,org_crl_id = :correlationId
+    ,org_req_id = :requestId
+    ,org_uid = :uid
+ WHERE org_pk = CAST(:id AS bigint)
+        </query>
+    </named-native-query>
+
+    <named-native-query name="EsqUsrJpa.updateUsr">
+        <query>
+ UPDATE esq_user
+ SET usr_name = :name
+    ,usr_desc = :desc
+    ,usr_reg_option = :registration
+    ,usr_deleted_flg = :deleted
+    ,usr_crl_id = :correlationId
+    ,usr_req_id = :requestId
+    ,usr_uid = :uid
+ WHERE usr_pk = CAST(:id AS bigint)
+        </query>
+    </named-native-query>
+
+<!--
+    <named-native-query name="EsqUsrJpa.updateAuth">
+        <query>
+ UPDATE esq_auth
+ SET au_email = :email
+ WHERE au_usr_pk = CAST(:id AS bigint)
+        </query>
+    </named-native-query>
+-->
 
     <sql-result-set-mapping name="EsqUsrJpaMapping">
         <entity-result entity-class="pro.mir0n.esquire.backend.jpa.entity.EsqUsrJpa">

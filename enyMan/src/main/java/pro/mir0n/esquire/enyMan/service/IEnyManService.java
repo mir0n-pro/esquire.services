@@ -8,12 +8,14 @@
  *  History:
  * 01/10/2026 mir0n rootPath and uid params added were required
  * 01/23/2026 mir0n use common library
- *                  no more EsqTreeNode methods  
+ *                  no more EsqTreeNode methods
+ * 02/19/2026 mir0n added esquireCommandSave()
  */
 
 package pro.mir0n.esquire.enyMan.service;
 
 import java.util.List;
+import java.util.Map;
 
 import pro.mir0n.esquire.backend.dto.EsqEntity;
 import pro.mir0n.esquire.backend.dto.EsqTreeNode;
@@ -23,6 +25,6 @@ public interface IEnyManService {
 
     List<EsqEntityLayer> esquireDictionary(Integer kind);
     public EsqEntity esquireCommand(Integer kind, String id, String cmd, String rootPath, String uid );
-
+    public EsqEntity esquireCommandSave(Integer kind, String id, String cmd, Map<String, Object> fields, String rootPath, String uid );
 
     }

@@ -7,7 +7,7 @@
         <query><![CDATA[ ]]>
 -->
 
-    <named-native-query name="EsqNameValueJpa.customOrg"  result-set-mapping="EsqNameValueJpaMapping">
+    <named-native-query name="EsqOrgJpa.customOrg"  result-set-mapping="EsqNameValueJpaMapping">
         <query>
             SELECT opr_par_name as "name"
             , opr_value as "value"
@@ -16,12 +16,30 @@
         </query>
     </named-native-query>
 
-    <named-native-query name="EsqNameValueJpa.customUsr"  result-set-mapping="EsqNameValueJpaMapping">
+    <named-native-query name="EsqUsrJpa.customUsr"  result-set-mapping="EsqNameValueJpaMapping">
         <query>
             SELECT upr_par_name as "name"
             , upr_value as "value"
             FROM esq_usr_par
             WHERE upr_usr_pk = :id
+        </query>
+    </named-native-query>
+
+    <named-native-query name="EsqUsrJpa.updateCustomUsr">
+        <query>
+ UPDATE esq_usr_par
+ SET upr_value = :value
+ WHERE upr_usr_pk = :id
+ AND upr_par_name = :name
+        </query>
+    </named-native-query>
+
+    <named-native-query name="EsqOrgJpa.updateCustomOrg">
+        <query>
+ UPDATE esq_org_par
+ SET opr_value = :value
+ WHERE opr_org_pk = :id
+ AND opr_par_name = :name
         </query>
     </named-native-query>
 

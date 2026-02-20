@@ -14,17 +14,29 @@
 package pro.mir0n.esquire.pacMan.jpa;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.NativeQuery;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
-import pro.mir0n.esquire.backend.jpa.EsqEntityJpa;
-import pro.mir0n.esquire.backend.jpa.EsqTreeNodeJpa;
-
-import java.util.List;
+import org.springframework.transaction.annotation.Transactional;
+import pro.mir0n.esquire.backend.jpa.entity.EsqAcctJpa;
 
 @Repository
-public interface EsqAcctRepository extends JpaRepository<EsqEntityJpa, String> {
+public interface EsqAcctRepository extends JpaRepository<EsqAcctJpa, String> {
 
     @NativeQuery
-    EsqEntityJpa detailAcct (@Param("id") String id, @Param("rootPath") String rootPath);
+    EsqAcctJpa detailAcct(@Param("id") String id, @Param("rootPath") String rootPath);
+    @NativeQuery
+    EsqAcctJpa detailAcctForUpdate(@Param("id") String id, @Param("rootPath") String rootPath);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = false)
+    @Transactional
+    @NativeQuery
+    int updateAcct(@Param("id") String id,
+        @Param("desc") String desc,
+        @Param("status") String status,
+        @Param("uid") String uid,
+        @Param("correlationId") String correlationId,
+        @Param("requestId") String requestId
+    );
 }

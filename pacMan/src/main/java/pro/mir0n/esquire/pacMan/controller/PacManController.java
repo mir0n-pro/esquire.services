@@ -13,7 +13,8 @@
  * 01/18/2026 mir0n BizTreeConstants moved to common package
  *                  ErrorResponse replaced with ProblemDetail
  * 01/23/206 mir0n  use common library
- *                  no more EsqTreeNode methods  
+ *                  no more EsqTreeNode methods
+ * 02/19/2026 mir0n  added esquireCommandSave() POST /esq-cmd-asave
  */
 
 package pro.mir0n.esquire.pacMan.controller;
@@ -40,6 +41,7 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 import pro.mir0n.esquire.common.EsqConstants;
 
@@ -81,6 +83,25 @@ public class PacManController {
                     )
             )
     })
+
+    @PostMapping("/esq-cmd-asave")
+    public ResponseEntity<EsqEntity> esquireCommandSave(
+           @Parameter(description = "Entity kind code")
+           @RequestParam(name = "kind", required = true) Integer kind,
+           @Parameter(description = "Entity id")
+           @RequestParam(name = "id", required = true) String id,
+           @Parameter(description = "Command code")
+           @RequestParam(name = "cmd", required = false, defaultValue = "save") String cmd,
+           @RequestBody Map<String, Object> fields,
+           @AuthenticationPrincipal Claims claims
+    ) {
+        String rootPath = claims.get(EsqConstants.JWT_CLAIM_ENTITY_ROOTPATH, String.class);
+        String uid = claims.get(EsqConstants.JWT_CLAIM_ENTITY_ID, String.class);
+
+        EsqEntity ret = iPacManService.esquireCommandSave(kind, id, cmd, fields, rootPath, uid);
+        log.debug("esquireCommandSave: kind:{}, id:{}, cmd:{}, rootPath:{}, result:{}", kind, id, cmd, rootPath, String.valueOf(ret));
+        return ResponseEntity.status(HttpStatus.OK).body(ret);
+    }
 
     @GetMapping("/esq-cmd")
     public ResponseEntity<EsqEntity>  esquireCommand(

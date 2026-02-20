@@ -1,5 +1,24 @@
 Esquire pacMan Microservice
 
+02/19/2026 mir0n  save (update) functionality added
+controller.PacManController
+  - added esquireCommandSave() POST /esq-cmd-asave
+service.IPacManService
+  - added esquireCommandSave()
+service.impl.PacManService
+  - EntityManager and TransactionTemplate injected
+  - FlushModeType.COMMIT prevents Hibernate auto-flush before native queries
+  - esquireCommandSave() with saveAcct() helper
+  - ACCT_WRITABLE = {desc, status}
+jpa.EsqAcctRepository
+  - base type changed from EsqEntityJpa to EsqAcctJpa
+  - added detailAcctForUpdate (SELECT FOR UPDATE)
+  - added updateAcct @Modifying native query (UPDATE esq_account with audit columns)
+META-INF/oracle-acct.xml, postgres-acct.xml
+  - query renamed EsqEntityJpa.detailAcct -> EsqAcctJpa.detailAcct
+  - added detailAcctForUpdate (SELECT FOR UPDATE)
+  - added updateAcct (UPDATE esq_account with audit columns)
+
 02/12/2026 mir0n
 service.impl.PacManService
   - EsqObjectKind instead if EsqEntityKind

@@ -8,6 +8,8 @@
  *  History:
  * 12/26/2025 mir0n  refine API doc
  * 01/14/2026 mir0n  "personal" field added
+ * 02/19/2026 mir0n  nullable type changed from Boolean to String
+ *                   minmax field added
  */
 
 package pro.mir0n.esquire.backend.dto;
@@ -71,7 +73,7 @@ public class EsqEntityField {
             description = "Nullable"
     )
     @JacksonXmlProperty(localName = "nullable")
-    private Boolean nullable;
+    private String nullable;
 
     @Schema(
             description = "nullmeaning"
@@ -102,4 +104,11 @@ public class EsqEntityField {
     )
     @JacksonXmlProperty(localName = "personal")
     private String personal;
+
+    @Schema(
+            description = "minmax: min/max values for numeric fields, max size for string and tab-string"
+    )
+    @JacksonXmlProperty(localName = "minmax")
+    private String minmax;
+
 };

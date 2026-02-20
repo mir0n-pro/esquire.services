@@ -1,5 +1,11 @@
 Esquire Gateway Microservice
 
+02/19/2026 mir0n  save routes added
+config/application.yml
+  - added enyman-save-route:   POST /esq-cmd-save  -> enyMan
+  - added pacman-save-route:   POST /esq-cmd-asave -> pacMan
+  - added keysmith-save-route: POST /esq-key-save  -> keySmith
+
 02/12/2026 mir0n 
 config.SecurityConfig
   - let "/esq-kinds" pass thru without validation

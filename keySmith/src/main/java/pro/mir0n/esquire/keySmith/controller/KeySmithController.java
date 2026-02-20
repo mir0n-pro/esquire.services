@@ -6,6 +6,7 @@
  *  mailto:mir0n.the.programmer@gmail.com
  *
  *  History:
+ * 02/19/2026 mir0n  added esquireKeySave() POST /esq-key-save
  */
 
 package pro.mir0n.esquire.keySmith.controller;
@@ -31,6 +32,7 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 import pro.mir0n.esquire.common.EsqConstants;
 import pro.mir0n.esquire.keySmith.service.IKeySmithService;
@@ -73,6 +75,21 @@ public class KeySmithController {
                     )
             )
     })
+
+    @PostMapping("/esq-key-save")
+    public ResponseEntity<EsqAccessProfile> esquireKeySave(
+           @Parameter(description = "User id")
+           @RequestParam(name = "id", required = true) String id,
+           @RequestBody Map<String, Object> fields,
+           @AuthenticationPrincipal Claims claims
+    ) {
+        String rootPath = claims.get(EsqConstants.JWT_CLAIM_ENTITY_ROOTPATH, String.class);
+        String uid = claims.get(EsqConstants.JWT_CLAIM_ENTITY_ID, String.class);
+
+        EsqAccessProfile ret = iKeySmithService.esquireKeySave(id, fields, rootPath, uid);
+        log.debug("esquireKeySave: id:{}, rootPath:{}, result:{}", id, rootPath, String.valueOf(ret));
+        return ResponseEntity.status(HttpStatus.OK).body(ret);
+    }
 
     @GetMapping("/esq-key")
     public ResponseEntity<EsqAccessProfile>  esquireCommand(

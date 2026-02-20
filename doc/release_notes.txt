@@ -1,6 +1,23 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v1.2.2-2602.1920
+  Implemented common/audit JPA entity field updates.
+    :DB: audit columns (*_CRL_ID, *_REQ_ID, *_UID) added to all major tables
+    :Save: save (update) REST API added to enyMan, pacMan, keySmith
+      - POST /esq-cmd-save  -> enyMan  (org, usr)
+      - POST /esq-cmd-asave -> pacMan  (account)
+      - POST /esq-key-save  -> keySmith (access profile)
+    :Save: Hibernate spurious auto-flush issue resolved
+      - FlushModeType.COMMIT + @Modifying(clearAutomatically=true, flushAutomatically=false)
+      - native-query-only write strategy enforced across all services
+      : modified components
+        - common
+        - enyMan
+        - pacMan
+        - keySmith
+        - gateway (save routes added)
+
 v1.2.2-2602.1322
   refactoring/cleanup in progress
     - removed treeFlags from EsqTreeNode*
