@@ -6,6 +6,7 @@
  *  mailto:mir0n.the.programmer@gmail.com
  *
  *  History:
+ * 02/28/2026 mir0n  address boolean field added
  */
 
 package pro.mir0n.esquire.backend.dto;
@@ -124,5 +125,8 @@ public class EsqObjectKind {
     @JacksonXmlElementWrapper(localName = "commands") // Wrapper element for the list
     @JacksonXmlProperty(localName = "command")
     private List<String> commands = null;
+
+    @JacksonXmlProperty(localName = "address")
+    private boolean address = false;
 
 }

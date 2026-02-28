@@ -13,6 +13,8 @@
  * 02/03/2026 mir0n  extends EsqThing
  *                   back to abstract
  * 02/13/2026 mir0n  use EsqEntityJpa for children
+ * 02/28/2026 mir0n  fillPerson/fillAddress/fillBizAddress abstract methods added
+ *                   fill() extended with person, address, address2 subentity params
  */
 
 package pro.mir0n.esquire.backend.dto;
@@ -40,13 +42,23 @@ public abstract class EsqEntity extends EsqThing{
     protected abstract void fillDetails(EsqEntityJpa jpa);
     protected abstract void fillCustom(List<EsqNameValueJpa> custom);
     protected abstract void fillChildren(List<EsqEntityJpa> children);
+    protected abstract void fillPerson(EsqEntityJpa person);
+    protected abstract void fillAddress(EsqEntityJpa address);
+    protected abstract void fillBizAddress(EsqEntityJpa address);
 
     @Schema(
             description = "Object description", example = "Entity description"
     )
     private String desc;
 
-    public void fill (EsqEntityJpa jpa, List<EsqNameValueJpa> custom, List<EsqEntityJpa> children) {
+    public void fill (EsqEntityJpa jpa,
+            List<EsqNameValueJpa> custom,
+            List<EsqEntityJpa> children,
+            EsqEntityJpa person,
+            EsqEntityJpa address,
+            EsqEntityJpa address2
+    ) {
+
         setId(jpa.getId());
         setKind(jpa.getKind());
         setName (jpa.getName());
@@ -57,6 +69,15 @@ public abstract class EsqEntity extends EsqThing{
         }
         if (custom != null) {
             fillChildren(children);
+        }
+        if (person != null) {
+            fillPerson(person);
+        }
+        if (address != null) {
+            fillAddress(address);
+        }
+        if (address2 != null) {
+            fillBizAddress(address2);
         }
     }
 

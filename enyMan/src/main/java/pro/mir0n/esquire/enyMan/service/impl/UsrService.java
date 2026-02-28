@@ -1,0 +1,244 @@
+/*
+ *  Esquire frameworks (tm)
+ *  EnyMan service
+ *
+ *  Copyright(c) 2001, 2025 mir0n&co www.mir0n.me
+ *  mailto:mir0n.the.programmer@gmail.com
+ *
+ *  History:
+ * 02/28/2026 mir0n  created: usr command/save service (split from EnyManService)
+ *                   esquireCommand(), esquireCommandSave(), saveUsr() moved from EnyManService
+ *                   person/address/bizaddr subentity read and update support added
+ */
+
+package pro.mir0n.esquire.enyMan.service.impl;
+
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.FlushModeType;
+import java.beans.PropertyDescriptor;
+import java.util.*;
+
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.BeanWrapper;
+import org.springframework.beans.BeanWrapperImpl;
+import org.springframework.data.repository.query.Param;
+import pro.mir0n.esquire.backend.dto.*;
+import pro.mir0n.esquire.backend.jpa.*;
+import pro.mir0n.esquire.backend.jpa.entity.EsqOrgJpa;
+import pro.mir0n.esquire.backend.jpa.entity.EsqAddressJpa;
+import pro.mir0n.esquire.backend.jpa.entity.EsqPersonJpa;
+import pro.mir0n.esquire.backend.jpa.entity.EsqUsrJpa;
+import pro.mir0n.esquire.backend.storage.EsqObjectKindStorage;
+import pro.mir0n.esquire.enyMan.jpa.EsqEntityDictionaryRepository;
+import pro.mir0n.esquire.enyMan.jpa.EsqOrgRepository;
+import pro.mir0n.esquire.enyMan.jpa.EsqUsrRepository;
+import pro.mir0n.esquire.enyMan.service.RequestContextUtils;
+import pro.mir0n.esquire.backend.storage.EsqEntityDictionaryStorage;
+import pro.mir0n.esquire.backend.error.ResourceNotFoundException;
+import pro.mir0n.esquire.enyMan.service.IEnyManService;
+import lombok.AllArgsConstructor;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.support.TransactionTemplate;
+
+import pro.mir0n.esquire.common.EsqConstants;
+
+@Slf4j
+public class UsrService  extends AEnyManService {
+
+    private final EsqUsrRepository usrRepository;
+    private final TransactionTemplate transactionTemplate;
+    private final EntityManager em;
+
+    public UsrService(EsqEntityDictionaryRepository entityDictionaryRepository,
+                      EsqUsrRepository usrRepository,
+                      TransactionTemplate transactionTemplate,
+                      EntityManager em) {
+        super(entityDictionaryRepository);
+        this.usrRepository = usrRepository;
+        this.transactionTemplate = transactionTemplate;
+        this.em = em;
+    }
+
+
+    @Override
+    public List<EsqEntityLayer> esquireDictionary(Integer kind) {
+        //xxx: not in use
+        return null;
+    }
+
+    @Override
+    public EsqEntity esquireCommand(Integer kind, String id, String cmd, String rootPath, String uid) {
+        log.debug("srvc: esquireCommand(usr): kind:{}, id:{}, cmd:{}, rootPath:{}, uid:{}",  kind, id, cmd, rootPath, uid);
+
+        EsqObjectKind eek = EsqObjectKindStorage.getInstance().get(kind);
+        List<EsqEntityJpa> children = null;
+        // xxx: path is safe
+        List<String> path = EsqTreeNodeMapper.pathArray(rootPath);
+        EsqEntityJpa jpa = usrRepository.detailUsr(id, rootPath);
+        if (jpa == null) {
+            throw new ResourceNotFoundException("esquireEntity", "kind, id", kind + "," + id);
+        }
+
+        List<EsqNameValueJpa> custom = usrRepository.customUsr(id);
+        EsqEntityJpa person = usrRepository.person(id, EsqConstants.KIND_PERSON_PRIMARY);
+        EsqEntityJpa address = null;
+        EsqEntityJpa address2 = null;
+        if (eek.isAddress()) {
+            address = usrRepository.address(id, EsqConstants.KIND_PERSON_PRIMARY);
+            address2 = usrRepository.address2(id, EsqConstants.KIND_PERSON_PRIMARY);
+            //xxx: JPA thing:
+            //     to make repository returns both address records, records must have unique id,
+            // following JPA does not allow
+            //if (address != null) {
+            //    address.setId(id);
+            //}
+            //if (address2 != null) {
+            //    address2.setId(id);
+            //}
+        }
+        if (eek.isChildrenDetailed()) {
+            children = (List<EsqEntityJpa>) (List<?>) usrRepository.userAccts(id, rootPath);
+        }
+        EsqEntity ret = EsqEntityFactory.getInstance().createUser(jpa, custom, children, person, address, address2 );
+        log.debug("srvc: esquireCommand(usr): entity:{}",  ret);
+        return  ret;
+    }
+
+    @Override
+    public EsqEntity esquireCommandSave(Integer kind, String id, String cmd, Map<String, Object> fields, String rootPath, String uid) {
+        String correlationId = RequestContextUtils.getCorrelationId();
+        String requestId = RequestContextUtils.getRequestId();
+        log.debug("srvc: esquireCommandSave(usr): kind:{}, id:{}, cmd:{}, rootPath:{}, uid:{}", kind, id, cmd, rootPath, uid);
+
+        EsqObjectKind eek = EsqObjectKindStorage.getInstance().get(kind);
+        //xxx: tricks with pointers
+        EsqEntityJpa[] updated  = {null};
+        List<EsqNameValueJpa>[] custom   = new List[]{null};
+        List<EsqEntityJpa>[] children = eek.isChildrenDetailed() ? new List[]{null} : null;
+        EsqEntityJpa[] person = {null};
+        EsqEntityJpa[] address = eek.isAddress() ? new EsqEntityJpa[]{null} : null;
+        EsqEntityJpa[] address2 = eek.isAddress() ? new EsqEntityJpa[]{null} : null;
+
+        transactionTemplate.execute(status -> {
+            // xxx: COMMIT flush mode prevents Hibernate from auto-flushing managed entities
+            //      before native query execution. We use native queries exclusively for writes,
+            //      so JPA dirty-tracking must never interfere. clearAutomatically=true on
+            //      @Modifying queries clears the context after each native update, so nothing
+            //      remains to flush at commit.
+            em.setFlushMode(FlushModeType.COMMIT);
+            saveUsr(id, fields, rootPath, uid, correlationId, requestId, updated, custom, children, person, address, address2);
+            return null;
+        }); // ← transaction commits here
+
+        EsqEntity ret = EsqEntityFactory.getInstance().createUser(updated[0], custom[0], children == null ? null : children[0],
+                    person == null ? null : person[0], address == null ? null : address[0], address2 == null ? null : address2[0]);
+        log.debug("srvc: esquireCommandSave(usr): entity:{}", ret);
+        return ret;
+    }
+
+    //TODO: use dictionary eventually for fields validation and readonly fields
+    //TODO: move to EsqEntityJpa or some common utils class
+    //TODO: find an user name to update based on first, middle, last names
+    // careful: when we use dictionary : name would be not in the list: TODO: find some workaround
+    private static final Set<String> USR_WRITABLE = Set.of("name", "desc", "registration", "deleted");
+    private void saveUsr(String id,
+                         Map<String, Object> fields,
+                         String rootPath,
+                         String uid, String correlationId,
+                         String requestId,
+                         EsqEntityJpa[] updated, List<EsqNameValueJpa>[] custom,
+                         List<EsqEntityJpa>[] children,
+                         EsqEntityJpa[] person,
+                         EsqEntityJpa[] address,
+                         EsqEntityJpa[] address2
+    ) {
+        EsqUsrJpa usr = usrRepository.detailUsrForUpdate(id, rootPath);
+        if (usr == null) {
+            throw new ResourceNotFoundException("saveUsr", "id", id);
+        }
+        List<EsqNameValueJpa> cstm = usrRepository.customUsr(id);
+        EsqPersonJpa prsn = usrRepository.person(id, EsqConstants.KIND_PERSON_PRIMARY);
+        Map<String, Object> mprsn = (Map<String, Object>) fields.get(EsqConstants.SUBENTITY_PERSON);
+
+        if (applyFields(prsn, mprsn, null)) {
+
+            fields.put("name", prsn.getName());  //xxx set a user's name based on first, middle, last names
+
+            usrRepository.updatePerson(prsn.getId(),
+                    prsn.getKind(),
+                    prsn.getFirstName(),
+                    prsn.getMiddleName(),
+                    prsn.getLastName(),
+                    prsn.getTitle(),
+                    //prsn.getDob(),
+                    prsn.getBirthPlace(),
+                    prsn.getSex(),
+                    prsn.getTaxId(),
+                    prsn.getCitizenship(),
+                    prsn.getMarStatus(),
+                    prsn.getPersonIdType(),
+                    prsn.getPersonIdNumber(),
+                    prsn.getEmail(),
+                    prsn.getPhone(),
+                    prsn.getPhone2(),
+                    uid, correlationId, requestId
+            );
+        }
+
+
+        if (applyFields(usr, fields, USR_WRITABLE)) {
+            usrRepository.updateUsr(id, usr.getName(), usr.getRegistration(), usr.getDeleted(), usr.getDesc(), uid, correlationId, requestId);
+        }
+        if (cstm != null) {
+            for (EsqNameValueJpa nv : cstm) {
+                String nm = nv.getName();
+                if (fields.containsKey(nm)) {
+                    String val = (String) fields.get(nm);
+                    if (val != null && val.isBlank()) {
+                        val = null;
+                    }
+                    nv.setValue(val);
+                    usrRepository.updateCustomUsr(id, nm, val, uid, correlationId, requestId);
+                }
+            }
+        }
+
+        if (address != null && address2 != null) {
+            EsqAddressJpa addr = usrRepository.address(id, EsqConstants.KIND_PERSON_PRIMARY);
+            if (addr != null) {
+                //addr.setId(id);
+                Map<String, Object> maddr = (Map<String, Object>) fields.get(EsqConstants.SUBENTITY_ADDRESS);
+                if (applyFields(addr, maddr, null)) {
+                    usrRepository.updateAddress(addr.getId(), EsqConstants.KIND_PERSON_PRIMARY, addr.getDesc(),
+                            addr.getAddr(), addr.getAddr2(), addr.getCity(), addr.getCompany(),
+                            addr.getCountry(), addr.getDepartment(), addr.getFax(),
+                            addr.getPostalCode(), addr.getProvince(), addr.getTitle(), addr.getUrl(),
+                            uid, correlationId, requestId);
+                }
+            }
+
+            EsqAddressJpa addr2 = usrRepository.address2(id, EsqConstants.KIND_PERSON_PRIMARY);
+            if (addr2 != null) {
+                //addr2.setId(id);
+                Map<String, Object> maddr2 = (Map<String, Object>) fields.get(EsqConstants.SUBENTITY_ADDRESS2);
+                if (applyFields(addr2, maddr2, null)) {
+                    usrRepository.updateAddress2(addr2.getId(), EsqConstants.KIND_PERSON_PRIMARY, addr2.getDesc(),
+                            addr2.getAddr(), addr2.getAddr2(), addr2.getCity(), addr2.getCompany(),
+                            addr2.getCountry(), addr2.getDepartment(), addr2.getFax(),
+                            addr2.getPostalCode(), addr2.getProvince(), addr2.getTitle(), addr2.getUrl(),
+                            uid, correlationId, requestId);
+                }
+            }
+            address[0] = addr;
+            address2[0] = addr2;
+        }
+        if (children != null) {
+            children[0] = (List<EsqEntityJpa>)(List<?>)usrRepository.userAccts(id, rootPath);
+        }
+        //note: if a DB trigger or default value modifies the row, saveUsr won't reflect it.
+        updated[0] = usr;
+        custom[0] = cstm;
+        person[0] = prsn;
+    }
+
+}

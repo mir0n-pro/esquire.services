@@ -14,6 +14,8 @@
  * 02/03/2026 mir0n accounts are things
  * 02/12/2026 mir0n use EsqObjectKind instead of EsqEntityKind
  * 02/13/2026 mir0n  use EsqEntityJpa for children
+ * 02/28/2026 mir0n  person, addr, bizaddr subentity fields added
+ *                   fillPerson/fillAddress/fillBizAddress implemented
  */
 
 package pro.mir0n.esquire.backend.dto.entity;
@@ -74,6 +76,21 @@ public class EsqUsr extends EsqEntity {
     )
     private List<EsqThing> accounts;
 
+    @Schema(
+            description = "Personal information"
+    )
+    private EsqThing person;
+
+    @Schema(
+            description = "Postal address"
+    )
+    private EsqThing addr;
+
+    @Schema(
+            description = "Biz address"
+    )
+    private EsqThing bizaddr;
+
     @JsonIgnore
     private List<EsqNameValue> customFields;
 
@@ -121,6 +138,33 @@ public class EsqUsr extends EsqEntity {
                 accounts.add(child);
             }
         }
+    }
+    @Override
+    protected void fillPerson(EsqEntityJpa person) {
+System.out.println("fillPerson: person:"+person);
+        if (person != null) {
+            EsqPerson psn = new EsqPerson();
+            psn.fill(person);
+            this.person = psn;
+            System.out.println("fillPerson: this.person:"+ this.person);
+        }
+    }
+    @Override
+    protected void fillAddress(EsqEntityJpa address) {
+        if (address != null) {
+            EsqAddress a = new EsqAddress();
+            a.fill(address);
+            this.addr = a;
+        }
+    }
+    @Override
+    protected void fillBizAddress(EsqEntityJpa address) {
+        if (address != null) {
+            EsqAddress a = new EsqAddress();
+            a.fill(address);
+            this.bizaddr = a;
+        }
+
     }
 
 }

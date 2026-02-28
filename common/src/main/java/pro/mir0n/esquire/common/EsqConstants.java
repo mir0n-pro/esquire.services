@@ -9,6 +9,8 @@
  * 02/01/2026 mir0n added DICT_ACCESS_PROFILE as a virtual entity kind for dictionary
  * 02/12/2026 mir0n  removed CMD_DETAILS
  *                   DICT_ACCESS_PROFILE renamed with KIND_ACCESS_PROFILE
+ * 02/28/2026 mir0n  KIND_ADDRESS_POSTAL/BIZ, KIND_PERSON_PRIMARY/SECONDARY/JOINT added
+ *                   SUBENTITY_PERSON, SUBENTITY_ADDRESS, SUBENTITY_ADDRESS2 added
  */
 package pro.mir0n.esquire.common;
 
@@ -40,6 +42,15 @@ public class EsqConstants {
     public static final String  JWT_CLAIM_ENTITY_ID = "esq_uid";
     public static final String  JWT_CLAIM_ENTITY_ROOTPATH = "esq_rootpath";
 
+    public static final int  KIND_ADDRESS_POSTAL = 988;
+    public static final int  KIND_ADDRESS_BIZ = 990;
+    public static final int  KIND_PERSON_PRIMARY = 992;
+    public static final int  KIND_PERSON_SECONDARY = 994;
+    public static final int  KIND_PERSON_JOINT = 996;
     public static final int  KIND_ACCESS_PROFILE = 998;
+
+    public static final String  SUBENTITY_PERSON = "person";
+    public static final String  SUBENTITY_ADDRESS = "addr";
+    public static final String  SUBENTITY_ADDRESS2 = "bizaddr";
 
 }

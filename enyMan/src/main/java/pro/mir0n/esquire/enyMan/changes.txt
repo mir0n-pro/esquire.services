@@ -1,10 +1,24 @@
 Esquire enyMan Microservice
 
+02/28/2026 mir0n  service layer refactored: OrgService/UsrService split from EnyManService
++ added service.impl.AEnyManService (abstract base: esquireDictionary(), applyFields())
++ added service.impl.OrgService (org command/save; saveOrg() moved from EnyManService)
++ added service.impl.UsrService (usr command/save; saveUsr() with person/address support)
+service.impl.EnyManService
+  - extends AEnyManService; delegates to OrgService/UsrService
+  - saveOrg/saveUsr/applyFields moved to OrgService/UsrService
+META-INF/oracle-entity.xml, postgres-entity.xml
+  - added EsqUsrJpa.person, address, address2 read queries (EsqPersonJpaMapping/EsqAddressJpaMapping)
+  - added updatePerson, updateAddress, updateAddress2 (UPDATE with audit columns)
+
 02/19/2026 mir0n  save (update) functionality added
 x jpa.EsqEntityRepository replaced by EsqOrgRepository and EsqUsrRepository
 x jpa.EsqCustomFieldRepository replaced by queries in EsqOrgRepository / EsqUsrRepository
 + added jpa.EsqOrgRepository
 + added jpa.EsqUsrRepository
+jpa.EsqUsrRepository
+  - userAccts() return type corrected from EsqEntityJpa to EsqAcctJpa
+    (was causing IllegalArgumentException: TypedQuery incompatible with EsqAcctJpa)
 controller.EnyManController
   - added esquireCommandSave() POST /esq-cmd-save
 service.IEnyManService

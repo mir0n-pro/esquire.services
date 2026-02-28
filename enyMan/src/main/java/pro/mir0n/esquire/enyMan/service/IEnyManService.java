@@ -27,4 +27,4 @@ public interface IEnyManService {
     public EsqEntity esquireCommand(Integer kind, String id, String cmd, String rootPath, String uid );
     public EsqEntity esquireCommandSave(Integer kind, String id, String cmd, Map<String, Object> fields, String rootPath, String uid );
 
-    }
+}

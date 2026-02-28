@@ -6,9 +6,15 @@
  *  mailto:mir0n.the.programmer@gmail.com
  *
  *  History:
- * 01/10/2006 mir0n rootPath param added
- * 01/23/206 mir0n  use common library
+ * 01/10/2026 mir0n rootPath param added
+ * 01/23/2026 mir0n use common library
  *                  added acctsAsNodes method
+ * 02/19/2026 mir0n base type changed from EsqEntityJpa to EsqAcctJpa
+ *                  detailAcct() return type corrected from EsqEntityJpa to EsqAcctJpa
+ *                  added detailAcctForUpdate (SELECT FOR UPDATE)
+ *                  added updateAcct @Modifying native query (UPDATE esq_account with audit columns)
+ *                  @Modifying(clearAutomatically=true, flushAutomatically=false)
+ *                  removed unused EsqTreeNodeJpa / List imports
  */
 
 package pro.mir0n.esquire.pacMan.jpa;

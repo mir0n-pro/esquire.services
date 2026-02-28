@@ -269,6 +269,7 @@
       <detailed>true</detailed>
       <childrenDetailed>true</childrenDetailed>
       <treeFlags>BTb</treeFlags>
+      <address>true</address>
       <listHeaders>
         <column-header>
           <columnDef>name</columnDef>
@@ -297,6 +298,7 @@
       <detailed>true</detailed>
       <childrenDetailed>true</childrenDetailed>
       <treeFlags>b</treeFlags>
+      <address>true</address>
       <commands>
         <command>key</command>
       </commands>
@@ -315,6 +317,7 @@
       <detailed>true</detailed>
       <childrenDetailed>true</childrenDetailed>
       <treeFlags>BTb</treeFlags>
+      <address>true</address>
       <listHeaders>
         <column-header>
           <columnDef>name</columnDef>
@@ -343,6 +346,7 @@
       <detailed>true</detailed>
       <childrenDetailed>true</childrenDetailed>
       <treeFlags>b</treeFlags>
+      <address>true</address>
       <commands>
         <command>key</command>
       </commands>
@@ -451,6 +455,41 @@
       </commands>
     </kind>
 
+<!-- Postal address -->
+    <kind>
+      <id>988</id>
+      <name>addr</name>
+      <title>Postal address</title>
+      <desc>Postal address subentity</desc>
+    </kind>
+<!-- Biz address -->
+    <kind>
+      <id>990</id>
+      <name>bizaddr</name>
+      <title>Biz address</title>
+      <desc>Business address subentity</desc>
+    </kind>
+<!-- Primary contact -->
+    <kind>
+      <id>992</id>
+      <name>person</name>
+      <title>Primary contact</title>
+      <desc>Primary contact subentity</desc>
+    </kind>
+<!-- Secondary contact -->
+    <kind>
+      <id>994</id>
+      <name>sperson</name>
+      <title>Secondary contact</title>
+      <desc>Secondary contact subentity</desc>
+    </kind>
+<!-- Joint contact -->
+    <kind>
+      <id>996</id>
+      <name>jperson</name>
+      <title>Joint contact</title>
+      <desc>Joint contact subentity</desc>
+    </kind>
 <!-- Access Profile -->
     <kind>
       <id>998</id>

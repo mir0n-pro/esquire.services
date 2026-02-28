@@ -109,15 +109,162 @@
         </query>
     </named-native-query>
 
-<!--
-    <named-native-query name="EsqUsrJpa.updateAuth">
+    <named-native-query name="EsqUsrJpa.address"  result-set-mapping="EsqAddressJpaMapping">
         <query>
- UPDATE esq_auth
- SET au_email = :email
- WHERE au_usr_pk = CAST(:id AS bigint)
+            SELECT
+                ad_pk::text AS "ad_pk",
+                990 AS "ad_kind",
+                ad_desc,
+                ad_addr,
+                ad_addr2,
+                ad_city,
+                ad_company,
+                ad_country,
+                ad_department,
+                ad_fax,
+                ad_postal_code,
+                ad_province,
+                ad_title,
+                ad_url
+            FROM esq_person
+            JOIN esq_address ON pe_ad_pk = ad_pk
+            WHERE pe_usr_pk = CAST(:id AS bigint)
+              AND pe_kind = :kind
         </query>
     </named-native-query>
--->
+
+    <named-native-query name="EsqUsrJpa.address2"  result-set-mapping="EsqAddressJpaMapping">
+        <query>
+            SELECT
+                ad_pk::text AS "ad_pk",
+                990 AS "ad_kind",
+                ad_desc,
+                ad_addr,
+                ad_addr2,
+                ad_city,
+                ad_company,
+                ad_country,
+                ad_department,
+                ad_fax,
+                ad_postal_code,
+                ad_province,
+                ad_title,
+                ad_url
+            FROM esq_person
+            JOIN esq_address ON pe_ad_pk_biz = ad_pk
+            WHERE pe_usr_pk = CAST(:id AS bigint)
+              AND pe_kind = :kind
+        </query>
+    </named-native-query>
+
+    <named-native-query name="EsqUsrJpa.updateAddress">
+        <query>
+    UPDATE esq_address
+    SET ad_desc = :desc
+      ,ad_addr = :addr
+      ,ad_addr2 = :addr2
+      ,ad_city = :city
+      ,ad_company = :company
+      ,ad_country = :country
+      ,ad_department = :department
+      ,ad_fax = :fax
+      ,ad_postal_code = :postalCode
+      ,ad_province = :province
+      ,ad_title = :title
+      ,ad_url = :url
+      ,ad_crl_id = :correlationId
+      ,ad_req_id = :requestId
+      ,ad_uid = :uid
+    WHERE ad_pk = (SELECT pe_ad_pk FROM esq_person
+    WHERE pe_usr_pk = CAST(:id AS bigint)
+      AND pe_kind = :kind)
+        </query>
+    </named-native-query>
+
+    <named-native-query name="EsqUsrJpa.updateAddress2">
+        <query>
+            UPDATE esq_address
+            SET ad_desc = :desc
+              ,ad_addr = :addr
+              ,ad_addr2 = :addr2
+              ,ad_city = :city
+              ,ad_company = :company
+              ,ad_country = :country
+              ,ad_department = :department
+              ,ad_fax = :fax
+              ,ad_postal_code = :postalCode
+              ,ad_province = :province
+              ,ad_title = :title
+              ,ad_url = :url
+              ,ad_crl_id = :correlationId
+              ,ad_req_id = :requestId
+              ,ad_uid = :uid
+            WHERE ad_pk = (SELECT pe_ad_pk_biz FROM esq_person
+                           WHERE pe_usr_pk = CAST(:id AS bigint)
+                             AND pe_kind = :kind)
+        </query>
+    </named-native-query>
+
+    <named-native-query name="EsqUsrJpa.person"  result-set-mapping="EsqPersonJpaMapping">
+        <query>
+    SELECT pe_usr_pk
+         ,pe_kind
+         ,pe_first_name
+         ,pe_middle_name
+         ,pe_last_name
+         ,pe_title
+--         ,to_char(pe_dob, 'MM//DD/YYYY') AS pe_dob
+         ,pe_birth_place
+         ,pe_sex
+         ,pe_tax_id
+         ,pe_citizenship
+         ,pe_mar_status
+         ,pe_person_id_type
+         ,pe_person_id_number
+         ,pe_email
+         ,pe_phone
+         ,pe_phone2
+    FROM esq_person
+    WHERE pe_usr_pk = CAST(:id AS bigint)
+      AND pe_kind = :kind
+      </query>
+    </named-native-query>
+
+    <named-native-query name="EsqUsrJpa.updatePerson">
+        <query>
+    UPDATE esq_person
+    SET pe_first_name = :firstName
+        ,pe_middle_name = :middleName
+        ,pe_last_name = :lastName
+        ,pe_title = :title
+        --         ,pe_dob = :dob
+        ,pe_birth_place = :birthPlace
+        ,pe_sex = :sex
+        ,pe_tax_id = :taxId
+        ,pe_citizenship = :citizenship
+        ,pe_mar_status = :marStatus
+        ,pe_person_id_type = :personIdType
+        ,pe_person_id_number = :personIdNumber
+        ,pe_email = :email
+        ,pe_phone = :phone
+        ,pe_phone2 = :phone2
+        ,pe_crl_id = :correlationId
+        ,pe_req_id = :requestId
+        ,pe_uid = :uid
+    WHERE pe_usr_pk = CAST(:id AS bigint)
+    AND pe_kind = :kind
+        </query>
+    </named-native-query>
+
+    <!--
+        <named-native-query name="EsqUsrJpa.updateAuth">
+            <query>
+     UPDATE esq_auth
+     SET au_email = :email
+     WHERE au_usr_pk = CAST(:id AS bigint)
+            </query>
+        </named-native-query>
+    -->
 
     <sql-result-set-mapping name="EsqUsrJpaMapping">
         <entity-result entity-class="pro.mir0n.esquire.backend.jpa.entity.EsqUsrJpa">
@@ -151,6 +298,45 @@
         </entity-result>
     </sql-result-set-mapping>
 
+    <sql-result-set-mapping name="EsqAddressJpaMapping">
+        <entity-result entity-class="pro.mir0n.esquire.backend.jpa.entity.EsqAddressJpa">
+            <field-result name="id" column="ad_pk"/>
+            <field-result name="kind" column="ad_kind"/>
+            <field-result name="desc" column="ad_desc"/>
+            <field-result name="addr" column="ad_addr"/>
+            <field-result name="addr2" column="ad_addr2"/>
+            <field-result name="city" column="ad_city"/>
+            <field-result name="company" column="ad_company"/>
+            <field-result name="country" column="ad_country"/>
+            <field-result name="department" column="ad_department"/>
+            <field-result name="fax" column="ad_fax"/>
+            <field-result name="postalCode" column="ad_postal_code"/>
+            <field-result name="province" column="ad_province"/>
+            <field-result name="title" column="ad_title"/>
+            <field-result name="url" column="ad_url"/>
+        </entity-result>
+    </sql-result-set-mapping>
 
+    <sql-result-set-mapping name="EsqPersonJpaMapping">
+        <entity-result entity-class="pro.mir0n.esquire.backend.jpa.entity.EsqPersonJpa">
+            <field-result name="id" column="pe_usr_pk"/>
+            <field-result name="kind" column="pe_kind"/>
+            <field-result name="firstName" column="pe_first_name"/>
+            <field-result name="middleName" column="pe_middle_name"/>
+            <field-result name="lastName" column="pe_last_name"/>
+            <field-result name="title" column="pe_title"/>
+            <!-- field-result name="dob" column="pe_dob"/ -->
+            <field-result name="birthPlace" column="pe_birth_place"/>
+            <field-result name="sex" column="pe_sex"/>
+            <field-result name="taxId" column="pe_tax_id"/>
+            <field-result name="citizenship" column="pe_citizenship"/>
+            <field-result name="marStatus" column="pe_mar_status"/>
+            <field-result name="personIdType" column="pe_person_id_type"/>
+            <field-result name="personIdNumber" column="pe_person_id_number"/>
+            <field-result name="email" column="pe_email"/>
+            <field-result name="phone" column="pe_phone"/>
+            <field-result name="phone2" column="pe_phone2"/>
+        </entity-result>
+    </sql-result-set-mapping>
 
 </entity-mappings>

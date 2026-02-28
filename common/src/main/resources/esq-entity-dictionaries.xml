@@ -127,6 +127,16 @@
                     </fields>
                 </layer>
                 <layer>
+                    <layer>2</layer>
+                    <title>Profile</title>
+                    <fields>
+                        <field>
+                            <name>person</name>
+                            <type>subentity</type>
+                        </field>
+                    </fields>
+                </layer>
+                <layer>
                     <layer>99</layer>
                     <title>Description</title>
                     <fields>
@@ -175,6 +185,16 @@
                             <type>string</type>
                             <tooltip>Email address</tooltip>
                             <readwrite>1</readwrite>
+                        </field>
+                    </fields>
+                </layer>
+                <layer>
+                    <layer>2</layer>
+                    <title>Profile</title>
+                    <fields>
+                        <field>
+                            <name>person</name>
+                            <type>subentity</type>
                         </field>
                     </fields>
                 </layer>
@@ -250,7 +270,39 @@
                     </fields>
                 </layer>
                 <layer>
-                    <layer>3</layer>
+                    <layer>2</layer>
+                    <title>Profile</title>
+                    <fields>
+                        <field>
+                            <name>person</name>
+                            <type>subentity</type>
+                        </field>
+                    </fields>
+                </layer>
+                <layer>
+                    <layer>4</layer>
+                    <title>Address</title>
+                    <fields>
+                        <field>
+                            <name>addr</name>
+                            <type>subentity</type>
+                        </field>
+                    </fields>
+                </layer>
+              
+                <layer>
+                    <layer>5</layer>
+                    <title>Biz Address</title>
+                    <fields>
+                        <field>
+                            <name>bizaddr</name>
+                            <type>subentity</type>
+                        </field>
+                    </fields>
+                </layer>
+              
+                <layer>
+                    <layer>6</layer>
                     <title>Accounts</title>
                     <fields>
                         <field>
@@ -323,7 +375,39 @@
                     </fields>
                 </layer>
                 <layer>
-                    <layer>3</layer>
+                    <layer>2</layer>
+                    <title>Profile</title>
+                    <fields>
+                        <field>
+                            <name>person</name>
+                            <type>subentity</type>
+                        </field>
+                    </fields>
+                </layer>
+                <layer>
+                    <layer>4</layer>
+                    <title>Address</title>
+                    <fields>
+                        <field>
+                            <name>addr</name>
+                            <type>subentity</type>
+                        </field>
+                    </fields>
+                </layer>
+              
+                <layer>
+                    <layer>5</layer>
+                    <title>Biz Address</title>
+                    <fields>
+                        <field>
+                            <name>bizaddr</name>
+                            <type>subentity</type>
+                        </field>
+                    </fields>
+                </layer>
+                
+                <layer>
+                    <layer>6</layer>
                     <title>Accounts</title>
                     <fields>
                         <field>
@@ -549,6 +633,503 @@
                             <tooltip>Account Description</tooltip>
                             <nullable>Y</nullable>
                             <readwrite>3</readwrite>
+                        </field>
+                    </fields>
+                </layer>
+            </layers>
+        </dictionary>
+
+    <!--  Postal Address -->
+        <dictionary>
+            <kind>988</kind>
+            <layers>
+                <layer>
+                    <layer>1</layer>
+                    <title>Postal Address</title>
+                    <fields>
+                        <field>
+                            <name>id</name>
+                            <sort>0</sort>
+                            <label>ID</label>
+                            <type>string</type>
+                            <tooltip>User ID</tooltip>
+                            <readwrite>0</readwrite>
+                        </field>
+                        <field>
+                            <name>kind</name>
+                            <sort>0</sort>
+                            <label>Kind</label>
+                            <type>integer</type>
+                            <tooltip>Person entity Kind</tooltip>
+                            <readwrite>0</readwrite>
+                        </field>
+                        <field>
+                            <name>desc</name>
+                            <sort>1</sort>
+                            <label>Description</label>
+                            <type>string</type>
+                            <tooltip>Address description or additional info</tooltip>
+                            <readwrite>3</readwrite>
+                            <nullable>Y</nullable>
+                            <personal>Y</personal>
+                        </field>
+                        <field>
+                            <name>addr</name>
+                            <sort>2</sort>
+                            <label>Address</label>
+                            <type>string</type>
+                            <tooltip>Street address line 1</tooltip>
+                            <readwrite>3</readwrite>
+                            <nullable>Y</nullable>
+                            <personal>Y</personal>
+                        </field>
+                        <field>
+                            <name>addr2</name>
+                            <sort>3</sort>
+                            <label>Address 2</label>
+                            <type>string</type>
+                            <tooltip>Street address line 2</tooltip>
+                            <readwrite>3</readwrite>
+                            <nullable>Y</nullable>
+                            <personal>Y</personal>
+                        </field>
+                        <field>
+                            <name>city</name>
+                            <sort>4</sort>
+                            <label>City</label>
+                            <type>string</type>
+                            <tooltip>City name</tooltip>
+                            <readwrite>3</readwrite>
+                            <nullable>Y</nullable>
+                            <personal>Y</personal>
+                        </field>
+                        <field>
+                            <name>province</name>
+                            <sort>5</sort>
+                            <label>State</label>
+                            <type>string</type>
+                            <tooltip>State or province name</tooltip>
+                            <readwrite>3</readwrite>
+                            <nullable>Y</nullable>
+                            <personal>Y</personal>
+                        </field>
+                        <field>
+                            <name>postalCode</name>
+                            <sort>6</sort>
+                            <label>Postal Code</label>
+                            <type>string</type>
+                            <tooltip>Zip or postal code</tooltip>
+                            <readwrite>3</readwrite>
+                            <nullable>Y</nullable>
+                            <personal>Y</personal>
+                        </field>                        
+                        <field>
+                            <name>country</name>
+                            <sort>7</sort>
+                            <label>Country</label>
+                            <type>string</type>
+                            <tooltip>Country name</tooltip>
+                            <readwrite>3</readwrite>
+                            <nullable>Y</nullable>
+                            <personal>Y</personal>
+                        </field>
+                        <field>
+                            <name>company</name>
+                            <sort>8</sort>
+                            <label>Company</label>
+                            <type>string</type>
+                            <tooltip>Company name</tooltip>
+                            <readwrite>0</readwrite>
+                            <nullable>Y</nullable>
+                            <personal>Y</personal>
+                        </field>
+                        <field>
+                            <name>department</name>
+                            <sort>9</sort>
+                            <label>Department</label>
+                            <type>string</type>
+                            <tooltip>Department name</tooltip>
+                            <readwrite>0</readwrite>
+                            <nullable>Y</nullable>
+                            <personal>N</personal>
+                        </field>
+                        <field>
+                            <name>title</name>
+                            <sort>10</sort>
+                            <label>Title</label>
+                            <type>string</type>
+                            <tooltip>Title with company</tooltip>
+                            <readwrite>0</readwrite>
+                            <nullable>Y</nullable>
+                            <personal>N</personal>
+                        </field>
+                        <field>
+                            <name>fax</name>
+                            <sort>11</sort>
+                            <label>Fax</label>
+                            <type>string</type>
+                            <tooltip>Fax number</tooltip>
+                            <readwrite>0</readwrite>
+                            <nullable>Y</nullable>
+                            <personal>N</personal>
+                        </field>
+                        <field>
+                            <name>url</name>
+                            <sort>12</sort>
+                            <label>Website</label>
+                            <type>string</type>
+                            <tooltip>Website Internet URL</tooltip>
+                            <readwrite>0</readwrite>
+                            <nullable>Y</nullable>
+                            <personal>N</personal>
+                        </field>
+                    </fields>
+                </layer>
+            </layers>
+        </dictionary>
+
+        <dictionary>
+            <kind>990</kind>
+            <layers>
+                <layer>
+                    <layer>1</layer>
+                    <title>Biz Address</title>
+                    <fields>
+                        <field>
+                            <name>id</name>
+                            <sort>0</sort>
+                            <label>ID</label>
+                            <type>string</type>
+                            <tooltip>User ID</tooltip>
+                            <readwrite>0</readwrite>
+                        </field>
+                        <field>
+                            <name>kind</name>
+                            <sort>0</sort>
+                            <label>Kind</label>
+                            <type>integer</type>
+                            <tooltip>Person entity Kind</tooltip>
+                            <readwrite>0</readwrite>
+                        </field>
+                        <field>
+                            <name>desc</name>
+                            <sort>1</sort>
+                            <label>Description</label>
+                            <type>string</type>
+                            <tooltip>Address description or additional info</tooltip>
+                            <readwrite>3</readwrite>
+                            <nullable>Y</nullable>
+                            <personal>Y</personal>
+                        </field>
+                        <field>
+                            <name>addr</name>
+                            <sort>2</sort>
+                            <label>Address</label>
+                            <type>string</type>
+                            <tooltip>Street address line 1</tooltip>
+                            <readwrite>3</readwrite>
+                            <nullable>Y</nullable>
+                            <personal>Y</personal>
+                        </field>
+                        <field>
+                            <name>addr2</name>
+                            <sort>3</sort>
+                            <label>Address 2</label>
+                            <type>string</type>
+                            <tooltip>Street address line 2</tooltip>
+                            <readwrite>3</readwrite>
+                            <nullable>Y</nullable>
+                            <personal>Y</personal>
+                        </field>
+                        <field>
+                            <name>city</name>
+                            <sort>4</sort>
+                            <label>City</label>
+                            <type>string</type>
+                            <tooltip>City name</tooltip>
+                            <readwrite>3</readwrite>
+                            <nullable>Y</nullable>
+                            <personal>Y</personal>
+                        </field>
+                        <field>
+                            <name>province</name>
+                            <sort>5</sort>
+                            <label>State</label>
+                            <type>string</type>
+                            <tooltip>State or province name</tooltip>
+                            <readwrite>3</readwrite>
+                            <nullable>Y</nullable>
+                            <personal>Y</personal>
+                        </field>
+                        <field>
+                            <name>postalCode</name>
+                            <sort>6</sort>
+                            <label>Postal Code</label>
+                            <type>string</type>
+                            <tooltip>Zip or postal code</tooltip>
+                            <readwrite>3</readwrite>
+                            <nullable>Y</nullable>
+                            <personal>Y</personal>
+                        </field>                        
+                        <field>
+                            <name>country</name>
+                            <sort>7</sort>
+                            <label>Country</label>
+                            <type>string</type>
+                            <tooltip>Country name</tooltip>
+                            <readwrite>3</readwrite>
+                            <nullable>Y</nullable>
+                            <personal>Y</personal>
+                        </field>
+                        <field>
+                            <name>company</name>
+                            <sort>8</sort>
+                            <label>Company</label>
+                            <type>string</type>
+                            <tooltip>Company name</tooltip>
+                            <readwrite>3</readwrite>
+                            <nullable>Y</nullable>
+                            <personal>Y</personal>
+                        </field>
+                        <field>
+                            <name>department</name>
+                            <sort>9</sort>
+                            <label>Department</label>
+                            <type>string</type>
+                            <tooltip>Department name</tooltip>
+                            <readwrite>3</readwrite>
+                            <nullable>Y</nullable>
+                            <personal>Y</personal>
+                        </field>
+                        <field>
+                            <name>title</name>
+                            <sort>10</sort>
+                            <label>Title</label>
+                            <type>string</type>
+                            <tooltip>Title with company</tooltip>
+                            <readwrite>3</readwrite>
+                            <nullable>Y</nullable>
+                            <personal>Y</personal>
+                        </field>
+                        <field>
+                            <name>fax</name>
+                            <sort>11</sort>
+                            <label>Fax</label>
+                            <type>string</type>
+                            <tooltip>Fax number</tooltip>
+                            <readwrite>3</readwrite>
+                            <nullable>Y</nullable>
+                            <personal>Y</personal>
+                        </field>
+                        <field>
+                            <name>url</name>
+                            <sort>12</sort>
+                            <label>Website</label>
+                            <type>string</type>
+                            <tooltip>Website Internet URL</tooltip>
+                            <readwrite>3</readwrite>
+                            <nullable>Y</nullable>
+                            <personal>Y</personal>
+                        </field>
+                    </fields>
+                </layer>
+            </layers>
+        </dictionary>
+
+    <!-- person profile -->
+    <!-- kinds : 992: Primary, 994 Secondary, 996: Joint. -->
+        <dictionary>
+            <kind>992</kind>
+            <layers>
+                <layer>
+                    <layer>1</layer>
+                    <title>Details</title>
+                    <fields>
+                        <field>
+                            <name>id</name>
+                            <sort>0</sort>
+                            <label>ID</label>
+                            <type>string</type>
+                            <tooltip>User ID</tooltip>
+                            <readwrite>0</readwrite>
+                        </field>
+                        <field>
+                            <name>kind</name>
+                            <sort>0</sort>
+                            <label>Kind</label>
+                            <type>integer</type>
+                            <tooltip>Person Entity Kind</tooltip>
+                            <readwrite>0</readwrite>
+                        </field>
+                        <field>
+                            <name>firstName</name>
+                            <sort>1</sort>
+                            <label>First Name</label>
+                            <type>string</type>
+                            <tooltip>First (given) name</tooltip>
+                            <readwrite>3</readwrite>
+                            <nullable>N</nullable>
+                            <personal>Y</personal>
+                        </field>
+                        <field>
+                            <name>middleName</name>
+                            <sort>2</sort>
+                            <label>Middle name</label>
+                            <type>string</type>
+                            <tooltip>Middle name</tooltip>
+                            <readwrite>3</readwrite>
+                            <nullable>Y</nullable>
+                            <personal>Y</personal>
+                        </field>
+                        <field>
+                            <name>lastName</name>
+                            <sort>3</sort>
+                            <label>Last Name</label>
+                            <type>string</type>
+                            <tooltip>Last (Family) name</tooltip>
+                            <readwrite>3</readwrite>
+                            <nullable>N</nullable>
+                            <personal>Y</personal>
+                        </field>
+                        <field>
+                            <name>title</name>
+                            <sort>4</sort>
+                            <label>Title</label>
+                            <type>string</type>
+                            <tooltip>Title or Honorifics</tooltip>
+                            <readwrite>3</readwrite>
+                            <nullable>Y</nullable>
+                            <personal>Y</personal>
+                        </field>
+                        <field>
+                            <name>email</name>
+                            <sort>5</sort>
+                            <label>Email address</label>
+                            <type>string</type>
+                            <tooltip>Email address"</tooltip>
+                            <readwrite>3</readwrite>
+                            <nullable>N</nullable>
+                            <personal>Y</personal>
+                        </field>
+                        <field>
+                            <name>phone</name>
+                            <sort>6</sort>
+                            <label>Phone</label>
+                            <type>string</type>
+                            <tooltip>Phone number"</tooltip>
+                            <readwrite>3</readwrite>
+                            <nullable>Y</nullable>
+                            <personal>Y</personal>
+                            <validation>^[0-9 ']+$</validation>
+                        </field>
+                        <field>
+                            <name>phone2</name>
+                            <sort>7</sort>
+                            <label>Alt. Phone</label>
+                            <type>string</type>
+                            <tooltip>Alternative Phone number"</tooltip>
+                            <readwrite>3</readwrite>
+                            <nullable>Y</nullable>
+                            <personal>Y</personal>
+                            <validation>^[0-9 ']+$</validation>
+                        </field>
+                        <!-- field>
+                            <name>dob</name>
+                            <sort>8</sort>
+                            <label>DOB</label>
+                            <type>date</type>
+                            <tooltip>Date of birthday</tooltip>
+                            <readwrite>3</readwrite>
+                            <nullable>Y</nullable>
+                            <personal>Y</personal>
+                        </field -->
+                        <field>
+                            <name>birthPlace</name>
+                            <sort>9</sort>
+                            <label>Birth place</label>
+                            <type>string</type>
+                            <tooltip>Birth place</tooltip>
+                            <readwrite>3</readwrite>
+                            <nullable>Y</nullable>
+                            <personal>Y</personal>
+                        </field>
+                        <field>
+                            <name>sex</name>
+                            <sort>10</sort>
+                            <label>Sex</label>
+                            <type>string</type>
+                            <tooltip>Sex: Male, Female</tooltip>
+                            <listvalues>
+                                <value>M~Male</value>
+                                <value>F~Female</value>
+                            </listvalues>
+                            <nullmeaning>undefined</nullmeaning>
+                            <readwrite>3</readwrite>
+                            <nullable>Y</nullable>
+                            <personal>Y</personal>
+                        </field>
+                        <field>
+                            <name>taxId</name>
+                            <sort>11</sort>
+                            <label>Tax ID</label>
+                            <type>string</type>
+                            <tooltip>Tax ID or SSN"</tooltip>
+                            <readwrite>3</readwrite>
+                            <nullable>Y</nullable>
+                            <personal>Y</personal>
+                        </field>
+                        <field>
+                            <name>citizenship</name>
+                            <sort>12</sort>
+                            <label>Citizenship</label>
+                            <type>string</type>
+                            <tooltip>Citizenship country</tooltip>
+                            <readwrite>3</readwrite>
+                            <nullable>Y</nullable>
+                            <personal>Y</personal>
+                        </field>
+                        <field>
+                            <name>marStatus</name>
+                            <sort>13</sort>
+                            <label>Martial status</label>
+                            <type>string</type>
+                            <tooltip>Martial status: Single, Married, Divorced, Separated</tooltip>
+                            <listvalues>
+                                <value>S~Single</value>
+                                <value>M~Married</value>
+                                <value>D~Divorced</value>
+                                <value>P~Separated</value>
+                            </listvalues>
+                            <nullmeaning>undefined</nullmeaning>
+                            <readwrite>3</readwrite>
+                            <nullable>Y</nullable>
+                            <personal>Y</personal>
+                        </field>
+                        <field>
+                            <name>personIdType</name>
+                            <sort>14</sort>
+                            <label>I.D. type</label>
+                            <type>string</type>
+                            <tooltip>Type of person ID document: Passport, Driver License, State ID, Other</tooltip>
+                            <listvalues>
+                                <value>P~Passport</value>
+                                <value>D~Driver License</value>
+                                <value>I~State ID</value>
+                            </listvalues>
+                            <nullmeaning>other</nullmeaning>
+                            <readwrite>3</readwrite>
+                            <nullable>Y</nullable>
+                            <personal>Y</personal>
+                        </field>
+                        <field>
+                            <name>personIdNumber</name>
+                            <sort>15</sort>
+                            <label>I.D. number</label>
+                            <type>string</type>
+                            <tooltip>Number of ID document</tooltip>
+                            <readwrite>3</readwrite>
+                            <nullable>Y</nullable>
+                            <personal>Y</personal>
                         </field>
                     </fields>
                 </layer>

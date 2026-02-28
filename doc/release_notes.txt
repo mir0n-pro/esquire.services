@@ -1,6 +1,18 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v1.2.2-2602.2818
+  Person and address subentity support for user detail and save
+    :person
+    :residential address and biz address
+    :EnyManService split into OrgService / UsrService / AEnyManService (abstract base)
+      - applyFields() and esquireDictionary() extracted to AEnyManService
+      - org and usr logic separated into dedicated service classes
+    :getName() NPE when middleName is null — was root cause of HTTP 500 on GET /esq-cmd
+    : modified components
+      - common
+      - enyMan
+
 v1.2.2-2602.1920
   Implemented common/audit JPA entity field updates.
     :DB: audit columns (*_CRL_ID, *_REQ_ID, *_UID) added to all major tables

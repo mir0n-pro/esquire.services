@@ -21,7 +21,7 @@ Authentication drafted up to "OK-for-now" state. [Keycloak IAM solution](https:/
 
 Authorization is set to read-only for now.
 
-Esquire Observability Stack completed, described here ( <./doc/Esquire.ObservabilityStack.md> ).
+Esquire Observability Stack completed, described here [ObservabilityStack.md](./doc/Esquire.ObservabilityStack.md).
 
 Set of Backend Esquire Services includes:
 

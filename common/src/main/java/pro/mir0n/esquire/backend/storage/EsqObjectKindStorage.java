@@ -6,6 +6,7 @@
  *  mailto:mir0n.the.programmer@gmail.com
  *
  *  History:
+ * 02/28/2026 mir0n  UNKNOWN kind updated with address=false
  */
 
 package pro.mir0n.esquire.backend.storage;
@@ -35,7 +36,7 @@ public class EsqObjectKindStorage {
 
     private static EsqObjectKindStorage itSelf = new EsqObjectKindStorage();
     private static List<EsqObjectKind> storage = new ArrayList<>();
-    public static EsqObjectKind UNKNOWN = new EsqObjectKind(-1, "unknown", "Unknown", "unknown", "Unknown entity", false, false, false, "", false, false, "", null, null, null);
+    public static EsqObjectKind UNKNOWN = new EsqObjectKind(-1, "unknown", "Unknown", "unknown", "Unknown entity", false, false, false, "", false, false, "", null, null, null,false);
     //private EsqEntityDictionaryStorage() {};
 
      public static EsqObjectKindStorage getInstance() {

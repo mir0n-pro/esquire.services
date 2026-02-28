@@ -8,6 +8,7 @@
  *  History:
  * 12/27/2025  mir0n extend EsqEntity correctly
  * 02/13/2026 mir0n  use EsqEntityJpa for children
+ * 02/28/2026 mir0n  empty fillPerson/fillAddress/fillBizAddress stubs added
  */
 
 
@@ -64,6 +65,12 @@ public class EsqAcct extends EsqEntity {
     @Override
     protected void fillChildren(List<EsqEntityJpa> children) {}
 
+    @Override
+    protected void fillPerson(EsqEntityJpa person) {}
+    @Override
+    protected void fillAddress(EsqEntityJpa address) {}
+    @Override
+    protected void fillBizAddress(EsqEntityJpa address) {}
 
 }
 

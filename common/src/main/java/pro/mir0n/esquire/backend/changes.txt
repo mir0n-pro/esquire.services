@@ -1,5 +1,26 @@
 Esquire Backend common microservice classes
 
+02/28/2026 mir0n  person/address subentity support added
++ added jpa.entity.EsqPersonJpa (all person fields; getName() null-safe middleName)
++ added jpa.entity.EsqAddressJpa (address/biz-address fields)
++ added dto.entity.EsqPerson (person DTO subentity; fill() from EsqPersonJpa)
++ added dto.entity.EsqAddress (address DTO subentity; fill() from EsqAddressJpa)
+dto.entity.EsqUsr
+  - person, addr, bizaddr subentity fields added
+  - fillPerson/fillAddress/fillBizAddress implemented
+dto.entity.EsqAcct, EsqOrg
+  - empty fillPerson/fillAddress/fillBizAddress stubs added
+dto.EsqEntity
+  - fillPerson/fillAddress/fillBizAddress abstract methods added
+  - fill() extended with person, address, address2 subentity params
+dto.EsqEntityFactory
+  - createUser() added with person/address/address2 subentity params
+  - createEntity() passes null for subentity params
+dto.EsqObjectKind
+  - address boolean field added
+storage.EsqObjectKindStorage
+  - UNKNOWN kind updated with address=false
+
 02/19/2026 mir0n  dictionary and object kinds extended
 dto.EsqEntityField
   - nullable field type changed from Boolean to String

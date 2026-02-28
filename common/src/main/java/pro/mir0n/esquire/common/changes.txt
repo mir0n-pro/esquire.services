@@ -1,6 +1,12 @@
-Esquire Common microservice classes 
+Esquire Common microservice classes
 
-02/12/2026 mir0n 
+02/28/2026 mir0n
+EsqConstants
+  - KIND_ADDRESS_POSTAL (988), KIND_ADDRESS_BIZ (990) added
+  - KIND_PERSON_PRIMARY (992), SECONDARY (994), JOINT (996) added
+  - SUBENTITY_PERSON, SUBENTITY_ADDRESS, SUBENTITY_ADDRESS2 string constants added
+
+02/12/2026 mir0n
 EsqConstants
   - removed CMD_DETAILS
   - DICT_ACCESS_PROFILE renamed with KIND_ACCESS_PROFILE

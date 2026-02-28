@@ -11,6 +11,8 @@
  *                   gaps in Entity Kind enumeration: system objects - orgs - users - accounts
  * 02/12/2026 mir0n  remove EsqEntityKind, use EsqObjectKind instead
  * 02/13/2026 mir0n  use EsqEntityJpa for children
+ * 02/28/2026 mir0n  createUser() added with person/address/address2 subentity params
+ *                   createEntity() passes null for subentity params
  */
 
 package pro.mir0n.esquire.backend.dto;
@@ -49,10 +51,27 @@ public class EsqEntityFactory {
         return ret;
      }
 
-    public EsqEntity createEntity (@NotNull EsqEntityJpa jpa, List<EsqNameValueJpa> custom, List<EsqEntityJpa> children ) {
+    public EsqEntity createEntity (@NotNull EsqEntityJpa jpa,
+            List<EsqNameValueJpa> custom,
+            List<EsqEntityJpa> children
+    ) {
         EsqEntity ret = createEntity (jpa.getKind());
         if (ret != null) {
-            ret.fill(jpa, custom, children);
+            ret.fill(jpa, custom, children, null, null, null);
+        }
+        return ret;
+    }
+
+    public EsqEntity createUser (@NotNull EsqEntityJpa jpa,
+                   List<EsqNameValueJpa> custom,
+                   List<EsqEntityJpa> children,
+                   EsqEntityJpa person,
+                   EsqEntityJpa address,
+                   EsqEntityJpa address2
+    ) {
+        EsqEntity ret = createEntity (jpa.getKind());
+        if (ret != null) {
+            ret.fill(jpa, custom, children, person, address, address2);
         }
         return ret;
     }
