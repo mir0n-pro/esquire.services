@@ -127,7 +127,7 @@ public interface EsqUsrRepository extends JpaRepository<EsqUsrJpa, String> {
          @Param("middleName") String middleName,
          @Param("lastName") String lastName,
          @Param("title") String title,
-        //@Param("dob") Date dob,
+         @Param("dob") String dob,
          @Param("birthPlace") String birthPlace,
          @Param("sex") String sex,
          @Param("taxId") String taxId,

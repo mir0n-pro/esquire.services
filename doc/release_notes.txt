@@ -1,6 +1,27 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v1.2.2-2603.0313
+  Roles list save added, Few fixes, new field type: "text"
+  Gateway uses default port
+    : Role/permission JPA and DTO generalized; access profile rolesAll; dict/kinds extended
+    : keySmith access profile update
+    : correct saving of address(es)
+    : save address.url
+    : modified components
+      - common
+      - enyMan
+      - keySmith
+
+v1.2.2-2603.0115
+  DOB (date of birth) field activated in person entity
+    :pe_dob enabled in SELECT and UPDATE queries (oracle + postgres)
+    :UsrService.saveUsr() now passes dob to updatePerson()
+    :EsqPerson.dob @Schema format updated to ISO-8601 (YYYY-MM-DD)
+    : modified components
+      - common
+      - enyMan
+
 v1.2.2-2602.2818
   Person and address subentity support for user detail and save
     :person

@@ -12,17 +12,20 @@
 
 package pro.mir0n.esquire.backend.dto;
 
+import lombok.extern.slf4j.Slf4j;
 import pro.mir0n.esquire.backend.jpa.EsqCustomEntityFieldJpa;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+@Slf4j
 public class EsqEntityDictionaryMapper {
     private EsqEntityDictionaryMapper() {
     }
     public static EsqEntityDictionary mapTo(List<EsqCustomEntityFieldJpa> fields, EsqEntityDictionary dictDto) {
         if (fields != null && !fields.isEmpty()) {
+            log.debug("mapTo: {} dict: {}", fields, dictDto );
             EsqEntityLayer currentLayer = null;
             for (EsqCustomEntityFieldJpa field : fields) {
                 currentLayer = dictDto.findLayer(field.getLayer());

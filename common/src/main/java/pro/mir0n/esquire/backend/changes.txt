@@ -1,5 +1,29 @@
 Esquire Backend common microservice classes
 
+03/03/2026 mir0n  role/permission JPA and DTO generalized; access profile extended
+jpa.access.EsqRoleJpa
+  - extends EsqEntityJpa; individual fields (id, name, adminFlg) removed — inherited from base
+jpa.access.EsqPermissionJpa
+  - extends EsqEntityJpa; individual id field removed — inherited from base
+dto.access.EsqRole
+  - extends EsqThing; adminFlg removed; id/name/kind inherited
+dto.access.EsqAccessProfile
+  - rolesAll field added
+  - fill() extended with rolesAll param
+dto.entity.EsqAddress
+  - url field added to fill()
+resources/esq-entity-dictionaries.xml
+  - field type: integer -> number, string -> text
+  - minmax:200 added to name/desc fields (org, usr, acct, access profile)
+  - roles-list field renamed to rolesAll
+resources/esq-object-kinds.xml
+  - kind 980 "admin" (Admin permissions) added
+  - kind 982 "tools" (Tool permissions) added
+
+03/01/2026 mir0n  DOB field format aligned with ISO-8601
+dto.entity.EsqPerson
+  - dob @Schema updated: "ISO-8601: YYYY-MM-DD", example "2001/12/31"
+
 02/28/2026 mir0n  person/address subentity support added
 + added jpa.entity.EsqPersonJpa (all person fields; getName() null-safe middleName)
 + added jpa.entity.EsqAddressJpa (address/biz-address fields)

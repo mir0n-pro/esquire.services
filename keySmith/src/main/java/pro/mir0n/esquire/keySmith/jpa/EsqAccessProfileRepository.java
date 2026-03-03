@@ -8,6 +8,8 @@
  *  History:
  * 02/19/2026 mir0n  added accessForUpdate (SELECT FOR UPDATE OF esq_user)
  *                   added updateAccess @Modifying (UPDATE esq_auth with audit columns)
+ * 03/03/2026 mir0n  added deleteUserRole / insertUserRole
+ * 03/03/2026 mir0n  added roleAll
  */
 
 package pro.mir0n.esquire.keySmith.jpa;
@@ -34,6 +36,8 @@ public interface EsqAccessProfileRepository extends JpaRepository<EsqAccessProfi
     @NativeQuery
     List<EsqRoleJpa> roles(@Param("id") String id);
     @NativeQuery
+    List<EsqRoleJpa> rolesAll(@Param("id") String id);
+    @NativeQuery
     List<EsqPermissionJpa> permissions(@Param("id") String id);
 
     @Modifying(clearAutomatically = true, flushAutomatically = false)
@@ -48,4 +52,14 @@ public interface EsqAccessProfileRepository extends JpaRepository<EsqAccessProfi
         @Param("correlationId") String correlationId,
         @Param("requestId") String requestId
     );
+
+    @Modifying(clearAutomatically = true, flushAutomatically = false)
+    @Transactional
+    @NativeQuery
+    int deleteUserRole(@Param("id") String id, @Param("roleId") String roleId);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = false)
+    @Transactional
+    @NativeQuery
+    int insertUserRole(@Param("id") String id, @Param("roleId") String roleId);
 }

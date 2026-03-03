@@ -26,10 +26,23 @@
         <query>
  SELECT role_pk
   , role_name
-  , role_admin_flg
+  , role_pt_pk
   FROM esq_role, esq_usr_role
  WHERE ur_role_pk = role_pk
    AND ur_usr_pk = :id
+        </query>
+    </named-native-query>
+
+    <named-native-query name="EsqAccessProfileJpa.rolesAll"  result-set-mapping="EsqRoleMapping">
+        <query>
+ SELECT
+  role_pk
+ ,role_name
+ ,role_pt_pk
+ FROM esq_role, esq_user, esq_role_et
+ WHERE rt_role_pk = role_pk
+ AND usr_et_pk = rt_et_pk
+ AND usr_pk = :id
         </query>
     </named-native-query>
 
@@ -68,6 +81,20 @@ WHERE pt_pk = prm_pt_pk
         </query>
     </named-native-query>
 
+    <named-native-query name="EsqAccessProfileJpa.deleteUserRole">
+        <query>
+ DELETE FROM esq_usr_role
+ WHERE ur_usr_pk = :id
+   AND ur_role_pk = :roleId
+        </query>
+    </named-native-query>
+
+    <named-native-query name="EsqAccessProfileJpa.insertUserRole">
+        <query>
+ INSERT INTO esq_usr_role (ur_usr_pk, ur_role_pk) VALUES (:id, :roleId)
+        </query>
+    </named-native-query>
+
     <named-native-query name="EsqAccessProfileJpa.updateAccess">
         <query>
  UPDATE esq_auth
@@ -98,7 +125,7 @@ WHERE pt_pk = prm_pt_pk
         <entity-result entity-class="pro.mir0n.esquire.backend.jpa.access.EsqRoleJpa">
             <field-result name="id" column="role_pk"/>
             <field-result name="name" column="role_name"/>
-            <field-result name="adminFlg" column="role_admin_flg"/>
+            <field-result name="kind" column="role_pt_pk"/>
         </entity-result>
     </sql-result-set-mapping>
 

@@ -7,6 +7,7 @@
  *
  *  History:
  * 02/03/2026 mir0n  extends EsqThing
+ * 03/03/2026 mir0n  rolesAll field added; fill() extended with rolesAll param
  */
 
 package pro.mir0n.esquire.backend.dto.access;
@@ -63,6 +64,11 @@ public class EsqAccessProfile extends EsqThing {
     )
     private List<EsqRole> roles;
 
+    @Schema(
+            description = "List of all roles accessible to user", example = "TREE, MANAGER"
+    )
+    private List<EsqRole> rolesAll;
+
     @JsonIgnore
     private Map<String, List<EsqPermission>> permissions;
 
@@ -75,7 +81,7 @@ public class EsqAccessProfile extends EsqThing {
     }
 
 
-    public EsqAccessProfile fill (EsqAccessProfileJpa jpa, List<EsqRoleJpa> roles, List<EsqPermissionJpa> permissions) {
+    public EsqAccessProfile fill (EsqAccessProfileJpa jpa, List<EsqRoleJpa> roles, List<EsqRoleJpa> rolesAll,  List<EsqPermissionJpa> permissions) {
         setId(String.valueOf(jpa.getId()));
         setKind(jpa.getKind());
         setName(jpa.getName());
@@ -86,6 +92,10 @@ public class EsqAccessProfile extends EsqThing {
         setRoles(new ArrayList<>());
         if (roles != null) {
             roles.forEach(r -> getRoles().add(new EsqRole().fill(r)));
+        }
+        setRolesAll(new ArrayList<>());
+        if (rolesAll != null) {
+            rolesAll.forEach(r -> getRolesAll().add(new EsqRole().fill(r)));
         }
         setPermissions(new HashMap<>());
         for(EsqPermissionJpa perm : permissions) {

@@ -7,6 +7,7 @@
  *
  *  History:
  * 02/04/2026 mir0n adminFlg added
+ * 03/03/2026 mir0n  extends EsqThing; adminFlg removed; id/name/kind inherited from EsqThing
  */
 
 package pro.mir0n.esquire.backend.dto.access;
@@ -14,6 +15,7 @@ package pro.mir0n.esquire.backend.dto.access;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.*;
 import lombok.experimental.SuperBuilder;
+import pro.mir0n.esquire.backend.dto.EsqThing;
 import pro.mir0n.esquire.backend.jpa.access.EsqRoleJpa;
 
 @Data
@@ -22,28 +24,14 @@ import pro.mir0n.esquire.backend.jpa.access.EsqRoleJpa;
         description = "Role identification"
 )
 @SuperBuilder
-public class EsqRole {
-    public EsqRole() {}
-
-    @Schema(
-            description = "Role ID", example = "100"
-    )
-    private int id;
-
-    @Schema(
-            description = "Role Name", example = "TREE"
-    )
-    private String name;
-
-    @Schema(
-            description = "Role Admin Flag", example = "Y"
-    )
-    private String adminFlg;
+@EqualsAndHashCode(callSuper = true)
+public class EsqRole extends EsqThing {
+    public EsqRole() {super();}
 
     public EsqRole fill (EsqRoleJpa jpa) {
         setId(jpa.getId());
         setName(jpa.getName());
-        setAdminFlg(jpa.getAdminFlg());
+        setKind(jpa.getKind());
         return this;
     }
 

@@ -455,6 +455,23 @@
       </commands>
     </kind>
 
+<!-- Role/Permissions kind: Admin -->
+    <kind>
+      <id>980</id>
+      <name>admin</name>
+      <title>Admin permissions</title>
+      <desc>Admin permissions/role</desc>
+    </kind>
+<!-- Role/Permissions kind: Tools -->
+    <kind>
+      <id>982</id>
+      <name>tools</name>
+      <title>Tool permissions</title>
+      <desc>Tool permissions/role</desc>
+    </kind>
+<!-- 984: Reserved Role/Permissions kind: Applications -->
+<!-- 986: Reserved Role/Permissions kind: Reports -->
+
 <!-- Postal address -->
     <kind>
       <id>988</id>

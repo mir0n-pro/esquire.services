@@ -7,6 +7,7 @@
  *
  *  History:
  * 02/28/2026 mir0n  created: person DTO subentity
+ * 03/01/2026 mir0n  dob @Schema updated: ISO-8601 format (YYYY-MM-DD)
  */
 
 package pro.mir0n.esquire.backend.dto.entity;
@@ -54,7 +55,7 @@ public class EsqPerson extends EsqThing {
     private String title;
     
     @Schema(
-            description = "Date of birthday", example = "01/01/2001"
+            description = "Date of birthday, ISO-8601: YYYY-MM-DD", example = "2001/12/31"
     )
     private String dob;
     

@@ -119,7 +119,7 @@
         <query>
             SELECT
                 TO_CHAR(ad_pk) AS "ad_pk",
-                990 AS "ad_kind",
+                988 AS "ad_kind",
                 ad_desc,
                 ad_addr,
                 ad_addr2,
@@ -219,6 +219,7 @@
          ,pe_middle_name
          ,pe_last_name
          ,pe_title
+         ,TO_CHAR(TRUNC(pe_dob), 'YYYY-MM-DD') AS "pe_dob"
          ,pe_birth_place
          ,pe_sex
          ,pe_tax_id
@@ -242,6 +243,7 @@
         ,pe_middle_name = :middleName
         ,pe_last_name = :lastName
         ,pe_title = :title
+        ,pe_dob = TRUNC(TO_DATE(:dob, 'YYYY-MM-DD'))
         ,pe_birth_place = :birthPlace
         ,pe_sex = :sex
         ,pe_tax_id = :taxId
@@ -319,6 +321,7 @@
             <field-result name="middleName" column="pe_middle_name"/>
             <field-result name="lastName" column="pe_last_name"/>
             <field-result name="title" column="pe_title"/>
+            <field-result name="dob" column="pe_dob"/>
             <field-result name="birthPlace" column="pe_birth_place"/>
             <field-result name="sex" column="pe_sex"/>
             <field-result name="taxId" column="pe_tax_id"/>

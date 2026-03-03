@@ -7,6 +7,7 @@
  *
  *  History:
  * 02/28/2026 mir0n  created: address DTO subentity
+ * 03/03/2026 mir0n  url field added to fill()
  */
 
 package pro.mir0n.esquire.backend.dto.entity;
@@ -116,6 +117,7 @@ public class EsqAddress extends EsqThing {
         this.postalCode = address.getPostalCode();
         this.province = address.getProvince();
         this.title = address.getTitle();
+        this.url = address.getUrl();
     }
 
 

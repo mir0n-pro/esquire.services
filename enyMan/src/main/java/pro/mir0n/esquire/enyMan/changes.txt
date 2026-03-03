@@ -1,5 +1,21 @@
 Esquire enyMan Microservice
 
+03/03/2026 mir0n  sub-entity update id fix
+service.impl.UsrService
+  - updatePerson/updateAddress/updateAddress2: use user id instead of sub-entity id
+
+03/01/2026 mir0n  DOB (date of birth) field activated in person entity
+service.impl.UsrService
+  - prsn.getDob() uncommented — DOB now passed to updatePerson()
+META-INF/oracle-entity.xml
+  - pe_dob added to person SELECT (TO_CHAR(TRUNC(pe_dob),'YYYY-MM-DD'))
+  - pe_dob added to person UPDATE (TRUNC(TO_DATE(:dob,'YYYY-MM-DD')))
+  - field-result "dob" -> "pe_dob" added to EsqPersonJpaMapping
+META-INF/postgres-entity.xml
+  - pe_dob activated in person SELECT (TO_CHAR(pe_dob,'YYYY-MM-DD'))
+  - pe_dob activated in person UPDATE (CAST(:dob AS DATE))
+  - field-result "dob" -> "pe_dob" activated in EsqPersonJpaMapping
+
 02/28/2026 mir0n  service layer refactored: OrgService/UsrService split from EnyManService
 + added service.impl.AEnyManService (abstract base: esquireDictionary(), applyFields())
 + added service.impl.OrgService (org command/save; saveOrg() moved from EnyManService)

@@ -10,6 +10,8 @@
  *                   FlushModeType.COMMIT prevents Hibernate auto-flush before native queries
  *                   esquireKeySave() with saveAccess() helper
  *                   ACCESS_WRITABLE = {email, loginId, pwdChangeForced, tfaMethod}
+ * 03/03/2026 mir0n  saveAccess(): roles list change detection added
+ *                   deleting roles/ adding roles inserted
  */
 
 package pro.mir0n.esquire.keySmith.service.impl;
@@ -57,9 +59,10 @@ public class KeySmithService implements IKeySmithService {
             throw new ResourceNotFoundException("esquireKey", "id", upk);
         }
         List<EsqRoleJpa> roles = accessProfileRepository.roles(upk);
+        List<EsqRoleJpa> rolesAll = accessProfileRepository.rolesAll(upk);
         List<EsqPermissionJpa> permissions = accessProfileRepository.permissions(upk);
 
-        EsqAccessProfile ret = new EsqAccessProfile().fill(jpa, roles, permissions);
+        EsqAccessProfile ret = new EsqAccessProfile().fill(jpa, roles, rolesAll, permissions);
         log.debug("srvc: esquireKey(2): accessProfile:{}",  ret);
         return  ret;
     }
@@ -74,7 +77,7 @@ public class KeySmithService implements IKeySmithService {
 
         EsqAccessProfileJpa[] updated = {null};
         List<EsqRoleJpa>[] roles = new List[]{null};
-        List<EsqPermissionJpa>[] permissions = new List[]{null};
+        List<EsqRoleJpa>[] rolesAll = new List[]{null};
 
         transactionTemplate.execute(status -> {
             // xxx: COMMIT flush mode prevents Hibernate from auto-flushing managed entities
@@ -83,11 +86,12 @@ public class KeySmithService implements IKeySmithService {
             //      @Modifying queries clears the context after each native update, so nothing
             //      remains to flush at commit.
             em.setFlushMode(FlushModeType.COMMIT);
-            saveAccess(upk, fields, rootPath, uid, correlationId, requestId, updated, roles, permissions);
+            saveAccess(upk, fields, rootPath, uid, correlationId, requestId, updated, roles, rolesAll);
             return null;
         }); // ← transaction commits here
 
-        EsqAccessProfile ret = new EsqAccessProfile().fill(updated[0], roles[0], permissions[0]);
+        List<EsqPermissionJpa> permissions = accessProfileRepository.permissions(upk);
+        EsqAccessProfile ret = new EsqAccessProfile().fill(updated[0], roles[0], rolesAll[0], permissions);
         log.debug("srvc: esquireKeySave(2): accessProfile:{}", ret);
         return ret;
     }
@@ -95,7 +99,7 @@ public class KeySmithService implements IKeySmithService {
     private void saveAccess(String id, Map<String, Object> fields, String rootPath,
                             String uid, String correlationId, String requestId,
                             EsqAccessProfileJpa[] updated,
-                            List<EsqRoleJpa>[] roles, List<EsqPermissionJpa>[] permissions) {
+                            List<EsqRoleJpa>[] roles, List<EsqRoleJpa>[] rolesAll) {
         EsqAccessProfileJpa jpa = accessProfileRepository.accessForUpdate(id, rootPath);
         if (jpa == null) {
             throw new ResourceNotFoundException("saveAccess", "id", id);
@@ -103,10 +107,46 @@ public class KeySmithService implements IKeySmithService {
         if (applyFields(jpa, fields, ACCESS_WRITABLE)) {
             accessProfileRepository.updateAccess(id, jpa.getEmail(), jpa.getLoginId(), jpa.getPwdChangeForced(), jpa.getTfaMethod(), uid, correlationId, requestId);
         }
+        List<EsqRoleJpa> originRoles = accessProfileRepository.roles(id);
+        Set<String> originIds = new HashSet<>();
+        for (EsqRoleJpa r : originRoles) {
+            originIds.add(r.getId());
+        }
+
+        if (fields.containsKey("roles")) {
+            List<EsqRoleJpa> givenRoles = new ArrayList<>();
+            Set<String> givenIds = new HashSet<>();
+            for (Object r : (List<?>) fields.get("roles")) {
+                if (r instanceof Map) {
+                    EsqRoleJpa jpaRole = new EsqRoleJpa();
+                    Object roleId = ((Map<?, ?>) r).get("id");
+                    Object kind = ((Map<?, ?>) r).get("kind");
+                    Object name = ((Map<?, ?>) r).get("name");
+                    jpaRole.setId(String.valueOf(roleId));
+                    jpaRole.setKind(Integer.parseInt(String.valueOf(kind)));
+                    jpaRole.setName(String.valueOf(name));
+                    givenRoles.add(jpaRole);
+                    givenIds.add(jpaRole.getId());
+                }
+            }
+            for (String rid : originIds) {
+                if (!givenIds.contains(rid)) {
+                    accessProfileRepository.deleteUserRole(id, rid);
+                }
+            }
+            for (String rid : givenIds) {
+                if (!originIds.contains(rid)) {
+                    accessProfileRepository.insertUserRole(id, rid);
+                }
+            }
+            roles[0] = givenRoles;
+        } else {
+            roles[0] = originRoles;
+        }
+
         //note: if a DB trigger or default value modifies the row, saveAccess won't reflect it.
         updated[0]     = jpa;
-        roles[0]       = accessProfileRepository.roles(id);
-        permissions[0] = accessProfileRepository.permissions(id);
+        rolesAll[0]    = accessProfileRepository.rolesAll(id);
     }
 
     private static final Set<String> ACCESS_WRITABLE = Set.of("email", "loginId", "pwdChangeForced", "tfaMethod");

@@ -9,6 +9,8 @@
  * 02/28/2026 mir0n  created: usr command/save service (split from EnyManService)
  *                   esquireCommand(), esquireCommandSave(), saveUsr() moved from EnyManService
  *                   person/address/bizaddr subentity read and update support added
+ * 03/01/2026 mir0n  prsn.getDob() uncommented — DOB field now active in updatePerson()
+ * 03/03/2026 mir0n  updatePerson/updateAddress/updateAddress2: use user id instead of sub-entity id
  */
 
 package pro.mir0n.esquire.enyMan.service.impl;
@@ -164,13 +166,13 @@ public class UsrService  extends AEnyManService {
 
             fields.put("name", prsn.getName());  //xxx set a user's name based on first, middle, last names
 
-            usrRepository.updatePerson(prsn.getId(),
+            usrRepository.updatePerson(id,
                     prsn.getKind(),
                     prsn.getFirstName(),
                     prsn.getMiddleName(),
                     prsn.getLastName(),
                     prsn.getTitle(),
-                    //prsn.getDob(),
+                    prsn.getDob(),
                     prsn.getBirthPlace(),
                     prsn.getSex(),
                     prsn.getTaxId(),
@@ -209,7 +211,7 @@ public class UsrService  extends AEnyManService {
                 //addr.setId(id);
                 Map<String, Object> maddr = (Map<String, Object>) fields.get(EsqConstants.SUBENTITY_ADDRESS);
                 if (applyFields(addr, maddr, null)) {
-                    usrRepository.updateAddress(addr.getId(), EsqConstants.KIND_PERSON_PRIMARY, addr.getDesc(),
+                    usrRepository.updateAddress(id, EsqConstants.KIND_PERSON_PRIMARY, addr.getDesc(),
                             addr.getAddr(), addr.getAddr2(), addr.getCity(), addr.getCompany(),
                             addr.getCountry(), addr.getDepartment(), addr.getFax(),
                             addr.getPostalCode(), addr.getProvince(), addr.getTitle(), addr.getUrl(),
@@ -222,7 +224,7 @@ public class UsrService  extends AEnyManService {
                 //addr2.setId(id);
                 Map<String, Object> maddr2 = (Map<String, Object>) fields.get(EsqConstants.SUBENTITY_ADDRESS2);
                 if (applyFields(addr2, maddr2, null)) {
-                    usrRepository.updateAddress2(addr2.getId(), EsqConstants.KIND_PERSON_PRIMARY, addr2.getDesc(),
+                    usrRepository.updateAddress2(id, EsqConstants.KIND_PERSON_PRIMARY, addr2.getDesc(),
                             addr2.getAddr(), addr2.getAddr2(), addr2.getCity(), addr2.getCompany(),
                             addr2.getCountry(), addr2.getDepartment(), addr2.getFax(),
                             addr2.getPostalCode(), addr2.getProvince(), addr2.getTitle(), addr2.getUrl(),

@@ -1,5 +1,16 @@
 Esquire keySmith Microservice
 
+03/03/2026 mir0n  roles list save added to saveAccess()
+service.impl.KeySmithService  
+  - saveAccess(): roles list change detection added
+  - deleting roles/ adding roles inserted
+jpa.EsqAccessProfileRepository
+  - added deleteUserRole
+  - added insertUserRole
+META-INF/oracle-access-profile.xml, postgres-access-profile.xml
+  - added deleteUserRole
+  - added insertUserRole
+
 02/19/2026 mir0n  save (update) functionality added
 controller.KeySmithController
   - added esquireKeySave() POST /esq-key-save

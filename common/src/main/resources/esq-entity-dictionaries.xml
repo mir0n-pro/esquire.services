@@ -659,7 +659,7 @@
                             <name>kind</name>
                             <sort>0</sort>
                             <label>Kind</label>
-                            <type>integer</type>
+                            <type>number</type>
                             <tooltip>Person entity Kind</tooltip>
                             <readwrite>0</readwrite>
                         </field>
@@ -667,9 +667,10 @@
                             <name>desc</name>
                             <sort>1</sort>
                             <label>Description</label>
-                            <type>string</type>
+                            <type>text</type>
                             <tooltip>Address description or additional info</tooltip>
                             <readwrite>3</readwrite>
+                            <minmax>200</minmax>
                             <nullable>Y</nullable>
                             <personal>Y</personal>
                         </field>
@@ -807,7 +808,7 @@
                             <name>kind</name>
                             <sort>0</sort>
                             <label>Kind</label>
-                            <type>integer</type>
+                            <type>number</type>
                             <tooltip>Person entity Kind</tooltip>
                             <readwrite>0</readwrite>
                         </field>
@@ -815,9 +816,10 @@
                             <name>desc</name>
                             <sort>1</sort>
                             <label>Description</label>
-                            <type>string</type>
+                            <type>text</type>
                             <tooltip>Address description or additional info</tooltip>
                             <readwrite>3</readwrite>
+                            <minmax>200</minmax>
                             <nullable>Y</nullable>
                             <personal>Y</personal>
                         </field>
@@ -957,7 +959,7 @@
                             <name>kind</name>
                             <sort>0</sort>
                             <label>Kind</label>
-                            <type>integer</type>
+                            <type>number</type>
                             <tooltip>Person Entity Kind</tooltip>
                             <readwrite>0</readwrite>
                         </field>
@@ -1033,7 +1035,7 @@
                             <personal>Y</personal>
                             <validation>^[0-9 ']+$</validation>
                         </field>
-                        <!-- field>
+                        <field>
                             <name>dob</name>
                             <sort>8</sort>
                             <label>DOB</label>
@@ -1042,7 +1044,7 @@
                             <readwrite>3</readwrite>
                             <nullable>Y</nullable>
                             <personal>Y</personal>
-                        </field -->
+                        </field>
                         <field>
                             <name>birthPlace</name>
                             <sort>9</sort>
@@ -1157,7 +1159,7 @@
                             <name>kind</name>
                             <sort>0</sort>
                             <label>Kind</label>
-                            <type>integer</type>
+                            <type>number</type>
                             <tooltip>Entity Kind</tooltip>
                             <readwrite>0</readwrite>
                         </field>
@@ -1219,7 +1221,7 @@
                             <readwrite>3</readwrite>
                         </field>
                         <field>
-                            <name>roles-list</name>
+                            <name>rolesAll</name>
                             <type>listvalues</type>
                             <readwrite>0</readwrite>
                         </field>
