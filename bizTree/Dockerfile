@@ -1,18 +1,18 @@
-# Stage 1: Build the application
-# Use the full JDK for building
-#FROM eclipse-temurin:21-jdk-jammy AS builder
-#WORKDIR /app
+# Multi-stage build — build context: esquire.services/
+FROM eclipse-temurin:21-jdk-jammy AS builder
+WORKDIR /build
+RUN apt-get update && apt-get install -y maven && rm -rf /var/lib/apt/lists/*
+COPY pom.xml .
+COPY common/ common/
+COPY bizTree/ bizTree/
+COPY gateway/ gateway/
+COPY enyMan/ enyMan/
+COPY pacMan/ pacMan/
+COPY keySmith/ keySmith/
+RUN mvn clean package -pl common,bizTree -am -DskipTests -q
 
 FROM eclipse-temurin:21-jre-jammy
 WORKDIR /app
-
-# Create a non-root user for security
 RUN useradd -ms /bin/bash springuser
 USER springuser
-
-# Copy the JAR file that was built locally on your machine into the container
-# This assumes you ran 'mvn clean package' before running 'docker compose build'
-COPY target/*.jar app.jar
-
-# Define how to start the application
-#ENTRYPOINT ["java", "-jar", "app.jar"]
+COPY --from=builder /build/bizTree/target/*.jar app.jar
