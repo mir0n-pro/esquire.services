@@ -14,8 +14,10 @@
                             <sort>1</sort>
                             <label>Name</label>
                             <type>string</type>
-                            <tooltip>System name</tooltip>
+                            <tooltip>System short name</tooltip>
                             <readwrite>1</readwrite>
+                            <minmax>50</minmax>
+                            <validation>^[\x20-\x7E]+</validation>
                         </field>
                     </fields>
                 </layer>
@@ -28,8 +30,9 @@
                             <sort>1</sort>
                             <label>Description</label>
                             <type>tabstring</type>
-                            <tooltip>system Description</tooltip>
+                            <tooltip>System description</tooltip>
                             <readwrite>1</readwrite>
+                            <minmax>1024</minmax>
                         </field>
                     </fields>
                 </layer>
@@ -49,12 +52,12 @@
                             <sort>1</sort>
                             <label>Name</label>
                             <type>string</type>
-                            <tooltip>Organization short name. No special characters</tooltip>
+                            <tooltip>Organization short name</tooltip>
                             <readwrite>3</readwrite>
                             <nullable>N</nullable>
                             <readwrite>3</readwrite>
                             <minmax>50</minmax>
-                            <validation>^[a-zA-Z0-9 ']+$</validation>
+                            <validation>^[\x20-\x7E]+$</validation>
                             <!-- listvalues></listvalues -->
                             <!-- nullable></nullable -->
                             <!-- nullmeaning></nullmeaning -->
@@ -69,7 +72,8 @@
                             <tooltip>Organization full name</tooltip>
                             <nullable>Y</nullable>
                             <readwrite>3</readwrite>
-                            <minmax>200</minmax>
+                            <minmax>150</minmax>
+                            <validation>^[\x20-\x7E]+</validation>
                         </field>
                     </fields>
                 </layer>
@@ -82,10 +86,10 @@
                             <sort>1</sort>
                             <label>Description</label>
                             <type>tabstring</type>
-                            <tooltip>Organization Description</tooltip>
+                            <tooltip>Organization description</tooltip>
                             <nullable>Y</nullable>
                             <readwrite>3</readwrite>
-                            <minmax>100</minmax>
+                            <minmax>1024</minmax>
                         </field>
                     </fields>
                 </layer>
@@ -105,24 +109,30 @@
                             <sort>1</sort>
                             <label>Name</label>
                             <type>string</type>
-                            <tooltip>User name</tooltip>
+                            <tooltip>User name: First M. Last</tooltip>
                             <readwrite>1</readwrite>
+                            <minmax>50</minmax>
+                            <validation>^[\x20-\x7E]+</validation>
                         </field>
                         <field>
                             <name>loginId</name>
                             <sort>2</sort>
                             <label>Login ID</label>
                             <type>string</type>
-                            <tooltip>Login ID</tooltip>
+                            <tooltip>User Login ID</tooltip>
                             <readwrite>1</readwrite>
+                            <minmax>50</minmax>
+                            <validation>^[\x20-\x7E]+</validation>
                         </field>
                         <field>
                             <name>email</name>
                             <sort>3</sort>
                             <label>Email</label>
                             <type>string</type>
-                            <tooltip>Email address</tooltip>
+                            <tooltip>User authentication email address</tooltip>
                             <readwrite>1</readwrite>
+                            <minmax>50</minmax>
+                            <validation>^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$</validation>
                         </field>
                     </fields>
                 </layer>
@@ -145,9 +155,10 @@
                             <sort>1</sort>
                             <label>Description</label>
                             <type>tabstring</type>
-                            <tooltip>Admin Description</tooltip>
+                            <tooltip>Sysadmin description</tooltip>
                             <nullable>Y</nullable>
                             <readwrite>3</readwrite>
+                            <minmax>1024</minmax>
                         </field>
                     </fields>
                 </layer>
@@ -167,24 +178,30 @@
                             <sort>1</sort>
                             <label>Name</label>
                             <type>string</type>
-                            <tooltip>User name</tooltip>
+                            <tooltip>User name: First M. Last</tooltip>
                             <readwrite>1</readwrite>
+                            <minmax>50</minmax>
+                            <validation>^[\x20-\x7E]+</validation>
                         </field>
                         <field>
                             <name>loginId</name>
                             <sort>2</sort>
                             <label>Login ID</label>
                             <type>string</type>
-                            <tooltip>Login ID</tooltip>
+                            <tooltip>User Login ID</tooltip>
                             <readwrite>1</readwrite>
+                            <minmax>50</minmax>
+                            <validation>^[\x20-\x7E]+</validation>
                         </field>
                         <field>
                             <name>email</name>
                             <sort>3</sort>
                             <label>Email</label>
                             <type>string</type>
-                            <tooltip>Email address</tooltip>
+                            <tooltip>User authentication email address</tooltip>
                             <readwrite>1</readwrite>
+                            <minmax>50</minmax>
+                            <validation>^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$</validation>
                         </field>
                     </fields>
                 </layer>
@@ -207,9 +224,10 @@
                             <sort>1</sort>
                             <label>Description</label>
                             <type>tabstring</type>
-                            <tooltip>Admin Description</tooltip>
+                            <tooltip>Administrator description</tooltip>
                             <nullable>Y</nullable>
                             <readwrite>3</readwrite>
+                            <minmax>1024</minmax>
                         </field>
                     </fields>
                 </layer>
@@ -229,16 +247,20 @@
                             <sort>1</sort>
                             <label>Name</label>
                             <type>string</type>
-                            <tooltip>User name</tooltip>
+                            <tooltip>User name: First M. Last</tooltip>
                             <readwrite>1</readwrite>
+                            <minmax>50</minmax>
+                            <validation>^[\x20-\x7E]+</validation>
                         </field>
                         <field>
                             <name>loginId</name>
                             <sort>2</sort>
                             <label>Login ID</label>
                             <type>string</type>
-                            <tooltip>Login ID</tooltip>
+                            <tooltip>User Login ID</tooltip>
                             <readwrite>1</readwrite>
+                            <minmax>50</minmax>
+                            <validation>^[\x20-\x7E]+</validation>
                         </field>
                         <field>
                             <name>registration</name>
@@ -250,21 +272,25 @@
                             <tooltip>Registration option</tooltip>
                             <personal>Y</personal>
                             <readwrite>3</readwrite>
+                            <minmax>25</minmax>
+                            <validation>^[\x20-\x7E]+</validation>
                         </field>
                         <field>
                             <name>email</name>
                             <sort>3</sort>
                             <label>Email</label>
                             <type>string</type>
-                            <tooltip>Email address</tooltip>
+                            <tooltip>User authentication email address</tooltip>
                             <readwrite>1</readwrite>
+                            <minmax>50</minmax>
+                            <validation>^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$</validation>
                         </field>
                         <field>
                             <name>deleted</name>
                             <sort>4</sort>
                             <label>Deleted</label>
                             <type>flag</type>
-                            <tooltip>Deleted Flag</tooltip>
+                            <tooltip>Marked as deleted</tooltip>
                             <readwrite>3</readwrite>
                         </field>
                     </fields>
@@ -323,9 +349,10 @@
                             <sort>1</sort>
                             <label>Description</label>
                             <type>tabstring</type>
-                            <tooltip>Client Description</tooltip>
+                            <tooltip>Client description</tooltip>
                             <nullable>Y</nullable>
                             <readwrite>3</readwrite>
+                            <minmax>1024</minmax>
                         </field>
                     </fields>
                 </layer>
@@ -345,31 +372,37 @@
                             <sort>1</sort>
                             <label>Name</label>
                             <type>string</type>
-                            <tooltip>User name</tooltip>
+                            <tooltip>User name: First M. Last</tooltip>
                             <readwrite>1</readwrite>
+                            <minmax>50</minmax>
+                            <validation>^[\x20-\x7E]+</validation>
                         </field>
                         <field>
                             <name>loginId</name>
                             <sort>2</sort>
                             <label>Login ID</label>
                             <type>string</type>
-                            <tooltip>Login ID</tooltip>
+                            <tooltip>User Login ID</tooltip>
                             <readwrite>1</readwrite>
+                            <minmax>50</minmax>
+                            <validation>^[\x20-\x7E]+</validation>
                         </field>
                         <field>
                             <name>email</name>
                             <sort>3</sort>
                             <label>Email</label>
                             <type>string</type>
-                            <tooltip>Email address</tooltip>
+                            <tooltip>User authentication email address</tooltip>
                             <readwrite>1</readwrite>
+                            <minmax>50</minmax>
+                            <validation>^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$</validation>
                         </field>
                         <field>
                             <name>deleted</name>
                             <sort>4</sort>
                             <label>Deleted</label>
                             <type>flag</type>
-                            <tooltip>Deleted Flag</tooltip>
+                            <tooltip>Marked as deleted</tooltip>
                             <readwrite>1</readwrite>
                         </field>
                     </fields>
@@ -428,9 +461,10 @@
                             <sort>1</sort>
                             <label>Description</label>
                             <type>tabstring</type>
-                            <tooltip>Merchant Description</tooltip>
+                            <tooltip>Merchant description</tooltip>
                             <nullable>Y</nullable>
                             <readwrite>3</readwrite>
+                            <minmax>1024</minmax>
                         </field>
                     </fields>
                 </layer>
@@ -452,22 +486,31 @@
                             <type>string</type>
                             <tooltip>Account ID</tooltip>
                             <readwrite>1</readwrite>
+                            <minmax>50</minmax>
+                            <validation>^[\x20-\x7E]+</validation>
                         </field>
                         <field>
                             <name>ccy</name>
                             <sort>2</sort>
                             <label>Currency</label>
                             <type>string</type>
-                            <tooltip>Account Currency</tooltip>
-                            <readwrite>1</readwrite>
+                            <tooltip>Account denomination, 3 characters currency code</tooltip>
+                            <listvalues>
+                                <value>USD</value>
+                                <value>EUR</value>
+                            </listvalues>
+                            <validation>^(USD|EUR)$</validation>
+                            <nullable>N</nullable>
+                            <readwrite>3</readwrite>
                         </field>
                         <field>
                             <name>balance</name>
                             <sort>3</sort>
                             <label>Balance</label>
                             <type>number</type>
-                            <tooltip>Balance in account currency</tooltip>
+                            <tooltip>Account balance</tooltip>
                             <readwrite>1</readwrite>
+                            <nullable>N</nullable>
                             <format>#,##0.00</format>
                         </field>
                         <field>
@@ -475,13 +518,15 @@
                             <sort>4</sort>
                             <label>Status</label>
                             <type>string</type>
-                            <tooltip>Account Status</tooltip>
+                            <tooltip>Account status</tooltip>
                             <listvalues>
                                 <value>O~Open</value>
                                 <value>L~Locked</value>
                                 <value>C~Closed</value>
                             </listvalues>
-                            <readwrite>1</readwrite>
+                            <validation>^(O|L|C)$</validation>
+                            <nullable>N</nullable>
+                            <readwrite>3</readwrite>
                         </field>
                     </fields>
                 </layer>
@@ -494,9 +539,10 @@
                             <sort>1</sort>
                             <label>Description</label>
                             <type>tabstring</type>
-                            <tooltip>Account Description</tooltip>
+                            <tooltip>Account description</tooltip>
                             <nullable>Y</nullable>
                             <readwrite>3</readwrite>
+                            <minmax>1024</minmax>
                         </field>
                     </fields>
                 </layer>
@@ -519,38 +565,47 @@
                             <type>string</type>
                             <tooltip>Account ID</tooltip>
                             <readwrite>1</readwrite>
+                            <minmax>50</minmax>
+                            <validation>^[\x20-\x7E]+</validation>
                         </field>
                         <field>
                             <name>ccy</name>
                             <sort>2</sort>
                             <label>Currency</label>
                             <type>string</type>
-                            <tooltip>Account Currency</tooltip>
-                            <readwrite>1</readwrite>
+                            <tooltip>Account denomination, 3 characters currency code</tooltip>
+                            <listvalues>
+                                <value>USD</value>
+                                <value>EUR</value>
+                            </listvalues>
+                            <validation>^(USD|EUR)$</validation>
+                            <readwrite>3</readwrite>
+                            <nullable>N</nullable>
                         </field>
                         <field>
                             <name>balance</name>
                             <sort>3</sort>
                             <label>Balance</label>
                             <type>number</type>
-                            <tooltip>Balance in account currency</tooltip>
+                            <tooltip>Account balance</tooltip>
+                            <nullable>N</nullable>
                             <readwrite>1</readwrite>
+                            <format>#,##0.00</format>
                         </field>
                         <field>
                         <name>status</name>
                             <sort>4</sort>
                             <label>Status</label>
                             <type>string</type>
-                            <tooltip>Account Status</tooltip>
+                            <tooltip>Account status</tooltip>
                             <listvalues>
                                 <value>O~Open</value>
                                 <value>L~Locked</value>
                                 <value>C~Closed</value>
                             </listvalues>
-                            <nullable>Y</nullable>
-                            <nullmeaning>[inherited]</nullmeaning>
+                            <validation>^(O|L|C)$</validation>
+                            <nullable>N</nullable>
                             <readwrite>3</readwrite>
-                            <minmax>100</minmax>
                         </field>
                     </fields>
                 </layer>
@@ -563,9 +618,10 @@
                             <sort>1</sort>
                             <label>Description</label>
                             <type>tabstring</type>
-                            <tooltip>Account Description</tooltip>
+                            <tooltip>Account description</tooltip>
                             <nullable>Y</nullable>
                             <readwrite>3</readwrite>
+                            <minmax>1024</minmax>
                         </field>
                     </fields>
                 </layer>
@@ -587,22 +643,30 @@
                             <type>string</type>
                             <tooltip>Account ID</tooltip>
                             <readwrite>1</readwrite>
+                            <minmax>50</minmax>
+                            <validation>^[\x20-\x7E]+</validation>
                         </field>
                         <field>
                             <name>ccy</name>
                             <sort>2</sort>
                             <label>Currency</label>
                             <type>string</type>
-                            <tooltip>Account Currency</tooltip>
-                            <readwrite>1</readwrite>
+                            <tooltip>Account denomination, 3 characters currency code</tooltip>
+                            <listvalues>
+                                <value>USD</value>
+                                <value>EUR</value>
+                            </listvalues>
+                            <validation>^(USD|EUR)$</validation>
+                            <nullable>N</nullable>
+                            <readwrite>3</readwrite>
                         </field>
                         <field>
                             <name>balance</name>
                             <sort>3</sort>
                             <label>Balance</label>
                             <type>number</type>
-                            <tooltip>Balance in account currency, any number: 100-100000</tooltip>
-                            <readwrite>4</readwrite>
+                            <tooltip>Account balance</tooltip>
+                            <readwrite>3</readwrite>
                             <format>#,##0.00</format>
                             <minmax>100,100000</minmax>
                         </field>
@@ -611,13 +675,15 @@
                             <sort>4</sort>
                             <label>Status</label>
                             <type>string</type>
-                            <tooltip>Account Status</tooltip>
+                            <tooltip>Account status</tooltip>
                             <listvalues>
                                 <value>O~Open</value>
                                 <value>L~Locked</value>
                                 <value>C~Closed</value>
                             </listvalues>
-                            <readwrite>1</readwrite>
+                            <validation>^(O|L|C)$</validation>
+                            <nullable>N</nullable>
+                            <readwrite>3</readwrite>
                         </field>
                     </fields>
                 </layer>
@@ -630,9 +696,10 @@
                             <sort>1</sort>
                             <label>Description</label>
                             <type>tabstring</type>
-                            <tooltip>Account Description</tooltip>
+                            <tooltip>Account description</tooltip>
                             <nullable>Y</nullable>
                             <readwrite>3</readwrite>
+                            <minmax>1024</minmax>
                         </field>
                     </fields>
                 </layer>
@@ -652,7 +719,6 @@
                             <sort>0</sort>
                             <label>ID</label>
                             <type>string</type>
-                            <tooltip>User ID</tooltip>
                             <readwrite>0</readwrite>
                         </field>
                         <field>
@@ -660,7 +726,6 @@
                             <sort>0</sort>
                             <label>Kind</label>
                             <type>number</type>
-                            <tooltip>Person entity Kind</tooltip>
                             <readwrite>0</readwrite>
                         </field>
                         <field>
@@ -681,6 +746,8 @@
                             <type>string</type>
                             <tooltip>Street address line 1</tooltip>
                             <readwrite>3</readwrite>
+                            <minmax>50</minmax>
+                            <validation>^[\x20-\x7E]+</validation>
                             <nullable>Y</nullable>
                             <personal>Y</personal>
                         </field>
@@ -691,6 +758,8 @@
                             <type>string</type>
                             <tooltip>Street address line 2</tooltip>
                             <readwrite>3</readwrite>
+                            <minmax>50</minmax>
+                            <validation>^[\x20-\x7E]+</validation>
                             <nullable>Y</nullable>
                             <personal>Y</personal>
                         </field>
@@ -699,8 +768,10 @@
                             <sort>4</sort>
                             <label>City</label>
                             <type>string</type>
-                            <tooltip>City name</tooltip>
+                            <tooltip>City/Town name</tooltip>
                             <readwrite>3</readwrite>
+                            <minmax>50</minmax>
+                            <validation>^[\x20-\x7E]+</validation>
                             <nullable>Y</nullable>
                             <personal>Y</personal>
                         </field>
@@ -711,6 +782,8 @@
                             <type>string</type>
                             <tooltip>State or province name</tooltip>
                             <readwrite>3</readwrite>
+                            <minmax>50</minmax>
+                            <validation>^[\x20-\x7E]+</validation>
                             <nullable>Y</nullable>
                             <personal>Y</personal>
                         </field>
@@ -721,9 +794,11 @@
                             <type>string</type>
                             <tooltip>Zip or postal code</tooltip>
                             <readwrite>3</readwrite>
+                            <minmax>20</minmax>
+                            <validation>^[A-Za-z0-9](?:[A-Za-z0-9 -]{1,8}[A-Za-z0-9])?$</validation>
                             <nullable>Y</nullable>
                             <personal>Y</personal>
-                        </field>                        
+                        </field>
                         <field>
                             <name>country</name>
                             <sort>7</sort>
@@ -731,6 +806,8 @@
                             <type>string</type>
                             <tooltip>Country name</tooltip>
                             <readwrite>3</readwrite>
+                            <minmax>50</minmax>
+                            <validation>^[\x20-\x7E]+</validation>
                             <nullable>Y</nullable>
                             <personal>Y</personal>
                         </field>
@@ -779,7 +856,7 @@
                             <sort>12</sort>
                             <label>Website</label>
                             <type>string</type>
-                            <tooltip>Website Internet URL</tooltip>
+                            <tooltip>Internet URL</tooltip>
                             <readwrite>0</readwrite>
                             <nullable>Y</nullable>
                             <personal>N</personal>
@@ -801,7 +878,6 @@
                             <sort>0</sort>
                             <label>ID</label>
                             <type>string</type>
-                            <tooltip>User ID</tooltip>
                             <readwrite>0</readwrite>
                         </field>
                         <field>
@@ -809,7 +885,6 @@
                             <sort>0</sort>
                             <label>Kind</label>
                             <type>number</type>
-                            <tooltip>Person entity Kind</tooltip>
                             <readwrite>0</readwrite>
                         </field>
                         <field>
@@ -830,6 +905,8 @@
                             <type>string</type>
                             <tooltip>Street address line 1</tooltip>
                             <readwrite>3</readwrite>
+                            <minmax>50</minmax>
+                            <validation>^[\x20-\x7E]+</validation>
                             <nullable>Y</nullable>
                             <personal>Y</personal>
                         </field>
@@ -840,6 +917,8 @@
                             <type>string</type>
                             <tooltip>Street address line 2</tooltip>
                             <readwrite>3</readwrite>
+                            <minmax>50</minmax>
+                            <validation>^[\x20-\x7E]+</validation>
                             <nullable>Y</nullable>
                             <personal>Y</personal>
                         </field>
@@ -848,8 +927,10 @@
                             <sort>4</sort>
                             <label>City</label>
                             <type>string</type>
-                            <tooltip>City name</tooltip>
+                            <tooltip>City/Town name</tooltip>
                             <readwrite>3</readwrite>
+                            <minmax>50</minmax>
+                            <validation>^[\x20-\x7E]+</validation>
                             <nullable>Y</nullable>
                             <personal>Y</personal>
                         </field>
@@ -860,6 +941,8 @@
                             <type>string</type>
                             <tooltip>State or province name</tooltip>
                             <readwrite>3</readwrite>
+                            <minmax>50</minmax>
+                            <validation>^[\x20-\x7E]+</validation>
                             <nullable>Y</nullable>
                             <personal>Y</personal>
                         </field>
@@ -870,9 +953,11 @@
                             <type>string</type>
                             <tooltip>Zip or postal code</tooltip>
                             <readwrite>3</readwrite>
+                            <minmax>20</minmax>
+                            <validation>^[A-Za-z0-9](?:[A-Za-z0-9 -]{1,8}[A-Za-z0-9])?$</validation>
                             <nullable>Y</nullable>
                             <personal>Y</personal>
-                        </field>                        
+                        </field>
                         <field>
                             <name>country</name>
                             <sort>7</sort>
@@ -880,6 +965,8 @@
                             <type>string</type>
                             <tooltip>Country name</tooltip>
                             <readwrite>3</readwrite>
+                            <minmax>50</minmax>
+                            <validation>^[\x20-\x7E]+</validation>
                             <nullable>Y</nullable>
                             <personal>Y</personal>
                         </field>
@@ -890,6 +977,8 @@
                             <type>string</type>
                             <tooltip>Company name</tooltip>
                             <readwrite>3</readwrite>
+                            <minmax>50</minmax>
+                            <validation>^[\x20-\x7E]+</validation>
                             <nullable>Y</nullable>
                             <personal>Y</personal>
                         </field>
@@ -900,6 +989,8 @@
                             <type>string</type>
                             <tooltip>Department name</tooltip>
                             <readwrite>3</readwrite>
+                            <minmax>50</minmax>
+                            <validation>^[\x20-\x7E]+</validation>
                             <nullable>Y</nullable>
                             <personal>Y</personal>
                         </field>
@@ -910,6 +1001,8 @@
                             <type>string</type>
                             <tooltip>Title with company</tooltip>
                             <readwrite>3</readwrite>
+                            <minmax>50</minmax>
+                            <validation>^[\x20-\x7E]+</validation>
                             <nullable>Y</nullable>
                             <personal>Y</personal>
                         </field>
@@ -920,6 +1013,8 @@
                             <type>string</type>
                             <tooltip>Fax number</tooltip>
                             <readwrite>3</readwrite>
+                            <minmax>20</minmax>
+                            <validation>^[+]?[\d\s().-]{7,20}$</validation>
                             <nullable>Y</nullable>
                             <personal>Y</personal>
                         </field>
@@ -928,8 +1023,10 @@
                             <sort>12</sort>
                             <label>Website</label>
                             <type>string</type>
-                            <tooltip>Website Internet URL</tooltip>
+                            <tooltip>Internet URL</tooltip>
                             <readwrite>3</readwrite>
+                            <minmax>50</minmax>
+                            <validation>^[\x20-\x7E]+</validation>
                             <nullable>Y</nullable>
                             <personal>Y</personal>
                         </field>
@@ -952,7 +1049,6 @@
                             <sort>0</sort>
                             <label>ID</label>
                             <type>string</type>
-                            <tooltip>User ID</tooltip>
                             <readwrite>0</readwrite>
                         </field>
                         <field>
@@ -960,7 +1056,6 @@
                             <sort>0</sort>
                             <label>Kind</label>
                             <type>number</type>
-                            <tooltip>Person Entity Kind</tooltip>
                             <readwrite>0</readwrite>
                         </field>
                         <field>
@@ -968,8 +1063,10 @@
                             <sort>1</sort>
                             <label>First Name</label>
                             <type>string</type>
-                            <tooltip>First (given) name</tooltip>
+                            <tooltip>First(Given) name</tooltip>
                             <readwrite>3</readwrite>
+                            <minmax>50</minmax>
+                            <validation>^[\x20-\x7E]+</validation>
                             <nullable>N</nullable>
                             <personal>Y</personal>
                         </field>
@@ -980,6 +1077,8 @@
                             <type>string</type>
                             <tooltip>Middle name</tooltip>
                             <readwrite>3</readwrite>
+                            <minmax>50</minmax>
+                            <validation>^[\x20-\x7E]+</validation>
                             <nullable>Y</nullable>
                             <personal>Y</personal>
                         </field>
@@ -988,8 +1087,10 @@
                             <sort>3</sort>
                             <label>Last Name</label>
                             <type>string</type>
-                            <tooltip>Last (Family) name</tooltip>
+                            <tooltip>Last(Family) name</tooltip>
                             <readwrite>3</readwrite>
+                            <minmax>50</minmax>
+                            <validation>^[\x20-\x7E]+</validation>
                             <nullable>N</nullable>
                             <personal>Y</personal>
                         </field>
@@ -1000,6 +1101,8 @@
                             <type>string</type>
                             <tooltip>Title or Honorifics</tooltip>
                             <readwrite>3</readwrite>
+                            <minmax>50</minmax>
+                            <validation>^[\x20-\x7E]+</validation>
                             <nullable>Y</nullable>
                             <personal>Y</personal>
                         </field>
@@ -1008,8 +1111,10 @@
                             <sort>5</sort>
                             <label>Email address</label>
                             <type>string</type>
-                            <tooltip>Email address"</tooltip>
+                            <tooltip>Email address</tooltip>
                             <readwrite>3</readwrite>
+                            <minmax>50</minmax>
+                            <validation>^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$</validation>
                             <nullable>N</nullable>
                             <personal>Y</personal>
                         </field>
@@ -1018,22 +1123,24 @@
                             <sort>6</sort>
                             <label>Phone</label>
                             <type>string</type>
-                            <tooltip>Phone number"</tooltip>
+                            <tooltip>Phone number</tooltip>
                             <readwrite>3</readwrite>
+                            <minmax>20</minmax>
                             <nullable>Y</nullable>
                             <personal>Y</personal>
-                            <validation>^[0-9 ']+$</validation>
+                            <validation>^[+]?[\d\s().-]{7,20}$</validation>
                         </field>
                         <field>
                             <name>phone2</name>
                             <sort>7</sort>
                             <label>Alt. Phone</label>
                             <type>string</type>
-                            <tooltip>Alternative Phone number"</tooltip>
+                            <tooltip>Alternative phone number</tooltip>
                             <readwrite>3</readwrite>
+                            <minmax>20</minmax>
                             <nullable>Y</nullable>
                             <personal>Y</personal>
-                            <validation>^[0-9 ']+$</validation>
+                            <validation>^[+]?[\d\s().-]{7,20}$</validation>
                         </field>
                         <field>
                             <name>dob</name>
@@ -1052,6 +1159,8 @@
                             <type>string</type>
                             <tooltip>Birth place</tooltip>
                             <readwrite>3</readwrite>
+                            <minmax>50</minmax>
+                            <validation>^[\x20-\x7E]+</validation>
                             <nullable>Y</nullable>
                             <personal>Y</personal>
                         </field>
@@ -1060,11 +1169,12 @@
                             <sort>10</sort>
                             <label>Sex</label>
                             <type>string</type>
-                            <tooltip>Sex: Male, Female</tooltip>
+                            <tooltip>Gender</tooltip>
                             <listvalues>
                                 <value>M~Male</value>
                                 <value>F~Female</value>
                             </listvalues>
+                            <validation>^(M|F)$</validation>
                             <nullmeaning>undefined</nullmeaning>
                             <readwrite>3</readwrite>
                             <nullable>Y</nullable>
@@ -1075,8 +1185,10 @@
                             <sort>11</sort>
                             <label>Tax ID</label>
                             <type>string</type>
-                            <tooltip>Tax ID or SSN"</tooltip>
+                            <tooltip>Tax ID or SSN</tooltip>
                             <readwrite>3</readwrite>
+                            <minmax>50</minmax>
+                            <validation>^[A-Z0-9](?:[A-Z0-9_ -]{4,18}[A-Z0-9])?$</validation>
                             <nullable>Y</nullable>
                             <personal>Y</personal>
                         </field>
@@ -1087,6 +1199,8 @@
                             <type>string</type>
                             <tooltip>Citizenship country</tooltip>
                             <readwrite>3</readwrite>
+                            <minmax>50</minmax>
+                            <validation>^[\x20-\x7E]+</validation>
                             <nullable>Y</nullable>
                             <personal>Y</personal>
                         </field>
@@ -1095,13 +1209,14 @@
                             <sort>13</sort>
                             <label>Martial status</label>
                             <type>string</type>
-                            <tooltip>Martial status: Single, Married, Divorced, Separated</tooltip>
+                            <tooltip>Martial status</tooltip>
                             <listvalues>
                                 <value>S~Single</value>
                                 <value>M~Married</value>
                                 <value>D~Divorced</value>
                                 <value>P~Separated</value>
                             </listvalues>
+                            <validation>^(S|M|D|P)$</validation>
                             <nullmeaning>undefined</nullmeaning>
                             <readwrite>3</readwrite>
                             <nullable>Y</nullable>
@@ -1112,12 +1227,13 @@
                             <sort>14</sort>
                             <label>I.D. type</label>
                             <type>string</type>
-                            <tooltip>Type of person ID document: Passport, Driver License, State ID, Other</tooltip>
+                            <tooltip>Type of person ID document</tooltip>
                             <listvalues>
                                 <value>P~Passport</value>
                                 <value>D~Driver License</value>
                                 <value>I~State ID</value>
                             </listvalues>
+                            <validation>^(P|D|I)$</validation>
                             <nullmeaning>other</nullmeaning>
                             <readwrite>3</readwrite>
                             <nullable>Y</nullable>
@@ -1128,8 +1244,10 @@
                             <sort>15</sort>
                             <label>I.D. number</label>
                             <type>string</type>
-                            <tooltip>Number of ID document</tooltip>
+                            <tooltip>Number of person ID</tooltip>
                             <readwrite>3</readwrite>
+                            <minmax>50</minmax>
+                            <validation>^[A-Z0-9](?:[A-Z0-9_ -]{4,18}[A-Z0-9])?$</validation>
                             <nullable>Y</nullable>
                             <personal>Y</personal>
                         </field>
@@ -1152,7 +1270,6 @@
                             <sort>0</sort>
                             <label>ID</label>
                             <type>string</type>
-                            <tooltip>Permission ID</tooltip>
                             <readwrite>0</readwrite>
                         </field>
                         <field>
@@ -1168,8 +1285,10 @@
                             <sort>1</sort>
                             <label>Login ID</label>
                             <type>string</type>
-                            <tooltip>Login ID</tooltip>
+                            <tooltip>User Login ID</tooltip>
                             <readwrite>3</readwrite>
+                            <minmax>50</minmax>
+                            <validation>^[\x20-\x7E]+</validation>
                             <personal>Y</personal>
                         </field>
                         <field>
@@ -1177,8 +1296,10 @@
                             <sort>2</sort>
                             <label>Email</label>
                             <type>string</type>
-                            <tooltip>Email address</tooltip>
+                            <tooltip>User authentication email address</tooltip>
                             <readwrite>3</readwrite>
+                            <minmax>50</minmax>
+                            <validation>^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$</validation>
                             <personal>Y</personal>
                         </field>
                         <field>
@@ -1188,7 +1309,7 @@
                             <nullable>Y</nullable>
                             <nullmeaning>(n/a)</nullmeaning>
                             <type>flag</type>
-                            <tooltip>Force Password Change</tooltip>
+                            <tooltip>Force password change</tooltip>
                             <readwrite>3</readwrite>
                             <personal>Y</personal>
                         </field>
@@ -1197,12 +1318,13 @@
                             <sort>4</sort>
                             <label>Two-Factor Auth</label>
                             <type>string</type>
-                            <tooltip>Two-Factor Authentication</tooltip>
+                            <tooltip>Force Two-factor-authentication change</tooltip>
                             <listvalues>
                                 <value>N~Disable</value>
                                 <value>G~Enabled</value>
                                 <value>g~Pending</value>
                             </listvalues>
+                            <validation>^(N|G|g)$</validation>
                             <readwrite>3</readwrite>
                             <personal>Y</personal>
                         </field>

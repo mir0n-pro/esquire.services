@@ -1,6 +1,10 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v1.2.2-2603.0413
+   Dictionary formalized
+     - minmax, format, readwrite, nullable, validation, tooltip
+
 v1.2.2-2603.0313
   Roles list save added, Few fixes, new field type: "text"
   Gateway uses default port
