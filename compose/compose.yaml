@@ -131,7 +131,7 @@ services:
       context: .
     image: esquire.gateway
     ports:
-      - "3000:7070"
+      - "7070:7070"
     healthcheck:
       # Use localhost:7070 because this command runs INSIDE the container
       test: ["CMD", "curl", "-f", "http://localhost:7070/actuator/health"]
