@@ -9,6 +9,7 @@
  * 12/27/2025  mir0n extend EsqEntity correctly
  * 02/13/2026 mir0n  use EsqEntityJpa for children
  * 02/28/2026 mir0n  empty fillPerson/fillAddress/fillBizAddress stubs added
+ * 03/06/2026 mir0n  customFields: null-safe LinkedHashMap instead of Collectors.toMap()
  */
 
 package pro.mir0n.esquire.backend.dto.entity;
@@ -27,9 +28,9 @@ import pro.mir0n.esquire.backend.jpa.EsqNameValueJpa;
 import pro.mir0n.esquire.backend.jpa.entity.EsqOrgJpa;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 @Data
 @Schema(
@@ -57,9 +58,13 @@ public class EsqOrg extends EsqEntity {
 
     @JsonAnyGetter
     public Map<String, String> getAttributesAsFields() {
-        // Converts List<Attribute> into a Map for serialization as fields
-        return customFields.stream()
-                .collect(Collectors.toMap(EsqNameValue::getName, EsqNameValue::getValue));
+        Map<String, String> ret = new LinkedHashMap<>();
+        if (customFields != null) {
+            for (EsqNameValue nv : customFields) {
+                ret.put(nv.getName(), nv.getValue());
+            }
+        }
+        return ret;
     }
 
     @Override

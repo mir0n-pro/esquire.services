@@ -12,6 +12,8 @@
  *                   ACCESS_WRITABLE = {email, loginId, pwdChangeForced, tfaMethod}
  * 03/03/2026 mir0n  saveAccess(): roles list change detection added
  *                   deleting roles/ adding roles inserted
+ * 03/06/2026 mir0n  ACCESS_WRITABLE removed; applyFields() dict-driven via ValidatorFactory
+ *                   roles field validated via BizValidatorFactory
  */
 
 package pro.mir0n.esquire.keySmith.service.impl;
@@ -25,9 +27,13 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanWrapper;
 import org.springframework.beans.BeanWrapperImpl;
 import org.springframework.transaction.support.TransactionTemplate;
+import pro.mir0n.esquire.backend.dto.*;
 import pro.mir0n.esquire.backend.dto.access.*;
 import pro.mir0n.esquire.backend.dto.access.EsqAccessProfile;
 import pro.mir0n.esquire.backend.jpa.access.*;
+import pro.mir0n.esquire.backend.storage.EsqEntityDictionaryStorage;
+import pro.mir0n.esquire.backend.validator.ValidatorFactory;
+import pro.mir0n.esquire.common.EsqConstants;
 import pro.mir0n.esquire.keySmith.jpa.EsqAccessProfileRepository;
 import pro.mir0n.esquire.keySmith.service.RequestContextUtils;
 import pro.mir0n.esquire.backend.error.ResourceNotFoundException;
@@ -104,7 +110,7 @@ public class KeySmithService implements IKeySmithService {
         if (jpa == null) {
             throw new ResourceNotFoundException("saveAccess", "id", id);
         }
-        if (applyFields(jpa, fields, ACCESS_WRITABLE)) {
+        if (applyFields(jpa, fields)) {
             accessProfileRepository.updateAccess(id, jpa.getEmail(), jpa.getLoginId(), jpa.getPwdChangeForced(), jpa.getTfaMethod(), uid, correlationId, requestId);
         }
         List<EsqRoleJpa> originRoles = accessProfileRepository.roles(id);
@@ -113,10 +119,16 @@ public class KeySmithService implements IKeySmithService {
             originIds.add(r.getId());
         }
 
-        if (fields.containsKey("roles")) {
+        if (fields.containsKey(IKeySmithService.FIELD_ROLES)) {
+            EsqEntityDictionary dict = EsqEntityDictionaryStorage.getInstance().get(EsqConstants.KIND_ACCESS_PROFILE);
+            EsqEntityKindFieldLayer kfl = dict.fillКindFieldLayer(IKeySmithService.FIELD_ROLES, null) ;
+            List<?> value = (List<?>) fields.get(IKeySmithService.FIELD_ROLES);
+log.debug("keySmith:saveAccess: roles:{}", value);
+            ValidatorFactory.getInstance().validate(jpa, kfl, value);
+
             List<EsqRoleJpa> givenRoles = new ArrayList<>();
             Set<String> givenIds = new HashSet<>();
-            for (Object r : (List<?>) fields.get("roles")) {
+            for (Object r :value) {
                 if (r instanceof Map) {
                     EsqRoleJpa jpaRole = new EsqRoleJpa();
                     Object roleId = ((Map<?, ?>) r).get("id");
@@ -149,22 +161,35 @@ public class KeySmithService implements IKeySmithService {
         rolesAll[0]    = accessProfileRepository.rolesAll(id);
     }
 
-    private static final Set<String> ACCESS_WRITABLE = Set.of("email", "loginId", "pwdChangeForced", "tfaMethod");
-
-    private boolean applyFields(Object jpa, Map<String, Object> fields, Set<String> writables) {
+    private boolean applyFields(EsqAccessProfileJpa jpa, Map<String, Object> fields) {
+        if (jpa == null || fields == null) {
+            return false;
+        }
+        EsqEntityDictionary dict = EsqEntityDictionaryStorage.getInstance().get(EsqConstants.KIND_ACCESS_PROFILE);
         BeanWrapper wrapper = new BeanWrapperImpl(jpa);
         boolean changed = false;
+        EsqEntityKindFieldLayer kfl = new EsqEntityKindFieldLayer();
         for (PropertyDescriptor pd : wrapper.getPropertyDescriptors()) {
-            if (writables.contains(pd.getName()) && fields.containsKey(pd.getName())) {
-                changed = true;
-                Object newValue = fields.get(pd.getName());
-                if (newValue instanceof String && ((String) newValue).isBlank()) {
-                    newValue = null;
+            String name = pd.getName();
+            if (fields.containsKey(name)) {
+//log.debug("keySmith:applyFields: name:{}", name);
+                Object value = fields.get(name);
+//log.debug("keySmith:applyFields: value:{}", value);
+                kfl = dict.fillКindFieldLayer(name, kfl) ;
+//log.debug("keySmith:applyFields: kfl:{} {} {} ", kfl.getEntityKind(), kfl.getLayer(), kfl.getField());
+                EsqEntityField field = kfl.getField();
+                if (field != null) {
+                    if (field.getReadwrite() != null && (field.getReadwrite() & 2) == 2) {
+                        value = ValidatorFactory.getInstance().validate(jpa, kfl, value);
+//log.debug("keySmith:validated: value:{}", value);
+                        wrapper.setPropertyValue(name, value);
+                        changed = true;
+                    }
                 }
-                wrapper.setPropertyValue(pd.getName(), newValue);
             }
         }
         return changed;
     }
 
 }
+

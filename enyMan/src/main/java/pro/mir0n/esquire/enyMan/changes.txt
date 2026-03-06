@@ -1,5 +1,25 @@
 Esquire enyMan Microservice
 
+03/06/2026 mir0n  field validation via ValidatorFactory; BizValidatorFactory pattern
+EnyManApplication
+  - ValidatorFactory.getInstance().init() called on startup
+exception.GlobalExceptionHandler
+  - InvalidValueException handler added (HTTP 400)
+  - logging added to all exception handlers
+service.impl.AEnyManService
+  - applyFields() refactored: dict-driven; writable/read-only via field.readwrite
+  - ValidatorFactory.validate() called for each writable field
+  - subLayer param added (0 = root entity, >0 = sub-entity layer)
+  - writables set is now override-only for read-only exceptions
+service.impl.OrgService
+  - ORG_WRITABLE set removed (dict-driven)
+  - applyFields(org, fields, 0, null) uses ValidatorFactory
+  - saveOrg(): custom field validation via dictionary readwrite flag
+service.impl.UsrService
+  - USR_WRITABLE reduced to {"name"} (override for generated value only)
+  - dict-driven subLayer lookup for person and address sub-entities
+  - saveUsr(): custom field validation via ValidatorFactory
+
 03/03/2026 mir0n  sub-entity update id fix
 service.impl.UsrService
   - updatePerson/updateAddress/updateAddress2: use user id instead of sub-entity id

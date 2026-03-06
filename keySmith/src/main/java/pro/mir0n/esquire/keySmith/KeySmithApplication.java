@@ -6,6 +6,7 @@
  *  mailto:mir0n.the.programmer@gmail.com
  *
  *  History:
+ * 03/06/2026 mir0n ValidatorFactory.init(BizValidatorFactory) called on startup
  */
 
 package pro.mir0n.esquire.keySmith;
@@ -18,6 +19,8 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.event.ApplicationStartingEvent;
 import org.springframework.context.ApplicationListener;
+import pro.mir0n.esquire.backend.validator.ValidatorFactory;
+import pro.mir0n.esquire.keySmith.service.BizValidatorFactory;
 
 @Slf4j
 @SpringBootApplication
@@ -41,6 +44,9 @@ public class KeySmithApplication {
                 System.out.println("Failed to load esq-entity-dictionaries.xml");
                 System.exit(-1); // Exit the JVM immediately
             }
+            log.debug("EsqEntityDictionaryStorage loaded");
+            ValidatorFactory.getInstance().init(BizValidatorFactory.getBizValidators());
+
         }
     }
 

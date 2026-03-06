@@ -6,7 +6,8 @@
  *  mailto:mir0n.the.programmer@gmail.com
  *
  *  History:
- * 02/01/2026 mir0n removed @AllArgsConstructor 
+ * 02/01/2026 mir0n removed @AllArgsConstructor
+ * 03/06/2026 mir0n findField() and fillКindFieldLayer() methods added; @Slf4j added
  */
 
 package pro.mir0n.esquire.backend.dto;
@@ -18,6 +19,7 @@ import lombok.*;
 import com.fasterxml.jackson.dataformat.xml.annotation.JacksonXmlElementWrapper;
 import com.fasterxml.jackson.dataformat.xml.annotation.JacksonXmlProperty;
 import com.fasterxml.jackson.dataformat.xml.annotation.JacksonXmlRootElement;
+import lombok.extern.slf4j.Slf4j;
 
 //import java.lang.foreign.SymbolLookup;
 import java.util.ArrayList;
@@ -28,6 +30,7 @@ import java.util.List;
         name = "dictionary",
         description = "Entity dictionary"
 )
+@Slf4j
 @Data @Getter @Setter @NoArgsConstructor
 @JacksonXmlRootElement(localName = "dictionary")
 @JsonIgnoreProperties({"completed"})
@@ -62,7 +65,50 @@ public class EsqEntityDictionary {
         }
         return ret;
     }
+    public EsqEntityField findField( String name) {
+        EsqEntityField ret = null;
+        for (EsqEntityLayer layer : getLayers()) {
+            if (layer.getFields() != null) {
+                for (EsqEntityField f : layer.getFields()) {
+                    if (name.equals(f.getName())) {
+                        ret = f;
+                        break;
+                    }
+                }
+            }
+            if (ret != null) {
+                break;
+            }
+        }
+        return ret;
+    }
 
+    public EsqEntityKindFieldLayer fillКindFieldLayer(String name,EsqEntityKindFieldLayer given) {
+        EsqEntityKindFieldLayer ret = given;
+        if (ret == null) {
+            ret = new EsqEntityKindFieldLayer();
+        } else {
+            //given.setEntityKind(0);
+            given.setField(null);
+            //given.setLayer(0);
+        }
+        for (EsqEntityLayer layer : getLayers()) {
+            if (layer.getFields() != null) {
+                for (EsqEntityField f : layer.getFields()) {
+                    if (name.equals(f.getName())) {
+                        ret.setEntityKind(getKind());
+                        ret.setLayer(layer.getLayer());
+                        ret.setField(f);
+                        break;
+                    }
+                }
+            }
+            if (ret.getField() != null) {
+                break;
+            }
+        }
+        return ret;
+    }
 };
 
 

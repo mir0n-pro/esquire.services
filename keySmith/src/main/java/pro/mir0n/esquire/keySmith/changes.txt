@@ -1,5 +1,15 @@
 Esquire keySmith Microservice
 
+03/06/2026 mir0n  field validation via ValidatorFactory; biz validator added
++ added service.BizValidatorFactory
+  - biz validator for KIND_ACCESS_PROFILE: max 1 admin role per user
+service.IKeySmithService
+  - FIELD_ROLES = "roles" constant added
+service.impl.KeySmithService
+  - ACCESS_WRITABLE set removed (dict-driven)
+  - applyFields() refactored: dict-driven via ValidatorFactory
+  - roles field validated via ValidatorFactory (BizValidatorFactory delegate)
+
 03/03/2026 mir0n  roles list save added to saveAccess()
 service.impl.KeySmithService  
   - saveAccess(): roles list change detection added

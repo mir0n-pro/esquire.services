@@ -1,5 +1,15 @@
 Esquire pacMan Microservice
 
+03/06/2026 mir0n  field validation via ValidatorFactory; biz validator added
++ added service.BizValidatorFactory
+  - biz validator for acct kinds (50/52/54): cannot close account with positive balance
+service.IPacManService
+  - KIND_CL_ACCT (50), KIND_MR_ACCT (52), KIND_P_ACCT (54) constants added
+  - FIELD_STATUS constant added
+service.impl.PacManService
+  - ACCT_WRITABLE set removed (dict-driven)
+  - applyFields() refactored: dict-driven via ValidatorFactory
+
 02/19/2026 mir0n  save (update) functionality added
 controller.PacManController
   - added esquireCommandSave() POST /esq-cmd-asave

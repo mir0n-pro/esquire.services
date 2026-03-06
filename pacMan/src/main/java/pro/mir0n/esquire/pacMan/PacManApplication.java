@@ -9,6 +9,8 @@
  * 12/28/2025 mir0n logging added using Slf4j
  * 01/23/2026 mir0n explicitly EntityScan, EnableJpaRepositories
  * 02/12/2026 mir0n  initiate EsqObjectKindStorage
+ * 03/06/2026 mir0n  ValidatorFactory.init(BizValidatorFactory) called on startup
+ *                   EnyManApplicationStartingListener renamed PacManApplicationStartingListener
  */
 
 package pro.mir0n.esquire.pacMan;
@@ -22,6 +24,8 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import pro.mir0n.esquire.backend.storage.EsqEntityDictionaryStorage;
 import pro.mir0n.esquire.backend.storage.EsqObjectKindStorage;
+import pro.mir0n.esquire.backend.validator.ValidatorFactory;
+import pro.mir0n.esquire.pacMan.service.BizValidatorFactory;
 
 @Slf4j
 @SpringBootApplication
@@ -31,11 +35,11 @@ public class PacManApplication {
 
     public static void main(String[] args) {
         SpringApplication app = new SpringApplication( PacManApplication.class);
-        app.addListeners(new EnyManApplicationStartingListener());
+        app.addListeners(new PacManApplicationStartingListener());
         app.run(args);
 }
 
-public static class EnyManApplicationStartingListener implements ApplicationListener<ApplicationStartingEvent> {
+public static class PacManApplicationStartingListener implements ApplicationListener<ApplicationStartingEvent> {
     @Override
     public void onApplicationEvent(ApplicationStartingEvent event) {
         log.debug("ApplicationStartingEvent received: {}", event.getTimestamp());
@@ -46,6 +50,15 @@ public static class EnyManApplicationStartingListener implements ApplicationList
             System.exit(-1); // Exit the JVM immediately
         }
         log.debug("EsqObjectKindStorage loaded");
+
+        result = EsqEntityDictionaryStorage.getInstance().init((String)null);
+        if (!result) {
+            System.out.println("Failed to load esq-entity-dictionaries.xml");
+            System.exit(-1); // Exit the JVM immediately
+        }
+        log.debug("EsqEntityDictionaryStorage loaded");
+        ValidatorFactory.getInstance().init(BizValidatorFactory.getBizValidators());
+
     }
 }
 

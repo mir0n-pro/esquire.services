@@ -9,6 +9,7 @@
  * 12/28/2025 mir0n logging added using Slf4j
  * 01/23/2026 mir0n explicitly EntityScan, EnableJpaRepositories
  * 02/12/2026 mir0n initiate EsqObjectKindStorage
+ * 03/06/2026 mir0n ValidatorFactory.getInstance().init() called on startup
  */
 
 package pro.mir0n.esquire.enyMan;
@@ -22,6 +23,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.event.ApplicationStartingEvent;
 import org.springframework.context.ApplicationListener;
 import pro.mir0n.esquire.backend.storage.EsqObjectKindStorage;
+import pro.mir0n.esquire.backend.validator.ValidatorFactory;
 
 @Slf4j
 @SpringBootApplication
@@ -54,6 +56,7 @@ public class EnyManApplication {
                 System.exit(-1); // Exit the JVM immediately
             }
             log.debug("EsqEntityDictionaryStorage loaded");
+            ValidatorFactory.getInstance().init(null); 
         }
     }
 

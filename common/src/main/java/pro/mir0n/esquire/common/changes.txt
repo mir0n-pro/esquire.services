@@ -1,5 +1,9 @@
 Esquire Common microservice classes
 
+03/06/2026 mir0n
+EsqConstants
+  - KIND_ADMIN_ROLE = 980 added
+
 02/28/2026 mir0n
 EsqConstants
   - KIND_ADDRESS_POSTAL (988), KIND_ADDRESS_BIZ (990) added

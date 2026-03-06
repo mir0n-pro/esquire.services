@@ -10,6 +10,7 @@
  * 01/23/2026 mir0n use common library
  *                  no more EsqTreeNode methods
  * 02/19/2026 mir0n  added esquireCommandSave()
+ * 03/06/2026 mir0n  KIND_CL/MR/P_ACCT and FIELD_STATUS constants added
  */
 
 package pro.mir0n.esquire.pacMan.service;
@@ -22,6 +23,10 @@ import pro.mir0n.esquire.backend.dto.EsqTreeNode;
 import pro.mir0n.esquire.backend.dto.EsqEntityLayer;
 
 public interface IPacManService {
+    public static final int  KIND_CL_ACCT = 50; // client account
+    public static final int  KIND_MR_ACCT = 52; // merchant account
+    public static final int  KIND_P_ACCT = 54; // paper/demo account
+    public static final String  FIELD_STATUS = "status";
 
     public EsqEntity esquireCommand(Integer kind, String id, String cmd, String rootPath, String uid );
     public EsqEntity esquireCommandSave(Integer kind, String id, String cmd, Map<String, Object> fields, String rootPath, String uid );

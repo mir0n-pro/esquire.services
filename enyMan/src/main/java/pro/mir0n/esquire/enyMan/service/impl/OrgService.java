@@ -8,6 +8,8 @@
  *  History:
  * 02/28/2026 mir0n  created: org command/save service (split from EnyManService)
  *                   esquireCommand(), esquireCommandSave(), saveOrg() moved from EnyManService
+ * 03/06/2026 mir0n  ORG_WRITABLE removed; applyFields() dict-driven via ValidatorFactory
+ *                   custom field validation via dictionary readwrite flag
  */
 
 package pro.mir0n.esquire.enyMan.service.impl;
@@ -25,6 +27,7 @@ import pro.mir0n.esquire.backend.jpa.*;
 import pro.mir0n.esquire.backend.jpa.entity.EsqOrgJpa;
 import pro.mir0n.esquire.backend.jpa.entity.EsqUsrJpa;
 import pro.mir0n.esquire.backend.storage.EsqObjectKindStorage;
+import pro.mir0n.esquire.backend.validator.ValidatorFactory;
 import pro.mir0n.esquire.enyMan.jpa.EsqEntityDictionaryRepository;
 import pro.mir0n.esquire.enyMan.jpa.EsqOrgRepository;
 import pro.mir0n.esquire.enyMan.jpa.EsqUsrRepository;
@@ -96,8 +99,6 @@ public class OrgService  extends AEnyManService {
         return ret;
     }
 
-    //TODO: use dictionary eventually for fields validation and readonly fields
-    private static final Set<String> ORG_WRITABLE = Set.of("name","desc","fullName");
     private void saveOrg(String id, Map<String, Object> fields, String rootPath,
                          String uid, String correlationId, String requestId,
                          EsqEntityJpa[] updated, List<EsqNameValueJpa>[] custom) {
@@ -106,22 +107,28 @@ public class OrgService  extends AEnyManService {
             throw new ResourceNotFoundException("saveOrg", "id", id);
         }
         List<EsqNameValueJpa> cstm = orgRepository.customOrg(id);
-        if (applyFields(org, fields, ORG_WRITABLE)) {
+        if (applyFields(org, fields, 0,null)) {
             orgRepository.updateOrg(id, org.getName(), org.getDesc(), org.getFullName(), uid, correlationId, requestId);
         }
+
         if (cstm != null) {
+            EsqEntityDictionary dict = EsqEntityDictionaryStorage.getInstance().get(org.getKind());
+            EsqEntityKindFieldLayer kfl = new EsqEntityKindFieldLayer();
             for (EsqNameValueJpa nv : cstm) {
                 String nm = nv.getName();
                 if (fields.containsKey(nm)) {
-                    String val = (String) fields.get(nm);
-                    if (val != null && val.isBlank()) {
-                        val = null;
+                    String val = (String)fields.get(nm);
+                    kfl = (dict != null) ? dict.fillКindFieldLayer(nm,kfl) : null;
+                    EsqEntityField field = (kfl != null) ? kfl.getField() : null;
+                    if (field != null && (field.getReadwrite()  & 2) == 2) {
+                        val = (String) ValidatorFactory.getInstance().validate(org, kfl, val);
+                        nv.setValue(val);
+                        orgRepository.updateCustomOrg(id, nm, val, uid, correlationId, requestId);
                     }
-                    nv.setValue(val);
-                    orgRepository.updateCustomOrg(id, nm, val, uid, correlationId, requestId);
                 }
             }
         }
+
         //note: if a DB trigger or default value modifies the row, saveOrg won't reflect it.
         updated[0] = org; //orgRepository.detailOrg(id, rootPath);
         custom[0]  = cstm;

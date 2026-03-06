@@ -6,6 +6,7 @@
  *  mailto:mir0n.the.programmer@gmail.com
  *
  *  History:
+ * 03/06/2026 mir0n null-safe: writeNullField() when value is null
  */
 
 package pro.mir0n.esquire.backend.dto;
@@ -23,7 +24,11 @@ public class EsqNameValueSerializer extends JsonSerializer<List<EsqNameValue>> {
             throws IOException {
         // We do not call gen.writeStartObject() here if using @JsonUnwrapped
         for (EsqNameValue pair : pairs) {
-            gen.writeStringField(pair.getName(), pair.getValue());
+            if (pair.getValue() == null) {
+                gen.writeNullField(pair.getName());
+            } else {
+                gen.writeStringField(pair.getName(), pair.getValue());
+            }
         }
     }
 }

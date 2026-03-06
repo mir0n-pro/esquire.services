@@ -8,6 +8,8 @@
  *  History:
  * 02/28/2026 mir0n  created: abstract base service
  *                   esquireDictionary() and applyFields() extracted from EnyManService
+ * 03/06/2026 mir0n  applyFields() refactored: dict-driven validation via ValidatorFactory
+ *                   subLayer param added for sub-entity field layer context
  */
 
 package pro.mir0n.esquire.enyMan.service.impl;
@@ -20,6 +22,7 @@ import org.springframework.beans.BeanWrapper;
 import org.springframework.beans.BeanWrapperImpl;
 import pro.mir0n.esquire.backend.dto.*;
 import pro.mir0n.esquire.backend.jpa.*;
+import pro.mir0n.esquire.backend.validator.ValidatorFactory;
 import pro.mir0n.esquire.enyMan.jpa.EsqEntityDictionaryRepository;
 import pro.mir0n.esquire.backend.storage.EsqEntityDictionaryStorage;
 import pro.mir0n.esquire.backend.error.ResourceNotFoundException;
@@ -59,22 +62,40 @@ public abstract class AEnyManService  implements IEnyManService {
         return ret;
     }
 
-    protected boolean applyFields(EsqEntityJpa jpa, Map<String, Object> fields, Set<String> writables) {
+    protected boolean applyFields(EsqEntityJpa jpa, Map<String, Object> fields, int subLayer, Set<String> writables) {
         if (jpa == null || fields == null) {
             return false;
         }
+        EsqEntityDictionary dict = EsqEntityDictionaryStorage.getInstance().get(jpa.getKind());
         BeanWrapper wrapper = new BeanWrapperImpl(jpa);
         boolean changed = false;
+        //we're going to reuse this structure
+        EsqEntityKindFieldLayer kfl = new EsqEntityKindFieldLayer();
         for (PropertyDescriptor pd : wrapper.getPropertyDescriptors()) {
-            if ((writables == null || writables.contains(pd.getName()))
-            && fields.containsKey(pd.getName())) {
-                changed = true;
-                Object newValue = fields.get(pd.getName());
-                if (newValue instanceof String && ((String)newValue).isBlank()) {   // isEmpty()?
-                    newValue = null;
+            String name = pd.getName();
+            if(fields.containsKey(name)) {
+                Object value = fields.get(name);
+                kfl = (dict != null) ? dict.fillКindFieldLayer(pd.getName(),kfl) : null;
+                EsqEntityField field = (kfl != null) ? kfl.getField() : null;
+                if (field != null) {
+                    if (subLayer > 0) {
+                        // layer for subentity
+                        kfl.setLayer(subLayer);
+                    }
+                    if (field.getReadwrite() == null || (field.getReadwrite() & 2) != 2) {
+                        // read-only fields
+                        if (writables != null && writables.contains(name)) {
+                            //writable exceptions: we trust generated value
+                            wrapper.setPropertyValue(name, value);
+                            changed = true;
+                        }
+                    } else { //field.getReadwrite() != null && (field.getReadwrite() & 2) == 2)
+                        //writable fields: need validation
+                        value = ValidatorFactory.getInstance().validate(jpa, kfl, value);
+                        wrapper.setPropertyValue(name, value);
+                        changed = true;
+                    }
                 }
-                //xxx: this updates the given jpa
-                wrapper.setPropertyValue(pd.getName(), newValue);
             }
         }
         return changed;

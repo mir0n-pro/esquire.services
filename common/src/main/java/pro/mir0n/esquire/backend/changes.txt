@@ -1,5 +1,27 @@
 Esquire Backend common microservice classes
 
+03/06/2026 mir0n  field validation framework added; null-safe serialization fixes
++ added dto.EsqEntityKindFieldLayer (entity kind + layer + field context DTO)
++ added validator package: IValidator, GenericValidator, ValidatorFactory
+  - IValidator: validate(origin, kfl, value) interface
+  - GenericValidator: null/blank, nullable, pattern, minmax, type validation
+  - ValidatorFactory: singleton; init() registers generic + biz validators
+dto.EsqEntityDictionary
+  - findField() method added
+  - fillКindFieldLayer() method added; reuses EsqEntityKindFieldLayer for allocation reduction
+dto.EsqNameValueSerializer
+  - null-safe: writeNullField() when custom field value is null
+dto.entity.EsqOrg
+  - customFields: null-safe LinkedHashMap loop replaces Collectors.toMap()
+error.InvalidValueException
+  - new class: validation error with field-level error list (fieldName, message, tabIndex)
+error.ProblemDetailMill
+  - InvalidValueException.errors included in problem detail response body
+jpa.access.EsqAccessProfileJpa
+  - extends EsqEntityJpa (id/kind/name inherited; individual fields removed)
+resources/esq-entity-dictionaries.xml
+  - nullable constraints added/updated for access profile and entity fields
+
 03/03/2026 mir0n  role/permission JPA and DTO generalized; access profile extended
 jpa.access.EsqRoleJpa
   - extends EsqEntityJpa; individual fields (id, name, adminFlg) removed — inherited from base

@@ -11,6 +11,8 @@
  *                   person/address/bizaddr subentity read and update support added
  * 03/01/2026 mir0n  prsn.getDob() uncommented — DOB field now active in updatePerson()
  * 03/03/2026 mir0n  updatePerson/updateAddress/updateAddress2: use user id instead of sub-entity id
+ * 03/06/2026 mir0n  USR_WRITABLE reduced to {name}; dict-driven subLayer for person/address
+ *                   ValidatorFactory used for custom field validation
  */
 
 package pro.mir0n.esquire.enyMan.service.impl;
@@ -31,6 +33,7 @@ import pro.mir0n.esquire.backend.jpa.entity.EsqAddressJpa;
 import pro.mir0n.esquire.backend.jpa.entity.EsqPersonJpa;
 import pro.mir0n.esquire.backend.jpa.entity.EsqUsrJpa;
 import pro.mir0n.esquire.backend.storage.EsqObjectKindStorage;
+import pro.mir0n.esquire.backend.validator.ValidatorFactory;
 import pro.mir0n.esquire.enyMan.jpa.EsqEntityDictionaryRepository;
 import pro.mir0n.esquire.enyMan.jpa.EsqOrgRepository;
 import pro.mir0n.esquire.enyMan.jpa.EsqUsrRepository;
@@ -138,11 +141,7 @@ public class UsrService  extends AEnyManService {
         return ret;
     }
 
-    //TODO: use dictionary eventually for fields validation and readonly fields
-    //TODO: move to EsqEntityJpa or some common utils class
-    //TODO: find an user name to update based on first, middle, last names
-    // careful: when we use dictionary : name would be not in the list: TODO: find some workaround
-    private static final Set<String> USR_WRITABLE = Set.of("name", "desc", "registration", "deleted");
+    private static final Set<String> USR_WRITABLE = Set.of("name"); //, xxx overwrite readonly field 'name'
     private void saveUsr(String id,
                          Map<String, Object> fields,
                          String rootPath,
@@ -161,8 +160,13 @@ public class UsrService  extends AEnyManService {
         List<EsqNameValueJpa> cstm = usrRepository.customUsr(id);
         EsqPersonJpa prsn = usrRepository.person(id, EsqConstants.KIND_PERSON_PRIMARY);
         Map<String, Object> mprsn = (Map<String, Object>) fields.get(EsqConstants.SUBENTITY_PERSON);
-
-        if (applyFields(prsn, mprsn, null)) {
+        EsqEntityDictionary dictUser = EsqEntityDictionaryStorage.getInstance().get(usr.getKind());
+        EsqEntityKindFieldLayer kfl = new EsqEntityKindFieldLayer();
+        int personLayer = 0;
+//log.debug("looking for {} {}",EsqConstants.SUBENTITY_PERSON, dictUser.getKind());
+        kfl = dictUser.fillКindFieldLayer(EsqConstants.SUBENTITY_PERSON,kfl);
+//log.debug("person layer {}",kfl.getLayer());
+        if (applyFields(prsn, mprsn, kfl.getLayer(), null)) {
 
             fields.put("name", prsn.getName());  //xxx set a user's name based on first, middle, last names
 
@@ -187,20 +191,21 @@ public class UsrService  extends AEnyManService {
             );
         }
 
-
-        if (applyFields(usr, fields, USR_WRITABLE)) {
+        if (applyFields(usr, fields, 0, USR_WRITABLE)) {
             usrRepository.updateUsr(id, usr.getName(), usr.getRegistration(), usr.getDeleted(), usr.getDesc(), uid, correlationId, requestId);
         }
         if (cstm != null) {
             for (EsqNameValueJpa nv : cstm) {
                 String nm = nv.getName();
                 if (fields.containsKey(nm)) {
-                    String val = (String) fields.get(nm);
-                    if (val != null && val.isBlank()) {
-                        val = null;
+                    String val = (String)fields.get(nm);
+                    kfl = dictUser.fillКindFieldLayer(nm,kfl);
+                    EsqEntityField field = kfl.getField();
+                    if (field != null && (field.getReadwrite()  & 2) == 2) {
+                        val = (String)ValidatorFactory.getInstance().validate(usr, kfl, val);
+                        nv.setValue(val);
+                        usrRepository.updateCustomUsr(id, nm, val, uid, correlationId, requestId);
                     }
-                    nv.setValue(val);
-                    usrRepository.updateCustomUsr(id, nm, val, uid, correlationId, requestId);
                 }
             }
         }
@@ -210,7 +215,10 @@ public class UsrService  extends AEnyManService {
             if (addr != null) {
                 //addr.setId(id);
                 Map<String, Object> maddr = (Map<String, Object>) fields.get(EsqConstants.SUBENTITY_ADDRESS);
-                if (applyFields(addr, maddr, null)) {
+//log.debug("looking for {} {}",EsqConstants.SUBENTITY_ADDRESS, dictUser.getKind());
+                kfl = dictUser.fillКindFieldLayer(EsqConstants.SUBENTITY_ADDRESS, kfl);
+//log.debug("address layer {} {}", EsqConstants.SUBENTITY_ADDRESS, kfl.getLayer());
+                if (applyFields(addr, maddr, kfl.getLayer(), null)) {
                     usrRepository.updateAddress(id, EsqConstants.KIND_PERSON_PRIMARY, addr.getDesc(),
                             addr.getAddr(), addr.getAddr2(), addr.getCity(), addr.getCompany(),
                             addr.getCountry(), addr.getDepartment(), addr.getFax(),
@@ -223,7 +231,10 @@ public class UsrService  extends AEnyManService {
             if (addr2 != null) {
                 //addr2.setId(id);
                 Map<String, Object> maddr2 = (Map<String, Object>) fields.get(EsqConstants.SUBENTITY_ADDRESS2);
-                if (applyFields(addr2, maddr2, null)) {
+//log.debug("looking for {} {}",EsqConstants.SUBENTITY_ADDRESS2, dictUser.getKind());
+                kfl = dictUser.fillКindFieldLayer(EsqConstants.SUBENTITY_ADDRESS2, kfl);
+//log.debug("address2 layer {} {}", EsqConstants.SUBENTITY_ADDRESS2, kfl.getLayer());
+                if (applyFields(addr2, maddr2, kfl.getLayer(), null)) {
                     usrRepository.updateAddress2(id, EsqConstants.KIND_PERSON_PRIMARY, addr2.getDesc(),
                             addr2.getAddr(), addr2.getAddr2(), addr2.getCity(), addr2.getCompany(),
                             addr2.getCountry(), addr2.getDepartment(), addr2.getFax(),

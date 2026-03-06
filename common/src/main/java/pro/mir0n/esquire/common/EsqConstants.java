@@ -11,6 +11,7 @@
  *                   DICT_ACCESS_PROFILE renamed with KIND_ACCESS_PROFILE
  * 02/28/2026 mir0n  KIND_ADDRESS_POSTAL/BIZ, KIND_PERSON_PRIMARY/SECONDARY/JOINT added
  *                   SUBENTITY_PERSON, SUBENTITY_ADDRESS, SUBENTITY_ADDRESS2 added
+ * 03/06/2026 mir0n  KIND_ADMIN_ROLE = 980 added
  */
 package pro.mir0n.esquire.common;
 
@@ -48,6 +49,7 @@ public class EsqConstants {
     public static final int  KIND_PERSON_SECONDARY = 994;
     public static final int  KIND_PERSON_JOINT = 996;
     public static final int  KIND_ACCESS_PROFILE = 998;
+    public static final int  KIND_ADMIN_ROLE = 980;
 
     public static final String  SUBENTITY_PERSON = "person";
     public static final String  SUBENTITY_ADDRESS = "addr";

@@ -7,6 +7,7 @@
  *
  *  History:
  * 01/18/2026 mir0n let stack trace optional
+ * 03/06/2026 mir0n InvalidValueException.errors included in problem detail response
  */
 
 package pro.mir0n.esquire.backend.error;
@@ -58,6 +59,10 @@ public class ProblemDetailMill {
         if (problem.getType() == null || problem.getType().toString().equals("about:blank")) {
             problem.setType(URI.create("https://mir0n.pro/errors"));
         }
+        if (ex instanceof InvalidValueException) {
+            problem.setProperty("errors",((InvalidValueException) ex).errors);
+        }
+
         return problem;
     }
 

@@ -1289,6 +1289,7 @@
                             <readwrite>3</readwrite>
                             <minmax>50</minmax>
                             <validation>^[\x20-\x7E]+</validation>
+                            <nullable>N</nullable>
                             <personal>Y</personal>
                         </field>
                         <field>
@@ -1300,17 +1301,18 @@
                             <readwrite>3</readwrite>
                             <minmax>50</minmax>
                             <validation>^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$</validation>
+                            <nullable>N</nullable>
                             <personal>Y</personal>
                         </field>
                         <field>
                             <name>pwdChangeForced</name>
                             <sort>3</sort>
                             <label>Password Change</label>
-                            <nullable>Y</nullable>
-                            <nullmeaning>(n/a)</nullmeaning>
                             <type>flag</type>
                             <tooltip>Force password change</tooltip>
                             <readwrite>3</readwrite>
+                            <nullable>Y</nullable>
+                            <nullmeaning>(n/a)</nullmeaning>
                             <personal>Y</personal>
                         </field>
                         <field>
@@ -1325,6 +1327,7 @@
                                 <value>g~Pending</value>
                             </listvalues>
                             <validation>^(N|G|g)$</validation>
+                            <nullable>N</nullable>
                             <readwrite>3</readwrite>
                             <personal>Y</personal>
                         </field>

@@ -21,6 +21,7 @@
  *                  FlushModeType.COMMIT prevents Hibernate auto-flush before native queries
  *                  esquireCommandSave() with saveAcct() helper
  *                  ACCT_WRITABLE = {desc, status}
+ * 03/06/2026 mir0n ACCT_WRITABLE removed; applyFields() dict-driven via ValidatorFactory
  */
 
 package pro.mir0n.esquire.pacMan.service.impl;
@@ -36,7 +37,9 @@ import org.springframework.beans.BeanWrapperImpl;
 import pro.mir0n.esquire.backend.dto.*;
 import pro.mir0n.esquire.backend.jpa.*;
 import pro.mir0n.esquire.backend.jpa.entity.EsqAcctJpa;
+import pro.mir0n.esquire.backend.storage.EsqEntityDictionaryStorage;
 import pro.mir0n.esquire.backend.storage.EsqObjectKindStorage;
+import pro.mir0n.esquire.backend.validator.ValidatorFactory;
 import pro.mir0n.esquire.pacMan.jpa.EsqAcctRepository;
 import pro.mir0n.esquire.pacMan.service.RequestContextUtils;
 import pro.mir0n.esquire.backend.error.ResourceNotFoundException;
@@ -117,26 +120,35 @@ public class PacManService  implements IPacManService {
         if (acct == null) {
             throw new ResourceNotFoundException("saveAcct", "id", id);
         }
-        if (applyFields(acct, fields, ACCT_WRITABLE)) {
+        if (applyFields(acct, fields)) {
             entityRepository.updateAcct(id, acct.getDesc(), acct.getStatus(), uid, correlationId, requestId);
         }
         //note: if a DB trigger or default value modifies the row, saveAcct won't reflect it.
         updated[0] = acct;
     }
 
-    private static final Set<String> ACCT_WRITABLE = Set.of("status","desc");
-
-    private boolean applyFields(EsqEntityJpa jpa, Map<String, Object> fields, Set<String> writables) {
+    private boolean applyFields(EsqEntityJpa jpa, Map<String, Object> fields) {
+        if (jpa == null || fields == null) {
+            return false;
+        }
+        EsqEntityDictionary dict = EsqEntityDictionaryStorage.getInstance().get(jpa.getKind());
         BeanWrapper wrapper = new BeanWrapperImpl(jpa);
         boolean changed = false;
+        EsqEntityKindFieldLayer kfl = new EsqEntityKindFieldLayer();
         for (PropertyDescriptor pd : wrapper.getPropertyDescriptors()) {
-            if (writables.contains(pd.getName()) && fields.containsKey(pd.getName())) {
-                changed = true;
-                Object newValue = fields.get(pd.getName());
-                if (newValue instanceof String && ((String) newValue).isBlank()) {
-                    newValue = null;
+            String name = pd.getName();
+            if (fields.containsKey(name)) {
+                Object value = fields.get(name);
+                kfl = dict.fillКindFieldLayer(name, kfl);
+                EsqEntityField field = kfl.getField();
+                if (field != null) {
+                    if (field.getReadwrite() != null && (field.getReadwrite() & 2) == 2) {
+                        value = ValidatorFactory.getInstance().validate(jpa, kfl, value);
+//log.debug("pacMan:PacManService:applyFields: {} value:{}", name, value);
+                        wrapper.setPropertyValue(name, value);
+                        changed = true;
+                    }
                 }
-                wrapper.setPropertyValue(pd.getName(), newValue);
             }
         }
         return changed;
