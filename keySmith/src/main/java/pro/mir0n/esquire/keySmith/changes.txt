@@ -1,5 +1,14 @@
 Esquire keySmith Microservice
 
+03/08/2026 mir0n  personal-flag: users cannot change their own permissions
+service.BizValidatorFactory
+  - validate(): boolean personal param added
+  - personal guard: throws InvalidValueException if personal=true (cannot change own permissions)
+service.impl.KeySmithService
+  - InvalidValueException import added
+  - personal = upk.equals(uid) computed at saveAccess() entry
+  - personal passed to saveAccess() and applyFields()
+
 03/06/2026 mir0n  field validation via ValidatorFactory; biz validator added
 + added service.BizValidatorFactory
   - biz validator for KIND_ACCESS_PROFILE: max 1 admin role per user

@@ -14,6 +14,7 @@
  *                   deleting roles/ adding roles inserted
  * 03/06/2026 mir0n  ACCESS_WRITABLE removed; applyFields() dict-driven via ValidatorFactory
  *                   roles field validated via BizValidatorFactory
+ * 03/08/2026 mir0n  personal = upk.equals(uid); passed to saveAccess() and applyFields()
  */
 
 package pro.mir0n.esquire.keySmith.service.impl;
@@ -30,6 +31,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 import pro.mir0n.esquire.backend.dto.*;
 import pro.mir0n.esquire.backend.dto.access.*;
 import pro.mir0n.esquire.backend.dto.access.EsqAccessProfile;
+import pro.mir0n.esquire.backend.error.InvalidValueException;
 import pro.mir0n.esquire.backend.jpa.access.*;
 import pro.mir0n.esquire.backend.storage.EsqEntityDictionaryStorage;
 import pro.mir0n.esquire.backend.validator.ValidatorFactory;
@@ -80,6 +82,7 @@ public class KeySmithService implements IKeySmithService {
         log.debug("srvc: esquireKeySave: id:{}, rootPath:{}, uid:{}", id, rootPath, uid);
 
         String upk = id == null ? uid : id;
+        boolean personal = upk.equals(uid);
 
         EsqAccessProfileJpa[] updated = {null};
         List<EsqRoleJpa>[] roles = new List[]{null};
@@ -92,7 +95,7 @@ public class KeySmithService implements IKeySmithService {
             //      @Modifying queries clears the context after each native update, so nothing
             //      remains to flush at commit.
             em.setFlushMode(FlushModeType.COMMIT);
-            saveAccess(upk, fields, rootPath, uid, correlationId, requestId, updated, roles, rolesAll);
+            saveAccess(upk, fields, rootPath, uid, correlationId, requestId, personal, updated, roles, rolesAll);
             return null;
         }); // ← transaction commits here
 
@@ -103,14 +106,16 @@ public class KeySmithService implements IKeySmithService {
     }
 
     private void saveAccess(String id, Map<String, Object> fields, String rootPath,
-                            String uid, String correlationId, String requestId,
-                            EsqAccessProfileJpa[] updated,
-                            List<EsqRoleJpa>[] roles, List<EsqRoleJpa>[] rolesAll) {
+            String uid, String correlationId, String requestId,
+            boolean personal,
+            EsqAccessProfileJpa[] updated,
+            List<EsqRoleJpa>[] roles,
+            List<EsqRoleJpa>[] rolesAll) {
         EsqAccessProfileJpa jpa = accessProfileRepository.accessForUpdate(id, rootPath);
         if (jpa == null) {
             throw new ResourceNotFoundException("saveAccess", "id", id);
         }
-        if (applyFields(jpa, fields)) {
+        if (applyFields(jpa, personal, fields)) {
             accessProfileRepository.updateAccess(id, jpa.getEmail(), jpa.getLoginId(), jpa.getPwdChangeForced(), jpa.getTfaMethod(), uid, correlationId, requestId);
         }
         List<EsqRoleJpa> originRoles = accessProfileRepository.roles(id);
@@ -121,14 +126,14 @@ public class KeySmithService implements IKeySmithService {
 
         if (fields.containsKey(IKeySmithService.FIELD_ROLES)) {
             EsqEntityDictionary dict = EsqEntityDictionaryStorage.getInstance().get(EsqConstants.KIND_ACCESS_PROFILE);
-            EsqEntityKindFieldLayer kfl = dict.fillКindFieldLayer(IKeySmithService.FIELD_ROLES, null) ;
+            EsqEntityKindFieldLayer kfl = dict.fillКindFieldLayer(IKeySmithService.FIELD_ROLES, null);
             List<?> value = (List<?>) fields.get(IKeySmithService.FIELD_ROLES);
-log.debug("keySmith:saveAccess: roles:{}", value);
-            ValidatorFactory.getInstance().validate(jpa, kfl, value);
+            log.debug("keySmith:saveAccess: roles:{}", value);
+            ValidatorFactory.getInstance().validate(jpa, kfl, personal, value);
 
             List<EsqRoleJpa> givenRoles = new ArrayList<>();
             Set<String> givenIds = new HashSet<>();
-            for (Object r :value) {
+            for (Object r : value) {
                 if (r instanceof Map) {
                     EsqRoleJpa jpaRole = new EsqRoleJpa();
                     Object roleId = ((Map<?, ?>) r).get("id");
@@ -161,7 +166,7 @@ log.debug("keySmith:saveAccess: roles:{}", value);
         rolesAll[0]    = accessProfileRepository.rolesAll(id);
     }
 
-    private boolean applyFields(EsqAccessProfileJpa jpa, Map<String, Object> fields) {
+    private boolean applyFields(EsqAccessProfileJpa jpa, boolean personal, Map<String, Object> fields) {
         if (jpa == null || fields == null) {
             return false;
         }
@@ -180,7 +185,7 @@ log.debug("keySmith:saveAccess: roles:{}", value);
                 EsqEntityField field = kfl.getField();
                 if (field != null) {
                     if (field.getReadwrite() != null && (field.getReadwrite() & 2) == 2) {
-                        value = ValidatorFactory.getInstance().validate(jpa, kfl, value);
+                        value = ValidatorFactory.getInstance().validate(jpa, kfl, personal, value);
 //log.debug("keySmith:validated: value:{}", value);
                         wrapper.setPropertyValue(name, value);
                         changed = true;

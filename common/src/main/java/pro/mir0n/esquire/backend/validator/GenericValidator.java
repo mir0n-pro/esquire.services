@@ -7,6 +7,7 @@
  *
  *  History:
  * 03/06/2026 mir0n created: generic implementation of validator interface
+ * 03/08/2026 mir0n  personal flag: throws InvalidValueException if personal=true and field.personal != "Y"
  */
 
 package pro.mir0n.esquire.backend.validator;
@@ -22,10 +23,16 @@ public class GenericValidator implements IValidator {
     protected GenericValidator() {}
 
     @Override
-    public Object validate(EsqEntityJpa origin, EsqEntityKindFieldLayer kfl, Object value) {
+    public Object validate(EsqEntityJpa origin, EsqEntityKindFieldLayer kfl, boolean personal, Object value) {
         Object ret = value;
         EsqEntityField field = kfl.getField();
         if (field != null) {
+            if (personal) {
+                if (!"Y".equals(field.getPersonal())) {
+                    throw new InvalidValueException("You cannot update the value by yourself", field.getName(),
+                            kfl.getLabel(), String.valueOf(kfl.getLayer() -1));
+                }
+            }
             if (ret != null) {
                 if (ret instanceof String && ((String) ret).isBlank()) {
                     ret = null;
@@ -35,7 +42,7 @@ public class GenericValidator implements IValidator {
             if (ret == null) {
                 if ("N".equals(field.getNullable())) {
                     throw new InvalidValueException("value is required", field.getName(),
-                        field.getLabel(), String.valueOf(kfl.getLayer() -1) );
+                            kfl.getLabel(), String.valueOf(kfl.getLayer() -1) );
                }
             } else {
                 // Generic non-null value validation
@@ -74,7 +81,7 @@ public class GenericValidator implements IValidator {
             ///  todo where to get layer from ?
             EsqEntityField field = kfl.getField();
             throw new InvalidValueException("value must be a well-formed", field.getName(),
-                field.getLabel(), String.valueOf(kfl.getLayer() -1));
+                    kfl.getLabel(), String.valueOf(kfl.getLayer() -1));
         }
     }
 
@@ -89,13 +96,13 @@ public class GenericValidator implements IValidator {
                     double max = Double.parseDouble(parts[1].trim());
                     if (num < min || num > max) {
                         throw new InvalidValueException("value must be between " + min + " and " + max, field.getName(),
-                           field.getLabel(), String.valueOf(kfl.getLayer() -1));
+                                kfl.getLabel(), String.valueOf(kfl.getLayer() -1));
                     }
                 }
             }
         } catch (NumberFormatException e) {
             throw new InvalidValueException(e.getMessage(), field.getName(),
-                field.getLabel(), String.valueOf(kfl.getLayer() -1));
+                    kfl.getLabel(), String.valueOf(kfl.getLayer() -1));
         }
     }
 }

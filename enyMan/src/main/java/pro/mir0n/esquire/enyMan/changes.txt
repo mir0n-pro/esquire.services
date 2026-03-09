@@ -1,5 +1,15 @@
 Esquire enyMan Microservice
 
+03/08/2026 mir0n  personal-flag: self-update context propagated through validation chain
+service.impl.AEnyManService
+  - applyFields(): boolean personal param added; forwarded to ValidatorFactory.validate()
+service.impl.OrgService
+  - unused imports removed
+  - applyFields() and validate() calls pass personal=false
+service.impl.UsrService
+  - personal = id.equals(uid) computed at updateUsr() entry
+  - personal passed to all applyFields() and validate() calls
+
 03/06/2026 mir0n  field validation via ValidatorFactory; BizValidatorFactory pattern
 EnyManApplication
   - ValidatorFactory.getInstance().init() called on startup

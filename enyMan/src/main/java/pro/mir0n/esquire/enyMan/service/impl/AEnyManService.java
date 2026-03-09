@@ -10,6 +10,7 @@
  *                   esquireDictionary() and applyFields() extracted from EnyManService
  * 03/06/2026 mir0n  applyFields() refactored: dict-driven validation via ValidatorFactory
  *                   subLayer param added for sub-entity field layer context
+ * 03/08/2026 mir0n  applyFields(): boolean personal param added; forwarded to ValidatorFactory
  */
 
 package pro.mir0n.esquire.enyMan.service.impl;
@@ -62,7 +63,7 @@ public abstract class AEnyManService  implements IEnyManService {
         return ret;
     }
 
-    protected boolean applyFields(EsqEntityJpa jpa, Map<String, Object> fields, int subLayer, Set<String> writables) {
+    protected boolean applyFields(EsqEntityJpa jpa, Map<String, Object> fields, boolean personal, int subLayer, Set<String> writables) {
         if (jpa == null || fields == null) {
             return false;
         }
@@ -91,7 +92,7 @@ public abstract class AEnyManService  implements IEnyManService {
                         }
                     } else { //field.getReadwrite() != null && (field.getReadwrite() & 2) == 2)
                         //writable fields: need validation
-                        value = ValidatorFactory.getInstance().validate(jpa, kfl, value);
+                        value = ValidatorFactory.getInstance().validate(jpa, kfl, personal, value);
                         wrapper.setPropertyValue(name, value);
                         changed = true;
                     }

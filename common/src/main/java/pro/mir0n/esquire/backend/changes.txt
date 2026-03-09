@@ -1,5 +1,23 @@
 Esquire Backend common microservice classes
 
+03/08/2026 mir0n  personal-flag enforcement: users can only update fields marked personal=Y on own records
+dto.EsqEntityField
+  - isSubentity() method added
+  - isTabField() method added (tabstring, tab-ikn-list, tab-iknf-table types)
+dto.EsqEntityKindFieldLayer
+  - layerTitle field added
+  - getLabel() method added: returns layerTitle for tab fields, field.getLabel() otherwise
+dto.EsqEntityDictionary
+  - fillКindFieldLayer(): setLayerTitle() called to populate layer title context
+validator.IValidator
+  - validate() signature: boolean personal param added
+validator.GenericValidator
+  - validate(): personal param added; throws InvalidValueException if personal=true and field.personal != "Y"
+validator.ValidatorFactory
+  - validate(): personal param forwarded through generic + biz chain
+resources/esq-entity-dictionaries.xml
+  - personal=Y corrected to personal=N on 3 fields; personal=N added to 1 field
+
 03/06/2026 mir0n  field validation framework added; null-safe serialization fixes
 + added dto.EsqEntityKindFieldLayer (entity kind + layer + field context DTO)
 + added validator package: IValidator, GenericValidator, ValidatorFactory

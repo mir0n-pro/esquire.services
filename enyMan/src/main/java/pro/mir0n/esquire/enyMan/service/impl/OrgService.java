@@ -10,36 +10,26 @@
  *                   esquireCommand(), esquireCommandSave(), saveOrg() moved from EnyManService
  * 03/06/2026 mir0n  ORG_WRITABLE removed; applyFields() dict-driven via ValidatorFactory
  *                   custom field validation via dictionary readwrite flag
+ * 03/08/2026 mir0n  unused imports removed; applyFields/validate calls pass personal=false
  */
 
 package pro.mir0n.esquire.enyMan.service.impl;
 
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.FlushModeType;
-import java.beans.PropertyDescriptor;
 import java.util.*;
 
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.BeanWrapper;
-import org.springframework.beans.BeanWrapperImpl;
 import pro.mir0n.esquire.backend.dto.*;
 import pro.mir0n.esquire.backend.jpa.*;
 import pro.mir0n.esquire.backend.jpa.entity.EsqOrgJpa;
-import pro.mir0n.esquire.backend.jpa.entity.EsqUsrJpa;
-import pro.mir0n.esquire.backend.storage.EsqObjectKindStorage;
 import pro.mir0n.esquire.backend.validator.ValidatorFactory;
 import pro.mir0n.esquire.enyMan.jpa.EsqEntityDictionaryRepository;
 import pro.mir0n.esquire.enyMan.jpa.EsqOrgRepository;
-import pro.mir0n.esquire.enyMan.jpa.EsqUsrRepository;
 import pro.mir0n.esquire.enyMan.service.RequestContextUtils;
 import pro.mir0n.esquire.backend.storage.EsqEntityDictionaryStorage;
 import pro.mir0n.esquire.backend.error.ResourceNotFoundException;
-import pro.mir0n.esquire.enyMan.service.IEnyManService;
-import lombok.AllArgsConstructor;
-import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
-
-import pro.mir0n.esquire.common.EsqConstants;
 
 @Slf4j
 public class OrgService  extends AEnyManService {
@@ -107,7 +97,7 @@ public class OrgService  extends AEnyManService {
             throw new ResourceNotFoundException("saveOrg", "id", id);
         }
         List<EsqNameValueJpa> cstm = orgRepository.customOrg(id);
-        if (applyFields(org, fields, 0,null)) {
+        if (applyFields(org, fields, false,0,null)) {
             orgRepository.updateOrg(id, org.getName(), org.getDesc(), org.getFullName(), uid, correlationId, requestId);
         }
 
@@ -121,7 +111,7 @@ public class OrgService  extends AEnyManService {
                     kfl = (dict != null) ? dict.fillКindFieldLayer(nm,kfl) : null;
                     EsqEntityField field = (kfl != null) ? kfl.getField() : null;
                     if (field != null && (field.getReadwrite()  & 2) == 2) {
-                        val = (String) ValidatorFactory.getInstance().validate(org, kfl, val);
+                        val = (String) ValidatorFactory.getInstance().validate(org, kfl, false, val);
                         nv.setValue(val);
                         orgRepository.updateCustomOrg(id, nm, val, uid, correlationId, requestId);
                     }

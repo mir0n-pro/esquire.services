@@ -1,6 +1,22 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v1.2.2-2603.0821
+  Personal-field enforcement: users can only update their own personal-marked fields
+    :Security: boolean personal param added to IValidator / GenericValidator / ValidatorFactory
+      - GenericValidator: throws InvalidValueException if personal=true and field.personal != "Y"
+      - keySmith BizValidatorFactory: throws if personal=true (cannot change own permissions)
+    :Security: self-update context propagated in enyMan (UsrService) and keySmith (KeySmithService)
+      - personal = id.equals(uid) / upk.equals(uid) determined at save entry point
+    :Refactoring: EsqEntityField.isSubentity() and isTabField() helper methods added
+    :Refactoring: EsqEntityKindFieldLayer.layerTitle field + getLabel() for context-aware labels
+    :Fix: esq-entity-dictionaries.xml: personal=N corrected for non-personally-editable fields
+    : modified components
+      - common
+      - enyMan
+      - keySmith
+      - pacMan
+
 v1.2.2-2603.0619
   Field validation framework; business rule validators; null-safe fixes
     :Validation: ValidatorFactory + GenericValidator added to common library

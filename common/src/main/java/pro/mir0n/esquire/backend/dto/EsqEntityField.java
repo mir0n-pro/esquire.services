@@ -10,6 +10,7 @@
  * 01/14/2026 mir0n  "personal" field added
  * 02/19/2026 mir0n  nullable type changed from Boolean to String
  *                   minmax field added
+ * 03/08/2026 mir0n  isSubentity() and isTabField() helper methods added
  */
 
 package pro.mir0n.esquire.backend.dto;
@@ -110,5 +111,23 @@ public class EsqEntityField {
     )
     @JacksonXmlProperty(localName = "minmax")
     private String minmax;
+
+    public boolean isSubentity() {
+        return "subentity".equals(type);
+    }
+
+    public boolean isTabField() {
+        boolean ret = false;
+        switch (type) {
+        case "tabstring":
+        case "tab-ikn-list":
+        case "tab-iknf-table":
+            ret = true;
+            break;
+        default:
+            break;
+        }
+        return ret;
+    }
 
 };

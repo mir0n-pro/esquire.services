@@ -178,7 +178,7 @@ services:
 #    environment:
 #      # These variables are injected into assets/config.json at container start
 #      - BACKEND_HOST=localhost
-#      - BACKEND_PORT=3000
+#      - BACKEND_PORT=7070
 #      - KEYCLOAK_FACADE_HOST=localhost
 #      - KEYCLOAK_FACADE_PORT=8080
 #      - KEYCLOAK_REALM=esquire

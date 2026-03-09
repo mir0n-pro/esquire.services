@@ -1,5 +1,11 @@
 Esquire pacMan Microservice
 
+03/08/2026 mir0n  validate() interface alignment: personal param added (no behavior change)
+service.BizValidatorFactory
+  - validate(): boolean personal param added (interface alignment, no behavior change)
+service.impl.PacManService
+  - validate() calls pass personal=false
+
 03/06/2026 mir0n  field validation via ValidatorFactory; biz validator added
 + added service.BizValidatorFactory
   - biz validator for acct kinds (50/52/54): cannot close account with positive balance

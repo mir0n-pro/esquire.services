@@ -22,6 +22,7 @@
  *                  esquireCommandSave() with saveAcct() helper
  *                  ACCT_WRITABLE = {desc, status}
  * 03/06/2026 mir0n ACCT_WRITABLE removed; applyFields() dict-driven via ValidatorFactory
+ * 03/08/2026 mir0n  validate() calls pass personal=false (interface alignment)
  */
 
 package pro.mir0n.esquire.pacMan.service.impl;
@@ -143,7 +144,7 @@ public class PacManService  implements IPacManService {
                 EsqEntityField field = kfl.getField();
                 if (field != null) {
                     if (field.getReadwrite() != null && (field.getReadwrite() & 2) == 2) {
-                        value = ValidatorFactory.getInstance().validate(jpa, kfl, value);
+                        value = ValidatorFactory.getInstance().validate(jpa, kfl, false, value);
 //log.debug("pacMan:PacManService:applyFields: {} value:{}", name, value);
                         wrapper.setPropertyValue(name, value);
                         changed = true;

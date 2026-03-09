@@ -7,6 +7,7 @@
  *
  *  History:
  * 03/06/2026 mir0n created: factory initializing generic + biz validators; validate() dispatch
+ * 03/08/2026 mir0n  validate(): boolean personal param forwarded through generic + biz chain
  */
 
 package pro.mir0n.esquire.backend.validator
@@ -36,13 +37,13 @@ public class ValidatorFactory implements IValidator {
     }
 
     @Override
-    public Object validate(EsqEntityJpa origin, EsqEntityKindFieldLayer kfl, Object value) {
-        Object ret = validator.validate(origin, kfl, value);
+    public Object validate(EsqEntityJpa origin, EsqEntityKindFieldLayer kfl, boolean personal, Object value) {
+        Object ret = validator.validate(origin, kfl, personal, value);
         if (bizValidators != null) {
             IValidator biz = bizValidators.get(kfl.getEntityKind());
 //log.debug("ValidatorFactory:validate: kind:{} biz:{}", kfl.getEntityKind(), biz);
             if (biz != null) {
-                ret = biz.validate(origin, kfl, ret );
+                ret = biz.validate(origin, kfl, personal, ret );
             }
         }
         return ret;
