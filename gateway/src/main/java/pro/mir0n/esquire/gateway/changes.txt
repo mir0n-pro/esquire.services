@@ -1,5 +1,8 @@
 Esquire Gateway Microservice
 
+03/10/2026 mir0n  JWT claim key constants; cleanup
+config.KeycloakRoleConverter
+  - EsqConstants.JWT_CLAIM_REALM_ACCESS, JWT_CLAIM_REALM_ACCESS_ROLES used instead of string literals
 02/19/2026 mir0n  save routes added
 config/application.yml
   - added enyman-save-route:   POST /esq-cmd-save  -> enyMan

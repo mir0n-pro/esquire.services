@@ -25,6 +25,7 @@
  * 03/08/2026 mir0n  validate() calls pass personal=false (interface alignment)
  * 03/09/2026 mir0n  roles param added; isAdminCmdPermitted(UPDATE) permission check
  *                   PermissionDeniedException thrown; stray debug comment removed
+ * 03/10/2026 mir0n  import: RequestContextUtils updated to backend.service package
  */
 
 package pro.mir0n.esquire.pacMan.service.impl;
@@ -47,7 +48,7 @@ import pro.mir0n.esquire.backend.storage.EsqObjectKindStorage;
 import pro.mir0n.esquire.backend.storage.EsqRolesStorage;
 import pro.mir0n.esquire.backend.validator.ValidatorFactory;
 import pro.mir0n.esquire.pacMan.jpa.EsqAcctRepository;
-import pro.mir0n.esquire.pacMan.service.RequestContextUtils;
+import pro.mir0n.esquire.backend.service.RequestContextUtils;
 import pro.mir0n.esquire.backend.error.ResourceNotFoundException;
 import pro.mir0n.esquire.pacMan.service.IPacManService;
 import lombok.AllArgsConstructor;

@@ -11,13 +11,6 @@
 
 package pro.mir0n.esquire.backend.error;
 
-import org.springframework.http.HttpStatus;
-import org.springframework.web.bind.annotation.ResponseStatus;
-
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-
 public class GenericRuntimeException extends RuntimeException {
     public GenericRuntimeException(String message) {
         super(message);

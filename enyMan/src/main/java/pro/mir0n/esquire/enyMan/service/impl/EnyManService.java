@@ -28,6 +28,7 @@
  *                   saveOrg/saveUsr/applyFields moved to OrgService/UsrService
  * 03/09/2026 mir0n  roles param added; isAdminCmdPermitted(UPDATE) permission check
  *                   self-update bypass for USR (id.equals(uid)); PermissionDeniedException thrown
+ * 03/10/2026 mir0n  import: RequestContextUtils updated to backend.service package
  */
 
 package pro.mir0n.esquire.enyMan.service.impl;
@@ -54,7 +55,7 @@ import pro.mir0n.esquire.backend.validator.ValidatorFactory;
 import pro.mir0n.esquire.enyMan.jpa.EsqEntityDictionaryRepository;
 import pro.mir0n.esquire.enyMan.jpa.EsqOrgRepository;
 import pro.mir0n.esquire.enyMan.jpa.EsqUsrRepository;
-import pro.mir0n.esquire.enyMan.service.RequestContextUtils;
+import pro.mir0n.esquire.backend.service.RequestContextUtils;
 import pro.mir0n.esquire.backend.storage.EsqEntityDictionaryStorage;
 import pro.mir0n.esquire.backend.error.ResourceNotFoundException;
 import pro.mir0n.esquire.enyMan.service.IEnyManService;

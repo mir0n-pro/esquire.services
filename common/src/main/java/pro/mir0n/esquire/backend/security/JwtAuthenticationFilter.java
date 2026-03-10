@@ -1,16 +1,16 @@
 /*
  *  Esquire frameworks (tm)
- *  EnyMan service
+ *  common library
  *
  *  Copyright(c) 2001, 2025 mir0n&co www.mir0n.me
  *  mailto:mir0n.the.programmer@gmail.com
  *
  *  History:
- * 01/21/2026 mir0n  ProblemDetailMill moved to backend common package
  * 03/09/2026 mir0n  realm_access.roles existence validated; request rejected (401) if missing/empty
+ * 03/10/2026 mir0n  moved to common; shared by all services via scanBasePackages
  */
 
-package pro.mir0n.esquire.enyMan.security;
+package pro.mir0n.esquire.backend.security;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.jsonwebtoken.Claims;

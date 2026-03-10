@@ -9,6 +9,7 @@
  * 03/06/2026 mir0n ValidatorFactory.init(BizValidatorFactory) called on startup
  * 03/09/2026 mir0n  EsqRolesStorage.init() via ApplicationReadyEvent listener
  *                   @EnableJpaRepositories extended with backend.storage.roles
+ * 03/10/2026 mir0n  scanBasePackages: backend.service, backend.security, backend.exception added
  */
 
 package pro.mir0n.esquire.keySmith;
@@ -28,7 +29,12 @@ import pro.mir0n.esquire.backend.validator.ValidatorFactory;
 import pro.mir0n.esquire.keySmith.service.BizValidatorFactory;
 
 @Slf4j
-@SpringBootApplication
+@SpringBootApplication(scanBasePackages = {
+        "pro.mir0n.esquire.keySmith",
+        "pro.mir0n.esquire.backend.service",
+        "pro.mir0n.esquire.backend.security",
+        "pro.mir0n.esquire.backend.exception"
+})
 @EntityScan(basePackages = "pro.mir0n.esquire.backend.jpa")
 @EnableJpaRepositories(basePackages = {
         "pro.mir0n.esquire.keySmith.jpa",

@@ -9,6 +9,8 @@
  * 03/09/2026 mir0n  created: static exception handler utility; centralizes handleMethodArgumentNotValid,
  *                   handleGenericRuntimeException, handlePermissionDeniedException, handleException
  *                   used by all service GlobalExceptionHandlers as thin delegates
+ * 03/10/2026 mir0n  handleMethodArgumentNotValid, handleException moved back to GlobalExceptionHandler (common)
+ *                   only GenericRuntimeException(s) are here
  */
 
 package pro.mir0n.esquire.backend.error;
@@ -26,25 +28,8 @@ import java.util.Map;
 @Slf4j
 public class GenericExceptionHandler{
 
-    public static ResponseEntity<Object> handleMethodArgumentNotValid(
-            MethodArgumentNotValidException ex, HttpHeaders headers, HttpStatusCode status, WebRequest request) {
-        ProblemDetail problem = ProblemDetailMill.createProblemDetail(
-            (HttpServletRequest) request.resolveReference("request"),
-            HttpStatus.BAD_REQUEST,
-            "Invalid Request Content",
-            "Validation failed",
-            ex
-        );
-        Map<String, String> errors = new HashMap<>();
-        ex.getBindingResult().getFieldErrors().forEach(error ->
-            errors.put(error.getField(), error.getDefaultMessage()));
-        problem.setProperty(EsqConstants.PD_ERRORS, errors);
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(problem);
-    }
-
     public static ResponseEntity<ProblemDetail> handleGenericRuntimeException(GenericRuntimeException ex, HttpServletRequest request) {
         log.warn(ex.getClass().getSimpleName() + ": {} {}: {}", request.getMethod(), request.getRequestURI(), ex.getMessage());
-
         ResponseEntity<ProblemDetail> response;
         if (ex instanceof PermissionDeniedException) {
             response = handlePermissionDeniedException((PermissionDeniedException) ex, request);
@@ -72,17 +57,4 @@ public class GenericExceptionHandler{
         );
         return ResponseEntity.status(HttpStatus.FORBIDDEN).body(problem);
     }
-
-    public static ResponseEntity<ProblemDetail> handleException(Exception ex, HttpServletRequest request) {
-        log.error("Unhandled exception: {} {}", request.getMethod(), request.getRequestURI(), ex);
-        ProblemDetail problem = ProblemDetailMill.createProblemDetail(
-            request,
-            HttpStatus.INTERNAL_SERVER_ERROR,
-            "An unexpected error occurred",
-            null,
-            ex
-        );
-        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(problem);
-    }
-
 }

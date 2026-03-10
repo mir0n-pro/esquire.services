@@ -1,6 +1,33 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v1.2.2-2603.1013
+  Observability, security, exception handling generalized to common library
+    :Refactoring: observability classes moved from all 4 services to common backend.service
+      + MdcFilter — MDC population, correlation/request ID headers, @Order(1)
+      + RequestContextUtils — static getCorrelationId() / getRequestId() utility
+      + RequestPerformance — request-scoped JPA timing tracker (@RequestScope)
+      + PerformanceAspect — @Aspect; pointcut pro.mir0n.esquire..jpa.*.* covers all services
+    :Refactoring: security classes moved from all 4 services to common backend.security
+      + JwtAuthenticationFilter — Bearer token validation; 401 if roles missing/empty
+      + JwtService — JWT parsing without signature validation
+      + SecurityConfiguration — stateless filter chain (@EnableWebSecurity)
+    :Refactoring: GlobalExceptionHandler moved from all 4 services to common backend.exception
+      - one canonical handler; @RestControllerAdvice picked up via scanBasePackages
+      - handleMethodArgumentNotValid inline; handleGenericRuntimeException delegates to GenericExceptionHandler
+    :Refactoring: all 4 Application classes — scanBasePackages extended
+      - backend.service, backend.security, backend.exception added for common bean discovery
+    :Refactoring: service impl files — RequestContextUtils import updated to backend.service
+    :Cleanup: 28 files removed from enyMan, keySmith, pacMan, bizTree (moved to common)
+    :Fix: gateway KeycloakRoleConverter — EsqConstants used for JWT claim keys
+    : modified components
+      - common
+      - gateway
+      - enyMan
+      - keySmith
+      - pacMan
+      - bizTree
+
 v1.2.2-2603.0922
   Exception handling centralized; Esquire exception hierarchy unified
     :Refactoring: GenericRuntimeException added to common — base class for all Esquire exceptions

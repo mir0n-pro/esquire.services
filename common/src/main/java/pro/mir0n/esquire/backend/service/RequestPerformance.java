@@ -1,14 +1,15 @@
 /*
  *  Esquire frameworks (tm)
- *  BizTree service
+ *  common library
  *
  *  Copyright(c) 2001, 2025 mir0n&co www.mir0n.me
  *  mailto:mir0n.the.programmer@gmail.com
  *
  *  History:
+ * 03/10/2026 mir0n  created: generalized from per-service implementations; request-scoped JPA timing tracker
  */
 
-package pro.mir0n.esquire.bizTree.service;
+package pro.mir0n.esquire.backend.service;
 
 import org.springframework.stereotype.Component;
 import org.springframework.web.context.annotation.RequestScope;

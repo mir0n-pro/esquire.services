@@ -1,20 +1,21 @@
 /*
  *  Esquire frameworks (tm)
- *  EnyMan service
+ *  common library
  *
- *  Copyright(c) 2001, 2026 mir0n&co www.mir0n.me
+ *  Copyright(c) 2001, 2025 mir0n&co www.mir0n.me
  *  mailto:mir0n.the.programmer@gmail.com
  *
  *  History:
+ * 03/10/2026 mir0n  created: generalized from per-service implementations;
+ *                   pointcut pro.mir0n.esquire..jpa.*.* covers all service JPA packages
  */
-package pro.mir0n.esquire.keySmith.service;
+package pro.mir0n.esquire.backend.service;
 
 import lombok.RequiredArgsConstructor;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
 import org.springframework.stereotype.Component;
-import pro.mir0n.esquire.keySmith.service.RequestPerformance;
 
 /*
 Note:
@@ -35,7 +36,7 @@ public class PerformanceAspect {
 
     private final RequestPerformance performance;
 
-    @Around("execution(* pro.mir0n.esquire.keySmith.jpa.*.*(..))")
+    @Around("execution(* pro.mir0n.esquire..jpa.*.*(..))")
     public Object trackJpaTime(ProceedingJoinPoint joinPoint) throws Throwable {
         // If the flag is false, just proceed immediately without timing
         if (!performance.isMetricsCaptured()) {

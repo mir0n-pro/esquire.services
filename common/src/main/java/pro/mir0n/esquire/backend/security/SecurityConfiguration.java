@@ -1,14 +1,15 @@
 /*
  *  Esquire frameworks (tm)
- *  EnyMan service
+ *  common library
  *
- *  Copyright(c) 2001, 2026 mir0n&co www.mir0n.me
+ *  Copyright(c) 2001, 2025 mir0n&co www.mir0n.me
  *  mailto:mir0n.the.programmer@gmail.com
  *
  *  History:
+ * 03/10/2026 mir0n  created: generalized from per-service implementations; stateless JWT filter chain
  */
 
-package pro.mir0n.esquire.keySmith.security;
+package pro.mir0n.esquire.backend.security;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;

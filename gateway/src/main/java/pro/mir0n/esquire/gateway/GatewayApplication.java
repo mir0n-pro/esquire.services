@@ -13,10 +13,12 @@ package pro.mir0n.esquire.gateway;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
-//import org.springframework.cloud.gateway.route.RouteLocator;
-//import org.springframework.cloud.gateway.route.builder.RouteLocatorBuilder;
-//import org.springframework.context.annotation.Bean;
 
+//TODO: get Roles with permissions from keySmith
+//      use tool id (100 for tree) id instead of role name
+//
+//TODO: have JWT optionally encrypted
+//
 
 @SpringBootApplication
 @ConfigurationPropertiesScan

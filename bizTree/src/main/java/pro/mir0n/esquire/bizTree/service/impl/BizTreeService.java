@@ -14,6 +14,7 @@
  * 01/23/2026 mir0n use common library
  *                  only EsqTreeNode requests
  * 01/24/2026 mir0n  ResourceNotFoundException.java moved to common lib
+ * 03/10/2026 mir0n  import: RequestContextUtils updated to backend.service package
  */
 
 package pro.mir0n.esquire.bizTree.service.impl;
@@ -24,7 +25,7 @@ import lombok.extern.slf4j.Slf4j;
 import pro.mir0n.esquire.backend.dto.*;
 import pro.mir0n.esquire.backend.jpa.*;
 import pro.mir0n.esquire.bizTree.jpa.EsqTreeNodeRepository;
-import pro.mir0n.esquire.bizTree.service.RequestContextUtils;
+import pro.mir0n.esquire.backend.service.RequestContextUtils;
 import pro.mir0n.esquire.backend.error.ResourceNotFoundException;
 import pro.mir0n.esquire.bizTree.service.IBizTreeService;
 import lombok.AllArgsConstructor;

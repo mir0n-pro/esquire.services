@@ -1,14 +1,15 @@
 /*
  *  Esquire frameworks (tm)
- *  EnyMan service
+ *  common library
  *
  *  Copyright(c) 2001, 2025 mir0n&co www.mir0n.me
  *  mailto:mir0n.the.programmer@gmail.com
  *
  *  History:
+ * 03/10/2026 mir0n  created: generalized from per-service implementations; JWT parsing without signature validation
  */
 
-package pro.mir0n.esquire.enyMan.security;
+package pro.mir0n.esquire.backend.security;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;

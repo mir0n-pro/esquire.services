@@ -12,6 +12,7 @@
  *                   custom field validation via dictionary readwrite flag
  * 03/08/2026 mir0n  unused imports removed; applyFields/validate calls pass personal=false
  * 03/09/2026 mir0n  esquireCommandSave(): roles param added
+ * 03/10/2026 mir0n  import: RequestContextUtils updated to backend.service package
  */
 
 package pro.mir0n.esquire.enyMan.service.impl;
@@ -27,7 +28,7 @@ import pro.mir0n.esquire.backend.jpa.entity.EsqOrgJpa;
 import pro.mir0n.esquire.backend.validator.ValidatorFactory;
 import pro.mir0n.esquire.enyMan.jpa.EsqEntityDictionaryRepository;
 import pro.mir0n.esquire.enyMan.jpa.EsqOrgRepository;
-import pro.mir0n.esquire.enyMan.service.RequestContextUtils;
+import pro.mir0n.esquire.backend.service.RequestContextUtils;
 import pro.mir0n.esquire.backend.storage.EsqEntityDictionaryStorage;
 import pro.mir0n.esquire.backend.error.ResourceNotFoundException;
 import org.springframework.transaction.support.TransactionTemplate;

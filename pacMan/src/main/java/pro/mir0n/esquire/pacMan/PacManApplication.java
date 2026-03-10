@@ -13,6 +13,7 @@
  *                   EnyManApplicationStartingListener renamed PacManApplicationStartingListener
  * 03/09/2026 mir0n  EsqRolesStorage.init() via ApplicationReadyEvent listener
  *                   @EnableJpaRepositories extended with backend.storage.roles
+ * 03/10/2026 mir0n  scanBasePackages: backend.service, backend.security, backend.exception added
  */
 
 package pro.mir0n.esquire.pacMan;
@@ -33,7 +34,12 @@ import pro.mir0n.esquire.backend.validator.ValidatorFactory;
 import pro.mir0n.esquire.pacMan.service.BizValidatorFactory;
 
 @Slf4j
-@SpringBootApplication
+@SpringBootApplication(scanBasePackages = {
+        "pro.mir0n.esquire.pacMan",
+        "pro.mir0n.esquire.backend.service",
+        "pro.mir0n.esquire.backend.security",
+        "pro.mir0n.esquire.backend.exception"
+})
 @EntityScan(basePackages = "pro.mir0n.esquire.backend.jpa")
 @EnableJpaRepositories(basePackages = {
         "pro.mir0n.esquire.pacMan.jpa",

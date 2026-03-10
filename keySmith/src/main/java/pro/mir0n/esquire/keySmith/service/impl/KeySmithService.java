@@ -17,6 +17,7 @@
  * 03/08/2026 mir0n  personal = upk.equals(uid); passed to saveAccess() and applyFields()
  * 03/09/2026 mir0n  roles var renamed to rolesAssigned; roles param added to saveAccess()
  *                   isAdminCmdPermitted(AUTH) permission check; PermissionDeniedException thrown
+ * 03/10/2026 mir0n  import: RequestContextUtils updated to backend.service package
  */
 
 package pro.mir0n.esquire.keySmith.service.impl;
@@ -40,7 +41,7 @@ import pro.mir0n.esquire.backend.storage.EsqRolesStorage;
 import pro.mir0n.esquire.backend.validator.ValidatorFactory;
 import pro.mir0n.esquire.common.EsqConstants;
 import pro.mir0n.esquire.keySmith.jpa.EsqAccessProfileRepository;
-import pro.mir0n.esquire.keySmith.service.RequestContextUtils;
+import pro.mir0n.esquire.backend.service.RequestContextUtils;
 import pro.mir0n.esquire.backend.error.ResourceNotFoundException;
 import pro.mir0n.esquire.keySmith.service.IKeySmithService;
 import lombok.AllArgsConstructor;

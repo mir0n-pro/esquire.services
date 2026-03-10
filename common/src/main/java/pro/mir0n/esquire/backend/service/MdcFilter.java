@@ -1,14 +1,15 @@
 /*
  *  Esquire frameworks (tm)
- *  EnyMan service
+ *  common library
  *
  *  Copyright(c) 2001, 2025 mir0n&co www.mir0n.me
  *  mailto:mir0n.the.programmer@gmail.com
  *
  *  History:
+ * 03/10/2026 mir0n  created: generalized from per-service implementations; MDC population, metrics headers
  */
 
-package pro.mir0n.esquire.enyMan.service;
+package pro.mir0n.esquire.backend.service;
 
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -28,7 +29,7 @@ import java.util.Enumeration;
 import java.util.Collection;
 
 /*
-    If your EnyManDervice ever starts using @Async methods or CompletableFuture,
+    If your Esquire service ever starts using @Async methods or CompletableFuture,
     the MDC context (Correlation ID, Request ID) will not automatically follow the new thread.
 
     Fix: If you use async, you'll need to configure a TaskDecorator to copy the MDC from
@@ -43,10 +44,6 @@ import java.util.Collection;
 public class MdcFilter extends OncePerRequestFilter {
 
     private final RequestPerformance performance; //lets lombok work
-
-    //public MdcFilter(RequestPerformance performance) {
-    //    this.performance = performance;
-    //}
 
     @Override
     protected void doFilterInternal(HttpServletRequest givenRequest, HttpServletResponse givenResponse, FilterChain filterChain)

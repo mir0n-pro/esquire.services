@@ -24,6 +24,10 @@ import java.net.URI;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 
+//xxx: The gateway is WebFlux (reactive stack), the services are servlet-based (blocking MVC).
+// These are incompatible APIs — HttpServletRequest is from jakarta.servlet,
+// ServerRequest is from spring-webflux.
+
 public class ProblemDetailMill {
     private ProblemDetailMill () {};
 

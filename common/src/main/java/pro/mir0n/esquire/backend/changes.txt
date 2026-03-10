@@ -1,5 +1,21 @@
 Esquire Backend common microservice classes
 
+03/10/2026 mir0n  observability and security generalized; one canonical GlobalExceptionHandler
++ added backend.service package: MdcFilter, RequestContextUtils, RequestPerformance, PerformanceAspect
+  - generalized from per-service implementations; shared by all services via scanBasePackages
+  - PerformanceAspect: pointcut pro.mir0n.esquire..jpa.*.* covers all service JPA packages
++ added backend.security package: JwtAuthenticationFilter, JwtService, SecurityConfiguration
+  - generalized from per-service implementations; stateless JWT filter chain
+  - JwtAuthenticationFilter: realm_access.roles validated; 401 if missing/empty
++ added backend.exception package: GlobalExceptionHandler (canonical; one for all services)
+  - handleMethodArgumentNotValid inline; delegates handleGenericRuntimeException to GenericExceptionHandler
+error.GenericExceptionHandler
+  - handleMethodArgumentNotValid, handleException moved to GlobalExceptionHandler (common)
+error.GenericRuntimeException
+  - unused imports removed (HttpStatus, ResponseStatus, ArrayList, List, Map)
+pom.xml
+  - spring-webmvc, spring-aspects, spring-security-web/config, jjwt-api added (provided scope)
+
 03/09/2026 mir0n  permission validation framework added; exception handling centralized
 + added error.GenericRuntimeException (base RuntimeException for all Esquire exceptions)
 + added error.GenericExceptionHandler (static utility; centralizes all exception handlers;

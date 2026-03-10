@@ -1,5 +1,14 @@
 Esquire BizTree Microservice
 
+03/10/2026 mir0n  observability, security, exception handling generalized to common
+x removed exception.GlobalExceptionHandler (moved to common backend.exception)
+x removed security.JwtAuthenticationFilter, JwtService, SecurityConfiguration (moved to common)
+x removed service.MdcFilter, RequestContextUtils, RequestPerformance, PerformanceAspect (moved to common)
+BizTreeApplication
+  - scanBasePackages: backend.service, backend.security, backend.exception added
+service.impl.BizTreeService
+  - import: RequestContextUtils updated to backend.service package
+
 03/09/2026 mir0n  exception handling centralized
 exception.GlobalExceptionHandler
   - refactored: thin delegate; all handlers forward to GenericExceptionHandler (common)
