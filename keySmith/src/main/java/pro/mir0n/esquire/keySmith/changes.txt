@@ -1,5 +1,26 @@
 Esquire keySmith Microservice
 
+03/09/2026 mir0n  service-side permission validation added; JWT roles claim validated
+controller.KeySmithController
+  - realm_access.roles extracted from JWT claims; roles passed to esquireKeySave()
+security.JwtAuthenticationFilter
+  - realm_access.roles extracted and validated; request rejected (401) if missing/empty
+resources/application.yml
+  - META-INF/oracle-roles.xml and META-INF/postgres-roles.xml added to JPA named queries
+KeySmithApplication
+  - EsqRolesStorage.init() via ApplicationReadyEvent listener
+  - @EnableJpaRepositories extended with backend.storage.roles
+service.IKeySmithService
+  - esquireKeySave(): roles param added
+service.impl.KeySmithService
+  - roles var renamed to rolesAssigned; roles param added to saveAccess()
+  - isAdminCmdPermitted(AUTH) permission check; self-update bypass (upk.equals(uid))
+  - PermissionDeniedException thrown on auth failure
+exception.GlobalExceptionHandler
+  - @Slf4j added; logging added to all handlers
+  - PermissionDeniedException (HTTP 403) and InvalidValueException (HTTP 400) handlers added
+  - ResourceNotFoundException: NOT_FOUND → BAD_REQUEST
+
 03/08/2026 mir0n  personal-flag: users cannot change their own permissions
 service.BizValidatorFactory
   - validate(): boolean personal param added

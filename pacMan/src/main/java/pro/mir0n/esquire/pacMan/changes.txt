@@ -1,5 +1,25 @@
 Esquire pacMan Microservice
 
+03/09/2026 mir0n  service-side permission validation added; JWT roles claim validated
+controller.PacManController
+  - realm_access.roles extracted from JWT claims; roles passed to esquireCommandSave()
+security.JwtAuthenticationFilter
+  - realm_access.roles extracted and validated; request rejected (401) if missing/empty
+resources/application.yml
+  - META-INF/oracle-roles.xml and META-INF/postgres-roles.xml added to JPA named queries
+PacManApplication
+  - EsqRolesStorage.init() via ApplicationReadyEvent listener
+  - @EnableJpaRepositories extended with backend.storage.roles
+service.IPacManService
+  - esquireCommandSave(): roles param added; unused imports removed (EsqTreeNode, EsqEntityLayer)
+service.impl.PacManService
+  - roles param added; isAdminCmdPermitted(UPDATE) permission check
+  - PermissionDeniedException thrown on auth failure; stray debug comment removed
+exception.GlobalExceptionHandler
+  - @Slf4j added; logging added to all handlers
+  - PermissionDeniedException (HTTP 403) and InvalidValueException (HTTP 400) handlers added
+  - ResourceNotFoundException: NOT_FOUND → BAD_REQUEST
+
 03/08/2026 mir0n  validate() interface alignment: personal param added (no behavior change)
 service.BizValidatorFactory
   - validate(): boolean personal param added (interface alignment, no behavior change)

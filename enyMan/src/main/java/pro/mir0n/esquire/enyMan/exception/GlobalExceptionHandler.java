@@ -11,6 +11,8 @@
  * 01/21/2026 mir0n  ProblemDetailMill moved to backend common package
  * 01/24/2026 mir0n  ResourceNotFoundException moved to common lib
  * 03/06/2026 mir0n  InvalidValueException handler added; logging added to all handlers
+ * 03/09/2026 mir0n  PermissionDeniedException handler added (HTTP 403 FORBIDDEN)
+ *                   ResourceNotFoundException: NOT_FOUND → BAD_REQUEST
  */
 
 package pro.mir0n.esquire.enyMan.exception;
@@ -34,6 +36,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import pro.mir0n.esquire.backend.error.InvalidValueException;
+import pro.mir0n.esquire.backend.error.PermissionDeniedException;
 import pro.mir0n.esquire.backend.error.ProblemDetailMill;
 import pro.mir0n.esquire.backend.error.ResourceNotFoundException;
 import pro.mir0n.esquire.common.EsqConstants;
@@ -78,13 +81,28 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         log.warn("Resource not found: {} {}: {}", request.getMethod(), request.getRequestURI(), ex.getMessage());
         ProblemDetail problem = ProblemDetailMill.createProblemDetail(
             request,
-            HttpStatus.NOT_FOUND,
+            HttpStatus.BAD_REQUEST,
             "Data not found",
             null,
             ex
         );
-        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(problem);
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(problem);
     }
+
+    @ExceptionHandler(PermissionDeniedException.class)
+    public ResponseEntity<ProblemDetail> handlePermissionDeniedException(PermissionDeniedException ex,  HttpServletRequest request) {
+        log.warn("Permission Denied: {} {}: {}", request.getMethod(), request.getRequestURI(), ex.getMessage());
+        ProblemDetail problem = ProblemDetailMill.createProblemDetail(
+                request,
+                HttpStatus.FORBIDDEN,
+                "Permission Denied",
+                null,
+                ex
+        );
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(problem);
+    }
+
+
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ProblemDetail>  handleException(Exception ex,  HttpServletRequest request) {

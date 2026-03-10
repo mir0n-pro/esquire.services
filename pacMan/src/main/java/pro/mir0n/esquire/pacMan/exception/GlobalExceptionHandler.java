@@ -8,7 +8,10 @@
  *  History:
  *  01/14/2026 mir0n  BizTreeExceptionHandler.java renamed with GlobalExceptionHandler
  *                    Error handling with rfc9457 compliance
- * 01/21/2024 mir0n  ProblemDetailMill moved to backend common package
+ * 01/21/2026 mir0n  ProblemDetailMill moved to backend common package
+ * 03/09/2026 mir0n  @Slf4j + logging added; PermissionDeniedException (HTTP 403) and
+ *                   InvalidValueException (HTTP 400) handlers added
+ *                   ResourceNotFoundException: NOT_FOUND → BAD_REQUEST
  */
 
 package pro.mir0n.esquire.pacMan.exception;
@@ -20,6 +23,7 @@ package pro.mir0n.esquire.pacMan.exception;
 
 
 import jakarta.servlet.http.HttpServletRequest;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.*;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -30,10 +34,13 @@ import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExcep
 import java.util.HashMap;
 import java.util.Map;
 
+import pro.mir0n.esquire.backend.error.InvalidValueException;
+import pro.mir0n.esquire.backend.error.PermissionDeniedException;
 import pro.mir0n.esquire.backend.error.ProblemDetailMill;
 import pro.mir0n.esquire.backend.error.ResourceNotFoundException;
 import pro.mir0n.esquire.common.EsqConstants;
 
+@Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
@@ -57,18 +64,46 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
     @ExceptionHandler(ResourceNotFoundException.class)
     public ResponseEntity<ProblemDetail> handleResourceNotFoundException(ResourceNotFoundException ex,  HttpServletRequest request) {
+        log.warn("Resource not found: {} {}: {}", request.getMethod(), request.getRequestURI(), ex.getMessage());
         ProblemDetail problem = ProblemDetailMill.createProblemDetail(
             request,
-            HttpStatus.NOT_FOUND,
+            HttpStatus.BAD_REQUEST,
             "Data not found",
             null,
             ex
         );
-        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(problem);
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(problem);
+    }
+
+    @ExceptionHandler(InvalidValueException.class)
+    public ResponseEntity<ProblemDetail> handleInvalidValueException(InvalidValueException ex,  HttpServletRequest request) {
+        log.warn("Validation Error: {} {}: {}", request.getMethod(), request.getRequestURI(), ex.getMessage());
+        ProblemDetail problem = ProblemDetailMill.createProblemDetail(
+                request,
+                HttpStatus.BAD_REQUEST,
+                "Validation Error",
+                null,
+                ex
+        );
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(problem);
+    }
+
+    @ExceptionHandler(PermissionDeniedException.class)
+    public ResponseEntity<ProblemDetail> handlePermissionDeniedException(PermissionDeniedException ex,  HttpServletRequest request) {
+        log.warn("Permission Denied: {} {}: {}", request.getMethod(), request.getRequestURI(), ex.getMessage());
+        ProblemDetail problem = ProblemDetailMill.createProblemDetail(
+                request,
+                HttpStatus.FORBIDDEN,
+                "Permission Denied",
+                null,
+                ex
+        );
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(problem);
     }
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ProblemDetail>  handleException(Exception ex,  HttpServletRequest request) {
+        log.error("Unhandled exception: {} {}", request.getMethod(), request.getRequestURI(), ex);
         ProblemDetail problem = ProblemDetailMill.createProblemDetail(
             request,
             HttpStatus.INTERNAL_SERVER_ERROR,

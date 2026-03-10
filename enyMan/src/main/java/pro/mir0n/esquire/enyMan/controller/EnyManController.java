@@ -12,10 +12,11 @@
  * 01/10/2026 mir0n added processing of user claims
  * 01/18/2026 mir0n BizTreeConstants moved to common package
  *                  ErrorResponse replaced with ProblemDetail
- * 01/23/206 mir0n  use common library
+ * 01/23/2026 mir0n  use common library
  *                  no more EsqTreeNode methods  
  * 02/12/2026 mir0n added "/esq-kinds" access point
  * 02/19/2026 mir0n added esquireCommandSave() POST /esq-cmd-save
+ * 03/09/2026 mir0n  realm_access.roles extracted from JWT claims; roles passed to esquireCommandSave()
  */
 
 package pro.mir0n.esquire.enyMan.controller;
@@ -114,7 +115,7 @@ public class EnyManController {
         String rootPath = claims.get(EsqConstants.JWT_CLAIM_ENTITY_ROOTPATH, String.class);
         String uid = claims.get(EsqConstants.JWT_CLAIM_ENTITY_ID, String.class);
 
-        EsqEntity entity = iEnyManService.esquireCommand(kind, id, cmd, rootPath,  uid);
+        EsqEntity entity = iEnyManService.esquireCommand(kind, id, cmd, rootPath, uid);
         log.debug("esquireCommand: kind:{}, id:{}, cmd:{}, rootPath:{}, result:{}", kind, id, cmd, rootPath, String.valueOf(entity));
         return ResponseEntity.status(HttpStatus.OK).body(entity);
     }
@@ -132,8 +133,10 @@ public class EnyManController {
     ) {
         String rootPath = claims.get(EsqConstants.JWT_CLAIM_ENTITY_ROOTPATH, String.class);
         String uid = claims.get(EsqConstants.JWT_CLAIM_ENTITY_ID, String.class);
+        Map<String, Object> realmAccess = claims.get(EsqConstants.JWT_CLAIM_REALM_ACCESS, Map.class);
+        List<String> roles = realmAccess != null ? (List<String>) realmAccess.get(EsqConstants.JWT_CLAIM_REALM_ACCESS_ROLES) : null;
 
-        EsqEntity ret = iEnyManService.esquireCommandSave(kind, id, cmd, fields, rootPath, uid);
+        EsqEntity ret = iEnyManService.esquireCommandSave(kind, id, cmd, fields, rootPath, uid, roles);
         log.debug("esquireCommandSave: kind:{}, id:{}, cmd:{}, rootPath:{}, result:{}", kind, id, cmd, rootPath, String.valueOf(ret));
         return ResponseEntity.status(HttpStatus.OK).body(ret);
     }

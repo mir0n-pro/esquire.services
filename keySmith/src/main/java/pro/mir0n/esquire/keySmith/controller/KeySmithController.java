@@ -1,12 +1,13 @@
 /*
  *  Esquire frameworks (tm)
- *  EnyMan service
+ *  KeySmith service
  *
  *  Copyright(c) 2001, 2026 mir0n&co www.mir0n.me
  *  mailto:mir0n.the.programmer@gmail.com
  *
  *  History:
  * 02/19/2026 mir0n  added esquireKeySave() POST /esq-key-save
+ * 03/09/2026 mir0n  realm_access.roles extracted from JWT claims; roles passed to esquireKeySave()
  */
 
 package pro.mir0n.esquire.keySmith.controller;
@@ -85,8 +86,10 @@ public class KeySmithController {
     ) {
         String rootPath = claims.get(EsqConstants.JWT_CLAIM_ENTITY_ROOTPATH, String.class);
         String uid = claims.get(EsqConstants.JWT_CLAIM_ENTITY_ID, String.class);
+        Map<String, Object> realmAccess = claims.get(EsqConstants.JWT_CLAIM_REALM_ACCESS, Map.class);
+        List<String> roles = realmAccess != null ? (List<String>) realmAccess.get(EsqConstants.JWT_CLAIM_REALM_ACCESS_ROLES) : null;
 
-        EsqAccessProfile ret = iKeySmithService.esquireKeySave(id, fields, rootPath, uid);
+        EsqAccessProfile ret = iKeySmithService.esquireKeySave(id, fields, rootPath, uid, roles);
         log.debug("esquireKeySave: id:{}, rootPath:{}, result:{}", id, rootPath, String.valueOf(ret));
         return ResponseEntity.status(HttpStatus.OK).body(ret);
     }

@@ -45,6 +45,7 @@ spring:
       - META-INF/oracle-dictionary.xml
       - META-INF/oracle-entity.xml
       - META-INF/oracle-custom-field.xml
+      - META-INF/oracle-roles.xml
     properties:
       hibernate:
         dialect: org.hibernate.dialect.OracleDialect
@@ -72,6 +73,7 @@ spring:
       - META-INF/postgres-dictionary.xml
       - META-INF/postgres-entity.xml
       - META-INF/postgres-custom-field.xml
+      - META-INF/postgres-roles.xml
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect

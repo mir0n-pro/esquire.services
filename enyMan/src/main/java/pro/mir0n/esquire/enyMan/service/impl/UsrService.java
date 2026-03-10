@@ -14,6 +14,7 @@
  * 03/06/2026 mir0n  USR_WRITABLE reduced to {name}; dict-driven subLayer for person/address
  *                   ValidatorFactory used for custom field validation
  * 03/08/2026 mir0n  personal = id.equals(uid); self-update context passed to all applyFields/validate calls
+ * 03/09/2026 mir0n  esquireCommandSave(): roles param added
  */
 
 package pro.mir0n.esquire.enyMan.service.impl;
@@ -111,7 +112,7 @@ public class UsrService  extends AEnyManService {
     }
 
     @Override
-    public EsqEntity esquireCommandSave(Integer kind, String id, String cmd, Map<String, Object> fields, String rootPath, String uid) {
+    public EsqEntity esquireCommandSave(Integer kind, String id, String cmd, Map<String, Object> fields, String rootPath, String uid, List<String> roles) {
         String correlationId = RequestContextUtils.getCorrelationId();
         String requestId = RequestContextUtils.getRequestId();
         log.debug("srvc: esquireCommandSave(usr): kind:{}, id:{}, cmd:{}, rootPath:{}, uid:{}", kind, id, cmd, rootPath, uid);

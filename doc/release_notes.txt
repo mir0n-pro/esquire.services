@@ -1,6 +1,35 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v1.2.2-2603.0920
+  Service-side permission validation; exception handling hardened
+    :Security: storage.roles package added to common
+      + IRolesService — roles/permissions service interface
+      + JpaRolesRepository — native queries: roles(), permissions(id)
+      + JpaRolesService — JPA-backed impl mapping JPA→DTO
+    :Security: EsqRolesStorage added to common — in-memory roles/permissions cache
+      - findAdminPermissions(roles): resolves EsqPermission map from JWT role list
+      - isAdminCmdPermitted(permission, cmd): checks CREATE/UPDATE/DELETE/AUTH/ACCT flags
+      - AdminCmd enum: CREATE(0), UPDATE(1), DELETE(2), AUTH(3), ACCT(4)
+    :Security: PermissionDeniedException added to common (HTTP 403 FORBIDDEN)
+    :Security: EsqRolesStorage initialized via ApplicationReadyEvent in enyMan, keySmith, pacMan
+    :Security: esquireCommandSave() / esquireKeySave() gated by isAdminCmdPermitted()
+      - enyMan: UPDATE flag required; self-update bypass for USR (id.equals(uid))
+      - keySmith: AUTH flag required; self-update bypass (upk.equals(uid))
+      - pacMan: UPDATE flag required
+    :Fix: GlobalExceptionHandler — PermissionDeniedException handler added (HTTP 403) in all services
+    :Fix: GlobalExceptionHandler — ResourceNotFoundException unified to HTTP 400 BAD_REQUEST
+    :Fix: GlobalExceptionHandler — @Slf4j + logging added to keySmith, pacMan, bizTree handlers
+    :Fix: InvalidValueException and PermissionDeniedException handlers added to keySmith, pacMan
+    :Security: JwtAuthenticationFilter — realm_access.roles validated; 401 if missing/empty
+    :Security: controllers (enyMan, keySmith, pacMan) — realm_access.roles extracted from JWT and forwarded to service layer
+    : modified components
+      - common
+      - enyMan
+      - keySmith
+      - pacMan
+      - bizTree
+
 v1.2.2-2603.0821
   Personal-field enforcement: users can only update their own personal-marked fields
     :Security: boolean personal param added to IValidator / GenericValidator / ValidatorFactory

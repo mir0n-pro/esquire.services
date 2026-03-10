@@ -1,5 +1,13 @@
 Esquire Backend common microservice classes
 
+03/09/2026 mir0n  permission validation framework added
++ added error.PermissionDeniedException (HTTP 403 FORBIDDEN; message format fixed)
++ added storage.EsqRolesStorage (in-memory roles/permissions; findAdminPermissions(); isAdminCmdPermitted())
++ added storage.roles package:
+  + IRolesService — roles/permissions service interface (roles(); permissions(id))
+  + JpaRolesRepository — JPA repository with native queries: roles(), permissions(id)
+  + JpaRolesService — JPA-backed impl; maps EsqRoleJpa→EsqRole, EsqPermissionJpa→EsqPermission
+
 03/08/2026 mir0n  personal-flag enforcement: users can only update fields marked personal=Y on own records
 dto.EsqEntityField
   - isSubentity() method added

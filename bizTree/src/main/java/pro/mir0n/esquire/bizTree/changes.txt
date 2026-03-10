@@ -1,6 +1,11 @@
 Esquire BizTree Microservice
 
-01/24/2026 mir0n 
+03/09/2026 mir0n
+exception.GlobalExceptionHandler
+  - @Slf4j added; logging added to all handlers
+  - ResourceNotFoundException: NOT_FOUND → BAD_REQUEST
+
+01/24/2026 mir0n
 x ResourceNotFoundException.java moved to common lib
 exception.GlobalExceptionHandler
  - ResourceNotFoundException.java moved to common lib

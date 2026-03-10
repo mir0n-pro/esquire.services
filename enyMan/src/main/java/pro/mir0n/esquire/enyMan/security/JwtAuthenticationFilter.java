@@ -6,7 +6,8 @@
  *  mailto:mir0n.the.programmer@gmail.com
  *
  *  History:
- * 01/21/2024 mir0n  ProblemDetailMill moved to backend common package
+ * 01/21/2026 mir0n  ProblemDetailMill moved to backend common package
+ * 03/09/2026 mir0n  realm_access.roles existence validated; request rejected (401) if missing/empty
  */
 
 package pro.mir0n.esquire.enyMan.security;
@@ -31,6 +32,8 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 
 import pro.mir0n.esquire.backend.error.ProblemDetailMill;
 import pro.mir0n.esquire.common.EsqConstants;
@@ -75,10 +78,13 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             username = claims.getSubject();
 
             // REJECT if username is missing or some required custom claim is missing
+            Map realmAccess = claims.get(EsqConstants.JWT_CLAIM_REALM_ACCESS, Map.class);
+            List roles = realmAccess != null ? (List) realmAccess.get(EsqConstants.JWT_CLAIM_REALM_ACCESS_ROLES) : null;
             if (username == null
             || claims.get(EsqConstants.JWT_CLAIM_ENTITY_ID) == null
             || claims.get(EsqConstants.JWT_CLAIM_ENTITY_ROOTPATH) == null
 // todo: add validation of rootpath length > 1 & and has "."
+            || roles == null || roles.isEmpty()
             ) {
                 sendErrorResponse(request, response, "Missing required claims ");
                 log.debug("Missing required claims {}", claims);

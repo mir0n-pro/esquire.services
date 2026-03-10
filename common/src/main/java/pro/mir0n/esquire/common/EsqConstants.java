@@ -12,6 +12,7 @@
  * 02/28/2026 mir0n  KIND_ADDRESS_POSTAL/BIZ, KIND_PERSON_PRIMARY/SECONDARY/JOINT added
  *                   SUBENTITY_PERSON, SUBENTITY_ADDRESS, SUBENTITY_ADDRESS2 added
  * 03/06/2026 mir0n  KIND_ADMIN_ROLE = 980 added
+ * 03/09/2026 mir0n  JWT_CLAIM_REALM_ACCESS and JWT_CLAIM_REALM_ACCESS_ROLES added
  */
 package pro.mir0n.esquire.common;
 
@@ -42,6 +43,8 @@ public class EsqConstants {
 
     public static final String  JWT_CLAIM_ENTITY_ID = "esq_uid";
     public static final String  JWT_CLAIM_ENTITY_ROOTPATH = "esq_rootpath";
+    public static final String  JWT_CLAIM_REALM_ACCESS = "realm_access";
+    public static final String  JWT_CLAIM_REALM_ACCESS_ROLES = "roles";
 
     public static final int  KIND_ADDRESS_POSTAL = 988;
     public static final int  KIND_ADDRESS_BIZ = 990;

@@ -43,6 +43,7 @@ spring:
   jpa:
     mapping-resources:
       - META-INF/oracle-access-profile.xml
+      - META-INF/oracle-roles.xml
     properties:
       hibernate:
         dialect: org.hibernate.dialect.OracleDialect
@@ -68,6 +69,7 @@ spring:
   jpa:
     mapping-resources:
       - META-INF/postgres-access-profile.xml
+      - META-INF/postgres-roles.xml
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
