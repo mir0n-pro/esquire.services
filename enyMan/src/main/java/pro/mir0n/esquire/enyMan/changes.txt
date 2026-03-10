@@ -1,5 +1,10 @@
 Esquire enyMan Microservice
 
+03/09/2026 mir0n
+  - refactored: thin delegate; all handlers forward to GenericExceptionHandler (common)
+  - GenericRuntimeException handler dispatches InvalidValueException, ResourceNotFoundException,
+    PermissionDeniedException; handleMethodArgumentNotValid and handleException also delegated
+
 03/09/2026 mir0n  service-side permission validation added; JWT roles claim validated
 security.JwtAuthenticationFilter
   - realm_access.roles extracted and validated; request rejected (401) if missing/empty

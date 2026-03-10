@@ -1,5 +1,8 @@
 Esquire keySmith Microservice
 
+03/09/2026 mir0nexception.GlobalExceptionHandler
+  - refactored: thin delegate; all handlers forward to GenericExceptionHandler (common)
+
 03/09/2026 mir0n  service-side permission validation added; JWT roles claim validated
 controller.KeySmithController
   - realm_access.roles extracted from JWT claims; roles passed to esquireKeySave()

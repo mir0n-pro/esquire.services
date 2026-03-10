@@ -1,5 +1,10 @@
 Esquire BizTree Microservice
 
+03/09/2026 mir0n  exception handling centralized
+exception.GlobalExceptionHandler
+  - refactored: thin delegate; all handlers forward to GenericExceptionHandler (common)
+  - GenericRuntimeException handler covers ResourceNotFoundException and all Esquire exceptions
+
 03/09/2026 mir0n
 exception.GlobalExceptionHandler
   - @Slf4j added; logging added to all handlers

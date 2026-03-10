@@ -1,6 +1,22 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v1.2.2-2603.0922
+  Exception handling centralized; Esquire exception hierarchy unified
+    :Refactoring: GenericRuntimeException added to common — base class for all Esquire exceptions
+      - InvalidValueException, ResourceNotFoundException, PermissionDeniedException all extend it
+    :Refactoring: GenericExceptionHandler added to common — static utility; centralizes all handlers
+      - handleMethodArgumentNotValid, handleGenericRuntimeException, handleException
+      - handleGenericRuntimeException dispatches: PermissionDeniedException→403, others→400
+    :Refactoring: all service GlobalExceptionHandlers refactored as thin delegates
+      - each handler is a one-liner forwarding to GenericExceptionHandler
+    : modified components
+      - common
+      - enyMan
+      - keySmith
+      - pacMan
+      - bizTree
+
 v1.2.2-2603.0920
   Service-side permission validation; exception handling hardened
     :Security: storage.roles package added to common

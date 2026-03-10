@@ -1,5 +1,12 @@
 Esquire Backend common microservice classes
 
+03/09/2026 mir0n  permission validation framework added; exception handling centralized
++ added error.GenericRuntimeException (base RuntimeException for all Esquire exceptions)
++ added error.GenericExceptionHandler (static utility; centralizes all exception handlers;
+    handleMethodArgumentNotValid, handleGenericRuntimeException, handleException)
+error.InvalidValueException, ResourceNotFoundException, PermissionDeniedException
+  - extends GenericRuntimeException (was RuntimeException)
+
 03/09/2026 mir0n  permission validation framework added
 + added error.PermissionDeniedException (HTTP 403 FORBIDDEN; message format fixed)
 + added storage.EsqRolesStorage (in-memory roles/permissions; findAdminPermissions(); isAdminCmdPermitted())

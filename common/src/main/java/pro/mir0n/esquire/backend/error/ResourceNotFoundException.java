@@ -6,6 +6,8 @@
  *  mailto:mir0n.the.programmer@gmail.com
  *
  *  History:
+ * 01/24/2026 mir0n  created: moved from enyMan to common lib
+ * 03/09/2026 mir0n  extends GenericRuntimeException
  */
 
 package pro.mir0n.esquire.backend.error;
@@ -14,7 +16,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.ResponseStatus;
 
 @ResponseStatus(value = HttpStatus.NOT_FOUND)
-public class ResourceNotFoundException extends RuntimeException {
+public class ResourceNotFoundException extends GenericRuntimeException {
 
     public ResourceNotFoundException(String resourceName, String fieldName, String fieldValue) {
         super(String.format("%s not found with the given input data %s : '%s'", resourceName, fieldName, fieldValue));

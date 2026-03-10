@@ -6,7 +6,8 @@
  *  mailto:mir0n.the.programmer@gmail.com
  *
  *  History:
- * 03/06/2026 mir0n created: validation error exception with field-level error list
+ * 03/06/2026 mir0n  created: validation error exception with field-level error list
+ * 03/09/2026 mir0n  extends GenericRuntimeException
  */
 
 package pro.mir0n.esquire.backend.error;
@@ -19,7 +20,7 @@ import java.util.List;
 import java.util.Map;
 
 @ResponseStatus(value = HttpStatus.NOT_FOUND)
-public class InvalidValueException extends RuntimeException {
+public class InvalidValueException extends GenericRuntimeException {
     List<Map<String,String>> errors = null;
 
     public InvalidValueException(String message, String fieldName, String fieldLabel, String fieldLayer) {
