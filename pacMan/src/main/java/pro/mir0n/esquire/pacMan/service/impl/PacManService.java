@@ -26,6 +26,7 @@
  * 03/09/2026 mir0n  roles param added; isAdminCmdPermitted(UPDATE) permission check
  *                   PermissionDeniedException thrown; stray debug comment removed
  * 03/10/2026 mir0n  import: RequestContextUtils updated to backend.service package
+ * 03/10/2026 mir0n  fillКindFieldLayer() call updated to fillKindFieldLayer() — Cyrillic К → ASCII K
  */
 
 package pro.mir0n.esquire.pacMan.service.impl;
@@ -159,7 +160,7 @@ public class PacManService  implements IPacManService {
             String name = pd.getName();
             if (fields.containsKey(name)) {
                 Object value = fields.get(name);
-                kfl = dict.fillКindFieldLayer(name, kfl);
+                kfl = dict.fillKindFieldLayer(name, kfl);
                 EsqEntityField field = kfl.getField();
                 if (field != null) {
                     if (field.getReadwrite() != null && (field.getReadwrite() & 2) == 2) {

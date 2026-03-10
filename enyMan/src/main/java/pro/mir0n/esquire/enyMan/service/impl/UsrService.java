@@ -16,6 +16,7 @@
  * 03/08/2026 mir0n  personal = id.equals(uid); self-update context passed to all applyFields/validate calls
  * 03/09/2026 mir0n  esquireCommandSave(): roles param added
  * 03/10/2026 mir0n  import: RequestContextUtils updated to backend.service package
+ * 03/10/2026 mir0n  fillКindFieldLayer() call updated to fillKindFieldLayer() — Cyrillic К → ASCII K
  */
 
 package pro.mir0n.esquire.enyMan.service.impl;
@@ -167,7 +168,7 @@ public class UsrService  extends AEnyManService {
         EsqEntityKindFieldLayer kfl = new EsqEntityKindFieldLayer();
         boolean personal = id.equals(uid);
 //log.debug("looking for {} {}",EsqConstants.SUBENTITY_PERSON, dictUser.getKind());
-        kfl = dictUser.fillКindFieldLayer(EsqConstants.SUBENTITY_PERSON,kfl);
+        kfl = dictUser.fillKindFieldLayer(EsqConstants.SUBENTITY_PERSON,kfl);
 //log.debug("person layer {}",kfl.getLayer());
         if (applyFields(prsn, mprsn, personal, kfl.getLayer(), null)) {
 
@@ -202,7 +203,7 @@ public class UsrService  extends AEnyManService {
                 String nm = nv.getName();
                 if (fields.containsKey(nm)) {
                     String val = (String)fields.get(nm);
-                    kfl = dictUser.fillКindFieldLayer(nm,kfl);
+                    kfl = dictUser.fillKindFieldLayer(nm,kfl);
                     EsqEntityField field = kfl.getField();
                     if (field != null && (field.getReadwrite()  & 2) == 2) {
                         val = (String)ValidatorFactory.getInstance().validate(usr, kfl, personal, val);
@@ -219,7 +220,7 @@ public class UsrService  extends AEnyManService {
                 //addr.setId(id);
                 Map<String, Object> maddr = (Map<String, Object>) fields.get(EsqConstants.SUBENTITY_ADDRESS);
 //log.debug("looking for {} {}",EsqConstants.SUBENTITY_ADDRESS, dictUser.getKind());
-                kfl = dictUser.fillКindFieldLayer(EsqConstants.SUBENTITY_ADDRESS, kfl);
+                kfl = dictUser.fillKindFieldLayer(EsqConstants.SUBENTITY_ADDRESS, kfl);
 //log.debug("address layer {} {}", EsqConstants.SUBENTITY_ADDRESS, kfl.getLayer());
                 if (applyFields(addr, maddr, personal, kfl.getLayer(), null)) {
                     usrRepository.updateAddress(id, EsqConstants.KIND_PERSON_PRIMARY, addr.getDesc(),
@@ -235,7 +236,7 @@ public class UsrService  extends AEnyManService {
                 //addr2.setId(id);
                 Map<String, Object> maddr2 = (Map<String, Object>) fields.get(EsqConstants.SUBENTITY_ADDRESS2);
 //log.debug("looking for {} {}",EsqConstants.SUBENTITY_ADDRESS2, dictUser.getKind());
-                kfl = dictUser.fillКindFieldLayer(EsqConstants.SUBENTITY_ADDRESS2, kfl);
+                kfl = dictUser.fillKindFieldLayer(EsqConstants.SUBENTITY_ADDRESS2, kfl);
 //log.debug("address2 layer {} {}", EsqConstants.SUBENTITY_ADDRESS2, kfl.getLayer());
                 if (applyFields(addr2, maddr2, personal, kfl.getLayer(), null)) {
                     usrRepository.updateAddress2(id, EsqConstants.KIND_PERSON_PRIMARY, addr2.getDesc(),

@@ -1,5 +1,22 @@
 Esquire keySmith Microservice
 
+03/10/2026 mir0n  @Primary added; rolesAll and permissions from EsqRolesStorage; KeySmithServiceJpa added
++ added service.impl.KeySmithServiceJpa (JPA-based alternative; was KeySmithService before DTO refactoring)
+  - no @Primary; superseded by KeySmithService; kept as fallback
+service.impl.KeySmithService
+  - @Primary added: selected as preferred IKeySmithService implementation
+  - rolesAll loaded from EsqRolesStorage.getInstance().roles() (no JPA call)
+  - permissions accumulated via fillPermissionsForRole() loop over rolesAssigned
+  - esquireKey(): roles/rolesAll/permissions sourced from Storage after JPA access fetch
+  - esquireKeySave(): fill() called with Storage-sourced rolesAll + permissions after transaction
+  - saveAccess(): rolesAll[] param removed; rolesAll sourced from Storage in caller
+service.BizValidatorFactory
+  - unused import removed; getBizValidators() final modifier removed; comment corrected
+
+03/10/2026 mir0n  fillKindFieldLayer() call updated — Cyrillic К → ASCII K
+service.impl.KeySmithService
+  - fillКindFieldLayer() call updated to fillKindFieldLayer()
+
 03/10/2026 mir0n  observability, security, exception handling generalized to common
 x removed exception.GlobalExceptionHandler (moved to common backend.exception)
 x removed security.JwtAuthenticationFilter, JwtService, SecurityConfiguration (moved to common)

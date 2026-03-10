@@ -7,6 +7,8 @@
  *
  *  History:
  * 03/09/2026 mir0n  new: in-memory roles/permissions storage; findAdminPermissions(); isAdminCmdPermitted()
+ * 03/10/2026 mir0n  roles() added: all roles as List<EsqRole>
+ *                   fillPermissionsForRole() added: accumulates permissions for one role into a list
  */
 
 package pro.mir0n.esquire.backend.storage;
@@ -22,6 +24,7 @@ import pro.mir0n.esquire.backend.storage.roles.JpaRolesRepository;
 import pro.mir0n.esquire.backend.storage.roles.JpaRolesService;
 import pro.mir0n.esquire.common.EsqConstants;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -87,6 +90,21 @@ log.debug("EsqRolesStorage.findAdminPermissions found role {} with permnissions 
                     break;
                 }
             }
+        }
+        return ret;
+    }
+
+    public List<EsqRole> roles() {
+        return roles != null ? new ArrayList<>(roles.values()) : new ArrayList<>();
+    }
+
+    public List<EsqPermission> fillPermissionsForRole(String roleName, List<EsqPermission> ret) {
+        if (ret == null) {
+            ret = new ArrayList<>();
+        }
+        Map<Integer, EsqPermission> perms = permissions.get(roleName);
+        if (perms != null) {
+            ret.addAll(perms.values());
         }
         return ret;
     }

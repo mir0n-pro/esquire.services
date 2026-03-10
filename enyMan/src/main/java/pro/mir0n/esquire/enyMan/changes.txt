@@ -1,5 +1,13 @@
 Esquire enyMan Microservice
 
+03/10/2026 mir0n  fillKindFieldLayer() calls updated — Cyrillic К → ASCII K
+service.impl.AEnyManService
+  - fillКindFieldLayer() call updated to fillKindFieldLayer()
+service.impl.OrgService
+  - fillКindFieldLayer() call updated to fillKindFieldLayer()
+service.impl.UsrService
+  - fillКindFieldLayer() call updated to fillKindFieldLayer()
+
 03/10/2026 mir0n  observability, security, exception handling generalized to common
 x removed exception.GlobalExceptionHandler (moved to common backend.exception)
 x removed security.JwtAuthenticationFilter, JwtService, SecurityConfiguration (moved to common)

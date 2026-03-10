@@ -1,5 +1,16 @@
 Esquire Backend common microservice classes
 
+03/10/2026 mir0n  support keySmith DTO approach: rolesAll and permissions loaded from EsqRolesStorage
+storage.EsqRolesStorage
+  - roles() added: all roles as List<EsqRole> from in-memory map
+  - fillPermissionsForRole() added: accumulates permissions for one role into caller-supplied list
+  - import java.util.ArrayList added
+dto.access.EsqAccessProfile
+  - fill() DTO overload added: rolesAll as List<EsqRole>, permissions as List<EsqPermission>
+  - original fill() renamed fillJpa() — accepts List<EsqRoleJpa> rolesAll, List<EsqPermissionJpa>
+dto.EsqEntityDictionary
+  - fillКindFieldLayer() renamed to fillKindFieldLayer() (Cyrillic К → ASCII K)
+
 03/10/2026 mir0n  observability and security generalized; one canonical GlobalExceptionHandler
 + added backend.service package: MdcFilter, RequestContextUtils, RequestPerformance, PerformanceAspect
   - generalized from per-service implementations; shared by all services via scanBasePackages

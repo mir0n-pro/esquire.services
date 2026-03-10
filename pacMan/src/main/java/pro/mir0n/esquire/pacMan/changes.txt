@@ -1,5 +1,9 @@
 Esquire pacMan Microservice
 
+03/10/2026 mir0n  fillKindFieldLayer() call updated — Cyrillic К → ASCII K
+service.impl.PacManService
+  - fillКindFieldLayer() call updated to fillKindFieldLayer()
+
 03/10/2026 mir0n  observability, security, exception handling generalized to common
 x removed exception.GlobalExceptionHandler (moved to common backend.exception)
 x removed security.JwtAuthenticationFilter, JwtService, SecurityConfiguration (moved to common)

@@ -18,10 +18,8 @@
  * 03/09/2026 mir0n  roles var renamed to rolesAssigned; roles param added to saveAccess()
  *                   isAdminCmdPermitted(AUTH) permission check; PermissionDeniedException thrown
  * 03/10/2026 mir0n  import: RequestContextUtils updated to backend.service package
- * 03/10/2026 mir0n  fillКindFieldLayer() calls updated to fillKindFieldLayer() — Cyrillic К → ASCII K
- *                   @Primary added; rolesAll and permissions loaded from EsqRolesStorage (no JPA call)
- *                   saveAccess(): rolesAll[] param removed; rolesAll set from Storage inside
- *                   esquireKey/esquireKeySave: fillPermissionsForRole() loop over assigned roles
+ * 03/10/2026 mir0n  renamed from KeySmithService → KeySmithServiceJpa; JPA-based alternative;
+ *                   superseded by KeySmithService (@Primary) which uses EsqRolesStorage
  */
 
 package pro.mir0n.esquire.keySmith.service.impl;
@@ -49,14 +47,12 @@ import pro.mir0n.esquire.backend.service.RequestContextUtils;
 import pro.mir0n.esquire.backend.error.ResourceNotFoundException;
 import pro.mir0n.esquire.keySmith.service.IKeySmithService;
 import lombok.AllArgsConstructor;
-import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Service;
 
 @Slf4j
-@Primary  //xxx: letting this IKeySmithService implementation be the primary one.
 @Service
 @AllArgsConstructor
-public class KeySmithService implements IKeySmithService {
+public class KeySmithServiceJpa implements IKeySmithService {
 
     private EsqAccessProfileRepository accessProfileRepository;
     private TransactionTemplate transactionTemplate;
@@ -68,7 +64,7 @@ public class KeySmithService implements IKeySmithService {
         //String correlationId = RequestContextUtils.getCorrelationId();
         //String requestId = RequestContextUtils.getRequestId();
 
-        log.debug("KeySmithService: esquireKey: id:{}, rootPath:{}, uid:{}",  id, rootPath, uid);
+        log.debug("KeySmithServiceJpa: esquireKey: id:{}, rootPath:{}, uid:{}",  id, rootPath, uid);
 
         String upk = id == null ? uid : id;
 
@@ -77,14 +73,11 @@ public class KeySmithService implements IKeySmithService {
             throw new ResourceNotFoundException("esquireKey", "id", upk);
         }
         List<EsqRoleJpa> roles = accessProfileRepository.roles(upk);
-        List<EsqRole> rolesAll = EsqRolesStorage.getInstance().roles();
-        List<EsqPermission> permissions = null;
-        for (EsqRoleJpa r : roles) {
-            permissions = EsqRolesStorage.getInstance().fillPermissionsForRole(r.getName(), permissions);
-        }
+        List<EsqRoleJpa> rolesAll = accessProfileRepository.rolesAll(upk);
+        List<EsqPermissionJpa> permissions = accessProfileRepository.permissions(upk);
 
-        EsqAccessProfile ret = new EsqAccessProfile().fill(jpa, roles, rolesAll, permissions);
-        log.debug("KeySmithService: esquireKey(2): accessProfile:{}",  ret);
+        EsqAccessProfile ret = new EsqAccessProfile().fillJpa(jpa, roles, rolesAll, permissions);
+        log.debug("srvc: esquireKey(2): accessProfile:{}",  ret);
         return  ret;
     }
 
@@ -92,16 +85,15 @@ public class KeySmithService implements IKeySmithService {
     public EsqAccessProfile esquireKeySave(String id, Map<String, Object> fields, String rootPath, String uid, List<String> roles) {
         String correlationId = RequestContextUtils.getCorrelationId();
         String requestId = RequestContextUtils.getRequestId();
-        log.debug("KeySmithService: esquireKeySave: id:{}, rootPath:{}, uid:{}", id, rootPath, uid);
+        log.debug("KeySmithServiceJpa: esquireKeySave: id:{}, rootPath:{}, uid:{}", id, rootPath, uid);
 
         String upk = id == null ? uid : id;
         boolean personal = upk.equals(uid);
 
         EsqAccessProfileJpa[] updated = {null};
         List<EsqRoleJpa>[] rolesAssigned = new List[]{null};
-        //xxx: we cannot validate permission yet: we need to get a kind of the user where changes applying
-        //     we need to read that first: we do it by first thing within the transction.
-        //     so let's move the permission validation inside
+        List<EsqRoleJpa>[] rolesAll = new List[]{null};
+
         transactionTemplate.execute(status -> {
             // xxx: COMMIT flush mode prevents Hibernate from auto-flushing managed entities
             //      before native query execution. We use native queries exclusively for writes,
@@ -109,17 +101,13 @@ public class KeySmithService implements IKeySmithService {
             //      @Modifying queries clears the context after each native update, so nothing
             //      remains to flush at commit.
             em.setFlushMode(FlushModeType.COMMIT);
-            saveAccess(upk, fields, rootPath, uid, correlationId, requestId, personal, updated, rolesAssigned, roles);
+            saveAccess(upk, fields, rootPath, uid, correlationId, requestId, personal, updated, rolesAssigned, rolesAll, roles);
             return null;
         }); // ← transaction commits here
 
-        List<EsqRole> rolesAll = EsqRolesStorage.getInstance().roles();
-        List<EsqPermission> permissions = null;
-        for (EsqRoleJpa r : rolesAssigned[0]) {
-            permissions = EsqRolesStorage.getInstance().fillPermissionsForRole(r.getName(), permissions);
-        }
-        EsqAccessProfile ret = new EsqAccessProfile().fill( updated[0], rolesAssigned[0], rolesAll, permissions);
-        log.debug("srvc: esquireKeySave(2): accessProfile:{}", ret);
+        List<EsqPermissionJpa> permissions = accessProfileRepository.permissions(upk);
+        EsqAccessProfile ret = new EsqAccessProfile().fillJpa(updated[0], rolesAssigned[0], rolesAll[0], permissions);
+        log.debug("KeySmithServiceJpa: esquireKeySave(2): accessProfile:{}", ret);
         return ret;
     }
 
@@ -128,6 +116,7 @@ public class KeySmithService implements IKeySmithService {
             boolean personal,
             EsqAccessProfileJpa[] updated,
             List<EsqRoleJpa>[] rolesAssigned,
+            List<EsqRoleJpa>[] rolesAll,
             List<String> roles) {
         EsqAccessProfileJpa jpa = accessProfileRepository.accessForUpdate(id, rootPath);
         if (jpa == null) {
@@ -138,7 +127,7 @@ public class KeySmithService implements IKeySmithService {
         if (id != null && id.equals(uid)) {
             permitted = true;
         } else if (permissions != null) {
-            permitted = EsqRolesStorage.getInstance().isAdminCmdPermitted(
+            permitted = EsqRolesStorage.isAdminCmdPermitted(
                 permissions.get(jpa.getKind()),
                 EsqRolesStorage.AdminCmd.AUTH
             );
@@ -159,7 +148,7 @@ public class KeySmithService implements IKeySmithService {
             EsqEntityDictionary dict = EsqEntityDictionaryStorage.getInstance().get(EsqConstants.KIND_ACCESS_PROFILE);
             EsqEntityKindFieldLayer kfl = dict.fillKindFieldLayer(IKeySmithService.FIELD_ROLES, null);
             List<?> value = (List<?>) fields.get(IKeySmithService.FIELD_ROLES);
-            log.debug("keySmith:saveAccess: roles:{}", value);
+            log.debug("KeySmithServiceJpa:saveAccess: roles:{}", value);
             ValidatorFactory.getInstance().validate(jpa, kfl, personal, value);
 
             List<EsqRoleJpa> givenRoles = new ArrayList<>();
@@ -193,6 +182,7 @@ public class KeySmithService implements IKeySmithService {
         }
         //note: if a DB trigger or default value modifies the row, saveAccess won't reflect it.
         updated[0]     = jpa;
+        rolesAll[0]    = accessProfileRepository.rolesAll(id);
     }
 
     private boolean applyFields(EsqAccessProfileJpa jpa, boolean personal, Map<String, Object> fields) {

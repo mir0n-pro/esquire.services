@@ -8,6 +8,8 @@
  *  History:
  * 02/03/2026 mir0n  extends EsqThing
  * 03/03/2026 mir0n  rolesAll field added; fill() extended with rolesAll param
+ * 03/10/2026 mir0n  fill() DTO overload added: rolesAll as List<EsqRole>, permissions as List<EsqPermission>
+ *                   original fill() renamed fillJpa() — accepts List<EsqRoleJpa>, List<EsqPermissionJpa>
  */
 
 package pro.mir0n.esquire.backend.dto.access;
@@ -81,7 +83,34 @@ public class EsqAccessProfile extends EsqThing {
     }
 
 
-    public EsqAccessProfile fill (EsqAccessProfileJpa jpa, List<EsqRoleJpa> roles, List<EsqRoleJpa> rolesAll,  List<EsqPermissionJpa> permissions) {
+    public EsqAccessProfile fill(EsqAccessProfileJpa jpa, List<EsqRoleJpa> roles, List<EsqRole> rolesAll, List<EsqPermission> permissions) {
+        setId(String.valueOf(jpa.getId()));
+        setKind(jpa.getKind());
+        setName(jpa.getName());
+        setLoginId(jpa.getLoginId());
+        setEmail(jpa.getEmail());
+        setPwdChangeForced(jpa.getPwdChangeForced());
+        setTfaMethod(jpa.getTfaMethod());
+        setRoles(new ArrayList<>());
+        if (roles != null) {
+            roles.forEach(r -> getRoles().add(new EsqRole().fill(r)));
+        }
+        setRolesAll(rolesAll != null ? rolesAll : new ArrayList<>());
+        setPermissions(new HashMap<>());
+        if (permissions == null) { return this; }
+        for (EsqPermission perm : permissions) {
+            String tpy = perm.getType().toLowerCase();
+            List<EsqPermission> permList = getPermissions().get(tpy);
+            if (permList == null) {
+                permList = new ArrayList<>();
+                getPermissions().put(tpy, permList);
+            }
+            permList.add(perm);
+        }
+        return this;
+    }
+
+    public EsqAccessProfile fillJpa (EsqAccessProfileJpa jpa, List<EsqRoleJpa> roles, List<EsqRoleJpa> rolesAll,  List<EsqPermissionJpa> permissions) {
         setId(String.valueOf(jpa.getId()));
         setKind(jpa.getKind());
         setName(jpa.getName());

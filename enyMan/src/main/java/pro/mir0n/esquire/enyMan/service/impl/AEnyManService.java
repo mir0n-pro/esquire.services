@@ -11,6 +11,7 @@
  * 03/06/2026 mir0n  applyFields() refactored: dict-driven validation via ValidatorFactory
  *                   subLayer param added for sub-entity field layer context
  * 03/08/2026 mir0n  applyFields(): boolean personal param added; forwarded to ValidatorFactory
+ * 03/10/2026 mir0n  fillКindFieldLayer() call updated to fillKindFieldLayer() — Cyrillic К → ASCII K
  */
 
 package pro.mir0n.esquire.enyMan.service.impl;
@@ -76,7 +77,7 @@ public abstract class AEnyManService  implements IEnyManService {
             String name = pd.getName();
             if(fields.containsKey(name)) {
                 Object value = fields.get(name);
-                kfl = (dict != null) ? dict.fillКindFieldLayer(pd.getName(),kfl) : null;
+                kfl = (dict != null) ? dict.fillKindFieldLayer(pd.getName(),kfl) : null;
                 EsqEntityField field = (kfl != null) ? kfl.getField() : null;
                 if (field != null) {
                     if (subLayer > 0) {

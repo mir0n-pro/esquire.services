@@ -13,6 +13,7 @@
  * 03/08/2026 mir0n  unused imports removed; applyFields/validate calls pass personal=false
  * 03/09/2026 mir0n  esquireCommandSave(): roles param added
  * 03/10/2026 mir0n  import: RequestContextUtils updated to backend.service package
+ * 03/10/2026 mir0n  fillКindFieldLayer() call updated to fillKindFieldLayer() — Cyrillic К → ASCII K
  */
 
 package pro.mir0n.esquire.enyMan.service.impl;
@@ -110,7 +111,7 @@ public class OrgService  extends AEnyManService {
                 String nm = nv.getName();
                 if (fields.containsKey(nm)) {
                     String val = (String)fields.get(nm);
-                    kfl = (dict != null) ? dict.fillКindFieldLayer(nm,kfl) : null;
+                    kfl = (dict != null) ? dict.fillKindFieldLayer(nm,kfl) : null;
                     EsqEntityField field = (kfl != null) ? kfl.getField() : null;
                     if (field != null && (field.getReadwrite()  & 2) == 2) {
                         val = (String) ValidatorFactory.getInstance().validate(org, kfl, false, val);
