@@ -1,6 +1,14 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v1.2.2-2603.1017 Unit tests were added to all services
+      - bizTree
+      - common
+      - enyMan
+      - gateway
+      - keySmith
+      - pacMan
+
 v1.2.2-2603.1015
   keySmith DTO approach: roles and permissions sourced from in-memory storage
   fillKindFieldLayer() method name corrected — Cyrillic К replaced with ASCII K
