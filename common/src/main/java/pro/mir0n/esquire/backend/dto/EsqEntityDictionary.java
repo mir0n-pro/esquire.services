@@ -8,6 +8,8 @@
  *  History:
  * 02/01/2026 mir0n removed @AllArgsConstructor
  * 03/06/2026 mir0n findField() and fillКindFieldLayer() methods added; @Slf4j added
+ * 03/08/2026 mir0n  fillКindFieldLayer(): setLayerTitle() called to populate layer title context
+ * 03/10/2026 mir0n  fillКindFieldLayer() renamed fillKindFieldLayer() — Cyrillic К replaced with ASCII K
  */
 
 package pro.mir0n.esquire.backend.dto;
@@ -83,7 +85,7 @@ public class EsqEntityDictionary {
         return ret;
     }
 
-    public EsqEntityKindFieldLayer fillКindFieldLayer(String name,EsqEntityKindFieldLayer given) {
+    public EsqEntityKindFieldLayer fillKindFieldLayer(String name,EsqEntityKindFieldLayer given) {
         EsqEntityKindFieldLayer ret = given;
         if (ret == null) {
             ret = new EsqEntityKindFieldLayer();
@@ -99,6 +101,7 @@ public class EsqEntityDictionary {
                         ret.setEntityKind(getKind());
                         ret.setLayer(layer.getLayer());
                         ret.setField(f);
+                        ret.setLayerTitle(layer.getTitle());
                         break;
                     }
                 }
@@ -109,7 +112,7 @@ public class EsqEntityDictionary {
         }
         return ret;
     }
-};
+}
 
 
 

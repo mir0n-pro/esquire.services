@@ -1,5 +1,48 @@
 Esquire pacMan Microservice
 
+03/10/2026 mir0n  fillKindFieldLayer() call updated — Cyrillic К → ASCII K
+service.impl.PacManService
+  - fillКindFieldLayer() call updated to fillKindFieldLayer()
+
+03/10/2026 mir0n  observability, security, exception handling generalized to common
+x removed exception.GlobalExceptionHandler (moved to common backend.exception)
+x removed security.JwtAuthenticationFilter, JwtService, SecurityConfiguration (moved to common)
+x removed service.MdcFilter, RequestContextUtils, RequestPerformance, PerformanceAspect (moved to common)
+PacManApplication
+  - scanBasePackages: backend.service, backend.security, backend.exception added
+service.impl.PacManService
+  - import: RequestContextUtils updated to backend.service package
+
+03/09/2026 mir0n
+exception.GlobalExceptionHandler
+  - refactored: thin delegate; all handlers forward to GenericExceptionHandler (common)
+
+03/09/2026 mir0n  service-side permission validation added; JWT roles claim validated
+controller.PacManController
+  - realm_access.roles extracted from JWT claims; roles passed to esquireCommandSave()
+security.JwtAuthenticationFilter
+  - realm_access.roles extracted and validated; request rejected (401) if missing/empty
+resources/application.yml
+  - META-INF/oracle-roles.xml and META-INF/postgres-roles.xml added to JPA named queries
+PacManApplication
+  - EsqRolesStorage.init() via ApplicationReadyEvent listener
+  - @EnableJpaRepositories extended with backend.storage.roles
+service.IPacManService
+  - esquireCommandSave(): roles param added; unused imports removed (EsqTreeNode, EsqEntityLayer)
+service.impl.PacManService
+  - roles param added; isAdminCmdPermitted(UPDATE) permission check
+  - PermissionDeniedException thrown on auth failure; stray debug comment removed
+exception.GlobalExceptionHandler
+  - @Slf4j added; logging added to all handlers
+  - PermissionDeniedException (HTTP 403) and InvalidValueException (HTTP 400) handlers added
+  - ResourceNotFoundException: NOT_FOUND → BAD_REQUEST
+
+03/08/2026 mir0n  validate() interface alignment: personal param added (no behavior change)
+service.BizValidatorFactory
+  - validate(): boolean personal param added (interface alignment, no behavior change)
+service.impl.PacManService
+  - validate() calls pass personal=false
+
 03/06/2026 mir0n  field validation via ValidatorFactory; biz validator added
 + added service.BizValidatorFactory
   - biz validator for acct kinds (50/52/54): cannot close account with positive balance

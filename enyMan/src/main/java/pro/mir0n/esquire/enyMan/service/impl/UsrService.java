@@ -13,6 +13,10 @@
  * 03/03/2026 mir0n  updatePerson/updateAddress/updateAddress2: use user id instead of sub-entity id
  * 03/06/2026 mir0n  USR_WRITABLE reduced to {name}; dict-driven subLayer for person/address
  *                   ValidatorFactory used for custom field validation
+ * 03/08/2026 mir0n  personal = id.equals(uid); self-update context passed to all applyFields/validate calls
+ * 03/09/2026 mir0n  esquireCommandSave(): roles param added
+ * 03/10/2026 mir0n  import: RequestContextUtils updated to backend.service package
+ * 03/10/2026 mir0n  fillКindFieldLayer() call updated to fillKindFieldLayer() — Cyrillic К → ASCII K
  */
 
 package pro.mir0n.esquire.enyMan.service.impl;
@@ -37,7 +41,7 @@ import pro.mir0n.esquire.backend.validator.ValidatorFactory;
 import pro.mir0n.esquire.enyMan.jpa.EsqEntityDictionaryRepository;
 import pro.mir0n.esquire.enyMan.jpa.EsqOrgRepository;
 import pro.mir0n.esquire.enyMan.jpa.EsqUsrRepository;
-import pro.mir0n.esquire.enyMan.service.RequestContextUtils;
+import pro.mir0n.esquire.backend.service.RequestContextUtils;
 import pro.mir0n.esquire.backend.storage.EsqEntityDictionaryStorage;
 import pro.mir0n.esquire.backend.error.ResourceNotFoundException;
 import pro.mir0n.esquire.enyMan.service.IEnyManService;
@@ -110,7 +114,7 @@ public class UsrService  extends AEnyManService {
     }
 
     @Override
-    public EsqEntity esquireCommandSave(Integer kind, String id, String cmd, Map<String, Object> fields, String rootPath, String uid) {
+    public EsqEntity esquireCommandSave(Integer kind, String id, String cmd, Map<String, Object> fields, String rootPath, String uid, List<String> roles) {
         String correlationId = RequestContextUtils.getCorrelationId();
         String requestId = RequestContextUtils.getRequestId();
         log.debug("srvc: esquireCommandSave(usr): kind:{}, id:{}, cmd:{}, rootPath:{}, uid:{}", kind, id, cmd, rootPath, uid);
@@ -162,11 +166,11 @@ public class UsrService  extends AEnyManService {
         Map<String, Object> mprsn = (Map<String, Object>) fields.get(EsqConstants.SUBENTITY_PERSON);
         EsqEntityDictionary dictUser = EsqEntityDictionaryStorage.getInstance().get(usr.getKind());
         EsqEntityKindFieldLayer kfl = new EsqEntityKindFieldLayer();
-        int personLayer = 0;
+        boolean personal = id.equals(uid);
 //log.debug("looking for {} {}",EsqConstants.SUBENTITY_PERSON, dictUser.getKind());
-        kfl = dictUser.fillКindFieldLayer(EsqConstants.SUBENTITY_PERSON,kfl);
+        kfl = dictUser.fillKindFieldLayer(EsqConstants.SUBENTITY_PERSON,kfl);
 //log.debug("person layer {}",kfl.getLayer());
-        if (applyFields(prsn, mprsn, kfl.getLayer(), null)) {
+        if (applyFields(prsn, mprsn, personal, kfl.getLayer(), null)) {
 
             fields.put("name", prsn.getName());  //xxx set a user's name based on first, middle, last names
 
@@ -191,7 +195,7 @@ public class UsrService  extends AEnyManService {
             );
         }
 
-        if (applyFields(usr, fields, 0, USR_WRITABLE)) {
+        if (applyFields(usr, fields, personal, 0, USR_WRITABLE)) {
             usrRepository.updateUsr(id, usr.getName(), usr.getRegistration(), usr.getDeleted(), usr.getDesc(), uid, correlationId, requestId);
         }
         if (cstm != null) {
@@ -199,10 +203,10 @@ public class UsrService  extends AEnyManService {
                 String nm = nv.getName();
                 if (fields.containsKey(nm)) {
                     String val = (String)fields.get(nm);
-                    kfl = dictUser.fillКindFieldLayer(nm,kfl);
+                    kfl = dictUser.fillKindFieldLayer(nm,kfl);
                     EsqEntityField field = kfl.getField();
                     if (field != null && (field.getReadwrite()  & 2) == 2) {
-                        val = (String)ValidatorFactory.getInstance().validate(usr, kfl, val);
+                        val = (String)ValidatorFactory.getInstance().validate(usr, kfl, personal, val);
                         nv.setValue(val);
                         usrRepository.updateCustomUsr(id, nm, val, uid, correlationId, requestId);
                     }
@@ -216,9 +220,9 @@ public class UsrService  extends AEnyManService {
                 //addr.setId(id);
                 Map<String, Object> maddr = (Map<String, Object>) fields.get(EsqConstants.SUBENTITY_ADDRESS);
 //log.debug("looking for {} {}",EsqConstants.SUBENTITY_ADDRESS, dictUser.getKind());
-                kfl = dictUser.fillКindFieldLayer(EsqConstants.SUBENTITY_ADDRESS, kfl);
+                kfl = dictUser.fillKindFieldLayer(EsqConstants.SUBENTITY_ADDRESS, kfl);
 //log.debug("address layer {} {}", EsqConstants.SUBENTITY_ADDRESS, kfl.getLayer());
-                if (applyFields(addr, maddr, kfl.getLayer(), null)) {
+                if (applyFields(addr, maddr, personal, kfl.getLayer(), null)) {
                     usrRepository.updateAddress(id, EsqConstants.KIND_PERSON_PRIMARY, addr.getDesc(),
                             addr.getAddr(), addr.getAddr2(), addr.getCity(), addr.getCompany(),
                             addr.getCountry(), addr.getDepartment(), addr.getFax(),
@@ -232,9 +236,9 @@ public class UsrService  extends AEnyManService {
                 //addr2.setId(id);
                 Map<String, Object> maddr2 = (Map<String, Object>) fields.get(EsqConstants.SUBENTITY_ADDRESS2);
 //log.debug("looking for {} {}",EsqConstants.SUBENTITY_ADDRESS2, dictUser.getKind());
-                kfl = dictUser.fillКindFieldLayer(EsqConstants.SUBENTITY_ADDRESS2, kfl);
+                kfl = dictUser.fillKindFieldLayer(EsqConstants.SUBENTITY_ADDRESS2, kfl);
 //log.debug("address2 layer {} {}", EsqConstants.SUBENTITY_ADDRESS2, kfl.getLayer());
-                if (applyFields(addr2, maddr2, kfl.getLayer(), null)) {
+                if (applyFields(addr2, maddr2, personal, kfl.getLayer(), null)) {
                     usrRepository.updateAddress2(id, EsqConstants.KIND_PERSON_PRIMARY, addr2.getDesc(),
                             addr2.getAddr(), addr2.getAddr2(), addr2.getCity(), addr2.getCompany(),
                             addr2.getCountry(), addr2.getDepartment(), addr2.getFax(),

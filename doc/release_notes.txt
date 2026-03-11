@@ -1,6 +1,124 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v1.2.2-2603.1017 Unit tests were added to all services
+      - bizTree
+      - common
+      - enyMan
+      - gateway
+      - keySmith
+      - pacMan
+
+v1.2.2-2603.1015
+  keySmith DTO approach: roles and permissions sourced from in-memory storage
+  fillKindFieldLayer() method name corrected — Cyrillic К replaced with ASCII K
+    :Refactoring: EsqRolesStorage — two new methods added
+      + roles(): returns all roles as List<EsqRole> from in-memory map
+      + fillPermissionsForRole(roleName, list): accumulates permissions for one role; creates list if null
+    :Refactoring: EsqAccessProfile.fill() DTO overload added
+      - accepts List<EsqRole> rolesAll and List<EsqPermission> — no JPA types required
+      - original fill() renamed fillJpa() — still accepts List<EsqRoleJpa> / List<EsqPermissionJpa>
+    :Refactoring: KeySmithService (@Primary) — rolesAll and permissions from EsqRolesStorage
+      - eliminates extra JPA round-trips for accessProfileRepository.rolesAll() / .permissions()
+      - fillPermissionsForRole() loop over rolesAssigned replaces single JPA permissions query
+      - saveAccess(): rolesAll[] param removed; caller sources rolesAll from Storage post-transaction
+    :Fix: EsqEntityDictionary.fillКindFieldLayer() renamed to fillKindFieldLayer()
+      - Cyrillic К character in method name caused non-ASCII compiler warning
+      - all callers updated: AEnyManService, OrgService, UsrService, PacManService, KeySmithService
+    : modified components
+      - common
+      - enyMan
+      - keySmith
+      - pacMan
+
+v1.2.2-2603.1013
+  Observability, security, exception handling generalized to common library
+    :Refactoring: observability classes moved from all 4 services to common backend.service
+      + MdcFilter — MDC population, correlation/request ID headers, @Order(1)
+      + RequestContextUtils — static getCorrelationId() / getRequestId() utility
+      + RequestPerformance — request-scoped JPA timing tracker (@RequestScope)
+      + PerformanceAspect — @Aspect; pointcut pro.mir0n.esquire..jpa.*.* covers all services
+    :Refactoring: security classes moved from all 4 services to common backend.security
+      + JwtAuthenticationFilter — Bearer token validation; 401 if roles missing/empty
+      + JwtService — JWT parsing without signature validation
+      + SecurityConfiguration — stateless filter chain (@EnableWebSecurity)
+    :Refactoring: GlobalExceptionHandler moved from all 4 services to common backend.exception
+      - one canonical handler; @RestControllerAdvice picked up via scanBasePackages
+      - handleMethodArgumentNotValid inline; handleGenericRuntimeException delegates to GenericExceptionHandler
+    :Refactoring: all 4 Application classes — scanBasePackages extended
+      - backend.service, backend.security, backend.exception added for common bean discovery
+    :Refactoring: service impl files — RequestContextUtils import updated to backend.service
+    :Cleanup: 28 files removed from enyMan, keySmith, pacMan, bizTree (moved to common)
+    :Fix: gateway KeycloakRoleConverter — EsqConstants used for JWT claim keys
+    : modified components
+      - common
+      - gateway
+      - enyMan
+      - keySmith
+      - pacMan
+      - bizTree
+
+v1.2.2-2603.0922
+  Exception handling centralized; Esquire exception hierarchy unified
+    :Refactoring: GenericRuntimeException added to common — base class for all Esquire exceptions
+      - InvalidValueException, ResourceNotFoundException, PermissionDeniedException all extend it
+    :Refactoring: GenericExceptionHandler added to common — static utility; centralizes all handlers
+      - handleMethodArgumentNotValid, handleGenericRuntimeException, handleException
+      - handleGenericRuntimeException dispatches: PermissionDeniedException→403, others→400
+    :Refactoring: all service GlobalExceptionHandlers refactored as thin delegates
+      - each handler is a one-liner forwarding to GenericExceptionHandler
+    : modified components
+      - common
+      - enyMan
+      - keySmith
+      - pacMan
+      - bizTree
+
+v1.2.2-2603.0920
+  Service-side permission validation; exception handling hardened
+    :Security: storage.roles package added to common
+      + IRolesService — roles/permissions service interface
+      + JpaRolesRepository — native queries: roles(), permissions(id)
+      + JpaRolesService — JPA-backed impl mapping JPA→DTO
+    :Security: EsqRolesStorage added to common — in-memory roles/permissions cache
+      - findAdminPermissions(roles): resolves EsqPermission map from JWT role list
+      - isAdminCmdPermitted(permission, cmd): checks CREATE/UPDATE/DELETE/AUTH/ACCT flags
+      - AdminCmd enum: CREATE(0), UPDATE(1), DELETE(2), AUTH(3), ACCT(4)
+    :Security: PermissionDeniedException added to common (HTTP 403 FORBIDDEN)
+    :Security: EsqRolesStorage initialized via ApplicationReadyEvent in enyMan, keySmith, pacMan
+    :Security: esquireCommandSave() / esquireKeySave() gated by isAdminCmdPermitted()
+      - enyMan: UPDATE flag required; self-update bypass for USR (id.equals(uid))
+      - keySmith: AUTH flag required; self-update bypass (upk.equals(uid))
+      - pacMan: UPDATE flag required
+    :Fix: GlobalExceptionHandler — PermissionDeniedException handler added (HTTP 403) in all services
+    :Fix: GlobalExceptionHandler — ResourceNotFoundException unified to HTTP 400 BAD_REQUEST
+    :Fix: GlobalExceptionHandler — @Slf4j + logging added to keySmith, pacMan, bizTree handlers
+    :Fix: InvalidValueException and PermissionDeniedException handlers added to keySmith, pacMan
+    :Security: JwtAuthenticationFilter — realm_access.roles validated; 401 if missing/empty
+    :Security: controllers (enyMan, keySmith, pacMan) — realm_access.roles extracted from JWT and forwarded to service layer
+    : modified components
+      - common
+      - enyMan
+      - keySmith
+      - pacMan
+      - bizTree
+
+v1.2.2-2603.0821
+  Personal-field enforcement: users can only update their own personal-marked fields
+    :Security: boolean personal param added to IValidator / GenericValidator / ValidatorFactory
+      - GenericValidator: throws InvalidValueException if personal=true and field.personal != "Y"
+      - keySmith BizValidatorFactory: throws if personal=true (cannot change own permissions)
+    :Security: self-update context propagated in enyMan (UsrService) and keySmith (KeySmithService)
+      - personal = id.equals(uid) / upk.equals(uid) determined at save entry point
+    :Refactoring: EsqEntityField.isSubentity() and isTabField() helper methods added
+    :Refactoring: EsqEntityKindFieldLayer.layerTitle field + getLabel() for context-aware labels
+    :Fix: esq-entity-dictionaries.xml: personal=N corrected for non-personally-editable fields
+    : modified components
+      - common
+      - enyMan
+      - keySmith
+      - pacMan
+
 v1.2.2-2603.0619
   Field validation framework; business rule validators; null-safe fixes
     :Validation: ValidatorFactory + GenericValidator added to common library

@@ -22,6 +22,11 @@
  *                  esquireCommandSave() with saveAcct() helper
  *                  ACCT_WRITABLE = {desc, status}
  * 03/06/2026 mir0n ACCT_WRITABLE removed; applyFields() dict-driven via ValidatorFactory
+ * 03/08/2026 mir0n  validate() calls pass personal=false (interface alignment)
+ * 03/09/2026 mir0n  roles param added; isAdminCmdPermitted(UPDATE) permission check
+ *                   PermissionDeniedException thrown; stray debug comment removed
+ * 03/10/2026 mir0n  import: RequestContextUtils updated to backend.service package
+ * 03/10/2026 mir0n  fillКindFieldLayer() call updated to fillKindFieldLayer() — Cyrillic К → ASCII K
  */
 
 package pro.mir0n.esquire.pacMan.service.impl;
@@ -35,13 +40,16 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanWrapper;
 import org.springframework.beans.BeanWrapperImpl;
 import pro.mir0n.esquire.backend.dto.*;
+import pro.mir0n.esquire.backend.dto.access.EsqPermission;
+import pro.mir0n.esquire.backend.error.PermissionDeniedException;
 import pro.mir0n.esquire.backend.jpa.*;
 import pro.mir0n.esquire.backend.jpa.entity.EsqAcctJpa;
 import pro.mir0n.esquire.backend.storage.EsqEntityDictionaryStorage;
 import pro.mir0n.esquire.backend.storage.EsqObjectKindStorage;
+import pro.mir0n.esquire.backend.storage.EsqRolesStorage;
 import pro.mir0n.esquire.backend.validator.ValidatorFactory;
 import pro.mir0n.esquire.pacMan.jpa.EsqAcctRepository;
-import pro.mir0n.esquire.pacMan.service.RequestContextUtils;
+import pro.mir0n.esquire.backend.service.RequestContextUtils;
 import pro.mir0n.esquire.backend.error.ResourceNotFoundException;
 import pro.mir0n.esquire.pacMan.service.IPacManService;
 import lombok.AllArgsConstructor;
@@ -84,15 +92,28 @@ public class PacManService  implements IPacManService {
     }
 
     @Override
-    public EsqEntity esquireCommandSave(Integer kind, String id, String cmd, Map<String, Object> fields, String rootPath, String uid) {
+    public EsqEntity esquireCommandSave(Integer kind, String id, String cmd, Map<String, Object> fields, String rootPath, String uid, List<String> roles) {
         String correlationId = RequestContextUtils.getCorrelationId();
         String requestId = RequestContextUtils.getRequestId();
-        log.debug("srvc: esquireCommandSave: kind:{}, id:{}, cmd:{}, rootPath:{}, uid:{}", kind, id, cmd, rootPath, uid);
-//ave failed: esquireCommandSave not found with the given input data kind : '53'
+//        log.debug("srvc: esquireCommandSave: kind:{}, id:{}, cmd:{}, rootPath:{}, uid:{}", kind, id, cmd, rootPath, uid);
         int k = ((int)Math.floor((double) kind/2)) * 2;
         EsqObjectKind eek = EsqObjectKindStorage.getInstance().get(k);
         if (!eek.isAcct()) {
             throw new ResourceNotFoundException("esquireCommandSave", "kind", kind.toString());
+        }
+
+        Map<Integer, EsqPermission> permissions = EsqRolesStorage.getInstance().findAdminPermissions(roles);
+        boolean permitted = false;
+//log.debug("srvc: esquireCommandSave: permissions:{} ", permissions);
+        if (permissions != null) {
+            permitted = EsqRolesStorage.getInstance().isAdminCmdPermitted(
+                    permissions.get(k),
+                    EsqRolesStorage.AdminCmd.UPDATE
+            );
+            log.debug("srvc: esquireCommandSave: permitted:{} ", permitted);
+        }
+        if (!permitted) {
+            throw new PermissionDeniedException(eek.getTitle(), "modify");
         }
 
         EsqEntityJpa[] updated = {null};
@@ -139,11 +160,11 @@ public class PacManService  implements IPacManService {
             String name = pd.getName();
             if (fields.containsKey(name)) {
                 Object value = fields.get(name);
-                kfl = dict.fillКindFieldLayer(name, kfl);
+                kfl = dict.fillKindFieldLayer(name, kfl);
                 EsqEntityField field = kfl.getField();
                 if (field != null) {
                     if (field.getReadwrite() != null && (field.getReadwrite() & 2) == 2) {
-                        value = ValidatorFactory.getInstance().validate(jpa, kfl, value);
+                        value = ValidatorFactory.getInstance().validate(jpa, kfl, false, value);
 //log.debug("pacMan:PacManService:applyFields: {} value:{}", name, value);
                         wrapper.setPropertyValue(name, value);
                         changed = true;

@@ -10,36 +10,29 @@
  *                   esquireCommand(), esquireCommandSave(), saveOrg() moved from EnyManService
  * 03/06/2026 mir0n  ORG_WRITABLE removed; applyFields() dict-driven via ValidatorFactory
  *                   custom field validation via dictionary readwrite flag
+ * 03/08/2026 mir0n  unused imports removed; applyFields/validate calls pass personal=false
+ * 03/09/2026 mir0n  esquireCommandSave(): roles param added
+ * 03/10/2026 mir0n  import: RequestContextUtils updated to backend.service package
+ * 03/10/2026 mir0n  fillКindFieldLayer() call updated to fillKindFieldLayer() — Cyrillic К → ASCII K
  */
 
 package pro.mir0n.esquire.enyMan.service.impl;
 
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.FlushModeType;
-import java.beans.PropertyDescriptor;
 import java.util.*;
 
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.BeanWrapper;
-import org.springframework.beans.BeanWrapperImpl;
 import pro.mir0n.esquire.backend.dto.*;
 import pro.mir0n.esquire.backend.jpa.*;
 import pro.mir0n.esquire.backend.jpa.entity.EsqOrgJpa;
-import pro.mir0n.esquire.backend.jpa.entity.EsqUsrJpa;
-import pro.mir0n.esquire.backend.storage.EsqObjectKindStorage;
 import pro.mir0n.esquire.backend.validator.ValidatorFactory;
 import pro.mir0n.esquire.enyMan.jpa.EsqEntityDictionaryRepository;
 import pro.mir0n.esquire.enyMan.jpa.EsqOrgRepository;
-import pro.mir0n.esquire.enyMan.jpa.EsqUsrRepository;
-import pro.mir0n.esquire.enyMan.service.RequestContextUtils;
+import pro.mir0n.esquire.backend.service.RequestContextUtils;
 import pro.mir0n.esquire.backend.storage.EsqEntityDictionaryStorage;
 import pro.mir0n.esquire.backend.error.ResourceNotFoundException;
-import pro.mir0n.esquire.enyMan.service.IEnyManService;
-import lombok.AllArgsConstructor;
-import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
-
-import pro.mir0n.esquire.common.EsqConstants;
 
 @Slf4j
 public class OrgService  extends AEnyManService {
@@ -75,7 +68,7 @@ public class OrgService  extends AEnyManService {
     }
 
     @Override
-    public EsqEntity esquireCommandSave(Integer kind, String id, String cmd, Map<String, Object> fields, String rootPath, String uid) {
+    public EsqEntity esquireCommandSave(Integer kind, String id, String cmd, Map<String, Object> fields, String rootPath, String uid, List<String> roles) {
         String correlationId = RequestContextUtils.getCorrelationId();
         String requestId = RequestContextUtils.getRequestId();
         log.debug("srvc: esquireCommandSave(org): kind:{}, id:{}, cmd:{}, rootPath:{}, uid:{}", kind, id, cmd, rootPath, uid);
@@ -107,7 +100,7 @@ public class OrgService  extends AEnyManService {
             throw new ResourceNotFoundException("saveOrg", "id", id);
         }
         List<EsqNameValueJpa> cstm = orgRepository.customOrg(id);
-        if (applyFields(org, fields, 0,null)) {
+        if (applyFields(org, fields, false,0,null)) {
             orgRepository.updateOrg(id, org.getName(), org.getDesc(), org.getFullName(), uid, correlationId, requestId);
         }
 
@@ -118,10 +111,10 @@ public class OrgService  extends AEnyManService {
                 String nm = nv.getName();
                 if (fields.containsKey(nm)) {
                     String val = (String)fields.get(nm);
-                    kfl = (dict != null) ? dict.fillКindFieldLayer(nm,kfl) : null;
+                    kfl = (dict != null) ? dict.fillKindFieldLayer(nm,kfl) : null;
                     EsqEntityField field = (kfl != null) ? kfl.getField() : null;
                     if (field != null && (field.getReadwrite()  & 2) == 2) {
-                        val = (String) ValidatorFactory.getInstance().validate(org, kfl, val);
+                        val = (String) ValidatorFactory.getInstance().validate(org, kfl, false, val);
                         nv.setValue(val);
                         orgRepository.updateCustomOrg(id, nm, val, uid, correlationId, requestId);
                     }

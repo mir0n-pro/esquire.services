@@ -1068,7 +1068,7 @@
                             <minmax>50</minmax>
                             <validation>^[\x20-\x7E]+</validation>
                             <nullable>N</nullable>
-                            <personal>Y</personal>
+                            <personal>N</personal>
                         </field>
                         <field>
                             <name>middleName</name>
@@ -1080,7 +1080,7 @@
                             <minmax>50</minmax>
                             <validation>^[\x20-\x7E]+</validation>
                             <nullable>Y</nullable>
-                            <personal>Y</personal>
+                            <personal>N</personal>
                         </field>
                         <field>
                             <name>lastName</name>
@@ -1092,7 +1092,7 @@
                             <minmax>50</minmax>
                             <validation>^[\x20-\x7E]+</validation>
                             <nullable>N</nullable>
-                            <personal>Y</personal>
+                            <personal>N</personal>
                         </field>
                         <field>
                             <name>title</name>
@@ -1344,6 +1344,7 @@
                             <type>tab-ikn-list</type>
                             <tooltip>List of roles assigned</tooltip>
                             <readwrite>3</readwrite>
+                            <personal>N</personal>
                         </field>
                         <field>
                             <name>rolesAll</name>

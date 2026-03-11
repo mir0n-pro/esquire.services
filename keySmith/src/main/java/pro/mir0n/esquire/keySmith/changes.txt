@@ -1,5 +1,64 @@
 Esquire keySmith Microservice
 
+03/10/2026 mir0n  @Primary added; rolesAll and permissions from EsqRolesStorage; KeySmithServiceJpa added
++ added service.impl.KeySmithServiceJpa (JPA-based alternative; was KeySmithService before DTO refactoring)
+  - no @Primary; superseded by KeySmithService; kept as fallback
+service.impl.KeySmithService
+  - @Primary added: selected as preferred IKeySmithService implementation
+  - rolesAll loaded from EsqRolesStorage.getInstance().roles() (no JPA call)
+  - permissions accumulated via fillPermissionsForRole() loop over rolesAssigned
+  - esquireKey(): roles/rolesAll/permissions sourced from Storage after JPA access fetch
+  - esquireKeySave(): fill() called with Storage-sourced rolesAll + permissions after transaction
+  - saveAccess(): rolesAll[] param removed; rolesAll sourced from Storage in caller
+service.BizValidatorFactory
+  - unused import removed; getBizValidators() final modifier removed; comment corrected
+
+03/10/2026 mir0n  fillKindFieldLayer() call updated — Cyrillic К → ASCII K
+service.impl.KeySmithService
+  - fillКindFieldLayer() call updated to fillKindFieldLayer()
+
+03/10/2026 mir0n  observability, security, exception handling generalized to common
+x removed exception.GlobalExceptionHandler (moved to common backend.exception)
+x removed security.JwtAuthenticationFilter, JwtService, SecurityConfiguration (moved to common)
+x removed service.MdcFilter, RequestContextUtils, RequestPerformance, PerformanceAspect (moved to common)
+KeySmithApplication
+  - scanBasePackages: backend.service, backend.security, backend.exception added
+service.impl.KeySmithService
+  - import: RequestContextUtils updated to backend.service package
+
+03/09/2026 mir0nexception.GlobalExceptionHandler
+  - refactored: thin delegate; all handlers forward to GenericExceptionHandler (common)
+
+03/09/2026 mir0n  service-side permission validation added; JWT roles claim validated
+controller.KeySmithController
+  - realm_access.roles extracted from JWT claims; roles passed to esquireKeySave()
+security.JwtAuthenticationFilter
+  - realm_access.roles extracted and validated; request rejected (401) if missing/empty
+resources/application.yml
+  - META-INF/oracle-roles.xml and META-INF/postgres-roles.xml added to JPA named queries
+KeySmithApplication
+  - EsqRolesStorage.init() via ApplicationReadyEvent listener
+  - @EnableJpaRepositories extended with backend.storage.roles
+service.IKeySmithService
+  - esquireKeySave(): roles param added
+service.impl.KeySmithService
+  - roles var renamed to rolesAssigned; roles param added to saveAccess()
+  - isAdminCmdPermitted(AUTH) permission check; self-update bypass (upk.equals(uid))
+  - PermissionDeniedException thrown on auth failure
+exception.GlobalExceptionHandler
+  - @Slf4j added; logging added to all handlers
+  - PermissionDeniedException (HTTP 403) and InvalidValueException (HTTP 400) handlers added
+  - ResourceNotFoundException: NOT_FOUND → BAD_REQUEST
+
+03/08/2026 mir0n  personal-flag: users cannot change their own permissions
+service.BizValidatorFactory
+  - validate(): boolean personal param added
+  - personal guard: throws InvalidValueException if personal=true (cannot change own permissions)
+service.impl.KeySmithService
+  - InvalidValueException import added
+  - personal = upk.equals(uid) computed at saveAccess() entry
+  - personal passed to saveAccess() and applyFields()
+
 03/06/2026 mir0n  field validation via ValidatorFactory; biz validator added
 + added service.BizValidatorFactory
   - biz validator for KIND_ACCESS_PROFILE: max 1 admin role per user

@@ -6,7 +6,7 @@
  *  mailto:mir0n.the.programmer@gmail.com
  *
  *  History:
- * 01/23/206 mir0n  use common library
+ * 01/23/2026 mir0n  use common library
  */
 
 package pro.mir0n.esquire.enyMan.jpa;

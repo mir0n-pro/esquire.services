@@ -7,6 +7,8 @@
  *
  *  History:
  * 03/06/2026 mir0n created: biz validator — max 1 admin role per user
+ * 03/08/2026 mir0n  personal guard added: throws if personal=true (cannot change own permissions)
+ * 03/10/2026 mir0n  unused import removed; getBizValidators() final modifier removed; comment corrected
  */
 
 package pro.mir0n.esquire.keySmith.service;
@@ -15,7 +17,6 @@ import pro.mir0n.esquire.backend.dto.EsqEntityField;
 import pro.mir0n.esquire.backend.dto.EsqEntityKindFieldLayer;
 import pro.mir0n.esquire.backend.error.InvalidValueException;
 import pro.mir0n.esquire.backend.jpa.EsqEntityJpa;
-import pro.mir0n.esquire.backend.jpa.access.EsqRoleJpa;
 import pro.mir0n.esquire.backend.validator.IValidator;
 import pro.mir0n.esquire.common.EsqConstants;
 
@@ -29,19 +30,23 @@ public class BizValidatorFactory {
         EsqConstants.KIND_ACCESS_PROFILE, new RolesBizValidator()
     );
 
-    public static final Map<Integer, IValidator> getBizValidators() {
+    public static Map<Integer, IValidator> getBizValidators() {
         return bizValidators;
     }
 
     private static class RolesBizValidator implements IValidator {
 
         @Override
-        public Object validate(EsqEntityJpa origin, EsqEntityKindFieldLayer kfl, Object value) {
+        public Object validate(EsqEntityJpa origin, EsqEntityKindFieldLayer kfl, boolean personal, Object value) {
             Object ret = value;
 log.debug("keySmith:BizValidator:validate: value:{}", value);
             EsqEntityField field = kfl.getField();
             if (field != null
             && field.getName().equals(IKeySmithService.FIELD_ROLES)) {
+                if (personal) {   // we do not allow changing your own permissions
+                    throw new InvalidValueException("You cannot change your own permissions", field.getName(),
+                            kfl.getLabel(), String.valueOf(kfl.getLayer() -1));
+                }
                 try {
                     log.debug("keySmith:BizValidator:validate: {} value:{}", field.getName(), value);
                     List<?> lst = (List<?>) value;
@@ -56,11 +61,11 @@ log.debug("keySmith:BizValidator:validate: value:{}", value);
                     }
                     if (adminRoles > 1) {
                         throw new InvalidValueException("Cannot have more than one administrative role", field.getName(),
-                             field.getLabel(), String.valueOf(kfl.getLayer() -1));
+                                kfl.getLabel(), String.valueOf(kfl.getLayer() -1));
                     }
                 } catch (NumberFormatException e) {
                      throw new InvalidValueException(e.getMessage(), field.getName(),
-                        field.getLabel(), String.valueOf(kfl.getLayer() -1));
+                             kfl.getLabel(), String.valueOf(kfl.getLayer() -1));
 
                 }
             }

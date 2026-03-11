@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<entity-mappings xmlns="http://java.sun.com/xml/ns/persistence/orm"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://java.sun.com/xml/ns/persistence/orm http://java.sun.com/xml/ns/persistence/orm_2_0.xsd"
+    version="2.0">
+<!--
+        <query><![CDATA[ ]]>
+-->
+
+   <named-native-query name="EsqRoleJpa.roles"  result-set-mapping="EsqRoleMappingCommon">
+        <query>
+ SELECT
+     role_pk
+    ,role_name
+    ,role_pt_pk
+ FROM esq_role
+ ORDER BY role_pk
+        </query>
+    </named-native-query>
+
+    <named-native-query name="EsqRoleJpa.permissions" result-set-mapping="EsqPermissionMappingCommon">
+        <query>
+ SELECT prm_pk
+   ,pt_name
+   ,NVL(prm_et_pk, 0) AS prm_et_pk
+   ,prm_name
+   ,rp_allowed_flgs
+ FROM esq_role_prm, esq_permission, esq_permission_type
+ WHERE prm_pk = rp_prm_pk
+ AND pt_pk = prm_pt_pk
+ AND rp_role_pk = :id
+        </query>
+    </named-native-query>
+
+    <sql-result-set-mapping name="EsqRoleMappingCommon">
+        <entity-result entity-class="pro.mir0n.esquire.backend.jpa.access.EsqRoleJpa">
+            <field-result name="id" column="role_pk"/>
+            <field-result name="name" column="role_name"/>
+            <field-result name="kind" column="role_pt_pk"/>
+        </entity-result>
+    </sql-result-set-mapping>
+
+    <sql-result-set-mapping name="EsqPermissionMappingCommon">
+        <entity-result entity-class="pro.mir0n.esquire.backend.jpa.access.EsqPermissionJpa">
+            <field-result name="id" column="prm_pk"/>
+            <field-result name="type" column="pt_name"/>
+            <field-result name="kind" column="prm_et_pk"/>
+            <field-result name="name" column="prm_name"/>
+            <field-result name="flags" column="rp_allowed_flgs"/>
+        </entity-result>
+    </sql-result-set-mapping>
+
+</entity-mappings>

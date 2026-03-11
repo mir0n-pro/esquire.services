@@ -7,6 +7,7 @@
  *
  *  History:
  * 03/06/2026 mir0n created: validator interface
+ * 03/08/2026 mir0n  validate() signature: boolean personal param added
  */
 
 package pro.mir0n.esquire.backend.validator;
@@ -18,6 +19,6 @@ import pro.mir0n.esquire.backend.jpa.EsqEntityJpa;
 
 public interface IValidator {
 
-    public Object validate(EsqEntityJpa origin, EsqEntityKindFieldLayer kfl, Object value );
+    public Object validate(EsqEntityJpa origin, EsqEntityKindFieldLayer kfl, boolean personal, Object value );
 
 }

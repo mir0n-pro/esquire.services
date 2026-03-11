@@ -7,6 +7,7 @@
  *
  *  History:
  * 03/06/2026 mir0n created: biz validator — cannot close account with positive balance
+ * 03/08/2026 mir0n  validate(): boolean personal param added (interface alignment, no behavior change)
  */
 
 package pro.mir0n.esquire.pacMan.service;
@@ -36,7 +37,7 @@ public class BizValidatorFactory {
     private static class StatusBizValidator implements IValidator {
 
         @Override
-        public Object validate(EsqEntityJpa origin, EsqEntityKindFieldLayer kfl, Object value) {
+        public Object validate(EsqEntityJpa origin, EsqEntityKindFieldLayer kfl, boolean personal, Object value) {
 //log.debug("keySmith:BizValidator:validate: value:{} balance:{}",  value, ((EsqAcctJpa)origin).getBalance());
             Object ret = value;
             EsqEntityField field = kfl.getField();
