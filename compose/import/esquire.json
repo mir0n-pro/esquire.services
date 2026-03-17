@@ -313,6 +313,7 @@
       "security-admin-console" : [ ],
       "esq-rest" : [ ],
       "admin-cli" : [ ],
+      "esq-kcMaster" : [ ],
       "account-console" : [ ],
       "broker" : [ {
         "id" : "36644418-fc7e-4e19-8e33-4c84c9cb803b",
@@ -479,33 +480,29 @@
     "notBefore" : 0,
     "groups" : [ "/Angular users" ]
   }, {
-    "id" : "1c1874a2-cda2-4324-ae77-6fcd8c4e030b",
+    "id" : "be135fd4-7128-4c5a-8a72-9923873baae8",
     "username" : "departmentadmin",
-    "firstName" : "Department",
-    "lastName" : "Manager",
-    "email" : "mir0n.the.programmer9@gmail.com",
-    "emailVerified" : true,
+    "email" : "mir0n.the.programmer.9@gmail.com",
+    "emailVerified" : false,
     "attributes" : {
       "esq_uid" : [ "9" ],
-      "esq_rootid" : [ "3" ],
       "esq_rootpath" : [ "1.2.3." ]
     },
     "enabled" : true,
-    "createdTimestamp" : 1767843218658,
+    "createdTimestamp" : 1773695766155,
     "totp" : false,
     "credentials" : [ {
-      "id" : "d19d8e72-d540-4e9e-95db-42e673c778fe",
+      "id" : "483bc446-f5ff-4e35-9824-dec7e2b722f8",
       "type" : "password",
-      "userLabel" : "My password",
-      "createdDate" : 1767843228598,
-      "secretData" : "{\"value\":\"JR+1Ptb+hr7pYi0DtM89bigy9xyGsvjVstgSEsej4LM=\",\"salt\":\"JZVxChQLzKFyaT2sUy3ixA==\",\"additionalParameters\":{}}",
+      "createdDate" : 1773695806002,
+      "secretData" : "{\"value\":\"oyzP2C3uEbzMv/Ft5xFJ7keHoUz9syWg0LguvnssZFo=\",\"salt\":\"QoE1M8b1CJnmghvEZuiIlA==\",\"additionalParameters\":{}}",
       "credentialData" : "{\"hashIterations\":5,\"algorithm\":\"argon2\",\"additionalParameters\":{\"hashLength\":[\"32\"],\"memory\":[\"7168\"],\"type\":[\"id\"],\"version\":[\"1.3\"],\"parallelism\":[\"1\"]}}"
     } ],
     "disableableCredentialTypes" : [ ],
     "requiredActions" : [ ],
     "realmRoles" : [ "MANAGER", "default-roles-esquire", "TREE" ],
     "notBefore" : 0,
-    "groups" : [ "/Angular users" ]
+    "groups" : [ ]
   }, {
     "id" : "ef39ea2e-30e0-4576-870b-2b46caad6c06",
     "username" : "mainadmin",
@@ -587,6 +584,23 @@
     "disableableCredentialTypes" : [ ],
     "requiredActions" : [ ],
     "realmRoles" : [ "MANAGER", "default-roles-esquire", "TREE" ],
+    "notBefore" : 0,
+    "groups" : [ ]
+  }, {
+    "id" : "34ecec4d-1bf3-4818-b747-8bf83376059f",
+    "username" : "service-account-esq-kcmaster",
+    "emailVerified" : false,
+    "enabled" : true,
+    "createdTimestamp" : 1773527114571,
+    "totp" : false,
+    "serviceAccountClientId" : "esq-kcMaster",
+    "credentials" : [ ],
+    "disableableCredentialTypes" : [ ],
+    "requiredActions" : [ ],
+    "realmRoles" : [ "default-roles-esquire" ],
+    "clientRoles" : {
+      "realm-management" : [ "realm-admin", "query-users", "manage-users", "view-users", "manage-realm" ]
+    },
     "notBefore" : 0,
     "groups" : [ ]
   }, {
@@ -896,6 +910,63 @@
       }
     } ],
     "defaultClientScopes" : [ "web-origins", "acr", "openid", "roles", "profile", "basic", "email" ],
+    "optionalClientScopes" : [ "address", "phone", "organization", "offline_access", "microprofile-jwt" ]
+  }, {
+    "id" : "c653bce7-8e20-441a-abe9-504e6defd6f4",
+    "clientId" : "esq-kcMaster",
+    "name" : "esq-kcMaster",
+    "description" : "esq-kcMaster",
+    "rootUrl" : "",
+    "adminUrl" : "",
+    "baseUrl" : "",
+    "surrogateAuthRequired" : false,
+    "enabled" : true,
+    "alwaysDisplayInConsole" : false,
+    "clientAuthenticatorType" : "client-secret",
+    "secret" : "MHgq0Nu69u2uJ2johaK1wxQLMdakELXN",
+    "redirectUris" : [ "/*" ],
+    "webOrigins" : [ "/*" ],
+    "notBefore" : 0,
+    "bearerOnly" : false,
+    "consentRequired" : false,
+    "standardFlowEnabled" : false,
+    "implicitFlowEnabled" : false,
+    "directAccessGrantsEnabled" : false,
+    "serviceAccountsEnabled" : true,
+    "publicClient" : false,
+    "frontchannelLogout" : false,
+    "protocol" : "openid-connect",
+    "attributes" : {
+      "request.object.signature.alg" : "any",
+      "frontchannel.logout.session.required" : "true",
+      "oauth2.device.authorization.grant.enabled" : "false",
+      "use.jwks.url" : "false",
+      "backchannel.logout.revoke.offline.tokens" : "false",
+      "use.refresh.tokens" : "true",
+      "realm_client" : "false",
+      "oidc.ciba.grant.enabled" : "false",
+      "backchannel.logout.session.required" : "false",
+      "client_credentials.use_refresh_token" : "false",
+      "require.pushed.authorization.requests" : "false",
+      "request.object.encryption.enc" : "any",
+      "dpop.bound.access.tokens" : "false",
+      "id.token.as.detached.signature" : "false",
+      "client.secret.creation.time" : "1773527878",
+      "request.object.encryption.alg" : "any",
+      "client.introspection.response.allow.jwt.claim.enabled" : "false",
+      "standard.token.exchange.enabled" : "false",
+      "client.use.lightweight.access.token.enabled" : "false",
+      "request.object.required" : "not required",
+      "access.token.header.type.rfc9068" : "false",
+      "tls.client.certificate.bound.access.tokens" : "false",
+      "acr.loa.map" : "{}",
+      "display.on.consent.screen" : "false",
+      "token.response.type.bearer.lower-case" : "false"
+    },
+    "authenticationFlowBindingOverrides" : { },
+    "fullScopeAllowed" : true,
+    "nodeReRegistrationTimeout" : -1,
+    "defaultClientScopes" : [ "web-origins", "service_account", "acr", "openid", "roles", "profile", "basic", "email" ],
     "optionalClientScopes" : [ "address", "phone", "organization", "offline_access", "microprofile-jwt" ]
   }, {
     "id" : "e45fede4-444c-4336-9396-7c81e336bef1",
@@ -1809,7 +1880,7 @@
       "providerId" : "declarative-user-profile",
       "subComponents" : { },
       "config" : {
-        "kc.user.profile.config" : [ "{\"attributes\":[{\"name\":\"username\",\"displayName\":\"${username}\",\"validations\":{\"length\":{\"min\":3,\"max\":255},\"username-prohibited-characters\":{},\"up-username-not-idn-homograph\":{}},\"permissions\":{\"view\":[\"admin\",\"user\"],\"edit\":[\"admin\",\"user\"]},\"multivalued\":false},{\"name\":\"email\",\"displayName\":\"${email}\",\"validations\":{\"email\":{},\"length\":{\"max\":255}},\"required\":{\"roles\":[\"user\"]},\"permissions\":{\"view\":[\"admin\",\"user\"],\"edit\":[\"admin\",\"user\"]},\"multivalued\":false},{\"name\":\"firstName\",\"displayName\":\"${firstName}\",\"validations\":{\"length\":{\"max\":255},\"person-name-prohibited-characters\":{}},\"required\":{\"roles\":[\"user\"]},\"permissions\":{\"view\":[\"admin\",\"user\"],\"edit\":[\"admin\",\"user\"]},\"multivalued\":false},{\"name\":\"lastName\",\"displayName\":\"${lastName}\",\"validations\":{\"length\":{\"max\":255},\"person-name-prohibited-characters\":{}},\"required\":{\"roles\":[\"user\"]},\"permissions\":{\"view\":[\"admin\",\"user\"],\"edit\":[\"admin\",\"user\"]},\"multivalued\":false},{\"name\":\"esq_rootpath\",\"displayName\":\"\",\"validations\":{},\"annotations\":{},\"permissions\":{\"view\":[\"admin\",\"user\"],\"edit\":[\"admin\"]},\"selector\":{\"scopes\":[\"profile\"]},\"multivalued\":false},{\"name\":\"esq_uid\",\"displayName\":\"\",\"validations\":{},\"annotations\":{},\"permissions\":{\"view\":[\"admin\",\"user\"],\"edit\":[\"admin\"]},\"selector\":{\"scopes\":[\"profile\"]},\"multivalued\":false}],\"groups\":[{\"name\":\"user-metadata\",\"displayHeader\":\"User metadata\",\"displayDescription\":\"Attributes, which refer to user metadata\"}]}" ]
+        "kc.user.profile.config" : [ "{\"attributes\":[{\"name\":\"username\",\"displayName\":\"${username}\",\"validations\":{\"length\":{\"min\":3,\"max\":255},\"username-prohibited-characters\":{},\"up-username-not-idn-homograph\":{}},\"permissions\":{\"view\":[\"admin\",\"user\"],\"edit\":[\"admin\",\"user\"]},\"multivalued\":false},{\"name\":\"email\",\"displayName\":\"${email}\",\"validations\":{\"email\":{},\"length\":{\"max\":255}},\"required\":{\"roles\":[\"user\"]},\"permissions\":{\"view\":[\"admin\",\"user\"],\"edit\":[\"admin\",\"user\"]},\"multivalued\":false},{\"name\":\"esq_rootpath\",\"displayName\":\"\",\"validations\":{},\"annotations\":{},\"permissions\":{\"view\":[\"admin\",\"user\"],\"edit\":[\"admin\"]},\"selector\":{\"scopes\":[\"profile\"]},\"multivalued\":false},{\"name\":\"esq_uid\",\"displayName\":\"\",\"validations\":{},\"annotations\":{},\"permissions\":{\"view\":[\"admin\",\"user\"],\"edit\":[\"admin\"]},\"selector\":{\"scopes\":[\"profile\"]},\"multivalued\":false}],\"groups\":[{\"name\":\"user-metadata\",\"displayHeader\":\"User metadata\",\"displayDescription\":\"Attributes, which refer to user metadata\"}]}" ]
       }
     } ],
     "org.keycloak.keys.KeyProvider" : [ {
