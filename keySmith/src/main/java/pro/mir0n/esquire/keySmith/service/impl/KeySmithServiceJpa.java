@@ -20,6 +20,7 @@
  * 03/10/2026 mir0n  import: RequestContextUtils updated to backend.service package
  * 03/10/2026 mir0n  renamed from KeySmithService → KeySmithServiceJpa; JPA-based alternative;
  *                   superseded by KeySmithService (@Primary) which uses EsqRolesStorage
+ * 03/16/2026 mir0n  updateAccess(): connectFlg param added
  */
 
 package pro.mir0n.esquire.keySmith.service.impl;
@@ -136,7 +137,7 @@ public class KeySmithServiceJpa implements IKeySmithService {
             throw new PermissionDeniedException("Access Profile", "modify");
         }
         if (applyFields(jpa, personal, fields)) {
-            accessProfileRepository.updateAccess(id, jpa.getEmail(), jpa.getLoginId(), jpa.getPwdChangeForced(), jpa.getTfaMethod(), uid, correlationId, requestId);
+            accessProfileRepository.updateAccess(id, jpa.getEmail(), jpa.getLoginId(), jpa.getPwdChangeForced(), jpa.getTfaMethod(), jpa.getConnectFlg(), uid, correlationId, requestId);
         }
         List<EsqRoleJpa> originRoles = accessProfileRepository.roles(id);
         Set<String> originIds = new HashSet<>();

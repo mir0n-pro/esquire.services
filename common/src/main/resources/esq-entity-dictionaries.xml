@@ -1305,8 +1305,18 @@
                             <personal>Y</personal>
                         </field>
                         <field>
-                            <name>pwdChangeForced</name>
+                            <name>connectFlg</name>
                             <sort>3</sort>
+                            <label>Connect</label>
+                            <type>flag</type>
+                            <tooltip>Allow user to connect</tooltip>
+                            <readwrite>3</readwrite>
+                            <nullable>N</nullable>
+                            <personal>N</personal>
+                        </field>
+                        <field>
+                            <name>pwdChangeForced</name>
+                            <sort>4</sort>
                             <label>Password Change</label>
                             <type>flag</type>
                             <tooltip>Force password change</tooltip>
@@ -1317,16 +1327,17 @@
                         </field>
                         <field>
                             <name>tfaMethod</name>
-                            <sort>4</sort>
+                            <sort>5</sort>
                             <label>Two-Factor Auth</label>
                             <type>string</type>
                             <tooltip>Force Two-factor-authentication change</tooltip>
                             <listvalues>
                                 <value>N~Disable</value>
                                 <value>G~Enabled</value>
-                                <value>g~Pending</value>
+                                <value>g~Enabling...</value>
+                                <value>n~Disabling...</value>
                             </listvalues>
-                            <validation>^(N|G|g)$</validation>
+                            <validation>^(N|G|g|n)$</validation>
                             <nullable>N</nullable>
                             <readwrite>3</readwrite>
                             <personal>Y</personal>

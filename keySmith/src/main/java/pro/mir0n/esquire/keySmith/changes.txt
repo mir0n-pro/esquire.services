@@ -1,5 +1,34 @@
 Esquire keySmith Microservice
 
+03/16/2026 mir0n  TOTP state machine; reset password handshake; connectFlg lifecycle; KC integration
+service.impl.KeySmithService
+  - applyFields(): tfaMethod state machine — accepts G/N only; pending stored as lowercase (G→g, N→n)
+  - esquireKey(): confirmPendingFlags() on login handshake (id=null)
+    pwdChangeForced Y→N confirmed; tfaMethod g/n→G/N confirmed
+  - esquireKeySave(): oldLoginId[], oldConnectFlg[] captured before transaction
+  - saveAccess(): connectFlg change captured; TOTP reset to N on N→Y transition
+  - syncToKeycloak() added: three-branch — delete(Y→N) / create(N→Y) / update(else)
+    create: KC user with esq_uid + esq_rootpath attributes, temporary password, forcePasswordChange=true
+service.impl.KeySmithServiceJpa
+  - saveAccess(): connectFlg param added to updateAccess() call
+service.impl.KeycloakIdentityService
+  - updateUserAuthState(): removeTotp parameter added; OTP credential removal via KC credential API
+  - deleteUser() added
+service.IKeycloakIdentityService
+  - updateUserAuthState(): removeTotp parameter added
+  - deleteUser() added
+jpa.EsqAccessProfileRepository
+  - updateAccess(): connectFlg param added
+  - confirmPendingFlags(@Param id, pwdChangeForced, tfaMethod) added
+    replaces clearPwdChangeForced + confirmTfaMethod; COALESCE for atomic partial update
+KeySmithApplication
+  - @EnableAsync added (virtual thread async executor for KeycloakIdentityService)
+META-INF/oracle-access-profile.xml, postgres-access-profile.xml
+  - usr_path added to access and accessForUpdate SELECT queries; path→usr_path result mapping added
+  - au_connect_flg added to access and accessForUpdate SELECT queries; connectFlg result mapping added
+  - au_connect_flg = :connectFlg added to updateAccess UPDATE
+  - confirmPendingFlags named native query added
+
 03/10/2026 mir0n  @Primary added; rolesAll and permissions from EsqRolesStorage; KeySmithServiceJpa added
 + added service.impl.KeySmithServiceJpa (JPA-based alternative; was KeySmithService before DTO refactoring)
   - no @Primary; superseded by KeySmithService; kept as fallback

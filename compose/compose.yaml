@@ -109,9 +109,16 @@ services:
       - "3005:3005"
     environment:
       - KEYSMITH_PORT=3005
+      - KC_BASE_URL=http://keycloak:8080
+      - KC_REALM=esquire
+      - KC_ADMIN_CLIENT_ID=esq-kcMaster
+      - KC_ADMIN_CLIENT_SECRET=MHgq0Nu69u2uJ2johaK1wxQLMdakELXN
+      - KC_AUDIT_LOG_PATH:logs/kc-audit.log
       - LOG_LEVEL_ROOT=ERROR
       - LOG_LEVEL_SF=ERROR
       - LOG_LEVEL_MIR0N=DEBUG
+      - LOG_LEVEL_KC_AUDIT=DEBUG
+
       - DB_KEYSMITH_VENDOR=dev-postgres
       - DB_KEYSMITH_PORT=5432
       - DB_KEYSMITH_NAME=esq2025
@@ -122,6 +129,9 @@ services:
       - DB_KEYSMITH_USERNAME=esq2025
       - DB_KEYSMITH_PASSWORD=q
     command: ["java", "-jar", "app.jar"]
+    volumes:
+      # have logs volume mounted
+      - ./logs:/app/logs
     networks:
       - esquirenet
 

@@ -10,18 +10,26 @@ spring:
   mvc:
     problemdetails:
       enabled: true
+keycloak:
+  admin:
+    base-url: ${KC_BASE_URL:http://localhost:8080}
+    realm: ${KC_REALM:esquire}
+    client-id: ${KC_ADMIN_CLIENT_ID:admin-cli}
+    client-secret: ${KC_ADMIN_CLIENT_SECRET:}
+    connect-timeout-ms: 5000
+    read-timeout-ms: 10000
+  audit:
+    log-path: ${KC_AUDIT_LOG_PATH:logs/kc-audit.log}
+
 logging:
-  pattern:
-    console: "%d{yyyy-MM-dd HH:mm:ss, UTC} %-5level [%X{correlationId:-no-cid}] [%X{requestId:-no-rid}] %logger{36} - %msg%n"
-  structured:
-    format:
-      console: ecs  # Use ecs,'logstash' or 'gelf' for other common formats
+  # Console pattern and structured format are configured in logback-spring.xml
   level:
     root: ${LOG_LEVEL_ROOT:ERROR}
     org:
       springframework: ${LOG_LEVEL_SF:ERROR}
     pro:
       mir0n: ${LOG_LEVEL_MIR0N:ERROR}
+      kc.audit: ${LOG_LEVEL_KC_AUDIT:INFO}
 
 ---
 # Development Oracle

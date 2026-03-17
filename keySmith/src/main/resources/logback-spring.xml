@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+
+    <springProperty scope="context" name="logLevelRoot"  source="logging.level.root"                defaultValue="INFO"/>
+    <springProperty scope="context" name="logLevelSf"    source="logging.level.org.springframework" defaultValue="INFO"/>
+    <springProperty scope="context" name="logLevelMir0n" source="logging.level.pro.mir0n"           defaultValue="INFO"/>
+    <springProperty scope="context" name="kcAuditLogPath" source="keycloak.audit.log-path"          defaultValue="logs/kc-audit.log"/>
+
+    <!-- Console — ECS structured format (equivalent to logging.structured.format.console: ecs) -->
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder class="org.springframework.boot.logging.logback.StructuredLogEncoder">
+            <format>ecs</format>
+        </encoder>
+    </appender>
+
+    <!-- KC Audit — dedicated rolling file for Keycloak operation state changes -->
+    <appender name="KC_AUDIT_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${kcAuditLogPath}</file>
+        <!-- mkdirs>true</mkdirs -->
+        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+            <fileNamePattern>${kcAuditLogPath}.%d{yyyy-MM-dd}.gz</fileNamePattern>
+            <maxHistory>30</maxHistory>
+        </rollingPolicy>
+        <encoder>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss, UTC} %-5level %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <!--
+        kc.audit logger — additivity=true so entries also flow to root (console),
+        satisfying both the dedicated audit file and generic observability requirements.
+    -->
+    <logger name="kc.audit" level="INFO" additivity="false">
+        <appender-ref ref="KC_AUDIT_FILE"/>
+    </logger>
+
+    <root level="${logLevelRoot}">
+        <appender-ref ref="CONSOLE"/>
+    </root>
+
+    <logger name="org.springframework" level="${logLevelSf}"/>
+    <logger name="pro.mir0n"           level="${logLevelMir0n}"/>
+
+</configuration>

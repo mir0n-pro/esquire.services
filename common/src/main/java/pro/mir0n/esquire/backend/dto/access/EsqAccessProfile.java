@@ -10,6 +10,7 @@
  * 03/03/2026 mir0n  rolesAll field added; fill() extended with rolesAll param
  * 03/10/2026 mir0n  fill() DTO overload added: rolesAll as List<EsqRole>, permissions as List<EsqPermission>
  *                   original fill() renamed fillJpa() — accepts List<EsqRoleJpa>, List<EsqPermissionJpa>
+ * 03/16/2026 mir0n  connectFlg field added; fill() and fillJpa() updated
  */
 
 package pro.mir0n.esquire.backend.dto.access;
@@ -62,6 +63,11 @@ public class EsqAccessProfile extends EsqThing {
     private String tfaMethod;
 
     @Schema(
+            description = "User connect flag", example = "Y"
+    )
+    private String connectFlg;
+
+    @Schema(
             description = "List of roles assigned to user", example = "TREE, MANAGER"
     )
     private List<EsqRole> roles;
@@ -91,6 +97,7 @@ public class EsqAccessProfile extends EsqThing {
         setEmail(jpa.getEmail());
         setPwdChangeForced(jpa.getPwdChangeForced());
         setTfaMethod(jpa.getTfaMethod());
+        setConnectFlg(jpa.getConnectFlg());
         setRoles(new ArrayList<>());
         if (roles != null) {
             roles.forEach(r -> getRoles().add(new EsqRole().fill(r)));
@@ -118,6 +125,7 @@ public class EsqAccessProfile extends EsqThing {
         setEmail(jpa.getEmail());
         setPwdChangeForced(jpa.getPwdChangeForced());
         setTfaMethod(jpa.getTfaMethod());
+        setConnectFlg(jpa.getConnectFlg());
         setRoles(new ArrayList<>());
         if (roles != null) {
             roles.forEach(r -> getRoles().add(new EsqRole().fill(r)));

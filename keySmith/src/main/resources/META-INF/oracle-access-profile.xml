@@ -11,11 +11,13 @@
  SELECT usr_pk
    ,usr_et_pk
    ,usr_name
+   ,usr_path
    ,au_login_id
    ,au_email
    ,NVL(au_force_change_flg,'N') AS au_force_change_flg
    ,au_tfa_method
-  FROM esq_user, esq_auth   
+   ,au_connect_flg
+  FROM esq_user, esq_auth
  WHERE usr_pk = au_usr_pk
    AND usr_pk = :id
    AND usr_path LIKE :rootPath || '%'
@@ -69,10 +71,12 @@ WHERE pt_pk = prm_pt_pk
  SELECT usr_pk
    ,usr_et_pk
    ,usr_name
+   ,usr_path
    ,au_login_id
    ,au_email
    ,NVL(au_force_change_flg,'N') AS au_force_change_flg
    ,au_tfa_method
+   ,au_connect_flg
   FROM esq_user, esq_auth
  WHERE usr_pk = au_usr_pk
    AND usr_pk = :id
@@ -95,6 +99,15 @@ WHERE pt_pk = prm_pt_pk
         </query>
     </named-native-query>
 
+    <named-native-query name="EsqAccessProfileJpa.confirmPendingFlags">
+        <query>
+ UPDATE esq_auth
+    SET au_force_change_flg = COALESCE(:pwdChangeForced, au_force_change_flg)
+       ,au_tfa_method        = COALESCE(:tfaMethod, au_tfa_method)
+  WHERE au_usr_pk = :id
+        </query>
+    </named-native-query>
+
     <named-native-query name="EsqAccessProfileJpa.updateAccess">
         <query>
  UPDATE esq_auth
@@ -102,6 +115,7 @@ WHERE pt_pk = prm_pt_pk
     ,au_login_id = :loginId
     ,au_force_change_flg = :pwdChangeForced
     ,au_tfa_method = :tfaMethod
+    ,au_connect_flg = :connectFlg
     ,au_crl_id = :correlationId
     ,au_req_id = :requestId
     ,au_uid = :uid
@@ -114,10 +128,12 @@ WHERE pt_pk = prm_pt_pk
             <field-result name="id" column="usr_pk"/>
             <field-result name="kind" column="usr_et_pk"/>
             <field-result name="name" column="usr_name"/>
+            <field-result name="path" column="usr_path"/>
             <field-result name="loginId" column="au_login_id"/>
             <field-result name="email" column="au_email"/>
             <field-result name="pwdChangeForced" column="au_force_change_flg"/>
             <field-result name="tfaMethod" column="au_tfa_method"/>
+            <field-result name="connectFlg" column="au_connect_flg"/>
         </entity-result>
     </sql-result-set-mapping>
 

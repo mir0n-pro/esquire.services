@@ -10,6 +10,7 @@
  * 03/09/2026 mir0n  EsqRolesStorage.init() via ApplicationReadyEvent listener
  *                   @EnableJpaRepositories extended with backend.storage.roles
  * 03/10/2026 mir0n  scanBasePackages: backend.service, backend.security, backend.exception added
+ * 03/16/2026 mir0n  @EnableAsync added (virtual thread async for KeycloakIdentityService)
  */
 
 package pro.mir0n.esquire.keySmith;
@@ -21,6 +22,7 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 import pro.mir0n.esquire.backend.storage.EsqEntityDictionaryStorage;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.boot.context.event.ApplicationStartingEvent;
 import org.springframework.context.ApplicationListener;
 import pro.mir0n.esquire.backend.storage.EsqRolesStorage;
@@ -29,6 +31,7 @@ import pro.mir0n.esquire.backend.validator.ValidatorFactory;
 import pro.mir0n.esquire.keySmith.service.BizValidatorFactory;
 
 @Slf4j
+@EnableAsync
 @SpringBootApplication(scanBasePackages = {
         "pro.mir0n.esquire.keySmith",
         "pro.mir0n.esquire.backend.service",

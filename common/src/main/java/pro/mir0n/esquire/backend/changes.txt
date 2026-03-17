@@ -1,5 +1,16 @@
 Esquire Backend common microservice classes
 
+03/16/2026 mir0n  connectFlg and path fields added to access profile JPA/DTO
+jpa.access.EsqAccessProfileJpa
+  - path (usr_path) field added
+  - connectFlg (au_connect_flg) field added
+dto.access.EsqAccessProfile
+  - connectFlg field added with @Schema
+  - fill() and fillJpa() updated with setConnectFlg()
+resources/esq-entity-dictionaries.xml
+  - connectFlg field added to access profile (readwrite=3, type=flag, nullable=N, personal=N)
+  - tfaMethod validation updated: g~Enabling..., n~Disabling... added; pattern ^(N|G|g|n)$
+
 03/10/2026 mir0n  support keySmith DTO approach: rolesAll and permissions loaded from EsqRolesStorage
 storage.EsqRolesStorage
   - roles() added: all roles as List<EsqRole> from in-memory map

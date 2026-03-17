@@ -11,10 +11,12 @@
  SELECT usr_pk
   ,usr_et_pk
   ,usr_name
+  ,usr_path
   ,au_login_id
   ,au_email
   ,COALESCE(au_force_change_flg, 'N') AS au_force_change_flg
   ,au_tfa_method
+  ,au_connect_flg
  FROM esq_user
  JOIN esq_auth
   ON au_usr_pk = usr_pk
@@ -71,10 +73,12 @@
  SELECT usr_pk
   ,usr_et_pk
   ,usr_name
+  ,usr_path
   ,au_login_id
   ,au_email
   ,COALESCE(au_force_change_flg, 'N') AS au_force_change_flg
   ,au_tfa_method
+  ,au_connect_flg
  FROM esq_user
  JOIN esq_auth
   ON au_usr_pk = usr_pk
@@ -99,6 +103,15 @@
         </query>
     </named-native-query>
 
+    <named-native-query name="EsqAccessProfileJpa.confirmPendingFlags">
+        <query>
+ UPDATE esq_auth
+    SET au_force_change_flg = COALESCE(CAST(:pwdChangeForced AS varchar), au_force_change_flg)
+       ,au_tfa_method        = COALESCE(CAST(:tfaMethod AS varchar), au_tfa_method)
+  WHERE au_usr_pk = CAST(:id AS bigint)
+        </query>
+    </named-native-query>
+
     <named-native-query name="EsqAccessProfileJpa.updateAccess">
         <query>
  UPDATE esq_auth
@@ -106,6 +119,7 @@
     ,au_login_id = :loginId
     ,au_force_change_flg = :pwdChangeForced
     ,au_tfa_method = :tfaMethod
+    ,au_connect_flg = :connectFlg
     ,au_crl_id = :correlationId
     ,au_req_id = :requestId
     ,au_uid = :uid
@@ -118,10 +132,12 @@
             <field-result name="id" column="usr_pk"/>
             <field-result name="kind" column="usr_et_pk"/>
             <field-result name="name" column="usr_name"/>
+            <field-result name="path" column="usr_path"/>
             <field-result name="loginId" column="au_login_id"/>
             <field-result name="email" column="au_email"/>
             <field-result name="pwdChangeForced" column="au_force_change_flg"/>
             <field-result name="tfaMethod" column="au_tfa_method"/>
+            <field-result name="connectFlg" column="au_connect_flg"/>
         </entity-result>
     </sql-result-set-mapping>
 

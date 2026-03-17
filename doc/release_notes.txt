@@ -1,6 +1,19 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v1.2.2-2603.1620
+  TOTP state machine; reset password handshake; connectFlg lifecycle; KC integration
+    :Feature: TOTP pending states (G→g pending enable, N→n pending disable)
+    :Feature: TOTP disable via KC: removeTotp parameter added to updateUserAuthState()
+    :Feature: au_connect_flg (connectFlg) field added across the stack
+    :Feature: syncToKeycloak() — three-branch KC sync on access profile save
+    :Feature: TOTP forced to N when connect flag transitions N→Y
+    :Async: @EnableAsync — KC calls executed on virtual thread pool (@Async)
+    : modified components
+      - common
+      - keySmith
+    :doc\keySmithCredentialRoutine.md added
+
 v1.2.2-2603.1017 Unit tests were added to all services
       - bizTree
       - common

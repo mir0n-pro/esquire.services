@@ -10,6 +10,8 @@
  *                   added updateAccess @Modifying (UPDATE esq_auth with audit columns)
  * 03/03/2026 mir0n  added deleteUserRole / insertUserRole
  * 03/03/2026 mir0n  added roleAll
+ * 03/16/2026 mir0n  updateAccess(): connectFlg param added
+ *                   confirmPendingFlags() added (replaces clearPwdChangeForced + confirmTfaMethod)
  */
 
 package pro.mir0n.esquire.keySmith.jpa;
@@ -48,6 +50,7 @@ public interface EsqAccessProfileRepository extends JpaRepository<EsqAccessProfi
         @Param("loginId") String loginId,
         @Param("pwdChangeForced") String pwdChangeForced,
         @Param("tfaMethod") String tfaMethod,
+        @Param("connectFlg") String connectFlg,
         @Param("uid") String uid,
         @Param("correlationId") String correlationId,
         @Param("requestId") String requestId
@@ -62,4 +65,11 @@ public interface EsqAccessProfileRepository extends JpaRepository<EsqAccessProfi
     @Transactional
     @NativeQuery
     int insertUserRole(@Param("id") String id, @Param("roleId") String roleId);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = false)
+    @Transactional
+    @NativeQuery
+    int confirmPendingFlags(@Param("id") String id,
+        @Param("pwdChangeForced") String pwdChangeForced,
+        @Param("tfaMethod") String tfaMethod);
 }

@@ -22,6 +22,13 @@
  *                   @Primary added; rolesAll and permissions loaded from EsqRolesStorage (no JPA call)
  *                   saveAccess(): rolesAll[] param removed; rolesAll set from Storage inside
  *                   esquireKey/esquireKeySave: fillPermissionsForRole() loop over assigned roles
+ * 03/16/2026 mir0n  IKeycloakIdentityService injected
+ *                   esquireKey(): confirmPendingFlags() on login handshake (id=null)
+ *                     pwdChangeForced Y→N; tfaMethod g/n→G/N on confirm
+ *                   esquireKeySave(): oldLoginId[], oldConnectFlg[] captured; syncToKeycloak() added
+ *                   saveAccess(): connectFlg change detection; TOTP reset to N on connect N→Y
+ *                   syncToKeycloak(): three-branch — delete(Y→N) / create(N→Y) / update(else)
+ *                   applyFields(): tfaMethod state machine — G/N only; pending via lowercase g/n
  */
 
 package pro.mir0n.esquire.keySmith.service.impl;
@@ -48,6 +55,7 @@ import pro.mir0n.esquire.keySmith.jpa.EsqAccessProfileRepository;
 import pro.mir0n.esquire.backend.service.RequestContextUtils;
 import pro.mir0n.esquire.backend.error.ResourceNotFoundException;
 import pro.mir0n.esquire.keySmith.service.IKeySmithService;
+import pro.mir0n.esquire.keySmith.service.IKeycloakIdentityService;
 import lombok.AllArgsConstructor;
 import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Service;
@@ -61,6 +69,7 @@ public class KeySmithService implements IKeySmithService {
     private EsqAccessProfileRepository accessProfileRepository;
     private TransactionTemplate transactionTemplate;
     private EntityManager em;
+    private IKeycloakIdentityService keycloakIdentityService;
 
     @Override
     public EsqAccessProfile esquireKey(String id, String rootPath, String uid) {
@@ -75,6 +84,16 @@ public class KeySmithService implements IKeySmithService {
         EsqAccessProfileJpa jpa = accessProfileRepository.access(upk, rootPath);
         if (jpa == null) {
             throw new ResourceNotFoundException("esquireKey", "id", upk);
+        }
+        if (id == null) {
+            String newPwdForced = "Y".equals(jpa.getPwdChangeForced()) ? "N" : null;
+            String tfa = jpa.getTfaMethod();
+            String newTfa = ("g".equals(tfa) || "n".equals(tfa)) ? tfa.toUpperCase() : null;
+            if (newPwdForced != null || newTfa != null) {
+                accessProfileRepository.confirmPendingFlags(upk, newPwdForced, newTfa);
+                if (newPwdForced != null) jpa.setPwdChangeForced(newPwdForced);
+                if (newTfa != null) jpa.setTfaMethod(newTfa);
+            }
         }
         List<EsqRoleJpa> roles = accessProfileRepository.roles(upk);
         List<EsqRole> rolesAll = EsqRolesStorage.getInstance().roles();
@@ -99,6 +118,8 @@ public class KeySmithService implements IKeySmithService {
 
         EsqAccessProfileJpa[] updated = {null};
         List<EsqRoleJpa>[] rolesAssigned = new List[]{null};
+        String[] oldLoginId = {null};
+        String[] oldConnectFlg = {null};
         //xxx: we cannot validate permission yet: we need to get a kind of the user where changes applying
         //     we need to read that first: we do it by first thing within the transction.
         //     so let's move the permission validation inside
@@ -109,9 +130,11 @@ public class KeySmithService implements IKeySmithService {
             //      @Modifying queries clears the context after each native update, so nothing
             //      remains to flush at commit.
             em.setFlushMode(FlushModeType.COMMIT);
-            saveAccess(upk, fields, rootPath, uid, correlationId, requestId, personal, updated, rolesAssigned, roles);
+            saveAccess(upk, fields, rootPath, uid, correlationId, requestId, personal, updated, rolesAssigned, roles, oldLoginId, oldConnectFlg);
             return null;
         }); // ← transaction commits here
+
+        syncToKeycloak(oldLoginId[0], oldConnectFlg[0], updated[0], rolesAssigned[0], correlationId, requestId);
 
         List<EsqRole> rolesAll = EsqRolesStorage.getInstance().roles();
         List<EsqPermission> permissions = null;
@@ -119,7 +142,7 @@ public class KeySmithService implements IKeySmithService {
             permissions = EsqRolesStorage.getInstance().fillPermissionsForRole(r.getName(), permissions);
         }
         EsqAccessProfile ret = new EsqAccessProfile().fill( updated[0], rolesAssigned[0], rolesAll, permissions);
-        log.debug("srvc: esquireKeySave(2): accessProfile:{}", ret);
+        log.debug("KeySmithService: esquireKeySave(2): accessProfile:{}", ret);
         return ret;
     }
 
@@ -128,11 +151,15 @@ public class KeySmithService implements IKeySmithService {
             boolean personal,
             EsqAccessProfileJpa[] updated,
             List<EsqRoleJpa>[] rolesAssigned,
-            List<String> roles) {
+            List<String> roles,
+            String[] oldLoginId,
+            String[] oldConnectFlg) {
         EsqAccessProfileJpa jpa = accessProfileRepository.accessForUpdate(id, rootPath);
         if (jpa == null) {
             throw new ResourceNotFoundException("saveAccess", "id", id);
         }
+        oldLoginId[0]   = jpa.getLoginId();
+        oldConnectFlg[0] = jpa.getConnectFlg();
         Map<Integer, EsqPermission> permissions = EsqRolesStorage.getInstance().findAdminPermissions(roles);
         boolean permitted = false;
         if (id != null && id.equals(uid)) {
@@ -146,8 +173,13 @@ public class KeySmithService implements IKeySmithService {
         if (!permitted) {
             throw new PermissionDeniedException("Access Profile", "modify");
         }
-        if (applyFields(jpa, personal, fields)) {
-            accessProfileRepository.updateAccess(id, jpa.getEmail(), jpa.getLoginId(), jpa.getPwdChangeForced(), jpa.getTfaMethod(), uid, correlationId, requestId);
+        boolean changed = applyFields(jpa, personal, fields);
+        if ("N".equals(oldConnectFlg[0]) && "Y".equals(jpa.getConnectFlg()) && !"N".equals(jpa.getTfaMethod())) {
+            jpa.setTfaMethod("N");
+            changed = true;
+        }
+        if (changed) {
+            accessProfileRepository.updateAccess(id, jpa.getEmail(), jpa.getLoginId(), jpa.getPwdChangeForced(), jpa.getTfaMethod(), jpa.getConnectFlg(), uid, correlationId, requestId);
         }
         List<EsqRoleJpa> originRoles = accessProfileRepository.roles(id);
         Set<String> originIds = new HashSet<>();
@@ -195,6 +227,51 @@ public class KeySmithService implements IKeySmithService {
         updated[0]     = jpa;
     }
 
+    private void syncToKeycloak(String loginId, String oldConnectFlg, EsqAccessProfileJpa jpa, List<EsqRoleJpa> roles, String correlationId, String requestId) {
+        try {
+            List<String> kcRoles = new ArrayList<>();
+            for (EsqRoleJpa r : roles) {
+                kcRoles.add(r.getName());
+            }
+            if ("Y".equals(oldConnectFlg) && "N".equals(jpa.getConnectFlg())) {
+                keycloakIdentityService.deleteUser(loginId, correlationId, requestId);
+            } else if ("N".equals(oldConnectFlg) && "Y".equals(jpa.getConnectFlg())) {
+                Map<String, List<String>> attributes = new java.util.HashMap<>();
+                attributes.put(EsqConstants.JWT_CLAIM_ENTITY_ID,       Collections.singletonList(String.valueOf(jpa.getId())));
+                attributes.put(EsqConstants.JWT_CLAIM_ENTITY_ROOTPATH,  Collections.singletonList(jpa.getPath()));
+                keycloakIdentityService.createUser(
+                        jpa.getLoginId(),
+                        jpa.getEmail(),
+                        "changeit",  // temporary password
+                        true,       // enabled
+                        true,       // forcePasswordChange — temporary password must be changed on first login
+                        false,      // requireTotp — TOTP disabled
+                        kcRoles,
+                        attributes,
+                        correlationId,
+                        requestId);
+            } else {
+                // NOTE: JWT_CLAIM_ENTITY_ID (esq_uid) is set at KC user creation only, never updated here
+                keycloakIdentityService.updateUserAuthState(
+                        loginId,            // KC username = loginId (before update)
+                        jpa.getLoginId(),   // newLoginId — applies rename if changed
+                        jpa.getEmail(),
+                        null,               // password — not implemented yet
+                        null,               // enabled  — not managed here
+                        "Y".equals(jpa.getPwdChangeForced()),              // forcePasswordChange
+                        "g".equals(jpa.getTfaMethod()) ? Boolean.TRUE : null,  // requireTotp
+                        "n".equals(jpa.getTfaMethod()) ? Boolean.TRUE : null,  // removeTotp
+                        kcRoles,
+                        null,               // extra attributes — none for now
+                        correlationId,
+                        requestId);
+            }
+        } catch (Exception e) {
+            // DB already committed — KC failure logged for reconciliation, request is not failed
+            log.error("KeySmith: KC sync failed for user {}: {}", loginId, e.getMessage(), e);
+        }
+    }
+
     private boolean applyFields(EsqAccessProfileJpa jpa, boolean personal, Map<String, Object> fields) {
         if (jpa == null || fields == null) {
             return false;
@@ -216,8 +293,24 @@ public class KeySmithService implements IKeySmithService {
                     if (field.getReadwrite() != null && (field.getReadwrite() & 2) == 2) {
                         value = ValidatorFactory.getInstance().validate(jpa, kfl, personal, value);
 //log.debug("keySmith:validated: value:{}", value);
-                        wrapper.setPropertyValue(name, value);
-                        changed = true;
+                        boolean apply = true;
+                        if ("tfaMethod".equals(name)) {
+                            String v = value != null ? String.valueOf(value).toUpperCase() : "";
+                            if (!"N".equals(v) && !"G".equals(v)) {
+                                apply = false;
+                            } else {
+                                String currentUpper = jpa.getTfaMethod() != null ? jpa.getTfaMethod().toUpperCase() : "N";
+                                if (v.equals(currentUpper)) {
+                                    apply = false;
+                                } else {
+                                    value = v.toLowerCase();  // G->g, N->n (pending)
+                                }
+                            }
+                        }
+                        if (apply) {
+                            wrapper.setPropertyValue(name, value);
+                            changed = true;
+                        }
                     }
                 }
             }
