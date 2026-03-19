@@ -1,5 +1,27 @@
 Esquire enyMan Microservice
 
+03/19/2026 mir0n  Messaging Phase 1 — entity broadcast producer and consumer template
+messaging.EnyManJmsConfig  (new)
+  - JMS/ActiveMQ configuration for entity broadcast producer (JmsTemplate)
+messaging.EsqEntityBroadcastPublisher  (new)
+  - publishes FIX-JSON envelope to esquire.entity.broadcast on ORG/USR update
+  - fires when name or desc is in the update fields
+messaging.EsqEntityBroadcastConsumer  (new)
+  - consumer template; disabled by default (consumer.enabled=false); reserved for Phase 2
+service.impl.EnyManService
+  - broadcastPublisher injected; publishEntityEvent() added
+  - isBroadcastableUpdate(): fires when fields contains "name" or "desc"
+  - requestId/correlationId captured before delegate call; text body: id + kind + name/desc
+service.impl.AEnyManService
+  - esquireDictionary(): kind normalized to even number before dictionary lookup
+  - fixes "kind '51' not found" for odd sub-variant kind values
+service.impl.UsrService
+  - name injection into fields: comment updated to document broadcastableUpdate context
+resources/application.yml
+  - spring.activemq: broker-url, user, password; spring.jms.client-id
+  - enyman.messaging: service-id, ctrl-id, client-id, consumer.enabled
+  - LOG_LEVEL_JMS, LOG_LEVEL_AMQ log levels added
+
 03/10/2026 mir0n  fillKindFieldLayer() calls updated — Cyrillic К → ASCII K
 service.impl.AEnyManService
   - fillКindFieldLayer() call updated to fillKindFieldLayer()

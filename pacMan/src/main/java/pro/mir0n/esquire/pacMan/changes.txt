@@ -1,5 +1,20 @@
 Esquire pacMan Microservice
 
+03/19/2026 mir0n  Messaging Phase 1 — entity broadcast producer
+messaging.PacManJmsConfig  (new)
+  - JMS/ActiveMQ configuration for entity broadcast producer (JmsTemplate)
+messaging.EsqEntityBroadcastPublisher  (new)
+  - publishes FIX-JSON envelope to esquire.entity.broadcast on ACCT update
+  - fires when name or desc is in the update fields
+service.impl.PacManService
+  - broadcastPublisher injected; publishEntityEvent() added
+  - isBroadcastableUpdate(): fires when fields contains "name" or "desc"
+  - text body: id + kind + name/desc
+resources/application.yml
+  - spring.activemq: broker-url, user, password
+  - pacman.messaging: service-id, ctrl-id, client-id
+  - LOG_LEVEL_JMS, LOG_LEVEL_AMQ log levels added; pro.mir0n default changed ERROR→INFO
+
 03/10/2026 mir0n  fillKindFieldLayer() call updated — Cyrillic К → ASCII K
 service.impl.PacManService
   - fillКindFieldLayer() call updated to fillKindFieldLayer()

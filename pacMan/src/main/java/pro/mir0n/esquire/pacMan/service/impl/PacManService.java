@@ -27,6 +27,7 @@
  *                   PermissionDeniedException thrown; stray debug comment removed
  * 03/10/2026 mir0n  import: RequestContextUtils updated to backend.service package
  * 03/10/2026 mir0n  fillКindFieldLayer() call updated to fillKindFieldLayer() — Cyrillic К → ASCII K
+ * 03/17/2026 mir0n  messaging: broadcastPublisher injected; publishEntityEvent() on name/desc update
  */
 
 package pro.mir0n.esquire.pacMan.service.impl;
@@ -51,12 +52,14 @@ import pro.mir0n.esquire.backend.validator.ValidatorFactory;
 import pro.mir0n.esquire.pacMan.jpa.EsqAcctRepository;
 import pro.mir0n.esquire.backend.service.RequestContextUtils;
 import pro.mir0n.esquire.backend.error.ResourceNotFoundException;
+import pro.mir0n.esquire.pacMan.messaging.EsqEntityBroadcastPublisher;
 import pro.mir0n.esquire.pacMan.service.IPacManService;
 import lombok.AllArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import pro.mir0n.esquire.common.EsqConstants;
+import pro.mir0n.esquire.common.EsqMsgConstants;
 
 @Slf4j
 @Service
@@ -66,6 +69,7 @@ public class PacManService  implements IPacManService {
     private EsqAcctRepository entityRepository;
     private TransactionTemplate transactionTemplate;
     private EntityManager em;
+    private EsqEntityBroadcastPublisher broadcastPublisher;
 
 
     @Override
@@ -130,8 +134,37 @@ public class PacManService  implements IPacManService {
         }); // ← transaction commits here
 
         EsqEntity ret = EsqEntityFactory.getInstance().createEntity(updated[0], null, null);
+        if (isBroadcastableUpdate(fields)) {
+            publishEntityEvent(ret, k, EsqMsgConstants.EVENT_UPDATE, requestId, correlationId, fields);
+        }
         log.debug("srvc: esquireCommandSave(2): entity:{}", ret);
         return ret;
+    }
+
+    // Broadcast UPDATE only when fields that affect the account's public identity change.
+    // desc is the current scope; more fields will be added as the protocol evolves.
+    private boolean isBroadcastableUpdate(Map<String, Object> fields) {
+        return fields != null && (fields.containsKey("name") || fields.containsKey("desc"));
+    }
+
+    // Runs synchronously on the request thread — publish failure is absorbed (log.warn),
+    // so broker unavailability cannot fail the HTTP response.
+    // If broker latency becomes observable in production, promote to @Async with an MDC
+    // task decorator to preserve correlationId/requestId in the async thread.
+    private void publishEntityEvent(EsqEntity entity, int entityKind, String eventType,
+                                    String requestId, String correlationId, Map<String, Object> fields) {
+        if (entity == null) return;
+        Map<String, Object> text = new java.util.LinkedHashMap<>();
+        text.put("id",   entity.getId());
+        text.put("kind", entityKind);
+        if (fields.containsKey("name")) text.put("name", fields.get("name"));
+        if (fields.containsKey("desc")) text.put("desc", fields.get("desc"));
+        try {
+            broadcastPublisher.publish(entityKind, entity.getId(), eventType,
+                    requestId, correlationId, text);
+        } catch (Exception e) {
+            log.warn("publishEntityEvent: broadcast failed for kind={}, id={}: {}", entityKind, entity.getId(), e.getMessage());
+        }
     }
 
     private void saveAcct(String id, Map<String, Object> fields, String rootPath,

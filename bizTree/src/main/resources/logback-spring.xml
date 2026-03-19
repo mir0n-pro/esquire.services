@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+
+    <springProperty scope="context" name="logLevelRoot"      source="logging.level.root"                         defaultValue="INFO"/>
+    <springProperty scope="context" name="logLevelSf"        source="logging.level.org.springframework"          defaultValue="INFO"/>
+    <springProperty scope="context" name="logLevelJms"       source="logging.level.org.springframework.jms"      defaultValue="INFO"/>
+    <springProperty scope="context" name="logLevelMir0n"     source="logging.level.pro.mir0n"                    defaultValue="INFO"/>
+    <springProperty scope="context" name="logLevelAmq"       source="logging.level.org.apache.activemq"          defaultValue="INFO"/>
+    <springProperty scope="context" name="logLevelBroadcast" source="logging.level.entity.broadcast"             defaultValue="INFO"/>
+    <springProperty scope="context" name="broadcastLogPath"  source="biztree.messaging.broadcast-log-path"       defaultValue="logs/entity-broadcast.log"/>
+
+    <!-- Console — ECS structured format (equivalent to logging.structured.format.console: ecs) -->
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder class="org.springframework.boot.logging.logback.StructuredLogEncoder">
+            <format>ecs</format>
+        </encoder>
+    </appender>
+
+    <!-- Entity Broadcast — dedicated rolling file for received entity broadcast messages -->
+    <appender name="ENTITY_BROADCAST_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${broadcastLogPath}</file>
+        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+            <fileNamePattern>${broadcastLogPath}.%d{yyyy-MM-dd}.gz</fileNamePattern>
+            <maxHistory>30</maxHistory>
+        </rollingPolicy>
+        <encoder>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss, UTC} %-5level %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <!--
+        entity.broadcast logger — writes to the dedicated file AND the console.
+        additivity=false prevents double-logging via root.
+    -->
+    <logger name="entity.broadcast" level="${logLevelBroadcast}" additivity="false">
+        <appender-ref ref="ENTITY_BROADCAST_FILE"/>
+        <!-- appender-ref ref="CONSOLE"/ -->
+    </logger>
+
+    <root level="${logLevelRoot}">
+        <appender-ref ref="CONSOLE"/>
+    </root>
+
+    <logger name="org.springframework"     level="${logLevelSf}"/>
+    <logger name="org.springframework.jms" level="${logLevelJms}"/>
+    <logger name="org.apache.activemq"    level="${logLevelAmq}"/>
+    <logger name="pro.mir0n"              level="${logLevelMir0n}"/>
+
+</configuration>

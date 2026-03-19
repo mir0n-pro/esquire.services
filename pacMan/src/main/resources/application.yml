@@ -3,6 +3,11 @@ spring:
     active: ${DB_PACMAN_VENDOR:dev-postgres}
   application:
     name: pacman
+  activemq:
+    broker-url: ${AMQ_BROKER_URL:tcp://localhost:61616}
+    user: ${AMQ_USER:}
+    password: ${AMQ_PASSWORD:}
+    # Phase 1: no broker authorization required
   jpa:
     hibernate:
       ddl-auto: none
@@ -10,6 +15,12 @@ spring:
   mvc:
     problemdetails:
       enabled: true
+# Messaging: entity broadcast producer
+pacman:
+  messaging:
+    service-id: ${PACMAN_SERVICE_ID:pacMan}
+    ctrl-id: ${PACMAN_CTRL_ID:pacman.default}
+    client-id: ${PACMAN_MESSAGING_CLIENT_ID:pacman}
 logging:
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss, UTC} %-5level [%X{correlationId:-no-cid}] [%X{requestId:-no-rid}] %logger{36} - %msg%n"

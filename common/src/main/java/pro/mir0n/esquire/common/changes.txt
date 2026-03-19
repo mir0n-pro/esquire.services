@@ -1,5 +1,12 @@
 Esquire Common microservice classes
 
+03/19/2026 mir0n  Messaging Phase 1 — entity broadcast protocol constants
+EsqMsgConstants  (new)
+  - FIX-JSON protocol constants for esquire.entity.broadcast JMS topic
+  - TOPIC_ENTITY_BROADCAST = "esquire.entity.broadcast"
+  - BUS_ID_ENTITY = "esquire.entity"; MSG_TYPE_ENTITY_BROADCASTS = "UE"
+  - 14 canonical envelope fields: MsgType, ApplMsgID, BusID, ServiceID, CtrlID, etc.
+
 03/09/2026 mir0n
 EsqConstants
   - JWT_CLAIM_REALM_ACCESS and JWT_CLAIM_REALM_ACCESS_ROLES added

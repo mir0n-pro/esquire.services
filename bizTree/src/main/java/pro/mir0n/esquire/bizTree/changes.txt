@@ -1,5 +1,22 @@
 Esquire BizTree Microservice
 
+03/19/2026 mir0n  Messaging Phase 1 : entity broadcast durable consumer
+messaging.BizTreeJmsConfig  (new)
+  - JMS/ActiveMQ config for durable topic consumer
+  - clientId set explicitly on CachingConnectionFactory (spring.jms.client-id not reliably applied)
+messaging.EsqEntityBroadcastConsumer  (new)
+  - durable subscriber on esquire.entity.broadcast; selector: BusID='esquire.entity' AND MsgType='UE'
+  - subscription name: esquire.entity.broadcast.biztree.primary (stable, never change)
+  - Phase 1: logs received messages to entity.broadcast logger > entity-broadcast.log
+resources/application.yml
+  - spring.activemq: broker-url, user, password; spring.jms.client-id
+  - biztree.messaging: client-id, consumer.enabled, broadcast-log-path
+  - LOG_LEVEL_JMS, LOG_LEVEL_AMQ, LOG_LEVEL_BROADCAST log levels
+  - entity.broadcast logger
+resources/logback-spring.xml  (new)
+  - entity.broadcast logger
+  - org.springframework.jms and org.apache.activemq loggers
+
 03/10/2026 mir0n  observability, security, exception handling generalized to common
 x removed exception.GlobalExceptionHandler (moved to common backend.exception)
 x removed security.JwtAuthenticationFilter, JwtService, SecurityConfiguration (moved to common)

@@ -1,6 +1,24 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v1.2.2-2603.19HH
+  Messaging Phase 1 — ActiveMQ entity broadcast infrastructure
+    :Feature: EsqMsgConstants — FIX-JSON protocol constants for esquire.entity.broadcast topic
+    :Feature: enyMan publishes entity broadcast on ORG/USR update when name or desc changes
+    :Feature: pacMan publishes entity broadcast on ACCT update when name or desc changes
+    :Feature: bizTree durable subscriber logs received broadcast messages (Phase 1)
+    :Feature: activemq/conf/activemq.xml — broker "esquire" with topic declaration
+    :Config: per-service JMS settings (clientId, broker-url, consumer.enabled, broadcast-log-path)
+    :Config: bizTree logback-spring.xml — entity.broadcast + JMS/AMQ loggers; rolling log file
+    :Fix: AEnyManService.esquireDictionary() — kind normalized to even before dictionary lookup
+    : modified components
+      - common (EsqMsgConstants)
+      - enyMan
+      - pacMan
+      - bizTree
+      - activemq/conf
+    :added doc\Messaging.First.md
+
 v1.2.2-2603.1620
   TOTP state machine; reset password handshake; connectFlg lifecycle; KC integration
     :Feature: TOTP pending states (G→g pending enable, N→n pending disable)

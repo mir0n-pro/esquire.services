@@ -1,0 +1,15 @@
+services:
+  activemq:
+    container_name: activemq
+    image: apache/activemq-classic:6.1.4
+    ports:
+      - "61616:61616"   # OpenWire (JMS)
+      - "8161:8161"     # Web admin console
+    volumes:
+      - ./conf/activemq.xml:/opt/activemq/conf/activemq.xml
+      - ./data:/var/opt/activemq/data
+    networks:
+      - esquirenet
+networks:
+  esquirenet:
+    driver: "bridge"

@@ -1,5 +1,22 @@
 name: esq-omnibus
 services:
+  activemq:
+    container_name: esq-activemq
+    image: apache/activemq-classic:6.1.4
+    ports:
+      - "61616:61616"   # JMS/OpenWire broker port
+      - "8161:8161"     # ActiveMQ web console (admin/admin)
+    volumes:
+      - ../activemq/conf/activemq.xml:/opt/activemq/conf/activemq.xml
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c '</dev/tcp/127.0.0.1/61616' 2>/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    networks:
+      - esquirenet
+
   keycloak:
     container_name: esq-keycloak
     image: quay.io/keycloak/keycloak:26.4.7
@@ -46,7 +63,19 @@ services:
       - DB_BIZTREE_HOST=host.docker.internal
       - DB_BIZTREE_USERNAME=esq2025
       - DB_BIZTREE_PASSWORD=q
+      # Messaging
+      - AMQ_BROKER_URL=tcp://activemq:61616
+      #- AMQ_USER=
+      #- AMQ_PASSWORD=
+      - BIZTREE_MESSAGING_CLIENT_ID=biztree
+      - BIZTREE_MESSAGING_CONSUMER_ENABLED=true
+      - BIZTREE_BROADCAST_LOG_PATH=logs/entity-broadcast.log
     command: ["java", "-jar", "app.jar"]
+    depends_on:
+      activemq:
+        condition: service_healthy
+    volumes:
+      - ./logs:/app/logs
     networks:
       - esquirenet
 
@@ -71,7 +100,18 @@ services:
       - DB_ENYMAN_HOST=host.docker.internal
       - DB_ENYMAN_USERNAME=esq2025
       - DB_ENYMAN_PASSWORD=q
+      # Messaging
+      - AMQ_BROKER_URL=tcp://activemq:61616
+      #- AMQ_USER=
+      #- AMQ_PASSWORD=
+      - ENYMAN_SERVICE_ID=enyMan
+      - ENYMAN_CTRL_ID=enyman.default
+      - ENYMAN_MESSAGING_CLIENT_ID=enyman
+      #- ENYMAN_MESSAGING_CONSUMER_ENABLED=false
     command: ["java", "-jar", "app.jar"]
+    depends_on:
+      activemq:
+        condition: service_healthy
     networks:
       - esquirenet
 
@@ -96,7 +136,17 @@ services:
       - DB_PACMAN_HOST=host.docker.internal
       - DB_PACMAN_USERNAME=esq2025
       - DB_PACMAN_PASSWORD=q
+      # Messaging
+      - AMQ_BROKER_URL=tcp://activemq:61616
+      #- AMQ_USER=
+      #- AMQ_PASSWORD=
+      - PACMAN_SERVICE_ID=pacMan
+      - PACMAN_CTRL_ID=pacman.default
+      - PACMAN_MESSAGING_CLIENT_ID=pacman
     command: ["java", "-jar", "app.jar"]
+    depends_on:
+      activemq:
+        condition: service_healthy
     networks:
       - esquirenet
 
@@ -113,12 +163,11 @@ services:
       - KC_REALM=esquire
       - KC_ADMIN_CLIENT_ID=esq-kcMaster
       - KC_ADMIN_CLIENT_SECRET=MHgq0Nu69u2uJ2johaK1wxQLMdakELXN
-      - KC_AUDIT_LOG_PATH:logs/kc-audit.log
+      - KC_AUDIT_LOG_PATH=logs/kc-audit.log
       - LOG_LEVEL_ROOT=ERROR
       - LOG_LEVEL_SF=ERROR
       - LOG_LEVEL_MIR0N=DEBUG
       - LOG_LEVEL_KC_AUDIT=DEBUG
-
       - DB_KEYSMITH_VENDOR=dev-postgres
       - DB_KEYSMITH_PORT=5432
       - DB_KEYSMITH_NAME=esq2025
@@ -129,8 +178,10 @@ services:
       - DB_KEYSMITH_USERNAME=esq2025
       - DB_KEYSMITH_PASSWORD=q
     command: ["java", "-jar", "app.jar"]
+    depends_on:
+      keycloak:
+        condition: service_healthy
     volumes:
-      # have logs volume mounted
       - ./logs:/app/logs
     networks:
       - esquirenet

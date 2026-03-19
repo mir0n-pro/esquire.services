@@ -3,6 +3,15 @@ spring:
     active: ${DB_BIZTREE_VENDOR:dev-postgres}
   application:
     name: biztree
+  activemq:
+    broker-url: ${AMQ_BROKER_URL:tcp://localhost:61616}
+    user: ${AMQ_USER:}
+    password: ${AMQ_PASSWORD:}
+    # Phase 1: no broker authorization required
+  jms:
+    # clientId on CachingConnectionFactory — required for durable subscriptions.
+    # Must not be set on DefaultJmsListenerContainerFactory (shared connection proxy restriction).
+    client-id: ${BIZTREE_MESSAGING_CLIENT_ID:biztree}
   jpa:
     hibernate:
       ddl-auto: none
@@ -10,6 +19,15 @@ spring:
   mvc:
     problemdetails:
       enabled: true
+# Messaging: entity broadcast consumer
+biztree:
+  messaging:
+    # Stable client ID for durable subscriptions from this service
+    client-id: ${BIZTREE_MESSAGING_CLIENT_ID:biztree}
+    consumer:
+      enabled: ${BIZTREE_MESSAGING_CONSUMER_ENABLED:true}
+    # Dedicated log file for received entity broadcast messages
+    broadcast-log-path: ${BIZTREE_BROADCAST_LOG_PATH:logs/entity-broadcast.log}
 logging:
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss, UTC} %-5level [%X{correlationId:-no-cid}] [%X{requestId:-no-rid}] %logger{36} - %msg%n"
@@ -20,8 +38,13 @@ logging:
     root: ${LOG_LEVEL_ROOT:ERROR}
     org:
       springframework: ${LOG_LEVEL_SF:ERROR}
+      springframework.jms: ${LOG_LEVEL_JMS:ERROR}
+      apache:
+        activemq: ${LOG_LEVEL_AMQ:ERROR}
     pro:
-      mir0n: ${LOG_LEVEL_MIR0N:ERROR}
+      mir0n: ${LOG_LEVEL_MIR0N:INFO}
+    entity:
+      broadcast: ${LOG_LEVEL_BROADCAST:INFO}
 
 ---
 # Development Oracle

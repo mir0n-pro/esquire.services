@@ -3,6 +3,15 @@ spring:
     active: ${DB_ENYMAN_VENDOR:dev-postgres}
   application:
     name: enyman
+  activemq:
+    broker-url: ${AMQ_BROKER_URL:tcp://localhost:61616}
+    user: ${AMQ_USER:}
+    password: ${AMQ_PASSWORD:}
+    # Phase 1: no broker authorization required
+  jms:
+    # clientId on CachingConnectionFactory — required for durable subscriptions.
+    # Must not be set on DefaultJmsListenerContainerFactory (shared connection proxy restriction).
+    client-id: ${ENYMAN_MESSAGING_CLIENT_ID:enyman}
   jpa:
     hibernate:
       ddl-auto: none
@@ -10,6 +19,19 @@ spring:
   mvc:
     problemdetails:
       enabled: true
+# Messaging: entity broadcast producer
+enyman:
+  messaging:
+    broker-url: ${AMQ_BROKER_URL:tcp://localhost:61616}
+    # Identifies this service in outbound messages (ServiceID in FIX-JSON envelope)
+    service-id: ${ENYMAN_SERVICE_ID:enyMan}
+    # Stable producer instance identifier (CtrlID in FIX-JSON envelope)
+    ctrl-id: ${ENYMAN_CTRL_ID:enyman.default}
+    # Stable client ID for durable subscriptions from this service
+    client-id: ${ENYMAN_MESSAGING_CLIENT_ID:enyman}
+    # Set to true to activate the consumer template (disabled by default in phase 1)
+    consumer:
+      enabled: ${ENYMAN_MESSAGING_CONSUMER_ENABLED:false}
 logging:
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss, UTC} %-5level [%X{correlationId:-no-cid}] [%X{requestId:-no-rid}] %logger{36} - %msg%n"
@@ -20,8 +42,11 @@ logging:
     root: ${LOG_LEVEL_ROOT:ERROR}
     org:
       springframework: ${LOG_LEVEL_SF:ERROR}
+      springframework.jms: ${LOG_LEVEL_JMS:INFO}
+      apache:
+        activemq: ${LOG_LEVEL_AMQ:INFO}
     pro:
-      mir0n: ${LOG_LEVEL_MIR0N:ERROR}
+      mir0n: ${LOG_LEVEL_MIR0N:INFO}
 
 ---
 # Development Oracle

@@ -172,7 +172,10 @@ public class UsrService  extends AEnyManService {
 //log.debug("person layer {}",kfl.getLayer());
         if (applyFields(prsn, mprsn, personal, kfl.getLayer(), null)) {
 
-            fields.put("name", prsn.getName());  //xxx set a user's name based on first, middle, last names
+            // Derive user name from person (First [Middle] Last) and inject into fields.
+            // This ensures EnyManService.isBroadcastableUpdate() detects the name change
+            // even when the caller did not provide "name" directly in the request.
+            fields.put("name", prsn.getName());
 
             usrRepository.updatePerson(id,
                     prsn.getKind(),

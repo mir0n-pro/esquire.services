@@ -14,6 +14,7 @@ import pro.mir0n.esquire.backend.error.PermissionDeniedException;
 import pro.mir0n.esquire.backend.error.ResourceNotFoundException;
 import pro.mir0n.esquire.backend.storage.EsqObjectKindStorage;
 import pro.mir0n.esquire.pacMan.jpa.EsqAcctRepository;
+import pro.mir0n.esquire.pacMan.messaging.EsqEntityBroadcastPublisher;
 import pro.mir0n.esquire.pacMan.service.impl.PacManService;
 
 import java.util.Map;
@@ -32,6 +33,9 @@ class PacManServiceTest {
     @Mock
     private EntityManager em;
 
+    @Mock
+    private EsqEntityBroadcastPublisher broadcastPublisher;
+
     private PacManService service;
 
     @BeforeAll
@@ -44,7 +48,7 @@ class PacManServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new PacManService(entityRepository, transactionTemplate, em);
+        service = new PacManService(entityRepository, transactionTemplate, em, broadcastPublisher);
     }
 
     // ---- esquireCommand: unknown kind → ResourceNotFoundException ----

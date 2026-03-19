@@ -12,6 +12,7 @@
  *                   subLayer param added for sub-entity field layer context
  * 03/08/2026 mir0n  applyFields(): boolean personal param added; forwarded to ValidatorFactory
  * 03/10/2026 mir0n  fillКindFieldLayer() call updated to fillKindFieldLayer() — Cyrillic К → ASCII K
+ * 03/19/2026 mir0n  esquireDictionary(): kind normalized to even number before dictionary lookup
  */
 
 package pro.mir0n.esquire.enyMan.service.impl;
@@ -45,8 +46,9 @@ public abstract class AEnyManService  implements IEnyManService {
         //String requestId = RequestContextUtils.getRequestId();
         log.debug("srvc: esquireDictionary: kind:{}",  kind);
 
+        int k = (kind != null) ? ((int) Math.floor((double) kind / 2)) * 2 : 0;
         List<EsqEntityLayer> ret = null;
-        EsqEntityDictionary dict  = EsqEntityDictionaryStorage.getInstance().get(kind);
+        EsqEntityDictionary dict  = EsqEntityDictionaryStorage.getInstance().get(k);
         if  (dict != null) {
             if(!dict.isCompleted()) {
                 List<EsqCustomEntityFieldJpa> custom = entityDictionaryRepository.findCustom(kind);
@@ -58,7 +60,7 @@ public abstract class AEnyManService  implements IEnyManService {
             ret = dict.getLayers();
         }
         if (ret == null) {
-            throw new ResourceNotFoundException("esquireDictionary", "kind", kind == null?"''":kind.toString());
+            throw new ResourceNotFoundException("esquireDictionary", "kind", String.valueOf(k));
         }
         log.debug("srvc: esquireDictionary(2): ret:{}",  ret);
         return ret;
