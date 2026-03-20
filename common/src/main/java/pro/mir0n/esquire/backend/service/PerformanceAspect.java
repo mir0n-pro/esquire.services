@@ -8,6 +8,7 @@
  *  History:
  * 03/10/2026 mir0n  created: generalized from per-service implementations;
  *                   pointcut pro.mir0n.esquire..jpa.*.* covers all service JPA packages
+ * 03/20/2026 mir0n  ScopeNotActiveException guard: skip metrics when no active request scope (startup loaders)
  */
 package pro.mir0n.esquire.backend.service;
 
@@ -15,6 +16,7 @@ import lombok.RequiredArgsConstructor;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
+import org.springframework.beans.factory.support.ScopeNotActiveException;
 import org.springframework.stereotype.Component;
 
 /*
@@ -38,8 +40,14 @@ public class PerformanceAspect {
 
     @Around("execution(* pro.mir0n.esquire..jpa.*.*(..))")
     public Object trackJpaTime(ProceedingJoinPoint joinPoint) throws Throwable {
-        // If the flag is false, just proceed immediately without timing
-        if (!performance.isMetricsCaptured()) {
+        boolean capture;
+        try {
+            capture = performance.isMetricsCaptured();
+        } catch (ScopeNotActiveException e) {
+            // No active request scope (e.g. startup loaders) — skip metrics
+            return joinPoint.proceed();
+        }
+        if (!capture) {
             return joinPoint.proceed();
         }
         long start = System.currentTimeMillis();

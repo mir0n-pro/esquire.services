@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<entity-mappings xmlns="http://java.sun.com/xml/ns/persistence/orm"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://java.sun.com/xml/ns/persistence/orm http://java.sun.com/xml/ns/persistence/orm_2_0.xsd"
+    version="2.0">
+<!--
+        <query><![CDATA[ ]]>
+-->
+    <named-native-query name="EsqOrgJpa.findAllForTree" result-set-mapping="EsqOrgJpaTreeMapping">
+        <query>
+ SELECT org_pk as "pk"
+     ,org_et_pk as "kind"
+     ,org_name as "name"
+     ,org_desc as "desc"
+     ,org_org_pk
+     ,org_path
+ FROM esq_org
+        </query>
+    </named-native-query>
+
+    <named-native-query name="EsqUsrJpa.findAllForTree" result-set-mapping="EsqUsrJpaTreeMapping">
+        <query>
+ SELECT usr_pk as "pk"
+     ,usr_et_pk as "kind"
+     ,usr_name as "name"
+     ,usr_desc as "desc"
+     ,usr_org_pk
+     ,usr_path
+     ,usr_deleted_flg
+ FROM esq_user
+        </query>
+    </named-native-query>
+
+    <named-native-query name="EsqAcctJpa.findAllForTree" result-set-mapping="EsqAcctJpaTreeMapping">
+        <query>
+ SELECT acc_pk as "pk"
+     ,acc_et_pk as "kind"
+     ,acc_id as "name"
+     ,acc_desc as "desc"
+     ,acc_usr_pk
+     ,acc_path
+     ,acc_status
+ FROM esq_account
+        </query>
+    </named-native-query>
+
+    <sql-result-set-mapping name="EsqOrgJpaTreeMapping">
+        <entity-result entity-class="pro.mir0n.esquire.backend.jpa.entity.EsqOrgJpa">
+            <field-result name="id"       column="pk"/>
+            <field-result name="kind"     column="kind"/>
+            <field-result name="name"     column="name"/>
+            <field-result name="desc"     column="desc"/>
+            <field-result name="parentId" column="org_org_pk"/>
+            <field-result name="path"     column="org_path"/>
+        </entity-result>
+    </sql-result-set-mapping>
+
+    <sql-result-set-mapping name="EsqUsrJpaTreeMapping">
+        <entity-result entity-class="pro.mir0n.esquire.backend.jpa.entity.EsqUsrJpa">
+            <field-result name="id"       column="pk"/>
+            <field-result name="kind"     column="kind"/>
+            <field-result name="name"     column="name"/>
+            <field-result name="desc"     column="desc"/>
+            <field-result name="parentId"  column="usr_org_pk"/>
+            <field-result name="path"     column="usr_path"/>
+            <field-result name="deleted"  column="usr_deleted_flg"/>
+        </entity-result>
+    </sql-result-set-mapping>
+
+    <sql-result-set-mapping name="EsqAcctJpaTreeMapping">
+        <entity-result entity-class="pro.mir0n.esquire.backend.jpa.entity.EsqAcctJpa">
+            <field-result name="id"     column="pk"/>
+            <field-result name="kind"   column="kind"/>
+            <field-result name="name"   column="name"/>
+            <field-result name="desc"   column="desc"/>
+            <field-result name="parentId" column="acc_usr_pk"/>
+            <field-result name="path"   column="acc_path"/>
+            <field-result name="status" column="acc_status"/>
+        </entity-result>
+    </sql-result-set-mapping>
+
+</entity-mappings>

@@ -6,6 +6,7 @@
  *  mailto:mir0n.the.programmer@gmail.com
  *
  *  History:
+ * 03/20/2026 mir0n  parentId, path fields added
  */
 
 package pro.mir0n.esquire.backend.jpa.entity;
@@ -18,5 +19,7 @@ import pro.mir0n.esquire.backend.jpa.EsqEntityJpa;
 @Getter @Setter @ToString //@AllArgsConstructor @NoArgsConstructor
 public class EsqOrgJpa extends EsqEntityJpa {
     private String fullName;
+    private String parentId;
+    private String path;
 }
 

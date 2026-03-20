@@ -30,6 +30,8 @@
  *                   self-update bypass for USR (id.equals(uid)); PermissionDeniedException thrown
  * 03/10/2026 mir0n  import: RequestContextUtils updated to backend.service package
  * 03/17/2026 mir0n  messaging: broadcastPublisher injected; publishEntityEvent() on name/desc update
+ * 03/20/2026 mir0n  status broadcast: "deleted" (usr_deleted_flg) added to isBroadcastableUpdate()
+ *                   publishEntityEvent() emits raw "deleted" field value; publisher decoupling rule
  */
 
 package pro.mir0n.esquire.enyMan.service.impl;
@@ -145,13 +147,14 @@ public class EnyManService  extends AEnyManService {
         return  ret;
     }
 
-    // Broadcast UPDATE only when fields that affect the entity's public identity change.
-    // name / desc are the current scope; path will be added when scene is addressed.
+    // Broadcast UPDATE only when fields that affect the entity's public identity or status change.
+    // name / desc / deleted (usr_deleted_flg) are the current scope.
     // Note: for USR, "name" is not in the original request — UsrService.saveUsr() injects it
     // into the fields map when person (firstName/middleName/lastName) is updated, so this
     // check correctly fires for person-driven name changes too.
     private boolean isBroadcastableUpdate(Map<String, Object> fields) {
-        return fields != null && (fields.containsKey("name") || fields.containsKey("desc"));
+        return fields != null && (fields.containsKey("name") || fields.containsKey("desc")
+                               || fields.containsKey("deleted"));
     }
 
     // Runs synchronously on the request thread — publish failure is absorbed (log.warn),
@@ -164,8 +167,9 @@ public class EnyManService  extends AEnyManService {
         Map<String, Object> text = new java.util.LinkedHashMap<>();
         text.put("id",   entity.getId());
         text.put("kind", entityKind);
-        if (fields.containsKey("name")) text.put("name", fields.get("name"));
-        if (fields.containsKey("desc")) text.put("desc", fields.get("desc"));
+        if (fields.containsKey("name"))    text.put("name",   fields.get("name"));
+        if (fields.containsKey("desc"))    text.put("desc",   fields.get("desc"));
+        if (fields.containsKey("deleted")) text.put("deleted", fields.get("deleted"));
         try {
             broadcastPublisher.publish(entityKind, entity.getId(), eventType,
                     requestId, correlationId, text);

@@ -1,5 +1,9 @@
 Esquire Common microservice classes
 
+03/20/2026 mir0n  Messaging Phase 1/2 — service id constant
+EsqMsgConstants
+  - SERVICE_ID_ENTITY_BROADCAST = "entity-update-broadcast" added
+
 03/19/2026 mir0n  Messaging Phase 1 — entity broadcast protocol constants
 EsqMsgConstants  (new)
   - FIX-JSON protocol constants for esquire.entity.broadcast JMS topic

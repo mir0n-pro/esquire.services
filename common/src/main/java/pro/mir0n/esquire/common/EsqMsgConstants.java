@@ -7,13 +7,15 @@
  *
  *  History:
  * 03/17/2026 mir0n  created: Phase-1 ActiveMQ messaging protocol constants (FIX-JSON)
+ * 03/20/2026 mir0n  SERVICE_ID_ENTITY_BROADCAST = "entity-update-broadcast" added
  */
 package pro.mir0n.esquire.common;
 
 /**
  * Protocol constants for the esquire.entity.broadcast JMS topic.
  *
- * Canonical field names are identical in JMS message properties and FIX-JSON body.
+ * All 14 canonical fields are transmitted as JMS message properties (no message body).
+ * Text carries a JSON-serialized entity state snapshot as a string property.
  * Fixed phase-1 values must not change without protocol review.
  */
 public class EsqMsgConstants {
@@ -49,6 +51,7 @@ public class EsqMsgConstants {
     // --- Fixed phase-1 values ---
     public static final int    SCHEMA_VERSION          = 1;
     public static final String BUS_ID_ENTITY           = "esquire.entity";
+    public static final String SERVICE_ID_ENTITY_BROADCAST = "entity-update-broadcast";
     public static final String MSG_TYPE_ENTITY_BROADCASTS  = "UE";
     public static final String MESSAGE_ENCODING        = "JSON";
 

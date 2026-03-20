@@ -1,6 +1,6 @@
 spring:
   profiles:
-    active: ${DB_BIZTREE_VENDOR:dev-postgres}
+    active: ${DB_BIZTREE_VENDOR:dev-postgres},${BIZTREE_CACHE_VENDOR:cache-h2}
   application:
     name: biztree
   activemq:
@@ -21,6 +21,16 @@ spring:
       enabled: true
 # Messaging: entity broadcast consumer
 biztree:
+  h2:
+    # H2 in-memory tree cache — independent from esquireDB
+    url: ${BIZTREE_H2_URL:jdbc:h2:mem:biztree;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE}
+    pool:
+      pool-name:            biztree-h2-cache
+      maximum-pool-size:    ${BIZTREE_H2_POOL_MAX:10}
+      minimum-idle:         ${BIZTREE_H2_POOL_MIN_IDLE:10}
+      connection-timeout:   ${BIZTREE_H2_POOL_CONN_TIMEOUT:5000}
+      max-lifetime:         ${BIZTREE_H2_POOL_MAX_LIFETIME:1800000}
+      idle-timeout:         ${BIZTREE_H2_POOL_IDLE_TIMEOUT:600000}
   messaging:
     # Stable client ID for durable subscriptions from this service
     client-id: ${BIZTREE_MESSAGING_CLIENT_ID:biztree}
@@ -65,7 +75,7 @@ spring:
       idle-timeout: 600000    
   jpa:
     mapping-resources:
-      - META-INF/oracle-tree-node.xml
+      - META-INF/oracle-entity.xml
     properties:
       hibernate:
         dialect: org.hibernate.dialect.OracleDialect
@@ -81,16 +91,16 @@ spring:
   datasource:
     url: jdbc:postgresql://${DB_BIZTREE_HOST:localhost}:${DB_BIZTREE_PORT:5432}/${DB_BIZTREE_NAME:esq2025}
     username: ${DB_BIZTREE_USERNAME:esq2025}
-    password: ${DB_BIZTREE_PASSWORD:q}   
+    password: ${DB_BIZTREE_PASSWORD:q}
     hikari:
       maximum-pool-size: 20
       minimum-idle: 20
-      connection-timeout: 30000 
-      max-lifetime: 1800000 
-      idle-timeout: 600000    
+      connection-timeout: 30000
+      max-lifetime: 1800000
+      idle-timeout: 600000
   jpa:
     mapping-resources:
-      - META-INF/postgres-tree-node.xml
+      - META-INF/postgres-entity.xml
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect

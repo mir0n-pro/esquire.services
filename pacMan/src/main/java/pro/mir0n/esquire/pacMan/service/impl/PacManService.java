@@ -28,6 +28,8 @@
  * 03/10/2026 mir0n  import: RequestContextUtils updated to backend.service package
  * 03/10/2026 mir0n  fillКindFieldLayer() call updated to fillKindFieldLayer() — Cyrillic К → ASCII K
  * 03/17/2026 mir0n  messaging: broadcastPublisher injected; publishEntityEvent() on name/desc update
+ * 03/20/2026 mir0n  status broadcast: "status" (acc_status) added to isBroadcastableUpdate()
+ *                   publishEntityEvent() emits raw "status" field value; publisher decoupling rule
  */
 
 package pro.mir0n.esquire.pacMan.service.impl;
@@ -141,10 +143,11 @@ public class PacManService  implements IPacManService {
         return ret;
     }
 
-    // Broadcast UPDATE only when fields that affect the account's public identity change.
-    // desc is the current scope; more fields will be added as the protocol evolves.
+    // Broadcast UPDATE only when fields that affect the account's public identity or status change.
+    // name / desc / status (acc_status) are the current scope.
     private boolean isBroadcastableUpdate(Map<String, Object> fields) {
-        return fields != null && (fields.containsKey("name") || fields.containsKey("desc"));
+        return fields != null && (fields.containsKey("name") || fields.containsKey("desc")
+                               || fields.containsKey("status"));
     }
 
     // Runs synchronously on the request thread — publish failure is absorbed (log.warn),
@@ -157,8 +160,9 @@ public class PacManService  implements IPacManService {
         Map<String, Object> text = new java.util.LinkedHashMap<>();
         text.put("id",   entity.getId());
         text.put("kind", entityKind);
-        if (fields.containsKey("name")) text.put("name", fields.get("name"));
-        if (fields.containsKey("desc")) text.put("desc", fields.get("desc"));
+        if (fields.containsKey("name"))   text.put("name",   fields.get("name"));
+        if (fields.containsKey("desc"))   text.put("desc",   fields.get("desc"));
+        if (fields.containsKey("status")) text.put("status", fields.get("status"));
         try {
             broadcastPublisher.publish(entityKind, entity.getId(), eventType,
                     requestId, correlationId, text);

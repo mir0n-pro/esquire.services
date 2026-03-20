@@ -104,7 +104,7 @@ services:
       - AMQ_BROKER_URL=tcp://activemq:61616
       #- AMQ_USER=
       #- AMQ_PASSWORD=
-      - ENYMAN_SERVICE_ID=enyMan
+      - ENYMAN_SERVICE_ID=entity-update-broadcast
       - ENYMAN_CTRL_ID=enyman.default
       - ENYMAN_MESSAGING_CLIENT_ID=enyman
       #- ENYMAN_MESSAGING_CONSUMER_ENABLED=false
@@ -140,7 +140,7 @@ services:
       - AMQ_BROKER_URL=tcp://activemq:61616
       #- AMQ_USER=
       #- AMQ_PASSWORD=
-      - PACMAN_SERVICE_ID=pacMan
+      - PACMAN_SERVICE_ID=entity-update-broadcast
       - PACMAN_CTRL_ID=pacman.default
       - PACMAN_MESSAGING_CLIENT_ID=pacman
     command: ["java", "-jar", "app.jar"]

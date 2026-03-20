@@ -1,5 +1,36 @@
 Esquire BizTree Microservice
 
+03/20/2026 mir0n  Messaging Phase 2 — cache update from entity broadcast events
+cache.BizTreeCacheLoader  (new)
+  - loads ORG/USR/ACCT entities from DB into H2 in-memory cache on ApplicationReadyEvent
+  - builds folder nodes per org/usr kind; computes tree paths and levels via BFS
+cache.IBizTreeCacheRepository  (new)
+  - vendor-agnostic interface for the in-memory tree cache
+  - updateNode(entityPk, name, desc, statusCode): SKIP sentinel for desc; null name/statusCode = skip
+cache.impl.BizTreeCacheRepository  (new)
+  - H2 implementation of IBizTreeCacheRepository
+  - updateNode(): single CASE-based SQL UPDATE; WHERE tree_entity_pk only (entity_pk is globally unique)
+cache.BizTreeCacheSql  (new)
+  - vendor-agnostic SQL holder records: Ddl (create-table, indexes), Repo (7 selects + update-node), Loader (insert, update-path, select-paths)
+h2.BizTreeH2Config  (new)
+  - H2 cache configuration; BizTreeCacheSql and cacheJdbcTemplate beans
+  - explicit HikariCP pool config: pool-name, max-size, min-idle, timeouts
+resources/META-INF/h2-cache-sql.properties  (new)
+  - H2 DDL and all cache SQL; update-node: single CASE UPDATE (name IS NULL skip, desc CHAR(0) skip, status IS NULL skip)
+messaging.EsqEntityBroadcastConsumer
+  - Phase 2: UPDATE events applied to H2 cache via cacheRepository.updateNode()
+  - handles "deleted" key (usr_deleted_flg, enyMan/USR) and "status" key (acc_status, pacMan/ACCT)
+  - decodeStatus(): "Y"/"C" → 1 (deleted), "L" → 2 (locked), other/null → 0 (ok)
+  - null status/deleted values not propagated (treated as absent)
+service.impl.BizTreeService
+  - switched from EsqTreeNodeRepository to IBizTreeCacheRepository (H2 in-memory cache)
+jpa.EsqAcctRepository  (new)
+  - JPA repository for EsqAcctJpa; findAllForTree() native query
+jpa.EsqOrgRepository  (new)
+  - JPA repository for EsqOrgJpa; findAllForTree() native query
+jpa.EsqUsrRepository  (new)
+  - JPA repository for EsqUsrJpa; findAllForTree() native query
+
 03/19/2026 mir0n  Messaging Phase 1 : entity broadcast durable consumer
 messaging.BizTreeJmsConfig  (new)
   - JMS/ActiveMQ config for durable topic consumer

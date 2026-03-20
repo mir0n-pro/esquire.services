@@ -1,6 +1,36 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v1.2.2-2603.2017
+  Messaging Phase 2 — cache update from entity broadcast; properties-only transport; H2 cache loader
+    :Feature: bizTree H2 in-memory cache built from DB on startup (BizTreeCacheLoader)
+      - loads ORG/USR/ACCT from primary DB via EsqOrgRepository/EsqUsrRepository/EsqAcctRepository
+      - builds folder nodes per org/usr kind; computes tree paths and levels via BFS
+    :Feature: BizTreeService switched from EsqTreeNodeRepository to IBizTreeCacheRepository
+    :Feature: EsqEntityBroadcastConsumer Phase 2 — UPDATE events applied to H2 cache
+      - handles "deleted" (usr_deleted_flg, enyMan/USR) and "status" (acc_status, pacMan/ACCT)
+      - decodeStatus(): raw string → 0/1/2 (ok/deleted/locked)
+      - null status/deleted values not propagated (treated as absent)
+    :Feature: single CASE-based SQL UPDATE for cache node (name/desc/status in one query)
+      - name: null = skip; desc: CHAR(0) sentinel = skip, null = clear; status: null = skip
+    :Feature: enyMan publishes raw "deleted" field (usr_deleted_flg) on USR status change
+    :Feature: pacMan publishes raw "status" field (acc_status) on ACCT status change
+    :Refactoring: properties-only transport — publishers switched from TextMessage+body to Message+JMS properties
+      - Text serialized as JSON string property (entity state snapshot only, no FIX-JSON envelope)
+      - enyMan/pacMan EsqEntityBroadcastConsumer updated to read Text via getStringProperty()
+    :Refactoring: producer decoupling rule — raw entity field values sent without interpretation
+      - consumers own all value interpretation (bizTree decodes status independently)
+    :Refactoring: EsqAcctJpa, EsqOrgJpa, EsqUsrJpa — parentId and path fields added
+    :Fix: serviceId default corrected in enyMan/pacMan application.yml: was service name, now entity-update-broadcast
+    :Fix: EsqMsgConstants.SERVICE_ID_ENTITY_BROADCAST added (for tests; production uses config @Value)
+    :Fix: PerformanceAspect — ScopeNotActiveException guard; skip metrics outside request scope (startup loaders)
+    : modified components
+      - common (EsqMsgConstants, EsqAcctJpa, EsqOrgJpa, EsqUsrJpa, PerformanceAspect)
+      - enyMan
+      - pacMan
+      - bizTree
+    :updated doc\Messaging.First.md — Phase 2 delivered; Phase 3 plan; vendor-agnostic broker as item 0
+
 v1.2.2-2603.19HH
   Messaging Phase 1 — ActiveMQ entity broadcast infrastructure
     :Feature: EsqMsgConstants — FIX-JSON protocol constants for esquire.entity.broadcast topic

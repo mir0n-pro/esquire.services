@@ -1,5 +1,19 @@
 Esquire enyMan Microservice
 
+03/20/2026 mir0n  Messaging Phase 2 — status broadcast; publisher decoupling; service-id fix; consumer transport
+messaging.EsqEntityBroadcastPublisher
+  - switched to properties-only transport: Message (no body) replaces TextMessage; FIX-JSON body removed
+  - Text serialized as JSON string JMS property (entity state snapshot only, no envelope)
+  - @Value: removed inline fallback; service-id is config-only (no default in code)
+service.impl.EnyManService
+  - isBroadcastableUpdate(): "deleted" (usr_deleted_flg) added as broadcast trigger
+  - publishEntityEvent(): emits "deleted" raw field value in Text JSON
+resources/application.yml
+  - enyman.messaging.service-id default corrected: enyMan → entity-update-broadcast
+messaging.EsqEntityBroadcastConsumer
+  - switched to properties-only transport: Message replaces TextMessage; Text via getStringProperty()
+  - Text added to required properties validation
+
 03/19/2026 mir0n  Messaging Phase 1 — entity broadcast producer and consumer template
 messaging.EnyManJmsConfig  (new)
   - JMS/ActiveMQ configuration for entity broadcast producer (JmsTemplate)

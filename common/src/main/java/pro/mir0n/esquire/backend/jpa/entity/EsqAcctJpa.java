@@ -6,6 +6,7 @@
  *  mailto:mir0n.the.programmer@gmail.com
  *
  *  History:
+ * 03/20/2026 mir0n  parentId, path fields added
  */
 
 package pro.mir0n.esquire.backend.jpa.entity;
@@ -20,5 +21,7 @@ public class EsqAcctJpa extends EsqEntityJpa {
     private String ccy;
     private Double balance;
     private String status;
+    private String parentId;
+    private String path;
 }
 

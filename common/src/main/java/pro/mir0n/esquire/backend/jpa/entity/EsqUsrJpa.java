@@ -7,6 +7,7 @@
  *
  *  History:
  * 01/14/2026 mir0n  email field added
+ * 03/20/2026 mir0n  parentId, path fields added
  */
 
 package pro.mir0n.esquire.backend.jpa.entity;
@@ -22,5 +23,7 @@ public class EsqUsrJpa extends EsqEntityJpa {
     private String registration;
     private String deleted;
     private String email;
+    private String parentId;
+    private String path;
 }
 

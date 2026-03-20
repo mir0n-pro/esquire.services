@@ -1,5 +1,16 @@
 Esquire pacMan Microservice
 
+03/20/2026 mir0n  Messaging Phase 2 — status broadcast; publisher decoupling; service-id fix
+messaging.EsqEntityBroadcastPublisher
+  - switched to properties-only transport: Message (no body) replaces TextMessage; FIX-JSON body removed
+  - Text serialized as JSON string JMS property (entity state snapshot only, no envelope)
+  - @Value: removed inline fallback; service-id is config-only (no default in code)
+service.impl.PacManService
+  - isBroadcastableUpdate(): "status" (acc_status) added as broadcast trigger
+  - publishEntityEvent(): emits "status" raw field value in Text JSON
+resources/application.yml
+  - pacman.messaging.service-id default corrected: pacMan → entity-update-broadcast
+
 03/19/2026 mir0n  Messaging Phase 1 — entity broadcast producer
 messaging.PacManJmsConfig  (new)
   - JMS/ActiveMQ configuration for entity broadcast producer (JmsTemplate)

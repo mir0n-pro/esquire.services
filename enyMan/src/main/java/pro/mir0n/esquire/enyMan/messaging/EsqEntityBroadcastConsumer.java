@@ -7,11 +7,12 @@
  *
  *  History:
  * 03/17/2026 mir0n  created: consumer template for esquire.entity.broadcast; disabled by default (Phase 2)
+ * 03/20/2026 mir0n  switched to properties-only transport: Message replaces TextMessage; Text via getStringProperty(); Text added to required properties validation
  */
 package pro.mir0n.esquire.enyMan.messaging;
 
 import jakarta.jms.JMSException;
-import jakarta.jms.TextMessage;
+import jakarta.jms.Message;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.jms.annotation.JmsListener;
@@ -56,7 +57,7 @@ public class EsqEntityBroadcastConsumer {
         subscription = SUBSCRIPTION_NAME,
         selector = MSG_SELECTOR
     )
-    public void onEntityBroadcast(TextMessage message) {
+    public void onEntityBroadcast(Message message) {
         String applMsgId = null;
         try {
             applMsgId = message.getStringProperty(EsqMsgConstants.FIELD_APPL_MSG_ID);
@@ -67,7 +68,7 @@ public class EsqEntityBroadcastConsumer {
             String entityId  = message.getStringProperty(EsqMsgConstants.FIELD_ENTITY_ID);
             int    kind      = message.getIntProperty(EsqMsgConstants.FIELD_ENTITY_KIND);
             String eventType = message.getStringProperty(EsqMsgConstants.FIELD_EVENT_TYPE);
-            String body      = message.getText();
+            String textJson  = message.getStringProperty(EsqMsgConstants.FIELD_TEXT);
 
             log.debug("EsqEntityBroadcastConsumer: received kind={}, id={}, event={}, applMsgId={}",
                     kind, entityId, eventType, applMsgId);
@@ -81,7 +82,7 @@ public class EsqEntityBroadcastConsumer {
         }
     }
 
-    private void validateRequiredProperties(TextMessage message) throws JMSException {
+    private void validateRequiredProperties(Message message) throws JMSException {
         assertProperty(message, EsqMsgConstants.FIELD_APPL_MSG_ID);
         assertProperty(message, EsqMsgConstants.FIELD_SCHEMA_VERSION);
         assertProperty(message, EsqMsgConstants.FIELD_BUS_ID);
@@ -90,6 +91,7 @@ public class EsqEntityBroadcastConsumer {
         assertProperty(message, EsqMsgConstants.FIELD_ENTITY_KIND);
         assertProperty(message, EsqMsgConstants.FIELD_ENTITY_ID);
         assertProperty(message, EsqMsgConstants.FIELD_MESSAGE_ENCODING);
+        assertProperty(message, EsqMsgConstants.FIELD_TEXT);
 
         String busId          = message.getStringProperty(EsqMsgConstants.FIELD_BUS_ID);
         String msgType        = message.getStringProperty(EsqMsgConstants.FIELD_MSG_TYPE);
@@ -110,7 +112,7 @@ public class EsqEntityBroadcastConsumer {
         }
     }
 
-    private void assertProperty(TextMessage message, String name) throws JMSException {
+    private void assertProperty(Message message, String name) throws JMSException {
         if (!message.propertyExists(name)) {
             log.error("EsqEntityBroadcastConsumer: required property missing: {}", name);
         }

@@ -23,8 +23,8 @@ spring:
 enyman:
   messaging:
     broker-url: ${AMQ_BROKER_URL:tcp://localhost:61616}
-    # Identifies this service in outbound messages (ServiceID in FIX-JSON envelope)
-    service-id: ${ENYMAN_SERVICE_ID:enyMan}
+    # Identifies the messaging channel in outbound messages (ServiceID in FIX-JSON envelope)
+    service-id: ${ENYMAN_SERVICE_ID:entity-update-broadcast}
     # Stable producer instance identifier (CtrlID in FIX-JSON envelope)
     ctrl-id: ${ENYMAN_CTRL_ID:enyman.default}
     # Stable client ID for durable subscriptions from this service

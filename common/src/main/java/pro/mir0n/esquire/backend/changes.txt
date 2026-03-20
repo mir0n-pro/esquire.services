@@ -1,5 +1,15 @@
 Esquire Backend common microservice classes
 
+03/20/2026 mir0n  entity JPA and PerformanceAspect updates
+jpa.entity.EsqAcctJpa
+  - parentId, path fields added
+jpa.entity.EsqOrgJpa
+  - parentId, path fields added
+jpa.entity.EsqUsrJpa
+  - parentId, path fields added
+service.PerformanceAspect
+  - ScopeNotActiveException guard: skip metrics when no active request scope (startup loaders)
+
 03/16/2026 mir0n  connectFlg and path fields added to access profile JPA/DTO
 jpa.access.EsqAccessProfileJpa
   - path (usr_path) field added

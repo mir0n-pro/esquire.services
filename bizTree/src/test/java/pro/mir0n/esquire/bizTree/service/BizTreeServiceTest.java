@@ -9,7 +9,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import pro.mir0n.esquire.backend.dto.EsqTreeNode;
 import pro.mir0n.esquire.backend.error.ResourceNotFoundException;
 import pro.mir0n.esquire.backend.jpa.EsqTreeNodeJpa;
-import pro.mir0n.esquire.bizTree.jpa.EsqTreeNodeRepository;
+import pro.mir0n.esquire.bizTree.cache.IBizTreeCacheRepository;
 import pro.mir0n.esquire.bizTree.service.impl.BizTreeService;
 
 import java.util.List;
@@ -21,7 +21,7 @@ import static org.mockito.Mockito.*;
 class BizTreeServiceTest {
 
     @Mock
-    private EsqTreeNodeRepository repo;
+    private IBizTreeCacheRepository repo;
 
     @InjectMocks
     private BizTreeService service;

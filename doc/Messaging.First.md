@@ -44,9 +44,9 @@ All interested consumers subscribe to the same topic, but process only relevant 
 ### Key principles
 
 - routing and filtering are based on JMS properties
-- the message body is JSON text
-- the protocol uses **FIX-JSON notation** as the canonical envelope notation
-- the same canonical field names are used in both JMS properties and FIX-JSON body
+- **no message body** — all 14 canonical fields are transmitted as JMS properties
+- `Text` is a JMS string property carrying a JSON-encoded entity state snapshot
+- the protocol uses **FIX-JSON notation** as the canonical field naming convention
 - each canonical field is mapped to a FIX field code
 - standard FIX tags are reused where appropriate
 - custom application tags are used where needed
@@ -67,16 +67,31 @@ It does not claim full conformance with every FIX application-layer workflow.
 
 ### Producer
 
-Initial producer:
+Initial producers:
 
 - `enyMan`
+- `pacMan`
 
 Producer responsibilities:
 
 - detect committed entity state change
 - publish one event to topic `esquire.entity.broadcast`
-- populate all required JMS properties
-- encode body as JSON text using FIX-JSON notation
+- populate all 14 required JMS properties
+- serialize entity state snapshot as JSON string and set as `Text` property
+- include in `Text` only the fields that triggered the update, using their original field names and raw values
+
+### Producer decoupling rule
+
+Producers are fully decoupled from consumers.
+
+A producer publishes raw entity field values without any transformation, encoding, or interpretation intended for a specific consumer. Each consumer is responsible for interpreting the values it receives according to its own domain logic.
+
+Trigger fields per producer:
+
+| Producer | Trigger fields |
+|---|---|
+| `enyMan` | `name`, `desc`, `deleted` (`usr_deleted_flg`) |
+| `pacMan` | `name`, `desc`, `status` (`acc_status`) |
 
 ### Consumers
 
@@ -147,13 +162,15 @@ This protocol uses **FIX-JSON notation** as the canonical message field notation
 
 The entity broadcast protocol is defined using FIX-JSON field notation.
 
+All 14 canonical fields are transmitted exclusively as JMS message properties. There is no message body.
+
 This means:
 
-- message body fields use FIX-JSON semantic names
-- JMS properties use the same field names as the FIX-JSON body
+- all protocol fields use FIX-JSON semantic names as JMS property names
 - each field is mapped to a FIX field code
 - standard FIX tags are reused where the semantic match is appropriate
 - custom application tags are used for Esquire-specific fields
+- `Text` carries a JSON string property (entity state snapshot), not a nested object
 
 Accordingly, each protocol field has one canonical definition consisting of:
 
@@ -165,11 +182,11 @@ Accordingly, each protocol field has one canonical definition consisting of:
 
 ### 7.2 Canonical naming rule
 
-The protocol uses one canonical field name for both transport and body.
+The protocol uses one canonical field name for each field. All fields are JMS properties.
 
 Rule:
 
-- **JMS property name = FIX-JSON field name**
+- all 14 canonical fields are set as JMS properties
 - field names use FIX-style semantic notation
 - FIX numeric field codes are defined separately in the registry
 
@@ -188,9 +205,8 @@ This rule eliminates name translation between JMS metadata and JSON body fields.
 The field registry exists to guarantee:
 
 - stable routing via JMS selectors
-- stable FIX-JSON encoding
+- stable FIX-JSON field naming
 - predictable tracing across services
-- compatibility between transport metadata and message body
 - future protocol evolution without ambiguity
 
 ### 7.4 Tag allocation policy
@@ -211,7 +227,7 @@ This range is reserved for the internal entity broadcast protocol.
 | `SendingTime` | `52` | UTCTimestamp | yes | `2026-03-17T10:15:30Z` | event creation time |
 | `SchemaVersion` | `50001` | Int | yes | `1` | protocol schema version |
 | `BusID` | `50002` | String | yes | `esquire.entity` | logical event bus |
-| `ServiceID` | `50003` | String | yes | `enyMan` | producer service |
+| `ServiceID` | `50003` | String | yes | `entity-update-broadcast` | messaging service identifier; stable channel name shared by all producers and consumers of this channel |
 | `CtrlID` | `50004` | String | yes | `enyman.instance.id` | producer controller / instance id |
 | `MsgType` | `35` | String | yes | `UE` | FIX-style message type |
 | `EventType` | `50005` | String | yes | `U` | operation type |
@@ -220,7 +236,7 @@ This range is reserved for the internal entity broadcast protocol.
 | `RequestID` | `50008` | String | yes | `req-789` | request trace id |
 | `CorrelationID` | `50009` | String | yes | `corr-456` | cross-service correlation id |
 | `MessageEncoding` | `347` | String | yes | `JSON` | body encoding |
-| `Text` | `58` | Object | yes | `{ "state": "ACTIVE" }` | lightweight payload |
+| `Text` | `58` | String (JSON) | yes | `{"id":"1234","kind":34,"name":"ACME"}` | entity state snapshot; JSON string property; `id` and `kind` always present |
 
 ### 7.6 Required baseline values for phase 1
 
@@ -230,54 +246,69 @@ The following values are fixed for the initial implementation:
 |---|---|
 | `SchemaVersion` | `1` |
 | `BusID` | `esquire.entity` |
-| `ServiceID` | `enyMan` |
+| `ServiceID` | `entity-update-broadcast` (stable messaging service id; short name TBD) |
 | `MsgType` | `UE` |
 | `MessageEncoding` | `JSON` |
 
 ### 7.7 Authority rule
 
-Some fields exist in both places:
+All 14 canonical fields are authoritative as JMS properties.
 
-- JMS properties
-- FIX-JSON body
+JMS properties are the single source of truth for:
 
-This duplication is intentional.
+- routing and filtering via selectors
+- envelope metadata consumed by listeners
+- tracing and idempotency (`ApplMsgID`, `RequestID`, `CorrelationID`)
 
-The authority model is:
+`Text` is a JMS string property carrying a JSON-encoded entity state snapshot. It is not a routing field; it is consumed as payload by business logic only.
 
-- JMS properties are authoritative for routing, filtering, and subscriber selectors
-- FIX-JSON fields are authoritative for protocol payload completeness
-- duplicated values must match exactly
+### 7.8 Text property content rule
 
-### 7.8 Equality rule
+The `Text` JSON must be self-identifying. A consumer processing only the `Text` value (without access to other JMS properties) must be able to fully identify the entity.
 
-If a field is present both as JMS property and FIX-JSON field, then the values must be identical.
+Required fields inside `Text`:
 
-This applies at minimum to:
+- `id` — entity identifier
+- `kind` — entity kind code
 
-- `ApplMsgID`
-- `SendingTime`
-- `SchemaVersion`
-- `BusID`
-- `ServiceID`
-- `CtrlID`
-- `MsgType`
-- `EventType`
-- `EntityKind`
-- `EntityID`
-- `RequestID`
-- `CorrelationID`
-- `MessageEncoding`
+Optional fields (present only when they were part of the triggering update):
 
-A mismatch is a contract violation.
+- `name` — entity display name
+- `desc` — entity description (may be explicitly `null` to clear the field)
+- `deleted` — raw `usr_deleted_flg` value; enyMan/USR entities only (e.g. `"Y"`, `"C"`, `null`)
+- `status` — raw `acc_status` value; pacMan/ACCT entities only (e.g. `"O"`, `"L"`, `"C"`, `null`)
 
-### 7.9 Consumer behavior on mismatch
+All optional field values are the raw entity field values as stored. Consumers interpret them according to their own domain logic.
 
-If JMS properties and FIX-JSON values differ, the consumer must treat the message as invalid.
+Example (name update):
 
-Recommended behavior:
+```json
+{"id": "1234", "kind": 34, "name": "ACME Corp"}
+```
 
-1. log the mismatch
+Example (USR status update):
+
+```json
+{"id": "1234", "kind": 34, "deleted": "Y"}
+```
+
+Example (ACCT status update):
+
+```json
+{"id": "5678", "kind": 50, "status": "L"}
+```
+
+### 7.9 Consumer validation rule
+
+Consumers must validate that all required JMS properties are present before processing.
+
+Required minimum check:
+
+- `ApplMsgID`, `SchemaVersion`, `BusID`, `MsgType`, `EventType`, `EntityKind`, `EntityID`, `MessageEncoding`, `Text`
+
+If any required property is absent, the consumer must:
+
+1. log the missing property
 2. reject business processing
 3. preserve the message for later recovery or error handling
 
@@ -324,15 +355,41 @@ When an event is produced without an inbound request:
 - preserve an existing `CorrelationID` if available
 - otherwise generate a new `CorrelationID`
 
-### 7.12 FIX-JSON example
+### 7.12 JMS properties example (all 14 fields)
+
+```
+ApplMsgID    = 550e8400-e29b-41d4-a716-446655440000
+SendingTime  = 2026-03-17T10:15:30Z
+SchemaVersion= 1
+BusID        = esquire.entity
+ServiceID    = entity-update-broadcast
+CtrlID       = enyman.instance.id
+MsgType      = UE
+EventType    = U
+EntityKind   = 34
+EntityID     = 1234
+RequestID    = req-789
+CorrelationID= corr-456
+MessageEncoding= JSON
+Text         = {"id":"1234","kind":34,"name":"ACME Corp","desc":"sample"}
 ```
 
-json { "ApplMsgID": "550e8400-e29b-41d4-a716-446655440000", "SendingTime": "2026-03-17T10:15:30Z", "SchemaVersion": 1, "BusID": "esquire.entity", "ServiceID": "enyMan", "CtrlID": "enyman.instance.id", "MsgType": "UE", "EventType": "U", "EntityKind": 34, "EntityID": 1234, "RequestID": "req-789", "CorrelationID": "corr-456", "MessageEncoding": "JSON", "Text": { "state": "ACTIVE", "shortName": "Sample entity" } }``` 
+No message body is set.
 
-### 7.13 Equivalent JMS properties example
+### 7.13 Text property content
+
+`Text` is a JSON string property. The above example expands to:
+
+```json
+{
+  "id": "1234",
+  "kind": 34,
+  "name": "ACME Corp",
+  "desc": "sample"
+}
 ```
 
-text ApplMsgID=550e8400-e29b-41d4-a716-446655440000 SendingTime=2026-03-17T10:15:30Z SchemaVersion=1 BusID=esquire.entity ServiceID=enyMan CtrlID=enyman.instance.id MsgType=UE EventType=U EntityKind=34 EntityID=1234 RequestID=req-789 CorrelationID=corr-456 MessageEncoding=JSON``` 
+`name`, `desc`, `deleted`, `status` are present only when they were included in the triggering update request. Values are raw entity field values.
 
 ### 7.14 Selector rule reminder
 
@@ -441,32 +498,27 @@ A mapping table between business semantics and FIX/custom field definitions shou
 
 ---
 
-## 10. Message body format
+## 10. Transport format
 
-The JMS message body must be text and encoded as JSON.
+Messages are properties-only. No message body is set.
 
-### Encoding
+### Transport
 
-- JMS body type: text
-- `MessageEncoding=JSON`
-- structure: FIX-JSON envelope with optional lightweight business payload
+- JMS message type: `jakarta.jms.Message` (base, no body)
+- all 14 canonical fields are set as JMS properties
+- `MessageEncoding=JSON` refers to the encoding of the `Text` property value
 
-### Body purpose
+### Text property
 
-The body carries business event content.
-JMS properties carry transport and routing metadata.
+`Text` is the only field that carries a JSON-encoded value. It is a JMS string property whose value is a compact JSON object representing the entity state snapshot.
 
-### Recommended minimal body shape
-```
+### Text property guidelines
 
-json { "ApplMsgID": "550e8400-e29b-41d4-a716-446655440000", "SendingTime": "2026-03-17T10:15:30Z", "SchemaVersion": 1, "BusID": "esquire.entity", "ServiceID": "enyMan", "CtrlID": "enyman.instance.id", "MsgType": "UE", "EventType": "U", "EntityKind": 34, "EntityID": 1234, "RequestID": "req-789", "CorrelationID": "corr-456", "MessageEncoding": "JSON", "Text": { "state": "ACTIVE" } }``` 
-
-### Body guidelines
-
-- body must be lightweight
-- body may include a small optional payload
-- payload should include only fields required for synchronization or fast reaction
-- large entity graphs should be avoided in phase 1
+- must include `id` and `kind` (minimum required for self-identification)
+- include `name`, `desc`, `deleted`, `status` only when those fields were part of the triggering update
+- all values are raw entity field values — no consumer-specific encoding or transformation
+- no large nested graphs
+- no fields unrelated to the triggering change
 
 ---
 
@@ -513,9 +565,8 @@ The producer must publish only after a successful state change.
 
 - every event has a unique `ApplMsgID`
 - every event has `SendingTime`
-- all required JMS properties are present
-- body is valid JSON text
-- body and JMS properties are consistent
+- all 14 required JMS properties are present
+- `Text` property is valid JSON containing at minimum `id` and `kind`
 - `RequestID` and `CorrelationID` are propagated correctly
 
 ---
@@ -602,8 +653,8 @@ Phase 1 keeps this simple.
 ### Bus ID
 `esquire.entity`
 
-### Producer service ID
-`enyMan`
+### Messaging service ID (`ServiceID`)
+`entity-update-broadcast` (short name TBD; shared by all producers and consumers of this channel)
 
 ### Message type
 `UE`
@@ -618,15 +669,37 @@ FIX-JSON notation
 
 ## 18. Example event
 
+All 14 canonical fields are set as JMS properties. No message body.
+
 ### JMS properties
+
+```
+ApplMsgID     = 550e8400-e29b-41d4-a716-446655440000
+SendingTime   = 2026-03-17T10:15:30Z
+SchemaVersion = 1
+BusID         = esquire.entity
+ServiceID     = entity-update-broadcast
+CtrlID        = enyman.instance.id
+MsgType       = UE
+EventType     = U
+EntityKind    = 34
+EntityID      = 1234
+RequestID     = req-789
+CorrelationID = corr-456
+MessageEncoding = JSON
+Text          = {"id":"1234","kind":34,"name":"ACME Corp","deleted":"Y"}
 ```
 
-text ApplMsgID=550e8400-e29b-41d4-a716-446655440000 SendingTime=2026-03-17T10:15:30Z SchemaVersion=1 BusID=esquire.entity ServiceID=enyMan CtrlID=enyman.instance.id MsgType=UE EventType=U EntityKind=34 EntityID=1234 RequestID=req-789 CorrelationID=corr-456 MessageEncoding=JSON``` 
+### Text property expanded
 
-### FIX-JSON body
+```json
+{
+  "id": "1234",
+  "kind": 34,
+  "name": "ACME Corp",
+  "deleted": "Y"
+}
 ```
-
-json { "ApplMsgID": "550e8400-e29b-41d4-a716-446655440000", "SendingTime": "2026-03-17T10:15:30Z", "SchemaVersion": 1, "BusID": "esquire.entity", "ServiceID": "enyMan", "CtrlID": "enyman.instance.id", "MsgType": "UE", "EventType": "U", "EntityKind": 34, "EntityID": 1234, "RequestID": "req-789", "CorrelationID": "corr-456", "MessageEncoding": "JSON", "Text": { "state": "ACTIVE", "shortName": "Sample entity" } }``` 
 
 ---
 
@@ -642,8 +715,16 @@ json { "ApplMsgID": "550e8400-e29b-41d4-a716-446655440000", "SendingTime": "2026
 6. validate end-to-end event flow
 7. confirm duplicate-safe consumer processing
 
-### Phase 2
+### Phase 2 (delivered 2026-03-20)
 
+1. bizTree consumer applies UPDATE events to the in-memory H2 cache (`IBizTreeCacheRepository.updateNode`)
+2. single CASE-based SQL update covers name, desc, and status in one query
+3. status fields broadcast: enyMan sends `deleted` (usr_deleted_flg), pacMan sends `status` (acc_status)
+4. bizTree decodes raw status values to cache integer codes (0=ok, 1=deleted, 2=locked)
+
+### Phase 3
+
+0. make messaging infrastructure vendor-agnostic — support RabbitMQ as an alternative to ActiveMQ without changing the defined protocol, field registry, producer/consumer contracts, or selector semantics; broker selection via configuration only
 1. standardize event publishing helper
 2. define shared schema objects
 3. maintain FIX/custom field mapping reference
@@ -657,6 +738,7 @@ json { "ApplMsgID": "550e8400-e29b-41d4-a716-446655440000", "SendingTime": "2026
 
 The following items are intentionally deferred:
 
+- **broker vendor abstraction** — RabbitMQ as alternative to ActiveMQ; JMS selector semantics map to AMQP routing keys / header exchanges; durable subscription maps to durable queues bound to a fanout/topic exchange
 - formal FIX/custom tag registry governance
 - exact payload schema per entity kind
 - dead-letter routing
@@ -674,11 +756,12 @@ The first internal messaging pattern is defined as:
 
 - ActiveMQ topic
 - topic name `esquire.entity.broadcast`
-- producer `enyMan`
+- producers: `enyMan`, `pacMan`
 - durable subscribers
 - selector-based routing using JMS properties
-- FIX-JSON notation as canonical envelope format
-- same canonical field names in JMS properties and FIX-JSON body
+- FIX-JSON notation as canonical field naming convention
+- **properties-only transport** — all 14 canonical fields are JMS properties; no message body
+- `Text` is a JMS string property containing a JSON entity state snapshot
 - FIX field-code mapping with standard and custom tags
 - lightweight synchronization event payload
 - no broker authorization in phase 1

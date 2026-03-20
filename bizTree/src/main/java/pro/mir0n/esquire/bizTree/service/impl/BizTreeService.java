@@ -15,6 +15,7 @@
  *                  only EsqTreeNode requests
  * 01/24/2026 mir0n  ResourceNotFoundException.java moved to common lib
  * 03/10/2026 mir0n  import: RequestContextUtils updated to backend.service package
+ * 03/20/2026 mir0n  switched from EsqTreeNodeRepository to IBizTreeCacheRepository (H2 in-memory cache)
  */
 
 package pro.mir0n.esquire.bizTree.service.impl;
@@ -24,7 +25,7 @@ import java.util.*;
 import lombok.extern.slf4j.Slf4j;
 import pro.mir0n.esquire.backend.dto.*;
 import pro.mir0n.esquire.backend.jpa.*;
-import pro.mir0n.esquire.bizTree.jpa.EsqTreeNodeRepository;
+import pro.mir0n.esquire.bizTree.cache.IBizTreeCacheRepository;
 import pro.mir0n.esquire.backend.service.RequestContextUtils;
 import pro.mir0n.esquire.backend.error.ResourceNotFoundException;
 import pro.mir0n.esquire.bizTree.service.IBizTreeService;
@@ -38,7 +39,7 @@ import org.springframework.stereotype.Service;
 @AllArgsConstructor
 public class BizTreeService  implements IBizTreeService {
 
-    private EsqTreeNodeRepository treeNodeRepository;
+    private IBizTreeCacheRepository treeNodeRepository;
 
     @Override
     public List<EsqTreeNode> esquire(String id, Integer skip, Integer take, String rootPath, String uid) {

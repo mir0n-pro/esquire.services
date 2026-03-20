@@ -18,7 +18,7 @@ spring:
 # Messaging: entity broadcast producer
 pacman:
   messaging:
-    service-id: ${PACMAN_SERVICE_ID:pacMan}
+    service-id: ${PACMAN_SERVICE_ID:entity-update-broadcast}
     ctrl-id: ${PACMAN_CTRL_ID:pacman.default}
     client-id: ${PACMAN_MESSAGING_CLIENT_ID:pacman}
 logging:
