@@ -1,0 +1,23 @@
+services:
+  kcmaster:
+    build:
+      context: .
+    image: esquire.kcmaster
+    ports:
+      - "3006:3006"
+    environment:
+      - KCMASTER_PORT=3006
+      - LOG_LEVEL_ROOT=ERROR
+      - LOG_LEVEL_SF=ERROR
+      - LOG_LEVEL_MIR0N=DEBUG
+      - AMQ_BROKER_URL=tcp://host.docker.internal:61616
+      - KC_BASE_URL=http://host.docker.internal:8080
+      - KC_REALM=esquire
+      - KC_ADMIN_CLIENT_ID=admin-cli
+      - KC_ADMIN_CLIENT_SECRET=
+    command: ["java", "-jar", "app.jar"]
+    networks:
+      - esquirenet
+networks:
+  esquirenet:
+    driver: "bridge"

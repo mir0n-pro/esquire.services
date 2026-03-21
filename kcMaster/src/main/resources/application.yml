@@ -1,0 +1,43 @@
+spring:
+  application:
+    name: kcmaster
+  activemq:
+    broker-url: ${AMQ_BROKER_URL:tcp://localhost:61616}
+    user: ${AMQ_USER:}
+    password: ${AMQ_PASSWORD:}
+  jms:
+    client-id: ${KCMASTER_MESSAGING_CLIENT_ID:kcmaster}
+  mvc:
+    problemdetails:
+      enabled: true
+keycloak:
+  admin:
+    base-url: ${KC_BASE_URL:http://localhost:8080}
+    realm: ${KC_REALM:esquire}
+    client-id: ${KC_ADMIN_CLIENT_ID:admin-cli}
+    client-secret: ${KC_ADMIN_CLIENT_SECRET:}
+    connect-timeout-ms: 5000
+    read-timeout-ms: 10000
+  audit:
+    log-path: ${KC_AUDIT_LOG_PATH:logs/kcMaster-audit.log}
+kcmaster:
+  messaging:
+    broker-url: ${AMQ_BROKER_URL:tcp://localhost:61616}
+    service-id: ${KCMASTER_SERVICE_ID:kc-sync}
+    ctrl-id: ${KCMASTER_CTRL_ID:kcmaster.default}
+    client-id: ${KCMASTER_MESSAGING_CLIENT_ID:kcmaster}
+
+logging:
+  level:
+    root: ${LOG_LEVEL_ROOT:ERROR}
+    org:
+      springframework: ${LOG_LEVEL_SF:ERROR}
+      springframework.jms: ${LOG_LEVEL_JMS:INFO}
+      apache:
+        activemq: ${LOG_LEVEL_AMQ:INFO}
+    pro:
+      mir0n: ${LOG_LEVEL_MIR0N:ERROR}
+    kc.audit: ${LOG_LEVEL_KC_AUDIT:INFO}
+
+server:
+  port: ${KCMASTER_PORT:3006}

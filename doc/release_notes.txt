@@ -1,6 +1,29 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v1.2.2-2603.2114  Messaging Phase 3 — kcMaster service; KC sync decoupled from keySmith via JMS URQ/URS/URR
+    :Feature: kcMaster — new messaging-only service owning all Keycloak identity sync
+      - consumes URQ from esquire.kc.request (queue)
+      - dispatches C/D/U commands to KcIdentityService (ported from keySmith)
+      - publishes URS (success, silent ACK) or URR (reject, RFC 9457 Error) to esquire.kc.response
+      - kc.audit rolling log (kcMaster-audit.log) — full JMS message per URQ/URS/URR
+    :Feature: keySmith — KC sync decoupled; publishes URQ via JMS instead of direct KC calls
+      - KcSyncPublisher replaces syncToKeycloak(); fires after DB transaction commits
+      - KcSyncResponseListener receives URS/URR; logs to kc.sync rolling log (keySmith-sync.log)
+      - keycloak-admin-client dependency removed from keySmith pom.xml
+    :Feature: TestReqID (FIX tag 112) — intra-exchange correlation key; set by requester, echoed in URS/URR
+    :Feature: whole-message JMS logging — publishers via LinkedHashMap props; listeners via getPropertyNames()
+    :Refactoring: command values C/D/U (create/delete/update); wire header name remains EventType (tag 50005)
+    :Fix: kcMaster depends_on keycloak + activemq added to compose (was missing entirely)
+    :Fix: keySmith depends_on keycloak removed from compose (no direct KC calls remain)
+    :Config: kcMaster logback-spring.xml — kc.audit rolling file appender (kcMaster-audit.log)
+    :Config: keySmith logback-spring.xml — kc.sync rolling file appender; kc.audit removed (unused)
+    : modified components
+      - kcMaster (new service)
+      - keySmith
+      - compose
+    :added doc\Message.Structure.md
+
 v1.2.2-2603.2019  Dictionary affects3 field added
     :Refactoring: EsqEntityField — affects3 field added
 

@@ -8,6 +8,8 @@
  *  History:
  * 03/17/2026 mir0n  created: Phase-1 ActiveMQ messaging protocol constants (FIX-JSON)
  * 03/20/2026 mir0n  SERVICE_ID_ENTITY_BROADCAST = "entity-update-broadcast" added
+ * 03/21/2026 mir0n  KC sync constants added: QUEUE_KC_*, MSG_TYPE_REQUEST/RESPONSE/REJECT,
+ *                   FIELD_TEST_REQ_ID, FIELD_ERROR; ENTITY_KIND_ACCESS_PROFILE removed (dup of EsqConstants.KIND_ACCESS_PROFILE)
  */
 package pro.mir0n.esquire.common;
 
@@ -21,8 +23,10 @@ package pro.mir0n.esquire.common;
 public class EsqMsgConstants {
     private EsqMsgConstants() {}
 
-    // --- Destination ---
+    // --- Destinations ---
     public static final String TOPIC_ENTITY_BROADCAST = "esquire.entity.broadcast";
+    public static final String QUEUE_KC_REQUEST        = "esquire.kc.request";
+    public static final String QUEUE_KC_RESPONSE       = "esquire.kc.response";
 
     // --- Canonical FIX-JSON field names (JMS property name = JSON body field name) ---
 
@@ -46,6 +50,8 @@ public class EsqMsgConstants {
     public static final String FIELD_ENTITY_ID         = "EntityID";          // FIX 50007
     public static final String FIELD_REQUEST_ID        = "RequestID";         // FIX 50008
     public static final String FIELD_CORRELATION_ID    = "CorrelationID";     // FIX 50009
+    public static final String FIELD_TEST_REQ_ID       = "TestReqID";         // FIX 112
+    public static final String FIELD_ERROR             = "Error";             // FIX 50010
 
 
     // --- Fixed phase-1 values ---
@@ -53,6 +59,9 @@ public class EsqMsgConstants {
     public static final String BUS_ID_ENTITY           = "esquire.entity";
     public static final String SERVICE_ID_ENTITY_BROADCAST = "entity-update-broadcast";
     public static final String MSG_TYPE_ENTITY_BROADCASTS  = "UE";
+    public static final String MSG_TYPE_REQUEST         = "URQ";
+    public static final String MSG_TYPE_RESPONSE        = "URS";
+    public static final String MSG_TYPE_REJECT          = "URR";
     public static final String MESSAGE_ENCODING        = "JSON";
 
     // --- EventType vocabulary ---
@@ -60,7 +69,6 @@ public class EsqMsgConstants {
     public static final String EVENT_UPDATE            = "U";
     public static final String EVENT_DELETE            = "D";
     public static final String EVENT_UPDATE_PATH       = "X";
-
 
 }
 

@@ -3,6 +3,12 @@ spring:
     active: ${DB_KEYSMITH_VENDOR:dev-postgres}
   application:
     name: keysmith
+  activemq:
+    broker-url: ${AMQ_BROKER_URL:tcp://localhost:61616}
+    user: ${AMQ_USER:}
+    password: ${AMQ_PASSWORD:}
+  jms:
+    client-id: ${KEYSMITH_MESSAGING_CLIENT_ID:keysmith}
   jpa:
     hibernate:
       ddl-auto: none
@@ -11,15 +17,8 @@ spring:
     problemdetails:
       enabled: true
 keycloak:
-  admin:
-    base-url: ${KC_BASE_URL:http://localhost:8080}
-    realm: ${KC_REALM:esquire}
-    client-id: ${KC_ADMIN_CLIENT_ID:admin-cli}
-    client-secret: ${KC_ADMIN_CLIENT_SECRET:}
-    connect-timeout-ms: 5000
-    read-timeout-ms: 10000
-  audit:
-    log-path: ${KC_AUDIT_LOG_PATH:logs/kc-audit.log}
+  sync:
+    log-path: ${KC_SYNC_LOG_PATH:logs/kc-response.log}
 
 logging:
   # Console pattern and structured format are configured in logback-spring.xml
@@ -29,7 +28,7 @@ logging:
       springframework: ${LOG_LEVEL_SF:ERROR}
     pro:
       mir0n: ${LOG_LEVEL_MIR0N:ERROR}
-      kc.audit: ${LOG_LEVEL_KC_AUDIT:INFO}
+    kc.sync: ${LOG_LEVEL_KC_SYNC:INFO}
 
 ---
 # Development Oracle

@@ -20,6 +20,7 @@ import pro.mir0n.esquire.backend.storage.EsqEntityDictionaryStorage;
 import pro.mir0n.esquire.backend.storage.EsqRolesStorage;
 import pro.mir0n.esquire.backend.validator.ValidatorFactory;
 import pro.mir0n.esquire.keySmith.jpa.EsqAccessProfileRepository;
+import pro.mir0n.esquire.keySmith.messaging.KcSyncPublisher;
 import pro.mir0n.esquire.keySmith.service.impl.KeySmithService;
 
 import java.util.List;
@@ -42,7 +43,7 @@ class KeySmithServiceTest {
     private EntityManager em;
 
     @Mock
-    private IKeycloakIdentityService keycloakIdentityService;
+    private KcSyncPublisher kcSyncPublisher;
 
     private KeySmithService service;
 
@@ -54,7 +55,7 @@ class KeySmithServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new KeySmithService(accessProfileRepository, transactionTemplate, em, keycloakIdentityService);
+        service = new KeySmithService(accessProfileRepository, transactionTemplate, em, kcSyncPublisher);
     }
 
     // ---- helper: runs transactionTemplate.execute() lambda inline ----
@@ -228,8 +229,8 @@ class KeySmithServiceTest {
     // =========================================================
 
     @Test
-    @DisplayName("syncToKeycloak: Y→N → deleteUser called with old loginId")
-    void esquireKeySave_connectFlg_YtoN_deletesKcUser() {
+    @DisplayName("kcSync: Y→N → publish called with oldConnectFlg=Y and updated jpa connectFlg=N")
+    void esquireKeySave_connectFlg_YtoN_publishesDelete() {
         executeTransactionInline();
         EsqAccessProfileJpa jpa = jpaWith("Y", "N", "user1");
         when(accessProfileRepository.accessForUpdate("target-1", "/root")).thenReturn(jpa);
@@ -240,13 +241,12 @@ class KeySmithServiceTest {
             service.esquireKeySave("target-1", Map.of("connectFlg", "N"), "/root", "admin-99", List.of("ADMIN"));
         }
 
-        verify(keycloakIdentityService).deleteUser(eq("user1"), any(), any());
-        verify(keycloakIdentityService, never()).createUser(any(), any(), any(), anyBoolean(), anyBoolean(), anyBoolean(), any(), any(), any(), any());
+        verify(kcSyncPublisher).publish(eq("user1"), eq("Y"), argThat(j -> "N".equals(j.getConnectFlg())), any(), any(), any());
     }
 
     @Test
-    @DisplayName("syncToKeycloak: N→Y → createUser called with loginId and attributes")
-    void esquireKeySave_connectFlg_NtoY_createsKcUser() {
+    @DisplayName("kcSync: N→Y → publish called with oldConnectFlg=N and updated jpa connectFlg=Y")
+    void esquireKeySave_connectFlg_NtoY_publishesCreate() {
         executeTransactionInline();
         EsqAccessProfileJpa jpa = jpaWith("N", "N", "user2");
         when(accessProfileRepository.accessForUpdate("target-1", "/root")).thenReturn(jpa);
@@ -257,13 +257,12 @@ class KeySmithServiceTest {
             service.esquireKeySave("target-1", Map.of("connectFlg", "Y"), "/root", "admin-99", List.of("ADMIN"));
         }
 
-        verify(keycloakIdentityService).createUser(eq("user2"), any(), any(), anyBoolean(), anyBoolean(), anyBoolean(), any(), any(), any(), any());
-        verify(keycloakIdentityService, never()).deleteUser(any(), any(), any());
+        verify(kcSyncPublisher).publish(eq("user2"), eq("N"), argThat(j -> "Y".equals(j.getConnectFlg())), any(), any(), any());
     }
 
     @Test
-    @DisplayName("syncToKeycloak: Y→Y (no change) → updateUserAuthState called")
-    void esquireKeySave_connectFlg_noChange_updatesKcUser() {
+    @DisplayName("kcSync: Y→Y (no change) → publish called with oldConnectFlg=Y and jpa connectFlg=Y")
+    void esquireKeySave_connectFlg_noChange_publishesUpdate() {
         executeTransactionInline();
         EsqAccessProfileJpa jpa = jpaWith("Y", "N", "user3");
         when(accessProfileRepository.accessForUpdate("uid-1", "/root")).thenReturn(jpa);
@@ -271,9 +270,7 @@ class KeySmithServiceTest {
 
         service.esquireKeySave("uid-1", Map.of(), "/root", "uid-1", null);
 
-        verify(keycloakIdentityService).updateUserAuthState(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any());
-        verify(keycloakIdentityService, never()).deleteUser(any(), any(), any());
-        verify(keycloakIdentityService, never()).createUser(any(), any(), any(), anyBoolean(), anyBoolean(), anyBoolean(), any(), any(), any(), any());
+        verify(kcSyncPublisher).publish(any(), eq("Y"), argThat(j -> "Y".equals(j.getConnectFlg())), any(), any(), any());
     }
 
     // =========================================================

@@ -1,22 +1,20 @@
 /*
  *  Esquire frameworks (tm)
- *  keySmith service - Keycloak Identity Service Interface
+ *  kcMaster service
  *
  *  Copyright(c) 2001, 2026 mir0n&co www.mir0n.me
  *  mailto:mir0n.the.programmer@gmail.com
  *
  *  History:
- * 03/11/2026 mir0n Initial creation
- * 03/16/2026 mir0n  updateUserAuthState(): removeTotp parameter added
- *                   deleteUser() added
+ * 03/20/2026 mir0n  ported from keySmith IKeycloakIdentityService
  */
 
-package pro.mir0n.esquire.keySmith.service;
+package pro.mir0n.esquire.kcMaster.service;
 
 import java.util.List;
 import java.util.Map;
 
-public interface IKeycloakIdentityService {
+public interface IKcIdentityService {
 
     void createUser(
             String loginId,

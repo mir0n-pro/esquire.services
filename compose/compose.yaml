@@ -7,7 +7,8 @@ services:
       - "61616:61616"   # JMS/OpenWire broker port
       - "8161:8161"     # ActiveMQ web console (admin/admin)
     volumes:
-      - ../activemq/conf/activemq.xml:/opt/activemq/conf/activemq.xml
+      - ./conf/activemq.xml:/opt/activemq/conf/activemq.xml
+      - ./data:/var/opt/activemq/data
     healthcheck:
       test: ["CMD-SHELL", "bash -c '</dev/tcp/127.0.0.1/61616' 2>/dev/null"]
       interval: 10s
@@ -159,15 +160,10 @@ services:
       - "3005:3005"
     environment:
       - KEYSMITH_PORT=3005
-      - KC_BASE_URL=http://keycloak:8080
-      - KC_REALM=esquire
-      - KC_ADMIN_CLIENT_ID=esq-kcMaster
-      - KC_ADMIN_CLIENT_SECRET=MHgq0Nu69u2uJ2johaK1wxQLMdakELXN
-      - KC_AUDIT_LOG_PATH=logs/kc-audit.log
       - LOG_LEVEL_ROOT=ERROR
       - LOG_LEVEL_SF=ERROR
       - LOG_LEVEL_MIR0N=DEBUG
-      - LOG_LEVEL_KC_AUDIT=DEBUG
+      - LOG_LEVEL_KC_SYNC=DEBUG
       - DB_KEYSMITH_VENDOR=dev-postgres
       - DB_KEYSMITH_PORT=5432
       - DB_KEYSMITH_NAME=esq2025
@@ -177,9 +173,52 @@ services:
       - DB_KEYSMITH_HOST=host.docker.internal
       - DB_KEYSMITH_USERNAME=esq2025
       - DB_KEYSMITH_PASSWORD=q
+      # Messaging
+      - AMQ_BROKER_URL=tcp://activemq:61616
+      #- AMQ_USER=
+      #- AMQ_PASSWORD=
+      - KEYSMITH_MESSAGING_CLIENT_ID=keysmith
+      - KC_SYNC_LOG_PATH=logs/keySmith-sync.log
+    command: ["java", "-jar", "app.jar"]
+    depends_on:
+      activemq:
+        condition: service_healthy
+    volumes:
+      - ./logs:/app/logs
+    networks:
+      - esquirenet
+
+  kcmaster:
+    container_name: esq-kcmaster
+    build:
+      context: .
+    image: esquire.kcmaster
+    ports:
+      - "3006:3006"
+    environment:
+      - KCMASTER_PORT=3006
+      - LOG_LEVEL_ROOT=ERROR
+      - LOG_LEVEL_SF=ERROR
+      - LOG_LEVEL_MIR0N=DEBUG
+      - LOG_LEVEL_KC_AUDIT=DEBUG
+      # Messaging
+      - AMQ_BROKER_URL=tcp://activemq:61616
+      #- AMQ_USER=
+      #- AMQ_PASSWORD=
+      - KCMASTER_SERVICE_ID=kc-sync
+      - KCMASTER_CTRL_ID=kcmaster.default
+      - KCMASTER_MESSAGING_CLIENT_ID=kcmaster
+      # Keycloak
+      - KC_BASE_URL=http://keycloak:8080
+      - KC_REALM=esquire
+      - KC_ADMIN_CLIENT_ID=esq-kcMaster
+      - KC_ADMIN_CLIENT_SECRET=MHgq0Nu69u2uJ2johaK1wxQLMdakELXN
+      - KC_AUDIT_LOG_PATH=logs/kcMaster-audit.log
     command: ["java", "-jar", "app.jar"]
     depends_on:
       keycloak:
+        condition: service_healthy
+      activemq:
         condition: service_healthy
     volumes:
       - ./logs:/app/logs

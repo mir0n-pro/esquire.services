@@ -23,6 +23,7 @@
         <module>enyMan</module>
         <module>pacMan</module>
         <module>keySmith</module>
+        <module>kcMaster</module>
      </modules>
 
     <properties>
@@ -52,6 +53,7 @@
         <enyMan.version>${esquire.version}</enyMan.version>
         <pacMan.version>${esquire.version}</pacMan.version>
         <keySmith.version>${esquire.version}</keySmith.version>
+        <kcMaster.version>${esquire.version}</kcMaster.version>
         <!-- war version -->
         <!-- war.version>${esquire.version}</war.version -->
 

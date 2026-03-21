@@ -4,7 +4,7 @@
     <springProperty scope="context" name="logLevelRoot"  source="logging.level.root"                defaultValue="INFO"/>
     <springProperty scope="context" name="logLevelSf"    source="logging.level.org.springframework" defaultValue="INFO"/>
     <springProperty scope="context" name="logLevelMir0n" source="logging.level.pro.mir0n"           defaultValue="INFO"/>
-    <springProperty scope="context" name="kcSyncLogPath"  source="keycloak.sync.log-path"           defaultValue="logs/keySmith-sync.log"/>
+    <springProperty scope="context" name="kcAuditLogPath" source="keycloak.audit.log-path"          defaultValue="logs/kcMaster-audit.log"/>
 
     <!-- Console — ECS structured format (equivalent to logging.structured.format.console: ecs) -->
     <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
@@ -13,11 +13,12 @@
         </encoder>
     </appender>
 
-    <!-- KC Sync — URS responses received from kcMaster -->
-    <appender name="KC_SYNC_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
-        <file>${kcSyncLogPath}</file>
+    <!-- KC Audit — dedicated rolling file for Keycloak operation state changes -->
+    <appender name="KC_AUDIT_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${kcAuditLogPath}</file>
+        <!-- mkdirs>true</mkdirs -->
         <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
-            <fileNamePattern>${kcSyncLogPath}.%d{yyyy-MM-dd}.gz</fileNamePattern>
+            <fileNamePattern>${kcAuditLogPath}.%d{yyyy-MM-dd}.gz</fileNamePattern>
             <maxHistory>30</maxHistory>
         </rollingPolicy>
         <encoder>
@@ -25,8 +26,9 @@
         </encoder>
     </appender>
 
-    <logger name="kc.sync" level="INFO" additivity="false">
-        <appender-ref ref="KC_SYNC_FILE"/>
+    <!-- kc.audit — file only; additivity=false so entries do NOT flow to console -->
+    <logger name="kc.audit" level="INFO" additivity="false">
+        <appender-ref ref="KC_AUDIT_FILE"/>
     </logger>
 
     <root level="${logLevelRoot}">

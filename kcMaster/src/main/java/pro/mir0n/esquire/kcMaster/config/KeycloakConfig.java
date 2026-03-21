@@ -1,21 +1,21 @@
 /*
  *  Esquire frameworks (tm)
- *  keySmith service - Keycloak Configuration
+ *  kcMaster service
  *
  *  Copyright(c) 2001, 2026 mir0n&co www.mir0n.me
  *  mailto:mir0n.the.programmer@gmail.com
  *
  *  History:
- * 03/11/2026 mir0n Initial creation
+ * 03/20/2026 mir0n  ported from keySmith
  */
 
-package pro.mir0n.esquire.keySmith.config;
+package pro.mir0n.esquire.kcMaster.config;
 
 import lombok.Getter;
 import lombok.Setter;
+import org.keycloak.OAuth2Constants;
 import org.keycloak.admin.client.Keycloak;
 import org.keycloak.admin.client.KeycloakBuilder;
-import org.keycloak.OAuth2Constants;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;

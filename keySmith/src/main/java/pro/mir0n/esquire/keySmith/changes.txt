@@ -1,5 +1,27 @@
 Esquire keySmith Microservice
 
+03/21/2026 mir0n  KC sync decoupled to kcMaster — JMS messaging replaces direct Keycloak calls
+x removed config.KeycloakConfig (moved to kcMaster)
+x removed service.IKeycloakIdentityService (moved to kcMaster)
+x removed service.impl.KeycloakIdentityService (moved to kcMaster)
+KeySmithApplication
+  - @EnableAsync removed (KC calls now fire-and-forget via JMS; no async executor needed)
+service.impl.KeySmithService
+  - IKeycloakIdentityService replaced with KcSyncPublisher
+  - syncToKeycloak() removed; kcSyncPublisher.publish() called after transaction commit
++ added messaging.KeySmithJmsConfig
+  - JMS queue listener factory for esquire.kc.request and esquire.kc.response
++ added messaging.KcSyncPublisher
+  - builds and publishes URQ to esquire.kc.request after DB transaction commit
+  - command determined by connectFlg transition: C (N→Y) / D (Y→N) / U (else)
+  - TestReqID: uses RequestID if present, else generates new UUID; whole message logged via props map
+  - all JMS constants from common.EsqMsgConstants (KcMsgConstants removed)
+  - setProps/formatProps delegated to common messaging.jms.Utils
++ added messaging.KcSyncResponseListener
+  - consumes URS/URR from esquire.kc.response; logs to kc.sync logger (keySmith-sync.log)
+  - whole message logged dynamically via getPropertyNames() sorted
+  - formatProps delegated to common messaging.jms.Utils
+
 03/16/2026 mir0n  TOTP state machine; reset password handshake; connectFlg lifecycle; KC integration
 service.impl.KeySmithService
   - applyFields(): tfaMethod state machine — accepts G/N only; pending stored as lowercase (G→g, N→n)

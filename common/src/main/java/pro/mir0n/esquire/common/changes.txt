@@ -1,5 +1,16 @@
 Esquire Common microservice classes
 
+03/21/2026 mir0n  Messaging Phase 3 — KC sync constants consolidated from KcMsgConstants
+EsqMsgConstants
+  - QUEUE_KC_REQUEST = "esquire.kc.request"; QUEUE_KC_RESPONSE = "esquire.kc.response"
+  - MSG_TYPE_REQUEST = "URQ"; MSG_TYPE_RESPONSE = "URS"; MSG_TYPE_REJECT = "URR"
+  - FIELD_TEST_REQ_ID = "TestReqID" (FIX 112); FIELD_ERROR = "Error" (FIX 50010)
+  - ENTITY_KIND_ACCESS_PROFILE removed — duplicate of EsqConstants.KIND_ACCESS_PROFILE
++ added messaging.jms.Utils
+  - formatProps(Map<String, Object>): formats publisher props map as key=value | key=value
+  - formatProps(Message): formats all JMS properties sorted alphabetically as key=value | key=value
+  - setProps(Message, Map): sets all props map entries as JMS message properties (int or string)
+
 03/20/2026 mir0n  Messaging Phase 1/2 — service id constant
 EsqMsgConstants
   - SERVICE_ID_ENTITY_BROADCAST = "entity-update-broadcast" added

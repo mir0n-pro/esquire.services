@@ -1,0 +1,31 @@
+Esquire kcMaster Microservice
+
+03/21/2026 mir0n  KC sync service implementation — URQ consumer, Keycloak operations, URS/URR publisher
+KcMasterApplication
+  - initial scaffold; JMS (ActiveMQ) + Keycloak admin client; no DB, no REST endpoints
+config.KeycloakConfig
+  - ported from keySmith; Keycloak admin client @ConfigurationProperties
++ added messaging.KcMasterJmsConfig
+  - jmsQueueListenerFactory for esquire.kc.request/response; jmsDurableTopicListenerFactory for entity broadcast
+  - @Qualifier on ConnectionFactory resolves Spring Boot 3.5 dual-bean ambiguity
+  - clientId set explicitly on durable factory (required for durable topic subscriptions)
++ added messaging.KcRequestConsumer
+  - @JmsListener on esquire.kc.request; reads all headers + Text; dispatches to KcRequestHandler
+  - whole message logged via common messaging.jms.Utils.formatProps(Message) to kc.audit (kcMaster-audit.log)
+  - publishes URS on success; publishes URR (with echoed Text) on failure
++ added messaging.KcRequestHandler
+  - dispatches URQ command C/D/U to IKcIdentityService operations
++ added messaging.KcResponsePublisher
+  - publishSuccess(): URS — silent ACK, no Text body; whole message logged via common messaging.jms.Utils
+  - publishFailure(): URR — RFC 9457 Error header; echoes URQ Text when available; same logging pattern
+  - EntityKind: EsqConstants.KIND_ACCESS_PROFILE (EsqMsgConstants.ENTITY_KIND_ACCESS_PROFILE removed as dup)
+  - setProps/formatProps delegated to common messaging.jms.Utils
++ added messaging.KcSyncRequest
+  - URQ Text payload POJO; JSON-deserialized from JMS Text property
++ added messaging.KcEntityBroadcastConsumer
+  - durable subscriber on esquire.entity.broadcast topic (skeleton; processing logic TBD)
++ added service.IKcIdentityService
+  - ported from keySmith IKeycloakIdentityService
++ added service.impl.KcIdentityService
+  - ported from keySmith KeycloakIdentityService
+  - @Async removed — KC calls synchronous so URS/URR published only after KC operation completes

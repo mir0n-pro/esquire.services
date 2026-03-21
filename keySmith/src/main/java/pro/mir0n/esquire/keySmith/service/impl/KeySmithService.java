@@ -29,6 +29,8 @@
  *                   saveAccess(): connectFlg change detection; TOTP reset to N on connect N→Y
  *                   syncToKeycloak(): three-branch — delete(Y→N) / create(N→Y) / update(else)
  *                   applyFields(): tfaMethod state machine — G/N only; pending via lowercase g/n
+ * 03/20/2026 mir0n  KC sync decoupled: IKeycloakIdentityService replaced with KcSyncPublisher
+ *                   syncToKeycloak() replaced with kcSyncPublisher.publish() — fire-and-forget via JMS
  */
 
 package pro.mir0n.esquire.keySmith.service.impl;
@@ -36,7 +38,11 @@ package pro.mir0n.esquire.keySmith.service.impl;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.FlushModeType;
 import java.beans.PropertyDescriptor;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanWrapper;
@@ -54,8 +60,8 @@ import pro.mir0n.esquire.common.EsqConstants;
 import pro.mir0n.esquire.keySmith.jpa.EsqAccessProfileRepository;
 import pro.mir0n.esquire.backend.service.RequestContextUtils;
 import pro.mir0n.esquire.backend.error.ResourceNotFoundException;
+import pro.mir0n.esquire.keySmith.messaging.KcSyncPublisher;
 import pro.mir0n.esquire.keySmith.service.IKeySmithService;
-import pro.mir0n.esquire.keySmith.service.IKeycloakIdentityService;
 import lombok.AllArgsConstructor;
 import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Service;
@@ -69,7 +75,7 @@ public class KeySmithService implements IKeySmithService {
     private EsqAccessProfileRepository accessProfileRepository;
     private TransactionTemplate transactionTemplate;
     private EntityManager em;
-    private IKeycloakIdentityService keycloakIdentityService;
+    private KcSyncPublisher kcSyncPublisher;
 
     @Override
     public EsqAccessProfile esquireKey(String id, String rootPath, String uid) {
@@ -134,7 +140,7 @@ public class KeySmithService implements IKeySmithService {
             return null;
         }); // ← transaction commits here
 
-        syncToKeycloak(oldLoginId[0], oldConnectFlg[0], updated[0], rolesAssigned[0], correlationId, requestId);
+        kcSyncPublisher.publish(oldLoginId[0], oldConnectFlg[0], updated[0], rolesAssigned[0], correlationId, requestId);
 
         List<EsqRole> rolesAll = EsqRolesStorage.getInstance().roles();
         List<EsqPermission> permissions = null;
@@ -225,51 +231,6 @@ public class KeySmithService implements IKeySmithService {
         }
         //note: if a DB trigger or default value modifies the row, saveAccess won't reflect it.
         updated[0]     = jpa;
-    }
-
-    private void syncToKeycloak(String loginId, String oldConnectFlg, EsqAccessProfileJpa jpa, List<EsqRoleJpa> roles, String correlationId, String requestId) {
-        try {
-            List<String> kcRoles = new ArrayList<>();
-            for (EsqRoleJpa r : roles) {
-                kcRoles.add(r.getName());
-            }
-            if ("Y".equals(oldConnectFlg) && "N".equals(jpa.getConnectFlg())) {
-                keycloakIdentityService.deleteUser(loginId, correlationId, requestId);
-            } else if ("N".equals(oldConnectFlg) && "Y".equals(jpa.getConnectFlg())) {
-                Map<String, List<String>> attributes = new java.util.HashMap<>();
-                attributes.put(EsqConstants.JWT_CLAIM_ENTITY_ID,       Collections.singletonList(String.valueOf(jpa.getId())));
-                attributes.put(EsqConstants.JWT_CLAIM_ENTITY_ROOTPATH,  Collections.singletonList(jpa.getPath()));
-                keycloakIdentityService.createUser(
-                        jpa.getLoginId(),
-                        jpa.getEmail(),
-                        "changeit",  // temporary password
-                        true,       // enabled
-                        true,       // forcePasswordChange — temporary password must be changed on first login
-                        false,      // requireTotp — TOTP disabled
-                        kcRoles,
-                        attributes,
-                        correlationId,
-                        requestId);
-            } else {
-                // NOTE: JWT_CLAIM_ENTITY_ID (esq_uid) is set at KC user creation only, never updated here
-                keycloakIdentityService.updateUserAuthState(
-                        loginId,            // KC username = loginId (before update)
-                        jpa.getLoginId(),   // newLoginId — applies rename if changed
-                        jpa.getEmail(),
-                        null,               // password — not implemented yet
-                        null,               // enabled  — not managed here
-                        "Y".equals(jpa.getPwdChangeForced()),              // forcePasswordChange
-                        "g".equals(jpa.getTfaMethod()) ? Boolean.TRUE : null,  // requireTotp
-                        "n".equals(jpa.getTfaMethod()) ? Boolean.TRUE : null,  // removeTotp
-                        kcRoles,
-                        null,               // extra attributes — none for now
-                        correlationId,
-                        requestId);
-            }
-        } catch (Exception e) {
-            // DB already committed — KC failure logged for reconciliation, request is not failed
-            log.error("KeySmith: KC sync failed for user {}: {}", loginId, e.getMessage(), e);
-        }
     }
 
     private boolean applyFields(EsqAccessProfileJpa jpa, boolean personal, Map<String, Object> fields) {
