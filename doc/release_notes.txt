@@ -1,6 +1,9 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v1.2.2-2603.2019  Dictionary affects3 field added
+    :Refactoring: EsqEntityField — affects3 field added
+
 v1.2.2-2603.2017
   Messaging Phase 2 — cache update from entity broadcast; properties-only transport; H2 cache loader
     :Feature: bizTree H2 in-memory cache built from DB on startup (BizTreeCacheLoader)

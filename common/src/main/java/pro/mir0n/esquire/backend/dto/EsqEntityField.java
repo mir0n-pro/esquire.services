@@ -11,6 +11,7 @@
  * 02/19/2026 mir0n  nullable type changed from Boolean to String
  *                   minmax field added
  * 03/08/2026 mir0n  isSubentity() and isTabField() helper methods added
+ * 03/20/2026 mir0n  affects3 field added
  */
 
 package pro.mir0n.esquire.backend.dto;
@@ -111,6 +112,12 @@ public class EsqEntityField {
     )
     @JacksonXmlProperty(localName = "minmax")
     private String minmax;
+
+    @Schema(
+            description = "Affects the tree flag"
+    )
+    @JacksonXmlProperty(localName = "affects3")
+    private String affects3;
 
     public boolean isSubentity() {
         return "subentity".equals(type);

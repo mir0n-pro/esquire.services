@@ -1,6 +1,10 @@
 Esquire Backend common microservice classes
 
-03/20/2026 mir0n  entity JPA and PerformanceAspect updates
+03/20/2026 mir0n  DTO updates
+dto.EsqEntityField
+  - affects3 field added
+
+03/20/2026 mir0n  entity JPA, PerformanceAspect updates
 jpa.entity.EsqAcctJpa
   - parentId, path fields added
 jpa.entity.EsqOrgJpa

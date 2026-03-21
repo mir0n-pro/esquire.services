@@ -58,6 +58,7 @@
                             <readwrite>3</readwrite>
                             <minmax>50</minmax>
                             <validation>^[\x20-\x7E]+$</validation>
+                            <affects3>Y</affects3>
                             <!-- listvalues></listvalues -->
                             <!-- nullable></nullable -->
                             <!-- nullmeaning></nullmeaning -->
@@ -90,6 +91,7 @@
                             <nullable>Y</nullable>
                             <readwrite>3</readwrite>
                             <minmax>1024</minmax>
+                            <affects3>Y</affects3>
                         </field>
                     </fields>
                 </layer>
@@ -113,6 +115,7 @@
                             <readwrite>1</readwrite>
                             <minmax>50</minmax>
                             <validation>^[\x20-\x7E]+</validation>
+                            <affects3>Y</affects3>
                         </field>
                         <field>
                             <name>loginId</name>
@@ -159,6 +162,7 @@
                             <nullable>Y</nullable>
                             <readwrite>3</readwrite>
                             <minmax>1024</minmax>
+                            <affects3>Y</affects3>
                         </field>
                     </fields>
                 </layer>
@@ -182,6 +186,7 @@
                             <readwrite>1</readwrite>
                             <minmax>50</minmax>
                             <validation>^[\x20-\x7E]+</validation>
+                            <affects3>Y</affects3>
                         </field>
                         <field>
                             <name>loginId</name>
@@ -228,6 +233,7 @@
                             <nullable>Y</nullable>
                             <readwrite>3</readwrite>
                             <minmax>1024</minmax>
+                            <affects3>Y</affects3>
                         </field>
                     </fields>
                 </layer>
@@ -251,6 +257,7 @@
                             <readwrite>1</readwrite>
                             <minmax>50</minmax>
                             <validation>^[\x20-\x7E]+</validation>
+                            <affects3>Y</affects3>
                         </field>
                         <field>
                             <name>loginId</name>
@@ -292,6 +299,7 @@
                             <type>flag</type>
                             <tooltip>Marked as deleted</tooltip>
                             <readwrite>3</readwrite>
+                            <affects3>Y</affects3>
                         </field>
                     </fields>
                 </layer>
@@ -353,6 +361,7 @@
                             <nullable>Y</nullable>
                             <readwrite>3</readwrite>
                             <minmax>1024</minmax>
+                            <affects3>Y</affects3>
                         </field>
                     </fields>
                 </layer>
@@ -376,6 +385,7 @@
                             <readwrite>1</readwrite>
                             <minmax>50</minmax>
                             <validation>^[\x20-\x7E]+</validation>
+                            <affects3>Y</affects3>
                         </field>
                         <field>
                             <name>loginId</name>
@@ -404,6 +414,7 @@
                             <type>flag</type>
                             <tooltip>Marked as deleted</tooltip>
                             <readwrite>1</readwrite>
+                            <affects3>Y</affects3>
                         </field>
                     </fields>
                 </layer>
@@ -465,6 +476,7 @@
                             <nullable>Y</nullable>
                             <readwrite>3</readwrite>
                             <minmax>1024</minmax>
+                            <affects3>Y</affects3>
                         </field>
                     </fields>
                 </layer>
@@ -488,6 +500,7 @@
                             <readwrite>1</readwrite>
                             <minmax>50</minmax>
                             <validation>^[\x20-\x7E]+</validation>
+                            <affects3>Y</affects3>
                         </field>
                         <field>
                             <name>ccy</name>
@@ -527,6 +540,7 @@
                             <validation>^(O|L|C)$</validation>
                             <nullable>N</nullable>
                             <readwrite>3</readwrite>
+                            <affects3>Y</affects3>
                         </field>
                     </fields>
                 </layer>
@@ -543,6 +557,7 @@
                             <nullable>Y</nullable>
                             <readwrite>3</readwrite>
                             <minmax>1024</minmax>
+                            <affects3>Y</affects3>
                         </field>
                     </fields>
                 </layer>
@@ -567,6 +582,7 @@
                             <readwrite>1</readwrite>
                             <minmax>50</minmax>
                             <validation>^[\x20-\x7E]+</validation>
+                            <affects3>Y</affects3>
                         </field>
                         <field>
                             <name>ccy</name>
@@ -606,6 +622,7 @@
                             <validation>^(O|L|C)$</validation>
                             <nullable>N</nullable>
                             <readwrite>3</readwrite>
+                            <affects3>Y</affects3>
                         </field>
                     </fields>
                 </layer>
@@ -622,6 +639,7 @@
                             <nullable>Y</nullable>
                             <readwrite>3</readwrite>
                             <minmax>1024</minmax>
+                            <affects3>Y</affects3>
                         </field>
                     </fields>
                 </layer>
@@ -645,6 +663,7 @@
                             <readwrite>1</readwrite>
                             <minmax>50</minmax>
                             <validation>^[\x20-\x7E]+</validation>
+                            <affects3>Y</affects3>
                         </field>
                         <field>
                             <name>ccy</name>
@@ -684,6 +703,7 @@
                             <validation>^(O|L|C)$</validation>
                             <nullable>N</nullable>
                             <readwrite>3</readwrite>
+                            <affects3>Y</affects3>
                         </field>
                     </fields>
                 </layer>
@@ -700,6 +720,7 @@
                             <nullable>Y</nullable>
                             <readwrite>3</readwrite>
                             <minmax>1024</minmax>
+                            <affects3>Y</affects3>
                         </field>
                     </fields>
                 </layer>
@@ -1069,6 +1090,7 @@
                             <validation>^[\x20-\x7E]+</validation>
                             <nullable>N</nullable>
                             <personal>N</personal>
+                            <affects3>Y</affects3>
                         </field>
                         <field>
                             <name>middleName</name>
@@ -1081,6 +1103,7 @@
                             <validation>^[\x20-\x7E]+</validation>
                             <nullable>Y</nullable>
                             <personal>N</personal>
+                            <affects3>Y</affects3>
                         </field>
                         <field>
                             <name>lastName</name>
@@ -1093,6 +1116,7 @@
                             <validation>^[\x20-\x7E]+</validation>
                             <nullable>N</nullable>
                             <personal>N</personal>
+                            <affects3>Y</affects3>
                         </field>
                         <field>
                             <name>title</name>
