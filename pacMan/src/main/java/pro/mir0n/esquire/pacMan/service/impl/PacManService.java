@@ -30,6 +30,7 @@
  * 03/17/2026 mir0n  messaging: broadcastPublisher injected; publishEntityEvent() on name/desc update
  * 03/20/2026 mir0n  status broadcast: "status" (acc_status) added to isBroadcastableUpdate()
  *                   publishEntityEvent() emits raw "status" field value; publisher decoupling rule
+ * 03/21/2026 mir0n  devLog added; log.debug→devLog.debug; dual error pattern (publishEntityEvent catch: log.warn→log.error+devLog.error)
  */
 
 package pro.mir0n.esquire.pacMan.service.impl;
@@ -40,6 +41,7 @@ import java.beans.PropertyDescriptor;
 import java.util.*;
 
 import lombok.extern.slf4j.Slf4j;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.BeanWrapper;
 import org.springframework.beans.BeanWrapperImpl;
 import pro.mir0n.esquire.backend.dto.*;
@@ -68,6 +70,8 @@ import pro.mir0n.esquire.common.EsqMsgConstants;
 @AllArgsConstructor
 public class PacManService  implements IPacManService {
 
+    private static final org.slf4j.Logger devLog = LoggerFactory.getLogger("develop." + PacManService.class.getName());
+
     private EsqAcctRepository entityRepository;
     private TransactionTemplate transactionTemplate;
     private EntityManager em;
@@ -78,7 +82,7 @@ public class PacManService  implements IPacManService {
     public EsqEntity esquireCommand(Integer kind, String id, String cmd, String rootPath, String uid) {
         String correlationId = RequestContextUtils.getCorrelationId();
         String requestId = RequestContextUtils.getRequestId();
-        log.debug("srvc: esquireCommand: kind:{}, id:{}, cmd:{}, rootPath:{}, uid:{}",  kind, id, cmd, rootPath, uid);
+        devLog.debug("srvc: esquireCommand: kind:{}, id:{}, cmd:{}, rootPath:{}, uid:{}",  kind, id, cmd, rootPath, uid);
 
         int k = (int)Math.floor( (double) kind/2 ) * 2;
         EsqObjectKind eek = EsqObjectKindStorage.getInstance().get(k);
@@ -93,7 +97,7 @@ public class PacManService  implements IPacManService {
         }
 
         EsqEntity ret = EsqEntityFactory.getInstance().createEntity(jpa, null, null);
-        log.debug("srvc: esquireCommand(2): entity:{}",  ret);
+        devLog.debug("srvc: esquireCommand(2): entity:{}",  ret);
         return  ret;
     }
 
@@ -101,7 +105,7 @@ public class PacManService  implements IPacManService {
     public EsqEntity esquireCommandSave(Integer kind, String id, String cmd, Map<String, Object> fields, String rootPath, String uid, List<String> roles) {
         String correlationId = RequestContextUtils.getCorrelationId();
         String requestId = RequestContextUtils.getRequestId();
-//        log.debug("srvc: esquireCommandSave: kind:{}, id:{}, cmd:{}, rootPath:{}, uid:{}", kind, id, cmd, rootPath, uid);
+//        devLog.debug("srvc: esquireCommandSave: kind:{}, id:{}, cmd:{}, rootPath:{}, uid:{}", kind, id, cmd, rootPath, uid);
         int k = ((int)Math.floor((double) kind/2)) * 2;
         EsqObjectKind eek = EsqObjectKindStorage.getInstance().get(k);
         if (!eek.isAcct()) {
@@ -110,13 +114,13 @@ public class PacManService  implements IPacManService {
 
         Map<Integer, EsqPermission> permissions = EsqRolesStorage.getInstance().findAdminPermissions(roles);
         boolean permitted = false;
-//log.debug("srvc: esquireCommandSave: permissions:{} ", permissions);
+//devLog.debug("srvc: esquireCommandSave: permissions:{} ", permissions);
         if (permissions != null) {
             permitted = EsqRolesStorage.getInstance().isAdminCmdPermitted(
                     permissions.get(k),
                     EsqRolesStorage.AdminCmd.UPDATE
             );
-            log.debug("srvc: esquireCommandSave: permitted:{} ", permitted);
+            devLog.debug("srvc: esquireCommandSave: permitted:{} ", permitted);
         }
         if (!permitted) {
             throw new PermissionDeniedException(eek.getTitle(), "modify");
@@ -139,7 +143,7 @@ public class PacManService  implements IPacManService {
         if (isBroadcastableUpdate(fields)) {
             publishEntityEvent(ret, k, EsqMsgConstants.EVENT_UPDATE, requestId, correlationId, fields);
         }
-        log.debug("srvc: esquireCommandSave(2): entity:{}", ret);
+        devLog.debug("srvc: esquireCommandSave(2): entity:{}", ret);
         return ret;
     }
 
@@ -167,7 +171,8 @@ public class PacManService  implements IPacManService {
             broadcastPublisher.publish(entityKind, entity.getId(), eventType,
                     requestId, correlationId, text);
         } catch (Exception e) {
-            log.warn("publishEntityEvent: broadcast failed for kind={}, id={}: {}", entityKind, entity.getId(), e.getMessage());
+            log.error("publishEntityEvent: broadcast failed for kind={}, id={}: {}", entityKind, entity.getId(), e.getMessage());
+            devLog.error("publishEntityEvent: broadcast failed for kind={}, id={}, requestId={}, correlationId={}: {}", entityKind, entity.getId(), requestId, correlationId, e.getMessage(), e);
         }
     }
 
@@ -202,7 +207,7 @@ public class PacManService  implements IPacManService {
                 if (field != null) {
                     if (field.getReadwrite() != null && (field.getReadwrite() & 2) == 2) {
                         value = ValidatorFactory.getInstance().validate(jpa, kfl, false, value);
-//log.debug("pacMan:PacManService:applyFields: {} value:{}", name, value);
+//devLog.debug("pacMan:PacManService:applyFields: {} value:{}", name, value);
                         wrapper.setPropertyValue(name, value);
                         changed = true;
                     }
@@ -220,7 +225,7 @@ public class PacManService  implements IPacManService {
                 ret++; // xxx: non-admin user, root is the current user
             }
         }
-        //log.debug("rootLevel: path={}, uid={}, ret={}", path, uid, ret);
+        //devLog.debug("rootLevel: path={}, uid={}, ret={}", path, uid, ret);
         return ret;
     }
 

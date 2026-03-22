@@ -10,6 +10,8 @@
  * 03/20/2026 mir0n  Phase 2: UPDATE events applied to H2 cache via IBizTreeCacheRepository.updateNode()
  *                   handles "deleted" (enyMan/USR) and "status" (pacMan/ACCT) fields
  *                   decodeStatus(): raw string → 0/1/2; null status values not propagated
+ * 03/21/2026 mir0n  three-tier logging: broadcastLog→msgLog/devLog; MDC set/clear; requestId/correlationId reads;
+ *                   dual-mode ENTITY msg audit; console echo log.info; dual error pattern; unused imports removed
  */
 package pro.mir0n.esquire.bizTree.messaging;
 
@@ -20,11 +22,14 @@ import jakarta.jms.Message;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.jms.annotation.JmsListener;
 import org.springframework.stereotype.Component;
 import pro.mir0n.esquire.bizTree.cache.IBizTreeCacheRepository;
+import pro.mir0n.esquire.common.EsqConstants;
 import pro.mir0n.esquire.common.EsqMsgConstants;
+import pro.mir0n.esquire.messaging.jms.Utils;
 
 /**
  * Durable consumer for the esquire.entity.broadcast topic.
@@ -54,7 +59,8 @@ public class EsqEntityBroadcastConsumer {
     private static final int STATUS_DELETED = 1;
     private static final int STATUS_LOCKED  = 2;
 
-    private static final Logger broadcastLog = LoggerFactory.getLogger("entity.broadcast");
+    private static final Logger msgLog = LoggerFactory.getLogger("msg." + EsqEntityBroadcastConsumer.class.getName());
+    private static final Logger devLog = LoggerFactory.getLogger("develop." + EsqEntityBroadcastConsumer.class.getName());
 
     private final IBizTreeCacheRepository cacheRepository;
     private final ObjectMapper objectMapper;
@@ -80,15 +86,26 @@ public class EsqEntityBroadcastConsumer {
     public void onEntityBroadcast(Message message) {
         String applMsgId = null;
         try {
-            applMsgId    = message.getStringProperty(EsqMsgConstants.FIELD_APPL_MSG_ID);
+            applMsgId         = message.getStringProperty(EsqMsgConstants.FIELD_APPL_MSG_ID);
             String serviceId  = message.getStringProperty(EsqMsgConstants.FIELD_SERVICE_ID);
             String entityId   = message.getStringProperty(EsqMsgConstants.FIELD_ENTITY_ID);
             int    entityKind = message.getIntProperty(EsqMsgConstants.FIELD_ENTITY_KIND);
             String eventType  = message.getStringProperty(EsqMsgConstants.FIELD_EVENT_TYPE);
+            String requestId  = message.getStringProperty(EsqMsgConstants.FIELD_REQUEST_ID);
+            String correlationId = message.getStringProperty(EsqMsgConstants.FIELD_CORRELATION_ID);
             String textJson   = message.getStringProperty(EsqMsgConstants.FIELD_TEXT);
 
-            broadcastLog.info("ENTITY | serviceId={} | kind={} | id={} | event={} | applMsgId={} | text={}",
-                    serviceId, entityKind, entityId, eventType, applMsgId, textJson);
+            MDC.put(EsqConstants.PD_REQUEST_ID, requestId);
+            MDC.put(EsqConstants.PD_CORRELATION_ID, correlationId);
+
+            if (msgLog.isDebugEnabled()) {
+                msgLog.info("ENTITY | UE | {}", Utils.formatProps(message));
+            } else {
+                msgLog.info("ENTITY | UE | {} | {} | {} | {} | {} | {}",
+                        applMsgId, eventType, entityKind, entityId, requestId, correlationId);
+            }
+            log.info("ENTITY | UE | {} | {} | {} | {}",
+                    applMsgId, eventType, entityKind, entityId); //xxx: requestId, correlationId are in MDC
 
             if (EsqMsgConstants.EVENT_UPDATE.equals(eventType) && textJson != null) {
                 try {
@@ -111,11 +128,15 @@ public class EsqEntityBroadcastConsumer {
                     }
                 } catch (Exception ex) {
                     log.error("EsqEntityBroadcastConsumer: cache update failed applMsgId={}: {}", applMsgId, ex.getMessage());
+                    devLog.error("EsqEntityBroadcastConsumer: cache update failed applMsgId={}: {}", applMsgId, ex.getMessage(), ex);
                 }
             }
 
         } catch (JMSException e) {
             log.error("EsqEntityBroadcastConsumer: message error applMsgId={}: {}", applMsgId, e.getMessage());
+            devLog.error("EsqEntityBroadcastConsumer: message error applMsgId={}: {}", applMsgId, e.getMessage(), e);
+        } finally {
+            MDC.clear();
         }
     }
 

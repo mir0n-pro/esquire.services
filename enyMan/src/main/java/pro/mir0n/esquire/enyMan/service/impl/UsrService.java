@@ -17,6 +17,7 @@
  * 03/09/2026 mir0n  esquireCommandSave(): roles param added
  * 03/10/2026 mir0n  import: RequestContextUtils updated to backend.service package
  * 03/10/2026 mir0n  fillКindFieldLayer() call updated to fillKindFieldLayer() — Cyrillic К → ASCII K
+ * 03/21/2026 mir0n  devLog added; log.debug→devLog.debug
  */
 
 package pro.mir0n.esquire.enyMan.service.impl;
@@ -27,32 +28,29 @@ import java.beans.PropertyDescriptor;
 import java.util.*;
 
 import lombok.extern.slf4j.Slf4j;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.BeanWrapper;
 import org.springframework.beans.BeanWrapperImpl;
-import org.springframework.data.repository.query.Param;
 import pro.mir0n.esquire.backend.dto.*;
 import pro.mir0n.esquire.backend.jpa.*;
-import pro.mir0n.esquire.backend.jpa.entity.EsqOrgJpa;
 import pro.mir0n.esquire.backend.jpa.entity.EsqAddressJpa;
 import pro.mir0n.esquire.backend.jpa.entity.EsqPersonJpa;
 import pro.mir0n.esquire.backend.jpa.entity.EsqUsrJpa;
 import pro.mir0n.esquire.backend.storage.EsqObjectKindStorage;
 import pro.mir0n.esquire.backend.validator.ValidatorFactory;
 import pro.mir0n.esquire.enyMan.jpa.EsqEntityDictionaryRepository;
-import pro.mir0n.esquire.enyMan.jpa.EsqOrgRepository;
 import pro.mir0n.esquire.enyMan.jpa.EsqUsrRepository;
 import pro.mir0n.esquire.backend.service.RequestContextUtils;
 import pro.mir0n.esquire.backend.storage.EsqEntityDictionaryStorage;
 import pro.mir0n.esquire.backend.error.ResourceNotFoundException;
-import pro.mir0n.esquire.enyMan.service.IEnyManService;
-import lombok.AllArgsConstructor;
-import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import pro.mir0n.esquire.common.EsqConstants;
 
 @Slf4j
 public class UsrService  extends AEnyManService {
+
+    private static final org.slf4j.Logger devLog = LoggerFactory.getLogger("develop." + UsrService.class.getName());
 
     private final EsqUsrRepository usrRepository;
     private final TransactionTemplate transactionTemplate;
@@ -77,7 +75,7 @@ public class UsrService  extends AEnyManService {
 
     @Override
     public EsqEntity esquireCommand(Integer kind, String id, String cmd, String rootPath, String uid) {
-        log.debug("srvc: esquireCommand(usr): kind:{}, id:{}, cmd:{}, rootPath:{}, uid:{}",  kind, id, cmd, rootPath, uid);
+        devLog.debug("srvc: esquireCommand(usr): kind:{}, id:{}, cmd:{}, rootPath:{}, uid:{}",  kind, id, cmd, rootPath, uid);
 
         EsqObjectKind eek = EsqObjectKindStorage.getInstance().get(kind);
         List<EsqEntityJpa> children = null;
@@ -109,7 +107,7 @@ public class UsrService  extends AEnyManService {
             children = (List<EsqEntityJpa>) (List<?>) usrRepository.userAccts(id, rootPath);
         }
         EsqEntity ret = EsqEntityFactory.getInstance().createUser(jpa, custom, children, person, address, address2 );
-        log.debug("srvc: esquireCommand(usr): entity:{}",  ret);
+        devLog.debug("srvc: esquireCommand(usr): entity:{}",  ret);
         return  ret;
     }
 
@@ -117,7 +115,7 @@ public class UsrService  extends AEnyManService {
     public EsqEntity esquireCommandSave(Integer kind, String id, String cmd, Map<String, Object> fields, String rootPath, String uid, List<String> roles) {
         String correlationId = RequestContextUtils.getCorrelationId();
         String requestId = RequestContextUtils.getRequestId();
-        log.debug("srvc: esquireCommandSave(usr): kind:{}, id:{}, cmd:{}, rootPath:{}, uid:{}", kind, id, cmd, rootPath, uid);
+        devLog.debug("srvc: esquireCommandSave(usr): kind:{}, id:{}, cmd:{}, rootPath:{}, uid:{}", kind, id, cmd, rootPath, uid);
 
         EsqObjectKind eek = EsqObjectKindStorage.getInstance().get(kind);
         //xxx: tricks with pointers
@@ -141,7 +139,7 @@ public class UsrService  extends AEnyManService {
 
         EsqEntity ret = EsqEntityFactory.getInstance().createUser(updated[0], custom[0], children == null ? null : children[0],
                     person == null ? null : person[0], address == null ? null : address[0], address2 == null ? null : address2[0]);
-        log.debug("srvc: esquireCommandSave(usr): entity:{}", ret);
+        devLog.debug("srvc: esquireCommandSave(usr): entity:{}", ret);
         return ret;
     }
 
@@ -167,9 +165,9 @@ public class UsrService  extends AEnyManService {
         EsqEntityDictionary dictUser = EsqEntityDictionaryStorage.getInstance().get(usr.getKind());
         EsqEntityKindFieldLayer kfl = new EsqEntityKindFieldLayer();
         boolean personal = id.equals(uid);
-//log.debug("looking for {} {}",EsqConstants.SUBENTITY_PERSON, dictUser.getKind());
+//devLog.debug("looking for {} {}",EsqConstants.SUBENTITY_PERSON, dictUser.getKind());
         kfl = dictUser.fillKindFieldLayer(EsqConstants.SUBENTITY_PERSON,kfl);
-//log.debug("person layer {}",kfl.getLayer());
+//devLog.debug("person layer {}",kfl.getLayer());
         if (applyFields(prsn, mprsn, personal, kfl.getLayer(), null)) {
 
             // Derive user name from person (First [Middle] Last) and inject into fields.
@@ -222,9 +220,9 @@ public class UsrService  extends AEnyManService {
             if (addr != null) {
                 //addr.setId(id);
                 Map<String, Object> maddr = (Map<String, Object>) fields.get(EsqConstants.SUBENTITY_ADDRESS);
-//log.debug("looking for {} {}",EsqConstants.SUBENTITY_ADDRESS, dictUser.getKind());
+//devLog.debug("looking for {} {}",EsqConstants.SUBENTITY_ADDRESS, dictUser.getKind());
                 kfl = dictUser.fillKindFieldLayer(EsqConstants.SUBENTITY_ADDRESS, kfl);
-//log.debug("address layer {} {}", EsqConstants.SUBENTITY_ADDRESS, kfl.getLayer());
+//devLog.debug("address layer {} {}", EsqConstants.SUBENTITY_ADDRESS, kfl.getLayer());
                 if (applyFields(addr, maddr, personal, kfl.getLayer(), null)) {
                     usrRepository.updateAddress(id, EsqConstants.KIND_PERSON_PRIMARY, addr.getDesc(),
                             addr.getAddr(), addr.getAddr2(), addr.getCity(), addr.getCompany(),
@@ -238,9 +236,9 @@ public class UsrService  extends AEnyManService {
             if (addr2 != null) {
                 //addr2.setId(id);
                 Map<String, Object> maddr2 = (Map<String, Object>) fields.get(EsqConstants.SUBENTITY_ADDRESS2);
-//log.debug("looking for {} {}",EsqConstants.SUBENTITY_ADDRESS2, dictUser.getKind());
+//devLog.debug("looking for {} {}",EsqConstants.SUBENTITY_ADDRESS2, dictUser.getKind());
                 kfl = dictUser.fillKindFieldLayer(EsqConstants.SUBENTITY_ADDRESS2, kfl);
-//log.debug("address2 layer {} {}", EsqConstants.SUBENTITY_ADDRESS2, kfl.getLayer());
+//devLog.debug("address2 layer {} {}", EsqConstants.SUBENTITY_ADDRESS2, kfl.getLayer());
                 if (applyFields(addr2, maddr2, personal, kfl.getLayer(), null)) {
                     usrRepository.updateAddress2(id, EsqConstants.KIND_PERSON_PRIMARY, addr2.getDesc(),
                             addr2.getAddr(), addr2.getAddr2(), addr2.getCity(), addr2.getCompany(),

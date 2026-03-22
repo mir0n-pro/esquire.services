@@ -9,6 +9,11 @@ spring:
     password: ${AMQ_PASSWORD:}
   jms:
     client-id: ${KEYSMITH_MESSAGING_CLIENT_ID:keysmith}
+# Messaging: KC sync producer
+keysmith:
+  messaging:
+    # Stable producer instance identifier (CtrlID in FIX envelope); response listener filters by this value
+    ctrl-id: ${KEYSMITH_CTRL_ID:keysmith.default}
   jpa:
     hibernate:
       ddl-auto: none
@@ -16,19 +21,22 @@ spring:
   mvc:
     problemdetails:
       enabled: true
-keycloak:
-  sync:
-    log-path: ${KC_SYNC_LOG_PATH:logs/kc-response.log}
-
 logging:
-  # Console pattern and structured format are configured in logback-spring.xml
   level:
     root: ${LOG_LEVEL_ROOT:ERROR}
     org:
       springframework: ${LOG_LEVEL_SF:ERROR}
+      springframework.jms: ${LOG_LEVEL_JMS:ERROR}
+      apache:
+        activemq: ${LOG_LEVEL_AMQ:ERROR}
     pro:
       mir0n: ${LOG_LEVEL_MIR0N:ERROR}
-    kc.sync: ${LOG_LEVEL_KC_SYNC:INFO}
+    develop: ${LOG_LEVEL_DEVELOP:DEBUG}
+    msg: ${LOG_LEVEL_MSG:INFO}
+  develop:
+    log-path: ${DEVELOP_LOG_PATH:logs/keySmith-develop.log}
+  msg:
+    log-path: ${MSG_LOG_PATH:logs/keySmith-msg.log}
 
 ---
 # Development Oracle

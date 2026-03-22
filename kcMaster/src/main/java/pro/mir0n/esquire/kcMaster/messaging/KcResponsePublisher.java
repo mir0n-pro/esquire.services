@@ -8,6 +8,8 @@
  *  History:
  * 03/20/2026 mir0n  initial — publishes URS (success) and URR (request reject) to esquire.kc.response
  *                   whole message logged via LinkedHashMap props; URR carries RFC 9457 Error header
+ * 03/21/2026 mir0n  three-tier logging: kcAudit→msgLog/devLog; mid extracted before props map;
+ *                   dual-mode URS and URR audit; console echo log.info; dual error pattern
  */
 
 package pro.mir0n.esquire.kcMaster.messaging;
@@ -33,7 +35,8 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class KcResponsePublisher {
 
-    private static final org.slf4j.Logger kcAudit = LoggerFactory.getLogger("kc.audit");
+    private static final org.slf4j.Logger msgLog = LoggerFactory.getLogger("msg." + KcResponsePublisher.class.getName());
+    private static final org.slf4j.Logger devLog = LoggerFactory.getLogger("develop." + KcResponsePublisher.class.getName());
 
     private final JmsTemplate jmsQueueTemplate;
     private final ObjectMapper objectMapper;
@@ -42,7 +45,8 @@ public class KcResponsePublisher {
                                String ctrlId, String requestId, String correlationId, String testReqId) {
         try {
             Map<String, Object> props = new LinkedHashMap<>();
-            props.put(EsqMsgConstants.FIELD_APPL_MSG_ID,   UUID.randomUUID().toString());
+            String mid = UUID.randomUUID().toString();
+            props.put(EsqMsgConstants.FIELD_APPL_MSG_ID,   mid);
             props.put(EsqMsgConstants.FIELD_MSG_TYPE,       EsqMsgConstants.MSG_TYPE_RESPONSE);
             props.put(EsqMsgConstants.FIELD_EVENT_TYPE,     command);
             props.put(EsqMsgConstants.FIELD_ENTITY_KIND,    EsqConstants.KIND_ACCESS_PROFILE);
@@ -57,10 +61,18 @@ public class KcResponsePublisher {
                 Utils.setProps(msg, props);
                 return msg;
             });
-
-            kcAudit.info("KC | URS | {}", Utils.formatProps(props));
+            if (msgLog.isDebugEnabled()) {
+                msgLog.info("KC | URS | {}", Utils.formatProps(props));
+            } else {
+                msgLog.info("KC | URS | {} | {} | {} | {} | {} | {} | {} | {}",
+                    mid, command, EsqConstants.KIND_ACCESS_PROFILE, entityId,
+                        ctrlId, requestId, correlationId, testReqId);
+            }
+            log.info("KC | URS | {} | {} | {} | {} | {} | {}",
+                    mid, command, EsqConstants.KIND_ACCESS_PROFILE, entityId, ctrlId, testReqId);
         } catch (Exception e) {
-            log.error("kcMaster: failed to publish URS: entityId={} error={}", entityId, e.getMessage(), e);
+            log.error("kcMaster: failed to publish URS: entityId={}, error={}", entityId, e.getMessage());
+            devLog.error("kcMaster: failed to publish URS: entityId={}, requestId={}, correlationId={}, error={}", entityId, requestId, correlationId, e.getMessage(), e);
         }
     }
 
@@ -76,8 +88,10 @@ public class KcResponsePublisher {
             error.put("detail", errorMessage);
             String errorJson = objectMapper.writeValueAsString(error);
 
+            String mid = UUID.randomUUID().toString();
+
             Map<String, Object> props = new LinkedHashMap<>();
-            props.put(EsqMsgConstants.FIELD_APPL_MSG_ID,   UUID.randomUUID().toString());
+            props.put(EsqMsgConstants.FIELD_APPL_MSG_ID,   mid);
             props.put(EsqMsgConstants.FIELD_MSG_TYPE,       EsqMsgConstants.MSG_TYPE_REJECT);
             props.put(EsqMsgConstants.FIELD_EVENT_TYPE,     command);
             props.put(EsqMsgConstants.FIELD_ENTITY_KIND,    EsqConstants.KIND_ACCESS_PROFILE);
@@ -98,9 +112,18 @@ public class KcResponsePublisher {
                 return msg;
             });
 
-            kcAudit.info("KC | URR | {}", Utils.formatProps(props));
+            if (msgLog.isDebugEnabled()) {
+                msgLog.info("KC | URR | {}", Utils.formatProps(props));
+            } else {
+                msgLog.info("KC | URR | {} | {} | {} | {} | {} | {} | {} | {}",
+                        mid, command, EsqConstants.KIND_ACCESS_PROFILE, entityId,
+                        ctrlId, requestId, correlationId, testReqId);
+            }
+            log.info("KC | URR | {} | {} | {} | {} | {} | {}",
+                    mid, command, EsqConstants.KIND_ACCESS_PROFILE, entityId, ctrlId, testReqId);
         } catch (Exception e) {
-            log.error("kcMaster: failed to publish URR: entityId={} error={}", entityId, e.getMessage(), e);
+            log.error("kcMaster: failed to publish URR: entityId={}, error={}", entityId, e.getMessage());
+            devLog.error("kcMaster: failed to publish URR: entityId={}, requestId={}, correlationId={}, error={}", entityId, requestId, correlationId, e.getMessage(), e);
         }
     }
 

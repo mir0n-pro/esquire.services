@@ -1,5 +1,2 @@
 Esquire messaging helper classes
 
-
-03/21/2026 mir0n
-+ added jms.Utils

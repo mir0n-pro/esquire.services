@@ -19,7 +19,6 @@ import java.util.List;
 import java.util.Map;
 
 import pro.mir0n.esquire.backend.dto.EsqEntity;
-import pro.mir0n.esquire.backend.dto.EsqTreeNode;
 import pro.mir0n.esquire.backend.dto.EsqEntityLayer;
 
 public interface IEnyManService {

@@ -16,12 +16,14 @@
  *                  no more EsqTreeNode methods
  * 02/19/2026 mir0n  added esquireCommandSave() POST /esq-cmd-asave
  * 03/09/2026 mir0n  realm_access.roles extracted from JWT claims; roles passed to esquireCommandSave()
+ * 03/21/2026 mir0n  devLog added; log.debug→devLog.debug
  */
 
 package pro.mir0n.esquire.pacMan.controller;
 
 import io.jsonwebtoken.Claims;
 import lombok.extern.slf4j.Slf4j;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.ProblemDetail;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import pro.mir0n.esquire.backend.dto.*;
@@ -62,6 +64,9 @@ import pro.mir0n.esquire.common.EsqConstants;
 @Validated
 @CrossOrigin(origins = "http://localhost:4200")
 public class PacManController {
+
+    private static final org.slf4j.Logger devLog = LoggerFactory.getLogger("develop." + PacManController.class.getName());
+
     private IPacManService iPacManService;
 
     @Operation(
@@ -102,7 +107,7 @@ public class PacManController {
         List<String> roles = realmAccess != null ? (List<String>) realmAccess.get(EsqConstants.JWT_CLAIM_REALM_ACCESS_ROLES) : null;
 
         EsqEntity ret = iPacManService.esquireCommandSave(kind, id, cmd, fields, rootPath, uid, roles);
-        log.debug("esquireCommandSave: kind:{}, id:{}, cmd:{}, rootPath:{}, result:{}", kind, id, cmd, rootPath, String.valueOf(ret));
+        devLog.debug("esquireCommandSave: kind:{}, id:{}, cmd:{}, rootPath:{}, result:{}", kind, id, cmd, rootPath, String.valueOf(ret));
         return ResponseEntity.status(HttpStatus.OK).body(ret);
     }
 
@@ -120,7 +125,7 @@ public class PacManController {
         String uid = claims.get(EsqConstants.JWT_CLAIM_ENTITY_ID, String.class);
 
         EsqEntity entity = iPacManService.esquireCommand(kind, id, cmd, rootPath,  uid);
-        log.debug("esquireCommand: kind:{}, id:{}, cmd:{}, rootPath:{}, result:{}", kind, id, cmd, rootPath, String.valueOf(entity));
+        devLog.debug("esquireCommand: kind:{}, id:{}, cmd:{}, rootPath:{}, result:{}", kind, id, cmd, rootPath, String.valueOf(entity));
         return ResponseEntity.status(HttpStatus.OK).body(entity);
     }
 

@@ -8,6 +8,7 @@
  *  History:
  * 03/09/2026 mir0n  realm_access.roles existence validated; request rejected (401) if missing/empty
  * 03/10/2026 mir0n  moved to common; shared by all services via scanBasePackages
+ * 03/21/2026 mir0n  devLog added; log.debug→devLog.debug; unused imports removed
  */
 
 package pro.mir0n.esquire.backend.security;
@@ -20,6 +21,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ProblemDetail;
@@ -43,11 +45,13 @@ import pro.mir0n.esquire.common.EsqConstants;
 @RequiredArgsConstructor
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
+    private static final org.slf4j.Logger devLog = LoggerFactory.getLogger("develop." + JwtAuthenticationFilter.class.getName());
+
     private final JwtService jwtService;
     @Override
     protected boolean shouldNotFilter(@NonNull HttpServletRequest request) throws ServletException {
         String path = request.getServletPath();
-//log.debug("shouldNotFilter: request {} : {}", request.getMethod(), path);
+//devLog.debug("shouldNotFilter: request {} : {}", request.getMethod(), path);
         return path.startsWith("/api/public/")
                 || path.startsWith("/swagger-ui/")
                 || path.startsWith("/actuator/health")
@@ -65,8 +69,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         final String username;
 
 
-//log.debug("request {} : {}", request.getMethod(),request.getServletPath());
-//log.debug("authHeader: {}", authHeader);
+//devLog.debug("request {} : {}", request.getMethod(),request.getServletPath());
+//devLog.debug("authHeader: {}", authHeader);
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
             filterChain.doFilter(request, response);
             return;
@@ -87,7 +91,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             || roles == null || roles.isEmpty()
             ) {
                 sendErrorResponse(request, response, "Missing required claims ");
-                log.debug("Missing required claims {}", claims);
+                devLog.debug("Missing required claims {}", claims);
                 return;
             }
 
@@ -101,7 +105,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                SecurityContextHolder.getContext().setAuthentication(authToken);
            }
         } catch (Exception e) {
-            log.error("error on claims",e);
+            log.error("JwtAuthenticationFilter: error on claims: {}", e.getMessage());
+            devLog.error("JwtAuthenticationFilter: error on claims: {}", e.getMessage(), e);
             sendErrorResponse(request, response, "Invalid or expired token");
             return; // STOP the chain here
         }

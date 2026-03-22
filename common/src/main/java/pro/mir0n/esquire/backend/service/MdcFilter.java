@@ -7,6 +7,8 @@
  *
  *  History:
  * 03/10/2026 mir0n  created: generalized from per-service implementations; MDC population, metrics headers
+ * 03/21/2026 mir0n  three-tier logging: devLog added; log.debug→devLog.debug; dual error pattern
+ *                   actuator short-circuit: /actuator/** bypasses MDC setup and logging entirely
  */
 
 package pro.mir0n.esquire.backend.service;
@@ -17,6 +19,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
@@ -43,18 +46,25 @@ import java.util.Collection;
 @RequiredArgsConstructor
 public class MdcFilter extends OncePerRequestFilter {
 
+    private static final org.slf4j.Logger devLog = LoggerFactory.getLogger("develop." + MdcFilter.class.getName());
+
     private final RequestPerformance performance; //lets lombok work
 
     @Override
     protected void doFilterInternal(HttpServletRequest givenRequest, HttpServletResponse givenResponse, FilterChain filterChain)
             throws ServletException, IOException {
 
+        if (givenRequest.getRequestURI().startsWith("/actuator")) {
+            filterChain.doFilter(givenRequest, givenResponse);
+            return;
+        }
+
         log.info("INCOMING: {} {}",
             givenRequest.getMethod(),
             givenRequest.getRequestURI()
         );
 
-        log.debug("MDC , headers: {}", headerNames(givenRequest.getHeaderNames()));
+        devLog.debug("MDC , headers: {}", headerNames(givenRequest.getHeaderNames()));
 
         long startTime = System.currentTimeMillis();
         performance.setMetricsCaptured("true".equalsIgnoreCase( givenRequest.getHeader(EsqConstants.ESQ_CAPTURE_METRICS)));
@@ -81,7 +91,7 @@ public class MdcFilter extends OncePerRequestFilter {
             if (requestId != null) {
                 MDC.put(EsqConstants.PD_REQUEST_ID, requestId);
             }
-            log.debug("MDC populated with correlationId: {}, requestId: {}", correlationId, requestId);
+            devLog.debug("MDC populated with correlationId: {}, requestId: {}", correlationId, requestId);
             filterChain.doFilter(givenRequest, response);
         } finally {
             long duration = System.currentTimeMillis() - startTime;
@@ -93,11 +103,13 @@ public class MdcFilter extends OncePerRequestFilter {
                         response.addHeader(EsqConstants.ESQ_BACKEND_TIME, performance.getTotalJpaTime() + "ms");
                     } else {
                         log.error("Could not add headers due response is commited already");
+                    devLog.error("Could not add headers due response is commited already");
                     }
 
                 } catch (Exception e) {
                     // Silently ignore or log - we don't want this to prevent MDC cleanup
-                    log.error("Could not add headers", e);
+                    log.error("Could not add headers: {}", e.getMessage());
+                    devLog.error("Could not add headers: {}", e.getMessage(), e);
                 }
                 wrappedResponse.copyBodyToResponse();
             }

@@ -1,5 +1,22 @@
 Esquire enyMan Microservice
 
+03/21/2026 mir0n  three-tier logging normalization
+messaging.EsqEntityBroadcastPublisher
+  - msgLog/devLog added; props map migrated to LinkedHashMap+Utils.setProps/formatProps
+  - dual-mode ENTITY msg audit (isDebugEnabled: full props / compact fields); console echo log.info
+  - final variable copies (finalRid, finalCid, finalText) removed
+messaging.EsqEntityBroadcastConsumer
+  - devLog added; log.debug→devLog.debug; log.warn→devLog.debug
+  - MDC set/clear; requestId/correlationId reads; dual error pattern; unused imports removed
+EnyManApplication, controller.EnyManController
+  - devLog added; log.debug→devLog.debug
+service.IEnyManService
+  - unused imports removed
+service.impl.AEnyManService, OrgService, UsrService
+  - devLog added; log.debug→devLog.debug
+service.impl.EnyManService
+  - devLog added; dual error pattern (publishEntityEvent catch: log.warn→log.error+devLog.error)
+
 03/20/2026 mir0n  Messaging Phase 2 — status broadcast; publisher decoupling; service-id fix; consumer transport
 messaging.EsqEntityBroadcastPublisher
   - switched to properties-only transport: Message (no body) replaces TextMessage; FIX-JSON body removed

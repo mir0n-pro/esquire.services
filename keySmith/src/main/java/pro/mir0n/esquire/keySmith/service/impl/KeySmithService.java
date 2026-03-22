@@ -31,6 +31,7 @@
  *                   applyFields(): tfaMethod state machine — G/N only; pending via lowercase g/n
  * 03/20/2026 mir0n  KC sync decoupled: IKeycloakIdentityService replaced with KcSyncPublisher
  *                   syncToKeycloak() replaced with kcSyncPublisher.publish() — fire-and-forget via JMS
+ * 03/21/2026 mir0n  devLog added; log.debug→devLog.debug
  */
 
 package pro.mir0n.esquire.keySmith.service.impl;
@@ -45,6 +46,7 @@ import java.util.Map;
 import java.util.Set;
 
 import lombok.extern.slf4j.Slf4j;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.BeanWrapper;
 import org.springframework.beans.BeanWrapperImpl;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -72,6 +74,8 @@ import org.springframework.stereotype.Service;
 @AllArgsConstructor
 public class KeySmithService implements IKeySmithService {
 
+    private static final org.slf4j.Logger devLog = LoggerFactory.getLogger("develop." + KeySmithService.class.getName());
+
     private EsqAccessProfileRepository accessProfileRepository;
     private TransactionTemplate transactionTemplate;
     private EntityManager em;
@@ -83,7 +87,7 @@ public class KeySmithService implements IKeySmithService {
         //String correlationId = RequestContextUtils.getCorrelationId();
         //String requestId = RequestContextUtils.getRequestId();
 
-        log.debug("KeySmithService: esquireKey: id:{}, rootPath:{}, uid:{}",  id, rootPath, uid);
+        devLog.debug("KeySmithService: esquireKey: id:{}, rootPath:{}, uid:{}",  id, rootPath, uid);
 
         String upk = id == null ? uid : id;
 
@@ -109,7 +113,7 @@ public class KeySmithService implements IKeySmithService {
         }
 
         EsqAccessProfile ret = new EsqAccessProfile().fill(jpa, roles, rolesAll, permissions);
-        log.debug("KeySmithService: esquireKey(2): accessProfile:{}",  ret);
+        devLog.debug("KeySmithService: esquireKey(2): accessProfile:{}",  ret);
         return  ret;
     }
 
@@ -117,7 +121,7 @@ public class KeySmithService implements IKeySmithService {
     public EsqAccessProfile esquireKeySave(String id, Map<String, Object> fields, String rootPath, String uid, List<String> roles) {
         String correlationId = RequestContextUtils.getCorrelationId();
         String requestId = RequestContextUtils.getRequestId();
-        log.debug("KeySmithService: esquireKeySave: id:{}, rootPath:{}, uid:{}", id, rootPath, uid);
+        devLog.debug("KeySmithService: esquireKeySave: id:{}, rootPath:{}, uid:{}", id, rootPath, uid);
 
         String upk = id == null ? uid : id;
         boolean personal = upk.equals(uid);
@@ -148,7 +152,7 @@ public class KeySmithService implements IKeySmithService {
             permissions = EsqRolesStorage.getInstance().fillPermissionsForRole(r.getName(), permissions);
         }
         EsqAccessProfile ret = new EsqAccessProfile().fill( updated[0], rolesAssigned[0], rolesAll, permissions);
-        log.debug("KeySmithService: esquireKeySave(2): accessProfile:{}", ret);
+        devLog.debug("KeySmithService: esquireKeySave(2): accessProfile:{}", ret);
         return ret;
     }
 
@@ -197,7 +201,7 @@ public class KeySmithService implements IKeySmithService {
             EsqEntityDictionary dict = EsqEntityDictionaryStorage.getInstance().get(EsqConstants.KIND_ACCESS_PROFILE);
             EsqEntityKindFieldLayer kfl = dict.fillKindFieldLayer(IKeySmithService.FIELD_ROLES, null);
             List<?> value = (List<?>) fields.get(IKeySmithService.FIELD_ROLES);
-            log.debug("keySmith:saveAccess: roles:{}", value);
+            devLog.debug("keySmith:saveAccess: roles:{}", value);
             ValidatorFactory.getInstance().validate(jpa, kfl, personal, value);
 
             List<EsqRoleJpa> givenRoles = new ArrayList<>();
@@ -244,16 +248,16 @@ public class KeySmithService implements IKeySmithService {
         for (PropertyDescriptor pd : wrapper.getPropertyDescriptors()) {
             String name = pd.getName();
             if (fields.containsKey(name)) {
-//log.debug("keySmith:applyFields: name:{}", name);
+//devLog.debug("keySmith:applyFields: name:{}", name);
                 Object value = fields.get(name);
-//log.debug("keySmith:applyFields: value:{}", value);
+//devLog.debug("keySmith:applyFields: value:{}", value);
                 kfl = dict.fillKindFieldLayer(name, kfl) ;
-//log.debug("keySmith:applyFields: kfl:{} {} {} ", kfl.getEntityKind(), kfl.getLayer(), kfl.getField());
+//devLog.debug("keySmith:applyFields: kfl:{} {} {} ", kfl.getEntityKind(), kfl.getLayer(), kfl.getField());
                 EsqEntityField field = kfl.getField();
                 if (field != null) {
                     if (field.getReadwrite() != null && (field.getReadwrite() & 2) == 2) {
                         value = ValidatorFactory.getInstance().validate(jpa, kfl, personal, value);
-//log.debug("keySmith:validated: value:{}", value);
+//devLog.debug("keySmith:validated: value:{}", value);
                         boolean apply = true;
                         if ("tfaMethod".equals(name)) {
                             String v = value != null ? String.valueOf(value).toUpperCase() : "";

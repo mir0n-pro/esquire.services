@@ -17,13 +17,11 @@
 
 package pro.mir0n.esquire.backend.dto;
 
-import lombok.Getter;
 import pro.mir0n.esquire.backend.dto.entity.EsqAcct;
 import pro.mir0n.esquire.backend.dto.entity.EsqOrg;
 import pro.mir0n.esquire.backend.dto.entity.EsqUsr;
 import pro.mir0n.esquire.backend.jpa.EsqEntityJpa;
 import pro.mir0n.esquire.backend.jpa.EsqNameValueJpa;
-import pro.mir0n.esquire.backend.jpa.EsqTreeNodeJpa;
 import org.jetbrains.annotations.NotNull;
 import pro.mir0n.esquire.backend.storage.EsqObjectKindStorage;
 

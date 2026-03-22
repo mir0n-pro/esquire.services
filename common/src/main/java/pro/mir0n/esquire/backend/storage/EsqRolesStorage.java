@@ -9,6 +9,7 @@
  * 03/09/2026 mir0n  new: in-memory roles/permissions storage; findAdminPermissions(); isAdminCmdPermitted()
  * 03/10/2026 mir0n  roles() added: all roles as List<EsqRole>
  *                   fillPermissionsForRole() added: accumulates permissions for one role into a list
+ * 03/21/2026 mir0n  devLog added; log.debug→devLog.debug; dual error pattern; unused imports removed
  */
 
 package pro.mir0n.esquire.backend.storage;
@@ -16,6 +17,7 @@ package pro.mir0n.esquire.backend.storage;
 
 
 import lombok.extern.slf4j.Slf4j;
+import org.slf4j.LoggerFactory;
 
 import pro.mir0n.esquire.backend.dto.access.EsqRole;
 import pro.mir0n.esquire.backend.dto.access.EsqPermission;
@@ -31,6 +33,9 @@ import java.util.Map;
 
 @Slf4j
 public class EsqRolesStorage {
+
+    private static final org.slf4j.Logger devLog = LoggerFactory.getLogger("develop." + EsqRolesStorage.class.getName());
+
     public enum AdminCmd {
         CREATE,
         UPDATE,
@@ -71,10 +76,11 @@ public class EsqRolesStorage {
                 ret = true;
             }
         } catch (Exception e) {
-            log.error("Failed to init EsqRolesStorage", e);
+            log.error("EsqRolesStorage: init failed: {}", e.getMessage());
+            devLog.error("EsqRolesStorage: init failed: {}", e.getMessage(), e);
         }
         if (roles != null) {
-            log.debug("EsqRolesStorage initated with {}({}) roles.", roles.size(), permissions.size());
+            devLog.debug("EsqRolesStorage initated with {}({}) roles.", roles.size(), permissions.size());
         }
         return ret;
     }
@@ -86,7 +92,7 @@ public class EsqRolesStorage {
                 EsqRole r = roles.get(name);
                 if (r != null && r.getKind() == EsqConstants.KIND_ADMIN_ROLE) {
                     ret = permissions.get(name);
-log.debug("EsqRolesStorage.findAdminPermissions found role {} with permnissions {}.", name, ret);
+devLog.debug("EsqRolesStorage.findAdminPermissions found role {} with permnissions {}.", name, ret);
                     break;
                 }
             }
@@ -118,7 +124,7 @@ log.debug("EsqRolesStorage.findAdminPermissions found role {} with permnissions 
                 ret = "Y".equals(flags.get(idx));
             }
         }
-log.debug("EsqRolesStorage.isAdminCmdPermitted found role {} = {}.", cmd.ordinal(),  ret);
+devLog.debug("EsqRolesStorage.isAdminCmdPermitted found role {} = {}.", cmd.ordinal(),  ret);
         return ret;
     }
 

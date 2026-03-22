@@ -16,6 +16,7 @@
  * 01/24/2026 mir0n  ResourceNotFoundException.java moved to common lib
  * 03/10/2026 mir0n  import: RequestContextUtils updated to backend.service package
  * 03/20/2026 mir0n  switched from EsqTreeNodeRepository to IBizTreeCacheRepository (H2 in-memory cache)
+ * 03/21/2026 mir0n  devLog added; log.debug→devLog.debug
  */
 
 package pro.mir0n.esquire.bizTree.service.impl;
@@ -23,6 +24,7 @@ package pro.mir0n.esquire.bizTree.service.impl;
 import java.util.*;
 
 import lombok.extern.slf4j.Slf4j;
+import org.slf4j.LoggerFactory;
 import pro.mir0n.esquire.backend.dto.*;
 import pro.mir0n.esquire.backend.jpa.*;
 import pro.mir0n.esquire.bizTree.cache.IBizTreeCacheRepository;
@@ -39,6 +41,8 @@ import org.springframework.stereotype.Service;
 @AllArgsConstructor
 public class BizTreeService  implements IBizTreeService {
 
+    private static final org.slf4j.Logger devLog = LoggerFactory.getLogger("develop." + BizTreeService.class.getName());
+
     private IBizTreeCacheRepository treeNodeRepository;
 
     @Override
@@ -52,19 +56,19 @@ public class BizTreeService  implements IBizTreeService {
         List<String> path = EsqTreeNodeMapper.pathArray(rootPath);
         //xxx: for non-admins, it needs to make root-level  "path.size() -2"
         int rootLevel = rootLevel(path, uid);
-        log.debug("srvc: esquire: id:{}, rootPath:{}, uid:{}, level:{} cid:{} rid:{}", id, rootPath,uid, rootLevel, correlationId, requestId );
+        devLog.debug("srvc: esquire: id:{}, rootPath:{}, uid:{}, level:{} cid:{} rid:{}", id, rootPath,uid, rootLevel, correlationId, requestId );
 
         if (id != null && !id.isEmpty()) {
             nodes = treeNodeRepository.findNodes(id, rootLevel, rootPath);
         } else {
-            //log.debug("srvc: esquire(0): id:{}, rootPath:{}, uid:{}, level:{}", path.get(path.size() -1), rootPath,uid, rootLevel);
+            //devLog.debug("srvc: esquire(0): id:{}, rootPath:{}, uid:{}, level:{}", path.get(path.size() -1), rootPath,uid, rootLevel);
             nodes = treeNodeRepository.findRoot(path.get(path.size() -1),rootLevel, rootPath);
-            //log.debug("srvc: esquire(1): nodes:{}", nodes);
+            //devLog.debug("srvc: esquire(1): nodes:{}", nodes);
         }
         if (nodes == null) {// || nodes.isEmpty()) {
             throw new ResourceNotFoundException("esquire", "id", id==null?"''":id);
         }
-        log.debug("srvc: esquire(2): nodes:{}", nodes);
+        devLog.debug("srvc: esquire(2): nodes:{}", nodes);
         return EsqTreeNodeMapper.mapTo(nodes, new ArrayList<>());
     }
 
@@ -76,7 +80,7 @@ public class BizTreeService  implements IBizTreeService {
         // xxx: path is safe
         List<String> path = EsqTreeNodeMapper.pathArray(rootPath);
         int rootLevel = rootLevel(path, uid);
-        log.debug("srvc: esquireEntityNode: kind:{}, id:{}, name:{}, rootPath:{}, uid{}, rootLevel:{}", kind, id, name, rootPath, uid, rootLevel);
+        devLog.debug("srvc: esquireEntityNode: kind:{}, id:{}, name:{}, rootPath:{}, uid{}, rootLevel:{}", kind, id, name, rootPath, uid, rootLevel);
 
         if (id != null && !id.isEmpty()) {
             node = treeNodeRepository.findByEntityId(id, rootLevel, rootPath);
@@ -86,7 +90,7 @@ public class BizTreeService  implements IBizTreeService {
         if (node == null) {
             throw new ResourceNotFoundException("esquireEntityNode", "id,name,kind", id + "," + name + "," + kind);
         }
-        log.debug("srvc: esquireEntityNode(2): node:{}", node);
+        devLog.debug("srvc: esquireEntityNode(2): node:{}", node);
         return EsqTreeNodeMapper.mapTo(node, new EsqTreeNode());
     }
 
@@ -94,7 +98,7 @@ public class BizTreeService  implements IBizTreeService {
     public List<String> esquirePath(String id, String rootPath) {
         String correlationId = RequestContextUtils.getCorrelationId();
         String requestId = RequestContextUtils.getRequestId();
-        log.debug("srvc: esquirePath: id:{}, rootPath:{}",  id, rootPath);
+        devLog.debug("srvc: esquirePath: id:{}, rootPath:{}",  id, rootPath);
 
         String ret = treeNodeRepository.findPath(id);
         List<String> rpath = EsqTreeNodeMapper.pathArray(rootPath);
@@ -107,7 +111,7 @@ public class BizTreeService  implements IBizTreeService {
         } else {
             path = path.subList(rpath.size() -1, path.size());
         }
-        log.debug("srvc: esquirePath(2): path:{}", id, path);
+        devLog.debug("srvc: esquirePath(2): path:{}", id, path);
         return path;
     }
 
@@ -119,7 +123,7 @@ public class BizTreeService  implements IBizTreeService {
                 ret++; // xxx: non-admin user, root is the current user
             }
         }
-        //log.debug("rootLevel: path={}, uid={}, ret={}", path, uid, ret);
+        //devLog.debug("rootLevel: path={}, uid={}, ret={}", path, uid, ret);
         return ret;
     }
 

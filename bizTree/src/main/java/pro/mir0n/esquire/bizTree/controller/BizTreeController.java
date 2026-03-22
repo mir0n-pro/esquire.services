@@ -14,12 +14,14 @@
  *                  ErrorResponse replaced with ProblemDetail
  * 01/23/2026 mir0n use common library
  *                  only EsqTreeNode requests
+ * 03/21/2026 mir0n  devLog added; log.debug→devLog.debug
  */
 
 package pro.mir0n.esquire.bizTree.controller;
 
 import io.jsonwebtoken.Claims;
 import lombok.extern.slf4j.Slf4j;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.ProblemDetail;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import pro.mir0n.esquire.backend.dto.EsqTreeNode;
@@ -58,6 +60,9 @@ import pro.mir0n.esquire.common.EsqConstants;
 @Validated
 @CrossOrigin(origins = "http://localhost:4200")
 public class BizTreeController {
+
+    private static final org.slf4j.Logger devLog = LoggerFactory.getLogger("develop." + BizTreeController.class.getName());
+
     private IBizTreeService iBizTreeService;
 
     @Operation(
@@ -96,7 +101,7 @@ public class BizTreeController {
         String uid = claims.get(EsqConstants.JWT_CLAIM_ENTITY_ID, String.class);
 
         List<EsqTreeNode> nodes = iBizTreeService.esquire(id, skip == null ? 0 : skip, take == null? 0 : take, rootPath, uid);
-        log.debug("esquire: id:{}, rootPath:{}, uid:{}, result:{}", id, rootPath,uid, String.valueOf(nodes));
+        devLog.debug("esquire: id:{}, rootPath:{}, uid:{}, result:{}", id, rootPath,uid, String.valueOf(nodes));
         return ResponseEntity.status(HttpStatus.OK).body(nodes);
     }
 
@@ -114,7 +119,7 @@ public class BizTreeController {
         String uid = claims.get(EsqConstants.JWT_CLAIM_ENTITY_ID, String.class);
 
         EsqTreeNode node = iBizTreeService.esquireEntityNode(kind, id, name, rootPath, uid);
-        log.debug("esquireEntityNode: kind:{}, id:{}, name:{}, rootPath:{}, result:{}", kind, id, name, rootPath, String.valueOf(node));
+        devLog.debug("esquireEntityNode: kind:{}, id:{}, name:{}, rootPath:{}, result:{}", kind, id, name, rootPath, String.valueOf(node));
         return ResponseEntity.status(HttpStatus.OK).body(node);
     }
 
@@ -127,7 +132,7 @@ public class BizTreeController {
         String rootPath = claims.get(EsqConstants.JWT_CLAIM_ENTITY_ROOTPATH, String.class);
 
         List<String> path = iBizTreeService.esquirePath(id, rootPath);
-        log.debug("esquirePath: id:{}, result:{}, claims:{}", id, String.valueOf(path), String.valueOf(claims));
+        devLog.debug("esquirePath: id:{}, result:{}, claims:{}", id, String.valueOf(path), String.valueOf(claims));
         return ResponseEntity.status(HttpStatus.OK).body(path);
     }
 

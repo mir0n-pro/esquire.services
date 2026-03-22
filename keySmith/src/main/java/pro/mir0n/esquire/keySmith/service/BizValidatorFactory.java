@@ -9,10 +9,12 @@
  * 03/06/2026 mir0n created: biz validator — max 1 admin role per user
  * 03/08/2026 mir0n  personal guard added: throws if personal=true (cannot change own permissions)
  * 03/10/2026 mir0n  unused import removed; getBizValidators() final modifier removed; comment corrected
+ * 03/21/2026 mir0n  devLog added; log.debug→devLog.debug
  */
 
 package pro.mir0n.esquire.keySmith.service;
 import lombok.extern.slf4j.Slf4j;
+import org.slf4j.LoggerFactory;
 import pro.mir0n.esquire.backend.dto.EsqEntityField;
 import pro.mir0n.esquire.backend.dto.EsqEntityKindFieldLayer;
 import pro.mir0n.esquire.backend.error.InvalidValueException;
@@ -25,6 +27,8 @@ import java.util.Map;
 
 @Slf4j
 public class BizValidatorFactory {
+
+    private static final org.slf4j.Logger devLog = LoggerFactory.getLogger("develop." + BizValidatorFactory.class.getName());
 
     private static final Map<Integer, IValidator> bizValidators = Map.of(
         EsqConstants.KIND_ACCESS_PROFILE, new RolesBizValidator()
@@ -39,7 +43,7 @@ public class BizValidatorFactory {
         @Override
         public Object validate(EsqEntityJpa origin, EsqEntityKindFieldLayer kfl, boolean personal, Object value) {
             Object ret = value;
-log.debug("keySmith:BizValidator:validate: value:{}", value);
+devLog.debug("keySmith:BizValidator:validate: value:{}", value);
             EsqEntityField field = kfl.getField();
             if (field != null
             && field.getName().equals(IKeySmithService.FIELD_ROLES)) {
@@ -48,7 +52,7 @@ log.debug("keySmith:BizValidator:validate: value:{}", value);
                             kfl.getLabel(), String.valueOf(kfl.getLayer() -1));
                 }
                 try {
-                    log.debug("keySmith:BizValidator:validate: {} value:{}", field.getName(), value);
+                    devLog.debug("keySmith:BizValidator:validate: {} value:{}", field.getName(), value);
                     List<?> lst = (List<?>) value;
                     int adminRoles = 0;
                     for (Object r : lst) {

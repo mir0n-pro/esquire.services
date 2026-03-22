@@ -8,6 +8,8 @@
  *  History:
  * 03/20/2026 mir0n  initial — replaces direct KC calls in KeySmithService.syncToKeycloak()
  *                   builds URQ from access profile JPA + roles and publishes to esquire.kc.request
+ * 03/21/2026 mir0n  ctrlId injected from keysmith.messaging.ctrl-id config (@Value) — stable instance id,
+ *                   not derived from correlationId; three-tier logging (msgLog/devLog), dual-mode msg audit
  */
 
 package pro.mir0n.esquire.keySmith.messaging;
@@ -18,6 +20,7 @@ import jakarta.jms.Session;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jms.core.JmsTemplate;
 import org.springframework.stereotype.Component;
 import pro.mir0n.esquire.backend.jpa.access.EsqAccessProfileJpa;
@@ -36,7 +39,11 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class KcSyncPublisher {
 
-    private static final org.slf4j.Logger kcSync = LoggerFactory.getLogger("kc.sync");
+    private static final org.slf4j.Logger msgLog = LoggerFactory.getLogger("msg." + KcSyncPublisher.class.getName());
+    private static final org.slf4j.Logger devLog = LoggerFactory.getLogger("develop." + KcSyncPublisher.class.getName());
+
+    @Value("${keysmith.messaging.ctrl-id}")
+    private String ctrlId;
 
     private final JmsTemplate jmsQueueTemplate;
     private final ObjectMapper objectMapper;
@@ -66,11 +73,12 @@ public class KcSyncPublisher {
         try {
             String text      = buildText(command, loginId, jpa, roles);
             String entityId  = String.valueOf(jpa.getId());
-            String ctrlId    = correlationId != null ? correlationId : UUID.randomUUID().toString();
             String testReqId = (requestId != null && !requestId.isBlank()) ? requestId : UUID.randomUUID().toString();
 
+            String mid = UUID.randomUUID().toString();
+
             Map<String, Object> props = new LinkedHashMap<>();
-            props.put(EsqMsgConstants.FIELD_APPL_MSG_ID,     UUID.randomUUID().toString());
+            props.put(EsqMsgConstants.FIELD_APPL_MSG_ID,     mid);
             props.put(EsqMsgConstants.FIELD_MSG_TYPE,         EsqMsgConstants.MSG_TYPE_REQUEST);
             props.put(EsqMsgConstants.FIELD_EVENT_TYPE,       command);
             props.put(EsqMsgConstants.FIELD_ENTITY_KIND,      EsqConstants.KIND_ACCESS_PROFILE);
@@ -88,10 +96,19 @@ public class KcSyncPublisher {
                 return msg;
             });
 
-            kcSync.info("KC | URQ | {}", Utils.formatProps(props));
+            if (msgLog.isDebugEnabled()) {
+                msgLog.info("KC | URQ | {}", Utils.formatProps(props));
+            } else {
+                msgLog.info("KC | URQ | {} | {} | {} | {} | {} | {} | {} | {}",
+                        mid, command, EsqConstants.KIND_ACCESS_PROFILE, entityId,
+                        ctrlId, requestId, correlationId, testReqId);
+            }
+            log.info("KC | URQ | {} | {} | {} | {} | {} | {}",
+                    mid, command, EsqConstants.KIND_ACCESS_PROFILE, entityId, ctrlId, testReqId);
         } catch (Exception e) {
             // DB already committed — message failure logged for reconciliation
-            log.error("keySmith: failed to publish URQ: loginId={} command={} error={}", loginId, command, e.getMessage(), e);
+            log.error("keySmith: failed to publish URQ: loginId={}, command={}, error={}", loginId, command, e.getMessage());
+            devLog.error("keySmith: failed to publish URQ: loginId={}, command={}, requestId={}, correlationId={}, error={}", loginId, command, requestId, correlationId, e.getMessage(), e);
         }
     }
 

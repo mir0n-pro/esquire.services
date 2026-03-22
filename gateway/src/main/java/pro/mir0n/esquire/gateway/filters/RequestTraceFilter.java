@@ -43,7 +43,7 @@ public class RequestTraceFilter implements GlobalFilter {
         String requestId = requestHeaders.getFirst(EsqConstants.X_REQUEST_ID);
         if (requestHeaders.get(EsqConstants.ESQ_CORRELATION_ID) != null) {
             correlationId = requestHeaders.getFirst(EsqConstants.ESQ_CORRELATION_ID);
-            log.trace("esq-correlation-id found in RequestTraceFilter : {}", correlationId);
+            //log.trace("esq-correlation-id found in RequestTraceFilter : {}", correlationId);
         } else {
             correlationId = obtainCorrelationId(requestHeaders);
             updateCorrelationId = true;
@@ -62,8 +62,8 @@ public class RequestTraceFilter implements GlobalFilter {
                         }
                     })
                     .build();
-            log.trace("esq-correlation-id generated in RequestTraceFilter : {} uri:{}:{}"
-                    , correlationId, exchange.getRequest().getMethod(), exchange.getRequest().getURI());
+            //log.trace("esq-correlation-id generated in RequestTraceFilter : {} uri:{}:{}"
+            //        , correlationId, exchange.getRequest().getMethod(), exchange.getRequest().getURI());
         }
 
 

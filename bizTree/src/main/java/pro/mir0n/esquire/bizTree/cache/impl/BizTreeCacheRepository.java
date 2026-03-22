@@ -8,10 +8,12 @@
  *  History:
  * 03/20/2026 mir0n  created: H2 implementation of IBizTreeCacheRepository
  *                   updateNode(): single CASE-based SQL UPDATE; WHERE tree_entity_pk only (entity_pk unique)
+ * 03/21/2026 mir0n  devLog added; log.debug→devLog.debug
  */
 package pro.mir0n.esquire.bizTree.cache.impl;
 
 import lombok.extern.slf4j.Slf4j;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
@@ -25,6 +27,8 @@ import java.util.List;
 @Slf4j
 @Repository
 public class BizTreeCacheRepository implements IBizTreeCacheRepository {
+
+    private static final org.slf4j.Logger devLog = LoggerFactory.getLogger("develop." + BizTreeCacheRepository.class.getName());
 
     private final JdbcTemplate    cache;
     private final BizTreeCacheSql sql;
@@ -88,7 +92,7 @@ public class BizTreeCacheRepository implements IBizTreeCacheRepository {
     public void updateNode(long entityPk, String name, String desc, Integer statusCode) {
         int ret = cache.update(sql.repo.updateNode(),
                 name, name, desc, desc, statusCode, statusCode, entityPk);
-        log.debug("BizTreeCacheRepository: updateNode id={} name={} desc={} status={} rows={}",
+        devLog.debug("BizTreeCacheRepository: updateNode id={} name={} desc={} status={} rows={}",
                 entityPk, name, desc, statusCode, ret);
     }
 }

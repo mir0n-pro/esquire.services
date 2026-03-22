@@ -14,15 +14,9 @@ package pro.mir0n.esquire.backend.dto.entity;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.*;
-import lombok.experimental.SuperBuilder;
 import pro.mir0n.esquire.backend.dto.EsqThing;
 import pro.mir0n.esquire.backend.jpa.EsqEntityJpa;
-import pro.mir0n.esquire.backend.jpa.EsqNameValueJpa;
-import pro.mir0n.esquire.backend.jpa.EsqTreeNodeJpa;
 import pro.mir0n.esquire.backend.jpa.entity.EsqPersonJpa;
-import pro.mir0n.esquire.backend.jpa.entity.EsqUsrJpa;
-
-import java.util.List;
 
 @Data
 @EqualsAndHashCode(callSuper = true)

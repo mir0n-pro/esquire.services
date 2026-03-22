@@ -9,18 +9,24 @@
  * 03/17/2026 mir0n  created: publishes FIX-JSON envelope to esquire.entity.broadcast on account update
  * 03/20/2026 mir0n  switched to properties-only transport: Message (no body); Text as JSON string property
  *                   service-id: removed inline constant fallback; config-only via @Value
+ * 03/21/2026 mir0n  three-tier logging: msgLog/devLog added; props map migrated to LinkedHashMap+Utils.setProps;
+ *                   dual-mode ENTITY msg audit; console echo log.info; final variable copies removed
  */
 package pro.mir0n.esquire.pacMan.messaging;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.jms.Message;
 import lombok.extern.slf4j.Slf4j;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jms.core.JmsTemplate;
 import org.springframework.stereotype.Component;
 import pro.mir0n.esquire.common.EsqMsgConstants;
 
+import pro.mir0n.esquire.messaging.jms.Utils;
+
 import java.time.Instant;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
 
@@ -37,6 +43,9 @@ import java.util.UUID;
 @Slf4j
 @Component
 public class EsqEntityBroadcastPublisher {
+
+    private static final org.slf4j.Logger msgLog = LoggerFactory.getLogger("msg." + EsqEntityBroadcastPublisher.class.getName());
+    private static final org.slf4j.Logger devLog = LoggerFactory.getLogger("develop." + EsqEntityBroadcastPublisher.class.getName());
 
     private final JmsTemplate jmsTopicTemplate;
     private final ObjectMapper objectMapper;
@@ -65,33 +74,39 @@ public class EsqEntityBroadcastPublisher {
             textJson = objectMapper.writeValueAsString(text != null ? text : Map.of());
         } catch (Exception e) {
             log.error("EsqEntityBroadcastPublisher: text serialization failed: {}", e.getMessage());
+            devLog.error("EsqEntityBroadcastPublisher: text serialization failed: {}", e.getMessage(), e);
             return;
         }
 
-        // --- send as properties-only message (no body) ---
-        final String finalRid  = rid;
-        final String finalCid  = cid;
-        final String finalText = textJson;
+        Map<String, Object> props = new LinkedHashMap<>();
+        props.put(EsqMsgConstants.FIELD_APPL_MSG_ID,      applMsgId);
+        props.put(EsqMsgConstants.FIELD_SENDING_TIME,     sendingTime);
+        props.put(EsqMsgConstants.FIELD_SCHEMA_VERSION,   EsqMsgConstants.SCHEMA_VERSION);
+        props.put(EsqMsgConstants.FIELD_BUS_ID,           EsqMsgConstants.BUS_ID_ENTITY);
+        props.put(EsqMsgConstants.FIELD_SERVICE_ID,       serviceId);
+        props.put(EsqMsgConstants.FIELD_CTRL_ID,          ctrlId);
+        props.put(EsqMsgConstants.FIELD_MSG_TYPE,         EsqMsgConstants.MSG_TYPE_ENTITY_BROADCASTS);
+        props.put(EsqMsgConstants.FIELD_EVENT_TYPE,       eventType);
+        props.put(EsqMsgConstants.FIELD_ENTITY_KIND,      entityKind);
+        props.put(EsqMsgConstants.FIELD_ENTITY_ID,        entityId);
+        props.put(EsqMsgConstants.FIELD_REQUEST_ID,       rid);
+        props.put(EsqMsgConstants.FIELD_CORRELATION_ID,   cid);
+        props.put(EsqMsgConstants.FIELD_MESSAGE_ENCODING, EsqMsgConstants.MESSAGE_ENCODING);
+        props.put(EsqMsgConstants.FIELD_TEXT,             textJson);
+
         jmsTopicTemplate.send(EsqMsgConstants.TOPIC_ENTITY_BROADCAST, session -> {
             Message msg = session.createMessage();
-            msg.setStringProperty(EsqMsgConstants.FIELD_APPL_MSG_ID,      applMsgId);
-            msg.setStringProperty(EsqMsgConstants.FIELD_SENDING_TIME,     sendingTime);
-            msg.setIntProperty   (EsqMsgConstants.FIELD_SCHEMA_VERSION,   EsqMsgConstants.SCHEMA_VERSION);
-            msg.setStringProperty(EsqMsgConstants.FIELD_BUS_ID,           EsqMsgConstants.BUS_ID_ENTITY);
-            msg.setStringProperty(EsqMsgConstants.FIELD_SERVICE_ID,       serviceId);
-            msg.setStringProperty(EsqMsgConstants.FIELD_CTRL_ID,          ctrlId);
-            msg.setStringProperty(EsqMsgConstants.FIELD_MSG_TYPE,         EsqMsgConstants.MSG_TYPE_ENTITY_BROADCASTS);
-            msg.setStringProperty(EsqMsgConstants.FIELD_EVENT_TYPE,       eventType);
-            msg.setIntProperty   (EsqMsgConstants.FIELD_ENTITY_KIND,      entityKind);
-            msg.setStringProperty(EsqMsgConstants.FIELD_ENTITY_ID,        entityId);
-            msg.setStringProperty(EsqMsgConstants.FIELD_REQUEST_ID,       finalRid);
-            msg.setStringProperty(EsqMsgConstants.FIELD_CORRELATION_ID,   finalCid);
-            msg.setStringProperty(EsqMsgConstants.FIELD_MESSAGE_ENCODING, EsqMsgConstants.MESSAGE_ENCODING);
-            msg.setStringProperty(EsqMsgConstants.FIELD_TEXT,             finalText);
+            Utils.setProps(msg, props);
             return msg;
         });
 
-        log.debug("EsqEntityBroadcastPublisher: published kind={}, id={}, event={}, applMsgId={}",
-                entityKind, entityId, eventType, applMsgId);
+        if (msgLog.isDebugEnabled()) {
+            msgLog.info("ENTITY | UE | {}", Utils.formatProps(props));
+        } else {
+            msgLog.info("ENTITY | UE | {} | {} | {} | {} | {} | {}",
+                    applMsgId, eventType, entityKind, entityId, rid, cid);
+        }
+        log.info("ENTITY | UE | {} | {} | {} | {} | {} | {}",
+                applMsgId, eventType, entityKind, entityId);
     }
 }

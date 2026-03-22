@@ -55,6 +55,10 @@ services:
       - LOG_LEVEL_ROOT=ERROR
       - LOG_LEVEL_SF=ERROR
       - LOG_LEVEL_MIR0N=DEBUG
+      - LOG_LEVEL_DEVELOP=DEBUG
+      - LOG_LEVEL_MSG=INFO
+      - DEVELOP_LOG_PATH=logs/bizTree-develop.log
+      - MSG_LOG_PATH=logs/bizTree-msg.log
       - DB_BIZTREE_VENDOR=dev-postgres
       - DB_BIZTREE_PORT=5432
       - DB_BIZTREE_NAME=esq2025
@@ -70,7 +74,6 @@ services:
       #- AMQ_PASSWORD=
       - BIZTREE_MESSAGING_CLIENT_ID=biztree
       - BIZTREE_MESSAGING_CONSUMER_ENABLED=true
-      - BIZTREE_BROADCAST_LOG_PATH=logs/entity-broadcast.log
     command: ["java", "-jar", "app.jar"]
     depends_on:
       activemq:
@@ -92,6 +95,10 @@ services:
       - LOG_LEVEL_ROOT=ERROR
       - LOG_LEVEL_SF=ERROR
       - LOG_LEVEL_MIR0N=DEBUG
+      - LOG_LEVEL_DEVELOP=DEBUG
+      - LOG_LEVEL_MSG=INFO
+      - DEVELOP_LOG_PATH=logs/enyMan-develop.log
+      - MSG_LOG_PATH=logs/enyMan-msg.log
       - DB_ENYMAN_VENDOR=dev-postgres
       - DB_ENYMAN_PORT=5432
       - DB_ENYMAN_NAME=esq2025
@@ -113,6 +120,8 @@ services:
     depends_on:
       activemq:
         condition: service_healthy
+    volumes:
+      - ./logs:/app/logs
     networks:
       - esquirenet
 
@@ -128,6 +137,10 @@ services:
       - LOG_LEVEL_ROOT=ERROR
       - LOG_LEVEL_SF=ERROR
       - LOG_LEVEL_MIR0N=DEBUG
+      - LOG_LEVEL_DEVELOP=DEBUG
+      - LOG_LEVEL_MSG=INFO
+      - DEVELOP_LOG_PATH=logs/pacMan-develop.log
+      - MSG_LOG_PATH=logs/pacMan-msg.log
       - DB_PACMAN_VENDOR=dev-postgres
       - DB_PACMAN_PORT=5432
       - DB_PACMAN_NAME=esq2025
@@ -148,6 +161,8 @@ services:
     depends_on:
       activemq:
         condition: service_healthy
+    volumes:
+      - ./logs:/app/logs
     networks:
       - esquirenet
 
@@ -163,7 +178,10 @@ services:
       - LOG_LEVEL_ROOT=ERROR
       - LOG_LEVEL_SF=ERROR
       - LOG_LEVEL_MIR0N=DEBUG
-      - LOG_LEVEL_KC_SYNC=DEBUG
+      - LOG_LEVEL_DEVELOP=DEBUG
+      - LOG_LEVEL_MSG=DEBUG
+      - DEVELOP_LOG_PATH=logs/keySmith-develop.log
+      - MSG_LOG_PATH=logs/keySmith-msg.log
       - DB_KEYSMITH_VENDOR=dev-postgres
       - DB_KEYSMITH_PORT=5432
       - DB_KEYSMITH_NAME=esq2025
@@ -178,7 +196,7 @@ services:
       #- AMQ_USER=
       #- AMQ_PASSWORD=
       - KEYSMITH_MESSAGING_CLIENT_ID=keysmith
-      - KC_SYNC_LOG_PATH=logs/keySmith-sync.log
+      - KEYSMITH_CTRL_ID=keysmith.default
     command: ["java", "-jar", "app.jar"]
     depends_on:
       activemq:
@@ -200,7 +218,10 @@ services:
       - LOG_LEVEL_ROOT=ERROR
       - LOG_LEVEL_SF=ERROR
       - LOG_LEVEL_MIR0N=DEBUG
-      - LOG_LEVEL_KC_AUDIT=DEBUG
+      - LOG_LEVEL_DEVELOP=DEBUG
+      - LOG_LEVEL_MSG=INFO
+      - DEVELOP_LOG_PATH=logs/kcMaster-develop.log
+      - MSG_LOG_PATH=logs/kcMaster-msg.log
       # Messaging
       - AMQ_BROKER_URL=tcp://activemq:61616
       #- AMQ_USER=
@@ -213,7 +234,6 @@ services:
       - KC_REALM=esquire
       - KC_ADMIN_CLIENT_ID=esq-kcMaster
       - KC_ADMIN_CLIENT_SECRET=MHgq0Nu69u2uJ2johaK1wxQLMdakELXN
-      - KC_AUDIT_LOG_PATH=logs/kcMaster-audit.log
     command: ["java", "-jar", "app.jar"]
     depends_on:
       keycloak:
@@ -241,6 +261,8 @@ services:
       start_period: 30s
     environment:
       - GATEWAY_PORT=7070
+      - LOG_LEVEL_DEVELOP=DEBUG
+      - DEVELOP_LOG_PATH=logs/gateway-develop.log
       - BIZTREE_PORT=3002
       - BIZTREE_HOST=biztree
       - ENYMAN_PORT=3003
@@ -262,7 +284,9 @@ services:
     command: ["java", "-jar", "app.jar"]
     depends_on:
       keycloak:
-        condition: service_healthy    
+        condition: service_healthy
+    volumes:
+      - ./logs:/app/logs
     networks:
       - esquirenet
 

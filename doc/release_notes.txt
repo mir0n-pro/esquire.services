@@ -1,6 +1,31 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v1.2.2-2603.2121 Three-tier logging normalization across all services; JMS msg audit dual-mode pattern
+    :Refactoring: established three-tier logging strategy (doc/Logging.md): console (log/@Slf4j),
+    :Refactoring: all log.debug→devLog.debug; all log.warn eliminated (→devLog.debug or dual error)
+    :Refactoring: dual error pattern: log.error (no stacktrace) + devLog.error (with stacktrace)
+    :Refactoring: JMS publishers — props map migrated to LinkedHashMap+Utils.setProps;
+    :Refactoring: JMS consumers — MDC set from message properties; cleared in finally; devLog added
+    :Refactoring: MdcFilter — /actuator/** short-circuit added (eliminates healthcheck log noise)
+    :Feature: common messaging.jms.Utils — setProps, formatProps(Map), formatProps(Message)
+    :Feature: doc/Logging.md — full logging strategy reference
+    :Config: logback-test.xml added to all services with tests (WARN, plain console, no rolling files)
+    :Config: compose.yaml and application.yml — log env vars normalized across all services
+    :Fix KC sync CtrlID — stable instance identifier; response listener routing by CtrlID
+    :Config: keysmith.messaging.ctrl-id property added (env: KEYSMITH_CTRL_ID, default: keysmith.default)
+    :Config: compose.yaml — KEYSMITH_CTRL_ID added to keysmith service; gateway service volumes mount added
+    : modified components
+       common, 
+       bizTree, 
+       enyMan, 
+       pacMan, 
+       keySmith, 
+       kcMaster, 
+       gateway,
+       compose
+    :added doc\Logging.md
+
 v1.2.2-2603.2114  Messaging Phase 3 — kcMaster service; KC sync decoupled from keySmith via JMS URQ/URS/URR
     :Feature: kcMaster — new messaging-only service owning all Keycloak identity sync
       - consumes URQ from esquire.kc.request (queue)

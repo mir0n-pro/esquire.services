@@ -18,8 +18,6 @@ import pro.mir0n.esquire.backend.dto.EsqThing;
 import pro.mir0n.esquire.backend.jpa.EsqEntityJpa;
 import pro.mir0n.esquire.backend.jpa.entity.EsqAddressJpa;
 
-import java.util.List;
-
 @Data
 @Schema(
         name = "EsqAddress",

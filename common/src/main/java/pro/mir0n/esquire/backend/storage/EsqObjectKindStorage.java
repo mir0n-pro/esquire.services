@@ -7,14 +7,13 @@
  *
  *  History:
  * 02/28/2026 mir0n  UNKNOWN kind updated with address=false
+ * 03/21/2026 mir0n  devLog added; dual error pattern; unused imports removed
  */
 
 package pro.mir0n.esquire.backend.storage;
 
-import com.fasterxml.jackson.dataformat.xml.annotation.JacksonXmlElementWrapper;
-import com.fasterxml.jackson.dataformat.xml.annotation.JacksonXmlProperty;
-import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.extern.slf4j.Slf4j;
+import org.slf4j.LoggerFactory;
 import pro.mir0n.esquire.backend.dto.*;
 import com.fasterxml.jackson.dataformat.xml.XmlMapper;
 import org.springframework.core.io.DefaultResourceLoader;
@@ -28,11 +27,12 @@ import java.io.InputStreamReader;
 import java.io.Reader;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
 @Slf4j
 public class EsqObjectKindStorage {
+
+    private static final org.slf4j.Logger devLog = LoggerFactory.getLogger("develop." + EsqObjectKindStorage.class.getName());
 
     private static EsqObjectKindStorage itSelf = new EsqObjectKindStorage();
     private static List<EsqObjectKind> storage = new ArrayList<>();
@@ -91,7 +91,8 @@ public class EsqObjectKindStorage {
             ret = true;
         } catch (Exception e) {
             System.out.println("failed load object kinds: " + e);
-            log.error("init:{}", fileName, e);
+            log.error("EsqObjectKindStorage: init failed: {}", e.getMessage());
+            devLog.error("EsqObjectKindStorage: init failed: {}", e.getMessage(), e);
         }
          return ret;
     }

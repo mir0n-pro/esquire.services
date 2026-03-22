@@ -17,12 +17,14 @@
  * 02/12/2026 mir0n added "/esq-kinds" access point
  * 02/19/2026 mir0n added esquireCommandSave() POST /esq-cmd-save
  * 03/09/2026 mir0n  realm_access.roles extracted from JWT claims; roles passed to esquireCommandSave()
+ * 03/21/2026 mir0n  devLog added; log.debug→devLog.debug
  */
 
 package pro.mir0n.esquire.enyMan.controller;
 
 import io.jsonwebtoken.Claims;
 import lombok.extern.slf4j.Slf4j;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.ProblemDetail;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import pro.mir0n.esquire.backend.dto.*;
@@ -64,6 +66,9 @@ import pro.mir0n.esquire.common.EsqConstants;
 @Validated
 @CrossOrigin(origins = "http://localhost:4200")
 public class EnyManController {
+
+    private static final org.slf4j.Logger devLog = LoggerFactory.getLogger("develop." + EnyManController.class.getName());
+
     private IEnyManService iEnyManService;
 
     @Operation(
@@ -98,7 +103,7 @@ public class EnyManController {
             @AuthenticationPrincipal Claims claims
     ) {
         List<EsqEntityLayer> layers = iEnyManService.esquireDictionary(kind);
-        log.debug("esquireDictionary: kind:{}, result:{}, claims:{}", kind, String.valueOf(layers), String.valueOf(claims));
+        devLog.debug("esquireDictionary: kind:{}, result:{}, claims:{}", kind, String.valueOf(layers), String.valueOf(claims));
         return ResponseEntity.status(HttpStatus.OK).body(layers);
     }
 
@@ -116,7 +121,7 @@ public class EnyManController {
         String uid = claims.get(EsqConstants.JWT_CLAIM_ENTITY_ID, String.class);
 
         EsqEntity entity = iEnyManService.esquireCommand(kind, id, cmd, rootPath, uid);
-        log.debug("esquireCommand: kind:{}, id:{}, cmd:{}, rootPath:{}, result:{}", kind, id, cmd, rootPath, String.valueOf(entity));
+        devLog.debug("esquireCommand: kind:{}, id:{}, cmd:{}, rootPath:{}, result:{}", kind, id, cmd, rootPath, String.valueOf(entity));
         return ResponseEntity.status(HttpStatus.OK).body(entity);
     }
 
@@ -137,7 +142,7 @@ public class EnyManController {
         List<String> roles = realmAccess != null ? (List<String>) realmAccess.get(EsqConstants.JWT_CLAIM_REALM_ACCESS_ROLES) : null;
 
         EsqEntity ret = iEnyManService.esquireCommandSave(kind, id, cmd, fields, rootPath, uid, roles);
-        log.debug("esquireCommandSave: kind:{}, id:{}, cmd:{}, rootPath:{}, result:{}", kind, id, cmd, rootPath, String.valueOf(ret));
+        devLog.debug("esquireCommandSave: kind:{}, id:{}, cmd:{}, rootPath:{}, result:{}", kind, id, cmd, rootPath, String.valueOf(ret));
         return ResponseEntity.status(HttpStatus.OK).body(ret);
     }
 
@@ -149,7 +154,7 @@ public class EnyManController {
         //String uid = claims.get(EsqConstants.JWT_CLAIM_ENTITY_ID, String.class);
 
         List<EsqObjectKind> ret  = EsqObjectKindStorage.getInstance().getAll();
-        log.debug("esquireKinds: result:{}",String.valueOf(ret));
+        devLog.debug("esquireKinds: result:{}",String.valueOf(ret));
         return ResponseEntity.status(HttpStatus.OK).body(ret);
     }
 }

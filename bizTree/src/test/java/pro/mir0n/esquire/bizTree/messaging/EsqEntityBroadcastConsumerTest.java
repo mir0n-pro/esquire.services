@@ -34,6 +34,8 @@ class EsqEntityBroadcastConsumerTest {
         when(message.getStringProperty(EsqMsgConstants.FIELD_ENTITY_ID)).thenReturn(entityId);
         when(message.getIntProperty(EsqMsgConstants.FIELD_ENTITY_KIND)).thenReturn(kind);
         when(message.getStringProperty(EsqMsgConstants.FIELD_EVENT_TYPE)).thenReturn(eventType);
+        when(message.getStringProperty(EsqMsgConstants.FIELD_REQUEST_ID)).thenReturn("req-1");
+        when(message.getStringProperty(EsqMsgConstants.FIELD_CORRELATION_ID)).thenReturn("corr-1");
         when(message.getStringProperty(EsqMsgConstants.FIELD_TEXT)).thenReturn(textJson);
     }
 

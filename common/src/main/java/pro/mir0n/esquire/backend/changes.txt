@@ -1,5 +1,30 @@
 Esquire Backend common microservice classes
 
+03/21/2026 mir0n  three-tier logging normalization; actuator probe filtering; unused imports removed
+service.MdcFilter
+  - devLog added; log.debug→devLog.debug; dual error pattern
+  - /actuator/** short-circuit: bypasses MDC setup and all logging (prevents healthcheck noise)
+error.GenericExceptionHandler
+  - devLog added; log.warn on exception→dual error (log.error+devLog.error); unused imports removed
+exception.GlobalExceptionHandler
+  - devLog added; dual error pattern (no stacktrace on console); unused imports removed
+security.JwtAuthenticationFilter
+  - devLog added; log.debug→devLog.debug; unused imports removed
+storage.EsqEntityDictionaryStorage
+  - devLog added; dual error pattern; unused imports removed
+storage.EsqObjectKindStorage
+  - devLog added; dual error pattern; unused imports removed
+storage.EsqRolesStorage
+  - devLog added; log.debug→devLog.debug; dual error pattern; unused imports removed
+dto.EsqEntityDictionaryMapper
+  - devLog added; log.debug→devLog.debug; unused imports removed
+dto: EsqColumnHeaderDef, EsqEntity, EsqEntityDictionary, EsqEntityFactory, EsqEntityField,
+     EsqEntityLayer, EsqObjectKind, EsqThing, EsqAccessProfile, EsqAcct, EsqAddress,
+     EsqOrg, EsqPerson, EsqUsr
+  - unused imports removed
+validator: IValidator, ValidatorFactory
+  - unused imports removed
+
 03/20/2026 mir0n  DTO updates
 dto.EsqEntityField
   - affects3 field added

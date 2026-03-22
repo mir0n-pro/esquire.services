@@ -1,5 +1,16 @@
 Esquire BizTree Microservice
 
+03/21/2026 mir0n  three-tier logging normalization
+messaging.EsqEntityBroadcastConsumer
+  - broadcastLog→msgLog/devLog; MDC set/clear; requestId/correlationId reads
+  - dual-mode ENTITY msg audit; console echo log.info; dual error pattern; unused imports removed
+cache.BizTreeCacheLoader, cache.impl.BizTreeCacheRepository
+  - devLog added; log.debug→devLog.debug
+service.IBizTreeService
+  - unused imports removed
+service.impl.BizTreeService, controller.BizTreeController
+  - devLog added; log.debug→devLog.debug
+
 03/20/2026 mir0n  Messaging Phase 2 — cache update from entity broadcast events
 cache.BizTreeCacheLoader  (new)
   - loads ORG/USR/ACCT entities from DB into H2 in-memory cache on ApplicationReadyEvent

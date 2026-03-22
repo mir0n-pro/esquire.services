@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+
+    <springProperty scope="context" name="logLevelRoot"    source="logging.level.root"                    defaultValue="INFO"/>
+    <springProperty scope="context" name="logLevelSf"      source="logging.level.org.springframework"     defaultValue="INFO"/>
+    <springProperty scope="context" name="logLevelJms"     source="logging.level.org.springframework.jms" defaultValue="INFO"/>
+    <springProperty scope="context" name="logLevelAmq"     source="logging.level.org.apache.activemq"     defaultValue="INFO"/>
+    <springProperty scope="context" name="logLevelMir0n"   source="logging.level.pro.mir0n"               defaultValue="INFO"/>
+    <springProperty scope="context" name="logLevelDevelop" source="logging.level.develop"                 defaultValue="DEBUG"/>
+    <springProperty scope="context" name="logLevelMsg"     source="logging.level.msg"                     defaultValue="INFO"/>
+    <springProperty scope="context" name="developLogPath"  source="logging.develop.log-path"              defaultValue="logs/pacMan-develop.log"/>
+    <springProperty scope="context" name="msgLogPath"      source="logging.msg.log-path"                  defaultValue="logs/pacMan-msg.log"/>
+
+    <!-- Console — ECS structured format -->
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder class="org.springframework.boot.logging.logback.StructuredLogEncoder">
+            <format>ecs</format>
+        </encoder>
+    </appender>
+
+    <!-- develop.* — debug diagnostics; file only, not propagated to console -->
+    <appender name="DEVELOP_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${developLogPath}</file>
+        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+            <fileNamePattern>${developLogPath}.%d{yyyy-MM-dd}.gz</fileNamePattern>
+            <maxHistory>7</maxHistory>
+        </rollingPolicy>
+        <encoder>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss, UTC} %-5level %logger - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <!-- msg.* — message audit (JMS send/receive); file only, not propagated to console -->
+    <appender name="MSG_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${msgLogPath}</file>
+        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+            <fileNamePattern>${msgLogPath}.%d{yyyy-MM-dd}.gz</fileNamePattern>
+            <maxHistory>30</maxHistory>
+        </rollingPolicy>
+        <encoder>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss, UTC} %-5level %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <logger name="develop" level="${logLevelDevelop}" additivity="false">
+        <appender-ref ref="DEVELOP_FILE"/>
+    </logger>
+
+    <logger name="msg" level="${logLevelMsg}" additivity="false">
+        <appender-ref ref="MSG_FILE"/>
+    </logger>
+
+    <root level="${logLevelRoot}">
+        <appender-ref ref="CONSOLE"/>
+    </root>
+
+    <logger name="org.springframework"     level="${logLevelSf}"/>
+    <logger name="org.springframework.jms" level="${logLevelJms}"/>
+    <logger name="org.apache.activemq"     level="${logLevelAmq}"/>
+    <logger name="pro.mir0n"               level="${logLevelMir0n}"/>
+
+</configuration>

@@ -154,17 +154,15 @@ info:
     version: "1.0.0"
 
 logging:
-  pattern:
-    dateformat: "yyyy-MM-dd'T'HH:mm:ss.SSSXXX,UTC"
-  structured:
-    format:
-      console: ecs  # Use ecs,'logstash' or 'gelf' for other common formats
   level:
     root: ${LOG_LEVEL_ROOT:ERROR}
     org:
       springframework: ${LOG_LEVEL_SF:ERROR}
     pro:
       mir0n: ${LOG_LEVEL_MIR0N:ERROR}
+    develop: ${LOG_LEVEL_DEVELOP:DEBUG}
+  develop:
+    log-path: ${DEVELOP_LOG_PATH:logs/gateway-develop.log}
 management:
   endpoints:
     web:

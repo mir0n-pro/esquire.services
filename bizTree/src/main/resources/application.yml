@@ -36,14 +36,7 @@ biztree:
     client-id: ${BIZTREE_MESSAGING_CLIENT_ID:biztree}
     consumer:
       enabled: ${BIZTREE_MESSAGING_CONSUMER_ENABLED:true}
-    # Dedicated log file for received entity broadcast messages
-    broadcast-log-path: ${BIZTREE_BROADCAST_LOG_PATH:logs/entity-broadcast.log}
 logging:
-  pattern:
-    console: "%d{yyyy-MM-dd HH:mm:ss, UTC} %-5level [%X{correlationId:-no-cid}] [%X{requestId:-no-rid}] %logger{36} - %msg%n"
-  structured:
-    format:
-      console: ecs  # Use ecs,'logstash' or 'gelf' for other common formats
   level:
     root: ${LOG_LEVEL_ROOT:ERROR}
     org:
@@ -53,8 +46,12 @@ logging:
         activemq: ${LOG_LEVEL_AMQ:ERROR}
     pro:
       mir0n: ${LOG_LEVEL_MIR0N:INFO}
-    entity:
-      broadcast: ${LOG_LEVEL_BROADCAST:INFO}
+    develop: ${LOG_LEVEL_DEVELOP:DEBUG}
+    msg: ${LOG_LEVEL_MSG:INFO}
+  develop:
+    log-path: ${DEVELOP_LOG_PATH:logs/bizTree-develop.log}
+  msg:
+    log-path: ${MSG_LOG_PATH:logs/bizTree-msg.log}
 
 ---
 # Development Oracle

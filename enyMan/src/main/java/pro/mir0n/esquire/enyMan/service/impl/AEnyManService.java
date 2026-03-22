@@ -13,6 +13,7 @@
  * 03/08/2026 mir0n  applyFields(): boolean personal param added; forwarded to ValidatorFactory
  * 03/10/2026 mir0n  fillКindFieldLayer() call updated to fillKindFieldLayer() — Cyrillic К → ASCII K
  * 03/19/2026 mir0n  esquireDictionary(): kind normalized to even number before dictionary lookup
+ * 03/21/2026 mir0n  devLog added; log.debug→devLog.debug
  */
 
 package pro.mir0n.esquire.enyMan.service.impl;
@@ -21,6 +22,7 @@ import java.beans.PropertyDescriptor;
 import java.util.*;
 
 import lombok.extern.slf4j.Slf4j;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.BeanWrapper;
 import org.springframework.beans.BeanWrapperImpl;
 import pro.mir0n.esquire.backend.dto.*;
@@ -34,6 +36,8 @@ import pro.mir0n.esquire.enyMan.service.IEnyManService;
 @Slf4j
 public abstract class AEnyManService  implements IEnyManService {
 
+    private static final org.slf4j.Logger devLog = LoggerFactory.getLogger("develop." + AEnyManService.class.getName());
+
     private EsqEntityDictionaryRepository entityDictionaryRepository;
 
     public AEnyManService(EsqEntityDictionaryRepository entityDictionaryRepository) {
@@ -44,7 +48,7 @@ public abstract class AEnyManService  implements IEnyManService {
     public List<EsqEntityLayer> esquireDictionary(Integer kind) {
         //String correlationId = RequestContextUtils.getCorrelationId();
         //String requestId = RequestContextUtils.getRequestId();
-        log.debug("srvc: esquireDictionary: kind:{}",  kind);
+        devLog.debug("srvc: esquireDictionary: kind:{}",  kind);
 
         int k = (kind != null) ? ((int) Math.floor((double) kind / 2)) * 2 : 0;
         List<EsqEntityLayer> ret = null;
@@ -62,7 +66,7 @@ public abstract class AEnyManService  implements IEnyManService {
         if (ret == null) {
             throw new ResourceNotFoundException("esquireDictionary", "kind", String.valueOf(k));
         }
-        log.debug("srvc: esquireDictionary(2): ret:{}",  ret);
+        devLog.debug("srvc: esquireDictionary(2): ret:{}",  ret);
         return ret;
     }
 

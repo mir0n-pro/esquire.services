@@ -1,5 +1,17 @@
 Esquire kcMaster Microservice
 
+03/21/2026 mir0n  three-tier logging normalization across all kcMaster messaging and service classes
+messaging.KcRequestConsumer
+  - kcAudit→msgLog/devLog; applMsgId read; dual-mode URQ audit; MDC set/clear; dual error pattern
+messaging.KcResponsePublisher
+  - kcAudit→msgLog/devLog; mid extracted before props map; dual-mode URS and URR audit; dual error
+messaging.KcEntityBroadcastConsumer
+  - raw string literals replaced with EsqMsgConstants constants
+  - requestId/correlationId reads; MDC set/clear; devLog; log.debug→devLog.debug; dual error
+service.impl.KcIdentityService
+  - kcAudit→devLog; KC state events (STARTED/SUCCESS) promoted to log.info (console observability)
+  - all log.debug→devLog.debug; unused imports removed
+
 03/21/2026 mir0n  KC sync service implementation — URQ consumer, Keycloak operations, URS/URR publisher
 KcMasterApplication
   - initial scaffold; JMS (ActiveMQ) + Keycloak admin client; no DB, no REST endpoints

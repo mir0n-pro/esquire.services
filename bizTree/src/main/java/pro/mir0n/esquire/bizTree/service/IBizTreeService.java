@@ -15,7 +15,6 @@ package pro.mir0n.esquire.bizTree.service;
 
 import java.util.List;
 
-import pro.mir0n.esquire.backend.dto.EsqEntity;
 import pro.mir0n.esquire.backend.dto.EsqTreeNode;
 //import pro.mir0n.esquire.backend.dto.EsqEntityLayer;
 

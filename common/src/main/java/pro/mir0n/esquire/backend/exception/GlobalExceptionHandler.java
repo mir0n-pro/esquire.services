@@ -9,6 +9,7 @@
  * 03/09/2026 mir0n  created: thin delegate — all handlers forward to GenericExceptionHandler
  * 03/10/2026 mir0n  moved to common; handleMethodArgumentNotValid, handleException implemented inline;
  *                   one canonical GlobalExceptionHandler shared by all services via scanBasePackages
+ * 03/21/2026 mir0n  devLog added; dual error pattern (no stacktrace on console); unused imports removed
  */
 
 package pro.mir0n.esquire.backend.exception;
@@ -21,6 +22,7 @@ package pro.mir0n.esquire.backend.exception;
 
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.*;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -38,6 +40,8 @@ import java.util.Map;
 @Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
+
+    private static final org.slf4j.Logger devLog = LoggerFactory.getLogger("develop." + GlobalExceptionHandler.class.getName());
 
     protected ResponseEntity<Object> handleMethodArgumentNotValid(
             MethodArgumentNotValidException ex, HttpHeaders headers, HttpStatusCode status, WebRequest request) {
@@ -62,7 +66,8 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ProblemDetail> handleException(Exception ex, HttpServletRequest request) {
-        log.error("Unhandled exception: {} {}", request.getMethod(), request.getRequestURI(), ex);
+        log.error("Unhandled exception: {} {}", request.getMethod(), request.getRequestURI());
+        devLog.error("Unhandled exception: {} {}", request.getMethod(), request.getRequestURI(), ex);
         ProblemDetail problem = ProblemDetailMill.createProblemDetail(
                 request,
                 HttpStatus.INTERNAL_SERVER_ERROR,

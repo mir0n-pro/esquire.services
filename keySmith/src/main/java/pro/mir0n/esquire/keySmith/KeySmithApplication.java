@@ -12,11 +12,13 @@
  * 03/10/2026 mir0n  scanBasePackages: backend.service, backend.security, backend.exception added
  * 03/16/2026 mir0n  @EnableAsync added (virtual thread async for KeycloakIdentityService)
  * 03/20/2026 mir0n  @EnableAsync removed; KeycloakIdentityService removed (moved to kcMaster)
+ * 03/21/2026 mir0n  devLog added; log.debug→devLog.debug
  */
 
 package pro.mir0n.esquire.keySmith;
 
 import lombok.extern.slf4j.Slf4j;
+import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.domain.EntityScan;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
@@ -44,6 +46,8 @@ import pro.mir0n.esquire.keySmith.service.BizValidatorFactory;
 })
 public class KeySmithApplication {
 
+    private static final org.slf4j.Logger devLog = LoggerFactory.getLogger("develop." + KeySmithApplication.class.getName());
+
     public static void main(String[] args) {
         SpringApplication app = new SpringApplication( KeySmithApplication.class);
         // Register the listener with the SpringApplication instance
@@ -55,13 +59,13 @@ public class KeySmithApplication {
     public static class keySmithApplicationStartingListener implements ApplicationListener<ApplicationStartingEvent> {
         @Override
         public void onApplicationEvent(ApplicationStartingEvent event) {
-            log.debug("ApplicationStartingEvent received: {}", event.getTimestamp());
+            devLog.debug("ApplicationStartingEvent received: {}", event.getTimestamp());
             boolean result = EsqEntityDictionaryStorage.getInstance().init((String)null);
             if (!result) {
                 System.out.println("Failed to load esq-entity-dictionaries.xml");
                 System.exit(-1); // Exit the JVM immediately
             }
-            log.debug("EsqEntityDictionaryStorage loaded");
+            devLog.debug("EsqEntityDictionaryStorage loaded");
             ValidatorFactory.getInstance().init(BizValidatorFactory.getBizValidators());
         }
     }
@@ -75,7 +79,7 @@ public class KeySmithApplication {
                 System.out.println("Failed to load EsqRolesStorage");
                 System.exit(-1); // Exit the JVM immediately
             }
-            log.debug("EsqRolesStorage loaded");
+            devLog.debug("EsqRolesStorage loaded");
         }
     }
 }

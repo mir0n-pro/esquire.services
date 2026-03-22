@@ -32,47 +32,37 @@
  * 03/17/2026 mir0n  messaging: broadcastPublisher injected; publishEntityEvent() on name/desc update
  * 03/20/2026 mir0n  status broadcast: "deleted" (usr_deleted_flg) added to isBroadcastableUpdate()
  *                   publishEntityEvent() emits raw "deleted" field value; publisher decoupling rule
+ * 03/21/2026 mir0n  devLog added; dual error pattern (publishEntityEvent catch: log.warn→log.error+devLog.error)
  */
 
 package pro.mir0n.esquire.enyMan.service.impl;
 
 import jakarta.persistence.EntityManager;
-import jakarta.persistence.FlushModeType;
-import java.beans.PropertyDescriptor;
 import java.util.*;
 
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.BeanWrapper;
-import org.springframework.beans.BeanWrapperImpl;
-import org.springframework.data.repository.query.Param;
 import pro.mir0n.esquire.backend.dto.*;
 import pro.mir0n.esquire.backend.dto.access.EsqPermission;
 import pro.mir0n.esquire.backend.error.PermissionDeniedException;
-import pro.mir0n.esquire.backend.jpa.*;
-import pro.mir0n.esquire.backend.jpa.entity.EsqOrgJpa;
-import pro.mir0n.esquire.backend.jpa.entity.EsqPersonJpa;
-import pro.mir0n.esquire.backend.jpa.entity.EsqUsrJpa;
 import pro.mir0n.esquire.backend.storage.EsqObjectKindStorage;
 import pro.mir0n.esquire.backend.storage.EsqRolesStorage;
-import pro.mir0n.esquire.backend.validator.ValidatorFactory;
 import pro.mir0n.esquire.enyMan.jpa.EsqEntityDictionaryRepository;
 import pro.mir0n.esquire.enyMan.jpa.EsqOrgRepository;
 import pro.mir0n.esquire.enyMan.jpa.EsqUsrRepository;
 import pro.mir0n.esquire.backend.service.RequestContextUtils;
-import pro.mir0n.esquire.backend.storage.EsqEntityDictionaryStorage;
 import pro.mir0n.esquire.backend.error.ResourceNotFoundException;
 import pro.mir0n.esquire.enyMan.messaging.EsqEntityBroadcastPublisher;
 import pro.mir0n.esquire.enyMan.service.IEnyManService;
-import lombok.AllArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 
-import pro.mir0n.esquire.common.EsqConstants;
 import pro.mir0n.esquire.common.EsqMsgConstants;
 
 @Slf4j
 @Service
 public class EnyManService  extends AEnyManService {
+
+    private static final org.slf4j.Logger devLog = org.slf4j.LoggerFactory.getLogger("develop." + EnyManService.class.getName());
 
     private final IEnyManService orgService;
     private final IEnyManService usrService;
@@ -170,11 +160,12 @@ public class EnyManService  extends AEnyManService {
         if (fields.containsKey("name"))    text.put("name",   fields.get("name"));
         if (fields.containsKey("desc"))    text.put("desc",   fields.get("desc"));
         if (fields.containsKey("deleted")) text.put("deleted", fields.get("deleted"));
-        try {
+        try {;
             broadcastPublisher.publish(entityKind, entity.getId(), eventType,
                     requestId, correlationId, text);
         } catch (Exception e) {
-            log.warn("publishEntityEvent: broadcast failed for kind={}, id={}: {}", entityKind, entity.getId(), e.getMessage());
+            log.error("publishEntityEvent: broadcast failed for kind={}, id={}: {}", entityKind, entity.getId(), e.getMessage());
+            devLog.error("publishEntityEvent: broadcast failed for kind={}, id={}, requestId={}, correlationId={}: {}", entityKind, entity.getId(), requestId, correlationId, e.getMessage(), e);
         }
     }
 }

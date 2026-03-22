@@ -7,16 +7,16 @@
  *
  *  History:
  * 12/28/2025 mir0n logging added using Slf4j
+ * 03/21/2026 mir0n  devLog added; dual error pattern; unused imports removed
  */
 
 package pro.mir0n.esquire.backend.storage;
 
 import lombok.extern.slf4j.Slf4j;
+import org.slf4j.LoggerFactory;
 import pro.mir0n.esquire.backend.dto.EsqEntityDictionaryShell;
 import pro.mir0n.esquire.backend.dto.EsqEntityDictionary;
 import com.fasterxml.jackson.dataformat.xml.XmlMapper;
-import pro.mir0n.esquire.backend.dto.EsqEntityField;
-import pro.mir0n.esquire.backend.dto.EsqEntityLayer;
 import org.springframework.core.io.DefaultResourceLoader;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.ResourceLoader;
@@ -28,11 +28,12 @@ import java.io.InputStreamReader;
 import java.io.Reader;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
 @Slf4j
 public class EsqEntityDictionaryStorage {
+
+    private static final org.slf4j.Logger devLog = LoggerFactory.getLogger("develop." + EsqEntityDictionaryStorage.class.getName());
 
     private static EsqEntityDictionaryStorage itSelf = new EsqEntityDictionaryStorage();
     private static List<EsqEntityDictionary> storage = new ArrayList<>();
@@ -85,7 +86,8 @@ public class EsqEntityDictionaryStorage {
             ret = true;
         } catch (Exception e) {
             System.out.println("failed load dictionary: " + e);
-            log.error("init:{}", fileName, e);
+            log.error("EsqEntityDictionaryStorage: init failed: {}", e.getMessage());
+            devLog.error("EsqEntityDictionaryStorage: init failed: {}", e.getMessage(), e);
         }
          return ret;
     }

@@ -13,11 +13,13 @@
  * 03/09/2026 mir0n  EsqRolesStorage.init() via ApplicationReadyEvent listener
  *                   @EnableJpaRepositories extended with backend.storage.roles
  * 03/10/2026 mir0n  scanBasePackages: backend.service, backend.security, backend.exception added
+ * 03/21/2026 mir0n  devLog added; log.debug→devLog.debug
  */
 
 package pro.mir0n.esquire.enyMan;
 
 import lombok.extern.slf4j.Slf4j;
+import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.domain.EntityScan;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 import pro.mir0n.esquire.backend.storage.EsqEntityDictionaryStorage;
@@ -45,6 +47,8 @@ import pro.mir0n.esquire.backend.validator.ValidatorFactory;
 })
 public class EnyManApplication {
 
+    private static final org.slf4j.Logger devLog = LoggerFactory.getLogger("develop." + EnyManApplication.class.getName());
+
     public static void main(String[] args) {
         SpringApplication app = new SpringApplication( EnyManApplication.class);
         // Register the listener with the SpringApplication instance
@@ -56,21 +60,21 @@ public class EnyManApplication {
     public static class EnyManApplicationStartingListener implements ApplicationListener<ApplicationStartingEvent> {
         @Override
         public void onApplicationEvent(ApplicationStartingEvent event) {
-            log.debug("ApplicationStartingEvent received: {}", event.getTimestamp());
+            devLog.debug("ApplicationStartingEvent received: {}", event.getTimestamp());
 
             boolean result = EsqObjectKindStorage.getInstance().init((String)null);
             if (!result) {
                 System.out.println("Failed to load esq-object-kinds.xml");
                 System.exit(-1); // Exit the JVM immediately
             }
-            log.debug("EsqObjectKindStorage loaded");
+            devLog.debug("EsqObjectKindStorage loaded");
 
             result = EsqEntityDictionaryStorage.getInstance().init((String)null);
             if (!result) {
                 System.out.println("Failed to load esq-entity-dictionaries.xml");
                 System.exit(-1); // Exit the JVM immediately
             }
-            log.debug("EsqEntityDictionaryStorage loaded");
+            devLog.debug("EsqEntityDictionaryStorage loaded");
             ValidatorFactory.getInstance().init(null);
         }
     }
@@ -84,7 +88,7 @@ public class EnyManApplication {
                 System.out.println("Failed to load EsqRolesStorage");
                 System.exit(-1);
             }
-            log.debug("EsqRolesStorage loaded");
+            devLog.debug("EsqRolesStorage loaded");
         }
     }
 

@@ -7,6 +7,8 @@
  *
  *  History:
  * 03/20/2026 mir0n  initial — URQ consumer; deserializes Text, dispatches to KcRequestHandler, publishes URS
+ * 03/21/2026 mir0n  three-tier logging: kcAudit→msgLog/devLog; dual-mode URQ audit; MDC from message;
+ *                   applMsgId read; dual error pattern with full context
  */
 
 package pro.mir0n.esquire.kcMaster.messaging;
@@ -16,8 +18,10 @@ import jakarta.jms.Message;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 import org.springframework.jms.annotation.JmsListener;
 import org.springframework.stereotype.Component;
+import pro.mir0n.esquire.common.EsqConstants;
 import pro.mir0n.esquire.common.EsqMsgConstants;
 import pro.mir0n.esquire.messaging.jms.Utils;
 
@@ -26,7 +30,8 @@ import pro.mir0n.esquire.messaging.jms.Utils;
 @RequiredArgsConstructor
 public class KcRequestConsumer {
 
-    private static final org.slf4j.Logger kcAudit = LoggerFactory.getLogger("kc.audit");
+    private static final org.slf4j.Logger msgLog = LoggerFactory.getLogger("msg." + KcRequestConsumer.class.getName());
+    private static final org.slf4j.Logger devLog = LoggerFactory.getLogger("develop." + KcRequestConsumer.class.getName());
 
     private final KcRequestHandler handler;
     private final KcResponsePublisher publisher;
@@ -37,6 +42,7 @@ public class KcRequestConsumer {
             containerFactory = "jmsQueueListenerFactory"
     )
     public void onMessage(Message message) {
+        String applMsgId     = null;
         String entityId      = null;
         String command       = null;
         String ctrlId        = null;
@@ -46,6 +52,7 @@ public class KcRequestConsumer {
         String text          = null;
 
         try {
+            applMsgId     = message.getStringProperty(EsqMsgConstants.FIELD_APPL_MSG_ID);
             entityId      = message.getStringProperty(EsqMsgConstants.FIELD_ENTITY_ID);
             command       = message.getStringProperty(EsqMsgConstants.FIELD_EVENT_TYPE);
             ctrlId        = message.getStringProperty(EsqMsgConstants.FIELD_CTRL_ID);
@@ -54,7 +61,19 @@ public class KcRequestConsumer {
             testReqId     = message.getStringProperty(EsqMsgConstants.FIELD_TEST_REQ_ID);
             text          = message.getStringProperty(EsqMsgConstants.FIELD_TEXT);
 
-            kcAudit.info("KC | URQ | {}", Utils.formatProps(message));
+            MDC.put(EsqConstants.PD_REQUEST_ID, requestId);
+            MDC.put(EsqConstants.PD_CORRELATION_ID, correlationId);
+
+            if (msgLog.isDebugEnabled()) {
+                msgLog.info("KC | URQ | {}", Utils.formatProps(message));
+            } else {
+                msgLog.info("KC | URQ | {} | {} | {} | {} | {} | {} | {} | {}",
+                        applMsgId, command, EsqConstants.KIND_ACCESS_PROFILE, entityId,
+                        ctrlId, requestId, correlationId, testReqId);
+            }
+            log.info("KC | URQ | {} | {} | {} | {} | {} | {} | {} | {}",
+                    applMsgId, command, EsqConstants.KIND_ACCESS_PROFILE, entityId,
+                    ctrlId, requestId, correlationId, testReqId);
 
             KcSyncRequest req = objectMapper.readValue(text, KcSyncRequest.class);
             handler.handle(command, req, correlationId, requestId);
@@ -62,7 +81,8 @@ public class KcRequestConsumer {
             publisher.publishSuccess(entityId, command, ctrlId, requestId, correlationId, testReqId);
 
         } catch (Exception e) {
-            log.error("kcMaster: URQ processing failed: entityId={} command={} error={}", entityId, command, e.getMessage(), e);
+            log.error("kcMaster: URQ processing failed: entityId={}, command={}, ctrlId={}, error={}", entityId, command, ctrlId, e.getMessage());
+            devLog.error("kcMaster: URQ processing failed: entityId={}, command={}, ctrlId={}, requestId={}, correlationId={}, error={}", entityId, command, ctrlId, requestId, correlationId, e.getMessage(), e);
             publisher.publishFailure(
                     entityId,
                     command,
@@ -75,6 +95,8 @@ public class KcRequestConsumer {
                     testReqId,
                     text
             );
+        } finally {
+            MDC.clear();
         }
     }
 

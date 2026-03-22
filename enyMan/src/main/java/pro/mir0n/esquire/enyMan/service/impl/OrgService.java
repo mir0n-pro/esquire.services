@@ -14,6 +14,7 @@
  * 03/09/2026 mir0n  esquireCommandSave(): roles param added
  * 03/10/2026 mir0n  import: RequestContextUtils updated to backend.service package
  * 03/10/2026 mir0n  fillКindFieldLayer() call updated to fillKindFieldLayer() — Cyrillic К → ASCII K
+ * 03/21/2026 mir0n  devLog added; log.debug→devLog.debug
  */
 
 package pro.mir0n.esquire.enyMan.service.impl;
@@ -23,6 +24,7 @@ import jakarta.persistence.FlushModeType;
 import java.util.*;
 
 import lombok.extern.slf4j.Slf4j;
+import org.slf4j.LoggerFactory;
 import pro.mir0n.esquire.backend.dto.*;
 import pro.mir0n.esquire.backend.jpa.*;
 import pro.mir0n.esquire.backend.jpa.entity.EsqOrgJpa;
@@ -36,6 +38,8 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 @Slf4j
 public class OrgService  extends AEnyManService {
+
+    private static final org.slf4j.Logger devLog = LoggerFactory.getLogger("develop." + OrgService.class.getName());
 
     private EsqOrgRepository orgRepository;
     private TransactionTemplate transactionTemplate;
@@ -56,14 +60,14 @@ public class OrgService  extends AEnyManService {
     public EsqEntity esquireCommand(Integer kind, String id, String cmd, String rootPath, String uid) {
         //String correlationId = RequestContextUtils.getCorrelationId();
         //String requestId = RequestContextUtils.getRequestId();
-        log.debug("srvc: esquireCommand(org): kind:{}, id:{}, cmd:{}, rootPath:{}, uid:{}",  kind, id, cmd, rootPath, uid);
+        devLog.debug("srvc: esquireCommand(org): kind:{}, id:{}, cmd:{}, rootPath:{}, uid:{}",  kind, id, cmd, rootPath, uid);
         EsqEntityJpa jpa = orgRepository.detailOrg(id, rootPath);
         if (jpa == null) {
             throw new ResourceNotFoundException("esquireEntity", "kind, id", kind + "," + id);
         }
         List<EsqNameValueJpa> custom = orgRepository.customOrg(id);
         EsqEntity ret = EsqEntityFactory.getInstance().createEntity(jpa, custom, null);
-        log.debug("srvc: esquireCommand(org): entity:{}",  ret);
+        devLog.debug("srvc: esquireCommand(org): entity:{}",  ret);
         return  ret;
     }
 
@@ -71,7 +75,7 @@ public class OrgService  extends AEnyManService {
     public EsqEntity esquireCommandSave(Integer kind, String id, String cmd, Map<String, Object> fields, String rootPath, String uid, List<String> roles) {
         String correlationId = RequestContextUtils.getCorrelationId();
         String requestId = RequestContextUtils.getRequestId();
-        log.debug("srvc: esquireCommandSave(org): kind:{}, id:{}, cmd:{}, rootPath:{}, uid:{}", kind, id, cmd, rootPath, uid);
+        devLog.debug("srvc: esquireCommandSave(org): kind:{}, id:{}, cmd:{}, rootPath:{}, uid:{}", kind, id, cmd, rootPath, uid);
 
         EsqEntityJpa[] updated  = {null};
         List<EsqNameValueJpa>[] custom   = new List[]{null};
@@ -88,7 +92,7 @@ public class OrgService  extends AEnyManService {
         }); // ← transaction commits here
 
         EsqEntity ret = EsqEntityFactory.getInstance().createEntity(updated[0], custom[0], null);
-        log.debug("srvc: esquireCommandSave(org): entity:{}", ret);
+        devLog.debug("srvc: esquireCommandSave(org): entity:{}", ret);
         return ret;
     }
 

@@ -8,6 +8,8 @@
  *  History:
  * 03/20/2026 mir0n  ported from keySmith KeycloakIdentityService
  *                   @Async removed — KC calls are synchronous here so handler can publish URS after completion
+ * 03/21/2026 mir0n  three-tier logging: kcAudit→devLog; KC state events (STARTED/SUCCESS) to log.info;
+ *                   all log.debug→devLog.debug; unused imports removed
  */
 
 package pro.mir0n.esquire.kcMaster.service.impl;
@@ -38,7 +40,7 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class KcIdentityService implements IKcIdentityService {
-    private static final org.slf4j.Logger kcAudit = LoggerFactory.getLogger("kc.audit");
+    private static final org.slf4j.Logger devLog = LoggerFactory.getLogger("develop." + KcIdentityService.class.getName());
 
     private final Keycloak keycloak;
     private final KeycloakConfig keycloakConfig;
@@ -56,8 +58,8 @@ public class KcIdentityService implements IKcIdentityService {
             String correlationId,
             String requestId
     ) {
-        kcAudit.info("KC | CREATE | username={} | state=STARTED | cid={} | rid={}", loginId, correlationId, requestId);
-        log.debug("Creating user in Keycloak: username={}, email={}", loginId, email);
+        log.info("KC | CREATE | username={} | state=STARTED", loginId);
+        devLog.debug("Creating user in Keycloak: username={}, email={}", loginId, email);
 
         RealmResource realmResource = keycloak.realm(keycloakConfig.getRealm());
         UsersResource usersResource = realmResource.users();
@@ -102,7 +104,7 @@ public class KcIdentityService implements IKcIdentityService {
         }
 
         response.close();
-        kcAudit.info("KC | CREATE | username={} | state=SUCCESS | kcUserId={} | cid={} | rid={}", loginId, kcId, correlationId, requestId);
+        log.info("KC | CREATE | username={} | state=SUCCESS | kcUserId={}", loginId, kcId);
     }
 
     @Override
@@ -120,8 +122,8 @@ public class KcIdentityService implements IKcIdentityService {
             String correlationId,
             String requestId
     ) {
-        kcAudit.info("KC | UPDATE | username={} | state=STARTED | cid={} | rid={}", loginId, correlationId, requestId);
-        log.debug("Updating user auth state in Keycloak: username={}", loginId);
+        log.info("KC | UPDATE | username={} | state=STARTED", loginId);
+        devLog.debug("Updating user auth state in Keycloak: username={}", loginId);
 
         RealmResource realmResource = keycloak.realm(keycloakConfig.getRealm());
         UsersResource usersResource = realmResource.users();
@@ -168,7 +170,7 @@ public class KcIdentityService implements IKcIdentityService {
         user.setAttributes(merged);
 
         userResource.update(user);
-        log.debug("User updated: {}", loginId);
+        devLog.debug("User updated: {}", loginId);
 
         if (realmRoles != null) {
             updateRealmRoles(realmResource, kcId, realmRoles);
@@ -178,16 +180,16 @@ public class KcIdentityService implements IKcIdentityService {
             userResource.credentials().stream()
                     .filter(c -> "otp".equals(c.getType()))
                     .forEach(c -> userResource.removeCredential(c.getId()));
-            kcAudit.info("KC | UPDATE | username={} | OTP credentials removed | cid={} | rid={}", loginId, correlationId, requestId);
+            log.info("KC | UPDATE | username={} | OTP credentials removed", loginId);
         }
 
-        kcAudit.info("KC | UPDATE | username={} | state=SUCCESS | cid={} | rid={}", loginId, correlationId, requestId);
+        log.info("KC | UPDATE | username={} | state=SUCCESS", loginId);
     }
 
     @Override
     public void deleteUser(String loginId, String correlationId, String requestId) {
-        kcAudit.info("KC | DELETE | username={} | state=STARTED | cid={} | rid={}", loginId, correlationId, requestId);
-        log.debug("Deleting user from Keycloak: username={}", loginId);
+        log.info("KC | DELETE | username={} | state=STARTED", loginId);
+        devLog.debug("Deleting user from Keycloak: username={}", loginId);
 
         RealmResource realmResource = keycloak.realm(keycloakConfig.getRealm());
         UsersResource usersResource = realmResource.users();
@@ -200,8 +202,8 @@ public class KcIdentityService implements IKcIdentityService {
         String kcId = users.get(0).getId();
         usersResource.delete(kcId);
 
-        kcAudit.info("KC | DELETE | username={} | state=SUCCESS | cid={} | rid={}", loginId, correlationId, requestId);
-        log.debug("User deleted: {}", kcId);
+        log.info("KC | DELETE | username={} | state=SUCCESS", loginId);
+        devLog.debug("User deleted: {}", kcId);
     }
 
     private String extractUserIdFromResponse(Response response) {
@@ -218,7 +220,7 @@ public class KcIdentityService implements IKcIdentityService {
         credential.setValue(password);
         credential.setTemporary(!permanent);
         usersResource.get(kcId).resetPassword(credential);
-        kcAudit.debug("Password set for user: {}", kcId);
+        devLog.debug("Password set for user: {}", kcId);
     }
 
     private void assignRealmRoles(RealmResource realmResource, String kcId, List<String> roleNames) {
@@ -227,7 +229,7 @@ public class KcIdentityService implements IKcIdentityService {
                 .collect(Collectors.toList());
         if (!rolesToAssign.isEmpty()) {
             realmResource.users().get(kcId).roles().realmLevel().add(rolesToAssign);
-            kcAudit.debug("Assigned roles {} to user: {}", roleNames, kcId);
+            devLog.debug("Assigned roles {} to user: {}", roleNames, kcId);
         }
     }
 
@@ -244,7 +246,7 @@ public class KcIdentityService implements IKcIdentityService {
         }
 
         if (toRemove.isEmpty() && toAdd.isEmpty()) {
-            kcAudit.debug("Realm roles unchanged for user: {}", kcId);
+            devLog.debug("Realm roles unchanged for user: {}", kcId);
             return;
         }
         if (!toRemove.isEmpty()) {
@@ -253,6 +255,6 @@ public class KcIdentityService implements IKcIdentityService {
         if (!toAdd.isEmpty()) {
             assignRealmRoles(realmResource, kcId, toAdd);
         }
-        kcAudit.debug("Updated roles for user: {}", kcId);
+        devLog.debug("Updated roles for user: {}", kcId);
     }
 }

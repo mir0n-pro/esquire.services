@@ -1,5 +1,15 @@
 Esquire pacMan Microservice
 
+03/21/2026 mir0n  three-tier logging normalization
+messaging.EsqEntityBroadcastPublisher
+  - msgLog/devLog added; props map migrated to LinkedHashMap+Utils.setProps/formatProps
+  - dual-mode ENTITY msg audit (isDebugEnabled: full props / compact fields); console echo log.info
+  - final variable copies (finalRid, finalCid, finalText) removed
+PacManApplication, controller.PacManController
+  - devLog added; log.debug→devLog.debug
+service.impl.PacManService
+  - devLog added; log.debug→devLog.debug; dual error pattern (publishEntityEvent catch: log.warn→log.error+devLog.error)
+
 03/20/2026 mir0n  Messaging Phase 2 — status broadcast; publisher decoupling; service-id fix
 messaging.EsqEntityBroadcastPublisher
   - switched to properties-only transport: Message (no body) replaces TextMessage; FIX-JSON body removed

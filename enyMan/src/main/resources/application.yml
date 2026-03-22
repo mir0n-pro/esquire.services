@@ -33,11 +33,6 @@ enyman:
     consumer:
       enabled: ${ENYMAN_MESSAGING_CONSUMER_ENABLED:false}
 logging:
-  pattern:
-    console: "%d{yyyy-MM-dd HH:mm:ss, UTC} %-5level [%X{correlationId:-no-cid}] [%X{requestId:-no-rid}] %logger{36} - %msg%n"
-  structured:
-    format:
-      console: ecs  # Use ecs,'logstash' or 'gelf' for other common formats
   level:
     root: ${LOG_LEVEL_ROOT:ERROR}
     org:
@@ -47,6 +42,12 @@ logging:
         activemq: ${LOG_LEVEL_AMQ:INFO}
     pro:
       mir0n: ${LOG_LEVEL_MIR0N:INFO}
+    develop: ${LOG_LEVEL_DEVELOP:DEBUG}
+    msg: ${LOG_LEVEL_MSG:INFO}
+  develop:
+    log-path: ${DEVELOP_LOG_PATH:logs/enyMan-develop.log}
+  msg:
+    log-path: ${MSG_LOG_PATH:logs/enyMan-msg.log}
 
 ---
 # Development Oracle

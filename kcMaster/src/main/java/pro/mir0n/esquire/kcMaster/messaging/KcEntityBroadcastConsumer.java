@@ -7,14 +7,20 @@
  *
  *  History:
  * 03/20/2026 mir0n  initial — entity broadcast topic consumer (skeleton)
+ * 03/21/2026 mir0n  raw string literals replaced with EsqMsgConstants; requestId/correlationId reads added;
+ *                   MDC set/clear; devLog; log.debug→devLog.debug; dual error pattern
  */
 
 package pro.mir0n.esquire.kcMaster.messaging;
 
 import jakarta.jms.Message;
 import lombok.extern.slf4j.Slf4j;
+import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 import org.springframework.jms.annotation.JmsListener;
 import org.springframework.stereotype.Component;
+import pro.mir0n.esquire.common.EsqConstants;
+import pro.mir0n.esquire.common.EsqMsgConstants;
 
 /**
  * Durable subscriber on esquire.entity.broadcast.
@@ -26,6 +32,8 @@ import org.springframework.stereotype.Component;
 @Component
 public class KcEntityBroadcastConsumer {
 
+    private static final org.slf4j.Logger devLog = LoggerFactory.getLogger("develop." + KcEntityBroadcastConsumer.class.getName());
+
     private static final String TOPIC         = "esquire.entity.broadcast";
     private static final String SUBSCRIPTION  = "esquire.entity.broadcast.kcmaster.primary";
 
@@ -36,16 +44,24 @@ public class KcEntityBroadcastConsumer {
     )
     public void onMessage(Message message) {
         try {
-            String msgType   = message.getStringProperty("MsgType");
-            String entityId  = message.getStringProperty("EntityID");
-            int    entityKind = message.getIntProperty("EntityKind");
-            String text      = message.getStringProperty("Text");
+            String requestId     = message.getStringProperty(EsqMsgConstants.FIELD_REQUEST_ID);
+            String correlationId = message.getStringProperty(EsqMsgConstants.FIELD_CORRELATION_ID);
+            String msgType       = message.getStringProperty(EsqMsgConstants.FIELD_MSG_TYPE);
+            String entityId      = message.getStringProperty(EsqMsgConstants.FIELD_ENTITY_ID);
+            int    entityKind    = message.getIntProperty(EsqMsgConstants.FIELD_ENTITY_KIND);
+            String text          = message.getStringProperty(EsqMsgConstants.FIELD_TEXT);
 
-            log.debug("kcMaster: entity broadcast received: msgType={} entityId={} entityKind={} text={}", msgType, entityId, entityKind, text);
+            MDC.put(EsqConstants.PD_REQUEST_ID, requestId);
+            MDC.put(EsqConstants.PD_CORRELATION_ID, correlationId);
+
+            devLog.debug("kcMaster: entity broadcast received: msgType={} entityId={} entityKind={} text={}", msgType, entityId, entityKind, text);
 
             // todo: determine what KC action (if any) this event requires
         } catch (Exception e) {
-            log.error("kcMaster: entity broadcast processing failed: {}", e.getMessage(), e);
+            log.error("kcMaster: entity broadcast processing failed: {}", e.getMessage());
+            devLog.error("kcMaster: entity broadcast processing failed: {}", e.getMessage(), e);
+        } finally {
+            MDC.clear();
         }
     }
 }

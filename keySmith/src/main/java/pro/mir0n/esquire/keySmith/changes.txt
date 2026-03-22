@@ -1,5 +1,18 @@
 Esquire keySmith Microservice
 
+03/21/2026 mir0n  KC sync CtrlID — stable instance identifier; response listener selector
+messaging.KcSyncPublisher
+  - ctrlId injected from keysmith.messaging.ctrl-id config (@Value) instead of derived from correlationId
+messaging.KcSyncResponseListener
+  - JMS selector: CtrlID = '${keysmith.messaging.ctrl-id}' — routes responses to this instance only
+  - full field reads (applMsgId, command, entityId, ctrlId, requestId, correlationId, testReqId)
+  - MDC set from requestId/correlationId; cleared in finally
+  - three-tier logging (msgLog/devLog); dual-mode msg audit; dual error pattern
+KeySmithApplication, controller.KeySmithController
+  - devLog added; log.debug→devLog.debug
+service.BizValidatorFactory, service.impl.KeySmithService, service.impl.KeySmithServiceJpa
+  - devLog added; log.debug→devLog.debug
+
 03/21/2026 mir0n  KC sync decoupled to kcMaster — JMS messaging replaces direct Keycloak calls
 x removed config.KeycloakConfig (moved to kcMaster)
 x removed service.IKeycloakIdentityService (moved to kcMaster)

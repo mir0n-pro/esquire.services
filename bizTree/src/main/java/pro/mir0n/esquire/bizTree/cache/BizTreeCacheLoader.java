@@ -8,10 +8,12 @@
  *  History:
  * 03/20/2026 mir0n  created: loads ORG/USR/ACCT entities from DB into H2 in-memory cache on ApplicationReadyEvent;
  *                   builds folder nodes; computes tree paths and levels via BFS
+ * 03/21/2026 mir0n  devLog added; log.debug→devLog.debug
  */
 package pro.mir0n.esquire.bizTree.cache;
 
 import lombok.extern.slf4j.Slf4j;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.ApplicationListener;
@@ -29,6 +31,8 @@ import java.util.*;
 @Slf4j
 @Component
 public class BizTreeCacheLoader implements ApplicationListener<ApplicationReadyEvent> {
+
+    private static final org.slf4j.Logger devLog = LoggerFactory.getLogger("develop." + BizTreeCacheLoader.class.getName());
 
     private static final int STATUS_OK      = 0;
     private static final int STATUS_DELETED = 1;
@@ -188,7 +192,7 @@ public class BizTreeCacheLoader implements ApplicationListener<ApplicationReadyE
             updates.add(new Object[]{ levels.getOrDefault(pk, 0), paths.get(pk), pk });
         }
         cacheDb.batchUpdate(sql.loader.updatePath(), updates);
-        log.debug("BizTreeCacheLoader: path/level updated for {} nodes", updates.size());
+        devLog.debug("BizTreeCacheLoader: path/level updated for {} nodes", updates.size());
     }
 
     private static Object[] node(String pk, int etPk, String name, String desc,

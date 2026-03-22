@@ -11,25 +11,24 @@
  *                   used by all service GlobalExceptionHandlers as thin delegates
  * 03/10/2026 mir0n  handleMethodArgumentNotValid, handleException moved back to GlobalExceptionHandler (common)
  *                   only GenericRuntimeException(s) are here
+ * 03/21/2026 mir0n  devLog added; log.warn on exception→dual error (log.error+devLog.error); unused imports removed
  */
 
 package pro.mir0n.esquire.backend.error;
 
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.*;
-import org.springframework.web.bind.MethodArgumentNotValidException;
-import org.springframework.web.context.request.WebRequest;
-import pro.mir0n.esquire.common.EsqConstants;
-
-import java.util.HashMap;
-import java.util.Map;
 
 @Slf4j
 public class GenericExceptionHandler{
 
+    private static final org.slf4j.Logger devLog = LoggerFactory.getLogger("develop." + GenericExceptionHandler.class.getName());
+
     public static ResponseEntity<ProblemDetail> handleGenericRuntimeException(GenericRuntimeException ex, HttpServletRequest request) {
-        log.warn(ex.getClass().getSimpleName() + ": {} {}: {}", request.getMethod(), request.getRequestURI(), ex.getMessage());
+        log.error(ex.getClass().getSimpleName() + ": {} {}: {}", request.getMethod(), request.getRequestURI(), ex.getMessage());
+        devLog.error(ex.getClass().getSimpleName() + ": {} {}: {}", request.getMethod(), request.getRequestURI(), ex.getMessage(), ex);
         ResponseEntity<ProblemDetail> response;
         if (ex instanceof PermissionDeniedException) {
             response = handlePermissionDeniedException((PermissionDeniedException) ex, request);

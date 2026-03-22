@@ -29,7 +29,6 @@ import lombok.experimental.SuperBuilder;
 import pro.mir0n.esquire.backend.dto.*;
 import pro.mir0n.esquire.backend.jpa.EsqEntityJpa;
 import pro.mir0n.esquire.backend.jpa.EsqNameValueJpa;
-import pro.mir0n.esquire.backend.jpa.EsqTreeNodeJpa;
 import pro.mir0n.esquire.backend.jpa.entity.EsqUsrJpa;
 import pro.mir0n.esquire.backend.storage.EsqObjectKindStorage;
 

@@ -13,11 +13,6 @@ package pro.mir0n.esquire.backend.dto;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.*;
 import lombok.experimental.SuperBuilder;
-import pro.mir0n.esquire.backend.jpa.EsqEntityJpa;
-import pro.mir0n.esquire.backend.jpa.EsqNameValueJpa;
-import pro.mir0n.esquire.backend.jpa.EsqTreeNodeJpa;
-
-import java.util.List;
 
 @Data
 @Schema(

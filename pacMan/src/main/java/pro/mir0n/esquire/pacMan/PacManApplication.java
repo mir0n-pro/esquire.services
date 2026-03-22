@@ -14,11 +14,13 @@
  * 03/09/2026 mir0n  EsqRolesStorage.init() via ApplicationReadyEvent listener
  *                   @EnableJpaRepositories extended with backend.storage.roles
  * 03/10/2026 mir0n  scanBasePackages: backend.service, backend.security, backend.exception added
+ * 03/21/2026 mir0n  devLog added; log.debug→devLog.debug
  */
 
 package pro.mir0n.esquire.pacMan;
 
 import lombok.extern.slf4j.Slf4j;
+import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.domain.EntityScan;
 import org.springframework.boot.context.event.ApplicationStartingEvent;
 import org.springframework.context.ApplicationListener;
@@ -47,6 +49,8 @@ import pro.mir0n.esquire.pacMan.service.BizValidatorFactory;
 })
 public class PacManApplication {
 
+    private static final org.slf4j.Logger devLog = LoggerFactory.getLogger("develop." + PacManApplication.class.getName());
+
     public static void main(String[] args) {
         SpringApplication app = new SpringApplication( PacManApplication.class);
         app.addListeners(new PacManApplicationStartingListener());
@@ -57,21 +61,21 @@ public class PacManApplication {
 public static class PacManApplicationStartingListener implements ApplicationListener<ApplicationStartingEvent> {
     @Override
     public void onApplicationEvent(ApplicationStartingEvent event) {
-        log.debug("ApplicationStartingEvent received: {}", event.getTimestamp());
+        devLog.debug("ApplicationStartingEvent received: {}", event.getTimestamp());
 
         boolean result = EsqObjectKindStorage.getInstance().init((String)null);
         if (!result) {
             System.out.println("Failed to load esq-object-kinds.xml");
             System.exit(-1); // Exit the JVM immediately
         }
-        log.debug("EsqObjectKindStorage loaded");
+        devLog.debug("EsqObjectKindStorage loaded");
 
         result = EsqEntityDictionaryStorage.getInstance().init((String)null);
         if (!result) {
             System.out.println("Failed to load esq-entity-dictionaries.xml");
             System.exit(-1); // Exit the JVM immediately
         }
-        log.debug("EsqEntityDictionaryStorage loaded");
+        devLog.debug("EsqEntityDictionaryStorage loaded");
         ValidatorFactory.getInstance().init(BizValidatorFactory.getBizValidators());
 
     }
@@ -86,7 +90,7 @@ public static class PacManApplicationStartingListener implements ApplicationList
                 System.out.println("Failed to load EsqRolesStorage");
                 System.exit(-1);
             }
-            log.debug("EsqRolesStorage loaded");
+            devLog.debug("EsqRolesStorage loaded");
         }
     }
 

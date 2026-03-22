@@ -9,21 +9,25 @@
  * 01/18/2026 mir0n  Optional capture metrics
  *                   Request/Collabration IDs
  *                   INFO logs generalized
+ * 03/21/2026 mir0n  three-tier logging: devLog added; raw response headers dump moved to devLog.debug;
+ *                   unused imports removed
  */
 package pro.mir0n.esquire.gateway.filters;
 
 import lombok.extern.slf4j.Slf4j;
+import org.slf4j.LoggerFactory;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpHeaders;
 import pro.mir0n.esquire.common.EsqConstants;
 import reactor.core.publisher.Mono;
-import org.springframework.beans.factory.annotation.Value;
 
 @Slf4j
 @Configuration
 public class ResponseTraceFilter {
+
+    private static final org.slf4j.Logger devLog = LoggerFactory.getLogger("develop." + ResponseTraceFilter.class.getName());
 
     @Bean
     public GlobalFilter postGlobalFilter() {
@@ -33,7 +37,7 @@ public class ResponseTraceFilter {
                 HttpHeaders requestHeaders = exchange.getRequest().getHeaders();
                 HttpHeaders responseHeaders = exchange.getResponse().getHeaders();
 
-log.info("OUTGOING: {}", responseHeaders);
+//devLog.debug("OUTGOING headers: {}", responseHeaders);
 
                 String requestId = requestHeaders.getFirst(EsqConstants.X_REQUEST_ID);
                 if (requestId != null

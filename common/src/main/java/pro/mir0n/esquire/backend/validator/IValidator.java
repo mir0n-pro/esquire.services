@@ -12,8 +12,6 @@
 
 package pro.mir0n.esquire.backend.validator;
 
-import org.springframework.beans.BeanWrapper;
-import pro.mir0n.esquire.backend.dto.EsqEntityField;
 import pro.mir0n.esquire.backend.dto.EsqEntityKindFieldLayer;
 import pro.mir0n.esquire.backend.jpa.EsqEntityJpa;
 
