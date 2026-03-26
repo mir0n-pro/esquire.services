@@ -1,5 +1,16 @@
 Esquire pacMan Microservice
 
+03/26/2026 mir0n  Entity CREATE/DELETE — esq-anew/esq-adel endpoints; ACCT create/delete
+controller.PacManController
+  - POST /esq-anew → esquireCommandNew(); POST /esq-adel → esquireCommandDelete()
+service.IPacManService
+  - esquireCommandNew(), esquireCommandDelete() added
+service.impl.PacManService
+  - createAcct(), deleteAcct(), esquireCommandNew(), esquireCommandDelete() added
+  - publishDeleteEvent added; TEXT_* constants replace raw JSON string literals
+jpa.EsqAcctRepository
+  - acctPath, insertAcct, deleteAcct native queries added
+
 03/21/2026 mir0n  three-tier logging normalization
 messaging.EsqEntityBroadcastPublisher
   - msgLog/devLog added; props map migrated to LinkedHashMap+Utils.setProps/formatProps

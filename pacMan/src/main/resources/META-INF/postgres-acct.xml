@@ -16,6 +16,7 @@
     ,acc_ccy
     ,acc_balance
     ,acc_status
+    ,acc_usr_pk
  FROM esq_account
  WHERE acc_pk = CAST(:id AS bigint)
  AND acc_path LIKE :rootPath || '%'
@@ -31,10 +32,32 @@
     ,acc_ccy
     ,acc_balance
     ,acc_status
+    ,acc_usr_pk
  FROM esq_account
  WHERE acc_pk = CAST(:id AS bigint)
  AND acc_path LIKE :rootPath || '%'
  FOR UPDATE
+        </query>
+    </named-native-query>
+
+    <named-native-query name="EsqAcctJpa.acctPath">
+        <query>
+ SELECT usr_path FROM esq_user WHERE usr_pk = CAST(:parentId AS bigint)
+        </query>
+    </named-native-query>
+
+    <named-native-query name="EsqAcctJpa.insertAcct">
+        <query>
+ INSERT INTO esq_account (acc_pk, acc_et_pk, acc_id, acc_desc, acc_ccy, acc_status,
+     acc_path, acc_usr_pk, acc_crl_id, acc_req_id, acc_uid)
+ VALUES (CAST(:id AS bigint), :kind, :name, :desc, :ccy, :status,
+     :path, CAST(:parentId AS bigint), :correlationId, :requestId, :uid)
+        </query>
+    </named-native-query>
+
+    <named-native-query name="EsqAcctJpa.deleteAcct">
+        <query>
+ DELETE FROM esq_account WHERE acc_pk = CAST(:id AS bigint)
         </query>
     </named-native-query>
 
@@ -59,6 +82,7 @@
             <field-result name="ccy" column="acc_ccy"/>
             <field-result name="balance" column="acc_balance"/>
             <field-result name="status" column="acc_status"/>
+            <field-result name="parentId" column="acc_usr_pk"/>
         </entity-result>
     </sql-result-set-mapping>
 

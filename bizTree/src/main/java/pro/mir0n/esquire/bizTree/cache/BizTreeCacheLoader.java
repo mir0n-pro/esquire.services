@@ -9,6 +9,8 @@
  * 03/20/2026 mir0n  created: loads ORG/USR/ACCT entities from DB into H2 in-memory cache on ApplicationReadyEvent;
  *                   builds folder nodes; computes tree paths and levels via BFS
  * 03/21/2026 mir0n  devLog added; log.debug→devLog.debug
+ * 03/26/2026 mir0n  magic constants replaced with BizTreeConstants.*;
+ *                   folder routing: folderKindForUsr(etPk) replaces hardcoded KIND_USR_* comparisons
  */
 package pro.mir0n.esquire.bizTree.cache;
 
@@ -22,6 +24,7 @@ import org.springframework.stereotype.Component;
 import pro.mir0n.esquire.backend.jpa.entity.EsqAcctJpa;
 import pro.mir0n.esquire.backend.jpa.entity.EsqOrgJpa;
 import pro.mir0n.esquire.backend.jpa.entity.EsqUsrJpa;
+import pro.mir0n.esquire.bizTree.BizTreeConstants;
 import pro.mir0n.esquire.bizTree.jpa.EsqAcctRepository;
 import pro.mir0n.esquire.bizTree.jpa.EsqOrgRepository;
 import pro.mir0n.esquire.bizTree.jpa.EsqUsrRepository;
@@ -33,10 +36,6 @@ import java.util.*;
 public class BizTreeCacheLoader implements ApplicationListener<ApplicationReadyEvent> {
 
     private static final org.slf4j.Logger devLog = LoggerFactory.getLogger("develop." + BizTreeCacheLoader.class.getName());
-
-    private static final int STATUS_OK      = 0;
-    private static final int STATUS_DELETED = 1;
-    private static final int STATUS_LOCKED  = 2;
 
     private final EsqOrgRepository  orgRepo;
     private final EsqUsrRepository  usrRepo;
@@ -83,15 +82,15 @@ public class BizTreeCacheLoader implements ApplicationListener<ApplicationReadyE
             String entityPath = o.getPath();
             long   entityPk   = Long.parseLong(pk);
 
-            rows.add(node(pk, etPk, name, desc, parentPk, null, entityPk, entityPath, STATUS_OK));
+            rows.add(node(pk, etPk, name, desc, parentPk, null, entityPk, entityPath, BizTreeConstants.STATUS_OK));
 
             if (etPk > 1) {
-                rows.add(node(pk + "~4",  4,  "All admin-s",   "Admin-s folder",   pk, null, null, entityPath, STATUS_OK));
-                rows.add(node(pk + "~6",  6,  "All accounts",  "Accounts folder",  pk, null, null, entityPath, STATUS_OK));
-                rows.add(node(pk + "~8",  8,  "All clients",   "Clients folder",   pk, null, null, entityPath, STATUS_OK));
-                rows.add(node(pk + "~10", 10, "All merchants", "Merchants folder", pk, null, null, entityPath, STATUS_OK));
+                rows.add(node(pk + "~" + BizTreeConstants.FOLDER_ADMIN,    BizTreeConstants.FOLDER_ADMIN,    BizTreeConstants.FOLDER_ADMIN_NAME,    BizTreeConstants.FOLDER_ADMIN_DESC,    pk, null, null, entityPath, BizTreeConstants.STATUS_OK));
+                rows.add(node(pk + "~" + BizTreeConstants.FOLDER_ACCOUNT,  BizTreeConstants.FOLDER_ACCOUNT,  BizTreeConstants.FOLDER_ACCOUNT_NAME,  BizTreeConstants.FOLDER_ACCOUNT_DESC,  pk, null, null, entityPath, BizTreeConstants.STATUS_OK));
+                rows.add(node(pk + "~" + BizTreeConstants.FOLDER_CLIENT,   BizTreeConstants.FOLDER_CLIENT,   BizTreeConstants.FOLDER_CLIENT_NAME,   BizTreeConstants.FOLDER_CLIENT_DESC,   pk, null, null, entityPath, BizTreeConstants.STATUS_OK));
+                rows.add(node(pk + "~" + BizTreeConstants.FOLDER_MERCHANT, BizTreeConstants.FOLDER_MERCHANT, BizTreeConstants.FOLDER_MERCHANT_NAME, BizTreeConstants.FOLDER_MERCHANT_DESC, pk, null, null, entityPath, BizTreeConstants.STATUS_OK));
             } else {
-                rows.add(node(pk + "~2", 2, "Sys admin-s", "Sys admin-s folder", pk, null, null, entityPath, STATUS_OK));
+                rows.add(node(pk + "~" + BizTreeConstants.FOLDER_SYS_ADMIN, BizTreeConstants.FOLDER_SYS_ADMIN, BizTreeConstants.FOLDER_SYS_ADMIN_NAME, BizTreeConstants.FOLDER_SYS_ADMIN_DESC, pk, null, null, entityPath, BizTreeConstants.STATUS_OK));
             }
         }
     }
@@ -111,13 +110,11 @@ public class BizTreeCacheLoader implements ApplicationListener<ApplicationReadyE
 
             ret.put(pk, orgPk);
 
-            int folderType;
-            if (orgPk == 1)       folderType = 2;
-            else if (etPk == 34)  folderType = 8;
-            else if (etPk == 36)  folderType = 10;
-            else                  folderType = 4;
+            int folderType = (orgPk == BizTreeConstants.ORG_ROOT_PK)
+                    ? BizTreeConstants.FOLDER_SYS_ADMIN
+                    : BizTreeConstants.folderKindForUsr(etPk);
 
-            int    status   = "Y".equals(deletedFlg) ? STATUS_DELETED : STATUS_OK;
+            int    status   = BizTreeConstants.FLAG_DELETED.equals(deletedFlg) ? BizTreeConstants.STATUS_DELETED : BizTreeConstants.STATUS_OK;
             String parentPk = orgPk + "~" + folderType;
             rows.add(node(pk, etPk, name, desc, parentPk, null, usrPk, entityPath, status));
         }
@@ -138,14 +135,14 @@ public class BizTreeCacheLoader implements ApplicationListener<ApplicationReadyE
             long   accPk      = Long.parseLong(pk);
 
             int status;
-            if ("Y".equals(accStatus) || "C".equals(accStatus)) status = STATUS_DELETED;
-            else if ("L".equals(accStatus))                      status = STATUS_LOCKED;
-            else                                                 status = STATUS_OK;
+            if (BizTreeConstants.FLAG_DELETED.equals(accStatus) || BizTreeConstants.FLAG_CLOSED.equals(accStatus)) status = BizTreeConstants.STATUS_DELETED;
+            else if (BizTreeConstants.FLAG_LOCKED.equals(accStatus))                                                status = BizTreeConstants.STATUS_LOCKED;
+            else                                                                                                     status = BizTreeConstants.STATUS_OK;
 
             rows.add(node(pk, etPk, name, desc, usrPk, null, accPk, entityPath, status));
 
             String shortcutPk     = orgPk + "~" + pk;
-            String shortcutParent = orgPk + "~6";
+            String shortcutParent = orgPk + "~" + BizTreeConstants.FOLDER_ACCOUNT;
             rows.add(node(shortcutPk, etPk + 1, name, desc, shortcutParent, pk, accPk, entityPath, status));
         }
     }
@@ -155,8 +152,8 @@ public class BizTreeCacheLoader implements ApplicationListener<ApplicationReadyE
         Map<String, List<String>> children = new HashMap<>();
 
         cacheDb.query(sql.loader.selectPaths(), rs -> {
-            String pk       = rs.getString("tree_pk");
-            String parentPk = rs.getString("tree_tree_pk_parent");
+            String pk       = rs.getString(BizTreeConstants.COL_PK);
+            String parentPk = rs.getString(BizTreeConstants.COL_PARENT_PK);
             parents.put(pk, parentPk);
             if (parentPk != null) {
                 children.computeIfAbsent(parentPk, k -> new ArrayList<>()).add(pk);

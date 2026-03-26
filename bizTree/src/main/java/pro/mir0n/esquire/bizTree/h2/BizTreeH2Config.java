@@ -8,6 +8,7 @@
  *  History:
  * 03/20/2026 mir0n  created: H2 cache configuration; BizTreeCacheSql and cacheJdbcTemplate beans
  *                   explicit HikariCP pool config (pool-name, max-size, min-idle, timeouts)
+ * 03/26/2026 mir0n  delete-node SQL property wired into BizTreeCacheSql.Repo
  */
 package pro.mir0n.esquire.bizTree.h2;
 
@@ -65,7 +66,8 @@ public class BizTreeH2Config {
                         env.getRequiredProperty("biztree.cache.sql.repo.find-path"),
                         env.getRequiredProperty("biztree.cache.sql.repo.find-by-entity-id"),
                         env.getRequiredProperty("biztree.cache.sql.repo.find-by-name-kind"),
-                        env.getRequiredProperty("biztree.cache.sql.repo.update-node")
+                        env.getRequiredProperty("biztree.cache.sql.repo.update-node"),
+                        env.getRequiredProperty("biztree.cache.sql.repo.delete-node")
                 ),
                 new BizTreeCacheSql.Loader(
                         env.getRequiredProperty("biztree.cache.sql.loader.insert-node"),

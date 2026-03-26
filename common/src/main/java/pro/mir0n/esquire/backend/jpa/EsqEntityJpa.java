@@ -7,6 +7,7 @@
  *
  *  History:
  * 02/13/2026 mir0n @MappedSuperclass
+ * 03/26/2026 mir0n  parentId field added — consolidated from EsqAcctJpa/EsqOrgJpa/EsqUsrJpa
  */
 
 package pro.mir0n.esquire.backend.jpa;
@@ -22,4 +23,5 @@ public class EsqEntityJpa {
     private Integer kind;
     private String name;
     private String desc;
+    private String parentId;
 }

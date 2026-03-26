@@ -7,6 +7,7 @@
  *
  *  History:
  * 03/20/2026 mir0n  created: SQL holder records (Ddl, Repo, Loader) for vendor-agnostic cache
+ * 03/26/2026 mir0n  deleteNode field added to Repo record
  */
 package pro.mir0n.esquire.bizTree.cache;
 
@@ -30,7 +31,8 @@ public class BizTreeCacheSql {
             String findPath,
             String findByEntityId,
             String findByNameKind,
-            String updateNode
+            String updateNode,
+            String deleteNode
     ) {}
 
     public record Loader(

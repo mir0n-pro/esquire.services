@@ -1,5 +1,15 @@
 Esquire kcMaster Microservice
 
+03/26/2026 mir0n  Unit test coverage added; constant rename
+messaging.KcResponsePublisher
+  - MSG_ENCODING_JSON (renamed from MESSAGE_ENCODING)
++ added test: messaging.KcRequestHandlerTest (12 tests)
+  - CREATE/UPDATE/DELETE dispatch; tfaMethod→requireTotp/removeTotp; pwdChangeForced;
+    null roles→empty list; unknown command→IllegalArgumentException
++ added test: messaging.KcResponsePublisherTest (13 tests)
+  - URS/URR routing; MsgType values; EntityKind=998; field forwarding;
+    RFC 9457 Error JSON; Text+MessageEncoding absent when requestText=null
+
 03/21/2026 mir0n  three-tier logging normalization across all kcMaster messaging and service classes
 messaging.KcRequestConsumer
   - kcAudit→msgLog/devLog; applMsgId read; dual-mode URQ audit; MDC set/clear; dual error pattern

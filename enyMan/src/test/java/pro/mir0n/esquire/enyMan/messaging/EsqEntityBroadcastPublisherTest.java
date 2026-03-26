@@ -103,7 +103,7 @@ class EsqEntityBroadcastPublisherTest {
         verify(msg).setStringProperty(EsqMsgConstants.FIELD_BUS_ID,           EsqMsgConstants.BUS_ID_ENTITY);
         verify(msg).setStringProperty(EsqMsgConstants.FIELD_SERVICE_ID,       EsqMsgConstants.SERVICE_ID_ENTITY_BROADCAST);
         verify(msg).setStringProperty(EsqMsgConstants.FIELD_MSG_TYPE,         EsqMsgConstants.MSG_TYPE_ENTITY_BROADCASTS);
-        verify(msg).setStringProperty(EsqMsgConstants.FIELD_MESSAGE_ENCODING, EsqMsgConstants.MESSAGE_ENCODING);
+        verify(msg).setStringProperty(EsqMsgConstants.FIELD_MESSAGE_ENCODING, EsqMsgConstants.MSG_ENCODING_JSON);
     }
 
     // ---- RequestID propagation ----

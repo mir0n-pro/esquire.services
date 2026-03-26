@@ -31,6 +31,8 @@
  * 03/20/2026 mir0n  status broadcast: "status" (acc_status) added to isBroadcastableUpdate()
  *                   publishEntityEvent() emits raw "status" field value; publisher decoupling rule
  * 03/21/2026 mir0n  devLog added; log.debug→devLog.debug; dual error pattern (publishEntityEvent catch: log.warn→log.error+devLog.error)
+ * 03/26/2026 mir0n  createAcct(), deleteAcct(), esquireCommandNew(), esquireCommandDelete() added;
+ *                   publishDeleteEvent added; TEXT_* constants replace raw strings
  */
 
 package pro.mir0n.esquire.pacMan.service.impl;
@@ -64,6 +66,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import pro.mir0n.esquire.common.EsqConstants;
 import pro.mir0n.esquire.common.EsqMsgConstants;
+import pro.mir0n.esquire.common.EsqUtils;
 
 @Slf4j
 @Service
@@ -130,7 +133,7 @@ public class PacManService  implements IPacManService {
 
         transactionTemplate.execute(status -> {
             // xxx: COMMIT flush mode prevents Hibernate from auto-flushing managed entities
-            //      before native query execution. We use native queries exclusively for writes,
+            //      before native query execution. We use native queries exclusively for writes,ha
             //      so JPA dirty-tracking must never interfere. clearAutomatically=true on
             //      @Modifying queries clears the context after each native update, so nothing
             //      remains to flush at commit.
@@ -147,11 +150,25 @@ public class PacManService  implements IPacManService {
         return ret;
     }
 
+    private void publishDeleteEvent(String id, int entityKind, String eventType,
+                                    String requestId, String correlationId) {
+        Map<String, Object> text = new java.util.LinkedHashMap<>();
+        text.put(EsqMsgConstants.TEXT_ID,   id);
+        text.put(EsqMsgConstants.TEXT_KIND, entityKind);
+        try {
+            broadcastPublisher.publish(entityKind, id, eventType,
+                    requestId, correlationId, text);
+        } catch (Exception e) {
+            log.error("publishDeleteEvent: broadcast failed for kind={}, id={}: {}", entityKind, id, e.getMessage());
+            devLog.error("publishDeleteEvent: broadcast failed for kind={}, id={}, requestId={}, correlationId={}: {}", entityKind, id, requestId, correlationId, e.getMessage(), e);
+        }
+    }
+
     // Broadcast UPDATE only when fields that affect the account's public identity or status change.
     // name / desc / status (acc_status) are the current scope.
     private boolean isBroadcastableUpdate(Map<String, Object> fields) {
-        return fields != null && (fields.containsKey("name") || fields.containsKey("desc")
-                               || fields.containsKey("status"));
+        return fields != null && (fields.containsKey(EsqMsgConstants.TEXT_NAME) || fields.containsKey(EsqMsgConstants.TEXT_DESC)
+                               || fields.containsKey(EsqMsgConstants.TEXT_STATUS));
     }
 
     // Runs synchronously on the request thread — publish failure is absorbed (log.warn),
@@ -162,11 +179,13 @@ public class PacManService  implements IPacManService {
                                     String requestId, String correlationId, Map<String, Object> fields) {
         if (entity == null) return;
         Map<String, Object> text = new java.util.LinkedHashMap<>();
-        text.put("id",   entity.getId());
-        text.put("kind", entityKind);
-        if (fields.containsKey("name"))   text.put("name",   fields.get("name"));
-        if (fields.containsKey("desc"))   text.put("desc",   fields.get("desc"));
-        if (fields.containsKey("status")) text.put("status", fields.get("status"));
+        text.put(EsqMsgConstants.TEXT_ID,        entity.getId());
+        text.put(EsqMsgConstants.TEXT_KIND,      entityKind);
+        text.put(EsqMsgConstants.TEXT_PARENT_ID, entity.getParentId());
+        if (fields.containsKey(EsqMsgConstants.TEXT_NAME))   text.put(EsqMsgConstants.TEXT_NAME,   fields.get(EsqMsgConstants.TEXT_NAME));
+        if (fields.containsKey(EsqMsgConstants.TEXT_DESC))   text.put(EsqMsgConstants.TEXT_DESC,   fields.get(EsqMsgConstants.TEXT_DESC));
+        if (fields.containsKey(EsqMsgConstants.TEXT_STATUS)) text.put(EsqMsgConstants.TEXT_STATUS, fields.get(EsqMsgConstants.TEXT_STATUS));
+        if (fields.containsKey(EsqMsgConstants.TEXT_PATH))   text.put(EsqMsgConstants.TEXT_PATH,   fields.get(EsqMsgConstants.TEXT_PATH));
         try {
             broadcastPublisher.publish(entityKind, entity.getId(), eventType,
                     requestId, correlationId, text);
@@ -174,6 +193,119 @@ public class PacManService  implements IPacManService {
             log.error("publishEntityEvent: broadcast failed for kind={}, id={}: {}", entityKind, entity.getId(), e.getMessage());
             devLog.error("publishEntityEvent: broadcast failed for kind={}, id={}, requestId={}, correlationId={}: {}", entityKind, entity.getId(), requestId, correlationId, e.getMessage(), e);
         }
+    }
+
+    @Override
+    public EsqEntity esquireCommandNew(Integer kind, String parentId, String cmd, Map<String, Object> fields, String rootPath, String uid, List<String> roles) {
+        String correlationId = RequestContextUtils.getCorrelationId();
+        String requestId = RequestContextUtils.getRequestId();
+        devLog.debug("srvc: esquireCommandNew: kind:{}, parentId:{}, cmd:{}, fields:{}, rootPath:{}, uid:{}", kind, parentId, cmd, fields, rootPath, uid);
+
+        int k = ((int)Math.floor((double) kind/2)) * 2;
+        EsqObjectKind eek = EsqObjectKindStorage.getInstance().get(k);
+        if (!eek.isAcct()) {
+            throw new ResourceNotFoundException("esquireCommandNew", "kind", kind.toString());
+        }
+
+        Map<Integer, EsqPermission> permissions = EsqRolesStorage.getInstance().findAdminPermissions(roles);
+        boolean permitted = false;
+        if (permissions != null) {
+            permitted = EsqRolesStorage.getInstance().isAdminCmdPermitted(
+                    permissions.get(k),
+                    EsqRolesStorage.AdminCmd.CREATE
+            );
+        }
+        if (!permitted) {
+            throw new PermissionDeniedException(eek.getTitle(), "create");
+        }
+
+        EsqEntityJpa[] created = {null};
+
+        transactionTemplate.execute(status -> {
+            em.setFlushMode(FlushModeType.COMMIT);
+            createAcct(k, parentId, fields, uid, correlationId, requestId, created);
+            return null;
+        });
+
+        EsqEntity ret = EsqEntityFactory.getInstance().createEntity(created[0], null, null);
+        publishEntityEvent(ret, k, EsqMsgConstants.EVENT_CREATE, requestId, correlationId, fields);
+        devLog.debug("srvc: esquireCommandNew(2): entity:{}", ret);
+        return ret;
+    }
+
+    @Override
+    public void esquireCommandDelete(Integer kind, String id, String cmd, String rootPath, String uid, List<String> roles) {
+        String correlationId = RequestContextUtils.getCorrelationId();
+        String requestId = RequestContextUtils.getRequestId();
+        devLog.debug("srvc: esquireCommandDelete: kind:{}, id:{}, cmd:{}, rootPath:{}, uid:{}", kind, id, cmd, rootPath, uid);
+
+        int k = ((int)Math.floor((double) kind/2)) * 2;
+        EsqObjectKind eek = EsqObjectKindStorage.getInstance().get(k);
+        if (!eek.isAcct()) {
+            throw new ResourceNotFoundException("esquireCommandDelete", "kind", kind.toString());
+        }
+
+        Map<Integer, EsqPermission> permissions = EsqRolesStorage.getInstance().findAdminPermissions(roles);
+        boolean permitted = false;
+        if (permissions != null) {
+            permitted = EsqRolesStorage.getInstance().isAdminCmdPermitted(
+                    permissions.get(k),
+                    EsqRolesStorage.AdminCmd.DELETE
+            );
+        }
+        if (!permitted) {
+            throw new PermissionDeniedException(eek.getTitle(), "delete");
+        }
+
+        transactionTemplate.execute(status -> {
+            em.setFlushMode(FlushModeType.COMMIT);
+            deleteAcct(id, rootPath);
+            return null;
+        });
+
+        publishDeleteEvent(id, k, EsqMsgConstants.EVENT_DELETE, requestId, correlationId);
+        devLog.debug("srvc: esquireCommandDelete(2): kind:{}, id:{}", k, id);
+    }
+
+    private void createAcct(int kind, String parentId, Map<String, Object> fields,
+                             String uid, String correlationId, String requestId,
+                             EsqEntityJpa[] created) {
+        String parentPath = entityRepository.acctPath(parentId);
+        if (parentPath == null) {
+            throw new ResourceNotFoundException("createAcct", "parentId", parentId);
+        }
+        long   newId  = EsqUtils.generateEntityId();
+        String path   = parentPath;
+        String prefix = EsqObjectKindStorage.getInstance().get(kind).getName().substring(0, 1).toUpperCase();
+        String name   = prefix + newId;
+        String desc   = fields.containsKey(EsqMsgConstants.TEXT_DESC) ? (String) fields.get(EsqMsgConstants.TEXT_DESC) : null;
+        String ccy    = fields.containsKey(EsqMsgConstants.TEXT_CCY)  ? (String) fields.get(EsqMsgConstants.TEXT_CCY)  : EsqMsgConstants.CCY_DEFAULT;
+        String status =  fields.containsKey(EsqMsgConstants.TEXT_STATUS)  ? (String) fields.get(EsqMsgConstants.TEXT_STATUS)  : EsqMsgConstants.FLAG_OPEN;
+
+        fields.put(EsqMsgConstants.TEXT_NAME,   name);
+        fields.put(EsqMsgConstants.TEXT_PATH,   path);
+        fields.put(EsqMsgConstants.TEXT_STATUS, status);
+
+        entityRepository.insertAcct(newId, kind, name, desc, ccy, status, path, parentId, uid, correlationId, requestId);
+
+        EsqAcctJpa acct = new EsqAcctJpa();
+        acct.setId(String.valueOf(newId));
+        acct.setKind(kind);
+        acct.setName(name);
+        acct.setDesc(desc);
+        acct.setCcy(ccy);
+        acct.setStatus(status);
+        acct.setPath(path);
+        acct.setParentId(parentId);
+        created[0] = acct;
+    }
+
+    private void deleteAcct(String id, String rootPath) {
+        EsqAcctJpa acct = entityRepository.detailAcctForUpdate(id, rootPath);
+        if (acct == null) {
+            throw new ResourceNotFoundException("deleteAcct", "id", id);
+        }
+        entityRepository.deleteAcct(id);
     }
 
     private void saveAcct(String id, Map<String, Object> fields, String rootPath,

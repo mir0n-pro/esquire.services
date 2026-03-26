@@ -116,6 +116,66 @@ class EnyManServiceTest {
         ).isInstanceOf(ResourceNotFoundException.class);
     }
 
+    // ---- esquireCommandNew: org kind, null roles → PermissionDeniedException ----
+
+    @Test
+    @DisplayName("esquireCommandNew: org kind, null roles → PermissionDeniedException")
+    void esquireCommandNew_orgKind_nullRoles_throwsPermissionDeniedException() {
+        assertThatThrownBy(() ->
+            service.esquireCommandNew(10, "1", "new", Map.of(), "1.2.3", "99", null)
+        ).isInstanceOf(PermissionDeniedException.class);
+    }
+
+    // ---- esquireCommandNew: usr kind, null roles → PermissionDeniedException ----
+
+    @Test
+    @DisplayName("esquireCommandNew: usr kind, null roles → PermissionDeniedException")
+    void esquireCommandNew_usrKind_nullRoles_throwsPermissionDeniedException() {
+        assertThatThrownBy(() ->
+            service.esquireCommandNew(20, "1", "new", Map.of(), "1.2.3", "99", null)
+        ).isInstanceOf(PermissionDeniedException.class);
+    }
+
+    // ---- esquireCommandNew: unknown kind → ResourceNotFoundException ----
+
+    @Test
+    @DisplayName("esquireCommandNew: unknown kind → ResourceNotFoundException")
+    void esquireCommandNew_unknownKind_throwsResourceNotFoundException() {
+        assertThatThrownBy(() ->
+            service.esquireCommandNew(99, "1", "new", Map.of(), "1.2.3", "99", null)
+        ).isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    // ---- esquireCommandDelete: org kind, null roles → PermissionDeniedException ----
+
+    @Test
+    @DisplayName("esquireCommandDelete: org kind, null roles → PermissionDeniedException")
+    void esquireCommandDelete_orgKind_nullRoles_throwsPermissionDeniedException() {
+        assertThatThrownBy(() ->
+            service.esquireCommandDelete(10, "100", "delete", "1.2.3", "99", null)
+        ).isInstanceOf(PermissionDeniedException.class);
+    }
+
+    // ---- esquireCommandDelete: usr kind, null roles → PermissionDeniedException ----
+
+    @Test
+    @DisplayName("esquireCommandDelete: usr kind, null roles → PermissionDeniedException")
+    void esquireCommandDelete_usrKind_nullRoles_throwsPermissionDeniedException() {
+        assertThatThrownBy(() ->
+            service.esquireCommandDelete(20, "100", "delete", "1.2.3", "99", null)
+        ).isInstanceOf(PermissionDeniedException.class);
+    }
+
+    // ---- esquireCommandDelete: unknown kind, null roles → PermissionDeniedException (permission checked before kind dispatch) ----
+
+    @Test
+    @DisplayName("esquireCommandDelete: unknown kind, null roles → PermissionDeniedException (permission gate fires first)")
+    void esquireCommandDelete_unknownKind_nullRoles_throwsPermissionDeniedException() {
+        assertThatThrownBy(() ->
+            service.esquireCommandDelete(99, "100", "delete", "1.2.3", "99", null)
+        ).isInstanceOf(PermissionDeniedException.class);
+    }
+
     // ---- esquireDictionary: even kind → returns layers ----
 
     @Test

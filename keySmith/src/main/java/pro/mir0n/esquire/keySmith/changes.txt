@@ -1,5 +1,10 @@
 Esquire keySmith Microservice
 
+03/26/2026 mir0n  Cleanup — removed dead code; constant rename
+x removed service.impl.KeySmithServiceJpa — alternative JPA implementation, superseded by KeySmithService (@Primary)
+messaging.KcSyncPublisher
+  - MSG_ENCODING_JSON (renamed from MESSAGE_ENCODING)
+
 03/21/2026 mir0n  KC sync CtrlID — stable instance identifier; response listener selector
 messaging.KcSyncPublisher
   - ctrlId injected from keysmith.messaging.ctrl-id config (@Value) instead of derived from correlationId

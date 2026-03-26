@@ -15,6 +15,7 @@
  * 03/10/2026 mir0n  import: RequestContextUtils updated to backend.service package
  * 03/10/2026 mir0n  fillКindFieldLayer() call updated to fillKindFieldLayer() — Cyrillic К → ASCII K
  * 03/21/2026 mir0n  devLog added; log.debug→devLog.debug
+ * 03/26/2026 mir0n  createOrg(), deleteOrg(), esquireCommandNew(), esquireCommandDelete() added
  */
 
 package pro.mir0n.esquire.enyMan.service.impl;
@@ -22,12 +23,15 @@ package pro.mir0n.esquire.enyMan.service.impl;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.FlushModeType;
 import java.util.*;
+import java.util.LinkedHashMap;
 
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.LoggerFactory;
 import pro.mir0n.esquire.backend.dto.*;
 import pro.mir0n.esquire.backend.jpa.*;
 import pro.mir0n.esquire.backend.jpa.entity.EsqOrgJpa;
+import pro.mir0n.esquire.common.EsqUtils;
+import pro.mir0n.esquire.backend.jpa.EsqCustomEntityFieldJpa;
 import pro.mir0n.esquire.backend.validator.ValidatorFactory;
 import pro.mir0n.esquire.enyMan.jpa.EsqEntityDictionaryRepository;
 import pro.mir0n.esquire.enyMan.jpa.EsqOrgRepository;
@@ -41,6 +45,7 @@ public class OrgService  extends AEnyManService {
 
     private static final org.slf4j.Logger devLog = LoggerFactory.getLogger("develop." + OrgService.class.getName());
 
+    private EsqEntityDictionaryRepository entityDictionaryRepository;
     private EsqOrgRepository orgRepository;
     private TransactionTemplate transactionTemplate;
     private EntityManager em;
@@ -50,6 +55,7 @@ public class OrgService  extends AEnyManService {
                       TransactionTemplate transactionTemplate,
                       EntityManager em) {
         super(entityDictionaryRepository);
+        this.entityDictionaryRepository = entityDictionaryRepository;
         this.orgRepository = orgRepository;
         this.transactionTemplate = transactionTemplate;
         this.em = em;
@@ -94,6 +100,83 @@ public class OrgService  extends AEnyManService {
         EsqEntity ret = EsqEntityFactory.getInstance().createEntity(updated[0], custom[0], null);
         devLog.debug("srvc: esquireCommandSave(org): entity:{}", ret);
         return ret;
+    }
+
+    @Override
+    public EsqEntity esquireCommandNew(Integer kind, String parentId, String cmd, Map<String, Object> fields, String rootPath, String uid, List<String> roles) {
+        String correlationId = RequestContextUtils.getCorrelationId();
+        String requestId = RequestContextUtils.getRequestId();
+        devLog.debug("srvc: esquireCommandNew(org): kind:{}, parentId:{}, cmd:{}, rootPath:{}, uid:{}", kind, parentId, cmd, rootPath, uid);
+
+        EsqEntityJpa[] created = {null};
+
+        transactionTemplate.execute(status -> {
+            em.setFlushMode(FlushModeType.COMMIT);
+            createOrg(kind, parentId, fields, rootPath, uid, correlationId, requestId, created);
+            return null;
+        });
+
+        EsqEntity ret = EsqEntityFactory.getInstance().createEntity(created[0], null, null);
+        devLog.debug("srvc: esquireCommandNew(org): entity:{}", ret);
+        return ret;
+    }
+
+    @Override
+    public void esquireCommandDelete(Integer kind, String id, String cmd, String rootPath, String uid, List<String> roles) {
+        devLog.debug("srvc: esquireCommandDelete(org): kind:{}, id:{}, cmd:{}, rootPath:{}, uid:{}", kind, id, cmd, rootPath, uid);
+        transactionTemplate.execute(status -> {
+            em.setFlushMode(FlushModeType.COMMIT);
+            deleteOrg(id, rootPath);
+            return null;
+        });
+    }
+
+    private void createOrg(Integer kind, String parentId, Map<String, Object> fields,
+                            String rootPath, String uid, String correlationId, String requestId,
+                            EsqEntityJpa[] created) {
+        String parentPath = orgRepository.orgPath(parentId, rootPath);
+        if (parentPath == null) {
+            throw new ResourceNotFoundException("createOrg", "parentId", parentId);
+        }
+        long newId = EsqUtils.generateEntityId();
+        String idStr = String.valueOf(newId);
+        String path = parentPath + newId + ".";
+        fields.put("path", path);
+
+        // Validate top-level fields via dictionary (mirrors saveOrg)
+        EsqOrgJpa org = new EsqOrgJpa();
+        org.setKind(kind);
+        applyFields(org, fields, false, 0, null);
+
+        orgRepository.insertOrg(newId, kind, org.getName(), org.getDesc(), org.getFullName(), path, parentId, uid, correlationId, requestId);
+        orgRepository.insertCustomOrg(newId, kind, uid, correlationId, requestId);
+
+        List<EsqCustomEntityFieldJpa> customFields = entityDictionaryRepository.findCustom(kind);
+        if (customFields != null && !customFields.isEmpty()) {
+            EsqEntityDictionary dict = EsqEntityDictionaryStorage.getInstance().get(kind);
+            EsqEntityKindFieldLayer kfl = new EsqEntityKindFieldLayer();
+            for (EsqCustomEntityFieldJpa cf : customFields) {
+                String fieldName = cf.getName();
+                if (fields.containsKey(fieldName) && cf.getReadwrite() != null && (cf.getReadwrite() & 2) == 2) {
+                    kfl = (dict != null) ? dict.fillKindFieldLayer(fieldName, kfl) : null;
+                    String val = (String) ValidatorFactory.getInstance().validate(org, kfl, false, fields.get(fieldName));
+                    orgRepository.updateCustomOrg(idStr, fieldName, val, uid, correlationId, requestId);
+                }
+            }
+        }
+
+        org.setId(idStr);
+        org.setPath(path);
+        org.setParentId(parentId);
+        created[0] = org;
+    }
+
+    private void deleteOrg(String id, String rootPath) {
+        EsqOrgJpa org = orgRepository.detailOrgForUpdate(id, rootPath);
+        if (org == null) {
+            throw new ResourceNotFoundException("deleteOrg", "id", id);
+        }
+        orgRepository.deleteOrg(id);
     }
 
     private void saveOrg(String id, Map<String, Object> fields, String rootPath,

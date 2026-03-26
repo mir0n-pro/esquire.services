@@ -13,6 +13,7 @@
      ,org_name AS "name"
      ,org_desc AS "desc"
      ,org_full_name
+     ,org_org_pk
  FROM esq_org
  WHERE org_pk = CAST(:id AS bigint)
  AND org_path LIKE :rootPath || '%'
@@ -29,6 +30,7 @@
      ,usr_reg_option
      ,usr_deleted_flg
      ,au_email
+     ,usr_org_pk
  FROM esq_user u
  JOIN esq_auth a
   ON a.au_usr_pk = u.usr_pk
@@ -56,6 +58,7 @@
      ,org_name AS "name"
      ,org_desc AS "desc"
      ,org_full_name
+     ,org_org_pk
  FROM esq_org
  WHERE org_pk = CAST(:id AS bigint)
  AND org_path LIKE :rootPath || '%'
@@ -73,12 +76,34 @@
      ,usr_reg_option
      ,usr_deleted_flg
      ,au_email
+     ,usr_org_pk
  FROM esq_user u
  JOIN esq_auth a
   ON a.au_usr_pk = u.usr_pk
  WHERE usr_pk = CAST(:id AS bigint)
  AND usr_path LIKE :rootPath || '%'
  FOR UPDATE OF u
+        </query>
+    </named-native-query>
+
+    <named-native-query name="EsqOrgJpa.orgPath">
+        <query>
+ SELECT org_path FROM esq_org WHERE org_pk = CAST(:parentId AS bigint) AND org_path LIKE :rootPath || '%'
+        </query>
+    </named-native-query>
+
+    <named-native-query name="EsqOrgJpa.insertOrg">
+        <query>
+ INSERT INTO esq_org (org_pk, org_et_pk, org_name, org_desc, org_full_name,
+     org_path, org_org_pk, org_crl_id, org_req_id, org_uid)
+ VALUES (CAST(:id AS bigint), :kind, :name, :desc, :fullName,
+     :path, CAST(:parentId AS bigint), :correlationId, :requestId, :uid)
+        </query>
+    </named-native-query>
+
+    <named-native-query name="EsqOrgJpa.deleteOrg">
+        <query>
+ DELETE FROM esq_org WHERE org_pk = CAST(:id AS bigint)
         </query>
     </named-native-query>
 
@@ -92,6 +117,40 @@
     ,org_req_id = :requestId
     ,org_uid = :uid
  WHERE org_pk = CAST(:id AS bigint)
+        </query>
+    </named-native-query>
+
+    <named-native-query name="EsqUsrJpa.usrPath">
+        <query>
+ SELECT org_path FROM esq_org WHERE org_pk = CAST(:parentId AS bigint) AND org_path LIKE :rootPath || '%'
+        </query>
+    </named-native-query>
+
+    <named-native-query name="EsqUsrJpa.insertUsr">
+        <query>
+ INSERT INTO esq_user (usr_pk, usr_et_pk, usr_name, usr_desc,
+     usr_path, usr_org_pk, usr_reg_option, usr_deleted_flg, usr_crl_id, usr_req_id, usr_uid)
+ VALUES (CAST(:id AS bigint), :kind, :name, :desc,
+     :path, CAST(:parentId AS bigint), :registration, :deleted, :correlationId, :requestId, :uid)
+        </query>
+    </named-native-query>
+
+    <named-native-query name="EsqUsrJpa.insertAuth">
+        <query>
+ INSERT INTO esq_auth (au_usr_pk, au_login_id, au_email, au_crl_id, au_req_id, au_uid)
+ VALUES (CAST(:id AS bigint), :loginId, :email, :correlationId, :requestId, :uid)
+        </query>
+    </named-native-query>
+
+    <named-native-query name="EsqUsrJpa.deleteAuth">
+        <query>
+ DELETE FROM esq_auth WHERE au_usr_pk = CAST(:id AS bigint)
+        </query>
+    </named-native-query>
+
+    <named-native-query name="EsqUsrJpa.deleteUsr">
+        <query>
+ DELETE FROM esq_user WHERE usr_pk = CAST(:id AS bigint)
         </query>
     </named-native-query>
 
@@ -154,6 +213,32 @@
             JOIN esq_address ON pe_ad_pk_biz = ad_pk
             WHERE pe_usr_pk = CAST(:id AS bigint)
               AND pe_kind = :kind
+        </query>
+    </named-native-query>
+
+    <named-native-query name="EsqUsrJpa.countByEmail">
+        <query>
+SELECT COUNT(*) FROM esq_auth WHERE au_email = :email
+        </query>
+    </named-native-query>
+
+    <named-native-query name="EsqUsrJpa.nextAddrPk">
+        <query>
+SELECT nextval('ESQ_REF_SEQ')
+        </query>
+    </named-native-query>
+
+    <named-native-query name="EsqUsrJpa.insertAddress">
+        <query>
+INSERT INTO esq_address (ad_pk, ad_crl_id, ad_req_id, ad_uid)
+VALUES (CAST(:id AS bigint), :correlationId, :requestId, :uid)
+        </query>
+    </named-native-query>
+
+    <named-native-query name="EsqUsrJpa.insertPerson">
+        <query>
+INSERT INTO esq_person (pe_usr_pk, pe_kind, pe_ad_pk, pe_ad_pk_biz, pe_crl_id, pe_req_id, pe_uid)
+VALUES (CAST(:id AS bigint), :kind, CAST(:adPk AS bigint), CAST(:bizAdPk AS bigint), :correlationId, :requestId, :uid)
         </query>
     </named-native-query>
 
@@ -276,6 +361,7 @@
             <field-result name="registration" column="usr_reg_option"/>
             <field-result name="deleted" column="usr_deleted_flg"/>
             <field-result name="email" column="au_email"/>
+            <field-result name="parentId" column="usr_org_pk"/>
         </entity-result>
     </sql-result-set-mapping>
 
@@ -286,6 +372,7 @@
             <field-result name="name" column="name"/>
             <field-result name="desc" column="desc"/>
             <field-result name="fullName" column="org_full_name"/>
+            <field-result name="parentId" column="org_org_pk"/>
         </entity-result>
     </sql-result-set-mapping>
 

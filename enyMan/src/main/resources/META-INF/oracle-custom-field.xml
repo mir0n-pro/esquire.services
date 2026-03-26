@@ -37,6 +37,24 @@
         </query>
     </named-native-query>
 
+    <named-native-query name="EsqUsrJpa.insertCustomUsr">
+        <query>
+ INSERT INTO esq_usr_par (upr_usr_pk, upr_par_name, upr_par_et_pk, upr_value, upr_crl_id, upr_req_id, upr_uid)
+ SELECT :id, par_name, par_et_pk, NULL, :correlationId, :requestId, :uid
+ FROM esq_parameter
+ WHERE par_et_pk = :kind
+        </query>
+    </named-native-query>
+
+    <named-native-query name="EsqOrgJpa.insertCustomOrg">
+        <query>
+ INSERT INTO esq_org_par (opr_org_pk, opr_par_name, opr_par_et_pk, opr_value, opr_crl_id, opr_req_id, opr_uid)
+ SELECT :id, par_name, par_et_pk, NULL, :correlationId, :requestId, :uid
+ FROM esq_parameter
+ WHERE par_et_pk = :kind
+        </query>
+    </named-native-query>
+
     <named-native-query name="EsqOrgJpa.updateCustomOrg">
         <query>
  UPDATE esq_org_par

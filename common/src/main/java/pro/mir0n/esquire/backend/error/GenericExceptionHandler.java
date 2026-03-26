@@ -12,6 +12,7 @@
  * 03/10/2026 mir0n  handleMethodArgumentNotValid, handleException moved back to GlobalExceptionHandler (common)
  *                   only GenericRuntimeException(s) are here
  * 03/21/2026 mir0n  devLog added; log.warn on exception→dual error (log.error+devLog.error); unused imports removed
+ * 03/26/2026 mir0n  handleEmailExists(): EmailExistsException → 409 CONFLICT RFC 9457 response
  */
 
 package pro.mir0n.esquire.backend.error;
@@ -32,6 +33,15 @@ public class GenericExceptionHandler{
         ResponseEntity<ProblemDetail> response;
         if (ex instanceof PermissionDeniedException) {
             response = handlePermissionDeniedException((PermissionDeniedException) ex, request);
+        } else if (ex instanceof EmailExistsException) {
+            ProblemDetail problem = ProblemDetailMill.createProblemDetail(
+                    request,
+                    HttpStatus.CONFLICT,
+                    "Conflict",
+                    null,
+                    ex
+            );
+            response = ResponseEntity.status(HttpStatus.CONFLICT).body(problem);
         } else {
             //InvalidValueException, ResourceNotFoundException
             ProblemDetail problem = ProblemDetailMill.createProblemDetail(

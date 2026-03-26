@@ -12,6 +12,11 @@
  *                   decodeStatus(): raw string → 0/1/2; null status values not propagated
  * 03/21/2026 mir0n  three-tier logging: broadcastLog→msgLog/devLog; MDC set/clear; requestId/correlationId reads;
  *                   dual-mode ENTITY msg audit; console echo log.info; dual error pattern; unused imports removed
+ * 03/25/2026 mir0n  handler map dispatch: HandlerKey(eventType,kindBits) → IBizTreeEventHandler;
+ *                   kindBits via EsqObjectKindStorage (isAcct?4:0)+(isUsr?2:0)+(isOrg?1:0);
+ *                   UpdateEntityHandler/CreateOrgHandler/CreateUsrHandler extracted to handler/ package;
+ *                   KindType enum removed
+ * 03/26/2026 mir0n  DeleteEntityHandler registered for (DELETE, ORG/USR/ACCT) — skeleton, no cascade
  */
 package pro.mir0n.esquire.bizTree.messaging;
 
@@ -26,23 +31,26 @@ import org.slf4j.MDC;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.jms.annotation.JmsListener;
 import org.springframework.stereotype.Component;
+import pro.mir0n.esquire.backend.dto.EsqObjectKind;
+import pro.mir0n.esquire.backend.storage.EsqObjectKindStorage;
 import pro.mir0n.esquire.bizTree.cache.IBizTreeCacheRepository;
+import pro.mir0n.esquire.bizTree.messaging.handler.CreateAcctHandler;
+import pro.mir0n.esquire.bizTree.messaging.handler.CreateOrgHandler;
+import pro.mir0n.esquire.bizTree.messaging.handler.CreateUsrHandler;
+import pro.mir0n.esquire.bizTree.messaging.handler.DeleteEntityHandler;
+import pro.mir0n.esquire.bizTree.messaging.handler.UpdateEntityHandler;
 import pro.mir0n.esquire.common.EsqConstants;
 import pro.mir0n.esquire.common.EsqMsgConstants;
 import pro.mir0n.esquire.messaging.jms.Utils;
 
+import java.util.HashMap;
+import java.util.Map;
+
 /**
  * Durable consumer for the esquire.entity.broadcast topic.
  *
- * Phase 1: logs received messages to the dedicated entity-broadcast log file.[ERROR] Failed to execute goal org.apache.maven.plugins:maven-compiler-plugin:3.13.0:testCompile (default-testCompile) on project esquire-biz-tree: Compilation failure
- * [ERROR] /C:/MyProjects/esquire/services/bizTree/src/test/java/pro/mir0n/esquire/bizTree/cache/BizTreeCacheLoaderTest.java:[41,17] constructor Repo in record pro.mir0n.esquire.bizTree.cache.BizTreeCacheSql.Repo cannot be applied to given types;
- * [ERROR]   required: java.lang.String,java.lang.String,java.lang.String,java.lang.String,java.lang.String,java.lang.String,java.lang.String,java.lang.String
- * [ERROR]   found:    java.lang.String,java.lang.String,java.lang.String,java.lang.String,java.lang.String,java.lang.String,java.lang.String,java.lang.String,java.lang.String,java.lang.String
- * [ERROR]   reason: actual and formal argument lists differ in length
- * [ERROR]
- * [ERROR] -> [Help 1]                                                                                                                                                           3:02 PM[ERROR]                                                                                                                                                                              [ERROR] To see the full stack trace of the errors, re-run Maven with the -e switch.                                                                                                  [ERROR] Re-run Maven using the -X switch to enable full debug log
- * Phase 2: UPDATE events are applied to the cache via IBizTreeCacheRepository.updateNode().
- * Enable via: biztree.messaging.consumer.enabled=true (default: true).
+ * Dispatches incoming entity events via a Map of IBizTreeEventHandler implementations,
+ * keyed by (eventType, kindBits) where kindBits = (isAcct?4:0)+(isUsr?2:0)+(isOrg?1:0).
  *
  * Durable subscription:
  *   - clientId: biztree.messaging.client-id (BizTreeJmsConfig)
@@ -55,19 +63,31 @@ import pro.mir0n.esquire.messaging.jms.Utils;
 @ConditionalOnProperty(name = "biztree.messaging.consumer.enabled", havingValue = "true", matchIfMissing = true)
 public class EsqEntityBroadcastConsumer {
 
-    private static final int STATUS_OK      = 0;
-    private static final int STATUS_DELETED = 1;
-    private static final int STATUS_LOCKED  = 2;
-
     private static final Logger msgLog = LoggerFactory.getLogger("msg." + EsqEntityBroadcastConsumer.class.getName());
     private static final Logger devLog = LoggerFactory.getLogger("develop." + EsqEntityBroadcastConsumer.class.getName());
 
-    private final IBizTreeCacheRepository cacheRepository;
-    private final ObjectMapper objectMapper;
+    private record HandlerKey(String eventType, int kindBits) {}
+
+    private final IBizTreeCacheRepository          cacheRepository;
+    private final ObjectMapper                     objectMapper;
+    private final Map<HandlerKey, IBizTreeEventHandler> handlers;
 
     public EsqEntityBroadcastConsumer(IBizTreeCacheRepository cacheRepository, ObjectMapper objectMapper) {
         this.cacheRepository = cacheRepository;
-        this.objectMapper = objectMapper;
+        this.objectMapper    = objectMapper;
+
+        UpdateEntityHandler updateHandler = new UpdateEntityHandler(cacheRepository);
+        DeleteEntityHandler deleteHandler = new DeleteEntityHandler(cacheRepository);
+        handlers = new HashMap<>();
+        handlers.put(new HandlerKey(EsqMsgConstants.EVENT_UPDATE, 1), updateHandler);  // ORG
+        handlers.put(new HandlerKey(EsqMsgConstants.EVENT_UPDATE, 2), updateHandler);  // USR
+        handlers.put(new HandlerKey(EsqMsgConstants.EVENT_UPDATE, 4), updateHandler);  // ACCT
+        handlers.put(new HandlerKey(EsqMsgConstants.EVENT_CREATE, 1), new CreateOrgHandler(cacheRepository));
+        handlers.put(new HandlerKey(EsqMsgConstants.EVENT_CREATE, 2), new CreateUsrHandler(cacheRepository));
+        handlers.put(new HandlerKey(EsqMsgConstants.EVENT_CREATE, 4), new CreateAcctHandler(cacheRepository));
+        handlers.put(new HandlerKey(EsqMsgConstants.EVENT_DELETE, 1), deleteHandler);  // ORG
+        handlers.put(new HandlerKey(EsqMsgConstants.EVENT_DELETE, 2), deleteHandler);  // USR
+        handlers.put(new HandlerKey(EsqMsgConstants.EVENT_DELETE, 4), deleteHandler);  // ACCT
     }
 
     private static final String SUBSCRIPTION_NAME =
@@ -86,14 +106,14 @@ public class EsqEntityBroadcastConsumer {
     public void onEntityBroadcast(Message message) {
         String applMsgId = null;
         try {
-            applMsgId         = message.getStringProperty(EsqMsgConstants.FIELD_APPL_MSG_ID);
-            String serviceId  = message.getStringProperty(EsqMsgConstants.FIELD_SERVICE_ID);
-            String entityId   = message.getStringProperty(EsqMsgConstants.FIELD_ENTITY_ID);
-            int    entityKind = message.getIntProperty(EsqMsgConstants.FIELD_ENTITY_KIND);
-            String eventType  = message.getStringProperty(EsqMsgConstants.FIELD_EVENT_TYPE);
-            String requestId  = message.getStringProperty(EsqMsgConstants.FIELD_REQUEST_ID);
+            applMsgId            = message.getStringProperty(EsqMsgConstants.FIELD_APPL_MSG_ID);
+            String serviceId     = message.getStringProperty(EsqMsgConstants.FIELD_SERVICE_ID);
+            String entityId      = message.getStringProperty(EsqMsgConstants.FIELD_ENTITY_ID);
+            int    entityKind    = message.getIntProperty(EsqMsgConstants.FIELD_ENTITY_KIND);
+            String eventType     = message.getStringProperty(EsqMsgConstants.FIELD_EVENT_TYPE);
+            String requestId     = message.getStringProperty(EsqMsgConstants.FIELD_REQUEST_ID);
             String correlationId = message.getStringProperty(EsqMsgConstants.FIELD_CORRELATION_ID);
-            String textJson   = message.getStringProperty(EsqMsgConstants.FIELD_TEXT);
+            String textJson      = message.getStringProperty(EsqMsgConstants.FIELD_TEXT);
 
             MDC.put(EsqConstants.PD_REQUEST_ID, requestId);
             MDC.put(EsqConstants.PD_CORRELATION_ID, correlationId);
@@ -107,28 +127,20 @@ public class EsqEntityBroadcastConsumer {
             log.info("ENTITY | UE | {} | {} | {} | {}",
                     applMsgId, eventType, entityKind, entityId); //xxx: requestId, correlationId are in MDC
 
-            if (EsqMsgConstants.EVENT_UPDATE.equals(eventType) && textJson != null) {
+            int           k        = (int) Math.floor((double) entityKind / 2) * 2;
+            EsqObjectKind eek      = EsqObjectKindStorage.getInstance().get(k);
+            int           kindBits = (eek.isAcct() ? 4 : 0) + (eek.isUsr() ? 2 : 0) + (eek.isOrg() ? 1 : 0);
+
+            IBizTreeEventHandler handler = handlers.get(new HandlerKey(eventType, kindBits));
+            if (handler != null && textJson != null) {
                 try {
-                    JsonNode textNode  = objectMapper.readTree(textJson);
-                    boolean  hasName    = textNode.has("name") && !textNode.get("name").isNull();
-                    boolean  hasDesc    = textNode.has("desc");  // can be null
-                    boolean  hasStatus  = textNode.has("status") && !textNode.get("status").isNull();   // acc_status (pacMan/ACCT)
-                    boolean  hasDeleted = textNode.has("deleted") && !textNode.get("deleted").isNull();  // usr_deleted_flg (enyMan/USR)
-                    if (hasName || hasDesc || hasStatus || hasDeleted) {
-                        long    pk         = Long.parseLong(entityId);
-                        String  name       = hasName    ? textNode.get("name").asText() : null;
-                        String  desc       = hasDesc    ? (textNode.get("desc").isNull()    ? null : textNode.get("desc").asText()) : IBizTreeCacheRepository.SKIP;
-                        Integer statusCode = null;
-                        if (hasStatus) {
-                            statusCode = decodeStatus(textNode.get("status").asText());
-                        } else if (hasDeleted) {
-                            statusCode = decodeStatus(textNode.get("deleted").asText());
-                        }
-                        cacheRepository.updateNode(pk, name, desc, statusCode);
-                    }
+                    JsonNode textNode = objectMapper.readTree(textJson);
+                    handler.handle(entityId, entityKind, textNode);
                 } catch (Exception ex) {
-                    log.error("EsqEntityBroadcastConsumer: cache update failed applMsgId={}: {}", applMsgId, ex.getMessage());
-                    devLog.error("EsqEntityBroadcastConsumer: cache update failed applMsgId={}: {}", applMsgId, ex.getMessage(), ex);
+                    log.error("EsqEntityBroadcastConsumer: handler failed applMsgId={} eventType={} kind={}: {}",
+                            applMsgId, eventType, entityKind, ex.getMessage());
+                    devLog.error("EsqEntityBroadcastConsumer: handler failed applMsgId={} eventType={} kind={}: {}",
+                            applMsgId, eventType, entityKind, ex.getMessage(), ex);
                 }
             }
 
@@ -138,17 +150,5 @@ public class EsqEntityBroadcastConsumer {
         } finally {
             MDC.clear();
         }
-    }
-
-    // usr_deleted_flg: Y/C → deleted(1), L → locked(2), null/other → ok(0)
-    // acc_status:      C   → deleted(1), L → locked(2), O/null/other → ok(0)
-    private static int decodeStatus(String raw) {
-        int ret = STATUS_OK;
-        if ("Y".equals(raw) || "C".equals(raw)){
-            ret = STATUS_DELETED;
-        } else if ("L".equals(raw)) {
-            ret = STATUS_LOCKED;
-        }
-        return ret;
     }
 }

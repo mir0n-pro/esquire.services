@@ -1,5 +1,46 @@
 Esquire BizTree Microservice
 
+03/26/2026 mir0n  Handler dispatch refactoring; CREATE handler support; DELETE skeleton; constants
+BizTreeConstants  (new)
+  - centralized constants: status codes, folder kinds/names, entity kind ranges, column names, key separator
+  - decodeStatus(raw): public static — "Y"/"C"→1, "L"→2, other/null→0
+  - folderKindForUsr(etPk): data-driven folder routing — finds folder kind (id < KIND_ORG_MAX)
+    whose childKinds contains etPk via EsqObjectKindStorage; defaults to FOLDER_ADMIN
+  - KIND_USR_CLIENT/KIND_USR_MERCHANT removed
+messaging.IBizTreeEventHandler  (new)
+  - handler interface for (eventType, kindBits) dispatch map
+messaging.handler.UpdateEntityHandler  (new)
+  - handles UPDATE events for ORG/USR/ACCT; decodeStatus() moved from consumer
+messaging.handler.CreateOrgHandler  (new)
+  - handles CREATE events for ORG kinds; calls insertOrgNodes()
+messaging.handler.CreateUsrHandler  (new)
+  - handles CREATE events for USR kinds; calls insertUsrNode()
+messaging.handler.CreateAcctHandler  (new)
+  - handles CREATE events for ACCT kinds; calls insertAcctNode() (main + shortcut nodes)
+messaging.handler.DeleteEntityHandler  (new — skeleton)
+  - handles DELETE events for ORG/USR/ACCT; removes nodes by tree_entity_pk; no cascade
+messaging.EsqEntityBroadcastConsumer
+  - handler map dispatch: HandlerKey(eventType,kindBits) → IBizTreeEventHandler
+  - DeleteEntityHandler registered for (DELETE, ORG/USR/ACCT)
+cache.IBizTreeCacheRepository
+  - insertOrgNodes/insertUsrNode/insertAcctNode added; deleteNodes(entityPk) added
+cache.impl.BizTreeCacheRepository
+  - insertOrgNodes: inserts org node + folder nodes (4 for non-root, 1 sys-admin for root)
+  - insertUsrNode: inserts user node; folder routing via BizTreeConstants.folderKindForUsr()
+  - insertAcctNode: inserts main node under user + shortcut node under org FOLDER_ACCOUNT
+  - deleteNodes: DELETE FROM ESQ_TREE WHERE tree_entity_pk = ?
+cache.BizTreeCacheSql
+  - deleteNode field added to Repo record
+h2.BizTreeH2Config
+  - delete-node SQL property wired into BizTreeCacheSql.Repo
+cache.BizTreeCacheLoader
+  - magic constants replaced with BizTreeConstants.*
+  - folder routing: folderKindForUsr(etPk) replaces hardcoded KIND_USR_* comparisons
+messaging.BizTreeJmsConfig
+  - @Qualifier("jmsConnectionFactory") added to ConnectionFactory parameter
+BizTreeApplication
+  - BizTreeApplicationStartingListener: EsqObjectKindStorage loaded on ApplicationStartingEvent
+
 03/21/2026 mir0n  three-tier logging normalization
 messaging.EsqEntityBroadcastConsumer
   - broadcastLog→msgLog/devLog; MDC set/clear; requestId/correlationId reads

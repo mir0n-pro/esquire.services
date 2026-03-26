@@ -12,6 +12,7 @@
  * 02/19/2026 mir0n  added esquireCommandSave()
  * 03/06/2026 mir0n  KIND_CL/MR/P_ACCT and FIELD_STATUS constants added
  * 03/09/2026 mir0n  esquireCommandSave(): roles param added; unused imports removed
+ * 03/26/2026 mir0n  esquireCommandNew(), esquireCommandDelete() added
  */
 
 package pro.mir0n.esquire.pacMan.service;
@@ -29,5 +30,7 @@ public interface IPacManService {
 
     public EsqEntity esquireCommand(Integer kind, String id, String cmd, String rootPath, String uid );
     public EsqEntity esquireCommandSave(Integer kind, String id, String cmd, Map<String, Object> fields, String rootPath, String uid, List<String> roles);
+    public EsqEntity esquireCommandNew(Integer kind, String parentId, String cmd, Map<String, Object> fields, String rootPath, String uid, List<String> roles);
+    public void esquireCommandDelete(Integer kind, String id, String cmd, String rootPath, String uid, List<String> roles);
 
     }

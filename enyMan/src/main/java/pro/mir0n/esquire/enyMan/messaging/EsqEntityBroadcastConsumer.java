@@ -119,7 +119,7 @@ public class EsqEntityBroadcastConsumer {
         if (!EsqMsgConstants.MSG_TYPE_ENTITY_BROADCASTS.equals(msgType)) {
             devLog.debug("EsqEntityBroadcastConsumer: unexpected MsgType={}", msgType);
         }
-        if (!EsqMsgConstants.MESSAGE_ENCODING.equals(msgEncoding)) {
+        if (!EsqMsgConstants.MSG_ENCODING_JSON.equals(msgEncoding)) {
             devLog.debug("EsqEntityBroadcastConsumer: unexpected MessageEncoding={}", msgEncoding);
         }
         if (schemaVersion != EsqMsgConstants.SCHEMA_VERSION) {

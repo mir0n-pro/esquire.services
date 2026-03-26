@@ -1,5 +1,17 @@
 Esquire Backend common microservice classes
 
+03/26/2026 mir0n  Entity CREATE/DELETE — parentId consolidation; EmailExistsException; CREATE support
+jpa.EsqEntityJpa
+  - parentId field added — consolidated from EsqAcctJpa/EsqOrgJpa/EsqUsrJpa
+jpa.entity.EsqAcctJpa, EsqOrgJpa, EsqUsrJpa
+  - parentId removed — now inherited from EsqEntityJpa
+dto.EsqEntity
+  - parentId field added
+error.EmailExistsException  (new)
+  - thrown when au_email already exists in esq_auth on user creation; @ResponseStatus(CONFLICT)
+error.GenericExceptionHandler
+  - handleEmailExists(): EmailExistsException → 409 CONFLICT RFC 9457 response
+
 03/21/2026 mir0n  three-tier logging normalization; actuator probe filtering; unused imports removed
 service.MdcFilter
   - devLog added; log.debug→devLog.debug; dual error pattern

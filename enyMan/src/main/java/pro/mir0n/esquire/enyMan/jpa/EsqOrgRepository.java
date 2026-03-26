@@ -9,6 +9,7 @@
  * 02/19/2026 mir0n  created: native queries for org read/update
  *                   flushAutomatically=false on @Modifying prevents spurious
  *                   Hibernate auto-flush before native query execution
+ * 03/26/2026 mir0n  insertCustomOrg, orgPath, insertOrg, deleteOrg native queries added
  */
 
 package pro.mir0n.esquire.enyMan.jpa;
@@ -49,6 +50,16 @@ public interface EsqOrgRepository extends JpaRepository<EsqOrgJpa, String> {
     @Modifying(clearAutomatically = true, flushAutomatically = false)
     @Transactional
     @NativeQuery
+    int insertCustomOrg(@Param("id") long id,
+        @Param("kind") int kind,
+        @Param("uid") String uid,
+        @Param("correlationId") String correlationId,
+        @Param("requestId") String requestId
+    );
+
+    @Modifying(clearAutomatically = true, flushAutomatically = false)
+    @Transactional
+    @NativeQuery
     int updateCustomOrg(@Param("id") String id,
         @Param("name") String name,
         @Param("value") String value,
@@ -56,5 +67,28 @@ public interface EsqOrgRepository extends JpaRepository<EsqOrgJpa, String> {
         @Param("correlationId") String correlationId,
         @Param("requestId") String requestId
     );
+
+    @NativeQuery
+    String orgPath(@Param("parentId") String parentId, @Param("rootPath") String rootPath);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = false)
+    @Transactional
+    @NativeQuery
+    int insertOrg(@Param("id") long id,
+        @Param("kind") int kind,
+        @Param("name") String name,
+        @Param("desc") String desc,
+        @Param("fullName") String fullName,
+        @Param("path") String path,
+        @Param("parentId") String parentId,
+        @Param("uid") String uid,
+        @Param("correlationId") String correlationId,
+        @Param("requestId") String requestId
+    );
+
+    @Modifying(clearAutomatically = true, flushAutomatically = false)
+    @Transactional
+    @NativeQuery
+    int deleteOrg(@Param("id") String id);
 
 }

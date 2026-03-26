@@ -1,5 +1,24 @@
 Esquire enyMan Microservice
 
+03/26/2026 mir0n  Entity CREATE/DELETE — esq-new/esq-del endpoints; ORG and USR create/delete
+controller.EnyManController
+  - POST /esq-new → esquireCommandNew(); POST /esq-del → esquireCommandDelete()
+service.IEnyManService
+  - esquireCommandNew(), esquireCommandDelete() added
+service.impl.EnyManService
+  - esquireCommandNew/Delete(): delegates to OrgService/UsrService
+  - TEXT_* constants replace raw JSON string literals; parentId added to broadcast payload
+service.impl.OrgService
+  - createOrg(), deleteOrg(), esquireCommandNew(), esquireCommandDelete() added
+service.impl.UsrService
+  - createUsr() with EmailExistsException on duplicate email
+  - deleteUsr() + deleteAuth() (auth deleted before usr, FK constraint)
+  - esquireCommandNew(), esquireCommandDelete() added
+jpa.EsqOrgRepository
+  - insertCustomOrg, orgPath, insertOrg, deleteOrg native queries added
+jpa.EsqUsrRepository
+  - insertUsr, usrPath, deleteUsr native queries added
+
 03/21/2026 mir0n  three-tier logging normalization
 messaging.EsqEntityBroadcastPublisher
   - msgLog/devLog added; props map migrated to LinkedHashMap+Utils.setProps/formatProps

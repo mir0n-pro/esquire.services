@@ -10,6 +10,7 @@
  *                   builds URQ from access profile JPA + roles and publishes to esquire.kc.request
  * 03/21/2026 mir0n  ctrlId injected from keysmith.messaging.ctrl-id config (@Value) — stable instance id,
  *                   not derived from correlationId; three-tier logging (msgLog/devLog), dual-mode msg audit
+ * 03/26/2026 mir0n  MSG_ENCODING_JSON (renamed from MESSAGE_ENCODING)
  */
 
 package pro.mir0n.esquire.keySmith.messaging;

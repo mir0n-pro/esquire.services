@@ -33,12 +33,15 @@
  * 03/20/2026 mir0n  status broadcast: "deleted" (usr_deleted_flg) added to isBroadcastableUpdate()
  *                   publishEntityEvent() emits raw "deleted" field value; publisher decoupling rule
  * 03/21/2026 mir0n  devLog added; dual error pattern (publishEntityEvent catch: log.warn→log.error+devLog.error)
+ * 03/26/2026 mir0n  esquireCommandNew/Delete(): delegates to OrgService/UsrService;
+ *                   TEXT_* constants replace raw strings; parentId added to broadcast
  */
 
 package pro.mir0n.esquire.enyMan.service.impl;
 
 import jakarta.persistence.EntityManager;
 import java.util.*;
+import java.util.LinkedHashMap;
 
 import lombok.extern.slf4j.Slf4j;
 import pro.mir0n.esquire.backend.dto.*;
@@ -137,14 +140,90 @@ public class EnyManService  extends AEnyManService {
         return  ret;
     }
 
+    @Override
+    public EsqEntity esquireCommandNew(Integer kind, String parentId, String cmd, Map<String, Object> fields, String rootPath, String uid, List<String> roles) {
+        int k = (int)Math.floor( (double) kind/2 ) * 2;
+        EsqObjectKind eek = EsqObjectKindStorage.getInstance().get(k);
+        Map<Integer, EsqPermission> permissions = EsqRolesStorage.getInstance().findAdminPermissions(roles);
+        boolean permitted = false;
+        if (permissions != null) {
+            permitted = EsqRolesStorage.getInstance().isAdminCmdPermitted(
+                permissions.get(k),
+                EsqRolesStorage.AdminCmd.CREATE
+            );
+        }
+        String requestId     = RequestContextUtils.getRequestId();
+        String correlationId = RequestContextUtils.getCorrelationId();
+        EsqEntity ret = null;
+        if (eek.isOrg()) {
+            if (permitted) {
+                ret = orgService.esquireCommandNew(k, parentId, cmd, fields, rootPath, uid, roles);
+                publishEntityEvent(ret, k, EsqMsgConstants.EVENT_CREATE, requestId, correlationId, fields);
+            }
+        } else if (eek.isUsr()) {
+            if (permitted) {
+                ret = usrService.esquireCommandNew(k, parentId, cmd, fields, rootPath, uid, roles);
+                publishEntityEvent(ret, k, EsqMsgConstants.EVENT_CREATE, requestId, correlationId, fields);
+            }
+        } else {
+            throw new ResourceNotFoundException("esquireDictionary", "kind", kind == null?"''":kind.toString());
+        }
+        if (ret == null && !permitted) {
+            throw new PermissionDeniedException(eek.getTitle(), "create");
+        }
+        return ret;
+    }
+
+    @Override
+    public void esquireCommandDelete(Integer kind, String id, String cmd, String rootPath, String uid, List<String> roles) {
+        int k = (int)Math.floor( (double) kind/2 ) * 2;
+        EsqObjectKind eek = EsqObjectKindStorage.getInstance().get(k);
+        Map<Integer, EsqPermission> permissions = EsqRolesStorage.getInstance().findAdminPermissions(roles);
+        boolean permitted = false;
+        if (permissions != null) {
+            permitted = EsqRolesStorage.getInstance().isAdminCmdPermitted(
+                permissions.get(k),
+                EsqRolesStorage.AdminCmd.DELETE
+            );
+        }
+        if (!permitted) {
+            throw new PermissionDeniedException(eek.getTitle(), "delete");
+        }
+        String requestId     = RequestContextUtils.getRequestId();
+        String correlationId = RequestContextUtils.getCorrelationId();
+        if (eek.isOrg()) {
+            orgService.esquireCommandDelete(k, id, cmd, rootPath, uid, roles);
+            publishDeleteEvent(id, k, EsqMsgConstants.EVENT_DELETE, requestId, correlationId);
+        } else if (eek.isUsr()) {
+            usrService.esquireCommandDelete(k, id, cmd, rootPath, uid, roles);
+            publishDeleteEvent(id, k, EsqMsgConstants.EVENT_DELETE, requestId, correlationId);
+        } else {
+            throw new ResourceNotFoundException("esquireDictionary", "kind", kind == null?"''":kind.toString());
+        }
+    }
+
     // Broadcast UPDATE only when fields that affect the entity's public identity or status change.
     // name / desc / deleted (usr_deleted_flg) are the current scope.
     // Note: for USR, "name" is not in the original request — UsrService.saveUsr() injects it
     // into the fields map when person (firstName/middleName/lastName) is updated, so this
     // check correctly fires for person-driven name changes too.
     private boolean isBroadcastableUpdate(Map<String, Object> fields) {
-        return fields != null && (fields.containsKey("name") || fields.containsKey("desc")
-                               || fields.containsKey("deleted"));
+        return fields != null && (fields.containsKey(EsqMsgConstants.TEXT_NAME) || fields.containsKey(EsqMsgConstants.TEXT_DESC)
+                               || fields.containsKey(EsqMsgConstants.TEXT_DELETED));
+    }
+
+    private void publishDeleteEvent(String id, int entityKind, String eventType,
+                                    String requestId, String correlationId) {
+        Map<String, Object> text = new java.util.LinkedHashMap<>();
+        text.put(EsqMsgConstants.TEXT_ID,   id);
+        text.put(EsqMsgConstants.TEXT_KIND, entityKind);
+        try {
+            broadcastPublisher.publish(entityKind, id, eventType,
+                    requestId, correlationId, text);
+        } catch (Exception e) {
+            log.error("publishDeleteEvent: broadcast failed for kind={}, id={}: {}", entityKind, id, e.getMessage());
+            devLog.error("publishDeleteEvent: broadcast failed for kind={}, id={}, requestId={}, correlationId={}: {}", entityKind, id, requestId, correlationId, e.getMessage(), e);
+        }
     }
 
     // Runs synchronously on the request thread — publish failure is absorbed (log.warn),
@@ -155,12 +234,14 @@ public class EnyManService  extends AEnyManService {
                                     String requestId, String correlationId, Map<String, Object> fields) {
         if (entity == null) return;
         Map<String, Object> text = new java.util.LinkedHashMap<>();
-        text.put("id",   entity.getId());
-        text.put("kind", entityKind);
-        if (fields.containsKey("name"))    text.put("name",   fields.get("name"));
-        if (fields.containsKey("desc"))    text.put("desc",   fields.get("desc"));
-        if (fields.containsKey("deleted")) text.put("deleted", fields.get("deleted"));
-        try {;
+        text.put(EsqMsgConstants.TEXT_ID,        entity.getId());
+        text.put(EsqMsgConstants.TEXT_KIND,      entityKind);
+        text.put(EsqMsgConstants.TEXT_PARENT_ID, entity.getParentId());
+        if (fields.containsKey(EsqMsgConstants.TEXT_PATH))    text.put(EsqMsgConstants.TEXT_PATH,    fields.get(EsqMsgConstants.TEXT_PATH));
+        if (fields.containsKey(EsqMsgConstants.TEXT_NAME))    text.put(EsqMsgConstants.TEXT_NAME,    fields.get(EsqMsgConstants.TEXT_NAME));
+        if (fields.containsKey(EsqMsgConstants.TEXT_DESC))    text.put(EsqMsgConstants.TEXT_DESC,    fields.get(EsqMsgConstants.TEXT_DESC));
+        if (fields.containsKey(EsqMsgConstants.TEXT_DELETED)) text.put(EsqMsgConstants.TEXT_DELETED, fields.get(EsqMsgConstants.TEXT_DELETED));
+        try {
             broadcastPublisher.publish(entityKind, entity.getId(), eventType,
                     requestId, correlationId, text);
         } catch (Exception e) {

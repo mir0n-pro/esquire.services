@@ -11,6 +11,7 @@
  *                  no more EsqTreeNode methods
  * 02/19/2026 mir0n added esquireCommandSave()
  * 03/09/2026 mir0n  esquireCommandSave(): roles param added
+ * 03/26/2026 mir0n  esquireCommandNew(), esquireCommandDelete() added
  */
 
 package pro.mir0n.esquire.enyMan.service;
@@ -26,5 +27,7 @@ public interface IEnyManService {
     List<EsqEntityLayer> esquireDictionary(Integer kind);
     public EsqEntity esquireCommand(Integer kind, String id, String cmd, String rootPath, String uid );
     public EsqEntity esquireCommandSave(Integer kind, String id, String cmd, Map<String, Object> fields, String rootPath, String uid, List<String> roles );
+    public EsqEntity esquireCommandNew(Integer kind, String parentId, String cmd, Map<String, Object> fields, String rootPath, String uid, List<String> roles);
+    public void esquireCommandDelete(Integer kind, String id, String cmd, String rootPath, String uid, List<String> roles);
 
 }

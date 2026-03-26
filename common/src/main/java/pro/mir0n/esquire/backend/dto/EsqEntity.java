@@ -15,6 +15,7 @@
  * 02/13/2026 mir0n  use EsqEntityJpa for children
  * 02/28/2026 mir0n  fillPerson/fillAddress/fillBizAddress abstract methods added
  *                   fill() extended with person, address, address2 subentity params
+ * 03/26/2026 mir0n  parentId field added
  */
 
 package pro.mir0n.esquire.backend.dto;
@@ -50,6 +51,11 @@ public abstract class EsqEntity extends EsqThing{
     )
     private String desc;
 
+    @Schema(
+            description = "Parent entity ID"
+    )
+    private String parentId;
+
     public void fill (EsqEntityJpa jpa,
             List<EsqNameValueJpa> custom,
             List<EsqEntityJpa> children,
@@ -62,6 +68,7 @@ public abstract class EsqEntity extends EsqThing{
         setKind(jpa.getKind());
         setName (jpa.getName());
         setDesc(jpa.getDesc());
+        setParentId(jpa.getParentId());
         fillDetails(jpa);
         if (custom != null) {
             fillCustom(custom);

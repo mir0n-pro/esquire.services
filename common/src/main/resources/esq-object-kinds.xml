@@ -280,6 +280,10 @@
           <header>Description</header>
         </column-header>
       </listHeaders>      
+      <childKinds>
+        <kind>50</kind>
+        <kind>54</kind>
+      </childKinds>
       <commands>
         <command>move</command>
         <command>key</command>
@@ -328,6 +332,9 @@
           <header>Description</header>
         </column-header>
       </listHeaders>      
+      <childKinds>
+        <kind>52</kind>
+      </childKinds>
       <commands>
         <command>move</command>
         <command>key</command>

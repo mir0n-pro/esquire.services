@@ -1,6 +1,28 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v1.2.2-2603.2617 Entity CREATE workflow complete; DELETE- drafted; bizTree handler dispatch; cleanup
+    :Feature: enyMan — POST /esq-new (ORG/USR create); POST /esq-del drafted
+    :Feature: pacMan — POST /esq-anew (ACCT create); POST /esq-adel drafted
+    :Feature: bizTree — CREATE cache handlers: CreateOrgHandler, CreateUsrHandler, CreateAcctHandler
+    :Feature: bizTree — IBizTreeCacheRepository: insertOrgNodes/insertUsrNode/insertAcctNode
+    :Feature: common — EsqUtils.generateEntityId(); TEXT_* protocol constants; FLAG_OPEN, CCY_DEFAULT
+    :Feature: common — EmailExistsException (409 CONFLICT) on duplicate email at user creation
+    :Refactoring: bizTree — handler dispatch map (HandlerKey → IBizTreeEventHandler) replaces inline if/else
+    :Refactoring: bizTree — BizTreeConstants extracted; folderKindForUsr() data-driven via EsqObjectKindStorage childKinds (no hardcoded kind IDs)
+    :Refactoring: common — parentId consolidated to EsqEntityJpa (removed from Acct/Org/Usr subclasses)
+    :Refactoring: common — MSG_ENCODING_JSON (renamed from MESSAGE_ENCODING) in EsqMsgConstants
+    :Draft: DELETE workflow — enyMan/pacMan endpoints + bizTree DeleteEntityHandler drafted; no cascade (Phase 4)
+    :Cleanup: keySmith — KeySmithServiceJpa removed (dead code, superseded by KeySmithService @Primary)
+    :Tests: kcMaster — KcRequestHandlerTest (12 tests), KcResponsePublisherTest (13 tests)
+    : modified components
+       common,
+       enyMan,
+       pacMan,
+       bizTree,
+       keySmith,
+       kcMaster
+
 v1.2.2-2603.2121 Three-tier logging normalization across all services; JMS msg audit dual-mode pattern
     :Refactoring: established three-tier logging strategy (doc/Logging.md): console (log/@Slf4j),
     :Refactoring: all log.debug→devLog.debug; all log.warn eliminated (→devLog.debug or dual error)

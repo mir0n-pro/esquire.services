@@ -10,6 +10,8 @@
  * 03/20/2026 mir0n  SERVICE_ID_ENTITY_BROADCAST = "entity-update-broadcast" added
  * 03/21/2026 mir0n  KC sync constants added: QUEUE_KC_*, MSG_TYPE_REQUEST/RESPONSE/REJECT,
  *                   FIELD_TEST_REQ_ID, FIELD_ERROR; ENTITY_KIND_ACCESS_PROFILE removed (dup of EsqConstants.KIND_ACCESS_PROFILE)
+ * 03/26/2026 mir0n  TEXT_* JSON field name constants (TEXT_ID/KIND/NAME/DESC/STATUS/DELETED/PARENT_ID/PATH/CCY);
+ *                   MSG_ENCODING_JSON (renamed from MESSAGE_ENCODING); FLAG_OPEN="O"; CCY_DEFAULT="USD"
  */
 package pro.mir0n.esquire.common;
 
@@ -50,7 +52,7 @@ public class EsqMsgConstants {
     public static final String FIELD_ENTITY_ID         = "EntityID";          // FIX 50007
     public static final String FIELD_REQUEST_ID        = "RequestID";         // FIX 50008
     public static final String FIELD_CORRELATION_ID    = "CorrelationID";     // FIX 50009
-    public static final String FIELD_TEST_REQ_ID       = "TestReqID";         // FIX 112
+    public static final String FIELD_TEST_REQ_ID       = "TestReqID";         // FIX 112make
     public static final String FIELD_ERROR             = "Error";             // FIX 50010
 
 
@@ -62,13 +64,28 @@ public class EsqMsgConstants {
     public static final String MSG_TYPE_REQUEST         = "URQ";
     public static final String MSG_TYPE_RESPONSE        = "URS";
     public static final String MSG_TYPE_REJECT          = "URR";
-    public static final String MESSAGE_ENCODING        = "JSON";
+    public static final String MSG_ENCODING_JSON        = "JSON";
 
     // --- EventType vocabulary ---
     public static final String EVENT_CREATE            = "C";
     public static final String EVENT_UPDATE            = "U";
     public static final String EVENT_DELETE            = "D";
     public static final String EVENT_UPDATE_PATH       = "X";
+
+    // --- Text JSON field names (entity state snapshot fields) ---
+    public static final String TEXT_ID        = "id";
+    public static final String TEXT_KIND      = "kind";
+    public static final String TEXT_PARENT_ID = "parentId";
+    public static final String TEXT_PATH      = "path";
+    public static final String TEXT_NAME      = "name";
+    public static final String TEXT_DESC      = "desc";
+    public static final String TEXT_STATUS    = "status";
+    public static final String TEXT_DELETED   = "deleted";
+    public static final String TEXT_CCY       = "ccy";
+
+    // --- Default field values ---
+    public static final String FLAG_OPEN      = "O";
+    public static final String CCY_DEFAULT    = "USD";
 
 }
 

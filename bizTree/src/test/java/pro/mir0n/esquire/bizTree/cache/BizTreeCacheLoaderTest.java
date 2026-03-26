@@ -1,5 +1,6 @@
 package pro.mir0n.esquire.bizTree.cache;
 
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -9,9 +10,12 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.jdbc.core.JdbcTemplate;
+import pro.mir0n.esquire.backend.dto.EsqObjectKind;
 import pro.mir0n.esquire.backend.jpa.entity.EsqAcctJpa;
 import pro.mir0n.esquire.backend.jpa.entity.EsqOrgJpa;
 import pro.mir0n.esquire.backend.jpa.entity.EsqUsrJpa;
+import pro.mir0n.esquire.backend.storage.EsqObjectKindStorage;
+import pro.mir0n.esquire.bizTree.BizTreeConstants;
 import pro.mir0n.esquire.bizTree.jpa.EsqAcctRepository;
 import pro.mir0n.esquire.bizTree.jpa.EsqOrgRepository;
 import pro.mir0n.esquire.bizTree.jpa.EsqUsrRepository;
@@ -34,11 +38,24 @@ class BizTreeCacheLoaderTest {
 
     private BizTreeCacheLoader loader;
 
+    @BeforeAll
+    static void seedKindStorage() {
+        EsqObjectKind clientFolder = new EsqObjectKind();
+        clientFolder.setId(BizTreeConstants.FOLDER_CLIENT);
+        clientFolder.setChildKinds(List.of(34));
+        EsqObjectKindStorage.getInstance().init(clientFolder);
+
+        EsqObjectKind merchantFolder = new EsqObjectKind();
+        merchantFolder.setId(BizTreeConstants.FOLDER_MERCHANT);
+        merchantFolder.setChildKinds(List.of(36));
+        EsqObjectKindStorage.getInstance().init(merchantFolder);
+    }
+
     @BeforeEach
     void setUp() {
         BizTreeCacheSql sql = new BizTreeCacheSql(
                 new BizTreeCacheSql.Ddl("", "", ""),
-                new BizTreeCacheSql.Repo("", "", "", "", "", "", "", ""),
+                new BizTreeCacheSql.Repo("", "", "", "", "", "", "", "", ""),
                 new BizTreeCacheSql.Loader("INSERT", "UPDATE", "SELECT")
         );
         loader = new BizTreeCacheLoader(orgRepo, usrRepo, acctRepo, cacheDb, sql);

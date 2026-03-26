@@ -18,6 +18,9 @@
  * 03/10/2026 mir0n  import: RequestContextUtils updated to backend.service package
  * 03/10/2026 mir0n  fillКindFieldLayer() call updated to fillKindFieldLayer() — Cyrillic К → ASCII K
  * 03/21/2026 mir0n  devLog added; log.debug→devLog.debug
+ * 03/26/2026 mir0n  createUsr() with EmailExistsException on duplicate email;
+ *                   deleteUsr() + deleteAuth() (auth deleted before usr, FK constraint);
+ *                   esquireCommandNew(), esquireCommandDelete() added
  */
 
 package pro.mir0n.esquire.enyMan.service.impl;
@@ -33,6 +36,7 @@ import org.springframework.beans.BeanWrapper;
 import org.springframework.beans.BeanWrapperImpl;
 import pro.mir0n.esquire.backend.dto.*;
 import pro.mir0n.esquire.backend.jpa.*;
+import pro.mir0n.esquire.backend.jpa.EsqCustomEntityFieldJpa;
 import pro.mir0n.esquire.backend.jpa.entity.EsqAddressJpa;
 import pro.mir0n.esquire.backend.jpa.entity.EsqPersonJpa;
 import pro.mir0n.esquire.backend.jpa.entity.EsqUsrJpa;
@@ -42,16 +46,19 @@ import pro.mir0n.esquire.enyMan.jpa.EsqEntityDictionaryRepository;
 import pro.mir0n.esquire.enyMan.jpa.EsqUsrRepository;
 import pro.mir0n.esquire.backend.service.RequestContextUtils;
 import pro.mir0n.esquire.backend.storage.EsqEntityDictionaryStorage;
+import pro.mir0n.esquire.backend.error.EmailExistsException;
 import pro.mir0n.esquire.backend.error.ResourceNotFoundException;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import pro.mir0n.esquire.common.EsqConstants;
+import pro.mir0n.esquire.common.EsqUtils;
 
 @Slf4j
 public class UsrService  extends AEnyManService {
 
     private static final org.slf4j.Logger devLog = LoggerFactory.getLogger("develop." + UsrService.class.getName());
 
+    private final EsqEntityDictionaryRepository entityDictionaryRepository;
     private final EsqUsrRepository usrRepository;
     private final TransactionTemplate transactionTemplate;
     private final EntityManager em;
@@ -61,6 +68,7 @@ public class UsrService  extends AEnyManService {
                       TransactionTemplate transactionTemplate,
                       EntityManager em) {
         super(entityDictionaryRepository);
+        this.entityDictionaryRepository = entityDictionaryRepository;
         this.usrRepository = usrRepository;
         this.transactionTemplate = transactionTemplate;
         this.em = em;
@@ -141,6 +149,184 @@ public class UsrService  extends AEnyManService {
                     person == null ? null : person[0], address == null ? null : address[0], address2 == null ? null : address2[0]);
         devLog.debug("srvc: esquireCommandSave(usr): entity:{}", ret);
         return ret;
+    }
+
+    @Override
+    public EsqEntity esquireCommandNew(Integer kind, String parentId, String cmd, Map<String, Object> fields, String rootPath, String uid, List<String> roles) {
+        String correlationId = RequestContextUtils.getCorrelationId();
+        String requestId = RequestContextUtils.getRequestId();
+        devLog.debug("srvc: esquireCommandNew(usr): kind:{}, parentId:{}, cmd:{}, rootPath:{}, uid:{}", kind, parentId, cmd, rootPath, uid);
+
+        EsqObjectKind eek = EsqObjectKindStorage.getInstance().get(kind);
+        EsqEntityJpa[] created = {null};
+        List<EsqNameValueJpa>[] custom = new List[]{null};
+        EsqEntityJpa[] person = {null};
+        EsqEntityJpa[] address = eek.isAddress() ? new EsqEntityJpa[]{null} : null;
+        EsqEntityJpa[] address2 = eek.isAddress() ? new EsqEntityJpa[]{null} : null;
+
+        transactionTemplate.execute(status -> {
+            em.setFlushMode(FlushModeType.COMMIT);
+            createUsr(kind, parentId, fields, rootPath, uid, correlationId, requestId, created, custom, person, address, address2);
+            return null;
+        });
+
+        EsqEntity ret = EsqEntityFactory.getInstance().createUser(created[0], custom[0], null, person[0],
+                address == null ? null : address[0], address2 == null ? null : address2[0]);
+        devLog.debug("srvc: esquireCommandNew(usr): entity:{}", ret);
+        return ret;
+    }
+
+    @Override
+    public void esquireCommandDelete(Integer kind, String id, String cmd, String rootPath, String uid, List<String> roles) {
+        devLog.debug("srvc: esquireCommandDelete(usr): kind:{}, id:{}, cmd:{}, rootPath:{}, uid:{}", kind, id, cmd, rootPath, uid);
+        transactionTemplate.execute(status -> {
+            em.setFlushMode(FlushModeType.COMMIT);
+            deleteUsr(id, rootPath);
+            return null;
+        });
+    }
+
+    private void createUsr(Integer kind, String parentId, Map<String, Object> fields,
+                            String rootPath, String uid, String correlationId, String requestId,
+                            EsqEntityJpa[] created, List<EsqNameValueJpa>[] custom,
+                            EsqEntityJpa[] person, EsqEntityJpa[] address, EsqEntityJpa[] address2) {
+        // Treat empty string as null
+        if (parentId != null && parentId.isEmpty()) {
+            parentId = null;
+        }
+        String parentPath = usrRepository.usrPath(parentId, rootPath);
+        if (parentPath == null) {
+            throw new ResourceNotFoundException("createUsr", "parentId", parentId);
+        }
+        long newId = EsqUtils.generateEntityId();
+        String idStr = String.valueOf(newId);
+        String path = parentPath + newId +".";
+        fields.put("path", path);
+
+        EsqEntityDictionary dictUser = EsqEntityDictionaryStorage.getInstance().get(kind);
+        EsqEntityKindFieldLayer kfl  = new EsqEntityKindFieldLayer();
+
+        // Validate person subentity — derive name and email
+        EsqPersonJpa prsn = new EsqPersonJpa();
+        prsn.setKind(EsqConstants.KIND_PERSON_PRIMARY);
+        Map<String, Object> mprsn = (Map<String, Object>) fields.get(EsqConstants.SUBENTITY_PERSON);
+        kfl = dictUser.fillKindFieldLayer(EsqConstants.SUBENTITY_PERSON, kfl);
+        applyFields(prsn, mprsn, false, kfl.getLayer(), null);
+        String name    = prsn.getName();
+        String email   = prsn.getEmail();
+        String loginId = email;
+
+        // Email uniqueness check — must be first write guard in the transaction
+        if (usrRepository.countByEmail(email) > 0) {
+            throw new EmailExistsException(email);
+        }
+
+        fields.put("name", name);
+
+        // Validate user-level fields (desc) — mirrors saveUsr applyFields(usr, fields, ...)
+        EsqUsrJpa usr = new EsqUsrJpa();
+        usr.setId(idStr);
+        usr.setKind(kind);
+        applyFields(usr, fields, false, 0, USR_WRITABLE);
+
+        // Ensure deleted flag has default value 'N' if not set
+        if (usr.getDeleted() == null) {
+            usr.setDeleted("N");
+        }
+
+        // Ensure registration and deleted flags are in fields for broadcast
+        if (usr.getRegistration() != null) fields.put("registration", usr.getRegistration());
+        if (usr.getDeleted() != null)      fields.put("deleted", usr.getDeleted());
+
+        // Insert main rows
+        usrRepository.insertUsr(newId, kind, usr.getName(), usr.getDesc(), path, parentId, usr.getRegistration(), usr.getDeleted(), uid, correlationId, requestId);
+        usrRepository.insertAuth(newId, loginId, email, uid, correlationId, requestId);
+        usrRepository.insertCustomUsr(newId, kind, uid, correlationId, requestId);
+
+        // Insert skeleton address and person rows (PKs from DB sequence)
+        Long adPk    = null;
+        Long bizAdPk = null;
+        if (address != null) {
+            adPk = usrRepository.nextAddrPk();
+            usrRepository.insertAddress(adPk, uid, correlationId, requestId);
+        }
+        if (address2 != null) {
+            bizAdPk = usrRepository.nextAddrPk();
+            usrRepository.insertAddress(bizAdPk, uid, correlationId, requestId);
+        }
+        usrRepository.insertPerson(newId, EsqConstants.KIND_PERSON_PRIMARY, adPk, bizAdPk, uid, correlationId, requestId);
+
+        // Persist validated person fields
+        usrRepository.updatePerson(idStr, prsn.getKind(), prsn.getFirstName(), prsn.getMiddleName(),
+                prsn.getLastName(), prsn.getTitle(), prsn.getDob(), prsn.getBirthPlace(),
+                prsn.getSex(), prsn.getTaxId(), prsn.getCitizenship(), prsn.getMarStatus(),
+                prsn.getPersonIdType(), prsn.getPersonIdNumber(), prsn.getEmail(),
+                prsn.getPhone(), prsn.getPhone2(), uid, correlationId, requestId);
+
+        if (address != null) {
+            // Validate and persist postal address fields
+            EsqAddressJpa addr = new EsqAddressJpa();
+            addr.setKind(EsqConstants.KIND_ADDRESS_POSTAL);
+            Map<String, Object> maddr = (Map<String, Object>) fields.get(EsqConstants.SUBENTITY_ADDRESS);
+            kfl = dictUser.fillKindFieldLayer(EsqConstants.SUBENTITY_ADDRESS, kfl);
+            if (applyFields(addr, maddr, false, kfl.getLayer(), null)) {
+                usrRepository.updateAddress(idStr, EsqConstants.KIND_PERSON_PRIMARY, addr.getDesc(),
+                        addr.getAddr(), addr.getAddr2(), addr.getCity(), addr.getCompany(),
+                        addr.getCountry(), addr.getDepartment(), addr.getFax(),
+                        addr.getPostalCode(), addr.getProvince(), addr.getTitle(), addr.getUrl(),
+                        uid, correlationId, requestId);
+            }
+            address[0] = addr;
+        }
+
+        if (address2 != null) {
+            // Validate and persist business address fields
+            EsqAddressJpa addr2 = new EsqAddressJpa();
+            addr2.setKind(EsqConstants.KIND_ADDRESS_BIZ);
+            Map<String, Object> maddr2 = (Map<String, Object>) fields.get(EsqConstants.SUBENTITY_ADDRESS2);
+            kfl = dictUser.fillKindFieldLayer(EsqConstants.SUBENTITY_ADDRESS2, kfl);
+            if (applyFields(addr2, maddr2, false, kfl.getLayer(), null)) {
+                usrRepository.updateAddress2(idStr, EsqConstants.KIND_PERSON_PRIMARY, addr2.getDesc(),
+                        addr2.getAddr(), addr2.getAddr2(), addr2.getCity(), addr2.getCompany(),
+                        addr2.getCountry(), addr2.getDepartment(), addr2.getFax(),
+                        addr2.getPostalCode(), addr2.getProvince(), addr2.getTitle(), addr2.getUrl(),
+                        uid, correlationId, requestId);
+            }
+            address2[0] = addr2;
+        }
+
+        // Custom field validation loop
+        List<EsqCustomEntityFieldJpa> customFields = entityDictionaryRepository.findCustom(kind);
+        if (customFields != null && !customFields.isEmpty()) {
+            for (EsqCustomEntityFieldJpa cf : customFields) {
+                String fieldName = cf.getName();
+                if (fields.containsKey(fieldName) && cf.getReadwrite() != null && (cf.getReadwrite() & 2) == 2) {
+                    kfl = dictUser.fillKindFieldLayer(fieldName, kfl);
+                    String val = (String) ValidatorFactory.getInstance().validate(usr, kfl, false, fields.get(fieldName));
+                    usrRepository.updateCustomUsr(idStr, fieldName, val, uid, correlationId, requestId);
+                }
+            }
+        }
+
+        usr.setName(name);
+        usr.setLoginId(loginId);
+        usr.setEmail(email);
+        usr.setPath(path);
+        usr.setParentId(parentId);
+        created[0] = usr;
+        // Populate custom fields for response
+        custom[0] = usrRepository.customUsr(idStr);
+        // Populate person
+        person[0] = prsn;
+    }
+
+    private void deleteUsr(String id, String rootPath) {
+        EsqUsrJpa usr = usrRepository.detailUsrForUpdate(id, rootPath);
+        if (usr == null) {
+            throw new ResourceNotFoundException("deleteUsr", "id", id);
+        }
+        usrRepository.deleteAuth(id);
+        usrRepository.deleteUsr(id);
     }
 
     private static final Set<String> USR_WRITABLE = Set.of("name"); //, xxx overwrite readonly field 'name'

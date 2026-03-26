@@ -10,6 +10,7 @@
  *                   whole message logged via LinkedHashMap props; URR carries RFC 9457 Error header
  * 03/21/2026 mir0n  three-tier logging: kcAudit→msgLog/devLog; mid extracted before props map;
  *                   dual-mode URS and URR audit; console echo log.info; dual error pattern
+ * 03/26/2026 mir0n  MSG_ENCODING_JSON (renamed from MESSAGE_ENCODING)
  */
 
 package pro.mir0n.esquire.kcMaster.messaging;
@@ -101,7 +102,7 @@ public class KcResponsePublisher {
             props.put(EsqMsgConstants.FIELD_CORRELATION_ID, correlationId);
             props.put(EsqMsgConstants.FIELD_TEST_REQ_ID,    testReqId);
             if (requestText != null) {
-                props.put(EsqMsgConstants.FIELD_MESSAGE_ENCODING, EsqMsgConstants.MESSAGE_ENCODING);
+                props.put(EsqMsgConstants.FIELD_MESSAGE_ENCODING, EsqMsgConstants.MSG_ENCODING_JSON);
                 props.put(EsqMsgConstants.FIELD_TEXT,             requestText);
             }
             props.put(EsqMsgConstants.FIELD_ERROR,          errorJson);

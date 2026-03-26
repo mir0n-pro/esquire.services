@@ -117,6 +117,54 @@ spring:
             - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_FIRST
             - RewritePath=/(?<segment>.*), /$\{segment}
             - TokenRelay=
+        - id: enyman-new-route
+          uri: http://${ENYMAN_HOST:enyman}:${ENYMAN_PORT:3003}
+          predicates:
+            - Path=/esq-new
+            - Method=POST
+          metadata:
+            allowedMethods:
+              - POST
+          filters:
+            - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_FIRST
+            - RewritePath=/(?<segment>.*), /$\{segment}
+            - TokenRelay=
+        - id: pacman-new-route
+          uri: http://${PACMAN_HOST:enyman}:${PACMAN_PORT:3003}
+          predicates:
+            - Path=/esq-anew
+            - Method=POST
+          metadata:
+            allowedMethods:
+              - POST
+          filters:
+            - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_FIRST
+            - RewritePath=/(?<segment>.*), /$\{segment}
+            - TokenRelay=
+        - id: enyman-del-route
+          uri: http://${ENYMAN_HOST:enyman}:${ENYMAN_PORT:3003}
+          predicates:
+            - Path=/esq-del
+            - Method=POST
+          metadata:
+            allowedMethods:
+              - POST
+          filters:
+            - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_FIRST
+            - RewritePath=/(?<segment>.*), /$\{segment}
+            - TokenRelay=
+        - id: pacman-del-route
+          uri: http://${PACMAN_HOST:enyman}:${PACMAN_PORT:3003}
+          predicates:
+            - Path=/esq-adel
+            - Method=POST
+          metadata:
+            allowedMethods:
+              - POST
+          filters:
+            - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_FIRST
+            - RewritePath=/(?<segment>.*), /$\{segment}
+            - TokenRelay=
 
 #  autoconfigure:
 #   exclude: org.springframework.boot.autoconfigure.security.reactive.ReactiveSecurityAutoConfiguration

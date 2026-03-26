@@ -1,5 +1,14 @@
 Esquire Common microservice classes
 
+03/26/2026 mir0n  Entity CREATE/DELETE — Phase 3 protocol constants and utilities
+EsqMsgConstants
+  - TEXT_* JSON field name constants: TEXT_ID, TEXT_KIND, TEXT_NAME, TEXT_DESC, TEXT_STATUS,
+    TEXT_DELETED, TEXT_PARENT_ID, TEXT_PATH, TEXT_CCY
+  - MSG_ENCODING_JSON (renamed from MESSAGE_ENCODING)
+  - FLAG_OPEN="O"; CCY_DEFAULT="USD"
+EsqUtils  (new entry)
+  - generateEntityId(): epoch-based long id (ms since esquireEpoch * 1000 + random sub-ms offset)
+
 03/21/2026 mir0n  Messaging Phase 3 — KC sync constants consolidated from KcMsgConstants
 EsqMsgConstants
   - QUEUE_KC_REQUEST = "esquire.kc.request"; QUEUE_KC_RESPONSE = "esquire.kc.response"

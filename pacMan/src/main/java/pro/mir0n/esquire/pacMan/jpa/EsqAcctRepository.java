@@ -9,12 +9,13 @@
  * 01/10/2026 mir0n rootPath param added
  * 01/23/2026 mir0n use common library
  *                  added acctsAsNodes method
- * 02/19/2026 mir0n base type changed from EsqEntityJpa to EsqAcctJpa
+ * 02/19/2026 mir0n  base type changed from EsqEntityJpa to EsqAcctJpa
  *                  detailAcct() return type corrected from EsqEntityJpa to EsqAcctJpa
  *                  added detailAcctForUpdate (SELECT FOR UPDATE)
  *                  added updateAcct @Modifying native query (UPDATE esq_account with audit columns)
  *                  @Modifying(clearAutomatically=true, flushAutomatically=false)
  *                  removed unused EsqTreeNodeJpa / List imports
+ * 03/26/2026 mir0n  acctPath, insertAcct, deleteAcct native queries added
  */
 
 package pro.mir0n.esquire.pacMan.jpa;
@@ -45,4 +46,28 @@ public interface EsqAcctRepository extends JpaRepository<EsqAcctJpa, String> {
         @Param("correlationId") String correlationId,
         @Param("requestId") String requestId
     );
+
+    @NativeQuery
+    String acctPath(@Param("parentId") String parentId);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = false)
+    @Transactional
+    @NativeQuery
+    int insertAcct(@Param("id") long id,
+        @Param("kind") int kind,
+        @Param("name") String name,
+        @Param("desc") String desc,
+        @Param("ccy") String ccy,
+        @Param("status") String status,
+        @Param("path") String path,
+        @Param("parentId") String parentId,
+        @Param("uid") String uid,
+        @Param("correlationId") String correlationId,
+        @Param("requestId") String requestId
+    );
+
+    @Modifying(clearAutomatically = true, flushAutomatically = false)
+    @Transactional
+    @NativeQuery
+    int deleteAcct(@Param("id") String id);
 }

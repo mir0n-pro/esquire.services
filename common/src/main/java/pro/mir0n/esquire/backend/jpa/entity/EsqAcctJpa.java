@@ -7,6 +7,7 @@
  *
  *  History:
  * 03/20/2026 mir0n  parentId, path fields added
+ * 03/26/2026 mir0n  parentId removed — consolidated to EsqEntityJpa
  */
 
 package pro.mir0n.esquire.backend.jpa.entity;
@@ -21,7 +22,6 @@ public class EsqAcctJpa extends EsqEntityJpa {
     private String ccy;
     private Double balance;
     private String status;
-    private String parentId;
     private String path;
 }
 

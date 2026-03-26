@@ -11,6 +11,7 @@
  *                   Hibernate auto-flush before native query execution
  * 02/28/2026 mir0n  person/address/address2 read queries added
  *                   updatePerson/updateAddress/updateAddress2 write queries added
+ * 03/26/2026 mir0n  insertUsr, usrPath, deleteUsr native queries added
  */
 
 package pro.mir0n.esquire.enyMan.jpa;
@@ -142,4 +143,81 @@ public interface EsqUsrRepository extends JpaRepository<EsqUsrJpa, String> {
          @Param("correlationId") String correlationId,
          @Param("requestId") String requestId
     );
+
+    @NativeQuery
+    String usrPath(@Param("parentId") String parentId, @Param("rootPath") String rootPath);
+
+    @NativeQuery
+    int countByEmail(@Param("email") String email);
+
+    @NativeQuery
+    Long nextAddrPk();
+
+    @Modifying(clearAutomatically = true, flushAutomatically = false)
+    @Transactional
+    @NativeQuery
+    int insertCustomUsr(@Param("id") long id,
+        @Param("kind") int kind,
+        @Param("uid") String uid,
+        @Param("correlationId") String correlationId,
+        @Param("requestId") String requestId
+    );
+
+    @Modifying(clearAutomatically = true, flushAutomatically = false)
+    @Transactional
+    @NativeQuery
+    int insertAddress(@Param("id") long id,
+        @Param("uid") String uid,
+        @Param("correlationId") String correlationId,
+        @Param("requestId") String requestId
+    );
+
+    @Modifying(clearAutomatically = true, flushAutomatically = false)
+    @Transactional
+    @NativeQuery
+    int insertPerson(@Param("id") long id,
+        @Param("kind") int kind,
+        @Param("adPk") long adPk,
+        @Param("bizAdPk") long bizAdPk,
+        @Param("uid") String uid,
+        @Param("correlationId") String correlationId,
+        @Param("requestId") String requestId
+    );
+
+    @Modifying(clearAutomatically = true, flushAutomatically = false)
+    @Transactional
+    @NativeQuery
+    int insertUsr(@Param("id") long id,
+        @Param("kind") int kind,
+        @Param("name") String name,
+        @Param("desc") String desc,
+        @Param("path") String path,
+        @Param("parentId") String parentId,
+        @Param("registration") String registration,
+        @Param("deleted") String deleted,
+        @Param("uid") String uid,
+        @Param("correlationId") String correlationId,
+        @Param("requestId") String requestId
+    );
+
+    @Modifying(clearAutomatically = true, flushAutomatically = false)
+    @Transactional
+    @NativeQuery
+    int insertAuth(@Param("id") long id,
+        @Param("loginId") String loginId,
+        @Param("email") String email,
+        @Param("uid") String uid,
+        @Param("correlationId") String correlationId,
+        @Param("requestId") String requestId
+    );
+
+    @Modifying(clearAutomatically = true, flushAutomatically = false)
+    @Transactional
+    @NativeQuery
+    int deleteAuth(@Param("id") String id);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = false)
+    @Transactional
+    @NativeQuery
+    int deleteUsr(@Param("id") String id);
 }

@@ -7,10 +7,12 @@
  *
  *  History:
  * 03/17/2026 mir0n  created: JMS/ActiveMQ config for durable consumer; clientId set explicitly on CachingConnectionFactory
+ * 03/26/2026 mir0n  @Qualifier("jmsConnectionFactory") added to ConnectionFactory parameter
  */
 package pro.mir0n.esquire.bizTree.messaging;
 
 import jakarta.jms.ConnectionFactory;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -45,7 +47,7 @@ public class BizTreeJmsConfig {
      */
     @Bean
     public DefaultJmsListenerContainerFactory jmsDurableTopicListenerFactory(
-            ConnectionFactory connectionFactory) {
+            @Qualifier("jmsConnectionFactory") ConnectionFactory connectionFactory) {
         if (connectionFactory instanceof CachingConnectionFactory ccf) {
             ccf.setClientId(clientId);
         }

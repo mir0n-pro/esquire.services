@@ -102,7 +102,7 @@ public class EsqEntityBroadcastPublisher {
         props.put(EsqMsgConstants.FIELD_ENTITY_ID,        entityId);
         props.put(EsqMsgConstants.FIELD_REQUEST_ID,       rid);
         props.put(EsqMsgConstants.FIELD_CORRELATION_ID,   cid);
-        props.put(EsqMsgConstants.FIELD_MESSAGE_ENCODING, EsqMsgConstants.MESSAGE_ENCODING);
+        props.put(EsqMsgConstants.FIELD_MESSAGE_ENCODING, EsqMsgConstants.MSG_ENCODING_JSON);
         props.put(EsqMsgConstants.FIELD_TEXT,             textJson);
 
         jmsTopicTemplate.send(EsqMsgConstants.TOPIC_ENTITY_BROADCAST, session -> {

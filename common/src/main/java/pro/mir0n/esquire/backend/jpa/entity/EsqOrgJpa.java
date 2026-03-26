@@ -7,6 +7,7 @@
  *
  *  History:
  * 03/20/2026 mir0n  parentId, path fields added
+ * 03/26/2026 mir0n  parentId removed — consolidated to EsqEntityJpa
  */
 
 package pro.mir0n.esquire.backend.jpa.entity;
@@ -19,7 +20,6 @@ import pro.mir0n.esquire.backend.jpa.EsqEntityJpa;
 @Getter @Setter @ToString //@AllArgsConstructor @NoArgsConstructor
 public class EsqOrgJpa extends EsqEntityJpa {
     private String fullName;
-    private String parentId;
     private String path;
 }
 
