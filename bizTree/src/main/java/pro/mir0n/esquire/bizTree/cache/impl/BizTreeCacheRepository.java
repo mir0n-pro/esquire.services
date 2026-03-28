@@ -13,6 +13,7 @@
  *                   insertAcctNode inserts main node (under user) + shortcut node (under org FOLDER_ACCOUNT);
  *                   deleteNodes(entityPk): DELETE FROM ESQ_TREE WHERE tree_entity_pk = ?;
  *                   insertUsrNode: folder routing via BizTreeConstants.folderKindForUsr() — data-driven from kind metadata
+ * 03/28/2026 mir0n  deleteNodes(String entityId): WHERE ? IN (tree_pk, tree_tree_pk_link, tree_tree_pk_parent)
  */
 package pro.mir0n.esquire.bizTree.cache.impl;
 
@@ -193,9 +194,9 @@ public class BizTreeCacheRepository implements IBizTreeCacheRepository {
     }
 
     @Override
-    public void deleteNodes(long entityPk) {
-        int ret = cache.update(sql.repo.deleteNode(), entityPk);
-        devLog.debug("BizTreeCacheRepository: deleteNodes entityPk={} rows={}", entityPk, ret);
+    public void deleteNodes(String entityId) {
+        int ret = cache.update(sql.repo.deleteNode(), entityId);
+        devLog.debug("BizTreeCacheRepository: deleteNodes entityId={} rows={}", entityId, ret);
     }
 
     private static int countDots(String s) {

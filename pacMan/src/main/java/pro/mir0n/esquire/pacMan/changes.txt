@@ -1,5 +1,9 @@
 Esquire pacMan Microservice
 
+03/28/2026 mir0n  ACCT delete pre-check — status must be "C" (closed) before delete
+service.impl.PacManService
+  - deleteAcct(): status != "C" → DeleteRestrictedException (HTTP 409)
+
 03/26/2026 mir0n  Entity CREATE/DELETE — esq-anew/esq-adel endpoints; ACCT create/delete
 controller.PacManController
   - POST /esq-anew → esquireCommandNew(); POST /esq-adel → esquireCommandDelete()

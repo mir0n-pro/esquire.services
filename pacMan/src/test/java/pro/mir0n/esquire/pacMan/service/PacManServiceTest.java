@@ -11,8 +11,10 @@ import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.transaction.support.TransactionTemplate;
 import pro.mir0n.esquire.backend.dto.EsqObjectKind;
+import pro.mir0n.esquire.backend.error.DeleteRestrictedException;
 import pro.mir0n.esquire.backend.error.PermissionDeniedException;
 import pro.mir0n.esquire.backend.error.ResourceNotFoundException;
+import pro.mir0n.esquire.backend.jpa.entity.EsqAcctJpa;
 import pro.mir0n.esquire.backend.jpa.access.EsqPermissionJpa;
 import pro.mir0n.esquire.backend.jpa.access.EsqRoleJpa;
 import pro.mir0n.esquire.backend.storage.EsqObjectKindStorage;
@@ -188,5 +190,41 @@ class PacManServiceTest {
         verify(entityRepository).insertAcct(anyLong(), eq(50), anyString(), any(),
                 eq(EsqMsgConstants.CCY_DEFAULT), eq(EsqMsgConstants.FLAG_OPEN),
                 eq("1.5."), eq("10"), any(), any(), any());
+    }
+
+    // ---- esquireCommandDelete: account not found → ResourceNotFoundException ----
+
+    @Test
+    @DisplayName("esquireCommandDelete: account not found → ResourceNotFoundException")
+    void esquireCommandDelete_acctNotFound_throwsResourceNotFoundException() {
+        when(transactionTemplate.execute(any())).thenAnswer(inv -> {
+            inv.<org.springframework.transaction.support.TransactionCallback<?>>getArgument(0).doInTransaction(null);
+            return null;
+        });
+        when(entityRepository.detailAcctForUpdate("10", "1.2.3")).thenReturn(null);
+
+        assertThatThrownBy(() ->
+            service.esquireCommandDelete(50, "10", "delete", "1.2.3", "99", List.of(ROLE_ADMIN))
+        ).isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    // ---- esquireCommandDelete: account not closed → DeleteRestrictedException ----
+
+    @Test
+    @DisplayName("esquireCommandDelete: account not closed (status=O) → DeleteRestrictedException")
+    void esquireCommandDelete_acctNotClosed_throwsDeleteRestrictedException() {
+        EsqAcctJpa acct = new EsqAcctJpa();
+        acct.setId("10");
+        acct.setStatus("O");
+
+        when(transactionTemplate.execute(any())).thenAnswer(inv -> {
+            inv.<org.springframework.transaction.support.TransactionCallback<?>>getArgument(0).doInTransaction(null);
+            return null;
+        });
+        when(entityRepository.detailAcctForUpdate("10", "1.2.3")).thenReturn(acct);
+
+        assertThatThrownBy(() ->
+            service.esquireCommandDelete(50, "10", "delete", "1.2.3", "99", List.of(ROLE_ADMIN))
+        ).isInstanceOf(DeleteRestrictedException.class);
     }
 }

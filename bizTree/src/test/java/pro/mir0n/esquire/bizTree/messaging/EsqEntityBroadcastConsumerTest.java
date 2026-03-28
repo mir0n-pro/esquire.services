@@ -388,7 +388,7 @@ class EsqEntityBroadcastConsumerTest {
     // ---- DELETE: org ----
 
     @Test
-    @DisplayName("DELETE event, kind=20 (org) → deleteNodes(pk) called")
+    @DisplayName("DELETE event, kind=20 (org) → deleteNodes(entityId) called")
     void delete_org_callsDeleteNodes() throws Exception {
         String textJson = "{\"id\":\"42\",\"kind\":20}";
         stubEnvelope("42", 20, EsqMsgConstants.EVENT_DELETE, textJson);
@@ -396,13 +396,13 @@ class EsqEntityBroadcastConsumerTest {
 
         consumer.onEntityBroadcast(message);
 
-        verify(cacheRepository).deleteNodes(42L);
+        verify(cacheRepository).deleteNodes("42");
     }
 
     // ---- DELETE: usr ----
 
     @Test
-    @DisplayName("DELETE event, kind=30 (usr) → deleteNodes(pk) called")
+    @DisplayName("DELETE event, kind=30 (usr) → deleteNodes(entityId) called")
     void delete_usr_callsDeleteNodes() throws Exception {
         String textJson = "{\"id\":\"55\",\"kind\":30}";
         stubEnvelope("55", 30, EsqMsgConstants.EVENT_DELETE, textJson);
@@ -410,13 +410,13 @@ class EsqEntityBroadcastConsumerTest {
 
         consumer.onEntityBroadcast(message);
 
-        verify(cacheRepository).deleteNodes(55L);
+        verify(cacheRepository).deleteNodes("55");
     }
 
     // ---- DELETE: acct ----
 
     @Test
-    @DisplayName("DELETE event, kind=50 (acct) → deleteNodes(pk) called")
+    @DisplayName("DELETE event, kind=50 (acct) → deleteNodes(entityId) called")
     void delete_acct_callsDeleteNodes() throws Exception {
         String textJson = "{\"id\":\"100\",\"kind\":50}";
         stubEnvelope("100", 50, EsqMsgConstants.EVENT_DELETE, textJson);
@@ -424,6 +424,6 @@ class EsqEntityBroadcastConsumerTest {
 
         consumer.onEntityBroadcast(message);
 
-        verify(cacheRepository).deleteNodes(100L);
+        verify(cacheRepository).deleteNodes("100");
     }
 }

@@ -1,5 +1,11 @@
 Esquire Backend common microservice classes
 
+03/28/2026 mir0n  DELETE pre-checks — connectFlg guard (USR), status guard (ACCT); DeleteRestrictedException → 409
+error.GenericExceptionHandler
+  - DeleteRestrictedException added to 409 handler alongside EmailExistsException
+jpa.entity.EsqUsrJpa
+  - connectFlg field added — used for pre-delete active-auth check
+
 03/26/2026 mir0n  Entity CREATE/DELETE — parentId consolidation; EmailExistsException; CREATE support
 jpa.EsqEntityJpa
   - parentId field added — consolidated from EsqAcctJpa/EsqOrgJpa/EsqUsrJpa

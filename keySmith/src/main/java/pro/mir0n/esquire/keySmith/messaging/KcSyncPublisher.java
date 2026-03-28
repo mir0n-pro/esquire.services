@@ -88,7 +88,7 @@ public class KcSyncPublisher {
             props.put(EsqMsgConstants.FIELD_REQUEST_ID,       requestId);
             props.put(EsqMsgConstants.FIELD_CORRELATION_ID,   correlationId);
             props.put(EsqMsgConstants.FIELD_TEST_REQ_ID,      testReqId);
-            props.put(EsqMsgConstants.FIELD_MESSAGE_ENCODING, EsqMsgConstants.MESSAGE_ENCODING);
+            props.put(EsqMsgConstants.FIELD_MESSAGE_ENCODING, EsqMsgConstants.MSG_ENCODING_JSON);
             props.put(EsqMsgConstants.FIELD_TEXT,             text);
 
             jmsQueueTemplate.send(EsqMsgConstants.QUEUE_KC_REQUEST, (Session session) -> {

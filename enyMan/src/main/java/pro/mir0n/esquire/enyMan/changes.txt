@@ -1,5 +1,12 @@
 Esquire enyMan Microservice
 
+03/28/2026 mir0n  USR delete pre-check (connectFlg); cascade-safe delete sequence
+jpa.EsqUsrRepository
+  - deletePersonAddresses, deletePersonBankInfo replace deleteAuth; explicit pre-delete cleanup
+service.impl.UsrService
+  - deleteUsr(): connectFlg="Y" → DeleteRestrictedException before delete
+  - delete sequence: deletePersonAddresses → deletePersonBankInfo → deleteUsr (CASCADE)
+
 03/26/2026 mir0n  Entity CREATE/DELETE — esq-new/esq-del endpoints; ORG and USR create/delete
 controller.EnyManController
   - POST /esq-new → esquireCommandNew(); POST /esq-del → esquireCommandDelete()

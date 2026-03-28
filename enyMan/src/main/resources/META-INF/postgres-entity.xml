@@ -27,6 +27,7 @@
      ,usr_name AS "name"
      ,usr_desc AS "desc"
      ,au_login_id
+     ,au_connect_flg
      ,usr_reg_option
      ,usr_deleted_flg
      ,au_email
@@ -73,6 +74,7 @@
      ,usr_name AS "name"
      ,usr_desc AS "desc"
      ,au_login_id
+     ,au_connect_flg
      ,usr_reg_option
      ,usr_deleted_flg
      ,au_email
@@ -142,9 +144,23 @@
         </query>
     </named-native-query>
 
-    <named-native-query name="EsqUsrJpa.deleteAuth">
+    <named-native-query name="EsqUsrJpa.deletePersonAddresses">
         <query>
- DELETE FROM esq_auth WHERE au_usr_pk = CAST(:id AS bigint)
+ DELETE FROM esq_address
+ WHERE ad_pk IN (
+     SELECT pe_ad_pk     FROM esq_person WHERE pe_usr_pk = CAST(:id AS bigint) AND pe_ad_pk     IS NOT NULL
+     UNION
+     SELECT pe_ad_pk_biz FROM esq_person WHERE pe_usr_pk = CAST(:id AS bigint) AND pe_ad_pk_biz IS NOT NULL
+ )
+        </query>
+    </named-native-query>
+
+    <named-native-query name="EsqUsrJpa.deletePersonBankInfo">
+        <query>
+ DELETE FROM esq_bank_info
+ WHERE bi_pk IN (
+     SELECT pe_bi_pk FROM esq_person WHERE pe_usr_pk = CAST(:id AS bigint) AND pe_bi_pk IS NOT NULL
+ )
         </query>
     </named-native-query>
 
@@ -358,6 +374,7 @@ VALUES (CAST(:id AS bigint), :kind, CAST(:adPk AS bigint), CAST(:bizAdPk AS bigi
             <field-result name="name" column="name"/>
             <field-result name="desc" column="desc"/>
             <field-result name="loginId" column="au_login_id"/>
+            <field-result name="connectFlg" column="au_connect_flg"/>
             <field-result name="registration" column="usr_reg_option"/>
             <field-result name="deleted" column="usr_deleted_flg"/>
             <field-result name="email" column="au_email"/>

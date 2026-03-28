@@ -183,6 +183,7 @@
       </childKinds>
       <commands>
         <command>move</command>
+        <command>delete</command>
       </commands>
     </kind>
 
@@ -201,6 +202,7 @@
       <commands>
         <command>move</command>
         <command>key</command>
+        <command>delete</command>
       </commands>
     </kind>
 
@@ -236,6 +238,7 @@
       <commands>
         <command>move</command>
         <command>key</command>
+        <command>delete</command>
       </commands>
     </kind>
 
@@ -287,6 +290,7 @@
       <commands>
         <command>move</command>
         <command>key</command>
+        <command>delete</command>
       </commands>
     </kind>
 
@@ -338,6 +342,7 @@
       <commands>
         <command>move</command>
         <command>key</command>
+        <command>delete</command>
       </commands>
     </kind>
 
@@ -373,6 +378,7 @@
       <treeFlags>b</treeFlags>
       <commands>
         <command>acct</command>
+        <command>delete</command>
       </commands>
     </kind>
 
@@ -407,6 +413,7 @@
       <treeFlags>b</treeFlags>
       <commands>
         <command>acct</command>
+        <command>delete</command>
       </commands>
     </kind>
 
@@ -442,6 +449,7 @@
       <treeFlags>b</treeFlags>
       <commands>
         <command>acct</command>
+        <command>delete</command>
       </commands>
     </kind>
 

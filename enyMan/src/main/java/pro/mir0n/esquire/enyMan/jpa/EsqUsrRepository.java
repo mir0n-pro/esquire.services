@@ -12,6 +12,7 @@
  * 02/28/2026 mir0n  person/address/address2 read queries added
  *                   updatePerson/updateAddress/updateAddress2 write queries added
  * 03/26/2026 mir0n  insertUsr, usrPath, deleteUsr native queries added
+ * 03/28/2026 mir0n  deletePersonAddresses, deletePersonBankInfo replace deleteAuth; cascade-safe delete sequence
  */
 
 package pro.mir0n.esquire.enyMan.jpa;
@@ -214,7 +215,12 @@ public interface EsqUsrRepository extends JpaRepository<EsqUsrJpa, String> {
     @Modifying(clearAutomatically = true, flushAutomatically = false)
     @Transactional
     @NativeQuery
-    int deleteAuth(@Param("id") String id);
+    int deletePersonAddresses(@Param("id") String id);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = false)
+    @Transactional
+    @NativeQuery
+    int deletePersonBankInfo(@Param("id") String id);
 
     @Modifying(clearAutomatically = true, flushAutomatically = false)
     @Transactional

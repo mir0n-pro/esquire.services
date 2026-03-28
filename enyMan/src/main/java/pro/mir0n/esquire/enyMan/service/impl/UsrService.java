@@ -21,6 +21,8 @@
  * 03/26/2026 mir0n  createUsr() with EmailExistsException on duplicate email;
  *                   deleteUsr() + deleteAuth() (auth deleted before usr, FK constraint);
  *                   esquireCommandNew(), esquireCommandDelete() added
+ * 03/28/2026 mir0n  deleteUsr(): connectFlg="Y" → DeleteRestrictedException before delete;
+ *                   sequence: deletePersonAddresses → deletePersonBankInfo → deleteUsr
  */
 
 package pro.mir0n.esquire.enyMan.service.impl;
@@ -46,6 +48,7 @@ import pro.mir0n.esquire.enyMan.jpa.EsqEntityDictionaryRepository;
 import pro.mir0n.esquire.enyMan.jpa.EsqUsrRepository;
 import pro.mir0n.esquire.backend.service.RequestContextUtils;
 import pro.mir0n.esquire.backend.storage.EsqEntityDictionaryStorage;
+import pro.mir0n.esquire.backend.error.DeleteRestrictedException;
 import pro.mir0n.esquire.backend.error.EmailExistsException;
 import pro.mir0n.esquire.backend.error.ResourceNotFoundException;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -325,7 +328,11 @@ public class UsrService  extends AEnyManService {
         if (usr == null) {
             throw new ResourceNotFoundException("deleteUsr", "id", id);
         }
-        usrRepository.deleteAuth(id);
+        if ("Y".equals(usr.getConnectFlg())) {
+            throw new DeleteRestrictedException("user", "active auth connection — disable login before deleting");
+        }
+        usrRepository.deletePersonAddresses(id);
+        usrRepository.deletePersonBankInfo(id);
         usrRepository.deleteUsr(id);
     }
 

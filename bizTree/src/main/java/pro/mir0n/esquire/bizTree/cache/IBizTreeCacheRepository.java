@@ -10,6 +10,8 @@
  *                   updateNode(entityPk, name, desc, statusCode); SKIP sentinel for desc; entity_pk unique
  * 03/26/2026 mir0n  insertOrgNodes/insertUsrNode/insertAcctNode added for CREATE event support;
  *                   deleteNodes(entityPk) added for DELETE event support
+ * 03/28/2026 mir0n  deleteNodes(String entityId): WHERE ? IN (tree_pk, tree_tree_pk_link, tree_tree_pk_parent);
+ *                   covers USR (tree_pk), ACCT main+shortcut (tree_pk+tree_tree_pk_link), ORG folder nodes (tree_tree_pk_parent)
  */
 package pro.mir0n.esquire.bizTree.cache;
 
@@ -103,9 +105,11 @@ public interface IBizTreeCacheRepository {
     void insertAcctNode(long acctPk, int etPk, String name, String desc, long usrPk, String entityPath, int statusCode);
 
     /**
-     * Removes all cache nodes whose tree_entity_pk matches the given entity primary key.
-     * For accounts this removes both the main node and the shortcut node.
-     * For orgs, only the org entity node is removed; synthetic folder nodes (entity_pk = null) remain.
+     * Removes all cache nodes associated with the given entity id string.
+     * Uses a single WHERE clause: id IN (tree_pk, tree_tree_pk_link, tree_tree_pk_parent).
+     *   USR:  matches the user node by tree_pk.
+     *   ACCT: matches the main node by tree_pk and the shortcut node by tree_tree_pk_link.
+     *   ORG:  matches the org node by tree_pk and all folder nodes by tree_tree_pk_parent.
      */
-    void deleteNodes(long entityPk);
+    void deleteNodes(String entityId);
 }

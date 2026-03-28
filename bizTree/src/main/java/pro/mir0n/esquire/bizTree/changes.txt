@@ -1,5 +1,14 @@
 Esquire BizTree Microservice
 
+03/28/2026 mir0n  DELETE workflow — deleteNodes refactored to string entityId; multi-column WHERE covers ORG folders
+cache.IBizTreeCacheRepository
+  - deleteNodes(String entityId): WHERE ? IN (tree_pk, tree_tree_pk_link, tree_tree_pk_parent)
+    covers USR (tree_pk), ACCT main+shortcut (tree_pk+tree_tree_pk_link), ORG folder nodes (tree_tree_pk_parent)
+cache.impl.BizTreeCacheRepository
+  - deleteNodes() impl updated for new String entityId param
+messaging.handler.DeleteEntityHandler
+  - passes entityId string directly to deleteNodes(); no Long.parseLong
+
 03/26/2026 mir0n  Handler dispatch refactoring; CREATE handler support; DELETE skeleton; constants
 BizTreeConstants  (new)
   - centralized constants: status codes, folder kinds/names, entity kind ranges, column names, key separator

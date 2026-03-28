@@ -7,6 +7,7 @@
  *
  *  History:
  * 03/26/2026 mir0n  created: handles DELETE events for ORG/USR/ACCT kinds
+ * 03/28/2026 mir0n  passes entityId string directly to deleteNodes(); no Long.parseLong
  */
 package pro.mir0n.esquire.bizTree.messaging.handler;
 
@@ -28,8 +29,7 @@ public class DeleteEntityHandler implements IBizTreeEventHandler {
 
     @Override
     public void handle(String entityId, int entityKind, JsonNode textNode) throws Exception {
-        long pk = Long.parseLong(entityId);
-        cacheRepository.deleteNodes(pk);
+        cacheRepository.deleteNodes(entityId);
         devLog.debug("DeleteEntityHandler: deleted cache nodes for entityId={} kind={}", entityId, entityKind);
     }
 }

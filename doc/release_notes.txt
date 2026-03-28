@@ -1,6 +1,17 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v1.2.2-2603.2813 DELETE workflow — pre-checks and cascade-safe delete sequence
+    :Feature: enyMan — USR delete pre-check: connectFlg="Y" → 409 (active auth connection); deletePersonAddresses+deletePersonBankInfo before deleteUsr
+    :Feature: pacMan — ACCT delete pre-check: status != "C" → 409 (account must be closed before delete)
+    :Fix: common — DeleteRestrictedException wired into 409 handler in GenericExceptionHandler
+    :Refactoring: bizTree — deleteNodes(String entityId): WHERE ? IN (tree_pk, tree_tree_pk_link, tree_tree_pk_parent); covers ORG folder nodes
+    : modified components
+       common,
+       enyMan,
+       pacMan,
+       bizTree
+
 v1.2.2-2603.2617 Entity CREATE workflow complete; DELETE- drafted; bizTree handler dispatch; cleanup
     :Feature: enyMan — POST /esq-new (ORG/USR create); POST /esq-del drafted
     :Feature: pacMan — POST /esq-anew (ACCT create); POST /esq-adel drafted

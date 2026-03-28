@@ -33,6 +33,7 @@
  * 03/21/2026 mir0n  devLog added; log.debug→devLog.debug; dual error pattern (publishEntityEvent catch: log.warn→log.error+devLog.error)
  * 03/26/2026 mir0n  createAcct(), deleteAcct(), esquireCommandNew(), esquireCommandDelete() added;
  *                   publishDeleteEvent added; TEXT_* constants replace raw strings
+ * 03/28/2026 mir0n  deleteAcct(): status != "C" → DeleteRestrictedException (account must be closed before delete)
  */
 
 package pro.mir0n.esquire.pacMan.service.impl;
@@ -48,6 +49,7 @@ import org.springframework.beans.BeanWrapper;
 import org.springframework.beans.BeanWrapperImpl;
 import pro.mir0n.esquire.backend.dto.*;
 import pro.mir0n.esquire.backend.dto.access.EsqPermission;
+import pro.mir0n.esquire.backend.error.DeleteRestrictedException;
 import pro.mir0n.esquire.backend.error.PermissionDeniedException;
 import pro.mir0n.esquire.backend.jpa.*;
 import pro.mir0n.esquire.backend.jpa.entity.EsqAcctJpa;
@@ -304,6 +306,9 @@ public class PacManService  implements IPacManService {
         EsqAcctJpa acct = entityRepository.detailAcctForUpdate(id, rootPath);
         if (acct == null) {
             throw new ResourceNotFoundException("deleteAcct", "id", id);
+        }
+        if (!"C".equals(acct.getStatus())) {
+            throw new DeleteRestrictedException("account", "account must be closed before deleting");
         }
         entityRepository.deleteAcct(id);
     }
