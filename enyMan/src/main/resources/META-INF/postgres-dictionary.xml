@@ -20,6 +20,7 @@ SELECT
     par_tooltip,
     par_nullmeaning,
     par_nullable_flg,
+    par_default,
     par_validation,
     par_listvalues,
     par_format,
@@ -41,6 +42,7 @@ WHERE par_et_pk = :kind
             <field-result name="tooltip" column="par_tooltip"/>
             <field-result name="listvalues" column="par_listvalues"/>
             <field-result name="nullable" column="par_nullable_flg"/>
+            <field-result name="defaultValue" column="par_default"/>
             <field-result name="nullmeaning" column="par_nullmeaning"/>
             <field-result name="validation" column="par_validation"/>
             <field-result name="format" column="par_format"/>

@@ -7,6 +7,7 @@
  *
  *  History:
  * 12/26/2025 mir0n  refine API doc
+ * 03/28/2026 mir0n  injectDefaults(Map): populates absent non-nullable fields from dictionary defaults before applyFields
  */
 
 package pro.mir0n.esquire.backend.dto;
@@ -20,6 +21,7 @@ import com.fasterxml.jackson.dataformat.xml.annotation.JacksonXmlRootElement;
 //import java.lang.foreign.SymbolLookup;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 //@JacksonXmlRootElement(localName = "Dictionary")
 @Data
@@ -49,4 +51,13 @@ public class EsqEntityLayer {
     @JacksonXmlElementWrapper(localName = "fields") // Wrapper element for the list
     @JacksonXmlProperty(localName = "field")
     private  List<EsqEntityField> fields;
+
+    public void injectDefaults(Map<String, Object> fieldValues) {
+        if (fieldValues == null || fields == null) return;
+        for (EsqEntityField f : fields) {
+            if ("N".equals(f.getNullable()) && f.getDefaultValue() != null && !fieldValues.containsKey(f.getName())) {
+                fieldValues.put(f.getName(), f.getDefaultValue());
+            }
+        }
+    }
 };

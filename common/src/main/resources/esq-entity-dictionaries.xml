@@ -301,6 +301,7 @@
                             <type>flag</type>
                             <tooltip>Marked as deleted</tooltip>
                             <nullable>N</nullable>
+                            <default>N</default>
                             <readwrite>3</readwrite>
                             <affects3>Y</affects3>
                         </field>
@@ -420,6 +421,7 @@
                             <type>flag</type>
                             <tooltip>Marked as deleted</tooltip>
                             <nullable>N</nullable>
+                            <default>N</default>
                             <readwrite>1</readwrite>
                             <affects3>Y</affects3>
                         </field>
@@ -524,6 +526,7 @@
                             </listvalues>
                             <validation>^(USD|EUR)$</validation>
                             <nullable>N</nullable>
+                            <default>USD</default>
                             <readwrite>3</readwrite>
                         </field>
                         <field>
@@ -534,6 +537,7 @@
                             <tooltip>Account balance</tooltip>
                             <readwrite>1</readwrite>
                             <nullable>N</nullable>
+                            <default>0</default>
                             <format>#,##0.00</format>
                         </field>
                         <field>
@@ -549,6 +553,7 @@
                             </listvalues>
                             <validation>^(O|L|C)$</validation>
                             <nullable>N</nullable>
+                            <default>O</default>
                             <readwrite>3</readwrite>
                             <affects3>Y</affects3>
                         </field>
@@ -607,6 +612,7 @@
                             <validation>^(USD|EUR)$</validation>
                             <readwrite>3</readwrite>
                             <nullable>N</nullable>
+                            <default>USD</default>
                         </field>
                         <field>
                             <name>balance</name>
@@ -615,6 +621,7 @@
                             <type>number</type>
                             <tooltip>Account balance</tooltip>
                             <nullable>N</nullable>
+                            <default>0</default>
                             <readwrite>1</readwrite>
                             <format>#,##0.00</format>
                         </field>
@@ -631,6 +638,7 @@
                             </listvalues>
                             <validation>^(O|L|C)$</validation>
                             <nullable>N</nullable>
+                            <default>O</default>
                             <readwrite>3</readwrite>
                             <affects3>Y</affects3>
                         </field>
@@ -687,6 +695,7 @@
                             </listvalues>
                             <validation>^(USD|EUR)$</validation>
                             <nullable>N</nullable>
+                            <default>USD</default>
                             <readwrite>3</readwrite>
                         </field>
                         <field>
@@ -712,6 +721,7 @@
                             </listvalues>
                             <validation>^(O|L|C)$</validation>
                             <nullable>N</nullable>
+                            <default>O</default>
                             <readwrite>3</readwrite>
                             <affects3>Y</affects3>
                         </field>

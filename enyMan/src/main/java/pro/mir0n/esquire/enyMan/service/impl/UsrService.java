@@ -23,6 +23,8 @@
  *                   esquireCommandNew(), esquireCommandDelete() added
  * 03/28/2026 mir0n  deleteUsr(): connectFlg="Y" → DeleteRestrictedException before delete;
  *                   sequence: deletePersonAddresses → deletePersonBankInfo → deleteUsr
+ * 03/28/2026 mir0n  createUsr(): injectDefaults before each applyFields (person/usr/address/address2);
+ *                   removed hardcoded deleted="N" default; custom field loop restricted to request fields
  */
 
 package pro.mir0n.esquire.enyMan.service.impl;
@@ -214,6 +216,8 @@ public class UsrService  extends AEnyManService {
         prsn.setKind(EsqConstants.KIND_PERSON_PRIMARY);
         Map<String, Object> mprsn = (Map<String, Object>) fields.get(EsqConstants.SUBENTITY_PERSON);
         kfl = dictUser.fillKindFieldLayer(EsqConstants.SUBENTITY_PERSON, kfl);
+        EsqEntityLayer prsnLayer = dictUser.findLayer(kfl.getLayer());
+        if (prsnLayer != null) prsnLayer.injectDefaults(mprsn);
         applyFields(prsn, mprsn, false, kfl.getLayer(), null);
         String name    = prsn.getName();
         String email   = prsn.getEmail();
@@ -230,12 +234,9 @@ public class UsrService  extends AEnyManService {
         EsqUsrJpa usr = new EsqUsrJpa();
         usr.setId(idStr);
         usr.setKind(kind);
+        EsqEntityLayer usrLayer = dictUser.findLayer(1);
+        if (usrLayer != null) usrLayer.injectDefaults(fields);
         applyFields(usr, fields, false, 0, USR_WRITABLE);
-
-        // Ensure deleted flag has default value 'N' if not set
-        if (usr.getDeleted() == null) {
-            usr.setDeleted("N");
-        }
 
         // Ensure registration and deleted flags are in fields for broadcast
         if (usr.getRegistration() != null) fields.put("registration", usr.getRegistration());
@@ -272,6 +273,8 @@ public class UsrService  extends AEnyManService {
             addr.setKind(EsqConstants.KIND_ADDRESS_POSTAL);
             Map<String, Object> maddr = (Map<String, Object>) fields.get(EsqConstants.SUBENTITY_ADDRESS);
             kfl = dictUser.fillKindFieldLayer(EsqConstants.SUBENTITY_ADDRESS, kfl);
+            EsqEntityLayer addrLayer = dictUser.findLayer(kfl.getLayer());
+            if (addrLayer != null) addrLayer.injectDefaults(maddr);
             if (applyFields(addr, maddr, false, kfl.getLayer(), null)) {
                 usrRepository.updateAddress(idStr, EsqConstants.KIND_PERSON_PRIMARY, addr.getDesc(),
                         addr.getAddr(), addr.getAddr2(), addr.getCity(), addr.getCompany(),
@@ -288,6 +291,8 @@ public class UsrService  extends AEnyManService {
             addr2.setKind(EsqConstants.KIND_ADDRESS_BIZ);
             Map<String, Object> maddr2 = (Map<String, Object>) fields.get(EsqConstants.SUBENTITY_ADDRESS2);
             kfl = dictUser.fillKindFieldLayer(EsqConstants.SUBENTITY_ADDRESS2, kfl);
+            EsqEntityLayer addr2Layer = dictUser.findLayer(kfl.getLayer());
+            if (addr2Layer != null) addr2Layer.injectDefaults(maddr2);
             if (applyFields(addr2, maddr2, false, kfl.getLayer(), null)) {
                 usrRepository.updateAddress2(idStr, EsqConstants.KIND_PERSON_PRIMARY, addr2.getDesc(),
                         addr2.getAddr(), addr2.getAddr2(), addr2.getCity(), addr2.getCompany(),
@@ -303,9 +308,11 @@ public class UsrService  extends AEnyManService {
         if (customFields != null && !customFields.isEmpty()) {
             for (EsqCustomEntityFieldJpa cf : customFields) {
                 String fieldName = cf.getName();
-                if (fields.containsKey(fieldName) && cf.getReadwrite() != null && (cf.getReadwrite() & 2) == 2) {
+                if (cf.getReadwrite() != null && (cf.getReadwrite() & 2) == 2 && fields.containsKey(fieldName)) {
+                    Object rawVal = fields.get(fieldName);
+                    if (rawVal == null) continue;
                     kfl = dictUser.fillKindFieldLayer(fieldName, kfl);
-                    String val = (String) ValidatorFactory.getInstance().validate(usr, kfl, false, fields.get(fieldName));
+                    String val = (String) ValidatorFactory.getInstance().validate(usr, kfl, false, rawVal);
                     usrRepository.updateCustomUsr(idStr, fieldName, val, uid, correlationId, requestId);
                 }
             }

@@ -1,5 +1,15 @@
 Esquire enyMan Microservice
 
+03/28/2026 mir0n  default field — inject defaults at entity creation
+service.impl.OrgService
+  - createOrg(): injectDefaults(fields) before applyFields; custom field loop restricted to request fields
+service.impl.UsrService
+  - createUsr(): injectDefaults before each applyFields (person/usr/address/address2); removed hardcoded deleted="N" default; custom field loop restricted to request fields
+META-INF/oracle-custom-field.xml, postgres-custom-field.xml
+  - insertCustomOrg/insertCustomUsr: NULL replaced with par_default as initial *_PAR value
+META-INF/oracle-dictionary.xml, postgres-dictionary.xml
+  - EsqCustomEntityFieldJpa.findCustom: par_default added to SELECT and result mapping
+
 03/28/2026 mir0n  USR delete pre-check (connectFlg); cascade-safe delete sequence
 jpa.EsqUsrRepository
   - deletePersonAddresses, deletePersonBankInfo replace deleteAuth; explicit pre-delete cleanup

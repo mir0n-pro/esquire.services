@@ -16,6 +16,7 @@
  * 03/10/2026 mir0n  fillКindFieldLayer() call updated to fillKindFieldLayer() — Cyrillic К → ASCII K
  * 03/21/2026 mir0n  devLog added; log.debug→devLog.debug
  * 03/26/2026 mir0n  createOrg(), deleteOrg(), esquireCommandNew(), esquireCommandDelete() added
+ * 03/28/2026 mir0n  createOrg(): injectDefaults before applyFields; custom field loop restricted to request fields (INSERT uses par_default)
  */
 
 package pro.mir0n.esquire.enyMan.service.impl;
@@ -146,6 +147,9 @@ public class OrgService  extends AEnyManService {
         // Validate top-level fields via dictionary (mirrors saveOrg)
         EsqOrgJpa org = new EsqOrgJpa();
         org.setKind(kind);
+        EsqEntityDictionary dictOrg = EsqEntityDictionaryStorage.getInstance().get(kind);
+        EsqEntityLayer orgLayer = (dictOrg != null) ? dictOrg.findLayer(1) : null;
+        if (orgLayer != null) orgLayer.injectDefaults(fields);
         applyFields(org, fields, false, 0, null);
 
         orgRepository.insertOrg(newId, kind, org.getName(), org.getDesc(), org.getFullName(), path, parentId, uid, correlationId, requestId);
@@ -157,9 +161,11 @@ public class OrgService  extends AEnyManService {
             EsqEntityKindFieldLayer kfl = new EsqEntityKindFieldLayer();
             for (EsqCustomEntityFieldJpa cf : customFields) {
                 String fieldName = cf.getName();
-                if (fields.containsKey(fieldName) && cf.getReadwrite() != null && (cf.getReadwrite() & 2) == 2) {
+                if (cf.getReadwrite() != null && (cf.getReadwrite() & 2) == 2 && fields.containsKey(fieldName)) {
+                    Object rawVal = fields.get(fieldName);
+                    if (rawVal == null) continue;
                     kfl = (dict != null) ? dict.fillKindFieldLayer(fieldName, kfl) : null;
-                    String val = (String) ValidatorFactory.getInstance().validate(org, kfl, false, fields.get(fieldName));
+                    String val = (String) ValidatorFactory.getInstance().validate(org, kfl, false, rawVal);
                     orgRepository.updateCustomOrg(idStr, fieldName, val, uid, correlationId, requestId);
                 }
             }

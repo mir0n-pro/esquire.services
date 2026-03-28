@@ -1,5 +1,9 @@
 Esquire pacMan Microservice
 
+03/28/2026 mir0n  default field — dict-driven defaults at account creation
+service.impl.PacManService
+  - createAcct(): hardcoded ccy/status ternaries replaced with EsqEntityDictionaryStorage.injectDefaults loop
+
 03/28/2026 mir0n  ACCT delete pre-check — status must be "C" (closed) before delete
 service.impl.PacManService
   - deleteAcct(): status != "C" → DeleteRestrictedException (HTTP 409)

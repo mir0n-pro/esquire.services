@@ -34,6 +34,7 @@
  * 03/26/2026 mir0n  createAcct(), deleteAcct(), esquireCommandNew(), esquireCommandDelete() added;
  *                   publishDeleteEvent added; TEXT_* constants replace raw strings
  * 03/28/2026 mir0n  deleteAcct(): status != "C" → DeleteRestrictedException (account must be closed before delete)
+ * 03/28/2026 mir0n  createAcct(): dict-driven defaults via EsqEntityDictionaryStorage.injectDefaults; replaces hardcoded ccy/status ternaries
  */
 
 package pro.mir0n.esquire.pacMan.service.impl;
@@ -280,13 +281,20 @@ public class PacManService  implements IPacManService {
         String path   = parentPath;
         String prefix = EsqObjectKindStorage.getInstance().get(kind).getName().substring(0, 1).toUpperCase();
         String name   = prefix + newId;
-        String desc   = fields.containsKey(EsqMsgConstants.TEXT_DESC) ? (String) fields.get(EsqMsgConstants.TEXT_DESC) : null;
-        String ccy    = fields.containsKey(EsqMsgConstants.TEXT_CCY)  ? (String) fields.get(EsqMsgConstants.TEXT_CCY)  : EsqMsgConstants.CCY_DEFAULT;
-        String status =  fields.containsKey(EsqMsgConstants.TEXT_STATUS)  ? (String) fields.get(EsqMsgConstants.TEXT_STATUS)  : EsqMsgConstants.FLAG_OPEN;
 
-        fields.put(EsqMsgConstants.TEXT_NAME,   name);
-        fields.put(EsqMsgConstants.TEXT_PATH,   path);
-        fields.put(EsqMsgConstants.TEXT_STATUS, status);
+        fields.put(EsqMsgConstants.TEXT_NAME, name);
+        fields.put(EsqMsgConstants.TEXT_PATH, path);
+
+        EsqEntityDictionary dict = EsqEntityDictionaryStorage.getInstance().get(kind);
+        if (dict != null) {
+            for (EsqEntityLayer layer : dict.getLayers()) {
+                layer.injectDefaults(fields);
+            }
+        }
+
+        String desc   = (String) fields.get(EsqMsgConstants.TEXT_DESC);
+        String ccy    = (String) fields.get(EsqMsgConstants.TEXT_CCY);
+        String status = (String) fields.get(EsqMsgConstants.TEXT_STATUS);
 
         entityRepository.insertAcct(newId, kind, name, desc, ccy, status, path, parentId, uid, correlationId, requestId);
 

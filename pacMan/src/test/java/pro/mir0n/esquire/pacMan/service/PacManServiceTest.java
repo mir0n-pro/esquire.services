@@ -10,8 +10,12 @@ import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.transaction.support.TransactionTemplate;
+import pro.mir0n.esquire.backend.dto.EsqEntityDictionary;
+import pro.mir0n.esquire.backend.dto.EsqEntityField;
+import pro.mir0n.esquire.backend.dto.EsqEntityLayer;
 import pro.mir0n.esquire.backend.dto.EsqObjectKind;
 import pro.mir0n.esquire.backend.error.DeleteRestrictedException;
+import pro.mir0n.esquire.backend.storage.EsqEntityDictionaryStorage;
 import pro.mir0n.esquire.backend.error.PermissionDeniedException;
 import pro.mir0n.esquire.backend.error.ResourceNotFoundException;
 import pro.mir0n.esquire.backend.jpa.entity.EsqAcctJpa;
@@ -79,6 +83,26 @@ class PacManServiceTest {
         when(rolesRepo.roles()).thenReturn(List.of(roleJpa));
         when(rolesRepo.permissions("1")).thenReturn(List.of(permJpa));
         EsqRolesStorage.getInstance().init(rolesRepo);
+
+        EsqEntityField ccyField = new EsqEntityField();
+        ccyField.setName(EsqMsgConstants.TEXT_CCY);
+        ccyField.setNullable("N");
+        ccyField.setDefaultValue(EsqMsgConstants.CCY_DEFAULT);
+
+        EsqEntityField statusField = new EsqEntityField();
+        statusField.setName(EsqMsgConstants.TEXT_STATUS);
+        statusField.setNullable("N");
+        statusField.setDefaultValue(EsqMsgConstants.FLAG_OPEN);
+
+        EsqEntityLayer acctLayer = new EsqEntityLayer();
+        acctLayer.setLayer(1);
+        acctLayer.setTitle("Generic");
+        acctLayer.setFields(List.of(ccyField, statusField));
+
+        EsqEntityDictionary dict50 = new EsqEntityDictionary();
+        dict50.setKind(50);
+        dict50.getLayers().add(acctLayer);
+        EsqEntityDictionaryStorage.getInstance().init(dict50);
     }
 
     @BeforeEach
@@ -189,6 +213,29 @@ class PacManServiceTest {
 
         verify(entityRepository).insertAcct(anyLong(), eq(50), anyString(), any(),
                 eq(EsqMsgConstants.CCY_DEFAULT), eq(EsqMsgConstants.FLAG_OPEN),
+                eq("1.5."), eq("10"), any(), any(), any());
+    }
+
+    // ---- esquireCommandNew: ccy present in request → request value wins over dictionary default ----
+
+    @Test
+    @DisplayName("esquireCommandNew: ccy present in request → overrides dictionary default USD")
+    void esquireCommandNew_ccyInRequest_requestValueWins() throws Exception {
+        when(transactionTemplate.execute(any())).thenAnswer(inv -> {
+            inv.<org.springframework.transaction.support.TransactionCallback<?>>getArgument(0).doInTransaction(null);
+            return null;
+        });
+        when(entityRepository.acctPath("10")).thenReturn("1.5.");
+        when(entityRepository.insertAcct(anyLong(), anyInt(), any(), any(), any(),
+                any(), any(), any(), any(), any(), any())).thenReturn(1);
+
+        Map<String, Object> fields = new HashMap<>();
+        fields.put(EsqMsgConstants.TEXT_CCY, "EUR");
+
+        service.esquireCommandNew(50, "10", "new", fields, "1.5.", "99", List.of(ROLE_ADMIN));
+
+        verify(entityRepository).insertAcct(anyLong(), eq(50), anyString(), any(),
+                eq("EUR"), eq(EsqMsgConstants.FLAG_OPEN),
                 eq("1.5."), eq("10"), any(), any(), any());
     }
 

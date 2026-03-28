@@ -9,6 +9,7 @@
  * 01/14/2026 mir0n  "personal" field added
  * 02/19/2026 mir0n  nullable mapping updated (Boolean -> String passthrough)
  * 03/21/2026 mir0n  devLog added; log.debug→devLog.debug; unused imports removed
+ * 03/28/2026 mir0n  defaultValue mapped from EsqCustomEntityFieldJpa to EsqEntityField
  */
 
 package pro.mir0n.esquire.backend.dto;
@@ -54,6 +55,7 @@ public class EsqEntityDictionaryMapper {
                 newField.setReadwrite(field.getReadwrite());
                 newField.setFormat(field.getFormat());
                 newField.setPersonal(field.getPersonal());
+                newField.setDefaultValue(field.getDefaultValue());
                 currentLayer.getFields().add(newField);
             }
             dictDto.sortLayers();

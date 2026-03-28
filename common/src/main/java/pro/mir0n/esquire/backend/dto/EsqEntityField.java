@@ -12,10 +12,12 @@
  *                   minmax field added
  * 03/08/2026 mir0n  isSubentity() and isTabField() helper methods added
  * 03/20/2026 mir0n  affects3 field added
+ * 03/28/2026 mir0n  defaultValue field added; @JsonProperty("default") for correct JSON serialization
  */
 
 package pro.mir0n.esquire.backend.dto;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.dataformat.xml.annotation.JacksonXmlElementWrapper;
 import com.fasterxml.jackson.dataformat.xml.annotation.JacksonXmlProperty;
 import com.fasterxml.jackson.dataformat.xml.annotation.JacksonXmlRootElement;
@@ -75,6 +77,13 @@ public class EsqEntityField {
     )
     @JacksonXmlProperty(localName = "nullable")
     private String nullable;
+
+    @Schema(
+            description = "default value for required (non-nullable) fields"
+    )
+    @JsonProperty("default")
+    @JacksonXmlProperty(localName = "default")
+    private String defaultValue;
 
     @Schema(
             description = "nullmeaning"

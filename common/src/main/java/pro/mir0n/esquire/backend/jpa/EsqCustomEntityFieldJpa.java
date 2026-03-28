@@ -6,6 +6,7 @@
  *  mailto:mir0n.the.programmer@gmail.com
  *
  *  History:
+ * 03/28/2026 mir0n  defaultValue field added (par_default from ESQ_PARAMETER)
  */
 
 package pro.mir0n.esquire.backend.jpa;
@@ -26,6 +27,7 @@ public class EsqCustomEntityFieldJpa {
     private String tooltip;
     private String listvalues;
     private String nullable;
+    private String defaultValue;
     private String nullmeaning;
     private String validation;
     private Integer readwrite;

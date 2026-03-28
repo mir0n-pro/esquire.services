@@ -1,5 +1,17 @@
 Esquire Backend common microservice classes
 
+03/28/2026 mir0n  default field — parameter metadata default value support
+EsqCustomEntityFieldJpa
+  - defaultValue field added (par_default from ESQ_PARAMETER)
+EsqEntityField
+  - defaultValue field added; @JsonProperty("default") for correct JSON serialization
+EsqEntityLayer
+  - injectDefaults(Map): populates absent non-nullable fields from dictionary defaults before applyFields
+EsqEntityDictionaryMapper
+  - defaultValue mapped from EsqCustomEntityFieldJpa to EsqEntityField
+esq-entity-dictionaries.xml
+  - <default> added to non-nullable fields: deleted (N), ccy (USD), balance (0), status (O), connectFlg (N), tfaMethod (N)
+
 03/28/2026 mir0n  DELETE pre-checks — connectFlg guard (USR), status guard (ACCT); DeleteRestrictedException → 409
 error.GenericExceptionHandler
   - DeleteRestrictedException added to 409 handler alongside EmailExistsException

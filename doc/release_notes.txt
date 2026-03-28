@@ -1,6 +1,18 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v1.2.2-2603.2817 default field — dictionary-driven entity creation defaults
+    :Feature: common — EsqEntityField/EsqCustomEntityFieldJpa: defaultValue field; @JsonProperty("default") for JSON serialization
+    :Feature: common — EsqEntityLayer.injectDefaults(): populates absent non-nullable fields from dictionary defaults before applyFields
+    :Feature: common — esq-entity-dictionaries.xml: <default> for non-nullable fields (deleted, ccy, balance, status, connectFlg, tfaMethod)
+    :Feature: enyMan — createOrg/createUsr: injectDefaults per layer before applyFields; insertCustomOrg/Usr uses par_default as initial *_PAR value
+    :Feature: pacMan — createAcct(): dict-driven ccy/status defaults via injectDefaults; replaces hardcoded constants
+    : modified components
+       common,
+       enyMan,
+       pacMan
+     : added doc\DefaultRule.md
+
 v1.2.2-2603.2813 DELETE workflow — pre-checks and cascade-safe delete sequence
     :Feature: enyMan — USR delete pre-check: connectFlg="Y" → 409 (active auth connection); deletePersonAddresses+deletePersonBankInfo before deleteUsr
     :Feature: pacMan — ACCT delete pre-check: status != "C" → 409 (account must be closed before delete)
