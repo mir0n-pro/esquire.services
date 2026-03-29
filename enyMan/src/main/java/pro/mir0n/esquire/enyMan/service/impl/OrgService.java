@@ -16,7 +16,8 @@
  * 03/10/2026 mir0n  fillКindFieldLayer() call updated to fillKindFieldLayer() — Cyrillic К → ASCII K
  * 03/21/2026 mir0n  devLog added; log.debug→devLog.debug
  * 03/26/2026 mir0n  createOrg(), deleteOrg(), esquireCommandNew(), esquireCommandDelete() added
- * 03/28/2026 mir0n  createOrg(): injectDefaults before applyFields; custom field loop restricted to request fields (INSERT uses par_default)
+ * 03/28/2026 mir0n  createOrg(): injectDefaults before applyFields; custom field loop restricted to request fields
+ * 03/28/2026 mir0n  createOrg(): insertOrgPath before insertOrg; deleteOrg(): deleteEntityPath after deleteOrg (INSERT uses par_default)
  */
 
 package pro.mir0n.esquire.enyMan.service.impl;
@@ -152,7 +153,8 @@ public class OrgService  extends AEnyManService {
         if (orgLayer != null) orgLayer.injectDefaults(fields);
         applyFields(org, fields, false, 0, null);
 
-        orgRepository.insertOrg(newId, kind, org.getName(), org.getDesc(), org.getFullName(), path, parentId, uid, correlationId, requestId);
+        orgRepository.insertOrgPath(newId, path);
+        orgRepository.insertOrg(newId, kind, org.getName(), org.getDesc(), org.getFullName(), parentId, uid, correlationId, requestId);
         orgRepository.insertCustomOrg(newId, kind, uid, correlationId, requestId);
 
         List<EsqCustomEntityFieldJpa> customFields = entityDictionaryRepository.findCustom(kind);
@@ -183,6 +185,7 @@ public class OrgService  extends AEnyManService {
             throw new ResourceNotFoundException("deleteOrg", "id", id);
         }
         orgRepository.deleteOrg(id);
+        orgRepository.deleteEntityPath(id);
     }
 
     private void saveOrg(String id, Map<String, Object> fields, String rootPath,

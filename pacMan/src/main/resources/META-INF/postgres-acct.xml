@@ -18,8 +18,9 @@
     ,acc_status
     ,acc_usr_pk
  FROM esq_account
+ JOIN esq_entity_path ON ep_pk = acc_pk
  WHERE acc_pk = CAST(:id AS bigint)
- AND acc_path LIKE :rootPath || '%'
+ AND ep_path LIKE :rootPath || '%'
         </query>
     </named-native-query>
 
@@ -34,24 +35,37 @@
     ,acc_status
     ,acc_usr_pk
  FROM esq_account
+ JOIN esq_entity_path ON ep_pk = acc_pk
  WHERE acc_pk = CAST(:id AS bigint)
- AND acc_path LIKE :rootPath || '%'
+ AND ep_path LIKE :rootPath || '%'
  FOR UPDATE
         </query>
     </named-native-query>
 
     <named-native-query name="EsqAcctJpa.acctPath">
         <query>
- SELECT usr_path FROM esq_user WHERE usr_pk = CAST(:parentId AS bigint)
+ SELECT ep_path FROM esq_entity_path WHERE ep_pk = CAST(:parentId AS bigint)
+        </query>
+    </named-native-query>
+
+    <named-native-query name="EsqAcctJpa.insertAcctPath">
+        <query>
+ INSERT INTO esq_entity_path (ep_pk, ep_path) VALUES (CAST(:pk AS bigint), :path)
         </query>
     </named-native-query>
 
     <named-native-query name="EsqAcctJpa.insertAcct">
         <query>
  INSERT INTO esq_account (acc_pk, acc_et_pk, acc_id, acc_desc, acc_ccy, acc_status,
-     acc_path, acc_usr_pk, acc_crl_id, acc_req_id, acc_uid)
+     acc_usr_pk, acc_crl_id, acc_req_id, acc_uid)
  VALUES (CAST(:id AS bigint), :kind, :name, :desc, :ccy, :status,
-     :path, CAST(:parentId AS bigint), :correlationId, :requestId, :uid)
+     CAST(:parentId AS bigint), :correlationId, :requestId, :uid)
+        </query>
+    </named-native-query>
+
+    <named-native-query name="EsqAcctJpa.deleteEntityPath">
+        <query>
+ DELETE FROM esq_entity_path WHERE ep_pk = CAST(:pk AS bigint)
         </query>
     </named-native-query>
 

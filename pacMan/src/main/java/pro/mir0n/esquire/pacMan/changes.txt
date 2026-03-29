@@ -1,5 +1,20 @@
 Esquire pacMan Microservice
 
+03/28/2026 mir0n  ESQ_ENTITY_PATH — path column extracted to satellite table; JOIN-based path resolution
+jpa.EsqAcctRepository
+  - insertAcctPath native query added (INSERT INTO esq_entity_path)
+  - insertAcct: path param removed (path row inserted separately before entity row)
+  - deleteEntityPath native query added (DELETE FROM esq_entity_path)
+service.impl.PacManService
+  - createAcct(): insertAcctPath called before insertAcct (trigger atomicity)
+  - deleteAcct(): deleteEntityPath called after deleteAcct (FK satisfied)
+META-INF/oracle-acct.xml, postgres-acct.xml
+  - detailAcct, detailAcctForUpdate: JOIN esq_entity_path; filter on ep_path
+  - acctPath: queries esq_entity_path directly (was esq_user.usr_path)
+  - insertAcctPath named query added
+  - insertAcct: path column/value removed
+  - deleteEntityPath named query added
+
 03/28/2026 mir0n  default field — dict-driven defaults at account creation
 service.impl.PacManService
   - createAcct(): hardcoded ccy/status ternaries replaced with EsqEntityDictionaryStorage.injectDefaults loop

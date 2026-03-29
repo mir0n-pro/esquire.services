@@ -1,5 +1,11 @@
 Esquire BizTree Microservice
 
+03/28/2026 mir0n  ESQ_ENTITY_PATH — JOIN esq_entity_path in findAllForTree queries
+META-INF/oracle-entity.xml, postgres-entity.xml
+  - EsqOrgJpa.findAllForTree: JOIN esq_entity_path; ep_path AS org_path alias
+  - EsqUsrJpa.findAllForTree: JOIN esq_entity_path; ep_path AS usr_path alias
+  - EsqAcctJpa.findAllForTree: JOIN esq_entity_path; ep_path AS acc_path alias
+
 03/28/2026 mir0n  DELETE workflow — deleteNodes refactored to string entityId; multi-column WHERE covers ORG folders
 cache.IBizTreeCacheRepository
   - deleteNodes(String entityId): WHERE ? IN (tree_pk, tree_tree_pk_link, tree_tree_pk_parent)

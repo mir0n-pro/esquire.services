@@ -11,7 +11,7 @@
  SELECT usr_pk
   ,usr_et_pk
   ,usr_name
-  ,usr_path
+  ,ep_path AS usr_path
   ,au_login_id
   ,au_email
   ,COALESCE(au_force_change_flg, 'N') AS au_force_change_flg
@@ -20,8 +20,10 @@
  FROM esq_user
  JOIN esq_auth
   ON au_usr_pk = usr_pk
+ JOIN esq_entity_path
+  ON ep_pk = usr_pk
  WHERE usr_pk = CAST(:id AS bigint)
-  AND usr_path LIKE (:rootPath || '%')
+  AND ep_path LIKE (:rootPath || '%')
         </query>
     </named-native-query>
 
@@ -73,7 +75,7 @@
  SELECT usr_pk
   ,usr_et_pk
   ,usr_name
-  ,usr_path
+  ,ep_path AS usr_path
   ,au_login_id
   ,au_email
   ,COALESCE(au_force_change_flg, 'N') AS au_force_change_flg
@@ -82,8 +84,10 @@
  FROM esq_user
  JOIN esq_auth
   ON au_usr_pk = usr_pk
+ JOIN esq_entity_path
+  ON ep_pk = usr_pk
  WHERE usr_pk = CAST(:id AS bigint)
-  AND usr_path LIKE (:rootPath || '%')
+  AND ep_path LIKE (:rootPath || '%')
  FOR UPDATE OF esq_user
         </query>
     </named-native-query>

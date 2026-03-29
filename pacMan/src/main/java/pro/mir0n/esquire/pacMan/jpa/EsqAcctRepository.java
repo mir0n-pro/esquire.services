@@ -16,6 +16,7 @@
  *                  @Modifying(clearAutomatically=true, flushAutomatically=false)
  *                  removed unused EsqTreeNodeJpa / List imports
  * 03/26/2026 mir0n  acctPath, insertAcct, deleteAcct native queries added
+ * 03/28/2026 mir0n  insertAcctPath, deleteEntityPath added; insertAcct: path param removed
  */
 
 package pro.mir0n.esquire.pacMan.jpa;
@@ -53,13 +54,17 @@ public interface EsqAcctRepository extends JpaRepository<EsqAcctJpa, String> {
     @Modifying(clearAutomatically = true, flushAutomatically = false)
     @Transactional
     @NativeQuery
+    int insertAcctPath(@Param("pk") long pk, @Param("path") String path);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = false)
+    @Transactional
+    @NativeQuery
     int insertAcct(@Param("id") long id,
         @Param("kind") int kind,
         @Param("name") String name,
         @Param("desc") String desc,
         @Param("ccy") String ccy,
         @Param("status") String status,
-        @Param("path") String path,
         @Param("parentId") String parentId,
         @Param("uid") String uid,
         @Param("correlationId") String correlationId,
@@ -70,4 +75,9 @@ public interface EsqAcctRepository extends JpaRepository<EsqAcctJpa, String> {
     @Transactional
     @NativeQuery
     int deleteAcct(@Param("id") String id);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = false)
+    @Transactional
+    @NativeQuery
+    int deleteEntityPath(@Param("pk") String pk);
 }

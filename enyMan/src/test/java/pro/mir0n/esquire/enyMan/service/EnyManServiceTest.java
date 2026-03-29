@@ -36,7 +36,13 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.when;
+import org.mockito.InOrder;
+import java.util.HashMap;
 
 @ExtendWith(MockitoExtension.class)
 class EnyManServiceTest {
@@ -280,5 +286,69 @@ class EnyManServiceTest {
         assertThatThrownBy(() ->
             service.esquireCommandDelete(20, "100", "delete", "1.2.3", "99", List.of(ROLE_ADMIN))
         ).isInstanceOf(DeleteRestrictedException.class);
+    }
+
+    // ---- esquireCommandNew: org — insertOrgPath called before insertOrg ----
+
+    @Test
+    @DisplayName("esquireCommandNew: org — insertOrgPath called before insertOrg")
+    void esquireCommandNew_org_insertsOrgPath_beforeInsertOrg() {
+        when(transactionTemplate.execute(any())).thenAnswer(inv -> {
+            inv.<org.springframework.transaction.support.TransactionCallback<?>>getArgument(0).doInTransaction(null);
+            return null;
+        });
+        when(orgRepo.orgPath("1", "1.")).thenReturn("1.");
+        when(dictRepo.findCustom(10)).thenReturn(List.of());
+
+        service.esquireCommandNew(10, "1", "new", new HashMap<>(), "1.", "99", List.of(ROLE_ADMIN));
+
+        InOrder order = inOrder(orgRepo);
+        order.verify(orgRepo).insertOrgPath(anyLong(), anyString());
+        order.verify(orgRepo).insertOrg(anyLong(), anyInt(), any(), any(), any(), any(), any(), any(), any());
+    }
+
+    // ---- esquireCommandDelete: org — deleteEntityPath called after deleteOrg ----
+
+    @Test
+    @DisplayName("esquireCommandDelete: org — deleteEntityPath called after deleteOrg")
+    void esquireCommandDelete_org_deletesEntityPath_afterDeleteOrg() {
+        pro.mir0n.esquire.backend.jpa.entity.EsqOrgJpa org = new pro.mir0n.esquire.backend.jpa.entity.EsqOrgJpa();
+        org.setId("100");
+
+        when(transactionTemplate.execute(any())).thenAnswer(inv -> {
+            inv.<org.springframework.transaction.support.TransactionCallback<?>>getArgument(0).doInTransaction(null);
+            return null;
+        });
+        when(orgRepo.detailOrgForUpdate("100", "1.")).thenReturn(org);
+
+        service.esquireCommandDelete(10, "100", "delete", "1.", "99", List.of(ROLE_ADMIN));
+
+        InOrder order = inOrder(orgRepo);
+        order.verify(orgRepo).deleteOrg("100");
+        order.verify(orgRepo).deleteEntityPath("100");
+    }
+
+    // ---- esquireCommandDelete: usr — deleteEntityPath called after deleteUsr ----
+
+    @Test
+    @DisplayName("esquireCommandDelete: usr — deleteEntityPath called after deleteUsr")
+    void esquireCommandDelete_usr_deletesEntityPath_afterDeleteUsr() {
+        EsqUsrJpa usr = new EsqUsrJpa();
+        usr.setId("200");
+        usr.setConnectFlg("N");
+
+        when(transactionTemplate.execute(any())).thenAnswer(inv -> {
+            inv.<org.springframework.transaction.support.TransactionCallback<?>>getArgument(0).doInTransaction(null);
+            return null;
+        });
+        when(usrRepo.detailUsrForUpdate("200", "1.")).thenReturn(usr);
+
+        service.esquireCommandDelete(20, "200", "delete", "1.", "99", List.of(ROLE_ADMIN));
+
+        InOrder order = inOrder(usrRepo);
+        order.verify(usrRepo).deletePersonAddresses("200");
+        order.verify(usrRepo).deletePersonBankInfo("200");
+        order.verify(usrRepo).deleteUsr("200");
+        order.verify(usrRepo).deleteEntityPath("200");
     }
 }

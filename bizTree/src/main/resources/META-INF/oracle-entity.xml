@@ -13,8 +13,9 @@
      ,org_name as "name"
      ,org_desc as "desc"
      ,org_org_pk
-     ,org_path
+     ,ep_path as org_path
  FROM esq_org
+ JOIN esq_entity_path ON ep_pk = org_pk
         </query>
     </named-native-query>
 
@@ -25,9 +26,10 @@
      ,usr_name as "name"
      ,usr_desc as "desc"
      ,usr_org_pk
-     ,usr_path
+     ,ep_path as usr_path
      ,usr_deleted_flg
  FROM esq_user
+ JOIN esq_entity_path ON ep_pk = usr_pk
         </query>
     </named-native-query>
 
@@ -38,9 +40,10 @@
      ,acc_id as "name"
      ,acc_desc as "desc"
      ,acc_usr_pk
-     ,acc_path
+     ,ep_path as acc_path
      ,acc_status
  FROM esq_account
+ JOIN esq_entity_path ON ep_pk = acc_pk
         </query>
     </named-native-query>
 

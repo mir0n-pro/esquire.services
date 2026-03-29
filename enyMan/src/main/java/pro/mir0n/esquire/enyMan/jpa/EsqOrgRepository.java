@@ -10,6 +10,7 @@
  *                   flushAutomatically=false on @Modifying prevents spurious
  *                   Hibernate auto-flush before native query execution
  * 03/26/2026 mir0n  insertCustomOrg, orgPath, insertOrg, deleteOrg native queries added
+ * 03/28/2026 mir0n  insertOrgPath, deleteEntityPath added; insertOrg: path param removed
  */
 
 package pro.mir0n.esquire.enyMan.jpa;
@@ -74,12 +75,16 @@ public interface EsqOrgRepository extends JpaRepository<EsqOrgJpa, String> {
     @Modifying(clearAutomatically = true, flushAutomatically = false)
     @Transactional
     @NativeQuery
+    int insertOrgPath(@Param("pk") long pk, @Param("path") String path);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = false)
+    @Transactional
+    @NativeQuery
     int insertOrg(@Param("id") long id,
         @Param("kind") int kind,
         @Param("name") String name,
         @Param("desc") String desc,
         @Param("fullName") String fullName,
-        @Param("path") String path,
         @Param("parentId") String parentId,
         @Param("uid") String uid,
         @Param("correlationId") String correlationId,
@@ -90,5 +95,10 @@ public interface EsqOrgRepository extends JpaRepository<EsqOrgJpa, String> {
     @Transactional
     @NativeQuery
     int deleteOrg(@Param("id") String id);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = false)
+    @Transactional
+    @NativeQuery
+    int deleteEntityPath(@Param("pk") String pk);
 
 }

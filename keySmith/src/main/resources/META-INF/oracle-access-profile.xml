@@ -11,16 +11,17 @@
  SELECT usr_pk
    ,usr_et_pk
    ,usr_name
-   ,usr_path
+   ,ep_path AS usr_path
    ,au_login_id
    ,au_email
    ,NVL(au_force_change_flg,'N') AS au_force_change_flg
    ,au_tfa_method
    ,au_connect_flg
-  FROM esq_user, esq_auth
+  FROM esq_user, esq_auth, esq_entity_path
  WHERE usr_pk = au_usr_pk
+   AND ep_pk = usr_pk
    AND usr_pk = :id
-   AND usr_path LIKE :rootPath || '%'
+   AND ep_path LIKE :rootPath || '%'
         </query>
     </named-native-query>
 
@@ -71,16 +72,17 @@ WHERE pt_pk = prm_pt_pk
  SELECT usr_pk
    ,usr_et_pk
    ,usr_name
-   ,usr_path
+   ,ep_path AS usr_path
    ,au_login_id
    ,au_email
    ,NVL(au_force_change_flg,'N') AS au_force_change_flg
    ,au_tfa_method
    ,au_connect_flg
-  FROM esq_user, esq_auth
+  FROM esq_user, esq_auth, esq_entity_path
  WHERE usr_pk = au_usr_pk
+   AND ep_pk = usr_pk
    AND usr_pk = :id
-   AND usr_path LIKE :rootPath || '%'
+   AND ep_path LIKE :rootPath || '%'
  FOR UPDATE OF usr_pk
         </query>
     </named-native-query>

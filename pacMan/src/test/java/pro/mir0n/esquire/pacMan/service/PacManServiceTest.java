@@ -40,8 +40,10 @@ import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import org.mockito.InOrder;
 
 @ExtendWith(MockitoExtension.class)
 class PacManServiceTest {
@@ -206,14 +208,12 @@ class PacManServiceTest {
             return null;
         });
         when(entityRepository.acctPath("10")).thenReturn("1.5.");
-        when(entityRepository.insertAcct(anyLong(), anyInt(), any(), any(), any(),
-                any(), any(), any(), any(), any(), any())).thenReturn(1);
 
         service.esquireCommandNew(50, "10", "new", new HashMap<>(), "1.5.", "99", List.of(ROLE_ADMIN));
 
         verify(entityRepository).insertAcct(anyLong(), eq(50), anyString(), any(),
                 eq(EsqMsgConstants.CCY_DEFAULT), eq(EsqMsgConstants.FLAG_OPEN),
-                eq("1.5."), eq("10"), any(), any(), any());
+                eq("10"), any(), any(), any());
     }
 
     // ---- esquireCommandNew: ccy present in request → request value wins over dictionary default ----
@@ -226,8 +226,6 @@ class PacManServiceTest {
             return null;
         });
         when(entityRepository.acctPath("10")).thenReturn("1.5.");
-        when(entityRepository.insertAcct(anyLong(), anyInt(), any(), any(), any(),
-                any(), any(), any(), any(), any(), any())).thenReturn(1);
 
         Map<String, Object> fields = new HashMap<>();
         fields.put(EsqMsgConstants.TEXT_CCY, "EUR");
@@ -236,7 +234,47 @@ class PacManServiceTest {
 
         verify(entityRepository).insertAcct(anyLong(), eq(50), anyString(), any(),
                 eq("EUR"), eq(EsqMsgConstants.FLAG_OPEN),
-                eq("1.5."), eq("10"), any(), any(), any());
+                eq("10"), any(), any(), any());
+    }
+
+    // ---- esquireCommandNew: insertAcctPath called before insertAcct ----
+
+    @Test
+    @DisplayName("esquireCommandNew: insertAcctPath called before insertAcct")
+    void esquireCommandNew_insertsEntityPath_beforeInsertAcct() {
+        when(transactionTemplate.execute(any())).thenAnswer(inv -> {
+            inv.<org.springframework.transaction.support.TransactionCallback<?>>getArgument(0).doInTransaction(null);
+            return null;
+        });
+        when(entityRepository.acctPath("10")).thenReturn("1.5.");
+
+        service.esquireCommandNew(50, "10", "new", new HashMap<>(), "1.5.", "99", List.of(ROLE_ADMIN));
+
+        InOrder order = inOrder(entityRepository);
+        order.verify(entityRepository).insertAcctPath(anyLong(), anyString());
+        order.verify(entityRepository).insertAcct(anyLong(), anyInt(), any(), any(), any(), any(), any(), any(), any(), any());
+    }
+
+    // ---- esquireCommandDelete: deleteEntityPath called after deleteAcct ----
+
+    @Test
+    @DisplayName("esquireCommandDelete: deleteEntityPath called after deleteAcct")
+    void esquireCommandDelete_deletesEntityPath_afterDeleteAcct() {
+        EsqAcctJpa acct = new EsqAcctJpa();
+        acct.setId("10");
+        acct.setStatus("C");
+
+        when(transactionTemplate.execute(any())).thenAnswer(inv -> {
+            inv.<org.springframework.transaction.support.TransactionCallback<?>>getArgument(0).doInTransaction(null);
+            return null;
+        });
+        when(entityRepository.detailAcctForUpdate("10", "1.2.3")).thenReturn(acct);
+
+        service.esquireCommandDelete(50, "10", "delete", "1.2.3", "99", List.of(ROLE_ADMIN));
+
+        InOrder order = inOrder(entityRepository);
+        order.verify(entityRepository).deleteAcct("10");
+        order.verify(entityRepository).deleteEntityPath("10");
     }
 
     // ---- esquireCommandDelete: account not found → ResourceNotFoundException ----

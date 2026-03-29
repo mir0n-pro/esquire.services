@@ -15,8 +15,9 @@
      ,org_full_name
      ,org_org_pk
  FROM esq_org
+ JOIN esq_entity_path ON ep_pk = org_pk
  WHERE org_pk = CAST(:id AS bigint)
- AND org_path LIKE :rootPath || '%'
+ AND ep_path LIKE :rootPath || '%'
         </query>
     </named-native-query>
 
@@ -35,8 +36,9 @@
  FROM esq_user u
  JOIN esq_auth a
   ON a.au_usr_pk = u.usr_pk
+ JOIN esq_entity_path ON ep_pk = u.usr_pk
  WHERE usr_pk = CAST(:id AS bigint)
- AND usr_path LIKE :rootPath || '%'
+ AND ep_path LIKE :rootPath || '%'
         </query>
     </named-native-query>
 
@@ -47,8 +49,9 @@
     ,acc_et_pk
     ,acc_desc
  FROM esq_account
+ JOIN esq_entity_path ON ep_pk = acc_pk
  WHERE acc_usr_pk = CAST(:id AS bigint)
-   AND acc_path LIKE :rootPath || '%'
+   AND ep_path LIKE :rootPath || '%'
         </query>
     </named-native-query>
 
@@ -61,8 +64,9 @@
      ,org_full_name
      ,org_org_pk
  FROM esq_org
+ JOIN esq_entity_path ON ep_pk = org_pk
  WHERE org_pk = CAST(:id AS bigint)
- AND org_path LIKE :rootPath || '%'
+ AND ep_path LIKE :rootPath || '%'
  FOR UPDATE
         </query>
     </named-native-query>
@@ -82,24 +86,37 @@
  FROM esq_user u
  JOIN esq_auth a
   ON a.au_usr_pk = u.usr_pk
+ JOIN esq_entity_path ON ep_pk = u.usr_pk
  WHERE usr_pk = CAST(:id AS bigint)
- AND usr_path LIKE :rootPath || '%'
+ AND ep_path LIKE :rootPath || '%'
  FOR UPDATE OF u
         </query>
     </named-native-query>
 
     <named-native-query name="EsqOrgJpa.orgPath">
         <query>
- SELECT org_path FROM esq_org WHERE org_pk = CAST(:parentId AS bigint) AND org_path LIKE :rootPath || '%'
+ SELECT ep_path FROM esq_entity_path WHERE ep_pk = CAST(:parentId AS bigint) AND ep_path LIKE :rootPath || '%'
+        </query>
+    </named-native-query>
+
+    <named-native-query name="EsqOrgJpa.insertOrgPath">
+        <query>
+ INSERT INTO esq_entity_path (ep_pk, ep_path) VALUES (CAST(:pk AS bigint), :path)
         </query>
     </named-native-query>
 
     <named-native-query name="EsqOrgJpa.insertOrg">
         <query>
  INSERT INTO esq_org (org_pk, org_et_pk, org_name, org_desc, org_full_name,
-     org_path, org_org_pk, org_crl_id, org_req_id, org_uid)
+     org_org_pk, org_crl_id, org_req_id, org_uid)
  VALUES (CAST(:id AS bigint), :kind, :name, :desc, :fullName,
-     :path, CAST(:parentId AS bigint), :correlationId, :requestId, :uid)
+     CAST(:parentId AS bigint), :correlationId, :requestId, :uid)
+        </query>
+    </named-native-query>
+
+    <named-native-query name="EsqOrgJpa.deleteEntityPath">
+        <query>
+ DELETE FROM esq_entity_path WHERE ep_pk = CAST(:pk AS bigint)
         </query>
     </named-native-query>
 
@@ -124,16 +141,28 @@
 
     <named-native-query name="EsqUsrJpa.usrPath">
         <query>
- SELECT org_path FROM esq_org WHERE org_pk = CAST(:parentId AS bigint) AND org_path LIKE :rootPath || '%'
+ SELECT ep_path FROM esq_entity_path WHERE ep_pk = CAST(:parentId AS bigint) AND ep_path LIKE :rootPath || '%'
+        </query>
+    </named-native-query>
+
+    <named-native-query name="EsqUsrJpa.insertUsrPath">
+        <query>
+ INSERT INTO esq_entity_path (ep_pk, ep_path) VALUES (CAST(:pk AS bigint), :path)
         </query>
     </named-native-query>
 
     <named-native-query name="EsqUsrJpa.insertUsr">
         <query>
  INSERT INTO esq_user (usr_pk, usr_et_pk, usr_name, usr_desc,
-     usr_path, usr_org_pk, usr_reg_option, usr_deleted_flg, usr_crl_id, usr_req_id, usr_uid)
+     usr_org_pk, usr_reg_option, usr_deleted_flg, usr_crl_id, usr_req_id, usr_uid)
  VALUES (CAST(:id AS bigint), :kind, :name, :desc,
-     :path, CAST(:parentId AS bigint), :registration, :deleted, :correlationId, :requestId, :uid)
+     CAST(:parentId AS bigint), :registration, :deleted, :correlationId, :requestId, :uid)
+        </query>
+    </named-native-query>
+
+    <named-native-query name="EsqUsrJpa.deleteEntityPath">
+        <query>
+ DELETE FROM esq_entity_path WHERE ep_pk = CAST(:pk AS bigint)
         </query>
     </named-native-query>
 

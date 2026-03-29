@@ -1,5 +1,27 @@
 Esquire enyMan Microservice
 
+03/28/2026 mir0n  ESQ_ENTITY_PATH — path column extracted to satellite table; JOIN-based path resolution
+jpa.EsqOrgRepository
+  - insertOrgPath native query added (INSERT INTO esq_entity_path)
+  - insertOrg: path param removed (path row inserted separately before entity row)
+  - deleteEntityPath native query added (DELETE FROM esq_entity_path)
+jpa.EsqUsrRepository
+  - insertUsrPath native query added (INSERT INTO esq_entity_path)
+  - insertUsr: path param removed (path row inserted separately before entity row)
+  - deleteEntityPath native query added (DELETE FROM esq_entity_path)
+service.impl.OrgService
+  - createOrg(): insertOrgPath called before insertOrg (trigger atomicity)
+  - deleteOrg(): deleteEntityPath called after deleteOrg (FK satisfied)
+service.impl.UsrService
+  - createUsr(): insertUsrPath called before insertUsr (trigger atomicity)
+  - deleteUsr(): deleteEntityPath called after deleteUsr (FK satisfied)
+META-INF/oracle-entity.xml, postgres-entity.xml
+  - detailOrg, detailOrgForUpdate, detailUsr, detailUsrForUpdate, userAccts: JOIN esq_entity_path; filter on ep_path
+  - orgPath, usrPath: query esq_entity_path directly (was esq_org/esq_user)
+  - insertOrgPath, insertUsrPath named queries added
+  - insertOrg, insertUsr: path column/value removed
+  - deleteEntityPath named queries added (EsqOrgJpa, EsqUsrJpa)
+
 03/28/2026 mir0n  default field — inject defaults at entity creation
 service.impl.OrgService
   - createOrg(): injectDefaults(fields) before applyFields; custom field loop restricted to request fields

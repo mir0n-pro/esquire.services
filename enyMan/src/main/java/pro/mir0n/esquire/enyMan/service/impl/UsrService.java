@@ -25,6 +25,7 @@
  *                   sequence: deletePersonAddresses → deletePersonBankInfo → deleteUsr
  * 03/28/2026 mir0n  createUsr(): injectDefaults before each applyFields (person/usr/address/address2);
  *                   removed hardcoded deleted="N" default; custom field loop restricted to request fields
+ * 03/28/2026 mir0n  createUsr(): insertUsrPath before insertUsr; deleteUsr(): deleteEntityPath after deleteUsr
  */
 
 package pro.mir0n.esquire.enyMan.service.impl;
@@ -243,7 +244,8 @@ public class UsrService  extends AEnyManService {
         if (usr.getDeleted() != null)      fields.put("deleted", usr.getDeleted());
 
         // Insert main rows
-        usrRepository.insertUsr(newId, kind, usr.getName(), usr.getDesc(), path, parentId, usr.getRegistration(), usr.getDeleted(), uid, correlationId, requestId);
+        usrRepository.insertUsrPath(newId, path);
+        usrRepository.insertUsr(newId, kind, usr.getName(), usr.getDesc(), parentId, usr.getRegistration(), usr.getDeleted(), uid, correlationId, requestId);
         usrRepository.insertAuth(newId, loginId, email, uid, correlationId, requestId);
         usrRepository.insertCustomUsr(newId, kind, uid, correlationId, requestId);
 
@@ -341,6 +343,7 @@ public class UsrService  extends AEnyManService {
         usrRepository.deletePersonAddresses(id);
         usrRepository.deletePersonBankInfo(id);
         usrRepository.deleteUsr(id);
+        usrRepository.deleteEntityPath(id);
     }
 
     private static final Set<String> USR_WRITABLE = Set.of("name"); //, xxx overwrite readonly field 'name'

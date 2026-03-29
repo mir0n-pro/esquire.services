@@ -1,6 +1,14 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v1.2.2-2603.2823  Preparing for "move" command
+    :Refactoring:  ESQ_ENTITY_PATH — path column extracted to satellite table
+    : modified components
+       enyMan,
+       pacMan,
+       keySmith,
+       bizTree
+
 v1.2.2-2603.2817 default field — dictionary-driven entity creation defaults
     :Feature: common — EsqEntityField/EsqCustomEntityFieldJpa: defaultValue field; @JsonProperty("default") for JSON serialization
     :Feature: common — EsqEntityLayer.injectDefaults(): populates absent non-nullable fields from dictionary defaults before applyFields
