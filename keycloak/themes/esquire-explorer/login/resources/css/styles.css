@@ -1,0 +1,255 @@
+/*
+ * Esquire Explorer - Keycloak Login Theme
+ * Matches the visual style of Angular dialog forms
+ * Copyright(c) 2001, 2026 mir0n&co www.mir0n.me
+ */
+
+html, body {
+    height: 100%;
+    margin: 0;
+    font-family: Roboto, sans-serif;
+    background-color: #ffffff;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+/* Main Container */
+.app-explorer {
+    display: grid;
+    grid-template-rows: fit-content(64px) 1fr fit-content(64px);
+    min-height: 100vh;
+}
+
+/* Toolbar (Top and Bottom) */
+.mat-toolbar {
+    height: 64px;
+    background: rgba(235, 235, 235, 0.5);
+    font-size: 9pt;
+    font-weight: normal;
+    display: grid;
+    grid-template-columns: fit-content(88px) auto fit-content(120px);
+    gap: 16px;
+    align-items: center;
+    padding: 0 16px;
+}
+
+.mat-toolbar h1 {
+    margin: 0;
+    font-family: Roboto, sans-serif;
+    font-size: 14pt;
+    font-weight: 400;
+    line-height: 20pt;
+    letter-spacing: .01789em;
+    color: rgba(0, 0, 0, 0.87);
+}
+
+.name-bar {
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    display: grid;
+    align-items: center;
+    padding-left: 10px;
+    padding-right: 10px;
+    margin-left: 10px;
+    height: 48px;
+    grid-template-columns: auto 32px;
+    gap: 4px;
+}
+
+.name-bar span {
+    font-size: 9pt;
+    font-weight: 400;
+    color: rgba(0, 0, 0, 0.87);
+}
+
+.name-bar img {
+    width: 24px;
+    height: 24px;
+    justify-self: center;
+}
+
+.info-text {
+    font-size: 9pt;
+    line-height: 32px;
+    color: rgba(0, 0, 0, 0.87);
+    margin: 0;
+}
+
+.right-aligned-text {
+    text-align: right;
+    width: 100%;
+    font-size: 9pt;
+    line-height: 32px;
+    color: rgba(0, 0, 0, 0.87);
+    margin: 0;
+}
+
+/* Pre-login container — horizontally centered, 80px from top */
+.prelogin-container {
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    padding-top: 80px;
+}
+
+/* Login form — styled as Angular dialog surface */
+.login-form-wrapper {
+    background: rgb(247, 247, 245);
+    border: 2px outset #ccc;
+    border-radius: 4px;
+    width: 380px;
+    box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.2);
+    overflow: hidden;
+}
+
+/* Dialog-style header bar */
+.esq-login-header {
+    height: 48px;
+    background-color: #f0f0f0;
+    border-bottom: 1px solid #ccc;
+    box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.2);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 10px;
+    font-size: 10pt;
+    font-weight: normal;
+    color: rgba(0, 0, 0, 0.87);
+}
+
+.esq-login-header img {
+    width: 24px;
+    height: 24px;
+}
+
+/* Alert messages */
+.esq-login-alert {
+    padding: 6px 12px;
+    margin: 8px 10px 0 10px;
+    border-radius: 2px;
+    font-size: 9pt;
+}
+
+.alert-success { background-color: #d4edda; border: 1px solid #c3e6cb; color: #155724; }
+.alert-warning  { background-color: #fff3cd; border: 1px solid #ffeaa7; color: #856404; }
+.alert-error    { background-color: #f8d7da; border: 1px solid #f5c6cb; color: #721c24; }
+.alert-info     { background-color: #d1ecf1; border: 1px solid #bee5eb; color: #0c5460; }
+
+/* Form content area */
+.esq-login-content {
+    padding: 10px 10px 6px 10px;
+}
+
+/* Form row — matches .esq-grid-input layout */
+.form-group {
+    display: grid;
+    grid-template-columns: 140px minmax(0, 1fr);
+    gap: 4px;
+    align-items: center;
+    min-height: 20px;
+    margin-bottom: 6px;
+    font-size: 10pt;
+    font-weight: normal;
+    color: rgba(0, 0, 0, 0.87);
+}
+
+.control-label {
+    font-size: 10pt;
+    font-weight: normal;
+    color: rgba(0, 0, 0, 0.87);
+    text-align: left;
+    white-space: nowrap;
+}
+
+.form-control {
+    width: 100%;
+    padding: 4px 8px;
+    font-size: 10pt;
+    font-family: Roboto, "Helvetica Neue", sans-serif;
+    border: 1px solid #ccc;
+    border-radius: 2px;
+    background-color: #ffffff;
+    color: rgba(0, 0, 0, 0.87);
+    box-sizing: border-box;
+}
+
+.form-control:focus {
+    outline: none;
+    border-color: #337ab7;
+    box-shadow: 0 0 0 1px #337ab7;
+}
+
+/* Checkbox row */
+.checkbox-label {
+    display: flex;
+    align-items: center;
+    font-size: 10pt;
+    color: rgba(0, 0, 0, 0.87);
+    cursor: pointer;
+    margin: 0;
+}
+
+.checkbox-label input[type="checkbox"] {
+    width: 14px;
+    height: 14px;
+    margin-right: 6px;
+    accent-color: #337ab7;
+    cursor: pointer;
+}
+
+/* Actions area — like mat-dialog-actions */
+.esq-login-actions {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 24px;
+    padding: 6px 10px 10px 10px;
+    border-top: 1px solid #e0e0e0;
+    margin-top: 4px;
+}
+
+/* Login button — like mat-raised-button */
+.btn-login {
+    padding: 4px 20px;
+    height: 32px;
+    font-size: 10pt;
+    font-weight: 500;
+    font-family: Roboto, "Helvetica Neue", sans-serif;
+    color: rgba(0, 0, 0, 0.87);
+    background-color: #f0f0f0;
+    border: 1px solid #ccc;
+    box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.2);
+    border-radius: 2px;
+    cursor: pointer;
+    letter-spacing: 0.3px;
+}
+
+.btn-login:hover {
+    background-color: #e0e0e0;
+    box-shadow: 2px 2px 6px rgba(0, 0, 0, 0.25);
+}
+
+.btn-login:active {
+    box-shadow: inset 1px 1px 2px rgba(0, 0, 0, 0.2);
+    background-color: #d8d8d8;
+}
+
+.btn-login:disabled {
+    background-color: rgba(0, 0, 0, 0.08);
+    color: rgba(0, 0, 0, 0.26);
+    box-shadow: none;
+    cursor: not-allowed;
+}
+
+/* Forgot password link */
+.esq-forgot-link {
+    font-size: 9pt;
+    color: #337ab7;
+    text-decoration: none;
+}
+
+.esq-forgot-link:hover {
+    text-decoration: underline;
+}

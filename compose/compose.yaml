@@ -20,7 +20,10 @@ services:
 
   keycloak:
     container_name: esq-keycloak
-    image: quay.io/keycloak/keycloak:26.4.7
+    build:
+      context: .
+      dockerfile: Dockerfile.keycloak
+    image: esquire-keycloak:26.4.7
     command: start-dev --import-realm
     ports:
       - "8080:8080"
@@ -56,7 +59,7 @@ services:
       - LOG_LEVEL_SF=ERROR
       - LOG_LEVEL_MIR0N=DEBUG
       - LOG_LEVEL_DEVELOP=DEBUG
-      - LOG_LEVEL_MSG=INFO
+      - LOG_LEVEL_MSG=DEBUG
       - DEVELOP_LOG_PATH=logs/bizTree-develop.log
       - MSG_LOG_PATH=logs/bizTree-msg.log
       - DB_BIZTREE_VENDOR=dev-postgres

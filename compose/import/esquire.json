@@ -840,7 +840,6 @@
     "attributes" : {
       "client.secret.creation.time" : "1767745940",
       "standard.token.exchange.enabled" : "false",
-      "login_theme" : "keycloak",
       "frontchannel.logout.session.required" : "true",
       "post.logout.redirect.uris" : "+",
       "oauth2.device.authorization.grant.enabled" : "false",
@@ -1793,7 +1792,7 @@
     "strictTransportSecurity" : "max-age=31536000; includeSubDomains"
   },
   "smtpServer" : { },
-  "loginTheme" : "base",
+  "loginTheme" : "esquire-explorer",
   "accountTheme" : "base",
   "adminTheme" : "base",
   "emailTheme" : "base",

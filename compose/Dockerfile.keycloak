@@ -1,0 +1,12 @@
+FROM quay.io/keycloak/keycloak:26.4.7
+
+# Copy custom theme into the image
+COPY themes/esquire-explorer /opt/keycloak/themes/esquire-explorer
+
+# Build Keycloak to include the theme
+RUN /opt/keycloak/bin/kc.sh build
+
+# Ensure correct permissions
+USER root
+RUN chown -R keycloak:root /opt/keycloak/themes/esquire-explorer
+USER keycloak

@@ -1,6 +1,11 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v1.2.2-2603.3013 keyCloak esquire theme
+    : modified components
+       kecloak
+       compose
+
 v1.2.2-2603.2823  Preparing for "move" command
     :Refactoring:  ESQ_ENTITY_PATH — path column extracted to satellite table
     : modified components
