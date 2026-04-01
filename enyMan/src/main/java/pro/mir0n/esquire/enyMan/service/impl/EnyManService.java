@@ -35,6 +35,8 @@
  * 03/21/2026 mir0n  devLog added; dual error pattern (publishEntityEvent catch: log.warn→log.error+devLog.error)
  * 03/26/2026 mir0n  esquireCommandNew/Delete(): delegates to OrgService/UsrService;
  *                   TEXT_* constants replace raw strings; parentId added to broadcast
+ * 03/31/2026 mir0n  esquireCommandMove(): orgRepository injected; dual UPDATE permission check;
+ *                   self-move guard (USR cannot move themselves); dest org validation; dispatches to OrgService/UsrService
  */
 
 package pro.mir0n.esquire.enyMan.service.impl;
@@ -46,6 +48,7 @@ import java.util.LinkedHashMap;
 import lombok.extern.slf4j.Slf4j;
 import pro.mir0n.esquire.backend.dto.*;
 import pro.mir0n.esquire.backend.dto.access.EsqPermission;
+import pro.mir0n.esquire.backend.jpa.entity.EsqOrgJpa;
 import pro.mir0n.esquire.backend.error.PermissionDeniedException;
 import pro.mir0n.esquire.backend.storage.EsqObjectKindStorage;
 import pro.mir0n.esquire.backend.storage.EsqRolesStorage;
@@ -69,6 +72,7 @@ public class EnyManService  extends AEnyManService {
 
     private final IEnyManService orgService;
     private final IEnyManService usrService;
+    private final EsqOrgRepository orgRepository;
     private final EsqEntityBroadcastPublisher broadcastPublisher;
 
     public EnyManService(EsqEntityDictionaryRepository entityDictionaryRepository,
@@ -80,6 +84,7 @@ public class EnyManService  extends AEnyManService {
         super(entityDictionaryRepository);
         this.orgService = new OrgService(entityDictionaryRepository, orgRepository, transactionTemplate, em);
         this.usrService = new UsrService(entityDictionaryRepository, usrRepository, transactionTemplate, em);
+        this.orgRepository = orgRepository;
         this.broadcastPublisher = broadcastPublisher;
     }
 
@@ -199,6 +204,52 @@ public class EnyManService  extends AEnyManService {
             publishDeleteEvent(id, k, EsqMsgConstants.EVENT_DELETE, requestId, correlationId);
         } else {
             throw new ResourceNotFoundException("esquireDictionary", "kind", kind == null?"''":kind.toString());
+        }
+    }
+
+    @Override
+    public void esquireCommandMove(Integer kind, String id, String distId, String rootPath, String uid, List<String> roles) {
+        int k = (int)Math.floor( (double) kind/2 ) * 2;
+        EsqObjectKind eek = EsqObjectKindStorage.getInstance().get(k);
+        if (!eek.isOrg() && !eek.isUsr()) {
+            throw new ResourceNotFoundException("esquireDictionary", "kind", kind == null?"''":kind.toString());
+        }
+        Map<Integer, EsqPermission> permissions = EsqRolesStorage.getInstance().findAdminPermissions(roles);
+        boolean permitted = false;
+        if (permissions != null) {
+            permitted = EsqRolesStorage.getInstance().isAdminCmdPermitted(
+                permissions.get(k),
+                EsqRolesStorage.AdminCmd.UPDATE
+            );
+        }
+        if (!permitted) {
+            throw new PermissionDeniedException(eek.getTitle(), "move");
+        }
+        if (eek.isUsr() && id.equals(uid)) {
+            throw new PermissionDeniedException(eek.getTitle(), "cannot move yourself");
+        }
+        EsqOrgJpa destOrg = orgRepository.detailOrg(distId, rootPath);
+        if (destOrg == null) {
+            throw new ResourceNotFoundException("esq-move", "dist_id", distId);
+        }
+        int dk = (int)Math.floor( (double) destOrg.getKind()/2 ) * 2;
+        boolean destPermitted = false;
+        if (permissions != null) {
+            destPermitted = EsqRolesStorage.getInstance().isAdminCmdPermitted(
+                permissions.get(dk),
+                EsqRolesStorage.AdminCmd.UPDATE
+            );
+        }
+        if (!destPermitted) {
+            throw new PermissionDeniedException(destOrg.getName(), "move target");
+        }
+        // Capture trace context before delegate call (still on request thread)
+        String requestId     = RequestContextUtils.getRequestId();
+        String correlationId = RequestContextUtils.getCorrelationId();
+        if (eek.isOrg()) {
+            orgService.esquireCommandMove(k, id, distId, rootPath, uid, roles);
+        } else {
+            usrService.esquireCommandMove(k, id, distId, rootPath, uid, roles);
         }
     }
 

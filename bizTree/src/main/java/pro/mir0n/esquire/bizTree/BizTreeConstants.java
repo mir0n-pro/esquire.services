@@ -10,6 +10,7 @@
  *                   ranges, folder names, H2 column names, JSON field names, key separator
  * 03/26/2026 mir0n  folderKindForUsr(): data-driven folder routing via EsqObjectKindStorage childKinds;
  *                   KIND_USR_CLIENT/KIND_USR_MERCHANT removed
+ * 03/31/2026 mir0n  folderKindForUsr(): skip FOLDER_SYS_ADMIN — prevents admin users from being mis-routed into root-org sys-admin folder
  */
 package pro.mir0n.esquire.bizTree;
 
@@ -23,6 +24,7 @@ import pro.mir0n.esquire.backend.storage.EsqObjectKindStorage;
  * entity kind ranges, folder display names, H2 column names, and the folder composite-key separator.
  */
 public class BizTreeConstants {
+
     private BizTreeConstants() {}
 
     // --- Cache status codes (stored in tree_status) ---
@@ -84,6 +86,9 @@ public class BizTreeConstants {
         int ret = FOLDER_ADMIN;
         for (EsqObjectKind k : EsqObjectKindStorage.getInstance().getAll()) {
             if (k.getId() < KIND_ORG_MAX && k.getChildKinds() != null && k.getChildKinds().contains(etPk)) {
+                if (k.getId() == FOLDER_SYS_ADMIN) {
+                    continue;
+                }
                 ret = k.getId();
                 break;
             }

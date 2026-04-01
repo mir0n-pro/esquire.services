@@ -36,6 +36,7 @@
  * 03/28/2026 mir0n  deleteAcct(): status != "C" → DeleteRestrictedException (account must be closed before delete)
  * 03/28/2026 mir0n  createAcct(): dict-driven defaults via EsqEntityDictionaryStorage.injectDefaults; replaces hardcoded ccy/status ternaries
  * 03/28/2026 mir0n  createAcct(): insertAcctPath before insertAcct; deleteAcct(): deleteEntityPath after deleteAcct
+ * 03/31/2026 mir0n  insertAcctPath call: kind param added
  */
 
 package pro.mir0n.esquire.pacMan.service.impl;
@@ -297,7 +298,7 @@ public class PacManService  implements IPacManService {
         String ccy    = (String) fields.get(EsqMsgConstants.TEXT_CCY);
         String status = (String) fields.get(EsqMsgConstants.TEXT_STATUS);
 
-        entityRepository.insertAcctPath(newId, path);
+        entityRepository.insertAcctPath(newId, kind, path);
         entityRepository.insertAcct(newId, kind, name, desc, ccy, status, parentId, uid, correlationId, requestId);
 
         EsqAcctJpa acct = new EsqAcctJpa();

@@ -1,5 +1,9 @@
 Esquire Gateway Microservice
 
+03/31/2026 mir0n  esq-move route
+application.yml
+  - enyman-move-route added for POST /esq-move
+
 03/21/2026 mir0n  three-tier logging normalization
 filters.ResponseTraceFilter
   - devLog added; raw response headers dump moved to devLog.debug; unused imports removed

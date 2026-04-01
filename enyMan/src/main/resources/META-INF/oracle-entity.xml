@@ -99,7 +99,7 @@
 
     <named-native-query name="EsqOrgJpa.insertOrgPath">
         <query>
- INSERT INTO esq_entity_path (ep_pk, ep_path) VALUES (:pk, :path)
+ INSERT INTO esq_entity_path (ep_pk, ep_et_pk, ep_path) VALUES (:pk, :kind, :path)
         </query>
     </named-native-query>
 
@@ -145,7 +145,7 @@
 
     <named-native-query name="EsqUsrJpa.insertUsrPath">
         <query>
- INSERT INTO esq_entity_path (ep_pk, ep_path) VALUES (:pk, :path)
+ INSERT INTO esq_entity_path (ep_pk, ep_et_pk, ep_path) VALUES (:pk, :kind, :path)
         </query>
     </named-native-query>
 
@@ -216,6 +216,44 @@
  UPDATE esq_auth
  SET au_email = :email
  WHERE au_usr_pk = :id
+        </query>
+    </named-native-query>
+
+    <named-native-query name="EsqOrgJpa.moveOrgPaths">
+        <query>
+ UPDATE esq_entity_path
+ SET ep_path = :newPath || SUBSTR(ep_path, LENGTH(:oldPath) + 1)
+ WHERE ep_path LIKE :oldPath || '%'
+        </query>
+    </named-native-query>
+
+    <named-native-query name="EsqOrgJpa.moveOrgParent">
+        <query>
+ UPDATE esq_org
+ SET org_org_pk = :parentId
+    ,org_crl_id = :correlationId
+    ,org_req_id = :requestId
+    ,org_uid = :uid
+ WHERE org_pk = :id
+        </query>
+    </named-native-query>
+
+    <named-native-query name="EsqUsrJpa.moveUsrPaths">
+        <query>
+ UPDATE esq_entity_path
+ SET ep_path = :newPath
+ WHERE ep_path = :oldPath
+        </query>
+    </named-native-query>
+
+    <named-native-query name="EsqUsrJpa.moveUsrParent">
+        <query>
+ UPDATE esq_user
+ SET usr_org_pk = :parentId
+    ,usr_crl_id = :correlationId
+    ,usr_req_id = :requestId
+    ,usr_uid = :uid
+ WHERE usr_pk = :id
         </query>
     </named-native-query>
 

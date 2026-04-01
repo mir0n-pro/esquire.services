@@ -251,7 +251,7 @@ class PacManServiceTest {
         service.esquireCommandNew(50, "10", "new", new HashMap<>(), "1.5.", "99", List.of(ROLE_ADMIN));
 
         InOrder order = inOrder(entityRepository);
-        order.verify(entityRepository).insertAcctPath(anyLong(), anyString());
+        order.verify(entityRepository).insertAcctPath(anyLong(), anyInt(), anyString());
         order.verify(entityRepository).insertAcct(anyLong(), anyInt(), any(), any(), any(), any(), any(), any(), any(), any());
     }
 

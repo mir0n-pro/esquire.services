@@ -12,6 +12,7 @@
  * 02/19/2026 mir0n added esquireCommandSave()
  * 03/09/2026 mir0n  esquireCommandSave(): roles param added
  * 03/26/2026 mir0n  esquireCommandNew(), esquireCommandDelete() added
+ * 03/31/2026 mir0n  esquireCommandMove() added
  */
 
 package pro.mir0n.esquire.enyMan.service;
@@ -29,5 +30,6 @@ public interface IEnyManService {
     public EsqEntity esquireCommandSave(Integer kind, String id, String cmd, Map<String, Object> fields, String rootPath, String uid, List<String> roles );
     public EsqEntity esquireCommandNew(Integer kind, String parentId, String cmd, Map<String, Object> fields, String rootPath, String uid, List<String> roles);
     public void esquireCommandDelete(Integer kind, String id, String cmd, String rootPath, String uid, List<String> roles);
+    public void esquireCommandMove(Integer kind, String id, String distId, String rootPath, String uid, List<String> roles);
 
 }

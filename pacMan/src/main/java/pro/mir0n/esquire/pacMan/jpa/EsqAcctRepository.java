@@ -17,6 +17,7 @@
  *                  removed unused EsqTreeNodeJpa / List imports
  * 03/26/2026 mir0n  acctPath, insertAcct, deleteAcct native queries added
  * 03/28/2026 mir0n  insertAcctPath, deleteEntityPath added; insertAcct: path param removed
+ * 03/31/2026 mir0n  insertAcctPath: kind param added (ep_et_pk)
  */
 
 package pro.mir0n.esquire.pacMan.jpa;
@@ -54,7 +55,7 @@ public interface EsqAcctRepository extends JpaRepository<EsqAcctJpa, String> {
     @Modifying(clearAutomatically = true, flushAutomatically = false)
     @Transactional
     @NativeQuery
-    int insertAcctPath(@Param("pk") long pk, @Param("path") String path);
+    int insertAcctPath(@Param("pk") long pk, @Param("kind") int kind, @Param("path") String path);
 
     @Modifying(clearAutomatically = true, flushAutomatically = false)
     @Transactional

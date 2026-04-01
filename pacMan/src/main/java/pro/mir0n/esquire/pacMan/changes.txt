@@ -1,5 +1,15 @@
 Esquire pacMan Microservice
 
+03/31/2026 mir0n  insertAcctPath: kind param added (ep_et_pk)
+jpa.EsqAcctRepository
+  - insertAcctPath: kind param added
+service.impl.PacManService
+  - insertAcctPath call: kind param added
+META-INF/postgres-acct.xml
+  - insertAcctPath: ep_et_pk column added
+META-INF/oracle-acct.xml
+  - insertAcctPath: ep_et_pk column added
+
 03/28/2026 mir0n  ESQ_ENTITY_PATH — path column extracted to satellite table; JOIN-based path resolution
 jpa.EsqAcctRepository
   - insertAcctPath native query added (INSERT INTO esq_entity_path)

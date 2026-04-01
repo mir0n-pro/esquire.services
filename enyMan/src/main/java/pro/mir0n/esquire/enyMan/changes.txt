@@ -1,5 +1,27 @@
 Esquire enyMan Microservice
 
+03/31/2026 mir0n  esq-move command; ep_et_pk propagation
+controller.EnyManController
+  - POST /esq-move: move ORG or USR to destination ORG
+service.IEnyManService
+  - esquireCommandMove() added
+service.impl.EnyManService
+  - esquireCommandMove(): dual UPDATE permission check; self-move guard for USR; dest org validation
+service.impl.OrgService
+  - esquireCommandMove() + moveOrg(): subtree path update, descendant guard, skip-if-same-parent
+  - insertOrgPath: kind param added (ep_et_pk)
+service.impl.UsrService
+  - esquireCommandMove() + moveUsr(): mass path update for user+accounts, skip-if-same-parent
+  - insertUsrPath: kind param added (ep_et_pk)
+jpa.EsqOrgRepository
+  - insertOrgPath: kind param added; moveOrgPaths, moveOrgParent queries added
+jpa.EsqUsrRepository
+  - insertUsrPath: kind param added; moveUsrPaths, moveUsrParent queries added
+META-INF/postgres-entity.xml
+  - insertOrgPath/insertUsrPath: ep_et_pk added; moveOrgPaths, moveOrgParent, moveUsrPaths, moveUsrParent added
+META-INF/oracle-entity.xml
+  - same as postgres-entity.xml (Oracle syntax)
+
 03/28/2026 mir0n  ESQ_ENTITY_PATH — path column extracted to satellite table; JOIN-based path resolution
 jpa.EsqOrgRepository
   - insertOrgPath native query added (INSERT INTO esq_entity_path)

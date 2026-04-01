@@ -40,8 +40,11 @@ import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import org.mockito.InOrder;
+import pro.mir0n.esquire.backend.jpa.entity.EsqOrgJpa;
 import java.util.HashMap;
 
 @ExtendWith(MockitoExtension.class)
@@ -303,7 +306,7 @@ class EnyManServiceTest {
         service.esquireCommandNew(10, "1", "new", new HashMap<>(), "1.", "99", List.of(ROLE_ADMIN));
 
         InOrder order = inOrder(orgRepo);
-        order.verify(orgRepo).insertOrgPath(anyLong(), anyString());
+        order.verify(orgRepo).insertOrgPath(anyLong(), anyInt(), anyString());
         order.verify(orgRepo).insertOrg(anyLong(), anyInt(), any(), any(), any(), any(), any(), any(), any());
     }
 
@@ -326,6 +329,187 @@ class EnyManServiceTest {
         InOrder order = inOrder(orgRepo);
         order.verify(orgRepo).deleteOrg("100");
         order.verify(orgRepo).deleteEntityPath("100");
+    }
+
+    // ---- esquireCommandMove: permission + dispatch ----
+
+    @Test
+    @DisplayName("esquireCommandMove: org kind, null roles → PermissionDeniedException")
+    void esquireCommandMove_orgKind_nullRoles_throwsPermissionDeniedException() {
+        assertThatThrownBy(() ->
+            service.esquireCommandMove(10, "100", "200", "1.", "99", null)
+        ).isInstanceOf(PermissionDeniedException.class);
+    }
+
+    @Test
+    @DisplayName("esquireCommandMove: usr kind, null roles → PermissionDeniedException")
+    void esquireCommandMove_usrKind_nullRoles_throwsPermissionDeniedException() {
+        assertThatThrownBy(() ->
+            service.esquireCommandMove(20, "100", "200", "1.", "99", null)
+        ).isInstanceOf(PermissionDeniedException.class);
+    }
+
+    @Test
+    @DisplayName("esquireCommandMove: unknown kind → ResourceNotFoundException")
+    void esquireCommandMove_unknownKind_throwsResourceNotFoundException() {
+        assertThatThrownBy(() ->
+            service.esquireCommandMove(99, "100", "200", "1.", "99", List.of(ROLE_ADMIN))
+        ).isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    @Test
+    @DisplayName("esquireCommandMove: dest org not found → ResourceNotFoundException")
+    void esquireCommandMove_destNotFound_throwsResourceNotFoundException() {
+        when(orgRepo.detailOrg("200", "1.")).thenReturn(null);
+
+        assertThatThrownBy(() ->
+            service.esquireCommandMove(10, "100", "200", "1.", "99", List.of(ROLE_ADMIN))
+        ).isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    @Test
+    @DisplayName("esquireCommandMove: dest org kind has no UPDATE permission → PermissionDeniedException")
+    void esquireCommandMove_destNoUpdatePermission_throwsPermissionDeniedException() {
+        EsqOrgJpa destOrg = new EsqOrgJpa();
+        destOrg.setId("200");
+        destOrg.setKind(30); // kind 30 has no entry in permissions map
+        when(orgRepo.detailOrg("200", "1.")).thenReturn(destOrg);
+
+        assertThatThrownBy(() ->
+            service.esquireCommandMove(10, "100", "200", "1.", "99", List.of(ROLE_ADMIN))
+        ).isInstanceOf(PermissionDeniedException.class);
+    }
+
+    @Test
+    @DisplayName("esquireCommandMove: usr kind, id equals uid → PermissionDeniedException (cannot move yourself)")
+    void esquireCommandMove_usrKind_selfMove_throwsPermissionDeniedException() {
+        assertThatThrownBy(() ->
+            service.esquireCommandMove(20, "99", "200", "1.", "99", List.of(ROLE_ADMIN))
+        ).isInstanceOf(PermissionDeniedException.class);
+    }
+
+    // ---- esquireCommandMove: org behavioural ----
+
+    @Test
+    @DisplayName("esquireCommandMove: org — skip when distId equals current parentId")
+    void esquireCommandMove_org_sameParent_skipsMove() {
+        EsqOrgJpa destOrg = new EsqOrgJpa();
+        destOrg.setId("200");
+        destOrg.setKind(10);
+        when(orgRepo.detailOrg("200", "1.")).thenReturn(destOrg);
+
+        EsqOrgJpa org = new EsqOrgJpa();
+        org.setId("100");
+        org.setParentId("200"); // already at destination
+        when(transactionTemplate.execute(any())).thenAnswer(inv -> {
+            inv.<org.springframework.transaction.support.TransactionCallback<?>>getArgument(0).doInTransaction(null);
+            return null;
+        });
+        when(orgRepo.detailOrgForUpdate("100", "1.")).thenReturn(org);
+
+        service.esquireCommandMove(10, "100", "200", "1.", "99", List.of(ROLE_ADMIN));
+
+        verify(orgRepo, never()).moveOrgPaths(anyString(), anyString());
+    }
+
+    @Test
+    @DisplayName("esquireCommandMove: org — descendant guard → PermissionDeniedException")
+    void esquireCommandMove_org_descendantGuard_throwsPermissionDeniedException() {
+        EsqOrgJpa destOrg = new EsqOrgJpa();
+        destOrg.setId("200");
+        destOrg.setKind(10);
+        when(orgRepo.detailOrg("200", "1.")).thenReturn(destOrg);
+
+        EsqOrgJpa org = new EsqOrgJpa();
+        org.setId("100");
+        org.setParentId("5");
+        when(transactionTemplate.execute(any())).thenAnswer(inv -> {
+            inv.<org.springframework.transaction.support.TransactionCallback<?>>getArgument(0).doInTransaction(null);
+            return null;
+        });
+        when(orgRepo.detailOrgForUpdate("100", "1.")).thenReturn(org);
+        when(orgRepo.orgPath("100", "1.")).thenReturn("1.100.");
+        when(orgRepo.orgPath("200", "1.")).thenReturn("1.100.200."); // dest is under moving org
+
+        assertThatThrownBy(() ->
+            service.esquireCommandMove(10, "100", "200", "1.", "99", List.of(ROLE_ADMIN))
+        ).isInstanceOf(PermissionDeniedException.class);
+    }
+
+    @Test
+    @DisplayName("esquireCommandMove: org — moveOrgPaths called before moveOrgParent")
+    void esquireCommandMove_org_moveOrgPaths_beforeMoveOrgParent() {
+        EsqOrgJpa destOrg = new EsqOrgJpa();
+        destOrg.setId("200");
+        destOrg.setKind(10);
+        when(orgRepo.detailOrg("200", "1.")).thenReturn(destOrg);
+
+        EsqOrgJpa org = new EsqOrgJpa();
+        org.setId("100");
+        org.setParentId("5");
+        when(transactionTemplate.execute(any())).thenAnswer(inv -> {
+            inv.<org.springframework.transaction.support.TransactionCallback<?>>getArgument(0).doInTransaction(null);
+            return null;
+        });
+        when(orgRepo.detailOrgForUpdate("100", "1.")).thenReturn(org);
+        when(orgRepo.orgPath("100", "1.")).thenReturn("1.5.100.");
+        when(orgRepo.orgPath("200", "1.")).thenReturn("1.9.200.");
+
+        service.esquireCommandMove(10, "100", "200", "1.", "99", List.of(ROLE_ADMIN));
+
+        InOrder order = inOrder(orgRepo);
+        order.verify(orgRepo).moveOrgPaths(anyString(), anyString());
+        order.verify(orgRepo).moveOrgParent(anyString(), anyString(), any(), any(), any());
+    }
+
+    // ---- esquireCommandMove: usr behavioural ----
+
+    @Test
+    @DisplayName("esquireCommandMove: usr — skip when distId equals current parentId")
+    void esquireCommandMove_usr_sameParent_skipsMove() {
+        EsqOrgJpa destOrg = new EsqOrgJpa();
+        destOrg.setId("200");
+        destOrg.setKind(10);
+        when(orgRepo.detailOrg("200", "1.")).thenReturn(destOrg);
+
+        EsqUsrJpa usr = new EsqUsrJpa();
+        usr.setId("100");
+        usr.setParentId("200"); // already at destination
+        when(transactionTemplate.execute(any())).thenAnswer(inv -> {
+            inv.<org.springframework.transaction.support.TransactionCallback<?>>getArgument(0).doInTransaction(null);
+            return null;
+        });
+        when(usrRepo.detailUsrForUpdate("100", "1.")).thenReturn(usr);
+
+        service.esquireCommandMove(20, "100", "200", "1.", "99", List.of(ROLE_ADMIN));
+
+        verify(usrRepo, never()).moveUsrPaths(anyString(), anyString());
+    }
+
+    @Test
+    @DisplayName("esquireCommandMove: usr — moveUsrPaths called before moveUsrParent")
+    void esquireCommandMove_usr_moveUsrPaths_beforeMoveUsrParent() {
+        EsqOrgJpa destOrg = new EsqOrgJpa();
+        destOrg.setId("200");
+        destOrg.setKind(10);
+        when(orgRepo.detailOrg("200", "1.")).thenReturn(destOrg);
+
+        EsqUsrJpa usr = new EsqUsrJpa();
+        usr.setId("100");
+        usr.setParentId("5");
+        when(transactionTemplate.execute(any())).thenAnswer(inv -> {
+            inv.<org.springframework.transaction.support.TransactionCallback<?>>getArgument(0).doInTransaction(null);
+            return null;
+        });
+        when(usrRepo.detailUsrForUpdate("100", "1.")).thenReturn(usr);
+        when(usrRepo.usrPath("100", "1.")).thenReturn("1.5.100.");
+        when(usrRepo.usrPath("200", "1.")).thenReturn("1.9.200.");
+
+        service.esquireCommandMove(20, "100", "200", "1.", "99", List.of(ROLE_ADMIN));
+
+        InOrder order = inOrder(usrRepo);
+        order.verify(usrRepo).moveUsrPaths(anyString(), anyString());
+        order.verify(usrRepo).moveUsrParent(anyString(), anyString(), any(), any(), any());
     }
 
     // ---- esquireCommandDelete: usr — deleteEntityPath called after deleteUsr ----

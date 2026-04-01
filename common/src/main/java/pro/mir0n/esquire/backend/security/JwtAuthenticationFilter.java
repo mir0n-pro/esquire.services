@@ -9,11 +9,14 @@
  * 03/09/2026 mir0n  realm_access.roles existence validated; request rejected (401) if missing/empty
  * 03/10/2026 mir0n  moved to common; shared by all services via scanBasePackages
  * 03/21/2026 mir0n  devLog added; log.debug→devLog.debug; unused imports removed
+ * 03/31/2026 mir0n  JavaTimeModule registered on ObjectMapper: fixes OffsetDateTime serialization
+ *                   in ProblemDetail error responses
  */
 
 package pro.mir0n.esquire.backend.security;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import io.jsonwebtoken.Claims;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -125,7 +128,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
         response.setContentType(MediaType.APPLICATION_PROBLEM_JSON_VALUE);
         // Use Jackson to write the ProblemDetail object as JSON
-        new ObjectMapper().writeValue(response.getWriter(), problem);
+        new ObjectMapper().registerModule(new JavaTimeModule()).writeValue(response.getWriter(), problem);
     }
 
 }

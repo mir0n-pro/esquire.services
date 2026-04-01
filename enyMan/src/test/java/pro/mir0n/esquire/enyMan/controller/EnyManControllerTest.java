@@ -185,6 +185,36 @@ class EnyManControllerTest {
         verify(service).esquireCommandDelete(10, "100", "delete", "1.2.3", "5", null);
     }
 
+    // ---- esquireCommandMove ----
+
+    @Test
+    @DisplayName("esquireCommandMove: extracts roles, delegates, returns 200")
+    void esquireCommandMove_extractsRolesAndDelegates_returnsOk() {
+        when(claims.get(EsqConstants.JWT_CLAIM_ENTITY_ROOTPATH, String.class)).thenReturn("1.2.3");
+        when(claims.get(EsqConstants.JWT_CLAIM_ENTITY_ID, String.class)).thenReturn("5");
+        Map<String, Object> realmAccess = Map.of(EsqConstants.JWT_CLAIM_REALM_ACCESS_ROLES, List.of("admin"));
+        when(claims.get(EsqConstants.JWT_CLAIM_REALM_ACCESS, Map.class)).thenReturn(realmAccess);
+        doNothing().when(service).esquireCommandMove(10, "100", "200", "1.2.3", "5", List.of("admin"));
+
+        ResponseEntity<Void> response = controller.esquireCommandMove(10, "100", "200", claims);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        verify(service).esquireCommandMove(10, "100", "200", "1.2.3", "5", List.of("admin"));
+    }
+
+    @Test
+    @DisplayName("esquireCommandMove: null realm_access passes null roles to service")
+    void esquireCommandMove_nullRealmAccess_passesNullRolesToService() {
+        when(claims.get(EsqConstants.JWT_CLAIM_ENTITY_ROOTPATH, String.class)).thenReturn("1.2.3");
+        when(claims.get(EsqConstants.JWT_CLAIM_ENTITY_ID, String.class)).thenReturn("5");
+        when(claims.get(EsqConstants.JWT_CLAIM_REALM_ACCESS, Map.class)).thenReturn(null);
+        doNothing().when(service).esquireCommandMove(10, "100", "200", "1.2.3", "5", null);
+
+        controller.esquireCommandMove(10, "100", "200", claims);
+
+        verify(service).esquireCommandMove(10, "100", "200", "1.2.3", "5", null);
+    }
+
     // ---- esquireKinds ----
 
     @Test

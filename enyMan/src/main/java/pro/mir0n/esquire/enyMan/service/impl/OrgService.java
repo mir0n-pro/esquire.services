@@ -18,6 +18,8 @@
  * 03/26/2026 mir0n  createOrg(), deleteOrg(), esquireCommandNew(), esquireCommandDelete() added
  * 03/28/2026 mir0n  createOrg(): injectDefaults before applyFields; custom field loop restricted to request fields
  * 03/28/2026 mir0n  createOrg(): insertOrgPath before insertOrg; deleteOrg(): deleteEntityPath after deleteOrg (INSERT uses par_default)
+ * 03/31/2026 mir0n  esquireCommandMove() + moveOrg(): subtree path update, descendant guard,
+ *                   skip-if-same-parent; insertOrgPath: kind param added (ep_et_pk)
  */
 
 package pro.mir0n.esquire.enyMan.service.impl;
@@ -39,6 +41,7 @@ import pro.mir0n.esquire.enyMan.jpa.EsqEntityDictionaryRepository;
 import pro.mir0n.esquire.enyMan.jpa.EsqOrgRepository;
 import pro.mir0n.esquire.backend.service.RequestContextUtils;
 import pro.mir0n.esquire.backend.storage.EsqEntityDictionaryStorage;
+import pro.mir0n.esquire.backend.error.PermissionDeniedException;
 import pro.mir0n.esquire.backend.error.ResourceNotFoundException;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -133,6 +136,36 @@ public class OrgService  extends AEnyManService {
         });
     }
 
+    @Override
+    public void esquireCommandMove(Integer kind, String id, String distId, String rootPath, String uid, List<String> roles) {
+        String correlationId = RequestContextUtils.getCorrelationId();
+        String requestId = RequestContextUtils.getRequestId();
+        devLog.debug("srvc: esquireCommandMove(org): kind:{}, id:{}, distId:{}, rootPath:{}, uid:{}", kind, id, distId, rootPath, uid);
+        transactionTemplate.execute(status -> {
+            em.setFlushMode(FlushModeType.COMMIT);
+            moveOrg(id, distId, rootPath, uid, correlationId, requestId);
+            return null;
+        });
+    }
+
+    private void moveOrg(String id, String distId, String rootPath, String uid, String correlationId, String requestId) {
+        EsqOrgJpa org = orgRepository.detailOrgForUpdate(id, rootPath);
+        if (org == null) {
+            throw new ResourceNotFoundException("moveOrg", "id", id);
+        }
+        if (distId.equals(org.getParentId())) {
+            return;
+        }
+        String currentPath = orgRepository.orgPath(id, rootPath);
+        String destPath    = orgRepository.orgPath(distId, rootPath);
+        if (destPath.startsWith(currentPath)) {
+            throw new PermissionDeniedException("org", "cannot move org into its own subtree");
+        }
+        String newEntityPath = destPath + id + ".";
+        orgRepository.moveOrgPaths(currentPath, newEntityPath);
+        orgRepository.moveOrgParent(id, distId, uid, correlationId, requestId);
+    }
+
     private void createOrg(Integer kind, String parentId, Map<String, Object> fields,
                             String rootPath, String uid, String correlationId, String requestId,
                             EsqEntityJpa[] created) {
@@ -153,7 +186,7 @@ public class OrgService  extends AEnyManService {
         if (orgLayer != null) orgLayer.injectDefaults(fields);
         applyFields(org, fields, false, 0, null);
 
-        orgRepository.insertOrgPath(newId, path);
+        orgRepository.insertOrgPath(newId, kind, path);
         orgRepository.insertOrg(newId, kind, org.getName(), org.getDesc(), org.getFullName(), parentId, uid, correlationId, requestId);
         orgRepository.insertCustomOrg(newId, kind, uid, correlationId, requestId);
 

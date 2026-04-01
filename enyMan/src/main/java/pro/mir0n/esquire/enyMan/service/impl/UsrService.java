@@ -26,6 +26,8 @@
  * 03/28/2026 mir0n  createUsr(): injectDefaults before each applyFields (person/usr/address/address2);
  *                   removed hardcoded deleted="N" default; custom field loop restricted to request fields
  * 03/28/2026 mir0n  createUsr(): insertUsrPath before insertUsr; deleteUsr(): deleteEntityPath after deleteUsr
+ * 03/31/2026 mir0n  esquireCommandMove() + moveUsr(): mass path update for user+accounts (equality),
+ *                   skip-if-same-parent; insertUsrPath: kind param added (ep_et_pk)
  */
 
 package pro.mir0n.esquire.enyMan.service.impl;
@@ -192,6 +194,33 @@ public class UsrService  extends AEnyManService {
         });
     }
 
+    @Override
+    public void esquireCommandMove(Integer kind, String id, String distId, String rootPath, String uid, List<String> roles) {
+        String correlationId = RequestContextUtils.getCorrelationId();
+        String requestId = RequestContextUtils.getRequestId();
+        devLog.debug("srvc: esquireCommandMove(usr): kind:{}, id:{}, distId:{}, rootPath:{}, uid:{}", kind, id, distId, rootPath, uid);
+        transactionTemplate.execute(status -> {
+            em.setFlushMode(FlushModeType.COMMIT);
+            moveUsr(id, distId, rootPath, uid, correlationId, requestId);
+            return null;
+        });
+    }
+
+    private void moveUsr(String id, String distId, String rootPath, String uid, String correlationId, String requestId) {
+        EsqUsrJpa usr = usrRepository.detailUsrForUpdate(id, rootPath);
+        if (usr == null) {
+            throw new ResourceNotFoundException("moveUsr", "id", id);
+        }
+        if (distId.equals(usr.getParentId())) {
+            return;
+        }
+        String currentPath = usrRepository.usrPath(id, rootPath);
+        String destPath    = usrRepository.usrPath(distId, rootPath);
+        String newPath     = destPath + id + ".";
+        usrRepository.moveUsrPaths(currentPath, newPath);
+        usrRepository.moveUsrParent(id, distId, uid, correlationId, requestId);
+    }
+
     private void createUsr(Integer kind, String parentId, Map<String, Object> fields,
                             String rootPath, String uid, String correlationId, String requestId,
                             EsqEntityJpa[] created, List<EsqNameValueJpa>[] custom,
@@ -244,7 +273,7 @@ public class UsrService  extends AEnyManService {
         if (usr.getDeleted() != null)      fields.put("deleted", usr.getDeleted());
 
         // Insert main rows
-        usrRepository.insertUsrPath(newId, path);
+        usrRepository.insertUsrPath(newId, kind, path);
         usrRepository.insertUsr(newId, kind, usr.getName(), usr.getDesc(), parentId, usr.getRegistration(), usr.getDeleted(), uid, correlationId, requestId);
         usrRepository.insertAuth(newId, loginId, email, uid, correlationId, requestId);
         usrRepository.insertCustomUsr(newId, kind, uid, correlationId, requestId);

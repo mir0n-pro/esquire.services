@@ -101,7 +101,7 @@
 
     <named-native-query name="EsqOrgJpa.insertOrgPath">
         <query>
- INSERT INTO esq_entity_path (ep_pk, ep_path) VALUES (CAST(:pk AS bigint), :path)
+ INSERT INTO esq_entity_path (ep_pk, ep_et_pk, ep_path) VALUES (CAST(:pk AS bigint), :kind, :path)
         </query>
     </named-native-query>
 
@@ -147,7 +147,7 @@
 
     <named-native-query name="EsqUsrJpa.insertUsrPath">
         <query>
- INSERT INTO esq_entity_path (ep_pk, ep_path) VALUES (CAST(:pk AS bigint), :path)
+ INSERT INTO esq_entity_path (ep_pk, ep_et_pk, ep_path) VALUES (CAST(:pk AS bigint), :kind, :path)
         </query>
     </named-native-query>
 
@@ -395,6 +395,44 @@ VALUES (CAST(:id AS bigint), :kind, CAST(:adPk AS bigint), CAST(:bizAdPk AS bigi
             </query>
         </named-native-query>
     -->
+
+    <named-native-query name="EsqOrgJpa.moveOrgPaths">
+        <query>
+ UPDATE esq_entity_path
+ SET ep_path = :newPath || SUBSTRING(ep_path, LENGTH(:oldPath) + 1)
+ WHERE ep_path LIKE :oldPath || '%'
+        </query>
+    </named-native-query>
+
+    <named-native-query name="EsqOrgJpa.moveOrgParent">
+        <query>
+ UPDATE esq_org
+ SET org_org_pk = CAST(:parentId AS bigint)
+    ,org_crl_id = :correlationId
+    ,org_req_id = :requestId
+    ,org_uid = :uid
+ WHERE org_pk = CAST(:id AS bigint)
+        </query>
+    </named-native-query>
+
+    <named-native-query name="EsqUsrJpa.moveUsrPaths">
+        <query>
+ UPDATE esq_entity_path
+ SET ep_path = :newPath
+ WHERE ep_path = :oldPath
+        </query>
+    </named-native-query>
+
+    <named-native-query name="EsqUsrJpa.moveUsrParent">
+        <query>
+ UPDATE esq_user
+ SET usr_org_pk = CAST(:parentId AS bigint)
+    ,usr_crl_id = :correlationId
+    ,usr_req_id = :requestId
+    ,usr_uid = :uid
+ WHERE usr_pk = CAST(:id AS bigint)
+        </query>
+    </named-native-query>
 
     <sql-result-set-mapping name="EsqUsrJpaMapping">
         <entity-result entity-class="pro.mir0n.esquire.backend.jpa.entity.EsqUsrJpa">

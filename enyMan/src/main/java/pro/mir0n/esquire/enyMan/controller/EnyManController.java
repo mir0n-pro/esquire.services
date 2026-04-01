@@ -19,6 +19,7 @@
  * 03/09/2026 mir0n  realm_access.roles extracted from JWT claims; roles passed to esquireCommandSave()
  * 03/21/2026 mir0n  devLog added; log.debug→devLog.debug
  * 03/26/2026 mir0n  POST /esq-new → esquireCommandNew(); POST /esq-del → esquireCommandDelete()
+ * 03/31/2026 mir0n  POST /esq-move → esquireCommandMove()
  */
 
 package pro.mir0n.esquire.enyMan.controller;
@@ -185,6 +186,43 @@ public class EnyManController {
 
         iEnyManService.esquireCommandDelete(kind, id, cmd, rootPath, uid, roles);
         devLog.debug("esquireCommandDelete: kind:{}, id:{}, cmd:{}, rootPath:{}", kind, id, cmd, rootPath);
+        return ResponseEntity.ok().build();
+    }
+
+    @PostMapping("/esq-move")
+    @Operation(
+            summary = "Move an entity to a new parent org",
+            description = "Move ORG or USR to a destination ORG. Requires UPDATE permission on both moving entity and destination."
+    )
+    @ApiResponses({
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "HTTP Status OK"
+            ),
+            @ApiResponse(
+                    responseCode = "500",
+                    description = "HTTP Status Internal Server Error",
+                    content = @Content(
+                            schema = @Schema(implementation = ProblemDetail.class)
+                    )
+            )
+    })
+    public ResponseEntity<Void> esquireCommandMove(
+           @Parameter(description = "Entity kind code")
+           @RequestParam(name = "kind", required = true) Integer kind,
+           @Parameter(description = "Entity id")
+           @RequestParam(name = "id", required = true) String id,
+           @Parameter(description = "Destination org id")
+           @RequestParam(name = "dist_id", required = true) String distId,
+           @AuthenticationPrincipal Claims claims
+    ) {
+        String rootPath = claims.get(EsqConstants.JWT_CLAIM_ENTITY_ROOTPATH, String.class);
+        String uid = claims.get(EsqConstants.JWT_CLAIM_ENTITY_ID, String.class);
+        Map<String, Object> realmAccess = claims.get(EsqConstants.JWT_CLAIM_REALM_ACCESS, Map.class);
+        List<String> roles = realmAccess != null ? (List<String>) realmAccess.get(EsqConstants.JWT_CLAIM_REALM_ACCESS_ROLES) : null;
+
+        iEnyManService.esquireCommandMove(kind, id, distId, rootPath, uid, roles);
+        devLog.debug("esquireCommandMove: kind:{}, id:{}, distId:{}, rootPath:{}", kind, id, distId, rootPath);
         return ResponseEntity.ok().build();
     }
 

@@ -1,5 +1,11 @@
 Esquire BizTree Microservice
 
+03/31/2026 mir0n  folderKindForUsr fix; log cleanup
+BizTreeConstants
+  - folderKindForUsr(): skip FOLDER_SYS_ADMIN — admin users no longer mis-routed into root-org sys-admin folder
+cache.BizTreeCacheLoader
+  - devLog debug line added in user-building loop
+
 03/28/2026 mir0n  ESQ_ENTITY_PATH — JOIN esq_entity_path in findAllForTree queries
 META-INF/oracle-entity.xml, postgres-entity.xml
   - EsqOrgJpa.findAllForTree: JOIN esq_entity_path; ep_path AS org_path alias

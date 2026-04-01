@@ -1,5 +1,11 @@
 Esquire Backend common microservice classes
 
+03/31/2026 mir0n  Jackson OffsetDateTime fix
+security.JwtAuthenticationFilter
+  - JavaTimeModule registered on ObjectMapper: fixes OffsetDateTime serialization in ProblemDetail error responses
+pom.xml
+  - jackson-datatype-jsr310 dependency added
+
 03/28/2026 mir0n  default field — parameter metadata default value support
 EsqCustomEntityFieldJpa
   - defaultValue field added (par_default from ESQ_PARAMETER)

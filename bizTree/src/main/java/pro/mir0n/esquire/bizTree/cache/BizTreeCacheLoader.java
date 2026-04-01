@@ -11,6 +11,7 @@
  * 03/21/2026 mir0n  devLog added; log.debug→devLog.debug
  * 03/26/2026 mir0n  magic constants replaced with BizTreeConstants.*;
  *                   folder routing: folderKindForUsr(etPk) replaces hardcoded KIND_USR_* comparisons
+ * 03/31/2026 mir0n  devLog debug line added in user-building loop
  */
 package pro.mir0n.esquire.bizTree.cache;
 
@@ -117,6 +118,7 @@ public class BizTreeCacheLoader implements ApplicationListener<ApplicationReadyE
             int    status   = BizTreeConstants.FLAG_DELETED.equals(deletedFlg) ? BizTreeConstants.STATUS_DELETED : BizTreeConstants.STATUS_OK;
             String parentPk = orgPk + "~" + folderType;
             rows.add(node(pk, etPk, name, desc, parentPk, null, usrPk, entityPath, status));
+            devLog.debug("added user: pk={}, etPk={}, name={}, desc={}, parentPk={}, usrPk={}, entityPath={}, status={}", pk, etPk, name, desc, parentPk, usrPk, entityPath, status);
         }
         return ret;
     }

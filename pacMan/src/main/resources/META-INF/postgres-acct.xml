@@ -50,7 +50,7 @@
 
     <named-native-query name="EsqAcctJpa.insertAcctPath">
         <query>
- INSERT INTO esq_entity_path (ep_pk, ep_path) VALUES (CAST(:pk AS bigint), :path)
+ INSERT INTO esq_entity_path (ep_pk, ep_et_pk, ep_path) VALUES (CAST(:pk AS bigint), :kind, :path)
         </query>
     </named-native-query>
 
