@@ -17,6 +17,7 @@
  *                   UpdateEntityHandler/CreateOrgHandler/CreateUsrHandler extracted to handler/ package;
  *                   KindType enum removed
  * 03/26/2026 mir0n  DeleteEntityHandler registered for (DELETE, ORG/USR/ACCT) — skeleton, no cascade
+ * 04/02/2025 mir0n  Added 3 move handlers for each kind-kind
  */
 package pro.mir0n.esquire.bizTree.messaging;
 
@@ -34,11 +35,7 @@ import org.springframework.stereotype.Component;
 import pro.mir0n.esquire.backend.dto.EsqObjectKind;
 import pro.mir0n.esquire.backend.storage.EsqObjectKindStorage;
 import pro.mir0n.esquire.bizTree.cache.IBizTreeCacheRepository;
-import pro.mir0n.esquire.bizTree.messaging.handler.CreateAcctHandler;
-import pro.mir0n.esquire.bizTree.messaging.handler.CreateOrgHandler;
-import pro.mir0n.esquire.bizTree.messaging.handler.CreateUsrHandler;
-import pro.mir0n.esquire.bizTree.messaging.handler.DeleteEntityHandler;
-import pro.mir0n.esquire.bizTree.messaging.handler.UpdateEntityHandler;
+import pro.mir0n.esquire.bizTree.messaging.handler.*;
 import pro.mir0n.esquire.common.EsqConstants;
 import pro.mir0n.esquire.common.EsqMsgConstants;
 import pro.mir0n.esquire.messaging.jms.Utils;
@@ -88,6 +85,9 @@ public class EsqEntityBroadcastConsumer {
         handlers.put(new HandlerKey(EsqMsgConstants.EVENT_DELETE, 1), deleteHandler);  // ORG
         handlers.put(new HandlerKey(EsqMsgConstants.EVENT_DELETE, 2), deleteHandler);  // USR
         handlers.put(new HandlerKey(EsqMsgConstants.EVENT_DELETE, 4), deleteHandler);  // ACCT
+        handlers.put(new HandlerKey(EsqMsgConstants.EVENT_UPDATE_PATH, 1), new MoveOrgHandler(cacheRepository));
+        handlers.put(new HandlerKey(EsqMsgConstants.EVENT_UPDATE_PATH, 2), new MoveUsrHandler(cacheRepository));
+        handlers.put(new HandlerKey(EsqMsgConstants.EVENT_UPDATE_PATH, 4), new MoveAcctHandler(cacheRepository));
     }
 
     private static final String SUBSCRIPTION_NAME =

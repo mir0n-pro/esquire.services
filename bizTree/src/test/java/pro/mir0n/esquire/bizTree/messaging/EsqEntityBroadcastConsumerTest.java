@@ -32,8 +32,7 @@ class EsqEntityBroadcastConsumerTest {
     @BeforeAll
     static void initKindStorage() {
         EsqObjectKindStorage s = EsqObjectKindStorage.getInstance();
-        // kind 2  — normalized from kind=3 used in UPDATE tests; registered as org type
-        s.init(new EsqObjectKind(2,  "testOrg",  "Test Org",  "", "", true,  false, false, "", false, false, "", null, null, null, false));
+        // kind 20 — normalised from kind=21 used in UPDATE tests; isOrg=true
         s.init(new EsqObjectKind(0,  "system",   "System",    "", "", true,  false, false, "", false, false, "", null, null, null, false));
         s.init(new EsqObjectKind(20, "org20",    "Org 20",    "", "", true,  false, false, "", false, false, "", null, null, null, false));
         s.init(new EsqObjectKind(30, "usr30",    "User 30",   "", "", false, true,  false, "", false, false, "", null, null, null, false));
@@ -61,7 +60,7 @@ class EsqEntityBroadcastConsumerTest {
     @DisplayName("UPDATE event with name and desc → updateNode(id, kind, name, desc, null)")
     void update_nameAndDesc_callsUpdateNode() throws Exception {
         String textJson = "{\"name\":\"ACME\",\"desc\":\"test\"}";
-        stubEnvelope("42", 3, EsqMsgConstants.EVENT_UPDATE, textJson);
+        stubEnvelope("42", 21, EsqMsgConstants.EVENT_UPDATE, textJson);
         when(objectMapper.readTree(textJson)).thenReturn(MAPPER.readTree(textJson));
 
         consumer.onEntityBroadcast(message);
@@ -75,7 +74,7 @@ class EsqEntityBroadcastConsumerTest {
     @DisplayName("UPDATE event with name only → updateNode(id, kind, name, SKIP, null)")
     void update_nameOnly_descSkipped() throws Exception {
         String textJson = "{\"name\":\"ACME\"}";
-        stubEnvelope("42", 3, EsqMsgConstants.EVENT_UPDATE, textJson);
+        stubEnvelope("42", 21, EsqMsgConstants.EVENT_UPDATE, textJson);
         when(objectMapper.readTree(textJson)).thenReturn(MAPPER.readTree(textJson));
 
         consumer.onEntityBroadcast(message);
@@ -89,7 +88,7 @@ class EsqEntityBroadcastConsumerTest {
     @DisplayName("UPDATE event with desc only → updateNode(id, kind, SKIP, desc, null)")
     void update_descOnly_nameSkipped() throws Exception {
         String textJson = "{\"desc\":\"test\"}";
-        stubEnvelope("42", 3, EsqMsgConstants.EVENT_UPDATE, textJson);
+        stubEnvelope("42", 21, EsqMsgConstants.EVENT_UPDATE, textJson);
         when(objectMapper.readTree(textJson)).thenReturn(MAPPER.readTree(textJson));
 
         consumer.onEntityBroadcast(message);
@@ -103,7 +102,7 @@ class EsqEntityBroadcastConsumerTest {
     @DisplayName("UPDATE event with desc:null → updateNode(id, kind, null, null, null)")
     void update_descExplicitNull_clearsDesc() throws Exception {
         String textJson = "{\"desc\":null}";
-        stubEnvelope("42", 3, EsqMsgConstants.EVENT_UPDATE, textJson);
+        stubEnvelope("42", 21, EsqMsgConstants.EVENT_UPDATE, textJson);
         when(objectMapper.readTree(textJson)).thenReturn(MAPPER.readTree(textJson));
 
         consumer.onEntityBroadcast(message);
@@ -117,7 +116,7 @@ class EsqEntityBroadcastConsumerTest {
     @DisplayName("UPDATE event with deleted:Y → updateNode(id, kind, SKIP, SKIP, 1)")
     void update_deletedY_callsUpdateNode() throws Exception {
         String textJson = "{\"deleted\":\"Y\"}";
-        stubEnvelope("42", 3, EsqMsgConstants.EVENT_UPDATE, textJson);
+        stubEnvelope("42", 21, EsqMsgConstants.EVENT_UPDATE, textJson);
         when(objectMapper.readTree(textJson)).thenReturn(MAPPER.readTree(textJson));
 
         consumer.onEntityBroadcast(message);
@@ -131,7 +130,7 @@ class EsqEntityBroadcastConsumerTest {
     @DisplayName("UPDATE event with deleted:null → cache not touched")
     void update_deletedNull_noCacheCall() throws Exception {
         String textJson = "{\"deleted\":null}";
-        stubEnvelope("42", 3, EsqMsgConstants.EVENT_UPDATE, textJson);
+        stubEnvelope("42", 21, EsqMsgConstants.EVENT_UPDATE, textJson);
         when(objectMapper.readTree(textJson)).thenReturn(MAPPER.readTree(textJson));
 
         consumer.onEntityBroadcast(message);
@@ -145,7 +144,7 @@ class EsqEntityBroadcastConsumerTest {
     @DisplayName("UPDATE event with status:C → updateNode(id, kind, null, SKIP, 1)")
     void update_statusClosed_callsUpdateNode() throws Exception {
         String textJson = "{\"status\":\"C\"}";
-        stubEnvelope("42", 3, EsqMsgConstants.EVENT_UPDATE, textJson);
+        stubEnvelope("42", 21, EsqMsgConstants.EVENT_UPDATE, textJson);
         when(objectMapper.readTree(textJson)).thenReturn(MAPPER.readTree(textJson));
 
         consumer.onEntityBroadcast(message);
@@ -159,7 +158,7 @@ class EsqEntityBroadcastConsumerTest {
     @DisplayName("UPDATE event with status:L → updateNode(id, kind, null, SKIP, 2)")
     void update_statusLocked_callsUpdateNode() throws Exception {
         String textJson = "{\"status\":\"L\"}";
-        stubEnvelope("42", 3, EsqMsgConstants.EVENT_UPDATE, textJson);
+        stubEnvelope("42", 21, EsqMsgConstants.EVENT_UPDATE, textJson);
         when(objectMapper.readTree(textJson)).thenReturn(MAPPER.readTree(textJson));
 
         consumer.onEntityBroadcast(message);
@@ -173,7 +172,7 @@ class EsqEntityBroadcastConsumerTest {
     @DisplayName("UPDATE event with name + deleted:C → single updateNode call with both")
     void update_nameAndDeleted_callsUpdateNode() throws Exception {
         String textJson = "{\"name\":\"ACME\",\"deleted\":\"C\"}";
-        stubEnvelope("42", 3, EsqMsgConstants.EVENT_UPDATE, textJson);
+        stubEnvelope("42", 21, EsqMsgConstants.EVENT_UPDATE, textJson);
         when(objectMapper.readTree(textJson)).thenReturn(MAPPER.readTree(textJson));
 
         consumer.onEntityBroadcast(message);
@@ -186,7 +185,7 @@ class EsqEntityBroadcastConsumerTest {
     @Test
     @DisplayName("non-UPDATE event → cache not touched")
     void nonUpdate_noCacheCall() throws Exception {
-        stubEnvelope("42", 3, EsqMsgConstants.EVENT_CREATE, null);
+        stubEnvelope("42", 21, EsqMsgConstants.EVENT_CREATE, null);
 
         consumer.onEntityBroadcast(message);
 
@@ -198,7 +197,7 @@ class EsqEntityBroadcastConsumerTest {
     @Test
     @DisplayName("UPDATE event with null Text property → cache not touched")
     void update_nullText_noCacheCall() throws Exception {
-        stubEnvelope("42", 3, EsqMsgConstants.EVENT_UPDATE, null);
+        stubEnvelope("42", 21, EsqMsgConstants.EVENT_UPDATE, null);
 
         consumer.onEntityBroadcast(message);
 
@@ -211,7 +210,7 @@ class EsqEntityBroadcastConsumerTest {
     @DisplayName("UPDATE event with no name, desc, status or deleted fields → cache not touched")
     void update_noRelevantFields_noCacheCall() throws Exception {
         String textJson = "{\"id\":\"42\",\"kind\":3}";
-        stubEnvelope("42", 3, EsqMsgConstants.EVENT_UPDATE, textJson);
+        stubEnvelope("42", 21, EsqMsgConstants.EVENT_UPDATE, textJson);
         when(objectMapper.readTree(textJson)).thenReturn(MAPPER.readTree(textJson));
 
         consumer.onEntityBroadcast(message);
@@ -425,5 +424,73 @@ class EsqEntityBroadcastConsumerTest {
         consumer.onEntityBroadcast(message);
 
         verify(cacheRepository).deleteNodes("100");
+    }
+
+    // ---- UPDATE_PATH: org ----
+
+    @Test
+    @DisplayName("UPDATE_PATH event, kind=20 (org) → moveOrgNode(pk, path) called")
+    void updatePath_org_callsMoveOrgNode() throws Exception {
+        String textJson = "{\"id\":\"42\",\"kind\":20,\"path\":\"1.7.42.\"}";
+        stubEnvelope("42", 20, EsqMsgConstants.EVENT_UPDATE_PATH, textJson);
+        when(objectMapper.readTree(textJson)).thenReturn(MAPPER.readTree(textJson));
+
+        consumer.onEntityBroadcast(message);
+
+        verify(cacheRepository).moveOrgNode(42L, "1.7.42.");
+    }
+
+    // ---- UPDATE_PATH: usr ----
+
+    @Test
+    @DisplayName("UPDATE_PATH event, kind=30 (usr) → moveUsrNode(pk, 30, path) called")
+    void updatePath_usr_callsMoveUsrNode() throws Exception {
+        String textJson = "{\"id\":\"55\",\"kind\":30,\"path\":\"1.7.55.\"}";
+        stubEnvelope("55", 30, EsqMsgConstants.EVENT_UPDATE_PATH, textJson);
+        when(objectMapper.readTree(textJson)).thenReturn(MAPPER.readTree(textJson));
+
+        consumer.onEntityBroadcast(message);
+
+        verify(cacheRepository).moveUsrNode(55L, 30, "1.7.55.");
+    }
+
+    // ---- UPDATE_PATH: acct ----
+
+    @Test
+    @DisplayName("UPDATE_PATH event, kind=50 (acct) → moveAcctNode(pk, path) called")
+    void updatePath_acct_callsMoveAcctNode() throws Exception {
+        String textJson = "{\"id\":\"100\",\"kind\":50,\"path\":\"1.7.55.\"}";
+        stubEnvelope("100", 50, EsqMsgConstants.EVENT_UPDATE_PATH, textJson);
+        when(objectMapper.readTree(textJson)).thenReturn(MAPPER.readTree(textJson));
+
+        consumer.onEntityBroadcast(message);
+
+        verify(cacheRepository).moveAcctNode(100L, "1.7.55.");
+    }
+
+    // ---- UPDATE_PATH: missing path field → no move call ----
+
+    @Test
+    @DisplayName("UPDATE_PATH event with no path field → no move call")
+    void updatePath_missingPath_noMoveCall() throws Exception {
+        String textJson = "{\"id\":\"42\",\"kind\":20}";
+        stubEnvelope("42", 20, EsqMsgConstants.EVENT_UPDATE_PATH, textJson);
+        when(objectMapper.readTree(textJson)).thenReturn(MAPPER.readTree(textJson));
+
+        consumer.onEntityBroadcast(message);
+
+        verify(cacheRepository, never()).moveOrgNode(anyLong(), any());
+    }
+
+    // ---- UPDATE_PATH: null Text property → no move call ----
+
+    @Test
+    @DisplayName("UPDATE_PATH event with null Text property → no move call")
+    void updatePath_nullText_noMoveCall() throws Exception {
+        stubEnvelope("42", 20, EsqMsgConstants.EVENT_UPDATE_PATH, null);
+
+        consumer.onEntityBroadcast(message);
+
+        verify(cacheRepository, never()).moveOrgNode(anyLong(), any());
     }
 }

@@ -396,6 +396,30 @@ VALUES (CAST(:id AS bigint), :kind, CAST(:adPk AS bigint), CAST(:bizAdPk AS bigi
         </named-native-query>
     -->
 
+    <named-native-query name="EsqOrgJpa.lockEntityPathRoot">
+        <query>
+ SELECT ep_pk FROM esq_entity_path WHERE ep_pk = 1 FOR UPDATE
+        </query>
+    </named-native-query>
+
+    <named-native-query name="EsqUsrJpa.lockEntityPathRoot">
+        <query>
+ SELECT ep_pk FROM esq_entity_path WHERE ep_pk = 1 FOR UPDATE
+        </query>
+    </named-native-query>
+
+    <named-native-query name="EsqUsrJpa.listMovedPaths" result-set-mapping="EsqEntityPathRaw">
+        <query>
+ SELECT ep_pk, ep_et_pk, ep_path FROM esq_entity_path WHERE ep_path = :newPath
+        </query>
+    </named-native-query>
+
+    <named-native-query name="EsqOrgJpa.listMovedPaths" result-set-mapping="EsqEntityPathRaw">
+        <query>
+ SELECT ep_pk, ep_et_pk, ep_path FROM esq_entity_path WHERE ep_path LIKE :newPath || '%'
+        </query>
+    </named-native-query>
+
     <named-native-query name="EsqOrgJpa.moveOrgPaths">
         <query>
  UPDATE esq_entity_path
@@ -507,6 +531,15 @@ VALUES (CAST(:id AS bigint), :kind, CAST(:adPk AS bigint), CAST(:bizAdPk AS bigi
             <field-result name="email" column="pe_email"/>
             <field-result name="phone" column="pe_phone"/>
             <field-result name="phone2" column="pe_phone2"/>
+        </entity-result>
+    </sql-result-set-mapping>
+
+
+    <sql-result-set-mapping name="EsqEntityPathRaw">
+        <entity-result entity-class="pro.mir0n.esquire.enyMan.jpa.EsqMoveRecord">
+            <field-result name="id" column="ep_pk"/>
+            <field-result name="kind" column="ep_et_pk"/>
+            <field-result name="path" column="ep_path"/>
         </entity-result>
     </sql-result-set-mapping>
 

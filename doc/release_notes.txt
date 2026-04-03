@@ -1,6 +1,12 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v1.2.2-2604.0219  esq-move command: move ORG/USR to a different parent org, Phase II - bizTree cache
+    : Improvement: synch bizTree cache via X entity messages
+    : modified components
+       enyMan,
+       bizTree
+
 v1.2.2-2603.3120  esq-move command: move ORG/USR to a different parent org, Phase I - basic functionality
     : Feature: move basics
     : Improvement : added kind to ESQ_ENTITY_PATH 

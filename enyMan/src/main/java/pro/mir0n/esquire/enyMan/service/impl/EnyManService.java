@@ -37,13 +37,13 @@
  *                   TEXT_* constants replace raw strings; parentId added to broadcast
  * 03/31/2026 mir0n  esquireCommandMove(): orgRepository injected; dual UPDATE permission check;
  *                   self-move guard (USR cannot move themselves); dest org validation; dispatches to OrgService/UsrService
+ * 04/02/2026 mir0n  esquireCommandMove(): collects List<EsqMoveRecord>, publishMoveEvent()
  */
 
 package pro.mir0n.esquire.enyMan.service.impl;
 
 import jakarta.persistence.EntityManager;
 import java.util.*;
-import java.util.LinkedHashMap;
 
 import lombok.extern.slf4j.Slf4j;
 import pro.mir0n.esquire.backend.dto.*;
@@ -63,6 +63,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import pro.mir0n.esquire.common.EsqMsgConstants;
+import pro.mir0n.esquire.enyMan.jpa.EsqMoveRecord;
 
 @Slf4j
 @Service
@@ -208,7 +209,7 @@ public class EnyManService  extends AEnyManService {
     }
 
     @Override
-    public void esquireCommandMove(Integer kind, String id, String distId, String rootPath, String uid, List<String> roles) {
+    public List<EsqMoveRecord> esquireCommandMove(Integer kind, String id, String distId, String rootPath, String uid, List<String> roles) {
         int k = (int)Math.floor( (double) kind/2 ) * 2;
         EsqObjectKind eek = EsqObjectKindStorage.getInstance().get(k);
         if (!eek.isOrg() && !eek.isUsr()) {
@@ -246,11 +247,17 @@ public class EnyManService  extends AEnyManService {
         // Capture trace context before delegate call (still on request thread)
         String requestId     = RequestContextUtils.getRequestId();
         String correlationId = RequestContextUtils.getCorrelationId();
+        List<EsqMoveRecord> records;
         if (eek.isOrg()) {
-            orgService.esquireCommandMove(k, id, distId, rootPath, uid, roles);
+            records = orgService.esquireCommandMove(k, id, distId, rootPath, uid, roles);
         } else {
-            usrService.esquireCommandMove(k, id, distId, rootPath, uid, roles);
+            records = usrService.esquireCommandMove(k, id, distId, rootPath, uid, roles);
         }
+        // publish outside DB transaction (transaction already committed by service)
+        for (EsqMoveRecord r : records) {
+            publishMoveEvent(r, requestId, correlationId);
+        }
+        return records;
     }
 
     // Broadcast UPDATE only when fields that affect the entity's public identity or status change.
@@ -261,6 +268,21 @@ public class EnyManService  extends AEnyManService {
     private boolean isBroadcastableUpdate(Map<String, Object> fields) {
         return fields != null && (fields.containsKey(EsqMsgConstants.TEXT_NAME) || fields.containsKey(EsqMsgConstants.TEXT_DESC)
                                || fields.containsKey(EsqMsgConstants.TEXT_DELETED));
+    }
+
+    private void publishMoveEvent(EsqMoveRecord record, String requestId, String correlationId) {
+        Map<String, Object> text = new java.util.LinkedHashMap<>();
+        text.put(EsqMsgConstants.TEXT_ID,   record.getId());
+        text.put(EsqMsgConstants.TEXT_KIND, record.getKind());
+        text.put(EsqMsgConstants.TEXT_PATH, record.getPath());
+        try {
+            broadcastPublisher.publish(record.getKind(), record.getId(), EsqMsgConstants.EVENT_UPDATE_PATH,
+                    requestId, correlationId, text);
+        } catch (Exception e) {
+            log.error("publishMoveEvent: broadcast failed for kind={}, id={}: {}", record.getKind(), record.getId(), e.getMessage());
+            devLog.error("publishMoveEvent: broadcast failed for kind={}, id={}, requestId={}, correlationId={}: {}",
+                    record.getKind(), record.getId(), requestId, correlationId, e.getMessage(), e);
+        }
     }
 
     private void publishDeleteEvent(String id, int entityKind, String eventType,

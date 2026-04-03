@@ -15,6 +15,7 @@
  * 03/28/2026 mir0n  deletePersonAddresses, deletePersonBankInfo replace deleteAuth; cascade-safe delete sequence
  * 03/28/2026 mir0n  insertUsrPath, deleteEntityPath added; insertUsr: path param removed
  * 03/31/2026 mir0n  insertUsrPath: kind param added; moveUsrPaths, moveUsrParent queries added
+ * 04/02/2026 mir0n  lockEntityPathRoot, listMovedPaths added for move broadcast
  */
 
 package pro.mir0n.esquire.enyMan.jpa;
@@ -26,6 +27,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 import pro.mir0n.esquire.backend.jpa.EsqNameValueJpa;
+import pro.mir0n.esquire.enyMan.jpa.EsqMoveRecord;
 import pro.mir0n.esquire.backend.jpa.entity.EsqAcctJpa;
 import pro.mir0n.esquire.backend.jpa.entity.EsqAddressJpa;
 import pro.mir0n.esquire.backend.jpa.entity.EsqPersonJpa;
@@ -237,6 +239,12 @@ public interface EsqUsrRepository extends JpaRepository<EsqUsrJpa, String> {
     @Transactional
     @NativeQuery
     int deleteEntityPath(@Param("pk") String pk);
+
+    @NativeQuery
+    Long lockEntityPathRoot();
+
+    @NativeQuery
+    List<EsqMoveRecord> listMovedPaths(@Param("newPath") String newPath);
 
     @Modifying(clearAutomatically = true, flushAutomatically = false)
     @Transactional

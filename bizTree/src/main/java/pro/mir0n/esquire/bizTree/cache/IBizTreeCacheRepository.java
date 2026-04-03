@@ -12,6 +12,9 @@
  *                   deleteNodes(entityPk) added for DELETE event support
  * 03/28/2026 mir0n  deleteNodes(String entityId): WHERE ? IN (tree_pk, tree_tree_pk_link, tree_tree_pk_parent);
  *                   covers USR (tree_pk), ACCT main+shortcut (tree_pk+tree_tree_pk_link), ORG folder nodes (tree_tree_pk_parent)
+ * 04/02/2026 mir0n  added moveOrgNode()
+ *                   added moveUsrNode();
+ *                   added moveAcctNode();
  */
 package pro.mir0n.esquire.bizTree.cache;
 
@@ -112,4 +115,21 @@ public interface IBizTreeCacheRepository {
      *   ORG:  matches the org node by tree_pk and all folder nodes by tree_tree_pk_parent.
      */
     void deleteNodes(String entityId);
+
+    /**
+     * Moves an org node and all its folder nodes to the new entity path.
+     */
+    void moveOrgNode(long orgPk, String newEntityPath);
+
+    /**
+     * Moves a user node to the new entity path, re-parenting under the correct folder.
+     *
+     * @param normalizedKind normalized kind (used for folder routing)
+     */
+    void moveUsrNode(long usrPk, int normalizedKind, String newEntityPath);
+
+    /**
+     * Moves an account main node and its shortcut node to the new entity path.
+     */
+    void moveAcctNode(long acctPk, String newEntityPath);
 }

@@ -28,19 +28,18 @@
  * 03/28/2026 mir0n  createUsr(): insertUsrPath before insertUsr; deleteUsr(): deleteEntityPath after deleteUsr
  * 03/31/2026 mir0n  esquireCommandMove() + moveUsr(): mass path update for user+accounts (equality),
  *                   skip-if-same-parent; insertUsrPath: kind param added (ep_et_pk)
+ * 04/01/2026 mir0n  move: collects updated records
  */
 
 package pro.mir0n.esquire.enyMan.service.impl;
 
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.FlushModeType;
-import java.beans.PropertyDescriptor;
+
 import java.util.*;
 
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.BeanWrapper;
-import org.springframework.beans.BeanWrapperImpl;
 import pro.mir0n.esquire.backend.dto.*;
 import pro.mir0n.esquire.backend.jpa.*;
 import pro.mir0n.esquire.backend.jpa.EsqCustomEntityFieldJpa;
@@ -56,6 +55,7 @@ import pro.mir0n.esquire.backend.storage.EsqEntityDictionaryStorage;
 import pro.mir0n.esquire.backend.error.DeleteRestrictedException;
 import pro.mir0n.esquire.backend.error.EmailExistsException;
 import pro.mir0n.esquire.backend.error.ResourceNotFoundException;
+import pro.mir0n.esquire.enyMan.jpa.EsqMoveRecord;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import pro.mir0n.esquire.common.EsqConstants;
@@ -195,30 +195,33 @@ public class UsrService  extends AEnyManService {
     }
 
     @Override
-    public void esquireCommandMove(Integer kind, String id, String distId, String rootPath, String uid, List<String> roles) {
+    public List<EsqMoveRecord> esquireCommandMove(Integer kind, String id, String distId, String rootPath, String uid, List<String> roles) {
         String correlationId = RequestContextUtils.getCorrelationId();
         String requestId = RequestContextUtils.getRequestId();
         devLog.debug("srvc: esquireCommandMove(usr): kind:{}, id:{}, distId:{}, rootPath:{}, uid:{}", kind, id, distId, rootPath, uid);
-        transactionTemplate.execute(status -> {
+        List<EsqMoveRecord> records = transactionTemplate.execute(status -> {
             em.setFlushMode(FlushModeType.COMMIT);
-            moveUsr(id, distId, rootPath, uid, correlationId, requestId);
-            return null;
+            return moveUsr(id, distId, rootPath, uid, correlationId, requestId);
         });
+        return records != null ? records : List.of();
     }
 
-    private void moveUsr(String id, String distId, String rootPath, String uid, String correlationId, String requestId) {
+    private List<EsqMoveRecord> moveUsr(String id, String distId, String rootPath, String uid, String correlationId, String requestId) {
+        usrRepository.lockEntityPathRoot();
         EsqUsrJpa usr = usrRepository.detailUsrForUpdate(id, rootPath);
         if (usr == null) {
             throw new ResourceNotFoundException("moveUsr", "id", id);
         }
         if (distId.equals(usr.getParentId())) {
-            return;
+            return List.of();
         }
         String currentPath = usrRepository.usrPath(id, rootPath);
         String destPath    = usrRepository.usrPath(distId, rootPath);
         String newPath     = destPath + id + ".";
         usrRepository.moveUsrPaths(currentPath, newPath);
         usrRepository.moveUsrParent(id, distId, uid, correlationId, requestId);
+        List<EsqMoveRecord> rows = usrRepository.listMovedPaths(newPath);
+        return rows;
     }
 
     private void createUsr(Integer kind, String parentId, Map<String, Object> fields,
@@ -268,9 +271,11 @@ public class UsrService  extends AEnyManService {
         if (usrLayer != null) usrLayer.injectDefaults(fields);
         applyFields(usr, fields, false, 0, USR_WRITABLE);
 
+        // Ensure deleted flag has a value — dictionary may not define a default for all kinds
+        if (usr.getDeleted() == null) usr.setDeleted("N");
         // Ensure registration and deleted flags are in fields for broadcast
         if (usr.getRegistration() != null) fields.put("registration", usr.getRegistration());
-        if (usr.getDeleted() != null)      fields.put("deleted", usr.getDeleted());
+        fields.put("deleted", usr.getDeleted());
 
         // Insert main rows
         usrRepository.insertUsrPath(newId, kind, path);

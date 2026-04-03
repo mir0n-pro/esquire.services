@@ -194,7 +194,7 @@ class EnyManControllerTest {
         when(claims.get(EsqConstants.JWT_CLAIM_ENTITY_ID, String.class)).thenReturn("5");
         Map<String, Object> realmAccess = Map.of(EsqConstants.JWT_CLAIM_REALM_ACCESS_ROLES, List.of("admin"));
         when(claims.get(EsqConstants.JWT_CLAIM_REALM_ACCESS, Map.class)).thenReturn(realmAccess);
-        doNothing().when(service).esquireCommandMove(10, "100", "200", "1.2.3", "5", List.of("admin"));
+        when(service.esquireCommandMove(10, "100", "200", "1.2.3", "5", List.of("admin"))).thenReturn(List.of());
 
         ResponseEntity<Void> response = controller.esquireCommandMove(10, "100", "200", claims);
 
@@ -208,7 +208,7 @@ class EnyManControllerTest {
         when(claims.get(EsqConstants.JWT_CLAIM_ENTITY_ROOTPATH, String.class)).thenReturn("1.2.3");
         when(claims.get(EsqConstants.JWT_CLAIM_ENTITY_ID, String.class)).thenReturn("5");
         when(claims.get(EsqConstants.JWT_CLAIM_REALM_ACCESS, Map.class)).thenReturn(null);
-        doNothing().when(service).esquireCommandMove(10, "100", "200", "1.2.3", "5", null);
+        when(service.esquireCommandMove(10, "100", "200", "1.2.3", "5", null)).thenReturn(List.of());
 
         controller.esquireCommandMove(10, "100", "200", claims);
 

@@ -14,6 +14,9 @@
  *                   deleteNodes(entityPk): DELETE FROM ESQ_TREE WHERE tree_entity_pk = ?;
  *                   insertUsrNode: folder routing via BizTreeConstants.folderKindForUsr() — data-driven from kind metadata
  * 03/28/2026 mir0n  deleteNodes(String entityId): WHERE ? IN (tree_pk, tree_tree_pk_link, tree_tree_pk_parent)
+ * 04/02/2026 mir0n  added moveOrgNode()
+ *                   added moveUsrNode();
+ *                   added moveAcctNode();
  */
 package pro.mir0n.esquire.bizTree.cache.impl;
 
@@ -197,6 +200,90 @@ public class BizTreeCacheRepository implements IBizTreeCacheRepository {
     public void deleteNodes(String entityId) {
         int ret = cache.update(sql.repo.deleteNode(), entityId);
         devLog.debug("BizTreeCacheRepository: deleteNodes entityId={} rows={}", entityId, ret);
+    }
+
+    @Override
+    public void moveOrgNode(long orgPk, String newEntityPath) {
+        String   orgPkStr = String.valueOf(orgPk);
+        String[] segs     = newEntityPath.substring(0, newEntityPath.length() - 1).split("\\.");
+        long     entityPk = orgPk;
+        if (segs.length < 2) return;
+        String parentPk   = segs[segs.length - 2];
+        String parentPath = findPath(parentPk);
+        if (parentPath == null) {
+            log.error("BizTreeCacheRepository: moveOrgNode: parent not in cache, pk={}, parentPk={}", entityPk, parentPk);
+            devLog.error("BizTreeCacheRepository: moveOrgNode: parent not in cache, pk={}, parentPk={}", entityPk, parentPk);
+            return;
+        }
+        String newOrgPath = parentPath + orgPkStr + ".";
+        int    orgLevel   = countDots(parentPath);
+        cache.update(sql.repo.moveNode(), newOrgPath, newEntityPath, orgLevel, parentPk, orgPkStr);
+
+        List<String> folderPks   = cache.queryForList(sql.repo.findFolderPks(), String.class, orgPkStr);
+        int          folderLevel = orgLevel + 1;
+        List<Object[]> folderRows = new ArrayList<>();
+        for (String folderPk : folderPks) {
+            folderRows.add(new Object[]{ newOrgPath + folderPk + ".", newEntityPath, folderLevel, orgPkStr, folderPk });
+        }
+        int[] folderUpdates = cache.batchUpdate(sql.repo.moveNode(), folderRows);
+        devLog.debug("BizTreeCacheRepository: moveOrgNode pk={} newEntityPath={} folderCount={}",
+                entityPk, newEntityPath, folderUpdates.length);
+    }
+
+    @Override
+    public void moveUsrNode(long usrPk, int normalizedKind, String newEntityPath) {
+        String   usrPkStr = String.valueOf(usrPk);
+        String[] segs     = newEntityPath.substring(0, newEntityPath.length() - 1).split("\\.");
+        long     entityPk = usrPk;
+        if (segs.length < 2) return;
+        long   orgPk      = Long.parseLong(segs[segs.length - 2]);
+        int    folderKind = (orgPk == BizTreeConstants.ORG_ROOT_PK)
+                            ? BizTreeConstants.FOLDER_SYS_ADMIN
+                            : BizTreeConstants.folderKindForUsr(normalizedKind);
+        String folderPk   = orgPk + "~" + folderKind;
+        String folderPath = findPath(folderPk);
+        if (folderPath == null) {
+            log.error("BizTreeCacheRepository: moveUsrNode: folder not in cache, pk={}, folderPk={}", entityPk, folderPk);
+            devLog.error("BizTreeCacheRepository: moveUsrNode: folder not in cache, pk={}, folderPk={}", entityPk, folderPk);
+            return;
+        }
+        String newUsrPath = folderPath + usrPkStr + ".";
+        int    usrLevel   = countDots(folderPath);
+        int updated = cache.update(sql.repo.moveNode(), newUsrPath, newEntityPath, usrLevel, folderPk, usrPkStr);
+        devLog.debug("BizTreeCacheRepository: moveUsrNode pk={} newEntityPath={} updated={}", entityPk, newEntityPath, updated);
+    }
+
+    @Override
+    public void moveAcctNode(long acctPk, String newEntityPath) {
+        String   acctPkStr = String.valueOf(acctPk);
+        String[] segs      = newEntityPath.substring(0, newEntityPath.length() - 1).split("\\.");
+        long     entityPk  = acctPk;
+        if (segs.length < 3) return;
+        String orgPkStr = segs[segs.length - 2];
+        String usrPkStr = segs[segs.length - 1];
+
+        String userPath = findPath(usrPkStr);
+        if (userPath == null) {
+            log.error("BizTreeCacheRepository: moveAcctNode: user not in cache, pk={}, usrPk={}", entityPk, usrPkStr);
+            devLog.error("BizTreeCacheRepository: moveAcctNode: user not in cache, pk={}, usrPk={}", entityPk, usrPkStr);
+            return;
+        }
+        String mainPath  = userPath + acctPkStr + ".";
+        int    mainLevel = countDots(userPath);
+        cache.update(sql.repo.moveNode(), mainPath, newEntityPath, mainLevel, usrPkStr, acctPkStr);
+
+        String shortcutParent     = orgPkStr + "~" + BizTreeConstants.FOLDER_ACCOUNT;
+        String shortcutParentPath = findPath(shortcutParent);
+        if (shortcutParentPath == null) {
+            log.error("BizTreeCacheRepository: moveAcctNode: FOLDER_ACCOUNT not in cache, pk={}, parent={}", entityPk, shortcutParent);
+            devLog.error("BizTreeCacheRepository: moveAcctNode: FOLDER_ACCOUNT not in cache, pk={}, parent={}", entityPk, shortcutParent);
+            return;
+        }
+        String newShortcutPk   = orgPkStr + "~" + acctPkStr;
+        String shortcutPath    = shortcutParentPath + newShortcutPk + ".";
+        int    shortcutLvl     = countDots(shortcutParentPath);
+        int updated = cache.update(sql.repo.moveAcctLink(), newShortcutPk, shortcutPath, newEntityPath, shortcutLvl, shortcutParent, acctPkStr);
+        devLog.debug("BizTreeCacheRepository: moveAcctNode pk={} newEntityPath={} shortcutUpdated={}", entityPk, newEntityPath, updated);
     }
 
     private static int countDots(String s) {

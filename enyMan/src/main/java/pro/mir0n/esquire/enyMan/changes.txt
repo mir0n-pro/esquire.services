@@ -1,5 +1,20 @@
 Esquire enyMan Microservice
 
+04/02/2026 mir0n
++ added jpa.EsqMoveRecord
+jpa.EsqOrgRepository
+  - lockEntityPathRoot, listMovedPaths added for move broadcast
+jpa.EsqUsrRepository
+  - lockEntityPathRoot, listMovedPaths added for move broadcast
+service.impl.EnyManService
+  - esquireCommandMove(): collects List<EsqMoveRecord>, publishMoveEvent()
+service.impl.EsqOgRepository
+  - move: collects updated records
+service.impl.EsqUsrRepository
+  - move: collects updated records
+service.IEnyManService
+  - added scan for pro.mir0n.esquire.enyMan.jpa.*
+
 03/31/2026 mir0n  esq-move command; ep_et_pk propagation
 controller.EnyManController
   - POST /esq-move: move ORG or USR to destination ORG

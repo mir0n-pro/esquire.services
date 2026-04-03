@@ -454,11 +454,13 @@ class EnyManServiceTest {
         when(orgRepo.detailOrgForUpdate("100", "1.")).thenReturn(org);
         when(orgRepo.orgPath("100", "1.")).thenReturn("1.5.100.");
         when(orgRepo.orgPath("200", "1.")).thenReturn("1.9.200.");
+        when(orgRepo.listMovedPaths(anyString())).thenReturn(List.of());
 
         service.esquireCommandMove(10, "100", "200", "1.", "99", List.of(ROLE_ADMIN));
 
         InOrder order = inOrder(orgRepo);
         order.verify(orgRepo).moveOrgPaths(anyString(), anyString());
+        order.verify(orgRepo).listMovedPaths(anyString());
         order.verify(orgRepo).moveOrgParent(anyString(), anyString(), any(), any(), any());
     }
 

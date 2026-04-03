@@ -12,6 +12,7 @@
  * 03/26/2026 mir0n  insertCustomOrg, orgPath, insertOrg, deleteOrg native queries added
  * 03/28/2026 mir0n  insertOrgPath, deleteEntityPath added; insertOrg: path param removed
  * 03/31/2026 mir0n  insertOrgPath: kind param added; moveOrgPaths, moveOrgParent queries added
+ * 04/02/2026 mir0n  lockEntityPathRoot, listMovedPaths added for move broadcast
  */
 
 package pro.mir0n.esquire.enyMan.jpa;
@@ -101,6 +102,12 @@ public interface EsqOrgRepository extends JpaRepository<EsqOrgJpa, String> {
     @Transactional
     @NativeQuery
     int deleteEntityPath(@Param("pk") String pk);
+
+    @NativeQuery
+    Long lockEntityPathRoot();
+
+    @NativeQuery
+    List<EsqMoveRecord> listMovedPaths(@Param("newPath") String newPath);
 
     @Modifying(clearAutomatically = true, flushAutomatically = false)
     @Transactional

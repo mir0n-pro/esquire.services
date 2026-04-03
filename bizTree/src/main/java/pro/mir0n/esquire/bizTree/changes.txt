@@ -1,5 +1,25 @@
 Esquire BizTree Microservice
 
+
+04/02/2026 mir0n move event processing
+cache.IBizTreeCacheRepository
+  - added moveOrgNode()
+  - added moveUsrNode();
+  - added moveAcctNode();
+cache.impl.BizTreeCacheRepository
+  - added moveOrgNode()
+  - added moveUsrNode();
+  - added moveAcctNode();
+cache.BizTreeCacheSql
+   - added 3 Repo queries:  moveNode, moveAcctLink, findFolderPks
+h2.BizTreeH2Config
+   - added 3 Repo queries:  moveNode, moveAcctLink, findFolderPks
++ added messaging.handler.MoveAcctHandler
++ added messaging.handler.MoveOrgHandler
++ added messaging.handler.MoveUsrHandler
+messaging.EsqEntityBroadcastConsumer
+   - added 3 move handlers for each kind-kind
+
 03/31/2026 mir0n  folderKindForUsr fix; log cleanup
 BizTreeConstants
   - folderKindForUsr(): skip FOLDER_SYS_ADMIN — admin users no longer mis-routed into root-org sys-admin folder

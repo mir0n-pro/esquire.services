@@ -9,6 +9,7 @@
  * 03/20/2026 mir0n  created: H2 cache configuration; BizTreeCacheSql and cacheJdbcTemplate beans
  *                   explicit HikariCP pool config (pool-name, max-size, min-idle, timeouts)
  * 03/26/2026 mir0n  delete-node SQL property wired into BizTreeCacheSql.Repo
+ * 04/02/2026 mir0n  added 3 Repo queries:  moveNode, moveAcctLink, findFolderPks
  */
 package pro.mir0n.esquire.bizTree.h2;
 
@@ -67,7 +68,10 @@ public class BizTreeH2Config {
                         env.getRequiredProperty("biztree.cache.sql.repo.find-by-entity-id"),
                         env.getRequiredProperty("biztree.cache.sql.repo.find-by-name-kind"),
                         env.getRequiredProperty("biztree.cache.sql.repo.update-node"),
-                        env.getRequiredProperty("biztree.cache.sql.repo.delete-node")
+                        env.getRequiredProperty("biztree.cache.sql.repo.delete-node"),
+                        env.getRequiredProperty("biztree.cache.sql.repo.move-node"),
+                        env.getRequiredProperty("biztree.cache.sql.repo.move-acct-link"),
+                        env.getRequiredProperty("biztree.cache.sql.repo.find-folder-pks")
                 ),
                 new BizTreeCacheSql.Loader(
                         env.getRequiredProperty("biztree.cache.sql.loader.insert-node"),
