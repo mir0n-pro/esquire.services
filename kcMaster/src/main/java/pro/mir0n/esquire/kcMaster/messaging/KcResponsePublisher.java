@@ -11,6 +11,7 @@
  * 03/21/2026 mir0n  three-tier logging: kcAudit→msgLog/devLog; mid extracted before props map;
  *                   dual-mode URS and URR audit; console echo log.info; dual error pattern
  * 03/26/2026 mir0n  MSG_ENCODING_JSON (renamed from MESSAGE_ENCODING)
+ * 04/06/2026 mir0n  publishSuccess/publishFailure: entityKind param added — echoes actual entity kind
  */
 
 package pro.mir0n.esquire.kcMaster.messaging;
@@ -42,7 +43,7 @@ public class KcResponsePublisher {
     private final JmsTemplate jmsQueueTemplate;
     private final ObjectMapper objectMapper;
 
-    public void publishSuccess(String entityId, String command,
+    public void publishSuccess(String entityId, int entityKind, String command,
                                String ctrlId, String requestId, String correlationId, String testReqId) {
         try {
             Map<String, Object> props = new LinkedHashMap<>();
@@ -50,7 +51,7 @@ public class KcResponsePublisher {
             props.put(EsqMsgConstants.FIELD_APPL_MSG_ID,   mid);
             props.put(EsqMsgConstants.FIELD_MSG_TYPE,       EsqMsgConstants.MSG_TYPE_RESPONSE);
             props.put(EsqMsgConstants.FIELD_EVENT_TYPE,     command);
-            props.put(EsqMsgConstants.FIELD_ENTITY_KIND,    EsqConstants.KIND_ACCESS_PROFILE);
+            props.put(EsqMsgConstants.FIELD_ENTITY_KIND,    entityKind);
             props.put(EsqMsgConstants.FIELD_ENTITY_ID,      entityId);
             props.put(EsqMsgConstants.FIELD_CTRL_ID,        ctrlId);
             props.put(EsqMsgConstants.FIELD_REQUEST_ID,     requestId);
@@ -77,7 +78,7 @@ public class KcResponsePublisher {
         }
     }
 
-    public void publishFailure(String entityId, String command, String loginId,
+    public void publishFailure(String entityId, int entityKind, String command, String loginId,
                                String errorCode, String errorMessage,
                                String ctrlId, String requestId, String correlationId, String testReqId,
                                String requestText) {
@@ -95,7 +96,7 @@ public class KcResponsePublisher {
             props.put(EsqMsgConstants.FIELD_APPL_MSG_ID,   mid);
             props.put(EsqMsgConstants.FIELD_MSG_TYPE,       EsqMsgConstants.MSG_TYPE_REJECT);
             props.put(EsqMsgConstants.FIELD_EVENT_TYPE,     command);
-            props.put(EsqMsgConstants.FIELD_ENTITY_KIND,    EsqConstants.KIND_ACCESS_PROFILE);
+            props.put(EsqMsgConstants.FIELD_ENTITY_KIND,    entityKind);
             props.put(EsqMsgConstants.FIELD_ENTITY_ID,      entityId);
             props.put(EsqMsgConstants.FIELD_CTRL_ID,        ctrlId);
             props.put(EsqMsgConstants.FIELD_REQUEST_ID,     requestId);

@@ -17,6 +17,7 @@
  * 04/02/2026 mir0n  added moveOrgNode()
  *                   added moveUsrNode();
  *                   added moveAcctNode();
+ * 04/06/2026 mir0n  moveUsrNode(): admin-aware orgPk extraction using isPathParentOnly()
  */
 package pro.mir0n.esquire.bizTree.cache.impl;
 
@@ -26,7 +27,9 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.stereotype.Repository;
+import pro.mir0n.esquire.backend.dto.EsqObjectKind;
 import pro.mir0n.esquire.backend.jpa.EsqTreeNodeJpa;
+import pro.mir0n.esquire.backend.storage.EsqObjectKindStorage;
 import pro.mir0n.esquire.bizTree.BizTreeConstants;
 import pro.mir0n.esquire.bizTree.cache.BizTreeCacheSql;
 import pro.mir0n.esquire.bizTree.cache.IBizTreeCacheRepository;
@@ -236,7 +239,12 @@ public class BizTreeCacheRepository implements IBizTreeCacheRepository {
         String[] segs     = newEntityPath.substring(0, newEntityPath.length() - 1).split("\\.");
         long     entityPk = usrPk;
         if (segs.length < 2) return;
-        long   orgPk      = Long.parseLong(segs[segs.length - 2]);
+        EsqObjectKind eek = EsqObjectKindStorage.getInstance().get(normalizedKind);
+        // Admin ep_path = orgPath: last segment IS the org pk  (e.g. "1.9.200." → 200)
+        // Regular ep_path includes own pk: second-to-last is org pk  (e.g. "1.9.200.100." → 200)
+        long   orgPk      = eek.isPathParentOnly()
+                            ? Long.parseLong(segs[segs.length - 1])
+                            : Long.parseLong(segs[segs.length - 2]);
         int    folderKind = (orgPk == BizTreeConstants.ORG_ROOT_PK)
                             ? BizTreeConstants.FOLDER_SYS_ADMIN
                             : BizTreeConstants.folderKindForUsr(normalizedKind);

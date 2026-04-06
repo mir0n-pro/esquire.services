@@ -7,6 +7,7 @@
  *
  *  History:
  * 03/20/2026 mir0n  initial — dispatches URQ to KC identity service by EventType
+ * 04/06/2026 mir0n  EVENT_UPDATE_PATH dispatched to kcIdentityService.updateEntityPath()
  */
 
 package pro.mir0n.esquire.kcMaster.messaging;
@@ -41,6 +42,8 @@ public class KcRequestHandler {
                 handleUpdate(req, correlationId, requestId);
             case EsqMsgConstants.EVENT_DELETE ->
                 handleDelete(req, correlationId, requestId);
+            case EsqMsgConstants.EVENT_UPDATE_PATH ->
+                handleUpdatePath(req, correlationId, requestId);
             default ->
                 throw new IllegalArgumentException("Unknown command: " + command);
         }
@@ -89,5 +92,9 @@ public class KcRequestHandler {
 
     private void handleDelete(KcSyncRequest req, String correlationId, String requestId) {
         kcIdentityService.deleteUser(req.getLoginId(), correlationId, requestId);
+    }
+
+    private void handleUpdatePath(KcSyncRequest req, String correlationId, String requestId) {
+        kcIdentityService.updateEntityPath(req.getId(), req.getPath(), correlationId, requestId);
     }
 }

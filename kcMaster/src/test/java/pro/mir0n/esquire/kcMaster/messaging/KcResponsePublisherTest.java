@@ -60,14 +60,14 @@ class KcResponsePublisherTest {
     @Test
     @DisplayName("publishSuccess: sends to esquire.kc.response")
     void publishSuccess_sendsToCorrectQueue() {
-        publisher.publishSuccess("eid1", EsqMsgConstants.EVENT_CREATE, "ctrl1", "rid1", "cid1", "treq1");
+        publisher.publishSuccess("eid1", EsqConstants.KIND_ACCESS_PROFILE, EsqMsgConstants.EVENT_CREATE, "ctrl1", "rid1", "cid1", "treq1");
         verify(jmsQueueTemplate).send(eq(EsqMsgConstants.QUEUE_KC_RESPONSE), any(MessageCreator.class));
     }
 
     @Test
     @DisplayName("publishSuccess: MsgType is URS")
     void publishSuccess_msgTypeIsUrs() throws Exception {
-        publisher.publishSuccess("eid1", EsqMsgConstants.EVENT_CREATE, "ctrl1", "rid1", "cid1", "treq1");
+        publisher.publishSuccess("eid1", EsqConstants.KIND_ACCESS_PROFILE, EsqMsgConstants.EVENT_CREATE, "ctrl1", "rid1", "cid1", "treq1");
         Message msg = captureAndCreateMessage();
         verify(msg).setStringProperty(EsqMsgConstants.FIELD_MSG_TYPE, EsqMsgConstants.MSG_TYPE_RESPONSE);
     }
@@ -75,23 +75,23 @@ class KcResponsePublisherTest {
     @Test
     @DisplayName("publishSuccess: EventType echoed from command")
     void publishSuccess_eventTypeEchoed() throws Exception {
-        publisher.publishSuccess("eid1", EsqMsgConstants.EVENT_UPDATE, "ctrl1", "rid1", "cid1", "treq1");
+        publisher.publishSuccess("eid1", EsqConstants.KIND_ACCESS_PROFILE, EsqMsgConstants.EVENT_UPDATE, "ctrl1", "rid1", "cid1", "treq1");
         Message msg = captureAndCreateMessage();
         verify(msg).setStringProperty(EsqMsgConstants.FIELD_EVENT_TYPE, EsqMsgConstants.EVENT_UPDATE);
     }
 
     @Test
-    @DisplayName("publishSuccess: EntityKind is KIND_ACCESS_PROFILE")
-    void publishSuccess_entityKindIsAccessProfile() throws Exception {
-        publisher.publishSuccess("eid1", EsqMsgConstants.EVENT_CREATE, "ctrl1", "rid1", "cid1", "treq1");
+    @DisplayName("publishSuccess: EntityKind echoed from parameter")
+    void publishSuccess_entityKindEchoed() throws Exception {
+        publisher.publishSuccess("eid1", 34, EsqMsgConstants.EVENT_CREATE, "ctrl1", "rid1", "cid1", "treq1");
         Message msg = captureAndCreateMessage();
-        verify(msg).setIntProperty(EsqMsgConstants.FIELD_ENTITY_KIND, EsqConstants.KIND_ACCESS_PROFILE);
+        verify(msg).setIntProperty(EsqMsgConstants.FIELD_ENTITY_KIND, 34);
     }
 
     @Test
     @DisplayName("publishSuccess: EntityID forwarded")
     void publishSuccess_entityIdForwarded() throws Exception {
-        publisher.publishSuccess("entity-42", EsqMsgConstants.EVENT_CREATE, "ctrl1", "rid1", "cid1", "treq1");
+        publisher.publishSuccess("entity-42", EsqConstants.KIND_ACCESS_PROFILE, EsqMsgConstants.EVENT_CREATE, "ctrl1", "rid1", "cid1", "treq1");
         Message msg = captureAndCreateMessage();
         verify(msg).setStringProperty(EsqMsgConstants.FIELD_ENTITY_ID, "entity-42");
     }
@@ -99,7 +99,7 @@ class KcResponsePublisherTest {
     @Test
     @DisplayName("publishSuccess: CtrlID forwarded")
     void publishSuccess_ctrlIdForwarded() throws Exception {
-        publisher.publishSuccess("eid1", EsqMsgConstants.EVENT_CREATE, "my-ctrl", "rid1", "cid1", "treq1");
+        publisher.publishSuccess("eid1", EsqConstants.KIND_ACCESS_PROFILE, EsqMsgConstants.EVENT_CREATE, "my-ctrl", "rid1", "cid1", "treq1");
         Message msg = captureAndCreateMessage();
         verify(msg).setStringProperty(EsqMsgConstants.FIELD_CTRL_ID, "my-ctrl");
     }
@@ -107,7 +107,7 @@ class KcResponsePublisherTest {
     @Test
     @DisplayName("publishSuccess: TestReqID forwarded")
     void publishSuccess_testReqIdForwarded() throws Exception {
-        publisher.publishSuccess("eid1", EsqMsgConstants.EVENT_CREATE, "ctrl1", "rid1", "cid1", "my-treq");
+        publisher.publishSuccess("eid1", EsqConstants.KIND_ACCESS_PROFILE, EsqMsgConstants.EVENT_CREATE, "ctrl1", "rid1", "cid1", "my-treq");
         Message msg = captureAndCreateMessage();
         verify(msg).setStringProperty(EsqMsgConstants.FIELD_TEST_REQ_ID, "my-treq");
     }
@@ -115,7 +115,7 @@ class KcResponsePublisherTest {
     @Test
     @DisplayName("publishSuccess: ApplMsgID is always set (non-null)")
     void publishSuccess_applMsgIdIsSet() throws Exception {
-        publisher.publishSuccess("eid1", EsqMsgConstants.EVENT_CREATE, "ctrl1", "rid1", "cid1", "treq1");
+        publisher.publishSuccess("eid1", EsqConstants.KIND_ACCESS_PROFILE, EsqMsgConstants.EVENT_CREATE, "ctrl1", "rid1", "cid1", "treq1");
         Message msg = captureAndCreateMessage();
         ArgumentCaptor<String> midCap = ArgumentCaptor.forClass(String.class);
         verify(msg).setStringProperty(eq(EsqMsgConstants.FIELD_APPL_MSG_ID), midCap.capture());
@@ -127,7 +127,7 @@ class KcResponsePublisherTest {
     @Test
     @DisplayName("publishFailure: sends to esquire.kc.response")
     void publishFailure_sendsToCorrectQueue() {
-        publisher.publishFailure("eid1", EsqMsgConstants.EVENT_CREATE, null,
+        publisher.publishFailure("eid1", EsqConstants.KIND_ACCESS_PROFILE, EsqMsgConstants.EVENT_CREATE, null,
                 "KC_SYNC_ERROR", "something went wrong",
                 "ctrl1", "rid1", "cid1", "treq1", null);
         verify(jmsQueueTemplate).send(eq(EsqMsgConstants.QUEUE_KC_RESPONSE), any(MessageCreator.class));
@@ -136,7 +136,7 @@ class KcResponsePublisherTest {
     @Test
     @DisplayName("publishFailure: MsgType is URR")
     void publishFailure_msgTypeIsUrr() throws Exception {
-        publisher.publishFailure("eid1", EsqMsgConstants.EVENT_CREATE, null,
+        publisher.publishFailure("eid1", EsqConstants.KIND_ACCESS_PROFILE, EsqMsgConstants.EVENT_CREATE, null,
                 "KC_SYNC_ERROR", "something went wrong",
                 "ctrl1", "rid1", "cid1", "treq1", null);
         Message msg = captureAndCreateMessage();
@@ -146,7 +146,7 @@ class KcResponsePublisherTest {
     @Test
     @DisplayName("publishFailure: Error field contains RFC 9457 JSON with errorCode and detail")
     void publishFailure_errorFieldIsRfc9457Json() throws Exception {
-        publisher.publishFailure("eid1", EsqMsgConstants.EVENT_CREATE, null,
+        publisher.publishFailure("eid1", EsqConstants.KIND_ACCESS_PROFILE, EsqMsgConstants.EVENT_CREATE, null,
                 "KC_SYNC_ERROR", "user not found",
                 "ctrl1", "rid1", "cid1", "treq1", null);
         Message msg = captureAndCreateMessage();
@@ -165,8 +165,8 @@ class KcResponsePublisherTest {
     @Test
     @DisplayName("publishFailure: Text and MessageEncoding set when requestText is provided")
     void publishFailure_textAndEncodingSetWhenRequestTextProvided() throws Exception {
-        String reqText = "{\"id\":\"uid-001\",\"kind\":998}";
-        publisher.publishFailure("eid1", EsqMsgConstants.EVENT_CREATE, null,
+        String reqText = "{\"id\":\"uid-001\",\"kind\":34}";
+        publisher.publishFailure("eid1", 34, EsqMsgConstants.EVENT_CREATE, null,
                 "KC_SYNC_ERROR", "error",
                 "ctrl1", "rid1", "cid1", "treq1", reqText);
         Message msg = captureAndCreateMessage();
@@ -178,7 +178,7 @@ class KcResponsePublisherTest {
     @Test
     @DisplayName("publishFailure: Text and MessageEncoding absent when requestText is null")
     void publishFailure_textAndEncodingAbsentWhenRequestTextNull() throws Exception {
-        publisher.publishFailure("eid1", EsqMsgConstants.EVENT_CREATE, null,
+        publisher.publishFailure("eid1", EsqConstants.KIND_ACCESS_PROFILE, EsqMsgConstants.EVENT_CREATE, null,
                 "KC_SYNC_ERROR", "error",
                 "ctrl1", "rid1", "cid1", "treq1", null);
         Message msg = captureAndCreateMessage();

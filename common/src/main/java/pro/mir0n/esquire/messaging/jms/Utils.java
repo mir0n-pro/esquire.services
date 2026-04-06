@@ -7,6 +7,7 @@
  *
  *  History:
  * 03/21/2026 mir0n  created: JMS message formatting utilities (formatProps overloads)
+ * 04/06/2026 mir0n  formatProps(Map): keys sorted alphabetically for consistent log output
  */
 package pro.mir0n.esquire.messaging.jms;
 
@@ -40,13 +41,15 @@ public class Utils {
 
     /**
      * Formats a props map (used by publishers) as {@code key=value | key=value}.
-     * Iteration order is preserved (use LinkedHashMap at call site).
+     * Keys are sorted alphabetically — same order as {@link #formatProps(Message)}.
      */
     public static String formatProps(Map<String, Object> props) {
+        List<String> keys = new ArrayList<>(props.keySet());
+        Collections.sort(keys);
         StringBuilder sb = new StringBuilder();
-        for (Map.Entry<String, Object> entry : props.entrySet()) {
+        for (String key : keys) {
             if (sb.length() > 0) sb.append(" | ");
-            sb.append(entry.getKey()).append('=').append(entry.getValue());
+            sb.append(key).append('=').append(props.get(key));
         }
         return sb.toString();
     }

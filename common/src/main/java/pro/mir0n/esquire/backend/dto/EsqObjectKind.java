@@ -7,6 +7,7 @@
  *
  *  History:
  * 02/28/2026 mir0n  address boolean field added
+ * 04/06/2026 mir0n  isPathParentOnly(): true for admin kinds (30/32) — ep_path equals parent org path, own PK not appended
  */
 
 package pro.mir0n.esquire.backend.dto;
@@ -123,5 +124,17 @@ public class EsqObjectKind {
 
     @JacksonXmlProperty(localName = "address")
     private boolean address = false;
+
+    /**
+     * Returns true when this entity's ep_path equals its parent's path — own PK is NOT appended.
+     * Applies to SYS_ADMIN (30) and ADMIN (32): their visibility root is the org they belong to.
+     * Regular users (CLIENT/MERCHANT 34/36) and ORGs return false — their ep_path includes own PK.
+     */
+    public boolean isPathParentOnly() {
+        //xxx: hardcoded for now
+        return isAcct()
+            || id == 30 //SYS_ADMIN
+            || id == 32; //ADMIN
+    }
 
 }

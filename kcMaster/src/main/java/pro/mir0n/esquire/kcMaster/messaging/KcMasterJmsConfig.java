@@ -7,6 +7,8 @@
  *
  *  History:
  * 03/20/2026 mir0n  initial — JMS configuration for KC sync request/response queues and entity broadcast topic
+ * 04/06/2026 mir0n  clientId set directly on CachingConnectionFactory (kcmaster.messaging.client-id);
+ *                   setting on listener factory caused "setClientID not supported on shared connection proxy"
  */
 
 package pro.mir0n.esquire.kcMaster.messaging;
@@ -18,6 +20,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.jms.annotation.EnableJms;
 import org.springframework.jms.config.DefaultJmsListenerContainerFactory;
+import org.springframework.jms.connection.CachingConnectionFactory;
 import org.springframework.jms.core.JmsTemplate;
 
 /**
@@ -34,8 +37,8 @@ import org.springframework.jms.core.JmsTemplate;
 @EnableJms
 public class KcMasterJmsConfig {
 
-    @Value("${spring.jms.client-id}")
-    private String jmsClientId;
+    @Value("${kcmaster.messaging.client-id:kcmaster}")
+    private String clientId;
 
     @Bean
     public JmsTemplate jmsQueueTemplate(@Qualifier("jmsConnectionFactory") ConnectionFactory connectionFactory) {
@@ -54,11 +57,13 @@ public class KcMasterJmsConfig {
 
     @Bean
     public DefaultJmsListenerContainerFactory jmsDurableTopicListenerFactory(@Qualifier("jmsConnectionFactory") ConnectionFactory connectionFactory) {
+        if (connectionFactory instanceof CachingConnectionFactory ccf) {
+            ccf.setClientId(clientId);
+        }
         DefaultJmsListenerContainerFactory ret = new DefaultJmsListenerContainerFactory();
         ret.setConnectionFactory(connectionFactory);
         ret.setPubSubDomain(true);
         ret.setSubscriptionDurable(true);
-        ret.setClientId(jmsClientId);
         return ret;
     }
 }

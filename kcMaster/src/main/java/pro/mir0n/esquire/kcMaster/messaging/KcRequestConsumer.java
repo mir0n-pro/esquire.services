@@ -9,6 +9,7 @@
  * 03/20/2026 mir0n  initial — URQ consumer; deserializes Text, dispatches to KcRequestHandler, publishes URS
  * 03/21/2026 mir0n  three-tier logging: kcAudit→msgLog/devLog; dual-mode URQ audit; MDC from message;
  *                   applMsgId read; dual error pattern with full context
+ * 04/06/2026 mir0n  entityKind read from FIELD_ENTITY_KIND; forwarded to publishSuccess/publishFailure
  */
 
 package pro.mir0n.esquire.kcMaster.messaging;
@@ -44,6 +45,7 @@ public class KcRequestConsumer {
     public void onMessage(Message message) {
         String applMsgId     = null;
         String entityId      = null;
+        int    entityKind    = 0;
         String command       = null;
         String ctrlId        = null;
         String requestId     = null;
@@ -54,6 +56,7 @@ public class KcRequestConsumer {
         try {
             applMsgId     = message.getStringProperty(EsqMsgConstants.FIELD_APPL_MSG_ID);
             entityId      = message.getStringProperty(EsqMsgConstants.FIELD_ENTITY_ID);
+            entityKind    = message.getIntProperty(EsqMsgConstants.FIELD_ENTITY_KIND);
             command       = message.getStringProperty(EsqMsgConstants.FIELD_EVENT_TYPE);
             ctrlId        = message.getStringProperty(EsqMsgConstants.FIELD_CTRL_ID);
             requestId     = message.getStringProperty(EsqMsgConstants.FIELD_REQUEST_ID);
@@ -71,20 +74,21 @@ public class KcRequestConsumer {
                         applMsgId, command, EsqConstants.KIND_ACCESS_PROFILE, entityId,
                         ctrlId, requestId, correlationId, testReqId);
             }
-            log.info("KC | URQ | {} | {} | {} | {} | {} | {} | {} | {}",
+            log.info("KC | URQ | {} | {} | {} | {} | {} | {}",
                     applMsgId, command, EsqConstants.KIND_ACCESS_PROFILE, entityId,
-                    ctrlId, requestId, correlationId, testReqId);
+                    ctrlId, testReqId); //xxx: requestId, correlationId are in MDC
 
             KcSyncRequest req = objectMapper.readValue(text, KcSyncRequest.class);
             handler.handle(command, req, correlationId, requestId);
 
-            publisher.publishSuccess(entityId, command, ctrlId, requestId, correlationId, testReqId);
+            publisher.publishSuccess(entityId, entityKind, command, ctrlId, requestId, correlationId, testReqId);
 
         } catch (Exception e) {
             log.error("kcMaster: URQ processing failed: entityId={}, command={}, ctrlId={}, error={}", entityId, command, ctrlId, e.getMessage());
             devLog.error("kcMaster: URQ processing failed: entityId={}, command={}, ctrlId={}, requestId={}, correlationId={}, error={}", entityId, command, ctrlId, requestId, correlationId, e.getMessage(), e);
             publisher.publishFailure(
                     entityId,
+                    entityKind,
                     command,
                     null,
                     "KC_SYNC_ERROR",

@@ -11,6 +11,7 @@
  *                   service-id: removed inline constant fallback; config-only via @Value
  * 03/21/2026 mir0n  three-tier logging: msgLog/devLog added; props map migrated to LinkedHashMap+Utils.setProps;
  *                   dual-mode ENTITY msg audit; console echo log.info; final variable copies removed
+ * 04/06/2026 mir0n  @Qualifier("jmsTopicTemplate") added to constructor injection
  */
 package pro.mir0n.esquire.enyMan.messaging;
 
@@ -18,6 +19,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.jms.Message;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jms.core.JmsTemplate;
 import org.springframework.stereotype.Component;
@@ -57,7 +59,8 @@ public class EsqEntityBroadcastPublisher {
     @Value("${enyman.messaging.ctrl-id:enyman.default}")
     private String ctrlId;
 
-    public EsqEntityBroadcastPublisher(JmsTemplate jmsTopicTemplate, ObjectMapper objectMapper) {
+    public EsqEntityBroadcastPublisher(@Qualifier("jmsTopicTemplate") JmsTemplate jmsTopicTemplate,
+                                       ObjectMapper objectMapper) {
         this.jmsTopicTemplate = jmsTopicTemplate;
         this.objectMapper = objectMapper;
     }

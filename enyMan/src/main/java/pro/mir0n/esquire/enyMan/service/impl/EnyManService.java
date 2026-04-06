@@ -38,6 +38,7 @@
  * 03/31/2026 mir0n  esquireCommandMove(): orgRepository injected; dual UPDATE permission check;
  *                   self-move guard (USR cannot move themselves); dest org validation; dispatches to OrgService/UsrService
  * 04/02/2026 mir0n  esquireCommandMove(): collects List<EsqMoveRecord>, publishMoveEvent()
+ * 04/06/2026 mir0n  KC path sync: KcRequestPublisher injected; publishKcMoveRequest() sends EVENT_UPDATE_PATH URQ per USR move record
  */
 
 package pro.mir0n.esquire.enyMan.service.impl;
@@ -58,6 +59,7 @@ import pro.mir0n.esquire.enyMan.jpa.EsqUsrRepository;
 import pro.mir0n.esquire.backend.service.RequestContextUtils;
 import pro.mir0n.esquire.backend.error.ResourceNotFoundException;
 import pro.mir0n.esquire.enyMan.messaging.EsqEntityBroadcastPublisher;
+import pro.mir0n.esquire.enyMan.messaging.KcRequestPublisher;
 import pro.mir0n.esquire.enyMan.service.IEnyManService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -75,18 +77,21 @@ public class EnyManService  extends AEnyManService {
     private final IEnyManService usrService;
     private final EsqOrgRepository orgRepository;
     private final EsqEntityBroadcastPublisher broadcastPublisher;
+    private final KcRequestPublisher kcRequestPublisher;
 
     public EnyManService(EsqEntityDictionaryRepository entityDictionaryRepository,
                          EsqOrgRepository orgRepository,
                          EsqUsrRepository usrRepository,
                          TransactionTemplate transactionTemplate,
                          EntityManager em,
-                         EsqEntityBroadcastPublisher broadcastPublisher) {
+                         EsqEntityBroadcastPublisher broadcastPublisher,
+                         KcRequestPublisher kcRequestPublisher) {
         super(entityDictionaryRepository);
         this.orgService = new OrgService(entityDictionaryRepository, orgRepository, transactionTemplate, em);
         this.usrService = new UsrService(entityDictionaryRepository, usrRepository, transactionTemplate, em);
         this.orgRepository = orgRepository;
         this.broadcastPublisher = broadcastPublisher;
+        this.kcRequestPublisher = kcRequestPublisher;
     }
 
     @Override
@@ -255,7 +260,9 @@ public class EnyManService  extends AEnyManService {
         }
         // publish outside DB transaction (transaction already committed by service)
         for (EsqMoveRecord r : records) {
+            devLog.debug("esquireCommandMove: publish move event reqId={}, r={}", requestId, r);
             publishMoveEvent(r, requestId, correlationId);
+            publishKcMoveRequest(r, requestId, correlationId);
         }
         return records;
     }
@@ -282,6 +289,27 @@ public class EnyManService  extends AEnyManService {
             log.error("publishMoveEvent: broadcast failed for kind={}, id={}: {}", record.getKind(), record.getId(), e.getMessage());
             devLog.error("publishMoveEvent: broadcast failed for kind={}, id={}, requestId={}, correlationId={}: {}",
                     record.getKind(), record.getId(), requestId, correlationId, e.getMessage(), e);
+        }
+    }
+
+    // Sends a KC URQ (EVENT_UPDATE_PATH) only for USR entities — only USRs have a KC identity.
+    // ORG and ACCT move events are ignored here; bizTree handles them via broadcast.
+    private void publishKcMoveRequest(EsqMoveRecord record, String requestId, String correlationId) {
+
+        pro.mir0n.esquire.backend.dto.EsqObjectKind eek = EsqObjectKindStorage.getInstance().get(record.getKind());
+        if (eek.isUsr()) {
+            try {
+                kcRequestPublisher.publishPathUpdate(record.getId(), record.getKind(), record.getPath(),
+                        requestId, correlationId);
+            } catch (Exception e) {
+                log.error("publishKcMoveRequest: failed for id={}: {}", record.getId(), e.getMessage());
+                devLog.error("publishKcMoveRequest: failed for id={}, requestId={}, correlationId={}: {}",
+                        record.getId(), requestId, correlationId, e.getMessage(), e);
+            }
+        } else {
+            devLog.debug("publishKcMoveRequest: skip move request for kind={}, id={}, requestId={}, correlationId={}",
+                    record.getKind(), record.getId(), requestId, correlationId);
+
         }
     }
 

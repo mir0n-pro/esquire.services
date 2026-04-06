@@ -1,5 +1,9 @@
 Esquire pacMan Microservice
 
+04/06/2026 mir0n  log audit line fix
+messaging.EsqEntityBroadcastPublisher
+  - log.info: requestId and correlationId added to ENTITY | UE audit line
+
 03/31/2026 mir0n  insertAcctPath: kind param added (ep_et_pk)
 jpa.EsqAcctRepository
   - insertAcctPath: kind param added

@@ -1,2 +1,6 @@
 Esquire messaging helper classes
 
+04/06/2026 mir0n  JMS Utils: sorted key output
+messaging.jms.Utils
+  - formatProps(Map): keys sorted alphabetically for consistent log output
+

@@ -7,6 +7,7 @@
  *
  *  History:
  * 03/20/2026 mir0n  ported from keySmith IKeycloakIdentityService
+ * 04/06/2026 mir0n  updateEntityPath() added
  */
 
 package pro.mir0n.esquire.kcMaster.service;
@@ -45,4 +46,6 @@ public interface IKcIdentityService {
     );
 
     void deleteUser(String loginId, String correlationId, String requestId);
+
+    void updateEntityPath(String entityId, String newPath, String correlationId, String requestId);
 }

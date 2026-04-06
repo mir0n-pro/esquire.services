@@ -1,5 +1,9 @@
 Esquire Backend common microservice classes
 
+04/06/2026 mir0n  entity path semantics: isPathParentOnly()
+dto.EsqObjectKind
+  - isPathParentOnly(): true for SYS_ADMIN (30) and ADMIN (32) — ep_path equals parent org path, own PK not appended
+
 03/31/2026 mir0n  Jackson OffsetDateTime fix
 security.JwtAuthenticationFilter
   - JavaTimeModule registered on ObjectMapper: fixes OffsetDateTime serialization in ProblemDetail error responses

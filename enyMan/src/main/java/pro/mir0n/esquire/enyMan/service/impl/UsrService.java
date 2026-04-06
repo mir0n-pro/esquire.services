@@ -29,6 +29,9 @@
  * 03/31/2026 mir0n  esquireCommandMove() + moveUsr(): mass path update for user+accounts (equality),
  *                   skip-if-same-parent; insertUsrPath: kind param added (ep_et_pk)
  * 04/01/2026 mir0n  move: collects updated records
+ * 04/06/2026 mir0n  moveUsr(): admin/regular branch split — admin uses pk-based moveAdminPath (no ACCT cascade);
+ *                   regular uses equality moveUsrPaths (covers user row + all ACCT rows)
+ *                   createUsr(): admin ep_path = parent org path only (no own PK appended)
  */
 
 package pro.mir0n.esquire.enyMan.service.impl;
@@ -215,12 +218,24 @@ public class UsrService  extends AEnyManService {
         if (distId.equals(usr.getParentId())) {
             return List.of();
         }
-        String currentPath = usrRepository.usrPath(id, rootPath);
+        int normalizedKind = (int) Math.floor((double) usr.getKind() / 2) * 2;
+        EsqObjectKind eek  = EsqObjectKindStorage.getInstance().get(normalizedKind);
         String destPath    = usrRepository.usrPath(distId, rootPath);
-        String newPath     = destPath + id + ".";
-        usrRepository.moveUsrPaths(currentPath, newPath);
+        List<EsqMoveRecord> rows;
+        if (eek.isPathParentOnly()) {
+            // Admin users own no entities — ep_path has only one row (no ACCT cascade).
+            // Multiple admins under the same org share the same ep_path value, so update and query by pk.
+            usrRepository.moveAdminPath(id, destPath);
+            rows = usrRepository.listAdminMovedPath(id);
+        } else {
+            // Regular user: ep_path = dest org path + user PK.
+            // Equality update covers the user row and all their ACCT rows (same ep_path value).
+            String currentPath = usrRepository.usrPath(id, rootPath);
+            String newPath     = destPath + id + ".";
+            usrRepository.moveUsrPaths(currentPath, newPath);
+            rows = usrRepository.listMovedPaths(newPath);
+        }
         usrRepository.moveUsrParent(id, distId, uid, correlationId, requestId);
-        List<EsqMoveRecord> rows = usrRepository.listMovedPaths(newPath);
         return rows;
     }
 
@@ -238,7 +253,9 @@ public class UsrService  extends AEnyManService {
         }
         long newId = EsqUtils.generateEntityId();
         String idStr = String.valueOf(newId);
-        String path = parentPath + newId +".";
+        int normalizedKind = (int) Math.floor((double) kind / 2) * 2;
+        EsqObjectKind eek  = EsqObjectKindStorage.getInstance().get(normalizedKind);
+        String path = eek.isPathParentOnly() ? parentPath : parentPath + newId + ".";
         fields.put("path", path);
 
         EsqEntityDictionary dictUser = EsqEntityDictionaryStorage.getInstance().get(kind);

@@ -270,6 +270,18 @@
         </query>
     </named-native-query>
 
+    <named-native-query name="EsqUsrJpa.moveAdminPath">
+        <query>
+ UPDATE esq_entity_path SET ep_path = :newPath WHERE ep_pk = :id
+        </query>
+    </named-native-query>
+
+    <named-native-query name="EsqUsrJpa.listAdminMovedPath" result-set-mapping="EsqEntityPathRaw">
+        <query>
+ SELECT ep_pk, ep_et_pk, ep_path FROM esq_entity_path WHERE ep_pk = :id
+        </query>
+    </named-native-query>
+
     <named-native-query name="EsqUsrJpa.moveUsrParent">
         <query>
  UPDATE esq_user

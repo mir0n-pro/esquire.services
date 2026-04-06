@@ -1,5 +1,25 @@
 Esquire enyMan Microservice
 
+04/06/2026 mir0n  esq-move Phase III: KC path sync; entity path semantics fix
++ added messaging.KcRequestPublisher
+  - publishes EVENT_UPDATE_PATH URQ to kcMaster KC sync queue on USR entity move
++ added messaging.KcResponseListener
+  - KC response listener — logs URS/URR outcomes for move reconciliation
+messaging.EnyManJmsConfig
+  - jmsQueueTemplate and jmsQueueListenerFactory added for KC request/response queue
+messaging.EsqEntityBroadcastPublisher
+  - @Qualifier("jmsTopicTemplate") added to constructor injection
+service.impl.EnyManService
+  - KcRequestPublisher injected; publishKcMoveRequest() sends EVENT_UPDATE_PATH URQ per USR move record
+service.impl.UsrService
+  - moveUsr(): admin/regular branch split — admin uses pk-based moveAdminPath (no ACCT cascade);
+    regular uses equality moveUsrPaths (covers user row + all ACCT rows)
+  - createUsr(): admin ep_path = parent org path only (no own PK appended)
+jpa.EsqUsrRepository
+  - moveAdminPath, listAdminMovedPath: pk-based path update/query for admin users
+META-INF/postgres-entity.xml, oracle-entity.xml
+  - EsqUsrJpa.moveAdminPath, EsqUsrJpa.listAdminMovedPath queries added
+
 04/02/2026 mir0n
 + added jpa.EsqMoveRecord
 jpa.EsqOrgRepository

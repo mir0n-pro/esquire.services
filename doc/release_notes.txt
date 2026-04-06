@@ -1,6 +1,19 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v1.2.2-2604.0611  esq-move command Phase III: KC path sync; entity path semantics fix
+    :Feature: enyMan — KC path sync on USR move: EVENT_UPDATE_PATH URQ published to kcMaster; KcRequestPublisher + KcResponseListener added
+    :Feature: kcMaster — updateEntityPath(): updates esq_rootpath KC attribute on USR entity move
+    :Fix: — USR entity path semantics: admin (kind 30/32) ep_path = parent org path; regular ep_path = org path + user pk
+    : modified components
+       enyMan,
+       kcMaster,
+       bizTree,
+       common,
+       pacMan
+     : added doc\entity.path.semantics.md
+     : added doc\model\ComonentModel.vsdx
+
 v1.2.2-2604.0219  esq-move command: move ORG/USR to a different parent org, Phase II - bizTree cache
     : Improvement: synch bizTree cache via X entity messages
     : modified components

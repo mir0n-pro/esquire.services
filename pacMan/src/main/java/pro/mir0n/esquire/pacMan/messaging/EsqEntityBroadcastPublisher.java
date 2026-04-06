@@ -11,6 +11,7 @@
  *                   service-id: removed inline constant fallback; config-only via @Value
  * 03/21/2026 mir0n  three-tier logging: msgLog/devLog added; props map migrated to LinkedHashMap+Utils.setProps;
  *                   dual-mode ENTITY msg audit; console echo log.info; final variable copies removed
+ * 04/06/2026 mir0n  log.info: requestId and correlationId added to ENTITY | UE audit line
  */
 package pro.mir0n.esquire.pacMan.messaging;
 
@@ -106,7 +107,7 @@ public class EsqEntityBroadcastPublisher {
             msgLog.info("ENTITY | UE | {} | {} | {} | {} | {} | {}",
                     applMsgId, eventType, entityKind, entityId, rid, cid);
         }
-        log.info("ENTITY | UE | {} | {} | {} | {} | {} | {}",
+        log.info("ENTITY | UE | {} | {} | {} | {}",
                 applMsgId, eventType, entityKind, entityId);
     }
 }

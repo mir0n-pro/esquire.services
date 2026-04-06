@@ -1,5 +1,24 @@
 Esquire kcMaster Microservice
 
+04/06/2026 mir0n  esq-move Phase III: KC path sync
+KcMasterApplication
+  - EsqObjectKindStorage loaded on ApplicationStartingEvent
+messaging.KcMasterJmsConfig
+  - clientId set directly on CachingConnectionFactory (kcmaster.messaging.client-id);
+    fixes "setClientID not supported on shared connection proxy" error
+messaging.KcRequestConsumer
+  - entityKind read from FIELD_ENTITY_KIND; forwarded to publishSuccess/publishFailure
+messaging.KcRequestHandler
+  - EVENT_UPDATE_PATH dispatched to updateEntityPath()
+x removed messaging.KcEntityBroadcastConsumer — path sync routed through KC request queue
+messaging.KcResponsePublisher
+  - publishSuccess/publishFailure: entityKind param added — echoes actual entity kind
+service.IKcIdentityService
+  - updateEntityPath() added
+service.impl.KcIdentityService
+  - updateEntityPath(): updates esq_rootpath KC attribute on USR move
+  - updateUser(): removed changed-flag guard — attributes always merged and applied
+
 03/26/2026 mir0n  Unit test coverage added; constant rename
 messaging.KcResponsePublisher
   - MSG_ENCODING_JSON (renamed from MESSAGE_ENCODING)

@@ -1,6 +1,10 @@
 Esquire BizTree Microservice
 
 
+04/06/2026 mir0n  esq-move path semantics fix
+cache.impl.BizTreeCacheRepository
+  - moveUsrNode(): admin-aware orgPk extraction — admin ep_path last segment is org pk
+
 04/02/2026 mir0n move event processing
 cache.IBizTreeCacheRepository
   - added moveOrgNode()

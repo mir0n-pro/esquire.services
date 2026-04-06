@@ -10,6 +10,8 @@
  *                   @Async removed — KC calls are synchronous here so handler can publish URS after completion
  * 03/21/2026 mir0n  three-tier logging: kcAudit→devLog; KC state events (STARTED/SUCCESS) to log.info;
  *                   all log.debug→devLog.debug; unused imports removed
+ * 04/06/2026 mir0n  updateEntityPath(): looks up KC user by esq_uid attribute, updates esq_rootpath
+ *                   updateUser(): removed changed-flag guard — attributes always merged and applied
  */
 
 package pro.mir0n.esquire.kcMaster.service.impl;
@@ -30,8 +32,11 @@ import org.springframework.stereotype.Service;
 import pro.mir0n.esquire.kcMaster.config.KeycloakConfig;
 import pro.mir0n.esquire.kcMaster.service.IKcIdentityService;
 
+import pro.mir0n.esquire.common.EsqConstants;
+
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -139,8 +144,11 @@ public class KcIdentityService implements IKcIdentityService {
         // Using toRepresentation() preserves existing KC attributes (esq_uid, esq_rootpath, etc.)
         UserRepresentation user = userResource.toRepresentation();
 
-        if (email != null) {
+        boolean changed = false;
+
+        if (email != null && !email.equals(user.getEmail())) {
             user.setEmail(email);
+            changed = true;
         }
 
         List<String> requiredActions = new ArrayList<>();
@@ -152,25 +160,31 @@ public class KcIdentityService implements IKcIdentityService {
         }
         if (!requiredActions.isEmpty()) {
             user.setRequiredActions(requiredActions);
-        }
-
-        // Merge attributes — never replace whole map, preserves esq_uid, esq_rootpath, etc.
-        java.util.Map<String, List<String>> merged = new java.util.HashMap<>();
-        if (user.getAttributes() != null) {
-            merged.putAll(user.getAttributes());
+            changed = true;
         }
 
         if (newLoginId != null && !newLoginId.equals(loginId)) {
             user.setUsername(newLoginId);
+            changed = true;
         }
 
+        // Merge attributes — never replace whole map, preserves esq_uid, esq_rootpath, etc.
         if (attributes != null) {
+            Map<String, List<String>> merged = new HashMap<>();
+            if (user.getAttributes() != null) {
+                merged.putAll(user.getAttributes());
+            }
             merged.putAll(attributes);
+            user.setAttributes(merged);
+            changed = true;
         }
-        user.setAttributes(merged);
 
-        userResource.update(user);
-        devLog.debug("User updated: {}", loginId);
+        if (changed) {
+            userResource.update(user);
+            devLog.debug("User updated: {}", loginId);
+        } else {
+            devLog.debug("User representation unchanged, skipping KC update: {}", loginId);
+        }
 
         if (realmRoles != null) {
             updateRealmRoles(realmResource, kcId, realmRoles);
@@ -204,6 +218,41 @@ public class KcIdentityService implements IKcIdentityService {
 
         log.info("KC | DELETE | username={} | state=SUCCESS", loginId);
         devLog.debug("User deleted: {}", kcId);
+    }
+
+    @Override
+    public void updateEntityPath(String entityId, String newPath, String correlationId, String requestId) {
+        log.info("KC | MOVE | entityId={} | state=STARTED", entityId);
+
+        RealmResource realmResource = keycloak.realm(keycloakConfig.getRealm());
+        UsersResource usersResource = realmResource.users();
+
+        List<UserRepresentation> users = usersResource.searchByAttributes(
+                EsqConstants.JWT_CLAIM_ENTITY_ID + ":" + entityId, true);
+        if (users.isEmpty()) {
+            devLog.debug("KC | MOVE | entityId='{}' : no KC user found, skipping", entityId);
+            return;
+        }
+
+        String kcId = users.get(0).getId();
+        UserResource userResource = usersResource.get(kcId);
+        UserRepresentation user = userResource.toRepresentation();
+
+        Map<String, List<String>> existing = user.getAttributes() != null ? user.getAttributes() : Collections.emptyMap();
+        List<String> currentPaths = existing.get(EsqConstants.JWT_CLAIM_ENTITY_ROOTPATH);
+        String currentPath = (currentPaths != null && !currentPaths.isEmpty()) ? currentPaths.get(0) : null;
+        if (newPath.equals(currentPath)) {
+            devLog.debug("KC | MOVE | entityId={} : path unchanged, skipping", entityId);
+            return;
+        }
+
+        Map<String, List<String>> merged = new HashMap<>(existing);
+        merged.put(EsqConstants.JWT_CLAIM_ENTITY_ROOTPATH, Collections.singletonList(newPath));
+        user.setAttributes(merged);
+
+        userResource.update(user);
+        devLog.debug("Path reset for user: {}='{}'", entityId, newPath);
+        log.info("KC | MOVE | entityId={} | state=SUCCESS", entityId);
     }
 
     private String extractUserIdFromResponse(Response response) {

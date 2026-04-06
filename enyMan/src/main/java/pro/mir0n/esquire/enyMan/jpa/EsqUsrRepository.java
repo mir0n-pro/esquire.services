@@ -16,6 +16,7 @@
  * 03/28/2026 mir0n  insertUsrPath, deleteEntityPath added; insertUsr: path param removed
  * 03/31/2026 mir0n  insertUsrPath: kind param added; moveUsrPaths, moveUsrParent queries added
  * 04/02/2026 mir0n  lockEntityPathRoot, listMovedPaths added for move broadcast
+ * 04/06/2026 mir0n  moveAdminPath, listAdminMovedPath: pk-based path update/query for admin users
  */
 
 package pro.mir0n.esquire.enyMan.jpa;
@@ -245,6 +246,14 @@ public interface EsqUsrRepository extends JpaRepository<EsqUsrJpa, String> {
 
     @NativeQuery
     List<EsqMoveRecord> listMovedPaths(@Param("newPath") String newPath);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = false)
+    @Transactional
+    @NativeQuery
+    int moveAdminPath(@Param("id") String id, @Param("newPath") String newPath);
+
+    @NativeQuery
+    List<EsqMoveRecord> listAdminMovedPath(@Param("id") String id);
 
     @Modifying(clearAutomatically = true, flushAutomatically = false)
     @Transactional

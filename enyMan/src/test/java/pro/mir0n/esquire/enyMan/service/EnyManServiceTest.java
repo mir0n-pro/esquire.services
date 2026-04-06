@@ -28,6 +28,7 @@ import pro.mir0n.esquire.enyMan.jpa.EsqEntityDictionaryRepository;
 import pro.mir0n.esquire.enyMan.jpa.EsqOrgRepository;
 import pro.mir0n.esquire.enyMan.jpa.EsqUsrRepository;
 import pro.mir0n.esquire.enyMan.messaging.EsqEntityBroadcastPublisher;
+import pro.mir0n.esquire.enyMan.messaging.KcRequestPublisher;
 import pro.mir0n.esquire.enyMan.service.impl.EnyManService;
 
 import java.util.List;
@@ -39,12 +40,14 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import org.mockito.InOrder;
 import pro.mir0n.esquire.backend.jpa.entity.EsqOrgJpa;
+import pro.mir0n.esquire.enyMan.jpa.EsqMoveRecord;
 import java.util.HashMap;
 
 @ExtendWith(MockitoExtension.class)
@@ -70,14 +73,19 @@ class EnyManServiceTest {
     @Mock
     private EsqEntityBroadcastPublisher broadcastPublisher;
 
+    @Mock
+    private KcRequestPublisher kcRequestPublisher;
+
     private EnyManService service;
 
     @BeforeAll
     static void initStorage() {
         EsqObjectKindStorage oks = EsqObjectKindStorage.getInstance();
-        oks.init(new EsqObjectKind(10, "org", "Org", "orgs", "Test org",
+        oks.init(new EsqObjectKind(20, "org", "Org", "orgs", "Test org",
             true, false, false, "", false, false, "", null, null, null, false));
-        oks.init(new EsqObjectKind(20, "usr", "Usr", "usrs", "Test usr",
+        oks.init(new EsqObjectKind(32, "usr", "Usr", "usrs", "Test usr",
+            false, true, false, "", false, false, "", null, null, null, false));
+        oks.init(new EsqObjectKind(34, "usr", "Usr", "usrs", "Test usr",
             false, true, false, "", false, false, "", null, null, null, false));
 
         EsqRoleJpa roleJpa = new EsqRoleJpa();
@@ -86,18 +94,23 @@ class EnyManServiceTest {
         roleJpa.setKind(EsqConstants.KIND_ADMIN_ROLE);
 
         EsqPermissionJpa orgPerm = new EsqPermissionJpa();
-        orgPerm.setId("10");
-        orgPerm.setKind(10);
+        orgPerm.setId("20");
+        orgPerm.setKind(20);
         orgPerm.setFlags("Y,Y,Y,Y,Y");
 
         EsqPermissionJpa usrPerm = new EsqPermissionJpa();
-        usrPerm.setId("20");
-        usrPerm.setKind(20);
+        usrPerm.setId("32");
+        usrPerm.setKind(32);
         usrPerm.setFlags("Y,Y,Y,Y,Y");
+
+        EsqPermissionJpa clientPerm = new EsqPermissionJpa();
+        clientPerm.setId("34");
+        clientPerm.setKind(34);
+        clientPerm.setFlags("Y,Y,Y,Y,Y");
 
         JpaRolesRepository rolesRepo = Mockito.mock(JpaRolesRepository.class);
         when(rolesRepo.roles()).thenReturn(List.of(roleJpa));
-        when(rolesRepo.permissions("1")).thenReturn(List.of(orgPerm, usrPerm));
+        when(rolesRepo.permissions("1")).thenReturn(List.of(orgPerm, usrPerm, clientPerm));
         EsqRolesStorage.getInstance().init(rolesRepo);
 
         // Dictionary entry for kind 50 — used by esquireDictionary() tests
@@ -114,7 +127,7 @@ class EnyManServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new EnyManService(dictRepo, orgRepo, usrRepo, transactionTemplate, em, broadcastPublisher);
+        service = new EnyManService(dictRepo, orgRepo, usrRepo, transactionTemplate, em, broadcastPublisher, kcRequestPublisher);
     }
 
     // ---- esquireCommandSave: org kind, null roles → PermissionDeniedException ----
@@ -123,7 +136,7 @@ class EnyManServiceTest {
     @DisplayName("esquireCommandSave: org kind, null roles → PermissionDeniedException")
     void esquireCommandSave_orgKind_nullRoles_throwsPermissionDeniedException() {
         assertThatThrownBy(() ->
-            service.esquireCommandSave(10, "100", "save", Map.of(), "1.2.3", "99", null)
+            service.esquireCommandSave(20, "100", "save", Map.of(), "1.2.3", "99", null)
         ).isInstanceOf(PermissionDeniedException.class);
     }
 
@@ -133,7 +146,7 @@ class EnyManServiceTest {
     @DisplayName("esquireCommandSave: usr kind, null roles, id != uid → PermissionDeniedException")
     void esquireCommandSave_usrKind_nullRoles_notSelf_throwsPermissionDeniedException() {
         assertThatThrownBy(() ->
-            service.esquireCommandSave(20, "50", "save", Map.of(), "1.2.3", "99", null)
+            service.esquireCommandSave(32, "50", "save", Map.of(), "1.2.3", "99", null)
         ).isInstanceOf(PermissionDeniedException.class);
     }
 
@@ -163,7 +176,7 @@ class EnyManServiceTest {
     @DisplayName("esquireCommandNew: org kind, null roles → PermissionDeniedException")
     void esquireCommandNew_orgKind_nullRoles_throwsPermissionDeniedException() {
         assertThatThrownBy(() ->
-            service.esquireCommandNew(10, "1", "new", Map.of(), "1.2.3", "99", null)
+            service.esquireCommandNew(20, "1", "new", Map.of(), "1.2.3", "99", null)
         ).isInstanceOf(PermissionDeniedException.class);
     }
 
@@ -173,7 +186,7 @@ class EnyManServiceTest {
     @DisplayName("esquireCommandNew: usr kind, null roles → PermissionDeniedException")
     void esquireCommandNew_usrKind_nullRoles_throwsPermissionDeniedException() {
         assertThatThrownBy(() ->
-            service.esquireCommandNew(20, "1", "new", Map.of(), "1.2.3", "99", null)
+            service.esquireCommandNew(32, "1", "new", Map.of(), "1.2.3", "99", null)
         ).isInstanceOf(PermissionDeniedException.class);
     }
 
@@ -193,7 +206,7 @@ class EnyManServiceTest {
     @DisplayName("esquireCommandDelete: org kind, null roles → PermissionDeniedException")
     void esquireCommandDelete_orgKind_nullRoles_throwsPermissionDeniedException() {
         assertThatThrownBy(() ->
-            service.esquireCommandDelete(10, "100", "delete", "1.2.3", "99", null)
+            service.esquireCommandDelete(20, "100", "delete", "1.2.3", "99", null)
         ).isInstanceOf(PermissionDeniedException.class);
     }
 
@@ -203,7 +216,7 @@ class EnyManServiceTest {
     @DisplayName("esquireCommandDelete: usr kind, null roles → PermissionDeniedException")
     void esquireCommandDelete_usrKind_nullRoles_throwsPermissionDeniedException() {
         assertThatThrownBy(() ->
-            service.esquireCommandDelete(20, "100", "delete", "1.2.3", "99", null)
+            service.esquireCommandDelete(32, "100", "delete", "1.2.3", "99", null)
         ).isInstanceOf(PermissionDeniedException.class);
     }
 
@@ -267,7 +280,7 @@ class EnyManServiceTest {
         when(usrRepo.detailUsrForUpdate("100", "1.2.3")).thenReturn(null);
 
         assertThatThrownBy(() ->
-            service.esquireCommandDelete(20, "100", "delete", "1.2.3", "99", List.of(ROLE_ADMIN))
+            service.esquireCommandDelete(32, "100", "delete", "1.2.3", "99", List.of(ROLE_ADMIN))
         ).isInstanceOf(ResourceNotFoundException.class);
     }
 
@@ -287,7 +300,7 @@ class EnyManServiceTest {
         when(usrRepo.detailUsrForUpdate("100", "1.2.3")).thenReturn(usr);
 
         assertThatThrownBy(() ->
-            service.esquireCommandDelete(20, "100", "delete", "1.2.3", "99", List.of(ROLE_ADMIN))
+            service.esquireCommandDelete(32, "100", "delete", "1.2.3", "99", List.of(ROLE_ADMIN))
         ).isInstanceOf(DeleteRestrictedException.class);
     }
 
@@ -301,9 +314,9 @@ class EnyManServiceTest {
             return null;
         });
         when(orgRepo.orgPath("1", "1.")).thenReturn("1.");
-        when(dictRepo.findCustom(10)).thenReturn(List.of());
+        when(dictRepo.findCustom(20)).thenReturn(List.of());
 
-        service.esquireCommandNew(10, "1", "new", new HashMap<>(), "1.", "99", List.of(ROLE_ADMIN));
+        service.esquireCommandNew(20, "1", "new", new HashMap<>(), "1.", "99", List.of(ROLE_ADMIN));
 
         InOrder order = inOrder(orgRepo);
         order.verify(orgRepo).insertOrgPath(anyLong(), anyInt(), anyString());
@@ -324,7 +337,7 @@ class EnyManServiceTest {
         });
         when(orgRepo.detailOrgForUpdate("100", "1.")).thenReturn(org);
 
-        service.esquireCommandDelete(10, "100", "delete", "1.", "99", List.of(ROLE_ADMIN));
+        service.esquireCommandDelete(20, "100", "delete", "1.", "99", List.of(ROLE_ADMIN));
 
         InOrder order = inOrder(orgRepo);
         order.verify(orgRepo).deleteOrg("100");
@@ -337,7 +350,7 @@ class EnyManServiceTest {
     @DisplayName("esquireCommandMove: org kind, null roles → PermissionDeniedException")
     void esquireCommandMove_orgKind_nullRoles_throwsPermissionDeniedException() {
         assertThatThrownBy(() ->
-            service.esquireCommandMove(10, "100", "200", "1.", "99", null)
+            service.esquireCommandMove(20, "100", "200", "1.", "99", null)
         ).isInstanceOf(PermissionDeniedException.class);
     }
 
@@ -345,7 +358,7 @@ class EnyManServiceTest {
     @DisplayName("esquireCommandMove: usr kind, null roles → PermissionDeniedException")
     void esquireCommandMove_usrKind_nullRoles_throwsPermissionDeniedException() {
         assertThatThrownBy(() ->
-            service.esquireCommandMove(20, "100", "200", "1.", "99", null)
+            service.esquireCommandMove(32, "100", "200", "1.", "99", null)
         ).isInstanceOf(PermissionDeniedException.class);
     }
 
@@ -363,7 +376,7 @@ class EnyManServiceTest {
         when(orgRepo.detailOrg("200", "1.")).thenReturn(null);
 
         assertThatThrownBy(() ->
-            service.esquireCommandMove(10, "100", "200", "1.", "99", List.of(ROLE_ADMIN))
+            service.esquireCommandMove(20, "100", "200", "1.", "99", List.of(ROLE_ADMIN))
         ).isInstanceOf(ResourceNotFoundException.class);
     }
 
@@ -376,7 +389,7 @@ class EnyManServiceTest {
         when(orgRepo.detailOrg("200", "1.")).thenReturn(destOrg);
 
         assertThatThrownBy(() ->
-            service.esquireCommandMove(10, "100", "200", "1.", "99", List.of(ROLE_ADMIN))
+            service.esquireCommandMove(20, "100", "200", "1.", "99", List.of(ROLE_ADMIN))
         ).isInstanceOf(PermissionDeniedException.class);
     }
 
@@ -384,7 +397,7 @@ class EnyManServiceTest {
     @DisplayName("esquireCommandMove: usr kind, id equals uid → PermissionDeniedException (cannot move yourself)")
     void esquireCommandMove_usrKind_selfMove_throwsPermissionDeniedException() {
         assertThatThrownBy(() ->
-            service.esquireCommandMove(20, "99", "200", "1.", "99", List.of(ROLE_ADMIN))
+            service.esquireCommandMove(32, "99", "200", "1.", "99", List.of(ROLE_ADMIN))
         ).isInstanceOf(PermissionDeniedException.class);
     }
 
@@ -395,7 +408,7 @@ class EnyManServiceTest {
     void esquireCommandMove_org_sameParent_skipsMove() {
         EsqOrgJpa destOrg = new EsqOrgJpa();
         destOrg.setId("200");
-        destOrg.setKind(10);
+        destOrg.setKind(20);
         when(orgRepo.detailOrg("200", "1.")).thenReturn(destOrg);
 
         EsqOrgJpa org = new EsqOrgJpa();
@@ -407,7 +420,7 @@ class EnyManServiceTest {
         });
         when(orgRepo.detailOrgForUpdate("100", "1.")).thenReturn(org);
 
-        service.esquireCommandMove(10, "100", "200", "1.", "99", List.of(ROLE_ADMIN));
+        service.esquireCommandMove(20, "100", "200", "1.", "99", List.of(ROLE_ADMIN));
 
         verify(orgRepo, never()).moveOrgPaths(anyString(), anyString());
     }
@@ -417,7 +430,7 @@ class EnyManServiceTest {
     void esquireCommandMove_org_descendantGuard_throwsPermissionDeniedException() {
         EsqOrgJpa destOrg = new EsqOrgJpa();
         destOrg.setId("200");
-        destOrg.setKind(10);
+        destOrg.setKind(20);
         when(orgRepo.detailOrg("200", "1.")).thenReturn(destOrg);
 
         EsqOrgJpa org = new EsqOrgJpa();
@@ -432,7 +445,7 @@ class EnyManServiceTest {
         when(orgRepo.orgPath("200", "1.")).thenReturn("1.100.200."); // dest is under moving org
 
         assertThatThrownBy(() ->
-            service.esquireCommandMove(10, "100", "200", "1.", "99", List.of(ROLE_ADMIN))
+            service.esquireCommandMove(20, "100", "200", "1.", "99", List.of(ROLE_ADMIN))
         ).isInstanceOf(PermissionDeniedException.class);
     }
 
@@ -441,7 +454,7 @@ class EnyManServiceTest {
     void esquireCommandMove_org_moveOrgPaths_beforeMoveOrgParent() {
         EsqOrgJpa destOrg = new EsqOrgJpa();
         destOrg.setId("200");
-        destOrg.setKind(10);
+        destOrg.setKind(20);
         when(orgRepo.detailOrg("200", "1.")).thenReturn(destOrg);
 
         EsqOrgJpa org = new EsqOrgJpa();
@@ -456,7 +469,7 @@ class EnyManServiceTest {
         when(orgRepo.orgPath("200", "1.")).thenReturn("1.9.200.");
         when(orgRepo.listMovedPaths(anyString())).thenReturn(List.of());
 
-        service.esquireCommandMove(10, "100", "200", "1.", "99", List.of(ROLE_ADMIN));
+        service.esquireCommandMove(20, "100", "200", "1.", "99", List.of(ROLE_ADMIN));
 
         InOrder order = inOrder(orgRepo);
         order.verify(orgRepo).moveOrgPaths(anyString(), anyString());
@@ -471,7 +484,7 @@ class EnyManServiceTest {
     void esquireCommandMove_usr_sameParent_skipsMove() {
         EsqOrgJpa destOrg = new EsqOrgJpa();
         destOrg.setId("200");
-        destOrg.setKind(10);
+        destOrg.setKind(20);
         when(orgRepo.detailOrg("200", "1.")).thenReturn(destOrg);
 
         EsqUsrJpa usr = new EsqUsrJpa();
@@ -483,35 +496,139 @@ class EnyManServiceTest {
         });
         when(usrRepo.detailUsrForUpdate("100", "1.")).thenReturn(usr);
 
-        service.esquireCommandMove(20, "100", "200", "1.", "99", List.of(ROLE_ADMIN));
+        service.esquireCommandMove(32, "100", "200", "1.", "99", List.of(ROLE_ADMIN));
 
         verify(usrRepo, never()).moveUsrPaths(anyString(), anyString());
     }
 
     @Test
-    @DisplayName("esquireCommandMove: usr — moveUsrPaths called before moveUsrParent")
-    void esquireCommandMove_usr_moveUsrPaths_beforeMoveUsrParent() {
+    @DisplayName("esquireCommandMove: usr admin — moveAdminPath called before moveUsrParent")
+    void esquireCommandMove_usr_moveAdminPath_beforeMoveUsrParent() {
         EsqOrgJpa destOrg = new EsqOrgJpa();
         destOrg.setId("200");
-        destOrg.setKind(10);
+        destOrg.setKind(20);
         when(orgRepo.detailOrg("200", "1.")).thenReturn(destOrg);
 
         EsqUsrJpa usr = new EsqUsrJpa();
         usr.setId("100");
         usr.setParentId("5");
+        usr.setKind(32);
         when(transactionTemplate.execute(any())).thenAnswer(inv -> {
             inv.<org.springframework.transaction.support.TransactionCallback<?>>getArgument(0).doInTransaction(null);
             return null;
         });
         when(usrRepo.detailUsrForUpdate("100", "1.")).thenReturn(usr);
-        when(usrRepo.usrPath("100", "1.")).thenReturn("1.5.100.");
         when(usrRepo.usrPath("200", "1.")).thenReturn("1.9.200.");
+
+        service.esquireCommandMove(32, "100", "200", "1.", "99", List.of(ROLE_ADMIN));
+
+        InOrder order = inOrder(usrRepo);
+        order.verify(usrRepo).moveAdminPath(eq("100"), eq("1.9.200."));
+        order.verify(usrRepo).moveUsrParent(anyString(), anyString(), any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("esquireCommandMove: usr regular — moveUsrPaths called before moveUsrParent")
+    void esquireCommandMove_usr_regular_moveUsrPaths_beforeMoveUsrParent() {
+        EsqOrgJpa destOrg = new EsqOrgJpa();
+        destOrg.setId("200");
+        destOrg.setKind(20);
+        when(orgRepo.detailOrg("200", "1.")).thenReturn(destOrg);
+
+        EsqUsrJpa usr = new EsqUsrJpa();
+        usr.setId("100");
+        usr.setParentId("5");
+        usr.setKind(34);
+        when(transactionTemplate.execute(any())).thenAnswer(inv -> {
+            inv.<org.springframework.transaction.support.TransactionCallback<?>>getArgument(0).doInTransaction(null);
+            return null;
+        });
+        when(usrRepo.detailUsrForUpdate("100", "1.")).thenReturn(usr);
+        when(usrRepo.usrPath("200", "1.")).thenReturn("1.9.200.");
+        when(usrRepo.usrPath("100", "1.")).thenReturn("1.5.100.");
+
+        service.esquireCommandMove(34, "100", "200", "1.", "99", List.of(ROLE_ADMIN));
+
+        InOrder order = inOrder(usrRepo);
+        order.verify(usrRepo).moveUsrPaths(eq("1.5.100."), eq("1.9.200.100."));
+        order.verify(usrRepo).moveUsrParent(anyString(), anyString(), any(), any(), any());
+    }
+
+    // ---- esquireCommandMove: KC URQ publisher ----
+
+    @Test
+    @DisplayName("esquireCommandMove: usr admin move — publishPathUpdate called with org path (no user pk)")
+    void esquireCommandMove_usr_publishesKcPathUpdate() {
+        EsqOrgJpa destOrg = new EsqOrgJpa();
+        destOrg.setId("200");
+        destOrg.setKind(20);
+        when(orgRepo.detailOrg("200", "1.")).thenReturn(destOrg);
+
+        EsqUsrJpa usr = new EsqUsrJpa();
+        usr.setId("100");
+        usr.setParentId("5");
+        usr.setKind(32);
+        when(transactionTemplate.execute(any())).thenAnswer(inv ->
+                inv.<org.springframework.transaction.support.TransactionCallback<?>>getArgument(0).doInTransaction(null));
+        when(usrRepo.detailUsrForUpdate("100", "1.")).thenReturn(usr);
+        when(usrRepo.usrPath("200", "1.")).thenReturn("1.9.200.");
+        when(usrRepo.listAdminMovedPath(eq("100")))
+                .thenReturn(List.of(new EsqMoveRecord("100", 32, "1.9.200.")));
+
+        service.esquireCommandMove(32, "100", "200", "1.", "99", List.of(ROLE_ADMIN));
+
+        verify(kcRequestPublisher).publishPathUpdate(eq("100"), eq(32), eq("1.9.200."), any(), any());
+    }
+
+    @Test
+    @DisplayName("esquireCommandMove: usr regular move — publishPathUpdate called with org path + user pk")
+    void esquireCommandMove_usr_regular_publishesKcPathUpdate() {
+        EsqOrgJpa destOrg = new EsqOrgJpa();
+        destOrg.setId("200");
+        destOrg.setKind(20);
+        when(orgRepo.detailOrg("200", "1.")).thenReturn(destOrg);
+
+        EsqUsrJpa usr = new EsqUsrJpa();
+        usr.setId("100");
+        usr.setParentId("5");
+        usr.setKind(34);
+        when(transactionTemplate.execute(any())).thenAnswer(inv ->
+                inv.<org.springframework.transaction.support.TransactionCallback<?>>getArgument(0).doInTransaction(null));
+        when(usrRepo.detailUsrForUpdate("100", "1.")).thenReturn(usr);
+        when(usrRepo.usrPath("200", "1.")).thenReturn("1.9.200.");
+        when(usrRepo.usrPath("100", "1.")).thenReturn("1.5.100.");
+        when(usrRepo.listMovedPaths(eq("1.9.200.100.")))
+                .thenReturn(List.of(new EsqMoveRecord("100", 34, "1.9.200.100.")));
+
+        service.esquireCommandMove(34, "100", "200", "1.", "99", List.of(ROLE_ADMIN));
+
+        verify(kcRequestPublisher).publishPathUpdate(eq("100"), eq(34), eq("1.9.200.100."), any(), any());
+    }
+
+    @Test
+    @DisplayName("esquireCommandMove: org move — publishPathUpdate NOT called (ORG has no KC identity)")
+    void esquireCommandMove_org_doesNotPublishKcPathUpdate() {
+        EsqOrgJpa destOrg = new EsqOrgJpa();
+        destOrg.setId("200");
+        destOrg.setKind(20);
+        when(orgRepo.detailOrg("200", "1.")).thenReturn(destOrg);
+
+        EsqOrgJpa org = new EsqOrgJpa();
+        org.setId("100");
+        org.setParentId("5");
+        when(transactionTemplate.execute(any())).thenAnswer(inv -> {
+            inv.<org.springframework.transaction.support.TransactionCallback<?>>getArgument(0).doInTransaction(null);
+            return null;
+        });
+        when(orgRepo.detailOrgForUpdate("100", "1.")).thenReturn(org);
+        when(orgRepo.orgPath("100", "1.")).thenReturn("1.5.100.");
+        when(orgRepo.orgPath("200", "1.")).thenReturn("1.9.200.");
+        when(orgRepo.listMovedPaths(anyString()))
+                .thenReturn(List.of(new EsqMoveRecord("100", 20, "1.9.200.100.")));
 
         service.esquireCommandMove(20, "100", "200", "1.", "99", List.of(ROLE_ADMIN));
 
-        InOrder order = inOrder(usrRepo);
-        order.verify(usrRepo).moveUsrPaths(anyString(), anyString());
-        order.verify(usrRepo).moveUsrParent(anyString(), anyString(), any(), any(), any());
+        verify(kcRequestPublisher, never()).publishPathUpdate(anyString(), anyInt(), anyString(), any(), any());
     }
 
     // ---- esquireCommandDelete: usr — deleteEntityPath called after deleteUsr ----
@@ -529,7 +646,7 @@ class EnyManServiceTest {
         });
         when(usrRepo.detailUsrForUpdate("200", "1.")).thenReturn(usr);
 
-        service.esquireCommandDelete(20, "200", "delete", "1.", "99", List.of(ROLE_ADMIN));
+        service.esquireCommandDelete(32, "200", "delete", "1.", "99", List.of(ROLE_ADMIN));
 
         InOrder order = inOrder(usrRepo);
         order.verify(usrRepo).deletePersonAddresses("200");

@@ -7,6 +7,7 @@
  *
  *  History:
  * 03/17/2026 mir0n  created: JMS/ActiveMQ configuration for entity broadcast producer
+ * 04/06/2026 mir0n  jmsQueueTemplate and jmsQueueListenerFactory added for KC request/response queue
  */
 package pro.mir0n.esquire.enyMan.messaging;
 
@@ -34,6 +35,28 @@ import org.springframework.jms.core.JmsTemplate;
 @Configuration
 @EnableJms
 public class EnyManJmsConfig {
+
+    /**
+     * Queue-mode JmsTemplate for the KC request producer.
+     */
+    @Bean
+    public JmsTemplate jmsQueueTemplate(ConnectionFactory connectionFactory) {
+        JmsTemplate ret = new JmsTemplate(connectionFactory);
+        ret.setPubSubDomain(false);
+        return ret;
+    }
+
+    /**
+     * Listener container factory for queue consumers (KC response listener).
+     * Use this factory in @JmsListener(containerFactory="jmsQueueListenerFactory").
+     */
+    @Bean
+    public DefaultJmsListenerContainerFactory jmsQueueListenerFactory(ConnectionFactory connectionFactory) {
+        DefaultJmsListenerContainerFactory ret = new DefaultJmsListenerContainerFactory();
+        ret.setConnectionFactory(connectionFactory);
+        ret.setPubSubDomain(false);
+        return ret;
+    }
 
     /**
      * Topic-mode JmsTemplate for the entity broadcast producer.

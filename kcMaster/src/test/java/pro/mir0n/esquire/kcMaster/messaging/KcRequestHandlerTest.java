@@ -231,14 +231,30 @@ class KcRequestHandlerTest {
         verifyNoMoreInteractions(kcIdentityService);
     }
 
+    // --- UPDATE_PATH dispatch ---
+
+    @Test
+    @DisplayName("UPDATE_PATH: delegates to updateEntityPath with id and path")
+    void updatePath_delegatesWithIdAndPath() {
+        KcSyncRequest req = new KcSyncRequest();
+        req.setId("uid-001");
+        req.setKind(20);
+        req.setPath("1.500.999.uid-001.");
+
+        handler.handle(EsqMsgConstants.EVENT_UPDATE_PATH, req, "cid1", "rid1");
+
+        verify(kcIdentityService).updateEntityPath("uid-001", "1.500.999.uid-001.", "cid1", "rid1");
+        verifyNoMoreInteractions(kcIdentityService);
+    }
+
     // --- unknown command ---
 
     @Test
     @DisplayName("unknown command throws IllegalArgumentException")
     void unknownCommand_throwsIllegalArgument() {
         assertThatThrownBy(() ->
-                handler.handle("X", buildCreateReq(), "cid1", "rid1")
+                handler.handle("Z", buildCreateReq(), "cid1", "rid1")
         ).isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("X");
+                .hasMessageContaining("Z");
     }
 }
