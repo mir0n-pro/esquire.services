@@ -16,6 +16,7 @@
  * 02/13/2026 mir0n  use EsqEntityJpa for children
  * 02/28/2026 mir0n  person, addr, bizaddr subentity fields added
  *                   fillPerson/fillAddress/fillBizAddress implemented
+ * 04/07/2026 mir0n  removed dead findKind() helper; removed debug println
  */
 
 package pro.mir0n.esquire.backend.dto.entity;
@@ -121,11 +122,6 @@ public class EsqUsr extends EsqEntity {
         }
     }
 
-    private EsqObjectKind findKind(int kind) {
-        int k = (int)Math.floor((double)kind/2) * 2;
-        return EsqObjectKindStorage.getInstance().get(kind);
-    }
-
     @Override
     protected void fillChildren(List<EsqEntityJpa> childNodes) {
         if (childNodes != null) {
@@ -140,7 +136,6 @@ public class EsqUsr extends EsqEntity {
     }
     @Override
     protected void fillPerson(EsqEntityJpa person) {
-System.out.println("fillPerson: person:"+person);
         if (person != null) {
             EsqPerson psn = new EsqPerson();
             psn.fill(person);

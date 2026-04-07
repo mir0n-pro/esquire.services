@@ -1,6 +1,17 @@
 Esquire BizTree Microservice
 
 
+04/07/2026 mir0n  kind normalization removed from dispatch and handlers; param rename
+cache.IBizTreeCacheRepository
+  - moveUsrNode(): param renamed kind (raw kind; storage handles via getOrDefault)
+cache.impl.BizTreeCacheRepository
+  - moveUsrNode(): param renamed kind; EsqObjectKindStorage.get() receives raw kind
+messaging.EsqEntityBroadcastConsumer
+  - kind normalization removed; EsqObjectKindStorage.get() receives raw entityKind
++ added messaging.handler.MoveUsrHandler header
+messaging.handler.MoveUsrHandler
+  - normalization removed; raw entityKind passed to moveUsrNode()
+
 04/06/2026 mir0n  esq-move path semantics fix
 cache.impl.BizTreeCacheRepository
   - moveUsrNode(): admin-aware orgPk extraction — admin ep_path last segment is org pk

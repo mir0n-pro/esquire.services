@@ -14,6 +14,7 @@
  * 03/10/2026 mir0n  fillКindFieldLayer() call updated to fillKindFieldLayer() — Cyrillic К → ASCII K
  * 03/19/2026 mir0n  esquireDictionary(): kind normalized to even number before dictionary lookup
  * 03/21/2026 mir0n  devLog added; log.debug→devLog.debug
+ * 04/07/2026 mir0n  esquireDictionary(): kind param Integer → int; normalization removed
  */
 
 package pro.mir0n.esquire.enyMan.service.impl;
@@ -45,14 +46,13 @@ public abstract class AEnyManService  implements IEnyManService {
     }
 
     @Override
-    public List<EsqEntityLayer> esquireDictionary(Integer kind) {
+    public List<EsqEntityLayer> esquireDictionary(int kind) {
         //String correlationId = RequestContextUtils.getCorrelationId();
         //String requestId = RequestContextUtils.getRequestId();
         devLog.debug("srvc: esquireDictionary: kind:{}",  kind);
 
-        int k = (kind != null) ? ((int) Math.floor((double) kind / 2)) * 2 : 0;
         List<EsqEntityLayer> ret = null;
-        EsqEntityDictionary dict  = EsqEntityDictionaryStorage.getInstance().get(k);
+        EsqEntityDictionary dict  = EsqEntityDictionaryStorage.getInstance().get(kind);
         if  (dict != null) {
             if(!dict.isCompleted()) {
                 List<EsqCustomEntityFieldJpa> custom = entityDictionaryRepository.findCustom(kind);
@@ -64,7 +64,7 @@ public abstract class AEnyManService  implements IEnyManService {
             ret = dict.getLayers();
         }
         if (ret == null) {
-            throw new ResourceNotFoundException("esquireDictionary", "kind", String.valueOf(k));
+            throw new ResourceNotFoundException("esquireDictionary", "kind", String.valueOf(kind));
         }
         devLog.debug("srvc: esquireDictionary(2): ret:{}",  ret);
         return ret;

@@ -150,7 +150,7 @@ class EnyManServiceTest {
         ).isInstanceOf(PermissionDeniedException.class);
     }
 
-    // ---- esquireCommandSave: unknown kind → ResourceNotFoundException ----
+    // ---- esquireCommandSave: unknown or odd kind → ResourceNotFoundException ----
 
     @Test
     @DisplayName("esquireCommandSave: unknown kind → ResourceNotFoundException")
@@ -160,13 +160,29 @@ class EnyManServiceTest {
         ).isInstanceOf(ResourceNotFoundException.class);
     }
 
-    // ---- esquireCommand: unknown kind → ResourceNotFoundException ----
+    @Test
+    @DisplayName("esquireCommandSave: odd kind 33 (sub-variant, not registered) → ResourceNotFoundException")
+    void esquireCommandSave_oddKind_throwsResourceNotFoundException() {
+        assertThatThrownBy(() ->
+            service.esquireCommandSave(33, "1", "save", Map.of(), "1.2.3", "99", null)
+        ).isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    // ---- esquireCommand: unknown or odd kind → ResourceNotFoundException ----
 
     @Test
     @DisplayName("esquireCommand: unknown kind → ResourceNotFoundException")
     void esquireCommand_unknownKind_throwsResourceNotFoundException() {
         assertThatThrownBy(() ->
             service.esquireCommand(99, "1", "details", "1.2.3", "99")
+        ).isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    @Test
+    @DisplayName("esquireCommand: odd kind 33 (sub-variant, not registered) → ResourceNotFoundException")
+    void esquireCommand_oddKind_throwsResourceNotFoundException() {
+        assertThatThrownBy(() ->
+            service.esquireCommand(33, "1", "details", "1.2.3", "99")
         ).isInstanceOf(ResourceNotFoundException.class);
     }
 
@@ -190,13 +206,21 @@ class EnyManServiceTest {
         ).isInstanceOf(PermissionDeniedException.class);
     }
 
-    // ---- esquireCommandNew: unknown kind → ResourceNotFoundException ----
+    // ---- esquireCommandNew: unknown or odd kind → ResourceNotFoundException ----
 
     @Test
     @DisplayName("esquireCommandNew: unknown kind → ResourceNotFoundException")
     void esquireCommandNew_unknownKind_throwsResourceNotFoundException() {
         assertThatThrownBy(() ->
             service.esquireCommandNew(99, "1", "new", Map.of(), "1.2.3", "99", null)
+        ).isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    @Test
+    @DisplayName("esquireCommandNew: odd kind 33 (sub-variant, not registered) → ResourceNotFoundException")
+    void esquireCommandNew_oddKind_throwsResourceNotFoundException() {
+        assertThatThrownBy(() ->
+            service.esquireCommandNew(33, "1", "new", Map.of(), "1.2.3", "99", null)
         ).isInstanceOf(ResourceNotFoundException.class);
     }
 
@@ -220,14 +244,22 @@ class EnyManServiceTest {
         ).isInstanceOf(PermissionDeniedException.class);
     }
 
-    // ---- esquireCommandDelete: unknown kind, null roles → PermissionDeniedException (permission checked before kind dispatch) ----
+    // ---- esquireCommandDelete: unknown kind → ResourceNotFoundException (kind check fires before permission gate) ----
 
     @Test
-    @DisplayName("esquireCommandDelete: unknown kind, null roles → PermissionDeniedException (permission gate fires first)")
-    void esquireCommandDelete_unknownKind_nullRoles_throwsPermissionDeniedException() {
+    @DisplayName("esquireCommandDelete: unknown kind → ResourceNotFoundException")
+    void esquireCommandDelete_unknownKind_throwsResourceNotFoundException() {
         assertThatThrownBy(() ->
             service.esquireCommandDelete(99, "100", "delete", "1.2.3", "99", null)
-        ).isInstanceOf(PermissionDeniedException.class);
+        ).isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    @Test
+    @DisplayName("esquireCommandDelete: odd kind 33 (sub-variant, not registered) → ResourceNotFoundException")
+    void esquireCommandDelete_oddKind_throwsResourceNotFoundException() {
+        assertThatThrownBy(() ->
+            service.esquireCommandDelete(33, "100", "delete", "1.2.3", "99", null)
+        ).isInstanceOf(ResourceNotFoundException.class);
     }
 
     // ---- esquireDictionary: even kind → returns layers ----
@@ -239,22 +271,13 @@ class EnyManServiceTest {
         assertThat(ret).isNotNull().isNotEmpty();
     }
 
-    // ---- esquireDictionary: odd kind normalized to even → same result ----
+    // ---- esquireDictionary: odd kind → ResourceNotFoundException ----
 
     @Test
-    @DisplayName("esquireDictionary: odd kind 51 normalized to 50 → returns same layers")
-    void esquireDictionary_oddKind_normalizedToEven_returnsLayers() {
-        List<?> ret = service.esquireDictionary(51);
-        assertThat(ret).isNotNull().isNotEmpty();
-    }
-
-    // ---- esquireDictionary: null kind → ResourceNotFoundException (no NPE) ----
-
-    @Test
-    @DisplayName("esquireDictionary: null kind → ResourceNotFoundException, not NPE")
-    void esquireDictionary_nullKind_throwsResourceNotFoundException() {
+    @DisplayName("esquireDictionary: odd kind 51 (not registered) → ResourceNotFoundException")
+    void esquireDictionary_oddKind_throwsResourceNotFoundException() {
         assertThatThrownBy(() ->
-            service.esquireDictionary(null)
+            service.esquireDictionary(51)
         ).isInstanceOf(ResourceNotFoundException.class);
     }
 
@@ -367,6 +390,14 @@ class EnyManServiceTest {
     void esquireCommandMove_unknownKind_throwsResourceNotFoundException() {
         assertThatThrownBy(() ->
             service.esquireCommandMove(99, "100", "200", "1.", "99", List.of(ROLE_ADMIN))
+        ).isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    @Test
+    @DisplayName("esquireCommandMove: odd kind 33 (sub-variant, not registered) → ResourceNotFoundException")
+    void esquireCommandMove_oddKind_throwsResourceNotFoundException() {
+        assertThatThrownBy(() ->
+            service.esquireCommandMove(33, "100", "200", "1.", "99", List.of(ROLE_ADMIN))
         ).isInstanceOf(ResourceNotFoundException.class);
     }
 

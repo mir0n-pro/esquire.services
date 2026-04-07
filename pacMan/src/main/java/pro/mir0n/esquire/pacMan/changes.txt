@@ -1,5 +1,12 @@
 Esquire pacMan Microservice
 
+04/07/2026 mir0n  kind validation: normalization removed; Integer → int service params; upfront applicability checks
+service.IPacManService
+  - all kind params Integer → int (primitive)
+service.impl.PacManService
+  - all kind params Integer → int; normalization removed
+  - upfront applicability check (!isAcct → ResourceNotFoundException) at all entry points before permission gate
+
 04/06/2026 mir0n  log audit line fix
 messaging.EsqEntityBroadcastPublisher
   - log.info: requestId and correlationId added to ENTITY | UE audit line

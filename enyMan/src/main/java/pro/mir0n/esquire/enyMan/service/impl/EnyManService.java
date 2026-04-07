@@ -39,6 +39,8 @@
  *                   self-move guard (USR cannot move themselves); dest org validation; dispatches to OrgService/UsrService
  * 04/02/2026 mir0n  esquireCommandMove(): collects List<EsqMoveRecord>, publishMoveEvent()
  * 04/06/2026 mir0n  KC path sync: KcRequestPublisher injected; publishKcMoveRequest() sends EVENT_UPDATE_PATH URQ per USR move record
+ * 04/07/2026 mir0n  all kind params Integer → int; kind normalization removed;
+ *                   upfront applicability check (!isOrg && !isUsr → ResourceNotFoundException) at all entry points
  */
 
 package pro.mir0n.esquire.enyMan.service.impl;
@@ -95,24 +97,28 @@ public class EnyManService  extends AEnyManService {
     }
 
     @Override
-    public EsqEntity esquireCommand(Integer kind, String id, String cmd, String rootPath, String uid) {
-        int k = (int)Math.floor( (double) kind/2 ) * 2;
-        EsqObjectKind eek = EsqObjectKindStorage.getInstance().get(k);
+    public EsqEntity esquireCommand(int kind, String id, String cmd, String rootPath, String uid) {
+        EsqObjectKind eek = EsqObjectKindStorage.getInstance().get(kind);
+        if (!eek.isOrg() && !eek.isUsr()) {
+            throw new ResourceNotFoundException("esquireCommand", "kind", String.valueOf(kind));
+        }
+        int k = eek.getId();
         EsqEntity ret = null;
         if (eek.isOrg()) {
             ret = orgService.esquireCommand(k, id, cmd, rootPath, uid);
         } else if (eek.isUsr()) {
             ret = usrService.esquireCommand(k, id, cmd, rootPath, uid);
-        } else {
-            throw new ResourceNotFoundException("esquireDictionary", "kind", kind == null?"''":kind.toString());
         }
         return  ret;
     }
 
     @Override
-    public EsqEntity esquireCommandSave(Integer kind, String id, String cmd, Map<String, Object> fields, String rootPath, String uid, List<String> roles) {
-        int k = (int)Math.floor( (double) kind/2 ) * 2;
-        EsqObjectKind eek = EsqObjectKindStorage.getInstance().get(k);
+    public EsqEntity esquireCommandSave(int kind, String id, String cmd, Map<String, Object> fields, String rootPath, String uid, List<String> roles) {
+        EsqObjectKind eek = EsqObjectKindStorage.getInstance().get(kind);
+        if (!eek.isOrg() && !eek.isUsr()) {
+            throw new ResourceNotFoundException("esquireCommandSave", "kind", String.valueOf(kind));
+        }
+        int k = eek.getId();
         Map<Integer, EsqPermission> permissions = EsqRolesStorage.getInstance().findAdminPermissions(roles);
         boolean permitted = false;
         if (permissions != null) {
@@ -142,8 +148,6 @@ public class EnyManService  extends AEnyManService {
                     publishEntityEvent(ret, k, EsqMsgConstants.EVENT_UPDATE, requestId, correlationId, fields);
                 }
             }
-        } else {
-            throw new ResourceNotFoundException("esquireDictionary", "kind", kind == null?"''":kind.toString());
         }
         if (ret == null && !permitted) {
             throw new PermissionDeniedException(eek.getTitle(), "modify");
@@ -152,9 +156,12 @@ public class EnyManService  extends AEnyManService {
     }
 
     @Override
-    public EsqEntity esquireCommandNew(Integer kind, String parentId, String cmd, Map<String, Object> fields, String rootPath, String uid, List<String> roles) {
-        int k = (int)Math.floor( (double) kind/2 ) * 2;
-        EsqObjectKind eek = EsqObjectKindStorage.getInstance().get(k);
+    public EsqEntity esquireCommandNew(int kind, String parentId, String cmd, Map<String, Object> fields, String rootPath, String uid, List<String> roles) {
+        EsqObjectKind eek = EsqObjectKindStorage.getInstance().get(kind);
+        if (!eek.isOrg() && !eek.isUsr()) {
+            throw new ResourceNotFoundException("esquireCommandNew", "kind", String.valueOf(kind));
+        }
+        int k = eek.getId();
         Map<Integer, EsqPermission> permissions = EsqRolesStorage.getInstance().findAdminPermissions(roles);
         boolean permitted = false;
         if (permissions != null) {
@@ -176,8 +183,6 @@ public class EnyManService  extends AEnyManService {
                 ret = usrService.esquireCommandNew(k, parentId, cmd, fields, rootPath, uid, roles);
                 publishEntityEvent(ret, k, EsqMsgConstants.EVENT_CREATE, requestId, correlationId, fields);
             }
-        } else {
-            throw new ResourceNotFoundException("esquireDictionary", "kind", kind == null?"''":kind.toString());
         }
         if (ret == null && !permitted) {
             throw new PermissionDeniedException(eek.getTitle(), "create");
@@ -186,9 +191,12 @@ public class EnyManService  extends AEnyManService {
     }
 
     @Override
-    public void esquireCommandDelete(Integer kind, String id, String cmd, String rootPath, String uid, List<String> roles) {
-        int k = (int)Math.floor( (double) kind/2 ) * 2;
-        EsqObjectKind eek = EsqObjectKindStorage.getInstance().get(k);
+    public void esquireCommandDelete(int kind, String id, String cmd, String rootPath, String uid, List<String> roles) {
+        EsqObjectKind eek = EsqObjectKindStorage.getInstance().get(kind);
+        if (!eek.isOrg() && !eek.isUsr()) {
+            throw new ResourceNotFoundException("esquireCommandDelete", "kind", String.valueOf(kind));
+        }
+        int k = eek.getId();
         Map<Integer, EsqPermission> permissions = EsqRolesStorage.getInstance().findAdminPermissions(roles);
         boolean permitted = false;
         if (permissions != null) {
@@ -208,17 +216,15 @@ public class EnyManService  extends AEnyManService {
         } else if (eek.isUsr()) {
             usrService.esquireCommandDelete(k, id, cmd, rootPath, uid, roles);
             publishDeleteEvent(id, k, EsqMsgConstants.EVENT_DELETE, requestId, correlationId);
-        } else {
-            throw new ResourceNotFoundException("esquireDictionary", "kind", kind == null?"''":kind.toString());
         }
     }
 
     @Override
-    public List<EsqMoveRecord> esquireCommandMove(Integer kind, String id, String distId, String rootPath, String uid, List<String> roles) {
-        int k = (int)Math.floor( (double) kind/2 ) * 2;
-        EsqObjectKind eek = EsqObjectKindStorage.getInstance().get(k);
+    public List<EsqMoveRecord> esquireCommandMove(int kind, String id, String distId, String rootPath, String uid, List<String> roles) {
+        EsqObjectKind eek = EsqObjectKindStorage.getInstance().get(kind);
+        int k = eek.getId();
         if (!eek.isOrg() && !eek.isUsr()) {
-            throw new ResourceNotFoundException("esquireDictionary", "kind", kind == null?"''":kind.toString());
+            throw new ResourceNotFoundException("esquireDictionary", "kind", String.valueOf(kind));
         }
         Map<Integer, EsqPermission> permissions = EsqRolesStorage.getInstance().findAdminPermissions(roles);
         boolean permitted = false;
@@ -238,11 +244,11 @@ public class EnyManService  extends AEnyManService {
         if (destOrg == null) {
             throw new ResourceNotFoundException("esq-move", "dist_id", distId);
         }
-        int dk = (int)Math.floor( (double) destOrg.getKind()/2 ) * 2;
+        //int dk = (int)Math.floor( (double) destOrg.getKind()/2 ) * 2;
         boolean destPermitted = false;
         if (permissions != null) {
             destPermitted = EsqRolesStorage.getInstance().isAdminCmdPermitted(
-                permissions.get(dk),
+                permissions.get(destOrg.getKind()),
                 EsqRolesStorage.AdminCmd.UPDATE
             );
         }

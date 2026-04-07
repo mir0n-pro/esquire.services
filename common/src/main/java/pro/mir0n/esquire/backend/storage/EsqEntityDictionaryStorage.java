@@ -8,6 +8,8 @@
  *  History:
  * 12/28/2025 mir0n logging added using Slf4j
  * 03/21/2026 mir0n  devLog added; dual error pattern; unused imports removed
+ * 04/07/2026 mir0n  storage changed from List to Map<Integer, EsqEntityDictionary> for O(1) lookup
+ *                   get(int kind): direct map lookup; init(fileName): forEach put
  */
 
 package pro.mir0n.esquire.backend.storage;
@@ -27,8 +29,8 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.Reader;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.HashMap;
+import java.util.Map;
 
 @Slf4j
 public class EsqEntityDictionaryStorage {
@@ -36,28 +38,20 @@ public class EsqEntityDictionaryStorage {
     private static final org.slf4j.Logger devLog = LoggerFactory.getLogger("develop." + EsqEntityDictionaryStorage.class.getName());
 
     private static EsqEntityDictionaryStorage itSelf = new EsqEntityDictionaryStorage();
-    private static List<EsqEntityDictionary> storage = new ArrayList<>();
+    private static Map<Integer, EsqEntityDictionary> storage = new HashMap<>();
     //private EsqEntityDictionaryStorage() {};
 
      public static EsqEntityDictionaryStorage getInstance() {
          return itSelf;
      }
 
-    public void init(EsqEntityDictionary desc ) {
-         storage.add(desc);
+    public void init(EsqEntityDictionary desc) {
+        storage.put(desc.getKind(), desc);
     }
 
-     public EsqEntityDictionary get(Integer kind) {
-         EsqEntityDictionary ret = null;
-         int k = (int) Math.floor((double) kind / 2) * 2;
-         for (EsqEntityDictionary dict : storage) {
-             if (dict.getKind().equals(k)) {
-                 ret = dict;
-                 break;
-             }
-         }
-         return ret;
-     }
+    public EsqEntityDictionary get(int kind) {
+        return storage.get(kind);
+    }
 
     private String loadResourceContent(String fileName) throws IOException {
         ResourceLoader resourceLoader = new DefaultResourceLoader();
@@ -78,8 +72,8 @@ public class EsqEntityDictionaryStorage {
             String xml = loadResourceContent(fileName);
             EsqEntityDictionaryShell shell = xmlMapper.readValue(xml, EsqEntityDictionaryShell.class);
             if (shell != null && shell.getDictionaries() != null) {
-                storage.addAll(shell.getDictionaries());
                 shell.sortLayers();
+                shell.getDictionaries().forEach(d -> storage.put(d.getKind(), d));
             }
             log.info("Dictionaries loaded successfully");
             //System.out.println(shell);

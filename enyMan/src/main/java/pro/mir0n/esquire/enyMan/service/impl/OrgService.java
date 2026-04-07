@@ -21,6 +21,7 @@
  * 03/31/2026 mir0n  esquireCommandMove() + moveOrg(): subtree path update, descendant guard,
  *                   skip-if-same-parent; insertOrgPath: kind param added (ep_et_pk)
  * 04/01/2026 mir0n  move: collects updated records
+ * 04/07/2026 mir0n  all kind params Integer → int (including private createOrg)
  */
 
 package pro.mir0n.esquire.enyMan.service.impl;
@@ -69,7 +70,7 @@ public class OrgService  extends AEnyManService {
 
 
     @Override
-    public EsqEntity esquireCommand(Integer kind, String id, String cmd, String rootPath, String uid) {
+    public EsqEntity esquireCommand(int kind, String id, String cmd, String rootPath, String uid) {
         //String correlationId = RequestContextUtils.getCorrelationId();
         //String requestId = RequestContextUtils.getRequestId();
         devLog.debug("srvc: esquireCommand(org): kind:{}, id:{}, cmd:{}, rootPath:{}, uid:{}",  kind, id, cmd, rootPath, uid);
@@ -84,7 +85,7 @@ public class OrgService  extends AEnyManService {
     }
 
     @Override
-    public EsqEntity esquireCommandSave(Integer kind, String id, String cmd, Map<String, Object> fields, String rootPath, String uid, List<String> roles) {
+    public EsqEntity esquireCommandSave(int kind, String id, String cmd, Map<String, Object> fields, String rootPath, String uid, List<String> roles) {
         String correlationId = RequestContextUtils.getCorrelationId();
         String requestId = RequestContextUtils.getRequestId();
         devLog.debug("srvc: esquireCommandSave(org): kind:{}, id:{}, cmd:{}, rootPath:{}, uid:{}", kind, id, cmd, rootPath, uid);
@@ -109,7 +110,7 @@ public class OrgService  extends AEnyManService {
     }
 
     @Override
-    public EsqEntity esquireCommandNew(Integer kind, String parentId, String cmd, Map<String, Object> fields, String rootPath, String uid, List<String> roles) {
+    public EsqEntity esquireCommandNew(int kind, String parentId, String cmd, Map<String, Object> fields, String rootPath, String uid, List<String> roles) {
         String correlationId = RequestContextUtils.getCorrelationId();
         String requestId = RequestContextUtils.getRequestId();
         devLog.debug("srvc: esquireCommandNew(org): kind:{}, parentId:{}, cmd:{}, rootPath:{}, uid:{}", kind, parentId, cmd, rootPath, uid);
@@ -128,7 +129,7 @@ public class OrgService  extends AEnyManService {
     }
 
     @Override
-    public void esquireCommandDelete(Integer kind, String id, String cmd, String rootPath, String uid, List<String> roles) {
+    public void esquireCommandDelete(int kind, String id, String cmd, String rootPath, String uid, List<String> roles) {
         devLog.debug("srvc: esquireCommandDelete(org): kind:{}, id:{}, cmd:{}, rootPath:{}, uid:{}", kind, id, cmd, rootPath, uid);
         transactionTemplate.execute(status -> {
             em.setFlushMode(FlushModeType.COMMIT);
@@ -138,7 +139,7 @@ public class OrgService  extends AEnyManService {
     }
 
     @Override
-    public List<EsqMoveRecord> esquireCommandMove(Integer kind, String id, String distId, String rootPath, String uid, List<String> roles) {
+    public List<EsqMoveRecord> esquireCommandMove(int kind, String id, String distId, String rootPath, String uid, List<String> roles) {
         String correlationId = RequestContextUtils.getCorrelationId();
         String requestId = RequestContextUtils.getRequestId();
         devLog.debug("srvc: esquireCommandMove(org): kind:{}, id:{}, distId:{}, rootPath:{}, uid:{}", kind, id, distId, rootPath, uid);
@@ -170,7 +171,7 @@ public class OrgService  extends AEnyManService {
         return rows;
     }
 
-    private void createOrg(Integer kind, String parentId, Map<String, Object> fields,
+    private void createOrg(int kind, String parentId, Map<String, Object> fields,
                             String rootPath, String uid, String correlationId, String requestId,
                             EsqEntityJpa[] created) {
         String parentPath = orgRepository.orgPath(parentId, rootPath);

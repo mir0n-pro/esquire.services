@@ -14,6 +14,7 @@
  * 03/26/2026 mir0n  esquireCommandNew(), esquireCommandDelete() added
  * 03/31/2026 mir0n  esquireCommandMove() added
  * 04/01/2026 mir0n  esquireCommandMove(): returns List<EsqMoveRecord> (id,kind,path per moved entity)
+ * 04/07/2026 mir0n  all kind params Integer → int (primitive)
  */
 
 package pro.mir0n.esquire.enyMan.service;
@@ -27,11 +28,11 @@ import pro.mir0n.esquire.enyMan.jpa.EsqMoveRecord;
 
 public interface IEnyManService {
 
-    List<EsqEntityLayer> esquireDictionary(Integer kind);
-    public EsqEntity esquireCommand(Integer kind, String id, String cmd, String rootPath, String uid );
-    public EsqEntity esquireCommandSave(Integer kind, String id, String cmd, Map<String, Object> fields, String rootPath, String uid, List<String> roles );
-    public EsqEntity esquireCommandNew(Integer kind, String parentId, String cmd, Map<String, Object> fields, String rootPath, String uid, List<String> roles);
-    public void esquireCommandDelete(Integer kind, String id, String cmd, String rootPath, String uid, List<String> roles);
-    public List<EsqMoveRecord> esquireCommandMove(Integer kind, String id, String distId, String rootPath, String uid, List<String> roles);
+    List<EsqEntityLayer> esquireDictionary(int kind);
+    public EsqEntity esquireCommand(int kind, String id, String cmd, String rootPath, String uid );
+    public EsqEntity esquireCommandSave(int kind, String id, String cmd, Map<String, Object> fields, String rootPath, String uid, List<String> roles );
+    public EsqEntity esquireCommandNew(int kind, String parentId, String cmd, Map<String, Object> fields, String rootPath, String uid, List<String> roles);
+    public void esquireCommandDelete(int kind, String id, String cmd, String rootPath, String uid, List<String> roles);
+    public List<EsqMoveRecord> esquireCommandMove(int kind, String id, String distId, String rootPath, String uid, List<String> roles);
 
 }

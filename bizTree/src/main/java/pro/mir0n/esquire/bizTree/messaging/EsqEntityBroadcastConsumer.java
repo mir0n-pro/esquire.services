@@ -18,6 +18,7 @@
  *                   KindType enum removed
  * 03/26/2026 mir0n  DeleteEntityHandler registered for (DELETE, ORG/USR/ACCT) — skeleton, no cascade
  * 04/02/2025 mir0n  Added 3 move handlers for each kind-kind
+ * 04/07/2026 mir0n  kind normalization removed from dispatch; EsqObjectKindStorage.get() receives raw entityKind
  */
 package pro.mir0n.esquire.bizTree.messaging;
 
@@ -127,8 +128,7 @@ public class EsqEntityBroadcastConsumer {
             log.info("ENTITY | UE | {} | {} | {} | {}",
                     applMsgId, eventType, entityKind, entityId); //xxx: requestId, correlationId are in MDC
 
-            int           k        = (int) Math.floor((double) entityKind / 2) * 2;
-            EsqObjectKind eek      = EsqObjectKindStorage.getInstance().get(k);
+            EsqObjectKind eek      = EsqObjectKindStorage.getInstance().get(entityKind);
             int           kindBits = (eek.isAcct() ? 4 : 0) + (eek.isUsr() ? 2 : 0) + (eek.isOrg() ? 1 : 0);
 
             IBizTreeEventHandler handler = handlers.get(new HandlerKey(eventType, kindBits));

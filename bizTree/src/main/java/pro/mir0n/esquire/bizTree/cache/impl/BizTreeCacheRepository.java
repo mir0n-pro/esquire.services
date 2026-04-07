@@ -18,6 +18,7 @@
  *                   added moveUsrNode();
  *                   added moveAcctNode();
  * 04/06/2026 mir0n  moveUsrNode(): admin-aware orgPk extraction using isPathParentOnly()
+ * 04/07/2026 mir0n  moveUsrNode(): param renamed kind; EsqObjectKindStorage.get() receives raw kind
  */
 package pro.mir0n.esquire.bizTree.cache.impl;
 
@@ -234,12 +235,12 @@ public class BizTreeCacheRepository implements IBizTreeCacheRepository {
     }
 
     @Override
-    public void moveUsrNode(long usrPk, int normalizedKind, String newEntityPath) {
+    public void moveUsrNode(long usrPk, int kind, String newEntityPath) {
         String   usrPkStr = String.valueOf(usrPk);
         String[] segs     = newEntityPath.substring(0, newEntityPath.length() - 1).split("\\.");
         long     entityPk = usrPk;
         if (segs.length < 2) return;
-        EsqObjectKind eek = EsqObjectKindStorage.getInstance().get(normalizedKind);
+        EsqObjectKind eek = EsqObjectKindStorage.getInstance().get(kind);
         // Admin ep_path = orgPath: last segment IS the org pk  (e.g. "1.9.200." → 200)
         // Regular ep_path includes own pk: second-to-last is org pk  (e.g. "1.9.200.100." → 200)
         long   orgPk      = eek.isPathParentOnly()
@@ -247,7 +248,7 @@ public class BizTreeCacheRepository implements IBizTreeCacheRepository {
                             : Long.parseLong(segs[segs.length - 2]);
         int    folderKind = (orgPk == BizTreeConstants.ORG_ROOT_PK)
                             ? BizTreeConstants.FOLDER_SYS_ADMIN
-                            : BizTreeConstants.folderKindForUsr(normalizedKind);
+                            : BizTreeConstants.folderKindForUsr(eek.getId());
         String folderPk   = orgPk + "~" + folderKind;
         String folderPath = findPath(folderPk);
         if (folderPath == null) {

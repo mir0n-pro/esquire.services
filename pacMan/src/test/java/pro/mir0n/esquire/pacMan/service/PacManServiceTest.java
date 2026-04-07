@@ -112,7 +112,7 @@ class PacManServiceTest {
         service = new PacManService(entityRepository, transactionTemplate, em, broadcastPublisher);
     }
 
-    // ---- esquireCommand: unknown kind → ResourceNotFoundException ----
+    // ---- esquireCommand: unknown or odd kind → ResourceNotFoundException ----
 
     @Test
     @DisplayName("esquireCommand: unknown kind → ResourceNotFoundException")
@@ -122,13 +122,29 @@ class PacManServiceTest {
         ).isInstanceOf(ResourceNotFoundException.class);
     }
 
-    // ---- esquireCommandSave: unknown kind → ResourceNotFoundException ----
+    @Test
+    @DisplayName("esquireCommand: odd kind 51 (sub-variant, not registered) → ResourceNotFoundException")
+    void esquireCommand_oddKind_throwsResourceNotFoundException() {
+        assertThatThrownBy(() ->
+            service.esquireCommand(51, "1", "details", "1.2.3", "99")
+        ).isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    // ---- esquireCommandSave: unknown or odd kind → ResourceNotFoundException ----
 
     @Test
     @DisplayName("esquireCommandSave: unknown kind → ResourceNotFoundException")
     void esquireCommandSave_unknownKind_throwsResourceNotFoundException() {
         assertThatThrownBy(() ->
             service.esquireCommandSave(99, "1", "save", Map.of(), "1.2.3", "99", null)
+        ).isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    @Test
+    @DisplayName("esquireCommandSave: odd kind 51 (sub-variant, not registered) → ResourceNotFoundException")
+    void esquireCommandSave_oddKind_throwsResourceNotFoundException() {
+        assertThatThrownBy(() ->
+            service.esquireCommandSave(51, "1", "save", Map.of(), "1.2.3", "99", null)
         ).isInstanceOf(ResourceNotFoundException.class);
     }
 
@@ -142,13 +158,21 @@ class PacManServiceTest {
         ).isInstanceOf(PermissionDeniedException.class);
     }
 
-    // ---- esquireCommandNew: unknown kind → ResourceNotFoundException ----
+    // ---- esquireCommandNew: unknown or odd kind → ResourceNotFoundException ----
 
     @Test
     @DisplayName("esquireCommandNew: unknown kind → ResourceNotFoundException")
     void esquireCommandNew_unknownKind_throwsResourceNotFoundException() {
         assertThatThrownBy(() ->
             service.esquireCommandNew(99, "1", "new", Map.of(), "1.2.3", "99", null)
+        ).isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    @Test
+    @DisplayName("esquireCommandNew: odd kind 51 (sub-variant, not registered) → ResourceNotFoundException")
+    void esquireCommandNew_oddKind_throwsResourceNotFoundException() {
+        assertThatThrownBy(() ->
+            service.esquireCommandNew(51, "1", "new", Map.of(), "1.2.3", "99", null)
         ).isInstanceOf(ResourceNotFoundException.class);
     }
 
@@ -162,13 +186,21 @@ class PacManServiceTest {
         ).isInstanceOf(PermissionDeniedException.class);
     }
 
-    // ---- esquireCommandDelete: unknown kind → ResourceNotFoundException ----
+    // ---- esquireCommandDelete: unknown or odd kind → ResourceNotFoundException ----
 
     @Test
     @DisplayName("esquireCommandDelete: unknown kind → ResourceNotFoundException")
     void esquireCommandDelete_unknownKind_throwsResourceNotFoundException() {
         assertThatThrownBy(() ->
             service.esquireCommandDelete(99, "10", "delete", "1.2.3", "99", null)
+        ).isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    @Test
+    @DisplayName("esquireCommandDelete: odd kind 51 (sub-variant, not registered) → ResourceNotFoundException")
+    void esquireCommandDelete_oddKind_throwsResourceNotFoundException() {
+        assertThatThrownBy(() ->
+            service.esquireCommandDelete(51, "10", "delete", "1.2.3", "99", null)
         ).isInstanceOf(ResourceNotFoundException.class);
     }
 

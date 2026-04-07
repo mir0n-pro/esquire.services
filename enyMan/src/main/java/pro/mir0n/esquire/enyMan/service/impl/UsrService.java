@@ -32,6 +32,7 @@
  * 04/06/2026 mir0n  moveUsr(): admin/regular branch split — admin uses pk-based moveAdminPath (no ACCT cascade);
  *                   regular uses equality moveUsrPaths (covers user row + all ACCT rows)
  *                   createUsr(): admin ep_path = parent org path only (no own PK appended)
+ * 04/07/2026 mir0n  all kind params Integer → int; moveUsr/createUsr: get kind directly without normalization
  */
 
 package pro.mir0n.esquire.enyMan.service.impl;
@@ -87,13 +88,13 @@ public class UsrService  extends AEnyManService {
 
 
     @Override
-    public List<EsqEntityLayer> esquireDictionary(Integer kind) {
+    public List<EsqEntityLayer> esquireDictionary(int kind) {
         //xxx: not in use
         return null;
     }
 
     @Override
-    public EsqEntity esquireCommand(Integer kind, String id, String cmd, String rootPath, String uid) {
+    public EsqEntity esquireCommand(int kind, String id, String cmd, String rootPath, String uid) {
         devLog.debug("srvc: esquireCommand(usr): kind:{}, id:{}, cmd:{}, rootPath:{}, uid:{}",  kind, id, cmd, rootPath, uid);
 
         EsqObjectKind eek = EsqObjectKindStorage.getInstance().get(kind);
@@ -131,7 +132,7 @@ public class UsrService  extends AEnyManService {
     }
 
     @Override
-    public EsqEntity esquireCommandSave(Integer kind, String id, String cmd, Map<String, Object> fields, String rootPath, String uid, List<String> roles) {
+    public EsqEntity esquireCommandSave(int kind, String id, String cmd, Map<String, Object> fields, String rootPath, String uid, List<String> roles) {
         String correlationId = RequestContextUtils.getCorrelationId();
         String requestId = RequestContextUtils.getRequestId();
         devLog.debug("srvc: esquireCommandSave(usr): kind:{}, id:{}, cmd:{}, rootPath:{}, uid:{}", kind, id, cmd, rootPath, uid);
@@ -163,7 +164,7 @@ public class UsrService  extends AEnyManService {
     }
 
     @Override
-    public EsqEntity esquireCommandNew(Integer kind, String parentId, String cmd, Map<String, Object> fields, String rootPath, String uid, List<String> roles) {
+    public EsqEntity esquireCommandNew(int kind, String parentId, String cmd, Map<String, Object> fields, String rootPath, String uid, List<String> roles) {
         String correlationId = RequestContextUtils.getCorrelationId();
         String requestId = RequestContextUtils.getRequestId();
         devLog.debug("srvc: esquireCommandNew(usr): kind:{}, parentId:{}, cmd:{}, rootPath:{}, uid:{}", kind, parentId, cmd, rootPath, uid);
@@ -188,7 +189,7 @@ public class UsrService  extends AEnyManService {
     }
 
     @Override
-    public void esquireCommandDelete(Integer kind, String id, String cmd, String rootPath, String uid, List<String> roles) {
+    public void esquireCommandDelete(int kind, String id, String cmd, String rootPath, String uid, List<String> roles) {
         devLog.debug("srvc: esquireCommandDelete(usr): kind:{}, id:{}, cmd:{}, rootPath:{}, uid:{}", kind, id, cmd, rootPath, uid);
         transactionTemplate.execute(status -> {
             em.setFlushMode(FlushModeType.COMMIT);
@@ -198,7 +199,7 @@ public class UsrService  extends AEnyManService {
     }
 
     @Override
-    public List<EsqMoveRecord> esquireCommandMove(Integer kind, String id, String distId, String rootPath, String uid, List<String> roles) {
+    public List<EsqMoveRecord> esquireCommandMove(int kind, String id, String distId, String rootPath, String uid, List<String> roles) {
         String correlationId = RequestContextUtils.getCorrelationId();
         String requestId = RequestContextUtils.getRequestId();
         devLog.debug("srvc: esquireCommandMove(usr): kind:{}, id:{}, distId:{}, rootPath:{}, uid:{}", kind, id, distId, rootPath, uid);
@@ -218,8 +219,7 @@ public class UsrService  extends AEnyManService {
         if (distId.equals(usr.getParentId())) {
             return List.of();
         }
-        int normalizedKind = (int) Math.floor((double) usr.getKind() / 2) * 2;
-        EsqObjectKind eek  = EsqObjectKindStorage.getInstance().get(normalizedKind);
+        EsqObjectKind eek = EsqObjectKindStorage.getInstance().get(usr.getKind());
         String destPath    = usrRepository.usrPath(distId, rootPath);
         List<EsqMoveRecord> rows;
         if (eek.isPathParentOnly()) {
@@ -239,7 +239,7 @@ public class UsrService  extends AEnyManService {
         return rows;
     }
 
-    private void createUsr(Integer kind, String parentId, Map<String, Object> fields,
+    private void createUsr(int kind, String parentId, Map<String, Object> fields,
                             String rootPath, String uid, String correlationId, String requestId,
                             EsqEntityJpa[] created, List<EsqNameValueJpa>[] custom,
                             EsqEntityJpa[] person, EsqEntityJpa[] address, EsqEntityJpa[] address2) {
@@ -253,8 +253,7 @@ public class UsrService  extends AEnyManService {
         }
         long newId = EsqUtils.generateEntityId();
         String idStr = String.valueOf(newId);
-        int normalizedKind = (int) Math.floor((double) kind / 2) * 2;
-        EsqObjectKind eek  = EsqObjectKindStorage.getInstance().get(normalizedKind);
+        EsqObjectKind eek = EsqObjectKindStorage.getInstance().get(kind);
         String path = eek.isPathParentOnly() ? parentPath : parentPath + newId + ".";
         fields.put("path", path);
 

@@ -8,6 +8,8 @@
  *  History:
  * 02/28/2026 mir0n  UNKNOWN kind updated with address=false
  * 03/21/2026 mir0n  devLog added; dual error pattern; unused imports removed
+ * 04/07/2026 mir0n  storage changed from List to Map<Integer, EsqObjectKind> for O(1) lookup
+ *                   get(): getOrDefault(id, UNKNOWN); getAll(): returns defensive copy
  */
 
 package pro.mir0n.esquire.backend.storage;
@@ -27,7 +29,9 @@ import java.io.InputStreamReader;
 import java.io.Reader;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @Slf4j
 public class EsqObjectKindStorage {
@@ -35,7 +39,7 @@ public class EsqObjectKindStorage {
     private static final org.slf4j.Logger devLog = LoggerFactory.getLogger("develop." + EsqObjectKindStorage.class.getName());
 
     private static EsqObjectKindStorage itSelf = new EsqObjectKindStorage();
-    private static List<EsqObjectKind> storage = new ArrayList<>();
+    private static Map<Integer, EsqObjectKind> storage = new HashMap<>();
     public static EsqObjectKind UNKNOWN = new EsqObjectKind(-1, "unknown", "Unknown", "unknown", "Unknown entity", false, false, false, "", false, false, "", null, null, null,false);
     //private EsqEntityDictionaryStorage() {};
 
@@ -43,26 +47,16 @@ public class EsqObjectKindStorage {
          return itSelf;
      }
 
-    public void init(EsqObjectKind kind ) {
-         storage.add(kind);
+    public void init(EsqObjectKind kind) {
+        storage.put(kind.getId(), kind);
     }
 
-     public EsqObjectKind get(int id) {
-         EsqObjectKind ret = null;
-         for (EsqObjectKind knd : storage) {
-             if (knd.getId() == id) {
-                 ret = knd;
-                 break;
-             }
-         }
-         if (ret == null) {
-            ret = UNKNOWN;
-         }
-         return ret;
-     }
+    public EsqObjectKind get(int id) {
+        return storage.getOrDefault(id, UNKNOWN);
+    }
 
     public List<EsqObjectKind> getAll() {
-        return storage;
+        return new ArrayList<>(storage.values());
     }
 
     private String loadResourceContent(String fileName) throws IOException {
@@ -84,7 +78,7 @@ public class EsqObjectKindStorage {
             String xml = loadResourceContent(fileName);
             EsqObjectKinds kinds = xmlMapper.readValue(xml, EsqObjectKinds.class);
             if (kinds != null && kinds.getKinds() != null) {
-                storage.addAll(kinds.getKinds());
+                kinds.getKinds().forEach(k -> storage.put(k.getId(), k));
             }
             log.info("Object Kinds loaded successfully");
             //System.out.println(kinds);

@@ -37,6 +37,8 @@
  * 03/28/2026 mir0n  createAcct(): dict-driven defaults via EsqEntityDictionaryStorage.injectDefaults; replaces hardcoded ccy/status ternaries
  * 03/28/2026 mir0n  createAcct(): insertAcctPath before insertAcct; deleteAcct(): deleteEntityPath after deleteAcct
  * 03/31/2026 mir0n  insertAcctPath call: kind param added
+ * 04/07/2026 mir0n  all kind params Integer → int; kind normalization removed;
+ *                   upfront applicability check (!isAcct → ResourceNotFoundException) at all entry points
  */
 
 package pro.mir0n.esquire.pacMan.service.impl;
@@ -87,19 +89,17 @@ public class PacManService  implements IPacManService {
 
 
     @Override
-    public EsqEntity esquireCommand(Integer kind, String id, String cmd, String rootPath, String uid) {
+    public EsqEntity esquireCommand(int kind, String id, String cmd, String rootPath, String uid) {
         String correlationId = RequestContextUtils.getCorrelationId();
         String requestId = RequestContextUtils.getRequestId();
         devLog.debug("srvc: esquireCommand: kind:{}, id:{}, cmd:{}, rootPath:{}, uid:{}",  kind, id, cmd, rootPath, uid);
 
-        int k = (int)Math.floor( (double) kind/2 ) * 2;
-        EsqObjectKind eek = EsqObjectKindStorage.getInstance().get(k);
-
-        EsqEntityJpa jpa = null;
-        // xxx: path is safe
-        if (eek.isAcct()) {
-            jpa = entityRepository.detailAcct(id, rootPath);
+        EsqObjectKind eek = EsqObjectKindStorage.getInstance().get(kind);
+        if (!eek.isAcct()) {
+            throw new ResourceNotFoundException("esquireCommand", "kind", String.valueOf(kind));
         }
+
+        EsqEntityJpa jpa = entityRepository.detailAcct(id, rootPath);
         if (jpa == null) {
             throw new ResourceNotFoundException("esquireEntity", "kind, id", kind + "," + id);
         }
@@ -110,14 +110,14 @@ public class PacManService  implements IPacManService {
     }
 
     @Override
-    public EsqEntity esquireCommandSave(Integer kind, String id, String cmd, Map<String, Object> fields, String rootPath, String uid, List<String> roles) {
+    public EsqEntity esquireCommandSave(int kind, String id, String cmd, Map<String, Object> fields, String rootPath, String uid, List<String> roles) {
         String correlationId = RequestContextUtils.getCorrelationId();
         String requestId = RequestContextUtils.getRequestId();
 //        devLog.debug("srvc: esquireCommandSave: kind:{}, id:{}, cmd:{}, rootPath:{}, uid:{}", kind, id, cmd, rootPath, uid);
-        int k = ((int)Math.floor((double) kind/2)) * 2;
-        EsqObjectKind eek = EsqObjectKindStorage.getInstance().get(k);
+        EsqObjectKind eek = EsqObjectKindStorage.getInstance().get(kind);
+        int k = eek.getId();
         if (!eek.isAcct()) {
-            throw new ResourceNotFoundException("esquireCommandSave", "kind", kind.toString());
+            throw new ResourceNotFoundException("esquireCommandSave", "kind", String.valueOf(kind));
         }
 
         Map<Integer, EsqPermission> permissions = EsqRolesStorage.getInstance().findAdminPermissions(roles);
@@ -201,15 +201,15 @@ public class PacManService  implements IPacManService {
     }
 
     @Override
-    public EsqEntity esquireCommandNew(Integer kind, String parentId, String cmd, Map<String, Object> fields, String rootPath, String uid, List<String> roles) {
+    public EsqEntity esquireCommandNew(int kind, String parentId, String cmd, Map<String, Object> fields, String rootPath, String uid, List<String> roles) {
         String correlationId = RequestContextUtils.getCorrelationId();
         String requestId = RequestContextUtils.getRequestId();
         devLog.debug("srvc: esquireCommandNew: kind:{}, parentId:{}, cmd:{}, fields:{}, rootPath:{}, uid:{}", kind, parentId, cmd, fields, rootPath, uid);
 
-        int k = ((int)Math.floor((double) kind/2)) * 2;
-        EsqObjectKind eek = EsqObjectKindStorage.getInstance().get(k);
+        EsqObjectKind eek = EsqObjectKindStorage.getInstance().get(kind);
+        int k = eek.getId();
         if (!eek.isAcct()) {
-            throw new ResourceNotFoundException("esquireCommandNew", "kind", kind.toString());
+            throw new ResourceNotFoundException("esquireCommandNew", "kind", String.valueOf(kind));
         }
 
         Map<Integer, EsqPermission> permissions = EsqRolesStorage.getInstance().findAdminPermissions(roles);
@@ -239,15 +239,15 @@ public class PacManService  implements IPacManService {
     }
 
     @Override
-    public void esquireCommandDelete(Integer kind, String id, String cmd, String rootPath, String uid, List<String> roles) {
+    public void esquireCommandDelete(int kind, String id, String cmd, String rootPath, String uid, List<String> roles) {
         String correlationId = RequestContextUtils.getCorrelationId();
         String requestId = RequestContextUtils.getRequestId();
         devLog.debug("srvc: esquireCommandDelete: kind:{}, id:{}, cmd:{}, rootPath:{}, uid:{}", kind, id, cmd, rootPath, uid);
 
-        int k = ((int)Math.floor((double) kind/2)) * 2;
-        EsqObjectKind eek = EsqObjectKindStorage.getInstance().get(k);
+        EsqObjectKind eek = EsqObjectKindStorage.getInstance().get(kind);
+        int k = eek.getId();
         if (!eek.isAcct()) {
-            throw new ResourceNotFoundException("esquireCommandDelete", "kind", kind.toString());
+            throw new ResourceNotFoundException("esquireCommandDelete", "kind", String.valueOf(kind));
         }
 
         Map<Integer, EsqPermission> permissions = EsqRolesStorage.getInstance().findAdminPermissions(roles);

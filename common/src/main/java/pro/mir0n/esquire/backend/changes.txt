@@ -1,5 +1,15 @@
 Esquire Backend common microservice classes
 
+04/07/2026 mir0n  kind validation: storage List → Map; normalization removed; EsqUsr cleanup
+storage.EsqObjectKindStorage
+  - storage changed from List to Map<Integer, EsqObjectKind> for O(1) lookup
+  - get(): getOrDefault(id, UNKNOWN); getAll(): returns defensive copy
+storage.EsqEntityDictionaryStorage
+  - storage changed from List to Map<Integer, EsqEntityDictionary> for O(1) lookup
+  - get(int kind): direct map lookup; init(fileName): forEach put
+dto.entity.EsqUsr
+  - removed dead findKind() helper; removed debug println
+
 04/06/2026 mir0n  entity path semantics: isPathParentOnly()
 dto.EsqObjectKind
   - isPathParentOnly(): true for SYS_ADMIN (30) and ADMIN (32) — ep_path equals parent org path, own PK not appended

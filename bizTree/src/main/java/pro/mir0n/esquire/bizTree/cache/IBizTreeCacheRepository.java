@@ -15,6 +15,7 @@
  * 04/02/2026 mir0n  added moveOrgNode()
  *                   added moveUsrNode();
  *                   added moveAcctNode();
+ * 04/07/2026 mir0n  moveUsrNode(): param renamed kind (raw kind; storage handles via getOrDefault)
  */
 package pro.mir0n.esquire.bizTree.cache;
 
@@ -124,9 +125,9 @@ public interface IBizTreeCacheRepository {
     /**
      * Moves a user node to the new entity path, re-parenting under the correct folder.
      *
-     * @param normalizedKind normalized kind (used for folder routing)
+     * @param kind entity kind (used for folder routing)
      */
-    void moveUsrNode(long usrPk, int normalizedKind, String newEntityPath);
+    void moveUsrNode(long usrPk, int kind, String newEntityPath);
 
     /**
      * Moves an account main node and its shortcut node to the new entity path.

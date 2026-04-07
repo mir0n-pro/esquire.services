@@ -1,5 +1,18 @@
 Esquire enyMan Microservice
 
+04/07/2026 mir0n  kind validation: normalization removed; Integer → int service params; upfront applicability checks
+service.IEnyManService
+  - all kind params Integer → int (primitive)
+service.impl.AEnyManService
+  - esquireDictionary(): kind param Integer → int; normalization removed
+service.impl.EnyManService
+  - all kind params Integer → int; normalization removed
+  - upfront applicability check (!isOrg && !isUsr → ResourceNotFoundException) at all entry points before permission gate
+service.impl.OrgService
+  - all kind params Integer → int (including private createOrg)
+service.impl.UsrService
+  - all kind params Integer → int; get kind directly without normalization in moveUsr/createUsr
+
 04/06/2026 mir0n  esq-move Phase III: KC path sync; entity path semantics fix
 + added messaging.KcRequestPublisher
   - publishes EVENT_UPDATE_PATH URQ to kcMaster KC sync queue on USR entity move

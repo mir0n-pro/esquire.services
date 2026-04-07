@@ -1,3 +1,15 @@
+/*
+ *  Esquire frameworks (tm)
+ *  BizTree service
+ *
+ *  Copyright(c) 2001, 2025 mir0n&co www.mir0n.me
+ *  mailto:mir0n.the.programmer@gmail.com
+ *
+ *  History:
+ * 04/02/2026 mir0n  created: handles USR entity MOVE (UPDATE_PATH) events;
+ *                   routes path update to IBizTreeCacheRepository.moveUsrNode()
+ * 04/07/2026 mir0n  normalization removed; raw entityKind passed to moveUsrNode()
+ */
 package pro.mir0n.esquire.bizTree.messaging.handler;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -20,7 +32,6 @@ public class MoveUsrHandler implements IBizTreeEventHandler {
         if (newEntityPath == null) {
             return;
         }
-        int normalizedKind = (int) Math.floor((double) entityKind / 2) * 2;
-        cacheRepository.moveUsrNode(Long.parseLong(entityId), normalizedKind, newEntityPath);
+        cacheRepository.moveUsrNode(Long.parseLong(entityId), entityKind, newEntityPath);
     }
 }
