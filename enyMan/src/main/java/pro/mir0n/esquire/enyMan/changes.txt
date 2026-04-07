@@ -1,5 +1,9 @@
 Esquire enyMan Microservice
 
+04/07/2026 mir0n  unified facade API: /esq-new→/esq-cmd-new, /esq-del→/esq-cmd-del
+controller.EnyManController
+  - @PostMapping paths: /esq-new→/esq-cmd-new, /esq-del→/esq-cmd-del
+
 04/07/2026 mir0n  kind validation: normalization removed; Integer → int service params; upfront applicability checks
 service.IEnyManService
   - all kind params Integer → int (primitive)

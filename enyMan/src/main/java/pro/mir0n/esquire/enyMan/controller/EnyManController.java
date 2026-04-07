@@ -20,6 +20,7 @@
  * 03/21/2026 mir0n  devLog added; log.debug→devLog.debug
  * 03/26/2026 mir0n  POST /esq-new → esquireCommandNew(); POST /esq-del → esquireCommandDelete()
  * 03/31/2026 mir0n  POST /esq-move → esquireCommandMove()
+ * 04/07/2026 mir0n  /esq-new→/esq-cmd-new, /esq-del→/esq-cmd-del
  */
 
 package pro.mir0n.esquire.enyMan.controller;
@@ -148,7 +149,7 @@ public class EnyManController {
         return ResponseEntity.status(HttpStatus.OK).body(ret);
     }
 
-    @PostMapping("/esq-new")
+    @PostMapping("/esq-cmd-new")
     public ResponseEntity<EsqEntity> esquireCommandNew(
            @Parameter(description = "Entity kind code")
            @RequestParam(name = "kind", required = true) Integer kind,
@@ -169,7 +170,7 @@ public class EnyManController {
         return ResponseEntity.status(HttpStatus.OK).body(ret);
     }
 
-    @PostMapping("/esq-del")
+    @PostMapping("/esq-cmd-del")
     public ResponseEntity<Void> esquireCommandDelete(
            @Parameter(description = "Entity kind code")
            @RequestParam(name = "kind", required = true) Integer kind,

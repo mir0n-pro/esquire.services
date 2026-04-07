@@ -1,5 +1,14 @@
 Esquire pacMan Microservice
 
+04/07/2026 mir0n  unified facade API: /esq-new→/esq-cmd-new, /esq-del→/esq-cmd-del
+controller.PacManController
+  - @PostMapping paths: /esq-new→/esq-cmd-new, /esq-del→/esq-cmd-del
+
+04/07/2026 mir0n  unified facade API: a-prefix POST mappings replaced with unified paths
+controller.PacManController
+  - @PostMapping paths: /esq-cmd-asave→/esq-cmd-save, /esq-anew→/esq-new, /esq-adel→/esq-del
+  - API description updated: "REST API to manage accounts" → "REST API to manage account entities"
+
 04/07/2026 mir0n  kind validation: normalization removed; Integer → int service params; upfront applicability checks
 service.IPacManService
   - all kind params Integer → int (primitive)

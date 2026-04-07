@@ -7,12 +7,18 @@
  *
  *  History:
  * 01/08/2026 mir0n @ConfigurationPropertiesScan is required now
+ * 04/07/2026 mir0n  EsqObjectKindStorage loaded on startup (required by EntityKindRoutePredicateFactory)
+ *                   SpringApplication builder; GatewayApplicationStartingListener added
  */
 package pro.mir0n.esquire.gateway;
 
+import org.slf4j.LoggerFactory;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.boot.context.event.ApplicationStartingEvent;
 import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
+import org.springframework.context.ApplicationListener;
+import pro.mir0n.esquire.backend.storage.EsqObjectKindStorage;
 
 //TODO: get Roles with permissions from keySmith
 //      use tool id (100 for tree) id instead of role name
@@ -24,9 +30,25 @@ import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
 @ConfigurationPropertiesScan
 public class GatewayApplication {
 
-	public static void main(String[] args) {
-		SpringApplication.run(GatewayApplication.class, args);
-	}
+    private static final org.slf4j.Logger devLog = LoggerFactory.getLogger("develop." + GatewayApplication.class.getName());
+
+    public static void main(String[] args) {
+        SpringApplication app = new SpringApplication(GatewayApplication.class);
+        app.addListeners(new GatewayApplicationStartingListener());
+        app.run(args);
+    }
+
+    public static class GatewayApplicationStartingListener implements ApplicationListener<ApplicationStartingEvent> {
+        @Override
+        public void onApplicationEvent(ApplicationStartingEvent event) {
+            boolean result = EsqObjectKindStorage.getInstance().init((String) null);
+            if (!result) {
+                System.out.println("Failed to load esq-object-kinds.xml");
+                System.exit(-1);
+            }
+            devLog.debug("EsqObjectKindStorage loaded");
+        }
+    }
 //
  /*
 	@Bean

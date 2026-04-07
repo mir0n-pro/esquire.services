@@ -1,6 +1,14 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v1.2.2-2604.0711  unified facade REST API: esq-cmd-* namespace; kind-aware gateway predicate
+    :Refactoring: pacMan — PacManController: a-prefix mappings dropped (/esq-cmd-asave→/esq-cmd-save, /esq-anew→/esq-new, /esq-adel→/esq-del); /esq-new→/esq-cmd-new, /esq-del→/esq-cmd-del
+    :Feature/Config: gateway — EntityKindRoutePredicateFactory: kind query param tested via EsqObjectKindStorage (isAcct/isOrg/isUsr); replaces regex Query predicate in gateway config
+    : modified components
+       enyMan,
+       pacMan,
+       gateway
+
 v1.2.2-2604.0700  entity kind validation: Map storage, Integer→int, upfront checks; KC theme fixes; gateway config
     :Refactoring: common — EsqObjectKindStorage/EsqEntityDictionaryStorage: List → Map for O(1) lookup; normalization removed
     :Refactoring: enyMan — all service kind params Integer → int; upfront applicability check (!isOrg && !isUsr) before permission gate

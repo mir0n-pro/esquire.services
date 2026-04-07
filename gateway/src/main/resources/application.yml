@@ -58,7 +58,7 @@ spring:
           uri: http://${PACMAN_HOST:enyman}:${PACMAN_PORT:3003}
           predicates:
             - Path=/esq-cmd
-            - Query=kind, ^(50|51|52|53|54|55)$     # kind=50,52,54: accounts and their shortcuts
+            - EntityKind=isAcct
           metadata:
             allowedMethods:
               - GET
@@ -81,11 +81,12 @@ spring:
             - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_FIRST
             - RewritePath=/(?<segment>.*), /$\{segment}
             - TokenRelay=
-        - id: enyman-save-route
-          uri: http://${ENYMAN_HOST:enyman}:${ENYMAN_PORT:3003}
+        - id: pacman-save-route
+          uri: http://${PACMAN_HOST:enyman}:${PACMAN_PORT:3003}
           predicates:
             - Path=/esq-cmd-save
             - Method=POST
+            - EntityKind=isAcct
           metadata:
             allowedMethods:
               - POST
@@ -93,10 +94,10 @@ spring:
             - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_FIRST
             - RewritePath=/(?<segment>.*), /$\{segment}
             - TokenRelay=
-        - id: pacman-save-route
-          uri: http://${PACMAN_HOST:enyman}:${PACMAN_PORT:3003}
+        - id: enyman-save-route
+          uri: http://${ENYMAN_HOST:enyman}:${ENYMAN_PORT:3003}
           predicates:
-            - Path=/esq-cmd-asave
+            - Path=/esq-cmd-save
             - Method=POST
           metadata:
             allowedMethods:
@@ -117,10 +118,23 @@ spring:
             - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_FIRST
             - RewritePath=/(?<segment>.*), /$\{segment}
             - TokenRelay=
+        - id: pacman-new-route
+          uri: http://${PACMAN_HOST:enyman}:${PACMAN_PORT:3003}
+          predicates:
+            - Path=/esq-cmd-new
+            - Method=POST
+            - EntityKind=isAcct
+          metadata:
+            allowedMethods:
+              - POST
+          filters:
+            - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_FIRST
+            - RewritePath=/(?<segment>.*), /$\{segment}
+            - TokenRelay=
         - id: enyman-new-route
           uri: http://${ENYMAN_HOST:enyman}:${ENYMAN_PORT:3003}
           predicates:
-            - Path=/esq-new
+            - Path=/esq-cmd-new
             - Method=POST
           metadata:
             allowedMethods:
@@ -129,11 +143,12 @@ spring:
             - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_FIRST
             - RewritePath=/(?<segment>.*), /$\{segment}
             - TokenRelay=
-        - id: pacman-new-route
+        - id: pacman-del-route
           uri: http://${PACMAN_HOST:enyman}:${PACMAN_PORT:3003}
           predicates:
-            - Path=/esq-anew
+            - Path=/esq-cmd-del
             - Method=POST
+            - EntityKind=isAcct
           metadata:
             allowedMethods:
               - POST
@@ -144,7 +159,7 @@ spring:
         - id: enyman-del-route
           uri: http://${ENYMAN_HOST:enyman}:${ENYMAN_PORT:3003}
           predicates:
-            - Path=/esq-del
+            - Path=/esq-cmd-del
             - Method=POST
           metadata:
             allowedMethods:
@@ -157,18 +172,6 @@ spring:
           uri: http://${ENYMAN_HOST:enyman}:${ENYMAN_PORT:3003}
           predicates:
             - Path=/esq-move
-            - Method=POST
-          metadata:
-            allowedMethods:
-              - POST
-          filters:
-            - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_FIRST
-            - RewritePath=/(?<segment>.*), /$\{segment}
-            - TokenRelay=
-        - id: pacman-del-route
-          uri: http://${PACMAN_HOST:enyman}:${PACMAN_PORT:3003}
-          predicates:
-            - Path=/esq-adel
             - Method=POST
           metadata:
             allowedMethods:

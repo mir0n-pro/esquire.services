@@ -18,6 +18,8 @@
  * 03/09/2026 mir0n  realm_access.roles extracted from JWT claims; roles passed to esquireCommandSave()
  * 03/21/2026 mir0n  devLog added; log.debug→devLog.debug
  * 03/26/2026 mir0n  POST /esq-anew → esquireCommandNew(); POST /esq-adel → esquireCommandDelete()
+ * 04/07/2026 mir0n  unified facade API: /esq-cmd-asave→/esq-cmd-save, /esq-anew→/esq-new, /esq-adel→/esq-del
+ *                   /esq-new→/esq-cmd-new, /esq-del→/esq-cmd-del
  */
 
 package pro.mir0n.esquire.pacMan.controller;
@@ -72,7 +74,7 @@ public class PacManController {
 
     @Operation(
             summary = "Esquire Account REST API",
-            description = "REST API to manage accounts"
+            description = "REST API to manage account entities"
     )
     @ApiResponses({
             @ApiResponse(
@@ -91,7 +93,7 @@ public class PacManController {
             )
     })
 
-    @PostMapping("/esq-cmd-asave")
+    @PostMapping("/esq-cmd-save")
     public ResponseEntity<EsqEntity> esquireCommandSave(
            @Parameter(description = "Entity kind code")
            @RequestParam(name = "kind", required = true) Integer kind,
@@ -112,7 +114,7 @@ public class PacManController {
         return ResponseEntity.status(HttpStatus.OK).body(ret);
     }
 
-    @PostMapping("/esq-anew")
+    @PostMapping("/esq-cmd-new")
     public ResponseEntity<EsqEntity> esquireCommandNew(
            @Parameter(description = "Entity kind code")
            @RequestParam(name = "kind", required = true) Integer kind,
@@ -133,7 +135,7 @@ public class PacManController {
         return ResponseEntity.status(HttpStatus.OK).body(ret);
     }
 
-    @PostMapping("/esq-adel")
+    @PostMapping("/esq-cmd-del")
     public ResponseEntity<Void> esquireCommandDelete(
            @Parameter(description = "Entity kind code")
            @RequestParam(name = "kind", required = true) Integer kind,

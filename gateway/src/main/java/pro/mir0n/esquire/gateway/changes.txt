@@ -1,5 +1,20 @@
 Esquire Gateway Microservice
 
+04/07/2026 mir0n  EntityKindRoutePredicateFactory; esq-cmd-new/del routes; EsqObjectKindStorage init
++ config.EntityKindRoutePredicateFactory  (new)
+  - custom RoutePredicateFactory: tests kind query param via EsqObjectKindStorage (isAcct/isOrg/isUsr)
+  - YAML usage: - EntityKind=isAcct; add entries to CHECKS map to extend
+GatewayApplication
+  - SpringApplication builder; GatewayApplicationStartingListener loads EsqObjectKindStorage on startup
+application.yml
+  - Query=kind predicate replaced with EntityKind=isAcct on pacman-route/save/new/del routes
+  - pacman-new/del-route, enyman-new/del-route: Path /esq-new→/esq-cmd-new, /esq-del→/esq-cmd-del
+
+04/07/2026 mir0n  unified facade API routes: kind-discriminated routing for save/new/del
+application.yml
+  - pacman-save/new/del-route: kind predicate ^(50|51|52|53|54|55)$ added; paths unified (/esq-cmd-save, /esq-new, /esq-del)
+  - enyman-save/new/del-route: paths unified (a-prefix variants /esq-cmd-asave, /esq-anew, /esq-adel removed)
+
 03/31/2026 mir0n  esq-move route
 application.yml
   - enyman-move-route added for POST /esq-move
