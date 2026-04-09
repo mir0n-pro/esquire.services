@@ -18,6 +18,7 @@
  * 03/26/2026 mir0n  acctPath, insertAcct, deleteAcct native queries added
  * 03/28/2026 mir0n  insertAcctPath, deleteEntityPath added; insertAcct: path param removed
  * 03/31/2026 mir0n  insertAcctPath: kind param added (ep_et_pk)
+ * 04/09/2026 mir0n  insertAcct: negativeAllowed param added; updateAcct: ccy + negativeAllowed params added
  */
 
 package pro.mir0n.esquire.pacMan.jpa;
@@ -43,7 +44,9 @@ public interface EsqAcctRepository extends JpaRepository<EsqAcctJpa, String> {
     @NativeQuery
     int updateAcct(@Param("id") String id,
         @Param("desc") String desc,
+        @Param("ccy") String ccy,
         @Param("status") String status,
+        @Param("negativeAllowed") String negativeAllowed,
         @Param("uid") String uid,
         @Param("correlationId") String correlationId,
         @Param("requestId") String requestId
@@ -66,6 +69,7 @@ public interface EsqAcctRepository extends JpaRepository<EsqAcctJpa, String> {
         @Param("desc") String desc,
         @Param("ccy") String ccy,
         @Param("status") String status,
+        @Param("negativeAllowed") String negativeAllowed,
         @Param("parentId") String parentId,
         @Param("uid") String uid,
         @Param("correlationId") String correlationId,

@@ -1,5 +1,17 @@
 Esquire enyMan Microservice
 
+04/09/2026 mir0n  applyFields/enforceDefaults delegated to EntityFieldUtils; validateDelete on all entities
+service.impl.AEnyManService
+  - applyFields() removed — moved to EntityFieldUtils; BeanWrapper/PropertyDescriptor/ValidatorFactory imports removed
+service.impl.OrgService
+  - applyFields() calls delegated to EntityFieldUtils.applyFields()
+  - enforceDefaults() call delegated to EntityFieldUtils.enforceDefaults()
+  - deleteOrg(): ValidatorFactory.getInstance().validateDelete(org) added before delete
+service.impl.UsrService
+  - all applyFields() calls delegated to EntityFieldUtils.applyFields()
+  - hardcoded deleted="N" default replaced with EntityFieldUtils.enforceDefaults(usrLayer, usr)
+  - deleteUsr(): ValidatorFactory.getInstance().validateDelete(usr) added before delete
+
 04/07/2026 mir0n  unified facade API: /esq-new→/esq-cmd-new, /esq-del→/esq-cmd-del
 controller.EnyManController
   - @PostMapping paths: /esq-new→/esq-cmd-new, /esq-del→/esq-cmd-del

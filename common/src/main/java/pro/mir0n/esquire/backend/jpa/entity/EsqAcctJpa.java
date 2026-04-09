@@ -8,6 +8,7 @@
  *  History:
  * 03/20/2026 mir0n  parentId, path fields added
  * 03/26/2026 mir0n  parentId removed — consolidated to EsqEntityJpa
+ * 04/09/2026 mir0n  fundedDate, negativeAllowed fields added
  */
 
 package pro.mir0n.esquire.backend.jpa.entity;
@@ -23,5 +24,7 @@ public class EsqAcctJpa extends EsqEntityJpa {
     private Double balance;
     private String status;
     private String path;
+    private String fundedDate;
+    private String negativeAllowed;
 }
 

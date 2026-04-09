@@ -9,6 +9,7 @@
  * 12/27/2025  mir0n extend EsqEntity correctly
  * 02/13/2026 mir0n  use EsqEntityJpa for children
  * 02/28/2026 mir0n  empty fillPerson/fillAddress/fillBizAddress stubs added
+ * 04/09/2026 mir0n  fundedDate, negativeAllowed fields added; wired in fillDetails()
  */
 
 
@@ -52,11 +53,23 @@ public class EsqAcct extends EsqEntity {
     )
     private String status;
 
+    @Schema(
+            description = "Date when the account was funded, ISO-8601: YYYY-MM-DD", example = "2026/04/09"
+    )
+    private String fundedDate;
+
+    @Schema(
+            description = "Negative balance allowed flag", example = "N"
+    )
+    private String negativeAllowed;
+
     @Override
     protected  void fillDetails(EsqEntityJpa jpa) {
        this.ccy = ((EsqAcctJpa)jpa).getCcy();
        this.balance = ((EsqAcctJpa)jpa).getBalance();
-       this.status= ((EsqAcctJpa)jpa).getStatus();
+       this.status = ((EsqAcctJpa)jpa).getStatus();
+       this.fundedDate = ((EsqAcctJpa)jpa).getFundedDate();
+       this.negativeAllowed = ((EsqAcctJpa)jpa).getNegativeAllowed();
     }
     @Override
     protected void fillCustom(List<EsqNameValueJpa> custom) {}

@@ -14,6 +14,7 @@
  * 03/09/2026 mir0n  esquireCommandSave(): roles param added; unused imports removed
  * 03/26/2026 mir0n  esquireCommandNew(), esquireCommandDelete() added
  * 04/07/2026 mir0n  all kind params Integer → int (primitive)
+ * 04/09/2026 mir0n  FIELD_CCY constant added
  */
 
 package pro.mir0n.esquire.pacMan.service;
@@ -28,6 +29,7 @@ public interface IPacManService {
     public static final int  KIND_MR_ACCT = 52; // merchant account
     public static final int  KIND_P_ACCT = 54; // paper/demo account
     public static final String  FIELD_STATUS = "status";
+    public static final String  FIELD_CCY    = "ccy";
 
     public EsqEntity esquireCommand(int kind, String id, String cmd, String rootPath, String uid );
     public EsqEntity esquireCommandSave(int kind, String id, String cmd, Map<String, Object> fields, String rootPath, String uid, List<String> roles);

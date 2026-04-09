@@ -14,6 +14,8 @@
      ,acc_balance
      ,acc_status
      ,acc_usr_pk
+     ,TO_CHAR(acc_funded_dt, 'YYYY-MM-DD') AS acc_funded_dt
+     ,acct_neg_allowed_flg
  FROM esq_account
  JOIN esq_entity_path ON ep_pk = acc_pk
  WHERE acc_pk = :id
@@ -31,6 +33,8 @@
      ,acc_balance
      ,acc_status
      ,acc_usr_pk
+     ,TO_CHAR(acc_funded_dt, 'YYYY-MM-DD') AS acc_funded_dt
+     ,acct_neg_allowed_flg
  FROM esq_account
  JOIN esq_entity_path ON ep_pk = acc_pk
  WHERE acc_pk = :id
@@ -54,9 +58,9 @@
     <named-native-query name="EsqAcctJpa.insertAcct">
         <query>
  INSERT INTO esq_account (acc_pk, acc_et_pk, acc_id, acc_desc, acc_ccy, acc_status,
-     acc_usr_pk, acc_crl_id, acc_req_id, acc_uid)
+     acct_neg_allowed_flg, acc_usr_pk, acc_crl_id, acc_req_id, acc_uid)
  VALUES (:id, :kind, :name, :desc, :ccy, :status,
-     :parentId, :correlationId, :requestId, :uid)
+     :negativeAllowed, :parentId, :correlationId, :requestId, :uid)
         </query>
     </named-native-query>
 
@@ -76,7 +80,9 @@
         <query>
  UPDATE esq_account
  SET acc_desc = :desc
+    ,acc_ccy = :ccy
     ,acc_status = :status
+    ,acct_neg_allowed_flg = :negativeAllowed
     ,acc_crl_id = :correlationId
     ,acc_req_id = :requestId
     ,acc_uid = :uid
@@ -94,6 +100,8 @@
             <field-result name="balance" column="acc_balance"/>
             <field-result name="status" column="acc_status"/>
             <field-result name="parentId" column="acc_usr_pk"/>
+            <field-result name="fundedDate" column="acc_funded_dt"/>
+            <field-result name="negativeAllowed" column="acct_neg_allowed_flg"/>
         </entity-result>
     </sql-result-set-mapping>
 

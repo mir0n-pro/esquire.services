@@ -1,5 +1,23 @@
 Esquire Backend common microservice classes
 
+04/09/2026 mir0n  funded account fields; IValidator.validateDelete(); enforceDefaults moved to EntityFieldUtils
++ added service.EntityFieldUtils  (new)
+  - applyFields(jpa, fields, personal, subLayer, writables): dict-driven field apply with BeanWrapper; moved from AEnyManService
+  - applyFields(jpa, fields): simple overload — delegates with personal=false, subLayer=0, writables=null
+  - enforceDefaults(layer, jpa): post-create safety net for required fields; moved from EsqEntityLayer
+dto.EsqEntityLayer
+  - enforceDefaults() removed — moved to EntityFieldUtils; BeanWrapper/ArrayList imports removed
+dto.entity.EsqAcct
+  - fundedDate, negativeAllowed fields added; wired in fillDetails()
+dto.entity.EsqUsr
+  - deleted @Schema example corrected: "false" → "N"
+jpa.entity.EsqAcctJpa
+  - fundedDate, negativeAllowed fields added
+validator.IValidator
+  - validate() changed to default method (no-op return value); validateDelete() default no-op added
+validator.ValidatorFactory
+  - validateDelete(): routes to biz validator chain by entity kind; null-safe (null bizValidators/origin/kind guards)
+
 04/07/2026 mir0n  kind validation: storage List → Map; normalization removed; EsqUsr cleanup
 storage.EsqObjectKindStorage
   - storage changed from List to Map<Integer, EsqObjectKind> for O(1) lookup

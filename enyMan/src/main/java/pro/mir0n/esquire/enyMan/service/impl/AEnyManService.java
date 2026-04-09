@@ -15,20 +15,17 @@
  * 03/19/2026 mir0n  esquireDictionary(): kind normalized to even number before dictionary lookup
  * 03/21/2026 mir0n  devLog added; log.debug→devLog.debug
  * 04/07/2026 mir0n  esquireDictionary(): kind param Integer → int; normalization removed
+ * 04/09/2026 mir0n  applyFields() moved to EntityFieldUtils (backend.service)
  */
 
 package pro.mir0n.esquire.enyMan.service.impl;
 
-import java.beans.PropertyDescriptor;
 import java.util.*;
 
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.BeanWrapper;
-import org.springframework.beans.BeanWrapperImpl;
 import pro.mir0n.esquire.backend.dto.*;
 import pro.mir0n.esquire.backend.jpa.*;
-import pro.mir0n.esquire.backend.validator.ValidatorFactory;
 import pro.mir0n.esquire.enyMan.jpa.EsqEntityDictionaryRepository;
 import pro.mir0n.esquire.backend.storage.EsqEntityDictionaryStorage;
 import pro.mir0n.esquire.backend.error.ResourceNotFoundException;
@@ -70,42 +67,4 @@ public abstract class AEnyManService  implements IEnyManService {
         return ret;
     }
 
-    protected boolean applyFields(EsqEntityJpa jpa, Map<String, Object> fields, boolean personal, int subLayer, Set<String> writables) {
-        if (jpa == null || fields == null) {
-            return false;
-        }
-        EsqEntityDictionary dict = EsqEntityDictionaryStorage.getInstance().get(jpa.getKind());
-        BeanWrapper wrapper = new BeanWrapperImpl(jpa);
-        boolean changed = false;
-        //we're going to reuse this structure
-        EsqEntityKindFieldLayer kfl = new EsqEntityKindFieldLayer();
-        for (PropertyDescriptor pd : wrapper.getPropertyDescriptors()) {
-            String name = pd.getName();
-            if(fields.containsKey(name)) {
-                Object value = fields.get(name);
-                kfl = (dict != null) ? dict.fillKindFieldLayer(pd.getName(),kfl) : null;
-                EsqEntityField field = (kfl != null) ? kfl.getField() : null;
-                if (field != null) {
-                    if (subLayer > 0) {
-                        // layer for subentity
-                        kfl.setLayer(subLayer);
-                    }
-                    if (field.getReadwrite() == null || (field.getReadwrite() & 2) != 2) {
-                        // read-only fields
-                        if (writables != null && writables.contains(name)) {
-                            //writable exceptions: we trust generated value
-                            wrapper.setPropertyValue(name, value);
-                            changed = true;
-                        }
-                    } else { //field.getReadwrite() != null && (field.getReadwrite() & 2) == 2)
-                        //writable fields: need validation
-                        value = ValidatorFactory.getInstance().validate(jpa, kfl, personal, value);
-                        wrapper.setPropertyValue(name, value);
-                        changed = true;
-                    }
-                }
-            }
-        }
-        return changed;
-    }
 }

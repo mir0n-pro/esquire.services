@@ -8,6 +8,7 @@
  *  History:
  * 12/26/2025 mir0n  refine API doc
  * 03/28/2026 mir0n  injectDefaults(Map): populates absent non-nullable fields from dictionary defaults before applyFields
+ * 04/09/2026 mir0n  enforceDefaults() moved to EntityFieldUtils (backend.service)
  */
 
 package pro.mir0n.esquire.backend.dto;
@@ -19,7 +20,7 @@ import com.fasterxml.jackson.dataformat.xml.annotation.JacksonXmlProperty;
 import com.fasterxml.jackson.dataformat.xml.annotation.JacksonXmlRootElement;
 
 //import java.lang.foreign.SymbolLookup;
-import java.util.ArrayList;
+
 import java.util.List;
 import java.util.Map;
 
@@ -60,4 +61,5 @@ public class EsqEntityLayer {
             }
         }
     }
-};
+
+}

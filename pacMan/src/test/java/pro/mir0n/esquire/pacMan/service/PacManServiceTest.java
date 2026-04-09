@@ -26,6 +26,7 @@ import pro.mir0n.esquire.backend.storage.EsqRolesStorage;
 import pro.mir0n.esquire.backend.storage.roles.JpaRolesRepository;
 import pro.mir0n.esquire.common.EsqConstants;
 import pro.mir0n.esquire.common.EsqMsgConstants;
+import pro.mir0n.esquire.backend.validator.ValidatorFactory;
 import pro.mir0n.esquire.pacMan.jpa.EsqAcctRepository;
 import pro.mir0n.esquire.pacMan.messaging.EsqEntityBroadcastPublisher;
 import pro.mir0n.esquire.pacMan.service.impl.PacManService;
@@ -90,21 +91,31 @@ class PacManServiceTest {
         ccyField.setName(EsqMsgConstants.TEXT_CCY);
         ccyField.setNullable("N");
         ccyField.setDefaultValue(EsqMsgConstants.CCY_DEFAULT);
+        ccyField.setReadwrite(3);
 
         EsqEntityField statusField = new EsqEntityField();
         statusField.setName(EsqMsgConstants.TEXT_STATUS);
         statusField.setNullable("N");
         statusField.setDefaultValue(EsqMsgConstants.FLAG_OPEN);
+        statusField.setReadwrite(3);
+
+        EsqEntityField negativeAllowedField = new EsqEntityField();
+        negativeAllowedField.setName("negativeAllowed");
+        negativeAllowedField.setType("flag");
+        negativeAllowedField.setNullable("N");
+        negativeAllowedField.setDefaultValue("N");
+        negativeAllowedField.setReadwrite(3);
 
         EsqEntityLayer acctLayer = new EsqEntityLayer();
         acctLayer.setLayer(1);
         acctLayer.setTitle("Generic");
-        acctLayer.setFields(List.of(ccyField, statusField));
+        acctLayer.setFields(List.of(ccyField, statusField, negativeAllowedField));
 
         EsqEntityDictionary dict50 = new EsqEntityDictionary();
         dict50.setKind(50);
         dict50.getLayers().add(acctLayer);
         EsqEntityDictionaryStorage.getInstance().init(dict50);
+        ValidatorFactory.getInstance().init(BizValidatorFactory.getBizValidators());
     }
 
     @BeforeEach
@@ -245,7 +256,7 @@ class PacManServiceTest {
 
         verify(entityRepository).insertAcct(anyLong(), eq(50), anyString(), any(),
                 eq(EsqMsgConstants.CCY_DEFAULT), eq(EsqMsgConstants.FLAG_OPEN),
-                eq("10"), any(), any(), any());
+                any(), eq("10"), any(), any(), any());
     }
 
     // ---- esquireCommandNew: ccy present in request → request value wins over dictionary default ----
@@ -266,7 +277,7 @@ class PacManServiceTest {
 
         verify(entityRepository).insertAcct(anyLong(), eq(50), anyString(), any(),
                 eq("EUR"), eq(EsqMsgConstants.FLAG_OPEN),
-                eq("10"), any(), any(), any());
+                any(), eq("10"), any(), any(), any());
     }
 
     // ---- esquireCommandNew: insertAcctPath called before insertAcct ----
@@ -284,7 +295,7 @@ class PacManServiceTest {
 
         InOrder order = inOrder(entityRepository);
         order.verify(entityRepository).insertAcctPath(anyLong(), anyInt(), anyString());
-        order.verify(entityRepository).insertAcct(anyLong(), anyInt(), any(), any(), any(), any(), any(), any(), any(), any());
+        order.verify(entityRepository).insertAcct(anyLong(), anyInt(), any(), any(), any(), any(), any(), any(), any(), any(), any());
     }
 
     // ---- esquireCommandDelete: deleteEntityPath called after deleteAcct ----
@@ -294,6 +305,7 @@ class PacManServiceTest {
     void esquireCommandDelete_deletesEntityPath_afterDeleteAcct() {
         EsqAcctJpa acct = new EsqAcctJpa();
         acct.setId("10");
+        acct.setKind(50);
         acct.setStatus("C");
 
         when(transactionTemplate.execute(any())).thenAnswer(inv -> {
@@ -332,6 +344,7 @@ class PacManServiceTest {
     void esquireCommandDelete_acctNotClosed_throwsDeleteRestrictedException() {
         EsqAcctJpa acct = new EsqAcctJpa();
         acct.setId("10");
+        acct.setKind(50);
         acct.setStatus("O");
 
         when(transactionTemplate.execute(any())).thenAnswer(inv -> {

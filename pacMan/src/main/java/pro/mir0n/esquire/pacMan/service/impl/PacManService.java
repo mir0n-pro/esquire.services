@@ -39,25 +39,23 @@
  * 03/31/2026 mir0n  insertAcctPath call: kind param added
  * 04/07/2026 mir0n  all kind params Integer → int; kind normalization removed;
  *                   upfront applicability check (!isAcct → ResourceNotFoundException) at all entry points
+ * 04/09/2026 mir0n  applyFields() and enforceDefaults() delegated to EntityFieldUtils
  */
 
 package pro.mir0n.esquire.pacMan.service.impl;
 
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.FlushModeType;
-import java.beans.PropertyDescriptor;
 import java.util.*;
 
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.BeanWrapper;
-import org.springframework.beans.BeanWrapperImpl;
 import pro.mir0n.esquire.backend.dto.*;
 import pro.mir0n.esquire.backend.dto.access.EsqPermission;
-import pro.mir0n.esquire.backend.error.DeleteRestrictedException;
 import pro.mir0n.esquire.backend.error.PermissionDeniedException;
 import pro.mir0n.esquire.backend.jpa.*;
 import pro.mir0n.esquire.backend.jpa.entity.EsqAcctJpa;
+import pro.mir0n.esquire.backend.service.EntityFieldUtils;
 import pro.mir0n.esquire.backend.storage.EsqEntityDictionaryStorage;
 import pro.mir0n.esquire.backend.storage.EsqObjectKindStorage;
 import pro.mir0n.esquire.backend.storage.EsqRolesStorage;
@@ -294,22 +292,23 @@ public class PacManService  implements IPacManService {
             }
         }
 
-        String desc   = (String) fields.get(EsqMsgConstants.TEXT_DESC);
-        String ccy    = (String) fields.get(EsqMsgConstants.TEXT_CCY);
-        String status = (String) fields.get(EsqMsgConstants.TEXT_STATUS);
-
-        entityRepository.insertAcctPath(newId, kind, path);
-        entityRepository.insertAcct(newId, kind, name, desc, ccy, status, parentId, uid, correlationId, requestId);
-
         EsqAcctJpa acct = new EsqAcctJpa();
-        acct.setId(String.valueOf(newId));
         acct.setKind(kind);
+        EntityFieldUtils.applyFields(acct, fields);
+        if (dict != null) {
+            for (EsqEntityLayer layer : dict.getLayers()) {
+                EntityFieldUtils.enforceDefaults(layer, acct);
+            }
+        }
+
+        acct.setId(String.valueOf(newId));
         acct.setName(name);
-        acct.setDesc(desc);
-        acct.setCcy(ccy);
-        acct.setStatus(status);
         acct.setPath(path);
         acct.setParentId(parentId);
+
+        entityRepository.insertAcctPath(newId, kind, path);
+        entityRepository.insertAcct(newId, kind, name, acct.getDesc(), acct.getCcy(), acct.getStatus(), acct.getNegativeAllowed(), parentId, uid, correlationId, requestId);
+
         created[0] = acct;
     }
 
@@ -318,9 +317,7 @@ public class PacManService  implements IPacManService {
         if (acct == null) {
             throw new ResourceNotFoundException("deleteAcct", "id", id);
         }
-        if (!"C".equals(acct.getStatus())) {
-            throw new DeleteRestrictedException("account", "account must be closed before deleting");
-        }
+        ValidatorFactory.getInstance().validateDelete(acct);
         entityRepository.deleteAcct(id);
         entityRepository.deleteEntityPath(id);
     }
@@ -332,38 +329,11 @@ public class PacManService  implements IPacManService {
         if (acct == null) {
             throw new ResourceNotFoundException("saveAcct", "id", id);
         }
-        if (applyFields(acct, fields)) {
-            entityRepository.updateAcct(id, acct.getDesc(), acct.getStatus(), uid, correlationId, requestId);
+        if (EntityFieldUtils.applyFields(acct, fields)) {
+            entityRepository.updateAcct(id, acct.getDesc(), acct.getCcy(), acct.getStatus(), acct.getNegativeAllowed(), uid, correlationId, requestId);
         }
         //note: if a DB trigger or default value modifies the row, saveAcct won't reflect it.
         updated[0] = acct;
-    }
-
-    private boolean applyFields(EsqEntityJpa jpa, Map<String, Object> fields) {
-        if (jpa == null || fields == null) {
-            return false;
-        }
-        EsqEntityDictionary dict = EsqEntityDictionaryStorage.getInstance().get(jpa.getKind());
-        BeanWrapper wrapper = new BeanWrapperImpl(jpa);
-        boolean changed = false;
-        EsqEntityKindFieldLayer kfl = new EsqEntityKindFieldLayer();
-        for (PropertyDescriptor pd : wrapper.getPropertyDescriptors()) {
-            String name = pd.getName();
-            if (fields.containsKey(name)) {
-                Object value = fields.get(name);
-                kfl = dict.fillKindFieldLayer(name, kfl);
-                EsqEntityField field = kfl.getField();
-                if (field != null) {
-                    if (field.getReadwrite() != null && (field.getReadwrite() & 2) == 2) {
-                        value = ValidatorFactory.getInstance().validate(jpa, kfl, false, value);
-//devLog.debug("pacMan:PacManService:applyFields: {} value:{}", name, value);
-                        wrapper.setPropertyValue(name, value);
-                        changed = true;
-                    }
-                }
-            }
-        }
-        return changed;
     }
 
     private int rootLevel(List<String> path, String uid) {

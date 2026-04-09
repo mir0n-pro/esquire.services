@@ -1,5 +1,27 @@
 Esquire pacMan Microservice
 
+04/09/2026 mir0n  funded account fields; biz validation rules; applyFields/enforceDefaults to EntityFieldUtils
+service.IPacManService
+  - FIELD_CCY constant added
+service.BizValidatorFactory
+  - StatusBizValidator renamed to AcctBizValidator
+  - validate(): ccy rule added — cannot change currency on a funded account (fundedDate != null)
+  - validateDelete(): funded account cannot be deleted; account must be closed (status="C") before delete
+jpa.EsqAcctRepository
+  - insertAcct: negativeAllowed param added
+  - updateAcct: ccy + negativeAllowed params added
+service.impl.PacManService
+  - createAcct(): applyFields + enforceDefaults loop replace direct field extraction; negativeAllowed passed to insertAcct
+  - saveAcct(): ccy + negativeAllowed passed to updateAcct; EntityFieldUtils.applyFields replaces private applyFields
+  - deleteAcct(): ValidatorFactory.getInstance().validateDelete(acct) replaces explicit status check
+  - private applyFields() removed — delegated to EntityFieldUtils
+META-INF/postgres-acct.xml
+  - SELECT: TO_CHAR(acc_funded_dt, 'YYYY-MM-DD'), acct_neg_allowed_flg added; mapping entries added
+  - INSERT: acct_neg_allowed_flg column + :negativeAllowed param added
+  - UPDATE: acc_ccy = :ccy, acct_neg_allowed_flg = :negativeAllowed added
+META-INF/oracle-acct.xml
+  - same changes as postgres-acct.xml (Oracle syntax)
+
 04/07/2026 mir0n  unified facade API: /esq-new→/esq-cmd-new, /esq-del→/esq-cmd-del
 controller.PacManController
   - @PostMapping paths: /esq-new→/esq-cmd-new, /esq-del→/esq-cmd-del

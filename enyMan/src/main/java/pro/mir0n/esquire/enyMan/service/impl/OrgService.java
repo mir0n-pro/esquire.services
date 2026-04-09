@@ -22,6 +22,7 @@
  *                   skip-if-same-parent; insertOrgPath: kind param added (ep_et_pk)
  * 04/01/2026 mir0n  move: collects updated records
  * 04/07/2026 mir0n  all kind params Integer → int (including private createOrg)
+ * 04/09/2026 mir0n  applyFields() and enforceDefaults() delegated to EntityFieldUtils
  */
 
 package pro.mir0n.esquire.enyMan.service.impl;
@@ -37,6 +38,7 @@ import pro.mir0n.esquire.backend.jpa.*;
 import pro.mir0n.esquire.backend.jpa.entity.EsqOrgJpa;
 import pro.mir0n.esquire.common.EsqUtils;
 import pro.mir0n.esquire.backend.jpa.EsqCustomEntityFieldJpa;
+import pro.mir0n.esquire.backend.service.EntityFieldUtils;
 import pro.mir0n.esquire.backend.validator.ValidatorFactory;
 import pro.mir0n.esquire.enyMan.jpa.EsqEntityDictionaryRepository;
 import pro.mir0n.esquire.enyMan.jpa.EsqOrgRepository;
@@ -189,7 +191,8 @@ public class OrgService  extends AEnyManService {
         EsqEntityDictionary dictOrg = EsqEntityDictionaryStorage.getInstance().get(kind);
         EsqEntityLayer orgLayer = (dictOrg != null) ? dictOrg.findLayer(1) : null;
         if (orgLayer != null) orgLayer.injectDefaults(fields);
-        applyFields(org, fields, false, 0, null);
+        EntityFieldUtils.applyFields(org, fields, false, 0, null);
+        if (orgLayer != null) EntityFieldUtils.enforceDefaults(orgLayer, org);
 
         orgRepository.insertOrgPath(newId, kind, path);
         orgRepository.insertOrg(newId, kind, org.getName(), org.getDesc(), org.getFullName(), parentId, uid, correlationId, requestId);
@@ -222,6 +225,7 @@ public class OrgService  extends AEnyManService {
         if (org == null) {
             throw new ResourceNotFoundException("deleteOrg", "id", id);
         }
+        ValidatorFactory.getInstance().validateDelete(org);
         orgRepository.deleteOrg(id);
         orgRepository.deleteEntityPath(id);
     }
@@ -234,7 +238,7 @@ public class OrgService  extends AEnyManService {
             throw new ResourceNotFoundException("saveOrg", "id", id);
         }
         List<EsqNameValueJpa> cstm = orgRepository.customOrg(id);
-        if (applyFields(org, fields, false,0,null)) {
+        if (EntityFieldUtils.applyFields(org, fields, false, 0, null)) {
             orgRepository.updateOrg(id, org.getName(), org.getDesc(), org.getFullName(), uid, correlationId, requestId);
         }
 

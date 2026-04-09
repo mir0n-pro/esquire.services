@@ -33,6 +33,7 @@
  *                   regular uses equality moveUsrPaths (covers user row + all ACCT rows)
  *                   createUsr(): admin ep_path = parent org path only (no own PK appended)
  * 04/07/2026 mir0n  all kind params Integer → int; moveUsr/createUsr: get kind directly without normalization
+ * 04/09/2026 mir0n  applyFields() and enforceDefaults() delegated to EntityFieldUtils
  */
 
 package pro.mir0n.esquire.enyMan.service.impl;
@@ -51,6 +52,7 @@ import pro.mir0n.esquire.backend.jpa.entity.EsqAddressJpa;
 import pro.mir0n.esquire.backend.jpa.entity.EsqPersonJpa;
 import pro.mir0n.esquire.backend.jpa.entity.EsqUsrJpa;
 import pro.mir0n.esquire.backend.storage.EsqObjectKindStorage;
+import pro.mir0n.esquire.backend.service.EntityFieldUtils;
 import pro.mir0n.esquire.backend.validator.ValidatorFactory;
 import pro.mir0n.esquire.enyMan.jpa.EsqEntityDictionaryRepository;
 import pro.mir0n.esquire.enyMan.jpa.EsqUsrRepository;
@@ -267,7 +269,7 @@ public class UsrService  extends AEnyManService {
         kfl = dictUser.fillKindFieldLayer(EsqConstants.SUBENTITY_PERSON, kfl);
         EsqEntityLayer prsnLayer = dictUser.findLayer(kfl.getLayer());
         if (prsnLayer != null) prsnLayer.injectDefaults(mprsn);
-        applyFields(prsn, mprsn, false, kfl.getLayer(), null);
+        EntityFieldUtils.applyFields(prsn, mprsn, false, kfl.getLayer(), null);
         String name    = prsn.getName();
         String email   = prsn.getEmail();
         String loginId = email;
@@ -285,10 +287,9 @@ public class UsrService  extends AEnyManService {
         usr.setKind(kind);
         EsqEntityLayer usrLayer = dictUser.findLayer(1);
         if (usrLayer != null) usrLayer.injectDefaults(fields);
-        applyFields(usr, fields, false, 0, USR_WRITABLE);
+        EntityFieldUtils.applyFields(usr, fields, false, 0, USR_WRITABLE);
+        if (usrLayer != null) EntityFieldUtils.enforceDefaults(usrLayer, usr);
 
-        // Ensure deleted flag has a value — dictionary may not define a default for all kinds
-        if (usr.getDeleted() == null) usr.setDeleted("N");
         // Ensure registration and deleted flags are in fields for broadcast
         if (usr.getRegistration() != null) fields.put("registration", usr.getRegistration());
         fields.put("deleted", usr.getDeleted());
@@ -327,7 +328,7 @@ public class UsrService  extends AEnyManService {
             kfl = dictUser.fillKindFieldLayer(EsqConstants.SUBENTITY_ADDRESS, kfl);
             EsqEntityLayer addrLayer = dictUser.findLayer(kfl.getLayer());
             if (addrLayer != null) addrLayer.injectDefaults(maddr);
-            if (applyFields(addr, maddr, false, kfl.getLayer(), null)) {
+            if (EntityFieldUtils.applyFields(addr, maddr, false, kfl.getLayer(), null)) {
                 usrRepository.updateAddress(idStr, EsqConstants.KIND_PERSON_PRIMARY, addr.getDesc(),
                         addr.getAddr(), addr.getAddr2(), addr.getCity(), addr.getCompany(),
                         addr.getCountry(), addr.getDepartment(), addr.getFax(),
@@ -345,7 +346,7 @@ public class UsrService  extends AEnyManService {
             kfl = dictUser.fillKindFieldLayer(EsqConstants.SUBENTITY_ADDRESS2, kfl);
             EsqEntityLayer addr2Layer = dictUser.findLayer(kfl.getLayer());
             if (addr2Layer != null) addr2Layer.injectDefaults(maddr2);
-            if (applyFields(addr2, maddr2, false, kfl.getLayer(), null)) {
+            if (EntityFieldUtils.applyFields(addr2, maddr2, false, kfl.getLayer(), null)) {
                 usrRepository.updateAddress2(idStr, EsqConstants.KIND_PERSON_PRIMARY, addr2.getDesc(),
                         addr2.getAddr(), addr2.getAddr2(), addr2.getCity(), addr2.getCompany(),
                         addr2.getCountry(), addr2.getDepartment(), addr2.getFax(),
@@ -390,6 +391,7 @@ public class UsrService  extends AEnyManService {
         if ("Y".equals(usr.getConnectFlg())) {
             throw new DeleteRestrictedException("user", "active auth connection — disable login before deleting");
         }
+        ValidatorFactory.getInstance().validateDelete(usr);
         usrRepository.deletePersonAddresses(id);
         usrRepository.deletePersonBankInfo(id);
         usrRepository.deleteUsr(id);
@@ -421,7 +423,7 @@ public class UsrService  extends AEnyManService {
 //devLog.debug("looking for {} {}",EsqConstants.SUBENTITY_PERSON, dictUser.getKind());
         kfl = dictUser.fillKindFieldLayer(EsqConstants.SUBENTITY_PERSON,kfl);
 //devLog.debug("person layer {}",kfl.getLayer());
-        if (applyFields(prsn, mprsn, personal, kfl.getLayer(), null)) {
+        if (EntityFieldUtils.applyFields(prsn, mprsn, personal, kfl.getLayer(), null)) {
 
             // Derive user name from person (First [Middle] Last) and inject into fields.
             // This ensures EnyManService.isBroadcastableUpdate() detects the name change
@@ -449,7 +451,7 @@ public class UsrService  extends AEnyManService {
             );
         }
 
-        if (applyFields(usr, fields, personal, 0, USR_WRITABLE)) {
+        if (EntityFieldUtils.applyFields(usr, fields, personal, 0, USR_WRITABLE)) {
             usrRepository.updateUsr(id, usr.getName(), usr.getRegistration(), usr.getDeleted(), usr.getDesc(), uid, correlationId, requestId);
         }
         if (cstm != null) {
@@ -476,7 +478,7 @@ public class UsrService  extends AEnyManService {
 //devLog.debug("looking for {} {}",EsqConstants.SUBENTITY_ADDRESS, dictUser.getKind());
                 kfl = dictUser.fillKindFieldLayer(EsqConstants.SUBENTITY_ADDRESS, kfl);
 //devLog.debug("address layer {} {}", EsqConstants.SUBENTITY_ADDRESS, kfl.getLayer());
-                if (applyFields(addr, maddr, personal, kfl.getLayer(), null)) {
+                if (EntityFieldUtils.applyFields(addr, maddr, personal, kfl.getLayer(), null)) {
                     usrRepository.updateAddress(id, EsqConstants.KIND_PERSON_PRIMARY, addr.getDesc(),
                             addr.getAddr(), addr.getAddr2(), addr.getCity(), addr.getCompany(),
                             addr.getCountry(), addr.getDepartment(), addr.getFax(),
@@ -492,7 +494,7 @@ public class UsrService  extends AEnyManService {
 //devLog.debug("looking for {} {}",EsqConstants.SUBENTITY_ADDRESS2, dictUser.getKind());
                 kfl = dictUser.fillKindFieldLayer(EsqConstants.SUBENTITY_ADDRESS2, kfl);
 //devLog.debug("address2 layer {} {}", EsqConstants.SUBENTITY_ADDRESS2, kfl.getLayer());
-                if (applyFields(addr2, maddr2, personal, kfl.getLayer(), null)) {
+                if (EntityFieldUtils.applyFields(addr2, maddr2, personal, kfl.getLayer(), null)) {
                     usrRepository.updateAddress2(id, EsqConstants.KIND_PERSON_PRIMARY, addr2.getDesc(),
                             addr2.getAddr(), addr2.getAddr2(), addr2.getCity(), addr2.getCompany(),
                             addr2.getCountry(), addr2.getDepartment(), addr2.getFax(),

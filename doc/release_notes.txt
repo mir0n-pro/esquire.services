@@ -1,6 +1,14 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v1.2.2-2604.0914  funded account fields; generalization of biz validation rules; EntityFieldUtils utility
+    :Feature: common — EsqAcctJpa/EsqAcct: fundedDate + negativeAllowed fields added
+    :Refactoring: enyMan/pacMan — validateDelete() called generically on all entity delete paths
+    : modified components
+       common,
+       enyMan,
+       pacMan
+
 v1.2.2-2604.0711  unified facade REST API: esq-cmd-* namespace; kind-aware gateway predicate
     :Refactoring: pacMan — PacManController: a-prefix mappings dropped (/esq-cmd-asave→/esq-cmd-save, /esq-anew→/esq-new, /esq-adel→/esq-del); /esq-new→/esq-cmd-new, /esq-del→/esq-cmd-del
     :Feature/Config: gateway — EntityKindRoutePredicateFactory: kind query param tested via EsqObjectKindStorage (isAcct/isOrg/isUsr); replaces regex Query predicate in gateway config

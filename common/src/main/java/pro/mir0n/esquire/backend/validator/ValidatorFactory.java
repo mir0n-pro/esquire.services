@@ -48,4 +48,13 @@ public class ValidatorFactory implements IValidator {
         return ret;
     }
 
+    @Override
+    public void validateDelete(EsqEntityJpa origin) {
+        if (bizValidators == null || origin == null || origin.getKind() == null) return;
+        IValidator biz = bizValidators.get(origin.getKind());
+        if (biz != null) {
+            biz.validateDelete(origin);
+        }
+    }
+
 }

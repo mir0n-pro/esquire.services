@@ -557,6 +557,25 @@
                             <readwrite>3</readwrite>
                             <affects3>Y</affects3>
                         </field>
+                        <field>
+                            <name>fundedDate</name>
+                            <sort>5</sort>
+                            <label>Funded</label>
+                            <type>date</type>
+                            <tooltip>Date when the account was funded</tooltip>
+                            <readwrite>1</readwrite>
+                            <nullable>Y</nullable>
+                        </field>
+                        <field>
+                            <name>negativeAllowed</name>
+                            <sort>6</sort>
+                            <label>Neg Allowed</label>
+                            <type>flag</type>
+                            <tooltip>Negative balance allowed</tooltip>
+                            <nullable>N</nullable>
+                            <default>N</default>
+                            <readwrite>3</readwrite>
+                        </field>
                     </fields>
                 </layer>
                 <layer>
@@ -642,6 +661,25 @@
                             <readwrite>3</readwrite>
                             <affects3>Y</affects3>
                         </field>
+                        <field>
+                            <name>fundedDate</name>
+                            <sort>5</sort>
+                            <label>Funded</label>
+                            <type>date</type>
+                            <tooltip>Date when the account was funded</tooltip>
+                            <readwrite>1</readwrite>
+                            <nullable>Y</nullable>
+                        </field>
+                        <field>
+                            <name>negativeAllowed</name>
+                            <sort>6</sort>
+                            <label>Neg Allowed</label>
+                            <type>flag</type>
+                            <tooltip>Negative balance allowed</tooltip>
+                            <nullable>N</nullable>
+                            <default>N</default>
+                            <readwrite>3</readwrite>
+                        </field>
                     </fields>
                 </layer>
                 <layer>
@@ -704,9 +742,8 @@
                             <label>Balance</label>
                             <type>number</type>
                             <tooltip>Account balance</tooltip>
-                            <readwrite>3</readwrite>
+                            <readwrite>1</readwrite>
                             <format>#,##0.00</format>
-                            <minmax>100,100000</minmax>
                         </field>
                         <field>
                             <name>status</name>
@@ -724,6 +761,25 @@
                             <default>O</default>
                             <readwrite>3</readwrite>
                             <affects3>Y</affects3>
+                        </field>
+                        <field>
+                            <name>fundedDate</name>
+                            <sort>5</sort>
+                            <label>Funded</label>
+                            <type>date</type>
+                            <tooltip>Date when the account was funded</tooltip>
+                            <readwrite>1</readwrite>
+                            <nullable>Y</nullable>
+                        </field>
+                        <field>
+                            <name>negativeAllowed</name>
+                            <sort>6</sort>
+                            <label>Neg Allowed</label>
+                            <type>flag</type>
+                            <tooltip>Negative balance allowed</tooltip>
+                            <nullable>N</nullable>
+                            <default>N</default>
+                            <readwrite>3</readwrite>
                         </field>
                     </fields>
                 </layer>
