@@ -58,6 +58,7 @@ spring:
   jpa:
     mapping-resources:
       - META-INF/oracle-acct.xml
+      - META-INF/oracle-acct-transaction.xml
       - META-INF/oracle-roles.xml
     properties:
       hibernate:
@@ -84,6 +85,7 @@ spring:
   jpa:
     mapping-resources:
       - META-INF/postgres-acct.xml
+      - META-INF/postgres-acct-transaction.xml
       - META-INF/postgres-roles.xml
     properties:
       hibernate:

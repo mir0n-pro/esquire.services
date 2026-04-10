@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<entity-mappings xmlns="http://java.sun.com/xml/ns/persistence/orm"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://java.sun.com/xml/ns/persistence/orm http://java.sun.com/xml/ns/persistence/orm_2_0.xsd"
+    version="2.0">
+
+    <named-native-query name="EsqAcctTransactionJpa.insertAcctTransaction">
+        <query>
+ INSERT INTO esq_acct_transaction (
+  atr_pk, atr_acc_pk, atr_at_pk
+ ,atr_amt, atr_prev_balance
+ ,atr_desc
+ ,atr_ref_code, atr_ref_code2, atr_ref_code3, atr_ref_code4
+ ,atr_memo
+ ,atr_crl_id, atr_req_id, atr_uid
+ ) VALUES (
+  CAST(:pk AS bigint), CAST(:accPk AS bigint), :atPk
+ ,CAST(:amt AS numeric), CAST(:prevBalance AS numeric)
+ ,:desc
+ ,:refCode, :refCode2, :refCode3, :refCode4
+ ,:memo
+ ,:crlId, :reqId, :uid
+ )
+        </query>
+    </named-native-query>
+
+    <sql-result-set-mapping name="EsqAcctTransactionJpaMapping">
+        <entity-result entity-class="pro.mir0n.esquire.pacMan.acct.jpa.EsqAcctTransactionJpa">
+            <field-result name="id"          column="atr_pk"/>
+            <field-result name="accPk"       column="atr_acc_pk"/>
+            <field-result name="atPk"        column="atr_at_pk"/>
+            <field-result name="amt"         column="atr_amt"/>
+            <field-result name="prevBalance" column="atr_prev_balance"/>
+            <field-result name="desc"        column="atr_desc"/>
+            <field-result name="refCode"     column="atr_ref_code"/>
+            <field-result name="refCode2"    column="atr_ref_code2"/>
+            <field-result name="refCode3"    column="atr_ref_code3"/>
+            <field-result name="refCode4"    column="atr_ref_code4"/>
+            <field-result name="memo"        column="atr_memo"/>
+            <field-result name="crlId"       column="atr_crl_id"/>
+            <field-result name="reqId"       column="atr_req_id"/>
+            <field-result name="uid"         column="atr_uid"/>
+        </entity-result>
+    </sql-result-set-mapping>
+
+</entity-mappings>

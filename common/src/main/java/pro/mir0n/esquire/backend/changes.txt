@@ -1,5 +1,9 @@
 Esquire Backend common microservice classes
 
+04/09/2026 mir0n  
+esq-entity-dictionaries.xml: 
+  - kind=980 typeId field: <defauilt> opening tag corrected to <default> (caused XML parse failure in all services on startup)
+
 04/09/2026 mir0n  funded account fields; IValidator.validateDelete(); enforceDefaults moved to EntityFieldUtils
 + added service.EntityFieldUtils  (new)
   - applyFields(jpa, fields, personal, subLayer, writables): dict-driven field apply with BeanWrapper; moved from AEnyManService

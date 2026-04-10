@@ -15,6 +15,7 @@
  *                   @EnableJpaRepositories extended with backend.storage.roles
  * 03/10/2026 mir0n  scanBasePackages: backend.service, backend.security, backend.exception added
  * 03/21/2026 mir0n  devLog added; log.debug→devLog.debug
+ * 04/09/2026 mir0n  @EntityScan + @EnableJpaRepositories extended to pro.mir0n.esquire.pacMan.acct.jpa
  */
 
 package pro.mir0n.esquire.pacMan;
@@ -42,9 +43,10 @@ import pro.mir0n.esquire.pacMan.service.BizValidatorFactory;
         "pro.mir0n.esquire.backend.security",
         "pro.mir0n.esquire.backend.exception"
 })
-@EntityScan(basePackages = "pro.mir0n.esquire.backend.jpa")
+@EntityScan(basePackages = {"pro.mir0n.esquire.backend.jpa", "pro.mir0n.esquire.pacMan.acct.jpa"})
 @EnableJpaRepositories(basePackages = {
         "pro.mir0n.esquire.pacMan.jpa",
+        "pro.mir0n.esquire.pacMan.acct.jpa",
         "pro.mir0n.esquire.backend.storage.roles"
 })
 public class PacManApplication {

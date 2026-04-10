@@ -20,6 +20,7 @@
  * 03/26/2026 mir0n  POST /esq-anew → esquireCommandNew(); POST /esq-adel → esquireCommandDelete()
  * 04/07/2026 mir0n  unified facade API: /esq-cmd-asave→/esq-cmd-save, /esq-anew→/esq-new, /esq-adel→/esq-del
  *                   /esq-new→/esq-cmd-new, /esq-del→/esq-cmd-del
+ * 04/09/2026 mir0n  POST /esq-acct → esquireCommandAcct(); AcctTransactionService injected directly
  */
 
 package pro.mir0n.esquire.pacMan.controller;
@@ -31,6 +32,8 @@ import org.springframework.http.ProblemDetail;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import pro.mir0n.esquire.backend.dto.*;
 import pro.mir0n.esquire.backend.dto.entity.*;
+import pro.mir0n.esquire.pacMan.acct.dto.AcctTransactionSimple;
+import pro.mir0n.esquire.pacMan.acct.service.AcctTransactionService;
 import pro.mir0n.esquire.pacMan.service.IPacManService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -71,6 +74,7 @@ public class PacManController {
     private static final org.slf4j.Logger devLog = LoggerFactory.getLogger("develop." + PacManController.class.getName());
 
     private IPacManService iPacManService;
+    private AcctTransactionService acctTransactionService;
 
     @Operation(
             summary = "Esquire Account REST API",
@@ -153,6 +157,34 @@ public class PacManController {
         iPacManService.esquireCommandDelete(kind, id, cmd, rootPath, uid, roles);
         devLog.debug("esquireCommandDelete: kind:{}, id:{}, cmd:{}, rootPath:{}", kind, id, cmd, rootPath);
         return ResponseEntity.ok().build();
+    }
+
+    @Operation(summary = "Post account transaction (deposit)")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "HTTP Status OK",
+                    content = @Content(schema = @Schema(implementation = AcctTransactionSimple.class))),
+            @ApiResponse(responseCode = "500", description = "HTTP Status Internal Server Error",
+                    content = @Content(schema = @Schema(implementation = ProblemDetail.class)))
+    })
+    @PostMapping("/esq-acct")
+    public ResponseEntity<AcctTransactionSimple> esquireCommandAcct(
+           @Parameter(description = "Account kind code")
+           @RequestParam(name = "kind", required = true) Integer kind,
+           @Parameter(description = "Account entity id")
+           @RequestParam(name = "id", required = true) String id,
+           @Parameter(description = "Command code")
+           @RequestParam(name = "cmd", required = false, defaultValue = "acct") String cmd,
+           @RequestBody Map<String, Object> fields,
+           @AuthenticationPrincipal Claims claims
+    ) {
+        String rootPath = claims.get(EsqConstants.JWT_CLAIM_ENTITY_ROOTPATH, String.class);
+        String uid = claims.get(EsqConstants.JWT_CLAIM_ENTITY_ID, String.class);
+        Map<String, Object> realmAccess = claims.get(EsqConstants.JWT_CLAIM_REALM_ACCESS, Map.class);
+        List<String> roles = realmAccess != null ? (List<String>) realmAccess.get(EsqConstants.JWT_CLAIM_REALM_ACCESS_ROLES) : null;
+
+        AcctTransactionSimple ret = acctTransactionService.esquireCommandAcct(kind, id, cmd, fields, rootPath, uid, roles);
+        devLog.debug("esquireCommandAcct: kind:{}, id:{}, cmd:{}, rootPath:{}, result:{}", kind, id, cmd, rootPath, String.valueOf(ret));
+        return ResponseEntity.status(HttpStatus.OK).body(ret);
     }
 
     @GetMapping("/esq-cmd")

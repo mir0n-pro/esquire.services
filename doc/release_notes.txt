@@ -1,6 +1,12 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v1.2.2-2604.0921  account transaction command Phase I;
+    :Feature: pacMan — AcctTransactionService: POST /esq-acct
+    : modified components
+       common,
+       pacMan
+
 v1.2.2-2604.0914  funded account fields; generalization of biz validation rules; EntityFieldUtils utility
     :Feature: common — EsqAcctJpa/EsqAcct: fundedDate + negativeAllowed fields added
     :Refactoring: enyMan/pacMan — validateDelete() called generically on all entity delete paths

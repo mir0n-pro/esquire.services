@@ -1,5 +1,31 @@
 Esquire pacMan Microservice
 
+04/09/2026 mir0n  account transaction command Phase I — POST /esq-acct; isolated pacMan.acct package
++ added acct.dto.AcctTransactionSimple  (new)
+  - account transaction result DTO: id, kind, typeId, amount, desc, refCode/2/3/4, memo
++ added acct.jpa.EsqAcctTransactionJpa  (new)
+  - JPA entity for ESQ_ACCT_TRANSACTION; no @Table/@Column — XML field mapping only
++ added acct.jpa.EsqAcctTransactionRepository  (new)
+  - insertAcctTransaction: 14-param native INSERT
++ added acct.service.AcctTransactionService  (new)
+  - esquireCommandAcct(): kind/permission gate (AdminCmd.ACCT); delegates to postAcctTransaction()
+  - postAcctTransaction(): null/zero/negative amount guards; open status check (skipValidation bypass); negative balance check; insertAcctTransaction + updateAcctBalance
+  - private constants: KIND_ACCTTR=980, FIELD_AMOUNT, FIELD_TYPE_ID, FIELD_SKIP_VALIDATION
++ added META-INF/postgres-acct-transaction.xml  (new)
+  - insertAcctTransaction named query; EsqAcctTransactionJpaMapping sql-result-set-mapping
++ added META-INF/oracle-acct-transaction.xml  (new)
+  - insertAcctTransaction named query (Oracle syntax); EsqAcctTransactionJpaMapping
+PacManApplication
+  - @EntityScan + @EnableJpaRepositories: pro.mir0n.esquire.pacMan.acct.jpa added
+controller.PacManController
+  - POST /esq-acct → esquireCommandAcct(); AcctTransactionService injected directly
+jpa.EsqAcctRepository
+  - updateAcctBalance native query added
+META-INF/postgres-acct.xml
+  - EsqAcctJpa.updateAcctBalance named query added
+META-INF/oracle-acct.xml
+  - EsqAcctJpa.updateAcctBalance named query added (Oracle syntax)
+
 04/09/2026 mir0n  funded account fields; biz validation rules; applyFields/enforceDefaults to EntityFieldUtils
 service.IPacManService
   - FIELD_CCY constant added

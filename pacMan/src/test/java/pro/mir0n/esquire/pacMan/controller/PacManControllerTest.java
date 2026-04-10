@@ -11,6 +11,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import pro.mir0n.esquire.backend.dto.EsqEntity;
 import pro.mir0n.esquire.common.EsqConstants;
+import pro.mir0n.esquire.pacMan.acct.service.AcctTransactionService;
 import pro.mir0n.esquire.pacMan.service.IPacManService;
 
 import java.util.List;
@@ -26,13 +27,16 @@ class PacManControllerTest {
     private IPacManService service;
 
     @Mock
+    private AcctTransactionService acctTransactionService;
+
+    @Mock
     private Claims claims;
 
     private PacManController controller;
 
     @BeforeEach
     void setUp() {
-        controller = new PacManController(service);
+        controller = new PacManController(service, acctTransactionService);
     }
 
     // ---- esquireCommand ----

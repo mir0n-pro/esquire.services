@@ -67,6 +67,17 @@
         </query>
     </named-native-query>
 
+    <named-native-query name="EsqAcctJpa.updateAcctBalance">
+        <query>
+ UPDATE esq_account
+ SET acc_balance = CAST(:balance AS numeric)
+    ,acc_crl_id  = :correlationId
+    ,acc_req_id  = :requestId
+    ,acc_uid     = :uid
+ WHERE acc_pk = CAST(:id AS bigint)
+        </query>
+    </named-native-query>
+
     <named-native-query name="EsqAcctJpa.deleteEntityPath">
         <query>
  DELETE FROM esq_entity_path WHERE ep_pk = CAST(:pk AS bigint)
