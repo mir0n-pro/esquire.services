@@ -1,6 +1,11 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v1.2.2-2604.1016 Object Kind enumeration specified
+    : modified components
+       common,
+    : added doc/Object.Kind.enum.md
+
 v1.2.2-2604.0921  account transaction command Phase I;
     :Feature: pacMan — AcctTransactionService: POST /esq-acct
     : modified components
