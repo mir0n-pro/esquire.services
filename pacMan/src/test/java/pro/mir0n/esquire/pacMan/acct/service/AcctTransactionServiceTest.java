@@ -18,13 +18,17 @@ import pro.mir0n.esquire.backend.error.ResourceNotFoundException;
 import pro.mir0n.esquire.backend.jpa.access.EsqPermissionJpa;
 import pro.mir0n.esquire.backend.jpa.access.EsqRoleJpa;
 import pro.mir0n.esquire.backend.jpa.entity.EsqAcctJpa;
+import pro.mir0n.esquire.backend.storage.EsqEntityDictionaryStorage;
 import pro.mir0n.esquire.backend.storage.EsqObjectKindStorage;
 import pro.mir0n.esquire.backend.storage.EsqRolesStorage;
 import pro.mir0n.esquire.backend.storage.roles.JpaRolesRepository;
+import pro.mir0n.esquire.backend.validator.ValidatorFactory;
 import pro.mir0n.esquire.common.EsqConstants;
-import pro.mir0n.esquire.pacMan.acct.dto.AcctTransactionSimple;
+import pro.mir0n.esquire.pacMan.acct.AcctOperation;
+import pro.mir0n.esquire.pacMan.acct.dto.AcctTransactionSingle;
 import pro.mir0n.esquire.pacMan.acct.jpa.EsqAcctTransactionRepository;
 import pro.mir0n.esquire.pacMan.jpa.EsqAcctRepository;
+import pro.mir0n.esquire.pacMan.service.BizValidatorFactory;
 
 import java.util.HashMap;
 import java.util.List;
@@ -42,7 +46,7 @@ class AcctTransactionServiceTest {
     @Mock private TransactionTemplate transactionTemplate;
     @Mock private EntityManager em;
 
-    private AcctTransactionService service;
+    private AcctTransactionProcessorSingle service;
 
     static final String ROLE_ADMIN = "ROLE_ADMIN";
 
@@ -67,11 +71,14 @@ class AcctTransactionServiceTest {
         when(rolesRepo.roles()).thenReturn(List.of(roleJpa));
         when(rolesRepo.permissions("1")).thenReturn(List.of(permJpa));
         EsqRolesStorage.getInstance().init(rolesRepo);
+
+        EsqEntityDictionaryStorage.getInstance().init((String) null);
+        ValidatorFactory.getInstance().init(BizValidatorFactory.getBizValidators());
     }
 
     @BeforeEach
     void setUp() {
-        service = new AcctTransactionService(entityRepository, transactionRepository, transactionTemplate, em);
+        service = new AcctTransactionProcessorSingle(entityRepository, transactionRepository, transactionTemplate, em);
     }
 
     // ---- unknown or odd kind → ResourceNotFoundException ----
@@ -80,7 +87,7 @@ class AcctTransactionServiceTest {
     @DisplayName("esquireCommandAcct: unknown kind → ResourceNotFoundException")
     void esquireCommandAcct_unknownKind_throwsResourceNotFoundException() {
         assertThatThrownBy(() ->
-            service.esquireCommandAcct(99, "10", "acct", Map.of(), "1.2.3", "99", null)
+            service.esquireCommandAcct(99, "10", null, Map.of(), "1.2.3", "99", null)
         ).isInstanceOf(ResourceNotFoundException.class);
     }
 
@@ -88,7 +95,7 @@ class AcctTransactionServiceTest {
     @DisplayName("esquireCommandAcct: odd kind 51 → ResourceNotFoundException")
     void esquireCommandAcct_oddKind_throwsResourceNotFoundException() {
         assertThatThrownBy(() ->
-            service.esquireCommandAcct(51, "10", "acct", Map.of(), "1.2.3", "99", null)
+            service.esquireCommandAcct(51, "10", null, Map.of(), "1.2.3", "99", null)
         ).isInstanceOf(ResourceNotFoundException.class);
     }
 
@@ -98,7 +105,7 @@ class AcctTransactionServiceTest {
     @DisplayName("esquireCommandAcct: null roles → PermissionDeniedException")
     void esquireCommandAcct_nullRoles_throwsPermissionDeniedException() {
         assertThatThrownBy(() ->
-            service.esquireCommandAcct(50, "10", "acct", Map.of(), "1.2.3", "99", null)
+            service.esquireCommandAcct(50, "10", null, Map.of(), "1.2.3", "99", null)
         ).isInstanceOf(PermissionDeniedException.class);
     }
 
@@ -114,29 +121,24 @@ class AcctTransactionServiceTest {
         when(entityRepository.detailAcctForUpdate("10", "1.2.3")).thenReturn(null);
 
         assertThatThrownBy(() ->
-            service.esquireCommandAcct(50, "10", "acct", Map.of("amount", 100.0), "1.2.3", "99", List.of(ROLE_ADMIN))
+            service.esquireCommandAcct(50, "10", AcctOperation.Code.DEPOSIT,Map.of("amount", 100.0), "1.2.3", "99", List.of(ROLE_ADMIN))
         ).isInstanceOf(ResourceNotFoundException.class);
     }
 
-    // ---- zero amount → returns null, no DB calls ----
+    // ---- zero amount → InvalidValueException ----
 
     @Test
-    @DisplayName("esquireCommandAcct: amount=0 → returns null, no insert/update called")
-    void esquireCommandAcct_zeroAmount_returnsNull() {
+    @DisplayName("esquireCommandAcct: amount=0 → InvalidValueException")
+    void esquireCommandAcct_zeroAmount_throwsInvalidValueException() {
         when(transactionTemplate.execute(any())).thenAnswer(inv -> {
             inv.<org.springframework.transaction.support.TransactionCallback<?>>getArgument(0).doInTransaction(null);
             return null;
         });
-        EsqAcctJpa acct = new EsqAcctJpa();
-        acct.setId("10"); acct.setKind(50); acct.setBalance(500.0); acct.setNegativeAllowed("N");
-        when(entityRepository.detailAcctForUpdate("10", "1.2.3")).thenReturn(acct);
 
-        AcctTransactionSimple ret = service.esquireCommandAcct(50, "10", "acct",
-                Map.of("amount", 0.0), "1.2.3", "99", List.of(ROLE_ADMIN));
-
-        org.assertj.core.api.Assertions.assertThat(ret).isNull();
-        Mockito.verifyNoInteractions(transactionRepository);
-        verify(entityRepository, Mockito.never()).updateAcctBalance(anyString(), anyDouble(), anyString(), anyString(), anyString());
+        assertThatThrownBy(() ->
+            service.esquireCommandAcct(50, "10", AcctOperation.Code.DEPOSIT,
+                    Map.of("amount", 0.0), "1.2.3", "99", List.of(ROLE_ADMIN))
+        ).isInstanceOf(InvalidValueException.class);
     }
 
     // ---- negative amount → InvalidValueException ----
@@ -148,12 +150,8 @@ class AcctTransactionServiceTest {
             inv.<org.springframework.transaction.support.TransactionCallback<?>>getArgument(0).doInTransaction(null);
             return null;
         });
-        EsqAcctJpa acct = new EsqAcctJpa();
-        acct.setId("10"); acct.setKind(50); acct.setBalance(500.0); acct.setNegativeAllowed("N");
-        when(entityRepository.detailAcctForUpdate("10", "1.2.3")).thenReturn(acct);
-
         assertThatThrownBy(() ->
-            service.esquireCommandAcct(50, "10", "acct",
+            service.esquireCommandAcct(50, "10", AcctOperation.Code.DEPOSIT,
                     Map.of("amount", -50.0), "1.2.3", "99", List.of(ROLE_ADMIN))
         ).isInstanceOf(InvalidValueException.class);
     }
@@ -172,7 +170,7 @@ class AcctTransactionServiceTest {
         when(entityRepository.detailAcctForUpdate("10", "1.2.3")).thenReturn(acct);
 
         assertThatThrownBy(() ->
-            service.esquireCommandAcct(50, "10", "acct",
+            service.esquireCommandAcct(50, "10", AcctOperation.Code.DEPOSIT,
                     Map.of("amount", 100.0), "1.2.3", "99", List.of(ROLE_ADMIN))
         ).isInstanceOf(InvalidValueException.class);
     }
@@ -191,34 +189,53 @@ class AcctTransactionServiceTest {
         when(entityRepository.detailAcctForUpdate("10", "1.2.3")).thenReturn(acct);
 
         assertThatThrownBy(() ->
-            service.esquireCommandAcct(50, "10", "acct",
+            service.esquireCommandAcct(50, "10", AcctOperation.Code.DEPOSIT,
                     Map.of("amount", 50.0), "1.2.3", "99", List.of(ROLE_ADMIN))
         ).isInstanceOf(InvalidValueException.class);
     }
 
-    // ---- skipValidation=true → posts even when balance goes negative ----
+    // ---- invalid refCode value → InvalidValueException ----
 
     @Test
-    @DisplayName("esquireCommandAcct: skipValidation=true → posts despite insufficient balance")
-    void esquireCommandAcct_skipValidation_postsSuccessfully() {
+    @DisplayName("esquireCommandAcct: refCode not in list → InvalidValueException")
+    void esquireCommandAcct_invalidRefCode_throwsInvalidValueException() {
         when(transactionTemplate.execute(any())).thenAnswer(inv -> {
             inv.<org.springframework.transaction.support.TransactionCallback<?>>getArgument(0).doInTransaction(null);
             return null;
         });
         EsqAcctJpa acct = new EsqAcctJpa();
-        acct.setId("10"); acct.setKind(50); acct.setBalance(-900.0); acct.setNegativeAllowed("N");
+        acct.setId("10"); acct.setKind(50); acct.setBalance(500.0); acct.setNegativeAllowed("N"); acct.setStatus("O");
         when(entityRepository.detailAcctForUpdate("10", "1.2.3")).thenReturn(acct);
 
         Map<String, Object> fields = new HashMap<>();
-        fields.put("amount", 50.0);
-        fields.put("skipValidation", true);
+        fields.put("amount", 100.0);
+        fields.put("refCode", "wire");
 
-        AcctTransactionSimple ret = service.esquireCommandAcct(50, "10", "acct", fields, "1.2.3", "99", List.of(ROLE_ADMIN));
+        assertThatThrownBy(() ->
+            service.esquireCommandAcct(50, "10", AcctOperation.Code.DEPOSIT,fields, "1.2.3", "99", List.of(ROLE_ADMIN))
+        ).isInstanceOf(InvalidValueException.class);
+    }
 
-        org.assertj.core.api.Assertions.assertThat(ret).isNotNull();
-        verify(transactionRepository).insertAcctTransaction(anyLong(), anyLong(), anyInt(),
-                eq(50.0), eq(-900.0), any(), any(), any(), any(), any(), any(), any(), any(), any());
-        verify(entityRepository).updateAcctBalance(eq("10"), eq(-850.0), any(), any(), any());
+    // ---- null refCode2 → InvalidValueException ----
+
+    @Test
+    @DisplayName("esquireCommandAcct: refCode2=null → InvalidValueException")
+    void esquireCommandAcct_nullRefCode2_throwsInvalidValueException() {
+        when(transactionTemplate.execute(any())).thenAnswer(inv -> {
+            inv.<org.springframework.transaction.support.TransactionCallback<?>>getArgument(0).doInTransaction(null);
+            return null;
+        });
+        EsqAcctJpa acct = new EsqAcctJpa();
+        acct.setId("10"); acct.setKind(50); acct.setBalance(500.0); acct.setNegativeAllowed("N"); acct.setStatus("O");
+        when(entityRepository.detailAcctForUpdate("10", "1.2.3")).thenReturn(acct);
+
+        Map<String, Object> fields = new HashMap<>();
+        fields.put("amount", 100.0);
+        fields.put("refCode", "cash");
+
+        assertThatThrownBy(() ->
+            service.esquireCommandAcct(50, "10", AcctOperation.Code.DEPOSIT,fields, "1.2.3", "99", List.of(ROLE_ADMIN))
+        ).isInstanceOf(InvalidValueException.class);
     }
 
     // ---- negativeAllowed=Y → posts even when balance goes negative ----
@@ -236,10 +253,36 @@ class AcctTransactionServiceTest {
 
         Map<String, Object> fields = new HashMap<>();
         fields.put("amount", 50.0);
+        fields.put("refCode", "cc");
+        fields.put("refCode2", "REF-001");
 
-        AcctTransactionSimple ret = service.esquireCommandAcct(50, "10", "acct", fields, "1.2.3", "99", List.of(ROLE_ADMIN));
+        AcctTransactionSingle ret = service.esquireCommandAcct(50, "10", AcctOperation.Code.DEPOSIT,fields, "1.2.3", "99", List.of(ROLE_ADMIN));
 
         org.assertj.core.api.Assertions.assertThat(ret).isNotNull();
+        verify(entityRepository).updateAcctBalance(eq("10"), eq(-850.0), any(), any(), any());
+    }
+
+    // ---- skipValidation=true → posts despite insufficient balance and closed status ----
+
+    @Test
+    @DisplayName("esquireCommandAcct: skipValidation=true → posts despite insufficient balance")
+    void esquireCommandAcct_skipValidation_postsSuccessfully() {
+        when(transactionTemplate.execute(any())).thenAnswer(inv -> {
+            inv.<org.springframework.transaction.support.TransactionCallback<?>>getArgument(0).doInTransaction(null);
+            return null;
+        });
+        EsqAcctJpa acct = new EsqAcctJpa();
+        acct.setId("10"); acct.setKind(50); acct.setBalance(-900.0); acct.setNegativeAllowed("N"); acct.setStatus("C");
+        when(entityRepository.detailAcctForUpdate("10", "1.2.3")).thenReturn(acct);
+
+        Map<String, Object> fields = new HashMap<>();
+        fields.put("amount", 50.0);
+
+        AcctTransactionSingle ret = service.esquireCommandAcct(50, "10", AcctOperation.Code.DEPOSIT, fields, true, "1.2.3", "99", List.of(ROLE_ADMIN));
+
+        org.assertj.core.api.Assertions.assertThat(ret).isNotNull();
+        verify(transactionRepository).insertAcctTransaction(anyLong(), anyLong(), anyInt(),
+                eq(50.0), eq(-900.0), any(), any(), any(), any(), any(), any(), any(), any(), any());
         verify(entityRepository).updateAcctBalance(eq("10"), eq(-850.0), any(), any(), any());
     }
 
@@ -258,22 +301,24 @@ class AcctTransactionServiceTest {
 
         Map<String, Object> fields = new HashMap<>();
         fields.put("amount", 100.0);
-        fields.put("typeId", 980);
+        fields.put("typeId", 1);
         fields.put("refCode", "cash");
+        fields.put("refCode2", "REF-001");
         fields.put("memo", "test deposit");
 
-        AcctTransactionSimple ret = service.esquireCommandAcct(50, "10", "acct", fields, "1.2.3", "99", List.of(ROLE_ADMIN));
+        AcctTransactionSingle ret = service.esquireCommandAcct(50, "10", AcctOperation.Code.DEPOSIT,fields, "1.2.3", "99", List.of(ROLE_ADMIN));
 
         org.assertj.core.api.Assertions.assertThat(ret).isNotNull();
         org.assertj.core.api.Assertions.assertThat(ret.getAmount()).isEqualTo(100.0);
-        org.assertj.core.api.Assertions.assertThat(ret.getKind()).isEqualTo(980);
-        org.assertj.core.api.Assertions.assertThat(ret.getTypeId()).isEqualTo(980);
+        org.assertj.core.api.Assertions.assertThat(ret.getKind()).isEqualTo(50);
+        org.assertj.core.api.Assertions.assertThat(ret.getTypeId()).isEqualTo(1);
         org.assertj.core.api.Assertions.assertThat(ret.getRefCode()).isEqualTo("cash");
+        org.assertj.core.api.Assertions.assertThat(ret.getRefCode2()).isEqualTo("REF-001");
         org.assertj.core.api.Assertions.assertThat(ret.getMemo()).isEqualTo("test deposit");
 
         InOrder order = inOrder(transactionRepository, entityRepository);
-        order.verify(transactionRepository).insertAcctTransaction(anyLong(), eq(10L), eq(980),
-                eq(100.0), eq(500.0), any(), eq("cash"), any(), any(), any(), eq("test deposit"), any(), any(), any());
+        order.verify(transactionRepository).insertAcctTransaction(anyLong(), eq(10L), eq(1),
+                eq(100.0), eq(500.0), any(), eq("cash"), eq("REF-001"), any(), any(), eq("test deposit"), any(), any(), any());
         order.verify(entityRepository).updateAcctBalance(eq("10"), eq(600.0), any(), any(), any());
     }
 }

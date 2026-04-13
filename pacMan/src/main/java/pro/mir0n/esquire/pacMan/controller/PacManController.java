@@ -21,6 +21,7 @@
  * 04/07/2026 mir0n  unified facade API: /esq-cmd-asave→/esq-cmd-save, /esq-anew→/esq-new, /esq-adel→/esq-del
  *                   /esq-new→/esq-cmd-new, /esq-del→/esq-cmd-del
  * 04/09/2026 mir0n  POST /esq-acct → esquireCommandAcct(); AcctTransactionService injected directly
+ * 04/13/2026 mir0n  AcctTransactionSimple → AcctTransactionSingle
  */
 
 package pro.mir0n.esquire.pacMan.controller;
@@ -32,7 +33,7 @@ import org.springframework.http.ProblemDetail;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import pro.mir0n.esquire.backend.dto.*;
 import pro.mir0n.esquire.backend.dto.entity.*;
-import pro.mir0n.esquire.pacMan.acct.dto.AcctTransactionSimple;
+import pro.mir0n.esquire.pacMan.acct.dto.AcctTransactionSingle;
 import pro.mir0n.esquire.pacMan.acct.service.AcctTransactionService;
 import pro.mir0n.esquire.pacMan.service.IPacManService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -162,12 +163,12 @@ public class PacManController {
     @Operation(summary = "Post account transaction (deposit)")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "HTTP Status OK",
-                    content = @Content(schema = @Schema(implementation = AcctTransactionSimple.class))),
+                    content = @Content(schema = @Schema(implementation = AcctTransactionSingle.class))),
             @ApiResponse(responseCode = "500", description = "HTTP Status Internal Server Error",
                     content = @Content(schema = @Schema(implementation = ProblemDetail.class)))
     })
     @PostMapping("/esq-acct")
-    public ResponseEntity<AcctTransactionSimple> esquireCommandAcct(
+    public ResponseEntity<AcctTransactionSingle> esquireCommandAcct(
            @Parameter(description = "Account kind code")
            @RequestParam(name = "kind", required = true) Integer kind,
            @Parameter(description = "Account entity id")
@@ -182,7 +183,7 @@ public class PacManController {
         Map<String, Object> realmAccess = claims.get(EsqConstants.JWT_CLAIM_REALM_ACCESS, Map.class);
         List<String> roles = realmAccess != null ? (List<String>) realmAccess.get(EsqConstants.JWT_CLAIM_REALM_ACCESS_ROLES) : null;
 
-        AcctTransactionSimple ret = acctTransactionService.esquireCommandAcct(kind, id, cmd, fields, rootPath, uid, roles);
+        AcctTransactionSingle ret = acctTransactionService.esquireCommandAcct(kind, id, cmd, fields, rootPath, uid, roles);
         devLog.debug("esquireCommandAcct: kind:{}, id:{}, cmd:{}, rootPath:{}, result:{}", kind, id, cmd, rootPath, String.valueOf(ret));
         return ResponseEntity.status(HttpStatus.OK).body(ret);
     }

@@ -1,5 +1,29 @@
 Esquire pacMan Microservice
 
+04/13/2026 mir0n  account transaction Phase III — single op complete; transfer draft; AcctTransactionService refactored to thin router
++ added acct.AcctOperation
+  - AmountEffect enum (NEGATIVE/ANY/POSITIVE); Code enum (DEPOSIT/WITHDRAWAL/TRANSFER/ADJUSTMENT/COMMISSION/UNKNOWN)
+  - each Code carries id, AmountEffect, transfer flag, dict kind
++ added acct.IAcctTransactionProcessor
+  - default 7-param delegates to abstract 8-param with skipValidation (test-only validation bypass)
++ added acct.dto.AcctTransactionSingle
+  - FIELD_* constants for all map keys; fill(Map) sets desc/refCode fields
+  - replaces AcctTransactionSimple
++ added acct.service.AcctTransactionProcessorSingle
+  - permission check via EsqRolesStorage.AdminCmd.ACCT
+  - amount sign/zero validation per AmountEffect; status and balance checks (skippable)
+  - EntityFieldUtils.applyFields(oper.kind, fields) — dictionary-driven field validation
+  - inserts transaction row, updates account balance
++ added acct.service.AcctTransactionProcessorTransfer
+  - two-leg transfer: debit source (first leg), credit target with -amount (second leg, skipValidation=true)
+  - validates id2/kind2 presence; permissions checked for both legs
+acct.service.AcctTransactionService
+  - refactored to thin router; processors instantiated explicitly (no Spring management)
+  - pre-validates: fields not null, typeId present, operation not UNKNOWN, amount not null
+  - routes by AcctOperation.Code.transfer flag
+controller.PacManController
+  - AcctTransactionSimple → AcctTransactionSingle
+
 04/12/2026 mir0n  account transaction Phase II — KIND_ACCTTR=1000; EntityFieldUtils validation; explicit skipValidation param
 acct.service.AcctTransactionService
   - KIND_ACCTTR: 980 -> 1000 (aligns with esq-entity-dictionaries.xml kind)

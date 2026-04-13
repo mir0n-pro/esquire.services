@@ -1,0 +1,172 @@
+/*
+ *  Esquire frameworks (tm)
+ *  PacMan service
+ *
+ *  Copyright(c) 2001, 2026 mir0n&co www.mir0n.me
+ *
+ *  History:
+ * 04/13/2026 mir0n  created: single-leg acct transaction processor; permission check, amount/status/balance validation, EntityFieldUtils field validation, insert + balance update
+ */
+
+package pro.mir0n.esquire.pacMan.acct.service;
+
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.FlushModeType;
+import lombok.AllArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.slf4j.LoggerFactory;
+import org.springframework.transaction.support.TransactionTemplate;
+import pro.mir0n.esquire.backend.dto.access.EsqPermission;
+import pro.mir0n.esquire.backend.dto.EsqObjectKind;
+import pro.mir0n.esquire.backend.error.InvalidValueException;
+import pro.mir0n.esquire.backend.error.PermissionDeniedException;
+import pro.mir0n.esquire.backend.error.ResourceNotFoundException;
+import pro.mir0n.esquire.backend.jpa.entity.EsqAcctJpa;
+import pro.mir0n.esquire.backend.service.EntityFieldUtils;
+import pro.mir0n.esquire.backend.service.RequestContextUtils;
+import pro.mir0n.esquire.backend.storage.EsqObjectKindStorage;
+import pro.mir0n.esquire.backend.storage.EsqRolesStorage;
+import pro.mir0n.esquire.common.EsqMsgConstants;
+import pro.mir0n.esquire.common.EsqUtils;
+import pro.mir0n.esquire.pacMan.acct.AcctOperation;
+import pro.mir0n.esquire.pacMan.acct.IAcctTransactionProcessor;
+import pro.mir0n.esquire.pacMan.acct.dto.AcctTransactionSingle;
+import pro.mir0n.esquire.pacMan.acct.jpa.EsqAcctTransactionRepository;
+import pro.mir0n.esquire.pacMan.jpa.EsqAcctRepository;
+import pro.mir0n.esquire.pacMan.service.IPacManService;
+
+import java.util.List;
+import java.util.Map;
+
+@Slf4j
+@AllArgsConstructor
+public class AcctTransactionProcessorSingle implements IAcctTransactionProcessor {
+
+    private static final org.slf4j.Logger devLog = LoggerFactory.getLogger("develop." + AcctTransactionProcessorSingle.class.getName());
+
+
+    private EsqAcctRepository entityRepository;
+    private EsqAcctTransactionRepository transactionRepository;
+    private TransactionTemplate transactionTemplate;
+    private EntityManager em;
+
+    /** skipValidation: For test use only — allows bypassing status/balance/field validation. */
+    public AcctTransactionSingle esquireCommandAcct(int kind, String id, AcctOperation.Code oper, Map<String, Object> fields, boolean skipValidation, String rootPath, String uid, List<String> roles) {
+        String correlationId = RequestContextUtils.getCorrelationId();
+        String requestId = RequestContextUtils.getRequestId();
+        EsqObjectKind eek = validatePermissions(kind, roles);
+        return _esquireCommandAcct(eek, id, oper, fields, skipValidation, rootPath, uid, correlationId, requestId);
+    }
+
+    protected EsqObjectKind validatePermissions(int kind, List<String> roles) {
+        EsqObjectKind eek = EsqObjectKindStorage.getInstance().get(kind);
+        int k = eek.getId();
+        if (!eek.isAcct()) {
+            throw new ResourceNotFoundException("esquireCommandAcct", "kind", String.valueOf(kind));
+        }
+
+        Map<Integer, EsqPermission> permissions = EsqRolesStorage.getInstance().findAdminPermissions(roles);
+        boolean permitted = false;
+        if (permissions != null) {
+            permitted = EsqRolesStorage.getInstance().isAdminCmdPermitted(
+                    permissions.get(k),
+                    EsqRolesStorage.AdminCmd.ACCT
+            );
+        }
+        if (!permitted) {
+            throw new PermissionDeniedException(eek.getTitle(), "acct");
+        }
+        return eek;
+    }
+
+    protected AcctTransactionSingle _esquireCommandAcct(EsqObjectKind eek,
+            String id, AcctOperation.Code oper,
+            Map<String, Object> fields,
+            boolean skipValidation,
+            String rootPath,
+            String uid,
+            String correlationId,
+            String requestId) {
+
+        devLog.debug("srvc: esquireCommandAcct: kind:{}, id:{}, cmd:{}, rootPath:{}, uid:{}", eek.getId(), id, oper, rootPath, uid);
+        AcctTransactionSingle result[] = {null}; // xxx: trick to handle lambda syntax
+
+        transactionTemplate.execute(status -> {
+            em.setFlushMode(FlushModeType.COMMIT);
+            result[0] = postAcctTransaction(eek, id, fields, oper, skipValidation, rootPath, uid, correlationId, requestId);
+            return null;
+        });
+        devLog.debug("srvc: esquireCommandAcct(2): result:{}", result);
+        return result[0];
+    }
+
+    private AcctTransactionSingle postAcctTransaction(EsqObjectKind eek,
+                                                      String acctId,
+                                                      Map<String, Object> fields,
+                                                      AcctOperation.Code oper,
+                                                      boolean skipValidation,
+                                                      String rootPath, String uid,
+                                                      String correlationId, String requestId) {
+        Object rawAmount = fields.get(AcctTransactionSingle.FIELD_AMOUNT);
+        double amount = rawAmount instanceof Number ? ((Number) rawAmount).doubleValue() : Double.parseDouble(rawAmount.toString());
+        if (!skipValidation) {
+            switch (oper.effect) {
+                case AcctOperation.AmountEffect.NEGATIVE:
+                    if (amount >= 0) {
+                        throw new InvalidValueException("Amount must be negative", AcctTransactionSingle.FIELD_AMOUNT, "Amount", "1");
+                    }
+                    break;
+                case AcctOperation.AmountEffect.POSITIVE:
+                    if (amount <= 0) {
+                        throw new InvalidValueException("Amount must be positive", AcctTransactionSingle.FIELD_AMOUNT, "Amount", "1");
+                    }
+                    break;
+                default:
+                    if (amount == 0.0) {
+                        throw new InvalidValueException("Amount must not be zero", AcctTransactionSingle.FIELD_AMOUNT, "Amount", "1");
+                    }
+                    break;
+            }
+        }
+
+        EsqAcctJpa acct = entityRepository.detailAcctForUpdate(acctId, rootPath);
+        if (acct == null) {
+            throw new ResourceNotFoundException("postAcctTransaction", "acct Id", acctId);
+        }
+
+        if (!skipValidation && !EsqMsgConstants.FLAG_OPEN.equals(acct.getStatus())) {
+            throw new InvalidValueException("Account is not open", IPacManService.FIELD_STATUS, "Status", "1");
+        }
+        if (!skipValidation && "N".equals(acct.getNegativeAllowed())) {
+            if (acct.getBalance() + amount < 0) {
+                throw new InvalidValueException("Insufficient balance",AcctTransactionSingle.FIELD_AMOUNT, "Amount", "1");
+            }
+        }
+
+        double prevBalance = acct.getBalance() != null ? acct.getBalance() : 0.0;
+        double newBalance  = prevBalance + amount;
+
+        Map<String, Object> validated = fields;
+        if (!skipValidation) {
+            validated = EntityFieldUtils.applyFields(oper.kind, fields);
+        }
+
+        long trPk = EsqUtils.generateEntityId(); // just for now: we need to have id based on current ms + (shard no * instance no), sequence
+
+        AcctTransactionSingle ret = new AcctTransactionSingle();
+        ret.fill(validated);
+        ret.setId(String.valueOf(trPk));
+        ret.setKind(eek.getId());
+        ret.setTypeId(oper.id);
+        ret.setAmount(amount);
+
+        transactionRepository.insertAcctTransaction(
+                trPk, Long.parseLong(acctId), oper.id,
+                amount, prevBalance,
+                ret.getDesc(), ret.getRefCode(), ret.getRefCode2(), ret.getRefCode3(), ret.getRefCode4(),
+                ret.getMemo(), correlationId, requestId, uid);
+
+        entityRepository.updateAcctBalance(acctId, newBalance, uid, correlationId, requestId);
+        return ret;
+    }
+}

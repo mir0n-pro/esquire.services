@@ -1561,7 +1561,100 @@
                             <type>string</type>
                             <tooltip>Reference code: format (ABC-1234)</tooltip>
                             <nullable>N</nullable>
-                            <validation> ^[A-Za-z0-9._-]+$</validation>
+                            <validation>^[A-Za-z0-9._-]+$</validation>
+                            <readwrite>3</readwrite>
+                            <minmax>512</minmax>
+                        </field>
+                        <field>
+                            <name>memo</name>
+                            <sort>6</sort>
+                            <label>Memo</label>
+                            <type>string</type>
+                            <tooltip>Transaction memo</tooltip>
+                            <nullable>Y</nullable>
+                            <readwrite>3</readwrite>
+                            <minmax>512</minmax>
+                        </field>
+                        <field>
+                            <name>desc</name>
+                            <sort>7</sort>
+                            <label>Desc</label>
+                            <type>string</type>
+                            <tooltip>Transaction description</tooltip>
+                            <nullable>Y</nullable>
+                            <readwrite>3</readwrite>
+                            <minmax>512</minmax>
+                        </field>
+                    </fields>
+                </layer>
+            </layers>
+        </dictionary>
+
+        <dictionary>
+            <kind>1002</kind>
+            <layers>
+                <layer>
+                    <layer>1</layer>
+                    <title>Withdrawal</title>
+                    <fields>
+                        <field>
+                            <name>id</name>
+                            <sort>1</sort>
+                            <label>Account</label>
+                            <type>string</type>
+                            <tooltip>Account ID</tooltip>
+                            <nullable>N</nullable>
+                            <readwrite>0</readwrite>
+                        </field>
+                        <field>
+                            <name>typeId</name>
+                            <sort>2</sort>
+                            <label>Operation</label>
+                            <type>string</type>
+                            <tooltip>Activity transaction type</tooltip>
+                            <listvalues>
+                                <value>2~Withdrawal</value>
+                                <value>5~Commission</value>
+                            </listvalues>
+                            <nullable>N</nullable>
+                            <default>2</default>
+                            <readwrite>3</readwrite>
+                        </field>
+                        <field>
+                            <name>amount</name>
+                            <sort>3</sort>
+                            <label>Amount</label>
+                            <type>number</type>
+                            <tooltip>Transaction amount debited from the account</tooltip>
+                            <nullable>N</nullable>
+                            <readwrite>3</readwrite>
+                            <default>0</default>
+                            <format>#,##0.00</format>
+                        </field>
+                        <field>
+                            <name>refCode</name>
+                            <sort>4</sort>
+                            <label>Payment Method</label>
+                            <type>string</type>
+                            <tooltip>Payment method</tooltip>
+                            <listvalues>
+                                <value>cash~Cash</value>
+                                <value>check~Check</value>
+                                <value>cc~Credit card</value>
+                                <value>other~Other</value>
+                            </listvalues>
+                            <nullable>N</nullable>
+                            <default>cc</default>
+                            <readwrite>3</readwrite>
+                            <minmax>512</minmax>
+                        </field>
+                        <field>
+                            <name>refCode2</name>
+                            <sort>5</sort>
+                            <label>Reference</label>
+                            <type>string</type>
+                            <tooltip>Reference code</tooltip>
+                            <nullable>Y</nullable>
                             <readwrite>3</readwrite>
                             <minmax>512</minmax>
                         </field>
