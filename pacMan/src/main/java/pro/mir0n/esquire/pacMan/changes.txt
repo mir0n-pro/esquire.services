@@ -1,5 +1,11 @@
 Esquire pacMan Microservice
 
+04/12/2026 mir0n  account transaction Phase II — KIND_ACCTTR=1000; EntityFieldUtils validation; explicit skipValidation param
+acct.service.AcctTransactionService
+  - KIND_ACCTTR: 980 -> 1000 (aligns with esq-entity-dictionaries.xml kind)
+  - skipValidation: explicit boolean parameter (no longer derived from fields map)
+  - field validation: EntityFieldUtils.applyFields(KIND_ACCTTR, fields) — dictionary-driven with listvalues check
+
 04/09/2026 mir0n  account transaction command Phase I — POST /esq-acct; isolated pacMan.acct package
 + added acct.dto.AcctTransactionSimple  (new)
   - account transaction result DTO: id, kind, typeId, amount, desc, refCode/2/3/4, memo

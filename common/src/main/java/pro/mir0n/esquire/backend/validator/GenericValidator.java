@@ -8,6 +8,7 @@
  *  History:
  * 03/06/2026 mir0n created: generic implementation of validator interface
  * 03/08/2026 mir0n  personal flag: throws InvalidValueException if personal=true and field.personal != "Y"
+ * 04/12/2026 mir0n  regex match: pattern.trim() applied to handle XML attribute leading/trailing whitespace
  */
 
 package pro.mir0n.esquire.backend.validator;
@@ -77,7 +78,7 @@ public class GenericValidator implements IValidator {
     }
 
     private void validatePattern(EsqEntityKindFieldLayer kfl, String value, String pattern) {
-        if (pattern != null && !pattern.isBlank() && !value.matches(pattern)) {
+        if (pattern != null && !pattern.isBlank() && !value.matches(pattern.trim())) {
             ///  todo where to get layer from ?
             EsqEntityField field = kfl.getField();
             throw new InvalidValueException("value must be a well-formed", field.getName(),

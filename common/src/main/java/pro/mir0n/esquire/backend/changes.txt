@@ -1,6 +1,12 @@
 Esquire Backend common microservice classes
 
-04/09/2026 mir0n  
+04/12/2026 mir0n  kind=1000 account transaction dictionary; EntityFieldUtils kind-based validation; GenericValidator pattern trim
+service.EntityFieldUtils
+  - applyFields(kind, fields): kind-based validation overload; validates writable fields with listvalues constraint check
+validator.GenericValidator
+  - regex match: pattern.trim() prevents XML leading/trailing whitespace from breaking validation pattern
+
+04/09/2026 mir0n
 esq-entity-dictionaries.xml: 
   - kind=980 typeId field: <defauilt> opening tag corrected to <default> (caused XML parse failure in all services on startup)
 

@@ -1,6 +1,13 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v1.2.2-2604.1219  account transaction Phase II — kind=1000 dictionary; EntityFieldUtils validation; GenericValidator fix
+    :Feature: common — EntityFieldUtils.applyFields(kind, fields): kind-based field validation with listvalues whitespace)
+    :Fix: pacMan — AcctTransactionService: KIND_ACCTTR=1000; field validation via EntityFieldUtils; skipValidation as explicit param
+    : modified components
+       common,
+       pacMan
+
 v1.2.2-2604.1016 Object Kind enumeration specified
     : modified components
        common,

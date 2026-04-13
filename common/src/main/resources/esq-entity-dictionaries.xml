@@ -1510,7 +1510,7 @@
                             <type>string</type>
                             <tooltip>Account ID</tooltip>
                             <nullable>N</nullable>
-                            <readwrite>1</readwrite>
+                            <readwrite>0</readwrite>
                         </field>
                         <field>
                             <name>typeId</name>
@@ -1559,8 +1559,9 @@
                             <sort>5</sort>
                             <label>Reference</label>
                             <type>string</type>
-                            <tooltip>Reference code</tooltip>
-                            <nullable>Y</nullable>
+                            <tooltip>Reference code: format (ABC-1234)</tooltip>
+                            <nullable>N</nullable>
+                            <validation> ^[A-Za-z0-9._-]+$</validation>
                             <readwrite>3</readwrite>
                             <minmax>512</minmax>
                         </field>

@@ -6,6 +6,9 @@
  *
  *  History:
  * 04/09/2026 mir0n  created: account transaction command; POST /esq-acct deposit/credit with amount/status/balance validation
+ * 04/12/2026 mir0n  KIND_ACCTTR: 980 -> 1000 (aligns with esq-entity-dictionaries.xml kind)
+ *                   skipValidation: explicit boolean parameter (no longer derived from fields map)
+ *                   field validation: EntityFieldUtils.applyFields(KIND_ACCTTR, fields) — dictionary-driven with listvalues check
  */
 
 package pro.mir0n.esquire.pacMan.acct.service;
@@ -18,14 +21,15 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 import pro.mir0n.esquire.backend.dto.access.EsqPermission;
+import pro.mir0n.esquire.backend.dto.EsqObjectKind;
 import pro.mir0n.esquire.backend.error.InvalidValueException;
 import pro.mir0n.esquire.backend.error.PermissionDeniedException;
 import pro.mir0n.esquire.backend.error.ResourceNotFoundException;
 import pro.mir0n.esquire.backend.jpa.entity.EsqAcctJpa;
+import pro.mir0n.esquire.backend.service.EntityFieldUtils;
+import pro.mir0n.esquire.backend.service.RequestContextUtils;
 import pro.mir0n.esquire.backend.storage.EsqObjectKindStorage;
 import pro.mir0n.esquire.backend.storage.EsqRolesStorage;
-import pro.mir0n.esquire.backend.dto.EsqObjectKind;
-import pro.mir0n.esquire.backend.service.RequestContextUtils;
 import pro.mir0n.esquire.common.EsqMsgConstants;
 import pro.mir0n.esquire.common.EsqUtils;
 import pro.mir0n.esquire.pacMan.acct.dto.AcctTransactionSimple;
@@ -43,10 +47,9 @@ public class AcctTransactionService {
 
     private static final org.slf4j.Logger devLog = LoggerFactory.getLogger("develop." + AcctTransactionService.class.getName());
 
-    private static final int    KIND_ACCTTR          = 980;
-    private static final String FIELD_AMOUNT         = "amount";
-    private static final String FIELD_TYPE_ID        = "typeId";
-    private static final String FIELD_SKIP_VALIDATION = "skipValidation";
+    private static final int    KIND_ACCTTR           = 1000;
+    private static final String FIELD_AMOUNT          = "amount";
+    private static final String FIELD_TYPE_ID         = "typeId";
 
     private EsqAcctRepository entityRepository;
     private EsqAcctTransactionRepository transactionRepository;
@@ -80,7 +83,7 @@ public class AcctTransactionService {
 
         transactionTemplate.execute(status -> {
             em.setFlushMode(FlushModeType.COMMIT);
-            result[0] = postAcctTransaction(k, id, fields, rootPath, uid, correlationId, requestId);
+            result[0] = postAcctTransaction(k, id, fields, false, rootPath, uid, correlationId, requestId);
             return null;
         });
 
@@ -89,6 +92,7 @@ public class AcctTransactionService {
     }
 
     private AcctTransactionSimple postAcctTransaction(int acctKind, String id, Map<String, Object> fields,
+                                                       boolean skipValidation,
                                                        String rootPath, String uid,
                                                        String correlationId, String requestId) {
         EsqAcctJpa acct = entityRepository.detailAcctForUpdate(id, rootPath);
@@ -108,7 +112,6 @@ public class AcctTransactionService {
             throw new InvalidValueException("Amount must be positive", FIELD_AMOUNT, "Amount", "1");
         }
 
-        boolean skipValidation = Boolean.TRUE.equals(fields.get(FIELD_SKIP_VALIDATION));
         if (!skipValidation && !EsqMsgConstants.FLAG_OPEN.equals(acct.getStatus())) {
             throw new InvalidValueException("Account is not open", IPacManService.FIELD_STATUS, "Status", "1");
         }
@@ -121,14 +124,16 @@ public class AcctTransactionService {
         double prevBalance = acct.getBalance() != null ? acct.getBalance() : 0.0;
         double newBalance  = prevBalance + amount;
 
-        Object rawTypeId = fields.get(FIELD_TYPE_ID);
-        int    typeId    = rawTypeId != null ? (rawTypeId instanceof Number ? ((Number) rawTypeId).intValue() : Integer.parseInt(rawTypeId.toString())) : KIND_ACCTTR;
-        String desc      = (String) fields.get("desc");
-        String refCode   = (String) fields.get("refCode");
-        String refCode2  = (String) fields.get("refCode2");
+        Map<String, Object> validated = EntityFieldUtils.applyFields(KIND_ACCTTR, fields);
+
+        Object rawTypeId = validated.get(FIELD_TYPE_ID);
+        int    typeId    = rawTypeId instanceof Number ? ((Number) rawTypeId).intValue() : Integer.parseInt(rawTypeId.toString());
+        String refCode   = (String) validated.get("refCode");
+        String refCode2  = (String) validated.get("refCode2");
         String refCode3  = (String) fields.get("refCode3");
         String refCode4  = (String) fields.get("refCode4");
-        String memo      = (String) fields.get("memo");
+        String memo      = (String) validated.get("memo");
+        String desc      = (String) validated.get("desc");
 
         long trPk = EsqUtils.generateEntityId();
 
