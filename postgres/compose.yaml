@@ -1,0 +1,28 @@
+services:
+  postgres:
+    container_name: esq-postgres
+    build:
+      context: ../..
+      dockerfile: services/postgres/Dockerfile
+    image: esquire-postgres:17
+    restart: on-failure
+    environment:
+      POSTGRES_USER: esq2025
+      POSTGRES_PASSWORD: q
+      POSTGRES_DB: esq2025
+    ports:
+      - "5433:5432"
+    volumes:
+      - ./data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U esq2025 -d esq2025"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks:
+      - esquirenet
+
+networks:
+  esquirenet:
+    driver: "bridge"

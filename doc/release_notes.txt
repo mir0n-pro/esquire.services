@@ -1,6 +1,9 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v1.2.2-2604.1517 postgres container added; local docker compose cleanup
+
+
 v1.2.2-2604.1514  acct transaction PK : classic : from ESQ_ATR_SEQ
     :Fix: pacMan — EsqAcctTransactionRepository.nextId(): DB sequence ESQ_ATR_SEQ replaces generated ID
     : modified components

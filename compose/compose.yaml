@@ -1,14 +1,41 @@
 name: esq-omnibus
 services:
+  postgres:
+    container_name: esq-postgres
+    build:
+      context: ../..
+      dockerfile: services/postgres/Dockerfile
+    image: esquire-postgres:17
+    restart: on-failure
+    environment:
+      POSTGRES_USER: esq2025
+      POSTGRES_PASSWORD: q
+      POSTGRES_DB: esq2025
+    ports:
+      - "5433:5432"
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+      - ./logs:/var/log/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U esq2025 -d esq2025"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks:
+      - esquirenet
+
   activemq:
     container_name: esq-activemq
-    image: apache/activemq-classic:6.1.4
+    build:
+      context: ../activemq
+      dockerfile: Dockerfile
+    image: esquire-activemq:6.1.4
     ports:
       - "61616:61616"   # JMS/OpenWire broker port
       - "8161:8161"     # ActiveMQ web console (admin/admin)
     volumes:
-      - ./conf/activemq.xml:/opt/activemq/conf/activemq.xml
-      - ./data:/var/opt/activemq/data
+      - ./data/activemq:/var/opt/activemq/data
     healthcheck:
       test: ["CMD-SHELL", "bash -c '</dev/tcp/127.0.0.1/61616' 2>/dev/null"]
       interval: 10s
@@ -21,7 +48,7 @@ services:
   keycloak:
     container_name: esq-keycloak
     build:
-      context: .
+      context: ../keycloak
       dockerfile: Dockerfile.keycloak
     image: esquire-keycloak:26.4.7
     command: start-dev --import-realm
@@ -36,10 +63,8 @@ services:
       KC_HOSTNAME_STRICT_HTTPS: "false"
       KC_HEALTH_ENABLED: "true"
     volumes:
-      # Mount your local file into the magic import directory
-      - ./import/esquire.json:/opt/keycloak/data/import/realm.json
-      # have data volume mounted
-      - ./data:/opt/keycloak/data
+      - ./data/keycloak:/opt/keycloak/data
+      - ../keycloak/import/esquire.json:/opt/keycloak/data/import/realm.json
     healthcheck:
       test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/9000; echo -e 'GET /health/ready HTTP/1.1\r\nhost: localhost\r\nConnection: close\r\n\r\n' >&3; grep 'HTTP/1.1 200 OK' <&3"]
       interval: 10s
@@ -70,7 +95,7 @@ services:
       #- DB_BIZTREE_VENDOR=dev-oracle
       #- DB_BIZTREE_PORT=1521
       #- DB_BIZTREE_NAME=MIR0N
-      - DB_BIZTREE_HOST=host.docker.internal
+      - DB_BIZTREE_HOST=postgres
       - DB_BIZTREE_USERNAME=esq2025
       - DB_BIZTREE_PASSWORD=q
       # Messaging
@@ -81,6 +106,8 @@ services:
       - BIZTREE_MESSAGING_CONSUMER_ENABLED=true
     command: ["java", "-jar", "app.jar"]
     depends_on:
+      postgres:
+        condition: service_healthy
       activemq:
         condition: service_healthy
     volumes:
@@ -110,7 +137,7 @@ services:
       #- DB_ENYMAN_VENDOR=dev-oracle
       #- DB_ENYMAN_PORT=1521
       #- DB_ENYMAN_NAME=MIR0N
-      - DB_ENYMAN_HOST=host.docker.internal
+      - DB_ENYMAN_HOST=postgres
       - DB_ENYMAN_USERNAME=esq2025
       - DB_ENYMAN_PASSWORD=q
       # Messaging
@@ -123,6 +150,8 @@ services:
       #- ENYMAN_MESSAGING_CONSUMER_ENABLED=false
     command: ["java", "-jar", "app.jar"]
     depends_on:
+      postgres:
+        condition: service_healthy
       activemq:
         condition: service_healthy
     volumes:
@@ -152,7 +181,7 @@ services:
       #- DB_PACMAN_VENDOR=dev-oracle
       #- DB_PACMAN_PORT=1521
       #- DB_PACMAN_NAME=MIR0N
-      - DB_PACMAN_HOST=host.docker.internal
+      - DB_PACMAN_HOST=postgres
       - DB_PACMAN_USERNAME=esq2025
       - DB_PACMAN_PASSWORD=q
       # Messaging
@@ -164,6 +193,8 @@ services:
       - PACMAN_MESSAGING_CLIENT_ID=pacman
     command: ["java", "-jar", "app.jar"]
     depends_on:
+      postgres:
+        condition: service_healthy
       activemq:
         condition: service_healthy
     volumes:
@@ -193,7 +224,7 @@ services:
       #- DB_KEYSMITH_VENDOR=dev-oracle
       #- DB_KEYSMITH_PORT=1521
       #- DB_KEYSMITH_NAME=MIR0N
-      - DB_KEYSMITH_HOST=host.docker.internal
+      - DB_KEYSMITH_HOST=postgres
       - DB_KEYSMITH_USERNAME=esq2025
       - DB_KEYSMITH_PASSWORD=q
       # Messaging
@@ -204,6 +235,8 @@ services:
       - KEYSMITH_CTRL_ID=keysmith.default
     command: ["java", "-jar", "app.jar"]
     depends_on:
+      postgres:
+        condition: service_healthy
       activemq:
         condition: service_healthy
     volumes:
@@ -295,45 +328,45 @@ services:
     networks:
       - esquirenet
 
-#  frontend:
-#    container_name: esq-frontend
-#    build:
-#      context: .
-##      secrets:
-##        - npmrc        
-#    image: esquire.frontend
-#    ports:
-#      - "4200:4200"
-#    environment:
-#      # These variables are injected into assets/config.json at container start
-#      - BACKEND_HOST=localhost
-#      - BACKEND_PORT=7070
-#      - KEYCLOAK_FACADE_HOST=localhost
-#      - KEYCLOAK_FACADE_PORT=8080
-#      - KEYCLOAK_REALM=esquire
-#      - KEYCLOAK_CLIENT_ID=esq-angular
-#    # Command overrides angular.json for Docker without changing local code
-#    command: >
-#          /bin/sh -c "
-#          envsubst < ./public/assets/config.json.template > ./public/assets/config.json && 
-#          npx ng serve --host 0.0.0.0 --port 4200 --poll 2000
-#          "
-#    depends_on:
-#      gateway:
-#        condition: service_healthy
-#    networks:
-#      - esquirenet
-#      
-###    volumes:
-###      - .:/app
-###      - /app/node_modules # Prevents local node_modules from overwriting container's
-### Mount ONLY the template as read-only
-###      - ./public/assets/config.json.template:/public/assets/config.json.template:ro
-##secrets:
-##  npmrc:
-##    file: ./.npmrc_composer 
+  frontend:
+    container_name: esq-frontend
+    build:
+      context: .
+#      secrets:
+#        - npmrc        
+    image: esquire.frontend
+    ports:
+      - "4200:4200"
+    environment:
+      # These variables are injected into assets/config.json at container start
+      - BACKEND_HOST=localhost
+      - BACKEND_PORT=7070
+      - KEYCLOAK_FACADE_HOST=localhost
+      - KEYCLOAK_FACADE_PORT=8080
+      - KEYCLOAK_REALM=esquire
+      - KEYCLOAK_CLIENT_ID=esq-angular
+    # Command overrides angular.json for Docker without changing local code
+    command: >
+          /bin/sh -c "
+          envsubst < ./public/assets/config.json.template > ./public/assets/config.json && 
+          npx ng serve --host 0.0.0.0 --port 4200 --poll 2000
+          "
+    depends_on:
+      gateway:
+        condition: service_healthy
+    networks:
+      - esquirenet
+      
+##    volumes:
+##      - .:/app
+##      - /app/node_modules # Prevents local node_modules from overwriting container's
+## Mount ONLY the template as read-only
+##      - ./public/assets/config.json.template:/public/assets/config.json.template:ro
+#secrets:
+#  npmrc:
+#    file: ./.npmrc_composer 
 
 networks:
   esquirenet:
     driver: "bridge"
-   
+

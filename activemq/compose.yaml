@@ -1,15 +1,24 @@
 services:
   activemq:
-    container_name: activemq
-    image: apache/activemq-classic:6.1.4
+    container_name: esq-activemq
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: esquire-activemq:6.1.4
     ports:
-      - "61616:61616"   # OpenWire (JMS)
-      - "8161:8161"     # Web admin console
+      - "61616:61616"   # JMS/OpenWire broker port
+      - "8161:8161"     # ActiveMQ web console (admin/admin)
     volumes:
-      - ./conf/activemq.xml:/opt/activemq/conf/activemq.xml
       - ./data:/var/opt/activemq/data
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c '</dev/tcp/127.0.0.1/61616' 2>/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
     networks:
       - esquirenet
+
 networks:
   esquirenet:
     driver: "bridge"

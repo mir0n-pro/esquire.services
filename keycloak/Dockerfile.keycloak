@@ -3,10 +3,14 @@ FROM quay.io/keycloak/keycloak:26.4.7
 # Copy custom theme into the image
 COPY themes/esquire-explorer /opt/keycloak/themes/esquire-explorer
 
+# Copy realm import into the image
+COPY import/esquire.json /opt/keycloak/data/import/realm.json
+
 # Build Keycloak to include the theme
 RUN /opt/keycloak/bin/kc.sh build
 
 # Ensure correct permissions
 USER root
-RUN chown -R keycloak:root /opt/keycloak/themes/esquire-explorer
+RUN chown -R keycloak:root /opt/keycloak/themes/esquire-explorer \
+ && chown keycloak:root /opt/keycloak/data/import/realm.json
 USER keycloak
