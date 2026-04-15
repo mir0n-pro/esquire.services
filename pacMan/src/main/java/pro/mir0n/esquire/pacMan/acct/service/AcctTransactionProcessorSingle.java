@@ -7,6 +7,7 @@
  *  History:
  * 04/13/2026 mir0n  created: single-leg acct transaction processor; permission check, amount/status/balance validation, EntityFieldUtils field validation, insert + balance update
  * 04/14/2026 mir0n  detailAcctForUpdate call: kind param dropped
+ * 04/15/2026 mir0n  transaction PK: EsqUtils.generateEntityId() replaced by transactionRepository.nextId() (ESQ_ATR_SEQ)
  */
 
 package pro.mir0n.esquire.pacMan.acct.service;
@@ -28,7 +29,6 @@ import pro.mir0n.esquire.backend.service.RequestContextUtils;
 import pro.mir0n.esquire.backend.storage.EsqObjectKindStorage;
 import pro.mir0n.esquire.backend.storage.EsqRolesStorage;
 import pro.mir0n.esquire.common.EsqMsgConstants;
-import pro.mir0n.esquire.common.EsqUtils;
 import pro.mir0n.esquire.pacMan.acct.AcctOperation;
 import pro.mir0n.esquire.pacMan.acct.IAcctTransactionProcessor;
 import pro.mir0n.esquire.pacMan.acct.dto.AcctTransactionSingle;
@@ -152,7 +152,7 @@ public class AcctTransactionProcessorSingle implements IAcctTransactionProcessor
             validated = EntityFieldUtils.applyFields(oper.kind, fields);
         }
 
-        long trPk = EsqUtils.generateEntityId(); // just for now: we need to have id based on current ms + (shard no * instance no), sequence
+        long trPk = transactionRepository.nextId();
 
         AcctTransactionSingle ret = new AcctTransactionSingle();
         ret.fill(validated);

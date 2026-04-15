@@ -6,6 +6,7 @@
  *
  *  History:
  * 04/09/2026 mir0n  created: insertAcctTransaction 14-param native INSERT
+ * 04/15/2026 mir0n  nextId(): sequence-based PK via ESQ_ATR_SEQ (vendor SQL in XML)
  */
 
 package pro.mir0n.esquire.pacMan.acct.jpa;
@@ -19,6 +20,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Repository
 public interface EsqAcctTransactionRepository extends JpaRepository<EsqAcctTransactionJpa, Long> {
+
+    @NativeQuery
+    Long nextId();
 
     @Modifying(clearAutomatically = true, flushAutomatically = false)
     @Transactional

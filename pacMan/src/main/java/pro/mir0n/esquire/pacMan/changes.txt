@@ -1,5 +1,11 @@
 Esquire pacMan Microservice
 
+04/15/2026 mir0n  acct transaction PK from ESQ_ATR_SEQ sequence
+acct.jpa.EsqAcctTransactionRepository
+  - nextId(): returns next value from ESQ_ATR_SEQ (vendor-specific SQL in oracle/postgres XML)
+acct.service.AcctTransactionProcessorSingle
+  - transaction PK: EsqUtils.generateEntityId() replaced by transactionRepository.nextId()
+
 04/14/2026 mir0n  acct transfer fixes — DICT_KIND_TRANSFER corrected; paper account guard; detailAcctForUpdate kind param removed
 acct.AcctOperation
   - DICT_KIND_TRANSFER corrected: 1002 → 1004
