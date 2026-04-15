@@ -40,6 +40,7 @@
  * 04/07/2026 mir0n  all kind params Integer → int; kind normalization removed;
  *                   upfront applicability check (!isAcct → ResourceNotFoundException) at all entry points
  * 04/09/2026 mir0n  applyFields() and enforceDefaults() delegated to EntityFieldUtils
+ * 04/14/2026 mir0n  saveAcct(), deleteAcct(): kind param removed (detailAcctForUpdate aligned)
  */
 
 package pro.mir0n.esquire.pacMan.service.impl;
@@ -141,7 +142,7 @@ public class PacManService  implements IPacManService {
             //      @Modifying queries clears the context after each native update, so nothing
             //      remains to flush at commit.
             em.setFlushMode(FlushModeType.COMMIT);
-            saveAcct(id, fields, rootPath, uid, correlationId, requestId, updated);
+            saveAcct(k, id, fields, rootPath, uid, correlationId, requestId, updated);
             return null;
         }); // ← transaction commits here
 
@@ -262,7 +263,7 @@ public class PacManService  implements IPacManService {
 
         transactionTemplate.execute(status -> {
             em.setFlushMode(FlushModeType.COMMIT);
-            deleteAcct(id, rootPath);
+            deleteAcct(k, id, rootPath);
             return null;
         });
 
@@ -312,8 +313,8 @@ public class PacManService  implements IPacManService {
         created[0] = acct;
     }
 
-    private void deleteAcct(String id, String rootPath) {
-        EsqAcctJpa acct = entityRepository.detailAcctForUpdate(id, rootPath);
+    private void deleteAcct(int kind, String id, String rootPath) {
+        EsqAcctJpa acct = entityRepository.detailAcctForUpdate(id, kind, rootPath);
         if (acct == null) {
             throw new ResourceNotFoundException("deleteAcct", "id", id);
         }
@@ -322,10 +323,10 @@ public class PacManService  implements IPacManService {
         entityRepository.deleteEntityPath(id);
     }
 
-    private void saveAcct(String id, Map<String, Object> fields, String rootPath,
+    private void saveAcct(int kind, String id, Map<String, Object> fields, String rootPath,
                           String uid, String correlationId, String requestId,
                           EsqEntityJpa[] updated) {
-        EsqAcctJpa acct = entityRepository.detailAcctForUpdate(id, rootPath);
+        EsqAcctJpa acct = entityRepository.detailAcctForUpdate(id, kind, rootPath);
         if (acct == null) {
             throw new ResourceNotFoundException("saveAcct", "id", id);
         }

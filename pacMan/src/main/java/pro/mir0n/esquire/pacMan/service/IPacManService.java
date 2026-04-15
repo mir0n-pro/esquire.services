@@ -15,6 +15,7 @@
  * 03/26/2026 mir0n  esquireCommandNew(), esquireCommandDelete() added
  * 04/07/2026 mir0n  all kind params Integer → int (primitive)
  * 04/09/2026 mir0n  FIELD_CCY constant added
+ * 04/14/2026 mir0n  KIND_P_ACCT spacing corrected
  */
 
 package pro.mir0n.esquire.pacMan.service;
@@ -27,7 +28,7 @@ import pro.mir0n.esquire.backend.dto.EsqEntity;
 public interface IPacManService {
     public static final int  KIND_CL_ACCT = 50; // client account
     public static final int  KIND_MR_ACCT = 52; // merchant account
-    public static final int  KIND_P_ACCT = 54; // paper/demo account
+    public static final int  KIND_P_ACCT  = 54; // paper/demo account
     public static final String  FIELD_STATUS = "status";
     public static final String  FIELD_CCY    = "ccy";
 

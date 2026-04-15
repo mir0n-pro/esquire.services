@@ -1683,5 +1683,103 @@
             </layers>
         </dictionary>
 
+        <dictionary>
+            <kind>1004</kind>
+            <layers>
+                <layer>
+                    <layer>1</layer>
+                    <title>Transfer</title>
+                    <fields>
+                        <field>
+                            <name>id</name>
+                            <sort>1</sort>
+                            <label>From</label>
+                            <type>string</type>
+                            <tooltip>Account ID</tooltip>
+                            <nullable>N</nullable>
+                            <readwrite>0</readwrite>
+                        </field>
+                        <field>
+                            <name>id2</name>
+                            <sort>2</sort>
+                            <label>Two</label>
+                            <type>string</type>
+                            <tooltip>Account ID</tooltip>
+                            <nullable>N</nullable>
+                            <readwrite>0</readwrite>
+                        </field>
+                        <field>
+                            <name>typeId</name>
+                            <sort>3</sort>
+                            <label>Operation</label>
+                            <type>string</type>
+                            <tooltip>Activity transaction type</tooltip>
+                            <listvalues>
+                                <value>3~Transfer</value>
+                            </listvalues>
+                            <nullable>N</nullable>
+                            <default>3</default>
+                            <readwrite>3</readwrite>
+                        </field>
+                        <field>
+                            <name>amount</name>
+                            <sort>4</sort>
+                            <label>Amount</label>
+                            <type>number</type>
+                            <tooltip>Transaction amount debited from the account</tooltip>
+                            <nullable>N</nullable>
+                            <readwrite>3</readwrite>
+                            <default>0</default>
+                            <format>#,##0.00</format>
+                        </field>
+                        <field>
+                            <name>refCode</name>
+                            <sort>5</sort>
+                            <label>Payment Method</label>
+                            <type>string</type>
+                            <tooltip>Payment method</tooltip>
+                            <listvalues>
+                                <value>other~Other</value>
+                            </listvalues>
+                            <nullable>N</nullable>
+                            <default>other</default>
+                            <readwrite>3</readwrite>
+                            <minmax>512</minmax>
+                        </field>
+                        <field>
+                            <name>refCode2</name>
+                            <sort>6</sort>
+                            <label>Reference</label>
+                            <type>string</type>
+                            <tooltip>Reference code</tooltip>
+                            <nullable>Y</nullable>
+                            <readwrite>3</readwrite>
+                            <minmax>512</minmax>
+                        </field>
+                        <field>
+                            <name>memo</name>
+                            <sort>7</sort>
+                            <label>Memo</label>
+                            <type>string</type>
+                            <tooltip>Transaction memo</tooltip>
+                            <nullable>Y</nullable>
+                            <readwrite>3</readwrite>
+                            <minmax>512</minmax>
+                        </field>
+                        <field>
+                            <name>desc</name>
+                            <sort>8</sort>
+                            <label>Desc</label>
+                            <type>string</type>
+                            <tooltip>Transaction description</tooltip>
+                            <nullable>Y</nullable>
+                            <readwrite>3</readwrite>
+                            <minmax>512</minmax>
+                        </field>
+                    </fields>
+                </layer>
+            </layers>
+        </dictionary>
+
     </dictionaries>
 </dictionary-shell>

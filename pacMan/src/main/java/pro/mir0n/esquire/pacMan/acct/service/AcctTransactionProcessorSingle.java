@@ -6,6 +6,7 @@
  *
  *  History:
  * 04/13/2026 mir0n  created: single-leg acct transaction processor; permission check, amount/status/balance validation, EntityFieldUtils field validation, insert + balance update
+ * 04/14/2026 mir0n  detailAcctForUpdate call: kind param dropped
  */
 
 package pro.mir0n.esquire.pacMan.acct.service;
@@ -129,7 +130,7 @@ public class AcctTransactionProcessorSingle implements IAcctTransactionProcessor
             }
         }
 
-        EsqAcctJpa acct = entityRepository.detailAcctForUpdate(acctId, rootPath);
+        EsqAcctJpa acct = entityRepository.detailAcctForUpdate(acctId, eek.getId(), rootPath);
         if (acct == null) {
             throw new ResourceNotFoundException("postAcctTransaction", "acct Id", acctId);
         }

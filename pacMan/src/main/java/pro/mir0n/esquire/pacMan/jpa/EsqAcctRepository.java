@@ -20,6 +20,7 @@
  * 03/31/2026 mir0n  insertAcctPath: kind param added (ep_et_pk)
  * 04/09/2026 mir0n  insertAcct: negativeAllowed param added; updateAcct: ccy + negativeAllowed params added
  *                   updateAcctBalance native query added
+ * 04/14/2026 mir0n  detailAcctForUpdate: kind (@Param) param removed; query: AND acc_et_pk = :kind dropped
  */
 
 package pro.mir0n.esquire.pacMan.jpa;
@@ -38,7 +39,7 @@ public interface EsqAcctRepository extends JpaRepository<EsqAcctJpa, String> {
     @NativeQuery
     EsqAcctJpa detailAcct(@Param("id") String id, @Param("rootPath") String rootPath);
     @NativeQuery
-    EsqAcctJpa detailAcctForUpdate(@Param("id") String id, @Param("rootPath") String rootPath);
+    EsqAcctJpa detailAcctForUpdate(@Param("id") String id, @Param("kind") int kind, @Param("rootPath") String rootPath);
 
     @Modifying(clearAutomatically = true, flushAutomatically = false)
     @Transactional

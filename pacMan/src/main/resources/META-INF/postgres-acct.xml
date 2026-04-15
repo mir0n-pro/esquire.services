@@ -41,6 +41,7 @@
  FROM esq_account
  JOIN esq_entity_path ON ep_pk = acc_pk
  WHERE acc_pk = CAST(:id AS bigint)
+ AND acc_et_pk = :kind
  AND ep_path LIKE :rootPath || '%'
  FOR UPDATE
         </query>

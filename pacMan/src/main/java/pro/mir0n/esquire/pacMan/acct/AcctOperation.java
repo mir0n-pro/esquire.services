@@ -6,6 +6,7 @@
  *
  *  History:
  * 04/13/2026 mir0n  created: acct operation codes — AmountEffect (NEGATIVE/ANY/POSITIVE); Code enum (DEPOSIT/WITHDRAWAL/TRANSFER/ADJUSTMENT/COMMISSION/UNKNOWN) with id, effect, transfer flag, dict kind
+ * 04/14/2026 mir0n  DICT_KIND_TRANSFER corrected 1002→1004; ACCT_KIND_PAPER = 54 added
  */
 
 package pro.mir0n.esquire.pacMan.acct;
@@ -14,7 +15,8 @@ package pro.mir0n.esquire.pacMan.acct;
 public class AcctOperation {
     public static final int    DICT_KIND_DEPOSIT = 1000;
     public static final int    DICT_KIND_WITHDRAWAL = 1002;
-    public static final int    DICT_KIND_TRANSFER = 1002;
+    public static final int    DICT_KIND_TRANSFER = 1004;
+    public static final int    ACCT_KIND_PAPER = 54;
 
 
     public enum AmountEffect {

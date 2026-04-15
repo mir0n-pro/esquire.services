@@ -6,34 +6,23 @@
  *
  *  History:
  * 04/13/2026 mir0n  created: two-leg transfer processor (draft); debit source leg, credit target leg with -amount and skipValidation=true
+ * 04/14/2026 mir0n  instanceof check bug fixed (was testing rawKind2, now rawId2);
+ *                   same-account guard added (InvalidValueException); paper account restriction added
  */
 
 package pro.mir0n.esquire.pacMan.acct.service;
 
 import jakarta.persistence.EntityManager;
-import jakarta.persistence.FlushModeType;
-import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.LoggerFactory;
 import org.springframework.transaction.support.TransactionTemplate;
-import pro.mir0n.esquire.backend.dto.access.EsqPermission;
 import pro.mir0n.esquire.backend.dto.EsqObjectKind;
 import pro.mir0n.esquire.backend.error.InvalidValueException;
-import pro.mir0n.esquire.backend.error.PermissionDeniedException;
-import pro.mir0n.esquire.backend.error.ResourceNotFoundException;
-import pro.mir0n.esquire.backend.jpa.entity.EsqAcctJpa;
-import pro.mir0n.esquire.backend.service.EntityFieldUtils;
 import pro.mir0n.esquire.backend.service.RequestContextUtils;
-import pro.mir0n.esquire.backend.storage.EsqObjectKindStorage;
-import pro.mir0n.esquire.backend.storage.EsqRolesStorage;
-import pro.mir0n.esquire.common.EsqMsgConstants;
-import pro.mir0n.esquire.common.EsqUtils;
 import pro.mir0n.esquire.pacMan.acct.AcctOperation;
-import pro.mir0n.esquire.pacMan.acct.IAcctTransactionProcessor;
 import pro.mir0n.esquire.pacMan.acct.dto.AcctTransactionSingle;
 import pro.mir0n.esquire.pacMan.acct.jpa.EsqAcctTransactionRepository;
 import pro.mir0n.esquire.pacMan.jpa.EsqAcctRepository;
-import pro.mir0n.esquire.pacMan.service.IPacManService;
 
 import java.util.List;
 import java.util.Map;
@@ -54,7 +43,13 @@ public class AcctTransactionProcessorTransfer extends AcctTransactionProcessorSi
             throw new IllegalArgumentException("acctTransaction: missing fields: " + AcctTransactionSingle.FIELD_ID2 + ", " + AcctTransactionSingle.FIELD_KIND2 );
         }
         int kind2 = rawKind2 instanceof Number ? ((Number) rawKind2).intValue() : Integer.parseInt(rawKind2.toString());
-        String id2 = rawKind2 instanceof String ? ((String) rawId2) : rawId2.toString();
+        String id2 = rawId2 instanceof String ? (String) rawId2 : rawId2.toString();
+        if (id.equals(id2)) {
+            throw new InvalidValueException("Transfer source and target must be different accounts", AcctTransactionSingle.FIELD_ID2, "id2", "1");
+        }
+        if (kind == AcctOperation.ACCT_KIND_PAPER || kind2 == AcctOperation.ACCT_KIND_PAPER) {
+            throw new InvalidValueException("Paper accounts cannot be transferred", "kind", "kind", "1");
+        }
         EsqObjectKind eek = validatePermissions(kind, roles);
         EsqObjectKind eek2 = validatePermissions(kind2, roles);
         String correlationId = RequestContextUtils.getCorrelationId();

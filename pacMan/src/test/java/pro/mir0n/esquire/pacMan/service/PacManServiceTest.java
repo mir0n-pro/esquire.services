@@ -312,7 +312,7 @@ class PacManServiceTest {
             inv.<org.springframework.transaction.support.TransactionCallback<?>>getArgument(0).doInTransaction(null);
             return null;
         });
-        when(entityRepository.detailAcctForUpdate("10", "1.2.3")).thenReturn(acct);
+        when(entityRepository.detailAcctForUpdate("10", 50, "1.2.3")).thenReturn(acct);
 
         service.esquireCommandDelete(50, "10", "delete", "1.2.3", "99", List.of(ROLE_ADMIN));
 
@@ -330,7 +330,7 @@ class PacManServiceTest {
             inv.<org.springframework.transaction.support.TransactionCallback<?>>getArgument(0).doInTransaction(null);
             return null;
         });
-        when(entityRepository.detailAcctForUpdate("10", "1.2.3")).thenReturn(null);
+        when(entityRepository.detailAcctForUpdate("10", 50, "1.2.3")).thenReturn(null);
 
         assertThatThrownBy(() ->
             service.esquireCommandDelete(50, "10", "delete", "1.2.3", "99", List.of(ROLE_ADMIN))
@@ -351,7 +351,7 @@ class PacManServiceTest {
             inv.<org.springframework.transaction.support.TransactionCallback<?>>getArgument(0).doInTransaction(null);
             return null;
         });
-        when(entityRepository.detailAcctForUpdate("10", "1.2.3")).thenReturn(acct);
+        when(entityRepository.detailAcctForUpdate("10", 50, "1.2.3")).thenReturn(acct);
 
         assertThatThrownBy(() ->
             service.esquireCommandDelete(50, "10", "delete", "1.2.3", "99", List.of(ROLE_ADMIN))

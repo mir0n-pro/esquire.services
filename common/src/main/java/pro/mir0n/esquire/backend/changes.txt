@@ -1,5 +1,11 @@
 Esquire Backend common microservice classes
 
+04/14/2026 mir0n  esq-entity-dictionaries: kind=1004 Transfer dictionary added; esq-object-kinds: kind 51 acct flag corrected
+esq-entity-dictionaries.xml
+  - kind=1004 (Transfer) dictionary added with fields: id, id2, typeId, amount, refCode, refCode2, memo, desc
+esq-object-kinds.xml
+  - kind 51 (cacctlnk): <acct>true</acct> (was false)
+
 04/12/2026 mir0n  kind=1000 account transaction dictionary; EntityFieldUtils kind-based validation; GenericValidator pattern trim
 service.EntityFieldUtils
   - applyFields(kind, fields): kind-based validation overload; validates writable fields with listvalues constraint check

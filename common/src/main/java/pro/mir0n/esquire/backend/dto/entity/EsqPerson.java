@@ -26,7 +26,7 @@ import pro.mir0n.esquire.backend.jpa.entity.EsqPersonJpa;
 )
 //@EqualsAndHashCode(callSuper = true)
 @NoArgsConstructor
-public class EsqPerson extends EsqThing {
+public class  EsqPerson extends EsqThing {
 
     @Schema(
             description = "First(Given) name", example = "Vasia"

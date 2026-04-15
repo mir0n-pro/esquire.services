@@ -38,6 +38,7 @@
  FROM esq_account
  JOIN esq_entity_path ON ep_pk = acc_pk
  WHERE acc_pk = :id
+ AND acc_et_pk = :kind
  AND ep_path LIKE :rootPath || '%'
  FOR UPDATE
         </query>

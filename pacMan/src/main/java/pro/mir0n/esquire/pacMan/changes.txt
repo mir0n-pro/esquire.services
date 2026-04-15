@@ -1,5 +1,20 @@
 Esquire pacMan Microservice
 
+04/14/2026 mir0n  acct transfer fixes — DICT_KIND_TRANSFER corrected; paper account guard; detailAcctForUpdate kind param removed
+acct.AcctOperation
+  - DICT_KIND_TRANSFER corrected: 1002 → 1004
+  - ACCT_KIND_PAPER = 54 added
+acct.service.AcctTransactionProcessorSingle
+  - detailAcctForUpdate call: kind param dropped
+acct.service.AcctTransactionProcessorTransfer
+  - instanceof check bug fixed (was testing rawKind2 instead of rawId2)
+  - same-account validation added (source == target → InvalidValueException)
+  - paper account restriction added (ACCT_KIND_PAPER → InvalidValueException)
+jpa.EsqAcctRepository
+  - detailAcctForUpdate: kind param removed; query: AND acc_et_pk = :kind dropped
+service.impl.PacManService
+  - saveAcct(), deleteAcct(): kind param removed (detailAcctForUpdate aligned)
+
 04/13/2026 mir0n  account transaction Phase III — single op complete; transfer draft; AcctTransactionService refactored to thin router
 + added acct.AcctOperation
   - AmountEffect enum (NEGATIVE/ANY/POSITIVE); Code enum (DEPOSIT/WITHDRAWAL/TRANSFER/ADJUSTMENT/COMMISSION/UNKNOWN)

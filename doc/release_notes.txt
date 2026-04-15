@@ -1,6 +1,11 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v1.2.2-2604.1421  Acct transaction Phase IV, acct transfer fixes; Transfer dictionary;
+    : modified components
+       common,
+       pacMan
+
 v1.2.2-2604.1319  account transaction Phase III — single op complete; transfer draft
     :Feature: pacMan — AcctTransactionProcessorSingle: full single-leg processing (amount/status/balance/field validation, insert + balance update)
     :Feature: pacMan — AcctTransactionProcessorTransfer: two-leg transfer draft (debit source, credit target with -amount)

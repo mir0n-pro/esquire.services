@@ -390,7 +390,7 @@
       <plural>acctlnks</plural>
       <desc>Shortcut to Client Account entity</desc>
       <icon>img/acctl.ico</icon>
-      <acct>false</acct>
+      <acct>true</acct>
       <detailed>true</detailed>
       <childrenDetailed>false</childrenDetailed>
       <treeFlags>b</treeFlags>
