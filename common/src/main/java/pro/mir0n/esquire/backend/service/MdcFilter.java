@@ -9,6 +9,7 @@
  * 03/10/2026 mir0n  created: generalized from per-service implementations; MDC population, metrics headers
  * 03/21/2026 mir0n  three-tier logging: devLog added; log.debug→devLog.debug; dual error pattern
  *                   actuator short-circuit: /actuator/** bypasses MDC setup and logging entirely
+ * 04/16/2026 mir0n  jpaTime local variable inlined in log call
  */
 
 package pro.mir0n.esquire.backend.service;
@@ -114,12 +115,13 @@ public class MdcFilter extends OncePerRequestFilter {
                 wrappedResponse.copyBodyToResponse();
             }
 
+            String jpaTime = performance.isMetricsCaptured() ? performance.getTotalJpaTime() : "(n/a)";
             log.info("OUTGOING: {} {}, Status: {},  Service: {}ms, Backend: {}ms",
                 givenRequest.getMethod(),
                 givenRequest.getRequestURI(),
                 response.getStatus(),
                 duration,
-                performance.isMetricsCaptured()? performance.getTotalJpaTime(): "(n/a)"
+                jpaTime
             );
 
             // ALWAYS clear the MDC to prevent cross-request contamination in thread pools

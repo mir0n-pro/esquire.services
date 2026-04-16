@@ -1,6 +1,14 @@
 Esquire BizTree Microservice
 
 
+04/16/2026 mir0n  procedural style sweep: ret pattern, null-guard
+cache.impl.BizTreeCacheRepository
+  - insertAcctNode, moveOrgNode, moveUsrNode, moveAcctNode: null-guard replaces early returns
+messaging.EsqEntityBroadcastConsumer
+  - kindBits: ternary expression expanded to explicit if-assignments
+service.impl.BizTreeService
+  - rootId extracted as named local variable
+
 04/07/2026 mir0n  kind normalization removed from dispatch and handlers; param rename
 cache.IBizTreeCacheRepository
   - moveUsrNode(): param renamed kind (raw kind; storage handles via getOrDefault)

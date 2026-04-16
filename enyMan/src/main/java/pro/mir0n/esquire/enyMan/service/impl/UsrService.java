@@ -34,6 +34,7 @@
  *                   createUsr(): admin ep_path = parent org path only (no own PK appended)
  * 04/07/2026 mir0n  all kind params Integer → int; moveUsr/createUsr: get kind directly without normalization
  * 04/09/2026 mir0n  applyFields() and enforceDefaults() delegated to EntityFieldUtils
+ * 04/16/2026 mir0n  ret declarations moved to top; moveUsr(): null-guard replaces early return
  */
 
 package pro.mir0n.esquire.enyMan.service.impl;
@@ -97,6 +98,7 @@ public class UsrService  extends AEnyManService {
 
     @Override
     public EsqEntity esquireCommand(int kind, String id, String cmd, String rootPath, String uid) {
+        EsqEntity ret = null;
         devLog.debug("srvc: esquireCommand(usr): kind:{}, id:{}, cmd:{}, rootPath:{}, uid:{}",  kind, id, cmd, rootPath, uid);
 
         EsqObjectKind eek = EsqObjectKindStorage.getInstance().get(kind);
@@ -128,13 +130,14 @@ public class UsrService  extends AEnyManService {
         if (eek.isChildrenDetailed()) {
             children = (List<EsqEntityJpa>) (List<?>) usrRepository.userAccts(id, rootPath);
         }
-        EsqEntity ret = EsqEntityFactory.getInstance().createUser(jpa, custom, children, person, address, address2 );
+        ret = EsqEntityFactory.getInstance().createUser(jpa, custom, children, person, address, address2 );
         devLog.debug("srvc: esquireCommand(usr): entity:{}",  ret);
         return  ret;
     }
 
     @Override
     public EsqEntity esquireCommandSave(int kind, String id, String cmd, Map<String, Object> fields, String rootPath, String uid, List<String> roles) {
+        EsqEntity ret = null;
         String correlationId = RequestContextUtils.getCorrelationId();
         String requestId = RequestContextUtils.getRequestId();
         devLog.debug("srvc: esquireCommandSave(usr): kind:{}, id:{}, cmd:{}, rootPath:{}, uid:{}", kind, id, cmd, rootPath, uid);
@@ -159,7 +162,7 @@ public class UsrService  extends AEnyManService {
             return null;
         }); // ← transaction commits here
 
-        EsqEntity ret = EsqEntityFactory.getInstance().createUser(updated[0], custom[0], children == null ? null : children[0],
+        ret = EsqEntityFactory.getInstance().createUser(updated[0], custom[0], children == null ? null : children[0],
                     person == null ? null : person[0], address == null ? null : address[0], address2 == null ? null : address2[0]);
         devLog.debug("srvc: esquireCommandSave(usr): entity:{}", ret);
         return ret;
@@ -167,6 +170,7 @@ public class UsrService  extends AEnyManService {
 
     @Override
     public EsqEntity esquireCommandNew(int kind, String parentId, String cmd, Map<String, Object> fields, String rootPath, String uid, List<String> roles) {
+        EsqEntity ret = null;
         String correlationId = RequestContextUtils.getCorrelationId();
         String requestId = RequestContextUtils.getRequestId();
         devLog.debug("srvc: esquireCommandNew(usr): kind:{}, parentId:{}, cmd:{}, rootPath:{}, uid:{}", kind, parentId, cmd, rootPath, uid);
@@ -184,7 +188,7 @@ public class UsrService  extends AEnyManService {
             return null;
         });
 
-        EsqEntity ret = EsqEntityFactory.getInstance().createUser(created[0], custom[0], null, person[0],
+        ret = EsqEntityFactory.getInstance().createUser(created[0], custom[0], null, person[0],
                 address == null ? null : address[0], address2 == null ? null : address2[0]);
         devLog.debug("srvc: esquireCommandNew(usr): entity:{}", ret);
         return ret;
@@ -213,31 +217,32 @@ public class UsrService  extends AEnyManService {
     }
 
     private List<EsqMoveRecord> moveUsr(String id, String distId, String rootPath, String uid, String correlationId, String requestId) {
+        List<EsqMoveRecord> rows = null;
         usrRepository.lockEntityPathRoot();
         EsqUsrJpa usr = usrRepository.detailUsrForUpdate(id, rootPath);
         if (usr == null) {
             throw new ResourceNotFoundException("moveUsr", "id", id);
         }
         if (distId.equals(usr.getParentId())) {
-            return List.of();
-        }
-        EsqObjectKind eek = EsqObjectKindStorage.getInstance().get(usr.getKind());
-        String destPath    = usrRepository.usrPath(distId, rootPath);
-        List<EsqMoveRecord> rows;
-        if (eek.isPathParentOnly()) {
-            // Admin users own no entities — ep_path has only one row (no ACCT cascade).
-            // Multiple admins under the same org share the same ep_path value, so update and query by pk.
-            usrRepository.moveAdminPath(id, destPath);
-            rows = usrRepository.listAdminMovedPath(id);
+            rows = List.of();
         } else {
-            // Regular user: ep_path = dest org path + user PK.
-            // Equality update covers the user row and all their ACCT rows (same ep_path value).
-            String currentPath = usrRepository.usrPath(id, rootPath);
-            String newPath     = destPath + id + ".";
-            usrRepository.moveUsrPaths(currentPath, newPath);
-            rows = usrRepository.listMovedPaths(newPath);
+            EsqObjectKind eek = EsqObjectKindStorage.getInstance().get(usr.getKind());
+            String destPath    = usrRepository.usrPath(distId, rootPath);
+            if (eek.isPathParentOnly()) {
+                // Admin users own no entities — ep_path has only one row (no ACCT cascade).
+                // Multiple admins under the same org share the same ep_path value, so update and query by pk.
+                usrRepository.moveAdminPath(id, destPath);
+                rows = usrRepository.listAdminMovedPath(id);
+            } else {
+                // Regular user: ep_path = dest org path + user PK.
+                // Equality update covers the user row and all their ACCT rows (same ep_path value).
+                String currentPath = usrRepository.usrPath(id, rootPath);
+                String newPath     = destPath + id + ".";
+                usrRepository.moveUsrPaths(currentPath, newPath);
+                rows = usrRepository.listMovedPaths(newPath);
+            }
+            usrRepository.moveUsrParent(id, distId, uid, correlationId, requestId);
         }
-        usrRepository.moveUsrParent(id, distId, uid, correlationId, requestId);
         return rows;
     }
 

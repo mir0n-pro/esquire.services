@@ -1,5 +1,13 @@
 Esquire Backend common microservice classes
 
+04/16/2026 mir0n  procedural style sweep: ret pattern, null-guard
+dto.access.EsqAccessProfile
+  - fill(): null-guard replaces early return
+error.ProblemDetailMill
+  - extractCorrelationId(): ret pattern replaces early returns
+service.MdcFilter
+  - jpaTime local variable inlined in log call
+
 04/14/2026 mir0n  esq-entity-dictionaries: kind=1004 Transfer dictionary added; esq-object-kinds: kind 51 acct flag corrected
 esq-entity-dictionaries.xml
   - kind=1004 (Transfer) dictionary added with fields: id, id2, typeId, amount, refCode, refCode2, memo, desc

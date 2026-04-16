@@ -11,6 +11,7 @@
  * 03/10/2026 mir0n  fill() DTO overload added: rolesAll as List<EsqRole>, permissions as List<EsqPermission>
  *                   original fill() renamed fillJpa() — accepts List<EsqRoleJpa>, List<EsqPermissionJpa>
  * 03/16/2026 mir0n  connectFlg field added; fill() and fillJpa() updated
+ * 04/16/2026 mir0n  fill(): null-guard replaces early return
  */
 
 package pro.mir0n.esquire.backend.dto.access;
@@ -103,15 +104,16 @@ public class EsqAccessProfile extends EsqThing {
         }
         setRolesAll(rolesAll != null ? rolesAll : new ArrayList<>());
         setPermissions(new HashMap<>());
-        if (permissions == null) { return this; }
-        for (EsqPermission perm : permissions) {
-            String tpy = perm.getType().toLowerCase();
-            List<EsqPermission> permList = getPermissions().get(tpy);
-            if (permList == null) {
-                permList = new ArrayList<>();
-                getPermissions().put(tpy, permList);
+        if (permissions != null) {
+            for (EsqPermission perm : permissions) {
+                String tpy = perm.getType().toLowerCase();
+                List<EsqPermission> permList = getPermissions().get(tpy);
+                if (permList == null) {
+                    permList = new ArrayList<>();
+                    getPermissions().put(tpy, permList);
+                }
+                permList.add(perm);
             }
-            permList.add(perm);
         }
         return this;
     }

@@ -1,5 +1,15 @@
 Esquire enyMan Microservice
 
+04/16/2026 mir0n  procedural style sweep: ret pattern, null-guard
+service.impl.AEnyManService
+  - ret declaration moved to top of method
+service.impl.EnyManService
+  - ret declarations moved to top in detailEntity/saveEntity/newEntity
+service.impl.OrgService
+  - ret declarations moved to top; moveOrg(): null-guard replaces early return
+service.impl.UsrService
+  - ret declarations moved to top; moveUsr(): null-guard replaces early return
+
 04/09/2026 mir0n  applyFields/enforceDefaults delegated to EntityFieldUtils; validateDelete on all entities
 service.impl.AEnyManService
   - applyFields() removed — moved to EntityFieldUtils; BeanWrapper/PropertyDescriptor/ValidatorFactory imports removed

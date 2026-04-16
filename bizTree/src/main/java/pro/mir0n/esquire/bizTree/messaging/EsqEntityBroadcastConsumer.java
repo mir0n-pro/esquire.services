@@ -19,6 +19,7 @@
  * 03/26/2026 mir0n  DeleteEntityHandler registered for (DELETE, ORG/USR/ACCT) — skeleton, no cascade
  * 04/02/2025 mir0n  Added 3 move handlers for each kind-kind
  * 04/07/2026 mir0n  kind normalization removed from dispatch; EsqObjectKindStorage.get() receives raw entityKind
+ * 04/16/2026 mir0n  kindBits: ternary expression expanded to explicit if-assignments
  */
 package pro.mir0n.esquire.bizTree.messaging;
 
@@ -129,7 +130,10 @@ public class EsqEntityBroadcastConsumer {
                     applMsgId, eventType, entityKind, entityId); //xxx: requestId, correlationId are in MDC
 
             EsqObjectKind eek      = EsqObjectKindStorage.getInstance().get(entityKind);
-            int           kindBits = (eek.isAcct() ? 4 : 0) + (eek.isUsr() ? 2 : 0) + (eek.isOrg() ? 1 : 0);
+            int kindBits = 0;
+            if (eek.isAcct()) kindBits += 4;
+            if (eek.isUsr())  kindBits += 2;
+            if (eek.isOrg())  kindBits += 1;
 
             IBizTreeEventHandler handler = handlers.get(new HandlerKey(eventType, kindBits));
             if (handler != null && textJson != null) {

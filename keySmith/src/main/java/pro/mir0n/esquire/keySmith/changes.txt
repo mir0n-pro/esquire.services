@@ -1,5 +1,9 @@
 Esquire keySmith Microservice
 
+04/16/2026 mir0n  procedural style sweep: ret pattern
+service.impl.KeySmithService
+  - ret declarations moved to top in esquireKeyDetail() and esquireKeySave()
+
 03/28/2026 mir0n  ESQ_ENTITY_PATH — JOIN esq_entity_path for path resolution in access queries
 META-INF/oracle-access-profile.xml, postgres-access-profile.xml
   - access, accessForUpdate: JOIN esq_entity_path; ep_path AS usr_path alias; filter on ep_path

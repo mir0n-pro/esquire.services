@@ -19,6 +19,7 @@
  *                   added moveAcctNode();
  * 04/06/2026 mir0n  moveUsrNode(): admin-aware orgPk extraction using isPathParentOnly()
  * 04/07/2026 mir0n  moveUsrNode(): param renamed kind; EsqObjectKindStorage.get() receives raw kind
+ * 04/16/2026 mir0n  insertAcctNode, moveOrgNode, moveUsrNode, moveAcctNode: null-guard replaces early returns
  */
 package pro.mir0n.esquire.bizTree.cache.impl;
 
@@ -184,20 +185,20 @@ public class BizTreeCacheRepository implements IBizTreeCacheRepository {
 
         String shortcutParent     = orgPkStr + "~" + BizTreeConstants.FOLDER_ACCOUNT;
         String shortcutParentPath = findPath(shortcutParent);
-        if (shortcutParentPath == null) {
-            log.error("BizTreeCacheRepository: insertAcctNode: FOLDER_ACCOUNT not found in cache, shortcutParent={}", shortcutParent);
-            devLog.error("BizTreeCacheRepository: insertAcctNode: FOLDER_ACCOUNT not found in cache, shortcutParent={}", shortcutParent);
-            return;
-        }
-        String shortcutPk    = orgPkStr + "~" + acctPkStr;
-        int    shortcutLevel = countDots(shortcutParentPath);
-        String shortcutPath  = shortcutParentPath + shortcutPk + ".";
 
         List<Object[]> rows = new ArrayList<>();
-        rows.add(row(acctPkStr,  etPk,     name, desc, usrPkStr,       null,       acctPk, mainLevel,     mainPath,     entityPath, statusCode));
-        rows.add(row(shortcutPk, etPk + 1, name, desc, shortcutParent, acctPkStr,  acctPk, shortcutLevel, shortcutPath, entityPath, statusCode));
+        rows.add(row(acctPkStr, etPk, name, desc, usrPkStr, null, acctPk, mainLevel, mainPath, entityPath, statusCode));
+        if (shortcutParentPath != null) {
+            String shortcutPk    = orgPkStr + "~" + acctPkStr;
+            int    shortcutLevel = countDots(shortcutParentPath);
+            String shortcutPath  = shortcutParentPath + shortcutPk + ".";
+            rows.add(row(shortcutPk, etPk + 1, name, desc, shortcutParent, acctPkStr, acctPk, shortcutLevel, shortcutPath, entityPath, statusCode));
+        } else {
+            log.error("BizTreeCacheRepository: insertAcctNode: FOLDER_ACCOUNT not found in cache, shortcutParent={}", shortcutParent);
+            devLog.error("BizTreeCacheRepository: insertAcctNode: FOLDER_ACCOUNT not found in cache, shortcutParent={}", shortcutParent);
+        }
         cache.batchUpdate(sql.loader.insertNode(), rows);
-        devLog.debug("BizTreeCacheRepository: insertAcctNode: inserted 2 nodes for acctPk={}", acctPk);
+        devLog.debug("BizTreeCacheRepository: insertAcctNode: inserted {} nodes for acctPk={}", rows.size(), acctPk);
     }
 
     @Override
@@ -214,24 +215,24 @@ public class BizTreeCacheRepository implements IBizTreeCacheRepository {
         if (segs.length < 2) return;
         String parentPk   = segs[segs.length - 2];
         String parentPath = findPath(parentPk);
-        if (parentPath == null) {
+        if (parentPath != null) {
+            String newOrgPath = parentPath + orgPkStr + ".";
+            int    orgLevel   = countDots(parentPath);
+            cache.update(sql.repo.moveNode(), newOrgPath, newEntityPath, orgLevel, parentPk, orgPkStr);
+
+            List<String> folderPks   = cache.queryForList(sql.repo.findFolderPks(), String.class, orgPkStr);
+            int          folderLevel = orgLevel + 1;
+            List<Object[]> folderRows = new ArrayList<>();
+            for (String folderPk : folderPks) {
+                folderRows.add(new Object[]{ newOrgPath + folderPk + ".", newEntityPath, folderLevel, orgPkStr, folderPk });
+            }
+            int[] folderUpdates = cache.batchUpdate(sql.repo.moveNode(), folderRows);
+            devLog.debug("BizTreeCacheRepository: moveOrgNode pk={} newEntityPath={} folderCount={}",
+                    entityPk, newEntityPath, folderUpdates.length);
+        } else {
             log.error("BizTreeCacheRepository: moveOrgNode: parent not in cache, pk={}, parentPk={}", entityPk, parentPk);
             devLog.error("BizTreeCacheRepository: moveOrgNode: parent not in cache, pk={}, parentPk={}", entityPk, parentPk);
-            return;
         }
-        String newOrgPath = parentPath + orgPkStr + ".";
-        int    orgLevel   = countDots(parentPath);
-        cache.update(sql.repo.moveNode(), newOrgPath, newEntityPath, orgLevel, parentPk, orgPkStr);
-
-        List<String> folderPks   = cache.queryForList(sql.repo.findFolderPks(), String.class, orgPkStr);
-        int          folderLevel = orgLevel + 1;
-        List<Object[]> folderRows = new ArrayList<>();
-        for (String folderPk : folderPks) {
-            folderRows.add(new Object[]{ newOrgPath + folderPk + ".", newEntityPath, folderLevel, orgPkStr, folderPk });
-        }
-        int[] folderUpdates = cache.batchUpdate(sql.repo.moveNode(), folderRows);
-        devLog.debug("BizTreeCacheRepository: moveOrgNode pk={} newEntityPath={} folderCount={}",
-                entityPk, newEntityPath, folderUpdates.length);
     }
 
     @Override
@@ -243,23 +244,26 @@ public class BizTreeCacheRepository implements IBizTreeCacheRepository {
         EsqObjectKind eek = EsqObjectKindStorage.getInstance().get(kind);
         // Admin ep_path = orgPath: last segment IS the org pk  (e.g. "1.9.200." → 200)
         // Regular ep_path includes own pk: second-to-last is org pk  (e.g. "1.9.200.100." → 200)
-        long   orgPk      = eek.isPathParentOnly()
-                            ? Long.parseLong(segs[segs.length - 1])
-                            : Long.parseLong(segs[segs.length - 2]);
+        long orgPk;
+        if (eek.isPathParentOnly()) {
+            orgPk = Long.parseLong(segs[segs.length - 1]);
+        } else {
+            orgPk = Long.parseLong(segs[segs.length - 2]);
+        }
         int    folderKind = (orgPk == BizTreeConstants.ORG_ROOT_PK)
                             ? BizTreeConstants.FOLDER_SYS_ADMIN
                             : BizTreeConstants.folderKindForUsr(eek.getId());
         String folderPk   = orgPk + "~" + folderKind;
         String folderPath = findPath(folderPk);
-        if (folderPath == null) {
+        if (folderPath != null) {
+            String newUsrPath = folderPath + usrPkStr + ".";
+            int    usrLevel   = countDots(folderPath);
+            int updated = cache.update(sql.repo.moveNode(), newUsrPath, newEntityPath, usrLevel, folderPk, usrPkStr);
+            devLog.debug("BizTreeCacheRepository: moveUsrNode pk={} newEntityPath={} updated={}", entityPk, newEntityPath, updated);
+        } else {
             log.error("BizTreeCacheRepository: moveUsrNode: folder not in cache, pk={}, folderPk={}", entityPk, folderPk);
             devLog.error("BizTreeCacheRepository: moveUsrNode: folder not in cache, pk={}, folderPk={}", entityPk, folderPk);
-            return;
         }
-        String newUsrPath = folderPath + usrPkStr + ".";
-        int    usrLevel   = countDots(folderPath);
-        int updated = cache.update(sql.repo.moveNode(), newUsrPath, newEntityPath, usrLevel, folderPk, usrPkStr);
-        devLog.debug("BizTreeCacheRepository: moveUsrNode pk={} newEntityPath={} updated={}", entityPk, newEntityPath, updated);
     }
 
     @Override
@@ -272,27 +276,27 @@ public class BizTreeCacheRepository implements IBizTreeCacheRepository {
         String usrPkStr = segs[segs.length - 1];
 
         String userPath = findPath(usrPkStr);
-        if (userPath == null) {
+        if (userPath != null) {
+            String mainPath  = userPath + acctPkStr + ".";
+            int    mainLevel = countDots(userPath);
+            cache.update(sql.repo.moveNode(), mainPath, newEntityPath, mainLevel, usrPkStr, acctPkStr);
+
+            String shortcutParent     = orgPkStr + "~" + BizTreeConstants.FOLDER_ACCOUNT;
+            String shortcutParentPath = findPath(shortcutParent);
+            if (shortcutParentPath != null) {
+                String newShortcutPk = orgPkStr + "~" + acctPkStr;
+                String shortcutPath  = shortcutParentPath + newShortcutPk + ".";
+                int    shortcutLvl   = countDots(shortcutParentPath);
+                int updated = cache.update(sql.repo.moveAcctLink(), newShortcutPk, shortcutPath, newEntityPath, shortcutLvl, shortcutParent, acctPkStr);
+                devLog.debug("BizTreeCacheRepository: moveAcctNode pk={} newEntityPath={} shortcutUpdated={}", entityPk, newEntityPath, updated);
+            } else {
+                log.error("BizTreeCacheRepository: moveAcctNode: FOLDER_ACCOUNT not in cache, pk={}, parent={}", entityPk, shortcutParent);
+                devLog.error("BizTreeCacheRepository: moveAcctNode: FOLDER_ACCOUNT not in cache, pk={}, parent={}", entityPk, shortcutParent);
+            }
+        } else {
             log.error("BizTreeCacheRepository: moveAcctNode: user not in cache, pk={}, usrPk={}", entityPk, usrPkStr);
             devLog.error("BizTreeCacheRepository: moveAcctNode: user not in cache, pk={}, usrPk={}", entityPk, usrPkStr);
-            return;
         }
-        String mainPath  = userPath + acctPkStr + ".";
-        int    mainLevel = countDots(userPath);
-        cache.update(sql.repo.moveNode(), mainPath, newEntityPath, mainLevel, usrPkStr, acctPkStr);
-
-        String shortcutParent     = orgPkStr + "~" + BizTreeConstants.FOLDER_ACCOUNT;
-        String shortcutParentPath = findPath(shortcutParent);
-        if (shortcutParentPath == null) {
-            log.error("BizTreeCacheRepository: moveAcctNode: FOLDER_ACCOUNT not in cache, pk={}, parent={}", entityPk, shortcutParent);
-            devLog.error("BizTreeCacheRepository: moveAcctNode: FOLDER_ACCOUNT not in cache, pk={}, parent={}", entityPk, shortcutParent);
-            return;
-        }
-        String newShortcutPk   = orgPkStr + "~" + acctPkStr;
-        String shortcutPath    = shortcutParentPath + newShortcutPk + ".";
-        int    shortcutLvl     = countDots(shortcutParentPath);
-        int updated = cache.update(sql.repo.moveAcctLink(), newShortcutPk, shortcutPath, newEntityPath, shortcutLvl, shortcutParent, acctPkStr);
-        devLog.debug("BizTreeCacheRepository: moveAcctNode pk={} newEntityPath={} shortcutUpdated={}", entityPk, newEntityPath, updated);
     }
 
     private static int countDots(String s) {

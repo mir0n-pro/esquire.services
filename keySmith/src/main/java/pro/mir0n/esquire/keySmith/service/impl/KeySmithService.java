@@ -32,6 +32,7 @@
  * 03/20/2026 mir0n  KC sync decoupled: IKeycloakIdentityService replaced with KcSyncPublisher
  *                   syncToKeycloak() replaced with kcSyncPublisher.publish() — fire-and-forget via JMS
  * 03/21/2026 mir0n  devLog added; log.debug→devLog.debug
+ * 04/16/2026 mir0n  ret declarations moved to top in esquireKeyDetail() and esquireKeySave()
  */
 
 package pro.mir0n.esquire.keySmith.service.impl;
@@ -83,7 +84,7 @@ public class KeySmithService implements IKeySmithService {
 
     @Override
     public EsqAccessProfile esquireKey(String id, String rootPath, String uid) {
-
+        EsqAccessProfile ret = null;
         //String correlationId = RequestContextUtils.getCorrelationId();
         //String requestId = RequestContextUtils.getRequestId();
 
@@ -112,13 +113,14 @@ public class KeySmithService implements IKeySmithService {
             permissions = EsqRolesStorage.getInstance().fillPermissionsForRole(r.getName(), permissions);
         }
 
-        EsqAccessProfile ret = new EsqAccessProfile().fill(jpa, roles, rolesAll, permissions);
+        ret = new EsqAccessProfile().fill(jpa, roles, rolesAll, permissions);
         devLog.debug("KeySmithService: esquireKey(2): accessProfile:{}",  ret);
         return  ret;
     }
 
     @Override
     public EsqAccessProfile esquireKeySave(String id, Map<String, Object> fields, String rootPath, String uid, List<String> roles) {
+        EsqAccessProfile ret = null;
         String correlationId = RequestContextUtils.getCorrelationId();
         String requestId = RequestContextUtils.getRequestId();
         devLog.debug("KeySmithService: esquireKeySave: id:{}, rootPath:{}, uid:{}", id, rootPath, uid);
@@ -151,7 +153,7 @@ public class KeySmithService implements IKeySmithService {
         for (EsqRoleJpa r : rolesAssigned[0]) {
             permissions = EsqRolesStorage.getInstance().fillPermissionsForRole(r.getName(), permissions);
         }
-        EsqAccessProfile ret = new EsqAccessProfile().fill( updated[0], rolesAssigned[0], rolesAll, permissions);
+        ret = new EsqAccessProfile().fill( updated[0], rolesAssigned[0], rolesAll, permissions);
         devLog.debug("KeySmithService: esquireKeySave(2): accessProfile:{}", ret);
         return ret;
     }

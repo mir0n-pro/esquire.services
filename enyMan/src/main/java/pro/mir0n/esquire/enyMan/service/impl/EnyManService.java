@@ -41,6 +41,7 @@
  * 04/06/2026 mir0n  KC path sync: KcRequestPublisher injected; publishKcMoveRequest() sends EVENT_UPDATE_PATH URQ per USR move record
  * 04/07/2026 mir0n  all kind params Integer → int; kind normalization removed;
  *                   upfront applicability check (!isOrg && !isUsr → ResourceNotFoundException) at all entry points
+ * 04/16/2026 mir0n  ret declarations moved to top in detailEntity/saveEntity/newEntity
  */
 
 package pro.mir0n.esquire.enyMan.service.impl;
@@ -98,12 +99,12 @@ public class EnyManService  extends AEnyManService {
 
     @Override
     public EsqEntity esquireCommand(int kind, String id, String cmd, String rootPath, String uid) {
+        EsqEntity ret = null;
         EsqObjectKind eek = EsqObjectKindStorage.getInstance().get(kind);
         if (!eek.isOrg() && !eek.isUsr()) {
             throw new ResourceNotFoundException("esquireCommand", "kind", String.valueOf(kind));
         }
         int k = eek.getId();
-        EsqEntity ret = null;
         if (eek.isOrg()) {
             ret = orgService.esquireCommand(k, id, cmd, rootPath, uid);
         } else if (eek.isUsr()) {
@@ -114,6 +115,7 @@ public class EnyManService  extends AEnyManService {
 
     @Override
     public EsqEntity esquireCommandSave(int kind, String id, String cmd, Map<String, Object> fields, String rootPath, String uid, List<String> roles) {
+        EsqEntity ret = null;
         EsqObjectKind eek = EsqObjectKindStorage.getInstance().get(kind);
         if (!eek.isOrg() && !eek.isUsr()) {
             throw new ResourceNotFoundException("esquireCommandSave", "kind", String.valueOf(kind));
@@ -130,7 +132,6 @@ public class EnyManService  extends AEnyManService {
         // Capture trace context before delegate call (still on request thread)
         String requestId     = RequestContextUtils.getRequestId();
         String correlationId = RequestContextUtils.getCorrelationId();
-        EsqEntity ret = null;
         if (eek.isOrg()) {
             if (permitted) {
                 ret = orgService.esquireCommandSave(k, id, cmd, fields, rootPath, uid, roles);
@@ -157,6 +158,7 @@ public class EnyManService  extends AEnyManService {
 
     @Override
     public EsqEntity esquireCommandNew(int kind, String parentId, String cmd, Map<String, Object> fields, String rootPath, String uid, List<String> roles) {
+        EsqEntity ret = null;
         EsqObjectKind eek = EsqObjectKindStorage.getInstance().get(kind);
         if (!eek.isOrg() && !eek.isUsr()) {
             throw new ResourceNotFoundException("esquireCommandNew", "kind", String.valueOf(kind));
@@ -172,7 +174,6 @@ public class EnyManService  extends AEnyManService {
         }
         String requestId     = RequestContextUtils.getRequestId();
         String correlationId = RequestContextUtils.getCorrelationId();
-        EsqEntity ret = null;
         if (eek.isOrg()) {
             if (permitted) {
                 ret = orgService.esquireCommandNew(k, parentId, cmd, fields, rootPath, uid, roles);

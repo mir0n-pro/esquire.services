@@ -1,6 +1,14 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v1.2.2-2604.1620  procedural style sweep: ret pattern, null-guard across services
+    : modified components
+       common,
+       enyMan,
+       bizTree,
+       kcMaster,
+       keySmith
+
 v1.2.2-2604.1617 keycloak esquire-explorer schema : more templates added
 
 v1.2.2-2604.1517 postgres container added; local docker compose cleanup

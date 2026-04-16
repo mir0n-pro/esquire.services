@@ -23,6 +23,7 @@
  * 04/01/2026 mir0n  move: collects updated records
  * 04/07/2026 mir0n  all kind params Integer → int (including private createOrg)
  * 04/09/2026 mir0n  applyFields() and enforceDefaults() delegated to EntityFieldUtils
+ * 04/16/2026 mir0n  ret declarations moved to top; moveOrg(): null-guard replaces early return
  */
 
 package pro.mir0n.esquire.enyMan.service.impl;
@@ -73,6 +74,7 @@ public class OrgService  extends AEnyManService {
 
     @Override
     public EsqEntity esquireCommand(int kind, String id, String cmd, String rootPath, String uid) {
+        EsqEntity ret = null;
         //String correlationId = RequestContextUtils.getCorrelationId();
         //String requestId = RequestContextUtils.getRequestId();
         devLog.debug("srvc: esquireCommand(org): kind:{}, id:{}, cmd:{}, rootPath:{}, uid:{}",  kind, id, cmd, rootPath, uid);
@@ -81,13 +83,14 @@ public class OrgService  extends AEnyManService {
             throw new ResourceNotFoundException("esquireEntity", "kind, id", kind + "," + id);
         }
         List<EsqNameValueJpa> custom = orgRepository.customOrg(id);
-        EsqEntity ret = EsqEntityFactory.getInstance().createEntity(jpa, custom, null);
+        ret = EsqEntityFactory.getInstance().createEntity(jpa, custom, null);
         devLog.debug("srvc: esquireCommand(org): entity:{}",  ret);
         return  ret;
     }
 
     @Override
     public EsqEntity esquireCommandSave(int kind, String id, String cmd, Map<String, Object> fields, String rootPath, String uid, List<String> roles) {
+        EsqEntity ret = null;
         String correlationId = RequestContextUtils.getCorrelationId();
         String requestId = RequestContextUtils.getRequestId();
         devLog.debug("srvc: esquireCommandSave(org): kind:{}, id:{}, cmd:{}, rootPath:{}, uid:{}", kind, id, cmd, rootPath, uid);
@@ -106,13 +109,14 @@ public class OrgService  extends AEnyManService {
             return null;
         }); // ← transaction commits here
 
-        EsqEntity ret = EsqEntityFactory.getInstance().createEntity(updated[0], custom[0], null);
+        ret = EsqEntityFactory.getInstance().createEntity(updated[0], custom[0], null);
         devLog.debug("srvc: esquireCommandSave(org): entity:{}", ret);
         return ret;
     }
 
     @Override
     public EsqEntity esquireCommandNew(int kind, String parentId, String cmd, Map<String, Object> fields, String rootPath, String uid, List<String> roles) {
+        EsqEntity ret = null;
         String correlationId = RequestContextUtils.getCorrelationId();
         String requestId = RequestContextUtils.getRequestId();
         devLog.debug("srvc: esquireCommandNew(org): kind:{}, parentId:{}, cmd:{}, rootPath:{}, uid:{}", kind, parentId, cmd, rootPath, uid);
@@ -125,7 +129,7 @@ public class OrgService  extends AEnyManService {
             return null;
         });
 
-        EsqEntity ret = EsqEntityFactory.getInstance().createEntity(created[0], null, null);
+        ret = EsqEntityFactory.getInstance().createEntity(created[0], null, null);
         devLog.debug("srvc: esquireCommandNew(org): entity:{}", ret);
         return ret;
     }
@@ -153,23 +157,25 @@ public class OrgService  extends AEnyManService {
     }
 
     private List<EsqMoveRecord> moveOrg(String id, String distId, String rootPath, String uid, String correlationId, String requestId) {
+        List<EsqMoveRecord> rows = null;
         orgRepository.lockEntityPathRoot();
         EsqOrgJpa org = orgRepository.detailOrgForUpdate(id, rootPath);
         if (org == null) {
             throw new ResourceNotFoundException("moveOrg", "id", id);
         }
         if (distId.equals(org.getParentId())) {
-            return List.of();
+            rows = List.of();
+        } else {
+            String currentPath = orgRepository.orgPath(id, rootPath);
+            String destPath    = orgRepository.orgPath(distId, rootPath);
+            if (destPath.startsWith(currentPath)) {
+                throw new PermissionDeniedException("org", "cannot move org into its own subtree");
+            }
+            String newEntityPath = destPath + id + ".";
+            orgRepository.moveOrgPaths(currentPath, newEntityPath);
+            rows = orgRepository.listMovedPaths(newEntityPath);
+            orgRepository.moveOrgParent(id, distId, uid, correlationId, requestId);
         }
-        String currentPath = orgRepository.orgPath(id, rootPath);
-        String destPath    = orgRepository.orgPath(distId, rootPath);
-        if (destPath.startsWith(currentPath)) {
-            throw new PermissionDeniedException("org", "cannot move org into its own subtree");
-        }
-        String newEntityPath = destPath + id + ".";
-        orgRepository.moveOrgPaths(currentPath, newEntityPath);
-        List<EsqMoveRecord> rows = orgRepository.listMovedPaths(newEntityPath);
-        orgRepository.moveOrgParent(id, distId, uid, correlationId, requestId);
         return rows;
     }
 

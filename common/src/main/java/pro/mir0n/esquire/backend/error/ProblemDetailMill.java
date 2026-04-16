@@ -8,6 +8,7 @@
  *  History:
  * 01/18/2026 mir0n let stack trace optional
  * 03/06/2026 mir0n InvalidValueException.errors included in problem detail response
+ * 04/16/2026 mir0n  extractCorrelationId(): ret pattern replaces early returns
  */
 
 package pro.mir0n.esquire.backend.error;
@@ -67,13 +68,13 @@ public class ProblemDetailMill {
     }
 
     public static String getCorrelationId(HttpServletRequest request) {
+        String ret = null;
         if (request.getHeader(EsqConstants.ESQ_CORRELATION_ID) != null) {
-            return request.getHeader(EsqConstants.ESQ_CORRELATION_ID);
+            ret = request.getHeader(EsqConstants.ESQ_CORRELATION_ID);
         } else if (request.getHeader(EsqConstants.X_CORRELATION_ID) != null) {
-            return request.getHeader(EsqConstants.X_CORRELATION_ID);
-        } else {
-            return null;
+            ret = request.getHeader(EsqConstants.X_CORRELATION_ID);
         }
+        return ret;
     }
     public static String getRequestId(HttpServletRequest request) {
         return request.getHeader(EsqConstants.X_REQUEST_ID);

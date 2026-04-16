@@ -16,6 +16,7 @@
  * 03/21/2026 mir0n  devLog added; log.debug→devLog.debug
  * 04/07/2026 mir0n  esquireDictionary(): kind param Integer → int; normalization removed
  * 04/09/2026 mir0n  applyFields() moved to EntityFieldUtils (backend.service)
+ * 04/16/2026 mir0n  ret declaration moved to top of method
  */
 
 package pro.mir0n.esquire.enyMan.service.impl;
@@ -44,11 +45,10 @@ public abstract class AEnyManService  implements IEnyManService {
 
     @Override
     public List<EsqEntityLayer> esquireDictionary(int kind) {
+        List<EsqEntityLayer> ret = null;
         //String correlationId = RequestContextUtils.getCorrelationId();
         //String requestId = RequestContextUtils.getRequestId();
         devLog.debug("srvc: esquireDictionary: kind:{}",  kind);
-
-        List<EsqEntityLayer> ret = null;
         EsqEntityDictionary dict  = EsqEntityDictionaryStorage.getInstance().get(kind);
         if  (dict != null) {
             if(!dict.isCompleted()) {

@@ -1,5 +1,10 @@
 Esquire kcMaster Microservice
 
+04/16/2026 mir0n  procedural style sweep: ret pattern, null-guard, for-loops
+service.impl.KcIdentityService
+  - updateEntityPath(), syncRoles(): null-guard replaces early returns
+  - for-loops replace stream operations; explicit types replace var
+
 04/06/2026 mir0n  esq-move Phase III: KC path sync
 KcMasterApplication
   - EsqObjectKindStorage loaded on ApplicationStartingEvent

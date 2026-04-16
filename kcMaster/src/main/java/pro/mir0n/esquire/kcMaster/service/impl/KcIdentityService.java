@@ -12,6 +12,7 @@
  *                   all log.debug→devLog.debug; unused imports removed
  * 04/06/2026 mir0n  updateEntityPath(): looks up KC user by esq_uid attribute, updates esq_rootpath
  *                   updateUser(): removed changed-flag guard — attributes always merged and applied
+ * 04/16/2026 mir0n  updateEntityPath(), syncRoles(): null-guard replaces early returns; for-loops replace streams; explicit types replace var
  */
 
 package pro.mir0n.esquire.kcMaster.service.impl;
@@ -39,7 +40,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -191,9 +191,11 @@ public class KcIdentityService implements IKcIdentityService {
         }
 
         if (Boolean.TRUE.equals(removeTotp)) {
-            userResource.credentials().stream()
-                    .filter(c -> "otp".equals(c.getType()))
-                    .forEach(c -> userResource.removeCredential(c.getId()));
+            for (CredentialRepresentation c : userResource.credentials()) {
+                if ("otp".equals(c.getType())) {
+                    userResource.removeCredential(c.getId());
+                }
+            }
             log.info("KC | UPDATE | username={} | OTP credentials removed", loginId);
         }
 
@@ -229,30 +231,27 @@ public class KcIdentityService implements IKcIdentityService {
 
         List<UserRepresentation> users = usersResource.searchByAttributes(
                 EsqConstants.JWT_CLAIM_ENTITY_ID + ":" + entityId, true);
-        if (users.isEmpty()) {
+        if (!users.isEmpty()) {
+            String kcId = users.get(0).getId();
+            UserResource userResource = usersResource.get(kcId);
+            UserRepresentation user = userResource.toRepresentation();
+
+            Map<String, List<String>> existing = user.getAttributes() != null ? user.getAttributes() : Collections.emptyMap();
+            List<String> currentPaths = existing.get(EsqConstants.JWT_CLAIM_ENTITY_ROOTPATH);
+            String currentPath = (currentPaths != null && !currentPaths.isEmpty()) ? currentPaths.get(0) : null;
+            if (!newPath.equals(currentPath)) {
+                Map<String, List<String>> merged = new HashMap<>(existing);
+                merged.put(EsqConstants.JWT_CLAIM_ENTITY_ROOTPATH, Collections.singletonList(newPath));
+                user.setAttributes(merged);
+                userResource.update(user);
+                devLog.debug("Path reset for user: {}='{}'", entityId, newPath);
+                log.info("KC | MOVE | entityId={} | state=SUCCESS", entityId);
+            } else {
+                devLog.debug("KC | MOVE | entityId={} : path unchanged, skipping", entityId);
+            }
+        } else {
             devLog.debug("KC | MOVE | entityId='{}' : no KC user found, skipping", entityId);
-            return;
         }
-
-        String kcId = users.get(0).getId();
-        UserResource userResource = usersResource.get(kcId);
-        UserRepresentation user = userResource.toRepresentation();
-
-        Map<String, List<String>> existing = user.getAttributes() != null ? user.getAttributes() : Collections.emptyMap();
-        List<String> currentPaths = existing.get(EsqConstants.JWT_CLAIM_ENTITY_ROOTPATH);
-        String currentPath = (currentPaths != null && !currentPaths.isEmpty()) ? currentPaths.get(0) : null;
-        if (newPath.equals(currentPath)) {
-            devLog.debug("KC | MOVE | entityId={} : path unchanged, skipping", entityId);
-            return;
-        }
-
-        Map<String, List<String>> merged = new HashMap<>(existing);
-        merged.put(EsqConstants.JWT_CLAIM_ENTITY_ROOTPATH, Collections.singletonList(newPath));
-        user.setAttributes(merged);
-
-        userResource.update(user);
-        devLog.debug("Path reset for user: {}='{}'", entityId, newPath);
-        log.info("KC | MOVE | entityId={} | state=SUCCESS", entityId);
     }
 
     private String extractUserIdFromResponse(Response response) {
@@ -273,9 +272,12 @@ public class KcIdentityService implements IKcIdentityService {
     }
 
     private void assignRealmRoles(RealmResource realmResource, String kcId, List<String> roleNames) {
-        var rolesToAssign = realmResource.roles().list().stream()
-                .filter(role -> roleNames.contains(role.getName()))
-                .collect(Collectors.toList());
+        List<RoleRepresentation> rolesToAssign = new ArrayList<>();
+        for (RoleRepresentation role : realmResource.roles().list()) {
+            if (roleNames.contains(role.getName())) {
+                rolesToAssign.add(role);
+            }
+        }
         if (!rolesToAssign.isEmpty()) {
             realmResource.users().get(kcId).roles().realmLevel().add(rolesToAssign);
             devLog.debug("Assigned roles {} to user: {}", roleNames, kcId);
@@ -284,26 +286,26 @@ public class KcIdentityService implements IKcIdentityService {
 
     private void updateRealmRoles(RealmResource realmResource, String kcId, List<String> roleNames) {
         UserResource userResource = realmResource.users().get(kcId);
-        var currentRoles = userResource.roles().realmLevel().listAll();
+        List<RoleRepresentation> currentRoles = userResource.roles().realmLevel().listAll();
 
-        var toAdd    = new ArrayList<>(roleNames);
-        var toRemove = new ArrayList<RoleRepresentation>();
-        for (var role : currentRoles) {
+        ArrayList<String> toAdd    = new ArrayList<>(roleNames);
+        ArrayList<RoleRepresentation> toRemove = new ArrayList<>();
+        for (RoleRepresentation role : currentRoles) {
             if (!toAdd.remove(role.getName())) {
                 toRemove.add(role);
             }
         }
 
-        if (toRemove.isEmpty() && toAdd.isEmpty()) {
+        if (!toRemove.isEmpty() || !toAdd.isEmpty()) {
+            if (!toRemove.isEmpty()) {
+                userResource.roles().realmLevel().remove(toRemove);
+            }
+            if (!toAdd.isEmpty()) {
+                assignRealmRoles(realmResource, kcId, toAdd);
+            }
+            devLog.debug("Updated roles for user: {}", kcId);
+        } else {
             devLog.debug("Realm roles unchanged for user: {}", kcId);
-            return;
         }
-        if (!toRemove.isEmpty()) {
-            userResource.roles().realmLevel().remove(toRemove);
-        }
-        if (!toAdd.isEmpty()) {
-            assignRealmRoles(realmResource, kcId, toAdd);
-        }
-        devLog.debug("Updated roles for user: {}", kcId);
     }
 }

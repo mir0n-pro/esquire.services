@@ -17,6 +17,7 @@
  * 03/10/2026 mir0n  import: RequestContextUtils updated to backend.service package
  * 03/20/2026 mir0n  switched from EsqTreeNodeRepository to IBizTreeCacheRepository (H2 in-memory cache)
  * 03/21/2026 mir0n  devLog added; log.debug→devLog.debug
+ * 04/16/2026 mir0n  rootId extracted as named local variable
  */
 
 package pro.mir0n.esquire.bizTree.service.impl;
@@ -62,7 +63,8 @@ public class BizTreeService  implements IBizTreeService {
             nodes = treeNodeRepository.findNodes(id, rootLevel, rootPath);
         } else {
             //devLog.debug("srvc: esquire(0): id:{}, rootPath:{}, uid:{}, level:{}", path.get(path.size() -1), rootPath,uid, rootLevel);
-            nodes = treeNodeRepository.findRoot(path.get(path.size() -1),rootLevel, rootPath);
+            String rootId = path.get(path.size() - 1);
+            nodes = treeNodeRepository.findRoot(rootId, rootLevel, rootPath);
             //devLog.debug("srvc: esquire(1): nodes:{}", nodes);
         }
         if (nodes == null) {// || nodes.isEmpty()) {
