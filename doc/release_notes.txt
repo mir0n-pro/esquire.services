@@ -1,6 +1,8 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v1.2.2-2604.1617 keycloak esquire-explorer schema : more templates added
+
 v1.2.2-2604.1517 postgres container added; local docker compose cleanup
 
 

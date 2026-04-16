@@ -21,18 +21,37 @@ C:\MyProjects\esquire\explorer\frontend\keycloak-theme\esquire-explorer\login\
 
 ```
 esquire-explorer/login/
-├── theme.properties          # Theme configuration
-├── template.ftl             # Main HTML layout (header, footer, structure)
-├── login.ftl                # Login form content
+├── theme.properties              # parent=keycloak; styles; locales
+├── template.ftl                  # Master layout: toolbars, alert block, <#nested>
+├── login.ftl                     # Credentials form
+├── login-reset-password.ftl      # Forgot-password form
+├── login-update-password.ftl     # Forced password change
+├── login-otp.ftl                 # OTP entry
+├── login-config-totp.ftl         # TOTP setup
+├── login-page-expired.ftl        # Session-expired page
+├── logout-confirm.ftl            # Logout confirmation
+├── error.ftl                     # Generic error page
+├── info.ftl                      # Generic info/redirect page
 ├── messages/
-│   └── messages_en.properties  # Text labels and messages
+│   └── messages_en.properties   # Text labels and messages
 └── resources/
     ├── css/
-    │   └── styles.css       # All styling
+    │   └── styles.css           # All styling
     └── img/
-        ├── main.ico         # Logo (48x48)
-        └── unknown.ico      # User icon (24x24)
+        ├── main.ico             # Logo (48x48)
+        └── unknown.ico          # User icon (24x24)
 ```
+
+### Why every flow needs its own override
+
+The base Keycloak theme uses a `; section` loop-variable pattern:
+```ftl
+<@layout.registrationLayout; section>
+    <#if section = "form"> ... </#if>
+```
+The Esquire `template.ftl` uses flat `<#nested>` (no loop variable). Any base template that
+falls through will have `section` undefined, all `<#if section = ...>` blocks false, and
+render a blank content area. Every template reachable in the login flow must be overridden.
 
 ## Common Customizations
 
@@ -129,19 +148,32 @@ cp -r C:/MyProjects/esquire/services/compose/themes/esquire-explorer/* \
 - `.app-explorer` - Root container (grid layout)
 - `.mat-toolbar` - Top and bottom toolbars
 - `.prelogin-container` - Main content area
-- `.login-form-wrapper` - Form container
+- `.login-form-wrapper` - Form container (dialog surface)
+
+### Login Form Structure
+- `.esq-login-header` - Dialog-style header bar (icon + title)
+- `.esq-login-content` - Form body padding area
+- `.esq-login-actions` - Button/link row at form bottom
+- `.esq-logout-buttons` - Button row on logout-confirm page
 
 ### Form Elements
-- `.form-group` - Form field wrapper
-- `.control-label` - Field labels
-- `.form-control` - Input fields
-- `.btn-login` - Sign In button
-- `.checkbox` - Remember Me checkbox
+- `.form-group` - Two-column label+input row
+- `.control-label` - Field label (140px column)
+- `.form-control` - Input field
+- `.checkbox-label` - Remember-me checkbox row
+- `.btn-login` - Primary action button
+- `.esq-forgot-link` - Secondary text link (forgot password, back to login, decline)
+- `.esq-field-error` - Inline field validation error span
+
+### Alert Messages (rendered by template.ftl)
+- `.esq-login-alert` - Alert container
+- `.alert-error` / `.alert-warning` / `.alert-success` / `.alert-info` - Alert variants
 
 ### Other Elements
-- `.name-bar` - User status indicator (top right)
-- `.info-text` - Helper text
-- `.alert` - Error/success messages
+- `.name-bar` - User status indicator (top right toolbar)
+- `.info-text` - Bottom toolbar left text
+- `.instruction` - Informational paragraph inside form content
+- `.content-area` - Generic content wrapper (info.ftl, logout-confirm.ftl)
 
 ## Tips
 

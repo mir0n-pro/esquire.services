@@ -6,15 +6,34 @@ Custom Keycloak login theme that matches the visual design of the Esquire Explor
 
 ```
 C:\MyProjects\esquire\services\keycloak\themes\esquire-explorer\login\
-├── theme.properties          # Theme configuration
-├── login.ftl                 # Login page template
+├── theme.properties              # parent=keycloak; styles; locales
+├── template.ftl                  # Master layout: toolbars, alert block, <#nested>
+├── login.ftl                     # Credentials form
+├── login-reset-password.ftl      # Forgot-password form
+├── login-update-password.ftl     # Forced password change
+├── login-otp.ftl                 # OTP entry
+├── login-config-totp.ftl         # TOTP setup
+├── login-page-expired.ftl        # Session-expired page
+├── logout-confirm.ftl            # Logout confirmation
+├── error.ftl                     # Generic error page
+├── info.ftl                      # Generic info/redirect page
+├── messages/
+│   └── messages_en.properties   # Text labels and messages
 └── resources/
     ├── css/
-    │   └── styles.css       # Custom styles matching app-explorer
+    │   └── styles.css           # All styling (Roboto, Material-like)
     └── img/
-        ├── main.ico         # Application logo (48x48)
-        └── unknown.ico      # Default user icon (24x24)
+        ├── main.ico             # Application logo (48x48)
+        └── unknown.ico          # Default user icon (24x24)
 ```
+
+### Template inheritance note
+
+`theme.properties` sets `parent=keycloak`. Any template not listed above falls through to the
+Keycloak base theme. The base theme uses a `; section` loop-variable pattern in its macro
+calls (`<@layout.registrationLayout; section>`) which is incompatible with the Esquire
+`template.ftl` (uses flat `<#nested>`). Any unoverridden base template that uses that pattern
+will render a blank content area. Override every template that can appear in the login flow.
 
 ## Deployment with Docker Compose
 
