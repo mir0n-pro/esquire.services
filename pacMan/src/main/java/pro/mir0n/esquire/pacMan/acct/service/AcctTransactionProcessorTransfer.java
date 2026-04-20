@@ -8,6 +8,8 @@
  * 04/13/2026 mir0n  created: two-leg transfer processor (draft); debit source leg, credit target leg with -amount and skipValidation=true
  * 04/14/2026 mir0n  instanceof check bug fixed (was testing rawKind2, now rawId2);
  *                   same-account guard added (InvalidValueException); paper account restriction added
+ * 04/20/2026 mir0n  FIELD_RATE required (must be > 0); credit amount = abs(debit) * rate;
+ *                   shared pkTx links both legs; sourceCcy forwarded to credit leg
  */
 
 package pro.mir0n.esquire.pacMan.acct.service;
@@ -50,17 +52,30 @@ public class AcctTransactionProcessorTransfer extends AcctTransactionProcessorSi
         if (kind == AcctOperation.ACCT_KIND_PAPER || kind2 == AcctOperation.ACCT_KIND_PAPER) {
             throw new InvalidValueException("Paper accounts cannot be transferred", "kind", "kind", "1");
         }
+        Object rawRate = fields.get(AcctTransactionSingle.FIELD_RATE);
+        if (rawRate == null) {
+            throw new InvalidValueException("Conversion rate is required", AcctTransactionSingle.FIELD_RATE, "rate", "1");
+        }
+        double rate = rawRate instanceof Number ? ((Number) rawRate).doubleValue() : Double.parseDouble(rawRate.toString());
+        if (rate <= 0.0) {
+            throw new InvalidValueException("Conversion rate must be positive", AcctTransactionSingle.FIELD_RATE, "rate", "1");
+        }
+
         EsqObjectKind eek = validatePermissions(kind, roles);
         EsqObjectKind eek2 = validatePermissions(kind2, roles);
         String correlationId = RequestContextUtils.getCorrelationId();
         String requestId = RequestContextUtils.getRequestId();
-
-        AcctTransactionSingle ret  = _esquireCommandAcct(eek,  id,  oper, fields,  skipValidation, rootPath, uid, correlationId, requestId);
+        String pkTx = generateTransId();
 
         Object rawAmount = fields.get(AcctTransactionSingle.FIELD_AMOUNT);
         double amount = rawAmount instanceof Number ? ((Number) rawAmount).doubleValue() : Double.parseDouble(rawAmount.toString());
-        fields.put(AcctTransactionSingle.FIELD_AMOUNT, -amount);
-        AcctTransactionSingle ret2 = _esquireCommandAcct(eek2, id2, oper, fields, true,  rootPath, uid, correlationId, requestId);
+
+        AcctTransactionSingle ret = _esquireCommandAcct(eek, id, oper, fields, skipValidation, rootPath, uid, correlationId, requestId, rate, null, null, pkTx, id2);
+
+        String sourceCcy = ret.getCcy();
+        double creditAmount = Math.abs(amount) * rate;
+        fields.put(AcctTransactionSingle.FIELD_AMOUNT, creditAmount);
+        _esquireCommandAcct(eek2, id2, oper, fields, true, rootPath, uid, correlationId, requestId, rate, Math.abs(amount), sourceCcy, pkTx, id);
         return ret;
     }
 }

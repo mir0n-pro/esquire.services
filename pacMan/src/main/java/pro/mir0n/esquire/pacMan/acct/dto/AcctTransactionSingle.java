@@ -6,6 +6,7 @@
  *
  *  History:
  * 04/13/2026 mir0n  created: account transaction result DTO; FIELD_* constants; fill(Map) sets desc/refCode fields
+ * 04/20/2026 mir0n  FIELD_RATE added; response fields: ccy, convRate, amtIncoming, ccyIncoming; id type Long->String
  */
 
 package pro.mir0n.esquire.pacMan.acct.dto;
@@ -28,13 +29,26 @@ public class AcctTransactionSingle {
     public static final String FIELD_REF_CODE4 = "refCode4";
     public static final String FIELD_MEMO     = "memo";
     public static final String FIELD_ID2     = "id2";
-    public static final String FIELD_KIND2     = "kind2";
+    public static final String FIELD_KIND2   = "kind2";
+    public static final String FIELD_RATE    = "rate";
 
     @Schema(description = "AccountID", example = "123456789")
     private String id;
 
     @Schema(description = "Account kind", example = "50")
     private int kind;
+
+    @Schema(description = "Account currency code", example = "USD")
+    private String ccy;
+
+    @Schema(description = "Conversion rate applied (transfer only)")
+    private Double convRate;
+
+    @Schema(description = "Incoming amount before conversion (transfer credit leg only)")
+    private Double amtIncoming;
+
+    @Schema(description = "Incoming currency code (transfer credit leg only)", example = "EUR")
+    private String ccyIncoming;
 
     @Schema(description = "Transaction type ID (from ESQ_ACTIVITY_TYPE)", example = "1")
     private Integer typeId;

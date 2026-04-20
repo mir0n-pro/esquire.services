@@ -7,6 +7,7 @@
  *  History:
  * 04/09/2026 mir0n  created: insertAcctTransaction 14-param native INSERT
  * 04/15/2026 mir0n  nextId(): sequence-based PK via ESQ_ATR_SEQ (vendor SQL in XML)
+ * 04/20/2026 mir0n  nextId() removed; PK type Long->String; insertAcctTransaction: pkTx, amtIncoming, ccyIncoming, convRate params added
  */
 
 package pro.mir0n.esquire.pacMan.acct.jpa;
@@ -19,16 +20,14 @@ import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
 @Repository
-public interface EsqAcctTransactionRepository extends JpaRepository<EsqAcctTransactionJpa, Long> {
-
-    @NativeQuery
-    Long nextId();
+public interface EsqAcctTransactionRepository extends JpaRepository<EsqAcctTransactionJpa, String> {
 
     @Modifying(clearAutomatically = true, flushAutomatically = false)
     @Transactional
     @NativeQuery
     int insertAcctTransaction(
-        @Param("pk")          long   pk,
+        @Param("pk")          String pk,
+        @Param("pkTx")        String pkTx,
         @Param("accPk")       long   accPk,
         @Param("atPk")        int    atPk,
         @Param("amt")         double amt,
@@ -41,6 +40,9 @@ public interface EsqAcctTransactionRepository extends JpaRepository<EsqAcctTrans
         @Param("memo")        String memo,
         @Param("crlId")       String crlId,
         @Param("reqId")       String reqId,
-        @Param("uid")         String uid
+        @Param("uid")         String uid,
+        @Param("amtIncoming") Double amtIncoming,
+        @Param("ccyIncoming") String ccyIncoming,
+        @Param("convRate")    Double convRate
     );
 }

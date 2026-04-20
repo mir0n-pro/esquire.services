@@ -1,5 +1,21 @@
 Esquire pacMan Microservice
 
+04/20/2026 mir0n  acct transfer: conversion rate support; transaction PK Long->String
+acct.IAcctTransactionProcessor
+  - abstract 8-param signature extended: convRate, amtIncoming, ccyIncoming, pkTx, counterpartId
+acct.dto.AcctTransactionSingle
+  - FIELD_RATE added; response fields: ccy, convRate, amtIncoming, ccyIncoming; id type Long->String
+acct.jpa.EsqAcctTransactionJpa
+  - fields added: pkTx, amtIncoming, ccyIncoming, convRate; id type Long->String
+acct.jpa.EsqAcctTransactionRepository
+  - nextId() removed; PK type Long->String; insertAcctTransaction: pkTx, amtIncoming, ccyIncoming, convRate params added
+acct.service.AcctTransactionProcessorSingle
+  - generateTransId() replaces nextId(); conversion rate params threaded through
+  - ccy populated in result; refCode4 auto-note on both transfer legs
+acct.service.AcctTransactionProcessorTransfer
+  - FIELD_RATE required and validated (must be > 0)
+  - credit amount = abs(debit) * rate; shared pkTx links both legs; sourceCcy forwarded to credit leg
+
 04/15/2026 mir0n  acct transaction PK from ESQ_ATR_SEQ sequence
 acct.jpa.EsqAcctTransactionRepository
   - nextId(): returns next value from ESQ_ATR_SEQ (vendor-specific SQL in oracle/postgres XML)

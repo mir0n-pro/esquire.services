@@ -1702,7 +1702,7 @@
                         <field>
                             <name>id2</name>
                             <sort>2</sort>
-                            <label>Two</label>
+                            <label>To</label>
                             <type>string</type>
                             <tooltip>Account ID</tooltip>
                             <nullable>N</nullable>
@@ -1733,8 +1733,19 @@
                             <format>#,##0.00</format>
                         </field>
                         <field>
-                            <name>refCode</name>
+                            <name>rate</name>
                             <sort>5</sort>
+                            <label>Conv Rate</label>
+                            <type>number</type>
+                            <tooltip>Conversion rate applied to the transfer amount</tooltip>
+                            <nullable>N</nullable>
+                            <default>1.00</default>
+                            <readwrite>3</readwrite>
+                            <format>#,##0.000000</format>
+                        </field>
+                        <field>
+                            <name>refCode</name>
+                            <sort>6</sort>
                             <label>Payment Method</label>
                             <type>string</type>
                             <tooltip>Payment method</tooltip>
@@ -1748,7 +1759,7 @@
                         </field>
                         <field>
                             <name>refCode2</name>
-                            <sort>6</sort>
+                            <sort>7</sort>
                             <label>Reference</label>
                             <type>string</type>
                             <tooltip>Reference code</tooltip>
@@ -1758,7 +1769,7 @@
                         </field>
                         <field>
                             <name>memo</name>
-                            <sort>7</sort>
+                            <sort>8</sort>
                             <label>Memo</label>
                             <type>string</type>
                             <tooltip>Transaction memo</tooltip>
@@ -1768,7 +1779,7 @@
                         </field>
                         <field>
                             <name>desc</name>
-                            <sort>8</sort>
+                            <sort>9</sort>
                             <label>Desc</label>
                             <type>string</type>
                             <tooltip>Transaction description</tooltip>

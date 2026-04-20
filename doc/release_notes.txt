@@ -1,6 +1,16 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v1.2.2-2604.2017  acct transfer: conversion rate; KC realm theme fix
+    :Feature: pacMan -- AcctTransactionProcessorTransfer: FIELD_RATE required, validated > 0; credit = abs(debit)*rate; shared pkTx links both legs; refCode4 auto-note on both legs
+    :Refactoring: pacMan -- transaction PK: Long->String (generateTransId); nextId()/ESQ_ATR_SEQ removed
+    :Fix: common -- MdcFilter: String.valueOf() on getTotalJpaTime() log call
+    :Config: keycloak -- loginTheme moved to esq_angular client only; realm-level theme reset to keycloak.v2
+    : modified components
+       common,
+       pacMan,
+       keycloak
+
 v1.2.2-2604.1620  procedural style sweep: ret pattern, null-guard across services
     : modified components
        common,

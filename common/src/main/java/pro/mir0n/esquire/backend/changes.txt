@@ -1,5 +1,12 @@
 Esquire Backend common microservice classes
 
+04/20/2026 mir0n  MdcFilter: String.valueOf() fix; esq-entity-dictionaries: rate field added to Transfer dictionary
+service.MdcFilter
+  - String.valueOf() applied to getTotalJpaTime() in log statement
+esq-entity-dictionaries.xml
+  - kind=1004 (Transfer): rate field added (nullable=N, default=1.00, format=#,##0.000000)
+  - kind=1004 (Transfer): id2 label corrected ("Two" -> "To")
+
 04/16/2026 mir0n  procedural style sweep: ret pattern, null-guard
 dto.access.EsqAccessProfile
   - fill(): null-guard replaces early return

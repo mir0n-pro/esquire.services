@@ -162,10 +162,38 @@ class AcctTransactionProcessorTransferTest {
         fields.put("amount", -100.0);
         fields.put("id2", "20");
         fields.put("kind2", 99);
+        fields.put("rate", 1.0);
 
         assertThatThrownBy(() ->
             service.esquireCommandAcct(50, "10", AcctOperation.Code.TRANSFER, fields, "1.2.3", "99", List.of(ROLE_ADMIN))
         ).isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    @Test
+    @DisplayName("transfer: missing rate → InvalidValueException")
+    void transfer_missingRate_throwsInvalidValueException() {
+        Map<String, Object> fields = new HashMap<>();
+        fields.put("amount", -100.0);
+        fields.put("id2", "20");
+        fields.put("kind2", 50);
+
+        assertThatThrownBy(() ->
+            service.esquireCommandAcct(50, "10", AcctOperation.Code.TRANSFER, fields, "1.2.3", "99", List.of(ROLE_ADMIN))
+        ).isInstanceOf(InvalidValueException.class);
+    }
+
+    @Test
+    @DisplayName("transfer: rate <= 0 → InvalidValueException")
+    void transfer_zeroRate_throwsInvalidValueException() {
+        Map<String, Object> fields = new HashMap<>();
+        fields.put("amount", -100.0);
+        fields.put("id2", "20");
+        fields.put("kind2", 50);
+        fields.put("rate", 0.0);
+
+        assertThatThrownBy(() ->
+            service.esquireCommandAcct(50, "10", AcctOperation.Code.TRANSFER, fields, "1.2.3", "99", List.of(ROLE_ADMIN))
+        ).isInstanceOf(InvalidValueException.class);
     }
 
     // ---- success: source debited, target credited, first-leg result returned ----
@@ -178,7 +206,7 @@ class AcctTransactionProcessorTransferTest {
             return null;
         });
         EsqAcctJpa source = new EsqAcctJpa();
-        source.setId("10"); source.setKind(50); source.setBalance(500.0); source.setNegativeAllowed("N"); source.setStatus("O");
+        source.setId("10"); source.setKind(50); source.setBalance(500.0); source.setNegativeAllowed("N"); source.setStatus("O"); source.setCcy("USD");
         EsqAcctJpa target = new EsqAcctJpa();
         target.setId("20"); target.setKind(50); target.setBalance(100.0); target.setNegativeAllowed("N"); target.setStatus("C");
         when(entityRepository.detailAcctForUpdate("10", 50, "1.2.3")).thenReturn(source);
@@ -188,12 +216,14 @@ class AcctTransactionProcessorTransferTest {
         fields.put("amount", -100.0);
         fields.put("id2", "20");
         fields.put("kind2", 50);
+        fields.put("rate", 1.25);
 
         AcctTransactionSingle ret = service.esquireCommandAcct(50, "10", AcctOperation.Code.TRANSFER, fields, true, "1.2.3", "99", List.of(ROLE_ADMIN));
 
         assertThat(ret).isNotNull();
         assertThat(ret.getAmount()).isEqualTo(-100.0);
+        assertThat(ret.getRefCode4()).isEqualTo("Transfer 100.00 USD to Account 20");
         verify(entityRepository).updateAcctBalance(eq("10"), eq(400.0), any(), any(), any());
-        verify(entityRepository).updateAcctBalance(eq("20"), eq(200.0), any(), any(), any());
+        verify(entityRepository).updateAcctBalance(eq("20"), eq(225.0), any(), any(), any());
     }
 }

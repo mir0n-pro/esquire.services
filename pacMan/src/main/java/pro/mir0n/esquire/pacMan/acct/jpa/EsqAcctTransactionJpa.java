@@ -6,6 +6,7 @@
  *
  *  History:
  * 04/09/2026 mir0n  created: JPA entity for ESQ_ACCT_TRANSACTION;
+ * 04/20/2026 mir0n  fields added: pkTx, amtIncoming, ccyIncoming, convRate; id type Long->String
  */
 
 package pro.mir0n.esquire.pacMan.acct.jpa;
@@ -19,8 +20,9 @@ import lombok.*;
 public class EsqAcctTransactionJpa {
 
     @Id
-    private Long id;
+    private String id;
 
+    private String pkTx;
     private Long accPk;
     private int atPk;
     private Double amt;
@@ -34,4 +36,7 @@ public class EsqAcctTransactionJpa {
     private String crlId;
     private String reqId;
     private String uid;
+    private Double amtIncoming;
+    private String ccyIncoming;
+    private Double convRate;
 }

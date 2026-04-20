@@ -280,8 +280,8 @@ class AcctTransactionServiceTest {
         AcctTransactionSingle ret = service.esquireCommandAcct(50, "10", AcctOperation.Code.DEPOSIT, fields, true, "1.2.3", "99", List.of(ROLE_ADMIN));
 
         org.assertj.core.api.Assertions.assertThat(ret).isNotNull();
-        verify(transactionRepository).insertAcctTransaction(anyLong(), anyLong(), anyInt(),
-                eq(50.0), eq(-900.0), any(), any(), any(), any(), any(), any(), any(), any(), any());
+        verify(transactionRepository).insertAcctTransaction(anyString(), any(), anyLong(), anyInt(),
+                eq(50.0), eq(-900.0), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any());
         verify(entityRepository).updateAcctBalance(eq("10"), eq(-850.0), any(), any(), any());
     }
 
@@ -316,8 +316,8 @@ class AcctTransactionServiceTest {
         org.assertj.core.api.Assertions.assertThat(ret.getMemo()).isEqualTo("test deposit");
 
         InOrder order = inOrder(transactionRepository, entityRepository);
-        order.verify(transactionRepository).insertAcctTransaction(anyLong(), eq(10L), eq(1),
-                eq(100.0), eq(500.0), any(), eq("cash"), eq("REF-001"), any(), any(), eq("test deposit"), any(), any(), any());
+        order.verify(transactionRepository).insertAcctTransaction(anyString(), any(), eq(10L), eq(1),
+                eq(100.0), eq(500.0), any(), eq("cash"), eq("REF-001"), any(), any(), eq("test deposit"), any(), any(), any(), any(), any(), any());
         order.verify(entityRepository).updateAcctBalance(eq("10"), eq(600.0), any(), any(), any());
     }
 }

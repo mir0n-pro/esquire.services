@@ -8,6 +8,8 @@
  * 04/13/2026 mir0n  created: single-leg acct transaction processor; permission check, amount/status/balance validation, EntityFieldUtils field validation, insert + balance update
  * 04/14/2026 mir0n  detailAcctForUpdate call: kind param dropped
  * 04/15/2026 mir0n  transaction PK: EsqUtils.generateEntityId() replaced by transactionRepository.nextId() (ESQ_ATR_SEQ)
+ * 04/20/2026 mir0n  conversion rate support: convRate/amtIncoming/ccyIncoming/pkTx/counterpartId params threaded through;
+ *                   generateTransId() replaces nextId(); ccy populated in result; refCode4 auto-note on transfer legs
  */
 
 package pro.mir0n.esquire.pacMan.acct.service;
@@ -56,7 +58,7 @@ public class AcctTransactionProcessorSingle implements IAcctTransactionProcessor
         String correlationId = RequestContextUtils.getCorrelationId();
         String requestId = RequestContextUtils.getRequestId();
         EsqObjectKind eek = validatePermissions(kind, roles);
-        return _esquireCommandAcct(eek, id, oper, fields, skipValidation, rootPath, uid, correlationId, requestId);
+        return _esquireCommandAcct(eek, id, oper, fields, skipValidation, rootPath, uid, correlationId, requestId, null, null, null, null, null);
     }
 
     protected EsqObjectKind validatePermissions(int kind, List<String> roles) {
@@ -87,14 +89,19 @@ public class AcctTransactionProcessorSingle implements IAcctTransactionProcessor
             String rootPath,
             String uid,
             String correlationId,
-            String requestId) {
+            String requestId,
+            Double convRate,
+            Double amtIncoming,
+            String ccyIncoming,
+            String pkTx,
+            String counterpartId) {
 
         devLog.debug("srvc: esquireCommandAcct: kind:{}, id:{}, cmd:{}, rootPath:{}, uid:{}", eek.getId(), id, oper, rootPath, uid);
         AcctTransactionSingle result[] = {null}; // xxx: trick to handle lambda syntax
 
         transactionTemplate.execute(status -> {
             em.setFlushMode(FlushModeType.COMMIT);
-            result[0] = postAcctTransaction(eek, id, fields, oper, skipValidation, rootPath, uid, correlationId, requestId);
+            result[0] = postAcctTransaction(eek, id, fields, oper, skipValidation, rootPath, uid, correlationId, requestId, convRate, amtIncoming, ccyIncoming, pkTx, counterpartId);
             return null;
         });
         devLog.debug("srvc: esquireCommandAcct(2): result:{}", result);
@@ -107,7 +114,9 @@ public class AcctTransactionProcessorSingle implements IAcctTransactionProcessor
                                                       AcctOperation.Code oper,
                                                       boolean skipValidation,
                                                       String rootPath, String uid,
-                                                      String correlationId, String requestId) {
+                                                      String correlationId, String requestId,
+                                                      Double convRate, Double amtIncoming, String ccyIncoming,
+                                                      String pkTx, String counterpartId) {
         Object rawAmount = fields.get(AcctTransactionSingle.FIELD_AMOUNT);
         double amount = rawAmount instanceof Number ? ((Number) rawAmount).doubleValue() : Double.parseDouble(rawAmount.toString());
         if (!skipValidation) {
@@ -152,20 +161,33 @@ public class AcctTransactionProcessorSingle implements IAcctTransactionProcessor
             validated = EntityFieldUtils.applyFields(oper.kind, fields);
         }
 
-        long trPk = transactionRepository.nextId();
+        String trPk = generateTransId();
 
         AcctTransactionSingle ret = new AcctTransactionSingle();
         ret.fill(validated);
-        ret.setId(String.valueOf(trPk));
+        ret.setId(trPk);
         ret.setKind(eek.getId());
         ret.setTypeId(oper.id);
         ret.setAmount(amount);
+        ret.setCcy(acct.getCcy());
+        ret.setConvRate(convRate);
+        ret.setAmtIncoming(amtIncoming);
+        if (counterpartId != null) {
+            String note = amtIncoming != null
+                ? String.format("%s %.2f %s (%.2f %s) from Account %s",
+                    oper.name, Math.abs(amount), acct.getCcy(), amtIncoming, ccyIncoming, counterpartId)
+                : String.format("%s %.2f %s to Account %s",
+                    oper.name, Math.abs(amount), acct.getCcy(), counterpartId);
+            ret.setRefCode4(note);
+        }
+        ret.setCcyIncoming(ccyIncoming);
 
         transactionRepository.insertAcctTransaction(
-                trPk, Long.parseLong(acctId), oper.id,
+                trPk, pkTx, Long.parseLong(acctId), oper.id,
                 amount, prevBalance,
                 ret.getDesc(), ret.getRefCode(), ret.getRefCode2(), ret.getRefCode3(), ret.getRefCode4(),
-                ret.getMemo(), correlationId, requestId, uid);
+                ret.getMemo(), correlationId, requestId, uid,
+                amtIncoming, ccyIncoming, convRate);
 
         entityRepository.updateAcctBalance(acctId, newBalance, uid, correlationId, requestId);
         return ret;
