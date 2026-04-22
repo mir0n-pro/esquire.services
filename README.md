@@ -44,6 +44,10 @@ maintenance, permissions, authorization, and accounting.
 
 - **esquire.db.seed** [v1.2.2 Milestone Report](https://github.com/mir0n-pro/esquire.db.seed/blob/develop/doc/reports/report_v1.2.2.md)
 
+### Deployment
+- [Where To Go — Deployment Plan and Platform Decisions](doc/WhereToGo.md)
+- [OCI Pricing Reference](doc/OCI.Pricing.md)
+
 ### Value Proposition
 - [Esquire Application Frameworks — What, Why, and for Whom](doc/Esquire.Vision.md)
 

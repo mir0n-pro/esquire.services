@@ -1,5 +1,9 @@
 Esquire Backend common microservice classes
 
+04/22/2026 mir0n  MdcFilter: String.valueOf() fix; esq-entity-dictionaries: rate field added to Transfer dictionary
+security.SecurityConfiguration
+  - k8s issues: addded corsAllowAll()
+
 04/20/2026 mir0n  MdcFilter: String.valueOf() fix; esq-entity-dictionaries: rate field added to Transfer dictionary
 service.MdcFilter
   - String.valueOf() applied to getTotalJpaTime() in log statement

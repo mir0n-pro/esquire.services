@@ -20,11 +20,10 @@ into one: the tree itself defines what you can see and what you are allowed to d
 data scope. You see your branch. Nothing above you, nothing beside you. No explicit filter
 written per query — visibility is structural, resolved from where you sit.
 
-**Hierarchical roles** is the second dimension: your authority is not a global property of
-your account. It is positional. You can be an administrator in one branch and a read-only
-observer in another. The same user carries different permissions at different nodes across
-different trees — an organizational tree, an asset tree, a portfolio tree — each governing
-its own domain with the same model.
+**Hierarchical roles** is the second dimension: in most business domains, authority is
+positional — the same person carries different responsibilities at different nodes across
+different organizational structures. Esquire is designed to reflect that reality: authority
+is not a global property of your account, but a function of where you sit in the tree.
 
 **Entity self-description** is the third dimension: every business entity type carries its
 own definition — the fields it exposes, the validation rules it enforces, the commands it

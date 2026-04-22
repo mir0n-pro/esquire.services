@@ -1,0 +1,49 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ .Release.Name }}-activemq
+  labels:
+    app: {{ .Release.Name }}-activemq
+spec:
+  serviceName: {{ .Release.Name }}-activemq
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ .Release.Name }}-activemq
+  template:
+    metadata:
+      labels:
+        app: {{ .Release.Name }}-activemq
+    spec:
+      containers:
+        - name: activemq
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - containerPort: 61616
+            - containerPort: 8161
+          readinessProbe:
+            tcpSocket:
+              port: 61616
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 10
+          livenessProbe:
+            tcpSocket:
+              port: 61616
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            timeoutSeconds: 5
+          volumeMounts:
+            - name: activemq-data
+              mountPath: /var/opt/activemq/data
+  volumeClaimTemplates:
+    - metadata:
+        name: activemq-data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        storageClassName: {{ .Values.storage.storageClass }}
+        resources:
+          requests:
+            storage: {{ .Values.storage.size }}

@@ -1,6 +1,10 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v1.2.2-2604.2217  local k8s deployment
+  :doc added doc/OCI.Pricing.md
+       added doc/WhereToGo.md
+
 v1.2.2-2604.2017  acct transfer: conversion rate; KC realm theme fix
     :Feature: pacMan -- AcctTransactionProcessorTransfer: FIELD_RATE required, validated > 0; credit = abs(debit)*rate; shared pkTx links both legs; refCode4 auto-note on both legs
     :Refactoring: pacMan -- transaction PK: Long->String (generateTransId); nextId()/ESQ_ATR_SEQ removed

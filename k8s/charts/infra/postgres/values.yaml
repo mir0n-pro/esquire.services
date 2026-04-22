@@ -1,0 +1,16 @@
+image:
+  repository: esquire-postgres
+  tag: "17"
+  pullPolicy: IfNotPresent
+
+service:
+  port: 5432
+
+db:
+  name: esq2025
+  username: esq2025
+  password: q
+
+storage:
+  storageClass: standard    # Docker Desktop default; override with OCI block storage class in prod
+  size: 20Gi

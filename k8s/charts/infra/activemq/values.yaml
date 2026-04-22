@@ -1,0 +1,12 @@
+image:
+  repository: esquire-activemq
+  tag: "6.1.4"
+  pullPolicy: IfNotPresent
+
+service:
+  openwire: 61616    # JMS/OpenWire broker port
+  console: 8161      # ActiveMQ web console
+
+storage:
+  storageClass: standard
+  size: 5Gi

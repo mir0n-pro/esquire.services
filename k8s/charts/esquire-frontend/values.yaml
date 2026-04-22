@@ -1,0 +1,14 @@
+image:
+  repository: esquire.frontend
+  tag: latest
+  pullPolicy: IfNotPresent
+
+service:
+  port: 80
+  lbPort: 80
+
+config:
+  apiBasePath: http://localhost:8808
+  keycloakUrl: http://localhost:8080
+  keycloakRealm: esquire
+  keycloakClientId: esq-angular

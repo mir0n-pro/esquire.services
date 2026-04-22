@@ -1,0 +1,34 @@
+image:
+  repository: esquire.gateway
+  tag: latest
+  pullPolicy: IfNotPresent
+
+service:
+  port: 8080
+  lbPort: 8808
+
+keycloak:
+  host: esquire-infra-kc-keycloak
+  port: 8080
+  realm: esquire
+  clientId: esq-angular
+
+backends:
+  biztreeHost: esquire-biztree-biztree
+  biztreePort: 3002
+  enymanHost: esquire-enyman-enyman
+  enymanPort: 3003
+  pacmanHost: esquire-pacman-pacman
+  pacmanPort: 3003
+  keysmithHost: esquire-keysmith-keysmith
+  keysmithPort: 3002
+
+cors:
+  allowedOrigins: http://localhost
+
+logging:
+  levelRoot: ERROR
+  levelSf: ERROR
+  levelMir0n: DEBUG
+  levelDevelop: DEBUG
+  developLogPath: /tmp/gateway-develop.log

@@ -1,0 +1,29 @@
+image:
+  repository: esquire.biztree
+  tag: latest
+  pullPolicy: IfNotPresent
+
+service:
+  port: 3002
+
+db:
+  vendor: dev-postgres
+  host: esquire-infra-postgres
+  port: 5432
+  name: esq2025
+  username: esq2025
+  password: q
+
+messaging:
+  brokerUrl: tcp://esquire-infra-amq-activemq:61616
+  clientId: biztree
+  consumerEnabled: "true"
+
+logging:
+  levelRoot: ERROR
+  levelSf: ERROR
+  levelMir0n: DEBUG
+  levelDevelop: DEBUG
+  levelMsg: DEBUG
+  developLogPath: /tmp/bizTree-develop.log
+  msgLogPath: /tmp/bizTree-msg.log

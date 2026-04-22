@@ -1,0 +1,6 @@
+apiVersion: v2
+name: esquire-frontend
+description: frontend — Angular Explorer served by nginx
+type: application
+version: 0.1.0
+appVersion: "1.2.2"

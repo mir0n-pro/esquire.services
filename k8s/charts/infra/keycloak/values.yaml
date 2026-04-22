@@ -1,0 +1,20 @@
+image:
+  repository: esquire-keycloak
+  tag: "26.4.7"
+  pullPolicy: IfNotPresent
+
+service:
+  port: 8080
+  lbPort: 8080
+
+keycloak:
+  mode: start-dev          # start-dev for local; start for prod
+  hostname: localhost       # esquire.mir0n.pro in prod
+  realm: esquire
+  adminUsername: admin
+  adminPassword: q
+  clientId: esq-angular
+
+storage:
+  storageClass: standard
+  size: 5Gi

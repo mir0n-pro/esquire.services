@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-kcmaster-config
+  labels:
+    app: {{ .Release.Name }}-kcmaster
+data:
+  KCMASTER_PORT:                  {{ .Values.service.port | quote }}
+  AMQ_BROKER_URL:                 {{ .Values.messaging.brokerUrl | quote }}
+  KCMASTER_MESSAGING_CLIENT_ID:   {{ .Values.messaging.clientId | quote }}
+  KC_BASE_URL:                    {{ .Values.keycloak.baseUrl | quote }}
+  KC_REALM:                       {{ .Values.keycloak.realm | quote }}
+  KC_ADMIN_CLIENT_ID:             {{ .Values.keycloak.adminClientId | quote }}
+  LOG_LEVEL_ROOT:                 {{ .Values.logging.levelRoot | quote }}
+  LOG_LEVEL_SF:                   {{ .Values.logging.levelSf | quote }}
+  LOG_LEVEL_MIR0N:                {{ .Values.logging.levelMir0n | quote }}
+  LOG_LEVEL_DEVELOP:              {{ .Values.logging.levelDevelop | quote }}
+  LOG_LEVEL_MSG:                  {{ .Values.logging.levelMsg | quote }}
+  DEVELOP_LOG_PATH:               {{ .Values.logging.developLogPath | quote }}
+  MSG_LOG_PATH:                   {{ .Values.logging.msgLogPath | quote }}
