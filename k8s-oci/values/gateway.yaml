@@ -1,0 +1,41 @@
+# Prod overrides for k8s/charts/esquire-gateway
+image:
+  repository: ghcr.io/mir0n-pro/esquire.gateway
+  tag: "v1.2.2"
+  pullPolicy: Always
+
+springProfilesActive: console
+
+service:
+  type: ClusterIP            # behind ingress-nginx; no public LB
+  port: 8080
+  lbPort: 8080               # unused when type=ClusterIP, kept for chart compatibility
+
+keycloak:
+  host: esquire-infra-kc-keycloak
+  port: 8080
+  path: /auth                       # matches KC_HTTP_RELATIVE_PATH set on KC pod
+  realm: esquire
+  clientId: esq-angular
+
+backends:
+  biztreeHost: esquire-biztree-biztree
+  biztreePort: 3002
+  enymanHost: esquire-enyman-enyman
+  enymanPort: 3003
+  pacmanHost: esquire-pacman-pacman
+  pacmanPort: 3003
+  keysmithHost: esquire-keysmith-keysmith
+  keysmithPort: 3002
+
+cors:
+  allowedOrigins: https://esquire.mir0n.pro
+
+logging:
+  levelRoot: WARN
+  levelSf: WARN
+  levelMir0n: INFO
+  levelDevelop: "OFF"
+
+nodeSelector:
+  tier: app

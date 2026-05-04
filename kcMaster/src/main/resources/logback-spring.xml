@@ -18,7 +18,7 @@
         </encoder>
     </appender>
 
-    <!-- develop.* — debug diagnostics; file only, not propagated to console -->
+    <!-- develop.* file (default; not propagated to console) -->
     <appender name="DEVELOP_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
         <file>${developLogPath}</file>
         <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
@@ -30,7 +30,14 @@
         </encoder>
     </appender>
 
-    <!-- msg.* — message audit (JMS send/receive); file only, not propagated to console -->
+    <!-- develop.* stdout (used when 'console' profile is active; for K8s) -->
+    <appender name="DEVELOP_CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss, UTC} %-5level develop.%logger - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <!-- msg.* file (default; JMS send/receive audit) -->
     <appender name="MSG_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
         <file>${msgLogPath}</file>
         <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
@@ -42,13 +49,32 @@
         </encoder>
     </appender>
 
-    <logger name="develop" level="${logLevelDevelop}" additivity="false">
-        <appender-ref ref="DEVELOP_FILE"/>
-    </logger>
+    <!-- msg.* stdout (used when 'console' profile is active) -->
+    <appender name="MSG_CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss, UTC} %-5level msg - %msg%n</pattern>
+        </encoder>
+    </appender>
 
-    <logger name="msg" level="${logLevelMsg}" additivity="false">
-        <appender-ref ref="MSG_FILE"/>
-    </logger>
+    <!-- file mode (default; active unless SPRING_PROFILES_ACTIVE=console) -->
+    <springProfile name="!console">
+        <logger name="develop" level="${logLevelDevelop}" additivity="false">
+            <appender-ref ref="DEVELOP_FILE"/>
+        </logger>
+        <logger name="msg" level="${logLevelMsg}" additivity="false">
+            <appender-ref ref="MSG_FILE"/>
+        </logger>
+    </springProfile>
+
+    <!-- console mode (active when SPRING_PROFILES_ACTIVE=console; for K8s/OKE) -->
+    <springProfile name="console">
+        <logger name="develop" level="${logLevelDevelop}" additivity="false">
+            <appender-ref ref="DEVELOP_CONSOLE"/>
+        </logger>
+        <logger name="msg" level="${logLevelMsg}" additivity="false">
+            <appender-ref ref="MSG_CONSOLE"/>
+        </logger>
+    </springProfile>
 
     <root level="${logLevelRoot}">
         <appender-ref ref="CONSOLE"/>

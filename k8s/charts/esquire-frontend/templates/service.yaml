@@ -5,7 +5,7 @@ metadata:
   labels:
     app: {{ .Release.Name }}-frontend
 spec:
-  type: LoadBalancer
+  type: {{ .Values.service.type | default "LoadBalancer" }}
   selector:
     app: {{ .Release.Name }}-frontend
   ports:

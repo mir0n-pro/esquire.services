@@ -1,0 +1,69 @@
+# Two Ingress resources sharing one host + TLS secret.
+# Reason: nginx-ingress rewrite-target is per-Ingress, but /api needs rewriting
+# (strip /api -> gateway expects no prefix) while /auth must be preserved
+# (KC runs with KC_HTTP_RELATIVE_PATH=/auth, expects /auth in URL path).
+---
+# Ingress A: /api/* with path rewrite -> gateway
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: esquire-public-api
+  namespace: default
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/proxy-body-size: 16m
+    nginx.ingress.kubernetes.io/use-regex: "true"
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - esquire.mir0n.pro
+      secretName: esquire-tls
+  rules:
+    - host: esquire.mir0n.pro
+      http:
+        paths:
+          - path: /api(/|$)(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: esquire-gateway-gateway
+                port:
+                  number: 8080
+---
+# Ingress B: /auth/* and / -> KC and frontend (no path rewrite)
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: esquire-public
+  namespace: default
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/proxy-body-size: 16m
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - esquire.mir0n.pro
+      secretName: esquire-tls       # same secret as Ingress A; cert-manager dedupes
+  rules:
+    - host: esquire.mir0n.pro
+      http:
+        paths:
+          # Keycloak: pass through unchanged (KC expects /auth prefix)
+          - path: /auth
+            pathType: Prefix
+            backend:
+              service:
+                name: esquire-infra-kc-keycloak
+                port:
+                  number: 8080
+          # Frontend: everything else -> nginx serving static SPA
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: esquire-frontend-frontend
+                port:
+                  number: 80

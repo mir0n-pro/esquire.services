@@ -1,0 +1,28 @@
+# Prod overrides for k8s/charts/esquire-keysmith
+image:
+  repository: ghcr.io/mir0n-pro/esquire.keysmith
+  tag: "v1.2.2"
+  pullPolicy: Always
+
+springProfilesActive: console,dev-postgres
+
+db:
+  vendor: dev-postgres
+  host: esquire-infra-postgres
+  port: 5432
+  name: esq2025
+  username: esq2025
+
+messaging:
+  brokerUrl: tcp://esquire-infra-amq-activemq:61616
+  clientId: keysmith
+
+logging:
+  levelRoot: WARN
+  levelSf: WARN
+  levelMir0n: INFO
+  levelDevelop: "OFF"
+  levelMsg: INFO
+
+nodeSelector:
+  tier: app

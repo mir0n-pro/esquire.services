@@ -37,6 +37,10 @@ spec:
                 secretKeyRef:
                   name: {{ .Release.Name }}-postgres-secret
                   key: db-name
+            {{- if .Values.pgdata }}
+            - name: PGDATA
+              value: {{ .Values.pgdata }}
+            {{- end }}
           readinessProbe:
             exec:
               command: ["pg_isready", "-U", "esq2025", "-d", "esq2025"]

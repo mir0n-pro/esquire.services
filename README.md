@@ -5,6 +5,8 @@ Frameworks for organizing business entities in a tree, for any business or activ
 The framework covers the traditional backoffice feature set: entity onboarding, profile
 maintenance, permissions, authorization, and accounting.
 
+**See it live: [esquire.mir0n.pro](https://esquire.mir0n.pro)** — sign in, browse the tree, run the operations.
+
 ## Project Structure
 
 | Repository | Description |
@@ -159,5 +161,6 @@ sequence-based PKs throughout seed data.
 
 ---
 
-With v1.2.2, the Esquire framework has reached the first and most important horizon:
-**the Establishment** — a working, connected, tested system from database to browser.
+With v1.2.2, the Esquire framework has reached the first and most important horizon: a working, connected, tested system from database to browser.
+
+**The Establishment is real — and it's up and running at [esquire.mir0n.pro](https://esquire.mir0n.pro). At your convenience, for your curiosity.**

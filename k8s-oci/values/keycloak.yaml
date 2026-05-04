@@ -1,0 +1,26 @@
+# Prod overrides for k8s/charts/infra/keycloak
+image:
+  repository: ghcr.io/mir0n-pro/esquire-keycloak
+  tag: "v1.2.2"
+  pullPolicy: Always
+
+service:
+  type: ClusterIP            # ingress-nginx fronts KC; saves OCI LB quota
+
+keycloak:
+  mode: start                # production mode (was start-dev locally)
+  hostname: esquire.mir0n.pro
+  realm: esquire
+  adminUsername: admin
+  # adminPassword passed via --set
+  clientId: esq-angular
+  # Required so KC routes work under /auth/* on shared host
+  httpRelativePath: /auth
+  proxy: edge                # KC trusts X-Forwarded-* from ingress
+
+storage:
+  storageClass: oci-bv
+  size: 10Gi
+
+nodeSelector:
+  tier: infra

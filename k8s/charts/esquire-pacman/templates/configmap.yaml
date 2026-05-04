@@ -5,6 +5,7 @@ metadata:
   labels:
     app: {{ .Release.Name }}-pacman
 data:
+  SPRING_PROFILES_ACTIVE:       {{ .Values.springProfilesActive | default "" | quote }}
   PACMAN_PORT:                  {{ .Values.service.port | quote }}
   DB_PACMAN_VENDOR:             {{ .Values.db.vendor | quote }}
   DB_PACMAN_HOST:               {{ .Values.db.host | quote }}

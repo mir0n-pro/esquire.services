@@ -1,0 +1,9 @@
+[
+  {
+    "protocol": "all",
+    "destination": "0.0.0.0/0",
+    "destinationType": "CIDR_BLOCK",
+    "isStateless": false,
+    "description": "All egress (image pulls via NAT, OCI services via SGW)"
+  }
+]

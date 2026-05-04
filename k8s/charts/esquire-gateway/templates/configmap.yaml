@@ -5,9 +5,11 @@ metadata:
   labels:
     app: {{ .Release.Name }}-gateway
 data:
+  SPRING_PROFILES_ACTIVE: {{ .Values.springProfilesActive | default "" | quote }}
   GATEWAY_PORT:         {{ .Values.service.port | quote }}
   KEYCLOAK_HOST:        {{ .Values.keycloak.host | quote }}
   KEYCLOAK_PORT:        {{ .Values.keycloak.port | quote }}
+  KEYCLOAK_PATH:        {{ .Values.keycloak.path | default "" | quote }}
   KEYCLOAK_REALM:       {{ .Values.keycloak.realm | quote }}
   KEYCLOAK_CLIENT_ID:   {{ .Values.keycloak.clientId | quote }}
   BIZTREE_HOST:         {{ .Values.backends.biztreeHost | quote }}

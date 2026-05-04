@@ -5,6 +5,7 @@ metadata:
   labels:
     app: {{ .Release.Name }}-kcmaster
 data:
+  SPRING_PROFILES_ACTIVE:         {{ .Values.springProfilesActive | default "" | quote }}
   KCMASTER_PORT:                  {{ .Values.service.port | quote }}
   AMQ_BROKER_URL:                 {{ .Values.messaging.brokerUrl | quote }}
   KCMASTER_MESSAGING_CLIENT_ID:   {{ .Values.messaging.clientId | quote }}

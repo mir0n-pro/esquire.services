@@ -1,0 +1,76 @@
+
+================================================================
+=== [21:13:43] Re-pushing biztree -> esquire.biztree
+================================================================
+
+#14 exporting to image
+#14 pushing layers 15.3s done
+#14 pushing manifest for ghcr.io/mir0n-pro/esquire.biztree:v1.2.2@sha256:1d6b707c7b581c260fb058b49dc54687e6b3e1bec01a71def1e519f42338606c
+#14 pushing manifest for ghcr.io/mir0n-pro/esquire.biztree:v1.2.2@sha256:1d6b707c7b581c260fb058b49dc54687e6b3e1bec01a71def1e519f42338606c 1.9s done
+#14 DONE 18.8s
+
+View build details: docker-desktop://dashboard/build/desktop-linux/desktop-linux/xejyvg7ykyvmzfvrs3wdg1kvc
+
+================================================================
+=== [21:14:09] Re-pushing enyman -> esquire.enyman
+================================================================
+
+#14 exporting to image
+#14 pushing layers 18.8s done
+#14 pushing manifest for ghcr.io/mir0n-pro/esquire.enyman:v1.2.2@sha256:50dd9bcea3362a41c480713f164baef2bbfc84c11986214915b6f038e7d5470c
+#14 pushing manifest for ghcr.io/mir0n-pro/esquire.enyman:v1.2.2@sha256:50dd9bcea3362a41c480713f164baef2bbfc84c11986214915b6f038e7d5470c 1.8s done
+#14 DONE 22.6s
+
+View build details: docker-desktop://dashboard/build/desktop-linux/desktop-linux/p07n7578nx4hbbw472xi6er0l
+
+================================================================
+=== [21:14:39] Re-pushing pacman -> esquire.pacman
+================================================================
+
+#14 exporting to image
+#14 pushing layers 16.3s done
+#14 pushing manifest for ghcr.io/mir0n-pro/esquire.pacman:v1.2.2@sha256:21d70f9cca61528c20531bbd9f9546c270d5f9dfc9fd24a0101483b011b92fe9
+#14 pushing manifest for ghcr.io/mir0n-pro/esquire.pacman:v1.2.2@sha256:21d70f9cca61528c20531bbd9f9546c270d5f9dfc9fd24a0101483b011b92fe9 1.9s done
+#14 DONE 20.0s
+
+View build details: docker-desktop://dashboard/build/desktop-linux/desktop-linux/9w80e710zaidj7c9mltabee8j
+
+================================================================
+=== [21:15:06] Re-pushing keysmith -> esquire.keysmith
+================================================================
+
+#14 exporting to image
+#14 pushing layers 42.4s done
+#14 pushing manifest for ghcr.io/mir0n-pro/esquire.keysmith:v1.2.2@sha256:5a5d2e157c7401c22a4d4c7556855042688397de36f50da5d09b6d2dd2d13eee
+#14 pushing manifest for ghcr.io/mir0n-pro/esquire.keysmith:v1.2.2@sha256:5a5d2e157c7401c22a4d4c7556855042688397de36f50da5d09b6d2dd2d13eee 2.0s done
+#14 DONE 45.7s
+
+View build details: docker-desktop://dashboard/build/desktop-linux/desktop-linux/voeh6gmitn0jb1l12fte96zhu
+
+================================================================
+=== [21:15:58] Re-pushing kcmaster -> esquire.kcmaster
+================================================================
+
+#14 exporting to image
+#14 pushing layers 9.8s done
+#14 pushing manifest for ghcr.io/mir0n-pro/esquire.kcmaster:v1.2.2@sha256:c8a687b2be23207255fafa214d966279559d7cbd299ebd3e7664e8b78552c601
+#14 pushing manifest for ghcr.io/mir0n-pro/esquire.kcmaster:v1.2.2@sha256:c8a687b2be23207255fafa214d966279559d7cbd299ebd3e7664e8b78552c601 2.3s done
+#14 DONE 12.9s
+
+View build details: docker-desktop://dashboard/build/desktop-linux/desktop-linux/b5slo1xgznjlk7kw6sezd20tu
+
+================================================================
+=== [21:16:14] Re-pushing gateway -> esquire.gateway
+================================================================
+
+#14 exporting to image
+#14 pushing layers 23.9s done
+#14 pushing manifest for ghcr.io/mir0n-pro/esquire.gateway:v1.2.2@sha256:6d354653e5db1ab8859df94273237a9cc29a1aad7c24c032f740c2bc81c15e23
+#14 pushing manifest for ghcr.io/mir0n-pro/esquire.gateway:v1.2.2@sha256:6d354653e5db1ab8859df94273237a9cc29a1aad7c24c032f740c2bc81c15e23 5.0s done
+#14 DONE 29.9s
+
+View build details: docker-desktop://dashboard/build/desktop-linux/desktop-linux/twk4mez2r5x7qhujlxc14anw1
+
+================================================================
+=== [21:16:49] All 6 Spring services re-pushed with fresh JARs.
+================================================================

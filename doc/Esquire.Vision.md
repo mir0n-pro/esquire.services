@@ -214,18 +214,22 @@ entries to distributed tracing correlation IDs, making it possible to reconstruc
 what sequence of operations — across multiple services, over JMS — produced any given
 database state.
 
-### 4. Accounting operations are built into the framework
+### 4. Accounting as the demo business model
 
-Deposit, withdrawal, and cross-currency transfer are first-class operations in Esquire,
-not integrations to external accounting systems. Each transfer is a two-leg transaction
-linked by a shared key. Conversion rates are validated and persisted with each transfer
-record. Balance constraints and status guards are part of the domain model, not application
-code written on top of a generic CRUD layer.
+Everyone knows what to expect from accounting — that is exactly why it is the demo.
+The accounting domain — multi-currency deposit, withdrawal, and two-leg transfer with
+conversion-rate validation, balance constraints, and status guards — is implemented as
+the framework's demonstration, not as a framework feature. Pick a domain the reader
+already understands, and the framework's behavior speaks for itself: tree-scoped reads,
+positional permission resolution, server-driven UI rendering, audit, async entity
+broadcast — all visible in a single click-through.
 
-No general-purpose backoffice framework in the competitive landscape includes this. n8n
-connects to accounting systems (QuickBooks, Xero) but does not implement accounting
-operations. Broadleaf Commerce has a payment layer for eCommerce checkouts. Nothing else
-treats multi-currency transfer as a core framework feature.
+Most comparable tools demonstrate themselves with CRUD over toy data. n8n integrates
+with external accounting systems (QuickBooks, Xero) but does not run a domain end to
+end. Broadleaf Commerce has a payment layer scoped to eCommerce checkouts. No other
+entry in the competitive landscape ships a framework demonstration this complete. The
+accounting domain is the proof. Any other domain — KYC, case management, contracts,
+portfolios — sits on the same backbone and inherits the same structural rules.
 
 ### 5. Asynchronous entity synchronization
 
@@ -287,14 +291,17 @@ Esquire is slower to get started with than Retool. It is incomparably more compl
 [Apache Syncope](https://syncope.apache.org/) · [Frontegg](https://frontegg.com/) · [OpenFGA](https://openfga.dev/)
 
 Apache Syncope is the closest technical cousin — hierarchical entity model, Spring-based,
-multi-database, audit-aware. But it is an identity management system. It manages users and
-groups in the context of provisioning and reconciliation. There are no accounts, no
-transactions, no server-driven UI, no accounting operations. It solves a narrower problem
-very well.
+multi-database, audit-aware. But it is an identity management system. Its hierarchy
+exists to support provisioning and reconciliation of users and groups across external
+systems. There is no server-driven UI, no domain-agnostic entity layer for arbitrary
+business hierarchies, no async entity broadcast bus, and no demonstration that runs a
+business domain end to end. Syncope solves identity provisioning very well; Esquire
+solves the layer above it.
 
 Frontegg is purpose-built for B2B SaaS multi-tenancy and user management. Its permission
 model is strong. But it is a SaaS product with proprietary IAM, and it stops at the
-organization/user boundary. There are no accounts, no business operations, no messaging.
+organization/user boundary — there is no entity layer below users, no server-driven UI,
+no async messaging topology, no path to host it yourself.
 
 OpenFGA is a fine-grained authorization engine — it solves one part of the permission
 problem with great depth. Esquire's permission model is less academically rigorous than
@@ -306,18 +313,20 @@ the framework rather than as a separate service to integrate.
 [JHipster](https://www.jhipster.tech/)
 
 JHipster generates a microservices scaffold. It does not give you a pre-built, working
-backoffice — it gives you the starting point for building one. After generation, the entity
-hierarchy, permission model, audit trail, accounting layer, and messaging topology are all
-still on your backlog. Esquire starts where JHipster leaves off.
+backoffice — it gives you the starting point for building one. After generation, the
+hierarchical entity tree, the positional permission model, the server-driven UI, and
+the async messaging topology are all still on your backlog. Esquire starts where
+JHipster leaves off.
 
 ### eCommerce and CMS platforms
 
 [Broadleaf Commerce](https://broadleafcommerce.com/) · [Strapi](https://strapi.io/)
 
-These platforms have strong admin panels for their domain (products, content). Outside that
-domain they do not apply. An organization/user/account hierarchy is not a product catalog.
-A balance transfer is not a CMS workflow. Broadleaf's Spring Boot foundation is relevant;
-its domain model is not.
+These platforms ship strong admin panels for a fixed domain (products, content). Their
+admin domain is closed — extending it means rebuilding what the platform was built around.
+Esquire's admin domain is open: any hierarchy of any entities sits on the framework's
+structural backbone with no domain-specific assumptions baked in. Broadleaf's Spring Boot
+foundation is relevant; its domain model is not.
 
 ---
 
@@ -344,18 +353,18 @@ never solve it again.**
 
 | Feature | Esquire | Apache Syncope | JHipster | Broadleaf | Forest Admin | Retool | Frontegg |
 |---|---|---|---|---|---|---|---|
-| Entity hierarchy (org/user/account) | Yes | Partial | No | No | No | No | Partial |
-| Accounting operations | Yes | No | No | Partial | No | No | No |
+| Hierarchical entity tree (domain-agnostic) | Yes | Partial | No | No | No | No | Partial |
 | Server-driven UI | Yes | No | No | No | No | No | No |
 | Audit trail / BRIUD triggers | Yes | Yes | No | No | No | No | No |
 | Distributed trace correlation | Yes | No | No | No | No | No | No |
 | Microservices + async messaging | Yes | Partial | Yes | Yes | No | No | No |
 | Field-level permission enforcement | Yes | Partial | No | No | No | No | No |
-| Multi-currency transfer | Yes | No | No | No | No | No | No |
-| Keycloak IAM | Yes | No | No | No | No | No | No |
+| Tree-shaped (positional) authorization | Yes | Partial | No | No | No | No | No |
+| Pluggable IAM adapter (Keycloak today) | Yes | No | No | No | No | No | No |
 | Oracle + Postgres | Yes | Yes | Yes | Yes | Partial | Yes | No |
 | No vendor lock-in | Yes | Yes | Yes | Partial | No | No | No |
 | Open source / self-hosted | Yes | Yes | Yes | Partial | No | No | No |
+| End-to-end demonstration domain | Yes | No | No | Partial | No | No | No |
 
 ---
 

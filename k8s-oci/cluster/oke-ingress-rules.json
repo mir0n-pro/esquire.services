@@ -1,0 +1,41 @@
+[
+  {
+    "protocol": "all",
+    "source": "10.0.0.0/16",
+    "sourceType": "CIDR_BLOCK",
+    "isStateless": false,
+    "description": "All traffic within VCN (pod-to-pod, worker-to-API, OKE control)"
+  },
+  {
+    "protocol": "6",
+    "source": "0.0.0.0/0",
+    "sourceType": "CIDR_BLOCK",
+    "isStateless": false,
+    "tcpOptions": {"destinationPortRange": {"min": 6443, "max": 6443}},
+    "description": "Kubernetes API server (kubectl from internet)"
+  },
+  {
+    "protocol": "6",
+    "source": "0.0.0.0/0",
+    "sourceType": "CIDR_BLOCK",
+    "isStateless": false,
+    "tcpOptions": {"destinationPortRange": {"min": 80, "max": 80}},
+    "description": "HTTP ingress (cert-manager HTTP-01 challenge + redirects)"
+  },
+  {
+    "protocol": "6",
+    "source": "0.0.0.0/0",
+    "sourceType": "CIDR_BLOCK",
+    "isStateless": false,
+    "tcpOptions": {"destinationPortRange": {"min": 443, "max": 443}},
+    "description": "HTTPS ingress (esquire.mir0n.pro)"
+  },
+  {
+    "protocol": "1",
+    "source": "0.0.0.0/0",
+    "sourceType": "CIDR_BLOCK",
+    "isStateless": false,
+    "icmpOptions": {"type": 3, "code": 4},
+    "description": "Path MTU discovery"
+  }
+]

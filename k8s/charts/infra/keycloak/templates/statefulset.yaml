@@ -15,6 +15,8 @@ spec:
       labels:
         app: {{ .Release.Name }}-keycloak
     spec:
+      securityContext:
+        fsGroup: 1000
       containers:
         - name: keycloak
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
@@ -44,21 +46,37 @@ spec:
               value: "false"
             - name: KC_HEALTH_ENABLED
               value: "true"
-          readinessProbe:
-            httpGet:
-              path: /health/ready
-              port: 9000
+            - name: KC_HTTP_ENABLED
+              value: "true"
+            - name: KC_PROXY_HEADERS
+              value: xforwarded
+            {{- with .Values.keycloak.httpRelativePath }}
+            - name: KC_HTTP_RELATIVE_PATH
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with .Values.keycloak.proxy }}
+            - name: KC_PROXY
+              value: {{ . | quote }}
+            {{- end }}
+          startupProbe:
+            tcpSocket:
+              port: 8080
             initialDelaySeconds: 30
             periodSeconds: 10
             timeoutSeconds: 5
-            failureThreshold: 10
+            failureThreshold: 30
+          readinessProbe:
+            tcpSocket:
+              port: 8080
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
           livenessProbe:
-            httpGet:
-              path: /health/live
-              port: 9000
-            initialDelaySeconds: 60
+            tcpSocket:
+              port: 8080
             periodSeconds: 15
             timeoutSeconds: 5
+            failureThreshold: 3
           volumeMounts:
             - name: keycloak-data
               mountPath: /opt/keycloak/data/h2

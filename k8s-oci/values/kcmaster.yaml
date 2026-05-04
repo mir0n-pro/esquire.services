@@ -1,0 +1,27 @@
+# Prod overrides for k8s/charts/esquire-kcmaster
+image:
+  repository: ghcr.io/mir0n-pro/esquire.kcmaster
+  tag: "v1.2.2"
+  pullPolicy: Always
+
+springProfilesActive: console
+
+messaging:
+  brokerUrl: tcp://esquire-infra-amq-activemq:61616
+  clientId: kcmaster
+
+keycloak:
+  baseUrl: http://esquire-infra-kc-keycloak:8080/auth   # internal KC URL + /auth
+  realm: esquire
+  adminClientId: admin-cli
+  adminClientSecret: ""
+
+logging:
+  levelRoot: WARN
+  levelSf: WARN
+  levelMir0n: INFO
+  levelDevelop: "OFF"
+  levelMsg: INFO
+
+nodeSelector:
+  tier: app

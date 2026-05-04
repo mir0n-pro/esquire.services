@@ -1,0 +1,112 @@
+
+================================================================
+=== [21:05:38] Building enyman -> esquire.enyman
+================================================================
+
+#14 exporting to image
+#14 pushing layers 18.6s done
+#14 pushing manifest for ghcr.io/mir0n-pro/esquire.enyman:v1.2.2@sha256:6e7a3263d4aee5066ab28d87a5fb74b925dc4ce36f02a6b00656bbde57ad5605
+#14 pushing manifest for ghcr.io/mir0n-pro/esquire.enyman:v1.2.2@sha256:6e7a3263d4aee5066ab28d87a5fb74b925dc4ce36f02a6b00656bbde57ad5605 1.6s done
+#14 DONE 21.5s
+
+View build details: docker-desktop://dashboard/build/desktop-linux/desktop-linux/j8xm257ihv23wslsxyt0a0h05
+
+================================================================
+=== [21:06:00] Building pacman -> esquire.pacman
+================================================================
+
+#14 exporting to image
+#14 pushing layers 15.0s done
+#14 pushing manifest for ghcr.io/mir0n-pro/esquire.pacman:v1.2.2@sha256:b6b4797d20e989fc5b443a447eca37111bdea5075dcd652f95ae48798e647ff9
+#14 pushing manifest for ghcr.io/mir0n-pro/esquire.pacman:v1.2.2@sha256:b6b4797d20e989fc5b443a447eca37111bdea5075dcd652f95ae48798e647ff9 1.7s done
+#14 DONE 18.1s
+
+View build details: docker-desktop://dashboard/build/desktop-linux/desktop-linux/k5t7tj2rnjbiw756zxrdcpu4p
+
+================================================================
+=== [21:06:19] Building keysmith -> esquire.keysmith
+================================================================
+
+#14 exporting to image
+#14 pushing layers 16.1s done
+#14 pushing manifest for ghcr.io/mir0n-pro/esquire.keysmith:v1.2.2@sha256:6a4b081cc902c07d4e78d2c90725d38ee41df814c6c697880212ccf6a4a9b456
+#14 pushing manifest for ghcr.io/mir0n-pro/esquire.keysmith:v1.2.2@sha256:6a4b081cc902c07d4e78d2c90725d38ee41df814c6c697880212ccf6a4a9b456 1.6s done
+#14 DONE 19.1s
+
+View build details: docker-desktop://dashboard/build/desktop-linux/desktop-linux/qk4ch3tuigy63x81nhx4dkoa5
+
+================================================================
+=== [21:06:39] Building kcmaster -> esquire.kcmaster
+================================================================
+
+#14 exporting to image
+#14 pushing layers 8.9s done
+#14 pushing manifest for ghcr.io/mir0n-pro/esquire.kcmaster:v1.2.2@sha256:f430dd5a7eccbe02245eddb6ee11d314f2061aed28d2cb610b75c81425ebf0b6
+#14 pushing manifest for ghcr.io/mir0n-pro/esquire.kcmaster:v1.2.2@sha256:f430dd5a7eccbe02245eddb6ee11d314f2061aed28d2cb610b75c81425ebf0b6 1.5s done
+#14 DONE 11.1s
+
+View build details: docker-desktop://dashboard/build/desktop-linux/desktop-linux/f2tbnxpe1g2jsj20zpq84e6fj
+
+================================================================
+=== [21:06:51] Building gateway -> esquire.gateway
+================================================================
+
+#14 exporting to image
+#14 pushing layers 10.1s done
+#14 pushing manifest for ghcr.io/mir0n-pro/esquire.gateway:v1.2.2@sha256:b6d240c43bf108a55bd55048a56a2e9fa697cbe7a4fdbf44e0ae0e7c6f0f51ff
+#14 pushing manifest for ghcr.io/mir0n-pro/esquire.gateway:v1.2.2@sha256:b6d240c43bf108a55bd55048a56a2e9fa697cbe7a4fdbf44e0ae0e7c6f0f51ff 1.8s done
+#14 DONE 12.9s
+
+View build details: docker-desktop://dashboard/build/desktop-linux/desktop-linux/ljhe1nst7h84io1evwseu8aob
+
+================================================================
+=== [21:07:04] Building frontend -> esquire.frontend
+================================================================
+
+#28 exporting to image
+#28 pushing layers 11.5s done
+#28 pushing manifest for ghcr.io/mir0n-pro/esquire.frontend:v1.2.2@sha256:234e24d156d85c0661d1dc6e5510d769dbe58b423d8f897cfd6e405baf9d696f
+#28 pushing manifest for ghcr.io/mir0n-pro/esquire.frontend:v1.2.2@sha256:234e24d156d85c0661d1dc6e5510d769dbe58b423d8f897cfd6e405baf9d696f 1.8s done
+#28 DONE 13.6s
+
+View build details: docker-desktop://dashboard/build/desktop-linux/desktop-linux/xaev9m3zqe2svkpod0az36xox
+
+================================================================
+=== [21:11:52] Building postgres -> esquire-postgres
+================================================================
+#22 [auth] mir0n-pro/esquire-postgres:pull,push token for ghcr.io
+#22 DONE 0.0s
+
+#20 exporting to image
+#20 pushing manifest for ghcr.io/mir0n-pro/esquire-postgres:v1.2.2@sha256:f3d73add20bdc15dffcd4097444558a2a863ec6bfadc26deaa230ccdc0300a7b 2.1s done
+#20 DONE 58.7s
+
+View build details: docker-desktop://dashboard/build/desktop-linux/desktop-linux/l35plkhejs9y5d0ykuw78zgky
+
+================================================================
+=== [21:13:20] Building keycloak -> esquire-keycloak
+================================================================
+#18 [auth] mir0n-pro/esquire-keycloak:pull,push token for ghcr.io
+#18 DONE 0.0s
+
+#16 exporting to image
+#16 pushing manifest for ghcr.io/mir0n-pro/esquire-keycloak:v1.2.2@sha256:f4700857bb5e22fd3f03d90cadbf4ad4beb41c6b16b4671ee04558c70ecc6404 4.0s done
+#16 DONE 62.2s
+
+View build details: docker-desktop://dashboard/build/desktop-linux/desktop-linux/yz5rf0hzkrcg596wjr3cu8sy6
+
+================================================================
+=== [21:16:09] Building activemq -> esquire-activemq
+================================================================
+
+#10 exporting to image
+#10 pushing layers 29.9s done
+#10 pushing manifest for ghcr.io/mir0n-pro/esquire-activemq:v1.2.2@sha256:75142c48efd745586382d77482757ba232efe148085d3f89b5a0422c4373f637
+#10 pushing manifest for ghcr.io/mir0n-pro/esquire-activemq:v1.2.2@sha256:75142c48efd745586382d77482757ba232efe148085d3f89b5a0422c4373f637 1.9s done
+#10 DONE 32.0s
+
+View build details: docker-desktop://dashboard/build/desktop-linux/desktop-linux/3hv9smnj6hn6on1v5fetabpmq
+
+================================================================
+=== [21:16:58] All 9 remaining images pushed.
+================================================================

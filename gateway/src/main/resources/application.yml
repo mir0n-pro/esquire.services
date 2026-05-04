@@ -216,13 +216,13 @@ spring:
         provider:
           keycloak:
             enable-cors: true
-            authorization-uri: http://${KEYCLOAK_HOST:keycloak}:${KEYCLOAK_PORT:8080}/realms/${KEYCLOAK_REALM:esquire}/protocol/openid-connect/auth
-            token-uri: http://${KEYCLOAK_HOST:keycloak}:${KEYCLOAK_PORT:8080}/realms/${KEYCLOAK_REALM:esquire}/protocol/openid-connect/token
-            jwk-set-uri: http://${KEYCLOAK_HOST:keycloak}:${KEYCLOAK_PORT:8080}/realms/${KEYCLOAK_REALM:esquire}/protocol/openid-connect/certs
-            user-info-uri: http://${KEYCLOAK_HOST:keycloak}:${KEYCLOAK_PORT:8080}/realms/${KEYCLOAK_REALM:esquire}/protocol/openid-connect/userinfo
+            authorization-uri: http://${KEYCLOAK_HOST:keycloak}:${KEYCLOAK_PORT:8080}${KEYCLOAK_PATH:}/realms/${KEYCLOAK_REALM:esquire}/protocol/openid-connect/auth
+            token-uri: http://${KEYCLOAK_HOST:keycloak}:${KEYCLOAK_PORT:8080}${KEYCLOAK_PATH:}/realms/${KEYCLOAK_REALM:esquire}/protocol/openid-connect/token
+            jwk-set-uri: http://${KEYCLOAK_HOST:keycloak}:${KEYCLOAK_PORT:8080}${KEYCLOAK_PATH:}/realms/${KEYCLOAK_REALM:esquire}/protocol/openid-connect/certs
+            user-info-uri: http://${KEYCLOAK_HOST:keycloak}:${KEYCLOAK_PORT:8080}${KEYCLOAK_PATH:}/realms/${KEYCLOAK_REALM:esquire}/protocol/openid-connect/userinfo
       resourceserver:
         jwt:
-          jwk-set-uri: http://${KEYCLOAK_HOST:keycloak}:${KEYCLOAK_PORT:8080}/realms/${KEYCLOAK_REALM:esquire}/protocol/openid-connect/certs
+          jwk-set-uri: http://${KEYCLOAK_HOST:keycloak}:${KEYCLOAK_PORT:8080}${KEYCLOAK_PATH:}/realms/${KEYCLOAK_REALM:esquire}/protocol/openid-connect/certs
 info:
   app:
     name: "gateway"

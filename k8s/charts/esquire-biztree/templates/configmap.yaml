@@ -5,6 +5,7 @@ metadata:
   labels:
     app: {{ .Release.Name }}-biztree
 data:
+  SPRING_PROFILES_ACTIVE:            {{ .Values.springProfilesActive | default "" | quote }}
   BIZTREE_PORT:                      {{ .Values.service.port | quote }}
   DB_BIZTREE_VENDOR:                 {{ .Values.db.vendor | quote }}
   DB_BIZTREE_HOST:                   {{ .Values.db.host | quote }}

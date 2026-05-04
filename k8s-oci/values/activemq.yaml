@@ -1,0 +1,12 @@
+# Prod overrides for k8s/charts/infra/activemq
+image:
+  repository: ghcr.io/mir0n-pro/esquire-activemq
+  tag: "v1.2.2"
+  pullPolicy: Always
+
+storage:
+  storageClass: oci-bv
+  size: 20Gi
+
+nodeSelector:
+  tier: infra

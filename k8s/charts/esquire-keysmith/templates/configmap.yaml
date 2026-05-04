@@ -5,6 +5,7 @@ metadata:
   labels:
     app: {{ .Release.Name }}-keysmith
 data:
+  SPRING_PROFILES_ACTIVE:         {{ .Values.springProfilesActive | default "" | quote }}
   KEYSMITH_PORT:                  {{ .Values.service.port | quote }}
   DB_KEYSMITH_VENDOR:             {{ .Values.db.vendor | quote }}
   DB_KEYSMITH_HOST:               {{ .Values.db.host | quote }}
