@@ -1,7 +1,7 @@
-# Release Report: v1.2.1 → HEAD
+# Release Report: v1.2.1 → v1.2.2
 
 **Repo:** `esquire.services/develop`  
-**Top commit:** `ae96cab`
+**Top commit:** `e798f7e`
 
 ---
 
@@ -9,6 +9,10 @@
 
 ### doc/release_notes.txt
 
+
+**v1.2.2-2604.2217**  local k8s deployment  
+&nbsp;: doc added doc/OCI.Pricing.md  
+&nbsp;      added doc/WhereToGo.md  
 
 **v1.2.2-2604.2017**  acct transfer: conversion rate; KC realm theme fix  
 &nbsp;: Feature: pacMan -- AcctTransactionProcessorTransfer: FIELD_RATE required, validated > 0; credit = abs(debit)*rate; shared pkTx links both legs; refCode4 auto-note on both legs  
@@ -707,6 +711,10 @@ BizTreeApplication
 
 ### common/src/main/java/pro/mir0n/esquire/backend/changes.txt
 
+
+**04/22/2026** mir0n  MdcFilter: String.valueOf() fix; esq-entity-dictionaries: rate field added to Transfer dictionary  
+**security.SecurityConfiguration**  
+&nbsp;- k8s issues: addded corsAllowAll()  
 
 **04/20/2026** mir0n  MdcFilter: String.valueOf() fix; esq-entity-dictionaries: rate field added to Transfer dictionary  
 **service.MdcFilter**  
@@ -2080,6 +2088,186 @@ PacManApplication
 
 ```
 
+-- 2026-05-03 | commit: e798f7e | mir0n.the.programmer | k8s, k8s-oci --
+M	README.md
+M	bizTree/src/main/resources/logback-spring.xml
+M	doc/Esquire.Vision.md
+M	gateway/src/main/resources/application.yml
+M	gateway/src/main/resources/logback-spring.xml
+A	k8s-oci/README.md
+A	k8s-oci/add-oke-security-rules.bat
+A	k8s-oci/cluster/create-nodepool-placement.json
+A	k8s-oci/cluster/create-nodepool-source.json
+A	k8s-oci/cluster/ingress.yaml
+A	k8s-oci/cluster/letsencrypt-prod.yaml
+A	k8s-oci/cluster/node-labels.bat
+A	k8s-oci/cluster/oke-egress-rules.json
+A	k8s-oci/cluster/oke-ingress-rules.json
+A	k8s-oci/cluster/pod-network-options.json
+A	k8s-oci/cluster/service-lb-subnets.json
+A	k8s-oci/create-basic-cluster.bat
+A	k8s-oci/create-nodepool.bat
+A	k8s-oci/fix.bat
+A	k8s-oci/ghcr-push-rest.sh
+A	k8s-oci/ghcr-push.bat
+A	k8s-oci/ghcr-push.log
+A	k8s-oci/ghcr-repush-spring.sh
+A	k8s-oci/ghcr-repush.log
+A	k8s-oci/oke-bootstrap.bat
+A	k8s-oci/oke-down.bat
+A	k8s-oci/oke-login.bat
+A	k8s-oci/oke-up.bat
+A	k8s-oci/policy-statements.json
+A	k8s-oci/publish.bat
+A	k8s-oci/show.them.all.bat
+A	k8s-oci/values/activemq.yaml
+A	k8s-oci/values/biztree.yaml
+A	k8s-oci/values/enyman.yaml
+A	k8s-oci/values/frontend.yaml
+A	k8s-oci/values/gateway.yaml
+A	k8s-oci/values/kcmaster.yaml
+A	k8s-oci/values/keycloak.yaml
+A	k8s-oci/values/keysmith.yaml
+A	k8s-oci/values/pacman.yaml
+A	k8s-oci/values/postgres.yaml
+M	k8s/charts/esquire-biztree/templates/configmap.yaml
+M	k8s/charts/esquire-enyman/templates/configmap.yaml
+M	k8s/charts/esquire-frontend/templates/service.yaml
+M	k8s/charts/esquire-gateway/templates/configmap.yaml
+M	k8s/charts/esquire-gateway/templates/service.yaml
+M	k8s/charts/esquire-kcmaster/templates/configmap.yaml
+M	k8s/charts/esquire-keysmith/templates/configmap.yaml
+M	k8s/charts/esquire-pacman/templates/configmap.yaml
+M	k8s/charts/infra/keycloak/templates/service.yaml
+M	k8s/charts/infra/keycloak/templates/statefulset.yaml
+M	k8s/charts/infra/postgres/templates/statefulset.yaml
+M	kcMaster/src/main/resources/logback-spring.xml
+M	keySmith/src/main/resources/logback-spring.xml
+M	keycloak/import/esquire.json
+M	pacMan/src/main/resources/logback-spring.xml
+ 56 files changed, 1756 insertions(+), 85 deletions(-)
+
+-- 2026-04-22 | commit: 4c4473d | mir0n.the.programmer | local k8s deployment --
+M	README.md
+M	bizTree/Dockerfile
+A	bizTree/Dockerfile.lx
+M	common/src/main/java/pro/mir0n/esquire/backend/changes.txt
+M	common/src/main/java/pro/mir0n/esquire/backend/security/SecurityConfiguration.java
+M	doc/Esquire.Vision.md
+A	doc/OCI.Pricing.md
+A	doc/WhereToGo.md
+M	doc/release_notes.txt
+M	enyMan/Dockerfile
+A	enyMan/Dockerfilel.lx
+M	gateway/Dockerfile
+A	gateway/Dockerfile.lx
+A	k8s/1-by-1/1.1) postgres install.bat
+A	k8s/1-by-1/1.2)show.all.bat
+A	k8s/1-by-1/1.3) postgres exec.bat
+A	k8s/1-by-1/1.9) postgres uninstall.bat
+A	k8s/1-by-1/10.1) frontend install.bat
+A	k8s/1-by-1/10.3) frontend exec.bat
+A	k8s/1-by-1/10.9) frontend uninstall.bat
+A	k8s/1-by-1/2.1) aMQ install.bat
+A	k8s/1-by-1/2.3) aMQ exec.bat
+A	k8s/1-by-1/2.9) aMQ uninstall.bat
+A	k8s/1-by-1/3.1) keycloak install.bat
+A	k8s/1-by-1/3.3) keycloak exec.bat
+A	k8s/1-by-1/3.9) keycloak uninstall.bat
+A	k8s/1-by-1/4.1) biztree install.bat
+A	k8s/1-by-1/4.3) biztree exec.bat
+A	k8s/1-by-1/4.9) biztree uninstall.bat
+A	k8s/1-by-1/5.1) enyman install.bat
+A	k8s/1-by-1/5.3) enyman exec.bat
+A	k8s/1-by-1/5.9) enyman uninstall.bat
+A	k8s/1-by-1/6.1) pacman install.bat
+A	k8s/1-by-1/6.3) pacman exec.bat
+A	k8s/1-by-1/6.9) pacman uninstall.bat
+A	k8s/1-by-1/7.1) keysmith install.bat
+A	k8s/1-by-1/7.3) keysmith exec.bat
+A	k8s/1-by-1/7.9) keysmith uninstall.bat
+A	k8s/1-by-1/8.1) kcmaster install.bat
+A	k8s/1-by-1/8.3) kcmaster exec.bat
+A	k8s/1-by-1/8.9) kcmaster uninstall.bat
+A	k8s/1-by-1/9.1) gateway install.bat
+A	k8s/1-by-1/9.3) gateway exec.bat
+A	k8s/1-by-1/9.9) gateway uninstall.bat
+A	k8s/charts/esquire-biztree/Chart.yaml
+A	k8s/charts/esquire-biztree/templates/configmap.yaml
+A	k8s/charts/esquire-biztree/templates/deployment.yaml
+A	k8s/charts/esquire-biztree/templates/secret.yaml
+A	k8s/charts/esquire-biztree/templates/service.yaml
+A	k8s/charts/esquire-biztree/values.yaml
+A	k8s/charts/esquire-enyman/Chart.yaml
+A	k8s/charts/esquire-enyman/templates/configmap.yaml
+A	k8s/charts/esquire-enyman/templates/deployment.yaml
+A	k8s/charts/esquire-enyman/templates/secret.yaml
+A	k8s/charts/esquire-enyman/templates/service.yaml
+A	k8s/charts/esquire-enyman/values.yaml
+A	k8s/charts/esquire-frontend/Chart.yaml
+A	k8s/charts/esquire-frontend/templates/configmap.yaml
+A	k8s/charts/esquire-frontend/templates/deployment.yaml
+A	k8s/charts/esquire-frontend/templates/service.yaml
+A	k8s/charts/esquire-frontend/values.yaml
+A	k8s/charts/esquire-gateway/Chart.yaml
+A	k8s/charts/esquire-gateway/templates/configmap.yaml
+A	k8s/charts/esquire-gateway/templates/deployment.yaml
+A	k8s/charts/esquire-gateway/templates/service.yaml
+A	k8s/charts/esquire-gateway/values.yaml
+A	k8s/charts/esquire-kcmaster/Chart.yaml
+A	k8s/charts/esquire-kcmaster/templates/configmap.yaml
+A	k8s/charts/esquire-kcmaster/templates/deployment.yaml
+A	k8s/charts/esquire-kcmaster/templates/secret.yaml
+A	k8s/charts/esquire-kcmaster/templates/service.yaml
+A	k8s/charts/esquire-kcmaster/values.yaml
+A	k8s/charts/esquire-keysmith/Chart.yaml
+A	k8s/charts/esquire-keysmith/templates/configmap.yaml
+A	k8s/charts/esquire-keysmith/templates/deployment.yaml
+A	k8s/charts/esquire-keysmith/templates/secret.yaml
+A	k8s/charts/esquire-keysmith/templates/service.yaml
+A	k8s/charts/esquire-keysmith/values.yaml
+A	k8s/charts/esquire-pacman/Chart.yaml
+A	k8s/charts/esquire-pacman/templates/configmap.yaml
+A	k8s/charts/esquire-pacman/templates/deployment.yaml
+A	k8s/charts/esquire-pacman/templates/secret.yaml
+A	k8s/charts/esquire-pacman/templates/service.yaml
+A	k8s/charts/esquire-pacman/values.yaml
+A	k8s/charts/infra/activemq/Chart.yaml
+A	k8s/charts/infra/activemq/templates/service.yaml
+A	k8s/charts/infra/activemq/templates/statefulset.yaml
+A	k8s/charts/infra/activemq/values.yaml
+A	k8s/charts/infra/keycloak/Chart.yaml
+A	k8s/charts/infra/keycloak/templates/secret.yaml
+A	k8s/charts/infra/keycloak/templates/service.yaml
+A	k8s/charts/infra/keycloak/templates/statefulset.yaml
+A	k8s/charts/infra/keycloak/values.yaml
+A	k8s/charts/infra/postgres/Chart.yaml
+A	k8s/charts/infra/postgres/templates/secret.yaml
+A	k8s/charts/infra/postgres/templates/service.yaml
+A	k8s/charts/infra/postgres/templates/statefulset.yaml
+A	k8s/charts/infra/postgres/values.yaml
+A	k8s/k8s-down.bat
+A	k8s/k8s-up.bat
+A	k8s/show.them.all.bat
+M	keySmith/Dockerfile
+A	keySmith/Dockerfile.lx
+M	pacMan/Dockerfile
+A	pacMan/Dockerfile.lx
+ 105 files changed, 1908 insertions(+), 85 deletions(-)
+
+-- 2026-04-21 | commit: 71ab875 | mir0n.the.programmer | v1.2.2 finalization --
+M	README.md
+A	doc/DatabaseDictionary.md
+A	doc/Esquire.Vision.md
+A	doc/H2BizTree.md
+A	doc/Messaging.md
+M	doc/Object.Kind.enum.md
+A	doc/keyCloak-gateway.JWE.md
+A	doc/media/ComponentModel.svg
+A	doc/model/ESQ.2026.ERD.png
+A	doc/reports/report_v1.2.2.md
+ 10 files changed, 19432 insertions(+), 104 deletions(-)
+
 -- 2026-04-20 | commit: ae96cab | mir0n.the.programmer | acct transfer: conversion rate; KC realm theme fix --
 M	common/src/main/java/pro/mir0n/esquire/backend/changes.txt
 M	common/src/main/java/pro/mir0n/esquire/backend/service/MdcFilter.java
@@ -3280,7 +3468,7 @@ A	activemq/compose.yaml
 A	activemq/conf/activemq.xml
 A	activemq/docker-compose-down.bat
 A	activemq/docker-compose-up.bat
-M	bizTree/Dockerfile
+A	bizTree/Dockerfile.lx
 A	bizTree/Dockerfile.win
 M	bizTree/pom.xml
 M	bizTree/src/main/java/pro/mir0n/esquire/bizTree/BizTreeApplication.java
@@ -3374,7 +3562,7 @@ A	common/src/main/java/pro/mir0n/esquire/backend/jpa/entity/EsqPersonJpa.java
 M	common/src/main/java/pro/mir0n/esquire/backend/jpa/entity/EsqUsrJpa.java
 R072	enyMan/src/main/java/pro/mir0n/esquire/enyMan/security/JwtAuthenticationFilter.java	common/src/main/java/pro/mir0n/esquire/backend/security/JwtAuthenticationFilter.java
 R093	pacMan/src/main/java/pro/mir0n/esquire/pacMan/security/JwtService.java	common/src/main/java/pro/mir0n/esquire/backend/security/JwtService.java
-R090	pacMan/src/main/java/pro/mir0n/esquire/pacMan/security/SecurityConfiguration.java	common/src/main/java/pro/mir0n/esquire/backend/security/SecurityConfiguration.java
+R058	pacMan/src/main/java/pro/mir0n/esquire/pacMan/security/SecurityConfiguration.java	common/src/main/java/pro/mir0n/esquire/backend/security/SecurityConfiguration.java
 A	common/src/main/java/pro/mir0n/esquire/backend/service/EntityFieldUtils.java
 R074	pacMan/src/main/java/pro/mir0n/esquire/pacMan/service/MdcFilter.java	common/src/main/java/pro/mir0n/esquire/backend/service/MdcFilter.java
 R063	bizTree/src/main/java/pro/mir0n/esquire/bizTree/service/PerformanceAspect.java	common/src/main/java/pro/mir0n/esquire/backend/service/PerformanceAspect.java
@@ -3417,17 +3605,27 @@ A	compose/data/keycloak/-placeholder-
 A	compose/data/postgres/-placeholder-
 D	compose/import/esquire.json
 A	compose/logs/-placeholder-
+A	doc/DatabaseDictionary.md
 A	doc/DefaultRule.md
+A	doc/Esquire.Vision.md
+A	doc/H2BizTree.md
 A	doc/Logging.md
 A	doc/Message.Structure.md
 A	doc/Messaging.First.md
+A	doc/Messaging.md
+A	doc/OCI.Pricing.md
 A	doc/Object.Kind.enum.md
+A	doc/WhereToGo.md
 A	doc/entity.path.semantics.md
+A	doc/keyCloak-gateway.JWE.md
 A	doc/keySmithCredentialRoutine.md
+A	doc/media/ComponentModel.svg
 A	doc/model/ComponentModel.vsdx
+A	doc/model/ESQ.2026.ERD.png
 M	doc/release_notes.txt
-M	enyMan/Dockerfile
+A	doc/reports/report_v1.2.2.md
 A	enyMan/Dockerfile.win
+A	enyMan/Dockerfilel.lx
 M	enyMan/pom.xml
 M	enyMan/src/main/java/pro/mir0n/esquire/enyMan/EnyManApplication.java
 M	enyMan/src/main/java/pro/mir0n/esquire/enyMan/changes.txt
@@ -3468,7 +3666,7 @@ A	enyMan/src/test/java/pro/mir0n/esquire/enyMan/messaging/KcRequestPublisherTest
 A	enyMan/src/test/java/pro/mir0n/esquire/enyMan/messaging/KcResponseListenerTest.java
 A	enyMan/src/test/java/pro/mir0n/esquire/enyMan/service/EnyManServiceTest.java
 A	enyMan/src/test/resources/logback-test.xml
-M	gateway/Dockerfile
+A	gateway/Dockerfile.lx
 A	gateway/Dockerfile.win
 M	gateway/src/main/java/pro/mir0n/esquire/gateway/GatewayApplication.java
 M	gateway/src/main/java/pro/mir0n/esquire/gateway/changes.txt
@@ -3486,6 +3684,130 @@ A	gateway/src/test/java/pro/mir0n/esquire/gateway/config/KeycloakRoleConverterTe
 A	gateway/src/test/java/pro/mir0n/esquire/gateway/error/ProblemDetailMillTest.java
 A	gateway/src/test/java/pro/mir0n/esquire/gateway/filters/RequestTraceFilterTest.java
 A	gateway/src/test/resources/logback-test.xml
+A	k8s-oci/README.md
+A	k8s-oci/add-oke-security-rules.bat
+A	k8s-oci/cluster/create-nodepool-placement.json
+A	k8s-oci/cluster/create-nodepool-source.json
+A	k8s-oci/cluster/ingress.yaml
+A	k8s-oci/cluster/letsencrypt-prod.yaml
+A	k8s-oci/cluster/node-labels.bat
+A	k8s-oci/cluster/oke-egress-rules.json
+A	k8s-oci/cluster/oke-ingress-rules.json
+A	k8s-oci/cluster/pod-network-options.json
+A	k8s-oci/cluster/service-lb-subnets.json
+A	k8s-oci/create-basic-cluster.bat
+A	k8s-oci/create-nodepool.bat
+A	k8s-oci/fix.bat
+A	k8s-oci/ghcr-push-rest.sh
+A	k8s-oci/ghcr-push.bat
+A	k8s-oci/ghcr-push.log
+A	k8s-oci/ghcr-repush-spring.sh
+A	k8s-oci/ghcr-repush.log
+A	k8s-oci/oke-bootstrap.bat
+A	k8s-oci/oke-down.bat
+A	k8s-oci/oke-login.bat
+A	k8s-oci/oke-up.bat
+A	k8s-oci/policy-statements.json
+A	k8s-oci/publish.bat
+A	k8s-oci/show.them.all.bat
+A	k8s-oci/values/activemq.yaml
+A	k8s-oci/values/biztree.yaml
+A	k8s-oci/values/enyman.yaml
+A	k8s-oci/values/frontend.yaml
+A	k8s-oci/values/gateway.yaml
+A	k8s-oci/values/kcmaster.yaml
+A	k8s-oci/values/keycloak.yaml
+A	k8s-oci/values/keysmith.yaml
+A	k8s-oci/values/pacman.yaml
+A	k8s-oci/values/postgres.yaml
+A	k8s/1-by-1/1.1) postgres install.bat
+A	k8s/1-by-1/1.2)show.all.bat
+A	k8s/1-by-1/1.3) postgres exec.bat
+A	k8s/1-by-1/1.9) postgres uninstall.bat
+A	k8s/1-by-1/10.1) frontend install.bat
+A	k8s/1-by-1/10.3) frontend exec.bat
+A	k8s/1-by-1/10.9) frontend uninstall.bat
+A	k8s/1-by-1/2.1) aMQ install.bat
+A	k8s/1-by-1/2.3) aMQ exec.bat
+A	k8s/1-by-1/2.9) aMQ uninstall.bat
+A	k8s/1-by-1/3.1) keycloak install.bat
+A	k8s/1-by-1/3.3) keycloak exec.bat
+A	k8s/1-by-1/3.9) keycloak uninstall.bat
+A	k8s/1-by-1/4.1) biztree install.bat
+A	k8s/1-by-1/4.3) biztree exec.bat
+A	k8s/1-by-1/4.9) biztree uninstall.bat
+A	k8s/1-by-1/5.1) enyman install.bat
+A	k8s/1-by-1/5.3) enyman exec.bat
+A	k8s/1-by-1/5.9) enyman uninstall.bat
+A	k8s/1-by-1/6.1) pacman install.bat
+A	k8s/1-by-1/6.3) pacman exec.bat
+A	k8s/1-by-1/6.9) pacman uninstall.bat
+A	k8s/1-by-1/7.1) keysmith install.bat
+A	k8s/1-by-1/7.3) keysmith exec.bat
+A	k8s/1-by-1/7.9) keysmith uninstall.bat
+A	k8s/1-by-1/8.1) kcmaster install.bat
+A	k8s/1-by-1/8.3) kcmaster exec.bat
+A	k8s/1-by-1/8.9) kcmaster uninstall.bat
+A	k8s/1-by-1/9.1) gateway install.bat
+A	k8s/1-by-1/9.3) gateway exec.bat
+A	k8s/1-by-1/9.9) gateway uninstall.bat
+A	k8s/charts/esquire-biztree/Chart.yaml
+A	k8s/charts/esquire-biztree/templates/configmap.yaml
+A	k8s/charts/esquire-biztree/templates/deployment.yaml
+A	k8s/charts/esquire-biztree/templates/secret.yaml
+A	k8s/charts/esquire-biztree/templates/service.yaml
+A	k8s/charts/esquire-biztree/values.yaml
+A	k8s/charts/esquire-enyman/Chart.yaml
+A	k8s/charts/esquire-enyman/templates/configmap.yaml
+A	k8s/charts/esquire-enyman/templates/deployment.yaml
+A	k8s/charts/esquire-enyman/templates/secret.yaml
+A	k8s/charts/esquire-enyman/templates/service.yaml
+A	k8s/charts/esquire-enyman/values.yaml
+A	k8s/charts/esquire-frontend/Chart.yaml
+A	k8s/charts/esquire-frontend/templates/configmap.yaml
+A	k8s/charts/esquire-frontend/templates/deployment.yaml
+A	k8s/charts/esquire-frontend/templates/service.yaml
+A	k8s/charts/esquire-frontend/values.yaml
+A	k8s/charts/esquire-gateway/Chart.yaml
+A	k8s/charts/esquire-gateway/templates/configmap.yaml
+A	k8s/charts/esquire-gateway/templates/deployment.yaml
+A	k8s/charts/esquire-gateway/templates/service.yaml
+A	k8s/charts/esquire-gateway/values.yaml
+A	k8s/charts/esquire-kcmaster/Chart.yaml
+A	k8s/charts/esquire-kcmaster/templates/configmap.yaml
+A	k8s/charts/esquire-kcmaster/templates/deployment.yaml
+A	k8s/charts/esquire-kcmaster/templates/secret.yaml
+A	k8s/charts/esquire-kcmaster/templates/service.yaml
+A	k8s/charts/esquire-kcmaster/values.yaml
+A	k8s/charts/esquire-keysmith/Chart.yaml
+A	k8s/charts/esquire-keysmith/templates/configmap.yaml
+A	k8s/charts/esquire-keysmith/templates/deployment.yaml
+A	k8s/charts/esquire-keysmith/templates/secret.yaml
+A	k8s/charts/esquire-keysmith/templates/service.yaml
+A	k8s/charts/esquire-keysmith/values.yaml
+A	k8s/charts/esquire-pacman/Chart.yaml
+A	k8s/charts/esquire-pacman/templates/configmap.yaml
+A	k8s/charts/esquire-pacman/templates/deployment.yaml
+A	k8s/charts/esquire-pacman/templates/secret.yaml
+A	k8s/charts/esquire-pacman/templates/service.yaml
+A	k8s/charts/esquire-pacman/values.yaml
+A	k8s/charts/infra/activemq/Chart.yaml
+A	k8s/charts/infra/activemq/templates/service.yaml
+A	k8s/charts/infra/activemq/templates/statefulset.yaml
+A	k8s/charts/infra/activemq/values.yaml
+A	k8s/charts/infra/keycloak/Chart.yaml
+A	k8s/charts/infra/keycloak/templates/secret.yaml
+A	k8s/charts/infra/keycloak/templates/service.yaml
+A	k8s/charts/infra/keycloak/templates/statefulset.yaml
+A	k8s/charts/infra/keycloak/values.yaml
+A	k8s/charts/infra/postgres/Chart.yaml
+A	k8s/charts/infra/postgres/templates/secret.yaml
+A	k8s/charts/infra/postgres/templates/service.yaml
+A	k8s/charts/infra/postgres/templates/statefulset.yaml
+A	k8s/charts/infra/postgres/values.yaml
+A	k8s/k8s-down.bat
+A	k8s/k8s-up.bat
+A	k8s/show.them.all.bat
 A	kcMaster/Dockerfile
 A	kcMaster/Dockerfile.lx
 A	kcMaster/Dockerfile.win
@@ -3509,6 +3831,7 @@ A	kcMaster/src/test/java/pro/mir0n/esquire/kcMaster/service/KcIdentityServiceTes
 A	kcMaster/src/test/resources/logback-test.xml
 D	keySmith/.dockerignore
 M	keySmith/Dockerfile
+A	keySmith/Dockerfile.lx
 A	keySmith/Dockerfile.win
 M	keySmith/pom.xml
 M	keySmith/src/main/java/pro/mir0n/esquire/keySmith/KeySmithApplication.java
@@ -3557,7 +3880,7 @@ A	keycloak/themes/esquire-explorer/login/resources/img/unknown.ico
 A	keycloak/themes/esquire-explorer/login/template.ftl
 A	keycloak/themes/esquire-explorer/login/theme.properties
 D	pacMan/.dockerignore
-M	pacMan/Dockerfile
+A	pacMan/Dockerfile.lx
 A	pacMan/Dockerfile.win
 M	pacMan/pom.xml
 M	pacMan/src/main/java/pro/mir0n/esquire/pacMan/PacManApplication.java
@@ -3598,9 +3921,9 @@ M	pom.xml
 A	postgres/Dockerfile
 A	postgres/compose.yaml
 A	postgres/initdb/init.sh
- 324 files changed, 26030 insertions(+), 5739 deletions(-)
+ 459 files changed, 48844 insertions(+), 5731 deletions(-)
 ```
 
 ---
 
-*From `v1.2.1` till `HEAD`*
+*From `v1.2.1` till `v1.2.2`*
