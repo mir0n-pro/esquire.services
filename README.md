@@ -1,6 +1,8 @@
 | ![Alt text](./favicon.ico) | Esquire Frameworks(tm) 2.0 |
 |----------------------------|---------------------------|
 
+> **v1.2.3 — in development.** All four repositories (esquire.services, esquire.explorer, esquire.ui.lib, esquire.db.seed) are on their `pending-v1.2.3` branches. Themes, candidate work items, and progress are tracked in [v1.2.x Planning](doc/v1.2.x.Planning.md).
+
 Frameworks for organizing business entities in a tree, for any business or activity.
 The framework covers the traditional backoffice feature set: entity onboarding, profile
 maintenance, permissions, authorization, and accounting.
