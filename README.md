@@ -1,7 +1,7 @@
 | ![Alt text](./favicon.ico) | Esquire Frameworks(tm) 2.0 |
 |----------------------------|---------------------------|
 
-> **v1.2.3 — in development.** All four repositories (esquire.services, esquire.explorer, esquire.ui.lib, esquire.db.seed) are on their `pending-v1.2.3` branches. Themes, candidate work items, and progress are tracked in [v1.2.x Planning](doc/v1.2.x.Planning.md).
+> **v1.2.3 — complete (05/08/2026).** Backend-for-Frontend (BFF) tier landed in production at [esquire.mir0n.pro](https://esquire.mir0n.pro). The browser now holds an opaque session cookie; the access token stays in-cluster. The gateway is no longer publicly reachable — only the BFF reaches it via the in-cluster service. KC moved from `/auth` to `/kc-auth` (BFF reserves `/auth/*` for its own login/callback/logout/me). Standalone frontend chart retired; SPA is baked into the BFF image. See [v1.2.x Planning](doc/v1.2.x.Planning.md) for the release line and upcoming sprint backlog.
 
 Frameworks for organizing business entities in a tree, for any business or activity.
 The framework covers the traditional backoffice feature set: entity onboarding, profile
@@ -26,7 +26,7 @@ maintenance, permissions, authorization, and accounting.
 - [Messaging Architecture — Entity Broadcast and IAM Request/Response](doc/Messaging.md)
 - [Observability Stack](doc/Esquire.ObservabilityStack.md)
 - [Logging Strategy](doc/Logging.md)
-- [Keycloak / Gateway — JWE Token Encryption](doc/keyCloak-gateway.JWE.md) *(on hold — pending BFF)*
+- [Keycloak / Gateway — JWE Token Encryption](doc/keyCloak-gateway.JWE.md) *(SUPERSEDED — v1.2.3 BFF replaces JWE goal; doc preserved as historical record)*
 
 ### Domain & Data Model
 - [Object Kind Enumeration](doc/Object.Kind.enum.md)
@@ -40,13 +40,13 @@ maintenance, permissions, authorization, and accounting.
 
 ### Reports
 
-- **esquire.services** [v1.2.2 Milestone Report](doc/reports/report_v1.2.2.md)
+- **esquire.services** [v1.2.3 Milestone Report](doc/reports/report_v1.2.3.md) · [v1.2.2 Milestone Report](doc/reports/report_v1.2.2.md)
 
-- **esquire.explorer** [v1.2.2 Milestone Report](https://github.com/mir0n-pro/esquire.explorer/blob/develop/doc/reports/report_v1.2.2.md)
+- **esquire.explorer** [v1.2.3 Milestone Report](https://github.com/mir0n-pro/esquire.explorer/blob/develop/doc/reports/report_v1.2.3.md) · [v1.2.2 Milestone Report](https://github.com/mir0n-pro/esquire.explorer/blob/develop/doc/reports/report_v1.2.2.md)
 
-- **esquire.ui.lib** [v1.2.2 Release Report](https://github.com/mir0n-pro/esquire.ui.lib/blob/develop/doc/reports/report_2026_04_19_31750f3.md)
+- **esquire.ui.lib** [v1.2.3 Release Report](https://github.com/mir0n-pro/esquire.ui.lib/blob/develop/doc/reports/report_v1.2.3.md) · [v1.2.2 Release Report](https://github.com/mir0n-pro/esquire.ui.lib/blob/develop/doc/reports/report_2026_04_19_31750f3.md)
 
-- **esquire.db.seed** [v1.2.2 Milestone Report](https://github.com/mir0n-pro/esquire.db.seed/blob/develop/doc/reports/report_v1.2.2.md)
+- **esquire.db.seed** [v1.2.2 Milestone Report](https://github.com/mir0n-pro/esquire.db.seed/blob/develop/doc/reports/report_v1.2.2.md) *(no v1.2.3 changes; schema unchanged)*
 
 ### Deployment
 - [Where To Go — Deployment Plan and Platform Decisions](doc/WhereToGo.md)
@@ -59,7 +59,7 @@ maintenance, permissions, authorization, and accounting.
 
 ## Component Model
 
-![Component Model](doc/media/ComponentModel.svg)
+![Component Model](doc/media/ComponentModel.png)
 
 ---
 
@@ -99,6 +99,83 @@ configuration, and authentication flows including TOTP; runs as a containerized 
 **Esquire Explorer** (Node.js / Angular) — the frontend application; tree-based entity
 browser and operations UI; consumes the `@mir0n-pro/esquire.ui` library; communicates
 exclusively through the gateway REST API.
+
+---
+
+## v1.2.3 — complete (05/08/2026)
+
+v1.2.3 is the **BFF sprint** — Backend-for-Frontend tier introduced between the Angular SPA and
+the Spring Cloud Gateway. The browser is now a thin client over an opaque session cookie; the
+access token never leaves the cluster.
+
+### Headline scope: Backend-for-Frontend (Node.js + Express)
+
+A new tier, `explorer/backend/`, owns three concerns previously split between the SPA and the
+gateway:
+
+- **OIDC code+PKCE flow with Keycloak** — `/auth/login`, `/auth/callback`, `/auth/logout`,
+  `/auth/me`. Per-request `redirect_uri` resolution from `Origin`/`Referer` against an allowlist
+  lets login work from multiple development origins without realm churn.
+- **Server-side session** — `express-session` with HttpOnly + SameSite=Lax cookie; access and
+  refresh tokens stored in the BFF, never in the browser. Anti-fixation regenerates the session
+  id on successful login.
+- **`/api/*` proxy with bearer injection + dictionary cache** — server-to-server hop to the
+  gateway, with an in-memory LRU cache for low-cardinality dictionaries (`/esq-kinds`,
+  `/esq-dictionary`) shared across users on the same pod.
+
+The Angular SPA is baked into the BFF image at build time via a multi-stage Dockerfile. One
+deployable, one container, one ingress route to `/`.
+
+### Keycloak path migration
+
+KC moved from `/auth` to `/kc-auth` (`KC_HTTP_RELATIVE_PATH=/kc-auth`) so the BFF can reserve
+`/auth/*` for its own endpoints on the same host. The `esq-angular` Keycloak client converted
+from public to confidential in place — secret authentication, PKCE S256, no separate
+"BFF client".
+
+### Token security model: BFF cookie replaces JWE
+
+The original v1.2.3 plan included reviving the gateway-side JWE design (encrypt access tokens
+end-to-end, browser holds opaque ciphertext). Empirical investigation against stock Keycloak 26
+proved that KC does not encrypt access tokens at the standard `/token` endpoint regardless of
+client attribute configuration — the encryption code path is wired for ID tokens and JWT-mode
+authorization responses, not for the auth-code token response that every OIDC client uses.
+Achieving JWE on `/token` would require custom Java SPI work.
+
+The BFF cookie design meets the same security goal differently: by **never giving the browser
+the bytes**. Same threat model — different mechanism. The gateway-side JWE artifacts
+(`JweAwareJwtDecoder`, `JwksController`, `/jwe-jwks` endpoint, `esq.jwe.*` config,
+`gateway/JWE.scripts/`, `gateway/conf/jwe-*.pem`) were removed in this sprint.
+The full investigation, alternatives, and parking-lot rationale live in
+[doc/keyCloak-gateway.JWE.md](doc/keyCloak-gateway.JWE.md).
+
+### Production cutover
+
+The single ingress for `esquire.mir0n.pro` is now two rules: `/kc-auth` → KC, `/` → BFF. The
+gateway became `ClusterIP` only — no longer publicly reachable; only the BFF reaches it via
+the in-cluster `esquire-gateway-gateway` service. The legacy standalone `esquire-frontend`
+chart was uninstalled.
+
+### Folded-in minor changes
+
+- **`esquire.ui.lib` — mobile pointer-device support.** `EsqResizeDirective` and
+  `EsqDialogResizeDirective` converted from mouse events to pointer events; touch and pen now
+  work on real mobile. Touch-friendly handle sizes; `setPointerCapture` for reliable drag tracking.
+- **Local k8s rebuild workflow.** `k8s-rebuild.bat` (per-target rebuild + tag-aware deploy) and
+  a tag-aware `k8s-up.bat` work around the Docker Desktop kubelet `:latest` digest cache;
+  `compose-rebuild.bat` mirrors the same flow for the compose path.
+- **OKE production tooling.** `oke-pg-forward.bat` exposes the in-cluster Postgres on
+  `localhost:25432` for pgAdmin4 ops; deliberately distinct from `5432` (system) and `5433`
+  (compose) so multiple connections coexist.
+
+### Backward-incompatible changes
+
+- The gateway is no longer publicly reachable. Any client that was calling
+  `https://esquire.mir0n.pro/api/*` directly with its own bearer token must move to the BFF
+  cookie session, or — for service-to-service automation — call the in-cluster gateway
+  service from inside the cluster.
+- The KC `/auth` URL prefix is gone. Any external configuration referencing
+  `https://esquire.mir0n.pro/auth/realms/esquire/...` must update to `/kc-auth/`.
 
 ---
 

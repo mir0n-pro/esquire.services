@@ -2,7 +2,7 @@
 setlocal
 
 set REGISTRY=ghcr.io/mir0n-pro
-set TAG=v1.2.2
+set TAG=v1.2.3
 set PLATFORMS=linux/amd64,linux/arm64
 
 if "%GHCR_TOKEN%"=="" (
@@ -43,13 +43,16 @@ call :pushSpring keysmith  keySmith
 call :pushSpring kcmaster  kcMaster
 call :pushSpring gateway   gateway
 
-rem === Frontend (separate explorer repo; Dockerfile.k8s) ===
-echo --- Building frontend (multi-arch)...
+rem === Backend / BFF (multi-stage; explorer/backend/Dockerfile builds frontend
+rem        internally and bakes it into /app/public, then runs Node BFF on :3000)
+rem        Build context = explorer/ so Dockerfile reaches both backend/ and frontend/.
+rem        v1.2.3: replaces standalone esquire.frontend image. ===
+echo --- Building backend (BFF + baked SPA, multi-arch)...
 docker buildx build --platform %PLATFORMS% ^
-  -t %REGISTRY%/esquire.frontend:%TAG% ^
+  -t %REGISTRY%/esquire.backend:%TAG% ^
   --push ^
-  -f "%ESQROOT%\explorer\frontend\Dockerfile.k8s" ^
-  "%ESQROOT%\explorer\frontend" || goto :fail
+  -f "%ESQROOT%\explorer\backend\Dockerfile" ^
+  "%ESQROOT%\explorer" || goto :fail
 
 rem === postgres (context = esquire root; Dockerfile copies db.seed and services/postgres/initdb) ===
 echo --- Building postgres (multi-arch)...
@@ -77,6 +80,7 @@ docker buildx build --platform %PLATFORMS% ^
 
 echo.
 echo Done. All 10 images pushed to %REGISTRY% as %TAG% for platforms: %PLATFORMS%
+echo (6 Spring services + backend [BFF + SPA] + postgres + keycloak + activemq)
 echo Verify: docker manifest inspect %REGISTRY%/esquire.gateway:%TAG%
 goto :eof
 

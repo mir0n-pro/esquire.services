@@ -1,38 +1,17 @@
-# Two Ingress resources sharing one host + TLS secret.
-# Reason: nginx-ingress rewrite-target is per-Ingress, but /api needs rewriting
-# (strip /api -> gateway expects no prefix) while /auth must be preserved
-# (KC runs with KC_HTTP_RELATIVE_PATH=/auth, expects /auth in URL path).
----
-# Ingress A: /api/* with path rewrite -> gateway
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: esquire-public-api
-  namespace: default
-  annotations:
-    cert-manager.io/cluster-issuer: letsencrypt-prod
-    nginx.ingress.kubernetes.io/proxy-body-size: 16m
-    nginx.ingress.kubernetes.io/use-regex: "true"
-    nginx.ingress.kubernetes.io/rewrite-target: /$2
-spec:
-  ingressClassName: nginx
-  tls:
-    - hosts:
-        - esquire.mir0n.pro
-      secretName: esquire-tls
-  rules:
-    - host: esquire.mir0n.pro
-      http:
-        paths:
-          - path: /api(/|$)(.*)
-            pathType: ImplementationSpecific
-            backend:
-              service:
-                name: esquire-gateway-gateway
-                port:
-                  number: 8080
----
-# Ingress B: /auth/* and / -> KC and frontend (no path rewrite)
+# Single Ingress for v1.2.3 -- BFF tier owns all browser-facing traffic.
+# Two paths only:
+#   /kc-auth  -> esquire-infra-kc-keycloak:8080   (KC's own /authorize, /token, /jwks; only used during browser KC redirects)
+#   /         -> esquire-backend-backend:3000     (BFF: serves SPA + /auth/* + /api/*)
+#
+# Why only two:
+#   - BFF reads /api/* and /auth/* directly (no prefix stripping needed).
+#   - SPA is baked into the BFF image -- the standalone esquire-frontend chart is retired.
+#   - Gateway is no longer publicly reachable: only the BFF talks to it via the
+#     in-cluster esquire-gateway-gateway:8080 service. This is the v1.2.3
+#     security boundary -- the access token never leaves the cluster.
+#
+# Rollback: apply ingress.v1.2.2.backup.yaml to revert to the legacy three-rule
+# routing (gateway exposed at /api, KC at /auth, frontend at /).
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -46,24 +25,30 @@ spec:
   tls:
     - hosts:
         - esquire.mir0n.pro
-      secretName: esquire-tls       # same secret as Ingress A; cert-manager dedupes
+      secretName: esquire-tls
   rules:
     - host: esquire.mir0n.pro
       http:
         paths:
-          # Keycloak: pass through unchanged (KC expects /auth prefix)
-          - path: /auth
+          # Keycloak's own paths -- /kc-auth/realms/.../protocol/openid-connect/auth etc.
+          # Only the browser hits these (during the KC login redirect dance).
+          # The BFF's server-to-server KC discovery uses the in-cluster
+          # esquire-infra-kc-keycloak:8080 service directly (configured via
+          # backend.yaml's keycloak.issuer).
+          - path: /kc-auth
             pathType: Prefix
             backend:
               service:
                 name: esquire-infra-kc-keycloak
                 port:
                   number: 8080
-          # Frontend: everything else -> nginx serving static SPA
+          # Everything else -> BFF.
+          # BFF serves the baked SPA on / and handles /auth/* + /api/* itself.
+          # Path priority: /kc-auth above wins for KC, / catches the rest.
           - path: /
             pathType: Prefix
             backend:
               service:
-                name: esquire-frontend-frontend
+                name: esquire-backend-backend
                 port:
-                  number: 80
+                  number: 3000

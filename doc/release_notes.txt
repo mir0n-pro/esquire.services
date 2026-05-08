@@ -1,6 +1,16 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v1.2.3-2605.0818  v1.2.3 BFF sprint -- OKE production cutover (BFF goes live at https://esquire.mir0n.pro)
+    :Feature: new values/backend.yaml -- BFF prod overrides (ClusterIP, ghcr v1.2.3,
+               removed values/frontend.yaml
+    :Feature: cluster/ingress.yaml redesigned -- single Ingress, two rules:
+              /kc-auth -> KC, / -> esquire-backend-backend:3000;
+              esquire-public-api ingress retired (gateway no longer publicly reachable)
+    :Config: /auth -> /kc-auth
+    :modified components
+       k8s-oci
+
 v1.2.3-2605.0814  v1.2.3 BFF sprint -- compose/k8s/keycloak alignment with BFF tier (no Java source changes)
     :Config: keycloak -- esq-angular client converted public -> confidential in place; PKCE S256 standard flow;
                           redirectUris include :3000, :4200, host.docker.internal:*, prod;

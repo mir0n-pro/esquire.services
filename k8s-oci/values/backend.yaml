@@ -1,0 +1,50 @@
+# Prod overrides for k8s/charts/esquire-backend
+# Single deployable that serves the baked Angular SPA on / and handles
+# /auth/* (OIDC code+PKCE) and /api/* (server-to-server proxy to gateway).
+image:
+  repository: ghcr.io/mir0n-pro/esquire.backend
+  tag: "v1.2.3"
+  pullPolicy: Always
+
+service:
+  type: ClusterIP            # behind ingress-nginx; no public LB
+  port: 3000                 # container port (BFF listens on 3000 inside)
+  lbPort: 3000               # unused when type=ClusterIP, kept for chart compatibility
+
+# OIDC / Keycloak.
+# issuer must be reachable both from the BFF pod (server-to-server discovery
+# + token exchange) AND from the browser (authorize/end_session redirects).
+# We use the public host so the iss claim and the browser-side redirect URL
+# resolve to the same KC. The BFF pod reaches the same URL via cluster DNS
+# resolution of esquire.mir0n.pro -> ingress-nginx -> KC, which works because
+# OKE pods have DNS access to the public host (egress allowed by default VCN).
+keycloak:
+  issuer: https://esquire.mir0n.pro/kc-auth/realms/esquire
+  clientId: esq-angular
+  # clientSecret comes from a Secret (set via --set keycloak.clientSecret=... at install).
+
+# Gateway service is in-cluster only (ClusterIP per values/gateway.yaml).
+# BFF talks to it on the chart-default service name + port.
+gateway:
+  url: http://esquire-gateway-gateway:8080
+
+# Browser-visible base URL the BFF uses for redirect_uri / post-login Location.
+publicBaseUrl: https://esquire.mir0n.pro
+
+# Origins the BFF accepts on /auth/* requests (besides publicBaseUrl).
+# Production accepts only the canonical https host -- no localhost / no
+# host.docker.internal in prod.
+allowedOrigins: ""
+
+session:
+  # secret comes from a Secret (set via --set session.secret=... at install).
+  cookieMaxAgeMs: 43200000   # 12h
+
+cache:
+  ttlMs: 3600000             # 1h
+  maxEntries: 64
+
+nodeEnv: production
+
+nodeSelector:
+  tier: app

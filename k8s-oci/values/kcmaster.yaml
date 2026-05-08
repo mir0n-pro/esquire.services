@@ -1,7 +1,7 @@
 # Prod overrides for k8s/charts/esquire-kcmaster
 image:
   repository: ghcr.io/mir0n-pro/esquire.kcmaster
-  tag: "v1.2.2"
+  tag: "v1.2.3"
   pullPolicy: Always
 
 springProfilesActive: console
@@ -11,7 +11,7 @@ messaging:
   clientId: kcmaster
 
 keycloak:
-  baseUrl: http://esquire-infra-kc-keycloak:8080/auth   # internal KC URL + /auth
+  baseUrl: http://esquire-infra-kc-keycloak:8080/kc-auth   # internal KC URL + /kc-auth (v1.2.3)
   realm: esquire
   adminClientId: admin-cli
   adminClientSecret: ""

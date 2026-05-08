@@ -1,7 +1,7 @@
 # Prod overrides for k8s/charts/esquire-keysmith
 image:
   repository: ghcr.io/mir0n-pro/esquire.keysmith
-  tag: "v1.2.2"
+  tag: "v1.2.3"
   pullPolicy: Always
 
 springProfilesActive: console,dev-postgres
