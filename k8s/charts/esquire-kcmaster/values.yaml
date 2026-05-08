@@ -3,6 +3,8 @@ image:
   tag: latest
   pullPolicy: IfNotPresent
 
+springProfilesActive: console
+
 service:
   port: 3006
 

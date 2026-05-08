@@ -9,11 +9,16 @@ service:
 
 keycloak:
   mode: start-dev          # start-dev for local; start for prod
-  hostname: localhost       # esquire.mir0n.pro in prod
+  # host.docker.internal is the only hostname that resolves correctly from BOTH
+  # browser-on-host (via Windows hosts file, automatic on Docker Desktop) AND
+  # from inside pods (Docker Desktop k8s injects it). Lets KC's discovery doc
+  # return a single set of URLs that work for both legs of the OIDC flow.
+  hostname: host.docker.internal
   realm: esquire
   adminUsername: admin
   adminPassword: q
   clientId: esq-angular
+  httpRelativePath: /kc-auth   # KC serves under /kc-auth so the BFF owns /auth/*
 
 storage:
   storageClass: standard
