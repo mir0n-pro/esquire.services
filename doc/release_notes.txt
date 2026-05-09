@@ -1,6 +1,41 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v1.2.3-2605.0818  v1.2.3 BFF sprint -- OKE production cutover (BFF goes live at https://esquire.mir0n.pro)
+    :Feature: new values/backend.yaml -- BFF prod overrides (ClusterIP, ghcr v1.2.3,
+               removed values/frontend.yaml
+    :Feature: cluster/ingress.yaml redesigned -- single Ingress, two rules:
+              /kc-auth -> KC, / -> esquire-backend-backend:3000;
+              esquire-public-api ingress retired (gateway no longer publicly reachable)
+    :Config: /auth -> /kc-auth
+    :modified components
+       k8s-oci
+
+v1.2.3-2605.0814  v1.2.3 BFF sprint -- compose/k8s/keycloak alignment with BFF tier (no Java source changes)
+    :Config: keycloak -- esq-angular client converted public -> confidential in place; PKCE S256 standard flow;
+                          redirectUris include :3000, :4200, host.docker.internal:*, prod;
+                          KC_HTTP_RELATIVE_PATH set to /kc-auth (from /auth) -- shared by browser KC redirects and BFF discovery
+    :Config: compose -- new backend service (BFF, multi-stage build of explorer/backend with baked SPA);
+                        new frontend service (ng-serve live-reload :4200, proxy.conf.docker.json -> backend:3000);
+                        KC TCP healthcheck on :8080 (KC 26.4.7 mgmt-endpoint quirk on :9000);
+                        gateway env KEYCLOAK_PATH=/kc-auth;
+                        backend ALLOWED_ORIGINS=http://localhost:3000,http://localhost:4200 (dual-port login UX);
+                        added compose-rebuild.bat (mvn + docker compose build + recreate; per-service or all)
+    :Config: k8s -- new chart esquire-backend (BFF; strategy: Recreate; Secret + ConfigMap; LoadBalancer lbPort 4200);
+                    gateway chart configmap pre-resolves SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI directly
+                    (Spring Boot 3.5 ${KEYCLOAK_PATH:} placeholder fails to interpolate under envFrom);
+                    gateway/biztree/enyman/pacman/keysmith/kcmaster values.yaml: springProfilesActive defaults baked in
+                    (sidesteps helm --set comma-escape issue);
+                    infra/keycloak values.yaml: hostname=host.docker.internal, httpRelativePath=/kc-auth,
+                    securityContext.fsGroup=1000, KC_HTTP_ENABLED=true
+    :Feature: k8s scripts (local Docker Desktop dev workflow) -- YYMM.DDHH tag (or YYMM.DDHHmm on collision)
+    :Doc: doc/keyCloak-gateway.JWE.md SUPERSEDED preamble expanded with v1.2.3 findings
+    :modified components
+       compose,
+       k8s,
+       keycloak,
+       doc
+
 v1.2.2-2604.2217  local k8s deployment
   :doc added doc/OCI.Pricing.md
        added doc/WhereToGo.md

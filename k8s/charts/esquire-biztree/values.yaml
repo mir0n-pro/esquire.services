@@ -3,6 +3,10 @@ image:
   tag: latest
   pullPolicy: IfNotPresent
 
+# console profile = logback config; dev-postgres = JDBC datasource + named queries;
+# cache-h2 = biztree-specific local cache. OKE values override this.
+springProfilesActive: "console,dev-postgres,cache-h2"
+
 service:
   port: 3002
 

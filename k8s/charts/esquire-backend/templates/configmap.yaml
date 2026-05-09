@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-backend-config
+  labels:
+    app: {{ .Release.Name }}-backend
+data:
+  PORT:               {{ .Values.service.port | quote }}
+  NODE_ENV:           {{ .Values.nodeEnv | quote }}
+  KC_ISSUER:          {{ .Values.keycloak.issuer | quote }}
+  KC_CLIENT_ID:       {{ .Values.keycloak.clientId | quote }}
+  GATEWAY_URL:        {{ .Values.gateway.url | quote }}
+  PUBLIC_BASE_URL:    {{ .Values.publicBaseUrl | quote }}
+  ALLOWED_ORIGINS:    {{ .Values.allowedOrigins | quote }}
+  SESSION_MAX_AGE_MS: {{ .Values.session.cookieMaxAgeMs | quote }}
+  ESQ_DICT_CACHE_TTL_MS: {{ .Values.cache.ttlMs | quote }}
+  ESQ_DICT_CACHE_MAX:    {{ .Values.cache.maxEntries | quote }}

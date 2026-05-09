@@ -1,7 +1,7 @@
 # Prod overrides for k8s/charts/esquire-biztree
 image:
   repository: ghcr.io/mir0n-pro/esquire.biztree
-  tag: "v1.2.2"
+  tag: "v1.2.3"
   pullPolicy: Always
 
 # Activates 'console' profile in logback-spring.xml; develop/msg loggers go to stdout

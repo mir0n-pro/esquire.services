@@ -62,14 +62,17 @@ services:
       KC_HOSTNAME_STRICT_BACKCHANNEL: "false"
       KC_HOSTNAME_STRICT_HTTPS: "false"
       KC_HEALTH_ENABLED: "true"
+      KC_HTTP_RELATIVE_PATH: /kc-auth
     volumes:
       - ./data/keycloak:/opt/keycloak/data
       - ../keycloak/import/esquire.json:/opt/keycloak/data/import/realm.json
     healthcheck:
-      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/9000; echo -e 'GET /health/ready HTTP/1.1\r\nhost: localhost\r\nConnection: close\r\n\r\n' >&3; grep 'HTTP/1.1 200 OK' <&3"]
+      # KC 26.4.7 management interface on :9000 returns 404 for /health/ready; TCP probe on :8080 sidesteps it.
+      test: ["CMD-SHELL", "bash -c '</dev/tcp/127.0.0.1/8080' 2>/dev/null"]
       interval: 10s
       timeout: 5s
-      retries: 5      
+      retries: 5
+      start_period: 20s
     networks:
       - esquirenet
 
@@ -312,13 +315,14 @@ services:
       - BACKEND_HOST=localhost
       - KEYCLOAK_HOST=esq-keycloak
       - KEYCLOAK_PORT=8080
+      - KEYCLOAK_PATH=/kc-auth
       - KEYCLOAK_REALM=esquire
       - KEYCLOAK_CLIENT_ID=esq-angular
-      - CORS_ALLOWED_ORIGINS=http://localhost:4200
+      - CORS_ALLOWED_ORIGINS=http://localhost:4200,http://localhost:3000
       - LOG_LEVEL_ROOT=ERROR
       - LOG_LEVEL_SF=ERROR
       - LOG_LEVEL_MIR0N=DEBUG
-      - GW_SERVICE_METRICS_ENABLED=true 
+      - GW_SERVICE_METRICS_ENABLED=true
     command: ["java", "-jar", "app.jar"]
     depends_on:
       keycloak:
@@ -328,43 +332,66 @@ services:
     networks:
       - esquirenet
 
-  frontend:
-    container_name: esq-frontend
+  backend:
+    container_name: esq-backend
     build:
-      context: .
-#      secrets:
-#        - npmrc        
-    image: esquire.frontend
+      context: ../../explorer
+      dockerfile: backend/Dockerfile
+    image: esquire.backend
     ports:
-      - "4200:4200"
+      - "3000:3000"
     environment:
-      # These variables are injected into assets/config.json at container start
-      - BACKEND_HOST=localhost
-      - BACKEND_PORT=7070
-      - KEYCLOAK_FACADE_HOST=localhost
-      - KEYCLOAK_FACADE_PORT=8080
-      - KEYCLOAK_REALM=esquire
-      - KEYCLOAK_CLIENT_ID=esq-angular
-    # Command overrides angular.json for Docker without changing local code
-    command: >
-          /bin/sh -c "
-          envsubst < ./public/assets/config.json.template > ./public/assets/config.json && 
-          npx ng serve --host 0.0.0.0 --port 4200 --poll 2000
-          "
+      - PORT=3000
+      # NODE_ENV=development keeps session.cookie.secure=false so the cookie
+      # works over plain HTTP on localhost:3000. Switch to "production" when
+      # the deployment fronts the BFF with HTTPS (k8s ingress + cert-manager).
+      - NODE_ENV=development
+      # KC discovery URLs come back with KC_HOSTNAME (set to "localhost" on the
+      # keycloak service), so BFF talks to KC via http://localhost:8080 too.
+      # extra_hosts maps "localhost" -> the host gateway so this resolves
+      # inside the container to the same KC the browser hits.
+      - KC_ISSUER=http://localhost:8080/kc-auth/realms/esquire
+      - KC_CLIENT_ID=esq-angular
+      - KC_CLIENT_SECRET=esq-angular-bff-dev-secret-rotate-in-prod
+      - GATEWAY_URL=http://gateway:7070
+      - PUBLIC_BASE_URL=http://localhost:3000
+      # Login from :4200 (ng serve dev container) lands back on :4200; from
+      # :3000 (production-style baked SPA) lands back on :3000. Origins not
+      # in this list (or absent referer/origin headers) fall back to PUBLIC_BASE_URL.
+      - ALLOWED_ORIGINS=http://localhost:3000,http://localhost:4200
+      - SESSION_SECRET=esq-bff-dev-session-secret-rotate-in-prod
+    extra_hosts:
+      - "localhost:host-gateway"
     depends_on:
       gateway:
         condition: service_healthy
+      keycloak:
+        condition: service_healthy
     networks:
       - esquirenet
-      
-##    volumes:
-##      - .:/app
-##      - /app/node_modules # Prevents local node_modules from overwriting container's
-## Mount ONLY the template as read-only
-##      - ./public/assets/config.json.template:/public/assets/config.json.template:ro
-#secrets:
-#  npmrc:
-#    file: ./.npmrc_composer 
+
+  # Live-reload Angular dev container. Optional: skip this service on prod-like
+  # runs by using `docker compose up backend` (or any subset that excludes
+  # frontend). The :3000 backend image already bakes the Angular SPA, so the
+  # dev server here is only useful when iterating on frontend code.
+  frontend:
+    container_name: esq-frontend
+    build:
+      context: ../../explorer/frontend
+    image: esquire.frontend
+    ports:
+      - "4200:4200"
+    command: >
+      npx ng serve
+      --host 0.0.0.0
+      --port 4200
+      --proxy-config proxy.conf.docker.json
+      --poll 2000
+    depends_on:
+      backend:
+        condition: service_started
+    networks:
+      - esquirenet
 
 networks:
   esquirenet:

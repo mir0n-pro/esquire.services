@@ -1,0 +1,48 @@
+image:
+  repository: esquire.backend
+  tag: latest
+  pullPolicy: IfNotPresent
+
+service:
+  # LoadBalancer for local Docker Desktop k8s -- auto-binds to localhost and is
+  # reachable via host.docker.internal too. OKE values override to ClusterIP
+  # (production fronted by ingress-nginx).
+  type: LoadBalancer
+  port: 3000          # container port (unchanged: BFF listens on 3000 inside)
+  lbPort: 4200        # external port -- match the e2e default BASE_URL=4200
+
+# OIDC / Keycloak. The issuer must be a URL reachable both from inside the BFF
+# pod (server-to-server discovery + token exchange) and from the browser
+# (authorize/end_session redirects). On Docker Desktop k8s, host.docker.internal
+# satisfies both: pods get a HostAlias for it automatically; the host resolves
+# it via the Windows hosts file. KC's chart sets KC_HOSTNAME=host.docker.internal
+# and exposes the service as LoadBalancer on lbPort 8080 -- so the issuer URL
+# below is reachable both ways without any port-forward.
+keycloak:
+  issuer: http://host.docker.internal:8080/kc-auth/realms/esquire
+  clientId: esq-angular
+  # clientSecret comes from a Secret (set via --set keycloak.clientSecret=... at install).
+
+# Gateway service is LoadBalancer with lbPort 8808 (not 8080); BFF talks to it
+# via the cluster service name on that port.
+gateway:
+  url: http://esquire-gateway-gateway:8808
+
+# Browser-visible base URL the BFF uses for redirect_uri / post-login Location.
+# Matches the LoadBalancer external mapping (lbPort 4200).
+publicBaseUrl: http://host.docker.internal:4200
+
+# Origins (besides publicBaseUrl) the BFF accepts on /auth/* requests.
+# Lets login work from either host.docker.internal:* or localhost:*
+# (Docker Desktop k8s LoadBalancer is reachable via both).
+allowedOrigins: "http://host.docker.internal:3000,http://localhost:4200,http://localhost:3000"
+
+session:
+  # secret comes from a Secret (set via --set session.secret=... at install).
+  cookieMaxAgeMs: 43200000   # 12h
+
+cache:
+  ttlMs: 3600000             # 1h
+  maxEntries: 64
+
+nodeEnv: production

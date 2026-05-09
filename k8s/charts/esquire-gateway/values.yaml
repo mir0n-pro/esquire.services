@@ -3,6 +3,9 @@ image:
   tag: latest
   pullPolicy: IfNotPresent
 
+# Default profile for local k8s. OKE values/gateway.yaml overrides this.
+springProfilesActive: console
+
 service:
   port: 8080
   lbPort: 8808
@@ -10,6 +13,7 @@ service:
 keycloak:
   host: esquire-infra-kc-keycloak
   port: 8080
+  path: /kc-auth   # matches KC_HTTP_RELATIVE_PATH on the KC pod
   realm: esquire
   clientId: esq-angular
 

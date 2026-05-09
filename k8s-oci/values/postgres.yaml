@@ -1,7 +1,7 @@
 # Prod overrides for k8s/charts/infra/postgres
 image:
   repository: ghcr.io/mir0n-pro/esquire-postgres
-  tag: "v1.2.2"
+  tag: "v1.2.3"
   pullPolicy: Always
 
 storage:

@@ -12,6 +12,11 @@ data:
   KEYCLOAK_PATH:        {{ .Values.keycloak.path | default "" | quote }}
   KEYCLOAK_REALM:       {{ .Values.keycloak.realm | quote }}
   KEYCLOAK_CLIENT_ID:   {{ .Values.keycloak.clientId | quote }}
+  # Spring's ${KEYCLOAK_PATH:} placeholder in application.yml resolves to empty
+  # in some envs (Spring Boot 3.5 + envFrom configMapRef + empty default value),
+  # which breaks the JWKS fetch URL when KC uses KC_HTTP_RELATIVE_PATH. Override
+  # the resolved property directly to sidestep placeholder interpolation.
+  SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI: {{ printf "http://%s:%v%s/realms/%s/protocol/openid-connect/certs" .Values.keycloak.host (.Values.keycloak.port | toString) (.Values.keycloak.path | default "") .Values.keycloak.realm | quote }}
   BIZTREE_HOST:         {{ .Values.backends.biztreeHost | quote }}
   BIZTREE_PORT:         {{ .Values.backends.biztreePort | quote }}
   ENYMAN_HOST:          {{ .Values.backends.enymanHost | quote }}

@@ -1,7 +1,7 @@
 # Prod overrides for k8s/charts/esquire-gateway
 image:
   repository: ghcr.io/mir0n-pro/esquire.gateway
-  tag: "v1.2.2"
+  tag: "v1.2.3"
   pullPolicy: Always
 
 springProfilesActive: console
@@ -14,7 +14,7 @@ service:
 keycloak:
   host: esquire-infra-kc-keycloak
   port: 8080
-  path: /auth                       # matches KC_HTTP_RELATIVE_PATH set on KC pod
+  path: /kc-auth                    # matches KC_HTTP_RELATIVE_PATH set on KC pod (v1.2.3)
   realm: esquire
   clientId: esq-angular
 
