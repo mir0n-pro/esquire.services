@@ -1,7 +1,9 @@
 | ![Alt text](./favicon.ico) | Esquire Frameworks(tm) 2.0 |
 |----------------------------|---------------------------|
 
-> **v1.2.3 — complete (05/08/2026).** Backend-for-Frontend (BFF) tier landed in production at [esquire.mir0n.pro](https://esquire.mir0n.pro). The browser now holds an opaque session cookie; the access token stays in-cluster. The gateway is no longer publicly reachable — only the BFF reaches it via the in-cluster service. KC moved from `/auth` to `/kc-auth` (BFF reserves `/auth/*` for its own login/callback/logout/me). Standalone frontend chart retired; SPA is baked into the BFF image. See [v1.2.x Planning](doc/v1.2.x.Planning.md) for the release line and upcoming sprint backlog.
+> **v1.2.4 — in development.** Stress-test suite (codename "t-shirt") under `explorer/t-shirt/`: a Java pure-REST client built on **Gatling** (Java DSL), driving load against the gateway via OAuth2 client-credentials. Reusable Chains for the entity + accounting commands compose into Simulations; concurrency comes from Gatling's injection profiles. Gatling becomes the Esquire standard for integration / stress / load testing — see [doc/Testing.md](doc/Testing.md). Side benefit: a clean lab to revisit the JWE question shelved in v1.2.3 — under client-credentials grant rather than auth-code. Themes, candidate work items, and progress are tracked in [v1.2.x Planning](doc/v1.2.x.Planning.md).
+
+> **v1.2.3 — complete (05/08/2026).** Backend-for-Frontend (BFF) tier landed in production at [esquire.mir0n.pro](https://esquire.mir0n.pro). The browser now holds an opaque session cookie; the access token stays in-cluster. KC moved from `/auth` to `/kc-auth` (BFF reserves `/auth/*` for its own login/callback/logout/me). Standalone frontend chart retired; SPA is baked into the BFF image. Gateway became ClusterIP-only at v1.2.3 close; v1.2.4 will re-expose it publicly (auth gated by KC JWT) for the t-shirt and future REST integrations.
 
 Frameworks for organizing business entities in a tree, for any business or activity.
 The framework covers the traditional backoffice feature set: entity onboarding, profile
