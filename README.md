@@ -89,16 +89,24 @@ requests to the IAM bus.
 **kcMaster** — Keycloak IAS sync coordinator; the only service that writes to Keycloak directly;
 consumes identity commands from the IAM bus and executes create / update / delete in the IAM.
 
-**gateway** — Spring Cloud Gateway; the single entry point for all frontend traffic; routes
-requests to the appropriate backend service by path and entity kind; validates JWT tokens on
-every request.
+**gateway** — Spring Cloud Gateway; the in-cluster API router; routes requests to the
+appropriate backend service by path and entity kind; validates JWT tokens on every request.
+v1.2.3: ClusterIP-only — only the BFF reaches it; no longer publicly addressable.
 
 **Keycloak** — external IAM; issues JWT access tokens; manages user identities, realm
 configuration, and authentication flows including TOTP; runs as a containerized service.
 
-**Esquire Explorer** (Node.js / Angular) — the frontend application; tree-based entity
-browser and operations UI; consumes the `@mir0n-pro/esquire.ui` library; communicates
-exclusively through the gateway REST API.
+**Esquire Explorer Backend** (Node.js BFF tier) — Backend-for-Frontend; the public entry
+point at `https://esquire.mir0n.pro`. Owns the OIDC code+PKCE flow with Keycloak
+(`/auth/login`, `/callback`, `/logout`, `/me`); proxies `/api/*` to the gateway with bearer
+injection; caches static entity dictionaries (`/esq-kinds`, `/esq-dictionary`) per pod, shared
+across users; bakes the Angular SPA into its image at build time and serves it on `/`. The
+browser never sees the access token — it holds an opaque session cookie.
+
+**Esquire Explorer Frontend** (Angular SPA) — the user-facing tree explorer and operations UI;
+consumes the `@mir0n-pro/esquire.ui` library; communicates only with the BFF via same-origin
+`/auth/*` and `/api/*`, never directly with the gateway or Keycloak. Shipped baked into the
+BFF image; one deployable.
 
 ---
 
