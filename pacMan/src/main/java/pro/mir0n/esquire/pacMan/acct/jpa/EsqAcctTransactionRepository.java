@@ -2,7 +2,7 @@
  *  Esquire frameworks (tm)
  *  PacMan service
  *
- *  Copyright(c) 2001, 2026 mir0n&co www.mir0n.me
+ *  Copyright(c) 2001, 2026 mir0n&co www.mir0n.pro
  *
  *  History:
  * 04/09/2026 mir0n  created: insertAcctTransaction 14-param native INSERT
@@ -45,4 +45,13 @@ public interface EsqAcctTransactionRepository extends JpaRepository<EsqAcctTrans
         @Param("ccyIncoming") String ccyIncoming,
         @Param("convRate")    Double convRate
     );
+
+    // Bulk delete of all transactions for an account. Called from
+    // PacManService.deleteAcct only when the account's ep_path sits inside
+    // the seeded Test House subtree ("1.14."); never reached for production
+    // accounts.
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Transactional
+    @NativeQuery
+    int deleteAcctTransactionsByAccPk(@Param("accPk") long accPk);
 }

@@ -3,7 +3,7 @@
 # /auth/* (OIDC code+PKCE) and /api/* (server-to-server proxy to gateway).
 image:
   repository: ghcr.io/mir0n-pro/esquire.backend
-  tag: "v1.2.3"
+  tag: "v1.2.4-2605.1723"
   pullPolicy: Always
 
 service:

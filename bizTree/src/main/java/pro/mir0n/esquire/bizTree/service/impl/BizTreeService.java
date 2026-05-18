@@ -2,7 +2,7 @@
  *  Esquire frameworks (tm)
  *  BizTree service
  *
- *  Copyright(c) 2001, 2025 mir0n&co www.mir0n.me
+ *  Copyright(c) 2001, 2026 mir0n&co www.mir0n.pro
  *  mailto:mir0n.the.programmer@gmail.com
  *
  *  History:
@@ -18,6 +18,8 @@
  * 03/20/2026 mir0n  switched from EsqTreeNodeRepository to IBizTreeCacheRepository (H2 in-memory cache)
  * 03/21/2026 mir0n  devLog added; log.debug→devLog.debug
  * 04/16/2026 mir0n  rootId extracted as named local variable
+ * 05/14/2026 mir0n  esquireSubtree(id, rootPath, uid) implementation for /esq-tree
+ *                   (recursive subtree from biztree H2 cache; via IBizTreeCacheRepository.findSubtree)
  */
 
 package pro.mir0n.esquire.bizTree.service.impl;
@@ -115,6 +117,20 @@ public class BizTreeService  implements IBizTreeService {
         }
         devLog.debug("srvc: esquirePath(2): path:{}", id, path);
         return path;
+    }
+
+    @Override
+    public List<EsqTreeNode> esquireSubtree(String id, String rootPath, String uid) {
+        List<String> path = EsqTreeNodeMapper.pathArray(rootPath);
+        int rootLevel = rootLevel(path, uid);
+        devLog.debug("srvc: esquireSubtree: id:{}, rootPath:{}, uid:{}, level:{}", id, rootPath, uid, rootLevel);
+
+        List<EsqTreeNodeJpa> nodes = treeNodeRepository.findSubtree(id, rootLevel, rootPath);
+        if (nodes == null) {
+            throw new ResourceNotFoundException("esquireSubtree", "id", id == null ? "''" : id);
+        }
+        devLog.debug("srvc: esquireSubtree: nodes:{}", nodes.size());
+        return EsqTreeNodeMapper.mapTo(nodes, new ArrayList<>());
     }
 
     private int rootLevel(List<String> path, String uid) {

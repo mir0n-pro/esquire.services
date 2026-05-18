@@ -1,5 +1,65 @@
 Esquire Gateway Microservice
 
+05/14/2026 mir0n  v1.2.4 -- Token Relay subsystem (Vanilla + Phantom variants); LandingController; four-layer observability; /esq-tree route
+config.SecurityConfig
+  - jwtDecoder bean: NimbusReactiveJwtDecoder against KC JWKS, optionally wrapped by
+    JweAwareJwtDecoder when esq.jwe.private-key-path is set; 5-part JWE tokens decrypted to
+    inner JWS, 3-part JWS pass through
+  - buildTokenRelayFilter() builds the single TokenRelayFilter inline (NOT @Bean -- would
+    auto-register globally in WebFlux and double-run after rewrite); injects
+    List<ITokenRelayVariant>; added before SecurityWebFiltersOrder.AUTHENTICATION
+  - reads esq.gateway.token-relay.{token-uri, vanilla.clients, phantom.clients,
+    phantom.exchange-client-id, phantom.exchange-client-secret} via @Value
+  - CORS exposed-headers extended with the four observability headers
+    (X-Response-Time, Esq-Gw-Inner-Time, Esq-Srv-Outer-Time, Esq-Srv-Inner-Time)
+security/tokenrelay/  (new sub-package -- 10 files; replaces 8 prior parallel classes)
+  - TokenRelayFilter: single WebFilter; iterates configured ITokenRelayVariant list; first
+    variant returning Relay or Reject wins; cache lookup, KC call on MISS, Authorization
+    header rewrite, chain dispatch
+  - TokenRelayCache: ConcurrentHashMap<String, ExpiringJwt> keyed by variant-supplied
+    cacheKey; shared by both variants
+  - ITokenRelayClient + WebClientTokenRelayClient: single KC /token caller; takes
+    KcTokenRequest (form params + Basic auth), returns ExpiringJwt
+  - ITokenRelayVariant: SPI returning VariantAction sealed type (Pass | Reject | Relay)
+  - VanillaTokenRelay: HTTP Basic at edge -> client_credentials grant; cacheKey = client_id;
+    inbound-Bearer-with-azp-in-allowlist rejected with 401 (closes architectural-bypass gap)
+  - PhantomTokenRelay: stripped Bearer at edge -> RFC 8693 token-exchange via confidential
+    esq-gw-exchange client; cacheKey = source-token jti
+  - KcTokenRequest, ExpiringJwt, VariantAction: shared records / sealed type
+security.JwtClaimPeek  (new)
+  - shared utility for peeking JWT azp / jti claims without signature validation;
+    used by both Token Relay variants as a routing decision before the downstream JWS
+    validator runs
+security.JweAwareJwtDecoder
+  - kept armed but inert -- KC 26 still does not emit JWE on /token; topic parked until
+    v1.3+ or alternative IAS
+security.JwksController
+  - kept armed alongside JweAwareJwtDecoder; serves the gateway-side RSA public key
+- security.IntrospectionAwareJwtDecoder  (REMOVED -- intermediate JWS+ design, superseded by Vanilla Token Relay)
+- security.IntrospectionClient            (REMOVED)
+- security.WebClientIntrospectionClient   (REMOVED)
+LandingController  (new)
+  - GET / serves HTML landing page (og-banner image) for visitors hitting the public REST
+    API host (api.esquire.mir0n.pro); replaces stock Spring 404 ProblemDetail at root;
+    no SecurityConfig change needed (anyExchange().permitAll() covers /)
+filters.RequestTraceFilter
+  - converted from Spring Cloud Gateway GlobalFilter @Order(1) to a WebFilter
+    @HIGHEST_PRECEDENCE so the START timestamp is captured BEFORE Spring Security runs
+    (auth-layer time -- Token Relay broker/exchange calls -- is now part of the gateway
+    OUTER timer)
+filters.ResponseTraceFilter
+  - stays a GlobalFilter @Order(0) so .then() fires before NettyWriteResponseFilter (-1)
+    commits; consumes the start attribute set by RequestTraceFilter; service-tier headers
+    renamed to Esq-Srv-Outer-Time / Esq-Srv-Inner-Time (was Esq-Service-Time / Esq-Backend-Time)
+filters.InnerTimerFilter  (new)
+  - GlobalFilter @Order(0) measuring the downstream-call-only window; captures
+    Esq-Gw-Inner-Start-Time at the beginning of the proxied call, computes Esq-Gw-Inner-Time
+    at .then(); paired with RequestTraceFilter for the outer-vs-inner breakdown
+src/main/resources/application.yml
+  - esq.gateway.token-relay umbrella -- token-uri shared, vanilla.clients,
+    phantom.{clients, exchange-client-id, exchange-client-secret}
+  - exposed-headers includes the four observability headers
+
 04/07/2026 mir0n  EntityKindRoutePredicateFactory; esq-cmd-new/del routes; EsqObjectKindStorage init
 + config.EntityKindRoutePredicateFactory  (new)
   - custom RoutePredicateFactory: tests kind query param via EsqObjectKindStorage (isAcct/isOrg/isUsr)

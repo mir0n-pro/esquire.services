@@ -2,7 +2,7 @@
  *  Esquire frameworks (tm)
  *  BizTree service
  *
- *  Copyright(c) 2001, 2025 mir0n&co www.mir0n.me
+ *  Copyright(c) 2001, 2026 mir0n&co www.mir0n.pro
  *  mailto:mir0n.the.programmer@gmail.com
  *
  *  History:
@@ -20,6 +20,8 @@
  * 04/06/2026 mir0n  moveUsrNode(): admin-aware orgPk extraction using isPathParentOnly()
  * 04/07/2026 mir0n  moveUsrNode(): param renamed kind; EsqObjectKindStorage.get() receives raw kind
  * 04/16/2026 mir0n  insertAcctNode, moveOrgNode, moveUsrNode, moveAcctNode: null-guard replaces early returns
+ * 05/14/2026 mir0n  findSubtree(seedId, rootLevel, rootPath) implementation: SELECT_SUBTREE_SQL
+ *                   recursive walk by tree_path LIKE seed.tree_path || '%' (rootPath-scoped)
  */
 package pro.mir0n.esquire.bizTree.cache.impl;
 
@@ -205,6 +207,12 @@ public class BizTreeCacheRepository implements IBizTreeCacheRepository {
     public void deleteNodes(String entityId) {
         int ret = cache.update(sql.repo.deleteNode(), entityId);
         devLog.debug("BizTreeCacheRepository: deleteNodes entityId={} rows={}", entityId, ret);
+    }
+
+    @Override
+    public List<EsqTreeNodeJpa> findSubtree(String seedId, int rootLevel, String rootPath) {
+        String q = sql.repo.selectCols() + sql.repo.findSubtree();
+        return cache.query(q, NODE_MAPPER, rootLevel, seedId, rootPath + "%");
     }
 
     @Override

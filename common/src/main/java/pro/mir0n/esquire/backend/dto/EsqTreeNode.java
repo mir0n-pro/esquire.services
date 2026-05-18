@@ -2,13 +2,15 @@
  *  Esquire frameworks (tm)
  *  common library
  *
- *  Copyright(c) 2001, 2025 mir0n&co www.mir0n.me
+ *  Copyright(c) 2001, 2026 mir0n&co www.mir0n.pro
  *  mailto:mir0n.the.programmer@gmail.com
  *
  *  History:
  * 12/26/2025 mir0n  refine API doc
  * 02/03/2026 mir0n  extends EsqThing
  * 02/13/2026 mir0n removed treeFlags
+ * 05/14/2026 mir0n  entityPath String field added (raw ep_path / tree_entity_path; the diff axis for
+ *                   the hauberk CompareTrees scenario between biztree cache and natural-FK subtree)
  */
 
 package pro.mir0n.esquire.backend.dto;
@@ -72,5 +74,15 @@ public class EsqTreeNode extends EsqThing {
             description = "Object description", example = "Entity description"
     )
     private String desc;
+
+    @Schema(
+            description = "Raw entity-path string (esq_entity_path.ep_path on the "
+                        + "DB side; ESQ_TREE.tree_entity_path on the biztree side). "
+                        + "Both should be identical when the cache is in sync. "
+                        + "Distinct from path (which on biztree is the navigation "
+                        + "tree path traversing folder nodes).",
+            example = "1.5.12."
+    )
+    private String entityPath;
 
 }

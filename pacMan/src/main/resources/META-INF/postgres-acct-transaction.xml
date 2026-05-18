@@ -26,6 +26,12 @@
         </query>
     </named-native-query>
 
+    <named-native-query name="EsqAcctTransactionJpa.deleteAcctTransactionsByAccPk">
+        <query>
+ DELETE FROM esq_acct_transaction WHERE atr_acc_pk = CAST(:accPk AS bigint)
+        </query>
+    </named-native-query>
+
     <sql-result-set-mapping name="EsqAcctTransactionJpaMapping">
         <entity-result entity-class="pro.mir0n.esquire.pacMan.acct.jpa.EsqAcctTransactionJpa">
             <field-result name="id"          column="atr_pk"/>

@@ -12,6 +12,11 @@ if not "%CTX%"=="docker-desktop" (
   exit /b 1
 )
 
+rem Drop the public ingress first so traffic stops being routed to the
+rem soon-to-be-deleted backends. Idempotent: ignore "not found".
+echo --- Deleting public ingress...
+kubectl delete -f cluster\ingress.yaml --ignore-not-found=true
+
 call helm uninstall esquire-backend
 call helm uninstall esquire-gateway
 
@@ -24,3 +29,7 @@ call helm uninstall esquire-biztree
 call helm uninstall esquire-infra-kc
 call helm uninstall esquire-infra-amq
 call helm uninstall esquire-infra
+
+rem Note: MetalLB + ingress-nginx are NOT uninstalled. They're cluster-wide
+rem prerequisites that survive Esquire teardown (managed by addMetalLB.bat
+rem + addIngressNginx.bat one-time installs).

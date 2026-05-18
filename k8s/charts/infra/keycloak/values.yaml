@@ -3,17 +3,20 @@ image:
   tag: "26.4.7"
   pullPolicy: IfNotPresent
 
+# ClusterIP for both local and OKE -- both environments front KC via
+# ingress-nginx (local: esquire.localhost/kc-auth; OKE: esquire.mir0n.pro/kc-auth).
 service:
+  type: ClusterIP
   port: 8080
-  lbPort: 8080
+  lbPort: 8080         # service port, aligned to container port (no LB tier)
 
 keycloak:
   mode: start-dev          # start-dev for local; start for prod
-  # host.docker.internal is the only hostname that resolves correctly from BOTH
-  # browser-on-host (via Windows hosts file, automatic on Docker Desktop) AND
-  # from inside pods (Docker Desktop k8s injects it). Lets KC's discovery doc
-  # return a single set of URLs that work for both legs of the OIDC flow.
-  hostname: host.docker.internal
+  # KC_HOSTNAME is the public hostname KC uses for discovery / token-iss /
+  # browser redirects. Local uses the ingress host esquire.localhost (resolves
+  # to 127.0.0.1 per RFC 6761 in modern browsers, no hosts file edit needed);
+  # OKE overlay overrides to esquire.mir0n.pro.
+  hostname: esquire.localhost
   realm: esquire
   adminUsername: admin
   adminPassword: q

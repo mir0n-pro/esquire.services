@@ -1,3 +1,29 @@
+esq:
+  jwe:
+    # When set, JweAwareJwtDecoder is wired and JwksController serves the public
+    # key at GET /jwe-jwks so KC can fetch it to encrypt access tokens. Blank or
+    # missing -> plain JWS decoder (v1.2.3 baseline). Compose mounts the keypair
+    # via volume; ESQ_JWE_PRIVATE_KEY_PATH points at the in-container path.
+    private-key-path: ${ESQ_JWE_PRIVATE_KEY_PATH:}
+  gateway:
+    token-relay:
+      # Token Relay umbrella -- the gateway brokers/exchanges JWTs on behalf
+      # of inbound clients and forwards a full JWT downstream. Two variants
+      # share the same KC /token endpoint:
+      #   - Vanilla Token Relay: client sends HTTP Basic; gateway runs
+      #     client_credentials grant using the client's own credentials,
+      #     caches per client_id.
+      #   - Phantom Token Relay: client sends a stripped Bearer JWT; gateway
+      #     runs RFC 8693 token-exchange authenticated as the dedicated
+      #     esq-gw-exchange confidential client, caches per jti.
+      # Both variants are dormant when their `clients` allowlist is empty.
+      token-uri: ${ESQ_GW_TOKEN_URI:}
+      vanilla:
+        clients: ${ESQ_GW_VANILLA_CLIENTS:}
+      phantom:
+        clients:                ${ESQ_GW_PHANTOM_CLIENTS:}
+        exchange-client-id:     ${ESQ_GW_EXCHANGE_CLIENT_ID:}
+        exchange-client-secret: ${ESQ_GW_EXCHANGE_CLIENT_SECRET:}
 esquire:
   gateway:
     service-metrics:
@@ -44,7 +70,7 @@ spring:
         - id: biztree-route
           uri: http://${BIZTREE_HOST:biztree}:${BIZTREE_PORT:3002}
           predicates:
-            - Path=/esq,/esq-path,/esq-enode
+            - Path=/esq,/esq-path,/esq-enode,/esq-tree
           metadata:
               allowedMethods:
                 - GET
@@ -193,6 +219,18 @@ spring:
             - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_FIRST
             - RewritePath=/(?<segment>.*), /$\{segment}
             - TokenRelay=
+        - id: enyman-tree-route
+          uri: http://${ENYMAN_HOST:enyman}:${ENYMAN_PORT:3003}
+          predicates:
+            - Path=/esq-cmd-tree
+            - Method=GET
+          metadata:
+            allowedMethods:
+              - GET
+          filters:
+            - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_FIRST
+            - RewritePath=/(?<segment>.*), /$\{segment}
+            - TokenRelay=
 
 #  autoconfigure:
 #   exclude: org.springframework.boot.autoconfigure.security.reactive.ReactiveSecurityAutoConfiguration
@@ -204,7 +242,7 @@ spring:
       allowed-headers: ["Authorization", "Content-Type", "X-Request-ID", "X-Correlation-ID", "X-Capture-Metrics"]
       allow-credentials: true
       max-age: 3600
-      exposed-headers: ["X-Request-ID", "X-Correlation-ID","X-Response-Time", "Esq-Service-Time", "Esq-Backend-Time"]
+      exposed-headers: ["X-Request-ID", "X-Correlation-ID", "X-Response-Time", "Esq-Gw-Inner-Time", "Esq-Srv-Outer-Time", "Esq-Srv-Inner-Time"]
     oauth2:
       client:
         registration:

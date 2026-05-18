@@ -6,9 +6,12 @@ image:
 # Default profile for local k8s. OKE values/gateway.yaml overrides this.
 springProfilesActive: console
 
+# ClusterIP for both local and OKE -- both environments front the gateway
+# via ingress-nginx (local: api.esquire.localhost; OKE: api.esquire.mir0n.pro).
 service:
+  type: ClusterIP
   port: 8080
-  lbPort: 8808
+  lbPort: 8080         # service port, aligned to container port (no LB tier)
 
 keycloak:
   host: esquire-infra-kc-keycloak
@@ -28,7 +31,24 @@ backends:
   keysmithPort: 3002
 
 cors:
-  allowedOrigins: http://localhost
+  # Ingress hosts (local). OKE overlay overrides to https://esquire.mir0n.pro,
+  # https://api.esquire.mir0n.pro.
+  allowedOrigins: http://esquire.localhost,http://api.esquire.localhost
+
+# Token Relay -- the umbrella covering Vanilla Token Relay (HTTP Basic at
+# edge -> client_credentials grant) and Phantom Token Relay (stripped Bearer
+# at edge -> RFC 8693 token-exchange). Both variants share one KC /token
+# endpoint and one cache. A variant is dormant when its `clients` allowlist
+# is empty. exchangeClientSecret is passed at install via --set so it never
+# lands in chart defaults.
+tokenRelay:
+  tokenUri: ""                  # http://<kc-host>:<port>/<kc-path>/realms/<realm>/protocol/openid-connect/token
+  vanilla:
+    clients: ""                 # comma-separated KC clientId list (e.g. "esq-hauberk-S")
+  phantom:
+    clients: ""                 # comma-separated KC clientId list (e.g. "esq-hauberk-M")
+    exchangeClientId: esq-gw-exchange
+    exchangeClientSecret: ""    # passed via --set at install
 
 logging:
   levelRoot: ERROR

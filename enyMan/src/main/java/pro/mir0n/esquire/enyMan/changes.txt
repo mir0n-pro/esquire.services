@@ -1,5 +1,20 @@
 Esquire enyMan Microservice
 
+05/14/2026 mir0n  v1.2.4 /esq-cmd-tree -- natural-tree subtree from FK walk
+controller.EnyManController
+  - GET /esq-cmd-tree added: seed kind + id; returns List<EsqTreeNode> with seed + every descendant;
+    leaves-first ordering (level DESC); same EsqTreeNode shape as /esq for response compatibility
+service.IEnyManService, service.impl.EnyManService
+  - esquireCommandTree(kind, id, rootPath, uid) added; delegates to EsqSubtreeRepository,
+    projects each EsqSubtreeRow to EsqTreeNode (entityPath = esq_entity_path.ep_path)
+jpa.EsqSubtreeRepository  (new)
+  - native-query repository for the recursive CTE; FK-walk esq_org / esq_user / esq_account;
+    rootPath-scoped via ep_path LIKE; leaves-first ordering
+jpa.EsqSubtreeRow  (new)
+  - SQL result-set row: pk, kind, name, parentPk, ep_path, level
+src/main/resources/META-INF/oracle-entity.xml, postgres-entity.xml
+  - EsqSubtreeRepository named native query + EsqSubtreeRow @SqlResultSetMapping added (per flavor)
+
 04/16/2026 mir0n  procedural style sweep: ret pattern, null-guard
 service.impl.AEnyManService
   - ret declaration moved to top of method

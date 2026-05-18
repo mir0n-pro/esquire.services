@@ -1,6 +1,35 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v1.2.4-2605.1720  v1.2.4 : JWE via Keycloak research completed, support of Haubergeon sims :
+                  Token Relay umbrella (Vanilla + Phantom Token Relay); 
+                  landing page;
+                  /esq-cmd-tree + /esq-tree; 
+                  four-layer observability; 
+                  OKE two-host ingress
+    :Feature:     Token Relay umbrella in gateway/security/tokenrelay
+    :Feature:     gateway LandingController at GET / -- HTML og-banner page for visitors
+                  hitting api.esquire.mir0n.pro (replaces stock Spring 404 ProblemDetail)
+    :Feature:     four-layer observability protocol
+    :Feature:     enyMan /esq-cmd-tree (recursive CTE FK walk) + bizTree /esq-tree
+                  (H2 cache subtree); EsqTreeNode.entityPath field for race-repro
+                  CompareTrees diff axis
+    :Fix:         OKE full redeploy
+    :Refactoring: KC realm slim and import-- access-token claims reduced, Test Drivers added
+    :Doc:         new doc/Esquire.TestingStack.md 
+                  new doc/Esquire.Haubergeon.md 
+                  renew doc/Esquire.ObservabilityStack.md
+                  renew doc/keyCloak-gateway.JWE.md
+    Config:       Unified k8s-local - k8s-oci down-rebuild-up routine              
+    Components:   common, 
+                  bizTree, 
+                  enyMan, 
+                  gateway, keycloak (realm import + chart),
+                  k8s, 
+                  k8s-oci, 
+                  compose, 
+                  doc
+
 v1.2.3-2605.0818  v1.2.3 BFF sprint -- OKE production cutover (BFF goes live at https://esquire.mir0n.pro)
     :Feature: new values/backend.yaml -- BFF prod overrides (ClusterIP, ghcr v1.2.3,
                removed values/frontend.yaml

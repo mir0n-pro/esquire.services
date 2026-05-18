@@ -126,4 +126,24 @@ class BizTreeControllerTest {
         assertThat(response.getBody()).containsExactly("1", "2", "3");
         verify(service).esquirePath("5", "1.2");
     }
+
+    // ---- esquireSubtree / GET /esq-tree ----
+
+    @Test
+    @DisplayName("esquireSubtree: extracts claims, delegates to service.esquireSubtree, returns 200")
+    void esquireSubtree_extractsClaimsAndDelegates_returnsOk() {
+        when(claims.get(EsqConstants.JWT_CLAIM_ENTITY_ROOTPATH, String.class)).thenReturn("1.14.");
+        when(claims.get(EsqConstants.JWT_CLAIM_ENTITY_ID, String.class)).thenReturn("15");
+        EsqTreeNode root  = makeNode("10", "Office",    20);
+        EsqTreeNode child = makeNode("11", "Test User", 34);
+        when(service.esquireSubtree("10", "1.14.", "15")).thenReturn(List.of(root, child));
+
+        ResponseEntity<List<EsqTreeNode>> response = controller.esquireSubtree("10", claims);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody()).hasSize(2);
+        assertThat(response.getBody().get(0).getId()).isEqualTo("10");
+        assertThat(response.getBody().get(1).getId()).isEqualTo("11");
+        verify(service).esquireSubtree("10", "1.14.", "15");
+    }
 }

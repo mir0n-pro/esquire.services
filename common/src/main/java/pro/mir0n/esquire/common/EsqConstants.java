@@ -2,7 +2,7 @@
  *  Esquire frameworks (tm)
  *  common library
  *
- *  Copyright(c) 2001, 2025 mir0n&co www.mir0n.me
+ *  Copyright(c) 2001, 2026 mir0n&co www.mir0n.pro
  *  mailto:mir0n.the.programmer@gmail.com
  *
  *  History:
@@ -13,6 +13,9 @@
  *                   SUBENTITY_PERSON, SUBENTITY_ADDRESS, SUBENTITY_ADDRESS2 added
  * 03/06/2026 mir0n  KIND_ADMIN_ROLE = 980 added
  * 03/09/2026 mir0n  JWT_CLAIM_REALM_ACCESS and JWT_CLAIM_REALM_ACCESS_ROLES added
+ * 05/14/2026 mir0n  observability header constants: ESQ_GW_INNER_START_TIME + ESQ_GW_INNER_TIME added;
+ *                   ESQ_SERVICE_TIME renamed to ESQ_SRV_OUTER_TIME; ESQ_BACKEND_TIME renamed to
+ *                   ESQ_SRV_INNER_TIME; ESQ_CAPTURE_METRICS added for the hauberk trigger
  */
 package pro.mir0n.esquire.common;
 
@@ -22,8 +25,10 @@ public class EsqConstants {
 
     public static final String ESQ_CORRELATION_ID = "Esq-Correlation-ID";
     public static final String ESQ_START_TIME = "Esq-Start-Time";
-    public static final String ESQ_SERVICE_TIME = "Esq-Service-Time";
-    public static final String ESQ_BACKEND_TIME = "Esq-Backend-Time";
+    public static final String ESQ_GW_INNER_START_TIME = "Esq-Gw-Inner-Start-Time";
+    public static final String ESQ_GW_INNER_TIME = "Esq-Gw-Inner-Time";
+    public static final String ESQ_SRV_OUTER_TIME = "Esq-Srv-Outer-Time";
+    public static final String ESQ_SRV_INNER_TIME = "Esq-Srv-Inner-Time";
     public static final String ESQ_CAPTURE_METRICS = "Esq-Capture-Metrics";
 
     public static final String X_CORRELATION_ID = "X-Correlation-ID";

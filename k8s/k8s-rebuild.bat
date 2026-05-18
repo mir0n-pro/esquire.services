@@ -16,15 +16,25 @@ rem
 rem Why this script exists:
 rem   Chart pins image.tag=latest with imagePullPolicy=IfNotPresent. After
 rem   docker build, kubelet keeps using the OLD digest cached under :latest.
-rem   This script tags every fresh image with a YYMM.DDHH tag (matches
-rem   release_notes.txt version stamps) and helm-upgrades the release with
-rem   --set image.tag=<tag>, forcing the kubelet to pick up the new image.
+rem   This script tags every fresh image with the canonical Esquire stamp
+rem   vMaj.Min.Micro-YYMM.DDHH (same shape oke-rebuild.bat uses against GHCR,
+rem   same shape release_notes.txt records) and helm-upgrades the release
+rem   with --set image.tag=<stamp>, forcing the kubelet to pick up the
+rem   new image.
 rem
-rem   Tag granularity: hour-level (YYMM.DDHH). If the same target was already
-rem   built this hour, esquire.<svc>:<YYMM.DDHH> already exists and the
-rem   kubelet has cached its digest -- the second build would hit the same
-rem   :latest trap. In that case we append minutes (YYMM.DDHHmm) per-service
-rem   so the kubelet sees a tag it has never resolved.
+rem   Parity with OKE: build + stamp + helm-upgrade dance is identical on
+rem   local Docker Desktop and on OKE -- local rehearsal is a real testing
+rem   milestone for the next OKE push.
+rem
+rem   Tag granularity: hour-level (vMaj.Min.Micro-YYMM.DDHH). If the same
+rem   target was already built this hour, esquire.<svc>:<stamp> already
+rem   exists and the kubelet has cached its digest -- the second build
+rem   would hit the same :latest trap. In that case we append minutes
+rem   (-YYMM.DDHHmm) per-service so the kubelet sees a tag it has never
+rem   resolved.
+rem
+rem   Micro version is read from the top of ..\doc\release_notes.txt
+rem   (e.g. v1.2.4 from "v1.2.4-2605.1700 <headline>").
 
 rem === Context safety guard ===
 for /f "delims=" %%i in ('kubectl config current-context') do set CTX=%%i
@@ -41,9 +51,18 @@ set NOCACHE=
 if /i "%2"=="--no-cache" set NOCACHE=--no-cache
 if /i "%1"=="--no-cache" ( set "NOCACHE=--no-cache"&set "TARGET=all" )
 
-rem === Compute timestamp tag (YYMM.DDHH base, +mm per-service if collision) ===
-for /f %%t in ('powershell -nop -c "Get-Date -Format yyMM.ddHH"') do set "BASE_TS=%%t"
+rem === Read Micro from top of release_notes.txt ===
+rem    Top entry looks like:   v1.2.4-2605.1700 <headline>
+rem    We want just the v1.2.4 part (everything before the first '-').
+set "VLINE="
+for /f "tokens=1" %%v in ('powershell -nop -c "(Select-String -Path '..\doc\release_notes.txt' -Pattern '^v\d')[0].Line.Split(' ')[0]"') do set "VLINE=%%v"
+if "%VLINE%"=="" ( echo ERROR: could not parse version from ..\doc\release_notes.txt top line. & exit /b 1 )
+for /f "tokens=1 delims=-" %%m in ("%VLINE%") do set "MICRO=%%m"
+
+rem === Compute canonical stamp (vMaj.Min.Micro-YYMM.DDHH, +mm per-svc if collision) ===
+for /f %%t in ('powershell -nop -c "Get-Date -Format yyMM.ddHH"') do set "DT=%%t"
 for /f %%m in ('powershell -nop -c "Get-Date -Format mm"') do set "MM=%%m"
+set "BASE_TS=%MICRO%-%DT%"
 echo === target=%TARGET% base_tag=%BASE_TS% nocache=%NOCACHE% ===
 
 rem    Two supported flows:
@@ -106,9 +125,13 @@ popd
 set "SVC=backend"
 call :resolve_tag
 docker tag esquire.backend:latest esquire.backend:%TS%
+rem Patch yaml ALWAYS -- the yaml is the canonical record of "what should
+rem be deployed". Whether the release is up now or not, the next k8s-up
+rem must read the freshly-built stamp from here.
+call :patch_yaml backend
 helm status esquire-backend >nul 2>&1
 if errorlevel 1 (
-  echo [skip] esquire-backend not deployed -- image rebuilt as esquire.backend:%TS%; run k8s-up.bat to deploy.
+  echo [skip] esquire-backend not deployed -- yaml stamped %TS%; next k8s-up will deploy it.
   goto end
 )
 echo [helm] upgrading esquire-backend to tag %TS%...
@@ -138,9 +161,13 @@ if errorlevel 1 ( popd & echo docker build failed for %DIR% & exit /b 1 )
 popd
 call :resolve_tag
 docker tag esquire.%SVC%:latest esquire.%SVC%:%TS%
+rem Patch yaml ALWAYS -- the yaml is the canonical record of "what should
+rem be deployed". Whether the release is up now or not, the next k8s-up
+rem must read the freshly-built stamp from here. Mirrors oke-rebuild.bat.
+call :patch_yaml %SVC%
 helm status esquire-%SVC% >nul 2>&1
 if errorlevel 1 (
-  echo [skip] esquire-%SVC% not deployed -- image rebuilt as esquire.%SVC%:%TS%; run k8s-up.bat to deploy.
+  echo [skip] esquire-%SVC% not deployed -- yaml stamped %TS%; next k8s-up will deploy it.
   exit /b 0
 )
 echo [helm] upgrading esquire-%SVC% to tag %TS%...
@@ -156,6 +183,15 @@ rem   Output:  TS = %BASE_TS%       (first build of the hour for this service)
 rem            TS = %BASE_TS%%MM%   (kubelet may have cached %BASE_TS% -- need fresh)
 docker image inspect esquire.%SVC%:%BASE_TS% >nul 2>&1
 if errorlevel 1 ( set "TS=%BASE_TS%" ) else ( set "TS=%BASE_TS%%MM%" )
+exit /b 0
+
+:patch_yaml
+rem Subroutine: rewrite the 'tag:' line in values\%1.yaml to the stamped tag.
+rem   Inputs:  %1 = svc name (matches values\<svc>.yaml); TS = the new stamp
+rem Mirrors oke-rebuild.bat's same edit pattern. Pure source-of-truth update;
+rem the rollout itself happens via --reuse-values --set image.tag below.
+echo [yaml] values\%1.yaml :  tag -^> %TS%
+powershell -nop -c "(Get-Content -Raw values\%1.yaml) -replace '(?m)^(\s*tag:\s*).*$', ('${1}\"' + '%TS%' + '\"') | Set-Content -NoNewline values\%1.yaml"
 exit /b 0
 
 :end

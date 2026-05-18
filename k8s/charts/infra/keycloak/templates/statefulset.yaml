@@ -48,6 +48,20 @@ spec:
               value: "true"
             - name: KC_HTTP_ENABLED
               value: "true"
+            # Phantom Token Relay: enable RFC 8693 token-exchange and
+            # the fine-grained admin permissions needed to grant the
+            # esq-gw-exchange client permission to exchange tokens for
+            # esq-hauberk-M (preview features in KC 26.4).
+            #
+            # Pin both to V1: the realm-import permission structure uses the
+            # V1 client-permissions API. Without explicit :v1, KC 26.4 picks
+            # V1 token-exchange but V2 admin-fine-grained-authz, and the V1
+            # token-exchange provider crashes when it tries to call the V2
+            # ClientPermissions.canExchangeTo (UnsupportedOperationException
+            # "Not supported in V2"). start-dev tolerates the mismatch;
+            # production start mode does not.
+            - name: KC_FEATURES
+              value: "token-exchange:v1,admin-fine-grained-authz:v1"
             - name: KC_PROXY_HEADERS
               value: xforwarded
             {{- with .Values.keycloak.httpRelativePath }}

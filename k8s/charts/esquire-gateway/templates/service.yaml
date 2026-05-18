@@ -5,7 +5,7 @@ metadata:
   labels:
     app: {{ .Release.Name }}-gateway
 spec:
-  type: {{ .Values.service.type | default "LoadBalancer" }}
+  type: {{ .Values.service.type | default "ClusterIP" }}
   selector:
     app: {{ .Release.Name }}-gateway
   ports:

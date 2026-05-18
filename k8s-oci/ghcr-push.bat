@@ -16,7 +16,7 @@ rem one-component change (e.g. an SPA edit) only the BFF needs re-push. Same
 rem target-list shape as k8s-rebuild.bat / compose-rebuild.bat for muscle memory.
 
 set REGISTRY=ghcr.io/mir0n-pro
-set TAG=v1.2.3
+set TAG=v1.2.4
 set PLATFORMS=linux/amd64,linux/arm64
 
 set TARGET=%1
