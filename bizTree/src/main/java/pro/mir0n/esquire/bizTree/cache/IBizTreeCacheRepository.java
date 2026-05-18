@@ -2,7 +2,7 @@
  *  Esquire frameworks (tm)
  *  BizTree service
  *
- *  Copyright(c) 2001, 2025 mir0n&co www.mir0n.me
+ *  Copyright(c) 2001, 2026 mir0n&co www.mir0n.pro
  *  mailto:mir0n.the.programmer@gmail.com
  *
  *  History:
@@ -16,6 +16,8 @@
  *                   added moveUsrNode();
  *                   added moveAcctNode();
  * 04/07/2026 mir0n  moveUsrNode(): param renamed kind (raw kind; storage handles via getOrDefault)
+ * 05/14/2026 mir0n  findSubtree(seedId, rootLevel, rootPath) added: recursive subtree by tree_path
+ *                   prefix for the new /esq-tree endpoint (counterpart to enyMan /esq-cmd-tree)
  */
 package pro.mir0n.esquire.bizTree.cache;
 
@@ -133,4 +135,12 @@ public interface IBizTreeCacheRepository {
      * Moves an account main node and its shortcut node to the new entity path.
      */
     void moveAcctNode(long acctPk, String newEntityPath);
+
+    /**
+     * Returns every cache row whose tree_path is rooted at the seed: the seed
+     * node itself, all real-entity descendants, all virtual folder nodes, and
+     * all account shortcut nodes. Used by the CompareTrees diff scenario to
+     * see the cache's full picture of what lives under a given subtree.
+     */
+    List<EsqTreeNodeJpa> findSubtree(String seedId, int rootLevel, String rootPath);
 }

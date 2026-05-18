@@ -1,9 +1,23 @@
 @echo off
+rem ===========================================================================
+rem k8s-up.bat -- deploy the Esquire stack to local Docker Desktop k8s.
+rem Direct mirror of ../k8s-oci/oke-up.bat: helm upgrade --install per chart
+rem with -f values/<svc>.yaml carrying the image tag (and all per-environment
+rem knobs). Secrets passed via --set. No stamp recomputation at up time --
+rem the yaml's image.tag is the source of truth (set by k8s-rebuild.bat).
+rem
+rem The one local-specific quirk vs OKE: the image lives in the local Docker
+rem daemon (no registry pull). Before each install, alias esquire.<svc>:latest
+rem to esquire.<svc>:<yaml-tag> if the tagged image doesn't already exist --
+rem this lets the kubelet find the image under the tag the yaml references.
+rem
+rem Usage: k8s-up.bat
+rem ===========================================================================
+
+setlocal enabledelayedexpansion
 cd /d "%~dp0"
 
 rem === Context safety guard ===
-rem Refuses to run if kubectl context is anything other than docker-desktop.
-rem Prevents the 2026-05-06 disaster where helm install hit OKE production.
 for /f "delims=" %%i in ('kubectl config current-context') do set CTX=%%i
 if not "%CTX%"=="docker-desktop" (
   echo ERROR: kubectl context is "%CTX%", not "docker-desktop".
@@ -12,42 +26,39 @@ if not "%CTX%"=="docker-desktop" (
   exit /b 1
 )
 
-rem === Fresh image tags ===
-rem Docker Desktop's kubelet caches digests per tag. With chart default
-rem image.tag=latest + imagePullPolicy=IfNotPresent, helm install picks up
-rem whatever digest the kubelet last cached for :latest, NOT what's in the
-rem local Docker daemon now. To force the kubelet to see the freshly-built
-rem image, we retag every Esquire image with a unique YYMM.DDHH tag here
-rem and pass --set image.tag=<tag> to each helm install.
-rem
-rem Tag granularity: YYMM.DDHH (matches release_notes.txt version stamps).
-rem If any Esquire image already carries the base tag from an earlier build
-rem in this hour, the kubelet has cached its digest -- we'd hit the same
-rem :latest trap. In that case, append minutes (YYMM.DDHHmm) for a tag the
-rem kubelet has never resolved.
-setlocal enabledelayedexpansion
-for /f %%t in ('powershell -nop -c "Get-Date -Format yyMM.ddHH"') do set "BASE_TS=%%t"
-for /f %%m in ('powershell -nop -c "Get-Date -Format mm"') do set "MM=%%m"
-set "TS=%BASE_TS%"
-for %%s in (gateway biztree enyman pacman keysmith kcmaster backend) do (
-  docker image inspect esquire.%%s:%BASE_TS% >nul 2>&1
-  if not errorlevel 1 set "TS=%BASE_TS%!MM!"
+rem === Cluster prerequisites (MetalLB + ingress-nginx) ===
+rem One-time installs (run by hand, survive k8s-down):
+rem   addMetalLB.bat        -- LoadBalancer EXTERNAL-IP allocator
+rem   addIngressNginx.bat   -- ingress controller binds localhost:80
+kubectl get ns metallb-system >nul 2>&1
+if errorlevel 1 (
+  echo WARNING: metallb-system namespace not found. Run addMetalLB.bat first.
+) else (
+  echo --- Applying MetalLB pool config ^(metallb-config.yaml^)...
+  kubectl apply -f metallb-config.yaml
 )
-echo === using image tag %TS% for all Esquire services ===
-for %%s in (gateway biztree enyman pacman keysmith kcmaster backend) do (
-  docker image inspect esquire.%%s:latest >nul 2>&1
-  if errorlevel 1 (
-    echo WARNING: esquire.%%s:latest not found in Docker -- helm install will fail. Run k8s-rebuild.bat first.
-  ) else (
-    docker tag esquire.%%s:latest esquire.%%s:%TS%
-  )
+kubectl get ns ingress-nginx >nul 2>&1
+if errorlevel 1 (
+  echo WARNING: ingress-nginx namespace not found. Run addIngressNginx.bat first.
 )
-endlocal & set "TS=%TS%"
+
+rem === Local tag-alias safety net ===
+rem For each Esquire component: read the tag from values/<svc>.yaml; if the
+rem :tag image doesn't exist in the local Docker daemon, alias :latest to it.
+rem Lets the kubelet pull the image when the yaml references a stamp that
+rem only exists as :latest (typical for first-time install after a clean
+rem `docker compose build` with no prior k8s-rebuild stamping).
+for %%s in (gateway biztree enyman pacman keysmith kcmaster backend) do (
+  call :ensure_tag %%s
+)
 
 rem === Infra ===
-call helm install esquire-infra     charts\infra\postgres
-call helm install esquire-infra-amq charts\infra\activemq
-call helm install esquire-infra-kc  charts\infra\keycloak
+echo --- Installing postgres...
+call helm upgrade --install esquire-infra     charts\infra\postgres  -f values\postgres.yaml || exit /b 1
+echo --- Installing activemq...
+call helm upgrade --install esquire-infra-amq charts\infra\activemq  -f values\activemq.yaml || exit /b 1
+echo --- Installing keycloak...
+call helm upgrade --install esquire-infra-kc  charts\infra\keycloak  -f values\keycloak.yaml || exit /b 1
 
 echo Waiting for postgres...
 kubectl rollout status statefulset/esquire-infra-postgres -n default --timeout=120s
@@ -55,38 +66,40 @@ echo Waiting for activemq...
 kubectl rollout status statefulset/esquire-infra-amq-activemq -n default --timeout=120s
 
 rem === Services (depend on postgres + amq) ===
-rem springProfilesActive defaults baked into each chart's values.yaml:
-rem   biztree   = console,dev-postgres,cache-h2
-rem   enyman    = console,dev-postgres
-rem   pacman    = console,dev-postgres
-rem   keysmith  = console,dev-postgres
-rem   kcmaster  = console
-rem   gateway   = console
-rem (OKE values/<chart>.yaml override these for production.)
-call helm install esquire-biztree   charts\esquire-biztree   --set image.tag=%TS%
-call helm install esquire-enyman    charts\esquire-enyman    --set image.tag=%TS%
-call helm install esquire-pacman    charts\esquire-pacman    --set image.tag=%TS%
-call helm install esquire-keysmith  charts\esquire-keysmith  --set image.tag=%TS%
+echo --- Installing biztree...
+call helm upgrade --install esquire-biztree   charts\esquire-biztree   -f values\biztree.yaml   || exit /b 1
+echo --- Installing enyman...
+call helm upgrade --install esquire-enyman    charts\esquire-enyman    -f values\enyman.yaml    || exit /b 1
+echo --- Installing pacman...
+call helm upgrade --install esquire-pacman    charts\esquire-pacman    -f values\pacman.yaml    || exit /b 1
+echo --- Installing keysmith...
+call helm upgrade --install esquire-keysmith  charts\esquire-keysmith  -f values\keysmith.yaml  || exit /b 1
 
 echo Waiting for keycloak...
 kubectl rollout status statefulset/esquire-infra-kc-keycloak -n default --timeout=180s
 
-rem === KC-dependent (depend on keycloak) ===
-call helm install esquire-kcmaster  charts\esquire-kcmaster  --set image.tag=%TS%
-call helm install esquire-gateway   charts\esquire-gateway   --set image.tag=%TS%
+rem === KC-dependent ===
+echo --- Installing kcmaster...
+call helm upgrade --install esquire-kcmaster  charts\esquire-kcmaster  -f values\kcmaster.yaml  || exit /b 1
+
+rem Gateway: dev exchange-client secret passed via --set (matches realm import).
+echo --- Installing gateway...
+call helm upgrade --install esquire-gateway   charts\esquire-gateway   -f values\gateway.yaml ^
+  --set tokenRelay.phantom.exchangeClientSecret=esq-gw-exchange-dev-secret-rotate-in-prod || exit /b 1
 
 echo Waiting for gateway...
 kubectl rollout status deployment/esquire-gateway-gateway -n default --timeout=60s
 
-rem === Backend / BFF (depends on gateway + keycloak; serves the SPA + /api + /auth) ===
-rem KC_CLIENT_SECRET must match the esq-angular client secret in the realm import.
-rem SESSION_SECRET signs the session cookie -- rotate in prod.
-rem keycloak.issuer / publicBaseUrl come from chart defaults (host.docker.internal).
-call helm install esquire-backend charts\esquire-backend ^
-  --set image.tag=%TS% ^
+rem === Backend / BFF ===
+rem Secrets passed via --set (same dev literals as compose.yaml + realm import).
+echo --- Installing backend ^(BFF^)...
+call helm upgrade --install esquire-backend   charts\esquire-backend   -f values\backend.yaml ^
   --set keycloak.clientSecret=esq-angular-bff-dev-secret-rotate-in-prod ^
-  --set session.secret=esq-bff-dev-session-secret-rotate-in-prod ^
-  --set nodeEnv=development
+  --set session.secret=esq-bff-dev-session-secret-rotate-in-prod || exit /b 1
+
+rem === Public ingress (applied AFTER backend is ready -- mirror of oke-up.bat) ===
+echo --- Applying public ingress ^(cluster\ingress.yaml^)...
+kubectl apply -f cluster\ingress.yaml
 
 rem === Final readiness loop ===
 echo Waiting for all pods to be ready...
@@ -100,3 +113,27 @@ goto wait_loop
 :ready
 echo All pods ready.
 kubectl get pods -n default
+goto :eof
+
+rem ---------------------------------------------------------------------------
+:ensure_tag
+rem Local tag-alias: read the tag from values\%1.yaml; if esquire.%1:<tag>
+rem doesn't exist locally, alias esquire.%1:latest to it.
+set "_SVC=%~1"
+set "_TAG="
+for /f tokens^=2^ delims^=^" %%t in ('findstr /R "^[ ]*tag:" values\%_SVC%.yaml') do set "_TAG=%%t"
+if "%_TAG%"=="" (
+  echo WARNING: no image.tag found in values\%_SVC%.yaml -- skipping alias.
+  goto :eof
+)
+docker image inspect esquire.%_SVC%:%_TAG% >nul 2>&1
+if errorlevel 1 (
+  docker image inspect esquire.%_SVC%:latest >nul 2>&1
+  if errorlevel 1 (
+    echo WARNING: neither esquire.%_SVC%:%_TAG% nor :latest exists -- run k8s-rebuild.bat %_SVC% first.
+  ) else (
+    echo --- aliasing esquire.%_SVC%:latest -^> :%_TAG%
+    docker tag esquire.%_SVC%:latest esquire.%_SVC%:%_TAG%
+  )
+)
+goto :eof

@@ -2,7 +2,7 @@
  *  Esquire frameworks (tm)
  *  EnyMan service
  *
- *  Copyright(c) 2001, 2025 mir0n&co www.mir0n.me
+ *  Copyright(c) 2001, 2026 mir0n&co www.mir0n.pro
  *  mailto:mir0n.the.programmer@gmail.com
  *
  *  History:
@@ -42,6 +42,8 @@
  * 04/07/2026 mir0n  all kind params Integer → int; kind normalization removed;
  *                   upfront applicability check (!isOrg && !isUsr → ResourceNotFoundException) at all entry points
  * 04/16/2026 mir0n  ret declarations moved to top in detailEntity/saveEntity/newEntity
+ * 05/14/2026 mir0n  esquireCommandTree(): EsqSubtreeRepository.findSubtree() + project to EsqTreeNode list;
+ *                   leaves-first order via level DESC; populates entityPath from esq_entity_path.ep_path
  */
 
 package pro.mir0n.esquire.enyMan.service.impl;
@@ -58,6 +60,8 @@ import pro.mir0n.esquire.backend.storage.EsqObjectKindStorage;
 import pro.mir0n.esquire.backend.storage.EsqRolesStorage;
 import pro.mir0n.esquire.enyMan.jpa.EsqEntityDictionaryRepository;
 import pro.mir0n.esquire.enyMan.jpa.EsqOrgRepository;
+import pro.mir0n.esquire.enyMan.jpa.EsqSubtreeRepository;
+import pro.mir0n.esquire.enyMan.jpa.EsqSubtreeRow;
 import pro.mir0n.esquire.enyMan.jpa.EsqUsrRepository;
 import pro.mir0n.esquire.backend.service.RequestContextUtils;
 import pro.mir0n.esquire.backend.error.ResourceNotFoundException;
@@ -79,12 +83,14 @@ public class EnyManService  extends AEnyManService {
     private final IEnyManService orgService;
     private final IEnyManService usrService;
     private final EsqOrgRepository orgRepository;
+    private final EsqSubtreeRepository subtreeRepository;
     private final EsqEntityBroadcastPublisher broadcastPublisher;
     private final KcRequestPublisher kcRequestPublisher;
 
     public EnyManService(EsqEntityDictionaryRepository entityDictionaryRepository,
                          EsqOrgRepository orgRepository,
                          EsqUsrRepository usrRepository,
+                         EsqSubtreeRepository subtreeRepository,
                          TransactionTemplate transactionTemplate,
                          EntityManager em,
                          EsqEntityBroadcastPublisher broadcastPublisher,
@@ -93,6 +99,7 @@ public class EnyManService  extends AEnyManService {
         this.orgService = new OrgService(entityDictionaryRepository, orgRepository, transactionTemplate, em);
         this.usrService = new UsrService(entityDictionaryRepository, usrRepository, transactionTemplate, em);
         this.orgRepository = orgRepository;
+        this.subtreeRepository = subtreeRepository;
         this.broadcastPublisher = broadcastPublisher;
         this.kcRequestPublisher = kcRequestPublisher;
     }
@@ -338,6 +345,39 @@ public class EnyManService  extends AEnyManService {
     // so broker unavailability cannot fail the HTTP response.
     // If broker latency becomes observable in production, promote to @Async with an MDC
     // task decorator to preserve correlationId/requestId in the async thread.
+    @Override
+    public List<EsqTreeNode> esquireCommandTree(int kind, String id, String rootPath, String uid) {
+        EsqObjectKind eek = EsqObjectKindStorage.getInstance().get(kind);
+        if (!eek.isOrg() && !eek.isUsr() && !eek.isAcct()) {
+            throw new ResourceNotFoundException("esquireCommandTree", "kind", String.valueOf(kind));
+        }
+        List<EsqSubtreeRow> rows;
+        if (eek.isOrg()) {
+            rows = subtreeRepository.subtreeFromOrg(id, rootPath);
+        } else if (eek.isUsr()) {
+            rows = subtreeRepository.subtreeFromUsr(id, rootPath);
+        } else {
+            rows = subtreeRepository.subtreeFromAcct(id, rootPath);
+        }
+        List<EsqTreeNode> ret = new ArrayList<>(rows.size());
+        for (EsqSubtreeRow r : rows) {
+            EsqTreeNode n = EsqTreeNode.builder()
+                    .id(r.getId())
+                    .entityId(r.getEntityId())
+                    .kind(r.getKind())
+                    .name(r.getName())
+                    .desc(r.getDesc())
+                    .parentId(r.getParentId())
+                    .level(r.getLevel())
+                    .entityPath(r.getEntityPath())
+                    .moreRemaining(false)
+                    .build();
+            ret.add(n);
+        }
+        devLog.debug("esquireCommandTree: kind:{}, id:{}, rootPath:{}, uid:{}, rows:{}", kind, id, rootPath, uid, ret.size());
+        return ret;
+    }
+
     private void publishEntityEvent(EsqEntity entity, int entityKind, String eventType,
                                     String requestId, String correlationId, Map<String, Object> fields) {
         if (entity == null) return;

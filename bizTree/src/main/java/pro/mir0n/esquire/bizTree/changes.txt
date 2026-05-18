@@ -1,6 +1,25 @@
 Esquire BizTree Microservice
 
 
+05/14/2026 mir0n  v1.2.4 /esq-tree -- recursive subtree from biztree H2 cache
+controller.BizTreeController
+  - GET /esq-tree added: takes seed tree-node id, returns seed + every descendant cached node
+    (real entities, virtual folders, account shortcuts) under one tree-path prefix;
+    counterpart to enyMan's /esq-cmd-tree (authoritative DB walk); both consumed by the
+    hauberk CompareTrees scenario for biztree-vs-DB diff
+service.IBizTreeService, service.impl.BizTreeService
+  - esquireSubtree(id, rootPath, uid) added; delegates to cache.findSubtree
+cache.IBizTreeCacheRepository
+  - findSubtree(seedId, rootPath) added: returns nodes whose tree_path starts with seed.tree_path
+cache.impl.BizTreeCacheRepository
+  - findSubtree implementation via SELECT_SUBTREE_SQL (rootPath-scoped LIKE)
+cache.BizTreeCacheSql
+  - selectSubtree field added to Repo record
+h2.BizTreeH2Config
+  - select-subtree SQL property wired into BizTreeCacheSql.Repo
+src/main/resources/META-INF/h2-cache-sql.properties
+  - new property selectSubtree (recursive walk by tree_path prefix)
+
 04/16/2026 mir0n  procedural style sweep: ret pattern, null-guard
 cache.impl.BizTreeCacheRepository
   - insertAcctNode, moveOrgNode, moveUsrNode, moveAcctNode: null-guard replaces early returns

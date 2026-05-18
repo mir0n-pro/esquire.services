@@ -24,6 +24,14 @@ spec:
           envFrom:
             - configMapRef:
                 name: {{ .Release.Name }}-gateway-config
+          {{- if .Values.tokenRelay.phantom.exchangeClientSecret }}
+          env:
+            - name: ESQ_GW_EXCHANGE_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-gateway-secret
+                  key: exchange-client-secret
+          {{- end }}
           readinessProbe:
             httpGet:
               path: /actuator/health

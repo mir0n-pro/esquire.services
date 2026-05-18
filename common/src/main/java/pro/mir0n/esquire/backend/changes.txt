@@ -1,5 +1,16 @@
 Esquire Backend common microservice classes
 
+05/14/2026 mir0n  v1.2.4 EsqTreeNode entityPath + observability header rename
+dto.EsqTreeNode
+  - entityPath String field added (raw ep_path / tree_entity_path) -- the diff axis for the
+    hauberk CompareTrees scenario comparing biztree cache against natural-FK subtree
+dto.EsqTreeNodeMapper
+  - entityPath populated from biztree tree_path with virtual-folder segments stripped
+    (stripVirtualSegments); produces the biztree-side path string for CompareTrees diff
+service.MdcFilter
+  - metrics header constants migrated to Esq-Srv-Outer-Time / Esq-Srv-Inner-Time
+    (was Esq-Service-Time / Esq-Backend-Time; observability four-layer protocol)
+
 04/22/2026 mir0n  MdcFilter: String.valueOf() fix; esq-entity-dictionaries: rate field added to Transfer dictionary
 security.SecurityConfiguration
   - k8s issues: addded corsAllowAll()

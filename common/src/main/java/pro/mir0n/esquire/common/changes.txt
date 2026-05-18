@@ -1,5 +1,12 @@
 Esquire Common microservice classes
 
+05/14/2026 mir0n  v1.2.4 observability: four-layer timer header constants
+EsqConstants
+  - ESQ_GW_INNER_START_TIME, ESQ_GW_INNER_TIME added (gateway downstream-call-only window)
+  - ESQ_SERVICE_TIME -> ESQ_SRV_OUTER_TIME (service total)
+  - ESQ_BACKEND_TIME -> ESQ_SRV_INNER_TIME (JPA / inner)
+  - ESQ_CAPTURE_METRICS added (hauberk trigger header)
+
 03/26/2026 mir0n  Entity CREATE/DELETE — Phase 3 protocol constants and utilities
 EsqMsgConstants
   - TEXT_* JSON field name constants: TEXT_ID, TEXT_KIND, TEXT_NAME, TEXT_DESC, TEXT_STATUS,

@@ -2,7 +2,7 @@
  *  Esquire frameworks (tm)
  *  BizTree service
  *
- *  Copyright(c) 2001, 2025 mir0n&co www.mir0n.me
+ *  Copyright(c) 2001, 2026 mir0n&co www.mir0n.pro
  *  mailto:mir0n.the.programmer@gmail.com
  *
  *  History:
@@ -10,6 +10,7 @@
  *                   explicit HikariCP pool config (pool-name, max-size, min-idle, timeouts)
  * 03/26/2026 mir0n  delete-node SQL property wired into BizTreeCacheSql.Repo
  * 04/02/2026 mir0n  added 3 Repo queries:  moveNode, moveAcctLink, findFolderPks
+ * 05/14/2026 mir0n  select-subtree SQL property wired into BizTreeCacheSql.Repo
  */
 package pro.mir0n.esquire.bizTree.h2;
 
@@ -71,7 +72,8 @@ public class BizTreeH2Config {
                         env.getRequiredProperty("biztree.cache.sql.repo.delete-node"),
                         env.getRequiredProperty("biztree.cache.sql.repo.move-node"),
                         env.getRequiredProperty("biztree.cache.sql.repo.move-acct-link"),
-                        env.getRequiredProperty("biztree.cache.sql.repo.find-folder-pks")
+                        env.getRequiredProperty("biztree.cache.sql.repo.find-folder-pks"),
+                        env.getRequiredProperty("biztree.cache.sql.repo.find-subtree")
                 ),
                 new BizTreeCacheSql.Loader(
                         env.getRequiredProperty("biztree.cache.sql.loader.insert-node"),

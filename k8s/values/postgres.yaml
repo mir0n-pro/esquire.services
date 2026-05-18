@@ -1,0 +1,6 @@
+# Local k8s overlay for charts/infra/postgres
+# Image tag stamped per rebuild (mirrors backend/gateway/keycloak overlays);
+# fresh stamp forces kubelet to pick up the new image after a docker rebuild
+# (avoids the IfNotPresent + cached digest trap on infra images).
+image:
+  tag: "17-2605.172257"

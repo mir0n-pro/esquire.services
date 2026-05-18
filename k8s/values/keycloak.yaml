@@ -1,0 +1,12 @@
+# Local k8s overlay for charts/infra/keycloak
+# Behind ingress-nginx (single localhost:80 entry); KC sees ingress-set
+# X-Forwarded-* headers and renders absolute URLs under esquire.localhost.
+# Mirrors OKE shape (k8s-oci/values/keycloak.yaml + ingress-nginx in front).
+image:
+  tag: "26.4.7-2605.172254"
+
+service:
+  type: ClusterIP
+
+keycloak:
+  hostname: esquire.localhost

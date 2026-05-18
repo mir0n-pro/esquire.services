@@ -1,7 +1,7 @@
 # Prod overrides for k8s/charts/infra/keycloak
 image:
   repository: ghcr.io/mir0n-pro/esquire-keycloak
-  tag: "v1.2.3"
+  tag: "v1.2.4-2605.1621"
   pullPolicy: Always
 
 service:

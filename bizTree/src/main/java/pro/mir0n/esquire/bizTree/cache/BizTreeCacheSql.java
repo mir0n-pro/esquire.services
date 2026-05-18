@@ -2,13 +2,14 @@
  *  Esquire frameworks (tm)
  *  BizTree service
  *
- *  Copyright(c) 2001, 2025 mir0n&co www.mir0n.me
+ *  Copyright(c) 2001, 2026 mir0n&co www.mir0n.pro
  *  mailto:mir0n.the.programmer@gmail.com
  *
  *  History:
  * 03/20/2026 mir0n  created: SQL holder records (Ddl, Repo, Loader) for vendor-agnostic cache
  * 03/26/2026 mir0n  deleteNode field added to Repo record
  * 04/02/2026 mir0n  added 3 Repo queries:  moveNode, moveAcctLink, findFolderPks
+ * 05/14/2026 mir0n  selectSubtree field added to Repo record (for fetchSubtree / /esq-tree endpoint)
  */
 package pro.mir0n.esquire.bizTree.cache;
 
@@ -36,7 +37,8 @@ public class BizTreeCacheSql {
             String deleteNode,
             String moveNode,
             String moveAcctLink,
-            String findFolderPks
+            String findFolderPks,
+            String findSubtree
     ) {}
 
     public record Loader(

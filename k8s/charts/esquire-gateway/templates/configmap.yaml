@@ -26,6 +26,14 @@ data:
   KEYSMITH_HOST:        {{ .Values.backends.keysmithHost | quote }}
   KEYSMITH_PORT:        {{ .Values.backends.keysmithPort | quote }}
   CORS_ALLOWED_ORIGINS: {{ .Values.cors.allowedOrigins | quote }}
+  # Token Relay -- shared KC /token endpoint + per-variant allowlists.
+  # Vanilla: no gateway-side client_secret (proxies client's Basic auth one hop).
+  # Phantom: gateway-side confidential client_id for RFC 8693 token-exchange;
+  # the matching exchange-client-secret comes from a Secret (see deployment.yaml).
+  ESQ_GW_TOKEN_URI:          {{ .Values.tokenRelay.tokenUri | default "" | quote }}
+  ESQ_GW_VANILLA_CLIENTS:    {{ .Values.tokenRelay.vanilla.clients | default "" | quote }}
+  ESQ_GW_PHANTOM_CLIENTS:    {{ .Values.tokenRelay.phantom.clients | default "" | quote }}
+  ESQ_GW_EXCHANGE_CLIENT_ID: {{ .Values.tokenRelay.phantom.exchangeClientId | default "" | quote }}
   LOG_LEVEL_ROOT:       {{ .Values.logging.levelRoot | quote }}
   LOG_LEVEL_SF:         {{ .Values.logging.levelSf | quote }}
   LOG_LEVEL_MIR0N:      {{ .Values.logging.levelMir0n | quote }}

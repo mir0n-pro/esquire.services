@@ -2,7 +2,7 @@
  *  Esquire frameworks (tm)
  *  common library
  *
- *  Copyright(c) 2001, 2025 mir0n&co www.mir0n.me
+ *  Copyright(c) 2001, 2026 mir0n&co www.mir0n.pro
  *  mailto:mir0n.the.programmer@gmail.com
  *
  *  History:
@@ -11,6 +11,8 @@
  *                   actuator short-circuit: /actuator/** bypasses MDC setup and logging entirely
  * 04/16/2026 mir0n  jpaTime local variable inlined in log call
  * 04/20/2026 mir0n  String.valueOf() applied to getTotalJpaTime() in log statement
+ * 05/14/2026 mir0n  metrics header names migrated to Esq-Srv-Outer-Time / Esq-Srv-Inner-Time
+ *                   (observability four-layer protocol; was Esq-Service-Time / Esq-Backend-Time)
  */
 
 package pro.mir0n.esquire.backend.service;
@@ -101,8 +103,8 @@ public class MdcFilter extends OncePerRequestFilter {
             && wrappedResponse != null) {
                 try {
                     if (!response.isCommitted()) {
-                        response.addHeader(EsqConstants.ESQ_SERVICE_TIME, duration + "ms");
-                        response.addHeader(EsqConstants.ESQ_BACKEND_TIME, performance.getTotalJpaTime() + "ms");
+                        response.addHeader(EsqConstants.ESQ_SRV_OUTER_TIME, duration + "ms");
+                        response.addHeader(EsqConstants.ESQ_SRV_INNER_TIME, performance.getTotalJpaTime() + "ms");
                     } else {
                         log.error("Could not add headers due response is commited already");
                     devLog.error("Could not add headers due response is commited already");

@@ -221,4 +221,47 @@ class BizTreeServiceTest {
 
         assertThat(result).isEmpty();
     }
+
+    // ---- esquireSubtree: happy path ----
+
+    @Test
+    @DisplayName("esquireSubtree: delegates to findSubtree with rootLevel + rootPath; returns mapped list")
+    void esquireSubtree_callsFindSubtree_returnsMappedList() {
+        EsqTreeNodeJpa root  = makeNode("10", "2", "Office",  20, "1.2.10.");
+        EsqTreeNodeJpa child = makeNode("11", "10", "User",   34, "1.2.10.11.");
+        // rootPath "1.2.3" → size=3, uid="99" ≠ "3" → rootLevel=2 (admin branch)
+        when(repo.findSubtree("10", 2, "1.2.3")).thenReturn(List.of(root, child));
+
+        List<EsqTreeNode> result = service.esquireSubtree("10", "1.2.3", "99");
+
+        assertThat(result).hasSize(2);
+        assertThat(result.get(0).getId()).isEqualTo("10");
+        assertThat(result.get(1).getId()).isEqualTo("11");
+        verify(repo).findSubtree("10", 2, "1.2.3");
+    }
+
+    // ---- esquireSubtree: null result → exception ----
+
+    @Test
+    @DisplayName("esquireSubtree: repo returns null → ResourceNotFoundException")
+    void esquireSubtree_repoReturnsNull_throwsResourceNotFoundException() {
+        when(repo.findSubtree("10", 2, "1.2.3")).thenReturn(null);
+
+        assertThatThrownBy(() -> service.esquireSubtree("10", "1.2.3", "99"))
+                .isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    // ---- esquireSubtree: rootPath scoping reaches findSubtree ----
+
+    @Test
+    @DisplayName("esquireSubtree: passes rootPath through to findSubtree (security scope)")
+    void esquireSubtree_rootPathPassedThrough() {
+        // Test Driver scope: rootPath="1.14." (pathArray drops trailing empty -> size=2),
+        // uid="15" not matching last path element "14" -> admin branch -> rootLevel = 2-1 = 1.
+        when(repo.findSubtree("10", 1, "1.14.")).thenReturn(List.of());
+
+        service.esquireSubtree("10", "1.14.", "15");
+
+        verify(repo).findSubtree("10", 1, "1.14.");
+    }
 }

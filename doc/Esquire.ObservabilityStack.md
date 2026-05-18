@@ -73,34 +73,48 @@ Esquire established a hierarchy to keep production logs clean:
 
 It allows you to answer the question *"Is it the network, code, or the database?"* for any specific request in real time, just by toggling a header.
 
-#### **Triple-Track Measurement**
+#### **Four-Layer Measurement (outer/inner pairs per tier)**
 
-Esquire is capturing three distinct but related metrics for every request:
+Esquire captures four distinct but related metrics for every request, organized as outer/inner pairs at the gateway tier and the service tier:
 
--   **Gateway Time (Total Latency)**: Measured by covering the entire journey from the moment the request hits the gateway until the response is sent to the end-client.
--   **Service Time (Service Total Latency)**: Measured covering the time from the moment the request hits the backend service until the response is sent back to the gateway.
--   **Backend Time (JPA Latency)**: Measured by specifically tracking the time spent executing database queries across all repositories.
+-   **Gateway Outer Time (`X-Response-Time`)**: from receive-from-client to send-to-client. Includes Spring Security filter chain (JWT decode, Vanilla Token Relay broker call, Phantom Token Relay token-exchange, authorization), routing, the downstream service call, and response assembly. The full envelope of work the gateway does on the request.
+-   **Gateway Inner Time (`Esq-Gw-Inner-Time`)**: from sent-to-service to received-from-service. The gateway's measurement of the downstream call only. The delta `gw_outer - gw_inner` isolates the gateway's own overhead (auth + routing + response assembly).
+-   **Service Outer Time (`Esq-Srv-Outer-Time`)**: from receive-by-service to send-to-gateway. The service's measurement of its own full processing.
+-   **Service Inner Time (`Esq-Srv-Inner-Time`)**: umbrella of all inner-aspect costs at the service tier -- today equals JPA / DB query time; reserves the slot for future specifics like JMS publish wait, cache lookup, or external API calls via the extensible naming pattern `Esq-Srv-Inner-{X}-Time` (e.g., `Esq-Srv-Inner-DB-Time`, `Esq-Srv-Inner-JMS-Time`). The umbrella metric is always present; sub-aspects are added alongside it as the system grows.
+
+#### **Where each timer is measured (and why outer ≠ inner)**
+
+The four headers come from two pairs of filters at two tiers. Each timer answers a slightly different question:
+![Timing](media/timing.svg)
+
+-   **`X-Response-Time` is set by an outer-tier WebFilter** at `HIGHEST_PRECEDENCE` so the timer starts **before** Spring Security runs. This means Vanilla Token Relay broker call, Phantom Token Relay token-exchange, JWT decode time, role-check time -- the full auth-layer cost -- is part of the gateway outer envelope, not buried as invisible pre-routing overhead.
+-   **`Esq-Gw-Inner-Time` is set by a Spring Cloud Gateway `GlobalFilter` at default order**. It runs inside the gateway's WebHandler, after Spring Security has approved the request. It captures only the routing + downstream-call window. The delta `outer - inner = gateway's own work` (auth + routing + response assembly).
+-   **`Esq-Srv-Outer-Time` and `Esq-Srv-Inner-Time`** are both set by the service-side `MdcFilter` in `services/common`. Outer = full servlet request lifecycle. Inner = umbrella of all "inside work" (today, JPA queries via repository AOP; extensible via `Esq-Srv-Inner-{X}-Time` for future aspects).
+
+The derived bands (`net`, `gw_self`, `in_cluster`, `srv_self`, `srv_inner`) are not headers; they're computed at consumption time by subtracting adjacent layer values. The hauberk harness's `PerformanceMatrix` does this automatically and prints per-URL summary blocks; see `services/doc/Esquire.Haubergeon.md` for the consumer view.
 
 #### **Selective Visibility**
 
-To avoid leaking internal timing data and saving on overhead, headers like *X-Response-Time* are optional.
+To avoid leaking internal timing data and saving on overhead, the four timer headers are optional.
 
 -   **The Trigger**: The Gateway only adds these headers if the client sends the *X-Capture-Metrics* header.
 -   **The Master Switch**: the gateway configuration *esquire.gateway.service-metrics.enabled* allows enabling the gathering of service performance metrics globally across all backend services if needed. For normal traffic, the flag must be off to avoid the memory overhead of buffering the response body.
--   **Log Visibility**: Regardless of headers, the *OUTGOING* log always provides a total performance snapshot in Gateway and Service. And when the Master Switch enables this, logs include all performance metrics.
--   **Response Visibility**: When an end-client app passes the trigger header, the metrics are injected directly into the response headers (*X-Response-Time, Esq-Service-Time, and Esq-Backend-Time*). Once again: depends on the “Master Switch” state.
+-   **Log Visibility**: Regardless of headers, the *OUTGOING* log always provides a total performance snapshot at the gateway tier. When the Master Switch is on, logs include all four metric values plus the per-URL derived bands.
+-   **Response Visibility**: When an end-client app passes the trigger header, the four metric headers are injected directly into the response (`X-Response-Time`, `Esq-Gw-Inner-Time`, `Esq-Srv-Outer-Time`, `Esq-Srv-Inner-Time`). The service-tier headers (`Esq-Srv-*`) depend on the Master Switch state on the service side; the gateway-tier headers (`X-Response-Time`, `Esq-Gw-Inner-Time`) are always emitted under trigger.
 -   **Error Report**: When an error has happened on the Gateway side, the Gateway reports the error with request timing using *processingTime Problem Detail* attribute, even in the case when the end-client did not trigger the performance metrics.
 
 #### **Summary of Constants**
 
-|  **Name**                                          | **Purpose**                                                | **Details**                                                                |
-|----------------------------------------------------|------------------------------------------------------------|----------------------------------------------------------------------------|
-| *X-Capture-Metrics*                                | *Header.* <br>The end-client Trigger.                      | Allows sending performance metrics in response headers,                    |
-| *X-Response-Time*                                  | *Header.* <br>The Gateway's total request processing time. | Always in the response headers when “triggered”.                           |
-| *Esq-Service-Time*                                 | *Header.* <br>The Service's total request processing time. | In the response headers, when “triggered” and “Master Switch” are on.      |
-| *Esq-Backend-Time*                                 | *Header.* <br>The Backend/JPA request processing time.     | In the response headers, when “triggered” and “Master Switch” are on.      |
-| *esquire. gateway.<br>service-metrics<br>.enabled* | *Gateway configuration.*<br>The “Master Switch”.           | Disabled by default                                                        |
-| *processingTime*                                   | *Error Problem Detail.* <br>Request processing time        | Same value as for *X-Response-Time*, does not require to be “triggered.*”* |
+|  **Name**                                          | **Purpose**                                                                          | **Details**                                                                |
+|----------------------------------------------------|--------------------------------------------------------------------------------------|----------------------------------------------------------------------------|
+| *X-Capture-Metrics*                                | *Header.* <br>The end-client Trigger.                                                | Allows sending performance metrics in response headers,                    |
+| *X-Response-Time*                                  | *Header.* <br>Gateway outer time -- full envelope.                                   | Always in the response headers when “triggered”.                           |
+| *Esq-Gw-Inner-Time*                                | *Header.* <br>Gateway inner time -- downstream call only.                            | In the response headers, when “triggered”.                                 |
+| *Esq-Srv-Outer-Time*                               | *Header.* <br>Service outer time -- full service processing.                         | In the response headers, when “triggered” and “Master Switch” are on.      |
+| *Esq-Srv-Inner-Time*                               | *Header.* <br>Service inner umbrella -- today equals JPA, future may decompose.      | In the response headers, when “triggered” and “Master Switch” are on.      |
+| *Esq-Srv-Inner-{X}-Time*                           | *Header.* <br>Optional inner-aspect decomposition (e.g., -DB-, -JMS-, -Cache-).      | Added alongside the umbrella `Esq-Srv-Inner-Time`, not in place of it.     |
+| *esquire. gateway.<br>service-metrics<br>.enabled* | *Gateway configuration.*<br>The “Master Switch”.                                     | Disabled by default                                                        |
+| *processingTime*                                   | *Error Problem Detail.* <br>Request processing time                                  | Same value as for *X-Response-Time*, does not require to be “triggered.*”* |
 
 ## 4. Error Report (The RFC 7807/9457)
 

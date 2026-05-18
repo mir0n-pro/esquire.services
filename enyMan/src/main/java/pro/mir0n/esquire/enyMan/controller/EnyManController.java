@@ -2,7 +2,7 @@
  *  Esquire frameworks (tm)
  *  EnyMan service
  *
- *  Copyright(c) 2001, 2025 mir0n&co www.mir0n.me
+ *  Copyright(c) 2001, 2026 mir0n&co www.mir0n.pro
  *  mailto:mir0n.the.programmer@gmail.com
  *
  *  History:
@@ -21,6 +21,8 @@
  * 03/26/2026 mir0n  POST /esq-new → esquireCommandNew(); POST /esq-del → esquireCommandDelete()
  * 03/31/2026 mir0n  POST /esq-move → esquireCommandMove()
  * 04/07/2026 mir0n  /esq-new→/esq-cmd-new, /esq-del→/esq-cmd-del
+ * 05/14/2026 mir0n  GET /esq-cmd-tree added: FK-based natural-tree traversal from seed entity;
+ *                   leaves-first ordering; same EsqTreeNode shape as /esq for response compatibility
  */
 
 package pro.mir0n.esquire.enyMan.controller;
@@ -236,6 +238,28 @@ public class EnyManController {
 
         List<EsqObjectKind> ret  = EsqObjectKindStorage.getInstance().getAll();
         devLog.debug("esquireKinds: result:{}",String.valueOf(ret));
+        return ResponseEntity.status(HttpStatus.OK).body(ret);
+    }
+
+    @GetMapping("/esq-cmd-tree")
+    @Operation(
+            summary = "Read the natural entity subtree under a seed entity",
+            description = "FK-based traversal of esq_org/esq_user/esq_account, independent from the biztree cache. "
+                        + "Returns the seed entity and every descendant, leaves-first (level DESC), so callers can "
+                        + "delete bottom-up without reordering. Same EsqTreeNode shape as /esq for response compatibility."
+    )
+    public ResponseEntity<List<EsqTreeNode>> esquireCommandTree(
+            @Parameter(description = "Seed entity kind code (ORG/USR/ACCT)")
+            @RequestParam(name = "kind", required = true) Integer kind,
+            @Parameter(description = "Seed entity id")
+            @RequestParam(name = "id", required = true) String id,
+            @AuthenticationPrincipal Claims claims
+    ) {
+        String rootPath = claims.get(EsqConstants.JWT_CLAIM_ENTITY_ROOTPATH, String.class);
+        String uid = claims.get(EsqConstants.JWT_CLAIM_ENTITY_ID, String.class);
+
+        List<EsqTreeNode> ret = iEnyManService.esquireCommandTree(kind, id, rootPath, uid);
+        devLog.debug("esquireCommandTree: kind:{}, id:{}, rootPath:{}, rows:{}", kind, id, rootPath, ret.size());
         return ResponseEntity.status(HttpStatus.OK).body(ret);
     }
 }

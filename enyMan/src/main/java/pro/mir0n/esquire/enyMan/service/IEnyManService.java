@@ -2,7 +2,7 @@
  *  Esquire frameworks (tm)
  *  EnyMan service
  *
- *  Copyright(c) 2001, 2025 mir0n&co www.mir0n.me
+ *  Copyright(c) 2001, 2026 mir0n&co www.mir0n.pro
  *  mailto:mir0n.the.programmer@gmail.com
  *
  *  History:
@@ -15,6 +15,7 @@
  * 03/31/2026 mir0n  esquireCommandMove() added
  * 04/01/2026 mir0n  esquireCommandMove(): returns List<EsqMoveRecord> (id,kind,path per moved entity)
  * 04/07/2026 mir0n  all kind params Integer → int (primitive)
+ * 05/14/2026 mir0n  esquireCommandTree(kind, id, rootPath, uid) added for /esq-cmd-tree
  */
 
 package pro.mir0n.esquire.enyMan.service;
@@ -24,6 +25,7 @@ import java.util.Map;
 
 import pro.mir0n.esquire.backend.dto.EsqEntity;
 import pro.mir0n.esquire.backend.dto.EsqEntityLayer;
+import pro.mir0n.esquire.backend.dto.EsqTreeNode;
 import pro.mir0n.esquire.enyMan.jpa.EsqMoveRecord;
 
 public interface IEnyManService {
@@ -34,5 +36,11 @@ public interface IEnyManService {
     public EsqEntity esquireCommandNew(int kind, String parentId, String cmd, Map<String, Object> fields, String rootPath, String uid, List<String> roles);
     public void esquireCommandDelete(int kind, String id, String cmd, String rootPath, String uid, List<String> roles);
     public List<EsqMoveRecord> esquireCommandMove(int kind, String id, String distId, String rootPath, String uid, List<String> roles);
+
+    // Tree query is a cross-cutting concern handled at the top-level orchestrator
+    // (EnyManService), not by the per-kind services (OrgService / UsrService).
+    default List<EsqTreeNode> esquireCommandTree(int kind, String id, String rootPath, String uid) {
+        throw new UnsupportedOperationException("esquireCommandTree not implemented");
+    }
 
 }

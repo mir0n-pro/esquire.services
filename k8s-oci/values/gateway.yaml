@@ -1,7 +1,7 @@
 # Prod overrides for k8s/charts/esquire-gateway
 image:
   repository: ghcr.io/mir0n-pro/esquire.gateway
-  tag: "v1.2.3"
+  tag: "v1.2.4-2605.1723"
   pullPolicy: Always
 
 springProfilesActive: console
@@ -29,7 +29,24 @@ backends:
   keysmithPort: 3002
 
 cors:
-  allowedOrigins: https://esquire.mir0n.pro
+  # v1.2.4: BFF still lives at esquire.mir0n.pro; hauberk + any external JWT
+  # client hit api.esquire.mir0n.pro directly through this gateway.
+  allowedOrigins: https://esquire.mir0n.pro,https://api.esquire.mir0n.pro
+
+# Token Relay -- shared KC /token endpoint + per-variant allowlists.
+# Public URL so KC's iss validation on token-exchange matches the
+# subject_token's issuer (in-cluster URL would mismatch). +20ms one-time
+# DNS + TLS per cache MISS; cache HIT path doesn't touch KC.
+# - esq-hauberk-S is the Vanilla Token Relay client today
+# - esq-hauberk-M is the Phantom Token Relay client today
+# exchangeClientSecret is passed via --set at install (oke-up.bat).
+tokenRelay:
+  tokenUri: https://esquire.mir0n.pro/kc-auth/realms/esquire/protocol/openid-connect/token
+  vanilla:
+    clients: esq-hauberk-S
+  phantom:
+    clients: esq-hauberk-M
+    exchangeClientId: esq-gw-exchange
 
 logging:
   levelRoot: WARN

@@ -27,6 +27,7 @@ import pro.mir0n.esquire.backend.storage.roles.JpaRolesRepository;
 import pro.mir0n.esquire.common.EsqConstants;
 import pro.mir0n.esquire.common.EsqMsgConstants;
 import pro.mir0n.esquire.backend.validator.ValidatorFactory;
+import pro.mir0n.esquire.pacMan.acct.jpa.EsqAcctTransactionRepository;
 import pro.mir0n.esquire.pacMan.jpa.EsqAcctRepository;
 import pro.mir0n.esquire.pacMan.messaging.EsqEntityBroadcastPublisher;
 import pro.mir0n.esquire.pacMan.service.impl.PacManService;
@@ -60,6 +61,9 @@ class PacManServiceTest {
 
     @Mock
     private EsqEntityBroadcastPublisher broadcastPublisher;
+
+    @Mock
+    private EsqAcctTransactionRepository acctTrxRepo;
 
     private PacManService service;
 
@@ -120,7 +124,7 @@ class PacManServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new PacManService(entityRepository, transactionTemplate, em, broadcastPublisher);
+        service = new PacManService(entityRepository, transactionTemplate, em, broadcastPublisher, acctTrxRepo);
     }
 
     // ---- esquireCommand: unknown or odd kind → ResourceNotFoundException ----
@@ -356,5 +360,31 @@ class PacManServiceTest {
         assertThatThrownBy(() ->
             service.esquireCommandDelete(50, "10", "delete", "1.2.3", "99", List.of(ROLE_ADMIN))
         ).isInstanceOf(DeleteRestrictedException.class);
+    }
+
+    // ---- esquireCommandDelete: Test House subtree purges transactions + forces close ----
+
+    @Test
+    @DisplayName("esquireCommandDelete: ep_path starts with 1.14. → purge transactions, force status=C, delete succeeds")
+    void esquireCommandDelete_testHouseSubtree_purgesAndCloses() {
+        EsqAcctJpa acct = new EsqAcctJpa();
+        acct.setId("10");
+        acct.setKind(50);
+        acct.setStatus("O");
+        acct.setFundedDate("2026-05-12");
+
+        when(transactionTemplate.execute(any())).thenAnswer(inv -> {
+            inv.<org.springframework.transaction.support.TransactionCallback<?>>getArgument(0).doInTransaction(null);
+            return null;
+        });
+        when(entityRepository.detailAcctForUpdate("10", 50, "1.14.")).thenReturn(acct);
+        when(entityRepository.acctPath("10")).thenReturn("1.14.15.10.");
+
+        service.esquireCommandDelete(50, "10", "delete", "1.14.", "99", List.of(ROLE_ADMIN));
+
+        verify(acctTrxRepo).deleteAcctTransactionsByAccPk(10L);
+        InOrder order = inOrder(entityRepository);
+        order.verify(entityRepository).deleteAcct("10");
+        order.verify(entityRepository).deleteEntityPath("10");
     }
 }

@@ -2,12 +2,12 @@
  *  Esquire frameworks (tm)
  *  BizTree service
  *
- *  Copyright(c) 2001, 2025 mir0n&co www.mir0n.me
+ *  Copyright(c) 2001, 2026 mir0n&co www.mir0n.pro
  *  mailto:mir0n.the.programmer@gmail.com
  *
  *  History:
  * 12/26/2025 mir0n  refine API doc
- * 12/27/2025 mir0n  added entity implementations 
+ * 12/27/2025 mir0n  added entity implementations
  * 12/28/2025 mir0n logging added using Slf4j
  * 01/10/2026 mir0n added processing of user claims
  * 01/18/2026 mir0n BizTreeConstants moved to common package
@@ -15,6 +15,9 @@
  * 01/23/2026 mir0n use common library
  *                  only EsqTreeNode requests
  * 03/21/2026 mir0n  devLog added; log.debug→devLog.debug
+ * 05/14/2026 mir0n  GET /esq-tree added: recursive subtree from biztree H2 cache
+ *                   (counterpart to enyMan /esq-cmd-tree authoritative DB walk;
+ *                   used together by the hauberk CompareTrees scenario)
  */
 
 package pro.mir0n.esquire.bizTree.controller;
@@ -121,6 +124,27 @@ public class BizTreeController {
         EsqTreeNode node = iBizTreeService.esquireEntityNode(kind, id, name, rootPath, uid);
         devLog.debug("esquireEntityNode: kind:{}, id:{}, name:{}, rootPath:{}, result:{}", kind, id, name, rootPath, String.valueOf(node));
         return ResponseEntity.status(HttpStatus.OK).body(node);
+    }
+
+    @GetMapping("/esq-tree")
+    @Operation(
+            summary = "Recursive subtree from biztree H2 cache",
+            description = "Returns the seed node + every descendant cached node (real entities, "
+                        + "virtual folders, and account shortcuts) under one tree-path prefix. "
+                        + "Counterpart to enyMan's /esq-cmd-tree (authoritative DB walk); used "
+                        + "together by the hauberk CompareTrees diff scenario."
+    )
+    public ResponseEntity<List<EsqTreeNode>> esquireSubtree(
+            @Parameter(description = "Seed tree-node id (subtree root)")
+            @RequestParam(name = "id", required = true) String id,
+            @AuthenticationPrincipal Claims claims
+    ) {
+        String rootPath = claims.get(EsqConstants.JWT_CLAIM_ENTITY_ROOTPATH, String.class);
+        String uid      = claims.get(EsqConstants.JWT_CLAIM_ENTITY_ID, String.class);
+
+        List<EsqTreeNode> nodes = iBizTreeService.esquireSubtree(id, rootPath, uid);
+        devLog.debug("esquireSubtree: id:{}, rootPath:{}, count:{}", id, rootPath, nodes.size());
+        return ResponseEntity.status(HttpStatus.OK).body(nodes);
     }
 
     @GetMapping("/esq-path")

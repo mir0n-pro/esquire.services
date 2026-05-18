@@ -550,4 +550,111 @@
         </entity-result>
     </sql-result-set-mapping>
 
+    <!--
+        Subtree queries: FK-based traversal of the natural entity tree.
+        Independent from biztree cache; rootPath scoping via JOIN to esq_entity_path
+        only for authorization, not for traversal. Result ordering: leaves-first
+        (accounts, then users, then sub-orgs, then seed) via level DESC, so callers
+        iterating the response can delete bottom-up without reordering.
+    -->
+
+    <named-native-query name="EsqSubtreeRow.subtreeFromOrg" result-set-mapping="EsqSubtreeRowMapping">
+        <query><![CDATA[
+ WITH org_subtree (pk, kind, name, d, parent_pk, path_str, lvl) AS (
+     SELECT o.org_pk, o.org_et_pk, o.org_name, o.org_desc, o.org_org_pk, p.ep_path, 1
+       FROM esq_org o
+       JOIN esq_entity_path p ON p.ep_pk = o.org_pk
+      WHERE o.org_pk = TO_NUMBER(:seedId)
+        AND p.ep_path LIKE :rootPath || '%'
+     UNION ALL
+     SELECT o.org_pk, o.org_et_pk, o.org_name, o.org_desc, o.org_org_pk, p.ep_path, t.lvl + 1
+       FROM esq_org o
+       JOIN esq_entity_path p ON p.ep_pk = o.org_pk
+       JOIN org_subtree t ON o.org_org_pk = t.pk
+      WHERE p.ep_path LIKE :rootPath || '%'
+ )
+ SELECT TO_CHAR(pk)        AS id
+      , pk                 AS entity_id
+      , kind               AS kind
+      , name               AS name
+      , d                  AS "desc"
+      , TO_CHAR(parent_pk) AS parent_id
+      , lvl                AS lvl
+      , path_str           AS entity_path
+   FROM org_subtree
+ UNION ALL
+ SELECT TO_CHAR(u.usr_pk), u.usr_pk, u.usr_et_pk, u.usr_name, u.usr_desc,
+        TO_CHAR(u.usr_org_pk), t.lvl + 1, p.ep_path
+   FROM esq_user u
+   JOIN esq_entity_path p ON p.ep_pk = u.usr_pk
+   JOIN org_subtree t      ON u.usr_org_pk = t.pk
+  WHERE p.ep_path LIKE :rootPath || '%'
+    AND u.usr_deleted_flg = 'N'
+ UNION ALL
+ SELECT TO_CHAR(a.acc_pk), a.acc_pk, a.acc_et_pk, a.acc_id, a.acc_desc,
+        TO_CHAR(a.acc_usr_pk), t.lvl + 2, p.ep_path
+   FROM esq_account a
+   JOIN esq_user u         ON a.acc_usr_pk = u.usr_pk
+   JOIN esq_entity_path p  ON p.ep_pk = a.acc_pk
+   JOIN org_subtree t      ON u.usr_org_pk = t.pk
+  WHERE p.ep_path LIKE :rootPath || '%'
+ ORDER BY lvl DESC, parent_id NULLS LAST
+        ]]></query>
+    </named-native-query>
+
+    <named-native-query name="EsqSubtreeRow.subtreeFromUsr" result-set-mapping="EsqSubtreeRowMapping">
+        <query><![CDATA[
+ SELECT TO_CHAR(u.usr_pk) AS id
+      , u.usr_pk          AS entity_id
+      , u.usr_et_pk       AS kind
+      , u.usr_name        AS name
+      , u.usr_desc        AS "desc"
+      , TO_CHAR(u.usr_org_pk) AS parent_id
+      , 1                 AS lvl
+      , p.ep_path         AS entity_path
+   FROM esq_user u
+   JOIN esq_entity_path p ON p.ep_pk = u.usr_pk
+  WHERE u.usr_pk = TO_NUMBER(:seedId)
+    AND p.ep_path LIKE :rootPath || '%'
+ UNION ALL
+ SELECT TO_CHAR(a.acc_pk), a.acc_pk, a.acc_et_pk, a.acc_id, a.acc_desc,
+        TO_CHAR(a.acc_usr_pk), 2, p.ep_path
+   FROM esq_account a
+   JOIN esq_entity_path p ON p.ep_pk = a.acc_pk
+  WHERE a.acc_usr_pk = TO_NUMBER(:seedId)
+    AND p.ep_path LIKE :rootPath || '%'
+ ORDER BY lvl DESC, parent_id NULLS LAST
+        ]]></query>
+    </named-native-query>
+
+    <named-native-query name="EsqSubtreeRow.subtreeFromAcct" result-set-mapping="EsqSubtreeRowMapping">
+        <query><![CDATA[
+ SELECT TO_CHAR(a.acc_pk) AS id
+      , a.acc_pk          AS entity_id
+      , a.acc_et_pk       AS kind
+      , a.acc_id          AS name
+      , a.acc_desc        AS "desc"
+      , TO_CHAR(a.acc_usr_pk) AS parent_id
+      , 1                 AS lvl
+      , p.ep_path         AS entity_path
+   FROM esq_account a
+   JOIN esq_entity_path p ON p.ep_pk = a.acc_pk
+  WHERE a.acc_pk = TO_NUMBER(:seedId)
+    AND p.ep_path LIKE :rootPath || '%'
+        ]]></query>
+    </named-native-query>
+
+    <sql-result-set-mapping name="EsqSubtreeRowMapping">
+        <entity-result entity-class="pro.mir0n.esquire.enyMan.jpa.EsqSubtreeRow">
+            <field-result name="id" column="id"/>
+            <field-result name="entityId" column="entity_id"/>
+            <field-result name="kind" column="kind"/>
+            <field-result name="name" column="name"/>
+            <field-result name="desc" column="desc"/>
+            <field-result name="parentId" column="parent_id"/>
+            <field-result name="level" column="lvl"/>
+            <field-result name="entityPath" column="entity_path"/>
+        </entity-result>
+    </sql-result-set-mapping>
+
 </entity-mappings>

@@ -1,0 +1,19 @@
+# Local k8s overlay for charts/esquire-gateway
+# Chart defaults already target ingress-fronted local (ClusterIP, port 8080,
+# esquire.localhost CORS). Gateway sits behind ingress-nginx on
+# api.esquire.localhost (mirrors OKE shape -- api.esquire.mir0n.pro ->
+# ClusterIP gateway).
+#
+# image.tag is restamped per rebuild here -- k8s-rebuild.bat patches it.
+image:
+  tag: "v1.2.4-2605.1723"
+
+# Token Relay -- in-cluster KC endpoint (HTTP, no TLS); same allowlists as
+# OKE. exchangeClientSecret comes via --set at install (k8s-up.bat).
+tokenRelay:
+  tokenUri: http://esquire-infra-kc-keycloak:8080/kc-auth/realms/esquire/protocol/openid-connect/token
+  vanilla:
+    clients: esq-hauberk-S
+  phantom:
+    clients: esq-hauberk-M
+    # exchangeClientSecret comes via --set at install (k8s-up.bat).

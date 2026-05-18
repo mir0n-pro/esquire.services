@@ -26,7 +26,10 @@ import pro.mir0n.esquire.backend.storage.roles.JpaRolesRepository;
 import pro.mir0n.esquire.common.EsqConstants;
 import pro.mir0n.esquire.enyMan.jpa.EsqEntityDictionaryRepository;
 import pro.mir0n.esquire.enyMan.jpa.EsqOrgRepository;
+import pro.mir0n.esquire.enyMan.jpa.EsqSubtreeRepository;
+import pro.mir0n.esquire.enyMan.jpa.EsqSubtreeRow;
 import pro.mir0n.esquire.enyMan.jpa.EsqUsrRepository;
+import pro.mir0n.esquire.backend.dto.EsqTreeNode;
 import pro.mir0n.esquire.enyMan.messaging.EsqEntityBroadcastPublisher;
 import pro.mir0n.esquire.enyMan.messaging.KcRequestPublisher;
 import pro.mir0n.esquire.enyMan.service.impl.EnyManService;
@@ -44,6 +47,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import org.mockito.InOrder;
 import pro.mir0n.esquire.backend.jpa.entity.EsqOrgJpa;
@@ -63,6 +67,9 @@ class EnyManServiceTest {
 
     @Mock
     private EsqUsrRepository usrRepo;
+
+    @Mock
+    private EsqSubtreeRepository subtreeRepo;
 
     @Mock
     private TransactionTemplate transactionTemplate;
@@ -127,7 +134,7 @@ class EnyManServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new EnyManService(dictRepo, orgRepo, usrRepo, transactionTemplate, em, broadcastPublisher, kcRequestPublisher);
+        service = new EnyManService(dictRepo, orgRepo, usrRepo, subtreeRepo, transactionTemplate, em, broadcastPublisher, kcRequestPublisher);
     }
 
     // ---- esquireCommandSave: org kind, null roles → PermissionDeniedException ----
@@ -684,5 +691,52 @@ class EnyManServiceTest {
         order.verify(usrRepo).deletePersonBankInfo("200");
         order.verify(usrRepo).deleteUsr("200");
         order.verify(usrRepo).deleteEntityPath("200");
+    }
+
+    // ---- esquireCommandTree: org kind -> subtreeFromOrg + EsqSubtreeRow projection ----
+
+    @Test
+    @DisplayName("esquireCommandTree: org kind -> subtreeFromOrg, projects rows into EsqTreeNode with entityPath")
+    void esquireCommandTree_orgKind_callsSubtreeFromOrg_projectsRows() {
+        EsqSubtreeRow row1 = new EsqSubtreeRow("10", 100L, 20, "Office",    null, "1",  1, "1.10.");
+        EsqSubtreeRow row2 = new EsqSubtreeRow("11", 101L, 34, "Test User", null, "10", 2, "1.10.11.");
+        when(subtreeRepo.subtreeFromOrg("10", "1.")).thenReturn(List.of(row1, row2));
+
+        List<EsqTreeNode> result = service.esquireCommandTree(20, "10", "1.", "99");
+
+        assertThat(result).hasSize(2);
+        assertThat(result.get(0).getId()).isEqualTo("10");
+        assertThat(result.get(0).getEntityPath()).isEqualTo("1.10.");
+        assertThat(result.get(1).getId()).isEqualTo("11");
+        assertThat(result.get(1).getEntityPath()).isEqualTo("1.10.11.");
+        verify(subtreeRepo).subtreeFromOrg("10", "1.");
+        verify(subtreeRepo, never()).subtreeFromUsr(any(), any());
+        verify(subtreeRepo, never()).subtreeFromAcct(any(), any());
+    }
+
+    // ---- esquireCommandTree: usr kind -> subtreeFromUsr ----
+
+    @Test
+    @DisplayName("esquireCommandTree: usr kind -> subtreeFromUsr branch")
+    void esquireCommandTree_usrKind_callsSubtreeFromUsr() {
+        when(subtreeRepo.subtreeFromUsr("11", "1.")).thenReturn(List.of());
+
+        service.esquireCommandTree(34, "11", "1.", "99");
+
+        verify(subtreeRepo).subtreeFromUsr("11", "1.");
+        verify(subtreeRepo, never()).subtreeFromOrg(any(), any());
+        verify(subtreeRepo, never()).subtreeFromAcct(any(), any());
+    }
+
+    // ---- esquireCommandTree: unknown kind -> ResourceNotFoundException ----
+
+    @Test
+    @DisplayName("esquireCommandTree: unknown kind -> ResourceNotFoundException, no repo call")
+    void esquireCommandTree_unknownKind_throwsResourceNotFoundException() {
+        // kind 1000 is not registered in initStorage() -> EsqObjectKind defaults to a kind that is
+        // neither org/usr/acct -> upfront applicability check fails
+        assertThatThrownBy(() -> service.esquireCommandTree(1000, "10", "1.", "99"))
+                .isInstanceOf(ResourceNotFoundException.class);
+        verifyNoInteractions(subtreeRepo);
     }
 }

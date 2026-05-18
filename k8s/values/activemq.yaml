@@ -1,0 +1,4 @@
+# Local k8s overlay for charts/infra/activemq
+# Chart defaults match local dev needs (apache/activemq-classic:6.1.4).
+# No local overrides required -- file exists for structural parity
+# with k8s-oci/values/activemq.yaml.

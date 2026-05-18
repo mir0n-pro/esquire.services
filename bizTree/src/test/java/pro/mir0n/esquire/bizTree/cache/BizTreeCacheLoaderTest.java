@@ -55,7 +55,7 @@ class BizTreeCacheLoaderTest {
     void setUp() {
         BizTreeCacheSql sql = new BizTreeCacheSql(
                 new BizTreeCacheSql.Ddl("", "", ""),
-                new BizTreeCacheSql.Repo("", "", "", "", "", "", "", "", "", "", "", ""),
+                new BizTreeCacheSql.Repo("", "", "", "", "", "", "", "", "", "", "", "", ""),
                 new BizTreeCacheSql.Loader("INSERT", "UPDATE", "SELECT")
         );
         loader = new BizTreeCacheLoader(orgRepo, usrRepo, acctRepo, cacheDb, sql);

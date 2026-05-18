@@ -68,7 +68,7 @@ HttpProtocolBuilder httpProtocol = http
 For Simulations longer than the token TTL (default 5 min), wrap requests in a
 token-refresh helper that fetches lazily on 401.
 
-The realm client is `esq-tshirt` (or another service-account client) with
+The realm client is `esq-hauberk` (or another service-account client) with
 `grant_type=client_credentials`, configured to emit the standard Esquire claims
 (`esq_uid`, `esq_rootpath`, `realm_access.roles`).
 
@@ -94,10 +94,6 @@ setUp(
     .andThen(cleanupScn.injectOpen(atOnceUsers(1)))
 ).protocols(httpProtocol);
 ```
-
-Service-side delete restrictions (connected user, non-`C`-status account) are relaxed
-when the JWT carries the `TSHIRT_PURGE` realm role *or* the target entity's email is
-under the `@mir0n.pro` domain.
 
 ## What Gatling is NOT for
 
