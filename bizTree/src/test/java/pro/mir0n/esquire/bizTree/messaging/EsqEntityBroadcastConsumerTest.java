@@ -4,15 +4,18 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.jms.JMSException;
 import jakarta.jms.Message;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import pro.mir0n.esquire.backend.dto.EsqObjectKind;
 import pro.mir0n.esquire.backend.storage.EsqObjectKindStorage;
+import pro.mir0n.esquire.bizTree.access.legacy.BizTreeDirectorLegacy;
+import pro.mir0n.esquire.bizTree.cache.BizTreeCacheLoader;
 import pro.mir0n.esquire.bizTree.cache.IBizTreeCacheRepository;
+import pro.mir0n.esquire.bizTree.service.IBizTreeService;
 import pro.mir0n.esquire.common.EsqMsgConstants;
 
 import static org.mockito.Mockito.*;
@@ -21,10 +24,21 @@ import static org.mockito.Mockito.*;
 class EsqEntityBroadcastConsumerTest {
 
     @Mock private IBizTreeCacheRepository cacheRepository;
+    @Mock private IBizTreeService         bizTreeService;   // unused by dispatch path; satisfies director ctor
+    @Mock private BizTreeCacheLoader      cacheLoader;      // unused by dispatch path; satisfies director ctor
     @Mock private ObjectMapper            objectMapper;
     @Mock private Message                 message;
 
-    @InjectMocks private EsqEntityBroadcastConsumer consumer;
+    private EsqEntityBroadcastConsumer consumer;
+
+    @BeforeEach
+    void wireConsumer() {
+        // Real Director + Hub wired around mocked cacheRepository -- preserves
+        // the dispatch path the original test exercised end-to-end, just with
+        // one extra (real) indirection through IBizTreeDirector.
+        BizTreeDirectorLegacy director = new BizTreeDirectorLegacy(bizTreeService, cacheLoader, cacheRepository);
+        consumer = new EsqEntityBroadcastConsumer(director, objectMapper);
+    }
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
     private static final String       SKIP   = IBizTreeCacheRepository.SKIP;
@@ -44,7 +58,6 @@ class EsqEntityBroadcastConsumerTest {
 
     private void stubEnvelope(String entityId, int kind, String eventType, String textJson) throws JMSException {
         when(message.getStringProperty(EsqMsgConstants.FIELD_APPL_MSG_ID)).thenReturn("msg-1");
-        when(message.getStringProperty(EsqMsgConstants.FIELD_SERVICE_ID)).thenReturn(EsqMsgConstants.SERVICE_ID_ENTITY_BROADCAST);
         when(message.getStringProperty(EsqMsgConstants.FIELD_ENTITY_ID)).thenReturn(entityId);
         when(message.getIntProperty(EsqMsgConstants.FIELD_ENTITY_KIND)).thenReturn(kind);
         when(message.getStringProperty(EsqMsgConstants.FIELD_EVENT_TYPE)).thenReturn(eventType);

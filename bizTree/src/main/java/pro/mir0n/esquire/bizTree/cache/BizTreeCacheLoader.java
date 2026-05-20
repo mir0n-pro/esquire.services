@@ -2,7 +2,7 @@
  *  Esquire frameworks (tm)
  *  BizTree service
  *
- *  Copyright(c) 2001, 2025 mir0n&co www.mir0n.me
+ *  Copyright(c) 2001, 2026 mir0n&co www.mir0n.pro
  *  mailto:mir0n.the.programmer@gmail.com
  *
  *  History:
@@ -12,14 +12,15 @@
  * 03/26/2026 mir0n  magic constants replaced with BizTreeConstants.*;
  *                   folder routing: folderKindForUsr(etPk) replaces hardcoded KIND_USR_* comparisons
  * 03/31/2026 mir0n  devLog debug line added in user-building loop
+ * 05/20/2026 mir0n  Taijitu refactor (v1.2.5): no longer an ApplicationReadyEvent
+ *                   listener -- exposes load() invoked by the active director's
+ *                   bootstrap; consumes precomposed CacheSqlSet (was BizTreeCacheSql)
  */
 package pro.mir0n.esquire.bizTree.cache;
 
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.boot.context.event.ApplicationReadyEvent;
-import org.springframework.context.ApplicationListener;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 import pro.mir0n.esquire.backend.jpa.entity.EsqAcctJpa;
@@ -32,23 +33,30 @@ import pro.mir0n.esquire.bizTree.jpa.EsqUsrRepository;
 
 import java.util.*;
 
+/**
+ * Bulk-loads ORG/USR/ACCT entities from esq2025 into the in-memory H2 tree
+ * cache. Invoked explicitly via {@link #load()} -- no longer an
+ * ApplicationReadyEvent listener. The active director's bootstrap() decides
+ * when to call it (legacy: directly; Yang/Taijitu: from the INIT command).
+ * This is the {@code CacheLoad} seam the taijitu monads delegate to.
+ */
 @Slf4j
 @Component
-public class BizTreeCacheLoader implements ApplicationListener<ApplicationReadyEvent> {
+public class BizTreeCacheLoader {
 
     private static final org.slf4j.Logger devLog = LoggerFactory.getLogger("develop." + BizTreeCacheLoader.class.getName());
 
     private final EsqOrgRepository  orgRepo;
     private final EsqUsrRepository  usrRepo;
     private final EsqAcctRepository acctRepo;
-    private final JdbcTemplate       cacheDb;
-    private final BizTreeCacheSql    sql;
+    private final JdbcTemplate    cacheDb;
+    private final CacheSqlSet     sql;
 
     public BizTreeCacheLoader(EsqOrgRepository orgRepo,
                               EsqUsrRepository usrRepo,
                               EsqAcctRepository acctRepo,
                               @Qualifier("cacheJdbcTemplate") JdbcTemplate cacheDb,
-                              BizTreeCacheSql sql) {
+                              CacheSqlSet sql) {
         this.orgRepo  = orgRepo;
         this.usrRepo  = usrRepo;
         this.acctRepo = acctRepo;
@@ -56,8 +64,9 @@ public class BizTreeCacheLoader implements ApplicationListener<ApplicationReadyE
         this.sql      = sql;
     }
 
-    @Override
-    public void onApplicationEvent(ApplicationReadyEvent event) {
+    /** Build the in-memory tree cache from the entity tables. Throws on failure
+     *  so the caller (a monad INIT) can transition to FAILED. */
+    public void load() {
         log.info("BizTreeCacheLoader: building in-memory tree cache from entity tables");
 
         List<Object[]> rows = new ArrayList<>();
@@ -65,7 +74,7 @@ public class BizTreeCacheLoader implements ApplicationListener<ApplicationReadyE
         Map<String, Long> usrOrgMap = buildUserRows(rows);
         buildAccountRows(rows, usrOrgMap);
 
-        int[] counts = cacheDb.batchUpdate(sql.loader.insertNode(), rows);
+        int[] counts = cacheDb.batchUpdate(sql.insertNode(), rows);
         log.info("BizTreeCacheLoader: inserted {} nodes; computing paths", counts.length);
 
         computePathsAndLevels();
@@ -153,7 +162,7 @@ public class BizTreeCacheLoader implements ApplicationListener<ApplicationReadyE
         Map<String, String>       parents  = new HashMap<>();
         Map<String, List<String>> children = new HashMap<>();
 
-        cacheDb.query(sql.loader.selectPaths(), rs -> {
+        cacheDb.query(sql.selectPaths(), rs -> {
             String pk       = rs.getString(BizTreeConstants.COL_PK);
             String parentPk = rs.getString(BizTreeConstants.COL_PARENT_PK);
             parents.put(pk, parentPk);
@@ -190,7 +199,7 @@ public class BizTreeCacheLoader implements ApplicationListener<ApplicationReadyE
         for (String pk : parents.keySet()) {
             updates.add(new Object[]{ levels.getOrDefault(pk, 0), paths.get(pk), pk });
         }
-        cacheDb.batchUpdate(sql.loader.updatePath(), updates);
+        cacheDb.batchUpdate(sql.updatePath(), updates);
         devLog.debug("BizTreeCacheLoader: path/level updated for {} nodes", updates.size());
     }
 

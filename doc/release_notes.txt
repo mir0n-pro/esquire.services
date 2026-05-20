@@ -1,6 +1,15 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v1.2.5-2605.2012  v1.2.5 bizTree sprint -- Taijitu cache refactor (Steps 1+2)
+    :Refactoring: bizTree REST + JMS entry points reduced to pass-throughs over IBizTreeDirector
+    :Refactoring: configurable cache director (biztree.director = legacy | yang | taijitu)
+    :Feature:     yang single-monad director closes the cache-load race
+    :Refactoring: per-monad precomposed SQL (CacheSqlSet)
+    :Config:      esquire.version 1.2.4 -> 1.2.5; compose BIZTREE_DIRECTOR=yang
+    :Doc:         new doc/Esquire.BizTree.md
+    Components:   bizTree, pom, compose, doc
+
 v1.2.4-2605.1720  v1.2.4 : JWE via Keycloak research completed, support of Haubergeon sims :
                   Token Relay umbrella (Vanilla + Phantom Token Relay); 
                   landing page;

@@ -11,6 +11,9 @@
  * 03/26/2026 mir0n  delete-node SQL property wired into BizTreeCacheSql.Repo
  * 04/02/2026 mir0n  added 3 Repo queries:  moveNode, moveAcctLink, findFolderPks
  * 05/14/2026 mir0n  select-subtree SQL property wired into BizTreeCacheSql.Repo
+ * 05/20/2026 mir0n  Taijitu refactor (v1.2.5): build per-table CacheSqlSet bean via
+ *                   CacheSqlSet.forTable (biztree.cache.table, default ESQ_TREE);
+ *                   cacheJdbcTemplate + DDL executed from the resolved set
  */
 package pro.mir0n.esquire.bizTree.h2;
 
@@ -23,6 +26,7 @@ import org.springframework.context.annotation.PropertySource;
 import org.springframework.core.env.Environment;
 import org.springframework.jdbc.core.JdbcTemplate;
 import pro.mir0n.esquire.bizTree.cache.BizTreeCacheSql;
+import pro.mir0n.esquire.bizTree.cache.CacheSqlSet;
 
 /**
  * H2-specific configuration for the in-memory tree cache.
@@ -39,6 +43,8 @@ public class BizTreeH2Config {
 
     @Value("${biztree.h2.url:jdbc:h2:mem:biztree;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE}")
     private String  h2Url;
+    @Value("${biztree.cache.table:ESQ_TREE}")
+    private String  cacheTable;
     @Value("${biztree.h2.pool.pool-name:biztree-h2-cache}")
     private String  poolName;
     @Value("${biztree.h2.pool.maximum-pool-size:10}")
@@ -83,8 +89,13 @@ public class BizTreeH2Config {
         );
     }
 
+    @Bean
+    public CacheSqlSet cacheSqlSet(BizTreeCacheSql templates) {
+        return CacheSqlSet.forTable(templates, cacheTable);
+    }
+
     @Bean("cacheJdbcTemplate")
-    public JdbcTemplate cacheJdbcTemplate(BizTreeCacheSql sql) {
+    public JdbcTemplate cacheJdbcTemplate(CacheSqlSet sql) {
         HikariDataSource ds = new HikariDataSource();
         ds.setPoolName(poolName);
         ds.setJdbcUrl(h2Url);
@@ -95,9 +106,9 @@ public class BizTreeH2Config {
         ds.setMaxLifetime(maxLifetime);
         ds.setIdleTimeout(idleTimeout);
         JdbcTemplate jt = new JdbcTemplate(ds);
-        jt.execute(sql.ddl.createTable());
-        jt.execute(sql.ddl.createIndexParent());
-        jt.execute(sql.ddl.createIndexEntityPk());
+        jt.execute(sql.createTable());
+        jt.execute(sql.createIndexParent());
+        jt.execute(sql.createIndexEntityPk());
         return jt;
     }
 }

@@ -1,6 +1,61 @@
 Esquire BizTree Microservice
 
 
+05/20/2026 mir0n  v1.2.5 Taijitu cache refactor (Steps 1+2) + per-monad precomposed SQL
+access.IBizTreeDirector  (new)
+  - cache-access contract: bootstrap() + reads (esquire/esquirePath/esquireEntityNode/
+    esquireSubtree) + onEntityBroadcast()
+access.BizTreeDirectorConfig  (new)
+  - @Bean wiring; biztree.director property selects legacy | yang | taijitu; choice logged at startup
+access.BizTreeBootstrapRunner  (new)
+  - ApplicationReadyEvent listener; calls the active director's bootstrap()
+access.MessageHandlerHub  (new)
+  - per-kind handler dispatch HandlerKey(eventType,kindBits) -> IBizTreeEventHandler;
+    extracted from EsqEntityBroadcastConsumer
+access.CacheNotReadyException  (new)
+  - RuntimeException thrown by a monad read before status LOADED
+access.legacy.BizTreeDirectorLegacy  (new)
+  - reads -> IBizTreeService; events -> MessageHandlerHub; bootstrap() -> cacheLoader.load()
+access.yang.BizTreeDirectorYang  (new)
+  - role-router over one MonadY; bootstrap() starts the monad, enables queue, submits INIT
+taijitu.MonadY  (new)
+  - active (yang) monad: API front + single worker, one FIFO queue, two gates
+    (queueEnabled/processingEnabled); commands -> MonadCmdHub, events -> eventHub, reads ->
+    IBizTreeService; implements IMonad; worker catches Exception, lets Error propagate
+taijitu.MonadCmdHub  (new)
+  - handles INIT / CLEAN / CHECKSUM; drives MonadY status + gates
+taijitu.IMonad  (new)
+  - monad contract: lifecycle, submit/offer, setQueueEnabled/status/queueDepth, reads, listeners
+taijitu.IMonadCommand  (new)
+  - sealed: Init | Clean | Checksum
+taijitu.IQueueItem  (new)
+  - sealed: Cmd(IMonadCommand) | Event(eventType, entityId, entityKind, JsonNode)
+taijitu.ICacheLoad, IEventSink, IErrorListener, ICancelable  (new)
+  - functional interfaces: load() / apply() / onError() / cancel()
+taijitu.ICmdResponseListener  (new)
+  - onStarted(command, cancelable) + onResult(command, status); NOOP default
+taijitu.LoggingErrorListener  (new)
+  - IErrorListener default; logs to console + develop
+taijitu.MonadStatus  (new)
+  - enum IDLE / LOADING / LOADED / FAILED
+cache.CacheSqlSet  (new)
+  - precomposed table-bound SQL record; forTable(BizTreeCacheSql, table) substitutes {table}
+    and joins the read fragments once
+controller.BizTreeController
+  - reads forwarded to IBizTreeDirector (was IBizTreeService)
+messaging.EsqEntityBroadcastConsumer
+  - pass-through to IBizTreeDirector; handler dispatch moved to MessageHandlerHub; parses
+    textJson once, forwards director.onEntityBroadcast()
+cache.BizTreeCacheLoader
+  - no longer ApplicationReadyEvent listener; exposes load(); consumes CacheSqlSet
+cache.impl.BizTreeCacheRepository
+  - consumes CacheSqlSet; reads run ready statements (no selectCols()+where per call)
+h2.BizTreeH2Config
+  - cacheSqlSet bean via CacheSqlSet.forTable (biztree.cache.table, default ESQ_TREE);
+    DDL executed from the set
+src/main/resources/META-INF/h2-cache-sql.properties
+  - table name, index names, PK constraint parameterized with {table} token
+
 05/14/2026 mir0n  v1.2.4 /esq-tree -- recursive subtree from biztree H2 cache
 controller.BizTreeController
   - GET /esq-tree added: takes seed tree-node id, returns seed + every descendant cached node

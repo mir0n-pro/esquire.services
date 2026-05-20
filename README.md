@@ -1,7 +1,9 @@
 | ![Alt text](./favicon.ico) | Esquire Frameworks(tm) 2.0 |
 |----------------------------|---------------------------|
 
-> **v1.2.4 — complete (05/14/2026).** Gatling 3.13 stress / load / smoke / race-repro harness (codename "hauberk"). Gateway gains 4 (four) auth patterns. Public REST API re-exposed at [api.esquire.mir0n.pro](https://api.esquire.mir0n.pro).
+> 
+> **v1.2.5 — in progress.** bizTree's internal cache rebuilt as the "Taijitu" Supreme Ultimate Cache — closes the cache-load race behind an unchanged API surface.
+>
 
 
 In addition to the existing auth patterns (BFF and plain JWT), two non-browser auth patterns were added — **Vanilla Token Relay** and **Phantom Token Relay** — both keep authorization claims off the client side while preserving local validation downstream of the gateway.
@@ -132,99 +134,21 @@ The two public hosts at a glance:
 
 ---
 
+## v1.2.5 — in progress
+
+v1.2.5 is the **bizTree cache-refactor sprint** — bizTree's internal cache is rebuilt as the
+"Taijitu" Supreme Ultimate Cache (anti-entropy double-buffer with shadow promotion) to close the
+cache-load race deferred from v1.2.4. The external surface — REST paths, JMS topic, cache
+interface — is unchanged; the new implementation slots in behind it.<br>
+[Architecture: doc/Esquire.BizTree.md](doc/Esquire.BizTree.md)
+
 ## v1.2.4 — complete (05/14/2026)
 
 v1.2.4 is the **stress / load / race-repro + auth-pattern sprint** — a pure-REST Gatling 3.13
-harness lands as the platform's standard testing surface, and the gateway
-gains two new non-browser authentication patterns alongside BFF and plain JWT:
-**Vanilla Token Relay** (no token on the wire from client) and **Phantom Token Relay**
-(stripped JWT at client, full JWT restored at gateway via RFC 8693 token-exchange).
-
-### Hauberk: Gatling harness under `explorer/hauberk/`
-
-A new Maven module sits alongside `backend/`, `frontend/`, and `e2e-test/`:
-
-- **Gatling 3.13 Java DSL** as the engine; runnable via a picocli CLI
-  (`hauberk.cmd run <simulation> [--config <profile>]`).
-- **26 reusable Chains** + **17 Simulations** spanning smoke (`ChainsSmoke`),
-  cleanup (`CleanHouse`), seed (`PrepareForAnything`), tree-diff (`CompareTrees`),
-  KC-through-BFF integration (`KcIntegrationSmoke`), 4-deep move (`MoveSmoke`),
-  five parallel forever-loop scenarios (`SuperLoad`), and the Phase 8 race repros.
-- **Profile overlays** (`hauberk.properties`, `hauberk-k8s.properties`,
-  `hauberk-oke.properties`) pick environment endpoints without code changes.
-- **Identity grounded in real entities:** `client_credentials` against KC's
-  `esq-hauberk` / `esq-hauberk-S` / `esq-hauberk-M` clients; service-account claims carry
-  `esq_uid` and `esq_rootpath` so downstream authorization gates fire exactly as for a
-  real admin user.
-
-Full reference: [doc/Esquire.Haubergeon.md](doc/Esquire.Haubergeon.md).
-
-### Gateway gains added: "Vanilla Token Relay" and "Phantom Token Relay"
-
-Two new authentication patterns land on the gateway alongside the existing BFF and plain
-JWT. Both are non-browser patterns that keep claims off the client side
-while preserving local validation downstream of the gateway (no per-request KC callback).
-
-### Tree-comparison endpoints + `EsqTreeNode.entityPath`
-
-Race verification needs to diff what biztree's H2 cache holds against the relational
-truth in Postgres. Two endpoints serve the two sides:
-
-- **`/esq-cmd-tree`** (enyMan) — recursive CTE over `esq_entity` + `esq_entity_path`;
-  the relational FK walk. Returns `entityPath` straight from `ep_path`.
-- **`/esq-tree`** (biztree) — the H2 in-memory cache; `entityPath` is derived from
-  `tree_path` by stripping virtual-folder segments. No duplicate column.
-
-`CompareTrees` reads both, filters to `kind=34` regular USRs (the kinds where
-`isPathParentOnly()` doesn't cause expected divergence), and reports any path or
-membership mismatch. The same plumbing serves the race-repro verifiers.
-
-### Four-layer observability protocol
-
-Every request now carries a precise time-decomposition header chain so post-flight
-reports can separate client-side, gateway-side, and service-side latency:
-
-| Header | Set by | Measures |
-|---|---|---|
-| `X-Response-Time` | client (hauberk) | full wall-clock client RTT |
-| `Esq-Gw-Inner-Time` | gateway | time inside the gateway pod, incl. Vanilla Token Relay brokering / Phantom Token Relay exchange when active |
-| `Esq-Srv-Outer-Time` | downstream service | service pod time, request-to-response |
-| `Esq-Srv-Inner-Time` | downstream service | business-logic time only, excluding framework overhead |
-
-A per-request `PerformanceMatrix` CSV row is captured when the request carries
-`X-Capture-Metrics: 1`; sims emit it for every load run. Full schema:
-[doc/Esquire.ObservabilityStack.md](doc/Esquire.ObservabilityStack.md).
-
-### Gatling becomes the Esquire testing standard
-
-Decided mid-sprint: Gatling 3.13+ Java DSL is the Esquire standard for integration,
-stress, load, and race-repro testing. Vocabulary is Gatling's verbatim — Simulation,
-Scenario, Chain, VU, injection profile — no parallel project-local terms. Playwright
-keeps the browser-end e2e surface; JUnit keeps the per-service unit / Spring slice
-surface. Policy note: [doc/Testing.md](doc/Testing.md).
-
-### Public REST API host: `api.esquire.mir0n.pro`
-
-The gateway is publicly reachable again — but on a **separate host** from the BFF,
-both terms on a single SAN cert (`esquire.mir0n.pro` + `api.esquire.mir0n.pro`).
-Two ingress rules, one TLS Secret. Non-browser callers (service-to-service, hauberk,
-future mobile / API consumers) point at `api.esquire.mir0n.pro` with their own
-bearer token; the BFF stays as the only entry path for the browser.
-
-### JWE position: parked under stock KC
-
-The `client_credentials` re-test confirmed that stock Keycloak 26.4.7 still does not
-emit JWE on `/token` for *any* standard grant; `DefaultTokenManager` is core-coupled
-with no SPI seam for token-format changes. Vanilla Token Relay and Phantom Token Relay landed
-as **partition patterns** -- both keep KC off the hot path through the downstream
-microservices and absorb the claim-hiding cost at one well-defined seam
-(client/gateway edge) rather than baking it into the token itself. Gateway-side JWE lab
-kept armed (`JweAwareJwtDecoder`, `JwksController`, `/jwe-jwks`, keypair, `esq-hauberk`
-JWE attributes) -- one config flip from re-test when KC ships proper access-token JWE
-or an alternative IAS enters scope. Full closing record:
-[doc/keyCloak-gateway.JWE.md](doc/keyCloak-gateway.JWE.md).
-
----
+harness (codename "hauberk") becomes the platform's standard testing surface, and the gateway
+gains two non-browser auth patterns — **Vanilla Token Relay** and **Phantom Token Relay** —
+alongside BFF and plain JWT.<br>
+[More Details: v1.2.4 README](https://github.com/mir0n-pro/esquire.services/tree/release/v1.2.4?tab=readme-ov-file#project-structure)
 
 ## v1.2.3 — complete (05/08/2026)
 
