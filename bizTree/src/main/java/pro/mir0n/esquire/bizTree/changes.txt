@@ -1,6 +1,32 @@
 Esquire BizTree Microservice
 
 
+05/21/2026 mir0n  v1.2.5 Taijitu Step 3 generalization -- monad framework extracted to common
+taijitu.MonadY
+  - rewritten as a thin extension of common pro.mir0n.utils.taijitu.AMonadY: implements the single
+    _processItem(QueueItem) hook (LOAD -> BizTreeCacheLoader.load(); message -> parse text + apply
+    via the event hub with MDC) plus the gated REST reads; own worker/queue/gates/status removed
+access.yang.BizTreeDirectorYang
+  - now extends common ATaijituRigY; supplies the MonadY it controls and the REST reads;
+    bootstrap / shutdown / onEntityBroadcast / onStarted / onResult inherited
+access.IBizTreeDirector
+  - now extends common ITaijituRig (bootstrap / shutdown / onEntityBroadcast); keeps only the
+    bizTree REST reads; inline lifecycle + JsonNode onEntityBroadcast removed
+access.legacy.BizTreeDirectorLegacy
+  - onEntityBroadcast takes the 7 raw fields and parses textJson inline (no worker); added
+    ObjectMapper ctor arg + no-op shutdown()
+access.BizTreeDirectorConfig
+  - @Bean takes ObjectMapper; builds MonadY with instance id "monad" (not the role "yang") +
+    cacheLoader / eventHub / readBackend / ObjectMapper; passes ObjectMapper to the legacy impl
+messaging.EsqEntityBroadcastConsumer
+  - forwards the RAW body (messageEncoding + textJson) + requestId / correlationId via the 7-arg
+    director.onEntityBroadcast(); ObjectMapper field + readTree block removed (director parses)
+taijitu.MonadCmdHub, IMonad, IMonadCommand, IQueueItem, ICacheLoad, IErrorListener,
+ICancelable, ICmdResponseListener, LoggingErrorListener, MonadStatus  (removed)
+  - dissolved into the common generalization: command/event flattened to common QueueItem +
+    MonadCmd; ICancelable / ICmdResponseListener / MonadStatus moved to common pro.mir0n.utils.taijitu;
+    queue + error-listener machinery moved to common pro.mir0n.utils.concurrent (IQueueRig / BoundedQueueRig)
+
 05/20/2026 mir0n  v1.2.5 Taijitu cache refactor (Steps 1+2) + per-monad precomposed SQL
 access.IBizTreeDirector  (new)
   - cache-access contract: bootstrap() + reads (esquire/esquirePath/esquireEntityNode/

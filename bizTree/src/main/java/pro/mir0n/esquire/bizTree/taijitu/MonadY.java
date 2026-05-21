@@ -6,315 +6,135 @@
  *  mailto:mir0n.the.programmer@gmail.com
  *
  *  History:
- * 05/19/2026 mir0n  created: the active (yang) monad -- full cache-access object
- *                   (v1.2.5 Taijitu refactor Step 2). API front + single worker over
- *                   one FIFO queue with two gates; commands -> MonadCmdHub, events ->
- *                   MessageHandlerHub (eventHub via IEventSink), reads -> read backend.
- *                   Implements IMonad with IErrorListener + ICmdResponseListener
- *                   (defaults LoggingErrorListener / NOOP, replaceable); worker loop
- *                   survives recoverable faults (catch Exception -> error listener +
- *                   FAIL the command), InterruptedException = clean shutdown, Error
- *                   propagates. NON-final: MonadYY (Step 3) extends for the Yin routines.
+ * 05/20/2026 mir0n  created: the active (yang) cache monad -- bizTree's concrete extension of the
+ *                   common Taijitu AMonadY (v1.2.5 generalization). AMonadY owns the Taijitu logic
+ *                   (queue, status, command execution, gate); MonadY adds the actual cache access:
+ *                   loadCache() (BizTreeCacheLoader), handleMessage() (parse text -> dispatch via
+ *                   the event hub, off the JMS thread, with MDC), and the REST reads (gated on
+ *                   status()==LOADED). NON-final: MonadYY (dark side) extends to add Yin routines.
  */
 package pro.mir0n.esquire.bizTree.taijitu;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import lombok.extern.slf4j.Slf4j;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.slf4j.MDC;
 import pro.mir0n.esquire.backend.dto.EsqTreeNode;
 import pro.mir0n.esquire.bizTree.access.CacheNotReadyException;
+import pro.mir0n.esquire.bizTree.cache.BizTreeCacheLoader;
 import pro.mir0n.esquire.bizTree.service.IBizTreeService;
+import pro.mir0n.esquire.common.EsqConstants;
+import pro.mir0n.utils.taijitu.AMonadY;
+import pro.mir0n.utils.taijitu.MonadCmd;
+import pro.mir0n.utils.taijitu.MonadStatus;
+import pro.mir0n.utils.taijitu.QueueItem;
 
 import java.util.List;
-import java.util.concurrent.ArrayBlockingQueue;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.locks.Condition;
-import java.util.concurrent.locks.ReentrantLock;
 
 /**
- * The active (yang) cache monad: a single FIFO queue, a single worker thread,
- * two gates, a small state machine -- and the full cache-access surface
- * (reads + writes). The owning director is a pure router that forwards to it.
- *
- * Layers:
- *   - API front (this class' public methods): queue entry, monitor + control,
- *     reads, listener registration.
- *   - internal (worker thread + the two domain hubs): commands -> MonadCmdHub,
- *     events -> IEventSink (production = MessageHandlerHub::dispatch).
- *
- * Worker resilience: the per-item processing is wrapped so one poisoned item
- * (e.g. an NPE on a malformed event) cannot silently kill the worker thread.
- * Recoverable Exceptions are routed to the IErrorListener and the worker keeps
- * running; InterruptedException is a clean shutdown signal; fatal Errors
- * (OOM etc.) are left to propagate.
+ * bizTree's concrete cache monad. Extends the common {@link AMonadY} (which owns the Taijitu
+ * mechanics) and implements the single {@code process(QueueItem)} hook plus the REST reads:
+ *   - command work : LOAD -> {@link BizTreeCacheLoader#load()} (CLEAR / CHECKSUM TBD).
+ *   - message work : parse the raw text (off the JMS thread, MDC-tagged) and apply it via the
+ *                    event hub (MessageHandlerHub).
+ *   - reads (esquire ...) : served from the read backend once the cache is LOADED.
  */
-@Slf4j
-public class MonadY implements IMonad {
+public class MonadY extends AMonadY {
 
-    private static final Logger devLog = LoggerFactory.getLogger("develop." + MonadY.class.getName());
+    private final BizTreeCacheLoader cacheLoader;
+    private final IEventSink         eventHub;
+    private final IBizTreeService    readBackend;
+    private final ObjectMapper       objectMapper;
 
-    private final String                    name;
-    private final BlockingQueue<IQueueItem> queue;
-    private final MonadCmdHub               cmdHub;
-    private final IEventSink                eventHub;
-    private final IBizTreeService           readBackend;
-
-    private volatile boolean     queueEnabled      = false;
-    private volatile boolean     processingEnabled = false;
-    private volatile MonadStatus status            = MonadStatus.IDLE;
-
-    private volatile IErrorListener       errorListener;
-    private volatile ICmdResponseListener cmdResponseListener = ICmdResponseListener.NOOP;
-
-    private final ReentrantLock gate        = new ReentrantLock();
-    private final Condition     gateChanged = gate.newCondition();
-
-    private volatile boolean running = false;
-    private Thread worker;
-
-    public MonadY(String name,
+    public MonadY(String monadId,
                   int queueCapacity,
-                  ICacheLoad cacheLoad,
+                  BizTreeCacheLoader cacheLoader,
                   IEventSink eventHub,
-                  IBizTreeService readBackend) {
-        this.name          = name;
-        this.queue         = new ArrayBlockingQueue<>(queueCapacity);
-        this.eventHub      = eventHub;
-        this.readBackend   = readBackend;
-        this.errorListener = new LoggingErrorListener(name);
-        this.cmdHub        = new MonadCmdHub(cacheLoad, this);
+                  IBizTreeService readBackend,
+                  ObjectMapper objectMapper) {
+        super(monadId, queueCapacity);
+        this.cacheLoader  = cacheLoader;
+        this.eventHub     = eventHub;
+        this.readBackend  = readBackend;
+        this.objectMapper = objectMapper;
     }
 
     /* ====================================================================
-     * API front -- lifecycle
+     * process(QueueItem) -- the cache work (command + message)
      * ==================================================================== */
 
     @Override
-    public synchronized void start() {
-        if (running) {
-            return;
+    protected void _processItem(QueueItem item) {
+        if (item.eventType() == MonadCmd.CMD) {
+            if (MonadCmd.LOAD == item.entityId()) {
+                cacheLoader.load();
+                // no cancel() yet
+            } else if (MonadCmd.CLEAR == item.entityId()) {
+                //cache.clear();
+            } else if (MonadCmd.CHECKSUM == item.entityId()) {
+                //cache.checksum();  -- how to return the checksum?
+            }
+        } else {   // message
+            // Tag the worker thread with the originating ids, parse here (off the JMS thread),
+            // then apply via the event hub.
+            putMdc(item);
+            try {
+                JsonNode textNode = parse(item);
+                eventHub.apply(item.eventType(), item.entityId(), item.entityKind(), textNode);
+            } finally {
+                clearMdc();
+            }
         }
-        running = true;
-        worker = new Thread(this::workerLoop, "monad-" + name);
-        worker.setDaemon(true);
-        worker.start();
     }
 
-    @Override
-    public synchronized void stop() {
-        running = false;
-        signalGate();
-        if (worker != null) {
-            worker.interrupt();
+    private JsonNode parse(QueueItem item) {
+        if (item.text() == null) {
+            return null;
+        }
+        try {
+            return objectMapper.readTree(item.text());
+        } catch (Exception e) {
+            throw new IllegalStateException("textJson parse failed (id=" + item.entityId() + ")", e);
         }
     }
 
-    /* ====================================================================
-     * API front -- queue entry
-     * ==================================================================== */
-
-    @Override
-    public void submit(IMonadCommand command) {
-        put(new IQueueItem.Cmd(command));
+    private static void putMdc(QueueItem item) {
+        if (item.requestId() != null)     MDC.put(EsqConstants.PD_REQUEST_ID,     item.requestId());
+        if (item.correlationId() != null) MDC.put(EsqConstants.PD_CORRELATION_ID, item.correlationId());
     }
 
-    @Override
-    public boolean offer(String eventType, String entityId, int entityKind, JsonNode textNode) {
-        if (!queueEnabled) {
-            return false;
-        }
-        boolean ret = queue.offer(new IQueueItem.Event(eventType, entityId, entityKind, textNode));
-        if (!ret) {
-            log.warn("monad[{}]: queue full ({}), event dropped: type={} id={} kind={}",
-                    name, queue.size(), eventType, entityId, entityKind);
-        }
-        return ret;
+    private static void clearMdc() {
+        MDC.remove(EsqConstants.PD_REQUEST_ID);
+        MDC.remove(EsqConstants.PD_CORRELATION_ID);
     }
 
     /* ====================================================================
-     * API front -- monitor & control
+     * REST reads (full cache-access object; gated on LOADED)
      * ==================================================================== */
 
-    @Override
-    public void setQueueEnabled(boolean v) {
-        this.queueEnabled = v;
-    }
-
-    public void setProcessingEnabled(boolean v) {
-        this.processingEnabled = v;
-        signalGate();
-    }
-
-    public boolean      isQueueEnabled()      { return queueEnabled; }
-    public boolean      isProcessingEnabled() { return processingEnabled; }
-    @Override public MonadStatus status()     { return status; }
-    @Override public int         queueDepth() { return queue.size(); }
-
-    /* ====================================================================
-     * API front -- listeners
-     * ==================================================================== */
-
-    @Override
-    public void setErrorListener(IErrorListener listener) {
-        this.errorListener = (listener == null) ? new LoggingErrorListener(name) : listener;
-    }
-
-    @Override
-    public void setCmdResponseListener(ICmdResponseListener listener) {
-        this.cmdResponseListener = (listener == null) ? ICmdResponseListener.NOOP : listener;
-    }
-
-    /* ====================================================================
-     * API front -- reads (full cache-access object; gated on LOADED)
-     * ==================================================================== */
-
-    @Override
     public List<EsqTreeNode> esquire(String id, Integer skip, Integer take, String rootPath, String uid) {
         requireLoaded();
         return readBackend.esquire(id, skip, take, rootPath, uid);
     }
 
-    @Override
     public List<String> esquirePath(String id, String rootPath) {
         requireLoaded();
         return readBackend.esquirePath(id, rootPath);
     }
 
-    @Override
     public EsqTreeNode esquireEntityNode(Integer kind, String id, String name, String rootPath, String uid) {
         requireLoaded();
         return readBackend.esquireEntityNode(kind, id, name, rootPath, uid);
     }
 
-    @Override
     public List<EsqTreeNode> esquireSubtree(String id, String rootPath, String uid) {
         requireLoaded();
         return readBackend.esquireSubtree(id, rootPath, uid);
     }
 
     private void requireLoaded() {
-        if (status != MonadStatus.LOADED) {
-            throw new CacheNotReadyException("monad=" + name + " status=" + status);
+        if (status() != MonadStatus.LOADED) {
+            throw new CacheNotReadyException("monad=" + monadId() + " status=" + status());
         }
     }
 
-    /* ====================================================================
-     * internal -- worker thread + gate
-     * ==================================================================== */
-
-    private void workerLoop() {
-        while (running) {
-            IQueueItem item;
-            try {
-                item = queue.take();
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();   // clean shutdown signal
-                if (!running) {
-                    break;
-                }
-                continue;
-            }
-
-            try {
-                processItem(item);
-            } catch (Exception e) {
-                // Recoverable fault (NPE etc.): keep the worker alive, surface it.
-                errorListener.onError("processing " + describe(item), e);
-                if (item instanceof IQueueItem.Cmd c) {
-                    setStatusInternal(MonadStatus.FAILED);
-                    cmdResponseListener.onResult(c.command(), MonadStatus.FAILED);
-                }
-            }
-            // java.lang.Error (OOM, StackOverflow, ...) is intentionally NOT caught
-            // -- it propagates and ends the worker, which is correct for a fatal fault.
-        }
-    }
-
-    private void processItem(IQueueItem item) {
-        if (item instanceof IQueueItem.Cmd c) {
-            cmdHub.handle(c.command());
-        } else if (item instanceof IQueueItem.Event e) {
-            if (awaitProcessing()) {
-                eventHub.apply(e.eventType(), e.entityId(), e.entityKind(), e.textNode());
-            }
-            // awaitProcessing()==false: stopping or IDLE/FAILED -> event dropped
-        }
-    }
-
-    private static String describe(IQueueItem item) {
-        if (item instanceof IQueueItem.Cmd c) {
-            return "command " + c.command().getClass().getSimpleName();
-        }
-        if (item instanceof IQueueItem.Event e) {
-            return "event " + e.eventType() + " id=" + e.entityId() + " kind=" + e.entityKind();
-        }
-        return "unknown item";
-    }
-
-    /**
-     * Block the worker until events may be applied. Returns true to apply,
-     * false to drop the held event. Drops when stopping, or when status is
-     * IDLE/FAILED (no load in flight that would ever open the gate). Waits
-     * only while LOADING.
-     */
-    private boolean awaitProcessing() {
-        gate.lock();
-        try {
-            while (running && !processingEnabled) {
-                if (status == MonadStatus.FAILED || status == MonadStatus.IDLE) {
-                    return false;
-                }
-                gateChanged.await();
-            }
-            return running && processingEnabled;
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            return false;
-        } finally {
-            gate.unlock();
-        }
-    }
-
-    private void put(IQueueItem item) {
-        try {
-            queue.put(item);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
-    }
-
-    private void signalGate() {
-        gate.lock();
-        try {
-            gateChanged.signalAll();
-        } finally {
-            gate.unlock();
-        }
-    }
-
-    /* ====================================================================
-     * internal -- driven by MonadCmdHub (same package; no control interface)
-     * ==================================================================== */
-
-    String name() {
-        return name;
-    }
-
-    IErrorListener errorListener() {
-        return errorListener;
-    }
-
-    ICmdResponseListener cmdResponseListener() {
-        return cmdResponseListener;
-    }
-
-    void setStatusInternal(MonadStatus s) {
-        this.status = s;
-        signalGate();
-    }
-
-    void dropBufferedEventsInternal() {
-        queue.removeIf(qi -> qi instanceof IQueueItem.Event);
-    }
 }

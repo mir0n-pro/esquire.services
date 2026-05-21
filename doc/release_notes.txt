@@ -1,6 +1,13 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v1.2.5-2605.2114  v1.2.5 bizTree sprint -- Taijitu Step 3 generalization
+    :Refactoring: Taijitu monad framework extracted from bizTree to common
+                  (pro.mir0n.utils.taijitu + pro.mir0n.utils.concurrent)
+    :Refactoring: bizTree cache monad and director reduced to thin extensions of the common framework
+    :Refactoring: command/event queue flattened to one QueueItem record + MonadCmd vocabulary
+    Components:   common, bizTree
+
 v1.2.5-2605.2012  v1.2.5 bizTree sprint -- Taijitu cache refactor (Steps 1+2)
     :Refactoring: bizTree REST + JMS entry points reduced to pass-throughs over IBizTreeDirector
     :Refactoring: configurable cache director (biztree.director = legacy | yang | taijitu)

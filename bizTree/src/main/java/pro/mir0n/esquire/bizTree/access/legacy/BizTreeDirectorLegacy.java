@@ -12,11 +12,17 @@
  *                   @Component today; in Step 3 the annotation moves to the Taijitu
  *                   wrapper and this class becomes inert (kept in tree for emergency
  *                   switch-back per feedback-invisible-refactor).
+ * 05/20/2026 mir0n  generalization: implements IBizTreeDirector extends ITaijituRig --
+ *                   onEntityBroadcast takes the 7 raw fields and parses textJson inline (legacy
+ *                   has no worker thread); added ObjectMapper ctor arg + no-op shutdown().
  */
 package pro.mir0n.esquire.bizTree.access.legacy;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import pro.mir0n.esquire.backend.dto.EsqTreeNode;
 import pro.mir0n.esquire.bizTree.access.IBizTreeDirector;
 import pro.mir0n.esquire.bizTree.access.MessageHandlerHub;
@@ -43,16 +49,21 @@ import java.util.List;
 @Slf4j
 public class BizTreeDirectorLegacy implements IBizTreeDirector {
 
+    private static final Logger devLog = LoggerFactory.getLogger("develop." + BizTreeDirectorLegacy.class.getName());
+
     private final IBizTreeService    bizTreeService;
     private final BizTreeCacheLoader cacheLoader;
     private final MessageHandlerHub  handlerHub;
+    private final ObjectMapper       objectMapper;
 
     public BizTreeDirectorLegacy(IBizTreeService bizTreeService,
                                  BizTreeCacheLoader cacheLoader,
-                                 IBizTreeCacheRepository cacheRepository) {
+                                 IBizTreeCacheRepository cacheRepository,
+                                 ObjectMapper objectMapper) {
         this.bizTreeService = bizTreeService;
         this.cacheLoader    = cacheLoader;
         this.handlerHub     = new MessageHandlerHub(cacheRepository);
+        this.objectMapper   = objectMapper;
     }
 
     /* --- Lifecycle ------------------------------------------------------- */
@@ -67,6 +78,11 @@ public class BizTreeDirectorLegacy implements IBizTreeDirector {
         log.info("BizTreeDirectorLegacy: bootstrap -- loading cache (synchronous, no event gating)");
         cacheLoader.load();
         log.info("BizTreeDirectorLegacy: bootstrap -- cache loaded");
+    }
+
+    @Override
+    public void shutdown() {
+        // Nothing to stop: legacy has no worker thread.
     }
 
     /* --- Read surface ---------------------------------------------------- */
@@ -98,7 +114,20 @@ public class BizTreeDirectorLegacy implements IBizTreeDirector {
     /* --- Event surface --------------------------------------------------- */
 
     @Override
-    public void onEntityBroadcast(String eventType, String entityId, int entityKind, JsonNode textNode) {
+    public void onEntityBroadcast(String eventType, String entityId, int entityKind,
+                                  String requestId, String correlationId,
+                                  String messageEncoding, String text) {
+        // Legacy has no worker thread, so it parses on the caller (JMS) thread before dispatch.
+        JsonNode textNode = null;
+        if (text != null) {
+            try {
+                textNode = objectMapper.readTree(text);
+            } catch (Exception parseEx) {
+                log.error("BizTreeDirectorLegacy: textJson parse failed id={}: {}", entityId, parseEx.getMessage());
+                devLog.error("BizTreeDirectorLegacy: textJson parse failed id={}: {}", entityId, parseEx.getMessage(), parseEx);
+                return;
+            }
+        }
         handlerHub.dispatch(eventType, entityId, entityKind, textNode);
     }
 }

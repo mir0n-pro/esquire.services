@@ -6,53 +6,39 @@
  *  mailto:mir0n.the.programmer@gmail.com
  *
  *  History:
- * 05/19/2026 mir0n  created: single-monad IBizTreeDirector implementation
- *                   (v1.2.5 Taijitu refactor Step 2). The "active half" -- a pure
- *                   role-router over one MonadY, which is the full cache-access object
- *                   (owns reads + writes); this director just forwards. For the full
- *                   Taijitu the equivalent router picks the active of two MonadYY.
+ * 05/19/2026 mir0n  created: single-monad IBizTreeDirector implementation (v1.2.5 Taijitu Step 2).
+ * 05/20/2026 mir0n  generalization: extends the common ATaijituRigY (which controls the monad and
+ *                   drives the processing gate); this class only supplies the MonadY it controls
+ *                   and adds the bizTree REST reads (routed to that monad). bootstrap / shutdown /
+ *                   onEntityBroadcast / onStarted / onResult are inherited from ATaijituRigY.
  */
 package pro.mir0n.esquire.bizTree.access.yang;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import lombok.extern.slf4j.Slf4j;
 import pro.mir0n.esquire.backend.dto.EsqTreeNode;
 import pro.mir0n.esquire.bizTree.access.IBizTreeDirector;
-import pro.mir0n.esquire.bizTree.taijitu.IMonad;
-import pro.mir0n.esquire.bizTree.taijitu.IMonadCommand;
+import pro.mir0n.esquire.bizTree.taijitu.MonadY;
+import pro.mir0n.utils.taijitu.ATaijituRigY;
 
 import java.util.List;
 
 /**
- * Pure role-router over a single {@link MonadY}. The monad is the full
- * cache-access object (reads, writes, lifecycle); this director only forwards
- * IBizTreeDirector calls to it. There is no Yin, no night-watch -- that is the
- * full Taijitu (two MonadYY, the router picking the active one).
+ * The bizTree director for the single-monad (Yang) mode. The Taijitu control logic lives in
+ * the common {@link ATaijituRigY}; here we just hand it the {@link MonadY} it controls and add
+ * the domain reads, which delegate to that monad (gated on LOADED). For the full Taijitu the
+ * equivalent router will pick the active of two monads.
  *
  * Wired in BizTreeDirectorConfig; bootstrap() fired once by BizTreeBootstrapRunner.
- *
- * See: services/doc/Esquire.BizTree.md "Migration plan".
  */
-@Slf4j
-public final class BizTreeDirectorYang implements IBizTreeDirector {
+public final class BizTreeDirectorYang extends ATaijituRigY implements IBizTreeDirector {
 
-    private final IMonad monad;
+    private final MonadY monad;
 
-    public BizTreeDirectorYang(IMonad monad) {
+    public BizTreeDirectorYang(MonadY monad) {
+        super(monad);
         this.monad = monad;
     }
 
-    /* --- Lifecycle ------------------------------------------------------- */
-
-    @Override
-    public void bootstrap() {
-        monad.start();
-        monad.setQueueEnabled(true);   // events buffer from here on
-        monad.submit(new IMonadCommand.Init());
-        log.info("BizTreeDirectorYang: bootstrap issued (INIT queued, queue enabled)");
-    }
-
-    /* --- Read surface (forwarded to the monad) --------------------------- */
+    /* --- Read surface (forwarded to the active monad) -------------------- */
 
     @Override
     public List<EsqTreeNode> esquire(String id, Integer skip, Integer take, String rootPath, String uid) {
@@ -72,16 +58,5 @@ public final class BizTreeDirectorYang implements IBizTreeDirector {
     @Override
     public List<EsqTreeNode> esquireSubtree(String id, String rootPath, String uid) {
         return monad.esquireSubtree(id, rootPath, uid);
-    }
-
-    /* --- Event surface (forwarded to the monad) -------------------------- */
-
-    @Override
-    public void onEntityBroadcast(String eventType, String entityId, int entityKind, JsonNode textNode) {
-        boolean accepted = monad.offer(eventType, entityId, entityKind, textNode);
-        if (!accepted) {
-            log.warn("BizTreeDirectorYang: event not accepted (status={}): type={} id={} kind={}",
-                    monad.status(), eventType, entityId, entityKind);
-        }
     }
 }

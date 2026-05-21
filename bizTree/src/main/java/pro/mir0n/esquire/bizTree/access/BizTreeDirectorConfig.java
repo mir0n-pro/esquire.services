@@ -11,9 +11,13 @@
  *                   configurable selection via `biztree.director` property
  *                   (legacy | yang | taijitu); choice logged at startup; each impl is
  *                   plain Java, all wiring visible in this one switch.
+ * 05/20/2026 mir0n  generalization: @Bean takes ObjectMapper; constructs MonadY with instance id
+ *                   "monad" (not the role "yang") + cacheLoader / eventHub / readBackend /
+ *                   ObjectMapper; passes ObjectMapper to BizTreeDirectorLegacy too.
  */
 package pro.mir0n.esquire.bizTree.access;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -57,19 +61,21 @@ public class BizTreeDirectorConfig {
     @Bean
     public IBizTreeDirector bizTreeDirector(IBizTreeService         bizTreeService,
                                             IBizTreeCacheRepository cacheRepository,
-                                            BizTreeCacheLoader      cacheLoader) {
+                                            BizTreeCacheLoader      cacheLoader,
+                                            ObjectMapper            objectMapper) {
 
         String kind = directorKind == null ? "legacy" : directorKind.trim().toLowerCase();
 
         IBizTreeDirector ret = switch (kind) {
-            case "legacy" -> new BizTreeDirectorLegacy(bizTreeService, cacheLoader, cacheRepository);
+            case "legacy" -> new BizTreeDirectorLegacy(bizTreeService, cacheLoader, cacheRepository, objectMapper);
 
             case "yang"   -> new BizTreeDirectorYang(new MonadY(
-                    "yang",
+                    "monad",                                            // instance id (NOT the role "yang")
                     queueCapacity,
-                    cacheLoader::load,                                  // ICacheLoad -> INIT load
-                    new MessageHandlerHub(cacheRepository)::dispatch,   // IEventSink (eventHub) -> buffered apply
-                    bizTreeService));                                   // read backend
+                    cacheLoader,                                        // loadCache() -> BizTreeCacheLoader.load()
+                    new MessageHandlerHub(cacheRepository)::dispatch,   // IEventSink (eventHub) -> apply
+                    bizTreeService,                                     // read backend
+                    objectMapper));                                     // worker parses raw text
 
             // case "taijitu" -> new Taijitu(...);   // Step 3
 

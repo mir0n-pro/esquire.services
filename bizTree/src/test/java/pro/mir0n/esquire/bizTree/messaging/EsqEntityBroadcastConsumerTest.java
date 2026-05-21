@@ -36,8 +36,8 @@ class EsqEntityBroadcastConsumerTest {
         // Real Director + Hub wired around mocked cacheRepository -- preserves
         // the dispatch path the original test exercised end-to-end, just with
         // one extra (real) indirection through IBizTreeDirector.
-        BizTreeDirectorLegacy director = new BizTreeDirectorLegacy(bizTreeService, cacheLoader, cacheRepository);
-        consumer = new EsqEntityBroadcastConsumer(director, objectMapper);
+        BizTreeDirectorLegacy director = new BizTreeDirectorLegacy(bizTreeService, cacheLoader, cacheRepository, objectMapper);
+        consumer = new EsqEntityBroadcastConsumer(director);
     }
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
@@ -63,6 +63,7 @@ class EsqEntityBroadcastConsumerTest {
         when(message.getStringProperty(EsqMsgConstants.FIELD_EVENT_TYPE)).thenReturn(eventType);
         when(message.getStringProperty(EsqMsgConstants.FIELD_REQUEST_ID)).thenReturn("req-1");
         when(message.getStringProperty(EsqMsgConstants.FIELD_CORRELATION_ID)).thenReturn("corr-1");
+        when(message.getStringProperty(EsqMsgConstants.FIELD_MESSAGE_ENCODING)).thenReturn(EsqMsgConstants.MSG_ENCODING_JSON);
         when(message.getStringProperty(EsqMsgConstants.FIELD_TEXT)).thenReturn(textJson);
     }
 

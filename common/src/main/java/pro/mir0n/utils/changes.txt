@@ -1,0 +1,34 @@
+mir0n java common frameworks -- pro.mir0n.utils
+
+
+05/21/2026 mir0n  v1.2.5 Taijitu Step 3 generalization -- queue rig + monad framework lifted from bizTree
+concurrent.IQueueRig  (new)
+  - generic active-object queue contract <E>: bounded FIFO drained by one worker (IQueueWorker);
+    processing gate (setProcessing -- when false the worker leaves the queue UNTOUCHED, no dequeue);
+    put / size / clear; nested IErrorListener<E> seam
+concurrent.BoundedQueueRig  (new)
+  - implements IQueueRig<E>: ArrayBlockingQueue + single daemon worker; gate parks before dequeue;
+    recoverable Throwable -> IErrorListener and the worker keeps running; Error propagates;
+    InterruptedException = shutdown; clear() bulk-drops. Lifted from bizTree MonadY
+taijitu.QueueItem  (new)
+  - flat record(eventType, entityId, entityKind, requestId, correlationId, messageEncoding, text);
+    commands and events share the one record; a command is eventType==MonadCmd.CMD with
+    entityId=the command id -- no sealed hierarchy
+taijitu.MonadCmd  (new)
+  - final class; interned String command vocabulary: CMD (eventType marker), LOAD, CLEAR, CHECKSUM
+taijitu.MonadStatus  (new)
+  - enum IDLE / LOADING / LOADED / FAILED
+taijitu.AMonadY  (new)
+  - abstract cache monad: owns a BoundedQueueRig over QueueItem, the status machine, two gates,
+    and command EXECUTION (LOAD/CLEAR/CHECKSUM); single abstract hook _processItem(QueueItem);
+    fires onStarted/onResult; only LOAD/CLEAR change status, message/CHECKSUM faults traced by the rig
+taijitu.ATaijituRigY  (new)
+  - abstract director: implements ITaijituRig + ICmdResponseListener; holds the active AMonadY;
+    bootstrap (submit LOAD, enable queue + processing); DRIVES the processing gate off the monad
+    callbacks (onStarted LOAD -> processing off; onResult LOADED -> on; FAILED -> setQueueEnabled(false)+clearQueue)
+taijitu.ITaijituRig  (new)
+  - director contract: bootstrap() / onEntityBroadcast(7 raw fields) / shutdown(); bean-blind, REST-free
+taijitu.ICmdResponseListener  (new)
+  - onStarted(commandId, ICancelable) + onResult(commandId, MonadStatus); NOOP default
+taijitu.ICancelable  (new)
+  - in-flight command abort handle: cancel()

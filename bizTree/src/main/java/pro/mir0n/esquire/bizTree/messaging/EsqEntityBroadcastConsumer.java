@@ -24,11 +24,13 @@
  *                   IBizTreeDirector; per-kind handler dispatch extracted to
  *                   MessageHandlerHub (now behind the director); parses textJson once
  *                   and forwards via director.onEntityBroadcast()
+ * 05/20/2026 mir0n  generalization: no longer parses -- forwards the RAW body
+ *                   (messageEncoding + textJson) plus requestId / correlationId via the 7-arg
+ *                   director.onEntityBroadcast(); ObjectMapper field + readTree block removed
+ *                   (the director parses: worker thread for yang/taijitu, inline for legacy).
  */
 package pro.mir0n.esquire.bizTree.messaging;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.jms.JMSException;
 import jakarta.jms.Message;
 import lombok.extern.slf4j.Slf4j;
@@ -76,11 +78,9 @@ public class EsqEntityBroadcastConsumer {
             EsqMsgConstants.FIELD_MSG_TYPE + " = '" + EsqMsgConstants.MSG_TYPE_ENTITY_BROADCASTS + "'";
 
     private final IBizTreeDirector director;
-    private final ObjectMapper     objectMapper;
 
-    public EsqEntityBroadcastConsumer(IBizTreeDirector director, ObjectMapper objectMapper) {
-        this.director     = director;
-        this.objectMapper = objectMapper;
+    public EsqEntityBroadcastConsumer(IBizTreeDirector director) {
+        this.director = director;
     }
 
     @JmsListener(
@@ -98,6 +98,7 @@ public class EsqEntityBroadcastConsumer {
             String eventType     = message.getStringProperty(EsqMsgConstants.FIELD_EVENT_TYPE);
             String requestId     = message.getStringProperty(EsqMsgConstants.FIELD_REQUEST_ID);
             String correlationId = message.getStringProperty(EsqMsgConstants.FIELD_CORRELATION_ID);
+            String encoding      = message.getStringProperty(EsqMsgConstants.FIELD_MESSAGE_ENCODING);
             String textJson      = message.getStringProperty(EsqMsgConstants.FIELD_TEXT);
 
             MDC.put(EsqConstants.PD_REQUEST_ID,     requestId);
@@ -112,18 +113,10 @@ public class EsqEntityBroadcastConsumer {
             log.info("ENTITY | UE | {} | {} | {} | {}",
                     applMsgId, eventType, entityKind, entityId); // requestId, correlationId in MDC
 
-            JsonNode textNode = null;
-            if (textJson != null) {
-                try {
-                    textNode = objectMapper.readTree(textJson);
-                } catch (Exception parseEx) {
-                    log.error("EsqEntityBroadcastConsumer: textJson parse failed applMsgId={}: {}",
-                            applMsgId, parseEx.getMessage());
-                    devLog.error("EsqEntityBroadcastConsumer: textJson parse failed applMsgId={}: {}",
-                            applMsgId, parseEx.getMessage(), parseEx);
-                }
-            }
-            director.onEntityBroadcast(eventType, entityId, entityKind, textNode);
+            // Pass the raw body through (no parse here); the director parses it -- on the
+            // worker thread for yang/taijitu, inline for legacy.
+            director.onEntityBroadcast(eventType, entityId, entityKind,
+                    requestId, correlationId, encoding, textJson);
 
         } catch (JMSException e) {
             log.error("EsqEntityBroadcastConsumer: message error applMsgId={}: {}", applMsgId, e.getMessage());
