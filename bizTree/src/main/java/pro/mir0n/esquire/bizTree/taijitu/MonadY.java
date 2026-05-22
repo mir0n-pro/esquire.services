@@ -12,6 +12,7 @@
  *                   loadCache() (BizTreeCacheLoader), handleMessage() (parse text -> dispatch via
  *                   the event hub, off the JMS thread, with MDC), and the REST reads (gated on
  *                   status()==LOADED). NON-final: MonadYY (dark side) extends to add Yin routines.
+ * 05/22/2026 mir0n  requireLoaded() calls id() (AMonadY.monadId() renamed id() on IMonad).
  */
 package pro.mir0n.esquire.bizTree.taijitu;
 
@@ -133,7 +134,7 @@ public class MonadY extends AMonadY {
 
     private void requireLoaded() {
         if (status() != MonadStatus.LOADED) {
-            throw new CacheNotReadyException("monad=" + monadId() + " status=" + status());
+            throw new CacheNotReadyException("monad=" + id() + " status=" + status());
         }
     }
 

@@ -11,6 +11,7 @@
  *                   Replaces the BizTreeCacheLoader ApplicationReadyEvent auto-fire --
  *                   loading is now the director's responsibility, uniform across
  *                   legacy / yang / taijitu.
+ * 05/22/2026 mir0n  fires the active director's start() (was bootstrap()).
  */
 package pro.mir0n.esquire.bizTree.access;
 
@@ -45,7 +46,7 @@ public class BizTreeBootstrapRunner implements ApplicationListener<ApplicationRe
 
     @Override
     public void onApplicationEvent(ApplicationReadyEvent event) {
-        log.info("bizTree bootstrap: firing {}.bootstrap()", director.getClass().getSimpleName());
-        director.bootstrap();
+        log.info("bizTree bootstrap: firing {}.start()", director.getClass().getSimpleName());
+        director.start();
     }
 }

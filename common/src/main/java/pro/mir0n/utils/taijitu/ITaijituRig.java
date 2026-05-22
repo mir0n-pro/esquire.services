@@ -8,6 +8,7 @@
  * 05/20/2026 mir0n  created: the Taijitu DIRECTOR contract -- controls the cache monad(s).
  *                   Bean-blind, REST-free: bootstrap, event intake, shutdown. Domain reads are
  *                   added by the consumer's sub-interface (e.g. bizTree IBizTreeDirector).
+ * 05/22/2026 mir0n  bootstrap() renamed start() (symmetric with shutdown()).
  */
 package pro.mir0n.utils.taijitu;
 
@@ -21,8 +22,8 @@ package pro.mir0n.utils.taijitu;
  */
 public interface ITaijituRig {
 
-    /** Bring the cache to a serving state: start the monad, load it, open the gates. */
-    void bootstrap();
+    /** Bring the cache to a serving state: start the monad, load it (retry until LOADED), open the gates. */
+    void start();
 
     /** Stop the monad(s). */
     void shutdown();

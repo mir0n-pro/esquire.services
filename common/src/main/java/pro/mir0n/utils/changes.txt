@@ -1,6 +1,39 @@
 mir0n java common frameworks -- pro.mir0n.utils
 
 
+05/22/2026 mir0n  v1.2.5 Taijitu -- synchronous command model + IMonad control contract
+taijitu.IMonad  (new)
+  - the monad CONTROL contract a director drives: start/shutdown, offer, setQueueEnabled/
+    setProcessingEnabled/queueClear, status/queueSize/id, setCmdResponseListener,
+    doCommand(String cmd, boolean enableQueue, long timeoutMs). AMonadY implements it
+taijitu.AMonadY
+  - implements IMonad; public control methods renamed to the IMonad names: stop()->shutdown(),
+    clearQueue()->queueClear(), queueDepth()->queueSize(), monadId()->id() (submit() stays, used
+    internally by doCommand -- not on the interface)
+  - added doCommand(cmd, enableQueue, timeoutMs): posts the command, opens the queue right after
+    (when enableQueue), BLOCKS on an inner CommandGate monitor until the worker signals; timeoutMs<=0
+    waits indefinitely, a positive timeout cancels the registered cancelable + grace-waits; returns
+    the result string (status name / "TIMEDOUT" / "INTERRUPTED")
+  - new inner CommandGate implements ICmdResponseListener: holds result + cancelable; the worker
+    notifies it (onStarted/onResult), it forwards to the rig listener and notifies doCommand
+  - handleCommand notifies via the gate; CLEAR wrapped in try/finally -> always IDLE + onResult
+  - listener field renamed cmdResponseListener -> rigCmdResponseListener
+  - instance loggers via getClass() (was static AMonadY.class)
+taijitu.ATaijituRigY
+  - bootstrap() renamed start(); active monad held as AtomicReference<IMonad>
+  - ctor registers the director as the monad's ICmdResponseListener (yang.setCmdResponseListener(this))
+  - start() is a synchronous retry loop: clearMonad(active) then doCommand(LOAD, true, 0) until
+    LOADED, else sleep(retryDelayMs) + retry
+  - added clearMonad(IMonad): setQueueEnabled(false) + queueClear() + setProcessingEnabled(true) +
+    doCommand(CLEAR, false, 0)
+  - onStarted/onResult drive the per-command gate-flag policy (LOAD: processing off during load,
+    on at LOADED; FAILED / CLEAR: queue + processing off)
+  - instance loggers via getClass()
+taijitu.ITaijituRig
+  - bootstrap() renamed start()
+taijitu.MonadStatus
+  - each constant carries a String code; added code() accessor
+
 05/21/2026 mir0n  v1.2.5 Taijitu Step 3 generalization -- queue rig + monad framework lifted from bizTree
 concurrent.IQueueRig  (new)
   - generic active-object queue contract <E>: bounded FIFO drained by one worker (IQueueWorker);

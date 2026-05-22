@@ -6,6 +6,7 @@
  *
  *  History:
  * 05/20/2026 mir0n  created: monad lifecycle status (generalized from bizTree.taijitu).
+ * 05/22/2026 mir0n  each constant carries a String code; added code() accessor (stable string form).
  */
 package pro.mir0n.utils.taijitu;
 
@@ -18,8 +19,19 @@ package pro.mir0n.utils.taijitu;
  *   FAILED  -- a LOAD failed; not serving.
  */
 public enum MonadStatus {
-    IDLE,
-    LOADING,
-    LOADED,
-    FAILED
+    IDLE   ("IDLE"),
+    LOADING("LOADING"),
+    LOADED ("LOADED"),
+    FAILED ("FAILED");
+
+    private final String code;
+
+    MonadStatus(String code) {
+        this.code = code;
+    }
+
+    /** Stable dictionary string form, e.g. for a doCommand result. */
+    public String code() {
+        return code;
+    }
 }

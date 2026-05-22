@@ -1,6 +1,14 @@
 Esquire BizTree Microservice
 
 
+05/22/2026 mir0n  v1.2.5 Taijitu -- director lifecycle (bootstrap -> start) + IMonad rename caller
+access.BizTreeBootstrapRunner
+  - fires the active director's start() (was bootstrap())
+access.legacy.BizTreeDirectorLegacy
+  - bootstrap() renamed start() (ITaijituRig lifecycle)
+taijitu.MonadY
+  - requireLoaded() calls id() (was monadId(), renamed on IMonad)
+
 05/21/2026 mir0n  v1.2.5 Taijitu Step 3 generalization -- monad framework extracted to common
 taijitu.MonadY
   - rewritten as a thin extension of common pro.mir0n.utils.taijitu.AMonadY: implements the single

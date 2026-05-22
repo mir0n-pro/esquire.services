@@ -1,6 +1,13 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v1.2.5-2605.2210  v1.2.5 bizTree sprint -- Taijitu synchronous command model
+    :Refactoring: synchronous monad command -- AMonadY.doCommand() blocks until the worker completes,
+                  with timeout + cancel; bootstrap is a synchronous load-retry loop
+    :Refactoring: IMonad control contract -- the director drives the monad only through the interface
+    :Refactoring: director lifecycle renamed bootstrap() -> start() (symmetric with shutdown())
+    Components:   common, bizTree
+
 v1.2.5-2605.2114  v1.2.5 bizTree sprint -- Taijitu Step 3 generalization
     :Refactoring: Taijitu monad framework extracted from bizTree to common
                   (pro.mir0n.utils.taijitu + pro.mir0n.utils.concurrent)

@@ -15,6 +15,7 @@
  * 05/20/2026 mir0n  generalization: implements IBizTreeDirector extends ITaijituRig --
  *                   onEntityBroadcast takes the 7 raw fields and parses textJson inline (legacy
  *                   has no worker thread); added ObjectMapper ctor arg + no-op shutdown().
+ * 05/22/2026 mir0n  bootstrap() renamed start() (ITaijituRig lifecycle).
  */
 package pro.mir0n.esquire.bizTree.access.legacy;
 
@@ -69,15 +70,15 @@ public class BizTreeDirectorLegacy implements IBizTreeDirector {
     /* --- Lifecycle ------------------------------------------------------- */
 
     @Override
-    public void bootstrap() {
+    public void start() {
         // Legacy workflow: synchronous one-shot load (what the old
         // BizTreeCacheLoader ApplicationReadyEvent listener used to do).
         // Events arriving during this load are applied on arrival by the
         // consumer with no buffering -- this is exactly the cache-load race
         // that the yang/taijitu directors close.
-        log.info("BizTreeDirectorLegacy: bootstrap -- loading cache (synchronous, no event gating)");
+        log.info("BizTreeDirectorLegacy: start -- loading cache (synchronous, no event gating)");
         cacheLoader.load();
-        log.info("BizTreeDirectorLegacy: bootstrap -- cache loaded");
+        log.info("BizTreeDirectorLegacy: start -- cache loaded");
     }
 
     @Override
