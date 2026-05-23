@@ -17,6 +17,9 @@
  *                   the square (disable queue, queueClear, enable processing, doCommand(CLEAR)).
  *                   ctor registers the director as the monad's command listener; onStarted/onResult
  *                   then drive the per-command gate-flag policy. instance loggers via getClass().
+ * 05/22/2026 mir0n  no longer implements ICmdResponseListener; gateFor(IMonad) builds a per-monad
+ *                   listener (registered in start(), was the ctor self-registration) so a multi-monad
+ *                   director can tell its monads apart. onResult is 3-arg (result String). log/devLog protected.
  */
 package pro.mir0n.utils.taijitu;
 
@@ -26,18 +29,19 @@ import org.slf4j.LoggerFactory;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
- * Abstract director: implements {@link ITaijituRig} (the control face) and
- * {@link ICmdResponseListener}. The ctor registers it as the monad's command listener, so its
- * onStarted/onResult callbacks drive the per-command gate-flag policy. Bean-blind -- no domain reads.
+ * Abstract director: implements {@link ITaijituRig} (the control face). It does NOT listen to its
+ * monad's commands itself -- {@link #gateFor} builds a per-monad {@link ICmdResponseListener} that
+ * drives that monad's processing gate (disable during LOAD, enable on LOADED, park on FAILED/CLEAR),
+ * and start() registers it. Bean-blind -- no domain reads.
  *
  * start() is SYNCHRONOUS: it issues LOAD via {@link IMonad#doCommand} and BLOCKS until the load
  * completes, retrying (clearMonad + LOAD, with a sleep) until LOADED.
  */
-public abstract class ATaijituRigY implements ITaijituRig, ICmdResponseListener {
+public abstract class ATaijituRigY implements ITaijituRig {
 
     // instance loggers bound to the concrete subclass (getClass()), so log lines show e.g. BizTreeDirectorYang
-    private final Logger log    = LoggerFactory.getLogger(getClass());
-    private final Logger devLog = LoggerFactory.getLogger("develop." + getClass().getName());
+    protected final Logger log    = LoggerFactory.getLogger(getClass());
+    protected final Logger devLog = LoggerFactory.getLogger("develop." + getClass().getName());
 
     /** The active monad. (Room for a second, passive monad when the dark side lands.) */
     protected AtomicReference<IMonad> yangMonad = new AtomicReference<>();
@@ -47,7 +51,6 @@ public abstract class ATaijituRigY implements ITaijituRig, ICmdResponseListener 
 
     protected ATaijituRigY(IMonad yang) {
         yangMonad.set(yang);
-        yang.setCmdResponseListener(this);
     }
 
     /* --- Lifecycle ------------------------------------------------------- */
@@ -55,6 +58,7 @@ public abstract class ATaijituRigY implements ITaijituRig, ICmdResponseListener 
     @Override
     public void start() {
         IMonad active = yang();
+        active.setCmdResponseListener(gateFor(active));
         active.start();
         int attempt = 0;
         while (true) {
@@ -99,7 +103,7 @@ public abstract class ATaijituRigY implements ITaijituRig, ICmdResponseListener 
 
     @Override
     public void shutdown() {
-yang().shutdown();
+        yang().shutdown();
     }
 
     /* --- Event intake ---------------------------------------------------- */
@@ -117,38 +121,42 @@ yang().shutdown();
         }
     }
 
-    /* --- Command lifecycle (the director is the monad's command listener) --- */
-    // The monad notifies these on the worker thread (synchronously with the command); they own the
-    // per-command gate-flag policy. queueClear stays a director-thread routine (clearMonad), not here.
-
-    @Override
-    public void onStarted(String commandId, ICancelable cancelable) {
-        //contract: the inner worker cannot control the queue flags;
-        if (MonadCmd.LOAD == commandId) {
-            yang().setProcessingEnabled(false);  // hold: don't drain events until the load completes
-                                                 // (queue-enable is owned by doCommand, at submit time)
-        }
-    }
-
-    @Override
-    public void onResult(String commandId, MonadStatus status) {
-        //contract: the inner worker cannot control the queue flags;
-        //          it is out of its context
-        if (MonadCmd.LOAD == commandId) {
-            if (status == MonadStatus.LOADED) {
-                yang().setProcessingEnabled(true);    // load ok -> drain buffered events, to be sure!!!
-            } else if (status == MonadStatus.FAILED) {
-                yang().setQueueEnabled(false);          // synchronously with an inner worker
-                yang().setProcessingEnabled(false);  // synchronously with an inner worker
-            }
-        } else if (MonadCmd.CLEAR.equals(commandId)) {
-            yang().setQueueEnabled(false);       // synchronously with an inner worker
-            yang().setProcessingEnabled(false);  // synchronously with an inner worker
-        }
-    }
+    /* --- Per-monad command-gate listener (built by gateFor) --------------- */
+    // gateFor(m) is the ICmdResponseListener the monad notifies on the worker thread (synchronously
+    // with the command); it owns that monad's per-command gate-flag policy. queueClear stays a
+    // director-thread routine (clearMonad), not here.
 
     /** The active monad, for subclasses that route domain reads to it. */
     protected IMonad yang() {
         return yangMonad.get();
     }
+
+
+    protected ICmdResponseListener gateFor(IMonad m) {
+        return new ICmdResponseListener() {
+            @Override
+            public void onStarted(String commandId, ICancelable cancelable) {
+                if (MonadCmd.LOAD.equals(commandId)) {
+                    m.setProcessingEnabled(false);   // hold events until the load result is known
+                }
+            }
+            @Override
+            public void onResult(String commandId, MonadStatus status, String result) {
+                if (MonadCmd.LOAD.equals(commandId)) {
+                    if (status == MonadStatus.LOADED) {
+                        m.setProcessingEnabled(true);    // load ok -> drain buffered events
+                    } else if (status == MonadStatus.FAILED) {
+                        m.setQueueEnabled(false);          // synchronously with an inner worker
+                        m.setProcessingEnabled(false);  // synchronously with an inner worker
+                        //m.queueClear();
+                    }
+                } else if (MonadCmd.CLEAR.equals(commandId)) {
+                    m.setQueueEnabled(false);       // synchronously with an inner worker
+                    m.setProcessingEnabled(false);  // synchronously with an inner worker
+                    //m.queueClear();
+                }
+            }
+        };
+    }
+
 }

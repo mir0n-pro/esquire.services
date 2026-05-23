@@ -38,7 +38,8 @@ class ATaijituRigYTest {
             this.latch      = new CountDownLatch(expectedMsgs);
         }
 
-        @Override protected void _processItem(QueueItem item) {
+        @Override protected String _processItem(QueueItem item) {
+            String ret = null;
             if (item.eventType() == MonadCmd.CMD) {
                 if (MonadCmd.LOAD.equals(item.entityId())) {
                     loadAttempts.incrementAndGet();
@@ -54,6 +55,7 @@ class ATaijituRigYTest {
                 appliedAtNanos.add(System.nanoTime());
                 latch.countDown();
             }
+            return ret;
         }
 
         private static void sleep(long ms) {

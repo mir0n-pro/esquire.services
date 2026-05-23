@@ -14,6 +14,8 @@
  * 05/20/2026 mir0n  generalization: @Bean takes ObjectMapper; constructs MonadY with instance id
  *                   "monad" (not the role "yang") + cacheLoader / eventHub / readBackend /
  *                   ObjectMapper; passes ObjectMapper to BizTreeDirectorLegacy too.
+ * 05/22/2026 mir0n  wired the "taijitu" case (two Monads "monad" + "danom" -> BizTreeDirectorTaijitu);
+ *                   removed the "yang" case (MonadY / BizTreeDirectorYang); options: legacy | taijitu.
  */
 package pro.mir0n.esquire.bizTree.access;
 
@@ -26,8 +28,8 @@ import pro.mir0n.esquire.bizTree.access.legacy.BizTreeDirectorLegacy;
 import pro.mir0n.esquire.bizTree.cache.BizTreeCacheLoader;
 import pro.mir0n.esquire.bizTree.cache.IBizTreeCacheRepository;
 import pro.mir0n.esquire.bizTree.service.IBizTreeService;
-import pro.mir0n.esquire.bizTree.access.yang.BizTreeDirectorYang;
-import pro.mir0n.esquire.bizTree.taijitu.MonadY;
+import pro.mir0n.esquire.bizTree.access.taijitu.BizTreeDirectorTaijitu;
+import pro.mir0n.esquire.bizTree.taijitu.Monad;
 
 /**
  * The single declaration point of the active {@link IBizTreeDirector}.
@@ -35,8 +37,7 @@ import pro.mir0n.esquire.bizTree.taijitu.MonadY;
  * One property selects the implementation:
  * <pre>
  *   biztree.director = legacy   (default) -- pre-refactor mechanics
- *                    = yang                -- single-monad, race-safe
- *                    = taijitu             -- two-monad + night-watch (Step 3)
+ *                    = taijitu             -- two-monad + night-watch
  * </pre>
  *
  * Everything is visible here: which impl is live, what each is constructed
@@ -69,18 +70,14 @@ public class BizTreeDirectorConfig {
         IBizTreeDirector ret = switch (kind) {
             case "legacy" -> new BizTreeDirectorLegacy(bizTreeService, cacheLoader, cacheRepository, objectMapper);
 
-            case "yang"   -> new BizTreeDirectorYang(new MonadY(
-                    "monad",                                            // instance id (NOT the role "yang")
-                    queueCapacity,
-                    cacheLoader,                                        // loadCache() -> BizTreeCacheLoader.load()
-                    new MessageHandlerHub(cacheRepository)::dispatch,   // IEventSink (eventHub) -> apply
-                    bizTreeService,                                     // read backend
-                    objectMapper));                                     // worker parses raw text
-
-            // case "taijitu" -> new Taijitu(...);   // Step 3
+            case "taijitu" -> new BizTreeDirectorTaijitu(
+                    new Monad("monad", queueCapacity, cacheLoader,            // serving (yang)
+                            new MessageHandlerHub(cacheRepository)::dispatch, bizTreeService, objectMapper),
+                    new Monad("danom", queueCapacity, cacheLoader,           // shadow (yin)
+                            new MessageHandlerHub(cacheRepository)::dispatch, bizTreeService, objectMapper));
 
             default -> throw new IllegalStateException(
-                    "unknown biztree.director='" + directorKind + "' (expected: legacy | yang | taijitu)");
+                    "unknown biztree.director='" + directorKind + "' (expected: legacy | taijitu)");
         };
 
         log.info("bizTree director = '{}' -> {} (queue.capacity={})",

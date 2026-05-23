@@ -1,6 +1,14 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v1.2.5-2605.2221  v1.2.5 bizTree sprint -- Taijitu dark side (two-monad director)
+    :Feature:     two-monad Taijitu director (serving + shadow) with off-queue CHECKSUM dispatch
+                  -- dummy night-watch for now (shadow idle; real sweep + reactions to come)
+    :Refactoring: command result flows through onResult/doCommand (3-arg); per-monad gateFor listener
+    :Refactoring: removed the yang single-monad director (MonadY / BizTreeDirectorYang)
+    :Config:      compose BIZTREE_DIRECTOR yang -> taijitu (director options: legacy | taijitu)
+    Components:   common, bizTree
+
 v1.2.5-2605.2210  v1.2.5 bizTree sprint -- Taijitu synchronous command model
     :Refactoring: synchronous monad command -- AMonadY.doCommand() blocks until the worker completes,
                   with timeout + cancel; bootstrap is a synchronous load-retry loop

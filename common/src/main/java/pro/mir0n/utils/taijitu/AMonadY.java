@@ -19,6 +19,11 @@
  *                   notifies, forwarding to the rig listener + waking doCommand. handleCommand now
  *                   NOTIFIES via the gate (CLEAR in try/finally -> ALWAYS IDLE + notify, so
  *                   doCommand never hangs). implements IMonad; instance loggers via getClass().
+ * 05/22/2026 mir0n  dark-enabling: onResult + CommandGate carry a result String (doCommand returns
+ *                   it -- notifyComplete uses the result, else status.name()); _processItem returns
+ *                   String; handleCommand + commandGate + log/devLog made protected so the dark
+ *                   AMonad can override (CHECKSUM dispatch); the CHECKSUM stub branch removed from
+ *                   handleCommand (AMonad handles it).
  */
 package pro.mir0n.utils.taijitu;
 
@@ -47,8 +52,8 @@ import pro.mir0n.utils.concurrent.IQueueRig;
 public abstract class AMonadY implements IMonad {
 
     // instance loggers bound to the concrete subclass (getClass()), so log lines show e.g. MonadY
-    private final Logger log    = LoggerFactory.getLogger(getClass());
-    private final Logger devLog = LoggerFactory.getLogger("develop." + getClass().getName());
+    protected final Logger log    = LoggerFactory.getLogger(getClass());
+    protected final Logger devLog = LoggerFactory.getLogger("develop." + getClass().getName());
 
     /** No-op cancel handle for now (real JDBC cancel lands with the night-watch CHECKSUM). */
     private static final ICancelable NOOP_CANCEL = () -> { };
@@ -67,7 +72,7 @@ public abstract class AMonadY implements IMonad {
 
     private volatile boolean started = false;
     /** Monitor + result slot for a synchronous {@link #doCommand}. */
-    private volatile CommandGate commandGate = new CommandGate(); // we reuse the same instance: we cannot run more than one command simultaneously
+    protected final CommandGate commandGate = new CommandGate(); // we reuse the same instance: we cannot run more than one command simultaneously
 
     protected AMonadY(String monadId, int queueCapacity) {
         this.name          = monadId;
@@ -80,11 +85,12 @@ public abstract class AMonadY implements IMonad {
     /* ==================================================================== */
 
     /**
-     * Do the actual work for one queue item, on the worker thread: for a command
-     * (eventType == CMD) run the cache-side of LOAD / CLEAR / CHECKSUM; otherwise apply the
-     * message to the cache. A command whose work fails must throw (the monad goes FAILED).
+     * Do the actual work for one queue item, on the worker thread: for a command (eventType == CMD)
+     * run the cache-side of LOAD / CLEAR; otherwise apply the message to the cache. A command whose
+     * work fails must throw (the monad goes FAILED). The returned String is a command's result
+     * (e.g. a digest); LOAD / CLEAR / messages return value is ignored.
      */
-    protected abstract void _processItem(QueueItem item);
+    protected abstract String _processItem(QueueItem item);
 
     /* ==================================================================== */
     /* Public API -- lifecycle                                              */
@@ -228,7 +234,7 @@ public abstract class AMonadY implements IMonad {
 
     //TBD: we need to get back to the method: do not like it so far;
     //     a command handle must be abstract, generic
-    private void handleCommand(QueueItem item) {
+    protected void handleCommand(QueueItem item) {
         if (MonadCmd.LOAD == item.entityId()) {
             setStatusInternal(MonadStatus.LOADING);
             log.info("monad[{}]: LOAD -- loading", name);
@@ -237,11 +243,11 @@ public abstract class AMonadY implements IMonad {
                 _processItem(item);
                 setStatusInternal(MonadStatus.LOADED);
                 log.info("monad[{}]: LOAD -- loaded", name);
-                commandGate.onResult(MonadCmd.LOAD, MonadStatus.LOADED);   // director enables processing
+                commandGate.onResult(MonadCmd.LOAD, MonadStatus.LOADED, null);   // director enables processing
             } catch (Throwable e) {
                 setStatusInternal(MonadStatus.FAILED);
                 devLog.error("monad[{}]: LOAD -- failed", name, e);   // errors -> develop only (route to console via appender if wanted)
-                commandGate.onResult(MonadCmd.LOAD, MonadStatus.FAILED);   // director clears the queue
+                commandGate.onResult(MonadCmd.LOAD, MonadStatus.FAILED, null);   // director clears the queue
             }
         } else if (MonadCmd.CLEAR == item.entityId()) {
             commandGate.onStarted(item.entityId(), null);   // director enables processing
@@ -252,10 +258,8 @@ public abstract class AMonadY implements IMonad {
             } finally {
                 setStatusInternal(MonadStatus.IDLE);                   // CLEAR ALWAYS ends IDLE
                 log.info("monad[{}]: CLEAR -- idle", name);
-                commandGate.onResult(MonadCmd.CLEAR, MonadStatus.IDLE);   // always notify -> doCommand never hangs
+                commandGate.onResult(MonadCmd.CLEAR, MonadStatus.IDLE, null);   // always notify -> doCommand never hangs
             }
-        } else if (MonadCmd.CHECKSUM == item.entityId()) {
-            devLog.debug("monad[{}]: CHECKSUM stub (no-op until Yin lands)", name);
         } else {
             devLog.warn("monad[{}]: unknown command '{}' -- ignored", name, item.entityId());
         }
@@ -296,12 +300,12 @@ public abstract class AMonadY implements IMonad {
         }
 
         @Override
-        public void onResult(String commandId, MonadStatus status) {
+        public void onResult(String commandId, MonadStatus status, String result) {
             if (rigCmdResponseListener != null) {
-                rigCmdResponseListener.onResult(commandId, status);
+                rigCmdResponseListener.onResult(commandId, status, result);
             }
             //TBD: or better above?
-            notifyComplete(status.name());
+            notifyComplete(result == null? status.name():result);
         }
 
     }

@@ -12,6 +12,7 @@
  *                   In Step 3 the Taijitu replaces the legacy impl behind the same interface.
  * 05/20/2026 mir0n  generalization: extends common ITaijituRig (bootstrap / shutdown /
  *                   onEntityBroadcast) and adds only the bizTree-specific REST reads.
+ * 05/22/2026 mir0n  javadoc: implementations are BizTreeDirectorTaijitu + legacy (yang removed).
  */
 package pro.mir0n.esquire.bizTree.access;
 
@@ -23,7 +24,7 @@ import java.util.List;
 /**
  * The bizTree director: the common {@link ITaijituRig} control face (bootstrap, shutdown,
  * onEntityBroadcast) plus the bizTree-specific read surface (routed to the active monad).
- * Implementations: BizTreeDirectorYang (extends the common ATaijituRigY) and the legacy
+ * Implementations: BizTreeDirectorTaijitu (extends the common ATaijituRig) and the legacy
  * pass-through.
  *
  * See: services/doc/Esquire.BizTree.md -- "Migration plan" section.

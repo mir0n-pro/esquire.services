@@ -6,13 +6,11 @@
  *  mailto:mir0n.the.programmer@gmail.com
  *
  *  History:
- * 05/20/2026 mir0n  created: the active (yang) cache monad -- bizTree's concrete extension of the
- *                   common Taijitu AMonadY (v1.2.5 generalization). AMonadY owns the Taijitu logic
- *                   (queue, status, command execution, gate); MonadY adds the actual cache access:
- *                   loadCache() (BizTreeCacheLoader), handleMessage() (parse text -> dispatch via
- *                   the event hub, off the JMS thread, with MDC), and the REST reads (gated on
- *                   status()==LOADED). NON-final: MonadYY (dark side) extends to add Yin routines.
- * 05/22/2026 mir0n  requireLoaded() calls id() (AMonadY.monadId() renamed id() on IMonad).
+ * 05/22/2026 mir0n  created: the dark-side concrete cache monad -- bizTree's extension of the common
+ *                   AMonad (AMonadY + off-worker CHECKSUM). Cache work: LOAD via
+ *                   BizTreeCacheLoader, message apply via the event hub, REST reads gated on LOADED;
+ *                   CHECKSUM digest is a stub for now (real digest at step 6). Two equal instances
+ *                   ("monad" + "danom") sit behind BizTreeDirectorTaijitu.
  */
 package pro.mir0n.esquire.bizTree.taijitu;
 
@@ -24,34 +22,31 @@ import pro.mir0n.esquire.bizTree.access.CacheNotReadyException;
 import pro.mir0n.esquire.bizTree.cache.BizTreeCacheLoader;
 import pro.mir0n.esquire.bizTree.service.IBizTreeService;
 import pro.mir0n.esquire.common.EsqConstants;
-import pro.mir0n.utils.taijitu.AMonadY;
-import pro.mir0n.utils.taijitu.MonadCmd;
-import pro.mir0n.utils.taijitu.MonadStatus;
-import pro.mir0n.utils.taijitu.QueueItem;
+import pro.mir0n.utils.taijitu.*;
 
 import java.util.List;
 
 /**
- * bizTree's concrete cache monad. Extends the common {@link AMonadY} (which owns the Taijitu
- * mechanics) and implements the single {@code process(QueueItem)} hook plus the REST reads:
- *   - command work : LOAD -> {@link BizTreeCacheLoader#load()} (CLEAR / CHECKSUM TBD).
- *   - message work : parse the raw text (off the JMS thread, MDC-tagged) and apply it via the
- *                    event hub (MessageHandlerHub).
+ * bizTree's dark-side concrete cache monad. Extends the common {@link AMonad} (the bright
+ * {@code AMonadY} plus the off-worker CHECKSUM dispatch) and supplies the single
+ * {@code _processItem(QueueItem)} hook plus the REST reads:
+ *   - command work : LOAD -> {@link BizTreeCacheLoader#load()} (CLEAR / CHECKSUM stubbed for now).
+ *   - message work : parse the raw text (off the JMS thread, MDC-tagged) and apply via the event hub.
  *   - reads (esquire ...) : served from the read backend once the cache is LOADED.
  */
-public class MonadY extends AMonadY {
+public class Monad extends AMonad {
 
     private final BizTreeCacheLoader cacheLoader;
     private final IEventSink         eventHub;
     private final IBizTreeService    readBackend;
     private final ObjectMapper       objectMapper;
 
-    public MonadY(String monadId,
-                  int queueCapacity,
-                  BizTreeCacheLoader cacheLoader,
-                  IEventSink eventHub,
-                  IBizTreeService readBackend,
-                  ObjectMapper objectMapper) {
+    public Monad(String monadId,
+                 int queueCapacity,
+                 BizTreeCacheLoader cacheLoader,
+                 IEventSink eventHub,
+                 IBizTreeService readBackend,
+                 ObjectMapper objectMapper) {
         super(monadId, queueCapacity);
         this.cacheLoader  = cacheLoader;
         this.eventHub     = eventHub;
@@ -60,23 +55,21 @@ public class MonadY extends AMonadY {
     }
 
     /* ====================================================================
-     * process(QueueItem) -- the cache work (command + message)
+     * _processItem(QueueItem) -- the cache work (command + message)
      * ==================================================================== */
 
     @Override
-    protected void _processItem(QueueItem item) {
+    protected String _processItem(QueueItem item) {
+        String ret = null;
         if (item.eventType() == MonadCmd.CMD) {
             if (MonadCmd.LOAD == item.entityId()) {
                 cacheLoader.load();
-                // no cancel() yet
             } else if (MonadCmd.CLEAR == item.entityId()) {
-                //cache.clear();
+                //cache.clear();   -- real table wipe at step 6 (two-table H2)
             } else if (MonadCmd.CHECKSUM == item.entityId()) {
-                //cache.checksum();  -- how to return the checksum?
+                //ret = <order-independent digest>;   -- real digest at step 6 (must be non-null)
             }
         } else {   // message
-            // Tag the worker thread with the originating ids, parse here (off the JMS thread),
-            // then apply via the event hub.
             putMdc(item);
             try {
                 JsonNode textNode = parse(item);
@@ -85,6 +78,14 @@ public class MonadY extends AMonadY {
                 clearMdc();
             }
         }
+        return ret;
+    }
+
+    @Override
+    protected  String _processItemCancellable(ICmdResponseListener listener, QueueItem item ) {
+        //dummy implementation: TODO: implement correctly
+        listener.onStarted(MonadCmd.CHECKSUM, null);
+        return "DUMMY";   //_processItem(item);
     }
 
     private JsonNode parse(QueueItem item) {
@@ -109,7 +110,7 @@ public class MonadY extends AMonadY {
     }
 
     /* ====================================================================
-     * REST reads (full cache-access object; gated on LOADED)
+     * REST reads (gated on LOADED)
      * ==================================================================== */
 
     public List<EsqTreeNode> esquire(String id, Integer skip, Integer take, String rootPath, String uid) {
@@ -137,5 +138,4 @@ public class MonadY extends AMonadY {
             throw new CacheNotReadyException("monad=" + id() + " status=" + status());
         }
     }
-
 }

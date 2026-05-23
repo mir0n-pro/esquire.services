@@ -1,6 +1,22 @@
 Esquire BizTree Microservice
 
 
+05/22/2026 mir0n  v1.2.5 Taijitu dark side -- two-monad director; yang removed
+taijitu.Monad  (new)
+  - dark-side concrete cache monad: extends common AMonad; _processItem does LOAD (BizTreeCacheLoader)
+    and message apply via the event hub (CLEAR / CHECKSUM stubbed); _processItemCancellable returns a
+    "DUMMY" digest for now; REST reads gated on LOADED
+access.taijitu.BizTreeDirectorTaijitu  (new)
+  - dark-side director: extends common ATaijituRig, implements IBizTreeDirector; ctor takes two Monads
+    ("monad" + "danom"); reads route to the current serving monad ((Monad) yang())
+access.BizTreeDirectorConfig
+  - wired the "taijitu" case (two Monads -> BizTreeDirectorTaijitu); removed the "yang" case and the
+    MonadY / BizTreeDirectorYang imports; director options now legacy | taijitu
+access.IBizTreeDirector
+  - javadoc: implementations are BizTreeDirectorTaijitu + legacy
+taijitu.MonadY  (removed)
+access.yang.BizTreeDirectorYang  (removed)
+
 05/22/2026 mir0n  v1.2.5 Taijitu -- director lifecycle (bootstrap -> start) + IMonad rename caller
 access.BizTreeBootstrapRunner
   - fires the active director's start() (was bootstrap())

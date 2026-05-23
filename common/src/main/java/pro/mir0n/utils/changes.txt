@@ -1,6 +1,26 @@
 mir0n java common frameworks -- pro.mir0n.utils
 
 
+05/22/2026 mir0n  v1.2.5 Taijitu dark side -- two-monad director + off-queue CHECKSUM
+taijitu.AMonad  (new)
+  - dark-side monad: extends AMonadY; handleCommand intercepts CHECKSUM and runs it on a separate
+    thread (checksumExec, not the queue worker) via the abstract _processItemCancellable(listener,
+    item); the digest is reported through the 3-arg onResult. shutdown() also stops checksumExec.
+taijitu.ATaijituRig  (new)
+  - dark-side director: extends ATaijituRigY; holds a second monad yinMonad (AtomicReference<IMonad>)
+    + swapYinYang() (pointer flip); start() sets the shadow's gateFor listener and starts it, then
+    super.start() brings up + loads the serving monad; shutdown() also stops the shadow;
+    onEntityBroadcast fans events to both monads.
+taijitu.AMonadY
+  - onResult + CommandGate carry a result String (doCommand returns it; notifyComplete uses the
+    result, else status.name()); _processItem returns String; handleCommand + commandGate + log/devLog
+    made protected; CHECKSUM stub branch removed from handleCommand
+taijitu.ATaijituRigY
+  - no longer implements ICmdResponseListener; added gateFor(IMonad) building a per-monad listener,
+    registered in start() (was the ctor self-registration); onResult 3-arg; log/devLog protected
+taijitu.ICmdResponseListener
+  - onResult(String commandId, MonadStatus status, String result) -- added the result arg
+
 05/22/2026 mir0n  v1.2.5 Taijitu -- synchronous command model + IMonad control contract
 taijitu.IMonad  (new)
   - the monad CONTROL contract a director drives: start/shutdown, offer, setQueueEnabled/
