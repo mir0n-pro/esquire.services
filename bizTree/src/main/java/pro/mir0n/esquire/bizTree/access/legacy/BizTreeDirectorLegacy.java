@@ -16,6 +16,8 @@
  *                   onEntityBroadcast takes the 7 raw fields and parses textJson inline (legacy
  *                   has no worker thread); added ObjectMapper ctor arg + no-op shutdown().
  * 05/22/2026 mir0n  bootstrap() renamed start() (ITaijituRig lifecycle).
+ * 05/23/2026 mir0n  added isReady() -- a volatile ready flag set true after the synchronous load
+ *                   (the readiness gate); sweepAsync() inherits the ITaijituRig no-op (single-pass).
  */
 package pro.mir0n.esquire.bizTree.access.legacy;
 
@@ -56,6 +58,7 @@ public class BizTreeDirectorLegacy implements IBizTreeDirector {
     private final BizTreeCacheLoader cacheLoader;
     private final MessageHandlerHub  handlerHub;
     private final ObjectMapper       objectMapper;
+    private volatile boolean         ready = false;   // flips true after the synchronous load (readiness gate)
 
     public BizTreeDirectorLegacy(IBizTreeService bizTreeService,
                                  BizTreeCacheLoader cacheLoader,
@@ -78,6 +81,7 @@ public class BizTreeDirectorLegacy implements IBizTreeDirector {
         // that the yang/taijitu directors close.
         log.info("BizTreeDirectorLegacy: start -- loading cache (synchronous, no event gating)");
         cacheLoader.load();
+        ready = true;
         log.info("BizTreeDirectorLegacy: start -- cache loaded");
     }
 
@@ -85,6 +89,14 @@ public class BizTreeDirectorLegacy implements IBizTreeDirector {
     public void shutdown() {
         // Nothing to stop: legacy has no worker thread.
     }
+
+    /** Ready once the synchronous load has completed. */
+    @Override
+    public boolean isReady() {
+        return ready;
+    }
+
+    // sweepAsync(): inherits the ITaijituRig no-op default -- legacy is single-pass, no night-watch.
 
     /* --- Read surface ---------------------------------------------------- */
 

@@ -24,6 +24,9 @@
  *                   recursive walk by tree_path LIKE seed.tree_path || '%' (rootPath-scoped)
  * 05/20/2026 mir0n  Taijitu refactor (v1.2.5): consume precomposed CacheSqlSet -- reads
  *                   run ready statements (no per-call selectCols()+where concatenation)
+ * 05/23/2026 mir0n  clear() = TRUNCATE via sql.clearAll(); prepareCancelable(CHECKSUM) opens a
+ *                   connection + prepares sql.checksum(), returned as a CancelableStatement
+ *                   (closeQuietly the connection if prepare throws -- no leak).
  */
 package pro.mir0n.esquire.bizTree.cache.impl;
 
@@ -38,8 +41,12 @@ import pro.mir0n.esquire.backend.jpa.EsqTreeNodeJpa;
 import pro.mir0n.esquire.backend.storage.EsqObjectKindStorage;
 import pro.mir0n.esquire.bizTree.BizTreeConstants;
 import pro.mir0n.esquire.bizTree.cache.CacheSqlSet;
+import pro.mir0n.esquire.bizTree.cache.CancelableStatement;
 import pro.mir0n.esquire.bizTree.cache.IBizTreeCacheRepository;
+import pro.mir0n.utils.taijitu.MonadCmd;
 
+import java.sql.Connection;
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -209,6 +216,39 @@ public class BizTreeCacheRepository implements IBizTreeCacheRepository {
     @Override
     public List<EsqTreeNodeJpa> findSubtree(String seedId, int rootLevel, String rootPath) {
         return cache.query(sql.findSubtree(), NODE_MAPPER, rootLevel, seedId, rootPath + "%");
+    }
+
+    @Override
+    public void clear() {
+        cache.execute(sql.clearAll());
+        devLog.debug("BizTreeCacheRepository: clear (truncate)");
+    }
+
+    @Override
+    public CancelableStatement prepareCancelable(String command) {
+        CancelableStatement ret;
+        if (!MonadCmd.CHECKSUM.equals(command)) {
+            throw new IllegalArgumentException("no cancelable query for command '" + command + "'");
+        }
+        Connection con = null;
+        try {
+            con = cache.getDataSource().getConnection();
+            ret = new CancelableStatement(con, con.prepareStatement(sql.checksum()));
+        } catch (SQLException e) {
+            closeQuietly(con);   // prepareStatement failed after getConnection -- don't leak the connection
+            throw new IllegalStateException("prepareCancelable failed for '" + command + "'", e);
+        }
+        return ret;
+    }
+
+    private static void closeQuietly(Connection con) {
+        if (con != null) {
+            try {
+                con.close();
+            } catch (SQLException ignore) {
+                // best-effort
+            }
+        }
     }
 
     @Override

@@ -14,6 +14,7 @@
  * 05/20/2026 mir0n  Taijitu refactor (v1.2.5): build per-table CacheSqlSet bean via
  *                   CacheSqlSet.forTable (biztree.cache.table, default ESQ_TREE);
  *                   cacheJdbcTemplate + DDL executed from the resolved set
+ * 05/23/2026 mir0n  wired the clear-all + checksum SQL properties into BizTreeCacheSql.Repo
  */
 package pro.mir0n.esquire.bizTree.h2;
 
@@ -79,7 +80,9 @@ public class BizTreeH2Config {
                         env.getRequiredProperty("biztree.cache.sql.repo.move-node"),
                         env.getRequiredProperty("biztree.cache.sql.repo.move-acct-link"),
                         env.getRequiredProperty("biztree.cache.sql.repo.find-folder-pks"),
-                        env.getRequiredProperty("biztree.cache.sql.repo.find-subtree")
+                        env.getRequiredProperty("biztree.cache.sql.repo.find-subtree"),
+                        env.getRequiredProperty("biztree.cache.sql.repo.clear-all"),
+                        env.getRequiredProperty("biztree.cache.sql.repo.checksum")
                 ),
                 new BizTreeCacheSql.Loader(
                         env.getRequiredProperty("biztree.cache.sql.loader.insert-node"),

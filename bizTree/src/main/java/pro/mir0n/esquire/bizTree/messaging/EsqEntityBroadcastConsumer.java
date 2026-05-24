@@ -24,6 +24,8 @@
  *                   IBizTreeDirector; per-kind handler dispatch extracted to
  *                   MessageHandlerHub (now behind the director); parses textJson once
  *                   and forwards via director.onEntityBroadcast()
+ * 05/23/2026 mir0n  @JmsListener now uses jmsTopicListenerFactory (non-durable); removed the
+ *                   subscription name (SUBSCRIPTION_NAME constant) -- no durable subscription
  * 05/20/2026 mir0n  generalization: no longer parses -- forwards the RAW body
  *                   (messageEncoding + textJson) plus requestId / correlationId via the 7-arg
  *                   director.onEntityBroadcast(); ObjectMapper field + readTree block removed
@@ -52,9 +54,9 @@ import pro.mir0n.esquire.messaging.jms.Utils;
  * handler routing lives behind the director (today in MessageHandlerHub
  * inside BizTreeDirectorLegacy; tomorrow inside each Taijitu Monad).
  *
- * Subscription:
- *   - clientId: biztree.messaging.client-id (BizTreeJmsConfig)
- *   - subscriptionName: esquire.entity.broadcast.biztree.primary (stable, do not change)
+ * Subscription (NON-DURABLE -- no clientId/subscriptionName; messages missed while down are
+ * recovered by the night-watch sweep, so no durable subscription is needed -- and dropping the
+ * clientId unblocks k8s rolling updates):
  *   - selector: BusID = 'esquire.entity' AND MsgType = 'UE'
  *   - idempotency key: ApplMsgID
  *
@@ -70,8 +72,6 @@ public class EsqEntityBroadcastConsumer {
     private static final Logger msgLog = LoggerFactory.getLogger("msg."     + EsqEntityBroadcastConsumer.class.getName());
     private static final Logger devLog = LoggerFactory.getLogger("develop." + EsqEntityBroadcastConsumer.class.getName());
 
-    private static final String SUBSCRIPTION_NAME =
-            EsqMsgConstants.TOPIC_ENTITY_BROADCAST + ".biztree.primary";
     private static final String MSG_SELECTOR =
             EsqMsgConstants.FIELD_BUS_ID   + " = '" + EsqMsgConstants.BUS_ID_ENTITY              + "'" +
             " AND " +
@@ -85,8 +85,7 @@ public class EsqEntityBroadcastConsumer {
 
     @JmsListener(
         destination      = EsqMsgConstants.TOPIC_ENTITY_BROADCAST,
-        containerFactory = "jmsDurableTopicListenerFactory",
-        subscription     = SUBSCRIPTION_NAME,
+        containerFactory = "jmsTopicListenerFactory",
         selector         = MSG_SELECTOR
     )
     public void onEntityBroadcast(Message message) {

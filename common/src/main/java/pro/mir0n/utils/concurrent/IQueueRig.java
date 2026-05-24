@@ -9,6 +9,7 @@
  *                   a single worker (IQueueWorker) behind a processing gate (setProcessing: when
  *                   false the worker leaves the queue UNTOUCHED), with put / size / clear and an
  *                   IErrorListener seam. Generalized from bizTree.taijitu; BoundedQueueRig implements.
+ * 05/23/2026 mir0n  dropped redundant public modifiers from the interface members.
  */
 
 package pro.mir0n.utils.concurrent;
@@ -17,29 +18,29 @@ import org.slf4j.Logger;
 
 public interface IQueueRig <E>
 {
-    public interface IQueueWorker <E> {
-        public void process (E item);
+    interface IQueueWorker <E> {
+        void process (E item);
     }
-    public interface IErrorListener <E> {
-        public E onError (Throwable error, E element);
+    interface IErrorListener <E> {
+        E onError (Throwable error, E element);
     }
 
-    public void init(String name, Logger devLogger, int capacity);
-    public void setErrorListener (IErrorListener listener);
+    void init(String name, Logger devLogger, int capacity);
+    void setErrorListener (IErrorListener listener);
 
     /** Processing gate. When false the worker leaves the queue UNTOUCHED -- no items are
      *  dequeued; producers may still put(). When true the worker drains the queue in FIFO
      *  order. Starts false (paused); the owner enables it when ready to process. */
-    public void setProcessing(boolean enabled);
+    void setProcessing(boolean enabled);
 
-    public void start();
-    public void shutdown();
-    public void put(E item);
-    public int size();
+    void start();
+    void shutdown();
+    void put(E item);
+    int size();
 
     /** Bulk-drop all queued items without processing them (e.g. discard buffered work
      *  after a failed load). The only removal other than normal worker processing. */
-    public void clear();
+    void clear();
      
 
 // possible extentions

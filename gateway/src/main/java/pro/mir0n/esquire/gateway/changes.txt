@@ -1,5 +1,9 @@
 Esquire Gateway Microservice
 
+05/23/2026 mir0n  v1.2.5 Taijitu night-watch -- /esq-sweep route
+resources/application.yml
+  - biztree-route Path: added /esq-sweep (force-sweep endpoint; route already allows GET + POST)
+
 05/14/2026 mir0n  v1.2.4 -- Token Relay subsystem (Vanilla + Phantom variants); LandingController; four-layer observability; /esq-tree route
 config.SecurityConfig
   - jwtDecoder bean: NimbusReactiveJwtDecoder against KC JWKS, optionally wrapped by

@@ -24,6 +24,11 @@
  *                   String; handleCommand + commandGate + log/devLog made protected so the dark
  *                   AMonad can override (CHECKSUM dispatch); the CHECKSUM stub branch removed from
  *                   handleCommand (AMonad handles it).
+ * 05/23/2026 mir0n  submit(commandId) -> submitCommand(commandId, enableQueue): clears the gate, posts
+ *                   the command, and opens the accept-gate when enableQueue. doCommand split into
+ *                   submitCommand + the new resultCommand(timeoutMs) (block on the gate, cancel the
+ *                   registered cancelable + grace-wait on a positive timeout). Removed dead NOOP_CANCEL;
+ *                   unknown-command log demoted devLog.warn -> devLog.debug.
  */
 package pro.mir0n.utils.taijitu;
 
@@ -54,9 +59,6 @@ public abstract class AMonadY implements IMonad {
     // instance loggers bound to the concrete subclass (getClass()), so log lines show e.g. MonadY
     protected final Logger log    = LoggerFactory.getLogger(getClass());
     protected final Logger devLog = LoggerFactory.getLogger("develop." + getClass().getName());
-
-    /** No-op cancel handle for now (real JDBC cancel lands with the night-watch CHECKSUM). */
-    private static final ICancelable NOOP_CANCEL = () -> { };
 
     /** After cancelling a timed-out command, wait this long for the worker to report the failure. */
     private static final long CANCEL_GRACE_MS = 1000L;
@@ -116,13 +118,6 @@ public abstract class AMonadY implements IMonad {
     /* Public API -- queue entry                                            */
     /* ==================================================================== */
 
-    public void submit(String commandId) {
-        // Commands ride the same queue as events. No user requestId; correlationId is a cheap
-        // synthesized tracking id.
-        String correlationId = MonadCmd.CMD + "." + commandId + "." + name + "." + System.currentTimeMillis();
-        rig.put(new QueueItem(MonadCmd.CMD, commandId, 0, null, correlationId, null, null));
-    }
-
     public boolean offer(QueueItem item) {
         if (!queueEnabled) {
             return false;
@@ -168,6 +163,17 @@ public abstract class AMonadY implements IMonad {
     /* Public API -- synchronous command                                    */
     /* ==================================================================== */
 
+    public void submitCommand(String commandId, boolean enableQueue) {
+        // Commands ride the same queue as events. No user requestId; correlationId is a cheap
+        // synthesized tracking id.
+        commandGate.clear();
+        String correlationId = MonadCmd.CMD + "." + commandId + "." + name + "." + System.currentTimeMillis();
+        rig.put(new QueueItem(MonadCmd.CMD, commandId, 0, null, correlationId, null, null));
+        if (enableQueue) {
+            setQueueEnabled(true);        // accept events (they buffer behind the LOAD)
+        }
+    }
+
     /**
      * Issue a command and BLOCK until the worker completes it, returning its RESULT -- the status
      * for LOAD/CLEAR, the digest for CHECKSUM, etc. {@code timeoutMs <= 0} waits INDEFINITELY (LOAD
@@ -176,14 +182,13 @@ public abstract class AMonadY implements IMonad {
      * (commands serialize through the single worker). The worker must be processing for it to run.
      */
     public String doCommand(String cmd, boolean enableQueue,  long timeoutMs) {
-        commandGate.clear();
+        submitCommand(cmd, enableQueue);
+        return resultCommand(timeoutMs);
+    }
+
+    public String resultCommand(long timeoutMs) {
         String result = null;
         ICancelable cancelable = null;
-
-        submit(cmd);                          // post; the worker runs it and signals the gate
-        if (enableQueue) {
-            setQueueEnabled(true);        // accept events (they buffer behind the LOAD)
-        }
         try {
             if (timeoutMs <= 0) {
                 synchronized (commandGate) {
@@ -202,7 +207,7 @@ public abstract class AMonadY implements IMonad {
                 }
 
                 if (result == null // TIMEOUT
-                && cancelable != null) {
+                        && cancelable != null) {
                     cancelable.cancel();
                     synchronized (commandGate) {
                         commandGate.wait(CANCEL_GRACE_MS);
@@ -219,6 +224,7 @@ public abstract class AMonadY implements IMonad {
         }
         return result == null ? "TIMEDOUT" : result; //TBD: FAILED?
     }
+
 
     /* ==================================================================== */
     /* internal -- worker callback + command execution                     */
@@ -261,7 +267,7 @@ public abstract class AMonadY implements IMonad {
                 commandGate.onResult(MonadCmd.CLEAR, MonadStatus.IDLE, null);   // always notify -> doCommand never hangs
             }
         } else {
-            devLog.warn("monad[{}]: unknown command '{}' -- ignored", name, item.entityId());
+            devLog.debug("monad[{}]: unknown command '{}' -- ignored", name, item.entityId());
         }
     }
 
@@ -274,6 +280,7 @@ public abstract class AMonadY implements IMonad {
         private String      result;       // guarded by 'this'; null until the worker completes (status name, digest, ...)
         private ICancelable cancelable;   // guarded by 'this'; set by the running command if cancelable (e.g. H2 stmt)
 
+        //xxx: not needed to be synchronized: it runs out of concurrent commands
         protected void clear() {
             result = null;
             cancelable = null;

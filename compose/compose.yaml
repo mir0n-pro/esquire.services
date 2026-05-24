@@ -120,11 +120,20 @@ services:
       - AMQ_BROKER_URL=tcp://activemq:61616
       #- AMQ_USER=
       #- AMQ_PASSWORD=
-      - BIZTREE_MESSAGING_CLIENT_ID=biztree
       - BIZTREE_MESSAGING_CONSUMER_ENABLED=true
       # v1.2.5 Taijitu refactor: select the cache director impl
-      #   legacy (default) | yang (single-monad, race-safe) | taijitu (Step 3)
-      - BIZTREE_DIRECTOR=yang
+      #   legacy (default) | taijitu (two-monad + night-watch)
+      - BIZTREE_DIRECTOR=taijitu
+      # night-watch checksum-mismatch reaction: LOG | SWAP | TERMINATE
+      # (fed by host BIZTREE_ON_MISMATCH so a hauberk cmd can recreate biztree per test)
+      - BIZTREE_TAIJITU_ON_MISMATCH=${BIZTREE_ON_MISMATCH:-SWAP}
+      # night-watch sweep interval ms (host BIZTREE_SWEEP_INTERVAL_MS; a test sets it high so the
+      # periodic sweep doesn't auto-heal before the sim observes the miss + forces a sweep)
+      - BIZTREE_TAIJITU_SWEEP_INTERVAL_MS=${BIZTREE_SWEEP_INTERVAL_MS:-600000}
+      # night-watch per-leg CHECKSUM deadline ms (host BIZTREE_SWEEP_TIMEOUT_MS)
+      - BIZTREE_TAIJITU_SWEEP_TIMEOUT_MS=${BIZTREE_SWEEP_TIMEOUT_MS:-10000}
+      # per-monad event queue depth (back-pressure boundary)
+      - BIZTREE_MONAD_QUEUE_CAPACITY=${BIZTREE_QUEUE_CAPACITY:-4096}
     command: ["java", "-jar", "app.jar"]
     depends_on:
       postgres:

@@ -8,10 +8,6 @@ spring:
     user: ${AMQ_USER:}
     password: ${AMQ_PASSWORD:}
     # Phase 1: no broker authorization required
-  jms:
-    # clientId on CachingConnectionFactory — required for durable subscriptions.
-    # Must not be set on DefaultJmsListenerContainerFactory (shared connection proxy restriction).
-    client-id: ${BIZTREE_MESSAGING_CLIENT_ID:biztree}
   jpa:
     hibernate:
       ddl-auto: none
@@ -32,8 +28,6 @@ biztree:
       max-lifetime:         ${BIZTREE_H2_POOL_MAX_LIFETIME:1800000}
       idle-timeout:         ${BIZTREE_H2_POOL_IDLE_TIMEOUT:600000}
   messaging:
-    # Stable client ID for durable subscriptions from this service
-    client-id: ${BIZTREE_MESSAGING_CLIENT_ID:biztree}
     consumer:
       enabled: ${BIZTREE_MESSAGING_CONSUMER_ENABLED:true}
 logging:
@@ -52,6 +46,16 @@ logging:
     log-path: ${DEVELOP_LOG_PATH:logs/bizTree-develop.log}
   msg:
     log-path: ${MSG_LOG_PATH:logs/bizTree-msg.log}
+# Health probes: liveness = livenessState only (a slow cache load must NOT crashloop the pod);
+# readiness = readinessState + the cacheReadiness indicator (no traffic until the cache is serving).
+management:
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      group:
+        readiness:
+          include: readinessState, cacheReadiness
 
 ---
 # Development Oracle

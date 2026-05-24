@@ -1,6 +1,49 @@
 Esquire BizTree Microservice
 
 
+05/23/2026 mir0n  v1.2.5 Taijitu night-watch -- two-table cache, readiness gate, non-durable subscription
+health.CacheReadinessHealthIndicator  (new)
+  - HealthIndicator (health name cacheReadiness) -- UP once IBizTreeDirector.isReady(), else DOWN;
+    added to the readiness probe group so k8s holds traffic until the cache is serving
+cache.CancelableStatement  (new)
+  - record(Connection, PreparedStatement) implements AutoCloseable: close() closes the statement then
+    the connection, so a try-with-resources releases both on every path (the cancelable CHECKSUM)
+taijitu.Monad
+  - ctor takes IBizTreeCacheRepository; CLEAR -> cacheRepository.clear() (TRUNCATE), was a stub
+  - _processItemCancellable: real off-worker CHECKSUM -- prepareCancelable(command) + executeQuery,
+    reads the digest, registers an inner PrepareStatementCancelable (volatile ps, cancel() -> ps.cancel())
+    via listener.onStarted so a sweep timeout aborts the query; try-with-resources on CancelableStatement
+access.BizTreeDirectorConfig
+  - "taijitu" case builds a per-monad cache backend inline: buildCache(table) (own H2 table via
+    CacheSqlSet.forTable + DDL, repository, loader, read service on the shared cacheJdbcTemplate);
+    tableFor(id) suffixes the base table (ESQ_TREE_MONAD / ESQ_TREE_DANOM); parseMismatch + applies
+    the configurable sweep interval / timeout / on-mismatch to the director
+access.legacy.BizTreeDirectorLegacy
+  - added isReady() backed by a volatile ready flag set true after the synchronous load (readiness gate)
+cache.IBizTreeCacheRepository
+  - added clear() (TRUNCATE) and prepareCancelable(command) returning a CancelableStatement
+cache.impl.BizTreeCacheRepository
+  - clear() = cache.execute(sql.clearAll()); prepareCancelable(CHECKSUM) opens a connection + prepares
+    sql.checksum() into a CancelableStatement (closeQuietly the connection if prepareStatement throws)
+cache.BizTreeCacheSql
+  - Repo record: added clearAll + checksum fields
+cache.CacheSqlSet
+  - forTable: substitute {table} into and carry the new clearAll + checksum SQL
+h2.BizTreeH2Config
+  - wired the repo.clear-all + repo.checksum SQL properties into BizTreeCacheSql.Repo
+controller.BizTreeController
+  - POST /esq-sweep: async force-sweep -> director.sweepAsync(); returns 202 (ACCEPTED)
+messaging.BizTreeJmsConfig
+  - non-durable subscriber: bean jmsDurableTopicListenerFactory -> jmsTopicListenerFactory; removed
+    the clientId (@Value + setClientId) and setSubscriptionDurable(true); header url -> www.mir0n.pro
+messaging.EsqEntityBroadcastConsumer
+  - @JmsListener uses jmsTopicListenerFactory (non-durable); removed the SUBSCRIPTION_NAME constant
+resources/application.yml
+  - management.endpoint.health: probes.enabled + readiness group include cacheReadiness; removed the
+    dead spring.jms.client-id + biztree.messaging.client-id (BIZTREE_MESSAGING_CLIENT_ID gone)
+resources/META-INF/h2-cache-sql.properties
+  - added repo.clear-all (TRUNCATE TABLE {table}) + repo.checksum (order-independent MD5 over the table)
+
 05/22/2026 mir0n  v1.2.5 Taijitu dark side -- two-monad director; yang removed
 taijitu.Monad  (new)
   - dark-side concrete cache monad: extends common AMonad; _processItem does LOAD (BizTreeCacheLoader)

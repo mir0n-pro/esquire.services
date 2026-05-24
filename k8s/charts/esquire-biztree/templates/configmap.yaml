@@ -13,8 +13,12 @@ data:
   DB_BIZTREE_NAME:                   {{ .Values.db.name | quote }}
   DB_BIZTREE_USERNAME:               {{ .Values.db.username | quote }}
   AMQ_BROKER_URL:                    {{ .Values.messaging.brokerUrl | quote }}
-  BIZTREE_MESSAGING_CLIENT_ID:       {{ .Values.messaging.clientId | quote }}
   BIZTREE_MESSAGING_CONSUMER_ENABLED: {{ .Values.messaging.consumerEnabled | quote }}
+  BIZTREE_DIRECTOR:                  {{ .Values.taijitu.director | quote }}
+  BIZTREE_TAIJITU_ON_MISMATCH:       {{ .Values.taijitu.onMismatch | quote }}
+  BIZTREE_TAIJITU_SWEEP_INTERVAL_MS: {{ .Values.taijitu.sweepIntervalMs | quote }}
+  BIZTREE_TAIJITU_SWEEP_TIMEOUT_MS:  {{ .Values.taijitu.sweepTimeoutMs | quote }}
+  BIZTREE_MONAD_QUEUE_CAPACITY:      {{ .Values.taijitu.queueCapacity | quote }}
   LOG_LEVEL_ROOT:                    {{ .Values.logging.levelRoot | quote }}
   LOG_LEVEL_SF:                      {{ .Values.logging.levelSf | quote }}
   LOG_LEVEL_MIR0N:                   {{ .Values.logging.levelMir0n | quote }}

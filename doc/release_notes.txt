@@ -1,6 +1,17 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v1.2.5-2605.2322  v1.2.5 bizTree sprint -- Taijitu night-watch (anti-entropy sweep)
+    :Feature:     night-watch sweep -- periodically reloads the shadow monad, checksums both legs
+                  against the serving monad, and reacts to drift (log / swap / terminate)
+    :Feature:     cache readiness gate -- k8s readiness holds until the cache is loaded + serving
+    :Feature:     async REST force-sweep (/esq-sweep), routed through the gateway
+    :Fix:         bizTree topic subscription made non-durable -- unblocks k8s rolling updates
+    :Config:      configurable sweep cadence + mismatch reaction (interval / timeout / on-mismatch)
+    :Doc:         Esquire.BizTree.md revised to the as-built completed-solution reference;
+                  common/taijitu documented as a reusable, domain-agnostic pattern
+    Components:   common, bizTree, gateway
+
 v1.2.5-2605.2221  v1.2.5 bizTree sprint -- Taijitu dark side (two-monad director)
     :Feature:     two-monad Taijitu director (serving + shadow) with off-queue CHECKSUM dispatch
                   -- dummy night-watch for now (shadow idle; real sweep + reactions to come)

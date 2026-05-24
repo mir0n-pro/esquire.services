@@ -12,6 +12,7 @@
  *                   ready statements with no per-call concatenation. Each monad owns its
  *                   own CacheSqlSet bound to its own table (ESQ_TREE for Yang; the full
  *                   Taijitu builds one per table, e.g. ESQ_TREE_YANG / ESQ_TREE_YIN).
+ * 05/23/2026 mir0n  forTable: substitute the {table} token into and carry the new clearAll + checksum SQL.
  */
 package pro.mir0n.esquire.bizTree.cache;
 
@@ -43,6 +44,8 @@ public record CacheSqlSet(
         String moveNode,
         String moveAcctLink,
         String findFolderPks,
+        String clearAll,
+        String checksum,
         // loader
         String insertNode,
         String updatePath,
@@ -73,6 +76,8 @@ public record CacheSqlSet(
                 sub(t.repo.moveNode(),       table),
                 sub(t.repo.moveAcctLink(),   table),
                 sub(t.repo.findFolderPks(),  table),
+                sub(t.repo.clearAll(),       table),
+                sub(t.repo.checksum(),       table),
                 sub(t.loader.insertNode(),   table),
                 sub(t.loader.updatePath(),   table),
                 sub(t.loader.selectPaths(),  table)

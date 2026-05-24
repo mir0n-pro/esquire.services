@@ -20,6 +20,7 @@
  *                   used together by the hauberk CompareTrees scenario)
  * 05/20/2026 mir0n  Taijitu refactor (v1.2.5): forward all reads to IBizTreeDirector
  *                   (was IBizTreeService); thin REST entry point, no business logic
+ * 05/23/2026 mir0n  POST /esq-sweep: async force-sweep -> director.sweepAsync(); returns 202 (ACCEPTED).
  */
 
 package pro.mir0n.esquire.bizTree.controller;
@@ -166,6 +167,19 @@ public class BizTreeController {
         List<String> path = director.esquirePath(id, rootPath);
         devLog.debug("esquirePath: id:{}, result:{}, claims:{}", id, String.valueOf(path), String.valueOf(claims));
         return ResponseEntity.status(HttpStatus.OK).body(path);
+    }
+
+    @PostMapping("/esq-sweep")
+    @Operation(
+            summary = "Force a night-watch sweep (asynchronous)",
+            description = "Triggers the cache director's night-watch sweep on a background thread and "
+                        + "returns immediately (202) -- the request is not held for the full sweep. "
+                        + "The sweep also fires periodically via the director's scheduler."
+    )
+    public ResponseEntity<Void> sweep() {
+        director.sweepAsync();
+        devLog.debug("sweep: forced via REST (async)");
+        return ResponseEntity.status(HttpStatus.ACCEPTED).build();
     }
 
 }

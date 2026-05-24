@@ -1,6 +1,42 @@
 mir0n java common frameworks -- pro.mir0n.utils
 
 
+05/23/2026 mir0n  v1.2.5 Taijitu night-watch -- periodic sweep, mismatch reactions, readiness gate
+taijitu.MismatchAction  (new)
+  - enum LOG | SWAP | TERMINATE: the night-watch reaction when the two monads' checksums disagree
+taijitu.ATaijituRig
+  - night-watch scheduler: a single daemon ScheduledExecutorService (nightWatchExec) re-arms each
+    sweep sweepIntervalMs AFTER the previous one ends; a sweeping AtomicBoolean allows one at a time
+  - sweep(): load the shadow fresh, post CHECKSUM to both legs, collect each within sweepTimeoutMs
+    (resultCommand), screen FAILED via checksumFailed() (inconclusive -> abandon), compare digests,
+    react per onMismatch (LOG keep serving / SWAP swapYinYang / TERMINATE System.exit), finally
+    clearMonad(yin()) back to idle
+  - sweepAsync(): dispatch sweepGuarded onto nightWatchExec and return at once (REST force-sweep);
+    sweepGuarded() swallows any throw so a fault cannot cancel the periodic schedule
+  - configurable cadence/policy: sweepIntervalMs (10s), sweepTimeoutMs (10s), onMismatch (LOG) +
+    setSweepIntervalMs / setSweepTimeoutMs / setOnMismatch
+  - checksumFailed(String): true for null or FAILED -- the only inconclusive outcome to screen out
+taijitu.AMonadY
+  - submit(commandId) -> submitCommand(commandId, boolean enableQueue): clears the gate, posts the
+    command, opens the accept-gate when enableQueue
+  - doCommand split: doCommand = submitCommand + resultCommand; new resultCommand(timeoutMs) blocks
+    on the gate, cancels the registered cancelable + grace-waits on a positive timeout
+  - removed dead NOOP_CANCEL field; unknown-command log demoted devLog.warn -> devLog.debug
+taijitu.IMonad
+  - added submitCommand(String commandId, boolean enableQueue) and resultCommand(long timeoutMs)
+taijitu.ITaijituRig
+  - added isReady() (readiness gate: true once loaded + serving) and the sweepAsync() default no-op
+taijitu.ATaijituRigY
+  - added isReady(): true once the serving monad is LOADED
+taijitu.MonadStatus
+  - dropped the String code field/constructor/code() accessor -- plain enum (IDLE/LOADING/LOADED/FAILED)
+taijitu.AMonad
+  - removed unused Logger/LoggerFactory imports; javadoc: the timed-out-checksum cancel seam is wired
+taijitu.MonadCmd
+  - javadoc: submit -> submitCommand; CHECKSUM is the off-queue order-independent hash
+concurrent.IQueueRig
+  - dropped redundant public modifiers from the interface members
+
 05/22/2026 mir0n  v1.2.5 Taijitu dark side -- two-monad director + off-queue CHECKSUM
 taijitu.AMonad  (new)
   - dark-side monad: extends AMonadY; handleCommand intercepts CHECKSUM and runs it on a separate

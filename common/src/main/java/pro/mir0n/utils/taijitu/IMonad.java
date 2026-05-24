@@ -9,6 +9,8 @@
  *                   drives. The director depends on this interface, not the concrete AMonadY:
  *                   lifecycle, queue entry, gate control, monitor, listener, synchronous command.
  *                   The cache work itself stays an internal hook of the implementation (_processItem).
+ * 05/23/2026 mir0n  added submitCommand(commandId, enableQueue) + resultCommand(timeoutMs) to the
+ *                   contract (doCommand = submitCommand + resultCommand).
  */
 package pro.mir0n.utils.taijitu;
 
@@ -42,4 +44,10 @@ public interface IMonad {
      *  digest, ...). {@code enableQueue} opens the accept-gate right after the command is posted
      *  (events queue behind it). {@code timeoutMs <= 0} waits indefinitely. */
     String doCommand(String cmd, boolean enableQueue, long timeoutMs);
+    void submitCommand(String commandId, boolean enableQueue);
+    String resultCommand(long timeoutMs);
+
+
 }
+
+

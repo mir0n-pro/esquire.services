@@ -10,11 +10,10 @@
  *                   handleCommand intercepts CHECKSUM and runs it on a SEPARATE thread (checksumExec,
  *                   not the worker) via the abstract _processItemCancellable hook; the digest is
  *                   reported through the 3-arg onResult. CHECKSUM never touches status or the queue.
+ * 05/23/2026 mir0n  removed unused Logger imports; javadoc: a timed-out checksum is aborted via the
+ *                   cancelable the subclass registers through listener.onStarted (the seam is wired).
  */
 package pro.mir0n.utils.taijitu;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -24,7 +23,8 @@ import java.util.concurrent.Executors;
  * intercepts a CHECKSUM command and runs it on a SEPARATE thread (its own {@code checksumExec}, not
  * the queue worker) via the abstract {@link #_processItemCancellable}; the digest is reported back
  * through the 3-arg {@code onResult} (so {@code doCommand(CHECKSUM)} returns it). CHECKSUM never
- * touches status or the queue. (The cancel seam for a timed-out checksum is reintroduced in step 8.)
+ * touches status or the queue; a timed-out checksum is aborted via the cancelable the subclass
+ * registers through {@code listener.onStarted}.
  *
  * Two equal instances of a concrete subclass (e.g. bizTree {@code Monad}) sit behind one
  * {@link ATaijituRig}; the night-watch loads the shadow fresh, checksums both, and promotes-or-discards.
@@ -61,8 +61,9 @@ public abstract class AMonad extends AMonadY {
     /**
      * Compute the CHECKSUM digest off the worker thread (runs on checksumExec). Must be side-effect
      * free and return a NON-null digest (a null collapses to the status name at the gate -- which
-     * would let two empty legs falsely match). Register any in-flight cancelable via
-     * {@code listener.onStarted} (wired for real at step 8).
+     * would let two empty legs falsely match). Register the in-flight cancelable via
+     * {@code listener.onStarted} so a timed-out checksum aborts the running query (e.g. bizTree's
+     * Monad registers the executing PreparedStatement).
      */
     protected abstract String _processItemCancellable(ICmdResponseListener listener, QueueItem item);
 

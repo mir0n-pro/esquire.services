@@ -20,8 +20,19 @@ db:
 
 messaging:
   brokerUrl: tcp://esquire-infra-amq-activemq:61616
-  clientId: biztree
   consumerEnabled: "true"
+
+# v1.2.5 Taijitu two-monad cache + night-watch sweep (mirrors the compose biztree env)
+#   director:   legacy (single-pass) | taijitu (two-monad + anti-entropy night-watch)
+#   onMismatch: LOG (detect + keep serving -- conservative) | SWAP (promote the fresh shadow --
+#               self-heal) | TERMINATE (exit; k8s relaunches from a clean load)
+#   sweepIntervalMs: delay between sweeps; sweepTimeoutMs: per-leg CHECKSUM deadline
+taijitu:
+  director: taijitu
+  onMismatch: SWAP
+  sweepIntervalMs: "600000"
+  sweepTimeoutMs: "10000"
+  queueCapacity: "4096"
 
 logging:
   levelRoot: ERROR

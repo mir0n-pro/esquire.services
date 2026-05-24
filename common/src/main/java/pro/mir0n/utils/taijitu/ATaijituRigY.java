@@ -20,6 +20,7 @@
  * 05/22/2026 mir0n  no longer implements ICmdResponseListener; gateFor(IMonad) builds a per-monad
  *                   listener (registered in start(), was the ctor self-registration) so a multi-monad
  *                   director can tell its monads apart. onResult is 3-arg (result String). log/devLog protected.
+ * 05/23/2026 mir0n  added isReady() -- true once the serving monad is LOADED (the readiness gate).
  */
 package pro.mir0n.utils.taijitu;
 
@@ -119,6 +120,12 @@ public abstract class ATaijituRigY implements ITaijituRig {
             devLog.debug("{}: event not accepted (status={}): type={} id={} kind={}",
                     getClass().getSimpleName(), yang().status(), eventType, entityId, entityKind);
         }
+    }
+
+    /** Ready once the serving monad is LOADED (false during the bootstrap load). */
+    @Override
+    public boolean isReady() {
+        return yang().status() == MonadStatus.LOADED;
     }
 
     /* --- Per-monad command-gate listener (built by gateFor) --------------- */

@@ -64,7 +64,9 @@ class ATaijituRigYTest {
     }
 
     private static ATaijituRigY director(AMonadY monad) {
-        return new ATaijituRigY(monad) { };   // ATaijituRigY is fully concrete (no abstract methods)
+        return new ATaijituRigY(monad) {
+            // single-monad bootstrap test: no night-watch (sweepAsync inherits the no-op default).
+        };
     }
 
     private static void fire(ATaijituRigY director, String id) {
