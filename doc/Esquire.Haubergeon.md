@@ -2,7 +2,7 @@
 |----------------------------|---------------------------|
 
 
-# ![Alt text](./doc/media/hauberk.svg) Esquire Haubergeon 
+# ![Alt text](media/hauberk.svg) Esquire Haubergeon 
 
 
 **Harness for Gatling Engine.** The Gatling-based test harness for the

@@ -4,14 +4,14 @@ The Esquire framework spans Java microservices, a Node.js BFF, an Angular SPA + 
 
 ## At a glance
 
-|                                                                           | Tier                                          | Framework(s) | Project(s) | Tests at v1.2.5 |
-|---------------------------------------------------------------------------|-----------------------------------------------|---|---|---|
-| ![Alt text](./doc/media/junit.svg)                                        | Java unit + service                           | **JUnit 5** + **Mockito** + **AssertJ** | `services/*` | **388** `@Test` methods across **41** classes |
-| ![Alt text](./doc/media/hauberk.svg) ![Alt text](./doc/media/gatling.svg) | Java integration / load / stress / race-repro | **Haubergeon** (on **Gatling 3.13** Java DSL) | `explorer/hauberk` | **21** self-validating Simulations (smoke / load / super / race-repro / message-loss) + 3 JUnit catalog tests |
-| ![Alt text](./doc/media/vitest.svg)                                       | Node.js (BFF)                                 | **Vitest** + **Supertest** | `explorer/backend` | **28** specs across **4** files (config / cache / trace / tokens) |
-| ![Alt text](./doc/media/karma.svg) ![Alt text](./doc/media/jasmine.svg)   | Angular SPA                                   | **Karma** + **Jasmine** (`ng test`) | `explorer/frontend` | **25** `it()` specs in **4** files |
-| ![Alt text](./doc/media/karma.svg) ![Alt text](./doc/media/jasmine.svg)   |  Angular UI library                           | **Karma** + **Jasmine** (`ng test`) | `esquire.ui.lib` | **146** `it()` specs in **23** files |
-| ![Alt text](./doc/media/playwrite.svg)                                    | Browser end-to-end                            | **Playwright** | `explorer/e2e-test` | **32** `test()` cases in **15** `.spec.ts` files |
+|                                                                          | Tier                                          | Framework(s) | Project(s) | Tests at v1.2.5 |
+|--------------------------------------------------------------------------|-----------------------------------------------|---|---|---|
+| ![Alt text](media/junit.svg)                                      | Java unit + service                           | **JUnit 5** + **Mockito** + **AssertJ** | `services/*` | **388** `@Test` methods across **41** classes |
+| ![Alt text](media/hauberk.svg) ![Alt text](media/gatling.svg) | Java integration / load / stress / race-repro | **Haubergeon** (on **Gatling 3.13** Java DSL) | `explorer/hauberk` | **21** self-validating Simulations (smoke / load / super / race-repro / message-loss) + 3 JUnit catalog tests |
+| ![Alt text](media/vitest.svg)                                      | Node.js (BFF)                                 | **Vitest** + **Supertest** | `explorer/backend` | **28** specs across **4** files (config / cache / trace / tokens) |
+| ![Alt text](media/karma.svg) ![Alt text](media/jasmine.svg)  | Angular SPA                                   | **Karma** + **Jasmine** (`ng test`) | `explorer/frontend` | **25** `it()` specs in **4** files |
+| ![Alt text](media/karma.svg) ![Alt text](media/jasmine.svg)  |  Angular UI library                           | **Karma** + **Jasmine** (`ng test`) | `esquire.ui.lib` | **146** `it()` specs in **23** files |
+| ![Alt text](media/playwrite.svg)                                   | Browser end-to-end                            | **Playwright** | `explorer/e2e-test` | **32** `test()` cases in **15** `.spec.ts` files |
 
 ---
 
