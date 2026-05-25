@@ -8,8 +8,12 @@ v1.2.5-2605.2322  v1.2.5 bizTree sprint -- Taijitu night-watch (anti-entropy swe
     :Feature:     async REST force-sweep (/esq-sweep), routed through the gateway
     :Fix:         bizTree topic subscription made non-durable -- unblocks k8s rolling updates
     :Config:      configurable sweep cadence + mismatch reaction (interval / timeout / on-mismatch)
-    :Doc:         Esquire.BizTree.md revised to the as-built completed-solution reference;
-                  common/taijitu documented as a reusable, domain-agnostic pattern
+    :Doc:         Esquire.BizTree.md
+                  H2BizTree.md
+                  DatabaseDictionary.md
+                  Esquire.TestingStack.md
+                  keyCloak-gateway.JWE.md
+                  README.md
     Components:   common, bizTree, gateway
 
 v1.2.5-2605.2221  v1.2.5 bizTree sprint -- Taijitu dark side (two-monad director)

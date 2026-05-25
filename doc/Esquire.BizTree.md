@@ -1,8 +1,8 @@
-corre| ![Alt text](../favicon.ico) | Esquire Frameworks(tm) 2.0 |
+| ![Alt text](../favicon.ico) | Esquire Frameworks(tm) 2.0 |
 |----------------------------|---------------------------|
 
 
-# Esquire bizTree
+# ![biztree logo](media/dbltree.32.png) **Esquire bizTree**
 
 
 **The read-side query model.** bizTree owns the in-memory, hierarchical view of
@@ -51,21 +51,8 @@ They see the same API whichever director implementation is active.
 
 The cache is a **Taijitu**: two independent **monads** behind one **director**.
 
-```
-                +----------- director (Taijitu) -----------+
-                |                                           |
-                |    +----- yang (serving) -----+           |
-   REST  --->   |    |  H2 table + queue        | <-- entity|
-                |    |  status, gates           |    broadcast
-                |    +--------------------------+           |
-                |                                           |
-                |    +----- yin (shadow) -------+           |
-                |    |  H2 table + queue        | <-- (during
-                |    |  status, gates           |    a sweep only)
-                |    +--------------------------+           |
-                |                                           |
-                +-------------------------------------------+
-```
+
+![biztree logo](media/BizTreeModel.png)
 
 Each monad is a **complete bizTree data cache** -- its own H2 table, its own
 queue, its own worker -- and offers the same two capabilities: read access for

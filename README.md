@@ -1,13 +1,11 @@
+
 | ![Alt text](./favicon.ico) | Esquire Frameworks(tm) 2.0 |
 |----------------------------|---------------------------|
 
+
 > 
-> **v1.2.5 — in progress.** bizTree's internal cache rebuilt as the "Taijitu" Supreme Ultimate Cache — closes the cache-load race behind an unchanged API surface.
+> **v1.2.5 — complete.** bizTree's internal cache rebuilt as the "Taijitu" Supreme Ultimate Cache — a **recoverable cache service** whose background night-watch self-heals dropped events, closing the cache-load race behind an unchanged API surface.
 >
-
-
-In addition to the existing auth patterns (BFF and plain JWT), two non-browser auth patterns were added — **Vanilla Token Relay** and **Phantom Token Relay** — both keep authorization claims off the client side while preserving local validation downstream of the gateway.
-
 
 Frameworks for organizing business entities in a tree, for any business or activity.
 The framework covers the traditional backoffice feature set: entity onboarding, profile
@@ -34,6 +32,7 @@ maintenance, permissions, authorization, and accounting.
 - [Logging Strategy](doc/Logging.md)
 - [Keycloak / Gateway — Authentication Patterns](doc/keyCloak-gateway.JWE.md) *(four working patterns: BFF / JWT / Vanilla Token Relay / Phantom Token Relay; JWE parked under stock KC, gateway-side lab kept armed)*
 - [KeySmith Credential Routines — State Machine & Collaboration](doc/keySmithCredentialRoutine.md)
+- [bizTree — Taijitu Recoverable Cache Architecture](doc/Esquire.BizTree.md) *(the Supreme Ultimate Cache: two-monad anti-entropy double-buffer + night-watch sweep)*
 
 ### Domain & Data Model
 - [Object Kind Enumeration](doc/Object.Kind.enum.md)
@@ -43,7 +42,7 @@ maintenance, permissions, authorization, and accounting.
 - [Database Dictionary](doc/DatabaseDictionary.md)
 
 ### Testing
-- [Testing Stack — frameworks, scope, coverage](doc/Esquire.TestingStack.md) *(every framework in use across all Esquire projects, what it covers, current test counts at v1.2.4)*
+- [Testing Stack — frameworks, scope, coverage](doc/Esquire.TestingStack.md) *(every framework in use across all Esquire projects, what it covers, current test counts at v1.2.5)*
 - [Testing — Gatling as Esquire standard](doc/Testing.md) *(policy note for integration / load / stress / race-repro)*
 - [Haubergeon — Gatling harness reference](doc/Esquire.Haubergeon.md)
 - [Race Conditions — reproduction protocol](doc/Race.Conditions.Repro.md)
@@ -53,8 +52,8 @@ maintenance, permissions, authorization, and accounting.
 
 |                                                                   |                                                                                                                                                                                                                                                                                                                                                                        |
 |-------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| **esquire.services**| - [v1.2.4 Milestone Report](doc/reports/report_v1.2.4.md)<br/>- [v1.2.3 Milestone Report](doc/reports/report_v1.2.3.md)<br/>- [v1.2.2 Milestone Report](doc/reports/report_v1.2.2.md)                                                                                                                                                                                  |
-| **esquire.explorer**| - [v1.2.4 Milestone Report](https://github.com/mir0n-pro/esquire.explorer/blob/develop/doc/reports/report_v1.2.4.md)<br/>- [v1.2.3 Milestone Report](https://github.com/mir0n-pro/esquire.explorer/blob/develop/doc/reports/report_v1.2.3.md)<br/>- [v1.2.2 Milestone Report](https://github.com/mir0n-pro/esquire.explorer/blob/develop/doc/reports/report_v1.2.2.md) |
+| **esquire.services**| - [v1.2.5 Milestone Report](doc/reports/report_v1.2.5.md)<br/>- [v1.2.4 Milestone Report](doc/reports/report_v1.2.4.md)<br/>- [v1.2.3 Milestone Report](doc/reports/report_v1.2.3.md)<br/>- [v1.2.2 Milestone Report](doc/reports/report_v1.2.2.md)                                                                                                                                                                                  |
+| **esquire.explorer**| - [v1.2.5 Milestone Report](https://github.com/mir0n-pro/esquire.explorer/blob/develop/doc/reports/report_v1.2.5.md)<br/>- [v1.2.4 Milestone Report](https://github.com/mir0n-pro/esquire.explorer/blob/develop/doc/reports/report_v1.2.4.md)<br/>- [v1.2.3 Milestone Report](https://github.com/mir0n-pro/esquire.explorer/blob/develop/doc/reports/report_v1.2.3.md)<br/>- [v1.2.2 Milestone Report](https://github.com/mir0n-pro/esquire.explorer/blob/develop/doc/reports/report_v1.2.2.md) |
 | **esquire.ui.lib**| - [v1.2.3 Release Report](https://github.com/mir0n-pro/esquire.ui.lib/blob/develop/doc/reports/report_v1.2.3.md)<br/> - [v1.2.2 Release Report](https://github.com/mir0n-pro/esquire.ui.lib/blob/develop/doc/reports/report_2026_04_19_31750f3.md)                                                                                                                     |
 | **esquire.db.seed**| - [v1.2.4 Milestone Report](https://github.com/mir0n-pro/esquire.db.seed/blob/develop/doc/reports/report_v1.2.4.md)<br/> - [v1.2.2 Milestone Report](https://github.com/mir0n-pro/esquire.db.seed/blob/develop/doc/reports/report_v1.2.2.md)                                                                                                                          |
 
@@ -89,6 +88,9 @@ all other services exist to support it.
 
 **bizTree** — the entity tree service; maintains an in-memory cache of the business entity
 tree; serves tree navigation to the frontend; stays current by consuming the broadcast bus.
+As of v1.2.5 a **recoverable cache service**: a two-buffer anti-entropy design whose periodic
+night-watch rebuilds a shadow from the database, compares the two, and self-heals any drift —
+so an event missed while the service was down is reconciled automatically, with no restart.
 
 **enyMan** (Entity Manager) — manages organizations and users; handles create, update, delete,
 and move operations; publishes entity change events to the broadcast bus.
@@ -134,12 +136,16 @@ The two public hosts at a glance:
 
 ---
 
-## v1.2.5 — in progress
+## v1.2.5 — complete (05/24/2026)
 
 v1.2.5 is the **bizTree cache-refactor sprint** — bizTree's internal cache is rebuilt as the
-"Taijitu" Supreme Ultimate Cache (anti-entropy double-buffer with shadow promotion) to close the
-cache-load race deferred from v1.2.4. The external surface — REST paths, JMS topic, cache
-interface — is unchanged; the new implementation slots in behind it.<br>
+"Taijitu" Supreme Ultimate Cache (anti-entropy double-buffer with shadow promotion): two equal
+in-memory monads behind one director, reconciled by a periodic **night-watch** sweep that rebuilds
+the shadow from the database, checksums both, and self-heals drift (log / swap / terminate). The
+result is a **recoverable cache service** — it closes the cache-load race deferred from v1.2.4 and
+reconciles events missed during downtime, so a non-durable broadcast subscription is enough. The
+external surface — REST paths, JMS topic, cache interface — is unchanged; the new implementation
+slots in behind it.<br>
 [Architecture: doc/Esquire.BizTree.md](doc/Esquire.BizTree.md)
 
 ## v1.2.4 — complete (05/14/2026)
