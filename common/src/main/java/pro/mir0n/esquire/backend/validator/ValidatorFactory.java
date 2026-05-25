@@ -10,8 +10,7 @@
  * 03/08/2026 mir0n  validate(): boolean personal param forwarded through generic + biz chain
  */
 
-package pro.mir0n.esquire.backend.validator
-;
+package pro.mir0n.esquire.backend.validator;
 import lombok.extern.slf4j.Slf4j;
 import pro.mir0n.esquire.backend.dto.EsqEntityKindFieldLayer;
 import pro.mir0n.esquire.backend.jpa.EsqEntityJpa;

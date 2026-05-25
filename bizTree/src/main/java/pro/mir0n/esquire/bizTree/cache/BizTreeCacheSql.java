@@ -10,6 +10,7 @@
  * 03/26/2026 mir0n  deleteNode field added to Repo record
  * 04/02/2026 mir0n  added 3 Repo queries:  moveNode, moveAcctLink, findFolderPks
  * 05/14/2026 mir0n  selectSubtree field added to Repo record (for fetchSubtree / /esq-tree endpoint)
+ * 05/23/2026 mir0n  Repo record: added clearAll + checksum fields (night-watch TRUNCATE + MD5 digest).
  */
 package pro.mir0n.esquire.bizTree.cache;
 
@@ -38,7 +39,9 @@ public class BizTreeCacheSql {
             String moveNode,
             String moveAcctLink,
             String findFolderPks,
-            String findSubtree
+            String findSubtree,
+            String clearAll,
+            String checksum
     ) {}
 
     public record Loader(

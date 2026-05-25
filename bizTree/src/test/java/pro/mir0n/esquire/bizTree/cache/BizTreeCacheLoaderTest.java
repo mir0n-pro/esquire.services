@@ -8,7 +8,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.jdbc.core.JdbcTemplate;
 import pro.mir0n.esquire.backend.dto.EsqObjectKind;
 import pro.mir0n.esquire.backend.jpa.entity.EsqAcctJpa;
@@ -34,7 +33,6 @@ class BizTreeCacheLoaderTest {
     @Mock private EsqUsrRepository  usrRepo;
     @Mock private EsqAcctRepository acctRepo;
     @Mock private JdbcTemplate      cacheDb;
-    @Mock private ApplicationReadyEvent event;
 
     private BizTreeCacheLoader loader;
 
@@ -53,11 +51,12 @@ class BizTreeCacheLoaderTest {
 
     @BeforeEach
     void setUp() {
-        BizTreeCacheSql sql = new BizTreeCacheSql(
+        BizTreeCacheSql templates = new BizTreeCacheSql(
                 new BizTreeCacheSql.Ddl("", "", ""),
-                new BizTreeCacheSql.Repo("", "", "", "", "", "", "", "", "", "", "", "", ""),
+                new BizTreeCacheSql.Repo("", "", "", "", "", "", "", "", "", "", "", "", "", "", ""),
                 new BizTreeCacheSql.Loader("INSERT", "UPDATE", "SELECT")
         );
+        CacheSqlSet sql = CacheSqlSet.forTable(templates, "ESQ_TREE");
         loader = new BizTreeCacheLoader(orgRepo, usrRepo, acctRepo, cacheDb, sql);
         when(cacheDb.batchUpdate(anyString(), anyList()))
                 .thenAnswer(inv -> new int[((List<?>) inv.getArgument(1)).size()]);
@@ -102,7 +101,7 @@ class BizTreeCacheLoaderTest {
         when(usrRepo.findAllForTree()).thenReturn(List.of());
         when(acctRepo.findAllForTree()).thenReturn(List.of());
 
-        loader.onApplicationEvent(event);
+        loader.load();
 
         List<Object[]> rows = captureNodes();
         assertThat(rows).hasSize(2);
@@ -120,7 +119,7 @@ class BizTreeCacheLoaderTest {
         when(usrRepo.findAllForTree()).thenReturn(List.of());
         when(acctRepo.findAllForTree()).thenReturn(List.of());
 
-        loader.onApplicationEvent(event);
+        loader.load();
 
         List<Object[]> rows = captureNodes();
         assertThat(rows).hasSize(5);
@@ -140,7 +139,7 @@ class BizTreeCacheLoaderTest {
         when(usrRepo.findAllForTree()).thenReturn(List.of(usr("10", 4, "1", "1.10.", null)));
         when(acctRepo.findAllForTree()).thenReturn(List.of());
 
-        loader.onApplicationEvent(event);
+        loader.load();
 
         List<Object[]> rows = captureNodes();
         assertThat(rows).hasSize(1);
@@ -156,7 +155,7 @@ class BizTreeCacheLoaderTest {
         when(usrRepo.findAllForTree()).thenReturn(List.of(usr("20", 34, "2", "1.2.20.", null)));
         when(acctRepo.findAllForTree()).thenReturn(List.of());
 
-        loader.onApplicationEvent(event);
+        loader.load();
 
         List<Object[]> rows = captureNodes();
         assertThat(rows.get(0)[4]).isEqualTo("2~8");
@@ -171,7 +170,7 @@ class BizTreeCacheLoaderTest {
         when(usrRepo.findAllForTree()).thenReturn(List.of(usr("30", 36, "2", "1.2.30.", null)));
         when(acctRepo.findAllForTree()).thenReturn(List.of());
 
-        loader.onApplicationEvent(event);
+        loader.load();
 
         List<Object[]> rows = captureNodes();
         assertThat(rows.get(0)[4]).isEqualTo("2~10");
@@ -186,7 +185,7 @@ class BizTreeCacheLoaderTest {
         when(usrRepo.findAllForTree()).thenReturn(List.of(usr("10", 4, "2", "1.2.10.", "Y")));
         when(acctRepo.findAllForTree()).thenReturn(List.of());
 
-        loader.onApplicationEvent(event);
+        loader.load();
 
         List<Object[]> rows = captureNodes();
         assertThat(rows.get(0)[10]).isEqualTo(1);   // STATUS_DELETED
@@ -201,7 +200,7 @@ class BizTreeCacheLoaderTest {
         when(usrRepo.findAllForTree()).thenReturn(List.of(usr("10", 4, "2", "1.2.10.", null)));
         when(acctRepo.findAllForTree()).thenReturn(List.of(acct("100", 6, "10", "1.2.10.100.", "A")));
 
-        loader.onApplicationEvent(event);
+        loader.load();
 
         List<Object[]> rows = captureNodes();
         // user node + 2 account nodes
@@ -228,7 +227,7 @@ class BizTreeCacheLoaderTest {
         when(usrRepo.findAllForTree()).thenReturn(List.of(usr("10", 4, "2", "1.2.10.", null)));
         when(acctRepo.findAllForTree()).thenReturn(List.of(acct("100", 6, "10", "1.2.10.100.", "L")));
 
-        loader.onApplicationEvent(event);
+        loader.load();
 
         List<Object[]> rows = captureNodes();
         assertThat(rows.get(1)[10]).isEqualTo(2);   // direct  STATUS_LOCKED
@@ -244,7 +243,7 @@ class BizTreeCacheLoaderTest {
         when(usrRepo.findAllForTree()).thenReturn(List.of(usr("10", 4, "2", "1.2.10.", null)));
         when(acctRepo.findAllForTree()).thenReturn(List.of(acct("100", 6, "10", "1.2.10.100.", "Y")));
 
-        loader.onApplicationEvent(event);
+        loader.load();
 
         List<Object[]> rows = captureNodes();
         assertThat(rows.get(1)[10]).isEqualTo(1);

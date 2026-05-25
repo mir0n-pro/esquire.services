@@ -2,33 +2,34 @@
  *  Esquire frameworks (tm)
  *  BizTree service
  *
- *  Copyright(c) 2001, 2025 mir0n&co www.mir0n.me
+ *  Copyright(c) 2001, 2026 mir0n&co www.mir0n.pro
  *  mailto:mir0n.the.programmer@gmail.com
  *
  *  History:
  * 03/17/2026 mir0n  created: JMS/ActiveMQ config for durable consumer; clientId set explicitly on CachingConnectionFactory
  * 03/26/2026 mir0n  @Qualifier("jmsConnectionFactory") added to ConnectionFactory parameter
+ * 05/23/2026 mir0n  non-durable subscriber: bean renamed jmsDurableTopicListenerFactory ->
+ *                   jmsTopicListenerFactory; removed the clientId (@Value + setClientId) and
+ *                   setSubscriptionDurable(true). The night-watch recovers messages missed while down,
+ *                   so durable is unneeded -- and dropping the clientId unblocks k8s rolling updates.
  */
 package pro.mir0n.esquire.bizTree.messaging;
 
 import jakarta.jms.ConnectionFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.jms.annotation.EnableJms;
 import org.springframework.jms.config.DefaultJmsListenerContainerFactory;
-import org.springframework.jms.connection.CachingConnectionFactory;
 
 /**
  * JMS configuration for the entity broadcast consumer.
  *
- * Consumer: jmsDurableTopicListenerFactory — factory for durable topic subscribers.
- * Clients must set a stable clientId per subscriber; subscriptionName per @JmsListener.
- *
- * clientId is set explicitly on the CachingConnectionFactory here.
- * spring.jms.client-id is not reliably applied by Spring Boot auto-config when
- * ActiveMQConnectionFactory is already present on the classpath.
+ * Consumer: jmsTopicListenerFactory — NON-DURABLE topic subscriber. No clientId, no subscriptionName:
+ * a message missed while bizTree is down is recovered by the night-watch (anti-entropy sweep reloads
+ * the cache from the source of truth), so the durable subscription is no longer needed. Dropping it
+ * also drops the per-subscriber clientId, which deadlocked k8s rolling updates (two pods could not
+ * both hold "biztree" on the broker).
  *
  * Broker URL: spring.activemq.broker-url (application.yml).
  * No broker authorization in phase 1.
@@ -37,24 +38,16 @@ import org.springframework.jms.connection.CachingConnectionFactory;
 @EnableJms
 public class BizTreeJmsConfig {
 
-    @Value("${biztree.messaging.client-id:biztree}")
-    private String clientId;
-
     /**
-     * Listener container factory for durable topic subscribers.
-     * Use this factory in @JmsListener(containerFactory="jmsDurableTopicListenerFactory").
-     * Assign a stable subscriptionName per listener.
+     * Listener container factory for non-durable topic subscribers.
+     * Use this factory in @JmsListener(containerFactory="jmsTopicListenerFactory").
      */
     @Bean
-    public DefaultJmsListenerContainerFactory jmsDurableTopicListenerFactory(
+    public DefaultJmsListenerContainerFactory jmsTopicListenerFactory(
             @Qualifier("jmsConnectionFactory") ConnectionFactory connectionFactory) {
-        if (connectionFactory instanceof CachingConnectionFactory ccf) {
-            ccf.setClientId(clientId);
-        }
         DefaultJmsListenerContainerFactory ret = new DefaultJmsListenerContainerFactory();
         ret.setConnectionFactory(connectionFactory);
         ret.setPubSubDomain(true);
-        ret.setSubscriptionDurable(true);
         return ret;
     }
 }

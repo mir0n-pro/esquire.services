@@ -1,6 +1,154 @@
 Esquire BizTree Microservice
 
 
+05/23/2026 mir0n  v1.2.5 Taijitu night-watch -- two-table cache, readiness gate, non-durable subscription
+health.CacheReadinessHealthIndicator  (new)
+  - HealthIndicator (health name cacheReadiness) -- UP once IBizTreeDirector.isReady(), else DOWN;
+    added to the readiness probe group so k8s holds traffic until the cache is serving
+cache.CancelableStatement  (new)
+  - record(Connection, PreparedStatement) implements AutoCloseable: close() closes the statement then
+    the connection, so a try-with-resources releases both on every path (the cancelable CHECKSUM)
+taijitu.Monad
+  - ctor takes IBizTreeCacheRepository; CLEAR -> cacheRepository.clear() (TRUNCATE), was a stub
+  - _processItemCancellable: real off-worker CHECKSUM -- prepareCancelable(command) + executeQuery,
+    reads the digest, registers an inner PrepareStatementCancelable (volatile ps, cancel() -> ps.cancel())
+    via listener.onStarted so a sweep timeout aborts the query; try-with-resources on CancelableStatement
+access.BizTreeDirectorConfig
+  - "taijitu" case builds a per-monad cache backend inline: buildCache(table) (own H2 table via
+    CacheSqlSet.forTable + DDL, repository, loader, read service on the shared cacheJdbcTemplate);
+    tableFor(id) suffixes the base table (ESQ_TREE_MONAD / ESQ_TREE_DANOM); parseMismatch + applies
+    the configurable sweep interval / timeout / on-mismatch to the director
+access.legacy.BizTreeDirectorLegacy
+  - added isReady() backed by a volatile ready flag set true after the synchronous load (readiness gate)
+cache.IBizTreeCacheRepository
+  - added clear() (TRUNCATE) and prepareCancelable(command) returning a CancelableStatement
+cache.impl.BizTreeCacheRepository
+  - clear() = cache.execute(sql.clearAll()); prepareCancelable(CHECKSUM) opens a connection + prepares
+    sql.checksum() into a CancelableStatement (closeQuietly the connection if prepareStatement throws)
+cache.BizTreeCacheSql
+  - Repo record: added clearAll + checksum fields
+cache.CacheSqlSet
+  - forTable: substitute {table} into and carry the new clearAll + checksum SQL
+h2.BizTreeH2Config
+  - wired the repo.clear-all + repo.checksum SQL properties into BizTreeCacheSql.Repo
+controller.BizTreeController
+  - POST /esq-sweep: async force-sweep -> director.sweepAsync(); returns 202 (ACCEPTED)
+messaging.BizTreeJmsConfig
+  - non-durable subscriber: bean jmsDurableTopicListenerFactory -> jmsTopicListenerFactory; removed
+    the clientId (@Value + setClientId) and setSubscriptionDurable(true); header url -> www.mir0n.pro
+messaging.EsqEntityBroadcastConsumer
+  - @JmsListener uses jmsTopicListenerFactory (non-durable); removed the SUBSCRIPTION_NAME constant
+resources/application.yml
+  - management.endpoint.health: probes.enabled + readiness group include cacheReadiness; removed the
+    dead spring.jms.client-id + biztree.messaging.client-id (BIZTREE_MESSAGING_CLIENT_ID gone)
+resources/META-INF/h2-cache-sql.properties
+  - added repo.clear-all (TRUNCATE TABLE {table}) + repo.checksum (order-independent MD5 over the table)
+
+05/22/2026 mir0n  v1.2.5 Taijitu dark side -- two-monad director; yang removed
+taijitu.Monad  (new)
+  - dark-side concrete cache monad: extends common AMonad; _processItem does LOAD (BizTreeCacheLoader)
+    and message apply via the event hub (CLEAR / CHECKSUM stubbed); _processItemCancellable returns a
+    "DUMMY" digest for now; REST reads gated on LOADED
+access.taijitu.BizTreeDirectorTaijitu  (new)
+  - dark-side director: extends common ATaijituRig, implements IBizTreeDirector; ctor takes two Monads
+    ("monad" + "danom"); reads route to the current serving monad ((Monad) yang())
+access.BizTreeDirectorConfig
+  - wired the "taijitu" case (two Monads -> BizTreeDirectorTaijitu); removed the "yang" case and the
+    MonadY / BizTreeDirectorYang imports; director options now legacy | taijitu
+access.IBizTreeDirector
+  - javadoc: implementations are BizTreeDirectorTaijitu + legacy
+taijitu.MonadY  (removed)
+access.yang.BizTreeDirectorYang  (removed)
+
+05/22/2026 mir0n  v1.2.5 Taijitu -- director lifecycle (bootstrap -> start) + IMonad rename caller
+access.BizTreeBootstrapRunner
+  - fires the active director's start() (was bootstrap())
+access.legacy.BizTreeDirectorLegacy
+  - bootstrap() renamed start() (ITaijituRig lifecycle)
+taijitu.MonadY
+  - requireLoaded() calls id() (was monadId(), renamed on IMonad)
+
+05/21/2026 mir0n  v1.2.5 Taijitu Step 3 generalization -- monad framework extracted to common
+taijitu.MonadY
+  - rewritten as a thin extension of common pro.mir0n.utils.taijitu.AMonadY: implements the single
+    _processItem(QueueItem) hook (LOAD -> BizTreeCacheLoader.load(); message -> parse text + apply
+    via the event hub with MDC) plus the gated REST reads; own worker/queue/gates/status removed
+access.yang.BizTreeDirectorYang
+  - now extends common ATaijituRigY; supplies the MonadY it controls and the REST reads;
+    bootstrap / shutdown / onEntityBroadcast / onStarted / onResult inherited
+access.IBizTreeDirector
+  - now extends common ITaijituRig (bootstrap / shutdown / onEntityBroadcast); keeps only the
+    bizTree REST reads; inline lifecycle + JsonNode onEntityBroadcast removed
+access.legacy.BizTreeDirectorLegacy
+  - onEntityBroadcast takes the 7 raw fields and parses textJson inline (no worker); added
+    ObjectMapper ctor arg + no-op shutdown()
+access.BizTreeDirectorConfig
+  - @Bean takes ObjectMapper; builds MonadY with instance id "monad" (not the role "yang") +
+    cacheLoader / eventHub / readBackend / ObjectMapper; passes ObjectMapper to the legacy impl
+messaging.EsqEntityBroadcastConsumer
+  - forwards the RAW body (messageEncoding + textJson) + requestId / correlationId via the 7-arg
+    director.onEntityBroadcast(); ObjectMapper field + readTree block removed (director parses)
+taijitu.MonadCmdHub, IMonad, IMonadCommand, IQueueItem, ICacheLoad, IErrorListener,
+ICancelable, ICmdResponseListener, LoggingErrorListener, MonadStatus  (removed)
+  - dissolved into the common generalization: command/event flattened to common QueueItem +
+    MonadCmd; ICancelable / ICmdResponseListener / MonadStatus moved to common pro.mir0n.utils.taijitu;
+    queue + error-listener machinery moved to common pro.mir0n.utils.concurrent (IQueueRig / BoundedQueueRig)
+
+05/20/2026 mir0n  v1.2.5 Taijitu cache refactor (Steps 1+2) + per-monad precomposed SQL
+access.IBizTreeDirector  (new)
+  - cache-access contract: bootstrap() + reads (esquire/esquirePath/esquireEntityNode/
+    esquireSubtree) + onEntityBroadcast()
+access.BizTreeDirectorConfig  (new)
+  - @Bean wiring; biztree.director property selects legacy | yang | taijitu; choice logged at startup
+access.BizTreeBootstrapRunner  (new)
+  - ApplicationReadyEvent listener; calls the active director's bootstrap()
+access.MessageHandlerHub  (new)
+  - per-kind handler dispatch HandlerKey(eventType,kindBits) -> IBizTreeEventHandler;
+    extracted from EsqEntityBroadcastConsumer
+access.CacheNotReadyException  (new)
+  - RuntimeException thrown by a monad read before status LOADED
+access.legacy.BizTreeDirectorLegacy  (new)
+  - reads -> IBizTreeService; events -> MessageHandlerHub; bootstrap() -> cacheLoader.load()
+access.yang.BizTreeDirectorYang  (new)
+  - role-router over one MonadY; bootstrap() starts the monad, enables queue, submits INIT
+taijitu.MonadY  (new)
+  - active (yang) monad: API front + single worker, one FIFO queue, two gates
+    (queueEnabled/processingEnabled); commands -> MonadCmdHub, events -> eventHub, reads ->
+    IBizTreeService; implements IMonad; worker catches Exception, lets Error propagate
+taijitu.MonadCmdHub  (new)
+  - handles INIT / CLEAN / CHECKSUM; drives MonadY status + gates
+taijitu.IMonad  (new)
+  - monad contract: lifecycle, submit/offer, setQueueEnabled/status/queueDepth, reads, listeners
+taijitu.IMonadCommand  (new)
+  - sealed: Init | Clean | Checksum
+taijitu.IQueueItem  (new)
+  - sealed: Cmd(IMonadCommand) | Event(eventType, entityId, entityKind, JsonNode)
+taijitu.ICacheLoad, IEventSink, IErrorListener, ICancelable  (new)
+  - functional interfaces: load() / apply() / onError() / cancel()
+taijitu.ICmdResponseListener  (new)
+  - onStarted(command, cancelable) + onResult(command, status); NOOP default
+taijitu.LoggingErrorListener  (new)
+  - IErrorListener default; logs to console + develop
+taijitu.MonadStatus  (new)
+  - enum IDLE / LOADING / LOADED / FAILED
+cache.CacheSqlSet  (new)
+  - precomposed table-bound SQL record; forTable(BizTreeCacheSql, table) substitutes {table}
+    and joins the read fragments once
+controller.BizTreeController
+  - reads forwarded to IBizTreeDirector (was IBizTreeService)
+messaging.EsqEntityBroadcastConsumer
+  - pass-through to IBizTreeDirector; handler dispatch moved to MessageHandlerHub; parses
+    textJson once, forwards director.onEntityBroadcast()
+cache.BizTreeCacheLoader
+  - no longer ApplicationReadyEvent listener; exposes load(); consumes CacheSqlSet
+cache.impl.BizTreeCacheRepository
+  - consumes CacheSqlSet; reads run ready statements (no selectCols()+where per call)
+h2.BizTreeH2Config
+  - cacheSqlSet bean via CacheSqlSet.forTable (biztree.cache.table, default ESQ_TREE);
+    DDL executed from the set
+src/main/resources/META-INF/h2-cache-sql.properties
+  - table name, index names, PK constraint parameterized with {table} token
+
 05/14/2026 mir0n  v1.2.4 /esq-tree -- recursive subtree from biztree H2 cache
 controller.BizTreeController
   - GET /esq-tree added: takes seed tree-node id, returns seed + every descendant cached node

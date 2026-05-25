@@ -30,9 +30,11 @@ spec:
                 secretKeyRef:
                   name: {{ .Release.Name }}-biztree-secret
                   key: db-password
+          # readiness gates on the cacheReadiness indicator (cache loaded + serving) -- no traffic
+          # until the bootstrap load completes; liveness is livenessState only so a slow load can't crashloop.
           readinessProbe:
             httpGet:
-              path: /actuator/health
+              path: /actuator/health/readiness
               port: {{ .Values.service.port }}
             initialDelaySeconds: 20
             periodSeconds: 10
@@ -40,7 +42,7 @@ spec:
             failureThreshold: 10
           livenessProbe:
             httpGet:
-              path: /actuator/health
+              path: /actuator/health/liveness
               port: {{ .Values.service.port }}
             initialDelaySeconds: 40
             periodSeconds: 15

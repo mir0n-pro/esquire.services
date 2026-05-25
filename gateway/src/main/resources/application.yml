@@ -70,7 +70,7 @@ spring:
         - id: biztree-route
           uri: http://${BIZTREE_HOST:biztree}:${BIZTREE_PORT:3002}
           predicates:
-            - Path=/esq,/esq-path,/esq-enode,/esq-tree
+            - Path=/esq,/esq-path,/esq-enode,/esq-tree,/esq-sweep
           metadata:
               allowedMethods:
                 - GET

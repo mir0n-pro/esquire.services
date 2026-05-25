@@ -63,10 +63,13 @@ services:
     environment:
       KC_BOOTSTRAP_ADMIN_USERNAME: admin
       KC_BOOTSTRAP_ADMIN_PASSWORD: q
-      # host.docker.internal resolves identically from the host (browser, curl)
-      # AND from inside compose containers (Docker injects it). Single hostname
-      # for both legs of OIDC + token-exchange iss validation.
-      KC_HOSTNAME: host.docker.internal
+      # localhost works from the host browser AND from inside compose containers
+      # because the BFF (and any other container that needs to reach KC) maps
+      # "localhost" -> host-gateway via extra_hosts. KC publishes its discovery
+      # URLs and "iss" claim with this hostname:port pair; both sides resolve
+      # to the same KC instance.
+      KC_HOSTNAME: localhost
+      KC_HOSTNAME_PORT: 8081
       KC_HOSTNAME_STRICT: "false"
       KC_HOSTNAME_STRICT_BACKCHANNEL: "false"
       KC_HOSTNAME_STRICT_HTTPS: "false"
@@ -117,8 +120,20 @@ services:
       - AMQ_BROKER_URL=tcp://activemq:61616
       #- AMQ_USER=
       #- AMQ_PASSWORD=
-      - BIZTREE_MESSAGING_CLIENT_ID=biztree
       - BIZTREE_MESSAGING_CONSUMER_ENABLED=true
+      # v1.2.5 Taijitu refactor: select the cache director impl
+      #   legacy (default) | taijitu (two-monad + night-watch)
+      - BIZTREE_DIRECTOR=taijitu
+      # night-watch checksum-mismatch reaction: LOG | SWAP | TERMINATE
+      # (fed by host BIZTREE_ON_MISMATCH so a hauberk cmd can recreate biztree per test)
+      - BIZTREE_TAIJITU_ON_MISMATCH=${BIZTREE_ON_MISMATCH:-SWAP}
+      # night-watch sweep interval ms (host BIZTREE_SWEEP_INTERVAL_MS; a test sets it high so the
+      # periodic sweep doesn't auto-heal before the sim observes the miss + forces a sweep)
+      - BIZTREE_TAIJITU_SWEEP_INTERVAL_MS=${BIZTREE_SWEEP_INTERVAL_MS:-600000}
+      # night-watch per-leg CHECKSUM deadline ms (host BIZTREE_SWEEP_TIMEOUT_MS)
+      - BIZTREE_TAIJITU_SWEEP_TIMEOUT_MS=${BIZTREE_SWEEP_TIMEOUT_MS:-10000}
+      # per-monad event queue depth (back-pressure boundary)
+      - BIZTREE_MONAD_QUEUE_CAPACITY=${BIZTREE_QUEUE_CAPACITY:-4096}
     command: ["java", "-jar", "app.jar"]
     depends_on:
       postgres:
@@ -383,11 +398,12 @@ services:
       # works over plain HTTP on localhost:3000. Switch to "production" when
       # the deployment fronts the BFF with HTTPS (k8s ingress + cert-manager).
       - NODE_ENV=development
-      # KC discovery URLs come back with KC_HOSTNAME (set to "localhost" on the
-      # keycloak service), so BFF talks to KC via http://localhost:8080 too.
-      # extra_hosts maps "localhost" -> the host gateway so this resolves
-      # inside the container to the same KC the browser hits.
-      - KC_ISSUER=http://localhost:8080/kc-auth/realms/esquire
+      # KC publishes its discovery URLs and "iss" claim using KC_HOSTNAME +
+      # KC_HOSTNAME_PORT (set to localhost:8081 on the keycloak service). The
+      # BFF discovers from the same URL so the "iss" the SPA receives matches
+      # the one this container validates. extra_hosts below maps "localhost"
+      # inside this container -> host gateway -> host port 8081 -> KC.
+      - KC_ISSUER=http://localhost:8081/kc-auth/realms/esquire
       - KC_CLIENT_ID=esq-angular
       - KC_CLIENT_SECRET=esq-angular-bff-dev-secret-rotate-in-prod
       - GATEWAY_URL=http://gateway:7070

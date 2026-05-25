@@ -4,7 +4,7 @@
 # Esquire Database Dictionary
 
 Covers all persistent tables in **Esq2025** — the Esquire relational store (Oracle and Postgres).
-Does not cover the H2 in-memory cache (ESQ_TREE), which is documented in the
+Does not cover the H2 in-memory cache (ESQ_TREE_MONAD / ESQ_TREE_DANOM), which is documented in the
 [Navigation — H2 In-Memory Cache](#7-navigation--h2-in-memory-cache) section below.
 
 Source scripts: `esquire.db.seed / postgres|oracle / create`
@@ -542,17 +542,14 @@ Foreign keys:
 
 ## 7. Navigation — H2 In-Memory Cache
 
-ESQ_TREE is the single table in the **bizTree** service's embedded H2 database.
-It is not part of Esq2025. It is reconstructed from the persistent store on startup
-and kept current by consuming the entity broadcast bus.
-Schema source: `bizTree/src/main/resources/META-INF/h2-cache-sql.properties`
+Under the **bizTree** service's embedded, memory-only H2 database the entity tree is held in
+**two equal tables — `ESQ_TREE_MONAD` and `ESQ_TREE_DANOM`**.See [H2BizTree.md](H2BizTree.md) for more details.
 
----
+### ESQ_TREE_MONAD / ESQ_TREE_DANOM
 
-### ESQ_TREE
-
-In-memory entity tree cache. Every node is one row. Link nodes (shortcuts) carry a
-`TREE_TREE_PK_LINK` reference pointing to the canonical node.
+In-memory entity tree cache (both monad tables share this schema). Every node is one row, linked
+to its parent by `TREE_TREE_PK_PARENT` (the tree edge; null for the root). Link nodes (shortcuts)
+additionally carry a `TREE_TREE_PK_LINK` reference pointing to the canonical node.
 
 Primary key: `TREE_PK`  
 Indexes: `TREE_TREE_PK_PARENT`, `TREE_ENTITY_PK`

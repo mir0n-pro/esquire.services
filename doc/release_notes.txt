@@ -1,6 +1,52 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v1.2.5-2605.2322  v1.2.5 bizTree sprint -- Taijitu night-watch (anti-entropy sweep)
+    :Feature:     night-watch sweep -- periodically reloads the shadow monad, checksums both legs
+                  against the serving monad, and reacts to drift (log / swap / terminate)
+    :Feature:     cache readiness gate -- k8s readiness holds until the cache is loaded + serving
+    :Feature:     async REST force-sweep (/esq-sweep), routed through the gateway
+    :Fix:         bizTree topic subscription made non-durable -- unblocks k8s rolling updates
+    :Config:      configurable sweep cadence + mismatch reaction (interval / timeout / on-mismatch)
+    :Doc:         Esquire.BizTree.md
+                  H2BizTree.md
+                  DatabaseDictionary.md
+                  Esquire.TestingStack.md
+                  keyCloak-gateway.JWE.md
+                  README.md
+    Components:   common, bizTree, gateway
+
+v1.2.5-2605.2221  v1.2.5 bizTree sprint -- Taijitu dark side (two-monad director)
+    :Feature:     two-monad Taijitu director (serving + shadow) with off-queue CHECKSUM dispatch
+                  -- dummy night-watch for now (shadow idle; real sweep + reactions to come)
+    :Refactoring: command result flows through onResult/doCommand (3-arg); per-monad gateFor listener
+    :Refactoring: removed the yang single-monad director (MonadY / BizTreeDirectorYang)
+    :Config:      compose BIZTREE_DIRECTOR yang -> taijitu (director options: legacy | taijitu)
+    Components:   common, bizTree
+
+v1.2.5-2605.2210  v1.2.5 bizTree sprint -- Taijitu synchronous command model
+    :Refactoring: synchronous monad command -- AMonadY.doCommand() blocks until the worker completes,
+                  with timeout + cancel; bootstrap is a synchronous load-retry loop
+    :Refactoring: IMonad control contract -- the director drives the monad only through the interface
+    :Refactoring: director lifecycle renamed bootstrap() -> start() (symmetric with shutdown())
+    Components:   common, bizTree
+
+v1.2.5-2605.2114  v1.2.5 bizTree sprint -- Taijitu Step 3 generalization
+    :Refactoring: Taijitu monad framework extracted from bizTree to common
+                  (pro.mir0n.utils.taijitu + pro.mir0n.utils.concurrent)
+    :Refactoring: bizTree cache monad and director reduced to thin extensions of the common framework
+    :Refactoring: command/event queue flattened to one QueueItem record + MonadCmd vocabulary
+    Components:   common, bizTree
+
+v1.2.5-2605.2012  v1.2.5 bizTree sprint -- Taijitu cache refactor (Steps 1+2)
+    :Refactoring: bizTree REST + JMS entry points reduced to pass-throughs over IBizTreeDirector
+    :Refactoring: configurable cache director (biztree.director = legacy | yang | taijitu)
+    :Feature:     yang single-monad director closes the cache-load race
+    :Refactoring: per-monad precomposed SQL (CacheSqlSet)
+    :Config:      esquire.version 1.2.4 -> 1.2.5; compose BIZTREE_DIRECTOR=yang
+    :Doc:         new doc/Esquire.BizTree.md
+    Components:   bizTree, pom, compose, doc
+
 v1.2.4-2605.1720  v1.2.4 : JWE via Keycloak research completed, support of Haubergeon sims :
                   Token Relay umbrella (Vanilla + Phantom Token Relay); 
                   landing page;

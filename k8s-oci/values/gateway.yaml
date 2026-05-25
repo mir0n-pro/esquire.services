@@ -1,7 +1,7 @@
 # Prod overrides for k8s/charts/esquire-gateway
 image:
   repository: ghcr.io/mir0n-pro/esquire.gateway
-  tag: "v1.2.4-2605.1723"
+  tag: "v1.2.5-2605.2411"
   pullPolicy: Always
 
 springProfilesActive: console

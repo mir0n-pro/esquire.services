@@ -18,6 +18,9 @@
  * 05/14/2026 mir0n  GET /esq-tree added: recursive subtree from biztree H2 cache
  *                   (counterpart to enyMan /esq-cmd-tree authoritative DB walk;
  *                   used together by the hauberk CompareTrees scenario)
+ * 05/20/2026 mir0n  Taijitu refactor (v1.2.5): forward all reads to IBizTreeDirector
+ *                   (was IBizTreeService); thin REST entry point, no business logic
+ * 05/23/2026 mir0n  POST /esq-sweep: async force-sweep -> director.sweepAsync(); returns 202 (ACCEPTED).
  */
 
 package pro.mir0n.esquire.bizTree.controller;
@@ -28,7 +31,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.http.ProblemDetail;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import pro.mir0n.esquire.backend.dto.EsqTreeNode;
-import pro.mir0n.esquire.bizTree.service.IBizTreeService;
+import pro.mir0n.esquire.bizTree.access.IBizTreeDirector;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -48,6 +51,12 @@ import java.util.List;
 import pro.mir0n.esquire.common.EsqConstants;
 
 /**
+ * Stable REST entry point for bizTree. Extracts JWT claims and forwards
+ * every call to {@link IBizTreeDirector}. Holds zero business logic --
+ * cache implementation changes (Step 3 swap to Taijitu) leave this file
+ * untouched. The set of endpoints + their contracts is the public API
+ * of bizTree; this class is the only place that contract is enforced.
+ *
  * @author mir0n
  */
 
@@ -66,7 +75,7 @@ public class BizTreeController {
 
     private static final org.slf4j.Logger devLog = LoggerFactory.getLogger("develop." + BizTreeController.class.getName());
 
-    private IBizTreeService iBizTreeService;
+    private IBizTreeDirector director;
 
     @Operation(
             summary = "Esquire Tree REST API",
@@ -103,7 +112,7 @@ public class BizTreeController {
         String rootPath = claims.get(EsqConstants.JWT_CLAIM_ENTITY_ROOTPATH, String.class);
         String uid = claims.get(EsqConstants.JWT_CLAIM_ENTITY_ID, String.class);
 
-        List<EsqTreeNode> nodes = iBizTreeService.esquire(id, skip == null ? 0 : skip, take == null? 0 : take, rootPath, uid);
+        List<EsqTreeNode> nodes = director.esquire(id, skip == null ? 0 : skip, take == null? 0 : take, rootPath, uid);
         devLog.debug("esquire: id:{}, rootPath:{}, uid:{}, result:{}", id, rootPath,uid, String.valueOf(nodes));
         return ResponseEntity.status(HttpStatus.OK).body(nodes);
     }
@@ -121,7 +130,7 @@ public class BizTreeController {
         String rootPath = claims.get(EsqConstants.JWT_CLAIM_ENTITY_ROOTPATH, String.class);
         String uid = claims.get(EsqConstants.JWT_CLAIM_ENTITY_ID, String.class);
 
-        EsqTreeNode node = iBizTreeService.esquireEntityNode(kind, id, name, rootPath, uid);
+        EsqTreeNode node = director.esquireEntityNode(kind, id, name, rootPath, uid);
         devLog.debug("esquireEntityNode: kind:{}, id:{}, name:{}, rootPath:{}, result:{}", kind, id, name, rootPath, String.valueOf(node));
         return ResponseEntity.status(HttpStatus.OK).body(node);
     }
@@ -142,7 +151,7 @@ public class BizTreeController {
         String rootPath = claims.get(EsqConstants.JWT_CLAIM_ENTITY_ROOTPATH, String.class);
         String uid      = claims.get(EsqConstants.JWT_CLAIM_ENTITY_ID, String.class);
 
-        List<EsqTreeNode> nodes = iBizTreeService.esquireSubtree(id, rootPath, uid);
+        List<EsqTreeNode> nodes = director.esquireSubtree(id, rootPath, uid);
         devLog.debug("esquireSubtree: id:{}, rootPath:{}, count:{}", id, rootPath, nodes.size());
         return ResponseEntity.status(HttpStatus.OK).body(nodes);
     }
@@ -155,9 +164,22 @@ public class BizTreeController {
     ) {
         String rootPath = claims.get(EsqConstants.JWT_CLAIM_ENTITY_ROOTPATH, String.class);
 
-        List<String> path = iBizTreeService.esquirePath(id, rootPath);
+        List<String> path = director.esquirePath(id, rootPath);
         devLog.debug("esquirePath: id:{}, result:{}, claims:{}", id, String.valueOf(path), String.valueOf(claims));
         return ResponseEntity.status(HttpStatus.OK).body(path);
+    }
+
+    @PostMapping("/esq-sweep")
+    @Operation(
+            summary = "Force a night-watch sweep (asynchronous)",
+            description = "Triggers the cache director's night-watch sweep on a background thread and "
+                        + "returns immediately (202) -- the request is not held for the full sweep. "
+                        + "The sweep also fires periodically via the director's scheduler."
+    )
+    public ResponseEntity<Void> sweep() {
+        director.sweepAsync();
+        devLog.debug("sweep: forced via REST (async)");
+        return ResponseEntity.status(HttpStatus.ACCEPTED).build();
     }
 
 }

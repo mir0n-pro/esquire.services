@@ -22,6 +22,11 @@
  * 04/16/2026 mir0n  insertAcctNode, moveOrgNode, moveUsrNode, moveAcctNode: null-guard replaces early returns
  * 05/14/2026 mir0n  findSubtree(seedId, rootLevel, rootPath) implementation: SELECT_SUBTREE_SQL
  *                   recursive walk by tree_path LIKE seed.tree_path || '%' (rootPath-scoped)
+ * 05/20/2026 mir0n  Taijitu refactor (v1.2.5): consume precomposed CacheSqlSet -- reads
+ *                   run ready statements (no per-call selectCols()+where concatenation)
+ * 05/23/2026 mir0n  clear() = TRUNCATE via sql.clearAll(); prepareCancelable(CHECKSUM) opens a
+ *                   connection + prepares sql.checksum(), returned as a CancelableStatement
+ *                   (closeQuietly the connection if prepare throws -- no leak).
  */
 package pro.mir0n.esquire.bizTree.cache.impl;
 
@@ -35,9 +40,13 @@ import pro.mir0n.esquire.backend.dto.EsqObjectKind;
 import pro.mir0n.esquire.backend.jpa.EsqTreeNodeJpa;
 import pro.mir0n.esquire.backend.storage.EsqObjectKindStorage;
 import pro.mir0n.esquire.bizTree.BizTreeConstants;
-import pro.mir0n.esquire.bizTree.cache.BizTreeCacheSql;
+import pro.mir0n.esquire.bizTree.cache.CacheSqlSet;
+import pro.mir0n.esquire.bizTree.cache.CancelableStatement;
 import pro.mir0n.esquire.bizTree.cache.IBizTreeCacheRepository;
+import pro.mir0n.utils.taijitu.MonadCmd;
 
+import java.sql.Connection;
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -47,8 +56,8 @@ public class BizTreeCacheRepository implements IBizTreeCacheRepository {
 
     private static final org.slf4j.Logger devLog = LoggerFactory.getLogger("develop." + BizTreeCacheRepository.class.getName());
 
-    private final JdbcTemplate    cache;
-    private final BizTreeCacheSql sql;
+    private final JdbcTemplate cache;
+    private final CacheSqlSet  sql;
 
     private static final RowMapper<EsqTreeNodeJpa> NODE_MAPPER = (rs, rowNum) -> {
         EsqTreeNodeJpa n = new EsqTreeNodeJpa();
@@ -67,47 +76,42 @@ public class BizTreeCacheRepository implements IBizTreeCacheRepository {
     };
 
     public BizTreeCacheRepository(@Qualifier("cacheJdbcTemplate") JdbcTemplate cache,
-                                   BizTreeCacheSql sql) {
+                                   CacheSqlSet sql) {
         this.cache = cache;
         this.sql   = sql;
     }
 
     @Override
     public List<EsqTreeNodeJpa> findRoot(String rootId, int rootLevel, String rootPath) {
-        String q = sql.repo.selectCols() + sql.repo.findRoot();
-        return cache.query(q, NODE_MAPPER, rootLevel, rootId, rootPath + "%");
+        return cache.query(sql.findRoot(), NODE_MAPPER, rootLevel, rootId, rootPath + "%");
     }
 
     @Override
     public List<EsqTreeNodeJpa> findNodes(String id, int rootLevel, String rootPath) {
-        String q = sql.repo.selectCols() + sql.repo.findNodes();
-        return cache.query(q, NODE_MAPPER, rootLevel, id, rootPath + "%");
+        return cache.query(sql.findNodes(), NODE_MAPPER, rootLevel, id, rootPath + "%");
     }
 
     @Override
     public String findPath(String id) {
-        String q = sql.repo.findPath() + sql.repo.selectOne();
-        List<String> ret = cache.queryForList(q, String.class, id);
+        List<String> ret = cache.queryForList(sql.findPath(), String.class, id);
         return ret.isEmpty() ? null : ret.get(0);
     }
 
     @Override
     public EsqTreeNodeJpa findByEntityId(String id, int rootLevel, String rootPath) {
-        String q = sql.repo.selectCols() + sql.repo.findByEntityId() + sql.repo.selectOne();
-        List<EsqTreeNodeJpa> ret = cache.query(q, NODE_MAPPER, rootLevel, Long.parseLong(id), rootPath + "%");
+        List<EsqTreeNodeJpa> ret = cache.query(sql.findByEntityId(), NODE_MAPPER, rootLevel, Long.parseLong(id), rootPath + "%");
         return ret.isEmpty() ? null : ret.get(0);
     }
 
     @Override
     public EsqTreeNodeJpa findByNameKind(String name, Integer kind, int rootLevel, String rootPath) {
-        String q = sql.repo.selectCols() + sql.repo.findByNameKind() + sql.repo.selectOne();
-        List<EsqTreeNodeJpa> ret = cache.query(q, NODE_MAPPER, rootLevel, name, kind, rootPath + "%");
+        List<EsqTreeNodeJpa> ret = cache.query(sql.findByNameKind(), NODE_MAPPER, rootLevel, name, kind, rootPath + "%");
         return ret.isEmpty() ? null : ret.get(0);
     }
 
     @Override
     public void updateNode(long entityPk, String name, String desc, Integer statusCode) {
-        int ret = cache.update(sql.repo.updateNode(),
+        int ret = cache.update(sql.updateNode(),
                 name, name, desc, desc, statusCode, statusCode, entityPk);
         devLog.debug("BizTreeCacheRepository: updateNode id={} name={} desc={} status={} rows={}",
                 entityPk, name, desc, statusCode, ret);
@@ -140,7 +144,7 @@ public class BizTreeCacheRepository implements IBizTreeCacheRepository {
             rows.add(row(orgPkStr + "~" + BizTreeConstants.FOLDER_SYS_ADMIN, BizTreeConstants.FOLDER_SYS_ADMIN, BizTreeConstants.FOLDER_SYS_ADMIN_NAME, BizTreeConstants.FOLDER_SYS_ADMIN_DESC, orgPkStr, null, null, folderLevel, orgTreePath + orgPkStr + "~" + BizTreeConstants.FOLDER_SYS_ADMIN + ".", entityPath, BizTreeConstants.STATUS_OK));
         }
 
-        cache.batchUpdate(sql.loader.insertNode(), rows);
+        cache.batchUpdate(sql.insertNode(), rows);
         devLog.debug("BizTreeCacheRepository: insertOrgNodes: inserted {} nodes for orgPk={}", rows.size(), orgPk);
     }
 
@@ -163,7 +167,7 @@ public class BizTreeCacheRepository implements IBizTreeCacheRepository {
 
         List<Object[]> usrRow = new ArrayList<>();
         usrRow.add(row(usrPkStr, etPk, name, desc, folderNodePk, null, usrPk, level, treePath, entityPath, statusCode));
-        cache.batchUpdate(sql.loader.insertNode(), usrRow);
+        cache.batchUpdate(sql.insertNode(), usrRow);
         devLog.debug("BizTreeCacheRepository: insertUsrNode: inserted node for usrPk={}", usrPk);
     }
 
@@ -199,20 +203,52 @@ public class BizTreeCacheRepository implements IBizTreeCacheRepository {
             log.error("BizTreeCacheRepository: insertAcctNode: FOLDER_ACCOUNT not found in cache, shortcutParent={}", shortcutParent);
             devLog.error("BizTreeCacheRepository: insertAcctNode: FOLDER_ACCOUNT not found in cache, shortcutParent={}", shortcutParent);
         }
-        cache.batchUpdate(sql.loader.insertNode(), rows);
+        cache.batchUpdate(sql.insertNode(), rows);
         devLog.debug("BizTreeCacheRepository: insertAcctNode: inserted {} nodes for acctPk={}", rows.size(), acctPk);
     }
 
     @Override
     public void deleteNodes(String entityId) {
-        int ret = cache.update(sql.repo.deleteNode(), entityId);
+        int ret = cache.update(sql.deleteNode(), entityId);
         devLog.debug("BizTreeCacheRepository: deleteNodes entityId={} rows={}", entityId, ret);
     }
 
     @Override
     public List<EsqTreeNodeJpa> findSubtree(String seedId, int rootLevel, String rootPath) {
-        String q = sql.repo.selectCols() + sql.repo.findSubtree();
-        return cache.query(q, NODE_MAPPER, rootLevel, seedId, rootPath + "%");
+        return cache.query(sql.findSubtree(), NODE_MAPPER, rootLevel, seedId, rootPath + "%");
+    }
+
+    @Override
+    public void clear() {
+        cache.execute(sql.clearAll());
+        devLog.debug("BizTreeCacheRepository: clear (truncate)");
+    }
+
+    @Override
+    public CancelableStatement prepareCancelable(String command) {
+        CancelableStatement ret;
+        if (!MonadCmd.CHECKSUM.equals(command)) {
+            throw new IllegalArgumentException("no cancelable query for command '" + command + "'");
+        }
+        Connection con = null;
+        try {
+            con = cache.getDataSource().getConnection();
+            ret = new CancelableStatement(con, con.prepareStatement(sql.checksum()));
+        } catch (SQLException e) {
+            closeQuietly(con);   // prepareStatement failed after getConnection -- don't leak the connection
+            throw new IllegalStateException("prepareCancelable failed for '" + command + "'", e);
+        }
+        return ret;
+    }
+
+    private static void closeQuietly(Connection con) {
+        if (con != null) {
+            try {
+                con.close();
+            } catch (SQLException ignore) {
+                // best-effort
+            }
+        }
     }
 
     @Override
@@ -226,15 +262,15 @@ public class BizTreeCacheRepository implements IBizTreeCacheRepository {
         if (parentPath != null) {
             String newOrgPath = parentPath + orgPkStr + ".";
             int    orgLevel   = countDots(parentPath);
-            cache.update(sql.repo.moveNode(), newOrgPath, newEntityPath, orgLevel, parentPk, orgPkStr);
+            cache.update(sql.moveNode(), newOrgPath, newEntityPath, orgLevel, parentPk, orgPkStr);
 
-            List<String> folderPks   = cache.queryForList(sql.repo.findFolderPks(), String.class, orgPkStr);
+            List<String> folderPks   = cache.queryForList(sql.findFolderPks(), String.class, orgPkStr);
             int          folderLevel = orgLevel + 1;
             List<Object[]> folderRows = new ArrayList<>();
             for (String folderPk : folderPks) {
                 folderRows.add(new Object[]{ newOrgPath + folderPk + ".", newEntityPath, folderLevel, orgPkStr, folderPk });
             }
-            int[] folderUpdates = cache.batchUpdate(sql.repo.moveNode(), folderRows);
+            int[] folderUpdates = cache.batchUpdate(sql.moveNode(), folderRows);
             devLog.debug("BizTreeCacheRepository: moveOrgNode pk={} newEntityPath={} folderCount={}",
                     entityPk, newEntityPath, folderUpdates.length);
         } else {
@@ -266,7 +302,7 @@ public class BizTreeCacheRepository implements IBizTreeCacheRepository {
         if (folderPath != null) {
             String newUsrPath = folderPath + usrPkStr + ".";
             int    usrLevel   = countDots(folderPath);
-            int updated = cache.update(sql.repo.moveNode(), newUsrPath, newEntityPath, usrLevel, folderPk, usrPkStr);
+            int updated = cache.update(sql.moveNode(), newUsrPath, newEntityPath, usrLevel, folderPk, usrPkStr);
             devLog.debug("BizTreeCacheRepository: moveUsrNode pk={} newEntityPath={} updated={}", entityPk, newEntityPath, updated);
         } else {
             log.error("BizTreeCacheRepository: moveUsrNode: folder not in cache, pk={}, folderPk={}", entityPk, folderPk);
@@ -287,7 +323,7 @@ public class BizTreeCacheRepository implements IBizTreeCacheRepository {
         if (userPath != null) {
             String mainPath  = userPath + acctPkStr + ".";
             int    mainLevel = countDots(userPath);
-            cache.update(sql.repo.moveNode(), mainPath, newEntityPath, mainLevel, usrPkStr, acctPkStr);
+            cache.update(sql.moveNode(), mainPath, newEntityPath, mainLevel, usrPkStr, acctPkStr);
 
             String shortcutParent     = orgPkStr + "~" + BizTreeConstants.FOLDER_ACCOUNT;
             String shortcutParentPath = findPath(shortcutParent);
@@ -295,7 +331,7 @@ public class BizTreeCacheRepository implements IBizTreeCacheRepository {
                 String newShortcutPk = orgPkStr + "~" + acctPkStr;
                 String shortcutPath  = shortcutParentPath + newShortcutPk + ".";
                 int    shortcutLvl   = countDots(shortcutParentPath);
-                int updated = cache.update(sql.repo.moveAcctLink(), newShortcutPk, shortcutPath, newEntityPath, shortcutLvl, shortcutParent, acctPkStr);
+                int updated = cache.update(sql.moveAcctLink(), newShortcutPk, shortcutPath, newEntityPath, shortcutLvl, shortcutParent, acctPkStr);
                 devLog.debug("BizTreeCacheRepository: moveAcctNode pk={} newEntityPath={} shortcutUpdated={}", entityPk, newEntityPath, updated);
             } else {
                 log.error("BizTreeCacheRepository: moveAcctNode: FOLDER_ACCOUNT not in cache, pk={}, parent={}", entityPk, shortcutParent);

@@ -18,6 +18,8 @@
  * 04/07/2026 mir0n  moveUsrNode(): param renamed kind (raw kind; storage handles via getOrDefault)
  * 05/14/2026 mir0n  findSubtree(seedId, rootLevel, rootPath) added: recursive subtree by tree_path
  *                   prefix for the new /esq-tree endpoint (counterpart to enyMan /esq-cmd-tree)
+ * 05/23/2026 mir0n  clear() (TRUNCATE the cache table) + prepareCancelable(command) returning a
+ *                   CancelableStatement (statement + connection) for the night-watch cancelable CHECKSUM.
  */
 package pro.mir0n.esquire.bizTree.cache;
 
@@ -143,4 +145,20 @@ public interface IBizTreeCacheRepository {
      * see the cache's full picture of what lives under a given subtree.
      */
     List<EsqTreeNodeJpa> findSubtree(String seedId, int rootLevel, String rootPath);
+
+    /**
+     * Wipes this cache table entirely (TRUNCATE). Used by the night-watch CLEAR so a shadow reload
+     * starts from an empty table (no PK collision with rows from a prior sweep).
+     */
+    void clear();
+
+    /**
+     * Prepare the cancelable JDBC statement for the named command (currently CHECKSUM -- the
+     * order-independent MD5 digest over the whole table). The night-watch registers the statement's
+     * {@code cancel()} as the command's ICancelable, runs {@code executeQuery()}, and reads the result;
+     * a sweep timeout calls {@code cancel()} to abort the in-flight query. Returns a
+     * {@link CancelableStatement} (statement + its connection) so the caller closes BOTH via
+     * try-with-resources on every path.
+     */
+    CancelableStatement prepareCancelable(String command);
 }

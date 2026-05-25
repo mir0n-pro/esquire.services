@@ -117,7 +117,32 @@ JWKS is shared signature-validation infrastructure used by every microservice on
 The generic options above assume an IAS that cleanly implements the relevant standards. Stock Keycloak 26.4.7 doesn't, in two specific ways:
 
 - **No JWE on `/token`.** KC's `DefaultTokenManager` has no encryption branch on `/token` for any standard grant; the relevant client attribute (`access.token.encrypted.response.alg=RSA-OAEP`) is silently ignored. JWE on the wire is therefore unavailable until KC ships it or the platform swaps to an IAS that does (Auth0, Okta, ForgeRock, Ping all do). The "ideal" single-token option is out.
-- **RFC 8693 token-exchange + admin-fine-grained permissions don't interoperate cleanly.** v1 token-exchange (what KC 26.4.7 ships) calls into v2 permissions and trips `UnsupportedOperationException: Not supported in V2` when given an `audience=` parameter -- so the cleanest Phantom Token form (exchange *for the audience client* so its mappers run on the response) can't be expressed directly. Also `client.use.lightweight.access.token.enabled=true` on the source client propagates stripping through the exchange response, so the audience mappers never repopulate claims.
+- **RFC 8693 token-exchange doesn't interoperate cleanly with KC's admin fine-grained permissions.** In plain terms: on KC 26.4.7 the gateway can't ask the exchange to mint a token *for a specific downstream (audience) client*, so that client's claim mappers never run on the exchanged token -- which is exactly the cleanest Phantom Token form. The mechanics (and why the raw "v1 / v2" error is cryptic):
+
+```text
+"v1 / v2" are Keycloak FEATURE versions -- KC ships each of these features in two
+implementation generations (v1 and v2), selected by feature flags and independent of
+the Keycloak product version (26.4.7) -- and two different features are in play at once:
+
+  FEATURE                            VERSIONS                    in this deployment
+  token-exchange (RFC 8693)          legacy v1 | reworked v2     KC 26.4.7 ships --> v1
+  admin fine-grained permissions     legacy v1 | current   v2    realm runs     --> v2
+    (the model deciding who may exchange a token for which audience)
+
+Failure path:
+  v1 token-exchange  --(audience=<client>)-->  v2 permissions model
+      -> code path never implemented in the v2 model
+      -> UnsupportedOperationException: Not supported in V2
+         ("V2" in the message is the PERMISSIONS model, not token-exchange)
+  => can't mint the exchanged token FOR the audience client, so its mappers never run.
+
+Second blocker (independent of the above):
+  source client has  client.use.lightweight.access.token.enabled=true
+      -> the stripped (claim-less) payload is carried through the exchange unchanged
+      -> even the mappers that do run never refill the claims
+
+Resolved by: token-exchange v2 (not in 26.4.7), or a per-target lightweight switch.
+```
 
 The platform deploys **BFF + JWT + Vanilla Token Relay + Phantom Token Relay**, and applies a workaround for the Phantom Token Relay gap.
 

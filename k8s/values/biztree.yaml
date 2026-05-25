@@ -4,4 +4,4 @@
 # in-cluster postgres / activemq hostnames). Only image.tag is restamped
 # per rebuild here -- k8s-rebuild.bat patches it.
 image:
-  tag: "v1.2.4-2605.1723"
+  tag: "v1.2.5-2605.2321"
