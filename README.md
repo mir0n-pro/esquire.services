@@ -4,7 +4,7 @@
 
 
 > 
-> **v1.2.5 — complete.** bizTree's internal cache rebuilt as the "Taijitu" Supreme Ultimate Cache — a **recoverable cache service** whose background night-watch self-heals dropped events, closing the cache-load race behind an unchanged API surface.
+> **v1.2.6 — planned.** A short **enyMan** sprint for safe service-instance redundancy: entity-id minting is consolidated into one service (enyMan) with an instance-aware id, and account creation moves from pacMan to enyMan.
 >
 
 Frameworks for organizing business entities in a tree, for any business or activity.
