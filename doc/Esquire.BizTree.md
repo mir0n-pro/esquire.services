@@ -2,7 +2,7 @@
 |----------------------------|---------------------------|
 
 
-# ![biztree logo](media/dbltree.32.png) **Esquire bizTree**
+# ![biztree logo](media/dblTree.32.png) **Esquire bizTree**
 
 
 **The read-side query model.** bizTree owns the in-memory, hierarchical view of
