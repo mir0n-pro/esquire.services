@@ -1,5 +1,33 @@
 Esquire enyMan Microservice
 
+06/01/2026 mir0n  v1.2.6 -- account CREATE moved into enyMan; entity-id minter consolidated here
+service.EntityIdGenerator  (new)
+  - static utility owning entity-id minting; moved from common.EsqUtils.
+  - generateEntityId(): (System.currentTimeMillis() - esquireEpoch) * 10000
+    + EsqUtils.instanceNo() * 1000 + (sequence.getAndIncrement() % 1000); single BIGINT.
+  - esquireEpoch = "26 Jun 2025 13:20 EDT" (kept verbatim from v1.2.5).
+  - AtomicInteger sequence -- thread-safe, monotonic; mint-time IllegalStateException
+    if instanceNo outside [0, 9].
+service.impl.AcctService  (new)
+  - account CREATE service
+jpa.EsqAcctRepository  (new)
+  - CREATE-only Spring Data repository for esq_account; native queries acctPath, insertAcctPath, insertAcct.
+src/main/resources/META-INF/postgres-acct.xml, oracle-acct.xml  (new)
+  - named native queries for EsqAcctJpa.acctPath, EsqAcctJpa.insertAcctPath, EsqAcctJpa.insertAcct
+    (per dialect); CREATE subset of pacMan's acct.xml.
+service.impl.EnyManService
+  - EsqAcctRepository injected; acctService field constructed alongside orgService / usrService.
+  - esquireCommandNew() applicability widened from (isOrg || isUsr) to (isOrg || isUsr || isAcct);
+    isAcct branch routes to acctService and publishes EVENT_CREATE.
+  - publishEntityEvent() now forwards TEXT_STATUS (parity with the pacMan publisher this branch replaces).
+service.impl.OrgService
+  - id minting call retargeted: EsqUtils.generateEntityId() -> EntityIdGenerator.generateEntityId().
+service.impl.UsrService
+  - id minting call retargeted: EsqUtils.generateEntityId() -> EntityIdGenerator.generateEntityId().
+src/main/resources/application.yml
+  - spring.jms.client-id and enyman.messaging.client-id both composed as
+    ${ENYMAN_MESSAGING_CLIENT_ID:enyman}-${POD_INDEX:0} -- per-pod clientId for multi-instance JMS.
+
 05/14/2026 mir0n  v1.2.4 /esq-cmd-tree -- natural-tree subtree from FK walk
 controller.EnyManController
   - GET /esq-cmd-tree added: seed kind + id; returns List<EsqTreeNode> with seed + every descendant;

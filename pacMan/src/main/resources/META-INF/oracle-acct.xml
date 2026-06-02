@@ -50,21 +50,6 @@
         </query>
     </named-native-query>
 
-    <named-native-query name="EsqAcctJpa.insertAcctPath">
-        <query>
- INSERT INTO esq_entity_path (ep_pk, ep_et_pk, ep_path) VALUES (:pk, :kind, :path)
-        </query>
-    </named-native-query>
-
-    <named-native-query name="EsqAcctJpa.insertAcct">
-        <query>
- INSERT INTO esq_account (acc_pk, acc_et_pk, acc_id, acc_desc, acc_ccy, acc_status,
-     acct_neg_allowed_flg, acc_usr_pk, acc_crl_id, acc_req_id, acc_uid)
- VALUES (:id, :kind, :name, :desc, :ccy, :status,
-     :negativeAllowed, :parentId, :correlationId, :requestId, :uid)
-        </query>
-    </named-native-query>
-
     <named-native-query name="EsqAcctJpa.updateAcctBalance">
         <query>
  UPDATE esq_account

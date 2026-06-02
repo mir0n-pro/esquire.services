@@ -16,6 +16,7 @@
  * 04/07/2026 mir0n  all kind params Integer → int (primitive)
  * 04/09/2026 mir0n  FIELD_CCY constant added
  * 04/14/2026 mir0n  KIND_P_ACCT spacing corrected
+ * 06/01/2026 mir0n  esquireCommandNew() removed -- account CREATE moved to enyMan.
  */
 
 package pro.mir0n.esquire.pacMan.service;
@@ -34,7 +35,6 @@ public interface IPacManService {
 
     public EsqEntity esquireCommand(int kind, String id, String cmd, String rootPath, String uid );
     public EsqEntity esquireCommandSave(int kind, String id, String cmd, Map<String, Object> fields, String rootPath, String uid, List<String> roles);
-    public EsqEntity esquireCommandNew(int kind, String parentId, String cmd, Map<String, Object> fields, String rootPath, String uid, List<String> roles);
     public void esquireCommandDelete(int kind, String id, String cmd, String rootPath, String uid, List<String> roles);
 
     }

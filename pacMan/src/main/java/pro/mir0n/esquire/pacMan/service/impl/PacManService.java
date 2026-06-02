@@ -41,6 +41,8 @@
  *                   upfront applicability check (!isAcct → ResourceNotFoundException) at all entry points
  * 04/09/2026 mir0n  applyFields() and enforceDefaults() delegated to EntityFieldUtils
  * 04/14/2026 mir0n  saveAcct(), deleteAcct(): kind param removed (detailAcctForUpdate aligned)
+ * 06/01/2026 mir0n  esquireCommandNew() and private createAcct() helper removed -- account CREATE
+ *                   moved to enyMan.
  */
 
 package pro.mir0n.esquire.pacMan.service.impl;
@@ -57,7 +59,6 @@ import pro.mir0n.esquire.backend.error.PermissionDeniedException;
 import pro.mir0n.esquire.backend.jpa.*;
 import pro.mir0n.esquire.backend.jpa.entity.EsqAcctJpa;
 import pro.mir0n.esquire.backend.service.EntityFieldUtils;
-import pro.mir0n.esquire.backend.storage.EsqEntityDictionaryStorage;
 import pro.mir0n.esquire.backend.storage.EsqObjectKindStorage;
 import pro.mir0n.esquire.backend.storage.EsqRolesStorage;
 import pro.mir0n.esquire.backend.validator.ValidatorFactory;
@@ -73,7 +74,6 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import pro.mir0n.esquire.common.EsqConstants;
 import pro.mir0n.esquire.common.EsqMsgConstants;
-import pro.mir0n.esquire.common.EsqUtils;
 
 @Slf4j
 @Service
@@ -213,44 +213,6 @@ public class PacManService  implements IPacManService {
     }
 
     @Override
-    public EsqEntity esquireCommandNew(int kind, String parentId, String cmd, Map<String, Object> fields, String rootPath, String uid, List<String> roles) {
-        String correlationId = RequestContextUtils.getCorrelationId();
-        String requestId = RequestContextUtils.getRequestId();
-        devLog.debug("srvc: esquireCommandNew: kind:{}, parentId:{}, cmd:{}, fields:{}, rootPath:{}, uid:{}", kind, parentId, cmd, fields, rootPath, uid);
-
-        EsqObjectKind eek = EsqObjectKindStorage.getInstance().get(kind);
-        int k = eek.getId();
-        if (!eek.isAcct()) {
-            throw new ResourceNotFoundException("esquireCommandNew", "kind", String.valueOf(kind));
-        }
-
-        Map<Integer, EsqPermission> permissions = EsqRolesStorage.getInstance().findAdminPermissions(roles);
-        boolean permitted = false;
-        if (permissions != null) {
-            permitted = EsqRolesStorage.getInstance().isAdminCmdPermitted(
-                    permissions.get(k),
-                    EsqRolesStorage.AdminCmd.CREATE
-            );
-        }
-        if (!permitted) {
-            throw new PermissionDeniedException(eek.getTitle(), "create");
-        }
-
-        EsqEntityJpa[] created = {null};
-
-        transactionTemplate.execute(status -> {
-            em.setFlushMode(FlushModeType.COMMIT);
-            createAcct(k, parentId, fields, uid, correlationId, requestId, created);
-            return null;
-        });
-
-        EsqEntity ret = EsqEntityFactory.getInstance().createEntity(created[0], null, null);
-        publishEntityEvent(ret, k, EsqMsgConstants.EVENT_CREATE, requestId, correlationId, fields);
-        devLog.debug("srvc: esquireCommandNew(2): entity:{}", ret);
-        return ret;
-    }
-
-    @Override
     public void esquireCommandDelete(int kind, String id, String cmd, String rootPath, String uid, List<String> roles) {
         String correlationId = RequestContextUtils.getCorrelationId();
         String requestId = RequestContextUtils.getRequestId();
@@ -282,48 +244,6 @@ public class PacManService  implements IPacManService {
 
         publishDeleteEvent(id, k, EsqMsgConstants.EVENT_DELETE, requestId, correlationId);
         devLog.debug("srvc: esquireCommandDelete(2): kind:{}, id:{}", k, id);
-    }
-
-    private void createAcct(int kind, String parentId, Map<String, Object> fields,
-                             String uid, String correlationId, String requestId,
-                             EsqEntityJpa[] created) {
-        String parentPath = entityRepository.acctPath(parentId);
-        if (parentPath == null) {
-            throw new ResourceNotFoundException("createAcct", "parentId", parentId);
-        }
-        long   newId  = EsqUtils.generateEntityId();
-        String path   = parentPath;
-        String prefix = EsqObjectKindStorage.getInstance().get(kind).getName().substring(0, 1).toUpperCase();
-        String name   = prefix + newId;
-
-        fields.put(EsqMsgConstants.TEXT_NAME, name);
-        fields.put(EsqMsgConstants.TEXT_PATH, path);
-
-        EsqEntityDictionary dict = EsqEntityDictionaryStorage.getInstance().get(kind);
-        if (dict != null) {
-            for (EsqEntityLayer layer : dict.getLayers()) {
-                layer.injectDefaults(fields);
-            }
-        }
-
-        EsqAcctJpa acct = new EsqAcctJpa();
-        acct.setKind(kind);
-        EntityFieldUtils.applyFields(acct, fields);
-        if (dict != null) {
-            for (EsqEntityLayer layer : dict.getLayers()) {
-                EntityFieldUtils.enforceDefaults(layer, acct);
-            }
-        }
-
-        acct.setId(String.valueOf(newId));
-        acct.setName(name);
-        acct.setPath(path);
-        acct.setParentId(parentId);
-
-        entityRepository.insertAcctPath(newId, kind, path);
-        entityRepository.insertAcct(newId, kind, name, acct.getDesc(), acct.getCcy(), acct.getStatus(), acct.getNegativeAllowed(), parentId, uid, correlationId, requestId);
-
-        created[0] = acct;
     }
 
     private void deleteAcct(int kind, String id, String rootPath) {

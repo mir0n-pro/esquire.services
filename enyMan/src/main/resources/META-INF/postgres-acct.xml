@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<entity-mappings xmlns="http://java.sun.com/xml/ns/persistence/orm"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://java.sun.com/xml/ns/persistence/orm http://java.sun.com/xml/ns/persistence/orm_2_0.xsd"
+    version="2.0">
+
+    <named-native-query name="EsqAcctJpa.acctPath">
+        <query>
+ SELECT ep_path FROM esq_entity_path WHERE ep_pk = CAST(:parentId AS bigint)
+        </query>
+    </named-native-query>
+
+    <named-native-query name="EsqAcctJpa.insertAcctPath">
+        <query>
+ INSERT INTO esq_entity_path (ep_pk, ep_et_pk, ep_path) VALUES (CAST(:pk AS bigint), :kind, :path)
+        </query>
+    </named-native-query>
+
+    <named-native-query name="EsqAcctJpa.insertAcct">
+        <query>
+ INSERT INTO esq_account (acc_pk, acc_et_pk, acc_id, acc_desc, acc_ccy, acc_status,
+     acct_neg_allowed_flg, acc_usr_pk, acc_crl_id, acc_req_id, acc_uid)
+ VALUES (CAST(:id AS bigint), :kind, :name, :desc, :ccy, :status,
+     :negativeAllowed, CAST(:parentId AS bigint), :correlationId, :requestId, :uid)
+        </query>
+    </named-native-query>
+
+</entity-mappings>

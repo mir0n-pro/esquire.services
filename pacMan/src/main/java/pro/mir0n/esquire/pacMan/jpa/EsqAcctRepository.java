@@ -21,6 +21,8 @@
  * 04/09/2026 mir0n  insertAcct: negativeAllowed param added; updateAcct: ccy + negativeAllowed params added
  *                   updateAcctBalance native query added
  * 04/14/2026 mir0n  detailAcctForUpdate: kind (@Param) param removed; query: AND acc_et_pk = :kind dropped
+ * 06/01/2026 mir0n  insertAcct() and insertAcctPath() removed (CREATE moved to enyMan).
+ *                   acctPath() stays -- still used by deleteAcct() Test House branch.
  */
 
 package pro.mir0n.esquire.pacMan.jpa;
@@ -56,27 +58,6 @@ public interface EsqAcctRepository extends JpaRepository<EsqAcctJpa, String> {
 
     @NativeQuery
     String acctPath(@Param("parentId") String parentId);
-
-    @Modifying(clearAutomatically = true, flushAutomatically = false)
-    @Transactional
-    @NativeQuery
-    int insertAcctPath(@Param("pk") long pk, @Param("kind") int kind, @Param("path") String path);
-
-    @Modifying(clearAutomatically = true, flushAutomatically = false)
-    @Transactional
-    @NativeQuery
-    int insertAcct(@Param("id") long id,
-        @Param("kind") int kind,
-        @Param("name") String name,
-        @Param("desc") String desc,
-        @Param("ccy") String ccy,
-        @Param("status") String status,
-        @Param("negativeAllowed") String negativeAllowed,
-        @Param("parentId") String parentId,
-        @Param("uid") String uid,
-        @Param("correlationId") String correlationId,
-        @Param("requestId") String requestId
-    );
 
     @Modifying(clearAutomatically = true, flushAutomatically = false)
     @Transactional

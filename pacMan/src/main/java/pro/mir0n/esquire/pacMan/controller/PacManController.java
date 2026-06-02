@@ -22,6 +22,8 @@
  *                   /esq-new→/esq-cmd-new, /esq-del→/esq-cmd-del
  * 04/09/2026 mir0n  POST /esq-acct → esquireCommandAcct(); AcctTransactionService injected directly
  * 04/13/2026 mir0n  AcctTransactionSimple → AcctTransactionSingle
+ * 06/01/2026 mir0n  esquireCommandNew() / POST /esq-cmd-new mapping removed -- account CREATE
+ *                   moved to enyMan
  */
 
 package pro.mir0n.esquire.pacMan.controller;
@@ -116,27 +118,6 @@ public class PacManController {
 
         EsqEntity ret = iPacManService.esquireCommandSave(kind, id, cmd, fields, rootPath, uid, roles);
         devLog.debug("esquireCommandSave: kind:{}, id:{}, cmd:{}, rootPath:{}, result:{}", kind, id, cmd, rootPath, String.valueOf(ret));
-        return ResponseEntity.status(HttpStatus.OK).body(ret);
-    }
-
-    @PostMapping("/esq-cmd-new")
-    public ResponseEntity<EsqEntity> esquireCommandNew(
-           @Parameter(description = "Entity kind code")
-           @RequestParam(name = "kind", required = true) Integer kind,
-           @Parameter(description = "Parent entity id")
-           @RequestParam(name = "parentId", required = true) String parentId,
-           @Parameter(description = "Command code")
-           @RequestParam(name = "cmd", required = false, defaultValue = "new") String cmd,
-           @RequestBody Map<String, Object> fields,
-           @AuthenticationPrincipal Claims claims
-    ) {
-        String rootPath = claims.get(EsqConstants.JWT_CLAIM_ENTITY_ROOTPATH, String.class);
-        String uid = claims.get(EsqConstants.JWT_CLAIM_ENTITY_ID, String.class);
-        Map<String, Object> realmAccess = claims.get(EsqConstants.JWT_CLAIM_REALM_ACCESS, Map.class);
-        List<String> roles = realmAccess != null ? (List<String>) realmAccess.get(EsqConstants.JWT_CLAIM_REALM_ACCESS_ROLES) : null;
-
-        EsqEntity ret = iPacManService.esquireCommandNew(kind, parentId, cmd, fields, rootPath, uid, roles);
-        devLog.debug("esquireCommandNew: kind:{}, parentId:{}, cmd:{}, rootPath:{}, result:{}", kind, parentId, cmd, rootPath, String.valueOf(ret));
         return ResponseEntity.status(HttpStatus.OK).body(ret);
     }
 

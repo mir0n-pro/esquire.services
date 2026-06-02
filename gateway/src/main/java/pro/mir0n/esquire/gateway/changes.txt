@@ -1,5 +1,10 @@
 Esquire Gateway Microservice
 
+06/01/2026 mir0n  v1.2.6 -- account CREATE rerouted to enyMan
+resources/application.yml
+  - pacman-new-route deleted (was Path=/esq-cmd-new + Method=POST + EntityKind=isAcct -> pacMan).
+  - /esq-cmd-new + EntityKind=isAcct now falls through to enyman-new-route.
+
 05/23/2026 mir0n  v1.2.5 Taijitu night-watch -- /esq-sweep route
 resources/application.yml
   - biztree-route Path: added /esq-sweep (force-sweep endpoint; route already allows GET + POST)

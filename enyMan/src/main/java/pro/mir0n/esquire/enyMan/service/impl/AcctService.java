@@ -1,0 +1,137 @@
+/*
+ *  Esquire frameworks (tm)
+ *  EnyMan service
+ *
+ *  Copyright(c) 2001, 2026 mir0n&co www.mir0n.pro
+ *  mailto:mir0n.the.programmer@gmail.com
+ *
+ *  History:
+ * 06/01/2026 mir0n  created: account CREATE service on enyMan side
+ */
+
+package pro.mir0n.esquire.enyMan.service.impl;
+
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.FlushModeType;
+import java.util.*;
+
+import lombok.extern.slf4j.Slf4j;
+import org.slf4j.LoggerFactory;
+import pro.mir0n.esquire.backend.dto.*;
+import pro.mir0n.esquire.backend.jpa.*;
+import pro.mir0n.esquire.backend.jpa.entity.EsqAcctJpa;
+import pro.mir0n.esquire.backend.service.EntityFieldUtils;
+import pro.mir0n.esquire.backend.service.RequestContextUtils;
+import pro.mir0n.esquire.backend.storage.EsqEntityDictionaryStorage;
+import pro.mir0n.esquire.backend.error.ResourceNotFoundException;
+import pro.mir0n.esquire.common.EsqMsgConstants;
+import pro.mir0n.esquire.enyMan.jpa.EsqAcctRepository;
+import pro.mir0n.esquire.enyMan.service.EntityIdGenerator;
+import pro.mir0n.esquire.enyMan.jpa.EsqEntityDictionaryRepository;
+import pro.mir0n.esquire.enyMan.jpa.EsqMoveRecord;
+import org.springframework.transaction.support.TransactionTemplate;
+
+@Slf4j
+public class AcctService extends AEnyManService {
+
+    private static final org.slf4j.Logger devLog = LoggerFactory.getLogger("develop." + AcctService.class.getName());
+
+    private final EsqAcctRepository acctRepository;
+    private final TransactionTemplate transactionTemplate;
+    private final EntityManager em;
+
+    public AcctService(EsqEntityDictionaryRepository entityDictionaryRepository,
+                       EsqAcctRepository acctRepository,
+                       TransactionTemplate transactionTemplate,
+                       EntityManager em) {
+        super(entityDictionaryRepository);
+        this.acctRepository = acctRepository;
+        this.transactionTemplate = transactionTemplate;
+        this.em = em;
+    }
+
+    // Account READ/UPDATE/DELETE stay in pacMan; AcctService owns CREATE only.
+    @Override
+    public EsqEntity esquireCommand(int kind, String id, String cmd, String rootPath, String uid) {
+        throw new UnsupportedOperationException("esquireCommand(acct) is owned by pacMan");
+    }
+
+    @Override
+    public EsqEntity esquireCommandSave(int kind, String id, String cmd, Map<String, Object> fields, String rootPath, String uid, List<String> roles) {
+        throw new UnsupportedOperationException("esquireCommandSave(acct) is owned by pacMan");
+    }
+
+    @Override
+    public void esquireCommandDelete(int kind, String id, String cmd, String rootPath, String uid, List<String> roles) {
+        throw new UnsupportedOperationException("esquireCommandDelete(acct) is owned by pacMan");
+    }
+
+    @Override
+    public List<EsqMoveRecord> esquireCommandMove(int kind, String id, String distId, String rootPath, String uid, List<String> roles) {
+        throw new UnsupportedOperationException("esquireCommandMove(acct) not supported");
+    }
+
+    @Override
+    public EsqEntity esquireCommandNew(int kind, String parentId, String cmd, Map<String, Object> fields, String rootPath, String uid, List<String> roles) {
+        EsqEntity ret = null;
+        String correlationId = RequestContextUtils.getCorrelationId();
+        String requestId = RequestContextUtils.getRequestId();
+        devLog.debug("srvc: esquireCommandNew(acct): kind:{}, parentId:{}, cmd:{}, rootPath:{}, uid:{}", kind, parentId, cmd, rootPath, uid);
+
+        EsqEntityJpa[] created = {null};
+
+        transactionTemplate.execute(status -> {
+            em.setFlushMode(FlushModeType.COMMIT);
+            createAcct(kind, parentId, fields, uid, correlationId, requestId, created);
+            return null;
+        });
+
+        ret = EsqEntityFactory.getInstance().createEntity(created[0], null, null);
+        devLog.debug("srvc: esquireCommandNew(acct)(2): entity:{}", ret);
+        return ret;
+    }
+
+    // Account is a leaf: ep_path of the new account equals the parent's path
+    // (no own-pk segment appended). Mirrors EsqObjectKind.isPathParentOnly() for acct.
+    private void createAcct(int kind, String parentId, Map<String, Object> fields,
+                            String uid, String correlationId, String requestId,
+                            EsqEntityJpa[] created) {
+        String parentPath = acctRepository.acctPath(parentId);
+        if (parentPath == null) {
+            throw new ResourceNotFoundException("createAcct", "parentId", parentId);
+        }
+        long   newId  = EntityIdGenerator.generateEntityId();
+        String path   = parentPath;
+        String prefix = pro.mir0n.esquire.backend.storage.EsqObjectKindStorage.getInstance().get(kind).getName().substring(0, 1).toUpperCase();
+        String name   = prefix + newId;
+
+        fields.put(EsqMsgConstants.TEXT_NAME, name);
+        fields.put(EsqMsgConstants.TEXT_PATH, path);
+
+        EsqEntityDictionary dict = EsqEntityDictionaryStorage.getInstance().get(kind);
+        if (dict != null) {
+            for (EsqEntityLayer layer : dict.getLayers()) {
+                layer.injectDefaults(fields);
+            }
+        }
+
+        EsqAcctJpa acct = new EsqAcctJpa();
+        acct.setKind(kind);
+        EntityFieldUtils.applyFields(acct, fields);
+        if (dict != null) {
+            for (EsqEntityLayer layer : dict.getLayers()) {
+                EntityFieldUtils.enforceDefaults(layer, acct);
+            }
+        }
+
+        acct.setId(String.valueOf(newId));
+        acct.setName(name);
+        acct.setPath(path);
+        acct.setParentId(parentId);
+
+        acctRepository.insertAcctPath(newId, kind, path);
+        acctRepository.insertAcct(newId, kind, name, acct.getDesc(), acct.getCcy(), acct.getStatus(), acct.getNegativeAllowed(), parentId, uid, correlationId, requestId);
+
+        created[0] = acct;
+    }
+}

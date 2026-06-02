@@ -44,6 +44,11 @@
  * 04/16/2026 mir0n  ret declarations moved to top in detailEntity/saveEntity/newEntity
  * 05/14/2026 mir0n  esquireCommandTree(): EsqSubtreeRepository.findSubtree() + project to EsqTreeNode list;
  *                   leaves-first order via level DESC; populates entityPath from esq_entity_path.ep_path
+ * 06/01/2026 mir0n  acct CREATE wiring -- EsqAcctRepository injected; new AcctService field constructed
+ *                   alongside orgService / usrService; esquireCommandNew() applicability widened from
+ *                   (isOrg || isUsr) to (isOrg || isUsr || isAcct) and routes isAcct to acctService;
+ *                   publishEntityEvent() now also forwards TEXT_STATUS so acct CREATE / UPDATE events
+ *                   carry status to bizTree (parity with the pacMan publisher this branch replaces).
  */
 
 package pro.mir0n.esquire.enyMan.service.impl;
@@ -58,6 +63,7 @@ import pro.mir0n.esquire.backend.jpa.entity.EsqOrgJpa;
 import pro.mir0n.esquire.backend.error.PermissionDeniedException;
 import pro.mir0n.esquire.backend.storage.EsqObjectKindStorage;
 import pro.mir0n.esquire.backend.storage.EsqRolesStorage;
+import pro.mir0n.esquire.enyMan.jpa.EsqAcctRepository;
 import pro.mir0n.esquire.enyMan.jpa.EsqEntityDictionaryRepository;
 import pro.mir0n.esquire.enyMan.jpa.EsqOrgRepository;
 import pro.mir0n.esquire.enyMan.jpa.EsqSubtreeRepository;
@@ -82,6 +88,7 @@ public class EnyManService  extends AEnyManService {
 
     private final IEnyManService orgService;
     private final IEnyManService usrService;
+    private final IEnyManService acctService;
     private final EsqOrgRepository orgRepository;
     private final EsqSubtreeRepository subtreeRepository;
     private final EsqEntityBroadcastPublisher broadcastPublisher;
@@ -90,14 +97,16 @@ public class EnyManService  extends AEnyManService {
     public EnyManService(EsqEntityDictionaryRepository entityDictionaryRepository,
                          EsqOrgRepository orgRepository,
                          EsqUsrRepository usrRepository,
+                         EsqAcctRepository acctRepository,
                          EsqSubtreeRepository subtreeRepository,
                          TransactionTemplate transactionTemplate,
                          EntityManager em,
                          EsqEntityBroadcastPublisher broadcastPublisher,
                          KcRequestPublisher kcRequestPublisher) {
         super(entityDictionaryRepository);
-        this.orgService = new OrgService(entityDictionaryRepository, orgRepository, transactionTemplate, em);
-        this.usrService = new UsrService(entityDictionaryRepository, usrRepository, transactionTemplate, em);
+        this.orgService  = new OrgService(entityDictionaryRepository, orgRepository, transactionTemplate, em);
+        this.usrService  = new UsrService(entityDictionaryRepository, usrRepository, transactionTemplate, em);
+        this.acctService = new AcctService(entityDictionaryRepository, acctRepository, transactionTemplate, em);
         this.orgRepository = orgRepository;
         this.subtreeRepository = subtreeRepository;
         this.broadcastPublisher = broadcastPublisher;
@@ -167,7 +176,7 @@ public class EnyManService  extends AEnyManService {
     public EsqEntity esquireCommandNew(int kind, String parentId, String cmd, Map<String, Object> fields, String rootPath, String uid, List<String> roles) {
         EsqEntity ret = null;
         EsqObjectKind eek = EsqObjectKindStorage.getInstance().get(kind);
-        if (!eek.isOrg() && !eek.isUsr()) {
+        if (!eek.isOrg() && !eek.isUsr() && !eek.isAcct()) {
             throw new ResourceNotFoundException("esquireCommandNew", "kind", String.valueOf(kind));
         }
         int k = eek.getId();
@@ -189,6 +198,11 @@ public class EnyManService  extends AEnyManService {
         } else if (eek.isUsr()) {
             if (permitted) {
                 ret = usrService.esquireCommandNew(k, parentId, cmd, fields, rootPath, uid, roles);
+                publishEntityEvent(ret, k, EsqMsgConstants.EVENT_CREATE, requestId, correlationId, fields);
+            }
+        } else if (eek.isAcct()) {
+            if (permitted) {
+                ret = acctService.esquireCommandNew(k, parentId, cmd, fields, rootPath, uid, roles);
                 publishEntityEvent(ret, k, EsqMsgConstants.EVENT_CREATE, requestId, correlationId, fields);
             }
         }
@@ -389,6 +403,7 @@ public class EnyManService  extends AEnyManService {
         if (fields.containsKey(EsqMsgConstants.TEXT_NAME))    text.put(EsqMsgConstants.TEXT_NAME,    fields.get(EsqMsgConstants.TEXT_NAME));
         if (fields.containsKey(EsqMsgConstants.TEXT_DESC))    text.put(EsqMsgConstants.TEXT_DESC,    fields.get(EsqMsgConstants.TEXT_DESC));
         if (fields.containsKey(EsqMsgConstants.TEXT_DELETED)) text.put(EsqMsgConstants.TEXT_DELETED, fields.get(EsqMsgConstants.TEXT_DELETED));
+        if (fields.containsKey(EsqMsgConstants.TEXT_STATUS))  text.put(EsqMsgConstants.TEXT_STATUS,  fields.get(EsqMsgConstants.TEXT_STATUS));
         try {
             broadcastPublisher.publish(entityKind, entity.getId(), eventType,
                     requestId, correlationId, text);

@@ -38,8 +38,6 @@ import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyInt;
-import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.inOrder;
@@ -173,34 +171,6 @@ class PacManServiceTest {
         ).isInstanceOf(PermissionDeniedException.class);
     }
 
-    // ---- esquireCommandNew: unknown or odd kind → ResourceNotFoundException ----
-
-    @Test
-    @DisplayName("esquireCommandNew: unknown kind → ResourceNotFoundException")
-    void esquireCommandNew_unknownKind_throwsResourceNotFoundException() {
-        assertThatThrownBy(() ->
-            service.esquireCommandNew(99, "1", "new", Map.of(), "1.2.3", "99", null)
-        ).isInstanceOf(ResourceNotFoundException.class);
-    }
-
-    @Test
-    @DisplayName("esquireCommandNew: odd kind 51 (sub-variant, not registered) → ResourceNotFoundException")
-    void esquireCommandNew_oddKind_throwsResourceNotFoundException() {
-        assertThatThrownBy(() ->
-            service.esquireCommandNew(51, "1", "new", Map.of(), "1.2.3", "99", null)
-        ).isInstanceOf(ResourceNotFoundException.class);
-    }
-
-    // ---- esquireCommandNew: acct kind, null roles → PermissionDeniedException ----
-
-    @Test
-    @DisplayName("esquireCommandNew: acct kind, null roles → PermissionDeniedException")
-    void esquireCommandNew_acctKind_nullRoles_throwsPermissionDeniedException() {
-        assertThatThrownBy(() ->
-            service.esquireCommandNew(50, "1", "new", Map.of(), "1.2.3", "99", null)
-        ).isInstanceOf(PermissionDeniedException.class);
-    }
-
     // ---- esquireCommandDelete: unknown or odd kind → ResourceNotFoundException ----
 
     @Test
@@ -227,79 +197,6 @@ class PacManServiceTest {
         assertThatThrownBy(() ->
             service.esquireCommandDelete(50, "10", "delete", "1.2.3", "99", null)
         ).isInstanceOf(PermissionDeniedException.class);
-    }
-
-    // ---- esquireCommandNew: parent user not found → ResourceNotFoundException ----
-
-    @Test
-    @DisplayName("esquireCommandNew: parent user not found → ResourceNotFoundException")
-    void esquireCommandNew_parentNotFound_throwsResourceNotFoundException() {
-        when(transactionTemplate.execute(any())).thenAnswer(inv -> {
-            inv.<org.springframework.transaction.support.TransactionCallback<?>>getArgument(0).doInTransaction(null);
-            return null;
-        });
-        when(entityRepository.acctPath("1")).thenReturn(null);
-
-        assertThatThrownBy(() ->
-            service.esquireCommandNew(50, "1", "new", new HashMap<>(), "1.2.3", "99", List.of(ROLE_ADMIN))
-        ).isInstanceOf(ResourceNotFoundException.class);
-    }
-
-    // ---- esquireCommandNew: success with defaults — ccy=USD, status=O ----
-
-    @Test
-    @DisplayName("esquireCommandNew: success with auto name, default ccy=USD and status=O")
-    void esquireCommandNew_defaultCcyAndStatus_callsInsertAcctWithDefaults() throws Exception {
-        when(transactionTemplate.execute(any())).thenAnswer(inv -> {
-            inv.<org.springframework.transaction.support.TransactionCallback<?>>getArgument(0).doInTransaction(null);
-            return null;
-        });
-        when(entityRepository.acctPath("10")).thenReturn("1.5.");
-
-        service.esquireCommandNew(50, "10", "new", new HashMap<>(), "1.5.", "99", List.of(ROLE_ADMIN));
-
-        verify(entityRepository).insertAcct(anyLong(), eq(50), anyString(), any(),
-                eq(EsqMsgConstants.CCY_DEFAULT), eq(EsqMsgConstants.FLAG_OPEN),
-                any(), eq("10"), any(), any(), any());
-    }
-
-    // ---- esquireCommandNew: ccy present in request → request value wins over dictionary default ----
-
-    @Test
-    @DisplayName("esquireCommandNew: ccy present in request → overrides dictionary default USD")
-    void esquireCommandNew_ccyInRequest_requestValueWins() throws Exception {
-        when(transactionTemplate.execute(any())).thenAnswer(inv -> {
-            inv.<org.springframework.transaction.support.TransactionCallback<?>>getArgument(0).doInTransaction(null);
-            return null;
-        });
-        when(entityRepository.acctPath("10")).thenReturn("1.5.");
-
-        Map<String, Object> fields = new HashMap<>();
-        fields.put(EsqMsgConstants.TEXT_CCY, "EUR");
-
-        service.esquireCommandNew(50, "10", "new", fields, "1.5.", "99", List.of(ROLE_ADMIN));
-
-        verify(entityRepository).insertAcct(anyLong(), eq(50), anyString(), any(),
-                eq("EUR"), eq(EsqMsgConstants.FLAG_OPEN),
-                any(), eq("10"), any(), any(), any());
-    }
-
-    // ---- esquireCommandNew: insertAcctPath called before insertAcct ----
-
-    @Test
-    @DisplayName("esquireCommandNew: insertAcctPath called before insertAcct")
-    void esquireCommandNew_insertsEntityPath_beforeInsertAcct() {
-        when(transactionTemplate.execute(any())).thenAnswer(inv -> {
-            inv.<org.springframework.transaction.support.TransactionCallback<?>>getArgument(0).doInTransaction(null);
-            return null;
-        });
-        when(entityRepository.acctPath("10")).thenReturn("1.5.");
-
-        service.esquireCommandNew(50, "10", "new", new HashMap<>(), "1.5.", "99", List.of(ROLE_ADMIN));
-
-        InOrder order = inOrder(entityRepository);
-        order.verify(entityRepository).insertAcctPath(anyLong(), anyInt(), anyString());
-        order.verify(entityRepository).insertAcct(anyLong(), anyInt(), any(), any(), any(), any(), any(), any(), any(), any(), any());
     }
 
     // ---- esquireCommandDelete: deleteEntityPath called after deleteAcct ----

@@ -1,5 +1,18 @@
 Esquire pacMan Microservice
 
+06/01/2026 mir0n  v1.2.6 -- account CREATE removed from pacMan (moved to enyMan)
+controller.PacManController
+  - esquireCommandNew() handler removed.
+service.IPacManService
+  - esquireCommandNew(int, String, String, Map, String, String, List<String>) removed from interface.
+service.impl.PacManService
+  - esquireCommandNew() and private createAcct() helper removed.
+jpa.EsqAcctRepository
+  - insertAcct() and insertAcctPath() Spring Data methods removed (CREATE moved to enyMan).
+src/main/resources/META-INF/postgres-acct.xml, oracle-acct.xml
+  - EsqAcctJpa.insertAcct and EsqAcctJpa.insertAcctPath named native queries removed.
+  - EsqAcctJpa.acctPath retained.
+
 04/20/2026 mir0n  acct transfer: conversion rate support; transaction PK Long->String
 acct.IAcctTransactionProcessor
   - abstract 8-param signature extended: convRate, amtIncoming, ccyIncoming, pkTx, counterpartId

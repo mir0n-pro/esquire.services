@@ -3,4 +3,4 @@ name: esquire-keysmith
 description: keySmith — access profile and permission service
 type: application
 version: 0.1.0
-appVersion: "1.2.2"
+appVersion: "1.2.6"

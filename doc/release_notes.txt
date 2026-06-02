@@ -1,6 +1,19 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v1.2.6-2606.0110  v1.2.6 enyMan sprint -- account CREATE moves to enyMan; instance-aware entity-id minting
+    :Refactoring: account CREATE moved from pacMan to enyMan; pacMan keeps account UPDATE / DELETE / balance ops
+    :Feature:     entity-id minter moved to enyMan + made instance-aware -- shape ms*10000 + instanceNo*1000 + (seq % 1000); single BIGINT
+    :Feature:     EsqUtils.instanceNo() in common -- reads ESQUIRE_INSTANCE_NO / POD_INDEX / POD_NAME ordinal / sysprop / 0
+    :Config:      enyMan chart Deployment -> StatefulSet with POD_INDEX / POD_NAME downward API; replicaCount cap 1..10; per-pod JMS clientId
+    :Config:      esquire.version 1.2.5 -> 1.2.6; Chart.yaml appVersion brought current to 1.2.6 across all seven service charts
+    :Doc:         README.md sprint header
+    Components:   common, 
+                  enyMan, 
+                  pacMan, 
+                  gateway, 
+                  k8s/charts/esquire-enyman
+
 v1.2.5-2605.2322  v1.2.5 bizTree sprint -- Taijitu night-watch (anti-entropy sweep)
     :Feature:     night-watch sweep -- periodically reloads the shadow monad, checksums both legs
                   against the serving monad, and reacts to drift (log / swap / terminate)

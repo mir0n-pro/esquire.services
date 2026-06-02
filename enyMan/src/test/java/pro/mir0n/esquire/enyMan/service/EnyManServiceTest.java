@@ -24,6 +24,7 @@ import pro.mir0n.esquire.backend.storage.EsqObjectKindStorage;
 import pro.mir0n.esquire.backend.storage.EsqRolesStorage;
 import pro.mir0n.esquire.backend.storage.roles.JpaRolesRepository;
 import pro.mir0n.esquire.common.EsqConstants;
+import pro.mir0n.esquire.enyMan.jpa.EsqAcctRepository;
 import pro.mir0n.esquire.enyMan.jpa.EsqEntityDictionaryRepository;
 import pro.mir0n.esquire.enyMan.jpa.EsqOrgRepository;
 import pro.mir0n.esquire.enyMan.jpa.EsqSubtreeRepository;
@@ -69,6 +70,9 @@ class EnyManServiceTest {
     private EsqUsrRepository usrRepo;
 
     @Mock
+    private EsqAcctRepository acctRepo;
+
+    @Mock
     private EsqSubtreeRepository subtreeRepo;
 
     @Mock
@@ -94,6 +98,8 @@ class EnyManServiceTest {
             false, true, false, "", false, false, "", null, null, null, false));
         oks.init(new EsqObjectKind(34, "usr", "Usr", "usrs", "Test usr",
             false, true, false, "", false, false, "", null, null, null, false));
+        oks.init(new EsqObjectKind(50, "clAcct", "Client Account", "clAccts", "Test acct",
+            false, false, true, "", false, false, "", null, null, null, false));
 
         EsqRoleJpa roleJpa = new EsqRoleJpa();
         roleJpa.setId("1");
@@ -115,9 +121,14 @@ class EnyManServiceTest {
         clientPerm.setKind(34);
         clientPerm.setFlags("Y,Y,Y,Y,Y");
 
+        EsqPermissionJpa acctPerm = new EsqPermissionJpa();
+        acctPerm.setId("50");
+        acctPerm.setKind(50);
+        acctPerm.setFlags("Y,Y,Y,Y,Y");
+
         JpaRolesRepository rolesRepo = Mockito.mock(JpaRolesRepository.class);
         when(rolesRepo.roles()).thenReturn(List.of(roleJpa));
-        when(rolesRepo.permissions("1")).thenReturn(List.of(orgPerm, usrPerm, clientPerm));
+        when(rolesRepo.permissions("1")).thenReturn(List.of(orgPerm, usrPerm, clientPerm, acctPerm));
         EsqRolesStorage.getInstance().init(rolesRepo);
 
         // Dictionary entry for kind 50 — used by esquireDictionary() tests
@@ -134,7 +145,7 @@ class EnyManServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new EnyManService(dictRepo, orgRepo, usrRepo, subtreeRepo, transactionTemplate, em, broadcastPublisher, kcRequestPublisher);
+        service = new EnyManService(dictRepo, orgRepo, usrRepo, acctRepo, subtreeRepo, transactionTemplate, em, broadcastPublisher, kcRequestPublisher);
     }
 
     // ---- esquireCommandSave: org kind, null roles → PermissionDeniedException ----
@@ -211,6 +222,32 @@ class EnyManServiceTest {
         assertThatThrownBy(() ->
             service.esquireCommandNew(32, "1", "new", Map.of(), "1.2.3", "99", null)
         ).isInstanceOf(PermissionDeniedException.class);
+    }
+
+    // ---- esquireCommandNew: acct kind, null roles → PermissionDeniedException ----
+
+    @Test
+    @DisplayName("esquireCommandNew: acct kind, null roles → PermissionDeniedException")
+    void esquireCommandNew_acctKind_nullRoles_throwsPermissionDeniedException() {
+        assertThatThrownBy(() ->
+            service.esquireCommandNew(50, "1", "new", Map.of(), "1.2.3", "99", null)
+        ).isInstanceOf(PermissionDeniedException.class);
+    }
+
+    // ---- esquireCommandNew: acct kind, parent usr not found → ResourceNotFoundException ----
+
+    @Test
+    @DisplayName("esquireCommandNew: acct — parent path not found → ResourceNotFoundException")
+    void esquireCommandNew_acct_parentNotFound_throwsResourceNotFoundException() {
+        when(transactionTemplate.execute(any())).thenAnswer(inv -> {
+            inv.<org.springframework.transaction.support.TransactionCallback<?>>getArgument(0).doInTransaction(null);
+            return null;
+        });
+        when(acctRepo.acctPath("1")).thenReturn(null);
+
+        assertThatThrownBy(() ->
+            service.esquireCommandNew(50, "1", "new", new HashMap<>(), "1.2.3", "99", List.of(ROLE_ADMIN))
+        ).isInstanceOf(ResourceNotFoundException.class);
     }
 
     // ---- esquireCommandNew: unknown or odd kind → ResourceNotFoundException ----
@@ -351,6 +388,24 @@ class EnyManServiceTest {
         InOrder order = inOrder(orgRepo);
         order.verify(orgRepo).insertOrgPath(anyLong(), anyInt(), anyString());
         order.verify(orgRepo).insertOrg(anyLong(), anyInt(), any(), any(), any(), any(), any(), any(), any());
+    }
+
+    // ---- esquireCommandNew: acct — insertAcctPath called before insertAcct ----
+
+    @Test
+    @DisplayName("esquireCommandNew: acct — insertAcctPath called before insertAcct")
+    void esquireCommandNew_acct_insertsAcctPath_beforeInsertAcct() {
+        when(transactionTemplate.execute(any())).thenAnswer(inv -> {
+            inv.<org.springframework.transaction.support.TransactionCallback<?>>getArgument(0).doInTransaction(null);
+            return null;
+        });
+        when(acctRepo.acctPath("10")).thenReturn("1.5.");
+
+        service.esquireCommandNew(50, "10", "new", new HashMap<>(), "1.5.", "99", List.of(ROLE_ADMIN));
+
+        InOrder order = inOrder(acctRepo);
+        order.verify(acctRepo).insertAcctPath(anyLong(), anyInt(), anyString());
+        order.verify(acctRepo).insertAcct(anyLong(), anyInt(), any(), any(), any(), any(), any(), any(), any(), any(), any());
     }
 
     // ---- esquireCommandDelete: org — deleteEntityPath called after deleteOrg ----

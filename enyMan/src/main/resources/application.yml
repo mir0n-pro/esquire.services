@@ -11,7 +11,10 @@ spring:
   jms:
     # clientId on CachingConnectionFactory — required for durable subscriptions.
     # Must not be set on DefaultJmsListenerContainerFactory (shared connection proxy restriction).
-    client-id: ${ENYMAN_MESSAGING_CLIENT_ID:enyman}
+    # Per-pod suffix from the StatefulSet ordinal (downward API → POD_INDEX env);
+    # local dev / single-pod falls back to "enyman-0". Multiple enyMan instances
+    # subscribing to the same topic (move-sync) need distinct clientIds.
+    client-id: ${ENYMAN_MESSAGING_CLIENT_ID:enyman}-${POD_INDEX:0}
   jpa:
     hibernate:
       ddl-auto: none
@@ -27,8 +30,9 @@ enyman:
     service-id: ${ENYMAN_SERVICE_ID:entity-update-broadcast}
     # Stable producer instance identifier (CtrlID in FIX-JSON envelope)
     ctrl-id: ${ENYMAN_CTRL_ID:enyman.default}
-    # Stable client ID for durable subscriptions from this service
-    client-id: ${ENYMAN_MESSAGING_CLIENT_ID:enyman}
+    # Stable per-pod client ID for durable subscriptions from this service.
+    # Same composition as spring.jms.client-id above: base + StatefulSet ordinal.
+    client-id: ${ENYMAN_MESSAGING_CLIENT_ID:enyman}-${POD_INDEX:0}
     # Set to true to activate the consumer template (disabled by default in phase 1)
     consumer:
       enabled: ${ENYMAN_MESSAGING_CONSUMER_ENABLED:false}
@@ -71,6 +75,7 @@ spring:
       - META-INF/oracle-dictionary.xml
       - META-INF/oracle-entity.xml
       - META-INF/oracle-custom-field.xml
+      - META-INF/oracle-acct.xml
       - META-INF/oracle-roles.xml
     properties:
       hibernate:
@@ -99,6 +104,7 @@ spring:
       - META-INF/postgres-dictionary.xml
       - META-INF/postgres-entity.xml
       - META-INF/postgres-custom-field.xml
+      - META-INF/postgres-acct.xml
       - META-INF/postgres-roles.xml
     properties:
       hibernate:

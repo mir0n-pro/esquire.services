@@ -1,11 +1,20 @@
+{{- $replicas := int (.Values.replicaCount | default 1) -}}
+{{- if gt $replicas 10 -}}
+{{- fail (printf "esquire-enyman: replicaCount=%d exceeds the cap of 10. v1.2.6 entity-id encoding allocates one decimal digit for the instance number (0-9); higher replica counts would overflow the time portion of generated ids." $replicas) -}}
+{{- end -}}
+{{- if lt $replicas 1 -}}
+{{- fail (printf "esquire-enyman: replicaCount=%d must be >= 1" $replicas) -}}
+{{- end }}
 apiVersion: apps/v1
-kind: Deployment
+kind: StatefulSet
 metadata:
   name: {{ .Release.Name }}-enyman
   labels:
     app: {{ .Release.Name }}-enyman
 spec:
-  replicas: 1
+  serviceName: {{ .Release.Name }}-enyman-hl
+  replicas: {{ $replicas }}
+  podManagementPolicy: Parallel
   selector:
     matchLabels:
       app: {{ .Release.Name }}-enyman
@@ -30,6 +39,18 @@ spec:
                 secretKeyRef:
                   name: {{ .Release.Name }}-enyman-secret
                   key: db-password
+            # Downward API -- feeds EsqUtils.instanceNo() so each pod
+            # mints ids in its own slice of the bottom 4 digits.
+            # POD_INDEX is k8s 1.28+; POD_NAME is the universal fallback
+            # (EsqUtils parses the trailing StatefulSet ordinal).
+            - name: POD_INDEX
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.labels['apps.kubernetes.io/pod-index']
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
           readinessProbe:
             httpGet:
               path: /actuator/health

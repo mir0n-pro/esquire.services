@@ -144,19 +144,6 @@ spring:
             - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_FIRST
             - RewritePath=/(?<segment>.*), /$\{segment}
             - TokenRelay=
-        - id: pacman-new-route
-          uri: http://${PACMAN_HOST:enyman}:${PACMAN_PORT:3003}
-          predicates:
-            - Path=/esq-cmd-new
-            - Method=POST
-            - EntityKind=isAcct
-          metadata:
-            allowedMethods:
-              - POST
-          filters:
-            - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_FIRST
-            - RewritePath=/(?<segment>.*), /$\{segment}
-            - TokenRelay=
         - id: enyman-new-route
           uri: http://${ENYMAN_HOST:enyman}:${ENYMAN_PORT:3003}
           predicates:

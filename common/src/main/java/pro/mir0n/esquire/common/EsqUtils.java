@@ -2,11 +2,13 @@
  *  Esquire frameworks (tm)
  *  common library
  *
- *  Copyright(c) 2001, 2025 mir0n&co www.mir0n.me
+ *  Copyright(c) 2001, 2026 mir0n&co www.mir0n.pro
  *  mailto:mir0n.the.programmer@gmail.com
  *
  *  History:
- * 03/26/2026 mir0n  generateEntityId(): epoch-based long id — (ms since esquireEpoch) * 1000 + random sub-ms offset
+ * 03/26/2026 mir0n  generateEntityId(): epoch-based long id -- (ms since esquireEpoch) * 1000 + random sub-ms offset
+ * 06/01/2026 mir0n  generateEntityId() removed -- moved to enyMan.service.EntityIdGenerator (v1.2.6
+ *                   instanceNo() added: this service instance's number
  */
 package pro.mir0n.esquire.common;
 
@@ -18,12 +20,64 @@ public class EsqUtils {
         return java.util.UUID.randomUUID().toString();
     }
 
-    //xxx: We do not expect the creation of entities to occur very frequently—more often than once per millisecond.
-    private static final long esquireEpoch = new java.util.Date("26 Jun 2025 13:20 EDT").getTime();
-    //**1,750,958,400,000**
-    public static long generateEntityId() {
-        return (System.currentTimeMillis() - esquireEpoch) * 1000
-             + new java.util.Random().nextInt(1000);
+    // This service instance's number within its replica set. v1.2.6 weaves
+    //
+    // Sources, in priority order:
+    //   1. ESQUIRE_INSTANCE_NO env  -- explicit override, set anywhere
+    //   2. POD_INDEX env            -- k8s 1.28+ downward API
+    //                                  (metadata.labels['apps.kubernetes.io/pod-index'])
+    //   3. POD_NAME env             -- downward API metadata.name, parse the
+    //                                  trailing "-N" StatefulSet ordinal
+    //   4. esquire.instance.no sysprop
+    //   5. default 0                -- single unsharded instance / local dev
+    //
+    // POD_INDEX and POD_NAME both come from StatefulSet pods via the
+    // downward API. Both are supported so the same chart works on older
+    // k8s without the pod-index label.
+    public static int instanceNo() {
+        int ret = 0;
+        String raw = firstNonBlank(
+            System.getenv("ESQUIRE_INSTANCE_NO"),
+            System.getenv("POD_INDEX"),
+            parsePodNameOrdinal(System.getenv("POD_NAME")),
+            System.getProperty("esquire.instance.no")
+        );
+        if (raw != null) {
+            try {
+                ret = Integer.parseInt(raw.trim());
+            } catch (NumberFormatException ignored) {
+                // ret stays 0 -- treat unparseable as "not configured"
+            }
+        }
+        return ret;
+    }
+
+    private static String firstNonBlank(String... candidates) {
+        String ret = null;
+        for (String c : candidates) {
+            if (c != null && !c.isBlank()) {
+                ret = c;
+                break;
+            }
+        }
+        return ret;
+    }
+
+    // StatefulSet pod names are "<set>-<ordinal>" (e.g. "enyman-0").
+    // Returns the trailing integer as a string, or null if the input
+    // doesn't match the pattern.
+    private static String parsePodNameOrdinal(String podName) {
+        String ret = null;
+        if (podName != null) {
+            int dash = podName.lastIndexOf('-');
+            if (dash >= 0 && dash < podName.length() - 1) {
+                String tail = podName.substring(dash + 1);
+                if (!tail.isEmpty() && tail.chars().allMatch(Character::isDigit)) {
+                    ret = tail;
+                }
+            }
+        }
+        return ret;
     }
 
 }

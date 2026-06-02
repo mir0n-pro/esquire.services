@@ -2,4 +2,4 @@
 # Chart defaults already match local dev needs. Only image.tag is
 # restamped per rebuild here -- k8s-rebuild.bat patches it.
 image:
-  tag: "v1.2.4-2605.1919"
+  tag: "v1.2.6-2606.0110"

@@ -24,6 +24,8 @@
  * 04/07/2026 mir0n  all kind params Integer → int (including private createOrg)
  * 04/09/2026 mir0n  applyFields() and enforceDefaults() delegated to EntityFieldUtils
  * 04/16/2026 mir0n  ret declarations moved to top; moveOrg(): null-guard replaces early return
+ * 06/01/2026 mir0n  id minting call retargeted: EsqUtils.generateEntityId() -> EntityIdGenerator.generateEntityId()
+ *                   (id minter moved from common to enyMan in v1.2.6).
  */
 
 package pro.mir0n.esquire.enyMan.service.impl;
@@ -37,7 +39,7 @@ import org.slf4j.LoggerFactory;
 import pro.mir0n.esquire.backend.dto.*;
 import pro.mir0n.esquire.backend.jpa.*;
 import pro.mir0n.esquire.backend.jpa.entity.EsqOrgJpa;
-import pro.mir0n.esquire.common.EsqUtils;
+import pro.mir0n.esquire.enyMan.service.EntityIdGenerator;
 import pro.mir0n.esquire.backend.jpa.EsqCustomEntityFieldJpa;
 import pro.mir0n.esquire.backend.service.EntityFieldUtils;
 import pro.mir0n.esquire.backend.validator.ValidatorFactory;
@@ -186,7 +188,7 @@ public class OrgService  extends AEnyManService {
         if (parentPath == null) {
             throw new ResourceNotFoundException("createOrg", "parentId", parentId);
         }
-        long newId = EsqUtils.generateEntityId();
+        long newId = EntityIdGenerator.generateEntityId();
         String idStr = String.valueOf(newId);
         String path = parentPath + newId + ".";
         fields.put("path", path);
