@@ -1,8 +1,8 @@
 /*
  *  Esquire frameworks (tm)
- *  EnyMan service
+ *  keySmith service
  *
- *  Copyright(c) 2001, 2026 mir0n&co www.mir0n.me
+ *  Copyright(c) 2001, 2026 mir0n&co www.mir0n.pro
  *  mailto:mir0n.the.programmer@gmail.com
  *
  *  History:
@@ -33,6 +33,9 @@
  *                   syncToKeycloak() replaced with kcSyncPublisher.publish() — fire-and-forget via JMS
  * 03/21/2026 mir0n  devLog added; log.debug→devLog.debug
  * 04/16/2026 mir0n  ret declarations moved to top in esquireKeyDetail() and esquireKeySave()
+ * 06/02/2026 mir0n  esquireKeySave(): KEYSMITH_TEST_CONNECT_HOLD_MS test hook (race-8c repro) --
+ *                   optional Thread.sleep between the committed path read and the activation URQ
+ *                   publish; default 0 = disabled, never set in production
  */
 
 package pro.mir0n.esquire.keySmith.service.impl;
@@ -145,6 +148,21 @@ public class KeySmithService implements IKeySmithService {
             saveAccess(upk, fields, rootPath, uid, correlationId, requestId, personal, updated, rolesAssigned, roles, oldLoginId, oldConnectFlg);
             return null;
         }); // ← transaction commits here
+
+        // TEST HOOK (race-8c reproduction): hold between capturing the entity path (read in the
+        // committed transaction above, now frozen in updated[0].getPath()) and publishing the
+        // activation URQ. A concurrent enyMan move can update ep_path during this window; keySmith
+        // then sends the now-STALE captured path, while the move's EVENT_UPDATE_PATH is skipped by
+        // kcMaster (the KC user does not exist until this URQ lands). Default 0 = disabled; set
+        // KEYSMITH_TEST_CONNECT_HOLD_MS only in repro tests, never in production.
+        long testHoldMs = 0L;
+        try { testHoldMs = Long.parseLong(System.getenv().getOrDefault("KEYSMITH_TEST_CONNECT_HOLD_MS", "0")); }
+        catch (NumberFormatException ignore) { /* keep 0 */ }
+        if (testHoldMs > 0L) {
+            devLog.debug("KeySmithService: esquireKeySave: TEST hold {}ms before URQ publish (race-8c repro); path={}",
+                    testHoldMs, updated[0] != null ? updated[0].getPath() : null);
+            try { Thread.sleep(testHoldMs); } catch (InterruptedException ie) { Thread.currentThread().interrupt(); }
+        }
 
         kcSyncPublisher.publish(oldLoginId[0], oldConnectFlg[0], updated[0], rolesAssigned[0], correlationId, requestId);
 

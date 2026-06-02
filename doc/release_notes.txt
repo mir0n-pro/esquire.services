@@ -1,6 +1,26 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v1.2.6-2606.0212  v1.2.6 enyMan sprint -- move-command race fixes (race-8b / race-8c); async move queue
+    :Refactoring: /esq-move processed asynchronously on an in-process single-worker move queue; the
+                  command returns 202 Accepted at submit time instead of 200 OK after processing
+    :Fix:         race-8c -- a user created during an ancestor move no longer keeps a stale KC rootpath;
+                  kcMaster parks the post-move path in a recovery buffer and flushes it onto the new user
+    :Fix:         race-8b -- a CREATE published during a move reconciles its entity path once the queued
+                  moves ahead of it have drained, reissuing the path broadcast on drift
+    :Fix:         move-cascade path broadcast ordered parents-first so the bizTree cache cannot pick up a
+                  stale parent path for a descendant
+    :Config:      enyMan move-queue capacity + validate-create-during-move toggle; kcMaster path-buffer
+                  ttl / prune interval
+    :Config:      kcMaster chart -- KC admin baseUrl carries the /kc-auth prefix; confidential admin
+                  client (esq-kcMaster) replaces the public admin-cli
+    Components:   common,
+                  bizTree,
+                  enyMan,
+                  kcMaster,
+                  keySmith,
+                  k8s/charts/esquire-kcmaster
+
 v1.2.6-2606.0110  v1.2.6 enyMan sprint -- account CREATE moves to enyMan; instance-aware entity-id minting
     :Refactoring: account CREATE moved from pacMan to enyMan; pacMan keeps account UPDATE / DELETE / balance ops
     :Feature:     entity-id minter moved to enyMan + made instance-aware -- shape ms*10000 + instanceNo*1000 + (seq % 1000); single BIGINT

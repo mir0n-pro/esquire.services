@@ -1,5 +1,25 @@
 Esquire kcMaster Microservice
 
+06/02/2026 mir0n  v1.2.6 Goal 3 -- race-8c KC-path recovery buffer
+buffer.KcPathBuffer  (new)
+  - @Component; ConcurrentHashMap<entityId, TimestampedPath> + single-thread scheduled prune (ttl default 60s)
+  - store() overwrites (latest path wins); consume() removes-and-returns, null if absent or older than ttl;
+    size(); prune() drops expired entries
+messaging.KcEntityBroadcastConsumer  (new)
+  - non-durable @JmsListener on esquire.entity.broadcast (jmsTopicListenerFactory); selector on entity bus / msg-type
+  - msg-audit receipt logged before the application filter; keeps EVENT_UPDATE_PATH ("X") only
+  - if the KC user is missing, KcPathBuffer.store(entityId, path); if it exists, no-op (the URQ handler owns the update)
+service.impl.KcIdentityService
+  - KcPathBuffer injected; createUser() flushes the buffer: consume(entityId), then applyBufferedPath()
+    writes esq_rootpath when it differs from the user's current value
+  - updateEntityPath() no-KC-user branch: request side no longer buffers (skips; the X topic message is the buffer source)
+messaging.KcMasterJmsConfig
+  - entity-broadcast topic subscription DURABLE -> NON-DURABLE; clientId + CachingConnectionFactory wiring removed;
+    jmsDurableTopicListenerFactory renamed jmsTopicListenerFactory
+src/main/resources/application.yml
+  - kcmaster.path-buffer.ttl-ms (KCMASTER_PATH_BUFFER_TTL_MS, default 10000);
+    kcmaster.path-buffer.prune-interval-ms (KCMASTER_PATH_BUFFER_PRUNE_MS, default 30000)
+
 04/16/2026 mir0n  procedural style sweep: ret pattern, null-guard, for-loops
 service.impl.KcIdentityService
   - updateEntityPath(), syncRoles(): null-guard replaces early returns

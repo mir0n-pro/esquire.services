@@ -2,7 +2,7 @@
  *  Esquire frameworks (tm)
  *  kcMaster service
  *
- *  Copyright(c) 2001, 2026 mir0n&co www.mir0n.me
+ *  Copyright(c) 2001, 2026 mir0n&co www.mir0n.pro
  *  mailto:mir0n.the.programmer@gmail.com
  *
  *  History:
@@ -13,6 +13,10 @@
  * 04/06/2026 mir0n  updateEntityPath(): looks up KC user by esq_uid attribute, updates esq_rootpath
  *                   updateUser(): removed changed-flag guard — attributes always merged and applied
  * 04/16/2026 mir0n  updateEntityPath(), syncRoles(): null-guard replaces early returns; for-loops replace streams; explicit types replace var
+ * 06/02/2026 mir0n  race-8c (v1.2.6 Goal 3): KcPathBuffer injected; createUser() flushes the buffer --
+ *                   consume(entityId) after the KC user is created and applyBufferedPath() writes
+ *                   esq_rootpath when it differs; updateEntityPath() no-KC-user branch no longer
+ *                   buffers (request side just skips -- the X topic message feeds the buffer)
  */
 
 package pro.mir0n.esquire.kcMaster.service.impl;
@@ -30,6 +34,7 @@ import org.keycloak.representations.idm.RoleRepresentation;
 import org.keycloak.representations.idm.UserRepresentation;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import pro.mir0n.esquire.kcMaster.buffer.KcPathBuffer;
 import pro.mir0n.esquire.kcMaster.config.KeycloakConfig;
 import pro.mir0n.esquire.kcMaster.service.IKcIdentityService;
 
@@ -49,6 +54,7 @@ public class KcIdentityService implements IKcIdentityService {
 
     private final Keycloak keycloak;
     private final KeycloakConfig keycloakConfig;
+    private final KcPathBuffer pathBuffer;
 
     @Override
     public void createUser(
@@ -109,7 +115,39 @@ public class KcIdentityService implements IKcIdentityService {
         }
 
         response.close();
+
+        // Race-8c flush: if enyMan's move-cascade EVENT_UPDATE_PATH for this entity
+        // arrived on the topic before the user existed, KcEntityBroadcastConsumer
+        // parked the post-move path in KcPathBuffer. Consume it now and apply --
+        // otherwise the URQ EVENT_UPDATE_PATH path was silent-skipped and the KC
+        // user would be left with the stale CREATE-time path forever.
+        String entityId = (attributes != null && attributes.get(EsqConstants.JWT_CLAIM_ENTITY_ID) != null
+                && !attributes.get(EsqConstants.JWT_CLAIM_ENTITY_ID).isEmpty())
+                ? attributes.get(EsqConstants.JWT_CLAIM_ENTITY_ID).get(0) : null;
+        if (entityId != null) {
+            String bufferedPath = pathBuffer.consume(entityId);
+            if (bufferedPath != null) {
+                applyBufferedPath(usersResource, kcId, entityId, bufferedPath);
+            }
+        }
+
         log.info("KC | CREATE | username={} | state=SUCCESS | kcUserId={}", loginId, kcId);
+    }
+
+    private void applyBufferedPath(UsersResource usersResource, String kcId, String entityId, String newPath) {
+        UserResource userResource = usersResource.get(kcId);
+        UserRepresentation user = userResource.toRepresentation();
+        Map<String, List<String>> existing = user.getAttributes() != null
+                ? user.getAttributes() : Collections.emptyMap();
+        List<String> currentPaths = existing.get(EsqConstants.JWT_CLAIM_ENTITY_ROOTPATH);
+        String currentPath = (currentPaths != null && !currentPaths.isEmpty()) ? currentPaths.get(0) : null;
+        if (!newPath.equals(currentPath)) {
+            Map<String, List<String>> merged = new HashMap<>(existing);
+            merged.put(EsqConstants.JWT_CLAIM_ENTITY_ROOTPATH, Collections.singletonList(newPath));
+            user.setAttributes(merged);
+            userResource.update(user);
+            log.info("KC | CREATE | entityId={} | buffered-path-applied={}", entityId, newPath);
+        }
     }
 
     @Override
@@ -250,7 +288,13 @@ public class KcIdentityService implements IKcIdentityService {
                 devLog.debug("KC | MOVE | entityId={} : path unchanged, skipping", entityId);
             }
         } else {
-            devLog.debug("KC | MOVE | entityId='{}' : no KC user found, skipping", entityId);
+            // Race-8c: the KC user does not exist yet. The REQUEST side does NOT buffer --
+            // the buffer is fed solely by the path field of the X (entity-broadcast) message
+            // via KcEntityBroadcastConsumer, which every kcMaster instance receives (a URQ
+            // request lands on only one pod, so it cannot be the buffer source under the
+            // redundant multi-instance setup). This request simply skips; the keySmith CREATE
+            // URQ's createUser will consume the path the X message already parked.
+            devLog.debug("KC | MOVE | entityId='{}' : no KC user yet, request skipped (path buffered from X message)", entityId);
         }
     }
 

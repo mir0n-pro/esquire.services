@@ -24,6 +24,11 @@ kcmaster:
     service-id: ${KCMASTER_SERVICE_ID:kc-sync}
     ctrl-id: ${KCMASTER_CTRL_ID:kcmaster.default}
     client-id: ${KCMASTER_MESSAGING_CLIENT_ID:kcmaster}
+  # Race-8c safety-net buffer: parks topic-side EVENT_UPDATE_PATH paths for KC
+  # users that do not yet exist; KcIdentityService.createUser flushes on CREATE.
+  path-buffer:
+    ttl-ms:            ${KCMASTER_PATH_BUFFER_TTL_MS:10000}
+    prune-interval-ms: ${KCMASTER_PATH_BUFFER_PRUNE_MS:30000}
 
 logging:
   level:

@@ -1,5 +1,10 @@
 Esquire keySmith Microservice
 
+06/02/2026 mir0n  v1.2.6 Goal 3 -- race-8c reproduction test hook
+service.impl.KeySmithService
+  - esquireKeySave(): KEYSMITH_TEST_CONNECT_HOLD_MS env hook -- optional Thread.sleep between the committed
+    path read and the activation URQ publish; default 0 = disabled, never set in production
+
 04/16/2026 mir0n  procedural style sweep: ret pattern
 service.impl.KeySmithService
   - ret declarations moved to top in esquireKeyDetail() and esquireKeySave()

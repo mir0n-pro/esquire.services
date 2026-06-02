@@ -10,6 +10,8 @@
  *                   false the worker leaves the queue UNTOUCHED), with put / size / clear and an
  *                   IErrorListener seam. Generalized from bizTree.taijitu; BoundedQueueRig implements.
  * 05/23/2026 mir0n  dropped redundant public modifiers from the interface members.
+ * 06/02/2026 mir0n  tryPut(E) default method enabled (was commented out); default delegates to
+ *                   put(E) and returns true, so existing rigs keep blocking semantics.
  */
 
 package pro.mir0n.utils.concurrent;
@@ -67,9 +69,9 @@ public interface IQueueRig <E>
 
 
     // d) gentle queue access: knock on a door first
-    //public default boolean tryPut(E element) {
-    //    put(element);
-    //    return true;
-    //};
+    default boolean tryPut(E element) {
+        put(element);
+        return true;
+    };
 
 }

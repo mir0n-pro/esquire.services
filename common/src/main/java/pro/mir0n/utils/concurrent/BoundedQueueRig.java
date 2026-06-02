@@ -12,6 +12,8 @@
  *                   worker is routed to the IErrorListener and the worker keeps running;
  *                   InterruptedException is a shutdown signal. clear() bulk-drops queued items
  *                   (the only removal other than normal processing). Lifted from bizTree MonadY.
+ * 06/02/2026 mir0n  added tryPut(E) -- non-blocking offer; returns false when stopped or at
+ *                   capacity instead of waiting or dropping silently.
  */
 package pro.mir0n.utils.concurrent;
 
@@ -166,6 +168,31 @@ public class BoundedQueueRig<E> implements IQueueRig<E> {
             }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    /**
+     * Non-blocking offer: enqueue the item if there is room, otherwise return false immediately.
+     * Unlike {@link #put}, this never waits on the queue and never drops silently -- the caller
+     * gets a definitive yes/no and can take corrective action (counter rollback, retry, error).
+     * v1.2.6 Goal 3: the enyMan move-queue needs this so that submitMove can decrement its
+     * "move in progress" counter when capacity is exhausted, instead of leaking it.
+     */
+    @Override
+    public boolean tryPut(E item) {
+        lock.lock();
+        try {
+            if (!running || deque.size() >= capacity) {
+                return false;
+            }
+            deque.addLast(item);
+            count.incrementAndGet();
+            if (processing) {
+                available.signal();
+            }
+            return true;
         } finally {
             lock.unlock();
         }

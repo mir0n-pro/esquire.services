@@ -1,6 +1,11 @@
 Esquire BizTree Microservice
 
 
+06/02/2026 mir0n  v1.2.6 Goal 3 -- broadcast skip-path made visible
+access.MessageHandlerHub
+  - dispatch(): no-handler and null-textNode skips split into two guarded branches, each logged via
+    devLog.warn (eventType / entityKind / kindBits / entityId), instead of a single silent no-op
+
 05/23/2026 mir0n  v1.2.5 Taijitu night-watch -- two-table cache, readiness gate, non-durable subscription
 health.CacheReadinessHealthIndicator  (new)
   - HealthIndicator (health name cacheReadiness) -- UP once IBizTreeDirector.isReady(), else DOWN;

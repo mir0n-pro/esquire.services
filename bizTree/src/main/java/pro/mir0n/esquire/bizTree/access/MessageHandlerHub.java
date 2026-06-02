@@ -11,6 +11,8 @@
  *                   Currently owned by BizTreeDirectorLegacy. In Step 3 each
  *                   Monad embeds its own hub instance so per-monad cache
  *                   repositories carry per-monad handlers.
+ * 06/02/2026 mir0n  dispatch(): skip path now logs devLog.warn (no handler / null textNode) split
+ *                   into two guarded branches, instead of a single silent no-op.
  */
 package pro.mir0n.esquire.bizTree.access;
 
@@ -78,8 +80,9 @@ public final class MessageHandlerHub {
 
     /**
      * Dispatch one entity-broadcast event to its registered handler.
-     * Silently no-op if no handler is registered for the (eventType, kind)
-     * combination -- same behaviour as the pre-refactor consumer.
+     * Skipped messages (no handler / null textNode) are logged via devLog.warn so a flood of
+     * unexpected events is visible -- prior to v1.2.6 Goal 3 instrumentation this path was a
+     * silent no-op which hid possible mis-routing or schema drift between publisher and consumer.
      */
     public void dispatch(String eventType, String entityId, int entityKind, JsonNode textNode) {
         EsqObjectKind eek = EsqObjectKindStorage.getInstance().get(entityKind);
@@ -89,7 +92,14 @@ public final class MessageHandlerHub {
         if (eek.isOrg())  kindBits += 1;
 
         IBizTreeEventHandler handler = handlers.get(new HandlerKey(eventType, kindBits));
-        if (handler == null || textNode == null) {
+        if (handler == null) {
+            devLog.warn("MessageHandlerHub: SKIP no handler for eventType={} entityKind={} (kindBits={}) entityId={}",
+                    eventType, entityKind, kindBits, entityId);
+            return;
+        }
+        if (textNode == null) {
+            devLog.warn("MessageHandlerHub: SKIP null textNode for eventType={} entityKind={} entityId={}",
+                    eventType, entityKind, entityId);
             return;
         }
         try {

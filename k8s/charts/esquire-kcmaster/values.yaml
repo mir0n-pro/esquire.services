@@ -13,10 +13,16 @@ messaging:
   clientId: kcmaster
 
 keycloak:
-  baseUrl: http://esquire-infra-kc-keycloak:8080
+  # KC serves under HTTP_RELATIVE_PATH=/kc-auth in the infra-kc chart;
+  # kcMaster's Keycloak admin client (KeycloakBuilder) must hit
+  # base + /realms/{realm}/... so the /kc-auth prefix has to be in baseUrl.
+  baseUrl: http://esquire-infra-kc-keycloak:8080/kc-auth
   realm: esquire
-  adminClientId: admin-cli
-  adminClientSecret: ""
+  # Confidential service-account client seeded into the esquire realm import;
+  # admin-cli is a public client (no secret, no client_credentials support) and
+  # cannot drive the KC admin REST API. Matches the compose default.
+  adminClientId: esq-kcMaster
+  adminClientSecret: MHgq0Nu69u2uJ2johaK1wxQLMdakELXN
 
 logging:
   levelRoot: ERROR

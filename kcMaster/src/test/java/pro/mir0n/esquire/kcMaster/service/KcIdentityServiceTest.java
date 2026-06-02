@@ -13,6 +13,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import pro.mir0n.esquire.common.EsqConstants;
+import pro.mir0n.esquire.kcMaster.buffer.KcPathBuffer;
 import pro.mir0n.esquire.kcMaster.config.KeycloakConfig;
 import pro.mir0n.esquire.kcMaster.service.impl.KcIdentityService;
 
@@ -33,6 +34,7 @@ class KcIdentityServiceTest {
 
     @Mock private Keycloak keycloak;
     @Mock private KeycloakConfig kcConfig;
+    @Mock private KcPathBuffer pathBuffer;
     @Mock private RealmResource realmResource;
     @Mock private UsersResource usersResource;
     @Mock private UserResource userResource;
@@ -41,7 +43,7 @@ class KcIdentityServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new KcIdentityService(keycloak, kcConfig);
+        service = new KcIdentityService(keycloak, kcConfig, pathBuffer);
         when(kcConfig.getRealm()).thenReturn("esquire");
         when(keycloak.realm("esquire")).thenReturn(realmResource);
         when(realmResource.users()).thenReturn(usersResource);
