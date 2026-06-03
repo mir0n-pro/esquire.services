@@ -15,6 +15,8 @@
  *                   (TRUNCATE); CHECKSUM off-worker in _processItemCancellable -> prepareCancelable +
  *                   executeQuery (order-independent MD5), registering PrepareStatementCancelable so a
  *                   sweep timeout aborts the query; try-with-resources on CancelableStatement on every path.
+ * 06/02/2026 mir0n  _processItems(List) override: applies a batch of events in ONE cache transaction via
+ *                   the injected TransactionTemplate (cacheTx); a null cacheTx falls back to one-by-one
  */
 package pro.mir0n.esquire.bizTree.taijitu;
 
@@ -29,6 +31,7 @@ import pro.mir0n.esquire.bizTree.cache.IBizTreeCacheRepository;
 import pro.mir0n.esquire.bizTree.service.IBizTreeService;
 import pro.mir0n.esquire.common.EsqConstants;
 import pro.mir0n.utils.taijitu.*;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -51,6 +54,7 @@ public class Monad extends AMonad {
     private final IEventSink              eventHub;
     private final IBizTreeService         readBackend;
     private final ObjectMapper            objectMapper;
+    private final TransactionTemplate     cacheTx;   // wraps an event BATCH in one cache transaction
 
     public Monad(String monadId,
                  int queueCapacity,
@@ -58,13 +62,15 @@ public class Monad extends AMonad {
                  IBizTreeCacheRepository cacheRepository,
                  IEventSink eventHub,
                  IBizTreeService readBackend,
-                 ObjectMapper objectMapper) {
+                 ObjectMapper objectMapper,
+                 TransactionTemplate cacheTx) {
         super(monadId, queueCapacity);
         this.cacheLoader     = cacheLoader;
         this.cacheRepository = cacheRepository;
         this.eventHub        = eventHub;
         this.readBackend     = readBackend;
         this.objectMapper    = objectMapper;
+        this.cacheTx         = cacheTx;
     }
 
     /* ====================================================================
@@ -91,6 +97,26 @@ public class Monad extends AMonad {
             }
         }
         return ret;
+    }
+
+    /**
+     * Bulk apply: run the whole batch of events in ONE cache transaction. Each {@link #_processItem}
+     * applies its event through the same cacheJdbcTemplate, which joins the thread-bound connection,
+     * so the batch commits once instead of once-per-event -- the throughput win under a flood of
+     * move broadcasts. If any event fails the whole batch rolls back and the throwable propagates to
+     * the rig (its list error listener stops the bulk); the night-watch sweep heals the gap.
+     */
+    @Override
+    protected void _processItems(List<QueueItem> events) {
+        if (cacheTx == null) {
+            super._processItems(events);   // no transaction seam -> fall back to one-by-one
+            return;
+        }
+        cacheTx.executeWithoutResult(status -> {
+            for (int i = 0; i < events.size(); i++) {
+                _processItem(events.get(i));
+            }
+        });
     }
 
     private class PrepareStatementCancelable implements ICancelable {

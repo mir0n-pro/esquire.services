@@ -73,7 +73,7 @@ spring:
     activate:
       on-profile: dev-postgres
   datasource:
-    url: jdbc:postgresql://${DB_PACMAN_HOST:localhost}:${DB_pacMAN_PORT:5432}/${DB_PACMAN_NAME:esq2025}
+    url: jdbc:postgresql://${DB_PACMAN_HOST:localhost}:${DB_PACMAN_PORT:5432}/${DB_PACMAN_NAME:esq2025}
     username: ${DB_PACMAN_USERNAME:esq2025}
     password: ${DB_PACMAN_PASSWORD:q}   
     hikari:

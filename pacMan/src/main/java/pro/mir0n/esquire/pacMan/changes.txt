@@ -1,5 +1,10 @@
 Esquire pacMan Microservice
 
+06/02/2026 mir0n  v1.2.6 -- Postgres datasource port typo fixed
+src/main/resources/application.yml
+  - dev-postgres datasource url now reads ${DB_PACMAN_PORT:5432} (was the mixed-case ${DB_pacMAN_PORT:5432},
+    a silent no-op that pinned the port at the default); now matches the dev-oracle profile
+
 06/01/2026 mir0n  v1.2.6 -- account CREATE removed from pacMan (moved to enyMan)
 controller.PacManController
   - esquireCommandNew() handler removed.

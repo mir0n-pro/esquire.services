@@ -21,6 +21,8 @@
  *                   repository, loader and read service on the shared cacheJdbcTemplate; tableFor(id)
  *                   suffixes the base table (ESQ_TREE_MONAD / ESQ_TREE_DANOM); applies the configurable
  *                   sweep interval / timeout / on-mismatch (parseMismatch) to the director.
+ * 06/02/2026 mir0n  inject cacheTransactionTemplate into both Monads; biztree.queue.bulk-threshold @Value
+ *                   applied to each monad rig via setBulkThreshold
  */
 package pro.mir0n.esquire.bizTree.access;
 
@@ -90,9 +92,15 @@ public class BizTreeDirectorConfig {
     @Value("${biztree.cache.table:ESQ_TREE}")
     private String cacheTable;
 
+    /** Backlog size above which the monad worker batches events into one cache transaction. Default
+     *  10; set very high (e.g. via BIZTREE_QUEUE_BULK_THRESHOLD) to force one-by-one for an A/B. */
+    @Value("${biztree.queue.bulk-threshold:10}")
+    private int queueBulkThreshold;
+
     // ingredients for building a per-monad cache backend in the taijitu case (one H2 datasource, table-per-monad)
     @Autowired @Qualifier("cacheJdbcTemplate")
     private JdbcTemplate     cacheJdbcTemplate;
+    @Autowired private org.springframework.transaction.support.TransactionTemplate cacheTransactionTemplate;
     @Autowired private BizTreeCacheSql   cacheSqlTemplates;
     @Autowired private EsqOrgRepository  orgRepo;
     @Autowired private EsqUsrRepository  usrRepo;
@@ -112,11 +120,15 @@ public class BizTreeDirectorConfig {
             case "taijitu" -> {
                 MonadCache yang = buildCache(tableFor("monad"));   // serving -- own table
                 MonadCache yin  = buildCache(tableFor("danom"));   // shadow  -- own table
-                BizTreeDirectorTaijitu taijitu = new BizTreeDirectorTaijitu(
-                        new Monad("monad", queueCapacity, yang.loader(), yang.repo(),
-                                new MessageHandlerHub(yang.repo())::dispatch, yang.read(), objectMapper),
-                        new Monad("danom", queueCapacity, yin.loader(), yin.repo(),
-                                new MessageHandlerHub(yin.repo())::dispatch, yin.read(), objectMapper));
+                Monad yangMonad = new Monad("monad", queueCapacity, yang.loader(), yang.repo(),
+                        new MessageHandlerHub(yang.repo())::dispatch, yang.read(), objectMapper, cacheTransactionTemplate);
+                Monad yinMonad  = new Monad("danom", queueCapacity, yin.loader(), yin.repo(),
+                        new MessageHandlerHub(yin.repo())::dispatch, yin.read(), objectMapper, cacheTransactionTemplate);
+                yangMonad.setBulkThreshold(queueBulkThreshold);
+                yinMonad.setBulkThreshold(queueBulkThreshold);
+                log.info("bizTree monad worker: bulk-threshold={} (>{} -> batch events in one cache tx)",
+                        queueBulkThreshold, queueBulkThreshold);
+                BizTreeDirectorTaijitu taijitu = new BizTreeDirectorTaijitu(yangMonad, yinMonad);
                 MismatchAction action = parseMismatch(onMismatch);
                 taijitu.setSweepIntervalMs(sweepIntervalMs);
                 taijitu.setSweepTimeoutMs(sweepTimeoutMs);

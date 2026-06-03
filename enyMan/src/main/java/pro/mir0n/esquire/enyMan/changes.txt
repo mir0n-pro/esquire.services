@@ -1,5 +1,51 @@
 Esquire enyMan Microservice
 
+06/02/2026 mir0n  v1.2.6 Goal 3 -- /esq-move async-ack via in-process move queue; CREATE-during-move reconcile
+queue.MoveQueueItem  (new)
+  - sealed interface, permits MoveCommandItem | CreateReconcileItem
+queue.MoveCommandItem  (new)
+  - record (kind, id, distId, rootPath, uid, roles, requestId, correlationId): queued move payload
+queue.CreateReconcileItem  (new)
+  - record (entityId, kind, parentId, pathAtPublish): post-publish path-check task
+queue.PathRule  (new)
+  - expectedFor(kind, parentPath, ownId): ep_path composition rule -- parentPath when isPathParentOnly(),
+    else parentPath + ownId + "."
+queue.MoveQueueManager  (new)
+  - @Component implementing IQueueRig.IQueueWorker<MoveQueueItem>; owns a BoundedQueueRig + a
+    "move in progress" AtomicInteger; constructs its own OrgService / UsrService
+  - submitMove(): counter++ then tryPut; on full rolls back counter and logs error (DROPPED)
+  - submitReconcile(): tryPut; warn + drop on full
+  - inMove() = counter > 0; queueSize(); start()/stop() lifecycle on the rig
+  - process() dispatches MoveCommandItem -> processMove, CreateReconcileItem -> processReconcile
+  - processMove(): sets MDC, calls org/usr esquireCommandMove, publishMoveEvent + publishKcMoveRequest,
+    counter-- in finally
+  - processReconcile(): re-reads parent path, recomputes PathRule.expectedFor; on drift updates ep_path and
+    reissues EVENT_UPDATE_PATH (inherits the move's CID/RID from MDC)
+  - publishMoveEvent() / publishKcMoveRequest() lifted here from EnyManService
+jpa.EntityPathLookup  (new)
+  - native-query repository: pathFor(id) reads ep_path; updatePath(id, path) writes it
+service.impl.EnyManService
+  - MoveQueueManager injected (replaces the KcRequestPublisher field); validateCreateDuringMove @Value toggle
+    (enyman.move-queue.validate-create-during-move, default true)
+  - esquireCommandMove(): pre-checks stay on the request thread, then submitMove(MoveCommandItem), returns null
+  - submitReconcileIfInMove(): after each CREATE broadcast, enqueue a CreateReconcileItem when inMove() and toggle on
+  - publishMoveEvent() / publishKcMoveRequest() removed (moved to MoveQueueManager)
+controller.EnyManController
+  - esquireCommandMove(): returns 202 Accepted (ResponseEntity.accepted()) -- move queued, async; OpenAPI 200 -> 202
+service.IEnyManService
+  - esquireCommandMove() javadoc: EnyManService impl returns null (async-ack); per-kind impls still return records
+src/main/resources/META-INF/postgres-entity.xml, oracle-entity.xml
+  - EsqOrgJpa.listMovedPaths, EsqUsrJpa.listMovedPaths: ORDER BY length(ep_path) so ancestor rows broadcast
+    before descendant rows (parents-first), keeping bizTree's per-node move handlers from picking up a stale parent path
+src/main/resources/META-INF/postgres-acct.xml, oracle-acct.xml
+  - EsqAcctJpa.pathFor, EsqAcctJpa.updatePath native queries added (move-queue worker ep_path read / write)
+src/main/resources/META-INF/oracle-entity.xml
+  - EsqSubtreeRow.subtreeFromOrg / subtreeFromUsr: ORDER BY switched to positional (7 DESC, 6 NULLS LAST) --
+    Oracle rejects the aliased column in a UNION ALL ORDER BY (ORA-00904 LVL); fixes /esq-cmd-tree on Oracle
+src/main/resources/application.yml
+  - enyman.move-queue.capacity (ENYMAN_MOVE_QUEUE_CAPACITY, default 16384);
+    enyman.move-queue.validate-create-during-move (ENYMAN_VALIDATE_CREATE_DURING_MOVE, default true)
+
 06/01/2026 mir0n  v1.2.6 -- account CREATE moved into enyMan; entity-id minter consolidated here
 service.EntityIdGenerator  (new)
   - static utility owning entity-id minting; moved from common.EsqUtils.

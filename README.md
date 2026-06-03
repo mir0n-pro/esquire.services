@@ -4,7 +4,7 @@
 
 
 > 
-> **v1.2.6 — planned.** A short **enyMan** sprint for safe service-instance redundancy: entity-id minting is consolidated into one service (enyMan) with an instance-aware id, and account creation moves from pacMan to enyMan.
+> **v1.2.6 — released.** A **enyMan** sprint for safe service-instance redundancy: instance-aware entity-id minting consolidated into enyMan, account CREATE moved from pacMan to enyMan, an async move queue, the race-8b / race-8c move-path fixes, and bizTree event work-batching.
 >
 
 Frameworks for organizing business entities in a tree, for any business or activity.
@@ -42,23 +42,23 @@ maintenance, permissions, authorization, and accounting.
 - [Database Dictionary](doc/DatabaseDictionary.md)
 
 ### Testing
-- [Testing Stack — frameworks, scope, coverage](doc/Esquire.TestingStack.md) *(every framework in use across all Esquire projects, what it covers, current test counts at v1.2.5)*
+- [Testing Stack — frameworks, scope, coverage](doc/Esquire.TestingStack.md) *(every framework in use across all Esquire projects, what it covers, current test counts at v1.2.6)*
 - [Testing — Gatling as Esquire standard](doc/Testing.md) *(policy note for integration / load / stress / race-repro)*
 - [Haubergeon — Gatling harness reference](doc/Esquire.Haubergeon.md)
-- [Race Conditions — reproduction protocol](doc/Race.Conditions.Repro.md)
 
 ### Reports
 
 
 |                                                                   |                                                                                                                                                                                                                                                                                                                                                                        |
 |-------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| **esquire.services**| - [v1.2.5 Milestone Report](doc/reports/report_v1.2.5.md)<br/>- [v1.2.4 Milestone Report](doc/reports/report_v1.2.4.md)<br/>- [v1.2.3 Milestone Report](doc/reports/report_v1.2.3.md)<br/>- [v1.2.2 Milestone Report](doc/reports/report_v1.2.2.md)                                                                                                                                                                                  |
-| **esquire.explorer**| - [v1.2.5 Milestone Report](https://github.com/mir0n-pro/esquire.explorer/blob/develop/doc/reports/report_v1.2.5.md)<br/>- [v1.2.4 Milestone Report](https://github.com/mir0n-pro/esquire.explorer/blob/develop/doc/reports/report_v1.2.4.md)<br/>- [v1.2.3 Milestone Report](https://github.com/mir0n-pro/esquire.explorer/blob/develop/doc/reports/report_v1.2.3.md)<br/>- [v1.2.2 Milestone Report](https://github.com/mir0n-pro/esquire.explorer/blob/develop/doc/reports/report_v1.2.2.md) |
+| **esquire.services**| - [v1.2.6 Milestone Report](doc/reports/report_v1.2.6.md)<br/>- [v1.2.5 Milestone Report](doc/reports/report_v1.2.5.md)<br/>- [v1.2.4 Milestone Report](doc/reports/report_v1.2.4.md)<br/>- [v1.2.3 Milestone Report](doc/reports/report_v1.2.3.md)<br/>- [v1.2.2 Milestone Report](doc/reports/report_v1.2.2.md)                                                                                                                                                                                  |
+| **esquire.explorer**| - [v1.2.6 Milestone Report](https://github.com/mir0n-pro/esquire.explorer/blob/develop/doc/reports/report_v1.2.6.md)<br/>- [v1.2.5 Milestone Report](https://github.com/mir0n-pro/esquire.explorer/blob/develop/doc/reports/report_v1.2.5.md)<br/>- [v1.2.4 Milestone Report](https://github.com/mir0n-pro/esquire.explorer/blob/develop/doc/reports/report_v1.2.4.md)<br/>- [v1.2.3 Milestone Report](https://github.com/mir0n-pro/esquire.explorer/blob/develop/doc/reports/report_v1.2.3.md)<br/>- [v1.2.2 Milestone Report](https://github.com/mir0n-pro/esquire.explorer/blob/develop/doc/reports/report_v1.2.2.md) |
 | **esquire.ui.lib**| - [v1.2.3 Release Report](https://github.com/mir0n-pro/esquire.ui.lib/blob/develop/doc/reports/report_v1.2.3.md)<br/> - [v1.2.2 Release Report](https://github.com/mir0n-pro/esquire.ui.lib/blob/develop/doc/reports/report_2026_04_19_31750f3.md)                                                                                                                     |
 | **esquire.db.seed**| - [v1.2.4 Milestone Report](https://github.com/mir0n-pro/esquire.db.seed/blob/develop/doc/reports/report_v1.2.4.md)<br/> - [v1.2.2 Milestone Report](https://github.com/mir0n-pro/esquire.db.seed/blob/develop/doc/reports/report_v1.2.2.md)                                                                                                                          |
 
 
 ### Deployment
+- [Configuration Reference — every service parameter, logging, gateway routes](doc/services.configuring.md)
 - [Where To Go — Deployment Plan and Platform Decisions](doc/WhereToGo.md)
 - [OCI Pricing Reference](doc/OCI.Pricing.md)
 
@@ -100,7 +100,8 @@ JWT-based authorization; serves access profiles to the frontend; publishes ident
 requests to the IAM bus.
 
 **kcMaster** — Keycloak IAS sync coordinator; the only service that writes to Keycloak directly;
-consumes identity commands from the IAM bus and executes create / update / delete in the IAM.
+consumes identity commands from the IAM bus and executes create / update / delete in the IAM. Also
+listens on the entity broadcast bus to keep a moved entity's Keycloak path in sync.
 
 **gateway** — Spring Cloud Gateway; the API router; routes requests to the appropriate
 backend service by path and entity kind; validates JWT tokens on every request and, for
@@ -136,17 +137,22 @@ The two public hosts at a glance:
 
 ---
 
+## v1.2.6 — complete (06/02/2026)
+
+v1.2.6 is a short **enyMan-redundancy** sprint. Entity-id minting is consolidated into enyMan and made
+instance-aware so multiple instances mint unique ids; account CREATE moves from pacMan to enyMan; and
+`/esq-move` runs asynchronously on an in-process move queue. Two move-path races are closed — race-8b
+(a CREATE published during a move reconciles its path) and race-8c (a user created during an ancestor
+move keeps its Keycloak path in sync via a kcMaster recovery buffer). bizTree adds event
+**work-batching** — under a move-cascade flood it applies a backlog of cache updates in one
+transaction (about 3x apply throughput). Ships with a configuration reference
+([services.configuring.md](doc/services.configuring.md)) and an Oracle `/esq-cmd-tree` fix.<br>
 ## v1.2.5 — complete (05/24/2026)
 
-v1.2.5 is the **bizTree cache-refactor sprint** — bizTree's internal cache is rebuilt as the
-"Taijitu" Supreme Ultimate Cache (anti-entropy double-buffer with shadow promotion): two equal
-in-memory monads behind one director, reconciled by a periodic **night-watch** sweep that rebuilds
-the shadow from the database, checksums both, and self-heals drift (log / swap / terminate). The
-result is a **recoverable cache service** — it closes the cache-load race deferred from v1.2.4 and
-reconciles events missed during downtime, so a non-durable broadcast subscription is enough. The
-external surface — REST paths, JMS topic, cache interface — is unchanged; the new implementation
-slots in behind it.<br>
-[Architecture: doc/Esquire.BizTree.md](doc/Esquire.BizTree.md)
+bizTree's cache rebuilt as the **Taijitu** recoverable cache service — a two-monad anti-entropy
+double-buffer reconciled by a periodic night-watch that rebuilds a shadow from the database, checksums
+both, and self-heals drift, so a non-durable broadcast subscription suffices.<br>
+[More Details: v1.2.5 README](https://github.com/mir0n-pro/esquire.services/tree/release/v1.2.5?tab=readme-ov-file#project-structure)
 
 ## v1.2.4 — complete (05/14/2026)
 

@@ -36,6 +36,17 @@ enyman:
     # Set to true to activate the consumer template (disabled by default in phase 1)
     consumer:
       enabled: ${ENYMAN_MESSAGING_CONSUMER_ENABLED:false}
+  # v1.2.6 Goal 3: in-process move queue. Single worker, FIFO. Cap is bounded so a runaway
+  # producer can't grow the heap; on full the rig drops the item and logs an error via the
+  # tryPut path (see MoveQueueManager.submitMove / submitReconcile). 16384 is comfortable for
+  # normal load -- bursts of move + create traffic can sit in the queue while the worker
+  # drains. Override via ENYMAN_MOVE_QUEUE_CAPACITY for stress tests.
+  move-queue:
+    capacity: ${ENYMAN_MOVE_QUEUE_CAPACITY:16384}
+    # v1.2.6 Goal 3 toggle. true (default) -> CREATE-during-move triggers a path-reconcile task;
+    # race 8b is closed. false -> reconciliation skipped; race-move-create sim reproduces the
+    # race. Flipping to false here (or via env) is the negative-test setting.
+    validate-create-during-move: ${ENYMAN_VALIDATE_CREATE_DURING_MOVE:true}
 logging:
   level:
     root: ${LOG_LEVEL_ROOT:ERROR}

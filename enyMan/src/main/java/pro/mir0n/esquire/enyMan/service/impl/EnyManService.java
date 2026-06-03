@@ -49,6 +49,12 @@
  *                   (isOrg || isUsr) to (isOrg || isUsr || isAcct) and routes isAcct to acctService;
  *                   publishEntityEvent() now also forwards TEXT_STATUS so acct CREATE / UPDATE events
  *                   carry status to bizTree (parity with the pacMan publisher this branch replaces).
+ * 06/02/2026 mir0n  /esq-move async-ack (v1.2.6 Goal 3): MoveQueueManager injected (replaces the
+ *                   KcRequestPublisher field); esquireCommandMove() runs pre-checks on the request
+ *                   thread, submits a MoveCommandItem to the move queue, returns null (202 Accepted);
+ *                   publishMoveEvent() / publishKcMoveRequest() moved to MoveQueueManager;
+ *                   submitReconcileIfInMove() enqueues a CreateReconcileItem after each CREATE
+ *                   broadcast when inMove(), gated by enyman.move-queue.validate-create-during-move
  */
 
 package pro.mir0n.esquire.enyMan.service.impl;
@@ -72,7 +78,9 @@ import pro.mir0n.esquire.enyMan.jpa.EsqUsrRepository;
 import pro.mir0n.esquire.backend.service.RequestContextUtils;
 import pro.mir0n.esquire.backend.error.ResourceNotFoundException;
 import pro.mir0n.esquire.enyMan.messaging.EsqEntityBroadcastPublisher;
-import pro.mir0n.esquire.enyMan.messaging.KcRequestPublisher;
+import pro.mir0n.esquire.enyMan.queue.CreateReconcileItem;
+import pro.mir0n.esquire.enyMan.queue.MoveCommandItem;
+import pro.mir0n.esquire.enyMan.queue.MoveQueueManager;
 import pro.mir0n.esquire.enyMan.service.IEnyManService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -92,7 +100,14 @@ public class EnyManService  extends AEnyManService {
     private final EsqOrgRepository orgRepository;
     private final EsqSubtreeRepository subtreeRepository;
     private final EsqEntityBroadcastPublisher broadcastPublisher;
-    private final KcRequestPublisher kcRequestPublisher;
+    private final MoveQueueManager moveQueue;
+
+    // v1.2.6 Goal 3 toggle. true (default) -> CREATE-during-move path reconciliation runs;
+    // race 8b is fixed. false -> reconciliation is skipped; the race reproduces. Used by the
+    // race-move-create sim to prove the fix actually closes the race when ON and the race
+    // still fires when OFF. Production default ON.
+    @org.springframework.beans.factory.annotation.Value("${enyman.move-queue.validate-create-during-move:true}")
+    private boolean validateCreateDuringMove;
 
     public EnyManService(EsqEntityDictionaryRepository entityDictionaryRepository,
                          EsqOrgRepository orgRepository,
@@ -102,7 +117,7 @@ public class EnyManService  extends AEnyManService {
                          TransactionTemplate transactionTemplate,
                          EntityManager em,
                          EsqEntityBroadcastPublisher broadcastPublisher,
-                         KcRequestPublisher kcRequestPublisher) {
+                         MoveQueueManager moveQueue) {
         super(entityDictionaryRepository);
         this.orgService  = new OrgService(entityDictionaryRepository, orgRepository, transactionTemplate, em);
         this.usrService  = new UsrService(entityDictionaryRepository, usrRepository, transactionTemplate, em);
@@ -110,7 +125,7 @@ public class EnyManService  extends AEnyManService {
         this.orgRepository = orgRepository;
         this.subtreeRepository = subtreeRepository;
         this.broadcastPublisher = broadcastPublisher;
-        this.kcRequestPublisher = kcRequestPublisher;
+        this.moveQueue = moveQueue;
     }
 
     @Override
@@ -194,22 +209,38 @@ public class EnyManService  extends AEnyManService {
             if (permitted) {
                 ret = orgService.esquireCommandNew(k, parentId, cmd, fields, rootPath, uid, roles);
                 publishEntityEvent(ret, k, EsqMsgConstants.EVENT_CREATE, requestId, correlationId, fields);
+                submitReconcileIfInMove(ret, k, parentId, fields);
             }
         } else if (eek.isUsr()) {
             if (permitted) {
                 ret = usrService.esquireCommandNew(k, parentId, cmd, fields, rootPath, uid, roles);
                 publishEntityEvent(ret, k, EsqMsgConstants.EVENT_CREATE, requestId, correlationId, fields);
+                submitReconcileIfInMove(ret, k, parentId, fields);
             }
         } else if (eek.isAcct()) {
             if (permitted) {
                 ret = acctService.esquireCommandNew(k, parentId, cmd, fields, rootPath, uid, roles);
                 publishEntityEvent(ret, k, EsqMsgConstants.EVENT_CREATE, requestId, correlationId, fields);
+                submitReconcileIfInMove(ret, k, parentId, fields);
             }
         }
         if (ret == null && !permitted) {
             throw new PermissionDeniedException(eek.getTitle(), "create");
         }
         return ret;
+    }
+
+    // v1.2.6 Goal 3: when a move is in flight, enqueue a path-reconciliation task for the
+    // CREATE we just broadcast. The worker will re-read the parent path on its turn and emit
+    // an EVENT_UPDATE_PATH to bizTree if it sees drift. Gated by the validateCreateDuringMove
+    // toggle so the race-8b sim can flip the fix off and prove the race still fires.
+    private void submitReconcileIfInMove(EsqEntity entity, int kind, String parentId, Map<String, Object> fields) {
+        if (entity == null || !validateCreateDuringMove || !moveQueue.inMove()) {
+            return;
+        }
+        Object pathObj = (fields != null) ? fields.get(EsqMsgConstants.TEXT_PATH) : null;
+        String pathAtPublish = (pathObj instanceof String s) ? s : null;
+        moveQueue.submitReconcile(new CreateReconcileItem(entity.getId(), kind, parentId, pathAtPublish));
     }
 
     @Override
@@ -243,6 +274,9 @@ public class EnyManService  extends AEnyManService {
 
     @Override
     public List<EsqMoveRecord> esquireCommandMove(int kind, String id, String distId, String rootPath, String uid, List<String> roles) {
+        // v1.2.6 Goal 3: pre-checks stay on the request thread; actual move work happens on the
+        // move-queue worker thread. Method returns null because the records are no longer surfaced
+        // to the caller -- /esq-move's controller returns 202 Accepted at submit time.
         EsqObjectKind eek = EsqObjectKindStorage.getInstance().get(kind);
         int k = eek.getId();
         if (!eek.isOrg() && !eek.isUsr()) {
@@ -266,7 +300,6 @@ public class EnyManService  extends AEnyManService {
         if (destOrg == null) {
             throw new ResourceNotFoundException("esq-move", "dist_id", distId);
         }
-        //int dk = (int)Math.floor( (double) destOrg.getKind()/2 ) * 2;
         boolean destPermitted = false;
         if (permissions != null) {
             destPermitted = EsqRolesStorage.getInstance().isAdminCmdPermitted(
@@ -277,22 +310,14 @@ public class EnyManService  extends AEnyManService {
         if (!destPermitted) {
             throw new PermissionDeniedException(destOrg.getName(), "move target");
         }
-        // Capture trace context before delegate call (still on request thread)
+        // Pre-checks passed -- hand the command to the move queue. Counter increments here so a
+        // CREATE that runs the next instant already sees inMove() == true.
         String requestId     = RequestContextUtils.getRequestId();
         String correlationId = RequestContextUtils.getCorrelationId();
-        List<EsqMoveRecord> records;
-        if (eek.isOrg()) {
-            records = orgService.esquireCommandMove(k, id, distId, rootPath, uid, roles);
-        } else {
-            records = usrService.esquireCommandMove(k, id, distId, rootPath, uid, roles);
-        }
-        // publish outside DB transaction (transaction already committed by service)
-        for (EsqMoveRecord r : records) {
-            devLog.debug("esquireCommandMove: publish move event reqId={}, r={}", requestId, r);
-            publishMoveEvent(r, requestId, correlationId);
-            publishKcMoveRequest(r, requestId, correlationId);
-        }
-        return records;
+        moveQueue.submitMove(new MoveCommandItem(k, id, distId, rootPath, uid, roles, requestId, correlationId));
+        devLog.debug("esquireCommandMove: submitted to move queue (kind={}, id={}, distId={}, queueSize={})",
+                k, id, distId, moveQueue.queueSize());
+        return null;
     }
 
     // Broadcast UPDATE only when fields that affect the entity's public identity or status change.
@@ -305,41 +330,9 @@ public class EnyManService  extends AEnyManService {
                                || fields.containsKey(EsqMsgConstants.TEXT_DELETED));
     }
 
-    private void publishMoveEvent(EsqMoveRecord record, String requestId, String correlationId) {
-        Map<String, Object> text = new java.util.LinkedHashMap<>();
-        text.put(EsqMsgConstants.TEXT_ID,   record.getId());
-        text.put(EsqMsgConstants.TEXT_KIND, record.getKind());
-        text.put(EsqMsgConstants.TEXT_PATH, record.getPath());
-        try {
-            broadcastPublisher.publish(record.getKind(), record.getId(), EsqMsgConstants.EVENT_UPDATE_PATH,
-                    requestId, correlationId, text);
-        } catch (Exception e) {
-            log.error("publishMoveEvent: broadcast failed for kind={}, id={}: {}", record.getKind(), record.getId(), e.getMessage());
-            devLog.error("publishMoveEvent: broadcast failed for kind={}, id={}, requestId={}, correlationId={}: {}",
-                    record.getKind(), record.getId(), requestId, correlationId, e.getMessage(), e);
-        }
-    }
-
-    // Sends a KC URQ (EVENT_UPDATE_PATH) only for USR entities — only USRs have a KC identity.
-    // ORG and ACCT move events are ignored here; bizTree handles them via broadcast.
-    private void publishKcMoveRequest(EsqMoveRecord record, String requestId, String correlationId) {
-
-        pro.mir0n.esquire.backend.dto.EsqObjectKind eek = EsqObjectKindStorage.getInstance().get(record.getKind());
-        if (eek.isUsr()) {
-            try {
-                kcRequestPublisher.publishPathUpdate(record.getId(), record.getKind(), record.getPath(),
-                        requestId, correlationId);
-            } catch (Exception e) {
-                log.error("publishKcMoveRequest: failed for id={}: {}", record.getId(), e.getMessage());
-                devLog.error("publishKcMoveRequest: failed for id={}, requestId={}, correlationId={}: {}",
-                        record.getId(), requestId, correlationId, e.getMessage(), e);
-            }
-        } else {
-            devLog.debug("publishKcMoveRequest: skip move request for kind={}, id={}, requestId={}, correlationId={}",
-                    record.getKind(), record.getId(), requestId, correlationId);
-
-        }
-    }
+    // publishMoveEvent and publishKcMoveRequest moved into MoveQueueManager (v1.2.6 Goal 3):
+    // only the move-queue worker thread emits move broadcasts now, since the /esq-move
+    // request thread returns 202 Accepted at submit time without running the move itself.
 
     private void publishDeleteEvent(String id, int entityKind, String eventType,
                                     String requestId, String correlationId) {

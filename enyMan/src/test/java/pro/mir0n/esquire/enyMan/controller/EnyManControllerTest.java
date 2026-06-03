@@ -186,19 +186,21 @@ class EnyManControllerTest {
     }
 
     // ---- esquireCommandMove ----
+    // v1.2.6 Goal 3: /esq-move is async-ack -- handler submits to the move queue and returns
+    // 202 Accepted (was 200 OK). Body stays Void.
 
     @Test
-    @DisplayName("esquireCommandMove: extracts roles, delegates, returns 200")
-    void esquireCommandMove_extractsRolesAndDelegates_returnsOk() {
+    @DisplayName("esquireCommandMove: extracts roles, delegates, returns 202 Accepted")
+    void esquireCommandMove_extractsRolesAndDelegates_returnsAccepted() {
         when(claims.get(EsqConstants.JWT_CLAIM_ENTITY_ROOTPATH, String.class)).thenReturn("1.2.3");
         when(claims.get(EsqConstants.JWT_CLAIM_ENTITY_ID, String.class)).thenReturn("5");
         Map<String, Object> realmAccess = Map.of(EsqConstants.JWT_CLAIM_REALM_ACCESS_ROLES, List.of("admin"));
         when(claims.get(EsqConstants.JWT_CLAIM_REALM_ACCESS, Map.class)).thenReturn(realmAccess);
-        when(service.esquireCommandMove(10, "100", "200", "1.2.3", "5", List.of("admin"))).thenReturn(List.of());
+        when(service.esquireCommandMove(10, "100", "200", "1.2.3", "5", List.of("admin"))).thenReturn(null);
 
         ResponseEntity<Void> response = controller.esquireCommandMove(10, "100", "200", claims);
 
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.ACCEPTED);
         verify(service).esquireCommandMove(10, "100", "200", "1.2.3", "5", List.of("admin"));
     }
 
