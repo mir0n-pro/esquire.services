@@ -1,6 +1,10 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v1.2.7-2606.0318  v1.2.7 -- audit-trigger decoupling: account funded-date moved to the service
+    :Refactoring: account funded-date is stamped by pacMan on the balance update
+    Components:   pacMan
+
 v1.2.6-2606.0220  v1.2.6 -- bizTree work-batching + Oracle / pacMan fixes
     :Feature:     bizTree applies a backlog of cache-update events in ONE transaction once the monad queue
                   passes a threshold -- about 3x broadcast-apply throughput under a move-cascade flood

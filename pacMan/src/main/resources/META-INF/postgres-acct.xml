@@ -57,6 +57,7 @@
         <query>
  UPDATE esq_account
  SET acc_balance = CAST(:balance AS numeric)
+    ,acc_funded_dt = COALESCE(acc_funded_dt, CURRENT_TIMESTAMP)
     ,acc_crl_id  = :correlationId
     ,acc_req_id  = :requestId
     ,acc_uid     = :uid
