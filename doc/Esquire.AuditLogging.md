@@ -39,11 +39,12 @@ not *the* option.
 
 ## 2. The design seam
 
-All four options sit behind a single audit-logging strategy (an SPI / `IAuditLogger`-style
-interface), selected by configuration or Spring profile. This is the same shape Esquire
-already uses for swappable concerns — the Taijitu cache behind `IBizTreeCacheRepository`, the
-TokenRelay strategies behind one filter. The entity services (enyMan, pacMan) emit a uniform
-**audit event** through the seam and stay ignorant of where it lands.
+The app-side outcomes — **0** (no store), **b**, **c**, **d** — sit behind a single audit-logging
+strategy (an SPI / `IAuditLogger`-style interface), selected by configuration or Spring profile.
+(The database-side options — **a** triggers and **e** CDC — capture below the app and never touch
+the seam.) This is the same shape Esquire already uses for swappable concerns — the Taijitu cache
+behind `IBizTreeCacheRepository`, the TokenRelay strategies behind one filter. The entity services
+(enyMan, pacMan) emit a uniform **audit event** through the seam and stay ignorant of where it lands.
 
 ```
   entity mutation (enyMan / pacMan)
@@ -54,14 +55,14 @@ TokenRelay strategies behind one filter. The entity services (enyMan, pacMan) em
             |
    +--------+--------+--------+--------+
    |        |        |        |
-   f) none  b) JPA   c) Rod   d) stream
+   0) none  b) JPA   c) Rod   d) stream
    (off)    -> logDB -> bus    -> Redis
 ```
 
-(Options (a) and (e) are database-side capture and never touch the seam. (f)/(b)/(c)/(d) are the
-app-side outcomes behind it — (f) persists nothing (the change is just broadcast + DEBUG-traceable
+(Options (a) and (e) are database-side capture and never touch the seam. (0)/(b)/(c)/(d) are the
+app-side outcomes behind it — (0) persists nothing (the change is just broadcast + DEBUG-traceable
 on the Rod path; request-level INFO logging is the only standing trace), the others persist it. The
-change is already broadcast, so (c) is simply (f) plus a Rod consumer that lands it in SQL.)
+change is already broadcast, so (c) is simply (0) plus a Rod consumer that lands it in SQL.)
 
 *(open)* Single active strategy vs. several in parallel — should a deployment be allowed to
 run, say, sync-DB **and** Redis-stream at once (belt-and-suspenders)? Default assumption: one
@@ -69,10 +70,34 @@ active strategy per deployment, but the seam should not forbid composition.
 
 ---
 
-## 3. The four options
+## 3. The options
 
-A spectrum from *tightly coupled / synchronous / same DB* to *decoupled / asynchronous /
-separate store / non-SQL*.
+Two questions, in order. **First — do you persist a data-delta audit at all?** Option **0** says
+no. **If yes — how?** Options **a–e** are a spectrum from *tightly coupled / synchronous / same DB*
+to *decoupled / asynchronous / separate store / non-SQL*.
+
+### 0) No audit store — *"persist nothing"* (baseline / default)
+
+- **Where:** nowhere. No audit table, no Rod, no stream, no fan-out. The entity change still rides
+  the existing entity-broadcast bus (bizTree and friends already consume it), but nothing persists
+  it for audit.
+- **Visibility:** two levels, both already present. At **INFO**, the existing **request IN/OUT
+  logging** records every operation at the request boundary — who called which command, when —
+  which for many deployments is trail enough. At **DEBUG**, the entity-change detail (before /
+  after) is logged only to *debug the xy/xx-Rod*. We deliberately do **not** INFO-log
+  entity-update payloads: at frequent-update volume that floods the logs, and a log line is not a
+  queryable or retained audit record anyway.
+- **Strengths:** zero audit cost and coupling — the simplest possible state; removes the trigger
+  write amplification outright.
+- **Costs:** no dedicated audit store — no SQL-queryable record of *what changed* (before /
+  after), no retention beyond the log pipeline. The request-level INFO log is the only standing
+  trace; fine where that suffices, but not a data-delta audit trail.
+- **Stance (Esquire): the no-store baseline (request-log only), and the natural first build
+  step.** Get the decoupled change event flowing (DEBUG-traceable, nothing stored), then (c) adds
+  the Rod → SQL sink for deployments that need a real, queryable audit trail. Since the change is
+  already broadcast, (c) is just "(0) plus a consumer."
+
+### If you persist — how (a–e)
 
 ### a) Local Sync Logging — *"in place, in transaction"*
 
@@ -154,59 +179,38 @@ separate store / non-SQL*.
   the bus-fanned Rod write (c) with a redo-log tail. We are **not** implementing it; if that need
   ever becomes real, CDC is how to get the stream without paying app or bus cost.
 
-### f) No audit store — *"delete the triggers, persist nothing"*
-
-- **Where:** nowhere. No audit table, no Rod, no stream, no fan-out. The entity change still rides
-  the existing entity-broadcast bus (bizTree and friends already consume it), but nothing persists
-  it for audit.
-- **Visibility:** two levels, both already present. At **INFO**, the existing **request IN/OUT
-  logging** records every operation at the request boundary — who called which command, when —
-  which for many deployments is trail enough. At **DEBUG**, the entity-change detail (before /
-  after) is logged only to *debug the xy/xx-Rod*. We deliberately do **not** INFO-log
-  entity-update payloads: at frequent-update volume that floods the logs, and a log line is not a
-  queryable or retained audit record anyway.
-- **Strengths:** zero audit cost and coupling — the simplest possible state; removes the trigger
-  write amplification outright.
-- **Costs:** no dedicated audit store — no SQL-queryable record of *what changed* (before /
-  after), no retention beyond the log pipeline. The request-level INFO log is the only standing
-  trace; fine where that suffices, but not a data-delta audit trail.
-- **Stance (Esquire): the no-store baseline (request-log only), and the natural first build
-  step.** Get the decoupled change event flowing (DEBUG-traceable, nothing stored), then (c) adds
-  the Rod → SQL sink for deployments that need a real, queryable audit trail. Since the change is
-  already broadcast, (c) is just "(f) plus a consumer."
-
 ### Comparison
 
 | Option | Store | Filled by | Sync? | New infra | Integrity | Decoupling |
 |---|---|---|---|---|---|---|
+| **0** No audit store | none (request INFO log only) | nothing — broadcast + DEBUG trace | n/a | none | none (request-level only) | high |
 | **a** Local Sync | operational DB | DB triggers | sync | none | highest | lowest |
 | **b** Local Async | log DB | originating service (JPA) | async | log DB | high (outbox) | medium |
 | **c** Distributed (xx-Rod) | log DB | xx-Rod consumer (bus) | async | log DB + Rod | medium | high |
 | **d** Streamed Doc | Redis | stream consumer | async | Redis + Rod | medium | highest |
 | **e** Log-based CDC | any sink | DB redo log (Debezium / LogMiner) | async | connector + stream + sink | medium | highest (no app coupling) |
-| **f** No audit store | none (request INFO log only) | nothing — broadcast + DEBUG trace | n/a | none | none (request-level only) | high |
 
 **Whose decision this is.** The framework's responsibility ends at **emitting / broadcasting the
 entity-change event** and logging each operation at the request boundary (INFO request IN/OUT).
 *Whether and how to persist an audit trail is the deploying user's decision*, sized to their own
-compliance, reporting, and retention needs: leave it at the request log with no store (f), persist
+compliance, reporting, and retention needs: leave it at the request log with no store (0), persist
 it to a queryable SQL store (a / c), stream it (d), or capture it out-of-band with CDC (e). Esquire
 ships the mechanism and a sensible default — not a mandate that every deployment keep a relational
 audit trail.
 
 **Esquire's own path** is phased, not a single pick:
 1. **(a) today** — triggers, unchanged.
-2. **(f) decouple** — delete the triggers; the change is still broadcast and every operation is
+2. **(0) decouple** — delete the triggers; the change is still broadcast and every operation is
    already on the INFO request log, with entity-delta detail at DEBUG for Rod work. Removes the
    coupling + write amplification immediately; persists no data-delta store.
 3. **(c) when a queryable audit trail is required** — add a Rod consumer that lands those same
    events in an RDBMS log store: SQL-queryable, retained, decoupled; growth handled with time-based
    partitioning + retention, not by leaving SQL.
 
-(b) stays non-recommended (app CPU for no gain); (d) and (e) remain out-of-scope alternatives.
-Because (f) and (c) share the producer, this is **one path in two phases**, not two designs — and
-the deciding factor for whether to go past (f) is whether *this* deployment needs relational audit
-reporting, which is the user's call.
+The other options sit off this path: (b) is possible but not recommended, (d) and (e) are
+out-of-scope alternatives. And (0) → (c) is **one path in two phases, not two designs** — they
+share the same producer, so step 3 only *adds* the xx consumer and its SQL sink to step 2. A
+deployment takes that step exactly when it needs a queryable, relational audit trail.
 
 ### Measured cost of option (a) — what triggers actually cost (Postgres, 2026-06-03)
 
