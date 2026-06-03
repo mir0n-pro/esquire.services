@@ -1,6 +1,16 @@
 Esquire BizTree Microservice
 
 
+06/02/2026 mir0n  v1.2.6 -- batched cache transaction for the monad event drain
+taijitu.Monad
+  - _processItems(List<QueueItem>) override: wraps the event batch in ONE cache transaction via an injected
+    TransactionTemplate (cacheTx); a null cacheTx falls back to super (one-by-one). ctor takes the TransactionTemplate
+h2.BizTreeH2Config
+  - cacheTransactionTemplate bean: DataSourceTransactionManager over the cacheJdbcTemplate DataSource
+access.BizTreeDirectorConfig
+  - cacheTransactionTemplate injected into both Monads; biztree.queue.bulk-threshold @Value (default 10) applied
+    to each monad via setBulkThreshold
+
 06/02/2026 mir0n  v1.2.6 Goal 3 -- broadcast skip-path made visible
 access.MessageHandlerHub
   - dispatch(): no-handler and null-textNode skips split into two guarded branches, each logged via

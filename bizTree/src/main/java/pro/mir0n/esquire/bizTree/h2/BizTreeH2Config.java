@@ -15,10 +15,13 @@
  *                   CacheSqlSet.forTable (biztree.cache.table, default ESQ_TREE);
  *                   cacheJdbcTemplate + DDL executed from the resolved set
  * 05/23/2026 mir0n  wired the clear-all + checksum SQL properties into BizTreeCacheSql.Repo
+ * 06/02/2026 mir0n  cacheTransactionTemplate bean (DataSourceTransactionManager over the cache
+ *                   DataSource) so the monad can batch event applies in one transaction
  */
 package pro.mir0n.esquire.bizTree.h2;
 
 import com.zaxxer.hikari.HikariDataSource;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -26,6 +29,8 @@ import org.springframework.context.annotation.Profile;
 import org.springframework.context.annotation.PropertySource;
 import org.springframework.core.env.Environment;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.datasource.DataSourceTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 import pro.mir0n.esquire.bizTree.cache.BizTreeCacheSql;
 import pro.mir0n.esquire.bizTree.cache.CacheSqlSet;
 
@@ -113,5 +118,17 @@ public class BizTreeH2Config {
         jt.execute(sql.createIndexParent());
         jt.execute(sql.createIndexEntityPk());
         return jt;
+    }
+
+    /**
+     * Transaction template over the cache DataSource. The monad's bulk worker uses it to apply a
+     * batch of broadcast events in ONE transaction (one commit instead of one-per-event) -- the
+     * cacheJdbcTemplate writes inside join the thread-bound connection via Spring datasource
+     * synchronization. Bound to the SAME DataSource the cacheJdbcTemplate uses; safe for both monads
+     * since the synchronization is thread-bound and each monad drains on its own worker thread.
+     */
+    @Bean
+    public TransactionTemplate cacheTransactionTemplate(@Qualifier("cacheJdbcTemplate") JdbcTemplate cacheJdbcTemplate) {
+        return new TransactionTemplate(new DataSourceTransactionManager(cacheJdbcTemplate.getDataSource()));
     }
 }

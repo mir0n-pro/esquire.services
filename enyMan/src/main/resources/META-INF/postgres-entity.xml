@@ -414,9 +414,14 @@ VALUES (CAST(:id AS bigint), :kind, CAST(:adPk AS bigint), CAST(:bizAdPk AS bigi
         </query>
     </named-native-query>
 
+    <!-- v1.2.6 Goal 3: parents-first ORDER BY length(ep_path) so the EVENT_UPDATE_PATH
+         broadcast emits ancestor rows before descendant rows. bizTree's per-node move
+         handlers derive a descendant's tree_path from the cached state of the immediate
+         parent at message-process time, so a child arriving before its parent picks up
+         a stale folder_path and the cache diverges. -->
     <named-native-query name="EsqOrgJpa.listMovedPaths" result-set-mapping="EsqEntityPathRaw">
         <query>
- SELECT ep_pk, ep_et_pk, ep_path FROM esq_entity_path WHERE ep_path LIKE :newPath || '%'
+ SELECT ep_pk, ep_et_pk, ep_path FROM esq_entity_path WHERE ep_path LIKE :newPath || '%' ORDER BY length(ep_path)
         </query>
     </named-native-query>
 

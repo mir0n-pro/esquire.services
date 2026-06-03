@@ -1,6 +1,23 @@
 mir0n java common frameworks -- pro.mir0n.utils
 
 
+06/02/2026 mir0n  v1.2.6 -- bulk processing on the queue rig + monad
+concurrent.IQueueRig
+  - IQueueListWorker (extends IQueueWorker): List<E> process(ArrayList<E>, ISignaler) returning the unprocessed remainder
+  - ISignaler: isRunning / isProcessing / shouldContinue (read-only run/process view)
+  - IListErrorListener (extends IErrorListener): List<E> onError(Throwable, ArrayList<E>) -- null = stop the bulk
+  - put(Collection<E>) and setBulkThreshold(int) default methods added
+concurrent.BoundedQueueRig
+  - bulk drain: when the worker is an IQueueListWorker and backlog > bulkThreshold (default 10), the whole deque
+    is snapshot into one ArrayList and passed to process(ArrayList, signaler); the returned remainder is re-queued
+    to the front; a thrown bulk is routed to the IListErrorListener (null/empty = stop, else re-run the continuation)
+  - run / process state read through an ISignaler (processing made volatile); setBulkThreshold(int);
+    LoggingErrorListener now implements IListErrorListener
+taijitu.AMonadY
+  - inner MonadWorker (IQueueListWorker) replaces the method-ref worker; processBatch accumulates consecutive
+    events and flushes _processItems(List) before any command (arrival order preserved), capped at eventBatchMax
+  - _processItems(List) default loops _processItem; setEventBatchMax / setBulkThreshold added
+
 06/02/2026 mir0n  v1.2.6 Goal 3 -- non-blocking tryPut on the queue rig
 concurrent.IQueueRig
   - tryPut(E) default method enabled (was commented out); delegates to put(E) and returns true

@@ -29,6 +29,10 @@
  *                   submitCommand + the new resultCommand(timeoutMs) (block on the gate, cancel the
  *                   registered cancelable + grace-wait on a positive timeout). Removed dead NOOP_CANCEL;
  *                   unknown-command log demoted devLog.warn -> devLog.debug.
+ * 06/02/2026 mir0n  bulk worker: inner MonadWorker implements IQueueListWorker; processBatch accumulates
+ *                   consecutive events and flushes _processItems before any command (arrival order kept),
+ *                   capped at eventBatchMax; setBulkThreshold delegates to the rig; default _processItems
+ *                   loops _processItem
  */
 package pro.mir0n.utils.taijitu;
 
@@ -36,6 +40,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import pro.mir0n.utils.concurrent.BoundedQueueRig;
 import pro.mir0n.utils.concurrent.IQueueRig;
+
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * The controlled cache monad. A single FIFO queue ({@link QueueItem}) drained by a single
@@ -76,10 +83,26 @@ public abstract class AMonadY implements IMonad {
     /** Monitor + result slot for a synchronous {@link #doCommand}. */
     protected final CommandGate commandGate = new CommandGate(); // we reuse the same instance: we cannot run more than one command simultaneously
 
+    /** Cap on how many events go into ONE _processItems transaction. A bulk larger than this is
+     *  flushed in several transactions (the "one or several" the design allows) so a single tx never
+     *  grows unbounded. Internal tuning. */
+    private static final int DEFAULT_EVENT_BATCH_MAX = 1024;
+    private volatile int eventBatchMax = DEFAULT_EVENT_BATCH_MAX;
+
+    public void setEventBatchMax(int n) {
+        this.eventBatchMax = n;
+    }
+
+    /** Backlog size above which the worker batches events (vs one-by-one). Set very high to force
+     *  one-by-one processing -- used to A/B the batched-transaction win. */
+    public void setBulkThreshold(int n) {
+        rig.setBulkThreshold(n);
+    }
+
     protected AMonadY(String monadId, int queueCapacity) {
         this.name          = monadId;
         this.queueCapacity = queueCapacity;
-        this.rig           = new BoundedQueueRig<>(this::processItem);
+        this.rig           = new BoundedQueueRig<>(new MonadWorker());
     }
 
     /* ==================================================================== */
@@ -93,6 +116,19 @@ public abstract class AMonadY implements IMonad {
      * (e.g. a digest); LOAD / CLEAR / messages return value is ignored.
      */
     protected abstract String _processItem(QueueItem item);
+
+    /**
+     * Bulk hook: apply a batch of EVENTS (never commands -- the batcher flushes before any command).
+     * Default loops {@link #_processItem} with no transaction grouping. A subclass that owns a
+     * transaction seam OVERRIDES this to wrap the whole batch in ONE transaction (the throughput win
+     * under a flood of events). A Throwable must propagate -- the rig routes the full bulk to the
+     * list error listener (which, for an anti-entropy cache, simply stops the bulk; the sweep heals).
+     */
+    protected void _processItems(List<QueueItem> events) {
+        for (int i = 0; i < events.size(); i++) {
+            _processItem(events.get(i));
+        }
+    }
 
     /* ==================================================================== */
     /* Public API -- lifecycle                                              */
@@ -235,6 +271,57 @@ public abstract class AMonadY implements IMonad {
             handleCommand(item);
         } else {
             _processItem(item);                        // message -> subclass cache work
+        }
+    }
+
+    /**
+     * The rig worker. The single-item path is the original {@link #processItem}; the bulk path
+     * (used once the backlog passes the rig's threshold) batches CONSECUTIVE events into one
+     * {@link #_processItems} call -- but FLUSHES the accumulated events before any command, so a
+     * command never reorders relative to the events around it (commands and events share the queue
+     * in arrival order). Commands still run one at a time through {@link #handleCommand}.
+     */
+    private class MonadWorker implements IQueueRig.IQueueListWorker<QueueItem> {
+        @Override
+        public void process(QueueItem item) {
+            processItem(item);
+        }
+        @Override
+        public List<QueueItem> process(ArrayList<QueueItem> items, IQueueRig.ISignaler signaler) {
+            return processBatch(items, signaler);
+        }
+    }
+
+    private List<QueueItem> processBatch(ArrayList<QueueItem> items, IQueueRig.ISignaler signaler) {
+        List<QueueItem> events = new ArrayList<>();
+        int n = items.size();
+        for (int i = 0; i < n; i++) {
+            if (!signaler.shouldContinue()) {
+                // Gate closed / shutting down: commit what we accumulated, hand back the rest so the
+                // rig re-queues it (resumes from here when processing is re-enabled).
+                flushEvents(events);
+                return new ArrayList<>(items.subList(i, n));
+            }
+            QueueItem item = items.get(i);
+            if (MonadCmd.CMD == item.eventType()) {
+                flushEvents(events);     // events before the command commit first -- order preserved
+                handleCommand(item);     // a command runs individually (status machine + gate)
+            } else {
+                events.add(item);
+                if (events.size() >= eventBatchMax) {
+                    flushEvents(events); // cap the transaction size -- one of several
+                }
+            }
+        }
+        flushEvents(events);
+        return null;                     // all processed
+    }
+
+    /** Commit one accumulated run of events through {@link #_processItems} (one transaction) and reset. */
+    private void flushEvents(List<QueueItem> events) {
+        if (!events.isEmpty()) {
+            _processItems(events);
+            events.clear();
         }
     }
 

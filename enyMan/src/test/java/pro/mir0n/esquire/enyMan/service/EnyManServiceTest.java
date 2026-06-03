@@ -32,7 +32,8 @@ import pro.mir0n.esquire.enyMan.jpa.EsqSubtreeRow;
 import pro.mir0n.esquire.enyMan.jpa.EsqUsrRepository;
 import pro.mir0n.esquire.backend.dto.EsqTreeNode;
 import pro.mir0n.esquire.enyMan.messaging.EsqEntityBroadcastPublisher;
-import pro.mir0n.esquire.enyMan.messaging.KcRequestPublisher;
+import pro.mir0n.esquire.enyMan.queue.MoveCommandItem;
+import pro.mir0n.esquire.enyMan.queue.MoveQueueManager;
 import pro.mir0n.esquire.enyMan.service.impl.EnyManService;
 
 import java.util.List;
@@ -85,7 +86,7 @@ class EnyManServiceTest {
     private EsqEntityBroadcastPublisher broadcastPublisher;
 
     @Mock
-    private KcRequestPublisher kcRequestPublisher;
+    private MoveQueueManager moveQueue;
 
     private EnyManService service;
 
@@ -145,7 +146,7 @@ class EnyManServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new EnyManService(dictRepo, orgRepo, usrRepo, acctRepo, subtreeRepo, transactionTemplate, em, broadcastPublisher, kcRequestPublisher);
+        service = new EnyManService(dictRepo, orgRepo, usrRepo, acctRepo, subtreeRepo, transactionTemplate, em, broadcastPublisher, moveQueue);
     }
 
     // ---- esquireCommandSave: org kind, null roles → PermissionDeniedException ----
@@ -494,234 +495,43 @@ class EnyManServiceTest {
         ).isInstanceOf(PermissionDeniedException.class);
     }
 
-    // ---- esquireCommandMove: org behavioural ----
+    // ---- esquireCommandMove: submit-to-queue contract (v1.2.6 Goal 3) ----
+    // Pre-checks still run on the request thread. The actual move execution + broadcasts
+    // happen on the move-queue worker (covered separately by MoveQueueManagerTest); here we
+    // verify only that pre-checks pass through to a moveQueue.submitMove call with the right
+    // item shape. Worker-side behavioural tests (moveOrgPaths/moveUsrPaths ordering, KC URQ
+    // emission, same-parent skip, descendant guard) were exercised here pre-Goal-3 -- they
+    // now live as integration coverage in the hauberk move-smoke + race-move-create sims.
 
     @Test
-    @DisplayName("esquireCommandMove: org — skip when distId equals current parentId")
-    void esquireCommandMove_org_sameParent_skipsMove() {
+    @DisplayName("esquireCommandMove: pre-checks pass -> moveQueue.submitMove called with item carrying request params")
+    void esquireCommandMove_submitsToMoveQueue() {
         EsqOrgJpa destOrg = new EsqOrgJpa();
         destOrg.setId("200");
         destOrg.setKind(20);
         when(orgRepo.detailOrg("200", "1.")).thenReturn(destOrg);
-
-        EsqOrgJpa org = new EsqOrgJpa();
-        org.setId("100");
-        org.setParentId("200"); // already at destination
-        when(transactionTemplate.execute(any())).thenAnswer(inv -> {
-            inv.<org.springframework.transaction.support.TransactionCallback<?>>getArgument(0).doInTransaction(null);
-            return null;
-        });
-        when(orgRepo.detailOrgForUpdate("100", "1.")).thenReturn(org);
 
         service.esquireCommandMove(20, "100", "200", "1.", "99", List.of(ROLE_ADMIN));
 
-        verify(orgRepo, never()).moveOrgPaths(anyString(), anyString());
+        org.mockito.ArgumentCaptor<MoveCommandItem> capt = org.mockito.ArgumentCaptor.forClass(MoveCommandItem.class);
+        verify(moveQueue).submitMove(capt.capture());
+        MoveCommandItem item = capt.getValue();
+        assertThat(item.kind()).isEqualTo(20);
+        assertThat(item.id()).isEqualTo("100");
+        assertThat(item.distId()).isEqualTo("200");
+        assertThat(item.rootPath()).isEqualTo("1.");
+        assertThat(item.uid()).isEqualTo("99");
+        assertThat(item.roles()).containsExactly(ROLE_ADMIN);
     }
 
     @Test
-    @DisplayName("esquireCommandMove: org — descendant guard → PermissionDeniedException")
-    void esquireCommandMove_org_descendantGuard_throwsPermissionDeniedException() {
-        EsqOrgJpa destOrg = new EsqOrgJpa();
-        destOrg.setId("200");
-        destOrg.setKind(20);
-        when(orgRepo.detailOrg("200", "1.")).thenReturn(destOrg);
-
-        EsqOrgJpa org = new EsqOrgJpa();
-        org.setId("100");
-        org.setParentId("5");
-        when(transactionTemplate.execute(any())).thenAnswer(inv -> {
-            inv.<org.springframework.transaction.support.TransactionCallback<?>>getArgument(0).doInTransaction(null);
-            return null;
-        });
-        when(orgRepo.detailOrgForUpdate("100", "1.")).thenReturn(org);
-        when(orgRepo.orgPath("100", "1.")).thenReturn("1.100.");
-        when(orgRepo.orgPath("200", "1.")).thenReturn("1.100.200."); // dest is under moving org
-
+    @DisplayName("esquireCommandMove: pre-checks fail -> moveQueue.submitMove NOT called")
+    void esquireCommandMove_preCheckFails_doesNotSubmit() {
         assertThatThrownBy(() ->
-            service.esquireCommandMove(20, "100", "200", "1.", "99", List.of(ROLE_ADMIN))
+            service.esquireCommandMove(20, "100", "200", "1.", "99", null)
         ).isInstanceOf(PermissionDeniedException.class);
-    }
 
-    @Test
-    @DisplayName("esquireCommandMove: org — moveOrgPaths called before moveOrgParent")
-    void esquireCommandMove_org_moveOrgPaths_beforeMoveOrgParent() {
-        EsqOrgJpa destOrg = new EsqOrgJpa();
-        destOrg.setId("200");
-        destOrg.setKind(20);
-        when(orgRepo.detailOrg("200", "1.")).thenReturn(destOrg);
-
-        EsqOrgJpa org = new EsqOrgJpa();
-        org.setId("100");
-        org.setParentId("5");
-        when(transactionTemplate.execute(any())).thenAnswer(inv -> {
-            inv.<org.springframework.transaction.support.TransactionCallback<?>>getArgument(0).doInTransaction(null);
-            return null;
-        });
-        when(orgRepo.detailOrgForUpdate("100", "1.")).thenReturn(org);
-        when(orgRepo.orgPath("100", "1.")).thenReturn("1.5.100.");
-        when(orgRepo.orgPath("200", "1.")).thenReturn("1.9.200.");
-        when(orgRepo.listMovedPaths(anyString())).thenReturn(List.of());
-
-        service.esquireCommandMove(20, "100", "200", "1.", "99", List.of(ROLE_ADMIN));
-
-        InOrder order = inOrder(orgRepo);
-        order.verify(orgRepo).moveOrgPaths(anyString(), anyString());
-        order.verify(orgRepo).listMovedPaths(anyString());
-        order.verify(orgRepo).moveOrgParent(anyString(), anyString(), any(), any(), any());
-    }
-
-    // ---- esquireCommandMove: usr behavioural ----
-
-    @Test
-    @DisplayName("esquireCommandMove: usr — skip when distId equals current parentId")
-    void esquireCommandMove_usr_sameParent_skipsMove() {
-        EsqOrgJpa destOrg = new EsqOrgJpa();
-        destOrg.setId("200");
-        destOrg.setKind(20);
-        when(orgRepo.detailOrg("200", "1.")).thenReturn(destOrg);
-
-        EsqUsrJpa usr = new EsqUsrJpa();
-        usr.setId("100");
-        usr.setParentId("200"); // already at destination
-        when(transactionTemplate.execute(any())).thenAnswer(inv -> {
-            inv.<org.springframework.transaction.support.TransactionCallback<?>>getArgument(0).doInTransaction(null);
-            return null;
-        });
-        when(usrRepo.detailUsrForUpdate("100", "1.")).thenReturn(usr);
-
-        service.esquireCommandMove(32, "100", "200", "1.", "99", List.of(ROLE_ADMIN));
-
-        verify(usrRepo, never()).moveUsrPaths(anyString(), anyString());
-    }
-
-    @Test
-    @DisplayName("esquireCommandMove: usr admin — moveAdminPath called before moveUsrParent")
-    void esquireCommandMove_usr_moveAdminPath_beforeMoveUsrParent() {
-        EsqOrgJpa destOrg = new EsqOrgJpa();
-        destOrg.setId("200");
-        destOrg.setKind(20);
-        when(orgRepo.detailOrg("200", "1.")).thenReturn(destOrg);
-
-        EsqUsrJpa usr = new EsqUsrJpa();
-        usr.setId("100");
-        usr.setParentId("5");
-        usr.setKind(32);
-        when(transactionTemplate.execute(any())).thenAnswer(inv -> {
-            inv.<org.springframework.transaction.support.TransactionCallback<?>>getArgument(0).doInTransaction(null);
-            return null;
-        });
-        when(usrRepo.detailUsrForUpdate("100", "1.")).thenReturn(usr);
-        when(usrRepo.usrPath("200", "1.")).thenReturn("1.9.200.");
-
-        service.esquireCommandMove(32, "100", "200", "1.", "99", List.of(ROLE_ADMIN));
-
-        InOrder order = inOrder(usrRepo);
-        order.verify(usrRepo).moveAdminPath(eq("100"), eq("1.9.200."));
-        order.verify(usrRepo).moveUsrParent(anyString(), anyString(), any(), any(), any());
-    }
-
-    @Test
-    @DisplayName("esquireCommandMove: usr regular — moveUsrPaths called before moveUsrParent")
-    void esquireCommandMove_usr_regular_moveUsrPaths_beforeMoveUsrParent() {
-        EsqOrgJpa destOrg = new EsqOrgJpa();
-        destOrg.setId("200");
-        destOrg.setKind(20);
-        when(orgRepo.detailOrg("200", "1.")).thenReturn(destOrg);
-
-        EsqUsrJpa usr = new EsqUsrJpa();
-        usr.setId("100");
-        usr.setParentId("5");
-        usr.setKind(34);
-        when(transactionTemplate.execute(any())).thenAnswer(inv -> {
-            inv.<org.springframework.transaction.support.TransactionCallback<?>>getArgument(0).doInTransaction(null);
-            return null;
-        });
-        when(usrRepo.detailUsrForUpdate("100", "1.")).thenReturn(usr);
-        when(usrRepo.usrPath("200", "1.")).thenReturn("1.9.200.");
-        when(usrRepo.usrPath("100", "1.")).thenReturn("1.5.100.");
-
-        service.esquireCommandMove(34, "100", "200", "1.", "99", List.of(ROLE_ADMIN));
-
-        InOrder order = inOrder(usrRepo);
-        order.verify(usrRepo).moveUsrPaths(eq("1.5.100."), eq("1.9.200.100."));
-        order.verify(usrRepo).moveUsrParent(anyString(), anyString(), any(), any(), any());
-    }
-
-    // ---- esquireCommandMove: KC URQ publisher ----
-
-    @Test
-    @DisplayName("esquireCommandMove: usr admin move — publishPathUpdate called with org path (no user pk)")
-    void esquireCommandMove_usr_publishesKcPathUpdate() {
-        EsqOrgJpa destOrg = new EsqOrgJpa();
-        destOrg.setId("200");
-        destOrg.setKind(20);
-        when(orgRepo.detailOrg("200", "1.")).thenReturn(destOrg);
-
-        EsqUsrJpa usr = new EsqUsrJpa();
-        usr.setId("100");
-        usr.setParentId("5");
-        usr.setKind(32);
-        when(transactionTemplate.execute(any())).thenAnswer(inv ->
-                inv.<org.springframework.transaction.support.TransactionCallback<?>>getArgument(0).doInTransaction(null));
-        when(usrRepo.detailUsrForUpdate("100", "1.")).thenReturn(usr);
-        when(usrRepo.usrPath("200", "1.")).thenReturn("1.9.200.");
-        when(usrRepo.listAdminMovedPath(eq("100")))
-                .thenReturn(List.of(new EsqMoveRecord("100", 32, "1.9.200.")));
-
-        service.esquireCommandMove(32, "100", "200", "1.", "99", List.of(ROLE_ADMIN));
-
-        verify(kcRequestPublisher).publishPathUpdate(eq("100"), eq(32), eq("1.9.200."), any(), any());
-    }
-
-    @Test
-    @DisplayName("esquireCommandMove: usr regular move — publishPathUpdate called with org path + user pk")
-    void esquireCommandMove_usr_regular_publishesKcPathUpdate() {
-        EsqOrgJpa destOrg = new EsqOrgJpa();
-        destOrg.setId("200");
-        destOrg.setKind(20);
-        when(orgRepo.detailOrg("200", "1.")).thenReturn(destOrg);
-
-        EsqUsrJpa usr = new EsqUsrJpa();
-        usr.setId("100");
-        usr.setParentId("5");
-        usr.setKind(34);
-        when(transactionTemplate.execute(any())).thenAnswer(inv ->
-                inv.<org.springframework.transaction.support.TransactionCallback<?>>getArgument(0).doInTransaction(null));
-        when(usrRepo.detailUsrForUpdate("100", "1.")).thenReturn(usr);
-        when(usrRepo.usrPath("200", "1.")).thenReturn("1.9.200.");
-        when(usrRepo.usrPath("100", "1.")).thenReturn("1.5.100.");
-        when(usrRepo.listMovedPaths(eq("1.9.200.100.")))
-                .thenReturn(List.of(new EsqMoveRecord("100", 34, "1.9.200.100.")));
-
-        service.esquireCommandMove(34, "100", "200", "1.", "99", List.of(ROLE_ADMIN));
-
-        verify(kcRequestPublisher).publishPathUpdate(eq("100"), eq(34), eq("1.9.200.100."), any(), any());
-    }
-
-    @Test
-    @DisplayName("esquireCommandMove: org move — publishPathUpdate NOT called (ORG has no KC identity)")
-    void esquireCommandMove_org_doesNotPublishKcPathUpdate() {
-        EsqOrgJpa destOrg = new EsqOrgJpa();
-        destOrg.setId("200");
-        destOrg.setKind(20);
-        when(orgRepo.detailOrg("200", "1.")).thenReturn(destOrg);
-
-        EsqOrgJpa org = new EsqOrgJpa();
-        org.setId("100");
-        org.setParentId("5");
-        when(transactionTemplate.execute(any())).thenAnswer(inv -> {
-            inv.<org.springframework.transaction.support.TransactionCallback<?>>getArgument(0).doInTransaction(null);
-            return null;
-        });
-        when(orgRepo.detailOrgForUpdate("100", "1.")).thenReturn(org);
-        when(orgRepo.orgPath("100", "1.")).thenReturn("1.5.100.");
-        when(orgRepo.orgPath("200", "1.")).thenReturn("1.9.200.");
-        when(orgRepo.listMovedPaths(anyString()))
-                .thenReturn(List.of(new EsqMoveRecord("100", 20, "1.9.200.100.")));
-
-        service.esquireCommandMove(20, "100", "200", "1.", "99", List.of(ROLE_ADMIN));
-
-        verify(kcRequestPublisher, never()).publishPathUpdate(anyString(), anyInt(), anyString(), any(), any());
+        verify(moveQueue, never()).submitMove(any(MoveCommandItem.class));
     }
 
     // ---- esquireCommandDelete: usr — deleteEntityPath called after deleteUsr ----

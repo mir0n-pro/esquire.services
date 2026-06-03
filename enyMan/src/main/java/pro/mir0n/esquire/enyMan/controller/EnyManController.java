@@ -23,6 +23,8 @@
  * 04/07/2026 mir0n  /esq-new→/esq-cmd-new, /esq-del→/esq-cmd-del
  * 05/14/2026 mir0n  GET /esq-cmd-tree added: FK-based natural-tree traversal from seed entity;
  *                   leaves-first ordering; same EsqTreeNode shape as /esq for response compatibility
+ * 06/02/2026 mir0n  esquireCommandMove(): /esq-move returns 202 Accepted (ResponseEntity.accepted())
+ *                   -- move is queued and processed async on the worker; OpenAPI response 200 -> 202
  */
 
 package pro.mir0n.esquire.enyMan.controller;
@@ -194,13 +196,15 @@ public class EnyManController {
 
     @PostMapping("/esq-move")
     @Operation(
-            summary = "Move an entity to a new parent org",
-            description = "Move ORG or USR to a destination ORG. Requires UPDATE permission on both moving entity and destination."
+            summary = "Move an entity to a new parent org (async-ack)",
+            description = "Move ORG or USR to a destination ORG. Requires UPDATE permission on both moving entity and destination. "
+                        + "v1.2.6: the command is placed on enyMan's move queue and runs on a single worker thread; the response is "
+                        + "202 Accepted at submit time, NOT 200 OK after processing."
     )
     @ApiResponses({
             @ApiResponse(
-                    responseCode = "200",
-                    description = "HTTP Status OK"
+                    responseCode = "202",
+                    description = "Move command accepted onto the queue; processing happens asynchronously."
             ),
             @ApiResponse(
                     responseCode = "500",
@@ -225,8 +229,8 @@ public class EnyManController {
         List<String> roles = realmAccess != null ? (List<String>) realmAccess.get(EsqConstants.JWT_CLAIM_REALM_ACCESS_ROLES) : null;
 
         iEnyManService.esquireCommandMove(kind, id, distId, rootPath, uid, roles);
-        devLog.debug("esquireCommandMove: kind:{}, id:{}, distId:{}, rootPath:{}", kind, id, distId, rootPath);
-        return ResponseEntity.ok().build();
+        devLog.debug("esquireCommandMove: queued kind:{}, id:{}, distId:{}, rootPath:{}", kind, id, distId, rootPath);
+        return ResponseEntity.accepted().build();
     }
 
     @GetMapping("/esq-kinds")

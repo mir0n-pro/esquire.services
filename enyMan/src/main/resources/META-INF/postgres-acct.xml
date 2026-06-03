@@ -25,4 +25,18 @@
         </query>
     </named-native-query>
 
+    <!-- Move-queue worker (v1.2.6 Goal 3): read and rewrite ep_path on the entity's own
+         row. ep_pk is globally unique across kinds so kind is not required. -->
+    <named-native-query name="EsqAcctJpa.pathFor">
+        <query>
+ SELECT ep_path FROM esq_entity_path WHERE ep_pk = CAST(:id AS bigint)
+        </query>
+    </named-native-query>
+
+    <named-native-query name="EsqAcctJpa.updatePath">
+        <query>
+ UPDATE esq_entity_path SET ep_path = :path WHERE ep_pk = CAST(:id AS bigint)
+        </query>
+    </named-native-query>
+
 </entity-mappings>

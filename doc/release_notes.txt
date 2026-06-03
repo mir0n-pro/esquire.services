@@ -1,6 +1,21 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v1.2.6-2606.0220  v1.2.6 -- bizTree work-batching + Oracle / pacMan fixes
+    :Feature:     bizTree applies a backlog of cache-update events in ONE transaction once the monad queue
+                  passes a threshold -- about 3x broadcast-apply throughput under a move-cascade flood
+    :Feature:     queue rig gains a bulk-worker contract (IQueueListWorker + signaler + list error listener):
+                  a worker can process a whole batch in one call instead of item-by-item
+    :Fix:         Oracle /esq-cmd-tree -- positional ORDER BY in the subtree queries (Oracle rejected the
+                  aliased column in a UNION ALL ORDER BY)
+    :Fix:         pacMan Postgres datasource now honors DB_PACMAN_PORT (was a mixed-case typo, silently ignored)
+    :Doc:         services.configuring.md -- every service parameter grouped by service, plus logging + gateway routes
+    :Config:      bizTree event-batch threshold (BIZTREE_QUEUE_BULK_THRESHOLD, default 10)
+    Components:   common, 
+                  bizTree, 
+                  enyMan, 
+                  pacMan
+
 v1.2.6-2606.0212  v1.2.6 enyMan sprint -- move-command race fixes (race-8b / race-8c); async move queue
     :Refactoring: /esq-move processed asynchronously on an in-process single-worker move queue; the
                   command returns 202 Accepted at submit time instead of 200 OK after processing

@@ -134,6 +134,9 @@ services:
       - BIZTREE_TAIJITU_SWEEP_TIMEOUT_MS=${BIZTREE_SWEEP_TIMEOUT_MS:-10000}
       # per-monad event queue depth (back-pressure boundary)
       - BIZTREE_MONAD_QUEUE_CAPACITY=${BIZTREE_QUEUE_CAPACITY:-4096}
+      # backlog size above which the monad worker batches events into one cache tx (default 10).
+      # Set very high (e.g. 999999999) to force one-by-one processing for an A/B perf comparison.
+      - BIZTREE_QUEUE_BULK_THRESHOLD=${BIZTREE_QUEUE_BULK_THRESHOLD:-10}
     command: ["java", "-jar", "app.jar"]
     depends_on:
       postgres:
@@ -178,6 +181,12 @@ services:
       - ENYMAN_CTRL_ID=enyman.default
       - ENYMAN_MESSAGING_CLIENT_ID=enyman
       #- ENYMAN_MESSAGING_CONSUMER_ENABLED=false
+      # v1.2.6 Goal 3: move queue capacity. Default 16384 (also the application.yml fallback)
+      # is sized for normal load. Stress tests can override via ENYMAN_MOVE_QUEUE_CAPACITY.
+      - ENYMAN_MOVE_QUEUE_CAPACITY=${ENYMAN_MOVE_QUEUE_CAPACITY:-16384}
+      # v1.2.6 Goal 3 toggle. true = race-8b fixed (CREATE-during-move reconciliation runs);
+      # false = race reproduces (used by the race-move-create sim's negative pass).
+      - ENYMAN_VALIDATE_CREATE_DURING_MOVE=${ENYMAN_VALIDATE_CREATE_DURING_MOVE:-true}
     command: ["java", "-jar", "app.jar"]
     depends_on:
       postgres:
@@ -263,6 +272,8 @@ services:
       #- AMQ_PASSWORD=
       - KEYSMITH_MESSAGING_CLIENT_ID=keysmith
       - KEYSMITH_CTRL_ID=keysmith.default
+      # TEST race-8c repro ONLY (revert after): hold between path read and URQ publish
+      - KEYSMITH_TEST_CONNECT_HOLD_MS=${KEYSMITH_TEST_CONNECT_HOLD_MS:-0}
     command: ["java", "-jar", "app.jar"]
     depends_on:
       postgres:
@@ -297,6 +308,8 @@ services:
       - KCMASTER_SERVICE_ID=kc-sync
       - KCMASTER_CTRL_ID=kcmaster.default
       - KCMASTER_MESSAGING_CLIENT_ID=kcmaster
+      # TEST race-8c repro ONLY (revert after): default 10000 (fix). -1 disables the buffer.
+      - KCMASTER_PATH_BUFFER_TTL_MS=${KCMASTER_PATH_BUFFER_TTL_MS:-10000}
       # Keycloak
       - KC_BASE_URL=http://keycloak:8080/kc-auth
       - KC_REALM=esquire
