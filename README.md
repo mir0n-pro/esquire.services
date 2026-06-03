@@ -4,7 +4,9 @@
 
 
 > 
-> **v1.2.6 — released.** **enyMan** sprint for safe service-instance redundancy: instance-aware entity-id minting consolidated into enyMan, account CREATE moved from pacMan to enyMan, an async move queue, the race-8b / race-8c move-path fixes, and bizTree event work-batching.
+> **v1.2.7 — in progress.** An **audit-logging** sprint: decoupling entity-change audit from in-database triggers into a pluggable, asset-generic logging component shared by the entity-updating services.
+>
+> **v1.2.6 — released.** A **enyMan** sprint for safe service-instance redundancy: instance-aware entity-id minting consolidated into enyMan, account CREATE moved from pacMan to enyMan, an async move queue, the race-8b / race-8c move-path fixes, and bizTree event work-batching.
 >
 
 Frameworks for organizing business entities in a tree, for any business or activity.
@@ -137,6 +139,13 @@ The two public hosts at a glance:
 
 ---
 
+## v1.2.7 — in progress
+
+v1.2.7 is the **audit-logging** sprint. Auditing of entity changes — and, beyond entities, user/office
+custom parameters today and role/permission maintenance later — is reframed from in-database triggers
+into a pluggable, decoupled concern: a common, asset-generic audit-logging component the entity-updating
+services (enyMan, pacMan, keySmith) share, with the DB-trigger approach kept as one selectable option.<br>
+[Design in progress — The Audit Logging Saga](doc/Esquire.AuditLogging.md)<br>
 ## v1.2.6 — complete (06/02/2026)
 
 v1.2.6 is a short **enyMan-redundancy** sprint. Entity-id minting is consolidated into enyMan and made
