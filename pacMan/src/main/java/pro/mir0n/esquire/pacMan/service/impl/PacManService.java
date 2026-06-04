@@ -43,6 +43,8 @@
  * 04/14/2026 mir0n  saveAcct(), deleteAcct(): kind param removed (detailAcctForUpdate aligned)
  * 06/01/2026 mir0n  esquireCommandNew() and private createAcct() helper removed -- account CREATE
  *                   moved to enyMan.
+ * 06/04/2026 mir0n  esquireCommand / Save / Delete read rootPath / uid via RequestContextUtils instead of
+ *                   params; dropped from the IPacManService signatures (passed to saveAcct / deleteAcct)
  */
 
 package pro.mir0n.esquire.pacMan.service.impl;
@@ -101,10 +103,9 @@ public class PacManService  implements IPacManService {
 
 
     @Override
-    public EsqEntity esquireCommand(int kind, String id, String cmd, String rootPath, String uid) {
-        String correlationId = RequestContextUtils.getCorrelationId();
-        String requestId = RequestContextUtils.getRequestId();
-        devLog.debug("srvc: esquireCommand: kind:{}, id:{}, cmd:{}, rootPath:{}, uid:{}",  kind, id, cmd, rootPath, uid);
+    public EsqEntity esquireCommand(int kind, String id, String cmd) {
+        String rootPath = RequestContextUtils.getRootPath();
+        devLog.debug("srvc: esquireCommand: kind:{}, id:{}, cmd:{}, rootPath:{}",  kind, id, cmd, rootPath);
 
         EsqObjectKind eek = EsqObjectKindStorage.getInstance().get(kind);
         if (!eek.isAcct()) {
@@ -122,9 +123,11 @@ public class PacManService  implements IPacManService {
     }
 
     @Override
-    public EsqEntity esquireCommandSave(int kind, String id, String cmd, Map<String, Object> fields, String rootPath, String uid, List<String> roles) {
+    public EsqEntity esquireCommandSave(int kind, String id, String cmd, Map<String, Object> fields, List<String> roles) {
         String correlationId = RequestContextUtils.getCorrelationId();
         String requestId = RequestContextUtils.getRequestId();
+        String rootPath = RequestContextUtils.getRootPath();
+        String uid = RequestContextUtils.getUid();
 //        devLog.debug("srvc: esquireCommandSave: kind:{}, id:{}, cmd:{}, rootPath:{}, uid:{}", kind, id, cmd, rootPath, uid);
         EsqObjectKind eek = EsqObjectKindStorage.getInstance().get(kind);
         int k = eek.getId();
@@ -213,10 +216,11 @@ public class PacManService  implements IPacManService {
     }
 
     @Override
-    public void esquireCommandDelete(int kind, String id, String cmd, String rootPath, String uid, List<String> roles) {
+    public void esquireCommandDelete(int kind, String id, String cmd, List<String> roles) {
         String correlationId = RequestContextUtils.getCorrelationId();
         String requestId = RequestContextUtils.getRequestId();
-        devLog.debug("srvc: esquireCommandDelete: kind:{}, id:{}, cmd:{}, rootPath:{}, uid:{}", kind, id, cmd, rootPath, uid);
+        String rootPath = RequestContextUtils.getRootPath();
+        devLog.debug("srvc: esquireCommandDelete: kind:{}, id:{}, cmd:{}, rootPath:{}", kind, id, cmd, rootPath);
 
         EsqObjectKind eek = EsqObjectKindStorage.getInstance().get(kind);
         int k = eek.getId();

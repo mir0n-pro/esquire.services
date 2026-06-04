@@ -1,9 +1,12 @@
 # Esquire Audit Logging — *The Saga*
 
 > **Status: planning draft (v1.2.7).** This document captures the design intent for the
-> v1.2.7 audit-logging sprint. It is a working artifact now and will be promoted to the
-> public **specification** once the options are settled. Decisions still open are marked
-> *(open)*.
+> v1.2.7 audit-logging sprint — the **option space and rationale**. It is a working artifact now and
+> will be promoted to the public **specification** once the options are settled. Decisions still open
+> are marked *(open)*.
+>
+> The detailed infrastructure design — producer facade, message structure, identity model, workflow,
+> transport — is in **[Esquire.AuditLogging.Design.md](Esquire.AuditLogging.Design.md)** (the #3 deliverable).
 
 ---
 
@@ -281,10 +284,11 @@ every decoupled option).
 
 ## 4. The xy / xx-Rod
 
-The **Rod** is the async distributing collaboration that carries data from one place to
-another — here, an audit event from the originating service to its resting place. It is
-**not a service**; it is a producer/consumer *pair*, reusable beyond audit for any
-migrate/replicate-data-from-A-to-B job.
+**Rod = RoD = Relay of Data.** The **Rod** is the async distributing collaboration that relays
+data from one place to another — here, an audit event from the originating service to its
+resting place. It is **not a service** (yet — the eventual standalone is named `x-rod`); it is a
+producer/consumer *pair*, reusable beyond audit for any migrate/replicate-data-from-A-to-B job.
+Names: `xy-Rod` / `xx-Rod` in prose, `XYRod` / `XXRod` as classes (capital XX/XY).
 
 - **xy-Rod** — *male, producer*. Lives in (or beside) the originating service; emits the event
   onto the bus / stream. Present in the **over-the-bus** options (c, d).
@@ -302,6 +306,12 @@ catches it and conducts it to the log store without it tearing through the opera
 **Logo / theme.** Minimalistic; Middle Ages / Mediterranean / Knight / cartoon. A copper
 lightning rod on a castle corner tower; a lightning bolt striking the rod. Consistent with
 the platform's medieval naming line (cf. Haubergeon).
+
+**Paired-antenna marks.** The single lightning rod resolves into a transmitter/receiver pair:
+- **xx-Rod** (consumer) -- the rod becomes a **receiver antenna**: the rod with **XX** crossbars
+  attached as the receiving elements.
+- **xy-Rod** (producer) -- a **transmitter antenna**: the **YX** form, with the **Y** standing on
+  top and a **lightning bolt arcing between the two upper corners (forks) of the Y**.
 
 ---
 

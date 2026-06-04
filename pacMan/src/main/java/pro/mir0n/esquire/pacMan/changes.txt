@@ -1,5 +1,16 @@
 Esquire pacMan Microservice
 
+06/04/2026 mir0n  v1.2.7 -- uid / rootPath read from the unified request context (not method params)
+service.IPacManService
+  - esquireCommand / Save / Delete: rootPath + uid params removed
+service.impl.PacManService
+  - reads rootPath / uid via RequestContextUtils where needed; passed to saveAcct / deleteAcct
+acct.service.AcctTransactionService
+  - esquireCommandAcct: rootPath + uid params removed; read via RequestContextUtils, passed to the
+    single / transfer processors (processor signatures unchanged)
+controller.PacManController
+  - stops extracting rootPath / uid from claims; delegates without them (roles still extracted)
+
 06/03/2026 mir0n  v1.2.7 -- account funded-date moved from DB trigger to the service
 src/main/resources/META-INF/postgres-acct.xml, oracle-acct.xml
   - updateAcctBalance: added acc_funded_dt = COALESCE(acc_funded_dt, CURRENT_TIMESTAMP|SYSDATE);

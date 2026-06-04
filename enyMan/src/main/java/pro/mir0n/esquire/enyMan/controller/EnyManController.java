@@ -25,6 +25,8 @@
  *                   leaves-first ordering; same EsqTreeNode shape as /esq for response compatibility
  * 06/02/2026 mir0n  esquireCommandMove(): /esq-move returns 202 Accepted (ResponseEntity.accepted())
  *                   -- move is queued and processed async on the worker; OpenAPI response 200 -> 202
+ * 06/04/2026 mir0n  rootPath / uid no longer extracted from claims or passed to the service -- they ride
+ *                   the unified request context; only roles is still read from realm_access
  */
 
 package pro.mir0n.esquire.enyMan.controller;
@@ -124,11 +126,8 @@ public class EnyManController {
            @RequestParam(name = "cmd", required = false, defaultValue = "details") String cmd,
            @AuthenticationPrincipal Claims claims
     ) {
-        String rootPath = claims.get(EsqConstants.JWT_CLAIM_ENTITY_ROOTPATH, String.class);
-        String uid = claims.get(EsqConstants.JWT_CLAIM_ENTITY_ID, String.class);
-
-        EsqEntity entity = iEnyManService.esquireCommand(kind, id, cmd, rootPath, uid);
-        devLog.debug("esquireCommand: kind:{}, id:{}, cmd:{}, rootPath:{}, result:{}", kind, id, cmd, rootPath, String.valueOf(entity));
+        EsqEntity entity = iEnyManService.esquireCommand(kind, id, cmd);
+        devLog.debug("esquireCommand: kind:{}, id:{}, cmd:{}, result:{}", kind, id, cmd, String.valueOf(entity));
         return ResponseEntity.status(HttpStatus.OK).body(entity);
     }
 
@@ -143,13 +142,11 @@ public class EnyManController {
            @RequestBody Map<String, Object> fields,
            @AuthenticationPrincipal Claims claims
     ) {
-        String rootPath = claims.get(EsqConstants.JWT_CLAIM_ENTITY_ROOTPATH, String.class);
-        String uid = claims.get(EsqConstants.JWT_CLAIM_ENTITY_ID, String.class);
         Map<String, Object> realmAccess = claims.get(EsqConstants.JWT_CLAIM_REALM_ACCESS, Map.class);
         List<String> roles = realmAccess != null ? (List<String>) realmAccess.get(EsqConstants.JWT_CLAIM_REALM_ACCESS_ROLES) : null;
 
-        EsqEntity ret = iEnyManService.esquireCommandSave(kind, id, cmd, fields, rootPath, uid, roles);
-        devLog.debug("esquireCommandSave: kind:{}, id:{}, cmd:{}, rootPath:{}, result:{}", kind, id, cmd, rootPath, String.valueOf(ret));
+        EsqEntity ret = iEnyManService.esquireCommandSave(kind, id, cmd, fields, roles);
+        devLog.debug("esquireCommandSave: kind:{}, id:{}, cmd:{}, result:{}", kind, id, cmd, String.valueOf(ret));
         return ResponseEntity.status(HttpStatus.OK).body(ret);
     }
 
@@ -164,13 +161,11 @@ public class EnyManController {
            @RequestBody Map<String, Object> fields,
            @AuthenticationPrincipal Claims claims
     ) {
-        String rootPath = claims.get(EsqConstants.JWT_CLAIM_ENTITY_ROOTPATH, String.class);
-        String uid = claims.get(EsqConstants.JWT_CLAIM_ENTITY_ID, String.class);
         Map<String, Object> realmAccess = claims.get(EsqConstants.JWT_CLAIM_REALM_ACCESS, Map.class);
         List<String> roles = realmAccess != null ? (List<String>) realmAccess.get(EsqConstants.JWT_CLAIM_REALM_ACCESS_ROLES) : null;
 
-        EsqEntity ret = iEnyManService.esquireCommandNew(kind, parentId, cmd, fields, rootPath, uid, roles);
-        devLog.debug("esquireCommandNew: kind:{}, parentId:{}, cmd:{}, rootPath:{}, result:{}", kind, parentId, cmd, rootPath, String.valueOf(ret));
+        EsqEntity ret = iEnyManService.esquireCommandNew(kind, parentId, cmd, fields, roles);
+        devLog.debug("esquireCommandNew: kind:{}, parentId:{}, cmd:{}, result:{}", kind, parentId, cmd, String.valueOf(ret));
         return ResponseEntity.status(HttpStatus.OK).body(ret);
     }
 
@@ -184,13 +179,11 @@ public class EnyManController {
            @RequestParam(name = "cmd", required = false, defaultValue = "delete") String cmd,
            @AuthenticationPrincipal Claims claims
     ) {
-        String rootPath = claims.get(EsqConstants.JWT_CLAIM_ENTITY_ROOTPATH, String.class);
-        String uid = claims.get(EsqConstants.JWT_CLAIM_ENTITY_ID, String.class);
         Map<String, Object> realmAccess = claims.get(EsqConstants.JWT_CLAIM_REALM_ACCESS, Map.class);
         List<String> roles = realmAccess != null ? (List<String>) realmAccess.get(EsqConstants.JWT_CLAIM_REALM_ACCESS_ROLES) : null;
 
-        iEnyManService.esquireCommandDelete(kind, id, cmd, rootPath, uid, roles);
-        devLog.debug("esquireCommandDelete: kind:{}, id:{}, cmd:{}, rootPath:{}", kind, id, cmd, rootPath);
+        iEnyManService.esquireCommandDelete(kind, id, cmd, roles);
+        devLog.debug("esquireCommandDelete: kind:{}, id:{}, cmd:{}", kind, id, cmd);
         return ResponseEntity.ok().build();
     }
 
@@ -223,13 +216,11 @@ public class EnyManController {
            @RequestParam(name = "dist_id", required = true) String distId,
            @AuthenticationPrincipal Claims claims
     ) {
-        String rootPath = claims.get(EsqConstants.JWT_CLAIM_ENTITY_ROOTPATH, String.class);
-        String uid = claims.get(EsqConstants.JWT_CLAIM_ENTITY_ID, String.class);
         Map<String, Object> realmAccess = claims.get(EsqConstants.JWT_CLAIM_REALM_ACCESS, Map.class);
         List<String> roles = realmAccess != null ? (List<String>) realmAccess.get(EsqConstants.JWT_CLAIM_REALM_ACCESS_ROLES) : null;
 
-        iEnyManService.esquireCommandMove(kind, id, distId, rootPath, uid, roles);
-        devLog.debug("esquireCommandMove: queued kind:{}, id:{}, distId:{}, rootPath:{}", kind, id, distId, rootPath);
+        iEnyManService.esquireCommandMove(kind, id, distId, roles);
+        devLog.debug("esquireCommandMove: queued kind:{}, id:{}, distId:{}", kind, id, distId);
         return ResponseEntity.accepted().build();
     }
 
@@ -259,11 +250,8 @@ public class EnyManController {
             @RequestParam(name = "id", required = true) String id,
             @AuthenticationPrincipal Claims claims
     ) {
-        String rootPath = claims.get(EsqConstants.JWT_CLAIM_ENTITY_ROOTPATH, String.class);
-        String uid = claims.get(EsqConstants.JWT_CLAIM_ENTITY_ID, String.class);
-
-        List<EsqTreeNode> ret = iEnyManService.esquireCommandTree(kind, id, rootPath, uid);
-        devLog.debug("esquireCommandTree: kind:{}, id:{}, rootPath:{}, rows:{}", kind, id, rootPath, ret.size());
+        List<EsqTreeNode> ret = iEnyManService.esquireCommandTree(kind, id);
+        devLog.debug("esquireCommandTree: kind:{}, id:{}, rows:{}", kind, id, ret.size());
         return ResponseEntity.status(HttpStatus.OK).body(ret);
     }
 }

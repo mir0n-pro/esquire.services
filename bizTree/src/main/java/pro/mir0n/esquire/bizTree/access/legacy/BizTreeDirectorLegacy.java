@@ -18,6 +18,8 @@
  * 05/22/2026 mir0n  bootstrap() renamed start() (ITaijituRig lifecycle).
  * 05/23/2026 mir0n  added isReady() -- a volatile ready flag set true after the synchronous load
  *                   (the readiness gate); sweepAsync() inherits the ITaijituRig no-op (single-pass).
+ * 06/04/2026 mir0n  read methods drop rootPath / uid params; read them via RequestContextUtils and
+ *                   forward to IBizTreeService (which keeps its params)
  */
 package pro.mir0n.esquire.bizTree.access.legacy;
 
@@ -27,6 +29,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import pro.mir0n.esquire.backend.dto.EsqTreeNode;
+import pro.mir0n.esquire.backend.service.RequestContextUtils;
 import pro.mir0n.esquire.bizTree.access.IBizTreeDirector;
 import pro.mir0n.esquire.bizTree.access.MessageHandlerHub;
 import pro.mir0n.esquire.bizTree.cache.BizTreeCacheLoader;
@@ -101,26 +104,26 @@ public class BizTreeDirectorLegacy implements IBizTreeDirector {
     /* --- Read surface ---------------------------------------------------- */
 
     @Override
-    public List<EsqTreeNode> esquire(String id, Integer skip, Integer take, String rootPath, String uid) {
-        List<EsqTreeNode> ret = bizTreeService.esquire(id, skip, take, rootPath, uid);
+    public List<EsqTreeNode> esquire(String id, Integer skip, Integer take) {
+        List<EsqTreeNode> ret = bizTreeService.esquire(id, skip, take, RequestContextUtils.getRootPath(), RequestContextUtils.getUid());
         return ret;
     }
 
     @Override
-    public List<String> esquirePath(String id, String rootPath) {
-        List<String> ret = bizTreeService.esquirePath(id, rootPath);
+    public List<String> esquirePath(String id) {
+        List<String> ret = bizTreeService.esquirePath(id, RequestContextUtils.getRootPath());
         return ret;
     }
 
     @Override
-    public EsqTreeNode esquireEntityNode(Integer kind, String id, String name, String rootPath, String uid) {
-        EsqTreeNode ret = bizTreeService.esquireEntityNode(kind, id, name, rootPath, uid);
+    public EsqTreeNode esquireEntityNode(Integer kind, String id, String name) {
+        EsqTreeNode ret = bizTreeService.esquireEntityNode(kind, id, name, RequestContextUtils.getRootPath(), RequestContextUtils.getUid());
         return ret;
     }
 
     @Override
-    public List<EsqTreeNode> esquireSubtree(String id, String rootPath, String uid) {
-        List<EsqTreeNode> ret = bizTreeService.esquireSubtree(id, rootPath, uid);
+    public List<EsqTreeNode> esquireSubtree(String id) {
+        List<EsqTreeNode> ret = bizTreeService.esquireSubtree(id, RequestContextUtils.getRootPath(), RequestContextUtils.getUid());
         return ret;
     }
 

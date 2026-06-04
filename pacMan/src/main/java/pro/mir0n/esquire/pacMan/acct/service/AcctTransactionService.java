@@ -2,7 +2,7 @@
  *  Esquire frameworks (tm)
  *  PacMan service
  *
- *  Copyright(c) 2001, 2026 mir0n&co www.mir0n.me
+ *  Copyright(c) 2001, 2026 mir0n&co www.mir0n.pro
  *
  *  History:
  * 04/09/2026 mir0n  created: account transaction command; POST /esq-acct deposit/credit with amount/status/balance validation
@@ -11,6 +11,8 @@
  *                   field validation: EntityFieldUtils.applyFields(KIND_ACCTTR, fields) — dictionary-driven with listvalues check
  * 04/13/2026 mir0n  refactored: thin router; processing split to AcctTransactionProcessorSingle / AcctTransactionProcessorTransfer
  *                   pre-validates fields/typeId/UNKNOWN/amount; routes by AcctOperation.Code.transfer flag
+ * 06/04/2026 mir0n  esquireCommandAcct: rootPath + uid params removed; read via RequestContextUtils and
+ *                   passed to the single / transfer processors (processor signatures unchanged)
  */
 
 package pro.mir0n.esquire.pacMan.acct.service;
@@ -19,6 +21,7 @@ import jakarta.persistence.EntityManager;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
+import pro.mir0n.esquire.backend.service.RequestContextUtils;
 import pro.mir0n.esquire.pacMan.acct.AcctOperation;
 import pro.mir0n.esquire.pacMan.acct.dto.AcctTransactionSingle;
 import pro.mir0n.esquire.pacMan.acct.jpa.EsqAcctTransactionRepository;
@@ -43,7 +46,9 @@ public class AcctTransactionService {
         this.processorTransfer = new AcctTransactionProcessorTransfer(entityRepository, transactionRepository, transactionTemplate, em);
     }
 
-    public AcctTransactionSingle esquireCommandAcct(int kind, String id, String cmd, Map<String, Object> fields, String rootPath, String uid, List<String> roles) {
+    public AcctTransactionSingle esquireCommandAcct(int kind, String id, String cmd, Map<String, Object> fields, List<String> roles) {
+        String rootPath = RequestContextUtils.getRootPath();
+        String uid = RequestContextUtils.getUid();
         if (fields == null) {
             throw new IllegalArgumentException("acctTransaction: missing fields map");
         }

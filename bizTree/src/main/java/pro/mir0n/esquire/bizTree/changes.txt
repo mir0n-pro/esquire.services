@@ -1,6 +1,16 @@
 Esquire BizTree Microservice
 
 
+06/04/2026 mir0n  v1.2.7 -- uid / rootPath read from the unified request context (not method params)
+access.IBizTreeDirector
+  - esquire / esquirePath / esquireEntityNode / esquireSubtree: rootPath + uid params removed
+access.taijitu.BizTreeDirectorTaijitu
+access.legacy.BizTreeDirectorLegacy
+  - read rootPath / uid via RequestContextUtils and forward to IBizTreeService (service + cache
+    repository signatures unchanged -- they keep the params)
+controller.BizTreeController
+  - stops extracting rootPath / uid from claims; forwards only id / kind / name to the director
+
 06/02/2026 mir0n  v1.2.6 -- batched cache transaction for the monad event drain
 taijitu.Monad
   - _processItems(List<QueueItem>) override: wraps the event batch in ONE cache transaction via an injected

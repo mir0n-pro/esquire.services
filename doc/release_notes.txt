@@ -1,6 +1,17 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v1.2.7-2606.0417  v1.2.7 -- unified per-request context: uid / rootPath obtained like crl_id / req_id
+    :Refactoring: uid and rootPath move into the per-request EsqRequestContext, captured once and read
+                  via RequestContextUtils
+    :Fix:         a move no longer overwrites the moved entity's crl_id / req_id audit columns with null
+                  (the move worker re-establishes the request context on its own thread)
+    Components:   common,
+                  enyMan,
+                  pacMan,
+                  keySmith,
+                  bizTree
+
 v1.2.7-2606.0318  v1.2.7 -- audit-trigger decoupling: account funded-date moved to the service
     :Refactoring: account funded-date is stamped by pacMan on the balance update
     Components:   pacMan

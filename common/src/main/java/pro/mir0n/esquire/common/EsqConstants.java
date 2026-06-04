@@ -16,6 +16,7 @@
  * 05/14/2026 mir0n  observability header constants: ESQ_GW_INNER_START_TIME + ESQ_GW_INNER_TIME added;
  *                   ESQ_SERVICE_TIME renamed to ESQ_SRV_OUTER_TIME; ESQ_BACKEND_TIME renamed to
  *                   ESQ_SRV_INNER_TIME; ESQ_CAPTURE_METRICS added for the hauberk trigger
+ * 06/04/2026 mir0n  PD_UID ("uid") added: MDC key for the acting user (unified request context)
  */
 package pro.mir0n.esquire.common;
 
@@ -40,6 +41,7 @@ public class EsqConstants {
     public static final String PD_TIMESTAMP = "timestamp";
     public static final String PD_CORRELATION_ID = "correlationId";
     public static final String PD_REQUEST_ID = "requestId";
+    public static final String PD_UID = "uid";
     public static final String PD_ERRORS = "errors";
     public static final String PD_STACK_TRACE = "stackTrace";
     public static final String PD_DETAILS = "details";

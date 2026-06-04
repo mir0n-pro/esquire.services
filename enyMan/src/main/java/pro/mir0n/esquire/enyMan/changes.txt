@@ -1,5 +1,22 @@
 Esquire enyMan Microservice
 
+06/04/2026 mir0n  v1.2.7 -- uid / rootPath dropped from service signatures; read from the request context
+service.IEnyManService
+  - esquireCommand / Save / New / Delete / Move / Tree: rootPath + uid params removed
+controller.EnyManController
+  - stops extracting rootPath / uid from claims; delegates without them (roles still extracted)
+service.impl.EnyManService
+  - reads uid / rootPath via RequestContextUtils where needed (self-update + self-move guards, move item)
+service.impl.OrgService
+  - esquireCommand* read rootPath / uid via RequestContextUtils instead of params
+service.impl.UsrService
+  - esquireCommand* read rootPath / uid via RequestContextUtils instead of params
+service.impl.AcctService
+  - esquireCommandNew reads uid via RequestContextUtils; unsupported-op signatures updated
+queue.MoveQueueManager
+  - processMove hydrates EsqContextHolder from the queued item, cleared in finally; calls
+    esquireCommandMove without rootPath / uid
+
 06/02/2026 mir0n  v1.2.6 Goal 3 -- /esq-move async-ack via in-process move queue; CREATE-during-move reconcile
 queue.MoveQueueItem  (new)
   - sealed interface, permits MoveCommandItem | CreateReconcileItem

@@ -2,7 +2,7 @@
  *  Esquire frameworks (tm)
  *  EnyMan service
  *
- *  Copyright(c) 2001, 2025 mir0n&co www.mir0n.me
+ *  Copyright(c) 2001, 2026 mir0n&co www.mir0n.pro
  *  mailto:mir0n.the.programmer@gmail.com
  *
  *  History:
@@ -26,6 +26,8 @@
  * 04/16/2026 mir0n  ret declarations moved to top; moveOrg(): null-guard replaces early return
  * 06/01/2026 mir0n  id minting call retargeted: EsqUtils.generateEntityId() -> EntityIdGenerator.generateEntityId()
  *                   (id minter moved from common to enyMan in v1.2.6).
+ * 06/04/2026 mir0n  rootPath / uid read via RequestContextUtils instead of method params (dropped from
+ *                   the IEnyManService public signatures)
  */
 
 package pro.mir0n.esquire.enyMan.service.impl;
@@ -75,11 +77,10 @@ public class OrgService  extends AEnyManService {
 
 
     @Override
-    public EsqEntity esquireCommand(int kind, String id, String cmd, String rootPath, String uid) {
+    public EsqEntity esquireCommand(int kind, String id, String cmd) {
         EsqEntity ret = null;
-        //String correlationId = RequestContextUtils.getCorrelationId();
-        //String requestId = RequestContextUtils.getRequestId();
-        devLog.debug("srvc: esquireCommand(org): kind:{}, id:{}, cmd:{}, rootPath:{}, uid:{}",  kind, id, cmd, rootPath, uid);
+        String rootPath = RequestContextUtils.getRootPath();
+        devLog.debug("srvc: esquireCommand(org): kind:{}, id:{}, cmd:{}, rootPath:{}",  kind, id, cmd, rootPath);
         EsqEntityJpa jpa = orgRepository.detailOrg(id, rootPath);
         if (jpa == null) {
             throw new ResourceNotFoundException("esquireEntity", "kind, id", kind + "," + id);
@@ -91,10 +92,12 @@ public class OrgService  extends AEnyManService {
     }
 
     @Override
-    public EsqEntity esquireCommandSave(int kind, String id, String cmd, Map<String, Object> fields, String rootPath, String uid, List<String> roles) {
+    public EsqEntity esquireCommandSave(int kind, String id, String cmd, Map<String, Object> fields, List<String> roles) {
         EsqEntity ret = null;
         String correlationId = RequestContextUtils.getCorrelationId();
         String requestId = RequestContextUtils.getRequestId();
+        String rootPath = RequestContextUtils.getRootPath();
+        String uid = RequestContextUtils.getUid();
         devLog.debug("srvc: esquireCommandSave(org): kind:{}, id:{}, cmd:{}, rootPath:{}, uid:{}", kind, id, cmd, rootPath, uid);
 
         EsqEntityJpa[] updated  = {null};
@@ -117,10 +120,12 @@ public class OrgService  extends AEnyManService {
     }
 
     @Override
-    public EsqEntity esquireCommandNew(int kind, String parentId, String cmd, Map<String, Object> fields, String rootPath, String uid, List<String> roles) {
+    public EsqEntity esquireCommandNew(int kind, String parentId, String cmd, Map<String, Object> fields, List<String> roles) {
         EsqEntity ret = null;
         String correlationId = RequestContextUtils.getCorrelationId();
         String requestId = RequestContextUtils.getRequestId();
+        String rootPath = RequestContextUtils.getRootPath();
+        String uid = RequestContextUtils.getUid();
         devLog.debug("srvc: esquireCommandNew(org): kind:{}, parentId:{}, cmd:{}, rootPath:{}, uid:{}", kind, parentId, cmd, rootPath, uid);
 
         EsqEntityJpa[] created = {null};
@@ -137,8 +142,9 @@ public class OrgService  extends AEnyManService {
     }
 
     @Override
-    public void esquireCommandDelete(int kind, String id, String cmd, String rootPath, String uid, List<String> roles) {
-        devLog.debug("srvc: esquireCommandDelete(org): kind:{}, id:{}, cmd:{}, rootPath:{}, uid:{}", kind, id, cmd, rootPath, uid);
+    public void esquireCommandDelete(int kind, String id, String cmd, List<String> roles) {
+        String rootPath = RequestContextUtils.getRootPath();
+        devLog.debug("srvc: esquireCommandDelete(org): kind:{}, id:{}, cmd:{}, rootPath:{}", kind, id, cmd, rootPath);
         transactionTemplate.execute(status -> {
             em.setFlushMode(FlushModeType.COMMIT);
             deleteOrg(id, rootPath);
@@ -147,9 +153,11 @@ public class OrgService  extends AEnyManService {
     }
 
     @Override
-    public List<EsqMoveRecord> esquireCommandMove(int kind, String id, String distId, String rootPath, String uid, List<String> roles) {
+    public List<EsqMoveRecord> esquireCommandMove(int kind, String id, String distId, List<String> roles) {
         String correlationId = RequestContextUtils.getCorrelationId();
         String requestId = RequestContextUtils.getRequestId();
+        String rootPath = RequestContextUtils.getRootPath();
+        String uid = RequestContextUtils.getUid();
         devLog.debug("srvc: esquireCommandMove(org): kind:{}, id:{}, distId:{}, rootPath:{}, uid:{}", kind, id, distId, rootPath, uid);
         List<EsqMoveRecord> records = transactionTemplate.execute(status -> {
             em.setFlushMode(FlushModeType.COMMIT);

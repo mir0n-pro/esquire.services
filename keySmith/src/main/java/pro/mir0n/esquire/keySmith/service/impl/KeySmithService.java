@@ -36,6 +36,8 @@
  * 06/02/2026 mir0n  esquireKeySave(): KEYSMITH_TEST_CONNECT_HOLD_MS test hook (race-8c repro) --
  *                   optional Thread.sleep between the committed path read and the activation URQ
  *                   publish; default 0 = disabled, never set in production
+ * 06/04/2026 mir0n  esquireKey / esquireKeySave read rootPath / uid via RequestContextUtils instead of
+ *                   params; dropped from the IKeySmithService signatures (passed to saveAccess)
  */
 
 package pro.mir0n.esquire.keySmith.service.impl;
@@ -86,10 +88,10 @@ public class KeySmithService implements IKeySmithService {
     private KcSyncPublisher kcSyncPublisher;
 
     @Override
-    public EsqAccessProfile esquireKey(String id, String rootPath, String uid) {
+    public EsqAccessProfile esquireKey(String id) {
         EsqAccessProfile ret = null;
-        //String correlationId = RequestContextUtils.getCorrelationId();
-        //String requestId = RequestContextUtils.getRequestId();
+        String rootPath = RequestContextUtils.getRootPath();
+        String uid = RequestContextUtils.getUid();
 
         devLog.debug("KeySmithService: esquireKey: id:{}, rootPath:{}, uid:{}",  id, rootPath, uid);
 
@@ -122,10 +124,12 @@ public class KeySmithService implements IKeySmithService {
     }
 
     @Override
-    public EsqAccessProfile esquireKeySave(String id, Map<String, Object> fields, String rootPath, String uid, List<String> roles) {
+    public EsqAccessProfile esquireKeySave(String id, Map<String, Object> fields, List<String> roles) {
         EsqAccessProfile ret = null;
         String correlationId = RequestContextUtils.getCorrelationId();
         String requestId = RequestContextUtils.getRequestId();
+        String rootPath = RequestContextUtils.getRootPath();
+        String uid = RequestContextUtils.getUid();
         devLog.debug("KeySmithService: esquireKeySave: id:{}, rootPath:{}, uid:{}", id, rootPath, uid);
 
         String upk = id == null ? uid : id;

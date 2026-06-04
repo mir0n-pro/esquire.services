@@ -1,5 +1,9 @@
 Esquire Common microservice classes
 
+06/04/2026 mir0n  v1.2.7 -- PD_UID for the unified request context
+EsqConstants
+  - PD_UID ("uid") added: MDC key for the acting user
+
 06/02/2026 mir0n  v1.2.6 Goal 3 -- instanceNo() lazy-cached
 EsqUtils
   - instanceNo(): result cached in a volatile Integer; resolved once per JVM lifetime, env / sysprop

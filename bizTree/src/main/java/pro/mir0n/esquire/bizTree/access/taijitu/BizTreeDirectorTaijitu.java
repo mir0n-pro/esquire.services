@@ -10,10 +10,13 @@
  *                   logic lives in the common ATaijituRig (two equal monads, gateFor per monad, swap);
  *                   here we hand it the two Monads it controls and add the domain reads, routed to the
  *                   current serving monad (yang()). Dummy night-watch for now -- shadow idle.
+ * 06/04/2026 mir0n  read methods drop rootPath / uid params; read them via RequestContextUtils and
+ *                   forward to the serving monad (IBizTreeService keeps its params)
  */
 package pro.mir0n.esquire.bizTree.access.taijitu;
 
 import pro.mir0n.esquire.backend.dto.EsqTreeNode;
+import pro.mir0n.esquire.backend.service.RequestContextUtils;
 import pro.mir0n.esquire.bizTree.access.IBizTreeDirector;
 import pro.mir0n.esquire.bizTree.taijitu.Monad;
 import pro.mir0n.utils.taijitu.ATaijituRig;
@@ -40,22 +43,22 @@ public final class BizTreeDirectorTaijitu extends ATaijituRig implements IBizTre
     /* --- Read surface (forwarded to the serving monad) ------------------- */
 
     @Override
-    public List<EsqTreeNode> esquire(String id, Integer skip, Integer take, String rootPath, String uid) {
-        return serving().esquire(id, skip, take, rootPath, uid);
+    public List<EsqTreeNode> esquire(String id, Integer skip, Integer take) {
+        return serving().esquire(id, skip, take, RequestContextUtils.getRootPath(), RequestContextUtils.getUid());
     }
 
     @Override
-    public List<String> esquirePath(String id, String rootPath) {
-        return serving().esquirePath(id, rootPath);
+    public List<String> esquirePath(String id) {
+        return serving().esquirePath(id, RequestContextUtils.getRootPath());
     }
 
     @Override
-    public EsqTreeNode esquireEntityNode(Integer kind, String id, String name, String rootPath, String uid) {
-        return serving().esquireEntityNode(kind, id, name, rootPath, uid);
+    public EsqTreeNode esquireEntityNode(Integer kind, String id, String name) {
+        return serving().esquireEntityNode(kind, id, name, RequestContextUtils.getRootPath(), RequestContextUtils.getUid());
     }
 
     @Override
-    public List<EsqTreeNode> esquireSubtree(String id, String rootPath, String uid) {
-        return serving().esquireSubtree(id, rootPath, uid);
+    public List<EsqTreeNode> esquireSubtree(String id) {
+        return serving().esquireSubtree(id, RequestContextUtils.getRootPath(), RequestContextUtils.getUid());
     }
 }

@@ -2,7 +2,7 @@
  *  Esquire frameworks (tm)
  *  PacMan service
  *
- *  Copyright(c) 2001, 2025 mir0n&co www.mir0n.me
+ *  Copyright(c) 2001, 2026 mir0n&co www.mir0n.pro
  *  mailto:mir0n.the.programmer@gmail.com
  *
  *  History:
@@ -17,6 +17,7 @@
  * 04/09/2026 mir0n  FIELD_CCY constant added
  * 04/14/2026 mir0n  KIND_P_ACCT spacing corrected
  * 06/01/2026 mir0n  esquireCommandNew() removed -- account CREATE moved to enyMan.
+ * 06/04/2026 mir0n  esquireCommand / Save / Delete: rootPath + uid params removed (read from request context)
  */
 
 package pro.mir0n.esquire.pacMan.service;
@@ -33,8 +34,9 @@ public interface IPacManService {
     public static final String  FIELD_STATUS = "status";
     public static final String  FIELD_CCY    = "ccy";
 
-    public EsqEntity esquireCommand(int kind, String id, String cmd, String rootPath, String uid );
-    public EsqEntity esquireCommandSave(int kind, String id, String cmd, Map<String, Object> fields, String rootPath, String uid, List<String> roles);
-    public void esquireCommandDelete(int kind, String id, String cmd, String rootPath, String uid, List<String> roles);
+    // uid / rootPath come from the unified per-request context (RequestContextUtils), not params.
+    public EsqEntity esquireCommand(int kind, String id, String cmd);
+    public EsqEntity esquireCommandSave(int kind, String id, String cmd, Map<String, Object> fields, List<String> roles);
+    public void esquireCommandDelete(int kind, String id, String cmd, List<String> roles);
 
     }

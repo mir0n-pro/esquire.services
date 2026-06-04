@@ -1,6 +1,7 @@
 package pro.mir0n.esquire.keySmith.service;
 
 import jakarta.persistence.EntityManager;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -19,6 +20,8 @@ import pro.mir0n.esquire.backend.jpa.access.EsqAccessProfileJpa;
 import pro.mir0n.esquire.backend.storage.EsqEntityDictionaryStorage;
 import pro.mir0n.esquire.backend.storage.EsqRolesStorage;
 import pro.mir0n.esquire.backend.validator.ValidatorFactory;
+import pro.mir0n.esquire.backend.service.EsqContextHolder;
+import pro.mir0n.esquire.backend.service.EsqRequestContext;
 import pro.mir0n.esquire.keySmith.jpa.EsqAccessProfileRepository;
 import pro.mir0n.esquire.keySmith.messaging.KcSyncPublisher;
 import pro.mir0n.esquire.keySmith.service.impl.KeySmithService;
@@ -56,6 +59,20 @@ class KeySmithServiceTest {
     @BeforeEach
     void setUp() {
         service = new KeySmithService(accessProfileRepository, transactionTemplate, em, kcSyncPublisher);
+        // Default context for the majority of tests (rootPath "/root", uid "uid-1");
+        // the three "1.2.3" / "uid-99" tests override it.
+        ctx("/root", "uid-1");
+    }
+
+    @AfterEach
+    void tearDown() {
+        EsqContextHolder.clear();
+    }
+
+    // uid / rootPath now come from the unified per-request context. Each test sets the exact pair
+    // its mocks / self-checks expect, the same way the request thread would.
+    private void ctx(String rootPath, String uid) {
+        EsqContextHolder.set(new EsqRequestContext(null, null, uid, rootPath));
     }
 
     // ---- helper: runs transactionTemplate.execute() lambda inline ----
@@ -103,7 +120,8 @@ class KeySmithServiceTest {
     void esquireKey_notFound_throwsResourceNotFoundException() {
         when(accessProfileRepository.access("uid-99", "1.2.3")).thenReturn(null);
 
-        assertThatThrownBy(() -> service.esquireKey(null, "1.2.3", "uid-99"))
+        ctx("1.2.3", "uid-99");
+        assertThatThrownBy(() -> service.esquireKey(null))
                 .isInstanceOf(ResourceNotFoundException.class);
     }
 
@@ -117,7 +135,8 @@ class KeySmithServiceTest {
         executeTransactionInline();
         when(accessProfileRepository.accessForUpdate("other", "1.2.3")).thenReturn(null);
 
-        assertThatThrownBy(() -> service.esquireKeySave("other", Map.of(), "1.2.3", "uid-99", null))
+        ctx("1.2.3", "uid-99");
+        assertThatThrownBy(() -> service.esquireKeySave("other", Map.of(), null))
                 .isInstanceOf(ResourceNotFoundException.class);
     }
 
@@ -128,7 +147,8 @@ class KeySmithServiceTest {
         when(accessProfileRepository.accessForUpdate("other", "1.2.3"))
                 .thenReturn(mock(EsqAccessProfileJpa.class));
 
-        assertThatThrownBy(() -> service.esquireKeySave("other", Map.of(), "1.2.3", "uid-99", null))
+        ctx("1.2.3", "uid-99");
+        assertThatThrownBy(() -> service.esquireKeySave("other", Map.of(), null))
                 .isInstanceOf(PermissionDeniedException.class);
     }
 
@@ -145,7 +165,7 @@ class KeySmithServiceTest {
         when(accessProfileRepository.access("uid-1", "/root")).thenReturn(jpa);
         when(accessProfileRepository.roles("uid-1")).thenReturn(List.of());
 
-        service.esquireKey(null, "/root", "uid-1");
+        service.esquireKey(null);
 
         verify(accessProfileRepository).confirmPendingFlags("uid-1", "N", null);
         verify(jpa).setPwdChangeForced("N");
@@ -160,7 +180,7 @@ class KeySmithServiceTest {
         when(accessProfileRepository.access("uid-1", "/root")).thenReturn(jpa);
         when(accessProfileRepository.roles("uid-1")).thenReturn(List.of());
 
-        service.esquireKey(null, "/root", "uid-1");
+        service.esquireKey(null);
 
         verify(accessProfileRepository).confirmPendingFlags("uid-1", null, "G");
         verify(jpa).setTfaMethod("G");
@@ -175,7 +195,7 @@ class KeySmithServiceTest {
         when(accessProfileRepository.access("uid-1", "/root")).thenReturn(jpa);
         when(accessProfileRepository.roles("uid-1")).thenReturn(List.of());
 
-        service.esquireKey(null, "/root", "uid-1");
+        service.esquireKey(null);
 
         verify(accessProfileRepository).confirmPendingFlags("uid-1", null, "N");
         verify(jpa).setTfaMethod("N");
@@ -190,7 +210,7 @@ class KeySmithServiceTest {
         when(accessProfileRepository.access("uid-1", "/root")).thenReturn(jpa);
         when(accessProfileRepository.roles("uid-1")).thenReturn(List.of());
 
-        service.esquireKey(null, "/root", "uid-1");
+        service.esquireKey(null);
 
         verify(accessProfileRepository, never()).confirmPendingFlags(any(), any(), any());
     }
@@ -204,7 +224,7 @@ class KeySmithServiceTest {
         when(accessProfileRepository.access("uid-1", "/root")).thenReturn(jpa);
         when(accessProfileRepository.roles("uid-1")).thenReturn(List.of());
 
-        service.esquireKey(null, "/root", "uid-1");
+        service.esquireKey(null);
 
         verify(accessProfileRepository).confirmPendingFlags("uid-1", "N", "G");
     }
@@ -217,7 +237,7 @@ class KeySmithServiceTest {
         when(accessProfileRepository.access("uid-1", "/root")).thenReturn(jpa);
         when(accessProfileRepository.roles("uid-1")).thenReturn(List.of());
 
-        service.esquireKey("uid-1", "/root", "uid-99");
+        service.esquireKey("uid-1");
 
         verify(accessProfileRepository, never()).confirmPendingFlags(any(), any(), any());
     }
@@ -238,7 +258,7 @@ class KeySmithServiceTest {
 
         try (MockedStatic<EsqRolesStorage> ms = mockStatic(EsqRolesStorage.class)) {
             adminStorageMock(ms);
-            service.esquireKeySave("target-1", Map.of("connectFlg", "N"), "/root", "admin-99", List.of("ADMIN"));
+            service.esquireKeySave("target-1", Map.of("connectFlg", "N"), List.of("ADMIN"));
         }
 
         verify(kcSyncPublisher).publish(eq("user1"), eq("Y"), argThat(j -> "N".equals(j.getConnectFlg())), any(), any(), any());
@@ -254,7 +274,7 @@ class KeySmithServiceTest {
 
         try (MockedStatic<EsqRolesStorage> ms = mockStatic(EsqRolesStorage.class)) {
             adminStorageMock(ms);
-            service.esquireKeySave("target-1", Map.of("connectFlg", "Y"), "/root", "admin-99", List.of("ADMIN"));
+            service.esquireKeySave("target-1", Map.of("connectFlg", "Y"), List.of("ADMIN"));
         }
 
         verify(kcSyncPublisher).publish(eq("user2"), eq("N"), argThat(j -> "Y".equals(j.getConnectFlg())), any(), any(), any());
@@ -268,7 +288,7 @@ class KeySmithServiceTest {
         when(accessProfileRepository.accessForUpdate("uid-1", "/root")).thenReturn(jpa);
         when(accessProfileRepository.roles("uid-1")).thenReturn(List.of());
 
-        service.esquireKeySave("uid-1", Map.of(), "/root", "uid-1", null);
+        service.esquireKeySave("uid-1", Map.of(), null);
 
         verify(kcSyncPublisher).publish(any(), eq("Y"), argThat(j -> "Y".equals(j.getConnectFlg())), any(), any(), any());
     }
@@ -286,7 +306,7 @@ class KeySmithServiceTest {
         when(accessProfileRepository.accessForUpdate("uid-1", "/root")).thenReturn(jpa);
         when(accessProfileRepository.roles("uid-1")).thenReturn(List.of());
 
-        EsqAccessProfile result = service.esquireKeySave("uid-1", Map.of("tfaMethod", "G"), "/root", "uid-1", null);
+        EsqAccessProfile result = service.esquireKeySave("uid-1", Map.of("tfaMethod", "G"), null);
 
         assertThat(result.getTfaMethod()).isEqualTo("g");
     }
@@ -299,7 +319,7 @@ class KeySmithServiceTest {
         when(accessProfileRepository.accessForUpdate("uid-1", "/root")).thenReturn(jpa);
         when(accessProfileRepository.roles("uid-1")).thenReturn(List.of());
 
-        EsqAccessProfile result = service.esquireKeySave("uid-1", Map.of("tfaMethod", "N"), "/root", "uid-1", null);
+        EsqAccessProfile result = service.esquireKeySave("uid-1", Map.of("tfaMethod", "N"), null);
 
         assertThat(result.getTfaMethod()).isEqualTo("n");
     }
@@ -312,7 +332,7 @@ class KeySmithServiceTest {
         when(accessProfileRepository.accessForUpdate("uid-1", "/root")).thenReturn(jpa);
         when(accessProfileRepository.roles("uid-1")).thenReturn(List.of());
 
-        EsqAccessProfile result = service.esquireKeySave("uid-1", Map.of("tfaMethod", "G"), "/root", "uid-1", null);
+        EsqAccessProfile result = service.esquireKeySave("uid-1", Map.of("tfaMethod", "G"), null);
 
         assertThat(result.getTfaMethod()).isEqualTo("G");
     }
@@ -324,7 +344,7 @@ class KeySmithServiceTest {
         EsqAccessProfileJpa jpa = jpaWith("Y", "N", "user7");
         when(accessProfileRepository.accessForUpdate("uid-1", "/root")).thenReturn(jpa);
 
-        assertThatThrownBy(() -> service.esquireKeySave("uid-1", Map.of("tfaMethod", "X"), "/root", "uid-1", null))
+        assertThatThrownBy(() -> service.esquireKeySave("uid-1", Map.of("tfaMethod", "X"), null))
                 .isInstanceOf(InvalidValueException.class);
     }
 
@@ -342,7 +362,7 @@ class KeySmithServiceTest {
 
         try (MockedStatic<EsqRolesStorage> ms = mockStatic(EsqRolesStorage.class)) {
             adminStorageMock(ms);
-            EsqAccessProfile result = service.esquireKeySave("target-1", Map.of("connectFlg", "Y"), "/root", "admin-99", List.of("ADMIN"));
+            EsqAccessProfile result = service.esquireKeySave("target-1", Map.of("connectFlg", "Y"), List.of("ADMIN"));
             assertThat(result.getTfaMethod()).isEqualTo("N");
         }
     }
@@ -357,7 +377,7 @@ class KeySmithServiceTest {
 
         try (MockedStatic<EsqRolesStorage> ms = mockStatic(EsqRolesStorage.class)) {
             adminStorageMock(ms);
-            EsqAccessProfile result = service.esquireKeySave("target-1", Map.of("connectFlg", "Y"), "/root", "admin-99", List.of("ADMIN"));
+            EsqAccessProfile result = service.esquireKeySave("target-1", Map.of("connectFlg", "Y"), List.of("ADMIN"));
             assertThat(result.getTfaMethod()).isEqualTo("N");
         }
     }

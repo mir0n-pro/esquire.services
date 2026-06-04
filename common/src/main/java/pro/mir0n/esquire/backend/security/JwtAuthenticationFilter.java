@@ -2,7 +2,7 @@
  *  Esquire frameworks (tm)
  *  common library
  *
- *  Copyright(c) 2001, 2025 mir0n&co www.mir0n.me
+ *  Copyright(c) 2001, 2026 mir0n&co www.mir0n.pro
  *  mailto:mir0n.the.programmer@gmail.com
  *
  *  History:
@@ -11,6 +11,8 @@
  * 03/21/2026 mir0n  devLog added; log.debug→devLog.debug; unused imports removed
  * 03/31/2026 mir0n  JavaTimeModule registered on ObjectMapper: fixes OffsetDateTime serialization
  *                   in ProblemDetail error responses
+ * 06/04/2026 mir0n  on a valid token builds EsqRequestContext (crl/req from headers, uid/rootPath from
+ *                   claims), sets EsqContextHolder + MDC uid; both cleared in a finally
  */
 
 package pro.mir0n.esquire.backend.security;
@@ -29,6 +31,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ProblemDetail;
 import org.springframework.lang.NonNull;
+import org.slf4j.MDC;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
@@ -41,6 +44,8 @@ import java.util.List;
 import java.util.Map;
 
 import pro.mir0n.esquire.backend.error.ProblemDetailMill;
+import pro.mir0n.esquire.backend.service.EsqContextHolder;
+import pro.mir0n.esquire.backend.service.EsqRequestContext;
 import pro.mir0n.esquire.common.EsqConstants;
 
 @Slf4j
@@ -70,6 +75,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         final String authHeader = request.getHeader("Authorization");
         final String jwt;
         final String username;
+        String uid = null;
+        String rootPath = null;
 
 
 //devLog.debug("request {} : {}", request.getMethod(),request.getServletPath());
@@ -98,6 +105,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 return;
             }
 
+            uid      = claims.get(EsqConstants.JWT_CLAIM_ENTITY_ID, String.class);
+            rootPath = claims.get(EsqConstants.JWT_CLAIM_ENTITY_ROOTPATH, String.class);
+
             if (SecurityContextHolder.getContext().getAuthentication() == null) {
                 UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
                         claims, // Pass claims as principal
@@ -113,7 +123,25 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             sendErrorResponse(request, response, "Invalid or expired token");
             return; // STOP the chain here
         }
-        filterChain.doFilter(request, response);
+
+        // Establish the unified per-request context for the duration of the request: crl/req from
+        // headers, uid/rootPath from the authenticated claims. Bound to this thread; cleared in
+        // finally so a pooled thread never leaks one caller's identity into the next request.
+        String correlationId = request.getHeader(EsqConstants.ESQ_CORRELATION_ID);
+        if (correlationId == null) {
+            correlationId = request.getHeader(EsqConstants.X_CORRELATION_ID);
+        }
+        String requestId = request.getHeader(EsqConstants.X_REQUEST_ID);
+        EsqContextHolder.set(new EsqRequestContext(correlationId, requestId, uid, rootPath));
+        if (uid != null) {
+            MDC.put(EsqConstants.PD_UID, uid);
+        }
+        try {
+            filterChain.doFilter(request, response);
+        } finally {
+            MDC.remove(EsqConstants.PD_UID);
+            EsqContextHolder.clear();
+        }
 
     }
 

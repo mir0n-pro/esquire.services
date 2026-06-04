@@ -2,7 +2,7 @@
  *  Esquire frameworks (tm)
  *  PacMan service
  *
- *  Copyright(c) 2001, 2025 mir0n&co www.mir0n.me
+ *  Copyright(c) 2001, 2026 mir0n&co www.mir0n.pro
  *  mailto:mir0n.the.programmer@gmail.com
  *
  *  History:
@@ -24,6 +24,8 @@
  * 04/13/2026 mir0n  AcctTransactionSimple → AcctTransactionSingle
  * 06/01/2026 mir0n  esquireCommandNew() / POST /esq-cmd-new mapping removed -- account CREATE
  *                   moved to enyMan
+ * 06/04/2026 mir0n  rootPath / uid no longer extracted from claims; delegates without them (roles
+ *                   still extracted); uid / rootPath ride the unified request context
  */
 
 package pro.mir0n.esquire.pacMan.controller;
@@ -111,13 +113,11 @@ public class PacManController {
            @RequestBody Map<String, Object> fields,
            @AuthenticationPrincipal Claims claims
     ) {
-        String rootPath = claims.get(EsqConstants.JWT_CLAIM_ENTITY_ROOTPATH, String.class);
-        String uid = claims.get(EsqConstants.JWT_CLAIM_ENTITY_ID, String.class);
         Map<String, Object> realmAccess = claims.get(EsqConstants.JWT_CLAIM_REALM_ACCESS, Map.class);
         List<String> roles = realmAccess != null ? (List<String>) realmAccess.get(EsqConstants.JWT_CLAIM_REALM_ACCESS_ROLES) : null;
 
-        EsqEntity ret = iPacManService.esquireCommandSave(kind, id, cmd, fields, rootPath, uid, roles);
-        devLog.debug("esquireCommandSave: kind:{}, id:{}, cmd:{}, rootPath:{}, result:{}", kind, id, cmd, rootPath, String.valueOf(ret));
+        EsqEntity ret = iPacManService.esquireCommandSave(kind, id, cmd, fields, roles);
+        devLog.debug("esquireCommandSave: kind:{}, id:{}, cmd:{}, result:{}", kind, id, cmd, String.valueOf(ret));
         return ResponseEntity.status(HttpStatus.OK).body(ret);
     }
 
@@ -131,13 +131,11 @@ public class PacManController {
            @RequestParam(name = "cmd", required = false, defaultValue = "delete") String cmd,
            @AuthenticationPrincipal Claims claims
     ) {
-        String rootPath = claims.get(EsqConstants.JWT_CLAIM_ENTITY_ROOTPATH, String.class);
-        String uid = claims.get(EsqConstants.JWT_CLAIM_ENTITY_ID, String.class);
         Map<String, Object> realmAccess = claims.get(EsqConstants.JWT_CLAIM_REALM_ACCESS, Map.class);
         List<String> roles = realmAccess != null ? (List<String>) realmAccess.get(EsqConstants.JWT_CLAIM_REALM_ACCESS_ROLES) : null;
 
-        iPacManService.esquireCommandDelete(kind, id, cmd, rootPath, uid, roles);
-        devLog.debug("esquireCommandDelete: kind:{}, id:{}, cmd:{}, rootPath:{}", kind, id, cmd, rootPath);
+        iPacManService.esquireCommandDelete(kind, id, cmd, roles);
+        devLog.debug("esquireCommandDelete: kind:{}, id:{}, cmd:{}", kind, id, cmd);
         return ResponseEntity.ok().build();
     }
 
@@ -159,13 +157,11 @@ public class PacManController {
            @RequestBody Map<String, Object> fields,
            @AuthenticationPrincipal Claims claims
     ) {
-        String rootPath = claims.get(EsqConstants.JWT_CLAIM_ENTITY_ROOTPATH, String.class);
-        String uid = claims.get(EsqConstants.JWT_CLAIM_ENTITY_ID, String.class);
         Map<String, Object> realmAccess = claims.get(EsqConstants.JWT_CLAIM_REALM_ACCESS, Map.class);
         List<String> roles = realmAccess != null ? (List<String>) realmAccess.get(EsqConstants.JWT_CLAIM_REALM_ACCESS_ROLES) : null;
 
-        AcctTransactionSingle ret = acctTransactionService.esquireCommandAcct(kind, id, cmd, fields, rootPath, uid, roles);
-        devLog.debug("esquireCommandAcct: kind:{}, id:{}, cmd:{}, rootPath:{}, result:{}", kind, id, cmd, rootPath, String.valueOf(ret));
+        AcctTransactionSingle ret = acctTransactionService.esquireCommandAcct(kind, id, cmd, fields, roles);
+        devLog.debug("esquireCommandAcct: kind:{}, id:{}, cmd:{}, result:{}", kind, id, cmd, String.valueOf(ret));
         return ResponseEntity.status(HttpStatus.OK).body(ret);
     }
 
@@ -179,11 +175,8 @@ public class PacManController {
            @RequestParam(name = "cmd", required = false, defaultValue = "details") String cmd,
            @AuthenticationPrincipal Claims claims
     ) {
-        String rootPath = claims.get(EsqConstants.JWT_CLAIM_ENTITY_ROOTPATH, String.class);
-        String uid = claims.get(EsqConstants.JWT_CLAIM_ENTITY_ID, String.class);
-
-        EsqEntity entity = iPacManService.esquireCommand(kind, id, cmd, rootPath,  uid);
-        devLog.debug("esquireCommand: kind:{}, id:{}, cmd:{}, rootPath:{}, result:{}", kind, id, cmd, rootPath, String.valueOf(entity));
+        EsqEntity entity = iPacManService.esquireCommand(kind, id, cmd);
+        devLog.debug("esquireCommand: kind:{}, id:{}, cmd:{}, result:{}", kind, id, cmd, String.valueOf(entity));
         return ResponseEntity.status(HttpStatus.OK).body(entity);
     }
 
