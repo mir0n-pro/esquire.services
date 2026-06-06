@@ -2,7 +2,7 @@
  *  Esquire frameworks (tm)
  *  EnyMan service
  *
- *  Copyright(c) 2001, 2025 mir0n&co www.mir0n.me
+ *  Copyright(c) 2001, 2026 mir0n&co www.mir0n.pro
  *  mailto:mir0n.the.programmer@gmail.com
  *
  *  History:
@@ -17,6 +17,9 @@
  * 04/07/2026 mir0n  esquireDictionary(): kind param Integer → int; normalization removed
  * 04/09/2026 mir0n  applyFields() moved to EntityFieldUtils (backend.service)
  * 04/16/2026 mir0n  ret declaration moved to top of method
+ * 06/05/2026 mir0n  completedDictionary(kind) helper extracted: lazy custom-param merge from esq_parameter,
+ *                   guarded by the completed flag -- fixes custom params silently skipped on create/save
+ *                   unless /esq-dict was fetched first; shared by create/save and the dictionary endpoint
  */
 
 package pro.mir0n.esquire.enyMan.service.impl;
@@ -49,21 +52,32 @@ public abstract class AEnyManService  implements IEnyManService {
         //String correlationId = RequestContextUtils.getCorrelationId();
         //String requestId = RequestContextUtils.getRequestId();
         devLog.debug("srvc: esquireDictionary: kind:{}",  kind);
-        EsqEntityDictionary dict  = EsqEntityDictionaryStorage.getInstance().get(kind);
+        EsqEntityDictionary dict  = completedDictionary(kind);
         if  (dict != null) {
-            if(!dict.isCompleted()) {
-                List<EsqCustomEntityFieldJpa> custom = entityDictionaryRepository.findCustom(kind);
-                if   (custom != null && !custom.isEmpty()) {
-                    EsqEntityDictionaryMapper.mapTo(custom, dict);
-                }
-                dict.setCompleted(true);
-            }
             ret = dict.getLayers();
         }
         if (ret == null) {
             throw new ResourceNotFoundException("esquireDictionary", "kind", String.valueOf(kind));
         }
         devLog.debug("srvc: esquireDictionary(2): ret:{}",  ret);
+        return ret;
+    }
+
+    // Returns the in-memory dictionary for `kind` with its custom parameter fields merged in from
+    // esq_parameter. The XML dictionary (esq-entity-dictionaries.xml) ships only standard fields;
+    // custom params are merged here, lazily and once (guarded by the completed flag). The param-write
+    // paths (saveOrg/saveUsr) resolve a custom field's readwrite through the dictionary, so without
+    // this completion they cannot see the field and silently skip the update unless /esq-dict was
+    // fetched first. Centralised so create/save and the dictionary endpoint share one completion.
+    protected EsqEntityDictionary completedDictionary(int kind) {
+        EsqEntityDictionary ret = EsqEntityDictionaryStorage.getInstance().get(kind);
+        if (ret != null && !ret.isCompleted()) {
+            List<EsqCustomEntityFieldJpa> custom = entityDictionaryRepository.findCustom(kind);
+            if (custom != null && !custom.isEmpty()) {
+                EsqEntityDictionaryMapper.mapTo(custom, ret);
+            }
+            ret.setCompleted(true);
+        }
         return ret;
     }
 

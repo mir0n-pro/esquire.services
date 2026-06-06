@@ -99,6 +99,19 @@ Client (34) and Merchant (36) carry their own pk in path.
 | 54 | pacct | Paper Client Account | b | acct, delete |
 | 55 | pacctlnk | Paper Client Account *(link)* | b | acct |
 
+### Parameter Audit Routing Kinds (970–978)
+
+Not tree nodes, not in the XML — synthetic kinds defined in `EsqConstants`, used only to **route a
+custom-parameter change to its `*_par_log` table** in the x-Rod audit feed. They are not real entity
+kinds: the event's `entity_id` is the owning entity (`usr_pk` / `org_pk`), `sub_id` is the parameter
+name, and the parameter row's own `par_et_pk` rides in the event body.
+
+| Kind | Constant | Sub-asset | x-Rod target |
+|---|---|---|---|
+| 970 | `KIND_USR_PAR` | User custom parameter | `esq_usr_par_log` |
+| 972 | `KIND_ORG_PAR` | Org custom parameter | `esq_org_par_log` |
+| 974–978 | — | — | Reserved |
+
 ### Role / Permission Kinds (980–986)
 
 Not tree nodes. Used as keys for permission dictionaries served by keySmith.
@@ -152,6 +165,7 @@ and referenced by `AcctOperation` constants. Served as dictionary entries by pac
 | 20 | Organization | Yes | Yes |
 | 30–37 | User entities + links | Yes | Even only |
 | 50–55 | Account entities + links | Yes | Even only |
+| 970–978 | Parameter audit routing keys | No | No |
 | 980–986 | Role / permission keys | No | No |
 | 988–998 | Sub-entity keys | No | No |
 | 1000–1004 | Accounting operation keys | No | No |

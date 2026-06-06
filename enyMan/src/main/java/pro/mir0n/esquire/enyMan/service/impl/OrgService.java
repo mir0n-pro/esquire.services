@@ -28,6 +28,9 @@
  *                   (id minter moved from common to enyMan in v1.2.6).
  * 06/04/2026 mir0n  rootPath / uid read via RequestContextUtils instead of method params (dropped from
  *                   the IEnyManService public signatures)
+ * 06/05/2026 mir0n  XYRod injected; x-Rod audit posts at the org write sites (create / save / delete / move) +
+ *                   per-param org_par events via listOrgPar (enabled-gated); create/save resolve the
+ *                   dictionary via completedDictionary (custom-param save fix)
  */
 
 package pro.mir0n.esquire.enyMan.service.impl;
@@ -52,6 +55,10 @@ import pro.mir0n.esquire.backend.storage.EsqEntityDictionaryStorage;
 import pro.mir0n.esquire.backend.error.PermissionDeniedException;
 import pro.mir0n.esquire.backend.error.ResourceNotFoundException;
 import pro.mir0n.esquire.enyMan.jpa.EsqMoveRecord;
+import pro.mir0n.esquire.backend.jpa.entity.EsqParRow;
+import pro.mir0n.esquire.common.EsqConstants;
+import pro.mir0n.esquire.common.xrod.RodEvent;
+import pro.mir0n.esquire.common.xrod.XYRod;
 import org.springframework.transaction.support.TransactionTemplate;
 
 @Slf4j
@@ -63,16 +70,19 @@ public class OrgService  extends AEnyManService {
     private EsqOrgRepository orgRepository;
     private TransactionTemplate transactionTemplate;
     private EntityManager em;
+    private XYRod xyRod;
 
     public OrgService(EsqEntityDictionaryRepository entityDictionaryRepository,
                       EsqOrgRepository orgRepository,
                       TransactionTemplate transactionTemplate,
-                      EntityManager em) {
+                      EntityManager em,
+                      XYRod xyRod) {
         super(entityDictionaryRepository);
         this.entityDictionaryRepository = entityDictionaryRepository;
         this.orgRepository = orgRepository;
         this.transactionTemplate = transactionTemplate;
         this.em = em;
+        this.xyRod = xyRod;
     }
 
 
@@ -111,8 +121,10 @@ public class OrgService  extends AEnyManService {
             //      remains to flush at commit.
             em.setFlushMode(FlushModeType.COMMIT);
             saveOrg(id, fields, rootPath, uid, correlationId, requestId, updated, custom);
+            EsqOrgJpa savedOrg = (EsqOrgJpa) updated[0];
+            xyRod.post(RodEvent.Op.UPDATE, savedOrg.getKind(), savedOrg.getId(), null, savedOrg);
             return null;
-        }); // ← transaction commits here
+        }); // <- transaction commits here
 
         ret = EsqEntityFactory.getInstance().createEntity(updated[0], custom[0], null);
         devLog.debug("srvc: esquireCommandSave(org): entity:{}", ret);
@@ -133,6 +145,15 @@ public class OrgService  extends AEnyManService {
         transactionTemplate.execute(status -> {
             em.setFlushMode(FlushModeType.COMMIT);
             createOrg(kind, parentId, fields, rootPath, uid, correlationId, requestId, created);
+            EsqOrgJpa org = (EsqOrgJpa) created[0];
+            xyRod.post(RodEvent.Op.CREATE, org.getKind(), org.getId(), null, org);
+            // full-fidelity param audit: every org-param (defaults + explicit) is born with the org.
+            // Guarded so the re-SELECT is skipped entirely when audit is disabled.
+            if (xyRod.isEnabled()) {
+                for (EsqParRow p : orgRepository.listOrgPar(org.getId())) {
+                    xyRod.post(RodEvent.Op.CREATE, EsqConstants.KIND_ORG_PAR, org.getId(), p.getName(), p);
+                }
+            }
             return null;
         });
 
@@ -148,6 +169,7 @@ public class OrgService  extends AEnyManService {
         transactionTemplate.execute(status -> {
             em.setFlushMode(FlushModeType.COMMIT);
             deleteOrg(id, rootPath);
+            xyRod.post(RodEvent.Op.DELETE, kind, id, null);
             return null;
         });
     }
@@ -185,6 +207,9 @@ public class OrgService  extends AEnyManService {
             orgRepository.moveOrgPaths(currentPath, newEntityPath);
             rows = orgRepository.listMovedPaths(newEntityPath);
             orgRepository.moveOrgParent(id, distId, uid, correlationId, requestId);
+            // x-Rod audit: move is one parent-ref UPDATE (org_org_pk); path rewrites are not audited.
+            org.setParentId(distId);
+            xyRod.post(RodEvent.Op.UPDATE, org.getKind(), org.getId(), null, org);
         }
         return rows;
     }
@@ -216,7 +241,7 @@ public class OrgService  extends AEnyManService {
 
         List<EsqCustomEntityFieldJpa> customFields = entityDictionaryRepository.findCustom(kind);
         if (customFields != null && !customFields.isEmpty()) {
-            EsqEntityDictionary dict = EsqEntityDictionaryStorage.getInstance().get(kind);
+            EsqEntityDictionary dict = completedDictionary(kind);
             EsqEntityKindFieldLayer kfl = new EsqEntityKindFieldLayer();
             for (EsqCustomEntityFieldJpa cf : customFields) {
                 String fieldName = cf.getName();
@@ -258,8 +283,9 @@ public class OrgService  extends AEnyManService {
             orgRepository.updateOrg(id, org.getName(), org.getDesc(), org.getFullName(), uid, correlationId, requestId);
         }
 
+        Set<String> changedPars = new HashSet<>();
         if (cstm != null) {
-            EsqEntityDictionary dict = EsqEntityDictionaryStorage.getInstance().get(org.getKind());
+            EsqEntityDictionary dict = completedDictionary(org.getKind());
             EsqEntityKindFieldLayer kfl = new EsqEntityKindFieldLayer();
             for (EsqNameValueJpa nv : cstm) {
                 String nm = nv.getName();
@@ -271,6 +297,7 @@ public class OrgService  extends AEnyManService {
                         val = (String) ValidatorFactory.getInstance().validate(org, kfl, false, val);
                         nv.setValue(val);
                         orgRepository.updateCustomOrg(id, nm, val, uid, correlationId, requestId);
+                        changedPars.add(nm);
                     }
                 }
             }
@@ -279,6 +306,17 @@ public class OrgService  extends AEnyManService {
         //note: if a DB trigger or default value modifies the row, saveOrg won't reflect it.
         updated[0] = org; //orgRepository.detailOrg(id, rootPath);
         custom[0]  = cstm;
+
+        // param audit: post one ORG_PAR UPDATE per actually-changed param (re-SELECT for the
+        // committed value + the param's et_pk).
+        if (xyRod.isEnabled() && !changedPars.isEmpty()) {
+            for (EsqParRow p : orgRepository.listOrgPar(id)) {
+                if (changedPars.contains(p.getName())) {
+                    xyRod.post(RodEvent.Op.UPDATE, EsqConstants.KIND_ORG_PAR, id, p.getName(), p);
+                }
+            }
+        }
     }
+
 }
 

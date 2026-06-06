@@ -58,7 +58,7 @@ class KeySmithServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new KeySmithService(accessProfileRepository, transactionTemplate, em, kcSyncPublisher);
+        service = new KeySmithService(accessProfileRepository, transactionTemplate, em, kcSyncPublisher, mock(pro.mir0n.esquire.common.xrod.XYRod.class));
         // Default context for the majority of tests (rootPath "/root", uid "uid-1");
         // the three "1.2.3" / "uid-99" tests override it.
         ctx("/root", "uid-1");

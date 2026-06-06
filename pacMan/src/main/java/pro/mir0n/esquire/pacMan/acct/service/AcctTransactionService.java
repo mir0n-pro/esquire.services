@@ -13,6 +13,7 @@
  *                   pre-validates fields/typeId/UNKNOWN/amount; routes by AcctOperation.Code.transfer flag
  * 06/04/2026 mir0n  esquireCommandAcct: rootPath + uid params removed; read via RequestContextUtils and
  *                   passed to the single / transfer processors (processor signatures unchanged)
+ * 06/05/2026 mir0n  XYRod ctor param added + passed to the single / transfer processors (x-Rod balance audit)
  */
 
 package pro.mir0n.esquire.pacMan.acct.service;
@@ -41,9 +42,10 @@ public class AcctTransactionService {
             EsqAcctRepository entityRepository,
             EsqAcctTransactionRepository transactionRepository,
             TransactionTemplate transactionTemplate,
-            EntityManager em) {
-        this.processorSingle   = new AcctTransactionProcessorSingle(entityRepository, transactionRepository, transactionTemplate, em);
-        this.processorTransfer = new AcctTransactionProcessorTransfer(entityRepository, transactionRepository, transactionTemplate, em);
+            EntityManager em,
+            pro.mir0n.esquire.common.xrod.XYRod xyRod) {
+        this.processorSingle   = new AcctTransactionProcessorSingle(entityRepository, transactionRepository, transactionTemplate, em, xyRod);
+        this.processorTransfer = new AcctTransactionProcessorTransfer(entityRepository, transactionRepository, transactionTemplate, em, xyRod);
     }
 
     public AcctTransactionSingle esquireCommandAcct(int kind, String id, String cmd, Map<String, Object> fields, List<String> roles) {

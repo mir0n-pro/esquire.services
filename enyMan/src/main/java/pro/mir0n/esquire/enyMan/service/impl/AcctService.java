@@ -9,6 +9,8 @@
  * 06/01/2026 mir0n  created: account CREATE service on enyMan side
  * 06/04/2026 mir0n  esquireCommandNew reads uid via RequestContextUtils; rootPath / uid params dropped
  *                   from the IEnyManService overrides
+ * 06/05/2026 mir0n  XYRod injected; account CREATE posts an x-Rod audit event (enyMan owns CREATE;
+ *                   pacMan owns UPDATE / DELETE / balance)
  */
 
 package pro.mir0n.esquire.enyMan.service.impl;
@@ -27,6 +29,8 @@ import pro.mir0n.esquire.backend.service.RequestContextUtils;
 import pro.mir0n.esquire.backend.storage.EsqEntityDictionaryStorage;
 import pro.mir0n.esquire.backend.error.ResourceNotFoundException;
 import pro.mir0n.esquire.common.EsqMsgConstants;
+import pro.mir0n.esquire.common.xrod.RodEvent;
+import pro.mir0n.esquire.common.xrod.XYRod;
 import pro.mir0n.esquire.enyMan.jpa.EsqAcctRepository;
 import pro.mir0n.esquire.enyMan.service.EntityIdGenerator;
 import pro.mir0n.esquire.enyMan.jpa.EsqEntityDictionaryRepository;
@@ -41,15 +45,18 @@ public class AcctService extends AEnyManService {
     private final EsqAcctRepository acctRepository;
     private final TransactionTemplate transactionTemplate;
     private final EntityManager em;
+    private final XYRod xyRod;
 
     public AcctService(EsqEntityDictionaryRepository entityDictionaryRepository,
                        EsqAcctRepository acctRepository,
                        TransactionTemplate transactionTemplate,
-                       EntityManager em) {
+                       EntityManager em,
+                       XYRod xyRod) {
         super(entityDictionaryRepository);
         this.acctRepository = acctRepository;
         this.transactionTemplate = transactionTemplate;
         this.em = em;
+        this.xyRod = xyRod;
     }
 
     // Account READ/UPDATE/DELETE stay in pacMan; AcctService owns CREATE only.
@@ -136,5 +143,8 @@ public class AcctService extends AEnyManService {
         acctRepository.insertAcct(newId, kind, name, acct.getDesc(), acct.getCcy(), acct.getStatus(), acct.getNegativeAllowed(), parentId, uid, correlationId, requestId);
 
         created[0] = acct;
+
+        // x-Rod audit: account CREATE (enyMan owns CREATE; UPDATE/DELETE/balance are pacMan's domain).
+        xyRod.post(RodEvent.Op.CREATE, acct.getKind(), acct.getId(), null, acct);
     }
 }

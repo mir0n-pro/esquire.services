@@ -1,5 +1,33 @@
 Esquire enyMan Microservice
 
+06/05/2026 mir0n  v1.2.7 -- audit logging (b): x-Rod wiring + posts; custom-param save fix
+audit.AuditConfig  (new)
+  - reads enyman.audit-logging.*; maps org / org_par / user / person / address / usr_par / account-CREATE
+    kinds to AuditLogSql keys; builds the x-Rod via AuditRod; @PreDestroy shutdown
+service.impl.AEnyManService
+  - completedDictionary(kind) helper: lazy custom-param merge from esq_parameter (guarded by completed
+    flag); fixes custom params silently skipped on create/save unless /esq-dict was fetched first
+service.impl.OrgService
+  - XYRod injected; audit posts at create/save/delete/move + per-param org_par (listOrgPar, enabled-gated);
+    create/save resolve the dictionary via completedDictionary
+service.impl.UsrService
+  - XYRod injected; audit posts across user/person/address/usr_par (create/update/delete + move parent-ref);
+    delete enumerates child pks before cascade; per-param usr_par (listUsrPar); completedDictionary
+service.impl.AcctService
+  - XYRod injected; account CREATE posts an audit event
+service.impl.EnyManService
+  - XYRod ctor param added + passed to OrgService / UsrService / AcctService
+queue.MoveQueueManager
+  - XYRod ctor param added + threaded into the OrgService / UsrService it builds
+jpa.EsqOrgRepository
+  - listOrgPar re-SELECT (EsqParRow) added (feeds ORG_PAR audit events)
+jpa.EsqUsrRepository
+  - listUsrPar re-SELECT (EsqParRow) added (feeds USR_PAR audit events)
+src/main/resources/META-INF/postgres-rodlog.xml, oracle-rodlog.xml  (new)
+  - listOrgPar / listUsrPar re-SELECT named queries + EsqParRowMapping
+src/main/resources/application.yml
+  - enyman.audit-logging.* block added; {oracle,postgres}-rodlog.xml registered in jpa.mapping-resources
+
 06/04/2026 mir0n  v1.2.7 -- uid / rootPath dropped from service signatures; read from the request context
 service.IEnyManService
   - esquireCommand / Save / New / Delete / Move / Tree: rootPath + uid params removed

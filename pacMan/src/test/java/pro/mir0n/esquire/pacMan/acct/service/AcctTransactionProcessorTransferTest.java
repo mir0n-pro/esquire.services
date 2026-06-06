@@ -81,7 +81,7 @@ class AcctTransactionProcessorTransferTest {
 
     @BeforeEach
     void setUp() {
-        service = new AcctTransactionProcessorTransfer(entityRepository, transactionRepository, transactionTemplate, em);
+        service = new AcctTransactionProcessorTransfer(entityRepository, transactionRepository, transactionTemplate, em, Mockito.mock(pro.mir0n.esquire.common.xrod.XYRod.class));
     }
 
     // ---- missing id2 / kind2 → IllegalArgumentException ----

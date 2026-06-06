@@ -1,5 +1,14 @@
 Esquire keySmith Microservice
 
+06/05/2026 mir0n  v1.2.7 -- audit logging (b): auth UPDATE -> esq_auth_log
+audit.AuditConfig  (new)
+  - reads keysmith.audit-logging.*; maps the access-profile kind to the AUTH statement; builds the x-Rod
+service.impl.KeySmithService
+  - XYRod injected; auth UPDATE posts an esq_auth_log audit event (managed non-secret fields;
+    security question / answer excluded)
+src/main/resources/application.yml
+  - keysmith.audit-logging.* block added
+
 06/04/2026 mir0n  v1.2.7 -- uid / rootPath read from the unified request context (not method params)
 service.IKeySmithService
   - esquireKey / esquireKeySave: rootPath + uid params removed

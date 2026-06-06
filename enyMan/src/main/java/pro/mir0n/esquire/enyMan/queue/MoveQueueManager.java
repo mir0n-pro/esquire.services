@@ -19,6 +19,8 @@
  *                   attribution mir0n called out.
  * 06/04/2026 mir0n  processMove hydrates EsqContextHolder from the queued item (crl/req/uid/rootPath),
  *                   cleared in finally; calls esquireCommandMove without rootPath / uid
+ * 06/05/2026 mir0n  XYRod ctor param added + threaded into the OrgService / UsrService it builds
+ *                   (move parent-ref audit on the worker thread)
  */
 
 package pro.mir0n.esquire.enyMan.queue;
@@ -39,6 +41,7 @@ import pro.mir0n.esquire.backend.service.EsqRequestContext;
 import pro.mir0n.esquire.backend.storage.EsqObjectKindStorage;
 import pro.mir0n.esquire.common.EsqConstants;
 import pro.mir0n.esquire.common.EsqMsgConstants;
+import pro.mir0n.esquire.common.xrod.XYRod;
 import pro.mir0n.esquire.enyMan.jpa.EntityPathLookup;
 import pro.mir0n.esquire.enyMan.jpa.EsqEntityDictionaryRepository;
 import pro.mir0n.esquire.enyMan.jpa.EsqMoveRecord;
@@ -82,9 +85,10 @@ public class MoveQueueManager implements IQueueRig.IQueueWorker<MoveQueueItem> {
                             EsqEntityBroadcastPublisher broadcastPublisher,
                             KcRequestPublisher kcRequestPublisher,
                             EntityPathLookup pathLookup,
+                            XYRod xyRod,
                             @Value("${enyman.move-queue.capacity:1024}") int capacity) {
-        this.orgService = new OrgService(entityDictionaryRepository, orgRepository, transactionTemplate, em);
-        this.usrService = new UsrService(entityDictionaryRepository, usrRepository, transactionTemplate, em);
+        this.orgService = new OrgService(entityDictionaryRepository, orgRepository, transactionTemplate, em, xyRod);
+        this.usrService = new UsrService(entityDictionaryRepository, usrRepository, transactionTemplate, em, xyRod);
         this.broadcastPublisher = broadcastPublisher;
         this.kcRequestPublisher = kcRequestPublisher;
         this.pathLookup = pathLookup;

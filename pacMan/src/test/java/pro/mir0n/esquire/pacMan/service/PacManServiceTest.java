@@ -125,7 +125,7 @@ class PacManServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new PacManService(entityRepository, transactionTemplate, em, broadcastPublisher, acctTrxRepo);
+        service = new PacManService(entityRepository, transactionTemplate, em, broadcastPublisher, acctTrxRepo, Mockito.mock(pro.mir0n.esquire.common.xrod.XYRod.class));
         // uid / rootPath now come from the unified per-request context; default to the rootPath the
         // mocks are stubbed against (the Test-House test overrides to "1.14.").
         EsqContextHolder.set(new EsqRequestContext(null, null, "99", "1.2.3"));

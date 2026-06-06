@@ -91,6 +91,13 @@
           <scope>provided</scope>
         </dependency>
 
+        <!-- audit x-Rod dedicated log datasource (common.audit.AuditRod builds a HikariDataSource). -->
+        <dependency>
+          <groupId>com.zaxxer</groupId>
+          <artifactId>HikariCP</artifactId>
+          <scope>provided</scope>
+        </dependency>
+
         <dependency>
           <groupId>org.jetbrains</groupId>
           <artifactId>annotations</artifactId>
@@ -121,6 +128,15 @@
             <artifactId>jjwt-api</artifactId>
             <version>${jjwt.version}</version>
             <scope>provided</scope>
+        </dependency>
+
+        <!-- jjwt runtime impl, test scope only: lets JWT-handling tests build a real Claims
+             (Jwts.claims()...build()). The service modules provide jjwt-impl at runtime. -->
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-impl</artifactId>
+            <version>${jjwt.version}</version>
+            <scope>test</scope>
         </dependency>
 
         <dependency>

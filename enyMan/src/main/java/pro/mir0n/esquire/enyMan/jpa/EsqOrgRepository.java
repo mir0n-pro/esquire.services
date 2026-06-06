@@ -2,7 +2,7 @@
  *  Esquire frameworks (tm)
  *  EnyMan service
  *
- *  Copyright(c) 2001, 2025 mir0n&co www.mir0n.me
+ *  Copyright(c) 2001, 2026 mir0n&co www.mir0n.pro
  *  mailto:mir0n.the.programmer@gmail.com
  *
  *  History:
@@ -13,6 +13,7 @@
  * 03/28/2026 mir0n  insertOrgPath, deleteEntityPath added; insertOrg: path param removed
  * 03/31/2026 mir0n  insertOrgPath: kind param added; moveOrgPaths, moveOrgParent queries added
  * 04/02/2026 mir0n  lockEntityPathRoot, listMovedPaths added for move broadcast
+ * 06/05/2026 mir0n  x-Rod param audit: listOrgPar re-SELECT (EsqParRow) added (feeds ORG_PAR events)
  */
 
 package pro.mir0n.esquire.enyMan.jpa;
@@ -25,6 +26,7 @@ import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 import pro.mir0n.esquire.backend.jpa.EsqNameValueJpa;
 import pro.mir0n.esquire.backend.jpa.entity.EsqOrgJpa;
+import pro.mir0n.esquire.backend.jpa.entity.EsqParRow;
 
 import java.util.List;
 
@@ -123,5 +125,9 @@ public interface EsqOrgRepository extends JpaRepository<EsqOrgJpa, String> {
         @Param("correlationId") String correlationId,
         @Param("requestId") String requestId
     );
+
+    // x-Rod param audit (option b): re-SELECT the committed org-param rows (full state, with et_pk).
+    @NativeQuery
+    List<EsqParRow> listOrgPar(@Param("id") String id);
 
 }

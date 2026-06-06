@@ -2,7 +2,7 @@
  *  Esquire frameworks (tm)
  *  EnyMan service
  *
- *  Copyright(c) 2001, 2025 mir0n&co www.mir0n.me
+ *  Copyright(c) 2001, 2026 mir0n&co www.mir0n.pro
  *  mailto:mir0n.the.programmer@gmail.com
  *
  *  History:
@@ -17,6 +17,7 @@
  * 03/31/2026 mir0n  insertUsrPath: kind param added; moveUsrPaths, moveUsrParent queries added
  * 04/02/2026 mir0n  lockEntityPathRoot, listMovedPaths added for move broadcast
  * 04/06/2026 mir0n  moveAdminPath, listAdminMovedPath: pk-based path update/query for admin users
+ * 06/05/2026 mir0n  x-Rod param audit: listUsrPar re-SELECT (EsqParRow) added (feeds USR_PAR events)
  */
 
 package pro.mir0n.esquire.enyMan.jpa;
@@ -30,6 +31,7 @@ import org.springframework.transaction.annotation.Transactional;
 import pro.mir0n.esquire.backend.jpa.EsqNameValueJpa;
 import pro.mir0n.esquire.enyMan.jpa.EsqMoveRecord;
 import pro.mir0n.esquire.backend.jpa.entity.EsqAcctJpa;
+import pro.mir0n.esquire.backend.jpa.entity.EsqParRow;
 import pro.mir0n.esquire.backend.jpa.entity.EsqAddressJpa;
 import pro.mir0n.esquire.backend.jpa.entity.EsqPersonJpa;
 import pro.mir0n.esquire.backend.jpa.entity.EsqUsrJpa;
@@ -269,4 +271,8 @@ public interface EsqUsrRepository extends JpaRepository<EsqUsrJpa, String> {
         @Param("correlationId") String correlationId,
         @Param("requestId") String requestId
     );
+
+    // x-Rod param audit (option b): re-SELECT the committed usr-param rows (full state, with et_pk).
+    @NativeQuery
+    List<EsqParRow> listUsrPar(@Param("id") String id);
 }

@@ -1,5 +1,31 @@
 Esquire Common microservice classes
 
+06/05/2026 mir0n  v1.2.7 -- audit logging (b): generic x-Rod fan-out substrate + audit sink
+xrod.RodEvent  (new)
+  - record (op/kind/entityId/subId/actionTime/crl/req/uid/body): one self-contained relayed change
+xrod.IRodRepository  (new)
+  - apply(RodEvent) contract; one per *_log table, must be thread-safe
+xrod.RodRepositoryRegistry  (new)
+  - kind -> IRodRepository map (ConcurrentHashMap)
+xrod.XXRod  (new)
+  - Semaphore(poolSize)-bounded worker pool with no queue of its own; submit() resolves kind and applies
+xrod.XYRod  (new)
+  - producer facade: per-tx ThreadLocal buffer, flush after commit via single-worker BoundedQueueRig;
+    post() overloads (IMappable / Map / no-body); self-guards on enabled
+audit.AuditLogSql  (new)
+  - vendor-keyed *_log INSERT..ON CONFLICT (Postgres) / MERGE (Oracle) per statement key
+audit.AuditLogWriter  (new)
+  - applyEvent(): uniform header + RodEvent body bound to AuditLogSql via NamedParameterJdbcTemplate;
+    TolerantSource binds an absent :param to NULL (empty-body DELETE)
+audit.AuditRod  (new)
+  - build(): resolves the log datasource (shared / dedicated Hikari), wires registry + XXRod + XYRod; Handle
+audit.AuditSettings  (new)
+  - record of the per-service audit-logging settings
+EsqConstants
+  - KIND_ORG_PAR (972) / KIND_USR_PAR (970) added: synthetic x-Rod param routing kinds
+pom.xml
+  - HikariCP (provided) added for audit.AuditRod dedicated pool; jjwt-impl (test) added
+
 06/04/2026 mir0n  v1.2.7 -- PD_UID for the unified request context
 EsqConstants
   - PD_UID ("uid") added: MDC key for the acting user

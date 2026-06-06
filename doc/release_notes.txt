@@ -1,6 +1,18 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v1.2.7-2606.0615  v1.2.7 -- audit logging (option b): entity changes recorded to the *_log tables
+    :Feature:     opt-in audit logging records committed entity / sub-entity / account / auth changes to
+                  the *_log tables, off the business transaction (the generic x-Rod producer / consumer)
+    :Feature:     enyMan audits org / user / person / address / params (+ account CREATE); pacMan audits
+                  account update / delete / balance; keySmith audits the auth update (secrets excluded)
+    :Fix:         custom parameter edits now save without a prior /esq-dict fetch (dictionary completed lazily)
+    :Config:      per-service audit-logging.* (enabled default OFF; pool / feed / shared|dedicated log store)
+    Components:   common,
+                  enyMan,
+                  pacMan,
+                  keySmith
+
 v1.2.7-2606.0417  v1.2.7 -- unified per-request context: uid / rootPath obtained like crl_id / req_id
     :Refactoring: uid and rootPath move into the per-request EsqRequestContext, captured once and read
                   via RequestContextUtils

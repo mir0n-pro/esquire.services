@@ -1,5 +1,19 @@
 Esquire pacMan Microservice
 
+06/05/2026 mir0n  v1.2.7 -- audit logging (b): account UPDATE / DELETE / balance -> esq_account_log
+audit.AuditConfig  (new)
+  - reads pacman.audit-logging.*; maps the account kinds to the ACCOUNT statement; builds the x-Rod
+service.impl.PacManService
+  - XYRod injected; saveAcct posts an account UPDATE, deleteAcct a DELETE audit event
+acct.service.AcctTransactionService
+  - XYRod ctor param added + passed to the single / transfer processors
+acct.service.AcctTransactionProcessorSingle
+  - XYRod injected; balance change posts an account UPDATE (new balance + funded_dt mirror on first funding)
+acct.service.AcctTransactionProcessorTransfer
+  - XYRod ctor param added + forwarded to super (both transfer legs audit the balance change)
+src/main/resources/application.yml
+  - pacman.audit-logging.* block added
+
 06/04/2026 mir0n  v1.2.7 -- uid / rootPath read from the unified request context (not method params)
 service.IPacManService
   - esquireCommand / Save / Delete: rootPath + uid params removed

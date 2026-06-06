@@ -7,6 +7,9 @@
 >
 > The detailed infrastructure design — producer facade, message structure, identity model, workflow,
 > transport — is in **[Esquire.AuditLogging.Design.md](Esquire.AuditLogging.Design.md)** (the #3 deliverable).
+> Option **(b)** is now **built and smoke-proven**; the post-build design-review **verdicts** (which
+> trade-offs are deliberate, which work belongs to the later (c)/(d) bus sprint) are recorded in
+> **§10 of the Design doc**.
 
 ---
 

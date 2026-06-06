@@ -27,6 +27,7 @@ import pro.mir0n.esquire.backend.storage.EsqObjectKindStorage;
 import pro.mir0n.esquire.backend.storage.EsqRolesStorage;
 import pro.mir0n.esquire.backend.storage.roles.JpaRolesRepository;
 import pro.mir0n.esquire.common.EsqConstants;
+import pro.mir0n.esquire.common.xrod.XYRod;
 import pro.mir0n.esquire.enyMan.jpa.EsqAcctRepository;
 import pro.mir0n.esquire.enyMan.jpa.EsqEntityDictionaryRepository;
 import pro.mir0n.esquire.enyMan.jpa.EsqOrgRepository;
@@ -150,7 +151,7 @@ class EnyManServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new EnyManService(dictRepo, orgRepo, usrRepo, acctRepo, subtreeRepo, transactionTemplate, em, broadcastPublisher, moveQueue);
+        service = new EnyManService(dictRepo, orgRepo, usrRepo, acctRepo, subtreeRepo, transactionTemplate, em, broadcastPublisher, moveQueue, new XYRod(e -> {}, false, 1));
     }
 
     @AfterEach

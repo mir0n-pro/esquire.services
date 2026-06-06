@@ -21,6 +21,27 @@ pacman:
     service-id: ${PACMAN_SERVICE_ID:entity-update-broadcast}
     ctrl-id: ${PACMAN_CTRL_ID:pacman.default}
     client-id: ${PACMAN_MESSAGING_CLIENT_ID:pacman}
+  audit-logging:
+    enabled: ${PACMAN_AUDIT_ENABLED:false}
+    x-rod:
+      # xx-rod consumer worker pool that writes the *_log tables; keep <= the log datastore pool.
+      pool-size: ${PACMAN_AUDIT_POOL_SIZE:4}
+      virtual-threads: ${PACMAN_AUDIT_VIRTUAL_THREADS:false}
+      # xy-rod producer feed: per-tx buffer, flush after commit; bounded backlog before backpressure.
+      feed-capacity: ${PACMAN_AUDIT_FEED_CAPACITY:4096}
+      # (b) where the in-process xx-rod writes the *_log tables:
+      #   shared    = reuse the service datasource + its Hikari pool (phase 1).
+      #   dedicated = a separate pool / vendor, configured under log-db below (phase 2/3).
+      log-datastore: ${PACMAN_AUDIT_LOG_DATASTORE:shared}
+      # Read ONLY when log-datastore=dedicated. vendor selects the *_log SQL dialect
+      # (dev-postgres -> INSERT..ON CONFLICT, dev-oracle -> MERGE) independently of the service's
+      # own datasource -- so the log DB may be a DIFFERENT vendor than the business DB.
+      log-db:
+        vendor: ${PACMAN_AUDIT_DB_VENDOR:dev-postgres}
+        url: ${PACMAN_AUDIT_DB_URL:}
+        username: ${PACMAN_AUDIT_DB_USERNAME:esq2025}
+        password: ${PACMAN_AUDIT_DB_PASSWORD:q}
+        pool-size: ${PACMAN_AUDIT_DB_POOL_SIZE:8}
 logging:
   level:
     root: ${LOG_LEVEL_ROOT:ERROR}

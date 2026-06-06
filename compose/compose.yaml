@@ -187,6 +187,22 @@ services:
       # v1.2.6 Goal 3 toggle. true = race-8b fixed (CREATE-during-move reconciliation runs);
       # false = race reproduces (used by the race-move-create sim's negative pass).
       - ENYMAN_VALIDATE_CREATE_DURING_MOVE=${ENYMAN_VALIDATE_CREATE_DURING_MOVE:-true}
+      # v1.2.7 audit logging (x-rod). Framework default is OFF (option-0); the demo turns it ON here.
+      - ENYMAN_AUDIT_ENABLED=${ENYMAN_AUDIT_ENABLED:-true}
+      - ENYMAN_AUDIT_POOL_SIZE=${ENYMAN_AUDIT_POOL_SIZE:-4}
+      - ENYMAN_AUDIT_VIRTUAL_THREADS=${ENYMAN_AUDIT_VIRTUAL_THREADS:-false}
+      - ENYMAN_AUDIT_FEED_CAPACITY=${ENYMAN_AUDIT_FEED_CAPACITY:-4096}
+      # (b) log datastore: shared (reuse service DB) | dedicated (separate pool/vendor via ENYMAN_AUDIT_DB_*).
+      - ENYMAN_AUDIT_LOG_DATASTORE=${ENYMAN_AUDIT_LOG_DATASTORE:-shared}
+      # dedicated-only: the log DB may be a DIFFERENT vendor than the business DB.
+      # e.g. business on local postgres, audit log on the dockerized postgres :5433 (same vendor):
+      #   ENYMAN_AUDIT_LOG_DATASTORE=dedicated  ENYMAN_AUDIT_DB_VENDOR=dev-postgres
+      #   ENYMAN_AUDIT_DB_URL=jdbc:postgresql://host.docker.internal:5433/esq2025
+      - ENYMAN_AUDIT_DB_VENDOR=${ENYMAN_AUDIT_DB_VENDOR:-dev-postgres}
+      - ENYMAN_AUDIT_DB_URL=${ENYMAN_AUDIT_DB_URL:-}
+      - ENYMAN_AUDIT_DB_USERNAME=${ENYMAN_AUDIT_DB_USERNAME:-esq2025}
+      - ENYMAN_AUDIT_DB_PASSWORD=${ENYMAN_AUDIT_DB_PASSWORD:-q}
+      - ENYMAN_AUDIT_DB_POOL_SIZE=${ENYMAN_AUDIT_DB_POOL_SIZE:-8}
     command: ["java", "-jar", "app.jar"]
     depends_on:
       postgres:
@@ -230,6 +246,20 @@ services:
       - PACMAN_SERVICE_ID=entity-update-broadcast
       - PACMAN_CTRL_ID=pacman.default
       - PACMAN_MESSAGING_CLIENT_ID=pacman
+      # v1.2.7 audit logging (x-rod). pacMan owns account UPDATE / DELETE / balance -> esq_account_log.
+      # Framework default is OFF (option-0); the demo turns it ON here.
+      - PACMAN_AUDIT_ENABLED=${PACMAN_AUDIT_ENABLED:-true}
+      - PACMAN_AUDIT_POOL_SIZE=${PACMAN_AUDIT_POOL_SIZE:-4}
+      - PACMAN_AUDIT_VIRTUAL_THREADS=${PACMAN_AUDIT_VIRTUAL_THREADS:-false}
+      - PACMAN_AUDIT_FEED_CAPACITY=${PACMAN_AUDIT_FEED_CAPACITY:-4096}
+      # (b) log datastore: shared (reuse service DB) | dedicated (separate pool/vendor via PACMAN_AUDIT_DB_*).
+      - PACMAN_AUDIT_LOG_DATASTORE=${PACMAN_AUDIT_LOG_DATASTORE:-shared}
+      # dedicated-only: the log DB may be a DIFFERENT vendor than the business DB.
+      - PACMAN_AUDIT_DB_VENDOR=${PACMAN_AUDIT_DB_VENDOR:-dev-postgres}
+      - PACMAN_AUDIT_DB_URL=${PACMAN_AUDIT_DB_URL:-}
+      - PACMAN_AUDIT_DB_USERNAME=${PACMAN_AUDIT_DB_USERNAME:-esq2025}
+      - PACMAN_AUDIT_DB_PASSWORD=${PACMAN_AUDIT_DB_PASSWORD:-q}
+      - PACMAN_AUDIT_DB_POOL_SIZE=${PACMAN_AUDIT_DB_POOL_SIZE:-8}
     command: ["java", "-jar", "app.jar"]
     depends_on:
       postgres:
@@ -274,6 +304,20 @@ services:
       - KEYSMITH_CTRL_ID=keysmith.default
       # TEST race-8c repro ONLY (revert after): hold between path read and URQ publish
       - KEYSMITH_TEST_CONNECT_HOLD_MS=${KEYSMITH_TEST_CONNECT_HOLD_MS:-0}
+      # v1.2.7 audit logging (x-rod). keySmith owns the auth UPDATE -> esq_auth_log.
+      # Framework default is OFF (option-0); the demo turns it ON here.
+      - KEYSMITH_AUDIT_ENABLED=${KEYSMITH_AUDIT_ENABLED:-true}
+      - KEYSMITH_AUDIT_POOL_SIZE=${KEYSMITH_AUDIT_POOL_SIZE:-4}
+      - KEYSMITH_AUDIT_VIRTUAL_THREADS=${KEYSMITH_AUDIT_VIRTUAL_THREADS:-false}
+      - KEYSMITH_AUDIT_FEED_CAPACITY=${KEYSMITH_AUDIT_FEED_CAPACITY:-4096}
+      # (b) log datastore: shared (reuse service DB) | dedicated (separate pool/vendor via KEYSMITH_AUDIT_DB_*).
+      - KEYSMITH_AUDIT_LOG_DATASTORE=${KEYSMITH_AUDIT_LOG_DATASTORE:-shared}
+      # dedicated-only: the log DB may be a DIFFERENT vendor than the business DB.
+      - KEYSMITH_AUDIT_DB_VENDOR=${KEYSMITH_AUDIT_DB_VENDOR:-dev-postgres}
+      - KEYSMITH_AUDIT_DB_URL=${KEYSMITH_AUDIT_DB_URL:-}
+      - KEYSMITH_AUDIT_DB_USERNAME=${KEYSMITH_AUDIT_DB_USERNAME:-esq2025}
+      - KEYSMITH_AUDIT_DB_PASSWORD=${KEYSMITH_AUDIT_DB_PASSWORD:-q}
+      - KEYSMITH_AUDIT_DB_POOL_SIZE=${KEYSMITH_AUDIT_DB_POOL_SIZE:-8}
     command: ["java", "-jar", "app.jar"]
     depends_on:
       postgres:
