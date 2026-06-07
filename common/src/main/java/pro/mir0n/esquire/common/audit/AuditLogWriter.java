@@ -11,6 +11,8 @@
  *                   vendor-keyed AuditLogSql, via NamedParameterJdbcTemplate against the configured log
  *                   datasource (shared = service DB, or dedicated = a separate pool / vendor). One INSERT/
  *                   MERGE per call, on the xx-Rod worker thread. A param the body lacks binds NULL (DELETE).
+ * 06/06/2026 mir0n  literals -> constants: header bind-param names PARAM_*; *_log action codes
+ *                   ACTION_INSERT / ACTION_UPDATE / ACTION_DELETE.
  */
 package pro.mir0n.esquire.common.audit;
 
@@ -33,6 +35,22 @@ public class AuditLogWriter {
     private final NamedParameterJdbcTemplate jdbc;
     private final boolean oracle;
 
+    // Uniform audit-log header bind-param names -- the :params every META-INF/audit/{vendor}.xml statement
+    // uses for the identity/audit columns. (Data params are the entity property names from IMappable.fillMap.)
+    public static final String PARAM_ACTION    = "action";
+    public static final String PARAM_ENTITY_ID = "entityId";
+    public static final String PARAM_KIND      = "kind";
+    public static final String PARAM_SUB_ID    = "subId";
+    public static final String PARAM_CRL       = "crl";
+    public static final String PARAM_REQ       = "req";
+    public static final String PARAM_UID       = "uid";
+    public static final String PARAM_ACTION_TS = "actionTs";
+
+    // *_log action column codes (Insert / Update / Delete).
+    public static final String ACTION_INSERT = "I";
+    public static final String ACTION_UPDATE = "U";
+    public static final String ACTION_DELETE = "D";
+
     public AuditLogWriter(DataSource logDataSource, boolean oracle) {
         this.jdbc = new NamedParameterJdbcTemplate(logDataSource);
         this.oracle = oracle;
@@ -51,14 +69,14 @@ public class AuditLogWriter {
     /** Uniform identity + audit params, by the standardized names AuditLogSql uses for every table. */
     private static Map<String, Object> header(RodEvent e) {
         Map<String, Object> p = new HashMap<>();
-        p.put("action", action(e.op()));
-        p.put("entityId", e.entityId());
-        p.put("kind", e.kind());
-        p.put("subId", e.subId());
-        p.put("crl", e.correlationId());
-        p.put("req", e.requestId());
-        p.put("uid", e.uid());
-        p.put("actionTs", Timestamp.from(Instant.ofEpochMilli(e.actionTime())));
+        p.put(PARAM_ACTION,    action(e.op()));
+        p.put(PARAM_ENTITY_ID, e.entityId());
+        p.put(PARAM_KIND,      e.kind());
+        p.put(PARAM_SUB_ID,    e.subId());
+        p.put(PARAM_CRL,       e.correlationId());
+        p.put(PARAM_REQ,       e.requestId());
+        p.put(PARAM_UID,       e.uid());
+        p.put(PARAM_ACTION_TS, Timestamp.from(Instant.ofEpochMilli(e.actionTime())));
         return p;
     }
 
@@ -66,9 +84,9 @@ public class AuditLogWriter {
     private static String action(RodEvent.Op op) {
         String ret;
         switch (op) {
-            case CREATE -> ret = "I";
-            case UPDATE -> ret = "U";
-            default     -> ret = "D";
+            case CREATE -> ret = ACTION_INSERT;
+            case UPDATE -> ret = ACTION_UPDATE;
+            default     -> ret = ACTION_DELETE;
         }
         return ret;
     }

@@ -283,6 +283,84 @@ every decoupled option).
 > aborts the run; these measurements used Gatling's own stats instead. That bug is logged for a
 > harness fix.
 
+### Measured cost of options (a) / (b) / (c) — request processing time (2026-06-07)
+
+The right metric for "what does audit cost" is the **request processing time inside the service** — not
+the Gatling end-to-end (which folds in gateway + KC + network + client contention), and not the time-to-
+log-published (the async tail). `MdcFilter` stamps two response headers the perf-matrix records per request:
+
+- **`srvOuter`** = `System.currentTimeMillis()` around the whole in-service request (controller + tx commit
+  + the post-commit `feed.put()`). This is the request processing time.
+- **`srvInner`** = JPA/DB time only (`performance.getTotalJpaTime()`); `srv_self = srvOuter - srvInner` is
+  the non-JPA service work, where the post-commit audit enqueue lives.
+
+Same `UpdateLoadSimulation` (`POST /esq-cmd-save` postal-address edit → enyMan; one `esq_address_log` event
+per request — confirmed by the row counts, not user+person+address), ~10-client pool under the Test House,
+on the dockerized stack (gateway + KC + enyMan + ActiveMQ + xxRod + Postgres 17), warm, flipping only
+enyMan's audit config between runs. All values ms, for the `POST /esq-cmd-save` request.
+
+**Normal load (4 update workers, pre-saturation)** — audit is effectively free in every mode:
+
+| Audit mode | srvOuter mean | p50 | p95 | p99 | srvInner mean (JPA) |
+|---|---|---|---|---|---|
+| (0) off                          | 3.30 | 3 | 5 | 6 | 1.10 |
+| (a) triggers (DB, in-tx)         | 3.27 | 3 | 5 | 6 | 1.12 |
+| (b) in-process                   | 3.60 | 3 | 5 | 6 | 1.15 |
+| (c) bus -> xxRod, sync publish   | 3.99 | 4 | 5 | 7 | 1.27 |
+| (c) bus -> xxRod, async pool x4  | 3.77 | 4 | 5 | 7 | 1.23 |
+
+All five sit within ~0.7 ms of each other (p95 all 5 ms, p99 6-7). At normal load even (c) sync's single
+synchronous publisher drains faster than events arrive, so the bounded feed never fills — no backpressure.
+
+**High load (8 update workers, 60 s)** — pushes (c) sync past its single-publisher drain ceiling:
+
+| Audit mode | srvOuter mean | p50 | p95 | p99 | srvInner mean (JPA) | cost lands in |
+|---|---|---|---|---|---|---|
+| (0) off                          | 5.13  | 5 | 7  | 8  | 1.28 | — |
+| (a) triggers (DB, in-tx)         | 5.27  | 5 | 7  | 8  | 1.31 | srvInner (negligible here) |
+| (b) in-process                   | 6.17  | 6 | 8  | 10 | 1.32 | srv_self (~+1 ms) |
+| (c) bus -> xxRod, sync publish   | 12.07 | 9 | 40 | 45 | 1.37 | srv_self (saturation tail) |
+| (c) bus -> xxRod, async pool x4  | 6.00  | 6 | 8  | 11 | 1.49 | srv_self (~+1 ms) |
+
+- **srvInner (JPA) is flat across every mode (~1.3 ms).** No option pushes cost onto the DB-time of the
+  request thread — even (a)'s trigger INSERT, riding inside the already-open business tx, is lost in the
+  noise (matching the host-pg micro-benchmark above: triggers ~0 % at this load). The audit cost, when it
+  shows, is in `srv_self` (the post-commit enqueue), not in JPA.
+- **(a) is effectively free on the request path** at this load — the trigger is a cheap extra INSERT in a
+  transaction that is committing anyway. Its real downsides are structural (it cannot see crl/req/uid except
+  via columns the app must carry on every business row, and it couples the audit schema into the business
+  DB), not latency.
+- **(b) and (c) async-pool both add ~1 ms** to the ~5 ms baseline, with tight tails (p99 <= 11). In both the
+  request thread only does `feed.put()` after commit; the difference is purely what the single feed worker
+  does downstream, off the request thread (in-JVM `XXRod.submit` for (b), an async JMS publish for c-pool).
+- **(c) sync is the only one with a problem, and only under saturation.** The single feed worker publishes
+  **synchronously** (one broker round-trip per event, ~1.5 ms). When sustained ingest exceeds that drain
+  rate the bounded feed (4096) fills and `feed.put()` blocks the request thread — p95/p99 jump to 40/45 ms.
+  This is a throughput-cap effect, not a per-request tax (see the load gradient below).
+
+**c-sync is load-dependent — regular traffic passes straight through.** Same c-sync mode, varying only the
+worker count (`srvOuter` ms):
+
+| load | srvOuter mean | p95 | p99 |
+|---|---|---|---|
+| 1 worker (regular) | 2.59 | 3 | 4 |
+| 2 workers (regular)| 3.10 | 4 | 5 |
+| 4 workers (busy)   | 3.95 | 5 | 7 |
+| 8 workers (saturate)| 14.65 | 46 | 49 |
+
+Below the single-publisher drain ceiling the queue passes through without blocking (p99 <= 7); the knee is
+between 4 and 8 workers here. So **(c) sync is fine for normal load**; the async pool simply raises that
+ceiling for high-bandwidth bursts.
+
+- **(c)'s real payoff is offload, not request latency:** the `*_log` writes leave the business DB/JVM
+  entirely — xxRod wrote the `esq_address_log` rows on its own connection pool (end-to-end verified:
+  EnqueueCount == DequeueCount == rows, queue drained to 0, zero errors). Under a DB-bound business workload
+  (the reason to move audit off-box) that offload is the win.
+- **The pool is opt-in** via `...audit-logging.x-rod.bus.publisher-pool-size` (0 = single-worker sync publish,
+  kept as an option for normal load; N>0 = N async publisher threads over a dedicated `useAsyncSend`
+  connection, for high-bandwidth). Audit is order-independent, so parallel publishers are safe; batching the
+  publish remains a further lever.
+
 ---
 
 ## 4. The xy / xx-Rod

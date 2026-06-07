@@ -411,6 +411,49 @@ priority.**
 
 ---
 
+## 11. SQL externalization — the `META-INF/audit/` spec folder
+
+The `*_log` INSERT/MERGE statements are **not in code**. They live in a per-module spec folder
+`src/main/resources/META-INF/audit/{postgres,oracle}.xml` (CDATA, keyed by sql-key); `common.audit.AuditLogSql`
+is a **generic loader** (no SQL) that reads them from the classpath, and `common` itself stays SQL-free
+(abstract/generic only). Each asset service ships **only the statements for the tables it writes** in (b)
+— enyMan: org / user / person / address / params / account; pacMan: account; keySmith: auth — while the
+standalone **xxRod** consumer ships the **full set**.
+
+**Why a spec folder (deploy-time toggle).** The loader tolerates an absent resource (no file → empty map),
+so audit is opt-in at **packaging / deployment time**, not only via the `enabled` flag: a setup that does
+not need audit logging simply **omits the `META-INF/audit/` files** from the build/image — no audit SQL is
+shipped and no code changes. The same seam lets a deployment swap the dialect (postgres/oracle) or restrict
+which tables are logged by shipping a different `META-INF/audit/` set. SQL stays a **deployable spec
+artifact**, decoupled from the code.
+
+---
+
+## 12. The xxRod consumer as a generic xRod host -- pluggable `IRodDirector`
+
+The standalone (c) consumer (`xxRod`) is built as a **director-agnostic host**, not an audit-only service.
+The transport (`RodAuditConsumer`, an `@JmsListener`) decodes each message into a `RodEvent` and hands it to
+one `IRodDirector` -- the pluggable consumer-side strategy:
+
+- `type()` -- the director's selection id.
+- `init(Environment)` -- the director reads its OWN `xxrod.director.<type>.*` properties and wires its sink.
+- `accept(RodEvent)` -- process one event.
+- `shutdown()` -- release resources.
+
+The active director is selected by **`xxrod.director.type`** (default `audit`); each impl is a `@Component`
+gated by `@ConditionalOnProperty` on that key, so exactly one is wired. The generic **`RodDirectorHost`**
+drives the lifecycle (calls `init()` at startup, `shutdown()` at stop) and knows nothing about any specific
+sink. The audit director (`AuditRodDirector`) is the first impl: its `init()` reads `xxrod.director.audit.*`
+(pool-size, virtual-threads) + the active vendor and builds the `AuditLogWriter` + `AuditKinds` registry +
+`XXRod` pool.
+
+**Adding a sink (replication, doc-DB) is code-local and config-selected:** drop a new `IRodDirector`
+`@Component` gated on its own `type`, give its `init()` the `xxrod.director.<type>.*` it needs, and set
+`xxrod.director.type`. The host, transport, codec, and queue are unchanged -- this is the seam the (d)
+doc-DB sink plugs into.
+
+---
+
 ## Cross-references
 
 - [Esquire.AuditLogging.md](Esquire.AuditLogging.md) — the option space (0/a/b/c/d/e) and the stance.

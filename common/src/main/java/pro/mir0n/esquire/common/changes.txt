@@ -1,5 +1,31 @@
 Esquire Common microservice classes
 
+06/06/2026 mir0n  v1.2.7 -- audit logging (c): bus transport + async publisher pool + SQL externalized
+audit.RodEventCodec  (new)
+  - RodEvent <-> FIX-JSON envelope (JMS header props + body as Text JSON); shared by producer + xxRod consumer
+audit.RodEventBusPublisher  (new)
+  - Consumer<RodEvent> the xy-Rod feed worker calls; serializes via RodEventCodec, sends to QUEUE_ROD_AUDIT;
+    best-effort (broker failure logged, not thrown)
+audit.AuditKinds  (new)
+  - the one audit kind -> AuditLogSql-key map (entity kinds via esq-object-kinds flags; sub / param / auth
+    via EsqConstants); used by every producer and the xxRod consumer
+audit.AuditRod
+  - MODE_IN_PROCESS / MODE_BUS constants; buildBus() wires the xy-Rod feed to a bus dispatcher (no local
+    writer / registry / datasource); buildBusPool() wires the feed to an XXRod publisher pool (N async senders)
+audit.AuditLogSql
+  - rewritten as a generic DOM loader of /META-INF/audit/{vendor}.xml (key -> SQL); SQL no longer in code,
+    tolerates an absent resource (audit opt-in at packaging)
+audit.AuditLogWriter
+  - header bind-param names -> PARAM_* constants; *_log action codes -> ACTION_INSERT / UPDATE / DELETE
+xrod.XXRod
+  - generic XXRod(Consumer<RodEvent> worker, poolSize, useVirtualThreads) ctor for the producer publisher
+    pool; the registry ctor delegates via applyViaRegistry()
+EsqMsgConstants
+  - QUEUE_ROD_AUDIT, MSG_TYPE_ROD_AUDIT, BUS_ID_ROD, SERVICE_ID_ROD_AUDIT, FIELD_SUB_ID / FIELD_UID /
+    FIELD_ACTION_TIME added
+pom.xml
+  - spring-jms (provided) added
+
 06/05/2026 mir0n  v1.2.7 -- audit logging (b): generic x-Rod fan-out substrate + audit sink
 xrod.RodEvent  (new)
   - record (op/kind/entityId/subId/actionTime/crl/req/uid/body): one self-contained relayed change

@@ -1,0 +1,26 @@
+Esquire xxRod Microservice
+
+06/06/2026 mir0n  v1.2.7 -- audit logging (c): standalone x-Rod audit consumer service
+XxRodApplication  (new)
+  - @SpringBootApplication; an ApplicationStartingListener loads EsqObjectKindStorage before the context
+director.IRodDirector  (new)
+  - the pluggable consumer-side strategy of the generic xRod host: type() (selection id), init(Environment)
+    (read own properties + wire the sink), accept(RodEvent), shutdown(); selected by xxrod.director.type
+director.AuditRodDirector  (new)
+  - the first IRodDirector (self-configuring), gated by @ConditionalOnProperty xxrod.director.type=audit
+    (default); init() reads its own xxrod.director.audit.* (pool-size, virtual-threads) + the active vendor,
+    then builds the AuditLogWriter + AuditKinds registry + reused common.xrod.XXRod pool; accept() = submit;
+    shutdown() stops the pool
+director.RodDirectorHost  (new)
+  - the generic, director-agnostic lifecycle: takes the selected IRodDirector, calls init() at startup and
+    shutdown() at stop (knows nothing about audit / replication / doc-DB specifics)
+messaging.RodAuditConsumer  (new)
+  - @JmsListener on QUEUE_ROD_AUDIT; decodes via RodEventCodec.fromMessage -> director.accept; MDC from crl / req
+messaging.XxRodJmsConfig  (new)
+  - @EnableJms; queue listener container factory (pubSubDomain=false, competing consumers), concurrency configurable
+src/main/resources/META-INF/audit/postgres.xml  (new)
+src/main/resources/META-INF/audit/oracle.xml  (new)
+  - the FULL *_log statement set (the consumer writes every kind), loaded by common AuditLogSql
+src/main/resources/application.yml  (new)
+  - dev-postgres / dev-oracle datasource + spring.activemq.broker-url + xxrod.director.type +
+    xxrod.director.audit.* + queue listener config

@@ -11,20 +11,30 @@
  *                   the AuditLogWriter, registers each kind -> AuditLogSql key on the xx-Rod pool, starts
  *                   the xy/xx-Rod, and returns a Handle (the XYRod + a shutdown hook). Each service's
  *                   AuditConfig just supplies its AuditSettings + its kind->sql-key map.
+ * 06/06/2026 mir0n  option (c) + modes: MODE_IN_PROCESS / MODE_BUS constants; buildBus() wires the xy-Rod
+ *                   feed to a bus dispatcher (no local writer / registry / datasource -- the standalone xxRod
+ *                   owns those); buildBusPool() wires the feed to an XXRod publisher pool (N async senders)
+ *                   for the high-bandwidth bus path.
  */
 package pro.mir0n.esquire.common.audit;
 
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
 import org.slf4j.Logger;
+import pro.mir0n.esquire.common.xrod.RodEvent;
 import pro.mir0n.esquire.common.xrod.RodRepositoryRegistry;
 import pro.mir0n.esquire.common.xrod.XXRod;
 import pro.mir0n.esquire.common.xrod.XYRod;
 
 import javax.sql.DataSource;
 import java.util.Map;
+import java.util.function.Consumer;
 
 public final class AuditRod {
+
+    /** Audit dispatch mode (the {@code ...audit-logging.x-rod.mode} value). */
+    public static final String MODE_IN_PROCESS = "in-process";
+    public static final String MODE_BUS        = "bus";
 
     private AuditRod() {
     }
@@ -58,6 +68,36 @@ public final class AuditRod {
         return new Handle(xy, xx, dedicatedDs);
     }
 
+    /**
+     * Option (c) bus mode: the xy-Rod feed dispatches to {@code busDispatcher} (publishes to the audit
+     * queue) instead of an in-process xx-Rod. No writer / registry / datasource is built here -- the
+     * standalone xxRod consumer owns those.
+     */
+    public static Handle buildBus(String name, AuditSettings s, Consumer<RodEvent> busDispatcher, Logger log) {
+        XYRod xy = new XYRod(busDispatcher, s.enabled(), s.feedCapacity());
+        xy.start(name + "-xyrod", log);
+        log.info("audit x-Rod wired: name={}, mode=bus, enabled={}, feedCapacity={}",
+                name, s.enabled(), s.feedCapacity());
+        return new Handle(xy, null, null);
+    }
+
+    /**
+     * Option (c) bus mode WITH a publisher pool: the xy-Rod feed dispatches to a bounded XXRod pool that
+     * issues a thread per event to run {@code busPublisher} (the same thread-per-event mechanism as the
+     * in-process apply pool). No extra queue -- the xy-Rod feed is the only queue; the pool sits after it.
+     * Pair {@code busPublisher} with an async (useAsyncSend) connection factory for real throughput gain.
+     */
+    public static Handle buildBusPool(String name, AuditSettings s, Consumer<RodEvent> busPublisher,
+                                      int publisherPoolSize, Logger log) {
+        XXRod pubPool = new XXRod(busPublisher, publisherPoolSize, s.virtualThreads());
+        pubPool.start(name + "-pubpool", log);
+        XYRod xy = new XYRod(pubPool::submit, s.enabled(), s.feedCapacity());
+        xy.start(name + "-xyrod", log);
+        log.info("audit x-Rod wired: name={}, mode=bus(pool), enabled={}, publisherPoolSize={}, feedCapacity={}",
+                name, s.enabled(), publisherPoolSize, s.feedCapacity());
+        return new Handle(xy, pubPool, null);
+    }
+
     private static HikariDataSource buildDedicated(String name, AuditSettings s) {
         HikariConfig hc = new HikariConfig();
         hc.setJdbcUrl(s.logDbUrl());
@@ -88,7 +128,9 @@ public final class AuditRod {
 
         public void shutdown() {
             xyRod.shutdown();
-            xxRod.shutdown();
+            if (xxRod != null) {
+                xxRod.shutdown();
+            }
             if (dedicatedDataSource != null) {
                 dedicatedDataSource.close();
             }

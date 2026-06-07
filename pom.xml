@@ -24,6 +24,7 @@
         <module>pacMan</module>
         <module>keySmith</module>
         <module>kcMaster</module>
+        <module>xxRod</module>
      </modules>
 
     <properties>
@@ -54,6 +55,7 @@
         <pacMan.version>${esquire.version}</pacMan.version>
         <keySmith.version>${esquire.version}</keySmith.version>
         <kcMaster.version>${esquire.version}</kcMaster.version>
+        <xxRod.version>${esquire.version}</xxRod.version>
         <!-- war version -->
         <!-- war.version>${esquire.version}</war.version -->
 

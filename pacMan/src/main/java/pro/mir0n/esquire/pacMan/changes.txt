@@ -1,5 +1,19 @@
 Esquire pacMan Microservice
 
+06/06/2026 mir0n  v1.2.7 -- audit logging (c): mode-aware producer (bus) + async publisher pool + SQL externalized
+audit.AuditConfig
+  - mode-aware: mode=bus builds RodEventBusPublisher + AuditRod.buildBus; publisher-pool-size>0 builds a
+    dedicated useAsyncSend connection + AuditRod.buildBusPool (CF closed in @PreDestroy); mode=in-process keeps (b)
+messaging.PacManJmsConfig
+  - jmsQueueTemplate (pubSubDomain=false) bean added for the audit bus producer
+messaging.EsqEntityBroadcastPublisher
+  - @Qualifier("jmsTopicTemplate") on the ctor param (a 2nd JmsTemplate bean now exists -> disambiguate)
+src/main/resources/META-INF/audit/postgres.xml  (new)
+src/main/resources/META-INF/audit/oracle.xml  (new)
+  - the account *_log statement pacMan writes, externalized out of code (loaded by common AuditLogSql)
+src/main/resources/application.yml
+  - audit-logging.x-rod.mode + bus.publisher-pool-size added
+
 06/05/2026 mir0n  v1.2.7 -- audit logging (b): account UPDATE / DELETE / balance -> esq_account_log
 audit.AuditConfig  (new)
   - reads pacman.audit-logging.*; maps the account kinds to the ACCOUNT statement; builds the x-Rod

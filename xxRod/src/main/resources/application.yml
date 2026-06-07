@@ -1,0 +1,81 @@
+spring:
+  profiles:
+    active: ${DB_XXROD_VENDOR:dev-postgres}
+  application:
+    name: xxrod
+  activemq:
+    broker-url: ${AMQ_BROKER_URL:tcp://localhost:61616}
+    user: ${AMQ_USER:}
+    password: ${AMQ_PASSWORD:}
+  mvc:
+    problemdetails:
+      enabled: true
+xxrod:
+  director:
+    # which IRodDirector consumes the audit queue -- the pluggable consumer-side sink.
+    # audit = write the *_log tables (default). Future: replication / doc-db, each its own gated @Configuration.
+    type: ${XXROD_DIRECTOR:audit}
+    # the audit director's own configuration:
+    audit:
+      # xx-Rod worker pool that writes the *_log tables; keep <= the datasource Hikari pool.
+      pool-size: ${XXROD_AUDIT_POOL_SIZE:8}
+      virtual-threads: ${XXROD_AUDIT_VIRTUAL_THREADS:false}
+  messaging:
+    # JMS listener concurrency; the XXRod pool provides the actual write parallelism.
+    concurrency: ${XXROD_MESSAGING_CONCURRENCY:1-1}
+
+logging:
+  level:
+    root: ${LOG_LEVEL_ROOT:ERROR}
+    org:
+      springframework: ${LOG_LEVEL_SF:ERROR}
+      springframework.jms: ${LOG_LEVEL_JMS:INFO}
+      apache:
+        activemq: ${LOG_LEVEL_AMQ:INFO}
+    pro:
+      mir0n: ${LOG_LEVEL_MIR0N:ERROR}
+    develop: ${LOG_LEVEL_DEVELOP:DEBUG}
+    msg: ${LOG_LEVEL_MSG:INFO}
+  develop:
+    log-path: ${DEVELOP_LOG_PATH:logs/xxRod-develop.log}
+  msg:
+    log-path: ${MSG_LOG_PATH:logs/xxRod-msg.log}
+
+---
+# Development Postgres
+spring:
+  config:
+    activate:
+      on-profile: dev-postgres
+  datasource:
+    url: jdbc:postgresql://${DB_XXROD_HOST:localhost}:${DB_XXROD_PORT:5432}/${DB_XXROD_NAME:esq2025}
+    username: ${DB_XXROD_USERNAME:esq2025}
+    password: ${DB_XXROD_PASSWORD:q}
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 10
+      connection-timeout: 30000
+      max-lifetime: 1800000
+      idle-timeout: 600000
+server:
+  port: ${XXROD_PORT:3007}
+
+---
+# Development Oracle
+spring:
+  config:
+    activate:
+      on-profile: dev-oracle
+  datasource:
+    url: jdbc:oracle:thin:@//${DB_XXROD_HOST:localhost}:${DB_XXROD_PORT:1521}/${DB_XXROD_NAME:MIR0N}
+    driverClassName: oracle.jdbc.OracleDriver
+    username: ${DB_XXROD_USERNAME:esq2025}
+    password: ${DB_XXROD_PASSWORD:q}
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 10
+      connection-timeout: 30000
+      max-lifetime: 1800000
+      idle-timeout: 600000
+server:
+  port: ${XXROD_PORT:3007}

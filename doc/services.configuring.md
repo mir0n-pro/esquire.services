@@ -24,10 +24,10 @@ table.
 ## Shared parameters (most services)
 
 These follow the same pattern across services; `<SVC>` is the service token in caps
-(`ENYMAN`, `PACMAN`, `KEYSMITH`, `KCMASTER`, `BIZTREE`). They are listed once here and referenced
+(`ENYMAN`, `PACMAN`, `KEYSMITH`, `KCMASTER`, `BIZTREE`, `XXROD`). They are listed once here and referenced
 from each service section rather than repeated.
 
-### Database (data services: enyMan, pacMan, keySmith, bizTree — NOT kcMaster)
+### Database (data services: enyMan, pacMan, keySmith, bizTree, xxRod — NOT kcMaster)
 
 | Env var | Default | Description |
 |---|---|---|
@@ -48,6 +48,31 @@ Hikari pool settings are fixed in the yml (not env-driven): `maximum-pool-size=2
 | `AMQ_BROKER_URL` | `tcp://localhost:61616` | Broker URL. |
 | `AMQ_USER` | *(empty)* | Broker user (no auth in current phase). |
 | `AMQ_PASSWORD` | *(empty)* | Broker password. |
+
+### Audit logging (producers: enyMan, pacMan, keySmith)
+
+Opt-in audit (option-0 baseline: default OFF). The producer buffers committed entity changes and, after
+commit, feeds them off the request thread to the audit sink: **(b)** in-process write to the `*_log`
+tables, or **(c)** publish to the audit queue for the standalone **xxRod** consumer. Here `<SVC>` is
+`ENYMAN` / `PACMAN` / `KEYSMITH`. See `doc/Esquire.AuditLogging.md`.
+
+| Env var | Default | Description |
+|---|---|---|
+| `<SVC>_AUDIT_ENABLED` | `false` code / `true` deployed | Master switch; OFF -> `post()` is a no-op. |
+| `<SVC>_AUDIT_MODE` | `in-process` code / `bus` deployed | `in-process` = (b) write `*_log` here; `bus` = (c) publish to the queue (xxRod writes). |
+| `<SVC>_AUDIT_FEED_CAPACITY` | `4096` | xy-Rod producer feed depth (bounded; full -> back-pressures flush-after-commit). |
+| `<SVC>_AUDIT_POOL_SIZE` | `4` | (b) in-process apply-pool size; keep <= the log datastore pool. |
+| `<SVC>_AUDIT_VIRTUAL_THREADS` | `false` | (b)/(c) pool workers on virtual threads. |
+| `<SVC>_AUDIT_PUBLISHER_POOL_SIZE` | `0` | (c) bus publisher pool: `0` = single feed-worker synchronous publish; `N>0` = N async sender threads over a dedicated `useAsyncSend` connection (high-bandwidth). |
+| `<SVC>_AUDIT_LOG_DATASTORE` | `shared` | (b) where `*_log` is written: `shared` (service DB) or `dedicated` (separate pool/vendor below). |
+| `<SVC>_AUDIT_DB_VENDOR` | `dev-postgres` | (b) dedicated-only: log-DB SQL dialect (may differ from the business DB). |
+| `<SVC>_AUDIT_DB_URL` | *(empty)* | (b) dedicated-only: log-DB JDBC URL. |
+| `<SVC>_AUDIT_DB_USERNAME` | `esq2025` | (b) dedicated-only: log-DB user. |
+| `<SVC>_AUDIT_DB_PASSWORD` | `q` | (b) dedicated-only: log-DB password. |
+| `<SVC>_AUDIT_DB_POOL_SIZE` | `8` | (b) dedicated-only: log-DB Hikari pool size. |
+
+The `*_log` SQL each producer can write is shipped as a deploy-time `META-INF/audit/{vendor}.xml` spec set
+(omit those files to package the service without audit SQL). See [xxRod](#xxrod) for the (c) consumer.
 
 ### Server port
 
@@ -123,7 +148,7 @@ The route table targets these (defaults are dev-quirky leftovers — always over
 Entity manager: org/user/account CREATE, save, move, the in-process move queue, entity-id minting.
 
 **Port:** `ENYMAN_PORT` (`3000` code / `3003` deployed). **Shared:** DB token `ENYMAN`, AMQ,
-logging, instance identity.
+logging, instance identity, [audit logging](#audit-logging-producers-enyman-pacman-keysmith).
 
 | Env var | Default | Description |
 |---|---|---|
@@ -140,7 +165,8 @@ logging, instance identity.
 
 Accounting: account balance / deposit / withdrawal / transfer and account DELETE.
 
-**Port:** `PACMAN_PORT` (`3000` code / `3003` deployed). **Shared:** DB token `PACMAN`, AMQ, logging.
+**Port:** `PACMAN_PORT` (`3000` code / `3003` deployed). **Shared:** DB token `PACMAN`, AMQ, logging,
+[audit logging](#audit-logging-producers-enyman-pacman-keysmith).
 
 | Env var | Default | Description |
 |---|---|---|
@@ -154,7 +180,8 @@ Accounting: account balance / deposit / withdrawal / transfer and account DELETE
 
 Access-profile / credential routine; publishes KC-sync requests (JMS) to kcMaster.
 
-**Port:** `KEYSMITH_PORT` (`3000` code / `3002` deployed). **Shared:** DB token `KEYSMITH`, AMQ, logging.
+**Port:** `KEYSMITH_PORT` (`3000` code / `3002` deployed). **Shared:** DB token `KEYSMITH`, AMQ, logging,
+[audit logging](#audit-logging-producers-enyman-pacman-keysmith).
 
 | Env var | Default | Description |
 |---|---|---|
@@ -220,6 +247,27 @@ DB read at cache load), AMQ, logging.
 
 ---
 
+## xxRod
+
+Standalone audit-bus consumer (option c) -- a generic **xRod host**: consumes the audit queue
+(`esquire.rod.audit`) and hands each decoded event to the configured `IRodDirector` (audit = write the
+`*_log` tables). Horizontally redundant (competing consumers on the queue; no clientId). It ships the
+**full** `META-INF/audit/{vendor}.xml` SQL set (it writes every kind). See
+`doc/Esquire.AuditLogging.Design.md` §12.
+
+**Port:** `XXROD_PORT` (`3007`). **Shared:** DB token `XXROD` (the log datastore it writes; vendor from
+`DB_XXROD_VENDOR`), AMQ (consumes the audit queue), logging. (No producer audit block -- xxRod is the
+consumer side.)
+
+| Env var | Default | Description |
+|---|---|---|
+| `XXROD_DIRECTOR` | `audit` | Which `IRodDirector` is active (`xxrod.director.type`); each impl is a gated `@Component` that reads its own `xxrod.director.<type>.*` config in `init()`. `audit` writes the `*_log` tables; future: replication / doc-DB. |
+| `XXROD_AUDIT_POOL_SIZE` | `8` | Audit director's apply-pool (`XXRod`) size; keep <= the datasource Hikari pool. |
+| `XXROD_AUDIT_VIRTUAL_THREADS` | `false` | Apply-pool workers on virtual threads. |
+| `XXROD_MESSAGING_CONCURRENCY` | `1-1` | JMS listener concurrency (the apply pool provides the actual write parallelism). |
+
+---
+
 ## Logging configuration
 
 Three log tiers (see `doc/Logging.md` for the full strategy):
@@ -234,9 +282,9 @@ Levels (all services unless noted):
 |---|---|---|
 | `LOG_LEVEL_ROOT` | `ERROR` | Root logger level. |
 | `LOG_LEVEL_SF` | `ERROR` | `org.springframework` level. |
-| `LOG_LEVEL_JMS` | `INFO` (enyMan/pacMan/kcMaster) / `ERROR` (bizTree/keySmith) | `org.springframework.jms` level. (Not present in the gateway.) |
+| `LOG_LEVEL_JMS` | `INFO` (enyMan/pacMan/kcMaster/xxRod) / `ERROR` (bizTree/keySmith) | `org.springframework.jms` level. (Not present in the gateway.) |
 | `LOG_LEVEL_AMQ` | `INFO` / `ERROR` (as JMS above) | `org.apache.activemq` level. |
-| `LOG_LEVEL_MIR0N` | `INFO` (enyMan/bizTree) / `ERROR` (gateway/pacMan/keySmith/kcMaster) | Application (`pro.mir0n`) console level. |
+| `LOG_LEVEL_MIR0N` | `INFO` (enyMan/bizTree) / `ERROR` (gateway/pacMan/keySmith/kcMaster/xxRod) | Application (`pro.mir0n`) console level. |
 | `LOG_LEVEL_DEVELOP` | `DEBUG` | `develop.*` (devLog) level. |
 | `LOG_LEVEL_MSG` | `INFO` | `msg.*` (msgLog) level. (Not present in the gateway.) |
 

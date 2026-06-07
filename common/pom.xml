@@ -146,6 +146,14 @@
             <scope>provided</scope>
         </dependency>
 
+        <!-- spring-jms: the x-Rod option (c) bus publisher (common.audit.RodEventBusPublisher) uses
+             JmsTemplate; the asset services provide it at runtime via spring-boot-starter-activemq. -->
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-jms</artifactId>
+            <scope>provided</scope>
+        </dependency>
+
     </dependencies>
 
     <build>

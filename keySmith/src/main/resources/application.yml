@@ -17,11 +17,18 @@ keysmith:
   audit-logging:
     enabled: ${KEYSMITH_AUDIT_ENABLED:false}
     x-rod:
+      # in-process = write the *_log here (option b); bus = publish to the audit queue, the standalone
+      # xxRod service writes the *_log (option c).
+      mode: ${KEYSMITH_AUDIT_MODE:in-process}
       # xx-rod consumer worker pool that writes the *_log tables; keep <= the log datastore pool.
       pool-size: ${KEYSMITH_AUDIT_POOL_SIZE:4}
       virtual-threads: ${KEYSMITH_AUDIT_VIRTUAL_THREADS:false}
       # xy-rod producer feed: per-tx buffer, flush after commit; bounded backlog before backpressure.
       feed-capacity: ${KEYSMITH_AUDIT_FEED_CAPACITY:4096}
+      # (c) bus publisher (mode=bus only): 0 = single feed-worker synchronous publish (one JMS send per
+      #   committed tx); N>0 = N async publisher threads over a dedicated useAsyncSend connection.
+      bus:
+        publisher-pool-size: ${KEYSMITH_AUDIT_PUBLISHER_POOL_SIZE:0}
       # (b) log datastore: shared (reuse service DB) | dedicated (separate pool/vendor via log-db below).
       log-datastore: ${KEYSMITH_AUDIT_LOG_DATASTORE:shared}
       # Read ONLY when log-datastore=dedicated. vendor selects the *_log SQL dialect

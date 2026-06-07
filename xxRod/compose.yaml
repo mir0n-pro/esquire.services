@@ -1,0 +1,25 @@
+services:
+  xxrod:
+    build:
+      context: .
+    image: esquire.xxrod
+    ports:
+      - "3007:3007"
+    environment:
+      - XXROD_PORT=3007
+      - LOG_LEVEL_ROOT=ERROR
+      - LOG_LEVEL_SF=ERROR
+      - LOG_LEVEL_MIR0N=DEBUG
+      - AMQ_BROKER_URL=tcp://host.docker.internal:61616
+      - DB_XXROD_VENDOR=dev-postgres
+      - DB_XXROD_HOST=host.docker.internal
+      - DB_XXROD_PORT=5432
+      - DB_XXROD_NAME=esq2025
+      - DB_XXROD_USERNAME=esq2025
+      - DB_XXROD_PASSWORD=q
+    command: ["java", "-jar", "app.jar"]
+    networks:
+      - esquirenet
+networks:
+  esquirenet:
+    driver: "bridge"

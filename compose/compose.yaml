@@ -189,9 +189,13 @@ services:
       - ENYMAN_VALIDATE_CREATE_DURING_MOVE=${ENYMAN_VALIDATE_CREATE_DURING_MOVE:-true}
       # v1.2.7 audit logging (x-rod). Framework default is OFF (option-0); the demo turns it ON here.
       - ENYMAN_AUDIT_ENABLED=${ENYMAN_AUDIT_ENABLED:-true}
+      # option (c): bus = publish to the audit queue (the xxRod service writes the *_log); in-process = (b).
+      - ENYMAN_AUDIT_MODE=${ENYMAN_AUDIT_MODE:-bus}
       - ENYMAN_AUDIT_POOL_SIZE=${ENYMAN_AUDIT_POOL_SIZE:-4}
       - ENYMAN_AUDIT_VIRTUAL_THREADS=${ENYMAN_AUDIT_VIRTUAL_THREADS:-false}
       - ENYMAN_AUDIT_FEED_CAPACITY=${ENYMAN_AUDIT_FEED_CAPACITY:-4096}
+      # (c) bus publisher pool: 0 = single feed-worker synchronous publish; N>0 = N async publisher threads.
+      - ENYMAN_AUDIT_PUBLISHER_POOL_SIZE=${ENYMAN_AUDIT_PUBLISHER_POOL_SIZE:-0}
       # (b) log datastore: shared (reuse service DB) | dedicated (separate pool/vendor via ENYMAN_AUDIT_DB_*).
       - ENYMAN_AUDIT_LOG_DATASTORE=${ENYMAN_AUDIT_LOG_DATASTORE:-shared}
       # dedicated-only: the log DB may be a DIFFERENT vendor than the business DB.
@@ -249,9 +253,13 @@ services:
       # v1.2.7 audit logging (x-rod). pacMan owns account UPDATE / DELETE / balance -> esq_account_log.
       # Framework default is OFF (option-0); the demo turns it ON here.
       - PACMAN_AUDIT_ENABLED=${PACMAN_AUDIT_ENABLED:-true}
+      # option (c): bus = publish to the audit queue (the xxRod service writes the *_log); in-process = (b).
+      - PACMAN_AUDIT_MODE=${PACMAN_AUDIT_MODE:-bus}
       - PACMAN_AUDIT_POOL_SIZE=${PACMAN_AUDIT_POOL_SIZE:-4}
       - PACMAN_AUDIT_VIRTUAL_THREADS=${PACMAN_AUDIT_VIRTUAL_THREADS:-false}
       - PACMAN_AUDIT_FEED_CAPACITY=${PACMAN_AUDIT_FEED_CAPACITY:-4096}
+      # (c) bus publisher pool: 0 = single feed-worker synchronous publish; N>0 = N async publisher threads.
+      - PACMAN_AUDIT_PUBLISHER_POOL_SIZE=${PACMAN_AUDIT_PUBLISHER_POOL_SIZE:-0}
       # (b) log datastore: shared (reuse service DB) | dedicated (separate pool/vendor via PACMAN_AUDIT_DB_*).
       - PACMAN_AUDIT_LOG_DATASTORE=${PACMAN_AUDIT_LOG_DATASTORE:-shared}
       # dedicated-only: the log DB may be a DIFFERENT vendor than the business DB.
@@ -260,6 +268,42 @@ services:
       - PACMAN_AUDIT_DB_USERNAME=${PACMAN_AUDIT_DB_USERNAME:-esq2025}
       - PACMAN_AUDIT_DB_PASSWORD=${PACMAN_AUDIT_DB_PASSWORD:-q}
       - PACMAN_AUDIT_DB_POOL_SIZE=${PACMAN_AUDIT_DB_POOL_SIZE:-8}
+    command: ["java", "-jar", "app.jar"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      activemq:
+        condition: service_healthy
+    volumes:
+      - ./logs:/app/logs
+    networks:
+      - esquirenet
+
+  xxrod:
+    container_name: esq-xxrod
+    build:
+      context: .
+    image: esquire.xxrod
+    ports:
+      - "3007:3007"
+    environment:
+      - XXROD_PORT=3007
+      - LOG_LEVEL_ROOT=ERROR
+      - LOG_LEVEL_SF=ERROR
+      - LOG_LEVEL_MIR0N=DEBUG
+      - LOG_LEVEL_DEVELOP=DEBUG
+      - LOG_LEVEL_MSG=INFO
+      - DEVELOP_LOG_PATH=logs/xxRod-develop.log
+      - MSG_LOG_PATH=logs/xxRod-msg.log
+      - DB_XXROD_VENDOR=dev-postgres
+      - DB_XXROD_PORT=5432
+      - DB_XXROD_NAME=esq2025
+      - DB_XXROD_HOST=postgres
+      - DB_XXROD_USERNAME=esq2025
+      - DB_XXROD_PASSWORD=q
+      # Messaging
+      - AMQ_BROKER_URL=tcp://activemq:61616
+      - XXROD_AUDIT_POOL_SIZE=${XXROD_AUDIT_POOL_SIZE:-8}
     command: ["java", "-jar", "app.jar"]
     depends_on:
       postgres:
@@ -307,9 +351,13 @@ services:
       # v1.2.7 audit logging (x-rod). keySmith owns the auth UPDATE -> esq_auth_log.
       # Framework default is OFF (option-0); the demo turns it ON here.
       - KEYSMITH_AUDIT_ENABLED=${KEYSMITH_AUDIT_ENABLED:-true}
+      # option (c): bus = publish to the audit queue (the xxRod service writes the *_log); in-process = (b).
+      - KEYSMITH_AUDIT_MODE=${KEYSMITH_AUDIT_MODE:-bus}
       - KEYSMITH_AUDIT_POOL_SIZE=${KEYSMITH_AUDIT_POOL_SIZE:-4}
       - KEYSMITH_AUDIT_VIRTUAL_THREADS=${KEYSMITH_AUDIT_VIRTUAL_THREADS:-false}
       - KEYSMITH_AUDIT_FEED_CAPACITY=${KEYSMITH_AUDIT_FEED_CAPACITY:-4096}
+      # (c) bus publisher pool: 0 = single feed-worker synchronous publish; N>0 = N async publisher threads.
+      - KEYSMITH_AUDIT_PUBLISHER_POOL_SIZE=${KEYSMITH_AUDIT_PUBLISHER_POOL_SIZE:-0}
       # (b) log datastore: shared (reuse service DB) | dedicated (separate pool/vendor via KEYSMITH_AUDIT_DB_*).
       - KEYSMITH_AUDIT_LOG_DATASTORE=${KEYSMITH_AUDIT_LOG_DATASTORE:-shared}
       # dedicated-only: the log DB may be a DIFFERENT vendor than the business DB.
