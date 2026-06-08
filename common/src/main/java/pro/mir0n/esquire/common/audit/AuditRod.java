@@ -15,6 +15,8 @@
  *                   feed to a bus dispatcher (no local writer / registry / datasource -- the standalone xxRod
  *                   owns those); buildBusPool() wires the feed to an XXRod publisher pool (N async senders)
  *                   for the high-bandwidth bus path.
+ * 06/08/2026 mir0n  MODE_REDIS constant added (option d); the Redis publisher dispatches through the same
+ *                   buildBus / buildBusPool seam, so no new wiring method here.
  */
 package pro.mir0n.esquire.common.audit;
 
@@ -35,6 +37,7 @@ public final class AuditRod {
     /** Audit dispatch mode (the {@code ...audit-logging.x-rod.mode} value). */
     public static final String MODE_IN_PROCESS = "in-process";
     public static final String MODE_BUS        = "bus";
+    public static final String MODE_REDIS      = "redis";
 
     private AuditRod() {
     }

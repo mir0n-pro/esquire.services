@@ -1,5 +1,15 @@
 Esquire keySmith Microservice
 
+06/08/2026 mir0n  v1.2.7 -- audit logging (d): redis producer mode
+audit.AuditConfig
+  - mode=redis builds a RodRedisPublisher over the injected StringRedisTemplate (ObjectProvider), wired
+    through buildBus / buildBusPool; reads x-rod.redis.stream / max-len
+src/main/resources/application.yml
+  - audit-logging.x-rod.redis.{stream,max-len} + spring.data.redis.host/port +
+    management.health.redis.enabled=false added
+pom.xml
+  - spring-boot-starter-data-redis added
+
 06/06/2026 mir0n  v1.2.7 -- audit logging (c): mode-aware producer (bus) + async publisher pool + SQL externalized
 audit.AuditConfig
   - mode-aware: mode=bus builds RodEventBusPublisher + AuditRod.buildBus; publisher-pool-size>0 builds a

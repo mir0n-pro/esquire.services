@@ -14,6 +14,7 @@
  *                   MSG_ENCODING_JSON (renamed from MESSAGE_ENCODING); FLAG_OPEN="O"; CCY_DEFAULT="USD"
  * 06/06/2026 mir0n  x-Rod audit bus (option c): QUEUE_ROD_AUDIT, MSG_TYPE_ROD_AUDIT, BUS_ID_ROD,
  *                   SERVICE_ID_ROD_AUDIT, FIELD_SUB_ID / FIELD_UID / FIELD_ACTION_TIME added
+ * 06/08/2026 mir0n  x-Rod audit option (d): STREAM_ROD_AUDIT (the Redis Stream key) added
  */
 package pro.mir0n.esquire.common;
 
@@ -35,6 +36,10 @@ public class EsqMsgConstants {
     // to the standalone xxRod consumer. A queue (point-to-point), NOT a topic -> needs no durable-sub
     // clientId, so it dodges the rolling-update clientId trap.
     public static final String QUEUE_ROD_AUDIT         = "esquire.rod.audit";
+
+    // x-Rod option (d): the Redis Stream the producer XADDs each committed audit event to (transport = the
+    // stream itself; the stream IS the append-only audit log). No consumer service -- read via XRANGE.
+    public static final String STREAM_ROD_AUDIT        = "esquire.rod.audit";
 
     // --- Canonical FIX-JSON field names (JMS property name = JSON body field name) ---
 

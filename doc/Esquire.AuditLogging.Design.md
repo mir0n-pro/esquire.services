@@ -454,6 +454,61 @@ doc-DB sink plugs into.
 
 ---
 
+## 13. Delivery semantics -- loss, duplication, and why dedup lives only on the bus path
+
+Each option sits at a different point on the **loss vs duplication** spectrum, and only some can be made
+zero-loss. This is what decides where a dedup mechanism is needed -- and it is the real reason the `*_log`
+dedup unique index exists on the SQL/bus path but nowhere else.
+
+| Option | Delivery semantics | Failure mode | Dedup mechanism | Zero-loss capable? |
+|---|---|---|---|---|
+| (a) triggers (DB, in-tx) | **exactly-once**, transactional | none -- atomic with the business write | N/A (no separate delivery) | **Yes, by construction** (it *is* the business tx) |
+| (b) in-process (post-commit) | best-effort / at-most-once | **loss** (crash in the commit->write gap) | not needed (no redelivery -> no dups) | No |
+| (c) bus -> xxRod | best-effort *as built*; **at-least-once capable** | loss now; dup once hardened | `*_log` unique index + `ON CONFLICT` / `MERGE` | **Yes** -- ack-after-write + the index |
+| (d) redis stream (XADD) | best-effort / at-most-once | **loss** (fire-and-forget, no retry) | not needed; entry-ID if a consumer is ever added | No (as built) |
+| (e) CDC (out of scope) | at-least-once | dup (connector replay) | downstream keys on the log offset (LSN / SCN) | Yes (the DB's own durable log) |
+
+**The spine of it:**
+
+- **(a) is the only transactionally exactly-once option** -- the trigger INSERT rides inside the business
+  transaction, so commit gives you both rows and rollback gives you neither. Nothing to lose, nothing to
+  dedup. Its price is structural (audit schema coupled into the business DB; can't see app-level
+  crl/req/uid except via columns carried on every business row), not delivery.
+- **(b), (c), (d) all write *after* the business commit**, off the request thread -- so all three can
+  **lose** an event in the gap between commit and the off-thread write/publish (JVM/process crash). That
+  post-commit gap is the inherent cost of decoupling audit from the business tx.
+- **Duplicates only appear where something *redelivers*.** (b) hands off once in-JVM and (d) fires `XADD`
+  once with no ack protocol -- neither can redeliver, so neither can duplicate, so **neither needs dedup**.
+  Only the **broker** (c) can redeliver an un-acked message, and even there only in a narrow window
+  (consumer crash / connection recovery before ack).
+- **(c) is the one post-commit option that can be hardened to zero-loss**, and that is its whole reason to
+  exist over (b). Switch xxRod to ack **after** the `*_log` write (CLIENT_ACKNOWLEDGE or a transacted
+  listener): a crash between write and ack now triggers a **redelivery** instead of a loss -- at-least-once
+  -- and the dedup index makes the re-write idempotent, giving effective exactly-once. The index is the
+  cheap (one DDL) prerequisite paid up-front so that hardening is a config flip, not a schema migration.
+  It also covers the narrow redelivery window that exists even in today's best-effort mode.
+- **You could run (c) in pure best-effort, like (d)**, and drop the index: ack-before-write +
+  `maximumRedeliveries=0` (redelivery -> DLQ/discard) makes a crash *lose* the message instead of
+  duplicating it. But that throws away the bus path's distinguishing capability -- it collapses (c) into a
+  heavier (d). Note the difference in *how* each is duplicate-free: redis is dup-free **by construction**
+  (no redelivery mechanism exists); ActiveMQ is dup-free only **by configuration** (left at its
+  at-least-once default it duplicates).
+- **(d) trades the zero-loss door for the fastest request path and the simplest topology.** Fire-and-forget
+  `XADD` has no ack protocol, so there is nothing to harden -- to make (d) zero-loss you would have to bolt
+  a consumer group on top, and *then* dedup on the **stream entry ID** (unique and stable across
+  redeliveries -- a stable id JMS never gave us, so consumer-side dedup on Redis is actually simpler than
+  on the bus).
+- **(e) is zero-loss via the database's own log** (the WAL/redo is the durable source), at the cost of
+  living outside the framework and seeing only committed rows (like triggers, no app-level crl/req/uid).
+
+**Takeaway:** dedup is not a tax the broker imposes -- it is the *enabler* of the bus path's selling point
+(recoverable, zero-loss-capable audit). It lives on (c) because (c) is the only decoupled option that can
+be made not to lose; (a) needs none (transactional), (b)/(d) need none (no redelivery), (e) keys on the log
+offset. Pick the option by the loss posture you actually want: **(a)** never-lose-and-on-the-tx,
+**(c)-hardened** never-lose-and-off-box, **(b)/(c)-best-effort/(d)** lose-rarely-and-cheap.
+
+---
+
 ## Cross-references
 
 - [Esquire.AuditLogging.md](Esquire.AuditLogging.md) — the option space (0/a/b/c/d/e) and the stance.

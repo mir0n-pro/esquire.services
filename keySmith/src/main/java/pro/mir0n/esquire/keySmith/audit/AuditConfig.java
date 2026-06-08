@@ -14,6 +14,9 @@
  * 06/06/2026 mir0n  bus publisher pool: x-rod.bus.publisher-pool-size=0 keeps the single feed-worker sync
  *                   publish; N>0 wires AuditRod.buildBusPool over a dedicated useAsyncSend connection
  *                   (N async senders), CF closed in @PreDestroy.
+ * 06/08/2026 mir0n  option (d): mode=redis builds a RodRedisPublisher (XADD to the audit Redis Stream via
+ *                   the injected StringRedisTemplate), wired through buildBus / buildBusPool; stream key and
+ *                   approximate MAXLEN from x-rod.redis.*.
  */
 package pro.mir0n.esquire.keySmith.audit;
 
@@ -21,11 +24,13 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.apache.activemq.ActiveMQConnectionFactory;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.jms.connection.CachingConnectionFactory;
 import org.springframework.jms.core.JmsTemplate;
 import pro.mir0n.esquire.common.EsqConstants;
@@ -34,6 +39,7 @@ import pro.mir0n.esquire.common.audit.AuditLogSql;
 import pro.mir0n.esquire.common.audit.AuditRod;
 import pro.mir0n.esquire.common.audit.AuditSettings;
 import pro.mir0n.esquire.common.audit.RodEventBusPublisher;
+import pro.mir0n.esquire.common.audit.RodRedisPublisher;
 import pro.mir0n.esquire.common.xrod.XYRod;
 
 import javax.sql.DataSource;
@@ -61,20 +67,27 @@ public class AuditConfig {
     @Value("${spring.activemq.broker-url:tcp://localhost:61616}")         private String  brokerUrl;
     // bus publisher pool (option c): 0 = current single feed-worker synchronous publish; N>0 = N async
     // publisher threads over a dedicated useAsyncSend connection (the same thread-per-event pool as b).
+    // The pool size also drives the (d) redis path.
     @Value("${keysmith.audit-logging.x-rod.bus.publisher-pool-size:0}")   private int     publisherPoolSize;
+    // (d) redis: the audit stream key (blank -> EsqMsgConstants.STREAM_ROD_AUDIT) and approximate MAXLEN (0 = uncapped).
+    @Value("${keysmith.audit-logging.x-rod.redis.stream:}")              private String  redisStream;
+    @Value("${keysmith.audit-logging.x-rod.redis.max-len:0}")            private long    redisMaxLen;
 
     private final DataSource serviceDataSource;
     private final JmsTemplate jmsQueueTemplate;
+    private final ObjectProvider<StringRedisTemplate> redisTemplateProvider;
     private final ObjectMapper objectMapper;
     private AuditRod.Handle handle;
     private CachingConnectionFactory auditConnectionFactory;
 
     public AuditConfig(DataSource serviceDataSource,
                        @Qualifier("jmsQueueTemplate") JmsTemplate jmsQueueTemplate,
+                       ObjectProvider<StringRedisTemplate> redisTemplateProvider,
                        ObjectMapper objectMapper) {
-        this.serviceDataSource = serviceDataSource;
-        this.jmsQueueTemplate  = jmsQueueTemplate;
-        this.objectMapper      = objectMapper;
+        this.serviceDataSource     = serviceDataSource;
+        this.jmsQueueTemplate      = jmsQueueTemplate;
+        this.redisTemplateProvider = redisTemplateProvider;
+        this.objectMapper          = objectMapper;
     }
 
     @Bean
@@ -100,6 +113,14 @@ public class AuditConfig {
                         new RodEventBusPublisher(jmsQueueTemplate, EsqMsgConstants.QUEUE_ROD_AUDIT, objectMapper);
                 handle = AuditRod.buildBus(appName, settings, publisher, devLog);
             }
+        } else if (AuditRod.MODE_REDIS.equalsIgnoreCase(mode)) {
+            // (d) producer: XADD each event to the Redis Stream (the stream IS the audit log; no consumer).
+            String stream = redisStream.isBlank() ? EsqMsgConstants.STREAM_ROD_AUDIT : redisStream;
+            RodRedisPublisher publisher =
+                    new RodRedisPublisher(redisTemplateProvider.getObject(), stream, redisMaxLen, objectMapper);
+            handle = (publisherPoolSize > 0)
+                    ? AuditRod.buildBusPool(appName, settings, publisher, publisherPoolSize, devLog)
+                    : AuditRod.buildBus(appName, settings, publisher, devLog);
         } else {
             // (b) in-process: write the *_log here.
             handle = AuditRod.build(appName, settings, kindToSqlKey(), serviceDataSource, devLog);

@@ -154,6 +154,14 @@
             <scope>provided</scope>
         </dependency>
 
+        <!-- spring-data-redis: the x-Rod option (d) Redis publisher (common.audit.RodRedisPublisher) uses
+             StringRedisTemplate; the asset services provide it at runtime via spring-boot-starter-data-redis. -->
+        <dependency>
+            <groupId>org.springframework.data</groupId>
+            <artifactId>spring-data-redis</artifactId>
+            <scope>provided</scope>
+        </dependency>
+
     </dependencies>
 
     <build>

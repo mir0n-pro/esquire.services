@@ -4,17 +4,16 @@
     xsi:schemaLocation="http://java.sun.com/xml/ns/persistence/orm http://java.sun.com/xml/ns/persistence/orm_2_0.xsd"
     version="2.0">
 <!--
-    x-Rod param audit support (option b), Postgres. Re-SELECTs the committed *_par rows (source of
-    truth) so the producer can emit one full ORG_PAR / USR_PAR event per row (value + the param's own
-    et_pk). The *_log writes themselves are done by common.audit.AuditLogWriter (vendor-keyed
-    AuditLogSql), NOT by named queries here.
+    Audit param support, Oracle. Re-SELECTs the committed *_par rows (source of truth) so the producer
+    can emit one full ORG_PAR / USR_PAR audit event per row (value + the param's own et_pk). The *_log
+    writes themselves are done by common.audit.AuditLogWriter (vendor-keyed AuditLogSql), NOT here.
 -->
 
     <named-native-query name="EsqOrgJpa.listOrgPar" result-set-mapping="EsqParRowMapping">
         <query>
  SELECT opr_par_name AS "name", opr_par_et_pk AS "etPk", opr_value AS "value"
  FROM esq_org_par
- WHERE opr_org_pk = CAST(:id AS bigint)
+ WHERE opr_org_pk = TO_NUMBER(:id)
         </query>
     </named-native-query>
 
@@ -22,7 +21,7 @@
         <query>
  SELECT upr_par_name AS "name", upr_par_et_pk AS "etPk", upr_value AS "value"
  FROM esq_usr_par
- WHERE upr_usr_pk = CAST(:id AS bigint)
+ WHERE upr_usr_pk = TO_NUMBER(:id)
         </query>
     </named-native-query>
 

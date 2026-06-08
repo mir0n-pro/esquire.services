@@ -1,5 +1,16 @@
 Esquire Common microservice classes
 
+06/08/2026 mir0n  v1.2.7 -- audit logging (d): Redis Stream producer
+audit.RodRedisPublisher  (new)
+  - Consumer<RodEvent> that XADDs the event to a Redis Stream via StringRedisTemplate.opsForStream (fields
+    from RodEventCodec.toProps, null fields omitted; optional approximate MAXLEN); best-effort
+EsqMsgConstants
+  - STREAM_ROD_AUDIT added (the audit Redis Stream key)
+audit.AuditRod
+  - MODE_REDIS constant added (the redis publisher dispatches through buildBus / buildBusPool)
+pom.xml
+  - spring-data-redis (provided) added
+
 06/06/2026 mir0n  v1.2.7 -- audit logging (c): bus transport + async publisher pool + SQL externalized
 audit.RodEventCodec  (new)
   - RodEvent <-> FIX-JSON envelope (JMS header props + body as Text JSON); shared by producer + xxRod consumer

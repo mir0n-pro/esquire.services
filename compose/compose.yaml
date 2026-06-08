@@ -45,6 +45,44 @@ services:
     networks:
       - esquirenet
 
+  # x-Rod audit option (d): the Redis Stream sink. Producers in audit mode=redis XADD here; the stream is
+  # the append-only audit log (read with XRANGE). maxmemory bounded + noeviction (never drop audit data).
+  redis:
+    container_name: esq-redis
+    image: redis:8
+    command: ["redis-server", "--maxmemory", "384mb", "--maxmemory-policy", "noeviction", "--appendonly", "yes"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - ./data/redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+    networks:
+      - esquirenet
+
+  # RedisInsight -- web GUI for the (d) audit Redis Stream. Dev-only tool, gated behind the "tools" profile
+  # so it does NOT start with the default stack. Start it explicitly:
+  #   docker compose up -d redisinsight        (or: docker compose --profile tools up -d)
+  # Then open http://localhost:5540 ; the audit db is pre-added (host=redis, port=6379) via RI_REDIS_*.
+  redisinsight:
+    container_name: esq-redisinsight
+    image: redis/redisinsight:latest
+    profiles: ["tools"]
+    ports:
+      - "5540:5540"
+    environment:
+      - RI_REDIS_HOST=redis
+      - RI_REDIS_PORT=6379
+      - RI_REDIS_ALIAS=esq-audit
+    depends_on:
+      - redis
+    networks:
+      - esquirenet
+
   keycloak:
     container_name: esq-keycloak
     build:
@@ -196,6 +234,12 @@ services:
       - ENYMAN_AUDIT_FEED_CAPACITY=${ENYMAN_AUDIT_FEED_CAPACITY:-4096}
       # (c) bus publisher pool: 0 = single feed-worker synchronous publish; N>0 = N async publisher threads.
       - ENYMAN_AUDIT_PUBLISHER_POOL_SIZE=${ENYMAN_AUDIT_PUBLISHER_POOL_SIZE:-0}
+      # (d) redis (set ENYMAN_AUDIT_MODE=redis): XADD each event to a Redis Stream (the stream IS the audit
+      # log; no consumer service). Lettuce connects lazily, so redis is ignored unless mode=redis.
+      - REDIS_HOST=${REDIS_HOST:-redis}
+      - REDIS_PORT=${REDIS_PORT:-6379}
+      - ENYMAN_AUDIT_REDIS_STREAM=${ENYMAN_AUDIT_REDIS_STREAM:-}
+      - ENYMAN_AUDIT_REDIS_MAX_LEN=${ENYMAN_AUDIT_REDIS_MAX_LEN:-0}
       # (b) log datastore: shared (reuse service DB) | dedicated (separate pool/vendor via ENYMAN_AUDIT_DB_*).
       - ENYMAN_AUDIT_LOG_DATASTORE=${ENYMAN_AUDIT_LOG_DATASTORE:-shared}
       # dedicated-only: the log DB may be a DIFFERENT vendor than the business DB.
@@ -260,6 +304,11 @@ services:
       - PACMAN_AUDIT_FEED_CAPACITY=${PACMAN_AUDIT_FEED_CAPACITY:-4096}
       # (c) bus publisher pool: 0 = single feed-worker synchronous publish; N>0 = N async publisher threads.
       - PACMAN_AUDIT_PUBLISHER_POOL_SIZE=${PACMAN_AUDIT_PUBLISHER_POOL_SIZE:-0}
+      # (d) redis (set PACMAN_AUDIT_MODE=redis): XADD each event to a Redis Stream. Lazy connect -> ignored unless mode=redis.
+      - REDIS_HOST=${REDIS_HOST:-redis}
+      - REDIS_PORT=${REDIS_PORT:-6379}
+      - PACMAN_AUDIT_REDIS_STREAM=${PACMAN_AUDIT_REDIS_STREAM:-}
+      - PACMAN_AUDIT_REDIS_MAX_LEN=${PACMAN_AUDIT_REDIS_MAX_LEN:-0}
       # (b) log datastore: shared (reuse service DB) | dedicated (separate pool/vendor via PACMAN_AUDIT_DB_*).
       - PACMAN_AUDIT_LOG_DATASTORE=${PACMAN_AUDIT_LOG_DATASTORE:-shared}
       # dedicated-only: the log DB may be a DIFFERENT vendor than the business DB.
@@ -358,6 +407,11 @@ services:
       - KEYSMITH_AUDIT_FEED_CAPACITY=${KEYSMITH_AUDIT_FEED_CAPACITY:-4096}
       # (c) bus publisher pool: 0 = single feed-worker synchronous publish; N>0 = N async publisher threads.
       - KEYSMITH_AUDIT_PUBLISHER_POOL_SIZE=${KEYSMITH_AUDIT_PUBLISHER_POOL_SIZE:-0}
+      # (d) redis (set KEYSMITH_AUDIT_MODE=redis): XADD each event to a Redis Stream. Lazy connect -> ignored unless mode=redis.
+      - REDIS_HOST=${REDIS_HOST:-redis}
+      - REDIS_PORT=${REDIS_PORT:-6379}
+      - KEYSMITH_AUDIT_REDIS_STREAM=${KEYSMITH_AUDIT_REDIS_STREAM:-}
+      - KEYSMITH_AUDIT_REDIS_MAX_LEN=${KEYSMITH_AUDIT_REDIS_MAX_LEN:-0}
       # (b) log datastore: shared (reuse service DB) | dedicated (separate pool/vendor via KEYSMITH_AUDIT_DB_*).
       - KEYSMITH_AUDIT_LOG_DATASTORE=${KEYSMITH_AUDIT_LOG_DATASTORE:-shared}
       # dedicated-only: the log DB may be a DIFFERENT vendor than the business DB.

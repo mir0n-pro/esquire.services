@@ -8,6 +8,11 @@ spring:
     user: ${AMQ_USER:}
     password: ${AMQ_PASSWORD:}
     # Phase 1: no broker authorization required
+  data:
+    redis:
+      # x-Rod audit option (d) target. Lettuce connects lazily, so it is dormant unless audit mode=redis.
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
   jpa:
     hibernate:
       ddl-auto: none
@@ -36,6 +41,11 @@ pacman:
       #   committed tx); N>0 = N async publisher threads over a dedicated useAsyncSend connection.
       bus:
         publisher-pool-size: ${PACMAN_AUDIT_PUBLISHER_POOL_SIZE:0}
+      # (d) redis (mode=redis only): XADD each event to this Redis Stream (the stream IS the audit log;
+      #   no consumer service). max-len = approximate MAXLEN cap (0 = uncapped).
+      redis:
+        stream: ${PACMAN_AUDIT_REDIS_STREAM:}
+        max-len: ${PACMAN_AUDIT_REDIS_MAX_LEN:0}
       # (b) where the in-process xx-rod writes the *_log tables:
       #   shared    = reuse the service datasource + its Hikari pool (phase 1).
       #   dedicated = a separate pool / vendor, configured under log-db below (phase 2/3).
@@ -49,6 +59,11 @@ pacman:
         username: ${PACMAN_AUDIT_DB_USERNAME:esq2025}
         password: ${PACMAN_AUDIT_DB_PASSWORD:q}
         pool-size: ${PACMAN_AUDIT_DB_POOL_SIZE:8}
+management:
+  health:
+    redis:
+      # OFF: Redis is only used when audit mode=redis (option d); its absence must not mark the service DOWN.
+      enabled: false
 logging:
   level:
     root: ${LOG_LEVEL_ROOT:ERROR}

@@ -53,17 +53,22 @@ Hikari pool settings are fixed in the yml (not env-driven): `maximum-pool-size=2
 
 Opt-in audit (option-0 baseline: default OFF). The producer buffers committed entity changes and, after
 commit, feeds them off the request thread to the audit sink: **(b)** in-process write to the `*_log`
-tables, or **(c)** publish to the audit queue for the standalone **xxRod** consumer. Here `<SVC>` is
-`ENYMAN` / `PACMAN` / `KEYSMITH`. See `doc/Esquire.AuditLogging.md`.
+tables, **(c)** publish to the audit queue for the standalone **xxRod** consumer, or **(d)** XADD to a
+Redis Stream (the stream IS the audit log; no consumer service). Here `<SVC>` is `ENYMAN` / `PACMAN` /
+`KEYSMITH`. See `doc/Esquire.AuditLogging.md`.
 
 | Env var | Default | Description |
 |---|---|---|
 | `<SVC>_AUDIT_ENABLED` | `false` code / `true` deployed | Master switch; OFF -> `post()` is a no-op. |
-| `<SVC>_AUDIT_MODE` | `in-process` code / `bus` deployed | `in-process` = (b) write `*_log` here; `bus` = (c) publish to the queue (xxRod writes). |
+| `<SVC>_AUDIT_MODE` | `in-process` code / `bus` deployed | `in-process` = (b) write `*_log` here; `bus` = (c) publish to the queue (xxRod writes); `redis` = (d) XADD to a Redis Stream. |
 | `<SVC>_AUDIT_FEED_CAPACITY` | `4096` | xy-Rod producer feed depth (bounded; full -> back-pressures flush-after-commit). |
 | `<SVC>_AUDIT_POOL_SIZE` | `4` | (b) in-process apply-pool size; keep <= the log datastore pool. |
 | `<SVC>_AUDIT_VIRTUAL_THREADS` | `false` | (b)/(c) pool workers on virtual threads. |
-| `<SVC>_AUDIT_PUBLISHER_POOL_SIZE` | `0` | (c) bus publisher pool: `0` = single feed-worker synchronous publish; `N>0` = N async sender threads over a dedicated `useAsyncSend` connection (high-bandwidth). |
+| `<SVC>_AUDIT_PUBLISHER_POOL_SIZE` | `0` | (c)/(d) publisher pool: `0` = single feed-worker synchronous publish; `N>0` = N async sender threads (bus: a dedicated `useAsyncSend` connection; redis: N XADD workers). |
+| `REDIS_HOST` | `localhost` code / `redis` deployed | (d) Redis host (`spring.data.redis.host`). Lettuce connects lazily, so it is ignored unless mode=redis. |
+| `REDIS_PORT` | `6379` | (d) Redis port. |
+| `<SVC>_AUDIT_REDIS_STREAM` | *(empty -> `esquire.rod.audit`)* | (d) the Redis Stream key to XADD each event to. |
+| `<SVC>_AUDIT_REDIS_MAX_LEN` | `0` | (d) approximate MAXLEN cap on the stream (`0` = uncapped). |
 | `<SVC>_AUDIT_LOG_DATASTORE` | `shared` | (b) where `*_log` is written: `shared` (service DB) or `dedicated` (separate pool/vendor below). |
 | `<SVC>_AUDIT_DB_VENDOR` | `dev-postgres` | (b) dedicated-only: log-DB SQL dialect (may differ from the business DB). |
 | `<SVC>_AUDIT_DB_URL` | *(empty)* | (b) dedicated-only: log-DB JDBC URL. |
@@ -73,6 +78,55 @@ tables, or **(c)** publish to the audit queue for the standalone **xxRod** consu
 
 The `*_log` SQL each producer can write is shipped as a deploy-time `META-INF/audit/{vendor}.xml` spec set
 (omit those files to package the service without audit SQL). See [xxRod](#xxrod) for the (c) consumer.
+
+#### Selecting an audit option -- all external, no framework code change
+
+The framework code is **option-agnostic**: which audit style runs is decided entirely by configuration and
+deploy-time artifacts. Four external layers compose the choice -- **(1) app config** (env / yml
+`<svc>.audit-logging.*`), **(2) DB deploy** (`db.seed`: the `*_log` tables, the triggers, the dedup
+indexes), **(3) SQL spec artifacts** (`META-INF/audit/{vendor}.xml`, shipped or omitted at packaging), and
+**(4) infra** (ActiveMQ + xxRod, or Redis). Each option is a recipe across those layers:
+
+| Option | (1) App config (env) | (2) db.seed | (3) META-INF/audit SQL | (4) Infra |
+|---|---|---|---|---|
+| **(0) off** | `<SVC>_AUDIT_ENABLED=false` (default) | -- | -- | -- |
+| **(a) triggers** | `<SVC>_AUDIT_ENABLED=false` (the app producer stays OFF; the DB logs) | `*_log` tables (`create.log`) **+ run the trigger DDL** (`<vendor>/triggers/all.sql`; base seed is trigger-free) | -- (SQL lives in the trigger) | -- |
+| **(b) in-process** | `=true`, `_MODE=in-process`; `_POOL_SIZE` / `_VIRTUAL_THREADS` / `_FEED_CAPACITY`; `_LOG_DATASTORE=shared\|dedicated` (+ `_DB_*` if dedicated) | `*_log` tables (`create.log`) | **ship** the service's subset | -- |
+| **(c) bus -> xxRod** | producer: `=true`, `_MODE=bus`, `_PUBLISHER_POOL_SIZE=0\|N`, `AMQ_BROKER_URL`. consumer: `XXROD_DIRECTOR=audit`, `XXROD_AUDIT_POOL_SIZE`, `XXROD_MESSAGING_CONCURRENCY`, `DB_XXROD_*` | `*_log` tables **+ dedup unique indexes** (`create.log`) | producers: **not required** (they don't write in bus mode); **xxRod ships the FULL set** | ActiveMQ broker + the xxRod service |
+| **(d) redis** | `=true`, `_MODE=redis`; `_REDIS_STREAM` / `_REDIS_MAX_LEN`; `REDIS_HOST` / `REDIS_PORT` | -- (no `*_log`) | -- (no SQL) | Redis (`redis:8`); RedisInsight optional |
+
+Notes:
+- `<SVC>` is `ENYMAN` / `PACMAN` / `KEYSMITH`; the env prefix is `<SVC>_AUDIT_` (e.g. `ENYMAN_AUDIT_MODE`).
+- **(a) is configured at the DB layer, not the app** -- you opt in by *running* the trigger scripts at
+  deploy; the framework audit feature stays disabled.
+- **Audit is opt-in at packaging too:** omit a service's `META-INF/audit/` files and it ships with no audit
+  SQL (the loader tolerates the absence -> empty map), so (b)/(c) silently no-op on that service without any
+  code or config change.
+- Switching options at runtime is a **config flip + the matching infra** -- e.g. (b)->(c) is
+  `_MODE=bus` + bring up ActiveMQ/xxRod; (c)->(d) is `_MODE=redis` + bring up Redis. No rebuild.
+- Delivery-semantics trade-offs per option (loss / dup / dedup / zero-loss): see
+  `doc/Esquire.AuditLogging.Design.md` section 13.
+
+#### Audit Redis Stream (option d) -- the `redis` service + RedisInsight console
+
+In `mode=redis` the producer XADDs each event to a Redis Stream; the stream IS the append-only audit log
+(no consumer service -- read it with `XRANGE` / `XREVRANGE`). The dev stack ships a `redis:8` service
+(`esq-redis`, port 6379, `maxmemory 384mb` + `noeviction` + AOF). The Redis health probe is disabled on the
+producers (`management.health.redis.enabled=false`) so an unused Redis never marks a service DOWN.
+
+Inspect the stream with **RedisInsight**, a web GUI gated behind the compose `tools` profile (so it does
+NOT start with the default stack):
+
+```
+docker compose up -d redisinsight        # or: docker compose --profile tools up -d
+```
+
+Then open `http://localhost:5540` -- the audit DB is pre-added as `esq-audit` (host `redis`, port `6379`,
+no auth); open the `esquire.rod.audit` key for the stream viewer. Or use the CLI directly:
+
+```
+docker exec -it esq-redis redis-cli XREVRANGE esquire.rod.audit + - COUNT 10
+```
 
 ### Server port
 

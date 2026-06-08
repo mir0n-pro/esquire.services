@@ -70,6 +70,11 @@ app-side outcomes behind it — (0) persists nothing (the change is just broadca
 on the Rod path; request-level INFO logging is the only standing trace), the others persist it. The
 change is already broadcast, so (c) is simply (0) plus a Rod consumer that lands it in SQL.)
 
+> **Delivery semantics (loss / duplication / dedup / zero-loss) per option:** see
+> [Esquire.AuditLogging.Design.md](Esquire.AuditLogging.Design.md) §13.
+> **How to select & configure each option entirely from outside the code:** see
+> [services.configuring.md](services.configuring.md) — *Selecting an audit option*.
+
 *(open)* Single active strategy vs. several in parallel — should a deployment be allowed to
 run, say, sync-DB **and** Redis-stream at once (belt-and-suspenders)? Default assumption: one
 active strategy per deployment, but the seam should not forbid composition.
@@ -162,11 +167,35 @@ to *decoupled / asynchronous / separate store / non-SQL*.
 - **Costs:** new infrastructure (Redis); eventual consistency; reporting/query model differs
   from SQL.
 - **Use when:** high-volume, schema-loose, stream-first auditing is the goal.
-- **Stance (Esquire): deprioritized for an audit-reporting workload.** Audit research is
-  inherently relational — "who changed entity X, when, before/after", ranges by user or entity.
-  A stream / doc store answers those only through a queryable downstream sink + extra tooling,
-  where SQL tables answer them directly. Streaming wins on raw ingest and fan-out, not on ad-hoc
-  audit queries — and ad-hoc audit queries are exactly our access pattern.
+- **Stance (Esquire): BUILT as a producer-side Redis Streams option (`mode=redis`).** The producer
+  XADDs each committed event straight to a Redis Stream — the stream IS the append-only audit log, so
+  there is no consumer service (read with `XRANGE`). **Streams, not RedisJSON:** a Stream matches the
+  append-only audit trail and stays portable to managed Redis/Valkey (OCI Cache ships core only, no
+  modules), whereas RedisJSON / RediSearch would lock us to self-hosting (explored locally — see
+  `doc/research/RedisJSON-local.md` and `doc/research/Redis-on-OCI.md`). The original caveat still holds:
+  ad-hoc *relational* audit queries ("who changed entity X, ranges by user") are answered more directly
+  by the SQL `*_log` of (b)/(c). So (d) is the fast, schema-loose, fire-and-forget option — cheapest on
+  the request path (see the matrix) — not the reporting-first one.
+- **Scaling note — Redis Streams have no native partitioning.** A stream is a single key, so it lives on
+  **one shard / node** (single append-only log, single-threaded write); consumer groups parallelise
+  *delivery*, not storage. To scale out you shard **at the application level** — N stream keys
+  (`esquire.rod.audit.{0..N}`) routed by `hash(entityId)`, which distribute across nodes in Redis Cluster
+  / a sharded OCI Cache; order is preserved only *within* each stream (route by entity to keep per-entity
+  order). For our volume a single stream is ample. This DIY-partitioning is exactly where the next option
+  is expected to differ.
+
+### *(next research)* f) Kafka as the audit transport
+
+- **Where:** Apache Kafka as the durable, natively-partitioned bus, in two shapes:
+  - **(c)-style:** `service -> Kafka -> xxRod` — Kafka in place of (or alongside) ActiveMQ; the pluggable
+    consumer / `IRodDirector` seam swaps the transport, xxRod still writes the `*_log`.
+  - **(d)-style:** `service -> Kafka -> Redis Kafka Sink (Kafka Connect) -> Redis` — Kafka in front of
+    Redis via a sink connector, instead of the producer XADD-ing directly.
+- **Why it is worth a look:** **native, declarative partitioning** — N partitions per topic as the unit of
+  parallelism + per-key ordering, auto-distributed across brokers, consumer groups auto-bound to
+  partitions. That is the one axis where Kafka is structurally stronger than Redis Streams (where you DIY
+  the partitioning) and ActiveMQ (a queue, not a partitioned log). To be evaluated as its own research
+  before the full audit-logging write-up.
 
 ### e) Log-based CDC — *"capture from the redo log, outside the framework"*
 
@@ -283,7 +312,7 @@ every decoupled option).
 > aborts the run; these measurements used Gatling's own stats instead. That bug is logged for a
 > harness fix.
 
-### Measured cost of options (a) / (b) / (c) — request processing time (2026-06-07)
+### Measured cost of options (a) / (b) / (c) / (d) — request processing time (2026-06-08)
 
 The right metric for "what does audit cost" is the **request processing time inside the service** — not
 the Gatling end-to-end (which folds in gateway + KC + network + client contention), and not the time-to-
@@ -296,47 +325,59 @@ log-published (the async tail). `MdcFilter` stamps two response headers the perf
 
 Same `UpdateLoadSimulation` (`POST /esq-cmd-save` postal-address edit → enyMan; one `esq_address_log` event
 per request — confirmed by the row counts, not user+person+address), ~10-client pool under the Test House,
-on the dockerized stack (gateway + KC + enyMan + ActiveMQ + xxRod + Postgres 17), warm, flipping only
-enyMan's audit config between runs. All values ms, for the `POST /esq-cmd-save` request.
+on the dockerized stack (gateway + KC + enyMan + ActiveMQ + xxRod + Redis + Postgres 17), warm, flipping
+only enyMan's audit config between runs — **all six modes measured in one same-day sweep**. All values ms,
+for the `POST /esq-cmd-save` request. (Run-to-run jitter on this shared host is ~±1 ms; read the relative
+story, not the third digit.)
 
 **Normal load (4 update workers, pre-saturation)** — audit is effectively free in every mode:
 
 | Audit mode | srvOuter mean | p50 | p95 | p99 | srvInner mean (JPA) |
 |---|---|---|---|---|---|
-| (0) off                          | 3.30 | 3 | 5 | 6 | 1.10 |
-| (a) triggers (DB, in-tx)         | 3.27 | 3 | 5 | 6 | 1.12 |
-| (b) in-process                   | 3.60 | 3 | 5 | 6 | 1.15 |
-| (c) bus -> xxRod, sync publish   | 3.99 | 4 | 5 | 7 | 1.27 |
-| (c) bus -> xxRod, async pool x4  | 3.77 | 4 | 5 | 7 | 1.23 |
+| (0) off                          | 3.90 | 4 | 6 | 8 | 1.15 |
+| (a) triggers (DB, in-tx)         | 3.85 | 4 | 5 | 6 | 1.20 |
+| (b) in-process                   | 3.80 | 4 | 5 | 6 | 1.23 |
+| (c) bus -> xxRod, sync publish   | 4.36 | 4 | 6 | 9 | 1.37 |
+| (c) bus -> xxRod, async pool x4  | 4.04 | 4 | 6 | 7 | 1.30 |
+| (d) redis stream, single worker  | 3.83 | 4 | 5 | 7 | 1.32 |
 
-All five sit within ~0.7 ms of each other (p95 all 5 ms, p99 6-7). At normal load even (c) sync's single
-synchronous publisher drains faster than events arrive, so the bounded feed never fills — no backpressure.
+All six sit within ~0.6 ms of each other (p95 5-6, p99 6-9). At normal load even the single synchronous
+publisher / XADD worker drains faster than events arrive, so the bounded feed never fills — no backpressure.
 
 **High load (8 update workers, 60 s)** — pushes (c) sync past its single-publisher drain ceiling:
 
 | Audit mode | srvOuter mean | p50 | p95 | p99 | srvInner mean (JPA) | cost lands in |
 |---|---|---|---|---|---|---|
-| (0) off                          | 5.13  | 5 | 7  | 8  | 1.28 | — |
-| (a) triggers (DB, in-tx)         | 5.27  | 5 | 7  | 8  | 1.31 | srvInner (negligible here) |
-| (b) in-process                   | 6.17  | 6 | 8  | 10 | 1.32 | srv_self (~+1 ms) |
-| (c) bus -> xxRod, sync publish   | 12.07 | 9 | 40 | 45 | 1.37 | srv_self (saturation tail) |
-| (c) bus -> xxRod, async pool x4  | 6.00  | 6 | 8  | 11 | 1.49 | srv_self (~+1 ms) |
+| (0) off                          | 5.36  | 5 | 7  | 9  | 1.29 | — |
+| (a) triggers (DB, in-tx)         | 6.46  | 6 | 9  | 12 | 1.49 | srvInner (in-tx) |
+| (b) in-process                   | 6.21  | 6 | 8  | 10 | 1.37 | srv_self (~+1 ms) |
+| (c) bus -> xxRod, sync publish   | 10.64 | 9 | 24 | 51 | 1.49 | srv_self (saturation tail) |
+| (c) bus -> xxRod, async pool x4  | 6.16  | 6 | 8  | 10 | 1.61 | srv_self (~+1 ms) |
+| (d) redis stream, single worker  | 5.67  | 6 | 8  | 9  | 1.60 | srv_self (~+0.3 ms, NO saturation) |
 
-- **srvInner (JPA) is flat across every mode (~1.3 ms).** No option pushes cost onto the DB-time of the
-  request thread — even (a)'s trigger INSERT, riding inside the already-open business tx, is lost in the
-  noise (matching the host-pg micro-benchmark above: triggers ~0 % at this load). The audit cost, when it
-  shows, is in `srv_self` (the post-commit enqueue), not in JPA.
-- **(a) is effectively free on the request path** at this load — the trigger is a cheap extra INSERT in a
-  transaction that is committing anyway. Its real downsides are structural (it cannot see crl/req/uid except
-  via columns the app must carry on every business row, and it couples the audit schema into the business
-  DB), not latency.
-- **(b) and (c) async-pool both add ~1 ms** to the ~5 ms baseline, with tight tails (p99 <= 11). In both the
-  request thread only does `feed.put()` after commit; the difference is purely what the single feed worker
-  does downstream, off the request thread (in-JVM `XXRod.submit` for (b), an async JMS publish for c-pool).
+- **srvInner (JPA) is flat across every mode (~1.1–1.6 ms).** No option pushes meaningful cost onto the
+  DB-time of the request thread — even (a)'s trigger INSERT, riding inside the already-open business tx,
+  only nudges srvInner (+0.2 ms vs off; matching the host-pg micro-benchmark above: triggers ~0 % at this
+  load). The audit cost, when any shows, is in `srv_self` (the post-commit enqueue), not in JPA.
+- **(a) triggers ≈ free, and what little it costs is in-tx.** The trigger is a cheap extra INSERT in a
+  transaction committing anyway — its real cost lands in `srvInner` (+0.2 ms), the rest of its srvOuter is
+  within run jitter. Its real downsides are structural (it cannot see crl/req/uid except via columns the app
+  must carry on every business row, and it couples the audit schema into the business DB), not latency.
+- **(b), (c) async-pool and (d) all add only ~0.3–0.9 ms** to the baseline, tight tails (p99 ≤ 10). In all
+  three the request thread only does `feed.put()` after commit; the difference is purely what the single
+  feed worker does downstream, off the request thread (in-JVM `XXRod.submit` for (b), an async JMS publish
+  for c-pool, a local `XADD` for (d)).
 - **(c) sync is the only one with a problem, and only under saturation.** The single feed worker publishes
   **synchronously** (one broker round-trip per event, ~1.5 ms). When sustained ingest exceeds that drain
-  rate the bounded feed (4096) fills and `feed.put()` blocks the request thread — p95/p99 jump to 40/45 ms.
+  rate the bounded feed (4096) fills and `feed.put()` blocks the request thread — p95/p99 jump to 24/51 ms.
   This is a throughput-cap effect, not a per-request tax (see the load gradient below).
+- **(d) redis is the cheapest audit option here — and does NOT saturate even single-worker.** Despite the
+  same single feed worker as (c) sync, the synchronous **`XADD` is a cheap local Redis round-trip (sub-ms)**,
+  not a broker hop — so the one worker out-drains 8-worker ingest and the feed never fills (8w: 5.67 ms,
+  p99 9, n=56,224, below even (b)/(c)-pool). (d) therefore needs **no publisher pool** at this load (the
+  `publisher-pool-size` option still applies if you ever push past the single-XADD ceiling). Its trade is the
+  opposite of (c)'s: the audit log lives in Redis (fast, fire-and-forget) but there is no broker buffering /
+  competing-consumer redundancy — see `doc/research/Redis-on-OCI.md`.
 
 **c-sync is load-dependent — regular traffic passes straight through.** Same c-sync mode, varying only the
 worker count (`srvOuter` ms):

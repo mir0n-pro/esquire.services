@@ -1,6 +1,17 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v1.2.7-2606.0820  v1.2.7 -- audit logging (option d): events streamed straight to Redis
+    :Feature:     option (d) -- the producer XADDs each committed audit event to a Redis Stream; the stream
+                  is the append-only audit log itself (no consumer service, read with XRANGE)
+    :Config:      audit-logging.x-rod.mode=redis + x-rod.redis.stream / max-len; spring.data.redis.host/port;
+                  redis:8 and RedisInsight (tools profile) added to the dev compose
+    :Doc:         request-processing-time matrix refreshed same-day with the (d) row; RedisJSON-local
+    Components:   common,
+                  enyMan,
+                  pacMan,
+                  keySmith
+
 v1.2.7-2606.0622  v1.2.7 -- audit logging (option c): distributed bus path + standalone xxRod consumer
     :Feature:     option (c) -- producers publish committed audit events to a durable ActiveMQ queue; the
                   new standalone xxRod service consumes the queue and writes the *_log tables off-box

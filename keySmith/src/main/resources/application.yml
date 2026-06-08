@@ -7,6 +7,11 @@ spring:
     broker-url: ${AMQ_BROKER_URL:tcp://localhost:61616}
     user: ${AMQ_USER:}
     password: ${AMQ_PASSWORD:}
+  data:
+    redis:
+      # x-Rod audit option (d) target. Lettuce connects lazily, so it is dormant unless audit mode=redis.
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
   jms:
     client-id: ${KEYSMITH_MESSAGING_CLIENT_ID:keysmith}
 # Messaging: KC sync producer
@@ -29,6 +34,11 @@ keysmith:
       #   committed tx); N>0 = N async publisher threads over a dedicated useAsyncSend connection.
       bus:
         publisher-pool-size: ${KEYSMITH_AUDIT_PUBLISHER_POOL_SIZE:0}
+      # (d) redis (mode=redis only): XADD each event to this Redis Stream (the stream IS the audit log;
+      #   no consumer service). max-len = approximate MAXLEN cap (0 = uncapped).
+      redis:
+        stream: ${KEYSMITH_AUDIT_REDIS_STREAM:}
+        max-len: ${KEYSMITH_AUDIT_REDIS_MAX_LEN:0}
       # (b) log datastore: shared (reuse service DB) | dedicated (separate pool/vendor via log-db below).
       log-datastore: ${KEYSMITH_AUDIT_LOG_DATASTORE:shared}
       # Read ONLY when log-datastore=dedicated. vendor selects the *_log SQL dialect
@@ -46,6 +56,11 @@ keysmith:
   mvc:
     problemdetails:
       enabled: true
+management:
+  health:
+    redis:
+      # OFF: Redis is only used when audit mode=redis (option d); its absence must not mark the service DOWN.
+      enabled: false
 logging:
   level:
     root: ${LOG_LEVEL_ROOT:ERROR}
