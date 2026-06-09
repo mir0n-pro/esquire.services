@@ -41,6 +41,12 @@
             <artifactId>spring-boot-starter-activemq</artifactId>
         </dependency>
 
+        <!-- Kafka consumer (x-Rod option c over Kafka; active when xxrod.transport=kafka) -->
+        <dependency>
+            <groupId>org.springframework.kafka</groupId>
+            <artifactId>spring-kafka</artifactId>
+        </dependency>
+
         <!-- DataSource + HikariCP + spring-jdbc (AuditLogWriter uses NamedParameterJdbcTemplate); no JPA -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
