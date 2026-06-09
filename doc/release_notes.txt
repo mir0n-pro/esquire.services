@@ -1,6 +1,19 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v1.2.7-2606.0822  v1.2.7 -- audit logging (option c-k, d-k): Kafka as the bus transport
+    :Feature:     option (c) (d) over Kafka -- producers publish committed audit events to a Kafka topic (keyed
+                  by entityId); 
+    :Config:      spring.kafka producer tuning (acks / batch-size / compression / linger.ms) + 
+                  the Kafka Connect Redis sink (kafka-sink profile) added to the dev compose
+    :Doc:         Kafka transport + partitioning / consumer model (Design sec 14); c-k / d-k rows added to
+                  the request-processing-time matrices; Kafka config knobs in services.configuring
+    Components:   common,
+                  enyMan,
+                  pacMan,
+                  keySmith,
+                  xxRod
+
 v1.2.7-2606.0820  v1.2.7 -- audit logging (option d): events streamed straight to Redis
     :Feature:     option (d) -- the producer XADDs each committed audit event to a Redis Stream; the stream
                   is the append-only audit log itself (no consumer service, read with XRANGE)

@@ -9,6 +9,8 @@
  * 06/06/2026 mir0n  created: the x-Rod option (c) wire codec -- the ONE place that maps a RodEvent to/from
  *                   the FIX-JSON envelope (JMS header properties + the body as the Text JSON field). Used by
  *                   the producer bus publisher and the standalone xxRod consumer so both stay in lockstep.
+ * 06/08/2026 mir0n  toJson / fromJson added: the same envelope (the toProps map) serialized as a single JSON
+ *                   string, for transports whose value is a byte/string payload (Kafka).
  */
 package pro.mir0n.esquire.common.audit;
 
@@ -68,6 +70,28 @@ public final class RodEventCodec {
                 str(p.get(EsqMsgConstants.FIELD_UID)),
                 readBody(str(p.get(EsqMsgConstants.FIELD_TEXT)), om));
         return ret;
+    }
+
+    /** RodEvent -> a single JSON string (the property envelope serialized). For transports whose value is a
+     *  string / byte payload (e.g. Kafka). */
+    public static String toJson(RodEvent e, ObjectMapper om) {
+        String ret;
+        try {
+            ret = om.writeValueAsString(toProps(e, om));
+        } catch (Exception ex) {
+            throw new IllegalStateException("rod-codec: cannot serialize envelope", ex);
+        }
+        return ret;
+    }
+
+    /** Reconstruct a RodEvent from the JSON envelope produced by {@link #toJson}. */
+    public static RodEvent fromJson(String json, ObjectMapper om) {
+        try {
+            Map<String, Object> p = om.readValue(json, new TypeReference<Map<String, Object>>() { });
+            return fromProps(p, om);
+        } catch (Exception ex) {
+            throw new IllegalStateException("rod-codec: cannot deserialize envelope", ex);
+        }
     }
 
     /** Reconstruct a RodEvent from a received JMS message. */

@@ -1,0 +1,14 @@
+{
+  "name": "redis-audit-sink",
+  "config": {
+    "connector.class": "com.redis.kafka.connect.RedisSinkConnector",
+    "tasks.max": "1",
+    "topics": "esquire.rod.audit",
+    "redis.uri": "redis://redis:6379",
+    "redis.type": "STREAM",
+    "redis.keyspace": "esq:audit:kafka",
+    "key.converter": "org.apache.kafka.connect.storage.StringConverter",
+    "value.converter": "org.apache.kafka.connect.json.JsonConverter",
+    "value.converter.schemas.enable": "false"
+  }
+}

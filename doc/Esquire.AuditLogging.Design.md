@@ -509,6 +509,144 @@ offset. Pick the option by the loss posture you actually want: **(a)** never-los
 
 ---
 
+## 14. Option (c) over Kafka -- transport, partitioning, and the consumer model
+
+(c) keeps its shape -- producer -> bus -> xxRod -> `*_log` -- with the **bus transport made swappable**:
+`...audit-logging.x-rod.bus.transport = activemq | kafka` on the producer and `xxrod.transport =
+activemq | kafka` on the consumer. The codec (`RodEventCodec`), the director / `*_log` writer, and the
+dedup index are all unchanged; Kafka slots in as another bus. The design notes below capture *how* to run
+it well for an audit workload.
+
+### 14.1 Partitioning -- key = none
+
+Audit is **order-independent** (each event is an append to `*_log` with its own `actionTime`; you sort the
+history on read), so we do not need Kafka's per-key ordering. Therefore:
+
+- **key = none** (round-robin / sticky partitioner) -- maximum even spread across partitions, no hot
+  partitions, full parallelism. **This is the default.**
+- Rejected -- **key = entityId**: gives per-entity ordering we do not need, and risks a *hot partition* if a
+  few entities dominate writes (a busy office/account pins its traffic to one partition). Cardinality is
+  NOT the issue (100k entities just hash onto N partitions, millions of keys per partition are fine) -- the
+  issue is write skew.
+- Rejected -- **key = kind**: only ~8-10 distinct keys with **heavily skewed volume** (address/account
+  dominate, auth is rare) -> guaranteed hot + idle partitions. The worst choice. (Per-kind *routing* to
+  different sinks, if ever wanted, is **topic-per-kind**, not partition-per-kind.)
+
+Partitions are the **unit of consumer parallelism and the cap on it**; size the partition count to the
+maximum number of consumers (replicas) you would ever want. With key=none, partitions can be grown later
+freely (no key->partition stickiness to preserve).
+
+### 14.2 Consumer model -- one consumer per instance, scale by replicas
+
+xxRod's consumer side is a **single consumer thread** (the `@KafkaListener`), matching the ActiveMQ
+`@JmsListener` it replaces. Scale **out**, not **up**:
+
+- **Do NOT raise `spring.kafka.listener.concurrency`** above 1 -- that puts N consumer threads inside one
+  instance all calling `director.accept` on one shared pool (the shared-pool trap, below).
+- **Add xxRod replicas** in the same consumer group instead -- Kafka distributes the partitions across the
+  instances (competing consumers). N partitions -> up to N useful replicas, each owning a subset. This is
+  also the horizontal-redundancy story (a replica dies -> its partitions rebalance to the survivors).
+
+### 14.3 A dedicated worker pool per consumer
+
+Each consumer must own its **own** `XXRod` write pool -- never share one across consumers. Reasons:
+
+1. **Isolation** -- a slow/blocked partition must not steal write permits from the others (shared pool =
+   head-of-line blocking across partitions).
+2. **Per-partition offset correctness** -- to commit an offset honestly the consumer must know *its own*
+   writes finished; a shared pool decouples completion from the committing consumer.
+3. **Backpressure locality** -- a dedicated pool pauses only its own partition's polling.
+
+The **process boundary gives this for free**: each xxRod instance has its own `AuditRodDirector` -> its own
+`XXRod` pool -> its own Hikari connection pool. So "one consumer per instance" (14.2) *is* "one dedicated
+pool per consumer". The only way to violate it is `listener.concurrency>1`; hence keep it at 1.
+
+### 14.4 No internal queue -- the topic is the buffer
+
+Unlike the producer side (which needs the bounded xy-Rod feed because the request thread cannot pause), the
+consumer needs **no internal queue**: the **Kafka topic is the durable buffer**. The consumer pulls at its
+own pace; the `XXRod` pool's semaphore backpressures `submit()`, which makes Spring Kafka **pause polling**
+when the writers saturate; the unprocessed backlog stays in the broker, replayable by offset. Nothing
+accumulates in memory.
+
+### 14.5 Delivery -- best-effort now, zero-loss-capable
+
+As built, the listener hands each record to the **async** pool and returns, so the **offset commits before
+the write completes** -> best-effort (a crash between commit and write loses that record), the same profile
+as the ActiveMQ path. The **zero-loss** upgrade is natural on Kafka:
+
+- write **synchronously** in the listener, then **commit the offset after** the `*_log` write (ack-after-
+  process / container ack-mode `RECORD` or `BATCH`) -> **at-least-once**;
+- the `*_log` **dedup unique index** makes the redelivery idempotent -> **effective exactly-once**.
+
+The cost: per-consumer throughput becomes one-write-at-a-time, so you lean on **partitions + replicas** for
+parallelism rather than the in-instance pool. This is the (c) bus path's distinguishing value (recoverable,
+zero-loss audit, see section 13) -- and Kafka makes it a config posture rather than a project.
+
+### 14.6 Operational caveat -- DB connection budget
+
+A dedicated pool per consumer means **total audit-DB connections = replicas x pool-size**. (The smoke hit
+`too many clients already` from exactly this -- pools competing for a finite `max_connections`.) Size
+`XXROD_AUDIT_POOL_SIZE` and the audit-DB `max_connections` together, or give each replica its own DB / front
+the DB with pgbouncer.
+
+### 14.7 Recommended configuration (audit)
+
+> **key = none** | **N partitions** (= max replicas wanted) | **one consumer thread per instance**
+> (`listener.concurrency = 1`) | **scale via replicas** (competing consumers) | **one dedicated `XXRod`
+> pool per instance** | **no internal queue** (the topic buffers) | best-effort by default, **ack-after-
+> write + dedup index** for zero-loss | **pool-size x replicas <= audit-DB connection budget**.
+
+This keeps the single-consumer interface intact, isolates each partition, scales horizontally on the
+partition count, and makes the zero-loss posture reachable per partition -- the reason to pick Kafka for (c)
+over the best-effort ActiveMQ queue.
+
+### 14.8 Why partitioning earns its keep -- the value case for Kafka
+
+Partitioning *is* Kafka's sharding (the data is sharded across partitions, which spread across brokers).
+The earlier sections cover *how* to run it; this is *why* it is worth the extra infrastructure over the
+ActiveMQ queue. From most to least relevant for audit:
+
+1. **Fan-out to many independent sinks (the decisive one).** One topic, **multiple consumer groups**, each
+   receiving *every* record independently. The same `esquire.rod.audit` topic can feed **xxRod -> SQL `*_log`
+   *and* Kafka Connect -> Redis *and* a future search index / cold store** -- all off a **single publish**,
+   each sink its own group, each scaling its own consumers across the partitions. This is "audit as a
+   first-class, multi-sink pipeline" and is **impossible on the ActiveMQ queue** (a queue delivers each
+   message once, to one consumer). Demonstrated by the (d-k) variant (producer unchanged, a Connect Redis
+   sink added as just another consumer group).
+
+2. **Throughput / scale-out (the dial).** Partitions are the unit of parallelism at every stage: producers
+   write different partitions concurrently, partitions distribute storage + load across brokers, and a
+   consumer group runs up to N consumers for N partitions. Audit volume grows -> add partitions + add xxRod
+   replicas -> near-linear scale, no code change.
+
+3. **Replay / backfill (free with retention).** Partitions retain data, so a *new* consumer group can start
+   at offset 0 and replay the whole history. Concretely: a sink added months later **backfills itself** from
+   the retained topic; a corrupted/wiped sink is **rebuilt** by replaying; logic can be reprocessed without
+   re-emitting from the services. (Set topic retention to the audit window you want replayable.)
+
+4. **Ordering on demand (key choice).** Order is guaranteed within a partition, so the key picks the grain:
+   `key=none` (our default -- order-independent, even spread) or `key=entityId` *only if* a particular sink
+   needs per-entity order (e.g. a current-state materialization). Different sinks read the same topic and
+   interpret order as each needs.
+
+5. **HA via replication.** `replication.factor>1` places each partition's replicas on different brokers --
+   a broker dies, no data lost, consumers rebalance to the survivors. (Replication is distinct from
+   partitioning but uses the partition as its unit.)
+
+**Sizing rules:** partitions ~= peak consumers-per-sink + headroom (a handful for dev; real concurrency in
+prod). You can *add* partitions but not easily remove them, so leave headroom without over-provisioning
+(too many -> rebalance storms, file-handle overhead, more end-to-end latency). More consumers than
+partitions = idle consumers; more partitions than consumers is fine. Keyed -> watch for hot-partition skew;
+`key=none` -> free even spread.
+
+**Net for us:** the two leverage points we would genuinely use are **fan-out** (`*_log` + Redis + future
+sinks off one publish, each scaling independently) and **replay** (add or rebuild a sink anytime from the
+retained topic). Scale and HA are have-it-when-needed dials. None of these exist on the ActiveMQ queue --
+they, more than the transport swap, are the case for Kafka under (c).
+
+---
+
 ## Cross-references
 
 - [Esquire.AuditLogging.md](Esquire.AuditLogging.md) — the option space (0/a/b/c/d/e) and the stance.

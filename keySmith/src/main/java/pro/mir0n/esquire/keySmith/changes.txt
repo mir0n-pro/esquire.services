@@ -1,5 +1,15 @@
 Esquire keySmith Microservice
 
+06/08/2026 mir0n  v1.2.7 -- audit logging (c) over Kafka transport
+audit.AuditConfig
+  - mode=bus + x-rod.bus.transport=kafka builds a RodKafkaPublisher over the autoconfigured KafkaTemplate
+    (key = entityId) -> AuditRod.buildBus; transport=activemq (default) keeps the queue path
+src/main/resources/application.yml
+  - spring.kafka.bootstrap-servers + producer String key/value serializers + acks / batch-size /
+    compression-type / linger.ms tuning; audit-logging.x-rod.bus.transport added
+pom.xml
+  - spring-kafka added
+
 06/08/2026 mir0n  v1.2.7 -- audit logging (d): redis producer mode
 audit.AuditConfig
   - mode=redis builds a RodRedisPublisher over the injected StringRedisTemplate (ObjectProvider), wired

@@ -69,6 +69,12 @@ Redis Stream (the stream IS the audit log; no consumer service). Here `<SVC>` is
 | `REDIS_PORT` | `6379` | (d) Redis port. |
 | `<SVC>_AUDIT_REDIS_STREAM` | *(empty -> `esquire.rod.audit`)* | (d) the Redis Stream key to XADD each event to. |
 | `<SVC>_AUDIT_REDIS_MAX_LEN` | `0` | (d) approximate MAXLEN cap on the stream (`0` = uncapped). |
+| `<SVC>_AUDIT_BUS_TRANSPORT` | `activemq` | (c) bus transport when mode=bus: `activemq` (the queue, default) or `kafka` (the audit topic; xxRod consumes). |
+| `KAFKA_BOOTSTRAP` | `localhost:9092` code / `kafka:9092` deployed | (c-k) Kafka bootstrap servers (`spring.kafka.bootstrap-servers`). Connects lazily -> ignored unless transport=kafka. |
+| `KAFKA_ACKS` | `0` | (c-k) producer acks: `0` = fire-and-forget (best-effort, fastest sender); `1` = leader ack; `all` = full ISR (for the zero-loss posture). |
+| `KAFKA_LINGER_MS` | `10` | (c-k) producer batch linger (ms) -- coalesce records into batches for sender throughput. |
+| `KAFKA_BATCH_SIZE` | `32768` | (c-k) producer batch size (bytes). |
+| `KAFKA_COMPRESSION` | `lz4` | (c-k) producer compression: `none` / `lz4` / `snappy` / `zstd` / `gzip`. |
 | `<SVC>_AUDIT_LOG_DATASTORE` | `shared` | (b) where `*_log` is written: `shared` (service DB) or `dedicated` (separate pool/vendor below). |
 | `<SVC>_AUDIT_DB_VENDOR` | `dev-postgres` | (b) dedicated-only: log-DB SQL dialect (may differ from the business DB). |
 | `<SVC>_AUDIT_DB_URL` | *(empty)* | (b) dedicated-only: log-DB JDBC URL. |
@@ -93,7 +99,9 @@ indexes), **(3) SQL spec artifacts** (`META-INF/audit/{vendor}.xml`, shipped or 
 | **(a) triggers** | `<SVC>_AUDIT_ENABLED=false` (the app producer stays OFF; the DB logs) | `*_log` tables (`create.log`) **+ run the trigger DDL** (`<vendor>/triggers/all.sql`; base seed is trigger-free) | -- (SQL lives in the trigger) | -- |
 | **(b) in-process** | `=true`, `_MODE=in-process`; `_POOL_SIZE` / `_VIRTUAL_THREADS` / `_FEED_CAPACITY`; `_LOG_DATASTORE=shared\|dedicated` (+ `_DB_*` if dedicated) | `*_log` tables (`create.log`) | **ship** the service's subset | -- |
 | **(c) bus -> xxRod** | producer: `=true`, `_MODE=bus`, `_PUBLISHER_POOL_SIZE=0\|N`, `AMQ_BROKER_URL`. consumer: `XXROD_DIRECTOR=audit`, `XXROD_AUDIT_POOL_SIZE`, `XXROD_MESSAGING_CONCURRENCY`, `DB_XXROD_*` | `*_log` tables **+ dedup unique indexes** (`create.log`) | producers: **not required** (they don't write in bus mode); **xxRod ships the FULL set** | ActiveMQ broker + the xxRod service |
+| **(c-k) bus over Kafka** | producer: `=true`, `_MODE=bus`, `_BUS_TRANSPORT=kafka`, `KAFKA_BOOTSTRAP` (+ tune `KAFKA_ACKS`/`LINGER_MS`/`BATCH_SIZE`/`COMPRESSION`). consumer: `XXROD_TRANSPORT=kafka`, `KAFKA_BOOTSTRAP`, `XXROD_KAFKA_GROUP_ID` | `*_log` tables **+ dedup unique indexes** | xxRod ships the FULL set | Kafka broker + the xxRod service |
 | **(d) redis** | `=true`, `_MODE=redis`; `_REDIS_STREAM` / `_REDIS_MAX_LEN`; `REDIS_HOST` / `REDIS_PORT` | -- (no `*_log`) | -- (no SQL) | Redis (`redis:8`); RedisInsight optional |
+| **(d-k) Kafka -> Connect -> Redis** | producer: same as (c-k) (`_MODE=bus`, `_BUS_TRANSPORT=kafka`). No xxRod -- the sink is a Kafka Connect Redis connector. | -- (no `*_log`) | -- (no SQL) | Kafka broker + a Kafka Connect worker running the Redis sink connector (`kafka-sink` profile) + Redis |
 
 Notes:
 - `<SVC>` is `ENYMAN` / `PACMAN` / `KEYSMITH`; the env prefix is `<SVC>_AUDIT_` (e.g. `ENYMAN_AUDIT_MODE`).
@@ -319,6 +327,10 @@ consumer side.)
 | `XXROD_AUDIT_POOL_SIZE` | `8` | Audit director's apply-pool (`XXRod`) size; keep <= the datasource Hikari pool. |
 | `XXROD_AUDIT_VIRTUAL_THREADS` | `false` | Apply-pool workers on virtual threads. |
 | `XXROD_MESSAGING_CONCURRENCY` | `1-1` | JMS listener concurrency (the apply pool provides the actual write parallelism). |
+| `XXROD_TRANSPORT` | `activemq` | Which transport feeds the director: `activemq` (the JMS queue, default) or `kafka` (the audit topic). Keep `listener.concurrency`=1; scale by replicas, not threads (Design.md sec 14). |
+| `KAFKA_BOOTSTRAP` | `kafka:9092` | (c-k) Kafka bootstrap servers; used only when `XXROD_TRANSPORT=kafka`. |
+| `XXROD_KAFKA_GROUP_ID` | `esquire-xxrod-audit` | (c-k) consumer group id; competing consumers across replicas. |
+| `XXROD_KAFKA_OFFSET_RESET` | `latest` | (c-k) `auto-offset-reset` for a fresh group (`latest` / `earliest`). |
 
 ---
 

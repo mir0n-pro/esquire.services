@@ -18,6 +18,9 @@
  * 06/08/2026 mir0n  option (d): mode=redis builds a RodRedisPublisher (XADD to the audit Redis Stream via
  *                   the injected StringRedisTemplate), wired through buildBus / buildBusPool; stream key and
  *                   approximate MAXLEN from x-rod.redis.*.
+ * 06/08/2026 mir0n  option (c) over Kafka: mode=bus + x-rod.bus.transport=kafka builds a RodKafkaPublisher
+ *                   over the autoconfigured KafkaTemplate (key = entityId) -> buildBus; transport=activemq
+ *                   (default) keeps the queue path.
  */
 package pro.mir0n.esquire.pacMan.audit;
 
@@ -34,6 +37,7 @@ import org.apache.activemq.ActiveMQConnectionFactory;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.jms.connection.CachingConnectionFactory;
 import org.springframework.jms.core.JmsTemplate;
+import org.springframework.kafka.core.KafkaTemplate;
 import pro.mir0n.esquire.backend.dto.EsqObjectKind;
 import pro.mir0n.esquire.backend.storage.EsqObjectKindStorage;
 import pro.mir0n.esquire.common.EsqMsgConstants;
@@ -41,6 +45,7 @@ import pro.mir0n.esquire.common.audit.AuditLogSql;
 import pro.mir0n.esquire.common.audit.AuditRod;
 import pro.mir0n.esquire.common.audit.AuditSettings;
 import pro.mir0n.esquire.common.audit.RodEventBusPublisher;
+import pro.mir0n.esquire.common.audit.RodKafkaPublisher;
 import pro.mir0n.esquire.common.audit.RodRedisPublisher;
 import pro.mir0n.esquire.common.xrod.XYRod;
 
@@ -71,6 +76,8 @@ public class AuditConfig {
     // publisher threads over a dedicated useAsyncSend connection (the same thread-per-event pool as b).
     // The pool size also drives the (d) redis path.
     @Value("${pacman.audit-logging.x-rod.bus.publisher-pool-size:0}")   private int     publisherPoolSize;
+    // (c) bus transport: activemq (default) | kafka. kafka -> publish to the audit Kafka topic instead.
+    @Value("${pacman.audit-logging.x-rod.bus.transport:activemq}")      private String  busTransport;
     // (d) redis: the audit stream key (blank -> EsqMsgConstants.STREAM_ROD_AUDIT) and approximate MAXLEN (0 = uncapped).
     @Value("${pacman.audit-logging.x-rod.redis.stream:}")              private String  redisStream;
     @Value("${pacman.audit-logging.x-rod.redis.max-len:0}")            private long    redisMaxLen;
@@ -78,6 +85,7 @@ public class AuditConfig {
     private final DataSource serviceDataSource;
     private final JmsTemplate jmsQueueTemplate;
     private final ObjectProvider<StringRedisTemplate> redisTemplateProvider;
+    private final ObjectProvider<KafkaTemplate<?, ?>> kafkaTemplateProvider;
     private final ObjectMapper objectMapper;
     private AuditRod.Handle handle;
     private CachingConnectionFactory auditConnectionFactory;
@@ -85,10 +93,12 @@ public class AuditConfig {
     public AuditConfig(DataSource serviceDataSource,
                        @Qualifier("jmsQueueTemplate") JmsTemplate jmsQueueTemplate,
                        ObjectProvider<StringRedisTemplate> redisTemplateProvider,
+                       ObjectProvider<KafkaTemplate<?, ?>> kafkaTemplateProvider,
                        ObjectMapper objectMapper) {
         this.serviceDataSource     = serviceDataSource;
         this.jmsQueueTemplate      = jmsQueueTemplate;
         this.redisTemplateProvider = redisTemplateProvider;
+        this.kafkaTemplateProvider = kafkaTemplateProvider;
         this.objectMapper          = objectMapper;
     }
 
@@ -96,7 +106,14 @@ public class AuditConfig {
     public XYRod xyRod() {
         AuditSettings settings = new AuditSettings(enabled, poolSize, virtualThreads, feedCapacity,
                 logDatastore, logDbVendor, logDbUrl, logDbUsername, logDbPassword, logDbPoolSize, businessProfile);
-        if (AuditRod.MODE_BUS.equalsIgnoreCase(mode)) {
+        if (AuditRod.MODE_BUS.equalsIgnoreCase(mode) && AuditRod.TRANSPORT_KAFKA.equalsIgnoreCase(busTransport)) {
+            // (c) over Kafka: publish to the audit topic (keyed by entityId); xxRod consumes + writes the *_log.
+            // KafkaTemplate.send is async/batched, so the single feed worker suffices (no publisher pool).
+            @SuppressWarnings("unchecked")
+            KafkaTemplate<String, String> kt = (KafkaTemplate<String, String>) kafkaTemplateProvider.getObject();
+            RodKafkaPublisher publisher = new RodKafkaPublisher(kt, EsqMsgConstants.TOPIC_ROD_AUDIT, objectMapper);
+            handle = AuditRod.buildBus(appName, settings, publisher, devLog);
+        } else if (AuditRod.MODE_BUS.equalsIgnoreCase(mode)) {
             // (c) producer: publish to the audit queue; the standalone xxRod consumer writes the *_log.
             if (publisherPoolSize > 0) {
                 // async publisher pool: dedicated useAsyncSend connection (scoped to audit), N publisher threads.

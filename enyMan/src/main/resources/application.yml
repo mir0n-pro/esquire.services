@@ -13,6 +13,20 @@ spring:
       # x-Rod audit option (d) target. Lettuce connects lazily, so it is dormant unless audit mode=redis.
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
+  kafka:
+    # x-Rod audit option (c) over Kafka target. The producer connects lazily (first send), so it is dormant
+    # unless audit mode=bus + bus.transport=kafka.
+    bootstrap-servers: ${KAFKA_BOOTSTRAP:localhost:9092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      # audit is best-effort -> tune for sender throughput (all off the request path):
+      # acks=0 (fire-and-forget, no broker ack wait), batch + linger coalesce sends, lz4 compression.
+      acks: ${KAFKA_ACKS:0}
+      batch-size: ${KAFKA_BATCH_SIZE:32768}
+      compression-type: ${KAFKA_COMPRESSION:lz4}
+      properties:
+        linger.ms: ${KAFKA_LINGER_MS:10}
   jms:
     # clientId on CachingConnectionFactory — required for durable subscriptions.
     # Must not be set on DefaultJmsListenerContainerFactory (shared connection proxy restriction).
@@ -69,6 +83,8 @@ enyman:
       #   committed tx); N>0 = N async publisher threads over a dedicated useAsyncSend connection.
       bus:
         publisher-pool-size: ${ENYMAN_AUDIT_PUBLISHER_POOL_SIZE:0}
+        # (c) bus transport: activemq (default, the queue) | kafka (publish to the audit Kafka topic).
+        transport: ${ENYMAN_AUDIT_BUS_TRANSPORT:activemq}
       # (d) redis (mode=redis only): the producer XADDs each event to this Redis Stream (the stream IS the
       #   audit log; no consumer service). max-len = approximate MAXLEN cap (0 = uncapped).
       redis:

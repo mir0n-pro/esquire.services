@@ -184,18 +184,21 @@ to *decoupled / asynchronous / separate store / non-SQL*.
   order). For our volume a single stream is ample. This DIY-partitioning is exactly where the next option
   is expected to differ.
 
-### *(next research)* f) Kafka as the audit transport
+### f) Kafka as the audit transport
 
 - **Where:** Apache Kafka as the durable, natively-partitioned bus, in two shapes:
   - **(c)-style:** `service -> Kafka -> xxRod` — Kafka in place of (or alongside) ActiveMQ; the pluggable
-    consumer / `IRodDirector` seam swaps the transport, xxRod still writes the `*_log`.
-  - **(d)-style:** `service -> Kafka -> Redis Kafka Sink (Kafka Connect) -> Redis` — Kafka in front of
-    Redis via a sink connector, instead of the producer XADD-ing directly.
+    consumer / `IRodDirector` seam swaps the transport, xxRod still writes the `*_log`. **BUILT** (a
+    `bus.transport=kafka` switch on the producer + `xxrod.transport=kafka` on the consumer).
+  - **(d)-style:** *(next research)* `service -> Kafka -> Redis Kafka Sink (Kafka Connect) -> Redis` —
+    Kafka in front of Redis via a sink connector, instead of the producer XADD-ing directly.
 - **Why it is worth a look:** **native, declarative partitioning** — N partitions per topic as the unit of
   parallelism + per-key ordering, auto-distributed across brokers, consumer groups auto-bound to
   partitions. That is the one axis where Kafka is structurally stronger than Redis Streams (where you DIY
-  the partitioning) and ActiveMQ (a queue, not a partitioned log). To be evaluated as its own research
-  before the full audit-logging write-up.
+  the partitioning) and ActiveMQ (a queue, not a partitioned log).
+- **How to run (c)-over-Kafka for audit** — partitioning, the one-consumer-per-instance model, a dedicated
+  worker pool per consumer, why no internal queue is needed, and the best-effort -> zero-loss (ack-after-
+  write + dedup) posture: see [Esquire.AuditLogging.Design.md](Esquire.AuditLogging.Design.md) section 14.
 
 ### e) Log-based CDC — *"capture from the redo log, outside the framework"*
 
@@ -326,7 +329,7 @@ log-published (the async tail). `MdcFilter` stamps two response headers the perf
 Same `UpdateLoadSimulation` (`POST /esq-cmd-save` postal-address edit → enyMan; one `esq_address_log` event
 per request — confirmed by the row counts, not user+person+address), ~10-client pool under the Test House,
 on the dockerized stack (gateway + KC + enyMan + ActiveMQ + xxRod + Redis + Postgres 17), warm, flipping
-only enyMan's audit config between runs — **all six modes measured in one same-day sweep**. All values ms,
+only enyMan's audit config between runs — **all modes measured same-day**. All values ms,
 for the `POST /esq-cmd-save` request. (Run-to-run jitter on this shared host is ~±1 ms; read the relative
 story, not the third digit.)
 
@@ -339,7 +342,9 @@ story, not the third digit.)
 | (b) in-process                   | 3.80 | 4 | 5 | 6 | 1.23 |
 | (c) bus -> xxRod, sync publish   | 4.36 | 4 | 6 | 9 | 1.37 |
 | (c) bus -> xxRod, async pool x4  | 4.04 | 4 | 6 | 7 | 1.30 |
+| (c-k) bus -> xxRod, Kafka        | 3.90 | 4 | 5 | 7 | 1.27 |
 | (d) redis stream, single worker  | 3.83 | 4 | 5 | 7 | 1.32 |
+| (d-k) Kafka -> Connect -> Redis  | 4.28 | 4 | 6 | 8 | 1.32 |
 
 All six sit within ~0.6 ms of each other (p95 5-6, p99 6-9). At normal load even the single synchronous
 publisher / XADD worker drains faster than events arrive, so the bounded feed never fills — no backpressure.
@@ -353,7 +358,9 @@ publisher / XADD worker drains faster than events arrive, so the bounded feed ne
 | (b) in-process                   | 6.21  | 6 | 8  | 10 | 1.37 | srv_self (~+1 ms) |
 | (c) bus -> xxRod, sync publish   | 10.64 | 9 | 24 | 51 | 1.49 | srv_self (saturation tail) |
 | (c) bus -> xxRod, async pool x4  | 6.16  | 6 | 8  | 10 | 1.61 | srv_self (~+1 ms) |
+| (c-k) bus -> xxRod, Kafka        | 5.87  | 6 | 8  | 10 | 1.50 | srv_self (~+0.5 ms, NO saturation; producer tuned) |
 | (d) redis stream, single worker  | 5.67  | 6 | 8  | 9  | 1.60 | srv_self (~+0.3 ms, NO saturation) |
+| (d-k) Kafka -> Connect -> Redis  | 6.68  | 6 | 9  | 12 | 1.70 | = c-k producer + co-located-Connect host load |
 
 - **srvInner (JPA) is flat across every mode (~1.1–1.6 ms).** No option pushes meaningful cost onto the
   DB-time of the request thread — even (a)'s trigger INSERT, riding inside the already-open business tx,
@@ -363,10 +370,24 @@ publisher / XADD worker drains faster than events arrive, so the bounded feed ne
   transaction committing anyway — its real cost lands in `srvInner` (+0.2 ms), the rest of its srvOuter is
   within run jitter. Its real downsides are structural (it cannot see crl/req/uid except via columns the app
   must carry on every business row, and it couples the audit schema into the business DB), not latency.
-- **(b), (c) async-pool and (d) all add only ~0.3–0.9 ms** to the baseline, tight tails (p99 ≤ 10). In all
-  three the request thread only does `feed.put()` after commit; the difference is purely what the single
-  feed worker does downstream, off the request thread (in-JVM `XXRod.submit` for (b), an async JMS publish
-  for c-pool, a local `XADD` for (d)).
+- **(b), (c) async-pool, (c) Kafka and (d) all add only ~0.3–0.9 ms** to the baseline, tight tails (p99 ≤ 10).
+  In all of them the request thread only does `feed.put()` after commit; the difference is purely what the
+  single feed worker does downstream, off the request thread (in-JVM `XXRod.submit` for (b), an async JMS
+  publish for c-pool, an async `KafkaTemplate.send` for c-k, a local `XADD` for (d)). Notably **(c) over
+  Kafka does not saturate single-worker** (unlike c-sync): the Kafka producer send is async/batched, so the
+  one feed worker out-drains the ingest — like (d), and unlike the synchronous JMS publish. *(this Kafka
+  producer-side variant is **c-k**.)*
+- **(d-k) Kafka -> Connect -> Redis has the *same producer* as c-k**, so its request-path cost is the
+  same by construction — the Redis sink (a Kafka Connect worker XADD-ing the topic to Redis) is entirely
+  off the request thread. The small bump (8w: 6.68 vs c-k 5.98) is **host contention** from running the
+  heavy Connect JVM + the Redis writes on the same box during the run, not a per-request cost. It re-states
+  the matrix's running theme: the sink choice never touches the request path; only what the *feed worker*
+  does synchronously (c-sync) ever does.
+- **Producer tuning barely moved c-k (5.98 -> 5.87 at 8w) — which is itself the finding.** The Kafka
+  producer is set for best-effort throughput (`acks=0`, `linger.ms=10`, `batch.size=32k`, `lz4`); it gave
+  only ~0.1-0.2 ms, so the sender was never the bottleneck. The residual gap to Redis is the **co-located
+  broker JVM's host footprint**, not anything the producer config can fix — it disappears when Kafka runs
+  on its own node. The tuning still ships (right posture for best-effort audit + backpressure headroom).
 - **(c) sync is the only one with a problem, and only under saturation.** The single feed worker publishes
   **synchronously** (one broker round-trip per event, ~1.5 ms). When sustained ingest exceeds that drain
   rate the bounded feed (4096) fills and `feed.put()` blocks the request thread — p95/p99 jump to 24/51 ms.

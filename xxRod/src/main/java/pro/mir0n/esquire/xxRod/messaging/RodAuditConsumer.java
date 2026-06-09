@@ -8,6 +8,8 @@
  *  History:
  * 06/06/2026 mir0n  created: the audit-queue intake. Decodes each message into a RodEvent (RodEventCodec)
  *                   and hands it to the director. The transport-pluggable edge (first transport = ActiveMQ).
+ * 06/08/2026 mir0n  gated by xxrod.transport=activemq (default) -- the ActiveMQ intake; the Kafka intake
+ *                   (RodKafkaConsumer) is the alternative.
  */
 package pro.mir0n.esquire.xxRod.messaging;
 
@@ -18,16 +20,20 @@ import lombok.extern.slf4j.Slf4j;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.jms.annotation.JmsListener;
 import org.springframework.stereotype.Component;
 import pro.mir0n.esquire.common.EsqConstants;
 import pro.mir0n.esquire.common.EsqMsgConstants;
+import pro.mir0n.esquire.common.audit.AuditRod;
 import pro.mir0n.esquire.common.audit.RodEventCodec;
 import pro.mir0n.esquire.common.xrod.RodEvent;
 import pro.mir0n.esquire.xxRod.director.IRodDirector;
 
 @Slf4j
 @Component
+@ConditionalOnProperty(prefix = "xxrod", name = "transport",
+        havingValue = AuditRod.TRANSPORT_ACTIVEMQ, matchIfMissing = true)
 @RequiredArgsConstructor
 public class RodAuditConsumer {
 

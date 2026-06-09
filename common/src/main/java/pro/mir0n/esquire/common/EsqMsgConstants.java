@@ -15,6 +15,7 @@
  * 06/06/2026 mir0n  x-Rod audit bus (option c): QUEUE_ROD_AUDIT, MSG_TYPE_ROD_AUDIT, BUS_ID_ROD,
  *                   SERVICE_ID_ROD_AUDIT, FIELD_SUB_ID / FIELD_UID / FIELD_ACTION_TIME added
  * 06/08/2026 mir0n  x-Rod audit option (d): STREAM_ROD_AUDIT (the Redis Stream key) added
+ * 06/08/2026 mir0n  x-Rod audit option (c) over Kafka: TOPIC_ROD_AUDIT (the Kafka topic) added
  */
 package pro.mir0n.esquire.common;
 
@@ -40,6 +41,10 @@ public class EsqMsgConstants {
     // x-Rod option (d): the Redis Stream the producer XADDs each committed audit event to (transport = the
     // stream itself; the stream IS the append-only audit log). No consumer service -- read via XRANGE.
     public static final String STREAM_ROD_AUDIT        = "esquire.rod.audit";
+
+    // x-Rod option (c) over KAFKA: the Kafka topic the producer publishes each committed audit event to;
+    // the xxRod consumer reads it and writes the *_log (same role as QUEUE_ROD_AUDIT, Kafka transport).
+    public static final String TOPIC_ROD_AUDIT         = "esquire.rod.audit";
 
     // --- Canonical FIX-JSON field names (JMS property name = JSON body field name) ---
 

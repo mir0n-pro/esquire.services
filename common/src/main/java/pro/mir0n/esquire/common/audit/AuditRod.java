@@ -17,6 +17,8 @@
  *                   for the high-bandwidth bus path.
  * 06/08/2026 mir0n  MODE_REDIS constant added (option d); the Redis publisher dispatches through the same
  *                   buildBus / buildBusPool seam, so no new wiring method here.
+ * 06/08/2026 mir0n  TRANSPORT_ACTIVEMQ / TRANSPORT_KAFKA constants added (option c bus transport); the Kafka
+ *                   publisher likewise dispatches through buildBus.
  */
 package pro.mir0n.esquire.common.audit;
 
@@ -38,6 +40,10 @@ public final class AuditRod {
     public static final String MODE_IN_PROCESS = "in-process";
     public static final String MODE_BUS        = "bus";
     public static final String MODE_REDIS      = "redis";
+
+    /** Bus transport (the {@code ...audit-logging.x-rod.bus.transport} value) for option (c). */
+    public static final String TRANSPORT_ACTIVEMQ = "activemq";
+    public static final String TRANSPORT_KAFKA    = "kafka";
 
     private AuditRod() {
     }

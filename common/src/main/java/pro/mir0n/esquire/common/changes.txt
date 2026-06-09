@@ -1,5 +1,18 @@
 Esquire Common microservice classes
 
+06/08/2026 mir0n  v1.2.7 -- audit logging (c) over Kafka transport
+audit.RodKafkaPublisher  (new)
+  - Consumer<RodEvent> that sends the event to the audit Kafka topic via KafkaTemplate (key = entityId,
+    value = RodEventCodec.toJson); async send, delivery failure logged in the callback; best-effort
+audit.RodEventCodec
+  - toJson / fromJson added (the toProps envelope serialized to a single JSON string -- the Kafka value payload)
+audit.AuditRod
+  - TRANSPORT_ACTIVEMQ / TRANSPORT_KAFKA constants added (the x-rod.bus.transport selector)
+EsqMsgConstants
+  - TOPIC_ROD_AUDIT added (the audit Kafka topic)
+pom.xml
+  - spring-kafka (provided) added
+
 06/08/2026 mir0n  v1.2.7 -- audit logging (d): Redis Stream producer
 audit.RodRedisPublisher  (new)
   - Consumer<RodEvent> that XADDs the event to a Redis Stream via StringRedisTemplate.opsForStream (fields

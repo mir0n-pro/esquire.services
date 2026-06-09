@@ -162,6 +162,14 @@
             <scope>provided</scope>
         </dependency>
 
+        <!-- spring-kafka: the x-Rod option (c) Kafka publisher (common.audit.RodKafkaPublisher) uses
+             KafkaTemplate; the asset services / xxRod provide it at runtime via spring-kafka. -->
+        <dependency>
+            <groupId>org.springframework.kafka</groupId>
+            <artifactId>spring-kafka</artifactId>
+            <scope>provided</scope>
+        </dependency>
+
     </dependencies>
 
     <build>

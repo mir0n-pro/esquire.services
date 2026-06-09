@@ -7,10 +7,21 @@ spring:
     broker-url: ${AMQ_BROKER_URL:tcp://localhost:61616}
     user: ${AMQ_USER:}
     password: ${AMQ_PASSWORD:}
+  kafka:
+    # option (c) over Kafka -- the consumer; active when xxrod.transport=kafka.
+    bootstrap-servers: ${KAFKA_BOOTSTRAP:localhost:9092}
+    consumer:
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      auto-offset-reset: ${XXROD_KAFKA_OFFSET_RESET:latest}
   mvc:
     problemdetails:
       enabled: true
 xxrod:
+  # transport that feeds the director: activemq (default, the JMS queue) | kafka (the Kafka topic).
+  transport: ${XXROD_TRANSPORT:activemq}
+  kafka:
+    group-id: ${XXROD_KAFKA_GROUP_ID:esquire-xxrod-audit}
   director:
     # which IRodDirector consumes the audit queue -- the pluggable consumer-side sink.
     # audit = write the *_log tables (default). Future: replication / doc-db, each its own gated @Configuration.
