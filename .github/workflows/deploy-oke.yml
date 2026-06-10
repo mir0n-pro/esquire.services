@@ -1,0 +1,221 @@
+# Esquire services -- deploy to OKE (phase 3).
+#
+# On a PR merge from a `pending-*` branch into `develop`, a GitHub-HOSTED runner builds +
+# pushes the release images to GHCR, then -- behind a manual-approval Environment -- deploys
+# them to the Oracle OKE cluster and validates the release (e2e + load) against the public
+# domain https://esquire.mir0n.pro.
+#
+# This mirrors the proven manual flow (k8s-oci/oke-login -> ghcr-push -> oke-up) but on a
+# hosted Linux runner, reusing two thin scripts as the single source of logic:
+#   .github/scripts/oke-build-push.sh   (mvn + multi-arch buildx push to GHCR)
+#   .github/scripts/deploy-oke.sh       (helm upgrade --install per chart, OKE values)
+# Design: doc/Esquire.GitHubActions.md sec 4.3.
+#
+# ---------------------------------------------------------------------------
+# REQUIRED Environment ("oke-production") secrets / variables:
+#   secret  OCI_CLI_USER          OCI user OCID         (api-key auth)
+#   secret  OCI_CLI_TENANCY       OCI tenancy OCID
+#   secret  OCI_CLI_FINGERPRINT   api key fingerprint
+#   secret  OCI_CLI_KEY_CONTENT   the api private key (PEM, full content)
+#   var     OKE_REGION            e.g. ca-toronto-1     (default below)
+#   var     OKE_CLUSTER_OCID      the OKE cluster OCID
+#   secret  MIR0N_PWD             postgres + Keycloak admin password
+#   secret  BFF_KC_SECRET         (optional) esq-angular BFF client secret
+#   secret  GW_EXCHANGE_SECRET    (optional) gateway phantom-relay exchange secret
+#   secret  BFF_SESSION_SECRET    (optional) BFF session-cookie HMAC secret
+# GHCR push uses the built-in GITHUB_TOKEN (packages: write) -- no PAT.
+# ---------------------------------------------------------------------------
+name: Deploy OKE
+
+on:
+  # Run ONLY when a `pending-*` PR is MERGED into develop -- not on a direct push
+  # to develop, and not on a PR that is closed WITHOUT merging. The if: guard on
+  # build-push enforces `merged == true` AND head branch = pending-*. Because this
+  # is a pull_request event, GitHub evaluates the workflow file from the BASE branch
+  # (develop), so the very PR that first INTRODUCES this file does not self-trigger.
+  pull_request:
+    types: [closed]
+    branches: [develop]
+  workflow_dispatch: {}   # allow a manual re-deploy of the current develop tip
+
+# Never interrupt a prod rollout already in flight.
+concurrency:
+  group: deploy-oke
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  packages: write   # GHCR push via GITHUB_TOKEN
+
+env:
+  OWNER: mir0n-pro
+
+jobs:
+  # -------------------------------------------------------------------------
+  build-push:
+    # Gate the whole chain: a manual workflow_dispatch, OR a MERGED pull_request
+    # whose head branch is pending-*. deploy + validate hang off `needs:`, so
+    # skipping build-push skips them too. Close-without-merge or a non-pending
+    # head branch -> no run.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.pull_request.merged == true &&
+       startsWith(github.event.pull_request.head.ref, 'pending-'))
+    runs-on: ubuntu-latest
+    outputs:
+      image_tag: ${{ steps.stamp.outputs.tag }}
+    steps:
+      - name: Checkout services
+        uses: actions/checkout@v5
+        with:
+          # PR merge -> the real merge commit on develop; dispatch -> the chosen branch.
+          ref: ${{ github.event.pull_request.merge_commit_sha || github.ref }}
+          path: services
+
+      - name: Checkout explorer (backend / BFF image + e2e + load)
+        uses: actions/checkout@v5
+        with:
+          repository: mir0n-pro/esquire.explorer
+          ref: develop
+          path: explorer
+
+      - name: Checkout db.seed (postgres image build input)
+        uses: actions/checkout@v5
+        with:
+          repository: mir0n-pro/esquire.db.seed
+          ref: develop
+          path: db.seed
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+
+      - name: Compute image stamp (Micro from release_notes + datetime)
+        id: stamp
+        shell: bash
+        run: |
+          micro=$(grep -m1 -oE '^v[0-9]+\.[0-9]+\.[0-9]+' services/doc/release_notes.txt)
+          ts=$(date -u +%y%m.%d%H)
+          echo "tag=${micro}-${ts}" >> "$GITHUB_OUTPUT"
+          echo "image tag = ${micro}-${ts}"
+
+      - name: Set up QEMU (arm64 emulation for the A1.Flex nodes)
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build + push the 8 app images (multi-arch)
+        shell: bash
+        env:
+          IMAGE_TAG: ${{ steps.stamp.outputs.tag }}
+          OWNER: ${{ env.OWNER }}
+          RUN_VERIFY: "false"   # CI already ran full verify on the PR
+        run: bash services/.github/scripts/oke-build-push.sh
+
+  # -------------------------------------------------------------------------
+  deploy:
+    needs: build-push
+    runs-on: ubuntu-latest
+    # Manual-approval gate: configure required reviewers on this Environment.
+    environment:
+      name: oke-production
+      url: https://esquire.mir0n.pro
+    env:
+      # OCI CLI reads these natively (api-key auth) -- used for create-kubeconfig
+      # AND by the kubeconfig exec plugin (oci ce cluster generate-token).
+      OCI_CLI_USER: ${{ secrets.OCI_CLI_USER }}
+      OCI_CLI_TENANCY: ${{ secrets.OCI_CLI_TENANCY }}
+      OCI_CLI_FINGERPRINT: ${{ secrets.OCI_CLI_FINGERPRINT }}
+      OCI_CLI_KEY_CONTENT: ${{ secrets.OCI_CLI_KEY_CONTENT }}
+      OCI_CLI_REGION: ${{ vars.OKE_REGION || 'ca-toronto-1' }}
+      OCI_CLI_AUTH: api_key
+    steps:
+      - name: Checkout services (charts + OKE values + deploy script)
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha || github.ref }}
+          path: services
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v4
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+
+      - name: Install OCI CLI
+        run: pip install --upgrade oci-cli
+
+      - name: Fetch OKE kubeconfig
+        run: |
+          oci ce cluster create-kubeconfig \
+            --cluster-id "${{ vars.OKE_CLUSTER_OCID }}" \
+            --file "$HOME/.kube/config" \
+            --region "${OCI_CLI_REGION}" \
+            --token-version 2.0.0 \
+            --kube-endpoint PUBLIC_ENDPOINT
+          kubectl config current-context
+
+      - name: Deploy to OKE (helm upgrade --install)
+        shell: bash
+        env:
+          IMAGE_TAG: ${{ needs.build-push.outputs.image_tag }}
+          MIR0N_PWD: ${{ secrets.MIR0N_PWD }}
+          BFF_KC_SECRET: ${{ secrets.BFF_KC_SECRET }}
+          GW_EXCHANGE_SECRET: ${{ secrets.GW_EXCHANGE_SECRET }}
+          BFF_SESSION_SECRET: ${{ secrets.BFF_SESSION_SECRET }}
+        run: bash services/.github/scripts/deploy-oke.sh
+
+  # -------------------------------------------------------------------------
+  validate:
+    needs: deploy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout explorer (e2e + hauberk)
+        uses: actions/checkout@v5
+        with:
+          repository: mir0n-pro/esquire.explorer
+          ref: develop
+
+      - name: Set up Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: e2e -- Playwright vs the public OKE domain
+        working-directory: e2e-test
+        env:
+          BASE_URL: https://esquire.mir0n.pro
+        run: |
+          npm ci || npm install
+          npx playwright install --with-deps chromium
+          npm test
+
+      # Load gate -- hauberk against OKE (hauberk-oke.properties).
+      # TODO(mir0n): confirm the sim name + that hauberk-oke.properties is committed,
+      # then drop continue-on-error to make load a hard gate.
+      - name: Set up JDK 21 (hauberk)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+      - name: load -- hauberk smoke vs OKE
+        continue-on-error: true
+        working-directory: hauberk
+        run: |
+          mvn -B -ntp -DskipTests package
+          java --add-opens java.base/java.lang=ALL-UNNAMED \
+               --add-opens java.base/java.util=ALL-UNNAMED \
+               --add-opens java.base/java.util.concurrent=ALL-UNNAMED \
+               -jar target/hauberk.jar run smoke --config hauberk-oke.properties

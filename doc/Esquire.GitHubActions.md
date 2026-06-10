@@ -54,7 +54,7 @@ This single constraint drives the whole design.
 |---|---|---|
 | PR opened / push (any branch) | GitHub-hosted | **CI** -- `mvn -B verify` (unit tests + Testcontainers IT) |
 | push to `pending-**` (intermediate commit) | **self-hosted, on the dev box** | build images -> load into local k8s -> `helm upgrade` (local) -> smoke |
-| push to `develop` (the PR merge) | GitHub-hosted (OCI creds) | full verify -> build -> **GHCR push** -> `helm upgrade` (OKE) -> validate |
+| `pending-*` PR **merged** into `develop` | GitHub-hosted (OCI creds) | build -> **GHCR push** -> `helm upgrade` (OKE) -> validate |
 | `main` | -- | reserved; stable-release / tag flow added when v1.2 is complete |
 
 Net effect: intermediate commit -> local k8s; sprint PR merge into `develop` -> OKE; `main`
@@ -105,21 +105,36 @@ untouched until v1.2 stable.
 - Automated e2e + load belong to the **OKE release chain** (see 4.3): the release is validated, not
   every intermediate local deploy.
 
-### 4.3 OKE deploy (`develop`) -- `deploy-oke.yml`
-- **On:** `push` to `develop` (a PR merge into `develop` is a push to `develop`).
+### 4.3 OKE deploy (`develop`) -- `deploy-oke.yml`  [BUILT -- awaiting first run]
+- **On:** a `pending-*` PR **merged** into `develop` -- `pull_request` (`types: [closed]`,
+  `branches: [develop]`) gated by an `if:` on `merged == true` **and** head branch `pending-*`; plus
+  `workflow_dispatch` for a manual re-deploy. Chosen over `push: develop` so that a direct push or a
+  close-without-merge never deploys -- and because `pull_request` evaluates the workflow file from the
+  **base** branch (`develop`), the very PR that first introduces this file does **not** self-trigger; it
+  simply lands on `develop`, after which `workflow_dispatch` can dry-run the chain before the next real
+  merge. (`develop` is the repo's default branch, so once landed the **Run workflow** button is available.)
 - **Runner:** **GitHub-hosted with OCI credentials** (mirrors today's manual flow:
   `k8s-oci/oke-login.bat` fetches the kubeconfig via the OCI CLI, then `helm upgrade` per
-  `k8s-oci/fix.bat`).
-- **Steps:** checkout -> `mvn -B verify` -> build the 8 images -> **push to GHCR** (`GITHUB_TOKEN`,
-  free) -> configure OCI CLI from secrets -> fetch the OKE kubeconfig (`oci ce cluster
-  create-kubeconfig`) -> `helm upgrade --install` each chart (image repo = GHCR) -> **validate**.
+  `k8s-oci/oke-up.bat`).
+- **Steps (3 jobs):** **build-push** -- checkout services (the merge commit) + explorer + db.seed as
+  siblings -> `setup-java` 21 -> `mvn -B package -DskipTests` (CI already ran full verify on the PR) ->
+  multi-arch `buildx` (`linux/amd64,linux/arm64` -- the OKE nodes are Ampere A1.Flex / arm64) -> **push 8
+  images to GHCR** (`GITHUB_TOKEN`, no PAT). **deploy** (behind the Environment gate) -- configure the OCI
+  CLI from the Environment secrets -> fetch the OKE kubeconfig (`oci ce cluster create-kubeconfig`) ->
+  `deploy-oke.sh` = `helm upgrade --install` each chart with the GHCR tag + the `k8s-oci/values` overlay
+  (audit option **(a)** DB triggers -- no xx-rod on OKE). A context guard refuses any
+  `docker-desktop/minikube/kind` context. **validate** -- e2e + load (below).
 - **Validate = the e2e + load chain** (the part deliberately kept OUT of the local scope, see 4.2a):
-  after the rollout, run the explorer **e2e** (`e2e-test\e2e-oci.bat`, Playwright vs
-  `https://esquire.mir0n.pro`) and the **hauberk load** (`hauberk` + `hauberk-oke.properties`) against
-  OKE as the release gate. Both target the public OKE domain, so this can run on the **GitHub-hosted**
-  runner (install Node + Playwright; no hosts-file needed -- a real domain). To be wired with phase 3.
-- **Recommended:** put this behind a GitHub **Environment** with a required manual approval -- the
-  deploy step is where automation bites hardest.
+  after the rollout, run the explorer **e2e** (Playwright, `BASE_URL=https://esquire.mir0n.pro`) and the
+  **hauberk load** (`hauberk-oke.properties`) against OKE as the release gate. Both target the public OKE
+  domain, so this runs on the **GitHub-hosted** runner (install Node + Playwright; no hosts-file needed --
+  a real domain). Load is currently `continue-on-error` until `hauberk-oke.properties` + the sim name are
+  confirmed committed on explorer's `develop`, then it becomes a hard gate.
+- **Environment gate (DONE):** the `deploy` job pins the **`oke-production`** Environment with a required
+  reviewer -- a manual approval before the deploy step, where automation bites hardest. The Environment
+  holds the OCI api-key secrets (`OCI_CLI_USER` / `OCI_CLI_TENANCY` / `OCI_CLI_FINGERPRINT` /
+  `OCI_CLI_KEY_CONTENT`), `MIR0N_PWD`, and the `OKE_CLUSTER_OCID` / `OKE_REGION` variables; nothing can use
+  them until the deploy is approved. GHCR push needs no Environment -- it uses the built-in `GITHUB_TOKEN`.
 
 ### 4.4 `main` -- reserved
 - No workflow yet. When v1.2 is complete: a tag / release flow on `main` that publishes the stable

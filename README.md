@@ -64,6 +64,7 @@ the destination. It is the proof of concept for the real idea.
 
 
 ### Deployment
+- [CI/CD — Automated Build and Release Pipeline](doc/Esquire.GitHubActions.md) *(three stages: automatic build-and-test on every change, deploy to a local test cluster during development, and a human-approved cloud release deploy checked against the live site)*
 - [Configuration Reference — every service parameter, logging, gateway routes, audit-logging modes/options](doc/services.configuring.md)
 - [Where To Go — Deployment Plan and Platform Decisions](doc/WhereToGo.md)
 - [OCI Pricing Reference](doc/OCI.Pricing.md)
@@ -169,6 +170,16 @@ triggers). A new **xx-rod** service consumes the audit bus and owns the log-DB w
 measured finding: at the request level audit is **cheap to free** in every mode — the decoupling buys
 write-offload and transactional independence, not request latency.<br>
 [The Audit Logging Stack](doc/Esquire.AuditLoggingStack.md)<br>
+
+v1.2.7 also carries a second sprint goal — **establishing the CI/CD pipeline** (automated build and
+release). With the move to
+public repositories, every change now flows through an automated pipeline in three stages: each change is
+**built and tested automatically**; it is then **deployed to a local test cluster** on the developer's
+machine for the day-to-day development loop; and, when a sprint is approved for release, it is **built and
+deployed to the cloud** and checked against the live site before going out — with a required human approval
+before anything reaches production. The first two stages are live and proven; the cloud release stage
+completes the goal.<br>
+[Automated Build and Release Pipeline](doc/Esquire.GitHubActions.md)<br>
 
 ### v1.2.6 — complete (06/02/2026)
 
