@@ -4,7 +4,7 @@
 
 
 > 
-> **v1.2.7 — complete.** An **audit-logging** sprint: a pluggable audit seam over the entity services, a generic **x-Rod** fan-out substrate, a new **xx-rod** service, six selectable strategies, ActiveMQ/Kafka transport.
+> **v1.2.7 — complete.** An **audit-logging** sprint: a pluggable audit seam over the entity services, a generic **x-Rod** fan-out substrate, a new **xx-rod** service, six selectable strategies, ActiveMQ/Kafka transport, established the CI/CD pipelines (automated build and release).
 >
 
 Esquire is a **business entity framework** — the structural backbone for any system that
@@ -49,7 +49,6 @@ the destination. It is the proof of concept for the real idea.
 
 ### Testing
 - [Testing Stack — frameworks, scope, coverage](doc/Esquire.TestingStack.md) *(every framework in use across all Esquire projects, what it covers, current test counts at v1.2.6)*
-- [Testing — Gatling as Esquire standard](doc/Testing.md) *(policy note for integration / load / stress / race-repro)*
 - [Haubergeon — Gatling harness reference](doc/Esquire.Haubergeon.md)
 
 ### Reports

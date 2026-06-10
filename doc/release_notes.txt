@@ -1,6 +1,18 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v1.2.7-2606.1016  v1.2.7 -- CI/CD pipeline established on GitHub Actions; release finalized
+    :Config:      esquire.version bumped 1.2.6 -> 1.2.7 across the reactor (release finalization)
+    :Feature:     CI/CD pipeline established -- hosted CI (mvn verify + Testcontainers IT) on every push/PR;
+                  self-hosted local-k8s deploy on push to pending-** ; OKE production deploy on a pending-* PR
+                  merged into develop, behind a manual-approval Environment with e2e + load validation
+    :Fix:         OKE deploy logs in to GHCR with the GHCR_TOKEN PAT (mir0n-pro) instead of the repo
+                  GITHUB_TOKEN, which the pre-existing packages reject for write
+    :Doc:         README gains a plain-language CI/CD section; Esquire.GitHubActions.md sec 4.3 finalized
+    Components:   build/version,
+                  .github (CI/CD),
+                  doc
+
 v1.2.7-2606.0923  v1.2.7 -- audit logging: option (c) becomes the default deploy topology; docs consolidated
     :Config:      Docker and local k8s now ship option (c) by default -- producers audit-enabled, mode=bus over
                   ActiveMQ (already in the stack), async publisher pool=4; new esquire-xxrod helm chart wired

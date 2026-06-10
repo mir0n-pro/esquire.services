@@ -1,12 +1,12 @@
  # Esquire Testing Stack
 
-The Esquire framework spans Java microservices, a Node.js BFF, an Angular SPA + library, and a Java load harness. Each tier picks the test framework that fits its language and what's being verified. This document lists every framework currently in use, what it covers, and the approximate test count as of **v1.2.6 (2026-06-02)**.
+The Esquire framework spans Java microservices, a Node.js BFF, an Angular SPA + library, and a Java load harness. Each tier picks the test framework that fits its language and what's being verified. This document lists every framework currently in use, what it covers, and the approximate test count as of **v1.2.7 (2026-06-10)**.
 
 ## At a glance
 
-|                                                                          | Tier                                          | Framework(s) | Project(s) | Tests at v1.2.6 |
+|                                                                          | Tier                                          | Framework(s) | Project(s) | Tests |
 |--------------------------------------------------------------------------|-----------------------------------------------|---|---|---|
-| ![Alt text](media/junit.svg)                                      | Java unit + service                           | **JUnit 5** + **Mockito** + **AssertJ** | `services/*` | **417** `@Test` methods across **47** classes |
+| ![Alt text](media/junit.svg)                                      | Java unit + service                           | **JUnit 5** + **Mockito** + **AssertJ** | `services/*` | **467** `@Test` methods across **62** classes |
 | ![Alt text](media/hauberk.svg) ![Alt text](media/gatling.svg) | Java integration / load / stress / race-repro | **Haubergeon** (on **Gatling 3.13** Java DSL) | `explorer/hauberk` | **21** self-validating Simulations (smoke / load / super / race-repro / message-loss) + 3 JUnit catalog tests |
 | ![Alt text](media/vitest.svg)                                      | Node.js (BFF)                                 | **Vitest** + **Supertest** | `explorer/backend` | **28** specs across **4** files (config / cache / trace / tokens) |
 | ![Alt text](media/karma.svg) ![Alt text](media/jasmine.svg)  | Angular SPA                                   | **Karma** + **Jasmine** (`ng test`) | `explorer/frontend` | **25** `it()` specs in **4** files |
@@ -17,7 +17,7 @@ The Esquire framework spans Java microservices, a Node.js BFF, an Angular SPA + 
 
 ## Java unit + service tests — JUnit 5 / Mockito / AssertJ
 
-**Used in:** every `services/*` microservice (common, bizTree, enyMan, pacMan, keySmith, kcMaster, gateway) and in the hauberk module's catalog contract test.
+**Used in:** every `services/*` microservice (common, bizTree, enyMan, pacMan, keySmith, kcMaster, gateway, xxRod) and in the hauberk module's catalog contract test.
 
 **What for:** classic unit + service-layer tests. Mock repositories, transaction templates, JMS publishers, KC clients; assert behavior against the mocked collaborators. Test files end in `Test.java` and live next to the production code under `src/test/java/`.
 
@@ -25,18 +25,19 @@ The Esquire framework spans Java microservices, a Node.js BFF, an Angular SPA + 
 
 **Pattern:** `@ExtendWith(MockitoExtension.class)` on the class, `@Mock` fields for collaborators, `assertThat(...)` / `assertThatThrownBy(...)` for assertions.
 
-**Coverage at v1.2.6:**
+**Coverage:**
 
-| Module | `@Test` methods | Notable additions in v1.2.6 |
+| Module | `@Test` methods | Notes |
 |---|---|---|
-| common | 120 | queue-rig bulk worker: `BoundedQueueRigTest` bulk cases + `AMonadYBulkTest` |
+| common | 166 | includes the audit substrate: `RodEventCodecTest`, `AuditLogSqlTest` (META-INF DOM loader), `EntityFillMapTest`, `XYRodTest` post overloads, `AuditRodBusTest` |
 | bizTree | 74 | — |
-| enyMan | 85 | `EntityIdGeneratorTest` (instance-aware id) + move-queue tests |
-| pacMan | 48 | acct-CREATE test cases removed with the move to enyMan |
+| enyMan | 85 | — |
+| pacMan | 48 | — |
 | keySmith | 21 | — |
-| kcMaster | 48 | race-8c: `KcPathBufferTest`, `KcEntityBroadcastConsumerTest` |
-| gateway | 21 | — (gateway typically light on JUnit; reactive WebFlux code is harder to mock-test cleanly) |
-| **total** | **417** | |
+| kcMaster | 48 | — |
+| gateway | 21 | gateway typically light on JUnit; reactive WebFlux code is harder to mock-test cleanly |
+| xxRod | 4 | the audit option-(c) bus consumer (`RodAuditConsumer` / `AuditConfig` / director) |
+| **total** | **467** | |
 
 ---
 
@@ -52,7 +53,7 @@ The Esquire framework spans Java microservices, a Node.js BFF, an Angular SPA + 
 
 **Pattern:** Each Simulation extends `HauberkSimulation` (abstract base — pulls up lazy KC token, instrumented `httpProtocol`, perf-matrix flush). Reusable `ChainBuilder` atoms compose into `ScenarioBuilder` flows. `@SimulationInfo("...")` annotation supplies the catalog description; presence enforced by `SimulationCatalogContractTest` (JUnit 5).
 
-**Coverage at v1.2.6:** 21 Simulations + 32 reusable Chains + 3 JUnit catalog-contract tests.
+**Coverage:** 21 Simulations + 32 reusable Chains + 3 JUnit catalog-contract tests. `@SimulationInfo` descriptions are held under a 90-char `hauberk list` cap enforced by `SimulationCatalogContractTest`.
 
 **Esquire-org standard since v1.2.4:** Gatling is the chosen framework for all integration / stress / load / race-repro testing across the project. See [Testing.md](Testing.md) for the standard-adoption rationale and [Esquire.Haubergeon.md](Esquire.Haubergeon.md) for the harness reference.
 
@@ -68,7 +69,7 @@ The Esquire framework spans Java microservices, a Node.js BFF, an Angular SPA + 
 
 **Pattern:** `describe(...) / it(...) / expect(...)` Vitest syntax. `vi.mock('../../src/auth/openidClient.js')` stubs the OIDC seam without bringing in the real KC handshake. ASCII-only, no emojis, `.js` import suffix on relative paths.
 
-**Coverage at v1.2.6:**
+**Coverage:**
 
 | File | Specs | What it covers |
 |---|---|---|
@@ -90,7 +91,7 @@ The Esquire framework spans Java microservices, a Node.js BFF, an Angular SPA + 
 
 **Pattern:** `describe(...) / it(...) / expect(...)` Jasmine syntax; `TestBed.configureTestingModule({...})` for Angular dependency wiring.
 
-**Coverage at v1.2.6:** **25** `it()` specs across **4** `.spec.ts` files. The SPA is intentionally lean on unit tests — most behaviour is covered by the Playwright e2e suite (below) which exercises the real app against a live backend.
+**Coverage:** **25** `it()` specs across **4** `.spec.ts` files. The SPA is intentionally lean on unit tests — most behaviour is covered by the Playwright e2e suite (below) which exercises the real app against a live backend.
 
 ---
 
@@ -102,7 +103,7 @@ The Esquire framework spans Java microservices, a Node.js BFF, an Angular SPA + 
 
 **How wired:** Same as the SPA — `ng test` via Karma + Jasmine; coverage reporter wired through `karma-coverage`.
 
-**Coverage at v1.2.6:** **146** `it()` specs across **23** `.spec.ts` files. The library is the testing-heaviest tier in the Esquire stack — shared code earns its own coverage.
+**Coverage:** **146** `it()` specs across **23** `.spec.ts` files. The library is the testing-heaviest tier in the Esquire stack — shared code earns its own coverage.
 
 ---
 
@@ -114,7 +115,7 @@ The Esquire framework spans Java microservices, a Node.js BFF, an Angular SPA + 
 
 **How wired:** `@playwright/test` v1.49+. `npm test` runs the suite headless; `npm run test:ui` opens the Playwright UI runner. Tests target `localhost`, `localhost:4200` (live SPA), and OKE prod URLs as needed.
 
-**Coverage at v1.2.6:** **32** `test()` cases across **15** `.spec.ts` files (01-prelogin through 14-error-handling, plus 99-debug-login).
+**Coverage:** **32** `test()` cases across **15** `.spec.ts` files (01-prelogin through 14-error-handling, plus 99-debug-login). The suite runs green on Docker, local k8s, and OKE (`https://esquire.mir0n.pro`).
 
 ---
 

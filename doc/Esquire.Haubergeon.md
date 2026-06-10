@@ -109,7 +109,7 @@ variant (JWE-when-supported, mTLS-bound tokens, DPoP, etc.).
 
 ## Simulation catalog
 
-The hauberk ships 16 Simulations. Discover at runtime via
+The hauberk ships 21 Simulations. Discover at runtime via
 `hauberk.cmd list`; each is a Java class under
 `src/main/java/.../hauberk/simulations/`.
 
@@ -141,16 +141,31 @@ The hauberk ships 16 Simulations. Discover at runtime via
 | `PrepareForAnythingSimulation` | Builds the Load playground: D nested offices x N users x M accounts (knobs in `hauberk.properties`) |
 | `CleanHouseSimulation` | Stateless playground purge -- finds `hauberk-office-smoke` by name and deletes the subtree |
 | `ResidueCleanupSimulation` | Targeted purge of leftover offices matching the hauberk naming convention |
+| `KcCleanupSimulation` | Standalone teardown: DELETE `hauberk-*` KC users via the master-realm admin REST API |
 
 ### Race-condition repros
 
-`RaceCacheLoadSimulation` and `RaceMoveCreateSimulation` are
-self-validating; both surface known races in the entity-broadcast +
-bizTree-cache pipeline.
+Self-validating Simulations that surface known races in the entity-broadcast + bizTree-cache + KC-path pipeline (PASS only when the fix holds):
+
+| Simulation | Race |
+|---|---|
+| `RaceCacheLoadSimulation` | Race 8a: cache-load race; create-load + manual bizTree restart mid-flight |
+| `RaceMoveCreateSimulation` | Race 8b: move + concurrent create; DB `ep_path` vs bizTree path divergence |
+| `RaceMoveCreateKcSimulation` | Race 8c: move + concurrent create; DB `ep_path` vs KC `esq_rootpath` divergence |
+| `RaceMoveCreateKcSingleShotSimulation` | Race 8c single-shot: one disabled user + one move during the keySmith hold; deterministic, no heal |
 
 Full catalog, repro commands (compose + local k8s), and PASS/FAIL
 behavior live in a dedicated doc: see
 [Race.Conditions.Repro.md](Race.Conditions.Repro.md).
+
+### Message-loss / night-watch repros
+
+Prove the bizTree night-watch sweep detects and reacts to dropped JMS broadcasts (broker downed mid-flight, then one sweep forced):
+
+| Simulation | What it proves |
+|---|---|
+| `MessageLossSimulation` | Night-watch **SWAP**: broker down, user missed in cache, sweep promotes the fresh shadow -- recovered |
+| `MessageLossTerminateSimulation` | Night-watch **TERMINATE**: broker down, user missed, sweep mismatch -> bizTree exits (asserts DOWN) |
 
 ## Configuration
 

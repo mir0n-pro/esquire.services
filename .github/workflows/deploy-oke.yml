@@ -23,7 +23,9 @@
 #   secret  BFF_KC_SECRET         (optional) esq-angular BFF client secret
 #   secret  GW_EXCHANGE_SECRET    (optional) gateway phantom-relay exchange secret
 #   secret  BFF_SESSION_SECRET    (optional) BFF session-cookie HMAC secret
-# GHCR push uses the built-in GITHUB_TOKEN (packages: write) -- no PAT.
+# GHCR push authenticates with the GHCR_TOKEN PAT secret (a GitHub PAT with write:packages) --
+# the same identity (mir0n-pro) that created the existing packages via the manual push flow, so it
+# already has write access to them. Add GHCR_TOKEN as a repository Actions secret.
 # ---------------------------------------------------------------------------
 name: Deploy OKE
 
@@ -112,8 +114,8 @@ jobs:
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          username: mir0n-pro
+          password: ${{ secrets.GHCR_TOKEN }}
 
       - name: Build + push the 8 app images (multi-arch)
         shell: bash
