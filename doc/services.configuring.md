@@ -55,7 +55,7 @@ Opt-in audit (option-0 baseline: default OFF). The producer buffers committed en
 commit, feeds them off the request thread to the audit sink: **(b)** in-process write to the `*_log`
 tables, **(c)** publish to the audit queue for the standalone **xxRod** consumer, or **(d)** XADD to a
 Redis Stream (the stream IS the audit log; no consumer service). Here `<SVC>` is `ENYMAN` / `PACMAN` /
-`KEYSMITH`. See `doc/Esquire.AuditLogging.md`.
+`KEYSMITH`. See `doc/Esquire.AuditLoggingStack.md`.
 
 | Env var | Default | Description |
 |---|---|---|
@@ -113,7 +113,28 @@ Notes:
 - Switching options at runtime is a **config flip + the matching infra** -- e.g. (b)->(c) is
   `_MODE=bus` + bring up ActiveMQ/xxRod; (c)->(d) is `_MODE=redis` + bring up Redis. No rebuild.
 - Delivery-semantics trade-offs per option (loss / dup / dedup / zero-loss): see
-  `doc/Esquire.AuditLogging.Design.md` section 13.
+  `doc/Esquire.AuditLoggingStack.md` section 5.
+
+#### Deploy defaults -- both Docker and local k8s ship option (c)
+
+The two dev deploys default to **option (c) bus -> xxRod over ActiveMQ** (reusing the ActiveMQ already in
+the stack; no Redis/Kafka deployed by default). Switch topology purely in config -- no code change, no image
+rebuild:
+
+- **Docker (`compose/compose.yaml`):** producers default `*_AUDIT_ENABLED=true`, `*_AUDIT_MODE=bus`,
+  `*_AUDIT_BUS_TRANSPORT=activemq`; `xxrod` is a default service. Override per env var, e.g.
+  `ENYMAN_AUDIT_MODE=redis` + the `redis` service.
+- **Local k8s:** the `esquire-xxrod` chart is deployed by `k8s/k8s-up.bat` (and the deploy-local GHA), and the
+  producer charts carry an `audit:` block defaulting to `enabled/bus/activemq`. Switch via the chart values
+  (`charts/esquire-<svc>/values.yaml` or `-f`/`--set`):
+  - **(b) in-process:** `audit.mode=in-process` (no xxRod needed; producer writes the `*_log` directly).
+  - **(d) redis:** `audit.mode=redis` + `audit.redisHost=esq-redis`, and deploy a Redis. **Name the service
+    `esq-redis`, never `redis`** -- a k8s Service named `redis` injects `REDIS_PORT=tcp://ip:6379` into every
+    pod and crashes the producers' `spring.data.redis.port`.
+  - **(c) over Kafka:** `audit.busTransport=kafka` (+ `audit.kafkaBootstrap`), deploy Kafka, and set the
+    xxRod chart `audit.transport=kafka`.
+- The `*_log` tables are seeded on a fresh cluster by the `esquire-postgres` image (its `create/all.sql`
+  chains to `create.log/all.sql`); (c)/(b) need them, (d) does not.
 
 #### Audit Redis Stream (option d) -- the `redis` service + RedisInsight console
 
@@ -315,7 +336,7 @@ Standalone audit-bus consumer (option c) -- a generic **xRod host**: consumes th
 (`esquire.rod.audit`) and hands each decoded event to the configured `IRodDirector` (audit = write the
 `*_log` tables). Horizontally redundant (competing consumers on the queue; no clientId). It ships the
 **full** `META-INF/audit/{vendor}.xml` SQL set (it writes every kind). See
-`doc/Esquire.AuditLogging.Design.md` §12.
+`doc/Esquire.AuditLoggingStack.md` section 4.7.
 
 **Port:** `XXROD_PORT` (`3007`). **Shared:** DB token `XXROD` (the log datastore it writes; vendor from
 `DB_XXROD_VENDOR`), AMQ (consumes the audit queue), logging. (No producer audit block -- xxRod is the

@@ -1,6 +1,25 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v1.2.7-2606.0923  v1.2.7 -- audit logging: option (c) becomes the default deploy topology; docs consolidated
+    :Config:      Docker and local k8s now ship option (c) by default -- producers audit-enabled, mode=bus over
+                  ActiveMQ (already in the stack), async publisher pool=4; new esquire-xxrod helm chart wired
+                  into k8s-rebuild / up / down; postgres image bakes create.log so a fresh cluster seeds the
+                  *_log tables. Every other topology (b / d / Kafka) stays a config flip.
+    :Config:      OKE overlays set audit off -> option (a) DB triggers (no xxRod pod, no extra broker load on
+                  the Always-Free tier); the trigger DDL is applied to the OKE postgres
+    :Fix:         bizTree cache children (find-nodes) query gets a deterministic ORDER BY (kind, name, tree_pk)
+    :Fix:         k8s-up.bat readiness loop sleeps via powershell Start-Sleep instead of 'timeout' (which
+                  aborts under the self-hosted runner's redirected stdin -- "Input redirection is not supported")
+    :Doc:         audit research consolidated into one Esquire.AuditLoggingStack.md
+                  README / Vision / DatabaseDictionary
+                  reframe audit as an optional, pluggable concern; component model refreshed
+    Components:   bizTree,
+                  enyMan,
+                  pacMan,
+                  keySmith,
+                  xxRod
+
 v1.2.7-2606.0822  v1.2.7 -- audit logging (option c-k, d-k): Kafka as the bus transport
     :Feature:     option (c) (d) over Kafka -- producers publish committed audit events to a Kafka topic (keyed
                   by entityId); 

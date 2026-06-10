@@ -300,7 +300,7 @@ services:
       - ENYMAN_AUDIT_VIRTUAL_THREADS=${ENYMAN_AUDIT_VIRTUAL_THREADS:-false}
       - ENYMAN_AUDIT_FEED_CAPACITY=${ENYMAN_AUDIT_FEED_CAPACITY:-4096}
       # (c) bus publisher pool: 0 = single feed-worker synchronous publish; N>0 = N async publisher threads.
-      - ENYMAN_AUDIT_PUBLISHER_POOL_SIZE=${ENYMAN_AUDIT_PUBLISHER_POOL_SIZE:-0}
+      - ENYMAN_AUDIT_PUBLISHER_POOL_SIZE=${ENYMAN_AUDIT_PUBLISHER_POOL_SIZE:-4}
       # (d) redis (set ENYMAN_AUDIT_MODE=redis): XADD each event to a Redis Stream (the stream IS the audit
       # log; no consumer service). Lettuce connects lazily, so redis is ignored unless mode=redis.
       - REDIS_HOST=${REDIS_HOST:-redis}
@@ -373,7 +373,7 @@ services:
       - PACMAN_AUDIT_VIRTUAL_THREADS=${PACMAN_AUDIT_VIRTUAL_THREADS:-false}
       - PACMAN_AUDIT_FEED_CAPACITY=${PACMAN_AUDIT_FEED_CAPACITY:-4096}
       # (c) bus publisher pool: 0 = single feed-worker synchronous publish; N>0 = N async publisher threads.
-      - PACMAN_AUDIT_PUBLISHER_POOL_SIZE=${PACMAN_AUDIT_PUBLISHER_POOL_SIZE:-0}
+      - PACMAN_AUDIT_PUBLISHER_POOL_SIZE=${PACMAN_AUDIT_PUBLISHER_POOL_SIZE:-4}
       # (d) redis (set PACMAN_AUDIT_MODE=redis): XADD each event to a Redis Stream. Lazy connect -> ignored unless mode=redis.
       - REDIS_HOST=${REDIS_HOST:-redis}
       - REDIS_PORT=${REDIS_PORT:-6379}
@@ -482,7 +482,7 @@ services:
       - KEYSMITH_AUDIT_VIRTUAL_THREADS=${KEYSMITH_AUDIT_VIRTUAL_THREADS:-false}
       - KEYSMITH_AUDIT_FEED_CAPACITY=${KEYSMITH_AUDIT_FEED_CAPACITY:-4096}
       # (c) bus publisher pool: 0 = single feed-worker synchronous publish; N>0 = N async publisher threads.
-      - KEYSMITH_AUDIT_PUBLISHER_POOL_SIZE=${KEYSMITH_AUDIT_PUBLISHER_POOL_SIZE:-0}
+      - KEYSMITH_AUDIT_PUBLISHER_POOL_SIZE=${KEYSMITH_AUDIT_PUBLISHER_POOL_SIZE:-4}
       # (d) redis (set KEYSMITH_AUDIT_MODE=redis): XADD each event to a Redis Stream. Lazy connect -> ignored unless mode=redis.
       - REDIS_HOST=${REDIS_HOST:-redis}
       - REDIS_PORT=${REDIS_PORT:-6379}

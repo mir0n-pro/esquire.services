@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 300" width="720" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="13">
+  <defs>
+    <marker id="ar" markerWidth="8" markerHeight="8" refX="6.5" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L7,3 L0,6 z" fill="#5b5b5b"/>
+    </marker>
+  </defs>
+
+  <!-- entity mutation -->
+  <rect x="260" y="14" width="200" height="52" rx="8" fill="#eef2f7" stroke="#7b8aa0"/>
+  <text x="360" y="36" text-anchor="middle" font-weight="bold">entity mutation</text>
+  <text x="360" y="54" text-anchor="middle" fill="#555">(enyMan / pacMan / keySmith)</text>
+
+  <!-- seam -->
+  <rect x="208" y="104" width="304" height="66" rx="12" fill="#dde9f6" stroke="#3f6ea5" stroke-width="1.5"/>
+  <text x="360" y="125" text-anchor="middle" font-weight="bold" fill="#274b73">IAuditLogger seam</text>
+  <text x="360" y="143" text-anchor="middle" fill="#4a5568">app emits ONE uniform audit event;</text>
+  <text x="360" y="159" text-anchor="middle" fill="#4a5568">a strategy routes it</text>
+
+  <!-- options -->
+  <rect x="20"  y="226" width="150" height="58" rx="8" fill="#f4f4f5" stroke="#9aa0a6"/>
+  <text x="95"  y="251" text-anchor="middle" font-weight="bold">(0) none</text>
+  <text x="95"  y="270" text-anchor="middle" fill="#555">off</text>
+
+  <rect x="200" y="226" width="150" height="58" rx="8" fill="#edf7ee" stroke="#5a9a5a"/>
+  <text x="275" y="251" text-anchor="middle" font-weight="bold">(b) JPA</text>
+  <text x="275" y="270" text-anchor="middle" fill="#555">&#8594; log DB</text>
+
+  <rect x="380" y="226" width="150" height="58" rx="8" fill="#fdf6e8" stroke="#c79a3a"/>
+  <text x="455" y="251" text-anchor="middle" font-weight="bold">(c) Rod</text>
+  <text x="455" y="270" text-anchor="middle" fill="#555">&#8594; bus</text>
+
+  <rect x="560" y="226" width="150" height="58" rx="8" fill="#fbeeee" stroke="#c06464"/>
+  <text x="635" y="251" text-anchor="middle" font-weight="bold">(d) stream</text>
+  <text x="635" y="270" text-anchor="middle" fill="#555">&#8594; Redis</text>
+
+  <!-- arrows -->
+  <line x1="360" y1="66"  x2="360" y2="102" stroke="#5b5b5b" marker-end="url(#ar)"/>
+  <line x1="360" y1="170" x2="95"  y2="224" stroke="#5b5b5b" marker-end="url(#ar)"/>
+  <line x1="360" y1="170" x2="275" y2="224" stroke="#5b5b5b" marker-end="url(#ar)"/>
+  <line x1="360" y1="170" x2="455" y2="224" stroke="#5b5b5b" marker-end="url(#ar)"/>
+  <line x1="360" y1="170" x2="635" y2="224" stroke="#5b5b5b" marker-end="url(#ar)"/>
+</svg>

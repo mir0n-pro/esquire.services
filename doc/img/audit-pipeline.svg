@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 170" width="900" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="13">
+  <defs>
+    <marker id="ar" markerWidth="8" markerHeight="8" refX="6.5" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L7,3 L0,6 z" fill="#5b5b5b"/>
+    </marker>
+  </defs>
+
+  <!-- producers -->
+  <rect x="14" y="36" width="190" height="92" rx="8" fill="#eef2f7" stroke="#7b8aa0"/>
+  <text x="109" y="68" text-anchor="middle" font-weight="bold">N durable producers</text>
+  <text x="109" y="90" text-anchor="middle" fill="#555">enyMan&#215;M, pacMan,</text>
+  <text x="109" y="106" text-anchor="middle" fill="#555">keySmith</text>
+
+  <!-- queue -->
+  <rect x="244" y="36" width="200" height="92" rx="8" fill="#fdf6e8" stroke="#c79a3a"/>
+  <text x="344" y="64" text-anchor="middle" font-weight="bold">1 dedicated durable</text>
+  <text x="344" y="82" text-anchor="middle" font-weight="bold">audit QUEUE</text>
+  <text x="344" y="104" text-anchor="middle" fill="#555">persistent, fan-in, no clientId</text>
+
+  <!-- xxRod -->
+  <rect x="484" y="36" width="200" height="92" rx="8" fill="#edf7ee" stroke="#5a9a5a"/>
+  <text x="584" y="64" text-anchor="middle" font-weight="bold">xxRod replicas (HD)</text>
+  <text x="584" y="86" text-anchor="middle" fill="#555">competing consumers,</text>
+  <text x="584" y="102" text-anchor="middle" fill="#555">order-independent</text>
+
+  <!-- log DB cylinder -->
+  <g transform="translate(728,44)">
+    <path d="M0,14 a78,12 0 0 1 156,0 v48 a78,12 0 0 1 -156,0 z" fill="#f0ece4" stroke="#b0926a"/>
+    <ellipse cx="78" cy="14" rx="78" ry="12" fill="#f7f3ec" stroke="#b0926a"/>
+    <text x="78" y="52" text-anchor="middle" font-weight="bold" fill="#7a6648">log DB</text>
+  </g>
+
+  <line x1="204" y1="82" x2="242" y2="82" stroke="#5b5b5b" marker-end="url(#ar)"/>
+  <line x1="444" y1="82" x2="482" y2="82" stroke="#5b5b5b" marker-end="url(#ar)"/>
+  <line x1="684" y1="82" x2="724" y2="82" stroke="#5b5b5b" marker-end="url(#ar)"/>
+</svg>

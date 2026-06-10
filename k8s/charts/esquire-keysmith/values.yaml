@@ -28,3 +28,13 @@ logging:
   levelMsg: DEBUG
   developLogPath: /tmp/keySmith-develop.log
   msgLogPath: /tmp/keySmith-msg.log
+
+# Default deploy topology = option (c): publish to the bus (ActiveMQ), esquire-xxrod drains to *_log.
+# (b) in-process: mode=in-process | (d) redis: mode=redis, redisHost=esq-redis | (c)/kafka: busTransport=kafka.
+audit:
+  enabled: true
+  mode: bus
+  busTransport: activemq
+  publisherPoolSize: 4
+  redisHost: ""
+  kafkaBootstrap: esquire-infra-kafka:9092

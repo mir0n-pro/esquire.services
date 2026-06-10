@@ -48,7 +48,7 @@ rem :tag image doesn't exist in the local Docker daemon, alias :latest to it.
 rem Lets the kubelet pull the image when the yaml references a stamp that
 rem only exists as :latest (typical for first-time install after a clean
 rem `docker compose build` with no prior k8s-rebuild stamping).
-for %%s in (gateway biztree enyman pacman keysmith kcmaster backend) do (
+for %%s in (gateway biztree enyman pacman keysmith kcmaster backend xxrod) do (
   call :ensure_tag %%s
 )
 
@@ -74,6 +74,8 @@ echo --- Installing pacman...
 call helm upgrade --install esquire-pacman    charts\esquire-pacman    -f values\pacman.yaml    || exit /b 1
 echo --- Installing keysmith...
 call helm upgrade --install esquire-keysmith  charts\esquire-keysmith  -f values\keysmith.yaml  || exit /b 1
+echo --- Installing xxrod ^(audit consumer, option c default^)...
+call helm upgrade --install esquire-xxrod     charts\esquire-xxrod     -f values\xxrod.yaml     || exit /b 1
 
 echo Waiting for keycloak...
 kubectl rollout status statefulset/esquire-infra-kc-keycloak -n default --timeout=180s
@@ -108,7 +110,8 @@ kubectl get pods -n default --no-headers
 kubectl wait --for=condition=ready pod --all -n default --timeout=10s >nul 2>&1
 if %ERRORLEVEL% equ 0 goto ready
 echo Not ready -- retrying in 10s...
-timeout /t 10 /nobreak >nul
+rem 'timeout' aborts under a redirected stdin (self-hosted runner) -- use Start-Sleep instead
+powershell -NoProfile -Command "Start-Sleep -Seconds 10"
 goto wait_loop
 :ready
 echo All pods ready.
