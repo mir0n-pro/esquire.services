@@ -2,11 +2,12 @@
  *  Esquire frameworks (tm)
  *  PacMan service
  *
- *  Copyright(c) 2001, 2025 mir0n&co www.mir0n.me
+ *  Copyright(c) 2001, 2026 mir0n&co www.mir0n.pro
  *  mailto:mir0n.the.programmer@gmail.com
  *
  *  History:
  * 03/17/2026 mir0n  created: JMS/ActiveMQ configuration for entity broadcast producer
+ * 06/06/2026 mir0n  jmsQueueTemplate (pubSubDomain=false) added for the x-Rod audit bus producer (option c)
  */
 package pro.mir0n.esquire.pacMan.messaging;
 
@@ -36,6 +37,17 @@ public class PacManJmsConfig {
     public JmsTemplate jmsTopicTemplate(ConnectionFactory connectionFactory) {
         JmsTemplate ret = new JmsTemplate(connectionFactory);
         ret.setPubSubDomain(true);
+        return ret;
+    }
+
+    /**
+     * Queue-mode JmsTemplate for the x-Rod audit bus producer (option c) -- the RodEventBusPublisher
+     * sends to the durable audit QUEUE. pubSubDomain=false is required for JMS queue destinations.
+     */
+    @Bean
+    public JmsTemplate jmsQueueTemplate(ConnectionFactory connectionFactory) {
+        JmsTemplate ret = new JmsTemplate(connectionFactory);
+        ret.setPubSubDomain(false);
         return ret;
     }
 }

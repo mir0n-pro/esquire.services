@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    x-Rod audit-log SQL, Postgres dialect. One statement per *_log table, keyed by the AuditLogSql key.
+    Identity params are uniform (:action / :entityId / :kind / :subId / :crl / :req / :uid / :actionTs from
+    the RodEvent header); data params are the entity property names (IMappable.fillMap), bound straight
+    through by AuditLogWriter. INSERT .. ON CONFLICT DO NOTHING dedups redelivery (option c).
+-->
+<audit-log-sql>
+
+
+
+
+
+
+
+
+    <statement key="auth"><![CDATA[
+ INSERT INTO esq_auth_log
+   (aul_action, aul_usr_pk, aul_connect_flg, aul_login_id, aul_email, aul_tfa_method,
+    aul_force_change_flg, aul_security_question, aul_security_answer,
+    aul_crl_id, aul_req_id, aul_uid, aul_action_ts)
+ VALUES
+   (:action, CAST(:entityId AS bigint), :connectFlg, :loginId, :email, :tfaMethod,
+    :forceChangeFlg, :securityQuestion, :securityAnswer,
+    :crl, :req, :uid, :actionTs)
+ ON CONFLICT DO NOTHING
+    ]]></statement>
+
+</audit-log-sql>

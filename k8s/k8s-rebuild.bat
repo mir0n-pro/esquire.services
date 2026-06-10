@@ -78,9 +78,10 @@ if /i "%TARGET%"=="enyman"   ( set "SVC=enyman"&set "DIR=enyMan"&goto target_one
 if /i "%TARGET%"=="pacman"   ( set "SVC=pacman"&set "DIR=pacMan"&goto target_one )
 if /i "%TARGET%"=="keysmith" ( set "SVC=keysmith"&set "DIR=keySmith"&goto target_one )
 if /i "%TARGET%"=="kcmaster" ( set "SVC=kcmaster"&set "DIR=kcMaster"&goto target_one )
+if /i "%TARGET%"=="xxrod"    ( set "SVC=xxrod"&set "DIR=xxRod"&goto target_one )
 
 echo ERROR: unknown target "%TARGET%"
-echo Valid: all ^| backend ^| gateway ^| biztree ^| enyman ^| pacman ^| keysmith ^| kcmaster
+echo Valid: all ^| backend ^| gateway ^| biztree ^| enyman ^| pacman ^| keysmith ^| kcmaster ^| xxrod
 exit /b 1
 
 :target_all
@@ -107,6 +108,9 @@ set "SVC=keysmith"&set "DIR=keySmith"
 call :one
 if errorlevel 1 exit /b 1
 set "SVC=kcmaster"&set "DIR=kcMaster"
+call :one
+if errorlevel 1 exit /b 1
+set "SVC=xxrod"&set "DIR=xxRod"
 call :one
 if errorlevel 1 exit /b 1
 goto target_backend

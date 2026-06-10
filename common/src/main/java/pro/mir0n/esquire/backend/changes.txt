@@ -1,5 +1,30 @@
 Esquire Backend common microservice classes
 
+06/05/2026 mir0n  v1.2.7 -- audit logging (b): IMappable body carriers for the x-Rod
+jpa.IMappable  (new)
+  - fillMap(Map) capability: an object presents its data fields by property name (no reflection)
+jpa.EsqEntityJpa
+  - implements IMappable; fillMap() emits name/desc/parentId
+jpa.entity.EsqOrgJpa / EsqUsrJpa / EsqAcctJpa / EsqAddressJpa / EsqPersonJpa
+  - fillMap() overrides emitting each entity's data fields for the matching *_log body
+jpa.entity.EsqParRow  (new)
+  - parameter read projection (name/etPk/value), IMappable; shared org_par / usr_par
+jpa.access.EsqAuthJpa  (new)
+  - esq_auth audit body: managed non-secret fields (loginId/email/connectFlg/tfaMethod/forceChangeFlg);
+    security question / answer excluded
+
+06/04/2026 mir0n  v1.2.7 -- unified per-request context (uid / rootPath read like crl_id / req_id)
+service.EsqRequestContext  (new)
+  - record (correlationId, requestId, uid, rootPath): the per-request context, captured once and
+    re-hydratable on any thread
+service.EsqContextHolder  (new)
+  - ThreadLocal holder for EsqRequestContext; set by the auth filter / move worker, cleared in a finally
+service.RequestContextUtils
+  - reads EsqContextHolder first, header fallback for crl/req; getUid() / getRootPath() / getContext() added
+security.JwtAuthenticationFilter
+  - on a valid token builds EsqRequestContext (crl/req from headers, uid/rootPath from claims),
+    sets the holder + MDC uid, clears both in a finally
+
 05/14/2026 mir0n  v1.2.4 EsqTreeNode entityPath + observability header rename
 dto.EsqTreeNode
   - entityPath String field added (raw ep_path / tree_entity_path) -- the diff axis for the

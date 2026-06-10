@@ -1,6 +1,91 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v1.2.7-2606.0923  v1.2.7 -- audit logging: option (c) becomes the default deploy topology; docs consolidated
+    :Config:      Docker and local k8s now ship option (c) by default -- producers audit-enabled, mode=bus over
+                  ActiveMQ (already in the stack), async publisher pool=4; new esquire-xxrod helm chart wired
+                  into k8s-rebuild / up / down; postgres image bakes create.log so a fresh cluster seeds the
+                  *_log tables. Every other topology (b / d / Kafka) stays a config flip.
+    :Config:      OKE overlays set audit off -> option (a) DB triggers (no xxRod pod, no extra broker load on
+                  the Always-Free tier); the trigger DDL is applied to the OKE postgres
+    :Fix:         bizTree cache children (find-nodes) query gets a deterministic ORDER BY (kind, name, tree_pk)
+    :Fix:         k8s-up.bat readiness loop sleeps via powershell Start-Sleep instead of 'timeout' (which
+                  aborts under the self-hosted runner's redirected stdin -- "Input redirection is not supported")
+    :Doc:         audit research consolidated into one Esquire.AuditLoggingStack.md
+                  README / Vision / DatabaseDictionary
+                  reframe audit as an optional, pluggable concern; component model refreshed
+    Components:   bizTree,
+                  enyMan,
+                  pacMan,
+                  keySmith,
+                  xxRod
+
+v1.2.7-2606.0822  v1.2.7 -- audit logging (option c-k, d-k): Kafka as the bus transport
+    :Feature:     option (c) (d) over Kafka -- producers publish committed audit events to a Kafka topic (keyed
+                  by entityId); 
+    :Config:      spring.kafka producer tuning (acks / batch-size / compression / linger.ms) + 
+                  the Kafka Connect Redis sink (kafka-sink profile) added to the dev compose
+    :Doc:         Kafka transport + partitioning / consumer model (Design sec 14); c-k / d-k rows added to
+                  the request-processing-time matrices; Kafka config knobs in services.configuring
+    Components:   common,
+                  enyMan,
+                  pacMan,
+                  keySmith,
+                  xxRod
+
+v1.2.7-2606.0820  v1.2.7 -- audit logging (option d): events streamed straight to Redis
+    :Feature:     option (d) -- the producer XADDs each committed audit event to a Redis Stream; the stream
+                  is the append-only audit log itself (no consumer service, read with XRANGE)
+    :Config:      audit-logging.x-rod.mode=redis + x-rod.redis.stream / max-len; spring.data.redis.host/port;
+                  redis:8 and RedisInsight (tools profile) added to the dev compose
+    :Doc:         request-processing-time matrix refreshed same-day with the (d) row; RedisJSON-local
+    Components:   common,
+                  enyMan,
+                  pacMan,
+                  keySmith
+
+v1.2.7-2606.0622  v1.2.7 -- audit logging (option c): distributed bus path + standalone xxRod consumer
+    :Feature:     option (c) -- producers publish committed audit events to a durable ActiveMQ queue; the
+                  new standalone xxRod service consumes the queue and writes the *_log tables off-box
+    :Feature:     bus publisher pool -- N async sender threads lift the publish-rate cap under high load
+                  (in-process (b) and single-worker bus publish kept as options)
+    :Feature:     audit SQL externalized to per-module META-INF/audit/{postgres,oracle}.xml (deploy-time opt-in)
+    :Fix:         pacMan entity-broadcast publisher qualifies jmsTopicTemplate (two JmsTemplate beans now exist)
+    :Config:      audit-logging.x-rod.mode (in-process|bus) + bus.publisher-pool-size; *_log dedup unique indexes
+    :Doc:         request-processing-time (srvOuter) cost matrices for options (a)/(b)/(c) at normal + high load
+    Components:   common,
+                  enyMan,
+                  pacMan,
+                  keySmith,
+                  xxRod
+
+v1.2.7-2606.0615  v1.2.7 -- audit logging (option b): entity changes recorded to the *_log tables
+    :Feature:     opt-in audit logging records committed entity / sub-entity / account / auth changes to
+                  the *_log tables, off the business transaction (the generic x-Rod producer / consumer)
+    :Feature:     enyMan audits org / user / person / address / params (+ account CREATE); pacMan audits
+                  account update / delete / balance; keySmith audits the auth update (secrets excluded)
+    :Fix:         custom parameter edits now save without a prior /esq-dict fetch (dictionary completed lazily)
+    :Config:      per-service audit-logging.* (enabled default OFF; pool / feed / shared|dedicated log store)
+    Components:   common,
+                  enyMan,
+                  pacMan,
+                  keySmith
+
+v1.2.7-2606.0417  v1.2.7 -- unified per-request context: uid / rootPath obtained like crl_id / req_id
+    :Refactoring: uid and rootPath move into the per-request EsqRequestContext, captured once and read
+                  via RequestContextUtils
+    :Fix:         a move no longer overwrites the moved entity's crl_id / req_id audit columns with null
+                  (the move worker re-establishes the request context on its own thread)
+    Components:   common,
+                  enyMan,
+                  pacMan,
+                  keySmith,
+                  bizTree
+
+v1.2.7-2606.0318  v1.2.7 -- audit-trigger decoupling: account funded-date moved to the service
+    :Refactoring: account funded-date is stamped by pacMan on the balance update
+    Components:   pacMan
+
 v1.2.6-2606.0220  v1.2.6 -- bizTree work-batching + Oracle / pacMan fixes
     :Feature:     bizTree applies a backlog of cache-update events in ONE transaction once the monad queue
                   passes a threshold -- about 3x broadcast-apply throughput under a move-cascade flood

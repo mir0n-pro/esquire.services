@@ -2,7 +2,7 @@
  *  Esquire frameworks (tm)
  *  EnyMan service
  *
- *  Copyright(c) 2001, 2025 mir0n&co www.mir0n.me
+ *  Copyright(c) 2001, 2026 mir0n&co www.mir0n.pro
  *  mailto:mir0n.the.programmer@gmail.com
  *
  *  History:
@@ -37,6 +37,12 @@
  * 04/16/2026 mir0n  ret declarations moved to top; moveUsr(): null-guard replaces early return
  * 06/01/2026 mir0n  id minting call retargeted: EsqUtils.generateEntityId() -> EntityIdGenerator.generateEntityId()
  *                   (id minter moved from common to enyMan in v1.2.6).
+ * 06/04/2026 mir0n  rootPath / uid read via RequestContextUtils instead of method params (dropped from
+ *                   the IEnyManService public signatures)
+ * 06/05/2026 mir0n  XYRod injected; x-Rod audit posts across the user footprint (user / person / address /
+ *                   usr_par create / update / delete + move parent-ref); delete enumerates child pks before
+ *                   the cascade; per-param events via listUsrPar (enabled-gated); create/save resolve the
+ *                   dictionary via completedDictionary (custom-param save fix)
  */
 
 package pro.mir0n.esquire.enyMan.service.impl;
@@ -65,9 +71,12 @@ import pro.mir0n.esquire.backend.error.DeleteRestrictedException;
 import pro.mir0n.esquire.backend.error.EmailExistsException;
 import pro.mir0n.esquire.backend.error.ResourceNotFoundException;
 import pro.mir0n.esquire.enyMan.jpa.EsqMoveRecord;
+import pro.mir0n.esquire.backend.jpa.entity.EsqParRow;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import pro.mir0n.esquire.common.EsqConstants;
+import pro.mir0n.esquire.common.xrod.RodEvent;
+import pro.mir0n.esquire.common.xrod.XYRod;
 import pro.mir0n.esquire.enyMan.service.EntityIdGenerator;
 
 @Slf4j
@@ -79,16 +88,19 @@ public class UsrService  extends AEnyManService {
     private final EsqUsrRepository usrRepository;
     private final TransactionTemplate transactionTemplate;
     private final EntityManager em;
+    private final XYRod xyRod;
 
     public UsrService(EsqEntityDictionaryRepository entityDictionaryRepository,
                       EsqUsrRepository usrRepository,
                       TransactionTemplate transactionTemplate,
-                      EntityManager em) {
+                      EntityManager em,
+                      XYRod xyRod) {
         super(entityDictionaryRepository);
         this.entityDictionaryRepository = entityDictionaryRepository;
         this.usrRepository = usrRepository;
         this.transactionTemplate = transactionTemplate;
         this.em = em;
+        this.xyRod = xyRod;
     }
 
 
@@ -99,9 +111,10 @@ public class UsrService  extends AEnyManService {
     }
 
     @Override
-    public EsqEntity esquireCommand(int kind, String id, String cmd, String rootPath, String uid) {
+    public EsqEntity esquireCommand(int kind, String id, String cmd) {
         EsqEntity ret = null;
-        devLog.debug("srvc: esquireCommand(usr): kind:{}, id:{}, cmd:{}, rootPath:{}, uid:{}",  kind, id, cmd, rootPath, uid);
+        String rootPath = RequestContextUtils.getRootPath();
+        devLog.debug("srvc: esquireCommand(usr): kind:{}, id:{}, cmd:{}, rootPath:{}",  kind, id, cmd, rootPath);
 
         EsqObjectKind eek = EsqObjectKindStorage.getInstance().get(kind);
         List<EsqEntityJpa> children = null;
@@ -138,10 +151,12 @@ public class UsrService  extends AEnyManService {
     }
 
     @Override
-    public EsqEntity esquireCommandSave(int kind, String id, String cmd, Map<String, Object> fields, String rootPath, String uid, List<String> roles) {
+    public EsqEntity esquireCommandSave(int kind, String id, String cmd, Map<String, Object> fields, List<String> roles) {
         EsqEntity ret = null;
         String correlationId = RequestContextUtils.getCorrelationId();
         String requestId = RequestContextUtils.getRequestId();
+        String rootPath = RequestContextUtils.getRootPath();
+        String uid = RequestContextUtils.getUid();
         devLog.debug("srvc: esquireCommandSave(usr): kind:{}, id:{}, cmd:{}, rootPath:{}, uid:{}", kind, id, cmd, rootPath, uid);
 
         EsqObjectKind eek = EsqObjectKindStorage.getInstance().get(kind);
@@ -171,10 +186,12 @@ public class UsrService  extends AEnyManService {
     }
 
     @Override
-    public EsqEntity esquireCommandNew(int kind, String parentId, String cmd, Map<String, Object> fields, String rootPath, String uid, List<String> roles) {
+    public EsqEntity esquireCommandNew(int kind, String parentId, String cmd, Map<String, Object> fields, List<String> roles) {
         EsqEntity ret = null;
         String correlationId = RequestContextUtils.getCorrelationId();
         String requestId = RequestContextUtils.getRequestId();
+        String rootPath = RequestContextUtils.getRootPath();
+        String uid = RequestContextUtils.getUid();
         devLog.debug("srvc: esquireCommandNew(usr): kind:{}, parentId:{}, cmd:{}, rootPath:{}, uid:{}", kind, parentId, cmd, rootPath, uid);
 
         EsqObjectKind eek = EsqObjectKindStorage.getInstance().get(kind);
@@ -197,19 +214,25 @@ public class UsrService  extends AEnyManService {
     }
 
     @Override
-    public void esquireCommandDelete(int kind, String id, String cmd, String rootPath, String uid, List<String> roles) {
-        devLog.debug("srvc: esquireCommandDelete(usr): kind:{}, id:{}, cmd:{}, rootPath:{}, uid:{}", kind, id, cmd, rootPath, uid);
+    public void esquireCommandDelete(int kind, String id, String cmd, List<String> roles) {
+        String rootPath = RequestContextUtils.getRootPath();
+        devLog.debug("srvc: esquireCommandDelete(usr): kind:{}, id:{}, cmd:{}, rootPath:{}", kind, id, cmd, rootPath);
         transactionTemplate.execute(status -> {
             em.setFlushMode(FlushModeType.COMMIT);
             deleteUsr(id, rootPath);
+            // x-Rod audit: one DELETE event for the user (id + kind); cascaded person/address/params
+            // are implied by the owner delete (no per-child delete events).
+            xyRod.post(RodEvent.Op.DELETE, kind, id, null);
             return null;
         });
     }
 
     @Override
-    public List<EsqMoveRecord> esquireCommandMove(int kind, String id, String distId, String rootPath, String uid, List<String> roles) {
+    public List<EsqMoveRecord> esquireCommandMove(int kind, String id, String distId, List<String> roles) {
         String correlationId = RequestContextUtils.getCorrelationId();
         String requestId = RequestContextUtils.getRequestId();
+        String rootPath = RequestContextUtils.getRootPath();
+        String uid = RequestContextUtils.getUid();
         devLog.debug("srvc: esquireCommandMove(usr): kind:{}, id:{}, distId:{}, rootPath:{}, uid:{}", kind, id, distId, rootPath, uid);
         List<EsqMoveRecord> records = transactionTemplate.execute(status -> {
             em.setFlushMode(FlushModeType.COMMIT);
@@ -244,6 +267,9 @@ public class UsrService  extends AEnyManService {
                 rows = usrRepository.listMovedPaths(newPath);
             }
             usrRepository.moveUsrParent(id, distId, uid, correlationId, requestId);
+            // x-Rod audit: move is one parent-ref UPDATE (usr_org_pk); path rewrites are not audited.
+            usr.setParentId(distId);
+            xyRod.post(RodEvent.Op.UPDATE, usr.getKind(), usr.getId(), null, usr);
         }
         return rows;
     }
@@ -266,7 +292,7 @@ public class UsrService  extends AEnyManService {
         String path = eek.isPathParentOnly() ? parentPath : parentPath + newId + ".";
         fields.put("path", path);
 
-        EsqEntityDictionary dictUser = EsqEntityDictionaryStorage.getInstance().get(kind);
+        EsqEntityDictionary dictUser = completedDictionary(kind);
         EsqEntityKindFieldLayer kfl  = new EsqEntityKindFieldLayer();
 
         // Validate person subentity — derive name and email
@@ -388,6 +414,23 @@ public class UsrService  extends AEnyManService {
         custom[0] = usrRepository.customUsr(idStr);
         // Populate person
         person[0] = prsn;
+
+        // x-Rod audit: full per-row CREATE events for the whole user footprint (entityId = usr_pk).
+        xyRod.post(RodEvent.Op.CREATE, usr.getKind(), idStr, null, usr);
+        xyRod.post(RodEvent.Op.CREATE, prsn.getKind(), idStr, null, prsn);
+        if (address != null && adPk != null && address[0] != null) {
+            EsqAddressJpa a = (EsqAddressJpa) address[0];
+            xyRod.post(RodEvent.Op.CREATE, a.getKind(), idStr, String.valueOf(adPk), a);
+        }
+        if (address2 != null && bizAdPk != null && address2[0] != null) {
+            EsqAddressJpa a2 = (EsqAddressJpa) address2[0];
+            xyRod.post(RodEvent.Op.CREATE, a2.getKind(), idStr, String.valueOf(bizAdPk), a2);
+        }
+        if (xyRod.isEnabled()) {
+            for (EsqParRow p : usrRepository.listUsrPar(idStr)) {
+                xyRod.post(RodEvent.Op.CREATE, EsqConstants.KIND_USR_PAR, idStr, p.getName(), p);
+            }
+        }
     }
 
     private void deleteUsr(String id, String rootPath) {
@@ -399,10 +442,29 @@ public class UsrService  extends AEnyManService {
             throw new DeleteRestrictedException("user", "active auth connection — disable login before deleting");
         }
         ValidatorFactory.getInstance().validateDelete(usr);
+        // x-Rod audit: capture the child address pks BEFORE the cascade (the DB removes them silently,
+        // so they must be enumerated here). Only when enabled -- no extra reads otherwise.
+        EsqAddressJpa addr = null;
+        EsqAddressJpa addr2 = null;
+        if (xyRod.isEnabled()) {
+            addr  = usrRepository.address(id, EsqConstants.KIND_PERSON_PRIMARY);
+            addr2 = usrRepository.address2(id, EsqConstants.KIND_PERSON_PRIMARY);
+        }
         usrRepository.deletePersonAddresses(id);
         usrRepository.deletePersonBankInfo(id);
         usrRepository.deleteUsr(id);
         usrRepository.deleteEntityPath(id);
+        // One DELETE event per cascaded child row (id + kind only). person id = usr_pk (known, no query);
+        // usr_par params cascade with the owner and get NO per-row event (owner DELETE implies them gone).
+        if (xyRod.isEnabled()) {
+            xyRod.post(RodEvent.Op.DELETE, EsqConstants.KIND_PERSON_PRIMARY, id, null);
+            if (addr != null) {
+                xyRod.post(RodEvent.Op.DELETE, addr.getKind(), id, addr.getId());
+            }
+            if (addr2 != null) {
+                xyRod.post(RodEvent.Op.DELETE, addr2.getKind(), id, addr2.getId());
+            }
+        }
     }
 
     private static final Set<String> USR_WRITABLE = Set.of("name"); //, xxx overwrite readonly field 'name'
@@ -424,7 +486,7 @@ public class UsrService  extends AEnyManService {
         List<EsqNameValueJpa> cstm = usrRepository.customUsr(id);
         EsqPersonJpa prsn = usrRepository.person(id, EsqConstants.KIND_PERSON_PRIMARY);
         Map<String, Object> mprsn = (Map<String, Object>) fields.get(EsqConstants.SUBENTITY_PERSON);
-        EsqEntityDictionary dictUser = EsqEntityDictionaryStorage.getInstance().get(usr.getKind());
+        EsqEntityDictionary dictUser = completedDictionary(usr.getKind());
         EsqEntityKindFieldLayer kfl = new EsqEntityKindFieldLayer();
         boolean personal = id.equals(uid);
 //devLog.debug("looking for {} {}",EsqConstants.SUBENTITY_PERSON, dictUser.getKind());
@@ -456,11 +518,14 @@ public class UsrService  extends AEnyManService {
                     prsn.getPhone2(),
                     uid, correlationId, requestId
             );
+            xyRod.post(RodEvent.Op.UPDATE, prsn.getKind(), id, null, prsn);
         }
 
         if (EntityFieldUtils.applyFields(usr, fields, personal, 0, USR_WRITABLE)) {
             usrRepository.updateUsr(id, usr.getName(), usr.getRegistration(), usr.getDeleted(), usr.getDesc(), uid, correlationId, requestId);
+            xyRod.post(RodEvent.Op.UPDATE, usr.getKind(), usr.getId(), null, usr);
         }
+        Set<String> changedPars = new HashSet<>();
         if (cstm != null) {
             for (EsqNameValueJpa nv : cstm) {
                 String nm = nv.getName();
@@ -472,7 +537,15 @@ public class UsrService  extends AEnyManService {
                         val = (String)ValidatorFactory.getInstance().validate(usr, kfl, personal, val);
                         nv.setValue(val);
                         usrRepository.updateCustomUsr(id, nm, val, uid, correlationId, requestId);
+                        changedPars.add(nm);
                     }
+                }
+            }
+        }
+        if (xyRod.isEnabled() && !changedPars.isEmpty()) {
+            for (EsqParRow p : usrRepository.listUsrPar(id)) {
+                if (changedPars.contains(p.getName())) {
+                    xyRod.post(RodEvent.Op.UPDATE, EsqConstants.KIND_USR_PAR, id, p.getName(), p);
                 }
             }
         }
@@ -491,6 +564,7 @@ public class UsrService  extends AEnyManService {
                             addr.getCountry(), addr.getDepartment(), addr.getFax(),
                             addr.getPostalCode(), addr.getProvince(), addr.getTitle(), addr.getUrl(),
                             uid, correlationId, requestId);
+                    xyRod.post(RodEvent.Op.UPDATE, addr.getKind(), id, addr.getId(), addr);
                 }
             }
 
@@ -507,6 +581,7 @@ public class UsrService  extends AEnyManService {
                             addr2.getCountry(), addr2.getDepartment(), addr2.getFax(),
                             addr2.getPostalCode(), addr2.getProvince(), addr2.getTitle(), addr2.getUrl(),
                             uid, correlationId, requestId);
+                    xyRod.post(RodEvent.Op.UPDATE, addr2.getKind(), id, addr2.getId(), addr2);
                 }
             }
             address[0] = addr;

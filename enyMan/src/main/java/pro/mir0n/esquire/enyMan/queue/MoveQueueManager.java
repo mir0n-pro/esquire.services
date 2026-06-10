@@ -17,6 +17,10 @@
  *                   value is left in place across subsequent items, so a following
  *                   CreateReconcileItem inherits the move's CID/RID -- the post-effect
  *                   attribution mir0n called out.
+ * 06/04/2026 mir0n  processMove hydrates EsqContextHolder from the queued item (crl/req/uid/rootPath),
+ *                   cleared in finally; calls esquireCommandMove without rootPath / uid
+ * 06/05/2026 mir0n  XYRod ctor param added + threaded into the OrgService / UsrService it builds
+ *                   (move parent-ref audit on the worker thread)
  */
 
 package pro.mir0n.esquire.enyMan.queue;
@@ -32,9 +36,12 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.support.TransactionTemplate;
 import pro.mir0n.esquire.backend.dto.EsqObjectKind;
+import pro.mir0n.esquire.backend.service.EsqContextHolder;
+import pro.mir0n.esquire.backend.service.EsqRequestContext;
 import pro.mir0n.esquire.backend.storage.EsqObjectKindStorage;
 import pro.mir0n.esquire.common.EsqConstants;
 import pro.mir0n.esquire.common.EsqMsgConstants;
+import pro.mir0n.esquire.common.xrod.XYRod;
 import pro.mir0n.esquire.enyMan.jpa.EntityPathLookup;
 import pro.mir0n.esquire.enyMan.jpa.EsqEntityDictionaryRepository;
 import pro.mir0n.esquire.enyMan.jpa.EsqMoveRecord;
@@ -78,9 +85,10 @@ public class MoveQueueManager implements IQueueRig.IQueueWorker<MoveQueueItem> {
                             EsqEntityBroadcastPublisher broadcastPublisher,
                             KcRequestPublisher kcRequestPublisher,
                             EntityPathLookup pathLookup,
+                            XYRod xyRod,
                             @Value("${enyman.move-queue.capacity:1024}") int capacity) {
-        this.orgService = new OrgService(entityDictionaryRepository, orgRepository, transactionTemplate, em);
-        this.usrService = new UsrService(entityDictionaryRepository, usrRepository, transactionTemplate, em);
+        this.orgService = new OrgService(entityDictionaryRepository, orgRepository, transactionTemplate, em, xyRod);
+        this.usrService = new UsrService(entityDictionaryRepository, usrRepository, transactionTemplate, em, xyRod);
         this.broadcastPublisher = broadcastPublisher;
         this.kcRequestPublisher = kcRequestPublisher;
         this.pathLookup = pathLookup;
@@ -160,17 +168,22 @@ public class MoveQueueManager implements IQueueRig.IQueueWorker<MoveQueueItem> {
         if (item.requestId()     != null) MDC.put(EsqConstants.PD_REQUEST_ID,     item.requestId());
         if (item.correlationId() != null) MDC.put(EsqConstants.PD_CORRELATION_ID, item.correlationId());
 
+        // Re-establish the unified per-request context on this worker thread from the queued item.
+        // The request thread's EsqContextHolder / SecurityContext do not follow here, so without
+        // this the service-layer RequestContextUtils.getUid()/getRootPath()/getCorrelationId() would
+        // all read empty -- the same reason MDC has to be re-set above.
+        EsqContextHolder.set(new EsqRequestContext(
+                item.correlationId(), item.requestId(), item.uid(), item.rootPath()));
+
         try {
             devLog.debug("processMove: kind={}, id={}, distId={}, rootPath={}, uid={}",
                     item.kind(), item.id(), item.distId(), item.rootPath(), item.uid());
             EsqObjectKind eek = EsqObjectKindStorage.getInstance().get(item.kind());
             List<EsqMoveRecord> records;
             if (eek.isOrg()) {
-                records = orgService.esquireCommandMove(item.kind(), item.id(), item.distId(),
-                        item.rootPath(), item.uid(), item.roles());
+                records = orgService.esquireCommandMove(item.kind(), item.id(), item.distId(), item.roles());
             } else {
-                records = usrService.esquireCommandMove(item.kind(), item.id(), item.distId(),
-                        item.rootPath(), item.uid(), item.roles());
+                records = usrService.esquireCommandMove(item.kind(), item.id(), item.distId(), item.roles());
             }
             // Transaction has committed by the time esquireCommandMove returns -- publish outside it.
             for (EsqMoveRecord r : records) {
@@ -178,7 +191,8 @@ public class MoveQueueManager implements IQueueRig.IQueueWorker<MoveQueueItem> {
                 publishKcMoveRequest(r, item.requestId(), item.correlationId());
             }
         } finally {
-            counter.decrementAndGet();   // ALWAYS decrement, even if the move threw
+            EsqContextHolder.clear();     // do not leak this move's identity onto the next item
+            counter.decrementAndGet();    // ALWAYS decrement, even if the move threw
         }
     }
 

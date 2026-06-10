@@ -10,6 +10,8 @@
  * 04/15/2026 mir0n  transaction PK: EsqUtils.generateEntityId() replaced by transactionRepository.nextId() (ESQ_ATR_SEQ)
  * 04/20/2026 mir0n  conversion rate support: convRate/amtIncoming/ccyIncoming/pkTx/counterpartId params threaded through;
  *                   generateTransId() replaces nextId(); ccy populated in result; refCode4 auto-note on transfer legs
+ * 06/05/2026 mir0n  XYRod injected; balance change posts an x-Rod account UPDATE audit event (new balance +
+ *                   funded_dt mirror on first funding)
  */
 
 package pro.mir0n.esquire.pacMan.acct.service;
@@ -52,6 +54,7 @@ public class AcctTransactionProcessorSingle implements IAcctTransactionProcessor
     private EsqAcctTransactionRepository transactionRepository;
     private TransactionTemplate transactionTemplate;
     private EntityManager em;
+    private pro.mir0n.esquire.common.xrod.XYRod xyRod;   // audit: balance change -> account UPDATE
 
     /** skipValidation: For test use only — allows bypassing status/balance/field validation. */
     public AcctTransactionSingle esquireCommandAcct(int kind, String id, AcctOperation.Code oper, Map<String, Object> fields, boolean skipValidation, String rootPath, String uid, List<String> roles) {
@@ -190,6 +193,13 @@ public class AcctTransactionProcessorSingle implements IAcctTransactionProcessor
                 amtIncoming, ccyIncoming, convRate);
 
         entityRepository.updateAcctBalance(acctId, newBalance, uid, correlationId, requestId);
+        // audit: balance change -> account UPDATE. Reflect the new balance on the loaded acct, and mirror the
+        // updateAcctBalance COALESCE(acc_funded_dt, NOW()) so the first funding shows funded_dt in the log too.
+        acct.setBalance(newBalance);
+        if (acct.getFundedDate() == null || acct.getFundedDate().isEmpty()) {
+            acct.setFundedDate(java.time.LocalDate.now().toString());
+        }
+        xyRod.post(pro.mir0n.esquire.common.xrod.RodEvent.Op.UPDATE, acct.getKind(), acctId, null, acct);
         return ret;
     }
 }

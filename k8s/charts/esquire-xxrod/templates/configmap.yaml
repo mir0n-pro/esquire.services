@@ -1,0 +1,25 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-xxrod-config
+  labels:
+    app: {{ .Release.Name }}-xxrod
+data:
+  XXROD_PORT:            {{ .Values.service.port | quote }}
+  DB_XXROD_VENDOR:       {{ .Values.db.vendor | quote }}
+  DB_XXROD_HOST:         {{ .Values.db.host | quote }}
+  DB_XXROD_PORT:         {{ .Values.db.port | quote }}
+  DB_XXROD_NAME:         {{ .Values.db.name | quote }}
+  DB_XXROD_USERNAME:     {{ .Values.db.username | quote }}
+  AMQ_BROKER_URL:        {{ .Values.messaging.brokerUrl | quote }}
+  XXROD_TRANSPORT:       {{ .Values.audit.transport | quote }}
+  XXROD_AUDIT_POOL_SIZE: {{ .Values.audit.poolSize | quote }}
+  KAFKA_BOOTSTRAP:       {{ .Values.audit.kafka.bootstrap | quote }}
+  XXROD_KAFKA_GROUP_ID:  {{ .Values.audit.kafka.groupId | quote }}
+  LOG_LEVEL_ROOT:        {{ .Values.logging.levelRoot | quote }}
+  LOG_LEVEL_SF:          {{ .Values.logging.levelSf | quote }}
+  LOG_LEVEL_MIR0N:       {{ .Values.logging.levelMir0n | quote }}
+  LOG_LEVEL_DEVELOP:     {{ .Values.logging.levelDevelop | quote }}
+  LOG_LEVEL_MSG:         {{ .Values.logging.levelMsg | quote }}
+  DEVELOP_LOG_PATH:      {{ .Values.logging.developLogPath | quote }}
+  MSG_LOG_PATH:          {{ .Values.logging.msgLogPath | quote }}

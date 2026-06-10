@@ -1,6 +1,7 @@
 package pro.mir0n.esquire.enyMan.service;
 
 import jakarta.persistence.EntityManager;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -19,11 +20,14 @@ import pro.mir0n.esquire.backend.error.ResourceNotFoundException;
 import pro.mir0n.esquire.backend.jpa.access.EsqPermissionJpa;
 import pro.mir0n.esquire.backend.jpa.access.EsqRoleJpa;
 import pro.mir0n.esquire.backend.jpa.entity.EsqUsrJpa;
+import pro.mir0n.esquire.backend.service.EsqContextHolder;
+import pro.mir0n.esquire.backend.service.EsqRequestContext;
 import pro.mir0n.esquire.backend.storage.EsqEntityDictionaryStorage;
 import pro.mir0n.esquire.backend.storage.EsqObjectKindStorage;
 import pro.mir0n.esquire.backend.storage.EsqRolesStorage;
 import pro.mir0n.esquire.backend.storage.roles.JpaRolesRepository;
 import pro.mir0n.esquire.common.EsqConstants;
+import pro.mir0n.esquire.common.xrod.XYRod;
 import pro.mir0n.esquire.enyMan.jpa.EsqAcctRepository;
 import pro.mir0n.esquire.enyMan.jpa.EsqEntityDictionaryRepository;
 import pro.mir0n.esquire.enyMan.jpa.EsqOrgRepository;
@@ -60,6 +64,7 @@ import java.util.HashMap;
 class EnyManServiceTest {
 
     static final String ROLE_ADMIN = "ROLE_ADMIN";
+    static final String UID = "99";
 
     @Mock
     private EsqEntityDictionaryRepository dictRepo;
@@ -146,7 +151,19 @@ class EnyManServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new EnyManService(dictRepo, orgRepo, usrRepo, acctRepo, subtreeRepo, transactionTemplate, em, broadcastPublisher, moveQueue);
+        service = new EnyManService(dictRepo, orgRepo, usrRepo, acctRepo, subtreeRepo, transactionTemplate, em, broadcastPublisher, moveQueue, new XYRod(e -> {}, false, 1));
+    }
+
+    @AfterEach
+    void tearDown() {
+        EsqContextHolder.clear();
+    }
+
+    // uid / rootPath now come from the unified per-request context (read via RequestContextUtils),
+    // not from method params. Each test establishes the context the same way the request thread
+    // does -- with the rootPath its mocks are stubbed against and the fixed uid "99".
+    private void ctx(String rootPath) {
+        EsqContextHolder.set(new EsqRequestContext(null, null, UID, rootPath));
     }
 
     // ---- esquireCommandSave: org kind, null roles → PermissionDeniedException ----
@@ -154,8 +171,9 @@ class EnyManServiceTest {
     @Test
     @DisplayName("esquireCommandSave: org kind, null roles → PermissionDeniedException")
     void esquireCommandSave_orgKind_nullRoles_throwsPermissionDeniedException() {
+        ctx("1.2.3");
         assertThatThrownBy(() ->
-            service.esquireCommandSave(20, "100", "save", Map.of(), "1.2.3", "99", null)
+            service.esquireCommandSave(20, "100", "save", Map.of(), null)
         ).isInstanceOf(PermissionDeniedException.class);
     }
 
@@ -164,8 +182,9 @@ class EnyManServiceTest {
     @Test
     @DisplayName("esquireCommandSave: usr kind, null roles, id != uid → PermissionDeniedException")
     void esquireCommandSave_usrKind_nullRoles_notSelf_throwsPermissionDeniedException() {
+        ctx("1.2.3");
         assertThatThrownBy(() ->
-            service.esquireCommandSave(32, "50", "save", Map.of(), "1.2.3", "99", null)
+            service.esquireCommandSave(32, "50", "save", Map.of(), null)
         ).isInstanceOf(PermissionDeniedException.class);
     }
 
@@ -174,16 +193,18 @@ class EnyManServiceTest {
     @Test
     @DisplayName("esquireCommandSave: unknown kind → ResourceNotFoundException")
     void esquireCommandSave_unknownKind_throwsResourceNotFoundException() {
+        ctx("1.2.3");
         assertThatThrownBy(() ->
-            service.esquireCommandSave(99, "1", "save", Map.of(), "1.2.3", "99", null)
+            service.esquireCommandSave(99, "1", "save", Map.of(), null)
         ).isInstanceOf(ResourceNotFoundException.class);
     }
 
     @Test
     @DisplayName("esquireCommandSave: odd kind 33 (sub-variant, not registered) → ResourceNotFoundException")
     void esquireCommandSave_oddKind_throwsResourceNotFoundException() {
+        ctx("1.2.3");
         assertThatThrownBy(() ->
-            service.esquireCommandSave(33, "1", "save", Map.of(), "1.2.3", "99", null)
+            service.esquireCommandSave(33, "1", "save", Map.of(), null)
         ).isInstanceOf(ResourceNotFoundException.class);
     }
 
@@ -192,16 +213,18 @@ class EnyManServiceTest {
     @Test
     @DisplayName("esquireCommand: unknown kind → ResourceNotFoundException")
     void esquireCommand_unknownKind_throwsResourceNotFoundException() {
+        ctx("1.2.3");
         assertThatThrownBy(() ->
-            service.esquireCommand(99, "1", "details", "1.2.3", "99")
+            service.esquireCommand(99, "1", "details")
         ).isInstanceOf(ResourceNotFoundException.class);
     }
 
     @Test
     @DisplayName("esquireCommand: odd kind 33 (sub-variant, not registered) → ResourceNotFoundException")
     void esquireCommand_oddKind_throwsResourceNotFoundException() {
+        ctx("1.2.3");
         assertThatThrownBy(() ->
-            service.esquireCommand(33, "1", "details", "1.2.3", "99")
+            service.esquireCommand(33, "1", "details")
         ).isInstanceOf(ResourceNotFoundException.class);
     }
 
@@ -210,8 +233,9 @@ class EnyManServiceTest {
     @Test
     @DisplayName("esquireCommandNew: org kind, null roles → PermissionDeniedException")
     void esquireCommandNew_orgKind_nullRoles_throwsPermissionDeniedException() {
+        ctx("1.2.3");
         assertThatThrownBy(() ->
-            service.esquireCommandNew(20, "1", "new", Map.of(), "1.2.3", "99", null)
+            service.esquireCommandNew(20, "1", "new", Map.of(), null)
         ).isInstanceOf(PermissionDeniedException.class);
     }
 
@@ -220,8 +244,9 @@ class EnyManServiceTest {
     @Test
     @DisplayName("esquireCommandNew: usr kind, null roles → PermissionDeniedException")
     void esquireCommandNew_usrKind_nullRoles_throwsPermissionDeniedException() {
+        ctx("1.2.3");
         assertThatThrownBy(() ->
-            service.esquireCommandNew(32, "1", "new", Map.of(), "1.2.3", "99", null)
+            service.esquireCommandNew(32, "1", "new", Map.of(), null)
         ).isInstanceOf(PermissionDeniedException.class);
     }
 
@@ -230,8 +255,9 @@ class EnyManServiceTest {
     @Test
     @DisplayName("esquireCommandNew: acct kind, null roles → PermissionDeniedException")
     void esquireCommandNew_acctKind_nullRoles_throwsPermissionDeniedException() {
+        ctx("1.2.3");
         assertThatThrownBy(() ->
-            service.esquireCommandNew(50, "1", "new", Map.of(), "1.2.3", "99", null)
+            service.esquireCommandNew(50, "1", "new", Map.of(), null)
         ).isInstanceOf(PermissionDeniedException.class);
     }
 
@@ -240,6 +266,7 @@ class EnyManServiceTest {
     @Test
     @DisplayName("esquireCommandNew: acct — parent path not found → ResourceNotFoundException")
     void esquireCommandNew_acct_parentNotFound_throwsResourceNotFoundException() {
+        ctx("1.2.3");
         when(transactionTemplate.execute(any())).thenAnswer(inv -> {
             inv.<org.springframework.transaction.support.TransactionCallback<?>>getArgument(0).doInTransaction(null);
             return null;
@@ -247,7 +274,7 @@ class EnyManServiceTest {
         when(acctRepo.acctPath("1")).thenReturn(null);
 
         assertThatThrownBy(() ->
-            service.esquireCommandNew(50, "1", "new", new HashMap<>(), "1.2.3", "99", List.of(ROLE_ADMIN))
+            service.esquireCommandNew(50, "1", "new", new HashMap<>(), List.of(ROLE_ADMIN))
         ).isInstanceOf(ResourceNotFoundException.class);
     }
 
@@ -256,16 +283,18 @@ class EnyManServiceTest {
     @Test
     @DisplayName("esquireCommandNew: unknown kind → ResourceNotFoundException")
     void esquireCommandNew_unknownKind_throwsResourceNotFoundException() {
+        ctx("1.2.3");
         assertThatThrownBy(() ->
-            service.esquireCommandNew(99, "1", "new", Map.of(), "1.2.3", "99", null)
+            service.esquireCommandNew(99, "1", "new", Map.of(), null)
         ).isInstanceOf(ResourceNotFoundException.class);
     }
 
     @Test
     @DisplayName("esquireCommandNew: odd kind 33 (sub-variant, not registered) → ResourceNotFoundException")
     void esquireCommandNew_oddKind_throwsResourceNotFoundException() {
+        ctx("1.2.3");
         assertThatThrownBy(() ->
-            service.esquireCommandNew(33, "1", "new", Map.of(), "1.2.3", "99", null)
+            service.esquireCommandNew(33, "1", "new", Map.of(), null)
         ).isInstanceOf(ResourceNotFoundException.class);
     }
 
@@ -274,8 +303,9 @@ class EnyManServiceTest {
     @Test
     @DisplayName("esquireCommandDelete: org kind, null roles → PermissionDeniedException")
     void esquireCommandDelete_orgKind_nullRoles_throwsPermissionDeniedException() {
+        ctx("1.2.3");
         assertThatThrownBy(() ->
-            service.esquireCommandDelete(20, "100", "delete", "1.2.3", "99", null)
+            service.esquireCommandDelete(20, "100", "delete", null)
         ).isInstanceOf(PermissionDeniedException.class);
     }
 
@@ -284,8 +314,9 @@ class EnyManServiceTest {
     @Test
     @DisplayName("esquireCommandDelete: usr kind, null roles → PermissionDeniedException")
     void esquireCommandDelete_usrKind_nullRoles_throwsPermissionDeniedException() {
+        ctx("1.2.3");
         assertThatThrownBy(() ->
-            service.esquireCommandDelete(32, "100", "delete", "1.2.3", "99", null)
+            service.esquireCommandDelete(32, "100", "delete", null)
         ).isInstanceOf(PermissionDeniedException.class);
     }
 
@@ -294,16 +325,18 @@ class EnyManServiceTest {
     @Test
     @DisplayName("esquireCommandDelete: unknown kind → ResourceNotFoundException")
     void esquireCommandDelete_unknownKind_throwsResourceNotFoundException() {
+        ctx("1.2.3");
         assertThatThrownBy(() ->
-            service.esquireCommandDelete(99, "100", "delete", "1.2.3", "99", null)
+            service.esquireCommandDelete(99, "100", "delete", null)
         ).isInstanceOf(ResourceNotFoundException.class);
     }
 
     @Test
     @DisplayName("esquireCommandDelete: odd kind 33 (sub-variant, not registered) → ResourceNotFoundException")
     void esquireCommandDelete_oddKind_throwsResourceNotFoundException() {
+        ctx("1.2.3");
         assertThatThrownBy(() ->
-            service.esquireCommandDelete(33, "100", "delete", "1.2.3", "99", null)
+            service.esquireCommandDelete(33, "100", "delete", null)
         ).isInstanceOf(ResourceNotFoundException.class);
     }
 
@@ -341,6 +374,7 @@ class EnyManServiceTest {
     @Test
     @DisplayName("esquireCommandDelete: usr not found → ResourceNotFoundException")
     void esquireCommandDelete_usrNotFound_throwsResourceNotFoundException() {
+        ctx("1.2.3");
         when(transactionTemplate.execute(any())).thenAnswer(inv -> {
             inv.<org.springframework.transaction.support.TransactionCallback<?>>getArgument(0).doInTransaction(null);
             return null;
@@ -348,7 +382,7 @@ class EnyManServiceTest {
         when(usrRepo.detailUsrForUpdate("100", "1.2.3")).thenReturn(null);
 
         assertThatThrownBy(() ->
-            service.esquireCommandDelete(32, "100", "delete", "1.2.3", "99", List.of(ROLE_ADMIN))
+            service.esquireCommandDelete(32, "100", "delete", List.of(ROLE_ADMIN))
         ).isInstanceOf(ResourceNotFoundException.class);
     }
 
@@ -357,6 +391,7 @@ class EnyManServiceTest {
     @Test
     @DisplayName("esquireCommandDelete: usr connected (connectFlg=Y) → DeleteRestrictedException")
     void esquireCommandDelete_usrConnected_throwsDeleteRestrictedException() {
+        ctx("1.2.3");
         EsqUsrJpa usr = new EsqUsrJpa();
         usr.setId("100");
         usr.setConnectFlg("Y");
@@ -368,7 +403,7 @@ class EnyManServiceTest {
         when(usrRepo.detailUsrForUpdate("100", "1.2.3")).thenReturn(usr);
 
         assertThatThrownBy(() ->
-            service.esquireCommandDelete(32, "100", "delete", "1.2.3", "99", List.of(ROLE_ADMIN))
+            service.esquireCommandDelete(32, "100", "delete", List.of(ROLE_ADMIN))
         ).isInstanceOf(DeleteRestrictedException.class);
     }
 
@@ -377,6 +412,7 @@ class EnyManServiceTest {
     @Test
     @DisplayName("esquireCommandNew: org — insertOrgPath called before insertOrg")
     void esquireCommandNew_org_insertsOrgPath_beforeInsertOrg() {
+        ctx("1.");
         when(transactionTemplate.execute(any())).thenAnswer(inv -> {
             inv.<org.springframework.transaction.support.TransactionCallback<?>>getArgument(0).doInTransaction(null);
             return null;
@@ -384,7 +420,7 @@ class EnyManServiceTest {
         when(orgRepo.orgPath("1", "1.")).thenReturn("1.");
         when(dictRepo.findCustom(20)).thenReturn(List.of());
 
-        service.esquireCommandNew(20, "1", "new", new HashMap<>(), "1.", "99", List.of(ROLE_ADMIN));
+        service.esquireCommandNew(20, "1", "new", new HashMap<>(), List.of(ROLE_ADMIN));
 
         InOrder order = inOrder(orgRepo);
         order.verify(orgRepo).insertOrgPath(anyLong(), anyInt(), anyString());
@@ -396,13 +432,14 @@ class EnyManServiceTest {
     @Test
     @DisplayName("esquireCommandNew: acct — insertAcctPath called before insertAcct")
     void esquireCommandNew_acct_insertsAcctPath_beforeInsertAcct() {
+        ctx("1.5.");
         when(transactionTemplate.execute(any())).thenAnswer(inv -> {
             inv.<org.springframework.transaction.support.TransactionCallback<?>>getArgument(0).doInTransaction(null);
             return null;
         });
         when(acctRepo.acctPath("10")).thenReturn("1.5.");
 
-        service.esquireCommandNew(50, "10", "new", new HashMap<>(), "1.5.", "99", List.of(ROLE_ADMIN));
+        service.esquireCommandNew(50, "10", "new", new HashMap<>(), List.of(ROLE_ADMIN));
 
         InOrder order = inOrder(acctRepo);
         order.verify(acctRepo).insertAcctPath(anyLong(), anyInt(), anyString());
@@ -414,6 +451,7 @@ class EnyManServiceTest {
     @Test
     @DisplayName("esquireCommandDelete: org — deleteEntityPath called after deleteOrg")
     void esquireCommandDelete_org_deletesEntityPath_afterDeleteOrg() {
+        ctx("1.");
         pro.mir0n.esquire.backend.jpa.entity.EsqOrgJpa org = new pro.mir0n.esquire.backend.jpa.entity.EsqOrgJpa();
         org.setId("100");
 
@@ -423,7 +461,7 @@ class EnyManServiceTest {
         });
         when(orgRepo.detailOrgForUpdate("100", "1.")).thenReturn(org);
 
-        service.esquireCommandDelete(20, "100", "delete", "1.", "99", List.of(ROLE_ADMIN));
+        service.esquireCommandDelete(20, "100", "delete", List.of(ROLE_ADMIN));
 
         InOrder order = inOrder(orgRepo);
         order.verify(orgRepo).deleteOrg("100");
@@ -435,63 +473,70 @@ class EnyManServiceTest {
     @Test
     @DisplayName("esquireCommandMove: org kind, null roles → PermissionDeniedException")
     void esquireCommandMove_orgKind_nullRoles_throwsPermissionDeniedException() {
+        ctx("1.");
         assertThatThrownBy(() ->
-            service.esquireCommandMove(20, "100", "200", "1.", "99", null)
+            service.esquireCommandMove(20, "100", "200", null)
         ).isInstanceOf(PermissionDeniedException.class);
     }
 
     @Test
     @DisplayName("esquireCommandMove: usr kind, null roles → PermissionDeniedException")
     void esquireCommandMove_usrKind_nullRoles_throwsPermissionDeniedException() {
+        ctx("1.");
         assertThatThrownBy(() ->
-            service.esquireCommandMove(32, "100", "200", "1.", "99", null)
+            service.esquireCommandMove(32, "100", "200", null)
         ).isInstanceOf(PermissionDeniedException.class);
     }
 
     @Test
     @DisplayName("esquireCommandMove: unknown kind → ResourceNotFoundException")
     void esquireCommandMove_unknownKind_throwsResourceNotFoundException() {
+        ctx("1.");
         assertThatThrownBy(() ->
-            service.esquireCommandMove(99, "100", "200", "1.", "99", List.of(ROLE_ADMIN))
+            service.esquireCommandMove(99, "100", "200", List.of(ROLE_ADMIN))
         ).isInstanceOf(ResourceNotFoundException.class);
     }
 
     @Test
     @DisplayName("esquireCommandMove: odd kind 33 (sub-variant, not registered) → ResourceNotFoundException")
     void esquireCommandMove_oddKind_throwsResourceNotFoundException() {
+        ctx("1.");
         assertThatThrownBy(() ->
-            service.esquireCommandMove(33, "100", "200", "1.", "99", List.of(ROLE_ADMIN))
+            service.esquireCommandMove(33, "100", "200", List.of(ROLE_ADMIN))
         ).isInstanceOf(ResourceNotFoundException.class);
     }
 
     @Test
     @DisplayName("esquireCommandMove: dest org not found → ResourceNotFoundException")
     void esquireCommandMove_destNotFound_throwsResourceNotFoundException() {
+        ctx("1.");
         when(orgRepo.detailOrg("200", "1.")).thenReturn(null);
 
         assertThatThrownBy(() ->
-            service.esquireCommandMove(20, "100", "200", "1.", "99", List.of(ROLE_ADMIN))
+            service.esquireCommandMove(20, "100", "200", List.of(ROLE_ADMIN))
         ).isInstanceOf(ResourceNotFoundException.class);
     }
 
     @Test
     @DisplayName("esquireCommandMove: dest org kind has no UPDATE permission → PermissionDeniedException")
     void esquireCommandMove_destNoUpdatePermission_throwsPermissionDeniedException() {
+        ctx("1.");
         EsqOrgJpa destOrg = new EsqOrgJpa();
         destOrg.setId("200");
         destOrg.setKind(30); // kind 30 has no entry in permissions map
         when(orgRepo.detailOrg("200", "1.")).thenReturn(destOrg);
 
         assertThatThrownBy(() ->
-            service.esquireCommandMove(20, "100", "200", "1.", "99", List.of(ROLE_ADMIN))
+            service.esquireCommandMove(20, "100", "200", List.of(ROLE_ADMIN))
         ).isInstanceOf(PermissionDeniedException.class);
     }
 
     @Test
     @DisplayName("esquireCommandMove: usr kind, id equals uid → PermissionDeniedException (cannot move yourself)")
     void esquireCommandMove_usrKind_selfMove_throwsPermissionDeniedException() {
+        ctx("1.");
         assertThatThrownBy(() ->
-            service.esquireCommandMove(32, "99", "200", "1.", "99", List.of(ROLE_ADMIN))
+            service.esquireCommandMove(32, "99", "200", List.of(ROLE_ADMIN))
         ).isInstanceOf(PermissionDeniedException.class);
     }
 
@@ -506,12 +551,13 @@ class EnyManServiceTest {
     @Test
     @DisplayName("esquireCommandMove: pre-checks pass -> moveQueue.submitMove called with item carrying request params")
     void esquireCommandMove_submitsToMoveQueue() {
+        ctx("1.");
         EsqOrgJpa destOrg = new EsqOrgJpa();
         destOrg.setId("200");
         destOrg.setKind(20);
         when(orgRepo.detailOrg("200", "1.")).thenReturn(destOrg);
 
-        service.esquireCommandMove(20, "100", "200", "1.", "99", List.of(ROLE_ADMIN));
+        service.esquireCommandMove(20, "100", "200", List.of(ROLE_ADMIN));
 
         org.mockito.ArgumentCaptor<MoveCommandItem> capt = org.mockito.ArgumentCaptor.forClass(MoveCommandItem.class);
         verify(moveQueue).submitMove(capt.capture());
@@ -527,8 +573,9 @@ class EnyManServiceTest {
     @Test
     @DisplayName("esquireCommandMove: pre-checks fail -> moveQueue.submitMove NOT called")
     void esquireCommandMove_preCheckFails_doesNotSubmit() {
+        ctx("1.");
         assertThatThrownBy(() ->
-            service.esquireCommandMove(20, "100", "200", "1.", "99", null)
+            service.esquireCommandMove(20, "100", "200", null)
         ).isInstanceOf(PermissionDeniedException.class);
 
         verify(moveQueue, never()).submitMove(any(MoveCommandItem.class));
@@ -539,6 +586,7 @@ class EnyManServiceTest {
     @Test
     @DisplayName("esquireCommandDelete: usr — deleteEntityPath called after deleteUsr")
     void esquireCommandDelete_usr_deletesEntityPath_afterDeleteUsr() {
+        ctx("1.");
         EsqUsrJpa usr = new EsqUsrJpa();
         usr.setId("200");
         usr.setConnectFlg("N");
@@ -549,7 +597,7 @@ class EnyManServiceTest {
         });
         when(usrRepo.detailUsrForUpdate("200", "1.")).thenReturn(usr);
 
-        service.esquireCommandDelete(32, "200", "delete", "1.", "99", List.of(ROLE_ADMIN));
+        service.esquireCommandDelete(32, "200", "delete", List.of(ROLE_ADMIN));
 
         InOrder order = inOrder(usrRepo);
         order.verify(usrRepo).deletePersonAddresses("200");
@@ -563,11 +611,12 @@ class EnyManServiceTest {
     @Test
     @DisplayName("esquireCommandTree: org kind -> subtreeFromOrg, projects rows into EsqTreeNode with entityPath")
     void esquireCommandTree_orgKind_callsSubtreeFromOrg_projectsRows() {
+        ctx("1.");
         EsqSubtreeRow row1 = new EsqSubtreeRow("10", 100L, 20, "Office",    null, "1",  1, "1.10.");
         EsqSubtreeRow row2 = new EsqSubtreeRow("11", 101L, 34, "Test User", null, "10", 2, "1.10.11.");
         when(subtreeRepo.subtreeFromOrg("10", "1.")).thenReturn(List.of(row1, row2));
 
-        List<EsqTreeNode> result = service.esquireCommandTree(20, "10", "1.", "99");
+        List<EsqTreeNode> result = service.esquireCommandTree(20, "10");
 
         assertThat(result).hasSize(2);
         assertThat(result.get(0).getId()).isEqualTo("10");
@@ -584,9 +633,10 @@ class EnyManServiceTest {
     @Test
     @DisplayName("esquireCommandTree: usr kind -> subtreeFromUsr branch")
     void esquireCommandTree_usrKind_callsSubtreeFromUsr() {
+        ctx("1.");
         when(subtreeRepo.subtreeFromUsr("11", "1.")).thenReturn(List.of());
 
-        service.esquireCommandTree(34, "11", "1.", "99");
+        service.esquireCommandTree(34, "11");
 
         verify(subtreeRepo).subtreeFromUsr("11", "1.");
         verify(subtreeRepo, never()).subtreeFromOrg(any(), any());
@@ -598,9 +648,10 @@ class EnyManServiceTest {
     @Test
     @DisplayName("esquireCommandTree: unknown kind -> ResourceNotFoundException, no repo call")
     void esquireCommandTree_unknownKind_throwsResourceNotFoundException() {
+        ctx("1.");
         // kind 1000 is not registered in initStorage() -> EsqObjectKind defaults to a kind that is
         // neither org/usr/acct -> upfront applicability check fails
-        assertThatThrownBy(() -> service.esquireCommandTree(1000, "10", "1.", "99"))
+        assertThatThrownBy(() -> service.esquireCommandTree(1000, "10"))
                 .isInstanceOf(ResourceNotFoundException.class);
         verifyNoInteractions(subtreeRepo);
     }

@@ -2,13 +2,15 @@
  *  Esquire frameworks (tm)
  *  KeySmith service
  *
- *  Copyright(c) 2001, 2026 mir0n&co www.mir0n.me
+ *  Copyright(c) 2001, 2026 mir0n&co www.mir0n.pro
  *  mailto:mir0n.the.programmer@gmail.com
  *
  *  History:
  * 02/19/2026 mir0n  added esquireKeySave() POST /esq-key-save
  * 03/09/2026 mir0n  realm_access.roles extracted from JWT claims; roles passed to esquireKeySave()
  * 03/21/2026 mir0n  devLog added; log.debug→devLog.debug
+ * 06/04/2026 mir0n  rootPath / uid no longer extracted from claims; delegates without them (roles
+ *                   still extracted); uid / rootPath ride the unified request context
  */
 
 package pro.mir0n.esquire.keySmith.controller;
@@ -89,13 +91,11 @@ public class KeySmithController {
            @RequestBody Map<String, Object> fields,
            @AuthenticationPrincipal Claims claims
     ) {
-        String rootPath = claims.get(EsqConstants.JWT_CLAIM_ENTITY_ROOTPATH, String.class);
-        String uid = claims.get(EsqConstants.JWT_CLAIM_ENTITY_ID, String.class);
         Map<String, Object> realmAccess = claims.get(EsqConstants.JWT_CLAIM_REALM_ACCESS, Map.class);
         List<String> roles = realmAccess != null ? (List<String>) realmAccess.get(EsqConstants.JWT_CLAIM_REALM_ACCESS_ROLES) : null;
 
-        EsqAccessProfile ret = iKeySmithService.esquireKeySave(id, fields, rootPath, uid, roles);
-        devLog.debug("esquireKeySave: id:{}, rootPath:{}, result:{}", id, rootPath, String.valueOf(ret));
+        EsqAccessProfile ret = iKeySmithService.esquireKeySave(id, fields, roles);
+        devLog.debug("esquireKeySave: id:{}, result:{}", id, String.valueOf(ret));
         return ResponseEntity.status(HttpStatus.OK).body(ret);
     }
 
@@ -105,11 +105,8 @@ public class KeySmithController {
            @RequestParam(name = "id", required = false) String id,
            @AuthenticationPrincipal Claims claims
     ) {
-        String rootPath = claims.get(EsqConstants.JWT_CLAIM_ENTITY_ROOTPATH, String.class);
-        String uid = claims.get(EsqConstants.JWT_CLAIM_ENTITY_ID, String.class);
-
-        EsqAccessProfile profile = iKeySmithService.esquireKey(id,rootPath,  uid);
-        devLog.debug("esquireKey: id:{}, rootPath:{}, result:{}", id,rootPath, String.valueOf(profile));
+        EsqAccessProfile profile = iKeySmithService.esquireKey(id);
+        devLog.debug("esquireKey: id:{}, result:{}", id, String.valueOf(profile));
         return ResponseEntity.status(HttpStatus.OK).body(profile);
     }
 

@@ -1,5 +1,85 @@
 Esquire enyMan Microservice
 
+06/08/2026 mir0n  v1.2.7 -- audit logging (c) over Kafka transport
+audit.AuditConfig
+  - mode=bus + x-rod.bus.transport=kafka builds a RodKafkaPublisher over the autoconfigured KafkaTemplate
+    (key = entityId) -> AuditRod.buildBus; transport=activemq (default) keeps the queue path
+src/main/resources/application.yml
+  - spring.kafka.bootstrap-servers + producer String key/value serializers + acks / batch-size /
+    compression-type / linger.ms tuning; audit-logging.x-rod.bus.transport added
+pom.xml
+  - spring-kafka added
+
+06/08/2026 mir0n  v1.2.7 -- audit logging (d): redis producer mode
+audit.AuditConfig
+  - mode=redis builds a RodRedisPublisher over the injected StringRedisTemplate (ObjectProvider), wired
+    through buildBus / buildBusPool; reads x-rod.redis.stream / max-len
+src/main/resources/application.yml
+  - audit-logging.x-rod.redis.{stream,max-len} + spring.data.redis.host/port +
+    management.health.redis.enabled=false added
+pom.xml
+  - spring-boot-starter-data-redis added
+
+06/06/2026 mir0n  v1.2.7 -- audit logging (c): mode-aware producer (bus) + async publisher pool + SQL externalized
+audit.AuditConfig
+  - mode-aware: mode=bus builds RodEventBusPublisher + AuditRod.buildBus (no local writer / datasource);
+    publisher-pool-size>0 builds a dedicated useAsyncSend connection + AuditRod.buildBusPool (N async
+    senders, CF closed in @PreDestroy); mode=in-process keeps (b)
+src/main/resources/META-INF/audit/postgres.xml  (new)
+src/main/resources/META-INF/audit/oracle.xml  (new)
+  - the org / org_par / user / person / address / usr_par / account *_log INSERT / MERGE statements enyMan
+    writes, externalized out of code (loaded by common AuditLogSql)
+src/main/resources/META-INF/audit/oracle-par.xml, postgres-par.xml  (moved + renamed from META-INF/*-rodlog.xml)
+  - the listOrgPar / listUsrPar param re-SELECT JPA named-queries (audit producer support) relocated under
+    META-INF/audit/ and de-legacied off the "rodlog" name
+src/main/resources/application.yml
+  - audit-logging.x-rod.mode + bus.publisher-pool-size added; jpa.mapping-resources point to the moved par files
+
+06/05/2026 mir0n  v1.2.7 -- audit logging (b): x-Rod wiring + posts; custom-param save fix
+audit.AuditConfig  (new)
+  - reads enyman.audit-logging.*; maps org / org_par / user / person / address / usr_par / account-CREATE
+    kinds to AuditLogSql keys; builds the x-Rod via AuditRod; @PreDestroy shutdown
+service.impl.AEnyManService
+  - completedDictionary(kind) helper: lazy custom-param merge from esq_parameter (guarded by completed
+    flag); fixes custom params silently skipped on create/save unless /esq-dict was fetched first
+service.impl.OrgService
+  - XYRod injected; audit posts at create/save/delete/move + per-param org_par (listOrgPar, enabled-gated);
+    create/save resolve the dictionary via completedDictionary
+service.impl.UsrService
+  - XYRod injected; audit posts across user/person/address/usr_par (create/update/delete + move parent-ref);
+    delete enumerates child pks before cascade; per-param usr_par (listUsrPar); completedDictionary
+service.impl.AcctService
+  - XYRod injected; account CREATE posts an audit event
+service.impl.EnyManService
+  - XYRod ctor param added + passed to OrgService / UsrService / AcctService
+queue.MoveQueueManager
+  - XYRod ctor param added + threaded into the OrgService / UsrService it builds
+jpa.EsqOrgRepository
+  - listOrgPar re-SELECT (EsqParRow) added (feeds ORG_PAR audit events)
+jpa.EsqUsrRepository
+  - listUsrPar re-SELECT (EsqParRow) added (feeds USR_PAR audit events)
+src/main/resources/META-INF/postgres-rodlog.xml, oracle-rodlog.xml  (new)
+  - listOrgPar / listUsrPar re-SELECT named queries + EsqParRowMapping
+src/main/resources/application.yml
+  - enyman.audit-logging.* block added; {oracle,postgres}-rodlog.xml registered in jpa.mapping-resources
+
+06/04/2026 mir0n  v1.2.7 -- uid / rootPath dropped from service signatures; read from the request context
+service.IEnyManService
+  - esquireCommand / Save / New / Delete / Move / Tree: rootPath + uid params removed
+controller.EnyManController
+  - stops extracting rootPath / uid from claims; delegates without them (roles still extracted)
+service.impl.EnyManService
+  - reads uid / rootPath via RequestContextUtils where needed (self-update + self-move guards, move item)
+service.impl.OrgService
+  - esquireCommand* read rootPath / uid via RequestContextUtils instead of params
+service.impl.UsrService
+  - esquireCommand* read rootPath / uid via RequestContextUtils instead of params
+service.impl.AcctService
+  - esquireCommandNew reads uid via RequestContextUtils; unsupported-op signatures updated
+queue.MoveQueueManager
+  - processMove hydrates EsqContextHolder from the queued item, cleared in finally; calls
+    esquireCommandMove without rootPath / uid
+
 06/02/2026 mir0n  v1.2.6 Goal 3 -- /esq-move async-ack via in-process move queue; CREATE-during-move reconcile
 queue.MoveQueueItem  (new)
   - sealed interface, permits MoveCommandItem | CreateReconcileItem

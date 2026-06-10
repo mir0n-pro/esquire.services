@@ -1,0 +1,40 @@
+image:
+  repository: esquire.xxrod
+  # tag is stamped by k8s-rebuild.bat (vMaj.Min.Micro-YYMM.DDHH) and passed via -f values/xxrod.yaml;
+  # IfNotPresent + a unique stamp avoids the Docker Desktop containerd ":latest" resolution trap.
+  tag: latest
+  pullPolicy: IfNotPresent
+
+service:
+  port: 3007
+
+db:
+  vendor: dev-postgres
+  host: esquire-infra-postgres
+  port: 5432
+  name: esq2025
+  username: esq2025
+  password: q
+
+messaging:
+  brokerUrl: tcp://esquire-infra-amq-activemq:61616
+
+audit:
+  # apply-pool that writes the *_log tables; keep <= the datasource pool.
+  poolSize: 8
+  # which transport feeds the director: activemq (default JMS queue, option c) | kafka (the audit topic).
+  transport: activemq
+  kafka:
+    # only used when transport=kafka; a Kafka broker is NOT deployed by default.
+    bootstrap: esquire-infra-kafka:9092
+    groupId: esquire-xxrod-audit
+
+logging:
+  levelRoot: ERROR
+  levelSf: ERROR
+  levelMir0n: INFO
+  levelDevelop: DEBUG
+  levelMsg: INFO
+  # no ./logs volume in k8s -> write to /tmp (the dir the logback file appenders need).
+  developLogPath: /tmp/xxRod-develop.log
+  msgLogPath: /tmp/xxRod-msg.log

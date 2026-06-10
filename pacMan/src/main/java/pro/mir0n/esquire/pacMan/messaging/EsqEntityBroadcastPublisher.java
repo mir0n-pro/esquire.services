@@ -2,7 +2,7 @@
  *  Esquire frameworks (tm)
  *  PacMan service
  *
- *  Copyright(c) 2001, 2025 mir0n&co www.mir0n.me
+ *  Copyright(c) 2001, 2026 mir0n&co www.mir0n.pro
  *  mailto:mir0n.the.programmer@gmail.com
  *
  *  History:
@@ -12,6 +12,8 @@
  * 03/21/2026 mir0n  three-tier logging: msgLog/devLog added; props map migrated to LinkedHashMap+Utils.setProps;
  *                   dual-mode ENTITY msg audit; console echo log.info; final variable copies removed
  * 04/06/2026 mir0n  log.info: requestId and correlationId added to ENTITY | UE audit line
+ * 06/06/2026 mir0n  @Qualifier("jmsTopicTemplate") on the ctor param: a 2nd JmsTemplate bean (jmsQueueTemplate,
+ *                   for the audit bus) now exists -> disambiguate the injection.
  */
 package pro.mir0n.esquire.pacMan.messaging;
 
@@ -19,6 +21,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.jms.Message;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jms.core.JmsTemplate;
 import org.springframework.stereotype.Component;
@@ -57,7 +60,8 @@ public class EsqEntityBroadcastPublisher {
     @Value("${pacman.messaging.ctrl-id:pacman.default}")
     private String ctrlId;
 
-    public EsqEntityBroadcastPublisher(JmsTemplate jmsTopicTemplate, ObjectMapper objectMapper) {
+    public EsqEntityBroadcastPublisher(@Qualifier("jmsTopicTemplate") JmsTemplate jmsTopicTemplate,
+                                       ObjectMapper objectMapper) {
         this.jmsTopicTemplate = jmsTopicTemplate;
         this.objectMapper = objectMapper;
     }

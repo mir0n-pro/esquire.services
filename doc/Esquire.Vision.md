@@ -201,13 +201,13 @@ command-level enforcement to the application team. In Esquire, it is structural 
 permission check is part of every service method signature, not a layer the developer
 remembers to add.
 
-### 3. Audit trail as a first-class database citizen
+### 3. Audit trail as a first-class, pluggable concern
 
-Every write to every entity table carries a correlation ID, request ID, and the acting user
-ID. BRIUD (Before Row Insert/Update/Delete) triggers on every entity table maintain a
-complete audit log without the application layer having to remember to write it. The audit
-data is always consistent with the entity state — there is no race condition between the
-business write and the audit write because they happen in the same transaction.
+Every write to every entity carries a correlation ID, request ID, and the acting user ID, so
+audit entries tie back to distributed-tracing correlation IDs. Audit logging itself is
+optional and pluggable: a deployment picks from a wide set of models — from in-database
+triggers (audit and entity write in one transaction, no race) to a fully decoupled,
+message-driven pipeline — or turns it off entirely, with no application-code change.
 
 Apache Syncope and Appwrite mention audit logging. No other tool in this space ties audit
 entries to distributed tracing correlation IDs, making it possible to reconstruct exactly
@@ -355,7 +355,7 @@ never solve it again.**
 |---|---|---|---|---|---|---|---|
 | Hierarchical entity tree (domain-agnostic) | Yes | Partial | No | No | No | No | Partial |
 | Server-driven UI | Yes | No | No | No | No | No | No |
-| Audit trail / BRIUD triggers | Yes | Yes | No | No | No | No | No |
+| Audit trail (pluggable, optional) | Yes | Yes | No | No | No | No | No |
 | Distributed trace correlation | Yes | No | No | No | No | No | No |
 | Microservices + async messaging | Yes | Partial | Yes | Yes | No | No | No |
 | Field-level permission enforcement | Yes | Partial | No | No | No | No | No |

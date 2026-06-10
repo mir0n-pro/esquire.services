@@ -1,0 +1,47 @@
+# Esquire services -- deploy to LOCAL k8s (phase 2).
+# On an intermediate commit (push to a pending-** branch), a SELF-HOSTED runner on the dev box
+# builds the full stack and brings it up on Docker Desktop k8s. Full stack = the 6 Java services
+# + the explorer backend/BFF, so the explorer repo is checked out alongside this one.
+#
+# SECURITY (public repo + self-hosted runner): triggers ONLY on push to our own pending-** branches,
+# NEVER on pull_request -- a fork PR cannot push to our branches, so it can never run on the runner.
+# Design: doc/Esquire.GitHubActions.md (sections 4.2, 9a). Logic: .github/scripts/deploy-local.cmd
+# which reuses k8s/*.bat (the single source of deploy logic).
+name: Deploy local
+
+on:
+  push:
+    branches:
+      - "pending-**"
+
+# Serialize deploys; do NOT cancel a deploy already in flight (helm/k8s mid-rollout).
+concurrency:
+  group: deploy-local
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy-local:
+    # The self-hosted runner on the Windows dev box (Docker Desktop k8s). Matches on the built-in
+    # self-hosted + windows labels; with a single runner no custom label is needed.
+    runs-on: [self-hosted, windows]
+    steps:
+      - name: Checkout services
+        uses: actions/checkout@v5
+        with:
+          path: services
+
+      - name: Checkout explorer (provides the backend/BFF image)
+        uses: actions/checkout@v5
+        with:
+          repository: mir0n-pro/esquire.explorer
+          path: explorer
+          # Same branch name as the triggering services branch (e.g. pending-v1.2.7), so both repos'
+          # sprint work deploys in lockstep. Explorer must have a branch of the same name.
+          ref: ${{ github.ref_name }}
+
+      - name: Build + bring up the full stack on Docker Desktop k8s
+        shell: cmd
+        run: services\.github\scripts\deploy-local.cmd

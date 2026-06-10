@@ -13,6 +13,8 @@
  * 05/20/2026 mir0n  generalization: extends common ITaijituRig (bootstrap / shutdown /
  *                   onEntityBroadcast) and adds only the bizTree-specific REST reads.
  * 05/22/2026 mir0n  javadoc: implementations are BizTreeDirectorTaijitu + legacy (yang removed).
+ * 06/04/2026 mir0n  read surface: rootPath + uid params removed from esquire / esquirePath /
+ *                   esquireEntityNode / esquireSubtree (impls read them from the request context)
  */
 package pro.mir0n.esquire.bizTree.access;
 
@@ -31,10 +33,11 @@ import java.util.List;
  */
 public interface IBizTreeDirector extends ITaijituRig {
 
-    /* --- Read surface (bizTree-specific; mirror IBizTreeService 1:1) ----- */
+    /* --- Read surface (bizTree-specific) -- uid / rootPath come from the unified per-request
+       context (RequestContextUtils), read here and forwarded to IBizTreeService. ------------ */
 
-    List<EsqTreeNode> esquire(String id, Integer skip, Integer take, String rootPath, String uid);
-    List<String>      esquirePath(String id, String rootPath);
-    EsqTreeNode       esquireEntityNode(Integer kind, String id, String name, String rootPath, String uid);
-    List<EsqTreeNode> esquireSubtree(String id, String rootPath, String uid);
+    List<EsqTreeNode> esquire(String id, Integer skip, Integer take);
+    List<String>      esquirePath(String id);
+    EsqTreeNode       esquireEntityNode(Integer kind, String id, String name);
+    List<EsqTreeNode> esquireSubtree(String id);
 }

@@ -21,3 +21,11 @@ data:
   LOG_LEVEL_MSG:                  {{ .Values.logging.levelMsg | quote }}
   DEVELOP_LOG_PATH:               {{ .Values.logging.developLogPath | quote }}
   MSG_LOG_PATH:                   {{ .Values.logging.msgLogPath | quote }}
+  KEYSMITH_AUDIT_ENABLED:         {{ .Values.audit.enabled | quote }}
+  KEYSMITH_AUDIT_MODE:            {{ .Values.audit.mode | quote }}
+  KEYSMITH_AUDIT_BUS_TRANSPORT:   {{ .Values.audit.busTransport | quote }}
+  KEYSMITH_AUDIT_PUBLISHER_POOL_SIZE:  {{ .Values.audit.publisherPoolSize | quote }}
+  KAFKA_BOOTSTRAP:                {{ .Values.audit.kafkaBootstrap | quote }}
+  {{- if .Values.audit.redisHost }}
+  REDIS_HOST:                     {{ .Values.audit.redisHost | quote }}
+  {{- end }}

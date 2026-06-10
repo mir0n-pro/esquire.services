@@ -39,21 +39,22 @@ class PacManControllerTest {
         controller = new PacManController(service, acctTransactionService);
     }
 
+    // uid / rootPath are no longer extracted in the controller -- they ride the unified per-request
+    // context (JwtAuthenticationFilter). The controller now reads only roles from realm_access.
+
     // ---- esquireCommand ----
 
     @Test
-    @DisplayName("esquireCommand: extracts claims and delegates, returns 200")
-    void esquireCommand_extractsClaimsAndDelegates_returnsOk() {
-        when(claims.get(EsqConstants.JWT_CLAIM_ENTITY_ROOTPATH, String.class)).thenReturn("1.2.3");
-        when(claims.get(EsqConstants.JWT_CLAIM_ENTITY_ID, String.class)).thenReturn("5");
+    @DisplayName("esquireCommand: delegates to service, returns 200")
+    void esquireCommand_delegates_returnsOk() {
         EsqEntity mockEntity = mock(EsqEntity.class);
-        when(service.esquireCommand(50, "10", "details", "1.2.3", "5")).thenReturn(mockEntity);
+        when(service.esquireCommand(50, "10", "details")).thenReturn(mockEntity);
 
         ResponseEntity<EsqEntity> response = controller.esquireCommand(50, "10", "details", claims);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(response.getBody()).isNotNull();
-        verify(service).esquireCommand(50, "10", "details", "1.2.3", "5");
+        verify(service).esquireCommand(50, "10", "details");
     }
 
     // ---- esquireCommandSave: roles extracted from realm_access ----
@@ -61,19 +62,17 @@ class PacManControllerTest {
     @Test
     @DisplayName("esquireCommandSave: extracts roles from realm_access, delegates with roles")
     void esquireCommandSave_extractsRolesFromRealmAccess_delegatesWithRoles() {
-        when(claims.get(EsqConstants.JWT_CLAIM_ENTITY_ROOTPATH, String.class)).thenReturn("1.2.3");
-        when(claims.get(EsqConstants.JWT_CLAIM_ENTITY_ID, String.class)).thenReturn("5");
         Map<String, Object> realmAccess = Map.of(EsqConstants.JWT_CLAIM_REALM_ACCESS_ROLES, List.of("admin"));
         when(claims.get(EsqConstants.JWT_CLAIM_REALM_ACCESS, Map.class)).thenReturn(realmAccess);
         EsqEntity mockEntity = mock(EsqEntity.class);
         Map<String, Object> fields = Map.of("name", "ACME");
-        when(service.esquireCommandSave(50, "10", "save", fields, "1.2.3", "5", List.of("admin")))
+        when(service.esquireCommandSave(50, "10", "save", fields, List.of("admin")))
             .thenReturn(mockEntity);
 
         ResponseEntity<EsqEntity> response = controller.esquireCommandSave(50, "10", "save", fields, claims);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-        verify(service).esquireCommandSave(50, "10", "save", fields, "1.2.3", "5", List.of("admin"));
+        verify(service).esquireCommandSave(50, "10", "save", fields, List.of("admin"));
     }
 
     // ---- esquireCommandSave: null realm_access → null roles ----
@@ -81,16 +80,14 @@ class PacManControllerTest {
     @Test
     @DisplayName("esquireCommandSave: null realm_access passes null roles to service")
     void esquireCommandSave_nullRealmAccess_passesNullRolesToService() {
-        when(claims.get(EsqConstants.JWT_CLAIM_ENTITY_ROOTPATH, String.class)).thenReturn("1.2.3");
-        when(claims.get(EsqConstants.JWT_CLAIM_ENTITY_ID, String.class)).thenReturn("5");
         when(claims.get(EsqConstants.JWT_CLAIM_REALM_ACCESS, Map.class)).thenReturn(null);
         Map<String, Object> fields = Map.of();
-        when(service.esquireCommandSave(50, "10", "save", fields, "1.2.3", "5", null))
+        when(service.esquireCommandSave(50, "10", "save", fields, null))
             .thenReturn(null);
 
         controller.esquireCommandSave(50, "10", "save", fields, claims);
 
-        verify(service).esquireCommandSave(50, "10", "save", fields, "1.2.3", "5", null);
+        verify(service).esquireCommandSave(50, "10", "save", fields, null);
     }
 
     // ---- esquireCommandDelete ----
@@ -98,16 +95,14 @@ class PacManControllerTest {
     @Test
     @DisplayName("esquireCommandDelete: extracts roles, delegates, returns 200")
     void esquireCommandDelete_extractsRolesAndDelegates_returnsOk() {
-        when(claims.get(EsqConstants.JWT_CLAIM_ENTITY_ROOTPATH, String.class)).thenReturn("1.2.3");
-        when(claims.get(EsqConstants.JWT_CLAIM_ENTITY_ID, String.class)).thenReturn("5");
         Map<String, Object> realmAccess = Map.of(EsqConstants.JWT_CLAIM_REALM_ACCESS_ROLES, List.of("admin"));
         when(claims.get(EsqConstants.JWT_CLAIM_REALM_ACCESS, Map.class)).thenReturn(realmAccess);
-        doNothing().when(service).esquireCommandDelete(50, "10", "delete", "1.2.3", "5", List.of("admin"));
+        doNothing().when(service).esquireCommandDelete(50, "10", "delete", List.of("admin"));
 
         ResponseEntity<Void> response = controller.esquireCommandDelete(50, "10", "delete", claims);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-        verify(service).esquireCommandDelete(50, "10", "delete", "1.2.3", "5", List.of("admin"));
+        verify(service).esquireCommandDelete(50, "10", "delete", List.of("admin"));
     }
 
     // ---- esquireCommandDelete: null realm_access → null roles ----
@@ -115,13 +110,11 @@ class PacManControllerTest {
     @Test
     @DisplayName("esquireCommandDelete: null realm_access passes null roles to service")
     void esquireCommandDelete_nullRealmAccess_passesNullRolesToService() {
-        when(claims.get(EsqConstants.JWT_CLAIM_ENTITY_ROOTPATH, String.class)).thenReturn("1.2.3");
-        when(claims.get(EsqConstants.JWT_CLAIM_ENTITY_ID, String.class)).thenReturn("5");
         when(claims.get(EsqConstants.JWT_CLAIM_REALM_ACCESS, Map.class)).thenReturn(null);
-        doNothing().when(service).esquireCommandDelete(50, "10", "delete", "1.2.3", "5", null);
+        doNothing().when(service).esquireCommandDelete(50, "10", "delete", null);
 
         controller.esquireCommandDelete(50, "10", "delete", claims);
 
-        verify(service).esquireCommandDelete(50, "10", "delete", "1.2.3", "5", null);
+        verify(service).esquireCommandDelete(50, "10", "delete", null);
     }
 }

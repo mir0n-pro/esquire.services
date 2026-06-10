@@ -16,6 +16,9 @@
  * 05/14/2026 mir0n  observability header constants: ESQ_GW_INNER_START_TIME + ESQ_GW_INNER_TIME added;
  *                   ESQ_SERVICE_TIME renamed to ESQ_SRV_OUTER_TIME; ESQ_BACKEND_TIME renamed to
  *                   ESQ_SRV_INNER_TIME; ESQ_CAPTURE_METRICS added for the hauberk trigger
+ * 06/04/2026 mir0n  PD_UID ("uid") added: MDC key for the acting user (unified request context)
+ * 06/05/2026 mir0n  KIND_ORG_PAR (972) / KIND_USR_PAR (970) added: synthetic x-Rod routing kinds for
+ *                   parameter sub-entity audit events (route to the *_par_log writer; param et_pk rides the body)
  */
 package pro.mir0n.esquire.common;
 
@@ -40,6 +43,7 @@ public class EsqConstants {
     public static final String PD_TIMESTAMP = "timestamp";
     public static final String PD_CORRELATION_ID = "correlationId";
     public static final String PD_REQUEST_ID = "requestId";
+    public static final String PD_UID = "uid";
     public static final String PD_ERRORS = "errors";
     public static final String PD_STACK_TRACE = "stackTrace";
     public static final String PD_DETAILS = "details";
@@ -58,6 +62,12 @@ public class EsqConstants {
     public static final int  KIND_PERSON_JOINT = 996;
     public static final int  KIND_ACCESS_PROFILE = 998;
     public static final int  KIND_ADMIN_ROLE = 980;
+
+    // x-Rod synthetic routing kinds for parameter (sub-entity) audit events. Not real entity
+    // kinds -- they only route a RodEvent to the matching *_par_log writer in the registry; the
+    // parameter's own et_pk travels in the RodEvent body.
+    public static final int  KIND_ORG_PAR = 972;
+    public static final int  KIND_USR_PAR = 970;
 
     public static final String  SUBENTITY_PERSON = "person";
     public static final String  SUBENTITY_ADDRESS = "addr";

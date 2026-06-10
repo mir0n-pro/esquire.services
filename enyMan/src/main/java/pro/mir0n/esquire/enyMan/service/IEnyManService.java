@@ -18,6 +18,8 @@
  * 05/14/2026 mir0n  esquireCommandTree(kind, id, rootPath, uid) added for /esq-cmd-tree
  * 06/02/2026 mir0n  esquireCommandMove(): javadoc note -- EnyManService impl now returns null
  *                   (async-ack: submits to move queue); per-kind impls still return records for the worker
+ * 06/04/2026 mir0n  rootPath + uid params removed from esquireCommand / Save / New / Delete / Move / Tree --
+ *                   read from the unified request context (RequestContextUtils)
  */
 
 package pro.mir0n.esquire.enyMan.service;
@@ -32,20 +34,23 @@ import pro.mir0n.esquire.enyMan.jpa.EsqMoveRecord;
 
 public interface IEnyManService {
 
+    // uid / rootPath are no longer method params: they belong to the unified per-request context
+    // (EsqRequestContext) and are read inside each impl via RequestContextUtils.getUid() /
+    // getRootPath() -- the same uniform way crl_id / req_id are already obtained.
     List<EsqEntityLayer> esquireDictionary(int kind);
-    public EsqEntity esquireCommand(int kind, String id, String cmd, String rootPath, String uid );
-    public EsqEntity esquireCommandSave(int kind, String id, String cmd, Map<String, Object> fields, String rootPath, String uid, List<String> roles );
-    public EsqEntity esquireCommandNew(int kind, String parentId, String cmd, Map<String, Object> fields, String rootPath, String uid, List<String> roles);
-    public void esquireCommandDelete(int kind, String id, String cmd, String rootPath, String uid, List<String> roles);
+    public EsqEntity esquireCommand(int kind, String id, String cmd );
+    public EsqEntity esquireCommandSave(int kind, String id, String cmd, Map<String, Object> fields, List<String> roles );
+    public EsqEntity esquireCommandNew(int kind, String parentId, String cmd, Map<String, Object> fields, List<String> roles);
+    public void esquireCommandDelete(int kind, String id, String cmd, List<String> roles);
     // v1.2.6 Goal 3: returns List<EsqMoveRecord> at the OrgService/UsrService level (the per-kind
     // workers still produce them for the worker thread to publish), but the top-level
     // EnyManService implementation returns null because /esq-move is now async-ack: handler
     // submits to the move queue and returns 202 Accepted without the records.
-    public List<EsqMoveRecord> esquireCommandMove(int kind, String id, String distId, String rootPath, String uid, List<String> roles);
+    public List<EsqMoveRecord> esquireCommandMove(int kind, String id, String distId, List<String> roles);
 
     // Tree query is a cross-cutting concern handled at the top-level orchestrator
     // (EnyManService), not by the per-kind services (OrgService / UsrService).
-    default List<EsqTreeNode> esquireCommandTree(int kind, String id, String rootPath, String uid) {
+    default List<EsqTreeNode> esquireCommandTree(int kind, String id) {
         throw new UnsupportedOperationException("esquireCommandTree not implemented");
     }
 

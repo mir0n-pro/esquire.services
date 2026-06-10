@@ -35,3 +35,17 @@ logging:
   levelMsg: DEBUG
   developLogPath: /tmp/enyMan-develop.log
   msgLogPath: /tmp/enyMan-msg.log
+
+# Default deploy topology = option (c): producers publish committed audit events to the bus
+# (ActiveMQ, already in the stack) and the esquire-xxrod consumer drains it to the *_log tables.
+# Switch topology here without code changes:
+#   (b) in-process: mode=in-process     (no xxRod; producer writes *_log directly)
+#   (d) redis:      mode=redis, redisHost=esq-redis  (deploy a redis -- do NOT name the svc 'redis')
+#   (c) over Kafka: busTransport=kafka, kafkaBootstrap=...  (deploy Kafka + xxRod transport=kafka)
+audit:
+  enabled: true
+  mode: bus
+  busTransport: activemq
+  publisherPoolSize: 4
+  redisHost: ""
+  kafkaBootstrap: esquire-infra-kafka:9092

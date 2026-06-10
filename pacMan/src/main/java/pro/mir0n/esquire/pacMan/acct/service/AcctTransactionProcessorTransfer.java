@@ -2,7 +2,7 @@
  *  Esquire frameworks (tm)
  *  PacMan service
  *
- *  Copyright(c) 2001, 2026 mir0n&co www.mir0n.me
+ *  Copyright(c) 2001, 2026 mir0n&co www.mir0n.pro
  *
  *  History:
  * 04/13/2026 mir0n  created: two-leg transfer processor (draft); debit source leg, credit target leg with -amount and skipValidation=true
@@ -10,6 +10,7 @@
  *                   same-account guard added (InvalidValueException); paper account restriction added
  * 04/20/2026 mir0n  FIELD_RATE required (must be > 0); credit amount = abs(debit) * rate;
  *                   shared pkTx links both legs; sourceCcy forwarded to credit leg
+ * 06/05/2026 mir0n  XYRod ctor param added + forwarded to super (both transfer legs audit the balance change)
  */
 
 package pro.mir0n.esquire.pacMan.acct.service;
@@ -34,8 +35,8 @@ public class AcctTransactionProcessorTransfer extends AcctTransactionProcessorSi
 
     private static final org.slf4j.Logger devLog = LoggerFactory.getLogger("develop." + AcctTransactionProcessorTransfer.class.getName());
 
-    public AcctTransactionProcessorTransfer(EsqAcctRepository entityRepository, EsqAcctTransactionRepository transactionRepository, TransactionTemplate transactionTemplate, EntityManager em) {
-        super(entityRepository, transactionRepository, transactionTemplate, em);
+    public AcctTransactionProcessorTransfer(EsqAcctRepository entityRepository, EsqAcctTransactionRepository transactionRepository, TransactionTemplate transactionTemplate, EntityManager em, pro.mir0n.esquire.common.xrod.XYRod xyRod) {
+        super(entityRepository, transactionRepository, transactionTemplate, em, xyRod);
     }
 
     public AcctTransactionSingle esquireCommandAcct(int kind, String id, AcctOperation.Code oper, Map<String, Object> fields, boolean skipValidation, String rootPath, String uid, List<String> roles) {

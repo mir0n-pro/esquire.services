@@ -36,6 +36,10 @@
  * 06/02/2026 mir0n  esquireKeySave(): KEYSMITH_TEST_CONNECT_HOLD_MS test hook (race-8c repro) --
  *                   optional Thread.sleep between the committed path read and the activation URQ
  *                   publish; default 0 = disabled, never set in production
+ * 06/04/2026 mir0n  esquireKey / esquireKeySave read rootPath / uid via RequestContextUtils instead of
+ *                   params; dropped from the IKeySmithService signatures (passed to saveAccess)
+ * 06/05/2026 mir0n  XYRod injected; auth UPDATE posts an x-Rod esq_auth_log audit event (managed non-secret
+ *                   fields only; security question / answer excluded)
  */
 
 package pro.mir0n.esquire.keySmith.service.impl;
@@ -63,6 +67,8 @@ import pro.mir0n.esquire.backend.storage.EsqEntityDictionaryStorage;
 import pro.mir0n.esquire.backend.storage.EsqRolesStorage;
 import pro.mir0n.esquire.backend.validator.ValidatorFactory;
 import pro.mir0n.esquire.common.EsqConstants;
+import pro.mir0n.esquire.common.xrod.RodEvent;
+import pro.mir0n.esquire.common.xrod.XYRod;
 import pro.mir0n.esquire.keySmith.jpa.EsqAccessProfileRepository;
 import pro.mir0n.esquire.backend.service.RequestContextUtils;
 import pro.mir0n.esquire.backend.error.ResourceNotFoundException;
@@ -84,12 +90,13 @@ public class KeySmithService implements IKeySmithService {
     private TransactionTemplate transactionTemplate;
     private EntityManager em;
     private KcSyncPublisher kcSyncPublisher;
+    private XYRod xyRod;
 
     @Override
-    public EsqAccessProfile esquireKey(String id, String rootPath, String uid) {
+    public EsqAccessProfile esquireKey(String id) {
         EsqAccessProfile ret = null;
-        //String correlationId = RequestContextUtils.getCorrelationId();
-        //String requestId = RequestContextUtils.getRequestId();
+        String rootPath = RequestContextUtils.getRootPath();
+        String uid = RequestContextUtils.getUid();
 
         devLog.debug("KeySmithService: esquireKey: id:{}, rootPath:{}, uid:{}",  id, rootPath, uid);
 
@@ -122,10 +129,12 @@ public class KeySmithService implements IKeySmithService {
     }
 
     @Override
-    public EsqAccessProfile esquireKeySave(String id, Map<String, Object> fields, String rootPath, String uid, List<String> roles) {
+    public EsqAccessProfile esquireKeySave(String id, Map<String, Object> fields, List<String> roles) {
         EsqAccessProfile ret = null;
         String correlationId = RequestContextUtils.getCorrelationId();
         String requestId = RequestContextUtils.getRequestId();
+        String rootPath = RequestContextUtils.getRootPath();
+        String uid = RequestContextUtils.getUid();
         devLog.debug("KeySmithService: esquireKeySave: id:{}, rootPath:{}, uid:{}", id, rootPath, uid);
 
         String upk = id == null ? uid : id;
@@ -210,6 +219,15 @@ public class KeySmithService implements IKeySmithService {
         }
         if (changed) {
             accessProfileRepository.updateAccess(id, jpa.getEmail(), jpa.getLoginId(), jpa.getPwdChangeForced(), jpa.getTfaMethod(), jpa.getConnectFlg(), uid, correlationId, requestId);
+            // audit: auth UPDATE -> esq_auth_log (entityId = au_usr_pk, kind = KIND_ACCESS_PROFILE). Carries
+            // only the managed, non-secret fields; security question / answer are never logged.
+            EsqAuthJpa auth = new EsqAuthJpa();
+            auth.setLoginId(jpa.getLoginId());
+            auth.setEmail(jpa.getEmail());
+            auth.setConnectFlg(jpa.getConnectFlg());
+            auth.setTfaMethod(jpa.getTfaMethod());
+            auth.setForceChangeFlg(jpa.getPwdChangeForced());
+            xyRod.post(RodEvent.Op.UPDATE, EsqConstants.KIND_ACCESS_PROFILE, id, null, auth);
         }
         List<EsqRoleJpa> originRoles = accessProfileRepository.roles(id);
         Set<String> originIds = new HashSet<>();

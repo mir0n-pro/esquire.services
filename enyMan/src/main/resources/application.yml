@@ -8,6 +8,25 @@ spring:
     user: ${AMQ_USER:}
     password: ${AMQ_PASSWORD:}
     # Phase 1: no broker authorization required
+  data:
+    redis:
+      # x-Rod audit option (d) target. Lettuce connects lazily, so it is dormant unless audit mode=redis.
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+  kafka:
+    # x-Rod audit option (c) over Kafka target. The producer connects lazily (first send), so it is dormant
+    # unless audit mode=bus + bus.transport=kafka.
+    bootstrap-servers: ${KAFKA_BOOTSTRAP:localhost:9092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      # audit is best-effort -> tune for sender throughput (all off the request path):
+      # acks=0 (fire-and-forget, no broker ack wait), batch + linger coalesce sends, lz4 compression.
+      acks: ${KAFKA_ACKS:0}
+      batch-size: ${KAFKA_BATCH_SIZE:32768}
+      compression-type: ${KAFKA_COMPRESSION:lz4}
+      properties:
+        linger.ms: ${KAFKA_LINGER_MS:10}
   jms:
     # clientId on CachingConnectionFactory — required for durable subscriptions.
     # Must not be set on DefaultJmsListenerContainerFactory (shared connection proxy restriction).
@@ -47,6 +66,52 @@ enyman:
     # race 8b is closed. false -> reconciliation skipped; race-move-create sim reproduces the
     # race. Flipping to false here (or via env) is the negative-test setting.
     validate-create-during-move: ${ENYMAN_VALIDATE_CREATE_DURING_MOVE:true}
+  # v1.2.7 audit logging. The FEATURE the deployer turns on/off; option-0 baseline = OFF (persist
+  # nothing) -- a fresh deploy imposes no audit. x-rod is the fan-out IMPLEMENTATION it uses.
+  audit-logging:
+    enabled: ${ENYMAN_AUDIT_ENABLED:false}
+    x-rod:
+      # in-process = write the *_log here (option b); bus = publish to the audit queue, the standalone
+      # xxRod service writes the *_log (option c).
+      mode: ${ENYMAN_AUDIT_MODE:in-process}
+      # xx-rod consumer worker pool that writes the *_log tables; keep <= the log datastore pool.
+      pool-size: ${ENYMAN_AUDIT_POOL_SIZE:4}
+      virtual-threads: ${ENYMAN_AUDIT_VIRTUAL_THREADS:false}
+      # xy-rod producer feed: per-tx buffer, flush after commit; bounded backlog before backpressure.
+      feed-capacity: ${ENYMAN_AUDIT_FEED_CAPACITY:4096}
+      # (c) bus publisher (mode=bus only): 0 = single feed-worker synchronous publish (one JMS send per
+      #   committed tx); N>0 = N async publisher threads over a dedicated useAsyncSend connection.
+      bus:
+        publisher-pool-size: ${ENYMAN_AUDIT_PUBLISHER_POOL_SIZE:0}
+        # (c) bus transport: activemq (default, the queue) | kafka (publish to the audit Kafka topic).
+        transport: ${ENYMAN_AUDIT_BUS_TRANSPORT:activemq}
+      # (d) redis (mode=redis only): the producer XADDs each event to this Redis Stream (the stream IS the
+      #   audit log; no consumer service). max-len = approximate MAXLEN cap (0 = uncapped).
+      redis:
+        stream: ${ENYMAN_AUDIT_REDIS_STREAM:}
+        max-len: ${ENYMAN_AUDIT_REDIS_MAX_LEN:0}
+      # (b) where the in-process xx-rod writes the *_log tables:
+      #   shared    = reuse the service datasource + its Hikari pool (phase 1).
+      #   dedicated = a separate pool / vendor, configured under log-db below (phase 2/3).
+      log-datastore: ${ENYMAN_AUDIT_LOG_DATASTORE:shared}
+      # Read ONLY when log-datastore=dedicated. vendor selects the *_log SQL dialect
+      # (dev-postgres -> INSERT..ON CONFLICT, dev-oracle -> MERGE) independently of the service's
+      # own datasource -- so the log DB may be a DIFFERENT vendor than the business DB.
+      log-db:
+        vendor: ${ENYMAN_AUDIT_DB_VENDOR:dev-postgres}
+        url: ${ENYMAN_AUDIT_DB_URL:}
+        username: ${ENYMAN_AUDIT_DB_USERNAME:esq2025}
+        password: ${ENYMAN_AUDIT_DB_PASSWORD:q}
+        pool-size: ${ENYMAN_AUDIT_DB_POOL_SIZE:8}
+      # [roadmap] mode: in-process (b, current) | bus (c). In bus mode the xy-rod publishes to the audit
+      # queue and a standalone xx-rod service consumes + writes -- the log-db config then lives on that
+      # service, and enyman keeps only a queue reference. Not wired until (c) is built.
+management:
+  health:
+    redis:
+      # The Redis health probe is OFF: Redis is only used when audit mode=redis (option d), so its
+      # absence must not mark the service DOWN in the default (b)/(c) modes.
+      enabled: false
 logging:
   level:
     root: ${LOG_LEVEL_ROOT:ERROR}
@@ -88,6 +153,7 @@ spring:
       - META-INF/oracle-custom-field.xml
       - META-INF/oracle-acct.xml
       - META-INF/oracle-roles.xml
+      - META-INF/audit/oracle-par.xml
     properties:
       hibernate:
         dialect: org.hibernate.dialect.OracleDialect
@@ -117,6 +183,7 @@ spring:
       - META-INF/postgres-custom-field.xml
       - META-INF/postgres-acct.xml
       - META-INF/postgres-roles.xml
+      - META-INF/audit/postgres-par.xml
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect

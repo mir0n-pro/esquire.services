@@ -6,7 +6,7 @@
 #
 # image.tag is restamped per rebuild here -- k8s-rebuild.bat patches it.
 image:
-  tag: "v1.2.6-2606.0110"
+  tag: "v1.2.7-2606.0916"
 
 # Token Relay -- in-cluster KC endpoint (HTTP, no TLS); same allowlists as
 # OKE. exchangeClientSecret comes via --set at install (k8s-up.bat).

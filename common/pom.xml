@@ -91,6 +91,13 @@
           <scope>provided</scope>
         </dependency>
 
+        <!-- audit x-Rod dedicated log datasource (common.audit.AuditRod builds a HikariDataSource). -->
+        <dependency>
+          <groupId>com.zaxxer</groupId>
+          <artifactId>HikariCP</artifactId>
+          <scope>provided</scope>
+        </dependency>
+
         <dependency>
           <groupId>org.jetbrains</groupId>
           <artifactId>annotations</artifactId>
@@ -123,10 +130,43 @@
             <scope>provided</scope>
         </dependency>
 
+        <!-- jjwt runtime impl, test scope only: lets JWT-handling tests build a real Claims
+             (Jwts.claims()...build()). The service modules provide jjwt-impl at runtime. -->
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-impl</artifactId>
+            <version>${jjwt.version}</version>
+            <scope>test</scope>
+        </dependency>
+
         <dependency>
             <groupId>jakarta.jms</groupId>
             <artifactId>jakarta.jms-api</artifactId>
             <version>3.1.0</version>
+            <scope>provided</scope>
+        </dependency>
+
+        <!-- spring-jms: the x-Rod option (c) bus publisher (common.audit.RodEventBusPublisher) uses
+             JmsTemplate; the asset services provide it at runtime via spring-boot-starter-activemq. -->
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-jms</artifactId>
+            <scope>provided</scope>
+        </dependency>
+
+        <!-- spring-data-redis: the x-Rod option (d) Redis publisher (common.audit.RodRedisPublisher) uses
+             StringRedisTemplate; the asset services provide it at runtime via spring-boot-starter-data-redis. -->
+        <dependency>
+            <groupId>org.springframework.data</groupId>
+            <artifactId>spring-data-redis</artifactId>
+            <scope>provided</scope>
+        </dependency>
+
+        <!-- spring-kafka: the x-Rod option (c) Kafka publisher (common.audit.RodKafkaPublisher) uses
+             KafkaTemplate; the asset services / xxRod provide it at runtime via spring-kafka. -->
+        <dependency>
+            <groupId>org.springframework.kafka</groupId>
+            <artifactId>spring-kafka</artifactId>
             <scope>provided</scope>
         </dependency>
 

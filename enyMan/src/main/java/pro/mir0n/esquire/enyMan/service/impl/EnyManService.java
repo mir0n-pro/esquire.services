@@ -55,6 +55,9 @@
  *                   publishMoveEvent() / publishKcMoveRequest() moved to MoveQueueManager;
  *                   submitReconcileIfInMove() enqueues a CreateReconcileItem after each CREATE
  *                   broadcast when inMove(), gated by enyman.move-queue.validate-create-during-move
+ * 06/04/2026 mir0n  rootPath / uid dropped from the public signatures; read via RequestContextUtils where
+ *                   needed (self-update + self-move guards, MoveCommandItem); delegates called without them
+ * 06/05/2026 mir0n  XYRod ctor param added + passed to OrgService / UsrService / AcctService (x-Rod audit)
  */
 
 package pro.mir0n.esquire.enyMan.service.impl;
@@ -86,6 +89,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import pro.mir0n.esquire.common.EsqMsgConstants;
+import pro.mir0n.esquire.common.xrod.XYRod;
 import pro.mir0n.esquire.enyMan.jpa.EsqMoveRecord;
 
 @Slf4j
@@ -117,11 +121,12 @@ public class EnyManService  extends AEnyManService {
                          TransactionTemplate transactionTemplate,
                          EntityManager em,
                          EsqEntityBroadcastPublisher broadcastPublisher,
-                         MoveQueueManager moveQueue) {
+                         MoveQueueManager moveQueue,
+                         XYRod xyRod) {
         super(entityDictionaryRepository);
-        this.orgService  = new OrgService(entityDictionaryRepository, orgRepository, transactionTemplate, em);
-        this.usrService  = new UsrService(entityDictionaryRepository, usrRepository, transactionTemplate, em);
-        this.acctService = new AcctService(entityDictionaryRepository, acctRepository, transactionTemplate, em);
+        this.orgService  = new OrgService(entityDictionaryRepository, orgRepository, transactionTemplate, em, xyRod);
+        this.usrService  = new UsrService(entityDictionaryRepository, usrRepository, transactionTemplate, em, xyRod);
+        this.acctService = new AcctService(entityDictionaryRepository, acctRepository, transactionTemplate, em, xyRod);
         this.orgRepository = orgRepository;
         this.subtreeRepository = subtreeRepository;
         this.broadcastPublisher = broadcastPublisher;
@@ -129,7 +134,7 @@ public class EnyManService  extends AEnyManService {
     }
 
     @Override
-    public EsqEntity esquireCommand(int kind, String id, String cmd, String rootPath, String uid) {
+    public EsqEntity esquireCommand(int kind, String id, String cmd) {
         EsqEntity ret = null;
         EsqObjectKind eek = EsqObjectKindStorage.getInstance().get(kind);
         if (!eek.isOrg() && !eek.isUsr()) {
@@ -137,15 +142,15 @@ public class EnyManService  extends AEnyManService {
         }
         int k = eek.getId();
         if (eek.isOrg()) {
-            ret = orgService.esquireCommand(k, id, cmd, rootPath, uid);
+            ret = orgService.esquireCommand(k, id, cmd);
         } else if (eek.isUsr()) {
-            ret = usrService.esquireCommand(k, id, cmd, rootPath, uid);
+            ret = usrService.esquireCommand(k, id, cmd);
         }
         return  ret;
     }
 
     @Override
-    public EsqEntity esquireCommandSave(int kind, String id, String cmd, Map<String, Object> fields, String rootPath, String uid, List<String> roles) {
+    public EsqEntity esquireCommandSave(int kind, String id, String cmd, Map<String, Object> fields, List<String> roles) {
         EsqEntity ret = null;
         EsqObjectKind eek = EsqObjectKindStorage.getInstance().get(kind);
         if (!eek.isOrg() && !eek.isUsr()) {
@@ -163,9 +168,10 @@ public class EnyManService  extends AEnyManService {
         // Capture trace context before delegate call (still on request thread)
         String requestId     = RequestContextUtils.getRequestId();
         String correlationId = RequestContextUtils.getCorrelationId();
+        String uid           = RequestContextUtils.getUid();
         if (eek.isOrg()) {
             if (permitted) {
-                ret = orgService.esquireCommandSave(k, id, cmd, fields, rootPath, uid, roles);
+                ret = orgService.esquireCommandSave(k, id, cmd, fields, roles);
                 if (isBroadcastableUpdate(fields)) {
                     publishEntityEvent(ret, k, EsqMsgConstants.EVENT_UPDATE, requestId, correlationId, fields);
                 }
@@ -175,7 +181,7 @@ public class EnyManService  extends AEnyManService {
                 permitted = true;
             }
             if (permitted) {
-                ret = usrService.esquireCommandSave(k, id, cmd, fields, rootPath, uid, roles);
+                ret = usrService.esquireCommandSave(k, id, cmd, fields, roles);
                 if (isBroadcastableUpdate(fields)) {
                     publishEntityEvent(ret, k, EsqMsgConstants.EVENT_UPDATE, requestId, correlationId, fields);
                 }
@@ -188,7 +194,7 @@ public class EnyManService  extends AEnyManService {
     }
 
     @Override
-    public EsqEntity esquireCommandNew(int kind, String parentId, String cmd, Map<String, Object> fields, String rootPath, String uid, List<String> roles) {
+    public EsqEntity esquireCommandNew(int kind, String parentId, String cmd, Map<String, Object> fields, List<String> roles) {
         EsqEntity ret = null;
         EsqObjectKind eek = EsqObjectKindStorage.getInstance().get(kind);
         if (!eek.isOrg() && !eek.isUsr() && !eek.isAcct()) {
@@ -207,19 +213,19 @@ public class EnyManService  extends AEnyManService {
         String correlationId = RequestContextUtils.getCorrelationId();
         if (eek.isOrg()) {
             if (permitted) {
-                ret = orgService.esquireCommandNew(k, parentId, cmd, fields, rootPath, uid, roles);
+                ret = orgService.esquireCommandNew(k, parentId, cmd, fields, roles);
                 publishEntityEvent(ret, k, EsqMsgConstants.EVENT_CREATE, requestId, correlationId, fields);
                 submitReconcileIfInMove(ret, k, parentId, fields);
             }
         } else if (eek.isUsr()) {
             if (permitted) {
-                ret = usrService.esquireCommandNew(k, parentId, cmd, fields, rootPath, uid, roles);
+                ret = usrService.esquireCommandNew(k, parentId, cmd, fields, roles);
                 publishEntityEvent(ret, k, EsqMsgConstants.EVENT_CREATE, requestId, correlationId, fields);
                 submitReconcileIfInMove(ret, k, parentId, fields);
             }
         } else if (eek.isAcct()) {
             if (permitted) {
-                ret = acctService.esquireCommandNew(k, parentId, cmd, fields, rootPath, uid, roles);
+                ret = acctService.esquireCommandNew(k, parentId, cmd, fields, roles);
                 publishEntityEvent(ret, k, EsqMsgConstants.EVENT_CREATE, requestId, correlationId, fields);
                 submitReconcileIfInMove(ret, k, parentId, fields);
             }
@@ -244,7 +250,7 @@ public class EnyManService  extends AEnyManService {
     }
 
     @Override
-    public void esquireCommandDelete(int kind, String id, String cmd, String rootPath, String uid, List<String> roles) {
+    public void esquireCommandDelete(int kind, String id, String cmd, List<String> roles) {
         EsqObjectKind eek = EsqObjectKindStorage.getInstance().get(kind);
         if (!eek.isOrg() && !eek.isUsr()) {
             throw new ResourceNotFoundException("esquireCommandDelete", "kind", String.valueOf(kind));
@@ -264,19 +270,21 @@ public class EnyManService  extends AEnyManService {
         String requestId     = RequestContextUtils.getRequestId();
         String correlationId = RequestContextUtils.getCorrelationId();
         if (eek.isOrg()) {
-            orgService.esquireCommandDelete(k, id, cmd, rootPath, uid, roles);
+            orgService.esquireCommandDelete(k, id, cmd, roles);
             publishDeleteEvent(id, k, EsqMsgConstants.EVENT_DELETE, requestId, correlationId);
         } else if (eek.isUsr()) {
-            usrService.esquireCommandDelete(k, id, cmd, rootPath, uid, roles);
+            usrService.esquireCommandDelete(k, id, cmd, roles);
             publishDeleteEvent(id, k, EsqMsgConstants.EVENT_DELETE, requestId, correlationId);
         }
     }
 
     @Override
-    public List<EsqMoveRecord> esquireCommandMove(int kind, String id, String distId, String rootPath, String uid, List<String> roles) {
+    public List<EsqMoveRecord> esquireCommandMove(int kind, String id, String distId, List<String> roles) {
         // v1.2.6 Goal 3: pre-checks stay on the request thread; actual move work happens on the
         // move-queue worker thread. Method returns null because the records are no longer surfaced
         // to the caller -- /esq-move's controller returns 202 Accepted at submit time.
+        String rootPath = RequestContextUtils.getRootPath();
+        String uid      = RequestContextUtils.getUid();
         EsqObjectKind eek = EsqObjectKindStorage.getInstance().get(kind);
         int k = eek.getId();
         if (!eek.isOrg() && !eek.isUsr()) {
@@ -353,7 +361,8 @@ public class EnyManService  extends AEnyManService {
     // If broker latency becomes observable in production, promote to @Async with an MDC
     // task decorator to preserve correlationId/requestId in the async thread.
     @Override
-    public List<EsqTreeNode> esquireCommandTree(int kind, String id, String rootPath, String uid) {
+    public List<EsqTreeNode> esquireCommandTree(int kind, String id) {
+        String rootPath = RequestContextUtils.getRootPath();
         EsqObjectKind eek = EsqObjectKindStorage.getInstance().get(kind);
         if (!eek.isOrg() && !eek.isUsr() && !eek.isAcct()) {
             throw new ResourceNotFoundException("esquireCommandTree", "kind", String.valueOf(kind));
@@ -381,7 +390,7 @@ public class EnyManService  extends AEnyManService {
                     .build();
             ret.add(n);
         }
-        devLog.debug("esquireCommandTree: kind:{}, id:{}, rootPath:{}, uid:{}, rows:{}", kind, id, rootPath, uid, ret.size());
+        devLog.debug("esquireCommandTree: kind:{}, id:{}, rootPath:{}, rows:{}", kind, id, rootPath, ret.size());
         return ret;
     }
 

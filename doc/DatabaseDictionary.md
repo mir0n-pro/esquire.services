@@ -37,9 +37,12 @@ Every entity table carries three audit columns written by the service layer on e
 | `*_REQ_ID` | VARCHAR(64) | HTTP request ID (MDC) |
 | `*_UID` | VARCHAR(16) | Initiating user ID |
 
-BRIUD (Before Row Insert/Update/Delete) triggers on every entity table copy the row into
-the corresponding `*_LOG` table before each write. Log tables carry the same columns plus
-`*_ACTION VARCHAR(1)` (`I`/`U`/`D`) and `*_ACTION_TS TIMESTAMP`.
+Audit logging is **optional and pluggable** (see
+[Esquire.AuditLoggingStack.md](Esquire.AuditLoggingStack.md)). When enabled, each entity table has a matching
+`*_LOG` table carrying the same columns plus `*_ACTION VARCHAR(1)` (`I`/`U`/`D`) and `*_ACTION_TS TIMESTAMP`.
+Per the chosen audit model the `*_LOG` tables either live **in the entity database** (populated
+in-transaction by BRIUD — Before Row Insert/Update/Delete — triggers) or in a **dedicated audit database**
+(populated by the application or the xx-rod consumer). When audit is off they are not present at all.
 
 ---
 
@@ -610,9 +613,11 @@ Foreign keys:
 
 ## 9. Audit Logs
 
-One log table per entity table. Populated by BRIUD triggers — before every insert,
-update, or delete the trigger copies the row into the log table with an action code
-and a timestamp. The application layer never writes to log tables directly.
+One log table per entity table. **Optional** — present only when audit logging is enabled, and located
+either in the entity database or in a dedicated audit database depending on the chosen audit model (see
+[Esquire.AuditLoggingStack.md](Esquire.AuditLoggingStack.md)). Populated either by BRIUD triggers — before
+every insert, update, or delete the trigger copies the row into the log table with an action code and a
+timestamp, in the same transaction — or, in the decoupled models, by the application or the xx-rod consumer.
 
 Each log table mirrors all columns of its source table (with a log-specific prefix)
 plus two additional columns:

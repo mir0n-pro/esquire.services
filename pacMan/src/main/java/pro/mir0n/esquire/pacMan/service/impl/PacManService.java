@@ -43,6 +43,9 @@
  * 04/14/2026 mir0n  saveAcct(), deleteAcct(): kind param removed (detailAcctForUpdate aligned)
  * 06/01/2026 mir0n  esquireCommandNew() and private createAcct() helper removed -- account CREATE
  *                   moved to enyMan.
+ * 06/04/2026 mir0n  esquireCommand / Save / Delete read rootPath / uid via RequestContextUtils instead of
+ *                   params; dropped from the IPacManService signatures (passed to saveAcct / deleteAcct)
+ * 06/05/2026 mir0n  XYRod injected; saveAcct posts an x-Rod account UPDATE and deleteAcct a DELETE audit event
  */
 
 package pro.mir0n.esquire.pacMan.service.impl;
@@ -58,6 +61,8 @@ import pro.mir0n.esquire.backend.dto.access.EsqPermission;
 import pro.mir0n.esquire.backend.error.PermissionDeniedException;
 import pro.mir0n.esquire.backend.jpa.*;
 import pro.mir0n.esquire.backend.jpa.entity.EsqAcctJpa;
+import pro.mir0n.esquire.common.xrod.RodEvent;
+import pro.mir0n.esquire.common.xrod.XYRod;
 import pro.mir0n.esquire.backend.service.EntityFieldUtils;
 import pro.mir0n.esquire.backend.storage.EsqObjectKindStorage;
 import pro.mir0n.esquire.backend.storage.EsqRolesStorage;
@@ -87,6 +92,7 @@ public class PacManService  implements IPacManService {
     private final EntityManager em;
     private final EsqEntityBroadcastPublisher broadcastPublisher;
     private final EsqAcctTransactionRepository acctTrxRepo;
+    private final XYRod xyRod;   // audit: account UPDATE / DELETE
 
     // Test House subtree path prefix. Accounts whose ep_path starts with this
     // prefix sit inside the seeded Test House (org_pk=14) and are recognized
@@ -101,10 +107,9 @@ public class PacManService  implements IPacManService {
 
 
     @Override
-    public EsqEntity esquireCommand(int kind, String id, String cmd, String rootPath, String uid) {
-        String correlationId = RequestContextUtils.getCorrelationId();
-        String requestId = RequestContextUtils.getRequestId();
-        devLog.debug("srvc: esquireCommand: kind:{}, id:{}, cmd:{}, rootPath:{}, uid:{}",  kind, id, cmd, rootPath, uid);
+    public EsqEntity esquireCommand(int kind, String id, String cmd) {
+        String rootPath = RequestContextUtils.getRootPath();
+        devLog.debug("srvc: esquireCommand: kind:{}, id:{}, cmd:{}, rootPath:{}",  kind, id, cmd, rootPath);
 
         EsqObjectKind eek = EsqObjectKindStorage.getInstance().get(kind);
         if (!eek.isAcct()) {
@@ -122,9 +127,11 @@ public class PacManService  implements IPacManService {
     }
 
     @Override
-    public EsqEntity esquireCommandSave(int kind, String id, String cmd, Map<String, Object> fields, String rootPath, String uid, List<String> roles) {
+    public EsqEntity esquireCommandSave(int kind, String id, String cmd, Map<String, Object> fields, List<String> roles) {
         String correlationId = RequestContextUtils.getCorrelationId();
         String requestId = RequestContextUtils.getRequestId();
+        String rootPath = RequestContextUtils.getRootPath();
+        String uid = RequestContextUtils.getUid();
 //        devLog.debug("srvc: esquireCommandSave: kind:{}, id:{}, cmd:{}, rootPath:{}, uid:{}", kind, id, cmd, rootPath, uid);
         EsqObjectKind eek = EsqObjectKindStorage.getInstance().get(kind);
         int k = eek.getId();
@@ -213,10 +220,11 @@ public class PacManService  implements IPacManService {
     }
 
     @Override
-    public void esquireCommandDelete(int kind, String id, String cmd, String rootPath, String uid, List<String> roles) {
+    public void esquireCommandDelete(int kind, String id, String cmd, List<String> roles) {
         String correlationId = RequestContextUtils.getCorrelationId();
         String requestId = RequestContextUtils.getRequestId();
-        devLog.debug("srvc: esquireCommandDelete: kind:{}, id:{}, cmd:{}, rootPath:{}, uid:{}", kind, id, cmd, rootPath, uid);
+        String rootPath = RequestContextUtils.getRootPath();
+        devLog.debug("srvc: esquireCommandDelete: kind:{}, id:{}, cmd:{}, rootPath:{}", kind, id, cmd, rootPath);
 
         EsqObjectKind eek = EsqObjectKindStorage.getInstance().get(kind);
         int k = eek.getId();
@@ -265,6 +273,8 @@ public class PacManService  implements IPacManService {
         ValidatorFactory.getInstance().validateDelete(acct);
         entityRepository.deleteAcct(id);
         entityRepository.deleteEntityPath(id);
+        // audit: account DELETE (id + kind).
+        xyRod.post(RodEvent.Op.DELETE, kind, id, null);
     }
 
     private void saveAcct(int kind, String id, Map<String, Object> fields, String rootPath,
@@ -279,6 +289,8 @@ public class PacManService  implements IPacManService {
         }
         //note: if a DB trigger or default value modifies the row, saveAcct won't reflect it.
         updated[0] = acct;
+        // audit: account UPDATE (ccy / status / desc / neg-allowed). The acct holds the applied state.
+        xyRod.post(RodEvent.Op.UPDATE, kind, acct.getId(), null, acct);
     }
 
     private int rootLevel(List<String> path, String uid) {

@@ -1,5 +1,52 @@
 Esquire keySmith Microservice
 
+06/08/2026 mir0n  v1.2.7 -- audit logging (c) over Kafka transport
+audit.AuditConfig
+  - mode=bus + x-rod.bus.transport=kafka builds a RodKafkaPublisher over the autoconfigured KafkaTemplate
+    (key = entityId) -> AuditRod.buildBus; transport=activemq (default) keeps the queue path
+src/main/resources/application.yml
+  - spring.kafka.bootstrap-servers + producer String key/value serializers + acks / batch-size /
+    compression-type / linger.ms tuning; audit-logging.x-rod.bus.transport added
+pom.xml
+  - spring-kafka added
+
+06/08/2026 mir0n  v1.2.7 -- audit logging (d): redis producer mode
+audit.AuditConfig
+  - mode=redis builds a RodRedisPublisher over the injected StringRedisTemplate (ObjectProvider), wired
+    through buildBus / buildBusPool; reads x-rod.redis.stream / max-len
+src/main/resources/application.yml
+  - audit-logging.x-rod.redis.{stream,max-len} + spring.data.redis.host/port +
+    management.health.redis.enabled=false added
+pom.xml
+  - spring-boot-starter-data-redis added
+
+06/06/2026 mir0n  v1.2.7 -- audit logging (c): mode-aware producer (bus) + async publisher pool + SQL externalized
+audit.AuditConfig
+  - mode-aware: mode=bus builds RodEventBusPublisher + AuditRod.buildBus; publisher-pool-size>0 builds a
+    dedicated useAsyncSend connection + AuditRod.buildBusPool (CF closed in @PreDestroy); mode=in-process keeps (b)
+src/main/resources/META-INF/audit/postgres.xml  (new)
+src/main/resources/META-INF/audit/oracle.xml  (new)
+  - the auth *_log statement keySmith writes, externalized out of code (loaded by common AuditLogSql)
+src/main/resources/application.yml
+  - audit-logging.x-rod.mode + bus.publisher-pool-size added
+
+06/05/2026 mir0n  v1.2.7 -- audit logging (b): auth UPDATE -> esq_auth_log
+audit.AuditConfig  (new)
+  - reads keysmith.audit-logging.*; maps the access-profile kind to the AUTH statement; builds the x-Rod
+service.impl.KeySmithService
+  - XYRod injected; auth UPDATE posts an esq_auth_log audit event (managed non-secret fields;
+    security question / answer excluded)
+src/main/resources/application.yml
+  - keysmith.audit-logging.* block added
+
+06/04/2026 mir0n  v1.2.7 -- uid / rootPath read from the unified request context (not method params)
+service.IKeySmithService
+  - esquireKey / esquireKeySave: rootPath + uid params removed
+service.impl.KeySmithService
+  - esquireKey / esquireKeySave read rootPath / uid via RequestContextUtils; passed to saveAccess
+controller.KeySmithController
+  - stops extracting rootPath / uid from claims; delegates without them (roles still extracted)
+
 06/02/2026 mir0n  v1.2.6 Goal 3 -- race-8c reproduction test hook
 service.impl.KeySmithService
   - esquireKeySave(): KEYSMITH_TEST_CONNECT_HOLD_MS env hook -- optional Thread.sleep between the committed

@@ -21,6 +21,8 @@
  * 05/20/2026 mir0n  Taijitu refactor (v1.2.5): forward all reads to IBizTreeDirector
  *                   (was IBizTreeService); thin REST entry point, no business logic
  * 05/23/2026 mir0n  POST /esq-sweep: async force-sweep -> director.sweepAsync(); returns 202 (ACCEPTED).
+ * 06/04/2026 mir0n  rootPath / uid no longer extracted from claims; forwards only id / kind / name to
+ *                   the director (uid / rootPath ride the unified request context)
  */
 
 package pro.mir0n.esquire.bizTree.controller;
@@ -47,8 +49,6 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
-
-import pro.mir0n.esquire.common.EsqConstants;
 
 /**
  * Stable REST entry point for bizTree. Extracts JWT claims and forwards
@@ -109,11 +109,8 @@ public class BizTreeController {
         @RequestParam(name = "take", required = false) Integer take
        ,@AuthenticationPrincipal Claims claims
     ) {
-        String rootPath = claims.get(EsqConstants.JWT_CLAIM_ENTITY_ROOTPATH, String.class);
-        String uid = claims.get(EsqConstants.JWT_CLAIM_ENTITY_ID, String.class);
-
-        List<EsqTreeNode> nodes = director.esquire(id, skip == null ? 0 : skip, take == null? 0 : take, rootPath, uid);
-        devLog.debug("esquire: id:{}, rootPath:{}, uid:{}, result:{}", id, rootPath,uid, String.valueOf(nodes));
+        List<EsqTreeNode> nodes = director.esquire(id, skip == null ? 0 : skip, take == null? 0 : take);
+        devLog.debug("esquire: id:{}, result:{}", id, String.valueOf(nodes));
         return ResponseEntity.status(HttpStatus.OK).body(nodes);
     }
 
@@ -127,11 +124,8 @@ public class BizTreeController {
             @RequestParam(name = "name", required = false) String name
             ,@AuthenticationPrincipal Claims claims
     ) {
-        String rootPath = claims.get(EsqConstants.JWT_CLAIM_ENTITY_ROOTPATH, String.class);
-        String uid = claims.get(EsqConstants.JWT_CLAIM_ENTITY_ID, String.class);
-
-        EsqTreeNode node = director.esquireEntityNode(kind, id, name, rootPath, uid);
-        devLog.debug("esquireEntityNode: kind:{}, id:{}, name:{}, rootPath:{}, result:{}", kind, id, name, rootPath, String.valueOf(node));
+        EsqTreeNode node = director.esquireEntityNode(kind, id, name);
+        devLog.debug("esquireEntityNode: kind:{}, id:{}, name:{}, result:{}", kind, id, name, String.valueOf(node));
         return ResponseEntity.status(HttpStatus.OK).body(node);
     }
 
@@ -148,11 +142,8 @@ public class BizTreeController {
             @RequestParam(name = "id", required = true) String id,
             @AuthenticationPrincipal Claims claims
     ) {
-        String rootPath = claims.get(EsqConstants.JWT_CLAIM_ENTITY_ROOTPATH, String.class);
-        String uid      = claims.get(EsqConstants.JWT_CLAIM_ENTITY_ID, String.class);
-
-        List<EsqTreeNode> nodes = director.esquireSubtree(id, rootPath, uid);
-        devLog.debug("esquireSubtree: id:{}, rootPath:{}, count:{}", id, rootPath, nodes.size());
+        List<EsqTreeNode> nodes = director.esquireSubtree(id);
+        devLog.debug("esquireSubtree: id:{}, count:{}", id, nodes.size());
         return ResponseEntity.status(HttpStatus.OK).body(nodes);
     }
 
@@ -162,10 +153,8 @@ public class BizTreeController {
         @RequestParam(name = "id", required = true) String id,
         @AuthenticationPrincipal Claims claims
     ) {
-        String rootPath = claims.get(EsqConstants.JWT_CLAIM_ENTITY_ROOTPATH, String.class);
-
-        List<String> path = director.esquirePath(id, rootPath);
-        devLog.debug("esquirePath: id:{}, result:{}, claims:{}", id, String.valueOf(path), String.valueOf(claims));
+        List<String> path = director.esquirePath(id);
+        devLog.debug("esquirePath: id:{}, result:{}", id, String.valueOf(path));
         return ResponseEntity.status(HttpStatus.OK).body(path);
     }
 

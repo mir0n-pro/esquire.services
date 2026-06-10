@@ -7,6 +7,24 @@ spring:
     broker-url: ${AMQ_BROKER_URL:tcp://localhost:61616}
     user: ${AMQ_USER:}
     password: ${AMQ_PASSWORD:}
+  data:
+    redis:
+      # x-Rod audit option (d) target. Lettuce connects lazily, so it is dormant unless audit mode=redis.
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+  kafka:
+    # x-Rod audit option (c) over Kafka target. The producer connects lazily, dormant unless
+    # audit mode=bus + bus.transport=kafka.
+    bootstrap-servers: ${KAFKA_BOOTSTRAP:localhost:9092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      # audit is best-effort -> tune for sender throughput (off the request path).
+      acks: ${KAFKA_ACKS:0}
+      batch-size: ${KAFKA_BATCH_SIZE:32768}
+      compression-type: ${KAFKA_COMPRESSION:lz4}
+      properties:
+        linger.ms: ${KAFKA_LINGER_MS:10}
   jms:
     client-id: ${KEYSMITH_MESSAGING_CLIENT_ID:keysmith}
 # Messaging: KC sync producer
@@ -14,6 +32,38 @@ keysmith:
   messaging:
     # Stable producer instance identifier (CtrlID in FIX envelope); response listener filters by this value
     ctrl-id: ${KEYSMITH_CTRL_ID:keysmith.default}
+  audit-logging:
+    enabled: ${KEYSMITH_AUDIT_ENABLED:false}
+    x-rod:
+      # in-process = write the *_log here (option b); bus = publish to the audit queue, the standalone
+      # xxRod service writes the *_log (option c).
+      mode: ${KEYSMITH_AUDIT_MODE:in-process}
+      # xx-rod consumer worker pool that writes the *_log tables; keep <= the log datastore pool.
+      pool-size: ${KEYSMITH_AUDIT_POOL_SIZE:4}
+      virtual-threads: ${KEYSMITH_AUDIT_VIRTUAL_THREADS:false}
+      # xy-rod producer feed: per-tx buffer, flush after commit; bounded backlog before backpressure.
+      feed-capacity: ${KEYSMITH_AUDIT_FEED_CAPACITY:4096}
+      # (c) bus publisher (mode=bus only): 0 = single feed-worker synchronous publish (one JMS send per
+      #   committed tx); N>0 = N async publisher threads over a dedicated useAsyncSend connection.
+      bus:
+        publisher-pool-size: ${KEYSMITH_AUDIT_PUBLISHER_POOL_SIZE:0}
+        # (c) bus transport: activemq (default, the queue) | kafka (publish to the audit Kafka topic).
+        transport: ${KEYSMITH_AUDIT_BUS_TRANSPORT:activemq}
+      # (d) redis (mode=redis only): XADD each event to this Redis Stream (the stream IS the audit log;
+      #   no consumer service). max-len = approximate MAXLEN cap (0 = uncapped).
+      redis:
+        stream: ${KEYSMITH_AUDIT_REDIS_STREAM:}
+        max-len: ${KEYSMITH_AUDIT_REDIS_MAX_LEN:0}
+      # (b) log datastore: shared (reuse service DB) | dedicated (separate pool/vendor via log-db below).
+      log-datastore: ${KEYSMITH_AUDIT_LOG_DATASTORE:shared}
+      # Read ONLY when log-datastore=dedicated. vendor selects the *_log SQL dialect
+      # (dev-postgres -> INSERT..ON CONFLICT, dev-oracle -> MERGE) independently of the service datasource.
+      log-db:
+        vendor: ${KEYSMITH_AUDIT_DB_VENDOR:dev-postgres}
+        url: ${KEYSMITH_AUDIT_DB_URL:}
+        username: ${KEYSMITH_AUDIT_DB_USERNAME:esq2025}
+        password: ${KEYSMITH_AUDIT_DB_PASSWORD:q}
+        pool-size: ${KEYSMITH_AUDIT_DB_POOL_SIZE:8}
   jpa:
     hibernate:
       ddl-auto: none
@@ -21,6 +71,11 @@ keysmith:
   mvc:
     problemdetails:
       enabled: true
+management:
+  health:
+    redis:
+      # OFF: Redis is only used when audit mode=redis (option d); its absence must not mark the service DOWN.
+      enabled: false
 logging:
   level:
     root: ${LOG_LEVEL_ROOT:ERROR}
