@@ -1,10 +1,6 @@
-| ![Alt text](../favicon.ico) | Esquire Frameworks(tm) 2.0 |
-|----------------------------|---------------------------|
-
-# Esquire Frameworks — Value Proposition
+# <img src="../favicon.ico" alt="Esquire logo" valign="middle" width="64" height="64"> Esquire Frameworks — Value Proposition
 
 ---
-
 ## The Vision
 
 Every organized domain has a natural structure: a hierarchy. Organizations have divisions.
@@ -53,6 +49,18 @@ deployment can maintain, and no limit to the tools that can be built on each one
 > Define it once at the business layer. Everything else follows.
 
 That is the Esquire idea.
+
+---
+
+## Why a framework at all
+
+A framework earns its name by doing one thing: letting the people who write business logic write
+*only* business logic. Networks, protocols, message brokers, persistence, identity, deployment — the
+plumbing every application drags along — is the framework's job, not the domain developer's. On Esquire
+you place an entity on the tree and describe what it *means*; the framework already carries how it is
+stored, how it is synchronized across services, who may see it, how it is audited, and how it reaches
+the browser. The business-logic developer writes no query, no message handler, no permission filter, no
+deployment manifest. They write the domain. Everything else is inherited.
 
 ---
 

@@ -1,4 +1,6 @@
- # Esquire Testing Stack
+# <img src="../favicon.ico" alt="Esquire logo" valign="middle" width="64" height="64"> Esquire Application Frameworks(tm) 2.0
+
+# Esquire Testing Stack
 
 The Esquire framework spans Java microservices, a Node.js BFF, an Angular SPA + library, and a Java load harness. Each tier picks the test framework that fits its language and what's being verified. This document lists every framework currently in use, what it covers, and the approximate test count as of **v1.2.7 (2026-06-10)**.
 

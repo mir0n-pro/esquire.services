@@ -1,17 +1,20 @@
 
-| ![Alt text](./favicon.ico) | Esquire Frameworks(tm) 2.0 |
-|----------------------------|---------------------------|
+---
 
+# Esquire Application Frameworks(tm) 2.0
 
-> 
-> **v1.2.8 — in progress.** Hardening + extensibility: a standalone **access log** (records denied / failed attempts, separate from the entity audit), a **pluggable transport layer** for the x-Rod fan-out, and a **system-entity flag** that protects core entities from deletion. Tasks: [doc/v128.tasks](doc/v128.tasks.md).
->
-> **v1.2.7 — complete.** An **audit-logging** sprint: a pluggable audit seam over the entity services, a generic **x-Rod** fan-out substrate, a new **xx-rod** service, six selectable strategies, ActiveMQ/Kafka transport, established the CI/CD pipelines (automated build and release).
->
+<img src="./helm.svg" alt="Rod logo" align="left" width="256" height="256">
+
+***Tree-shaped authorization. Write business logic only. The server defines the UI.***
 
 Esquire is a **business entity framework** — the structural backbone for any system that
 needs to organize people, organizations, and resources in a tree, enforce who can see and
 do what within that tree, and run business operations against it.
+
+The point of a framework is to let you write **only business logic.** You place an entity on the tree
+and describe what it *means*; how it is stored, synchronized across services, secured, audited, and
+served to the browser is **inherited, not coded.** Persistence, messaging, identity, deployment — the
+plumbing every application drags along — is the framework's job, not the domain developer's.
 
 The backoffice scenario — onboarding, profile maintenance, permissions, accounting — is the
 demonstration domain. Accounting in particular is the "everybody's know-how" example: a
@@ -19,6 +22,14 @@ universally understood domain that exercises the full framework stack end to end
 the destination. It is the proof of concept for the real idea.
 
 **See it live: [esquire.mir0n.pro](https://esquire.mir0n.pro)** — sign in, browse the tree, run the operations.
+
+---
+> 
+> **v1.2.8 — in progress.** Hardening + extensibility: a standalone **access log** (records denied / failed attempts, separate from the entity audit), a **pluggable transport layer** for the x-Rod fan-out, and a **system-entity flag** that protects core entities from deletion. Tasks: [doc/v128.tasks](doc/v128.tasks.md).
+>
+> **v1.2.7 — complete.** An **audit-logging** sprint: a pluggable audit seam over the entity services, a generic **x-Rod** fan-out substrate, a new **xx-rod** service, six selectable strategies, ActiveMQ/Kafka transport, established the CI/CD pipelines (automated build and release).
+>
+
 
 ## Project Structure
 
@@ -81,12 +92,22 @@ the destination. It is the proof of concept for the real idea.
 
 ---
 
-**Esq2025** — the database (Oracle or Postgres); persistent store for all entity data,
+**Esq2025**
+<img src="./doc/logo/postgres.svg" alt="postgres logo" valign="middle" height="24">
+<img src="./doc/logo/oracle.svg" alt="oracle logo" valign="middle" height="24">
+<br> The database (Postgres or Oracle); persistent store for all entity data,
 transactions, permissions, configuration parameters, and the audit log (when triggers are enabled).
 
-**Esq2025 audit** — optional, the database (Oracle or Postgres); persistent store for the entity audit log (`*_log` tables).
+**Esq2025 audit**
+<img src="./doc/logo/postgres.svg" alt="postgres logo" valign="middle" height="24">
+<img src="./doc/logo/oracle.svg" alt="oracle logo" valign="middle" height="24">
+<br> Optional, the database (Postgres or Oracle); persistent store for the entity audit log (`*_log` tables).
 
-**Messaging Bus** — ActiveMQ broker; three logical channels (the third added in v1.2.7, optional):
+**Messaging Bus**
+<img src="./doc/logo/activemq.png" alt="ActiveMQ logo" valign="middle" height="24">
+<img src="./doc/logo/redis.svg" alt="Redis logo" valign="middle" height="24">
+<img src="./doc/logo/kafka.svg" alt="Kafka logo" valign="middle" height="24">
+<br> Three logical channels (the third added in v1.2.7, optional):
 - *IAM Request-Response Bus* — carries identity commands (create / update / delete user)
   from keySmith to kcMaster, and acknowledgement replies back
 - *Entity Broadcast Bus* — enyMan and pacMan publish entity change events on every mutation;
@@ -94,55 +115,98 @@ transactions, permissions, configuration parameters, and the audit log (when tri
 - *Audit Broadcast Bus* — optional (off by default); the entity-updating services (enyMan, pacMan, keySmith)
   publish each committed change event. Transport vendors: ActiveMQ, Kafka, or Redis. 
 
-**pacMan** (Personal Account Manager) — the accounting service; manages account balance
+**pacMan**
+<img src="./doc/logo/java.svg" alt="Java logo" valign="middle" height="24">
+<img src="./doc/logo/spring-boot.svg" alt="Spring Boot logo" valign="middle" height="24">
+<img src="./doc/logo/pac-man.svg" alt="pacMan logo" valign="middle" height="24">
+<br>Personal Account Manager; the accounting service; manages account balance
 operations: deposit, withdrawal, cross-currency transfer; the place where business logic lives;
 all other services exist to support it.
 
-**bizTree** — the entity tree service; maintains an in-memory cache of the business entity
+**bizTree**
+<img src="./doc/logo/java.svg" alt="Java logo" valign="middle" height="24">
+<img src="./doc/logo/spring-boot.svg" alt="Spring Boot logo" valign="middle"  height="24">
+<img src="./doc/logo/h2.svg" alt="H2 logo" valign="middle" height="24">
+<img src="./doc/logo/bizTree.png" alt="bizTree logo" valign="middle" height="24">
+<br>The entity tree service; maintains an H2 database in-memory cache of the business entity
 tree; serves tree navigation to the frontend; stays current by consuming the broadcast bus.
 A **recoverable cache service**: a two-buffer anti-entropy design whose periodic
 night-watch rebuilds a shadow from the database, compares the two, and self-heals any drift —
 so an event missed while the service was down is reconciled automatically, with no restart.
 
-**enyMan** (Entity Manager) — manages organizations and users; handles create, update, delete,
+**enyMan**
+<img src="./doc/logo/java.svg" alt="Java logo" valign="middle" height="24">
+<img src="./doc/logo/spring-boot.svg" alt="Spring Boot logo" valign="middle" height="24">
+<img src="./doc/logo/enyMan.3.png" alt="enyMan logo" valign="middle" height="28">
+<br>Entity Manager; manages organizations and users; handles create, update, delete,
 and move operations; publishes entity change events to the broadcast bus.
 
-**keySmith** — authentication and access profile service; manages IAS integration and
+**keySmith**
+<img src="./doc/logo/java.svg" alt="Java logo" valign="middle" height="24">
+<img src="./doc/logo/spring-boot.svg" alt="Spring Boot logo" valign="middle" height="24">
+<img src="./doc/logo/keySmith.3.png" alt="keySmith logo" valign="middle" height="40">
+<br>Authentication and access profile service; manages IAS integration and
 JWT-based authorization; serves access profiles to the frontend; publishes identity change
 requests to the IAM bus.
 
-**kcMaster** — Keycloak IAS sync coordinator; the only service that writes to Keycloak directly;
+**kcMaster**
+<img src="./doc/logo/java.svg" alt="Java logo" valign="middle" height="24">
+<img src="./doc/logo/spring-boot.svg" alt="Spring Boot logo" valign="middle" height="24">
+<img src="./doc/logo/kcMaster.png" alt="kcMaster logo" valign="middle" height="24">
+<br>Keycloak IAS sync coordinator; the only service that writes to Keycloak directly;
 consumes identity commands from the IAM bus and executes create / update / delete in the IAM. Also
 listens on the entity broadcast bus to keep a moved entity's Keycloak path in sync.
 
-**xx-rod** — optional, the audit consumer service, writes audit events to the `*_log` tables.
+**xx-rod**
+<img src="./doc/logo/java.svg" alt="Java logo" valign="middle" height="24">
+<img src="./doc/logo/spring-boot.svg" alt="Spring Boot logo" valign="middle" height="24">
+<img src="./doc/logo/x-rod.svg" alt="x-rod logo" valign="middle" height="24">
+<br> Optional, the audit consumer service, writes audit events to the `*_log` tables.
 
-**Redis DB** — optional, the alternative non-SQL (document-DB) audit sink; the Redis stream itself holds the
+**Redis DB**
+<img src="./doc/logo/redis.svg" alt="Redis logo" valign="middle" height="24">
+<br>Optional, the alternative non-SQL (document-DB) audit sink; the Redis stream itself holds the
 audit trail (the stream *is* the log). Feeding it from the Kafka transport needs one extra component, a
-**Kafka Connect Redis Sink**.
+**Kafka Connect Redis Sink**
+<img src="./doc/logo/kafka.svg" alt="Kafka logo" valign="middle" height="16">.
 
-**gateway** — Spring Cloud Gateway; the API router; routes requests to the appropriate
+**gateway**
+<img src="./doc/logo/java.svg" alt="Java logo" valign="middle" height="24">
+<img src="./doc/logo/spring-boot.svg" alt="Spring Boot logo" valign="middle" width="24">
+<img src="./doc/logo/gateway.svg" alt="Gateway logo" valign="middle" width="24">
+<br> Spring Cloud Gateway; the API router; routes requests to the appropriate
 backend service by path and entity kind; validates JWT tokens on every request and, for
 opted-in clients, accepts two additional auth shapes. Reachable two ways: in-cluster
 from the BFF on `/api/*`, and externally at `https://api.esquire.mir0n.pro` — the
 **public REST API** for non-browser callers.
 
-**Keycloak** — external IAM; issues JWT access tokens; manages user identities, realm
+**Keycloak**
+<img src="./doc/logo/keycloak.png" alt="Keycloak logo" valign="middle" height="24">
+<br>External IAM; issues JWT access tokens; manages user identities, realm
 configuration, and authentication flows including TOTP; runs as a containerized service.
 
-**Esquire Explorer Backend** (Node.js BFF tier) — Backend-for-Frontend; the **administrative
+**Esquire Explorer Backend**
+<img src="./doc/logo/node.js.svg" alt="Node.js logo" valign="middle" height="24">
+<br>Node.js BFF tier — Backend-for-Frontend; the **administrative
 GUI entry point** at `https://esquire.mir0n.pro`. Owns the OIDC code+PKCE flow with Keycloak
 (`/auth/login`, `/callback`, `/logout`, `/me`); proxies `/api/*` to the gateway with bearer
 injection; caches static entity dictionaries (`/esq-kinds`, `/esq-dictionary`) per pod, shared
 across users; bakes the Angular SPA into its image at build time and serves it on `/`. The
 browser never sees the access token — it holds an opaque session cookie.
 
-**Esquire Explorer Frontend** (Angular SPA) — the user-facing tree explorer and operations UI;
+**Esquire Explorer Frontend**
+<img src="./doc/logo/node.js.svg" alt="Node.js logo" valign="middle" height="24">
+<img src="./doc/logo/angular.svg" alt="Angular logo" valign="middle" height="24">
+<img src="./doc/logo/esquire.png" alt="Esquire logo" valign="middle" height="24">
+<br>Angular SPA — the user-facing tree explorer and operations UI;
 consumes the `@mir0n-pro/esquire.ui` library; communicates only with the BFF via same-origin
 `/auth/*` and `/api/*`, never directly with the gateway or Keycloak. Shipped baked into the
 BFF image; one deployable.
 
-**Public REST API** exposed for gatling-based load / smoke harnesses and other integrations.
+**Public REST API**
+<img src="./doc/logo/hauberk.svg" alt="Hauberk logo" valign="middle" height="24">
+<img src="./doc/logo/gatling.svg" alt="Gatling logo" valign="middle" height="24">
+<br>Exposed for gatling-based load / smoke harnesses and other integrations.
 
 The two public hosts at a glance:
 

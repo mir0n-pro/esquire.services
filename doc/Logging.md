@@ -1,3 +1,5 @@
+# <img src="../favicon.ico" alt="Esquire logo" valign="middle" width="64" height="64"> Esquire Application Frameworks(tm) 2.0
+
 # Esquire Services — Logging Strategy
 
 ## Three-Tier Architecture

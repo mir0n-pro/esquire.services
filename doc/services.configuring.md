@@ -1,3 +1,5 @@
+# <img src="../favicon.ico" alt="Esquire logo" valign="middle" width="64" height="64"> Esquire Application Frameworks(tm) 2.0
+
 # Esquire Services — Configuration Reference
 
 Every runtime-configurable parameter of the Esquire Spring services, grouped by service, with its
