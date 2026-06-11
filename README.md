@@ -4,6 +4,8 @@
 
 
 > 
+> **v1.2.8 — in progress.** Hardening + extensibility: a standalone **access log** (records denied / failed attempts, separate from the entity audit), a **pluggable transport layer** for the x-Rod fan-out, and a **system-entity flag** that protects core entities from deletion. Tasks: [doc/v128.tasks](doc/v128.tasks.md).
+>
 > **v1.2.7 — complete.** An **audit-logging** sprint: a pluggable audit seam over the entity services, a generic **x-Rod** fan-out substrate, a new **xx-rod** service, six selectable strategies, ActiveMQ/Kafka transport, established the CI/CD pipelines (automated build and release).
 >
 
