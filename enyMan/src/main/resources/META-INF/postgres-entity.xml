@@ -14,6 +14,7 @@
      ,org_desc AS "desc"
      ,org_full_name
      ,org_org_pk
+     ,org_system_flg
  FROM esq_org
  JOIN esq_entity_path ON ep_pk = org_pk
  WHERE org_pk = CAST(:id AS bigint)
@@ -33,6 +34,7 @@
      ,usr_deleted_flg
      ,au_email
      ,usr_org_pk
+     ,usr_system_flg
  FROM esq_user u
  JOIN esq_auth a
   ON a.au_usr_pk = u.usr_pk
@@ -63,6 +65,7 @@
      ,org_desc AS "desc"
      ,org_full_name
      ,org_org_pk
+     ,org_system_flg
  FROM esq_org
  JOIN esq_entity_path ON ep_pk = org_pk
  WHERE org_pk = CAST(:id AS bigint)
@@ -83,6 +86,7 @@
      ,usr_deleted_flg
      ,au_email
      ,usr_org_pk
+     ,usr_system_flg
  FROM esq_user u
  JOIN esq_auth a
   ON a.au_usr_pk = u.usr_pk
@@ -487,6 +491,7 @@ VALUES (CAST(:id AS bigint), :kind, CAST(:adPk AS bigint), CAST(:bizAdPk AS bigi
             <field-result name="deleted" column="usr_deleted_flg"/>
             <field-result name="email" column="au_email"/>
             <field-result name="parentId" column="usr_org_pk"/>
+            <field-result name="systemFlg" column="usr_system_flg"/>
         </entity-result>
     </sql-result-set-mapping>
 
@@ -498,6 +503,7 @@ VALUES (CAST(:id AS bigint), :kind, CAST(:adPk AS bigint), CAST(:bizAdPk AS bigi
             <field-result name="desc" column="desc"/>
             <field-result name="fullName" column="org_full_name"/>
             <field-result name="parentId" column="org_org_pk"/>
+            <field-result name="systemFlg" column="org_system_flg"/>
         </entity-result>
     </sql-result-set-mapping>
 

@@ -173,6 +173,7 @@ Foreign keys:
 | ORG_FULL_NAME | VARCHAR(150) | VARCHAR2(150) | Full legal name |
 | ORG_ORG_PK | BIGINT | NUMBER(16,0) | Parent organization -> ESQ_ORG (nullable) |
 | ORG_DESC | VARCHAR(1024) | VARCHAR2(1024) | Description |
+| ORG_SYSTEM_FLG | VARCHAR(1) | VARCHAR2(1) | System entity, protected from deletion, Y/N (DB-set only; never via the app, not on the GUI) |
 | ORG_CRL_ID | VARCHAR(64) | VARCHAR2(64) | Correlation ID |
 | ORG_REQ_ID | VARCHAR(64) | VARCHAR2(64) | Request ID |
 | ORG_UID | VARCHAR(16) | VARCHAR2(16) | Update initiator user ID |
@@ -199,6 +200,7 @@ Child tables with ON DELETE CASCADE: ESQ_AUTH, ESQ_PERSON, ESQ_USR_PAR, ESQ_USR_
 | USR_ORG_PK | BIGINT | NUMBER(16,0) | Owning organization -> ESQ_ORG |
 | USR_DELETED_FLG | VARCHAR(1) | VARCHAR2(1) | Soft-delete flag, Y/N |
 | USR_DESC | VARCHAR(1024) | VARCHAR2(1024) | Description |
+| USR_SYSTEM_FLG | VARCHAR(1) | VARCHAR2(1) | System entity, protected from deletion, Y/N (DB-set only; never via the app, not on the GUI) |
 | USR_CRL_ID | VARCHAR(64) | VARCHAR2(64) | Correlation ID |
 | USR_REQ_ID | VARCHAR(64) | VARCHAR2(64) | Request ID |
 | USR_UID | VARCHAR(16) | VARCHAR2(16) | Update initiator user ID |

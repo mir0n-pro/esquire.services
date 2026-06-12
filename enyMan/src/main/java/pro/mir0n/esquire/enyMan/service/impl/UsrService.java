@@ -43,6 +43,7 @@
  *                   usr_par create / update / delete + move parent-ref); delete enumerates child pks before
  *                   the cascade; per-param events via listUsrPar (enabled-gated); create/save resolve the
  *                   dictionary via completedDictionary (custom-param save fix)
+ * 06/12/2026 mir0n  createUsr(): usr deleted defaults to 'N' when null (NOT NULL system field, no dictionary default)
  */
 
 package pro.mir0n.esquire.enyMan.service.impl;
@@ -322,6 +323,10 @@ public class UsrService  extends AEnyManService {
         if (usrLayer != null) usrLayer.injectDefaults(fields);
         EntityFieldUtils.applyFields(usr, fields, false, 0, USR_WRITABLE);
         if (usrLayer != null) EntityFieldUtils.enforceDefaults(usrLayer, usr);
+
+        // usr_deleted_flg is a NOT NULL system field (not a dictionary param, so enforceDefaults
+        // cannot supply it); a new user is never created already-deleted -> guarantee 'N'.
+        if (usr.getDeleted() == null) usr.setDeleted("N");
 
         // Ensure registration and deleted flags are in fields for broadcast
         if (usr.getRegistration() != null) fields.put("registration", usr.getRegistration());

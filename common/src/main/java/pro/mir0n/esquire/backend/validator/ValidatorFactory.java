@@ -8,11 +8,13 @@
  *  History:
  * 03/06/2026 mir0n created: factory initializing generic + biz validators; validate() dispatch
  * 03/08/2026 mir0n  validate(): boolean personal param forwarded through generic + biz chain
+ * 06/12/2026 mir0n  validateDelete(): system-entity guard -- throws DeleteRestrictedException when origin systemFlg='Y'
  */
 
 package pro.mir0n.esquire.backend.validator;
 import lombok.extern.slf4j.Slf4j;
 import pro.mir0n.esquire.backend.dto.EsqEntityKindFieldLayer;
+import pro.mir0n.esquire.backend.error.DeleteRestrictedException;
 import pro.mir0n.esquire.backend.jpa.EsqEntityJpa;
 
 import java.util.Map;
@@ -49,6 +51,9 @@ public class ValidatorFactory implements IValidator {
 
     @Override
     public void validateDelete(EsqEntityJpa origin) {
+        if (origin != null && "Y".equals(origin.getSystemFlg())) {
+            throw new DeleteRestrictedException("entity", "system entity — protected from deletion");
+        }
         if (bizValidators == null || origin == null || origin.getKind() == null) return;
         IValidator biz = bizValidators.get(origin.getKind());
         if (biz != null) {

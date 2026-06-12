@@ -1,6 +1,17 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v1.2.8-2606.1216  v1.2.8 -- system entity flag (anti-deletion); admin-create and system-login fixes
+    :Feature:     system entity flag -- offices and users flagged in the seed are protected from deletion;
+                  enyMan returns HTTP 409 on any attempt to delete one
+    :Fix:         creating a new admin succeeds again (new-user deleted flag defaulted; person address FK nullable)
+    :Fix:         the "system" KeyCloak user can log in -- password seeded in the realm import
+    :Doc:         data dictionary documents the ORG_SYSTEM_FLG / USR_SYSTEM_FLG columns
+    Components:   common,
+                  enyMan,
+                  keycloak,
+                  doc
+
 v1.2.7-2606.1016  v1.2.7 -- CI/CD pipeline established on GitHub Actions; release finalized
     :Config:      esquire.version bumped 1.2.6 -> 1.2.7 across the reactor (release finalization)
     :Feature:     CI/CD pipeline established -- hosted CI (mvn verify + Testcontainers IT) on every push/PR;
