@@ -5,21 +5,26 @@ metadata:
   labels:
     app: {{ .Release.Name }}-xxrod
 data:
-  XXROD_PORT:            {{ .Values.service.port | quote }}
-  DB_XXROD_VENDOR:       {{ .Values.db.vendor | quote }}
-  DB_XXROD_HOST:         {{ .Values.db.host | quote }}
-  DB_XXROD_PORT:         {{ .Values.db.port | quote }}
-  DB_XXROD_NAME:         {{ .Values.db.name | quote }}
-  DB_XXROD_USERNAME:     {{ .Values.db.username | quote }}
-  AMQ_BROKER_URL:        {{ .Values.messaging.brokerUrl | quote }}
-  XXROD_TRANSPORT:       {{ .Values.audit.transport | quote }}
-  XXROD_AUDIT_POOL_SIZE: {{ .Values.audit.poolSize | quote }}
-  KAFKA_BOOTSTRAP:       {{ .Values.audit.kafka.bootstrap | quote }}
-  XXROD_KAFKA_GROUP_ID:  {{ .Values.audit.kafka.groupId | quote }}
-  LOG_LEVEL_ROOT:        {{ .Values.logging.levelRoot | quote }}
-  LOG_LEVEL_SF:          {{ .Values.logging.levelSf | quote }}
-  LOG_LEVEL_MIR0N:       {{ .Values.logging.levelMir0n | quote }}
-  LOG_LEVEL_DEVELOP:     {{ .Values.logging.levelDevelop | quote }}
-  LOG_LEVEL_MSG:         {{ .Values.logging.levelMsg | quote }}
-  DEVELOP_LOG_PATH:      {{ .Values.logging.developLogPath | quote }}
-  MSG_LOG_PATH:          {{ .Values.logging.msgLogPath | quote }}
+  SPRING_PROFILES_ACTIVE:    {{ .Values.springProfilesActive | default "" | quote }}
+  XXROD_PORT:                {{ .Values.service.port | quote }}
+  ESQUIRE_TOPOLOGY_IMPORT:   {{ .Values.topologyImport | quote }}
+  # --- datasource (writes the *_log tables; password -> Secret, injected as env in the deployment) ---
+  DB_XXROD_VENDOR:           {{ .Values.db.vendor | quote }}
+  DB_XXROD_HOST:             {{ .Values.db.host | quote }}
+  DB_XXROD_PORT:             {{ .Values.db.port | quote }}
+  DB_XXROD_NAME:             {{ .Values.db.name | quote }}
+  DB_XXROD_USERNAME:         {{ .Values.db.username | quote }}
+  # --- audit-bus ref (CONSUMER: drains the audit sink to the *_log tables) ---
+  ESQUIRE_AUDIT_BUS_ID:      {{ .Values.audit.busId | quote }}
+  ESQUIRE_AUDIT_SERVICE_ID:  {{ .Values.audit.serviceId | quote }}
+  XXROD_DIRECTOR:            {{ .Values.audit.director | quote }}
+  # --- logging ---
+  LOG_LEVEL_ROOT:            {{ .Values.logging.levelRoot | quote }}
+  LOG_LEVEL_SF:              {{ .Values.logging.levelSf | quote }}
+  LOG_LEVEL_MIR0N:           {{ .Values.logging.levelMir0n | quote }}
+  LOG_LEVEL_DEVELOP:         {{ .Values.logging.levelDevelop | quote }}
+  LOG_LEVEL_MSG:             {{ .Values.logging.levelMsg | quote }}
+  LOG_LEVEL_AMQ:             {{ .Values.logging.levelAmq | quote }}
+  LOG_LEVEL_JMS:             {{ .Values.logging.levelJms | quote }}
+  DEVELOP_LOG_PATH:          {{ .Values.logging.developLogPath | quote }}
+  MSG_LOG_PATH:              {{ .Values.logging.msgLogPath | quote }}

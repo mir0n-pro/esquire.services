@@ -1,5 +1,34 @@
 Esquire xxRod Microservice
 
+06/15/2026 mir0n  v1.2.8 -- audit consumer migrated onto the x-Rod bus catalog
+messaging.XxRodAuditConsumerConfig  (new)
+  - @Configuration with a rodAuditConsumer @Bean (destroyMethod=close); names the audit leg by
+    {bus-id, slot-id} (esquire.audit-bus.messaging-bus) into MessagingBusCatalog, opens the leg's
+    consumer (consumeLeg -> provider.openConsumer) feeding director::accept via RodTransportAdapter;
+    no bus reference or provider.supportsConsume()=false -> returns a no-op (stay idle)
+director.AuditRodDirector
+  - imports moved common.xrod -> messaging.xrod (RodEvent / RodEventRepoRegistry / IXRod / XRods);
+    pool-size / rod-class / virtual-threads now resolved from the audit leg via
+    MessagingBusCatalog.resolve(bus-id, slot-id), defaulting when no leg; XXRod pool replaced by
+    IXRod rod = XRods.resolve(rodClass) started with registry.applier(devLog)
+director.IRodDirector
+  - RodEvent import moved common.xrod -> messaging.xrod
+messaging.RodAuditConsumer  (removed)
+  - @JmsListener intake folded onto the bus catalog (now opened by XxRodAuditConsumerConfig)
+messaging.RodKafkaConsumer  (removed)
+  - @KafkaListener intake folded onto the bus catalog (now opened by XxRodAuditConsumerConfig)
+messaging.XxRodJmsConfig  (removed)
+  - @EnableJms listener container factory dropped; the catalog provider supplies the consumer
+pom.xml
+  - direct transport starters (spring-boot-starter-activemq, spring-kafka) dropped; added the
+    esquire-tp-activemq / esquire-tp-kafka / esquire-tp-redis provider modules (${tp.version}),
+    each bringing its transport client transitively
+application.yml
+  - spring.activemq / spring.kafka.consumer + xxrod.transport / xxrod.kafka / xxrod.director.audit.*
+    / xxrod.messaging blocks removed; added spring.config.import of the shared topology.yml and the
+    esquire.audit-bus.messaging-bus reference (bus-id ${ESQUIRE_AUDIT_BUS_ID:audit-c},
+    slot-id ${ESQUIRE_AUDIT_SERVICE_ID:audit})
+
 06/08/2026 mir0n  v1.2.7 -- audit logging (c) over Kafka transport
 messaging.RodKafkaConsumer  (new)
   - @KafkaListener on TOPIC_ROD_AUDIT (gated @ConditionalOnProperty xxrod.transport=kafka); decodes each

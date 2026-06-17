@@ -16,7 +16,10 @@ import pro.mir0n.esquire.backend.dto.EsqObjectKind;
 import pro.mir0n.esquire.backend.storage.EsqObjectKindStorage;
 import pro.mir0n.esquire.common.EsqConstants;
 import pro.mir0n.esquire.common.EsqMsgConstants;
-import pro.mir0n.esquire.common.xrod.XYRod;
+import pro.mir0n.esquire.messaging.Role;
+import pro.mir0n.esquire.messaging.XRodParams;
+import pro.mir0n.esquire.messaging.xrod.IXRod;
+import pro.mir0n.esquire.messaging.xrod.impl.XRod;
 import pro.mir0n.esquire.enyMan.jpa.EntityPathLookup;
 import pro.mir0n.esquire.enyMan.jpa.EsqEntityDictionaryRepository;
 import pro.mir0n.esquire.enyMan.jpa.EsqOrgRepository;
@@ -48,6 +51,13 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class MoveQueueManagerTest {
 
+    /** A disabled x-Rod stand-in: audit off, so post() is a no-op (the service never feeds it here). */
+    private static IXRod noopRod() {
+        XRod r = new XRod();
+        r.configure(XRodParams.from(Map.of()).withBus("test", "noop", null), Role.BROADCAST, null);
+        return r;   // not started + no transport -> no transmit leg -> post() is a no-op
+    }
+
     @Mock private EsqEntityDictionaryRepository dictRepo;
     @Mock private EsqOrgRepository orgRepo;
     @Mock private EsqUsrRepository usrRepo;
@@ -73,7 +83,7 @@ class MoveQueueManagerTest {
     @BeforeEach
     void setUp() {
         manager = new MoveQueueManager(dictRepo, orgRepo, usrRepo, txTemplate, em,
-                publisher, kcPublisher, pathLookup, new XYRod(e -> {}, false, 1), 16);
+                publisher, kcPublisher, pathLookup, noopRod(), 16);
         // Do not call manager.start() -- we want to invoke process() directly without
         // racing the daemon worker thread. The rig is constructed but unstarted.
     }

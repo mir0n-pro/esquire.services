@@ -5,12 +5,11 @@ image:
 
 springProfilesActive: console
 
+# shared bus topology is delivered by the esquire-topology ConfigMap, mounted at /etc/esquire.
+topologyImport: file:/etc/esquire/topology.yml
+
 service:
   port: 3006
-
-messaging:
-  brokerUrl: tcp://esquire-infra-amq-activemq:61616
-  clientId: kcmaster
 
 keycloak:
   # KC serves under HTTP_RELATIVE_PATH=/kc-auth in the infra-kc chart;
@@ -22,7 +21,33 @@ keycloak:
   # admin-cli is a public client (no secret, no client_credentials support) and
   # cannot drive the KC admin REST API. Matches the compose default.
   adminClientId: esq-kcMaster
+  # adminClientSecret -> kc-admin-client-secret Secret, injected as env in the deployment.
   adminClientSecret: MHgq0Nu69u2uJ2johaK1wxQLMdakELXN
+
+# path-buffer: in-flight KC path-sync de-dup window.
+pathBuffer:
+  ttlMs: "10000"
+  pruneMs: "30000"
+
+# consumer on/off toggles (entity broadcast consumer + kc-request server consumer).
+consumers:
+  entityBroadcastEnabled: "true"
+  kcRequestEnabled: "true"
+
+# kc-bus ref: kcMaster is the SERVER (receives KC requests, publishes responses).
+kc:
+  busId: esquire.kc
+  serviceId: kc
+  requestPoolSize: "4"
+  requestConcurrency: "1"
+  responsePublisherPoolSize: "0"
+
+# entity-bus ref: kcMaster is a CONSUMER of the entity broadcast.
+entity:
+  busId: esquire.entity
+  serviceId: entity
+  broadcastPoolSize: "4"
+  broadcastConcurrency: "1"
 
 logging:
   levelRoot: ERROR
@@ -30,5 +55,7 @@ logging:
   levelMir0n: DEBUG
   levelDevelop: DEBUG
   levelMsg: DEBUG
+  levelAmq: INFO
+  levelJms: INFO
   developLogPath: /tmp/kcMaster-develop.log
   msgLogPath: /tmp/kcMaster-msg.log

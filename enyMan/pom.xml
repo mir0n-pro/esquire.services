@@ -28,6 +28,30 @@
             <version>${common.version}</version>
         </dependency>
 
+        <!-- transport providers (tp) for the x-Rod audit publish seam. Each tp module brings its transport
+             client transitively (tp-activemq -> starter-activemq, tp-redis -> starter-data-redis,
+             tp-kafka -> spring-kafka), so this service declares NO direct transport starters. -->
+        <!-- transport provider (tp): ActiveMQ; the x-Rod audit publish seam (option c default) -->
+        <dependency>
+            <groupId>pro.mir0n.esquire</groupId>
+            <artifactId>esquire-tp-activemq</artifactId>
+            <version>${tp.version}</version>
+        </dependency>
+
+        <!-- transport provider (tp): Redis stream (option d) -->
+        <dependency>
+            <groupId>pro.mir0n.esquire</groupId>
+            <artifactId>esquire-tp-redis</artifactId>
+            <version>${tp.version}</version>
+        </dependency>
+
+        <!-- transport provider (tp): Kafka (option c / d over Kafka) -->
+        <dependency>
+            <groupId>pro.mir0n.esquire</groupId>
+            <artifactId>esquire-tp-kafka</artifactId>
+            <version>${tp.version}</version>
+        </dependency>
+
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-actuator</artifactId>
@@ -109,20 +133,6 @@
             <groupId>net.logstash.logback</groupId>
             <artifactId>logstash-logback-encoder</artifactId>
             <version>${logstash-logback.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-activemq</artifactId>
-        </dependency>
-        <!-- x-Rod audit option (d): Redis Stream producer (Lettuce + StringRedisTemplate). -->
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-data-redis</artifactId>
-        </dependency>
-        <!-- x-Rod audit option (c) over Kafka: Kafka producer (KafkaTemplate). -->
-        <dependency>
-            <groupId>org.springframework.kafka</groupId>
-            <artifactId>spring-kafka</artifactId>
         </dependency>
         <dependency>
             <groupId>org.jetbrains</groupId>

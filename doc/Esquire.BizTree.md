@@ -222,13 +222,13 @@ Architectural rules, not knobs:
   trusted.
 - **DB is the source of truth.** Monads hold in-memory H2 tables only; restart
   always rebuilds from `esq2025`.
-- **JMS subscription is non-durable.** The consumer on `esquire.entity.broadcast`
-  uses a non-durable subscription: events missed during downtime are not retained
-  by the broker, and don't need to be -- bootstrap and the next sweep rebuild from
-  the canonical DB. Anti-entropy reconciliation replaces durable delivery as the
-  "no event loss" mechanism. Side benefits: no JMS `clientId` on the connection
-  (so bizTree is free of the clientId rolling-update deadlock), and multiple pod
-  replicas become safe to run.
+- **Broadcast subscription is non-durable.** bizTree joins the entity-broadcast bus
+  through the x-Rod broadcast consumer (an `XRod` on the `esquire.entity` topic) with a
+  non-durable subscription: events missed during downtime are not retained by the broker,
+  and don't need to be -- bootstrap and the next sweep rebuild from the canonical DB.
+  Anti-entropy reconciliation replaces durable delivery as the "no event loss" mechanism.
+  Side benefits: no durable `clientId` on the connection (so bizTree is free of the
+  clientId rolling-update deadlock), and multiple pod replicas become safe to run.
 
 
 ## Configuration

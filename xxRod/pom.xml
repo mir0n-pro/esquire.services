@@ -26,6 +26,28 @@
             <version>${common.version}</version>
         </dependency>
 
+        <!-- transport providers (tp) for the x-Rod audit consume seam. xxRod is the universal consumer: it
+             carries EVERY provider module so it can resolve the configured one by name and let supportsConsume()
+             gate it: it consumes a transport with a consume leg (activemq / kafka) and stays idle for a
+             producer-only one (redis: the stream IS the log). A genuinely-unknown provider-name then errors
+             loudly (not silently lost). Each tp module brings its transport client transitively, so this
+             service declares NO direct transport starters. -->
+        <dependency>
+            <groupId>pro.mir0n.esquire</groupId>
+            <artifactId>esquire-tp-activemq</artifactId>
+            <version>${tp.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>pro.mir0n.esquire</groupId>
+            <artifactId>esquire-tp-kafka</artifactId>
+            <version>${tp.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>pro.mir0n.esquire</groupId>
+            <artifactId>esquire-tp-redis</artifactId>
+            <version>${tp.version}</version>
+        </dependency>
+
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-actuator</artifactId>
@@ -33,18 +55,6 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
-        </dependency>
-
-        <!-- JMS consumer (brings spring-jms + jakarta.jms + activemq client) -->
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-activemq</artifactId>
-        </dependency>
-
-        <!-- Kafka consumer (x-Rod option c over Kafka; active when xxrod.transport=kafka) -->
-        <dependency>
-            <groupId>org.springframework.kafka</groupId>
-            <artifactId>spring-kafka</artifactId>
         </dependency>
 
         <!-- DataSource + HikariCP + spring-jdbc (AuditLogWriter uses NamedParameterJdbcTemplate); no JPA -->

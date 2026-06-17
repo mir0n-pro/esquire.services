@@ -27,7 +27,10 @@ import pro.mir0n.esquire.backend.storage.EsqObjectKindStorage;
 import pro.mir0n.esquire.backend.storage.EsqRolesStorage;
 import pro.mir0n.esquire.backend.storage.roles.JpaRolesRepository;
 import pro.mir0n.esquire.common.EsqConstants;
-import pro.mir0n.esquire.common.xrod.XYRod;
+import pro.mir0n.esquire.messaging.Role;
+import pro.mir0n.esquire.messaging.XRodParams;
+import pro.mir0n.esquire.messaging.xrod.IXRod;
+import pro.mir0n.esquire.messaging.xrod.impl.XRod;
 import pro.mir0n.esquire.enyMan.jpa.EsqAcctRepository;
 import pro.mir0n.esquire.enyMan.jpa.EsqEntityDictionaryRepository;
 import pro.mir0n.esquire.enyMan.jpa.EsqOrgRepository;
@@ -62,6 +65,13 @@ import java.util.HashMap;
 
 @ExtendWith(MockitoExtension.class)
 class EnyManServiceTest {
+
+    /** A disabled x-Rod stand-in: audit off, so post() is a no-op. */
+    private static IXRod noopRod() {
+        XRod r = new XRod();
+        r.configure(XRodParams.from(Map.of()).withBus("test", "noop", null), Role.BROADCAST, null);
+        return r;   // not started + no transport -> no transmit leg -> post() is a no-op
+    }
 
     static final String ROLE_ADMIN = "ROLE_ADMIN";
     static final String UID = "99";
@@ -151,7 +161,7 @@ class EnyManServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new EnyManService(dictRepo, orgRepo, usrRepo, acctRepo, subtreeRepo, transactionTemplate, em, broadcastPublisher, moveQueue, new XYRod(e -> {}, false, 1));
+        service = new EnyManService(dictRepo, orgRepo, usrRepo, acctRepo, subtreeRepo, transactionTemplate, em, broadcastPublisher, moveQueue, noopRod());
     }
 
     @AfterEach

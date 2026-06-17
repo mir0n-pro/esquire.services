@@ -1,0 +1,60 @@
+# Esquire frameworks (tm) -- shared messaging-bus TOPOLOGY (local/k8s environment)
+#
+# Delivered as the ConfigMap "esquire-topology" and mounted at /etc/esquire/topology.yml in every service pod;
+# each service loads it via spring.config.import (REQUIRED). Per-environment, CONCRETE values (no ${}) -- here the
+# in-cluster Service DNS names. k8s infra ships only ActiveMQ (no kafka / redis), so audit uses audit-c; the
+# kafka/redis audit buses (ck/d/dk) are intentionally omitted -- referencing one resolves to the OFF pod
+# (XRodDisabled), never a crash. Per-service knobs + the in-process audit (b) log-db stay at the service level.
+esquire:
+  messaging-bus:
+    # --- entity broadcast (topic) ---
+    - bus-id: esquire.entity
+      slot:
+        - slot-id: entity
+          x-rod:
+            pool-size: 4
+            concurrency: 1
+            publisher-pool-size: 0
+            transport:
+              provider: activemq
+              endpoint: tcp://esquire-infra-amq-activemq:61616
+              destination: esquire.entity.broadcast
+              topic: true
+    # --- KeyCloak request/response (R&R, two nodes) ---
+    - bus-id: esquire.kc
+      slot:
+        - slot-id: kc
+          x-rod:
+            rod-class: XRodRR
+            pool-size: 4
+            concurrency: 1
+            publisher-pool-size: 0
+            transport:
+              provider: activemq
+              endpoint: tcp://esquire-infra-amq-activemq:61616
+              topic: false
+              request-node: request
+              response-node: response
+              node:
+                - node-id: request
+                  destination: esquire.kc.request
+                - node-id: response
+                  destination: esquire.kc.response
+    # --- audit (c): ActiveMQ -> xxRod consumer writes the *_log ---
+    - bus-id: audit-c
+      slot:
+        - slot-id: audit
+          x-rod:
+            rod-class: XRod
+            pool-size: 4
+            feed-capacity: 4096
+            virtual-threads: false
+            publisher-pool-size: 0
+            concurrency: 1
+            transport:
+              provider: activemq
+              endpoint: tcp://esquire-infra-amq-activemq:61616
+              destination: esquire.rod.audit
+              topic: false
+              params:
+                jms.useAsyncSend: true

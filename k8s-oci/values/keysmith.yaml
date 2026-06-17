@@ -22,7 +22,7 @@ logging:
   levelSf: WARN
   levelMir0n: INFO
   levelDevelop: "OFF"
-  levelMsg: INFO
+  levelMsg: "OFF"
 
 nodeSelector:
   tier: app

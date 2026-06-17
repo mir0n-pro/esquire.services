@@ -48,3 +48,11 @@ spec:
             initialDelaySeconds: 30
             periodSeconds: 15
             timeoutSeconds: 5
+          volumeMounts:
+            - name: esquire-topology
+              mountPath: /etc/esquire
+              readOnly: true
+      volumes:
+        - name: esquire-topology
+          configMap:
+            name: esquire-topology

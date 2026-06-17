@@ -13,6 +13,7 @@
  *                   MERGE per call, on the xx-Rod worker thread. A param the body lacks binds NULL (DELETE).
  * 06/06/2026 mir0n  literals -> constants: header bind-param names PARAM_*; *_log action codes
  *                   ACTION_INSERT / ACTION_UPDATE / ACTION_DELETE.
+ * 06/15/2026 mir0n  RodEvent import retargeted common.xrod -> messaging.xrod (x-Rod moved to the messaging layer).
  */
 package pro.mir0n.esquire.common.audit;
 
@@ -20,7 +21,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.namedparam.AbstractSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
-import pro.mir0n.esquire.common.xrod.RodEvent;
+import pro.mir0n.esquire.messaging.xrod.RodEvent;
 
 import javax.sql.DataSource;
 import java.sql.Timestamp;

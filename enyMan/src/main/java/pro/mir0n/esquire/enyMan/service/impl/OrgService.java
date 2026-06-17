@@ -31,6 +31,8 @@
  * 06/05/2026 mir0n  XYRod injected; x-Rod audit posts at the org write sites (create / save / delete / move) +
  *                   per-param org_par events via listOrgPar (enabled-gated); create/save resolve the
  *                   dictionary via completedDictionary (custom-param save fix)
+ * 06/15/2026 mir0n  audit dep XYRod -> IXRod (import common.xrod -> messaging.xrod); every org/org_par post()
+ *                   passes an explicit msgType (EsqMsgConstants.MSG_TYPE_AUDIT).
  */
 
 package pro.mir0n.esquire.enyMan.service.impl;
@@ -57,8 +59,9 @@ import pro.mir0n.esquire.backend.error.ResourceNotFoundException;
 import pro.mir0n.esquire.enyMan.jpa.EsqMoveRecord;
 import pro.mir0n.esquire.backend.jpa.entity.EsqParRow;
 import pro.mir0n.esquire.common.EsqConstants;
-import pro.mir0n.esquire.common.xrod.RodEvent;
-import pro.mir0n.esquire.common.xrod.XYRod;
+import pro.mir0n.esquire.common.EsqMsgConstants;
+import pro.mir0n.esquire.messaging.xrod.RodEvent;
+import pro.mir0n.esquire.messaging.xrod.IXRod;
 import org.springframework.transaction.support.TransactionTemplate;
 
 @Slf4j
@@ -70,13 +73,13 @@ public class OrgService  extends AEnyManService {
     private EsqOrgRepository orgRepository;
     private TransactionTemplate transactionTemplate;
     private EntityManager em;
-    private XYRod xyRod;
+    private IXRod xyRod;
 
     public OrgService(EsqEntityDictionaryRepository entityDictionaryRepository,
                       EsqOrgRepository orgRepository,
                       TransactionTemplate transactionTemplate,
                       EntityManager em,
-                      XYRod xyRod) {
+                      IXRod xyRod) {
         super(entityDictionaryRepository);
         this.entityDictionaryRepository = entityDictionaryRepository;
         this.orgRepository = orgRepository;
@@ -122,7 +125,7 @@ public class OrgService  extends AEnyManService {
             em.setFlushMode(FlushModeType.COMMIT);
             saveOrg(id, fields, rootPath, uid, correlationId, requestId, updated, custom);
             EsqOrgJpa savedOrg = (EsqOrgJpa) updated[0];
-            xyRod.post(RodEvent.Op.UPDATE, savedOrg.getKind(), savedOrg.getId(), null, savedOrg);
+            xyRod.post(RodEvent.Op.UPDATE, savedOrg.getKind(), savedOrg.getId(), null, savedOrg, EsqMsgConstants.MSG_TYPE_AUDIT);
             return null;
         }); // <- transaction commits here
 
@@ -146,12 +149,12 @@ public class OrgService  extends AEnyManService {
             em.setFlushMode(FlushModeType.COMMIT);
             createOrg(kind, parentId, fields, rootPath, uid, correlationId, requestId, created);
             EsqOrgJpa org = (EsqOrgJpa) created[0];
-            xyRod.post(RodEvent.Op.CREATE, org.getKind(), org.getId(), null, org);
+            xyRod.post(RodEvent.Op.CREATE, org.getKind(), org.getId(), null, org, EsqMsgConstants.MSG_TYPE_AUDIT);
             // full-fidelity param audit: every org-param (defaults + explicit) is born with the org.
             // Guarded so the re-SELECT is skipped entirely when audit is disabled.
             if (xyRod.isEnabled()) {
                 for (EsqParRow p : orgRepository.listOrgPar(org.getId())) {
-                    xyRod.post(RodEvent.Op.CREATE, EsqConstants.KIND_ORG_PAR, org.getId(), p.getName(), p);
+                    xyRod.post(RodEvent.Op.CREATE, EsqConstants.KIND_ORG_PAR, org.getId(), p.getName(), p, EsqMsgConstants.MSG_TYPE_AUDIT);
                 }
             }
             return null;
@@ -169,7 +172,7 @@ public class OrgService  extends AEnyManService {
         transactionTemplate.execute(status -> {
             em.setFlushMode(FlushModeType.COMMIT);
             deleteOrg(id, rootPath);
-            xyRod.post(RodEvent.Op.DELETE, kind, id, null);
+            xyRod.post(RodEvent.Op.DELETE, kind, id, null, EsqMsgConstants.MSG_TYPE_AUDIT);
             return null;
         });
     }
@@ -209,7 +212,7 @@ public class OrgService  extends AEnyManService {
             orgRepository.moveOrgParent(id, distId, uid, correlationId, requestId);
             // x-Rod audit: move is one parent-ref UPDATE (org_org_pk); path rewrites are not audited.
             org.setParentId(distId);
-            xyRod.post(RodEvent.Op.UPDATE, org.getKind(), org.getId(), null, org);
+            xyRod.post(RodEvent.Op.UPDATE, org.getKind(), org.getId(), null, org, EsqMsgConstants.MSG_TYPE_AUDIT);
         }
         return rows;
     }
@@ -312,7 +315,7 @@ public class OrgService  extends AEnyManService {
         if (xyRod.isEnabled() && !changedPars.isEmpty()) {
             for (EsqParRow p : orgRepository.listOrgPar(id)) {
                 if (changedPars.contains(p.getName())) {
-                    xyRod.post(RodEvent.Op.UPDATE, EsqConstants.KIND_ORG_PAR, id, p.getName(), p);
+                    xyRod.post(RodEvent.Op.UPDATE, EsqConstants.KIND_ORG_PAR, id, p.getName(), p, EsqMsgConstants.MSG_TYPE_AUDIT);
                 }
             }
         }

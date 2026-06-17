@@ -52,6 +52,10 @@ for %%s in (gateway biztree enyman pacman keysmith kcmaster backend xxrod) do (
   call :ensure_tag %%s
 )
 
+rem === Shared messaging-bus topology (the one ConfigMap every service mounts at /etc/esquire/topology.yml) ===
+echo --- Installing topology...
+call helm upgrade --install esquire-topology  charts\esquire-topology || exit /b 1
+
 rem === Infra ===
 echo --- Installing postgres...
 call helm upgrade --install esquire-infra     charts\infra\postgres  -f values\postgres.yaml || exit /b 1

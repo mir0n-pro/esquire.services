@@ -1,6 +1,22 @@
 mir0n java common frameworks -- pro.mir0n.utils
 
 
+06/15/2026 mir0n  v1.2.8 -- Taijitu queue item carries a parsed body map instead of the raw wire body
+taijitu.QueueItem
+  - the record field pair (messageEncoding, text) replaced by a single body Map<String,Object>; the
+    constructor is now (eventType, entityId, entityKind, requestId, correlationId, body). command items
+    pass body=null; event items carry the parsed map, applied by the monad with no re-parse
+taijitu.ITaijituRig
+  - pass(...) contract changed: the (messageEncoding, text) params replaced by Map<String,Object> body
+    (null = bodiless event, e.g. DELETE); import java.util.Map added
+taijitu.ATaijituRig
+  - pass(...) signature updated to the body-map form; forwards body into the body-map QueueItem
+taijitu.ATaijituRigY
+  - pass(...) signature updated to the body-map form; forwards body into the body-map QueueItem
+taijitu.AMonadY
+  - CMD QueueItem construction updated to the body-map ctor (raw messageEncoding+text args dropped;
+    command items pass body=null)
+
 06/02/2026 mir0n  v1.2.6 -- bulk processing on the queue rig + monad
 concurrent.IQueueRig
   - IQueueListWorker (extends IQueueWorker): List<E> process(ArrayList<E>, ISignaler) returning the unprocessed remainder

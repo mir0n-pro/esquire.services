@@ -13,12 +13,10 @@
 package pro.mir0n.esquire.xxRod;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.apache.activemq.ActiveMQConnectionFactory;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.jms.core.JmsTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.containers.GenericContainer;
@@ -28,13 +26,17 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
 import pro.mir0n.esquire.backend.storage.EsqObjectKindStorage;
 import pro.mir0n.esquire.common.EsqMsgConstants;
-import pro.mir0n.esquire.common.audit.RodEventBusPublisher;
-import pro.mir0n.esquire.common.xrod.RodEvent;
+import pro.mir0n.esquire.messaging.xrod.RodTransportAdapter;
+import pro.mir0n.esquire.messaging.transport.BusIdentity;
+import pro.mir0n.esquire.messaging.transport.PublishSettings;
+import pro.mir0n.esquire.messaging.xrod.RodEvent;
+import pro.mir0n.esquire.tp.activemq.TransportProvider;
 
 import javax.sql.DataSource;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
@@ -68,7 +70,15 @@ class RodBusIntegrationTest {
         r.add("spring.datasource.url", PG::getJdbcUrl);
         r.add("spring.datasource.username", PG::getUsername);
         r.add("spring.datasource.password", PG::getPassword);
-        r.add("spring.activemq.broker-url", RodBusIntegrationTest::brokerUrl);
+        // catalog config: the booted xxRod consumer resolves the audit leg + builds its OWN connection.
+        r.add("esquire.messaging-bus[0].bus-id", () -> "audit-bus");
+        r.add("esquire.messaging-bus[0].slot[0].slot-id", () -> "audit");
+        r.add("esquire.messaging-bus[0].slot[0].x-rod.transport.provider", () -> "activemq");
+        r.add("esquire.messaging-bus[0].slot[0].x-rod.transport.endpoint", RodBusIntegrationTest::brokerUrl);
+        r.add("esquire.messaging-bus[0].slot[0].x-rod.transport.destination", () -> EsqMsgConstants.ROD_AUDIT);
+        r.add("esquire.messaging-bus[0].slot[0].x-rod.transport.topic", () -> "false");
+        // service-level bus ref: xxRod's consumer reads esquire.audit-bus.messaging-bus.bus-id -> the catalog leg.
+        r.add("esquire.audit-bus.messaging-bus.bus-id", () -> "audit-bus");
     }
 
     @Autowired
@@ -76,10 +86,11 @@ class RodBusIntegrationTest {
 
     @Test
     void busPathWritesAccountLogAndDedups() {
-        JmsTemplate jms = new JmsTemplate(new ActiveMQConnectionFactory(brokerUrl()));
-        jms.setPubSubDomain(false);
-        RodEventBusPublisher publisher =
-                new RodEventBusPublisher(jms, EsqMsgConstants.QUEUE_ROD_AUDIT, new ObjectMapper());
+        TransportProvider provider = new TransportProvider();
+        Consumer<RodEvent> publisher = RodTransportAdapter.publisher(provider, EsqMsgConstants.ROD_AUDIT,
+                new PublishSettings(new ObjectMapper(), brokerUrl(), null, false,
+                        new BusIdentity("audit-bus", "audit", null),
+                        java.util.Map.of(), 0));
         JdbcTemplate jdbc = new JdbcTemplate(dataSource);
 
         Map<String, Object> body = new LinkedHashMap<>();
@@ -91,7 +102,7 @@ class RodBusIntegrationTest {
         body.put("desc", "c-it");
         body.put("negativeAllowed", "N");
         RodEvent e = new RodEvent(RodEvent.Op.UPDATE, 50, "777", null, System.currentTimeMillis(),
-                "it-crl-1", "it-req-1", "it-uid", body);
+                "it-crl-1", "it-req-1", "it-uid", null, EsqMsgConstants.MSG_TYPE_AUDIT, body);
 
         publisher.accept(e);
         await().atMost(20, TimeUnit.SECONDS).untilAsserted(() ->

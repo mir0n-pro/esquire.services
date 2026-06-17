@@ -2,7 +2,7 @@
  *  Esquire frameworks (tm)
  *  PacMan service
  *
- *  Copyright(c) 2001, 2026 mir0n&co www.mir0n.me
+ *  Copyright(c) 2001, 2026 mir0n&co www.mir0n.pro
  *
  *  History:
  * 04/13/2026 mir0n  created: single-leg acct transaction processor; permission check, amount/status/balance validation, EntityFieldUtils field validation, insert + balance update
@@ -12,6 +12,8 @@
  *                   generateTransId() replaces nextId(); ccy populated in result; refCode4 auto-note on transfer legs
  * 06/05/2026 mir0n  XYRod injected; balance change posts an x-Rod account UPDATE audit event (new balance +
  *                   funded_dt mirror on first funding)
+ * 06/15/2026 mir0n  audit producer is now messaging.xrod.IXRod (was common.xrod.XYRod); the balance-change
+ *                   post() carries an explicit msgType (EsqMsgConstants.MSG_TYPE_AUDIT)
  */
 
 package pro.mir0n.esquire.pacMan.acct.service;
@@ -54,7 +56,7 @@ public class AcctTransactionProcessorSingle implements IAcctTransactionProcessor
     private EsqAcctTransactionRepository transactionRepository;
     private TransactionTemplate transactionTemplate;
     private EntityManager em;
-    private pro.mir0n.esquire.common.xrod.XYRod xyRod;   // audit: balance change -> account UPDATE
+    private pro.mir0n.esquire.messaging.xrod.IXRod xyRod;   // audit: balance change -> account UPDATE
 
     /** skipValidation: For test use only — allows bypassing status/balance/field validation. */
     public AcctTransactionSingle esquireCommandAcct(int kind, String id, AcctOperation.Code oper, Map<String, Object> fields, boolean skipValidation, String rootPath, String uid, List<String> roles) {
@@ -199,7 +201,8 @@ public class AcctTransactionProcessorSingle implements IAcctTransactionProcessor
         if (acct.getFundedDate() == null || acct.getFundedDate().isEmpty()) {
             acct.setFundedDate(java.time.LocalDate.now().toString());
         }
-        xyRod.post(pro.mir0n.esquire.common.xrod.RodEvent.Op.UPDATE, acct.getKind(), acctId, null, acct);
+        xyRod.post(pro.mir0n.esquire.messaging.xrod.RodEvent.Op.UPDATE, acct.getKind(), acctId, null, acct,
+                EsqMsgConstants.MSG_TYPE_AUDIT);
         return ret;
     }
 }

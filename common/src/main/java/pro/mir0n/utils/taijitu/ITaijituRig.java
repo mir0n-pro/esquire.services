@@ -11,8 +11,13 @@
  * 05/22/2026 mir0n  bootstrap() renamed start() (symmetric with shutdown()).
  * 05/23/2026 mir0n  added isReady() (the readiness gate -- loaded + serving) and the sweepAsync()
  *                   default no-op (the REST force-sweep; overridden by the dark director).
+ * 06/15/2026 mir0n  pass(...) contract changed: the raw (messageEncoding, text) pair replaced by a single
+ *                   already-parsed body Map<String,Object> (wire decode moved upstream; null body = bodiless
+ *                   event e.g. DELETE); import java.util.Map added.
  */
 package pro.mir0n.utils.taijitu;
+
+import java.util.Map;
 
 /**
  * The Taijitu director: the single controller over the cache monad(s). Implementations range from
@@ -32,10 +37,10 @@ public interface ITaijituRig {
     /** Stop the monad(s). */
     void shutdown();
 
-    /** Hand one entity-broadcast event to the active monad (raw body; the monad parses it). */
+    /** Hand one entity event to the active monad as its already-parsed {@code body} map (the wire decode
+     *  happened upstream, off the worker). {@code body} is null for a bodiless event (e.g. DELETE). */
     void onEntityBroadcast(String eventType, String entityId, int entityKind,
-                           String requestId, String correlationId,
-                           String messageEncoding, String text);
+                           String requestId, String correlationId, Map<String, Object> body);
 
     /** Whether the cache is loaded and serving reads -- the k8s readiness gate (false during the
      *  blocking bootstrap load, true once serving). Kept out of liveness so a slow load can't crashloop. */

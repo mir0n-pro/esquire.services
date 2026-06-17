@@ -26,6 +26,13 @@
             <version>${common.version}</version>
         </dependency>
 
+        <!-- tp-activemq hosts the shared JMS helper (messaging.jms.Utils) used by the KC request/response bus -->
+        <dependency>
+            <groupId>pro.mir0n.esquire</groupId>
+            <artifactId>esquire-tp-activemq</artifactId>
+            <version>${tp.version}</version>
+        </dependency>
+
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-actuator</artifactId>
@@ -33,11 +40,6 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
-        </dependency>
-
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-activemq</artifactId>
         </dependency>
 
         <dependency>

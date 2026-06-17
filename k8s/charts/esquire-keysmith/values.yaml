@@ -5,6 +5,9 @@ image:
 
 springProfilesActive: "console,dev-postgres"
 
+# shared bus topology is delivered by the esquire-topology ConfigMap, mounted at /etc/esquire.
+topologyImport: file:/etc/esquire/topology.yml
+
 service:
   port: 3002
 
@@ -16,9 +19,27 @@ db:
   username: esq2025
   password: q
 
-messaging:
-  brokerUrl: tcp://esquire-infra-amq-activemq:61616
-  clientId: keysmith
+# kc-bus ref: keySmith is the CLIENT (posts KC requests, receives responses).
+kc:
+  busId: esquire.kc
+  serviceId: kc
+  responsePoolSize: "2"
+  responseConcurrency: "1"
+  publisherPoolSize: "0"
+
+# audit: default k8s sink = (c) over the bus (ActiveMQ); esquire-xxrod drains it to the *_log tables.
+# Switch to in-process (b) with busId=audit-b (the logDb block below is the *_log datastore).
+audit:
+  busId: audit-c
+  serviceId: audit
+  poolSize: "4"
+  feedCapacity: "4096"
+  virtualThreads: "false"
+  logDb:
+    vendor: dev-postgres
+    url: jdbc:postgresql://esquire-infra-postgres:5432/esq2025
+    username: esq2025
+    poolSize: "2"
 
 logging:
   levelRoot: ERROR
@@ -26,15 +47,7 @@ logging:
   levelMir0n: DEBUG
   levelDevelop: DEBUG
   levelMsg: DEBUG
+  levelAmq: INFO
+  levelJms: INFO
   developLogPath: /tmp/keySmith-develop.log
   msgLogPath: /tmp/keySmith-msg.log
-
-# Default deploy topology = option (c): publish to the bus (ActiveMQ), esquire-xxrod drains to *_log.
-# (b) in-process: mode=in-process | (d) redis: mode=redis, redisHost=esq-redis | (c)/kafka: busTransport=kafka.
-audit:
-  enabled: true
-  mode: bus
-  busTransport: activemq
-  publisherPoolSize: 4
-  redisHost: ""
-  kafkaBootstrap: esquire-infra-kafka:9092

@@ -31,7 +31,7 @@ The Esquire framework spans Java microservices, a Node.js BFF, an Angular SPA + 
 
 | Module | `@Test` methods | Notes |
 |---|---|---|
-| common | 166 | includes the audit substrate: `RodEventCodecTest`, `AuditLogSqlTest` (META-INF DOM loader), `EntityFillMapTest`, `XYRodTest` post overloads, `AuditRodBusTest` |
+| common | 196 | includes the messaging + audit substrate: `RodEventCodecTest`, `MessagingBusCatalogTest`, `XRodManagerTest`, `XRodTest`, `XRodDisabledTest`, `AuditLogSqlTest` (META-INF DOM loader), `EntityFillMapTest` |
 | bizTree | 74 | — |
 | enyMan | 85 | — |
 | pacMan | 48 | — |

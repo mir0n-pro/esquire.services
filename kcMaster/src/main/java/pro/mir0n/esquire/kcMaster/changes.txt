@@ -1,5 +1,34 @@
 Esquire kcMaster Microservice
 
+06/15/2026 mir0n  v1.2.8 -- KC request/response + broadcast consumers migrated onto the x-Rod catalog
+messaging.KcRequestConsumer
+  - @JmsListener(Message) onMessage replaced by onRodEvent(RodEvent); fields read off the RodEvent
+    (opCode/entityId/kind/rodId/requestId/correlationId), body convertValue'd to KcSyncRequest
+  - registers via XRodManager.consumer(BUS_KEY_KC, Role.SERVER); no selector (shared request queue)
+  - @ConditionalOnProperty kcmaster.kc-request-bus.consumer.enabled (matchIfMissing=true) gates the bean
+  - requester rod-id echoed to the publisher; msgLog/Utils.formatProps removed
+messaging.KcResponsePublisher
+  - JmsTemplate/Session-props publish replaced by IXRod from XRodManager.producer(BUS_KEY_KC, Role.SERVER)
+  - publishSuccess/publishFailure build a RodEvent (MSG_TYPE_RESPONSE / MSG_TYPE_REJECT) and rod.transmit()
+  - failure body carries the RFC-9457 error under "error" and the original request under "request";
+    requesterRodId param replaces ctrlId; requestText replaced by requestBody Map; testReqId param dropped
+messaging.KcEntityBroadcastConsumer
+  - @JmsListener(topic, selector) onEntityBroadcast replaced by onRodEvent(RodEvent)
+  - registers via XRodManager.consumer(BUS_KEY_ENTITY, Role.BROADCAST) in the constructor
+  - move detection is RodEvent.Op.UPDATE_PATH; extractPath reads the path off the body Map (static
+    ObjectMapper/readTree removed); JMSException catch and msg-audit receipt removed
+messaging.KcMasterJmsConfig  (removed)
+  - JMS ConnectionFactory / listener-factory / template config deleted; the receive pools, transport
+    consumers and the response producer are now built by the shared XRodManager
+pom.xml
+  - spring-boot-starter-activemq dependency replaced by esquire-tp-activemq (${tp.version}); hosts the
+    shared messaging.jms.Utils helper for the KC request/response bus
+src/main/resources/application.yml
+  - spring.activemq / spring.jms.client-id and kcmaster.messaging (broker-url/service-id/ctrl-id/client-id)
+    removed; spring.config.import of the shared esquire-topology.yml added (ESQUIRE_TOPOLOGY_IMPORT)
+  - kcmaster.entity-broadcast-bus.consumer.enabled and kcmaster.kc-request-bus.consumer.enabled flags added
+  - esquire.kc-bus / esquire.entity-bus messaging-bus refs (bus-id/slot-id) + x-rod pool/concurrency overrides
+
 06/02/2026 mir0n  v1.2.6 Goal 3 -- race-8c KC-path recovery buffer
 buffer.KcPathBuffer  (new)
   - @Component; ConcurrentHashMap<entityId, TimestampedPath> + single-thread scheduled prune (ttl default 60s)

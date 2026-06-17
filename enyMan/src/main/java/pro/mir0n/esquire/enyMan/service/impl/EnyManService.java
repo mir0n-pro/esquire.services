@@ -58,6 +58,7 @@
  * 06/04/2026 mir0n  rootPath / uid dropped from the public signatures; read via RequestContextUtils where
  *                   needed (self-update + self-move guards, MoveCommandItem); delegates called without them
  * 06/05/2026 mir0n  XYRod ctor param added + passed to OrgService / UsrService / AcctService (x-Rod audit)
+ * 06/15/2026 mir0n  audit ctor param XYRod -> IXRod (import retargeted common.xrod -> messaging.xrod).
  */
 
 package pro.mir0n.esquire.enyMan.service.impl;
@@ -89,7 +90,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import pro.mir0n.esquire.common.EsqMsgConstants;
-import pro.mir0n.esquire.common.xrod.XYRod;
+import pro.mir0n.esquire.messaging.xrod.IXRod;
 import pro.mir0n.esquire.enyMan.jpa.EsqMoveRecord;
 
 @Slf4j
@@ -122,7 +123,7 @@ public class EnyManService  extends AEnyManService {
                          EntityManager em,
                          EsqEntityBroadcastPublisher broadcastPublisher,
                          MoveQueueManager moveQueue,
-                         XYRod xyRod) {
+                         IXRod xyRod) {
         super(entityDictionaryRepository);
         this.orgService  = new OrgService(entityDictionaryRepository, orgRepository, transactionTemplate, em, xyRod);
         this.usrService  = new UsrService(entityDictionaryRepository, usrRepository, transactionTemplate, em, xyRod);

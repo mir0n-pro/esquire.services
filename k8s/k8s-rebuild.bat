@@ -44,6 +44,11 @@ if not "%CTX%"=="docker-desktop" (
   exit /b 1
 )
 
+rem === Shared topology ConfigMap must exist BEFORE any service helm-upgrade (the new deployments mount it;
+rem     a missing ConfigMap would fail the pod + time out the rollout). Idempotent; k8s-up installs it too. ===
+echo --- ensuring topology ConfigMap...
+call helm upgrade --install esquire-topology charts\esquire-topology || exit /b 1
+
 set TARGET=%1
 if "%TARGET%"=="" set TARGET=all
 

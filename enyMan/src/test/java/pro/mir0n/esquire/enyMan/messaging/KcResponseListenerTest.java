@@ -1,69 +1,58 @@
 package pro.mir0n.esquire.enyMan.messaging;
 
-import jakarta.jms.JMSException;
-import jakarta.jms.Message;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.junit.jupiter.MockitoExtension;
 import pro.mir0n.esquire.common.EsqMsgConstants;
+import pro.mir0n.esquire.messaging.xrod.RodEvent;
+import pro.mir0n.esquire.messaging.xrod.XRodManager;
+
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThatNoException;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
-@ExtendWith(MockitoExtension.class)
+/**
+ * Unit-tests the bus-oriented KcResponseListener worker: onResponse(RodEvent) logs the receipt; URS vs URR is
+ * the event's msg-type. The receive x-Rod wiring (the XRodManager) is mocked.
+ */
 class KcResponseListenerTest {
 
     private KcResponseListener listener;
 
     @BeforeEach
     void setUp() {
-        listener = new KcResponseListener();
+        listener = new KcResponseListener(mock(XRodManager.class));
     }
 
-    private Message buildMessage(String msgType) throws JMSException {
-        Message msg = mock(Message.class);
-        when(msg.getStringProperty(EsqMsgConstants.FIELD_MSG_TYPE)).thenReturn(msgType);
-        when(msg.getStringProperty(EsqMsgConstants.FIELD_APPL_MSG_ID)).thenReturn("mid-001");
-        when(msg.getStringProperty(EsqMsgConstants.FIELD_EVENT_TYPE)).thenReturn(EsqMsgConstants.EVENT_UPDATE_PATH);
-        when(msg.getStringProperty(EsqMsgConstants.FIELD_ENTITY_ID)).thenReturn("uid-1");
-        when(msg.getIntProperty(EsqMsgConstants.FIELD_ENTITY_KIND)).thenReturn(20);
-        when(msg.getStringProperty(EsqMsgConstants.FIELD_CTRL_ID)).thenReturn("enyman.test");
-        when(msg.getStringProperty(EsqMsgConstants.FIELD_REQUEST_ID)).thenReturn("rid-1");
-        when(msg.getStringProperty(EsqMsgConstants.FIELD_CORRELATION_ID)).thenReturn("cid-1");
-        when(msg.getStringProperty(EsqMsgConstants.FIELD_TEST_REQ_ID)).thenReturn("rid-1");
-        return msg;
+    private RodEvent response(String msgType, Map<String, Object> body) {
+        return new RodEvent(RodEvent.Op.UPDATE_PATH, 20, "uid-1", null, 0L,
+                "cid-1", "rid-1", null, "enyman.test", msgType, body);
     }
 
     @Test
-    @DisplayName("onResponse: URS message processed without exception")
-    void onResponse_ursMessage_noException() throws JMSException {
-        Message msg = buildMessage(EsqMsgConstants.MSG_TYPE_RESPONSE);
-        assertThatNoException().isThrownBy(() -> listener.onResponse(msg));
+    @DisplayName("onResponse: URS processed without exception")
+    void onResponse_urs_noException() {
+        RodEvent e = response(EsqMsgConstants.MSG_TYPE_RESPONSE, Map.of());
+        assertThatNoException().isThrownBy(() -> listener.onResponse(e));
     }
 
     @Test
-    @DisplayName("onResponse: URR message processed without exception")
-    void onResponse_urrMessage_noException() throws JMSException {
-        Message msg = buildMessage(EsqMsgConstants.MSG_TYPE_REJECT);
-        assertThatNoException().isThrownBy(() -> listener.onResponse(msg));
+    @DisplayName("onResponse: URR (error in body) processed without exception")
+    void onResponse_urr_noException() {
+        Map<String, Object> error = new LinkedHashMap<>();
+        error.put("title", "KC_SYNC_ERROR");
+        error.put("detail", "boom");
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("error", error);
+        assertThatNoException().isThrownBy(() -> listener.onResponse(response(EsqMsgConstants.MSG_TYPE_REJECT, body)));
     }
 
     @Test
-    @DisplayName("onResponse: JMS exception does not propagate")
-    void onResponse_jmsException_noException() throws JMSException {
-        Message msg = mock(Message.class);
-        when(msg.getStringProperty(EsqMsgConstants.FIELD_MSG_TYPE)).thenThrow(new JMSException("read error"));
-        assertThatNoException().isThrownBy(() -> listener.onResponse(msg));
-    }
-
-    @Test
-    @DisplayName("onResponse: null field values handled without exception")
-    void onResponse_nullFields_noException() {
-        // Mockito returns null for all getStringProperty calls and 0 for getIntProperty by default
-        Message msg = mock(Message.class);
-        assertThatNoException().isThrownBy(() -> listener.onResponse(msg));
+    @DisplayName("onResponse: null body handled without exception")
+    void onResponse_nullBody_noException() {
+        RodEvent e = response(EsqMsgConstants.MSG_TYPE_RESPONSE, null);
+        assertThatNoException().isThrownBy(() -> listener.onResponse(e));
     }
 }

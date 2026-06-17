@@ -44,6 +44,8 @@
  *                   the cascade; per-param events via listUsrPar (enabled-gated); create/save resolve the
  *                   dictionary via completedDictionary (custom-param save fix)
  * 06/12/2026 mir0n  createUsr(): usr deleted defaults to 'N' when null (NOT NULL system field, no dictionary default)
+ * 06/15/2026 mir0n  audit dep XYRod -> IXRod (import common.xrod -> messaging.xrod); every user / person /
+ *                   address / usr_par post() passes an explicit msgType (EsqMsgConstants.MSG_TYPE_AUDIT).
  */
 
 package pro.mir0n.esquire.enyMan.service.impl;
@@ -76,8 +78,9 @@ import pro.mir0n.esquire.backend.jpa.entity.EsqParRow;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import pro.mir0n.esquire.common.EsqConstants;
-import pro.mir0n.esquire.common.xrod.RodEvent;
-import pro.mir0n.esquire.common.xrod.XYRod;
+import pro.mir0n.esquire.common.EsqMsgConstants;
+import pro.mir0n.esquire.messaging.xrod.RodEvent;
+import pro.mir0n.esquire.messaging.xrod.IXRod;
 import pro.mir0n.esquire.enyMan.service.EntityIdGenerator;
 
 @Slf4j
@@ -89,13 +92,13 @@ public class UsrService  extends AEnyManService {
     private final EsqUsrRepository usrRepository;
     private final TransactionTemplate transactionTemplate;
     private final EntityManager em;
-    private final XYRod xyRod;
+    private final IXRod xyRod;
 
     public UsrService(EsqEntityDictionaryRepository entityDictionaryRepository,
                       EsqUsrRepository usrRepository,
                       TransactionTemplate transactionTemplate,
                       EntityManager em,
-                      XYRod xyRod) {
+                      IXRod xyRod) {
         super(entityDictionaryRepository);
         this.entityDictionaryRepository = entityDictionaryRepository;
         this.usrRepository = usrRepository;
@@ -223,7 +226,7 @@ public class UsrService  extends AEnyManService {
             deleteUsr(id, rootPath);
             // x-Rod audit: one DELETE event for the user (id + kind); cascaded person/address/params
             // are implied by the owner delete (no per-child delete events).
-            xyRod.post(RodEvent.Op.DELETE, kind, id, null);
+            xyRod.post(RodEvent.Op.DELETE, kind, id, null, EsqMsgConstants.MSG_TYPE_AUDIT);
             return null;
         });
     }
@@ -270,7 +273,7 @@ public class UsrService  extends AEnyManService {
             usrRepository.moveUsrParent(id, distId, uid, correlationId, requestId);
             // x-Rod audit: move is one parent-ref UPDATE (usr_org_pk); path rewrites are not audited.
             usr.setParentId(distId);
-            xyRod.post(RodEvent.Op.UPDATE, usr.getKind(), usr.getId(), null, usr);
+            xyRod.post(RodEvent.Op.UPDATE, usr.getKind(), usr.getId(), null, usr, EsqMsgConstants.MSG_TYPE_AUDIT);
         }
         return rows;
     }
@@ -421,19 +424,19 @@ public class UsrService  extends AEnyManService {
         person[0] = prsn;
 
         // x-Rod audit: full per-row CREATE events for the whole user footprint (entityId = usr_pk).
-        xyRod.post(RodEvent.Op.CREATE, usr.getKind(), idStr, null, usr);
-        xyRod.post(RodEvent.Op.CREATE, prsn.getKind(), idStr, null, prsn);
+        xyRod.post(RodEvent.Op.CREATE, usr.getKind(), idStr, null, usr, EsqMsgConstants.MSG_TYPE_AUDIT);
+        xyRod.post(RodEvent.Op.CREATE, prsn.getKind(), idStr, null, prsn, EsqMsgConstants.MSG_TYPE_AUDIT);
         if (address != null && adPk != null && address[0] != null) {
             EsqAddressJpa a = (EsqAddressJpa) address[0];
-            xyRod.post(RodEvent.Op.CREATE, a.getKind(), idStr, String.valueOf(adPk), a);
+            xyRod.post(RodEvent.Op.CREATE, a.getKind(), idStr, String.valueOf(adPk), a, EsqMsgConstants.MSG_TYPE_AUDIT);
         }
         if (address2 != null && bizAdPk != null && address2[0] != null) {
             EsqAddressJpa a2 = (EsqAddressJpa) address2[0];
-            xyRod.post(RodEvent.Op.CREATE, a2.getKind(), idStr, String.valueOf(bizAdPk), a2);
+            xyRod.post(RodEvent.Op.CREATE, a2.getKind(), idStr, String.valueOf(bizAdPk), a2, EsqMsgConstants.MSG_TYPE_AUDIT);
         }
         if (xyRod.isEnabled()) {
             for (EsqParRow p : usrRepository.listUsrPar(idStr)) {
-                xyRod.post(RodEvent.Op.CREATE, EsqConstants.KIND_USR_PAR, idStr, p.getName(), p);
+                xyRod.post(RodEvent.Op.CREATE, EsqConstants.KIND_USR_PAR, idStr, p.getName(), p, EsqMsgConstants.MSG_TYPE_AUDIT);
             }
         }
     }
@@ -462,12 +465,12 @@ public class UsrService  extends AEnyManService {
         // One DELETE event per cascaded child row (id + kind only). person id = usr_pk (known, no query);
         // usr_par params cascade with the owner and get NO per-row event (owner DELETE implies them gone).
         if (xyRod.isEnabled()) {
-            xyRod.post(RodEvent.Op.DELETE, EsqConstants.KIND_PERSON_PRIMARY, id, null);
+            xyRod.post(RodEvent.Op.DELETE, EsqConstants.KIND_PERSON_PRIMARY, id, null, EsqMsgConstants.MSG_TYPE_AUDIT);
             if (addr != null) {
-                xyRod.post(RodEvent.Op.DELETE, addr.getKind(), id, addr.getId());
+                xyRod.post(RodEvent.Op.DELETE, addr.getKind(), id, addr.getId(), EsqMsgConstants.MSG_TYPE_AUDIT);
             }
             if (addr2 != null) {
-                xyRod.post(RodEvent.Op.DELETE, addr2.getKind(), id, addr2.getId());
+                xyRod.post(RodEvent.Op.DELETE, addr2.getKind(), id, addr2.getId(), EsqMsgConstants.MSG_TYPE_AUDIT);
             }
         }
     }
@@ -523,12 +526,12 @@ public class UsrService  extends AEnyManService {
                     prsn.getPhone2(),
                     uid, correlationId, requestId
             );
-            xyRod.post(RodEvent.Op.UPDATE, prsn.getKind(), id, null, prsn);
+            xyRod.post(RodEvent.Op.UPDATE, prsn.getKind(), id, null, prsn, EsqMsgConstants.MSG_TYPE_AUDIT);
         }
 
         if (EntityFieldUtils.applyFields(usr, fields, personal, 0, USR_WRITABLE)) {
             usrRepository.updateUsr(id, usr.getName(), usr.getRegistration(), usr.getDeleted(), usr.getDesc(), uid, correlationId, requestId);
-            xyRod.post(RodEvent.Op.UPDATE, usr.getKind(), usr.getId(), null, usr);
+            xyRod.post(RodEvent.Op.UPDATE, usr.getKind(), usr.getId(), null, usr, EsqMsgConstants.MSG_TYPE_AUDIT);
         }
         Set<String> changedPars = new HashSet<>();
         if (cstm != null) {
@@ -550,7 +553,7 @@ public class UsrService  extends AEnyManService {
         if (xyRod.isEnabled() && !changedPars.isEmpty()) {
             for (EsqParRow p : usrRepository.listUsrPar(id)) {
                 if (changedPars.contains(p.getName())) {
-                    xyRod.post(RodEvent.Op.UPDATE, EsqConstants.KIND_USR_PAR, id, p.getName(), p);
+                    xyRod.post(RodEvent.Op.UPDATE, EsqConstants.KIND_USR_PAR, id, p.getName(), p, EsqMsgConstants.MSG_TYPE_AUDIT);
                 }
             }
         }
@@ -569,7 +572,7 @@ public class UsrService  extends AEnyManService {
                             addr.getCountry(), addr.getDepartment(), addr.getFax(),
                             addr.getPostalCode(), addr.getProvince(), addr.getTitle(), addr.getUrl(),
                             uid, correlationId, requestId);
-                    xyRod.post(RodEvent.Op.UPDATE, addr.getKind(), id, addr.getId(), addr);
+                    xyRod.post(RodEvent.Op.UPDATE, addr.getKind(), id, addr.getId(), addr, EsqMsgConstants.MSG_TYPE_AUDIT);
                 }
             }
 
@@ -586,7 +589,7 @@ public class UsrService  extends AEnyManService {
                             addr2.getCountry(), addr2.getDepartment(), addr2.getFax(),
                             addr2.getPostalCode(), addr2.getProvince(), addr2.getTitle(), addr2.getUrl(),
                             uid, correlationId, requestId);
-                    xyRod.post(RodEvent.Op.UPDATE, addr2.getKind(), id, addr2.getId(), addr2);
+                    xyRod.post(RodEvent.Op.UPDATE, addr2.getKind(), id, addr2.getId(), addr2, EsqMsgConstants.MSG_TYPE_AUDIT);
                 }
             }
             address[0] = addr;

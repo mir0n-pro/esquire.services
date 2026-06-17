@@ -1,6 +1,33 @@
 Esquire BizTree Microservice
 
 
+06/15/2026 mir0n  v1.2.8 -- entity-broadcast bus folded onto the x-Rod catalog
+messaging.BizTreeBroadcastConsumer  (new)
+  - @Component (conditional on biztree.entity-broadcast-bus.consumer.enabled) opening the entity-broadcast
+    receive x-Rod via XRodManager.consumer(BUS_KEY_ENTITY, Role.BROADCAST, this::onRodEvent); app-level
+    console log per event, then director.onRodEvent(e). Replaces BizTreeBroadcastConfig.
+messaging.BizTreeJmsConfig  (removed)
+  - JMS connection-factory / listener-container config retired; the bus transport is owned by the shared
+    XRodManager
+messaging.EsqEntityBroadcastConsumer  (removed)
+  - JMS @JmsListener entity-broadcast consumer retired; folded into messaging.BizTreeBroadcastConsumer
+access.IBizTreeDirector
+  - added default onRodEvent(RodEvent): unpacks the RodEvent onto the generic onEntityBroadcast intake
+    (body already parsed)
+access.legacy.BizTreeDirectorLegacy
+  - onEntityBroadcast now takes the already-parsed Map<String,Object> body (was messageEncoding + raw text);
+    valueToTree(body) instead of readTree(text), no inline parse / try-catch
+taijitu.Monad
+  - message branch applies the already-parsed item.body() via valueToTree; removed the private
+    parse(QueueItem) helper that did readTree(item.text())
+pom.xml
+  - added esquire-tp-activemq dependency (shared JMS helper for the entity-broadcast bus); removed the
+    spring-boot-starter-activemq starter
+application.yml
+  - added spring.config.import of the shared esquire-topology.yml; added the esquire.entity-bus.messaging-bus
+    bus REF (bus-id / slot-id / x-rod pool-size + concurrency) and biztree.entity-broadcast-bus.consumer.enabled;
+    removed the spring.activemq broker-url / user / password block
+
 06/09/2026 mir0n  v1.2.7 -- deterministic ORDER BY on the cache children query
 resources/META-INF/h2-cache-sql.properties
   - find-nodes query: appended ORDER BY tree_et_pk, tree_name, tree_pk so the children result set has a

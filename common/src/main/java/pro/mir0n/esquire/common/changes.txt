@@ -1,5 +1,44 @@
 Esquire Common microservice classes
 
+06/15/2026 mir0n  v1.2.8 -- audit stack + JMS messaging folded onto the transport-agnostic x-Rod layer
+audit.XRodLogDb  (new)
+  - the in-process log-DB audit pod; a pluggable IXRod resolved by x-rod.rod-class. configure() reads its
+    OWN x-rod.log-db sub-block (XRodLogDbParams), builds + owns a Hikari pool (autoCommit), and binds the
+    kind->RodEventRepo registry from AuditKinds + AuditLogWriter; composes the default XRod transceiver
+    (feed + receive pool + msg-audit) with no codec (in-process, usesOutboundTransport()=false)
+audit.XRodLogDbParams  (new)
+  - record(vendor, url, username, password, poolSize) bound from x-rod.custom; vendorOr / poolSizeOr helpers
+audit.AuditLogWriter
+  - RodEvent import retargeted common.xrod -> messaging.xrod
+EsqMsgConstants
+  - QUEUE_/TOPIC_/STREAM_ROD_AUDIT collapsed to the one logical ROD_AUDIT destination
+  - FIELD_SERVICE_ID -> FIELD_SLOT_ID (SlotID); FIELD_CTRL_ID -> FIELD_ROD_ID (RodID)
+  - MSG_TYPE_ROD_AUDIT -> MSG_TYPE_AUDIT ("UA")
+  - hardcoded bus/slot value constants removed (BUS_ID_ROD, BUS_ID_ENTITY, SERVICE_ID_ROD_AUDIT,
+    SERVICE_ID_ENTITY_BROADCAST); replaced by logical bus KEYS BUS_KEY_AUDIT / BUS_KEY_KC / BUS_KEY_ENTITY
+    (the bus-id / slot-id VALUES are now config/topology, not constants)
+audit.AuditRod  (removed)
+  - folded into the new messaging x-Rod layer
+audit.AuditSettings  (removed)
+  - folded into the new messaging x-Rod layer
+audit.RodEventBusPublisher  (removed)
+  - folded into the new messaging x-Rod layer
+audit.RodEventCodec  (removed)
+  - folded into the new messaging x-Rod layer
+audit.RodKafkaPublisher  (removed)
+  - folded into the new messaging x-Rod layer
+audit.RodRedisPublisher  (removed)
+  - folded into the new messaging x-Rod layer
+pom.xml
+  - transport-specific deps removed: jakarta.jms-api, spring-jms, spring-data-redis, spring-kafka
+  - added spring-boot + spring-boot-autoconfigure (provided) for the messaging-bus catalog binder and the
+    shared XRodManager @AutoConfiguration; spring-test (test) for the catalog binding test
+EsqUtils
+  - instanceNo() resolves from the host-name trailing ordinal only -- parsePodNameOrdinal(instanceHost());
+    the POD_INDEX / ESQUIRE_INSTANCE_NO env and esquire.instance.no sysprop sources removed
+  - instanceHost() (new): HOSTNAME -> POD_NAME -> local hostname -- the one instance-identity source
+  - setInstanceNoForTests(int) (new): test seam pinning the cached number; firstNonBlank() made public
+
 06/08/2026 mir0n  v1.2.7 -- audit logging (c) over Kafka transport
 audit.RodKafkaPublisher  (new)
   - Consumer<RodEvent> that sends the event to the audit Kafka topic via KafkaTemplate (key = entityId,

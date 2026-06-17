@@ -1,6 +1,44 @@
 Esquire pacMan Microservice
 
-06/08/2026 mir0n  v1.2.7 -- audit logging (c) over Kafka transport
+06/15/2026 mir0n  v1.2.8 -- entity-broadcast migrated onto the x-Rod catalog; audit via XRodManager
+messaging.EsqEntityBroadcastPublisher
+  - rewired onto the x-Rod transport seam: ctor opens the producer via
+    rods.producer(BUS_KEY_ENTITY, Role.BROADCAST) on the entity-bus leg
+  - publish() builds a RodEvent (msg-type UE) and calls rod.transmit; the manual JmsTemplate send,
+    ObjectMapper text serialization, service-id / ctrl-id @Value, and FIX-JSON property assembly removed
+  - the shared XRodManager owns the rod start/stop; no per-class lifecycle
+audit.AuditConfig
+  - audit producer now resolved through the shared XRodManager: xRod() returns
+    rods.producer(BUS_KEY_AUDIT, Role.BROADCAST); the leg's rod-class selects the pod (bus / log-db /
+    disabled), so the injected IXRod is never null
+  - removed the local mode/transport branching and all datasource / JMS / Redis / Kafka wiring, the
+    kindToSqlKey map, and the @PreDestroy shutdown
+acct.service.AcctTransactionProcessorSingle
+  - audit producer field retyped messaging.xrod.IXRod (was common.xrod.XYRod); the balance-change post()
+    carries an explicit msgType (EsqMsgConstants.MSG_TYPE_AUDIT)
+acct.service.AcctTransactionProcessorTransfer
+  - audit-producer ctor param retyped messaging.xrod.IXRod (was common.xrod.XYRod)
+acct.service.AcctTransactionService
+  - audit-producer ctor param retyped messaging.xrod.IXRod (was common.xrod.XYRod)
+service.impl.PacManService
+  - audit producer retyped messaging.xrod.IXRod (was common.xrod.XYRod); saveAcct UPDATE and deleteAcct
+    DELETE post() calls carry an explicit msgType (EsqMsgConstants.MSG_TYPE_AUDIT)
+messaging.PacManJmsConfig  (removed)
+  - JMS configuration deleted; the jmsTopicTemplate / jmsQueueTemplate beans are no longer needed now
+    that entity-broadcast and audit publish through the x-Rod catalog
+pom.xml
+  - transport-provider (tp) modules added: esquire-tp-activemq, esquire-tp-redis, esquire-tp-kafka
+    (each brings its transport client transitively)
+  - direct transport starters removed: spring-boot-starter-activemq, spring-boot-starter-data-redis,
+    spring-kafka
+src/main/resources/application.yml
+  - spring.config.import of the shared esquire-topology.yml (ESQUIRE_TOPOLOGY_IMPORT); esquire bus REFS
+    added: pacman-messaging-bus (service-local audit-b in-process leg, rod-class XRodLogDb), audit-bus,
+    entity-bus
+  - removed spring.activemq / spring.data.redis / spring.kafka blocks, the pacman.messaging and
+    pacman.audit-logging.x-rod.* knobs, and management.health.redis.enabled
+
+
 audit.AuditConfig
   - mode=bus + x-rod.bus.transport=kafka builds a RodKafkaPublisher over the autoconfigured KafkaTemplate
     (key = entityId) -> AuditRod.buildBus; transport=activemq (default) keeps the queue path

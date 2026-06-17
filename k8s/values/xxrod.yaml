@@ -2,4 +2,4 @@
 # Chart defaults already match local dev (postgres + activemq + transport=activemq).
 # Only image.tag is restamped per rebuild here -- k8s-rebuild.bat patches it.
 image:
-  tag: "v1.2.7-2606.0916"
+  tag: "v1.2.8-2606.1518"

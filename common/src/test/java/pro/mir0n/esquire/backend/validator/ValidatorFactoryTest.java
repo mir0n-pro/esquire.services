@@ -6,7 +6,9 @@ import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import pro.mir0n.esquire.backend.dto.EsqEntityField;
 import pro.mir0n.esquire.backend.dto.EsqEntityKindFieldLayer;
+import pro.mir0n.esquire.backend.error.DeleteRestrictedException;
 import pro.mir0n.esquire.backend.error.InvalidValueException;
+import pro.mir0n.esquire.backend.jpa.EsqEntityJpa;
 
 import java.util.Map;
 
@@ -100,5 +102,39 @@ class ValidatorFactoryTest {
         assertThatThrownBy(() -> factory.validate(null, kfl, false, "hello"))
                 .isInstanceOf(InvalidValueException.class)
                 .hasMessageContaining("biz error");
+    }
+
+    // ---- system entity flag (anti-deletion) ----
+
+    private EsqEntityJpa makeEntity(int kind, String systemFlg) {
+        EsqEntityJpa entity = new EsqEntityJpa();
+        entity.setId("1");
+        entity.setKind(kind);
+        entity.setSystemFlg(systemFlg);
+        return entity;
+    }
+
+    @Test
+    @DisplayName("validateDelete: system entity (systemFlg='Y') is protected → DeleteRestrictedException")
+    void validateDelete_systemEntity_throws() {
+        factory.init(null);
+        assertThatThrownBy(() -> factory.validateDelete(makeEntity(20, "Y")))
+                .isInstanceOf(DeleteRestrictedException.class);
+    }
+
+    @Test
+    @DisplayName("validateDelete: non-system entity (systemFlg='N') is not protected → no throw")
+    void validateDelete_nonSystemEntity_passes() {
+        factory.init(null);
+        assertThatCode(() -> factory.validateDelete(makeEntity(20, "N")))
+                .doesNotThrowAnyException();
+    }
+
+    @Test
+    @DisplayName("validateDelete: unset systemFlg (null) is not protected → no throw")
+    void validateDelete_nullSystemFlg_passes() {
+        factory.init(null);
+        assertThatCode(() -> factory.validateDelete(makeEntity(20, null)))
+                .doesNotThrowAnyException();
     }
 }

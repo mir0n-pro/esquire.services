@@ -5,6 +5,11 @@ image:
   tag: latest
   pullPolicy: IfNotPresent
 
+springProfilesActive: "console,dev-postgres"
+
+# shared bus topology is delivered by the esquire-topology ConfigMap, mounted at /etc/esquire.
+topologyImport: file:/etc/esquire/topology.yml
+
 service:
   port: 3007
 
@@ -16,18 +21,12 @@ db:
   username: esq2025
   password: q
 
-messaging:
-  brokerUrl: tcp://esquire-infra-amq-activemq:61616
-
+# audit-bus ref: xxRod is the CONSUMER -- it drains the chosen audit sink to the *_log tables.
+# Default k8s sink = (c) over the bus (ActiveMQ); busId=audit-c. The director picks the apply strategy.
 audit:
-  # apply-pool that writes the *_log tables; keep <= the datasource pool.
-  poolSize: 8
-  # which transport feeds the director: activemq (default JMS queue, option c) | kafka (the audit topic).
-  transport: activemq
-  kafka:
-    # only used when transport=kafka; a Kafka broker is NOT deployed by default.
-    bootstrap: esquire-infra-kafka:9092
-    groupId: esquire-xxrod-audit
+  busId: audit-c
+  serviceId: audit
+  director: audit
 
 logging:
   levelRoot: ERROR
@@ -35,6 +34,8 @@ logging:
   levelMir0n: INFO
   levelDevelop: DEBUG
   levelMsg: INFO
+  levelAmq: INFO
+  levelJms: INFO
   # no ./logs volume in k8s -> write to /tmp (the dir the logback file appenders need).
   developLogPath: /tmp/xxRod-develop.log
   msgLogPath: /tmp/xxRod-msg.log

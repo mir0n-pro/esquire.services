@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: esquire-topology
+  labels:
+    app: esquire-topology
+data:
+  topology.yml: |
+{{ .Files.Get "esquire-topology.yml" | indent 4 }}

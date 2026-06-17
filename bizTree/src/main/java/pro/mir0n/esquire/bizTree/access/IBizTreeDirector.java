@@ -15,10 +15,13 @@
  * 05/22/2026 mir0n  javadoc: implementations are BizTreeDirectorTaijitu + legacy (yang removed).
  * 06/04/2026 mir0n  read surface: rootPath + uid params removed from esquire / esquirePath /
  *                   esquireEntityNode / esquireSubtree (impls read them from the request context)
+ * 06/15/2026 mir0n  added default onRodEvent(RodEvent): unpacks the RodEvent off the entity-broadcast
+ *                   bus onto the generic onEntityBroadcast intake (body rides already parsed, no re-parse)
  */
 package pro.mir0n.esquire.bizTree.access;
 
 import pro.mir0n.esquire.backend.dto.EsqTreeNode;
+import pro.mir0n.esquire.messaging.xrod.RodEvent;
 import pro.mir0n.utils.taijitu.ITaijituRig;
 
 import java.util.List;
@@ -32,6 +35,16 @@ import java.util.List;
  * See: services/doc/Esquire.BizTree.md -- "Migration plan" section.
  */
 public interface IBizTreeDirector extends ITaijituRig {
+
+    /**
+     * Receive one {@link RodEvent} off the entity-broadcast bus -- the esquire substrate face the
+     * receive x-Rod hands events to. Unpacks the event onto the generic {@link ITaijituRig#onEntityBroadcast}
+     * intake (the generic taijitu never sees the esquire {@code RodEvent}); the {@code body} rides already
+     * parsed, so the monad applies it with no re-parse. The same substrate will later serve the KC bus.
+     */
+    default void onRodEvent(RodEvent e) {
+        onEntityBroadcast(e.opCode(), e.entityId(), e.kind(), e.requestId(), e.correlationId(), e.body());
+    }
 
     /* --- Read surface (bizTree-specific) -- uid / rootPath come from the unified per-request
        context (RequestContextUtils), read here and forwarded to IBizTreeService. ------------ */

@@ -15,11 +15,12 @@
  * 06/06/2026 mir0n  lifecycle for the generic xRod host (not audit-only): type() declares the selection id;
  *                   init(Environment) lets the director read its OWN properties and wire its sink; the host
  *                   calls init() at startup and shutdown() at stop. accept() handles one relayed event.
+ * 06/15/2026 mir0n  RodEvent import moved common.xrod -> messaging.xrod (shared bus catalog package).
  */
 package pro.mir0n.esquire.xxRod.director;
 
 import org.springframework.core.env.Environment;
-import pro.mir0n.esquire.common.xrod.RodEvent;
+import pro.mir0n.esquire.messaging.xrod.RodEvent;
 
 /**
  * The pluggable consumer-side strategy of the generic xRod host. The host selects one director by

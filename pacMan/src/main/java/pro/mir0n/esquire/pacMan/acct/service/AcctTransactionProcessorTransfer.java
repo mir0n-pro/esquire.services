@@ -11,6 +11,7 @@
  * 04/20/2026 mir0n  FIELD_RATE required (must be > 0); credit amount = abs(debit) * rate;
  *                   shared pkTx links both legs; sourceCcy forwarded to credit leg
  * 06/05/2026 mir0n  XYRod ctor param added + forwarded to super (both transfer legs audit the balance change)
+ * 06/15/2026 mir0n  audit-producer ctor param retyped messaging.xrod.IXRod (was common.xrod.XYRod)
  */
 
 package pro.mir0n.esquire.pacMan.acct.service;
@@ -35,7 +36,7 @@ public class AcctTransactionProcessorTransfer extends AcctTransactionProcessorSi
 
     private static final org.slf4j.Logger devLog = LoggerFactory.getLogger("develop." + AcctTransactionProcessorTransfer.class.getName());
 
-    public AcctTransactionProcessorTransfer(EsqAcctRepository entityRepository, EsqAcctTransactionRepository transactionRepository, TransactionTemplate transactionTemplate, EntityManager em, pro.mir0n.esquire.common.xrod.XYRod xyRod) {
+    public AcctTransactionProcessorTransfer(EsqAcctRepository entityRepository, EsqAcctTransactionRepository transactionRepository, TransactionTemplate transactionTemplate, EntityManager em, pro.mir0n.esquire.messaging.xrod.IXRod xyRod) {
         super(entityRepository, transactionRepository, transactionTemplate, em, xyRod);
     }
 

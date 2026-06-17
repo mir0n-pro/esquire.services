@@ -1,15 +1,11 @@
 spring:
   application:
     name: kcmaster
-  activemq:
-    broker-url: ${AMQ_BROKER_URL:tcp://localhost:61616}
-    user: ${AMQ_USER:}
-    password: ${AMQ_PASSWORD:}
-  jms:
-    client-id: ${KCMASTER_MESSAGING_CLIENT_ID:kcmaster}
   mvc:
     problemdetails:
       enabled: true
+  config:
+    import: "${ESQUIRE_TOPOLOGY_IMPORT:file:/etc/esquire/topology.yml}"
 keycloak:
   admin:
     base-url: ${KC_BASE_URL:http://localhost:8080}
@@ -19,17 +15,33 @@ keycloak:
     connect-timeout-ms: 5000
     read-timeout-ms: 10000
 kcmaster:
-  messaging:
-    broker-url: ${AMQ_BROKER_URL:tcp://localhost:61616}
-    service-id: ${KCMASTER_SERVICE_ID:kc-sync}
-    ctrl-id: ${KCMASTER_CTRL_ID:kcmaster.default}
-    client-id: ${KCMASTER_MESSAGING_CLIENT_ID:kcmaster}
-  # Race-8c safety-net buffer: parks topic-side EVENT_UPDATE_PATH paths for KC
-  # users that do not yet exist; KcIdentityService.createUser flushes on CREATE.
   path-buffer:
     ttl-ms:            ${KCMASTER_PATH_BUFFER_TTL_MS:10000}
     prune-interval-ms: ${KCMASTER_PATH_BUFFER_PRUNE_MS:30000}
-
+  entity-broadcast-bus:
+    consumer:
+      enabled: ${KCMASTER_ENTITY_BROADCAST_CONSUMER_ENABLED:true}
+  kc-request-bus:
+    consumer:
+      enabled: ${KCMASTER_KC_REQUEST_CONSUMER_ENABLED:true}
+# Bus TOPOLOGY (which buses exist + their transport) is the shared esquire-topology.yml imported above.
+# Here: this service's bus REFS + per-service knob OVERRIDES (kc SERVER + entity consumer).
+esquire:
+  kc-bus:
+    messaging-bus:
+      bus-id: ${KC_BUS_ID:esquire.kc}
+      slot-id: ${KC_SERVICE_ID:kc}
+      x-rod:
+        pool-size: ${KC_REQUEST_POOL_SIZE:4}
+        concurrency: ${KC_REQUEST_CONCURRENCY:1}
+        publisher-pool-size: ${KC_RESPONSE_PUBLISHER_POOL_SIZE:0}
+  entity-bus:
+    messaging-bus:
+      bus-id: ${ENTITY_BUS_ID:esquire.entity}
+      slot-id: ${ENTITY_SERVICE_ID:entity}
+      x-rod:
+        pool-size: ${ENTITY_BROADCAST_POOL_SIZE:4}
+        concurrency: ${ENTITY_BROADCAST_CONCURRENCY:1}
 logging:
   level:
     root: ${LOG_LEVEL_ROOT:ERROR}

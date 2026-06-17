@@ -39,14 +39,10 @@ spec:
                 secretKeyRef:
                   name: {{ .Release.Name }}-enyman-secret
                   key: db-password
-            # Downward API -- feeds EsqUtils.instanceNo() so each pod
-            # mints ids in its own slice of the bottom 4 digits.
-            # POD_INDEX is k8s 1.28+; POD_NAME is the universal fallback
-            # (EsqUtils parses the trailing StatefulSet ordinal).
-            - name: POD_INDEX
-              valueFrom:
-                fieldRef:
-                  fieldPath: metadata.labels['apps.kubernetes.io/pod-index']
+            # Downward API -- POD_NAME is the host identity EsqUtils.instanceHost() reads when
+            # HOSTNAME is suppressed; EsqUtils.instanceNo() parses its trailing StatefulSet ordinal
+            # so each pod mints ids (and owns a rod-id) in its own slice. A StatefulSet name
+            # ("enyman-0") yields a distinct ordinal; a Deployment has none, so all pods are 0.
             - name: POD_NAME
               valueFrom:
                 fieldRef:
@@ -66,3 +62,11 @@ spec:
             initialDelaySeconds: 40
             periodSeconds: 15
             timeoutSeconds: 5
+          volumeMounts:
+            - name: esquire-topology
+              mountPath: /etc/esquire
+              readOnly: true
+      volumes:
+        - name: esquire-topology
+          configMap:
+            name: esquire-topology

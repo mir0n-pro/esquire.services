@@ -14,6 +14,7 @@
  * 06/04/2026 mir0n  esquireCommandAcct: rootPath + uid params removed; read via RequestContextUtils and
  *                   passed to the single / transfer processors (processor signatures unchanged)
  * 06/05/2026 mir0n  XYRod ctor param added + passed to the single / transfer processors (x-Rod balance audit)
+ * 06/15/2026 mir0n  audit-producer ctor param retyped messaging.xrod.IXRod (was common.xrod.XYRod)
  */
 
 package pro.mir0n.esquire.pacMan.acct.service;
@@ -43,7 +44,7 @@ public class AcctTransactionService {
             EsqAcctTransactionRepository transactionRepository,
             TransactionTemplate transactionTemplate,
             EntityManager em,
-            pro.mir0n.esquire.common.xrod.XYRod xyRod) {
+            pro.mir0n.esquire.messaging.xrod.IXRod xyRod) {
         this.processorSingle   = new AcctTransactionProcessorSingle(entityRepository, transactionRepository, transactionTemplate, em, xyRod);
         this.processorTransfer = new AcctTransactionProcessorTransfer(entityRepository, transactionRepository, transactionTemplate, em, xyRod);
     }

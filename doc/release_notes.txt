@@ -1,6 +1,40 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v1.2.8-2606.1617  v1.2.8 -- Draft of Messaging Bus Concept implementation
+    :Feature:     pluggable transport layer; uniform x-Rod messaging frontend
+    :Refactoring: all messaging is unified behind one x-Rod frontend -- a shared catalog of buses and
+                  legs driven by an x-Rod manager
+    :Refactoring: each running instance takes a stable per-instance identity from its host name
+    :Feature:     transport vendor agnostic transport layer
+    :Feature:     request and response are modeled as two stops on one bus, routed by role (client, server
+                  or broadcast); the audit destination is pluggable by name
+    :Config:      the bus catalog lives in one shared topology file
+    :Config:      the service configuration is the single source of truth
+    :Config:      the build registers the three transport-provider modules
+    :Config:      the instance number is taken from the pod / container name ordinal alone
+    Components:   common,
+                  bizTree,
+                  enyMan,
+                  kcMaster,
+                  keySmith,
+                  pacMan,
+                  xxRod,
+                  tp-activemq,
+                  tp-kafka,
+                  tp-redis,
+                  compose,
+                  k8s,
+                  build/version
+    Doc:          doc\Esquire.AuditLoggingStack.md
+                  doc\services.configuring.md
+                  doc\Esquire.BizTree.md
+                  doc\Esquire.MessagingBus.md (new)
+                  doc\Esquire.TestingStack.md
+                  doc\Logging.md
+                  doc\Message.Structure.md
+                  doc\Messaging.md 
+                  doc\services.configuring.md
 v1.2.8-2606.1216  v1.2.8 -- system entity flag (anti-deletion); admin-create and system-login fixes
     :Feature:     system entity flag -- offices and users flagged in the seed are protected from deletion;
                   enyMan returns HTTP 409 on any attempt to delete one

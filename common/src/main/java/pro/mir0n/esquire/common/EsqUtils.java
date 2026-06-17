@@ -11,6 +11,10 @@
  *                   instanceNo() added: this service instance's number
  * 06/02/2026 mir0n  instanceNo() lazy-caches its result in a volatile field (resolved once per
  *                   JVM lifetime); added package-private resetInstanceNoCacheForTests()
+ * 06/16/2026 mir0n  v1.2.8 -- instanceNo() resolves from the host-name trailing ordinal only
+ *                   (parsePodNameOrdinal(instanceHost())); POD_INDEX / ESQUIRE_INSTANCE_NO env /
+ *                   esquire.instance.no sysprop sources dropped; instanceHost() + setInstanceNoForTests()
+ *                   added; firstNonBlank() made public
  */
 package pro.mir0n.esquire.common;
 
@@ -22,26 +26,19 @@ public class EsqUtils {
         return java.util.UUID.randomUUID().toString();
     }
 
-// This service instance's number within its replica set. v1.2.6 weaves
+// This service instance's number within its replica set -- the bottom-digit shard key for
+    // entity-id minting AND the per-instance token of the default rod-id (<app>.<instanceNo>).
     //
-    // Sources, in priority order:
-    //   1. ESQUIRE_INSTANCE_NO env  -- explicit override, set anywhere
-    //   2. POD_INDEX env            -- k8s 1.28+ downward API
-    //                                  (metadata.labels['apps.kubernetes.io/pod-index'])
-    //   3. POD_NAME env             -- downward API metadata.name, parse the
-    //                                  trailing "-N" StatefulSet ordinal
-    //   4. esquire.instance.no sysprop
-    //   5. default 0                -- single unsharded instance / local dev
+    // ONE source: the trailing ordinal of this instance's host name (instanceHost() -- HOSTNAME /
+    // POD_NAME, always present in Docker and k8s). The deployment carries the sequence IN the name
+    // whenever it runs for resilience: a StatefulSet pod name ("enyman-0" -> 0), or a
+    // "hostname: <app>-N" on the Docker container. No ordinal in the name (a single instance / a
+    // plain Deployment) -> 0.
     //
-    // POD_INDEX and POD_NAME both come from StatefulSet pods via the
-    // downward API. Both are supported so the same chart works on older
-    // k8s without the pod-index label.
-    //
-    // Lazy-cached: the instance number is fixed per JVM lifetime (env / pod
-    // label / sysprop are set at startup and don't change). EntityIdGenerator
-    // and the move-queue worker call this on every mint / reconcile, so the
-    // env/sysprop walk is amortised to a single resolution. Tests can null
-    // the cache via resetInstanceNoCacheForTests() (package-private).
+    // Lazy-cached: the number is fixed per JVM lifetime (the host name is set at startup and doesn't
+    // change). EntityIdGenerator and the move-queue worker call this on every mint / reconcile, so
+    // the resolution is amortised to a single walk. Tests inject a value via setInstanceNoForTests()
+    // and drop it via resetInstanceNoCacheForTests() (both package-private).
     private static volatile Integer cachedInstanceNo;
 
     public static int instanceNo() {
@@ -50,30 +47,55 @@ public class EsqUtils {
             return cached;
         }
         int ret = 0;
-        String raw = firstNonBlank(
-            System.getenv("ESQUIRE_INSTANCE_NO"),
-            System.getenv("POD_INDEX"),
-            parsePodNameOrdinal(System.getenv("POD_NAME")),
-            System.getProperty("esquire.instance.no")
-        );
-        if (raw != null) {
+        String ordinal = parsePodNameOrdinal(instanceHost());
+        if (ordinal != null) {
             try {
-                ret = Integer.parseInt(raw.trim());
+                ret = Integer.parseInt(ordinal);
             } catch (NumberFormatException ignored) {
-                // ret stays 0 -- treat unparseable as "not configured"
+                // ret stays 0 -- parsePodNameOrdinal returns only all-digit strings, so this guards
+                // a pathologically long tail (overflow) alone
             }
         }
         cachedInstanceNo = ret;
         return ret;
     }
 
-    /** Test-only: drop the cached instance number so a subsequent {@link #instanceNo()}
-     *  call re-resolves from env / sysprop. Lets tests vary the sysprop between cases. */
+    /** Test-only: drop the cached instance number so a subsequent {@link #instanceNo()} call
+     *  re-resolves from the host name. */
     static void resetInstanceNoCacheForTests() {
         cachedInstanceNo = null;
     }
 
-    private static String firstNonBlank(String... candidates) {
+    /** Test-only: pin the cached instance number, bypassing host-name resolution. Lets tests drive
+     *  the shard digit (and out-of-range guards) without depending on the runner's host name. */
+    static void setInstanceNoForTests(int instanceNo) {
+        cachedInstanceNo = instanceNo;
+    }
+
+    // This container/pod's host identity -- THE single instance-identity source. The pod name in
+    // k8s (the kubelet sets the pod hostname to metadata.name) or the container id in Docker.
+    // instanceNo() parses its trailing ordinal for the shard digit; callers needing the full token
+    // (e.g. diagnostics) use it directly. Resolved in priority order:
+    //   1. HOSTNAME env  -- set by every container runtime (k8s pod name / Docker container id)
+    //   2. POD_NAME env  -- the downward API metadata.name, when HOSTNAME is suppressed
+    //   3. the resolved local hostname  -- the bare-metal / local-dev fallback
+    // Returns null only when no hostname is resolvable at all; instanceNo() then defaults to 0.
+    public static String instanceHost() {
+        String ret = firstNonBlank(
+            System.getenv("HOSTNAME"),
+            System.getenv("POD_NAME")
+        );
+        if (ret == null) {
+            try {
+                ret = java.net.InetAddress.getLocalHost().getHostName();
+            } catch (java.net.UnknownHostException ignored) {
+                // ret stays null -- caller defaults (e.g. to instanceNo())
+            }
+        }
+        return ret;
+    }
+
+    public static String firstNonBlank(String... candidates) {
         String ret = null;
         for (String c : candidates) {
             if (c != null && !c.isBlank()) {

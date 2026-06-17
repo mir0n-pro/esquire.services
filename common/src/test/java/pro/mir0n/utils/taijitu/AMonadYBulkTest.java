@@ -47,7 +47,7 @@ class AMonadYBulkTest {
     }
 
     private static QueueItem event(String id) {
-        return new QueueItem("U", id, 0, null, "cid", null, null);
+        return new QueueItem("U", id, 0, null, "cid", null);
     }
 
     private static void await(BooleanSupplier cond) throws InterruptedException {
@@ -87,7 +87,7 @@ class AMonadYBulkTest {
         m.setQueueEnabled(true);
 
         for (int i = 1; i <= 6; i++) m.offer(event("a" + i));            // 6 events
-        m.offer(new QueueItem(MonadCmd.CMD, MonadCmd.CLEAR, 0, null, "cid", null, null));   // a command
+        m.offer(new QueueItem(MonadCmd.CMD, MonadCmd.CLEAR, 0, null, "cid", null));   // a command
         for (int i = 1; i <= 6; i++) m.offer(event("b" + i));            // 6 events  -> 13 items > 10
 
         m.setProcessingEnabled(true);

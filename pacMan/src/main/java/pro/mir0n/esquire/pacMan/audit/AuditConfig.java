@@ -6,166 +6,43 @@
  *  mailto:mir0n.the.programmer@gmail.com
  *
  *  History:
- * 06/05/2026 mir0n  created: pacMan audit-logging wiring over the generic x-Rod (common.audit). pacMan
- *                   owns account UPDATE / DELETE / balance -> esq_account_log (enyMan owns CREATE). Reads
- *                   pacman.audit-logging.* and maps the account kinds to the ACCOUNT statement.
- * 06/06/2026 mir0n  mode-aware (option c): mode=bus publishes RodEvents to the audit QUEUE via
- *                   RodEventBusPublisher (no local writer/datasource); mode=in-process keeps (b). kind map
- *                   via shared AuditKinds.
- * 06/06/2026 mir0n  bus publisher pool: x-rod.bus.publisher-pool-size=0 keeps the single feed-worker sync
- *                   publish; N>0 wires AuditRod.buildBusPool over a dedicated useAsyncSend connection
- *                   (N async senders), CF closed in @PreDestroy.
- * 06/08/2026 mir0n  option (d): mode=redis builds a RodRedisPublisher (XADD to the audit Redis Stream via
- *                   the injected StringRedisTemplate), wired through buildBus / buildBusPool; stream key and
- *                   approximate MAXLEN from x-rod.redis.*.
- * 06/08/2026 mir0n  option (c) over Kafka: mode=bus + x-rod.bus.transport=kafka builds a RodKafkaPublisher
- *                   over the autoconfigured KafkaTemplate (key = entityId) -> buildBus; transport=activemq
- *                   (default) keeps the queue path.
+ * 06/05/2026 mir0n  created: pacMan audit-logging wiring (esq_account_log on account update / balance).
+ * 06/13/2026 mir0n  class-name-driven transport over the unified esquire.audit.* block.
+ * 06/14/2026 mir0n  bus-oriented: reads esquire.audit.mode (disabled | log-db | messaging-bus).
+ * 06/14/2026 mir0n  log-db is now the XRodLogDb pod (resolved by rod-class; self-configures from the leg's
+ *                   x-rod.log-db). So this config no longer wires the datasource / *_log registry: bus ->
+ *                   AuditRod; log-db / disabled -> XRodLogDb (a no-op pod when disabled).
+ * 06/15/2026 mir0n  resolves the audit producer through the shared XRodManager: xRod() returns
+ *                   rods.producer(BUS_KEY_AUDIT, Role.BROADCAST); the leg's rod-class selects the pod
+ *                   (bus / log-db / disabled), so the injected IXRod is never null. No local datasource /
+ *                   JMS / Redis / Kafka wiring or @PreDestroy lifecycle here.
  */
 package pro.mir0n.esquire.pacMan.audit;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import jakarta.annotation.PreDestroy;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.ObjectProvider;
-import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.apache.activemq.ActiveMQConnectionFactory;
-import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.jms.connection.CachingConnectionFactory;
-import org.springframework.jms.core.JmsTemplate;
-import org.springframework.kafka.core.KafkaTemplate;
-import pro.mir0n.esquire.backend.dto.EsqObjectKind;
-import pro.mir0n.esquire.backend.storage.EsqObjectKindStorage;
 import pro.mir0n.esquire.common.EsqMsgConstants;
-import pro.mir0n.esquire.common.audit.AuditLogSql;
-import pro.mir0n.esquire.common.audit.AuditRod;
-import pro.mir0n.esquire.common.audit.AuditSettings;
-import pro.mir0n.esquire.common.audit.RodEventBusPublisher;
-import pro.mir0n.esquire.common.audit.RodKafkaPublisher;
-import pro.mir0n.esquire.common.audit.RodRedisPublisher;
-import pro.mir0n.esquire.common.xrod.XYRod;
-
-import javax.sql.DataSource;
-import java.util.HashMap;
-import java.util.Map;
+import pro.mir0n.esquire.messaging.Role;
+import pro.mir0n.esquire.messaging.xrod.IXRod;
+import pro.mir0n.esquire.messaging.xrod.XRodManager;
 
 @Configuration
 public class AuditConfig {
 
-    private static final Logger devLog = LoggerFactory.getLogger("develop." + AuditConfig.class.getName());
+    private final XRodManager rods;
 
-    @Value("${pacman.audit-logging.enabled:false}")                private boolean enabled;
-    @Value("${pacman.audit-logging.x-rod.mode:in-process}")        private String  mode;
-    @Value("${pacman.audit-logging.x-rod.pool-size:4}")            private int     poolSize;
-    @Value("${pacman.audit-logging.x-rod.virtual-threads:false}")  private boolean virtualThreads;
-    @Value("${pacman.audit-logging.x-rod.feed-capacity:4096}")     private int     feedCapacity;
-    @Value("${pacman.audit-logging.x-rod.log-datastore:shared}")   private String  logDatastore;
-    @Value("${pacman.audit-logging.x-rod.log-db.vendor:dev-postgres}")  private String logDbVendor;
-    @Value("${pacman.audit-logging.x-rod.log-db.url:}")                 private String logDbUrl;
-    @Value("${pacman.audit-logging.x-rod.log-db.username:}")            private String logDbUsername;
-    @Value("${pacman.audit-logging.x-rod.log-db.password:}")            private String logDbPassword;
-    @Value("${pacman.audit-logging.x-rod.log-db.pool-size:8}")          private int    logDbPoolSize;
-    @Value("${spring.profiles.active:dev-postgres}")                    private String businessProfile;
-    @Value("${spring.application.name}")                                private String appName;
-    @Value("${spring.activemq.broker-url:tcp://localhost:61616}")       private String  brokerUrl;
-    // bus publisher pool (option c): 0 = current single feed-worker synchronous publish; N>0 = N async
-    // publisher threads over a dedicated useAsyncSend connection (the same thread-per-event pool as b).
-    // The pool size also drives the (d) redis path.
-    @Value("${pacman.audit-logging.x-rod.bus.publisher-pool-size:0}")   private int     publisherPoolSize;
-    // (c) bus transport: activemq (default) | kafka. kafka -> publish to the audit Kafka topic instead.
-    @Value("${pacman.audit-logging.x-rod.bus.transport:activemq}")      private String  busTransport;
-    // (d) redis: the audit stream key (blank -> EsqMsgConstants.STREAM_ROD_AUDIT) and approximate MAXLEN (0 = uncapped).
-    @Value("${pacman.audit-logging.x-rod.redis.stream:}")              private String  redisStream;
-    @Value("${pacman.audit-logging.x-rod.redis.max-len:0}")            private long    redisMaxLen;
-
-    private final DataSource serviceDataSource;
-    private final JmsTemplate jmsQueueTemplate;
-    private final ObjectProvider<StringRedisTemplate> redisTemplateProvider;
-    private final ObjectProvider<KafkaTemplate<?, ?>> kafkaTemplateProvider;
-    private final ObjectMapper objectMapper;
-    private AuditRod.Handle handle;
-    private CachingConnectionFactory auditConnectionFactory;
-
-    public AuditConfig(DataSource serviceDataSource,
-                       @Qualifier("jmsQueueTemplate") JmsTemplate jmsQueueTemplate,
-                       ObjectProvider<StringRedisTemplate> redisTemplateProvider,
-                       ObjectProvider<KafkaTemplate<?, ?>> kafkaTemplateProvider,
-                       ObjectMapper objectMapper) {
-        this.serviceDataSource     = serviceDataSource;
-        this.jmsQueueTemplate      = jmsQueueTemplate;
-        this.redisTemplateProvider = redisTemplateProvider;
-        this.kafkaTemplateProvider = kafkaTemplateProvider;
-        this.objectMapper          = objectMapper;
+    public AuditConfig(XRodManager rods) {
+        this.rods = rods;
     }
 
+    /**
+     * The audit rod -- a plain producer on the "audit-bus" collaboration (the service-level ref maps it to a
+     * catalog leg + the post msg-type UA). The leg's {@code rod-class} is the selector: XRod = bus (transmit to
+     * xxRod), XRodLogDb = in-process *_log, XRodInfo = log-only. Audit OFF -- no audit-bus leg, or
+     * rod-class = XRodDisabled -- resolves to the OFF pod, so the injected IXRod is never null.
+     */
     @Bean
-    public XYRod xyRod() {
-        AuditSettings settings = new AuditSettings(enabled, poolSize, virtualThreads, feedCapacity,
-                logDatastore, logDbVendor, logDbUrl, logDbUsername, logDbPassword, logDbPoolSize, businessProfile);
-        if (AuditRod.MODE_BUS.equalsIgnoreCase(mode) && AuditRod.TRANSPORT_KAFKA.equalsIgnoreCase(busTransport)) {
-            // (c) over Kafka: publish to the audit topic (keyed by entityId); xxRod consumes + writes the *_log.
-            // KafkaTemplate.send is async/batched, so the single feed worker suffices (no publisher pool).
-            @SuppressWarnings("unchecked")
-            KafkaTemplate<String, String> kt = (KafkaTemplate<String, String>) kafkaTemplateProvider.getObject();
-            RodKafkaPublisher publisher = new RodKafkaPublisher(kt, EsqMsgConstants.TOPIC_ROD_AUDIT, objectMapper);
-            handle = AuditRod.buildBus(appName, settings, publisher, devLog);
-        } else if (AuditRod.MODE_BUS.equalsIgnoreCase(mode)) {
-            // (c) producer: publish to the audit queue; the standalone xxRod consumer writes the *_log.
-            if (publisherPoolSize > 0) {
-                // async publisher pool: dedicated useAsyncSend connection (scoped to audit), N publisher threads.
-                ActiveMQConnectionFactory amq = new ActiveMQConnectionFactory(brokerUrl);
-                amq.setUseAsyncSend(true);
-                auditConnectionFactory = new CachingConnectionFactory(amq);
-                auditConnectionFactory.setSessionCacheSize(publisherPoolSize);
-                JmsTemplate asyncTemplate = new JmsTemplate(auditConnectionFactory);
-                asyncTemplate.setPubSubDomain(false);
-                RodEventBusPublisher publisher =
-                        new RodEventBusPublisher(asyncTemplate, EsqMsgConstants.QUEUE_ROD_AUDIT, objectMapper);
-                handle = AuditRod.buildBusPool(appName, settings, publisher, publisherPoolSize, devLog);
-            } else {
-                // current: single feed worker publishes synchronously over the shared queue template.
-                RodEventBusPublisher publisher =
-                        new RodEventBusPublisher(jmsQueueTemplate, EsqMsgConstants.QUEUE_ROD_AUDIT, objectMapper);
-                handle = AuditRod.buildBus(appName, settings, publisher, devLog);
-            }
-        } else if (AuditRod.MODE_REDIS.equalsIgnoreCase(mode)) {
-            // (d) producer: XADD each event to the Redis Stream (the stream IS the audit log; no consumer).
-            String stream = redisStream.isBlank() ? EsqMsgConstants.STREAM_ROD_AUDIT : redisStream;
-            RodRedisPublisher publisher =
-                    new RodRedisPublisher(redisTemplateProvider.getObject(), stream, redisMaxLen, objectMapper);
-            handle = (publisherPoolSize > 0)
-                    ? AuditRod.buildBusPool(appName, settings, publisher, publisherPoolSize, devLog)
-                    : AuditRod.buildBus(appName, settings, publisher, devLog);
-        } else {
-            // (b) in-process: write the *_log here.
-            handle = AuditRod.build(appName, settings, kindToSqlKey(), serviceDataSource, devLog);
-        }
-        return handle.xyRod();
-    }
-
-    // pacMan writes only the account table in-process; account kinds via the dictionary acct flag
-    // (matches pacMan's own META-INF/audit-log-*.xml, which ships only the account statement).
-    private static Map<Integer, String> kindToSqlKey() {
-        Map<Integer, String> m = new HashMap<>();
-        for (EsqObjectKind k : EsqObjectKindStorage.getInstance().getAll()) {
-            if (k.isAcct()) {
-                m.put(k.getId(), AuditLogSql.ACCOUNT);
-            }
-        }
-        return m;
-    }
-
-    @PreDestroy
-    public void stop() {
-        if (handle != null) {
-            handle.shutdown();
-        }
-        if (auditConnectionFactory != null) {
-            auditConnectionFactory.destroy();
-        }
+    public IXRod xRod() {
+        return rods.producer(EsqMsgConstants.BUS_KEY_AUDIT, Role.BROADCAST);
     }
 }

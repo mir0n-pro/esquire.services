@@ -3,11 +3,6 @@ spring:
     active: ${DB_BIZTREE_VENDOR:dev-postgres},${BIZTREE_CACHE_VENDOR:cache-h2}
   application:
     name: biztree
-  activemq:
-    broker-url: ${AMQ_BROKER_URL:tcp://localhost:61616}
-    user: ${AMQ_USER:}
-    password: ${AMQ_PASSWORD:}
-    # Phase 1: no broker authorization required
   jpa:
     hibernate:
       ddl-auto: none
@@ -15,10 +10,23 @@ spring:
   mvc:
     problemdetails:
       enabled: true
-# Messaging: entity broadcast consumer
+  config:
+    import: "${ESQUIRE_TOPOLOGY_IMPORT:file:/etc/esquire/topology.yml}"
 biztree:
+  # cache director + monad/taijitu knobs (read by @Value; surfaced here for env visibility -- defaults
+  # match the @Value fallbacks, so behaviour is unchanged when the env var is unset).
+  director: ${BIZTREE_DIRECTOR:legacy}
+  monad:
+    queue:
+      capacity: ${BIZTREE_MONAD_QUEUE_CAPACITY:4096}
+  queue:
+    bulk-threshold: ${BIZTREE_QUEUE_BULK_THRESHOLD:10}
+  taijitu:
+    on-mismatch: ${BIZTREE_TAIJITU_ON_MISMATCH:LOG}
+    sweep:
+      interval-ms: ${BIZTREE_TAIJITU_SWEEP_INTERVAL_MS:10000}
+      timeout-ms: ${BIZTREE_TAIJITU_SWEEP_TIMEOUT_MS:10000}
   h2:
-    # H2 in-memory tree cache — independent from esquireDB
     url: ${BIZTREE_H2_URL:jdbc:h2:mem:biztree;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE}
     pool:
       pool-name:            biztree-h2-cache
@@ -27,9 +35,19 @@ biztree:
       connection-timeout:   ${BIZTREE_H2_POOL_CONN_TIMEOUT:5000}
       max-lifetime:         ${BIZTREE_H2_POOL_MAX_LIFETIME:1800000}
       idle-timeout:         ${BIZTREE_H2_POOL_IDLE_TIMEOUT:600000}
-  messaging:
+  entity-broadcast-bus:
     consumer:
       enabled: ${BIZTREE_MESSAGING_CONSUMER_ENABLED:true}
+# Bus TOPOLOGY (which buses exist + their transport) is the shared esquire-topology.yml imported above.
+# Here: this service's bus REF + per-service knob OVERRIDE (entity consumer).
+esquire:
+  entity-bus:
+    messaging-bus:
+      bus-id: ${ENTITY_BUS_ID:esquire.entity}
+      slot-id: ${ENTITY_SERVICE_ID:entity}
+      x-rod:
+        pool-size: ${ENTITY_BROADCAST_POOL_SIZE:4}
+        concurrency: ${ENTITY_BROADCAST_CONCURRENCY:1}
 logging:
   level:
     root: ${LOG_LEVEL_ROOT:ERROR}
@@ -46,8 +64,6 @@ logging:
     log-path: ${DEVELOP_LOG_PATH:logs/bizTree-develop.log}
   msg:
     log-path: ${MSG_LOG_PATH:logs/bizTree-msg.log}
-# Health probes: liveness = livenessState only (a slow cache load must NOT crashloop the pod);
-# readiness = readinessState + the cacheReadiness indicator (no traffic until the cache is serving).
 management:
   endpoint:
     health:
@@ -67,13 +83,13 @@ spring:
     url: jdbc:oracle:thin:@//${DB_BIZTREE_HOST:localhost}:${DB_BIZTREE_PORT:1521}/${DB_BIZTREE_NAME:MIR0N}
     driverClassName: oracle.jdbc.OracleDriver
     username: ${DB_BIZTREE_USERNAME:esq2025}
-    password: ${DB_BIZTREE_PASSWORD:q}   
+    password: ${DB_BIZTREE_PASSWORD:q}
     hikari:
       maximum-pool-size: 20
       minimum-idle: 20
-      connection-timeout: 30000 
-      max-lifetime: 1800000 
-      idle-timeout: 600000    
+      connection-timeout: 30000
+      max-lifetime: 1800000
+      idle-timeout: 600000
   jpa:
     mapping-resources:
       - META-INF/oracle-entity.xml

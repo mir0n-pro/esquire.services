@@ -1,5 +1,29 @@
 Esquire keySmith Microservice
 
+06/15/2026 mir0n  v1.2.8 -- KC sync publisher/listener migrated onto the x-Rod catalog; audit via XRodManager
+messaging.KcSyncPublisher
+  - producer IXRod opened from XRodManager (rods.producer(BUS_KEY_KC, Role.CLIENT)); publish() builds a
+    RodEvent (msg-type URQ) and calls rod.transmit(); dropped JmsTemplate / ObjectMapper / ctrl-id @Value
+    and the manual FIX-props send; buildText() -> buildBody() returns the field Map (no JSON here)
+messaging.KcSyncResponseListener
+  - consumes via XRodManager (rods.consumer(BUS_KEY_KC, Role.CLIENT, this::onResponse)); onResponse(RodEvent)
+    reads the typed envelope (msgType = URS/URR tag); dropped @JmsListener / Message field reads / msgLog
+audit.AuditConfig
+  - ctor takes XRodManager; xRod() returns rods.producer(BUS_KEY_AUDIT, Role.BROADCAST); dropped the @Value
+    config block, the DataSource / JmsTemplate / Redis / Kafka publisher wiring, kindToSqlKey() and @PreDestroy
+service.impl.KeySmithService
+  - audit field retyped XYRod -> IXRod (messaging.xrod); the auth UPDATE post() now passes an explicit
+    msgType (EsqMsgConstants.MSG_TYPE_AUDIT) as the trailing argument
+messaging.KeySmithJmsConfig  (removed)
+  - JMS queue connection-factory / listener-factory config deleted (transport now owned by XRodManager)
+pom.xml
+  - direct transport starters (spring-boot-starter-activemq, spring-boot-starter-data-redis, spring-kafka)
+    replaced by the esquire-tp-activemq / esquire-tp-redis / esquire-tp-kafka transport-provider modules
+application.yml
+  - dropped spring.activemq/data.redis/kafka/jms blocks, keysmith.messaging.ctrl-id and the
+    keysmith.audit-logging.* tree; added spring.config.import of the shared esquire-topology.yml and the
+    esquire.* bus refs (audit-bus, kc-bus) + service-local keysmith-messaging-bus audit-b leg (XRodLogDb)
+
 06/08/2026 mir0n  v1.2.7 -- audit logging (c) over Kafka transport
 audit.AuditConfig
   - mode=bus + x-rod.bus.transport=kafka builds a RodKafkaPublisher over the autoconfigured KafkaTemplate

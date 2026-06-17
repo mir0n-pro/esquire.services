@@ -77,7 +77,7 @@ class AcctTransactionServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new AcctTransactionProcessorSingle(entityRepository, transactionRepository, transactionTemplate, em, Mockito.mock(pro.mir0n.esquire.common.xrod.XYRod.class));
+        service = new AcctTransactionProcessorSingle(entityRepository, transactionRepository, transactionTemplate, em, Mockito.mock(pro.mir0n.esquire.messaging.xrod.IXRod.class));
     }
 
     // ---- unknown or odd kind → ResourceNotFoundException ----
