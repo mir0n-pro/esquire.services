@@ -1,5 +1,83 @@
 Esquire Common microservice classes
 
+06/17/2026 mir0n  v1.2.8 -- Messaging Bus code-review cleanup: audit bridge, x-rod engine base, typed nodes, fail-fast
+audit.AuditBusBridge  (new)
+  - the audit producer onto the bus: post(op,kind,id,sub[,IMappable|Map]) buffers each change in the active
+    transaction and, after commit, stamps one actionTime + snapshots the request context, builds the RodEvent
+    (msg-type MSG_TYPE_AUDIT) and transmit()s it on the audit x-rod; no active transaction = transmit at once.
+    isEnabled() = the audit x-rod is not XRodDisabled. The post / commit machinery lifted OUT of XRod.
+messaging.xrod.impl.AXRod  (new)
+  - abstract x-Rod transceiver ENGINE: the feed (BoundedQueueRig transmit leg) + the Semaphore-bounded reused
+    worker pool (receive leg) + msg-audit + lifecycle. startEngine(name,devLog,outbound,worker) wires the legs;
+    shutdown() stops the pool then awaitTermination(5s) (shutdownNow on timeout) so in-flight tasks drain;
+    receive() drops (logs) a late delivery during shutdown instead of throwing; require() validation helper.
+messaging.BusNode  (new)
+  - record(nodeId, destination, topic, params): one R&R network node (transport.node[*]); provider / endpoint
+    stay base-owned.
+messaging.transport.TransportPublisher  (new)
+  - interface extends Consumer<TransportMessage>, AutoCloseable; of(sink, closer) factory. The publish handle
+    ITransportProvider.openPublisher returns -- close() releases the provider's own broker connection.
+messaging.xrod.RodPublisher  (new)
+  - interface extends Consumer<RodEvent>, AutoCloseable; of(dispatch, closer). The closeable transmit-leg
+    outbound RodTransportAdapter.publisher returns.
+messaging.xrod.IXRod
+  - post() declarations removed (the producer's transactional post lives in AuditBusBridge now); submit() ->
+    receive(); usesOutboundTransport() and bindInbound() removed; isEnabled() is now a default true;
+    validate(XRodParams) default-no-op added (the fail-fast hook)
+messaging.xrod.impl.XRod
+  - extends AXRod (engine lifted out); keeps the transport (publisher / openConsumer / legTransport /
+    consumeSelector); start() resolves the leg + decides producer / consumer / in-process and calls startEngine();
+    shutdown() closes the inbound consumer, drains via super, then closes the outbound publisher; validate()
+    requires a declared transport's provider + endpoint + destination
+messaging.xrod.impl.XRodRR
+  - legTransport() rewritten to a typed node model: select the request / response BusNode by id and refine the
+    base wire via BusTransport.refinedWith(); the flattened-key surgery + nodePrefix() removed; validate()
+    requires provider + endpoint and either the R&R nodes (with destinations) or a base destination
+messaging.xrod.impl.XRodInfo
+  - dropped the composed inner XRod -- log-only directly: transmit() / receive() log the event line, no feed /
+    pool / transport; usesOutboundTransport() / bindInbound() removed
+messaging.xrod.impl.XRodDisabled
+  - usesOutboundTransport() / bindInbound() removed; isEnabled() overrides false (the only x-rod that is off)
+messaging.xrod.XRods
+  - the class declaration put on one line (formatting)
+messaging.xrod.XRodManager
+  - configureXRod() calls rod.validate(eff) before configure / start (fail-fast on the leg's required params)
+messaging.XRodParams
+  - transport() carries transport.params.* VERBATIM (token expansion removed from here); nodes() (new) parses
+    transport.node[*] into a typed List<BusNode> (the one place reading the flattened node keys);
+    expandIdentityTokens() removed
+audit.XRodLogDb
+  - extends AXRod (was composing an inner XRod); validate() requires x-rod.log-db.url (moved out of configure);
+    the Hikari pool default renamed DEFAULT_DB_POOL (distinct from the engine worker pool)
+messaging.xrod.RodEvent
+  - the 10-arg constructor (rodId, no msgType) removed (unused); javadoc {@link RodRepository} -> IRodEventRepo /
+    RodEventRepoRegistry; the msg-type list RDA -> UA
+messaging.xrod.RodTransportAdapter
+  - publisher() returns a RodPublisher (closeable) instead of a bare Consumer<RodEvent>
+messaging.BusTransport
+  - refinedWith(BusNode) (new): the base wire refined with a node (node owns destination / topic / params; the
+    base owns provider / endpoint)
+messaging.transport.BusIdentity
+  - expandTokens(Map) (new): resolves ${rod-id} / ${bus-id} / ${slot-id} in vendor params against this identity
+messaging.transport.TransportSettings
+  - the constructor resolves the identity tokens in params (identity.expandTokens) -- one driver-facing point;
+    the clientId field / getter removed
+messaging.transport.PublishSettings / ConsumeSettings
+  - the clientId constructor parameter removed
+messaging.transport.ITransportProvider
+  - openPublisher returns TransportPublisher (closeable) instead of Consumer<TransportMessage>
+messaging.transport.TransportProviders
+  - paramKey() removed (a vestige of the old per-provider param-group design)
+messaging.MessagingBus
+  - the record component slot -> slots (a List); @Name("slot") keeps the config key `slot`
+messaging.MessagingBusCatalog
+  - consumeLeg() drops the Role parameter + selector logic -- a whole-node consume (selector null; a message
+    selector is the x-rod's concern, XRodRR); find() warns on a duplicate (bus-id, slot-id) instead of silently
+    taking the last
+EsqMsgConstants
+  - TOPIC_ENTITY_BROADCAST and ROD_AUDIT removed (dead destination constants; destinations are config / topology
+    values now); class javadoc refreshed to the FIX-JSON shared-envelope description
+
 06/15/2026 mir0n  v1.2.8 -- audit stack + JMS messaging folded onto the transport-agnostic x-Rod layer
 audit.XRodLogDb  (new)
   - the in-process log-DB audit pod; a pluggable IXRod resolved by x-rod.rod-class. configure() reads its

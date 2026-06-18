@@ -8,6 +8,7 @@
  *  History:
  * 06/15/2026 mir0n  created: the consume-side (xx-rod) TransportSettings -- adds listener concurrency and an
  *                   optional provider-specific message selector (null = consume everything) for openConsumer.
+ * 06/17/2026 mir0n  the clientId constructor parameter removed
  */
 package pro.mir0n.esquire.messaging.transport;
 
@@ -21,9 +22,9 @@ public final class ConsumeSettings extends TransportSettings {
     private final int concurrency;  // consumer listener concurrency; <=0 = provider default
     private final String selector;  // optional message selector; null = none (provider-specific)
 
-    public ConsumeSettings(ObjectMapper objectMapper, String endpoint, String clientId, boolean topic,
+    public ConsumeSettings(ObjectMapper objectMapper, String endpoint, boolean topic,
                            BusIdentity identity, Map<String, String> params, int concurrency, String selector) {
-        super(objectMapper, endpoint, clientId, topic, identity, params);
+        super(objectMapper, endpoint, topic, identity, params);
         this.concurrency = concurrency;
         this.selector    = selector;
     }

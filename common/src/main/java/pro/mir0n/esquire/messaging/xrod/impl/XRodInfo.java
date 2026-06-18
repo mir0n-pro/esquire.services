@@ -10,30 +10,30 @@
  *                   msg-audit (led by a directive read from its own x-rod.info sub-block, a XRodInfoParams)
  *                   instead of transmitting. A dry-run / kill-switch rod: it composes the default XRod transmit
  *                   machinery (post -> commit -> stamp feed) but swaps the transport for a log line.
+ * 06/17/2026 mir0n  dropped the composed inner XRod -- log-only directly: transmit() / receive() log the event
+ *                   line (no feed / pool / transport); usesOutboundTransport() / bindInbound() removed
  */
 package pro.mir0n.esquire.messaging.xrod.impl;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import pro.mir0n.esquire.backend.jpa.IMappable;
 import pro.mir0n.esquire.messaging.Role;
 import pro.mir0n.esquire.messaging.XRodParams;
 import pro.mir0n.esquire.messaging.transport.BusIdentity;
 import pro.mir0n.esquire.messaging.xrod.IXRod;
 import pro.mir0n.esquire.messaging.xrod.RodEvent;
 
-import java.util.Map;
 import java.util.function.Consumer;
 
-/** A non-sending x-rod: it log.info()s each event (full content, led by a directive) instead of transmitting. */
+/** A non-sending x-rod: it log.info()s each event (full content, led by a directive) instead of transmitting.
+ *  No transport, no feed, no pool -- a dry-run / kill-switch leg. */
 public final class XRodInfo implements IXRod {
 
     private static final String DEFAULT_DIR = "Skipped";
     /** This x-rod's OWN named param sub-block under the leg's x-rod (x-rod.info). */
     public static final String PARAM = "info";
 
-    private final XRod inner = new XRod();   // reuses the transmit machinery (feed + post-commit stamp)
     private String dir;                      // the directive logged in the dir slot (from x-rod.info)
     private BusIdentity identity;            // names the leg -> this x-rod's msg-audit logger
     private Logger msgLog;                   // msg.<bus-id>.<slot-id>; null = no msg-audit
@@ -45,9 +45,6 @@ public final class XRodInfo implements IXRod {
         this.dir      = p != null ? p.dirOr(DEFAULT_DIR) : DEFAULT_DIR;
         this.identity = params != null
                 ? new BusIdentity(params.busId(), params.slotId(), params.rodId()) : null;
-        // the inner runs IN-PROCESS (no codec) with NO leg identity (busId/slotId stripped) -> no inner TX/RX
-        // msg-audit; each committed event is handed to logInfo, which logs exactly ONE rich line on THIS x-rod's log.
-        inner.configure(params != null ? params.withBus(null, null, null) : null, role, null);
     }
 
     @Override
@@ -55,10 +52,24 @@ public final class XRodInfo implements IXRod {
         this.msgLog = identity != null && identity.busId() != null
                 ? LoggerFactory.getLogger("msg." + identity.busId() + "." + identity.slotId())
                 : null;
-        inner.start(name, devLog, this::logInfo);
         if (devLog != null) {
             devLog.info("x-rod-info[{}]: log-only (directive={}) -- events are logged, never sent", name, dir);
         }
+    }
+
+    @Override
+    public void transmit(RodEvent event) {
+        logInfo(event);
+    }
+
+    @Override
+    public void receive(RodEvent event) {
+        logInfo(event);   // log-only: a received event is logged just like a transmitted one
+    }
+
+    @Override
+    public void shutdown() {
+        // log-only: nothing to stop.
     }
 
     /** Log-only "send": the full event content, led by the directive in the dir slot (TX|RX's place). */
@@ -74,50 +85,5 @@ public final class XRodInfo implements IXRod {
         return dir + " | " + e.msgType() + " | " + e.opCode() + " | " + e.kind() + " | " + e.entityId()
                 + " | " + e.subId() + " | " + e.rodId() + " | " + e.requestId() + " | " + e.uid()
                 + " | " + e.correlationId() + " | " + e.actionTime() + " | " + e.body();
-    }
-
-    @Override
-    public boolean isEnabled() {
-        return inner.isEnabled();
-    }
-
-    @Override
-    public boolean usesOutboundTransport() {
-        return false;   // log-only: it logs each event instead of sending, no transport leg
-    }
-
-    @Override
-    public void post(RodEvent.Op op, int kind, String entityId, String subId, IMappable source, String msgType) {
-        inner.post(op, kind, entityId, subId, source, msgType);
-    }
-
-    @Override
-    public void post(RodEvent.Op op, int kind, String entityId, String subId, String msgType) {
-        inner.post(op, kind, entityId, subId, msgType);
-    }
-
-    @Override
-    public void post(RodEvent.Op op, int kind, String entityId, String subId, Map<String, Object> body, String msgType) {
-        inner.post(op, kind, entityId, subId, body, msgType);
-    }
-
-    @Override
-    public void transmit(RodEvent event) {
-        inner.transmit(event);
-    }
-
-    @Override
-    public void submit(RodEvent event) {
-        inner.submit(event);
-    }
-
-    @Override
-    public void bindInbound(AutoCloseable inbound) {
-        inner.bindInbound(inbound);
-    }
-
-    @Override
-    public void shutdown() {
-        inner.shutdown();
     }
 }

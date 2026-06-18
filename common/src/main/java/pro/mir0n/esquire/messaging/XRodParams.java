@@ -11,6 +11,8 @@
  *                   scalars registered once in SCALARS); transport() binds the wire group; sub(key, Class) binds
  *                   a pod-owned sub-block; merge / overlayGroups overlay an override per top-level GROUP (a group
  *                   the override sets wins in full). Impl-agnostic -- any pod plus its own settings work unchanged.
+ * 06/17/2026 mir0n  transport() carries transport.params.* VERBATIM (token expansion removed from here); nodes()
+ *                   parses transport.node[*] into a typed List<BusNode>; expandIdentityTokens() removed
  */
 package pro.mir0n.esquire.messaging;
 
@@ -18,6 +20,7 @@ import org.springframework.boot.context.properties.bind.Bindable;
 import org.springframework.boot.context.properties.bind.Binder;
 import org.springframework.boot.context.properties.source.MapConfigurationPropertySource;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -110,8 +113,12 @@ public record XRodParams(String busId, String slotId, Map<String, Object> raw) {
 
     /** The wire group bound into {@link BusTransport}; null if the leg has no transport. The {@code params} map is
      *  built straight from raw ({@code transport.params.*} with the prefix stripped) so ANY vendor key -- including
-     *  dotted ones like {@code jms.useAsyncSend} / {@code transport.connectTimeout} -- survives verbatim (Spring's
-     *  own Map binding is unreliable for dotted keys). The provider applies these opaquely to its vendor API. */
+     *  dotted ones like {@code jms.useAsyncSend} / {@code transport.connectTimeout} -- survives VERBATIM (Spring's
+     *  own Map binding is unreliable for dotted keys). A param value may reference the leg's runtime identity with
+     *  the tokens {@code ${rod-id}} / {@code ${bus-id}} / {@code ${slot-id}}; those are left as-is HERE and resolved
+     *  later against the leg {@link pro.mir0n.esquire.messaging.transport.BusIdentity} when the transport settings
+     *  are built ({@code BusIdentity.expandTokens}) -- so the resolution sees the same identity the driver gets,
+     *  uniformly for a single-node leg and an R&R node. */
     public BusTransport transport() {
         BusTransport ret;
         if (raw == null || raw.isEmpty()) {
@@ -134,6 +141,48 @@ public record XRodParams(String busId, String slotId, Map<String, Object> raw) {
             }
         }
         return ret;
+    }
+
+    /** The R&R network nodes declared under {@code transport.node[*]}, as a typed list (each: {@code node-id}
+     *  plus the wire fields a node may own). Empty if the leg declares none. The ONE place the flattened
+     *  {@code transport.node.<idx>.*} keys are read -- an x-rod (XRodRR) then selects a node by id. */
+    public List<BusNode> nodes() {
+        List<BusNode> ret = new ArrayList<>();
+        if (raw != null) {
+            String prefix = "transport.node.";
+            Map<String, Map<String, Object>> byIndex = new LinkedHashMap<>();
+            raw.forEach((k, v) -> {
+                if (k.startsWith(prefix)) {
+                    String rest = k.substring(prefix.length());   // "<idx>.<field...>"
+                    int dot = rest.indexOf('.');
+                    if (dot > 0) {
+                        byIndex.computeIfAbsent(rest.substring(0, dot), x -> new LinkedHashMap<>())
+                               .put(rest.substring(dot + 1), v);
+                    }
+                }
+            });
+            byIndex.values().forEach(node -> ret.add(bindNode(node)));
+        }
+        return ret;
+    }
+
+    /** Build one {@link BusNode} from its node-relative keys ({@code node-id} / {@code destination} /
+     *  {@code topic} / {@code params.*}); {@code provider} / {@code endpoint} are not node-owned, so ignored. */
+    private static BusNode bindNode(Map<String, Object> node) {
+        Map<String, String> params = new LinkedHashMap<>();
+        String pp = "params.";
+        node.forEach((k, v) -> {
+            if (k.startsWith(pp) && v != null) {
+                params.put(k.substring(pp.length()), v.toString());
+            }
+        });
+        Object id    = node.get("node-id");
+        Object dest  = node.get("destination");
+        Object topic = node.get("topic");
+        return new BusNode(id != null ? id.toString() : null,
+                dest != null ? dest.toString() : null,
+                topic != null ? Boolean.valueOf(topic.toString()) : null,
+                params.isEmpty() ? null : params);
     }
 
     public String  rodId()                        { return str("rod-id"); }

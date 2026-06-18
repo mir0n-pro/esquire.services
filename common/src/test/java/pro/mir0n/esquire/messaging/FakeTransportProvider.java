@@ -4,6 +4,7 @@ import pro.mir0n.esquire.messaging.transport.ConsumeSettings;
 import pro.mir0n.esquire.messaging.transport.ITransportProvider;
 import pro.mir0n.esquire.messaging.transport.PublishSettings;
 import pro.mir0n.esquire.messaging.transport.TransportMessage;
+import pro.mir0n.esquire.messaging.transport.TransportPublisher;
 
 import java.util.function.Consumer;
 
@@ -11,8 +12,8 @@ import java.util.function.Consumer;
 public class FakeTransportProvider implements ITransportProvider {
 
     @Override
-    public Consumer<TransportMessage> openPublisher(String destination, PublishSettings s) {
-        return msg -> { };
+    public TransportPublisher openPublisher(String destination, PublishSettings s) {
+        return TransportPublisher.of(msg -> { }, () -> { });
     }
 
     @Override

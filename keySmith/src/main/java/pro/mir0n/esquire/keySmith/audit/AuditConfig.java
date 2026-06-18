@@ -16,14 +16,15 @@
  *                   xRod() returns rods.producer(BUS_KEY_AUDIT, Role.BROADCAST). Dropped the @Value config
  *                   block, the DataSource / JmsTemplate / Redis / Kafka publisher wiring, kindToSqlKey(),
  *                   and the @PreDestroy teardown (the manager owns the leg lifecycle).
+ * 06/17/2026 mir0n  @Bean AuditBusBridge audit() wrapping rods.producer(BUS_KEY_AUDIT, BROADCAST) (was @Bean IXRod xRod())
  */
 package pro.mir0n.esquire.keySmith.audit;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import pro.mir0n.esquire.common.EsqMsgConstants;
+import pro.mir0n.esquire.common.audit.AuditBusBridge;
 import pro.mir0n.esquire.messaging.Role;
-import pro.mir0n.esquire.messaging.xrod.IXRod;
 import pro.mir0n.esquire.messaging.xrod.XRodManager;
 
 @Configuration
@@ -36,13 +37,14 @@ public class AuditConfig {
     }
 
     /**
-     * The audit rod -- a plain producer on the "audit-bus" collaboration (the service-level ref maps it to a
-     * catalog leg + the post msg-type UA). The leg's {@code rod-class} is the selector: XRod = bus (transmit to
-     * xxRod), XRodLogDb = in-process *_log, XRodInfo = log-only. Audit OFF -- no audit-bus leg, or
-     * rod-class = XRodDisabled -- resolves to the OFF pod, so the injected IXRod is never null.
+     * The audit bridge -- the audit module's entry point onto the messaging bus. It wraps a plain producer on
+     * the "audit-bus" collaboration (the service-level ref maps it to a catalog leg + the post msg-type UA) and
+     * relays each posted change after the caller's transaction commits. The leg's {@code rod-class} is the
+     * selector: XRod = bus (transmit to xxRod), XRodLogDb = in-process *_log, XRodInfo = log-only. Audit OFF --
+     * no audit-bus leg, or rod-class = XRodDisabled -- resolves to the OFF x-rod, so the bridge is never null.
      */
     @Bean
-    public IXRod xRod() {
-        return rods.producer(EsqMsgConstants.BUS_KEY_AUDIT, Role.BROADCAST);
+    public AuditBusBridge audit() {
+        return new AuditBusBridge(rods.producer(EsqMsgConstants.BUS_KEY_AUDIT, Role.BROADCAST));
     }
 }

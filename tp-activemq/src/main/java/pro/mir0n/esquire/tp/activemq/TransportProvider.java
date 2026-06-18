@@ -13,6 +13,8 @@
  * 06/13/2026 mir0n  class-name-driven SPI: renamed to the conventional pro.mir0n.esquire.tp.activemq.
  *                   TransportProvider (resolved by name, reflectively instantiated -- no Spring bean, no
  *                   transport() id). Broker endpoint + client-id come from the settings.
+ * 06/17/2026 mir0n  openPublisher returns a TransportPublisher (close() destroys the CachingConnectionFactory);
+ *                   the ccf.setClientID(...) block removed (a client id rides transport.params.jms.clientID)
  */
 package pro.mir0n.esquire.tp.activemq;
 
@@ -29,6 +31,7 @@ import pro.mir0n.esquire.messaging.transport.ConsumeSettings;
 import pro.mir0n.esquire.messaging.transport.ITransportProvider;
 import pro.mir0n.esquire.messaging.transport.PublishSettings;
 import pro.mir0n.esquire.messaging.transport.TransportMessage;
+import pro.mir0n.esquire.messaging.transport.TransportPublisher;
 import pro.mir0n.esquire.messaging.jms.Utils;
 
 import java.time.Instant;
@@ -47,16 +50,13 @@ public final class TransportProvider implements ITransportProvider {
     }
 
     @Override
-    public Consumer<TransportMessage> openPublisher(String destination, PublishSettings s) {
+    public TransportPublisher openPublisher(String destination, PublishSettings s) {
         String brokerUrl = withParams(s.endpoint(), s.params());
         ActiveMQConnectionFactory amq = new ActiveMQConnectionFactory(brokerUrl);
         if (s.poolSize() > 0) {
             amq.setUseAsyncSend(true);
         }
         CachingConnectionFactory ccf = new CachingConnectionFactory(amq);
-        if (s.clientId() != null && !s.clientId().isBlank()) {
-            ccf.setClientId(s.clientId());
-        }
         if (s.poolSize() > 0) {
             ccf.setSessionCacheSize(s.poolSize());
         }
@@ -65,7 +65,9 @@ public final class TransportProvider implements ITransportProvider {
         devLog.info("tp-activemq: publisher opened on {} (broker={}, {}, poolSize={})",
                 destination, brokerUrl, s.topic() ? "topic" : "queue", s.poolSize());
 
-        return msg -> {
+        // close() releases the caching connection factory (the cached connection + sessions); the underlying
+        // ActiveMQConnectionFactory holds no connection of its own.
+        return TransportPublisher.of(msg -> {
             try {
                 Map<String, Object> props = new LinkedHashMap<>(msg.headers());
                 String applMsgId = UUID.randomUUID().toString();
@@ -79,7 +81,7 @@ public final class TransportProvider implements ITransportProvider {
             } catch (Exception ex) {
                 devLog.error("tp-activemq: publish failed on {}: {}", destination, ex.getMessage(), ex);
             }
-        };
+        }, ccf::destroy);
     }
 
     @Override

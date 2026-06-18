@@ -12,6 +12,8 @@
  *                   EsqRequestContext, and the full row body. Carries everything a RodRepository needs
  *                   to apply it to a *_log table on any thread -- and everything to serialize it onto the
  *                   bus for the (c) xx-Rod, with NO request context required downstream.
+ * 06/17/2026 mir0n  the 10-arg constructor (rodId, no msgType) removed (unused); javadoc {@link RodRepository}
+ *                   -> IRodEventRepo / RodEventRepoRegistry; the msg-type list RDA -> UA
  */
 package pro.mir0n.esquire.messaging.xrod;
 
@@ -21,7 +23,8 @@ import java.util.Map;
 
 /**
  * One relayed entity change. Identity is {@code (entityId, kind, subId)} -- the row the change
- * touched; {@code kind} routes it to a {@link RodRepository} (and thus a {@code *_log} table).
+ * touched; {@code kind} routes it to an {@link IRodEventRepo} via {@link RodEventRepoRegistry} (and thus a
+ * {@code *_log} table).
  *
  * <ul>
  *   <li>{@code op} -- CREATE / UPDATE / DELETE (the coalesced, committed op).</li>
@@ -35,7 +38,7 @@ import java.util.Map;
  *       requester's rod-id on the reply so the requester's {@code RodID = '<id>'} selector matches. null on
  *       the one-way buses (audit / broadcast / the request leg) -- the codec then uses the leg's rod-id.</li>
  *   <li>{@code msgType} -- the message type (the {@code EsqMsgConstants.MSG_TYPE_*} value: URQ / URS / URR /
- *       UE / RDA). Header info that rides the wire ({@code MsgType}); a responder reads it to tell URS from URR
+ *       UE / UA). Header info that rides the wire ({@code MsgType}); a responder reads it to tell URS from URR
  *       without inspecting the body. Set by the producer; populated from the wire on receive.</li>
  *   <li>{@code body} -- the full committed row (CREATE/UPDATE); empty on DELETE (id + kind are in the header).</li>
  * </ul>
@@ -53,13 +56,7 @@ public record RodEvent(
         String msgType,
         Map<String, Object> body
 ) {
-    /** Backward-compat constructor: no per-message msg-type (stamped later, or not a wire message). */
-    public RodEvent(Op op, int kind, String entityId, String subId, long actionTime,
-                    String correlationId, String requestId, String uid, String rodId, Map<String, Object> body) {
-        this(op, kind, entityId, subId, actionTime, correlationId, requestId, uid, rodId, null, body);
-    }
-
-    /** Backward-compat constructor: no per-message rod-id (the codec falls back to the leg's rod-id), no msg-type. */
+    /** Convenience constructor: no per-message rod-id (the codec falls back to the leg's rod-id), no msg-type. */
     public RodEvent(Op op, int kind, String entityId, String subId, long actionTime,
                     String correlationId, String requestId, String uid, Map<String, Object> body) {
         this(op, kind, entityId, subId, actionTime, correlationId, requestId, uid, null, null, body);

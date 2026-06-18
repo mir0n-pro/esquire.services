@@ -1,5 +1,11 @@
 Esquire messaging helper classes
 
+06/17/2026 mir0n  v1.2.8 -- Messaging Bus cleanup: closeable publisher
+tp.activemq.TransportProvider
+  - openPublisher returns a TransportPublisher (close() destroys the CachingConnectionFactory) instead of a
+    bare Consumer<TransportMessage>; the ccf.setClientID(...) block removed (a client id is a
+    transport.params.jms.clientID entry now)
+
 06/15/2026 mir0n  v1.2.8 -- ActiveMQ transport provider module
 tp.activemq.TransportProvider  (new)
   - ActiveMQ implementation of the transport-provider SPI; resolved by name (reflectively instantiated,

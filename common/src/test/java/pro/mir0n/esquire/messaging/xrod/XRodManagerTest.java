@@ -10,6 +10,7 @@ import pro.mir0n.esquire.messaging.CapturingTransportProvider;
 import pro.mir0n.esquire.messaging.Role;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /** Frontend resolution: rod-id defaults to the instance id; a service-level x-rod fully overwrites the catalog
  *  leg; a service-level-only leg resolves without a catalog throw. The role-driven receive selector AND the
@@ -139,6 +140,29 @@ class XRodManagerTest {
         assertThat(rod).isInstanceOf(pro.mir0n.esquire.messaging.xrod.impl.XRodDisabled.class);
         assertThat(rod.isEnabled()).isFalse();
         mgr.close();
+    }
+
+    @Test
+    void incompleteTransportFailsFast() {
+        // a leg that declares a transport but omits the destination -> fail-fast at resolve (XRod.validate),
+        // not a late silent no-op. baseEnv() sets provider + endpoint but NO destination; default rod-class XRod.
+        XRodManager mgr = new XRodManager(baseEnv(), om);
+        assertThatThrownBy(() -> mgr.producer("kc-bus", Role.BROADCAST))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("transport.destination");
+        mgr.close();
+    }
+
+    @Test
+    void shutdownClosesTheProducerTransportPublisher() {
+        // a producer leg owns a transport publisher; shutting the rod down must close it (release the broker connection).
+        MockEnvironment env = baseEnv();
+        env.setProperty("esquire.messaging-bus[0].slot[0].x-rod.transport.destination", "esquire.kc.q");
+        XRodManager mgr = new XRodManager(env, om);
+        mgr.producer("kc-bus", Role.BROADCAST);
+        assertThat(CapturingTransportProvider.publisherCloseCount.get()).isZero();
+        mgr.close();
+        assertThat(CapturingTransportProvider.publisherCloseCount.get()).isEqualTo(1);
     }
 
     // --- R&R behaviour (request/response node + role selector) lives ONLY in XRodRR, not base XRod ---

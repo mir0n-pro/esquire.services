@@ -10,27 +10,35 @@
  *                   pod from its XRodParams + Role; start() RUNs it; the transmit leg (post / transmit) buffers a
  *                   change in the current transaction and feeds it out after commit, the receive leg (submit)
  *                   applies an event on a bounded pool. Class-name-driven impl (see XRods); the default is XRod.
+ * 06/17/2026 mir0n  post() removed (the producer's transactional post is AuditBusBridge now); submit() ->
+ *                   receive(); usesOutboundTransport() / bindInbound() removed; isEnabled() is a default true;
+ *                   validate(XRodParams) added (the fail-fast hook)
  */
 package pro.mir0n.esquire.messaging.xrod;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
-import pro.mir0n.esquire.backend.jpa.IMappable;
 import pro.mir0n.esquire.messaging.Role;
 import pro.mir0n.esquire.messaging.XRodParams;
 
-import java.util.Map;
 import java.util.function.Consumer;
 
 /**
  * The x-Rod SPI: a generic fan-out substrate with two legs. The lifecycle is three distinct phases --
  * construct (no-arg, class-name resolved), {@link #configure} (PREPARE: the x-rod treats its {@link XRodParams}
  * -- identity, wire, knobs, its own sub-blocks), then {@link #start} (RUN: begin transmitting / receiving). The
- * transmit leg ({@link #post}) buffers a change in the current transaction and feeds it out after commit; the
- * receive leg ({@link #submit}) applies an event on a bounded worker pool. An x-rod with no transmit leg treats
- * {@code post} as a no-op; one with no receive worker is never {@code submit}ted to.
+ * transmit leg ({@link #transmit}) sends a pre-built event out; the receive leg ({@link #receive}) applies an
+ * event on a bounded worker pool. An x-rod with no transmit leg treats {@code transmit} as a no-op; one with no
+ * receive worker ignores any {@code receive}.
  */
 public interface IXRod {
+
+    /** Fail-fast config check, called by the frontend BEFORE {@link #configure} / {@link #start}: an x-rod that
+     *  REQUIRES certain leg params overrides this to throw a clear, early error instead of a late no-op / NPE --
+     *  XRod a complete transport, XRodRR the R&R nodes, XRodLogDb the {@code log-db} url. Default: no requirement
+     *  (the OFF x-rod, a log-only x-rod). */
+    default void validate(XRodParams params) {
+    }
 
     /** PREPARE the x-rod from its leg params (the x-rod treats only what it needs: XRod the transport + knobs;
      *  XRodLogDb its {@code log-db} sub-block; etc.). {@code role} picks the R&R node/selector (CLIENT/SERVER/
@@ -41,37 +49,20 @@ public interface IXRod {
      *  consumer (each received event is applied on the bounded pool by {@code worker}). */
     void start(String name, Logger devLog, Consumer<RodEvent> worker);
 
-    /** Bind the inbound transport handle (the open consumer) to this rod so {@link #shutdown} closes it along
-     *  with the legs -- the rod OWNS its messaging lifecycle, so a consumer needs no separate close wrapper. */
-    void bindInbound(AutoCloseable inbound);
-
-    /** Stop the wired legs (in-flight work finishes) and close the bound inbound transport, if any. */
+    /** Stop the wired legs (in-flight work finishes) and close the inbound transport this rod opened, if any. */
     void shutdown();
 
-    /** Transmit-leg option gate. Disabled (or transmit not wired) -> {@link #post} is a no-op. */
-    boolean isEnabled();
-
-    /** Whether this x-rod sends out a transport leg (so the frontend opens a publisher for it). The default
-     *  transceiver does; an in-process x-rod (writes a *_log, or only logs) overrides this to {@code false}. */
-    default boolean usesOutboundTransport() {
+    /** Whether this x-rod is a real leg. Default {@code true}; only the OFF x-rod ({@code XRodDisabled})
+     *  returns {@code false}. A caller (e.g. the audit producer) guards expensive payload assembly on this. */
+    default boolean isEnabled() {
         return true;
     }
 
-    /** Transmit: post a CREATE/UPDATE change taking the source object (it fills its own body via IMappable). The
-     *  caller stamps the {@code msgType} on the event (e.g. {@code UA} for audit) -- the producer is type-agnostic. */
-    void post(RodEvent.Op op, int kind, String entityId, String subId, IMappable source, String msgType);
-
-    /** Transmit: post with no body -- id + kind ride the header (DELETE). {@code msgType} stamped by the caller. */
-    void post(RodEvent.Op op, int kind, String entityId, String subId, String msgType);
-
-    /** Transmit: post with an explicit body. {@code msgType} stamped by the caller. */
-    void post(RodEvent.Op op, int kind, String entityId, String subId, Map<String, Object> body, String msgType);
-
-    /** Transmit: send a pre-built event (it carries its own {@code msgType}) out the transmit leg -- the
-     *  producer path for the request/response + broadcast buses (vs {@link #post}, which builds the event
-     *  from the request context for the audit feed). No-op if the transmit leg is not wired. */
+    /** Transmit: send a pre-built event (it carries its own {@code msgType}) out the transmit leg. The producer
+     *  builds the event (the request/response + broadcast publishers, or the audit bridge); the x-rod just relays
+     *  it. No-op if the transmit leg is not wired. */
     void transmit(RodEvent event);
 
-    /** Receive: apply one event on the receive pool (called by the in-process feed or a bus consumer). */
-    void submit(RodEvent event);
+    /** Receive: apply one arrived event on the receive pool (called by a bus consumer or the in-process feed). */
+    void receive(RodEvent event);
 }

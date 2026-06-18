@@ -1,6 +1,30 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v1.2.8-2606.1720  v1.2.8 -- Messaging Bus: code-review cleanup and hardening
+    :Refactoring: the audit producer's transaction and commit handling moved out of the messaging core into
+                  its own bridge; the messaging module is now a plain send / receive relay
+    :Refactoring: the shared send / receive engine (the queued feed plus the worker pool) lifted into one
+                  base that every messaging module extends, instead of wrapping a copy
+    :Refactoring: a request / response bus reads its two stops from a typed model instead of raw config keys
+    :Fix:         a setting that points at the instance identity (e.g. a client id) now resolves the same way
+                  for a single-destination bus and a request / response bus
+    :Fix:         a misconfigured bus leg is reported at startup instead of failing quietly later; a duplicate
+                  leg in the catalog is warned about instead of silently taking the last
+    :Fix:         on shutdown a service waits for in-flight audit sends to finish and ignores a late incoming
+                  message instead of erroring
+    Components:   common,
+                  enyMan,
+                  keySmith,
+                  pacMan,
+                  xxRod,
+                  tp-activemq,
+                  tp-kafka,
+                  tp-redis
+    Doc:          doc\Esquire.MessagingBus.md
+                  doc\Esquire.AuditLoggingStack.md
+                  doc\service.configuring
+
 v1.2.8-2606.1617  v1.2.8 -- Draft of Messaging Bus Concept implementation
     :Feature:     pluggable transport layer; uniform x-Rod messaging frontend
     :Refactoring: all messaging is unified behind one x-Rod frontend -- a shared catalog of buses and

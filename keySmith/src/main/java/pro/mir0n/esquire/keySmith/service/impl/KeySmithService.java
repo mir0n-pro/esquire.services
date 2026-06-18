@@ -42,6 +42,7 @@
  *                   fields only; security question / answer excluded)
  * 06/15/2026 mir0n  audit field retyped XYRod -> IXRod (messaging.xrod); the auth UPDATE post() now passes an
  *                   explicit msgType (EsqMsgConstants.MSG_TYPE_AUDIT) as the trailing argument.
+ * 06/17/2026 mir0n  audit field IXRod -> AuditBusBridge; the auth UPDATE post() drops the trailing MSG_TYPE_AUDIT arg
  */
 
 package pro.mir0n.esquire.keySmith.service.impl;
@@ -69,9 +70,8 @@ import pro.mir0n.esquire.backend.storage.EsqEntityDictionaryStorage;
 import pro.mir0n.esquire.backend.storage.EsqRolesStorage;
 import pro.mir0n.esquire.backend.validator.ValidatorFactory;
 import pro.mir0n.esquire.common.EsqConstants;
-import pro.mir0n.esquire.common.EsqMsgConstants;
 import pro.mir0n.esquire.messaging.xrod.RodEvent;
-import pro.mir0n.esquire.messaging.xrod.IXRod;
+import pro.mir0n.esquire.common.audit.AuditBusBridge;
 import pro.mir0n.esquire.keySmith.jpa.EsqAccessProfileRepository;
 import pro.mir0n.esquire.backend.service.RequestContextUtils;
 import pro.mir0n.esquire.backend.error.ResourceNotFoundException;
@@ -93,7 +93,7 @@ public class KeySmithService implements IKeySmithService {
     private TransactionTemplate transactionTemplate;
     private EntityManager em;
     private KcSyncPublisher kcSyncPublisher;
-    private IXRod xyRod;
+    private AuditBusBridge audit;
 
     @Override
     public EsqAccessProfile esquireKey(String id) {
@@ -230,7 +230,7 @@ public class KeySmithService implements IKeySmithService {
             auth.setConnectFlg(jpa.getConnectFlg());
             auth.setTfaMethod(jpa.getTfaMethod());
             auth.setForceChangeFlg(jpa.getPwdChangeForced());
-            xyRod.post(RodEvent.Op.UPDATE, EsqConstants.KIND_ACCESS_PROFILE, id, null, auth, EsqMsgConstants.MSG_TYPE_AUDIT);
+            audit.post(RodEvent.Op.UPDATE, EsqConstants.KIND_ACCESS_PROFILE, id, null, auth);
         }
         List<EsqRoleJpa> originRoles = accessProfileRepository.roles(id);
         Set<String> originIds = new HashSet<>();

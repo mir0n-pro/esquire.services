@@ -10,14 +10,17 @@
  *                   The x-rod.rod-class config value -- a bare name -> pro.mir0n.esquire.messaging.xrod.<name>, or a
  *                   full class name -- selects the IXRod implementation; default "XRod". A fresh instance is
  *                   created per resolve (pods are stateful: each is configured + started by its owner).
+ * 06/17/2026 mir0n  the class declaration put on one line (formatting)
  */
 package pro.mir0n.esquire.messaging.xrod;
 
-/** Resolves an {@link IXRod} x-rod from its config value -- a convention name OR a full class name. */
-public final class
-XRods {
+/** Resolves an {@link IXRod} from its {@code rod-class} config value: a bare name (a BUILT-IN x-rod in
+ *  {@code messaging.xrod.impl}) or a full class name (any x-rod anywhere -- e.g. a service's own one,
+ *  outside that package). */
+public final class XRods {
 
-    /** The convention: name {@code x} -> class {@code pro.mir0n.esquire.messaging.xrod.x}. */
+    /** Bare-name convention: name {@code x} -> {@code pro.mir0n.esquire.messaging.xrod.impl.x} (the built-in
+     *  x-rods only). An x-rod OUTSIDE this package must be named by its FULL class name. */
     public static final String PACKAGE_PREFIX = "pro.mir0n.esquire.messaging.xrod.impl.";
     /** The default x-rod when a leg EXISTS but names no rod-class: the full transceiver {@link XRod}. */
     public static final String DEFAULT = "XRod";
@@ -27,8 +30,9 @@ XRods {
     private XRods() {
     }
 
-    /** The class name a config value resolves to: a value WITH a dot is a full class name (verbatim); a bare
-     *  name follows the convention; blank -> the default {@link #DEFAULT}. */
+    /** The class name a config value resolves to: a value WITH a dot is a full class name (verbatim -- the way
+     *  to name a custom x-rod outside {@code messaging.xrod.impl}); a bare name follows the {@link #PACKAGE_PREFIX}
+     *  convention (a built-in x-rod); blank -> the default {@link #DEFAULT}. */
     public static String classNameFor(String rodClass) {
         String p = (rodClass == null || rodClass.isBlank()) ? DEFAULT : rodClass.trim();
         return p.indexOf('.') >= 0 ? p : PACKAGE_PREFIX + p;

@@ -48,6 +48,8 @@
  * 06/05/2026 mir0n  XYRod injected; saveAcct posts an x-Rod account UPDATE and deleteAcct a DELETE audit event
  * 06/15/2026 mir0n  audit producer retyped messaging.xrod.IXRod (was common.xrod.XYRod); saveAcct / deleteAcct
  *                   post() calls carry an explicit msgType (EsqMsgConstants.MSG_TYPE_AUDIT)
+ * 06/17/2026 mir0n  audit producer IXRod -> AuditBusBridge; the saveAcct / deleteAcct post() calls drop the
+ *                   trailing MSG_TYPE_AUDIT arg
  */
 
 package pro.mir0n.esquire.pacMan.service.impl;
@@ -64,7 +66,7 @@ import pro.mir0n.esquire.backend.error.PermissionDeniedException;
 import pro.mir0n.esquire.backend.jpa.*;
 import pro.mir0n.esquire.backend.jpa.entity.EsqAcctJpa;
 import pro.mir0n.esquire.messaging.xrod.RodEvent;
-import pro.mir0n.esquire.messaging.xrod.IXRod;
+import pro.mir0n.esquire.common.audit.AuditBusBridge;
 import pro.mir0n.esquire.backend.service.EntityFieldUtils;
 import pro.mir0n.esquire.backend.storage.EsqObjectKindStorage;
 import pro.mir0n.esquire.backend.storage.EsqRolesStorage;
@@ -94,7 +96,7 @@ public class PacManService  implements IPacManService {
     private final EntityManager em;
     private final EsqEntityBroadcastPublisher broadcastPublisher;
     private final EsqAcctTransactionRepository acctTrxRepo;
-    private final IXRod xyRod;   // audit: account UPDATE / DELETE
+    private final AuditBusBridge audit;   // audit: account UPDATE / DELETE
 
     // Test House subtree path prefix. Accounts whose ep_path starts with this
     // prefix sit inside the seeded Test House (org_pk=14) and are recognized
@@ -276,7 +278,7 @@ public class PacManService  implements IPacManService {
         entityRepository.deleteAcct(id);
         entityRepository.deleteEntityPath(id);
         // audit: account DELETE (id + kind).
-        xyRod.post(RodEvent.Op.DELETE, kind, id, null, EsqMsgConstants.MSG_TYPE_AUDIT);
+        audit.post(RodEvent.Op.DELETE, kind, id, null);
     }
 
     private void saveAcct(int kind, String id, Map<String, Object> fields, String rootPath,
@@ -292,7 +294,7 @@ public class PacManService  implements IPacManService {
         //note: if a DB trigger or default value modifies the row, saveAcct won't reflect it.
         updated[0] = acct;
         // audit: account UPDATE (ccy / status / desc / neg-allowed). The acct holds the applied state.
-        xyRod.post(RodEvent.Op.UPDATE, kind, acct.getId(), null, acct, EsqMsgConstants.MSG_TYPE_AUDIT);
+        audit.post(RodEvent.Op.UPDATE, kind, acct.getId(), null, acct);
     }
 
     private int rootLevel(List<String> path, String uid) {

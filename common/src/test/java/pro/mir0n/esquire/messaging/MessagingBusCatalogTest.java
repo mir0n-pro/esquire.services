@@ -3,7 +3,6 @@ package pro.mir0n.esquire.messaging;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.env.MockEnvironment;
-import pro.mir0n.esquire.messaging.transport.PublishSettings;
 
 import java.util.Map;
 
@@ -45,6 +44,22 @@ class MessagingBusCatalogTest {
         assertThatThrownBy(() -> catalog().resolve("esquire.rod", "nope"))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("slot-id=nope");
+    }
+
+    @Test
+    void duplicateLegResolvesToTheLastWithoutThrowing() {
+        // a config mistake -- two legs share (bus-id, slot-id). find() WARNS and takes the last; it must NOT
+        // throw (boot does not crash on a duplicate -- the warning surfaces it).
+        MockEnvironment env = new MockEnvironment();
+        env.setProperty("esquire.messaging-bus[0].bus-id", "esquire.rod");
+        env.setProperty("esquire.messaging-bus[0].slot[0].slot-id", "rod-audit");
+        env.setProperty("esquire.messaging-bus[0].slot[0].x-rod.rod-id", "first");
+        env.setProperty("esquire.messaging-bus[0].slot[1].slot-id", "rod-audit");   // duplicate
+        env.setProperty("esquire.messaging-bus[0].slot[1].x-rod.rod-id", "last");
+
+        XRodParams p = new MessagingBusCatalog(env).find("esquire.rod", "rod-audit");
+        assertThat(p).isNotNull();
+        assertThat(p.rodId()).isEqualTo("last");
     }
 
     @Test
@@ -98,36 +113,14 @@ class MessagingBusCatalogTest {
     }
 
     @Test
-    void publishLegBuildsSettingsFromTheMergedLeg() {
-        MessagingBusCatalog c = catalog();
-        MessagingBusCatalog.PublishLeg leg = c.publishLeg("esquire.rod", "rod-audit", Role.BROADCAST, om);
-
-        assertThat(leg.provider()).isInstanceOf(FakeTransportProvider.class);
-        assertThat(leg.destination()).isEqualTo("esquire.rod.audit");
-        PublishSettings s = leg.settings();
-        assertThat(s.endpoint()).isEqualTo("tcp://localhost:61616");
-        assertThat(s.topic()).isFalse();
-        assertThat(s.poolSize()).isEqualTo(2);
-        assertThat(s.identity().busId()).isEqualTo("esquire.rod");
-        assertThat(s.identity().slotId()).isEqualTo("rod-audit");
-        assertThat(s.identity().rodId()).isEqualTo("rod.0");
-    }
-
-    @Test
-    void consumeLegServerTakesTheWholeNodeNoSelector() {
-        MessagingBusCatalog.ConsumeLeg leg = catalog().consumeLeg("esquire.rod", "rod-audit", Role.SERVER, om);
+    void consumeLegTakesTheWholeNodeNoSelector() {
+        // the catalog consume path is always whole-node, no selector -- a selector is the x-rod's concern (XRodRR
+        // computes the R&R one: CLIENT by rod-id, SERVER by slot-id). The xxRod audit director uses this path.
+        MessagingBusCatalog.ConsumeLeg leg = catalog().consumeLeg("esquire.rod", "rod-audit", om);
 
         assertThat(leg.destination()).isEqualTo("esquire.rod.audit");
         assertThat(leg.settings().concurrency()).isEqualTo(1);   // default
-        assertThat(leg.settings().selector()).isNull();          // legacy catalog path: whole node (R&R is XRodRR's job)
-    }
-
-    @Test
-    void consumeLegClientFiltersToOwnRodId() {
-        // the R&R client consuming responses: each instance filters to RodID = its own leg rod-id ("rod.0")
-        MessagingBusCatalog.ConsumeLeg leg = catalog().consumeLeg("esquire.rod", "rod-audit", Role.CLIENT, om);
-
-        assertThat(leg.settings().selector()).isEqualTo("RodID = 'rod.0'");
+        assertThat(leg.settings().selector()).isNull();
     }
 
     @Test

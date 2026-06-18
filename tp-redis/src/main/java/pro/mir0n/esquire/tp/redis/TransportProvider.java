@@ -13,12 +13,14 @@
  *                   TransportProvider; producer-only declared via supportsConsume()=false (no vendor constant);
  *                   builds its OWN Lettuce connection from settings.endpoint(); the redis-only max-len comes
  *                   from the provider's param group (transport.redis.max-len), read via settings.params().
+ * 06/17/2026 mir0n  openPublisher returns a TransportPublisher (close() destroys the LettuceConnectionFactory)
  */
 package pro.mir0n.esquire.tp.redis;
 
 import io.lettuce.core.RedisURI;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.DisposableBean;
 import org.springframework.data.redis.connection.RedisPassword;
 import org.springframework.data.redis.connection.RedisStandaloneConfiguration;
 import org.springframework.data.redis.connection.RedisStreamCommands.XAddOptions;
@@ -32,6 +34,7 @@ import pro.mir0n.esquire.messaging.transport.ConsumeSettings;
 import pro.mir0n.esquire.messaging.transport.ITransportProvider;
 import pro.mir0n.esquire.messaging.transport.PublishSettings;
 import pro.mir0n.esquire.messaging.transport.TransportMessage;
+import pro.mir0n.esquire.messaging.transport.TransportPublisher;
 
 import java.time.Instant;
 import java.util.LinkedHashMap;
@@ -57,12 +60,14 @@ public final class TransportProvider implements ITransportProvider {
     }
 
     @Override
-    public Consumer<TransportMessage> openPublisher(String destination, PublishSettings s) {
+    public TransportPublisher openPublisher(String destination, PublishSettings s) {
         long maxLen = s.paramLong(PARAM_MAX_LEN, 0L);
         StringRedisTemplate redis = buildTemplate(s.endpoint(), s.params());
         devLog.info("tp-redis: publisher opened on stream {} (endpoint={}, maxLen={})", destination, s.endpoint(), maxLen);
 
-        return msg -> {
+        // close() disposes the Lettuce connection factory built above (a DisposableBean).
+        AutoCloseable closer = (redis.getConnectionFactory() instanceof DisposableBean db) ? db::destroy : () -> { };
+        return TransportPublisher.of(msg -> {
             try {
                 Map<String, Object> props = new LinkedHashMap<>(msg.headers());
                 String applMsgId = UUID.randomUUID().toString();
@@ -85,7 +90,7 @@ public final class TransportProvider implements ITransportProvider {
             } catch (Exception ex) {
                 devLog.error("tp-redis: XADD failed on {}: {}", destination, ex.getMessage(), ex);
             }
-        };
+        }, closer);
     }
 
     @Override

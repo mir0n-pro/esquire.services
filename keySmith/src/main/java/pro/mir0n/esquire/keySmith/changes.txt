@@ -1,5 +1,12 @@
 Esquire keySmith Microservice
 
+06/17/2026 mir0n  v1.2.8 -- Messaging Bus cleanup: audit via AuditBusBridge
+audit.AuditConfig
+  - @Bean AuditBusBridge audit() wrapping rods.producer(BUS_KEY_AUDIT, BROADCAST) (was @Bean IXRod xRod())
+service.impl.KeySmithService
+  - the audit producer field IXRod xyRod -> AuditBusBridge audit; post(...) calls drop the trailing
+    EsqMsgConstants.MSG_TYPE_AUDIT argument (the bridge stamps it)
+
 06/15/2026 mir0n  v1.2.8 -- KC sync publisher/listener migrated onto the x-Rod catalog; audit via XRodManager
 messaging.KcSyncPublisher
   - producer IXRod opened from XRodManager (rods.producer(BUS_KEY_KC, Role.CLIENT)); publish() builds a

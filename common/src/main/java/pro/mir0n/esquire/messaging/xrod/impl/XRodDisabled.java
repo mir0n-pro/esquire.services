@@ -11,18 +11,18 @@
  *                   defines x-rod), and it can be selected explicitly with rod-class = XRodDisabled when a slot
  *                   needs no x-Rod at all (e.g. audit turned off). post / transmit / submit do nothing; the
  *                   transmit gate isEnabled() is false, so a caller's isEnabled() guard skips the work too.
+ * 06/17/2026 mir0n  usesOutboundTransport() / bindInbound() removed; isEnabled() overrides false (the only
+ *                   x-rod that is off)
  */
 package pro.mir0n.esquire.messaging.xrod.impl;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
-import pro.mir0n.esquire.backend.jpa.IMappable;
 import pro.mir0n.esquire.messaging.Role;
 import pro.mir0n.esquire.messaging.XRodParams;
 import pro.mir0n.esquire.messaging.xrod.IXRod;
 import pro.mir0n.esquire.messaging.xrod.RodEvent;
 
-import java.util.Map;
 import java.util.function.Consumer;
 
 /** The OFF x-rod: a fully inert {@link IXRod}. Both legs are absent -- it transmits nothing and receives nothing,
@@ -45,38 +45,13 @@ public final class XRodDisabled implements IXRod {
     }
 
     @Override
-    public void bindInbound(AutoCloseable inbound) {
-        // OFF: no inbound transport to own.
-    }
-
-    @Override
     public void shutdown() {
         // OFF: nothing to stop.
     }
 
     @Override
     public boolean isEnabled() {
-        return false;
-    }
-
-    @Override
-    public boolean usesOutboundTransport() {
-        return false;
-    }
-
-    @Override
-    public void post(RodEvent.Op op, int kind, String entityId, String subId, IMappable source, String msgType) {
-        // OFF: transmit no-op.
-    }
-
-    @Override
-    public void post(RodEvent.Op op, int kind, String entityId, String subId, String msgType) {
-        // OFF: transmit no-op.
-    }
-
-    @Override
-    public void post(RodEvent.Op op, int kind, String entityId, String subId, Map<String, Object> body, String msgType) {
-        // OFF: transmit no-op.
+        return false;   // the ONLY x-rod that is not enabled
     }
 
     @Override
@@ -85,7 +60,7 @@ public final class XRodDisabled implements IXRod {
     }
 
     @Override
-    public void submit(RodEvent event) {
+    public void receive(RodEvent event) {
         // OFF: receive no-op.
     }
 }

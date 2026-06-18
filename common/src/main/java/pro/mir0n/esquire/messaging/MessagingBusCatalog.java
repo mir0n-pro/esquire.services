@@ -10,18 +10,20 @@
  *                   and a service's own esquire.<app>-messaging-bus, bound from the Environment. resolve/find a
  *                   leg by {bus-id, slot-id} -> XRodParams (the BASE); publishLeg / consumeLeg build the lower-level
  *                   transport settings (PublishSettings / ConsumeSettings via the resolved provider) as a leg binding.
+ * 06/17/2026 mir0n  consumeLeg(busId, slotId, om) -- the Role parameter + selector dropped (whole-node, selector
+ *                   null; a selector is the x-rod's concern); find() warns on a duplicate (bus-id, slot-id)
  */
 package pro.mir0n.esquire.messaging;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.boot.context.properties.bind.Bindable;
 import org.springframework.boot.context.properties.bind.Binder;
 import org.springframework.core.env.Environment;
-import pro.mir0n.esquire.common.EsqMsgConstants;
 import pro.mir0n.esquire.messaging.transport.BusIdentity;
 import pro.mir0n.esquire.messaging.transport.ConsumeSettings;
 import pro.mir0n.esquire.messaging.transport.ITransportProvider;
-import pro.mir0n.esquire.messaging.transport.PublishSettings;
 import pro.mir0n.esquire.messaging.transport.TransportProviders;
 
 import java.util.ArrayList;
@@ -36,14 +38,15 @@ import java.util.List;
  * app-name key stays clear of the {@code esquire.<bus-key>.messaging-bus} refs. A service-level x-rod ref
  * override is layered on top at resolve time (see {@code XRodManager}).
  *
- * <p>A leg is named by {@code (bus-id, slot-id)}; its {@link XRodParams} is the BASE. The catalog returns a
- * {@link PublishLeg} / {@link ConsumeLeg} -- the resolved provider + destination + the ready settings -- which
- * the feature feeds to {@code RodTransportAdapter} to attach the RodEvent codec.
+ * <p>A leg is named by {@code (bus-id, slot-id)}; its {@link XRodParams} is the BASE. For a feature that wires
+ * its OWN consumer (e.g. xxRod's director, which already owns a worker pool), the catalog returns a
+ * {@link ConsumeLeg} -- the resolved provider + destination + the ready settings -- which the feature feeds to
+ * {@code RodTransportAdapter} to attach the RodEvent codec. (The regular producer/consumer path is {@code XRod}.)
  */
 public class MessagingBusCatalog {
 
-    private static final int DEFAULT_PUBLISHER_POOL = 0;
-    private static final int DEFAULT_CONCURRENCY    = 1;
+    private static final int DEFAULT_CONCURRENCY = 1;
+    private static final Logger log = LoggerFactory.getLogger(MessagingBusCatalog.class);
 
     private final List<MessagingBus> buses;
 
@@ -78,46 +81,41 @@ public class MessagingBusCatalog {
      *  config may live at the service level only -- the frontend layers a service-level override on top). */
     public XRodParams find(String busId, String slotId) {
         XRodParams ret = null;
+        int matches = 0;
         for (MessagingBus bus : buses) {
-            if (busId.equals(bus.busId()) && bus.slot() != null) {
-                for (BusSlot svc : bus.slot()) {
+            if (busId.equals(bus.busId()) && bus.slots() != null) {
+                for (BusSlot svc : bus.slots()) {
                     if (slotId.equals(svc.slotId())) {
                         ret = XRodParams.from(svc.xRod());
+                        matches++;
                     }
                 }
             }
         }
+        if (matches > 1) {
+            // a config mistake (each (bus-id, slot-id) should be unique across the shared topology + the
+            // service-local legs); take the last but surface it -- the leg the service runs is otherwise silent.
+            log.warn("messaging-bus catalog has {} legs for bus-id={} slot-id={} -- (bus-id, slot-id) should be "
+                    + "unique; using the last. Check the topology and the service-local legs for a duplicate.",
+                    matches, busId, slotId);
+        }
         return ret;
     }
 
-    /** Resolve a leg and build the publish-side binding for {@code role} (the node it PRODUCES to). */
-    public PublishLeg publishLeg(String busId, String slotId, Role role, ObjectMapper om) {
-        XRodParams p = resolve(busId, slotId);
-        BusTransport t = requireTransport(p, busId, slotId);
-        ITransportProvider provider = TransportProviders.resolve(t.provider());
-        PublishSettings settings = new PublishSettings(om, t.endpoint(), null, t.topicOrFalse(),
-                new BusIdentity(busId, slotId, p.rodId()), t.paramsOrEmpty(),
-                p.publisherPoolSizeOr(DEFAULT_PUBLISHER_POOL));
-        return new PublishLeg(provider, t.destination(), settings);
-    }
-
     /**
-     * Resolve a leg and build the consume-side binding for {@code role} (the node it CONSUMES from). A CLIENT
-     * consuming responses gets a {@code RodID = '<this leg's rod-id>'} selector so each instance only receives the
-     * responses it sent the request for; SERVER / BROADCAST consume the whole node, no selector. (NOTE: this is
-     * the legacy catalog path -- live R&R uses {@code XRodRR}, which owns the role-driven node + selector.)
+     * Resolve a leg and build its consume-side binding for the WHOLE node -- no message selector. A selector is
+     * the x-rod's concern, not the catalog's: {@code XRodRR} computes the R&R selector (a CLIENT filters to its own
+     * {@code RodID}, a SERVER to its {@code SlotID} -- many slots can share one node). A BROADCAST consumer that
+     * needs to filter would take a configurable selector (TODO). This catalog path (xxRod's audit director, which
+     * hand-wires its own consumer rather than going through an x-rod) consumes the whole node.
      */
-    public ConsumeLeg consumeLeg(String busId, String slotId, Role role, ObjectMapper om) {
+    public ConsumeLeg consumeLeg(String busId, String slotId, ObjectMapper om) {
         XRodParams p = resolve(busId, slotId);
         BusTransport t = requireTransport(p, busId, slotId);
         ITransportProvider provider = TransportProviders.resolve(t.provider());
-        // legacy catalog path: CLIENT filters its own responses by rod-id, else the whole node. The role-driven
-        // R&R selector (SERVER by slot-id, etc.) lives in XRodRR, which owns the live R&R consume.
-        String selector = role == Role.CLIENT
-                ? EsqMsgConstants.FIELD_ROD_ID + " = '" + p.rodId() + "'" : null;
-        ConsumeSettings settings = new ConsumeSettings(om, t.endpoint(), null, t.topicOrFalse(),
+        ConsumeSettings settings = new ConsumeSettings(om, t.endpoint(), t.topicOrFalse(),
                 new BusIdentity(busId, slotId, p.rodId()), t.paramsOrEmpty(),
-                p.concurrencyOr(DEFAULT_CONCURRENCY), selector);
+                p.concurrencyOr(DEFAULT_CONCURRENCY), null);
         return new ConsumeLeg(provider, t.destination(), settings);
     }
 
@@ -129,10 +127,6 @@ public class MessagingBusCatalog {
                     + " needs x-rod.transport.{provider, destination}");
         }
         return t;
-    }
-
-    /** Publish-side binding: the resolved provider, the destination, and the ready {@link PublishSettings}. */
-    public record PublishLeg(ITransportProvider provider, String destination, PublishSettings settings) {
     }
 
     /** Consume-side binding: the resolved provider, the destination, and the ready {@link ConsumeSettings}. */

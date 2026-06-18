@@ -16,6 +16,7 @@ import pro.mir0n.esquire.backend.dto.EsqObjectKind;
 import pro.mir0n.esquire.backend.storage.EsqObjectKindStorage;
 import pro.mir0n.esquire.common.EsqConstants;
 import pro.mir0n.esquire.common.EsqMsgConstants;
+import pro.mir0n.esquire.common.audit.AuditBusBridge;
 import pro.mir0n.esquire.messaging.Role;
 import pro.mir0n.esquire.messaging.XRodParams;
 import pro.mir0n.esquire.messaging.xrod.IXRod;
@@ -83,7 +84,7 @@ class MoveQueueManagerTest {
     @BeforeEach
     void setUp() {
         manager = new MoveQueueManager(dictRepo, orgRepo, usrRepo, txTemplate, em,
-                publisher, kcPublisher, pathLookup, noopRod(), 16);
+                publisher, kcPublisher, pathLookup, new AuditBusBridge(noopRod()), 16);
         // Do not call manager.start() -- we want to invoke process() directly without
         // racing the daemon worker thread. The rig is constructed but unstarted.
     }

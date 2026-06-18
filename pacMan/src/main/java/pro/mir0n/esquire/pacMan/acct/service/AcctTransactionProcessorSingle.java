@@ -14,6 +14,7 @@
  *                   funded_dt mirror on first funding)
  * 06/15/2026 mir0n  audit producer is now messaging.xrod.IXRod (was common.xrod.XYRod); the balance-change
  *                   post() carries an explicit msgType (EsqMsgConstants.MSG_TYPE_AUDIT)
+ * 06/17/2026 mir0n  audit producer IXRod -> AuditBusBridge; the balance-change post() drops the trailing MSG_TYPE_AUDIT arg
  */
 
 package pro.mir0n.esquire.pacMan.acct.service;
@@ -56,7 +57,7 @@ public class AcctTransactionProcessorSingle implements IAcctTransactionProcessor
     private EsqAcctTransactionRepository transactionRepository;
     private TransactionTemplate transactionTemplate;
     private EntityManager em;
-    private pro.mir0n.esquire.messaging.xrod.IXRod xyRod;   // audit: balance change -> account UPDATE
+    private pro.mir0n.esquire.common.audit.AuditBusBridge audit;   // audit: balance change -> account UPDATE
 
     /** skipValidation: For test use only — allows bypassing status/balance/field validation. */
     public AcctTransactionSingle esquireCommandAcct(int kind, String id, AcctOperation.Code oper, Map<String, Object> fields, boolean skipValidation, String rootPath, String uid, List<String> roles) {
@@ -201,8 +202,7 @@ public class AcctTransactionProcessorSingle implements IAcctTransactionProcessor
         if (acct.getFundedDate() == null || acct.getFundedDate().isEmpty()) {
             acct.setFundedDate(java.time.LocalDate.now().toString());
         }
-        xyRod.post(pro.mir0n.esquire.messaging.xrod.RodEvent.Op.UPDATE, acct.getKind(), acctId, null, acct,
-                EsqMsgConstants.MSG_TYPE_AUDIT);
+        audit.post(pro.mir0n.esquire.messaging.xrod.RodEvent.Op.UPDATE, acct.getKind(), acctId, null, acct);
         return ret;
     }
 }

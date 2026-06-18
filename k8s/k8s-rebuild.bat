@@ -144,7 +144,7 @@ if errorlevel 1 (
   goto end
 )
 echo [helm] upgrading esquire-backend to tag %TS%...
-call helm upgrade esquire-backend charts\esquire-backend --reuse-values --set image.tag=%TS%
+call helm upgrade esquire-backend charts\esquire-backend --reset-then-reuse-values --set image.tag=%TS%
 if errorlevel 1 ( echo helm upgrade failed & exit /b 1 )
 kubectl rollout status deploy/esquire-backend-backend --timeout=180s
 goto end
@@ -180,7 +180,7 @@ if errorlevel 1 (
   exit /b 0
 )
 echo [helm] upgrading esquire-%SVC% to tag %TS%...
-call helm upgrade esquire-%SVC% charts\esquire-%SVC% --reuse-values --set image.tag=%TS%
+call helm upgrade esquire-%SVC% charts\esquire-%SVC% --reset-then-reuse-values --set image.tag=%TS%
 if errorlevel 1 ( echo helm upgrade failed for esquire-%SVC% & exit /b 1 )
 kubectl rollout status deploy/esquire-%SVC%-%SVC% --timeout=180s
 exit /b 0
@@ -198,7 +198,7 @@ exit /b 0
 rem Subroutine: rewrite the 'tag:' line in values\%1.yaml to the stamped tag.
 rem   Inputs:  %1 = svc name (matches values\<svc>.yaml); TS = the new stamp
 rem Mirrors oke-rebuild.bat's same edit pattern. Pure source-of-truth update;
-rem the rollout itself happens via --reuse-values --set image.tag below.
+rem the rollout itself happens via --reset-then-reuse-values --set image.tag below.
 echo [yaml] values\%1.yaml :  tag -^> %TS%
 powershell -nop -c "(Get-Content -Raw values\%1.yaml) -replace '(?m)^(\s*tag:\s*).*$', ('${1}\"' + '%TS%' + '\"') | Set-Content -NoNewline values\%1.yaml"
 exit /b 0

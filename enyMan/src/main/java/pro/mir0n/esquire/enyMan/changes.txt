@@ -1,5 +1,12 @@
 Esquire enyMan Microservice
 
+06/17/2026 mir0n  v1.2.8 -- Messaging Bus cleanup: audit via AuditBusBridge
+audit.AuditConfig
+  - @Bean AuditBusBridge audit() wrapping rods.producer(BUS_KEY_AUDIT, BROADCAST) (was @Bean IXRod xRod())
+service.impl.OrgService / UsrService / AcctService / EnyManService, queue.MoveQueueManager
+  - the audit producer field IXRod xyRod -> AuditBusBridge audit; post(...) calls drop the trailing
+    EsqMsgConstants.MSG_TYPE_AUDIT argument (the bridge stamps it); the isEnabled() guard reads audit
+
 06/15/2026 mir0n  v1.2.8 -- messaging migrated onto the x-Rod bus catalog; audit via XRodManager
 audit.AuditConfig
   - audit producer resolved through the shared XRodManager: producer(BUS_KEY_AUDIT, Role.BROADCAST)

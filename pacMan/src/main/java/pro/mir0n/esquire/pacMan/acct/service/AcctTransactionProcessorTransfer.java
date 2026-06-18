@@ -12,6 +12,7 @@
  *                   shared pkTx links both legs; sourceCcy forwarded to credit leg
  * 06/05/2026 mir0n  XYRod ctor param added + forwarded to super (both transfer legs audit the balance change)
  * 06/15/2026 mir0n  audit-producer ctor param retyped messaging.xrod.IXRod (was common.xrod.XYRod)
+ * 06/17/2026 mir0n  audit-producer ctor param IXRod -> AuditBusBridge
  */
 
 package pro.mir0n.esquire.pacMan.acct.service;
@@ -36,8 +37,8 @@ public class AcctTransactionProcessorTransfer extends AcctTransactionProcessorSi
 
     private static final org.slf4j.Logger devLog = LoggerFactory.getLogger("develop." + AcctTransactionProcessorTransfer.class.getName());
 
-    public AcctTransactionProcessorTransfer(EsqAcctRepository entityRepository, EsqAcctTransactionRepository transactionRepository, TransactionTemplate transactionTemplate, EntityManager em, pro.mir0n.esquire.messaging.xrod.IXRod xyRod) {
-        super(entityRepository, transactionRepository, transactionTemplate, em, xyRod);
+    public AcctTransactionProcessorTransfer(EsqAcctRepository entityRepository, EsqAcctTransactionRepository transactionRepository, TransactionTemplate transactionTemplate, EntityManager em, pro.mir0n.esquire.common.audit.AuditBusBridge audit) {
+        super(entityRepository, transactionRepository, transactionTemplate, em, audit);
     }
 
     public AcctTransactionSingle esquireCommandAcct(int kind, String id, AcctOperation.Code oper, Map<String, Object> fields, boolean skipValidation, String rootPath, String uid, List<String> roles) {

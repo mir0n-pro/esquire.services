@@ -9,6 +9,8 @@
  * 06/15/2026 mir0n  created: record {provider, endpoint, destination, topic, params} -- the bound wire of one
  *                   x-Rod leg: the provider NAME (resolved by TransportProviders), the broker endpoint, the
  *                   destination, its kind (topic vs queue), and the provider's own params group.
+ * 06/17/2026 mir0n  refinedWith(BusNode) added: the base wire refined with an R&R node (node owns destination /
+ *                   topic / params; the base owns provider / endpoint)
  */
 package pro.mir0n.esquire.messaging;
 
@@ -26,5 +28,15 @@ public record BusTransport(String provider, String endpoint, String destination,
 
     public Map<String, String> paramsOrEmpty() {
         return params != null ? params : Map.of();
+    }
+
+    /** This base wire refined with an R&R {@link BusNode}: {@code provider} / {@code endpoint} stay (the base
+     *  owns the wire); {@code destination} / {@code topic} / {@code params} come from the node when it sets them,
+     *  else the base's. The per-field fallback IS the per-group overlay (a node provides a group whole). */
+    public BusTransport refinedWith(BusNode node) {
+        return new BusTransport(provider, endpoint,
+                node.destination() != null ? node.destination() : destination,
+                node.topic() != null ? node.topic() : topic,
+                node.params() != null ? node.params() : params);
     }
 }

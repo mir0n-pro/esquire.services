@@ -75,7 +75,7 @@ class RodBusIntegrationTest {
         r.add("esquire.messaging-bus[0].slot[0].slot-id", () -> "audit");
         r.add("esquire.messaging-bus[0].slot[0].x-rod.transport.provider", () -> "activemq");
         r.add("esquire.messaging-bus[0].slot[0].x-rod.transport.endpoint", RodBusIntegrationTest::brokerUrl);
-        r.add("esquire.messaging-bus[0].slot[0].x-rod.transport.destination", () -> EsqMsgConstants.ROD_AUDIT);
+        r.add("esquire.messaging-bus[0].slot[0].x-rod.transport.destination", () -> "esquire.rod.audit");
         r.add("esquire.messaging-bus[0].slot[0].x-rod.transport.topic", () -> "false");
         // service-level bus ref: xxRod's consumer reads esquire.audit-bus.messaging-bus.bus-id -> the catalog leg.
         r.add("esquire.audit-bus.messaging-bus.bus-id", () -> "audit-bus");
@@ -87,8 +87,8 @@ class RodBusIntegrationTest {
     @Test
     void busPathWritesAccountLogAndDedups() {
         TransportProvider provider = new TransportProvider();
-        Consumer<RodEvent> publisher = RodTransportAdapter.publisher(provider, EsqMsgConstants.ROD_AUDIT,
-                new PublishSettings(new ObjectMapper(), brokerUrl(), null, false,
+        Consumer<RodEvent> publisher = RodTransportAdapter.publisher(provider, "esquire.rod.audit",
+                new PublishSettings(new ObjectMapper(), brokerUrl(), false,
                         new BusIdentity("audit-bus", "audit", null),
                         java.util.Map.of(), 0));
         JdbcTemplate jdbc = new JdbcTemplate(dataSource);

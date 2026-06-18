@@ -10,6 +10,7 @@
  *                   opens the provider's sink once and returns a Consumer<RodEvent> that encodes each event (via
  *                   RodEventCodec) onto a TransportMessage (key = entityId); handler() adapts a RodEvent sink into
  *                   the TransportMessage handler the provider's openConsumer dispatches to (decoding the envelope).
+ * 06/17/2026 mir0n  publisher() returns a RodPublisher (closeable) instead of a bare Consumer<RodEvent>
  */
 package pro.mir0n.esquire.messaging.xrod;
 
@@ -18,6 +19,7 @@ import pro.mir0n.esquire.messaging.transport.BusIdentity;
 import pro.mir0n.esquire.messaging.transport.ITransportProvider;
 import pro.mir0n.esquire.messaging.transport.PublishSettings;
 import pro.mir0n.esquire.messaging.transport.TransportMessage;
+import pro.mir0n.esquire.messaging.transport.TransportPublisher;
 import pro.mir0n.esquire.messaging.xrod.RodEvent;
 
 import java.util.function.Consumer;
@@ -29,15 +31,18 @@ public final class RodTransportAdapter {
     }
 
     /**
-     * Producer side: open the transport publisher once and return the {@link RodEvent} dispatcher to wire as
-     * an XRod transmit-leg outbound. Each event is encoded to the property-bag envelope (key = entityId so a
-     * partitioning transport keeps per-entity order); the msg-type rides the event ({@code e.msgType()}).
+     * Producer side: open the transport publisher once and return the closeable {@link RodEvent} dispatcher to
+     * wire as an XRod transmit-leg outbound. Each event is encoded to the property-bag envelope (key = entityId
+     * so a partitioning transport keeps per-entity order); the msg-type rides the event ({@code e.msgType()}).
+     * The returned {@link RodPublisher}'s {@code close()} releases the transport publisher's broker connection.
      */
-    public static Consumer<RodEvent> publisher(ITransportProvider provider, String destination, PublishSettings s) {
-        Consumer<TransportMessage> sink = provider.openPublisher(destination, s);
+    public static RodPublisher publisher(ITransportProvider provider, String destination, PublishSettings s) {
+        TransportPublisher sink = provider.openPublisher(destination, s);
         ObjectMapper om = s.objectMapper();
         BusIdentity id  = s.identity();
-        return e -> sink.accept(new TransportMessage(RodEventCodec.toProps(e, om, id), e.entityId()));
+        return RodPublisher.of(
+                e -> sink.accept(new TransportMessage(RodEventCodec.toProps(e, om, id), e.entityId())),
+                sink);
     }
 
     /**

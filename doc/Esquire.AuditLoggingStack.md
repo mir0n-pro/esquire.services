@@ -480,6 +480,15 @@ restricts which tables are logged. SQL stays a **deployable spec artifact**, dec
 
 ## 5. Delivery semantics — loss, duplication, and why dedup lives only on the bus path
 
+**In plain terms:** once a service commits its change, the audit event is held in memory and then sent to
+the bus. If the broker is down, or the process crashes, before that send lands, the event is dropped —
+there is no automatic resend and nothing is written to disk to recover it. So an audit event is **not
+guaranteed to follow the change it records** — except option (a), which writes the audit row inside the
+same transaction as the change. This is not a gap to close: async audit is decoupled from the change's
+transaction on purpose, to keep the change path as fast as possible when everything works — it is the
+fast-path record, not the source you reconstruct an outage from. The rest of this section is the per-option
+detail behind that statement.
+
 Each option sits at a different point on the **loss vs duplication** spectrum, and only some can be made
 zero-loss. This decides where a dedup mechanism is needed — and is the real reason the `*_log` dedup unique
 index exists on the bus path but nowhere else.

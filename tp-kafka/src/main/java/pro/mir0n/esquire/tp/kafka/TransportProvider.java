@@ -13,6 +13,8 @@
  *                   TransportProvider; builds its OWN producer / consumer factory from settings.endpoint()
  *                   (bootstrap-servers); the kafka-only group-id comes from the provider's param group
  *                   (transport.kafka.group-id), read via settings.params().
+ * 06/17/2026 mir0n  openPublisher returns a TransportPublisher (close() destroys the DefaultKafkaProducerFactory);
+ *                   the clientId param + CLIENT_ID_CONFIG removed from buildTemplate / buildConsumerFactory
  */
 package pro.mir0n.esquire.tp.kafka;
 
@@ -24,6 +26,7 @@ import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.DisposableBean;
 import org.springframework.kafka.core.ConsumerFactory;
 import org.springframework.kafka.core.DefaultKafkaConsumerFactory;
 import org.springframework.kafka.core.DefaultKafkaProducerFactory;
@@ -36,6 +39,7 @@ import pro.mir0n.esquire.messaging.transport.ConsumeSettings;
 import pro.mir0n.esquire.messaging.transport.ITransportProvider;
 import pro.mir0n.esquire.messaging.transport.PublishSettings;
 import pro.mir0n.esquire.messaging.transport.TransportMessage;
+import pro.mir0n.esquire.messaging.transport.TransportPublisher;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -54,12 +58,15 @@ public final class TransportProvider implements ITransportProvider {
     }
 
     @Override
-    public Consumer<TransportMessage> openPublisher(String destination, PublishSettings s) {
+    public TransportPublisher openPublisher(String destination, PublishSettings s) {
         ObjectMapper om = s.objectMapper();
-        KafkaTemplate<String, String> kafka = buildTemplate(s.endpoint(), s.clientId(), s.params());
+        KafkaTemplate<String, String> kafka = buildTemplate(s.endpoint(), s.params());
         devLog.info("tp-kafka: publisher opened on topic {} (bootstrap={})", destination, s.endpoint());
 
-        return msg -> {
+        // close() disposes the producer factory (closes its pooled producers); the DefaultKafkaProducerFactory
+        // built above is a DisposableBean.
+        AutoCloseable closer = (kafka.getProducerFactory() instanceof DisposableBean db) ? db::destroy : () -> { };
+        return TransportPublisher.of(msg -> {
             try {
                 String value = om.writeValueAsString(msg.headers());
                 kafka.send(destination, msg.key(), value).whenComplete((res, ex) -> {
@@ -70,14 +77,14 @@ public final class TransportProvider implements ITransportProvider {
             } catch (Exception ex) {
                 devLog.error("tp-kafka: publish failed on {}: {}", destination, ex.getMessage(), ex);
             }
-        };
+        }, closer);
     }
 
     @Override
     public AutoCloseable openConsumer(String destination, ConsumeSettings s, Consumer<TransportMessage> handler) {
         ObjectMapper om = s.objectMapper();
         String groupId = s.param(PARAM_GROUP_ID, DEFAULT_GROUP_ID);
-        ConsumerFactory<String, String> consumerFactory = buildConsumerFactory(s.endpoint(), groupId, s.clientId(), s.params());
+        ConsumerFactory<String, String> consumerFactory = buildConsumerFactory(s.endpoint(), groupId, s.params());
 
         ContainerProperties props = new ContainerProperties(destination);
         props.setGroupId(groupId);
@@ -105,34 +112,28 @@ public final class TransportProvider implements ITransportProvider {
     /** Build a KafkaTemplate over a String/String producer to {@code bootstrap}. The audit topic owns this
      *  producer -- it is not the app's shared kafka. Every leg {@code params} entry is a Kafka config applied
      *  verbatim (acks / linger.ms / compression.type / ...); the essentials below win so they cannot be broken. */
-    private static KafkaTemplate<String, String> buildTemplate(String bootstrap, String clientId, Map<String, String> params) {
+    private static KafkaTemplate<String, String> buildTemplate(String bootstrap, Map<String, String> params) {
         Map<String, Object> cfg = new HashMap<>();
-        cfg.putAll(params);
+        cfg.putAll(params);           // any Kafka producer config verbatim -- client.id included, via transport.params.*
         cfg.remove(PARAM_GROUP_ID);   // our convention key -> the consumer maps it to group.id; not a producer config
         cfg.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrap);
         cfg.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
         cfg.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
-        if (clientId != null && !clientId.isBlank()) {
-            cfg.put(ProducerConfig.CLIENT_ID_CONFIG, clientId);
-        }
         ProducerFactory<String, String> pf = new DefaultKafkaProducerFactory<>(cfg);
         return new KafkaTemplate<>(pf);
     }
 
     /** Build a String/String consumer factory to {@code bootstrap} in {@code groupId} (read from the start). Every
      *  leg {@code params} entry is a Kafka config applied verbatim (max.poll.records / ...); essentials win. */
-    private static ConsumerFactory<String, String> buildConsumerFactory(String bootstrap, String groupId, String clientId, Map<String, String> params) {
+    private static ConsumerFactory<String, String> buildConsumerFactory(String bootstrap, String groupId, Map<String, String> params) {
         Map<String, Object> cfg = new HashMap<>();
-        cfg.putAll(params);
+        cfg.putAll(params);           // any Kafka consumer config verbatim -- client.id included, via transport.params.*
         cfg.remove(PARAM_GROUP_ID);   // our convention key -> mapped to GROUP_ID_CONFIG below
         cfg.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrap);
         cfg.put(ConsumerConfig.GROUP_ID_CONFIG, groupId);
         cfg.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
         cfg.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
         cfg.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
-        if (clientId != null && !clientId.isBlank()) {
-            cfg.put(ConsumerConfig.CLIENT_ID_CONFIG, clientId);
-        }
         return new DefaultKafkaConsumerFactory<>(cfg);
     }
 }

@@ -8,6 +8,7 @@ import pro.mir0n.esquire.messaging.transport.ConsumeSettings;
 import pro.mir0n.esquire.messaging.transport.ITransportProvider;
 import pro.mir0n.esquire.messaging.transport.PublishSettings;
 import pro.mir0n.esquire.messaging.transport.TransportMessage;
+import pro.mir0n.esquire.messaging.transport.TransportPublisher;
 import pro.mir0n.esquire.messaging.xrod.RodEvent;
 
 import java.util.ArrayList;
@@ -25,8 +26,8 @@ class RodTransportAdapterTest {
     /** A fake provider: openPublisher hands back a sink that records every TransportMessage. */
     private static final class CapturingProvider implements ITransportProvider {
         final List<TransportMessage> sent = new ArrayList<>();
-        @Override public Consumer<TransportMessage> openPublisher(String destination, PublishSettings s) {
-            return sent::add;
+        @Override public TransportPublisher openPublisher(String destination, PublishSettings s) {
+            return TransportPublisher.of(sent::add, () -> { });
         }
         @Override public AutoCloseable openConsumer(String d, ConsumeSettings s, Consumer<TransportMessage> h) {
             throw new UnsupportedOperationException();
@@ -41,7 +42,7 @@ class RodTransportAdapterTest {
     @Test
     void publisher_encodesEventToEnvelopeWithEntityIdKey() {
         CapturingProvider provider = new CapturingProvider();
-        PublishSettings ts = new PublishSettings(OM, "tcp://localhost:61616", null, false,
+        PublishSettings ts = new PublishSettings(OM, "tcp://localhost:61616", false,
                 new BusIdentity("audit-bus", "audit", null), Map.of(), 0);
 
         RodTransportAdapter.publisher(provider, "esquire.rod.audit", ts).accept(event());

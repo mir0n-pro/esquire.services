@@ -20,6 +20,8 @@
  *                   rod-class / virtual-threads) resolved from the audit leg via MessagingBusCatalog.resolve
  *                   ({bus-id, slot-id} from esquire.audit.messaging-bus), defaulting when no leg; the XXRod
  *                   pool replaced by IXRod rod = XRods.resolve(rodClass) started with registry.applier.
+ * 06/17/2026 mir0n  init() reads the audit leg via the key built from EsqMsgConstants.BUS_KEY_AUDIT
+ *                   (esquire.audit-bus.messaging-bus.*), the same key the consumer opens; accept() -> rod.receive()
  */
 package pro.mir0n.esquire.xxRod.director;
 
@@ -29,6 +31,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Component;
 import pro.mir0n.esquire.backend.storage.EsqObjectKindStorage;
+import pro.mir0n.esquire.common.EsqMsgConstants;
 import pro.mir0n.esquire.common.audit.AuditKinds;
 import pro.mir0n.esquire.common.audit.AuditLogWriter;
 import pro.mir0n.esquire.messaging.MessagingBusCatalog;
@@ -71,8 +74,9 @@ public class AuditRodDirector implements IRodDirector {
         int     poolSize       = 8;
         boolean virtualThreads = false;
         String  rodClass       = "XRod";
-        String  busId          = env.getProperty("esquire.audit.messaging-bus.bus-id", "");
-        String  slotId      = env.getProperty("esquire.audit.messaging-bus.slot-id", "");
+        String  busKeyPrefix   = "esquire." + EsqMsgConstants.BUS_KEY_AUDIT + ".messaging-bus.";
+        String  busId          = env.getProperty(busKeyPrefix + "bus-id", "");
+        String  slotId         = env.getProperty(busKeyPrefix + "slot-id", "");
         if (!busId.isBlank() && !slotId.isBlank()) {
             XRodParams leg = new MessagingBusCatalog(env).resolve(busId, slotId);
             poolSize       = leg.poolSizeOr(8);
@@ -100,7 +104,7 @@ public class AuditRodDirector implements IRodDirector {
 
     @Override
     public void accept(RodEvent event) {
-        rod.submit(event);
+        rod.receive(event);
     }
 
     @Override

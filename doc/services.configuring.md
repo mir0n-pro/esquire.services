@@ -51,13 +51,15 @@ Hikari pool settings are fixed in the yml (not env-driven): `maximum-pool-size=2
 
 Messaging runs behind one frontend, the **x-Rod**. A service references a logical bus and a role;
 the actual transport (ActiveMQ / Kafka / Redis) and its endpoint live in the shared **topology**,
-not in per-service env. The vocabulary:
+not in per-service env. The abstract bus framework -- the x-Rod engine, the transport-driver SPI, the
+catalog + parameter model -- is documented in `doc/Esquire.MessagingBus.md`; THIS section is the concrete
+Esquire catalog: which buses exist and the env that drives them. The vocabulary:
 
 - **bus** (`bus-id`): a logical channel (`esquire.entity`, `esquire.kc`, `audit-c`, ...).
 - **slot** (`slot-id`): a leg a participant joins -- `entity`, `kc`, `audit`.
 - **node** (`node-id`): request/response buses split a slot into `request` + `response` nodes (each
   its own destination); single-node buses just carry a `destination`.
-- **x-rod**: the per-slot pod config -- `rod-class` + engine knobs (pool-size, feed-capacity,
+- **x-rod**: the per-slot x-rod config -- `rod-class` + engine knobs (pool-size, feed-capacity,
   virtual-threads, publisher-pool-size, concurrency) + a `transport` block.
 - **transport**: provider (`activemq` | `kafka` | `redis`, or a class name) + endpoint + destination +
   `topic` (true=topic / false=queue) + `params` (opaque per-vendor knobs, e.g. `jms.useAsyncSend` /

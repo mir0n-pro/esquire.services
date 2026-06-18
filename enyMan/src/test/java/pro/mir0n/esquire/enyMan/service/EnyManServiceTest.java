@@ -27,6 +27,7 @@ import pro.mir0n.esquire.backend.storage.EsqObjectKindStorage;
 import pro.mir0n.esquire.backend.storage.EsqRolesStorage;
 import pro.mir0n.esquire.backend.storage.roles.JpaRolesRepository;
 import pro.mir0n.esquire.common.EsqConstants;
+import pro.mir0n.esquire.common.audit.AuditBusBridge;
 import pro.mir0n.esquire.messaging.Role;
 import pro.mir0n.esquire.messaging.XRodParams;
 import pro.mir0n.esquire.messaging.xrod.IXRod;
@@ -161,7 +162,7 @@ class EnyManServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new EnyManService(dictRepo, orgRepo, usrRepo, acctRepo, subtreeRepo, transactionTemplate, em, broadcastPublisher, moveQueue, noopRod());
+        service = new EnyManService(dictRepo, orgRepo, usrRepo, acctRepo, subtreeRepo, transactionTemplate, em, broadcastPublisher, moveQueue, new AuditBusBridge(noopRod()));
     }
 
     @AfterEach

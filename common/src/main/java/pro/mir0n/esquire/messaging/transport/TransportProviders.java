@@ -10,6 +10,7 @@
  *                   (a bare name -> pro.mir0n.esquire.tp.<name>.TransportProvider by convention, or a full class
  *                   name verbatim) is reflectively instantiated (no-arg) and cached; paramKey() yields its
  *                   param-group name. A new transport plugs in by jar-on-classpath + config, zero framework change.
+ * 06/17/2026 mir0n  paramKey() removed (a vestige of the old per-provider param-group design)
  */
 package pro.mir0n.esquire.messaging.transport;
 
@@ -33,21 +34,6 @@ public final class TransportProviders {
     public static String classNameFor(String provider) {
         String p = provider.trim();
         return p.indexOf('.') >= 0 ? p : PACKAGE_PREFIX + p.toLowerCase() + CLASS_SUFFIX;
-    }
-
-    /** The provider's param-group name (esquire...transport.&lt;key&gt;.*): a bare name as-is; for a full class
-     *  name, the package leaf -- so the convention class ...tp.redis.TransportProvider keys group "redis". */
-    public static String paramKey(String provider) {
-        String p = provider.trim();
-        String ret;
-        int lastDot = p.lastIndexOf('.');
-        if (lastDot < 0) {
-            ret = p.toLowerCase();                          // bare name
-        } else {
-            int prevDot = p.lastIndexOf('.', lastDot - 1);  // ...tp.<name>.TransportProvider -> <name>
-            ret = p.substring(prevDot + 1, lastDot).toLowerCase();
-        }
-        return ret;
     }
 
     /** Resolve (and cache) the provider for {@code provider} (convention name or full class name). Throws with

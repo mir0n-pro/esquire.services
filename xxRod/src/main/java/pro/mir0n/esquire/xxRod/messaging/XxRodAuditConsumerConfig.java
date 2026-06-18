@@ -11,6 +11,7 @@
  *                   catalog; the catalog resolves provider + destination + ConsumeSettings; the rodAuditConsumer
  *                   bean opens the leg consumer feeding director::accept via RodTransportAdapter. A producer-only
  *                   transport (supportsConsume()=false) or a missing bus reference -> no consumer (stay idle).
+ * 06/17/2026 mir0n  consumeLeg(busId, slotId, objectMapper) -- the Role.BROADCAST argument dropped
  */
 package pro.mir0n.esquire.xxRod.messaging;
 
@@ -22,7 +23,6 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.env.Environment;
 import pro.mir0n.esquire.messaging.MessagingBusCatalog;
-import pro.mir0n.esquire.messaging.Role;
 import pro.mir0n.esquire.messaging.xrod.RodTransportAdapter;
 import pro.mir0n.esquire.xxRod.director.IRodDirector;
 
@@ -53,7 +53,7 @@ public class XxRodAuditConsumerConfig {
             return () -> { };
         }
         MessagingBusCatalog catalog = new MessagingBusCatalog(environment);
-        MessagingBusCatalog.ConsumeLeg leg = catalog.consumeLeg(busId, slotId, Role.BROADCAST, objectMapper);
+        MessagingBusCatalog.ConsumeLeg leg = catalog.consumeLeg(busId, slotId, objectMapper);
         // A producer-only transport (e.g. redis: the stream IS the log) has no consume leg -- stay idle.
         if (!leg.provider().supportsConsume()) {
             devLog.info("xxRod: transport for bus '{}' is producer-only -- no audit consumer started", busId);

@@ -31,11 +31,4 @@ class TransportProvidersTest {
         assertThat(TransportProviders.classNameFor("com.acme.MyTransportProvider"))
                 .isEqualTo("com.acme.MyTransportProvider");
     }
-
-    @Test
-    void paramKeyIsBareNameOrThePackageLeaf() {
-        assertThat(TransportProviders.paramKey("redis")).isEqualTo("redis");
-        assertThat(TransportProviders.paramKey("pro.mir0n.esquire.tp.redis.TransportProvider")).isEqualTo("redis");
-        assertThat(TransportProviders.paramKey("com.acme.FooProvider")).isEqualTo("acme");
-    }
 }

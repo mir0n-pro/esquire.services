@@ -1,5 +1,13 @@
 Esquire pacMan Microservice
 
+06/17/2026 mir0n  v1.2.8 -- Messaging Bus cleanup: audit via AuditBusBridge
+audit.AuditConfig
+  - @Bean AuditBusBridge audit() wrapping rods.producer(BUS_KEY_AUDIT, BROADCAST) (was @Bean IXRod xRod())
+service.impl.PacManService, acct.service.AcctTransactionService / AcctTransactionProcessorSingle /
+AcctTransactionProcessorTransfer
+  - the audit producer field IXRod xyRod -> AuditBusBridge audit; post(...) calls drop the trailing
+    EsqMsgConstants.MSG_TYPE_AUDIT argument (the bridge stamps it)
+
 06/15/2026 mir0n  v1.2.8 -- entity-broadcast migrated onto the x-Rod catalog; audit via XRodManager
 messaging.EsqEntityBroadcastPublisher
   - rewired onto the x-Rod transport seam: ctor opens the producer via

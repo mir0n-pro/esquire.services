@@ -12,6 +12,8 @@
  *                   (the OFF pod when no leg), configure + start it; close() shuts every rod down. An unset leg
  *                   rod-id defaults to the per-instance id <app>.<instanceNo> (EsqUtils.instanceNo()). Registered
  *                   once by XRodAutoConfiguration.
+ * 06/17/2026 mir0n  configureXRod() calls rod.validate(eff) before configure / start (fail-fast on the leg's
+ *                   required params)
  */
 package pro.mir0n.esquire.messaging.xrod;
 
@@ -85,6 +87,7 @@ public class XRodManager implements AutoCloseable {
         } else {
             XRodParams eff = base.withBus(busId, slotId, instanceId());
             rod = XRods.resolve(eff.rodClassOr(XRods.DEFAULT));
+            rod.validate(eff);                          // fail-fast on this x-rod's required leg params
             rod.configure(eff, role, objectMapper);
         }
         return start(rod, worker, name);

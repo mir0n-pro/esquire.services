@@ -10,6 +10,7 @@
  *                   transport module (tp-activemq / tp-kafka / tp-redis). openPublisher / openConsumer turn a
  *                   destination into a publish sink / consume registration over the neutral TransportMessage;
  *                   supportsConsume() lets a producer-only transport (e.g. a Redis stream) skip the consume leg.
+ * 06/17/2026 mir0n  openPublisher returns a TransportPublisher (closeable) instead of a bare Consumer<TransportMessage>
  */
 package pro.mir0n.esquire.messaging.transport;
 
@@ -26,9 +27,11 @@ public interface ITransportProvider {
 
     /**
      * Opens a publisher (xy-rod side) onto {@code destination}: a sink the caller feeds
-     * {@link TransportMessage}s into. The provider maps each message onto its wire form and sends it.
+     * {@link TransportMessage}s into. The provider maps each message onto its wire form and sends it. The
+     * returned {@link TransportPublisher} is {@link AutoCloseable} -- {@code close()} releases the provider's
+     * own broker connection (symmetric with {@link #openConsumer}'s returned handle).
      */
-    Consumer<TransportMessage> openPublisher(String destination, PublishSettings settings);
+    TransportPublisher openPublisher(String destination, PublishSettings settings);
 
     /**
      * Starts consuming (xx-rod side) {@code destination}: the provider runs a listener that decodes each

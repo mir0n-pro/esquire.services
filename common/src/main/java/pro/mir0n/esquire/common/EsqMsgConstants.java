@@ -21,25 +21,22 @@
  *                   FIELD_ROD_ID (RodID); MSG_TYPE_ROD_AUDIT->MSG_TYPE_AUDIT ("UA"); hardcoded bus/slot value
  *                   constants (BUS_ID_ROD/ENTITY, SERVICE_ID_*) removed -- replaced by logical bus KEYS
  *                   BUS_KEY_AUDIT/KC/ENTITY (the bus-id/slot-id VALUES are now config/topology)
+ * 06/17/2026 mir0n  TOPIC_ENTITY_BROADCAST and ROD_AUDIT removed (dead destination constants -- destinations are
+ *                   config/topology values now); class javadoc refreshed to the FIX-JSON shared-envelope description
  */
 package pro.mir0n.esquire.common;
 
 /**
- * Protocol constants for the esquire.entity.broadcast JMS topic.
+ * FIX-JSON protocol constants shared across the messaging bus -- entity broadcast, KC request/response,
+ * and audit. The field names and msg-type / event-type values define the wire envelope; the codec
+ * (RodEventCodec) maps a RodEvent to and from it, so they are transport-agnostic (each provider carries the
+ * envelope its own way -- a queue, a topic, a stream). Text carries a JSON entity-state snapshot.
  *
- * All 14 canonical fields are transmitted as JMS message properties (no message body).
- * Text carries a JSON-serialized entity state snapshot as a string property.
- * Fixed phase-1 values must not change without protocol review.
+ * A service finds its bus by a logical KEY (BUS_KEY_*); the bus-id / slot-id / destination VALUES live in
+ * config and topology, not here. The fixed values must not change without a protocol review.
  */
 public class EsqMsgConstants {
     private EsqMsgConstants() {}
-
-    // --- Destinations ---
-    public static final String TOPIC_ENTITY_BROADCAST = "esquire.entity.broadcast";
-    // x-Rod audit bus destination: the ONE logical name every transport provider maps to its own wire form
-    // (an ActiveMQ queue, a Kafka topic, a Redis stream). The framework names no vendor, so it names one
-    // destination -- the provider interprets it. (Was QUEUE_/TOPIC_/STREAM_ROD_AUDIT, all the same string.)
-    public static final String ROD_AUDIT               = "esquire.rod.audit";
 
     // --- Canonical FIX-JSON field names (JMS property name = JSON body field name) ---
 
@@ -80,7 +77,7 @@ public class EsqMsgConstants {
     public static final String MSG_ENCODING_JSON        = "JSON";
     // --- logical bus KEYS a service uses to look up its ref (esquire.<key>.messaging-bus -> {bus-id, slot-id}).
     //     The bus-id / slot-id VALUES are configurable (the topology + refs), NOT hardcoded here. ---
-    public static final String BUS_KEY_AUDIT            = "audit-bus";
+public static final String BUS_KEY_AUDIT            = "audit-bus";
     public static final String BUS_KEY_KC               = "kc-bus";
     public static final String BUS_KEY_ENTITY           = "entity-bus";
 

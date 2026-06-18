@@ -1,5 +1,14 @@
 Esquire xxRod Microservice
 
+06/17/2026 mir0n  v1.2.8 -- Messaging Bus cleanup: audit director config key + consumer call
+director.AuditRodDirector
+  - init() reads the audit leg via the key built from EsqMsgConstants.BUS_KEY_AUDIT
+    (esquire.audit-bus.messaging-bus.*) -- was the wrong esquire.audit.messaging-bus.* (lookup blank ->
+    silent default pool); accept() calls rod.receive() (was rod.submit())
+messaging.XxRodAuditConsumerConfig
+  - consumeLeg(busId, slotId, objectMapper) -- the Role.BROADCAST argument dropped (consumeLeg no longer
+    builds a selector)
+
 06/15/2026 mir0n  v1.2.8 -- audit consumer migrated onto the x-Rod bus catalog
 messaging.XxRodAuditConsumerConfig  (new)
   - @Configuration with a rodAuditConsumer @Bean (destroyMethod=close); names the audit leg by
