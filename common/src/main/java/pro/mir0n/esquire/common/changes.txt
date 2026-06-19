@@ -1,5 +1,13 @@
 Esquire Common microservice classes
 
+06/18/2026 mir0n  v1.2.8 -- messaging framework extracted to esquire-messaging; common freed of it
+messaging.* (removed)
+  - the pro.mir0n.esquire.messaging package moved out to the new esquire-messaging module; common no longer
+    carries the bus framework (common does NOT depend on messaging, so the edge is one-directional)
+pom.xml
+  - dropped the messaging-only deps: spring-boot (the catalog Binder), spring-boot-autoconfigure (the
+    XRodManager @AutoConfiguration), and the dead HikariCP (was for the dissolved common.audit.AuditRod)
+
 06/17/2026 mir0n  v1.2.8 -- Messaging Bus code-review cleanup: audit bridge, x-rod engine base, typed nodes, fail-fast
 audit.AuditBusBridge  (new)
   - the audit producer onto the bus: post(op,kind,id,sub[,IMappable|Map]) buffers each change in the active

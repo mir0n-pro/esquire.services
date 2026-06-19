@@ -1,0 +1,79 @@
+spring:
+  profiles:
+    active: ${DB_DATAKEEP_VENDOR:dev-postgres}
+  application:
+    name: aukeep
+  mvc:
+    problemdetails:
+      enabled: true
+  config:
+    import: "${ESQUIRE_TOPOLOGY_IMPORT:file:/etc/esquire/topology.yml}"
+# Bus TOPOLOGY (which buses exist + their transport) is the shared esquire-topology.yml imported above.
+# auKeep is the audit bus CONSUMER -- it drains the chosen bus audit sink (audit-c = AMQ / audit-ck = Kafka)
+# and applies it to the keep datasource (esquire.keep.datasource = the *_log tables) below. The in-process
+# (audit-b) and producer-only stream sinks (audit-d / audit-dk) have no auKeep consumer.
+esquire:
+  audit-bus:
+    messaging-bus:
+      bus-id: ${ESQUIRE_AUDIT_BUS_ID:audit-c}
+      slot-id: ${ESQUIRE_AUDIT_SERVICE_ID:audit}
+
+logging:
+  level:
+    root: ${LOG_LEVEL_ROOT:ERROR}
+    org:
+      springframework: ${LOG_LEVEL_SF:ERROR}
+      springframework.jms: ${LOG_LEVEL_JMS:INFO}
+      apache:
+        activemq: ${LOG_LEVEL_AMQ:INFO}
+    pro:
+      mir0n: ${LOG_LEVEL_MIR0N:ERROR}
+    develop: ${LOG_LEVEL_DEVELOP:DEBUG}
+    msg: ${LOG_LEVEL_MSG:INFO}
+  develop:
+    log-path: ${DEVELOP_LOG_PATH:logs/datakeep-develop.log}
+  msg:
+    log-path: ${MSG_LOG_PATH:logs/datakeep-msg.log}
+
+---
+spring:
+  config:
+    activate:
+      on-profile: dev-postgres
+# the keep's *_log datasource + pool (its own group, the same shape a producer's in-process leg uses).
+esquire:
+  keep:
+    datasource:
+      vendor: dev-postgres
+      url: jdbc:postgresql://${DB_DATAKEEP_HOST:localhost}:${DB_DATAKEEP_PORT:5432}/${DB_DATAKEEP_NAME:esq2025}
+      username: ${DB_DATAKEEP_USERNAME:esq2025}
+      password: ${DB_DATAKEEP_PASSWORD:q}
+      hikari:
+        maximum-pool-size: 20
+        minimum-idle: 10
+        connection-timeout: 30000
+        max-lifetime: 1800000
+        idle-timeout: 600000
+server:
+  port: ${DATAKEEP_PORT:3007}
+
+---
+spring:
+  config:
+    activate:
+      on-profile: dev-oracle
+esquire:
+  keep:
+    datasource:
+      vendor: dev-oracle
+      url: jdbc:oracle:thin:@//${DB_DATAKEEP_HOST:localhost}:${DB_DATAKEEP_PORT:1521}/${DB_DATAKEEP_NAME:MIR0N}
+      username: ${DB_DATAKEEP_USERNAME:esq2025}
+      password: ${DB_DATAKEEP_PASSWORD:q}
+      hikari:
+        maximum-pool-size: 20
+        minimum-idle: 10
+        connection-timeout: 30000
+        max-lifetime: 1800000
+        idle-timeout: 600000
+server:
+  port: ${DATAKEEP_PORT:3007}

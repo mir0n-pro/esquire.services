@@ -43,6 +43,7 @@
  * 06/15/2026 mir0n  audit field retyped XYRod -> IXRod (messaging.xrod); the auth UPDATE post() now passes an
  *                   explicit msgType (EsqMsgConstants.MSG_TYPE_AUDIT) as the trailing argument.
  * 06/17/2026 mir0n  audit field IXRod -> AuditBusBridge; the auth UPDATE post() drops the trailing MSG_TYPE_AUDIT arg
+ * 06/18/2026 mir0n  audit module left common: AuditBusBridge moved to pro.mir0n.esquire.audit
  */
 
 package pro.mir0n.esquire.keySmith.service.impl;
@@ -71,7 +72,7 @@ import pro.mir0n.esquire.backend.storage.EsqRolesStorage;
 import pro.mir0n.esquire.backend.validator.ValidatorFactory;
 import pro.mir0n.esquire.common.EsqConstants;
 import pro.mir0n.esquire.messaging.xrod.RodEvent;
-import pro.mir0n.esquire.common.audit.AuditBusBridge;
+import pro.mir0n.esquire.audit.AuditBusBridge;
 import pro.mir0n.esquire.keySmith.jpa.EsqAccessProfileRepository;
 import pro.mir0n.esquire.backend.service.RequestContextUtils;
 import pro.mir0n.esquire.backend.error.ResourceNotFoundException;

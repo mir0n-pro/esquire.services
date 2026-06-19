@@ -13,7 +13,7 @@
 #   k8s-oci/cluster/ingress.yaml
 #
 # Topology note: OKE audits via DB TRIGGERS (option a) -- the app producers stay
-# OFF (the OKE values set audit.enabled=false), so there is NO xxRod pod and no
+# OFF (the OKE values set audit.enabled=false), so there is NO auKeep pod and no
 # audit bus traffic. The trigger DDL ships baked into the esquire-postgres image
 # (db.seed/postgres/triggers).
 #

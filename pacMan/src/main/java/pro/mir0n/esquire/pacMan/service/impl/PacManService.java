@@ -50,6 +50,7 @@
  *                   post() calls carry an explicit msgType (EsqMsgConstants.MSG_TYPE_AUDIT)
  * 06/17/2026 mir0n  audit producer IXRod -> AuditBusBridge; the saveAcct / deleteAcct post() calls drop the
  *                   trailing MSG_TYPE_AUDIT arg
+ * 06/18/2026 mir0n  audit module left common: AuditBusBridge moved to pro.mir0n.esquire.audit
  */
 
 package pro.mir0n.esquire.pacMan.service.impl;
@@ -66,7 +67,7 @@ import pro.mir0n.esquire.backend.error.PermissionDeniedException;
 import pro.mir0n.esquire.backend.jpa.*;
 import pro.mir0n.esquire.backend.jpa.entity.EsqAcctJpa;
 import pro.mir0n.esquire.messaging.xrod.RodEvent;
-import pro.mir0n.esquire.common.audit.AuditBusBridge;
+import pro.mir0n.esquire.audit.AuditBusBridge;
 import pro.mir0n.esquire.backend.service.EntityFieldUtils;
 import pro.mir0n.esquire.backend.storage.EsqObjectKindStorage;
 import pro.mir0n.esquire.backend.storage.EsqRolesStorage;

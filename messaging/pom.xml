@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>pro.mir0n.esquire</groupId>
+        <artifactId>esquire-parent</artifactId>
+        <version>1.2.0</version>
+        <relativePath>../pom.xml</relativePath>
+    </parent>
+
+    <artifactId>esquire-messaging</artifactId>
+    <version>${messaging.version}</version>
+
+    <name>EsquireMessaging</name>
+    <description>Esquire messaging bus framework (catalog, x-rod engine, transport SPI, codec)</description>
+    <packaging>jar</packaging>
+
+    <dependencies>
+        <!-- the messaging bus depends only on common's utils + constants (BoundedQueueRig, EsqMsgConstants,
+             EsqUtils); common does NOT depend back on messaging, so the edge is one-directional. -->
+        <dependency>
+            <groupId>pro.mir0n.esquire</groupId>
+            <artifactId>esquire-common</artifactId>
+            <version>${common.version}</version>
+        </dependency>
+
+        <!-- logging API (common pulled it transitively via its provided deps, which don't propagate here).
+             Provided: the service modules supply the slf4j binding at runtime. -->
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+            <scope>provided</scope>
+        </dependency>
+
+        <!-- Spring Boot Binder: the messaging-bus catalog binds esquire.messaging-bus into typed records.
+             Provided: the service modules supply spring-boot at runtime. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot</artifactId>
+            <scope>provided</scope>
+        </dependency>
+
+        <!-- Spring Boot auto-configure: the shared XRodManager is registered for every service via an
+             @AutoConfiguration. Provided: the service modules supply spring-boot-autoconfigure at runtime. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-autoconfigure</artifactId>
+            <scope>provided</scope>
+        </dependency>
+
+        <!-- spring-test (MockEnvironment) for the catalog binding test. -->
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+    </dependencies>
+
+    <build>
+        <finalName>${project.artifactId}-${project.version}</finalName>
+        <resources>
+            <resource>
+              <directory>src/main/resources</directory>
+           </resource>
+        </resources>
+    </build>
+
+</project>

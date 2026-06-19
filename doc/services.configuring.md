@@ -30,10 +30,11 @@ table.
 ## Shared parameters (most services)
 
 These follow the same pattern across services; `<SVC>` is the service token in caps
-(`ENYMAN`, `PACMAN`, `KEYSMITH`, `KCMASTER`, `BIZTREE`, `XXROD`). They are listed once here and referenced
-from each service section rather than repeated.
+(`ENYMAN`, `PACMAN`, `KEYSMITH`, `KCMASTER`, `BIZTREE`, `DATAKEEP`). They are listed once here and referenced
+from each service section rather than repeated. (The audit consumer service is named **auKeep** but its
+env token is `DATAKEEP` -- a deferred rename, so the env prefix stays `DATAKEEP`.)
 
-### Database (data services: enyMan, pacMan, keySmith, bizTree, xxRod — NOT kcMaster)
+### Database (data services: enyMan, pacMan, keySmith, bizTree, auKeep — NOT kcMaster)
 
 | Env var | Default | Description |
 |---|---|---|
@@ -65,7 +66,8 @@ Esquire catalog: which buses exist and the env that drives them. The vocabulary:
   `topic` (true=topic / false=queue) + `params` (opaque per-vendor knobs, e.g. `jms.useAsyncSend` /
   `group-id` / `max-len`) + (R&R) `request-node` / `response-node` + a node list.
 - **rod-class**: `XRod` (standard transceiver), `XRodRR` (request/response, two-node, role-routed),
-  `XRodLogDb` (in-process write to `*_log`; FQCN `pro.mir0n.esquire.common.audit.XRodLogDb`),
+  `XRodInProcess` (a generic in-process relay that runs a worker applying events locally instead of
+  sending them; FQCN `pro.mir0n.esquire.dataKeep.keep.XRodInProcess`),
   `XRodInfo` (logs instead of sends), `XRodDisabled` (no-op; the default when a bus is unconfigured).
 - **role**: `CLIENT` / `SERVER` / `BROADCAST`.
 
@@ -85,9 +87,9 @@ import is REQUIRED (fail-fast); surefire makes it optional for context tests.
 
 A service references a bus by a logical KEY: `esquire.<key>.messaging-bus -> {bus-id, slot-id [,
 x-rod overrides]}`. Keys: `kc-bus`, `entity-bus`, `audit-bus`. The catalog also UNIONS a
-service-local extension under `esquire.<spring.application.name>-messaging-bus` (used for the
-audit-(b) in-process leg, whose log-db datasource is service-specific -- Spring lists don't merge
-across sources, so the 2nd key is needed). The `bus-id` / `slot-id` values are env-overridable per
+service-local extension under `<spring.application.name>.messaging-bus` (the service's own-namespace
+overlay of the global `esquire.messaging-bus`, used for the audit-(b) in-process leg, whose log-db
+datasource is service-specific -- Spring lists don't merge across sources, so the 2nd key is needed). The `bus-id` / `slot-id` values are env-overridable per
 service (`KC_BUS_ID` / `KC_SERVICE_ID`, `ENTITY_BUS_ID` / `ENTITY_SERVICE_ID`,
 `ESQUIRE_AUDIT_BUS_ID` / `ESQUIRE_AUDIT_SERVICE_ID`).
 
@@ -105,9 +107,9 @@ The sinks:
 
 | `audit-bus` bus-id | Sink | rod-class |
 |---|---|---|
-| `audit-b` | in-process write to the `*_log` tables (a SERVICE-LEVEL leg whose log-db block carries the datasource) | `XRodLogDb` |
-| `audit-c` | ActiveMQ -> the standalone **xxRod** consumer -> `*_log` | `XRod` |
-| `audit-ck` | Kafka -> xxRod -> `*_log` | `XRod` |
+| `audit-b` | in-process apply to the `*_log` tables (a SERVICE-LEVEL leg whose log-db block carries the datasource; the keep applier writes `*_log` via the generic keep engine) | `XRodInProcess` |
+| `audit-c` | ActiveMQ -> the standalone **auKeep** consumer -> `*_log` | `XRod` |
+| `audit-ck` | Kafka -> auKeep -> `*_log` | `XRod` |
 | `audit-d` | Redis stream IS the log (producer-only; no consumer service) | `XRod` |
 | `audit-dk` | Kafka topic IS the log (producer-only; no consumer service) | `XRod` |
 
@@ -127,18 +129,26 @@ locally, so its datasource is service-specific and configured on the service-loc
 
 | Env var | Default | Description |
 |---|---|---|
-| `ESQUIRE_AUDIT_LOG_DB_VENDOR` | `dev-postgres` | Log-DB SQL dialect (may differ from the business DB). |
-| `ESQUIRE_AUDIT_LOG_DB_URL` | *(empty)* | Log-DB JDBC URL. |
-| `ESQUIRE_AUDIT_LOG_DB_USERNAME` | `esq2025` | Log-DB user. |
-| `ESQUIRE_AUDIT_LOG_DB_PASSWORD` | `q` | Log-DB password. |
-| `ESQUIRE_AUDIT_LOG_DB_POOL_SIZE` | `2` | Log-DB Hikari pool size. |
+| `ESQUIRE_AUDIT_LOG_DB_SHARED` | `false` | `true` -> the keep REUSES the service's own datasource pool (shared); the dialect comes from the service profile and the `url`/`vendor`/`hikari` below are ignored. `false` -> a DEDICATED keep pool from `url`/`hikari`. |
+| `ESQUIRE_AUDIT_LOG_DB_VENDOR` | `dev-postgres` | Log-DB SQL dialect (may differ from the business DB). Dedicated only. |
+| `ESQUIRE_AUDIT_LOG_DB_URL` | *(empty)* | Log-DB JDBC URL. Dedicated only. |
+| `ESQUIRE_AUDIT_LOG_DB_USERNAME` | `esq2025` | Log-DB user. Dedicated only. |
+| `ESQUIRE_AUDIT_LOG_DB_PASSWORD` | `q` | Log-DB password. Dedicated only. |
+| `ESQUIRE_AUDIT_LOG_DB_POOL_SIZE` | `2` | Dedicated keep Hikari pool size (maps to `log-db.hikari.maximum-pool-size`). |
 
-The `*_log` SQL each producer (and xxRod) can write is shipped as a deploy-time
-`META-INF/audit/{vendor}.xml` spec set; omit those files to package the service with no audit SQL (the
+These drive the producer in-process `x-rod.log-db` block. SHARED keeps the audit writes on the service's
+own connection pool (fewer connections, but they compete with business queries); DEDICATED isolates them in
+the keep's own pool (can even target a different database/dialect than the service). The auKeep CONSUMER instead reads its keep
+datasource from a separate `esquire.keep.datasource` group (same record shape: vendor / url / username /
+password / hikari; on docker it points at `DB_DATAKEEP_*`), and excludes Boot's
+`DataSourceAutoConfiguration` (no `spring.datasource`).
+
+The `*_log` SQL each producer (and auKeep) can write is shipped as a deploy-time
+`META-INF/audit/{dialect}.xml` spec set; omit those files to package the service with no audit SQL (the
 loader tolerates the absence -> empty map, so the in-process leg silently no-ops). The `*_log` tables
 are seeded on a fresh cluster by the `esquire-postgres` image (its `create/all.sql` chains to
 `create.log/all.sql`); the `audit-b`/`audit-c`/`audit-ck` sinks need them, the Redis/Kafka-as-log
-sinks (`audit-d` / `audit-dk`) do not. See [xxRod](#xxrod) for the bus consumer and
+sinks (`audit-d` / `audit-dk`) do not. See [auKeep](#aukeep) for the bus consumer and
 `doc/Esquire.AuditLoggingStack.md` for the delivery-semantics trade-offs.
 
 ### Server port
@@ -331,25 +341,32 @@ DB read at cache load), messaging bus, logging.
 
 ---
 
-## xxRod
+## auKeep
 
-Standalone **audit-bus consumer** -- a generic **xRod host**: it drains whichever bus the `audit-bus`
-ref names (`ESQUIRE_AUDIT_BUS_ID`, default `audit-c`) and hands each decoded event to the configured
-`IRodDirector` (audit = write the `*_log` tables). It carries all transport-provider modules, so it
-consumes the ActiveMQ (`audit-c`) or Kafka (`audit-ck`) sink as the topology leg dictates;
-producer-only sinks (`audit-d` / `audit-dk`) have no xxRod. Horizontally redundant (competing
-consumers; no clientId). It ships the **full** `META-INF/audit/{vendor}.xml` SQL set (it writes every
-kind). See `doc/Esquire.AuditLoggingStack.md` section 4.7.
+Standalone **audit-bus consumer** (image `esquire.aukeep`): it drains whichever bus the `audit-bus`
+ref names (`ESQUIRE_AUDIT_BUS_ID`, default `audit-c`) and applies each decoded event to its keep
+datasource (`esquire.keep.datasource`) via the **generic keep engine** (`KeepApplier` /
+`RodEventDbWriter` / `KeepSqlStore`, in the `esquire-dataKeep` library). The audit keep director
+(`AuditKeepDirector`, an `IKeepDirector`) only DECLARES the kinds + the SQL group `audit`; the engine
+does the DB apply. It carries all transport-provider modules, so it consumes the ActiveMQ (`audit-c`)
+or Kafka (`audit-ck`) sink as the topology leg dictates; producer-only sinks (`audit-d` / `audit-dk`)
+have no auKeep. Horizontally redundant (competing consumers; no clientId) -- it drains the bus audit
+sink to the `*_log` tables. It ships the **full** `META-INF/audit/{dialect}.xml` SQL set (it writes
+every kind). The in-process pod for producers (audit-(b)) is `XRodInProcess`, the same generic relay
+backed by the same keep engine. See `doc/Esquire.AuditLoggingStack.md` section 4.7.
 
-**Port:** `XXROD_PORT` (`3007`). **Shared:** DB token `XXROD` (the log datastore it writes; vendor from
-`DB_XXROD_VENDOR`), messaging bus (consumes the audit bus), logging. (No producer audit block -- xxRod
-is the consumer side.)
+**Port:** `DATAKEEP_PORT` (`3007`). **Shared:** DB token `DATAKEEP` (the keep datastore it writes;
+vendor from `DB_DATAKEEP_VENDOR`), messaging bus (consumes the audit bus), logging. (No producer audit
+block -- auKeep is the consumer side.)
 
 | Env var | Default | Description |
 |---|---|---|
-| `ESQUIRE_AUDIT_BUS_ID` | `audit-c` | The `audit-bus` ref -- which bus xxRod drains; the topology leg supplies the transport. |
+| `ESQUIRE_AUDIT_BUS_ID` | `audit-c` | The `audit-bus` ref -- which bus auKeep drains; the topology leg supplies the transport. |
 | `ESQUIRE_AUDIT_SERVICE_ID` | `audit` | The audit `slot-id`. |
-| `XXROD_DIRECTOR` | `audit` | Which `IRodDirector` is active (`xxrod.director.type`); each impl is a gated `@Component` that reads its own `xxrod.director.<type>.*` config in `init()`. `audit` writes the `*_log` tables; future: replication / doc-DB. |
+
+The keep director is wired in code, not selected by config: one `IKeepDirector` = `AuditKeepDirector`,
+which declares its kinds + SQL group `audit`. A future replication / doc-DB keep is a different
+`IKeepDirector`, also wired in code.
 
 The apply-pool sizing (`pool-size`, `virtual-threads`, `concurrency`) is the audit leg's `x-rod` block in
 the shared topology, not a per-service env var; keep `pool-size` <= the datasource Hikari pool.
@@ -370,9 +387,9 @@ Levels (all services unless noted):
 |---|---|---|
 | `LOG_LEVEL_ROOT` | `ERROR` | Root logger level. |
 | `LOG_LEVEL_SF` | `ERROR` | `org.springframework` level. |
-| `LOG_LEVEL_JMS` | `INFO` (enyMan/pacMan/kcMaster/xxRod) / `ERROR` (bizTree/keySmith) | `org.springframework.jms` level. (Not present in the gateway.) |
+| `LOG_LEVEL_JMS` | `INFO` (enyMan/pacMan/kcMaster/auKeep) / `ERROR` (bizTree/keySmith) | `org.springframework.jms` level. (Not present in the gateway.) |
 | `LOG_LEVEL_AMQ` | `INFO` / `ERROR` (as JMS above) | `org.apache.activemq` level. |
-| `LOG_LEVEL_MIR0N` | `INFO` (enyMan/bizTree) / `ERROR` (gateway/pacMan/keySmith/kcMaster/xxRod) | Application (`pro.mir0n`) console level. |
+| `LOG_LEVEL_MIR0N` | `INFO` (enyMan/bizTree) / `ERROR` (gateway/pacMan/keySmith/kcMaster/auKeep) | Application (`pro.mir0n`) console level. |
 | `LOG_LEVEL_DEVELOP` | `DEBUG` | `develop.*` (devLog) level. |
 | `LOG_LEVEL_MSG` | `INFO` | `msg.*` (msgLog) level. (Not present in the gateway.) |
 

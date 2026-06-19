@@ -1,6 +1,34 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v1.2.8-2606.1822  v1.2.8 -- Messaging Bus: a reusable "keep" engine, split out of the audit code
+    :Refactoring: the part that saves incoming changes into a database is now a general-purpose engine of its
+                  own (esquire-dataKeep); audit is just one small set of rules on top of it (esquire-audit), and
+                  that audit code no longer sits inside the shared common library
+    :Refactoring: the standalone audit-writer service was renamed from xxRod to auKeep and rebuilt on that engine
+    :Refactoring: the messaging bus framework is now its own module (esquire-messaging) instead of living inside
+                  the shared common library, so a service that does not use the bus no longer pulls it in
+    :Feature:     which database the writer targets is now chosen by name, so supporting another database is just
+                  dropping in its SQL file -- no code change (today: Postgres and Oracle)
+    :Feature:     the in-process audit writer can either SHARE the service's own database connection pool or use
+                  its OWN dedicated pool (chosen per service) -- fewer connections vs isolation from the business work
+    :Config:      each service's own audit setup now lives under its own name (e.g. enyman.messaging-bus) rather
+                  than a shared-looking key; the writer reads its database from its own settings group
+    :Config:      the local services build script (build.services.bat) now builds the whole project at once
+                  instead of just one library, so a new module (e.g. esquire-messaging) is picked up automatically
+    Components:   common,
+                  messaging,
+                  dataKeep,
+                  audit,
+                  auKeep,
+                  enyMan,
+                  keySmith,
+                  pacMan
+    Doc:          doc\Esquire.MessagingBus.md
+                  doc\Messaging.md
+                  doc\Esquire.AuditLoggingStack.md
+                  doc\services.configuring.md
+
 v1.2.8-2606.1720  v1.2.8 -- Messaging Bus: code-review cleanup and hardening
     :Refactoring: the audit producer's transaction and commit handling moved out of the messaging core into
                   its own bridge; the messaging module is now a plain send / receive relay

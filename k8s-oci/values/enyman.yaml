@@ -28,7 +28,7 @@ logging:
 nodeSelector:
   tier: app
 
-# OKE deploy = option (a) DB triggers: the app producer stays OFF (no xxRod pod, no extra broker
+# OKE deploy = option (a) DB triggers: the app producer stays OFF (no auKeep pod, no extra broker
 # audit load on the Always-Free tier -- it is a demo, not a load-test sandbox). The DB-side trigger
 # DDL (db.seed/<vendor>/triggers/all.sql) must be applied to the OKE postgres for (a) to write.
 audit:

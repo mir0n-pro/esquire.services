@@ -1,0 +1,105 @@
+Esquire messaging framework classes
+
+06/18/2026 mir0n  v1.2.8 -- extracted into its own module esquire-messaging (was inside esquire-common)
+(module)
+  - the messaging bus framework (catalog, x-rod engine, transport SPI, codec; package
+    pro.mir0n.esquire.messaging, unchanged) is now the esquire-messaging module, depending on esquire-common
+    (one-directional, no cycle); the XRodAutoConfiguration registration (META-INF/spring) moved here too;
+    dependents (tp-*, dataKeep, audit, producers, bizTree, kcMaster) now declare an explicit esquire-messaging dep
+
+06/18/2026 mir0n  v1.2.8 -- Messaging Bus: catalog service-overlay key moved to the service namespace
+MessagingBusCatalog
+  - the service overlay binds <spring.application.name>.messaging-bus (was esquire.<app>-messaging-bus);
+    the catalog is the shared esquire.messaging-bus topology UNION that service-namespace overlay
+
+06/15/2026 mir0n  v1.2.8 -- pluggable transport layer + uniform x-Rod messaging frontend
+xrod.IXRod  (new)
+  - the x-Rod pod SPI: a transmit/receive fan-out substrate; configure() prepares from XRodParams + Role,
+    start() runs, post / transmit buffer + feed out after commit, submit applies on a bounded pool
+xrod.XRodManager  (new)
+  - the ONE per-service x-Rod frontend (one shared bean): producer / consumer build a rod in a single call
+    (resolve the bus key -> BusRef, merge the catalog leg with a service-level override, resolve + start the
+    pod); close() shuts every rod down
+  - an unset leg rod-id defaults to the per-instance id <app>.<instanceNo> (EsqUtils.instanceNo()), so an
+    R&R CLIENT's RodID selector isolates its own instance's replies
+xrod.XRods  (new)
+  - class-name-driven resolver for IXRod pods: x-rod.rod-class -> pro.mir0n.esquire.messaging.xrod.impl.<name>
+    (or a full class name); DEFAULT = XRod, DISABLED = XRodDisabled
+xrod.XRodAutoConfiguration  (new)
+  - @AutoConfiguration registering the one shared XRodManager bean (destroyMethod = close); imported via
+    META-INF/spring/...AutoConfiguration.imports
+xrod.RodEvent  (new)
+  - record (op/kind/entityId/subId/actionTime/crl/req/uid/rodId/msgType/body): one self-contained relayed
+    change; opCode / opFromCode map Op <-> the EVENT_* wire code
+xrod.RodEventCodec  (new)
+  - maps a RodEvent to/from the FIX-JSON envelope (header property map + body as the Text JSON field) via a
+    BusIdentity + the event's own msgType; fromProps tolerant of Number-or-String values
+xrod.RodTransportAdapter  (new)
+  - codec bridge between the RodEvent and the generic transport seam: publisher() opens the provider sink and
+    returns a Consumer<RodEvent> (key = entityId); handler() adapts a RodEvent sink into a TransportMessage handler
+xrod.IRodEventRepo  (new)
+  - apply(RodEvent) contract: one per *_log table, called concurrently by the receive pool, must be thread-safe
+xrod.RodEventRepoRegistry  (new)
+  - kind -> IRodEventRepo map (ConcurrentHashMap); applier(Logger) is a receive-leg worker that resolves each
+    event's repository by kind and applies it (missing repo logged + skipped)
+
+xrod.impl.XRod  (new)
+  - the default x-Rod transceiver pod: both legs; post buffers in the current transaction and a feed worker
+    stamps actionTime + the audit triple after commit, submit applies on a Semaphore-bounded pool; builds its
+    own publisher / consumer from the leg transport; non-final
+xrod.impl.XRodRR  (new)
+  - the Request/Response pod (specialised XRod): resolves the request vs response NODE by role (overlaid via
+    XRodParams.overlayGroups, provider / endpoint excepted) and the receive selector (CLIENT by rod-id,
+    SERVER by slot-id)
+xrod.impl.XRodInfo  (new)
+  - a non-sending pod: log.info()s each event's full content to the leg's msg-audit (led by a directive from
+    its x-rod.info sub-block) instead of transmitting; composes the inner XRod feed
+xrod.impl.XRodInfoParams  (new)
+  - record (dir): XRodInfo's own params (bound from the leg's x-rod.info) -- the directive logged in place of TX|RX
+xrod.impl.XRodDisabled  (new)
+  - the OFF pod: a fully inert IXRod (both legs absent, no config, no transport); the default when a bus key
+    resolves to no leg, or set explicitly via rod-class = XRodDisabled
+
+transport.ITransportProvider  (new)
+  - the transport-provider (tp) SPI: openPublisher / openConsumer over the neutral TransportMessage;
+    supportsConsume() lets a producer-only transport skip the consume leg
+transport.TransportProviders  (new)
+  - class-name-driven resolver for ITransportProvider (a bare name -> pro.mir0n.esquire.tp.<name>.TransportProvider
+    by convention, or a full class name verbatim), reflectively instantiated + cached; paramKey() yields the
+    param-group name
+transport.TransportMessage  (new)
+  - the transport-neutral message: a property-bag envelope (headers) + an optional routing / partition key
+transport.TransportSettings  (new)
+  - base of the settings hierarchy: ObjectMapper, endpoint, client-id, destination kind (queue vs topic),
+    BusIdentity envelope, the provider's own params group; paramLong / param accessors
+transport.PublishSettings  (new)
+  - publish-side (xy-rod) TransportSettings: adds the async publisher pool size (0 = the single feed worker)
+transport.ConsumeSettings  (new)
+  - consume-side (xx-rod) TransportSettings: adds listener concurrency and an optional provider-specific
+    message selector (null = consume everything)
+transport.BusIdentity  (new)
+  - record (busId, slotId, rodId): the x-Rod instance identity that rides the envelope
+
+MessagingBusCatalog  (new)
+  - the messaging-bus catalog: the union of the shared esquire.messaging-bus topology and a service's own
+    esquire.<app>-messaging-bus; resolve / find a leg by {bus-id, slot-id} -> XRodParams; publishLeg / consumeLeg
+    build the transport settings via the resolved provider
+MessagingBus  (new)
+  - record (busId, slot): one bus in the catalog -- a bus-id grouping its slots
+BusSlot  (new)
+  - record (slotId, xRod): one slot (leg) on a bus -- its slot-id + the raw x-Rod config node
+BusRef  (new)
+  - record (busId, slotId, xRod): a service-level reference to a catalog leg, with an optional service-level
+    x-rod node that fully overwrites the catalog leg's x-rod when present
+BusTransport  (new)
+  - record (provider, endpoint, destination, topic, params): the bound wire of one x-Rod leg
+XRodParams  (new)
+  - record (busId, slotId, raw): a bound x-Rod leg -- its flattened config node plus the folded-in leg identity;
+    knobs read from raw by name (SCALARS), transport() binds the wire group, sub() binds a pod-owned sub-block,
+    merge / overlayGroups overlay an override per top-level group
+Role  (new)
+  - enum CLIENT / SERVER / BROADCAST: a service's role on a bus (CLIENT/SERVER on a Request-Response bus,
+    BROADCAST on a single-node bus)
+
+META-INF/spring/...AutoConfiguration.imports  (new)
+  - registers xrod.XRodAutoConfiguration as a Boot auto-configuration

@@ -1,0 +1,78 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 410" width="880" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="12">
+  <defs>
+    <marker id="ar" markerWidth="9" markerHeight="9" refX="6.5" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L7,3 L0,6 z" fill="#5b5b5b"/>
+    </marker>
+  </defs>
+
+  <text x="30" y="28" font-weight="600" font-size="15" fill="#2b3a4b">Parameter resolution &#8212; the merge hierarchy</text>
+
+  <!-- ============ Row 1: leg resolution ============ -->
+  <text x="30" y="56" font-weight="600" fill="#4D6A8D">1 &#183; Leg parameters</text>
+
+  <!-- two sources -->
+  <rect x="30" y="68" width="210" height="44" rx="7" fill="#f7f9fb" stroke="#c3cedb" stroke-width="1.4" stroke-dasharray="4 3"/>
+  <text x="135" y="86" text-anchor="middle" font-weight="600" fill="#2b3a4b">Shared topology</text>
+  <text x="135" y="102" text-anchor="middle" font-size="11" fill="#54627a">esquire.messaging-bus</text>
+
+  <rect x="30" y="120" width="210" height="44" rx="7" fill="#f7f9fb" stroke="#c3cedb" stroke-width="1.4" stroke-dasharray="4 3"/>
+  <text x="135" y="138" text-anchor="middle" font-weight="600" fill="#2b3a4b">Service-local</text>
+  <text x="135" y="154" text-anchor="middle" font-size="11" fill="#54627a">&lt;app&gt;.messaging-bus</text>
+
+  <!-- union -> base -->
+  <rect x="290" y="86" width="190" height="60" rx="7" fill="#eef2f7" stroke="#4D6A8D" stroke-width="1.5"/>
+  <text x="385" y="106" text-anchor="middle" font-weight="600" fill="#1f2a36">Catalog leg</text>
+  <text x="385" y="122" text-anchor="middle" font-size="11" fill="#54627a">(bus-id, slot-id)</text>
+  <text x="385" y="138" text-anchor="middle" font-size="11" fill="#54627a">&#8594; XRodParams (base)</text>
+  <line x1="242" y1="90" x2="288" y2="108" stroke="#5b5b5b" stroke-width="1.3" marker-end="url(#ar)"/>
+  <line x1="242" y1="142" x2="288" y2="124" stroke="#5b5b5b" stroke-width="1.3" marker-end="url(#ar)"/>
+  <text x="262" y="108" font-size="10" fill="#54627a">union</text>
+
+  <!-- service override -->
+  <rect x="510" y="40" width="330" height="40" rx="7" fill="#fdf6ec" stroke="#caa15a" stroke-width="1.4"/>
+  <text x="675" y="56" text-anchor="middle" font-weight="600" fill="#7a5a1e">Service-ref override</text>
+  <text x="675" y="71" text-anchor="middle" font-size="11" fill="#8a6a2e">esquire.&lt;key&gt;.messaging-bus &#183; x-rod</text>
+
+  <!-- merge -->
+  <rect x="530" y="92" width="150" height="48" rx="7" fill="#4D6A8D" stroke="#3a5170" stroke-width="1.5"/>
+  <text x="605" y="110" text-anchor="middle" font-weight="600" fill="#ffffff">merge per GROUP</text>
+  <text x="605" y="126" text-anchor="middle" font-size="10.5" fill="#d7e0ea">override group wins whole</text>
+  <line x1="482" y1="116" x2="528" y2="116" stroke="#5b5b5b" stroke-width="1.4" marker-end="url(#ar)"/>
+  <line x1="675" y1="82" x2="630" y2="90" stroke="#caa15a" stroke-width="1.4" marker-end="url(#ar)"/>
+
+  <!-- effective -->
+  <rect x="710" y="86" width="140" height="60" rx="7" fill="#eef2f7" stroke="#4D6A8D" stroke-width="1.5"/>
+  <text x="780" y="106" text-anchor="middle" font-weight="600" fill="#1f2a36">Effective</text>
+  <text x="780" y="121" text-anchor="middle" font-size="10.5" fill="#54627a">XRodParams</text>
+  <text x="780" y="137" text-anchor="middle" font-size="10.5" fill="#54627a">withBus: rod-id=app.N</text>
+  <line x1="682" y1="116" x2="708" y2="116" stroke="#5b5b5b" stroke-width="1.4" marker-end="url(#ar)"/>
+
+  <text x="30" y="190" font-size="11" fill="#54627a">A group = one scalar knob (pool-size, &#8230;), the whole `transport` wire, or a pod sub-block (e.g. log-db / info). Scalars merge field-wise; groups replace whole.</text>
+
+  <!-- ============ Row 2: R&R node refine ============ -->
+  <line x1="30" y1="214" x2="850" y2="214" stroke="#e1e7ee" stroke-width="1"/>
+  <text x="30" y="240" font-weight="600" fill="#4D6A8D">2 &#183; Request/Response node (XRodRR only)</text>
+
+  <rect x="30" y="258" width="220" height="58" rx="7" fill="#eef2f7" stroke="#4D6A8D" stroke-width="1.5"/>
+  <text x="140" y="278" text-anchor="middle" font-weight="600" fill="#1f2a36">Leg transport (base)</text>
+  <text x="140" y="294" text-anchor="middle" font-size="10.5" fill="#54627a">provider &#183; endpoint</text>
+  <text x="140" y="308" text-anchor="middle" font-size="10.5" fill="#54627a">destination &#183; params</text>
+
+  <rect x="330" y="208" width="320" height="38" rx="7" fill="#fdf6ec" stroke="#caa15a" stroke-width="1.4"/>
+  <text x="490" y="225" text-anchor="middle" font-weight="600" fill="#7a5a1e">node: request | response</text>
+  <text x="490" y="239" text-anchor="middle" font-size="10.5" fill="#8a6a2e">own destination + any scalar/params override</text>
+
+  <rect x="330" y="258" width="320" height="58" rx="7" fill="#4D6A8D" stroke="#3a5170" stroke-width="1.5"/>
+  <text x="490" y="280" text-anchor="middle" font-weight="600" fill="#ffffff">overlayGroups (node refines base)</text>
+  <text x="490" y="298" text-anchor="middle" font-size="10.5" fill="#d7e0ea">provider + endpoint kept from base</text>
+  <line x1="252" y1="287" x2="328" y2="287" stroke="#5b5b5b" stroke-width="1.4" marker-end="url(#ar)"/>
+  <line x1="490" y1="248" x2="490" y2="256" stroke="#caa15a" stroke-width="1.4" marker-end="url(#ar)"/>
+
+  <rect x="700" y="258" width="150" height="58" rx="7" fill="#eef2f7" stroke="#4D6A8D" stroke-width="1.5"/>
+  <text x="775" y="284" text-anchor="middle" font-weight="600" fill="#1f2a36">Effective</text>
+  <text x="775" y="300" text-anchor="middle" font-size="10.5" fill="#54627a">node wire</text>
+  <line x1="652" y1="287" x2="698" y2="287" stroke="#5b5b5b" stroke-width="1.4" marker-end="url(#ar)"/>
+
+  <text x="30" y="352" font-size="11" fill="#54627a">Direction: produce CLIENT / consume SERVER &#8594; request node;  produce SERVER / consume CLIENT &#8594; response node.</text>
+  <text x="30" y="372" font-size="11" fill="#54627a">Receive selector: CLIENT filters RodID = its rod-id;  SERVER filters SlotID = its slot-id;  BROADCAST = whole node.</text>
+</svg>

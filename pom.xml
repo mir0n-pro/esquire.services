@@ -18,13 +18,16 @@
    
     <modules>
         <module>common</module>
+        <module>messaging</module>
         <module>bizTree</module>
         <module>gateway</module>
         <module>enyMan</module>
         <module>pacMan</module>
         <module>keySmith</module>
         <module>kcMaster</module>
-        <module>xxRod</module>
+        <module>dataKeep</module>
+        <module>audit</module>
+        <module>auKeep</module>
         <module>tp-activemq</module>
         <module>tp-redis</module>
         <module>tp-kafka</module>
@@ -52,13 +55,16 @@
 -->
         <esquire.version>1.2.8</esquire.version>
         <common.version>${esquire.version}</common.version>
+        <messaging.version>${esquire.version}</messaging.version>
         <bizTree.version>${esquire.version}</bizTree.version>
         <gateway.version>${esquire.version}</gateway.version>
         <enyMan.version>${esquire.version}</enyMan.version>
         <pacMan.version>${esquire.version}</pacMan.version>
         <keySmith.version>${esquire.version}</keySmith.version>
         <kcMaster.version>${esquire.version}</kcMaster.version>
-        <xxRod.version>${esquire.version}</xxRod.version>
+        <dataKeep.version>${esquire.version}</dataKeep.version>
+        <audit.version>${esquire.version}</audit.version>
+        <auKeep.version>${esquire.version}</auKeep.version>
         <tp.version>${esquire.version}</tp.version>
         <!-- war version -->
         <!-- war.version>${esquire.version}</war.version -->

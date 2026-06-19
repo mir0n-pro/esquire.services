@@ -60,6 +60,7 @@
  * 06/05/2026 mir0n  XYRod ctor param added + passed to OrgService / UsrService / AcctService (x-Rod audit)
  * 06/15/2026 mir0n  audit ctor param XYRod -> IXRod (import retargeted common.xrod -> messaging.xrod).
  * 06/17/2026 mir0n  audit ctor param IXRod -> AuditBusBridge
+ * 06/18/2026 mir0n  audit module left common: AuditBusBridge moved to pro.mir0n.esquire.audit
  */
 
 package pro.mir0n.esquire.enyMan.service.impl;
@@ -91,7 +92,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import pro.mir0n.esquire.common.EsqMsgConstants;
-import pro.mir0n.esquire.common.audit.AuditBusBridge;
+import pro.mir0n.esquire.audit.AuditBusBridge;
 import pro.mir0n.esquire.enyMan.jpa.EsqMoveRecord;
 
 @Slf4j

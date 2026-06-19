@@ -91,13 +91,6 @@
           <scope>provided</scope>
         </dependency>
 
-        <!-- audit x-Rod dedicated log datasource (common.audit.AuditRod builds a HikariDataSource). -->
-        <dependency>
-          <groupId>com.zaxxer</groupId>
-          <artifactId>HikariCP</artifactId>
-          <scope>provided</scope>
-        </dependency>
-
         <dependency>
           <groupId>org.jetbrains</groupId>
           <artifactId>annotations</artifactId>
@@ -139,23 +132,7 @@
             <scope>test</scope>
         </dependency>
 
-        <!-- Spring Boot Binder: the messaging-bus catalog binds esquire.messaging-bus into typed records.
-             Provided: the service modules supply spring-boot at runtime. -->
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot</artifactId>
-            <scope>provided</scope>
-        </dependency>
-
-        <!-- Spring Boot auto-configure: the shared XRodManager is registered for every service via an
-             @AutoConfiguration. Provided: the service modules supply spring-boot-autoconfigure at runtime. -->
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-autoconfigure</artifactId>
-            <scope>provided</scope>
-        </dependency>
-
-        <!-- spring-test (MockEnvironment) for the catalog binding test. -->
+        <!-- spring-test (MockEnvironment) for tests. -->
         <dependency>
             <groupId>org.springframework</groupId>
             <artifactId>spring-test</artifactId>

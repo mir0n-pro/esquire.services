@@ -34,7 +34,7 @@ on a logical bus and a role. The buses themselves are defined once, cross-servic
 |---|---|
 | `XRod` | The standard bus transceiver (a transmit leg, a receive leg, the wire codec). |
 | `XRodRR` | Request/response: two nodes, role-routed (the KC bus). |
-| `XRodLogDb` | In-process audit pod: writes the `*_log` tables directly (audit option b). FQCN `pro.mir0n.esquire.common.audit.XRodLogDb`. |
+| `XRodInProcess` | Generic in-process x-rod: feeds each event to its own worker pool, which runs an applier against a local sink — no transport. For in-process audit (option b) it runs the audit keep applier; the audit director (`AuditKeepDirector`) supplies the kinds + SQL group, and the generic keep engine (`RodEventDbWriter` / `KeepSqlStore` / `KeepApplier`, in `esquire-dataKeep`) writes the `*_log`. FQCN `pro.mir0n.esquire.dataKeep.keep.XRodInProcess`. |
 | `XRodInfo` | Logs the whole event instead of sending it (the access-violation-log seam). |
 | `XRodDisabled` | No-op pod; the default when a bus key is not configured (audit OFF). |
 
@@ -64,7 +64,7 @@ generically via `transport.params` (e.g. `jms.useAsyncSend`, Kafka `group-id`, R
 |---|---|---|---|---|---|
 | Entity Broadcast | Broadcast | `XRod` | topic `esquire.entity.broadcast` | enyMan, pacMan | bizTree, kcMaster |
 | KC Sync | Request-Response | `XRodRR` | queue `esquire.kc.request` (request) + queue `esquire.kc.response` (response) | enyMan, keySmith (CLIENT) → kcMaster (SERVER) → back | — |
-| Audit | Broadcast / stream | `XRod` (bus) / `XRodLogDb` (in-process) | per vendor: queue / topic / stream `esquire.rod.audit` | enyMan, pacMan, keySmith | xxRod (for the bus sinks) |
+| Audit | Broadcast / stream | `XRod` (bus) / `XRodInProcess` (in-process) | per vendor: queue / topic / stream `esquire.rod.audit` | enyMan, pacMan, keySmith | auKeep (for the bus sinks) |
 
 ---
 
@@ -254,11 +254,19 @@ the request thread, to the audit slot (`audit`). The sink is chosen by `bus-id` 
 
 | bus-id | Rod-class | Sink |
 |---|---|---|
-| `audit-b` | `XRodLogDb` | in-process write to the `*_log` tables (service-level leg; its log-db datasource is service-specific) |
-| `audit-c` | `XRod` | ActiveMQ queue → **xxRod** consumes → `*_log` |
-| `audit-ck` | `XRod` | Kafka topic → **xxRod** consumes → `*_log` |
+| `audit-b` | `XRodInProcess` | in-process write to the `*_log` tables via the audit keep applier (service-level leg; the keep pool is dedicated, or shared with the service via `log-db.shared=true`) |
+| `audit-c` | `XRod` | ActiveMQ queue → **auKeep** consumes → `*_log` |
+| `audit-ck` | `XRod` | Kafka topic → **auKeep** consumes → `*_log` |
 | `audit-d` | `XRod` | Redis stream IS the append-only log (producer-only, no consumer) |
 | `audit-dk` | `XRod` | Kafka topic IS the log (producer-only, no consumer) |
+
+Audit is now a thin specialization on top of a GENERIC keep engine. The reusable engine lives in
+`esquire-dataKeep` (the in-process `XRodInProcess`, plus `RodEventDbWriter` / `KeepSqlStore` / `KeepApplier`)
+and knows nothing about audit. The Esquire-specific `esquire-audit` module supplies only the audit pieces:
+`AuditBusBridge` (turns each committed change into a `RodEvent` producer-side), `AuditKeepDirector` (an
+`IKeepDirector` that declares the audit kinds + the SQL group `"audit"`), `AuditKinds`, and the `*_log` SQL
+resources. The audit consumer Boot app is **auKeep** (image `esquire.aukeep`); the same generic engine
+applies the events whether audit runs in-process (option b) or behind the bus consumer (option c).
 
 See [Esquire.AuditLoggingStack.md](Esquire.AuditLoggingStack.md) for the full audit model, the `*_log`
 schema, and the delivery-semantics analysis. The UA wire message is in
@@ -324,10 +332,11 @@ esquire:
 ```
 
 The logical keys are `entity-bus`, `kc-bus`, `audit-bus`; the `bus-id` / `slot-id` values are
-env-overridable. A service may also extend the catalog with its OWN leg under
-`esquire.<spring.application.name>-messaging-bus` (the catalog unions the shared topology with this
-service-local key) — this is how a producer carries the audit-(b) in-process leg whose log-db datasource
-is service-specific. Per-service config is in [services.configuring.md](services.configuring.md).
+env-overridable. A service may also extend the catalog with its OWN leg under its own namespace,
+`<spring.application.name>.messaging-bus` (the catalog unions the shared topology with this service overlay,
+beside the service's other keys such as `<app>.move-queue`) — this is how a producer carries the audit-(b)
+in-process leg whose keep datasource is service-specific. Per-service config is in
+[services.configuring.md](services.configuring.md).
 
 ---
 

@@ -1,0 +1,41 @@
+image:
+  repository: esquire.aukeep
+  # tag is stamped by k8s-rebuild.bat (vMaj.Min.Micro-YYMM.DDHH) and passed via -f values/aukeep.yaml;
+  # IfNotPresent + a unique stamp avoids the Docker Desktop containerd ":latest" resolution trap.
+  tag: latest
+  pullPolicy: IfNotPresent
+
+springProfilesActive: "console,dev-postgres"
+
+# shared bus topology is delivered by the esquire-topology ConfigMap, mounted at /etc/esquire.
+topologyImport: file:/etc/esquire/topology.yml
+
+service:
+  port: 3007
+
+db:
+  vendor: dev-postgres
+  host: esquire-infra-postgres
+  port: 5432
+  name: esq2025
+  username: esq2025
+  password: q
+
+# audit-bus ref: auKeep is the CONSUMER -- it drains the chosen audit sink to the *_log tables.
+# Default k8s sink = (c) over the bus (ActiveMQ); busId=audit-c. The director picks the apply strategy.
+audit:
+  busId: audit-c
+  serviceId: audit
+  director: audit
+
+logging:
+  levelRoot: ERROR
+  levelSf: ERROR
+  levelMir0n: INFO
+  levelDevelop: DEBUG
+  levelMsg: INFO
+  levelAmq: INFO
+  levelJms: INFO
+  # no ./logs volume in k8s -> write to /tmp (the dir the logback file appenders need).
+  developLogPath: /tmp/datakeep-develop.log
+  msgLogPath: /tmp/datakeep-msg.log

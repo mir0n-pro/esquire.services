@@ -48,6 +48,7 @@
  *                   address / usr_par post() passes an explicit msgType (EsqMsgConstants.MSG_TYPE_AUDIT).
  * 06/17/2026 mir0n  audit dep IXRod -> AuditBusBridge; the user / person / address / usr_par post() calls drop
  *                   the trailing MSG_TYPE_AUDIT arg; the isEnabled() guard reads audit
+ * 06/18/2026 mir0n  audit module left common: AuditBusBridge moved to pro.mir0n.esquire.audit
  */
 
 package pro.mir0n.esquire.enyMan.service.impl;
@@ -81,7 +82,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import pro.mir0n.esquire.common.EsqConstants;
 import pro.mir0n.esquire.messaging.xrod.RodEvent;
-import pro.mir0n.esquire.common.audit.AuditBusBridge;
+import pro.mir0n.esquire.audit.AuditBusBridge;
 import pro.mir0n.esquire.enyMan.service.EntityIdGenerator;
 
 @Slf4j

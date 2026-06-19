@@ -157,10 +157,10 @@ requests to the IAM bus.
 consumes identity commands from the IAM bus and executes create / update / delete in the IAM. Also
 listens on the entity broadcast bus to keep a moved entity's Keycloak path in sync.
 
-**xx-rod**
+**auKeep**
 <img src="./doc/logo/java.svg" alt="Java logo" valign="middle" height="24">
 <img src="./doc/logo/spring-boot.svg" alt="Spring Boot logo" valign="middle" height="24">
-<img src="./doc/logo/x-rod.svg" alt="x-rod logo" valign="middle" height="24">
+<img src="./doc/logo/keep.svg" alt="x-rod logo" valign="middle" height="24">
 <br> Optional, the audit consumer service, writes audit events to the `*_log` tables.
 
 **Redis DB**

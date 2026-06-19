@@ -48,9 +48,10 @@ rem :tag image doesn't exist in the local Docker daemon, alias :latest to it.
 rem Lets the kubelet pull the image when the yaml references a stamp that
 rem only exists as :latest (typical for first-time install after a clean
 rem `docker compose build` with no prior k8s-rebuild stamping).
-for %%s in (gateway biztree enyman pacman keysmith kcmaster backend xxrod) do (
+for %%s in (gateway biztree enyman pacman keysmith kcmaster backend) do (
   call :ensure_tag %%s
 )
+call :ensure_tag aukeep
 
 rem === Shared messaging-bus topology (the one ConfigMap every service mounts at /etc/esquire/topology.yml) ===
 echo --- Installing topology...
@@ -78,8 +79,8 @@ echo --- Installing pacman...
 call helm upgrade --install esquire-pacman    charts\esquire-pacman    -f values\pacman.yaml    || exit /b 1
 echo --- Installing keysmith...
 call helm upgrade --install esquire-keysmith  charts\esquire-keysmith  -f values\keysmith.yaml  || exit /b 1
-echo --- Installing xxrod ^(audit consumer, option c default^)...
-call helm upgrade --install esquire-xxrod     charts\esquire-xxrod     -f values\xxrod.yaml     || exit /b 1
+echo --- Installing aukeep ^(audit consumer, option c default^)...
+call helm upgrade --install esquire-aukeep    charts\esquire-aukeep    -f values\aukeep.yaml    || exit /b 1
 
 echo Waiting for keycloak...
 kubectl rollout status statefulset/esquire-infra-kc-keycloak -n default --timeout=180s
@@ -124,23 +125,26 @@ goto :eof
 
 rem ---------------------------------------------------------------------------
 :ensure_tag
-rem Local tag-alias: read the tag from values\%1.yaml; if esquire.%1:<tag>
-rem doesn't exist locally, alias esquire.%1:latest to it.
+rem Local tag-alias: read the tag from values\%1.yaml; if esquire.<img>:<tag>
+rem doesn't exist locally, alias esquire.<img>:latest to it. %2 = image base
+rem (defaults to %1).
 set "_SVC=%~1"
+set "_IMG=%~2"
+if "%_IMG%"=="" set "_IMG=%_SVC%"
 set "_TAG="
 for /f tokens^=2^ delims^=^" %%t in ('findstr /R "^[ ]*tag:" values\%_SVC%.yaml') do set "_TAG=%%t"
 if "%_TAG%"=="" (
   echo WARNING: no image.tag found in values\%_SVC%.yaml -- skipping alias.
   goto :eof
 )
-docker image inspect esquire.%_SVC%:%_TAG% >nul 2>&1
+docker image inspect esquire.%_IMG%:%_TAG% >nul 2>&1
 if errorlevel 1 (
-  docker image inspect esquire.%_SVC%:latest >nul 2>&1
+  docker image inspect esquire.%_IMG%:latest >nul 2>&1
   if errorlevel 1 (
-    echo WARNING: neither esquire.%_SVC%:%_TAG% nor :latest exists -- run k8s-rebuild.bat %_SVC% first.
+    echo WARNING: neither esquire.%_IMG%:%_TAG% nor :latest exists -- run k8s-rebuild.bat %_SVC% first.
   ) else (
-    echo --- aliasing esquire.%_SVC%:latest -^> :%_TAG%
-    docker tag esquire.%_SVC%:latest esquire.%_SVC%:%_TAG%
+    echo --- aliasing esquire.%_IMG%:latest -^> :%_TAG%
+    docker tag esquire.%_IMG%:latest esquire.%_IMG%:%_TAG%
   )
 )
 goto :eof

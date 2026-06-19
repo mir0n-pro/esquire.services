@@ -27,6 +27,11 @@
             <artifactId>esquire-common</artifactId>
             <version>${common.version}</version>
         </dependency>
+        <dependency>
+            <groupId>pro.mir0n.esquire</groupId>
+            <artifactId>esquire-messaging</artifactId>
+            <version>${messaging.version}</version>
+        </dependency>
 
         <!-- tp-activemq hosts the shared JMS helper (messaging.jms.Utils) used by the entity-broadcast bus -->
         <dependency>

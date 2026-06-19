@@ -55,7 +55,7 @@ end to end.
 | Piece | Location |
 |---|---|
 | Bus model + catalog | `pro.mir0n.esquire.messaging` — `MessagingBus`, `BusSlot`, `BusTransport`, `BusRef`, `MessagingBusCatalog`, `XRodParams`, `Role` |
-| x-rod frontend + x-rods | `messaging.xrod` — `XRodManager`, `IXRod`, `XRods`, `RodEvent`, `RodEventCodec`, `RodPublisher`, `RodTransportAdapter`, `XRodAutoConfiguration` — and `messaging.xrod.impl` — `XRod`, `XRodRR`, `XRodInfo`, `XRodDisabled` |
+| x-rod frontend + x-rods | `messaging.xrod` — `XRodManager`, `IXRod`, `XRods`, `RodEvent`, `RodEventCodec`, `RodPublisher`, `RodTransportAdapter`, `XRodAutoConfiguration` — and `messaging.xrod.impl` — `XRod`, `XRodRR`, `XRodInfo`, `XRodDisabled`. A generic in-process x-rod, `XRodInProcess`, ships in a separate keep-engine library (it is resolved by `rod-class` like any other). |
 | Transport SPI | `messaging.transport` — `ITransportProvider`, `TransportProviders`, `TransportMessage`, `TransportPublisher`, `TransportSettings`, `PublishSettings`, `ConsumeSettings`, `BusIdentity` |
 | Transport drivers | one module per vendor — `pro.mir0n.esquire.tp.<name>.TransportProvider` + an `AutoConfigurationImportFilter` |
 
@@ -80,7 +80,7 @@ describing the topology; the **x-rod** and **network node** are the concrete sof
 | `bus-id` | the **bus** |
 | `slot-id` | a **slot** on that bus |
 | `node-id` | a **network node** (R&R splits into a `request` and a `response` node; a single-node bus uses `destination`) |
-| `rod-class` | which **x-rod** implementation runs (`XRod` / `XRodRR` / `XRodInfo` / `XRodDisabled` / a custom class) |
+| `rod-class` | which **x-rod** implementation runs (`XRod` / `XRodRR` / `XRodInProcess` / `XRodInfo` / `XRodDisabled` / a custom class) |
 | `x-rod` | the slot's **x-rod** configuration — engine knobs + the `transport` block |
 | `transport` | the **network node** binding: `provider` + `endpoint` + `destination` + `topic` + `params` (vendor knobs) + (R&R) `request-node` / `response-node` + a `node` list |
 | `role` | the **role** (`CLIENT` / `SERVER` / `BROADCAST`), passed per `producer()` / `consumer()` call |
@@ -130,12 +130,13 @@ The x-rod builds its **own** transport from the leg — the manager re-packs not
 `MessagingBusCatalog` is the UNION of two property sources, concatenated in code:
 
 - `esquire.messaging-bus` — the shared cross-service topology (imported from the one topology file);
-- `esquire.<spring.application.name>-messaging-bus` — a service's OWN legs (e.g. a leg whose wire or
-  backing store is service-specific).
+- `<spring.application.name>.messaging-bus` — a service's OWN legs under its OWN namespace (e.g. a leg
+  whose wire or backing store is service-specific). This is the service-side OVERLAY of the global catalog.
 
 > They are unioned in code, NOT a single `esquire.messaging-bus` key across two sources: Spring binds a
 > list by INDEX, so a higher-precedence source would REPLACE the whole list instead of appending. The
-> service-own key carries the app name to stay clear of the `esquire.<bus-key>.messaging-bus` refs.
+> service overlay lives under the service's OWN top-level key, so it stays clear of the global topology
+> key and of the `esquire.<bus-key>.messaging-bus` refs.
 
 A leg is named `(bus-id, slot-id)`; the catalog binds it to an `XRodParams`.
 
@@ -179,8 +180,8 @@ An x-rod's effective wire is resolved across three levels, all by the same per-g
 
 The transceiver engine — the feed (transmit leg), the `Semaphore`-bounded worker pool (receive leg), the
 message trace, and their lifecycle — lives in the abstract base **`AXRod`**; every x-rod that has a feed
-and/or a pool EXTENDS it (`XRod` adds a transport; an in-process sink adds its own writer), rather than
-wrapping a copy. `XRod` is the default x-rod: a transmitter/receiver. Lifecycle is four steps — construct
+and/or a pool EXTENDS it (`XRod` adds a transport; the in-process `XRodInProcess` runs a worker that applies
+each event to a local sink), rather than wrapping a copy. `XRod` is the default x-rod: a transmitter/receiver. Lifecycle is four steps — construct
 (no-arg, reflectively instantiated), `validate(params)` (fail-fast on the required leg config — see the
 frontend), `configure` (PREPARE), `start` (RUN); `shutdown` stops it.
 
@@ -253,6 +254,17 @@ A specialised `XRod` for an R&R leg. The base transceiver is unchanged; only two
     to the base single transport.
 - **`consumeSelector(role, identity)`** — `CLIENT` → `RodID = '<rod-id>'` (an instance consumes only its
   own replies); `SERVER` → `SlotID = '<slot-id>'` (its own service's requests off a possibly-shared node).
+
+#### `XRodInProcess` — generic in-process
+
+A generic in-process x-rod for a producer-side leg that applies its events to a LOCAL sink rather than
+sending them on a wire. `transmit(event)` feeds the event into the x-rod's OWN worker pool, which runs the
+configured worker (an applier) — there is no transport and no codec. It is the piece that STARTS the worker
+pool a bare producer leg lacks: a base `XRod` as a producer is transmit-only and never opens a pool, so a
+leg that must run a worker locally selects `XRodInProcess` instead. Resolved by `rod-class` like any x-rod;
+the manager passes the worker through `consumer(busKey, role, worker)`, so the worker is the applier the
+in-process x-rod loops each transmitted event back to. It ships in a separate keep-engine library rather
+than in `messaging.xrod.impl`.
 
 #### `XRodInfo` — log-only
 
@@ -468,7 +480,7 @@ interface IXRod {
     void    transmit(RodEvent event);   // send a pre-built event out the transmit leg
     void    receive(RodEvent event);    // apply an arrived event on the bounded receive pool
 }
-abstract class AXRod implements IXRod { /* the feed + worker-pool engine; XRod and an in-process sink extend it */ }
+abstract class AXRod implements IXRod { /* the feed + worker-pool engine; XRod and the in-process XRodInProcess extend it */ }
 final class XRods { static IXRod resolve(String rodClass); String DEFAULT="XRod"; String DISABLED="XRodDisabled"; }
 enum Role { CLIENT, SERVER, BROADCAST }
 ```
@@ -538,7 +550,7 @@ final class RodEventRepoRegistry { void register(int kind, IRodEventRepo r); Con
 Resolution is class-name-driven on two axes: `rod-class` selects the x-rod (`XRods`),
 `transport.provider` selects the driver (`TransportProviders`) — both by a convention name or a full
 class name, so a new x-rod or transport plugs in with no framework change. The send/receive engine lives in
-the abstract `AXRod` (extended by `XRod` and any in-process sink); an R&R leg's two stops are typed `BusNode`s.
+the abstract `AXRod` (extended by `XRod` and the in-process `XRodInProcess`); an R&R leg's two stops are typed `BusNode`s.
 
 ## Appendix D — Configuring
 
@@ -563,9 +575,9 @@ esquire:
         pool-size: ${...}
 ```
 
-A service may also extend the catalog with its OWN leg under
-`esquire.<spring.application.name>-messaging-bus` (the catalog unions it with the shared topology). x-rod
-knobs per leg: `rod-class`, `pool-size`, `feed-capacity`, `virtual-threads`, `publisher-pool-size`,
+A service may also extend the catalog with its OWN leg under its own namespace,
+`<spring.application.name>.messaging-bus` (the catalog unions this service overlay with the shared
+topology). x-rod knobs per leg: `rod-class`, `pool-size`, `feed-capacity`, `virtual-threads`, `publisher-pool-size`,
 `concurrency`, plus the `transport` group and any x-rod-owned sub-block. Vendor knobs ride
 `transport.params.*` and pass through verbatim. This appendix is the generic shape; the concrete catalog a
 deployment runs (which buses exist + the env that drives them) is documented with that deployment's bus

@@ -40,7 +40,7 @@ esquire:
                   destination: esquire.kc.request
                 - node-id: response
                   destination: esquire.kc.response
-    # --- audit (c): ActiveMQ -> xxRod consumer writes the *_log ---
+    # --- audit (c): ActiveMQ -> auKeep consumer writes the *_log ---
     - bus-id: audit-c
       slot:
         - slot-id: audit

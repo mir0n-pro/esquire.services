@@ -43,7 +43,7 @@ esquire:
                   destination: esquire.kc.request
                 - node-id: response
                   destination: esquire.kc.response
-    # --- audit (c): ActiveMQ -> xxRod consumer writes the *_log ---
+    # --- audit (c): ActiveMQ -> auKeep consumer writes the *_log ---
     - bus-id: audit-c
       slot:
         - slot-id: audit
@@ -61,7 +61,7 @@ esquire:
               topic: false
               params:
                 jms.useAsyncSend: true
-    # --- audit (ck): Kafka -> xxRod consumer writes the *_log ---
+    # --- audit (ck): Kafka -> auKeep consumer writes the *_log ---
     - bus-id: audit-ck
       slot:
         - slot-id: audit
@@ -78,7 +78,7 @@ esquire:
               destination: esquire.rod.audit
               params:
                 group-id: esquire-xxrod-audit
-    # --- audit (d): Redis stream IS the append-only log (producer-only, no xxRod consumer) ---
+    # --- audit (d): Redis stream IS the append-only log (producer-only, no auKeep consumer) ---
     - bus-id: audit-d
       slot:
         - slot-id: audit
@@ -94,7 +94,7 @@ esquire:
               destination: esquire.rod.audit
               params:
                 max-len: 0
-    # --- audit (dk): Kafka topic IS the append-only log (producer-only, no xxRod consumer) ---
+    # --- audit (dk): Kafka topic IS the append-only log (producer-only, no auKeep consumer) ---
     - bus-id: audit-dk
       slot:
         - slot-id: audit

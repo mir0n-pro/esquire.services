@@ -1,5 +1,18 @@
 Esquire keySmith Microservice
 
+06/18/2026 mir0n  v1.2.8 -- Messaging Bus: audit module left common; leg-selected keep sink
+audit.AuditConfig
+  - injects the service DataSource; the audit sink is selected from the leg: log-db.shared=true -> the
+    IN-PROCESS keep on the SERVICE's pool; a log-db url -> the IN-PROCESS keep with its OWN pool; else -> the
+    BUS producer; @PreDestroy closes a dedicated keep pool (a shared one is left to the service)
+service.impl.KeySmithService
+  - AuditBusBridge moved out of common -> pro.mir0n.esquire.audit (the import repointed)
+application.yml
+  - the in-process audit-b leg moved under the service-namespace key keysmith.messaging-bus; rod-class
+    pro.mir0n.esquire.dataKeep.keep.XRodInProcess; log-db.shared + log-db.hikari.maximum-pool-size added
+pom.xml
+  - depends on esquire-audit (the audit classes left common)
+
 06/17/2026 mir0n  v1.2.8 -- Messaging Bus cleanup: audit via AuditBusBridge
 audit.AuditConfig
   - @Bean AuditBusBridge audit() wrapping rods.producer(BUS_KEY_AUDIT, BROADCAST) (was @Bean IXRod xRod())

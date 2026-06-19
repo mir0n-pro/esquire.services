@@ -25,7 +25,7 @@ entity:
   serviceId: entity
   broadcastPublisherPoolSize: "0"
 
-# audit: default k8s sink = (c) over the bus (ActiveMQ); esquire-xxrod drains it to the *_log tables.
+# audit: default k8s sink = (c) over the bus (ActiveMQ); esquire-aukeep drains it to the *_log tables.
 # Switch to in-process (b) with busId=audit-b (the logDb block below is the *_log datastore).
 audit:
   busId: audit-c
