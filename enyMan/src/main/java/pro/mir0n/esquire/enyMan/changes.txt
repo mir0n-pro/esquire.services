@@ -1,5 +1,84 @@
 Esquire enyMan Microservice
 
+06/18/2026 mir0n  v1.2.8 -- Messaging Bus: audit module left common; leg-selected keep sink
+audit.AuditConfig
+  - injects the service DataSource; the audit sink is selected from the leg: log-db.shared=true -> the
+    IN-PROCESS keep on the SERVICE's pool; a log-db url -> the IN-PROCESS keep with its OWN pool; else -> the
+    BUS producer; @PreDestroy closes a dedicated keep pool (a shared one is left to the service)
+service.impl.OrgService / UsrService / AcctService / EnyManService, queue.MoveQueueManager
+  - AuditBusBridge moved out of common -> pro.mir0n.esquire.audit (the import repointed)
+application.yml
+  - the in-process audit-b leg moved under the service-namespace key enyman.messaging-bus; rod-class
+    pro.mir0n.esquire.dataKeep.keep.XRodInProcess; log-db.shared + log-db.hikari.maximum-pool-size added
+pom.xml
+  - depends on esquire-audit (the audit classes left common)
+
+06/17/2026 mir0n  v1.2.8 -- Messaging Bus cleanup: audit via AuditBusBridge
+audit.AuditConfig
+  - @Bean AuditBusBridge audit() wrapping rods.producer(BUS_KEY_AUDIT, BROADCAST) (was @Bean IXRod xRod())
+service.impl.OrgService / UsrService / AcctService / EnyManService, queue.MoveQueueManager
+  - the audit producer field IXRod xyRod -> AuditBusBridge audit; post(...) calls drop the trailing
+    EsqMsgConstants.MSG_TYPE_AUDIT argument (the bridge stamps it); the isEnabled() guard reads audit
+
+06/15/2026 mir0n  v1.2.8 -- messaging migrated onto the x-Rod bus catalog; audit via XRodManager
+audit.AuditConfig
+  - audit producer resolved through the shared XRodManager: producer(BUS_KEY_AUDIT, Role.BROADCAST)
+    returns the IXRod; the leg's rod-class selects the sink (XRod=bus, XRodLogDb=in-process, XRodDisabled=OFF)
+  - imports retargeted common.xrod -> messaging.xrod (IXRod / XRodManager); the @Value audit-logging.* /
+    log-db / mode wiring + datasource / *_log registry removed (XRodLogDb self-configures from the leg)
+messaging.EsqEntityBroadcastPublisher
+  - JMS producer (jmsTopicTemplate + FIX-JSON props) replaced by an x-Rod producer on the
+    {esquire.entity, entity} leg: producer(BUS_KEY_ENTITY, Role.BROADCAST); publish() builds a RodEvent
+    (opFromCode, msg-type UE) and calls rod.transmit
+  - service-id / ctrl-id @Value, ObjectMapper, jms.Utils, FIX-JSON property map removed
+messaging.KcRequestPublisher
+  - JMS producer (jmsQueueTemplate + FIX-JSON props) replaced by an x-Rod producer on the
+    {esquire.kc, kc-request} leg: producer(BUS_KEY_KC, Role.CLIENT); publishPathUpdate() builds a RodEvent
+    (op=UPDATE_PATH, msg-type URQ) and calls rod.transmit
+  - ctrl-id @Value, ObjectMapper, jms.Utils removed; testReqId folded into the wire requestId
+messaging.KcResponseListener
+  - @JmsListener(CtrlID selector) replaced by XRodManager.consumer(BUS_KEY_KC, Role.CLIENT) registered in
+    the ctor; onResponse(RodEvent) reads requestId / correlationId / msgType off the RodEvent (URS vs URR)
+  - JMS Message property reads + jms.Utils + msgLog/devLog removed
+queue.MoveQueueManager
+  - audit ctor param XYRod -> IXRod (import common.xrod -> messaging.xrod)
+service.impl.EnyManService
+  - audit ctor param XYRod -> IXRod (import common.xrod -> messaging.xrod)
+service.impl.AcctService
+  - audit dep XYRod -> IXRod; CREATE post() passes msgType EsqMsgConstants.MSG_TYPE_AUDIT
+service.impl.OrgService
+  - audit dep XYRod -> IXRod; every org / org_par post() passes msgType EsqMsgConstants.MSG_TYPE_AUDIT
+service.impl.UsrService
+  - audit dep XYRod -> IXRod; every user / person / address / usr_par post() passes msgType
+    EsqMsgConstants.MSG_TYPE_AUDIT
+messaging.EnyManJmsConfig  (removed)
+  - JMS infrastructure config (queue/topic JmsTemplates + listener container factories) deleted; the
+    XRodManager + transport providers own the connection/lifecycle now
+messaging.EsqEntityBroadcastConsumer  (removed)
+  - unused entity-broadcast consumer template deleted
+pom.xml
+  - direct transport starters dropped (spring-boot-starter-activemq, spring-boot-starter-data-redis,
+    spring-kafka); transport-provider modules added: esquire-tp-activemq / esquire-tp-redis / esquire-tp-kafka
+    (each brings its transport client transitively)
+application.yml
+  - spring.config.import of the shared esquire-topology.yml added; the esquire.*-messaging-bus refs declared
+    (audit-bus / kc-bus / entity-bus slot ids + per-service x-rod knobs) + the service-local audit-b leg
+    (rod-class XRodLogDb, log-db) under esquire.enyman-messaging-bus
+  - removed: spring.activemq / spring.data.redis / spring.kafka / spring.jms.client-id blocks,
+    enyman.messaging.* (service-id / ctrl-id / client-id / consumer), enyman.audit-logging.* tree,
+    management.health.redis.enabled
+
+06/12/2026 mir0n  v1.2.8 -- system entity flag (load) + admin-create fixes
+service.impl.UsrService
+  - createUsr(): usr deleted set to 'N' when null before insertUsr (NOT NULL column, no dictionary default)
+jpa.EsqUsrRepository
+  - insertPerson(): adPk / bizAdPk params long -> Long (nullable person address FK; admins have no address)
+src/main/resources/META-INF/postgres-entity.xml
+  - EsqOrgJpa/EsqUsrJpa detailOrg/detailUsr + detailForUpdate select org_system_flg / usr_system_flg;
+    EsqOrgJpaMapping / EsqUsrJpaMapping bind systemFlg
+src/main/resources/META-INF/oracle-entity.xml
+  - same: org_system_flg / usr_system_flg added to org/usr detail queries + mappings
+
 06/08/2026 mir0n  v1.2.7 -- audit logging (c) over Kafka transport
 audit.AuditConfig
   - mode=bus + x-rod.bus.transport=kafka builds a RodKafkaPublisher over the autoconfigured KafkaTemplate

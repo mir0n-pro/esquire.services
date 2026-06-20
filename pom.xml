@@ -18,13 +18,19 @@
    
     <modules>
         <module>common</module>
+        <module>messaging</module>
         <module>bizTree</module>
         <module>gateway</module>
         <module>enyMan</module>
         <module>pacMan</module>
         <module>keySmith</module>
         <module>kcMaster</module>
-        <module>xxRod</module>
+        <module>dataKeep</module>
+        <module>audit</module>
+        <module>auKeep</module>
+        <module>tp-activemq</module>
+        <module>tp-redis</module>
+        <module>tp-kafka</module>
      </modules>
 
     <properties>
@@ -47,15 +53,19 @@
    The Equire service set is a single Product but it has a set of modules.
    They might have their own versioning
 -->
-        <esquire.version>1.2.7</esquire.version>
+        <esquire.version>1.2.8</esquire.version>
         <common.version>${esquire.version}</common.version>
+        <messaging.version>${esquire.version}</messaging.version>
         <bizTree.version>${esquire.version}</bizTree.version>
         <gateway.version>${esquire.version}</gateway.version>
         <enyMan.version>${esquire.version}</enyMan.version>
         <pacMan.version>${esquire.version}</pacMan.version>
         <keySmith.version>${esquire.version}</keySmith.version>
         <kcMaster.version>${esquire.version}</kcMaster.version>
-        <xxRod.version>${esquire.version}</xxRod.version>
+        <dataKeep.version>${esquire.version}</dataKeep.version>
+        <audit.version>${esquire.version}</audit.version>
+        <auKeep.version>${esquire.version}</auKeep.version>
+        <tp.version>${esquire.version}</tp.version>
         <!-- war version -->
         <!-- war.version>${esquire.version}</war.version -->
 
@@ -175,6 +185,21 @@
                 
             </plugins>
         </pluginManagement>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>3.2.5</version>
+                <configuration>
+                    <!-- Tests skip the REQUIRED shared-topology import: a missing file is fine here (a context
+                         test that needs the catalog supplies it via MockEnvironment / @DynamicPropertySource).
+                         docker / k8s keep the required default (file:/etc/esquire/topology.yml). -->
+                    <systemPropertyVariables>
+                        <ESQUIRE_TOPOLOGY_IMPORT>optional:file:/etc/esquire/topology.yml</ESQUIRE_TOPOLOGY_IMPORT>
+                    </systemPropertyVariables>
+                </configuration>
+            </plugin>
+        </plugins>
     </build>
 
     <!-- profiles>

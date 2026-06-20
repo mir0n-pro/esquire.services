@@ -18,6 +18,7 @@
  * 04/02/2026 mir0n  lockEntityPathRoot, listMovedPaths added for move broadcast
  * 04/06/2026 mir0n  moveAdminPath, listAdminMovedPath: pk-based path update/query for admin users
  * 06/05/2026 mir0n  x-Rod param audit: listUsrPar re-SELECT (EsqParRow) added (feeds USR_PAR events)
+ * 06/12/2026 mir0n  insertPerson(): adPk / bizAdPk params long -> Long (admin has no address -> nullable FK)
  */
 
 package pro.mir0n.esquire.enyMan.jpa;
@@ -185,8 +186,8 @@ public interface EsqUsrRepository extends JpaRepository<EsqUsrJpa, String> {
     @NativeQuery
     int insertPerson(@Param("id") long id,
         @Param("kind") int kind,
-        @Param("adPk") long adPk,
-        @Param("bizAdPk") long bizAdPk,
+        @Param("adPk") Long adPk,
+        @Param("bizAdPk") Long bizAdPk,
         @Param("uid") String uid,
         @Param("correlationId") String correlationId,
         @Param("requestId") String requestId

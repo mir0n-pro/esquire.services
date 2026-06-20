@@ -3,29 +3,6 @@ spring:
     active: ${DB_PACMAN_VENDOR:dev-postgres}
   application:
     name: pacman
-  activemq:
-    broker-url: ${AMQ_BROKER_URL:tcp://localhost:61616}
-    user: ${AMQ_USER:}
-    password: ${AMQ_PASSWORD:}
-    # Phase 1: no broker authorization required
-  data:
-    redis:
-      # x-Rod audit option (d) target. Lettuce connects lazily, so it is dormant unless audit mode=redis.
-      host: ${REDIS_HOST:localhost}
-      port: ${REDIS_PORT:6379}
-  kafka:
-    # x-Rod audit option (c) over Kafka target. The producer connects lazily, dormant unless
-    # audit mode=bus + bus.transport=kafka.
-    bootstrap-servers: ${KAFKA_BOOTSTRAP:localhost:9092}
-    producer:
-      key-serializer: org.apache.kafka.common.serialization.StringSerializer
-      value-serializer: org.apache.kafka.common.serialization.StringSerializer
-      # audit is best-effort -> tune for sender throughput (off the request path).
-      acks: ${KAFKA_ACKS:0}
-      batch-size: ${KAFKA_BATCH_SIZE:32768}
-      compression-type: ${KAFKA_COMPRESSION:lz4}
-      properties:
-        linger.ms: ${KAFKA_LINGER_MS:10}
   jpa:
     hibernate:
       ddl-auto: none
@@ -33,52 +10,41 @@ spring:
   mvc:
     problemdetails:
       enabled: true
-# Messaging: entity broadcast producer
+  config:
+    import: "${ESQUIRE_TOPOLOGY_IMPORT:file:/etc/esquire/topology.yml}"
+# this service's OWN overlay of the global esquire.messaging-bus catalog: its in-process audit-b leg
+# (log-db is service-specific), under the service namespace.
 pacman:
-  messaging:
-    service-id: ${PACMAN_SERVICE_ID:entity-update-broadcast}
-    ctrl-id: ${PACMAN_CTRL_ID:pacman.default}
-    client-id: ${PACMAN_MESSAGING_CLIENT_ID:pacman}
-  audit-logging:
-    enabled: ${PACMAN_AUDIT_ENABLED:false}
-    x-rod:
-      # in-process = write the *_log here (option b); bus = publish to the audit queue, the standalone
-      # xxRod service writes the *_log (option c).
-      mode: ${PACMAN_AUDIT_MODE:in-process}
-      # xx-rod consumer worker pool that writes the *_log tables; keep <= the log datastore pool.
-      pool-size: ${PACMAN_AUDIT_POOL_SIZE:4}
-      virtual-threads: ${PACMAN_AUDIT_VIRTUAL_THREADS:false}
-      # xy-rod producer feed: per-tx buffer, flush after commit; bounded backlog before backpressure.
-      feed-capacity: ${PACMAN_AUDIT_FEED_CAPACITY:4096}
-      # (c) bus publisher (mode=bus only): 0 = single feed-worker synchronous publish (one JMS send per
-      #   committed tx); N>0 = N async publisher threads over a dedicated useAsyncSend connection.
-      bus:
-        publisher-pool-size: ${PACMAN_AUDIT_PUBLISHER_POOL_SIZE:0}
-        # (c) bus transport: activemq (default, the queue) | kafka (publish to the audit Kafka topic).
-        transport: ${PACMAN_AUDIT_BUS_TRANSPORT:activemq}
-      # (d) redis (mode=redis only): XADD each event to this Redis Stream (the stream IS the audit log;
-      #   no consumer service). max-len = approximate MAXLEN cap (0 = uncapped).
-      redis:
-        stream: ${PACMAN_AUDIT_REDIS_STREAM:}
-        max-len: ${PACMAN_AUDIT_REDIS_MAX_LEN:0}
-      # (b) where the in-process xx-rod writes the *_log tables:
-      #   shared    = reuse the service datasource + its Hikari pool (phase 1).
-      #   dedicated = a separate pool / vendor, configured under log-db below (phase 2/3).
-      log-datastore: ${PACMAN_AUDIT_LOG_DATASTORE:shared}
-      # Read ONLY when log-datastore=dedicated. vendor selects the *_log SQL dialect
-      # (dev-postgres -> INSERT..ON CONFLICT, dev-oracle -> MERGE) independently of the service's
-      # own datasource -- so the log DB may be a DIFFERENT vendor than the business DB.
-      log-db:
-        vendor: ${PACMAN_AUDIT_DB_VENDOR:dev-postgres}
-        url: ${PACMAN_AUDIT_DB_URL:}
-        username: ${PACMAN_AUDIT_DB_USERNAME:esq2025}
-        password: ${PACMAN_AUDIT_DB_PASSWORD:q}
-        pool-size: ${PACMAN_AUDIT_DB_POOL_SIZE:8}
-management:
-  health:
-    redis:
-      # OFF: Redis is only used when audit mode=redis (option d); its absence must not mark the service DOWN.
-      enabled: false
+  messaging-bus:
+    - bus-id: audit-b
+      slots:
+        - slot-id: audit
+          x-rod:
+            rod-class: pro.mir0n.esquire.dataKeep.keep.XRodInProcess
+            pool-size: ${ESQUIRE_AUDIT_POOL_SIZE:4}
+            feed-capacity: ${ESQUIRE_AUDIT_FEED_CAPACITY:4096}
+            virtual-threads: ${ESQUIRE_AUDIT_VIRTUAL_THREADS:false}
+            log-db:
+              # shared=true -> the keep reuses the SERVICE's own datasource pool (url/vendor/hikari ignored,
+              # dialect from the service profile); false -> a dedicated keep pool from the url/hikari below.
+              shared: ${ESQUIRE_AUDIT_LOG_DB_SHARED:false}
+              vendor: ${ESQUIRE_AUDIT_LOG_DB_VENDOR:dev-postgres}
+              url: ${ESQUIRE_AUDIT_LOG_DB_URL:jdbc:postgresql://${DB_PACMAN_HOST:localhost}:${DB_PACMAN_PORT:5432}/${DB_PACMAN_NAME:esq2025}}
+              username: ${ESQUIRE_AUDIT_LOG_DB_USERNAME:${DB_PACMAN_USERNAME:esq2025}}
+              password: ${ESQUIRE_AUDIT_LOG_DB_PASSWORD:${DB_PACMAN_PASSWORD:q}}
+              hikari:
+                maximum-pool-size: ${ESQUIRE_AUDIT_LOG_DB_POOL_SIZE:2}
+esquire:
+  audit-bus:
+    messaging-bus:
+      bus-id: ${ESQUIRE_AUDIT_BUS_ID:audit-b}
+      slot-id: ${ESQUIRE_AUDIT_SERVICE_ID:audit}
+  entity-bus:
+    messaging-bus:
+      bus-id: ${ENTITY_BUS_ID:esquire.entity}
+      slot-id: ${ENTITY_SERVICE_ID:entity}
+      x-rod:
+        publisher-pool-size: ${ENTITY_BROADCAST_PUBLISHER_POOL_SIZE:0}
 logging:
   level:
     root: ${LOG_LEVEL_ROOT:ERROR}
@@ -97,7 +63,6 @@ logging:
     log-path: ${MSG_LOG_PATH:logs/pacMan-msg.log}
 
 ---
-# Development Oracle
 spring:
   config:
     activate:
@@ -106,13 +71,13 @@ spring:
     url: jdbc:oracle:thin:@//${DB_PACMAN_HOST:localhost}:${DB_PACMAN_PORT:1521}/${DB_PACMAN_NAME:MIR0N}
     driverClassName: oracle.jdbc.OracleDriver
     username: ${DB_PACMAN_USERNAME:esq2025}
-    password: ${DB_PACMAN_PASSWORD:q}   
+    password: ${DB_PACMAN_PASSWORD:q}
     hikari:
       maximum-pool-size: 20
       minimum-idle: 20
-      connection-timeout: 30000 
-      max-lifetime: 1800000 
-      idle-timeout: 600000    
+      connection-timeout: 30000
+      max-lifetime: 1800000
+      idle-timeout: 600000
   jpa:
     mapping-resources:
       - META-INF/oracle-acct.xml
@@ -125,7 +90,6 @@ server:
   port: ${PACMAN_PORT:3000}
 
 ---
-# Development Postgres
 spring:
   config:
     activate:
@@ -133,13 +97,13 @@ spring:
   datasource:
     url: jdbc:postgresql://${DB_PACMAN_HOST:localhost}:${DB_PACMAN_PORT:5432}/${DB_PACMAN_NAME:esq2025}
     username: ${DB_PACMAN_USERNAME:esq2025}
-    password: ${DB_PACMAN_PASSWORD:q}   
+    password: ${DB_PACMAN_PASSWORD:q}
     hikari:
       maximum-pool-size: 20
       minimum-idle: 20
-      connection-timeout: 30000 
-      max-lifetime: 1800000 
-      idle-timeout: 600000    
+      connection-timeout: 30000
+      max-lifetime: 1800000
+      idle-timeout: 600000
   jpa:
     mapping-resources:
       - META-INF/postgres-acct.xml

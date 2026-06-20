@@ -1,3 +1,5 @@
+# <img src="../favicon.ico" alt="Esquire logo" valign="middle" width="64" height="64"> Esquire Application Frameworks(tm) 2.0
+
 # Esquire Services — Configuration Reference
 
 Every runtime-configurable parameter of the Esquire Spring services, grouped by service, with its
@@ -18,16 +20,21 @@ table.
   dialect and JPA mapping files. bizTree additionally activates `cache-h2`.
 - Defaults below are the **code defaults** (what `application.yml` / `@Value` ship). Where the
   deployed compose/k8s value differs on purpose, it is called out as `code / deployed`.
+- **Messaging is transport-agnostic.** A service never talks JMS/Kafka/Redis directly; it asks the
+  **x-rod** frontend (`XRodManager`) for a producer or consumer on a logical bus + role. A
+  cross-service **bus catalog** (the "topology") defines every bus ONCE in an external file, imported
+  by every service (see [Shared parameters](#shared-parameters-most-services)).
 
 ---
 
 ## Shared parameters (most services)
 
 These follow the same pattern across services; `<SVC>` is the service token in caps
-(`ENYMAN`, `PACMAN`, `KEYSMITH`, `KCMASTER`, `BIZTREE`, `XXROD`). They are listed once here and referenced
-from each service section rather than repeated.
+(`ENYMAN`, `PACMAN`, `KEYSMITH`, `KCMASTER`, `BIZTREE`, `DATAKEEP`). They are listed once here and referenced
+from each service section rather than repeated. (The audit consumer service is named **auKeep** but its
+env token is `DATAKEEP` -- a deferred rename, so the env prefix stays `DATAKEEP`.)
 
-### Database (data services: enyMan, pacMan, keySmith, bizTree, xxRod — NOT kcMaster)
+### Database (data services: enyMan, pacMan, keySmith, bizTree, auKeep — NOT kcMaster)
 
 | Env var | Default | Description |
 |---|---|---|
@@ -41,121 +48,108 @@ from each service section rather than repeated.
 Hikari pool settings are fixed in the yml (not env-driven): `maximum-pool-size=20`,
 `minimum-idle=20`, `connection-timeout=30000`, `max-lifetime=1800000`, `idle-timeout=600000`.
 
-### ActiveMQ (all services)
+### Messaging bus (the x-rod) + topology import
+
+Messaging runs behind one frontend, the **x-rod**. A service references a logical bus and a role;
+the actual transport (ActiveMQ / Kafka / Redis) and its endpoint live in the shared **topology**,
+not in per-service env. The abstract bus framework -- the x-rod engine, the transport-driver SPI, the
+catalog + parameter model -- is documented in `doc/Esquire.MessagingBus.md`; THIS section is the concrete
+Esquire catalog: which buses exist and the env that drives them. The vocabulary:
+
+- **bus** (`bus-id`): a logical channel (`esquire.entity`, `esquire.kc`, `audit-c`, ...).
+- **slot** (`slot-id`): a leg a participant joins -- `entity`, `kc`, `audit`.
+- **node** (`node-id`): request/response buses split a slot into `request` + `response` nodes (each
+  its own destination); single-node buses just carry a `destination`.
+- **x-rod**: the per-slot x-rod config -- `rod-class` + engine knobs (pool-size, feed-capacity,
+  virtual-threads, publisher-pool-size, concurrency) + a `transport` block.
+- **transport**: provider (`activemq` | `kafka` | `redis`, or a class name) + endpoint + destination +
+  `topic` (true=topic / false=queue) + `params` (opaque per-vendor knobs, e.g. `jms.useAsyncSend` /
+  `group-id` / `max-len`) + (R&R) `request-node` / `response-node` + a node list.
+- **rod-class**: `XRod` (standard transceiver), `XRodRR` (request/response, two-node, role-routed),
+  `XRodInProcess` (a generic in-process relay that runs a worker applying events locally instead of
+  sending them; FQCN `pro.mir0n.esquire.dataKeep.keep.XRodInProcess`),
+  `XRodInfo` (logs instead of sends), `XRodDisabled` (no-op; the default when a bus is unconfigured).
+- **role**: `CLIENT` / `SERVER` / `BROADCAST`.
+
+**Transport providers** are pluggable per-vendor modules (`tp-activemq` / `tp-kafka` / `tp-redis`)
+implementing `ITransportProvider`, resolved by name via `TransportProviders`. A deployment carries
+only the modules it uses; each ships an `AutoConfigurationImportFilter` that suppresses Boot's
+matching auto-config so a service stays transport-agnostic.
+
+The catalog is ONE shared external **topology file** loaded by every service. Docker bind-mounts
+`compose/topology/esquire-topology.yml`; k8s mounts the `esquire-topology` ConfigMap (chart
+`k8s/charts/esquire-topology`). The file is per-environment with concrete hostnames (no `${}`). The
+import is REQUIRED (fail-fast); surefire makes it optional for context tests.
 
 | Env var | Default | Description |
 |---|---|---|
-| `AMQ_BROKER_URL` | `tcp://localhost:61616` | Broker URL. |
-| `AMQ_USER` | *(empty)* | Broker user (no auth in current phase). |
-| `AMQ_PASSWORD` | *(empty)* | Broker password. |
+| `ESQUIRE_TOPOLOGY_IMPORT` | `file:/etc/esquire/topology.yml` | `spring.config.import` location of the shared bus catalog. Required at runtime (fail-fast); optional under surefire. |
+
+A service references a bus by a logical KEY: `esquire.<key>.messaging-bus -> {bus-id, slot-id [,
+x-rod overrides]}`. Keys: `kc-bus`, `entity-bus`, `audit-bus`. The catalog also UNIONS a
+service-local extension under `<spring.application.name>.messaging-bus` (the service's own-namespace
+overlay of the global `esquire.messaging-bus`, used for the audit-(b) in-process leg, whose log-db
+datasource is service-specific -- Spring lists don't merge across sources, so the 2nd key is needed). The `bus-id` / `slot-id` values are env-overridable per
+service (`KC_BUS_ID` / `KC_SERVICE_ID`, `ENTITY_BUS_ID` / `ENTITY_SERVICE_ID`,
+`ESQUIRE_AUDIT_BUS_ID` / `ESQUIRE_AUDIT_SERVICE_ID`).
+
+**Selectors:** `XRodRR` CLIENT consume filters `RodID = '<rod-id>'`; SERVER consume filters
+`SlotID = '<slot-id>'`; BROADCAST has no selector. `rod-id` defaults to the per-instance id
+`<app>.<instanceNo>` (`spring.application.name` + `EsqUtils.instanceNo()`, the instance number derived
+from the host name) when unset or blank, so each sharded replica owns a distinct rod-id.
 
 ### Audit logging (producers: enyMan, pacMan, keySmith)
 
-Opt-in audit (option-0 baseline: default OFF). The producer buffers committed entity changes and, after
-commit, feeds them off the request thread to the audit sink: **(b)** in-process write to the `*_log`
-tables, **(c)** publish to the audit queue for the standalone **xxRod** consumer, or **(d)** XADD to a
-Redis Stream (the stream IS the audit log; no consumer service). Here `<SVC>` is `ENYMAN` / `PACMAN` /
-`KEYSMITH`. See `doc/Esquire.AuditLoggingStack.md`.
+Producers buffer committed entity changes and, after commit, feed them off the request thread to the
+audit `slot` (`slot-id` = `audit`) -- posting a UA. **Which sink runs is one config value:**
+`ESQUIRE_AUDIT_BUS_ID` names the audit bus, and the topology leg for that bus carries the transport.
+The sinks:
+
+| `audit-bus` bus-id | Sink | rod-class |
+|---|---|---|
+| `audit-b` | in-process apply to the `*_log` tables (a SERVICE-LEVEL leg whose log-db block carries the datasource; the keep applier writes `*_log` via the generic keep engine) | `XRodInProcess` |
+| `audit-c` | ActiveMQ -> the standalone **auKeep** consumer -> `*_log` | `XRod` |
+| `audit-ck` | Kafka -> auKeep -> `*_log` | `XRod` |
+| `audit-d` | Redis stream IS the log (producer-only; no consumer service) | `XRod` |
+| `audit-dk` | Kafka topic IS the log (producer-only; no consumer service) | `XRod` |
+
+Docker and local k8s default `audit-c`; the code default is `audit-b`. Switching sink is the one env
+flip + the matching topology leg (and infra) -- no code change, no rebuild.
 
 | Env var | Default | Description |
 |---|---|---|
-| `<SVC>_AUDIT_ENABLED` | `false` code / `true` deployed | Master switch; OFF -> `post()` is a no-op. |
-| `<SVC>_AUDIT_MODE` | `in-process` code / `bus` deployed | `in-process` = (b) write `*_log` here; `bus` = (c) publish to the queue (xxRod writes); `redis` = (d) XADD to a Redis Stream. |
-| `<SVC>_AUDIT_FEED_CAPACITY` | `4096` | xy-Rod producer feed depth (bounded; full -> back-pressures flush-after-commit). |
-| `<SVC>_AUDIT_POOL_SIZE` | `4` | (b) in-process apply-pool size; keep <= the log datastore pool. |
-| `<SVC>_AUDIT_VIRTUAL_THREADS` | `false` | (b)/(c) pool workers on virtual threads. |
-| `<SVC>_AUDIT_PUBLISHER_POOL_SIZE` | `0` | (c)/(d) publisher pool: `0` = single feed-worker synchronous publish; `N>0` = N async sender threads (bus: a dedicated `useAsyncSend` connection; redis: N XADD workers). |
-| `REDIS_HOST` | `localhost` code / `redis` deployed | (d) Redis host (`spring.data.redis.host`). Lettuce connects lazily, so it is ignored unless mode=redis. |
-| `REDIS_PORT` | `6379` | (d) Redis port. |
-| `<SVC>_AUDIT_REDIS_STREAM` | *(empty -> `esquire.rod.audit`)* | (d) the Redis Stream key to XADD each event to. |
-| `<SVC>_AUDIT_REDIS_MAX_LEN` | `0` | (d) approximate MAXLEN cap on the stream (`0` = uncapped). |
-| `<SVC>_AUDIT_BUS_TRANSPORT` | `activemq` | (c) bus transport when mode=bus: `activemq` (the queue, default) or `kafka` (the audit topic; xxRod consumes). |
-| `KAFKA_BOOTSTRAP` | `localhost:9092` code / `kafka:9092` deployed | (c-k) Kafka bootstrap servers (`spring.kafka.bootstrap-servers`). Connects lazily -> ignored unless transport=kafka. |
-| `KAFKA_ACKS` | `0` | (c-k) producer acks: `0` = fire-and-forget (best-effort, fastest sender); `1` = leader ack; `all` = full ISR (for the zero-loss posture). |
-| `KAFKA_LINGER_MS` | `10` | (c-k) producer batch linger (ms) -- coalesce records into batches for sender throughput. |
-| `KAFKA_BATCH_SIZE` | `32768` | (c-k) producer batch size (bytes). |
-| `KAFKA_COMPRESSION` | `lz4` | (c-k) producer compression: `none` / `lz4` / `snappy` / `zstd` / `gzip`. |
-| `<SVC>_AUDIT_LOG_DATASTORE` | `shared` | (b) where `*_log` is written: `shared` (service DB) or `dedicated` (separate pool/vendor below). |
-| `<SVC>_AUDIT_DB_VENDOR` | `dev-postgres` | (b) dedicated-only: log-DB SQL dialect (may differ from the business DB). |
-| `<SVC>_AUDIT_DB_URL` | *(empty)* | (b) dedicated-only: log-DB JDBC URL. |
-| `<SVC>_AUDIT_DB_USERNAME` | `esq2025` | (b) dedicated-only: log-DB user. |
-| `<SVC>_AUDIT_DB_PASSWORD` | `q` | (b) dedicated-only: log-DB password. |
-| `<SVC>_AUDIT_DB_POOL_SIZE` | `8` | (b) dedicated-only: log-DB Hikari pool size. |
+| `ESQUIRE_AUDIT_BUS_ID` | `audit-b` code / `audit-c` deployed | Selects the audit bus (the sink) the producer posts to. |
+| `ESQUIRE_AUDIT_SERVICE_ID` | `audit` | The audit `slot-id`. |
+| `ESQUIRE_AUDIT_POOL_SIZE` | `4` | Audit x-rod feed apply-pool size; keep <= the log-db pool. |
+| `ESQUIRE_AUDIT_FEED_CAPACITY` | `4096` | Producer feed depth (bounded; full -> back-pressures flush-after-commit). |
+| `ESQUIRE_AUDIT_VIRTUAL_THREADS` | `false` | Feed-pool workers on virtual threads. |
 
-The `*_log` SQL each producer can write is shipped as a deploy-time `META-INF/audit/{vendor}.xml` spec set
-(omit those files to package the service without audit SQL). See [xxRod](#xxrod) for the (c) consumer.
+**audit-(b) log-db datasource** (only when the `audit-b` in-process leg is active -- it writes `*_log`
+locally, so its datasource is service-specific and configured on the service-local topology key):
 
-#### Selecting an audit option -- all external, no framework code change
+| Env var | Default | Description |
+|---|---|---|
+| `ESQUIRE_AUDIT_LOG_DB_SHARED` | `false` | `true` -> the keep REUSES the service's own datasource pool (shared); the dialect comes from the service profile and the `url`/`vendor`/`hikari` below are ignored. `false` -> a DEDICATED keep pool from `url`/`hikari`. |
+| `ESQUIRE_AUDIT_LOG_DB_VENDOR` | `dev-postgres` | Log-DB SQL dialect (may differ from the business DB). Dedicated only. |
+| `ESQUIRE_AUDIT_LOG_DB_URL` | *(empty)* | Log-DB JDBC URL. Dedicated only. |
+| `ESQUIRE_AUDIT_LOG_DB_USERNAME` | `esq2025` | Log-DB user. Dedicated only. |
+| `ESQUIRE_AUDIT_LOG_DB_PASSWORD` | `q` | Log-DB password. Dedicated only. |
+| `ESQUIRE_AUDIT_LOG_DB_POOL_SIZE` | `2` | Dedicated keep Hikari pool size (maps to `log-db.hikari.maximum-pool-size`). |
 
-The framework code is **option-agnostic**: which audit style runs is decided entirely by configuration and
-deploy-time artifacts. Four external layers compose the choice -- **(1) app config** (env / yml
-`<svc>.audit-logging.*`), **(2) DB deploy** (`db.seed`: the `*_log` tables, the triggers, the dedup
-indexes), **(3) SQL spec artifacts** (`META-INF/audit/{vendor}.xml`, shipped or omitted at packaging), and
-**(4) infra** (ActiveMQ + xxRod, or Redis). Each option is a recipe across those layers:
+These drive the producer in-process `x-rod.log-db` block. SHARED keeps the audit writes on the service's
+own connection pool (fewer connections, but they compete with business queries); DEDICATED isolates them in
+the keep's own pool (can even target a different database/dialect than the service). The auKeep CONSUMER instead reads its keep
+datasource from a separate `esquire.keep.datasource` group (same record shape: vendor / url / username /
+password / hikari; on docker it points at `DB_DATAKEEP_*`), and excludes Boot's
+`DataSourceAutoConfiguration` (no `spring.datasource`).
 
-| Option | (1) App config (env) | (2) db.seed | (3) META-INF/audit SQL | (4) Infra |
-|---|---|---|---|---|
-| **(0) off** | `<SVC>_AUDIT_ENABLED=false` (default) | -- | -- | -- |
-| **(a) triggers** | `<SVC>_AUDIT_ENABLED=false` (the app producer stays OFF; the DB logs) | `*_log` tables (`create.log`) **+ run the trigger DDL** (`<vendor>/triggers/all.sql`; base seed is trigger-free) | -- (SQL lives in the trigger) | -- |
-| **(b) in-process** | `=true`, `_MODE=in-process`; `_POOL_SIZE` / `_VIRTUAL_THREADS` / `_FEED_CAPACITY`; `_LOG_DATASTORE=shared\|dedicated` (+ `_DB_*` if dedicated) | `*_log` tables (`create.log`) | **ship** the service's subset | -- |
-| **(c) bus -> xxRod** | producer: `=true`, `_MODE=bus`, `_PUBLISHER_POOL_SIZE=0\|N`, `AMQ_BROKER_URL`. consumer: `XXROD_DIRECTOR=audit`, `XXROD_AUDIT_POOL_SIZE`, `XXROD_MESSAGING_CONCURRENCY`, `DB_XXROD_*` | `*_log` tables **+ dedup unique indexes** (`create.log`) | producers: **not required** (they don't write in bus mode); **xxRod ships the FULL set** | ActiveMQ broker + the xxRod service |
-| **(c-k) bus over Kafka** | producer: `=true`, `_MODE=bus`, `_BUS_TRANSPORT=kafka`, `KAFKA_BOOTSTRAP` (+ tune `KAFKA_ACKS`/`LINGER_MS`/`BATCH_SIZE`/`COMPRESSION`). consumer: `XXROD_TRANSPORT=kafka`, `KAFKA_BOOTSTRAP`, `XXROD_KAFKA_GROUP_ID` | `*_log` tables **+ dedup unique indexes** | xxRod ships the FULL set | Kafka broker + the xxRod service |
-| **(d) redis** | `=true`, `_MODE=redis`; `_REDIS_STREAM` / `_REDIS_MAX_LEN`; `REDIS_HOST` / `REDIS_PORT` | -- (no `*_log`) | -- (no SQL) | Redis (`redis:8`); RedisInsight optional |
-| **(d-k) Kafka -> Connect -> Redis** | producer: same as (c-k) (`_MODE=bus`, `_BUS_TRANSPORT=kafka`). No xxRod -- the sink is a Kafka Connect Redis connector. | -- (no `*_log`) | -- (no SQL) | Kafka broker + a Kafka Connect worker running the Redis sink connector (`kafka-sink` profile) + Redis |
-
-Notes:
-- `<SVC>` is `ENYMAN` / `PACMAN` / `KEYSMITH`; the env prefix is `<SVC>_AUDIT_` (e.g. `ENYMAN_AUDIT_MODE`).
-- **(a) is configured at the DB layer, not the app** -- you opt in by *running* the trigger scripts at
-  deploy; the framework audit feature stays disabled.
-- **Audit is opt-in at packaging too:** omit a service's `META-INF/audit/` files and it ships with no audit
-  SQL (the loader tolerates the absence -> empty map), so (b)/(c) silently no-op on that service without any
-  code or config change.
-- Switching options at runtime is a **config flip + the matching infra** -- e.g. (b)->(c) is
-  `_MODE=bus` + bring up ActiveMQ/xxRod; (c)->(d) is `_MODE=redis` + bring up Redis. No rebuild.
-- Delivery-semantics trade-offs per option (loss / dup / dedup / zero-loss): see
-  `doc/Esquire.AuditLoggingStack.md` section 5.
-
-#### Deploy defaults -- both Docker and local k8s ship option (c)
-
-The two dev deploys default to **option (c) bus -> xxRod over ActiveMQ** (reusing the ActiveMQ already in
-the stack; no Redis/Kafka deployed by default). Switch topology purely in config -- no code change, no image
-rebuild:
-
-- **Docker (`compose/compose.yaml`):** producers default `*_AUDIT_ENABLED=true`, `*_AUDIT_MODE=bus`,
-  `*_AUDIT_BUS_TRANSPORT=activemq`; `xxrod` is a default service. Override per env var, e.g.
-  `ENYMAN_AUDIT_MODE=redis` + the `redis` service.
-- **Local k8s:** the `esquire-xxrod` chart is deployed by `k8s/k8s-up.bat` (and the deploy-local GHA), and the
-  producer charts carry an `audit:` block defaulting to `enabled/bus/activemq`. Switch via the chart values
-  (`charts/esquire-<svc>/values.yaml` or `-f`/`--set`):
-  - **(b) in-process:** `audit.mode=in-process` (no xxRod needed; producer writes the `*_log` directly).
-  - **(d) redis:** `audit.mode=redis` + `audit.redisHost=esq-redis`, and deploy a Redis. **Name the service
-    `esq-redis`, never `redis`** -- a k8s Service named `redis` injects `REDIS_PORT=tcp://ip:6379` into every
-    pod and crashes the producers' `spring.data.redis.port`.
-  - **(c) over Kafka:** `audit.busTransport=kafka` (+ `audit.kafkaBootstrap`), deploy Kafka, and set the
-    xxRod chart `audit.transport=kafka`.
-- The `*_log` tables are seeded on a fresh cluster by the `esquire-postgres` image (its `create/all.sql`
-  chains to `create.log/all.sql`); (c)/(b) need them, (d) does not.
-
-#### Audit Redis Stream (option d) -- the `redis` service + RedisInsight console
-
-In `mode=redis` the producer XADDs each event to a Redis Stream; the stream IS the append-only audit log
-(no consumer service -- read it with `XRANGE` / `XREVRANGE`). The dev stack ships a `redis:8` service
-(`esq-redis`, port 6379, `maxmemory 384mb` + `noeviction` + AOF). The Redis health probe is disabled on the
-producers (`management.health.redis.enabled=false`) so an unused Redis never marks a service DOWN.
-
-Inspect the stream with **RedisInsight**, a web GUI gated behind the compose `tools` profile (so it does
-NOT start with the default stack):
-
-```
-docker compose up -d redisinsight        # or: docker compose --profile tools up -d
-```
-
-Then open `http://localhost:5540` -- the audit DB is pre-added as `esq-audit` (host `redis`, port `6379`,
-no auth); open the `esquire.rod.audit` key for the stream viewer. Or use the CLI directly:
-
-```
-docker exec -it esq-redis redis-cli XREVRANGE esquire.rod.audit + - COUNT 10
-```
+The `*_log` SQL each producer (and auKeep) can write is shipped as a deploy-time
+`META-INF/audit/{dialect}.xml` spec set; omit those files to package the service with no audit SQL (the
+loader tolerates the absence -> empty map, so the in-process leg silently no-ops). The `*_log` tables
+are seeded on a fresh cluster by the `esquire-postgres` image (its `create/all.sql` chains to
+`create.log/all.sql`); the `audit-b`/`audit-c`/`audit-ck` sinks need them, the Redis/Kafka-as-log
+sinks (`audit-d` / `audit-dk`) do not. See [auKeep](#aukeep) for the bus consumer and
+`doc/Esquire.AuditLoggingStack.md` for the delivery-semantics trade-offs.
 
 ### Server port
 
@@ -165,15 +159,19 @@ docker exec -it esq-redis redis-cli XREVRANGE esquire.rod.audit + - COUNT 10
 
 ### Instance identity (enyMan / common — entity-id minting)
 
-Resolved by `EsqUtils.instanceNo()` in priority order; the first one set wins:
+Resolved by `EsqUtils.instanceNo()` from a single source — the trailing ordinal of the host name
+(`EsqUtils.instanceHost()` = `HOSTNAME` → `POD_NAME` → local hostname):
 
-| Env var / source | Default | Description |
+| Source | Default | Description |
 |---|---|---|
-| `ESQUIRE_INSTANCE_NO` | *(unset)* | Explicit instance number (0..9). Highest priority. |
-| `POD_INDEX` | *(unset)* | k8s 1.28+ StatefulSet pod-index label via the downward API. |
-| `POD_NAME` | *(unset)* | StatefulSet pod name; the trailing ordinal is parsed (`enyman-3` → 3). |
-| `esquire.instance.no` (system property) | *(unset)* | JVM `-D` override. |
-| *(fallback)* | `0` | Single, unsharded instance / local dev. |
+| trailing ordinal of the host name | *(derived)* | The StatefulSet pod-name ordinal (`enyman-3` → 3), or a `hostname: <app>-N` set on the Docker container, parsed from `instanceHost()`. |
+| *(fallback)* | `0` | No ordinal in the name — a single, unsharded instance. |
+
+The deployment carries the sequence in the name whenever it runs for resilience (a StatefulSet does
+this by construction). The same number is the per-instance token of the default rod-id
+(`<app>.<instanceNo>`). A plain Deployment / default Docker name has no parseable ordinal, so every
+replica resolves to `0`; to shard (unique entity ids and unique rod-ids) run as a StatefulSet (or give
+each container a `hostname: <app>-N`).
 
 Used to keep minted entity ids unique across redundant enyMan instances; an instance number
 outside `0..9` fails fast at first mint.
@@ -185,7 +183,7 @@ outside `0..9` fails fast at first mint.
 Edge service: Spring Cloud Gateway, KC OIDC + resource-server, CORS, Token Relay, optional JWE,
 and the route table (see [Gateway routes](#gateway-routes)).
 
-**Port:** `GATEWAY_PORT` (default `8080`). **Shared:** AMQ not used; logging (below).
+**Port:** `GATEWAY_PORT` (default `8080`). **Shared:** messaging bus not used; logging (below).
 
 | Env var | Default | Description |
 |---|---|---|
@@ -230,15 +228,20 @@ The route table targets these (defaults are dev-quirky leftovers — always over
 
 Entity manager: org/user/account CREATE, save, move, the in-process move queue, entity-id minting.
 
-**Port:** `ENYMAN_PORT` (`3000` code / `3003` deployed). **Shared:** DB token `ENYMAN`, AMQ,
-logging, instance identity, [audit logging](#audit-logging-producers-enyman-pacman-keysmith).
+**Port:** `ENYMAN_PORT` (`3000` code / `3003` deployed). **Shared:** DB token `ENYMAN`, messaging
+bus, logging, instance identity, [audit logging](#audit-logging-producers-enyman-pacman-keysmith).
+
+enyMan joins three buses: **entity-bus** (BROADCAST producer of UE), **kc-bus** (R&R CLIENT to
+kcMaster), and **audit-bus** (UA producer). The bus-id / slot-id and x-rod knobs come from the shared
+topology; the env overrides it actually uses:
 
 | Env var | Default | Description |
 |---|---|---|
-| `ENYMAN_SERVICE_ID` | `entity-update-broadcast` | ServiceID in the outbound message envelope (entity-broadcast channel). |
-| `ENYMAN_CTRL_ID` | `enyman.default` | Stable producer instance id (CtrlID); response listeners filter on it. |
-| `ENYMAN_MESSAGING_CLIENT_ID` | `enyman` | JMS client-id base; composed per-pod as `<base>-${POD_INDEX:0}` for durable subscriptions. |
-| `ENYMAN_MESSAGING_CONSUMER_ENABLED` | `false` | Activate the entity-broadcast consumer template. |
+| `ENTITY_BUS_ID` | `esquire.entity` | Entity-broadcast bus-id (BROADCAST producer). |
+| `ENTITY_SERVICE_ID` | `entity` | Entity slot-id. |
+| `KC_BUS_ID` | `esquire.kc` | KC request/response bus-id (R&R CLIENT). |
+| `KC_SERVICE_ID` | `kc` | KC slot-id. |
+| `ESQUIRE_AUDIT_BUS_ID` | *(see [audit logging](#audit-logging-producers-enyman-pacman-keysmith))* | Audit sink bus-id (UA producer). |
 | `ENYMAN_MOVE_QUEUE_CAPACITY` | `16384` | Move-queue depth (bounded; on full, `submitMove`/`submitReconcile` drop + log). |
 | `ENYMAN_VALIDATE_CREATE_DURING_MOVE` | `true` | v1.2.6 Goal 3: `true` runs CREATE-during-move path reconciliation (race-8b closed); `false` reproduces the race (negative test). |
 
@@ -248,14 +251,16 @@ logging, instance identity, [audit logging](#audit-logging-producers-enyman-pacm
 
 Accounting: account balance / deposit / withdrawal / transfer and account DELETE.
 
-**Port:** `PACMAN_PORT` (`3000` code / `3003` deployed). **Shared:** DB token `PACMAN`, AMQ, logging,
-[audit logging](#audit-logging-producers-enyman-pacman-keysmith).
+**Port:** `PACMAN_PORT` (`3000` code / `3003` deployed). **Shared:** DB token `PACMAN`, messaging bus,
+logging, [audit logging](#audit-logging-producers-enyman-pacman-keysmith).
+
+pacMan joins **entity-bus** (BROADCAST producer of UE) and **audit-bus** (UA producer); no kc-bus.
 
 | Env var | Default | Description |
 |---|---|---|
-| `PACMAN_SERVICE_ID` | `entity-update-broadcast` | ServiceID in the outbound message envelope. |
-| `PACMAN_CTRL_ID` | `pacman.default` | Stable producer instance id (CtrlID). |
-| `PACMAN_MESSAGING_CLIENT_ID` | `pacman` | JMS client-id. |
+| `ENTITY_BUS_ID` | `esquire.entity` | Entity-broadcast bus-id (BROADCAST producer). |
+| `ENTITY_SERVICE_ID` | `entity` | Entity slot-id. |
+| `ESQUIRE_AUDIT_BUS_ID` | *(see [audit logging](#audit-logging-producers-enyman-pacman-keysmith))* | Audit sink bus-id (UA producer). |
 
 ---
 
@@ -263,13 +268,17 @@ Accounting: account balance / deposit / withdrawal / transfer and account DELETE
 
 Access-profile / credential routine; publishes KC-sync requests (JMS) to kcMaster.
 
-**Port:** `KEYSMITH_PORT` (`3000` code / `3002` deployed). **Shared:** DB token `KEYSMITH`, AMQ, logging,
-[audit logging](#audit-logging-producers-enyman-pacman-keysmith).
+**Port:** `KEYSMITH_PORT` (`3000` code / `3002` deployed). **Shared:** DB token `KEYSMITH`, messaging
+bus, logging, [audit logging](#audit-logging-producers-enyman-pacman-keysmith).
+
+keySmith joins **kc-bus** (R&R CLIENT to kcMaster, publishing KC-sync requests) and **audit-bus** (UA
+producer).
 
 | Env var | Default | Description |
 |---|---|---|
-| `KEYSMITH_MESSAGING_CLIENT_ID` | `keysmith` | JMS client-id. |
-| `KEYSMITH_CTRL_ID` | `keysmith.default` | Stable producer instance id (CtrlID); the response listener filters on it. |
+| `KC_BUS_ID` | `esquire.kc` | KC request/response bus-id (R&R CLIENT). |
+| `KC_SERVICE_ID` | `kc` | KC slot-id. |
+| `ESQUIRE_AUDIT_BUS_ID` | *(see [audit logging](#audit-logging-producers-enyman-pacman-keysmith))* | Audit sink bus-id (UA producer). |
 | `KEYSMITH_TEST_CONNECT_HOLD_MS` | `0` | **Test-only** race-8c hook: ms to sleep between the committed path read and the activation URQ publish. `0` = disabled; never set in production. |
 
 ---
@@ -279,7 +288,7 @@ Access-profile / credential routine; publishes KC-sync requests (JMS) to kcMaste
 Owns all Keycloak synchronization (create/update/delete users, path sync). No application DB — it
 talks to KC over the admin REST API.
 
-**Port:** `KCMASTER_PORT` (`3006`). **Shared:** AMQ, logging. (No DB.)
+**Port:** `KCMASTER_PORT` (`3006`). **Shared:** messaging bus, logging. (No DB.)
 
 | Env var | Default | Description |
 |---|---|---|
@@ -287,9 +296,10 @@ talks to KC over the admin REST API.
 | `KC_REALM` | `esquire` | Realm kcMaster manages. |
 | `KC_ADMIN_CLIENT_ID` | `admin-cli` | Admin client id. Deployments use the confidential service-account client `esq-kcMaster`. |
 | `KC_ADMIN_CLIENT_SECRET` | *(empty)* | Secret for a confidential admin client. |
-| `KCMASTER_SERVICE_ID` | `kc-sync` | ServiceID in the message envelope. |
-| `KCMASTER_CTRL_ID` | `kcmaster.default` | Stable producer instance id (CtrlID). |
-| `KCMASTER_MESSAGING_CLIENT_ID` | `kcmaster` | JMS client-id. |
+| `KC_BUS_ID` | `esquire.kc` | KC request/response bus-id (R&R SERVER; serves enyMan + keySmith). |
+| `KC_SERVICE_ID` | `kc` | KC slot-id (SERVER consume filters `SlotID = '<slot-id>'`). |
+| `ENTITY_BUS_ID` | `esquire.entity` | Entity-broadcast bus-id (BROADCAST consumer, for KC path sync). |
+| `ENTITY_SERVICE_ID` | `entity` | Entity slot-id. |
 | `KCMASTER_PATH_BUFFER_TTL_MS` | `60000` code / `10000` deployed | Race-8c path-buffer TTL. Buffered topic-side paths older than this are not applied. **Test:** `-1` disables recovery (reproduces the race). |
 | `KCMASTER_PATH_BUFFER_PRUNE_MS` | `30000` | Interval of the scheduled buffer prune. |
 
@@ -303,12 +313,13 @@ Recoverable read cache (Taijitu two-monad H2). Consumes entity broadcasts, serve
 runs the night-watch anti-entropy sweep.
 
 **Port:** `BIZTREE_PORT` (`3000` code / `3002` deployed). **Shared:** DB token `BIZTREE` (the source
-DB read at cache load), AMQ, logging.
+DB read at cache load), messaging bus, logging.
 
 | Env var | Default | Description |
 |---|---|---|
 | `BIZTREE_CACHE_VENDOR` | `cache-h2` | Cache backend profile (H2 in-memory). |
-| `BIZTREE_MESSAGING_CONSUMER_ENABLED` | `true` | Activate the entity-broadcast consumer. |
+| `ENTITY_BUS_ID` | `esquire.entity` | Entity-broadcast bus-id (BROADCAST consumer; updates the cache). |
+| `ENTITY_SERVICE_ID` | `entity` | Entity slot-id. |
 | `BIZTREE_DIRECTOR` | `legacy` code / `taijitu` deployed | Cache director: `legacy` (single cache) or `taijitu` (two-monad night-watch). |
 | `BIZTREE_CACHE_TABLE` | `ESQ_TREE` | Base cache table name; taijitu suffixes it per monad (`ESQ_TREE_MONAD` / `ESQ_TREE_DANOM`). |
 | `BIZTREE_MONAD_QUEUE_CAPACITY` | `4096` | Per-monad event queue depth (back-pressure boundary). |
@@ -330,28 +341,35 @@ DB read at cache load), AMQ, logging.
 
 ---
 
-## xxRod
+## auKeep
 
-Standalone audit-bus consumer (option c) -- a generic **xRod host**: consumes the audit queue
-(`esquire.rod.audit`) and hands each decoded event to the configured `IRodDirector` (audit = write the
-`*_log` tables). Horizontally redundant (competing consumers on the queue; no clientId). It ships the
-**full** `META-INF/audit/{vendor}.xml` SQL set (it writes every kind). See
-`doc/Esquire.AuditLoggingStack.md` section 4.7.
+Standalone **audit-bus consumer** (image `esquire.aukeep`): it drains whichever bus the `audit-bus`
+ref names (`ESQUIRE_AUDIT_BUS_ID`, default `audit-c`) and applies each decoded event to its keep
+datasource (`esquire.keep.datasource`) via the **generic keep engine** (`KeepApplier` /
+`RodEventDbWriter` / `KeepSqlStore`, in the `esquire-dataKeep` library). The audit keep director
+(`AuditKeepDirector`, an `IKeepDirector`) only DECLARES the kinds + the SQL group `audit`; the engine
+does the DB apply. It carries all transport-provider modules, so it consumes the ActiveMQ (`audit-c`)
+or Kafka (`audit-ck`) sink as the topology leg dictates; producer-only sinks (`audit-d` / `audit-dk`)
+have no auKeep. Horizontally redundant (competing consumers; no clientId) -- it drains the bus audit
+sink to the `*_log` tables. It ships the **full** `META-INF/audit/{dialect}.xml` SQL set (it writes
+every kind). The in-process x-rod for producers (audit-(b)) is `XRodInProcess`, the same generic relay
+backed by the same keep engine. See `doc/Esquire.AuditLoggingStack.md` section 4.7.
 
-**Port:** `XXROD_PORT` (`3007`). **Shared:** DB token `XXROD` (the log datastore it writes; vendor from
-`DB_XXROD_VENDOR`), AMQ (consumes the audit queue), logging. (No producer audit block -- xxRod is the
-consumer side.)
+**Port:** `DATAKEEP_PORT` (`3007`). **Shared:** DB token `DATAKEEP` (the keep datastore it writes;
+vendor from `DB_DATAKEEP_VENDOR`), messaging bus (consumes the audit bus), logging. (No producer audit
+block -- auKeep is the consumer side.)
 
 | Env var | Default | Description |
 |---|---|---|
-| `XXROD_DIRECTOR` | `audit` | Which `IRodDirector` is active (`xxrod.director.type`); each impl is a gated `@Component` that reads its own `xxrod.director.<type>.*` config in `init()`. `audit` writes the `*_log` tables; future: replication / doc-DB. |
-| `XXROD_AUDIT_POOL_SIZE` | `8` | Audit director's apply-pool (`XXRod`) size; keep <= the datasource Hikari pool. |
-| `XXROD_AUDIT_VIRTUAL_THREADS` | `false` | Apply-pool workers on virtual threads. |
-| `XXROD_MESSAGING_CONCURRENCY` | `1-1` | JMS listener concurrency (the apply pool provides the actual write parallelism). |
-| `XXROD_TRANSPORT` | `activemq` | Which transport feeds the director: `activemq` (the JMS queue, default) or `kafka` (the audit topic). Keep `listener.concurrency`=1; scale by replicas, not threads (Design.md sec 14). |
-| `KAFKA_BOOTSTRAP` | `kafka:9092` | (c-k) Kafka bootstrap servers; used only when `XXROD_TRANSPORT=kafka`. |
-| `XXROD_KAFKA_GROUP_ID` | `esquire-xxrod-audit` | (c-k) consumer group id; competing consumers across replicas. |
-| `XXROD_KAFKA_OFFSET_RESET` | `latest` | (c-k) `auto-offset-reset` for a fresh group (`latest` / `earliest`). |
+| `ESQUIRE_AUDIT_BUS_ID` | `audit-c` | The `audit-bus` ref -- which bus auKeep drains; the topology leg supplies the transport. |
+| `ESQUIRE_AUDIT_SERVICE_ID` | `audit` | The audit `slot-id`. |
+
+The keep director is wired in code, not selected by config: one `IKeepDirector` = `AuditKeepDirector`,
+which declares its kinds + SQL group `audit`. A future replication / doc-DB keep is a different
+`IKeepDirector`, also wired in code.
+
+The apply-pool sizing (`pool-size`, `virtual-threads`, `concurrency`) is the audit leg's `x-rod` block in
+the shared topology, not a per-service env var; keep `pool-size` <= the datasource Hikari pool.
 
 ---
 
@@ -369,9 +387,9 @@ Levels (all services unless noted):
 |---|---|---|
 | `LOG_LEVEL_ROOT` | `ERROR` | Root logger level. |
 | `LOG_LEVEL_SF` | `ERROR` | `org.springframework` level. |
-| `LOG_LEVEL_JMS` | `INFO` (enyMan/pacMan/kcMaster/xxRod) / `ERROR` (bizTree/keySmith) | `org.springframework.jms` level. (Not present in the gateway.) |
+| `LOG_LEVEL_JMS` | `INFO` (enyMan/pacMan/kcMaster/auKeep) / `ERROR` (bizTree/keySmith) | `org.springframework.jms` level. (Not present in the gateway.) |
 | `LOG_LEVEL_AMQ` | `INFO` / `ERROR` (as JMS above) | `org.apache.activemq` level. |
-| `LOG_LEVEL_MIR0N` | `INFO` (enyMan/bizTree) / `ERROR` (gateway/pacMan/keySmith/kcMaster/xxRod) | Application (`pro.mir0n`) console level. |
+| `LOG_LEVEL_MIR0N` | `INFO` (enyMan/bizTree) / `ERROR` (gateway/pacMan/keySmith/kcMaster/auKeep) | Application (`pro.mir0n`) console level. |
 | `LOG_LEVEL_DEVELOP` | `DEBUG` | `develop.*` (devLog) level. |
 | `LOG_LEVEL_MSG` | `INFO` | `msg.*` (msgLog) level. (Not present in the gateway.) |
 

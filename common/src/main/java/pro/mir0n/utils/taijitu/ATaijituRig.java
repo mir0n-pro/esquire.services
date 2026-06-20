@@ -18,6 +18,8 @@
  *                   compares digests, reacts per onMismatch (LOG / SWAP swapYinYang / TERMINATE), and
  *                   clears the shadow back to idle. sweepAsync() + sweepGuarded() back the REST force-
  *                   sweep. Cadence/policy configurable: sweepIntervalMs / sweepTimeoutMs / onMismatch + setters.
+ * 06/15/2026 mir0n  pass(...) event-intake signature changed: the raw (messageEncoding, text) pair replaced
+ *                   by a single already-parsed body Map<String,Object>, forwarded into the body-map QueueItem.
  */
 package pro.mir0n.utils.taijitu;
 
@@ -115,10 +117,8 @@ public abstract class ATaijituRig extends ATaijituRigY {
 
     @Override
     public void onEntityBroadcast(String eventType, String entityId, int entityKind,
-                                  String requestId, String correlationId,
-                                  String messageEncoding, String text) {
-        QueueItem item = new QueueItem(eventType, entityId, entityKind,
-                requestId, correlationId, messageEncoding, text);
+                                  String requestId, String correlationId, java.util.Map<String, Object> body) {
+        QueueItem item = new QueueItem(eventType, entityId, entityKind, requestId, correlationId, body);
         yang().offer(item);
         yin().offer(item);
     }

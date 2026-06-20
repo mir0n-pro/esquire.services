@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>pro.mir0n.esquire</groupId>
+        <artifactId>esquire-parent</artifactId>
+<!-- xxx: we need a stable parent version to be referenced correctly -->
+        <version>1.2.0</version>
+        <relativePath>../pom.xml</relativePath>
+    </parent>
+
+    <artifactId>esquire-dataKeep</artifactId>
+    <version>${dataKeep.version}</version>
+
+    <url/>
+
+    <name>dataKeep</name>
+    <description>dataKeep -- the universal keep library: stores entity messages relayed to it via a pluggable director (IKeepDirector). No transport, no audit specifics; the auKeep app and producers build on it.</description>
+
+    <dependencies>
+        <dependency>
+            <groupId>pro.mir0n.esquire</groupId>
+            <artifactId>esquire-common</artifactId>
+            <version>${common.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>pro.mir0n.esquire</groupId>
+            <artifactId>esquire-messaging</artifactId>
+            <version>${messaging.version}</version>
+        </dependency>
+
+        <!-- the keep host is a Spring @Component with @PostConstruct lifecycle + an injected Environment;
+             starter brings spring-context + jakarta.annotation + slf4j (the director seam's only needs). -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter</artifactId>
+        </dependency>
+
+        <!-- the generic DB-keep engine: RodEventDbWriter uses NamedParameterJdbcTemplate, KeepApplier builds its
+             OWN HikariDataSource. starter-jdbc brings spring-jdbc + HikariCP. The vendor drivers ride here so any
+             keep deployment (in-process producers + the auKeep app) gets them transitively. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-jdbc</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.oracle.database.jdbc</groupId>
+            <artifactId>ojdbc8</artifactId>
+            <version>19.3.0.0</version>
+        </dependency>
+        <dependency>
+            <groupId>com.oracle.database.jdbc</groupId>
+            <artifactId>ojdbc11</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+    </dependencies>
+
+</project>

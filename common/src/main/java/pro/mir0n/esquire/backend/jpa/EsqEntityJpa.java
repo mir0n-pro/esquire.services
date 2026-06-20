@@ -11,6 +11,7 @@
  * 06/05/2026 mir0n  implements IMappable: fillMap() emits the common data fields (name/desc/parentId) by
  *                   property name; concrete entities override to add their own. id/kind are identity ->
  *                   carried in the x-Rod header (entityId/kind), not the body.
+ * 06/12/2026 mir0n  systemFlg field added (system-entity anti-delete flag); not emitted by fillMap()
  */
 
 package pro.mir0n.esquire.backend.jpa;
@@ -29,6 +30,7 @@ public class EsqEntityJpa implements IMappable {
     private String name;
     private String desc;
     private String parentId;
+    private String systemFlg;
 
     @Override
     public void fillMap(Map<String, Object> body) {

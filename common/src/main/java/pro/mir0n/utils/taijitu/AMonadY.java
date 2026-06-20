@@ -33,6 +33,8 @@
  *                   consecutive events and flushes _processItems before any command (arrival order kept),
  *                   capped at eventBatchMax; setBulkThreshold delegates to the rig; default _processItems
  *                   loops _processItem
+ * 06/15/2026 mir0n  CMD QueueItem construction updated to the body-map QueueItem ctor (the raw messageEncoding
+ *                   + text args dropped; command items pass body=null).
  */
 package pro.mir0n.utils.taijitu;
 
@@ -204,7 +206,7 @@ public abstract class AMonadY implements IMonad {
         // synthesized tracking id.
         commandGate.clear();
         String correlationId = MonadCmd.CMD + "." + commandId + "." + name + "." + System.currentTimeMillis();
-        rig.put(new QueueItem(MonadCmd.CMD, commandId, 0, null, correlationId, null, null));
+        rig.put(new QueueItem(MonadCmd.CMD, commandId, 0, null, correlationId, null));
         if (enableQueue) {
             setQueueEnabled(true);        // accept events (they buffer behind the LOAD)
         }

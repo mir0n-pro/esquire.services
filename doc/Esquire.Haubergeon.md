@@ -1,6 +1,4 @@
-| ![Alt text](../favicon.ico) | Esquire Frameworks(tm) 2.0 |
-|----------------------------|---------------------------|
-
+# <img src="../favicon.ico" alt="Esquire logo" valign="middle" width="64" height="64"> Esquire Application Frameworks(tm) 2.0
 
 # ![Alt text](media/hauberk.svg) Esquire Haubergeon 
 
@@ -109,7 +107,7 @@ variant (JWE-when-supported, mTLS-bound tokens, DPoP, etc.).
 
 ## Simulation catalog
 
-The hauberk ships 21 Simulations. Discover at runtime via
+The hauberk ships 22 Simulations. Discover at runtime via
 `hauberk.cmd list`; each is a Java class under
 `src/main/java/.../hauberk/simulations/`.
 

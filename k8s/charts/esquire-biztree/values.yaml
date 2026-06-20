@@ -7,6 +7,9 @@ image:
 # cache-h2 = biztree-specific local cache. OKE values override this.
 springProfilesActive: "console,dev-postgres,cache-h2"
 
+# shared bus topology is delivered by the esquire-topology ConfigMap, mounted at /etc/esquire.
+topologyImport: file:/etc/esquire/topology.yml
+
 service:
   port: 3002
 
@@ -18,21 +21,39 @@ db:
   username: esq2025
   password: q
 
+# H2 local cache: the Taijitu two-monad store (in-mem, kept alive for the JVM lifetime).
+h2:
+  vendor: cache-h2
+  url: "jdbc:h2:mem:biztree;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE"
+  poolMax: "10"
+  poolMinIdle: "10"
+  poolConnTimeout: "5000"
+  poolIdleTimeout: "600000"
+  poolMaxLifetime: "1800000"
+
 messaging:
-  brokerUrl: tcp://esquire-infra-amq-activemq:61616
   consumerEnabled: "true"
+
+# entity-bus ref: biztree is the CONSUMER (drains the entity broadcast into its cache).
+entity:
+  busId: esquire.entity
+  serviceId: entity
+  broadcastPoolSize: "4"
+  broadcastConcurrency: "1"
 
 # v1.2.5 Taijitu two-monad cache + night-watch sweep (mirrors the compose biztree env)
 #   director:   legacy (single-pass) | taijitu (two-monad + anti-entropy night-watch)
 #   onMismatch: LOG (detect + keep serving -- conservative) | SWAP (promote the fresh shadow --
 #               self-heal) | TERMINATE (exit; k8s relaunches from a clean load)
 #   sweepIntervalMs: delay between sweeps; sweepTimeoutMs: per-leg CHECKSUM deadline
+#   queueCapacity: monad apply-queue depth; bulkThreshold: queued-event count that flips to bulk apply
 taijitu:
   director: taijitu
   onMismatch: SWAP
   sweepIntervalMs: "600000"
   sweepTimeoutMs: "10000"
   queueCapacity: "4096"
+  bulkThreshold: "10"
 
 logging:
   levelRoot: ERROR
@@ -40,5 +61,7 @@ logging:
   levelMir0n: DEBUG
   levelDevelop: DEBUG
   levelMsg: DEBUG
+  levelAmq: INFO
+  levelJms: INFO
   developLogPath: /tmp/bizTree-develop.log
   msgLogPath: /tmp/bizTree-msg.log

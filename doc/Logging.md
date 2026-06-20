@@ -1,3 +1,5 @@
+# <img src="../favicon.ico" alt="Esquire logo" valign="middle" width="64" height="64"> Esquire Application Frameworks(tm) 2.0
+
 # Esquire Services — Logging Strategy
 
 ## Three-Tier Architecture
@@ -8,7 +10,7 @@ Every service uses three distinct logging tiers. Each tier has a dedicated desti
 |---|---|---|---|---|
 | Console | `log` (Lombok `@Slf4j`) | class path | stdout (ECS structured) | Observability — what ops watches |
 | Develop | `devLog` | `develop.<classname>` | rolling file (7 days) | Debug trace — internal detail |
-| Msg audit | `msgLog` | `msg.<classname>` | rolling file (30 days) | JMS traffic audit |
+| Msg audit | `msgLog` | `msg.<bus-id>.<slot-id>` | rolling file (30 days) | Bus traffic audit (emitted on the x-rod legs) |
 
 ---
 
@@ -21,13 +23,12 @@ Every service uses three distinct logging tiers. Each tier has a dedicated desti
 // Develop logger — add when the class has devLog.debug / devLog.error calls:
 private static final org.slf4j.Logger devLog =
         LoggerFactory.getLogger("develop." + ClassName.class.getName());
-
-// Msg audit logger — add ONLY in JMS publishers and listeners:
-private static final org.slf4j.Logger msgLog =
-        LoggerFactory.getLogger("msg." + ClassName.class.getName());
 ```
 
-`msgLog` is exclusively for JMS send/receive events. Service-layer classes (business logic, KC API calls, etc.) must NOT use `msgLog`.
+The msg-audit logger is no longer declared per class. The x-rod resolves it per leg as
+`msg.<bus-id>.<slot-id>` from the leg's `BusIdentity`, and the framework — not business code — writes
+to it on every message crossing a leg. Service-layer classes (business logic, KC API calls, etc.) never
+use `msgLog`.
 
 ---
 
@@ -53,54 +54,27 @@ Everything else belongs in `devLog`.
 
 ---
 
-## Msg Audit Logger — JMS Publishers and Listeners Only
+## Msg Audit Logger — The x-rod Legs
 
-### Dual-mode pattern (publishers — have a props `Map`)
+Every message that crosses an x-rod leg is logged once, by the framework, on that leg's
+`msg.<bus-id>.<slot-id>` logger — the transmit leg logs `TX`, the receive leg logs `RX`. Business code
+writes nothing here.
 
-```java
-if (msgLog.isDebugEnabled()) {
-    msgLog.info("KC | URS | {}", Utils.formatProps(props));
-} else {
-    msgLog.info("KC | URS | {} | {} | {} | {} | {} | {} | {} | {}",
-            mid, command, kind, entityId, ctrlId, requestId, correlationId, testReqId);
-}
-log.info("KC | URS | {} | {} | {} | {} | {} | {} | {} | {}",
-        mid, command, kind, entityId, ctrlId, requestId, correlationId, testReqId);
-```
-
-- Debug level: full props map via `Utils.formatProps(props)` — all fields, insertion order
-- Normal level: compact ordered fields
-- `log.info` mirrors the compact line to console for observability
-
-### Dual-mode pattern (listeners — have a JMS `Message`)
-
-```java
-if (msgLog.isDebugEnabled()) {
-    msgLog.info("KC | URQ | {}", Utils.formatProps(message));
-} else {
-    msgLog.info("KC | URQ | {} | {} | {} | {} | {} | {} | {} | {}",
-            applMsgId, command, kind, entityId, ctrlId, requestId, correlationId, testReqId);
-}
-log.info("KC | URQ | {} | {} | {} | {} | {} | {} | {} | {}",
-        applMsgId, command, kind, entityId, ctrlId, requestId, correlationId, testReqId);
-```
-
-- Debug level: full props via `Utils.formatProps(message)` — alphabetically sorted
-- Normal level: compact ordered fields
-
-### Field order — KC messages (URQ / URS / URR)
+### Line format (every bus)
 
 ```
-KC | <TYPE> | applMsgId | command | kind | entityId | ctrlId | requestId | correlationId | testReqId
+<TX|RX> | <msgType> | <op> | <kind> | <entityId> | <subId> | <rodId> | <requestId>
 ```
 
-### Field order — Entity broadcast messages
+`msgType` is the per-message type (`UE` / `URQ` / `URS` / `URR` / `UA`); `op` is the event-type code
+(`C`/`U`/`D`/`X`). One round-trip therefore reads end-to-end across the per-service msg files — e.g. a
+user move shows enyMan `TX|URQ` + `RX|URS` and kcMaster `RX|URQ` + `TX|URS`, plus the broadcast `TX/RX|UE`
+and the audit `TX|UA`.
 
-No `testReqId`. Fields:
-
-```
-ENTITY | applMsgId | eventType | entityKind | entityId | requestId | correlationId
-```
+The `msg` logback logger is `additivity=false`, so the msg-audit trail goes ONLY to the per-service msg
+file, never to stdout. Production may set the msg level OFF — it is lossless, as every endpoint also
+app-logs its operation on the console tier (e.g. the `KC | CREATE | state=...` lines, which are NOT
+`msgLog`).
 
 ---
 
@@ -139,27 +113,25 @@ devLog.debug("processing entity id={}", id);
 
 ---
 
-## MDC in JMS Consumers
+## MDC in Bus Consumers
 
-HTTP services get `requestId` and `correlationId` in MDC automatically from `MdcFilter`. JMS listener threads are not HTTP — they get nothing unless explicitly set.
+HTTP services get `requestId` and `correlationId` in MDC automatically from `MdcFilter`. The x-rod
+receive worker runs off an HTTP thread — it gets nothing unless explicitly set.
 
-Every JMS `@JmsListener` method must populate MDC from the message properties and clear it in `finally`:
+Every consumer's receive worker takes a decoded `RodEvent`; it must populate MDC from the event and
+clear it in `finally`:
 
 ```java
-public void onMessage(Message message) {
+public void onRodEvent(RodEvent event) {
     try {
-        String requestId     = message.getStringProperty(EsqMsgConstants.FIELD_REQUEST_ID);
-        String correlationId = message.getStringProperty(EsqMsgConstants.FIELD_CORRELATION_ID);
-        // ... other fields ...
+        MDC.put(EsqConstants.PD_REQUEST_ID, event.requestId());
+        MDC.put(EsqConstants.PD_CORRELATION_ID, event.correlationId());
 
-        MDC.put(EsqConstants.PD_REQUEST_ID, requestId);
-        MDC.put(EsqConstants.PD_CORRELATION_ID, correlationId);
-
-        // ... process message ...
+        // ... process event ...
 
     } catch (Exception e) {
-        log.error("...: requestId={}, correlationId={}, error={}", requestId, correlationId, e.getMessage());
-        devLog.error("...", requestId, correlationId, e.getMessage(), e);
+        log.error("...: requestId={}, correlationId={}, error={}", event.requestId(), event.correlationId(), e.getMessage());
+        devLog.error("...", event.requestId(), event.correlationId(), e.getMessage(), e);
     } finally {
         MDC.clear();
     }
@@ -168,7 +140,7 @@ public void onMessage(Message message) {
 
 Once MDC is set, any `log.*` call inside the handler automatically includes the correlation context in the log pattern without explicit parameter threading.
 
-Services and consumers covered: `KcRequestConsumer`, `KcEntityBroadcastConsumer` (kcMaster), `KcSyncResponseListener` (keySmith), `EsqEntityBroadcastConsumer` (bizTree, enyMan).
+Consumers covered: `KcRequestConsumer`, `KcEntityBroadcastConsumer` (kcMaster), `KcResponseListener` (enyMan), `KcSyncResponseListener` (keySmith), `BizTreeBroadcastConsumer` (bizTree), and the audit director on `auKeep`.
 
 ---
 

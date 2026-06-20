@@ -1,6 +1,132 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v1.2.8-2606.1917  v1.2.8 -- finalization: plural bus-config keys, host-Postgres dev stack, documentation
+    :Refactoring: the messaging-bus list-config keys are now plural -- a bus's legs are `slots` (was `slot`) and
+                  a request/response leg's network nodes are `nodes` (was `node`)
+    :Config:      the shared topology (compose + k8s) and the three producers
+    :Config:      docker compose no longer runs its own Postgres container;
+                  the bundled Postgres container is used only by the Kubernetes setup
+    :Config:      the Kubernetes Postgres (local and OKE) now accepts up to 200 connections (was 100)
+    :Config:      the k8s rebuild script now builds the Postgres image itself (docker compose no longer carries it)
+    :Doc:         doc\DatabaseDictionary.md
+                  doc\Esquire.AuditLoggingStack.md
+                  doc\Esquire.BizTree.md
+                  doc\Esquire.GitHubActions.md
+                  doc\Esquire.Haubergeon.md
+                  doc\Esquire.MessagingBus.md
+                  doc\Esquire.TestingStack.md
+                  doc\Esquire.Vision.md
+                  doc\Logging.md
+                  doc\Message.Structure.md
+                  doc\Messaging.md
+                  doc\Object.Kind.enum.md
+                  doc\services.configuring.md
+    Components:   messaging,
+                  enyman,
+                  pacman,
+                  keysmith,
+                  compose,
+                  k8s,
+                  oke
+
+v1.2.8-2606.1822  v1.2.8 -- Messaging Bus: a reusable "keep" engine, split out of the audit code
+    :Refactoring: the part that saves incoming changes into a database is now a general-purpose engine of its
+                  own (esquire-dataKeep); audit is just one small set of rules on top of it (esquire-audit), and
+                  that audit code no longer sits inside the shared common library
+    :Refactoring: the standalone audit-writer service was renamed from xxRod to auKeep and rebuilt on that engine
+    :Refactoring: the messaging bus framework is now its own module (esquire-messaging) instead of living inside
+                  the shared common library, so a service that does not use the bus no longer pulls it in
+    :Feature:     which database the writer targets is now chosen by name, so supporting another database is just
+                  dropping in its SQL file -- no code change (today: Postgres and Oracle)
+    :Feature:     the in-process audit writer can either SHARE the service's own database connection pool or use
+                  its OWN dedicated pool (chosen per service) -- fewer connections vs isolation from the business work
+    :Config:      each service's own audit setup now lives under its own name (e.g. enyman.messaging-bus) rather
+                  than a shared-looking key; the writer reads its database from its own settings group
+    :Config:      the local services build script (build.services.bat) now builds the whole project at once
+                  instead of just one library, so a new module (e.g. esquire-messaging) is picked up automatically
+    Components:   common,
+                  messaging,
+                  dataKeep,
+                  audit,
+                  auKeep,
+                  enyMan,
+                  keySmith,
+                  pacMan
+    Doc:          doc\Esquire.MessagingBus.md
+                  doc\Messaging.md
+                  doc\Esquire.AuditLoggingStack.md
+                  doc\services.configuring.md
+
+v1.2.8-2606.1720  v1.2.8 -- Messaging Bus: code-review cleanup and hardening
+    :Refactoring: the audit producer's transaction and commit handling moved out of the messaging core into
+                  its own bridge; the messaging module is now a plain send / receive relay
+    :Refactoring: the shared send / receive engine (the queued feed plus the worker pool) lifted into one
+                  base that every messaging module extends, instead of wrapping a copy
+    :Refactoring: a request / response bus reads its two stops from a typed model instead of raw config keys
+    :Fix:         a setting that points at the instance identity (e.g. a client id) now resolves the same way
+                  for a single-destination bus and a request / response bus
+    :Fix:         a misconfigured bus leg is reported at startup instead of failing quietly later; a duplicate
+                  leg in the catalog is warned about instead of silently taking the last
+    :Fix:         on shutdown a service waits for in-flight audit sends to finish and ignores a late incoming
+                  message instead of erroring
+    Components:   common,
+                  enyMan,
+                  keySmith,
+                  pacMan,
+                  xxRod,
+                  tp-activemq,
+                  tp-kafka,
+                  tp-redis
+    Doc:          doc\Esquire.MessagingBus.md
+                  doc\Esquire.AuditLoggingStack.md
+                  doc\service.configuring
+
+v1.2.8-2606.1617  v1.2.8 -- Draft of Messaging Bus Concept implementation
+    :Feature:     pluggable transport layer; uniform x-Rod messaging frontend
+    :Refactoring: all messaging is unified behind one x-Rod frontend -- a shared catalog of buses and
+                  legs driven by an x-Rod manager
+    :Refactoring: each running instance takes a stable per-instance identity from its host name
+    :Feature:     transport vendor agnostic transport layer
+    :Feature:     request and response are modeled as two stops on one bus, routed by role (client, server
+                  or broadcast); the audit destination is pluggable by name
+    :Config:      the bus catalog lives in one shared topology file
+    :Config:      the service configuration is the single source of truth
+    :Config:      the build registers the three transport-provider modules
+    :Config:      the instance number is taken from the pod / container name ordinal alone
+    Components:   common,
+                  bizTree,
+                  enyMan,
+                  kcMaster,
+                  keySmith,
+                  pacMan,
+                  xxRod,
+                  tp-activemq,
+                  tp-kafka,
+                  tp-redis,
+                  compose,
+                  k8s,
+                  build/version
+    Doc:          doc\Esquire.AuditLoggingStack.md
+                  doc\services.configuring.md
+                  doc\Esquire.BizTree.md
+                  doc\Esquire.MessagingBus.md (new)
+                  doc\Esquire.TestingStack.md
+                  doc\Logging.md
+                  doc\Message.Structure.md
+                  doc\Messaging.md 
+                  doc\services.configuring.md
+v1.2.8-2606.1216  v1.2.8 -- system entity flag (anti-deletion); admin-create and system-login fixes
+    :Feature:     system entity flag -- offices and users flagged in the seed are protected from deletion;
+                  enyMan returns HTTP 409 on any attempt to delete one
+    :Fix:         creating a new admin succeeds again (new-user deleted flag defaulted; person address FK nullable)
+    :Fix:         the "system" KeyCloak user can log in -- password seeded in the realm import
+    :Doc:         data dictionary documents the ORG_SYSTEM_FLG / USR_SYSTEM_FLG columns
+    Components:   common,
+                  enyMan,
+                  keycloak,
+                  doc
+
 v1.2.7-2606.1016  v1.2.7 -- CI/CD pipeline established on GitHub Actions; release finalized
     :Config:      esquire.version bumped 1.2.6 -> 1.2.7 across the reactor (release finalization)
     :Feature:     CI/CD pipeline established -- hosted CI (mvn verify + Testcontainers IT) on every push/PR;

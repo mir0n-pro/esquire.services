@@ -1,5 +1,4 @@
-| ![Alt text](../favicon.ico) | Esquire Frameworks(tm) 2.0 |
-|----------------------------|---------------------------|
+# <img src="../favicon.ico" alt="Esquire logo" valign="middle" width="64" height="64"> Esquire Application Frameworks(tm) 2.0
 
 # Object Kind Enumeration
 
@@ -102,11 +101,11 @@ Client (34) and Merchant (36) carry their own pk in path.
 ### Parameter Audit Routing Kinds (970–978)
 
 Not tree nodes, not in the XML — synthetic kinds defined in `EsqConstants`, used only to **route a
-custom-parameter change to its `*_par_log` table** in the x-Rod audit feed. They are not real entity
+custom-parameter change to its `*_par_log` table** in the x-rod audit feed. They are not real entity
 kinds: the event's `entity_id` is the owning entity (`usr_pk` / `org_pk`), `sub_id` is the parameter
 name, and the parameter row's own `par_et_pk` rides in the event body.
 
-| Kind | Constant | Sub-asset | x-Rod target |
+| Kind | Constant | Sub-asset | x-rod target |
 |---|---|---|---|
 | 970 | `KIND_USR_PAR` | User custom parameter | `esq_usr_par_log` |
 | 972 | `KIND_ORG_PAR` | Org custom parameter | `esq_org_par_log` |

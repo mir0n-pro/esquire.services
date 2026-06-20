@@ -5,24 +5,43 @@ metadata:
   labels:
     app: {{ .Release.Name }}-biztree
 data:
-  SPRING_PROFILES_ACTIVE:            {{ .Values.springProfilesActive | default "" | quote }}
-  BIZTREE_PORT:                      {{ .Values.service.port | quote }}
-  DB_BIZTREE_VENDOR:                 {{ .Values.db.vendor | quote }}
-  DB_BIZTREE_HOST:                   {{ .Values.db.host | quote }}
-  DB_BIZTREE_PORT:                   {{ .Values.db.port | quote }}
-  DB_BIZTREE_NAME:                   {{ .Values.db.name | quote }}
-  DB_BIZTREE_USERNAME:               {{ .Values.db.username | quote }}
-  AMQ_BROKER_URL:                    {{ .Values.messaging.brokerUrl | quote }}
+  SPRING_PROFILES_ACTIVE:             {{ .Values.springProfilesActive | default "" | quote }}
+  BIZTREE_PORT:                       {{ .Values.service.port | quote }}
+  ESQUIRE_TOPOLOGY_IMPORT:            {{ .Values.topologyImport | quote }}
+  # --- datasource (password -> Secret, injected as env in the deployment) ---
+  DB_BIZTREE_VENDOR:                  {{ .Values.db.vendor | quote }}
+  DB_BIZTREE_HOST:                    {{ .Values.db.host | quote }}
+  DB_BIZTREE_PORT:                    {{ .Values.db.port | quote }}
+  DB_BIZTREE_NAME:                    {{ .Values.db.name | quote }}
+  DB_BIZTREE_USERNAME:                {{ .Values.db.username | quote }}
+  # --- H2 local cache (Taijitu two-monad store) ---
+  BIZTREE_CACHE_VENDOR:               {{ .Values.h2.vendor | quote }}
+  BIZTREE_H2_URL:                     {{ .Values.h2.url | quote }}
+  BIZTREE_H2_POOL_MAX:                {{ .Values.h2.poolMax | quote }}
+  BIZTREE_H2_POOL_MIN_IDLE:           {{ .Values.h2.poolMinIdle | quote }}
+  BIZTREE_H2_POOL_CONN_TIMEOUT:       {{ .Values.h2.poolConnTimeout | quote }}
+  BIZTREE_H2_POOL_IDLE_TIMEOUT:       {{ .Values.h2.poolIdleTimeout | quote }}
+  BIZTREE_H2_POOL_MAX_LIFETIME:       {{ .Values.h2.poolMaxLifetime | quote }}
+  # --- entity-bus ref (CONSUMER: drains the entity broadcast) ---
   BIZTREE_MESSAGING_CONSUMER_ENABLED: {{ .Values.messaging.consumerEnabled | quote }}
-  BIZTREE_DIRECTOR:                  {{ .Values.taijitu.director | quote }}
-  BIZTREE_TAIJITU_ON_MISMATCH:       {{ .Values.taijitu.onMismatch | quote }}
-  BIZTREE_TAIJITU_SWEEP_INTERVAL_MS: {{ .Values.taijitu.sweepIntervalMs | quote }}
-  BIZTREE_TAIJITU_SWEEP_TIMEOUT_MS:  {{ .Values.taijitu.sweepTimeoutMs | quote }}
-  BIZTREE_MONAD_QUEUE_CAPACITY:      {{ .Values.taijitu.queueCapacity | quote }}
-  LOG_LEVEL_ROOT:                    {{ .Values.logging.levelRoot | quote }}
-  LOG_LEVEL_SF:                      {{ .Values.logging.levelSf | quote }}
-  LOG_LEVEL_MIR0N:                   {{ .Values.logging.levelMir0n | quote }}
-  LOG_LEVEL_DEVELOP:                 {{ .Values.logging.levelDevelop | quote }}
-  LOG_LEVEL_MSG:                     {{ .Values.logging.levelMsg | quote }}
-  DEVELOP_LOG_PATH:                  {{ .Values.logging.developLogPath | quote }}
-  MSG_LOG_PATH:                      {{ .Values.logging.msgLogPath | quote }}
+  ENTITY_BUS_ID:                      {{ .Values.entity.busId | quote }}
+  ENTITY_SERVICE_ID:                  {{ .Values.entity.serviceId | quote }}
+  ENTITY_BROADCAST_POOL_SIZE:         {{ .Values.entity.broadcastPoolSize | quote }}
+  ENTITY_BROADCAST_CONCURRENCY:       {{ .Values.entity.broadcastConcurrency | quote }}
+  # --- Taijitu director + night-watch sweep (Java @Value relaxed binding) ---
+  BIZTREE_DIRECTOR:                   {{ .Values.taijitu.director | quote }}
+  BIZTREE_MONAD_QUEUE_CAPACITY:       {{ .Values.taijitu.queueCapacity | quote }}
+  BIZTREE_QUEUE_BULK_THRESHOLD:       {{ .Values.taijitu.bulkThreshold | quote }}
+  BIZTREE_TAIJITU_ON_MISMATCH:        {{ .Values.taijitu.onMismatch | quote }}
+  BIZTREE_TAIJITU_SWEEP_INTERVAL_MS:  {{ .Values.taijitu.sweepIntervalMs | quote }}
+  BIZTREE_TAIJITU_SWEEP_TIMEOUT_MS:   {{ .Values.taijitu.sweepTimeoutMs | quote }}
+  # --- logging ---
+  LOG_LEVEL_ROOT:                     {{ .Values.logging.levelRoot | quote }}
+  LOG_LEVEL_SF:                       {{ .Values.logging.levelSf | quote }}
+  LOG_LEVEL_MIR0N:                    {{ .Values.logging.levelMir0n | quote }}
+  LOG_LEVEL_DEVELOP:                  {{ .Values.logging.levelDevelop | quote }}
+  LOG_LEVEL_MSG:                      {{ .Values.logging.levelMsg | quote }}
+  LOG_LEVEL_AMQ:                      {{ .Values.logging.levelAmq | quote }}
+  LOG_LEVEL_JMS:                      {{ .Values.logging.levelJms | quote }}
+  DEVELOP_LOG_PATH:                   {{ .Values.logging.developLogPath | quote }}
+  MSG_LOG_PATH:                       {{ .Values.logging.msgLogPath | quote }}

@@ -1,5 +1,11 @@
 Esquire Backend common microservice classes
 
+06/12/2026 mir0n  v1.2.8 -- system entity flag (anti-deletion)
+jpa.EsqEntityJpa
+  - systemFlg field added (String); not emitted by fillMap()
+validator.ValidatorFactory
+  - validateDelete(): throws DeleteRestrictedException when origin systemFlg='Y', ahead of the biz-validator chain
+
 06/05/2026 mir0n  v1.2.7 -- audit logging (b): IMappable body carriers for the x-Rod
 jpa.IMappable  (new)
   - fillMap(Map) capability: an object presents its data fields by property name (no reflection)

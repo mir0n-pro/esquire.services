@@ -1,263 +1,113 @@
-| ![Alt text](../favicon.ico) | Esquire Frameworks(tm) 2.0 |
-|----------------------------|---------------------------|
+# <img src="../favicon.ico" alt="Esquire logo" valign="middle" width="64" height="64"> Esquire Application Frameworks(tm) 2.0
 
-# Esquire Messaging Architecture
+# Esquire Messaging Bus topology
 
-A messaging bus is a logical component — like a wire bus in electronics: a set of individual
-channels (topics, queues) that together serve one communication purpose, grouped as a single
-unit on architecture diagrams.
+This page describes the **message buses that run in Esquire today** — what each one carries, who publishes
+and who consumes, and over which transport — together with the **current limitations** of the running
+topology.
 
-Esquire uses two buses over ActiveMQ, each of a different type:
+It is the *instance* view. For how the bus works underneath — the catalog, the x-rod frontend, rod-classes,
+and the transport-provider SPI — see [Esquire Messaging Bus](Esquire.MessagingBus.md). For the wire format
+of each message, see [Message.Structure.md](Message.Structure.md).
 
-**Broadcast bus** — one-to-many; a topic is the natural wire. Publishers send without knowing
-who listens. Consumers subscribe independently and durably.
-
-**Request-Response bus** — point-to-point round-trip; requires at least two wires: one queue
-carries requests from caller to handler, a second queue carries responses back. The caller
-correlates responses by a token sent with the request.
-
-All messages use **properties-only transport** — `session.createMessage()`, no body.
-All fields are JMS string properties.
-
-> The current implementation is built on ActiveMQ and the JMS API. A future Esquire milestone
-> will introduce a vendor-agnostic messaging bus abstraction — the broadcast and request-response
-> patterns defined here will remain the contract; the underlying broker will become a deployment choice.
+A bus is one logical conversation: a set of channels (a topic, a queue, or a stream) grouped to serve a
+single purpose. A service never talks to ActiveMQ / Kafka / Redis directly — it joins a named bus through
+the x-rod frontend, and the broker is a per-deployment choice. ActiveMQ is the transport deployed in the
+cloud today; the local docker stack also runs Kafka and Redis.
 
 ---
 
-## Buses at a Glance
+## The buses at a glance
 
-| Bus | Type | JMS Resources | Producers | Consumers |
+| Bus | Pattern | Destination(s) | Producers | Consumers |
 |---|---|---|---|---|
-| Entity Broadcast | Broadcast | topic `esquire.entity.broadcast` | enyMan, pacMan | bizTree |
-| IAM Sync | Request-Response | queue `esquire.kc.request` (requests) + queue `esquire.kc.response` (responses) | keySmith → kcMaster → keySmith | — |
+| **Entity Broadcast** | broadcast (many-to-many) | topic `esquire.entity.broadcast` | enyMan, pacMan | bizTree, kcMaster |
+| **IAM Request/Response** | request / response | queues `esquire.kc.request` + `esquire.kc.response` | enyMan, keySmith (client) → kcMaster (server) → back | — |
+| **Audit** | broadcast / stream | `esquire.rod.audit` (queue / topic / stream, per sink) | enyMan, pacMan, keySmith | auKeep (bus sinks only) |
 
 ---
 
-## 1. Entity Broadcast Bus
+## Entity Broadcast Bus
 
-Entity state changes are published by **enyMan** (orgs and users) and **pacMan** (accounts)
-to a shared topic. **bizTree** is the primary subscriber; additional consumers may be added
-without changing the publishers.
+**enyMan** (organizations and users) and **pacMan** (accounts) publish an **entity-update (`UE`)** event on
+every committed mutation — create, update, delete, move — to one shared topic. **bizTree** and **kcMaster**
+subscribe; more consumers can be added without touching the publishers.
 
-### Message Type: UE — Entity Update
+- **bizTree** keeps its in-memory entity tree current, dispatching each `UE` by `(event type, kind)` to a
+  create / update / delete / move handler.
+- **kcMaster** watches for moves, so a relocated entity's Keycloak path stays in sync.
 
-All 14 canonical fields are JMS properties. No message body.
-
-| Property | Type | Fixed value | Description |
-|---|---|---|---|
-| `MsgType` | String | `UE` | Entity broadcast marker |
-| `ApplMsgID` | String | — | Unique message ID (UUID) |
-| `SendingTime` | String | — | ISO-8601 timestamp |
-| `SchemaVersion` | Int | `1` | Protocol version |
-| `BusID` | String | `esquire.entity` | Bus namespace |
-| `ServiceID` | String | `entity-update-broadcast` | Producer channel name |
-| `CtrlID` | String | — | Producer instance ID (from config) |
-| `MessageEncoding` | String | `JSON` | Encoding of Text property |
-| `EventType` | String | `C`/`U`/`D`/`X` | Create / Update / Delete / Move |
-| `EntityKind` | Int | — | Entity kind code |
-| `EntityID` | String | — | Entity primary key |
-| `RequestID` | String | — | Originating HTTP request ID (MDC) |
-| `CorrelationID` | String | — | Distributed trace correlation ID (MDC) |
-| `Text` | String | — | JSON payload (see below) |
-
-### Text Property — JSON Payload
-
-Published raw entity field values only. No interpretation for consumers.
-
-| JSON field | Source | Publishers |
-|---|---|---|
-| `id` | entity PK | enyMan, pacMan |
-| `kind` | entity kind | enyMan, pacMan |
-| `name` | entity name | enyMan, pacMan |
-| `desc` | entity description | enyMan, pacMan |
-| `status` | raw `acc_status` value | pacMan |
-| `deleted` | raw `usr_deleted_flg` value | enyMan |
-| `parentId` | parent entity PK | enyMan (on CREATE) |
-| `path` | `ep_path` value | enyMan (on CREATE, MOVE) |
-| `ccy` | account currency | pacMan (on CREATE) |
-
-Fields are omitted when not applicable. Consumers must treat absent fields as no-op.
-
-### Event Types
-
-| EventType | Trigger |
-|---|---|
-| `C` | Entity created |
-| `U` | Name, description, status, or deleted flag changed |
-| `D` | Entity deleted |
-| `X` | Entity moved (path changed) |
-
-### Subscription Rules
-
-Durable subscriptions are required on the topic. Each consumer must have:
-- A stable **clientId** set on `CachingConnectionFactory` directly (`ccf.setClientId()`)
-- A stable **subscriptionName** — never changed after first deployment
-
-| Consumer | clientId | subscriptionName |
-|---|---|---|
-| bizTree | `biztree` | `esquire.entity.broadcast.biztree.primary` |
-| enyMan (future) | `enyman` | `esquire.entity.broadcast.enyman.primary` |
-
-### Selector
-
-```
-BusID = 'esquire.entity' AND MsgType = 'UE'
-```
-
-### bizTree Dispatch
-
-bizTree dispatches incoming UE messages via a handler map keyed by `(EventType, kindBits)`:
-
-| EventType | Kind | Handler |
-|---|---|---|
-| `U` | org/usr/acct | `UpdateEntityHandler` |
-| `D` | org/usr/acct | `DeleteEntityHandler` |
-| `X` | org | `MoveOrgHandler` |
-| `X` | usr | `MoveUsrHandler` |
-| `X` | acct | `MoveAcctHandler` |
-| `C` | org | `CreateOrgHandler` |
-| `C` | usr | `CreateUsrHandler` |
-| `C` | acct | `CreateAcctHandler` |
+The event carries raw entity field values only (id, kind, name, path, status, …); each consumer interprets
+them, and a field absent from a message is a no-op. The `UE` wire format is in
+[Message.Structure.md](Message.Structure.md).
 
 ---
 
-## 2. IAM Request/Response Bus
+## IAM Request/Response Bus
 
-**keySmith** publishes identity commands to kcMaster asynchronously.
-**kcMaster** is the only service that writes to Keycloak directly.
+**enyMan** and **keySmith** send identity commands to **kcMaster** — the only service that writes to
+Keycloak — and wait for the reply. The bus has two destinations: a **request** queue and a **response**
+queue. The requester is the *client* (publishes the request, reads its own reply); kcMaster is the *server*
+(the inverse).
 
-### Message Type: URQ — Identity Request
+- **Request (`URQ`)** — create / update / delete / move a Keycloak user, carrying the login id, email,
+  path, roles, and auth state.
+- **Response** — **`URS`** on success, **`URR`** on failure (RFC 9457 problem details). The reply is told
+  apart by its message type, not by inspecting the body.
+- **Reply routing** — each client instance reads only its *own* responses (filtered by its instance id),
+  so sharded replicas never steal each other's replies.
 
-Published by keySmith to `esquire.kc.request`.
-
-| Property | Description |
-|---|---|
-| `MsgType` | `URQ` |
-| `ApplMsgID` | Unique message ID (UUID) |
-| `SendingTime` | ISO-8601 timestamp |
-| `SchemaVersion` | `1` |
-| `BusID` | `esquire.kc` |
-| `CtrlID` | keySmith instance ID (from config) — echoed in response |
-| `EventType` | `C` / `U` / `D` / `X` (create / update / delete / move) |
-| `EntityKind` | Entity kind code |
-| `EntityID` | Entity primary key |
-| `RequestID` | MDC request ID |
-| `CorrelationID` | MDC correlation ID |
-| `TestReqID` | Unique request token for response correlation |
-| `MessageEncoding` | `JSON` |
-| `Text` | JSON — `KcSyncRequest` payload (see below) |
-
-### URQ Text — KcSyncRequest JSON
-
-```json
-{
-  "id":             "entity PK",
-  "kind":           20,
-  "loginId":        "Keycloak username (= loginId)",
-  "newLoginId":     "new username on rename (UPDATE only)",
-  "email":          "user email",
-  "pwdChangeForced": true,
-  "tfaMethod":      "totp",
-  "connectFlg":     "Y",
-  "path":           "/root/org/user",
-  "roles":          ["ROLE_A", "ROLE_B"]
-}
-```
-
-Fields not relevant to the command are omitted or null.
-
-### Message Type: URS — Identity Response (success)
-
-Published by kcMaster to `esquire.kc.response` on success.
-
-| Property | Description |
-|---|---|
-| `MsgType` | `URS` |
-| `ApplMsgID` | New UUID for this response |
-| `SendingTime` | ISO-8601 timestamp |
-| `EventType` | Echoed from URQ |
-| `EntityKind` | Echoed from URQ |
-| `EntityID` | Echoed from URQ |
-| `CtrlID` | Echoed from URQ — used by keySmith selector to filter own responses |
-| `RequestID` | Echoed from URQ |
-| `CorrelationID` | Echoed from URQ |
-| `TestReqID` | Echoed from URQ — used for request/response correlation |
-
-### Message Type: URR — Identity Request Reject (failure)
-
-Published by kcMaster to `esquire.kc.response` on failure.
-
-| Property | Description |
-|---|---|
-| `MsgType` | `URR` |
-| `ApplMsgID` | New UUID |
-| `CtrlID` | Echoed from URQ |
-| `RequestID` | Echoed from URQ |
-| `CorrelationID` | Echoed from URQ |
-| `TestReqID` | Echoed from URQ |
-| `Error` | RFC 9457 Problem Details — JSON: `{type, title, status, detail}` |
-
-### kcMaster Command Dispatch
-
-| URQ EventType | Handler | Keycloak Operation |
-|---|---|---|
-| `C` | `handleCreate()` | Create user; set `esq_uid` and `esq_rootpath` JWT attributes |
-| `U` | `handleUpdate()` | Update auth state (connectFlg, TFA, password reset) |
-| `D` | `handleDelete()` | Delete user by loginId |
-| `X` | `handleUpdatePath()` | Update `esq_rootpath` JWT attribute |
-
-### keySmith Response Listener Selector
-
-```
-CtrlID = '<keysmith.messaging.ctrl-id>'
-```
-
-Each keySmith instance filters responses using its own CtrlID — multiple instances
-on the same queue do not interfere.
+kcMaster dispatches each request to a create / update / delete / update-path Keycloak operation. The `URQ` /
+`URS` / `URR` wire formats are in [Message.Structure.md](Message.Structure.md).
 
 ---
 
-## Configuration Reference
+## Audit Bus
 
-```yaml
-spring:
-  activemq:
-    broker-url: tcp://localhost:61616
+The entity producers (**enyMan**, **pacMan**, **keySmith**) post an **audit (`UA`)** event after commit,
+off the request thread. Where the audit lands is a per-deployment choice flipped by one environment
+variable (`ESQUIRE_AUDIT_BUS_ID`); the framework default is **off** — a fresh deploy audits nothing.
 
-# enyMan
-enyman.messaging.service-id: entity-update-broadcast
-enyman.messaging.ctrl-id:    enyman.default
-enyman.messaging.consumer.enabled: false   # entity broadcast consumer, off by default
+| Sink (`bus-id`) | Where the audit lands |
+|---|---|
+| in-process (`audit-b`) | the producing service writes the `*_log` tables itself — no broker |
+| ActiveMQ (`audit-c`) | queue → **auKeep** consumes → `*_log` |
+| Kafka (`audit-ck`) | topic → **auKeep** consumes → `*_log` |
+| Redis stream (`audit-d`) | the stream itself is the append-only log (no consumer) |
+| Kafka stream (`audit-dk`) | the topic itself is the log (no consumer) |
 
-# pacMan
-pacman.messaging.service-id: entity-update-broadcast
-pacman.messaging.ctrl-id:    pacman.default
-
-# bizTree
-biztree.messaging.client-id: biztree       # stable — never change after first deploy
-biztree.messaging.consumer.enabled: true
-
-# keySmith
-keysmith.messaging.ctrl-id:  keysmith.default   # must be unique per instance
-
-# kcMaster
-kcmaster.messaging.client-id: kcmaster     # stable
-kcmaster.messaging.ctrl-id:   kcmaster.default
-```
+Audit is a thin layer on a generic "keep" engine (`esquire-dataKeep`) that applies incoming changes to a
+database; **auKeep** is the standalone consumer service for the bus sinks. The full audit model, the `*_log`
+schema, and the delivery analysis are in [Esquire.AuditLoggingStack.md](Esquire.AuditLoggingStack.md).
 
 ---
 
-## Logging Pattern
+## Current limitations
 
-All JMS publishers and consumers follow a three-tier logging pattern:
+- **ActiveMQ is the only transport in the cloud deployment.** The Kafka and Redis providers are implemented
+  and validated on the local docker stack (every audit sink runs there), but the OKE / k8s deployment ships
+  ActiveMQ only — the Kafka / Redis sinks (`audit-ck` / `audit-d` / `audit-dk`) are validated options, not
+  part of the cloud topology. On k8s a bus pointed at an absent broker resolves to a disabled no-op, not a
+  crash.
 
-- **`msgLog`** (`msg.<class>`) — compact property summary on every send/receive
-- **`devLog`** (`develop.<class>`) — full property map on debug; stacktrace on error
-- **`log`** (console) — one-line summary on info; message on error (no stacktrace)
+- **The stream sinks are producer-only.** `audit-d` (Redis) and `audit-dk` (Kafka) write the log but have
+  no consumer back into the `*_log` tables — the stream itself *is* the record. Feeding it onward (e.g. into
+  a Redis document store) needs an external component such as a Kafka Connect sink, not part of the framework.
 
-MDC (`RequestID`, `CorrelationID`) is set from message properties in every consumer
-and cleared in `finally`.
+- **A misconfigured bus key fails silent, not loud.** A bus key that is not in the catalog resolves to the
+  disabled no-op x-rod (`XRodDisabled`) — intended for "audit off", but it also means a *typo'd* key produces
+  no error, just silence.
+
+- **Delivery is best-effort per transport; the bus adds no replay or de-duplication.** Idempotency where it
+  matters (the audit `*_log`) rests on a unique key in the database, not on the bus. A consumer that is down
+  misses broadcasts while it is gone — bizTree's recoverable cache reconciles that on its own (its periodic
+  night-watch rebuild), but the bus itself does not redeliver.
+
+- **One broker per bus.** A bus names a single transport endpoint; there is no built-in multi-broker
+  failover or partitioned routing at the bus layer.
+
+- **The transport SPI is shaped around the queue / topic / stream model.** Adding a provider that fits that
+  shape is a drop-in; a transport with a fundamentally different model may need the SPI to grow.
 
 ---
 

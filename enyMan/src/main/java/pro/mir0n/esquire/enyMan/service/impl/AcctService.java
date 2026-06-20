@@ -11,6 +11,10 @@
  *                   from the IEnyManService overrides
  * 06/05/2026 mir0n  XYRod injected; account CREATE posts an x-Rod audit event (enyMan owns CREATE;
  *                   pacMan owns UPDATE / DELETE / balance)
+ * 06/15/2026 mir0n  audit dep XYRod -> IXRod (import common.xrod -> messaging.xrod); CREATE post() passes an
+ *                   explicit msgType (EsqMsgConstants.MSG_TYPE_AUDIT).
+ * 06/17/2026 mir0n  audit dep IXRod -> AuditBusBridge; the CREATE post() drops the trailing MSG_TYPE_AUDIT arg
+ * 06/18/2026 mir0n  audit module left common: AuditBusBridge moved to pro.mir0n.esquire.audit
  */
 
 package pro.mir0n.esquire.enyMan.service.impl;
@@ -29,8 +33,8 @@ import pro.mir0n.esquire.backend.service.RequestContextUtils;
 import pro.mir0n.esquire.backend.storage.EsqEntityDictionaryStorage;
 import pro.mir0n.esquire.backend.error.ResourceNotFoundException;
 import pro.mir0n.esquire.common.EsqMsgConstants;
-import pro.mir0n.esquire.common.xrod.RodEvent;
-import pro.mir0n.esquire.common.xrod.XYRod;
+import pro.mir0n.esquire.messaging.xrod.RodEvent;
+import pro.mir0n.esquire.audit.AuditBusBridge;
 import pro.mir0n.esquire.enyMan.jpa.EsqAcctRepository;
 import pro.mir0n.esquire.enyMan.service.EntityIdGenerator;
 import pro.mir0n.esquire.enyMan.jpa.EsqEntityDictionaryRepository;
@@ -45,18 +49,18 @@ public class AcctService extends AEnyManService {
     private final EsqAcctRepository acctRepository;
     private final TransactionTemplate transactionTemplate;
     private final EntityManager em;
-    private final XYRod xyRod;
+    private final AuditBusBridge audit;
 
     public AcctService(EsqEntityDictionaryRepository entityDictionaryRepository,
                        EsqAcctRepository acctRepository,
                        TransactionTemplate transactionTemplate,
                        EntityManager em,
-                       XYRod xyRod) {
+                       AuditBusBridge audit) {
         super(entityDictionaryRepository);
         this.acctRepository = acctRepository;
         this.transactionTemplate = transactionTemplate;
         this.em = em;
-        this.xyRod = xyRod;
+        this.audit = audit;
     }
 
     // Account READ/UPDATE/DELETE stay in pacMan; AcctService owns CREATE only.
@@ -145,6 +149,6 @@ public class AcctService extends AEnyManService {
         created[0] = acct;
 
         // x-Rod audit: account CREATE (enyMan owns CREATE; UPDATE/DELETE/balance are pacMan's domain).
-        xyRod.post(RodEvent.Op.CREATE, acct.getKind(), acct.getId(), null, acct);
+        audit.post(RodEvent.Op.CREATE, acct.getKind(), acct.getId(), null, acct);
     }
 }

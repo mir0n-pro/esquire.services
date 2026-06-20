@@ -1,5 +1,4 @@
-| ![Alt text](../favicon.ico) | Esquire Frameworks(tm) 2.0 |
-|----------------------------|---------------------------|
+# <img src="../favicon.ico" alt="Esquire logo" valign="middle" width="64" height="64"> Esquire Application Frameworks(tm) 2.0
 
 # Esquire Database Dictionary
 
@@ -42,7 +41,7 @@ Audit logging is **optional and pluggable** (see
 `*_LOG` table carrying the same columns plus `*_ACTION VARCHAR(1)` (`I`/`U`/`D`) and `*_ACTION_TS TIMESTAMP`.
 Per the chosen audit model the `*_LOG` tables either live **in the entity database** (populated
 in-transaction by BRIUD — Before Row Insert/Update/Delete — triggers) or in a **dedicated audit database**
-(populated by the application or the xx-rod consumer). When audit is off they are not present at all.
+(populated by the application or the auKeep consumer). When audit is off they are not present at all.
 
 ---
 
@@ -174,6 +173,7 @@ Foreign keys:
 | ORG_FULL_NAME | VARCHAR(150) | VARCHAR2(150) | Full legal name |
 | ORG_ORG_PK | BIGINT | NUMBER(16,0) | Parent organization -> ESQ_ORG (nullable) |
 | ORG_DESC | VARCHAR(1024) | VARCHAR2(1024) | Description |
+| ORG_SYSTEM_FLG | VARCHAR(1) | VARCHAR2(1) | System entity, protected from deletion, Y/N (DB-set only; never via the app, not on the GUI) |
 | ORG_CRL_ID | VARCHAR(64) | VARCHAR2(64) | Correlation ID |
 | ORG_REQ_ID | VARCHAR(64) | VARCHAR2(64) | Request ID |
 | ORG_UID | VARCHAR(16) | VARCHAR2(16) | Update initiator user ID |
@@ -200,6 +200,7 @@ Child tables with ON DELETE CASCADE: ESQ_AUTH, ESQ_PERSON, ESQ_USR_PAR, ESQ_USR_
 | USR_ORG_PK | BIGINT | NUMBER(16,0) | Owning organization -> ESQ_ORG |
 | USR_DELETED_FLG | VARCHAR(1) | VARCHAR2(1) | Soft-delete flag, Y/N |
 | USR_DESC | VARCHAR(1024) | VARCHAR2(1024) | Description |
+| USR_SYSTEM_FLG | VARCHAR(1) | VARCHAR2(1) | System entity, protected from deletion, Y/N (DB-set only; never via the app, not on the GUI) |
 | USR_CRL_ID | VARCHAR(64) | VARCHAR2(64) | Correlation ID |
 | USR_REQ_ID | VARCHAR(64) | VARCHAR2(64) | Request ID |
 | USR_UID | VARCHAR(16) | VARCHAR2(16) | Update initiator user ID |
@@ -617,7 +618,7 @@ One log table per entity table. **Optional** — present only when audit logging
 either in the entity database or in a dedicated audit database depending on the chosen audit model (see
 [Esquire.AuditLoggingStack.md](Esquire.AuditLoggingStack.md)). Populated either by BRIUD triggers — before
 every insert, update, or delete the trigger copies the row into the log table with an action code and a
-timestamp, in the same transaction — or, in the decoupled models, by the application or the xx-rod consumer.
+timestamp, in the same transaction — or, in the decoupled models, by the application or the auKeep consumer.
 
 Each log table mirrors all columns of its source table (with a log-specific prefix)
 plus two additional columns:

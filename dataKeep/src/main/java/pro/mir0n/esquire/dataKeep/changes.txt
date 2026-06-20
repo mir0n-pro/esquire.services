@@ -1,0 +1,22 @@
+Esquire dataKeep library
+
+06/18/2026 mir0n  v1.2.8 -- created: esquire-dataKeep, the generic DB-keep engine (extracted from the audit code)
+keep.KeepApplier  (new)
+  - builds a keep's DB applier: a RodEventDbWriter over the KeepSqlStore + a kind->statement registry from the
+    director's kinds; applier() is the worker an x-rod runs. DEDICATED mode builds and owns its own auto-commit
+    Hikari pool from the datasource group; SHARED mode reuses a provided DataSource (the service's own pool) and
+    does NOT close it (close() closes only an owned pool)
+keep.RodEventDbWriter  (new, was common.audit.AuditLogWriter)
+  - applies a RodEvent to a DB sink: the uniform identity/header params + the event body bound onto the
+    dialect-keyed SQL via NamedParameterJdbcTemplate; one INSERT/MERGE per call; a param the body lacks binds NULL
+keep.KeepSqlStore  (new, was common.audit.AuditLogSql)
+  - dialect-keyed SQL store: statements live in META-INF/<group>/<dialect>.xml, loaded on first use;
+    dialectOf() normalizes a vendor/profile label to the dialect token (which is the resource name)
+keep.KeepDataSourceParams  (new)
+  - the keep datasource config group (the database + its connection pool) in its own group, not spring.datasource;
+    a shared flag (isShared()) selects reuse of the service's own pool over a dedicated keep pool
+keep.XRodInProcess  (new)
+  - the generic in-process relay: an AXRod whose transmit feed loops into its own worker pool and runs the
+    worker start() is handed (no transport, no codec); resolved by rod-class, starts the worker pool a producer leg lacks
+director.IKeepDirector  (new)
+  - the keep's declaration only: the SQL resource group + the kind->statement-key map; the engine does the rest

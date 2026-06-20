@@ -44,10 +44,10 @@ if /i "%TARGET%"=="enyman"   ( set "DIR=enyMan"&goto target_java )
 if /i "%TARGET%"=="pacman"   ( set "DIR=pacMan"&goto target_java )
 if /i "%TARGET%"=="keysmith" ( set "DIR=keySmith"&goto target_java )
 if /i "%TARGET%"=="kcmaster" ( set "DIR=kcMaster"&goto target_java )
-if /i "%TARGET%"=="xxrod"    ( set "DIR=xxRod"&goto target_java )
+if /i "%TARGET%"=="aukeep"   ( set "DIR=auKeep"&goto target_java )
 
 echo ERROR: unknown target "%TARGET%"
-echo Valid: all ^| backend ^| frontend ^| gateway ^| biztree ^| enyman ^| pacman ^| keysmith ^| kcmaster ^| xxrod
+echo Valid: all ^| backend ^| frontend ^| gateway ^| biztree ^| enyman ^| pacman ^| keysmith ^| kcmaster ^| aukeep
 exit /b 1
 
 :target_all
@@ -68,7 +68,7 @@ set "DIR=keySmith" & call :build_java
 if errorlevel 1 exit /b 1
 set "DIR=kcMaster" & call :build_java
 if errorlevel 1 exit /b 1
-set "DIR=xxRod"    & call :build_java
+set "DIR=auKeep" & call :build_java
 if errorlevel 1 exit /b 1
 echo [docker] rebuilding backend (BFF + baked SPA)...
 docker compose build %NOCACHE% backend

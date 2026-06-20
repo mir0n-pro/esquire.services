@@ -7,15 +7,36 @@ metadata:
 data:
   SPRING_PROFILES_ACTIVE:         {{ .Values.springProfilesActive | default "" | quote }}
   KCMASTER_PORT:                  {{ .Values.service.port | quote }}
-  AMQ_BROKER_URL:                 {{ .Values.messaging.brokerUrl | quote }}
-  KCMASTER_MESSAGING_CLIENT_ID:   {{ .Values.messaging.clientId | quote }}
+  ESQUIRE_TOPOLOGY_IMPORT:        {{ .Values.topologyImport | quote }}
+  # --- KC admin client (secret -> Secret, injected as env in the deployment) ---
   KC_BASE_URL:                    {{ .Values.keycloak.baseUrl | quote }}
   KC_REALM:                       {{ .Values.keycloak.realm | quote }}
   KC_ADMIN_CLIENT_ID:             {{ .Values.keycloak.adminClientId | quote }}
+  # KC_ADMIN_CLIENT_SECRET: from kc-admin-client-secret (Secret) via the deployment env
+  # --- path-buffer knobs ---
+  KCMASTER_PATH_BUFFER_TTL_MS:    {{ .Values.pathBuffer.ttlMs | quote }}
+  KCMASTER_PATH_BUFFER_PRUNE_MS:  {{ .Values.pathBuffer.pruneMs | quote }}
+  # --- consumer on/off toggles ---
+  KCMASTER_ENTITY_BROADCAST_CONSUMER_ENABLED: {{ .Values.consumers.entityBroadcastEnabled | quote }}
+  KCMASTER_KC_REQUEST_CONSUMER_ENABLED:       {{ .Values.consumers.kcRequestEnabled | quote }}
+  # --- kc-bus ref (SERVER: receive URQ / publish URS) ---
+  KC_BUS_ID:                      {{ .Values.kc.busId | quote }}
+  KC_SERVICE_ID:                  {{ .Values.kc.serviceId | quote }}
+  KC_REQUEST_POOL_SIZE:           {{ .Values.kc.requestPoolSize | quote }}
+  KC_REQUEST_CONCURRENCY:         {{ .Values.kc.requestConcurrency | quote }}
+  KC_RESPONSE_PUBLISHER_POOL_SIZE: {{ .Values.kc.responsePublisherPoolSize | quote }}
+  # --- entity-bus ref (CONSUMER: drain entity broadcast) ---
+  ENTITY_BUS_ID:                  {{ .Values.entity.busId | quote }}
+  ENTITY_SERVICE_ID:              {{ .Values.entity.serviceId | quote }}
+  ENTITY_BROADCAST_POOL_SIZE:     {{ .Values.entity.broadcastPoolSize | quote }}
+  ENTITY_BROADCAST_CONCURRENCY:   {{ .Values.entity.broadcastConcurrency | quote }}
+  # --- logging ---
   LOG_LEVEL_ROOT:                 {{ .Values.logging.levelRoot | quote }}
   LOG_LEVEL_SF:                   {{ .Values.logging.levelSf | quote }}
   LOG_LEVEL_MIR0N:                {{ .Values.logging.levelMir0n | quote }}
   LOG_LEVEL_DEVELOP:              {{ .Values.logging.levelDevelop | quote }}
   LOG_LEVEL_MSG:                  {{ .Values.logging.levelMsg | quote }}
+  LOG_LEVEL_AMQ:                  {{ .Values.logging.levelAmq | quote }}
+  LOG_LEVEL_JMS:                  {{ .Values.logging.levelJms | quote }}
   DEVELOP_LOG_PATH:               {{ .Values.logging.developLogPath | quote }}
   MSG_LOG_PATH:                   {{ .Values.logging.msgLogPath | quote }}

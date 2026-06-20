@@ -7,184 +7,99 @@
  *
  *  History:
  * 06/04/2026 mir0n  created (was enyMan.rod.RodConfig): enyMan audit-logging wiring.
- * 06/05/2026 mir0n  thinned onto common.audit.AuditRod: this class only reads enyman.audit-logging.* and
- *                   declares enyMan's kind -> AuditLogSql key map; the generic wiring (datasource shared/
- *                   dedicated, xx/xy-Rod, lifecycle) lives in common.audit. x-Rod stays generic in common.xrod.
- * 06/06/2026 mir0n  mode-aware (option c): mode=bus publishes RodEvents to the audit QUEUE via
- *                   RodEventBusPublisher (no local writer/datasource); mode=in-process keeps (b).
- * 06/06/2026 mir0n  bus publisher pool: x-rod.bus.publisher-pool-size=0 keeps the single feed-worker sync
- *                   publish; N>0 wires AuditRod.buildBusPool over a dedicated useAsyncSend connection
- *                   (N async senders), CF closed in @PreDestroy.
- * 06/08/2026 mir0n  option (d): mode=redis builds a RodRedisPublisher (XADD to the audit Redis Stream via
- *                   the injected StringRedisTemplate), wired through buildBus / buildBusPool; stream key and
- *                   approximate MAXLEN from x-rod.redis.*.
- * 06/08/2026 mir0n  option (c) over Kafka: mode=bus + x-rod.bus.transport=kafka builds a RodKafkaPublisher
- *                   over the autoconfigured KafkaTemplate (key = entityId) -> buildBus; transport=activemq
- *                   (default) keeps the queue path.
+ * 06/05/2026 mir0n  thinned onto common.audit.AuditRod.
+ * 06/13/2026 mir0n  class-name-driven transport over the unified esquire.audit.* block.
+ * 06/14/2026 mir0n  bus-oriented: reads esquire.audit.mode (disabled | log-db | messaging-bus).
+ * 06/15/2026 mir0n  resolves the audit producer through the shared XRodManager (Role.BROADCAST on the audit leg).
+ * 06/18/2026 mir0n  the audit sink is selected from the leg: log-db.shared=true -> the IN-PROCESS keep on the
+ *                   SERVICE's OWN pool; a log-db url -> the IN-PROCESS keep with its OWN dedicated pool; else ->
+ *                   the BUS producer. Injects the service DataSource (used by the shared keep).
  */
 package pro.mir0n.esquire.enyMan.audit;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.ObjectProvider;
-import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.apache.activemq.ActiveMQConnectionFactory;
-import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.jms.connection.CachingConnectionFactory;
-import org.springframework.jms.core.JmsTemplate;
-import org.springframework.kafka.core.KafkaTemplate;
-import pro.mir0n.esquire.backend.dto.EsqObjectKind;
-import pro.mir0n.esquire.backend.storage.EsqObjectKindStorage;
-import pro.mir0n.esquire.common.EsqConstants;
+import org.springframework.core.env.Environment;
+import pro.mir0n.esquire.audit.AuditBusBridge;
+import pro.mir0n.esquire.audit.AuditKeepDirector;
 import pro.mir0n.esquire.common.EsqMsgConstants;
-import pro.mir0n.esquire.common.audit.AuditLogSql;
-import pro.mir0n.esquire.common.audit.AuditRod;
-import pro.mir0n.esquire.common.audit.AuditSettings;
-import pro.mir0n.esquire.common.audit.RodEventBusPublisher;
-import pro.mir0n.esquire.common.audit.RodKafkaPublisher;
-import pro.mir0n.esquire.common.audit.RodRedisPublisher;
-import pro.mir0n.esquire.common.xrod.XYRod;
+import pro.mir0n.esquire.dataKeep.director.IKeepDirector;
+import pro.mir0n.esquire.dataKeep.keep.KeepApplier;
+import pro.mir0n.esquire.dataKeep.keep.KeepDataSourceParams;
+import pro.mir0n.esquire.dataKeep.keep.KeepSqlStore;
+import pro.mir0n.esquire.messaging.MessagingBusCatalog;
+import pro.mir0n.esquire.messaging.Role;
+import pro.mir0n.esquire.messaging.XRodParams;
+import pro.mir0n.esquire.messaging.xrod.IXRod;
+import pro.mir0n.esquire.messaging.xrod.XRodManager;
 
 import javax.sql.DataSource;
-import java.util.HashMap;
-import java.util.Map;
 
 @Configuration
 public class AuditConfig {
 
     private static final Logger devLog = LoggerFactory.getLogger("develop." + AuditConfig.class.getName());
+    /** The leg's datasource sub-block: its presence selects the in-process keep (option b). */
+    private static final String LOG_DB = "log-db";
 
-    // Audit logging = the FEATURE (option-0 baseline: default OFF, deployer opts in). x-Rod = the
-    // generic fan-out IMPLEMENTATION; the audit sink lives in common.audit.
-    @Value("${enyman.audit-logging.enabled:false}")                private boolean enabled;
-    @Value("${enyman.audit-logging.x-rod.mode:in-process}")        private String  mode;
-    @Value("${enyman.audit-logging.x-rod.pool-size:4}")            private int     poolSize;
-    @Value("${enyman.audit-logging.x-rod.virtual-threads:false}")  private boolean virtualThreads;
-    @Value("${enyman.audit-logging.x-rod.feed-capacity:4096}")     private int     feedCapacity;
-    @Value("${enyman.audit-logging.x-rod.log-datastore:shared}")   private String  logDatastore;
-    @Value("${enyman.audit-logging.x-rod.log-db.vendor:dev-postgres}")  private String logDbVendor;
-    @Value("${enyman.audit-logging.x-rod.log-db.url:}")                 private String logDbUrl;
-    @Value("${enyman.audit-logging.x-rod.log-db.username:}")            private String logDbUsername;
-    @Value("${enyman.audit-logging.x-rod.log-db.password:}")            private String logDbPassword;
-    @Value("${enyman.audit-logging.x-rod.log-db.pool-size:8}")          private int    logDbPoolSize;
-    @Value("${spring.profiles.active:dev-postgres}")                    private String businessProfile;
-    @Value("${spring.application.name}")                                private String appName;
-    @Value("${spring.activemq.broker-url:tcp://localhost:61616}")       private String  brokerUrl;
-    // bus publisher pool (option c): 0 = current single feed-worker synchronous publish; N>0 = N async
-    // publisher threads over a dedicated useAsyncSend connection (the same thread-per-event pool as b).
-    // The pool size also drives the (d) redis path.
-    @Value("${enyman.audit-logging.x-rod.bus.publisher-pool-size:0}")   private int     publisherPoolSize;
-    // (c) bus transport: activemq (default) | kafka. kafka -> publish to the audit Kafka topic instead.
-    @Value("${enyman.audit-logging.x-rod.bus.transport:activemq}")      private String  busTransport;
-    // (d) redis: the audit stream key (blank -> EsqMsgConstants.STREAM_ROD_AUDIT) and approximate MAXLEN (0 = uncapped).
-    @Value("${enyman.audit-logging.x-rod.redis.stream:}")              private String  redisStream;
-    @Value("${enyman.audit-logging.x-rod.redis.max-len:0}")            private long    redisMaxLen;
+    private final XRodManager rods;
+    private final Environment env;
+    private final DataSource dataSource;   // the service's OWN business datasource -- used by the SHARED keep
+    private KeepApplier keepApplier;   // option (b) only -- the in-process *_log pool; closed on destroy
 
-    private final DataSource serviceDataSource;
-    private final JmsTemplate jmsQueueTemplate;
-    private final ObjectProvider<StringRedisTemplate> redisTemplateProvider;
-    private final ObjectProvider<KafkaTemplate<?, ?>> kafkaTemplateProvider;
-    private final ObjectMapper objectMapper;
-    private AuditRod.Handle handle;
-    private CachingConnectionFactory auditConnectionFactory;
-
-    public AuditConfig(DataSource serviceDataSource,
-                       @Qualifier("jmsQueueTemplate") JmsTemplate jmsQueueTemplate,
-                       ObjectProvider<StringRedisTemplate> redisTemplateProvider,
-                       ObjectProvider<KafkaTemplate<?, ?>> kafkaTemplateProvider,
-                       ObjectMapper objectMapper) {
-        this.serviceDataSource     = serviceDataSource;
-        this.jmsQueueTemplate      = jmsQueueTemplate;
-        this.redisTemplateProvider = redisTemplateProvider;
-        this.kafkaTemplateProvider = kafkaTemplateProvider;
-        this.objectMapper          = objectMapper;
+    public AuditConfig(XRodManager rods, Environment env, DataSource dataSource) {
+        this.rods = rods;
+        this.env  = env;
+        this.dataSource = dataSource;
     }
 
+    /**
+     * The audit bridge onto the messaging bus. The audit leg picks the sink: a leg carrying a {@code log-db}
+     * datasource group is the IN-PROCESS keep (option b) -- the generic keep applier (the audit director's kinds
+     * + SQL data) run on an {@code XRodInProcess} (rods.consumer passes the applier as its worker); otherwise the
+     * leg is the BUS producer (option c) -- rods.producer transmits to the broker for auKeep to consume + apply.
+     */
     @Bean
-    public XYRod xyRod() {
-        AuditSettings settings = new AuditSettings(enabled, poolSize, virtualThreads, feedCapacity,
-                logDatastore, logDbVendor, logDbUrl, logDbUsername, logDbPassword, logDbPoolSize, businessProfile);
-        if (AuditRod.MODE_BUS.equalsIgnoreCase(mode) && AuditRod.TRANSPORT_KAFKA.equalsIgnoreCase(busTransport)) {
-            // (c) over Kafka: publish to the audit topic (keyed by entityId); xxRod consumes + writes the *_log.
-            // KafkaTemplate.send is async/batched, so the single feed worker suffices (no publisher pool).
-            @SuppressWarnings("unchecked")
-            KafkaTemplate<String, String> kt = (KafkaTemplate<String, String>) kafkaTemplateProvider.getObject();
-            RodKafkaPublisher publisher = new RodKafkaPublisher(kt, EsqMsgConstants.TOPIC_ROD_AUDIT, objectMapper);
-            handle = AuditRod.buildBus(appName, settings, publisher, devLog);
-        } else if (AuditRod.MODE_BUS.equalsIgnoreCase(mode)) {
-            // (c) producer: publish to the audit queue; the standalone xxRod consumer writes the *_log.
-            if (publisherPoolSize > 0) {
-                // async publisher pool: dedicated useAsyncSend connection (scoped to audit), N publisher threads.
-                ActiveMQConnectionFactory amq = new ActiveMQConnectionFactory(brokerUrl);
-                amq.setUseAsyncSend(true);
-                auditConnectionFactory = new CachingConnectionFactory(amq);
-                auditConnectionFactory.setSessionCacheSize(publisherPoolSize);
-                JmsTemplate asyncTemplate = new JmsTemplate(auditConnectionFactory);
-                asyncTemplate.setPubSubDomain(false);
-                RodEventBusPublisher publisher =
-                        new RodEventBusPublisher(asyncTemplate, EsqMsgConstants.QUEUE_ROD_AUDIT, objectMapper);
-                handle = AuditRod.buildBusPool(appName, settings, publisher, publisherPoolSize, devLog);
-            } else {
-                // current: single feed worker publishes synchronously over the shared queue template.
-                RodEventBusPublisher publisher =
-                        new RodEventBusPublisher(jmsQueueTemplate, EsqMsgConstants.QUEUE_ROD_AUDIT, objectMapper);
-                handle = AuditRod.buildBus(appName, settings, publisher, devLog);
-            }
-        } else if (AuditRod.MODE_REDIS.equalsIgnoreCase(mode)) {
-            // (d) producer: XADD each event to the Redis Stream (the stream IS the audit log; no consumer).
-            String stream = redisStream.isBlank() ? EsqMsgConstants.STREAM_ROD_AUDIT : redisStream;
-            RodRedisPublisher publisher =
-                    new RodRedisPublisher(redisTemplateProvider.getObject(), stream, redisMaxLen, objectMapper);
-            handle = (publisherPoolSize > 0)
-                    ? AuditRod.buildBusPool(appName, settings, publisher, publisherPoolSize, devLog)
-                    : AuditRod.buildBus(appName, settings, publisher, devLog);
-        } else {
-            // (b) in-process: write the *_log here.
-            handle = AuditRod.build(appName, settings, kindToSqlKey(), serviceDataSource, devLog);
-        }
-        return handle.xyRod();
-    }
+    public AuditBusBridge audit() {
+        String prefix = "esquire." + EsqMsgConstants.BUS_KEY_AUDIT + ".messaging-bus.";
+        String busId  = env.getProperty(prefix + "bus-id", "");
+        String slotId = env.getProperty(prefix + "slot-id", "");
+        XRodParams leg = (!busId.isBlank() && !slotId.isBlank())
+                ? new MessagingBusCatalog(env).resolve(busId, slotId) : null;
+        KeepDataSourceParams ds = leg != null ? leg.sub(LOG_DB, KeepDataSourceParams.class) : null;
 
-    // enyMan writes org / org-param / user / person / address / usr-param / account-CREATE.
-    // The org / user / account ENTITY kinds are taken from the esq-object-kinds dictionary by their
-    // semantic flags (org / usr / acct) rather than hardcoded numbers; sub-entity and parameter kinds
-    // use the named EsqConstants. The kind storage is loaded on ApplicationStartingEvent, before this
-    // @Bean runs, so getAll() is already populated here.
-    private static Map<Integer, String> kindToSqlKey() {
-        Map<Integer, String> m = new HashMap<>();
-        for (EsqObjectKind k : EsqObjectKindStorage.getInstance().getAll()) {
-            if (k.isAcct()) {
-                m.put(k.getId(), AuditLogSql.ACCOUNT);
-            } else if (k.isUsr()) {
-                m.put(k.getId(), AuditLogSql.USER);
-            } else if (k.isOrg()) {
-                m.put(k.getId(), AuditLogSql.ORG);
-            }
+        IXRod sink;
+        if (ds != null && ds.isShared()) {
+            // option (b-shared): in-process keep on the SERVICE's OWN connection pool -- no dedicated pool; the
+            // dialect comes from the service profile. The keep does not own/close this DataSource.
+            IKeepDirector dir = new AuditKeepDirector();
+            String dialect = KeepSqlStore.dialectOf(env.getProperty("spring.profiles.active", KeepSqlStore.DEFAULT_DIALECT));
+            this.keepApplier = new KeepApplier(dataSource, dialect, new KeepSqlStore(dir.sqlGroup()), dir.kinds(), devLog);
+            sink = rods.consumer(EsqMsgConstants.BUS_KEY_AUDIT, Role.BROADCAST, keepApplier.applier());
+            devLog.info("audit: in-process keep, SHARED service pool (bus={}, slot={})", busId, slotId);
+        } else if (ds != null && ds.url() != null && !ds.url().isBlank()) {
+            // option (b-dedicated): in-process keep with its OWN pool from the datasource group + the audit
+            // director (its kinds + SQL group); rods.consumer resolves the leg's rod-class (XRodInProcess) and
+            // runs the applier on its worker pool. The bridge transmits each event into that in-process pool.
+            IKeepDirector dir = new AuditKeepDirector();
+            this.keepApplier = new KeepApplier(ds, new KeepSqlStore(dir.sqlGroup()), dir.kinds(), devLog);
+            sink = rods.consumer(EsqMsgConstants.BUS_KEY_AUDIT, Role.BROADCAST, keepApplier.applier());
+            devLog.info("audit: in-process keep, DEDICATED pool (bus={}, slot={})", busId, slotId);
+        } else {
+            // option (c): bus producer -- transmit to the broker; the auKeep consumer applies the *_log.
+            sink = rods.producer(EsqMsgConstants.BUS_KEY_AUDIT, Role.BROADCAST);
+            devLog.info("audit: bus producer (bus={}, slot={})", busId, slotId);
         }
-        m.put(EsqConstants.KIND_ORG_PAR, AuditLogSql.ORG_PAR);
-        m.put(EsqConstants.KIND_USR_PAR, AuditLogSql.USR_PAR);
-        for (int k : new int[]{EsqConstants.KIND_PERSON_PRIMARY, EsqConstants.KIND_PERSON_SECONDARY,
-                EsqConstants.KIND_PERSON_JOINT}) {
-            m.put(k, AuditLogSql.PERSON);
-        }
-        for (int k : new int[]{EsqConstants.KIND_ADDRESS_POSTAL, EsqConstants.KIND_ADDRESS_BIZ}) {
-            m.put(k, AuditLogSql.ADDRESS);
-        }
-        return m;
+        return new AuditBusBridge(sink);
     }
 
     @PreDestroy
-    public void stop() {
-        if (handle != null) {
-            handle.shutdown();
-        }
-        if (auditConnectionFactory != null) {
-            auditConnectionFactory.destroy();
+    public void close() {
+        if (keepApplier != null) {
+            keepApplier.close();
         }
     }
 }

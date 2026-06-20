@@ -43,6 +43,12 @@
  *                   usr_par create / update / delete + move parent-ref); delete enumerates child pks before
  *                   the cascade; per-param events via listUsrPar (enabled-gated); create/save resolve the
  *                   dictionary via completedDictionary (custom-param save fix)
+ * 06/12/2026 mir0n  createUsr(): usr deleted defaults to 'N' when null (NOT NULL system field, no dictionary default)
+ * 06/15/2026 mir0n  audit dep XYRod -> IXRod (import common.xrod -> messaging.xrod); every user / person /
+ *                   address / usr_par post() passes an explicit msgType (EsqMsgConstants.MSG_TYPE_AUDIT).
+ * 06/17/2026 mir0n  audit dep IXRod -> AuditBusBridge; the user / person / address / usr_par post() calls drop
+ *                   the trailing MSG_TYPE_AUDIT arg; the isEnabled() guard reads audit
+ * 06/18/2026 mir0n  audit module left common: AuditBusBridge moved to pro.mir0n.esquire.audit
  */
 
 package pro.mir0n.esquire.enyMan.service.impl;
@@ -75,8 +81,8 @@ import pro.mir0n.esquire.backend.jpa.entity.EsqParRow;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import pro.mir0n.esquire.common.EsqConstants;
-import pro.mir0n.esquire.common.xrod.RodEvent;
-import pro.mir0n.esquire.common.xrod.XYRod;
+import pro.mir0n.esquire.messaging.xrod.RodEvent;
+import pro.mir0n.esquire.audit.AuditBusBridge;
 import pro.mir0n.esquire.enyMan.service.EntityIdGenerator;
 
 @Slf4j
@@ -88,19 +94,19 @@ public class UsrService  extends AEnyManService {
     private final EsqUsrRepository usrRepository;
     private final TransactionTemplate transactionTemplate;
     private final EntityManager em;
-    private final XYRod xyRod;
+    private final AuditBusBridge audit;
 
     public UsrService(EsqEntityDictionaryRepository entityDictionaryRepository,
                       EsqUsrRepository usrRepository,
                       TransactionTemplate transactionTemplate,
                       EntityManager em,
-                      XYRod xyRod) {
+                      AuditBusBridge audit) {
         super(entityDictionaryRepository);
         this.entityDictionaryRepository = entityDictionaryRepository;
         this.usrRepository = usrRepository;
         this.transactionTemplate = transactionTemplate;
         this.em = em;
-        this.xyRod = xyRod;
+        this.audit = audit;
     }
 
 
@@ -222,7 +228,7 @@ public class UsrService  extends AEnyManService {
             deleteUsr(id, rootPath);
             // x-Rod audit: one DELETE event for the user (id + kind); cascaded person/address/params
             // are implied by the owner delete (no per-child delete events).
-            xyRod.post(RodEvent.Op.DELETE, kind, id, null);
+            audit.post(RodEvent.Op.DELETE, kind, id, null);
             return null;
         });
     }
@@ -269,7 +275,7 @@ public class UsrService  extends AEnyManService {
             usrRepository.moveUsrParent(id, distId, uid, correlationId, requestId);
             // x-Rod audit: move is one parent-ref UPDATE (usr_org_pk); path rewrites are not audited.
             usr.setParentId(distId);
-            xyRod.post(RodEvent.Op.UPDATE, usr.getKind(), usr.getId(), null, usr);
+            audit.post(RodEvent.Op.UPDATE, usr.getKind(), usr.getId(), null, usr);
         }
         return rows;
     }
@@ -322,6 +328,10 @@ public class UsrService  extends AEnyManService {
         if (usrLayer != null) usrLayer.injectDefaults(fields);
         EntityFieldUtils.applyFields(usr, fields, false, 0, USR_WRITABLE);
         if (usrLayer != null) EntityFieldUtils.enforceDefaults(usrLayer, usr);
+
+        // usr_deleted_flg is a NOT NULL system field (not a dictionary param, so enforceDefaults
+        // cannot supply it); a new user is never created already-deleted -> guarantee 'N'.
+        if (usr.getDeleted() == null) usr.setDeleted("N");
 
         // Ensure registration and deleted flags are in fields for broadcast
         if (usr.getRegistration() != null) fields.put("registration", usr.getRegistration());
@@ -416,19 +426,19 @@ public class UsrService  extends AEnyManService {
         person[0] = prsn;
 
         // x-Rod audit: full per-row CREATE events for the whole user footprint (entityId = usr_pk).
-        xyRod.post(RodEvent.Op.CREATE, usr.getKind(), idStr, null, usr);
-        xyRod.post(RodEvent.Op.CREATE, prsn.getKind(), idStr, null, prsn);
+        audit.post(RodEvent.Op.CREATE, usr.getKind(), idStr, null, usr);
+        audit.post(RodEvent.Op.CREATE, prsn.getKind(), idStr, null, prsn);
         if (address != null && adPk != null && address[0] != null) {
             EsqAddressJpa a = (EsqAddressJpa) address[0];
-            xyRod.post(RodEvent.Op.CREATE, a.getKind(), idStr, String.valueOf(adPk), a);
+            audit.post(RodEvent.Op.CREATE, a.getKind(), idStr, String.valueOf(adPk), a);
         }
         if (address2 != null && bizAdPk != null && address2[0] != null) {
             EsqAddressJpa a2 = (EsqAddressJpa) address2[0];
-            xyRod.post(RodEvent.Op.CREATE, a2.getKind(), idStr, String.valueOf(bizAdPk), a2);
+            audit.post(RodEvent.Op.CREATE, a2.getKind(), idStr, String.valueOf(bizAdPk), a2);
         }
-        if (xyRod.isEnabled()) {
+        if (audit.isEnabled()) {
             for (EsqParRow p : usrRepository.listUsrPar(idStr)) {
-                xyRod.post(RodEvent.Op.CREATE, EsqConstants.KIND_USR_PAR, idStr, p.getName(), p);
+                audit.post(RodEvent.Op.CREATE, EsqConstants.KIND_USR_PAR, idStr, p.getName(), p);
             }
         }
     }
@@ -446,7 +456,7 @@ public class UsrService  extends AEnyManService {
         // so they must be enumerated here). Only when enabled -- no extra reads otherwise.
         EsqAddressJpa addr = null;
         EsqAddressJpa addr2 = null;
-        if (xyRod.isEnabled()) {
+        if (audit.isEnabled()) {
             addr  = usrRepository.address(id, EsqConstants.KIND_PERSON_PRIMARY);
             addr2 = usrRepository.address2(id, EsqConstants.KIND_PERSON_PRIMARY);
         }
@@ -456,13 +466,13 @@ public class UsrService  extends AEnyManService {
         usrRepository.deleteEntityPath(id);
         // One DELETE event per cascaded child row (id + kind only). person id = usr_pk (known, no query);
         // usr_par params cascade with the owner and get NO per-row event (owner DELETE implies them gone).
-        if (xyRod.isEnabled()) {
-            xyRod.post(RodEvent.Op.DELETE, EsqConstants.KIND_PERSON_PRIMARY, id, null);
+        if (audit.isEnabled()) {
+            audit.post(RodEvent.Op.DELETE, EsqConstants.KIND_PERSON_PRIMARY, id, null);
             if (addr != null) {
-                xyRod.post(RodEvent.Op.DELETE, addr.getKind(), id, addr.getId());
+                audit.post(RodEvent.Op.DELETE, addr.getKind(), id, addr.getId());
             }
             if (addr2 != null) {
-                xyRod.post(RodEvent.Op.DELETE, addr2.getKind(), id, addr2.getId());
+                audit.post(RodEvent.Op.DELETE, addr2.getKind(), id, addr2.getId());
             }
         }
     }
@@ -518,12 +528,12 @@ public class UsrService  extends AEnyManService {
                     prsn.getPhone2(),
                     uid, correlationId, requestId
             );
-            xyRod.post(RodEvent.Op.UPDATE, prsn.getKind(), id, null, prsn);
+            audit.post(RodEvent.Op.UPDATE, prsn.getKind(), id, null, prsn);
         }
 
         if (EntityFieldUtils.applyFields(usr, fields, personal, 0, USR_WRITABLE)) {
             usrRepository.updateUsr(id, usr.getName(), usr.getRegistration(), usr.getDeleted(), usr.getDesc(), uid, correlationId, requestId);
-            xyRod.post(RodEvent.Op.UPDATE, usr.getKind(), usr.getId(), null, usr);
+            audit.post(RodEvent.Op.UPDATE, usr.getKind(), usr.getId(), null, usr);
         }
         Set<String> changedPars = new HashSet<>();
         if (cstm != null) {
@@ -542,10 +552,10 @@ public class UsrService  extends AEnyManService {
                 }
             }
         }
-        if (xyRod.isEnabled() && !changedPars.isEmpty()) {
+        if (audit.isEnabled() && !changedPars.isEmpty()) {
             for (EsqParRow p : usrRepository.listUsrPar(id)) {
                 if (changedPars.contains(p.getName())) {
-                    xyRod.post(RodEvent.Op.UPDATE, EsqConstants.KIND_USR_PAR, id, p.getName(), p);
+                    audit.post(RodEvent.Op.UPDATE, EsqConstants.KIND_USR_PAR, id, p.getName(), p);
                 }
             }
         }
@@ -564,7 +574,7 @@ public class UsrService  extends AEnyManService {
                             addr.getCountry(), addr.getDepartment(), addr.getFax(),
                             addr.getPostalCode(), addr.getProvince(), addr.getTitle(), addr.getUrl(),
                             uid, correlationId, requestId);
-                    xyRod.post(RodEvent.Op.UPDATE, addr.getKind(), id, addr.getId(), addr);
+                    audit.post(RodEvent.Op.UPDATE, addr.getKind(), id, addr.getId(), addr);
                 }
             }
 
@@ -581,7 +591,7 @@ public class UsrService  extends AEnyManService {
                             addr2.getCountry(), addr2.getDepartment(), addr2.getFax(),
                             addr2.getPostalCode(), addr2.getProvince(), addr2.getTitle(), addr2.getUrl(),
                             uid, correlationId, requestId);
-                    xyRod.post(RodEvent.Op.UPDATE, addr2.getKind(), id, addr2.getId(), addr2);
+                    audit.post(RodEvent.Op.UPDATE, addr2.getKind(), id, addr2.getId(), addr2);
                 }
             }
             address[0] = addr;

@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>pro.mir0n.esquire</groupId>
+        <artifactId>esquire-parent</artifactId>
+<!-- xxx: we need a stable parent version to be referenced correctly -->
+        <version>1.2.0</version>
+        <relativePath>../pom.xml</relativePath>
+    </parent>
+
+    <artifactId>esquire-audit</artifactId>
+    <version>${audit.version}</version>
+
+    <url/>
+
+    <name>esquire-audit</name>
+    <description>esquire-audit -- the audit specialization of the keep: AuditKeepDirector (kind -> *_log repository), AuditBusBridge (transactional publish), AuditLogWriter / AuditLogSql / AuditKinds, and the in-process XRodLogDb pod. Built on esquire-dataKeep.</description>
+
+    <dependencies>
+        <dependency>
+            <groupId>pro.mir0n.esquire</groupId>
+            <artifactId>esquire-dataKeep</artifactId>
+            <version>${dataKeep.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>pro.mir0n.esquire</groupId>
+            <artifactId>esquire-common</artifactId>
+            <version>${common.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>pro.mir0n.esquire</groupId>
+            <artifactId>esquire-messaging</artifactId>
+            <version>${messaging.version}</version>
+        </dependency>
+
+        <!-- AuditLogWriter uses NamedParameterJdbcTemplate; XRodLogDb opens its OWN HikariDataSource;
+             AuditBusBridge uses Spring TransactionSynchronization. starter-jdbc brings spring-jdbc +
+             spring-tx + HikariCP + (transitively) spring-context + spring-boot-autoconfigure for the
+             @ConditionalOnProperty / @Component on AuditKeepDirector. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-jdbc</artifactId>
+        </dependency>
+
+        <!-- JDBC drivers for XRodLogDb's in-process pool (producers in audit option b); ride transitively
+             into the producers + the auKeep app. -->
+        <dependency>
+            <groupId>com.oracle.database.jdbc</groupId>
+            <artifactId>ojdbc8</artifactId>
+            <version>19.3.0.0</version>
+        </dependency>
+        <dependency>
+            <groupId>com.oracle.database.jdbc</groupId>
+            <artifactId>ojdbc11</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+</project>

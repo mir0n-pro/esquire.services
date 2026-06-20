@@ -2,7 +2,7 @@
  *  Esquire frameworks (tm)
  *  common library
  *
- *  Copyright(c) 2001, 2025 mir0n&co www.mir0n.me
+ *  Copyright(c) 2001, 2026 mir0n&co www.mir0n.pro
  *  mailto:mir0n.the.programmer@gmail.com
  *
  *  History:
@@ -16,60 +16,51 @@
  *                   SERVICE_ID_ROD_AUDIT, FIELD_SUB_ID / FIELD_UID / FIELD_ACTION_TIME added
  * 06/08/2026 mir0n  x-Rod audit option (d): STREAM_ROD_AUDIT (the Redis Stream key) added
  * 06/08/2026 mir0n  x-Rod audit option (c) over Kafka: TOPIC_ROD_AUDIT (the Kafka topic) added
+ * 06/15/2026 mir0n  transport-agnostic x-Rod rework: QUEUE_/TOPIC_/STREAM_ROD_AUDIT collapsed to the one
+ *                   logical ROD_AUDIT destination; FIELD_SERVICE_ID->FIELD_SLOT_ID (SlotID), FIELD_CTRL_ID->
+ *                   FIELD_ROD_ID (RodID); MSG_TYPE_ROD_AUDIT->MSG_TYPE_AUDIT ("UA"); hardcoded bus/slot value
+ *                   constants (BUS_ID_ROD/ENTITY, SERVICE_ID_*) removed -- replaced by logical bus KEYS
+ *                   BUS_KEY_AUDIT/KC/ENTITY (the bus-id/slot-id VALUES are now config/topology)
+ * 06/17/2026 mir0n  TOPIC_ENTITY_BROADCAST and ROD_AUDIT removed (dead destination constants -- destinations are
+ *                   config/topology values now); class javadoc refreshed to the FIX-JSON shared-envelope description
  */
 package pro.mir0n.esquire.common;
 
 /**
- * Protocol constants for the esquire.entity.broadcast JMS topic.
+ * FIX-JSON protocol constants shared across the messaging bus -- entity broadcast, KC request/response,
+ * and audit. The field names and msg-type / event-type values define the wire envelope; the codec
+ * (RodEventCodec) maps a RodEvent to and from it, so they are transport-agnostic (each provider carries the
+ * envelope its own way -- a queue, a topic, a stream). Text carries a JSON entity-state snapshot.
  *
- * All 14 canonical fields are transmitted as JMS message properties (no message body).
- * Text carries a JSON-serialized entity state snapshot as a string property.
- * Fixed phase-1 values must not change without protocol review.
+ * A service finds its bus by a logical KEY (BUS_KEY_*); the bus-id / slot-id / destination VALUES live in
+ * config and topology, not here. The fixed values must not change without a protocol review.
  */
 public class EsqMsgConstants {
     private EsqMsgConstants() {}
-
-    // --- Destinations ---
-    public static final String TOPIC_ENTITY_BROADCAST = "esquire.entity.broadcast";
-    public static final String QUEUE_KC_REQUEST        = "esquire.kc.request";
-    public static final String QUEUE_KC_RESPONSE       = "esquire.kc.response";
-    // Dedicated, single-purpose durable audit queue (x-Rod option c): fan-in from every asset service
-    // to the standalone xxRod consumer. A queue (point-to-point), NOT a topic -> needs no durable-sub
-    // clientId, so it dodges the rolling-update clientId trap.
-    public static final String QUEUE_ROD_AUDIT         = "esquire.rod.audit";
-
-    // x-Rod option (d): the Redis Stream the producer XADDs each committed audit event to (transport = the
-    // stream itself; the stream IS the append-only audit log). No consumer service -- read via XRANGE.
-    public static final String STREAM_ROD_AUDIT        = "esquire.rod.audit";
-
-    // x-Rod option (c) over KAFKA: the Kafka topic the producer publishes each committed audit event to;
-    // the xxRod consumer reads it and writes the *_log (same role as QUEUE_ROD_AUDIT, Kafka transport).
-    public static final String TOPIC_ROD_AUDIT         = "esquire.rod.audit";
 
     // --- Canonical FIX-JSON field names (JMS property name = JSON body field name) ---
 
     // Required on every message regardless of MsgType:
     //   MsgType  — dictionary key; drives validation of all other fields.
     //   ApplMsgID — unique message identity; required for dedup and tracing.
-    //   BusID / ServiceID — mandatory routing envelope fields.
+    //   BusID / SlotID — mandatory routing envelope fields.
     public static final String FIELD_MSG_TYPE          = "MsgType";           // FIX 35
     public static final String FIELD_APPL_MSG_ID       = "ApplMsgID";         // FIX 1181
     public static final String FIELD_BUS_ID            = "BusID";             // FIX 50002
-    public static final String FIELD_SERVICE_ID        = "ServiceID";         // FIX 50003
+    public static final String FIELD_SLOT_ID        = "SlotID";         // FIX 50003
 
     // Conditionally required — presence depends on MsgType (see message dictionary, TBD):
     public static final String FIELD_SENDING_TIME      = "SendingTime";       // FIX 52
     public static final String FIELD_TEXT              = "Text";              // FIX 58
     public static final String FIELD_MESSAGE_ENCODING  = "MessageEncoding";   // FIX 347
     public static final String FIELD_SCHEMA_VERSION    = "SchemaVersion";     // FIX 50001
-    public static final String FIELD_CTRL_ID           = "CtrlID";            // FIX 50004
+    public static final String FIELD_ROD_ID            = "RodID";             // FIX 50004 (the originating instance id; reply-routing selector)
     public static final String FIELD_EVENT_TYPE        = "EventType";         // FIX 50005
     public static final String FIELD_ENTITY_KIND       = "EntityKind";        // FIX 50006
     public static final String FIELD_ENTITY_ID         = "EntityID";          // FIX 50007
     public static final String FIELD_REQUEST_ID        = "RequestID";         // FIX 50008
     public static final String FIELD_CORRELATION_ID    = "CorrelationID";     // FIX 50009
-    public static final String FIELD_TEST_REQ_ID       = "TestReqID";         // FIX 112make
-    public static final String FIELD_ERROR             = "Error";             // FIX 50010
+    public static final String FIELD_TEST_REQ_ID       = "TestReqID";         // FIX 112
     // x-Rod option (c) optional header fields (audit triple sub-row id + actor + commit time):
     public static final String FIELD_SUB_ID            = "SubID";             // FIX 50011
     public static final String FIELD_UID               = "Uid";               // FIX 50012
@@ -78,16 +69,17 @@ public class EsqMsgConstants {
 
     // --- Fixed phase-1 values ---
     public static final int    SCHEMA_VERSION          = 1;
-    public static final String BUS_ID_ENTITY           = "esquire.entity";
-    public static final String SERVICE_ID_ENTITY_BROADCAST = "entity-update-broadcast";
     public static final String MSG_TYPE_ENTITY_BROADCASTS  = "UE";
     public static final String MSG_TYPE_REQUEST         = "URQ";
     public static final String MSG_TYPE_RESPONSE        = "URS";
     public static final String MSG_TYPE_REJECT          = "URR";
-    public static final String MSG_TYPE_ROD_AUDIT       = "RDA";   // Rod Durable Audit (option c)
+    public static final String MSG_TYPE_AUDIT           = "UA";    // FIX custom msg-types start with 'U' -> UA = Update/Audit
     public static final String MSG_ENCODING_JSON        = "JSON";
-    public static final String BUS_ID_ROD               = "esquire.rod";
-    public static final String SERVICE_ID_ROD_AUDIT     = "rod-audit";
+    // --- logical bus KEYS a service uses to look up its ref (esquire.<key>.messaging-bus -> {bus-id, slot-id}).
+    //     The bus-id / slot-id VALUES are configurable (the topology + refs), NOT hardcoded here. ---
+public static final String BUS_KEY_AUDIT            = "audit-bus";
+    public static final String BUS_KEY_KC               = "kc-bus";
+    public static final String BUS_KEY_ENTITY           = "entity-bus";
 
     // --- EventType vocabulary ---
     public static final String EVENT_CREATE            = "C";

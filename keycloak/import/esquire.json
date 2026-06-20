@@ -939,7 +939,13 @@
       "enabled": true,
       "createdTimestamp": 1770054664286,
       "totp": false,
-      "credentials": [],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "q",
+          "temporary": false
+        }
+      ],
       "disableableCredentialTypes": [],
       "requiredActions": [],
       "realmRoles": [

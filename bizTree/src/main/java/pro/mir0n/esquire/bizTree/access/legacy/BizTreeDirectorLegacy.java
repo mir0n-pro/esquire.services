@@ -20,6 +20,9 @@
  *                   (the readiness gate); sweepAsync() inherits the ITaijituRig no-op (single-pass).
  * 06/04/2026 mir0n  read methods drop rootPath / uid params; read them via RequestContextUtils and
  *                   forward to IBizTreeService (which keeps its params)
+ * 06/15/2026 mir0n  onEntityBroadcast signature now takes the already-parsed Map<String,Object> body
+ *                   (was messageEncoding + raw text); valueToTree(body) instead of readTree(text) -- no
+ *                   inline parse / try-catch, the codec decodes upstream
  */
 package pro.mir0n.esquire.bizTree.access.legacy;
 
@@ -131,19 +134,9 @@ public class BizTreeDirectorLegacy implements IBizTreeDirector {
 
     @Override
     public void onEntityBroadcast(String eventType, String entityId, int entityKind,
-                                  String requestId, String correlationId,
-                                  String messageEncoding, String text) {
-        // Legacy has no worker thread, so it parses on the caller (JMS) thread before dispatch.
-        JsonNode textNode = null;
-        if (text != null) {
-            try {
-                textNode = objectMapper.readTree(text);
-            } catch (Exception parseEx) {
-                log.error("BizTreeDirectorLegacy: textJson parse failed id={}: {}", entityId, parseEx.getMessage());
-                devLog.error("BizTreeDirectorLegacy: textJson parse failed id={}: {}", entityId, parseEx.getMessage(), parseEx);
-                return;
-            }
-        }
+                                  String requestId, String correlationId, java.util.Map<String, Object> body) {
+        // The body arrives already parsed (decoded upstream by the codec); just adapt the map to a tree.
+        JsonNode textNode = (body == null) ? null : objectMapper.valueToTree(body);
         handlerHub.dispatch(eventType, entityId, entityKind, textNode);
     }
 }

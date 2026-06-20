@@ -1,0 +1,25 @@
+services:
+  aukeep:
+    build:
+      context: .
+    image: esquire.aukeep
+    ports:
+      - "3007:3007"
+    environment:
+      - DATAKEEP_PORT=3007
+      - LOG_LEVEL_ROOT=ERROR
+      - LOG_LEVEL_SF=ERROR
+      - LOG_LEVEL_MIR0N=DEBUG
+      - AMQ_BROKER_URL=tcp://host.docker.internal:61616
+      - DB_DATAKEEP_VENDOR=dev-postgres
+      - DB_DATAKEEP_HOST=host.docker.internal
+      - DB_DATAKEEP_PORT=5432
+      - DB_DATAKEEP_NAME=esq2025
+      - DB_DATAKEEP_USERNAME=esq2025
+      - DB_DATAKEEP_PASSWORD=q
+    command: ["java", "-jar", "app.jar"]
+    networks:
+      - esquirenet
+networks:
+  esquirenet:
+    driver: "bridge"

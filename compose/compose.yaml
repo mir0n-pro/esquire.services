@@ -1,29 +1,8 @@
 name: esq-omnibus
 services:
-  postgres:
-    container_name: esq-postgres
-    build:
-      context: ../..
-      dockerfile: services/postgres/Dockerfile
-    image: esquire-postgres:17
-    restart: on-failure
-    environment:
-      POSTGRES_USER: esq2025
-      POSTGRES_PASSWORD: q
-      POSTGRES_DB: esq2025
-    ports:
-      - "5433:5432"
-    volumes:
-      - ./data/postgres:/var/lib/postgresql/data
-      - ./logs:/var/log/postgresql
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U esq2025 -d esq2025"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-      start_period: 30s
-    networks:
-      - esquirenet
+  # NOTE: no Postgres container here -- docker compose uses the EXTERNAL local Postgres (pg18) on the host,
+  # reached as host.docker.internal:5432 (DB_*_HOST defaults below). The dockerized Postgres image is a
+  # k8s-only concern (the esquire-infra-postgres StatefulSet / charts/infra/postgres).
 
   activemq:
     container_name: esq-activemq
@@ -84,7 +63,7 @@ services:
       - esquirenet
 
   # x-Rod audit option (c) over Kafka: single-node KRaft broker. Producers (bus.transport=kafka) publish to
-  # the audit topic; xxRod (transport=kafka) consumes + writes the *_log. Ephemeral (no volume) for dev.
+  # the audit topic; auKeep (transport=kafka) consumes + writes the *_log. Ephemeral (no volume) for dev.
   kafka:
     container_name: esq-kafka
     image: apache/kafka:3.9.0
@@ -115,7 +94,7 @@ services:
       - esquirenet
 
   # x-Rod audit option (d) over Kafka: a Kafka Connect worker with the Redis sink connector. It consumes the
-  # audit topic and XADDs each record to a Redis stream (no producer change, no xxRod -- pure connector).
+  # audit topic and XADDs each record to a Redis stream (no producer change, no auKeep -- pure connector).
   # Dev-only tool (profile "kafka-sink"), installs the connector at start:
   #   docker compose up -d kafka-connect   (then register compose/kafka-connect/redis-audit-sink.json via :8083)
   kafka-connect:
@@ -210,22 +189,34 @@ services:
       - LOG_LEVEL_MIR0N=DEBUG
       - LOG_LEVEL_DEVELOP=DEBUG
       - LOG_LEVEL_MSG=DEBUG
+      - LOG_LEVEL_AMQ=INFO
+      - LOG_LEVEL_JMS=INFO
       - DEVELOP_LOG_PATH=logs/bizTree-develop.log
       - MSG_LOG_PATH=logs/bizTree-msg.log
-      - DB_BIZTREE_VENDOR=dev-postgres
-      - DB_BIZTREE_PORT=5432
-      - DB_BIZTREE_NAME=esq2025
+      - ESQUIRE_TOPOLOGY_IMPORT=file:/etc/esquire/topology.yml
+      - DB_BIZTREE_VENDOR=${DB_BIZTREE_VENDOR:-dev-postgres}
+      - DB_BIZTREE_PORT=${DB_BIZTREE_PORT:-5432}
+      - DB_BIZTREE_NAME=${DB_BIZTREE_NAME:-esq2025}
       #- DB_BIZTREE_VENDOR=dev-oracle
       #- DB_BIZTREE_PORT=1521
       #- DB_BIZTREE_NAME=MIR0N
-      - DB_BIZTREE_HOST=postgres
+      - DB_BIZTREE_HOST=${DB_BIZTREE_HOST:-host.docker.internal}
       - DB_BIZTREE_USERNAME=esq2025
       - DB_BIZTREE_PASSWORD=q
       # Messaging
-      - AMQ_BROKER_URL=tcp://activemq:61616
-      #- AMQ_USER=
-      #- AMQ_PASSWORD=
       - BIZTREE_MESSAGING_CONSUMER_ENABLED=true
+      - ENTITY_BUS_ID=esquire.entity
+      - ENTITY_SERVICE_ID=entity
+      - ENTITY_BROADCAST_POOL_SIZE=4
+      - ENTITY_BROADCAST_CONCURRENCY=1
+      # H2 in-memory cache store
+      - BIZTREE_CACHE_VENDOR=cache-h2
+      - BIZTREE_H2_URL=jdbc:h2:mem:biztree;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+      - BIZTREE_H2_POOL_MAX=10
+      - BIZTREE_H2_POOL_MIN_IDLE=10
+      - BIZTREE_H2_POOL_CONN_TIMEOUT=5000
+      - BIZTREE_H2_POOL_IDLE_TIMEOUT=600000
+      - BIZTREE_H2_POOL_MAX_LIFETIME=1800000
       # v1.2.5 Taijitu refactor: select the cache director impl
       #   legacy (default) | taijitu (two-monad + night-watch)
       - BIZTREE_DIRECTOR=taijitu
@@ -244,12 +235,11 @@ services:
       - BIZTREE_QUEUE_BULK_THRESHOLD=${BIZTREE_QUEUE_BULK_THRESHOLD:-10}
     command: ["java", "-jar", "app.jar"]
     depends_on:
-      postgres:
-        condition: service_healthy
       activemq:
         condition: service_healthy
     volumes:
       - ./logs:/app/logs
+      - ./topology/esquire-topology.yml:/etc/esquire/topology.yml:ro
     networks:
       - esquirenet
 
@@ -267,68 +257,56 @@ services:
       - LOG_LEVEL_MIR0N=DEBUG
       - LOG_LEVEL_DEVELOP=DEBUG
       - LOG_LEVEL_MSG=INFO
+      - LOG_LEVEL_AMQ=INFO
+      - LOG_LEVEL_JMS=INFO
       - DEVELOP_LOG_PATH=logs/enyMan-develop.log
       - MSG_LOG_PATH=logs/enyMan-msg.log
-      - DB_ENYMAN_VENDOR=dev-postgres
-      - DB_ENYMAN_PORT=5432
-      - DB_ENYMAN_NAME=esq2025
+      - ESQUIRE_TOPOLOGY_IMPORT=file:/etc/esquire/topology.yml
+      - DB_ENYMAN_VENDOR=${DB_ENYMAN_VENDOR:-dev-postgres}
+      - DB_ENYMAN_PORT=${DB_ENYMAN_PORT:-5432}
+      - DB_ENYMAN_NAME=${DB_ENYMAN_NAME:-esq2025}
       #- DB_ENYMAN_VENDOR=dev-oracle
       #- DB_ENYMAN_PORT=1521
       #- DB_ENYMAN_NAME=MIR0N
-      - DB_ENYMAN_HOST=postgres
+      - DB_ENYMAN_HOST=${DB_ENYMAN_HOST:-host.docker.internal}
       - DB_ENYMAN_USERNAME=esq2025
       - DB_ENYMAN_PASSWORD=q
       # Messaging
-      - AMQ_BROKER_URL=tcp://activemq:61616
-      #- AMQ_USER=
-      #- AMQ_PASSWORD=
-      - ENYMAN_SERVICE_ID=entity-update-broadcast
-      - ENYMAN_CTRL_ID=enyman.default
-      - ENYMAN_MESSAGING_CLIENT_ID=enyman
-      #- ENYMAN_MESSAGING_CONSUMER_ENABLED=false
+      - KC_BUS_ID=esquire.kc
+      - KC_SERVICE_ID=kc
+      - ENYMAN_KC_RESPONSE_POOL_SIZE=2
+      - ENYMAN_KC_RESPONSE_CONCURRENCY=1
+      - ENYMAN_KC_PUBLISHER_POOL_SIZE=0
+      - ENTITY_BUS_ID=esquire.entity
+      - ENTITY_SERVICE_ID=entity
+      - ENTITY_BROADCAST_PUBLISHER_POOL_SIZE=0
       # v1.2.6 Goal 3: move queue capacity. Default 16384 (also the application.yml fallback)
       # is sized for normal load. Stress tests can override via ENYMAN_MOVE_QUEUE_CAPACITY.
       - ENYMAN_MOVE_QUEUE_CAPACITY=${ENYMAN_MOVE_QUEUE_CAPACITY:-16384}
       # v1.2.6 Goal 3 toggle. true = race-8b fixed (CREATE-during-move reconciliation runs);
       # false = race reproduces (used by the race-move-create sim's negative pass).
       - ENYMAN_VALIDATE_CREATE_DURING_MOVE=${ENYMAN_VALIDATE_CREATE_DURING_MOVE:-true}
-      # v1.2.7 audit logging (x-rod). Framework default is OFF (option-0); the demo turns it ON here.
-      - ENYMAN_AUDIT_ENABLED=${ENYMAN_AUDIT_ENABLED:-true}
-      # option (c): bus = publish to the audit queue (the xxRod service writes the *_log); in-process = (b).
-      - ENYMAN_AUDIT_MODE=${ENYMAN_AUDIT_MODE:-bus}
-      - ENYMAN_AUDIT_POOL_SIZE=${ENYMAN_AUDIT_POOL_SIZE:-4}
-      - ENYMAN_AUDIT_VIRTUAL_THREADS=${ENYMAN_AUDIT_VIRTUAL_THREADS:-false}
-      - ENYMAN_AUDIT_FEED_CAPACITY=${ENYMAN_AUDIT_FEED_CAPACITY:-4096}
-      # (c) bus publisher pool: 0 = single feed-worker synchronous publish; N>0 = N async publisher threads.
-      - ENYMAN_AUDIT_PUBLISHER_POOL_SIZE=${ENYMAN_AUDIT_PUBLISHER_POOL_SIZE:-4}
-      # (d) redis (set ENYMAN_AUDIT_MODE=redis): XADD each event to a Redis Stream (the stream IS the audit
-      # log; no consumer service). Lettuce connects lazily, so redis is ignored unless mode=redis.
-      - REDIS_HOST=${REDIS_HOST:-redis}
-      - REDIS_PORT=${REDIS_PORT:-6379}
-      - ENYMAN_AUDIT_REDIS_STREAM=${ENYMAN_AUDIT_REDIS_STREAM:-}
-      - ENYMAN_AUDIT_REDIS_MAX_LEN=${ENYMAN_AUDIT_REDIS_MAX_LEN:-0}
-      # (c) over Kafka (set ENYMAN_AUDIT_MODE=bus + ENYMAN_AUDIT_BUS_TRANSPORT=kafka). Producer connects lazily.
-      - KAFKA_BOOTSTRAP=${KAFKA_BOOTSTRAP:-kafka:9092}
-      - ENYMAN_AUDIT_BUS_TRANSPORT=${ENYMAN_AUDIT_BUS_TRANSPORT:-activemq}
-      # (b) log datastore: shared (reuse service DB) | dedicated (separate pool/vendor via ENYMAN_AUDIT_DB_*).
-      - ENYMAN_AUDIT_LOG_DATASTORE=${ENYMAN_AUDIT_LOG_DATASTORE:-shared}
-      # dedicated-only: the log DB may be a DIFFERENT vendor than the business DB.
-      # e.g. business on local postgres, audit log on the dockerized postgres :5433 (same vendor):
-      #   ENYMAN_AUDIT_LOG_DATASTORE=dedicated  ENYMAN_AUDIT_DB_VENDOR=dev-postgres
-      #   ENYMAN_AUDIT_DB_URL=jdbc:postgresql://host.docker.internal:5433/esq2025
-      - ENYMAN_AUDIT_DB_VENDOR=${ENYMAN_AUDIT_DB_VENDOR:-dev-postgres}
-      - ENYMAN_AUDIT_DB_URL=${ENYMAN_AUDIT_DB_URL:-}
-      - ENYMAN_AUDIT_DB_USERNAME=${ENYMAN_AUDIT_DB_USERNAME:-esq2025}
-      - ENYMAN_AUDIT_DB_PASSWORD=${ENYMAN_AUDIT_DB_PASSWORD:-q}
-      - ENYMAN_AUDIT_DB_POOL_SIZE=${ENYMAN_AUDIT_DB_POOL_SIZE:-8}
+      # v1.2.8 audit logging (x-rod). Pick the sink by id (shared topology buses): audit-c (AMQ -> auKeep) |
+      # audit-ck (Kafka -> auKeep) | audit-d (Redis stream) | audit-dk (Kafka stream); audit-b = in-process *_log. Demo = audit-c.
+      - ESQUIRE_AUDIT_BUS_ID=${ESQUIRE_AUDIT_BUS_ID:-audit-c}
+      - ESQUIRE_AUDIT_SERVICE_ID=audit
+      - ESQUIRE_AUDIT_POOL_SIZE=${ESQUIRE_AUDIT_POOL_SIZE:-4}
+      - ESQUIRE_AUDIT_VIRTUAL_THREADS=${ESQUIRE_AUDIT_VIRTUAL_THREADS:-false}
+      - ESQUIRE_AUDIT_FEED_CAPACITY=${ESQUIRE_AUDIT_FEED_CAPACITY:-4096}
+      # audit-b (in-process) datastore -- defaults to the service's own DB (its log tables); override to relocate.
+      - ESQUIRE_AUDIT_LOG_DB_SHARED=${ESQUIRE_AUDIT_LOG_DB_SHARED:-false}
+      - ESQUIRE_AUDIT_LOG_DB_VENDOR=${ESQUIRE_AUDIT_LOG_DB_VENDOR:-dev-postgres}
+      - ESQUIRE_AUDIT_LOG_DB_URL=${ESQUIRE_AUDIT_LOG_DB_URL:-jdbc:postgresql://host.docker.internal:5432/esq2025}
+      - ESQUIRE_AUDIT_LOG_DB_USERNAME=${ESQUIRE_AUDIT_LOG_DB_USERNAME:-esq2025}
+      - ESQUIRE_AUDIT_LOG_DB_PASSWORD=${ESQUIRE_AUDIT_LOG_DB_PASSWORD:-q}
+      - ESQUIRE_AUDIT_LOG_DB_POOL_SIZE=${ESQUIRE_AUDIT_LOG_DB_POOL_SIZE:-2}
     command: ["java", "-jar", "app.jar"]
     depends_on:
-      postgres:
-        condition: service_healthy
       activemq:
         condition: service_healthy
     volumes:
       - ./logs:/app/logs
+      - ./topology/esquire-topology.yml:/etc/esquire/topology.yml:ro
     networks:
       - esquirenet
 
@@ -346,97 +324,85 @@ services:
       - LOG_LEVEL_MIR0N=DEBUG
       - LOG_LEVEL_DEVELOP=DEBUG
       - LOG_LEVEL_MSG=INFO
+      - LOG_LEVEL_AMQ=INFO
+      - LOG_LEVEL_JMS=INFO
       - DEVELOP_LOG_PATH=logs/pacMan-develop.log
       - MSG_LOG_PATH=logs/pacMan-msg.log
-      - DB_PACMAN_VENDOR=dev-postgres
-      - DB_PACMAN_PORT=5432
-      - DB_PACMAN_NAME=esq2025
+      - ESQUIRE_TOPOLOGY_IMPORT=file:/etc/esquire/topology.yml
+      - DB_PACMAN_VENDOR=${DB_PACMAN_VENDOR:-dev-postgres}
+      - DB_PACMAN_PORT=${DB_PACMAN_PORT:-5432}
+      - DB_PACMAN_NAME=${DB_PACMAN_NAME:-esq2025}
       #- DB_PACMAN_VENDOR=dev-oracle
       #- DB_PACMAN_PORT=1521
       #- DB_PACMAN_NAME=MIR0N
-      - DB_PACMAN_HOST=postgres
+      - DB_PACMAN_HOST=${DB_PACMAN_HOST:-host.docker.internal}
       - DB_PACMAN_USERNAME=esq2025
       - DB_PACMAN_PASSWORD=q
       # Messaging
-      - AMQ_BROKER_URL=tcp://activemq:61616
-      #- AMQ_USER=
-      #- AMQ_PASSWORD=
-      - PACMAN_SERVICE_ID=entity-update-broadcast
-      - PACMAN_CTRL_ID=pacman.default
-      - PACMAN_MESSAGING_CLIENT_ID=pacman
-      # v1.2.7 audit logging (x-rod). pacMan owns account UPDATE / DELETE / balance -> esq_account_log.
-      # Framework default is OFF (option-0); the demo turns it ON here.
-      - PACMAN_AUDIT_ENABLED=${PACMAN_AUDIT_ENABLED:-true}
-      # option (c): bus = publish to the audit queue (the xxRod service writes the *_log); in-process = (b).
-      - PACMAN_AUDIT_MODE=${PACMAN_AUDIT_MODE:-bus}
-      - PACMAN_AUDIT_POOL_SIZE=${PACMAN_AUDIT_POOL_SIZE:-4}
-      - PACMAN_AUDIT_VIRTUAL_THREADS=${PACMAN_AUDIT_VIRTUAL_THREADS:-false}
-      - PACMAN_AUDIT_FEED_CAPACITY=${PACMAN_AUDIT_FEED_CAPACITY:-4096}
-      # (c) bus publisher pool: 0 = single feed-worker synchronous publish; N>0 = N async publisher threads.
-      - PACMAN_AUDIT_PUBLISHER_POOL_SIZE=${PACMAN_AUDIT_PUBLISHER_POOL_SIZE:-4}
-      # (d) redis (set PACMAN_AUDIT_MODE=redis): XADD each event to a Redis Stream. Lazy connect -> ignored unless mode=redis.
-      - REDIS_HOST=${REDIS_HOST:-redis}
-      - REDIS_PORT=${REDIS_PORT:-6379}
-      - PACMAN_AUDIT_REDIS_STREAM=${PACMAN_AUDIT_REDIS_STREAM:-}
-      - PACMAN_AUDIT_REDIS_MAX_LEN=${PACMAN_AUDIT_REDIS_MAX_LEN:-0}
-      # (c) over Kafka (set PACMAN_AUDIT_MODE=bus + PACMAN_AUDIT_BUS_TRANSPORT=kafka). Producer connects lazily.
-      - KAFKA_BOOTSTRAP=${KAFKA_BOOTSTRAP:-kafka:9092}
-      - PACMAN_AUDIT_BUS_TRANSPORT=${PACMAN_AUDIT_BUS_TRANSPORT:-activemq}
-      # (b) log datastore: shared (reuse service DB) | dedicated (separate pool/vendor via PACMAN_AUDIT_DB_*).
-      - PACMAN_AUDIT_LOG_DATASTORE=${PACMAN_AUDIT_LOG_DATASTORE:-shared}
-      # dedicated-only: the log DB may be a DIFFERENT vendor than the business DB.
-      - PACMAN_AUDIT_DB_VENDOR=${PACMAN_AUDIT_DB_VENDOR:-dev-postgres}
-      - PACMAN_AUDIT_DB_URL=${PACMAN_AUDIT_DB_URL:-}
-      - PACMAN_AUDIT_DB_USERNAME=${PACMAN_AUDIT_DB_USERNAME:-esq2025}
-      - PACMAN_AUDIT_DB_PASSWORD=${PACMAN_AUDIT_DB_PASSWORD:-q}
-      - PACMAN_AUDIT_DB_POOL_SIZE=${PACMAN_AUDIT_DB_POOL_SIZE:-8}
+      - ENTITY_BUS_ID=esquire.entity
+      - ENTITY_SERVICE_ID=entity
+      - ENTITY_BROADCAST_PUBLISHER_POOL_SIZE=0
+      # v1.2.8 audit logging (x-rod). pacMan owns account UPDATE / DELETE / balance -> esq_account_log.
+      # Per-vendor buses -- pick the sink by id (see enyMan for the full set). Demo = the bus -> auKeep.
+      - ESQUIRE_AUDIT_BUS_ID=${ESQUIRE_AUDIT_BUS_ID:-audit-c}
+      - ESQUIRE_AUDIT_SERVICE_ID=audit
+      - ESQUIRE_AUDIT_POOL_SIZE=${ESQUIRE_AUDIT_POOL_SIZE:-4}
+      - ESQUIRE_AUDIT_VIRTUAL_THREADS=${ESQUIRE_AUDIT_VIRTUAL_THREADS:-false}
+      - ESQUIRE_AUDIT_FEED_CAPACITY=${ESQUIRE_AUDIT_FEED_CAPACITY:-4096}
+      - ESQUIRE_AUDIT_LOG_DB_SHARED=${ESQUIRE_AUDIT_LOG_DB_SHARED:-false}
+      - ESQUIRE_AUDIT_LOG_DB_VENDOR=${ESQUIRE_AUDIT_LOG_DB_VENDOR:-dev-postgres}
+      - ESQUIRE_AUDIT_LOG_DB_URL=${ESQUIRE_AUDIT_LOG_DB_URL:-jdbc:postgresql://host.docker.internal:5432/esq2025}
+      - ESQUIRE_AUDIT_LOG_DB_USERNAME=${ESQUIRE_AUDIT_LOG_DB_USERNAME:-esq2025}
+      - ESQUIRE_AUDIT_LOG_DB_PASSWORD=${ESQUIRE_AUDIT_LOG_DB_PASSWORD:-q}
+      - ESQUIRE_AUDIT_LOG_DB_POOL_SIZE=${ESQUIRE_AUDIT_LOG_DB_POOL_SIZE:-2}
     command: ["java", "-jar", "app.jar"]
     depends_on:
-      postgres:
-        condition: service_healthy
       activemq:
         condition: service_healthy
     volumes:
       - ./logs:/app/logs
+      - ./topology/esquire-topology.yml:/etc/esquire/topology.yml:ro
     networks:
       - esquirenet
 
-  xxrod:
-    container_name: esq-xxrod
+  aukeep:
+    container_name: esq-aukeep
     build:
       context: .
-    image: esquire.xxrod
+    image: esquire.aukeep
     ports:
       - "3007:3007"
     environment:
-      - XXROD_PORT=3007
+      - DATAKEEP_PORT=3007
       - LOG_LEVEL_ROOT=ERROR
       - LOG_LEVEL_SF=ERROR
       - LOG_LEVEL_MIR0N=DEBUG
       - LOG_LEVEL_DEVELOP=DEBUG
       - LOG_LEVEL_MSG=INFO
-      - DEVELOP_LOG_PATH=logs/xxRod-develop.log
-      - MSG_LOG_PATH=logs/xxRod-msg.log
-      - DB_XXROD_VENDOR=dev-postgres
-      - DB_XXROD_PORT=5432
-      - DB_XXROD_NAME=esq2025
-      - DB_XXROD_HOST=postgres
-      - DB_XXROD_USERNAME=esq2025
-      - DB_XXROD_PASSWORD=q
-      # Messaging
-      - AMQ_BROKER_URL=tcp://activemq:61616
-      - XXROD_AUDIT_POOL_SIZE=${XXROD_AUDIT_POOL_SIZE:-8}
-      # transport: activemq (default JMS queue) | kafka (the audit topic). Set XXROD_TRANSPORT=kafka to consume Kafka.
-      - XXROD_TRANSPORT=${XXROD_TRANSPORT:-activemq}
-      - KAFKA_BOOTSTRAP=${KAFKA_BOOTSTRAP:-kafka:9092}
+      - LOG_LEVEL_AMQ=INFO
+      - LOG_LEVEL_JMS=INFO
+      - DEVELOP_LOG_PATH=logs/datakeep-develop.log
+      - MSG_LOG_PATH=logs/datakeep-msg.log
+      - ESQUIRE_TOPOLOGY_IMPORT=file:/etc/esquire/topology.yml
+      - DB_DATAKEEP_VENDOR=${DB_DATAKEEP_VENDOR:-dev-postgres}
+      - DB_DATAKEEP_PORT=${DB_DATAKEEP_PORT:-5432}
+      - DB_DATAKEEP_NAME=${DB_DATAKEEP_NAME:-esq2025}
+      - DB_DATAKEEP_HOST=${DB_DATAKEEP_HOST:-host.docker.internal}
+      - DB_DATAKEEP_USERNAME=${DB_DATAKEEP_USERNAME:-esq2025}
+      - DB_DATAKEEP_PASSWORD=${DB_DATAKEEP_PASSWORD:-q}
+      # Audit bus (x-rod). auKeep is the bus CONSUMER -- pick the SAME bus the producers publish to:
+      # audit-c (AMQ) | audit-ck (Kafka); demo default = audit-c. audit-b (in-process) + audit-d / audit-dk
+      # (producer-only streams) have no auKeep consumer.
+      - ESQUIRE_AUDIT_BUS_ID=${ESQUIRE_AUDIT_BUS_ID:-audit-c}
+      - ESQUIRE_AUDIT_SERVICE_ID=audit
+      - DATAKEEP_DIRECTOR=audit
     command: ["java", "-jar", "app.jar"]
     depends_on:
-      postgres:
-        condition: service_healthy
       activemq:
         condition: service_healthy
     volumes:
       - ./logs:/app/logs
+      - ./topology/esquire-topology.yml:/etc/esquire/topology.yml:ro
     networks:
       - esquirenet
 
@@ -454,59 +420,48 @@ services:
       - LOG_LEVEL_MIR0N=DEBUG
       - LOG_LEVEL_DEVELOP=DEBUG
       - LOG_LEVEL_MSG=DEBUG
+      - LOG_LEVEL_AMQ=INFO
+      - LOG_LEVEL_JMS=INFO
       - DEVELOP_LOG_PATH=logs/keySmith-develop.log
       - MSG_LOG_PATH=logs/keySmith-msg.log
-      - DB_KEYSMITH_VENDOR=dev-postgres
-      - DB_KEYSMITH_PORT=5432
-      - DB_KEYSMITH_NAME=esq2025
+      - ESQUIRE_TOPOLOGY_IMPORT=file:/etc/esquire/topology.yml
+      - DB_KEYSMITH_VENDOR=${DB_KEYSMITH_VENDOR:-dev-postgres}
+      - DB_KEYSMITH_PORT=${DB_KEYSMITH_PORT:-5432}
+      - DB_KEYSMITH_NAME=${DB_KEYSMITH_NAME:-esq2025}
       #- DB_KEYSMITH_VENDOR=dev-oracle
       #- DB_KEYSMITH_PORT=1521
       #- DB_KEYSMITH_NAME=MIR0N
-      - DB_KEYSMITH_HOST=postgres
+      - DB_KEYSMITH_HOST=${DB_KEYSMITH_HOST:-host.docker.internal}
       - DB_KEYSMITH_USERNAME=esq2025
       - DB_KEYSMITH_PASSWORD=q
       # Messaging
-      - AMQ_BROKER_URL=tcp://activemq:61616
-      #- AMQ_USER=
-      #- AMQ_PASSWORD=
-      - KEYSMITH_MESSAGING_CLIENT_ID=keysmith
-      - KEYSMITH_CTRL_ID=keysmith.default
+      - KC_BUS_ID=esquire.kc
+      - KC_SERVICE_ID=kc
+      - KEYSMITH_KC_RESPONSE_POOL_SIZE=2
+      - KEYSMITH_KC_RESPONSE_CONCURRENCY=1
+      - KEYSMITH_KC_PUBLISHER_POOL_SIZE=0
       # TEST race-8c repro ONLY (revert after): hold between path read and URQ publish
       - KEYSMITH_TEST_CONNECT_HOLD_MS=${KEYSMITH_TEST_CONNECT_HOLD_MS:-0}
-      # v1.2.7 audit logging (x-rod). keySmith owns the auth UPDATE -> esq_auth_log.
-      # Framework default is OFF (option-0); the demo turns it ON here.
-      - KEYSMITH_AUDIT_ENABLED=${KEYSMITH_AUDIT_ENABLED:-true}
-      # option (c): bus = publish to the audit queue (the xxRod service writes the *_log); in-process = (b).
-      - KEYSMITH_AUDIT_MODE=${KEYSMITH_AUDIT_MODE:-bus}
-      - KEYSMITH_AUDIT_POOL_SIZE=${KEYSMITH_AUDIT_POOL_SIZE:-4}
-      - KEYSMITH_AUDIT_VIRTUAL_THREADS=${KEYSMITH_AUDIT_VIRTUAL_THREADS:-false}
-      - KEYSMITH_AUDIT_FEED_CAPACITY=${KEYSMITH_AUDIT_FEED_CAPACITY:-4096}
-      # (c) bus publisher pool: 0 = single feed-worker synchronous publish; N>0 = N async publisher threads.
-      - KEYSMITH_AUDIT_PUBLISHER_POOL_SIZE=${KEYSMITH_AUDIT_PUBLISHER_POOL_SIZE:-4}
-      # (d) redis (set KEYSMITH_AUDIT_MODE=redis): XADD each event to a Redis Stream. Lazy connect -> ignored unless mode=redis.
-      - REDIS_HOST=${REDIS_HOST:-redis}
-      - REDIS_PORT=${REDIS_PORT:-6379}
-      - KEYSMITH_AUDIT_REDIS_STREAM=${KEYSMITH_AUDIT_REDIS_STREAM:-}
-      - KEYSMITH_AUDIT_REDIS_MAX_LEN=${KEYSMITH_AUDIT_REDIS_MAX_LEN:-0}
-      # (c) over Kafka (set KEYSMITH_AUDIT_MODE=bus + KEYSMITH_AUDIT_BUS_TRANSPORT=kafka). Producer connects lazily.
-      - KAFKA_BOOTSTRAP=${KAFKA_BOOTSTRAP:-kafka:9092}
-      - KEYSMITH_AUDIT_BUS_TRANSPORT=${KEYSMITH_AUDIT_BUS_TRANSPORT:-activemq}
-      # (b) log datastore: shared (reuse service DB) | dedicated (separate pool/vendor via KEYSMITH_AUDIT_DB_*).
-      - KEYSMITH_AUDIT_LOG_DATASTORE=${KEYSMITH_AUDIT_LOG_DATASTORE:-shared}
-      # dedicated-only: the log DB may be a DIFFERENT vendor than the business DB.
-      - KEYSMITH_AUDIT_DB_VENDOR=${KEYSMITH_AUDIT_DB_VENDOR:-dev-postgres}
-      - KEYSMITH_AUDIT_DB_URL=${KEYSMITH_AUDIT_DB_URL:-}
-      - KEYSMITH_AUDIT_DB_USERNAME=${KEYSMITH_AUDIT_DB_USERNAME:-esq2025}
-      - KEYSMITH_AUDIT_DB_PASSWORD=${KEYSMITH_AUDIT_DB_PASSWORD:-q}
-      - KEYSMITH_AUDIT_DB_POOL_SIZE=${KEYSMITH_AUDIT_DB_POOL_SIZE:-8}
+      # v1.2.8 audit logging (x-rod). keySmith owns the auth UPDATE -> esq_auth_log.
+      # Per-vendor buses -- pick the sink by id (see enyMan for the full set). Demo = the bus -> auKeep.
+      - ESQUIRE_AUDIT_BUS_ID=${ESQUIRE_AUDIT_BUS_ID:-audit-c}
+      - ESQUIRE_AUDIT_SERVICE_ID=audit
+      - ESQUIRE_AUDIT_POOL_SIZE=${ESQUIRE_AUDIT_POOL_SIZE:-4}
+      - ESQUIRE_AUDIT_VIRTUAL_THREADS=${ESQUIRE_AUDIT_VIRTUAL_THREADS:-false}
+      - ESQUIRE_AUDIT_FEED_CAPACITY=${ESQUIRE_AUDIT_FEED_CAPACITY:-4096}
+      - ESQUIRE_AUDIT_LOG_DB_SHARED=${ESQUIRE_AUDIT_LOG_DB_SHARED:-false}
+      - ESQUIRE_AUDIT_LOG_DB_VENDOR=${ESQUIRE_AUDIT_LOG_DB_VENDOR:-dev-postgres}
+      - ESQUIRE_AUDIT_LOG_DB_URL=${ESQUIRE_AUDIT_LOG_DB_URL:-jdbc:postgresql://host.docker.internal:5432/esq2025}
+      - ESQUIRE_AUDIT_LOG_DB_USERNAME=${ESQUIRE_AUDIT_LOG_DB_USERNAME:-esq2025}
+      - ESQUIRE_AUDIT_LOG_DB_PASSWORD=${ESQUIRE_AUDIT_LOG_DB_PASSWORD:-q}
+      - ESQUIRE_AUDIT_LOG_DB_POOL_SIZE=${ESQUIRE_AUDIT_LOG_DB_POOL_SIZE:-2}
     command: ["java", "-jar", "app.jar"]
     depends_on:
-      postgres:
-        condition: service_healthy
       activemq:
         condition: service_healthy
     volumes:
       - ./logs:/app/logs
+      - ./topology/esquire-topology.yml:/etc/esquire/topology.yml:ro
     networks:
       - esquirenet
 
@@ -524,17 +479,26 @@ services:
       - LOG_LEVEL_MIR0N=DEBUG
       - LOG_LEVEL_DEVELOP=DEBUG
       - LOG_LEVEL_MSG=INFO
+      - LOG_LEVEL_AMQ=INFO
+      - LOG_LEVEL_JMS=INFO
       - DEVELOP_LOG_PATH=logs/kcMaster-develop.log
       - MSG_LOG_PATH=logs/kcMaster-msg.log
+      - ESQUIRE_TOPOLOGY_IMPORT=file:/etc/esquire/topology.yml
       # Messaging
-      - AMQ_BROKER_URL=tcp://activemq:61616
-      #- AMQ_USER=
-      #- AMQ_PASSWORD=
-      - KCMASTER_SERVICE_ID=kc-sync
-      - KCMASTER_CTRL_ID=kcmaster.default
-      - KCMASTER_MESSAGING_CLIENT_ID=kcmaster
       # TEST race-8c repro ONLY (revert after): default 10000 (fix). -1 disables the buffer.
       - KCMASTER_PATH_BUFFER_TTL_MS=${KCMASTER_PATH_BUFFER_TTL_MS:-10000}
+      - KCMASTER_PATH_BUFFER_PRUNE_MS=30000
+      - KCMASTER_ENTITY_BROADCAST_CONSUMER_ENABLED=true
+      - KCMASTER_KC_REQUEST_CONSUMER_ENABLED=true
+      - KC_BUS_ID=esquire.kc
+      - KC_SERVICE_ID=kc
+      - KC_REQUEST_POOL_SIZE=4
+      - KC_REQUEST_CONCURRENCY=1
+      - KC_RESPONSE_PUBLISHER_POOL_SIZE=0
+      - ENTITY_BUS_ID=esquire.entity
+      - ENTITY_SERVICE_ID=entity
+      - ENTITY_BROADCAST_POOL_SIZE=4
+      - ENTITY_BROADCAST_CONCURRENCY=1
       # Keycloak
       - KC_BASE_URL=http://keycloak:8080/kc-auth
       - KC_REALM=esquire
@@ -548,6 +512,7 @@ services:
         condition: service_healthy
     volumes:
       - ./logs:/app/logs
+      - ./topology/esquire-topology.yml:/etc/esquire/topology.yml:ro
     networks:
       - esquirenet
 

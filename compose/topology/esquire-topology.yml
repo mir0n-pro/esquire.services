@@ -1,0 +1,112 @@
+# Esquire frameworks (tm) -- shared messaging-bus TOPOLOGY (docker environment)
+#
+# The cross-service bus catalog, defined ONCE and loaded by every service via
+#   spring.config.import: file:${ESQUIRE_TOPOLOGY_FILE:/etc/esquire/topology.yml}
+# (bind-mounted from compose/topology/ into each container at /etc/esquire/topology.yml).
+#
+# This file is PER ENVIRONMENT and is written with CONCRETE values (no ${} placeholders) -- the docker-network
+# hostnames (activemq / kafka / redis). Per-service knobs (pool sizes, rod-class deltas, the role) and the audit
+# in-process (b) log-db live at the SERVICE level (each service application.yml), NOT here. A bus defined here but
+# not referenced by a service is inert (a pod is built only when a service producer()/consumer()s a bus key).
+esquire:
+  messaging-bus:
+    # --- entity broadcast (topic): publishers post UE, consumers (bizTree / kcMaster) apply ---
+    - bus-id: esquire.entity
+      slots:
+        - slot-id: entity
+          x-rod:
+            pool-size: 4
+            concurrency: 1
+            publisher-pool-size: 0
+            transport:
+              provider: activemq
+              endpoint: tcp://activemq:61616
+              destination: esquire.entity.broadcast
+              topic: true
+    # --- KeyCloak request/response (R&R, two nodes): enyMan/keySmith CLIENT, kcMaster SERVER ---
+    - bus-id: esquire.kc
+      slots:
+        - slot-id: kc
+          x-rod:
+            rod-class: XRodRR
+            pool-size: 4
+            concurrency: 1
+            publisher-pool-size: 0
+            transport:
+              provider: activemq
+              endpoint: tcp://activemq:61616
+              topic: false
+              request-node: request
+              response-node: response
+              nodes:
+                - node-id: request
+                  destination: esquire.kc.request
+                - node-id: response
+                  destination: esquire.kc.response
+    # --- audit (c): ActiveMQ -> auKeep consumer writes the *_log ---
+    - bus-id: audit-c
+      slots:
+        - slot-id: audit
+          x-rod:
+            rod-class: XRod
+            pool-size: 4
+            feed-capacity: 4096
+            virtual-threads: false
+            publisher-pool-size: 0
+            concurrency: 1
+            transport:
+              provider: activemq
+              endpoint: tcp://activemq:61616
+              destination: esquire.rod.audit
+              topic: false
+              params:
+                jms.useAsyncSend: true
+    # --- audit (ck): Kafka -> auKeep consumer writes the *_log ---
+    - bus-id: audit-ck
+      slots:
+        - slot-id: audit
+          x-rod:
+            rod-class: XRod
+            pool-size: 4
+            feed-capacity: 4096
+            virtual-threads: false
+            publisher-pool-size: 0
+            concurrency: 1
+            transport:
+              provider: kafka
+              endpoint: kafka:9092
+              destination: esquire.rod.audit
+              params:
+                group-id: esquire-xxrod-audit
+    # --- audit (d): Redis stream IS the append-only log (producer-only, no auKeep consumer) ---
+    - bus-id: audit-d
+      slots:
+        - slot-id: audit
+          x-rod:
+            rod-class: XRod
+            pool-size: 4
+            feed-capacity: 4096
+            virtual-threads: false
+            publisher-pool-size: 0
+            transport:
+              provider: redis
+              endpoint: redis://redis:6379
+              destination: esquire.rod.audit
+              params:
+                max-len: 0
+    # --- audit (dk): Kafka topic IS the append-only log (producer-only, no auKeep consumer) ---
+    - bus-id: audit-dk
+      slots:
+        - slot-id: audit
+          x-rod:
+            rod-class: XRod
+            pool-size: 4
+            feed-capacity: 4096
+            virtual-threads: false
+            publisher-pool-size: 0
+            transport:
+              provider: kafka
+              endpoint: kafka:9092
+              destination: esquire.rod.audit
+              params:
+                group-id: esquire-xxrod-audit-dk

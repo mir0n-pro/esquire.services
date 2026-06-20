@@ -3,67 +3,9 @@ spring:
     active: ${DB_KEYSMITH_VENDOR:dev-postgres}
   application:
     name: keysmith
-  activemq:
-    broker-url: ${AMQ_BROKER_URL:tcp://localhost:61616}
-    user: ${AMQ_USER:}
-    password: ${AMQ_PASSWORD:}
-  data:
-    redis:
-      # x-Rod audit option (d) target. Lettuce connects lazily, so it is dormant unless audit mode=redis.
-      host: ${REDIS_HOST:localhost}
-      port: ${REDIS_PORT:6379}
-  kafka:
-    # x-Rod audit option (c) over Kafka target. The producer connects lazily, dormant unless
-    # audit mode=bus + bus.transport=kafka.
-    bootstrap-servers: ${KAFKA_BOOTSTRAP:localhost:9092}
-    producer:
-      key-serializer: org.apache.kafka.common.serialization.StringSerializer
-      value-serializer: org.apache.kafka.common.serialization.StringSerializer
-      # audit is best-effort -> tune for sender throughput (off the request path).
-      acks: ${KAFKA_ACKS:0}
-      batch-size: ${KAFKA_BATCH_SIZE:32768}
-      compression-type: ${KAFKA_COMPRESSION:lz4}
-      properties:
-        linger.ms: ${KAFKA_LINGER_MS:10}
-  jms:
-    client-id: ${KEYSMITH_MESSAGING_CLIENT_ID:keysmith}
-# Messaging: KC sync producer
+  config:
+    import: "${ESQUIRE_TOPOLOGY_IMPORT:file:/etc/esquire/topology.yml}"
 keysmith:
-  messaging:
-    # Stable producer instance identifier (CtrlID in FIX envelope); response listener filters by this value
-    ctrl-id: ${KEYSMITH_CTRL_ID:keysmith.default}
-  audit-logging:
-    enabled: ${KEYSMITH_AUDIT_ENABLED:false}
-    x-rod:
-      # in-process = write the *_log here (option b); bus = publish to the audit queue, the standalone
-      # xxRod service writes the *_log (option c).
-      mode: ${KEYSMITH_AUDIT_MODE:in-process}
-      # xx-rod consumer worker pool that writes the *_log tables; keep <= the log datastore pool.
-      pool-size: ${KEYSMITH_AUDIT_POOL_SIZE:4}
-      virtual-threads: ${KEYSMITH_AUDIT_VIRTUAL_THREADS:false}
-      # xy-rod producer feed: per-tx buffer, flush after commit; bounded backlog before backpressure.
-      feed-capacity: ${KEYSMITH_AUDIT_FEED_CAPACITY:4096}
-      # (c) bus publisher (mode=bus only): 0 = single feed-worker synchronous publish (one JMS send per
-      #   committed tx); N>0 = N async publisher threads over a dedicated useAsyncSend connection.
-      bus:
-        publisher-pool-size: ${KEYSMITH_AUDIT_PUBLISHER_POOL_SIZE:0}
-        # (c) bus transport: activemq (default, the queue) | kafka (publish to the audit Kafka topic).
-        transport: ${KEYSMITH_AUDIT_BUS_TRANSPORT:activemq}
-      # (d) redis (mode=redis only): XADD each event to this Redis Stream (the stream IS the audit log;
-      #   no consumer service). max-len = approximate MAXLEN cap (0 = uncapped).
-      redis:
-        stream: ${KEYSMITH_AUDIT_REDIS_STREAM:}
-        max-len: ${KEYSMITH_AUDIT_REDIS_MAX_LEN:0}
-      # (b) log datastore: shared (reuse service DB) | dedicated (separate pool/vendor via log-db below).
-      log-datastore: ${KEYSMITH_AUDIT_LOG_DATASTORE:shared}
-      # Read ONLY when log-datastore=dedicated. vendor selects the *_log SQL dialect
-      # (dev-postgres -> INSERT..ON CONFLICT, dev-oracle -> MERGE) independently of the service datasource.
-      log-db:
-        vendor: ${KEYSMITH_AUDIT_DB_VENDOR:dev-postgres}
-        url: ${KEYSMITH_AUDIT_DB_URL:}
-        username: ${KEYSMITH_AUDIT_DB_USERNAME:esq2025}
-        password: ${KEYSMITH_AUDIT_DB_PASSWORD:q}
-        pool-size: ${KEYSMITH_AUDIT_DB_POOL_SIZE:8}
   jpa:
     hibernate:
       ddl-auto: none
@@ -71,11 +13,40 @@ keysmith:
   mvc:
     problemdetails:
       enabled: true
-management:
-  health:
-    redis:
-      # OFF: Redis is only used when audit mode=redis (option d); its absence must not mark the service DOWN.
-      enabled: false
+  # this service's OWN overlay of the global esquire.messaging-bus catalog: its in-process audit-b leg
+  # (log-db is service-specific), under the service namespace.
+  messaging-bus:
+    - bus-id: audit-b
+      slots:
+        - slot-id: audit
+          x-rod:
+            rod-class: pro.mir0n.esquire.dataKeep.keep.XRodInProcess
+            pool-size: ${ESQUIRE_AUDIT_POOL_SIZE:4}
+            feed-capacity: ${ESQUIRE_AUDIT_FEED_CAPACITY:4096}
+            virtual-threads: ${ESQUIRE_AUDIT_VIRTUAL_THREADS:false}
+            log-db:
+              # shared=true -> the keep reuses the SERVICE's own datasource pool (url/vendor/hikari ignored,
+              # dialect from the service profile); false -> a dedicated keep pool from the url/hikari below.
+              shared: ${ESQUIRE_AUDIT_LOG_DB_SHARED:false}
+              vendor: ${ESQUIRE_AUDIT_LOG_DB_VENDOR:dev-postgres}
+              url: ${ESQUIRE_AUDIT_LOG_DB_URL:jdbc:postgresql://${DB_KEYSMITH_HOST:localhost}:${DB_KEYSMITH_PORT:5432}/${DB_KEYSMITH_NAME:esq2025}}
+              username: ${ESQUIRE_AUDIT_LOG_DB_USERNAME:${DB_KEYSMITH_USERNAME:esq2025}}
+              password: ${ESQUIRE_AUDIT_LOG_DB_PASSWORD:${DB_KEYSMITH_PASSWORD:q}}
+              hikari:
+                maximum-pool-size: ${ESQUIRE_AUDIT_LOG_DB_POOL_SIZE:2}
+esquire:
+  audit-bus:
+    messaging-bus:
+      bus-id: ${ESQUIRE_AUDIT_BUS_ID:audit-b}
+      slot-id: ${ESQUIRE_AUDIT_SERVICE_ID:audit}
+  kc-bus:
+    messaging-bus:
+      bus-id: ${KC_BUS_ID:esquire.kc}
+      slot-id: ${KC_SERVICE_ID:kc}
+      x-rod:
+        pool-size: ${KEYSMITH_KC_RESPONSE_POOL_SIZE:2}
+        concurrency: ${KEYSMITH_KC_RESPONSE_CONCURRENCY:1}
+        publisher-pool-size: ${KEYSMITH_KC_PUBLISHER_POOL_SIZE:0}
 logging:
   level:
     root: ${LOG_LEVEL_ROOT:ERROR}
@@ -103,13 +74,13 @@ spring:
     url: jdbc:oracle:thin:@//${DB_KEYSMITH_HOST:localhost}:${DB_KEYSMITH_PORT:1521}/${DB_KEYSMITH_NAME:MIR0N}
     driverClassName: oracle.jdbc.OracleDriver
     username: ${DB_KEYSMITH_USERNAME:esq2025}
-    password: ${DB_KEYSMITH_PASSWORD:q}   
+    password: ${DB_KEYSMITH_PASSWORD:q}
     hikari:
       maximum-pool-size: 20
       minimum-idle: 20
-      connection-timeout: 30000 
-      max-lifetime: 1800000 
-      idle-timeout: 600000    
+      connection-timeout: 30000
+      max-lifetime: 1800000
+      idle-timeout: 600000
   jpa:
     mapping-resources:
       - META-INF/oracle-access-profile.xml
@@ -129,13 +100,13 @@ spring:
   datasource:
     url: jdbc:postgresql://${DB_KEYSMITH_HOST:localhost}:${DB_KEYSMITH_PORT:5432}/${DB_KEYSMITH_NAME:esq2025}
     username: ${DB_KEYSMITH_USERNAME:esq2025}
-    password: ${DB_KEYSMITH_PASSWORD:q}   
+    password: ${DB_KEYSMITH_PASSWORD:q}
     hikari:
       maximum-pool-size: 20
       minimum-idle: 20
-      connection-timeout: 30000 
-      max-lifetime: 1800000 
-      idle-timeout: 600000    
+      connection-timeout: 30000
+      max-lifetime: 1800000
+      idle-timeout: 600000
   jpa:
     mapping-resources:
       - META-INF/postgres-access-profile.xml

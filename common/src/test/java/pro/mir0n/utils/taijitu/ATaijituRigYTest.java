@@ -70,7 +70,7 @@ class ATaijituRigYTest {
     }
 
     private static void fire(ATaijituRigY director, String id) {
-        director.onEntityBroadcast("UPDATE", id, 20, null, null, null, null);
+        director.onEntityBroadcast("UPDATE", id, 20, null, null, null);
     }
 
     private static void waitForStatus(AMonadY m, MonadStatus s, long timeoutMs) throws InterruptedException {

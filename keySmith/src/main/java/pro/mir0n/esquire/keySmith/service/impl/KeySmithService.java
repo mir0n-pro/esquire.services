@@ -40,6 +40,10 @@
  *                   params; dropped from the IKeySmithService signatures (passed to saveAccess)
  * 06/05/2026 mir0n  XYRod injected; auth UPDATE posts an x-Rod esq_auth_log audit event (managed non-secret
  *                   fields only; security question / answer excluded)
+ * 06/15/2026 mir0n  audit field retyped XYRod -> IXRod (messaging.xrod); the auth UPDATE post() now passes an
+ *                   explicit msgType (EsqMsgConstants.MSG_TYPE_AUDIT) as the trailing argument.
+ * 06/17/2026 mir0n  audit field IXRod -> AuditBusBridge; the auth UPDATE post() drops the trailing MSG_TYPE_AUDIT arg
+ * 06/18/2026 mir0n  audit module left common: AuditBusBridge moved to pro.mir0n.esquire.audit
  */
 
 package pro.mir0n.esquire.keySmith.service.impl;
@@ -67,8 +71,8 @@ import pro.mir0n.esquire.backend.storage.EsqEntityDictionaryStorage;
 import pro.mir0n.esquire.backend.storage.EsqRolesStorage;
 import pro.mir0n.esquire.backend.validator.ValidatorFactory;
 import pro.mir0n.esquire.common.EsqConstants;
-import pro.mir0n.esquire.common.xrod.RodEvent;
-import pro.mir0n.esquire.common.xrod.XYRod;
+import pro.mir0n.esquire.messaging.xrod.RodEvent;
+import pro.mir0n.esquire.audit.AuditBusBridge;
 import pro.mir0n.esquire.keySmith.jpa.EsqAccessProfileRepository;
 import pro.mir0n.esquire.backend.service.RequestContextUtils;
 import pro.mir0n.esquire.backend.error.ResourceNotFoundException;
@@ -90,7 +94,7 @@ public class KeySmithService implements IKeySmithService {
     private TransactionTemplate transactionTemplate;
     private EntityManager em;
     private KcSyncPublisher kcSyncPublisher;
-    private XYRod xyRod;
+    private AuditBusBridge audit;
 
     @Override
     public EsqAccessProfile esquireKey(String id) {
@@ -227,7 +231,7 @@ public class KeySmithService implements IKeySmithService {
             auth.setConnectFlg(jpa.getConnectFlg());
             auth.setTfaMethod(jpa.getTfaMethod());
             auth.setForceChangeFlg(jpa.getPwdChangeForced());
-            xyRod.post(RodEvent.Op.UPDATE, EsqConstants.KIND_ACCESS_PROFILE, id, null, auth);
+            audit.post(RodEvent.Op.UPDATE, EsqConstants.KIND_ACCESS_PROFILE, id, null, auth);
         }
         List<EsqRoleJpa> originRoles = accessProfileRepository.roles(id);
         Set<String> originIds = new HashSet<>();

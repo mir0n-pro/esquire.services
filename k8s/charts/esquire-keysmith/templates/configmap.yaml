@@ -7,25 +7,38 @@ metadata:
 data:
   SPRING_PROFILES_ACTIVE:         {{ .Values.springProfilesActive | default "" | quote }}
   KEYSMITH_PORT:                  {{ .Values.service.port | quote }}
+  ESQUIRE_TOPOLOGY_IMPORT:        {{ .Values.topologyImport | quote }}
+  # --- datasource (password -> Secret, injected as env in the deployment) ---
   DB_KEYSMITH_VENDOR:             {{ .Values.db.vendor | quote }}
   DB_KEYSMITH_HOST:               {{ .Values.db.host | quote }}
   DB_KEYSMITH_PORT:               {{ .Values.db.port | quote }}
   DB_KEYSMITH_NAME:               {{ .Values.db.name | quote }}
   DB_KEYSMITH_USERNAME:           {{ .Values.db.username | quote }}
-  AMQ_BROKER_URL:                 {{ .Values.messaging.brokerUrl | quote }}
-  KEYSMITH_MESSAGING_CLIENT_ID:   {{ .Values.messaging.clientId | quote }}
+  # --- kc-bus ref (CLIENT: post URQ / receive URS) ---
+  KC_BUS_ID:                      {{ .Values.kc.busId | quote }}
+  KC_SERVICE_ID:                  {{ .Values.kc.serviceId | quote }}
+  KEYSMITH_KC_RESPONSE_POOL_SIZE: {{ .Values.kc.responsePoolSize | quote }}
+  KEYSMITH_KC_RESPONSE_CONCURRENCY:  {{ .Values.kc.responseConcurrency | quote }}
+  KEYSMITH_KC_PUBLISHER_POOL_SIZE:   {{ .Values.kc.publisherPoolSize | quote }}
+  # --- audit-bus ref + in-process (b) knobs ---
+  ESQUIRE_AUDIT_BUS_ID:           {{ .Values.audit.busId | quote }}
+  ESQUIRE_AUDIT_SERVICE_ID:       {{ .Values.audit.serviceId | quote }}
+  ESQUIRE_AUDIT_POOL_SIZE:        {{ .Values.audit.poolSize | quote }}
+  ESQUIRE_AUDIT_FEED_CAPACITY:    {{ .Values.audit.feedCapacity | quote }}
+  ESQUIRE_AUDIT_VIRTUAL_THREADS:  {{ .Values.audit.virtualThreads | quote }}
+  ESQUIRE_AUDIT_LOG_DB_SHARED:    {{ .Values.audit.logDb.shared | default false | quote }}
+  ESQUIRE_AUDIT_LOG_DB_VENDOR:    {{ .Values.audit.logDb.vendor | quote }}
+  ESQUIRE_AUDIT_LOG_DB_URL:       {{ .Values.audit.logDb.url | quote }}
+  ESQUIRE_AUDIT_LOG_DB_USERNAME:  {{ .Values.audit.logDb.username | quote }}
+  ESQUIRE_AUDIT_LOG_DB_POOL_SIZE: {{ .Values.audit.logDb.poolSize | quote }}
+  # ESQUIRE_AUDIT_LOG_DB_PASSWORD: chains from DB_KEYSMITH_PASSWORD (Secret) via application.yml
+  # --- logging ---
   LOG_LEVEL_ROOT:                 {{ .Values.logging.levelRoot | quote }}
   LOG_LEVEL_SF:                   {{ .Values.logging.levelSf | quote }}
   LOG_LEVEL_MIR0N:                {{ .Values.logging.levelMir0n | quote }}
   LOG_LEVEL_DEVELOP:              {{ .Values.logging.levelDevelop | quote }}
   LOG_LEVEL_MSG:                  {{ .Values.logging.levelMsg | quote }}
+  LOG_LEVEL_AMQ:                  {{ .Values.logging.levelAmq | quote }}
+  LOG_LEVEL_JMS:                  {{ .Values.logging.levelJms | quote }}
   DEVELOP_LOG_PATH:               {{ .Values.logging.developLogPath | quote }}
   MSG_LOG_PATH:                   {{ .Values.logging.msgLogPath | quote }}
-  KEYSMITH_AUDIT_ENABLED:         {{ .Values.audit.enabled | quote }}
-  KEYSMITH_AUDIT_MODE:            {{ .Values.audit.mode | quote }}
-  KEYSMITH_AUDIT_BUS_TRANSPORT:   {{ .Values.audit.busTransport | quote }}
-  KEYSMITH_AUDIT_PUBLISHER_POOL_SIZE:  {{ .Values.audit.publisherPoolSize | quote }}
-  KAFKA_BOOTSTRAP:                {{ .Values.audit.kafkaBootstrap | quote }}
-  {{- if .Values.audit.redisHost }}
-  REDIS_HOST:                     {{ .Values.audit.redisHost | quote }}
-  {{- end }}

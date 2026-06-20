@@ -17,9 +17,9 @@
   <text x="344" y="82" text-anchor="middle" font-weight="bold">audit QUEUE</text>
   <text x="344" y="104" text-anchor="middle" fill="#555">persistent, fan-in, no clientId</text>
 
-  <!-- xxRod -->
+  <!-- auKeep -->
   <rect x="484" y="36" width="200" height="92" rx="8" fill="#edf7ee" stroke="#5a9a5a"/>
-  <text x="584" y="64" text-anchor="middle" font-weight="bold">xxRod replicas (HD)</text>
+  <text x="584" y="64" text-anchor="middle" font-weight="bold">auKeep replicas (HD)</text>
   <text x="584" y="86" text-anchor="middle" fill="#555">competing consumers,</text>
   <text x="584" y="102" text-anchor="middle" fill="#555">order-independent</text>
 

@@ -20,7 +20,7 @@ rem   4. docker buildx build --platform amd64+arm64
 rem        -t ghcr.io/mir0n-pro/esquire.<svc>:STAMP --push
 rem   5. patch values\<svc>.yaml :  tag: "STAMP"
 rem   6. helm upgrade esquire-<svc> ..\k8s\charts\esquire-<svc>
-rem        --reuse-values --set image.tag=STAMP
+rem        --reset-then-reuse-values --set image.tag=STAMP
 rem   7. kubectl rollout status deployment/esquire-<svc>-<svc> --timeout=5m
 rem   8. echo STAMP for paste into release_notes.txt
 rem
@@ -174,7 +174,7 @@ if errorlevel 1 (
 )
 
 echo --- [helm] upgrading esquire-%SVC% to %STAMP%...
-helm upgrade esquire-%SVC% ..\k8s\charts\esquire-%SVC% --reuse-values --set image.tag=%STAMP%
+helm upgrade esquire-%SVC% ..\k8s\charts\esquire-%SVC% --reset-then-reuse-values --set image.tag=%STAMP%
 if errorlevel 1 goto fail
 
 echo --- [rollout] waiting for deployment/esquire-%SVC%-%SVC% (timeout 5m)...

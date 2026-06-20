@@ -1,5 +1,49 @@
 Esquire keySmith Microservice
 
+06/18/2026 mir0n  v1.2.8 -- Messaging Bus: audit module left common; leg-selected keep sink
+audit.AuditConfig
+  - injects the service DataSource; the audit sink is selected from the leg: log-db.shared=true -> the
+    IN-PROCESS keep on the SERVICE's pool; a log-db url -> the IN-PROCESS keep with its OWN pool; else -> the
+    BUS producer; @PreDestroy closes a dedicated keep pool (a shared one is left to the service)
+service.impl.KeySmithService
+  - AuditBusBridge moved out of common -> pro.mir0n.esquire.audit (the import repointed)
+application.yml
+  - the in-process audit-b leg moved under the service-namespace key keysmith.messaging-bus; rod-class
+    pro.mir0n.esquire.dataKeep.keep.XRodInProcess; log-db.shared + log-db.hikari.maximum-pool-size added
+pom.xml
+  - depends on esquire-audit (the audit classes left common)
+
+06/17/2026 mir0n  v1.2.8 -- Messaging Bus cleanup: audit via AuditBusBridge
+audit.AuditConfig
+  - @Bean AuditBusBridge audit() wrapping rods.producer(BUS_KEY_AUDIT, BROADCAST) (was @Bean IXRod xRod())
+service.impl.KeySmithService
+  - the audit producer field IXRod xyRod -> AuditBusBridge audit; post(...) calls drop the trailing
+    EsqMsgConstants.MSG_TYPE_AUDIT argument (the bridge stamps it)
+
+06/15/2026 mir0n  v1.2.8 -- KC sync publisher/listener migrated onto the x-Rod catalog; audit via XRodManager
+messaging.KcSyncPublisher
+  - producer IXRod opened from XRodManager (rods.producer(BUS_KEY_KC, Role.CLIENT)); publish() builds a
+    RodEvent (msg-type URQ) and calls rod.transmit(); dropped JmsTemplate / ObjectMapper / ctrl-id @Value
+    and the manual FIX-props send; buildText() -> buildBody() returns the field Map (no JSON here)
+messaging.KcSyncResponseListener
+  - consumes via XRodManager (rods.consumer(BUS_KEY_KC, Role.CLIENT, this::onResponse)); onResponse(RodEvent)
+    reads the typed envelope (msgType = URS/URR tag); dropped @JmsListener / Message field reads / msgLog
+audit.AuditConfig
+  - ctor takes XRodManager; xRod() returns rods.producer(BUS_KEY_AUDIT, Role.BROADCAST); dropped the @Value
+    config block, the DataSource / JmsTemplate / Redis / Kafka publisher wiring, kindToSqlKey() and @PreDestroy
+service.impl.KeySmithService
+  - audit field retyped XYRod -> IXRod (messaging.xrod); the auth UPDATE post() now passes an explicit
+    msgType (EsqMsgConstants.MSG_TYPE_AUDIT) as the trailing argument
+messaging.KeySmithJmsConfig  (removed)
+  - JMS queue connection-factory / listener-factory config deleted (transport now owned by XRodManager)
+pom.xml
+  - direct transport starters (spring-boot-starter-activemq, spring-boot-starter-data-redis, spring-kafka)
+    replaced by the esquire-tp-activemq / esquire-tp-redis / esquire-tp-kafka transport-provider modules
+application.yml
+  - dropped spring.activemq/data.redis/kafka/jms blocks, keysmith.messaging.ctrl-id and the
+    keysmith.audit-logging.* tree; added spring.config.import of the shared esquire-topology.yml and the
+    esquire.* bus refs (audit-bus, kc-bus) + service-local keysmith-messaging-bus audit-b leg (XRodLogDb)
+
 06/08/2026 mir0n  v1.2.7 -- audit logging (c) over Kafka transport
 audit.AuditConfig
   - mode=bus + x-rod.bus.transport=kafka builds a RodKafkaPublisher over the autoconfigured KafkaTemplate

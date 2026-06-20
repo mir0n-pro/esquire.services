@@ -2,7 +2,7 @@
  *  Esquire frameworks (tm)
  *  kcMaster service
  *
- *  Copyright(c) 2001, 2026 mir0n&co www.mir0n.me
+ *  Copyright(c) 2001, 2026 mir0n&co www.mir0n.pro
  *  mailto:mir0n.the.programmer@gmail.com
  *
  *  History:
@@ -12,121 +12,71 @@
  *                   dual-mode URS and URR audit; console echo log.info; dual error pattern
  * 03/26/2026 mir0n  MSG_ENCODING_JSON (renamed from MESSAGE_ENCODING)
  * 04/06/2026 mir0n  publishSuccess/publishFailure: entityKind param added — echoes actual entity kind
+ * 06/14/2026 mir0n  bus-oriented: the reply rides the x-Rod transport seam as a RodEvent on the
+ *                   {esquire.kc, kc-response} catalog leg. One leg, two msg-types (URS / URR) chosen per
+ *                   message via the publisherMsg sink. The requester's rod-id is echoed on the event so the
+ *                   requester's RodID selector matches; a reject carries the RFC-9457 error under the body
+ *                   "error" key (and the original request under "request"). testReqId rides as the requestId.
+ * 06/15/2026 mir0n  reply producer obtained from XRodManager.producer(BUS_KEY_KC, Role.SERVER) as an IXRod;
+ *                   publishSuccess/publishFailure build a RodEvent (MSG_TYPE_RESPONSE / MSG_TYPE_REJECT) and
+ *                   rod.transmit() it; JmsTemplate/ObjectMapper/Session props wiring removed.
  */
 
 package pro.mir0n.esquire.kcMaster.messaging;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import jakarta.jms.Message;
-import jakarta.jms.Session;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.slf4j.LoggerFactory;
-import org.springframework.jms.core.JmsTemplate;
 import org.springframework.stereotype.Component;
-import pro.mir0n.esquire.common.EsqConstants;
 import pro.mir0n.esquire.common.EsqMsgConstants;
-import pro.mir0n.esquire.messaging.jms.Utils;
+import pro.mir0n.esquire.messaging.Role;
+import pro.mir0n.esquire.messaging.xrod.IXRod;
+import pro.mir0n.esquire.messaging.xrod.RodEvent;
+import pro.mir0n.esquire.messaging.xrod.XRodManager;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.UUID;
 
+/**
+ * Publishes the KC sync reply (URS success / URR reject) to the {esquire.kc, kc-response} leg. The requester's
+ * rod-id is stamped on the event so only the originating producer instance's RodID selector picks the reply up.
+ */
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class KcResponsePublisher {
 
-    private static final org.slf4j.Logger msgLog = LoggerFactory.getLogger("msg." + KcResponsePublisher.class.getName());
-    private static final org.slf4j.Logger devLog = LoggerFactory.getLogger("develop." + KcResponsePublisher.class.getName());
+    private final IXRod rod;
 
-    private final JmsTemplate jmsQueueTemplate;
-    private final ObjectMapper objectMapper;
-
-    public void publishSuccess(String entityId, int entityKind, String command,
-                               String ctrlId, String requestId, String correlationId, String testReqId) {
-        try {
-            Map<String, Object> props = new LinkedHashMap<>();
-            String mid = UUID.randomUUID().toString();
-            props.put(EsqMsgConstants.FIELD_APPL_MSG_ID,   mid);
-            props.put(EsqMsgConstants.FIELD_MSG_TYPE,       EsqMsgConstants.MSG_TYPE_RESPONSE);
-            props.put(EsqMsgConstants.FIELD_EVENT_TYPE,     command);
-            props.put(EsqMsgConstants.FIELD_ENTITY_KIND,    entityKind);
-            props.put(EsqMsgConstants.FIELD_ENTITY_ID,      entityId);
-            props.put(EsqMsgConstants.FIELD_CTRL_ID,        ctrlId);
-            props.put(EsqMsgConstants.FIELD_REQUEST_ID,     requestId);
-            props.put(EsqMsgConstants.FIELD_CORRELATION_ID, correlationId);
-            props.put(EsqMsgConstants.FIELD_TEST_REQ_ID,    testReqId);
-
-            jmsQueueTemplate.send(EsqMsgConstants.QUEUE_KC_RESPONSE, (Session session) -> {
-                Message msg = session.createMessage();
-                Utils.setProps(msg, props);
-                return msg;
-            });
-            if (msgLog.isDebugEnabled()) {
-                msgLog.info("KC | URS | {}", Utils.formatProps(props));
-            } else {
-                msgLog.info("KC | URS | {} | {} | {} | {} | {} | {} | {} | {}",
-                    mid, command, EsqConstants.KIND_ACCESS_PROFILE, entityId,
-                        ctrlId, requestId, correlationId, testReqId);
-            }
-            log.info("KC | URS | {} | {} | {} | {} | {} | {}",
-                    mid, command, EsqConstants.KIND_ACCESS_PROFILE, entityId, ctrlId, testReqId);
-        } catch (Exception e) {
-            log.error("kcMaster: failed to publish URS: entityId={}, error={}", entityId, e.getMessage());
-            devLog.error("kcMaster: failed to publish URS: entityId={}, requestId={}, correlationId={}, error={}", entityId, requestId, correlationId, e.getMessage(), e);
-        }
+    public KcResponsePublisher(XRodManager rods) {
+        this.rod = rods.producer(EsqMsgConstants.BUS_KEY_KC, Role.SERVER);
     }
 
-    public void publishFailure(String entityId, int entityKind, String command, String loginId,
+    public void publishSuccess(String entityId, int entityKind, String command,
+                               String requesterRodId, String requestId, String correlationId) {
+        RodEvent e = new RodEvent(RodEvent.opFromCode(command), entityKind, entityId, null,
+                System.currentTimeMillis(), correlationId, requestId, null, requesterRodId,
+                EsqMsgConstants.MSG_TYPE_RESPONSE, Map.of());
+        rod.transmit(e);
+        log.info("KC | URS | {} | {} | {} | {}", command, entityKind, entityId, requesterRodId);
+    }
+
+    public void publishFailure(String entityId, int entityKind, String command,
                                String errorCode, String errorMessage,
-                               String ctrlId, String requestId, String correlationId, String testReqId,
-                               String requestText) {
-        try {
-            Map<String, Object> error = new LinkedHashMap<>();
-            error.put("type",   "about:blank");
-            error.put("title",  errorCode);
-            error.put("status", 500);
-            error.put("detail", errorMessage);
-            String errorJson = objectMapper.writeValueAsString(error);
-
-            String mid = UUID.randomUUID().toString();
-
-            Map<String, Object> props = new LinkedHashMap<>();
-            props.put(EsqMsgConstants.FIELD_APPL_MSG_ID,   mid);
-            props.put(EsqMsgConstants.FIELD_MSG_TYPE,       EsqMsgConstants.MSG_TYPE_REJECT);
-            props.put(EsqMsgConstants.FIELD_EVENT_TYPE,     command);
-            props.put(EsqMsgConstants.FIELD_ENTITY_KIND,    entityKind);
-            props.put(EsqMsgConstants.FIELD_ENTITY_ID,      entityId);
-            props.put(EsqMsgConstants.FIELD_CTRL_ID,        ctrlId);
-            props.put(EsqMsgConstants.FIELD_REQUEST_ID,     requestId);
-            props.put(EsqMsgConstants.FIELD_CORRELATION_ID, correlationId);
-            props.put(EsqMsgConstants.FIELD_TEST_REQ_ID,    testReqId);
-            if (requestText != null) {
-                props.put(EsqMsgConstants.FIELD_MESSAGE_ENCODING, EsqMsgConstants.MSG_ENCODING_JSON);
-                props.put(EsqMsgConstants.FIELD_TEXT,             requestText);
-            }
-            props.put(EsqMsgConstants.FIELD_ERROR,          errorJson);
-
-            jmsQueueTemplate.send(EsqMsgConstants.QUEUE_KC_RESPONSE, (Session session) -> {
-                Message msg = session.createMessage();
-                Utils.setProps(msg, props);
-                return msg;
-            });
-
-            if (msgLog.isDebugEnabled()) {
-                msgLog.info("KC | URR | {}", Utils.formatProps(props));
-            } else {
-                msgLog.info("KC | URR | {} | {} | {} | {} | {} | {} | {} | {}",
-                        mid, command, EsqConstants.KIND_ACCESS_PROFILE, entityId,
-                        ctrlId, requestId, correlationId, testReqId);
-            }
-            log.info("KC | URR | {} | {} | {} | {} | {} | {}",
-                    mid, command, EsqConstants.KIND_ACCESS_PROFILE, entityId, ctrlId, testReqId);
-        } catch (Exception e) {
-            log.error("kcMaster: failed to publish URR: entityId={}, error={}", entityId, e.getMessage());
-            devLog.error("kcMaster: failed to publish URR: entityId={}, requestId={}, correlationId={}, error={}", entityId, requestId, correlationId, e.getMessage(), e);
+                               String requesterRodId, String requestId, String correlationId,
+                               Map<String, Object> requestBody) {
+        Map<String, Object> error = new LinkedHashMap<>();
+        error.put("type",   "about:blank");
+        error.put("title",  errorCode);
+        error.put("status", 500);
+        error.put("detail", errorMessage);
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("error", error);
+        if (requestBody != null) {
+            body.put("request", requestBody);
         }
+        RodEvent e = new RodEvent(RodEvent.opFromCode(command), entityKind, entityId, null,
+                System.currentTimeMillis(), correlationId, requestId, null, requesterRodId,
+                EsqMsgConstants.MSG_TYPE_REJECT, body);
+        rod.transmit(e);
+        log.info("KC | URR | {} | {} | {} | {}", command, entityKind, entityId, requesterRodId);
     }
 
 }

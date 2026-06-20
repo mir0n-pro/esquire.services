@@ -17,6 +17,8 @@
  *                   sweep timeout aborts the query; try-with-resources on CancelableStatement on every path.
  * 06/02/2026 mir0n  _processItems(List) override: applies a batch of events in ONE cache transaction via
  *                   the injected TransactionTemplate (cacheTx); a null cacheTx falls back to one-by-one
+ * 06/15/2026 mir0n  message branch applies the already-parsed item.body() via valueToTree; removed the
+ *                   private parse(QueueItem) helper that did readTree(item.text())
  */
 package pro.mir0n.esquire.bizTree.taijitu;
 
@@ -90,7 +92,7 @@ public class Monad extends AMonad {
         } else {   // message
             putMdc(item);
             try {
-                JsonNode textNode = parse(item);
+                JsonNode textNode = (item.body() == null) ? null : objectMapper.valueToTree(item.body());
                 eventHub.apply(item.eventType(), item.entityId(), item.entityKind(), textNode);
             } finally {
                 clearMdc();
@@ -159,17 +161,6 @@ public class Monad extends AMonad {
         return ret;
     }
 
-
-    private JsonNode parse(QueueItem item) {
-        if (item.text() == null) {
-            return null;
-        }
-        try {
-            return objectMapper.readTree(item.text());
-        } catch (Exception e) {
-            throw new IllegalStateException("textJson parse failed (id=" + item.entityId() + ")", e);
-        }
-    }
 
     private static void putMdc(QueueItem item) {
         if (item.requestId() != null)     MDC.put(EsqConstants.PD_REQUEST_ID,     item.requestId());

@@ -1,0 +1,14 @@
+Esquire audit library
+
+06/18/2026 mir0n  v1.2.8 -- created: esquire-audit, the audit specialization on the generic keep (left common)
+AuditBusBridge  (new, was common.audit.AuditBusBridge)
+  - bridges the audit flows onto the messaging bus: post() buffers each change in the caller's transaction;
+    after commit it stamps ONE actionTime, snapshots the request context, builds the RodEvent and transmit()s it
+AuditKeepDirector  (new)
+  - the single IKeepDirector for audit: declares only the SQL group ("audit") + the kinds it handles; used by
+    both an in-process producer keep and the auKeep consumer
+AuditKinds  (new)
+  - the audit kind -> SQL-statement-key map (the *_log statement keys); entity kinds from the esq-object-kinds
+    dictionary by semantic flag, sub-entity / parameter / auth kinds named
+META-INF/audit/postgres.xml, oracle.xml  (new, moved from the consumer)
+  - the audit *_log SQL data (the FULL statement set the keep loads through KeepSqlStore)

@@ -3,37 +3,6 @@ spring:
     active: ${DB_ENYMAN_VENDOR:dev-postgres}
   application:
     name: enyman
-  activemq:
-    broker-url: ${AMQ_BROKER_URL:tcp://localhost:61616}
-    user: ${AMQ_USER:}
-    password: ${AMQ_PASSWORD:}
-    # Phase 1: no broker authorization required
-  data:
-    redis:
-      # x-Rod audit option (d) target. Lettuce connects lazily, so it is dormant unless audit mode=redis.
-      host: ${REDIS_HOST:localhost}
-      port: ${REDIS_PORT:6379}
-  kafka:
-    # x-Rod audit option (c) over Kafka target. The producer connects lazily (first send), so it is dormant
-    # unless audit mode=bus + bus.transport=kafka.
-    bootstrap-servers: ${KAFKA_BOOTSTRAP:localhost:9092}
-    producer:
-      key-serializer: org.apache.kafka.common.serialization.StringSerializer
-      value-serializer: org.apache.kafka.common.serialization.StringSerializer
-      # audit is best-effort -> tune for sender throughput (all off the request path):
-      # acks=0 (fire-and-forget, no broker ack wait), batch + linger coalesce sends, lz4 compression.
-      acks: ${KAFKA_ACKS:0}
-      batch-size: ${KAFKA_BATCH_SIZE:32768}
-      compression-type: ${KAFKA_COMPRESSION:lz4}
-      properties:
-        linger.ms: ${KAFKA_LINGER_MS:10}
-  jms:
-    # clientId on CachingConnectionFactory — required for durable subscriptions.
-    # Must not be set on DefaultJmsListenerContainerFactory (shared connection proxy restriction).
-    # Per-pod suffix from the StatefulSet ordinal (downward API → POD_INDEX env);
-    # local dev / single-pod falls back to "enyman-0". Multiple enyMan instances
-    # subscribing to the same topic (move-sync) need distinct clientIds.
-    client-id: ${ENYMAN_MESSAGING_CLIENT_ID:enyman}-${POD_INDEX:0}
   jpa:
     hibernate:
       ddl-auto: none
@@ -41,77 +10,53 @@ spring:
   mvc:
     problemdetails:
       enabled: true
-# Messaging: entity broadcast producer
+  config:
+    import: "${ESQUIRE_TOPOLOGY_IMPORT:file:/etc/esquire/topology.yml}"
 enyman:
-  messaging:
-    broker-url: ${AMQ_BROKER_URL:tcp://localhost:61616}
-    # Identifies the messaging channel in outbound messages (ServiceID in FIX-JSON envelope)
-    service-id: ${ENYMAN_SERVICE_ID:entity-update-broadcast}
-    # Stable producer instance identifier (CtrlID in FIX-JSON envelope)
-    ctrl-id: ${ENYMAN_CTRL_ID:enyman.default}
-    # Stable per-pod client ID for durable subscriptions from this service.
-    # Same composition as spring.jms.client-id above: base + StatefulSet ordinal.
-    client-id: ${ENYMAN_MESSAGING_CLIENT_ID:enyman}-${POD_INDEX:0}
-    # Set to true to activate the consumer template (disabled by default in phase 1)
-    consumer:
-      enabled: ${ENYMAN_MESSAGING_CONSUMER_ENABLED:false}
-  # v1.2.6 Goal 3: in-process move queue. Single worker, FIFO. Cap is bounded so a runaway
-  # producer can't grow the heap; on full the rig drops the item and logs an error via the
-  # tryPut path (see MoveQueueManager.submitMove / submitReconcile). 16384 is comfortable for
-  # normal load -- bursts of move + create traffic can sit in the queue while the worker
-  # drains. Override via ENYMAN_MOVE_QUEUE_CAPACITY for stress tests.
   move-queue:
     capacity: ${ENYMAN_MOVE_QUEUE_CAPACITY:16384}
-    # v1.2.6 Goal 3 toggle. true (default) -> CREATE-during-move triggers a path-reconcile task;
-    # race 8b is closed. false -> reconciliation skipped; race-move-create sim reproduces the
-    # race. Flipping to false here (or via env) is the negative-test setting.
     validate-create-during-move: ${ENYMAN_VALIDATE_CREATE_DURING_MOVE:true}
-  # v1.2.7 audit logging. The FEATURE the deployer turns on/off; option-0 baseline = OFF (persist
-  # nothing) -- a fresh deploy imposes no audit. x-rod is the fan-out IMPLEMENTATION it uses.
-  audit-logging:
-    enabled: ${ENYMAN_AUDIT_ENABLED:false}
-    x-rod:
-      # in-process = write the *_log here (option b); bus = publish to the audit queue, the standalone
-      # xxRod service writes the *_log (option c).
-      mode: ${ENYMAN_AUDIT_MODE:in-process}
-      # xx-rod consumer worker pool that writes the *_log tables; keep <= the log datastore pool.
-      pool-size: ${ENYMAN_AUDIT_POOL_SIZE:4}
-      virtual-threads: ${ENYMAN_AUDIT_VIRTUAL_THREADS:false}
-      # xy-rod producer feed: per-tx buffer, flush after commit; bounded backlog before backpressure.
-      feed-capacity: ${ENYMAN_AUDIT_FEED_CAPACITY:4096}
-      # (c) bus publisher (mode=bus only): 0 = single feed-worker synchronous publish (one JMS send per
-      #   committed tx); N>0 = N async publisher threads over a dedicated useAsyncSend connection.
-      bus:
-        publisher-pool-size: ${ENYMAN_AUDIT_PUBLISHER_POOL_SIZE:0}
-        # (c) bus transport: activemq (default, the queue) | kafka (publish to the audit Kafka topic).
-        transport: ${ENYMAN_AUDIT_BUS_TRANSPORT:activemq}
-      # (d) redis (mode=redis only): the producer XADDs each event to this Redis Stream (the stream IS the
-      #   audit log; no consumer service). max-len = approximate MAXLEN cap (0 = uncapped).
-      redis:
-        stream: ${ENYMAN_AUDIT_REDIS_STREAM:}
-        max-len: ${ENYMAN_AUDIT_REDIS_MAX_LEN:0}
-      # (b) where the in-process xx-rod writes the *_log tables:
-      #   shared    = reuse the service datasource + its Hikari pool (phase 1).
-      #   dedicated = a separate pool / vendor, configured under log-db below (phase 2/3).
-      log-datastore: ${ENYMAN_AUDIT_LOG_DATASTORE:shared}
-      # Read ONLY when log-datastore=dedicated. vendor selects the *_log SQL dialect
-      # (dev-postgres -> INSERT..ON CONFLICT, dev-oracle -> MERGE) independently of the service's
-      # own datasource -- so the log DB may be a DIFFERENT vendor than the business DB.
-      log-db:
-        vendor: ${ENYMAN_AUDIT_DB_VENDOR:dev-postgres}
-        url: ${ENYMAN_AUDIT_DB_URL:}
-        username: ${ENYMAN_AUDIT_DB_USERNAME:esq2025}
-        password: ${ENYMAN_AUDIT_DB_PASSWORD:q}
-        pool-size: ${ENYMAN_AUDIT_DB_POOL_SIZE:8}
-      # [roadmap] mode: in-process (b, current) | bus (c). In bus mode the xy-rod publishes to the audit
-      # queue and a standalone xx-rod service consumes + writes -- the log-db config then lives on that
-      # service, and enyman keeps only a queue reference. Not wired until (c) is built.
-management:
-  health:
-    redis:
-      # The Redis health probe is OFF: Redis is only used when audit mode=redis (option d), so its
-      # absence must not mark the service DOWN in the default (b)/(c) modes.
-      enabled: false
+  # this service's OWN overlay of the global esquire.messaging-bus catalog (added by MessagingBusCatalog):
+  # its in-process audit-b leg, whose log-db is service-specific. Under the service namespace, beside move-queue.
+  messaging-bus:
+    - bus-id: audit-b
+      slots:
+        - slot-id: audit
+          x-rod:
+            rod-class: pro.mir0n.esquire.dataKeep.keep.XRodInProcess
+            pool-size: ${ESQUIRE_AUDIT_POOL_SIZE:4}
+            feed-capacity: ${ESQUIRE_AUDIT_FEED_CAPACITY:4096}
+            virtual-threads: ${ESQUIRE_AUDIT_VIRTUAL_THREADS:false}
+            log-db:
+              # shared=true -> the keep reuses the SERVICE's own datasource pool (url/vendor/hikari ignored,
+              # dialect from the service profile); false -> a dedicated keep pool from the url/hikari below.
+              shared: ${ESQUIRE_AUDIT_LOG_DB_SHARED:false}
+              vendor: ${ESQUIRE_AUDIT_LOG_DB_VENDOR:dev-postgres}
+              url: ${ESQUIRE_AUDIT_LOG_DB_URL:jdbc:postgresql://${DB_ENYMAN_HOST:localhost}:${DB_ENYMAN_PORT:5432}/${DB_ENYMAN_NAME:esq2025}}
+              username: ${ESQUIRE_AUDIT_LOG_DB_USERNAME:${DB_ENYMAN_USERNAME:esq2025}}
+              password: ${ESQUIRE_AUDIT_LOG_DB_PASSWORD:${DB_ENYMAN_PASSWORD:q}}
+              hikari:
+                maximum-pool-size: ${ESQUIRE_AUDIT_LOG_DB_POOL_SIZE:2}
+# Bus REFS: which slot this service joins on the shared buses.
+esquire:
+  audit-bus:
+    messaging-bus:
+      bus-id: ${ESQUIRE_AUDIT_BUS_ID:audit-b}
+      slot-id: ${ESQUIRE_AUDIT_SERVICE_ID:audit}
+  kc-bus:
+    messaging-bus:
+      bus-id: ${KC_BUS_ID:esquire.kc}
+      slot-id: ${KC_SERVICE_ID:kc}
+      x-rod:
+        pool-size: ${ENYMAN_KC_RESPONSE_POOL_SIZE:2}
+        concurrency: ${ENYMAN_KC_RESPONSE_CONCURRENCY:1}
+        publisher-pool-size: ${ENYMAN_KC_PUBLISHER_POOL_SIZE:0}
+  entity-bus:
+    messaging-bus:
+      bus-id: ${ENTITY_BUS_ID:esquire.entity}
+      slot-id: ${ENTITY_SERVICE_ID:entity}
+      x-rod:
+        publisher-pool-size: ${ENTITY_BROADCAST_PUBLISHER_POOL_SIZE:0}
 logging:
   level:
     root: ${LOG_LEVEL_ROOT:ERROR}
@@ -130,7 +75,6 @@ logging:
     log-path: ${MSG_LOG_PATH:logs/enyMan-msg.log}
 
 ---
-# Development Oracle
 spring:
   config:
     activate:
@@ -139,13 +83,13 @@ spring:
     url: jdbc:oracle:thin:@//${DB_ENYMAN_HOST:localhost}:${DB_ENYMAN_PORT:1521}/${DB_ENYMAN_NAME:MIR0N}
     driverClassName: oracle.jdbc.OracleDriver
     username: ${DB_ENYMAN_USERNAME:esq2025}
-    password: ${DB_ENYMAN_PASSWORD:q}   
+    password: ${DB_ENYMAN_PASSWORD:q}
     hikari:
       maximum-pool-size: 20
       minimum-idle: 20
-      connection-timeout: 30000 
-      max-lifetime: 1800000 
-      idle-timeout: 600000    
+      connection-timeout: 30000
+      max-lifetime: 1800000
+      idle-timeout: 600000
   jpa:
     mapping-resources:
       - META-INF/oracle-dictionary.xml
@@ -161,7 +105,6 @@ server:
   port: ${ENYMAN_PORT:3000}
 
 ---
-# Development Postgres
 spring:
   config:
     activate:
@@ -169,13 +112,13 @@ spring:
   datasource:
     url: jdbc:postgresql://${DB_ENYMAN_HOST:localhost}:${DB_ENYMAN_PORT:5432}/${DB_ENYMAN_NAME:esq2025}
     username: ${DB_ENYMAN_USERNAME:esq2025}
-    password: ${DB_ENYMAN_PASSWORD:q}   
+    password: ${DB_ENYMAN_PASSWORD:q}
     hikari:
       maximum-pool-size: 20
       minimum-idle: 20
-      connection-timeout: 30000 
-      max-lifetime: 1800000 
-      idle-timeout: 600000    
+      connection-timeout: 30000
+      max-lifetime: 1800000
+      idle-timeout: 600000
   jpa:
     mapping-resources:
       - META-INF/postgres-dictionary.xml

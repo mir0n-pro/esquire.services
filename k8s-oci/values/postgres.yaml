@@ -4,6 +4,12 @@ image:
   tag: "v1.2.4-2605.1621"
   pullPolicy: Always
 
+# Pinned explicitly for prod (matches the chart default) rather than inherited, so a future
+# local-driven change to the chart default cannot silently move OKE. A rolling restart briefly
+# overlaps old+new pods (~140 connections); 200 absorbs that with headroom. Ceiling only -- real
+# memory is driven by the connections actually open, so this is safe on the small ARM nodes.
+maxConnections: 200
+
 storage:
   storageClass: oci-bv     # OCI Block Volume CSI driver
   size: 50Gi               # block volumes are billed; 50Gi is well within free 200Gi
