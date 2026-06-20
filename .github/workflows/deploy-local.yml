@@ -42,6 +42,17 @@ jobs:
           # sprint work deploys in lockstep. Explorer must have a branch of the same name.
           ref: ${{ github.ref_name }}
 
+      - name: Checkout db.seed (postgres image build input for k8s-rebuild)
+        uses: actions/checkout@v5
+        with:
+          repository: mir0n-pro/esquire.db.seed
+          # Lockstep with the services branch -- k8s-rebuild now builds the esquire-postgres image (compose
+          # no longer carries it), and that image must carry the schema matching the pending code (e.g.
+          # v1.2.8's ORG_SYSTEM_FLG / USR_SYSTEM_FLG live on pending-v1.2.8, not develop). The Dockerfile
+          # COPYs db.seed/postgres/* from the workspace root, so db.seed sits beside services/ + explorer/.
+          ref: ${{ github.ref_name }}
+          path: db.seed
+
       - name: Build + bring up the full stack on Docker Desktop k8s
         shell: cmd
         run: services\.github\scripts\deploy-local.cmd
