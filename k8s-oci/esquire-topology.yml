@@ -1,0 +1,45 @@
+# Esquire frameworks (tm) -- messaging-bus TOPOLOGY (OKE / cloud environment)
+#
+# Fed into the esquire-topology chart via `helm --set-file topologyContent=...` by deploy-oke.sh, delivered as
+# the ConfigMap "esquire-topology" and mounted at /etc/esquire/topology.yml in every service pod (REQUIRED
+# spring.config.import). In-cluster Service DNS names (ActiveMQ only).
+#
+# OKE audits via DB TRIGGERS (option a): the app producers run with audit OFF and there is NO auKeep pod, so the
+# audit bus is NOT part of the cloud topology. A service's audit-bus ref then points at a bus that is not here,
+# which resolves to the OFF x-rod (XRodDisabled) -- by design, never a crash. Only the two live cross-service
+# buses remain: entity broadcast and the KeyCloak request/response.
+esquire:
+  messaging-bus:
+    # --- entity broadcast (topic) ---
+    - bus-id: esquire.entity
+      slots:
+        - slot-id: entity
+          x-rod:
+            pool-size: 4
+            concurrency: 1
+            publisher-pool-size: 0
+            transport:
+              provider: activemq
+              endpoint: tcp://esquire-infra-amq-activemq:61616
+              destination: esquire.entity.broadcast
+              topic: true
+    # --- KeyCloak request/response (R&R, two nodes) ---
+    - bus-id: esquire.kc
+      slots:
+        - slot-id: kc
+          x-rod:
+            rod-class: XRodRR
+            pool-size: 4
+            concurrency: 1
+            publisher-pool-size: 0
+            transport:
+              provider: activemq
+              endpoint: tcp://esquire-infra-amq-activemq:61616
+              topic: false
+              request-node: request
+              response-node: response
+              nodes:
+                - node-id: request
+                  destination: esquire.kc.request
+                - node-id: response
+                  destination: esquire.kc.response

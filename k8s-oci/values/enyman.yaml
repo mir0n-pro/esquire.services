@@ -31,5 +31,8 @@ nodeSelector:
 # OKE deploy = option (a) DB triggers: the app producer stays OFF (no auKeep pod, no extra broker
 # audit load on the Always-Free tier -- it is a demo, not a load-test sandbox). The DB-side trigger
 # DDL (db.seed/<vendor>/triggers/all.sql) must be applied to the OKE postgres for (a) to write.
+# OKE audits via DB triggers -- no audit bus in the OKE topology. busId MUST be blank: a blank id skips the
+# strict catalog and lands on the OFF x-rod (XRodDisabled). A non-blank id with no leg (e.g. audit-a) crashes
+# the pod at boot -- verified on OKE: "no leg bus-id=audit-a". Overrides the chart's audit-c default.
 audit:
-  enabled: false
+  busId: ""

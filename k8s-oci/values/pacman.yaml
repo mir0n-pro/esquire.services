@@ -31,4 +31,4 @@ nodeSelector:
 # audit load on the Always-Free tier -- it is a demo, not a load-test sandbox). The DB-side trigger
 # DDL (db.seed/<vendor>/triggers/all.sql) must be applied to the OKE postgres for (a) to write.
 audit:
-  enabled: false
+  busId: ""
