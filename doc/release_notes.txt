@@ -1,6 +1,35 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v1.2.8-2606.1917  v1.2.8 -- finalization: plural bus-config keys, host-Postgres dev stack, documentation
+    :Refactoring: the messaging-bus list-config keys are now plural -- a bus's legs are `slots` (was `slot`) and
+                  a request/response leg's network nodes are `nodes` (was `node`)
+    :Config:      the shared topology (compose + k8s) and the three producers
+    :Config:      docker compose no longer runs its own Postgres container;
+                  the bundled Postgres container is used only by the Kubernetes setup
+    :Config:      the Kubernetes Postgres (local and OKE) now accepts up to 200 connections (was 100)
+    :Config:      the k8s rebuild script now builds the Postgres image itself (docker compose no longer carries it)
+    :Doc:         doc\DatabaseDictionary.md
+                  doc\Esquire.AuditLoggingStack.md
+                  doc\Esquire.BizTree.md
+                  doc\Esquire.GitHubActions.md
+                  doc\Esquire.Haubergeon.md
+                  doc\Esquire.MessagingBus.md
+                  doc\Esquire.TestingStack.md
+                  doc\Esquire.Vision.md
+                  doc\Logging.md
+                  doc\Message.Structure.md
+                  doc\Messaging.md
+                  doc\Object.Kind.enum.md
+                  doc\services.configuring.md
+    Components:   messaging,
+                  enyman,
+                  pacman,
+                  keysmith,
+                  compose,
+                  k8s,
+                  oke
+
 v1.2.8-2606.1822  v1.2.8 -- Messaging Bus: a reusable "keep" engine, split out of the audit code
     :Refactoring: the part that saves incoming changes into a database is now a general-purpose engine of its
                   own (esquire-dataKeep); audit is just one small set of rules on top of it (esquire-audit), and

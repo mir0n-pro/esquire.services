@@ -6,4 +6,4 @@ metadata:
     app: esquire-topology
 data:
   topology.yml: |
-{{ .Files.Get "esquire-topology.yml" | indent 4 }}
+{{ .Values.topologyContent | default (.Files.Get .Values.topologyFile) | indent 4 }}

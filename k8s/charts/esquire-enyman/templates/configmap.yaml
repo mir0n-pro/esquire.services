@@ -33,6 +33,7 @@ data:
   ESQUIRE_AUDIT_POOL_SIZE:          {{ .Values.audit.poolSize | quote }}
   ESQUIRE_AUDIT_FEED_CAPACITY:      {{ .Values.audit.feedCapacity | quote }}
   ESQUIRE_AUDIT_VIRTUAL_THREADS:    {{ .Values.audit.virtualThreads | quote }}
+  ESQUIRE_AUDIT_LOG_DB_SHARED:      {{ .Values.audit.logDb.shared | default false | quote }}
   ESQUIRE_AUDIT_LOG_DB_VENDOR:      {{ .Values.audit.logDb.vendor | quote }}
   ESQUIRE_AUDIT_LOG_DB_URL:         {{ .Values.audit.logDb.url | quote }}
   ESQUIRE_AUDIT_LOG_DB_USERNAME:    {{ .Values.audit.logDb.username | quote }}

@@ -36,6 +36,8 @@ audit:
   feedCapacity: "4096"
   virtualThreads: "false"
   logDb:
+    # shared=true -> the keep reuses the SERVICE's own datasource pool; false -> a dedicated keep pool (url below)
+    shared: "false"
     vendor: dev-postgres
     url: jdbc:postgresql://esquire-infra-postgres:5432/esq2025
     username: esq2025

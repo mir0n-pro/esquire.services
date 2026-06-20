@@ -1,359 +1,113 @@
 # <img src="../favicon.ico" alt="Esquire logo" valign="middle" width="64" height="64"> Esquire Application Frameworks(tm) 2.0
 
-# Esquire Messaging Architecture
+# Esquire Messaging Bus topology
 
-A messaging bus is a logical component — like a wire bus in electronics: a set of individual
-channels (topics, queues, streams) that together serve one communication purpose, grouped as a
-single unit on architecture diagrams.
+This page describes the **message buses that run in Esquire today** — what each one carries, who publishes
+and who consumes, and over which transport — together with the **current limitations** of the running
+topology.
 
-Messaging is **transport-agnostic** and unified behind one frontend, the **x-Rod**. A service never
-talks to ActiveMQ / Kafka / Redis directly; it asks the **x-Rod manager** for a producer or a consumer
-on a logical bus and a role. The buses themselves are defined once, cross-service, in a shared
-**bus catalog** (the "topology"). The broker is a deployment choice, expressed entirely in that catalog.
+It is the *instance* view. For how the bus works underneath — the catalog, the x-rod frontend, rod-classes,
+and the transport-provider SPI — see [Esquire Messaging Bus](Esquire.MessagingBus.md). For the wire format
+of each message, see [Message.Structure.md](Message.Structure.md).
 
-> The vendor-agnostic messaging abstraction promised by the earlier baseline is now delivered. The
-> broadcast and request-response patterns remain the contract; the underlying broker is configuration.
-
----
-
-## Concepts
-
-| Concept | Config key | Meaning |
-|---|---|---|
-| **bus** | `bus-id` | One logical communication channel (`esquire.entity`, `esquire.kc`, `audit-c`). |
-| **slot** | `slot-id` | A leg of the bus a participant joins. (Renamed from "service" to avoid clashing with "microservice".) |
-| **node** | `node-id` | A request-response slot splits into a `request` node and a `response` node, each its own destination. Single-node buses (broadcast, audit) have just `destination`. |
-| **x-rod** | `x-rod` | The per-slot pod config: `rod-class` + engine knobs (`pool-size`, `feed-capacity`, `virtual-threads`, `publisher-pool-size`, `concurrency`) + the `transport` block. |
-| **transport** | `transport` | `provider` + `endpoint` + `destination` + `topic` (true=topic / false=queue) + `params` (opaque per-vendor knobs) + (R&R) `request-node` / `response-node` + a `node` list. |
-| **rod-class** | `rod-class` | The pod type (see below). Resolved by name: a bare name is the convention package `pro.mir0n.esquire.messaging.xrod.impl.<name>`; a dotted value is a full class name. |
-| **role** | (per ref) | `CLIENT` / `SERVER` / `BROADCAST`. |
-
-### Rod-class — the pod types
-
-| Rod-class | Role in the mesh |
-|---|---|
-| `XRod` | The standard bus transceiver (a transmit leg, a receive leg, the wire codec). |
-| `XRodRR` | Request/response: two nodes, role-routed (the KC bus). |
-| `XRodInProcess` | Generic in-process x-rod: feeds each event to its own worker pool, which runs an applier against a local sink — no transport. For in-process audit (option b) it runs the audit keep applier; the audit director (`AuditKeepDirector`) supplies the kinds + SQL group, and the generic keep engine (`RodEventDbWriter` / `KeepSqlStore` / `KeepApplier`, in `esquire-dataKeep`) writes the `*_log`. FQCN `pro.mir0n.esquire.dataKeep.keep.XRodInProcess`. |
-| `XRodInfo` | Logs the whole event instead of sending it (the access-violation-log seam). |
-| `XRodDisabled` | No-op pod; the default when a bus key is not configured (audit OFF). |
-
-### Transport providers
-
-Per-vendor transport is a pluggable module implementing the `ITransportProvider` SPI, resolved by name
-via `TransportProviders` (a bare name maps to `pro.mir0n.esquire.tp.<name>.TransportProvider`; a dotted
-value is a full class name):
-
-| Module | Wire form |
-|---|---|
-| `tp-activemq` | ActiveMQ queue / topic |
-| `tp-kafka` | Kafka topic |
-| `tp-redis` | Redis stream (producer-only) |
-
-A deployment carries only the transport modules it uses. Each module ships an
-`AutoConfigurationImportFilter` (via `META-INF/spring.factories`) that suppresses Spring Boot's matching
-auto-config, so a service stays free of any transport coupling. The framework names no vendor: it names
-one logical destination, and the provider maps it to its own wire form. Vendor-specific knobs pass through
-generically via `transport.params` (e.g. `jms.useAsyncSend`, Kafka `group-id`, Redis `max-len`).
+A bus is one logical conversation: a set of channels (a topic, a queue, or a stream) grouped to serve a
+single purpose. A service never talks to ActiveMQ / Kafka / Redis directly — it joins a named bus through
+the x-rod frontend, and the broker is a per-deployment choice. ActiveMQ is the transport deployed in the
+cloud today; the local docker stack also runs Kafka and Redis.
 
 ---
 
-## Buses at a Glance
+## The buses at a glance
 
-| Bus | Type | Rod-class | Destination(s) | Producers | Consumers |
-|---|---|---|---|---|---|
-| Entity Broadcast | Broadcast | `XRod` | topic `esquire.entity.broadcast` | enyMan, pacMan | bizTree, kcMaster |
-| KC Sync | Request-Response | `XRodRR` | queue `esquire.kc.request` (request) + queue `esquire.kc.response` (response) | enyMan, keySmith (CLIENT) → kcMaster (SERVER) → back | — |
-| Audit | Broadcast / stream | `XRod` (bus) / `XRodInProcess` (in-process) | per vendor: queue / topic / stream `esquire.rod.audit` | enyMan, pacMan, keySmith | auKeep (for the bus sinks) |
-
----
-
-## 1. Entity Broadcast Bus
-
-Entity state changes are published by **enyMan** (orgs and users) and **pacMan** (accounts) to a shared
-topic (slot `entity`, role `BROADCAST`). **bizTree** and **kcMaster** are the subscribers; additional
-consumers may be added without changing the publishers.
-
-### Message Type: UE — Entity Update
-
-A FIX-JSON envelope of header properties plus the body in the `Text` JSON field (see
-[Message.Structure.md](Message.Structure.md)).
-
-| Property | Type | Fixed value | Description |
-|---|---|---|---|
-| `MsgType` | String | `UE` | Entity broadcast marker |
-| `ApplMsgID` | String | — | Unique message ID (UUID) |
-| `SendingTime` | String | — | ISO-8601 timestamp |
-| `SchemaVersion` | Int | `1` | Protocol version |
-| `BusID` | String | `esquire.entity` | Bus namespace |
-| `SlotID` | String | `entity` | Bus slot (leg) id |
-| `RodID` | String | — | Producer instance id (defaults to the service name) |
-| `MessageEncoding` | String | `JSON` | Encoding of Text property |
-| `EventType` | String | `C`/`U`/`D`/`X` | Create / Update / Delete / Move |
-| `EntityKind` | Int | — | Entity kind code |
-| `EntityID` | String | — | Entity primary key |
-| `RequestID` | String | — | Originating HTTP request ID (MDC) |
-| `CorrelationID` | String | — | Distributed trace correlation ID (MDC) |
-| `Text` | String | — | JSON payload (see below) |
-
-### Text Property — JSON Payload
-
-Published raw entity field values only. No interpretation for consumers.
-
-| JSON field | Source | Publishers |
-|---|---|---|
-| `id` | entity PK | enyMan, pacMan |
-| `kind` | entity kind | enyMan, pacMan |
-| `name` | entity name | enyMan, pacMan |
-| `desc` | entity description | enyMan, pacMan |
-| `status` | raw `acc_status` value | pacMan |
-| `deleted` | raw `usr_deleted_flg` value | enyMan |
-| `parentId` | parent entity PK | enyMan (on CREATE) |
-| `path` | `ep_path` value | enyMan (on CREATE, MOVE) |
-| `ccy` | account currency | pacMan (on CREATE) |
-
-Fields are omitted when not applicable. Consumers must treat absent fields as no-op. The consumer
-receives the body already decoded into a `Map` (the codec parses `Text` once at the bus edge).
-
-### Event Types
-
-| EventType | Trigger |
-|---|---|
-| `C` | Entity created |
-| `U` | Name, description, status, or deleted flag changed |
-| `D` | Entity deleted |
-| `X` | Entity moved (path changed) |
-
-### bizTree Dispatch
-
-bizTree dispatches incoming UE messages via a handler map keyed by `(EventType, kindBits)`:
-
-| EventType | Kind | Handler |
-|---|---|---|
-| `U` | org/usr/acct | `UpdateEntityHandler` |
-| `D` | org/usr/acct | `DeleteEntityHandler` |
-| `X` | org | `MoveOrgHandler` |
-| `X` | usr | `MoveUsrHandler` |
-| `X` | acct | `MoveAcctHandler` |
-| `C` | org | `CreateOrgHandler` |
-| `C` | usr | `CreateUsrHandler` |
-| `C` | acct | `CreateAcctHandler` |
+| Bus | Pattern | Destination(s) | Producers | Consumers |
+|---|---|---|---|---|
+| **Entity Broadcast** | broadcast (many-to-many) | topic `esquire.entity.broadcast` | enyMan, pacMan | bizTree, kcMaster |
+| **IAM Request/Response** | request / response | queues `esquire.kc.request` + `esquire.kc.response` | enyMan, keySmith (client) → kcMaster (server) → back | — |
+| **Audit** | broadcast / stream | `esquire.rod.audit` (queue / topic / stream, per sink) | enyMan, pacMan, keySmith | auKeep (bus sinks only) |
 
 ---
 
-## 2. KC Request/Response Bus
+## Entity Broadcast Bus
 
-**enyMan** and **keySmith** publish identity commands to kcMaster and consume the reply.
-**kcMaster** is the only service that writes to Keycloak directly. The bus is one `XRodRR` slot (`kc`)
-with two nodes — `request` and `response`. enyMan / keySmith are `CLIENT` (publish URQ on the request
-node, consume URS/URR on the response node); kcMaster is `SERVER` (the inverse).
+**enyMan** (organizations and users) and **pacMan** (accounts) publish an **entity-update (`UE`)** event on
+every committed mutation — create, update, delete, move — to one shared topic. **bizTree** and **kcMaster**
+subscribe; more consumers can be added without touching the publishers.
 
-### Message Type: URQ — Identity Request
+- **bizTree** keeps its in-memory entity tree current, dispatching each `UE` by `(event type, kind)` to a
+  create / update / delete / move handler.
+- **kcMaster** watches for moves, so a relocated entity's Keycloak path stays in sync.
 
-Published by a CLIENT to the `request` node (`esquire.kc.request`).
-
-| Property | Description |
-|---|---|
-| `MsgType` | `URQ` |
-| `ApplMsgID` | Unique message ID (UUID) |
-| `SendingTime` | ISO-8601 timestamp |
-| `SchemaVersion` | `1` |
-| `BusID` | `esquire.kc` |
-| `SlotID` | `kc` |
-| `RodID` | the requester's instance id — echoed in the response, the reply-routing selector |
-| `EventType` | `C` / `U` / `D` / `X` (create / update / delete / move) |
-| `EntityKind` | Entity kind code |
-| `EntityID` | Entity primary key |
-| `RequestID` | the request/response correlation key |
-| `CorrelationID` | MDC correlation ID |
-| `TestReqID` | echo of `RequestID` (retained for wire shape) |
-| `MessageEncoding` | `JSON` |
-| `Text` | JSON — `KcSyncRequest` payload (see below) |
-
-### URQ Text — KcSyncRequest JSON
-
-```json
-{
-  "id":             "entity PK",
-  "kind":           20,
-  "loginId":        "Keycloak username (= loginId)",
-  "newLoginId":     "new username on rename (UPDATE only)",
-  "email":          "user email",
-  "pwdChangeForced": true,
-  "tfaMethod":      "totp",
-  "connectFlg":     "Y",
-  "path":           "/root/org/user",
-  "roles":          ["ROLE_A", "ROLE_B"]
-}
-```
-
-Fields not relevant to the command are omitted or null.
-
-### Message Type: URS — Identity Response (success)
-
-Published by kcMaster (SERVER) to the `response` node (`esquire.kc.response`) on success.
-
-| Property | Description |
-|---|---|
-| `MsgType` | `URS` |
-| `ApplMsgID` | New UUID for this response |
-| `SendingTime` | ISO-8601 timestamp |
-| `EventType` | Echoed from URQ |
-| `EntityKind` | Echoed from URQ |
-| `EntityID` | Echoed from URQ |
-| `RodID` | Echoed from URQ — the CLIENT selector filters on it |
-| `RequestID` | Echoed from URQ |
-| `CorrelationID` | Echoed from URQ |
-| `TestReqID` | Echoed from URQ |
-
-### Message Type: URR — Identity Request Reject (failure)
-
-Published by kcMaster to the `response` node on failure. The reject is told from the response by its
-`MsgType`, not by inspecting the body.
-
-| Property | Description |
-|---|---|
-| `MsgType` | `URR` |
-| `ApplMsgID` | New UUID |
-| `RodID` | Echoed from URQ |
-| `RequestID` | Echoed from URQ |
-| `CorrelationID` | Echoed from URQ |
-| `TestReqID` | Echoed from URQ |
-| `Error` | RFC 9457 Problem Details — JSON: `{type, title, status, detail}` |
-
-### kcMaster Command Dispatch
-
-| URQ EventType | Handler | Keycloak Operation |
-|---|---|---|
-| `C` | `handleCreate()` | Create user; set `esq_uid` and `esq_rootpath` JWT attributes |
-| `U` | `handleUpdate()` | Update auth state (connectFlg, TFA, password reset) |
-| `D` | `handleDelete()` | Delete user by loginId |
-| `X` | `handleUpdatePath()` | Update `esq_rootpath` JWT attribute |
-
-### Reply routing (selectors)
-
-`XRodRR` derives the consume selector from the role:
-
-| Role | Selector | Meaning |
-|---|---|---|
-| `CLIENT` | `RodID = '<rod-id>'` | a CLIENT instance consumes only its own responses |
-| `SERVER` | `SlotID = '<slot-id>'` | a SERVER consumes its slot's requests |
-| `BROADCAST` | (none) | the whole node |
-
-`rod-id` defaults to the per-instance id `<app>.<instanceNo>` (`spring.application.name` +
-`EsqUtils.instanceNo()`, the instance number parsed from the host name — the StatefulSet ordinal in k8s,
-a `hostname: <app>-N` in Docker) when unset/blank, so each sharded replica owns a distinct rod-id.
-
----
-
-## 3. Audit Bus
-
-The entity producers (**enyMan**, **pacMan**, **keySmith**) post **UA** audit events after commit, off
-the request thread, to the audit slot (`audit`). The sink is chosen by `bus-id` — one env var,
-`ESQUIRE_AUDIT_BUS_ID`, flips it (docker / k8s default `audit-c`, code default `audit-b`):
-
-| bus-id | Rod-class | Sink |
-|---|---|---|
-| `audit-b` | `XRodInProcess` | in-process write to the `*_log` tables via the audit keep applier (service-level leg; the keep pool is dedicated, or shared with the service via `log-db.shared=true`) |
-| `audit-c` | `XRod` | ActiveMQ queue → **auKeep** consumes → `*_log` |
-| `audit-ck` | `XRod` | Kafka topic → **auKeep** consumes → `*_log` |
-| `audit-d` | `XRod` | Redis stream IS the append-only log (producer-only, no consumer) |
-| `audit-dk` | `XRod` | Kafka topic IS the log (producer-only, no consumer) |
-
-Audit is now a thin specialization on top of a GENERIC keep engine. The reusable engine lives in
-`esquire-dataKeep` (the in-process `XRodInProcess`, plus `RodEventDbWriter` / `KeepSqlStore` / `KeepApplier`)
-and knows nothing about audit. The Esquire-specific `esquire-audit` module supplies only the audit pieces:
-`AuditBusBridge` (turns each committed change into a `RodEvent` producer-side), `AuditKeepDirector` (an
-`IKeepDirector` that declares the audit kinds + the SQL group `"audit"`), `AuditKinds`, and the `*_log` SQL
-resources. The audit consumer Boot app is **auKeep** (image `esquire.aukeep`); the same generic engine
-applies the events whether audit runs in-process (option b) or behind the bus consumer (option c).
-
-See [Esquire.AuditLoggingStack.md](Esquire.AuditLoggingStack.md) for the full audit model, the `*_log`
-schema, and the delivery-semantics analysis. The UA wire message is in
+The event carries raw entity field values only (id, kind, name, path, status, …); each consumer interprets
+them, and a field absent from a message is a no-op. The `UE` wire format is in
 [Message.Structure.md](Message.Structure.md).
 
 ---
 
-## Configuration Reference
+## IAM Request/Response Bus
 
-The bus catalog (the topology) is defined once and loaded by every service:
+**enyMan** and **keySmith** send identity commands to **kcMaster** — the only service that writes to
+Keycloak — and wait for the reply. The bus has two destinations: a **request** queue and a **response**
+queue. The requester is the *client* (publishes the request, reads its own reply); kcMaster is the *server*
+(the inverse).
 
-```yaml
-spring:
-  config:
-    import: "${ESQUIRE_TOPOLOGY_IMPORT:file:/etc/esquire/topology.yml}"
-```
+- **Request (`URQ`)** — create / update / delete / move a Keycloak user, carrying the login id, email,
+  path, roles, and auth state.
+- **Response** — **`URS`** on success, **`URR`** on failure (RFC 9457 problem details). The reply is told
+  apart by its message type, not by inspecting the body.
+- **Reply routing** — each client instance reads only its *own* responses (filtered by its instance id),
+  so sharded replicas never steal each other's replies.
 
-Docker bind-mounts `compose/topology/esquire-topology.yml`; k8s mounts the `esquire-topology` ConfigMap
-(chart `k8s/charts/esquire-topology`). The file is per-environment with concrete hostnames (no `${}`);
-the import is required (fail-fast). A bus in the catalog (an example slot):
-
-```yaml
-esquire:
-  messaging-bus:
-    - bus-id: esquire.kc
-      slot:
-        - slot-id: kc
-          x-rod:
-            rod-class: XRodRR
-            pool-size: 4
-            transport:
-              provider: activemq
-              endpoint: tcp://activemq:61616
-              topic: false
-              request-node: request
-              response-node: response
-              node:
-                - node-id: request
-                  destination: esquire.kc.request
-                - node-id: response
-                  destination: esquire.kc.response
-```
-
-A service references a bus by a logical key, supplying its slot, role (implicit per call) and any
-per-service knob overrides:
-
-```yaml
-esquire:
-  kc-bus:
-    messaging-bus:
-      bus-id:  ${KC_BUS_ID:esquire.kc}
-      slot-id: ${KC_SERVICE_ID:kc}
-      x-rod:
-        pool-size: ${ENYMAN_KC_RESPONSE_POOL_SIZE:2}
-  entity-bus:
-    messaging-bus:
-      bus-id:  ${ENTITY_BUS_ID:esquire.entity}
-      slot-id: ${ENTITY_SERVICE_ID:entity}
-  audit-bus:
-    messaging-bus:
-      bus-id:  ${ESQUIRE_AUDIT_BUS_ID:audit-b}
-      slot-id: ${ESQUIRE_AUDIT_SERVICE_ID:audit}
-```
-
-The logical keys are `entity-bus`, `kc-bus`, `audit-bus`; the `bus-id` / `slot-id` values are
-env-overridable. A service may also extend the catalog with its OWN leg under its own namespace,
-`<spring.application.name>.messaging-bus` (the catalog unions the shared topology with this service overlay,
-beside the service's other keys such as `<app>.move-queue`) — this is how a producer carries the audit-(b)
-in-process leg whose keep datasource is service-specific. Per-service config is in
-[services.configuring.md](services.configuring.md).
+kcMaster dispatches each request to a create / update / delete / update-path Keycloak operation. The `URQ` /
+`URS` / `URR` wire formats are in [Message.Structure.md](Message.Structure.md).
 
 ---
 
-## Logging Pattern
+## Audit Bus
 
-The message-audit trail is emitted on the x-Rod legs, not in per-class code:
+The entity producers (**enyMan**, **pacMan**, **keySmith**) post an **audit (`UA`)** event after commit,
+off the request thread. Where the audit lands is a per-deployment choice flipped by one environment
+variable (`ESQUIRE_AUDIT_BUS_ID`); the framework default is **off** — a fresh deploy audits nothing.
 
-- **`msgLog`** (`msg.<bus-id>.<slot-id>`) — one line per message, on the transmit leg (`TX`) and the
-  receive leg (`RX`):
-  `<TX|RX> | <msgType> | <op> | <kind> | <entityId> | <subId> | <rodId> | <requestId>`.
-  The `msg` logger is `additivity=false` → it goes to the per-service msg file only, not stdout.
-- **`devLog`** (`develop.<class>`) — full diagnostics on debug; stacktrace on error.
-- **`log`** (console) — one-line operational echo (e.g. the `KC | CREATE | state=...` lines, which are
-  not msgLog) on info; message on error (no stacktrace).
+| Sink (`bus-id`) | Where the audit lands |
+|---|---|
+| in-process (`audit-b`) | the producing service writes the `*_log` tables itself — no broker |
+| ActiveMQ (`audit-c`) | queue → **auKeep** consumes → `*_log` |
+| Kafka (`audit-ck`) | topic → **auKeep** consumes → `*_log` |
+| Redis stream (`audit-d`) | the stream itself is the append-only log (no consumer) |
+| Kafka stream (`audit-dk`) | the topic itself is the log (no consumer) |
 
-MDC (`RequestID`, `CorrelationID`) is set from the event on the receive side and cleared in `finally`.
-See [Logging.md](Logging.md).
+Audit is a thin layer on a generic "keep" engine (`esquire-dataKeep`) that applies incoming changes to a
+database; **auKeep** is the standalone consumer service for the bus sinks. The full audit model, the `*_log`
+schema, and the delivery analysis are in [Esquire.AuditLoggingStack.md](Esquire.AuditLoggingStack.md).
+
+---
+
+## Current limitations
+
+- **ActiveMQ is the only transport in the cloud deployment.** The Kafka and Redis providers are implemented
+  and validated on the local docker stack (every audit sink runs there), but the OKE / k8s deployment ships
+  ActiveMQ only — the Kafka / Redis sinks (`audit-ck` / `audit-d` / `audit-dk`) are validated options, not
+  part of the cloud topology. On k8s a bus pointed at an absent broker resolves to a disabled no-op, not a
+  crash.
+
+- **The stream sinks are producer-only.** `audit-d` (Redis) and `audit-dk` (Kafka) write the log but have
+  no consumer back into the `*_log` tables — the stream itself *is* the record. Feeding it onward (e.g. into
+  a Redis document store) needs an external component such as a Kafka Connect sink, not part of the framework.
+
+- **A misconfigured bus key fails silent, not loud.** A bus key that is not in the catalog resolves to the
+  disabled no-op x-rod (`XRodDisabled`) — intended for "audit off", but it also means a *typo'd* key produces
+  no error, just silence.
+
+- **Delivery is best-effort per transport; the bus adds no replay or de-duplication.** Idempotency where it
+  matters (the audit `*_log`) rests on a unique key in the database, not on the bus. A consumer that is down
+  misses broadcasts while it is gone — bizTree's recoverable cache reconciles that on its own (its periodic
+  night-watch rebuild), but the bus itself does not redeliver.
+
+- **One broker per bus.** A bus names a single transport endpoint; there is no built-in multi-broker
+  failover or partitioned routing at the bus layer.
+
+- **The transport SPI is shaped around the queue / topic / stream model.** Adding a provider that fits that
+  shape is a drop-in; a transport with a fundamentally different model may need the SPI to grow.
 
 ---
 

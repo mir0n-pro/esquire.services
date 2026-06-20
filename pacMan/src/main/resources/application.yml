@@ -17,7 +17,7 @@ spring:
 pacman:
   messaging-bus:
     - bus-id: audit-b
-      slot:
+      slots:
         - slot-id: audit
           x-rod:
             rod-class: pro.mir0n.esquire.dataKeep.keep.XRodInProcess

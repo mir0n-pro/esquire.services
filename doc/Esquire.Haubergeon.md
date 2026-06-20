@@ -107,7 +107,7 @@ variant (JWE-when-supported, mTLS-bound tokens, DPoP, etc.).
 
 ## Simulation catalog
 
-The hauberk ships 21 Simulations. Discover at runtime via
+The hauberk ships 22 Simulations. Discover at runtime via
 `hauberk.cmd list`; each is a Java class under
 `src/main/java/.../hauberk/simulations/`.
 

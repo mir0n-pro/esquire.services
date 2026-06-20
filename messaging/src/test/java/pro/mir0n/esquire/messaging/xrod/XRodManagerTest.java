@@ -38,9 +38,9 @@ class XRodManagerTest {
         MockEnvironment env = new MockEnvironment();
         env.setProperty("spring.application.name", "enyman");
         env.setProperty("esquire.messaging-bus[0].bus-id", "esquire.kc");
-        env.setProperty("esquire.messaging-bus[0].slot[0].slot-id", "kc");
-        env.setProperty("esquire.messaging-bus[0].slot[0].x-rod.transport.provider", CAP);
-        env.setProperty("esquire.messaging-bus[0].slot[0].x-rod.transport.endpoint", "tcp://localhost:61616");
+        env.setProperty("esquire.messaging-bus[0].slots[0].slot-id", "kc");
+        env.setProperty("esquire.messaging-bus[0].slots[0].x-rod.transport.provider", CAP);
+        env.setProperty("esquire.messaging-bus[0].slots[0].x-rod.transport.endpoint", "tcp://localhost:61616");
         env.setProperty("esquire.kc-bus.messaging-bus.bus-id", "esquire.kc");
         env.setProperty("esquire.kc-bus.messaging-bus.slot-id", "kc");
         return env;
@@ -49,11 +49,11 @@ class XRodManagerTest {
     /** An R&R leg: rod-class XRodRR + a single destination (the selector tests don't need the two nodes). */
     private MockEnvironment rrEnv(String legRodId) {
         MockEnvironment env = baseEnv();
-        env.setProperty("esquire.messaging-bus[0].slot[0].x-rod.rod-class", "XRodRR");
+        env.setProperty("esquire.messaging-bus[0].slots[0].x-rod.rod-class", "XRodRR");
         if (legRodId != null) {
-            env.setProperty("esquire.messaging-bus[0].slot[0].x-rod.rod-id", legRodId);
+            env.setProperty("esquire.messaging-bus[0].slots[0].x-rod.rod-id", legRodId);
         }
-        env.setProperty("esquire.messaging-bus[0].slot[0].x-rod.transport.destination", "esquire.kc.q");
+        env.setProperty("esquire.messaging-bus[0].slots[0].x-rod.transport.destination", "esquire.kc.q");
         return env;
     }
 
@@ -134,7 +134,7 @@ class XRodManagerTest {
     void explicitRodClassDisabledYieldsTheDisabledPod() {
         // a leg that exists but sets rod-class = XRodDisabled is the same OFF pod (slot intentionally disabled).
         MockEnvironment env = baseEnv();
-        env.setProperty("esquire.messaging-bus[0].slot[0].x-rod.rod-class", "XRodDisabled");
+        env.setProperty("esquire.messaging-bus[0].slots[0].x-rod.rod-class", "XRodDisabled");
         XRodManager mgr = new XRodManager(env, om);
         pro.mir0n.esquire.messaging.xrod.IXRod rod = mgr.producer("kc-bus", Role.BROADCAST);
         assertThat(rod).isInstanceOf(pro.mir0n.esquire.messaging.xrod.impl.XRodDisabled.class);
@@ -157,7 +157,7 @@ class XRodManagerTest {
     void shutdownClosesTheProducerTransportPublisher() {
         // a producer leg owns a transport publisher; shutting the rod down must close it (release the broker connection).
         MockEnvironment env = baseEnv();
-        env.setProperty("esquire.messaging-bus[0].slot[0].x-rod.transport.destination", "esquire.kc.q");
+        env.setProperty("esquire.messaging-bus[0].slots[0].x-rod.transport.destination", "esquire.kc.q");
         XRodManager mgr = new XRodManager(env, om);
         mgr.producer("kc-bus", Role.BROADCAST);
         assertThat(CapturingTransportProvider.publisherCloseCount.get()).isZero();
@@ -172,13 +172,13 @@ class XRodManagerTest {
         // a base-XRod leg with a single destination AND R&R nodes present: base XRod ignores role -- null selector,
         // and it always uses the single `destination`, never the request/response nodes.
         MockEnvironment env = baseEnv();   // no rod-class -> default XRod
-        env.setProperty("esquire.messaging-bus[0].slot[0].x-rod.transport.destination", "esquire.kc.single");
-        env.setProperty("esquire.messaging-bus[0].slot[0].x-rod.transport.request-node", "request");
-        env.setProperty("esquire.messaging-bus[0].slot[0].x-rod.transport.response-node", "response");
-        env.setProperty("esquire.messaging-bus[0].slot[0].x-rod.transport.node[0].node-id", "request");
-        env.setProperty("esquire.messaging-bus[0].slot[0].x-rod.transport.node[0].destination", "esquire.kc.request");
-        env.setProperty("esquire.messaging-bus[0].slot[0].x-rod.transport.node[1].node-id", "response");
-        env.setProperty("esquire.messaging-bus[0].slot[0].x-rod.transport.node[1].destination", "esquire.kc.response");
+        env.setProperty("esquire.messaging-bus[0].slots[0].x-rod.transport.destination", "esquire.kc.single");
+        env.setProperty("esquire.messaging-bus[0].slots[0].x-rod.transport.request-node", "request");
+        env.setProperty("esquire.messaging-bus[0].slots[0].x-rod.transport.response-node", "response");
+        env.setProperty("esquire.messaging-bus[0].slots[0].x-rod.transport.nodes[0].node-id", "request");
+        env.setProperty("esquire.messaging-bus[0].slots[0].x-rod.transport.nodes[0].destination", "esquire.kc.request");
+        env.setProperty("esquire.messaging-bus[0].slots[0].x-rod.transport.nodes[1].node-id", "response");
+        env.setProperty("esquire.messaging-bus[0].slots[0].x-rod.transport.nodes[1].destination", "esquire.kc.response");
 
         XRodManager mgr = new XRodManager(env, om);
         mgr.consumer("kc-bus", Role.CLIENT, e -> { });
@@ -192,13 +192,13 @@ class XRodManagerTest {
         // an R&R leg (rod-class XRodRR, request + response nodes): CLIENT consumes the RESPONSE node (filter by
         // rod-id); SERVER consumes the REQUEST node (filter by slot-id).
         MockEnvironment env = baseEnv();
-        env.setProperty("esquire.messaging-bus[0].slot[0].x-rod.rod-class", "XRodRR");
-        env.setProperty("esquire.messaging-bus[0].slot[0].x-rod.transport.request-node", "request");
-        env.setProperty("esquire.messaging-bus[0].slot[0].x-rod.transport.response-node", "response");
-        env.setProperty("esquire.messaging-bus[0].slot[0].x-rod.transport.node[0].node-id", "request");
-        env.setProperty("esquire.messaging-bus[0].slot[0].x-rod.transport.node[0].destination", "esquire.kc.request");
-        env.setProperty("esquire.messaging-bus[0].slot[0].x-rod.transport.node[1].node-id", "response");
-        env.setProperty("esquire.messaging-bus[0].slot[0].x-rod.transport.node[1].destination", "esquire.kc.response");
+        env.setProperty("esquire.messaging-bus[0].slots[0].x-rod.rod-class", "XRodRR");
+        env.setProperty("esquire.messaging-bus[0].slots[0].x-rod.transport.request-node", "request");
+        env.setProperty("esquire.messaging-bus[0].slots[0].x-rod.transport.response-node", "response");
+        env.setProperty("esquire.messaging-bus[0].slots[0].x-rod.transport.nodes[0].node-id", "request");
+        env.setProperty("esquire.messaging-bus[0].slots[0].x-rod.transport.nodes[0].destination", "esquire.kc.request");
+        env.setProperty("esquire.messaging-bus[0].slots[0].x-rod.transport.nodes[1].node-id", "response");
+        env.setProperty("esquire.messaging-bus[0].slots[0].x-rod.transport.nodes[1].destination", "esquire.kc.response");
 
         XRodManager client = new XRodManager(env, om);
         client.consumer("kc-bus", Role.CLIENT, e -> { });

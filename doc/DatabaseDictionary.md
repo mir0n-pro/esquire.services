@@ -41,7 +41,7 @@ Audit logging is **optional and pluggable** (see
 `*_LOG` table carrying the same columns plus `*_ACTION VARCHAR(1)` (`I`/`U`/`D`) and `*_ACTION_TS TIMESTAMP`.
 Per the chosen audit model the `*_LOG` tables either live **in the entity database** (populated
 in-transaction by BRIUD — Before Row Insert/Update/Delete — triggers) or in a **dedicated audit database**
-(populated by the application or the xx-rod consumer). When audit is off they are not present at all.
+(populated by the application or the auKeep consumer). When audit is off they are not present at all.
 
 ---
 
@@ -618,7 +618,7 @@ One log table per entity table. **Optional** — present only when audit logging
 either in the entity database or in a dedicated audit database depending on the chosen audit model (see
 [Esquire.AuditLoggingStack.md](Esquire.AuditLoggingStack.md)). Populated either by BRIUD triggers — before
 every insert, update, or delete the trigger copies the row into the log table with an action code and a
-timestamp, in the same transaction — or, in the decoupled models, by the application or the xx-rod consumer.
+timestamp, in the same transaction — or, in the decoupled models, by the application or the auKeep consumer.
 
 Each log table mirrors all columns of its source table (with a log-specific prefix)
 plus two additional columns:

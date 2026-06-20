@@ -12,7 +12,7 @@ esquire:
   messaging-bus:
     # --- entity broadcast (topic): publishers post UE, consumers (bizTree / kcMaster) apply ---
     - bus-id: esquire.entity
-      slot:
+      slots:
         - slot-id: entity
           x-rod:
             pool-size: 4
@@ -25,7 +25,7 @@ esquire:
               topic: true
     # --- KeyCloak request/response (R&R, two nodes): enyMan/keySmith CLIENT, kcMaster SERVER ---
     - bus-id: esquire.kc
-      slot:
+      slots:
         - slot-id: kc
           x-rod:
             rod-class: XRodRR
@@ -38,14 +38,14 @@ esquire:
               topic: false
               request-node: request
               response-node: response
-              node:
+              nodes:
                 - node-id: request
                   destination: esquire.kc.request
                 - node-id: response
                   destination: esquire.kc.response
     # --- audit (c): ActiveMQ -> auKeep consumer writes the *_log ---
     - bus-id: audit-c
-      slot:
+      slots:
         - slot-id: audit
           x-rod:
             rod-class: XRod
@@ -63,7 +63,7 @@ esquire:
                 jms.useAsyncSend: true
     # --- audit (ck): Kafka -> auKeep consumer writes the *_log ---
     - bus-id: audit-ck
-      slot:
+      slots:
         - slot-id: audit
           x-rod:
             rod-class: XRod
@@ -80,7 +80,7 @@ esquire:
                 group-id: esquire-xxrod-audit
     # --- audit (d): Redis stream IS the append-only log (producer-only, no auKeep consumer) ---
     - bus-id: audit-d
-      slot:
+      slots:
         - slot-id: audit
           x-rod:
             rod-class: XRod
@@ -96,7 +96,7 @@ esquire:
                 max-len: 0
     # --- audit (dk): Kafka topic IS the append-only log (producer-only, no auKeep consumer) ---
     - bus-id: audit-dk
-      slot:
+      slots:
         - slot-id: audit
           x-rod:
             rod-class: XRod

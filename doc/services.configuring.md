@@ -21,7 +21,7 @@ table.
 - Defaults below are the **code defaults** (what `application.yml` / `@Value` ship). Where the
   deployed compose/k8s value differs on purpose, it is called out as `code / deployed`.
 - **Messaging is transport-agnostic.** A service never talks JMS/Kafka/Redis directly; it asks the
-  **x-Rod** frontend (`XRodManager`) for a producer or consumer on a logical bus + role. A
+  **x-rod** frontend (`XRodManager`) for a producer or consumer on a logical bus + role. A
   cross-service **bus catalog** (the "topology") defines every bus ONCE in an external file, imported
   by every service (see [Shared parameters](#shared-parameters-most-services)).
 
@@ -48,11 +48,11 @@ env token is `DATAKEEP` -- a deferred rename, so the env prefix stays `DATAKEEP`
 Hikari pool settings are fixed in the yml (not env-driven): `maximum-pool-size=20`,
 `minimum-idle=20`, `connection-timeout=30000`, `max-lifetime=1800000`, `idle-timeout=600000`.
 
-### Messaging bus (the x-Rod) + topology import
+### Messaging bus (the x-rod) + topology import
 
-Messaging runs behind one frontend, the **x-Rod**. A service references a logical bus and a role;
+Messaging runs behind one frontend, the **x-rod**. A service references a logical bus and a role;
 the actual transport (ActiveMQ / Kafka / Redis) and its endpoint live in the shared **topology**,
-not in per-service env. The abstract bus framework -- the x-Rod engine, the transport-driver SPI, the
+not in per-service env. The abstract bus framework -- the x-rod engine, the transport-driver SPI, the
 catalog + parameter model -- is documented in `doc/Esquire.MessagingBus.md`; THIS section is the concrete
 Esquire catalog: which buses exist and the env that drives them. The vocabulary:
 
@@ -352,7 +352,7 @@ does the DB apply. It carries all transport-provider modules, so it consumes the
 or Kafka (`audit-ck`) sink as the topology leg dictates; producer-only sinks (`audit-d` / `audit-dk`)
 have no auKeep. Horizontally redundant (competing consumers; no clientId) -- it drains the bus audit
 sink to the `*_log` tables. It ships the **full** `META-INF/audit/{dialect}.xml` SQL set (it writes
-every kind). The in-process pod for producers (audit-(b)) is `XRodInProcess`, the same generic relay
+every kind). The in-process x-rod for producers (audit-(b)) is `XRodInProcess`, the same generic relay
 backed by the same keep engine. See `doc/Esquire.AuditLoggingStack.md` section 4.7.
 
 **Port:** `DATAKEEP_PORT` (`3007`). **Shared:** DB token `DATAKEEP` (the keep datastore it writes;

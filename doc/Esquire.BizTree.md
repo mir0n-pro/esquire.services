@@ -223,7 +223,7 @@ Architectural rules, not knobs:
 - **DB is the source of truth.** Monads hold in-memory H2 tables only; restart
   always rebuilds from `esq2025`.
 - **Broadcast subscription is non-durable.** bizTree joins the entity-broadcast bus
-  through the x-Rod broadcast consumer (an `XRod` on the `esquire.entity` topic) with a
+  through the x-rod broadcast consumer (an `XRod` on the `esquire.entity` topic) with a
   non-durable subscription: events missed during downtime are not retained by the broker,
   and don't need to be -- bootstrap and the next sweep rebuild from the canonical DB.
   Anti-entropy reconciliation replaces durable delivery as the "no event loss" mechanism.

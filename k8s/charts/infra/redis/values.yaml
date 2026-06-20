@@ -1,0 +1,5 @@
+# Redis broker for the audit-(d) Redis-Stream sink (local/dev k8s only; not deployed on OKE).
+image:
+  repository: redis
+  tag: "8"
+  pullPolicy: IfNotPresent

@@ -20,7 +20,7 @@ enyman:
   # its in-process audit-b leg, whose log-db is service-specific. Under the service namespace, beside move-queue.
   messaging-bus:
     - bus-id: audit-b
-      slot:
+      slots:
         - slot-id: audit
           x-rod:
             rod-class: pro.mir0n.esquire.dataKeep.keep.XRodInProcess

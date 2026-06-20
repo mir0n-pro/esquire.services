@@ -124,7 +124,7 @@ untouched until v1.2 stable.
   images to GHCR** (`GITHUB_TOKEN`, no PAT). **deploy** (behind the Environment gate) -- configure the OCI
   CLI from the Environment secrets -> fetch the OKE kubeconfig (`oci ce cluster create-kubeconfig`) ->
   `deploy-oke.sh` = `helm upgrade --install` each chart with the GHCR tag + the `k8s-oci/values` overlay
-  (audit option **(a)** DB triggers -- no xx-rod on OKE). A context guard refuses any
+  (audit option **(a)** DB triggers -- no auKeep on OKE). A context guard refuses any
   `docker-desktop/minikube/kind` context. **validate** -- e2e + load (below).
 - **Validate = the e2e + load chain** (the part deliberately kept OUT of the local scope, see 4.2a):
   after the rollout, run the explorer **e2e** (Playwright, `BASE_URL=https://esquire.mir0n.pro`) and the

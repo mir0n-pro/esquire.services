@@ -264,9 +264,10 @@ Vendor independence is an architectural principle, not a feature. It operates at
 named query XML files so switching does not touch application code. MySQL and other RDBMS
 targets are on the roadmap — the same isolation principle makes them straightforward additions.
 
-**Messaging broker.** ActiveMQ is the current implementation. A future Esquire milestone will
-introduce a vendor-agnostic messaging bus abstraction — the broadcast and request-response
-patterns remain the contract; the underlying broker becomes a deployment choice.
+**Messaging Bus.** Esquire ships a vendor-agnostic **Messaging Bus** — the broadcast and
+request-response patterns are the contract, and the transport is a deployment choice behind a
+pluggable transport-provider interface. ActiveMQ is the first transport provider implemented; Kafka
+and Redis providers use the same interface.
 
 **Identity and access management.** Keycloak is today's IAM. The architecture was designed
 from the start so that Keycloak is never touched directly by the core services. keySmith
@@ -274,9 +275,9 @@ publishes identity commands; kcMaster executes them against Keycloak. Replacing 
 means replacing kcMaster with an xyzMaster that speaks to a different IAM — the rest of
 the system is unchanged. This is a deployment decision, not an architectural one.
 
-With v1.2.2, Esquire has reached the Establishment: a working, connected system from database
-to browser. From here, many routes are open — new database targets, new brokers, new IAM
-providers, new entity domains — without any dramatic change to the core architecture.
+Esquire is a working, connected system from database to browser. Many routes are open from here —
+new database targets, new transports, new IAM providers, new entity domains — without any dramatic
+change to the core architecture.
 
 ---
 

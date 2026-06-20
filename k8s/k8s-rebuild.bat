@@ -97,6 +97,14 @@ call mvn -q -DskipTests clean package
 if errorlevel 1 ( popd & echo mvn failed & exit /b 1 )
 popd
 
+rem === Infra image: esquire-postgres:17 (k8s-only). docker compose no longer builds it -- the Postgres
+rem     container was removed from compose (docker uses the external host pg18); the dockerized Postgres
+rem     is exclusively the k8s esquire-infra-postgres StatefulSet. Build it here so the image stays
+rem     available for k8s-up. Context = repo root (../..) so the Dockerfile can COPY db.seed + initdb. ===
+echo [docker] building infra image esquire-postgres:17 (db.seed schema)...
+docker build %NOCACHE% -f ..\postgres\Dockerfile -t esquire-postgres:17 ..\..
+if errorlevel 1 ( echo postgres image build failed & exit /b 1 )
+
 set "SVC=gateway"&set "DIR=gateway"
 call :one
 if errorlevel 1 exit /b 1

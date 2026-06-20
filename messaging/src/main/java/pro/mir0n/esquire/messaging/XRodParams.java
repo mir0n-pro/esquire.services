@@ -13,6 +13,7 @@
  *                   the override sets wins in full). Impl-agnostic -- any pod plus its own settings work unchanged.
  * 06/17/2026 mir0n  transport() carries transport.params.* VERBATIM (token expansion removed from here); nodes()
  *                   parses transport.node[*] into a typed List<BusNode>; expandIdentityTokens() removed
+ * 06/19/2026 mir0n  nodes() reads the plural key transport.nodes[*] (was transport.node[*])
  */
 package pro.mir0n.esquire.messaging;
 
@@ -143,13 +144,13 @@ public record XRodParams(String busId, String slotId, Map<String, Object> raw) {
         return ret;
     }
 
-    /** The R&R network nodes declared under {@code transport.node[*]}, as a typed list (each: {@code node-id}
+    /** The R&R network nodes declared under {@code transport.nodes[*]}, as a typed list (each: {@code node-id}
      *  plus the wire fields a node may own). Empty if the leg declares none. The ONE place the flattened
-     *  {@code transport.node.<idx>.*} keys are read -- an x-rod (XRodRR) then selects a node by id. */
+     *  {@code transport.nodes.<idx>.*} keys are read -- an x-rod (XRodRR) then selects a node by id. */
     public List<BusNode> nodes() {
         List<BusNode> ret = new ArrayList<>();
         if (raw != null) {
-            String prefix = "transport.node.";
+            String prefix = "transport.nodes.";
             Map<String, Map<String, Object>> byIndex = new LinkedHashMap<>();
             raw.forEach((k, v) -> {
                 if (k.startsWith(prefix)) {

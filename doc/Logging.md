@@ -10,7 +10,7 @@ Every service uses three distinct logging tiers. Each tier has a dedicated desti
 |---|---|---|---|---|
 | Console | `log` (Lombok `@Slf4j`) | class path | stdout (ECS structured) | Observability — what ops watches |
 | Develop | `devLog` | `develop.<classname>` | rolling file (7 days) | Debug trace — internal detail |
-| Msg audit | `msgLog` | `msg.<bus-id>.<slot-id>` | rolling file (30 days) | Bus traffic audit (emitted on the x-Rod legs) |
+| Msg audit | `msgLog` | `msg.<bus-id>.<slot-id>` | rolling file (30 days) | Bus traffic audit (emitted on the x-rod legs) |
 
 ---
 
@@ -25,7 +25,7 @@ private static final org.slf4j.Logger devLog =
         LoggerFactory.getLogger("develop." + ClassName.class.getName());
 ```
 
-The msg-audit logger is no longer declared per class. The x-Rod pod resolves it per leg as
+The msg-audit logger is no longer declared per class. The x-rod resolves it per leg as
 `msg.<bus-id>.<slot-id>` from the leg's `BusIdentity`, and the framework — not business code — writes
 to it on every message crossing a leg. Service-layer classes (business logic, KC API calls, etc.) never
 use `msgLog`.
@@ -54,9 +54,9 @@ Everything else belongs in `devLog`.
 
 ---
 
-## Msg Audit Logger — The x-Rod Legs
+## Msg Audit Logger — The x-rod Legs
 
-Every message that crosses an x-Rod leg is logged once, by the framework, on that leg's
+Every message that crosses an x-rod leg is logged once, by the framework, on that leg's
 `msg.<bus-id>.<slot-id>` logger — the transmit leg logs `TX`, the receive leg logs `RX`. Business code
 writes nothing here.
 
@@ -115,7 +115,7 @@ devLog.debug("processing entity id={}", id);
 
 ## MDC in Bus Consumers
 
-HTTP services get `requestId` and `correlationId` in MDC automatically from `MdcFilter`. The x-Rod
+HTTP services get `requestId` and `correlationId` in MDC automatically from `MdcFilter`. The x-rod
 receive worker runs off an HTTP thread — it gets nothing unless explicitly set.
 
 Every consumer's receive worker takes a decoded `RodEvent`; it must populate MDC from the event and
@@ -140,7 +140,7 @@ public void onRodEvent(RodEvent event) {
 
 Once MDC is set, any `log.*` call inside the handler automatically includes the correlation context in the log pattern without explicit parameter threading.
 
-Consumers covered: `KcRequestConsumer`, `KcEntityBroadcastConsumer` (kcMaster), `KcResponseListener` (enyMan), `KcSyncResponseListener` (keySmith), `BizTreeBroadcastConsumer` (bizTree), and the audit director on `xxRod`.
+Consumers covered: `KcRequestConsumer`, `KcEntityBroadcastConsumer` (kcMaster), `KcResponseListener` (enyMan), `KcSyncResponseListener` (keySmith), `BizTreeBroadcastConsumer` (bizTree), and the audit director on `auKeep`.
 
 ---
 

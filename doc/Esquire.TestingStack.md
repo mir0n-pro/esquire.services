@@ -2,24 +2,25 @@
 
 # Esquire Testing Stack
 
-The Esquire framework spans Java microservices, a Node.js BFF, an Angular SPA + library, and a Java load harness. Each tier picks the test framework that fits its language and what's being verified. This document lists every framework currently in use, what it covers, and the approximate test count as of **v1.2.7 (2026-06-10)**.
+The Esquire framework spans Java microservices, a Node.js BFF, an Angular SPA + library, and a Java load harness. Each tier picks the test framework that fits its language and what's being verified. This document lists every framework currently in use, what it covers, and the approximate test count as of **v1.2.8 (2026-06-20)**.
 
 ## At a glance
 
 |                                                                          | Tier                                          | Framework(s) | Project(s) | Tests |
 |--------------------------------------------------------------------------|-----------------------------------------------|---|---|---|
-| ![Alt text](media/junit.svg)                                      | Java unit + service                           | **JUnit 5** + **Mockito** + **AssertJ** | `services/*` | **467** `@Test` methods across **62** classes |
-| ![Alt text](media/hauberk.svg) ![Alt text](media/gatling.svg) | Java integration / load / stress / race-repro | **Haubergeon** (on **Gatling 3.13** Java DSL) | `explorer/hauberk` | **21** self-validating Simulations (smoke / load / super / race-repro / message-loss) + 3 JUnit catalog tests |
+| ![Alt text](media/junit.svg)                                      | Java unit + service                           | **JUnit 5** + **Mockito** + **AssertJ** | `services/*` | **443** `@Test` methods across **64** classes |
+| ![Alt text](media/hauberk.svg) ![Alt text](media/gatling.svg) | Java integration / load / stress / race-repro | **Haubergeon** (on **Gatling 3.13** Java DSL) | `explorer/hauberk` | **22** self-validating Simulations (smoke / load / super / race-repro / message-loss) + 3 JUnit catalog tests |
 | ![Alt text](media/vitest.svg)                                      | Node.js (BFF)                                 | **Vitest** + **Supertest** | `explorer/backend` | **28** specs across **4** files (config / cache / trace / tokens) |
 | ![Alt text](media/karma.svg) ![Alt text](media/jasmine.svg)  | Angular SPA                                   | **Karma** + **Jasmine** (`ng test`) | `explorer/frontend` | **25** `it()` specs in **4** files |
 | ![Alt text](media/karma.svg) ![Alt text](media/jasmine.svg)  |  Angular UI library                           | **Karma** + **Jasmine** (`ng test`) | `esquire.ui.lib` | **146** `it()` specs in **23** files |
-| ![Alt text](media/playwrite.svg)                                   | Browser end-to-end                            | **Playwright** | `explorer/e2e-test` | **32** `test()` cases in **15** `.spec.ts` files |
+| ![Alt text](media/playwrite.svg)                                   | Browser end-to-end                            | **Playwright** | `explorer/e2e-test` | **32** `test()` cases in **16** `.spec.ts` files |
+| ![Alt text](media/hauberk.svg) ![Alt text](media/gatling.svg) | Stack integration scenarios                   | **Bash** driver + `psql` / `sqlplus` / `kubectl` (drives the **hauberk** `EntitySmoke` workload) | `services/test` | **~27-cell** audit matrix (audit sink x primary DB x environment) |
 
 ---
 
 ## Java unit + service tests — JUnit 5 / Mockito / AssertJ
 
-**Used in:** every `services/*` microservice (common, bizTree, enyMan, pacMan, keySmith, kcMaster, gateway, xxRod) and in the hauberk module's catalog contract test.
+**Used in:** every `services/*` microservice (common, bizTree, enyMan, pacMan, keySmith, kcMaster, gateway, auKeep) and in the hauberk module's catalog contract test.
 
 **What for:** classic unit + service-layer tests. Mock repositories, transaction templates, JMS publishers, KC clients; assert behavior against the mocked collaborators. Test files end in `Test.java` and live next to the production code under `src/test/java/`.
 
@@ -31,15 +32,17 @@ The Esquire framework spans Java microservices, a Node.js BFF, an Angular SPA + 
 
 | Module | `@Test` methods | Notes |
 |---|---|---|
-| common | 196 | includes the messaging + audit substrate: `RodEventCodecTest`, `MessagingBusCatalogTest`, `XRodManagerTest`, `XRodTest`, `XRodDisabledTest`, `AuditLogSqlTest` (META-INF DOM loader), `EntityFillMapTest` |
-| bizTree | 74 | — |
-| enyMan | 85 | — |
-| pacMan | 48 | — |
+| common | 133 | core framework: entity / field utils, roles storage, access profile, validators, Taijitu cache rigs |
+| messaging | 51 | the messaging-bus + x-rod substrate extracted from common: `MessagingBusCatalogTest`, `RodEventCodecTest`, `XRodTest`, `XRodManagerTest`, `XRodDisabledTest`, `RodTransportAdapterTest`, `TransportProvidersTest`, `BusIdentityTest` |
+| audit | 18 | the audit rules on the generic keep engine: `AuditSqlTest`, `AuditKeepDirectorTest`, `AuditBusBridgeTest`, `AuditKindsTest` |
+| bizTree | 42 | — |
+| enyMan | 73 | — |
+| pacMan | 39 | — |
 | keySmith | 21 | — |
-| kcMaster | 48 | — |
+| kcMaster | 44 | — |
 | gateway | 21 | gateway typically light on JUnit; reactive WebFlux code is harder to mock-test cleanly |
-| xxRod | 4 | the audit option-(c) bus consumer (`RodAuditConsumer` / `AuditConfig` / director) |
-| **total** | **467** | |
+| auKeep | 1 | the audit-bus consumer integration test |
+| **total** | **443** | across **64** classes |
 
 ---
 
@@ -55,7 +58,7 @@ The Esquire framework spans Java microservices, a Node.js BFF, an Angular SPA + 
 
 **Pattern:** Each Simulation extends `HauberkSimulation` (abstract base — pulls up lazy KC token, instrumented `httpProtocol`, perf-matrix flush). Reusable `ChainBuilder` atoms compose into `ScenarioBuilder` flows. `@SimulationInfo("...")` annotation supplies the catalog description; presence enforced by `SimulationCatalogContractTest` (JUnit 5).
 
-**Coverage:** 21 Simulations + 32 reusable Chains + 3 JUnit catalog-contract tests. `@SimulationInfo` descriptions are held under a 90-char `hauberk list` cap enforced by `SimulationCatalogContractTest`.
+**Coverage:** 22 Simulations + 35 reusable Chains + 3 JUnit catalog-contract tests. `@SimulationInfo` descriptions are held under a 90-char `hauberk list` cap enforced by `SimulationCatalogContractTest`.
 
 **Esquire-org standard since v1.2.4:** Gatling is the chosen framework for all integration / stress / load / race-repro testing across the project. See [Testing.md](Testing.md) for the standard-adoption rationale and [Esquire.Haubergeon.md](Esquire.Haubergeon.md) for the harness reference.
 
@@ -117,7 +120,19 @@ The Esquire framework spans Java microservices, a Node.js BFF, an Angular SPA + 
 
 **How wired:** `@playwright/test` v1.49+. `npm test` runs the suite headless; `npm run test:ui` opens the Playwright UI runner. Tests target `localhost`, `localhost:4200` (live SPA), and OKE prod URLs as needed.
 
-**Coverage:** **32** `test()` cases across **15** `.spec.ts` files (01-prelogin through 14-error-handling, plus 99-debug-login). The suite runs green on Docker, local k8s, and OKE (`https://esquire.mir0n.pro`).
+**Coverage:** **32** `test()` cases across **16** `.spec.ts` files (01-prelogin through 15-system-entity-protection, plus 99-debug-login); the move / delete / withdrawal / transfer specs (09, 10, 12, 13) are present as placeholders but currently hold no `test()` cases. The suite runs green on Docker, local k8s, and OKE (`https://esquire.mir0n.pro`).
+
+---
+
+## Stack integration scenarios — Bash-driven matrices over the running stack
+
+**Used in:** `services/test/` (the first scenario set is `audit-smoke/`).
+
+**What for:** reproducible end-to-end integration scenarios that exercise the *running* stack across a grid of configurations and assert the outcome in the database. Distinct from the other tiers: unit tests mock collaborators with no stack, hauberk drives throughput / load, Playwright drives the browser UI — these scenarios push a small real workload through the gateway and then check that the data landed where the configuration says it should. They are the correctness counterpart to the hauberk performance matrices.
+
+**How wired:** a Bash driver (`run.sh`) per scenario set. For each cell it sets the configuration via environment, recreates the affected stack pieces (`docker compose up --force-recreate` on docker, `helm upgrade` + rollout restart on local k8s), drives the workload (the hauberk `EntitySmoke`: create office -> update a parameter -> move -> delete, plus an account deposit), then validates row-count deltas in the target database via `psql` (docker uses the host Postgres pg18; local k8s the in-cluster Postgres), `sqlplus` (Oracle), or `kubectl exec`. Each run writes a PASS/FAIL table into `results-<stamp>.md`.
+
+**Coverage:** the **audit-smoke matrix** — ~27 cells = audit sink (`a` DB triggers / `b` in-process shared+dedicated / `c` ActiveMQ / `ck` Kafka / `d` Redis stream / `dk` Kafka stream) x primary DB (Postgres / Oracle) x environment (docker / local k8s). Proves the audit log lands in the right place for every combination: the relational `*_log` tables for the consumed sinks (a / b / c / ck), the stream itself for the producer-only sinks (d / dk).
 
 ---
 

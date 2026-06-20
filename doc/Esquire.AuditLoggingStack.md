@@ -10,9 +10,9 @@ pattern audit trails have historically come from. The v1.2.7 sprint reframes
 audit as a **pluggable concern**: one seam in the services, several interchangeable strategies behind it,
 each picked by configuration so a deployment chooses the trade-off that fits its environment.
 
-The mechanism is the **x-Rod substrate** — a generic entity **fan-out** messaging frontend. Every messaging
-participant (audit, entity broadcast, KC request/response) is an **x-Rod pod** obtained from `XRodManager`
-by logical **bus key + role**; a single pod type, **`XRod`**, whose wiring (a transmit leg and/or a receive
+The mechanism is the **x-rod substrate** — a generic entity **fan-out** messaging frontend. Every messaging
+participant (audit, entity broadcast, KC request/response) is an **x-rod** obtained from `XRodManager`
+by logical **bus key + role**; a single x-rod type, **`XRod`**, whose wiring (a transmit leg and/or a receive
 leg) makes it producer-only, consumer-only, or in-process. The producer captures each committed change and
 relays it to one or more **sinks**; **audit is the first sink** (replication / search-index / cache-warm are
 future siblings on the same frontend). The audit sink writes per-entity `*_log` tables, or streams to Redis,
@@ -100,7 +100,7 @@ where it lands.
 log; request-level INFO logging is the only standing trace). The others persist it. Because the change is
 already broadcast, **(c) is simply (0) plus an auKeep consumer that lands it in SQL**.
 
-When audit is OFF the audit bus resolves to the **`XRodDisabled`** no-op pod — the default x-Rod when a bus
+When audit is OFF the audit bus resolves to the **`XRodDisabled`** no-op x-rod — the default x-rod when a bus
 is unconfigured.
 
 ---
@@ -115,7 +115,7 @@ asynchronous / separate store / non-SQL*.
 - **Where:** nowhere. The change rides the existing entity-broadcast bus; nothing persists it for audit.
 - **Visibility:** at **INFO**, the existing request IN/OUT logging records every operation at the request
   boundary (who called which command, when) — trail enough for many deployments. Per-leg message-audit detail
-  goes to the separate **msg-audit** channel (§A.6), to trace the bus. We deliberately do **not** INFO-log
+  goes to the separate **msg-audit** channel (§A.5), to trace the bus. We deliberately do **not** INFO-log
   update payloads (floods logs; a log line is not a queryable, retained record).
 - **+** zero audit cost and coupling; removes trigger write-amplification outright.
 - **–** no SQL-queryable record of *what changed*, no retention beyond the log pipeline.
@@ -133,7 +133,7 @@ asynchronous / separate store / non-SQL*.
 
 ### b) Local Async Logging — *"off the hot path, still ours"*
 - **Where:** log tables in a **separate log DB**. **Filled by** the originating service, asynchronously
-  over JDBC — after commit, the in-process **`XRodInProcess`** pod (rod-class on a service-level leg) feeds
+  over JDBC — after commit, the in-process **`XRodInProcess`** x-rod (rod-class on a service-level leg) feeds
   each record to its worker pool, which runs the audit keep applier to write the `*_log` table. The applier's
   pool is either DEDICATED (its own auto-commit Hikari pool, the default -- can target a different DB/dialect) or
   SHARED (`log-db.shared=true` -> reuses the service's own datasource pool, dialect from the service profile);
@@ -213,25 +213,24 @@ a sensible default — not a mandate.
 ## A. Pluggable transport layer (v1.2.8)
 
 The v1.2.8 messaging-bus rework replaced the audit-specific producer/consumer wiring (mode constants and a
-hard-coded `transport=activemq|kafka` switch) with a **uniform x-Rod frontend over a declarative bus catalog
+hard-coded `transport=activemq|kafka` switch) with a **uniform x-rod frontend over a declarative bus catalog
 and a per-vendor transport SPI**. The option taxonomy of §3 is unchanged — (b) in-process, (c) bus, (d)
 redis, plus the Kafka variants — but an option is now selected by **bus-id**, not a mode constant, and the
 wire vendor is a swappable module the framework never names.
 
-### A.1 One frontend — the x-Rod
+### A.1 One frontend — the x-rod
 
 Every messaging participant in the platform — audit, entity broadcast, and the KC request/response sync —
-is an **x-Rod pod** obtained from **`XRodManager`** by a logical **bus key** plus a **role**. There is no
-longer a separate producer class and consumer class: a single pod type, **`XRod`**, carries a **transmit
+is an **x-rod** obtained from **`XRodManager`** by a logical **bus key** plus a **role**. There is no
+longer a separate producer class and consumer class: a single x-rod type, **`XRod`**, carries a **transmit
 leg** and/or a **receive leg**. Its wiring decides its character — a transmit leg only makes it producer-only
 (audit-d/dk), a receive leg only makes it consumer-only (auKeep's bus consumer), both legs make it a
 transceiver, and the in-process **`XRodInProcess`** (audit-b) has no wire leg at all — it feeds each event to
-its own worker pool, which applies it locally. (The old `XYRod` producer feed and `XXRod` consumer pool
-classes are folded into this one pod type.)
+its own worker pool, which applies it locally.
 
-### A.2 Rod-class — the pod type
+### A.2 Rod-class — the x-rod type
 
-A bus leg names a **rod-class**, the pod implementation, resolved by name: a **bare** name maps to the
+A bus leg names a **rod-class**, the x-rod implementation, resolved by name: a **bare** name maps to the
 convention package `pro.mir0n.esquire.messaging.xrod.impl.<name>`, a **dotted** value is taken as a FQCN.
 The rod-classes relevant to audit:
 
@@ -241,7 +240,7 @@ The rod-classes relevant to audit:
 | **`XRodRR`** | request/response | two role-routed nodes (request-node / response-node); used by the KC bus, not audit |
 | **`XRodInProcess`** | in-process audit (option b) | generic in-process x-rod: feeds each event to its own worker pool, which runs the audit keep applier against the `*_log` tables — no transport. The applier's pool (auto-commit, outside any Spring tx) is DEDICATED (its own, the default) or SHARED (`log-db.shared=true` -> the service's own pool); its datasource is read from the leg's `log-db` sub-block. FQCN `pro.mir0n.esquire.dataKeep.keep.XRodInProcess` |
 | **`XRodInfo`** | log-only | logs the whole event instead of sending it (the future access-violation-log seam) |
-| **`XRodDisabled`** | no-op | the default pod when a bus is unconfigured (audit OFF, option 0) |
+| **`XRodDisabled`** | no-op | the default x-rod when a bus is unconfigured (audit OFF, option 0) |
 
 ### A.3 The bus catalog (topology)
 
@@ -252,7 +251,7 @@ file:/etc/esquire/topology.yml` — a bind-mount on Docker, a ConfigMap on k8s).
 bus (bus-id)
  -> slot (slot-id)          -- a leg of the bus (the term is "slot", never "service")
     -> x-rod {
-         rod-class                                  -- the pod type (A.2)
+         rod-class                                  -- the x-rod type (A.2)
          pool-size, feed-capacity, virtual-threads  -- consumer/feed sizing
          publisher-pool-size, concurrency           -- producer sizing
          transport {                                -- the wire vendor (A.4); absent for in-process
@@ -293,19 +292,7 @@ provider maps it to its own wire form (an ActiveMQ queue / a Kafka topic / a Red
 knobs pass through **generically** via `transport.params` (e.g. `jms.useAsyncSend`, a Kafka `group-id`, a
 Redis `max-len`) — the catalog stays declarative and the framework stays vendor-neutral.
 
-### A.5 What this replaced
-
-| Was (pre-v1.2.8) | Now (v1.2.8) |
-|---|---|
-| `XYRod` producer + `XXRod` consumer classes | one `XRod` pod type (transmit/receive legs) from `XRodManager` |
-| `AuditRod` `MODE_*` / `TRANSPORT_*` constants | bus-id selection via `ESQUIRE_AUDIT_BUS_ID` |
-| `x-rod.bus.transport = activemq \| kafka` | the `transport` block on the catalog leg (`provider`) |
-| `RodEventBusPublisher` / `RodKafkaPublisher` / `RodRedisPublisher` | the `tp-activemq` / `tp-kafka` / `tp-redis` providers (`ITransportProvider`) |
-| `XxRodJmsConfig` / `RodAuditConsumer` / `RodKafkaConsumer` | folded onto the catalog (auKeep reads the bus ref and opens its consumer) |
-| `<svc>.audit-logging.*` / `AUDIT_MODE` / `AUDIT_BUS_TRANSPORT` | the shared topology file + `ESQUIRE_AUDIT_BUS_ID` |
-| msg-type `RDA` (`MSG_TYPE_ROD_AUDIT`) | msg-type `UA` |
-
-### A.6 Message-audit logging — the per-leg msg channel
+### A.5 Message-audit logging — the per-leg msg channel
 
 The msg-audit logger is now **per-leg**, named `msg.<bus-id>.<slot-id>` (was `msg.<class>`). The **transmit
 leg logs `TX`**, the **receive leg logs `RX`**, in the format
@@ -318,19 +305,19 @@ producer-only buses (`audit-d` / `audit-dk`) log only `TX`.
 
 ## 4. Architecture — where & how
 
-### 4.1 The x-Rod substrate (generic fan-out)
+### 4.1 The x-rod substrate (generic fan-out)
 
-**Rod = RoD = Relay of Data.** The x-Rod is a generic entity fan-out frontend, **not** audit-specific: a
+**Rod = RoD = Relay of Data.** The x-rod is a generic entity fan-out frontend, **not** audit-specific: a
 producer leg captures every committed (sub)entity change and relays it to one or more **sinks**; a consumer
 leg (option c) relays it onward. **Audit is the first sink** — replication, search-index feed, webhook,
 cache-warm are future sinks on the *same* frontend, plugged in behind the sink seam without touching the
 write sites. So the substrate types carry no "audit" in their names. The generic substrate lives in
-**`messaging.xrod`** (the `XRodManager`, the `XRod` pod and its rod-class impls, the transport SPI), and the
+**`messaging.xrod`** (the `XRodManager`, the `XRod` and its rod-class impls, the transport SPI), and the
 generic keep engine in **`esquire-dataKeep`** (the in-process `XRodInProcess`, `RodEventDbWriter`,
 `KeepSqlStore`, `KeepApplier` — none of it audit-aware); the audit specifics are a thin **`esquire-audit`**
 module (`AuditBusBridge`, the `AuditKeepDirector`, the `*_log` SQL).
 
-- **Producer leg** — male/transmitter. One `XRod` pod per asset-updating service (enyMan, pacMan, keySmith),
+- **Producer leg** — male/transmitter. One `XRod` per asset-updating service (enyMan, pacMan, keySmith),
   obtained from `XRodManager` for the audit bus. The transactional buffering lives in **`AuditBusBridge`**
   (not the x-rod): it stamps `msgType=UA`, buffers each row-change in the current tx, and **after commit**
   builds each `RodEvent` and calls `IXRod.transmit(event)`; the x-rod is a pure relay — its feed (sized by
@@ -344,7 +331,7 @@ module (`AuditBusBridge`, the `AuditKeepDirector`, the `*_log` SQL).
 
 > **As-built note.** Per-`kind` work is a dialect-keyed SQL statement: the keep applier (`KeepApplier`)
 > resolves the event `kind` through the director's kind->statement-key map and `RodEventDbWriter` binds the
-> event to that statement (loaded by `KeepSqlStore`). The in-process (b) pod (`XRodInProcess`) skips the wire
+> event to that statement (loaded by `KeepSqlStore`). The in-process (b) x-rod (`XRodInProcess`) skips the wire
 > entirely and runs the same applier against its own keep pool.
 
 The **body is built by the entity itself** via `IMappable.fillMap(Map)` (a JPA-layer capability —
@@ -470,8 +457,7 @@ engine does everything else (builds the pool, the `RodEventDbWriter`, and the ki
 director (`AuditKeepDirector`) declares the SQL group `"audit"` + the audit kinds, so the engine writes the
 `*_log`. auKeep **carries all `tp-*` modules** and drains whichever bus the ref names (`audit-c` ActiveMQ,
 `audit-ck` Kafka); the producer-only buses (`audit-d` / `audit-dk`) have **no auKeep** at all. **Adding a
-sink** (replication, doc-DB) is config-selected — drop in a new `IKeepDirector`. (The old `XxRodJmsConfig` /
-`RodAuditConsumer` / `RodKafkaConsumer` classes were folded onto the catalog.)
+sink** (replication, doc-DB) is config-selected — drop in a new `IKeepDirector`.
 
 ### 4.8 SQL externalization — the `META-INF/audit/` spec folder
 
@@ -631,7 +617,7 @@ option + the env reference: [services.configuring.md](services.configuring.md).
 
 Switch topology purely by **bus-id** (chart values / env), no rebuild — the named bus already exists in the
 catalog:
-- **(b) in-process:** `ESQUIRE_AUDIT_BUS_ID=audit-b` (no auKeep; the `XRodInProcess` pod runs the audit keep
+- **(b) in-process:** `ESQUIRE_AUDIT_BUS_ID=audit-b` (no auKeep; the `XRodInProcess` x-rod runs the audit keep
   applier to write `*_log` directly). Its `log-db` datasource comes from
   `ESQUIRE_AUDIT_LOG_DB_{VENDOR,URL,USERNAME,PASSWORD,POOL_SIZE}`.
 - **(d) redis:** `ESQUIRE_AUDIT_BUS_ID=audit-d` + `REDIS_HOST=esq-redis`, deploy a Redis and carry the
@@ -741,7 +727,7 @@ here). (c)'s payoff remains offload — the `*_log` writes leave the business JV
 
 ### 9.1 Design choices
 - **Generic fan-out frontend, audit the first sink** — `messaging.xrod` (the generic `XRodManager` / `XRod`
-  pod / rod-class impls / transport SPI) and the generic keep engine `esquire-dataKeep` (`XRodInProcess` +
+  / rod-class impls / transport SPI) and the generic keep engine `esquire-dataKeep` (`XRodInProcess` +
   the applier engine, audit-unaware) split from the thin `esquire-audit` (the sink specifics:
   `AuditBusBridge`, the `AuditKeepDirector`, the `*_log` SQL); `IMappable` at the JPA layer so entities
   depend downward. Future sinks plug in with a new `IKeepDirector` and no write-site change.
@@ -804,10 +790,10 @@ LMAX-Disruptor "endgame" in the queue-rig research; the xx consumer is its first
 <img src="img/x-rod.7.svg" alt="Rod logo" align="left" width="100" height="100">
 
 **Rod = RoD = Relay of Data.** The async distributing collaboration that relays data from A to B — here, an
-audit event from the originating service to its resting place. A single pod type, the **`XRod`** (obtained
+audit event from the originating service to its resting place. A single x-rod type, the **`XRod`** (obtained
 from `XRodManager` by bus key + role), reusable beyond audit for any migrate/replicate job: a transmit leg
-makes it a producer, a receive leg makes it a consumer, both make it a transceiver. Prose: **x-Rod** for the
-pod; the standalone audit consumer SERVICE that hosts a bus-fed consumer x-rod and lands events in the
+makes it a producer, a receive leg makes it a consumer, both make it a transceiver. Prose: **x-rod** for the
+relay; the standalone audit consumer SERVICE that hosts a bus-fed consumer x-rod and lands events in the
 `*_log` is **auKeep** (image `esquire.aukeep`).
 
 **The metaphor:** a **lightning rod** on a castle's corner tower channels the strike safely to the ground. The

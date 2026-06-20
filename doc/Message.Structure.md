@@ -2,7 +2,7 @@
 Esquire Request/Response/RequestReject/Entity/Audit Message Structure
 
 Every Esquire message is a FIX-JSON envelope produced by one shared codec (`RodEventCodec`) and carried
-by any x-Rod bus regardless of transport (ActiveMQ queue, Kafka topic, Redis stream). Identity / audit
+by any x-rod bus regardless of transport (ActiveMQ queue, Kafka topic, Redis stream). Identity / audit
 fields ride as header properties; the message body rides as the `Text` JSON field. The envelope meta
 `ApplMsgID` and `SendingTime` are added by the publisher per send.
 
@@ -108,7 +108,7 @@ Esquire Audit Message : UA
 
 Posted by the entity producers (enyMan / pacMan / keySmith) after commit, off the request thread, to the
 audit bus. Carries one committed (sub)entity change with the full audit triple, self-contained for the
-consumer (xxRod) or the sink stream to apply with no request context.
+consumer (auKeep) or the sink stream to apply with no request context.
 
 | Canonical field name | FIX tag | Type | Required | Example                                 | Notes                                                                      |
 |----------------------|--------:|---|----------|-----------------------------------------|----------------------------------------------------------------------------|

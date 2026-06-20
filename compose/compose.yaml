@@ -1,29 +1,8 @@
 name: esq-omnibus
 services:
-  postgres:
-    container_name: esq-postgres
-    build:
-      context: ../..
-      dockerfile: services/postgres/Dockerfile
-    image: esquire-postgres:17
-    restart: on-failure
-    environment:
-      POSTGRES_USER: esq2025
-      POSTGRES_PASSWORD: q
-      POSTGRES_DB: esq2025
-    ports:
-      - "5433:5432"
-    volumes:
-      - ./data/postgres:/var/lib/postgresql/data
-      - ./logs:/var/log/postgresql
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U esq2025 -d esq2025"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-      start_period: 30s
-    networks:
-      - esquirenet
+  # NOTE: no Postgres container here -- docker compose uses the EXTERNAL local Postgres (pg18) on the host,
+  # reached as host.docker.internal:5432 (DB_*_HOST defaults below). The dockerized Postgres image is a
+  # k8s-only concern (the esquire-infra-postgres StatefulSet / charts/infra/postgres).
 
   activemq:
     container_name: esq-activemq
@@ -215,13 +194,13 @@ services:
       - DEVELOP_LOG_PATH=logs/bizTree-develop.log
       - MSG_LOG_PATH=logs/bizTree-msg.log
       - ESQUIRE_TOPOLOGY_IMPORT=file:/etc/esquire/topology.yml
-      - DB_BIZTREE_VENDOR=dev-postgres
-      - DB_BIZTREE_PORT=5432
-      - DB_BIZTREE_NAME=esq2025
+      - DB_BIZTREE_VENDOR=${DB_BIZTREE_VENDOR:-dev-postgres}
+      - DB_BIZTREE_PORT=${DB_BIZTREE_PORT:-5432}
+      - DB_BIZTREE_NAME=${DB_BIZTREE_NAME:-esq2025}
       #- DB_BIZTREE_VENDOR=dev-oracle
       #- DB_BIZTREE_PORT=1521
       #- DB_BIZTREE_NAME=MIR0N
-      - DB_BIZTREE_HOST=postgres
+      - DB_BIZTREE_HOST=${DB_BIZTREE_HOST:-host.docker.internal}
       - DB_BIZTREE_USERNAME=esq2025
       - DB_BIZTREE_PASSWORD=q
       # Messaging
@@ -256,8 +235,6 @@ services:
       - BIZTREE_QUEUE_BULK_THRESHOLD=${BIZTREE_QUEUE_BULK_THRESHOLD:-10}
     command: ["java", "-jar", "app.jar"]
     depends_on:
-      postgres:
-        condition: service_healthy
       activemq:
         condition: service_healthy
     volumes:
@@ -285,13 +262,13 @@ services:
       - DEVELOP_LOG_PATH=logs/enyMan-develop.log
       - MSG_LOG_PATH=logs/enyMan-msg.log
       - ESQUIRE_TOPOLOGY_IMPORT=file:/etc/esquire/topology.yml
-      - DB_ENYMAN_VENDOR=dev-postgres
-      - DB_ENYMAN_PORT=5432
-      - DB_ENYMAN_NAME=esq2025
+      - DB_ENYMAN_VENDOR=${DB_ENYMAN_VENDOR:-dev-postgres}
+      - DB_ENYMAN_PORT=${DB_ENYMAN_PORT:-5432}
+      - DB_ENYMAN_NAME=${DB_ENYMAN_NAME:-esq2025}
       #- DB_ENYMAN_VENDOR=dev-oracle
       #- DB_ENYMAN_PORT=1521
       #- DB_ENYMAN_NAME=MIR0N
-      - DB_ENYMAN_HOST=postgres
+      - DB_ENYMAN_HOST=${DB_ENYMAN_HOST:-host.docker.internal}
       - DB_ENYMAN_USERNAME=esq2025
       - DB_ENYMAN_PASSWORD=q
       # Messaging
@@ -319,14 +296,12 @@ services:
       # audit-b (in-process) datastore -- defaults to the service's own DB (its log tables); override to relocate.
       - ESQUIRE_AUDIT_LOG_DB_SHARED=${ESQUIRE_AUDIT_LOG_DB_SHARED:-false}
       - ESQUIRE_AUDIT_LOG_DB_VENDOR=${ESQUIRE_AUDIT_LOG_DB_VENDOR:-dev-postgres}
-      - ESQUIRE_AUDIT_LOG_DB_URL=${ESQUIRE_AUDIT_LOG_DB_URL:-jdbc:postgresql://postgres:5432/esq2025}
+      - ESQUIRE_AUDIT_LOG_DB_URL=${ESQUIRE_AUDIT_LOG_DB_URL:-jdbc:postgresql://host.docker.internal:5432/esq2025}
       - ESQUIRE_AUDIT_LOG_DB_USERNAME=${ESQUIRE_AUDIT_LOG_DB_USERNAME:-esq2025}
       - ESQUIRE_AUDIT_LOG_DB_PASSWORD=${ESQUIRE_AUDIT_LOG_DB_PASSWORD:-q}
       - ESQUIRE_AUDIT_LOG_DB_POOL_SIZE=${ESQUIRE_AUDIT_LOG_DB_POOL_SIZE:-2}
     command: ["java", "-jar", "app.jar"]
     depends_on:
-      postgres:
-        condition: service_healthy
       activemq:
         condition: service_healthy
     volumes:
@@ -354,13 +329,13 @@ services:
       - DEVELOP_LOG_PATH=logs/pacMan-develop.log
       - MSG_LOG_PATH=logs/pacMan-msg.log
       - ESQUIRE_TOPOLOGY_IMPORT=file:/etc/esquire/topology.yml
-      - DB_PACMAN_VENDOR=dev-postgres
-      - DB_PACMAN_PORT=5432
-      - DB_PACMAN_NAME=esq2025
+      - DB_PACMAN_VENDOR=${DB_PACMAN_VENDOR:-dev-postgres}
+      - DB_PACMAN_PORT=${DB_PACMAN_PORT:-5432}
+      - DB_PACMAN_NAME=${DB_PACMAN_NAME:-esq2025}
       #- DB_PACMAN_VENDOR=dev-oracle
       #- DB_PACMAN_PORT=1521
       #- DB_PACMAN_NAME=MIR0N
-      - DB_PACMAN_HOST=postgres
+      - DB_PACMAN_HOST=${DB_PACMAN_HOST:-host.docker.internal}
       - DB_PACMAN_USERNAME=esq2025
       - DB_PACMAN_PASSWORD=q
       # Messaging
@@ -376,14 +351,12 @@ services:
       - ESQUIRE_AUDIT_FEED_CAPACITY=${ESQUIRE_AUDIT_FEED_CAPACITY:-4096}
       - ESQUIRE_AUDIT_LOG_DB_SHARED=${ESQUIRE_AUDIT_LOG_DB_SHARED:-false}
       - ESQUIRE_AUDIT_LOG_DB_VENDOR=${ESQUIRE_AUDIT_LOG_DB_VENDOR:-dev-postgres}
-      - ESQUIRE_AUDIT_LOG_DB_URL=${ESQUIRE_AUDIT_LOG_DB_URL:-jdbc:postgresql://postgres:5432/esq2025}
+      - ESQUIRE_AUDIT_LOG_DB_URL=${ESQUIRE_AUDIT_LOG_DB_URL:-jdbc:postgresql://host.docker.internal:5432/esq2025}
       - ESQUIRE_AUDIT_LOG_DB_USERNAME=${ESQUIRE_AUDIT_LOG_DB_USERNAME:-esq2025}
       - ESQUIRE_AUDIT_LOG_DB_PASSWORD=${ESQUIRE_AUDIT_LOG_DB_PASSWORD:-q}
       - ESQUIRE_AUDIT_LOG_DB_POOL_SIZE=${ESQUIRE_AUDIT_LOG_DB_POOL_SIZE:-2}
     command: ["java", "-jar", "app.jar"]
     depends_on:
-      postgres:
-        condition: service_healthy
       activemq:
         condition: service_healthy
     volumes:
@@ -411,12 +384,12 @@ services:
       - DEVELOP_LOG_PATH=logs/datakeep-develop.log
       - MSG_LOG_PATH=logs/datakeep-msg.log
       - ESQUIRE_TOPOLOGY_IMPORT=file:/etc/esquire/topology.yml
-      - DB_DATAKEEP_VENDOR=dev-postgres
-      - DB_DATAKEEP_PORT=5432
-      - DB_DATAKEEP_NAME=esq2025
-      - DB_DATAKEEP_HOST=postgres
-      - DB_DATAKEEP_USERNAME=esq2025
-      - DB_DATAKEEP_PASSWORD=q
+      - DB_DATAKEEP_VENDOR=${DB_DATAKEEP_VENDOR:-dev-postgres}
+      - DB_DATAKEEP_PORT=${DB_DATAKEEP_PORT:-5432}
+      - DB_DATAKEEP_NAME=${DB_DATAKEEP_NAME:-esq2025}
+      - DB_DATAKEEP_HOST=${DB_DATAKEEP_HOST:-host.docker.internal}
+      - DB_DATAKEEP_USERNAME=${DB_DATAKEEP_USERNAME:-esq2025}
+      - DB_DATAKEEP_PASSWORD=${DB_DATAKEEP_PASSWORD:-q}
       # Audit bus (x-rod). auKeep is the bus CONSUMER -- pick the SAME bus the producers publish to:
       # audit-c (AMQ) | audit-ck (Kafka); demo default = audit-c. audit-b (in-process) + audit-d / audit-dk
       # (producer-only streams) have no auKeep consumer.
@@ -425,8 +398,6 @@ services:
       - DATAKEEP_DIRECTOR=audit
     command: ["java", "-jar", "app.jar"]
     depends_on:
-      postgres:
-        condition: service_healthy
       activemq:
         condition: service_healthy
     volumes:
@@ -454,13 +425,13 @@ services:
       - DEVELOP_LOG_PATH=logs/keySmith-develop.log
       - MSG_LOG_PATH=logs/keySmith-msg.log
       - ESQUIRE_TOPOLOGY_IMPORT=file:/etc/esquire/topology.yml
-      - DB_KEYSMITH_VENDOR=dev-postgres
-      - DB_KEYSMITH_PORT=5432
-      - DB_KEYSMITH_NAME=esq2025
+      - DB_KEYSMITH_VENDOR=${DB_KEYSMITH_VENDOR:-dev-postgres}
+      - DB_KEYSMITH_PORT=${DB_KEYSMITH_PORT:-5432}
+      - DB_KEYSMITH_NAME=${DB_KEYSMITH_NAME:-esq2025}
       #- DB_KEYSMITH_VENDOR=dev-oracle
       #- DB_KEYSMITH_PORT=1521
       #- DB_KEYSMITH_NAME=MIR0N
-      - DB_KEYSMITH_HOST=postgres
+      - DB_KEYSMITH_HOST=${DB_KEYSMITH_HOST:-host.docker.internal}
       - DB_KEYSMITH_USERNAME=esq2025
       - DB_KEYSMITH_PASSWORD=q
       # Messaging
@@ -480,14 +451,12 @@ services:
       - ESQUIRE_AUDIT_FEED_CAPACITY=${ESQUIRE_AUDIT_FEED_CAPACITY:-4096}
       - ESQUIRE_AUDIT_LOG_DB_SHARED=${ESQUIRE_AUDIT_LOG_DB_SHARED:-false}
       - ESQUIRE_AUDIT_LOG_DB_VENDOR=${ESQUIRE_AUDIT_LOG_DB_VENDOR:-dev-postgres}
-      - ESQUIRE_AUDIT_LOG_DB_URL=${ESQUIRE_AUDIT_LOG_DB_URL:-jdbc:postgresql://postgres:5432/esq2025}
+      - ESQUIRE_AUDIT_LOG_DB_URL=${ESQUIRE_AUDIT_LOG_DB_URL:-jdbc:postgresql://host.docker.internal:5432/esq2025}
       - ESQUIRE_AUDIT_LOG_DB_USERNAME=${ESQUIRE_AUDIT_LOG_DB_USERNAME:-esq2025}
       - ESQUIRE_AUDIT_LOG_DB_PASSWORD=${ESQUIRE_AUDIT_LOG_DB_PASSWORD:-q}
       - ESQUIRE_AUDIT_LOG_DB_POOL_SIZE=${ESQUIRE_AUDIT_LOG_DB_POOL_SIZE:-2}
     command: ["java", "-jar", "app.jar"]
     depends_on:
-      postgres:
-        condition: service_healthy
       activemq:
         condition: service_healthy
     volumes:

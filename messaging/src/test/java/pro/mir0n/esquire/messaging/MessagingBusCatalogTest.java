@@ -17,13 +17,13 @@ class MessagingBusCatalogTest {
     private MessagingBusCatalog catalog() {
         MockEnvironment env = new MockEnvironment();
         env.setProperty("esquire.messaging-bus[0].bus-id", "esquire.rod");
-        env.setProperty("esquire.messaging-bus[0].slot[0].slot-id", "rod-audit");
-        env.setProperty("esquire.messaging-bus[0].slot[0].x-rod.rod-id", "rod.0");
-        env.setProperty("esquire.messaging-bus[0].slot[0].x-rod.publisher-pool-size", "2");
-        env.setProperty("esquire.messaging-bus[0].slot[0].x-rod.transport.provider", FAKE);
-        env.setProperty("esquire.messaging-bus[0].slot[0].x-rod.transport.endpoint", "tcp://localhost:61616");
-        env.setProperty("esquire.messaging-bus[0].slot[0].x-rod.transport.destination", "esquire.rod.audit");
-        env.setProperty("esquire.messaging-bus[0].slot[0].x-rod.transport.topic", "false");
+        env.setProperty("esquire.messaging-bus[0].slots[0].slot-id", "rod-audit");
+        env.setProperty("esquire.messaging-bus[0].slots[0].x-rod.rod-id", "rod.0");
+        env.setProperty("esquire.messaging-bus[0].slots[0].x-rod.publisher-pool-size", "2");
+        env.setProperty("esquire.messaging-bus[0].slots[0].x-rod.transport.provider", FAKE);
+        env.setProperty("esquire.messaging-bus[0].slots[0].x-rod.transport.endpoint", "tcp://localhost:61616");
+        env.setProperty("esquire.messaging-bus[0].slots[0].x-rod.transport.destination", "esquire.rod.audit");
+        env.setProperty("esquire.messaging-bus[0].slots[0].x-rod.transport.topic", "false");
         return new MessagingBusCatalog(env);
     }
 
@@ -52,10 +52,10 @@ class MessagingBusCatalogTest {
         // throw (boot does not crash on a duplicate -- the warning surfaces it).
         MockEnvironment env = new MockEnvironment();
         env.setProperty("esquire.messaging-bus[0].bus-id", "esquire.rod");
-        env.setProperty("esquire.messaging-bus[0].slot[0].slot-id", "rod-audit");
-        env.setProperty("esquire.messaging-bus[0].slot[0].x-rod.rod-id", "first");
-        env.setProperty("esquire.messaging-bus[0].slot[1].slot-id", "rod-audit");   // duplicate
-        env.setProperty("esquire.messaging-bus[0].slot[1].x-rod.rod-id", "last");
+        env.setProperty("esquire.messaging-bus[0].slots[0].slot-id", "rod-audit");
+        env.setProperty("esquire.messaging-bus[0].slots[0].x-rod.rod-id", "first");
+        env.setProperty("esquire.messaging-bus[0].slots[1].slot-id", "rod-audit");   // duplicate
+        env.setProperty("esquire.messaging-bus[0].slots[1].x-rod.rod-id", "last");
 
         XRodParams p = new MessagingBusCatalog(env).find("esquire.rod", "rod-audit");
         assertThat(p).isNotNull();
@@ -66,12 +66,12 @@ class MessagingBusCatalogTest {
     void transportParamsKeepDottedVendorKeysVerbatim() {
         MockEnvironment env = new MockEnvironment();
         env.setProperty("esquire.messaging-bus[0].bus-id", "esquire.rod");
-        env.setProperty("esquire.messaging-bus[0].slot[0].slot-id", "rod-audit");
-        env.setProperty("esquire.messaging-bus[0].slot[0].x-rod.transport.provider", FAKE);
-        env.setProperty("esquire.messaging-bus[0].slot[0].x-rod.transport.endpoint", "tcp://localhost:61616");
-        env.setProperty("esquire.messaging-bus[0].slot[0].x-rod.transport.destination", "esquire.rod.audit");
-        env.setProperty("esquire.messaging-bus[0].slot[0].x-rod.transport.params.jms.useAsyncSend", "true");
-        env.setProperty("esquire.messaging-bus[0].slot[0].x-rod.transport.params.transport.connectTimeout", "10000");
+        env.setProperty("esquire.messaging-bus[0].slots[0].slot-id", "rod-audit");
+        env.setProperty("esquire.messaging-bus[0].slots[0].x-rod.transport.provider", FAKE);
+        env.setProperty("esquire.messaging-bus[0].slots[0].x-rod.transport.endpoint", "tcp://localhost:61616");
+        env.setProperty("esquire.messaging-bus[0].slots[0].x-rod.transport.destination", "esquire.rod.audit");
+        env.setProperty("esquire.messaging-bus[0].slots[0].x-rod.transport.params.jms.useAsyncSend", "true");
+        env.setProperty("esquire.messaging-bus[0].slots[0].x-rod.transport.params.transport.connectTimeout", "10000");
 
         Map<String, String> params = new MessagingBusCatalog(env).resolve("esquire.rod", "rod-audit").transport().params();
 
@@ -131,11 +131,11 @@ class MessagingBusCatalogTest {
         MockEnvironment env = new MockEnvironment();
         env.setProperty("spring.application.name", "enyman");
         env.setProperty("esquire.messaging-bus[0].bus-id", "audit-c");
-        env.setProperty("esquire.messaging-bus[0].slot[0].slot-id", "audit");
-        env.setProperty("esquire.messaging-bus[0].slot[0].x-rod.rod-class", "XRod");
+        env.setProperty("esquire.messaging-bus[0].slots[0].slot-id", "audit");
+        env.setProperty("esquire.messaging-bus[0].slots[0].x-rod.rod-class", "XRod");
         env.setProperty("enyman.messaging-bus[0].bus-id", "audit-b");
-        env.setProperty("enyman.messaging-bus[0].slot[0].slot-id", "audit");
-        env.setProperty("enyman.messaging-bus[0].slot[0].x-rod.rod-class", "XRodInProcess");
+        env.setProperty("enyman.messaging-bus[0].slots[0].slot-id", "audit");
+        env.setProperty("enyman.messaging-bus[0].slots[0].x-rod.rod-class", "XRodInProcess");
 
         MessagingBusCatalog c = new MessagingBusCatalog(env);
 

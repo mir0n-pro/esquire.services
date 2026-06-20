@@ -23,11 +23,11 @@ Four ideas make it up:
 - **A bus catalog (the topology)** — every bus declared once, across services, in one external file.
   A **bus topology**, where buses are first-class declared infrastructure, in place of the point-to-point
   **service mesh** a microservice fleet usually grows.
-- **The x-Rod frontend** — one x-rod type per bus leg (`IXRod`) with two legs, a transmit leg and a
+- **The x-rod frontend** — one x-rod type per bus leg (`IXRod`) with two legs, a transmit leg and a
   receive leg; the wiring decides producer / consumer / in-process. ("Rod" = *Relay of Data*.)
 - **An open transport-driver SPI** — `ITransportProvider`, one drop-in module per vendor. A deployment
   carries only the drivers it uses; the framework names no vendor.
-- **The bus patterns** the substrate supports — **broadcast** (one-to-many) and **request/response**
+- **The bus patterns** the substrate supports — **broadcast** (many publishers, many subscribers) and **request/response**
   (two-node round-trip), plus an **in-process** x-rod for a leg that applies events locally.
 
 ![Messaging Bus runtime path: a service asks XRodManager for a producer/consumer; the manager resolves the catalog leg and the x-rod (by rod-class); the x-rod encodes each event through RodEventCodec to a TransportMessage and hands it to the resolved driver, which maps it onto the broker wire.](img/messaging-bus-architecture.svg)
@@ -247,7 +247,7 @@ A specialised `XRod` for an R&R leg. The base transceiver is unchanged; only two
 - **`legTransport(produce, role)`** picks the request or response node and refines the base wire with it:
   - **direction** — `wantRequest = produce == (role == CLIENT)`: produce-CLIENT / consume-SERVER → the
     `request` node; produce-SERVER / consume-CLIENT → the `response` node;
-  - the leg's nodes bind to a typed `List<BusNode>` (`transport.node[*]`); `legTransport` selects the
+  - the leg's nodes bind to a typed `List<BusNode>` (`transport.nodes[*]`); `legTransport` selects the
     `BusNode` whose `node-id` matches `transport.request-node` / `transport.response-node`, then refines the
     base transport with it via `BusTransport.refinedWith(node)` — the node owns `destination` / `topic` /
     `params`, the base owns `provider` / `endpoint`. A non-R&R role, or a leg with no such node, falls back
@@ -513,7 +513,7 @@ class MessagingBusCatalog {
     XRodParams find(String busId, String slotId);      // null if absent
     ConsumeLeg consumeLeg(String busId, String slotId, ObjectMapper om);   // whole node, no selector
 }
-record MessagingBus(String busId, @Name("slot") List<BusSlot> slots) {}   // config key stays `slot`
+record MessagingBus(String busId, List<BusSlot> slots) {}   // config key `slots`
 record BusSlot(String slotId, Map<String,Object> xRod) {}
 record BusTransport(String provider, String endpoint, String destination, Boolean topic, Map<String,String> params) {
     BusTransport refinedWith(BusNode node);   // base wire + an R&R node (node owns destination/topic/params)
@@ -526,7 +526,7 @@ record XRodParams(String busId, String slotId, Map<String,Object> raw) {
     XRodParams merge(XRodParams override);
     static Map<String,Object> overlayGroups(Map<String,Object> base, Map<String,Object> override);
     BusTransport transport();          // transport.params.* carried verbatim (tokens resolved later, in the settings)
-    List<BusNode> nodes();             // the R&R nodes (transport.node[*]) as a typed list
+    List<BusNode> nodes();             // the R&R nodes (transport.nodes[*]) as a typed list
     <T> T sub(String key, Class<T> type);
     // scalar getters: rodId / rodClassOr / poolSizeOr / feedCapacityOr / virtualThreadsOrFalse / publisherPoolSizeOr / concurrencyOr
     List<String> SCALARS;
@@ -592,7 +592,7 @@ request/response bus names two nodes:
 esquire:
   messaging-bus:
     - bus-id: <bus-id>                   # single node (broadcast)
-      slot:
+      slots:
         - slot-id: <slot-id>
           x-rod:
             rod-class: XRod
@@ -610,7 +610,7 @@ esquire:
                 <vendor-key>: <value>
 
     - bus-id: <bus-id>                   # request/response (two nodes)
-      slot:
+      slots:
         - slot-id: <slot-id>
           x-rod:
             rod-class: XRodRR
@@ -620,7 +620,7 @@ esquire:
               topic: false
               request-node: request
               response-node: response
-              node:
+              nodes:
                 - node-id: request
                   destination: <request destination>
                 - node-id: response

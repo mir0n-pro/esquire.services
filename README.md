@@ -25,9 +25,7 @@ the destination. It is the proof of concept for the real idea.
 
 ---
 > 
-> **v1.2.8 — in progress.** Hardening + extensibility: a standalone **access log** (records denied / failed attempts, separate from the entity audit), a **pluggable transport layer** for the x-Rod fan-out, and a **system-entity flag** that protects core entities from deletion. Tasks: [doc/v128.tasks](doc/v128.tasks.md).
->
-> **v1.2.7 — complete.** An **audit-logging** sprint: a pluggable audit seam over the entity services, a generic **x-Rod** fan-out substrate, a new **xx-rod** service, six selectable strategies, ActiveMQ/Kafka transport, established the CI/CD pipelines (automated build and release).
+> **v1.2.8 — complete.** A **major refactoring** sprint built around the **Messaging Bus**: a vendor-agnostic bus — entity broadcast and identity request/response across the whole services set — extracted into a reusable subframework (`esquire-messaging` plus the pluggable transport-provider drivers `tp-activemq` / `tp-kafka` / `tp-redis`). The shared **`esquire-audit`** and **`esquire-data-keep`** libraries were split out of `common`; the audit-writer service `xx-rod` was renamed to the clearer **`auKeep`**; and a small **system-entity flag** project (protects core entities from deletion) rode along with the release. See [Release History](#release-history).
 >
 
 
@@ -45,13 +43,14 @@ the destination. It is the proof of concept for the real idea.
 ## Documentation
 
 ### Architecture & Design
-- [Messaging Architecture — Entity Broadcast and IAM Request/Response](doc/Messaging.md)
+- [Esquire Messaging Bus — the vendor-agnostic bus subframework](doc/Esquire.MessagingBus.md) *(topology catalog, x-rod frontend, and a pluggable transport-provider SPI: tp-activemq / tp-kafka / tp-redis)*
+- [Esquire Messaging Bus topology](doc/Messaging.md) *(the live buses — entity broadcast, IAM request/response, audit)*
 - [Observability Stack](doc/Esquire.ObservabilityStack.md)
 - [Logging Strategy](doc/Logging.md)
 - [Keycloak / Gateway — Authentication Patterns](doc/keyCloak-gateway.JWE.md) *(four working patterns: BFF / JWT / Vanilla Token Relay / Phantom Token Relay; JWE parked under stock KC, gateway-side lab kept armed)*
 - [KeySmith Credential Routines — State Machine & Collaboration](doc/keySmithCredentialRoutine.md)
 - [bizTree — Taijitu Recoverable Cache Architecture](doc/Esquire.BizTree.md) *(the Supreme Ultimate Cache: two-monad anti-entropy double-buffer + night-watch sweep)*
-- [Audit Logging Stack](doc/Esquire.AuditLoggingStack.md) *(pluggable audit seam over a generic x-Rod fan-out substrate; six selectable strategies, ActiveMQ/Kafka transport, the xx-rod service)*
+- [Audit Logging Stack](doc/Esquire.AuditLoggingStack.md) *(pluggable audit seam over the generic keep engine; six selectable strategies, ActiveMQ / Kafka / Redis transport, the auKeep consumer service)*
 
 ### Domain & Data Model
 - [Object Kind Enumeration](doc/Object.Kind.enum.md)
@@ -69,10 +68,10 @@ the destination. It is the proof of concept for the real idea.
 
 |                                                                   |                                                                                                                                                                                                                                                                                                                                                                        |
 |-------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| **esquire.services**| - [v1.2.7 Milestone Report](doc/reports/report_v1.2.7.md)<br/>- [v1.2.6 Milestone Report](doc/reports/report_v1.2.6.md)<br/>- [v1.2.5 Milestone Report](doc/reports/report_v1.2.5.md)<br/>- [v1.2.4 Milestone Report](doc/reports/report_v1.2.4.md)<br/>- [v1.2.3 Milestone Report](doc/reports/report_v1.2.3.md)<br/>- [v1.2.2 Milestone Report](doc/reports/report_v1.2.2.md)                                                                                                                                                                                  |
-| **esquire.explorer**| - [v1.2.7 Milestone Report](https://github.com/mir0n-pro/esquire.explorer/blob/develop/doc/reports/report_v1.2.7.md)<br/>- [v1.2.6 Milestone Report](https://github.com/mir0n-pro/esquire.explorer/blob/develop/doc/reports/report_v1.2.6.md)<br/>- [v1.2.5 Milestone Report](https://github.com/mir0n-pro/esquire.explorer/blob/develop/doc/reports/report_v1.2.5.md)<br/>- [v1.2.4 Milestone Report](https://github.com/mir0n-pro/esquire.explorer/blob/develop/doc/reports/report_v1.2.4.md)<br/>- [v1.2.3 Milestone Report](https://github.com/mir0n-pro/esquire.explorer/blob/develop/doc/reports/report_v1.2.3.md)<br/>- [v1.2.2 Milestone Report](https://github.com/mir0n-pro/esquire.explorer/blob/develop/doc/reports/report_v1.2.2.md) |
+| **esquire.services**| - [v1.2.8 Milestone Report](doc/reports/report_v1.2.8.md)<br/>- [v1.2.7 Milestone Report](doc/reports/report_v1.2.7.md)<br/>- [v1.2.6 Milestone Report](doc/reports/report_v1.2.6.md)<br/>- [v1.2.5 Milestone Report](doc/reports/report_v1.2.5.md)<br/>- [v1.2.4 Milestone Report](doc/reports/report_v1.2.4.md)<br/>- [v1.2.3 Milestone Report](doc/reports/report_v1.2.3.md)<br/>- [v1.2.2 Milestone Report](doc/reports/report_v1.2.2.md)                                                                                                                                                                                  |
+| **esquire.explorer**| - [v1.2.8 Milestone Report](https://github.com/mir0n-pro/esquire.explorer/blob/develop/doc/reports/report_v1.2.8.md)<br/>- [v1.2.7 Milestone Report](https://github.com/mir0n-pro/esquire.explorer/blob/develop/doc/reports/report_v1.2.7.md)<br/>- [v1.2.6 Milestone Report](https://github.com/mir0n-pro/esquire.explorer/blob/develop/doc/reports/report_v1.2.6.md)<br/>- [v1.2.5 Milestone Report](https://github.com/mir0n-pro/esquire.explorer/blob/develop/doc/reports/report_v1.2.5.md)<br/>- [v1.2.4 Milestone Report](https://github.com/mir0n-pro/esquire.explorer/blob/develop/doc/reports/report_v1.2.4.md)<br/>- [v1.2.3 Milestone Report](https://github.com/mir0n-pro/esquire.explorer/blob/develop/doc/reports/report_v1.2.3.md)<br/>- [v1.2.2 Milestone Report](https://github.com/mir0n-pro/esquire.explorer/blob/develop/doc/reports/report_v1.2.2.md) |
 | **esquire.ui.lib**| - [v1.2.3 Release Report](https://github.com/mir0n-pro/esquire.ui.lib/blob/develop/doc/reports/report_v1.2.3.md)<br/> - [v1.2.2 Release Report](https://github.com/mir0n-pro/esquire.ui.lib/blob/develop/doc/reports/report_2026_04_19_31750f3.md)                                                                                                                     |
-| **esquire.db.seed**| - [v1.2.7 Milestone Report](https://github.com/mir0n-pro/esquire.db.seed/blob/develop/doc/reports/report_v1.2.7.md)<br/> - [v1.2.4 Milestone Report](https://github.com/mir0n-pro/esquire.db.seed/blob/develop/doc/reports/report_v1.2.4.md)<br/> - [v1.2.2 Milestone Report](https://github.com/mir0n-pro/esquire.db.seed/blob/develop/doc/reports/report_v1.2.2.md)                                                                                                                          |
+| **esquire.db.seed**| - [v1.2.8 Milestone Report](https://github.com/mir0n-pro/esquire.db.seed/blob/develop/doc/reports/report_v1.2.8.md)<br/> - [v1.2.7 Milestone Report](https://github.com/mir0n-pro/esquire.db.seed/blob/develop/doc/reports/report_v1.2.7.md)<br/> - [v1.2.4 Milestone Report](https://github.com/mir0n-pro/esquire.db.seed/blob/develop/doc/reports/report_v1.2.4.md)<br/> - [v1.2.2 Milestone Report](https://github.com/mir0n-pro/esquire.db.seed/blob/develop/doc/reports/report_v1.2.2.md)                                                                                                                          |
 
 
 ### Deployment
@@ -107,7 +106,7 @@ transactions, permissions, configuration parameters, and the audit log (when tri
 <img src="./doc/logo/activemq.png" alt="ActiveMQ logo" valign="middle" height="24">
 <img src="./doc/logo/redis.svg" alt="Redis logo" valign="middle" height="24">
 <img src="./doc/logo/kafka.svg" alt="Kafka logo" valign="middle" height="24">
-<br> Three logical channels (the third added in v1.2.7, optional):
+<br> Three logical channels:
 - *IAM Request-Response Bus* — carries identity commands (create / update / delete user)
   from keySmith to kcMaster, and acknowledgement replies back
 - *Entity Broadcast Bus* — enyMan and pacMan publish entity change events on every mutation;
@@ -217,34 +216,41 @@ The two public hosts at a glance:
 
 ---
 ## Release History
+### v1.2.8 — complete (06/19/2026)
+
+v1.2.8 is a **major refactoring** sprint built around the **Messaging Bus**. What was an audit-specific,
+ActiveMQ-wired fan-out is now a general, vendor-agnostic messaging concept the whole services set shares:
+every cross-service conversation — entity broadcast, the keySmith ↔ kcMaster identity request/response, and
+the audit feed — runs over one uniform bus.
+
+**The Messaging Bus concept.** A *bus* names a conversation; *slots* and *x-rods* carry its traffic; the wire
+is a *transport provider* chosen per deployment. Two interaction patterns are the contract — **broadcast**
+(many publishers, many subscribers) and **request/response** — and the underlying broker is a deployment choice
+behind a pluggable transport-provider interface, not a hard dependency. The topology (which buses exist and
+which broker each uses) is declared once in a shared catalog rather than wired in code.
+
+**Implementation status.** The bus is implemented and live across all services. It ships as four libraries:
+`esquire-messaging` (the bus core — topology catalog, x-rod frontend, codec) plus three transport-provider
+drivers, `tp-activemq`, `tp-kafka`, and `tp-redis`. **ActiveMQ is the first transport provider** and the
+default deployed today; Kafka and Redis providers are built on the same SPI, so adding a vendor is a new
+driver with no change to the bus.
+
+Alongside the bus, the keep stack was split into shared libraries — **`esquire-data-keep`** (a generic,
+audit-unaware engine that applies incoming changes to a database) and **`esquire-audit`** (the thin audit
+rules on top) — and lifted out of the shared `common` library, so a service that does not use them no longer
+pulls them in. The standalone audit-writer service, formerly `xx-rod`, was renamed to the more accurate
+**`auKeep`** and rebuilt on the generic engine. A small side project rode along with the release: a
+**system-entity flag** that protects core entities from deletion.<br>
+[The Esquire Messaging Bus](doc/Esquire.MessagingBus.md) · [The Audit Logging Stack](doc/Esquire.AuditLoggingStack.md) · [v1.2.8 Release Notes](doc/release_notes.txt)<br>
+
 ### v1.2.7 — complete (06/10/2026)
 
-v1.2.7 is the **audit-logging** sprint. Entity-change auditing — and, beyond entities, user/office custom
-parameters today and role/permission maintenance later — is reframed from in-database triggers into a
-**pluggable, decoupled concern**: one audit seam in the entity-updating services (enyMan, pacMan, keySmith),
-with several interchangeable strategies behind it, each selected by configuration.
-
-The mechanism is the **x-Rod substrate** — a generic entity **fan-out** producer/consumer couple
-(`xy-Rod` producer / `xx-Rod` consumer), with audit as its first sink (replication and search-index feeds
-are future siblings on the same producer). Six strategies sit behind the seam: **(0)** persist nothing,
-**(a)** DB triggers, **(b)** in-process write, **(c)** bus to the **xx-rod** service to SQL,
-**(d)** Redis Stream, and **(e)** log-based CDC (out of framework scope); the bus options also run over
-**Kafka** in place of ActiveMQ. The framework default is **(0)** — a fresh deploy audits nothing; each
-deployment then configures its own topology (dev runs the decoupled bus path, the OKE demo runs DB
-triggers). A new **xx-rod** service consumes the audit bus and owns the log-DB write. The
-measured finding: at the request level audit is **cheap to free** in every mode — the decoupling buys
-write-offload and transactional independence, not request latency.<br>
-[The Audit Logging Stack](doc/Esquire.AuditLoggingStack.md)<br>
-
-v1.2.7 also carries a second sprint goal — **establishing the CI/CD pipeline** (automated build and
-release). With the move to
-public repositories, every change now flows through an automated pipeline in three stages: each change is
-**built and tested automatically**; it is then **deployed to a local test cluster** on the developer's
-machine for the day-to-day development loop; and, when a sprint is approved for release, it is **built and
-deployed to the cloud** and checked against the live site before going out — with a required human approval
-before anything reaches production. The first two stages are live and proven; the cloud release stage
-completes the goal.<br>
-[Automated Build and Release Pipeline](doc/Esquire.GitHubActions.md)<br>
+v1.2.7 is the **audit-logging** sprint: entity-change auditing reframed from in-database triggers into a
+**pluggable, decoupled concern** — one audit seam in the entity services with six interchangeable strategies
+behind it, from DB triggers to an in-process write to a fully bus-driven pipeline (ActiveMQ / Kafka / Redis),
+plus a standalone audit-writer service. It also **established the CI/CD pipeline** — automated build-and-test,
+local-cluster deploy, and a human-approved cloud release.<br>
+[More Details: v1.2.7 README](https://github.com/mir0n-pro/esquire.services/tree/release/v1.2.7?tab=readme-ov-file#project-structure)
 
 ### v1.2.6 — complete (06/02/2026)
 

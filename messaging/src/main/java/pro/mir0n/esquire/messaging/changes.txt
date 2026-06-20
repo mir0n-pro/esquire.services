@@ -1,5 +1,11 @@
 Esquire messaging framework classes
 
+06/19/2026 mir0n  v1.2.8 -- bus list-config keys pluralized (slot -> slots, node -> nodes)
+MessagingBus
+  - the slots component binds the plural config key `slots` directly; @Name("slot") dropped
+XRodParams
+  - nodes() reads the R&R network nodes from the plural key transport.nodes[*] (was transport.node[*])
+
 06/18/2026 mir0n  v1.2.8 -- extracted into its own module esquire-messaging (was inside esquire-common)
 (module)
   - the messaging bus framework (catalog, x-rod engine, transport SPI, codec; package

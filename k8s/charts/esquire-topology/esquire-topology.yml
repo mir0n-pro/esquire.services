@@ -1,15 +1,17 @@
-# Esquire frameworks (tm) -- shared messaging-bus TOPOLOGY (local/k8s environment)
+# Esquire frameworks (tm) -- messaging-bus TOPOLOGY (local / dev k8s environment)
 #
 # Delivered as the ConfigMap "esquire-topology" and mounted at /etc/esquire/topology.yml in every service pod;
 # each service loads it via spring.config.import (REQUIRED). Per-environment, CONCRETE values (no ${}) -- here the
-# in-cluster Service DNS names. k8s infra ships only ActiveMQ (no kafka / redis), so audit uses audit-c; the
-# kafka/redis audit buses (ck/d/dk) are intentionally omitted -- referencing one resolves to the OFF pod
-# (XRodDisabled), never a crash. Per-service knobs + the in-process audit (b) log-db stay at the service level.
+# in-cluster Service DNS names. ALL audit sinks are defined (parity with the docker topology), so any can be
+# selected via ESQUIRE_AUDIT_BUS_ID. The default-installed broker is ActiveMQ -> audit-c works out of the box;
+# the kafka / redis sinks (ck / d / dk) are defined but their brokers are NOT part of the default local-k8s infra
+# -- a sink stays inert until referenced, and selecting one needs its broker deployed. Per-service knobs + the
+# in-process audit (b) log-db stay at the service level. (OKE uses k8s-oci/esquire-topology.yml -- audit off.)
 esquire:
   messaging-bus:
     # --- entity broadcast (topic) ---
     - bus-id: esquire.entity
-      slot:
+      slots:
         - slot-id: entity
           x-rod:
             pool-size: 4
@@ -22,7 +24,7 @@ esquire:
               topic: true
     # --- KeyCloak request/response (R&R, two nodes) ---
     - bus-id: esquire.kc
-      slot:
+      slots:
         - slot-id: kc
           x-rod:
             rod-class: XRodRR
@@ -35,14 +37,14 @@ esquire:
               topic: false
               request-node: request
               response-node: response
-              node:
+              nodes:
                 - node-id: request
                   destination: esquire.kc.request
                 - node-id: response
                   destination: esquire.kc.response
     # --- audit (c): ActiveMQ -> auKeep consumer writes the *_log ---
     - bus-id: audit-c
-      slot:
+      slots:
         - slot-id: audit
           x-rod:
             rod-class: XRod
@@ -58,3 +60,52 @@ esquire:
               topic: false
               params:
                 jms.useAsyncSend: true
+    # --- audit (ck): Kafka -> auKeep consumer writes the *_log (Kafka broker not in the default infra) ---
+    - bus-id: audit-ck
+      slots:
+        - slot-id: audit
+          x-rod:
+            rod-class: XRod
+            pool-size: 4
+            feed-capacity: 4096
+            virtual-threads: false
+            publisher-pool-size: 0
+            concurrency: 1
+            transport:
+              provider: kafka
+              endpoint: esquire-infra-kafka:9092
+              destination: esquire.rod.audit
+              params:
+                group-id: esquire-audit
+    # --- audit (d): Redis stream IS the append-only log (producer-only; Redis broker not in the default infra) ---
+    - bus-id: audit-d
+      slots:
+        - slot-id: audit
+          x-rod:
+            rod-class: XRod
+            pool-size: 4
+            feed-capacity: 4096
+            virtual-threads: false
+            publisher-pool-size: 0
+            transport:
+              provider: redis
+              endpoint: redis://esquire-infra-redis:6379
+              destination: esquire.rod.audit
+              params:
+                max-len: 0
+    # --- audit (dk): Kafka topic IS the append-only log (producer-only; Kafka broker not in the default infra) ---
+    - bus-id: audit-dk
+      slots:
+        - slot-id: audit
+          x-rod:
+            rod-class: XRod
+            pool-size: 4
+            feed-capacity: 4096
+            virtual-threads: false
+            publisher-pool-size: 0
+            transport:
+              provider: kafka
+              endpoint: esquire-infra-kafka:9092
+              destination: esquire.rod.audit
+              params:
+                group-id: esquire-audit-dk

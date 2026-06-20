@@ -68,6 +68,15 @@ helm upgrade --install esquire-infra-kc "${CHARTS}/infra/keycloak" \
   -f "${OCIVALS}/keycloak.yaml" \
   --set keycloak.adminPassword="${MIR0N_PWD}" --wait --timeout 6m
 
+# --- Shared messaging-bus topology (the one ConfigMap every service mounts at
+#     /etc/esquire/topology.yml). Must exist BEFORE the services -- their pods mount
+#     it as a volume and won't start without it. OKE feeds its own audit-free cloud
+#     topology (k8s-oci/esquire-topology.yml: entity + KC buses only -- OKE audits via
+#     DB triggers, no audit bus / no auKeep) into the chart via --set-file. ---
+echo "--- topology"
+helm upgrade --install esquire-topology "${CHARTS}/esquire-topology" \
+  --set-file topologyContent="${HERE}/../../k8s-oci/esquire-topology.yml" --wait --timeout 2m
+
 # --- Services (new release tag) ---
 echo "--- biztree"
 helm upgrade --install esquire-biztree "${CHARTS}/esquire-biztree" \

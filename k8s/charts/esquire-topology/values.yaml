@@ -1,0 +1,6 @@
+# The esquire-topology ConfigMap content.
+#   Local / dev k8s: defaults to the in-chart esquire-topology.yml (all audit sinks defined; ActiveMQ shipped).
+#   OKE: deploy-oke.sh overrides the content via `--set-file topologyContent=k8s-oci/esquire-topology.yml`
+#        (the audit-free cloud topology) -- that file lives OUTSIDE the chart, so it is fed in, not .Files.Get.
+topologyFile: esquire-topology.yml
+topologyContent: ""
