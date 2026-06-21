@@ -20,8 +20,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 
 /**
- * Maps an entity {@code kind} to the {@link IRodEventRepo} that applies its events. Populated at
- * startup by the asset-owning service; read (lock-free) by the x-Rod receive pool per event.
+ * Maps an event {@code kind} to the {@link IRodEventRepo} that applies its events. Populated at
+ * startup by the application; read (lock-free) by the x-rod receive pool per event.
  */
 public final class RodEventRepoRegistry {
 
@@ -32,7 +32,7 @@ public final class RodEventRepoRegistry {
         byKind.put(kind, repository);
     }
 
-    /** The repository for this kind, or {@code null} if none is registered (the xx-Rod skips + logs). */
+    /** The repository for this kind, or {@code null} if none is registered (the x-rod skips + logs). */
     public IRodEventRepo repositoryFor(int kind) {
         return byKind.get(kind);
     }
@@ -43,8 +43,8 @@ public final class RodEventRepoRegistry {
     }
 
     /** A receive-leg worker that resolves each event's repository by kind and applies it; a missing repository
-     *  is logged and skipped (resilience -- exactly-once across redelivery is the {@code *_log} ON CONFLICT /
-     *  MERGE's job, not the pool's). Hand this to an x-rod as its receive worker. */
+     *  is logged and skipped (resilience -- any de-duplication / exactly-once guarantee is the sink's concern,
+     *  not the pool's). Hand this to an x-rod as its receive worker. */
     public Consumer<RodEvent> applier(Logger devLog) {
         return event -> {
             IRodEventRepo repo = repositoryFor(event.kind());

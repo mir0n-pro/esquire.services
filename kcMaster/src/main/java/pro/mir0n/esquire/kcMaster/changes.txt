@@ -1,5 +1,9 @@
 Esquire kcMaster Microservice
 
+06/21/2026 mir0n  v1.2.9 -- topology import optional; *_SLOT_ID
+application.yml
+  - spring.config.import -> optional:file:... (the topology import is now optional); KC_SERVICE_ID / ENTITY_SERVICE_ID -> *_SLOT_ID
+
 06/21/2026 mir0n  v1.2.9 -- topology import env var renamed
 application.yml
   - ESQUIRE_TOPOLOGY_IMPORT -> TOPOLOGY_IMPORT

@@ -55,7 +55,7 @@ end to end.
 | Piece | Location |
 |---|---|
 | Bus model + catalog | `pro.mir0n.esquire.messaging` — `MessagingBus`, `BusSlot`, `BusTransport`, `BusRef`, `MessagingBusCatalog`, `XRodParams`, `Role` |
-| x-rod frontend + x-rods | `messaging.xrod` — `XRodManager`, `IXRod`, `XRods`, `RodEvent`, `RodEventCodec`, `RodPublisher`, `RodTransportAdapter`, `XRodAutoConfiguration` — and `messaging.xrod.impl` — `XRod`, `XRodRR`, `XRodInfo`, `XRodDisabled`. A generic in-process x-rod, `XRodInProcess`, ships in a separate keep-engine library (it is resolved by `rod-class` like any other). |
+| x-rod frontend + x-rods | `messaging.xrod` — `XRodManager`, `IXRod`, `XRods`, `RodEvent`, `RodEventCodec`, `RodPublisher`, `RodTransportAdapter`, `XRodAutoConfiguration` — and `messaging.xrod.impl` — `XRod`, `XRodRR`, `XRodInfo`, `XRodDisabled`. A generic in-process x-rod, `XRodInProcess`, ships in a separate library (it is resolved by `rod-class` like any other). |
 | Transport SPI | `messaging.transport` — `ITransportProvider`, `TransportProviders`, `TransportMessage`, `TransportPublisher`, `TransportSettings`, `PublishSettings`, `ConsumeSettings`, `BusIdentity` |
 | Transport drivers | one module per vendor — `pro.mir0n.esquire.tp.<name>.TransportProvider` + an `AutoConfigurationImportFilter` |
 
@@ -114,7 +114,9 @@ Each call resolves and starts an x-rod:
    `hostname: <app>-N` in Docker), so each sharded replica owns a distinct rod-id and a CLIENT's `RodID`
    selector isolates that instance's responses.
 4. **Resolve the x-rod by `rod-class`** — via `XRods.resolve(...)`; a `null` leg (step 2) yields the OFF x-rod
-   `XRodDisabled` (a missing leg is a disabled slot, never an error).
+   `XRodDisabled` (a missing leg is a disabled slot, never an error) and logs a CONSOLE INFO that the bus/slot
+   is DISABLED, so a mistyped/unset key is visible rather than silent — declare `rod-class: XRodDisabled`
+   explicitly to make it intentional and silence the INFO.
 5. **`validate(params)`** — fail-fast: each x-rod checks the leg config IT requires (`XRod` a complete
    transport, `XRodRR` the request/response nodes), so a misconfiguration is reported here, not as a late
    no-op. Default is no requirement (the OFF / log-only x-rods).
@@ -127,16 +129,24 @@ The x-rod builds its **own** transport from the leg — the manager re-packs not
 
 #### The catalog
 
-`MessagingBusCatalog` is the UNION of two property sources, concatenated in code:
+`MessagingBusCatalog` MERGES two property sources BY ID:
 
-- `esquire.messaging-bus` — the shared cross-service topology (imported from the one topology file);
+- `esquire.messaging-bus` — the shared cross-service topology (imported from the one topology file, or
+  defined inline — the import is OPTIONAL);
 - `<spring.application.name>.messaging-bus` — a service's OWN legs under its OWN namespace (e.g. a leg
   whose wire or backing store is service-specific). This is the service-side OVERLAY of the global catalog.
 
-> They are unioned in code, NOT a single `esquire.messaging-bus` key across two sources: Spring binds a
-> list by INDEX, so a higher-precedence source would REPLACE the whole list instead of appending. The
-> service overlay lives under the service's OWN top-level key, so it stays clear of the global topology
-> key and of the `esquire.<bus-key>.messaging-bus` refs.
+The overlay merges onto the shared catalog BY ID: a service bus REPLACES the shared bus with the same
+`bus-id` (a service slot replaces the shared slot with the same `slot-id`; a new bus/slot is added).
+
+> They are bound as TWO keys + merged in code, NOT a single `esquire.messaging-bus` key across two sources:
+> Spring binds a list by INDEX, so a higher-precedence source would REPLACE the whole list instead of
+> merging. The service overlay lives under the service's OWN top-level key, so it stays clear of the global
+> topology key and of the `esquire.<bus-key>.messaging-bus` refs.
+
+Each source is validated for INTERNAL uniqueness before the merge: a duplicate `bus-id` (across a list),
+`slot-id` (within a bus), or `node-id` (within an x-rod's `transport.nodes`) FAILS FAST at construction —
+the list is used as a map, so its keys must be unique.
 
 A leg is named `(bus-id, slot-id)`; the catalog binds it to an `XRodParams`.
 
@@ -163,7 +173,7 @@ field-wise, while `transport` (and any x-rod block) is replaced **whole** — yo
 never field-merged across (so a service can't half-override a vendor wire). The same `overlayGroups`
 routine drives the R&R node merge below. `bus-id` / `slot-id` are not in `raw`, so they are never merged.
 
-![Parameter resolution: the catalog unions the shared topology with the service-local legs into the base XRodParams; a service-ref x-rod override merges over it per group; withBus folds in the identity and defaults the rod-id to the per-instance id app.instanceNo (the instance number parsed from the host name). For R&R, XRodRR refines the base transport with the request/response node via overlayGroups, keeping provider and endpoint from the base.](img/messaging-bus-params.svg)
+![Parameter resolution: the catalog merges the shared topology with the service-local overlay by id into the base XRodParams; a service-ref x-rod override merges over it per group; withBus folds in the identity and defaults the rod-id to the per-instance id app.instanceNo (the instance number parsed from the host name). For R&R, XRodRR refines the base transport with the request/response node via overlayGroups, keeping provider and endpoint from the base.](img/messaging-bus-params.svg)
 
 #### The three merge levels
 
@@ -263,7 +273,7 @@ configured worker (an applier) — there is no transport and no codec. It is the
 pool a bare producer leg lacks: a base `XRod` as a producer is transmit-only and never opens a pool, so a
 leg that must run a worker locally selects `XRodInProcess` instead. Resolved by `rod-class` like any x-rod;
 the manager passes the worker through `consumer(busKey, role, worker)`, so the worker is the applier the
-in-process x-rod loops each transmitted event back to. It ships in a separate keep-engine library rather
+in-process x-rod loops each transmitted event back to. It ships in a separate library rather
 than in `messaging.xrod.impl`.
 
 #### `XRodInfo` — log-only
@@ -409,7 +419,7 @@ The transport-neutral core is already clean — `MessagingBus` / `BusSlot` / `Bu
 `MessagingBusCatalog`, the `ITransportProvider` SPI and its drivers, the `IXRod` substrate, and
 `TransportMessage`. What still carries host-application shape: `RodEvent` is a change-record with
 application-specific fields (an operation, a kind, identity, tracing) rather than a fully generic
-envelope, and the audit producer `AuditBusBridge` reads an application source object + request context.
+envelope, and a producer such as `AuditBusBridge` reads an application source object + request context.
 The planned refactoring (later) extracts a transport-neutral relayed-message and substrate and leaves the
 application-shaped pieces as adapters on top — the application **on top of** the Messaging Bus, the bus
 reusable on its own.
@@ -462,8 +472,8 @@ The same envelope maps differently per wire: **ActiveMQ** — properties-only JM
 JMS property, no body); **Kafka** — a record keyed by `TransportMessage.key`, value = the header bag as
 JSON; **Redis** — a stream entry whose fields are the (stringified) header bag.
 
-> The complete per-message-type field semantics (Request / Response / RequestReject / Entity / Audit) are
-> in [`Message.Structure.md`](Message.Structure.md); this appendix is the envelope as the bus relays it.
+> The complete per-message-type field semantics are in [`Message.Structure.md`](Message.Structure.md);
+> this appendix is the envelope as the bus relays it.
 
 ## Appendix B — API Definition
 
@@ -563,11 +573,12 @@ Every service loads the catalog:
 ```yaml
 spring:
   config:
-    import: "${ESQUIRE_TOPOLOGY_IMPORT:file:/etc/esquire/topology.yml}"
+    import: "${TOPOLOGY_IMPORT:file:/etc/esquire/topology.yml}"
 ```
 
-The file is per-environment with concrete hostnames; the import is required (fail-fast). A service
-references a bus by a logical key, supplies its slot, and may override the leg's `x-rod` per group:
+The file is per-environment with concrete hostnames; the import is OPTIONAL (a service may define its
+catalog inline under `esquire.messaging-bus`, or not use the bus). A service references a bus by a logical
+key, supplies its slot, and may override the leg's `x-rod` per group:
 
 ```yaml
 esquire:
@@ -580,8 +591,8 @@ esquire:
 ```
 
 A service may also extend the catalog with its OWN leg under its own namespace,
-`<spring.application.name>.messaging-bus` (the catalog unions this service overlay with the shared
-topology). x-rod knobs per leg: `rod-class`, `pool-size`, `feed-capacity`, `virtual-threads`, `publisher-pool-size`,
+`<spring.application.name>.messaging-bus` (the catalog merges this service overlay onto the shared
+topology BY ID — a same-id bus/slot replaces, a new one is added). x-rod knobs per leg: `rod-class`, `pool-size`, `feed-capacity`, `virtual-threads`, `publisher-pool-size`,
 `concurrency`, plus the `transport` group and any x-rod-owned sub-block. Vendor knobs ride
 `transport.params.*` and pass through verbatim. This appendix is the generic shape; the concrete catalog a
 deployment runs (which buses exist + the env that drives them) is documented with that deployment's bus

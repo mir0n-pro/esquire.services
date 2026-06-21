@@ -17,7 +17,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.util.Map;
 
-/** Consume-side (xx-rod) settings for {@link ITransportProvider#openConsumer}. */
+/** Consume-side (x-rod) settings for {@link ITransportProvider#openConsumer}. */
 public final class ConsumeSettings extends TransportSettings {
 
     private final int concurrency;  // consumer listener concurrency; <=0 = provider default

@@ -14,6 +14,8 @@
  *                   once by XRodAutoConfiguration.
  * 06/17/2026 mir0n  configureXRod() calls rod.validate(eff) before configure / start (fail-fast on the leg's
  *                   required params)
+ * 06/21/2026 mir0n  a bus key that resolves to no leg logs a CONSOLE info ("... has no leg -> DISABLED ...")
+ *                   and runs the OFF x-rod, so a mistyped/unset bus is visibly disabled, not a silent no-op.
  */
 package pro.mir0n.esquire.messaging.xrod;
 
@@ -35,6 +37,8 @@ import java.util.function.Consumer;
 
 /** The per-service x-Rod frontend: one call builds a producer/consumer rod; close() shuts them all down. */
 public class XRodManager implements AutoCloseable {
+
+    private static final Logger log = LoggerFactory.getLogger(XRodManager.class);
 
     private final Environment environment;
     private final MessagingBusCatalog catalog;
@@ -83,7 +87,8 @@ public class XRodManager implements AutoCloseable {
             // slot, never an error; an explicit rod-class = XRodDisabled lands on the SAME x-rod via XRods.resolve.
             rod = XRods.resolve(XRods.DISABLED);
             rod.configure(null, role, objectMapper);
-            devLog(name).info("x-rod[{}]: no x-rod config for bus-id={} slot-id={} -> disabled (no-op)", name, busId, slotId);
+            log.info("messaging-bus[{}]: bus-id={} slot-id={} has no leg -> DISABLED (no-op). Declare "
+                    + "rod-class=XRodDisabled on the leg to make it intentional and silence this.", name, busId, slotId);
         } else {
             XRodParams eff = base.withBus(busId, slotId, instanceId());
             rod = XRods.resolve(eff.rodClassOr(XRods.DEFAULT));

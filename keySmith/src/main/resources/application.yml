@@ -4,7 +4,7 @@ spring:
   application:
     name: keysmith
   config:
-    import: "${TOPOLOGY_IMPORT:file:/etc/esquire/topology.yml}"
+    import: "${TOPOLOGY_IMPORT:optional:file:/etc/esquire/topology.yml}"
 keysmith:
   jpa:
     hibernate:
@@ -37,11 +37,11 @@ esquire:
   audit-bus:
     messaging-bus:
       bus-id: ${AUDIT_BUS_ID:audit-b}
-      slot-id: ${AUDIT_SERVICE_ID:audit}
+      slot-id: ${AUDIT_SLOT_ID:audit}
   kc-bus:
     messaging-bus:
       bus-id: ${KC_BUS_ID:esquire.kc}
-      slot-id: ${KC_SERVICE_ID:kc}
+      slot-id: ${KC_SLOT_ID:kc}
       x-rod:
         pool-size: ${KEYSMITH_KC_RESPONSE_POOL_SIZE:2}
         concurrency: ${KEYSMITH_KC_RESPONSE_CONCURRENCY:1}

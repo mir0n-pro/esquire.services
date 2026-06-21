@@ -12,7 +12,7 @@ replicaCount: 1
 springProfilesActive: "console,dev-postgres"
 
 # shared bus topology is delivered by the esquire-topology ConfigMap, mounted at /etc/esquire.
-topologyImport: file:/etc/esquire/topology.yml
+topologyImport: optional:file:/etc/esquire/topology.yml
 
 service:
   port: 3003
@@ -32,7 +32,7 @@ moveQueue:
 # kc-bus ref: enyMan is the CLIENT (posts KC requests, receives responses).
 kc:
   busId: esquire.kc
-  serviceId: kc
+  slotId: kc
   responsePoolSize: "2"
   responseConcurrency: "1"
   publisherPoolSize: "0"
@@ -40,14 +40,14 @@ kc:
 # entity-bus ref: enyMan is a PUBLISHER (broadcasts entity changes).
 entity:
   busId: esquire.entity
-  serviceId: entity
+  slotId: entity
   broadcastPublisherPoolSize: "0"
 
 # audit: default k8s sink = (c) over the bus (ActiveMQ); esquire-aukeep drains it to the *_log tables.
 # Switch to in-process (b) with busId=audit-b (the datasource block below is the *_log datastore).
 audit:
   busId: audit-c
-  serviceId: audit
+  slotId: audit
   poolSize: "4"
   feedCapacity: "4096"
   virtualThreads: "false"

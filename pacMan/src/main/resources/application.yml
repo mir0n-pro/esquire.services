@@ -11,7 +11,7 @@ spring:
     problemdetails:
       enabled: true
   config:
-    import: "${TOPOLOGY_IMPORT:file:/etc/esquire/topology.yml}"
+    import: "${TOPOLOGY_IMPORT:optional:file:/etc/esquire/topology.yml}"
 # this service's OWN overlay of the global esquire.messaging-bus catalog: its in-process audit-b leg
 # (datasource is service-specific), under the service namespace.
 pacman:
@@ -37,11 +37,11 @@ esquire:
   audit-bus:
     messaging-bus:
       bus-id: ${AUDIT_BUS_ID:audit-b}
-      slot-id: ${AUDIT_SERVICE_ID:audit}
+      slot-id: ${AUDIT_SLOT_ID:audit}
   entity-bus:
     messaging-bus:
       bus-id: ${ENTITY_BUS_ID:esquire.entity}
-      slot-id: ${ENTITY_SERVICE_ID:entity}
+      slot-id: ${ENTITY_SLOT_ID:entity}
       x-rod:
         publisher-pool-size: ${ENTITY_BROADCAST_PUBLISHER_POOL_SIZE:0}
 logging:

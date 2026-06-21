@@ -53,14 +53,13 @@ public interface IXRod {
     void shutdown();
 
     /** Whether this x-rod is a real leg. Default {@code true}; only the OFF x-rod ({@code XRodDisabled})
-     *  returns {@code false}. A caller (e.g. the audit producer) guards expensive payload assembly on this. */
+     *  returns {@code false}. A caller (the producer) guards expensive payload assembly on this. */
     default boolean isEnabled() {
         return true;
     }
 
-    /** Transmit: send a pre-built event (it carries its own {@code msgType}) out the transmit leg. The producer
-     *  builds the event (the request/response + broadcast publishers, or the audit bridge); the x-rod just relays
-     *  it. No-op if the transmit leg is not wired. */
+    /** Transmit: send a pre-built event (it carries its own {@code msgType}) out the transmit leg. The caller
+     *  (the producer) builds the event; the x-rod just relays it. No-op if the transmit leg is not wired. */
     void transmit(RodEvent event);
 
     /** Receive: apply one arrived event on the receive pool (called by a bus consumer or the in-process feed). */

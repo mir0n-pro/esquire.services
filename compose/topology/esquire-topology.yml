@@ -6,7 +6,7 @@
 #
 # This file is PER ENVIRONMENT and is written with CONCRETE values (no ${} placeholders) -- the docker-network
 # hostnames (activemq / kafka / redis). Per-service knobs (pool sizes, rod-class deltas, the role) and the audit
-# in-process (b) log-db live at the SERVICE level (each service application.yml), NOT here. A bus defined here but
+# in-process (b) datasource live at the SERVICE level (each service application.yml), NOT here. A bus defined here but
 # not referenced by a service is inert (a pod is built only when a service producer()/consumer()s a bus key).
 esquire:
   messaging-bus:

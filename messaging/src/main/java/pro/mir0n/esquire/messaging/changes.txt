@@ -1,5 +1,19 @@
 Esquire messaging framework classes
 
+06/21/2026 mir0n  v1.2.9 -- topology functional validation; catalog overlay merge-by-id; javadoc genericized
+MessagingBusCatalog
+  - validate(): fail-fast at construction on a duplicate bus-id (catalog) / slot-id (within a bus) / node-id
+    (within an x-rod's transport.nodes), run PER SOURCE (shared catalog + overlay) before the merge
+  - mergeOverlay / mergeSlots: the <app>.messaging-bus overlay MERGES onto the shared esquire.messaging-bus BY
+    ID -- a service bus/slot REPLACES the shared one with the same id, a new one is appended (was: addAll)
+  - find() returns the FIRST match and stops; the scan-all + take-LAST + log.warn removed
+XRodManager
+  - a bus key that resolves to no leg logs a CONSOLE info ("...has no leg -> DISABLED...") and runs XRodDisabled
+    (was a develop-tier note); an explicit rod-class=XRodDisabled leg disables without the info
+framework javadoc + doc\Esquire.MessagingBus.md
+  - genericized to describe the bus MECHANISM, not where an event is applied (audit / *_log / keep / asset / SQL
+    removed from IRodEventRepo, RodEventRepoRegistry, RodEvent, etc.); xx-Rod -> x-rod
+
 06/21/2026 mir0n  v1.2.9 -- RodEventCodec decode hardening
 RodEventCodec
   - fromProps: requireSchemaVersion() gate -- a SchemaVersion present but != the codec's SCHEMA_VERSION is

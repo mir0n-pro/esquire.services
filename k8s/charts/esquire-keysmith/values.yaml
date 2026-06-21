@@ -6,7 +6,7 @@ image:
 springProfilesActive: "console,dev-postgres"
 
 # shared bus topology is delivered by the esquire-topology ConfigMap, mounted at /etc/esquire.
-topologyImport: file:/etc/esquire/topology.yml
+topologyImport: optional:file:/etc/esquire/topology.yml
 
 service:
   port: 3002
@@ -22,7 +22,7 @@ db:
 # kc-bus ref: keySmith is the CLIENT (posts KC requests, receives responses).
 kc:
   busId: esquire.kc
-  serviceId: kc
+  slotId: kc
   responsePoolSize: "2"
   responseConcurrency: "1"
   publisherPoolSize: "0"
@@ -31,7 +31,7 @@ kc:
 # Switch to in-process (b) with busId=audit-b (the datasource block below is the *_log datastore).
 audit:
   busId: audit-c
-  serviceId: audit
+  slotId: audit
   poolSize: "4"
   feedCapacity: "4096"
   virtualThreads: "false"

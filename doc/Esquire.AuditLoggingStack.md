@@ -28,7 +28,7 @@ standalone `auKeep` consumer → SQL · **(d)** Redis Stream (the stream *is* th
 deploy with no audit config imposes no audit. Each **deployment then configures a topology** on top of that
 baseline, chosen for footprint / monitoring needs, *not* performance:
 - **Dev (Docker + local k8s) → (c) bus → auKeep over ActiveMQ, with the async publisher pool** (`publisher-
-  pool-size=4`), selected by **`ESQUIRE_AUDIT_BUS_ID=audit-c`**. Reason: **minimum external images** —
+  pool-size=4`), selected by **`AUDIT_BUS_ID=audit-c`**. Reason: **minimum external images** —
   ActiveMQ is **already in the stack** (the entity-broadcast bus runs on it), so (c) adds **no new external
   image**, only auKeep as an app pod; (d) would pull in Redis, Kafka a broker + Connect. The two dev
   environments run the **identical** topology so the GitHub Actions deploy scripts stay consistent; the async
@@ -136,8 +136,9 @@ asynchronous / separate store / non-SQL*.
   over JDBC — after commit, the in-process **`XRodInProcess`** x-rod (rod-class on a service-level leg) feeds
   each record to its worker pool, which runs the audit keep applier to write the `*_log` table. The applier's
   pool is either DEDICATED (its own auto-commit Hikari pool, the default -- can target a different DB/dialect) or
-  SHARED (`log-db.shared=true` -> reuses the service's own datasource pool, dialect from the service profile);
-  either way the writes run outside any Spring transaction. Selected by **`ESQUIRE_AUDIT_BUS_ID=audit-b`**.
+  SHARED (`datasource.shared=true` -> reuses the service's own datasource pool); either way the keep reads its SQL
+  dialect from the database URL (`jdbc:postgresql...` -> Postgres, `jdbc:oracle...` -> Oracle) and the writes run
+  outside any Spring transaction. Selected by **`AUDIT_BUS_ID=audit-b`**.
 - **+** removes write pressure from the operational DB and the request hot path; the service keeps the
   audit logic in plain Java; no new infrastructure or deployable.
 - **–** the write leaves the mutation's transaction (a crash in the commit→write gap can drop a row unless
@@ -149,7 +150,7 @@ asynchronous / separate store / non-SQL*.
 ### c) Distributed Logging — *"auKeep"* (the in-framework decoupled option)
 - **Where:** log tables in the log DB. **Filled by** the **auKeep** consumer — the service's `XRod` producer
   posts the event to the audit bus (ActiveMQ queue under `audit-c`, Kafka topic under `audit-ck`); the
-  standalone auKeep consumes it and owns the log-DB write. Selected by `ESQUIRE_AUDIT_BUS_ID=audit-c` (or
+  standalone auKeep consumes it and owns the log-DB write. Selected by `AUDIT_BUS_ID=audit-c` (or
   `audit-ck` for Kafka).
 - **+** full decoupling — the entity services carry no JPA or log-DB dependency, they just publish; the
   audit pipeline is its own independently-deployable, scalable concern and can fan out to many sinks;
@@ -164,7 +165,7 @@ asynchronous / separate store / non-SQL*.
 - **Where:** a non-SQL append-only store — **Redis Streams**. **Filled by** the `XRod` producer (producer-
   only, no receive leg) XADD-ing each committed event straight to a stream via the Redis transport provider —
   **the stream IS the audit log**, so there is no auKeep consumer (read with `XRANGE`); consumer groups can
-  fan out later. Selected by `ESQUIRE_AUDIT_BUS_ID=audit-d` (the Kafka-log variant is `audit-dk`).
+  fan out later. Selected by `AUDIT_BUS_ID=audit-d` (the Kafka-log variant is `audit-dk`).
 - **+** schema-flexible, very high write throughput, native streaming; cheapest on the request path (§8).
 - **–** new infrastructure (Redis); eventual consistency; ad-hoc *relational* audit queries ("who changed
   entity X, ranges by user") are answered more directly by the SQL `*_log` of (b)/(c).
@@ -238,7 +239,7 @@ The rod-classes relevant to audit:
 |---|---|---|
 | **`XRod`** | the standard bus transceiver | feed + pool + the wire codec; the producer leg of c/ck/d/dk and the auKeep's receive leg |
 | **`XRodRR`** | request/response | two role-routed nodes (request-node / response-node); used by the KC bus, not audit |
-| **`XRodInProcess`** | in-process audit (option b) | generic in-process x-rod: feeds each event to its own worker pool, which runs the audit keep applier against the `*_log` tables — no transport. The applier's pool (auto-commit, outside any Spring tx) is DEDICATED (its own, the default) or SHARED (`log-db.shared=true` -> the service's own pool); its datasource is read from the leg's `log-db` sub-block. FQCN `pro.mir0n.esquire.dataKeep.keep.XRodInProcess` |
+| **`XRodInProcess`** | in-process audit (option b) | generic in-process x-rod: feeds each event to its own worker pool, which runs the audit keep applier against the `*_log` tables — no transport. The applier's pool (auto-commit, outside any Spring tx) is DEDICATED (its own, the default) or SHARED (`datasource.shared=true` -> the service's own pool); its datasource is read from the leg's `datasource` sub-block, and the SQL dialect comes from that datasource's URL (`jdbc:postgresql...` -> Postgres, `jdbc:oracle...` -> Oracle). FQCN `pro.mir0n.esquire.dataKeep.keep.XRodInProcess` |
 | **`XRodInfo`** | log-only | logs the whole event instead of sending it (the future access-violation-log seam) |
 | **`XRodDisabled`** | no-op | the default x-rod when a bus is unconfigured (audit OFF, option 0) |
 
@@ -263,7 +264,7 @@ bus (bus-id)
 ```
 
 A service **selects a sink by bus-id**: the audit sink is the entry `esquire.audit-bus.messaging-bus ->
-{ bus-id: ${ESQUIRE_AUDIT_BUS_ID}, slot-id: audit }`. One env var, `ESQUIRE_AUDIT_BUS_ID`, names which
+{ bus-id: ${AUDIT_BUS_ID}, slot-id: audit }`. One env var, `AUDIT_BUS_ID`, names which
 catalog bus the audit producer (and the auKeep) binds — `audit-b` / `audit-c` / `audit-ck` / `audit-d` /
 `audit-dk`, or unset → `XRodDisabled` (option 0). Docker and k8s default to **`audit-c`**; the code default
 in `application.yml` is **`audit-b`**. The catalog unions the shared cross-service topology with a service
@@ -537,7 +538,7 @@ The rest of this section is the (c) case in depth — partitioning and the consu
 path with framework code; the (d-k) variant is infra-only.
 
 (c) keeps its shape (producer → bus → auKeep → `*_log`) with the **transport swappable by bus-id**:
-`ESQUIRE_AUDIT_BUS_ID=audit-c` (the `tp-activemq` leg) vs `audit-ck` (the `tp-kafka` leg). Codec, director,
+`AUDIT_BUS_ID=audit-c` (the `tp-activemq` leg) vs `audit-ck` (the `tp-kafka` leg). Codec, director,
 writer, dedup index unchanged. How to run it well for audit:
 
 - **6.1 Partitioning — key = none.** Audit is order-independent, so we do not need per-key ordering.
@@ -592,7 +593,7 @@ case for Kafka under (c).
 
 Everything is external — which audit style runs is decided entirely by config + deploy artifacts, no
 framework code change. Four layers compose the choice: **(1) the bus catalog** (the shared external
-`topology.yml` defining every audit bus, plus the one env var `ESQUIRE_AUDIT_BUS_ID` selecting which bus the
+`topology.yml` defining every audit bus, plus the one env var `AUDIT_BUS_ID` selecting which bus the
 audit sink binds — §A.3), **(2) DB deploy** (`db.seed`: the `*_log` tables, triggers, dedup indexes), **(3)
 SQL spec artifacts** (`META-INF/audit/{dialect}.xml`, shipped or omitted at packaging), **(4) infra**
 (ActiveMQ + auKeep, or Redis, or Kafka — plus the matching `tp-*` module on the deployable). Full recipe per
@@ -600,10 +601,10 @@ option + the env reference: [services.configuring.md](services.configuring.md).
 
 **Deploy defaults — the code baseline is (0), each deployment configures its own topology:**
 
-- **Code default `application.yml`:** `ESQUIRE_AUDIT_BUS_ID=audit-b` (in-process); a deployment that names no
+- **Code default `application.yml`:** `AUDIT_BUS_ID=audit-b` (in-process); a deployment that names no
   bus, or names an unconfigured one, resolves to `XRodDisabled` → **(0)**, persist nothing (only the INFO
   request log).
-- **Dev (Docker + local k8s) → (c) with the async pool.** Producers set `ESQUIRE_AUDIT_BUS_ID=audit-c`; the
+- **Dev (Docker + local k8s) → (c) with the async pool.** Producers set `AUDIT_BUS_ID=audit-c`; the
   `audit-c` catalog leg names `tp-activemq` and the async publisher pool (`publisher-pool-size=4`). `aukeep`
   is a standard pod/service (Docker: a non-profile-gated compose service; k8s: the `esquire-aukeep` chart
   deployed by `k8s-up`). The shared topology file is delivered as a Docker bind-mount and a k8s ConfigMap
@@ -617,12 +618,12 @@ option + the env reference: [services.configuring.md](services.configuring.md).
 
 Switch topology purely by **bus-id** (chart values / env), no rebuild — the named bus already exists in the
 catalog:
-- **(b) in-process:** `ESQUIRE_AUDIT_BUS_ID=audit-b` (no auKeep; the `XRodInProcess` x-rod runs the audit keep
-  applier to write `*_log` directly). Its `log-db` datasource comes from
-  `ESQUIRE_AUDIT_LOG_DB_{VENDOR,URL,USERNAME,PASSWORD,POOL_SIZE}`.
-- **(d) redis:** `ESQUIRE_AUDIT_BUS_ID=audit-d` + `REDIS_HOST=esq-redis`, deploy a Redis and carry the
+- **(b) in-process:** `AUDIT_BUS_ID=audit-b` (no auKeep; the `XRodInProcess` x-rod runs the audit keep
+  applier to write `*_log` directly). Its `datasource` comes from
+  `DB_DATAKEEP_{SHARED,URL,USERNAME,PASSWORD,POOL_SIZE}` (the SQL dialect is read from the URL).
+- **(d) redis:** `AUDIT_BUS_ID=audit-d` + `REDIS_HOST=esq-redis`, deploy a Redis and carry the
   `tp-redis` module. **Name the service `esq-redis`, never `redis`** — see §9.
-- **(c) over Kafka:** `ESQUIRE_AUDIT_BUS_ID=audit-ck` (+ `KAFKA_BOOTSTRAP`), deploy Kafka and carry the
+- **(c) over Kafka:** `AUDIT_BUS_ID=audit-ck` (+ `KAFKA_BOOTSTRAP`), deploy Kafka and carry the
   `tp-kafka` module.
 
 The `*_log` tables are seeded on a fresh cluster by the `esquire-postgres` image (`create/all.sql` chains to

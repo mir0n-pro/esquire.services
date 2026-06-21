@@ -1,6 +1,46 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v1.2.9-2606.2118  v1.2.9 -- hardening: messaging-bus topology validation; a misconfigured bus disables, not crashes
+    :Refactoring: the bus catalog is checked at startup -- a duplicate bus / slot / network-node id fails fast
+                  with a clear error; a bus key that points at nothing now disables that leg (with a one-line
+                  notice in the log) instead of crashing the service at boot
+    :Feature:     a service's own bus definitions now layer onto the shared topology by id 
+    :Config:      the shared-topology import is now optional (a service may define its buses inline, or use none)
+    :Config:      the bus slot-id environment variables renamed -- AUDIT_SERVICE_ID / KC_SERVICE_ID /
+                  ENTITY_SERVICE_ID -> AUDIT_SLOT_ID / KC_SLOT_ID / ENTITY_SLOT_ID (a bus leg is a "slot")
+    :Doc:         doc\Esquire.MessagingBus.md
+                  doc\services.configuring.md
+    Components:   messaging,
+                  enyMan,
+                  pacMan,
+                  keySmith,
+                  auKeep,
+                  bizTree,
+                  kcMaster,
+                  compose,
+                  k8s
+
+v1.2.9-2606.2114  v1.2.9 -- hardening: dataKeep reads its SQL dialect from the database URL; audit config keys tidied
+    :Refactoring: the keep figures out its SQL dialect from the database URL (jdbc:postgresql.. -> Postgres,
+                  jdbc:oracle.. -> Oracle); the separate vendor setting it used before is removed
+    :Config:      the in-process audit datastore block renamed: log-db -> datasource (its vendor entry dropped)
+    :Config:      audit and topology env vars renamed -- ESQUIRE_AUDIT_* -> AUDIT_*,
+                  ESQUIRE_AUDIT_LOG_DB_* -> DB_DATAKEEP_*, ESQUIRE_TOPOLOGY_IMPORT -> TOPOLOGY_IMPORT
+                  (application.yml, compose, k8s charts, and the shared topology)
+    :Doc:         doc\services.configuring.md
+                  doc\Esquire.MessagingBus.md
+                  doc\Esquire.AuditLoggingStack.md
+                  doc\Messaging.md
+    Components:   dataKeep,
+                  enyMan,
+                  pacMan,
+                  keySmith,
+                  auKeep,
+                  messaging,
+                  compose,
+                  k8s
+
 v1.2.9-2606.2111  v1.2.9 -- hardening: the audit/broadcast message decoder shrugs off a bad field, refuses an unknown format
     :Fix:         one malformed field in an incoming bus message no longer discards the whole message -- the bad
                   field falls back to a default and the message is still processed

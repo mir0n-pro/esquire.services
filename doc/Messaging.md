@@ -66,7 +66,7 @@ kcMaster dispatches each request to a create / update / delete / update-path Key
 
 The entity producers (**enyMan**, **pacMan**, **keySmith**) post an **audit (`UA`)** event after commit,
 off the request thread. Where the audit lands is a per-deployment choice flipped by one environment
-variable (`ESQUIRE_AUDIT_BUS_ID`); the framework default is **off** — a fresh deploy audits nothing.
+variable (`AUDIT_BUS_ID`); the framework default is **off** — a fresh deploy audits nothing.
 
 | Sink (`bus-id`) | Where the audit lands |
 |---|---|

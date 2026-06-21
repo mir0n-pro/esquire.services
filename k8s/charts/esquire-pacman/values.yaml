@@ -6,7 +6,7 @@ image:
 springProfilesActive: "console,dev-postgres"
 
 # shared bus topology is delivered by the esquire-topology ConfigMap, mounted at /etc/esquire.
-topologyImport: file:/etc/esquire/topology.yml
+topologyImport: optional:file:/etc/esquire/topology.yml
 
 service:
   port: 3003
@@ -22,14 +22,14 @@ db:
 # entity-bus ref: pacMan is the PUBLISHER (broadcasts entity changes onto the bus).
 entity:
   busId: esquire.entity
-  serviceId: entity
+  slotId: entity
   broadcastPublisherPoolSize: "0"
 
 # audit: default k8s sink = (c) over the bus (ActiveMQ); esquire-aukeep drains it to the *_log tables.
 # Switch to in-process (b) with busId=audit-b (the datasource block below is the *_log datastore).
 audit:
   busId: audit-c
-  serviceId: audit
+  slotId: audit
   poolSize: "4"
   feedCapacity: "4096"
   virtualThreads: "false"

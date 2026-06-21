@@ -109,16 +109,16 @@ row() { printf '| %-14s | %-26s | %-6s | %s |\n' "$1" "$2" "$3" "$4" >>"${RESULT
 # --------------------------------------------------------------------------
 cell_docker_pg() {
   local cell="$1"
-  unset ESQUIRE_AUDIT_BUS_ID ESQUIRE_AUDIT_LOG_DB_SHARED ESQUIRE_AUDIT_LOG_DB_VENDOR ESQUIRE_AUDIT_LOG_DB_URL
+  unset AUDIT_BUS_ID DB_DATAKEEP_SHARED DB_DATAKEEP_URL
   local idx="0,1,2,4" desc="" stream="" streamfn="" trig="" warm=""
   case "$cell" in
-    a)          export ESQUIRE_AUDIT_BUS_ID="$AUDIT_OFF"; trig="pg"; desc="DB triggers in-tx (audit msg off)";;
-    b-shared)   export ESQUIRE_AUDIT_BUS_ID=audit-b ESQUIRE_AUDIT_LOG_DB_SHARED=true;  desc="in-process keep, SHARED service pool";;
-    b-ded-pg)   export ESQUIRE_AUDIT_BUS_ID=audit-b ESQUIRE_AUDIT_LOG_DB_SHARED=false; desc="in-process keep, dedicated pool (pg)";;
-    c)          export ESQUIRE_AUDIT_BUS_ID=audit-c;   desc="bus AMQ -> auKeep -> *_log (pg)";;
-    ck)         export ESQUIRE_AUDIT_BUS_ID=audit-ck; warm="1"; desc="bus Kafka -> auKeep -> *_log (pg)";;
-    d)          export ESQUIRE_AUDIT_BUS_ID=audit-d;   desc="Redis stream (producer-only)"; stream="redis"; streamfn="redis_len";;
-    dk)         export ESQUIRE_AUDIT_BUS_ID=audit-dk;  desc="Kafka stream (producer-only)"; stream="kafka"; streamfn="kafka_off";;
+    a)          export AUDIT_BUS_ID="$AUDIT_OFF"; trig="pg"; desc="DB triggers in-tx (audit msg off)";;
+    b-shared)   export AUDIT_BUS_ID=audit-b DB_DATAKEEP_SHARED=true;  desc="in-process keep, SHARED service pool";;
+    b-ded-pg)   export AUDIT_BUS_ID=audit-b DB_DATAKEEP_SHARED=false; desc="in-process keep, dedicated pool (pg)";;
+    c)          export AUDIT_BUS_ID=audit-c;   desc="bus AMQ -> auKeep -> *_log (pg)";;
+    ck)         export AUDIT_BUS_ID=audit-ck; warm="1"; desc="bus Kafka -> auKeep -> *_log (pg)";;
+    d)          export AUDIT_BUS_ID=audit-d;   desc="Redis stream (producer-only)"; stream="redis"; streamfn="redis_len";;
+    dk)         export AUDIT_BUS_ID=audit-dk;  desc="Kafka stream (producer-only)"; stream="kafka"; streamfn="kafka_off";;
     *) echo "unknown docker-pg cell: $cell"; return 1;;
   esac
   echo ">>> docker-pg / $cell : $desc"
@@ -171,15 +171,15 @@ cell_docker_pg() {
 # Entities are created in Postgres; the audit is written to Oracle MIR0N (esq2025/q @ host.docker.internal:1521).
 cell_docker_pg_ora() {
   local cell="$1"
-  unset ESQUIRE_AUDIT_BUS_ID ESQUIRE_AUDIT_LOG_DB_SHARED ESQUIRE_AUDIT_LOG_DB_VENDOR ESQUIRE_AUDIT_LOG_DB_URL \
+  unset AUDIT_BUS_ID DB_DATAKEEP_SHARED DB_DATAKEEP_URL \
         DB_DATAKEEP_VENDOR DB_DATAKEEP_HOST DB_DATAKEEP_PORT DB_DATAKEEP_NAME
   local desc="" ORAURL="jdbc:oracle:thin:@//host.docker.internal:1521/MIR0N"
   case "$cell" in
-    b-ded-ora) export ESQUIRE_AUDIT_BUS_ID=audit-b ESQUIRE_AUDIT_LOG_DB_SHARED=false \
-                      ESQUIRE_AUDIT_LOG_DB_VENDOR=dev-oracle ESQUIRE_AUDIT_LOG_DB_URL="$ORAURL"; desc="in-process keep -> ORACLE *_log";;
-    c-ora)     export ESQUIRE_AUDIT_BUS_ID=audit-c  DB_DATAKEEP_VENDOR=dev-oracle DB_DATAKEEP_HOST=host.docker.internal \
+    b-ded-ora) export AUDIT_BUS_ID=audit-b DB_DATAKEEP_SHARED=false \
+                      DB_DATAKEEP_URL="$ORAURL"; desc="in-process keep -> ORACLE *_log";;
+    c-ora)     export AUDIT_BUS_ID=audit-c  DB_DATAKEEP_VENDOR=dev-oracle DB_DATAKEEP_HOST=host.docker.internal \
                       DB_DATAKEEP_PORT=1521 DB_DATAKEEP_NAME=MIR0N; desc="bus AMQ -> auKeep -> ORACLE *_log";;
-    ck-ora)    export ESQUIRE_AUDIT_BUS_ID=audit-ck DB_DATAKEEP_VENDOR=dev-oracle DB_DATAKEEP_HOST=host.docker.internal \
+    ck-ora)    export AUDIT_BUS_ID=audit-ck DB_DATAKEEP_VENDOR=dev-oracle DB_DATAKEEP_HOST=host.docker.internal \
                       DB_DATAKEEP_PORT=1521 DB_DATAKEEP_NAME=MIR0N; desc="bus Kafka -> auKeep -> ORACLE *_log";;
     *) echo "unknown oracle-audit cell: $cell"; return 1;;
   esac
@@ -217,21 +217,21 @@ recreate_full() { # biztree + producers (+aukeep) -- oracle-primary needs biztre
 
 cell_docker_ora() {
   local cell="$1"
-  unset ESQUIRE_AUDIT_BUS_ID ESQUIRE_AUDIT_LOG_DB_SHARED ESQUIRE_AUDIT_LOG_DB_VENDOR ESQUIRE_AUDIT_LOG_DB_URL \
+  unset AUDIT_BUS_ID DB_DATAKEEP_SHARED DB_DATAKEEP_URL \
         DB_DATAKEEP_VENDOR DB_DATAKEEP_HOST DB_DATAKEEP_PORT DB_DATAKEEP_NAME
   set_oracle_primary
   local ORAURL="jdbc:oracle:thin:@//host.docker.internal:1521/MIR0N" db="ora" desc="" stream="" streamfn="" idx="0,1,2,4" trig=""
   case "$cell" in
-    a)         export ESQUIRE_AUDIT_BUS_ID="$AUDIT_OFF"; db="ora"; trig="ora"; desc="DB triggers in-tx (oracle primary, audit msg off)";;
-    b-shared)  export ESQUIRE_AUDIT_BUS_ID=audit-b ESQUIRE_AUDIT_LOG_DB_SHARED=true;  db="ora"; desc="in-proc SHARED (oracle primary+audit)";;
-    b-ded-pg)  export ESQUIRE_AUDIT_BUS_ID=audit-b ESQUIRE_AUDIT_LOG_DB_SHARED=false ESQUIRE_AUDIT_LOG_DB_VENDOR=dev-postgres ESQUIRE_AUDIT_LOG_DB_URL="jdbc:postgresql://host.docker.internal:5432/esq2025"; db="pg"; desc="in-proc dedicated -> PG audit";;
-    b-ded-ora) export ESQUIRE_AUDIT_BUS_ID=audit-b ESQUIRE_AUDIT_LOG_DB_SHARED=false ESQUIRE_AUDIT_LOG_DB_VENDOR=dev-oracle ESQUIRE_AUDIT_LOG_DB_URL="$ORAURL"; db="ora"; desc="in-proc dedicated -> ORA audit";;
-    c-pg)      export ESQUIRE_AUDIT_BUS_ID=audit-c;  db="pg";  desc="bus AMQ -> auKeep -> PG audit";;
-    c-ora)     export ESQUIRE_AUDIT_BUS_ID=audit-c  DB_DATAKEEP_VENDOR=dev-oracle DB_DATAKEEP_HOST=host.docker.internal DB_DATAKEEP_PORT=1521 DB_DATAKEEP_NAME=MIR0N; db="ora"; desc="bus AMQ -> auKeep -> ORA audit";;
-    ck-pg)     export ESQUIRE_AUDIT_BUS_ID=audit-ck; db="pg";  desc="bus Kafka -> auKeep -> PG audit";;
-    ck-ora)    export ESQUIRE_AUDIT_BUS_ID=audit-ck DB_DATAKEEP_VENDOR=dev-oracle DB_DATAKEEP_HOST=host.docker.internal DB_DATAKEEP_PORT=1521 DB_DATAKEEP_NAME=MIR0N; db="ora"; desc="bus Kafka -> auKeep -> ORA audit";;
-    d)         export ESQUIRE_AUDIT_BUS_ID=audit-d;  stream="redis"; streamfn="redis_len"; desc="Redis stream";;
-    dk)        export ESQUIRE_AUDIT_BUS_ID=audit-dk; stream="kafka"; streamfn="kafka_off"; desc="Kafka stream";;
+    a)         export AUDIT_BUS_ID="$AUDIT_OFF"; db="ora"; trig="ora"; desc="DB triggers in-tx (oracle primary, audit msg off)";;
+    b-shared)  export AUDIT_BUS_ID=audit-b DB_DATAKEEP_SHARED=true;  db="ora"; desc="in-proc SHARED (oracle primary+audit)";;
+    b-ded-pg)  export AUDIT_BUS_ID=audit-b DB_DATAKEEP_SHARED=false DB_DATAKEEP_URL="jdbc:postgresql://host.docker.internal:5432/esq2025"; db="pg"; desc="in-proc dedicated -> PG audit";;
+    b-ded-ora) export AUDIT_BUS_ID=audit-b DB_DATAKEEP_SHARED=false DB_DATAKEEP_URL="$ORAURL"; db="ora"; desc="in-proc dedicated -> ORA audit";;
+    c-pg)      export AUDIT_BUS_ID=audit-c;  db="pg";  desc="bus AMQ -> auKeep -> PG audit";;
+    c-ora)     export AUDIT_BUS_ID=audit-c  DB_DATAKEEP_VENDOR=dev-oracle DB_DATAKEEP_HOST=host.docker.internal DB_DATAKEEP_PORT=1521 DB_DATAKEEP_NAME=MIR0N; db="ora"; desc="bus AMQ -> auKeep -> ORA audit";;
+    ck-pg)     export AUDIT_BUS_ID=audit-ck; db="pg";  desc="bus Kafka -> auKeep -> PG audit";;
+    ck-ora)    export AUDIT_BUS_ID=audit-ck DB_DATAKEEP_VENDOR=dev-oracle DB_DATAKEEP_HOST=host.docker.internal DB_DATAKEEP_PORT=1521 DB_DATAKEEP_NAME=MIR0N; db="ora"; desc="bus Kafka -> auKeep -> ORA audit";;
+    d)         export AUDIT_BUS_ID=audit-d;  stream="redis"; streamfn="redis_len"; desc="Redis stream";;
+    dk)        export AUDIT_BUS_ID=audit-dk; stream="kafka"; streamfn="kafka_off"; desc="Kafka stream";;
     *) echo "unknown oracle-primary cell: $cell"; return 1;;
   esac
   echo ">>> docker-ora / $cell : $desc"
@@ -277,7 +277,7 @@ cell_docker_ora() {
 # esquire-infra-postgres-0; kafka/redis are Deployments (exec via deployment/).
 # Producers cycle via `helm upgrade -f values/<svc>.yaml --set audit.busId=...`
 # (NO --reuse-values: the full values file + chart defaults reapply, --set wins,
-# so the new logDb.shared chart key binds cleanly). The pod templates carry no
+# so the new datasource.shared chart key binds cleanly). The pod templates carry no
 # checksum/config annotation, so a configmap change needs an explicit rollout
 # restart. The gateway routes by Service DNS, so producer restarts need no gw
 # bounce. Smoke runs against the ingress (hauberk-k8s.properties).
@@ -301,12 +301,12 @@ run_smoke_k8s() { ( cd "${HBK}" && java -Dhauberk.config=hauberk-k8s.properties 
 # --reuse-values (NOT -f values/<svc>.yaml): the deployed image tag is a k8s-rebuild stamp that differs
 # from the tag pinned in values/, so re-applying the file would downgrade the image to a tag the local
 # daemon may not have (ImagePullBackOff). --reuse-values keeps the running tag + every other deployed
-# value and overrides ONLY the audit knobs. The new chart key audit.logDb.shared is set explicitly here
+# value and overrides ONLY the audit knobs. The new chart key audit.datasource.shared is set explicitly here
 # (and the configmap guards it with | default false), so --reuse-values' new-key trap does not bite.
 # --set-string: a whitespace busId (option a) survives helm parsing.
 helm_set_producers() { local svc; for svc in enyman pacman keysmith; do
   ( cd "${SVCS}/k8s" && helm upgrade --install esquire-$svc charts/esquire-$svc --reuse-values \
-      --set-string audit.busId="$1" --set audit.logDb.shared="${2:-false}" --wait --timeout 180s >/dev/null 2>&1 ); done; }
+      --set-string audit.busId="$1" --set audit.datasource.shared="${2:-false}" --wait --timeout 180s >/dev/null 2>&1 ); done; }
 helm_set_aukeep() { ( cd "${SVCS}/k8s" && helm upgrade --install esquire-aukeep charts/esquire-aukeep --reuse-values \
       --set-string audit.busId="$1" --wait --timeout 180s >/dev/null 2>&1 ); }
 restart_k8s_producers() {
@@ -408,19 +408,19 @@ main() {
       local cells=("$@"); [ ${#cells[@]} -eq 0 ] && cells=(a b-shared b-ded-pg c ck d dk)
       for c in "${cells[@]}"; do cell_docker_pg "$c"; done
       # restore default audit-c
-      unset ESQUIRE_AUDIT_BUS_ID ESQUIRE_AUDIT_LOG_DB_SHARED; export ESQUIRE_AUDIT_BUS_ID=audit-c
+      unset AUDIT_BUS_ID DB_DATAKEEP_SHARED; export AUDIT_BUS_ID=audit-c
       recreate_docker ;;
     docker-pg-ora)
       local cells=("$@"); [ ${#cells[@]} -eq 0 ] && cells=(b-ded-ora c-ora ck-ora)
       for c in "${cells[@]}"; do cell_docker_pg_ora "$c"; done
-      unset DB_DATAKEEP_VENDOR DB_DATAKEEP_HOST DB_DATAKEEP_PORT DB_DATAKEEP_NAME ESQUIRE_AUDIT_LOG_DB_VENDOR ESQUIRE_AUDIT_LOG_DB_URL
-      export ESQUIRE_AUDIT_BUS_ID=audit-c; recreate_docker ;;
+      unset DB_DATAKEEP_VENDOR DB_DATAKEEP_HOST DB_DATAKEEP_PORT DB_DATAKEEP_NAME DB_DATAKEEP_URL
+      export AUDIT_BUS_ID=audit-c; recreate_docker ;;
     docker-ora)
       local cells=("$@"); [ ${#cells[@]} -eq 0 ] && cells=(a b-shared b-ded-pg b-ded-ora c-pg c-ora ck-pg ck-ora d dk)
       for c in "${cells[@]}"; do cell_docker_ora "$c"; done
       unset_oracle_primary
-      unset DB_DATAKEEP_VENDOR DB_DATAKEEP_HOST DB_DATAKEEP_PORT DB_DATAKEEP_NAME ESQUIRE_AUDIT_LOG_DB_VENDOR ESQUIRE_AUDIT_LOG_DB_URL ESQUIRE_AUDIT_LOG_DB_SHARED
-      export ESQUIRE_AUDIT_BUS_ID=audit-c; recreate_full ;;
+      unset DB_DATAKEEP_VENDOR DB_DATAKEEP_HOST DB_DATAKEEP_PORT DB_DATAKEEP_NAME DB_DATAKEEP_URL DB_DATAKEEP_SHARED
+      export AUDIT_BUS_ID=audit-c; recreate_full ;;
     k8s)
       k8s_infra_ensure
       local cells=("$@"); [ ${#cells[@]} -eq 0 ] && cells=(a b-shared b-ded-pg c ck d dk)

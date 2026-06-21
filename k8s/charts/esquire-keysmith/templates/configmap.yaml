@@ -16,13 +16,13 @@ data:
   DB_KEYSMITH_USERNAME:           {{ .Values.db.username | quote }}
   # --- kc-bus ref (CLIENT: post URQ / receive URS) ---
   KC_BUS_ID:                      {{ .Values.kc.busId | quote }}
-  KC_SERVICE_ID:                  {{ .Values.kc.serviceId | quote }}
+  KC_SLOT_ID:                  {{ .Values.kc.slotId | quote }}
   KEYSMITH_KC_RESPONSE_POOL_SIZE: {{ .Values.kc.responsePoolSize | quote }}
   KEYSMITH_KC_RESPONSE_CONCURRENCY:  {{ .Values.kc.responseConcurrency | quote }}
   KEYSMITH_KC_PUBLISHER_POOL_SIZE:   {{ .Values.kc.publisherPoolSize | quote }}
   # --- audit-bus ref + in-process (b) knobs ---
   AUDIT_BUS_ID:           {{ .Values.audit.busId | quote }}
-  AUDIT_SERVICE_ID:       {{ .Values.audit.serviceId | quote }}
+  AUDIT_SLOT_ID:       {{ .Values.audit.slotId | quote }}
   AUDIT_POOL_SIZE:        {{ .Values.audit.poolSize | quote }}
   AUDIT_FEED_CAPACITY:    {{ .Values.audit.feedCapacity | quote }}
   AUDIT_VIRTUAL_THREADS:  {{ .Values.audit.virtualThreads | quote }}

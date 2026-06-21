@@ -47,19 +47,44 @@ class MessagingBusCatalogTest {
     }
 
     @Test
-    void duplicateLegResolvesToTheLastWithoutThrowing() {
-        // a config mistake -- two legs share (bus-id, slot-id). find() WARNS and takes the last; it must NOT
-        // throw (boot does not crash on a duplicate -- the warning surfaces it).
+    void duplicateSlotIdFailsFastAtConstruction() {
+        // the topology is a LIST used AS A MAP -- two legs sharing (bus-id, slot-id) is a config mistake the
+        // catalog REJECTS at construction (was: find() warned and took the last).
         MockEnvironment env = new MockEnvironment();
         env.setProperty("esquire.messaging-bus[0].bus-id", "esquire.rod");
         env.setProperty("esquire.messaging-bus[0].slots[0].slot-id", "rod-audit");
-        env.setProperty("esquire.messaging-bus[0].slots[0].x-rod.rod-id", "first");
-        env.setProperty("esquire.messaging-bus[0].slots[1].slot-id", "rod-audit");   // duplicate
-        env.setProperty("esquire.messaging-bus[0].slots[1].x-rod.rod-id", "last");
+        env.setProperty("esquire.messaging-bus[0].slots[1].slot-id", "rod-audit");   // duplicate slot-id
 
-        XRodParams p = new MessagingBusCatalog(env).find("esquire.rod", "rod-audit");
-        assertThat(p).isNotNull();
-        assertThat(p.rodId()).isEqualTo("last");
+        assertThatThrownBy(() -> new MessagingBusCatalog(env))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("duplicate slot-id=rod-audit");
+    }
+
+    @Test
+    void duplicateBusIdFailsFastAtConstruction() {
+        MockEnvironment env = new MockEnvironment();
+        env.setProperty("esquire.messaging-bus[0].bus-id", "esquire.rod");
+        env.setProperty("esquire.messaging-bus[0].slots[0].slot-id", "a");
+        env.setProperty("esquire.messaging-bus[1].bus-id", "esquire.rod");           // duplicate bus-id
+        env.setProperty("esquire.messaging-bus[1].slots[0].slot-id", "b");
+
+        assertThatThrownBy(() -> new MessagingBusCatalog(env))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("duplicate bus-id=esquire.rod");
+    }
+
+    @Test
+    void duplicateNodeIdFailsFastAtConstruction() {
+        // an R&R leg's transport.nodes is also a list-as-map: node-id must be unique within the x-rod.
+        MockEnvironment env = new MockEnvironment();
+        env.setProperty("esquire.messaging-bus[0].bus-id", "esquire.kc");
+        env.setProperty("esquire.messaging-bus[0].slots[0].slot-id", "kc");
+        env.setProperty("esquire.messaging-bus[0].slots[0].x-rod.transport.nodes[0].node-id", "request");
+        env.setProperty("esquire.messaging-bus[0].slots[0].x-rod.transport.nodes[1].node-id", "request");  // duplicate
+
+        assertThatThrownBy(() -> new MessagingBusCatalog(env))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("duplicate node-id=request");
     }
 
     @Test
@@ -142,5 +167,40 @@ class MessagingBusCatalogTest {
         assertThat(c.find("audit-c", "audit")).isNotNull();                 // shared topology leg
         assertThat(c.find("audit-b", "audit")).isNotNull();                 // service-local extension
         assertThat(c.find("audit-b", "audit").rodClass()).isEqualTo("XRodInProcess");
+    }
+
+    @Test
+    void overlayReplacesTheSharedSlotBySameId() {
+        // the overlay declares the SAME (bus-id, slot-id) as the shared catalog -> it REPLACES it (the service
+        // wins), NOT a duplicate. The shared rod-class XRod is overridden by the overlay's XRodInProcess.
+        MockEnvironment env = new MockEnvironment();
+        env.setProperty("spring.application.name", "enyman");
+        env.setProperty("esquire.messaging-bus[0].bus-id", "audit-c");
+        env.setProperty("esquire.messaging-bus[0].slots[0].slot-id", "audit");
+        env.setProperty("esquire.messaging-bus[0].slots[0].x-rod.rod-class", "XRod");
+        env.setProperty("enyman.messaging-bus[0].bus-id", "audit-c");                 // SAME bus-id
+        env.setProperty("enyman.messaging-bus[0].slots[0].slot-id", "audit");         // SAME slot-id
+        env.setProperty("enyman.messaging-bus[0].slots[0].x-rod.rod-class", "XRodInProcess");
+
+        MessagingBusCatalog c = new MessagingBusCatalog(env);
+
+        assertThat(c.find("audit-c", "audit").rodClass()).isEqualTo("XRodInProcess");  // overlay won
+    }
+
+    @Test
+    void overlayAddsANewSlotToTheSharedBus() {
+        // the overlay declares the SAME bus-id but a NEW slot-id -> the slot is ADDED to the shared bus; the
+        // shared slot stays. Both resolve.
+        MockEnvironment env = new MockEnvironment();
+        env.setProperty("spring.application.name", "enyman");
+        env.setProperty("esquire.messaging-bus[0].bus-id", "esquire.kc");
+        env.setProperty("esquire.messaging-bus[0].slots[0].slot-id", "kc");
+        env.setProperty("enyman.messaging-bus[0].bus-id", "esquire.kc");              // SAME bus-id
+        env.setProperty("enyman.messaging-bus[0].slots[0].slot-id", "kc-extra");      // NEW slot-id
+
+        MessagingBusCatalog c = new MessagingBusCatalog(env);
+
+        assertThat(c.find("esquire.kc", "kc")).isNotNull();          // shared slot kept
+        assertThat(c.find("esquire.kc", "kc-extra")).isNotNull();    // overlay slot added
     }
 }

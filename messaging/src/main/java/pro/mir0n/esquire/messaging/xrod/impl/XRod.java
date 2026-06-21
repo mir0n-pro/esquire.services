@@ -123,14 +123,14 @@ public class XRod extends AXRod {
     }
 
     /** The effective wire for THIS leg (produce or consume). Base XRod is SINGLE-NODE -- always the leg's one
-     *  {@code transport} (broadcast / audit); it never touches request/response nodes. {@link XRodRR} overrides
+     *  {@code transport} (broadcast); it never touches request/response nodes. {@link XRodRR} overrides
      *  this to resolve the request vs response NODE by role and refine the base transport with it -- the two-node
      *  R&R behaviour lives there, not in the base x-rod. */
     protected BusTransport legTransport(boolean produce, Role role) {
         return params.transport();
     }
 
-    /** The JMS selector for this x-rod's receive node. Base XRod (broadcast / audit / single-node) consumes the
+    /** The JMS selector for this x-rod's receive node. Base XRod (broadcast / single-node) consumes the
      *  WHOLE node -- null. {@link XRodRR} overrides this for the role-driven R&R selector (CLIENT filters its own
      *  responses by rod-id; SERVER filters its service's requests by slot-id). A service-level broadcast
      *  selector is a future addition. */
@@ -152,7 +152,7 @@ public class XRod extends AXRod {
             // NOTE: a pooled-async publish (publisher-pool-size>0) drains here -- super.shutdown() awaits the pool.
             // A DIRECT producer (publisher-pool-size=0, the live legs) sends on the feed thread, which feed.shutdown()
             // only interrupts (BoundedQueueRig does not join its worker), so a send in-flight at shutdown can race
-            // this close. Accepted within the async-audit loss boundary (a clean-shutdown event may be lost); the
+            // this close. Accepted within the async-send loss boundary (a clean-shutdown event may be lost); the
             // feed is deliberately not drained here (see code-review.2).
             try {
                 outboundCloser.close();

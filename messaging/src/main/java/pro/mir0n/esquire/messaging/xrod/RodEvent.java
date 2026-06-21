@@ -22,21 +22,21 @@ import pro.mir0n.esquire.common.EsqMsgConstants;
 import java.util.Map;
 
 /**
- * One relayed entity change. Identity is {@code (entityId, kind, subId)} -- the row the change
- * touched; {@code kind} routes it to an {@link IRodEventRepo} via {@link RodEventRepoRegistry} (and thus a
- * {@code *_log} table).
+ * One relayed change. Identity is {@code (entityId, kind, subId)} -- the row the change
+ * touched; {@code kind} routes it to an {@link IRodEventRepo} via {@link RodEventRepoRegistry}.
  *
  * <ul>
  *   <li>{@code op} -- CREATE / UPDATE / DELETE (the coalesced, committed op).</li>
- *   <li>{@code kind} -- the (sub)asset kind; the registry key.</li>
+ *   <li>{@code kind} -- the (sub)kind; the registry key.</li>
  *   <li>{@code entityId} -- the owning entity id (usr_pk / org_pk / acct).</li>
  *   <li>{@code subId} -- discriminator when (entityId, kind) is not unique (ad_pk, par_name); else null.</li>
- *   <li>{@code actionTime} -- epoch-ms stamped at COMMIT; the audit "when".</li>
- *   <li>{@code correlationId} / {@code requestId} / {@code uid} -- the audit triple, snapshotted from
- *       the unified EsqRequestContext at post time so the event is self-contained off the request thread.</li>
+ *   <li>{@code actionTime} -- when the change occurred (epoch-ms, stamped at commit).</li>
+ *   <li>{@code correlationId} / {@code requestId} / {@code uid} -- the originator ids (correlation /
+ *       request / user), snapshotted from the unified EsqRequestContext at post time so the event is
+ *       self-contained off the request thread.</li>
  *   <li>{@code rodId} -- the ORIGINATING instance id, for R&R reply routing: a responder stamps the
  *       requester's rod-id on the reply so the requester's {@code RodID = '<id>'} selector matches. null on
- *       the one-way buses (audit / broadcast / the request leg) -- the codec then uses the leg's rod-id.</li>
+ *       the one-way buses (broadcast / the request leg) -- the codec then uses the leg's rod-id.</li>
  *   <li>{@code msgType} -- the message type (the {@code EsqMsgConstants.MSG_TYPE_*} value: URQ / URS / URR /
  *       UE / UA). Header info that rides the wire ({@code MsgType}); a responder reads it to tell URS from URR
  *       without inspecting the body. Set by the producer; populated from the wire on receive.</li>
@@ -62,12 +62,12 @@ public record RodEvent(
         this(op, kind, entityId, subId, actionTime, correlationId, requestId, uid, null, null, body);
     }
 
-    // CREATE / UPDATE / DELETE are the audit ops; UPDATE_PATH ("X", a move / re-path) rides only the
-    // entity-broadcast bus -- audit coalesces a move into a plain UPDATE, so it never emits UPDATE_PATH.
+    // CREATE / UPDATE / DELETE are the change operations; UPDATE_PATH ("X", a move / re-path) rides only the
+    // entity-broadcast bus -- a one-way sink may coalesce a move into a plain UPDATE and never emit UPDATE_PATH.
     public enum Op { CREATE, UPDATE, DELETE, UPDATE_PATH }
 
     /** The wire event-type code for this op (the {@code EsqMsgConstants.EVENT_*} value). The canonical
-     *  op&lt;-&gt;code mapping lives here on the event so every bus (audit, broadcast) shares it. */
+     *  op&lt;-&gt;code mapping lives here on the event so every bus shares it. */
     public String opCode() {
         String ret;
         switch (op) {

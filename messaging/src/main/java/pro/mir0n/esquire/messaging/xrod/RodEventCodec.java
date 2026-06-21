@@ -31,7 +31,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * Serializes a {@link RodEvent} to a JMS property map (the FIX-JSON envelope) and back. Identity / audit
+ * Serializes a {@link RodEvent} to a JMS property map (the FIX-JSON envelope) and back. Identity / originator
  * fields ride as header properties; the {@code body} map rides as the {@code Text} JSON field. Envelope
  * meta that is per-send (ApplMsgID, SendingTime) is added by the publisher, not here, so this codec is a
  * pure, round-trippable mapping.

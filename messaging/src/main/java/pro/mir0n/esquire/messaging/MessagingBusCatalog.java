@@ -16,12 +16,14 @@
  *                   (was esquire.<app>-messaging-bus), beside the service's other config; nothing else changed
  * 06/21/2026 mir0n  consumeLeg() builds ConsumeSettings without the topic argument (topic dropped from the
  *                   transport settings)
+ * 06/21/2026 mir0n  validate() fails fast on a duplicate bus-id (catalog) / slot-id (within a bus) / node-id
+ *                   (within an x-rod's nodes), run PER SOURCE; the service overlay MERGES onto the shared
+ *                   catalog by id (a same-id bus/slot replaces, a new one is added); find() returns the FIRST
+ *                   match (the warn-and-take-last dropped).
  */
 package pro.mir0n.esquire.messaging;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.boot.context.properties.bind.Bindable;
 import org.springframework.boot.context.properties.bind.Binder;
 import org.springframework.core.env.Environment;
@@ -31,45 +33,137 @@ import pro.mir0n.esquire.messaging.transport.ITransportProvider;
 import pro.mir0n.esquire.messaging.transport.TransportProviders;
 
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Objects;
+import java.util.Set;
 
 /**
- * Resolves messaging-bus legs and builds their transport settings. The catalog is the UNION of the two places
- * a leg may be DEFINED: the shared cross-service {@code esquire.messaging-bus} (imported from the one topology
- * file) and a service's OWN overlay, declared in its application.yml under its OWN namespace
- * {@code <spring.application.name>.messaging-bus} (e.g. {@code enyman.messaging-bus} -- its in-process
- * audit-b leg, whose datasource is service-specific). Both are full legs and bind identically; the service
- * namespace keeps the key clear of the {@code esquire.<bus-key>.messaging-bus} refs. A service-level x-rod ref
- * override is layered on top at resolve time (see {@code XRodManager}).
+ * Resolves messaging-bus legs and builds their transport settings. The catalog is the shared cross-service
+ * {@code esquire.messaging-bus} (imported from the one topology file) MERGED with a service's OWN overlay,
+ * declared in its application.yml under its OWN namespace {@code <spring.application.name>.messaging-bus}
+ * (e.g. {@code enyman.messaging-bus} -- its own in-process leg, whose datasource is service-specific).
+ * The overlay REPLACES a shared bus/slot with the same id (and adds new ones); both are full legs and bind
+ * identically. The service namespace keeps the key clear of the {@code esquire.<bus-key>.messaging-bus} refs.
+ * A service-level x-rod ref override is layered on top at resolve time (see {@code XRodManager}).
  *
  * <p>A leg is named by {@code (bus-id, slot-id)}; its {@link XRodParams} is the BASE. For a feature that wires
- * its OWN consumer (e.g. xxRod's director, which already owns a worker pool), the catalog returns a
+ * its OWN consumer (one that already owns a worker pool), the catalog returns a
  * {@link ConsumeLeg} -- the resolved provider + destination + the ready settings -- which the feature feeds to
  * {@code RodTransportAdapter} to attach the RodEvent codec. (The regular producer/consumer path is {@code XRod}.)
  */
 public class MessagingBusCatalog {
 
     private static final int DEFAULT_CONCURRENCY = 1;
-    private static final Logger log = LoggerFactory.getLogger(MessagingBusCatalog.class);
 
     private final List<MessagingBus> buses;
 
     public MessagingBusCatalog(Environment environment) {
         Binder binder = Binder.get(environment);
-        // the catalog = the global topology (topology.yml -> esquire.messaging-bus) UNION this service's OWN
-        // overlay, declared under its OWN namespace <app>.messaging-bus (e.g. enyman.messaging-bus, beside the
-        // service's other config). Concatenated in code, NOT a single esquire.messaging-bus key across two
-        // property sources -- Spring binds lists by INDEX, so a higher-precedence source replaces the whole
-        // list instead of appending. Under the service namespace the key is clear of the esquire.<bus-key>
-        // .messaging-bus ref shape, so no hyphen workaround is needed.
+        // the catalog = the shared topology (topology.yml -> esquire.messaging-bus) with this service's OWN
+        // overlay (<app>.messaging-bus, e.g. enyman.messaging-bus) MERGED on top BY ID: a service bus REPLACES
+        // the shared bus with the same bus-id (a service slot replaces the shared slot with the same slot-id; a
+        // new bus/slot is added). Bound as two lists, NOT a single esquire.messaging-bus key across two property
+        // sources -- Spring binds lists by INDEX, so a higher-precedence source would replace the WHOLE list
+        // instead of merging. Each source is validated for internal uniqueness; the cross-source same-id is the
+        // intended replace, not a duplicate.
         List<MessagingBus> all = new ArrayList<>(
                 binder.bind("esquire.messaging-bus", Bindable.listOf(MessagingBus.class)).orElseGet(List::of));
+        validate(all);   // the shared catalog is internally consistent (unique bus / slot / node ids)
         String app = environment.getProperty("spring.application.name");
         if (app != null && !app.isBlank()) {
-            all.addAll(binder.bind(app + ".messaging-bus",
-                    Bindable.listOf(MessagingBus.class)).orElseGet(List::of));
+            List<MessagingBus> overlay = binder.bind(app + ".messaging-bus",
+                    Bindable.listOf(MessagingBus.class)).orElseGet(List::of);
+            validate(overlay);            // the overlay is internally consistent too
+            mergeOverlay(all, overlay);   // overlay REPLACES the shared catalog by bus-id / slot-id
         }
         this.buses = all;
+    }
+
+    /**
+     * Fail-fast functional validation of ONE bus list (the shared catalog OR a service overlay, each validated
+     * on its own before the merge). The list is a yaml LIST used AS A MAP, so the keys that index it must be
+     * unique: a {@code bus-id} across the list, a {@code slot-id} within one bus, and a {@code node-id} within
+     * one x-rod's {@code transport.nodes}. Throws on the first duplicate. (A bus/slot a service references but
+     * the catalog does not define is NOT a failure -- the frontend disables that leg.)
+     */
+    private static void validate(List<MessagingBus> buses) {
+        Set<String> busIds = new LinkedHashSet<>();
+        for (MessagingBus bus : buses) {
+            if (!busIds.add(bus.busId())) {
+                throw new IllegalStateException("messaging-bus catalog: duplicate bus-id=" + bus.busId()
+                        + " -- a bus-id must be unique across the catalog");
+            }
+            Set<String> slotIds = new LinkedHashSet<>();
+            if (bus.slots() != null) {
+                for (BusSlot slot : bus.slots()) {
+                    if (!slotIds.add(slot.slotId())) {
+                        throw new IllegalStateException("messaging-bus bus-id=" + bus.busId()
+                                + ": duplicate slot-id=" + slot.slotId() + " -- a slot-id must be unique within a bus");
+                    }
+                    Set<String> nodeIds = new LinkedHashSet<>();
+                    for (BusNode node : XRodParams.from(slot.xRod()).nodes()) {
+                        if (node.nodeId() != null && !nodeIds.add(node.nodeId())) {
+                            throw new IllegalStateException("messaging-bus bus-id=" + bus.busId() + " slot-id="
+                                    + slot.slotId() + ": duplicate node-id=" + node.nodeId()
+                                    + " -- a node-id must be unique within an x-rod's nodes");
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /** Merge the service overlay onto the shared catalog IN PLACE: a service bus REPLACES the shared bus with
+     *  the same bus-id (its slots merged in -- a service slot replaces the shared slot with the same slot-id, a
+     *  NEW slot-id is added); a service bus with a NEW bus-id is appended. The service wins on every id clash. */
+    private static void mergeOverlay(List<MessagingBus> shared, List<MessagingBus> overlay) {
+        for (MessagingBus svcBus : overlay) {
+            int i = indexOfBus(shared, svcBus.busId());
+            if (i < 0) {
+                shared.add(svcBus);
+            } else {
+                shared.set(i, mergeSlots(shared.get(i), svcBus));
+            }
+        }
+    }
+
+    /** {@code shared} with {@code overlay}'s slots merged in: a same slot-id REPLACES, a new slot-id is added. */
+    private static MessagingBus mergeSlots(MessagingBus shared, MessagingBus overlay) {
+        List<BusSlot> slots = new ArrayList<>(shared.slots() != null ? shared.slots() : List.of());
+        if (overlay.slots() != null) {
+            for (BusSlot svcSlot : overlay.slots()) {
+                int i = indexOfSlot(slots, svcSlot.slotId());
+                if (i < 0) {
+                    slots.add(svcSlot);
+                } else {
+                    slots.set(i, svcSlot);
+                }
+            }
+        }
+        return new MessagingBus(shared.busId(), slots);
+    }
+
+    private static int indexOfBus(List<MessagingBus> buses, String busId) {
+        int ret = -1;
+        for (int i = 0; i < buses.size(); i++) {
+            if (Objects.equals(buses.get(i).busId(), busId)) {
+                ret = i;
+                break;
+            }
+        }
+        return ret;
+    }
+
+    private static int indexOfSlot(List<BusSlot> slots, String slotId) {
+        int ret = -1;
+        for (int i = 0; i < slots.size(); i++) {
+            if (Objects.equals(slots.get(i).slotId(), slotId)) {
+                ret = i;
+                break;
+            }
+        }
+        return ret;
     }
 
     /** The BASE x-Rod params for a leg; throws if the catalog has no such {bus-id, slot-id}. */
@@ -86,23 +180,15 @@ public class MessagingBusCatalog {
      *  config may live at the service level only -- the frontend layers a service-level override on top). */
     public XRodParams find(String busId, String slotId) {
         XRodParams ret = null;
-        int matches = 0;
         for (MessagingBus bus : buses) {
             if (busId.equals(bus.busId()) && bus.slots() != null) {
-                for (BusSlot svc : bus.slots()) {
-                    if (slotId.equals(svc.slotId())) {
-                        ret = XRodParams.from(svc.xRod());
-                        matches++;
+                for (BusSlot slot : bus.slots()) {
+                    if (slotId.equals(slot.slotId())) {
+                        ret = XRodParams.from(slot.xRod());   // FIRST match wins; uniqueness is enforced at construction
+                        break;
                     }
                 }
             }
-        }
-        if (matches > 1) {
-            // a config mistake (each (bus-id, slot-id) should be unique across the shared topology + the
-            // service-local legs); take the last but surface it -- the leg the service runs is otherwise silent.
-            log.warn("messaging-bus catalog has {} legs for bus-id={} slot-id={} -- (bus-id, slot-id) should be "
-                    + "unique; using the last. Check the topology and the service-local legs for a duplicate.",
-                    matches, busId, slotId);
         }
         return ret;
     }
@@ -111,7 +197,7 @@ public class MessagingBusCatalog {
      * Resolve a leg and build its consume-side binding for the WHOLE node -- no message selector. A selector is
      * the x-rod's concern, not the catalog's: {@code XRodRR} computes the R&R selector (a CLIENT filters to its own
      * {@code RodID}, a SERVER to its {@code SlotID} -- many slots can share one node). A BROADCAST consumer that
-     * needs to filter would take a configurable selector (TODO). This catalog path (xxRod's audit director, which
+     * needs to filter would take a configurable selector (TODO). This catalog path (a feature that
      * hand-wires its own consumer rather than going through an x-rod) consumes the whole node.
      */
     public ConsumeLeg consumeLeg(String busId, String slotId, ObjectMapper om) {

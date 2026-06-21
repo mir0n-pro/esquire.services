@@ -15,16 +15,15 @@
 package pro.mir0n.esquire.messaging.xrod;
 
 /**
- * Applies a single {@link RodEvent} to the database (insert into the asset's {@code *_log} table).
+ * Applies a single {@link RodEvent} to a sink (the impl decides what the sink is).
  *
- * <p>Invoked concurrently by the xx-Rod worker pool for distinct events -- an impl must be
- * thread-safe (typically stateless, one JDBC insert per call). Exactly-once across redelivery /
- * concurrency is handled by the {@code (crl_id, entity_id, kind, sub_id)} {@code ON CONFLICT} /
- * {@code MERGE} on the {@code *_log} table: a duplicate insert is a no-op.
+ * <p>Invoked concurrently by the x-rod receive pool for distinct events -- an impl must be
+ * thread-safe. Any de-duplication / exactly-once guarantee across redelivery / concurrency is the
+ * impl's concern.
  */
 public interface IRodEventRepo {
 
-    /** Apply the event to its {@code *_log} table. CREATE/UPDATE write the body row; DELETE writes
-     *  the id + kind tombstone (body is empty). */
+    /** Apply the event to the sink. CREATE/UPDATE carry the body; DELETE carries the id + kind
+     *  (body is empty). */
     void apply(RodEvent event);
 }

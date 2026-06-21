@@ -8,7 +8,7 @@ image:
 springProfilesActive: "console,dev-postgres,cache-h2"
 
 # shared bus topology is delivered by the esquire-topology ConfigMap, mounted at /etc/esquire.
-topologyImport: file:/etc/esquire/topology.yml
+topologyImport: optional:file:/etc/esquire/topology.yml
 
 service:
   port: 3002
@@ -37,7 +37,7 @@ messaging:
 # entity-bus ref: biztree is the CONSUMER (drains the entity broadcast into its cache).
 entity:
   busId: esquire.entity
-  serviceId: entity
+  slotId: entity
   broadcastPoolSize: "4"
   broadcastConcurrency: "1"
 

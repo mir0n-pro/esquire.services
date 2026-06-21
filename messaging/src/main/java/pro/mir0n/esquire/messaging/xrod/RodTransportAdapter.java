@@ -33,7 +33,7 @@ public final class RodTransportAdapter {
     /**
      * Producer side: open the transport publisher once and return the closeable {@link RodEvent} dispatcher to
      * wire as an XRod transmit-leg outbound. Each event is encoded to the property-bag envelope (key = entityId
-     * so a partitioning transport keeps per-entity order); the msg-type rides the event ({@code e.msgType()}).
+     * so a partitioning transport keeps per-key order); the msg-type rides the event ({@code e.msgType()}).
      * The returned {@link RodPublisher}'s {@code close()} releases the transport publisher's broker connection.
      */
     public static RodPublisher publisher(ITransportProvider provider, String destination, PublishSettings s) {

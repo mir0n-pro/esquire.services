@@ -25,7 +25,7 @@ data:
   # --- entity-bus ref (CONSUMER: drains the entity broadcast) ---
   BIZTREE_MESSAGING_CONSUMER_ENABLED: {{ .Values.messaging.consumerEnabled | quote }}
   ENTITY_BUS_ID:                      {{ .Values.entity.busId | quote }}
-  ENTITY_SERVICE_ID:                  {{ .Values.entity.serviceId | quote }}
+  ENTITY_SLOT_ID:                  {{ .Values.entity.slotId | quote }}
   ENTITY_BROADCAST_POOL_SIZE:         {{ .Values.entity.broadcastPoolSize | quote }}
   ENTITY_BROADCAST_CONCURRENCY:       {{ .Values.entity.broadcastConcurrency | quote }}
   # --- Taijitu director + night-watch sweep (Java @Value relaxed binding) ---

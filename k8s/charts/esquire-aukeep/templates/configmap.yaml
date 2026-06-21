@@ -16,7 +16,7 @@ data:
   DB_DATAKEEP_USERNAME:      {{ .Values.db.username | quote }}
   # --- audit-bus ref (CONSUMER: drains the audit sink to the *_log tables) ---
   AUDIT_BUS_ID:      {{ .Values.audit.busId | quote }}
-  AUDIT_SERVICE_ID:  {{ .Values.audit.serviceId | quote }}
+  AUDIT_SLOT_ID:  {{ .Values.audit.slotId | quote }}
   DATAKEEP_DIRECTOR:         {{ .Values.audit.director | quote }}
   # --- logging ---
   LOG_LEVEL_ROOT:            {{ .Values.logging.levelRoot | quote }}

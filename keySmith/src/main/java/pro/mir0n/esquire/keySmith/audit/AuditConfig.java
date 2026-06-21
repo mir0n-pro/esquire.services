@@ -16,6 +16,8 @@
  *                   the BUS producer. Injects the service DataSource (used by the shared keep).
  * 06/21/2026 mir0n  binds the keep datasource from the leg's "datasource" sub-block (was "log-db"); the in-process
  *                   keep's SQL dialect comes from spring.datasource.url (shared) instead of spring.profiles.active.
+ * 06/21/2026 mir0n  resolves the audit leg via catalog.find() (was the strict resolve()), so an unknown audit
+ *                   bus-id disables the producer (XRodDisabled) instead of crashing at boot.
  */
 package pro.mir0n.esquire.keySmith.audit;
 
@@ -70,7 +72,7 @@ public class AuditConfig {
         String busId  = env.getProperty(prefix + "bus-id", "");
         String slotId = env.getProperty(prefix + "slot-id", "");
         XRodParams leg = (!busId.isBlank() && !slotId.isBlank())
-                ? new MessagingBusCatalog(env).resolve(busId, slotId) : null;
+                ? new MessagingBusCatalog(env).find(busId, slotId) : null;
         KeepDataSourceParams ds = leg != null ? leg.sub(DATASOURCE, KeepDataSourceParams.class) : null;
 
         IXRod sink;

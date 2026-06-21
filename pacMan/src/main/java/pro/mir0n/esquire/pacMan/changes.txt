@@ -1,5 +1,13 @@
 Esquire pacMan Microservice
 
+06/21/2026 mir0n  v1.2.9 -- audit leg disables (not crashes) on an unknown bus; topology import optional; SLOT_ID
+audit.AuditConfig
+  - resolves the audit leg via catalog.find() (was the strict resolve()), so an unknown audit bus-id disables
+    the producer (XRodDisabled) instead of crashing at boot
+application.yml
+  - spring.config.import -> optional:file:... (the topology import is now optional); the bus-ref slot-id env
+    vars (*_SERVICE_ID) renamed -> *_SLOT_ID
+
 06/21/2026 mir0n  v1.2.9 -- audit keep: datasource sub-block + URL-derived dialect
 audit.AuditConfig
   - binds the keep datasource from the leg's "datasource" sub-block (was "log-db"); the in-process keep's

@@ -34,7 +34,7 @@ public interface ITransportProvider {
     TransportPublisher openPublisher(String destination, PublishSettings settings);
 
     /**
-     * Starts consuming (xx-rod side) {@code destination}: the provider runs a listener that decodes each
+     * Starts consuming (x-rod side) {@code destination}: the provider runs a listener that decodes each
      * received message into a {@link TransportMessage} and dispatches it to {@code handler}. The returned
      * {@link AutoCloseable} stops the listener.
      */

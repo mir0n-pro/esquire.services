@@ -11,7 +11,7 @@ spring:
     problemdetails:
       enabled: true
   config:
-    import: "${TOPOLOGY_IMPORT:file:/etc/esquire/topology.yml}"
+    import: "${TOPOLOGY_IMPORT:optional:file:/etc/esquire/topology.yml}"
 enyman:
   move-queue:
     capacity: ${ENYMAN_MOVE_QUEUE_CAPACITY:16384}
@@ -41,11 +41,11 @@ esquire:
   audit-bus:
     messaging-bus:
       bus-id: ${AUDIT_BUS_ID:audit-b}
-      slot-id: ${AUDIT_SERVICE_ID:audit}
+      slot-id: ${AUDIT_SLOT_ID:audit}
   kc-bus:
     messaging-bus:
       bus-id: ${KC_BUS_ID:esquire.kc}
-      slot-id: ${KC_SERVICE_ID:kc}
+      slot-id: ${KC_SLOT_ID:kc}
       x-rod:
         pool-size: ${ENYMAN_KC_RESPONSE_POOL_SIZE:2}
         concurrency: ${ENYMAN_KC_RESPONSE_CONCURRENCY:1}
@@ -53,7 +53,7 @@ esquire:
   entity-bus:
     messaging-bus:
       bus-id: ${ENTITY_BUS_ID:esquire.entity}
-      slot-id: ${ENTITY_SERVICE_ID:entity}
+      slot-id: ${ENTITY_SLOT_ID:entity}
       x-rod:
         publisher-pool-size: ${ENTITY_BROADCAST_PUBLISHER_POOL_SIZE:0}
 logging:

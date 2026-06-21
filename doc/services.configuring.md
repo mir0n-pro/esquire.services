@@ -78,22 +78,28 @@ implementing `ITransportProvider`, resolved by name via `TransportProviders`. A 
 only the modules it uses; each ships an `AutoConfigurationImportFilter` that suppresses Boot's
 matching auto-config so a service stays transport-agnostic.
 
-The catalog is ONE shared external **topology file** loaded by every service. Docker bind-mounts
-`compose/topology/esquire-topology.yml`; k8s mounts the `esquire-topology` ConfigMap (chart
-`k8s/charts/esquire-topology`). The file is per-environment with concrete hostnames (no `${}`). The
-import is REQUIRED (fail-fast); surefire makes it optional for context tests.
+The catalog is normally ONE shared external **topology file** loaded by every service (a service may
+instead define `esquire.messaging-bus` INLINE in its own application.yml, or not use the bus at all).
+Docker bind-mounts `compose/topology/esquire-topology.yml`; k8s mounts the `esquire-topology` ConfigMap
+(chart `k8s/charts/esquire-topology`). The file is per-environment with concrete hostnames (no `${}`). The
+import is OPTIONAL. The catalog is validated at startup: a duplicate `bus-id` (across the catalog),
+`slot-id` (within a bus), or `node-id` (within an x-rod's `transport.nodes`) FAILS FAST -- the list is used
+as a map, so its keys must be unique.
 
 | Env var | Default | Description |
 |---|---|---|
-| `ESQUIRE_TOPOLOGY_IMPORT` | `file:/etc/esquire/topology.yml` | `spring.config.import` location of the shared bus catalog. Required at runtime (fail-fast); optional under surefire. |
+| `TOPOLOGY_IMPORT` | `file:/etc/esquire/topology.yml` | `spring.config.import` location of the shared bus catalog. Optional (a service may inline its catalog under `esquire.messaging-bus`, or not use the bus). |
 
 A service references a bus by a logical KEY: `esquire.<key>.messaging-bus -> {bus-id, slot-id [,
-x-rod overrides]}`. Keys: `kc-bus`, `entity-bus`, `audit-bus`. The catalog also UNIONS a
-service-local extension under `<spring.application.name>.messaging-bus` (the service's own-namespace
-overlay of the global `esquire.messaging-bus`, used for the audit-(b) in-process leg, whose log-db
-datasource is service-specific -- Spring lists don't merge across sources, so the 2nd key is needed). The `bus-id` / `slot-id` values are env-overridable per
-service (`KC_BUS_ID` / `KC_SERVICE_ID`, `ENTITY_BUS_ID` / `ENTITY_SERVICE_ID`,
-`ESQUIRE_AUDIT_BUS_ID` / `ESQUIRE_AUDIT_SERVICE_ID`).
+x-rod overrides]}`. Keys: `kc-bus`, `entity-bus`, `audit-bus`. The catalog also MERGES a service-local
+overlay under `<spring.application.name>.messaging-bus` BY ID (the service's own-namespace overlay of the
+global `esquire.messaging-bus`, used for the audit-(b) in-process leg, whose datasource is service-specific):
+a service bus/slot with a SAME id REPLACES the shared one, a NEW id is added. (A separate 2nd key is needed
+because Spring binds lists by index, so one shared key across two sources would replace, not merge.) The
+`bus-id` / `slot-id` values are env-overridable per service (`KC_BUS_ID` / `KC_SLOT_ID`,
+`ENTITY_BUS_ID` / `ENTITY_SLOT_ID`, `AUDIT_BUS_ID` / `AUDIT_SLOT_ID`). A `bus-id`/`slot-id` the catalog does
+NOT resolve (unset or mistyped) lands on `XRodDisabled` -- the leg is off -- and logs a CONSOLE INFO that the
+bus/slot is DISABLED; set `rod-class: XRodDisabled` explicitly to make it intentional and silence the INFO.
 
 **Selectors:** `XRodRR` CLIENT consume filters `RodID = '<rod-id>'`; SERVER consume filters
 `SlotID = '<slot-id>'`; BROADCAST has no selector. `rod-id` defaults to the per-instance id
@@ -104,12 +110,12 @@ from the host name) when unset or blank, so each sharded replica owns a distinct
 
 Producers buffer committed entity changes and, after commit, feed them off the request thread to the
 audit `slot` (`slot-id` = `audit`) -- posting a UA. **Which sink runs is one config value:**
-`ESQUIRE_AUDIT_BUS_ID` names the audit bus, and the topology leg for that bus carries the transport.
+`AUDIT_BUS_ID` names the audit bus, and the topology leg for that bus carries the transport.
 The sinks:
 
 | `audit-bus` bus-id | Sink | rod-class |
 |---|---|---|
-| `audit-b` | in-process apply to the `*_log` tables (a SERVICE-LEVEL leg whose log-db block carries the datasource; the keep applier writes `*_log` via the generic keep engine) | `XRodInProcess` |
+| `audit-b` | in-process apply to the `*_log` tables (a SERVICE-LEVEL leg whose datasource block carries the datasource; the keep applier writes `*_log` via the generic keep engine) | `XRodInProcess` |
 | `audit-c` | ActiveMQ -> the standalone **auKeep** consumer -> `*_log` | `XRod` |
 | `audit-ck` | Kafka -> auKeep -> `*_log` | `XRod` |
 | `audit-d` | Redis stream IS the log (producer-only; no consumer service) | `XRod` |
@@ -120,28 +126,29 @@ flip + the matching topology leg (and infra) -- no code change, no rebuild.
 
 | Env var | Default | Description |
 |---|---|---|
-| `ESQUIRE_AUDIT_BUS_ID` | `audit-b` code / `audit-c` deployed | Selects the audit bus (the sink) the producer posts to. |
-| `ESQUIRE_AUDIT_SERVICE_ID` | `audit` | The audit `slot-id`. |
-| `ESQUIRE_AUDIT_POOL_SIZE` | `4` | Audit x-rod feed apply-pool size; keep <= the log-db pool. |
-| `ESQUIRE_AUDIT_FEED_CAPACITY` | `4096` | Producer feed depth (bounded; full -> back-pressures flush-after-commit). |
-| `ESQUIRE_AUDIT_VIRTUAL_THREADS` | `false` | Feed-pool workers on virtual threads. |
+| `AUDIT_BUS_ID` | `audit-b` code / `audit-c` deployed | Selects the audit bus (the sink) the producer posts to. |
+| `AUDIT_SLOT_ID` | `audit` | The audit `slot-id`. |
+| `AUDIT_POOL_SIZE` | `4` | Audit x-rod feed apply-pool size; keep <= the keep datasource pool. |
+| `AUDIT_FEED_CAPACITY` | `4096` | Producer feed depth (bounded; full -> back-pressures flush-after-commit). |
+| `AUDIT_VIRTUAL_THREADS` | `false` | Feed-pool workers on virtual threads. |
 
-**audit-(b) log-db datasource** (only when the `audit-b` in-process leg is active -- it writes `*_log`
+**audit-(b) keep datasource** (only when the `audit-b` in-process leg is active -- it writes `*_log`
 locally, so its datasource is service-specific and configured on the service-local topology key):
 
 | Env var | Default | Description |
 |---|---|---|
-| `ESQUIRE_AUDIT_LOG_DB_SHARED` | `false` | `true` -> the keep REUSES the service's own datasource pool (shared); the dialect comes from the service profile and the `url`/`vendor`/`hikari` below are ignored. `false` -> a DEDICATED keep pool from `url`/`hikari`. |
-| `ESQUIRE_AUDIT_LOG_DB_VENDOR` | `dev-postgres` | Log-DB SQL dialect (may differ from the business DB). Dedicated only. |
-| `ESQUIRE_AUDIT_LOG_DB_URL` | *(empty)* | Log-DB JDBC URL. Dedicated only. |
-| `ESQUIRE_AUDIT_LOG_DB_USERNAME` | `esq2025` | Log-DB user. Dedicated only. |
-| `ESQUIRE_AUDIT_LOG_DB_PASSWORD` | `q` | Log-DB password. Dedicated only. |
-| `ESQUIRE_AUDIT_LOG_DB_POOL_SIZE` | `2` | Dedicated keep Hikari pool size (maps to `log-db.hikari.maximum-pool-size`). |
+| `DB_DATAKEEP_SHARED` | `false` | `true` -> the keep REUSES the service's own datasource pool (shared); the dialect comes from the service's own `spring.datasource.url` and the `url`/`hikari` below are ignored. `false` -> a DEDICATED keep pool from `url`/`hikari`. |
+| `DB_DATAKEEP_URL` | *(empty)* | Keep JDBC URL. Dedicated only. The SQL dialect is read from this URL's subprotocol (`jdbc:postgresql...` -> Postgres, `jdbc:oracle...` -> Oracle). |
+| `DB_DATAKEEP_USERNAME` | `esq2025` | Keep DB user. Dedicated only. |
+| `DB_DATAKEEP_PASSWORD` | `q` | Keep DB password. Dedicated only. |
+| `DB_DATAKEEP_POOL_SIZE` | `2` | Dedicated keep Hikari pool size (maps to `datasource.hikari.maximum-pool-size`). |
 
-These drive the producer in-process `x-rod.log-db` block. SHARED keeps the audit writes on the service's
+These drive the producer in-process `x-rod.datasource` block. SHARED keeps the audit writes on the service's
 own connection pool (fewer connections, but they compete with business queries); DEDICATED isolates them in
-the keep's own pool (can even target a different database/dialect than the service). The auKeep CONSUMER instead reads its keep
-datasource from a separate `esquire.keep.datasource` group (same record shape: vendor / url / username /
+the keep's own pool (can even target a different database than the service). Either way the keep reads its SQL
+dialect from the database URL -- `jdbc:postgresql...` means Postgres, `jdbc:oracle...` means Oracle -- so the keep
+can run a different dialect than the service. The auKeep CONSUMER instead reads its keep
+datasource from a separate `esquire.keep.datasource` group (same record shape: url / username /
 password / hikari; on docker it points at `DB_DATAKEEP_*`), and excludes Boot's
 `DataSourceAutoConfiguration` (no `spring.datasource`).
 
@@ -240,10 +247,10 @@ topology; the env overrides it actually uses:
 | Env var | Default | Description |
 |---|---|---|
 | `ENTITY_BUS_ID` | `esquire.entity` | Entity-broadcast bus-id (BROADCAST producer). |
-| `ENTITY_SERVICE_ID` | `entity` | Entity slot-id. |
+| `ENTITY_SLOT_ID` | `entity` | Entity slot-id. |
 | `KC_BUS_ID` | `esquire.kc` | KC request/response bus-id (R&R CLIENT). |
-| `KC_SERVICE_ID` | `kc` | KC slot-id. |
-| `ESQUIRE_AUDIT_BUS_ID` | *(see [audit logging](#audit-logging-producers-enyman-pacman-keysmith))* | Audit sink bus-id (UA producer). |
+| `KC_SLOT_ID` | `kc` | KC slot-id. |
+| `AUDIT_BUS_ID` | *(see [audit logging](#audit-logging-producers-enyman-pacman-keysmith))* | Audit sink bus-id (UA producer). |
 | `ENYMAN_MOVE_QUEUE_CAPACITY` | `16384` | Move-queue depth (bounded; on full, `submitMove`/`submitReconcile` drop + log). |
 | `ENYMAN_VALIDATE_CREATE_DURING_MOVE` | `true` | v1.2.6 Goal 3: `true` runs CREATE-during-move path reconciliation (race-8b closed); `false` reproduces the race (negative test). |
 
@@ -261,8 +268,8 @@ pacMan joins **entity-bus** (BROADCAST producer of UE) and **audit-bus** (UA pro
 | Env var | Default | Description |
 |---|---|---|
 | `ENTITY_BUS_ID` | `esquire.entity` | Entity-broadcast bus-id (BROADCAST producer). |
-| `ENTITY_SERVICE_ID` | `entity` | Entity slot-id. |
-| `ESQUIRE_AUDIT_BUS_ID` | *(see [audit logging](#audit-logging-producers-enyman-pacman-keysmith))* | Audit sink bus-id (UA producer). |
+| `ENTITY_SLOT_ID` | `entity` | Entity slot-id. |
+| `AUDIT_BUS_ID` | *(see [audit logging](#audit-logging-producers-enyman-pacman-keysmith))* | Audit sink bus-id (UA producer). |
 
 ---
 
@@ -279,8 +286,8 @@ producer).
 | Env var | Default | Description |
 |---|---|---|
 | `KC_BUS_ID` | `esquire.kc` | KC request/response bus-id (R&R CLIENT). |
-| `KC_SERVICE_ID` | `kc` | KC slot-id. |
-| `ESQUIRE_AUDIT_BUS_ID` | *(see [audit logging](#audit-logging-producers-enyman-pacman-keysmith))* | Audit sink bus-id (UA producer). |
+| `KC_SLOT_ID` | `kc` | KC slot-id. |
+| `AUDIT_BUS_ID` | *(see [audit logging](#audit-logging-producers-enyman-pacman-keysmith))* | Audit sink bus-id (UA producer). |
 | `KEYSMITH_TEST_CONNECT_HOLD_MS` | `0` | **Test-only** race-8c hook: ms to sleep between the committed path read and the activation URQ publish. `0` = disabled; never set in production. |
 
 ---
@@ -299,9 +306,9 @@ talks to KC over the admin REST API.
 | `KC_ADMIN_CLIENT_ID` | `admin-cli` | Admin client id. Deployments use the confidential service-account client `esq-kcMaster`. |
 | `KC_ADMIN_CLIENT_SECRET` | *(empty)* | Secret for a confidential admin client. |
 | `KC_BUS_ID` | `esquire.kc` | KC request/response bus-id (R&R SERVER; serves enyMan + keySmith). |
-| `KC_SERVICE_ID` | `kc` | KC slot-id (SERVER consume filters `SlotID = '<slot-id>'`). |
+| `KC_SLOT_ID` | `kc` | KC slot-id (SERVER consume filters `SlotID = '<slot-id>'`). |
 | `ENTITY_BUS_ID` | `esquire.entity` | Entity-broadcast bus-id (BROADCAST consumer, for KC path sync). |
-| `ENTITY_SERVICE_ID` | `entity` | Entity slot-id. |
+| `ENTITY_SLOT_ID` | `entity` | Entity slot-id. |
 | `KCMASTER_PATH_BUFFER_TTL_MS` | `60000` code / `10000` deployed | Race-8c path-buffer TTL. Buffered topic-side paths older than this are not applied. **Test:** `-1` disables recovery (reproduces the race). |
 | `KCMASTER_PATH_BUFFER_PRUNE_MS` | `30000` | Interval of the scheduled buffer prune. |
 
@@ -321,7 +328,7 @@ DB read at cache load), messaging bus, logging.
 |---|---|---|
 | `BIZTREE_CACHE_VENDOR` | `cache-h2` | Cache backend profile (H2 in-memory). |
 | `ENTITY_BUS_ID` | `esquire.entity` | Entity-broadcast bus-id (BROADCAST consumer; updates the cache). |
-| `ENTITY_SERVICE_ID` | `entity` | Entity slot-id. |
+| `ENTITY_SLOT_ID` | `entity` | Entity slot-id. |
 | `BIZTREE_DIRECTOR` | `legacy` code / `taijitu` deployed | Cache director: `legacy` (single cache) or `taijitu` (two-monad night-watch). |
 | `BIZTREE_CACHE_TABLE` | `ESQ_TREE` | Base cache table name; taijitu suffixes it per monad (`ESQ_TREE_MONAD` / `ESQ_TREE_DANOM`). |
 | `BIZTREE_MONAD_QUEUE_CAPACITY` | `4096` | Per-monad event queue depth (back-pressure boundary). |
@@ -346,7 +353,7 @@ DB read at cache load), messaging bus, logging.
 ## auKeep
 
 Standalone **audit-bus consumer** (image `esquire.aukeep`): it drains whichever bus the `audit-bus`
-ref names (`ESQUIRE_AUDIT_BUS_ID`, default `audit-c`) and applies each decoded event to its keep
+ref names (`AUDIT_BUS_ID`, default `audit-c`) and applies each decoded event to its keep
 datasource (`esquire.keep.datasource`) via the **generic keep engine** (`KeepApplier` /
 `RodEventDbWriter` / `KeepSqlStore`, in the `esquire-dataKeep` library). The audit keep director
 (`AuditKeepDirector`, an `IKeepDirector`) only DECLARES the kinds + the SQL group `audit`; the engine
@@ -363,8 +370,8 @@ block -- auKeep is the consumer side.)
 
 | Env var | Default | Description |
 |---|---|---|
-| `ESQUIRE_AUDIT_BUS_ID` | `audit-c` | The `audit-bus` ref -- which bus auKeep drains; the topology leg supplies the transport. |
-| `ESQUIRE_AUDIT_SERVICE_ID` | `audit` | The audit `slot-id`. |
+| `AUDIT_BUS_ID` | `audit-c` | The `audit-bus` ref -- which bus auKeep drains; the topology leg supplies the transport. |
+| `AUDIT_SLOT_ID` | `audit` | The audit `slot-id`. |
 
 The keep director is wired in code, not selected by config: one `IKeepDirector` = `AuditKeepDirector`,
 which declares its kinds + SQL group `audit`. A future replication / doc-DB keep is a different
