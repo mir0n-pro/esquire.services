@@ -25,6 +25,8 @@ the destination. It is the proof of concept for the real idea.
 
 ---
 > 
+> **v1.2.9 — in progress.** A **hardening** sprint — working through the smaller issues collected but set aside during the Messaging Bus build, and across Esquire as a whole, to tighten and stabilize what that big refactoring put in place.
+> 
 > **v1.2.8 — complete.** A **major refactoring** sprint built around the **Messaging Bus**: a vendor-agnostic bus — entity broadcast and identity request/response across the whole services set — extracted into a reusable subframework (`esquire-messaging` plus the pluggable transport-provider drivers `tp-activemq` / `tp-kafka` / `tp-redis`). The shared **`esquire-audit`** and **`esquire-data-keep`** libraries were split out of `common`; the audit-writer service `xx-rod` was renamed to the clearer **`auKeep`**; and a small **system-entity flag** project (protects core entities from deletion) rode along with the release. See [Release History](#release-history).
 >
 
