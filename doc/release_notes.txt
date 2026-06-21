@@ -1,6 +1,17 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v1.2.9-2606.2111  v1.2.9 -- hardening: the audit/broadcast message decoder shrugs off a bad field, refuses an unknown format
+    :Fix:         one malformed field in an incoming bus message no longer discards the whole message -- the bad
+                  field falls back to a default and the message is still processed
+    :Fix:         a message stamped with a different (newer) wire-format version is refused outright instead of
+                  being silently mis-read
+    Components:   messaging
+
+v1.2.9-2606.2110  v1.2.9 -- schema dictionary synced to the db.seed schema changes
+    :Doc:         doc\DatabaseDictionary.md -- entity created-timestamp columns (ORG/USR/ACC_CREATED_TS) and
+                  the optional, apply-on-demand *_log *_ACTION_TS indexes added; mirrors the v1.2.9 db.seed change
+
 v1.2.9-2606.2108  v1.2.9 -- hardening: activemq "pubSubDomain" instead of "topic"
     :Refactoring: "topic" moved under vendor params as "pubSubDomain"  (ActiveMQ specific)
     :Config:      use ActiveMQ pubSubDomain instead of topic

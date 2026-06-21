@@ -1,5 +1,12 @@
 Esquire messaging framework classes
 
+06/21/2026 mir0n  v1.2.9 -- RodEventCodec decode hardening
+RodEventCodec
+  - fromProps: requireSchemaVersion() gate -- a SchemaVersion present but != the codec's SCHEMA_VERSION is
+    rejected (logged + IllegalStateException); an absent version is tolerated
+  - intOf / longOf take (Map, key) and guard the parse: a non-numeric value logs a warn and falls back to 0
+    instead of throwing NumberFormatException (which dropped the whole event); added a develop-tier logger
+
 06/21/2026 mir0n  v1.2.9 -- queue-vs-topic removed from the bus (now the ActiveMQ pubSubDomain vendor param)
 TransportSettings
   - the topic field + topic() getter removed; the constructor drops the topic parameter

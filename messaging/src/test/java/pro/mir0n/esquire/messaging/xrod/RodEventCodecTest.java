@@ -23,6 +23,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class RodEventCodecTest {
 
@@ -85,6 +86,37 @@ class RodEventCodecTest {
         assertThat(out.kind()).isEqualTo(34);
         assertThat(out.actionTime()).isEqualTo(42L);
         assertThat(out.body()).containsEntry("name", "X");
+    }
+
+    @Test
+    void aBadNumericFieldFallsBackInsteadOfDroppingTheWholeEvent() {
+        // a malformed kind / actionTime must NOT abort the decode -- the event survives with the field defaulted
+        Map<String, Object> p = new LinkedHashMap<>();
+        p.put(EsqMsgConstants.FIELD_EVENT_TYPE, EsqMsgConstants.EVENT_CREATE);
+        p.put(EsqMsgConstants.FIELD_ENTITY_KIND, "not-a-number");
+        p.put(EsqMsgConstants.FIELD_ENTITY_ID, "300");
+        p.put(EsqMsgConstants.FIELD_ACTION_TIME, "bad");
+        p.put(EsqMsgConstants.FIELD_TEXT, "{\"name\":\"X\"}");
+
+        RodEvent out = RodEventCodec.fromProps(p, om);
+
+        assertThat(out.kind()).isZero();                 // bad field -> default, not a thrown decode
+        assertThat(out.actionTime()).isZero();
+        assertThat(out.entityId()).isEqualTo("300");     // the rest of the event survives
+        assertThat(out.body()).containsEntry("name", "X");
+    }
+
+    @Test
+    void aMismatchedSchemaVersionIsRejected() {
+        // a version that is present but differs from this codec's is rejected (an unknown schema is untrustworthy)
+        Map<String, Object> p = new LinkedHashMap<>();
+        p.put(EsqMsgConstants.FIELD_SCHEMA_VERSION, EsqMsgConstants.SCHEMA_VERSION + 1);
+        p.put(EsqMsgConstants.FIELD_EVENT_TYPE, EsqMsgConstants.EVENT_CREATE);
+        p.put(EsqMsgConstants.FIELD_ENTITY_ID, "300");
+
+        assertThatThrownBy(() -> RodEventCodec.fromProps(p, om))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("schema version");
     }
 
     @Test

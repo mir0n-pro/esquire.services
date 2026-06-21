@@ -174,6 +174,7 @@ Foreign keys:
 | ORG_ORG_PK | BIGINT | NUMBER(16,0) | Parent organization -> ESQ_ORG (nullable) |
 | ORG_DESC | VARCHAR(1024) | VARCHAR2(1024) | Description |
 | ORG_SYSTEM_FLG | VARCHAR(1) | VARCHAR2(1) | System entity, protected from deletion, Y/N (DB-set only; never via the app, not on the GUI) |
+| ORG_CREATED_TS | TIMESTAMP | TIMESTAMP | Entity created timestamp (UTC; set by the DB default when the row is created) |
 | ORG_CRL_ID | VARCHAR(64) | VARCHAR2(64) | Correlation ID |
 | ORG_REQ_ID | VARCHAR(64) | VARCHAR2(64) | Request ID |
 | ORG_UID | VARCHAR(16) | VARCHAR2(16) | Update initiator user ID |
@@ -201,6 +202,7 @@ Child tables with ON DELETE CASCADE: ESQ_AUTH, ESQ_PERSON, ESQ_USR_PAR, ESQ_USR_
 | USR_DELETED_FLG | VARCHAR(1) | VARCHAR2(1) | Soft-delete flag, Y/N |
 | USR_DESC | VARCHAR(1024) | VARCHAR2(1024) | Description |
 | USR_SYSTEM_FLG | VARCHAR(1) | VARCHAR2(1) | System entity, protected from deletion, Y/N (DB-set only; never via the app, not on the GUI) |
+| USR_CREATED_TS | TIMESTAMP | TIMESTAMP | Entity created timestamp (UTC; set by the DB default when the row is created) |
 | USR_CRL_ID | VARCHAR(64) | VARCHAR2(64) | Correlation ID |
 | USR_REQ_ID | VARCHAR(64) | VARCHAR2(64) | Request ID |
 | USR_UID | VARCHAR(16) | VARCHAR2(16) | Update initiator user ID |
@@ -229,6 +231,7 @@ Child tables: ESQ_ACCT_TRANSACTION (no cascade — transactions are never delete
 | ACC_STATUS | VARCHAR(1) | VARCHAR2(1) | Status: O=Open, C=Closed, L=Locked |
 | ACC_USR_PK | BIGINT | NUMBER(16,0) | Owner -> ESQ_USER |
 | ACC_DESC | VARCHAR(1024) | VARCHAR2(1024) | Description |
+| ACC_CREATED_TS | TIMESTAMP | TIMESTAMP | Entity created timestamp (UTC; set by the DB default when the row is created) |
 | ACC_FUNDED_DT | DATE | DATE | Date account was first funded |
 | ACCT_NEG_ALLOWED_FLG | VARCHAR(1) | VARCHAR2(1) | Negative balance allowed, Y/N |
 | ACC_CRL_ID | VARCHAR(64) | VARCHAR2(64) | Correlation ID |
@@ -629,6 +632,13 @@ plus two additional columns:
 | `*_ACTION_TS` | TIMESTAMP | TIMESTAMP DEFAULT SYS_EXTRACT_UTC(SYSTIMESTAMP) | Timestamp of the triggering statement |
 
 Log tables have no primary key constraint and no foreign keys.
+
+**Recommended indexes (optional, apply-on-demand).** The base seed leaves the `*_LOG` tables un-indexed.
+For audit time-range queries (filter or sort by action time) at scale, an index on each table's
+`*_ACTION_TS` is recommended — shipped as the optional overlay `db.seed/<vendor>/create.log/recommended.pfi`
+(one btree per log table: `ADL_/BIL_/PEL_/USRL_/AUL_/ORGL_/ACCL_/UPRL_/OPRL_ACTION_TS`, each named
+`<prefix>_ACTION_TS_I`). It is NOT run by the seed — apply it by hand where wanted. (The separate dedup
+unique indexes, for bus-audit idempotency, are their own optional overlay under `db.seed/<vendor>/dedup/`.)
 
 ---
 
