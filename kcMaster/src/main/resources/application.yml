@@ -5,7 +5,7 @@ spring:
     problemdetails:
       enabled: true
   config:
-    import: "${ESQUIRE_TOPOLOGY_IMPORT:file:/etc/esquire/topology.yml}"
+    import: "${TOPOLOGY_IMPORT:file:/etc/esquire/topology.yml}"
 keycloak:
   admin:
     base-url: ${KC_BASE_URL:http://localhost:8080}

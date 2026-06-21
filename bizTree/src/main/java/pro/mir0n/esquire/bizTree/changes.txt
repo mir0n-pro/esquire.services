@@ -1,6 +1,10 @@
 Esquire BizTree Microservice
 
 
+06/21/2026 mir0n  v1.2.9 -- topology import env var renamed
+application.yml
+  - ESQUIRE_TOPOLOGY_IMPORT -> TOPOLOGY_IMPORT
+
 06/15/2026 mir0n  v1.2.8 -- entity-broadcast bus folded onto the x-Rod catalog
 messaging.BizTreeBroadcastConsumer  (new)
   - @Component (conditional on biztree.entity-broadcast-bus.consumer.enabled) opening the entity-broadcast

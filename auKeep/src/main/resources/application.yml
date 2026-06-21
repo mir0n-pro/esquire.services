@@ -7,7 +7,7 @@ spring:
     problemdetails:
       enabled: true
   config:
-    import: "${ESQUIRE_TOPOLOGY_IMPORT:file:/etc/esquire/topology.yml}"
+    import: "${TOPOLOGY_IMPORT:file:/etc/esquire/topology.yml}"
 # Bus TOPOLOGY (which buses exist + their transport) is the shared esquire-topology.yml imported above.
 # auKeep is the audit bus CONSUMER -- it drains the chosen bus audit sink (audit-c = AMQ / audit-ck = Kafka)
 # and applies it to the keep datasource (esquire.keep.datasource = the *_log tables) below. The in-process
@@ -15,8 +15,8 @@ spring:
 esquire:
   audit-bus:
     messaging-bus:
-      bus-id: ${ESQUIRE_AUDIT_BUS_ID:audit-c}
-      slot-id: ${ESQUIRE_AUDIT_SERVICE_ID:audit}
+      bus-id: ${AUDIT_BUS_ID:audit-c}
+      slot-id: ${AUDIT_SERVICE_ID:audit}
 
 logging:
   level:
@@ -44,7 +44,6 @@ spring:
 esquire:
   keep:
     datasource:
-      vendor: dev-postgres
       url: jdbc:postgresql://${DB_DATAKEEP_HOST:localhost}:${DB_DATAKEEP_PORT:5432}/${DB_DATAKEEP_NAME:esq2025}
       username: ${DB_DATAKEEP_USERNAME:esq2025}
       password: ${DB_DATAKEEP_PASSWORD:q}
@@ -65,7 +64,6 @@ spring:
 esquire:
   keep:
     datasource:
-      vendor: dev-oracle
       url: jdbc:oracle:thin:@//${DB_DATAKEEP_HOST:localhost}:${DB_DATAKEEP_PORT:1521}/${DB_DATAKEEP_NAME:MIR0N}
       username: ${DB_DATAKEEP_USERNAME:esq2025}
       password: ${DB_DATAKEEP_PASSWORD:q}

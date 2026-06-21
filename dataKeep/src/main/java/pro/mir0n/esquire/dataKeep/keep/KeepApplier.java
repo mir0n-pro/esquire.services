@@ -11,6 +11,8 @@
  *                   an x-rod runs). Two pool modes: DEDICATED -- builds and OWNS its own auto-commit Hikari pool
  *                   from the datasource group; SHARED -- reuses a provided DataSource (the service's own pool) and
  *                   does NOT own it. AutoCloseable -- close() closes only a pool it owns; the kinds + SQL are data.
+ * 06/21/2026 mir0n  dedicated-mode dialect now KeepSqlStore.dialectOf(ds.url()) -- derived from the datasource
+ *                   URL subprotocol instead of the vendor/profile label.
  */
 package pro.mir0n.esquire.dataKeep.keep;
 
@@ -36,13 +38,13 @@ public final class KeepApplier implements AutoCloseable {
     private final Consumer<RodEvent> applier;
 
     /** DEDICATED pool: the keep builds and OWNS its own auto-commit Hikari pool from the datasource group;
-     *  the dialect is derived from the group's vendor/profile label. */
+     *  the dialect is derived from the group's JDBC URL (its subprotocol). */
     public KeepApplier(KeepDataSourceParams ds, KeepSqlStore sql, Map<Integer, String> kindToSqlKey, Logger devLog) {
-        this(buildPool(ds), KeepSqlStore.dialectOf(ds.vendorOr(KeepSqlStore.DEFAULT_DIALECT)), true, sql, kindToSqlKey, devLog);
+        this(buildPool(ds), KeepSqlStore.dialectOf(ds.url()), true, sql, kindToSqlKey, devLog);
     }
 
     /** SHARED pool: the keep REUSES a provided DataSource (e.g. the service's own business pool) and does NOT
-     *  own it -- {@link #close()} leaves it open. The dialect is supplied by the caller (the service profile). */
+     *  own it -- {@link #close()} leaves it open. The dialect is supplied by the caller (from the service's URL). */
     public KeepApplier(DataSource shared, String dialect, KeepSqlStore sql, Map<Integer, String> kindToSqlKey, Logger devLog) {
         this(shared, dialect, false, sql, kindToSqlKey, devLog);
     }

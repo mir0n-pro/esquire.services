@@ -1,5 +1,13 @@
 Esquire dataKeep library
 
+06/21/2026 mir0n  v1.2.9 -- keep dialect derived from the database URL; the datasource vendor setting removed
+keep.KeepDataSourceParams
+  - removed the vendor field (the record is now url/username/password/hikari/shared) and vendorOr(); when the
+    keep is shared the dialect comes from the service's spring.datasource.url
+keep.KeepApplier
+  - dedicated-mode dialect is KeepSqlStore.dialectOf(ds.url()) -- read from the datasource URL subprotocol
+    instead of the vendor/profile label
+
 06/18/2026 mir0n  v1.2.8 -- created: esquire-dataKeep, the generic DB-keep engine (extracted from the audit code)
 keep.KeepApplier  (new)
   - builds a keep's DB applier: a RodEventDbWriter over the KeepSqlStore + a kind->statement registry from the

@@ -11,38 +11,37 @@ spring:
     problemdetails:
       enabled: true
   config:
-    import: "${ESQUIRE_TOPOLOGY_IMPORT:file:/etc/esquire/topology.yml}"
+    import: "${TOPOLOGY_IMPORT:file:/etc/esquire/topology.yml}"
 enyman:
   move-queue:
     capacity: ${ENYMAN_MOVE_QUEUE_CAPACITY:16384}
     validate-create-during-move: ${ENYMAN_VALIDATE_CREATE_DURING_MOVE:true}
   # this service's OWN overlay of the global esquire.messaging-bus catalog (added by MessagingBusCatalog):
-  # its in-process audit-b leg, whose log-db is service-specific. Under the service namespace, beside move-queue.
+  # its in-process audit-b leg, whose datasource is service-specific. Under the service namespace, beside move-queue.
   messaging-bus:
     - bus-id: audit-b
       slots:
         - slot-id: audit
           x-rod:
             rod-class: pro.mir0n.esquire.dataKeep.keep.XRodInProcess
-            pool-size: ${ESQUIRE_AUDIT_POOL_SIZE:4}
-            feed-capacity: ${ESQUIRE_AUDIT_FEED_CAPACITY:4096}
-            virtual-threads: ${ESQUIRE_AUDIT_VIRTUAL_THREADS:false}
-            log-db:
-              # shared=true -> the keep reuses the SERVICE's own datasource pool (url/vendor/hikari ignored,
-              # dialect from the service profile); false -> a dedicated keep pool from the url/hikari below.
-              shared: ${ESQUIRE_AUDIT_LOG_DB_SHARED:false}
-              vendor: ${ESQUIRE_AUDIT_LOG_DB_VENDOR:dev-postgres}
-              url: ${ESQUIRE_AUDIT_LOG_DB_URL:jdbc:postgresql://${DB_ENYMAN_HOST:localhost}:${DB_ENYMAN_PORT:5432}/${DB_ENYMAN_NAME:esq2025}}
-              username: ${ESQUIRE_AUDIT_LOG_DB_USERNAME:${DB_ENYMAN_USERNAME:esq2025}}
-              password: ${ESQUIRE_AUDIT_LOG_DB_PASSWORD:${DB_ENYMAN_PASSWORD:q}}
+            pool-size: ${AUDIT_POOL_SIZE:4}
+            feed-capacity: ${AUDIT_FEED_CAPACITY:4096}
+            virtual-threads: ${AUDIT_VIRTUAL_THREADS:false}
+            datasource:
+              # shared=true -> the keep reuses the SERVICE's own datasource pool (url/hikari ignored,
+              # dialect from the service's spring.datasource.url); false -> a dedicated keep pool from the url/hikari below.
+              shared: ${DB_DATAKEEP_SHARED:false}
+              url: ${DB_DATAKEEP_URL:jdbc:postgresql://${DB_ENYMAN_HOST:localhost}:${DB_ENYMAN_PORT:5432}/${DB_ENYMAN_NAME:esq2025}}
+              username: ${DB_DATAKEEP_USERNAME:${DB_ENYMAN_USERNAME:esq2025}}
+              password: ${DB_DATAKEEP_PASSWORD:${DB_ENYMAN_PASSWORD:q}}
               hikari:
-                maximum-pool-size: ${ESQUIRE_AUDIT_LOG_DB_POOL_SIZE:2}
+                maximum-pool-size: ${DB_DATAKEEP_POOL_SIZE:2}
 # Bus REFS: which slot this service joins on the shared buses.
 esquire:
   audit-bus:
     messaging-bus:
-      bus-id: ${ESQUIRE_AUDIT_BUS_ID:audit-b}
-      slot-id: ${ESQUIRE_AUDIT_SERVICE_ID:audit}
+      bus-id: ${AUDIT_BUS_ID:audit-b}
+      slot-id: ${AUDIT_SERVICE_ID:audit}
   kc-bus:
     messaging-bus:
       bus-id: ${KC_BUS_ID:esquire.kc}

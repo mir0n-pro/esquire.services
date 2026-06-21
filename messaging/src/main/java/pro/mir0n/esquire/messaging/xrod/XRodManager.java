@@ -50,7 +50,7 @@ public class XRodManager implements AutoCloseable {
     /**
      * Open a producer on {@code busKey} as {@code role}: resolve the leg + the x-rod (by {@code rod-class}) and
      * configure it. The X-ROD builds its OWN transport from the leg -- {@code XRod} opens a publisher to the leg's
-     * destination ({@code XRodRR} picks the role's request/response node); an in-process x-rod (XRodLogDb / XRodInfo)
+     * destination ({@code XRodRR} picks the role's request/response node); an in-process x-rod (XRodInProcess / XRodInfo)
      * self-wires from its own sub-block. The producer is type-agnostic -- the caller stamps the msg-type on each
      * event ({@code transmit} carries it; {@code post()} takes it as an arg).
      */

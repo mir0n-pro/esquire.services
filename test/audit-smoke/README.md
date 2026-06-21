@@ -33,10 +33,10 @@ smoke → validate → record PASS/FAIL into a results table.
 
 | Dimension | Env var(s) | Values |
 |---|---|---|
-| Sink | `ESQUIRE_AUDIT_BUS_ID` | `audit-b` (in-process) / `audit-c` (AMQ) / `audit-ck` (Kafka) / `audit-d` (Redis) / `audit-dk` (Kafka stream) |
-| (a) triggers | `ESQUIRE_AUDIT_BUS_ID=` *(blank → audit off)* + apply the trigger DDL to the primary DB | DB writes the `*_log` in-transaction |
-| (b) shared vs dedicated | `ESQUIRE_AUDIT_LOG_DB_SHARED` | `true` = reuse the service pool / `false` = own pool |
-| Audit DB (b-dedicated / c / ck) | producers: `ESQUIRE_AUDIT_LOG_DB_*`; `auKeep`: `DB_DATAKEEP_*` | `dev-postgres` (`postgres:5432/esq2025`) / `dev-oracle` (`host.docker.internal:1521/MIR0N`) |
+| Sink | `AUDIT_BUS_ID` | `audit-b` (in-process) / `audit-c` (AMQ) / `audit-ck` (Kafka) / `audit-d` (Redis) / `audit-dk` (Kafka stream) |
+| (a) triggers | `AUDIT_BUS_ID=` *(blank → audit off)* + apply the trigger DDL to the primary DB | DB writes the `*_log` in-transaction |
+| (b) shared vs dedicated | `AUDIT_LOG_DB_SHARED` | `true` = reuse the service pool / `false` = own pool |
+| Audit DB (b-dedicated / c / ck) | producers: `AUDIT_LOG_DB_*`; `auKeep`: `DB_DATAKEEP_*` | `dev-postgres` (`postgres:5432/esq2025`) / `dev-oracle` (`host.docker.internal:1521/MIR0N`) |
 | Primary DB | `DB_<SVC>_VENDOR` / `_HOST` / `_PORT` / `_NAME` (enyman/pacman/keysmith/biztree) | `dev-postgres` (`postgres:5432/esq2025`) / `dev-oracle` (`host.docker.internal:1521/MIR0N`) |
 
 Creds everywhere: `esq2025` / `q`. Oracle service name `MIR0N`; Postgres db `esq2025`.
@@ -47,7 +47,7 @@ Creds everywhere: `esq2025` / `q`. Oracle service name `MIR0N`; Postgres db `esq
 
 ### Docker — Postgres primary (`DB_*_VENDOR=dev-postgres`, host `postgres`)
 
-| # | Cell | `ESQUIRE_AUDIT_BUS_ID` | shared | audit DB | validate |
+| # | Cell | `AUDIT_BUS_ID` | shared | audit DB | validate |
 |---|---|---|---|---|---|
 | 1 | (a) triggers | *(blank)* + trigger DDL on `postgres` | — | primary (postgres) | `*_log` + `*_par_log` grow (in-tx) |
 | 2 | (b) shared | `audit-b` | true | = primary (postgres) | `*_log` + `*_par_log` grow |
@@ -67,7 +67,7 @@ primary, postgres audit DB). Entity `*_log` for the in-tx / shared cases lands i
 
 ### Local k8s — Postgres primary only
 
-| # | Cell | `ESQUIRE_AUDIT_BUS_ID` | shared | audit DB | notes |
+| # | Cell | `AUDIT_BUS_ID` | shared | audit DB | notes |
 |---|---|---|---|---|---|
 | 1 | (a) triggers | *(blank)* + trigger DDL | — | primary (pg) | set `audit.enabled=false` on the producer values |
 | 2 | (b) shared | `audit-b` | true | = primary (pg) | service-level leg |

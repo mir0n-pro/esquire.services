@@ -7,7 +7,7 @@ metadata:
 data:
   SPRING_PROFILES_ACTIVE:         {{ .Values.springProfilesActive | default "" | quote }}
   PACMAN_PORT:                    {{ .Values.service.port | quote }}
-  ESQUIRE_TOPOLOGY_IMPORT:        {{ .Values.topologyImport | quote }}
+  TOPOLOGY_IMPORT:        {{ .Values.topologyImport | quote }}
   # --- datasource (password -> Secret, injected as env in the deployment) ---
   DB_PACMAN_VENDOR:               {{ .Values.db.vendor | quote }}
   DB_PACMAN_HOST:                 {{ .Values.db.host | quote }}
@@ -19,17 +19,16 @@ data:
   ENTITY_SERVICE_ID:              {{ .Values.entity.serviceId | quote }}
   ENTITY_BROADCAST_PUBLISHER_POOL_SIZE: {{ .Values.entity.broadcastPublisherPoolSize | quote }}
   # --- audit-bus ref + in-process (b) knobs ---
-  ESQUIRE_AUDIT_BUS_ID:           {{ .Values.audit.busId | quote }}
-  ESQUIRE_AUDIT_SERVICE_ID:       {{ .Values.audit.serviceId | quote }}
-  ESQUIRE_AUDIT_POOL_SIZE:        {{ .Values.audit.poolSize | quote }}
-  ESQUIRE_AUDIT_FEED_CAPACITY:    {{ .Values.audit.feedCapacity | quote }}
-  ESQUIRE_AUDIT_VIRTUAL_THREADS:  {{ .Values.audit.virtualThreads | quote }}
-  ESQUIRE_AUDIT_LOG_DB_SHARED:    {{ .Values.audit.logDb.shared | default false | quote }}
-  ESQUIRE_AUDIT_LOG_DB_VENDOR:    {{ .Values.audit.logDb.vendor | quote }}
-  ESQUIRE_AUDIT_LOG_DB_URL:       {{ .Values.audit.logDb.url | quote }}
-  ESQUIRE_AUDIT_LOG_DB_USERNAME:  {{ .Values.audit.logDb.username | quote }}
-  ESQUIRE_AUDIT_LOG_DB_POOL_SIZE: {{ .Values.audit.logDb.poolSize | quote }}
-  # ESQUIRE_AUDIT_LOG_DB_PASSWORD: chains from DB_PACMAN_PASSWORD (Secret) via application.yml
+  AUDIT_BUS_ID:           {{ .Values.audit.busId | quote }}
+  AUDIT_SERVICE_ID:       {{ .Values.audit.serviceId | quote }}
+  AUDIT_POOL_SIZE:        {{ .Values.audit.poolSize | quote }}
+  AUDIT_FEED_CAPACITY:    {{ .Values.audit.feedCapacity | quote }}
+  AUDIT_VIRTUAL_THREADS:  {{ .Values.audit.virtualThreads | quote }}
+  DB_DATAKEEP_SHARED:    {{ .Values.audit.datasource.shared | default false | quote }}
+  DB_DATAKEEP_URL:       {{ .Values.audit.datasource.url | quote }}
+  DB_DATAKEEP_USERNAME:  {{ .Values.audit.datasource.username | quote }}
+  DB_DATAKEEP_POOL_SIZE: {{ .Values.audit.datasource.poolSize | quote }}
+  # DB_DATAKEEP_PASSWORD: chains from DB_PACMAN_PASSWORD (Secret) via application.yml
   # --- logging ---
   LOG_LEVEL_ROOT:                 {{ .Values.logging.levelRoot | quote }}
   LOG_LEVEL_SF:                   {{ .Values.logging.levelSf | quote }}

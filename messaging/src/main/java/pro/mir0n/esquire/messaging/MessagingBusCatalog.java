@@ -38,7 +38,7 @@ import java.util.List;
  * a leg may be DEFINED: the shared cross-service {@code esquire.messaging-bus} (imported from the one topology
  * file) and a service's OWN overlay, declared in its application.yml under its OWN namespace
  * {@code <spring.application.name>.messaging-bus} (e.g. {@code enyman.messaging-bus} -- its in-process
- * audit-b leg, whose log-db is service-specific). Both are full legs and bind identically; the service
+ * audit-b leg, whose datasource is service-specific). Both are full legs and bind identically; the service
  * namespace keeps the key clear of the {@code esquire.<bus-key>.messaging-bus} refs. A service-level x-rod ref
  * override is layered on top at resolve time (see {@code XRodManager}).
  *

@@ -7,7 +7,7 @@ metadata:
 data:
   SPRING_PROFILES_ACTIVE:         {{ .Values.springProfilesActive | default "" | quote }}
   KCMASTER_PORT:                  {{ .Values.service.port | quote }}
-  ESQUIRE_TOPOLOGY_IMPORT:        {{ .Values.topologyImport | quote }}
+  TOPOLOGY_IMPORT:        {{ .Values.topologyImport | quote }}
   # --- KC admin client (secret -> Secret, injected as env in the deployment) ---
   KC_BASE_URL:                    {{ .Values.keycloak.baseUrl | quote }}
   KC_REALM:                       {{ .Values.keycloak.realm | quote }}

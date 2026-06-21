@@ -34,7 +34,7 @@ import java.util.Set;
  * A bound x-Rod leg: its flattened config node ({@code raw}) plus the leg identity (bus-id / slot-id) the
  * frontend folds in. Knobs are read FROM {@code raw} by name -- the scalar knobs are registered in
  * {@link #SCALARS}, {@code transport} is the wire group, and each x-rod binds its OWN sub-block via {@link #sub}
- * (the x-rod owns the name; {@code log-db} / {@code info} etc. are NOT known here). Stays impl-agnostic, so any x-rod
+ * (the x-rod owns the name; {@code datasource} / {@code info} etc. are NOT known here). Stays impl-agnostic, so any x-rod
  * plus its own settings works unchanged.
  */
 public record XRodParams(String busId, String slotId, Map<String, Object> raw) {
@@ -64,7 +64,7 @@ public record XRodParams(String busId, String slotId, Map<String, Object> raw) {
     }
 
     /** Overlay {@code override} onto this BASE per top-level GROUP: any group the override sets (a scalar like
-     *  {@code pool-size}, the {@code transport} wire, or an x-rod sub-block like {@code log-db}) replaces the base's
+     *  {@code pool-size}, the {@code transport} wire, or an x-rod sub-block like {@code datasource}) replaces the base's
      *  WHOLE group -- the service's group wins in full (provide it whole; no field-merge into a group). It never
      *  names a group, so it works for any x-rod's settings. bus-id / slot-id are not in raw -> never merged. */
     public XRodParams merge(XRodParams override) {
@@ -102,7 +102,7 @@ public record XRodParams(String busId, String slotId, Map<String, Object> raw) {
         return ret;
     }
 
-    /** Bind an x-rod-owned named sub-block (the x-rod passes its OWN key, e.g. "log-db" / "info") into the x-rod's
+    /** Bind an x-rod-owned named sub-block (the x-rod passes its OWN key, e.g. "datasource" / "info") into the x-rod's
      *  params record; null if absent. */
     public <T> T sub(String key, Class<T> type) {
         T ret;

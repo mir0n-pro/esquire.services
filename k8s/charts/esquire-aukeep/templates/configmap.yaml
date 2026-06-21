@@ -7,7 +7,7 @@ metadata:
 data:
   SPRING_PROFILES_ACTIVE:    {{ .Values.springProfilesActive | default "" | quote }}
   DATAKEEP_PORT:             {{ .Values.service.port | quote }}
-  ESQUIRE_TOPOLOGY_IMPORT:   {{ .Values.topologyImport | quote }}
+  TOPOLOGY_IMPORT:   {{ .Values.topologyImport | quote }}
   # --- datasource (writes the *_log tables; password -> Secret, injected as env in the deployment) ---
   DB_DATAKEEP_VENDOR:        {{ .Values.db.vendor | quote }}
   DB_DATAKEEP_HOST:          {{ .Values.db.host | quote }}
@@ -15,8 +15,8 @@ data:
   DB_DATAKEEP_NAME:          {{ .Values.db.name | quote }}
   DB_DATAKEEP_USERNAME:      {{ .Values.db.username | quote }}
   # --- audit-bus ref (CONSUMER: drains the audit sink to the *_log tables) ---
-  ESQUIRE_AUDIT_BUS_ID:      {{ .Values.audit.busId | quote }}
-  ESQUIRE_AUDIT_SERVICE_ID:  {{ .Values.audit.serviceId | quote }}
+  AUDIT_BUS_ID:      {{ .Values.audit.busId | quote }}
+  AUDIT_SERVICE_ID:  {{ .Values.audit.serviceId | quote }}
   DATAKEEP_DIRECTOR:         {{ .Values.audit.director | quote }}
   # --- logging ---
   LOG_LEVEL_ROOT:            {{ .Values.logging.levelRoot | quote }}

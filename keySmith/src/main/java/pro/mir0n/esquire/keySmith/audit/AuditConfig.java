@@ -14,6 +14,8 @@
  * 06/18/2026 mir0n  the audit sink is selected from the leg: log-db.shared=true -> the IN-PROCESS keep on the
  *                   SERVICE's OWN pool; a log-db url -> the IN-PROCESS keep with its OWN dedicated pool; else ->
  *                   the BUS producer. Injects the service DataSource (used by the shared keep).
+ * 06/21/2026 mir0n  binds the keep datasource from the leg's "datasource" sub-block (was "log-db"); the in-process
+ *                   keep's SQL dialect comes from spring.datasource.url (shared) instead of spring.profiles.active.
  */
 package pro.mir0n.esquire.keySmith.audit;
 
@@ -43,7 +45,7 @@ public class AuditConfig {
 
     private static final Logger devLog = LoggerFactory.getLogger("develop." + AuditConfig.class.getName());
     /** The leg's datasource sub-block: its presence selects the in-process keep (option b). */
-    private static final String LOG_DB = "log-db";
+    private static final String DATASOURCE = "datasource";
 
     private final XRodManager rods;
     private final Environment env;
@@ -57,7 +59,7 @@ public class AuditConfig {
     }
 
     /**
-     * The audit bridge onto the messaging bus. The audit leg picks the sink: a leg carrying a {@code log-db}
+     * The audit bridge onto the messaging bus. The audit leg picks the sink: a leg carrying a {@code datasource}
      * datasource group is the IN-PROCESS keep (option b) -- the generic keep applier (the audit director's kinds
      * + SQL data) run on an {@code XRodInProcess} (rods.consumer passes the applier as its worker); otherwise the
      * leg is the BUS producer (option c) -- rods.producer transmits to the broker for auKeep to consume + apply.
@@ -69,14 +71,14 @@ public class AuditConfig {
         String slotId = env.getProperty(prefix + "slot-id", "");
         XRodParams leg = (!busId.isBlank() && !slotId.isBlank())
                 ? new MessagingBusCatalog(env).resolve(busId, slotId) : null;
-        KeepDataSourceParams ds = leg != null ? leg.sub(LOG_DB, KeepDataSourceParams.class) : null;
+        KeepDataSourceParams ds = leg != null ? leg.sub(DATASOURCE, KeepDataSourceParams.class) : null;
 
         IXRod sink;
         if (ds != null && ds.isShared()) {
             // option (b-shared): in-process keep on the SERVICE's OWN connection pool -- no dedicated pool; the
-            // dialect comes from the service profile. The keep does not own/close this DataSource.
+            // dialect comes from the service's DataSource URL (spring.datasource.url). The keep does not own/close it.
             IKeepDirector dir = new AuditKeepDirector();
-            String dialect = KeepSqlStore.dialectOf(env.getProperty("spring.profiles.active", KeepSqlStore.DEFAULT_DIALECT));
+            String dialect = KeepSqlStore.dialectOf(env.getProperty("spring.datasource.url"));
             this.keepApplier = new KeepApplier(dataSource, dialect, new KeepSqlStore(dir.sqlGroup()), dir.kinds(), devLog);
             sink = rods.consumer(EsqMsgConstants.BUS_KEY_AUDIT, Role.BROADCAST, keepApplier.applier());
             devLog.info("audit: in-process keep, SHARED service pool (bus={}, slot={})", busId, slotId);

@@ -35,13 +35,13 @@ public interface IXRod {
 
     /** Fail-fast config check, called by the frontend BEFORE {@link #configure} / {@link #start}: an x-rod that
      *  REQUIRES certain leg params overrides this to throw a clear, early error instead of a late no-op / NPE --
-     *  XRod a complete transport, XRodRR the R&R nodes, XRodLogDb the {@code log-db} url. Default: no requirement
+     *  XRod a complete transport, XRodRR the R&R nodes, XRodInProcess the {@code datasource} url. Default: no requirement
      *  (the OFF x-rod, a log-only x-rod). */
     default void validate(XRodParams params) {
     }
 
     /** PREPARE the x-rod from its leg params (the x-rod treats only what it needs: XRod the transport + knobs;
-     *  XRodLogDb its {@code log-db} sub-block; etc.). {@code role} picks the R&R node/selector (CLIENT/SERVER/
+     *  XRodInProcess its {@code datasource} sub-block; etc.). {@code role} picks the R&R node/selector (CLIENT/SERVER/
      *  BROADCAST); {@code objectMapper} is the wire codec. Call before {@link #start}. */
     void configure(XRodParams params, Role role, ObjectMapper objectMapper);
 

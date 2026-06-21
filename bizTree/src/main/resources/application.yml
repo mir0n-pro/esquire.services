@@ -11,7 +11,7 @@ spring:
     problemdetails:
       enabled: true
   config:
-    import: "${ESQUIRE_TOPOLOGY_IMPORT:file:/etc/esquire/topology.yml}"
+    import: "${TOPOLOGY_IMPORT:file:/etc/esquire/topology.yml}"
 biztree:
   # cache director + monad/taijitu knobs (read by @Value; surfaced here for env visibility -- defaults
   # match the @Value fallbacks, so behaviour is unchanged when the env var is unset).

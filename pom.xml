@@ -195,7 +195,7 @@
                          test that needs the catalog supplies it via MockEnvironment / @DynamicPropertySource).
                          docker / k8s keep the required default (file:/etc/esquire/topology.yml). -->
                     <systemPropertyVariables>
-                        <ESQUIRE_TOPOLOGY_IMPORT>optional:file:/etc/esquire/topology.yml</ESQUIRE_TOPOLOGY_IMPORT>
+                        <TOPOLOGY_IMPORT>optional:file:/etc/esquire/topology.yml</TOPOLOGY_IMPORT>
                     </systemPropertyVariables>
                 </configuration>
             </plugin>

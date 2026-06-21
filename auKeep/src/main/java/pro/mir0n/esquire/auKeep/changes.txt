@@ -1,5 +1,10 @@
 Esquire auKeep service
 
+06/21/2026 mir0n  v1.2.9 -- keep datasource vendor dropped; audit/topology env vars renamed
+application.yml
+  - esquire.keep.datasource no longer carries a vendor (the dialect comes from the datasource URL); env vars
+    renamed ESQUIRE_AUDIT_* -> AUDIT_*, ESQUIRE_TOPOLOGY_IMPORT -> TOPOLOGY_IMPORT
+
 06/18/2026 mir0n  v1.2.8 -- auKeep: renamed from xxRod; the audit consumer rebuilt on the generic keep engine
 AuKeepApplication  (was XxRodApplication)
   - the only Boot app (image esquire.aukeep); scans dataKeep + audit + auKeep; excludes

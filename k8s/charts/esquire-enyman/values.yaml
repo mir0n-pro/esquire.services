@@ -44,17 +44,16 @@ entity:
   broadcastPublisherPoolSize: "0"
 
 # audit: default k8s sink = (c) over the bus (ActiveMQ); esquire-aukeep drains it to the *_log tables.
-# Switch to in-process (b) with busId=audit-b (the logDb block below is the *_log datastore).
+# Switch to in-process (b) with busId=audit-b (the datasource block below is the *_log datastore).
 audit:
   busId: audit-c
   serviceId: audit
   poolSize: "4"
   feedCapacity: "4096"
   virtualThreads: "false"
-  logDb:
+  datasource:
     # shared=true -> the keep reuses the SERVICE's own datasource pool; false -> a dedicated keep pool (url below)
     shared: "false"
-    vendor: dev-postgres
     url: jdbc:postgresql://esquire-infra-postgres:5432/esq2025
     username: esq2025
     poolSize: "2"

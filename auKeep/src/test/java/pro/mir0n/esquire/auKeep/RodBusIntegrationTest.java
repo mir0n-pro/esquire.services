@@ -66,7 +66,6 @@ class RodBusIntegrationTest {
     static void props(DynamicPropertyRegistry r) {
         r.add("spring.profiles.active", () -> "dev-postgres");
         // the keep applies to its OWN datasource group (esquire.keep.datasource) -- point it at the PG container.
-        r.add("esquire.keep.datasource.vendor", () -> "dev-postgres");
         r.add("esquire.keep.datasource.url", PG::getJdbcUrl);
         r.add("esquire.keep.datasource.username", PG::getUsername);
         r.add("esquire.keep.datasource.password", PG::getPassword);
