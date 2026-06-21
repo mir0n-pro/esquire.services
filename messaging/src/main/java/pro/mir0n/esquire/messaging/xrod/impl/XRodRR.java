@@ -14,6 +14,7 @@
  * 06/17/2026 mir0n  legTransport() rewritten to a typed node model: select the request / response BusNode by id
  *                   and refine the base wire via BusTransport.refinedWith(); the flattened-key surgery +
  *                   nodePrefix() removed; validate() added (provider / endpoint + nodes or a base destination)
+ * 06/21/2026 mir0n  legTransport() doc: a node owns destination / params (topic dropped from the node model)
  */
 package pro.mir0n.esquire.messaging.xrod.impl;
 
@@ -63,7 +64,7 @@ public class XRodRR extends XRod {
     /** R&R: refine the base transport with the request or response NODE for this leg's direction. Direction:
      *  produce CLIENT / consume SERVER -> the request node; produce SERVER / consume CLIENT -> the response node.
      *  A non-R&R role, or a leg with no such node, falls back to the base single transport. The node owns its
-     *  {@code destination} / {@code topic} / {@code params}; the base owns {@code provider} / {@code endpoint}
+     *  {@code destination} / {@code params}; the base owns {@code provider} / {@code endpoint}
      *  (see {@link BusTransport#refinedWith}). */
     @Override
     protected BusTransport legTransport(boolean produce, Role role) {

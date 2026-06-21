@@ -82,7 +82,7 @@ describing the topology; the **x-rod** and **network node** are the concrete sof
 | `node-id` | a **network node** (R&R splits into a `request` and a `response` node; a single-node bus uses `destination`) |
 | `rod-class` | which **x-rod** implementation runs (`XRod` / `XRodRR` / `XRodInProcess` / `XRodInfo` / `XRodDisabled` / a custom class) |
 | `x-rod` | the slot's **x-rod** configuration — engine knobs + the `transport` block |
-| `transport` | the **network node** binding: `provider` + `endpoint` + `destination` + `topic` + `params` (vendor knobs) + (R&R) `request-node` / `response-node` + a `node` list |
+| `transport` | the **network node** binding: `provider` + `endpoint` + `destination` + `params` (vendor knobs, e.g. ActiveMQ's `pubSubDomain`) + (R&R) `request-node` / `response-node` + a `node` list |
 | `role` | the **role** (`CLIENT` / `SERVER` / `BROADCAST`), passed per `producer()` / `consumer()` call |
 
 ## How
@@ -170,7 +170,7 @@ routine drives the R&R node merge below. `bus-id` / `slot-id` are not in `raw`, 
 An x-rod's effective wire is resolved across three levels, all by the same per-group overlay:
 
 1. **Leg x-rod params** — the scalar knobs + identity (rod-id default = the per-instance id `<app>.<instanceNo>`).
-2. **Transport params** — the `transport` group (provider / endpoint / destination / topic / `params`);
+2. **Transport params** — the `transport` group (provider / endpoint / destination / `params`);
    a service-ref override replaces this group whole.
 3. **Node params** (R&R only) — for a two-node leg, `XRodRR` refines the base `transport` with the
    request-or-response NODE: the node owns its `destination` and may override any transport scalar or the
@@ -249,7 +249,7 @@ A specialised `XRod` for an R&R leg. The base transceiver is unchanged; only two
     `request` node; produce-SERVER / consume-CLIENT → the `response` node;
   - the leg's nodes bind to a typed `List<BusNode>` (`transport.nodes[*]`); `legTransport` selects the
     `BusNode` whose `node-id` matches `transport.request-node` / `transport.response-node`, then refines the
-    base transport with it via `BusTransport.refinedWith(node)` — the node owns `destination` / `topic` /
+    base transport with it via `BusTransport.refinedWith(node)` — the node owns `destination` /
     `params`, the base owns `provider` / `endpoint`. A non-R&R role, or a leg with no such node, falls back
     to the base single transport.
 - **`consumeSelector(role, identity)`** — `CLIENT` → `RodID = '<rod-id>'` (an instance consumes only its
@@ -301,9 +301,10 @@ releases the provider's own broker connection). An x-rod closes both on shutdown
 from `settings.endpoint()` and reads its vendor knobs from `settings.params()`, so the framework holds no
 vendor knowledge. Settings:
 
-- `TransportSettings` — `objectMapper`, `endpoint`, `topic` (queue vs topic), `identity`, `params` (never
-  null); `param(key, def)` / `paramLong(key, def)` accessors. A vendor *connection* setting (a client id,
-  etc.) is NOT a typed field — it is a `transport.params.*` entry (see Generic vendor parameters).
+- `TransportSettings` — `objectMapper`, `endpoint`, `identity`, `params` (never
+  null); `param(key, def)` / `paramLong(key, def)` accessors. A vendor setting (a client id, the JMS
+  queue-vs-topic `pubSubDomain` flag, etc.) is NOT a typed field — it is a `transport.params.*` entry
+  (see Generic vendor parameters).
 - `PublishSettings` adds `poolSize` (async publisher threads; `0` = the single feed worker).
 - `ConsumeSettings` adds `concurrency` (listener concurrency) and `selector` (a provider message
   selector; `null` = consume everything).
@@ -348,17 +349,20 @@ transport:
 
 - **Publisher** — `ActiveMQConnectionFactory(brokerUrl)` where every `params` entry is appended to the
   broker URI verbatim; a `CachingConnectionFactory` (`sessionCacheSize = poolSize` and `useAsyncSend = true`
-  when `poolSize > 0`); a `JmsTemplate` with `pubSubDomain = topic`. Each send
+  when `poolSize > 0`); a `JmsTemplate` whose `pubSubDomain` is set from the `pubSubDomain` param
+  (`true` = topic, absent = queue). Each send
   copies the headers, adds `ApplMsgID` (UUID) + `SendingTime` (now), and writes a **properties-only**
   message (`session.createMessage()`, no body; every header → a JMS property). `close()` destroys the
   caching connection factory.
-- **Consumer** — a `DefaultMessageListenerContainer` on the destination (`pubSubDomain = topic`,
-  `messageSelector = selector` if set, `concurrentConsumers = concurrency` if `> 0`); the listener lifts
-  EVERY JMS property back into the header map.
+- **Consumer** — a `DefaultMessageListenerContainer` on the destination (`pubSubDomain` from the
+  `pubSubDomain` param, `messageSelector = selector` if set, `concurrentConsumers = concurrency` if `> 0`);
+  the listener lifts EVERY JMS property back into the header map.
 - **Vendor params** — ANY `transport.params.*` is appended to the broker URI; ActiveMQ parses its own URI
   options: `jms.*` on the factory (e.g. `jms.clientID`, `jms.useAsyncSend`, `jms.prefetchPolicy.queuePrefetch`,
   `jms.redeliveryPolicy.maximumRedeliveries`), `transport.*` on the wire (e.g. `transport.connectTimeout`),
-  `nested.*`, `wireFormat.*`. No per-key code.
+  `nested.*`, `wireFormat.*`. No per-key code. The one exception is `pubSubDomain`: it is a
+  `setPubSubDomain(...)` call on the template / listener container, not a URI option, so `tp-activemq`
+  reads it and excludes it from the URI append.
 
 #### `tp-kafka` (topic)
 
@@ -496,7 +500,7 @@ interface ITransportProvider {
 interface TransportPublisher extends Consumer<TransportMessage>, AutoCloseable { }
 final class TransportProviders { static ITransportProvider resolve(String provider); }
 final class TransportMessage { Map<String,Object> headers(); String key(); }
-class TransportSettings { ObjectMapper objectMapper(); String endpoint(); boolean topic();
+class TransportSettings { ObjectMapper objectMapper(); String endpoint();
                           BusIdentity identity(); Map<String,String> params(); String param(String k, String def); long paramLong(String k, long def); }
 final class PublishSettings extends TransportSettings { int poolSize(); }
 final class ConsumeSettings extends TransportSettings { int concurrency(); String selector(); }
@@ -515,10 +519,10 @@ class MessagingBusCatalog {
 }
 record MessagingBus(String busId, List<BusSlot> slots) {}   // config key `slots`
 record BusSlot(String slotId, Map<String,Object> xRod) {}
-record BusTransport(String provider, String endpoint, String destination, Boolean topic, Map<String,String> params) {
-    BusTransport refinedWith(BusNode node);   // base wire + an R&R node (node owns destination/topic/params)
+record BusTransport(String provider, String endpoint, String destination, Map<String,String> params) {
+    BusTransport refinedWith(BusNode node);   // base wire + an R&R node (node owns destination/params)
 }
-record BusNode(String nodeId, String destination, Boolean topic, Map<String,String> params) {}
+record BusNode(String nodeId, String destination, Map<String,String> params) {}
 record BusRef(String busId, String slotId, Map<String,Object> xRod) {}
 record XRodParams(String busId, String slotId, Map<String,Object> raw) {
     static XRodParams from(Map<String,Object> rawNode);
@@ -605,8 +609,8 @@ esquire:
               provider: <name>           # -> pro.mir0n.esquire.tp.<name>.TransportProvider
               endpoint: <broker endpoint>
               destination: <name>
-              topic: true                # topic vs queue
               params:                    # opaque, verbatim to the driver
+                pubSubDomain: true       # ActiveMQ only: topic vs queue (absent = queue)
                 <vendor-key>: <value>
 
     - bus-id: <bus-id>                   # request/response (two nodes)
@@ -617,7 +621,6 @@ esquire:
             transport:
               provider: <name>
               endpoint: <broker endpoint>
-              topic: false
               request-node: request
               response-node: response
               nodes:

@@ -21,7 +21,8 @@ esquire:
               provider: activemq
               endpoint: tcp://esquire-infra-amq-activemq:61616
               destination: esquire.entity.broadcast
-              topic: true
+              params:
+                pubSubDomain: true
     # --- KeyCloak request/response (R&R, two nodes) ---
     - bus-id: esquire.kc
       slots:
@@ -34,7 +35,6 @@ esquire:
             transport:
               provider: activemq
               endpoint: tcp://esquire-infra-amq-activemq:61616
-              topic: false
               request-node: request
               response-node: response
               nodes:
@@ -57,7 +57,6 @@ esquire:
               provider: activemq
               endpoint: tcp://esquire-infra-amq-activemq:61616
               destination: esquire.rod.audit
-              topic: false
               params:
                 jms.useAsyncSend: true
     # --- audit (ck): Kafka -> auKeep consumer writes the *_log (Kafka broker not in the default infra) ---

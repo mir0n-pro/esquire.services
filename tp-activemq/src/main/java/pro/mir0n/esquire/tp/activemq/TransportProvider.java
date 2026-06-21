@@ -15,6 +15,9 @@
  *                   transport() id). Broker endpoint + client-id come from the settings.
  * 06/17/2026 mir0n  openPublisher returns a TransportPublisher (close() destroys the CachingConnectionFactory);
  *                   the ccf.setClientID(...) block removed (a client id rides transport.params.jms.clientID)
+ * 06/21/2026 mir0n  the JMS pub/sub flag is read from transport.params.pubSubDomain (setPubSubDomain on the
+ *                   template / listener container) instead of settings.topic(); pubSubDomain is excluded from
+ *                   the broker-URI append in withParams (a setter call, not a URI option)
  */
 package pro.mir0n.esquire.tp.activemq;
 
@@ -46,12 +49,18 @@ public final class TransportProvider implements ITransportProvider {
 
     private static final Logger devLog = LoggerFactory.getLogger("develop.pro.mir0n.esquire.tp.activemq.TransportProvider");
 
+    /** The JMS pub/sub-vs-queue flag, carried as a vendor param ({@code transport.params.pubSubDomain}). Unlike the
+     *  other params it is NOT a broker-URI option -- it is a {@code setPubSubDomain(...)} call on the template /
+     *  listener container -- so it is read here and excluded from {@link #withParams}. Absent = false = queue. */
+    private static final String PARAM_PUBSUB_DOMAIN = "pubSubDomain";
+
     public TransportProvider() {
     }
 
     @Override
     public TransportPublisher openPublisher(String destination, PublishSettings s) {
         String brokerUrl = withParams(s.endpoint(), s.params());
+        boolean pubSub = Boolean.parseBoolean(s.param(PARAM_PUBSUB_DOMAIN, "false"));
         ActiveMQConnectionFactory amq = new ActiveMQConnectionFactory(brokerUrl);
         if (s.poolSize() > 0) {
             amq.setUseAsyncSend(true);
@@ -61,9 +70,9 @@ public final class TransportProvider implements ITransportProvider {
             ccf.setSessionCacheSize(s.poolSize());
         }
         JmsTemplate jms = new JmsTemplate(ccf);
-        jms.setPubSubDomain(s.topic());
+        jms.setPubSubDomain(pubSub);
         devLog.info("tp-activemq: publisher opened on {} (broker={}, {}, poolSize={})",
-                destination, brokerUrl, s.topic() ? "topic" : "queue", s.poolSize());
+                destination, brokerUrl, pubSub ? "topic" : "queue", s.poolSize());
 
         // close() releases the caching connection factory (the cached connection + sessions); the underlying
         // ActiveMQConnectionFactory holds no connection of its own.
@@ -87,11 +96,12 @@ public final class TransportProvider implements ITransportProvider {
     @Override
     public AutoCloseable openConsumer(String destination, ConsumeSettings s, Consumer<TransportMessage> handler) {
         String brokerUrl = withParams(s.endpoint(), s.params());
+        boolean pubSub = Boolean.parseBoolean(s.param(PARAM_PUBSUB_DOMAIN, "false"));
         ActiveMQConnectionFactory amq = new ActiveMQConnectionFactory(brokerUrl);
         DefaultMessageListenerContainer c = new DefaultMessageListenerContainer();
         c.setConnectionFactory(amq);
         c.setDestinationName(destination);
-        c.setPubSubDomain(s.topic());
+        c.setPubSubDomain(pubSub);
         if (s.selector() != null && !s.selector().isBlank()) {
             c.setMessageSelector(s.selector());
         }
@@ -108,7 +118,7 @@ public final class TransportProvider implements ITransportProvider {
         c.afterPropertiesSet();
         c.start();
         devLog.info("tp-activemq: consumer started on {} (broker={}, {}, concurrency={})",
-                destination, brokerUrl, s.topic() ? "topic" : "queue", s.concurrency());
+                destination, brokerUrl, pubSub ? "topic" : "queue", s.concurrency());
         return () -> {
             c.stop();
             c.destroy();
@@ -117,20 +127,21 @@ public final class TransportProvider implements ITransportProvider {
 
     /** Append the leg's vendor params verbatim to the broker URI -- ActiveMQ parses its own URI options
      *  ({@code jms.*} on the factory, {@code transport.*} on the wire, {@code nested.*} on the broker). So ANY
-     *  param a leg sets under {@code transport.params} flows to the vendor with no per-key code here. */
+     *  param a leg sets under {@code transport.params} flows to the vendor with no per-key code here -- EXCEPT
+     *  {@code pubSubDomain}, which is a {@code setPubSubDomain(...)} call (read separately) and not a URI option. */
     private static String withParams(String brokerUrl, Map<String, String> params) {
         String ret = brokerUrl;
         if (brokerUrl != null && params != null && !params.isEmpty()) {
-            StringBuilder sb = new StringBuilder(brokerUrl).append(brokerUrl.indexOf('?') < 0 ? '?' : '&');
-            boolean first = true;
+            StringBuilder q = new StringBuilder();
             for (Map.Entry<String, String> e : params.entrySet()) {
-                if (!first) {
-                    sb.append('&');
+                if (PARAM_PUBSUB_DOMAIN.equals(e.getKey())) {
+                    continue;   // applied via setPubSubDomain(...), not a broker-URI option
                 }
-                sb.append(e.getKey()).append('=').append(e.getValue());
-                first = false;
+                q.append(q.length() == 0 ? "" : "&").append(e.getKey()).append('=').append(e.getValue());
             }
-            ret = sb.toString();
+            if (q.length() > 0) {
+                ret = brokerUrl + (brokerUrl.indexOf('?') < 0 ? '?' : '&') + q;
+            }
         }
         return ret;
     }

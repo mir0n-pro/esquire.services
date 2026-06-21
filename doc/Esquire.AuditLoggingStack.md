@@ -255,8 +255,8 @@ bus (bus-id)
          pool-size, feed-capacity, virtual-threads  -- consumer/feed sizing
          publisher-pool-size, concurrency           -- producer sizing
          transport {                                -- the wire vendor (A.4); absent for in-process
-           provider, endpoint, destination, topic,
-           params,                                  -- generic per-vendor pass-through
+           provider, endpoint, destination,
+           params,                                  -- generic per-vendor pass-through (e.g. ActiveMQ pubSubDomain)
            request-node / response-node + node list -- R&R only (XRodRR)
          }
        }

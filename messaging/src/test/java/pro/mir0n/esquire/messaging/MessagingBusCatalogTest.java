@@ -23,7 +23,7 @@ class MessagingBusCatalogTest {
         env.setProperty("esquire.messaging-bus[0].slots[0].x-rod.transport.provider", FAKE);
         env.setProperty("esquire.messaging-bus[0].slots[0].x-rod.transport.endpoint", "tcp://localhost:61616");
         env.setProperty("esquire.messaging-bus[0].slots[0].x-rod.transport.destination", "esquire.rod.audit");
-        env.setProperty("esquire.messaging-bus[0].slots[0].x-rod.transport.topic", "false");
+        env.setProperty("esquire.messaging-bus[0].slots[0].x-rod.transport.params.pubSubDomain", "false");
         return new MessagingBusCatalog(env);
     }
 
@@ -36,7 +36,7 @@ class MessagingBusCatalogTest {
         assertThat(p.transport().provider()).isEqualTo(FAKE);
         assertThat(p.transport().endpoint()).isEqualTo("tcp://localhost:61616");
         assertThat(p.transport().destination()).isEqualTo("esquire.rod.audit");
-        assertThat(p.transport().topicOrFalse()).isFalse();
+        assertThat(p.transport().params()).containsEntry("pubSubDomain", "false");   // JMS knob rides params now
     }
 
     @Test

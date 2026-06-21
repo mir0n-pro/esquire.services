@@ -10,12 +10,13 @@
  *                   its id plus the wire fields a node MAY own (destination / topic / params). provider and
  *                   endpoint are NOT node-owned: the base transport owns the wire (see BusTransport.refinedWith).
  *                   Replaces the flattened-key string surgery XRodRR used to dig nodes out of the raw map.
+ * 06/21/2026 mir0n  the topic component removed (queue-vs-topic is now the ActiveMQ pubSubDomain param)
  */
 package pro.mir0n.esquire.messaging;
 
 import java.util.Map;
 
 /** One network node on an R&R bus: its {@code node-id} and the wire fields a node may override -- {@code
- *  destination} / {@code topic} / {@code params}. {@code provider} / {@code endpoint} stay base-owned. */
-public record BusNode(String nodeId, String destination, Boolean topic, Map<String, String> params) {
+ *  destination} / {@code params}. {@code provider} / {@code endpoint} stay base-owned. */
+public record BusNode(String nodeId, String destination, Map<String, String> params) {
 }

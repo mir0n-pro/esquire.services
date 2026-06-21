@@ -1,6 +1,18 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v1.2.9-2606.2108  v1.2.9 -- hardening: activemq "pubSubDomain" instead of "topic"
+    :Refactoring: "topic" moved under vendor params as "pubSubDomain"  (ActiveMQ specific)
+    :Config:      use ActiveMQ pubSubDomain instead of topic
+    :Doc:         doc\services.configuring.md
+                  doc\Esquire.MessagingBus.md
+                  doc\Esquire.AuditLoggingStack.md
+    Components:   messaging,
+                  tp-activemq,
+                  compose,
+                  k8s,
+                  oke
+
 v1.2.8-2606.1917  v1.2.8 -- finalization: plural bus-config keys, host-Postgres dev stack, documentation
     :Refactoring: the messaging-bus list-config keys are now plural -- a bus's legs are `slots` (was `slot`) and
                   a request/response leg's network nodes are `nodes` (was `node`)

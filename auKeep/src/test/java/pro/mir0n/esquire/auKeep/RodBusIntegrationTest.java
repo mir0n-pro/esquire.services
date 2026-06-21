@@ -85,7 +85,7 @@ class RodBusIntegrationTest {
     void busPathWritesAccountLogAndDedups() {
         TransportProvider provider = new TransportProvider();
         Consumer<RodEvent> publisher = RodTransportAdapter.publisher(provider, "esquire.rod.audit",
-                new PublishSettings(new ObjectMapper(), brokerUrl(), false,
+                new PublishSettings(new ObjectMapper(), brokerUrl(),
                         new BusIdentity("audit-bus", "audit", null),
                         java.util.Map.of(), 0));
         JdbcTemplate jdbc = new JdbcTemplate(new org.springframework.jdbc.datasource.DriverManagerDataSource(

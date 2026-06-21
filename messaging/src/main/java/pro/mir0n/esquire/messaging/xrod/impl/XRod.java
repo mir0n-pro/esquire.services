@@ -14,6 +14,7 @@
  * 06/17/2026 mir0n  extends AXRod (the feed / pool engine lifted out); keeps the transport (publisher /
  *                   openConsumer / legTransport / consumeSelector); shutdown() closes the inbound consumer,
  *                   drains via super, then closes the outbound publisher; validate() requires a complete transport
+ * 06/21/2026 mir0n  publisher() / openConsumer() build the Publish / ConsumeSettings without the topic argument
  */
 package pro.mir0n.esquire.messaging.xrod.impl;
 
@@ -107,7 +108,7 @@ public class XRod extends AXRod {
      *  The effective per-leg wire ({@code leg}) is what {@link #legTransport} resolved (base = the single leg;
      *  XRodRR = the produce node). */
     private RodPublisher publisher(ITransportProvider provider, BusTransport leg) {
-        PublishSettings ps = new PublishSettings(objectMapper, leg.endpoint(), leg.topicOrFalse(),
+        PublishSettings ps = new PublishSettings(objectMapper, leg.endpoint(),
                 identity, leg.paramsOrEmpty(), params.publisherPoolSizeOr(0));
         return RodTransportAdapter.publisher(provider, leg.destination(), ps);
     }
@@ -116,7 +117,7 @@ public class XRod extends AXRod {
      *  consuming responses filters to its own rod-id (so each instance only gets the responses it requested).
      *  The effective per-leg wire ({@code leg}) is what {@link #legTransport} resolved (XRodRR = the consume node). */
     private AutoCloseable openConsumer(ITransportProvider provider, BusTransport leg) {
-        ConsumeSettings cs = new ConsumeSettings(objectMapper, leg.endpoint(), leg.topicOrFalse(),
+        ConsumeSettings cs = new ConsumeSettings(objectMapper, leg.endpoint(),
                 identity, leg.paramsOrEmpty(), params.concurrencyOr(1), consumeSelector(role, identity));
         return provider.openConsumer(leg.destination(), cs, RodTransportAdapter.handler(this::receive, objectMapper));
     }

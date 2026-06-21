@@ -14,6 +14,8 @@
  * 06/17/2026 mir0n  transport() carries transport.params.* VERBATIM (token expansion removed from here); nodes()
  *                   parses transport.node[*] into a typed List<BusNode>; expandIdentityTokens() removed
  * 06/19/2026 mir0n  nodes() reads the plural key transport.nodes[*] (was transport.node[*])
+ * 06/21/2026 mir0n  transport() / bindNode() build the wire without topic (queue-vs-topic moved to the
+ *                   pubSubDomain vendor param)
  */
 package pro.mir0n.esquire.messaging;
 
@@ -79,7 +81,7 @@ public record XRodParams(String busId, String slotId, Map<String, Object> raw) {
 
     /** Overlay {@code override}'s flat keys onto {@code base} per top-level GROUP: any group the override names
      *  replaces the base's WHOLE group. Shared by the leg-level merge AND XRodRR's per-node transport merge
-     *  (called on transport-relative keys, where the groups are destination / topic / params / ...). */
+     *  (called on transport-relative keys, where the groups are destination / params / ...). */
     public static Map<String, Object> overlayGroups(Map<String, Object> base, Map<String, Object> override) {
         Map<String, Object> merged = new LinkedHashMap<>(base);
         for (String group : groups(override)) {
@@ -138,7 +140,7 @@ public record XRodParams(String busId, String slotId, Map<String, Object> raw) {
                     }
                 });
                 ret = new BusTransport(bound.provider(), bound.endpoint(), bound.destination(),
-                        bound.topic(), params.isEmpty() ? null : params);
+                        params.isEmpty() ? null : params);
             }
         }
         return ret;
@@ -168,7 +170,7 @@ public record XRodParams(String busId, String slotId, Map<String, Object> raw) {
     }
 
     /** Build one {@link BusNode} from its node-relative keys ({@code node-id} / {@code destination} /
-     *  {@code topic} / {@code params.*}); {@code provider} / {@code endpoint} are not node-owned, so ignored. */
+     *  {@code params.*}); {@code provider} / {@code endpoint} are not node-owned, so ignored. */
     private static BusNode bindNode(Map<String, Object> node) {
         Map<String, String> params = new LinkedHashMap<>();
         String pp = "params.";
@@ -179,10 +181,8 @@ public record XRodParams(String busId, String slotId, Map<String, Object> raw) {
         });
         Object id    = node.get("node-id");
         Object dest  = node.get("destination");
-        Object topic = node.get("topic");
         return new BusNode(id != null ? id.toString() : null,
                 dest != null ? dest.toString() : null,
-                topic != null ? Boolean.valueOf(topic.toString()) : null,
                 params.isEmpty() ? null : params);
     }
 

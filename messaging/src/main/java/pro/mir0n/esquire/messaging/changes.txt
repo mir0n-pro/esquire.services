@@ -1,5 +1,23 @@
 Esquire messaging framework classes
 
+06/21/2026 mir0n  v1.2.9 -- queue-vs-topic removed from the bus (now the ActiveMQ pubSubDomain vendor param)
+TransportSettings
+  - the topic field + topic() getter removed; the constructor drops the topic parameter
+PublishSettings / ConsumeSettings
+  - the constructors drop the topic parameter (no longer passed to super)
+BusTransport
+  - the topic component + topicOrFalse() removed; refinedWith(BusNode) no longer carries topic
+BusNode
+  - the topic component removed
+XRodParams
+  - transport() builds BusTransport without topic; bindNode() drops the topic parse
+MessagingBusCatalog
+  - consumeLeg() builds ConsumeSettings without the topic argument
+XRod
+  - publisher() / openConsumer() build the Publish / ConsumeSettings without the topic argument
+XRodRR
+  - legTransport() doc: a node owns destination / params (topic dropped)
+
 06/19/2026 mir0n  v1.2.8 -- bus list-config keys pluralized (slot -> slots, node -> nodes)
 MessagingBus
   - the slots component binds the plural config key `slots` directly; @Name("slot") dropped

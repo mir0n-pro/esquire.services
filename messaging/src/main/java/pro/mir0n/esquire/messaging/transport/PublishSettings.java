@@ -9,6 +9,7 @@
  * 06/15/2026 mir0n  created: the publish-side (xy-rod) TransportSettings -- adds the async publisher pool size
  *                   (0 = the caller's single feed worker) for openPublisher.
  * 06/17/2026 mir0n  the clientId constructor parameter removed
+ * 06/21/2026 mir0n  the topic constructor parameter removed (queue-vs-topic moved to the pubSubDomain vendor param)
  */
 package pro.mir0n.esquire.messaging.transport;
 
@@ -21,9 +22,9 @@ public final class PublishSettings extends TransportSettings {
 
     private final int poolSize;  // async publisher threads; 0 = caller's single feed worker
 
-    public PublishSettings(ObjectMapper objectMapper, String endpoint, boolean topic,
+    public PublishSettings(ObjectMapper objectMapper, String endpoint,
                            BusIdentity identity, Map<String, String> params, int poolSize) {
-        super(objectMapper, endpoint, topic, identity, params);
+        super(objectMapper, endpoint, identity, params);
         this.poolSize = poolSize;
     }
 

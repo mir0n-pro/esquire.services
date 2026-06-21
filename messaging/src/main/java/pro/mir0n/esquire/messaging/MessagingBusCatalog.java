@@ -14,6 +14,8 @@
  *                   null; a selector is the x-rod's concern); find() warns on a duplicate (bus-id, slot-id)
  * 06/18/2026 mir0n  the service overlay moved to the service namespace: binds <spring.application.name>.messaging-bus
  *                   (was esquire.<app>-messaging-bus), beside the service's other config; nothing else changed
+ * 06/21/2026 mir0n  consumeLeg() builds ConsumeSettings without the topic argument (topic dropped from the
+ *                   transport settings)
  */
 package pro.mir0n.esquire.messaging;
 
@@ -116,7 +118,7 @@ public class MessagingBusCatalog {
         XRodParams p = resolve(busId, slotId);
         BusTransport t = requireTransport(p, busId, slotId);
         ITransportProvider provider = TransportProviders.resolve(t.provider());
-        ConsumeSettings settings = new ConsumeSettings(om, t.endpoint(), t.topicOrFalse(),
+        ConsumeSettings settings = new ConsumeSettings(om, t.endpoint(),
                 new BusIdentity(busId, slotId, p.rodId()), t.paramsOrEmpty(),
                 p.concurrencyOr(DEFAULT_CONCURRENCY), null);
         return new ConsumeLeg(provider, t.destination(), settings);

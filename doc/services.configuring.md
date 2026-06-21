@@ -63,8 +63,10 @@ Esquire catalog: which buses exist and the env that drives them. The vocabulary:
 - **x-rod**: the per-slot x-rod config -- `rod-class` + engine knobs (pool-size, feed-capacity,
   virtual-threads, publisher-pool-size, concurrency) + a `transport` block.
 - **transport**: provider (`activemq` | `kafka` | `redis`, or a class name) + endpoint + destination +
-  `topic` (true=topic / false=queue) + `params` (opaque per-vendor knobs, e.g. `jms.useAsyncSend` /
-  `group-id` / `max-len`) + (R&R) `request-node` / `response-node` + a node list.
+  `params` (opaque per-vendor knobs, e.g. `jms.useAsyncSend` / `pubSubDomain` for ActiveMQ pub/sub-vs-queue
+  / `group-id` / `max-len`) + (R&R) `request-node` / `response-node` + a node list. The bus carries no
+  queue-vs-topic notion of its own: that is a JMS concept, set as the ActiveMQ `pubSubDomain` param
+  (`true` = topic, absent/`false` = queue) and read only by `tp-activemq`.
 - **rod-class**: `XRod` (standard transceiver), `XRodRR` (request/response, two-node, role-routed),
   `XRodInProcess` (a generic in-process relay that runs a worker applying events locally instead of
   sending them; FQCN `pro.mir0n.esquire.dataKeep.keep.XRodInProcess`),

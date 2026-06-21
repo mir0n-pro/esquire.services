@@ -42,7 +42,7 @@ class RodTransportAdapterTest {
     @Test
     void publisher_encodesEventToEnvelopeWithEntityIdKey() {
         CapturingProvider provider = new CapturingProvider();
-        PublishSettings ts = new PublishSettings(OM, "tcp://localhost:61616", false,
+        PublishSettings ts = new PublishSettings(OM, "tcp://localhost:61616",
                 new BusIdentity("audit-bus", "audit", null), Map.of(), 0);
 
         RodTransportAdapter.publisher(provider, "esquire.rod.audit", ts).accept(event());

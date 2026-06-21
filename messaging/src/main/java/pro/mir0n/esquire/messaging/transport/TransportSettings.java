@@ -12,6 +12,9 @@
  *                   by key); paramLong / param convenience accessors.
  * 06/17/2026 mir0n  the constructor resolves the identity tokens in params (identity.expandTokens) -- one
  *                   driver-facing point; the clientId field / getter removed
+ * 06/21/2026 mir0n  the topic field + topic() getter removed and the constructor drops the topic parameter
+ *                   (queue-vs-topic is JMS-only -- now the ActiveMQ transport.params.pubSubDomain knob,
+ *                   read by tp-activemq)
  */
 package pro.mir0n.esquire.messaging.transport;
 
@@ -20,24 +23,22 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.Map;
 
 /**
- * Base of the transport settings hierarchy: the bus connection (endpoint), the destination kind (queue vs
- * topic), the envelope {@link BusIdentity}, and the provider's own {@code params} group. The provider builds
- * its client from {@link #endpoint()} and reads its vendor knobs from {@link #params()} by key (a vendor
- * connection setting -- a client id, etc. -- is set via {@code transport.params.*}, not a typed field here).
+ * Base of the transport settings hierarchy: the bus connection (endpoint), the envelope {@link BusIdentity},
+ * and the provider's own {@code params} group. The provider builds its client from {@link #endpoint()} and
+ * reads its vendor knobs from {@link #params()} by key (a vendor connection setting -- a client id, the JMS
+ * {@code pubSubDomain} flag, etc. -- is set via {@code transport.params.*}, not a typed field here).
  */
 public class TransportSettings {
 
     private final ObjectMapper objectMapper;
     private final String endpoint;        // broker-url | bootstrap-servers | redis host:port; provider builds its client
-    private final boolean topic;          // destination kind: false = queue (point-to-point), true = topic (pub/sub)
     private final BusIdentity identity;   // envelope identity (bus-id / slot-id / rod-id)
     private final Map<String, String> params;  // the provider's own group (transport.<provider>.*); never null
 
-    public TransportSettings(ObjectMapper objectMapper, String endpoint, boolean topic,
+    public TransportSettings(ObjectMapper objectMapper, String endpoint,
                              BusIdentity identity, Map<String, String> params) {
         this.objectMapper = objectMapper;
         this.endpoint     = endpoint;
-        this.topic        = topic;
         this.identity     = identity;
         // resolve the ${rod-id}/${bus-id}/${slot-id} tokens against this leg's identity, so the driver receives
         // the real per-instance values (e.g. jms.clientID: ${rod-id}). One point: every settings object the
@@ -52,11 +53,6 @@ public class TransportSettings {
 
     public String endpoint() {
         return endpoint;
-    }
-
-    /** Destination kind: {@code true} = topic (pub/sub, every consumer gets every message); {@code false} = queue. */
-    public boolean topic() {
-        return topic;
     }
 
     /** The bus envelope identity (bus-id / slot-id / rod-id). */
