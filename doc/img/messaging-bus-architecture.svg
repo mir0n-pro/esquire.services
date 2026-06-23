@@ -11,12 +11,12 @@
   <!-- L1 Service -->
   <rect x="40" y="56" width="360" height="46" rx="8" fill="#eef2f7" stroke="#4D6A8D" stroke-width="1.5"/>
   <text x="220" y="78" text-anchor="middle" font-weight="600" fill="#1f2a36">Service</text>
-  <text x="220" y="94" text-anchor="middle" font-size="11" fill="#54627a">asks for a producer / consumer (busKey, role)</text>
+  <text x="220" y="94" text-anchor="middle" font-size="11" fill="#54627a">asks the facade for a bus's x-rod (getXRod, by role)</text>
 
-  <!-- L2 XRodManager -->
+  <!-- L2 MessagingBus facade -->
   <rect x="40" y="118" width="360" height="46" rx="8" fill="#eef2f7" stroke="#4D6A8D" stroke-width="1.5"/>
-  <text x="220" y="140" text-anchor="middle" font-weight="600" fill="#1f2a36">XRodManager</text>
-  <text x="220" y="156" text-anchor="middle" font-size="11" fill="#54627a">the bus frontend &#8212; one bean per service</text>
+  <text x="220" y="140" text-anchor="middle" font-weight="600" fill="#1f2a36">MessagingBus</text>
+  <text x="220" y="156" text-anchor="middle" font-size="11" fill="#54627a">the bus facade &#8212; one per service (singleton)</text>
 
   <!-- L3 IXRod -->
   <rect x="40" y="180" width="360" height="46" rx="8" fill="#eef2f7" stroke="#4D6A8D" stroke-width="1.5"/>

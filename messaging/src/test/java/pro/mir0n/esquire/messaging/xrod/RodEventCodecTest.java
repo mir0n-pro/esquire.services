@@ -17,7 +17,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import pro.mir0n.esquire.common.EsqMsgConstants;
 import pro.mir0n.esquire.messaging.transport.BusIdentity;
-import pro.mir0n.esquire.messaging.xrod.RodEvent;
+import pro.mir0n.esquire.messaging.RodEvent;
 
 import java.util.LinkedHashMap;
 import java.util.Map;

@@ -7,9 +7,10 @@ import pro.mir0n.esquire.messaging.transport.BusIdentity;
 import pro.mir0n.esquire.messaging.transport.ConsumeSettings;
 import pro.mir0n.esquire.messaging.transport.ITransportProvider;
 import pro.mir0n.esquire.messaging.transport.PublishSettings;
+import pro.mir0n.esquire.messaging.transport.TransportConsumer;
 import pro.mir0n.esquire.messaging.transport.TransportMessage;
 import pro.mir0n.esquire.messaging.transport.TransportPublisher;
-import pro.mir0n.esquire.messaging.xrod.RodEvent;
+import pro.mir0n.esquire.messaging.RodEvent;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -29,7 +30,7 @@ class RodTransportAdapterTest {
         @Override public TransportPublisher openPublisher(String destination, PublishSettings s) {
             return TransportPublisher.of(sent::add, () -> { });
         }
-        @Override public AutoCloseable openConsumer(String d, ConsumeSettings s, Consumer<TransportMessage> h) {
+        @Override public TransportConsumer openConsumer(String d, ConsumeSettings s, Consumer<TransportMessage> h) {
             throw new UnsupportedOperationException();
         }
     }

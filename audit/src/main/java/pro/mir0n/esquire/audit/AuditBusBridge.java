@@ -11,6 +11,8 @@
  *                   context (correlation / request / uid), builds the RodEvent and transmit()s it on the audit
  *                   x-rod. With no active transaction it transmits immediately. The x-rod stays pure transmit /
  *                   receive -- the transactional ordering and the entity->event build live HERE (lifted out of XRod).
+ * 06/22/2026 mir0n  IXRod / RodEvent imports moved to messaging.xrod; the audit x-rod passed in is the one the
+ *                   facade builds (MessagingBus.getXRod).
  */
 package pro.mir0n.esquire.audit;
 
@@ -20,8 +22,8 @@ import pro.mir0n.esquire.common.EsqMsgConstants;
 import pro.mir0n.esquire.backend.jpa.IMappable;
 import pro.mir0n.esquire.backend.service.EsqRequestContext;
 import pro.mir0n.esquire.backend.service.RequestContextUtils;
-import pro.mir0n.esquire.messaging.xrod.IXRod;
-import pro.mir0n.esquire.messaging.xrod.RodEvent;
+import pro.mir0n.esquire.messaging.IXRod;
+import pro.mir0n.esquire.messaging.RodEvent;
 
 import java.util.ArrayList;
 import java.util.HashMap;

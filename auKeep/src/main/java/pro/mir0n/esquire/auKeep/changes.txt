@@ -1,5 +1,15 @@
 Esquire auKeep service
 
+06/22/2026 mir0n  v1.2.9 -- bus two-phase lifecycle; audit consumer rewired onto the facade
+AuKeepApplication
+  - wires the bus lifecycle via the MessagingBusLifecycleRegistrar inner listener (LOWEST_PRECEDENCE):
+    env-prepared -> bus.init(env, {BUS_KEY_AUDIT}); ready -> bus.start(); context-closed -> bus.close();
+    the ApplicationStartingEvent kind-storage load is unchanged
+messaging.AuditConsumerConfig
+  - rewired onto the facade: takes the audit rod from MessagingBus.getXRod (audit-bus ref role CLIENT) and sets
+    the keep applier as its receive worker; guarded with isEnabled() so an explicitly-disabled audit bus leaves
+    the consumer idle
+
 06/21/2026 mir0n  v1.2.9 -- topology import optional; AUDIT_SLOT_ID
 application.yml
   - spring.config.import -> optional:file:... (the topology import is now optional); AUDIT_SERVICE_ID -> AUDIT_SLOT_ID

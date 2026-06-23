@@ -9,8 +9,10 @@
  * 06/17/2026 mir0n  created: the x-rod transmit-leg outbound from RodTransportAdapter.publisher -- a
  *                   Consumer<RodEvent> that is ALSO AutoCloseable, so XRod.shutdown() releases the transport
  *                   publisher's broker connection (mirrors the AutoCloseable receive consumer).
+ * 06/22/2026 mir0n  import RodEvent from messaging (was the same xrod package)
  */
 package pro.mir0n.esquire.messaging.xrod;
+import pro.mir0n.esquire.messaging.RodEvent;
 
 import java.util.function.Consumer;
 

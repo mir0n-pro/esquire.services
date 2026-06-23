@@ -7,7 +7,7 @@
 #
 # Usage:
 #   ./run.sh docker-pg            all Postgres-primary docker cells
-#   ./run.sh docker-pg c          a single cell (b-shared|b-ded-pg|b-ded-ora|c|c-ora|ck|ck-ora|d|dk|a)
+#   ./run.sh docker-pg c          a single cell (b-ded-pg|b-ded-ora|c|c-ora|ck|ck-ora|d|dk|a)
 #   ./run.sh docker-ora           Oracle-primary docker cells   (needs Oracle up: esq2025/q @ //host:1521/MIR0N)
 #   ./run.sh k8s                  local-k8s cells
 # Prereqs: docker stack up (compose), hauberk.jar built, sqlplus(host)+psql(docker exec).
@@ -30,13 +30,11 @@ hpg() { PGPASSWORD=q "$HPGSQL" -h localhost -p 5432 -U esq2025 -d esq2025 "$@"; 
 # ---- audit option (a): DB triggers. The base seed is trigger-FREE; the (a) cell applies the trigger
 # overlay, runs, validates, then DROPS it so the next (bus/in-process) cell is trigger-free again
 # (a stray trigger would write *_log in-transaction and corrupt the bus delta -- mir0n's rule).
-# AUDIT-OFF mechanism: AuditConfig treats a BLANK audit bus-id as "no leg" -> the producer's audit sink
-# is XRodDisabled (a true no-op; verified: smoke with no triggers leaves *_log flat). A NON-blank unknown
-# id (e.g. "audit-off") instead hits the STRICT MessagingBusCatalog.resolve() -> the producer crashes at
-# boot, so we must NOT use one. Compose's ${VAR:-audit-c} rewrites an EMPTY value back to audit-c, so a
-# literal blank can't be passed -- but a WHITESPACE value survives compose's non-empty check yet the app's
-# String.isBlank() still reads it as blank -> XRodDisabled. Hence AUDIT_OFF=" " (a single space).
-AUDIT_OFF=" "
+# AUDIT-OFF mechanism: the audit ref points at the EXPLICIT "audit-off" bus (topology slot rod-class
+# XRodDisabled) -- a true no-op sink, so the bus audit is OFF (the triggers carry the audit instead).
+# This is the #17 "disable only when explicitly defined": a blank/undefined bus-id (correctly) fails fast
+# at boot, so audit-off must be a real, XRodDisabled-backed bus. Verified: a no-trigger smoke leaves *_log flat.
+AUDIT_OFF="audit-off"
 pg_trig_apply()  { cat "${SEED}"/postgres/triggers/esq_*_briud.sql | hpg >/dev/null 2>&1; }
 pg_trig_drop()   { hpg <"${SEED}/postgres/triggers/drop.sql" >/dev/null 2>&1; }
 ora_trig_apply() { ( cd "${SEED}/oracle/triggers" && /c/ora19/bin/sqlplus -S "${ORA}" @all.sql  >/dev/null 2>&1 ); }
@@ -109,12 +107,11 @@ row() { printf '| %-14s | %-26s | %-6s | %s |\n' "$1" "$2" "$3" "$4" >>"${RESULT
 # --------------------------------------------------------------------------
 cell_docker_pg() {
   local cell="$1"
-  unset AUDIT_BUS_ID DB_DATAKEEP_SHARED DB_DATAKEEP_URL
+  unset AUDIT_BUS_ID DB_DATAKEEP_URL
   local idx="0,1,2,4" desc="" stream="" streamfn="" trig="" warm=""
   case "$cell" in
     a)          export AUDIT_BUS_ID="$AUDIT_OFF"; trig="pg"; desc="DB triggers in-tx (audit msg off)";;
-    b-shared)   export AUDIT_BUS_ID=audit-b DB_DATAKEEP_SHARED=true;  desc="in-process keep, SHARED service pool";;
-    b-ded-pg)   export AUDIT_BUS_ID=audit-b DB_DATAKEEP_SHARED=false; desc="in-process keep, dedicated pool (pg)";;
+    b-ded-pg)   export AUDIT_BUS_ID=audit-b; desc="in-process keep, dedicated pool (pg)";;
     c)          export AUDIT_BUS_ID=audit-c;   desc="bus AMQ -> auKeep -> *_log (pg)";;
     ck)         export AUDIT_BUS_ID=audit-ck; warm="1"; desc="bus Kafka -> auKeep -> *_log (pg)";;
     d)          export AUDIT_BUS_ID=audit-d;   desc="Redis stream (producer-only)"; stream="redis"; streamfn="redis_len";;
@@ -171,11 +168,11 @@ cell_docker_pg() {
 # Entities are created in Postgres; the audit is written to Oracle MIR0N (esq2025/q @ host.docker.internal:1521).
 cell_docker_pg_ora() {
   local cell="$1"
-  unset AUDIT_BUS_ID DB_DATAKEEP_SHARED DB_DATAKEEP_URL \
+  unset AUDIT_BUS_ID DB_DATAKEEP_URL \
         DB_DATAKEEP_VENDOR DB_DATAKEEP_HOST DB_DATAKEEP_PORT DB_DATAKEEP_NAME
   local desc="" ORAURL="jdbc:oracle:thin:@//host.docker.internal:1521/MIR0N"
   case "$cell" in
-    b-ded-ora) export AUDIT_BUS_ID=audit-b DB_DATAKEEP_SHARED=false \
+    b-ded-ora) export AUDIT_BUS_ID=audit-b \
                       DB_DATAKEEP_URL="$ORAURL"; desc="in-process keep -> ORACLE *_log";;
     c-ora)     export AUDIT_BUS_ID=audit-c  DB_DATAKEEP_VENDOR=dev-oracle DB_DATAKEEP_HOST=host.docker.internal \
                       DB_DATAKEEP_PORT=1521 DB_DATAKEEP_NAME=MIR0N; desc="bus AMQ -> auKeep -> ORACLE *_log";;
@@ -195,7 +192,7 @@ cell_docker_pg_ora() {
 
 # --------------------------------------------------------------------------
 # Docker, ORACLE primary (all services -> MIR0N). Audit DB = pg or oracle per cell;
-# entities live in Oracle, so a/b-shared land *_log in Oracle (the service pool).
+# entities live in Oracle, so the (a) trigger cell lands *_log in Oracle (in-transaction).
 # --------------------------------------------------------------------------
 set_oracle_primary() { for s in ENYMAN PACMAN KEYSMITH BIZTREE; do
   export DB_${s}_VENDOR=dev-oracle DB_${s}_HOST=host.docker.internal DB_${s}_PORT=1521 DB_${s}_NAME=MIR0N; done; }
@@ -217,15 +214,14 @@ recreate_full() { # biztree + producers (+aukeep) -- oracle-primary needs biztre
 
 cell_docker_ora() {
   local cell="$1"
-  unset AUDIT_BUS_ID DB_DATAKEEP_SHARED DB_DATAKEEP_URL \
+  unset AUDIT_BUS_ID DB_DATAKEEP_URL \
         DB_DATAKEEP_VENDOR DB_DATAKEEP_HOST DB_DATAKEEP_PORT DB_DATAKEEP_NAME
   set_oracle_primary
   local ORAURL="jdbc:oracle:thin:@//host.docker.internal:1521/MIR0N" db="ora" desc="" stream="" streamfn="" idx="0,1,2,4" trig=""
   case "$cell" in
     a)         export AUDIT_BUS_ID="$AUDIT_OFF"; db="ora"; trig="ora"; desc="DB triggers in-tx (oracle primary, audit msg off)";;
-    b-shared)  export AUDIT_BUS_ID=audit-b DB_DATAKEEP_SHARED=true;  db="ora"; desc="in-proc SHARED (oracle primary+audit)";;
-    b-ded-pg)  export AUDIT_BUS_ID=audit-b DB_DATAKEEP_SHARED=false DB_DATAKEEP_URL="jdbc:postgresql://host.docker.internal:5432/esq2025"; db="pg"; desc="in-proc dedicated -> PG audit";;
-    b-ded-ora) export AUDIT_BUS_ID=audit-b DB_DATAKEEP_SHARED=false DB_DATAKEEP_URL="$ORAURL"; db="ora"; desc="in-proc dedicated -> ORA audit";;
+    b-ded-pg)  export AUDIT_BUS_ID=audit-b DB_DATAKEEP_URL="jdbc:postgresql://host.docker.internal:5432/esq2025"; db="pg"; desc="in-proc keep -> PG audit";;
+    b-ded-ora) export AUDIT_BUS_ID=audit-b DB_DATAKEEP_URL="$ORAURL"; db="ora"; desc="in-proc keep -> ORA audit";;
     c-pg)      export AUDIT_BUS_ID=audit-c;  db="pg";  desc="bus AMQ -> auKeep -> PG audit";;
     c-ora)     export AUDIT_BUS_ID=audit-c  DB_DATAKEEP_VENDOR=dev-oracle DB_DATAKEEP_HOST=host.docker.internal DB_DATAKEEP_PORT=1521 DB_DATAKEEP_NAME=MIR0N; db="ora"; desc="bus AMQ -> auKeep -> ORA audit";;
     ck-pg)     export AUDIT_BUS_ID=audit-ck; db="pg";  desc="bus Kafka -> auKeep -> PG audit";;
@@ -275,9 +271,8 @@ cell_docker_ora() {
 # ==========================================================================
 # Local k8s (Docker Desktop), Postgres only. Audit DB = the infra StatefulSet
 # esquire-infra-postgres-0; kafka/redis are Deployments (exec via deployment/).
-# Producers cycle via `helm upgrade -f values/<svc>.yaml --set audit.busId=...`
-# (NO --reuse-values: the full values file + chart defaults reapply, --set wins,
-# so the new datasource.shared chart key binds cleanly). The pod templates carry no
+# Producers cycle via `helm upgrade --reuse-values --set audit.busId=...` (keeps the running image
+# tag + every other deployed value, overrides only the audit busId). The pod templates carry no
 # checksum/config annotation, so a configmap change needs an explicit rollout
 # restart. The gateway routes by Service DNS, so producer restarts need no gw
 # bounce. Smoke runs against the ingress (hauberk-k8s.properties).
@@ -301,12 +296,11 @@ run_smoke_k8s() { ( cd "${HBK}" && java -Dhauberk.config=hauberk-k8s.properties 
 # --reuse-values (NOT -f values/<svc>.yaml): the deployed image tag is a k8s-rebuild stamp that differs
 # from the tag pinned in values/, so re-applying the file would downgrade the image to a tag the local
 # daemon may not have (ImagePullBackOff). --reuse-values keeps the running tag + every other deployed
-# value and overrides ONLY the audit knobs. The new chart key audit.datasource.shared is set explicitly here
-# (and the configmap guards it with | default false), so --reuse-values' new-key trap does not bite.
+# value and overrides ONLY the audit knob (busId).
 # --set-string: a whitespace busId (option a) survives helm parsing.
 helm_set_producers() { local svc; for svc in enyman pacman keysmith; do
   ( cd "${SVCS}/k8s" && helm upgrade --install esquire-$svc charts/esquire-$svc --reuse-values \
-      --set-string audit.busId="$1" --set audit.datasource.shared="${2:-false}" --wait --timeout 180s >/dev/null 2>&1 ); done; }
+      --set-string audit.busId="$1" --wait --timeout 180s >/dev/null 2>&1 ); done; }
 helm_set_aukeep() { ( cd "${SVCS}/k8s" && helm upgrade --install esquire-aukeep charts/esquire-aukeep --reuse-values \
       --set-string audit.busId="$1" --wait --timeout 180s >/dev/null 2>&1 ); }
 restart_k8s_producers() {
@@ -342,11 +336,10 @@ k8s_infra_ensure() {   # install the audit sinks + all-sinks topology the runnin
 
 cell_k8s() {
   local cell="$1"
-  local idx="0,1,2,4" desc="" stream="" streamfn="" trig="" busid="" shared="false" akbus="" warm=""
+  local idx="0,1,2,4" desc="" stream="" streamfn="" trig="" busid="" akbus="" warm=""
   case "$cell" in
     a)         busid="$AUDIT_OFF"; trig="1"; desc="DB triggers in-tx (audit msg off)";;
-    b-shared)  busid="audit-b"; shared="true";  desc="in-process keep, SHARED service pool";;
-    b-ded-pg)  busid="audit-b"; shared="false"; desc="in-process keep, dedicated pool (pg)";;
+    b-ded-pg)  busid="audit-b"; desc="in-process keep, dedicated pool (pg)";;
     c)         busid="audit-c";  akbus="audit-c";  desc="bus AMQ -> auKeep -> *_log (pg)";;
     ck)        busid="audit-ck"; akbus="audit-ck"; warm="1"; desc="bus Kafka -> auKeep -> *_log (pg)";;
     d)         busid="audit-d";  stream="redis"; streamfn="k8s_redis_len"; desc="Redis stream (producer-only)";;
@@ -358,7 +351,7 @@ cell_k8s() {
   if [ -n "$trig" ]; then
     k8s_dedup_drop                                     # triggers need the dedup index absent
     k8s_trig_apply; echo "    [trig] applied ($(k8s_trig_count) ESQ triggers); dedup index dropped; audit msg OFF"
-    helm_set_producers "$busid" "$shared"; restart_k8s_producers
+    helm_set_producers "$busid"; restart_k8s_producers
     pre="$(k8s_pg_counts)"; run_smoke_k8s; sleep 8; post="$(k8s_pg_counts)"
     res="$(grew "$pre" "$post" "$idx")"
     k8s_trig_drop
@@ -368,7 +361,7 @@ cell_k8s() {
   fi
   if [ -n "$stream" ]; then
     kubectl scale deployment/esquire-aukeep-aukeep --replicas=0 >/dev/null 2>&1; sleep 4
-    helm_set_producers "$busid" "$shared"; restart_k8s_producers
+    helm_set_producers "$busid"; restart_k8s_producers
     local spre; spre="$($streamfn)"; pre="$(k8s_pg_counts)"
     run_smoke_k8s; sleep 6
     local spost; spost="$($streamfn)"; post="$(k8s_pg_counts)"
@@ -378,7 +371,7 @@ cell_k8s() {
     else res="FAIL ${stream}Δ=${sd}"; fi
     kubectl scale deployment/esquire-aukeep-aukeep --replicas=1 >/dev/null 2>&1; restart_k8s_aukeep
   else
-    helm_set_producers "$busid" "$shared"; [ -n "$akbus" ] && helm_set_aukeep "$akbus"
+    helm_set_producers "$busid"; [ -n "$akbus" ] && helm_set_aukeep "$akbus"
     restart_k8s_producers; [ -n "$akbus" ] && restart_k8s_aukeep
     if [ -n "$warm" ]; then
       # Kafka consumer-group COLD START: auKeep's first join of the esquire-audit group (find-coordinator +
@@ -405,10 +398,10 @@ main() {
   echo "|---|---|---|---|" >>"${RESULTS}"
   case "$env" in
     docker-pg)
-      local cells=("$@"); [ ${#cells[@]} -eq 0 ] && cells=(a b-shared b-ded-pg c ck d dk)
+      local cells=("$@"); [ ${#cells[@]} -eq 0 ] && cells=(a b-ded-pg c ck d dk)
       for c in "${cells[@]}"; do cell_docker_pg "$c"; done
       # restore default audit-c
-      unset AUDIT_BUS_ID DB_DATAKEEP_SHARED; export AUDIT_BUS_ID=audit-c
+      unset AUDIT_BUS_ID; export AUDIT_BUS_ID=audit-c
       recreate_docker ;;
     docker-pg-ora)
       local cells=("$@"); [ ${#cells[@]} -eq 0 ] && cells=(b-ded-ora c-ora ck-ora)
@@ -416,17 +409,17 @@ main() {
       unset DB_DATAKEEP_VENDOR DB_DATAKEEP_HOST DB_DATAKEEP_PORT DB_DATAKEEP_NAME DB_DATAKEEP_URL
       export AUDIT_BUS_ID=audit-c; recreate_docker ;;
     docker-ora)
-      local cells=("$@"); [ ${#cells[@]} -eq 0 ] && cells=(a b-shared b-ded-pg b-ded-ora c-pg c-ora ck-pg ck-ora d dk)
+      local cells=("$@"); [ ${#cells[@]} -eq 0 ] && cells=(a b-ded-pg b-ded-ora c-pg c-ora ck-pg ck-ora d dk)
       for c in "${cells[@]}"; do cell_docker_ora "$c"; done
       unset_oracle_primary
-      unset DB_DATAKEEP_VENDOR DB_DATAKEEP_HOST DB_DATAKEEP_PORT DB_DATAKEEP_NAME DB_DATAKEEP_URL DB_DATAKEEP_SHARED
+      unset DB_DATAKEEP_VENDOR DB_DATAKEEP_HOST DB_DATAKEEP_PORT DB_DATAKEEP_NAME DB_DATAKEEP_URL
       export AUDIT_BUS_ID=audit-c; recreate_full ;;
     k8s)
       k8s_infra_ensure
-      local cells=("$@"); [ ${#cells[@]} -eq 0 ] && cells=(a b-shared b-ded-pg c ck d dk)
+      local cells=("$@"); [ ${#cells[@]} -eq 0 ] && cells=(a b-ded-pg c ck d dk)
       for c in "${cells[@]}"; do cell_k8s "$c"; done
       # restore default: bus (c) producers + auKeep
-      helm_set_producers audit-c false; helm_set_aukeep audit-c; restart_k8s_producers; restart_k8s_aukeep ;;
+      helm_set_producers audit-c; helm_set_aukeep audit-c; restart_k8s_producers; restart_k8s_aukeep ;;
     *) echo "env '$env' not wired in this build yet"; exit 2;;
   esac
   echo "=== results -> ${RESULTS} ==="; cat "${RESULTS}"

@@ -13,8 +13,11 @@
  *                   bridge); this now covers the RECEIVE leg (submit / apply pool) only.
  */
 package pro.mir0n.esquire.messaging.xrod;
-import pro.mir0n.esquire.messaging.Role;
-import pro.mir0n.esquire.messaging.XRodParams;
+import pro.mir0n.esquire.messaging.RodEvent;
+import pro.mir0n.esquire.messaging.IRodEventRepo;
+import pro.mir0n.esquire.messaging.RodEventRepoRegistry;
+import pro.mir0n.esquire.messaging.catalog.Role;
+import pro.mir0n.esquire.messaging.catalog.XRodParams;
 import pro.mir0n.esquire.messaging.xrod.impl.XRod;
 
 import org.junit.jupiter.api.Test;
@@ -35,8 +38,10 @@ class XRodTest {
     private static XRod receive(RodEventRepoRegistry reg, int poolSize, boolean virtualThreads) {
         XRod rig = new XRod();
         rig.configure(XRodParams.from(Map.of("pool-size", poolSize, "virtual-threads", virtualThreads))
-                .withBus("test", "rx", null), Role.BROADCAST, null);
-        rig.start("test-rx", null, reg.applier(null));
+                .withBus("test", "rx", null), Role.CLIENT, null);
+        rig.init("test-rx", null);   // CREATE the receive pool (paused) -- before setWorker (the leg must exist)
+        rig.setWorker(reg.applier(null));
+        rig.start();                 // RUN it (no transport -- receive() is called directly)
         return rig;
     }
 

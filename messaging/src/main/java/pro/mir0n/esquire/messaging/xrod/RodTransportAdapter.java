@@ -11,6 +11,7 @@
  *                   RodEventCodec) onto a TransportMessage (key = entityId); handler() adapts a RodEvent sink into
  *                   the TransportMessage handler the provider's openConsumer dispatches to (decoding the envelope).
  * 06/17/2026 mir0n  publisher() returns a RodPublisher (closeable) instead of a bare Consumer<RodEvent>
+ * 06/22/2026 mir0n  import RodEvent from messaging (was messaging.xrod)
  */
 package pro.mir0n.esquire.messaging.xrod;
 
@@ -20,7 +21,7 @@ import pro.mir0n.esquire.messaging.transport.ITransportProvider;
 import pro.mir0n.esquire.messaging.transport.PublishSettings;
 import pro.mir0n.esquire.messaging.transport.TransportMessage;
 import pro.mir0n.esquire.messaging.transport.TransportPublisher;
-import pro.mir0n.esquire.messaging.xrod.RodEvent;
+import pro.mir0n.esquire.messaging.RodEvent;
 
 import java.util.function.Consumer;
 

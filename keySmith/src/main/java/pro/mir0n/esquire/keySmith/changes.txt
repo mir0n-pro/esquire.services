@@ -1,5 +1,27 @@
 Esquire keySmith Microservice
 
+06/22/2026 mir0n  messaging-bus: BusAdapters + lifecycle registrar
+KeySmithApplication
+  - MessagingBusLifecycleRegistrar inner class (ApplicationListener<ApplicationEvent>, Ordered.LOWEST_PRECEDENCE),
+    registered LAST; ApplicationEnvironmentPreparedEvent -> MessagingBus.init(env, {BUS_KEY_KC, BUS_KEY_AUDIT}),
+    ApplicationReadyEvent -> start() (after roles load), ContextClosedEvent -> close()
+messaging.KcBusAdapter  (new, was KcSyncPublisher + KcSyncResponseListener)
+  - one kc-CLIENT rod (MessagingBus.getXRod(BUS_KEY_KC)), both legs: publish() transmits the URQ
+    (delete/create/update branch off oldConnectFlg vs connectFlg), onResponse() set as the rod worker
+    receives URS/URR; setWorker + transmit(null) probe the receive/transmit legs
+  - KcSyncPublisher + KcSyncResponseListener deleted
+service.impl.KeySmithService
+  - kcSyncPublisher field/import KcSyncPublisher -> KcBusAdapter; RodEvent import messaging.xrod.RodEvent ->
+    messaging.RodEvent
+audit.AuditConfig
+  - auditBusBridge() returns new AuditBusBridge(MessagingBus.getXRod(BUS_KEY_AUDIT)); the leg-selecting keep
+    wiring (XRodManager/MessagingBusCatalog, KeepApplier/KeepSqlStore, datasource sub-block, @PreDestroy close)
+    removed -- the facade builds the audit rod from the role-SERVER ref, the keep owns its datasource
+application.yml
+  - kc bus ref role: CLIENT; audit bus ref role: SERVER; audit-b leg rod-class
+    XRodInProcess -> XRodInProcessKeep + director AuditKeepDirector; datasource sub-block dropped shared (own
+    dedicated *_log pool)
+
 06/21/2026 mir0n  v1.2.9 -- audit leg disables (not crashes) on an unknown bus; topology import optional; SLOT_ID
 audit.AuditConfig
   - resolves the audit leg via catalog.find() (was the strict resolve()), so an unknown audit bus-id disables

@@ -15,22 +15,22 @@
 ## What
 
 The Messaging Bus is the single way a service does asynchronous messaging. A service never opens a JMS
-connection, a Kafka producer, or a Redis client; it asks one frontend — `XRodManager` — for a producer
-or a consumer on a *logical bus* and a *role*, and the framework builds the rest from a declared catalog.
+connection, a Kafka producer, or a Redis client; it asks one facade — `MessagingBus` — for the x-rod of a
+*logical bus* (built from its declared `role`), and the framework builds the rest from a declared catalog.
 
 Four ideas make it up:
 
 - **A bus catalog (the topology)** — every bus declared once, across services, in one external file.
   A **bus topology**, where buses are first-class declared infrastructure, in place of the point-to-point
   **service mesh** a microservice fleet usually grows.
-- **The x-rod frontend** — one x-rod type per bus leg (`IXRod`) with two legs, a transmit leg and a
-  receive leg; the wiring decides producer / consumer / in-process. ("Rod" = *Relay of Data*.)
+- **The x-rod** — one x-rod type per bus leg (`IXRod`) with two legs, a transmit leg and a
+  receive leg; the role decides producer / consumer / in-process. ("Rod" = *Relay of Data*.)
 - **An open transport-driver SPI** — `ITransportProvider`, one drop-in module per vendor. A deployment
   carries only the drivers it uses; the framework names no vendor.
 - **The bus patterns** the substrate supports — **broadcast** (many publishers, many subscribers) and **request/response**
   (two-node round-trip), plus an **in-process** x-rod for a leg that applies events locally.
 
-![Messaging Bus runtime path: a service asks XRodManager for a producer/consumer; the manager resolves the catalog leg and the x-rod (by rod-class); the x-rod encodes each event through RodEventCodec to a TransportMessage and hands it to the resolved driver, which maps it onto the broker wire.](img/messaging-bus-architecture.svg)
+![Messaging Bus runtime path: a service asks the MessagingBus facade for a bus's x-rod; the facade resolves the catalog leg and the x-rod (by rod-class); the x-rod encodes each event through RodEventCodec to a TransportMessage and hands it to the resolved driver, which maps it onto the broker wire.](img/messaging-bus-architecture.svg)
 
 ## Why
 
@@ -54,8 +54,9 @@ end to end.
 
 | Piece | Location |
 |---|---|
-| Bus model + catalog | `pro.mir0n.esquire.messaging` — `MessagingBus`, `BusSlot`, `BusTransport`, `BusRef`, `MessagingBusCatalog`, `XRodParams`, `Role` |
-| x-rod frontend + x-rods | `messaging.xrod` — `XRodManager`, `IXRod`, `XRods`, `RodEvent`, `RodEventCodec`, `RodPublisher`, `RodTransportAdapter`, `XRodAutoConfiguration` — and `messaging.xrod.impl` — `XRod`, `XRodRR`, `XRodInfo`, `XRodDisabled`. A generic in-process x-rod, `XRodInProcess`, ships in a separate library (it is resolved by `rod-class` like any other). |
+| Public API | `pro.mir0n.esquire.messaging` — `MessagingBus` (the facade), `IXRod`, `RodEvent`, `IRodEventRepo`, `RodEventRepoRegistry` |
+| Bus config model + catalog | `messaging.catalog` — `MessagingBusCatalog`, `MessagingBus` (a catalog bus record), `BusSlot`, `BusNode`, `BusRef`, `BusTransport`, `XRodParams`, `Role` |
+| x-rods | `messaging.xrod` — `RodEventCodec`, `RodPublisher`, `RodTransportAdapter` — and `messaging.xrod.impl` — `AXRod`, `XRod`, `XRodRR`, `XRodInProcess`, `XRodInfo`, `XRodDisabled`. The in-process KEEP x-rod, `XRodInProcessKeep`, ships in the dataKeep library (resolved by `rod-class` like any other). |
 | Transport SPI | `messaging.transport` — `ITransportProvider`, `TransportProviders`, `TransportMessage`, `TransportPublisher`, `TransportSettings`, `PublishSettings`, `ConsumeSettings`, `BusIdentity` |
 | Transport drivers | one module per vendor — `pro.mir0n.esquire.tp.<name>.TransportProvider` + an `AutoConfigurationImportFilter` |
 
@@ -71,7 +72,7 @@ describing the topology; the **x-rod** and **network node** are the concrete sof
 | **network node** | The transport abstraction exposed by a vendor's (provider's) API — an ActiveMQ queue, a Kafka topic, a Redis stream. The concrete destination on the wire. |
 | **x-rod** (short: **rod**) | The transport-level software module *slotted* into a bus slot. It uniformly defines access to the network node(s) and so unifies a vendor's API with the messaging-bus concept — *as a lightning rod is slotted to a castle tower.* In code: an implementation of `IXRod`. |
 | **leg** | A bus user — the publish or consume side. A **publisher leg** sends; a **consumer leg** receives. Every communication is a pair of legs. |
-| **role** | On a **request-response** bus: **client** (sends requests, receives responses) or **server** (receives requests, sends responses). A **broadcast** bus has no role differentiation — every participant may both send and receive on the same network node. |
+| **role** | Which legs an x-rod runs. On a **request-response** bus: **CLIENT** (transmit request / receive response) or **SERVER** (transmit response / receive request). On a **single-node** bus: **CLIENT** = receive, **SERVER** = transmit, **BOTH** = transmit + receive. |
 
 **Catalog keys** — how the terms appear in the topology / configuration:
 
@@ -83,47 +84,62 @@ describing the topology; the **x-rod** and **network node** are the concrete sof
 | `rod-class` | which **x-rod** implementation runs (`XRod` / `XRodRR` / `XRodInProcess` / `XRodInfo` / `XRodDisabled` / a custom class) |
 | `x-rod` | the slot's **x-rod** configuration — engine knobs + the `transport` block |
 | `transport` | the **network node** binding: `provider` + `endpoint` + `destination` + `params` (vendor knobs, e.g. ActiveMQ's `pubSubDomain`) + (R&R) `request-node` / `response-node` + a `node` list |
-| `role` | the **role** (`CLIENT` / `SERVER` / `BROADCAST`), passed per `producer()` / `consumer()` call |
+| `role` | the **role** (`CLIENT` / `SERVER` / `BOTH`), declared per bus ref; picks which legs the x-rod runs |
 
 ## How
 
-The runtime path: a service asks the frontend for a leg; the frontend resolves the leg config from the
+The runtime path: a service asks the facade for a bus's x-rod; the facade resolves the leg config from the
 catalog and the x-rod by `rod-class`; the x-rod builds its own transport from the resolved driver and runs
-its two legs. The rest of this section is that path in detail — the frontend, the parameter model, the
+its two legs. The rest of this section is that path in detail — the facade, the parameter model, the
 x-rod engine, the x-rod types, the transport SPI and drivers, and the per-leg logging.
 
-### The frontend — `XRodManager`
+### The facade — `MessagingBus`
 
-One bean per service (registered by `XRodAutoConfiguration`, `destroyMethod = close`), so a producer or
-consumer class carries no lifecycle wiring. Two calls:
+One per service — a singleton (`MessagingBus.getInstance()`), so a publisher or consumer class carries no
+lifecycle wiring of its own. A two-phase lifecycle plus a lookup:
 
 ```java
-IXRod producer(String busKey, Role role);
-IXRod consumer(String busKey, Role role, Consumer<RodEvent> worker);
+void  init(Environment env, String[] busKeys);   // BUILD: construct every named bus's x-rod, PAUSED (no I/O)
+void  start();                                    // RUN:   open + run every built x-rod (traffic flows now)
+IXRod getXRod(String busKey);                     // hand a built x-rod to a publisher / consumer adapter
+void  close();                                    // drain in-flight + shut every x-rod down
 ```
 
-Each call resolves and starts an x-rod:
+**Lifecycle — wired once per service, in `main()`.** A small `MessagingBusLifecycleRegistrar` inner class
+(one `ApplicationListener`, `LOWEST_PRECEDENCE`) routes the three Spring Boot events; the service names the
+buses it uses inline:
+- `ApplicationEnvironmentPreparedEvent` → `init(env, {BUS_KEY_…})` — load + validate the catalog, then build
+  every named bus's x-rod PAUSED. **No transport I/O.**
+- `ApplicationReadyEvent` → `start()` — open each x-rod's transport and run its legs (after the service's own
+  ready work, e.g. role load, so it is registered last).
+- `ContextClosedEvent` → `close()` — drain in-flight work and close every transport.
 
-1. **Resolve the key to a `BusRef`** — `esquire.<busKey>.messaging-bus → {bus-id, slot-id, x-rod?}`.
-   A `busKey` that already contains a dot is taken as a catalog `bus-id` directly (no ref).
-2. **Resolve the leg params** — `MessagingBusCatalog.find(bus-id, slot-id)` gives the BASE `XRodParams`;
-   a service-level `x-rod` on the ref is merged over it (see [the parameter model](#configuration-and-the-parameter-model)). Either source alone works; if NEITHER defines the leg the result is `null`.
+`init` builds one bus's x-rod per named key:
+
+1. **Resolve the key to a `BusRef`** — `esquire.<busKey>.messaging-bus → {bus-id, slot-id, role, x-rod?}`.
+2. **Resolve the leg params** — `MessagingBusCatalog.find(bus-id, slot-id)` gives the BASE `XRodParams`; a
+   service-level `x-rod` on the ref merges over it (see [the parameter model](#configuration-and-the-parameter-model)). A bus a service uses with a `role` but NO leg **fails fast** — the topology must define it.
 3. **Default the rod-id** — `withBus(bus-id, slot-id, instanceId)` folds the identity in and defaults an
    unset/blank `rod-id` to the per-instance id `<app>.<instanceNo>` (`spring.application.name` + the
    instance number, parsed from this pod/container's host name — the StatefulSet ordinal in k8s, a
    `hostname: <app>-N` in Docker), so each sharded replica owns a distinct rod-id and a CLIENT's `RodID`
    selector isolates that instance's responses.
-4. **Resolve the x-rod by `rod-class`** — via `XRods.resolve(...)`; a `null` leg (step 2) yields the OFF x-rod
-   `XRodDisabled` (a missing leg is a disabled slot, never an error) and logs a CONSOLE INFO that the bus/slot
-   is DISABLED, so a mistyped/unset key is visible rather than silent — declare `rod-class: XRodDisabled`
-   explicitly to make it intentional and silence the INFO.
+4. **Resolve the x-rod by `rod-class`** — a bare name resolves under `messaging.xrod.impl` (a built-in), a
+   dotted value is a full class name (any custom `IXRod`). To run a service **without** a bus, name
+   `rod-class: XRodDisabled` explicitly — there is no silent fallback: an undeclared / unbuilt bus key
+   **throws** at `getXRod` (a wiring bug, not a quietly-disabled slot).
 5. **`validate(params)`** — fail-fast: each x-rod checks the leg config IT requires (`XRod` a complete
-   transport, `XRodRR` the request/response nodes), so a misconfiguration is reported here, not as a late
-   no-op. Default is no requirement (the OFF / log-only x-rods).
-6. **`configure(params, role, objectMapper)` then `start(name, devLog, worker)`** — `worker == null` →
-   producer, non-null → consumer. The x-rod is tracked; `XRodManager.close()` shuts every one down.
+   transport, `XRodRR` the request/response nodes, `XRodInProcessKeep` its datasource + director). Default is
+   no requirement (the OFF / log-only x-rods).
+6. **`configure(params, role, objectMapper)`** — the x-rod is now built and PAUSED (no I/O); `start()` opens
+   and runs it. The facade tracks every x-rod; `close()` shuts them all down.
 
-The x-rod builds its **own** transport from the leg — the manager re-packs nothing.
+**Wiring an adapter.** A publisher / consumer `@Component` (a *BusAdapter*) pulls its x-rod in its constructor
+via `getXRod(busKey)`, then — by its role — sets its receive worker with `setWorker(...)` and / or probes its
+transmit leg with `transmit(null)`. Both fail fast if the rod's role lacks that leg, so a producer wired to a
+non-producing bus (or a consumer to a non-consuming one) is a boot error, not a silent no-op.
+
+The x-rod builds its **own** transport from the leg — the facade re-packs nothing.
 
 ### Configuration and the parameter model
 
@@ -191,21 +207,23 @@ An x-rod's effective wire is resolved across three levels, all by the same per-g
 The transceiver engine — the feed (transmit leg), the `Semaphore`-bounded worker pool (receive leg), the
 message trace, and their lifecycle — lives in the abstract base **`AXRod`**; every x-rod that has a feed
 and/or a pool EXTENDS it (`XRod` adds a transport; the in-process `XRodInProcess` runs a worker that applies
-each event to a local sink), rather than wrapping a copy. `XRod` is the default x-rod: a transmitter/receiver. Lifecycle is four steps — construct
-(no-arg, reflectively instantiated), `validate(params)` (fail-fast on the required leg config — see the
-frontend), `configure` (PREPARE), `start` (RUN); `shutdown` stops it.
+each event to a local sink), rather than wrapping a copy. `XRod` is the default x-rod: a transmitter/receiver.
+Lifecycle is five steps — construct (no-arg, reflectively instantiated), `validate(params)` (fail-fast on the
+required leg config — see the facade), `configure` (PREPARE), `init(name, devLog)` (CREATE the legs, PAUSED),
+`start()` (RUN); `setWorker` sets/resets the receive callback (any time after `configure`), `shutdown` stops it.
 
-- **`configure(params, role, objectMapper)`** reads the identity (`BusIdentity` = bus-id / slot-id /
-  rod-id) and the engine knobs (`feed-capacity` default 4096, `pool-size` default 4, `virtual-threads`).
-- **`start(name, devLog, worker)`** wires the legs and opens the transport. `transportBacked = transport
-  != null && objectMapper != null` decides the shape:
+- **`configure(params, role, objectMapper)`** reads the identity (`BusIdentity` = bus-id / slot-id / rod-id),
+  the engine knobs (`feed-capacity` default 4096, `pool-size` default 4, `virtual-threads`), and the `role`.
+- **`init(name, devLog)`** builds the engine PAUSED — a transmit leg if the role transmits, a receive leg
+  (pool) if the role receives; `transportBacked = transport != null && objectMapper != null` decides the
+  shape. `start()` then opens the transport and runs the legs:
 
-| worker | transportBacked | shape |
+| receive leg | transportBacked | shape |
 |---|---|---|
-| `null` | yes | **producer** — opens a publisher to the leg destination |
-| `null` | no | a no-op producer (no transmit leg) |
-| set | no | **in-process** — `outbound = this::receive`; the feed loops back to `worker` |
-| set | yes | **consumer** — the receive pool applies `worker`; opens the transport consumer |
+| no | yes | **producer** — opens a publisher to the leg destination |
+| no | no | a no-op producer (no transmit leg) |
+| yes | no | **in-process** — `outbound = this::receive`; the feed loops back to the worker |
+| yes | yes | **consumer** — the receive pool applies the worker; opens the transport consumer |
 
 #### Transmit leg
 
@@ -267,14 +285,14 @@ A specialised `XRod` for an R&R leg. The base transceiver is unchanged; only two
 
 #### `XRodInProcess` — generic in-process
 
-A generic in-process x-rod for a producer-side leg that applies its events to a LOCAL sink rather than
-sending them on a wire. `transmit(event)` feeds the event into the x-rod's OWN worker pool, which runs the
-configured worker (an applier) — there is no transport and no codec. It is the piece that STARTS the worker
-pool a bare producer leg lacks: a base `XRod` as a producer is transmit-only and never opens a pool, so a
-leg that must run a worker locally selects `XRodInProcess` instead. Resolved by `rod-class` like any x-rod;
-the manager passes the worker through `consumer(busKey, role, worker)`, so the worker is the applier the
-in-process x-rod loops each transmitted event back to. It ships in a separate library rather
-than in `messaging.xrod.impl`.
+A generic in-process x-rod for a leg that applies its events to a LOCAL sink rather than sending them on a
+wire. `transmit(event)` feeds the event into the x-rod's OWN worker pool, which runs the configured worker
+(an applier) — there is no transport and no codec. It is the piece that STARTS the worker pool a bare
+producer leg lacks: a base `XRod` producer is transmit-only and never opens a pool, so a leg that must run a
+worker locally selects `XRodInProcess`. `XRodInProcess` itself ships in `messaging.xrod.impl`; a concrete keep
+— `XRodInProcessKeep` (dataKeep) — extends it: its `init` opens the engine, then sets its own worker, an
+applier built from the leg's `datasource` + `director` blocks, to which the in-process pool loops each
+transmitted event. Resolved by `rod-class` like any x-rod.
 
 #### `XRodInfo` — log-only
 
@@ -285,9 +303,11 @@ one line (the whole `RodEvent`, led by the directive) to the leg's `msg` logger.
 
 #### `XRodDisabled` — OFF
 
-A fully inert `IXRod`: every method a no-op, no config, no transport, `isEnabled()` false. The default
-when a bus key resolves to no leg, or set explicitly (`rod-class: XRodDisabled`) to disable a slot. So an
-injected `IXRod` is never null.
+A fully inert `IXRod`: every method a no-op, no config, no transport, `isEnabled()` false. Selected ONLY
+explicitly — `rod-class: XRodDisabled` — to run a service WITHOUT a bus it would otherwise use (e.g. an
+`audit-off` bus in the catalog that turns the bus audit off, so DB triggers carry it instead). There is no
+silent fallback: an undeclared / unbuilt bus key **throws** at `getXRod` (a wiring bug), so a disabled bus is
+always a deliberate, in-catalog declaration — never a quietly-absent one.
 
 ### The transport SPI and drivers
 
@@ -477,26 +497,31 @@ JSON; **Redis** — a stream entry whose fields are the (stringified) header bag
 
 ## Appendix B — API Definition
 
-### Frontend
+### Facade
 
 ```java
-class XRodManager implements AutoCloseable {        // one bean per service (XRodAutoConfiguration)
-    IXRod producer(String busKey, Role role);
-    IXRod consumer(String busKey, Role role, Consumer<RodEvent> worker);
-    void  close();
+class MessagingBus implements AutoCloseable {           // a per-service SINGLETON -- getInstance()
+    static MessagingBus getInstance();
+    void  init(Environment env, String[] busKeys);      // BUILD every named bus's x-rod, PAUSED (no I/O)
+    void  start();                                       // RUN every built x-rod (open transport + run legs)
+    IXRod getXRod(String busKey);                        // a built x-rod (THROWS for an unbuilt / undeclared key)
+    void  close();                                       // drain in-flight + shut every x-rod down
 }
 interface IXRod {
     default void validate(XRodParams params);                                     // fail-fast on the required leg config
     void    configure(XRodParams params, Role role, ObjectMapper objectMapper);   // PREPARE
-    void    start(String name, Logger devLog, Consumer<RodEvent> worker);         // RUN
+    void    setWorker(Consumer<RodEvent> worker);                                 // set/reset the receive callback
+    void    init(String name, Logger devLog);                                     // CREATE the legs (paused)
+    void    start();                                                              // RUN (engine threads + delivery)
     void    shutdown();
     default boolean isEnabled();        // default true; only XRodDisabled is false
     void    transmit(RodEvent event);   // send a pre-built event out the transmit leg
     void    receive(RodEvent event);    // apply an arrived event on the bounded receive pool
 }
 abstract class AXRod implements IXRod { /* the feed + worker-pool engine; XRod and the in-process XRodInProcess extend it */ }
-final class XRods { static IXRod resolve(String rodClass); String DEFAULT="XRod"; String DISABLED="XRodDisabled"; }
-enum Role { CLIENT, SERVER, BROADCAST }
+enum Role { CLIENT, SERVER, BOTH }
+// the lifecycle is wired per service by a small MessagingBusLifecycleRegistrar inner class:
+//   env-prepared -> init(env, {BUS_KEY_...})   ready -> start()   context-closed -> close()
 ```
 
 ### Transport SPI
@@ -559,12 +584,13 @@ final class RodEventRepoRegistry { void register(int kind, IRodEventRepo r); Con
 
 ## Appendix C — Class Diagram
 
-![Type map across the three framework packages: messaging.xrod (XRodManager, IXRod and its x-rods, XRods, RodEvent/RodEventCodec, RodTransportAdapter), messaging (MessagingBusCatalog, MessagingBus, BusSlot, XRodParams, BusTransport, BusRef, Role), and messaging.transport (ITransportProvider, TransportProviders, TransportMessage, the settings, BusIdentity, the tp-* drivers). XRodManager resolves the leg from the catalog and the driver from TransportProviders.](img/messaging-bus-classes.svg)
+![Type map across the framework packages: messaging (the MessagingBus facade, IXRod, RodEvent, IRodEventRepo, RodEventRepoRegistry), messaging.catalog (MessagingBusCatalog, the MessagingBus bus record, BusSlot, BusNode, XRodParams, BusTransport, BusRef, Role), messaging.xrod + messaging.xrod.impl (RodEventCodec/RodPublisher/RodTransportAdapter; AXRod, XRod, XRodRR, XRodInProcess, XRodInfo, XRodDisabled), and messaging.transport (ITransportProvider, TransportProviders, TransportMessage, the settings, BusIdentity, the tp-* drivers). The MessagingBus facade resolves the leg from the catalog and the driver from TransportProviders.](img/messaging-bus-classes.svg)
 
-Resolution is class-name-driven on two axes: `rod-class` selects the x-rod (`XRods`),
-`transport.provider` selects the driver (`TransportProviders`) — both by a convention name or a full
-class name, so a new x-rod or transport plugs in with no framework change. The send/receive engine lives in
-the abstract `AXRod` (extended by `XRod` and the in-process `XRodInProcess`); an R&R leg's two stops are typed `BusNode`s.
+Resolution is class-name-driven on two axes: `rod-class` selects the x-rod (resolved reflectively by the
+`MessagingBus` facade — a bare name under `messaging.xrod.impl`, a dotted value a full class name),
+`transport.provider` selects the driver (`TransportProviders`) — so a new x-rod or transport plugs in with no
+framework change. The send/receive engine lives in the abstract `AXRod` (extended by `XRod` and the in-process
+`XRodInProcess`); an R&R leg's two stops are typed `BusNode`s.
 
 ## Appendix D — Configuring
 
@@ -642,7 +668,41 @@ esquire:
 ```
 
 A bus declared in the catalog but referenced by no service is inert — an x-rod is built only when a service
-`producer()`s or `consumer()`s a bus key.
+names that bus key in its `init(env, {…})` (i.e. it declares a `role` for it and an adapter uses it).
+
+## Appendix F — Design Q&A
+
+> Things that *sound like* issues on a first read of the bus, and why each is a deliberate choice rather than
+> a defect.
+
+**Q. `rod-class` / `director` are class-name strings resolved by `Class.forName` — no compile-time safety; rename a class and the YAML silently breaks.**
+A. That openness is the point. Naming an x-rod or director by class name is an OPEN extension point: any
+implementation — built-in or third-party — plugs in by naming it in config, with zero framework change and
+nothing to register (built-ins get short bare names; only out-of-tree classes need the dotted name). An in-code
+`code → class` registry would force every new implementation to also extend the map — coupling the framework to
+the full set and making third-party x-rods second-class. A rename is just the cost of naming a class in config,
+and the reaction is the right one: **fail-fast** (`no x-rod class X on the classpath`), not a silent no-op.
+
+**Q. The bus builds once at `ApplicationEnvironmentPreparedEvent` — live config refresh (Spring Cloud Config / `@RefreshScope`) won't reach the rods.**
+A. By design — the contract is **restart-over-refresh**. The transport layer is vendor code (ActiveMQ / Kafka /
+Redis clients); even re-reading config live cannot guarantee a change reaches already-open connections, so a
+hot-refresh would be a half-truth. Making the bus refreshable field-by-field is large cost for no real gain. A
+config change is applied by restarting; on a redundant deployment a rolling restart is zero-downtime, and a
+clean start from a fresh snapshot always beats a partially-refreshed live state.
+
+**Q. `RodEvent` is a wide, stringly-typed envelope — ~12 fields (most null per message) plus an untyped `Map` body. No per-message-type safety.**
+A. It is a GENERIC envelope on purpose — the normal shape of a generic wire protocol (the FIX precedent: ~1000
+tags, any one message uses a handful, and that is accepted). A typed-per-kind body / sealed hierarchy would
+CLOSE the open structure — a new (or third-party) message type would then need a framework-side subtype instead
+of just riding the envelope. A generic envelope is decoded tolerantly by design; the codec's NFE guards +
+schema-version gate are the correct, proportionate robustness, not a symptom.
+
+**Q. The audit mode (in-process vs bus) is selected across several config knobs (`AUDIT_BUS_ID` + the leg's `role` / `rod-class` / `director`) that must agree — an inconsistent combo could misbehave.**
+A. It is explicit per-service config, the same kind as the service database (each service's YAML sets
+url + driver + dialect, which also must agree) — not a defect wanting a single derived selector. The knobs are
+layered, not independent: `AUDIT_BUS_ID` picks a leg, the leg's `rod-class` + params define the behavior, and an
+INCOMPLETE combo **fails fast** (`XRodInProcessKeep` requires its datasource + director; `XRod` a complete
+transport) rather than booting and misbehaving.
 
 ---
 

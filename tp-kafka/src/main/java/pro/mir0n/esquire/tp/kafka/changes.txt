@@ -1,5 +1,12 @@
 Esquire Kafka transport provider classes
 
+06/22/2026 mir0n  v1.2.9 -- two-phase consumer (created paused, started by the bus)
+tp.kafka.TransportProvider
+  - openConsumer returns a TransportConsumer (start + close legs) instead of a bare AutoCloseable
+  - the ConcurrentMessageListenerContainer is created PAUSED: setAutoStartup(false), no container.start()
+    -- delivery begins only when the bus start() invokes the returned start leg (container::start)
+  - import added: messaging.transport.TransportConsumer
+
 06/17/2026 mir0n  v1.2.8 -- Messaging Bus cleanup: closeable publisher
 tp.kafka.TransportProvider
   - openPublisher returns a TransportPublisher (close() destroys the DefaultKafkaProducerFactory) instead of a

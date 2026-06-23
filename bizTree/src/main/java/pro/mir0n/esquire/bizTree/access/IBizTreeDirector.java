@@ -17,11 +17,12 @@
  *                   esquireEntityNode / esquireSubtree (impls read them from the request context)
  * 06/15/2026 mir0n  added default onRodEvent(RodEvent): unpacks the RodEvent off the entity-broadcast
  *                   bus onto the generic onEntityBroadcast intake (body rides already parsed, no re-parse)
+ * 06/22/2026 mir0n  import update: RodEvent moved to messaging.xrod (was messaging)
  */
 package pro.mir0n.esquire.bizTree.access;
 
 import pro.mir0n.esquire.backend.dto.EsqTreeNode;
-import pro.mir0n.esquire.messaging.xrod.RodEvent;
+import pro.mir0n.esquire.messaging.RodEvent;
 import pro.mir0n.utils.taijitu.ITaijituRig;
 
 import java.util.List;

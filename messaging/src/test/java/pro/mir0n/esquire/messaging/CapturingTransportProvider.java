@@ -3,6 +3,7 @@ package pro.mir0n.esquire.messaging;
 import pro.mir0n.esquire.messaging.transport.ConsumeSettings;
 import pro.mir0n.esquire.messaging.transport.ITransportProvider;
 import pro.mir0n.esquire.messaging.transport.PublishSettings;
+import pro.mir0n.esquire.messaging.transport.TransportConsumer;
 import pro.mir0n.esquire.messaging.transport.TransportMessage;
 import pro.mir0n.esquire.messaging.transport.TransportPublisher;
 
@@ -35,9 +36,9 @@ public class CapturingTransportProvider implements ITransportProvider {
     }
 
     @Override
-    public AutoCloseable openConsumer(String destination, ConsumeSettings s, Consumer<TransportMessage> handler) {
+    public TransportConsumer openConsumer(String destination, ConsumeSettings s, Consumer<TransportMessage> handler) {
         lastConsumeNode = destination;
         lastConsume = s;
-        return () -> { };
+        return TransportConsumer.of(() -> { }, () -> { });
     }
 }

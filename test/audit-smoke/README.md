@@ -35,8 +35,7 @@ smoke → validate → record PASS/FAIL into a results table.
 |---|---|---|
 | Sink | `AUDIT_BUS_ID` | `audit-b` (in-process) / `audit-c` (AMQ) / `audit-ck` (Kafka) / `audit-d` (Redis) / `audit-dk` (Kafka stream) |
 | (a) triggers | `AUDIT_BUS_ID=` *(blank → audit off)* + apply the trigger DDL to the primary DB | DB writes the `*_log` in-transaction |
-| (b) shared vs dedicated | `AUDIT_LOG_DB_SHARED` | `true` = reuse the service pool / `false` = own pool |
-| Audit DB (b-dedicated / c / ck) | producers: `AUDIT_LOG_DB_*`; `auKeep`: `DB_DATAKEEP_*` | `dev-postgres` (`postgres:5432/esq2025`) / `dev-oracle` (`host.docker.internal:1521/MIR0N`) |
+| Audit DB (b / c / ck) | `DB_DATAKEEP_*` (the in-process keep on the producer for b; `auKeep` for c / ck) | `dev-postgres` (`postgres:5432/esq2025`) / `dev-oracle` (`host.docker.internal:1521/MIR0N`) |
 | Primary DB | `DB_<SVC>_VENDOR` / `_HOST` / `_PORT` / `_NAME` (enyman/pacman/keysmith/biztree) | `dev-postgres` (`postgres:5432/esq2025`) / `dev-oracle` (`host.docker.internal:1521/MIR0N`) |
 
 Creds everywhere: `esq2025` / `q`. Oracle service name `MIR0N`; Postgres db `esq2025`.
@@ -47,35 +46,33 @@ Creds everywhere: `esq2025` / `q`. Oracle service name `MIR0N`; Postgres db `esq
 
 ### Docker — Postgres primary (`DB_*_VENDOR=dev-postgres`, host `postgres`)
 
-| # | Cell | `AUDIT_BUS_ID` | shared | audit DB | validate |
-|---|---|---|---|---|---|
-| 1 | (a) triggers | *(blank)* + trigger DDL on `postgres` | — | primary (postgres) | `*_log` + `*_par_log` grow (in-tx) |
-| 2 | (b) shared | `audit-b` | true | = primary (postgres) | `*_log` + `*_par_log` grow |
-| 3 | (b) dedicated · pg | `audit-b` | false | postgres | `*_log` + `*_par_log` grow |
-| 4 | (b) dedicated · ora | `audit-b` | false | oracle | `*_log` + `*_par_log` grow (oracle) |
-| 5 | (c) AMQ · pg | `audit-c` | — | postgres (auKeep) | `*_log` + `*_par_log` grow |
-| 6 | (c) AMQ · ora | `audit-c` | — | oracle (auKeep) | `*_log` + `*_par_log` grow (oracle) |
-| 7 | (ck) Kafka · pg | `audit-ck` | — | postgres (auKeep) | `*_log` + `*_par_log` grow |
-| 8 | (ck) Kafka · ora | `audit-ck` | — | oracle (auKeep) | `*_log` + `*_par_log` grow (oracle) |
-| 9 | (d) Redis | `audit-d` | — | — (stream) | Redis stream grows; `*_log` +0 |
-| 10 | (dk) Kafka stream | `audit-dk` | — | — (stream) | Kafka topic grows; `*_log` +0 |
+| # | Cell | `AUDIT_BUS_ID` | audit DB | validate |
+|---|---|---|---|---|
+| 1 | (a) triggers | *(blank)* + trigger DDL on `postgres` | primary (postgres) | `*_log` + `*_par_log` grow (in-tx) |
+| 2 | (b) keep · pg | `audit-b` | postgres | `*_log` + `*_par_log` grow |
+| 3 | (b) keep · ora | `audit-b` | oracle | `*_log` + `*_par_log` grow (oracle) |
+| 4 | (c) AMQ · pg | `audit-c` | postgres (auKeep) | `*_log` + `*_par_log` grow |
+| 5 | (c) AMQ · ora | `audit-c` | oracle (auKeep) | `*_log` + `*_par_log` grow (oracle) |
+| 6 | (ck) Kafka · pg | `audit-ck` | postgres (auKeep) | `*_log` + `*_par_log` grow |
+| 7 | (ck) Kafka · ora | `audit-ck` | oracle (auKeep) | `*_log` + `*_par_log` grow (oracle) |
+| 8 | (d) Redis | `audit-d` | — (stream) | Redis stream grows; `*_log` +0 |
+| 9 | (dk) Kafka stream | `audit-dk` | — (stream) | Kafka topic grows; `*_log` +0 |
 
 ### Docker — Oracle primary (`DB_*_VENDOR=dev-oracle`, host `host.docker.internal`, name `MIR0N`)
 
-Same 10 cells, with the **primary** DB = Oracle. The audit-DB column is independent (so e.g. cell 5 = oracle
-primary, postgres audit DB). Entity `*_log` for the in-tx / shared cases lands in the **Oracle primary**.
+Same 9 cells, with the **primary** DB = Oracle. The audit-DB column is independent (so e.g. cell 4 = oracle
+primary, postgres audit DB). Entity `*_log` for the in-tx (a) case lands in the **Oracle primary**.
 
 ### Local k8s — Postgres primary only
 
-| # | Cell | `AUDIT_BUS_ID` | shared | audit DB | notes |
-|---|---|---|---|---|---|
-| 1 | (a) triggers | *(blank)* + trigger DDL | — | primary (pg) | set `audit.enabled=false` on the producer values |
-| 2 | (b) shared | `audit-b` | true | = primary (pg) | service-level leg |
-| 3 | (b) dedicated · pg | `audit-b` | false | postgres | |
-| 4 | (c) AMQ · pg | `audit-c` | — | postgres | auKeep deployed |
-| 5 | (ck) Kafka · pg | `audit-ck` | — | postgres | needs the kafka infra chart (now shipped) |
-| 6 | (d) Redis | `audit-d` | — | — | needs the redis infra chart (now shipped) |
-| 7 | (dk) Kafka stream | `audit-dk` | — | — | needs the kafka infra chart |
+| # | Cell | `AUDIT_BUS_ID` | audit DB | notes |
+|---|---|---|---|---|
+| 1 | (a) triggers | *(blank)* + trigger DDL | primary (pg) | set `audit.enabled=false` on the producer values |
+| 2 | (b) keep · pg | `audit-b` | postgres | service-level leg |
+| 3 | (c) AMQ · pg | `audit-c` | postgres | auKeep deployed |
+| 4 | (ck) Kafka · pg | `audit-ck` | postgres | needs the kafka infra chart (now shipped) |
+| 5 | (d) Redis | `audit-d` | — | needs the redis infra chart (now shipped) |
+| 6 | (dk) Kafka stream | `audit-dk` | — | needs the kafka infra chart |
 
 (Oracle is not run on k8s — the cluster Postgres is the only DB.)
 

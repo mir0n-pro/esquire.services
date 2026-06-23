@@ -22,10 +22,10 @@ import pro.mir0n.esquire.common.EsqMsgConstants;
 import pro.mir0n.esquire.backend.jpa.IMappable;
 import pro.mir0n.esquire.backend.service.EsqContextHolder;
 import pro.mir0n.esquire.backend.service.EsqRequestContext;
-import pro.mir0n.esquire.messaging.Role;
-import pro.mir0n.esquire.messaging.XRodParams;
-import pro.mir0n.esquire.messaging.xrod.IXRod;
-import pro.mir0n.esquire.messaging.xrod.RodEvent;
+import pro.mir0n.esquire.messaging.catalog.Role;
+import pro.mir0n.esquire.messaging.catalog.XRodParams;
+import pro.mir0n.esquire.messaging.IXRod;
+import pro.mir0n.esquire.messaging.RodEvent;
 import pro.mir0n.esquire.messaging.xrod.impl.XRodDisabled;
 
 import java.util.List;
@@ -44,7 +44,9 @@ class AuditBusBridgeTest {
      *  which the bridge detects to make {@code post()} a no-op. */
     private final class CapturingXRod implements IXRod {
         @Override public void configure(XRodParams params, Role role, ObjectMapper objectMapper) { }
-        @Override public void start(String name, Logger devLog, Consumer<RodEvent> worker) { }
+        @Override public void setWorker(Consumer<RodEvent> worker) { }
+        @Override public void init(String name, Logger devLog) { }
+        @Override public void start() { }
         @Override public void shutdown() { }
         @Override public void transmit(RodEvent event) { transmitted.add(event); }
         @Override public void receive(RodEvent event) { }

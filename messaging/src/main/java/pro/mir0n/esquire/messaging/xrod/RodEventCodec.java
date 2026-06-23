@@ -15,6 +15,7 @@
  *                   absent version is tolerated) and intOf / longOf take (map, key) and guard the parse so a
  *                   non-numeric field logs a warn and falls back to 0 instead of throwing NumberFormatException
  *                   (which dropped the whole event). Added a develop-tier logger.
+ * 06/22/2026 mir0n  import RodEvent from messaging (was messaging.xrod)
  */
 package pro.mir0n.esquire.messaging.xrod;
 
@@ -24,7 +25,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import pro.mir0n.esquire.common.EsqMsgConstants;
 import pro.mir0n.esquire.messaging.transport.BusIdentity;
-import pro.mir0n.esquire.messaging.xrod.RodEvent;
+import pro.mir0n.esquire.messaging.RodEvent;
 
 import java.util.HashMap;
 import java.util.LinkedHashMap;

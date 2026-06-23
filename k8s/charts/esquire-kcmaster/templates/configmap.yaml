@@ -16,9 +16,6 @@ data:
   # --- path-buffer knobs ---
   KCMASTER_PATH_BUFFER_TTL_MS:    {{ .Values.pathBuffer.ttlMs | quote }}
   KCMASTER_PATH_BUFFER_PRUNE_MS:  {{ .Values.pathBuffer.pruneMs | quote }}
-  # --- consumer on/off toggles ---
-  KCMASTER_ENTITY_BROADCAST_CONSUMER_ENABLED: {{ .Values.consumers.entityBroadcastEnabled | quote }}
-  KCMASTER_KC_REQUEST_CONSUMER_ENABLED:       {{ .Values.consumers.kcRequestEnabled | quote }}
   # --- kc-bus ref (SERVER: receive URQ / publish URS) ---
   KC_BUS_ID:                      {{ .Values.kc.busId | quote }}
   KC_SLOT_ID:                  {{ .Values.kc.slotId | quote }}

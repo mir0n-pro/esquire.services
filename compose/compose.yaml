@@ -204,7 +204,6 @@ services:
       - DB_BIZTREE_USERNAME=esq2025
       - DB_BIZTREE_PASSWORD=q
       # Messaging
-      - BIZTREE_MESSAGING_CONSUMER_ENABLED=true
       - ENTITY_BUS_ID=esquire.entity
       - ENTITY_SLOT_ID=entity
       - ENTITY_BROADCAST_POOL_SIZE=4
@@ -293,9 +292,7 @@ services:
       - AUDIT_POOL_SIZE=${AUDIT_POOL_SIZE:-4}
       - AUDIT_VIRTUAL_THREADS=${AUDIT_VIRTUAL_THREADS:-false}
       - AUDIT_FEED_CAPACITY=${AUDIT_FEED_CAPACITY:-4096}
-      # audit-b (in-process) datastore -- defaults to the service's own DB (its log tables); override to relocate.
-      - DB_DATAKEEP_SHARED=${DB_DATAKEEP_SHARED:-false}
-      - DB_DATAKEEP_URL=${DB_DATAKEEP_URL:-jdbc:postgresql://host.docker.internal:5432/esq2025}
+      # audit-b (in-process) datastore -- defaults to the service's own DB (its log tables); override to relocate.      - DB_DATAKEEP_URL=${DB_DATAKEEP_URL:-jdbc:postgresql://host.docker.internal:5432/esq2025}
       - DB_DATAKEEP_USERNAME=${DB_DATAKEEP_USERNAME:-esq2025}
       - DB_DATAKEEP_PASSWORD=${DB_DATAKEEP_PASSWORD:-q}
       - DB_DATAKEEP_POOL_SIZE=${DB_DATAKEEP_POOL_SIZE:-2}
@@ -347,9 +344,7 @@ services:
       - AUDIT_SLOT_ID=audit
       - AUDIT_POOL_SIZE=${AUDIT_POOL_SIZE:-4}
       - AUDIT_VIRTUAL_THREADS=${AUDIT_VIRTUAL_THREADS:-false}
-      - AUDIT_FEED_CAPACITY=${AUDIT_FEED_CAPACITY:-4096}
-      - DB_DATAKEEP_SHARED=${DB_DATAKEEP_SHARED:-false}
-      - DB_DATAKEEP_URL=${DB_DATAKEEP_URL:-jdbc:postgresql://host.docker.internal:5432/esq2025}
+      - AUDIT_FEED_CAPACITY=${AUDIT_FEED_CAPACITY:-4096}      - DB_DATAKEEP_URL=${DB_DATAKEEP_URL:-jdbc:postgresql://host.docker.internal:5432/esq2025}
       - DB_DATAKEEP_USERNAME=${DB_DATAKEEP_USERNAME:-esq2025}
       - DB_DATAKEEP_PASSWORD=${DB_DATAKEEP_PASSWORD:-q}
       - DB_DATAKEEP_POOL_SIZE=${DB_DATAKEEP_POOL_SIZE:-2}
@@ -446,9 +441,7 @@ services:
       - AUDIT_SLOT_ID=audit
       - AUDIT_POOL_SIZE=${AUDIT_POOL_SIZE:-4}
       - AUDIT_VIRTUAL_THREADS=${AUDIT_VIRTUAL_THREADS:-false}
-      - AUDIT_FEED_CAPACITY=${AUDIT_FEED_CAPACITY:-4096}
-      - DB_DATAKEEP_SHARED=${DB_DATAKEEP_SHARED:-false}
-      - DB_DATAKEEP_URL=${DB_DATAKEEP_URL:-jdbc:postgresql://host.docker.internal:5432/esq2025}
+      - AUDIT_FEED_CAPACITY=${AUDIT_FEED_CAPACITY:-4096}      - DB_DATAKEEP_URL=${DB_DATAKEEP_URL:-jdbc:postgresql://host.docker.internal:5432/esq2025}
       - DB_DATAKEEP_USERNAME=${DB_DATAKEEP_USERNAME:-esq2025}
       - DB_DATAKEEP_PASSWORD=${DB_DATAKEEP_PASSWORD:-q}
       - DB_DATAKEEP_POOL_SIZE=${DB_DATAKEEP_POOL_SIZE:-2}
@@ -485,8 +478,6 @@ services:
       # TEST race-8c repro ONLY (revert after): default 10000 (fix). -1 disables the buffer.
       - KCMASTER_PATH_BUFFER_TTL_MS=${KCMASTER_PATH_BUFFER_TTL_MS:-10000}
       - KCMASTER_PATH_BUFFER_PRUNE_MS=30000
-      - KCMASTER_ENTITY_BROADCAST_CONSUMER_ENABLED=true
-      - KCMASTER_KC_REQUEST_CONSUMER_ENABLED=true
       - KC_BUS_ID=esquire.kc
       - KC_SLOT_ID=kc
       - KC_REQUEST_POOL_SIZE=4

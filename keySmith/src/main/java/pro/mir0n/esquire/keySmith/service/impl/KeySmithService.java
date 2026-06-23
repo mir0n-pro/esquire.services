@@ -44,6 +44,8 @@
  *                   explicit msgType (EsqMsgConstants.MSG_TYPE_AUDIT) as the trailing argument.
  * 06/17/2026 mir0n  audit field IXRod -> AuditBusBridge; the auth UPDATE post() drops the trailing MSG_TYPE_AUDIT arg
  * 06/18/2026 mir0n  audit module left common: AuditBusBridge moved to pro.mir0n.esquire.audit
+ * 06/22/2026 mir0n  KcSyncPublisher field/import -> KcBusAdapter (the merged kc-CLIENT adapter); RodEvent import
+ *                   repointed messaging.xrod.RodEvent -> messaging.RodEvent
  */
 
 package pro.mir0n.esquire.keySmith.service.impl;
@@ -71,12 +73,12 @@ import pro.mir0n.esquire.backend.storage.EsqEntityDictionaryStorage;
 import pro.mir0n.esquire.backend.storage.EsqRolesStorage;
 import pro.mir0n.esquire.backend.validator.ValidatorFactory;
 import pro.mir0n.esquire.common.EsqConstants;
-import pro.mir0n.esquire.messaging.xrod.RodEvent;
+import pro.mir0n.esquire.messaging.RodEvent;
 import pro.mir0n.esquire.audit.AuditBusBridge;
 import pro.mir0n.esquire.keySmith.jpa.EsqAccessProfileRepository;
 import pro.mir0n.esquire.backend.service.RequestContextUtils;
 import pro.mir0n.esquire.backend.error.ResourceNotFoundException;
-import pro.mir0n.esquire.keySmith.messaging.KcSyncPublisher;
+import pro.mir0n.esquire.keySmith.messaging.KcBusAdapter;
 import pro.mir0n.esquire.keySmith.service.IKeySmithService;
 import lombok.AllArgsConstructor;
 import org.springframework.context.annotation.Primary;
@@ -93,7 +95,7 @@ public class KeySmithService implements IKeySmithService {
     private EsqAccessProfileRepository accessProfileRepository;
     private TransactionTemplate transactionTemplate;
     private EntityManager em;
-    private KcSyncPublisher kcSyncPublisher;
+    private KcBusAdapter kcSyncPublisher;
     private AuditBusBridge audit;
 
     @Override

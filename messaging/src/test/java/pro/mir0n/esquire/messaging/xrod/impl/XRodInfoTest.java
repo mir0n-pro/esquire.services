@@ -8,8 +8,8 @@
 package pro.mir0n.esquire.messaging.xrod.impl;
 
 import org.junit.jupiter.api.Test;
-import pro.mir0n.esquire.messaging.XRodParams;
-import pro.mir0n.esquire.messaging.xrod.RodEvent;
+import pro.mir0n.esquire.messaging.catalog.XRodParams;
+import pro.mir0n.esquire.messaging.RodEvent;
 
 import java.util.Map;
 

@@ -51,6 +51,8 @@
  * 06/17/2026 mir0n  audit producer IXRod -> AuditBusBridge; the saveAcct / deleteAcct post() calls drop the
  *                   trailing MSG_TYPE_AUDIT arg
  * 06/18/2026 mir0n  audit module left common: AuditBusBridge moved to pro.mir0n.esquire.audit
+ * 06/22/2026 mir0n  broadcastPublisher retyped EsqEntityBroadcastPublisher -> EntityBusAdapter; RodEvent import
+ *                   messaging.xrod.RodEvent -> messaging.RodEvent (package move)
  */
 
 package pro.mir0n.esquire.pacMan.service.impl;
@@ -66,7 +68,7 @@ import pro.mir0n.esquire.backend.dto.access.EsqPermission;
 import pro.mir0n.esquire.backend.error.PermissionDeniedException;
 import pro.mir0n.esquire.backend.jpa.*;
 import pro.mir0n.esquire.backend.jpa.entity.EsqAcctJpa;
-import pro.mir0n.esquire.messaging.xrod.RodEvent;
+import pro.mir0n.esquire.messaging.RodEvent;
 import pro.mir0n.esquire.audit.AuditBusBridge;
 import pro.mir0n.esquire.backend.service.EntityFieldUtils;
 import pro.mir0n.esquire.backend.storage.EsqObjectKindStorage;
@@ -76,7 +78,7 @@ import pro.mir0n.esquire.pacMan.acct.jpa.EsqAcctTransactionRepository;
 import pro.mir0n.esquire.pacMan.jpa.EsqAcctRepository;
 import pro.mir0n.esquire.backend.service.RequestContextUtils;
 import pro.mir0n.esquire.backend.error.ResourceNotFoundException;
-import pro.mir0n.esquire.pacMan.messaging.EsqEntityBroadcastPublisher;
+import pro.mir0n.esquire.pacMan.messaging.EntityBusAdapter;
 import pro.mir0n.esquire.pacMan.service.IPacManService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -95,7 +97,7 @@ public class PacManService  implements IPacManService {
     private final EsqAcctRepository entityRepository;
     private final TransactionTemplate transactionTemplate;
     private final EntityManager em;
-    private final EsqEntityBroadcastPublisher broadcastPublisher;
+    private final EntityBusAdapter broadcastPublisher;
     private final EsqAcctTransactionRepository acctTrxRepo;
     private final AuditBusBridge audit;   // audit: account UPDATE / DELETE
 

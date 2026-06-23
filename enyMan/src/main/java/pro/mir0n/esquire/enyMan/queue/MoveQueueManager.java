@@ -24,6 +24,8 @@
  * 06/15/2026 mir0n  audit ctor param XYRod -> IXRod (import retargeted common.xrod -> messaging.xrod).
  * 06/17/2026 mir0n  audit ctor param IXRod -> AuditBusBridge; post() drops the trailing MSG_TYPE_AUDIT arg
  * 06/18/2026 mir0n  audit module left common: AuditBusBridge moved to pro.mir0n.esquire.audit
+ * 06/22/2026 mir0n  bus-adapter rename: broadcastPublisher EsqEntityBroadcastPublisher -> EntityBusAdapter,
+ *                   kcRequestPublisher KcRequestPublisher -> KcBusAdapter (fields + ctor params + imports).
  */
 
 package pro.mir0n.esquire.enyMan.queue;
@@ -50,8 +52,8 @@ import pro.mir0n.esquire.enyMan.jpa.EsqEntityDictionaryRepository;
 import pro.mir0n.esquire.enyMan.jpa.EsqMoveRecord;
 import pro.mir0n.esquire.enyMan.jpa.EsqOrgRepository;
 import pro.mir0n.esquire.enyMan.jpa.EsqUsrRepository;
-import pro.mir0n.esquire.enyMan.messaging.EsqEntityBroadcastPublisher;
-import pro.mir0n.esquire.enyMan.messaging.KcRequestPublisher;
+import pro.mir0n.esquire.enyMan.messaging.EntityBusAdapter;
+import pro.mir0n.esquire.enyMan.messaging.KcBusAdapter;
 import pro.mir0n.esquire.enyMan.service.IEnyManService;
 import pro.mir0n.esquire.enyMan.service.impl.OrgService;
 import pro.mir0n.esquire.enyMan.service.impl.UsrService;
@@ -74,8 +76,8 @@ public class MoveQueueManager implements IQueueRig.IQueueWorker<MoveQueueItem> {
 
     private final IEnyManService orgService;
     private final IEnyManService usrService;
-    private final EsqEntityBroadcastPublisher broadcastPublisher;
-    private final KcRequestPublisher kcRequestPublisher;
+    private final EntityBusAdapter broadcastPublisher;
+    private final KcBusAdapter kcRequestPublisher;
     private final EntityPathLookup pathLookup;
 
     private final int capacity;
@@ -85,8 +87,8 @@ public class MoveQueueManager implements IQueueRig.IQueueWorker<MoveQueueItem> {
                             EsqUsrRepository usrRepository,
                             TransactionTemplate transactionTemplate,
                             EntityManager em,
-                            EsqEntityBroadcastPublisher broadcastPublisher,
-                            KcRequestPublisher kcRequestPublisher,
+                            EntityBusAdapter broadcastPublisher,
+                            KcBusAdapter kcRequestPublisher,
                             EntityPathLookup pathLookup,
                             AuditBusBridge audit,
                             @Value("${enyman.move-queue.capacity:1024}") int capacity) {

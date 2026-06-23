@@ -18,6 +18,9 @@
  * 06/21/2026 mir0n  the JMS pub/sub flag is read from transport.params.pubSubDomain (setPubSubDomain on the
  *                   template / listener container) instead of settings.topic(); pubSubDomain is excluded from
  *                   the broker-URI append in withParams (a setter call, not a URI option)
+ * 06/22/2026 mir0n  two-phase consumer: openConsumer returns a TransportConsumer (start + close legs); the
+ *                   container is created PAUSED (setAutoStartup(false), afterPropertiesSet subscribes but does
+ *                   not start) -- delivery waits for the bus start() that calls the returned start leg
  */
 package pro.mir0n.esquire.tp.activemq;
 
@@ -33,6 +36,7 @@ import pro.mir0n.esquire.common.EsqMsgConstants;
 import pro.mir0n.esquire.messaging.transport.ConsumeSettings;
 import pro.mir0n.esquire.messaging.transport.ITransportProvider;
 import pro.mir0n.esquire.messaging.transport.PublishSettings;
+import pro.mir0n.esquire.messaging.transport.TransportConsumer;
 import pro.mir0n.esquire.messaging.transport.TransportMessage;
 import pro.mir0n.esquire.messaging.transport.TransportPublisher;
 import pro.mir0n.esquire.messaging.jms.Utils;
@@ -94,7 +98,7 @@ public final class TransportProvider implements ITransportProvider {
     }
 
     @Override
-    public AutoCloseable openConsumer(String destination, ConsumeSettings s, Consumer<TransportMessage> handler) {
+    public TransportConsumer openConsumer(String destination, ConsumeSettings s, Consumer<TransportMessage> handler) {
         String brokerUrl = withParams(s.endpoint(), s.params());
         boolean pubSub = Boolean.parseBoolean(s.param(PARAM_PUBSUB_DOMAIN, "false"));
         ActiveMQConnectionFactory amq = new ActiveMQConnectionFactory(brokerUrl);
@@ -102,6 +106,7 @@ public final class TransportProvider implements ITransportProvider {
         c.setConnectionFactory(amq);
         c.setDestinationName(destination);
         c.setPubSubDomain(pubSub);
+        c.setAutoStartup(false);   // created PAUSED -- the x-rod's start() begins delivery once the bus is wired
         if (s.selector() != null && !s.selector().isBlank()) {
             c.setMessageSelector(s.selector());
         }
@@ -115,14 +120,13 @@ public final class TransportProvider implements ITransportProvider {
                 devLog.error("tp-activemq: consume failed on {}: {}", destination, ex.getMessage(), ex);
             }
         });
-        c.afterPropertiesSet();
-        c.start();
-        devLog.info("tp-activemq: consumer started on {} (broker={}, {}, concurrency={})",
+        c.afterPropertiesSet();   // subscribe, but do NOT start (autoStartup=false) -- delivery waits for start()
+        devLog.info("tp-activemq: consumer created (paused) on {} (broker={}, {}, concurrency={})",
                 destination, brokerUrl, pubSub ? "topic" : "queue", s.concurrency());
-        return () -> {
+        return TransportConsumer.of(c::start, () -> {
             c.stop();
             c.destroy();
-        };
+        });
     }
 
     /** Append the leg's vendor params verbatim to the broker URI -- ActiveMQ parses its own URI options

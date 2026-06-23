@@ -17,6 +17,7 @@ esquire:
     messaging-bus:
       bus-id: ${AUDIT_BUS_ID:audit-c}
       slot-id: ${AUDIT_SLOT_ID:audit}
+      role: CLIENT   # auKeep is the audit CLIENT: it drains the audit bus and applies the *_log
 
 logging:
   level:

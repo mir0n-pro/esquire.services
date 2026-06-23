@@ -1,5 +1,26 @@
 Esquire kcMaster Microservice
 
+06/22/2026 mir0n  messaging-bus: BusAdapters + lifecycle registrar
+KcMasterApplication
+  - MessagingBusLifecycleRegistrar inner class (ApplicationListener<ApplicationEvent>, Ordered.LOWEST_PRECEDENCE),
+    registered; ApplicationEnvironmentPreparedEvent -> MessagingBus.init(env, {BUS_KEY_KC, BUS_KEY_ENTITY}),
+    ApplicationReadyEvent -> start(), ContextClosedEvent -> close() (no roles-Ready listener -- the registrar
+    owns start)
+messaging.KcBusAdapter  (new, was KcRequestConsumer + KcResponsePublisher)
+  - one kc-SERVER rod (MessagingBus.getXRod(BUS_KEY_KC)), both legs: onRodEvent() set as the rod worker receives
+    a URQ (no selector -- shared work), converts the body to KcSyncRequest, dispatches to KcRequestHandler,
+    publishSuccess() transmits URS / publishFailure() transmits URR (RFC-9457 error + original request) with the
+    requester rod-id echoed; setWorker + transmit(null) probe the legs
+  - KcRequestConsumer + KcResponsePublisher deleted
+messaging.EntityBusAdapter  (new, was KcEntityBroadcastConsumer)
+  - entity-CLIENT receive worker (MessagingBus.getXRod(BUS_KEY_ENTITY), receive-only); onRodEvent() handles a
+    move (Op.UPDATE_PATH), parks the new path in KcPathBuffer when the KC user does not exist yet (race-8c
+    safety net), else stays passive (the URQ handler owns existing users)
+  - KcEntityBroadcastConsumer deleted
+application.yml
+  - kc bus ref role: SERVER; entity bus ref role: CLIENT; the kcmaster.entity-broadcast-bus /
+    kcmaster.kc-request-bus consumer.enabled toggles removed
+
 06/21/2026 mir0n  v1.2.9 -- topology import optional; *_SLOT_ID
 application.yml
   - spring.config.import -> optional:file:... (the topology import is now optional); KC_SERVICE_ID / ENTITY_SERVICE_ID -> *_SLOT_ID

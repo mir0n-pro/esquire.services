@@ -24,7 +24,6 @@ data:
   AUDIT_POOL_SIZE:        {{ .Values.audit.poolSize | quote }}
   AUDIT_FEED_CAPACITY:    {{ .Values.audit.feedCapacity | quote }}
   AUDIT_VIRTUAL_THREADS:  {{ .Values.audit.virtualThreads | quote }}
-  DB_DATAKEEP_SHARED:    {{ .Values.audit.datasource.shared | default false | quote }}
   DB_DATAKEEP_URL:       {{ .Values.audit.datasource.url | quote }}
   DB_DATAKEEP_USERNAME:  {{ .Values.audit.datasource.username | quote }}
   DB_DATAKEEP_POOL_SIZE: {{ .Values.audit.datasource.poolSize | quote }}

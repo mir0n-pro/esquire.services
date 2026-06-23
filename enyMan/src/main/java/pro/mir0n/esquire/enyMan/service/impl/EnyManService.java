@@ -61,6 +61,8 @@
  * 06/15/2026 mir0n  audit ctor param XYRod -> IXRod (import retargeted common.xrod -> messaging.xrod).
  * 06/17/2026 mir0n  audit ctor param IXRod -> AuditBusBridge
  * 06/18/2026 mir0n  audit module left common: AuditBusBridge moved to pro.mir0n.esquire.audit
+ * 06/22/2026 mir0n  bus-adapter rename: broadcastPublisher EsqEntityBroadcastPublisher -> EntityBusAdapter
+ *                   (field + ctor param + import).
  */
 
 package pro.mir0n.esquire.enyMan.service.impl;
@@ -83,7 +85,7 @@ import pro.mir0n.esquire.enyMan.jpa.EsqSubtreeRow;
 import pro.mir0n.esquire.enyMan.jpa.EsqUsrRepository;
 import pro.mir0n.esquire.backend.service.RequestContextUtils;
 import pro.mir0n.esquire.backend.error.ResourceNotFoundException;
-import pro.mir0n.esquire.enyMan.messaging.EsqEntityBroadcastPublisher;
+import pro.mir0n.esquire.enyMan.messaging.EntityBusAdapter;
 import pro.mir0n.esquire.enyMan.queue.CreateReconcileItem;
 import pro.mir0n.esquire.enyMan.queue.MoveCommandItem;
 import pro.mir0n.esquire.enyMan.queue.MoveQueueManager;
@@ -106,7 +108,7 @@ public class EnyManService  extends AEnyManService {
     private final IEnyManService acctService;
     private final EsqOrgRepository orgRepository;
     private final EsqSubtreeRepository subtreeRepository;
-    private final EsqEntityBroadcastPublisher broadcastPublisher;
+    private final EntityBusAdapter broadcastPublisher;
     private final MoveQueueManager moveQueue;
 
     // v1.2.6 Goal 3 toggle. true (default) -> CREATE-during-move path reconciliation runs;
@@ -123,7 +125,7 @@ public class EnyManService  extends AEnyManService {
                          EsqSubtreeRepository subtreeRepository,
                          TransactionTemplate transactionTemplate,
                          EntityManager em,
-                         EsqEntityBroadcastPublisher broadcastPublisher,
+                         EntityBusAdapter broadcastPublisher,
                          MoveQueueManager moveQueue,
                          AuditBusBridge audit) {
         super(entityDictionaryRepository);

@@ -1,6 +1,24 @@
 Esquire BizTree Microservice
 
 
+06/22/2026 mir0n  v1.2.9 -- entity-bus client adapter + two-phase bus lifecycle
+BizTreeApplication
+  - added MessagingBusLifecycleRegistrar inner class (ApplicationListener<ApplicationEvent>, Ordered
+    LOWEST_PRECEDENCE so each phase runs after the service's same-event listeners), registered via
+    app.addListeners; drives the bus in two phases: env-prepared -> bus.init(env, {BUS_KEY_ENTITY})
+    builds the rods paused, ready -> bus.start() runs them, context-closed -> bus.close() drains + closes
+  - collapsed the prior three separate bus listener inner classes into this one registrar
+messaging.EntityBusAdapter  (new, was BizTreeBroadcastConsumer)
+  - @Component, the bizTree end of the entity bus (CLIENT role): receive-only; constructor gets the entity
+    x-Rod via MessagingBus.getInstance().getXRod(BUS_KEY_ENTITY) and rod.setWorker(this::onRodEvent)
+  - onRodEvent logs the app-level ENTITY console line, then hands the event to director.onRodEvent(e)
+  - replaces BizTreeBroadcastConsumer (deleted) which opened the rod via XRodManager.consumer(..)
+access.IBizTreeDirector
+  - import update: RodEvent moved to messaging.xrod (was messaging)
+application.yml
+  - added entity-broadcast-bus.consumer.enabled ${BIZTREE_MESSAGING_CONSUMER_ENABLED:true}; removed the
+    leg role: CLIENT (the CLIENT role is set in code by the adapter, not in the topology)
+
 06/21/2026 mir0n  v1.2.9 -- topology import optional; ENTITY_SLOT_ID
 application.yml
   - spring.config.import -> optional:file:... (the topology import is now optional); ENTITY_SERVICE_ID -> ENTITY_SLOT_ID

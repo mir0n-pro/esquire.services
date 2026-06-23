@@ -35,9 +35,6 @@ biztree:
       connection-timeout:   ${BIZTREE_H2_POOL_CONN_TIMEOUT:5000}
       max-lifetime:         ${BIZTREE_H2_POOL_MAX_LIFETIME:1800000}
       idle-timeout:         ${BIZTREE_H2_POOL_IDLE_TIMEOUT:600000}
-  entity-broadcast-bus:
-    consumer:
-      enabled: ${BIZTREE_MESSAGING_CONSUMER_ENABLED:true}
 # Bus TOPOLOGY (which buses exist + their transport) is the shared esquire-topology.yml imported above.
 # Here: this service's bus REF + per-service knob OVERRIDE (entity consumer).
 esquire:
@@ -45,6 +42,7 @@ esquire:
     messaging-bus:
       bus-id: ${ENTITY_BUS_ID:esquire.entity}
       slot-id: ${ENTITY_SLOT_ID:entity}
+      role: CLIENT
       x-rod:
         pool-size: ${ENTITY_BROADCAST_POOL_SIZE:4}
         concurrency: ${ENTITY_BROADCAST_CONCURRENCY:1}

@@ -1,6 +1,7 @@
 package pro.mir0n.esquire.messaging;
 
 import org.junit.jupiter.api.Test;
+import pro.mir0n.esquire.messaging.catalog.XRodParams;
 
 import java.util.Map;
 

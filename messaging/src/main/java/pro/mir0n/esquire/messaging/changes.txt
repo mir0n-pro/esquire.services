@@ -1,5 +1,62 @@
 Esquire messaging framework classes
 
+06/22/2026 mir0n  Messaging Bus Facade API + framework lifecycle (refactoring): MessagingBus facade replaces XRodManager; package restructure; #17 fail-fast
+MessagingBus
+  - new per-service messaging facade: a singleton (getInstance) with a two-phase lifecycle -- init(Environment)
+    loads + validates the catalog and BUILDS every bus ref that declares a role
+    (esquire.<key>.messaging-bus.role) into a busKey -> x-rod map, PAUSED; start() runs every built rod;
+    getXRod(busKey) hands a rod to a publisher; close() shuts them down. Absorbs the former XRodManager
+  - getXRod THROWS for an unbuilt bus key (a role-declared ref with no leg fails fast at init); no silent OFF
+  - replaces XRodManager / XRods / XRodAutoConfiguration (removed)
+IXRod
+  - moved to messaging (was messaging.xrod); lifecycle split: start(name,devLog,worker) ->
+    init(name,devLog) (create the legs paused) + setWorker(worker) + start(); Role is CLIENT/SERVER/BOTH
+    (BROADCAST removed)
+RodEvent / IRodEventRepo / RodEventRepoRegistry
+  - moved to messaging (was messaging.xrod)
+AXRod
+  - two-phase engine: startEngine -> buildEngine (create the pool/feed idle) + runEngine (run them); start()
+    runs runEngine
+  - setWorker(worker) added (the live receive callback); throws if the rod has NO receive pool
+  - transmit() throws if the rod has NO transmit feed and ignores a null event (the publisher-leg probe)
+  - import Role/XRodParams from messaging.catalog, IXRod/RodEvent from messaging
+XRod
+  - start(name,devLog,worker) split into init(name,devLog) (create the legs by role; the transport consumer
+    created PAUSED) + start() (runEngine, then inbound.start() begins consumer delivery)
+  - transmits()/receives() added (legs from role); validate() now REQUIRES a complete transport
+  - inbound is a TransportConsumer; role is CLIENT/SERVER/BOTH
+XRodRR
+  - transmits()/receives() overridden to true (R&R runs both legs for its role); validate() now REQUIRES a
+    complete transport
+XRodInProcess
+  - moved to messaging.xrod.impl (was dataKeep.keep); start(name,devLog,worker) split into init (buildEngine,
+    the feed loops into the pool) + start() (inherited runEngine); worker set via setWorker; no longer final
+XRodDisabled
+  - start(name,devLog,worker) split into setWorker (no-op) + init (no-op) + start (no-op); selected ON PURPOSE
+    via rod-class=XRodDisabled (the facade no longer falls back to it)
+XRodInfo
+  - start(name,devLog,worker) split into setWorker (no-op) + init (the log-line setup) + start (no-op)
+ITransportProvider
+  - openConsumer returns a TransportConsumer (created PAUSED) instead of a bare AutoCloseable -- the listener
+    subscribes but delivers nothing until TransportConsumer.start()
+TransportConsumer
+  - new consume-side handle: a listener created PAUSED plus start() (begin delivery) and close() (stop +
+    release the broker connection); the two-phase mirror of TransportPublisher
+catalog (package)
+  - BusNode / BusRef / BusSlot / BusTransport / MessagingBus / MessagingBusCatalog / Role / XRodParams moved to
+    messaging.catalog (was messaging)
+BusRef
+  - role component added (CLIENT/SERVER/BOTH); a ref that declares a role is one the facade builds at init
+Role
+  - BROADCAST -> BOTH; the constants are CLIENT/SERVER/BOTH
+MessagingBusCatalog
+  - the bind+merge moved out of the constructor into an explicit synchronized load() (buses null until load(),
+    buses() accessor throws if unloaded); javadoc XRodManager -> MessagingBus
+RodEventCodec / RodTransportAdapter
+  - import RodEvent from messaging (was messaging.xrod)
+RodPublisher
+  - import RodEvent from messaging (was the same xrod package)
+
 06/21/2026 mir0n  v1.2.9 -- topology functional validation; catalog overlay merge-by-id; javadoc genericized
 MessagingBusCatalog
   - validate(): fail-fast at construction on a duplicate bus-id (catalog) / slot-id (within a bus) / node-id

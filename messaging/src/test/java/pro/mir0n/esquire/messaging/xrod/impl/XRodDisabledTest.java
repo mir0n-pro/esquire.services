@@ -1,7 +1,8 @@
 package pro.mir0n.esquire.messaging.xrod.impl;
 
 import org.junit.jupiter.api.Test;
-import pro.mir0n.esquire.messaging.Role;
+import pro.mir0n.esquire.messaging.IXRod;
+import pro.mir0n.esquire.messaging.catalog.Role;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
@@ -21,8 +22,10 @@ class XRodDisabledTest {
     void everyMethodIsANoOpAndNeverThrows() {
         XRodDisabled rod = new XRodDisabled();
         assertThatCode(() -> {
-            rod.configure(null, Role.BROADCAST, null);          // no config treated
-            rod.start("off", null, null);                       // no legs run
+            rod.configure(null, Role.CLIENT, null);             // no config treated
+            rod.setWorker(null);                                // no receive worker
+            rod.init("off", null);                              // no legs created
+            rod.start();                                        // no legs run
             rod.transmit(null);                                 // transmit no-op
             rod.receive(null);                                  // receive no-op
             rod.shutdown();

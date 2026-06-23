@@ -1,6 +1,29 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v1.2.9-2606.2220  v1.2.9 -- hardening: Messaging Bus framework -- a single Facade API + a service lifecycle (refactoring)
+    :Refactoring: introduces the Messaging Bus framework's Facade API
+                  and a defined framework lifecycle the facade drives
+    :Refactoring: each service's two old per-channel handlers (one to send, one to receive) fold into a single
+                  adapter per channel
+    :Fix:         a service that names a bus it does not actually have now fails fast at boot with a clear error
+                  instead of silently doing nothing; to run without a bus it must say so on purpose
+    :Config:      a new "audit-off" bus turns the bus audit off explicitly 
+    :Doc:         doc\Esquire.MessagingBus.md
+                  doc\services.configuring.md
+    Components:   messaging,
+                  dataKeep,
+                  audit,
+                  auKeep,
+                  enyMan,
+                  pacMan,
+                  keySmith,
+                  kcMaster,
+                  bizTree,
+                  tp-activemq,
+                  tp-kafka,
+                  tp-redis
+
 v1.2.9-2606.2118  v1.2.9 -- hardening: messaging-bus topology validation; a misconfigured bus disables, not crashes
     :Refactoring: the bus catalog is checked at startup -- a duplicate bus / slot / network-node id fails fast
                   with a clear error; a bus key that points at nothing now disables that leg (with a one-line

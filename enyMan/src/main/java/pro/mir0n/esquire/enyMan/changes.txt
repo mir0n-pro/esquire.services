@@ -1,5 +1,33 @@
 Esquire enyMan Microservice
 
+06/22/2026 mir0n  messaging-bus: BusAdapters + lifecycle registrar
+messaging.KcBusAdapter
+  - created (was KcRequestPublisher + the response worker): the enyMan end of the kc bus (CLIENT) -- one rod,
+    both legs, pulled via MessagingBus.getInstance().getXRod(BUS_KEY_KC) in the ctor; setWorker(onResponse) +
+    transmit(null) probe the receive/transmit legs; publishPathUpdate() transmits an EVENT_UPDATE_PATH URQ to
+    kcMaster after a USR move; onResponse() handles the URS/URR reply for this instance (rod-id selector)
+messaging.EntityBusAdapter
+  - created (was EsqEntityBroadcastPublisher): the enyMan end of the entity bus (SERVER) -- the transmit leg
+    onto the entity-broadcast topic, rod pulled via getXRod(BUS_KEY_ENTITY) in the ctor + transmit(null) probe;
+    publish() builds a RodEvent (msg-type UE) and transmits it post-commit
+EnyManApplication
+  - the 3 separate bus listener inner classes collapsed into one MessagingBusLifecycleRegistrar
+    (ApplicationListener<ApplicationEvent> + Ordered.LOWEST_PRECEDENCE) registered last; env-prepared ->
+    bus.init(env, {entity,kc,audit}), ready -> bus.start(), context-closed -> bus.close(); the ReadyListener
+    keeps only the roles load
+audit.AuditConfig
+  - the audit @Bean wraps MessagingBus.getInstance().getXRod(BUS_KEY_AUDIT) in an AuditBusBridge; the per-leg
+    sink-selection logic + the service-DataSource inject removed (the keep owns its datasource, the leg the sink)
+queue.MoveQueueManager, service.impl.EnyManService
+  - bus-adapter rename in fields/ctor params/imports: EsqEntityBroadcastPublisher -> EntityBusAdapter,
+    KcRequestPublisher -> KcBusAdapter (KcBusAdapter only in MoveQueueManager)
+service.impl.AcctService / OrgService / UsrService
+  - RodEvent import retargeted messaging.xrod.RodEvent -> messaging.RodEvent (package move)
+application.yml
+  - each bus ref gains a role: entity SERVER, kc CLIENT, audit SERVER; the audit-b in-process keep rod-class
+    renamed XRodInProcess -> XRodInProcessKeep with director AuditKeepDirector; the datasource block's shared
+    knob dropped (the keep now uses its OWN dedicated *_log pool from url/hikari)
+
 06/21/2026 mir0n  v1.2.9 -- audit leg disables (not crashes) on an unknown bus; topology import optional; SLOT_ID
 audit.AuditConfig
   - resolves the audit leg via catalog.find() (was the strict resolve()), so an unknown audit bus-id disables

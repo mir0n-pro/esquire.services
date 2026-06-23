@@ -108,3 +108,11 @@ esquire:
               destination: esquire.rod.audit
               params:
                 group-id: esquire-audit-dk
+    # --- audit (off): the explicit DISABLED bus. A service points its audit ref at audit-off to run with NO
+    #     bus audit (e.g. when DB triggers carry the audit instead). XRodDisabled is a true no-op; this is the
+    #     #17 "disable only when explicitly defined" -- a blank/undefined bus-id (correctly) fails fast instead. ---
+    - bus-id: audit-off
+      slots:
+        - slot-id: audit
+          x-rod:
+            rod-class: XRodDisabled

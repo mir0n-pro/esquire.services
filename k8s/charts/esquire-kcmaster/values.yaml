@@ -29,11 +29,6 @@ pathBuffer:
   ttlMs: "10000"
   pruneMs: "30000"
 
-# consumer on/off toggles (entity broadcast consumer + kc-request server consumer).
-consumers:
-  entityBroadcastEnabled: "true"
-  kcRequestEnabled: "true"
-
 # kc-bus ref: kcMaster is the SERVER (receives KC requests, publishes responses).
 kc:
   busId: esquire.kc

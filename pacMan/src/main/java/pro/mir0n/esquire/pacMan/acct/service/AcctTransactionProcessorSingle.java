@@ -16,6 +16,7 @@
  *                   post() carries an explicit msgType (EsqMsgConstants.MSG_TYPE_AUDIT)
  * 06/17/2026 mir0n  audit producer IXRod -> AuditBusBridge; the balance-change post() drops the trailing MSG_TYPE_AUDIT arg
  * 06/18/2026 mir0n  audit module left common: AuditBusBridge moved to pro.mir0n.esquire.audit
+ * 06/22/2026 mir0n  RodEvent import: messaging.xrod.RodEvent -> messaging.RodEvent (package move)
  */
 
 package pro.mir0n.esquire.pacMan.acct.service;
@@ -203,7 +204,7 @@ public class AcctTransactionProcessorSingle implements IAcctTransactionProcessor
         if (acct.getFundedDate() == null || acct.getFundedDate().isEmpty()) {
             acct.setFundedDate(java.time.LocalDate.now().toString());
         }
-        audit.post(pro.mir0n.esquire.messaging.xrod.RodEvent.Op.UPDATE, acct.getKind(), acctId, null, acct);
+        audit.post(pro.mir0n.esquire.messaging.RodEvent.Op.UPDATE, acct.getKind(), acctId, null, acct);
         return ret;
     }
 }

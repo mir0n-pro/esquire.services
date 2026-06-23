@@ -31,9 +31,6 @@ h2:
   poolIdleTimeout: "600000"
   poolMaxLifetime: "1800000"
 
-messaging:
-  consumerEnabled: "true"
-
 # entity-bus ref: biztree is the CONSUMER (drains the entity broadcast into its cache).
 entity:
   busId: esquire.entity

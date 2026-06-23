@@ -15,34 +15,41 @@
  *                   openConsumer / legTransport / consumeSelector); shutdown() closes the inbound consumer,
  *                   drains via super, then closes the outbound publisher; validate() requires a complete transport
  * 06/21/2026 mir0n  publisher() / openConsumer() build the Publish / ConsumeSettings without the topic argument
+ * 06/22/2026 mir0n  start(name,devLog,worker) split into init(name,devLog) (CREATE the legs by role -- transmit
+ *                   iff transmits(), receive iff receives() -- the transport consumer created PAUSED) + start()
+ *                   (runEngine via super, then inbound.start() begins consumer delivery). transmits()/receives()
+ *                   added (legs from role). validate() now REQUIRES a complete transport (was optional). inbound
+ *                   is a TransportConsumer; role is CLIENT/SERVER/BOTH. import Role/XRodParams/BusTransport from
+ *                   messaging.catalog and RodEvent from messaging.
  */
 package pro.mir0n.esquire.messaging.xrod.impl;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
-import pro.mir0n.esquire.messaging.BusTransport;
-import pro.mir0n.esquire.messaging.Role;
-import pro.mir0n.esquire.messaging.XRodParams;
+import pro.mir0n.esquire.messaging.catalog.BusTransport;
+import pro.mir0n.esquire.messaging.catalog.Role;
+import pro.mir0n.esquire.messaging.catalog.XRodParams;
 import pro.mir0n.esquire.messaging.transport.BusIdentity;
 import pro.mir0n.esquire.messaging.transport.ConsumeSettings;
 import pro.mir0n.esquire.messaging.transport.ITransportProvider;
 import pro.mir0n.esquire.messaging.transport.PublishSettings;
+import pro.mir0n.esquire.messaging.transport.TransportConsumer;
 import pro.mir0n.esquire.messaging.transport.TransportProviders;
-import pro.mir0n.esquire.messaging.xrod.RodEvent;
+import pro.mir0n.esquire.messaging.RodEvent;
 import pro.mir0n.esquire.messaging.xrod.RodPublisher;
 import pro.mir0n.esquire.messaging.xrod.RodTransportAdapter;
 
 import java.util.function.Consumer;
 
 /** The default x-Rod transceiver: a transmitter/receiver over a transport. It adds the transport to the
- *  {@link AXRod} engine -- {@link #start} resolves the leg's provider and decides the shape (producer / consumer /
- *  in-process), then wires the engine. Non-final so a specialised x-rod (e.g. {@link XRodRR}, the Request/Response
- *  variant) can extend it. */
+ *  {@link AXRod} engine -- {@link #init} resolves the leg's provider, opens the publisher and/or creates the
+ *  consumer (paused) by role, and builds the engine; {@link #start} runs the engine and begins consumer
+ *  delivery. Non-final so a specialised x-rod (e.g. {@link XRodRR}, the Request/Response variant) can extend it. */
 public class XRod extends AXRod {
 
-    private Role role;                  // CLIENT/SERVER/BROADCAST -- picks the R&R node (request vs response)
+    private Role role;                  // CLIENT/SERVER/BOTH -- picks the R&R node (request vs response); single-node ignores it
     private ObjectMapper objectMapper;  // for the RodEvent <-> wire codec
-    private AutoCloseable inbound;        // the open transport consumer this rod owns; closed on shutdown
+    private TransportConsumer inbound;    // the transport consumer this rod owns (created paused, started in start()); closed on shutdown
     private AutoCloseable outboundCloser; // the open transport publisher this rod owns; closed on shutdown
 
     /** No-arg: x-rods are class-name-resolved + reflectively instantiated, then {@link #configure}d. */
@@ -52,11 +59,13 @@ public class XRod extends AXRod {
     @Override
     public void validate(XRodParams params) {
         BusTransport t = params != null ? params.transport() : null;
-        if (t != null) {   // a transport is declared -> it must be complete (a single-node leg's whole wire)
-            require(t.provider() != null,    "transport.provider", params);
-            require(t.endpoint() != null,    "transport.endpoint", params);
-            require(t.destination() != null, "transport.destination", params);
-        }
+        // XRod IS the transport transceiver -> a complete transport is MANDATORY. A role-declared ref that
+        // resolves to no transport (e.g. a bogus bus-id whose only x-rod is a knobs-only service override) is a
+        // misconfiguration, not a silent no-op rod -- fail fast here, at the init phase, before any leg opens.
+        require(t != null, "transport", params);
+        require(t.provider() != null,    "transport.provider", params);
+        require(t.endpoint() != null,    "transport.endpoint", params);
+        require(t.destination() != null, "transport.destination", params);
     }
 
     @Override
@@ -67,41 +76,63 @@ public class XRod extends AXRod {
     }
 
     @Override
-    public synchronized void start(String name, Logger devLog, Consumer<RodEvent> worker) {
+    public synchronized void init(String name, Logger devLog) {
+        // CREATE the legs by ROLE (no traffic yet): a transmit leg (publisher) iff transmits(), a receive leg
+        // (listener) iff receives() -- so ONE rod can do both (an R&R CLIENT sends requests + listens for
+        // responses). The role picks the NODE per leg (R&R request/response) + the selector. The receive
+        // listener is created PAUSED here; the feed/pool are built but idle. start() (facade-driven) runs the
+        // engine and begins delivery. Single-node XRod: SERVER transmits, CLIENT receives.
         BusTransport transport = params != null ? params.transport() : null;
         boolean transportBacked = transport != null && objectMapper != null;
         ITransportProvider provider = transportBacked ? TransportProviders.resolve(transport.provider()) : null;
+        boolean doTransmit = transmits() && transportBacked;
+        boolean doReceive  = receives();   // build the receive pool; the transport consumer (below) also needs a transport
 
-        Consumer<RodEvent> outbound  = null;
-        Consumer<RodEvent> effWorker = worker;
-        if (worker == null) {
-            // PRODUCER (transmit only): a bus leg builds a publisher; no transport = no transmit leg (a no-op x-rod).
-            if (transportBacked) {
-                RodPublisher publisher = publisher(provider, legTransport(true, role));
-                this.outboundCloser = publisher;   // close its broker connection on shutdown
-                int pubPool = params.publisherPoolSizeOr(0);
-                if (pubPool > 0) {                 // pooled async publish: feed -> own pool -> publish
-                    outbound      = this::receive;
-                    effWorker     = publisher;
-                    this.poolSize = pubPool;
-                } else {
-                    outbound = publisher;
-                }
+        Consumer<RodEvent> outbound = null;
+        Consumer<RodEvent> poolJob  = doReceive ? this::applyWorker : null;   // the pool applies the live worker
+        if (doTransmit) {
+            RodPublisher publisher = publisher(provider, legTransport(true, role));
+            this.outboundCloser = publisher;            // close its broker connection on shutdown
+            int pubPool = params.publisherPoolSizeOr(0);
+            if (pubPool > 0 && !doReceive) {            // pooled async publish (tx-only -- a dual-leg rod's pool
+                outbound      = this::receive;          // runs the receive worker, so it publishes directly instead)
+                poolJob       = publisher;
+                this.poolSize = pubPool;
+            } else {
+                outbound = publisher;                   // direct publish on the feed thread
             }
-        } else if (!transportBacked) {
-            // IN-PROCESS (no transport): feed -> own pool -> worker.
-            outbound = this::receive;
         }
-        // else: a bus CONSUMER -- the pool applies `worker`; the transport consumer is opened below.
 
-        startEngine(name, devLog, outbound, effWorker);
+        buildEngine(name, devLog, outbound, poolJob);
 
-        // open the transport consumer AFTER the engine runs (receive needs the pool); a producer-only transport idles.
-        if (transportBacked && worker != null && provider.supportsConsume()) {
+        // CREATE the transport consumer PAUSED (delivery begins at start(), after the pool is live); a
+        // transport-less receive (e.g. a test) builds only the pool -- events arrive via a direct receive() call.
+        if (doReceive && transportBacked && provider.supportsConsume()) {
             this.inbound = openConsumer(provider, legTransport(false, role));
-        } else if (transportBacked && worker != null && devLog != null) {
+        } else if (doReceive && transportBacked && devLog != null) {
             devLog.info("x-rod[{}]: transport '{}' is producer-only -- no consumer opened", name, transport.provider());
         }
+    }
+
+    @Override
+    public synchronized void start() {
+        super.start();              // RUN the engine (pool live, feed pumping)
+        if (inbound != null) {
+            inbound.start();        // begin transport delivery on the consumer created (paused) at init
+        }
+    }
+
+    /** Whether this rod runs a TRANSMIT leg, by role. Single-node: SERVER / BOTH transmit, CLIENT does not.
+     *  {@link XRodRR} (R&R) always transmits -- the request node for CLIENT, the response node for SERVER. */
+    protected boolean transmits() {
+        return role == Role.SERVER || role == Role.BOTH;
+    }
+
+    /** Whether this rod runs a RECEIVE leg, by role (gated at open() by a worker being set). Single-node:
+     *  CLIENT / BOTH receive, SERVER does not. {@link XRodRR} (R&R) always receives -- the response node for
+     *  CLIENT, the request node for SERVER. */
+    protected boolean receives() {
+        return role == Role.CLIENT || role == Role.BOTH;
     }
 
     /** Build the transmit-leg outbound: encode each event to the wire envelope + hand it to the transport sink.
@@ -116,7 +147,7 @@ public class XRod extends AXRod {
     /** Open the receive-leg transport consumer: decode each message + receive it to this rod's pool. A CLIENT
      *  consuming responses filters to its own rod-id (so each instance only gets the responses it requested).
      *  The effective per-leg wire ({@code leg}) is what {@link #legTransport} resolved (XRodRR = the consume node). */
-    private AutoCloseable openConsumer(ITransportProvider provider, BusTransport leg) {
+    private TransportConsumer openConsumer(ITransportProvider provider, BusTransport leg) {
         ConsumeSettings cs = new ConsumeSettings(objectMapper, leg.endpoint(),
                 identity, leg.paramsOrEmpty(), params.concurrencyOr(1), consumeSelector(role, identity));
         return provider.openConsumer(leg.destination(), cs, RodTransportAdapter.handler(this::receive, objectMapper));

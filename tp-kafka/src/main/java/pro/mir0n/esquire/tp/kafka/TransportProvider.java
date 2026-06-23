@@ -15,6 +15,9 @@
  *                   (transport.kafka.group-id), read via settings.params().
  * 06/17/2026 mir0n  openPublisher returns a TransportPublisher (close() destroys the DefaultKafkaProducerFactory);
  *                   the clientId param + CLIENT_ID_CONFIG removed from buildTemplate / buildConsumerFactory
+ * 06/22/2026 mir0n  two-phase consumer: openConsumer returns a TransportConsumer (start + close legs); the
+ *                   container is created PAUSED (setAutoStartup(false), no container.start()) -- delivery waits
+ *                   for the bus start() that calls the returned start leg
  */
 package pro.mir0n.esquire.tp.kafka;
 
@@ -38,6 +41,7 @@ import org.springframework.kafka.listener.MessageListener;
 import pro.mir0n.esquire.messaging.transport.ConsumeSettings;
 import pro.mir0n.esquire.messaging.transport.ITransportProvider;
 import pro.mir0n.esquire.messaging.transport.PublishSettings;
+import pro.mir0n.esquire.messaging.transport.TransportConsumer;
 import pro.mir0n.esquire.messaging.transport.TransportMessage;
 import pro.mir0n.esquire.messaging.transport.TransportPublisher;
 
@@ -81,7 +85,7 @@ public final class TransportProvider implements ITransportProvider {
     }
 
     @Override
-    public AutoCloseable openConsumer(String destination, ConsumeSettings s, Consumer<TransportMessage> handler) {
+    public TransportConsumer openConsumer(String destination, ConsumeSettings s, Consumer<TransportMessage> handler) {
         ObjectMapper om = s.objectMapper();
         String groupId = s.param(PARAM_GROUP_ID, DEFAULT_GROUP_ID);
         ConsumerFactory<String, String> consumerFactory = buildConsumerFactory(s.endpoint(), groupId, s.params());
@@ -100,13 +104,13 @@ public final class TransportProvider implements ITransportProvider {
 
         ConcurrentMessageListenerContainer<String, String> container =
                 new ConcurrentMessageListenerContainer<>(consumerFactory, props);
+        container.setAutoStartup(false);   // created PAUSED -- the x-rod's start() begins delivery once wired
         if (s.concurrency() > 0) {
             container.setConcurrency(s.concurrency());
         }
-        container.start();
-        devLog.info("tp-kafka: consumer started on topic {} (bootstrap={}, group={}, concurrency={})",
+        devLog.info("tp-kafka: consumer created (paused) on topic {} (bootstrap={}, group={}, concurrency={})",
                 destination, s.endpoint(), groupId, s.concurrency());
-        return container::stop;
+        return TransportConsumer.of(container::start, container::stop);
     }
 
     /** Build a KafkaTemplate over a String/String producer to {@code bootstrap}. The audit topic owns this

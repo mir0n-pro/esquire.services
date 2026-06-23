@@ -32,7 +32,7 @@ import pro.mir0n.esquire.backend.service.EsqRequestContext;
 import pro.mir0n.esquire.backend.validator.ValidatorFactory;
 import pro.mir0n.esquire.pacMan.acct.jpa.EsqAcctTransactionRepository;
 import pro.mir0n.esquire.pacMan.jpa.EsqAcctRepository;
-import pro.mir0n.esquire.pacMan.messaging.EsqEntityBroadcastPublisher;
+import pro.mir0n.esquire.pacMan.messaging.EntityBusAdapter;
 import pro.mir0n.esquire.pacMan.service.impl.PacManService;
 
 import java.util.HashMap;
@@ -61,7 +61,7 @@ class PacManServiceTest {
     private EntityManager em;
 
     @Mock
-    private EsqEntityBroadcastPublisher broadcastPublisher;
+    private EntityBusAdapter broadcastPublisher;
 
     @Mock
     private EsqAcctTransactionRepository acctTrxRepo;

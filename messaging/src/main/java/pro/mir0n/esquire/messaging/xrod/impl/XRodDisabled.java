@@ -13,21 +13,26 @@
  *                   transmit gate isEnabled() is false, so a caller's isEnabled() guard skips the work too.
  * 06/17/2026 mir0n  usesOutboundTransport() / bindInbound() removed; isEnabled() overrides false (the only
  *                   x-rod that is off)
+ * 06/22/2026 mir0n  start(name,devLog,worker) split into setWorker (no-op) + init (no-op) + start (no-op); the
+ *                   facade no longer falls back to it (an undeclared bus throws), so a slot picks it ON PURPOSE
+ *                   with rod-class = XRodDisabled. import Role/XRodParams from messaging.catalog, IXRod/RodEvent
+ *                   from messaging.
  */
 package pro.mir0n.esquire.messaging.xrod.impl;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
-import pro.mir0n.esquire.messaging.Role;
-import pro.mir0n.esquire.messaging.XRodParams;
-import pro.mir0n.esquire.messaging.xrod.IXRod;
-import pro.mir0n.esquire.messaging.xrod.RodEvent;
+import pro.mir0n.esquire.messaging.catalog.Role;
+import pro.mir0n.esquire.messaging.catalog.XRodParams;
+import pro.mir0n.esquire.messaging.IXRod;
+import pro.mir0n.esquire.messaging.RodEvent;
 
 import java.util.function.Consumer;
 
 /** The OFF x-rod: a fully inert {@link IXRod}. Both legs are absent -- it transmits nothing and receives nothing,
- *  carries no config, opens no transport. The frontend selects it when a bus key resolves to no leg, or a slot
- *  sets {@code rod-class = XRodDisabled} on purpose. */
+ *  carries no config, opens no transport. A slot selects it ON PURPOSE with {@code rod-class = XRodDisabled} to
+ *  run a service WITHOUT that bus (a declared-but-disabled bus, e.g. audit off) -- the facade never falls back to
+ *  it (an undeclared bus throws), so a disabled bus is always explicit. */
 public final class XRodDisabled implements IXRod {
 
     /** No-arg: x-rods are class-name-resolved + reflectively instantiated. */
@@ -40,8 +45,18 @@ public final class XRodDisabled implements IXRod {
     }
 
     @Override
-    public void start(String name, Logger devLog, Consumer<RodEvent> worker) {
-        // OFF: no legs run.
+    public void setWorker(Consumer<RodEvent> worker) {
+        // OFF: no receive worker.
+    }
+
+    @Override
+    public void init(String name, Logger devLog) {
+        // OFF: no legs created.
+    }
+
+    @Override
+    public void start() {
+        // OFF: nothing to run.
     }
 
     @Override

@@ -15,14 +15,17 @@
  *                   and refine the base wire via BusTransport.refinedWith(); the flattened-key surgery +
  *                   nodePrefix() removed; validate() added (provider / endpoint + nodes or a base destination)
  * 06/21/2026 mir0n  legTransport() doc: a node owns destination / params (topic dropped from the node model)
+ * 06/22/2026 mir0n  transmits()/receives() overridden to true (R&R runs BOTH legs for its role); validate() now
+ *                   REQUIRES a complete transport (was optional). import BusNode/BusTransport/Role/XRodParams from
+ *                   messaging.catalog.
  */
 package pro.mir0n.esquire.messaging.xrod.impl;
 
 import pro.mir0n.esquire.common.EsqMsgConstants;
-import pro.mir0n.esquire.messaging.BusNode;
-import pro.mir0n.esquire.messaging.BusTransport;
-import pro.mir0n.esquire.messaging.Role;
-import pro.mir0n.esquire.messaging.XRodParams;
+import pro.mir0n.esquire.messaging.catalog.BusNode;
+import pro.mir0n.esquire.messaging.catalog.BusTransport;
+import pro.mir0n.esquire.messaging.catalog.Role;
+import pro.mir0n.esquire.messaging.catalog.XRodParams;
 import pro.mir0n.esquire.messaging.transport.BusIdentity;
 
 /** The Request/Response x-Rod (two nodes, role-driven): a specialised {@link XRod} for R&R legs. It overrides
@@ -30,21 +33,33 @@ import pro.mir0n.esquire.messaging.transport.BusIdentity;
  *  selector; everything else is the base transceiver. */
 public class XRodRR extends XRod {
 
+    /** R&R always runs BOTH legs for its role: a CLIENT transmits requests + receives responses; a SERVER
+     *  transmits responses + receives requests. (The receive leg still opens only if a worker is set.) */
+    @Override
+    protected boolean transmits() {
+        return true;
+    }
+
+    @Override
+    protected boolean receives() {
+        return true;
+    }
+
     @Override
     public void validate(XRodParams params) {
         BusTransport t = params != null ? params.transport() : null;
-        if (t != null) {
-            require(t.provider() != null, "transport.provider", params);
-            require(t.endpoint() != null, "transport.endpoint", params);
-            Object reqId = params.raw() != null ? params.raw().get("transport.request-node") : null;
-            if (reqId != null) {   // a two-node R&R leg: both nodes must resolve with a destination
-                Object respId = params.raw().get("transport.response-node");
-                require(respId != null, "transport.response-node", params);
-                require(nodeHasDestination(params, reqId),  "transport node '" + reqId + "' destination", params);
-                require(nodeHasDestination(params, respId), "transport node '" + respId + "' destination", params);
-            } else {   // single-node XRodRR -> legTransport falls back to the base destination
-                require(t.destination() != null, "transport.destination", params);
-            }
+        // An R&R leg also needs a real transport -> mandatory (fail fast, not a silent no-op rod).
+        require(t != null, "transport", params);
+        require(t.provider() != null, "transport.provider", params);
+        require(t.endpoint() != null, "transport.endpoint", params);
+        Object reqId = params.raw() != null ? params.raw().get("transport.request-node") : null;
+        if (reqId != null) {   // a two-node R&R leg: both nodes must resolve with a destination
+            Object respId = params.raw().get("transport.response-node");
+            require(respId != null, "transport.response-node", params);
+            require(nodeHasDestination(params, reqId),  "transport node '" + reqId + "' destination", params);
+            require(nodeHasDestination(params, respId), "transport node '" + respId + "' destination", params);
+        } else {   // single-node XRodRR -> legTransport falls back to the base destination
+            require(t.destination() != null, "transport.destination", params);
         }
     }
 

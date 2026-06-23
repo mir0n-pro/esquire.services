@@ -14,6 +14,8 @@
  *                   builds its OWN Lettuce connection from settings.endpoint(); the redis-only max-len comes
  *                   from the provider's param group (transport.redis.max-len), read via settings.params().
  * 06/17/2026 mir0n  openPublisher returns a TransportPublisher (close() destroys the LettuceConnectionFactory)
+ * 06/22/2026 mir0n  openConsumer signature returns a TransportConsumer (SPI two-phase); still producer-only --
+ *                   throws UnsupportedOperationException
  */
 package pro.mir0n.esquire.tp.redis;
 
@@ -33,6 +35,7 @@ import pro.mir0n.esquire.common.EsqMsgConstants;
 import pro.mir0n.esquire.messaging.transport.ConsumeSettings;
 import pro.mir0n.esquire.messaging.transport.ITransportProvider;
 import pro.mir0n.esquire.messaging.transport.PublishSettings;
+import pro.mir0n.esquire.messaging.transport.TransportConsumer;
 import pro.mir0n.esquire.messaging.transport.TransportMessage;
 import pro.mir0n.esquire.messaging.transport.TransportPublisher;
 
@@ -94,7 +97,7 @@ public final class TransportProvider implements ITransportProvider {
     }
 
     @Override
-    public AutoCloseable openConsumer(String destination, ConsumeSettings s, Consumer<TransportMessage> handler) {
+    public TransportConsumer openConsumer(String destination, ConsumeSettings s, Consumer<TransportMessage> handler) {
         throw new UnsupportedOperationException(
                 "tp-redis is producer-only: the stream is the append-only log (read with XRANGE); no consumer");
     }

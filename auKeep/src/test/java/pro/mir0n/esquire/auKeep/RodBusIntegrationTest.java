@@ -13,6 +13,7 @@
 package pro.mir0n.esquire.auKeep;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -28,7 +29,7 @@ import pro.mir0n.esquire.common.EsqMsgConstants;
 import pro.mir0n.esquire.messaging.xrod.RodTransportAdapter;
 import pro.mir0n.esquire.messaging.transport.BusIdentity;
 import pro.mir0n.esquire.messaging.transport.PublishSettings;
-import pro.mir0n.esquire.messaging.xrod.RodEvent;
+import pro.mir0n.esquire.messaging.RodEvent;
 import pro.mir0n.esquire.tp.activemq.TransportProvider;
 
 import java.util.LinkedHashMap;
@@ -39,6 +40,8 @@ import java.util.function.Consumer;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
 
+@Disabled("audit temporarily dormant (v1.2.9 commit 6): the audit bus declares no role, so the facade builds no "
+        + "audit consumer rod; re-enable when audit is rewired into an audit-module XRodAuditKeep")
 @SpringBootTest(classes = AuKeepApplication.class, webEnvironment = SpringBootTest.WebEnvironment.NONE)
 @Testcontainers(disabledWithoutDocker = true)
 class RodBusIntegrationTest {

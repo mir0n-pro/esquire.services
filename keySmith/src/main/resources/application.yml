@@ -20,14 +20,13 @@ keysmith:
       slots:
         - slot-id: audit
           x-rod:
-            rod-class: pro.mir0n.esquire.dataKeep.keep.XRodInProcess
+            rod-class: pro.mir0n.esquire.dataKeep.keep.XRodInProcessKeep
+            director: pro.mir0n.esquire.audit.AuditKeepDirector
             pool-size: ${AUDIT_POOL_SIZE:4}
             feed-capacity: ${AUDIT_FEED_CAPACITY:4096}
             virtual-threads: ${AUDIT_VIRTUAL_THREADS:false}
             datasource:
-              # shared=true -> the keep reuses the SERVICE's own datasource pool (url/hikari ignored,
-              # dialect from the service's spring.datasource.url); false -> a dedicated keep pool from the url/hikari below.
-              shared: ${DB_DATAKEEP_SHARED:false}
+              # the keep's OWN dedicated *_log pool, from the url/hikari below.
               url: ${DB_DATAKEEP_URL:jdbc:postgresql://${DB_KEYSMITH_HOST:localhost}:${DB_KEYSMITH_PORT:5432}/${DB_KEYSMITH_NAME:esq2025}}
               username: ${DB_DATAKEEP_USERNAME:${DB_KEYSMITH_USERNAME:esq2025}}
               password: ${DB_DATAKEEP_PASSWORD:${DB_KEYSMITH_PASSWORD:q}}
@@ -38,10 +37,12 @@ esquire:
     messaging-bus:
       bus-id: ${AUDIT_BUS_ID:audit-b}
       slot-id: ${AUDIT_SLOT_ID:audit}
+      role: SERVER   # the service is the audit SERVER: it broadcasts its log events (in-process keep applies them)
   kc-bus:
     messaging-bus:
       bus-id: ${KC_BUS_ID:esquire.kc}
       slot-id: ${KC_SLOT_ID:kc}
+      role: CLIENT
       x-rod:
         pool-size: ${KEYSMITH_KC_RESPONSE_POOL_SIZE:2}
         concurrency: ${KEYSMITH_KC_RESPONSE_CONCURRENCY:1}

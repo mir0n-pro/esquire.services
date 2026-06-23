@@ -18,12 +18,6 @@ kcmaster:
   path-buffer:
     ttl-ms:            ${KCMASTER_PATH_BUFFER_TTL_MS:10000}
     prune-interval-ms: ${KCMASTER_PATH_BUFFER_PRUNE_MS:30000}
-  entity-broadcast-bus:
-    consumer:
-      enabled: ${KCMASTER_ENTITY_BROADCAST_CONSUMER_ENABLED:true}
-  kc-request-bus:
-    consumer:
-      enabled: ${KCMASTER_KC_REQUEST_CONSUMER_ENABLED:true}
 # Bus TOPOLOGY (which buses exist + their transport) is the shared esquire-topology.yml imported above.
 # Here: this service's bus REFS + per-service knob OVERRIDES (kc SERVER + entity consumer).
 esquire:
@@ -31,6 +25,7 @@ esquire:
     messaging-bus:
       bus-id: ${KC_BUS_ID:esquire.kc}
       slot-id: ${KC_SLOT_ID:kc}
+      role: SERVER
       x-rod:
         pool-size: ${KC_REQUEST_POOL_SIZE:4}
         concurrency: ${KC_REQUEST_CONCURRENCY:1}
@@ -39,6 +34,7 @@ esquire:
     messaging-bus:
       bus-id: ${ENTITY_BUS_ID:esquire.entity}
       slot-id: ${ENTITY_SLOT_ID:entity}
+      role: CLIENT
       x-rod:
         pool-size: ${ENTITY_BROADCAST_POOL_SIZE:4}
         concurrency: ${ENTITY_BROADCAST_CONCURRENCY:1}

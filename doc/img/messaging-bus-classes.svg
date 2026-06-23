@@ -5,33 +5,31 @@
     </marker>
   </defs>
 
-  <text x="20" y="26" font-weight="600" font-size="15" fill="#2b3a4b">Messaging Bus &#8212; type map (three packages)</text>
+  <text x="20" y="26" font-weight="600" font-size="15" fill="#2b3a4b">Messaging Bus &#8212; type map (the framework packages)</text>
 
-  <!-- ===== Panel A: messaging.xrod ===== -->
+  <!-- ===== Panel A: messaging (public API) ===== -->
   <rect x="20" y="44" width="270" height="312" rx="9" fill="#fbfcfd" stroke="#c3cedb" stroke-width="1.4"/>
   <rect x="20" y="44" width="270" height="26" rx="9" fill="#4D6A8D"/>
-  <text x="155" y="62" text-anchor="middle" font-weight="600" fill="#ffffff">messaging.xrod &#8212; frontend &amp; impls</text>
+  <text x="155" y="62" text-anchor="middle" font-weight="600" fill="#ffffff">messaging &#8212; the public API</text>
 
-  <rect x="32" y="80"  width="246" height="28" rx="6" fill="#eef2f7" stroke="#4D6A8D" stroke-width="1.3"/><text x="155" y="98"  text-anchor="middle" font-weight="600" fill="#1f2a36">XRodManager</text>
+  <rect x="32" y="80"  width="246" height="28" rx="6" fill="#eef2f7" stroke="#4D6A8D" stroke-width="1.3"/><text x="155" y="98"  text-anchor="middle" font-weight="600" fill="#1f2a36">MessagingBus  (the facade)</text>
   <rect x="32" y="116" width="246" height="28" rx="6" fill="#eef2f7" stroke="#4D6A8D" stroke-width="1.3"/><text x="155" y="134" text-anchor="middle" fill="#1f2a36">IXRod  (x-rod SPI)</text>
-  <rect x="32" y="152" width="246" height="28" rx="6" fill="#e7edf4" stroke="#4D6A8D" stroke-width="1.3"/><text x="155" y="165" text-anchor="middle" font-size="10.5" fill="#1f2a36">XRod &#183; XRodRR &#183; XRodInfo &#183; XRodDisabled</text><text x="155" y="177" text-anchor="middle" font-size="10.5" fill="#1f2a36">&#183; XRodInProcess</text>
-  <rect x="32" y="188" width="246" height="28" rx="6" fill="#eef2f7" stroke="#4D6A8D" stroke-width="1.3"/><text x="155" y="206" text-anchor="middle" fill="#1f2a36">XRods  (rod-class resolver)</text>
-  <rect x="32" y="224" width="246" height="28" rx="6" fill="#eef2f7" stroke="#4D6A8D" stroke-width="1.3"/><text x="155" y="242" text-anchor="middle" fill="#1f2a36">RodEvent &#183; RodEventCodec</text>
-  <rect x="32" y="260" width="246" height="28" rx="6" fill="#eef2f7" stroke="#4D6A8D" stroke-width="1.3"/><text x="155" y="278" text-anchor="middle" fill="#1f2a36">RodTransportAdapter</text>
-  <rect x="32" y="296" width="246" height="28" rx="6" fill="#eef2f7" stroke="#4D6A8D" stroke-width="1.3"/><text x="155" y="314" text-anchor="middle" font-size="11" fill="#1f2a36">RodEventRepoRegistry  (optional)</text>
+  <rect x="32" y="152" width="246" height="28" rx="6" fill="#eef2f7" stroke="#4D6A8D" stroke-width="1.3"/><text x="155" y="170" text-anchor="middle" fill="#1f2a36">RodEvent</text>
+  <rect x="32" y="188" width="246" height="28" rx="6" fill="#eef2f7" stroke="#4D6A8D" stroke-width="1.3"/><text x="155" y="206" text-anchor="middle" fill="#1f2a36">IRodEventRepo</text>
+  <rect x="32" y="224" width="246" height="28" rx="6" fill="#eef2f7" stroke="#4D6A8D" stroke-width="1.3"/><text x="155" y="242" text-anchor="middle" font-size="11" fill="#1f2a36">RodEventRepoRegistry  (optional)</text>
 
-  <!-- ===== Panel B: messaging ===== -->
+  <!-- ===== Panel B: messaging.catalog + messaging.xrod(.impl) ===== -->
   <rect x="305" y="44" width="250" height="312" rx="9" fill="#fbfcfd" stroke="#c3cedb" stroke-width="1.4"/>
   <rect x="305" y="44" width="250" height="26" rx="9" fill="#4D6A8D"/>
-  <text x="430" y="62" text-anchor="middle" font-weight="600" fill="#ffffff">messaging &#8212; bus model &amp; catalog</text>
+  <text x="430" y="62" text-anchor="middle" font-weight="600" fill="#ffffff">messaging.catalog &amp; .xrod</text>
 
   <rect x="317" y="80"  width="226" height="28" rx="6" fill="#eef2f7" stroke="#4D6A8D" stroke-width="1.3"/><text x="430" y="98"  text-anchor="middle" font-weight="600" fill="#1f2a36">MessagingBusCatalog</text>
-  <rect x="317" y="116" width="226" height="28" rx="6" fill="#eef2f7" stroke="#4D6A8D" stroke-width="1.3"/><text x="430" y="134" text-anchor="middle" fill="#1f2a36">MessagingBus</text>
-  <rect x="317" y="152" width="226" height="28" rx="6" fill="#eef2f7" stroke="#4D6A8D" stroke-width="1.3"/><text x="430" y="170" text-anchor="middle" fill="#1f2a36">BusSlot</text>
-  <rect x="317" y="188" width="226" height="28" rx="6" fill="#eef2f7" stroke="#4D6A8D" stroke-width="1.3"/><text x="430" y="206" text-anchor="middle" fill="#1f2a36">XRodParams</text>
-  <rect x="317" y="224" width="226" height="28" rx="6" fill="#eef2f7" stroke="#4D6A8D" stroke-width="1.3"/><text x="430" y="242" text-anchor="middle" fill="#1f2a36">BusTransport</text>
-  <rect x="317" y="260" width="226" height="28" rx="6" fill="#eef2f7" stroke="#4D6A8D" stroke-width="1.3"/><text x="430" y="278" text-anchor="middle" fill="#1f2a36">BusRef</text>
-  <rect x="317" y="296" width="226" height="28" rx="6" fill="#eef2f7" stroke="#4D6A8D" stroke-width="1.3"/><text x="430" y="314" text-anchor="middle" fill="#1f2a36">Role  (enum)</text>
+  <rect x="317" y="116" width="226" height="28" rx="6" fill="#eef2f7" stroke="#4D6A8D" stroke-width="1.3"/><text x="430" y="134" text-anchor="middle" font-size="10.5" fill="#1f2a36">BusSlot &#183; BusNode &#183; BusRef &#183; BusTransport</text>
+  <rect x="317" y="152" width="226" height="28" rx="6" fill="#eef2f7" stroke="#4D6A8D" stroke-width="1.3"/><text x="430" y="170" text-anchor="middle" fill="#1f2a36">XRodParams &#183; Role  (enum)</text>
+  <rect x="317" y="188" width="226" height="28" rx="6" fill="#eef2f7" stroke="#4D6A8D" stroke-width="1.3"/><text x="430" y="206" text-anchor="middle" fill="#1f2a36">AXRod  (engine base)</text>
+  <rect x="317" y="224" width="226" height="28" rx="6" fill="#e7edf4" stroke="#4D6A8D" stroke-width="1.3"/><text x="430" y="237" text-anchor="middle" font-size="10.5" fill="#1f2a36">XRod &#183; XRodRR &#183; XRodInProcess</text><text x="430" y="249" text-anchor="middle" font-size="10.5" fill="#1f2a36">&#183; XRodInfo &#183; XRodDisabled</text>
+  <rect x="317" y="260" width="226" height="28" rx="6" fill="#eef2f7" stroke="#4D6A8D" stroke-width="1.3"/><text x="430" y="278" text-anchor="middle" font-size="10.5" fill="#1f2a36">RodEventCodec &#183; RodPublisher</text>
+  <rect x="317" y="296" width="226" height="28" rx="6" fill="#eef2f7" stroke="#4D6A8D" stroke-width="1.3"/><text x="430" y="314" text-anchor="middle" fill="#1f2a36">RodTransportAdapter</text>
 
   <!-- ===== Panel C: messaging.transport ===== -->
   <rect x="570" y="44" width="290" height="312" rx="9" fill="#fbfcfd" stroke="#c3cedb" stroke-width="1.4"/>
@@ -48,7 +46,7 @@
 
   <!-- cross-panel arrows -->
   <line x1="280" y1="94" x2="305" y2="94" stroke="#5b5b5b" stroke-width="1.4" marker-end="url(#ar)"/>
-  <text x="292" y="88" text-anchor="middle" font-size="9.5" fill="#54627a">leg</text>
+  <text x="292" y="88" text-anchor="middle" font-size="9.5" fill="#54627a">builds</text>
   <line x1="545" y1="94" x2="570" y2="94" stroke="#5b5b5b" stroke-width="1.4" marker-end="url(#ar)"/>
   <text x="557" y="88" text-anchor="middle" font-size="9.5" fill="#54627a">driver</text>
 </svg>

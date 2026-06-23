@@ -12,17 +12,19 @@
  *                   machinery (post -> commit -> stamp feed) but swaps the transport for a log line.
  * 06/17/2026 mir0n  dropped the composed inner XRod -- log-only directly: transmit() / receive() log the event
  *                   line (no feed / pool / transport); usesOutboundTransport() / bindInbound() removed
+ * 06/22/2026 mir0n  start(name,devLog,worker) split into setWorker (no-op) + init (the log-line setup) + start
+ *                   (no-op); import Role/XRodParams from messaging.catalog, IXRod/RodEvent from messaging.
  */
 package pro.mir0n.esquire.messaging.xrod.impl;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import pro.mir0n.esquire.messaging.Role;
-import pro.mir0n.esquire.messaging.XRodParams;
+import pro.mir0n.esquire.messaging.catalog.Role;
+import pro.mir0n.esquire.messaging.catalog.XRodParams;
 import pro.mir0n.esquire.messaging.transport.BusIdentity;
-import pro.mir0n.esquire.messaging.xrod.IXRod;
-import pro.mir0n.esquire.messaging.xrod.RodEvent;
+import pro.mir0n.esquire.messaging.IXRod;
+import pro.mir0n.esquire.messaging.RodEvent;
 
 import java.util.function.Consumer;
 
@@ -48,13 +50,23 @@ public final class XRodInfo implements IXRod {
     }
 
     @Override
-    public void start(String name, Logger devLog, Consumer<RodEvent> worker) {
+    public void setWorker(Consumer<RodEvent> worker) {
+        // log-only x-rod: no receive worker
+    }
+
+    @Override
+    public void init(String name, Logger devLog) {
         this.msgLog = identity != null && identity.busId() != null
                 ? LoggerFactory.getLogger("msg." + identity.busId() + "." + identity.slotId())
                 : null;
         if (devLog != null) {
             devLog.info("x-rod-info[{}]: log-only (directive={}) -- events are logged, never sent", name, dir);
         }
+    }
+
+    @Override
+    public void start() {
+        // log-only: no threads, no transport -- transmit()/receive() log inline.
     }
 
     @Override
