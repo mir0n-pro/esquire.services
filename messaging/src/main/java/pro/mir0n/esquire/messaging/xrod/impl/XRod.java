@@ -21,6 +21,8 @@
  *                   added (legs from role). validate() now REQUIRES a complete transport (was optional). inbound
  *                   is a TransportConsumer; role is CLIENT/SERVER/BOTH. import Role/XRodParams/BusTransport from
  *                   messaging.catalog and RodEvent from messaging.
+ * 06/22/2026 mir0n  health() = worst of the transmit (outboundCloser) + receive (inbound) legs, each ignored
+ *                   when null (a leg the role does not run); outboundCloser retyped AutoCloseable -> RodPublisher.
  */
 package pro.mir0n.esquire.messaging.xrod.impl;
 
@@ -34,6 +36,7 @@ import pro.mir0n.esquire.messaging.transport.ConsumeSettings;
 import pro.mir0n.esquire.messaging.transport.ITransportProvider;
 import pro.mir0n.esquire.messaging.transport.PublishSettings;
 import pro.mir0n.esquire.messaging.transport.TransportConsumer;
+import pro.mir0n.esquire.messaging.transport.TransportHealth;
 import pro.mir0n.esquire.messaging.transport.TransportProviders;
 import pro.mir0n.esquire.messaging.RodEvent;
 import pro.mir0n.esquire.messaging.xrod.RodPublisher;
@@ -50,7 +53,7 @@ public class XRod extends AXRod {
     private Role role;                  // CLIENT/SERVER/BOTH -- picks the R&R node (request vs response); single-node ignores it
     private ObjectMapper objectMapper;  // for the RodEvent <-> wire codec
     private TransportConsumer inbound;    // the transport consumer this rod owns (created paused, started in start()); closed on shutdown
-    private AutoCloseable outboundCloser; // the open transport publisher this rod owns; closed on shutdown
+    private RodPublisher outboundCloser;  // the open transport publisher (RodPublisher) this rod owns; closed on shutdown
 
     /** No-arg: x-rods are class-name-resolved + reflectively instantiated, then {@link #configure}d. */
     public XRod() {
@@ -120,6 +123,15 @@ public class XRod extends AXRod {
         if (inbound != null) {
             inbound.start();        // begin transport delivery on the consumer created (paused) at init
         }
+    }
+
+    /** This rod's connection health = the worst of its transmit (publisher) + receive (consumer) transport legs;
+     *  a leg the role does not run is absent (null) and ignored. UNKNOWN when neither leg can observe its state. */
+    @Override
+    public TransportHealth health() {
+        TransportHealth tx = outboundCloser != null ? outboundCloser.health() : null;
+        TransportHealth rx = inbound != null ? inbound.health() : null;
+        return TransportHealth.worst(tx, rx);
     }
 
     /** Whether this rod runs a TRANSMIT leg, by role. Single-node: SERVER / BOTH transmit, CLIENT does not.

@@ -16,6 +16,8 @@
  * 06/22/2026 mir0n  moved to messaging (was messaging.xrod). Lifecycle split: start(name,devLog,worker) ->
  *                   init(name,devLog) (CREATE the legs paused) + setWorker(worker) (set/reset the receive
  *                   callback after configure) + start() (RUN). Role is CLIENT/SERVER/BOTH (BROADCAST removed).
+ * 06/22/2026 mir0n  health() default added = TransportHealth.UP (an in-process / disabled / log-only rod has no
+ *                   broker connection that can drop); a transport-backed rod overrides it (worst of its legs).
  */
 package pro.mir0n.esquire.messaging;
 
@@ -23,6 +25,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import pro.mir0n.esquire.messaging.catalog.Role;
 import pro.mir0n.esquire.messaging.catalog.XRodParams;
+import pro.mir0n.esquire.messaging.transport.TransportHealth;
 
 import java.util.function.Consumer;
 
@@ -75,6 +78,13 @@ public interface IXRod {
      *  returns {@code false}. A caller (the producer) guards expensive payload assembly on this. */
     default boolean isEnabled() {
         return true;
+    }
+
+    /** This x-rod's connection health, forwarded to the bus health indicator. Default {@code UP}: an in-process,
+     *  disabled, or log-only rod has no broker connection that can drop. A transport-backed rod ({@code XRod})
+     *  overrides this to report the worst of its transmit + receive legs. */
+    default TransportHealth health() {
+        return TransportHealth.UP;
     }
 
     /** Transmit: send a pre-built event (it carries its own {@code msgType}) out the transmit leg. The caller

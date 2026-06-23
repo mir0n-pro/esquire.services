@@ -1,5 +1,13 @@
 Esquire dataKeep library
 
+06/22/2026 mir0n  v1.2.9 -- keep datasource health
+keep.KeepApplier
+  - added health(): pings the keep pool -- a pooled connection that validates within 2s -> UP; any failure
+    (cannot reach / validate the database) -> DOWN. The keep-datasource health source.
+keep.XRodInProcessKeep
+  - added health(): the in-process keep has no broker, so its "down" risk is the DB it applies to -- it
+    reports keepApplier.health() (the receiver-side DB the generic in-process relay otherwise hides)
+
 06/22/2026 mir0n  v1.2.9 -- in-process keep x-rod; shared keep pool mode dropped
 keep.XRodInProcessKeep  (new, was audit.XRodAuditKeep, generalized)
   - the in-process keep x-rod: extends the generic XRodInProcess (moved to the messaging library); validate()

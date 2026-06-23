@@ -36,6 +36,20 @@ logging:
   msg:
     log-path: ${MSG_LOG_PATH:logs/datakeep-msg.log}
 
+management:
+  endpoint:
+    health:
+      probes:
+        enabled: true               # expose the liveness + readiness health groups
+      show-details: always
+      # messagingBus + keepDatasource are registered DYNAMICALLY at ApplicationReadyEvent (after the
+      # membership-validating context refresh), so the startup check must be off.
+      validate-group-membership: false
+      group:
+        # bus (broker) + keep-DB health depool the pod (READINESS), never liveness.
+        readiness:
+          include: readinessState, messagingBus, keepDatasource
+
 ---
 spring:
   config:

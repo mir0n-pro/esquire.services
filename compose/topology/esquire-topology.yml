@@ -20,7 +20,7 @@ esquire:
             publisher-pool-size: 0
             transport:
               provider: activemq
-              endpoint: tcp://activemq:61616
+              endpoint: failover:(tcp://activemq:61616)?timeout=3000
               destination: esquire.entity.broadcast
               params:
                 pubSubDomain: true
@@ -35,7 +35,7 @@ esquire:
             publisher-pool-size: 0
             transport:
               provider: activemq
-              endpoint: tcp://activemq:61616
+              endpoint: failover:(tcp://activemq:61616)?timeout=3000
               request-node: request
               response-node: response
               nodes:
@@ -56,7 +56,7 @@ esquire:
             concurrency: 1
             transport:
               provider: activemq
-              endpoint: tcp://activemq:61616
+              endpoint: failover:(tcp://activemq:61616)?timeout=3000
               destination: esquire.rod.audit
               params:
                 jms.useAsyncSend: true

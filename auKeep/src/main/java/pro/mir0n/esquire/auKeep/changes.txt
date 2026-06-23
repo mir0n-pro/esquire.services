@@ -1,5 +1,19 @@
 Esquire auKeep service
 
+06/22/2026 mir0n  messaging-bus health indicator + keepDatasource health + readiness/liveness
+AuKeepApplication
+  - the MessagingBusLifecycleRegistrar, at ApplicationReadyEvent, registers (programmatically, no @Bean) a
+    BusHealthIndicator for the bus facade AND a TransportHealthIndicator named "keepDatasource" over
+    AuditConsumerConfig.keepHealth() (the keep DB) into the Actuator HealthContributorRegistry -> /actuator/health
+messaging.AuditConsumerConfig
+  - added keepHealth() -> Supplier<TransportHealth> over the keep applier (UP when no keep is active); the
+    lifecycle registrar registers it as the "keepDatasource" health contributor
+application.yml
+  - added a management block: health probes.enabled=true, show-details=always, validate-group-membership=false,
+    and a readiness group including readinessState + messagingBus + keepDatasource
+k8s chart esquire-aukeep/templates/deployment.yaml
+  - split the probes: readinessProbe -> /actuator/health/readiness, livenessProbe -> /actuator/health/liveness
+
 06/22/2026 mir0n  v1.2.9 -- bus two-phase lifecycle; audit consumer rewired onto the facade
 AuKeepApplication
   - wires the bus lifecycle via the MessagingBusLifecycleRegistrar inner listener (LOWEST_PRECEDENCE):

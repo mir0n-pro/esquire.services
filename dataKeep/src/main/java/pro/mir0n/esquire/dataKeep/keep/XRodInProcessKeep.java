@@ -12,12 +12,15 @@
  *                   (a class name -> the IKeepDirector providing the SQL group + kind->statement map), and sets the
  *                   applier as its own receive worker. The director is config-resolved, so this stays generic --
  *                   any keep (audit, ...) names its director on the leg.
+ * 06/22/2026 mir0n  added health(): the in-process keep has no broker, so its health is the keep datasource --
+ *                   reports keepApplier.health() (the receiver-side DB the generic in-process relay hides).
  */
 package pro.mir0n.esquire.dataKeep.keep;
 
 import org.slf4j.Logger;
 import pro.mir0n.esquire.dataKeep.director.IKeepDirector;
 import pro.mir0n.esquire.messaging.catalog.XRodParams;
+import pro.mir0n.esquire.messaging.transport.TransportHealth;
 import pro.mir0n.esquire.messaging.xrod.impl.XRodInProcess;
 
 /** The in-process keep x-rod: a generic {@link XRodInProcess} that applies each transmitted event to its own
@@ -59,6 +62,13 @@ public final class XRodInProcessKeep extends XRodInProcess {
         if (keepApplier != null) {
             keepApplier.close();    // then close the keep's pool
         }
+    }
+
+    /** The in-process keep has no broker -- its "down" risk is the DB it applies to. So its health is the keep
+     *  datasource connection (the receiver part the generic in-process relay otherwise hides). */
+    @Override
+    public TransportHealth health() {
+        return keepApplier != null ? keepApplier.health() : TransportHealth.UP;
     }
 
     private static String directorClass(XRodParams params) {

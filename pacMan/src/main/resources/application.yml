@@ -61,6 +61,19 @@ logging:
     log-path: ${DEVELOP_LOG_PATH:logs/pacMan-develop.log}
   msg:
     log-path: ${MSG_LOG_PATH:logs/pacMan-msg.log}
+management:
+  endpoint:
+    health:
+      probes:
+        enabled: true               # expose the liveness + readiness health groups
+      show-details: always
+      # messagingBus is registered DYNAMICALLY at ApplicationReadyEvent (after the membership-validating context
+      # refresh), so the startup check must be off; the readiness group resolves it at request time.
+      validate-group-membership: false
+      group:
+        # bus health depools the pod (READINESS), never liveness -- a broker outage must not let liveness kill it.
+        readiness:
+          include: readinessState, messagingBus
 
 ---
 spring:

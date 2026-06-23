@@ -1,6 +1,31 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v1.2.9-2606.2223  v1.2.9 -- hardening: each service reports its messaging-bus connection on its health check (feature)
+    :Feature:     each service now reports whether its messaging-bus connection is up on the standard health check;
+    :Feature:     the health check is split into "ready to serve" and "still alive"
+    :Feature:     auKeep additionally reports the keep database (the apply side) on its "ready to serve" check
+    :Config:      each service application.yml gained a management block (health probes, a readiness group);
+                  the k8s charts point the readiness and liveness probes at the split health paths
+    :Config:      the shared messaging topology now reaches ActiveMQ through a failover endpoint with a 3s
+                  connect timeout, so a slow broker fails fast instead of hanging
+    :Doc:         doc\Esquire.MessagingBus.md
+                  doc\services.configuring.md
+                  doc\Messaging.md
+    Components:   messaging,
+                  dataKeep,
+                  tp-activemq,
+                  tp-kafka,
+                  tp-redis,
+                  enyMan,
+                  pacMan,
+                  keySmith,
+                  kcMaster,
+                  bizTree,
+                  auKeep,
+                  compose,
+                  k8s
+
 v1.2.9-2606.2220  v1.2.9 -- hardening: Messaging Bus framework -- a single Facade API + a service lifecycle (refactoring)
     :Refactoring: introduces the Messaging Bus framework's Facade API
                   and a defined framework lifecycle the facade drives

@@ -54,10 +54,10 @@ end to end.
 
 | Piece | Location |
 |---|---|
-| Public API | `pro.mir0n.esquire.messaging` — `MessagingBus` (the facade), `IXRod`, `RodEvent`, `IRodEventRepo`, `RodEventRepoRegistry` |
+| Public API | `pro.mir0n.esquire.messaging` — `MessagingBus` (the facade), `IXRod`, `RodEvent`, `IRodEventRepo`, `RodEventRepoRegistry`, `BusHealthIndicator`, `TransportHealthIndicator` |
 | Bus config model + catalog | `messaging.catalog` — `MessagingBusCatalog`, `MessagingBus` (a catalog bus record), `BusSlot`, `BusNode`, `BusRef`, `BusTransport`, `XRodParams`, `Role` |
 | x-rods | `messaging.xrod` — `RodEventCodec`, `RodPublisher`, `RodTransportAdapter` — and `messaging.xrod.impl` — `AXRod`, `XRod`, `XRodRR`, `XRodInProcess`, `XRodInfo`, `XRodDisabled`. The in-process KEEP x-rod, `XRodInProcessKeep`, ships in the dataKeep library (resolved by `rod-class` like any other). |
-| Transport SPI | `messaging.transport` — `ITransportProvider`, `TransportProviders`, `TransportMessage`, `TransportPublisher`, `TransportSettings`, `PublishSettings`, `ConsumeSettings`, `BusIdentity` |
+| Transport SPI | `messaging.transport` — `ITransportProvider`, `TransportProviders`, `TransportMessage`, `TransportPublisher`, `TransportConsumer`, `TransportSettings`, `PublishSettings`, `ConsumeSettings`, `BusIdentity`, `TransportHealth` |
 | Transport drivers | one module per vendor — `pro.mir0n.esquire.tp.<name>.TransportProvider` + an `AutoConfigurationImportFilter` |
 
 ## Terminology
@@ -433,6 +433,41 @@ The `msg` logback logger is `additivity = false`, so the trail goes to the per-s
 never stdout; production may set its level OFF. (`XRodInfo` logs a richer full-event line led by its
 directive.)
 
+### Health
+
+Each bus reports its connection health to the service's `/actuator/health`, so a broker outage is visible to
+k8s probes instead of silently dropping traffic. It is a pull chain, transport up:
+
+- **`TransportHealth`** (`UP` / `DOWN` / `UNKNOWN`) is reported by each transport leg handle
+  (`TransportPublisher` / `TransportConsumer`). A leg that can observe its connection answers `UP`/`DOWN`; one
+  that cannot answers `UNKNOWN`.
+- **`IXRod.health()`** folds the legs: an `XRod` reports the **worst** of its transmit + receive legs; an
+  in-process / disabled / log-only rod has no broker, so it defaults `UP` (an `XRodInProcessKeep` overrides it
+  to its keep-datasource connection — the DB it applies to).
+- **`MessagingBus.health()`** is the per-bus map (`busKey -> TransportHealth`) over every built rod.
+- **`BusHealthIndicator`** (Actuator) forwards it: **DOWN if any bus is DOWN**; an `UNKNOWN` bus is a detail,
+  not a failure (the framework does not fake confidence it lacks). It is registered **programmatically** by the
+  per-service lifecycle registrar at `ApplicationReadyEvent` (no `@Bean`; the facade is handed in), and
+  contributed to the **readiness** health group — **never liveness**, so a broker outage depools the pod
+  (k8s readiness) rather than restarting it.
+
+**How each transport observes its connection:**
+
+| transport | signal |
+|---|---|
+| ActiveMQ | precise — a `TransportListener` on the connection factory (`transportInterupted`/`onException` -> DOWN, `transportResumed` -> UP), plus a send-outcome refresh. Use the `failover:` endpoint so a drop + reconnect gives clean DOWN -> UP edges (and auto-reconnect). |
+| Kafka / Redis | best-effort send-outcome only — an acked send -> UP, a failed send -> DOWN (no clean connection callback). |
+| in-process keep | not a broker — `KeepApplier.health()` pings the keep datasource (a pooled connection that validates -> UP, else DOWN). |
+
+**Known limit:** an idle transmit-only leg reads `UP` until its first send (the publisher connection is lazy).
+In active use a leg sends constantly, so it is observed; the gap is closed by the x-rod **heartbeat** (a
+`HeartBeat`/`TestRequest` session stream that keeps the leg active and validates delivery end to end -- a
+later, transport-agnostic active health source).
+
+A separate single-source indicator (`TransportHealthIndicator`) forwards a standalone `TransportHealth` source
+that is not a bus rod -- auKeep uses it to report its keep datasource (`keepDatasource`) beside its consumer's
+broker health.
+
 ## Coupling and the separation roadmap
 
 The transport-neutral core is already clean — `MessagingBus` / `BusSlot` / `BusTransport` /
@@ -506,6 +541,7 @@ class MessagingBus implements AutoCloseable {           // a per-service SINGLET
     void  start();                                       // RUN every built x-rod (open transport + run legs)
     IXRod getXRod(String busKey);                        // a built x-rod (THROWS for an unbuilt / undeclared key)
     void  close();                                       // drain in-flight + shut every x-rod down
+    Map<String,TransportHealth> health();               // busKey -> connection health (the indicator's source)
 }
 interface IXRod {
     default void validate(XRodParams params);                                     // fail-fast on the required leg config
@@ -514,14 +550,20 @@ interface IXRod {
     void    init(String name, Logger devLog);                                     // CREATE the legs (paused)
     void    start();                                                              // RUN (engine threads + delivery)
     void    shutdown();
-    default boolean isEnabled();        // default true; only XRodDisabled is false
+    default boolean isEnabled();           // default true; only XRodDisabled is false
+    default TransportHealth health();      // default UP; XRod -> worst leg; XRodInProcessKeep -> keep datasource
     void    transmit(RodEvent event);   // send a pre-built event out the transmit leg
     void    receive(RodEvent event);    // apply an arrived event on the bounded receive pool
 }
 abstract class AXRod implements IXRod { /* the feed + worker-pool engine; XRod and the in-process XRodInProcess extend it */ }
 enum Role { CLIENT, SERVER, BOTH }
+enum TransportHealth { UP, DOWN, UNKNOWN }   // a leg's connection health; worst(a,b) folds two legs
+// a leg handle reports it; the indicator forwards it (Actuator, readiness group):
+//   TransportPublisher.health() / TransportConsumer.health()  (default UNKNOWN; of(.., healthSupplier) to set)
+class BusHealthIndicator implements HealthIndicator { static void register(ApplicationContext, MessagingBus); }   // per-bus, no @Bean
+class TransportHealthIndicator implements HealthIndicator { static void register(ApplicationContext, String name, Supplier<TransportHealth>); }   // a single source (e.g. a keep datasource)
 // the lifecycle is wired per service by a small MessagingBusLifecycleRegistrar inner class:
-//   env-prepared -> init(env, {BUS_KEY_...})   ready -> start()   context-closed -> close()
+//   env-prepared -> init(env, {BUS_KEY_...})   ready -> start() + BusHealthIndicator.register(...)   context-closed -> close()
 ```
 
 ### Transport SPI

@@ -18,6 +18,8 @@
  * 06/22/2026 mir0n  two-phase consumer: openConsumer returns a TransportConsumer (start + close legs); the
  *                   container is created PAUSED (setAutoStartup(false), no container.start()) -- delivery waits
  *                   for the bus start() that calls the returned start leg
+ * 06/22/2026 mir0n  send-outcome health on the publisher handle: Kafka has no clean connection callback, so an
+ *                   acked send -> UP, a failed send (callback exception / throw) -> DOWN (best-effort).
  */
 package pro.mir0n.esquire.tp.kafka;
 
@@ -42,11 +44,13 @@ import pro.mir0n.esquire.messaging.transport.ConsumeSettings;
 import pro.mir0n.esquire.messaging.transport.ITransportProvider;
 import pro.mir0n.esquire.messaging.transport.PublishSettings;
 import pro.mir0n.esquire.messaging.transport.TransportConsumer;
+import pro.mir0n.esquire.messaging.transport.TransportHealth;
 import pro.mir0n.esquire.messaging.transport.TransportMessage;
 import pro.mir0n.esquire.messaging.transport.TransportPublisher;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 /** Kafka implementation of the transport-provider SPI. Owns its own audit producer / consumer. */
@@ -70,18 +74,25 @@ public final class TransportProvider implements ITransportProvider {
         // close() disposes the producer factory (closes its pooled producers); the DefaultKafkaProducerFactory
         // built above is a DisposableBean.
         AutoCloseable closer = (kafka.getProducerFactory() instanceof DisposableBean db) ? db::destroy : () -> { };
+        // Kafka has no clean connection-state callback -- health is send-outcome only (best-effort): a failed
+        // send -> DOWN, an acked send -> UP. (#8's heartbeat gives a true active signal incl. the consumer.)
+        AtomicReference<TransportHealth> conn = new AtomicReference<>(TransportHealth.UP);
         return TransportPublisher.of(msg -> {
             try {
                 String value = om.writeValueAsString(msg.headers());
                 kafka.send(destination, msg.key(), value).whenComplete((res, ex) -> {
                     if (ex != null) {
+                        conn.set(TransportHealth.DOWN);
                         devLog.error("tp-kafka: send failed on {} key={}: {}", destination, msg.key(), ex.getMessage(), ex);
+                    } else {
+                        conn.set(TransportHealth.UP);
                     }
                 });
             } catch (Exception ex) {
+                conn.set(TransportHealth.DOWN);
                 devLog.error("tp-kafka: publish failed on {}: {}", destination, ex.getMessage(), ex);
             }
-        }, closer);
+        }, closer, conn::get);
     }
 
     @Override

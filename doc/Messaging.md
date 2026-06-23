@@ -82,6 +82,17 @@ schema, and the delivery analysis are in [Esquire.AuditLoggingStack.md](Esquire.
 
 ---
 
+## Bus health
+
+Each service forwards its bus connection health to `/actuator/health`: every bus it uses reports UP / DOWN
+(ActiveMQ observes its connection precisely through the failover transport; Kafka / Redis report send
+outcomes; the in-process keep reports its datasource). The indicator sits in the **readiness** group, so a
+broker outage takes the pod out of rotation -- but it is **not** in liveness, so a blip never restarts the pod.
+auKeep additionally reports its keep `*_log` database (the apply side). Wiring: [Esquire.MessagingBus.md](Esquire.MessagingBus.md)
+(Health) + [services.configuring.md](services.configuring.md) (Health checks).
+
+---
+
 ## Current limitations
 
 - **ActiveMQ is the only transport in the cloud deployment.** The Kafka and Redis providers are implemented
@@ -94,17 +105,20 @@ schema, and the delivery analysis are in [Esquire.AuditLoggingStack.md](Esquire.
   no consumer back into the `*_log` tables — the stream itself *is* the record. Feeding it onward (e.g. into
   a Redis document store) needs an external component such as a Kafka Connect sink, not part of the framework.
 
-- **A misconfigured bus key fails silent, not loud.** A bus key that is not in the catalog resolves to the
-  disabled no-op x-rod (`XRodDisabled`) — intended for "audit off", but it also means a *typo'd* key produces
-  no error, just silence.
+- **A bus a service declares it uses must be defined — a missing one fails LOUD.** A service names the buses it
+  uses; a named bus the catalog does not define (or a typo'd key) fails fast at boot, not silently. To run
+  *without* a bus, point it at an explicit `XRodDisabled` leg (e.g. the catalog's `audit-off` bus) — disabling
+  is always deliberate, never an accident.
 
 - **Delivery is best-effort per transport; the bus adds no replay or de-duplication.** Idempotency where it
   matters (the audit `*_log`) rests on a unique key in the database, not on the bus. A consumer that is down
   misses broadcasts while it is gone — bizTree's recoverable cache reconciles that on its own (its periodic
   night-watch rebuild), but the bus itself does not redeliver.
 
-- **One broker per bus.** A bus names a single transport endpoint; there is no built-in multi-broker
-  failover or partitioned routing at the bus layer.
+- **One broker per bus** (reached through a `failover:` endpoint). A bus names a single transport; the ActiveMQ
+  legs use a `failover:(tcp://...)` endpoint, so a dropped connection auto-reconnects to that broker (and the
+  bus health recovers with it). A `failover:` endpoint *can* list more than one broker, but multi-broker
+  failover and partitioned routing are not configured at the bus layer.
 
 - **The transport SPI is shaped around the queue / topic / stream model.** Adding a provider that fits that
   shape is a drop-in; a transport with a fundamentally different model may need the SPI to grow.

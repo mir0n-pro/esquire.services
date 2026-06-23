@@ -21,12 +21,17 @@
  * 06/22/2026 mir0n  two-phase consumer: openConsumer returns a TransportConsumer (start + close legs); the
  *                   container is created PAUSED (setAutoStartup(false), afterPropertiesSet subscribes but does
  *                   not start) -- delivery waits for the bus start() that calls the returned start leg
+ * 06/22/2026 mir0n  connection health: a TransportListener on the ActiveMQConnectionFactory flips an
+ *                   AtomicReference -> DOWN on transportInterupted / onException, -> UP on transportResumed,
+ *                   feeding both the publisher and consumer handle health; a send outcome also refreshes it
+ *                   (good send -> UP, failed send -> DOWN).
  */
 package pro.mir0n.esquire.tp.activemq;
 
 import jakarta.jms.Message;
 import jakarta.jms.MessageListener;
 import org.apache.activemq.ActiveMQConnectionFactory;
+import org.apache.activemq.transport.TransportListener;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.jms.connection.CachingConnectionFactory;
@@ -37,15 +42,18 @@ import pro.mir0n.esquire.messaging.transport.ConsumeSettings;
 import pro.mir0n.esquire.messaging.transport.ITransportProvider;
 import pro.mir0n.esquire.messaging.transport.PublishSettings;
 import pro.mir0n.esquire.messaging.transport.TransportConsumer;
+import pro.mir0n.esquire.messaging.transport.TransportHealth;
 import pro.mir0n.esquire.messaging.transport.TransportMessage;
 import pro.mir0n.esquire.messaging.transport.TransportPublisher;
 import pro.mir0n.esquire.messaging.jms.Utils;
 
+import java.io.IOException;
 import java.time.Instant;
 import java.util.Enumeration;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 /** ActiveMQ implementation of the transport-provider SPI. Owns its own audit broker connection. */
@@ -69,6 +77,8 @@ public final class TransportProvider implements ITransportProvider {
         if (s.poolSize() > 0) {
             amq.setUseAsyncSend(true);
         }
+        AtomicReference<TransportHealth> conn = new AtomicReference<>(TransportHealth.UP);
+        amq.setTransportListener(stateListener(conn, "publisher " + destination));
         CachingConnectionFactory ccf = new CachingConnectionFactory(amq);
         if (s.poolSize() > 0) {
             ccf.setSessionCacheSize(s.poolSize());
@@ -91,10 +101,12 @@ public final class TransportProvider implements ITransportProvider {
                     Utils.setProps(m, props);
                     return m;
                 });
+                conn.set(TransportHealth.UP);           // a successful send -> the connection is up
             } catch (Exception ex) {
+                conn.set(TransportHealth.DOWN);          // a failed send -> the connection is down
                 devLog.error("tp-activemq: publish failed on {}: {}", destination, ex.getMessage(), ex);
             }
-        }, ccf::destroy);
+        }, ccf::destroy, conn::get);
     }
 
     @Override
@@ -102,6 +114,8 @@ public final class TransportProvider implements ITransportProvider {
         String brokerUrl = withParams(s.endpoint(), s.params());
         boolean pubSub = Boolean.parseBoolean(s.param(PARAM_PUBSUB_DOMAIN, "false"));
         ActiveMQConnectionFactory amq = new ActiveMQConnectionFactory(brokerUrl);
+        AtomicReference<TransportHealth> conn = new AtomicReference<>(TransportHealth.UP);
+        amq.setTransportListener(stateListener(conn, "consumer " + destination));
         DefaultMessageListenerContainer c = new DefaultMessageListenerContainer();
         c.setConnectionFactory(amq);
         c.setDestinationName(destination);
@@ -126,7 +140,37 @@ public final class TransportProvider implements ITransportProvider {
         return TransportConsumer.of(c::start, () -> {
             c.stop();
             c.destroy();
-        });
+        }, conn::get);
+    }
+
+    /** A connection-state listener that flips {@code conn} to DOWN on a transport interrupt / exception and back
+     *  to UP on a resume -- the source for a leg's {@link TransportHealth}. (ActiveMQ's API spells the interrupt
+     *  callback {@code transportInterupted}, with one 'r'.) Set on the {@code ActiveMQConnectionFactory}, it
+     *  propagates to the connection the factory creates. */
+    private static TransportListener stateListener(AtomicReference<TransportHealth> conn, String tag) {
+        return new TransportListener() {
+            @Override
+            public void onCommand(Object command) {
+            }
+
+            @Override
+            public void onException(IOException error) {
+                conn.set(TransportHealth.DOWN);
+                devLog.warn("tp-activemq: {} transport exception -> DOWN: {}", tag, error.getMessage());
+            }
+
+            @Override
+            public void transportInterupted() {
+                conn.set(TransportHealth.DOWN);
+                devLog.warn("tp-activemq: {} transport interrupted -> DOWN", tag);
+            }
+
+            @Override
+            public void transportResumed() {
+                conn.set(TransportHealth.UP);
+                devLog.info("tp-activemq: {} transport resumed -> UP", tag);
+            }
+        };
     }
 
     /** Append the leg's vendor params verbatim to the broker URI -- ActiveMQ parses its own URI options

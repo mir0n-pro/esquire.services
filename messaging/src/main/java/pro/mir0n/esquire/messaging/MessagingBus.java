@@ -17,6 +17,8 @@
  *                   must define it). getXRod(busKey) hands a rod to a publisher; start() runs every built rod
  *                   (called once everything is ready); close() shuts them down. No worker/role build args -- role
  *                   comes from config, the worker is set on the rod by the owner.
+ * 06/22/2026 mir0n  health() added: a busKey -> TransportHealth map (each built rod's health()), the source the
+ *                   bus health indicator forwards to /actuator/health.
  */
 package pro.mir0n.esquire.messaging;
 
@@ -34,7 +36,9 @@ import pro.mir0n.esquire.messaging.catalog.BusRef;
 import pro.mir0n.esquire.messaging.catalog.MessagingBusCatalog;
 import pro.mir0n.esquire.messaging.catalog.Role;
 import pro.mir0n.esquire.messaging.catalog.XRodParams;
+import pro.mir0n.esquire.messaging.transport.TransportHealth;
 
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
@@ -158,6 +162,15 @@ public class MessagingBus implements AutoCloseable {
     @Override
     public synchronized void close() {
         rods.values().forEach(IXRod::shutdown);
+    }
+
+    /** The connection health of every built bus ({@code busKey -> health}) -- the source the bus health
+     *  indicator forwards to {@code /actuator/health}. An in-process / disabled bus reports UP (no broker); a
+     *  transport-backed bus reports its x-rod's worst leg (UP / DOWN / UNKNOWN). */
+    public Map<String, TransportHealth> health() {
+        Map<String, TransportHealth> ret = new LinkedHashMap<>();
+        rods.forEach((busKey, rod) -> ret.put(busKey, rod.health()));
+        return ret;
     }
 
     // ------------------------------------------------------------------ build

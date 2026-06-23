@@ -166,6 +166,35 @@ sinks (`audit-d` / `audit-dk`) do not. See [auKeep](#aukeep) for the bus consume
 |---|---|---|
 | `<SVC>_PORT` | `3000` (yml) | HTTP listen port. Compose/k8s assign per-service ports (see each service). |
 
+### Health checks (readiness / liveness)
+
+Each service forwards its **messaging-bus connection** health to `/actuator/health` -- a broker outage takes the
+pod out of rotation (readiness) but never restarts it (liveness). The `management` block (in `application.yml`)
+enables the probe groups and puts the bus indicator in the **readiness** group only:
+
+```yaml
+management:
+  endpoint:
+    health:
+      probes: { enabled: true }            # expose /actuator/health/readiness + /liveness
+      show-details: always
+      validate-group-membership: false     # the bus indicator is registered dynamically (at app-ready), so the startup check is off
+      group:
+        readiness:
+          include: readinessState, messagingBus   # bizTree adds cacheReadiness; auKeep adds keepDatasource
+```
+
+- **`messagingBus`** -- the per-bus connection map (every bus this service uses; DOWN if any is DOWN). Registered
+  programmatically by the lifecycle registrar at app-ready (no `@Bean`).
+- **`keepDatasource`** (auKeep only) -- the keep `*_log` database connection (the apply side), beside the
+  consumer's broker health.
+- **`cacheReadiness`** (bizTree only) -- the pre-existing cache-bootstrap gate, kept alongside `messagingBus`.
+
+The **k8s charts** point `readinessProbe` at `/actuator/health/readiness` and `livenessProbe` at
+`/actuator/health/liveness` (so a bus-down fails readiness, never liveness). The shared topology reaches
+ActiveMQ through a **`failover:(tcp://...)?timeout=3000`** endpoint -- auto-reconnect (so the health recovers on
+its own when the broker returns) + a 3s send timeout (a send during an outage fails fast instead of blocking).
+
 ### Instance identity (enyMan / common — entity-id minting)
 
 Resolved by `EsqUtils.instanceNo()` from a single source — the trailing ordinal of the host name

@@ -17,6 +17,8 @@
  *                   and registered LAST; drives MessagingBus.init(env, {BUS_KEY_KC, BUS_KEY_AUDIT}) on
  *                   ApplicationEnvironmentPreparedEvent, start() on ApplicationReadyEvent (after roles load),
  *                   close() on ContextClosedEvent
+ * 06/22/2026 mir0n  registrar registers a BusHealthIndicator (bus facade handed in) into the Actuator
+ *                   HealthContributorRegistry programmatically at ApplicationReadyEvent (no @Bean) -> /actuator/health
  */
 
 package pro.mir0n.esquire.keySmith;
@@ -40,6 +42,7 @@ import pro.mir0n.esquire.backend.storage.roles.JpaRolesRepository;
 import pro.mir0n.esquire.backend.validator.ValidatorFactory;
 import pro.mir0n.esquire.common.EsqMsgConstants;
 import pro.mir0n.esquire.keySmith.service.BizValidatorFactory;
+import pro.mir0n.esquire.messaging.BusHealthIndicator;
 import pro.mir0n.esquire.messaging.MessagingBus;
 
 @Slf4j
@@ -108,9 +111,11 @@ public class KeySmithApplication {
             if (event instanceof ApplicationEnvironmentPreparedEvent e) {
                 bus.init(e.getEnvironment(), new String[]{EsqMsgConstants.BUS_KEY_KC, EsqMsgConstants.BUS_KEY_AUDIT});
                 devLog.debug("MessagingBus initiated (rods built, paused)");
-            } else if (event instanceof ApplicationReadyEvent) {
+            } else if (event instanceof ApplicationReadyEvent e) {
                 bus.start();                             // run them -- traffic flows only from here
                 devLog.debug("MessagingBus started (rods running)");
+                BusHealthIndicator.register(e.getApplicationContext(), bus);   // forward bus connection health to /actuator/health (no @Bean)
+                devLog.debug("MessagingBus health indicator registered");
             } else if (event instanceof ContextClosedEvent) {
                 bus.close();                             // drain in-flight + close transport
                 devLog.debug("MessagingBus closed (rods shut down)");

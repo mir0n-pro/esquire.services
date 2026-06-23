@@ -2,7 +2,7 @@
  *  Esquire frameworks (tm)
  *  BizTree service
  *
- *  Copyright(c) 2001, 2025 mir0n&co www.mir0n.me
+ *  Copyright(c) 2001, 2026 mir0n&co www.mir0n.pro
  *  mailto:mir0n.the.programmer@gmail.com
  *
  *  History:
@@ -13,6 +13,8 @@
  * 06/22/2026 mir0n  added MessagingBusLifecycleRegistrar (ApplicationListener<ApplicationEvent>, Ordered
  *                   LOWEST_PRECEDENCE) driving the two-phase bus lifecycle: env-prepared -> bus.init(env,
  *                   {entity}) builds rods paused, ready -> bus.start() runs them, context-closed -> bus.close()
+ * 06/22/2026 mir0n  registrar registers a BusHealthIndicator (bus facade handed in) into the Actuator
+ *                   HealthContributorRegistry programmatically at ApplicationReadyEvent (no @Bean) -> /actuator/health
  */
 
 package pro.mir0n.esquire.bizTree;
@@ -32,6 +34,7 @@ import org.springframework.core.Ordered;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 import pro.mir0n.esquire.backend.storage.EsqObjectKindStorage;
 import pro.mir0n.esquire.common.EsqMsgConstants;
+import pro.mir0n.esquire.messaging.BusHealthIndicator;
 import pro.mir0n.esquire.messaging.MessagingBus;
 
 @Slf4j
@@ -81,9 +84,11 @@ public class BizTreeApplication {
             if (event instanceof ApplicationEnvironmentPreparedEvent e) {
                 bus.init(e.getEnvironment(), new String[]{EsqMsgConstants.BUS_KEY_ENTITY});
                 devLog.debug("MessagingBus initiated (rods built, paused)");
-            } else if (event instanceof ApplicationReadyEvent) {
+            } else if (event instanceof ApplicationReadyEvent e) {
                 bus.start();                             // run them -- traffic flows only from here
                 devLog.debug("MessagingBus started (rods running)");
+                BusHealthIndicator.register(e.getApplicationContext(), bus);   // forward bus connection health to /actuator/health (no @Bean)
+                devLog.debug("MessagingBus health indicator registered");
             } else if (event instanceof ContextClosedEvent) {
                 bus.close();                             // drain in-flight + close transport
                 devLog.debug("MessagingBus closed (rods shut down)");

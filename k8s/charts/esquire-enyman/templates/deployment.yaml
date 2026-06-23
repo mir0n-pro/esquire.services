@@ -49,7 +49,7 @@ spec:
                   fieldPath: metadata.name
           readinessProbe:
             httpGet:
-              path: /actuator/health
+              path: /actuator/health/readiness   # readiness group: readinessState + the messaging bus -- a broker outage depools, not kills
               port: {{ .Values.service.port }}
             initialDelaySeconds: 20
             periodSeconds: 10
@@ -57,7 +57,7 @@ spec:
             failureThreshold: 10
           livenessProbe:
             httpGet:
-              path: /actuator/health
+              path: /actuator/health/liveness    # liveness group: livenessState only -- the bus is NOT here, so a broker outage never kills the pod
               port: {{ .Values.service.port }}
             initialDelaySeconds: 40
             periodSeconds: 15

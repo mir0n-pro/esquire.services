@@ -12,6 +12,8 @@
  *                   and registered; drives MessagingBus.init(env, {BUS_KEY_KC, BUS_KEY_ENTITY}) on
  *                   ApplicationEnvironmentPreparedEvent, start() on ApplicationReadyEvent, close() on
  *                   ContextClosedEvent (no roles-Ready listener in kcMaster, so the registrar owns start)
+ * 06/22/2026 mir0n  registrar registers a BusHealthIndicator (bus facade handed in) into the Actuator
+ *                   HealthContributorRegistry programmatically at ApplicationReadyEvent (no @Bean) -> /actuator/health
  */
 
 package pro.mir0n.esquire.kcMaster;
@@ -30,6 +32,7 @@ import org.springframework.core.Ordered;
 import org.springframework.scheduling.annotation.EnableAsync;
 import pro.mir0n.esquire.backend.storage.EsqObjectKindStorage;
 import pro.mir0n.esquire.common.EsqMsgConstants;
+import pro.mir0n.esquire.messaging.BusHealthIndicator;
 import pro.mir0n.esquire.messaging.MessagingBus;
 
 @Slf4j
@@ -74,9 +77,11 @@ public class KcMasterApplication {
             if (event instanceof ApplicationEnvironmentPreparedEvent e) {
                 bus.init(e.getEnvironment(), new String[]{EsqMsgConstants.BUS_KEY_KC, EsqMsgConstants.BUS_KEY_ENTITY});
                 devLog.debug("MessagingBus initiated (rods built, paused)");
-            } else if (event instanceof ApplicationReadyEvent) {
+            } else if (event instanceof ApplicationReadyEvent e) {
                 bus.start();                             // run them -- traffic flows only from here
                 devLog.debug("MessagingBus started (rods running)");
+                BusHealthIndicator.register(e.getApplicationContext(), bus);   // forward bus connection health to /actuator/health (no @Bean)
+                devLog.debug("MessagingBus health indicator registered");
             } else if (event instanceof ContextClosedEvent) {
                 bus.close();                             // drain in-flight + close transport
                 devLog.debug("MessagingBus closed (rods shut down)");

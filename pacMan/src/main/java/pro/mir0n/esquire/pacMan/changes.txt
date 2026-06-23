@@ -1,5 +1,16 @@
 Esquire pacMan Microservice
 
+06/22/2026 mir0n  messaging-bus health indicator + readiness/liveness
+PacManApplication
+  - the MessagingBusLifecycleRegistrar, at ApplicationReadyEvent, registers a BusHealthIndicator (the bus
+    facade handed in explicitly) into the Actuator HealthContributorRegistry programmatically -- no @Bean --
+    exposing the bus connection at /actuator/health
+application.yml
+  - added a management block: health probes.enabled=true, show-details=always, validate-group-membership=false,
+    and a readiness group including readinessState + messagingBus
+k8s chart esquire-pacman/templates/deployment.yaml
+  - split the probes: readinessProbe -> /actuator/health/readiness, livenessProbe -> /actuator/health/liveness
+
 06/22/2026 mir0n  messaging-bus: EntityBusAdapter + lifecycle registrar
 messaging.EntityBusAdapter
   - new (replaces messaging.EsqEntityBroadcastPublisher): the pacMan end of the entity bus (SERVER) -- the

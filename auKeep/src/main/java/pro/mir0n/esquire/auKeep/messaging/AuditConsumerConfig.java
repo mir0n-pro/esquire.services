@@ -13,6 +13,8 @@
  * 06/22/2026 mir0n  rewired onto the facade: takes the audit rod from MessagingBus.getXRod (audit-bus ref role
  *                   CLIENT) and sets the keep applier as its receive worker; guarded with isEnabled() so an
  *                   explicitly-disabled audit bus leaves the consumer idle.
+ * 06/22/2026 mir0n  added keepHealth() -> Supplier<TransportHealth> over the keep applier (UP when no keep active);
+ *                   the lifecycle registrar registers it as the "keepDatasource" health contributor.
  */
 package pro.mir0n.esquire.auKeep.messaging;
 
@@ -32,6 +34,9 @@ import pro.mir0n.esquire.dataKeep.keep.KeepDataSourceParams;
 import pro.mir0n.esquire.dataKeep.keep.KeepSqlStore;
 import pro.mir0n.esquire.messaging.MessagingBus;
 import pro.mir0n.esquire.messaging.IXRod;
+import pro.mir0n.esquire.messaging.transport.TransportHealth;
+
+import java.util.function.Supplier;
 
 @Configuration
 public class AuditConsumerConfig {
@@ -71,6 +76,13 @@ public class AuditConsumerConfig {
             }
         }
         return rod;
+    }
+
+    /** The keep datasource health source -- the lifecycle registrar registers it as the "keepDatasource" health
+     *  contributor (auKeep's consumer rod carries the BROKER health; this is the separate DB-side health). UP
+     *  when no keep is active (nothing to be down). */
+    public Supplier<TransportHealth> keepHealth() {
+        return keepApplier != null ? keepApplier::health : () -> TransportHealth.UP;
     }
 
     @PreDestroy

@@ -16,6 +16,8 @@
  * 06/17/2026 mir0n  openPublisher returns a TransportPublisher (close() destroys the LettuceConnectionFactory)
  * 06/22/2026 mir0n  openConsumer signature returns a TransportConsumer (SPI two-phase); still producer-only --
  *                   throws UnsupportedOperationException
+ * 06/22/2026 mir0n  send-outcome health on the publisher handle: no clean connection callback, so a good XADD
+ *                   -> UP, a failed XADD -> DOWN (best-effort; producer-only stream).
  */
 package pro.mir0n.esquire.tp.redis;
 
@@ -36,6 +38,7 @@ import pro.mir0n.esquire.messaging.transport.ConsumeSettings;
 import pro.mir0n.esquire.messaging.transport.ITransportProvider;
 import pro.mir0n.esquire.messaging.transport.PublishSettings;
 import pro.mir0n.esquire.messaging.transport.TransportConsumer;
+import pro.mir0n.esquire.messaging.transport.TransportHealth;
 import pro.mir0n.esquire.messaging.transport.TransportMessage;
 import pro.mir0n.esquire.messaging.transport.TransportPublisher;
 
@@ -43,6 +46,7 @@ import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 /** Redis-stream implementation of the transport-provider SPI. Producer-only. */
@@ -70,6 +74,8 @@ public final class TransportProvider implements ITransportProvider {
 
         // close() disposes the Lettuce connection factory built above (a DisposableBean).
         AutoCloseable closer = (redis.getConnectionFactory() instanceof DisposableBean db) ? db::destroy : () -> { };
+        // health is XADD send-outcome (producer-only stream): a failed XADD -> DOWN, a good one -> UP.
+        AtomicReference<TransportHealth> conn = new AtomicReference<>(TransportHealth.UP);
         return TransportPublisher.of(msg -> {
             try {
                 Map<String, Object> props = new LinkedHashMap<>(msg.headers());
@@ -90,10 +96,12 @@ public final class TransportProvider implements ITransportProvider {
                 } else {
                     redis.opsForStream().add(record);
                 }
+                conn.set(TransportHealth.UP);
             } catch (Exception ex) {
+                conn.set(TransportHealth.DOWN);
                 devLog.error("tp-redis: XADD failed on {}: {}", destination, ex.getMessage(), ex);
             }
-        }, closer);
+        }, closer, conn::get);
     }
 
     @Override

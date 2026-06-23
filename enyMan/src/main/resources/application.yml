@@ -74,6 +74,22 @@ logging:
     log-path: ${DEVELOP_LOG_PATH:logs/enyMan-develop.log}
   msg:
     log-path: ${MSG_LOG_PATH:logs/enyMan-msg.log}
+management:
+  endpoint:
+    health:
+      probes:
+        enabled: true               # expose the liveness + readiness health groups
+      show-details: always
+      # messagingBus is registered DYNAMICALLY at ApplicationReadyEvent (after the context refresh that
+      # validates group membership), so the startup membership check must be off -- the group resolves it at
+      # request time once it is in the registry.
+      validate-group-membership: false
+      group:
+        # the messaging-bus connection health depools the pod (READINESS), never the liveness probe -- a broker
+        # outage must not let liveness kill the pod. messagingBus is registered programmatically by the lifecycle
+        # registrar at ApplicationReadyEvent. k8s readinessProbe -> /actuator/health/readiness.
+        readiness:
+          include: readinessState, messagingBus
 
 ---
 spring:

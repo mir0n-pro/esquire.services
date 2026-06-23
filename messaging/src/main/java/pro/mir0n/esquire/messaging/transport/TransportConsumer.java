@@ -11,8 +11,12 @@
  *                   that stops it + releases the provider's broker connection. The two-phase mirror of
  *                   TransportPublisher: an x-rod CREATES it at init() and START()s it (facade-driven) only once
  *                   the whole bus is wired.
+ * 06/22/2026 mir0n  health() default added (UNKNOWN unless the provider can observe it); of(starter,closer)
+ *                   delegates to a new of(starter,closer,healthSupplier) overload that surfaces the supplier.
  */
 package pro.mir0n.esquire.messaging.transport;
+
+import java.util.function.Supplier;
 
 /** A consumer onto one destination, created PAUSED: the provider has built + subscribed the listener but it
  *  delivers nothing until {@link #start()}. {@code start()} begins delivery (the vendor-level start -- e.g. a
@@ -26,12 +30,27 @@ public interface TransportConsumer extends AutoCloseable {
      *  already delivers from creation). */
     void start();
 
-    /** Wrap a start action + a connection closer as one consumer handle. */
+    /** This consumer leg's broker-connection health -- {@code UNKNOWN} unless the provider can observe it. */
+    default TransportHealth health() {
+        return TransportHealth.UNKNOWN;
+    }
+
+    /** Wrap a start action + a connection closer as one consumer handle (health UNKNOWN -- the provider observes none). */
     static TransportConsumer of(Runnable starter, AutoCloseable closer) {
+        return of(starter, closer, () -> TransportHealth.UNKNOWN);
+    }
+
+    /** Wrap a start action + a connection closer + a connection-health source as one consumer handle. */
+    static TransportConsumer of(Runnable starter, AutoCloseable closer, Supplier<TransportHealth> health) {
         return new TransportConsumer() {
             @Override
             public void start() {
                 starter.run();
+            }
+
+            @Override
+            public TransportHealth health() {
+                return health.get();
             }
 
             @Override

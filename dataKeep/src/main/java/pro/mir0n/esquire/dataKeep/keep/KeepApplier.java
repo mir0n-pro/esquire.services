@@ -16,6 +16,8 @@
  * 06/22/2026 mir0n  dropped SHARED pool mode: removed the shared-DataSource constructor and the ownsPool field;
  *                   the keep is always a DEDICATED pool now -- close() closes its own pool unconditionally. RodEvent
  *                   / RodEventRepoRegistry imports moved to messaging.xrod.
+ * 06/22/2026 mir0n  added health(): pings the keep pool -- a pooled connection that validates within 2s -> UP,
+ *                   any failure (cannot reach / validate the DB) -> DOWN; the keep-datasource health source.
  */
 package pro.mir0n.esquire.dataKeep.keep;
 
@@ -24,8 +26,10 @@ import com.zaxxer.hikari.HikariDataSource;
 import org.slf4j.Logger;
 import pro.mir0n.esquire.messaging.RodEvent;
 import pro.mir0n.esquire.messaging.RodEventRepoRegistry;
+import pro.mir0n.esquire.messaging.transport.TransportHealth;
 
 import javax.sql.DataSource;
+import java.sql.Connection;
 import java.util.Map;
 import java.util.function.Consumer;
 
@@ -52,6 +56,19 @@ public final class KeepApplier implements AutoCloseable {
     /** The worker that applies each relayed event to the DB sink (run on an x-rod's worker pool). */
     public Consumer<RodEvent> applier() {
         return applier;
+    }
+
+    /** The keep DB connection health: UP if a pooled connection validates within 2s, DOWN otherwise (the pool
+     *  cannot reach / validate the database). The in-process keep x-rod reports this as its receiver-side health
+     *  (the DB it applies to), and auKeep forwards it as a separate keep-datasource health contributor. */
+    public TransportHealth health() {
+        TransportHealth ret;
+        try (Connection c = dataSource.getConnection()) {
+            ret = c.isValid(2) ? TransportHealth.UP : TransportHealth.DOWN;
+        } catch (Exception probeFailed) {
+            ret = TransportHealth.DOWN;
+        }
+        return ret;
     }
 
     /** Closes the keep's own pool. */

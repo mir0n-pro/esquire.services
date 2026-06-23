@@ -1,6 +1,17 @@
 Esquire BizTree Microservice
 
 
+06/22/2026 mir0n  messaging-bus health indicator + readiness/liveness
+BizTreeApplication
+  - the MessagingBusLifecycleRegistrar, at ApplicationReadyEvent, registers a BusHealthIndicator (the bus
+    facade handed in explicitly) into the Actuator HealthContributorRegistry programmatically -- no @Bean --
+    exposing the bus connection at /actuator/health
+application.yml
+  - extended the existing management block: added show-details=always, validate-group-membership=false, and
+    messagingBus to the readiness group (now readinessState, cacheReadiness, messagingBus)
+k8s chart esquire-biztree/templates/deployment.yaml
+  - probes already split (readiness -> /actuator/health/readiness, liveness -> /actuator/health/liveness); no change
+
 06/22/2026 mir0n  v1.2.9 -- entity-bus client adapter + two-phase bus lifecycle
 BizTreeApplication
   - added MessagingBusLifecycleRegistrar inner class (ApplicationListener<ApplicationEvent>, Ordered

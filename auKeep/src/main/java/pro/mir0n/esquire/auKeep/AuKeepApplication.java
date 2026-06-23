@@ -13,6 +13,9 @@
  * 06/22/2026 mir0n  wires the bus lifecycle via the MessagingBusLifecycleRegistrar inner listener (LOWEST_PRECEDENCE):
  *                   env-prepared -> bus.init(env, {BUS_KEY_AUDIT}); ready -> bus.start(); context-closed -> bus.close().
  *                   The Starting kind-storage load is unchanged.
+ * 06/22/2026 mir0n  at ApplicationReadyEvent registers (programmatically, no @Bean) a BusHealthIndicator for the
+ *                   bus facade AND a TransportHealthIndicator named "keepDatasource" over AuditConsumerConfig.keepHealth()
+ *                   (the keep DB) into the Actuator HealthContributorRegistry -> /actuator/health
  */
 package pro.mir0n.esquire.auKeep;
 
@@ -31,6 +34,9 @@ import org.springframework.core.Ordered;
 import pro.mir0n.esquire.backend.storage.EsqObjectKindStorage;
 import pro.mir0n.esquire.common.EsqMsgConstants;
 import pro.mir0n.esquire.messaging.MessagingBus;
+import pro.mir0n.esquire.messaging.BusHealthIndicator;
+import pro.mir0n.esquire.messaging.TransportHealthIndicator;
+import pro.mir0n.esquire.auKeep.messaging.AuditConsumerConfig;
 
 // The keep owns its OWN datasource pool (esquire.keep.datasource, via KeepApplier) -- there is no
 // spring.datasource, so Boot's DataSourceAutoConfiguration must not try to build one.
@@ -77,9 +83,13 @@ public class AuKeepApplication {
             if (event instanceof ApplicationEnvironmentPreparedEvent e) {
                 bus.init(e.getEnvironment(), new String[]{EsqMsgConstants.BUS_KEY_AUDIT});
                 devLog.debug("MessagingBus initiated (rods built, paused)");
-            } else if (event instanceof ApplicationReadyEvent) {
+            } else if (event instanceof ApplicationReadyEvent e) {
                 bus.start();                             // run them -- traffic flows only from here
                 devLog.debug("MessagingBus started (rods running)");
+                BusHealthIndicator.register(e.getApplicationContext(), bus);   // forward bus (broker) connection health (no @Bean)
+                TransportHealthIndicator.register(e.getApplicationContext(), "keepDatasource",
+                        e.getApplicationContext().getBean(AuditConsumerConfig.class).keepHealth());   // the keep DB (apply-side) health
+                devLog.debug("MessagingBus + keepDatasource health indicators registered");
             } else if (event instanceof ContextClosedEvent) {
                 bus.close();                             // drain in-flight + close transport
                 devLog.debug("MessagingBus closed (rods shut down)");
