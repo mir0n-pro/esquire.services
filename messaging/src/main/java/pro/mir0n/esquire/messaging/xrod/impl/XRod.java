@@ -23,6 +23,9 @@
  *                   messaging.catalog and RodEvent from messaging.
  * 06/22/2026 mir0n  health() = worst of the transmit (outboundCloser) + receive (inbound) legs, each ignored
  *                   when null (a leg the role does not run); outboundCloser retyped AutoCloseable -> RodPublisher.
+ * 06/23/2026 mir0n  init builds the AliveSession (heartbeat-interval / alive-timeout / alive-fail-fast); transmits()
+ *                   now always true (a broadcast CLIENT auto-opens a producer leg to self-heartbeat); health() =
+ *                   session.health(); buildKeepAlive()/onSessionMsg()/newCorrelationId() hooks; role protected
  */
 package pro.mir0n.esquire.messaging.xrod.impl;
 
@@ -42,6 +45,7 @@ import pro.mir0n.esquire.messaging.RodEvent;
 import pro.mir0n.esquire.messaging.xrod.RodPublisher;
 import pro.mir0n.esquire.messaging.xrod.RodTransportAdapter;
 
+import java.util.UUID;
 import java.util.function.Consumer;
 
 /** The default x-Rod transceiver: a transmitter/receiver over a transport. It adds the transport to the
@@ -50,7 +54,11 @@ import java.util.function.Consumer;
  *  delivery. Non-final so a specialised x-rod (e.g. {@link XRodRR}, the Request/Response variant) can extend it. */
 public class XRod extends AXRod {
 
-    private Role role;                  // CLIENT/SERVER/BOTH -- picks the R&R node (request vs response); single-node ignores it
+    private static final int     DEFAULT_HEARTBEAT_INTERVAL_SEC = 10;
+    private static final int     ALIVE_TIMEOUT_FACTOR           = 3;     // alive-timeout default = factor x heartbeat-interval
+    private static final boolean DEFAULT_ALIVE_FAIL_FAST        = true;  // provisional: a send error flips DOWN at once (default to LEARN)
+
+    protected Role role;               // CLIENT/SERVER/BOTH -- picks the R&R node (request vs response); single-node ignores it
     private ObjectMapper objectMapper;  // for the RodEvent <-> wire codec
     private TransportConsumer inbound;    // the transport consumer this rod owns (created paused, started in start()); closed on shutdown
     private RodPublisher outboundCloser;  // the open transport publisher (RodPublisher) this rod owns; closed on shutdown
@@ -115,6 +123,15 @@ public class XRod extends AXRod {
         } else if (doReceive && transportBacked && devLog != null) {
             devLog.info("x-rod[{}]: transport '{}' is producer-only -- no consumer opened", name, transport.provider());
         }
+
+        // the ALIVE-PROTOCOL session: a producing leg ({@code doTransmit}) drives the heartbeat cadence (the
+        // keep-alive factory) -- a receive-only leg has none (no cadence; health UP, per the Q&D). The session
+        // rides the rod's own transmit; an arriving session message is handled by onSessionMsg.
+        int heartbeatSec = params != null ? params.heartbeatIntervalSecOr(DEFAULT_HEARTBEAT_INTERVAL_SEC) : DEFAULT_HEARTBEAT_INTERVAL_SEC;
+        int timeoutSec   = params != null ? params.aliveTimeoutSecOr(heartbeatSec * ALIVE_TIMEOUT_FACTOR) : heartbeatSec * ALIVE_TIMEOUT_FACTOR;
+        boolean failFast = params != null ? params.aliveFailFastOr(DEFAULT_ALIVE_FAIL_FAST) : DEFAULT_ALIVE_FAIL_FAST;
+        this.session = new AliveSession(heartbeatSec * 1000L, timeoutSec * 1000L, failFast,
+                doTransmit ? this::buildKeepAlive : null, this::transmit, this::onSessionMsg, name, devLog);
     }
 
     @Override
@@ -125,19 +142,37 @@ public class XRod extends AXRod {
         }
     }
 
-    /** This rod's connection health = the worst of its transmit (publisher) + receive (consumer) transport legs;
-     *  a leg the role does not run is absent (null) and ignored. UNKNOWN when neither leg can observe its state. */
+    /** This rod's health is the ALIVE-PROTOCOL session's signal (the producer leg's timestamp age + the
+     *  fail-fast send outcome) -- the active, transport-agnostic source that supersedes the per-vendor transport
+     *  listener. UP when the rod has no session (transport-less). */
     @Override
     public TransportHealth health() {
-        TransportHealth tx = outboundCloser != null ? outboundCloser.health() : null;
-        TransportHealth rx = inbound != null ? inbound.health() : null;
-        return TransportHealth.worst(tx, rx);
+        return session != null ? session.health() : TransportHealth.UP;
     }
 
-    /** Whether this rod runs a TRANSMIT leg, by role. Single-node: SERVER / BOTH transmit, CLIENT does not.
-     *  {@link XRodRR} (R&R) always transmits -- the request node for CLIENT, the response node for SERVER. */
+    /** The idle keep-alive this rod emits (alive protocol): a broadcast producer sends an UNSOLICITED HeartBeat
+     *  (no TestReqID, a fresh correlation). {@link XRodRR} overrides this -- an R&R CLIENT sends a TestRequest. */
+    protected RodEvent buildKeepAlive() {
+        return RodEvent.heartbeat(newCorrelationId(), null, null);
+    }
+
+    /** Handle an arriving SESSION message internally (the session already advanced the consumer leg). Base /
+     *  broadcast: an unsolicited HeartBeat is liveness only -- nothing to answer. {@link XRodRR} overrides this --
+     *  an R&R SERVER echoes a TestRequest back as a HeartBeat. */
+    protected void onSessionMsg(RodEvent in) {
+    }
+
+    /** A fresh correlation id for a self-originated session message (unsolicited HeartBeat / TestRequest). */
+    protected static String newCorrelationId() {
+        return UUID.randomUUID().toString();
+    }
+
+    /** Base XRod ALWAYS runs a transmit leg. A SERVER's producer carries the application broadcasts; a CLIENT
+     *  (consumer) still opens a producer leg purely for the ALIVE PROTOCOL -- it self-heartbeats so its
+     *  producer-leg health is observable (the Q&D reads the producer leg only). So a broadcast consumer needs no
+     *  role change -- the framework gives it both legs. {@link XRodRR} (R&R) likewise always transmits. */
     protected boolean transmits() {
-        return role == Role.SERVER || role == Role.BOTH;
+        return true;
     }
 
     /** Whether this rod runs a RECEIVE leg, by role (gated at open() by a worker being set). Single-node:

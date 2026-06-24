@@ -69,6 +69,13 @@ kubectl rollout status statefulset/esquire-infra-postgres -n default --timeout=1
 echo Waiting for activemq...
 kubectl rollout status statefulset/esquire-infra-amq-activemq -n default --timeout=180s
 
+rem === Shared messaging-bus topology (the ConfigMap every service mounts at /etc/esquire/topology.yml as a
+rem     REQUIRED volume -- it MUST exist before the services or their pods hang in ContainerCreating). Portable:
+rem     the bus endpoints are in-cluster service names (esquire-infra-amq-activemq), the same on OKE; the
+rem     kafka/redis buses are defined-but-unused (OKE audit is off). No -f values -- chart defaults apply. ===
+echo --- Installing topology...
+call helm upgrade --install esquire-topology %CHARTS%\esquire-topology || exit /b 1
+
 rem === Services ===
 echo --- Installing biztree...
 call helm upgrade --install esquire-biztree %CHARTS%\esquire-biztree ^

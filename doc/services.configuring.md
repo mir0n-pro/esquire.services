@@ -61,7 +61,13 @@ Esquire catalog: which buses exist and the env that drives them. The vocabulary:
 - **node** (`node-id`): request/response buses split a slot into `request` + `response` nodes (each
   its own destination); single-node buses just carry a `destination`.
 - **x-rod**: the per-slot x-rod config -- `rod-class` + engine knobs (pool-size, feed-capacity,
-  virtual-threads, publisher-pool-size, concurrency) + a `transport` block.
+  virtual-threads, publisher-pool-size, concurrency) + alive-protocol knobs (heartbeat-interval,
+  alive-timeout, alive-fail-fast) + a `transport` block.
+  - **alive protocol** (the keep-alive that drives the bus health check): `heartbeat-interval` (seconds, default
+    10) -- when a producing leg has been quiet this long it sends a keep-alive; `alive-timeout` (seconds, default
+    3x heartbeat-interval) -- a leg whose last successful send is older than this reads DOWN; `alive-fail-fast`
+    (default true) -- a send failure flips DOWN at once (a no-op on ActiveMQ `failover:`, which queues a send
+    rather than throwing, so the timeout governs there). Keep these IN SYNC across all x-rods on a slot.
 - **transport**: provider (`activemq` | `kafka` | `redis`, or a class name) + endpoint + destination +
   `params` (opaque per-vendor knobs, e.g. `jms.useAsyncSend` / `pubSubDomain` for ActiveMQ pub/sub-vs-queue
   / `group-id` / `max-len`) + (R&R) `request-node` / `response-node` + a node list. The bus carries no
@@ -152,6 +158,34 @@ datasource from a separate `esquire.keep.datasource` group (same record shape: u
 password / hikari; on docker it points at `DB_DATAKEEP_*`), and excludes Boot's
 `DataSourceAutoConfiguration` (no `spring.datasource`).
 
+**Keep datasource -- connection settings so the health check actually detects a DB outage (recommended).** A
+JDBC pool HANGS on a vanished database when the socket goes half-open (no FIN/RST -- the typical k8s
+pod-deleted case): `Connection.isValid` / `getConnection` block on unacknowledged TCP, so `keepDatasource` never
+flips DOWN. Give the keep pool short driver + pool timeouts -- set the standard Hikari way, under
+`hikari.data-source-properties` (the same key Spring Boot exposes as `spring.datasource.hikari.data-source-properties`),
+so the JDBC driver enforces them:
+
+```yaml
+esquire:
+  keep:
+    datasource:
+      hikari:
+        connection-timeout: 5000          # ms -- caps getConnection (the health probe), so DOWN is reported fast
+        data-source-properties:           # forwarded verbatim to the JDBC driver
+          socketTimeout: 5                # pgjdbc, SECONDS -- a socket read fails this fast, so isValid cannot hang
+          connectTimeout: 5               # pgjdbc, SECONDS -- a new connect fails this fast
+          tcpKeepAlive: true              # OS-level keepalive, a backstop for a vanished peer
+```
+
+- Keep the values SMALL but above the slowest real query (the keep applies single-row `*_log` INSERT/MERGE,
+  sub-second -- 5s is safe), so detection is bounded (~`connection-timeout`) and easy to verify: kill the DB,
+  watch `keepDatasource` flip DOWN, then recover.
+- **Oracle** uses the SAME `data-source-properties` map with the Oracle names: `oracle.jdbc.ReadTimeout` (ms) +
+  `oracle.net.CONNECT_TIMEOUT` (ms). They are driver PROPERTIES (not URL params), which is exactly why the
+  passthrough -- not the URL -- is the portable place for them.
+- The same applies to ANY health-gating DB pool, not just the keep: a pool whose health is read on
+  `/actuator/health` needs a bounded socket/connect timeout, or the probe can hang on a half-open socket.
+
 The `*_log` SQL each producer (and auKeep) can write is shipped as a deploy-time
 `META-INF/audit/{dialect}.xml` spec set; omit those files to package the service with no audit SQL (the
 loader tolerates the absence -> empty map, so the in-process leg silently no-ops). The `*_log` tables
@@ -185,9 +219,12 @@ management:
 ```
 
 - **`messagingBus`** -- the per-bus connection map (every bus this service uses; DOWN if any is DOWN). Registered
-  programmatically by the lifecycle registrar at app-ready (no `@Bean`).
+  programmatically by the lifecycle registrar at app-ready (no `@Bean`). A bus reads DOWN when its connection's
+  keep-alive stops getting through (the alive-protocol knobs above; detection is bounded by `alive-timeout`).
 - **`keepDatasource`** (auKeep only) -- the keep `*_log` database connection (the apply side), beside the
-  consumer's broker health.
+  consumer's broker health. It reads DOWN within a few seconds of the DB going unreachable because the keep pool
+  carries short socket/connect + connection timeouts (see the keep datasource settings above) -- without them the
+  probe hangs on a half-open socket and never flips.
 - **`cacheReadiness`** (bizTree only) -- the pre-existing cache-bootstrap gate, kept alongside `messagingBus`.
 
 The **k8s charts** point `readinessProbe` at `/actuator/health/readiness` and `livenessProbe` at

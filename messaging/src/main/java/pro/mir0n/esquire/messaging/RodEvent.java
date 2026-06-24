@@ -15,6 +15,8 @@
  * 06/17/2026 mir0n  the 10-arg constructor (rodId, no msgType) removed (unused); javadoc {@link RodRepository}
  *                   -> IRodEventRepo / RodEventRepoRegistry; the msg-type list RDA -> UA
  * 06/22/2026 mir0n  moved to messaging (was messaging.xrod)
+ * 06/23/2026 mir0n  session events: bodyText component (a prepared JSON Text string) + an 11-arg delegating ctor;
+ *                   isSession + session/heartbeat/testRequest factories (prepared bodyText -- constant + concat); opCode() null-safe
  */
 package pro.mir0n.esquire.messaging;
 
@@ -55,12 +57,21 @@ public record RodEvent(
         String uid,
         String rodId,
         String msgType,
-        Map<String, Object> body
+        Map<String, Object> body,
+        String bodyText
 ) {
+    /** App-message constructor (the historical canonical shape): a {@code body} Map and no prepared
+     *  {@code bodyText} -- the codec serializes the map to the {@code Text} field. */
+    public RodEvent(Op op, int kind, String entityId, String subId, long actionTime,
+                    String correlationId, String requestId, String uid, String rodId, String msgType,
+                    Map<String, Object> body) {
+        this(op, kind, entityId, subId, actionTime, correlationId, requestId, uid, rodId, msgType, body, null);
+    }
+
     /** Convenience constructor: no per-message rod-id (the codec falls back to the leg's rod-id), no msg-type. */
     public RodEvent(Op op, int kind, String entityId, String subId, long actionTime,
                     String correlationId, String requestId, String uid, Map<String, Object> body) {
-        this(op, kind, entityId, subId, actionTime, correlationId, requestId, uid, null, null, body);
+        this(op, kind, entityId, subId, actionTime, correlationId, requestId, uid, null, null, body, null);
     }
 
     // CREATE / UPDATE / DELETE are the change operations; UPDATE_PATH ("X", a move / re-path) rides only the
@@ -68,14 +79,19 @@ public record RodEvent(
     public enum Op { CREATE, UPDATE, DELETE, UPDATE_PATH }
 
     /** The wire event-type code for this op (the {@code EsqMsgConstants.EVENT_*} value). The canonical
-     *  op&lt;-&gt;code mapping lives here on the event so every bus shares it. */
+     *  op&lt;-&gt;code mapping lives here on the event so every bus shares it. A session (admin) event carries no
+     *  CRUD op -- {@code op} is null and this returns null (the codec omits {@code EventType} for it). */
     public String opCode() {
         String ret;
-        switch (op) {
-            case CREATE      -> ret = EsqMsgConstants.EVENT_CREATE;
-            case UPDATE      -> ret = EsqMsgConstants.EVENT_UPDATE;
-            case UPDATE_PATH -> ret = EsqMsgConstants.EVENT_UPDATE_PATH;
-            default          -> ret = EsqMsgConstants.EVENT_DELETE;
+        if (op == null) {
+            ret = null;
+        } else {
+            switch (op) {
+                case CREATE      -> ret = EsqMsgConstants.EVENT_CREATE;
+                case UPDATE      -> ret = EsqMsgConstants.EVENT_UPDATE;
+                case UPDATE_PATH -> ret = EsqMsgConstants.EVENT_UPDATE_PATH;
+                default          -> ret = EsqMsgConstants.EVENT_DELETE;
+            }
         }
         return ret;
     }
@@ -93,5 +109,59 @@ public record RodEvent(
             ret = Op.DELETE;
         }
         return ret;
+    }
+
+    // ------------------------------------------------------------------ session (alive protocol) events
+
+    /** Whether {@code msgType} is an x-rod SESSION (alive-protocol) type -- a HeartBeat or a TestRequest. The
+     *  x-rod handles these internally (never forwards them to the application worker). */
+    public static boolean isSession(String msgType) {
+        return EsqMsgConstants.MSG_TYPE_HEARTBEAT.equals(msgType)
+                || EsqMsgConstants.MSG_TYPE_TEST_REQUEST.equals(msgType);
+    }
+
+    /** Whether THIS event is a session (alive-protocol) event. */
+    public boolean isSession() {
+        return isSession(msgType);
+    }
+
+    // Prepared session Text bodies -- built ONCE at class load (the unsolicited HeartBeat) or filled by a single
+    // concat (the TestReqID variants). The session body is fixed-shape, so a heartbeat costs NO Map allocation and
+    // NO Jackson serialization: the ready string rides as the event's bodyText, written straight to the wire.
+    private static final String HEARTBEAT_BODY =
+            "{\"" + EsqMsgConstants.FIELD_MSG_TYPE + "\":\"" + EsqMsgConstants.MSG_TYPE_HEARTBEAT + "\"}";
+    private static final String HEARTBEAT_TR_OPEN =
+            "{\"" + EsqMsgConstants.FIELD_MSG_TYPE + "\":\"" + EsqMsgConstants.MSG_TYPE_HEARTBEAT
+            + "\",\"" + EsqMsgConstants.FIELD_TEST_REQ_ID + "\":\"";
+    private static final String TESTREQUEST_OPEN =
+            "{\"" + EsqMsgConstants.FIELD_MSG_TYPE + "\":\"" + EsqMsgConstants.MSG_TYPE_TEST_REQUEST
+            + "\",\"" + EsqMsgConstants.FIELD_TEST_REQ_ID + "\":\"";
+    private static final String BODY_CLOSE = "\"}";
+
+    /** A bare session-event envelope (DECODE side): no CRUD op / kind / entity -- only the routing identity, the
+     *  correlation, the msg-type, and the parsed body Map. Used by the codec when reading a session message off
+     *  the wire (the produce side uses the prepared-{@code bodyText} factories below). */
+    public static RodEvent session(String msgType, String correlationId, String requestId, String rodId,
+                                   Map<String, Object> body) {
+        return new RodEvent(null, 0, null, null, 0L, correlationId, requestId, null, rodId, msgType, body);
+    }
+
+    /** A HeartBeat (MsgType "0"): unsolicited (a broadcast / R&R SERVER keepalive -- {@code requestId}/{@code rodId}
+     *  null, a fresh {@code correlationId}) or a response to a TestRequest (the requester's {@code rodId} +
+     *  echoed {@code correlationId}/{@code requestId}). The {@code Text} body is the prepared string -- the
+     *  constant {@link #HEARTBEAT_BODY} when unsolicited, else the template filled with the echoed TestReqID. */
+    public static RodEvent heartbeat(String correlationId, String requestId, String rodId) {
+        String text = requestId != null ? HEARTBEAT_TR_OPEN + requestId + BODY_CLOSE : HEARTBEAT_BODY;
+        return new RodEvent(null, 0, null, null, 0L, correlationId, requestId, null, rodId,
+                EsqMsgConstants.MSG_TYPE_HEARTBEAT, Map.of(), text);
+    }
+
+    /** A TestRequest (MsgType "1"): an R&R CLIENT probe on inactivity. {@code requestId} = {@code correlationId};
+     *  {@code rodId} null (the leg's own rod-id rides, so the SERVER's HeartBeat reply routes back). The
+     *  {@code Text} body is the prepared template filled with the TestReqID (= {@code correlationId}). */
+    public static RodEvent testRequest(String correlationId, String rodId) {
+        String text = TESTREQUEST_OPEN + correlationId + BODY_CLOSE;
+        return new RodEvent(null, 0, null, null, 0L, correlationId, correlationId, null, rodId,
+                EsqMsgConstants.MSG_TYPE_TEST_REQUEST, Map.of(), text);
     }
 }

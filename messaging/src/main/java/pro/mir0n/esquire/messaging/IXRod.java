@@ -18,6 +18,8 @@
  *                   callback after configure) + start() (RUN). Role is CLIENT/SERVER/BOTH (BROADCAST removed).
  * 06/22/2026 mir0n  health() default added = TransportHealth.UP (an in-process / disabled / log-only rod has no
  *                   broker connection that can drop); a transport-backed rod overrides it (worst of its legs).
+ * 06/23/2026 mir0n  idle() default no-op added -- the per-rod maintenance hook the MessagingBus idle ticker fires
+ *                   (drives the alive-protocol heartbeat cadence today)
  */
 package pro.mir0n.esquire.messaging;
 
@@ -70,6 +72,13 @@ public interface IXRod {
      *  threads (the transmit feed + the receive pool) and begin transport delivery on the receive listener
      *  created at {@link #init}. After this the rod transmits and/or receives for real. */
     void start();
+
+    /** Periodic MAINTENANCE pass, fired by the single MessagingBus-level idle ticker on every rod (so the bus
+     *  runs ONE maintenance thread per service, not one per rod). Today it drives the alive-protocol heartbeat
+     *  cadence; it is the seam for any future per-rod / transport housekeeping (R&R reply-timeout sweeps, drop /
+     *  metric collection, ...). Default: no-op (an in-process / disabled rod has nothing to maintain). */
+    default void idle() {
+    }
 
     /** Stop the wired legs (in-flight work finishes) and close the inbound transport this rod opened, if any. */
     void shutdown();

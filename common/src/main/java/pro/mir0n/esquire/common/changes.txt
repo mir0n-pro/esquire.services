@@ -1,5 +1,10 @@
 Esquire Common microservice classes
 
+06/23/2026 mir0n  x-rod alive-protocol session msg-types
+EsqMsgConstants
+  - MSG_TYPE_HEARTBEAT = "0" and MSG_TYPE_TEST_REQUEST = "1" -- the FIX-canonical session msg-types for the
+    x-rod alive protocol, beside the U-prefixed application types
+
 06/18/2026 mir0n  v1.2.8 -- messaging framework extracted to esquire-messaging; common freed of it
 messaging.* (removed)
   - the pro.mir0n.esquire.messaging package moved out to the new esquire-messaging module; common no longer

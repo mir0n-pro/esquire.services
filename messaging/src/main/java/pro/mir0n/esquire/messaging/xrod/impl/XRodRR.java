@@ -18,10 +18,13 @@
  * 06/22/2026 mir0n  transmits()/receives() overridden to true (R&R runs BOTH legs for its role); validate() now
  *                   REQUIRES a complete transport (was optional). import BusNode/BusTransport/Role/XRodParams from
  *                   messaging.catalog.
+ * 06/23/2026 mir0n  buildKeepAlive() (CLIENT emits TestRequest, SERVER/BOTH an unsolicited HeartBeat) + onSessionMsg()
+ *                   (SERVER echoes a received TestRequest back as a HeartBeat, routing echoed)
  */
 package pro.mir0n.esquire.messaging.xrod.impl;
 
 import pro.mir0n.esquire.common.EsqMsgConstants;
+import pro.mir0n.esquire.messaging.RodEvent;
 import pro.mir0n.esquire.messaging.catalog.BusNode;
 import pro.mir0n.esquire.messaging.catalog.BusTransport;
 import pro.mir0n.esquire.messaging.catalog.Role;
@@ -108,6 +111,30 @@ public class XRodRR extends XRod {
             }
         }
         return ret;
+    }
+
+    /** Alive protocol: an R&R CLIENT probes its SERVER with a TestRequest on inactivity (its own rod-id rides, so
+     *  the SERVER's HeartBeat reply routes back via the RodID selector); an R&R SERVER (or BOTH) keeps its
+     *  response leg alive with an unsolicited HeartBeat (the base keep-alive). */
+    @Override
+    protected RodEvent buildKeepAlive() {
+        RodEvent ret;
+        if (role == Role.CLIENT) {
+            ret = RodEvent.testRequest(newCorrelationId(), null);
+        } else {
+            ret = super.buildKeepAlive();
+        }
+        return ret;
+    }
+
+    /** Alive protocol: an R&R SERVER answers a received TestRequest with a HeartBeat echoing the requester's
+     *  routing + correlation (the URS reply path), so the CLIENT observes the round trip. A CLIENT's received
+     *  HeartBeat is liveness only (already marked by the session). */
+    @Override
+    protected void onSessionMsg(RodEvent in) {
+        if (role == Role.SERVER && EsqMsgConstants.MSG_TYPE_TEST_REQUEST.equals(in.msgType())) {
+            transmit(RodEvent.heartbeat(in.correlationId(), in.requestId(), in.rodId()));
+        }
     }
 
     /** R&R: a CLIENT consumes its own responses (filter by rod-id); a SERVER consumes its service's requests

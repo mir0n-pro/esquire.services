@@ -19,6 +19,8 @@
  *                   comes from config, the worker is set on the rod by the owner.
  * 06/22/2026 mir0n  health() added: a busKey -> TransportHealth map (each built rod's health()), the source the
  *                   bus health indicator forwards to /actuator/health.
+ * 06/23/2026 mir0n  one per-service idle ticker (scheduleWithFixedDelay, daemon "messaging-idle") firing IXRod.idle()
+ *                   on every rod; start()/close() manage it; idleSweep() catches Throwable per rod, logs on the develop tier
  */
 package pro.mir0n.esquire.messaging;
 
@@ -43,6 +45,9 @@ import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -69,6 +74,9 @@ import java.util.regex.Pattern;
 public class MessagingBus implements AutoCloseable {
 
     private static final Logger log = LoggerFactory.getLogger(MessagingBus.class);
+    /** Develop-tier logger for the idle / maintenance ticker (a swallowed rod maintenance failure is a dev
+     *  diagnostic; the resulting health DOWN is what surfaces on the console). */
+    private static final Logger devLog = LoggerFactory.getLogger("develop.messaging.idle");
 
     /** Matches a role-declaring ref: {@code esquire.<busKey>.messaging-bus.role} -> group 1 = the bus key. */
     private static final Pattern ROLE_KEY = Pattern.compile("^esquire\\.([^.]+)\\.messaging-bus\\.role$");
@@ -85,10 +93,17 @@ public class MessagingBus implements AutoCloseable {
         return INSTANCE;
     }
 
+    /** The idle / maintenance tick DELAY: ONE service-level ticker waits this long BETWEEN the end of one sweep
+     *  and the start of the next (scheduleWithFixedDelay -- guaranteed gap, never back-to-back), so a slow sweep
+     *  never hammers. It is the polling resolution, not the heartbeat rate -- a rod's {@code heartbeat-interval}
+     *  (>= this) governs the actual rate. The bus runs one maintenance thread, not one per rod. */
+    private static final long IDLE_TICK_MS = 1000L;
+
     private final ObjectMapper objectMapper = new ObjectMapper();   // the wire codec for every rod
     private final Map<String, IXRod> rods = new ConcurrentHashMap<>();   // busKey -> built rod (paused until start)
     private Environment environment;
     private MessagingBusCatalog catalog;
+    private ScheduledExecutorService idleTicker;   // the single per-service idle / maintenance thread
 
     /** Package-private (not part of the public API): production code uses {@link #getInstance()} -- the single
      *  instance. Default access is the test hook: a same-package unit test builds a fresh, isolated facade. */
@@ -151,17 +166,48 @@ public class MessagingBus implements AutoCloseable {
         return rod;
     }
 
-    /** START phase: RUN every built rod (engine threads + transport delivery). Called once everything is ready
-     *  (storages, roles, the context) and every rod's worker is set. */
+    /** START phase: RUN every built rod (engine threads + transport delivery), then start the single idle /
+     *  maintenance ticker. Called once everything is ready (storages, roles, the context) and every rod's worker
+     *  is set. */
     public synchronized void start() {
         rods.values().forEach(IXRod::start);
+        startIdleTicker();
         log.info("messaging facade: started {} x-rod(s)", rods.size());
     }
 
-    /** Shut every built rod down (in-flight work drains). */
+    /** Stop the idle ticker first (no new maintenance/heartbeat enqueued during teardown), then shut every built
+     *  rod down (in-flight work drains). */
     @Override
     public synchronized void close() {
+        if (idleTicker != null) {
+            idleTicker.shutdownNow();
+            idleTicker = null;
+        }
         rods.values().forEach(IXRod::shutdown);
+    }
+
+    /** Start the ONE per-service idle ticker: every {@link #IDLE_TICK_MS} it fires {@link IXRod#idle()} on every
+     *  rod (the alive-protocol heartbeat cadence today; the seam for future transport housekeeping). A rod that
+     *  throws does not break the sweep. A daemon thread, so it never holds the JVM open. */
+    private void startIdleTicker() {
+        this.idleTicker = Executors.newSingleThreadScheduledExecutor(
+                Thread.ofPlatform().daemon(true).name("messaging-idle").factory());
+        // fixed DELAY (not fixed rate): a full IDLE_TICK_MS gap between the end of one sweep and the start of the
+        // next, so sweeps never run back-to-back / pile up if one is slow.
+        idleTicker.scheduleWithFixedDelay(this::idleSweep, IDLE_TICK_MS, IDLE_TICK_MS, TimeUnit.MILLISECONDS);
+    }
+
+    /** One idle pass over every rod; a single rod's failure is logged and does not stop the others. Catches
+     *  Throwable on purpose: an uncaught Throwable escaping a {@code scheduleAtFixedRate} task SILENTLY cancels
+     *  the whole periodic ticker (no further runs) -- one rod must never be able to kill the service's idle loop. */
+    private void idleSweep() {
+        for (IXRod rod : rods.values()) {
+            try {
+                rod.idle();
+            } catch (Throwable ex) {
+                devLog.error("messaging idle ticker: rod maintenance failed: {}", ex.toString());
+            }
+        }
     }
 
     /** The connection health of every built bus ({@code busKey -> health}) -- the source the bus health

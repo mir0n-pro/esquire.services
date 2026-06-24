@@ -1,5 +1,40 @@
 Esquire messaging framework classes
 
+06/23/2026 mir0n  x-rod alive protocol (HeartBeat / TestRequest session layer)
+AliveSession  (new)
+  - the x-rod session collaborator: producer/consumer leg timestamps + lastSendAttempt, timestamp-age health
+    (producer leg only; sendBroken fast-path when alive-fail-fast), the keep-alive cadence step tick(), and
+    receivedSession() (advance the consumer ts + run the rod's session-msg handler)
+  - tick() driven externally (no own thread); start() seeds the timestamps; injectable-clock test seam
+RodEvent
+  - bodyText component added (a prepared JSON Text string; null = serialize the body Map) + an 11-arg delegating
+    constructor so existing callers are unchanged
+  - isSession; session(msgType,corr,req,rod,body) factory (decode); heartbeat(corr,req,rod) / testRequest(corr,rod)
+    build the prepared bodyText (constant HEARTBEAT_BODY + concat templates); opCode() null-safe (no op on a session event)
+RodEventCodec
+  - toProps/fromProps branch on isSession: a session message rides the reduced field set (no EventType / EntityKind /
+    EntityID / SubID / ActionTime / Uid / header TestReqID; RequestID omitted on an unsolicited HeartBeat)
+  - textOf() writes a prepared bodyText straight to Text (no Map, no Jackson), else serializes the body Map
+IXRod
+  - idle() default no-op added: the per-rod maintenance hook the MessagingBus idle ticker fires
+AXRod
+  - session field; sendOut marks the alive send-attempt/sent/failed; receive intercepts a session message
+    (receivedSession, not forwarded to the worker) and marks an app receive; runEngine seeds the session; idle()
+    drives session.tick()
+XRod
+  - init builds the AliveSession (heartbeat-interval / alive-timeout / alive-fail-fast); transmits() now always
+    true (a broadcast CLIENT auto-opens a producer leg to self-heartbeat); health() = session.health();
+    buildKeepAlive() (unsolicited HeartBeat) + onSessionMsg() (no-op) + newCorrelationId() hooks; role protected
+XRodRR
+  - buildKeepAlive() (CLIENT emits TestRequest, SERVER/BOTH an unsolicited HeartBeat); onSessionMsg() (SERVER
+    echoes a received TestRequest back as a HeartBeat, routing echoed)
+MessagingBus
+  - one per-service idle ticker (scheduleWithFixedDelay, daemon "messaging-idle"): start()/close() manage it;
+    idleSweep() fires IXRod.idle() on every rod and catches Throwable per rod (a fixed-delay task that lets a
+    Throwable escape is silently cancelled), logging on the develop tier
+XRodParams
+  - SCALARS + getters for heartbeat-interval (10s) / alive-timeout (3x) / alive-fail-fast; boolOr with a default
+
 06/22/2026 mir0n  messaging-bus connection health indicator
 TransportHealth
   - new connection health a transport leg reports: UP (broker connection established), DOWN (dropped / failed

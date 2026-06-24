@@ -1,5 +1,5 @@
 
-Esquire Request/Response/RequestReject/Entity/Audit Message Structure
+Esquire Request/Response/RequestReject/Entity/Audit/Session Message Structure
 
 Every Esquire message is a FIX-JSON envelope produced by one shared codec (`RodEventCodec`) and carried
 by any x-rod bus regardless of transport (ActiveMQ queue, Kafka topic, Redis stream). Identity / audit
@@ -129,3 +129,58 @@ consumer (auKeep) or the sink stream to apply with no request context.
 | `CorrelationID`      | `50009` | String | no       | `corr-456`                              | cross-service correlation id (snapshotted at post time)                    |
 | `MessageEncoding`    |   `347` | String | yes      | `JSON`                                  | body encoding                                                              |
 | `Text`               |    `58` | String (JSON) | no       | `{"id":"8","kind":36,"name":"Mer Chant"}` | the full committed row (CREATE/UPDATE); empty on DELETE (id + kind are in the header) |
+
+Esquire Session (Alive) Messages : TestRequest / HeartBeat
+
+The x-rod runs a FIX-style ALIVE PROTOCOL on a TestRequest / HeartBeat pair, handled INTERNALLY by the x-rod
+session layer and NEVER bypassed to the application worker. There are no dedicated session message classes --
+the pair rides the SAME envelope as every other message, with a reduced field set. The protocol gives each leg
+a transport-agnostic health signal by TIMESTAMP AGE (see `doc/Esquire.MessagingBus.md`): each leg records the
+time of its last successful action; a leg with no successful action within `alive-timeout` reads DOWN. When a
+producing leg is idle longer than `heartbeat-interval` it emits a session message to keep the leg (and its
+health signal) live -- real traffic suppresses it.
+
+- A broadcast SERVER, idle, emits an UNSOLICITED HeartBeat (not correlated to any request).
+- An R&R CLIENT, idle, emits a TestRequest; the R&R SERVER ECHOES it back as a HeartBeat (routing fields
+  echoed -- the URS reply path), so the CLIENT observes a round trip.
+- `MsgType` is FIX-canonical here: `TestRequest = "1"`, `HeartBeat = "0"` (distinct from the U-prefixed
+  application types UE / URQ / URS / URR / UA).
+
+`TestReqID` (FIX tag `112`) for a session message lives INSIDE the `Text` body, optional, and equals
+`RequestID` -- it is NOT carried as an envelope property on the session pair.
+
+Esquire TestRequest Message : MsgType "1"
+
+| Canonical field name | FIX tag | Type | Required | Example | Notes |
+|----------------------|--------:|---|----------|---------|-------|
+| `ApplMsgID`          |  `1181` | String | yes | `550e8400-e29b-41d4-a716-446655440000` | unique message identifier |
+| `SendingTime`        |    `52` | UTCTimestamp | yes | `2026-03-17T10:15:30Z` | send time |
+| `SchemaVersion`      | `50001` | Int | yes | `1` | protocol schema version |
+| `BusID`              | `50002` | String | yes | `esquire.kc` | logical bus (from the x-rod identity) |
+| `SlotID`             | `50003` | String | yes | `kc` | bus slot (leg) id (from the x-rod identity) |
+| `RodID`              | `50004` | String | yes | `enyman` | originating instance id; the reply-routing selector |
+| `MsgType`            |    `35` | String | yes | `1` | FIX-canonical TestRequest |
+| `CorrelationID`      | `50009` | String | yes | `corr-456` | freshly generated per TestRequest |
+| `RequestID`          | `50008` | String | yes | `corr-456` | = `CorrelationID` |
+| `MessageEncoding`    |   `347` | String | yes | `JSON` | body encoding |
+| `Text`               |    `58` | String (JSON) | yes | `{"MsgType":"1","TestReqID":"corr-456"}` | session body: `MsgType` + `TestReqID` (= `RequestID`) |
+
+Esquire HeartBeat Message : MsgType "0"
+
+Two variants: UNSOLICITED (a broadcast SERVER / R&R SERVER keepalive) and a RESPONSE (an R&R SERVER answering a
+received TestRequest). The response echoes the TestRequest's routing + correlation so it returns to the
+requester via the `RodID` selector; the unsolicited form carries a fresh `CorrelationID` and no request echo.
+
+| Canonical field name | FIX tag | Type | Required | Example | Notes |
+|----------------------|--------:|---|----------|---------|-------|
+| `ApplMsgID`          |  `1181` | String | yes | `550e8400-e29b-41d4-a716-446655440000` | unique message identifier |
+| `SendingTime`        |    `52` | UTCTimestamp | yes | `2026-03-17T10:15:30Z` | send time |
+| `SchemaVersion`      | `50001` | Int | yes | `1` | protocol schema version |
+| `BusID`              | `50002` | String | yes | `esquire.kc` | x-rod identity (unsolicited) OR echoed from the TestRequest (response) |
+| `SlotID`             | `50003` | String | yes | `kc` | x-rod identity (unsolicited) OR echoed from the TestRequest (response) |
+| `RodID`              | `50004` | String | yes | `enyman` | x-rod identity (unsolicited) OR echoed from the TestRequest, so the response routes to the requester |
+| `MsgType`            |    `35` | String | yes | `0` | FIX-canonical HeartBeat |
+| `CorrelationID`      | `50009` | String | yes | `corr-456` | freshly generated (unsolicited) OR echoed from the TestRequest (response) |
+| `RequestID`          | `50008` | String | no | `corr-456` | ABSENT (unsolicited) OR echoed from the TestRequest (response) |
+| `MessageEncoding`    |   `347` | String | yes | `JSON` | body encoding |
+| `Text`               |    `58` | String (JSON) | yes | `{"MsgType":"0","TestReqID":"corr-456"}` | session body: `MsgType`; plus `TestReqID` (echoed) on a response, omitted when unsolicited |

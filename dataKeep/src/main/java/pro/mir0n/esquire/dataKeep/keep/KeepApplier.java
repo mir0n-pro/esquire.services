@@ -18,6 +18,9 @@
  *                   / RodEventRepoRegistry imports moved to messaging.xrod.
  * 06/22/2026 mir0n  added health(): pings the keep pool -- a pooled connection that validates within 2s -> UP,
  *                   any failure (cannot reach / validate the DB) -> DOWN; the keep-datasource health source.
+ * 06/23/2026 mir0n  buildPool forwards hikari.data-source-properties to the JDBC driver (addDataSourceProperty) --
+ *                   so pgjdbc socketTimeout / tcpKeepAlive let health() fail fast on a vanished DB instead of
+ *                   hanging on a half-open socket.
  */
 package pro.mir0n.esquire.dataKeep.keep;
 
@@ -90,6 +93,11 @@ public final class KeepApplier implements AutoCloseable {
         if (h.connectionTimeout() != null) hc.setConnectionTimeout(h.connectionTimeout());
         if (h.maxLifetime() != null)       hc.setMaxLifetime(h.maxLifetime());
         if (h.idleTimeout() != null)       hc.setIdleTimeout(h.idleTimeout());
+        // driver connection properties forwarded VERBATIM to the JDBC driver (pgjdbc socketTimeout / tcpKeepAlive,
+        // ...) -- the same passthrough as spring.datasource.hikari.data-source-properties.
+        if (h.dataSourceProperties() != null) {
+            h.dataSourceProperties().forEach(hc::addDataSourceProperty);
+        }
         hc.setPoolName("keep-db");
         // the applies run OUTSIDE any caller transaction -> each INSERT/MERGE must auto-commit.
         hc.setAutoCommit(true);

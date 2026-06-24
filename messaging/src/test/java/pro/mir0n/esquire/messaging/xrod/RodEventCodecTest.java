@@ -140,4 +140,60 @@ class RodEventCodecTest {
         assertThat(bcastProps).containsEntry(EsqMsgConstants.FIELD_MSG_TYPE, EsqMsgConstants.MSG_TYPE_ENTITY_BROADCASTS);
         assertThat(bcastProps).doesNotContainKey(EsqMsgConstants.FIELD_ROD_ID);
     }
+
+    // ----------------------------------------------------------------- session (alive) messages
+
+    @Test
+    void unsolicitedHeartbeatRoundTrip_reducedFieldSet() {
+        RodEvent hb = RodEvent.heartbeat("corr-hb", null, null);   // unsolicited: no requestId, leg's own rod-id
+        Map<String, Object> props = RodEventCodec.toProps(hb, om, new BusIdentity("esquire.entity", "entity", "biz.0"));
+        // the reduced set: identity + correlation + msg-type + encoding + text; NO CRUD fields, NO header TestReqID
+        assertThat(props).containsEntry(EsqMsgConstants.FIELD_MSG_TYPE, EsqMsgConstants.MSG_TYPE_HEARTBEAT);
+        assertThat(props).containsEntry(EsqMsgConstants.FIELD_CORRELATION_ID, "corr-hb");
+        assertThat(props).doesNotContainKey(EsqMsgConstants.FIELD_REQUEST_ID);   // omitted on an unsolicited HB
+        assertThat(props).doesNotContainKey(EsqMsgConstants.FIELD_EVENT_TYPE);
+        assertThat(props).doesNotContainKey(EsqMsgConstants.FIELD_ENTITY_KIND);
+        assertThat(props).doesNotContainKey(EsqMsgConstants.FIELD_ENTITY_ID);
+        assertThat(props).doesNotContainKey(EsqMsgConstants.FIELD_SUB_ID);
+        assertThat(props).doesNotContainKey(EsqMsgConstants.FIELD_ACTION_TIME);
+        assertThat(props).doesNotContainKey(EsqMsgConstants.FIELD_UID);
+        assertThat(props).doesNotContainKey(EsqMsgConstants.FIELD_TEST_REQ_ID);  // TestReqID rides in Text, not a header
+
+        RodEvent out = RodEventCodec.fromProps(props, om);
+        assertThat(out.isSession()).isTrue();
+        assertThat(out.msgType()).isEqualTo(EsqMsgConstants.MSG_TYPE_HEARTBEAT);
+        assertThat(out.correlationId()).isEqualTo("corr-hb");
+        assertThat(out.requestId()).isNull();
+        assertThat(out.op()).isNull();
+        assertThat(out.body()).containsEntry(EsqMsgConstants.FIELD_MSG_TYPE, EsqMsgConstants.MSG_TYPE_HEARTBEAT);
+    }
+
+    @Test
+    void testRequestRoundTrip_carriesRequestIdAndTestReqIdInBody() {
+        RodEvent tr = RodEvent.testRequest("corr-tr", null);
+        Map<String, Object> props = RodEventCodec.toProps(tr, om, new BusIdentity("esquire.kc", "kc", "eny.0"));
+        assertThat(props).containsEntry(EsqMsgConstants.FIELD_MSG_TYPE, EsqMsgConstants.MSG_TYPE_TEST_REQUEST);
+        assertThat(props).containsEntry(EsqMsgConstants.FIELD_REQUEST_ID, "corr-tr");   // = correlationId
+        assertThat(props).containsEntry(EsqMsgConstants.FIELD_ROD_ID, "eny.0");         // the leg's rod-id rides
+
+        RodEvent out = RodEventCodec.fromProps(props, om);
+        assertThat(out.msgType()).isEqualTo(EsqMsgConstants.MSG_TYPE_TEST_REQUEST);
+        assertThat(out.requestId()).isEqualTo("corr-tr");
+        assertThat(out.rodId()).isEqualTo("eny.0");
+        assertThat(out.body()).containsEntry(EsqMsgConstants.FIELD_TEST_REQ_ID, "corr-tr");   // TestReqID in the body
+    }
+
+    @Test
+    void heartbeatResponse_echoesRequesterRouting() {
+        // a SERVER's HeartBeat reply echoes the requester's rod-id + correlation/request so it routes back
+        RodEvent reply = RodEvent.heartbeat("corr-tr", "corr-tr", "client.3");
+        Map<String, Object> props = RodEventCodec.toProps(reply, om, new BusIdentity("esquire.kc", "kc", "kcmaster.0"));
+        assertThat(props).containsEntry(EsqMsgConstants.FIELD_ROD_ID, "client.3");     // the requester's rod-id, NOT the leg's
+        assertThat(props).containsEntry(EsqMsgConstants.FIELD_REQUEST_ID, "corr-tr");
+
+        RodEvent out = RodEventCodec.fromProps(props, om);
+        assertThat(out.msgType()).isEqualTo(EsqMsgConstants.MSG_TYPE_HEARTBEAT);
+        assertThat(out.rodId()).isEqualTo("client.3");
+        assertThat(out.requestId()).isEqualTo("corr-tr");
+    }
 }

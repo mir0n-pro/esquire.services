@@ -16,6 +16,8 @@
  *                   non-numeric field logs a warn and falls back to 0 instead of throwing NumberFormatException
  *                   (which dropped the whole event). Added a develop-tier logger.
  * 06/22/2026 mir0n  import RodEvent from messaging (was messaging.xrod)
+ * 06/23/2026 mir0n  session-message branch in toProps/fromProps (the reduced field set; RequestID omitted on an
+ *                   unsolicited HeartBeat); textOf() writes a prepared bodyText to Text (no Map / no Jackson), else the body Map
  */
 package pro.mir0n.esquire.messaging.xrod;
 
@@ -60,18 +62,35 @@ public final class RodEventCodec {
         }
         ret.put(EsqMsgConstants.FIELD_MSG_TYPE,         e.msgType());
         ret.put(EsqMsgConstants.FIELD_MESSAGE_ENCODING, EsqMsgConstants.MSG_ENCODING_JSON);
-        ret.put(EsqMsgConstants.FIELD_EVENT_TYPE,       e.opCode());
-        ret.put(EsqMsgConstants.FIELD_ENTITY_KIND,      e.kind());
-        ret.put(EsqMsgConstants.FIELD_ENTITY_ID,        e.entityId());
-        ret.put(EsqMsgConstants.FIELD_SUB_ID,           e.subId());
-        ret.put(EsqMsgConstants.FIELD_ACTION_TIME,      e.actionTime());
-        ret.put(EsqMsgConstants.FIELD_CORRELATION_ID,   e.correlationId());
-        ret.put(EsqMsgConstants.FIELD_REQUEST_ID,       e.requestId());
-        // keep the R&R wire structure: testReqId rides as the requestId value (the producer guarantees it non-null).
-        ret.put(EsqMsgConstants.FIELD_TEST_REQ_ID,      e.requestId());
-        ret.put(EsqMsgConstants.FIELD_UID,              e.uid());
-        ret.put(EsqMsgConstants.FIELD_TEXT,             writeBody(e.body(), om));
+        if (e.isSession()) {
+            // SESSION (alive) message -- the reduced field set: no CRUD fields (EventType / EntityKind / EntityID /
+            // SubID / ActionTime / Uid), no header TestReqID (it rides inside Text). RequestID is omitted on an
+            // unsolicited HeartBeat (null) and present on a TestRequest / its HeartBeat reply.
+            ret.put(EsqMsgConstants.FIELD_CORRELATION_ID, e.correlationId());
+            if (e.requestId() != null) {
+                ret.put(EsqMsgConstants.FIELD_REQUEST_ID, e.requestId());
+            }
+            ret.put(EsqMsgConstants.FIELD_TEXT,         textOf(e, om));
+        } else {
+            ret.put(EsqMsgConstants.FIELD_EVENT_TYPE,       e.opCode());
+            ret.put(EsqMsgConstants.FIELD_ENTITY_KIND,      e.kind());
+            ret.put(EsqMsgConstants.FIELD_ENTITY_ID,        e.entityId());
+            ret.put(EsqMsgConstants.FIELD_SUB_ID,           e.subId());
+            ret.put(EsqMsgConstants.FIELD_ACTION_TIME,      e.actionTime());
+            ret.put(EsqMsgConstants.FIELD_CORRELATION_ID,   e.correlationId());
+            ret.put(EsqMsgConstants.FIELD_REQUEST_ID,       e.requestId());
+            // keep the R&R wire structure: testReqId rides as the requestId value (the producer guarantees it non-null).
+            ret.put(EsqMsgConstants.FIELD_TEST_REQ_ID,      e.requestId());
+            ret.put(EsqMsgConstants.FIELD_UID,              e.uid());
+            ret.put(EsqMsgConstants.FIELD_TEXT,             textOf(e, om));
+        }
         return ret;
+    }
+
+    /** The {@code Text} field: a PREPARED {@code bodyText} (a session message rides a ready-made JSON string --
+     *  no Map, no serialization) when present, otherwise the {@code body} Map serialized via Jackson. */
+    private static String textOf(RodEvent e, ObjectMapper om) {
+        return e.bodyText() != null ? e.bodyText() : writeBody(e.body(), om);
     }
 
     /** Reconstruct a RodEvent from a property map (the Text field carries the body). Two safeguards on decode:
@@ -80,18 +99,29 @@ public final class RodEventCodec {
      *  and a single non-numeric value falls back to a default (logged) rather than aborting the whole-event decode. */
     public static RodEvent fromProps(Map<String, Object> p, ObjectMapper om) {
         requireSchemaVersion(p);
-        RodEvent ret = new RodEvent(
-                RodEvent.opFromCode(str(p.get(EsqMsgConstants.FIELD_EVENT_TYPE))),
-                intOf(p, EsqMsgConstants.FIELD_ENTITY_KIND),
-                str(p.get(EsqMsgConstants.FIELD_ENTITY_ID)),
-                str(p.get(EsqMsgConstants.FIELD_SUB_ID)),
-                longOf(p, EsqMsgConstants.FIELD_ACTION_TIME),
-                str(p.get(EsqMsgConstants.FIELD_CORRELATION_ID)),
-                str(p.get(EsqMsgConstants.FIELD_REQUEST_ID)),
-                str(p.get(EsqMsgConstants.FIELD_UID)),
-                str(p.get(EsqMsgConstants.FIELD_ROD_ID)),
-                str(p.get(EsqMsgConstants.FIELD_MSG_TYPE)),
-                readBody(str(p.get(EsqMsgConstants.FIELD_TEXT)), om));
+        String msgType = str(p.get(EsqMsgConstants.FIELD_MSG_TYPE));
+        RodEvent ret;
+        if (RodEvent.isSession(msgType)) {
+            // SESSION (alive) message -- rebuild the bare session envelope (no CRUD fields); TestReqID rides in Text.
+            ret = RodEvent.session(msgType,
+                    str(p.get(EsqMsgConstants.FIELD_CORRELATION_ID)),
+                    str(p.get(EsqMsgConstants.FIELD_REQUEST_ID)),
+                    str(p.get(EsqMsgConstants.FIELD_ROD_ID)),
+                    readBody(str(p.get(EsqMsgConstants.FIELD_TEXT)), om));
+        } else {
+            ret = new RodEvent(
+                    RodEvent.opFromCode(str(p.get(EsqMsgConstants.FIELD_EVENT_TYPE))),
+                    intOf(p, EsqMsgConstants.FIELD_ENTITY_KIND),
+                    str(p.get(EsqMsgConstants.FIELD_ENTITY_ID)),
+                    str(p.get(EsqMsgConstants.FIELD_SUB_ID)),
+                    longOf(p, EsqMsgConstants.FIELD_ACTION_TIME),
+                    str(p.get(EsqMsgConstants.FIELD_CORRELATION_ID)),
+                    str(p.get(EsqMsgConstants.FIELD_REQUEST_ID)),
+                    str(p.get(EsqMsgConstants.FIELD_UID)),
+                    str(p.get(EsqMsgConstants.FIELD_ROD_ID)),
+                    msgType,
+                    readBody(str(p.get(EsqMsgConstants.FIELD_TEXT)), om));
+        }
         return ret;
     }
 

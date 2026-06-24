@@ -65,9 +65,21 @@ esquire:
       hikari:
         maximum-pool-size: 20
         minimum-idle: 10
-        connection-timeout: 30000
+        # connection-timeout caps how long getConnection (the health probe) cycles dead connections -- low so the
+        # keepDatasource health flips DOWN fast when the DB is gone (socketTimeout below bounds each attempt; this
+        # bounds the whole probe). Safe for the keep's sub-second applies (the pool is not contended).
+        connection-timeout: 5000
         max-lifetime: 1800000
         idle-timeout: 600000
+        # driver connection properties (Hikari forwards these to the JDBC driver, same as
+        # spring.datasource.hikari.data-source-properties): socketTimeout / connectTimeout (seconds) +
+        # tcpKeepAlive bound a socket read/connect so a vanished DB (a half-open socket on k8s) FAILS the
+        # keepDatasource health probe fast instead of hanging. Small values for an easy kill-the-DB diagnostic;
+        # safely above the sub-second *_log applies.
+        data-source-properties:
+          socketTimeout: 5
+          connectTimeout: 5
+          tcpKeepAlive: true
 server:
   port: ${DATAKEEP_PORT:3007}
 

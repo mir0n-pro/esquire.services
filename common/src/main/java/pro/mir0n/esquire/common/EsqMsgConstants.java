@@ -23,6 +23,7 @@
  *                   BUS_KEY_AUDIT/KC/ENTITY (the bus-id/slot-id VALUES are now config/topology)
  * 06/17/2026 mir0n  TOPIC_ENTITY_BROADCAST and ROD_AUDIT removed (dead destination constants -- destinations are
  *                   config/topology values now); class javadoc refreshed to the FIX-JSON shared-envelope description
+ * 06/23/2026 mir0n  MSG_TYPE_HEARTBEAT "0" / MSG_TYPE_TEST_REQUEST "1" -- the x-rod alive-protocol session msg-types
  */
 package pro.mir0n.esquire.common;
 
@@ -74,6 +75,10 @@ public class EsqMsgConstants {
     public static final String MSG_TYPE_RESPONSE        = "URS";
     public static final String MSG_TYPE_REJECT          = "URR";
     public static final String MSG_TYPE_AUDIT           = "UA";    // FIX custom msg-types start with 'U' -> UA = Update/Audit
+    // x-rod session (alive protocol) msg-types -- FIX-canonical (0 = Heartbeat, 1 = TestRequest), distinct from
+    // the U-prefixed application types above; handled internally by the x-rod session layer, never the app worker.
+    public static final String MSG_TYPE_HEARTBEAT       = "0";
+    public static final String MSG_TYPE_TEST_REQUEST    = "1";
     public static final String MSG_ENCODING_JSON        = "JSON";
     // --- logical bus KEYS a service uses to look up its ref (esquire.<key>.messaging-bus -> {bus-id, slot-id}).
     //     The bus-id / slot-id VALUES are configurable (the topology + refs), NOT hardcoded here. ---

@@ -17,6 +17,8 @@
  * 06/21/2026 mir0n  transport() / bindNode() build the wire without topic (queue-vs-topic moved to the
  *                   pubSubDomain vendor param)
  * 06/22/2026 mir0n  moved to messaging.catalog (was messaging)
+ * 06/23/2026 mir0n  alive-protocol knobs in SCALARS + getters: heartbeat-interval (10s) / alive-timeout (3x) /
+ *                   alive-fail-fast; boolOr with a default
  */
 package pro.mir0n.esquire.messaging.catalog;
 
@@ -43,7 +45,8 @@ public record XRodParams(String busId, String slotId, Map<String, Object> raw) {
     /** The scalar knob keys -- the ONE place that registers a framework scalar (add one here + a getter). The
      *  groups ({@code transport} = the wire, and an x-rod's own sub-blocks) are NOT scalars: they bind as a whole. */
     public static final List<String> SCALARS = List.of(
-            "rod-id", "rod-class", "pool-size", "feed-capacity", "virtual-threads", "publisher-pool-size", "concurrency");
+            "rod-id", "rod-class", "pool-size", "feed-capacity", "virtual-threads", "publisher-pool-size", "concurrency",
+            "heartbeat-interval", "alive-timeout", "alive-fail-fast");
 
     /** Build from the raw x-rod node: flatten it (so nested transport / sub-blocks read by dotted key) and keep
      *  the flat map. bus-id / slot-id are NOT in the node -- the frontend folds them in via {@link #withBus}. */
@@ -196,6 +199,11 @@ public record XRodParams(String busId, String slotId, Map<String, Object> raw) {
     public int     publisherPoolSizeOr(int def)   { return intOr("publisher-pool-size", def); }
     public int     concurrencyOr(int def)         { return intOr("concurrency", def); }
 
+    // --- alive-protocol (x-rod session) knobs (seconds; on the x-rod, kept in sync across a slot by the operator) ---
+    public int     heartbeatIntervalSecOr(int def){ return intOr("heartbeat-interval", def); }
+    public int     aliveTimeoutSecOr(int def)     { return intOr("alive-timeout", def); }
+    public boolean aliveFailFastOr(boolean def)   { return boolOr("alive-fail-fast", def); }
+
     private String str(String key) {
         Object v = raw != null ? raw.get(key) : null;
         return v != null ? v.toString() : null;
@@ -217,6 +225,19 @@ public record XRodParams(String busId, String slotId, Map<String, Object> raw) {
     private boolean boolOr(String key) {
         Object v = raw != null ? raw.get(key) : null;
         return v instanceof Boolean b ? b : v != null && Boolean.parseBoolean(v.toString().trim());
+    }
+
+    private boolean boolOr(String key, boolean def) {
+        Object v = raw != null ? raw.get(key) : null;
+        boolean ret;
+        if (v instanceof Boolean b) {
+            ret = b;
+        } else if (v != null && !v.toString().isBlank()) {
+            ret = Boolean.parseBoolean(v.toString().trim());
+        } else {
+            ret = def;
+        }
+        return ret;
     }
 
     @SuppressWarnings("unchecked")

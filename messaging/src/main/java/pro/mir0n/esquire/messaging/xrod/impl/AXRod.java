@@ -16,6 +16,9 @@
  *                   receive callback, set/reset after init); throws if the rod has NO receive pool. transmit()
  *                   throws if the rod has NO transmit feed and ignores a null event (the publisher-leg probe).
  *                   import Role/XRodParams from messaging.catalog and IXRod/RodEvent from messaging.
+ * 06/23/2026 mir0n  alive session field: sendOut marks the alive send-attempt/sent/failed; receive intercepts a
+ *                   session message (handled internally, not forwarded) + marks an app receive; runEngine seeds the
+ *                   session; idle() drives session.tick()
  */
 package pro.mir0n.esquire.messaging.xrod.impl;
 
@@ -76,6 +79,10 @@ public abstract class AXRod implements IXRod {
     // the receive worker (the listener's callback). The receive leg/listener is created at init() and is LIVE
     // from then; setWorker sets/RESETS this anytime -- a received event does nothing while it is null.
     protected volatile Consumer<RodEvent> worker;
+
+    // --- the alive-protocol session (heartbeat / health), set by a transport rod at init; null = no session
+    //     (an in-process / disabled rod has no bus leg to keep alive) ---
+    protected AliveSession session;
 
     // --- message-audit (msgLog on both legs) ---
     private Logger msgLog;              // msg.<bus-id>.<slot-id>; null = no msg-audit
@@ -171,6 +178,9 @@ public abstract class AXRod implements IXRod {
             feed.start();
             feed.setProcessing(true);
         }
+        if (session != null) {
+            session.start();   // seed the timestamps + start the heartbeat cadence (producing legs)
+        }
         if (devLog != null) {
             devLog.info("x-rod[{}]: started (transmit={}, pool={})", name, feed != null, poolWorker != null);
         }
@@ -181,6 +191,16 @@ public abstract class AXRod implements IXRod {
     @Override
     public synchronized void start() {
         runEngine();
+    }
+
+    /** Periodic maintenance pass (fired by the MessagingBus idle ticker): drive the alive-protocol heartbeat
+     *  cadence step. No-op when this rod runs no session (in-process / disabled). The hook to add any future
+     *  per-rod housekeeping. */
+    @Override
+    public void idle() {
+        if (session != null) {
+            session.tick();
+        }
     }
 
     /** Wind the engine down: reject new receives, stop the feed, then drain the pool (await in-flight applies /
@@ -228,10 +248,24 @@ public abstract class AXRod implements IXRod {
         // event == null is the publisher-leg probe -- the leg exists, so just ignore it.
     }
 
-    /** Transmit-leg send point (the feed worker): log the msg-audit, then hand the event to the outbound. */
+    /** Transmit-leg send point (the feed worker): reset the alive cadence, log the msg-audit, hand the event to
+     *  the outbound, and mark the producer leg's liveness (or its failure) for the alive protocol. */
     private void sendOut(RodEvent e) {
+        if (session != null) {
+            session.markSendAttempt();
+        }
         logMsg("TX", e);
-        outbound.accept(e);
+        try {
+            outbound.accept(e);
+            if (session != null) {
+                session.markSent();
+            }
+        } catch (RuntimeException ex) {
+            if (session != null) {
+                session.markSendFailed();
+            }
+            throw ex;
+        }
     }
 
     /** Message-audit on a leg: {@code msg.<bus-id>.<slot-id>} (the msg appender). null logger = disabled. */
@@ -256,7 +290,13 @@ public abstract class AXRod implements IXRod {
                 devLog.info("x-rod[{}]: receive while not running (before start / during shutdown) -- dropping (kind={}, entityId={})",
                         name, event.kind(), event.entityId());
             }
+        } else if (session != null && event.isSession()) {
+            // a SESSION (alive) message -- handled internally by the session layer, NEVER forwarded to the app worker.
+            session.receivedSession(event);
         } else {
+            if (session != null) {
+                session.markReceived();   // an application receive advances the consumer leg's liveness
+            }
             boolean acquired = false;
             try {
                 permits.acquire();

@@ -1,5 +1,13 @@
 Esquire dataKeep library
 
+06/23/2026 mir0n  keep datasource: driver connection properties (data-source-properties)
+keep.KeepDataSourceParams
+  - Hikari record gained dataSourceProperties (bound from data-source-properties, like
+    spring.datasource.hikari.data-source-properties); import java.util.Map
+keep.KeepApplier
+  - buildPool forwards hikari.data-source-properties to the JDBC driver via addDataSourceProperty -- so pgjdbc
+    socketTimeout / tcpKeepAlive make health() fail fast on a vanished DB instead of hanging on a half-open socket
+
 06/22/2026 mir0n  v1.2.9 -- keep datasource health
 keep.KeepApplier
   - added health(): pings the keep pool -- a pooled connection that validates within 2s -> UP; any failure

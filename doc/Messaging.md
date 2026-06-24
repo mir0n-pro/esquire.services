@@ -84,11 +84,14 @@ schema, and the delivery analysis are in [Esquire.AuditLoggingStack.md](Esquire.
 
 ## Bus health
 
-Each service forwards its bus connection health to `/actuator/health`: every bus it uses reports UP / DOWN
-(ActiveMQ observes its connection precisely through the failover transport; Kafka / Redis report send
-outcomes; the in-process keep reports its datasource). The indicator sits in the **readiness** group, so a
-broker outage takes the pod out of rotation -- but it is **not** in liveness, so a blip never restarts the pod.
-auKeep additionally reports its keep `*_log` database (the apply side). Wiring: [Esquire.MessagingBus.md](Esquire.MessagingBus.md)
+Each service forwards its bus connection health to `/actuator/health`: every bus it uses reports UP / DOWN.
+Each connection sends a small **keep-alive** on a timer when it is otherwise quiet (a broadcast leg a HeartBeat,
+a request/response client a TestRequest the server answers), and a connection whose sends stop getting through
+reads DOWN -- so the signal works the SAME on every transport, not just where the broker offers a connection
+callback (that callback stays as a fast diagnostic; the in-process keep instead reports its datasource). The
+keep-alive runs from one shared timer per service. The indicator sits in the **readiness** group, so a broker
+outage takes the pod out of rotation -- but it is **not** in liveness, so a blip never restarts the pod. auKeep
+additionally reports its keep `*_log` database (the apply side). Wiring: [Esquire.MessagingBus.md](Esquire.MessagingBus.md)
 (Health) + [services.configuring.md](services.configuring.md) (Health checks).
 
 ---
@@ -120,8 +123,16 @@ auKeep additionally reports its keep `*_log` database (the apply side). Wiring: 
   bus health recovers with it). A `failover:` endpoint *can* list more than one broker, but multi-broker
   failover and partitioned routing are not configured at the bus layer.
 
-- **The transport SPI is shaped around the queue / topic / stream model.** Adding a provider that fits that
-  shape is a drop-in; a transport with a fundamentally different model may need the SPI to grow.
+- **The transport SPI is shaped around the async messaging model** — discrete messages sent to / received from
+  a named target, one direction per leg (request/response is two paired legs correlated by rod-id). Queue, topic,
+  and stream are just how today's providers realize a *destination*; the model is not tied to them. Any transport
+  that reduces to async message exchange is a drop-in provider regardless of its wire — a synchronous RPC
+  (the call becomes the request leg, its reply the response leg), a stateful session (FIX / WebSocket, with the
+  session handled inside the x-rod), a brokerless or multicast peer (the "destination" is a group or endpoint,
+  not a broker queue), a shared-table outbox (the in-process keep already is one). The SPI only has to grow for a
+  transport whose *interaction model* is not async message-passing at all: a demand-driven / backpressured pull
+  transport (Reactive Streams, RSocket) where the consumer throttles a remote producer end to end, or a
+  continuous unframed byte / media stream with no message boundary.
 
 ---
 

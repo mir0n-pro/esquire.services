@@ -56,7 +56,7 @@ end to end.
 |---|---|
 | Public API | `pro.mir0n.esquire.messaging` — `MessagingBus` (the facade), `IXRod`, `RodEvent`, `IRodEventRepo`, `RodEventRepoRegistry`, `BusHealthIndicator`, `TransportHealthIndicator` |
 | Bus config model + catalog | `messaging.catalog` — `MessagingBusCatalog`, `MessagingBus` (a catalog bus record), `BusSlot`, `BusNode`, `BusRef`, `BusTransport`, `XRodParams`, `Role` |
-| x-rods | `messaging.xrod` — `RodEventCodec`, `RodPublisher`, `RodTransportAdapter` — and `messaging.xrod.impl` — `AXRod`, `XRod`, `XRodRR`, `XRodInProcess`, `XRodInfo`, `XRodDisabled`. The in-process KEEP x-rod, `XRodInProcessKeep`, ships in the dataKeep library (resolved by `rod-class` like any other). |
+| x-rods | `messaging.xrod` — `RodEventCodec`, `RodPublisher`, `RodTransportAdapter` — and `messaging.xrod.impl` — `AXRod`, `XRod`, `XRodRR`, `XRodInProcess`, `XRodInfo`, `XRodDisabled`, `AliveSession` (the alive-protocol collaborator). The in-process KEEP x-rod, `XRodInProcessKeep`, ships in the dataKeep library (resolved by `rod-class` like any other). |
 | Transport SPI | `messaging.transport` — `ITransportProvider`, `TransportProviders`, `TransportMessage`, `TransportPublisher`, `TransportConsumer`, `TransportSettings`, `PublishSettings`, `ConsumeSettings`, `BusIdentity`, `TransportHealth` |
 | Transport drivers | one module per vendor — `pro.mir0n.esquire.tp.<name>.TransportProvider` + an `AutoConfigurationImportFilter` |
 
@@ -252,6 +252,11 @@ required leg config — see the facade), `configure` (PREPARE), `init(name, devL
 - **`legTransport(produce, role)`** — the effective wire for this leg; base `XRod` is single-node (the
   one `transport`). `XRodRR` overrides it to pick the request/response node.
 - **`consumeSelector(role, identity)`** — the receive selector; base returns `null` (the whole node).
+- **`buildKeepAlive()` / `onSessionMsg(in)`** — the alive-protocol hooks (see Health): base `XRod` emits an
+  unsolicited `HeartBeat`; `XRodRR` emits a `TestRequest` (CLIENT) and echoes a received `TestRequest` back as a
+  `HeartBeat` (SERVER). The per-rod **`idle()`** maintenance step — fired by the one `MessagingBus` idle ticker —
+  drives the session cadence. (Base `XRod` always opens a transmit leg, so even a broadcast consumer has a
+  producer leg to self-heartbeat.)
 
 `shutdown()` stops delivery first (closes the inbound transport consumer), winds the feed down, then DRAINS
 the worker pool (`awaitTermination`) so in-flight applies / async publishes finish, and closes the outbound
@@ -436,14 +441,22 @@ directive.)
 ### Health
 
 Each bus reports its connection health to the service's `/actuator/health`, so a broker outage is visible to
-k8s probes instead of silently dropping traffic. It is a pull chain, transport up:
+k8s probes instead of silently dropping traffic. The health SOURCE is the x-rod **alive protocol** — an active,
+transport-agnostic keep-alive — forwarded up a pull chain:
 
-- **`TransportHealth`** (`UP` / `DOWN` / `UNKNOWN`) is reported by each transport leg handle
-  (`TransportPublisher` / `TransportConsumer`). A leg that can observe its connection answers `UP`/`DOWN`; one
-  that cannot answers `UNKNOWN`.
-- **`IXRod.health()`** folds the legs: an `XRod` reports the **worst** of its transmit + receive legs; an
-  in-process / disabled / log-only rod has no broker, so it defaults `UP` (an `XRodInProcessKeep` overrides it
-  to its keep-datasource connection — the DB it applies to).
+- **The alive protocol** (`AliveSession`, one per transport-backed x-rod). Each leg keeps a timestamp of its
+  last successful send; when a producing leg is idle it emits a keep-alive — a broadcast leg sends an unsolicited
+  `HeartBeat`, a request/response CLIENT sends a `TestRequest` that the SERVER echoes back as a `HeartBeat`. Health
+  is the producer leg's timestamp AGE: a send landed within `alive-timeout` -> `UP`, else `DOWN` (and an immediate
+  `DOWN` on a send failure when `alive-fail-fast`). Because the keep-alive runs on a cadence, a leg is exercised
+  even when the application is quiet — so the signal works the SAME on every transport (ActiveMQ / Kafka / Redis),
+  not just where the broker offers a connection callback. The session (`HeartBeat` / `TestRequest`) messages are
+  handled internally and never reach the application worker (see Appendix A / `Message.Structure.md`).
+- **`TransportHealth`** (`UP` / `DOWN` / `UNKNOWN`) is the value a leg reports; `AliveSession.health()` is its
+  source for a transport-backed x-rod.
+- **`IXRod.health()`** — an `XRod` reports its alive-session health; an in-process / disabled / log-only rod has
+  no broker, so it defaults `UP` (an `XRodInProcessKeep` overrides it to its keep-datasource connection — the DB
+  it applies to).
 - **`MessagingBus.health()`** is the per-bus map (`busKey -> TransportHealth`) over every built rod.
 - **`BusHealthIndicator`** (Actuator) forwards it: **DOWN if any bus is DOWN**; an `UNKNOWN` bus is a detail,
   not a failure (the framework does not fake confidence it lacks). It is registered **programmatically** by the
@@ -451,18 +464,23 @@ k8s probes instead of silently dropping traffic. It is a pull chain, transport u
   contributed to the **readiness** health group — **never liveness**, so a broker outage depools the pod
   (k8s readiness) rather than restarting it.
 
-**How each transport observes its connection:**
+**The cadence runs from ONE idle ticker per service** (`MessagingBus`, `scheduleWithFixedDelay` — a guaranteed
+gap between sweeps), which fires the generic `IXRod.idle()` maintenance step on every rod. The alive heartbeat is
+its first tenant (the seam for future per-rod / transport housekeeping), so a service runs one maintenance thread,
+not one per rod. The keep-alive `Text` bodies are pre-built (a constant for the unsolicited `HeartBeat`, a filled
+template otherwise), so emitting one allocates no map and runs no serializer.
 
-| transport | signal |
-|---|---|
-| ActiveMQ | precise — a `TransportListener` on the connection factory (`transportInterupted`/`onException` -> DOWN, `transportResumed` -> UP), plus a send-outcome refresh. Use the `failover:` endpoint so a drop + reconnect gives clean DOWN -> UP edges (and auto-reconnect). |
-| Kafka / Redis | best-effort send-outcome only — an acked send -> UP, a failed send -> DOWN (no clean connection callback). |
-| in-process keep | not a broker — `KeepApplier.health()` pings the keep datasource (a pooled connection that validates -> UP, else DOWN). |
+**First-run scope (Quick&Dirty):** health reads the PRODUCER leg only — the consumer leg's timestamp is ignored,
+so a broadcast consumer auto-opens a producer leg (it self-heartbeats) and a request/response CLIENT's health is
+"its send went through", not yet "the reply came back". Detection latency from an actual outage is bounded by
+`alive-timeout` (tunable). The round-trip / consumer-leg refinements, and the note that `alive-fail-fast` is a
+no-op on ActiveMQ `failover:` (a send queues rather than throwing, so the timeout governs), are recorded in
+`Esquire.MessagingBus.ContinuingDev.md`.
 
-**Known limit:** an idle transmit-only leg reads `UP` until its first send (the publisher connection is lazy).
-In active use a leg sends constantly, so it is observed; the gap is closed by the x-rod **heartbeat** (a
-`HeartBeat`/`TestRequest` session stream that keeps the leg active and validates delivery end to end -- a
-later, transport-agnostic active health source).
+The per-vendor transport callback stays as a fast DIAGNOSTIC (no longer the health source): on ActiveMQ a
+`TransportListener` logs `transport interrupted -> DOWN` / `resumed -> UP` at the instant of a drop; use the
+`failover:` endpoint for auto-reconnect and clean edges. `in-process keep` is not a broker — `KeepApplier.health()`
+pings the keep datasource (a pooled connection that validates -> UP, else DOWN).
 
 A separate single-source indicator (`TransportHealthIndicator`) forwards a standalone `TransportHealth` source
 that is not a bus rod -- auKeep uses it to report its keep datasource (`keepDatasource`) beside its consumer's

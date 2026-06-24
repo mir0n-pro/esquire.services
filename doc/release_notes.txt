@@ -1,6 +1,23 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v1.2.9-2606.2318  v1.2.9 -- hardening: the messaging-bus connection sends a regular keep-alive so an outage is caught on every transport
+    :Feature:     each messaging-bus connection now suppports keep-alive protocol
+    :Refactoring: the keep-alive runs from ONE shared timer
+    :Fix:         the keep database health check now reports the database DOWN within a few seconds
+    :Config:      the OKE deploy now installs the shared messaging-bus topology (was missing); dead legacy broker fields dropped from the OKE values
+    :Doc:         doc\Esquire.MessagingBus.md
+                  doc\Esquire.MessagingBus.ContinuingDev.md
+                  doc\Message.Structure.md
+                  doc\Messaging.md
+                  doc\services.configuring.md
+                  doc\img\messaging-bus-classes.svg
+    Components:   common,
+                  messaging,
+                  dataKeep,
+                  auKeep,
+                  oke
+
 v1.2.9-2606.2223  v1.2.9 -- hardening: each service reports its messaging-bus connection on its health check (feature)
     :Feature:     each service now reports whether its messaging-bus connection is up on the standard health check;
     :Feature:     the health check is split into "ready to serve" and "still alive"
