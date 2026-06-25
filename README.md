@@ -27,6 +27,8 @@ The framework's messaging is not a future direction — the vendor-agnostic **Es
 
 ---
 > 
+> **v1.2.10 — pending.** The **Resilience / Durability** sprint is underway — see the [v1.2.x roadmap](doc/v1.2.x.Planning.md).
+> 
 > **v1.2.9 — complete.** A **hardening** sprint that tightens what the v1.2.8 Messaging Bus refactoring put in place: the bus now has one front-door per service with a defined start-up order — check the configuration, build everything, then open connections — and each conversation's role set in configuration. A service that is misconfigured, or that names a bus it does not actually have, stops at start-up with a clear message instead of silently doing nothing; every service reports whether its bus connection is up on its health check; and incoming messages are handled more defensively. See [Release History](#release-history).
 > 
 > **The end of the v1.2.x horizon is now in view.** Two sprints remain — **Resilience / Durability** and **Observability** — then **v1.3.0** externalizes the **Messaging Bus** into its own product backing the Esquire Application Frameworks. See the [v1.2.x roadmap](doc/v1.2.x.Planning.md).
