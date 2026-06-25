@@ -193,7 +193,7 @@ services:
       - LOG_LEVEL_JMS=INFO
       - DEVELOP_LOG_PATH=logs/bizTree-develop.log
       - MSG_LOG_PATH=logs/bizTree-msg.log
-      - ESQUIRE_TOPOLOGY_IMPORT=file:/etc/esquire/topology.yml
+      - TOPOLOGY_IMPORT=optional:file:/etc/esquire/topology.yml
       - DB_BIZTREE_VENDOR=${DB_BIZTREE_VENDOR:-dev-postgres}
       - DB_BIZTREE_PORT=${DB_BIZTREE_PORT:-5432}
       - DB_BIZTREE_NAME=${DB_BIZTREE_NAME:-esq2025}
@@ -204,9 +204,8 @@ services:
       - DB_BIZTREE_USERNAME=esq2025
       - DB_BIZTREE_PASSWORD=q
       # Messaging
-      - BIZTREE_MESSAGING_CONSUMER_ENABLED=true
       - ENTITY_BUS_ID=esquire.entity
-      - ENTITY_SERVICE_ID=entity
+      - ENTITY_SLOT_ID=entity
       - ENTITY_BROADCAST_POOL_SIZE=4
       - ENTITY_BROADCAST_CONCURRENCY=1
       # H2 in-memory cache store
@@ -261,7 +260,7 @@ services:
       - LOG_LEVEL_JMS=INFO
       - DEVELOP_LOG_PATH=logs/enyMan-develop.log
       - MSG_LOG_PATH=logs/enyMan-msg.log
-      - ESQUIRE_TOPOLOGY_IMPORT=file:/etc/esquire/topology.yml
+      - TOPOLOGY_IMPORT=optional:file:/etc/esquire/topology.yml
       - DB_ENYMAN_VENDOR=${DB_ENYMAN_VENDOR:-dev-postgres}
       - DB_ENYMAN_PORT=${DB_ENYMAN_PORT:-5432}
       - DB_ENYMAN_NAME=${DB_ENYMAN_NAME:-esq2025}
@@ -273,12 +272,12 @@ services:
       - DB_ENYMAN_PASSWORD=q
       # Messaging
       - KC_BUS_ID=esquire.kc
-      - KC_SERVICE_ID=kc
+      - KC_SLOT_ID=kc
       - ENYMAN_KC_RESPONSE_POOL_SIZE=2
       - ENYMAN_KC_RESPONSE_CONCURRENCY=1
       - ENYMAN_KC_PUBLISHER_POOL_SIZE=0
       - ENTITY_BUS_ID=esquire.entity
-      - ENTITY_SERVICE_ID=entity
+      - ENTITY_SLOT_ID=entity
       - ENTITY_BROADCAST_PUBLISHER_POOL_SIZE=0
       # v1.2.6 Goal 3: move queue capacity. Default 16384 (also the application.yml fallback)
       # is sized for normal load. Stress tests can override via ENYMAN_MOVE_QUEUE_CAPACITY.
@@ -288,18 +287,15 @@ services:
       - ENYMAN_VALIDATE_CREATE_DURING_MOVE=${ENYMAN_VALIDATE_CREATE_DURING_MOVE:-true}
       # v1.2.8 audit logging (x-rod). Pick the sink by id (shared topology buses): audit-c (AMQ -> auKeep) |
       # audit-ck (Kafka -> auKeep) | audit-d (Redis stream) | audit-dk (Kafka stream); audit-b = in-process *_log. Demo = audit-c.
-      - ESQUIRE_AUDIT_BUS_ID=${ESQUIRE_AUDIT_BUS_ID:-audit-c}
-      - ESQUIRE_AUDIT_SERVICE_ID=audit
-      - ESQUIRE_AUDIT_POOL_SIZE=${ESQUIRE_AUDIT_POOL_SIZE:-4}
-      - ESQUIRE_AUDIT_VIRTUAL_THREADS=${ESQUIRE_AUDIT_VIRTUAL_THREADS:-false}
-      - ESQUIRE_AUDIT_FEED_CAPACITY=${ESQUIRE_AUDIT_FEED_CAPACITY:-4096}
-      # audit-b (in-process) datastore -- defaults to the service's own DB (its log tables); override to relocate.
-      - ESQUIRE_AUDIT_LOG_DB_SHARED=${ESQUIRE_AUDIT_LOG_DB_SHARED:-false}
-      - ESQUIRE_AUDIT_LOG_DB_VENDOR=${ESQUIRE_AUDIT_LOG_DB_VENDOR:-dev-postgres}
-      - ESQUIRE_AUDIT_LOG_DB_URL=${ESQUIRE_AUDIT_LOG_DB_URL:-jdbc:postgresql://host.docker.internal:5432/esq2025}
-      - ESQUIRE_AUDIT_LOG_DB_USERNAME=${ESQUIRE_AUDIT_LOG_DB_USERNAME:-esq2025}
-      - ESQUIRE_AUDIT_LOG_DB_PASSWORD=${ESQUIRE_AUDIT_LOG_DB_PASSWORD:-q}
-      - ESQUIRE_AUDIT_LOG_DB_POOL_SIZE=${ESQUIRE_AUDIT_LOG_DB_POOL_SIZE:-2}
+      - AUDIT_BUS_ID=${AUDIT_BUS_ID:-audit-c}
+      - AUDIT_SLOT_ID=audit
+      - AUDIT_POOL_SIZE=${AUDIT_POOL_SIZE:-4}
+      - AUDIT_VIRTUAL_THREADS=${AUDIT_VIRTUAL_THREADS:-false}
+      - AUDIT_FEED_CAPACITY=${AUDIT_FEED_CAPACITY:-4096}
+      # audit-b (in-process) datastore -- defaults to the service's own DB (its log tables); override to relocate.      - DB_DATAKEEP_URL=${DB_DATAKEEP_URL:-jdbc:postgresql://host.docker.internal:5432/esq2025}
+      - DB_DATAKEEP_USERNAME=${DB_DATAKEEP_USERNAME:-esq2025}
+      - DB_DATAKEEP_PASSWORD=${DB_DATAKEEP_PASSWORD:-q}
+      - DB_DATAKEEP_POOL_SIZE=${DB_DATAKEEP_POOL_SIZE:-2}
     command: ["java", "-jar", "app.jar"]
     depends_on:
       activemq:
@@ -328,7 +324,7 @@ services:
       - LOG_LEVEL_JMS=INFO
       - DEVELOP_LOG_PATH=logs/pacMan-develop.log
       - MSG_LOG_PATH=logs/pacMan-msg.log
-      - ESQUIRE_TOPOLOGY_IMPORT=file:/etc/esquire/topology.yml
+      - TOPOLOGY_IMPORT=optional:file:/etc/esquire/topology.yml
       - DB_PACMAN_VENDOR=${DB_PACMAN_VENDOR:-dev-postgres}
       - DB_PACMAN_PORT=${DB_PACMAN_PORT:-5432}
       - DB_PACMAN_NAME=${DB_PACMAN_NAME:-esq2025}
@@ -340,21 +336,18 @@ services:
       - DB_PACMAN_PASSWORD=q
       # Messaging
       - ENTITY_BUS_ID=esquire.entity
-      - ENTITY_SERVICE_ID=entity
+      - ENTITY_SLOT_ID=entity
       - ENTITY_BROADCAST_PUBLISHER_POOL_SIZE=0
       # v1.2.8 audit logging (x-rod). pacMan owns account UPDATE / DELETE / balance -> esq_account_log.
       # Per-vendor buses -- pick the sink by id (see enyMan for the full set). Demo = the bus -> auKeep.
-      - ESQUIRE_AUDIT_BUS_ID=${ESQUIRE_AUDIT_BUS_ID:-audit-c}
-      - ESQUIRE_AUDIT_SERVICE_ID=audit
-      - ESQUIRE_AUDIT_POOL_SIZE=${ESQUIRE_AUDIT_POOL_SIZE:-4}
-      - ESQUIRE_AUDIT_VIRTUAL_THREADS=${ESQUIRE_AUDIT_VIRTUAL_THREADS:-false}
-      - ESQUIRE_AUDIT_FEED_CAPACITY=${ESQUIRE_AUDIT_FEED_CAPACITY:-4096}
-      - ESQUIRE_AUDIT_LOG_DB_SHARED=${ESQUIRE_AUDIT_LOG_DB_SHARED:-false}
-      - ESQUIRE_AUDIT_LOG_DB_VENDOR=${ESQUIRE_AUDIT_LOG_DB_VENDOR:-dev-postgres}
-      - ESQUIRE_AUDIT_LOG_DB_URL=${ESQUIRE_AUDIT_LOG_DB_URL:-jdbc:postgresql://host.docker.internal:5432/esq2025}
-      - ESQUIRE_AUDIT_LOG_DB_USERNAME=${ESQUIRE_AUDIT_LOG_DB_USERNAME:-esq2025}
-      - ESQUIRE_AUDIT_LOG_DB_PASSWORD=${ESQUIRE_AUDIT_LOG_DB_PASSWORD:-q}
-      - ESQUIRE_AUDIT_LOG_DB_POOL_SIZE=${ESQUIRE_AUDIT_LOG_DB_POOL_SIZE:-2}
+      - AUDIT_BUS_ID=${AUDIT_BUS_ID:-audit-c}
+      - AUDIT_SLOT_ID=audit
+      - AUDIT_POOL_SIZE=${AUDIT_POOL_SIZE:-4}
+      - AUDIT_VIRTUAL_THREADS=${AUDIT_VIRTUAL_THREADS:-false}
+      - AUDIT_FEED_CAPACITY=${AUDIT_FEED_CAPACITY:-4096}      - DB_DATAKEEP_URL=${DB_DATAKEEP_URL:-jdbc:postgresql://host.docker.internal:5432/esq2025}
+      - DB_DATAKEEP_USERNAME=${DB_DATAKEEP_USERNAME:-esq2025}
+      - DB_DATAKEEP_PASSWORD=${DB_DATAKEEP_PASSWORD:-q}
+      - DB_DATAKEEP_POOL_SIZE=${DB_DATAKEEP_POOL_SIZE:-2}
     command: ["java", "-jar", "app.jar"]
     depends_on:
       activemq:
@@ -383,7 +376,7 @@ services:
       - LOG_LEVEL_JMS=INFO
       - DEVELOP_LOG_PATH=logs/datakeep-develop.log
       - MSG_LOG_PATH=logs/datakeep-msg.log
-      - ESQUIRE_TOPOLOGY_IMPORT=file:/etc/esquire/topology.yml
+      - TOPOLOGY_IMPORT=optional:file:/etc/esquire/topology.yml
       - DB_DATAKEEP_VENDOR=${DB_DATAKEEP_VENDOR:-dev-postgres}
       - DB_DATAKEEP_PORT=${DB_DATAKEEP_PORT:-5432}
       - DB_DATAKEEP_NAME=${DB_DATAKEEP_NAME:-esq2025}
@@ -393,8 +386,8 @@ services:
       # Audit bus (x-rod). auKeep is the bus CONSUMER -- pick the SAME bus the producers publish to:
       # audit-c (AMQ) | audit-ck (Kafka); demo default = audit-c. audit-b (in-process) + audit-d / audit-dk
       # (producer-only streams) have no auKeep consumer.
-      - ESQUIRE_AUDIT_BUS_ID=${ESQUIRE_AUDIT_BUS_ID:-audit-c}
-      - ESQUIRE_AUDIT_SERVICE_ID=audit
+      - AUDIT_BUS_ID=${AUDIT_BUS_ID:-audit-c}
+      - AUDIT_SLOT_ID=audit
       - DATAKEEP_DIRECTOR=audit
     command: ["java", "-jar", "app.jar"]
     depends_on:
@@ -424,7 +417,7 @@ services:
       - LOG_LEVEL_JMS=INFO
       - DEVELOP_LOG_PATH=logs/keySmith-develop.log
       - MSG_LOG_PATH=logs/keySmith-msg.log
-      - ESQUIRE_TOPOLOGY_IMPORT=file:/etc/esquire/topology.yml
+      - TOPOLOGY_IMPORT=optional:file:/etc/esquire/topology.yml
       - DB_KEYSMITH_VENDOR=${DB_KEYSMITH_VENDOR:-dev-postgres}
       - DB_KEYSMITH_PORT=${DB_KEYSMITH_PORT:-5432}
       - DB_KEYSMITH_NAME=${DB_KEYSMITH_NAME:-esq2025}
@@ -436,7 +429,7 @@ services:
       - DB_KEYSMITH_PASSWORD=q
       # Messaging
       - KC_BUS_ID=esquire.kc
-      - KC_SERVICE_ID=kc
+      - KC_SLOT_ID=kc
       - KEYSMITH_KC_RESPONSE_POOL_SIZE=2
       - KEYSMITH_KC_RESPONSE_CONCURRENCY=1
       - KEYSMITH_KC_PUBLISHER_POOL_SIZE=0
@@ -444,17 +437,14 @@ services:
       - KEYSMITH_TEST_CONNECT_HOLD_MS=${KEYSMITH_TEST_CONNECT_HOLD_MS:-0}
       # v1.2.8 audit logging (x-rod). keySmith owns the auth UPDATE -> esq_auth_log.
       # Per-vendor buses -- pick the sink by id (see enyMan for the full set). Demo = the bus -> auKeep.
-      - ESQUIRE_AUDIT_BUS_ID=${ESQUIRE_AUDIT_BUS_ID:-audit-c}
-      - ESQUIRE_AUDIT_SERVICE_ID=audit
-      - ESQUIRE_AUDIT_POOL_SIZE=${ESQUIRE_AUDIT_POOL_SIZE:-4}
-      - ESQUIRE_AUDIT_VIRTUAL_THREADS=${ESQUIRE_AUDIT_VIRTUAL_THREADS:-false}
-      - ESQUIRE_AUDIT_FEED_CAPACITY=${ESQUIRE_AUDIT_FEED_CAPACITY:-4096}
-      - ESQUIRE_AUDIT_LOG_DB_SHARED=${ESQUIRE_AUDIT_LOG_DB_SHARED:-false}
-      - ESQUIRE_AUDIT_LOG_DB_VENDOR=${ESQUIRE_AUDIT_LOG_DB_VENDOR:-dev-postgres}
-      - ESQUIRE_AUDIT_LOG_DB_URL=${ESQUIRE_AUDIT_LOG_DB_URL:-jdbc:postgresql://host.docker.internal:5432/esq2025}
-      - ESQUIRE_AUDIT_LOG_DB_USERNAME=${ESQUIRE_AUDIT_LOG_DB_USERNAME:-esq2025}
-      - ESQUIRE_AUDIT_LOG_DB_PASSWORD=${ESQUIRE_AUDIT_LOG_DB_PASSWORD:-q}
-      - ESQUIRE_AUDIT_LOG_DB_POOL_SIZE=${ESQUIRE_AUDIT_LOG_DB_POOL_SIZE:-2}
+      - AUDIT_BUS_ID=${AUDIT_BUS_ID:-audit-c}
+      - AUDIT_SLOT_ID=audit
+      - AUDIT_POOL_SIZE=${AUDIT_POOL_SIZE:-4}
+      - AUDIT_VIRTUAL_THREADS=${AUDIT_VIRTUAL_THREADS:-false}
+      - AUDIT_FEED_CAPACITY=${AUDIT_FEED_CAPACITY:-4096}      - DB_DATAKEEP_URL=${DB_DATAKEEP_URL:-jdbc:postgresql://host.docker.internal:5432/esq2025}
+      - DB_DATAKEEP_USERNAME=${DB_DATAKEEP_USERNAME:-esq2025}
+      - DB_DATAKEEP_PASSWORD=${DB_DATAKEEP_PASSWORD:-q}
+      - DB_DATAKEEP_POOL_SIZE=${DB_DATAKEEP_POOL_SIZE:-2}
     command: ["java", "-jar", "app.jar"]
     depends_on:
       activemq:
@@ -483,20 +473,18 @@ services:
       - LOG_LEVEL_JMS=INFO
       - DEVELOP_LOG_PATH=logs/kcMaster-develop.log
       - MSG_LOG_PATH=logs/kcMaster-msg.log
-      - ESQUIRE_TOPOLOGY_IMPORT=file:/etc/esquire/topology.yml
+      - TOPOLOGY_IMPORT=optional:file:/etc/esquire/topology.yml
       # Messaging
       # TEST race-8c repro ONLY (revert after): default 10000 (fix). -1 disables the buffer.
       - KCMASTER_PATH_BUFFER_TTL_MS=${KCMASTER_PATH_BUFFER_TTL_MS:-10000}
       - KCMASTER_PATH_BUFFER_PRUNE_MS=30000
-      - KCMASTER_ENTITY_BROADCAST_CONSUMER_ENABLED=true
-      - KCMASTER_KC_REQUEST_CONSUMER_ENABLED=true
       - KC_BUS_ID=esquire.kc
-      - KC_SERVICE_ID=kc
+      - KC_SLOT_ID=kc
       - KC_REQUEST_POOL_SIZE=4
       - KC_REQUEST_CONCURRENCY=1
       - KC_RESPONSE_PUBLISHER_POOL_SIZE=0
       - ENTITY_BUS_ID=esquire.entity
-      - ENTITY_SERVICE_ID=entity
+      - ENTITY_SLOT_ID=entity
       - ENTITY_BROADCAST_POOL_SIZE=4
       - ENTITY_BROADCAST_CONCURRENCY=1
       # Keycloak

@@ -11,42 +11,42 @@ spring:
     problemdetails:
       enabled: true
   config:
-    import: "${ESQUIRE_TOPOLOGY_IMPORT:file:/etc/esquire/topology.yml}"
+    import: "${TOPOLOGY_IMPORT:optional:file:/etc/esquire/topology.yml}"
 enyman:
   move-queue:
     capacity: ${ENYMAN_MOVE_QUEUE_CAPACITY:16384}
     validate-create-during-move: ${ENYMAN_VALIDATE_CREATE_DURING_MOVE:true}
   # this service's OWN overlay of the global esquire.messaging-bus catalog (added by MessagingBusCatalog):
-  # its in-process audit-b leg, whose log-db is service-specific. Under the service namespace, beside move-queue.
+  # its in-process audit-b leg, whose datasource is service-specific. Under the service namespace, beside move-queue.
   messaging-bus:
     - bus-id: audit-b
       slots:
         - slot-id: audit
           x-rod:
-            rod-class: pro.mir0n.esquire.dataKeep.keep.XRodInProcess
-            pool-size: ${ESQUIRE_AUDIT_POOL_SIZE:4}
-            feed-capacity: ${ESQUIRE_AUDIT_FEED_CAPACITY:4096}
-            virtual-threads: ${ESQUIRE_AUDIT_VIRTUAL_THREADS:false}
-            log-db:
-              # shared=true -> the keep reuses the SERVICE's own datasource pool (url/vendor/hikari ignored,
-              # dialect from the service profile); false -> a dedicated keep pool from the url/hikari below.
-              shared: ${ESQUIRE_AUDIT_LOG_DB_SHARED:false}
-              vendor: ${ESQUIRE_AUDIT_LOG_DB_VENDOR:dev-postgres}
-              url: ${ESQUIRE_AUDIT_LOG_DB_URL:jdbc:postgresql://${DB_ENYMAN_HOST:localhost}:${DB_ENYMAN_PORT:5432}/${DB_ENYMAN_NAME:esq2025}}
-              username: ${ESQUIRE_AUDIT_LOG_DB_USERNAME:${DB_ENYMAN_USERNAME:esq2025}}
-              password: ${ESQUIRE_AUDIT_LOG_DB_PASSWORD:${DB_ENYMAN_PASSWORD:q}}
+            rod-class: pro.mir0n.esquire.dataKeep.keep.XRodInProcessKeep
+            director: pro.mir0n.esquire.audit.AuditKeepDirector
+            pool-size: ${AUDIT_POOL_SIZE:4}
+            feed-capacity: ${AUDIT_FEED_CAPACITY:4096}
+            virtual-threads: ${AUDIT_VIRTUAL_THREADS:false}
+            datasource:
+              # the keep's OWN dedicated *_log pool, from the url/hikari below.
+              url: ${DB_DATAKEEP_URL:jdbc:postgresql://${DB_ENYMAN_HOST:localhost}:${DB_ENYMAN_PORT:5432}/${DB_ENYMAN_NAME:esq2025}}
+              username: ${DB_DATAKEEP_USERNAME:${DB_ENYMAN_USERNAME:esq2025}}
+              password: ${DB_DATAKEEP_PASSWORD:${DB_ENYMAN_PASSWORD:q}}
               hikari:
-                maximum-pool-size: ${ESQUIRE_AUDIT_LOG_DB_POOL_SIZE:2}
+                maximum-pool-size: ${DB_DATAKEEP_POOL_SIZE:2}
 # Bus REFS: which slot this service joins on the shared buses.
 esquire:
   audit-bus:
     messaging-bus:
-      bus-id: ${ESQUIRE_AUDIT_BUS_ID:audit-b}
-      slot-id: ${ESQUIRE_AUDIT_SERVICE_ID:audit}
+      bus-id: ${AUDIT_BUS_ID:audit-b}
+      slot-id: ${AUDIT_SLOT_ID:audit}
+      role: SERVER   # the service is the audit SERVER: it broadcasts its log events (in-process keep applies them)
   kc-bus:
     messaging-bus:
       bus-id: ${KC_BUS_ID:esquire.kc}
-      slot-id: ${KC_SERVICE_ID:kc}
+      slot-id: ${KC_SLOT_ID:kc}
+      role: CLIENT
       x-rod:
         pool-size: ${ENYMAN_KC_RESPONSE_POOL_SIZE:2}
         concurrency: ${ENYMAN_KC_RESPONSE_CONCURRENCY:1}
@@ -54,7 +54,8 @@ esquire:
   entity-bus:
     messaging-bus:
       bus-id: ${ENTITY_BUS_ID:esquire.entity}
-      slot-id: ${ENTITY_SERVICE_ID:entity}
+      slot-id: ${ENTITY_SLOT_ID:entity}
+      role: SERVER
       x-rod:
         publisher-pool-size: ${ENTITY_BROADCAST_PUBLISHER_POOL_SIZE:0}
 logging:
@@ -73,6 +74,22 @@ logging:
     log-path: ${DEVELOP_LOG_PATH:logs/enyMan-develop.log}
   msg:
     log-path: ${MSG_LOG_PATH:logs/enyMan-msg.log}
+management:
+  endpoint:
+    health:
+      probes:
+        enabled: true               # expose the liveness + readiness health groups
+      show-details: always
+      # messagingBus is registered DYNAMICALLY at ApplicationReadyEvent (after the context refresh that
+      # validates group membership), so the startup membership check must be off -- the group resolves it at
+      # request time once it is in the registry.
+      validate-group-membership: false
+      group:
+        # the messaging-bus connection health depools the pod (READINESS), never the liveness probe -- a broker
+        # outage must not let liveness kill the pod. messagingBus is registered programmatically by the lifecycle
+        # registrar at ApplicationReadyEvent. k8s readinessProbe -> /actuator/health/readiness.
+        readiness:
+          include: readinessState, messagingBus
 
 ---
 spring:

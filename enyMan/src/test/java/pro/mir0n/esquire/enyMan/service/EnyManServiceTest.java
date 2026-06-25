@@ -28,10 +28,8 @@ import pro.mir0n.esquire.backend.storage.EsqRolesStorage;
 import pro.mir0n.esquire.backend.storage.roles.JpaRolesRepository;
 import pro.mir0n.esquire.common.EsqConstants;
 import pro.mir0n.esquire.audit.AuditBusBridge;
-import pro.mir0n.esquire.messaging.Role;
-import pro.mir0n.esquire.messaging.XRodParams;
-import pro.mir0n.esquire.messaging.xrod.IXRod;
-import pro.mir0n.esquire.messaging.xrod.impl.XRod;
+import pro.mir0n.esquire.messaging.IXRod;
+import pro.mir0n.esquire.messaging.xrod.impl.XRodDisabled;
 import pro.mir0n.esquire.enyMan.jpa.EsqAcctRepository;
 import pro.mir0n.esquire.enyMan.jpa.EsqEntityDictionaryRepository;
 import pro.mir0n.esquire.enyMan.jpa.EsqOrgRepository;
@@ -39,7 +37,7 @@ import pro.mir0n.esquire.enyMan.jpa.EsqSubtreeRepository;
 import pro.mir0n.esquire.enyMan.jpa.EsqSubtreeRow;
 import pro.mir0n.esquire.enyMan.jpa.EsqUsrRepository;
 import pro.mir0n.esquire.backend.dto.EsqTreeNode;
-import pro.mir0n.esquire.enyMan.messaging.EsqEntityBroadcastPublisher;
+import pro.mir0n.esquire.enyMan.messaging.EntityBusAdapter;
 import pro.mir0n.esquire.enyMan.queue.MoveCommandItem;
 import pro.mir0n.esquire.enyMan.queue.MoveQueueManager;
 import pro.mir0n.esquire.enyMan.service.impl.EnyManService;
@@ -67,11 +65,9 @@ import java.util.HashMap;
 @ExtendWith(MockitoExtension.class)
 class EnyManServiceTest {
 
-    /** A disabled x-Rod stand-in: audit off, so post() is a no-op. */
+    /** A disabled x-Rod stand-in: the OFF rod -- AuditBusBridge.post() skips it (isEnabled() is false). */
     private static IXRod noopRod() {
-        XRod r = new XRod();
-        r.configure(XRodParams.from(Map.of()).withBus("test", "noop", null), Role.BROADCAST, null);
-        return r;   // not started + no transport -> no transmit leg -> post() is a no-op
+        return new XRodDisabled();
     }
 
     static final String ROLE_ADMIN = "ROLE_ADMIN";
@@ -99,7 +95,7 @@ class EnyManServiceTest {
     private EntityManager em;
 
     @Mock
-    private EsqEntityBroadcastPublisher broadcastPublisher;
+    private EntityBusAdapter broadcastPublisher;
 
     @Mock
     private MoveQueueManager moveQueue;

@@ -8,6 +8,7 @@
  *  History:
  * 03/20/2026 mir0n  initial — dispatches URQ to KC identity service by EventType
  * 04/06/2026 mir0n  EVENT_UPDATE_PATH dispatched to kcIdentityService.updateEntityPath()
+ * 06/23/2026 mir0n  EsqMsgConstants references -> messaging.BusConstants (wire) + common.EsqConstants (app)
  */
 
 package pro.mir0n.esquire.kcMaster.messaging;
@@ -16,7 +17,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import pro.mir0n.esquire.common.EsqConstants;
-import pro.mir0n.esquire.common.EsqMsgConstants;
+import pro.mir0n.esquire.messaging.BusConstants;
 import pro.mir0n.esquire.kcMaster.service.IKcIdentityService;
 
 import java.util.Collections;
@@ -36,13 +37,13 @@ public class KcRequestHandler {
 
     public void handle(String command, KcSyncRequest req, String correlationId, String requestId) {
         switch (command) {
-            case EsqMsgConstants.EVENT_CREATE ->
+            case BusConstants.EVENT_CREATE ->
                 handleCreate(req, correlationId, requestId);
-            case EsqMsgConstants.EVENT_UPDATE ->
+            case BusConstants.EVENT_UPDATE ->
                 handleUpdate(req, correlationId, requestId);
-            case EsqMsgConstants.EVENT_DELETE ->
+            case BusConstants.EVENT_DELETE ->
                 handleDelete(req, correlationId, requestId);
-            case EsqMsgConstants.EVENT_UPDATE_PATH ->
+            case BusConstants.EVENT_UPDATE_PATH ->
                 handleUpdatePath(req, correlationId, requestId);
             default ->
                 throw new IllegalArgumentException("Unknown command: " + command);

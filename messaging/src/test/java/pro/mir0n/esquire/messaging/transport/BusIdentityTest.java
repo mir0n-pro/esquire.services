@@ -34,7 +34,7 @@ class BusIdentityTest {
     void settingsResolveTokensFromTheIdentity() {
         // the relocation: every driver-facing settings object expands its params against the BusIdentity it
         // carries -- one point, uniform for a single-node leg AND an R&R node.
-        ConsumeSettings cs = new ConsumeSettings(new ObjectMapper(), "tcp://localhost:61616", false,
+        ConsumeSettings cs = new ConsumeSettings(new ObjectMapper(), "tcp://localhost:61616",
                 new BusIdentity("esquire.kc", "kc", "enyman.0"),
                 Map.of("jms.clientID", "${rod-id}"), 1, null);
         assertThat(cs.params()).containsEntry("jms.clientID", "enyman.0");

@@ -49,6 +49,15 @@
             <scope>provided</scope>
         </dependency>
 
+        <!-- Spring Boot Actuator: the health indicators implement HealthIndicator. Provided scope: a service that
+             exposes /actuator/health supplies actuator at runtime; one that does not is unaffected (the
+             indicator registration no-ops when no health registry is present). -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-actuator</artifactId>
+            <scope>provided</scope>
+        </dependency>
+
         <!-- spring-test (MockEnvironment) for the catalog binding test. -->
         <dependency>
             <groupId>org.springframework</groupId>

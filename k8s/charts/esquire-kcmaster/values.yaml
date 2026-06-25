@@ -6,7 +6,7 @@ image:
 springProfilesActive: console
 
 # shared bus topology is delivered by the esquire-topology ConfigMap, mounted at /etc/esquire.
-topologyImport: file:/etc/esquire/topology.yml
+topologyImport: optional:file:/etc/esquire/topology.yml
 
 service:
   port: 3006
@@ -29,15 +29,10 @@ pathBuffer:
   ttlMs: "10000"
   pruneMs: "30000"
 
-# consumer on/off toggles (entity broadcast consumer + kc-request server consumer).
-consumers:
-  entityBroadcastEnabled: "true"
-  kcRequestEnabled: "true"
-
 # kc-bus ref: kcMaster is the SERVER (receives KC requests, publishes responses).
 kc:
   busId: esquire.kc
-  serviceId: kc
+  slotId: kc
   requestPoolSize: "4"
   requestConcurrency: "1"
   responsePublisherPoolSize: "0"
@@ -45,7 +40,7 @@ kc:
 # entity-bus ref: kcMaster is a CONSUMER of the entity broadcast.
 entity:
   busId: esquire.entity
-  serviceId: entity
+  slotId: entity
   broadcastPoolSize: "4"
   broadcastConcurrency: "1"
 

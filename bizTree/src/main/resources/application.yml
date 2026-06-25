@@ -11,7 +11,7 @@ spring:
     problemdetails:
       enabled: true
   config:
-    import: "${ESQUIRE_TOPOLOGY_IMPORT:file:/etc/esquire/topology.yml}"
+    import: "${TOPOLOGY_IMPORT:optional:file:/etc/esquire/topology.yml}"
 biztree:
   # cache director + monad/taijitu knobs (read by @Value; surfaced here for env visibility -- defaults
   # match the @Value fallbacks, so behaviour is unchanged when the env var is unset).
@@ -35,16 +35,14 @@ biztree:
       connection-timeout:   ${BIZTREE_H2_POOL_CONN_TIMEOUT:5000}
       max-lifetime:         ${BIZTREE_H2_POOL_MAX_LIFETIME:1800000}
       idle-timeout:         ${BIZTREE_H2_POOL_IDLE_TIMEOUT:600000}
-  entity-broadcast-bus:
-    consumer:
-      enabled: ${BIZTREE_MESSAGING_CONSUMER_ENABLED:true}
 # Bus TOPOLOGY (which buses exist + their transport) is the shared esquire-topology.yml imported above.
 # Here: this service's bus REF + per-service knob OVERRIDE (entity consumer).
 esquire:
   entity-bus:
     messaging-bus:
       bus-id: ${ENTITY_BUS_ID:esquire.entity}
-      slot-id: ${ENTITY_SERVICE_ID:entity}
+      slot-id: ${ENTITY_SLOT_ID:entity}
+      role: CLIENT
       x-rod:
         pool-size: ${ENTITY_BROADCAST_POOL_SIZE:4}
         concurrency: ${ENTITY_BROADCAST_CONCURRENCY:1}
@@ -68,10 +66,15 @@ management:
   endpoint:
     health:
       probes:
-        enabled: true
+        enabled: true               # expose the liveness + readiness health groups
+      show-details: always
+      # messagingBus is registered DYNAMICALLY at ApplicationReadyEvent (after the membership-validating context
+      # refresh), so the startup check must be off; the readiness group resolves it at request time.
+      validate-group-membership: false
       group:
+        # bus health depools the pod (READINESS), never liveness -- a broker outage must not let liveness kill it.
         readiness:
-          include: readinessState, cacheReadiness
+          include: readinessState, cacheReadiness, messagingBus
 
 ---
 # Development Oracle

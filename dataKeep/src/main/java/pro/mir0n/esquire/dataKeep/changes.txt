@@ -1,5 +1,45 @@
 Esquire dataKeep library
 
+06/23/2026 mir0n  keep datasource: driver connection properties (data-source-properties)
+keep.KeepDataSourceParams
+  - Hikari record gained dataSourceProperties (bound from data-source-properties, like
+    spring.datasource.hikari.data-source-properties); import java.util.Map
+keep.KeepApplier
+  - buildPool forwards hikari.data-source-properties to the JDBC driver via addDataSourceProperty -- so pgjdbc
+    socketTimeout / tcpKeepAlive make health() fail fast on a vanished DB instead of hanging on a half-open socket
+
+06/22/2026 mir0n  v1.2.9 -- keep datasource health
+keep.KeepApplier
+  - added health(): pings the keep pool -- a pooled connection that validates within 2s -> UP; any failure
+    (cannot reach / validate the database) -> DOWN. The keep-datasource health source.
+keep.XRodInProcessKeep
+  - added health(): the in-process keep has no broker, so its "down" risk is the DB it applies to -- it
+    reports keepApplier.health() (the receiver-side DB the generic in-process relay otherwise hides)
+
+06/22/2026 mir0n  v1.2.9 -- in-process keep x-rod; shared keep pool mode dropped
+keep.XRodInProcessKeep  (new, was audit.XRodAuditKeep, generalized)
+  - the in-process keep x-rod: extends the generic XRodInProcess (moved to the messaging library); validate()
+    requires the leg's datasource.url + a director; init() builds the KeepApplier from the leg's datasource +
+    config-named IKeepDirector, OPENs the engine (super.init -> receive pool, paused), THEN setWorker(applier)
+    (the build-engine-before-setWorker order is required -- setWorker needs the pool to exist); shutdown() drains
+    then closes the keep pool
+keep.KeepApplier
+  - dropped SHARED pool mode: removed the shared-DataSource constructor and the ownsPool field; a keep is always
+    a DEDICATED pool now -- close() closes its own pool unconditionally; RodEvent/RodEventRepoRegistry imports
+    moved to messaging.xrod
+keep.KeepDataSourceParams
+  - dropped the shared field and isShared(); the record carries only url/username/password/hikari
+keep.RodEventDbWriter
+  - RodEvent import moved to messaging.xrod
+
+06/21/2026 mir0n  v1.2.9 -- keep dialect derived from the database URL; the datasource vendor setting removed
+keep.KeepDataSourceParams
+  - removed the vendor field (the record is now url/username/password/hikari/shared) and vendorOr(); when the
+    keep is shared the dialect comes from the service's spring.datasource.url
+keep.KeepApplier
+  - dedicated-mode dialect is KeepSqlStore.dialectOf(ds.url()) -- read from the datasource URL subprotocol
+    instead of the vendor/profile label
+
 06/18/2026 mir0n  v1.2.8 -- created: esquire-dataKeep, the generic DB-keep engine (extracted from the audit code)
 keep.KeepApplier  (new)
   - builds a keep's DB applier: a RodEventDbWriter over the KeepSqlStore + a kind->statement registry from the

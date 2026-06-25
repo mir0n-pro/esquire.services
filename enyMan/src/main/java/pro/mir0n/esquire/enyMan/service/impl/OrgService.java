@@ -36,6 +36,7 @@
  * 06/17/2026 mir0n  audit dep IXRod -> AuditBusBridge; the org / org_par post() calls drop the trailing
  *                   MSG_TYPE_AUDIT arg; the isEnabled() guard reads audit
  * 06/18/2026 mir0n  audit module left common: AuditBusBridge moved to pro.mir0n.esquire.audit
+ * 06/22/2026 mir0n  RodEvent import retargeted messaging.xrod.RodEvent -> messaging.RodEvent (package move).
  */
 
 package pro.mir0n.esquire.enyMan.service.impl;
@@ -62,7 +63,7 @@ import pro.mir0n.esquire.backend.error.ResourceNotFoundException;
 import pro.mir0n.esquire.enyMan.jpa.EsqMoveRecord;
 import pro.mir0n.esquire.backend.jpa.entity.EsqParRow;
 import pro.mir0n.esquire.common.EsqConstants;
-import pro.mir0n.esquire.messaging.xrod.RodEvent;
+import pro.mir0n.esquire.messaging.RodEvent;
 import pro.mir0n.esquire.audit.AuditBusBridge;
 import org.springframework.transaction.support.TransactionTemplate;
 

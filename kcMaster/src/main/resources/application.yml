@@ -5,7 +5,7 @@ spring:
     problemdetails:
       enabled: true
   config:
-    import: "${ESQUIRE_TOPOLOGY_IMPORT:file:/etc/esquire/topology.yml}"
+    import: "${TOPOLOGY_IMPORT:optional:file:/etc/esquire/topology.yml}"
 keycloak:
   admin:
     base-url: ${KC_BASE_URL:http://localhost:8080}
@@ -18,19 +18,14 @@ kcmaster:
   path-buffer:
     ttl-ms:            ${KCMASTER_PATH_BUFFER_TTL_MS:10000}
     prune-interval-ms: ${KCMASTER_PATH_BUFFER_PRUNE_MS:30000}
-  entity-broadcast-bus:
-    consumer:
-      enabled: ${KCMASTER_ENTITY_BROADCAST_CONSUMER_ENABLED:true}
-  kc-request-bus:
-    consumer:
-      enabled: ${KCMASTER_KC_REQUEST_CONSUMER_ENABLED:true}
 # Bus TOPOLOGY (which buses exist + their transport) is the shared esquire-topology.yml imported above.
 # Here: this service's bus REFS + per-service knob OVERRIDES (kc SERVER + entity consumer).
 esquire:
   kc-bus:
     messaging-bus:
       bus-id: ${KC_BUS_ID:esquire.kc}
-      slot-id: ${KC_SERVICE_ID:kc}
+      slot-id: ${KC_SLOT_ID:kc}
+      role: SERVER
       x-rod:
         pool-size: ${KC_REQUEST_POOL_SIZE:4}
         concurrency: ${KC_REQUEST_CONCURRENCY:1}
@@ -38,7 +33,8 @@ esquire:
   entity-bus:
     messaging-bus:
       bus-id: ${ENTITY_BUS_ID:esquire.entity}
-      slot-id: ${ENTITY_SERVICE_ID:entity}
+      slot-id: ${ENTITY_SLOT_ID:entity}
+      role: CLIENT
       x-rod:
         pool-size: ${ENTITY_BROADCAST_POOL_SIZE:4}
         concurrency: ${ENTITY_BROADCAST_CONCURRENCY:1}
@@ -58,6 +54,19 @@ logging:
     log-path: ${DEVELOP_LOG_PATH:logs/kcMaster-develop.log}
   msg:
     log-path: ${MSG_LOG_PATH:logs/kcMaster-msg.log}
+management:
+  endpoint:
+    health:
+      probes:
+        enabled: true               # expose the liveness + readiness health groups
+      show-details: always
+      # messagingBus is registered DYNAMICALLY at ApplicationReadyEvent (after the membership-validating context
+      # refresh), so the startup check must be off; the readiness group resolves it at request time.
+      validate-group-membership: false
+      group:
+        # bus health depools the pod (READINESS), never liveness -- a broker outage must not let liveness kill it.
+        readiness:
+          include: readinessState, messagingBus
 
 server:
   port: ${KCMASTER_PORT:3006}

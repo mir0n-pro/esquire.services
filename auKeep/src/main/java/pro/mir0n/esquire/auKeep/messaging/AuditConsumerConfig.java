@@ -10,6 +10,12 @@
  * 06/18/2026 mir0n  builds the generic keep applier (the audit director's kinds + SQL data, applied to the keep
  *                   datasource group esquire.keep.datasource) and runs it behind the bus consumer that
  *                   rods.consumer opens on the audit leg. The director knows only its kinds; the engine is generic.
+ * 06/22/2026 mir0n  rewired onto the facade: takes the audit rod from MessagingBus.getXRod (audit-bus ref role
+ *                   CLIENT) and sets the keep applier as its receive worker; guarded with isEnabled() so an
+ *                   explicitly-disabled audit bus leaves the consumer idle.
+ * 06/22/2026 mir0n  added keepHealth() -> Supplier<TransportHealth> over the keep applier (UP when no keep active);
+ *                   the lifecycle registrar registers it as the "keepDatasource" health contributor.
+ * 06/23/2026 mir0n  EsqMsgConstants app constants -> common.EsqConstants (references repointed)
  */
 package pro.mir0n.esquire.auKeep.messaging;
 
@@ -22,14 +28,16 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.env.Environment;
 import pro.mir0n.esquire.audit.AuditKeepDirector;
-import pro.mir0n.esquire.common.EsqMsgConstants;
+import pro.mir0n.esquire.common.EsqConstants;
 import pro.mir0n.esquire.dataKeep.director.IKeepDirector;
 import pro.mir0n.esquire.dataKeep.keep.KeepApplier;
 import pro.mir0n.esquire.dataKeep.keep.KeepDataSourceParams;
 import pro.mir0n.esquire.dataKeep.keep.KeepSqlStore;
-import pro.mir0n.esquire.messaging.Role;
-import pro.mir0n.esquire.messaging.xrod.IXRod;
-import pro.mir0n.esquire.messaging.xrod.XRodManager;
+import pro.mir0n.esquire.messaging.MessagingBus;
+import pro.mir0n.esquire.messaging.IXRod;
+import pro.mir0n.esquire.messaging.transport.TransportHealth;
+
+import java.util.function.Supplier;
 
 @Configuration
 public class AuditConsumerConfig {
@@ -38,32 +46,44 @@ public class AuditConsumerConfig {
     /** The keep's *_log datasource group (configured the same way a producer's in-process leg is). */
     private static final String KEEP_DATASOURCE = "esquire.keep.datasource";
 
-    private final XRodManager rods;
     private final Environment env;
     private KeepApplier keepApplier;   // the *_log pool; closed on destroy
 
-    public AuditConsumerConfig(XRodManager rods, Environment env) {
-        this.rods = rods;
-        this.env  = env;
+    public AuditConsumerConfig(Environment env) {
+        this.env = env;
     }
 
     /**
-     * Open the audit consumer: build the generic keep applier (the audit director's kinds + SQL, applied to the
-     * keep datasource group) and hand it to {@code rods.consumer}, which resolves the audit leg + opens the bus
-     * consumer running the applier. A missing datasource or a producer-only / absent leg -> the consumer stays idle.
+     * Open the audit consumer: take the audit rod the facade built (audit-bus ref, role CLIENT) and set the
+     * generic keep applier (the audit director's kinds + SQL, applied to the keep datasource group) as its
+     * receive worker. If the audit bus is explicitly disabled (XRodDisabled, e.g. audit-off) the consumer stays
+     * idle; a missing keep datasource also leaves it idle.
      */
     @Bean
     public IXRod auditConsumer() {
-        KeepDataSourceParams ds = Binder.get(env)
-                .bind(KEEP_DATASOURCE, Bindable.of(KeepDataSourceParams.class)).orElse(null);
-        if (ds == null || ds.url() == null || ds.url().isBlank()) {
-            devLog.info("auKeep: no {} configured -- no audit consumer started", KEEP_DATASOURCE);
-            return rods.consumer(EsqMsgConstants.BUS_KEY_AUDIT, Role.BROADCAST, e -> { });
+        IXRod rod = MessagingBus.getInstance().getXRod(EsqConstants.BUS_KEY_AUDIT);
+        if (!rod.isEnabled()) {
+            devLog.info("auKeep: audit bus is disabled (XRodDisabled) -- audit consumer idle");
+        } else {
+            KeepDataSourceParams ds = Binder.get(env)
+                    .bind(KEEP_DATASOURCE, Bindable.of(KeepDataSourceParams.class)).orElse(null);
+            if (ds == null || ds.url() == null || ds.url().isBlank()) {
+                devLog.info("auKeep: no {} configured -- no audit consumer started", KEEP_DATASOURCE);
+            } else {
+                IKeepDirector dir = new AuditKeepDirector();
+                this.keepApplier = new KeepApplier(ds, new KeepSqlStore(dir.sqlGroup()), dir.kinds(), devLog);
+                rod.setWorker(keepApplier.applier());
+                devLog.info("auKeep: audit consumer applying to keep datasource (kinds={})", dir.kinds().size());
+            }
         }
-        IKeepDirector dir = new AuditKeepDirector();
-        this.keepApplier = new KeepApplier(ds, new KeepSqlStore(dir.sqlGroup()), dir.kinds(), devLog);
-        devLog.info("auKeep: audit consumer applying to keep datasource (kinds={})", dir.kinds().size());
-        return rods.consumer(EsqMsgConstants.BUS_KEY_AUDIT, Role.BROADCAST, keepApplier.applier());
+        return rod;
+    }
+
+    /** The keep datasource health source -- the lifecycle registrar registers it as the "keepDatasource" health
+     *  contributor (auKeep's consumer rod carries the BROKER health; this is the separate DB-side health). UP
+     *  when no keep is active (nothing to be down). */
+    public Supplier<TransportHealth> keepHealth() {
+        return keepApplier != null ? keepApplier::health : () -> TransportHealth.UP;
     }
 
     @PreDestroy

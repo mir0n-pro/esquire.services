@@ -14,35 +14,59 @@
  * 06/17/2026 mir0n  extends AXRod (the feed / pool engine lifted out); keeps the transport (publisher /
  *                   openConsumer / legTransport / consumeSelector); shutdown() closes the inbound consumer,
  *                   drains via super, then closes the outbound publisher; validate() requires a complete transport
+ * 06/21/2026 mir0n  publisher() / openConsumer() build the Publish / ConsumeSettings without the topic argument
+ * 06/22/2026 mir0n  start(name,devLog,worker) split into init(name,devLog) (CREATE the legs by role -- transmit
+ *                   iff transmits(), receive iff receives() -- the transport consumer created PAUSED) + start()
+ *                   (runEngine via super, then inbound.start() begins consumer delivery). transmits()/receives()
+ *                   added (legs from role). validate() now REQUIRES a complete transport (was optional). inbound
+ *                   is a TransportConsumer; role is CLIENT/SERVER/BOTH. import Role/XRodParams/BusTransport from
+ *                   messaging.catalog and RodEvent from messaging.
+ * 06/22/2026 mir0n  health() = worst of the transmit (outboundCloser) + receive (inbound) legs, each ignored
+ *                   when null (a leg the role does not run); outboundCloser retyped AutoCloseable -> RodPublisher.
+ * 06/23/2026 mir0n  init builds the AliveSession (heartbeat-interval / alive-timeout / alive-fail-fast); transmits()
+ *                   now always true (a broadcast CLIENT auto-opens a producer leg to self-heartbeat); health() =
+ *                   session.health(); buildKeepAlive()/onSessionMsg()/newCorrelationId() hooks; role protected
+ * 06/24/2026 mir0n  alive is OPT-IN: init builds the AliveSession only when the 'alive' param is set; health() =
+ *                   worst(transport indicator [worst of the transmit + receive legs], alive metric when enabled);
+ *                   transmits() role+alive-aware (a single-node CLIENT opens a producer leg only to self-heartbeat,
+ *                   i.e. when alive on); receives() = role==CLIENT (BOTH removed); init FAILS FAST when a receiving
+ *                   role hits a transport that cannot run the needed legs (supportsBothLegs / supportsConsume)
  */
 package pro.mir0n.esquire.messaging.xrod.impl;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
-import pro.mir0n.esquire.messaging.BusTransport;
-import pro.mir0n.esquire.messaging.Role;
-import pro.mir0n.esquire.messaging.XRodParams;
+import pro.mir0n.esquire.messaging.catalog.BusTransport;
+import pro.mir0n.esquire.messaging.catalog.Role;
+import pro.mir0n.esquire.messaging.catalog.XRodParams;
 import pro.mir0n.esquire.messaging.transport.BusIdentity;
 import pro.mir0n.esquire.messaging.transport.ConsumeSettings;
 import pro.mir0n.esquire.messaging.transport.ITransportProvider;
 import pro.mir0n.esquire.messaging.transport.PublishSettings;
+import pro.mir0n.esquire.messaging.transport.TransportConsumer;
+import pro.mir0n.esquire.messaging.transport.TransportHealth;
 import pro.mir0n.esquire.messaging.transport.TransportProviders;
-import pro.mir0n.esquire.messaging.xrod.RodEvent;
+import pro.mir0n.esquire.messaging.RodEvent;
 import pro.mir0n.esquire.messaging.xrod.RodPublisher;
 import pro.mir0n.esquire.messaging.xrod.RodTransportAdapter;
 
+import java.util.UUID;
 import java.util.function.Consumer;
 
 /** The default x-Rod transceiver: a transmitter/receiver over a transport. It adds the transport to the
- *  {@link AXRod} engine -- {@link #start} resolves the leg's provider and decides the shape (producer / consumer /
- *  in-process), then wires the engine. Non-final so a specialised x-rod (e.g. {@link XRodRR}, the Request/Response
- *  variant) can extend it. */
+ *  {@link AXRod} engine -- {@link #init} resolves the leg's provider, opens the publisher and/or creates the
+ *  consumer (paused) by role, and builds the engine; {@link #start} runs the engine and begins consumer
+ *  delivery. Non-final so a specialised x-rod (e.g. {@link XRodRR}, the Request/Response variant) can extend it. */
 public class XRod extends AXRod {
 
-    private Role role;                  // CLIENT/SERVER/BROADCAST -- picks the R&R node (request vs response)
+    private static final int     DEFAULT_HEARTBEAT_INTERVAL_SEC = 10;
+    private static final int     ALIVE_TIMEOUT_FACTOR           = 3;     // alive-timeout default = factor x heartbeat-interval
+    private static final boolean DEFAULT_ALIVE_FAIL_FAST        = true;  // provisional: a send error flips DOWN at once (default to LEARN)
+
+    protected Role role;               // CLIENT/SERVER -- picks the R&R node (request vs response); single-node ignores it
     private ObjectMapper objectMapper;  // for the RodEvent <-> wire codec
-    private AutoCloseable inbound;        // the open transport consumer this rod owns; closed on shutdown
-    private AutoCloseable outboundCloser; // the open transport publisher this rod owns; closed on shutdown
+    private TransportConsumer inbound;    // the transport consumer this rod owns (created paused, started in start()); closed on shutdown
+    private RodPublisher outboundCloser;  // the open transport publisher (RodPublisher) this rod owns; closed on shutdown
 
     /** No-arg: x-rods are class-name-resolved + reflectively instantiated, then {@link #configure}d. */
     public XRod() {
@@ -51,11 +75,13 @@ public class XRod extends AXRod {
     @Override
     public void validate(XRodParams params) {
         BusTransport t = params != null ? params.transport() : null;
-        if (t != null) {   // a transport is declared -> it must be complete (a single-node leg's whole wire)
-            require(t.provider() != null,    "transport.provider", params);
-            require(t.endpoint() != null,    "transport.endpoint", params);
-            require(t.destination() != null, "transport.destination", params);
-        }
+        // XRod IS the transport transceiver -> a complete transport is MANDATORY. A role-declared ref that
+        // resolves to no transport (e.g. a bogus bus-id whose only x-rod is a knobs-only service override) is a
+        // misconfiguration, not a silent no-op rod -- fail fast here, at the init phase, before any leg opens.
+        require(t != null, "transport", params);
+        require(t.provider() != null,    "transport.provider", params);
+        require(t.endpoint() != null,    "transport.endpoint", params);
+        require(t.destination() != null, "transport.destination", params);
     }
 
     @Override
@@ -66,48 +92,126 @@ public class XRod extends AXRod {
     }
 
     @Override
-    public synchronized void start(String name, Logger devLog, Consumer<RodEvent> worker) {
+    public synchronized void init(String name, Logger devLog) {
+        // CREATE the legs by ROLE (no traffic yet): a transmit leg (publisher) iff transmits(), a receive leg
+        // (listener) iff receives() -- so ONE rod can do both (an R&R CLIENT sends requests + listens for
+        // responses). The role picks the NODE per leg (R&R request/response) + the selector. The receive
+        // listener is created PAUSED here; the feed/pool are built but idle. start() (facade-driven) runs the
+        // engine and begins delivery. Single-node XRod: SERVER transmits, CLIENT receives.
         BusTransport transport = params != null ? params.transport() : null;
         boolean transportBacked = transport != null && objectMapper != null;
         ITransportProvider provider = transportBacked ? TransportProviders.resolve(transport.provider()) : null;
+        boolean doTransmit = transmits() && transportBacked;
+        boolean doReceive  = receives();   // build the receive pool; the transport consumer (below) also needs a transport
 
-        Consumer<RodEvent> outbound  = null;
-        Consumer<RodEvent> effWorker = worker;
-        if (worker == null) {
-            // PRODUCER (transmit only): a bus leg builds a publisher; no transport = no transmit leg (a no-op x-rod).
-            if (transportBacked) {
-                RodPublisher publisher = publisher(provider, legTransport(true, role));
-                this.outboundCloser = publisher;   // close its broker connection on shutdown
-                int pubPool = params.publisherPoolSizeOr(0);
-                if (pubPool > 0) {                 // pooled async publish: feed -> own pool -> publish
-                    outbound      = this::receive;
-                    effWorker     = publisher;
-                    this.poolSize = pubPool;
-                } else {
-                    outbound = publisher;
-                }
+        // FAIL-FAST on an impossible role over this transport, BEFORE any leg opens: a rod that RECEIVES needs a
+        // transport that can consume; if it ALSO runs a producer leg on the same node (a single-node CLIENT
+        // self-heartbeating with alive ON) it needs BOTH legs. A produce-only transport (e.g. the XADD-only Redis
+        // stream) can be a SERVER but never a CLIENT -- caught here as an unsupported config, not a silent
+        // never-delivering rod.
+        if (provider != null && doReceive) {
+            boolean ok = doTransmit ? provider.supportsBothLegs() : provider.supportsConsume();
+            if (!ok) {
+                throw new IllegalStateException("x-rod[" + name + "] bus-id=" + (params != null ? params.busId() : null)
+                        + ": transport '" + transport.provider() + "' cannot run "
+                        + (doTransmit ? "both legs (consume + the alive producer leg)" : "a receive leg")
+                        + " for a " + role + " role -- unsupported config");
             }
-        } else if (!transportBacked) {
-            // IN-PROCESS (no transport): feed -> own pool -> worker.
-            outbound = this::receive;
         }
-        // else: a bus CONSUMER -- the pool applies `worker`; the transport consumer is opened below.
 
-        startEngine(name, devLog, outbound, effWorker);
+        Consumer<RodEvent> outbound = null;
+        Consumer<RodEvent> poolJob  = doReceive ? this::applyWorker : null;   // the pool applies the live worker
+        if (doTransmit) {
+            RodPublisher publisher = publisher(provider, legTransport(true, role));
+            this.outboundCloser = publisher;            // close its broker connection on shutdown
+            int pubPool = params.publisherPoolSizeOr(0);
+            if (pubPool > 0 && !doReceive) {            // pooled async publish (tx-only -- a dual-leg rod's pool
+                outbound      = this::receive;          // runs the receive worker, so it publishes directly instead)
+                poolJob       = publisher;
+                this.poolSize = pubPool;
+            } else {
+                outbound = publisher;                   // direct publish on the feed thread
+            }
+        }
 
-        // open the transport consumer AFTER the engine runs (receive needs the pool); a producer-only transport idles.
-        if (transportBacked && worker != null && provider.supportsConsume()) {
+        buildEngine(name, devLog, outbound, poolJob);
+
+        // CREATE the transport consumer PAUSED (delivery begins at start(), after the pool is live); a
+        // transport-less receive (e.g. a test) builds only the pool -- events arrive via a direct receive() call.
+        if (doReceive && transportBacked) {   // supportsConsume() is guaranteed by the fail-fast above
             this.inbound = openConsumer(provider, legTransport(false, role));
-        } else if (transportBacked && worker != null && devLog != null) {
-            devLog.info("x-rod[{}]: transport '{}' is producer-only -- no consumer opened", name, transport.provider());
         }
+
+        // the ALIVE-PROTOCOL session is OPT-IN (the x-rod 'alive' param, default OFF; transport-agnostic). When
+        // ON, a producing leg ({@code doTransmit}) drives the heartbeat cadence (the keep-alive factory). When
+        // OFF the rod runs NO session -- no heartbeat -- and health() rests on the transport indicator alone.
+        if (params != null && params.aliveOr(false)) {
+            int heartbeatSec = params.heartbeatIntervalSecOr(DEFAULT_HEARTBEAT_INTERVAL_SEC);
+            int timeoutSec   = params.aliveTimeoutSecOr(heartbeatSec * ALIVE_TIMEOUT_FACTOR);
+            boolean failFast = params.aliveFailFastOr(DEFAULT_ALIVE_FAIL_FAST);
+            this.session = new AliveSession(heartbeatSec * 1000L, timeoutSec * 1000L, failFast,
+                    doTransmit ? this::buildKeepAlive : null, this::transmit, this::onSessionMsg, name, devLog);
+        }
+    }
+
+    @Override
+    public synchronized void start() {
+        super.start();              // RUN the engine (pool live, feed pumping)
+        if (inbound != null) {
+            inbound.start();        // begin transport delivery on the consumer created (paused) at init
+        }
+    }
+
+    /** This rod's health is the WORSE of two sources, each when applicable: the always-on TRANSPORT indicator
+     *  (the worst of the transmit + receive legs -- a leg absent, or a transport that cannot observe its
+     *  connection, reads UNKNOWN, which is benign), and -- ONLY when the ALIVE PROTOCOL is enabled -- the session
+     *  metric (producer-leg timestamp age + the fail-fast send outcome). The x-rod stays transport-agnostic: it
+     *  just takes the worse of the two. With no session, health is the transport indicator alone. */
+    @Override
+    public TransportHealth health() {
+        TransportHealth transmit = outboundCloser != null ? outboundCloser.health() : null;
+        TransportHealth receive  = inbound != null ? inbound.health() : null;
+        TransportHealth transport = TransportHealth.worst(transmit, receive);
+        return session != null ? TransportHealth.worst(transport, session.health()) : transport;
+    }
+
+    /** The idle keep-alive this rod emits (alive protocol): a broadcast producer sends an UNSOLICITED HeartBeat
+     *  (no TestReqID, a fresh correlation). {@link XRodRR} overrides this -- an R&R CLIENT sends a TestRequest. */
+    protected RodEvent buildKeepAlive() {
+        return RodEvent.heartbeat(newCorrelationId(), null, null);
+    }
+
+    /** Handle an arriving SESSION message internally (the session already advanced the consumer leg). Base /
+     *  broadcast: an unsolicited HeartBeat is liveness only -- nothing to answer. {@link XRodRR} overrides this --
+     *  an R&R SERVER echoes a TestRequest back as a HeartBeat. */
+    protected void onSessionMsg(RodEvent in) {
+    }
+
+    /** A fresh correlation id for a self-originated session message (unsolicited HeartBeat / TestRequest). */
+    protected static String newCorrelationId() {
+        return UUID.randomUUID().toString();
+    }
+
+    /** A SERVER transmits as its ROLE (its producer carries the application broadcasts). A single-node
+     *  CLIENT (consumer) opens a producer leg ONLY to self-heartbeat -- so ONLY when the ALIVE PROTOCOL is on;
+     *  with alive off a CLIENT is a pure consumer (no producer leg). {@link XRodRR} (R&R) always transmits -- a
+     *  producer leg is its ROLE there (CLIENT sends requests, SERVER sends responses), not just an alive add-on. */
+    protected boolean transmits() {
+        return role != Role.CLIENT || (params != null && params.aliveOr(false));
+    }
+
+    /** Whether this rod runs a RECEIVE leg, by role (gated at open() by a worker being set). Single-node:
+     *  CLIENT receives, SERVER does not. {@link XRodRR} (R&R) always receives -- the response node for
+     *  CLIENT, the request node for SERVER. */
+    protected boolean receives() {
+        return role == Role.CLIENT;
     }
 
     /** Build the transmit-leg outbound: encode each event to the wire envelope + hand it to the transport sink.
      *  The effective per-leg wire ({@code leg}) is what {@link #legTransport} resolved (base = the single leg;
      *  XRodRR = the produce node). */
     private RodPublisher publisher(ITransportProvider provider, BusTransport leg) {
-        PublishSettings ps = new PublishSettings(objectMapper, leg.endpoint(), leg.topicOrFalse(),
+        PublishSettings ps = new PublishSettings(objectMapper, leg.endpoint(),
                 identity, leg.paramsOrEmpty(), params.publisherPoolSizeOr(0));
         return RodTransportAdapter.publisher(provider, leg.destination(), ps);
     }
@@ -115,21 +219,21 @@ public class XRod extends AXRod {
     /** Open the receive-leg transport consumer: decode each message + receive it to this rod's pool. A CLIENT
      *  consuming responses filters to its own rod-id (so each instance only gets the responses it requested).
      *  The effective per-leg wire ({@code leg}) is what {@link #legTransport} resolved (XRodRR = the consume node). */
-    private AutoCloseable openConsumer(ITransportProvider provider, BusTransport leg) {
-        ConsumeSettings cs = new ConsumeSettings(objectMapper, leg.endpoint(), leg.topicOrFalse(),
+    private TransportConsumer openConsumer(ITransportProvider provider, BusTransport leg) {
+        ConsumeSettings cs = new ConsumeSettings(objectMapper, leg.endpoint(),
                 identity, leg.paramsOrEmpty(), params.concurrencyOr(1), consumeSelector(role, identity));
         return provider.openConsumer(leg.destination(), cs, RodTransportAdapter.handler(this::receive, objectMapper));
     }
 
     /** The effective wire for THIS leg (produce or consume). Base XRod is SINGLE-NODE -- always the leg's one
-     *  {@code transport} (broadcast / audit); it never touches request/response nodes. {@link XRodRR} overrides
+     *  {@code transport} (broadcast); it never touches request/response nodes. {@link XRodRR} overrides
      *  this to resolve the request vs response NODE by role and refine the base transport with it -- the two-node
      *  R&R behaviour lives there, not in the base x-rod. */
     protected BusTransport legTransport(boolean produce, Role role) {
         return params.transport();
     }
 
-    /** The JMS selector for this x-rod's receive node. Base XRod (broadcast / audit / single-node) consumes the
+    /** The JMS selector for this x-rod's receive node. Base XRod (broadcast / single-node) consumes the
      *  WHOLE node -- null. {@link XRodRR} overrides this for the role-driven R&R selector (CLIENT filters its own
      *  responses by rod-id; SERVER filters its service's requests by slot-id). A service-level broadcast
      *  selector is a future addition. */
@@ -151,7 +255,7 @@ public class XRod extends AXRod {
             // NOTE: a pooled-async publish (publisher-pool-size>0) drains here -- super.shutdown() awaits the pool.
             // A DIRECT producer (publisher-pool-size=0, the live legs) sends on the feed thread, which feed.shutdown()
             // only interrupts (BoundedQueueRig does not join its worker), so a send in-flight at shutdown can race
-            // this close. Accepted within the async-audit loss boundary (a clean-shutdown event may be lost); the
+            // this close. Accepted within the async-send loss boundary (a clean-shutdown event may be lost); the
             // feed is deliberately not drained here (see code-review.2).
             try {
                 outboundCloser.close();

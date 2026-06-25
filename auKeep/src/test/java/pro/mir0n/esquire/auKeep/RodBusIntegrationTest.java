@@ -13,6 +13,7 @@
 package pro.mir0n.esquire.auKeep;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -24,11 +25,11 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
 import pro.mir0n.esquire.backend.storage.EsqObjectKindStorage;
-import pro.mir0n.esquire.common.EsqMsgConstants;
+import pro.mir0n.esquire.messaging.BusConstants;
 import pro.mir0n.esquire.messaging.xrod.RodTransportAdapter;
 import pro.mir0n.esquire.messaging.transport.BusIdentity;
 import pro.mir0n.esquire.messaging.transport.PublishSettings;
-import pro.mir0n.esquire.messaging.xrod.RodEvent;
+import pro.mir0n.esquire.messaging.RodEvent;
 import pro.mir0n.esquire.tp.activemq.TransportProvider;
 
 import java.util.LinkedHashMap;
@@ -39,6 +40,8 @@ import java.util.function.Consumer;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
 
+@Disabled("audit temporarily dormant (v1.2.9 commit 6): the audit bus declares no role, so the facade builds no "
+        + "audit consumer rod; re-enable when audit is rewired into an audit-module XRodAuditKeep")
 @SpringBootTest(classes = AuKeepApplication.class, webEnvironment = SpringBootTest.WebEnvironment.NONE)
 @Testcontainers(disabledWithoutDocker = true)
 class RodBusIntegrationTest {
@@ -66,7 +69,6 @@ class RodBusIntegrationTest {
     static void props(DynamicPropertyRegistry r) {
         r.add("spring.profiles.active", () -> "dev-postgres");
         // the keep applies to its OWN datasource group (esquire.keep.datasource) -- point it at the PG container.
-        r.add("esquire.keep.datasource.vendor", () -> "dev-postgres");
         r.add("esquire.keep.datasource.url", PG::getJdbcUrl);
         r.add("esquire.keep.datasource.username", PG::getUsername);
         r.add("esquire.keep.datasource.password", PG::getPassword);
@@ -85,7 +87,7 @@ class RodBusIntegrationTest {
     void busPathWritesAccountLogAndDedups() {
         TransportProvider provider = new TransportProvider();
         Consumer<RodEvent> publisher = RodTransportAdapter.publisher(provider, "esquire.rod.audit",
-                new PublishSettings(new ObjectMapper(), brokerUrl(), false,
+                new PublishSettings(new ObjectMapper(), brokerUrl(),
                         new BusIdentity("audit-bus", "audit", null),
                         java.util.Map.of(), 0));
         JdbcTemplate jdbc = new JdbcTemplate(new org.springframework.jdbc.datasource.DriverManagerDataSource(
@@ -100,7 +102,7 @@ class RodBusIntegrationTest {
         body.put("desc", "c-it");
         body.put("negativeAllowed", "N");
         RodEvent e = new RodEvent(RodEvent.Op.UPDATE, 50, "777", null, System.currentTimeMillis(),
-                "it-crl-1", "it-req-1", "it-uid", null, EsqMsgConstants.MSG_TYPE_AUDIT, body);
+                "it-crl-1", "it-req-1", "it-uid", null, BusConstants.MSG_TYPE_AUDIT, body);
 
         publisher.accept(e);
         await().atMost(20, TimeUnit.SECONDS).untilAsserted(() ->

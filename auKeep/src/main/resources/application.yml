@@ -7,7 +7,7 @@ spring:
     problemdetails:
       enabled: true
   config:
-    import: "${ESQUIRE_TOPOLOGY_IMPORT:file:/etc/esquire/topology.yml}"
+    import: "${TOPOLOGY_IMPORT:optional:file:/etc/esquire/topology.yml}"
 # Bus TOPOLOGY (which buses exist + their transport) is the shared esquire-topology.yml imported above.
 # auKeep is the audit bus CONSUMER -- it drains the chosen bus audit sink (audit-c = AMQ / audit-ck = Kafka)
 # and applies it to the keep datasource (esquire.keep.datasource = the *_log tables) below. The in-process
@@ -15,8 +15,9 @@ spring:
 esquire:
   audit-bus:
     messaging-bus:
-      bus-id: ${ESQUIRE_AUDIT_BUS_ID:audit-c}
-      slot-id: ${ESQUIRE_AUDIT_SERVICE_ID:audit}
+      bus-id: ${AUDIT_BUS_ID:audit-c}
+      slot-id: ${AUDIT_SLOT_ID:audit}
+      role: CLIENT   # auKeep is the audit CLIENT: it drains the audit bus and applies the *_log
 
 logging:
   level:
@@ -35,6 +36,20 @@ logging:
   msg:
     log-path: ${MSG_LOG_PATH:logs/datakeep-msg.log}
 
+management:
+  endpoint:
+    health:
+      probes:
+        enabled: true               # expose the liveness + readiness health groups
+      show-details: always
+      # messagingBus + keepDatasource are registered DYNAMICALLY at ApplicationReadyEvent (after the
+      # membership-validating context refresh), so the startup check must be off.
+      validate-group-membership: false
+      group:
+        # bus (broker) + keep-DB health depool the pod (READINESS), never liveness.
+        readiness:
+          include: readinessState, messagingBus, keepDatasource
+
 ---
 spring:
   config:
@@ -44,16 +59,27 @@ spring:
 esquire:
   keep:
     datasource:
-      vendor: dev-postgres
       url: jdbc:postgresql://${DB_DATAKEEP_HOST:localhost}:${DB_DATAKEEP_PORT:5432}/${DB_DATAKEEP_NAME:esq2025}
       username: ${DB_DATAKEEP_USERNAME:esq2025}
       password: ${DB_DATAKEEP_PASSWORD:q}
       hikari:
         maximum-pool-size: 20
         minimum-idle: 10
-        connection-timeout: 30000
+        # connection-timeout caps how long getConnection (the health probe) cycles dead connections -- low so the
+        # keepDatasource health flips DOWN fast when the DB is gone (socketTimeout below bounds each attempt; this
+        # bounds the whole probe). Safe for the keep's sub-second applies (the pool is not contended).
+        connection-timeout: 5000
         max-lifetime: 1800000
         idle-timeout: 600000
+        # driver connection properties (Hikari forwards these to the JDBC driver, same as
+        # spring.datasource.hikari.data-source-properties): socketTimeout / connectTimeout (seconds) +
+        # tcpKeepAlive bound a socket read/connect so a vanished DB (a half-open socket on k8s) FAILS the
+        # keepDatasource health probe fast instead of hanging. Small values for an easy kill-the-DB diagnostic;
+        # safely above the sub-second *_log applies.
+        data-source-properties:
+          socketTimeout: 5
+          connectTimeout: 5
+          tcpKeepAlive: true
 server:
   port: ${DATAKEEP_PORT:3007}
 
@@ -65,7 +91,6 @@ spring:
 esquire:
   keep:
     datasource:
-      vendor: dev-oracle
       url: jdbc:oracle:thin:@//${DB_DATAKEEP_HOST:localhost}:${DB_DATAKEEP_PORT:1521}/${DB_DATAKEEP_NAME:MIR0N}
       username: ${DB_DATAKEEP_USERNAME:esq2025}
       password: ${DB_DATAKEEP_PASSWORD:q}

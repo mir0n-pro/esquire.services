@@ -19,6 +19,8 @@
  * 06/04/2026 mir0n  PD_UID ("uid") added: MDC key for the acting user (unified request context)
  * 06/05/2026 mir0n  KIND_ORG_PAR (972) / KIND_USR_PAR (970) added: synthetic x-Rod routing kinds for
  *                   parameter sub-entity audit events (route to the *_par_log writer; param et_pk rides the body)
+ * 06/23/2026 mir0n  BUS_KEY_AUDIT/KC/ENTITY, TEXT_* (id/kind/parentId/path/name/desc/status/deleted/ccy),
+ *                   FLAG_OPEN, CCY_DEFAULT moved here from common.EsqMsgConstants (the non-wire app constants)
  */
 package pro.mir0n.esquire.common;
 
@@ -72,5 +74,26 @@ public class EsqConstants {
     public static final String  SUBENTITY_PERSON = "person";
     public static final String  SUBENTITY_ADDRESS = "addr";
     public static final String  SUBENTITY_ADDRESS2 = "bizaddr";
+
+    // --- logical bus KEYS a service uses to look up its ref (esquire.<key>.messaging-bus -> {bus-id, slot-id}).
+    //     The bus-id / slot-id VALUES are configurable (the topology + refs), NOT hardcoded here. ---
+    public static final String BUS_KEY_AUDIT            = "audit-bus";
+    public static final String BUS_KEY_KC               = "kc-bus";
+    public static final String BUS_KEY_ENTITY           = "entity-bus";
+
+    // --- Text JSON field names (entity state snapshot fields) ---
+    public static final String TEXT_ID        = "id";
+    public static final String TEXT_KIND      = "kind";
+    public static final String TEXT_PARENT_ID = "parentId";
+    public static final String TEXT_PATH      = "path";
+    public static final String TEXT_NAME      = "name";
+    public static final String TEXT_DESC      = "desc";
+    public static final String TEXT_STATUS    = "status";
+    public static final String TEXT_DELETED   = "deleted";
+    public static final String TEXT_CCY       = "ccy";
+
+    // --- Default field values ---
+    public static final String FLAG_OPEN      = "O";
+    public static final String CCY_DEFAULT    = "USD";
 
 }

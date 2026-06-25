@@ -1,5 +1,55 @@
 Esquire kcMaster Microservice
 
+06/24/2026 mir0n  v1.2.9 -- EsqMsgConstants references repointed
+KcMasterApplication
+  - EsqMsgConstants app constants -> common.EsqConstants (references repointed)
+messaging.EntityBusAdapter
+  - EsqMsgConstants app constants -> common.EsqConstants (references repointed)
+messaging.KcBusAdapter
+  - EsqMsgConstants references -> messaging.BusConstants (wire) + common.EsqConstants (app)
+messaging.KcRequestHandler
+  - EsqMsgConstants references -> messaging.BusConstants (wire) + common.EsqConstants (app)
+
+06/22/2026 mir0n  messaging-bus health indicator + readiness/liveness
+KcMasterApplication
+  - the MessagingBusLifecycleRegistrar, at ApplicationReadyEvent, registers a BusHealthIndicator (the bus
+    facade handed in explicitly) into the Actuator HealthContributorRegistry programmatically -- no @Bean --
+    exposing the bus connection at /actuator/health
+application.yml
+  - added a management block: health probes.enabled=true, show-details=always, validate-group-membership=false,
+    and a readiness group including readinessState + messagingBus
+k8s chart esquire-kcmaster/templates/deployment.yaml
+  - split the probes: readinessProbe -> /actuator/health/readiness, livenessProbe -> /actuator/health/liveness
+
+06/22/2026 mir0n  messaging-bus: BusAdapters + lifecycle registrar
+KcMasterApplication
+  - MessagingBusLifecycleRegistrar inner class (ApplicationListener<ApplicationEvent>, Ordered.LOWEST_PRECEDENCE),
+    registered; ApplicationEnvironmentPreparedEvent -> MessagingBus.init(env, {BUS_KEY_KC, BUS_KEY_ENTITY}),
+    ApplicationReadyEvent -> start(), ContextClosedEvent -> close() (no roles-Ready listener -- the registrar
+    owns start)
+messaging.KcBusAdapter  (new, was KcRequestConsumer + KcResponsePublisher)
+  - one kc-SERVER rod (MessagingBus.getXRod(BUS_KEY_KC)), both legs: onRodEvent() set as the rod worker receives
+    a URQ (no selector -- shared work), converts the body to KcSyncRequest, dispatches to KcRequestHandler,
+    publishSuccess() transmits URS / publishFailure() transmits URR (RFC-9457 error + original request) with the
+    requester rod-id echoed; setWorker + transmit(null) probe the legs
+  - KcRequestConsumer + KcResponsePublisher deleted
+messaging.EntityBusAdapter  (new, was KcEntityBroadcastConsumer)
+  - entity-CLIENT receive worker (MessagingBus.getXRod(BUS_KEY_ENTITY), receive-only); onRodEvent() handles a
+    move (Op.UPDATE_PATH), parks the new path in KcPathBuffer when the KC user does not exist yet (race-8c
+    safety net), else stays passive (the URQ handler owns existing users)
+  - KcEntityBroadcastConsumer deleted
+application.yml
+  - kc bus ref role: SERVER; entity bus ref role: CLIENT; the kcmaster.entity-broadcast-bus /
+    kcmaster.kc-request-bus consumer.enabled toggles removed
+
+06/21/2026 mir0n  v1.2.9 -- topology import optional; *_SLOT_ID
+application.yml
+  - spring.config.import -> optional:file:... (the topology import is now optional); KC_SERVICE_ID / ENTITY_SERVICE_ID -> *_SLOT_ID
+
+06/21/2026 mir0n  v1.2.9 -- topology import env var renamed
+application.yml
+  - ESQUIRE_TOPOLOGY_IMPORT -> TOPOLOGY_IMPORT
+
 06/15/2026 mir0n  v1.2.8 -- KC request/response + broadcast consumers migrated onto the x-Rod catalog
 messaging.KcRequestConsumer
   - @JmsListener(Message) onMessage replaced by onRodEvent(RodEvent); fields read off the RodEvent

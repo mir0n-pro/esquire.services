@@ -1,5 +1,67 @@
 Esquire pacMan Microservice
 
+06/24/2026 mir0n  v1.2.9 -- EsqMsgConstants references repointed
+PacManApplication
+  - EsqMsgConstants app constants -> common.EsqConstants (references repointed)
+acct.service.AcctTransactionProcessorSingle
+  - EsqMsgConstants app constants -> common.EsqConstants (references repointed)
+audit.AuditConfig
+  - EsqMsgConstants app constants -> common.EsqConstants (references repointed)
+messaging.EntityBusAdapter
+  - EsqMsgConstants references -> messaging.BusConstants (wire) + common.EsqConstants (app)
+service.impl.PacManService
+  - EsqMsgConstants references -> messaging.BusConstants (wire) + common.EsqConstants (app)
+
+06/22/2026 mir0n  messaging-bus health indicator + readiness/liveness
+PacManApplication
+  - the MessagingBusLifecycleRegistrar, at ApplicationReadyEvent, registers a BusHealthIndicator (the bus
+    facade handed in explicitly) into the Actuator HealthContributorRegistry programmatically -- no @Bean --
+    exposing the bus connection at /actuator/health
+application.yml
+  - added a management block: health probes.enabled=true, show-details=always, validate-group-membership=false,
+    and a readiness group including readinessState + messagingBus
+k8s chart esquire-pacman/templates/deployment.yaml
+  - split the probes: readinessProbe -> /actuator/health/readiness, livenessProbe -> /actuator/health/liveness
+
+06/22/2026 mir0n  messaging-bus: EntityBusAdapter + lifecycle registrar
+messaging.EntityBusAdapter
+  - new (replaces messaging.EsqEntityBroadcastPublisher): the pacMan end of the entity bus (SERVER) -- the
+    transmit leg onto the entity-broadcast TOPIC
+  - ctor pulls its rod via MessagingBus.getInstance().getXRod(BUS_KEY_ENTITY) and probes the transmit leg via
+    transmit(null); publish() builds a RodEvent (msg-type UE) and transmits it post-commit
+PacManApplication
+  - the 3 bus listener inner classes collapsed into ONE MessagingBusLifecycleRegistrar (Ordered
+    LOWEST_PRECEDENCE, registered last): env-prepared -> bus.init(env, {BUS_KEY_ENTITY, BUS_KEY_AUDIT});
+    ready -> bus.start(); context-closed -> bus.close()
+  - the ReadyListener keeps only the roles load
+service.impl.PacManService
+  - broadcastPublisher retyped EsqEntityBroadcastPublisher -> EntityBusAdapter; RodEvent import
+    messaging.xrod.RodEvent -> messaging.RodEvent (package move)
+acct.service.AcctTransactionProcessorSingle
+  - RodEvent import messaging.xrod.RodEvent -> messaging.RodEvent (package move)
+audit.AuditConfig
+  - the audit @Bean wraps MessagingBus.getInstance().getXRod(BUS_KEY_AUDIT) in AuditBusBridge; the per-leg
+    sink-selection logic + the service-DataSource inject removed (the keep owns its datasource, the leg the sink)
+application.yml
+  - bus refs carry a role: entity-bus SERVER, audit-bus SERVER; audit-b leg rod-class XRodInProcessKeep +
+    director AuditKeepDirector; the keep datasource "shared" knob dropped (dedicated *_log pool from url/hikari)
+
+06/21/2026 mir0n  v1.2.9 -- audit leg disables (not crashes) on an unknown bus; topology import optional; SLOT_ID
+audit.AuditConfig
+  - resolves the audit leg via catalog.find() (was the strict resolve()), so an unknown audit bus-id disables
+    the producer (XRodDisabled) instead of crashing at boot
+application.yml
+  - spring.config.import -> optional:file:... (the topology import is now optional); the bus-ref slot-id env
+    vars (*_SERVICE_ID) renamed -> *_SLOT_ID
+
+06/21/2026 mir0n  v1.2.9 -- audit keep: datasource sub-block + URL-derived dialect
+audit.AuditConfig
+  - binds the keep datasource from the leg's "datasource" sub-block (was "log-db"); the in-process keep's
+    dialect comes from spring.datasource.url (shared) instead of the spring.profiles.active label
+application.yml
+  - the in-process audit-b leg's log-db block renamed to datasource (vendor entry dropped); env vars renamed
+    ESQUIRE_AUDIT_* -> AUDIT_*, ESQUIRE_AUDIT_LOG_DB_* -> DB_DATAKEEP_*, ESQUIRE_TOPOLOGY_IMPORT -> TOPOLOGY_IMPORT
+
 06/18/2026 mir0n  v1.2.8 -- Messaging Bus: audit module left common; leg-selected keep sink
 audit.AuditConfig
   - injects the service DataSource; the audit sink is selected from the leg: log-db.shared=true -> the

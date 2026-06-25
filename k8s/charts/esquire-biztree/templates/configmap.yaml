@@ -7,7 +7,7 @@ metadata:
 data:
   SPRING_PROFILES_ACTIVE:             {{ .Values.springProfilesActive | default "" | quote }}
   BIZTREE_PORT:                       {{ .Values.service.port | quote }}
-  ESQUIRE_TOPOLOGY_IMPORT:            {{ .Values.topologyImport | quote }}
+  TOPOLOGY_IMPORT:            {{ .Values.topologyImport | quote }}
   # --- datasource (password -> Secret, injected as env in the deployment) ---
   DB_BIZTREE_VENDOR:                  {{ .Values.db.vendor | quote }}
   DB_BIZTREE_HOST:                    {{ .Values.db.host | quote }}
@@ -23,9 +23,8 @@ data:
   BIZTREE_H2_POOL_IDLE_TIMEOUT:       {{ .Values.h2.poolIdleTimeout | quote }}
   BIZTREE_H2_POOL_MAX_LIFETIME:       {{ .Values.h2.poolMaxLifetime | quote }}
   # --- entity-bus ref (CONSUMER: drains the entity broadcast) ---
-  BIZTREE_MESSAGING_CONSUMER_ENABLED: {{ .Values.messaging.consumerEnabled | quote }}
   ENTITY_BUS_ID:                      {{ .Values.entity.busId | quote }}
-  ENTITY_SERVICE_ID:                  {{ .Values.entity.serviceId | quote }}
+  ENTITY_SLOT_ID:                  {{ .Values.entity.slotId | quote }}
   ENTITY_BROADCAST_POOL_SIZE:         {{ .Values.entity.broadcastPoolSize | quote }}
   ENTITY_BROADCAST_CONCURRENCY:       {{ .Values.entity.broadcastConcurrency | quote }}
   # --- Taijitu director + night-watch sweep (Java @Value relaxed binding) ---

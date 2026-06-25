@@ -11,6 +11,7 @@
  *                   map) onto the dialect-keyed SQL (KeepSqlStore) via NamedParameterJdbcTemplate. One INSERT/MERGE
  *                   per call, on the keep's worker thread. A param the body lacks binds NULL (e.g. a DELETE). The
  *                   writer knows nothing of any specific use -- the SQL keys + statements are the deployment's data.
+ * 06/22/2026 mir0n  RodEvent import moved to messaging.xrod.
  */
 package pro.mir0n.esquire.dataKeep.keep;
 
@@ -18,7 +19,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.namedparam.AbstractSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
-import pro.mir0n.esquire.messaging.xrod.RodEvent;
+import pro.mir0n.esquire.messaging.RodEvent;
 
 import javax.sql.DataSource;
 import java.sql.Timestamp;

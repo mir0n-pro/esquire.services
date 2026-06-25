@@ -2,7 +2,7 @@
  *  Esquire frameworks (tm)
  *  EnyMan service
  *
- *  Copyright(c) 2001, 2025 mir0n&co www.mir0n.me
+ *  Copyright(c) 2001, 2026 mir0n&co www.mir0n.pro
  *  mailto:mir0n.the.programmer@gmail.com
  *
  *  History:
@@ -15,6 +15,13 @@
  * 03/10/2026 mir0n  scanBasePackages: backend.service, backend.security, backend.exception added
  * 03/21/2026 mir0n  devLog added; log.debug→devLog.debug
  * 04/02/2026 mir0n  added scan for pro.mir0n.esquire.enyMan.jpa.*
+ * 06/22/2026 mir0n  messaging-bus two-phase lifecycle: the 3 separate bus listeners collapsed into one
+ *                   MessagingBusLifecycleRegistrar (ApplicationListener<ApplicationEvent> + Ordered.LOWEST_PRECEDENCE)
+ *                   registered last; env-prepared -> bus.init(env, {entity,kc,audit}), ready -> bus.start(),
+ *                   context-closed -> bus.close(); ReadyListener keeps only the roles load.
+ * 06/22/2026 mir0n  registrar registers a BusHealthIndicator (bus facade handed in) into the Actuator
+ *                   HealthContributorRegistry programmatically at ApplicationReadyEvent (no @Bean) -> /actuator/health
+ * 06/23/2026 mir0n  EsqMsgConstants app constants -> common.EsqConstants (references repointed)
  */
 
 package pro.mir0n.esquire.enyMan;
@@ -22,6 +29,10 @@ package pro.mir0n.esquire.enyMan;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.domain.EntityScan;
+import org.springframework.boot.context.event.ApplicationEnvironmentPreparedEvent;
+import org.springframework.context.ApplicationEvent;
+import org.springframework.context.event.ContextClosedEvent;
+import org.springframework.core.Ordered;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 import pro.mir0n.esquire.backend.storage.EsqEntityDictionaryStorage;
 import org.springframework.boot.SpringApplication;
@@ -33,6 +44,9 @@ import pro.mir0n.esquire.backend.storage.EsqObjectKindStorage;
 import pro.mir0n.esquire.backend.storage.EsqRolesStorage;
 import pro.mir0n.esquire.backend.storage.roles.JpaRolesRepository;
 import pro.mir0n.esquire.backend.validator.ValidatorFactory;
+import pro.mir0n.esquire.common.EsqConstants;
+import pro.mir0n.esquire.messaging.BusHealthIndicator;
+import pro.mir0n.esquire.messaging.MessagingBus;
 
 @Slf4j
 @SpringBootApplication(scanBasePackages = {
@@ -55,9 +69,11 @@ public class EnyManApplication {
 
     public static void main(String[] args) {
         SpringApplication app = new SpringApplication( EnyManApplication.class);
-        // Register the listener with the SpringApplication instance
         app.addListeners(new EnyManApplicationStartingListener());
         app.addListeners(new EnyManApplicationReadyListener());
+        // the bus lifecycle (build/start/close) in one call -- registered LAST so start() runs after roles load.
+        app.addListeners(new MessagingBusLifecycleRegistrar());
+
         app.run(args);
     }
 
@@ -96,4 +112,29 @@ public class EnyManApplication {
         }
     }
 
+
+    public static class MessagingBusLifecycleRegistrar implements ApplicationListener<ApplicationEvent>, Ordered {
+
+        @Override
+        public int getOrder() {
+            return Ordered.LOWEST_PRECEDENCE;   // each bus phase runs after the service's same-event listeners
+        }
+
+        @Override
+        public void onApplicationEvent(ApplicationEvent event) {
+            MessagingBus bus = MessagingBus.getInstance();
+            if (event instanceof ApplicationEnvironmentPreparedEvent e) {
+                bus.init(e.getEnvironment(), new String[]{EsqConstants.BUS_KEY_ENTITY, EsqConstants.BUS_KEY_KC, EsqConstants.BUS_KEY_AUDIT});
+                devLog.debug("MessagingBus initiated (rods built, paused)");
+            } else if (event instanceof ApplicationReadyEvent e) {
+                bus.start();                             // run them -- traffic flows only from here
+                devLog.debug("MessagingBus started (rods running)");
+                BusHealthIndicator.register(e.getApplicationContext(), bus);   // forward bus connection health to /actuator/health (no @Bean)
+                devLog.debug("MessagingBus health indicator registered");
+            } else if (event instanceof ContextClosedEvent) {
+                bus.close();                             // drain in-flight + close transport
+                devLog.debug("MessagingBus closed (rods shut down)");
+            }
+        }
+    }
 }

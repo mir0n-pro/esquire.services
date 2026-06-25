@@ -11,17 +11,20 @@
  *                   context (correlation / request / uid), builds the RodEvent and transmit()s it on the audit
  *                   x-rod. With no active transaction it transmits immediately. The x-rod stays pure transmit /
  *                   receive -- the transactional ordering and the entity->event build live HERE (lifted out of XRod).
+ * 06/22/2026 mir0n  IXRod / RodEvent imports moved to messaging.xrod; the audit x-rod passed in is the one the
+ *                   facade builds (MessagingBus.getXRod).
+ * 06/23/2026 mir0n  EsqMsgConstants wire constants -> messaging.BusConstants (references repointed)
  */
 package pro.mir0n.esquire.audit;
 
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
-import pro.mir0n.esquire.common.EsqMsgConstants;
+import pro.mir0n.esquire.messaging.BusConstants;
 import pro.mir0n.esquire.backend.jpa.IMappable;
 import pro.mir0n.esquire.backend.service.EsqRequestContext;
 import pro.mir0n.esquire.backend.service.RequestContextUtils;
-import pro.mir0n.esquire.messaging.xrod.IXRod;
-import pro.mir0n.esquire.messaging.xrod.RodEvent;
+import pro.mir0n.esquire.messaging.IXRod;
+import pro.mir0n.esquire.messaging.RodEvent;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -73,7 +76,7 @@ public final class AuditBusBridge {
         if (xrod.isEnabled()) {
             if (!TransactionSynchronizationManager.isSynchronizationActive()) {
                 xrod.transmit(new RodEvent(op, kind, entityId, subId, System.currentTimeMillis(),
-                        crl(), req(), uid(), null, EsqMsgConstants.MSG_TYPE_AUDIT, normalizeBody(op, body)));
+                        crl(), req(), uid(), null, BusConstants.MSG_TYPE_AUDIT, normalizeBody(op, body)));
             } else {
                 List<Entry> buf = buffer.get();
                 if (buf == null) {
@@ -121,7 +124,7 @@ public final class AuditBusBridge {
                 String uid = uid();
                 for (Entry e : buf) {
                     xrod.transmit(new RodEvent(e.op(), e.kind(), e.entityId(), e.subId(), actionTime,
-                            crl, req, uid, null, EsqMsgConstants.MSG_TYPE_AUDIT, e.body()));
+                            crl, req, uid, null, BusConstants.MSG_TYPE_AUDIT, e.body()));
                 }
             }
         }

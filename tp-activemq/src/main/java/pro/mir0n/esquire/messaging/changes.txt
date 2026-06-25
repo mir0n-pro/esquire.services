@@ -1,29 +1,8 @@
 Esquire messaging helper classes
 
-06/17/2026 mir0n  v1.2.8 -- Messaging Bus cleanup: closeable publisher
+06/24/2026 mir0n  v1.2.9 -- EsqMsgConstants references repointed
 tp.activemq.TransportProvider
-  - openPublisher returns a TransportPublisher (close() destroys the CachingConnectionFactory) instead of a
-    bare Consumer<TransportMessage>; the ccf.setClientID(...) block removed (a client id is a
-    transport.params.jms.clientID entry now)
-
-06/15/2026 mir0n  v1.2.8 -- ActiveMQ transport provider module
-tp.activemq.TransportProvider  (new)
-  - ActiveMQ implementation of the transport-provider SPI; resolved by name (reflectively instantiated,
-    no Spring bean) and owns its own audit broker connection.
-  - openPublisher builds its own JmsTemplate over a CachingConnectionFactory (poolSize>0 -> useAsyncSend
-    plus sessionCacheSize); send() stamps appl-msg-id + sending-time and writes the header bag via
-    messaging.jms.Utils.setProps.
-  - openConsumer runs a programmatic DefaultMessageListenerContainer (selector, concurrency, topic/queue
-    from settings) lifting every JMS property into a neutral TransportMessage header map.
-  - withParams appends the leg's transport.params verbatim to the broker URI; readProps lifts all JMS
-    properties into the header map.
-tp.activemq.TpActiveMqAutoConfigFilter  (new)
-  - AutoConfigurationImportFilter suppressing Boot's ActiveMQAutoConfiguration + JmsAutoConfiguration so a
-    service that ships this provider stays transport-agnostic.
-pom.xml  (new)
-  - esquire-tp-activemq module; depends on esquire-common + spring-boot-starter-activemq.
-META-INF/spring.factories  (new)
-  - registers TpActiveMqAutoConfigFilter as an AutoConfigurationImportFilter.
+  - EsqMsgConstants wire constants -> messaging.BusConstants (references repointed)
 
 04/06/2026 mir0n  JMS Utils: sorted key output
 messaging.jms.Utils

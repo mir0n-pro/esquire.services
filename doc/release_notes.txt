@@ -1,6 +1,160 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v1.2.9-2606.2417  v1.2.9 -- hardening: the bus keep-alive is now optional with a clearer health and role model; the bus wire constants moved into the messaging module
+    :Feature:     the bus keep-alive (heartbeat) is an opt-in per-leg setting
+    :Feature:     a Redis or Kafka leg wired as a consumer now fails to start with a clear message
+    :Feature:     a keep-alive on Redis/Kafka stays out of the audit log -- a separate ".admin" stream/topic carries it
+    :Refactoring: the bus message field names and type codes (the wire protocol) moved out of the shared common
+                  library into the messaging module
+    :Refactoring: the unused BOTH role was removed -- a leg is a client or a server
+    :Doc:         doc\services.configuring.md
+                  doc\Esquire.MessagingBus.md
+                  doc\Esquire.MessagingBus.ContinuingDev.md
+                  doc\Message.Structure.md 
+                  doc\img\messaging-bus-classes.svg
+    Components:   common,
+                  messaging,
+                  audit,
+                  enyMan,
+                  pacMan,
+                  keySmith,
+                  kcMaster,
+                  bizTree,
+                  auKeep,
+                  tp-activemq,
+                  tp-redis,
+                  tp-kafka
+
+
+v1.2.9-2606.2318  v1.2.9 -- hardening: the messaging-bus connection sends a regular keep-alive so an outage is caught on every transport
+    :Feature:     each messaging-bus connection now suppports keep-alive protocol
+    :Refactoring: the keep-alive runs from ONE shared timer
+    :Fix:         the keep database health check now reports the database DOWN within a few seconds
+    :Config:      the OKE deploy now installs the shared messaging-bus topology (was missing); dead legacy broker fields dropped from the OKE values
+    :Doc:         doc\Esquire.MessagingBus.md
+                  doc\Esquire.MessagingBus.ContinuingDev.md
+                  doc\Message.Structure.md
+                  doc\Messaging.md
+                  doc\services.configuring.md
+                  doc\img\messaging-bus-classes.svg
+    Components:   common,
+                  messaging,
+                  dataKeep,
+                  auKeep,
+                  oke
+
+v1.2.9-2606.2223  v1.2.9 -- hardening: each service reports its messaging-bus connection on its health check (feature)
+    :Feature:     each service now reports whether its messaging-bus connection is up on the standard health check;
+    :Feature:     the health check is split into "ready to serve" and "still alive"
+    :Feature:     auKeep additionally reports the keep database (the apply side) on its "ready to serve" check
+    :Config:      each service application.yml gained a management block (health probes, a readiness group);
+                  the k8s charts point the readiness and liveness probes at the split health paths
+    :Config:      the shared messaging topology now reaches ActiveMQ through a failover endpoint with a 3s
+                  connect timeout, so a slow broker fails fast instead of hanging
+    :Doc:         doc\Esquire.MessagingBus.md
+                  doc\services.configuring.md
+                  doc\Messaging.md
+    Components:   messaging,
+                  dataKeep,
+                  tp-activemq,
+                  tp-kafka,
+                  tp-redis,
+                  enyMan,
+                  pacMan,
+                  keySmith,
+                  kcMaster,
+                  bizTree,
+                  auKeep,
+                  compose,
+                  k8s
+
+v1.2.9-2606.2220  v1.2.9 -- hardening: Messaging Bus framework -- a single Facade API + a service lifecycle (refactoring)
+    :Refactoring: introduces the Messaging Bus framework's Facade API
+                  and a defined framework lifecycle the facade drives
+    :Refactoring: each service's two old per-channel handlers (one to send, one to receive) fold into a single
+                  adapter per channel
+    :Fix:         a service that names a bus it does not actually have now fails fast at boot with a clear error
+                  instead of silently doing nothing; to run without a bus it must say so on purpose
+    :Config:      a new "audit-off" bus turns the bus audit off explicitly 
+    :Doc:         doc\Esquire.MessagingBus.md
+                  doc\services.configuring.md
+    Components:   messaging,
+                  dataKeep,
+                  audit,
+                  auKeep,
+                  enyMan,
+                  pacMan,
+                  keySmith,
+                  kcMaster,
+                  bizTree,
+                  tp-activemq,
+                  tp-kafka,
+                  tp-redis
+
+v1.2.9-2606.2118  v1.2.9 -- hardening: messaging-bus topology validation; a misconfigured bus disables, not crashes
+    :Refactoring: the bus catalog is checked at startup -- a duplicate bus / slot / network-node id fails fast
+                  with a clear error; a bus key that points at nothing now disables that leg (with a one-line
+                  notice in the log) instead of crashing the service at boot
+    :Feature:     a service's own bus definitions now layer onto the shared topology by id 
+    :Config:      the shared-topology import is now optional (a service may define its buses inline, or use none)
+    :Config:      the bus slot-id environment variables renamed -- AUDIT_SERVICE_ID / KC_SERVICE_ID /
+                  ENTITY_SERVICE_ID -> AUDIT_SLOT_ID / KC_SLOT_ID / ENTITY_SLOT_ID (a bus leg is a "slot")
+    :Doc:         doc\Esquire.MessagingBus.md
+                  doc\services.configuring.md
+    Components:   messaging,
+                  enyMan,
+                  pacMan,
+                  keySmith,
+                  auKeep,
+                  bizTree,
+                  kcMaster,
+                  compose,
+                  k8s
+
+v1.2.9-2606.2114  v1.2.9 -- hardening: dataKeep reads its SQL dialect from the database URL; audit config keys tidied
+    :Refactoring: the keep figures out its SQL dialect from the database URL (jdbc:postgresql.. -> Postgres,
+                  jdbc:oracle.. -> Oracle); the separate vendor setting it used before is removed
+    :Config:      the in-process audit datastore block renamed: log-db -> datasource (its vendor entry dropped)
+    :Config:      audit and topology env vars renamed -- ESQUIRE_AUDIT_* -> AUDIT_*,
+                  ESQUIRE_AUDIT_LOG_DB_* -> DB_DATAKEEP_*, ESQUIRE_TOPOLOGY_IMPORT -> TOPOLOGY_IMPORT
+                  (application.yml, compose, k8s charts, and the shared topology)
+    :Doc:         doc\services.configuring.md
+                  doc\Esquire.MessagingBus.md
+                  doc\Esquire.AuditLoggingStack.md
+                  doc\Messaging.md
+    Components:   dataKeep,
+                  enyMan,
+                  pacMan,
+                  keySmith,
+                  auKeep,
+                  messaging,
+                  compose,
+                  k8s
+
+v1.2.9-2606.2111  v1.2.9 -- hardening: the audit/broadcast message decoder shrugs off a bad field, refuses an unknown format
+    :Fix:         one malformed field in an incoming bus message no longer discards the whole message -- the bad
+                  field falls back to a default and the message is still processed
+    :Fix:         a message stamped with a different (newer) wire-format version is refused outright instead of
+                  being silently mis-read
+    Components:   messaging
+
+v1.2.9-2606.2110  v1.2.9 -- schema dictionary synced to the db.seed schema changes
+    :Doc:         doc\DatabaseDictionary.md -- entity created-timestamp columns (ORG/USR/ACC_CREATED_TS) and
+                  the optional, apply-on-demand *_log *_ACTION_TS indexes added; mirrors the v1.2.9 db.seed change
+
+v1.2.9-2606.2108  v1.2.9 -- hardening: activemq "pubSubDomain" instead of "topic"
+    :Refactoring: "topic" moved under vendor params as "pubSubDomain"  (ActiveMQ specific)
+    :Config:      use ActiveMQ pubSubDomain instead of topic
+    :Doc:         doc\services.configuring.md
+                  doc\Esquire.MessagingBus.md
+                  doc\Esquire.AuditLoggingStack.md
+    Components:   messaging,
+                  tp-activemq,
+                  compose,
+                  k8s,
+                  oke
+
 v1.2.8-2606.1917  v1.2.8 -- finalization: plural bus-config keys, host-Postgres dev stack, documentation
     :Refactoring: the messaging-bus list-config keys are now plural -- a bus's legs are `slots` (was `slot`) and
                   a request/response leg's network nodes are `nodes` (was `node`)

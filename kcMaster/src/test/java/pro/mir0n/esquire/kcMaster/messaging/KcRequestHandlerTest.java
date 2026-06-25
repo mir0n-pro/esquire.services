@@ -8,7 +8,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import pro.mir0n.esquire.common.EsqConstants;
-import pro.mir0n.esquire.common.EsqMsgConstants;
+import pro.mir0n.esquire.messaging.BusConstants;
 import pro.mir0n.esquire.kcMaster.service.IKcIdentityService;
 
 import java.util.List;
@@ -74,7 +74,7 @@ class KcRequestHandlerTest {
     @Test
     @DisplayName("CREATE: delegates to createUser with loginId and email")
     void create_delegatesWithLoginIdAndEmail() {
-        handler.handle(EsqMsgConstants.EVENT_CREATE, buildCreateReq(), "cid1", "rid1");
+        handler.handle(BusConstants.EVENT_CREATE, buildCreateReq(), "cid1", "rid1");
 
         verify(kcIdentityService).createUser(
                 eq("alice@example.com"),
@@ -93,7 +93,7 @@ class KcRequestHandlerTest {
     @Test
     @DisplayName("CREATE: attributes contain esq_uid and esq_rootpath")
     void create_attributesContainEsqUidAndRootPath() {
-        handler.handle(EsqMsgConstants.EVENT_CREATE, buildCreateReq(), "cid1", "rid1");
+        handler.handle(BusConstants.EVENT_CREATE, buildCreateReq(), "cid1", "rid1");
 
         @SuppressWarnings("unchecked")
         ArgumentCaptor<Map<String, List<String>>> attrCaptor = ArgumentCaptor.forClass(Map.class);
@@ -113,7 +113,7 @@ class KcRequestHandlerTest {
     @Test
     @DisplayName("CREATE: roles list forwarded from request")
     void create_rolesForwarded() {
-        handler.handle(EsqMsgConstants.EVENT_CREATE, buildCreateReq(), "cid1", "rid1");
+        handler.handle(BusConstants.EVENT_CREATE, buildCreateReq(), "cid1", "rid1");
 
         @SuppressWarnings("unchecked")
         ArgumentCaptor<List<String>> rolesCaptor = ArgumentCaptor.forClass(List.class);
@@ -131,7 +131,7 @@ class KcRequestHandlerTest {
         KcSyncRequest req = buildCreateReq();
         req.setRoles(null);
 
-        handler.handle(EsqMsgConstants.EVENT_CREATE, req, "cid1", "rid1");
+        handler.handle(BusConstants.EVENT_CREATE, req, "cid1", "rid1");
 
         @SuppressWarnings("unchecked")
         ArgumentCaptor<List<String>> rolesCaptor = ArgumentCaptor.forClass(List.class);
@@ -148,7 +148,7 @@ class KcRequestHandlerTest {
     @Test
     @DisplayName("UPDATE: delegates to updateUserAuthState with loginId")
     void update_delegatesWithLoginId() {
-        handler.handle(EsqMsgConstants.EVENT_UPDATE, buildUpdateReq(null, null), "cid1", "rid1");
+        handler.handle(BusConstants.EVENT_UPDATE, buildUpdateReq(null, null), "cid1", "rid1");
 
         verify(kcIdentityService).updateUserAuthState(
                 eq("alice@example.com"),
@@ -160,7 +160,7 @@ class KcRequestHandlerTest {
     @Test
     @DisplayName("UPDATE: tfaMethod 'g' sets requireTotp=true, removeTotp=null")
     void update_tfaMethodG_requiresTotp() {
-        handler.handle(EsqMsgConstants.EVENT_UPDATE, buildUpdateReq("g", null), "cid1", "rid1");
+        handler.handle(BusConstants.EVENT_UPDATE, buildUpdateReq("g", null), "cid1", "rid1");
 
         verify(kcIdentityService).updateUserAuthState(
                 anyString(), any(), any(), any(), any(), any(),
@@ -173,7 +173,7 @@ class KcRequestHandlerTest {
     @Test
     @DisplayName("UPDATE: tfaMethod 'n' sets removeTotp=true, requireTotp=null")
     void update_tfaMethodN_removesTotp() {
-        handler.handle(EsqMsgConstants.EVENT_UPDATE, buildUpdateReq("n", null), "cid1", "rid1");
+        handler.handle(BusConstants.EVENT_UPDATE, buildUpdateReq("n", null), "cid1", "rid1");
 
         verify(kcIdentityService).updateUserAuthState(
                 anyString(), any(), any(), any(), any(), any(),
@@ -186,7 +186,7 @@ class KcRequestHandlerTest {
     @Test
     @DisplayName("UPDATE: null tfaMethod sets both requireTotp and removeTotp to null")
     void update_nullTfaMethod_neitherTotpFlag() {
-        handler.handle(EsqMsgConstants.EVENT_UPDATE, buildUpdateReq(null, null), "cid1", "rid1");
+        handler.handle(BusConstants.EVENT_UPDATE, buildUpdateReq(null, null), "cid1", "rid1");
 
         verify(kcIdentityService).updateUserAuthState(
                 anyString(), any(), any(), any(), any(), any(),
@@ -199,7 +199,7 @@ class KcRequestHandlerTest {
     @Test
     @DisplayName("UPDATE: pwdChangeForced 'Y' maps to Boolean.TRUE")
     void update_pwdChangeForcedY_mapsToTrue() {
-        handler.handle(EsqMsgConstants.EVENT_UPDATE, buildUpdateReq(null, "Y"), "cid1", "rid1");
+        handler.handle(BusConstants.EVENT_UPDATE, buildUpdateReq(null, "Y"), "cid1", "rid1");
 
         verify(kcIdentityService).updateUserAuthState(
                 anyString(), any(), any(), any(), any(),
@@ -211,7 +211,7 @@ class KcRequestHandlerTest {
     @Test
     @DisplayName("UPDATE: pwdChangeForced not 'Y' maps to false")
     void update_pwdChangeForcedOther_mapsToFalse() {
-        handler.handle(EsqMsgConstants.EVENT_UPDATE, buildUpdateReq(null, "N"), "cid1", "rid1");
+        handler.handle(BusConstants.EVENT_UPDATE, buildUpdateReq(null, "N"), "cid1", "rid1");
 
         verify(kcIdentityService).updateUserAuthState(
                 anyString(), any(), any(), any(), any(),
@@ -225,7 +225,7 @@ class KcRequestHandlerTest {
     @Test
     @DisplayName("DELETE: delegates to deleteUser with loginId")
     void delete_delegatesWithLoginId() {
-        handler.handle(EsqMsgConstants.EVENT_DELETE, buildDeleteReq(), "cid1", "rid1");
+        handler.handle(BusConstants.EVENT_DELETE, buildDeleteReq(), "cid1", "rid1");
 
         verify(kcIdentityService).deleteUser("alice@example.com", "cid1", "rid1");
         verifyNoMoreInteractions(kcIdentityService);
@@ -241,7 +241,7 @@ class KcRequestHandlerTest {
         req.setKind(20);
         req.setPath("1.500.999.uid-001.");
 
-        handler.handle(EsqMsgConstants.EVENT_UPDATE_PATH, req, "cid1", "rid1");
+        handler.handle(BusConstants.EVENT_UPDATE_PATH, req, "cid1", "rid1");
 
         verify(kcIdentityService).updateEntityPath("uid-001", "1.500.999.uid-001.", "cid1", "rid1");
         verifyNoMoreInteractions(kcIdentityService);

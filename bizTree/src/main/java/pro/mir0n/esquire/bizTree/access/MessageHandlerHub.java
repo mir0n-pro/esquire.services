@@ -13,6 +13,7 @@
  *                   repositories carry per-monad handlers.
  * 06/02/2026 mir0n  dispatch(): skip path now logs devLog.warn (no handler / null textNode) split
  *                   into two guarded branches, instead of a single silent no-op.
+ * 06/23/2026 mir0n  EsqMsgConstants wire constants -> messaging.BusConstants (references repointed)
  */
 package pro.mir0n.esquire.bizTree.access;
 
@@ -32,7 +33,7 @@ import pro.mir0n.esquire.bizTree.messaging.handler.MoveAcctHandler;
 import pro.mir0n.esquire.bizTree.messaging.handler.MoveOrgHandler;
 import pro.mir0n.esquire.bizTree.messaging.handler.MoveUsrHandler;
 import pro.mir0n.esquire.bizTree.messaging.handler.UpdateEntityHandler;
-import pro.mir0n.esquire.common.EsqMsgConstants;
+import pro.mir0n.esquire.messaging.BusConstants;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -63,18 +64,18 @@ public final class MessageHandlerHub {
         DeleteEntityHandler deleteHandler = new DeleteEntityHandler(cacheRepository);
 
         Map<HandlerKey, IBizTreeEventHandler> m = new HashMap<>();
-        m.put(new HandlerKey(EsqMsgConstants.EVENT_UPDATE,      1), updateHandler);                       // ORG
-        m.put(new HandlerKey(EsqMsgConstants.EVENT_UPDATE,      2), updateHandler);                       // USR
-        m.put(new HandlerKey(EsqMsgConstants.EVENT_UPDATE,      4), updateHandler);                       // ACCT
-        m.put(new HandlerKey(EsqMsgConstants.EVENT_CREATE,      1), new CreateOrgHandler(cacheRepository));
-        m.put(new HandlerKey(EsqMsgConstants.EVENT_CREATE,      2), new CreateUsrHandler(cacheRepository));
-        m.put(new HandlerKey(EsqMsgConstants.EVENT_CREATE,      4), new CreateAcctHandler(cacheRepository));
-        m.put(new HandlerKey(EsqMsgConstants.EVENT_DELETE,      1), deleteHandler);                       // ORG
-        m.put(new HandlerKey(EsqMsgConstants.EVENT_DELETE,      2), deleteHandler);                       // USR
-        m.put(new HandlerKey(EsqMsgConstants.EVENT_DELETE,      4), deleteHandler);                       // ACCT
-        m.put(new HandlerKey(EsqMsgConstants.EVENT_UPDATE_PATH, 1), new MoveOrgHandler(cacheRepository));
-        m.put(new HandlerKey(EsqMsgConstants.EVENT_UPDATE_PATH, 2), new MoveUsrHandler(cacheRepository));
-        m.put(new HandlerKey(EsqMsgConstants.EVENT_UPDATE_PATH, 4), new MoveAcctHandler(cacheRepository));
+        m.put(new HandlerKey(BusConstants.EVENT_UPDATE,      1), updateHandler);                       // ORG
+        m.put(new HandlerKey(BusConstants.EVENT_UPDATE,      2), updateHandler);                       // USR
+        m.put(new HandlerKey(BusConstants.EVENT_UPDATE,      4), updateHandler);                       // ACCT
+        m.put(new HandlerKey(BusConstants.EVENT_CREATE,      1), new CreateOrgHandler(cacheRepository));
+        m.put(new HandlerKey(BusConstants.EVENT_CREATE,      2), new CreateUsrHandler(cacheRepository));
+        m.put(new HandlerKey(BusConstants.EVENT_CREATE,      4), new CreateAcctHandler(cacheRepository));
+        m.put(new HandlerKey(BusConstants.EVENT_DELETE,      1), deleteHandler);                       // ORG
+        m.put(new HandlerKey(BusConstants.EVENT_DELETE,      2), deleteHandler);                       // USR
+        m.put(new HandlerKey(BusConstants.EVENT_DELETE,      4), deleteHandler);                       // ACCT
+        m.put(new HandlerKey(BusConstants.EVENT_UPDATE_PATH, 1), new MoveOrgHandler(cacheRepository));
+        m.put(new HandlerKey(BusConstants.EVENT_UPDATE_PATH, 2), new MoveUsrHandler(cacheRepository));
+        m.put(new HandlerKey(BusConstants.EVENT_UPDATE_PATH, 4), new MoveAcctHandler(cacheRepository));
         this.handlers = Map.copyOf(m);
     }
 

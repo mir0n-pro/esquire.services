@@ -3,4 +3,4 @@
 # fresh stamp forces kubelet to pick up the new image after a docker rebuild
 # (avoids the IfNotPresent + cached digest trap on infra images).
 image:
-  tag: "17-2606.151900"
+  tag: "17-2606.2111"

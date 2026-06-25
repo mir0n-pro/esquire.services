@@ -3,10 +3,10 @@
 # Delivered as the ConfigMap "esquire-topology" and mounted at /etc/esquire/topology.yml in every service pod;
 # each service loads it via spring.config.import (REQUIRED). Per-environment, CONCRETE values (no ${}) -- here the
 # in-cluster Service DNS names. ALL audit sinks are defined (parity with the docker topology), so any can be
-# selected via ESQUIRE_AUDIT_BUS_ID. The default-installed broker is ActiveMQ -> audit-c works out of the box;
+# selected via AUDIT_BUS_ID. The default-installed broker is ActiveMQ -> audit-c works out of the box;
 # the kafka / redis sinks (ck / d / dk) are defined but their brokers are NOT part of the default local-k8s infra
 # -- a sink stays inert until referenced, and selecting one needs its broker deployed. Per-service knobs + the
-# in-process audit (b) log-db stay at the service level. (OKE uses k8s-oci/esquire-topology.yml -- audit off.)
+# in-process audit (b) datasource stay at the service level. (OKE uses k8s-oci/esquire-topology.yml -- audit off.)
 esquire:
   messaging-bus:
     # --- entity broadcast (topic) ---
@@ -19,9 +19,10 @@ esquire:
             publisher-pool-size: 0
             transport:
               provider: activemq
-              endpoint: tcp://esquire-infra-amq-activemq:61616
+              endpoint: failover:(tcp://esquire-infra-amq-activemq:61616)?timeout=3000
               destination: esquire.entity.broadcast
-              topic: true
+              params:
+                pubSubDomain: true
     # --- KeyCloak request/response (R&R, two nodes) ---
     - bus-id: esquire.kc
       slots:
@@ -33,8 +34,7 @@ esquire:
             publisher-pool-size: 0
             transport:
               provider: activemq
-              endpoint: tcp://esquire-infra-amq-activemq:61616
-              topic: false
+              endpoint: failover:(tcp://esquire-infra-amq-activemq:61616)?timeout=3000
               request-node: request
               response-node: response
               nodes:
@@ -55,9 +55,8 @@ esquire:
             concurrency: 1
             transport:
               provider: activemq
-              endpoint: tcp://esquire-infra-amq-activemq:61616
+              endpoint: failover:(tcp://esquire-infra-amq-activemq:61616)?timeout=3000
               destination: esquire.rod.audit
-              topic: false
               params:
                 jms.useAsyncSend: true
     # --- audit (ck): Kafka -> auKeep consumer writes the *_log (Kafka broker not in the default infra) ---
@@ -109,3 +108,11 @@ esquire:
               destination: esquire.rod.audit
               params:
                 group-id: esquire-audit-dk
+    # --- audit (off): the explicit DISABLED bus. A service points its audit ref at audit-off to run with NO
+    #     bus audit (e.g. when DB triggers carry the audit instead). XRodDisabled is a true no-op; this is the
+    #     #17 "disable only when explicitly defined" -- a blank/undefined bus-id (correctly) fails fast instead. ---
+    - bus-id: audit-off
+      slots:
+        - slot-id: audit
+          x-rod:
+            rod-class: XRodDisabled

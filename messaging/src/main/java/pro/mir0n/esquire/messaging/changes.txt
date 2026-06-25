@@ -1,5 +1,199 @@
 Esquire messaging framework classes
 
+06/24/2026 mir0n  v1.2.9 -- EsqMsgConstants split (wire -> BusConstants); alive protocol opt-in + worst-of health + supportsBothLegs role guard + Role.BOTH removed
+BusConstants  (new)
+  - the messaging-bus FIX-JSON wire constants -- moved from common.EsqMsgConstants into
+    the messaging module (where the bus framework lives); the non-wire app constants
+    (BUS_KEY_* / TEXT_* / FLAG_OPEN / CCY_DEFAULT) split out to common.EsqConstants, so common no
+    longer carries any bus-wire definition.
+RodEvent
+  - EsqMsgConstants wire constants -> messaging.BusConstants (references repointed)
+RodEventCodec
+  - EsqMsgConstants wire constants -> messaging.BusConstants (references repointed)
+IXRod
+  - configure() javadoc: role list CLIENT/SERVER (BOTH removed)
+Role
+  - BOTH removed from the role list -- the constants are now CLIENT / SERVER (BOTH was unused)
+XRodParams
+  - 'alive' on/off knob in SCALARS + aliveOr(boolean) getter -- the session is OPT-IN, default off
+ITransportProvider
+  - supportsBothLegs() default-true SPI method -- whether a single rod can run both legs (transmit
+    + receive) on the transport's node; false for a produce-only transport, so the bus fails a
+    CLIENT role fast over one that cannot
+XRod
+  - alive is OPT-IN: init builds the AliveSession only when the 'alive' param is set; health() =
+    worst(transport indicator [worst of the transmit + receive legs], alive metric when enabled);
+    transmits() role+alive-aware (a single-node CLIENT opens a producer leg only to self-heartbeat,
+    i.e. when alive on); receives() = role==CLIENT (BOTH removed); init FAILS FAST when a receiving
+    role hits a transport that cannot run the needed legs (supportsBothLegs / supportsConsume)
+XRodRR
+  - buildKeepAlive() javadoc: "an R&R SERVER" (BOTH removed from the role list)
+
+06/23/2026 mir0n  x-rod alive protocol (HeartBeat / TestRequest session layer)
+AliveSession  (new)
+  - the x-rod session collaborator: producer/consumer leg timestamps + lastSendAttempt, timestamp-age health
+    (producer leg only; sendBroken fast-path when alive-fail-fast), the keep-alive cadence step tick(), and
+    receivedSession() (advance the consumer ts + run the rod's session-msg handler)
+  - tick() driven externally (no own thread); start() seeds the timestamps; injectable-clock test seam
+RodEvent
+  - bodyText component added (a prepared JSON Text string; null = serialize the body Map) + an 11-arg delegating
+    constructor so existing callers are unchanged
+  - isSession; session(msgType,corr,req,rod,body) factory (decode); heartbeat(corr,req,rod) / testRequest(corr,rod)
+    build the prepared bodyText (constant HEARTBEAT_BODY + concat templates); opCode() null-safe (no op on a session event)
+RodEventCodec
+  - toProps/fromProps branch on isSession: a session message rides the reduced field set (no EventType / EntityKind /
+    EntityID / SubID / ActionTime / Uid / header TestReqID; RequestID omitted on an unsolicited HeartBeat)
+  - textOf() writes a prepared bodyText straight to Text (no Map, no Jackson), else serializes the body Map
+IXRod
+  - idle() default no-op added: the per-rod maintenance hook the MessagingBus idle ticker fires
+AXRod
+  - session field; sendOut marks the alive send-attempt/sent/failed; receive intercepts a session message
+    (receivedSession, not forwarded to the worker) and marks an app receive; runEngine seeds the session; idle()
+    drives session.tick()
+XRod
+  - init builds the AliveSession (heartbeat-interval / alive-timeout / alive-fail-fast); transmits() now always
+    true (a broadcast CLIENT auto-opens a producer leg to self-heartbeat); health() = session.health();
+    buildKeepAlive() (unsolicited HeartBeat) + onSessionMsg() (no-op) + newCorrelationId() hooks; role protected
+XRodRR
+  - buildKeepAlive() (CLIENT emits TestRequest, SERVER/BOTH an unsolicited HeartBeat); onSessionMsg() (SERVER
+    echoes a received TestRequest back as a HeartBeat, routing echoed)
+MessagingBus
+  - one per-service idle ticker (scheduleWithFixedDelay, daemon "messaging-idle"): start()/close() manage it;
+    idleSweep() fires IXRod.idle() on every rod and catches Throwable per rod (a fixed-delay task that lets a
+    Throwable escape is silently cancelled), logging on the develop tier
+XRodParams
+  - SCALARS + getters for heartbeat-interval (10s) / alive-timeout (3x) / alive-fail-fast; boolOr with a default
+
+06/22/2026 mir0n  messaging-bus connection health indicator
+TransportHealth
+  - new connection health a transport leg reports: UP (broker connection established), DOWN (dropped / failed
+    to connect), UNKNOWN (this transport cannot observe its connection)
+  - worst() folds two legs (DOWN worst, then UNKNOWN, then UP)
+TransportPublisher
+  - health() default added (UNKNOWN unless the provider can observe it)
+  - of(sink,closer) delegates to a new of(sink,closer,healthSupplier) overload that surfaces the supplier
+TransportConsumer
+  - health() default added (UNKNOWN unless the provider can observe it)
+  - of(starter,closer) delegates to a new of(starter,closer,healthSupplier) overload that surfaces the supplier
+RodPublisher
+  - health() default added; of(dispatcher,closer) surfaces the closer's TransportPublisher health (the closer's
+    health() iff it is a TransportPublisher, else UNKNOWN)
+IXRod
+  - health() default added = TransportHealth.UP (an in-process / disabled / log-only rod has no broker
+    connection that can drop); a transport-backed rod overrides it
+XRod
+  - health() = worst of the transmit (outboundCloser) + receive (inbound) legs, each ignored when null (a leg
+    the role does not run)
+  - outboundCloser retyped AutoCloseable -> RodPublisher
+MessagingBus
+  - health() added: a busKey -> TransportHealth map (each built rod's health()), the source the bus health
+    indicator forwards to /actuator/health
+BusHealthIndicator
+  - new Actuator HealthIndicator that forwards MessagingBus.health() to /actuator/health: DOWN if any bus
+    connection is down; UNKNOWN buses reported but do NOT fail it
+  - register(ctx,bus) registers it programmatically (no @Bean) into the Actuator HealthContributorRegistry under
+    name "messagingBus"; the per-service readiness group includes it (not liveness)
+TransportHealthIndicator
+  - new generic Actuator HealthIndicator over a SINGLE TransportHealth source (a keep datasource, a leg, ...):
+    DOWN when the source is DOWN, UP otherwise (UNKNOWN reported as a detail)
+  - registered programmatically (no @Bean) into the Actuator registry; used by auKeep for its keep-datasource
+
+06/22/2026 mir0n  Messaging Bus Facade API + framework lifecycle (refactoring): MessagingBus facade replaces XRodManager; package restructure; #17 fail-fast
+MessagingBus
+  - new per-service messaging facade: a singleton (getInstance) with a two-phase lifecycle -- init(Environment)
+    loads + validates the catalog and BUILDS every bus ref that declares a role
+    (esquire.<key>.messaging-bus.role) into a busKey -> x-rod map, PAUSED; start() runs every built rod;
+    getXRod(busKey) hands a rod to a publisher; close() shuts them down. Absorbs the former XRodManager
+  - getXRod THROWS for an unbuilt bus key (a role-declared ref with no leg fails fast at init); no silent OFF
+  - replaces XRodManager / XRods / XRodAutoConfiguration (removed)
+IXRod
+  - moved to messaging (was messaging.xrod); lifecycle split: start(name,devLog,worker) ->
+    init(name,devLog) (create the legs paused) + setWorker(worker) + start(); Role is CLIENT/SERVER/BOTH
+    (BROADCAST removed)
+RodEvent / IRodEventRepo / RodEventRepoRegistry
+  - moved to messaging (was messaging.xrod)
+AXRod
+  - two-phase engine: startEngine -> buildEngine (create the pool/feed idle) + runEngine (run them); start()
+    runs runEngine
+  - setWorker(worker) added (the live receive callback); throws if the rod has NO receive pool
+  - transmit() throws if the rod has NO transmit feed and ignores a null event (the publisher-leg probe)
+  - import Role/XRodParams from messaging.catalog, IXRod/RodEvent from messaging
+XRod
+  - start(name,devLog,worker) split into init(name,devLog) (create the legs by role; the transport consumer
+    created PAUSED) + start() (runEngine, then inbound.start() begins consumer delivery)
+  - transmits()/receives() added (legs from role); validate() now REQUIRES a complete transport
+  - inbound is a TransportConsumer; role is CLIENT/SERVER/BOTH
+XRodRR
+  - transmits()/receives() overridden to true (R&R runs both legs for its role); validate() now REQUIRES a
+    complete transport
+XRodInProcess
+  - moved to messaging.xrod.impl (was dataKeep.keep); start(name,devLog,worker) split into init (buildEngine,
+    the feed loops into the pool) + start() (inherited runEngine); worker set via setWorker; no longer final
+XRodDisabled
+  - start(name,devLog,worker) split into setWorker (no-op) + init (no-op) + start (no-op); selected ON PURPOSE
+    via rod-class=XRodDisabled (the facade no longer falls back to it)
+XRodInfo
+  - start(name,devLog,worker) split into setWorker (no-op) + init (the log-line setup) + start (no-op)
+ITransportProvider
+  - openConsumer returns a TransportConsumer (created PAUSED) instead of a bare AutoCloseable -- the listener
+    subscribes but delivers nothing until TransportConsumer.start()
+TransportConsumer
+  - new consume-side handle: a listener created PAUSED plus start() (begin delivery) and close() (stop +
+    release the broker connection); the two-phase mirror of TransportPublisher
+catalog (package)
+  - BusNode / BusRef / BusSlot / BusTransport / MessagingBus / MessagingBusCatalog / Role / XRodParams moved to
+    messaging.catalog (was messaging)
+BusRef
+  - role component added (CLIENT/SERVER/BOTH); a ref that declares a role is one the facade builds at init
+Role
+  - BROADCAST -> BOTH; the constants are CLIENT/SERVER/BOTH
+MessagingBusCatalog
+  - the bind+merge moved out of the constructor into an explicit synchronized load() (buses null until load(),
+    buses() accessor throws if unloaded); javadoc XRodManager -> MessagingBus
+RodEventCodec / RodTransportAdapter
+  - import RodEvent from messaging (was messaging.xrod)
+RodPublisher
+  - import RodEvent from messaging (was the same xrod package)
+
+06/21/2026 mir0n  v1.2.9 -- topology functional validation; catalog overlay merge-by-id; javadoc genericized
+MessagingBusCatalog
+  - validate(): fail-fast at construction on a duplicate bus-id (catalog) / slot-id (within a bus) / node-id
+    (within an x-rod's transport.nodes), run PER SOURCE (shared catalog + overlay) before the merge
+  - mergeOverlay / mergeSlots: the <app>.messaging-bus overlay MERGES onto the shared esquire.messaging-bus BY
+    ID -- a service bus/slot REPLACES the shared one with the same id, a new one is appended (was: addAll)
+  - find() returns the FIRST match and stops; the scan-all + take-LAST + log.warn removed
+XRodManager
+  - a bus key that resolves to no leg logs a CONSOLE info ("...has no leg -> DISABLED...") and runs XRodDisabled
+    (was a develop-tier note); an explicit rod-class=XRodDisabled leg disables without the info
+framework javadoc + doc\Esquire.MessagingBus.md
+  - genericized to describe the bus MECHANISM, not where an event is applied (audit / *_log / keep / asset / SQL
+    removed from IRodEventRepo, RodEventRepoRegistry, RodEvent, etc.); xx-Rod -> x-rod
+
+06/21/2026 mir0n  v1.2.9 -- RodEventCodec decode hardening
+RodEventCodec
+  - fromProps: requireSchemaVersion() gate -- a SchemaVersion present but != the codec's SCHEMA_VERSION is
+    rejected (logged + IllegalStateException); an absent version is tolerated
+  - intOf / longOf take (Map, key) and guard the parse: a non-numeric value logs a warn and falls back to 0
+    instead of throwing NumberFormatException (which dropped the whole event); added a develop-tier logger
+
+06/21/2026 mir0n  v1.2.9 -- queue-vs-topic removed from the bus (now the ActiveMQ pubSubDomain vendor param)
+TransportSettings
+  - the topic field + topic() getter removed; the constructor drops the topic parameter
+PublishSettings / ConsumeSettings
+  - the constructors drop the topic parameter (no longer passed to super)
+BusTransport
+  - the topic component + topicOrFalse() removed; refinedWith(BusNode) no longer carries topic
+BusNode
+  - the topic component removed
+XRodParams
+  - transport() builds BusTransport without topic; bindNode() drops the topic parse
+MessagingBusCatalog
+  - consumeLeg() builds ConsumeSettings without the topic argument
+XRod
+  - publisher() / openConsumer() build the Publish / ConsumeSettings without the topic argument
+XRodRR
+  - legTransport() doc: a node owns destination / params (topic dropped)
+
 06/19/2026 mir0n  v1.2.8 -- bus list-config keys pluralized (slot -> slots, node -> nodes)
 MessagingBus
   - the slots component binds the plural config key `slots` directly; @Name("slot") dropped

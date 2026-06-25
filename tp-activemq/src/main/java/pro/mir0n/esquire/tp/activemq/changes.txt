@@ -1,0 +1,49 @@
+Esquire ActiveMQ transport provider classes
+
+06/22/2026 mir0n  v1.2.9 -- connection health (TransportListener + send outcome)
+tp.activemq.TransportProvider
+  - a TransportListener set on the ActiveMQConnectionFactory flips an AtomicReference: transportInterupted /
+    onException -> DOWN, transportResumed -> UP; the listener propagates to the connection the factory creates
+  - both the publisher and consumer handles report this connection state as their TransportHealth (conn::get)
+  - a send outcome also refreshes it: a successful send -> UP, a failed send -> DOWN
+  - imports added: org.apache.activemq.transport.TransportListener, messaging.transport.TransportHealth,
+    java.io.IOException, java.util.concurrent.atomic.AtomicReference
+
+06/22/2026 mir0n  v1.2.9 -- two-phase consumer (created paused, started by the bus)
+tp.activemq.TransportProvider
+  - openConsumer returns a TransportConsumer (start + close legs) instead of a bare AutoCloseable
+  - the DefaultMessageListenerContainer is created PAUSED: setAutoStartup(false); afterPropertiesSet
+    subscribes but does not start delivery -- delivery begins only when the bus start() invokes the
+    returned start leg (c::start)
+  - import added: messaging.transport.TransportConsumer
+
+06/21/2026 mir0n  v1.2.9 -- queue-vs-topic read from the pubSubDomain vendor param
+tp.activemq.TransportProvider
+  - reads the JMS pub/sub flag from transport.params.pubSubDomain (setPubSubDomain on the template /
+    listener container) instead of settings.topic(); excludes pubSubDomain from the broker-URI append in
+    withParams (a setter call, not a URI option)
+
+06/17/2026 mir0n  v1.2.8 -- Messaging Bus cleanup: closeable publisher
+tp.activemq.TransportProvider
+  - openPublisher returns a TransportPublisher (close() destroys the CachingConnectionFactory) instead of a
+    bare Consumer<TransportMessage>; the ccf.setClientID(...) block removed (a client id is a
+    transport.params.jms.clientID entry now)
+
+06/15/2026 mir0n  v1.2.8 -- ActiveMQ transport provider module
+tp.activemq.TransportProvider  (new)
+  - ActiveMQ implementation of the transport-provider SPI; resolved by name (reflectively instantiated,
+    no Spring bean) and owns its own audit broker connection.
+  - openPublisher builds its own JmsTemplate over a CachingConnectionFactory (poolSize>0 -> useAsyncSend
+    plus sessionCacheSize); send() stamps appl-msg-id + sending-time and writes the header bag via
+    messaging.jms.Utils.setProps.
+  - openConsumer runs a programmatic DefaultMessageListenerContainer (selector, concurrency, topic/queue
+    from settings) lifting every JMS property into a neutral TransportMessage header map.
+  - withParams appends the leg's transport.params verbatim to the broker URI; readProps lifts all JMS
+    properties into the header map.
+tp.activemq.TpActiveMqAutoConfigFilter  (new)
+  - AutoConfigurationImportFilter suppressing Boot's ActiveMQAutoConfiguration + JmsAutoConfiguration so a
+    service that ships this provider stays transport-agnostic.
+pom.xml  (new)
+  - esquire-tp-activemq module; depends on esquire-common + spring-boot-starter-activemq.
+META-INF/spring.factories  (new)
+  - registers TpActiveMqAutoConfigFilter as an AutoConfigurationImportFilter.

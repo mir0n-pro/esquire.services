@@ -7,6 +7,7 @@
  *
  *  History:
  * 03/25/2026 mir0n  created: handles CREATE events for ACCT kinds
+ * 06/23/2026 mir0n  EsqMsgConstants app constants -> common.EsqConstants (references repointed)
  */
 package pro.mir0n.esquire.bizTree.messaging.handler;
 
@@ -15,7 +16,7 @@ import org.slf4j.LoggerFactory;
 import pro.mir0n.esquire.bizTree.BizTreeConstants;
 import pro.mir0n.esquire.bizTree.cache.IBizTreeCacheRepository;
 import pro.mir0n.esquire.bizTree.messaging.IBizTreeEventHandler;
-import pro.mir0n.esquire.common.EsqMsgConstants;
+import pro.mir0n.esquire.common.EsqConstants;
 
 /** Handles CREATE entity events for ACCT kinds. Inserts main node under user and shortcut under org's FOLDER_ACCOUNT. */
 public class CreateAcctHandler implements IBizTreeEventHandler {
@@ -30,20 +31,20 @@ public class CreateAcctHandler implements IBizTreeEventHandler {
 
     @Override
     public void handle(String entityId, int entityKind, JsonNode textNode) throws Exception {
-        String parentId   = textNode.has(EsqMsgConstants.TEXT_PARENT_ID) && !textNode.get(EsqMsgConstants.TEXT_PARENT_ID).isNull()
-                            ? textNode.get(EsqMsgConstants.TEXT_PARENT_ID).asText() : null;
-        String entityPath = textNode.has(EsqMsgConstants.TEXT_PATH) && !textNode.get(EsqMsgConstants.TEXT_PATH).isNull()
-                            ? textNode.get(EsqMsgConstants.TEXT_PATH).asText() : null;
+        String parentId   = textNode.has(EsqConstants.TEXT_PARENT_ID) && !textNode.get(EsqConstants.TEXT_PARENT_ID).isNull()
+                            ? textNode.get(EsqConstants.TEXT_PARENT_ID).asText() : null;
+        String entityPath = textNode.has(EsqConstants.TEXT_PATH) && !textNode.get(EsqConstants.TEXT_PATH).isNull()
+                            ? textNode.get(EsqConstants.TEXT_PATH).asText() : null;
         if (parentId == null || entityPath == null) return;
 
         long   pk         = Long.parseLong(entityId);
         long   usrPk      = Long.parseLong(parentId);
-        String name       = textNode.has(EsqMsgConstants.TEXT_NAME) && !textNode.get(EsqMsgConstants.TEXT_NAME).isNull()
-                            ? textNode.get(EsqMsgConstants.TEXT_NAME).asText() : "";
-        String desc       = textNode.has(EsqMsgConstants.TEXT_DESC) && !textNode.get(EsqMsgConstants.TEXT_DESC).isNull()
-                            ? textNode.get(EsqMsgConstants.TEXT_DESC).asText() : null;
-        boolean hasStatus = textNode.has(EsqMsgConstants.TEXT_STATUS) && !textNode.get(EsqMsgConstants.TEXT_STATUS).isNull();
-        int     statusCode = hasStatus ? BizTreeConstants.decodeStatus(textNode.get(EsqMsgConstants.TEXT_STATUS).asText()) : BizTreeConstants.STATUS_OK;
+        String name       = textNode.has(EsqConstants.TEXT_NAME) && !textNode.get(EsqConstants.TEXT_NAME).isNull()
+                            ? textNode.get(EsqConstants.TEXT_NAME).asText() : "";
+        String desc       = textNode.has(EsqConstants.TEXT_DESC) && !textNode.get(EsqConstants.TEXT_DESC).isNull()
+                            ? textNode.get(EsqConstants.TEXT_DESC).asText() : null;
+        boolean hasStatus = textNode.has(EsqConstants.TEXT_STATUS) && !textNode.get(EsqConstants.TEXT_STATUS).isNull();
+        int     statusCode = hasStatus ? BizTreeConstants.decodeStatus(textNode.get(EsqConstants.TEXT_STATUS).asText()) : BizTreeConstants.STATUS_OK;
 
         cacheRepository.insertAcctNode(pk, entityKind, name, desc, usrPk, entityPath, statusCode);
     }

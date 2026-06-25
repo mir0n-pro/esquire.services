@@ -23,7 +23,7 @@ import pro.mir0n.esquire.backend.validator.ValidatorFactory;
 import pro.mir0n.esquire.backend.service.EsqContextHolder;
 import pro.mir0n.esquire.backend.service.EsqRequestContext;
 import pro.mir0n.esquire.keySmith.jpa.EsqAccessProfileRepository;
-import pro.mir0n.esquire.keySmith.messaging.KcSyncPublisher;
+import pro.mir0n.esquire.keySmith.messaging.KcBusAdapter;
 import pro.mir0n.esquire.keySmith.service.impl.KeySmithService;
 
 import java.util.List;
@@ -46,7 +46,7 @@ class KeySmithServiceTest {
     private EntityManager em;
 
     @Mock
-    private KcSyncPublisher kcSyncPublisher;
+    private KcBusAdapter kcSyncPublisher;
 
     private KeySmithService service;
 

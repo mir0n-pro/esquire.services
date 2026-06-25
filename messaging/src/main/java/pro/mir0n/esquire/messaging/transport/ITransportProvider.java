@@ -11,6 +11,11 @@
  *                   destination into a publish sink / consume registration over the neutral TransportMessage;
  *                   supportsConsume() lets a producer-only transport (e.g. a Redis stream) skip the consume leg.
  * 06/17/2026 mir0n  openPublisher returns a TransportPublisher (closeable) instead of a bare Consumer<TransportMessage>
+ * 06/22/2026 mir0n  openConsumer returns a TransportConsumer (created PAUSED) instead of a bare AutoCloseable;
+ *                   the listener subscribes at openConsumer but delivers nothing until TransportConsumer.start()
+ * 06/24/2026 mir0n  supportsBothLegs() default-true SPI method -- whether a single rod can run both legs (transmit
+ *                   + receive) on the transport's node; false for a produce-only transport, so the bus fails a
+ *                   CLIENT role fast over one that cannot
  */
 package pro.mir0n.esquire.messaging.transport;
 
@@ -34,11 +39,13 @@ public interface ITransportProvider {
     TransportPublisher openPublisher(String destination, PublishSettings settings);
 
     /**
-     * Starts consuming (xx-rod side) {@code destination}: the provider runs a listener that decodes each
-     * received message into a {@link TransportMessage} and dispatches it to {@code handler}. The returned
-     * {@link AutoCloseable} stops the listener.
+     * Opens a consumer (x-rod side) on {@code destination}, created PAUSED: the provider builds + subscribes a
+     * listener that decodes each received message into a {@link TransportMessage} and dispatches it to
+     * {@code handler}, but it delivers nothing until the returned {@link TransportConsumer}'s {@code start()}.
+     * The handle's {@code start()} begins delivery (the vendor-level start), its {@code close()} stops the
+     * listener. The x-rod creates it at {@code init} and starts it (facade-driven) only once the bus is wired.
      */
-    AutoCloseable openConsumer(String destination, ConsumeSettings settings, Consumer<TransportMessage> handler);
+    TransportConsumer openConsumer(String destination, ConsumeSettings settings, Consumer<TransportMessage> handler);
 
     /**
      * Whether this transport has a consume leg. A producer-only transport (e.g. a Redis stream that IS the
@@ -46,6 +53,18 @@ public interface ITransportProvider {
      * on a vendor name. Default {@code true}.
      */
     default boolean supportsConsume() {
+        return true;
+    }
+
+    /**
+     * Whether a single rod can run BOTH legs -- a transmit AND a receive -- on this transport's node (a consumer
+     * can also publish to the node it consumes). ActiveMQ / Kafka return {@code true} (a destination / topic is
+     * bidirectional); a producer-only transport (e.g. the XADD-only Redis stream) returns {@code false}. A
+     * CLIENT role needs both legs -- its consume leg plus, with the alive protocol ON, a producer leg to
+     * self-heartbeat onto the same node -- so the bus FAILS FAST on such a role over a transport that cannot run
+     * both, rather than silently never delivering. Default {@code true}.
+     */
+    default boolean supportsBothLegs() {
         return true;
     }
 }

@@ -6,7 +6,7 @@
 #
 # This file is PER ENVIRONMENT and is written with CONCRETE values (no ${} placeholders) -- the docker-network
 # hostnames (activemq / kafka / redis). Per-service knobs (pool sizes, rod-class deltas, the role) and the audit
-# in-process (b) log-db live at the SERVICE level (each service application.yml), NOT here. A bus defined here but
+# in-process (b) datasource live at the SERVICE level (each service application.yml), NOT here. A bus defined here but
 # not referenced by a service is inert (a pod is built only when a service producer()/consumer()s a bus key).
 esquire:
   messaging-bus:
@@ -20,9 +20,10 @@ esquire:
             publisher-pool-size: 0
             transport:
               provider: activemq
-              endpoint: tcp://activemq:61616
+              endpoint: failover:(tcp://activemq:61616)?timeout=3000
               destination: esquire.entity.broadcast
-              topic: true
+              params:
+                pubSubDomain: true
     # --- KeyCloak request/response (R&R, two nodes): enyMan/keySmith CLIENT, kcMaster SERVER ---
     - bus-id: esquire.kc
       slots:
@@ -34,8 +35,7 @@ esquire:
             publisher-pool-size: 0
             transport:
               provider: activemq
-              endpoint: tcp://activemq:61616
-              topic: false
+              endpoint: failover:(tcp://activemq:61616)?timeout=3000
               request-node: request
               response-node: response
               nodes:
@@ -56,9 +56,8 @@ esquire:
             concurrency: 1
             transport:
               provider: activemq
-              endpoint: tcp://activemq:61616
+              endpoint: failover:(tcp://activemq:61616)?timeout=3000
               destination: esquire.rod.audit
-              topic: false
               params:
                 jms.useAsyncSend: true
     # --- audit (ck): Kafka -> auKeep consumer writes the *_log ---
@@ -110,3 +109,11 @@ esquire:
               destination: esquire.rod.audit
               params:
                 group-id: esquire-xxrod-audit-dk
+    # --- audit (off): the explicit DISABLED bus. A service points its audit ref at audit-off to run with NO
+    #     bus audit (e.g. when DB triggers carry the audit instead). XRodDisabled is a true no-op; this is the
+    #     #17 "disable only when explicitly defined" -- a blank/undefined bus-id (correctly) fails fast instead. ---
+    - bus-id: audit-off
+      slots:
+        - slot-id: audit
+          x-rod:
+            rod-class: XRodDisabled

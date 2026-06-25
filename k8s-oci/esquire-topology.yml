@@ -22,7 +22,8 @@ esquire:
               provider: activemq
               endpoint: tcp://esquire-infra-amq-activemq:61616
               destination: esquire.entity.broadcast
-              topic: true
+              params:
+                pubSubDomain: true
     # --- KeyCloak request/response (R&R, two nodes) ---
     - bus-id: esquire.kc
       slots:
@@ -35,7 +36,6 @@ esquire:
             transport:
               provider: activemq
               endpoint: tcp://esquire-infra-amq-activemq:61616
-              topic: false
               request-node: request
               response-node: response
               nodes:

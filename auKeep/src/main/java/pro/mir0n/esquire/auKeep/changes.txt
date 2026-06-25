@@ -1,5 +1,44 @@
 Esquire auKeep service
 
+06/24/2026 mir0n  v1.2.9 -- EsqMsgConstants references repointed
+AuKeepApplication
+  - EsqMsgConstants app constants -> common.EsqConstants (references repointed)
+messaging.AuditConsumerConfig
+  - EsqMsgConstants app constants -> common.EsqConstants (references repointed)
+
+06/22/2026 mir0n  messaging-bus health indicator + keepDatasource health + readiness/liveness
+AuKeepApplication
+  - the MessagingBusLifecycleRegistrar, at ApplicationReadyEvent, registers (programmatically, no @Bean) a
+    BusHealthIndicator for the bus facade AND a TransportHealthIndicator named "keepDatasource" over
+    AuditConsumerConfig.keepHealth() (the keep DB) into the Actuator HealthContributorRegistry -> /actuator/health
+messaging.AuditConsumerConfig
+  - added keepHealth() -> Supplier<TransportHealth> over the keep applier (UP when no keep is active); the
+    lifecycle registrar registers it as the "keepDatasource" health contributor
+application.yml
+  - added a management block: health probes.enabled=true, show-details=always, validate-group-membership=false,
+    and a readiness group including readinessState + messagingBus + keepDatasource
+k8s chart esquire-aukeep/templates/deployment.yaml
+  - split the probes: readinessProbe -> /actuator/health/readiness, livenessProbe -> /actuator/health/liveness
+
+06/22/2026 mir0n  v1.2.9 -- bus two-phase lifecycle; audit consumer rewired onto the facade
+AuKeepApplication
+  - wires the bus lifecycle via the MessagingBusLifecycleRegistrar inner listener (LOWEST_PRECEDENCE):
+    env-prepared -> bus.init(env, {BUS_KEY_AUDIT}); ready -> bus.start(); context-closed -> bus.close();
+    the ApplicationStartingEvent kind-storage load is unchanged
+messaging.AuditConsumerConfig
+  - rewired onto the facade: takes the audit rod from MessagingBus.getXRod (audit-bus ref role CLIENT) and sets
+    the keep applier as its receive worker; guarded with isEnabled() so an explicitly-disabled audit bus leaves
+    the consumer idle
+
+06/21/2026 mir0n  v1.2.9 -- topology import optional; AUDIT_SLOT_ID
+application.yml
+  - spring.config.import -> optional:file:... (the topology import is now optional); AUDIT_SERVICE_ID -> AUDIT_SLOT_ID
+
+06/21/2026 mir0n  v1.2.9 -- keep datasource vendor dropped; audit/topology env vars renamed
+application.yml
+  - esquire.keep.datasource no longer carries a vendor (the dialect comes from the datasource URL); env vars
+    renamed ESQUIRE_AUDIT_* -> AUDIT_*, ESQUIRE_TOPOLOGY_IMPORT -> TOPOLOGY_IMPORT
+
 06/18/2026 mir0n  v1.2.8 -- auKeep: renamed from xxRod; the audit consumer rebuilt on the generic keep engine
 AuKeepApplication  (was XxRodApplication)
   - the only Boot app (image esquire.aukeep); scans dataKeep + audit + auKeep; excludes

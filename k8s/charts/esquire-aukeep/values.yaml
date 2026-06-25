@@ -8,7 +8,7 @@ image:
 springProfilesActive: "console,dev-postgres"
 
 # shared bus topology is delivered by the esquire-topology ConfigMap, mounted at /etc/esquire.
-topologyImport: file:/etc/esquire/topology.yml
+topologyImport: optional:file:/etc/esquire/topology.yml
 
 service:
   port: 3007
@@ -25,7 +25,7 @@ db:
 # Default k8s sink = (c) over the bus (ActiveMQ); busId=audit-c. The director picks the apply strategy.
 audit:
   busId: audit-c
-  serviceId: audit
+  slotId: audit
   director: audit
 
 logging:
