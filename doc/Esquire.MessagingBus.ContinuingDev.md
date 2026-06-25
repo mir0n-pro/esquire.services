@@ -54,8 +54,24 @@ state -- not DOWN -- until a peer appears.
   ignores them (minor at a 10s cadence). When consumer-leg health returns, the producer leg on a pure consumer
   can be dropped.
 
+**CONFIRMED LIMIT -- a HARD broker failure is NOT detected (local k8s, 2026-06-23).** The producer-leg health
+catches a CLEAN broker shutdown (a graceful k8s rolling-restart -> DOWN ~27s) and a docker `docker stop`
+(-> DOWN ~24s), but NOT a HARD failure -- a crashed pod / node loss / partition that leaves the client socket
+HALF-OPEN (no FIN/RST). Verified: the ActiveMQ pod force-deleted + held gone for 78s, yet `messagingBus` stayed
+UP the whole time. Mechanism: on a half-open socket a WRITE still succeeds (buffered), and with
+`jms.useAsyncSend: true` the JMS send returns immediately while `failover:` BUFFERS sends across the reconnect --
+so the heartbeat "send" succeeds even though the broker is gone, `producerTs` stays fresh, and the leg reads UP.
+This is the same half-open-socket family as the keep-datasource `isValid` hang, and it is the exact producer-leg
+weakness: "can I send" answers YES (the bytes left the process) without proving the broker took them. The
+ROUND-TRIP health (above) is the real fix -- a CLIENT that does not get its `HeartBeat` reply reads DOWN
+regardless of send semantics. Lower urgency, though: a hard broker loss is rare, and with a SHARED broker
+depooling would not help (no healthier pod to route to) -- so this is health ACCURACY on a rare event, not a
+functional failure. (A transport-config alternative -- `jms.useAsyncSend: false` or a sync-send/transport
+timeout so a disconnected send throws -- would trade send throughput for detection; not taken.)
+
 > CONFIRMED (mir0n 2026-06-23): ignore-consumer-leg + producer-leg-only health is the chosen first-run approach;
-> a broadcast CLIENT auto-opens both legs in the framework (no `BOTH` role).
+> a broadcast CLIENT auto-opens both legs in the framework (no `BOTH` role). The hard-failure detection gap above
+> is an accepted Q&D limit -- the round-trip health is its fix.
 
 ---
 

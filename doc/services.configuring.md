@@ -61,13 +61,16 @@ Esquire catalog: which buses exist and the env that drives them. The vocabulary:
 - **node** (`node-id`): request/response buses split a slot into `request` + `response` nodes (each
   its own destination); single-node buses just carry a `destination`.
 - **x-rod**: the per-slot x-rod config -- `rod-class` + engine knobs (pool-size, feed-capacity,
-  virtual-threads, publisher-pool-size, concurrency) + alive-protocol knobs (heartbeat-interval,
+  virtual-threads, publisher-pool-size, concurrency) + alive-protocol knobs (alive, heartbeat-interval,
   alive-timeout, alive-fail-fast) + a `transport` block.
-  - **alive protocol** (the keep-alive that drives the bus health check): `heartbeat-interval` (seconds, default
-    10) -- when a producing leg has been quiet this long it sends a keep-alive; `alive-timeout` (seconds, default
-    3x heartbeat-interval) -- a leg whose last successful send is older than this reads DOWN; `alive-fail-fast`
-    (default true) -- a send failure flips DOWN at once (a no-op on ActiveMQ `failover:`, which queues a send
-    rather than throwing, so the timeout governs there). Keep these IN SYNC across all x-rods on a slot.
+  - **alive protocol** (an OPT-IN session-layer keep-alive; **OFF by default**): `alive` (default `false`) --
+    turn on the FIX-style HeartBeat / TestRequest session on this leg. When OFF, the leg runs no session and its
+    health is the transport's own connection signal alone; when ON, a producing leg quiet for
+    `heartbeat-interval` (seconds, default 10) sends a keep-alive, `alive-timeout` (seconds, default 3x
+    heartbeat-interval) is the age after which the leg reads DOWN, and `alive-fail-fast` (default true) flips it
+    DOWN at once on a send error (a no-op on ActiveMQ `failover:`, which queues a send rather than throwing, so
+    the timeout governs there). Keep these IN SYNC across all x-rods on a slot. **When to enable it -- see
+    "Connection monitoring & the alive protocol" under Health checks below.**
 - **transport**: provider (`activemq` | `kafka` | `redis`, or a class name) + endpoint + destination +
   `params` (opaque per-vendor knobs, e.g. `jms.useAsyncSend` / `pubSubDomain` for ActiveMQ pub/sub-vs-queue
   / `group-id` / `max-len`) + (R&R) `request-node` / `response-node` + a node list. The bus carries no
@@ -78,7 +81,7 @@ Esquire catalog: which buses exist and the env that drives them. The vocabulary:
   them; `messaging.xrod.impl`), `XRodInProcessKeep` (the in-process KEEP that applies events to a DB via a
   `datasource` + `director`; FQCN `pro.mir0n.esquire.dataKeep.keep.XRodInProcessKeep`),
   `XRodInfo` (logs instead of sends), `XRodDisabled` (a no-op; selected EXPLICITLY to run without a bus).
-- **role**: `CLIENT` / `SERVER` / `BOTH`.
+- **role**: `CLIENT` / `SERVER`.
 
 **Transport providers** are pluggable per-vendor modules (`tp-activemq` / `tp-kafka` / `tp-redis`)
 implementing `ITransportProvider`, resolved by name via `TransportProviders`. A deployment carries
@@ -219,8 +222,10 @@ management:
 ```
 
 - **`messagingBus`** -- the per-bus connection map (every bus this service uses; DOWN if any is DOWN). Registered
-  programmatically by the lifecycle registrar at app-ready (no `@Bean`). A bus reads DOWN when its connection's
-  keep-alive stops getting through (the alive-protocol knobs above; detection is bounded by `alive-timeout`).
+  programmatically by the lifecycle registrar at app-ready (no `@Bean`). Each bus's health is the **worse of**
+  its TRANSPORT connection signal (always) and -- only when the alive protocol is enabled on the leg -- the
+  `alive-timeout`-bounded keep-alive. A transport that cannot observe its connection reports UNKNOWN, which is
+  shown but does NOT fail readiness (only DOWN does). See "Connection monitoring & the alive protocol" below.
 - **`keepDatasource`** (auKeep only) -- the keep `*_log` database connection (the apply side), beside the
   consumer's broker health. It reads DOWN within a few seconds of the DB going unreachable because the keep pool
   carries short socket/connect + connection timeouts (see the keep datasource settings above) -- without them the
@@ -231,6 +236,56 @@ The **k8s charts** point `readinessProbe` at `/actuator/health/readiness` and `l
 `/actuator/health/liveness` (so a bus-down fails readiness, never liveness). The shared topology reaches
 ActiveMQ through a **`failover:(tcp://...)?timeout=3000`** endpoint -- auto-reconnect (so the health recovers on
 its own when the broker returns) + a 3s send timeout (a send during an outage fails fast instead of blocking).
+
+#### Connection monitoring & the alive protocol (when to enable)
+
+A bus's health comes from two sources, folded to the **worse** of the two:
+
+**1. The transport's own connection monitoring (always on, the default).** Each vendor client already detects a
+broker outage by itself -- no extra traffic needed. Tune it through the leg's `transport.params` (opaque
+per-vendor knobs). The vendors differ -- some observe the connection actively, some only on send-outcome, some
+not at all (then they report UNKNOWN, which is benign):
+
+- **ActiveMQ** -- the `failover:(tcp://...)?timeout=N` endpoint auto-reconnects and a connection `TransportListener`
+  reports interrupt/resume without any send; the send carries a bounded timeout. The richest native signal of
+  the three.
+- **Redis (Lettuce)** -- a connection-state listener (connected/disconnected) + auto-reconnect, plus **TCP
+  keepalive** (`KeepAliveOptions` idle/interval/count) and a command timeout (set as URI options on the
+  `transport.endpoint` / via `transport.params`). WITHOUT keepalive a silently dropped connection can hang
+  undetected (the half-open-socket trap) -- set keepalive + a timeout on any leg whose health matters.
+- **Kafka** -- the consumer's group heartbeat (`heartbeat.interval.ms` / `session.timeout.ms`), the producer's
+  metadata refresh + request/delivery timeouts, and `connections.max.idle.ms` (all settable verbatim via
+  `transport.params`). The client monitors the broker connection itself; no application ping is needed.
+
+**2. The Esquire alive protocol (OPT-IN, `alive: true` -- OFF by default).** A session-layer HeartBeat /
+TestRequest above the transport. Enable it only where the transport's own signal is not enough:
+
+- **The round-trip case** ("can a message actually traverse the bus and come back from a peer") -- **R&R only**:
+  a CLIENT learns its SERVER is reachable-but-dead, which no connection monitor can tell.
+- **The idle case** -- with no traffic, a send-outcome-only transport (Redis/Kafka) reads UNKNOWN until the next
+  real send; the alive protocol fills that gap and can flag a fault FASTER (bounded by `alive-timeout`) than the
+  transport's own mechanism. **Optional, and recommended mainly for ActiveMQ** legs where a deterministic,
+  bounded DOWN is wanted.
+
+> **If you enable `alive` on a Redis or Kafka leg:** the heartbeats are routed to a SEPARATE `<destination>.admin`
+> stream/topic (never the data log). **Keep that admin channel NON-DURABLE** -- tp-redis caps the admin stream
+> (`MAXLEN`) and tp-kafka creates the admin topic with a short `retention.ms`, but if you pre-create or manage
+> these yourself, set a tiny retention so the throwaway heartbeats self-purge.
+
+**Role note:** a CLIENT (consumer) role over a produce-only transport (the XADD-only Redis) **fails fast at boot**
+(`unsupported config ... cannot run ... for a CLIENT role`) -- Redis can be a SERVER (producer) but not a CLIENT.
+
+**Supported vendor x role, and the `alive` effect** (verified on the docker stack):
+
+| transport | SERVER (produces) | CLIENT (consumes) | with `alive: true` |
+|---|---|---|---|
+| **ActiveMQ** | yes | yes | heartbeats flow on the destination; the consumer's `isSession()` filter drops them |
+| **Kafka** | yes | yes | heartbeats routed to `<topic>.admin` (short retention); the log topic stays clean |
+| **Redis** | yes | **no -- FAILS FAST** (XADD-only) | heartbeats routed to `<stream>.admin` (capped); the log stream stays clean |
+
+With `alive` **OFF** (the default) NO heartbeats are emitted on any leg, and a bus's health is its transport
+indicator alone; with `alive` **ON**, a quiet producing leg self-heartbeats and the metric folds into the bus
+health. A `<destination>.admin` channel is created only on the Redis/Kafka legs that carry session traffic.
 
 ### Instance identity (enyMan / common — entity-id minting)
 

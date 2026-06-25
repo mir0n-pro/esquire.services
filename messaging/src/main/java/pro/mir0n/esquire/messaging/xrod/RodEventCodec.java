@@ -18,6 +18,7 @@
  * 06/22/2026 mir0n  import RodEvent from messaging (was messaging.xrod)
  * 06/23/2026 mir0n  session-message branch in toProps/fromProps (the reduced field set; RequestID omitted on an
  *                   unsolicited HeartBeat); textOf() writes a prepared bodyText to Text (no Map / no Jackson), else the body Map
+ * 06/23/2026 mir0n  EsqMsgConstants wire constants -> messaging.BusConstants (references repointed)
  */
 package pro.mir0n.esquire.messaging.xrod;
 
@@ -25,7 +26,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import pro.mir0n.esquire.common.EsqMsgConstants;
+import pro.mir0n.esquire.messaging.BusConstants;
 import pro.mir0n.esquire.messaging.transport.BusIdentity;
 import pro.mir0n.esquire.messaging.RodEvent;
 
@@ -53,36 +54,36 @@ public final class RodEventCodec {
      *  omitted. */
     public static Map<String, Object> toProps(RodEvent e, ObjectMapper om, BusIdentity id) {
         Map<String, Object> ret = new LinkedHashMap<>();
-        ret.put(EsqMsgConstants.FIELD_SCHEMA_VERSION,   EsqMsgConstants.SCHEMA_VERSION);
-        ret.put(EsqMsgConstants.FIELD_BUS_ID,           id.busId());
-        ret.put(EsqMsgConstants.FIELD_SLOT_ID,       id.slotId());
+        ret.put(BusConstants.FIELD_SCHEMA_VERSION,   BusConstants.SCHEMA_VERSION);
+        ret.put(BusConstants.FIELD_BUS_ID,           id.busId());
+        ret.put(BusConstants.FIELD_SLOT_ID,       id.slotId());
         String rodId = e.rodId() != null ? e.rodId() : id.rodId();
         if (rodId != null && !rodId.isBlank()) {
-            ret.put(EsqMsgConstants.FIELD_ROD_ID,       rodId);
+            ret.put(BusConstants.FIELD_ROD_ID,       rodId);
         }
-        ret.put(EsqMsgConstants.FIELD_MSG_TYPE,         e.msgType());
-        ret.put(EsqMsgConstants.FIELD_MESSAGE_ENCODING, EsqMsgConstants.MSG_ENCODING_JSON);
+        ret.put(BusConstants.FIELD_MSG_TYPE,         e.msgType());
+        ret.put(BusConstants.FIELD_MESSAGE_ENCODING, BusConstants.MSG_ENCODING_JSON);
         if (e.isSession()) {
             // SESSION (alive) message -- the reduced field set: no CRUD fields (EventType / EntityKind / EntityID /
             // SubID / ActionTime / Uid), no header TestReqID (it rides inside Text). RequestID is omitted on an
             // unsolicited HeartBeat (null) and present on a TestRequest / its HeartBeat reply.
-            ret.put(EsqMsgConstants.FIELD_CORRELATION_ID, e.correlationId());
+            ret.put(BusConstants.FIELD_CORRELATION_ID, e.correlationId());
             if (e.requestId() != null) {
-                ret.put(EsqMsgConstants.FIELD_REQUEST_ID, e.requestId());
+                ret.put(BusConstants.FIELD_REQUEST_ID, e.requestId());
             }
-            ret.put(EsqMsgConstants.FIELD_TEXT,         textOf(e, om));
+            ret.put(BusConstants.FIELD_TEXT,         textOf(e, om));
         } else {
-            ret.put(EsqMsgConstants.FIELD_EVENT_TYPE,       e.opCode());
-            ret.put(EsqMsgConstants.FIELD_ENTITY_KIND,      e.kind());
-            ret.put(EsqMsgConstants.FIELD_ENTITY_ID,        e.entityId());
-            ret.put(EsqMsgConstants.FIELD_SUB_ID,           e.subId());
-            ret.put(EsqMsgConstants.FIELD_ACTION_TIME,      e.actionTime());
-            ret.put(EsqMsgConstants.FIELD_CORRELATION_ID,   e.correlationId());
-            ret.put(EsqMsgConstants.FIELD_REQUEST_ID,       e.requestId());
+            ret.put(BusConstants.FIELD_EVENT_TYPE,       e.opCode());
+            ret.put(BusConstants.FIELD_ENTITY_KIND,      e.kind());
+            ret.put(BusConstants.FIELD_ENTITY_ID,        e.entityId());
+            ret.put(BusConstants.FIELD_SUB_ID,           e.subId());
+            ret.put(BusConstants.FIELD_ACTION_TIME,      e.actionTime());
+            ret.put(BusConstants.FIELD_CORRELATION_ID,   e.correlationId());
+            ret.put(BusConstants.FIELD_REQUEST_ID,       e.requestId());
             // keep the R&R wire structure: testReqId rides as the requestId value (the producer guarantees it non-null).
-            ret.put(EsqMsgConstants.FIELD_TEST_REQ_ID,      e.requestId());
-            ret.put(EsqMsgConstants.FIELD_UID,              e.uid());
-            ret.put(EsqMsgConstants.FIELD_TEXT,             textOf(e, om));
+            ret.put(BusConstants.FIELD_TEST_REQ_ID,      e.requestId());
+            ret.put(BusConstants.FIELD_UID,              e.uid());
+            ret.put(BusConstants.FIELD_TEXT,             textOf(e, om));
         }
         return ret;
     }
@@ -99,28 +100,28 @@ public final class RodEventCodec {
      *  and a single non-numeric value falls back to a default (logged) rather than aborting the whole-event decode. */
     public static RodEvent fromProps(Map<String, Object> p, ObjectMapper om) {
         requireSchemaVersion(p);
-        String msgType = str(p.get(EsqMsgConstants.FIELD_MSG_TYPE));
+        String msgType = str(p.get(BusConstants.FIELD_MSG_TYPE));
         RodEvent ret;
         if (RodEvent.isSession(msgType)) {
             // SESSION (alive) message -- rebuild the bare session envelope (no CRUD fields); TestReqID rides in Text.
             ret = RodEvent.session(msgType,
-                    str(p.get(EsqMsgConstants.FIELD_CORRELATION_ID)),
-                    str(p.get(EsqMsgConstants.FIELD_REQUEST_ID)),
-                    str(p.get(EsqMsgConstants.FIELD_ROD_ID)),
-                    readBody(str(p.get(EsqMsgConstants.FIELD_TEXT)), om));
+                    str(p.get(BusConstants.FIELD_CORRELATION_ID)),
+                    str(p.get(BusConstants.FIELD_REQUEST_ID)),
+                    str(p.get(BusConstants.FIELD_ROD_ID)),
+                    readBody(str(p.get(BusConstants.FIELD_TEXT)), om));
         } else {
             ret = new RodEvent(
-                    RodEvent.opFromCode(str(p.get(EsqMsgConstants.FIELD_EVENT_TYPE))),
-                    intOf(p, EsqMsgConstants.FIELD_ENTITY_KIND),
-                    str(p.get(EsqMsgConstants.FIELD_ENTITY_ID)),
-                    str(p.get(EsqMsgConstants.FIELD_SUB_ID)),
-                    longOf(p, EsqMsgConstants.FIELD_ACTION_TIME),
-                    str(p.get(EsqMsgConstants.FIELD_CORRELATION_ID)),
-                    str(p.get(EsqMsgConstants.FIELD_REQUEST_ID)),
-                    str(p.get(EsqMsgConstants.FIELD_UID)),
-                    str(p.get(EsqMsgConstants.FIELD_ROD_ID)),
+                    RodEvent.opFromCode(str(p.get(BusConstants.FIELD_EVENT_TYPE))),
+                    intOf(p, BusConstants.FIELD_ENTITY_KIND),
+                    str(p.get(BusConstants.FIELD_ENTITY_ID)),
+                    str(p.get(BusConstants.FIELD_SUB_ID)),
+                    longOf(p, BusConstants.FIELD_ACTION_TIME),
+                    str(p.get(BusConstants.FIELD_CORRELATION_ID)),
+                    str(p.get(BusConstants.FIELD_REQUEST_ID)),
+                    str(p.get(BusConstants.FIELD_UID)),
+                    str(p.get(BusConstants.FIELD_ROD_ID)),
                     msgType,
-                    readBody(str(p.get(EsqMsgConstants.FIELD_TEXT)), om));
+                    readBody(str(p.get(BusConstants.FIELD_TEXT)), om));
         }
         return ret;
     }
@@ -130,16 +131,16 @@ public final class RodEventCodec {
      *  An ABSENT version is tolerated: the sole encoder ({@link #toProps}) always writes the current one, so a
      *  missing value is a legacy/minimal message, not a different schema. */
     private static void requireSchemaVersion(Map<String, Object> p) {
-        Object raw = p.get(EsqMsgConstants.FIELD_SCHEMA_VERSION);
+        Object raw = p.get(BusConstants.FIELD_SCHEMA_VERSION);
         if (raw != null) {
             boolean match = raw instanceof Number n
-                    ? n.intValue() == EsqMsgConstants.SCHEMA_VERSION
-                    : String.valueOf(EsqMsgConstants.SCHEMA_VERSION).equals(raw.toString().trim());
+                    ? n.intValue() == BusConstants.SCHEMA_VERSION
+                    : String.valueOf(BusConstants.SCHEMA_VERSION).equals(raw.toString().trim());
             if (!match) {
                 devLog.error("rod-codec: unsupported schema version '{}' (this codec is {}) -- rejecting the message",
-                        raw, EsqMsgConstants.SCHEMA_VERSION);
+                        raw, BusConstants.SCHEMA_VERSION);
                 throw new IllegalStateException("rod-codec: unsupported schema version '" + raw
-                        + "' (expected " + EsqMsgConstants.SCHEMA_VERSION + ")");
+                        + "' (expected " + BusConstants.SCHEMA_VERSION + ")");
             }
         }
     }

@@ -1,5 +1,21 @@
 Esquire enyMan Microservice
 
+06/24/2026 mir0n  v1.2.9 -- EsqMsgConstants references repointed
+EnyManApplication
+  - EsqMsgConstants app constants -> common.EsqConstants (references repointed)
+audit.AuditConfig
+  - EsqMsgConstants app constants -> common.EsqConstants (references repointed)
+messaging.EntityBusAdapter
+  - EsqMsgConstants references -> messaging.BusConstants (wire) + common.EsqConstants (app)
+messaging.KcBusAdapter
+  - EsqMsgConstants references -> messaging.BusConstants (wire) + common.EsqConstants (app)
+queue.MoveQueueManager
+  - EsqMsgConstants references -> messaging.BusConstants (wire) + common.EsqConstants (app)
+service.impl.AcctService
+  - EsqMsgConstants app constants -> common.EsqConstants (references repointed)
+service.impl.EnyManService
+  - EsqMsgConstants references -> messaging.BusConstants (wire) + common.EsqConstants (app)
+
 06/22/2026 mir0n  messaging-bus health indicator + readiness/liveness
 EnyManApplication
   - the MessagingBusLifecycleRegistrar, at ApplicationReadyEvent, registers a BusHealthIndicator (the bus

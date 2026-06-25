@@ -25,7 +25,7 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
 import pro.mir0n.esquire.backend.storage.EsqObjectKindStorage;
-import pro.mir0n.esquire.common.EsqMsgConstants;
+import pro.mir0n.esquire.messaging.BusConstants;
 import pro.mir0n.esquire.messaging.xrod.RodTransportAdapter;
 import pro.mir0n.esquire.messaging.transport.BusIdentity;
 import pro.mir0n.esquire.messaging.transport.PublishSettings;
@@ -102,7 +102,7 @@ class RodBusIntegrationTest {
         body.put("desc", "c-it");
         body.put("negativeAllowed", "N");
         RodEvent e = new RodEvent(RodEvent.Op.UPDATE, 50, "777", null, System.currentTimeMillis(),
-                "it-crl-1", "it-req-1", "it-uid", null, EsqMsgConstants.MSG_TYPE_AUDIT, body);
+                "it-crl-1", "it-req-1", "it-uid", null, BusConstants.MSG_TYPE_AUDIT, body);
 
         publisher.accept(e);
         await().atMost(20, TimeUnit.SECONDS).untilAsserted(() ->

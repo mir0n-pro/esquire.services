@@ -10,6 +10,7 @@
  *                   KcSyncPublisher (transmit URQ) + KcSyncResponseListener (receive URS/URR) onto the single
  *                   kc-CLIENT rod (from the facade). publish() builds the URQ from the access profile + roles and
  *                   transmits it; onResponse() handles the reply tagged with this instance's rod-id.
+ * 06/23/2026 mir0n  EsqMsgConstants references -> messaging.BusConstants (wire) + common.EsqConstants (app)
  */
 package pro.mir0n.esquire.keySmith.messaging;
 
@@ -21,7 +22,7 @@ import org.springframework.stereotype.Component;
 import pro.mir0n.esquire.backend.jpa.access.EsqAccessProfileJpa;
 import pro.mir0n.esquire.backend.jpa.access.EsqRoleJpa;
 import pro.mir0n.esquire.common.EsqConstants;
-import pro.mir0n.esquire.common.EsqMsgConstants;
+import pro.mir0n.esquire.messaging.BusConstants;
 import pro.mir0n.esquire.messaging.MessagingBus;
 import pro.mir0n.esquire.messaging.IXRod;
 import pro.mir0n.esquire.messaging.RodEvent;
@@ -46,7 +47,7 @@ public class KcBusAdapter {
 
     public KcBusAdapter() {
         // kc CLIENT: transmit URQ requests + receive URS/URR responses (rod-id selector), on one rod.
-        this.rod = MessagingBus.getInstance().getXRod(EsqMsgConstants.BUS_KEY_KC);
+        this.rod = MessagingBus.getInstance().getXRod(EsqConstants.BUS_KEY_KC);
         this.rod.setWorker(this::onResponse);   // role-support: throws if the rod has no receive leg
         this.rod.transmit(null);                // role-support: probe -- throws if the rod has no transmit leg
     }
@@ -66,11 +67,11 @@ public class KcBusAdapter {
                         List<EsqRoleJpa> roles, String correlationId, String requestId) {
         String command;
         if ("Y".equals(oldConnectFlg) && "N".equals(jpa.getConnectFlg())) {
-            command = EsqMsgConstants.EVENT_DELETE;
+            command = BusConstants.EVENT_DELETE;
         } else if ("N".equals(oldConnectFlg) && "Y".equals(jpa.getConnectFlg())) {
-            command = EsqMsgConstants.EVENT_CREATE;
+            command = BusConstants.EVENT_CREATE;
         } else {
-            command = EsqMsgConstants.EVENT_UPDATE;
+            command = BusConstants.EVENT_UPDATE;
         }
 
         try {
@@ -80,7 +81,7 @@ public class KcBusAdapter {
             String reqId = (requestId != null && !requestId.isBlank()) ? requestId : UUID.randomUUID().toString();
 
             RodEvent e = new RodEvent(RodEvent.opFromCode(command), EsqConstants.KIND_ACCESS_PROFILE, entityId, null,
-                    System.currentTimeMillis(), correlationId, reqId, null, null, EsqMsgConstants.MSG_TYPE_REQUEST, body);
+                    System.currentTimeMillis(), correlationId, reqId, null, null, BusConstants.MSG_TYPE_REQUEST, body);
             rod.transmit(e);
             log.info("KC | URQ | {} | {} | {} | {}", command, EsqConstants.KIND_ACCESS_PROFILE, entityId, reqId);
         } catch (Exception e) {
@@ -109,10 +110,10 @@ public class KcBusAdapter {
         body.put("kind", EsqConstants.KIND_ACCESS_PROFILE);
 
         switch (command) {
-            case EsqMsgConstants.EVENT_DELETE -> {
+            case BusConstants.EVENT_DELETE -> {
                 body.put("loginId", loginId);
             }
-            case EsqMsgConstants.EVENT_CREATE -> {
+            case BusConstants.EVENT_CREATE -> {
                 body.put("loginId",         jpa.getLoginId());
                 body.put("email",           jpa.getEmail());
                 body.put("pwdChangeForced", jpa.getPwdChangeForced());
@@ -121,7 +122,7 @@ public class KcBusAdapter {
                 body.put("path",            jpa.getPath());
                 body.put("roles",           roleNames(roles));
             }
-            case EsqMsgConstants.EVENT_UPDATE -> {
+            case BusConstants.EVENT_UPDATE -> {
                 body.put("loginId",         loginId);
                 if (jpa.getLoginId() != null && !jpa.getLoginId().equals(loginId)) {
                     body.put("newLoginId",  jpa.getLoginId());

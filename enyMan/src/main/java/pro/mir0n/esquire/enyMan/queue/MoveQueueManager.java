@@ -26,6 +26,7 @@
  * 06/18/2026 mir0n  audit module left common: AuditBusBridge moved to pro.mir0n.esquire.audit
  * 06/22/2026 mir0n  bus-adapter rename: broadcastPublisher EsqEntityBroadcastPublisher -> EntityBusAdapter,
  *                   kcRequestPublisher KcRequestPublisher -> KcBusAdapter (fields + ctor params + imports).
+ * 06/23/2026 mir0n  EsqMsgConstants references -> messaging.BusConstants (wire) + common.EsqConstants (app)
  */
 
 package pro.mir0n.esquire.enyMan.queue;
@@ -45,7 +46,7 @@ import pro.mir0n.esquire.backend.service.EsqContextHolder;
 import pro.mir0n.esquire.backend.service.EsqRequestContext;
 import pro.mir0n.esquire.backend.storage.EsqObjectKindStorage;
 import pro.mir0n.esquire.common.EsqConstants;
-import pro.mir0n.esquire.common.EsqMsgConstants;
+import pro.mir0n.esquire.messaging.BusConstants;
 import pro.mir0n.esquire.audit.AuditBusBridge;
 import pro.mir0n.esquire.enyMan.jpa.EntityPathLookup;
 import pro.mir0n.esquire.enyMan.jpa.EsqEntityDictionaryRepository;
@@ -227,11 +228,11 @@ public class MoveQueueManager implements IQueueRig.IQueueWorker<MoveQueueItem> {
                 item.entityId(), item.pathAtPublish(), expectedPath, rows);
 
         Map<String, Object> text = new LinkedHashMap<>();
-        text.put(EsqMsgConstants.TEXT_ID,   item.entityId());
-        text.put(EsqMsgConstants.TEXT_KIND, item.kind());
-        text.put(EsqMsgConstants.TEXT_PATH, expectedPath);
+        text.put(EsqConstants.TEXT_ID,   item.entityId());
+        text.put(EsqConstants.TEXT_KIND, item.kind());
+        text.put(EsqConstants.TEXT_PATH, expectedPath);
         try {
-            broadcastPublisher.publish(item.kind(), item.entityId(), EsqMsgConstants.EVENT_UPDATE_PATH,
+            broadcastPublisher.publish(item.kind(), item.entityId(), BusConstants.EVENT_UPDATE_PATH,
                     moveRid, moveCid, text);
         } catch (Exception e) {
             log.error("processReconcile: broadcast failed for kind={}, id={}: {}",
@@ -245,11 +246,11 @@ public class MoveQueueManager implements IQueueRig.IQueueWorker<MoveQueueItem> {
 
     private void publishMoveEvent(EsqMoveRecord record, String requestId, String correlationId) {
         Map<String, Object> text = new LinkedHashMap<>();
-        text.put(EsqMsgConstants.TEXT_ID,   record.getId());
-        text.put(EsqMsgConstants.TEXT_KIND, record.getKind());
-        text.put(EsqMsgConstants.TEXT_PATH, record.getPath());
+        text.put(EsqConstants.TEXT_ID,   record.getId());
+        text.put(EsqConstants.TEXT_KIND, record.getKind());
+        text.put(EsqConstants.TEXT_PATH, record.getPath());
         try {
-            broadcastPublisher.publish(record.getKind(), record.getId(), EsqMsgConstants.EVENT_UPDATE_PATH,
+            broadcastPublisher.publish(record.getKind(), record.getId(), BusConstants.EVENT_UPDATE_PATH,
                     requestId, correlationId, text);
         } catch (Exception e) {
             log.error("publishMoveEvent: broadcast failed for kind={}, id={}: {}",

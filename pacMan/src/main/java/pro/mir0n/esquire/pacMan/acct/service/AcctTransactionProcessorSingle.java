@@ -17,6 +17,7 @@
  * 06/17/2026 mir0n  audit producer IXRod -> AuditBusBridge; the balance-change post() drops the trailing MSG_TYPE_AUDIT arg
  * 06/18/2026 mir0n  audit module left common: AuditBusBridge moved to pro.mir0n.esquire.audit
  * 06/22/2026 mir0n  RodEvent import: messaging.xrod.RodEvent -> messaging.RodEvent (package move)
+ * 06/23/2026 mir0n  EsqMsgConstants app constants -> common.EsqConstants (references repointed)
  */
 
 package pro.mir0n.esquire.pacMan.acct.service;
@@ -37,7 +38,7 @@ import pro.mir0n.esquire.backend.service.EntityFieldUtils;
 import pro.mir0n.esquire.backend.service.RequestContextUtils;
 import pro.mir0n.esquire.backend.storage.EsqObjectKindStorage;
 import pro.mir0n.esquire.backend.storage.EsqRolesStorage;
-import pro.mir0n.esquire.common.EsqMsgConstants;
+import pro.mir0n.esquire.common.EsqConstants;
 import pro.mir0n.esquire.pacMan.acct.AcctOperation;
 import pro.mir0n.esquire.pacMan.acct.IAcctTransactionProcessor;
 import pro.mir0n.esquire.pacMan.acct.dto.AcctTransactionSingle;
@@ -152,7 +153,7 @@ public class AcctTransactionProcessorSingle implements IAcctTransactionProcessor
             throw new ResourceNotFoundException("postAcctTransaction", "acct Id", acctId);
         }
 
-        if (!skipValidation && !EsqMsgConstants.FLAG_OPEN.equals(acct.getStatus())) {
+        if (!skipValidation && !EsqConstants.FLAG_OPEN.equals(acct.getStatus())) {
             throw new InvalidValueException("Account is not open", IPacManService.FIELD_STATUS, "Status", "1");
         }
         if (!skipValidation && "N".equals(acct.getNegativeAllowed())) {

@@ -1,5 +1,9 @@
 Esquire audit library
 
+06/24/2026 mir0n  v1.2.9 -- EsqMsgConstants references repointed
+AuditBusBridge
+  - EsqMsgConstants wire constants -> messaging.BusConstants (references repointed)
+
 06/22/2026 mir0n  v1.2.9 -- AuditBusBridge wraps the facade-built audit x-rod
 AuditBusBridge
   - the constructor takes the IXRod the facade builds (MessagingBus.getInstance().getXRod(BUS_KEY_AUDIT));

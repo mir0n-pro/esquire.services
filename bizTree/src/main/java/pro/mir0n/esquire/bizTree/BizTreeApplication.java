@@ -15,6 +15,7 @@
  *                   {entity}) builds rods paused, ready -> bus.start() runs them, context-closed -> bus.close()
  * 06/22/2026 mir0n  registrar registers a BusHealthIndicator (bus facade handed in) into the Actuator
  *                   HealthContributorRegistry programmatically at ApplicationReadyEvent (no @Bean) -> /actuator/health
+ * 06/23/2026 mir0n  EsqMsgConstants app constants -> common.EsqConstants (references repointed)
  */
 
 package pro.mir0n.esquire.bizTree;
@@ -33,7 +34,7 @@ import org.springframework.context.event.ContextClosedEvent;
 import org.springframework.core.Ordered;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 import pro.mir0n.esquire.backend.storage.EsqObjectKindStorage;
-import pro.mir0n.esquire.common.EsqMsgConstants;
+import pro.mir0n.esquire.common.EsqConstants;
 import pro.mir0n.esquire.messaging.BusHealthIndicator;
 import pro.mir0n.esquire.messaging.MessagingBus;
 
@@ -82,7 +83,7 @@ public class BizTreeApplication {
         public void onApplicationEvent(ApplicationEvent event) {
             MessagingBus bus = MessagingBus.getInstance();
             if (event instanceof ApplicationEnvironmentPreparedEvent e) {
-                bus.init(e.getEnvironment(), new String[]{EsqMsgConstants.BUS_KEY_ENTITY});
+                bus.init(e.getEnvironment(), new String[]{EsqConstants.BUS_KEY_ENTITY});
                 devLog.debug("MessagingBus initiated (rods built, paused)");
             } else if (event instanceof ApplicationReadyEvent e) {
                 bus.start();                             // run them -- traffic flows only from here

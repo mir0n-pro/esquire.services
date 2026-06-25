@@ -20,10 +20,11 @@
  *                   messaging.catalog.
  * 06/23/2026 mir0n  buildKeepAlive() (CLIENT emits TestRequest, SERVER/BOTH an unsolicited HeartBeat) + onSessionMsg()
  *                   (SERVER echoes a received TestRequest back as a HeartBeat, routing echoed)
+ * 06/24/2026 mir0n  buildKeepAlive() javadoc: "an R&R SERVER" (BOTH removed from the role list)
  */
 package pro.mir0n.esquire.messaging.xrod.impl;
 
-import pro.mir0n.esquire.common.EsqMsgConstants;
+import pro.mir0n.esquire.messaging.BusConstants;
 import pro.mir0n.esquire.messaging.RodEvent;
 import pro.mir0n.esquire.messaging.catalog.BusNode;
 import pro.mir0n.esquire.messaging.catalog.BusTransport;
@@ -114,7 +115,7 @@ public class XRodRR extends XRod {
     }
 
     /** Alive protocol: an R&R CLIENT probes its SERVER with a TestRequest on inactivity (its own rod-id rides, so
-     *  the SERVER's HeartBeat reply routes back via the RodID selector); an R&R SERVER (or BOTH) keeps its
+     *  the SERVER's HeartBeat reply routes back via the RodID selector); an R&R SERVER keeps its
      *  response leg alive with an unsolicited HeartBeat (the base keep-alive). */
     @Override
     protected RodEvent buildKeepAlive() {
@@ -132,7 +133,7 @@ public class XRodRR extends XRod {
      *  HeartBeat is liveness only (already marked by the session). */
     @Override
     protected void onSessionMsg(RodEvent in) {
-        if (role == Role.SERVER && EsqMsgConstants.MSG_TYPE_TEST_REQUEST.equals(in.msgType())) {
+        if (role == Role.SERVER && BusConstants.MSG_TYPE_TEST_REQUEST.equals(in.msgType())) {
             transmit(RodEvent.heartbeat(in.correlationId(), in.requestId(), in.rodId()));
         }
     }
@@ -143,9 +144,9 @@ public class XRodRR extends XRod {
     protected String consumeSelector(Role role, BusIdentity identity) {
         String ret;
         if (role == Role.CLIENT) {
-            ret = EsqMsgConstants.FIELD_ROD_ID + " = '" + identity.rodId() + "'";
+            ret = BusConstants.FIELD_ROD_ID + " = '" + identity.rodId() + "'";
         } else if (role == Role.SERVER) {
-            ret = EsqMsgConstants.FIELD_SLOT_ID + " = '" + identity.slotId() + "'";
+            ret = BusConstants.FIELD_SLOT_ID + " = '" + identity.slotId() + "'";
         } else {
             ret = null;
         }

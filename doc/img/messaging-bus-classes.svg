@@ -19,6 +19,7 @@
   <rect x="32" y="224" width="246" height="28" rx="6" fill="#eef2f7" stroke="#4D6A8D" stroke-width="1.3"/><text x="155" y="242" text-anchor="middle" font-size="11" fill="#1f2a36">RodEventRepoRegistry  (optional)</text>
   <rect x="32" y="260" width="246" height="28" rx="6" fill="#eef2f7" stroke="#4D6A8D" stroke-width="1.3"/><text x="155" y="278" text-anchor="middle" fill="#1f2a36">BusHealthIndicator</text>
   <rect x="32" y="296" width="246" height="28" rx="6" fill="#eef2f7" stroke="#4D6A8D" stroke-width="1.3"/><text x="155" y="314" text-anchor="middle" fill="#1f2a36">TransportHealthIndicator</text>
+  <rect x="32" y="332" width="246" height="28" rx="6" fill="#eef2f7" stroke="#4D6A8D" stroke-width="1.3"/><text x="155" y="350" text-anchor="middle" font-size="11" fill="#1f2a36">BusConstants  (FIX-JSON wire constants)</text>
 
   <!-- ===== Panel B: messaging.catalog + messaging.xrod(.impl) ===== -->
   <rect x="305" y="44" width="250" height="348" rx="9" fill="#fbfcfd" stroke="#c3cedb" stroke-width="1.4"/>

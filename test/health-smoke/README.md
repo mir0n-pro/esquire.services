@@ -17,17 +17,20 @@ tests; this harness covers the live end-to-end behavior they cannot.
 ./run.sh k8s        # local-k8s mode (kubectl context must be docker-desktop)
 ```
 
-Asserts: (1) a readiness sweep of all six services = UP; (2) the broker down -> a producer's readiness flips
-`503` while liveness stays `200`; (3) the broker back -> readiness recovers to `200` on its own (`failover:`).
-Records PASS/FAIL to `results-<stamp>-<mode>.md` and exits non-zero on any failed assertion. The k8s mode times
-the DOWN window from the ACTUAL transport-interruption log line (a graceful StatefulSet shutdown keeps the
-broker serving for a while, so timing from `scale` reads a false "still up" -- see the method note in the k8s
-results). The keepDatasource DB-health dimension has its own kill-the-DB capture (`results-*-k8s-db.md`) and is
-not driven by `run.sh`.
+Asserts: (1) a readiness sweep of all six services = UP; (2) the broker down -> liveness stays `200` (the pod is
+depooled, never restarted); (3) the broker back -> readiness recovers to `200` on its own (`failover:`). Records
+PASS/FAIL to `results-<stamp>-<mode>.md` and exits non-zero on any failed assertion.
 
-The active health SOURCE is the x-rod alive protocol (the `HeartBeat`/`TestRequest` heartbeat, #8): a producing
-leg is exercised on a cadence, so the readiness signal works the same on every transport, not just ActiveMQ's
-passive listener.
+The **readiness DOWN** edge is asserted in **docker** mode (`docker stop` is a clean drop -> readiness `503` in
+~20-30s) but only **OBSERVED** in **k8s** mode: a HARD k8s failure (crashed pod / node loss -> a half-open
+socket) is NOT caught by the producer-leg health, because with `jms.useAsyncSend` + `failover:` buffering the
+heartbeat send still "succeeds" so `producerTs` stays fresh. That is the documented producer-leg Q&D limit
+(`doc/Esquire.MessagingBus.ContinuingDev.md`); the round-trip health is its fix. A CLEAN k8s shutdown (graceful
+rolling-restart) IS detected, so k8s mode uses a graceful `scale --replicas=0` and records whether the drop was
+caught.
+
+The keepDatasource DB-health dimension has its own kill-the-DB capture (`results-*-k8s-db.md`) and is not driven
+by `run.sh`. The active health SOURCE is the x-rod alive protocol (the `HeartBeat`/`TestRequest` heartbeat, #8).
 
 ---
 

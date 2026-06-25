@@ -26,7 +26,6 @@ import pro.mir0n.esquire.backend.storage.EsqObjectKindStorage;
 import pro.mir0n.esquire.backend.storage.EsqRolesStorage;
 import pro.mir0n.esquire.backend.storage.roles.JpaRolesRepository;
 import pro.mir0n.esquire.common.EsqConstants;
-import pro.mir0n.esquire.common.EsqMsgConstants;
 import pro.mir0n.esquire.backend.service.EsqContextHolder;
 import pro.mir0n.esquire.backend.service.EsqRequestContext;
 import pro.mir0n.esquire.backend.validator.ValidatorFactory;
@@ -93,15 +92,15 @@ class PacManServiceTest {
         EsqRolesStorage.getInstance().init(rolesRepo);
 
         EsqEntityField ccyField = new EsqEntityField();
-        ccyField.setName(EsqMsgConstants.TEXT_CCY);
+        ccyField.setName(EsqConstants.TEXT_CCY);
         ccyField.setNullable("N");
-        ccyField.setDefaultValue(EsqMsgConstants.CCY_DEFAULT);
+        ccyField.setDefaultValue(EsqConstants.CCY_DEFAULT);
         ccyField.setReadwrite(3);
 
         EsqEntityField statusField = new EsqEntityField();
-        statusField.setName(EsqMsgConstants.TEXT_STATUS);
+        statusField.setName(EsqConstants.TEXT_STATUS);
         statusField.setNullable("N");
-        statusField.setDefaultValue(EsqMsgConstants.FLAG_OPEN);
+        statusField.setDefaultValue(EsqConstants.FLAG_OPEN);
         statusField.setReadwrite(3);
 
         EsqEntityField negativeAllowedField = new EsqEntityField();

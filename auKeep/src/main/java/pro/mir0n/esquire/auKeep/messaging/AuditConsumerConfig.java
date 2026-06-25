@@ -15,6 +15,7 @@
  *                   explicitly-disabled audit bus leaves the consumer idle.
  * 06/22/2026 mir0n  added keepHealth() -> Supplier<TransportHealth> over the keep applier (UP when no keep active);
  *                   the lifecycle registrar registers it as the "keepDatasource" health contributor.
+ * 06/23/2026 mir0n  EsqMsgConstants app constants -> common.EsqConstants (references repointed)
  */
 package pro.mir0n.esquire.auKeep.messaging;
 
@@ -27,7 +28,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.env.Environment;
 import pro.mir0n.esquire.audit.AuditKeepDirector;
-import pro.mir0n.esquire.common.EsqMsgConstants;
+import pro.mir0n.esquire.common.EsqConstants;
 import pro.mir0n.esquire.dataKeep.director.IKeepDirector;
 import pro.mir0n.esquire.dataKeep.keep.KeepApplier;
 import pro.mir0n.esquire.dataKeep.keep.KeepDataSourceParams;
@@ -60,7 +61,7 @@ public class AuditConsumerConfig {
      */
     @Bean
     public IXRod auditConsumer() {
-        IXRod rod = MessagingBus.getInstance().getXRod(EsqMsgConstants.BUS_KEY_AUDIT);
+        IXRod rod = MessagingBus.getInstance().getXRod(EsqConstants.BUS_KEY_AUDIT);
         if (!rod.isEnabled()) {
             devLog.info("auKeep: audit bus is disabled (XRodDisabled) -- audit consumer idle");
         } else {

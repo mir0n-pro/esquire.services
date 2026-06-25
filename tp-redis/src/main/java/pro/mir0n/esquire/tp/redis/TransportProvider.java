@@ -18,6 +18,8 @@
  *                   throws UnsupportedOperationException
  * 06/22/2026 mir0n  send-outcome health on the publisher handle: no clean connection callback, so a good XADD
  *                   -> UP, a failed XADD -> DOWN (best-effort; producer-only stream).
+ * 06/24/2026 mir0n  session (alive) messages routed to a separate <destination>.admin stream (streamFor; a capped
+ *                   admin stream) so the append-only log stream keeps only real records; supportsBothLegs() = false
  */
 package pro.mir0n.esquire.tp.redis;
 
@@ -33,7 +35,8 @@ import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactor
 import org.springframework.data.redis.connection.stream.MapRecord;
 import org.springframework.data.redis.connection.stream.StreamRecords;
 import org.springframework.data.redis.core.StringRedisTemplate;
-import pro.mir0n.esquire.common.EsqMsgConstants;
+import pro.mir0n.esquire.messaging.BusConstants;
+import pro.mir0n.esquire.messaging.RodEvent;
 import pro.mir0n.esquire.messaging.transport.ConsumeSettings;
 import pro.mir0n.esquire.messaging.transport.ITransportProvider;
 import pro.mir0n.esquire.messaging.transport.PublishSettings;
@@ -56,6 +59,18 @@ public final class TransportProvider implements ITransportProvider {
      *  XADD option, NOT a connection param, so it is excluded from the connection URI below. */
     public static final String PARAM_MAX_LEN = "max-len";
 
+    /** Session (alive-protocol) messages -- HeartBeat / TestRequest -- are connectivity probes, NOT log data, so
+     *  they go to a SEPARATE {@code <destination>.admin} stream rather than the append-only log stream. Redis has
+     *  no server-side content filter (unlike a Kafka-Connect sink SMT), so this producer-side split by stream key
+     *  is the ONLY way to keep the log stream to real records (e.g. UA audit) -- a Redis-specific transport concern,
+     *  not a session-layer one. NOTE (ops): the {@code .admin} stream is a throwaway liveness channel and is best
+     *  EXCLUDED from any downstream logging / persistence (it carries no records). */
+    public static final String ADMIN_STREAM_SUFFIX = ".admin";
+
+    /** The {@code .admin} liveness stream is capped tight (approximate trim) -- only the latest probe matters, so
+     *  it never grows. */
+    private static final long ADMIN_STREAM_MAXLEN = 1L;
+
     private static final Logger devLog = LoggerFactory.getLogger("develop.pro.mir0n.esquire.tp.redis.TransportProvider");
 
     public TransportProvider() {
@@ -64,6 +79,11 @@ public final class TransportProvider implements ITransportProvider {
     @Override
     public boolean supportsConsume() {
         return false;   // the stream IS the append-only log (read via XRANGE); there is no xxRod consume leg
+    }
+
+    @Override
+    public boolean supportsBothLegs() {
+        return false;   // XADD-only (produce-only) -- a single rod cannot also receive here, so no CLIENT role
     }
 
     @Override
@@ -80,8 +100,8 @@ public final class TransportProvider implements ITransportProvider {
             try {
                 Map<String, Object> props = new LinkedHashMap<>(msg.headers());
                 String applMsgId = UUID.randomUUID().toString();
-                props.put(EsqMsgConstants.FIELD_APPL_MSG_ID,  applMsgId);
-                props.put(EsqMsgConstants.FIELD_SENDING_TIME, Instant.now().toString());
+                props.put(BusConstants.FIELD_APPL_MSG_ID,  applMsgId);
+                props.put(BusConstants.FIELD_SENDING_TIME, Instant.now().toString());
 
                 Map<String, String> fields = new LinkedHashMap<>();
                 props.forEach((k, v) -> {
@@ -90,8 +110,16 @@ public final class TransportProvider implements ITransportProvider {
                     }
                 });
 
-                MapRecord<String, String, String> record = StreamRecords.mapBacked(fields).withStreamKey(destination);
-                if (maxLen > 0) {
+                // a session (alive) message rides to <destination>.admin, never the log stream -- the log keeps
+                // only real records. A capped admin stream (latest probe only). An app message goes to the log.
+                Object msgType = msg.headers().get(BusConstants.FIELD_MSG_TYPE);
+                String streamKey = streamFor(destination, msgType != null ? msgType.toString() : null);
+                boolean admin = !streamKey.equals(destination);
+
+                MapRecord<String, String, String> record = StreamRecords.mapBacked(fields).withStreamKey(streamKey);
+                if (admin) {
+                    redis.opsForStream().add(record, XAddOptions.maxlen(ADMIN_STREAM_MAXLEN).approximateTrimming(true));
+                } else if (maxLen > 0) {
                     redis.opsForStream().add(record, XAddOptions.maxlen(maxLen).approximateTrimming(true));
                 } else {
                     redis.opsForStream().add(record);
@@ -102,6 +130,20 @@ public final class TransportProvider implements ITransportProvider {
                 devLog.error("tp-redis: XADD failed on {}: {}", destination, ex.getMessage(), ex);
             }
         }, closer, conn::get);
+    }
+
+    /** The stream a message rides by its {@code MsgType}: a session (alive) message -- HeartBeat / TestRequest --
+     *  goes to the {@code <destination>.admin} liveness stream; every other message (e.g. UA audit) goes to the
+     *  {@code destination} log stream. Keeps the append-only log to real records, since Redis cannot filter
+     *  server-side. */
+    static String streamFor(String destination, String msgType) {
+        String ret;
+        if (RodEvent.isSession(msgType)) {
+            ret = destination + ADMIN_STREAM_SUFFIX;
+        } else {
+            ret = destination;
+        }
+        return ret;
     }
 
     @Override

@@ -1,6 +1,28 @@
 Esquire BizTree Microservice
 
 
+06/24/2026 mir0n  v1.2.9 -- EsqMsgConstants references repointed
+BizTreeApplication
+  - EsqMsgConstants app constants -> common.EsqConstants (references repointed)
+access.MessageHandlerHub
+  - EsqMsgConstants wire constants -> messaging.BusConstants (references repointed)
+messaging.EntityBusAdapter
+  - EsqMsgConstants app constants -> common.EsqConstants (references repointed)
+messaging.handler.CreateAcctHandler
+  - EsqMsgConstants app constants -> common.EsqConstants (references repointed)
+messaging.handler.CreateOrgHandler
+  - EsqMsgConstants app constants -> common.EsqConstants (references repointed)
+messaging.handler.CreateUsrHandler
+  - EsqMsgConstants app constants -> common.EsqConstants (references repointed)
+messaging.handler.MoveAcctHandler
+  - EsqMsgConstants app constants -> common.EsqConstants (references repointed)
+messaging.handler.MoveOrgHandler
+  - EsqMsgConstants app constants -> common.EsqConstants (references repointed)
+messaging.handler.MoveUsrHandler
+  - EsqMsgConstants app constants -> common.EsqConstants (references repointed)
+messaging.handler.UpdateEntityHandler
+  - EsqMsgConstants app constants -> common.EsqConstants (references repointed)
+
 06/22/2026 mir0n  messaging-bus health indicator + readiness/liveness
 BizTreeApplication
   - the MessagingBusLifecycleRegistrar, at ApplicationReadyEvent, registers a BusHealthIndicator (the bus

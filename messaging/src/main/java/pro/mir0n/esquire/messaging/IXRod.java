@@ -20,6 +20,7 @@
  *                   broker connection that can drop); a transport-backed rod overrides it (worst of its legs).
  * 06/23/2026 mir0n  idle() default no-op added -- the per-rod maintenance hook the MessagingBus idle ticker fires
  *                   (drives the alive-protocol heartbeat cadence today)
+ * 06/24/2026 mir0n  configure() javadoc: role list CLIENT/SERVER (BOTH removed)
  */
 package pro.mir0n.esquire.messaging;
 
@@ -51,7 +52,7 @@ public interface IXRod {
     }
 
     /** PREPARE the x-rod from its leg params (the x-rod treats only what it needs: XRod the transport + knobs;
-     *  XRodInProcess its {@code datasource} sub-block; etc.). {@code role} (CLIENT/SERVER/BOTH) picks the legs --
+     *  XRodInProcess its {@code datasource} sub-block; etc.). {@code role} (CLIENT/SERVER) picks the legs --
      *  the R&R node/selector, or transmit/receive on a single-node bus; {@code objectMapper} is the wire codec.
      *  Call before {@link #init}. */
     void configure(XRodParams params, Role role, ObjectMapper objectMapper);

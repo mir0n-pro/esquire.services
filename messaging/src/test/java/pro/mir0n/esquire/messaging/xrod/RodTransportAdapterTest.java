@@ -2,7 +2,7 @@ package pro.mir0n.esquire.messaging.xrod;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
-import pro.mir0n.esquire.common.EsqMsgConstants;
+import pro.mir0n.esquire.messaging.BusConstants;
 import pro.mir0n.esquire.messaging.transport.BusIdentity;
 import pro.mir0n.esquire.messaging.transport.ConsumeSettings;
 import pro.mir0n.esquire.messaging.transport.ITransportProvider;
@@ -37,7 +37,7 @@ class RodTransportAdapterTest {
 
     private static RodEvent event() {
         return new RodEvent(RodEvent.Op.UPDATE, 50, "100", null, 123L, "crl", "req", "uid",
-                null, EsqMsgConstants.MSG_TYPE_AUDIT, Map.of("name", "ACC", "balance", 10));
+                null, BusConstants.MSG_TYPE_AUDIT, Map.of("name", "ACC", "balance", 10));
     }
 
     @Test
@@ -68,7 +68,7 @@ class RodTransportAdapterTest {
         assertThat(e.op()).isEqualTo(RodEvent.Op.UPDATE);
         assertThat(e.kind()).isEqualTo(50);
         assertThat(e.entityId()).isEqualTo("100");
-        assertThat(e.msgType()).isEqualTo(EsqMsgConstants.MSG_TYPE_AUDIT);
+        assertThat(e.msgType()).isEqualTo(BusConstants.MSG_TYPE_AUDIT);
         assertThat(e.body()).containsEntry("name", "ACC");
     }
 }

@@ -4,7 +4,8 @@ Esquire Request/Response/RequestReject/Entity/Audit/Session Message Structure
 Every Esquire message is a FIX-JSON envelope produced by one shared codec (`RodEventCodec`) and carried
 by any x-rod bus regardless of transport (ActiveMQ queue, Kafka topic, Redis stream). Identity / audit
 fields ride as header properties; the message body rides as the `Text` JSON field. The envelope meta
-`ApplMsgID` and `SendingTime` are added by the publisher per send.
+`ApplMsgID` and `SendingTime` are added by the publisher per send. The canonical field names and the
+msg-type / event-type values are defined in `pro.mir0n.esquire.messaging.BusConstants`.
 
 Routing-envelope fields:
 

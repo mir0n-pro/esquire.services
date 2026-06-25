@@ -1,5 +1,13 @@
 Esquire Common microservice classes
 
+06/23/2026 mir0n  EsqMsgConstants split + moved out of common
+EsqMsgConstants  (removed)
+  - deleted; the FIX-JSON wire constants (FIELD_* / MSG_TYPE_* / SCHEMA_VERSION / MSG_ENCODING_JSON / EVENT_*)
+    moved to pro.mir0n.esquire.messaging.BusConstants; common no longer carries any bus-wire definition
+EsqConstants
+  - gained the non-wire app constants moved out of EsqMsgConstants: BUS_KEY_AUDIT/KC/ENTITY, TEXT_*
+    (id/kind/parentId/path/name/desc/status/deleted/ccy), FLAG_OPEN, CCY_DEFAULT
+
 06/23/2026 mir0n  x-rod alive-protocol session msg-types
 EsqMsgConstants
   - MSG_TYPE_HEARTBEAT = "0" and MSG_TYPE_TEST_REQUEST = "1" -- the FIX-canonical session msg-types for the

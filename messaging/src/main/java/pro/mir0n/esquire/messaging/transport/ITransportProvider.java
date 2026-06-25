@@ -13,6 +13,9 @@
  * 06/17/2026 mir0n  openPublisher returns a TransportPublisher (closeable) instead of a bare Consumer<TransportMessage>
  * 06/22/2026 mir0n  openConsumer returns a TransportConsumer (created PAUSED) instead of a bare AutoCloseable;
  *                   the listener subscribes at openConsumer but delivers nothing until TransportConsumer.start()
+ * 06/24/2026 mir0n  supportsBothLegs() default-true SPI method -- whether a single rod can run both legs (transmit
+ *                   + receive) on the transport's node; false for a produce-only transport, so the bus fails a
+ *                   CLIENT role fast over one that cannot
  */
 package pro.mir0n.esquire.messaging.transport;
 
@@ -50,6 +53,18 @@ public interface ITransportProvider {
      * on a vendor name. Default {@code true}.
      */
     default boolean supportsConsume() {
+        return true;
+    }
+
+    /**
+     * Whether a single rod can run BOTH legs -- a transmit AND a receive -- on this transport's node (a consumer
+     * can also publish to the node it consumes). ActiveMQ / Kafka return {@code true} (a destination / topic is
+     * bidirectional); a producer-only transport (e.g. the XADD-only Redis stream) returns {@code false}. A
+     * CLIENT role needs both legs -- its consume leg plus, with the alive protocol ON, a producer leg to
+     * self-heartbeat onto the same node -- so the bus FAILS FAST on such a role over a transport that cannot run
+     * both, rather than silently never delivering. Default {@code true}.
+     */
+    default boolean supportsBothLegs() {
         return true;
     }
 }

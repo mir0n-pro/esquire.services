@@ -63,6 +63,7 @@
  * 06/18/2026 mir0n  audit module left common: AuditBusBridge moved to pro.mir0n.esquire.audit
  * 06/22/2026 mir0n  bus-adapter rename: broadcastPublisher EsqEntityBroadcastPublisher -> EntityBusAdapter
  *                   (field + ctor param + import).
+ * 06/23/2026 mir0n  EsqMsgConstants references -> messaging.BusConstants (wire) + common.EsqConstants (app)
  */
 
 package pro.mir0n.esquire.enyMan.service.impl;
@@ -93,7 +94,8 @@ import pro.mir0n.esquire.enyMan.service.IEnyManService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 
-import pro.mir0n.esquire.common.EsqMsgConstants;
+import pro.mir0n.esquire.common.EsqConstants;
+import pro.mir0n.esquire.messaging.BusConstants;
 import pro.mir0n.esquire.audit.AuditBusBridge;
 import pro.mir0n.esquire.enyMan.jpa.EsqMoveRecord;
 
@@ -178,7 +180,7 @@ public class EnyManService  extends AEnyManService {
             if (permitted) {
                 ret = orgService.esquireCommandSave(k, id, cmd, fields, roles);
                 if (isBroadcastableUpdate(fields)) {
-                    publishEntityEvent(ret, k, EsqMsgConstants.EVENT_UPDATE, requestId, correlationId, fields);
+                    publishEntityEvent(ret, k, BusConstants.EVENT_UPDATE, requestId, correlationId, fields);
                 }
             }
         } else if (eek.isUsr()) {
@@ -188,7 +190,7 @@ public class EnyManService  extends AEnyManService {
             if (permitted) {
                 ret = usrService.esquireCommandSave(k, id, cmd, fields, roles);
                 if (isBroadcastableUpdate(fields)) {
-                    publishEntityEvent(ret, k, EsqMsgConstants.EVENT_UPDATE, requestId, correlationId, fields);
+                    publishEntityEvent(ret, k, BusConstants.EVENT_UPDATE, requestId, correlationId, fields);
                 }
             }
         }
@@ -219,19 +221,19 @@ public class EnyManService  extends AEnyManService {
         if (eek.isOrg()) {
             if (permitted) {
                 ret = orgService.esquireCommandNew(k, parentId, cmd, fields, roles);
-                publishEntityEvent(ret, k, EsqMsgConstants.EVENT_CREATE, requestId, correlationId, fields);
+                publishEntityEvent(ret, k, BusConstants.EVENT_CREATE, requestId, correlationId, fields);
                 submitReconcileIfInMove(ret, k, parentId, fields);
             }
         } else if (eek.isUsr()) {
             if (permitted) {
                 ret = usrService.esquireCommandNew(k, parentId, cmd, fields, roles);
-                publishEntityEvent(ret, k, EsqMsgConstants.EVENT_CREATE, requestId, correlationId, fields);
+                publishEntityEvent(ret, k, BusConstants.EVENT_CREATE, requestId, correlationId, fields);
                 submitReconcileIfInMove(ret, k, parentId, fields);
             }
         } else if (eek.isAcct()) {
             if (permitted) {
                 ret = acctService.esquireCommandNew(k, parentId, cmd, fields, roles);
-                publishEntityEvent(ret, k, EsqMsgConstants.EVENT_CREATE, requestId, correlationId, fields);
+                publishEntityEvent(ret, k, BusConstants.EVENT_CREATE, requestId, correlationId, fields);
                 submitReconcileIfInMove(ret, k, parentId, fields);
             }
         }
@@ -249,7 +251,7 @@ public class EnyManService  extends AEnyManService {
         if (entity == null || !validateCreateDuringMove || !moveQueue.inMove()) {
             return;
         }
-        Object pathObj = (fields != null) ? fields.get(EsqMsgConstants.TEXT_PATH) : null;
+        Object pathObj = (fields != null) ? fields.get(EsqConstants.TEXT_PATH) : null;
         String pathAtPublish = (pathObj instanceof String s) ? s : null;
         moveQueue.submitReconcile(new CreateReconcileItem(entity.getId(), kind, parentId, pathAtPublish));
     }
@@ -276,10 +278,10 @@ public class EnyManService  extends AEnyManService {
         String correlationId = RequestContextUtils.getCorrelationId();
         if (eek.isOrg()) {
             orgService.esquireCommandDelete(k, id, cmd, roles);
-            publishDeleteEvent(id, k, EsqMsgConstants.EVENT_DELETE, requestId, correlationId);
+            publishDeleteEvent(id, k, BusConstants.EVENT_DELETE, requestId, correlationId);
         } else if (eek.isUsr()) {
             usrService.esquireCommandDelete(k, id, cmd, roles);
-            publishDeleteEvent(id, k, EsqMsgConstants.EVENT_DELETE, requestId, correlationId);
+            publishDeleteEvent(id, k, BusConstants.EVENT_DELETE, requestId, correlationId);
         }
     }
 
@@ -339,8 +341,8 @@ public class EnyManService  extends AEnyManService {
     // into the fields map when person (firstName/middleName/lastName) is updated, so this
     // check correctly fires for person-driven name changes too.
     private boolean isBroadcastableUpdate(Map<String, Object> fields) {
-        return fields != null && (fields.containsKey(EsqMsgConstants.TEXT_NAME) || fields.containsKey(EsqMsgConstants.TEXT_DESC)
-                               || fields.containsKey(EsqMsgConstants.TEXT_DELETED));
+        return fields != null && (fields.containsKey(EsqConstants.TEXT_NAME) || fields.containsKey(EsqConstants.TEXT_DESC)
+                               || fields.containsKey(EsqConstants.TEXT_DELETED));
     }
 
     // publishMoveEvent and publishKcMoveRequest moved into MoveQueueManager (v1.2.6 Goal 3):
@@ -350,8 +352,8 @@ public class EnyManService  extends AEnyManService {
     private void publishDeleteEvent(String id, int entityKind, String eventType,
                                     String requestId, String correlationId) {
         Map<String, Object> text = new java.util.LinkedHashMap<>();
-        text.put(EsqMsgConstants.TEXT_ID,   id);
-        text.put(EsqMsgConstants.TEXT_KIND, entityKind);
+        text.put(EsqConstants.TEXT_ID,   id);
+        text.put(EsqConstants.TEXT_KIND, entityKind);
         try {
             broadcastPublisher.publish(entityKind, id, eventType,
                     requestId, correlationId, text);
@@ -403,14 +405,14 @@ public class EnyManService  extends AEnyManService {
                                     String requestId, String correlationId, Map<String, Object> fields) {
         if (entity == null) return;
         Map<String, Object> text = new java.util.LinkedHashMap<>();
-        text.put(EsqMsgConstants.TEXT_ID,        entity.getId());
-        text.put(EsqMsgConstants.TEXT_KIND,      entityKind);
-        text.put(EsqMsgConstants.TEXT_PARENT_ID, entity.getParentId());
-        if (fields.containsKey(EsqMsgConstants.TEXT_PATH))    text.put(EsqMsgConstants.TEXT_PATH,    fields.get(EsqMsgConstants.TEXT_PATH));
-        if (fields.containsKey(EsqMsgConstants.TEXT_NAME))    text.put(EsqMsgConstants.TEXT_NAME,    fields.get(EsqMsgConstants.TEXT_NAME));
-        if (fields.containsKey(EsqMsgConstants.TEXT_DESC))    text.put(EsqMsgConstants.TEXT_DESC,    fields.get(EsqMsgConstants.TEXT_DESC));
-        if (fields.containsKey(EsqMsgConstants.TEXT_DELETED)) text.put(EsqMsgConstants.TEXT_DELETED, fields.get(EsqMsgConstants.TEXT_DELETED));
-        if (fields.containsKey(EsqMsgConstants.TEXT_STATUS))  text.put(EsqMsgConstants.TEXT_STATUS,  fields.get(EsqMsgConstants.TEXT_STATUS));
+        text.put(EsqConstants.TEXT_ID,        entity.getId());
+        text.put(EsqConstants.TEXT_KIND,      entityKind);
+        text.put(EsqConstants.TEXT_PARENT_ID, entity.getParentId());
+        if (fields.containsKey(EsqConstants.TEXT_PATH))    text.put(EsqConstants.TEXT_PATH,    fields.get(EsqConstants.TEXT_PATH));
+        if (fields.containsKey(EsqConstants.TEXT_NAME))    text.put(EsqConstants.TEXT_NAME,    fields.get(EsqConstants.TEXT_NAME));
+        if (fields.containsKey(EsqConstants.TEXT_DESC))    text.put(EsqConstants.TEXT_DESC,    fields.get(EsqConstants.TEXT_DESC));
+        if (fields.containsKey(EsqConstants.TEXT_DELETED)) text.put(EsqConstants.TEXT_DELETED, fields.get(EsqConstants.TEXT_DELETED));
+        if (fields.containsKey(EsqConstants.TEXT_STATUS))  text.put(EsqConstants.TEXT_STATUS,  fields.get(EsqConstants.TEXT_STATUS));
         try {
             broadcastPublisher.publish(entityKind, entity.getId(), eventType,
                     requestId, correlationId, text);

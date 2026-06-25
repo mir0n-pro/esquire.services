@@ -1,6 +1,32 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v1.2.9-2606.2417  v1.2.9 -- hardening: the bus keep-alive is now optional with a clearer health and role model; the bus wire constants moved into the messaging module
+    :Feature:     the bus keep-alive (heartbeat) is an opt-in per-leg setting
+    :Feature:     a Redis or Kafka leg wired as a consumer now fails to start with a clear message
+    :Feature:     a keep-alive on Redis/Kafka stays out of the audit log -- a separate ".admin" stream/topic carries it
+    :Refactoring: the bus message field names and type codes (the wire protocol) moved out of the shared common
+                  library into the messaging module
+    :Refactoring: the unused BOTH role was removed -- a leg is a client or a server
+    :Doc:         doc\services.configuring.md
+                  doc\Esquire.MessagingBus.md
+                  doc\Esquire.MessagingBus.ContinuingDev.md
+                  doc\Message.Structure.md 
+                  doc\img\messaging-bus-classes.svg
+    Components:   common,
+                  messaging,
+                  audit,
+                  enyMan,
+                  pacMan,
+                  keySmith,
+                  kcMaster,
+                  bizTree,
+                  auKeep,
+                  tp-activemq,
+                  tp-redis,
+                  tp-kafka
+
+
 v1.2.9-2606.2318  v1.2.9 -- hardening: the messaging-bus connection sends a regular keep-alive so an outage is caught on every transport
     :Feature:     each messaging-bus connection now suppports keep-alive protocol
     :Refactoring: the keep-alive runs from ONE shared timer

@@ -15,7 +15,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 import pro.mir0n.esquire.backend.dto.EsqObjectKind;
 import pro.mir0n.esquire.backend.storage.EsqObjectKindStorage;
 import pro.mir0n.esquire.common.EsqConstants;
-import pro.mir0n.esquire.common.EsqMsgConstants;
+import pro.mir0n.esquire.messaging.BusConstants;
 import pro.mir0n.esquire.audit.AuditBusBridge;
 import pro.mir0n.esquire.messaging.IXRod;
 import pro.mir0n.esquire.messaging.xrod.impl.XRodDisabled;
@@ -172,12 +172,12 @@ class MoveQueueManagerTest {
         verify(pathLookup).updatePath("acct-42", "1.9.200.7.");
         ArgumentCaptor<Map<String, Object>> textCapt =
                 org.mockito.ArgumentCaptor.forClass(Map.class);
-        verify(publisher).publish(eq(50), eq("acct-42"), eq(EsqMsgConstants.EVENT_UPDATE_PATH),
+        verify(publisher).publish(eq(50), eq("acct-42"), eq(BusConstants.EVENT_UPDATE_PATH),
                 eq("move-rid"), eq("move-cid"), textCapt.capture());
         Map<String, Object> text = textCapt.getValue();
-        assertThat(text).containsEntry(EsqMsgConstants.TEXT_ID, "acct-42")
-                        .containsEntry(EsqMsgConstants.TEXT_KIND, 50)
-                        .containsEntry(EsqMsgConstants.TEXT_PATH, "1.9.200.7.");
+        assertThat(text).containsEntry(EsqConstants.TEXT_ID, "acct-42")
+                        .containsEntry(EsqConstants.TEXT_KIND, 50)
+                        .containsEntry(EsqConstants.TEXT_PATH, "1.9.200.7.");
     }
 
     @Test

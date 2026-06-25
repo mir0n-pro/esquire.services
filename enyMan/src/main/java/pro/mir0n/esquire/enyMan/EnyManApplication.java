@@ -21,6 +21,7 @@
  *                   context-closed -> bus.close(); ReadyListener keeps only the roles load.
  * 06/22/2026 mir0n  registrar registers a BusHealthIndicator (bus facade handed in) into the Actuator
  *                   HealthContributorRegistry programmatically at ApplicationReadyEvent (no @Bean) -> /actuator/health
+ * 06/23/2026 mir0n  EsqMsgConstants app constants -> common.EsqConstants (references repointed)
  */
 
 package pro.mir0n.esquire.enyMan;
@@ -43,7 +44,7 @@ import pro.mir0n.esquire.backend.storage.EsqObjectKindStorage;
 import pro.mir0n.esquire.backend.storage.EsqRolesStorage;
 import pro.mir0n.esquire.backend.storage.roles.JpaRolesRepository;
 import pro.mir0n.esquire.backend.validator.ValidatorFactory;
-import pro.mir0n.esquire.common.EsqMsgConstants;
+import pro.mir0n.esquire.common.EsqConstants;
 import pro.mir0n.esquire.messaging.BusHealthIndicator;
 import pro.mir0n.esquire.messaging.MessagingBus;
 
@@ -123,7 +124,7 @@ public class EnyManApplication {
         public void onApplicationEvent(ApplicationEvent event) {
             MessagingBus bus = MessagingBus.getInstance();
             if (event instanceof ApplicationEnvironmentPreparedEvent e) {
-                bus.init(e.getEnvironment(), new String[]{EsqMsgConstants.BUS_KEY_ENTITY, EsqMsgConstants.BUS_KEY_KC, EsqMsgConstants.BUS_KEY_AUDIT});
+                bus.init(e.getEnvironment(), new String[]{EsqConstants.BUS_KEY_ENTITY, EsqConstants.BUS_KEY_KC, EsqConstants.BUS_KEY_AUDIT});
                 devLog.debug("MessagingBus initiated (rods built, paused)");
             } else if (event instanceof ApplicationReadyEvent e) {
                 bus.start();                             // run them -- traffic flows only from here

@@ -10,6 +10,7 @@
  *                   race-8c safety-net receive worker on the entity-broadcast rod (from the facade). On a move
  *                   (UPDATE_PATH) it parks the new path in KcPathBuffer when the KC user does not exist yet; the
  *                   URQ handler owns the update when it does.
+ * 06/23/2026 mir0n  EsqMsgConstants app constants -> common.EsqConstants (references repointed)
  */
 package pro.mir0n.esquire.kcMaster.messaging;
 
@@ -23,7 +24,6 @@ import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
 import org.springframework.stereotype.Component;
 import pro.mir0n.esquire.common.EsqConstants;
-import pro.mir0n.esquire.common.EsqMsgConstants;
 import pro.mir0n.esquire.messaging.MessagingBus;
 import pro.mir0n.esquire.messaging.IXRod;
 import pro.mir0n.esquire.messaging.RodEvent;
@@ -61,7 +61,7 @@ public class EntityBusAdapter {
         this.keycloakConfig = keycloakConfig;
         this.pathBuffer = pathBuffer;
         // entity CLIENT: receive the broadcast (no transmit leg).
-        IXRod rod = MessagingBus.getInstance().getXRod(EsqMsgConstants.BUS_KEY_ENTITY);
+        IXRod rod = MessagingBus.getInstance().getXRod(EsqConstants.BUS_KEY_ENTITY);
         rod.setWorker(this::onRodEvent);
     }
 
@@ -109,7 +109,7 @@ public class EntityBusAdapter {
     private String extractPath(Map<String, Object> body) {
         String ret = null;
         if (body != null) {
-            Object pathValue = body.get(EsqMsgConstants.TEXT_PATH);
+            Object pathValue = body.get(EsqConstants.TEXT_PATH);
             if (pathValue != null) {
                 ret = pathValue.toString();
             }

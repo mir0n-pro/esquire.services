@@ -10,6 +10,7 @@
  *                   -- one adapter, both legs, on the single kc-CLIENT rod (from the facade). publishPathUpdate()
  *                   transmits an EVENT_UPDATE_PATH URQ to kcMaster after a USR move; onResponse() handles the
  *                   URS/URR reply for this instance (the rod-id selector isolates it).
+ * 06/23/2026 mir0n  EsqMsgConstants references -> messaging.BusConstants (wire) + common.EsqConstants (app)
  */
 package pro.mir0n.esquire.enyMan.messaging;
 
@@ -17,7 +18,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.slf4j.MDC;
 import org.springframework.stereotype.Component;
 import pro.mir0n.esquire.common.EsqConstants;
-import pro.mir0n.esquire.common.EsqMsgConstants;
+import pro.mir0n.esquire.messaging.BusConstants;
 import pro.mir0n.esquire.messaging.MessagingBus;
 import pro.mir0n.esquire.messaging.IXRod;
 import pro.mir0n.esquire.messaging.RodEvent;
@@ -39,7 +40,7 @@ public class KcBusAdapter {
 
     public KcBusAdapter() {
         // kc CLIENT: transmit UPDATE_PATH requests + receive URS/URR responses (rod-id selector), on one rod.
-        this.rod = MessagingBus.getInstance().getXRod(EsqMsgConstants.BUS_KEY_KC);
+        this.rod = MessagingBus.getInstance().getXRod(EsqConstants.BUS_KEY_KC);
         this.rod.setWorker(this::onResponse);   // role-support: throws if the rod has no receive leg
         this.rod.transmit(null);                // role-support: probe -- throws if the rod has no transmit leg
     }
@@ -54,9 +55,9 @@ public class KcBusAdapter {
             body.put("kind", entityKind);
             body.put("path", newPath);
             RodEvent e = new RodEvent(RodEvent.Op.UPDATE_PATH, entityKind, entityId, null,
-                    System.currentTimeMillis(), correlationId, reqId, null, null, EsqMsgConstants.MSG_TYPE_REQUEST, body);
+                    System.currentTimeMillis(), correlationId, reqId, null, null, BusConstants.MSG_TYPE_REQUEST, body);
             rod.transmit(e);
-            log.info("KC | URQ | {} | {} | {} | {}", EsqMsgConstants.EVENT_UPDATE_PATH, entityKind, entityId, reqId);
+            log.info("KC | URQ | {} | {} | {} | {}", BusConstants.EVENT_UPDATE_PATH, entityKind, entityId, reqId);
         } catch (Exception ex) {
             // fire-and-forget: the move tx already committed, so a publish failure is logged for reconciliation.
             log.error("enyMan: failed to publish URQ: entityId={}, requestId={}, error={}", entityId, reqId, ex.getMessage());

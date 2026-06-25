@@ -22,13 +22,14 @@
  *                   audit-bus ref's role (SERVER) + AUDIT_BUS_ID drive the sink (in-process keep audit-b / bus
  *                   producer audit-c / audit-off XRodDisabled); the per-leg sink-selection logic + the service
  *                   DataSource inject are gone (the keep owns its datasource; the leg owns the sink).
+ * 06/23/2026 mir0n  EsqMsgConstants app constants -> common.EsqConstants (references repointed)
  */
 package pro.mir0n.esquire.pacMan.audit;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import pro.mir0n.esquire.audit.AuditBusBridge;
-import pro.mir0n.esquire.common.EsqMsgConstants;
+import pro.mir0n.esquire.common.EsqConstants;
 import pro.mir0n.esquire.messaging.MessagingBus;
 
 @Configuration
@@ -39,6 +40,6 @@ public class AuditConfig {
      *  explicit XRodDisabled (a no-op) to run with audit off; the audit rod is always built, so the bridge always wires. */
     @Bean
     public AuditBusBridge audit() {
-        return new AuditBusBridge(MessagingBus.getInstance().getXRod(EsqMsgConstants.BUS_KEY_AUDIT));
+        return new AuditBusBridge(MessagingBus.getInstance().getXRod(EsqConstants.BUS_KEY_AUDIT));
     }
 }

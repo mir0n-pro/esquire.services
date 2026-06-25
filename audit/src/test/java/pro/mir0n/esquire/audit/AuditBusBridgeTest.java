@@ -18,7 +18,7 @@ import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
-import pro.mir0n.esquire.common.EsqMsgConstants;
+import pro.mir0n.esquire.messaging.BusConstants;
 import pro.mir0n.esquire.backend.jpa.IMappable;
 import pro.mir0n.esquire.backend.service.EsqContextHolder;
 import pro.mir0n.esquire.backend.service.EsqRequestContext;
@@ -97,7 +97,7 @@ class AuditBusBridgeTest {
         });
         assertThat(transmitted).hasSize(3);
         assertThat(transmitted).allMatch(e -> e.actionTime() > 0L);
-        assertThat(transmitted).allMatch(e -> EsqMsgConstants.MSG_TYPE_AUDIT.equals(e.msgType()));
+        assertThat(transmitted).allMatch(e -> BusConstants.MSG_TYPE_AUDIT.equals(e.msgType()));
     }
 
     @Test

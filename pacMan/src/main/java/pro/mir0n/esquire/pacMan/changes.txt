@@ -1,5 +1,17 @@
 Esquire pacMan Microservice
 
+06/24/2026 mir0n  v1.2.9 -- EsqMsgConstants references repointed
+PacManApplication
+  - EsqMsgConstants app constants -> common.EsqConstants (references repointed)
+acct.service.AcctTransactionProcessorSingle
+  - EsqMsgConstants app constants -> common.EsqConstants (references repointed)
+audit.AuditConfig
+  - EsqMsgConstants app constants -> common.EsqConstants (references repointed)
+messaging.EntityBusAdapter
+  - EsqMsgConstants references -> messaging.BusConstants (wire) + common.EsqConstants (app)
+service.impl.PacManService
+  - EsqMsgConstants references -> messaging.BusConstants (wire) + common.EsqConstants (app)
+
 06/22/2026 mir0n  messaging-bus health indicator + readiness/liveness
 PacManApplication
   - the MessagingBusLifecycleRegistrar, at ApplicationReadyEvent, registers a BusHealthIndicator (the bus

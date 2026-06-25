@@ -26,6 +26,11 @@
  * 06/23/2026 mir0n  init builds the AliveSession (heartbeat-interval / alive-timeout / alive-fail-fast); transmits()
  *                   now always true (a broadcast CLIENT auto-opens a producer leg to self-heartbeat); health() =
  *                   session.health(); buildKeepAlive()/onSessionMsg()/newCorrelationId() hooks; role protected
+ * 06/24/2026 mir0n  alive is OPT-IN: init builds the AliveSession only when the 'alive' param is set; health() =
+ *                   worst(transport indicator [worst of the transmit + receive legs], alive metric when enabled);
+ *                   transmits() role+alive-aware (a single-node CLIENT opens a producer leg only to self-heartbeat,
+ *                   i.e. when alive on); receives() = role==CLIENT (BOTH removed); init FAILS FAST when a receiving
+ *                   role hits a transport that cannot run the needed legs (supportsBothLegs / supportsConsume)
  */
 package pro.mir0n.esquire.messaging.xrod.impl;
 
@@ -58,7 +63,7 @@ public class XRod extends AXRod {
     private static final int     ALIVE_TIMEOUT_FACTOR           = 3;     // alive-timeout default = factor x heartbeat-interval
     private static final boolean DEFAULT_ALIVE_FAIL_FAST        = true;  // provisional: a send error flips DOWN at once (default to LEARN)
 
-    protected Role role;               // CLIENT/SERVER/BOTH -- picks the R&R node (request vs response); single-node ignores it
+    protected Role role;               // CLIENT/SERVER -- picks the R&R node (request vs response); single-node ignores it
     private ObjectMapper objectMapper;  // for the RodEvent <-> wire codec
     private TransportConsumer inbound;    // the transport consumer this rod owns (created paused, started in start()); closed on shutdown
     private RodPublisher outboundCloser;  // the open transport publisher (RodPublisher) this rod owns; closed on shutdown
@@ -99,6 +104,21 @@ public class XRod extends AXRod {
         boolean doTransmit = transmits() && transportBacked;
         boolean doReceive  = receives();   // build the receive pool; the transport consumer (below) also needs a transport
 
+        // FAIL-FAST on an impossible role over this transport, BEFORE any leg opens: a rod that RECEIVES needs a
+        // transport that can consume; if it ALSO runs a producer leg on the same node (a single-node CLIENT
+        // self-heartbeating with alive ON) it needs BOTH legs. A produce-only transport (e.g. the XADD-only Redis
+        // stream) can be a SERVER but never a CLIENT -- caught here as an unsupported config, not a silent
+        // never-delivering rod.
+        if (provider != null && doReceive) {
+            boolean ok = doTransmit ? provider.supportsBothLegs() : provider.supportsConsume();
+            if (!ok) {
+                throw new IllegalStateException("x-rod[" + name + "] bus-id=" + (params != null ? params.busId() : null)
+                        + ": transport '" + transport.provider() + "' cannot run "
+                        + (doTransmit ? "both legs (consume + the alive producer leg)" : "a receive leg")
+                        + " for a " + role + " role -- unsupported config");
+            }
+        }
+
         Consumer<RodEvent> outbound = null;
         Consumer<RodEvent> poolJob  = doReceive ? this::applyWorker : null;   // the pool applies the live worker
         if (doTransmit) {
@@ -118,20 +138,20 @@ public class XRod extends AXRod {
 
         // CREATE the transport consumer PAUSED (delivery begins at start(), after the pool is live); a
         // transport-less receive (e.g. a test) builds only the pool -- events arrive via a direct receive() call.
-        if (doReceive && transportBacked && provider.supportsConsume()) {
+        if (doReceive && transportBacked) {   // supportsConsume() is guaranteed by the fail-fast above
             this.inbound = openConsumer(provider, legTransport(false, role));
-        } else if (doReceive && transportBacked && devLog != null) {
-            devLog.info("x-rod[{}]: transport '{}' is producer-only -- no consumer opened", name, transport.provider());
         }
 
-        // the ALIVE-PROTOCOL session: a producing leg ({@code doTransmit}) drives the heartbeat cadence (the
-        // keep-alive factory) -- a receive-only leg has none (no cadence; health UP, per the Q&D). The session
-        // rides the rod's own transmit; an arriving session message is handled by onSessionMsg.
-        int heartbeatSec = params != null ? params.heartbeatIntervalSecOr(DEFAULT_HEARTBEAT_INTERVAL_SEC) : DEFAULT_HEARTBEAT_INTERVAL_SEC;
-        int timeoutSec   = params != null ? params.aliveTimeoutSecOr(heartbeatSec * ALIVE_TIMEOUT_FACTOR) : heartbeatSec * ALIVE_TIMEOUT_FACTOR;
-        boolean failFast = params != null ? params.aliveFailFastOr(DEFAULT_ALIVE_FAIL_FAST) : DEFAULT_ALIVE_FAIL_FAST;
-        this.session = new AliveSession(heartbeatSec * 1000L, timeoutSec * 1000L, failFast,
-                doTransmit ? this::buildKeepAlive : null, this::transmit, this::onSessionMsg, name, devLog);
+        // the ALIVE-PROTOCOL session is OPT-IN (the x-rod 'alive' param, default OFF; transport-agnostic). When
+        // ON, a producing leg ({@code doTransmit}) drives the heartbeat cadence (the keep-alive factory). When
+        // OFF the rod runs NO session -- no heartbeat -- and health() rests on the transport indicator alone.
+        if (params != null && params.aliveOr(false)) {
+            int heartbeatSec = params.heartbeatIntervalSecOr(DEFAULT_HEARTBEAT_INTERVAL_SEC);
+            int timeoutSec   = params.aliveTimeoutSecOr(heartbeatSec * ALIVE_TIMEOUT_FACTOR);
+            boolean failFast = params.aliveFailFastOr(DEFAULT_ALIVE_FAIL_FAST);
+            this.session = new AliveSession(heartbeatSec * 1000L, timeoutSec * 1000L, failFast,
+                    doTransmit ? this::buildKeepAlive : null, this::transmit, this::onSessionMsg, name, devLog);
+        }
     }
 
     @Override
@@ -142,12 +162,17 @@ public class XRod extends AXRod {
         }
     }
 
-    /** This rod's health is the ALIVE-PROTOCOL session's signal (the producer leg's timestamp age + the
-     *  fail-fast send outcome) -- the active, transport-agnostic source that supersedes the per-vendor transport
-     *  listener. UP when the rod has no session (transport-less). */
+    /** This rod's health is the WORSE of two sources, each when applicable: the always-on TRANSPORT indicator
+     *  (the worst of the transmit + receive legs -- a leg absent, or a transport that cannot observe its
+     *  connection, reads UNKNOWN, which is benign), and -- ONLY when the ALIVE PROTOCOL is enabled -- the session
+     *  metric (producer-leg timestamp age + the fail-fast send outcome). The x-rod stays transport-agnostic: it
+     *  just takes the worse of the two. With no session, health is the transport indicator alone. */
     @Override
     public TransportHealth health() {
-        return session != null ? session.health() : TransportHealth.UP;
+        TransportHealth transmit = outboundCloser != null ? outboundCloser.health() : null;
+        TransportHealth receive  = inbound != null ? inbound.health() : null;
+        TransportHealth transport = TransportHealth.worst(transmit, receive);
+        return session != null ? TransportHealth.worst(transport, session.health()) : transport;
     }
 
     /** The idle keep-alive this rod emits (alive protocol): a broadcast producer sends an UNSOLICITED HeartBeat
@@ -167,19 +192,19 @@ public class XRod extends AXRod {
         return UUID.randomUUID().toString();
     }
 
-    /** Base XRod ALWAYS runs a transmit leg. A SERVER's producer carries the application broadcasts; a CLIENT
-     *  (consumer) still opens a producer leg purely for the ALIVE PROTOCOL -- it self-heartbeats so its
-     *  producer-leg health is observable (the Q&D reads the producer leg only). So a broadcast consumer needs no
-     *  role change -- the framework gives it both legs. {@link XRodRR} (R&R) likewise always transmits. */
+    /** A SERVER transmits as its ROLE (its producer carries the application broadcasts). A single-node
+     *  CLIENT (consumer) opens a producer leg ONLY to self-heartbeat -- so ONLY when the ALIVE PROTOCOL is on;
+     *  with alive off a CLIENT is a pure consumer (no producer leg). {@link XRodRR} (R&R) always transmits -- a
+     *  producer leg is its ROLE there (CLIENT sends requests, SERVER sends responses), not just an alive add-on. */
     protected boolean transmits() {
-        return true;
+        return role != Role.CLIENT || (params != null && params.aliveOr(false));
     }
 
     /** Whether this rod runs a RECEIVE leg, by role (gated at open() by a worker being set). Single-node:
-     *  CLIENT / BOTH receive, SERVER does not. {@link XRodRR} (R&R) always receives -- the response node for
+     *  CLIENT receives, SERVER does not. {@link XRodRR} (R&R) always receives -- the response node for
      *  CLIENT, the request node for SERVER. */
     protected boolean receives() {
-        return role == Role.CLIENT || role == Role.BOTH;
+        return role == Role.CLIENT;
     }
 
     /** Build the transmit-leg outbound: encode each event to the wire envelope + hand it to the transport sink.

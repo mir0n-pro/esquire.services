@@ -11,6 +11,7 @@
  *                   kc-SERVER rod (from the facade). Receives a URQ off the request leg, dispatches to
  *                   KcRequestHandler, and replies URS (success) / URR (reject) on the response leg; the requester's
  *                   rod-id is echoed on the reply so only the originating instance's RodID selector picks it up.
+ * 06/23/2026 mir0n  EsqMsgConstants references -> messaging.BusConstants (wire) + common.EsqConstants (app)
  */
 package pro.mir0n.esquire.kcMaster.messaging;
 
@@ -20,7 +21,7 @@ import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
 import org.springframework.stereotype.Component;
 import pro.mir0n.esquire.common.EsqConstants;
-import pro.mir0n.esquire.common.EsqMsgConstants;
+import pro.mir0n.esquire.messaging.BusConstants;
 import pro.mir0n.esquire.messaging.MessagingBus;
 import pro.mir0n.esquire.messaging.IXRod;
 import pro.mir0n.esquire.messaging.RodEvent;
@@ -48,7 +49,7 @@ public class KcBusAdapter {
         this.handler      = handler;
         this.objectMapper = objectMapper;
         // kc SERVER: receive URQ requests (no selector -- shared work) + transmit URS/URR replies, on one rod.
-        this.rod = MessagingBus.getInstance().getXRod(EsqMsgConstants.BUS_KEY_KC);
+        this.rod = MessagingBus.getInstance().getXRod(EsqConstants.BUS_KEY_KC);
         this.rod.setWorker(this::onRodEvent);   // role-support: throws if the rod has no receive leg
         this.rod.transmit(null);                // role-support: probe -- throws if the rod has no transmit leg
     }
@@ -89,7 +90,7 @@ public class KcBusAdapter {
                                 String requesterRodId, String requestId, String correlationId) {
         RodEvent e = new RodEvent(RodEvent.opFromCode(command), entityKind, entityId, null,
                 System.currentTimeMillis(), correlationId, requestId, null, requesterRodId,
-                EsqMsgConstants.MSG_TYPE_RESPONSE, Map.of());
+                BusConstants.MSG_TYPE_RESPONSE, Map.of());
         rod.transmit(e);
         log.info("KC | URS | {} | {} | {} | {}", command, entityKind, entityId, requesterRodId);
     }
@@ -111,7 +112,7 @@ public class KcBusAdapter {
         }
         RodEvent e = new RodEvent(RodEvent.opFromCode(command), entityKind, entityId, null,
                 System.currentTimeMillis(), correlationId, requestId, null, requesterRodId,
-                EsqMsgConstants.MSG_TYPE_REJECT, body);
+                BusConstants.MSG_TYPE_REJECT, body);
         rod.transmit(e);
         log.info("KC | URR | {} | {} | {} | {}", command, entityKind, entityId, requesterRodId);
     }

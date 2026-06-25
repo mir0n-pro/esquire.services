@@ -19,6 +19,7 @@
  * 06/22/2026 mir0n  moved to messaging.catalog (was messaging)
  * 06/23/2026 mir0n  alive-protocol knobs in SCALARS + getters: heartbeat-interval (10s) / alive-timeout (3x) /
  *                   alive-fail-fast; boolOr with a default
+ * 06/24/2026 mir0n  'alive' on/off knob in SCALARS + aliveOr(boolean) getter -- the session is OPT-IN, default off
  */
 package pro.mir0n.esquire.messaging.catalog;
 
@@ -46,7 +47,7 @@ public record XRodParams(String busId, String slotId, Map<String, Object> raw) {
      *  groups ({@code transport} = the wire, and an x-rod's own sub-blocks) are NOT scalars: they bind as a whole. */
     public static final List<String> SCALARS = List.of(
             "rod-id", "rod-class", "pool-size", "feed-capacity", "virtual-threads", "publisher-pool-size", "concurrency",
-            "heartbeat-interval", "alive-timeout", "alive-fail-fast");
+            "alive", "heartbeat-interval", "alive-timeout", "alive-fail-fast");
 
     /** Build from the raw x-rod node: flatten it (so nested transport / sub-blocks read by dotted key) and keep
      *  the flat map. bus-id / slot-id are NOT in the node -- the frontend folds them in via {@link #withBus}. */
@@ -200,6 +201,7 @@ public record XRodParams(String busId, String slotId, Map<String, Object> raw) {
     public int     concurrencyOr(int def)         { return intOr("concurrency", def); }
 
     // --- alive-protocol (x-rod session) knobs (seconds; on the x-rod, kept in sync across a slot by the operator) ---
+    public boolean aliveOr(boolean def)          { return boolOr("alive", def); }
     public int     heartbeatIntervalSecOr(int def){ return intOr("heartbeat-interval", def); }
     public int     aliveTimeoutSecOr(int def)     { return intOr("alive-timeout", def); }
     public boolean aliveFailFastOr(boolean def)   { return boolOr("alive-fail-fast", def); }

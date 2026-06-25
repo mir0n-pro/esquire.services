@@ -8,13 +8,14 @@
  *  History:
  * 06/22/2026 mir0n  created (was BizTreeBroadcastConsumer): the bizTree end of the entity bus (CLIENT) -- the
  *                   entity-broadcast receive worker (rod from the facade) feeding the cache director.
+ * 06/23/2026 mir0n  EsqMsgConstants app constants -> common.EsqConstants (references repointed)
  */
 package pro.mir0n.esquire.bizTree.messaging;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import pro.mir0n.esquire.bizTree.access.IBizTreeDirector;
-import pro.mir0n.esquire.common.EsqMsgConstants;
+import pro.mir0n.esquire.common.EsqConstants;
 import pro.mir0n.esquire.messaging.MessagingBus;
 import pro.mir0n.esquire.messaging.IXRod;
 import pro.mir0n.esquire.messaging.RodEvent;
@@ -29,7 +30,7 @@ public class EntityBusAdapter {
     public EntityBusAdapter(IBizTreeDirector director) {
         this.director = director;
         // entity CLIENT: receive the broadcast (no transmit leg).
-        IXRod rod = MessagingBus.getInstance().getXRod(EsqMsgConstants.BUS_KEY_ENTITY);
+        IXRod rod = MessagingBus.getInstance().getXRod(EsqConstants.BUS_KEY_ENTITY);
         rod.setWorker(this::onRodEvent);
     }
 

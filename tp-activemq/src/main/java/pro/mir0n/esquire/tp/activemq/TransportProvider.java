@@ -25,6 +25,7 @@
  *                   AtomicReference -> DOWN on transportInterupted / onException, -> UP on transportResumed,
  *                   feeding both the publisher and consumer handle health; a send outcome also refreshes it
  *                   (good send -> UP, failed send -> DOWN).
+ * 06/23/2026 mir0n  EsqMsgConstants wire constants -> messaging.BusConstants (references repointed)
  */
 package pro.mir0n.esquire.tp.activemq;
 
@@ -37,7 +38,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.jms.connection.CachingConnectionFactory;
 import org.springframework.jms.core.JmsTemplate;
 import org.springframework.jms.listener.DefaultMessageListenerContainer;
-import pro.mir0n.esquire.common.EsqMsgConstants;
+import pro.mir0n.esquire.messaging.BusConstants;
 import pro.mir0n.esquire.messaging.transport.ConsumeSettings;
 import pro.mir0n.esquire.messaging.transport.ITransportProvider;
 import pro.mir0n.esquire.messaging.transport.PublishSettings;
@@ -94,8 +95,8 @@ public final class TransportProvider implements ITransportProvider {
             try {
                 Map<String, Object> props = new LinkedHashMap<>(msg.headers());
                 String applMsgId = UUID.randomUUID().toString();
-                props.put(EsqMsgConstants.FIELD_APPL_MSG_ID,  applMsgId);
-                props.put(EsqMsgConstants.FIELD_SENDING_TIME, Instant.now().toString());
+                props.put(BusConstants.FIELD_APPL_MSG_ID,  applMsgId);
+                props.put(BusConstants.FIELD_SENDING_TIME, Instant.now().toString());
                 jms.send(destination, session -> {
                     Message m = session.createMessage();
                     Utils.setProps(m, props);

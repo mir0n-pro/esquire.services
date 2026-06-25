@@ -16,6 +16,7 @@
  * 06/22/2026 mir0n  at ApplicationReadyEvent registers (programmatically, no @Bean) a BusHealthIndicator for the
  *                   bus facade AND a TransportHealthIndicator named "keepDatasource" over AuditConsumerConfig.keepHealth()
  *                   (the keep DB) into the Actuator HealthContributorRegistry -> /actuator/health
+ * 06/23/2026 mir0n  EsqMsgConstants app constants -> common.EsqConstants (references repointed)
  */
 package pro.mir0n.esquire.auKeep;
 
@@ -32,7 +33,7 @@ import org.springframework.context.ApplicationListener;
 import org.springframework.context.event.ContextClosedEvent;
 import org.springframework.core.Ordered;
 import pro.mir0n.esquire.backend.storage.EsqObjectKindStorage;
-import pro.mir0n.esquire.common.EsqMsgConstants;
+import pro.mir0n.esquire.common.EsqConstants;
 import pro.mir0n.esquire.messaging.MessagingBus;
 import pro.mir0n.esquire.messaging.BusHealthIndicator;
 import pro.mir0n.esquire.messaging.TransportHealthIndicator;
@@ -81,7 +82,7 @@ public class AuKeepApplication {
         public void onApplicationEvent(ApplicationEvent event) {
             MessagingBus bus = MessagingBus.getInstance();
             if (event instanceof ApplicationEnvironmentPreparedEvent e) {
-                bus.init(e.getEnvironment(), new String[]{EsqMsgConstants.BUS_KEY_AUDIT});
+                bus.init(e.getEnvironment(), new String[]{EsqConstants.BUS_KEY_AUDIT});
                 devLog.debug("MessagingBus initiated (rods built, paused)");
             } else if (event instanceof ApplicationReadyEvent e) {
                 bus.start();                             // run them -- traffic flows only from here
