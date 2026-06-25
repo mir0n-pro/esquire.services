@@ -266,8 +266,8 @@ targets are on the roadmap — the same isolation principle makes them straightf
 
 **Messaging Bus.** Esquire ships a vendor-agnostic **Messaging Bus** — the broadcast and
 request-response patterns are the contract, and the transport is a deployment choice behind a
-pluggable transport-provider interface. ActiveMQ is the first transport provider implemented; Kafka
-and Redis providers use the same interface.
+pluggable transport-provider interface. The first transport providers are ActiveMQ, Kafka, and Redis —
+all implemented on the same interface.
 
 **Identity and access management.** Keycloak is today's IAM. The architecture was designed
 from the start so that Keycloak is never touched directly by the core services. keySmith

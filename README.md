@@ -23,11 +23,13 @@ the destination. It is the proof of concept for the real idea.
 
 **See it live: [esquire.mir0n.pro](https://esquire.mir0n.pro)** — sign in, browse the tree, run the operations.
 
+The framework's messaging is not a future direction — the vendor-agnostic **Esquire Messaging Bus** runs across every service today, with ActiveMQ, Kafka, and Redis transport providers.
+
 ---
 > 
-> **v1.2.9 — in progress.** A **hardening** sprint — working through the smaller issues collected but set aside during the Messaging Bus build, and across Esquire as a whole, to tighten and stabilize what that big refactoring put in place.
+> **v1.2.9 — complete.** A **hardening** sprint that tightens what the v1.2.8 Messaging Bus refactoring put in place: the bus now has one front-door per service with a defined start-up order — check the configuration, build everything, then open connections — and each conversation's role set in configuration. A service that is misconfigured, or that names a bus it does not actually have, stops at start-up with a clear message instead of silently doing nothing; every service reports whether its bus connection is up on its health check; and incoming messages are handled more defensively. See [Release History](#release-history).
 > 
-> **v1.2.8 — complete.** A **major refactoring** sprint built around the **Messaging Bus**: a vendor-agnostic bus — entity broadcast and identity request/response across the whole services set — extracted into a reusable subframework (`esquire-messaging` plus the pluggable transport-provider drivers `tp-activemq` / `tp-kafka` / `tp-redis`). The shared **`esquire-audit`** and **`esquire-data-keep`** libraries were split out of `common`; the audit-writer service `xx-rod` was renamed to the clearer **`auKeep`**; and a small **system-entity flag** project (protects core entities from deletion) rode along with the release. See [Release History](#release-history).
+> **The end of the v1.2.x horizon is now in view.** Two sprints remain — **Resilience / Durability** and **Observability** — then **v1.3.0** externalizes the **Messaging Bus** into its own product backing the Esquire Application Frameworks. See the [v1.2.x roadmap](doc/v1.2.x.Planning.md).
 >
 
 
@@ -62,7 +64,7 @@ the destination. It is the proof of concept for the real idea.
 - [Database Dictionary](doc/DatabaseDictionary.md)
 
 ### Testing
-- [Testing Stack — frameworks, scope, coverage](doc/Esquire.TestingStack.md) *(every framework in use across all Esquire projects, what it covers, current test counts at v1.2.6)*
+- [Testing Stack — frameworks, scope, coverage](doc/Esquire.TestingStack.md) *(every framework in use across all Esquire projects, what it covers, current test counts at v1.2.9)*
 - [Haubergeon — Gatling harness reference](doc/Esquire.Haubergeon.md)
 
 ### Reports
@@ -70,10 +72,10 @@ the destination. It is the proof of concept for the real idea.
 
 |                                                                   |                                                                                                                                                                                                                                                                                                                                                                        |
 |-------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| **esquire.services**| - [v1.2.8 Milestone Report](doc/reports/report_v1.2.8.md)<br/>- [v1.2.7 Milestone Report](doc/reports/report_v1.2.7.md)<br/>- [v1.2.6 Milestone Report](doc/reports/report_v1.2.6.md)<br/>- [v1.2.5 Milestone Report](doc/reports/report_v1.2.5.md)<br/>- [v1.2.4 Milestone Report](doc/reports/report_v1.2.4.md)<br/>- [v1.2.3 Milestone Report](doc/reports/report_v1.2.3.md)<br/>- [v1.2.2 Milestone Report](doc/reports/report_v1.2.2.md)                                                                                                                                                                                  |
-| **esquire.explorer**| - [v1.2.8 Milestone Report](https://github.com/mir0n-pro/esquire.explorer/blob/develop/doc/reports/report_v1.2.8.md)<br/>- [v1.2.7 Milestone Report](https://github.com/mir0n-pro/esquire.explorer/blob/develop/doc/reports/report_v1.2.7.md)<br/>- [v1.2.6 Milestone Report](https://github.com/mir0n-pro/esquire.explorer/blob/develop/doc/reports/report_v1.2.6.md)<br/>- [v1.2.5 Milestone Report](https://github.com/mir0n-pro/esquire.explorer/blob/develop/doc/reports/report_v1.2.5.md)<br/>- [v1.2.4 Milestone Report](https://github.com/mir0n-pro/esquire.explorer/blob/develop/doc/reports/report_v1.2.4.md)<br/>- [v1.2.3 Milestone Report](https://github.com/mir0n-pro/esquire.explorer/blob/develop/doc/reports/report_v1.2.3.md)<br/>- [v1.2.2 Milestone Report](https://github.com/mir0n-pro/esquire.explorer/blob/develop/doc/reports/report_v1.2.2.md) |
+| **esquire.services**| - [v1.2.9 Milestone Report](doc/reports/report_v1.2.9.md)<br/>- [v1.2.8 Milestone Report](doc/reports/report_v1.2.8.md)<br/>- [v1.2.7 Milestone Report](doc/reports/report_v1.2.7.md)<br/>- [v1.2.6 Milestone Report](doc/reports/report_v1.2.6.md)<br/>- [v1.2.5 Milestone Report](doc/reports/report_v1.2.5.md)<br/>- [v1.2.4 Milestone Report](doc/reports/report_v1.2.4.md)<br/>- [v1.2.3 Milestone Report](doc/reports/report_v1.2.3.md)<br/>- [v1.2.2 Milestone Report](doc/reports/report_v1.2.2.md)                                                                                                                                                                                  |
+| **esquire.explorer**| - [v1.2.9 Milestone Report](https://github.com/mir0n-pro/esquire.explorer/blob/develop/doc/reports/report_v1.2.9.md)<br/>- [v1.2.8 Milestone Report](https://github.com/mir0n-pro/esquire.explorer/blob/develop/doc/reports/report_v1.2.8.md)<br/>- [v1.2.7 Milestone Report](https://github.com/mir0n-pro/esquire.explorer/blob/develop/doc/reports/report_v1.2.7.md)<br/>- [v1.2.6 Milestone Report](https://github.com/mir0n-pro/esquire.explorer/blob/develop/doc/reports/report_v1.2.6.md)<br/>- [v1.2.5 Milestone Report](https://github.com/mir0n-pro/esquire.explorer/blob/develop/doc/reports/report_v1.2.5.md)<br/>- [v1.2.4 Milestone Report](https://github.com/mir0n-pro/esquire.explorer/blob/develop/doc/reports/report_v1.2.4.md)<br/>- [v1.2.3 Milestone Report](https://github.com/mir0n-pro/esquire.explorer/blob/develop/doc/reports/report_v1.2.3.md)<br/>- [v1.2.2 Milestone Report](https://github.com/mir0n-pro/esquire.explorer/blob/develop/doc/reports/report_v1.2.2.md) |
 | **esquire.ui.lib**| - [v1.2.3 Release Report](https://github.com/mir0n-pro/esquire.ui.lib/blob/develop/doc/reports/report_v1.2.3.md)<br/> - [v1.2.2 Release Report](https://github.com/mir0n-pro/esquire.ui.lib/blob/develop/doc/reports/report_2026_04_19_31750f3.md)                                                                                                                     |
-| **esquire.db.seed**| - [v1.2.8 Milestone Report](https://github.com/mir0n-pro/esquire.db.seed/blob/develop/doc/reports/report_v1.2.8.md)<br/> - [v1.2.7 Milestone Report](https://github.com/mir0n-pro/esquire.db.seed/blob/develop/doc/reports/report_v1.2.7.md)<br/> - [v1.2.4 Milestone Report](https://github.com/mir0n-pro/esquire.db.seed/blob/develop/doc/reports/report_v1.2.4.md)<br/> - [v1.2.2 Milestone Report](https://github.com/mir0n-pro/esquire.db.seed/blob/develop/doc/reports/report_v1.2.2.md)                                                                                                                          |
+| **esquire.db.seed**| - [v1.2.9 Milestone Report](https://github.com/mir0n-pro/esquire.db.seed/blob/develop/doc/reports/report_v1.2.9.md)<br/> - [v1.2.8 Milestone Report](https://github.com/mir0n-pro/esquire.db.seed/blob/develop/doc/reports/report_v1.2.8.md)<br/> - [v1.2.7 Milestone Report](https://github.com/mir0n-pro/esquire.db.seed/blob/develop/doc/reports/report_v1.2.7.md)<br/> - [v1.2.4 Milestone Report](https://github.com/mir0n-pro/esquire.db.seed/blob/develop/doc/reports/report_v1.2.4.md)<br/> - [v1.2.2 Milestone Report](https://github.com/mir0n-pro/esquire.db.seed/blob/develop/doc/reports/report_v1.2.2.md)                                                                                                                          |
 
 
 ### Deployment
@@ -84,6 +86,7 @@ the destination. It is the proof of concept for the real idea.
 
 ### Value Proposition
 - [Esquire Application Frameworks — What, Why, and for Whom](doc/Esquire.Vision.md)
+- [v1.2.x Planning — release-line roadmap, sprint themes, and the road to v1.3.0](doc/v1.2.x.Planning.md) *(rolling roadmap / white paper across all four Esquire repositories)*
 
 ---
 
@@ -218,32 +221,32 @@ The two public hosts at a glance:
 
 ---
 ## Release History
+### v1.2.9 — complete (06/24/2026)
+
+v1.2.9 is a **hardening** sprint — working through the smaller issues collected but set aside during the
+v1.2.8 Messaging Bus build, and tightening Esquire as a whole, to stabilize what that big refactoring put
+in place.
+
+**A cleaner bus front-door.** Each service now reaches the bus through one entry point with a defined
+start-up sequence — read and check the configuration, build everything, then open connections — so broker
+connections no longer open in an undefined order while a service is starting. Each conversation's role (who
+sends, who receives) is declared in configuration, and a service that is misconfigured, or that names a bus
+it does not actually have, now stops at start-up with a clear message instead of silently doing nothing.
+
+**Health and robustness.** Every service reports whether its bus connection is up on its standard health
+check, now split into "ready to serve" and "still alive"; a regular keep-alive catches an outage faster, and
+the audit-writer **`auKeep`** additionally reports its own database. Incoming messages are handled more
+defensively — a single malformed field falls back to a default rather than discarding the whole message, and
+a message in an unknown format is refused. On the data side, missing timestamp columns and lookup indexes
+were added, and a service now detects its database flavor from the connection address. Finally, the bus
+message-format definitions were moved into the messaging module, so the shared `common` library no longer
+carries any wire detail.<br>
+[The Esquire Messaging Bus](doc/Esquire.MessagingBus.md) · [Testing Stack](doc/Esquire.TestingStack.md) · [v1.2.9 Release Notes](doc/release_notes.txt)<br>
+
 ### v1.2.8 — complete (06/19/2026)
 
-v1.2.8 is a **major refactoring** sprint built around the **Messaging Bus**. What was an audit-specific,
-ActiveMQ-wired fan-out is now a general, vendor-agnostic messaging concept the whole services set shares:
-every cross-service conversation — entity broadcast, the keySmith ↔ kcMaster identity request/response, and
-the audit feed — runs over one uniform bus.
-
-**The Messaging Bus concept.** A *bus* names a conversation; *slots* and *x-rods* carry its traffic; the wire
-is a *transport provider* chosen per deployment. Two interaction patterns are the contract — **broadcast**
-(many publishers, many subscribers) and **request/response** — and the underlying broker is a deployment choice
-behind a pluggable transport-provider interface, not a hard dependency. The topology (which buses exist and
-which broker each uses) is declared once in a shared catalog rather than wired in code.
-
-**Implementation status.** The bus is implemented and live across all services. It ships as four libraries:
-`esquire-messaging` (the bus core — topology catalog, x-rod frontend, codec) plus three transport-provider
-drivers, `tp-activemq`, `tp-kafka`, and `tp-redis`. **ActiveMQ is the first transport provider** and the
-default deployed today; Kafka and Redis providers are built on the same SPI, so adding a vendor is a new
-driver with no change to the bus.
-
-Alongside the bus, the keep stack was split into shared libraries — **`esquire-data-keep`** (a generic,
-audit-unaware engine that applies incoming changes to a database) and **`esquire-audit`** (the thin audit
-rules on top) — and lifted out of the shared `common` library, so a service that does not use them no longer
-pulls them in. The standalone audit-writer service, formerly `xx-rod`, was renamed to the more accurate
-**`auKeep`** and rebuilt on the generic engine. A small side project rode along with the release: a
-**system-entity flag** that protects core entities from deletion.<br>
-[The Esquire Messaging Bus](doc/Esquire.MessagingBus.md) · [The Audit Logging Stack](doc/Esquire.AuditLoggingStack.md) · [v1.2.8 Release Notes](doc/release_notes.txt)<br>
+v1.2.8 is a **major refactoring** sprint built around the **Messaging Bus** — the audit-specific, ActiveMQ-wired fan-out became a general, vendor-agnostic bus the whole services set shares (entity broadcast and the keySmith ↔ kcMaster identity request/response), shipped as the reusable `esquire-messaging` library plus the pluggable `tp-activemq` / `tp-kafka` / `tp-redis` transport drivers. The keep stack was split into shared `esquire-data-keep` + `esquire-audit` libraries out of `common`, the audit-writer `xx-rod` was renamed **`auKeep`**, and a small **system-entity flag** (protects core entities from deletion) rode along.<br>
+[More Details: v1.2.8 README](https://github.com/mir0n-pro/esquire.services/tree/release/v1.2.8?tab=readme-ov-file#project-structure)
 
 ### v1.2.7 — complete (06/10/2026)
 
