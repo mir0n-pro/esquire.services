@@ -26,5 +26,7 @@ nodeSelector:
 # OKE deploy = option (a) DB triggers: the app producer stays OFF (no auKeep pod, no extra broker
 # audit load on the Always-Free tier -- it is a demo, not a load-test sandbox). The DB-side trigger
 # DDL (db.seed/<vendor>/triggers/all.sql) must be applied to the OKE postgres for (a) to write.
+# Point the audit ref at the explicit audit-off DISABLED bus (XRodDisabled no-op) in k8s-oci/esquire-topology.yml;
+# v1.2.9 fail-fasts on a blank/undefined audit bus-id.
 audit:
-  busId: ""
+  busId: audit-off

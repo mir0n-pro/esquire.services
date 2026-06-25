@@ -4,10 +4,11 @@
 # the ConfigMap "esquire-topology" and mounted at /etc/esquire/topology.yml in every service pod (REQUIRED
 # spring.config.import). In-cluster Service DNS names (ActiveMQ only).
 #
-# OKE audits via DB TRIGGERS (option a): the app producers run with audit OFF and there is NO auKeep pod, so the
-# audit bus is NOT part of the cloud topology. A service's audit-bus ref then points at a bus that is not here,
-# which resolves to the OFF x-rod (XRodDisabled) -- by design, never a crash. Only the two live cross-service
-# buses remain: entity broadcast and the KeyCloak request/response.
+# OKE audits via DB TRIGGERS (option a): the app producers run with audit OFF and there is NO auKeep pod, so there
+# is no live audit bus. Each producer points its audit-bus ref (AUDIT_BUS_ID) at the explicit "audit-off" DISABLED
+# bus below -- XRodDisabled is a true no-op. The disabled bus MUST be defined here: the v1.2.9 facade fail-fasts on
+# a role-declaring ref whose bus-id is blank/undefined (it never silently no-ops). The live cross-service buses are
+# entity broadcast and the KeyCloak request/response.
 esquire:
   messaging-bus:
     # --- entity broadcast (topic) ---
@@ -43,3 +44,11 @@ esquire:
                   destination: esquire.kc.request
                 - node-id: response
                   destination: esquire.kc.response
+    # --- audit (off): the explicit DISABLED bus. Producers point AUDIT_BUS_ID at audit-off to run with NO bus
+    #     audit (OKE audits via DB triggers instead). XRodDisabled is a true no-op. Must be explicitly defined --
+    #     a blank/undefined audit bus-id fails fast in v1.2.9.
+    - bus-id: audit-off
+      slots:
+        - slot-id: audit
+          x-rod:
+            rod-class: XRodDisabled
