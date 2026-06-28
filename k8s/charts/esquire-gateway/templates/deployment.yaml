@@ -1,11 +1,20 @@
+{{- $replicas := int (.Values.replicaCount | default 1) -}}
+{{- if gt $replicas 10 -}}
+{{- fail (printf "esquire-gateway: replicaCount=%d exceeds the cap of 10. The per-instance number is a single decimal digit (0-9) -- the fleet naming rule (pod ordinal -> rod-id <app>.<instanceNo>) caps replicas at 10." $replicas) -}}
+{{- end -}}
+{{- if lt $replicas 1 -}}
+{{- fail (printf "esquire-gateway: replicaCount=%d must be >= 1" $replicas) -}}
+{{- end }}
 apiVersion: apps/v1
-kind: Deployment
+kind: StatefulSet
 metadata:
   name: {{ .Release.Name }}-gateway
   labels:
     app: {{ .Release.Name }}-gateway
 spec:
-  replicas: 1
+  serviceName: {{ .Release.Name }}-gateway-hl
+  replicas: {{ $replicas }}
+  podManagementPolicy: Parallel
   selector:
     matchLabels:
       app: {{ .Release.Name }}-gateway
@@ -24,8 +33,12 @@ spec:
           envFrom:
             - configMapRef:
                 name: {{ .Release.Name }}-gateway-config
-          {{- if .Values.tokenRelay.phantom.exchangeClientSecret }}
           env:
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+          {{- if .Values.tokenRelay.phantom.exchangeClientSecret }}
             - name: ESQ_GW_EXCHANGE_CLIENT_SECRET
               valueFrom:
                 secretKeyRef:

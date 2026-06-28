@@ -2,4 +2,11 @@
 # Chart defaults already match local dev needs. Only image.tag is
 # restamped per rebuild here -- k8s-rebuild.bat patches it.
 image:
-  tag: "v1.2.8-2606.1922"
+  tag: "v1.2.10-2606.270308"
+
+# v1.2.10 redundancy: 2 replicas. StatefulSet ordinal gives each pod a distinct instanceNo (0/1)
+# -> distinct entity-id digit (no id collision) + distinct rod-id (R&R reply isolation). Cap=10.
+# Goal-4 (move-queue cross-instance coordination) FIXED: the entity-bus rod (role CLIENT) runs its publish and
+# listen legs on ONE shared connection, so the broker's noLocal drops this instance's OWN creates -- the moving
+# instance reconciles only a PEER instance's create-during-move (race 8b closed at N>1). See doc/plans/tasks1210.md.
+replicaCount: 2

@@ -15,3 +15,9 @@ data:
   SESSION_MAX_AGE_MS: {{ .Values.session.cookieMaxAgeMs | quote }}
   ESQ_DICT_CACHE_TTL_MS: {{ .Values.cache.ttlMs | quote }}
   ESQ_DICT_CACHE_MAX:    {{ .Values.cache.maxEntries | quote }}
+  {{- if .Values.redis.url }}
+  # Shared session store -- when set, the BFF keeps sessions in redis so every
+  # replica reads the same session (required to run more than one replica).
+  # Omitted (no key) when redis.url is empty -> in-memory MemoryStore, 1 replica.
+  REDIS_URL:          {{ .Values.redis.url | quote }}
+  {{- end }}

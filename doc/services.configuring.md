@@ -73,9 +73,14 @@ Esquire catalog: which buses exist and the env that drives them. The vocabulary:
     "Connection monitoring & the alive protocol" under Health checks below.**
 - **transport**: provider (`activemq` | `kafka` | `redis`, or a class name) + endpoint + destination +
   `params` (opaque per-vendor knobs, e.g. `jms.useAsyncSend` / `pubSubDomain` for ActiveMQ pub/sub-vs-queue
-  / `group-id` / `max-len`) + (R&R) `request-node` / `response-node` + a node list. The bus carries no
-  queue-vs-topic notion of its own: that is a JMS concept, set as the ActiveMQ `pubSubDomain` param
+  / `noLocal` / `group-id` / `max-len`) + (R&R) `request-node` / `response-node` + a node list. The bus carries
+  no queue-vs-topic notion of its own: that is a JMS concept, set as the ActiveMQ `pubSubDomain` param
   (`true` = topic, absent/`false` = queue) and read only by `tp-activemq`.
+  - **noLocal** (`transport.params.noLocal`, default off): for a broadcast `CLIENT` that both publishes and
+    listens on ONE topic when the fleet runs many instances. With it on, the x-rod runs both legs over a SINGLE
+    broker connection and the broker drops that connection's own publications, so the leg receives only OTHER
+    instances' events. Leave it off and the rod keeps two connections and excludes its own in code by rod-id
+    instead -- same result, one extra connection.
 - **rod-class**: `XRod` (standard transceiver), `XRodRR` (request/response, two-node, role-routed),
   `XRodInProcess` (a generic in-process relay that runs a worker applying events locally instead of sending
   them; `messaging.xrod.impl`), `XRodInProcessKeep` (the in-process KEEP that applies events to a DB via a

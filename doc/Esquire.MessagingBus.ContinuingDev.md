@@ -102,6 +102,41 @@ when explicitly hooked. TBD/TODO; not in today's build.
 
 ---
 
+## 4. Multi-worker dispatch on one rod -- `addWorker` over a base subscription
+
+**First run.** A receive leg carries exactly ONE worker. `setWorker(String subscription, Consumer<RodEvent>
+worker)` opens the consumer with `subscription` as its selector and binds that single worker. On ActiveMQ the
+selector IS the broker's server-side subscription; a transport with no server-side selector (Kafka / Redis are
+fan-out-only) has no subscription narrowing at all yet -- see the client-side-selector direction in
+`tasks129.md` item 13.
+
+**Fuller form.** Let one rod fan a single base subscription out to MANY workers, each with its own finer filter,
+processed in order on one thread.
+
+- `setWorker(subscription, worker)` establishes the **base subscription** -- the connection-level subscription
+  that decides which messages the rod receives at all. On a transport WITH a server-side selector (ActiveMQ) the
+  base subscription is the broker selector. On a transport WITHOUT one, the framework filters incoming messages
+  against the base subscription in code -- a limited, framework-interpreted subscription language (only a subset
+  of the selector syntax need be supported); this is the same client-side-selector capability parked in item 13.
+- `addWorker(subscription, worker)` adds another worker whose `subscription` is an ADDITIONAL filter applied ON
+  TOP of the base subscription: that worker runs only for messages that pass BOTH the base subscription and its
+  own filter.
+- All workers on a rod run in ONE thread, in the SEQUENCE they were added: each received message is offered to
+  every matching worker's `action()` in registration order. No concurrency between a rod's workers; ordering is
+  deterministic.
+- A fluent chain expresses the set: `setWorker(base, w0).addWorker(f1, w1).addWorker(f2, w2)...` (or a similar
+  builder shape).
+- `worker` on `setWorker` is OPTIONAL (may be null): `setWorker(subscription, null)` establishes ONLY the base
+  subscription, expecting `addWorker(...)` calls to follow. (A base subscription with no workers receives but
+  dispatches to nothing.)
+
+**Why it is deferred.** Today each consuming concern gets its own rod/ref with one worker, which is enough for
+the current consumers. Multi-worker dispatch matters when several concerns share ONE physical
+subscription/connection and want to split that stream by finer filters without each opening its own consumer --
+and on a non-selector transport it depends on the client-side subscription language (item 13) to be meaningful.
+
+---
+
 ## Related parked items (already tracked elsewhere -- not re-listed here)
 
 - Transport SPI is ActiveMQ-shaped; selector / `key()` / durability differ per driver -- `tasks129.md` item 13

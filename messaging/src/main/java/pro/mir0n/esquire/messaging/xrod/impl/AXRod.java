@@ -19,6 +19,8 @@
  * 06/23/2026 mir0n  alive session field: sendOut marks the alive send-attempt/sent/failed; receive intercepts a
  *                   session message (handled internally, not forwarded) + marks an app receive; runEngine seeds the
  *                   session; idle() drives session.tick()
+ * 06/27/2026 mir0n  name / devLog made protected (XRodRR reads them); rodId() override returns identity.rodId()
+ *                   (null when the rod has no identity)
  */
 package pro.mir0n.esquire.messaging.xrod.impl;
 
@@ -87,8 +89,8 @@ public abstract class AXRod implements IXRod {
     // --- message-audit (msgLog on both legs) ---
     private Logger msgLog;              // msg.<bus-id>.<slot-id>; null = no msg-audit
 
-    private String name = "x-rod";
-    private Logger devLog;
+    protected String name = "x-rod";
+    protected Logger devLog;
 
     /** Fail-fast helper for {@link #validate}: throw a clear, leg-identified error when a required param is absent. */
     protected static void require(boolean present, String whatMissing, XRodParams params) {
@@ -119,6 +121,11 @@ public abstract class AXRod implements IXRod {
                     + "(its role does not consume); a consumer adapter is wired to a non-consuming bus");
         }
         this.worker = worker;   // set/RESET the live receive callback; while null, received events are dropped
+    }
+
+    @Override
+    public String rodId() {
+        return identity != null ? identity.rodId() : null;
     }
 
     /** The receive pool's job for a LISTENING x-rod: apply the CURRENT worker (set via {@link #setWorker}); do

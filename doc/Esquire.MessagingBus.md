@@ -380,6 +380,25 @@ transport:
     jms.clientID: ${rod-id}     # ActiveMQ -> e.g. enyman.0   (client.id: ${rod-id} for Kafka)
 ```
 
+#### Dual-leg on one connection (broadcast own-exclusion)
+
+A broadcast CLIENT both transmits and receives on the SAME topic, and it can run both legs over ONE broker
+connection: the x-rod opens its publisher leg, then ADDs the consumer onto that same connection via
+`ITransportProvider.openConsumerOn(publisher, ...)` (the default falls back to a separate `openConsumer`, so a
+transport with no shared-connection notion is unaffected; `supportsBothLegs()` advertises the capability). On
+one shared connection the broker can drop the connection's OWN publications -- the `noLocal` semantic -- so the
+receive leg sees only OTHER instances' messages. It is opted in per leg with the `transport.params.noLocal` key
+(a convention param; `tp-activemq` turns it into `pubSubNoLocal` on the listener). With TWO separate connections
+the broker cannot see a connection's own sends, so the x-rod excludes its own in code instead (it compares a
+received event's `rodId()` to the leg's own `rodId()`). R&R never takes this path: its two legs live on
+different nodes (request vs response), so it keeps two connections and never sets `noLocal`.
+
+A receive leg can also carry a broker-side **subscription selector**: `setWorker(subscription, worker)` narrows
+what the leg consumes to the caller's predicate (e.g. `EventType = 'C'`) -- the own-exclusion stays the
+transport's `noLocal`, NOT folded into the subscription. It is a plain selector (not a durable subscription),
+and the consumer is re-opened only when the selector changes. Only the single-node broadcast `XRod` applies it;
+an R&R rod (which already selects by rod-id / slot-id) warns and ignores it.
+
 #### `tp-activemq` (queue / topic)
 
 - **Publisher** — `ActiveMQConnectionFactory(brokerUrl)` where every `params` entry is appended to the
@@ -391,7 +410,9 @@ transport:
   caching connection factory.
 - **Consumer** — a `DefaultMessageListenerContainer` on the destination (`pubSubDomain` from the
   `pubSubDomain` param, `messageSelector = selector` if set, `concurrentConsumers = concurrency` if `> 0`);
-  the listener lifts EVERY JMS property back into the header map.
+  the listener lifts EVERY JMS property back into the header map. `openConsumerOn` reuses the publisher's
+  `CachingConnectionFactory` (one connection, both legs) and sets `pubSubNoLocal` when the `noLocal` param is
+  on, so the broker drops that connection's own publications.
 - **Vendor params** — ANY `transport.params.*` is appended to the broker URI; ActiveMQ parses its own URI
   options: `jms.*` on the factory (e.g. `jms.clientID`, `jms.useAsyncSend`, `jms.prefetchPolicy.queuePrefetch`,
   `jms.redeliveryPolicy.maximumRedeliveries`), `transport.*` on the wire (e.g. `transport.connectTimeout`),
@@ -584,11 +605,13 @@ interface IXRod {
     default void validate(XRodParams params);                                     // fail-fast on the required leg config
     void    configure(XRodParams params, Role role, ObjectMapper objectMapper);   // PREPARE
     void    setWorker(Consumer<RodEvent> worker);                                 // set/reset the receive callback
+    default void setWorker(String subscription, Consumer<RodEvent> worker);       // + a broker-side subscription selector (XRod only; R&R warns + ignores)
     void    init(String name, Logger devLog);                                     // CREATE the legs (paused)
     void    start();                                                              // RUN (engine threads + delivery)
     void    shutdown();
     default boolean isEnabled();           // default true; only XRodDisabled is false
     default TransportHealth health();      // default UP; XRod -> worst leg; XRodInProcessKeep -> keep datasource
+    default String rodId();                // the leg's <app>.<instanceNo>; null for in-process/disabled/info
     void    transmit(RodEvent event);   // send a pre-built event out the transmit leg
     void    receive(RodEvent event);    // apply an arrived event on the bounded receive pool
 }
@@ -608,8 +631,11 @@ class TransportHealthIndicator implements HealthIndicator { static void register
 ```java
 interface ITransportProvider {
     TransportPublisher openPublisher(String destination, PublishSettings settings);
-    AutoCloseable      openConsumer(String destination, ConsumeSettings settings, Consumer<TransportMessage> handler);
+    TransportConsumer  openConsumer(String destination, ConsumeSettings settings, Consumer<TransportMessage> handler);
+    default TransportConsumer openConsumerOn(TransportPublisher pub, String destination,   // ADD the consumer onto the
+                                ConsumeSettings settings, Consumer<TransportMessage> handler);  //   publisher's connection (dual leg)
     default boolean supportsConsume();
+    default boolean supportsBothLegs();    // a single rod can run both legs on one node/connection (noLocal own-exclusion)
 }
 interface TransportPublisher extends Consumer<TransportMessage>, AutoCloseable { }
 final class TransportProviders { static ITransportProvider resolve(String provider); }

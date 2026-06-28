@@ -1,8 +1,12 @@
 Esquire keySmith Microservice
 
 06/24/2026 mir0n  v1.2.9 -- EsqMsgConstants references repointed
-KeySmithApplication / audit.AuditConfig / messaging.KcBusAdapter
-  - EsqMsgConstants references repointed: wire constants -> messaging.BusConstants, app constants -> common.EsqConstants
+KeySmithApplication
+  - EsqMsgConstants app constants -> common.EsqConstants (references repointed)
+audit.AuditConfig
+  - EsqMsgConstants app constants -> common.EsqConstants (references repointed)
+messaging.KcBusAdapter
+  - EsqMsgConstants references -> messaging.BusConstants (wire) + common.EsqConstants (app)
 
 06/22/2026 mir0n  messaging-bus health indicator + readiness/liveness
 KeySmithApplication

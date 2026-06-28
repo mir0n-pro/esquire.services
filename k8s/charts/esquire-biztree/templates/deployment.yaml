@@ -1,11 +1,20 @@
+{{- $replicas := int (.Values.replicaCount | default 1) -}}
+{{- if gt $replicas 10 -}}
+{{- fail (printf "esquire-biztree: replicaCount=%d exceeds the cap of 10. The per-instance number is a single decimal digit (0-9) -- the fleet naming rule (pod ordinal -> rod-id <app>.<instanceNo>) caps replicas at 10." $replicas) -}}
+{{- end -}}
+{{- if lt $replicas 1 -}}
+{{- fail (printf "esquire-biztree: replicaCount=%d must be >= 1" $replicas) -}}
+{{- end }}
 apiVersion: apps/v1
-kind: Deployment
+kind: StatefulSet
 metadata:
   name: {{ .Release.Name }}-biztree
   labels:
     app: {{ .Release.Name }}-biztree
 spec:
-  replicas: 1
+  serviceName: {{ .Release.Name }}-biztree-hl
+  replicas: {{ $replicas }}
+  podManagementPolicy: Parallel
   selector:
     matchLabels:
       app: {{ .Release.Name }}-biztree
@@ -30,6 +39,12 @@ spec:
                 secretKeyRef:
                   name: {{ .Release.Name }}-biztree-secret
                   key: db-password
+            # Downward API -- POD_NAME is the host identity EsqUtils.instanceHost() reads; instanceNo()
+            # parses its trailing StatefulSet ordinal ("biztree-0" -> 0) so each pod owns a distinct rod-id.
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
           # readiness gates on the cacheReadiness indicator (cache loaded + serving) -- no traffic
           # until the bootstrap load completes; liveness is livenessState only so a slow load can't crashloop.
           readinessProbe:

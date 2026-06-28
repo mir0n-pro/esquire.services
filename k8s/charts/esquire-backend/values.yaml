@@ -38,6 +38,12 @@ session:
   # secret comes from a Secret (set via --set session.secret=... at install).
   cookieMaxAgeMs: 43200000   # 12h
 
+# Shared session store. Empty -> in-memory MemoryStore (correct only at a single
+# replica; OKE keeps the BFF at 1 today). Set to the in-cluster redis to share
+# sessions across replicas (local k8s sets this in k8s/values/backend.yaml).
+redis:
+  url: ""
+
 cache:
   ttlMs: 3600000             # 1h
   maxEntries: 64

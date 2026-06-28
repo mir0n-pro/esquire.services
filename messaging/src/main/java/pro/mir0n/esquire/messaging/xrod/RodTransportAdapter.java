@@ -12,6 +12,9 @@
  *                   the TransportMessage handler the provider's openConsumer dispatches to (decoding the envelope).
  * 06/17/2026 mir0n  publisher() returns a RodPublisher (closeable) instead of a bare Consumer<RodEvent>
  * 06/22/2026 mir0n  import RodEvent from messaging (was messaging.xrod)
+ * 06/27/2026 mir0n  publisher(TransportPublisher, ObjectMapper, BusIdentity) overload added -- wrap an ALREADY-OPEN
+ *                   transport publisher (so an XRod opening its consumer on the SAME connection keeps the raw
+ *                   publisher handle); the original publisher(sink, settings) opens the sink and delegates here
  */
 package pro.mir0n.esquire.messaging.xrod;
 
@@ -39,8 +42,15 @@ public final class RodTransportAdapter {
      */
     public static RodPublisher publisher(ITransportProvider provider, String destination, PublishSettings s) {
         TransportPublisher sink = provider.openPublisher(destination, s);
-        ObjectMapper om = s.objectMapper();
-        BusIdentity id  = s.identity();
+        return publisher(sink, s.objectMapper(), s.identity());
+    }
+
+    /**
+     * Wrap an ALREADY-OPEN transport publisher as the closeable {@link RodEvent} dispatcher. The caller that needs
+     * the raw {@link TransportPublisher} afterwards (e.g. an XRod that opens its consumer leg on the SAME
+     * connection via {@link ITransportProvider#openConsumerOn}) opens the sink itself and wraps it here.
+     */
+    public static RodPublisher publisher(TransportPublisher sink, ObjectMapper om, BusIdentity id) {
         return RodPublisher.of(
                 e -> sink.accept(new TransportMessage(RodEventCodec.toProps(e, om, id), e.entityId())),
                 sink);

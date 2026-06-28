@@ -1,16 +1,24 @@
+{{- $replicas := int (.Values.replicaCount | default 1) -}}
+{{- if gt $replicas 10 -}}
+{{- fail (printf "esquire-backend: replicaCount=%d exceeds the cap of 10. The per-instance number is a single decimal digit (0-9) -- the fleet naming rule (pod ordinal -> rod-id <app>.<instanceNo>) caps replicas at 10." $replicas) -}}
+{{- end -}}
+{{- if lt $replicas 1 -}}
+{{- fail (printf "esquire-backend: replicaCount=%d must be >= 1" $replicas) -}}
+{{- end }}
 apiVersion: apps/v1
-kind: Deployment
+kind: StatefulSet
 metadata:
   name: {{ .Release.Name }}-backend
   labels:
     app: {{ .Release.Name }}-backend
 spec:
-  # Single-replica + Recreate so MemoryStore-based sessions don't need to
-  # synchronize across pods. A pod restart logs everyone out (acceptable
-  # for v1.2.3; horizontal scale = a separate session-store decision).
-  replicas: 1
-  strategy:
-    type: Recreate
+  # Replicas > 1 REQUIRE a shared session store: set redis.url (-> REDIS_URL) so the BFF keeps
+  # sessions in redis (connect-redis). Without it the BFF uses express-session's in-memory
+  # MemoryStore and round-robin splits logins -- keep replicas: 1 (OKE today). StatefulSet here
+  # is for fleet-uniform naming.
+  serviceName: {{ .Release.Name }}-backend-hl
+  replicas: {{ $replicas }}
+  podManagementPolicy: Parallel
   selector:
     matchLabels:
       app: {{ .Release.Name }}-backend
@@ -34,6 +42,11 @@ spec:
                 name: {{ .Release.Name }}-backend-config
             - secretRef:
                 name: {{ .Release.Name }}-backend-secret
+          env:
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
           readinessProbe:
             httpGet:
               path: /readyz

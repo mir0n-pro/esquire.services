@@ -1,5 +1,36 @@
 Esquire messaging framework classes
 
+06/27/2026 mir0n  v1.2.10 -- broadcast dual-leg on one connection (broker noLocal own-exclusion) + setWorker subscription selector
+BusConstants
+  - PARAM_NO_LOCAL ("noLocal") added -- the transport-leg vendor param key for the shared-connection
+    own-exclusion (broadcast only): a receive leg sharing the publisher's connection drops THIS connection's
+    own publications
+IXRod
+  - setWorker(subscription, worker) default added -- a broker-side selector narrowing what the receive leg
+    consumes; the default ignores the subscription (R&R / non-transport rods too)
+  - rodId() default null added -- the leg's <app>.<instanceNo>, null for in-process/disabled/info
+ITransportProvider
+  - openConsumerOn(publisher, destination, settings, handler) default added -- open a consumer leg that REUSES
+    an already-open publisher's connection (the dual-leg, one-connection shape); the default falls back to
+    openConsumer (a separate connection)
+RodTransportAdapter
+  - publisher(TransportPublisher, ObjectMapper, BusIdentity) overload added -- wrap an ALREADY-OPEN transport
+    publisher (so an XRod opening its consumer on the SAME connection keeps the raw publisher handle); the
+    original publisher(sink, settings) opens the sink and delegates here
+AXRod
+  - name / devLog made protected (XRodRR reads them); rodId() override returns identity.rodId() (null when the
+    rod has no identity)
+XRod
+  - dual-leg on ONE connection: a single-node CLIENT that shares its connection opens a producer leg too and
+    ADDs the consumer onto it (openConsumerOn), so the broker's noLocal drops this connection's own
+    publications; setWorker(subscription) re-opens the receive consumer with a broker selector
+    (effectiveSelector; re-open only when it CHANGES); separate-connection fallback drops own events in code
+    (filterOwnInCode); the raw transportPublisher is kept so the shared consumer can reuse its connection
+XRodRR
+  - sharesConnection() = false (R&R keeps two connections on different nodes -- never the shared dual-leg path,
+    so never noLocal); setWorker(subscription) override warns and ignores the selector (R&R selects by rod-id /
+    slot-id)
+
 06/24/2026 mir0n  v1.2.9 -- EsqMsgConstants split (wire -> BusConstants); alive protocol opt-in + worst-of health + supportsBothLegs role guard + Role.BOTH removed
 BusConstants  (new)
   - the messaging-bus FIX-JSON wire constants -- moved from common.EsqMsgConstants into

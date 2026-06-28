@@ -1,0 +1,83 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="880" height="600" viewBox="0 0 880 600" font-family="Segoe UI, Arial, sans-serif">
+  <defs>
+    <marker id="ha" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L8,3 L0,6 z" fill="#4D6A8D"/>
+    </marker>
+  </defs>
+
+  <text x="440" y="32" text-anchor="middle" font-size="19" font-weight="bold" fill="#26384a">HA failure domains -- app tier spread across nodes vs. shared single-instance backends</text>
+
+  <!-- LB -->
+  <rect x="350" y="52" width="180" height="42" rx="6" fill="#dde7f0" stroke="#4D6A8D" stroke-width="1.6"/>
+  <text x="440" y="78" text-anchor="middle" font-size="13.5" font-weight="bold" fill="#26384a">cloud Load Balancer + ingress</text>
+
+  <!-- three nodes -->
+  <g>
+    <!-- Node A -->
+    <rect x="40" y="118" width="250" height="170" rx="10" fill="#f1f7f1" stroke="#5a8a5a" stroke-width="1.6"/>
+    <text x="165" y="140" text-anchor="middle" font-size="13.5" font-weight="bold" fill="#2f5a2f">Node A (AD-1)</text>
+    <rect x="60" y="152" width="100" height="30" rx="4" fill="#e3f0e3" stroke="#7faf7f"/><text x="110" y="172" text-anchor="middle" font-size="11.5">gateway-0</text>
+    <rect x="170" y="152" width="100" height="30" rx="4" fill="#e3f0e3" stroke="#7faf7f"/><text x="220" y="172" text-anchor="middle" font-size="11.5">backend-0</text>
+    <rect x="60" y="190" width="100" height="30" rx="4" fill="#e3f0e3" stroke="#7faf7f"/><text x="110" y="210" text-anchor="middle" font-size="11.5">bizTree-0</text>
+    <rect x="170" y="190" width="100" height="30" rx="4" fill="#e3f0e3" stroke="#7faf7f"/><text x="220" y="210" text-anchor="middle" font-size="11.5">enyMan-0</text>
+    <text x="165" y="245" text-anchor="middle" font-size="10.5" fill="#3f6b3f">+ one replica of each service</text>
+
+    <!-- Node B -->
+    <rect x="315" y="118" width="250" height="170" rx="10" fill="#f1f7f1" stroke="#5a8a5a" stroke-width="1.6"/>
+    <text x="440" y="140" text-anchor="middle" font-size="13.5" font-weight="bold" fill="#2f5a2f">Node B (AD-2)</text>
+    <rect x="335" y="152" width="100" height="30" rx="4" fill="#e3f0e3" stroke="#7faf7f"/><text x="385" y="172" text-anchor="middle" font-size="11.5">gateway-1</text>
+    <rect x="445" y="152" width="100" height="30" rx="4" fill="#e3f0e3" stroke="#7faf7f"/><text x="495" y="172" text-anchor="middle" font-size="11.5">backend-1</text>
+    <rect x="335" y="190" width="100" height="30" rx="4" fill="#e3f0e3" stroke="#7faf7f"/><text x="385" y="210" text-anchor="middle" font-size="11.5">bizTree-1</text>
+    <rect x="445" y="190" width="100" height="30" rx="4" fill="#e3f0e3" stroke="#7faf7f"/><text x="495" y="210" text-anchor="middle" font-size="11.5">enyMan-1</text>
+    <text x="440" y="245" text-anchor="middle" font-size="10.5" fill="#3f6b3f">anti-affinity spreads replicas</text>
+
+    <!-- Node C -->
+    <rect x="590" y="118" width="250" height="170" rx="10" fill="#f1f7f1" stroke="#5a8a5a" stroke-width="1.6"/>
+    <text x="715" y="140" text-anchor="middle" font-size="13.5" font-weight="bold" fill="#2f5a2f">Node C (AD-3)</text>
+    <rect x="610" y="152" width="100" height="30" rx="4" fill="#e3f0e3" stroke="#7faf7f"/><text x="660" y="172" text-anchor="middle" font-size="11.5">gateway-2</text>
+    <rect x="720" y="152" width="100" height="30" rx="4" fill="#e3f0e3" stroke="#7faf7f"/><text x="770" y="172" text-anchor="middle" font-size="11.5">backend-2</text>
+    <rect x="610" y="190" width="100" height="30" rx="4" fill="#e3f0e3" stroke="#7faf7f"/><text x="660" y="210" text-anchor="middle" font-size="11.5">bizTree-2</text>
+    <rect x="720" y="190" width="100" height="30" rx="4" fill="#e3f0e3" stroke="#7faf7f"/><text x="770" y="210" text-anchor="middle" font-size="11.5">enyMan-2</text>
+    <text x="715" y="245" text-anchor="middle" font-size="10.5" fill="#3f6b3f">a node loss drops 1 of 3, not all</text>
+  </g>
+
+  <!-- LB to nodes -->
+  <line x1="400" y1="94" x2="200" y2="116" stroke="#4D6A8D" stroke-width="1.3" marker-end="url(#ha)"/>
+  <line x1="440" y1="94" x2="440" y2="116" stroke="#4D6A8D" stroke-width="1.3" marker-end="url(#ha)"/>
+  <line x1="480" y1="94" x2="680" y2="116" stroke="#4D6A8D" stroke-width="1.3" marker-end="url(#ha)"/>
+
+  <text x="440" y="312" text-anchor="middle" font-size="12.5" font-weight="bold" fill="#2f5a2f">APP TIER -- redundant across nodes/ADs = HA  (replicas + anti-affinity + PodDisruptionBudgets)</text>
+
+  <!-- shared backends -->
+  <rect x="40" y="334" width="800" height="150" rx="10" fill="#fdf3f3" stroke="#b23b3b" stroke-width="1.4" stroke-dasharray="5 3"/>
+  <text x="440" y="356" text-anchor="middle" font-size="13" font-weight="bold" fill="#7a2727">SHARED BACKENDS -- single instances today = single points of failure</text>
+
+  <g font-size="11.5">
+    <rect x="60" y="372" width="180" height="58" rx="6" fill="#fbeaea" stroke="#b23b3b"/>
+    <text x="150" y="394" text-anchor="middle" font-weight="bold" fill="#7a2727">PostgreSQL</text>
+    <text x="150" y="412" text-anchor="middle" fill="#7a2727" font-size="10">all authoritative state</text>
+
+    <rect x="260" y="372" width="180" height="58" rx="6" fill="#fbeaea" stroke="#b23b3b"/>
+    <text x="350" y="394" text-anchor="middle" font-weight="bold" fill="#7a2727">ActiveMQ broker</text>
+    <text x="350" y="412" text-anchor="middle" fill="#7a2727" font-size="10">topic + KC queue</text>
+
+    <rect x="460" y="372" width="180" height="58" rx="6" fill="#fbeaea" stroke="#b23b3b"/>
+    <text x="550" y="394" text-anchor="middle" font-weight="bold" fill="#7a2727">Redis</text>
+    <text x="550" y="412" text-anchor="middle" fill="#7a2727" font-size="10">BFF sessions</text>
+
+    <rect x="660" y="372" width="160" height="58" rx="6" fill="#fbeaea" stroke="#b23b3b"/>
+    <text x="740" y="394" text-anchor="middle" font-weight="bold" fill="#7a2727">KeyCloak</text>
+    <text x="740" y="412" text-anchor="middle" fill="#7a2727" font-size="10">identity / login</text>
+  </g>
+
+  <text x="440" y="454" text-anchor="middle" font-size="11.5" fill="#7a2727">HA path: managed / clustered mode -- PG replica+failover &#183; broker master/slave &#183; Redis Sentinel/Cluster &#183; KC &gt;=2 + clustered cache</text>
+  <text x="440" y="473" text-anchor="middle" font-size="11" font-style="italic" fill="#9a6b6b">app-tier HA is capped by whichever backend a request touches -- these must go HA too</text>
+
+  <!-- legend -->
+  <rect x="300" y="512" width="16" height="16" rx="3" fill="#e3f0e3" stroke="#7faf7f"/>
+  <text x="322" y="525" font-size="11.5" fill="#3f6b3f">redundant across failure domains (HA)</text>
+  <rect x="540" y="512" width="16" height="16" rx="3" fill="#fbeaea" stroke="#b23b3b"/>
+  <text x="562" y="525" font-size="11.5" fill="#7a2727">single instance (SPOF today)</text>
+
+  <text x="440" y="560" text-anchor="middle" font-size="11" fill="#9aa7b3">Local single-node k8s = one failure domain (redundancy, not HA). OKE 3x A1.Flex across ADs = where spread + backend HA make it real.</text>
+</svg>

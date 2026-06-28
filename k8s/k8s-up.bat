@@ -105,7 +105,7 @@ call helm upgrade --install esquire-gateway   charts\esquire-gateway   -f values
   --set tokenRelay.phantom.exchangeClientSecret=esq-gw-exchange-dev-secret-rotate-in-prod || exit /b 1
 
 echo Waiting for gateway...
-kubectl rollout status deployment/esquire-gateway-gateway -n default --timeout=60s
+kubectl rollout status statefulset/esquire-gateway-gateway -n default --timeout=60s
 
 rem === Backend / BFF ===
 rem Secrets passed via --set (same dev literals as compose.yaml + realm import).

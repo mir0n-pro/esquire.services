@@ -23,6 +23,10 @@ esquire:
               destination: esquire.entity.broadcast
               params:
                 pubSubDomain: true
+                # enyMan runs both legs (publish + listen) on ONE shared connection, so the broker drops its OWN
+                # publications -- the moving instance reconciles only a PEER instance's create-during-move. Inert
+                # for pure consumers (bizTree / kcMaster publish nothing) and publish-only producers (no consumer).
+                noLocal: true
     # --- KeyCloak request/response (R&R, two nodes) ---
     - bus-id: esquire.kc
       slots:

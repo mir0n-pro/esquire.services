@@ -1,11 +1,20 @@
+{{- $replicas := int (.Values.replicaCount | default 1) -}}
+{{- if gt $replicas 10 -}}
+{{- fail (printf "esquire-pacman: replicaCount=%d exceeds the cap of 10. The per-instance number is a single decimal digit (0-9) -- the fleet naming rule (pod ordinal -> rod-id <app>.<instanceNo>) caps replicas at 10." $replicas) -}}
+{{- end -}}
+{{- if lt $replicas 1 -}}
+{{- fail (printf "esquire-pacman: replicaCount=%d must be >= 1" $replicas) -}}
+{{- end }}
 apiVersion: apps/v1
-kind: Deployment
+kind: StatefulSet
 metadata:
   name: {{ .Release.Name }}-pacman
   labels:
     app: {{ .Release.Name }}-pacman
 spec:
-  replicas: 1
+  serviceName: {{ .Release.Name }}-pacman-hl
+  replicas: {{ $replicas }}
+  podManagementPolicy: Parallel
   selector:
     matchLabels:
       app: {{ .Release.Name }}-pacman
@@ -30,6 +39,10 @@ spec:
                 secretKeyRef:
                   name: {{ .Release.Name }}-pacman-secret
                   key: db-password
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
           readinessProbe:
             httpGet:
               path: /actuator/health/readiness

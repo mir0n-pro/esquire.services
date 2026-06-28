@@ -1,12 +1,21 @@
+{{- $replicas := int (.Values.replicaCount | default 1) -}}
+{{- if gt $replicas 10 -}}
+{{- fail (printf "esquire-aukeep: replicaCount=%d exceeds the cap of 10. The per-instance number is a single decimal digit (0-9) -- the fleet naming rule (pod ordinal -> rod-id <app>.<instanceNo>) caps replicas at 10." $replicas) -}}
+{{- end -}}
+{{- if lt $replicas 1 -}}
+{{- fail (printf "esquire-aukeep: replicaCount=%d must be >= 1" $replicas) -}}
+{{- end }}
 apiVersion: apps/v1
-kind: Deployment
+kind: StatefulSet
 metadata:
   name: {{ .Release.Name }}-aukeep
   labels:
     app: {{ .Release.Name }}-aukeep
 spec:
-  # auKeep is a competing-consumer on a queue; replicaCount>1 = horizontal redundancy (separate sprint).
-  replicas: 1
+  # auKeep is a competing-consumer on a queue -- replicas spread the audit drain.
+  serviceName: {{ .Release.Name }}-aukeep-hl
+  replicas: {{ $replicas }}
+  podManagementPolicy: Parallel
   selector:
     matchLabels:
       app: {{ .Release.Name }}-aukeep
@@ -33,6 +42,10 @@ spec:
                 secretKeyRef:
                   name: {{ .Release.Name }}-aukeep-secret
                   key: db-password
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
           readinessProbe:
             httpGet:
               path: /actuator/health/readiness

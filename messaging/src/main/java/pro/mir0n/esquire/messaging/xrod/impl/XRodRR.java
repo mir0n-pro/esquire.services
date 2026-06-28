@@ -21,6 +21,9 @@
  * 06/23/2026 mir0n  buildKeepAlive() (CLIENT emits TestRequest, SERVER/BOTH an unsolicited HeartBeat) + onSessionMsg()
  *                   (SERVER echoes a received TestRequest back as a HeartBeat, routing echoed)
  * 06/24/2026 mir0n  buildKeepAlive() javadoc: "an R&R SERVER" (BOTH removed from the role list)
+ * 06/27/2026 mir0n  sharesConnection() = false (R&R keeps two connections on different nodes -- never the shared
+ *                   dual-leg path, so never noLocal); setWorker(subscription) override warns and ignores the
+ *                   selector (R&R already selects by rod-id / slot-id)
  */
 package pro.mir0n.esquire.messaging.xrod.impl;
 
@@ -31,6 +34,8 @@ import pro.mir0n.esquire.messaging.catalog.BusTransport;
 import pro.mir0n.esquire.messaging.catalog.Role;
 import pro.mir0n.esquire.messaging.catalog.XRodParams;
 import pro.mir0n.esquire.messaging.transport.BusIdentity;
+
+import java.util.function.Consumer;
 
 /** The Request/Response x-Rod (two nodes, role-driven): a specialised {@link XRod} for R&R legs. It overrides
  *  the per-leg transport (it refines the base wire with the request or response {@link BusNode}) and the receive
@@ -47,6 +52,14 @@ public class XRodRR extends XRod {
     @Override
     protected boolean receives() {
         return true;
+    }
+
+    /** R&R runs its two legs on DIFFERENT nodes (request vs response) -- never one shared connection. So it keeps
+     *  TWO connections and never takes the shared dual-leg path; consequently it never applies {@code noLocal}
+     *  (own-exclusion), which would wrongly drop a CLIENT's OWN responses (they ride back stamped with its rod-id). */
+    @Override
+    protected boolean sharesConnection() {
+        return false;
     }
 
     @Override
@@ -136,6 +149,17 @@ public class XRodRR extends XRod {
         if (role == Role.SERVER && BusConstants.MSG_TYPE_TEST_REQUEST.equals(in.msgType())) {
             transmit(RodEvent.heartbeat(in.correlationId(), in.requestId(), in.rodId()));
         }
+    }
+
+    /** R&R already drives its receive selector by rod-id (CLIENT) / slot-id (SERVER) -- a subscription selector does
+     *  NOT apply here. Warn and ignore the subscription; set the worker as the plain overload would. */
+    @Override
+    public void setWorker(String subscription, Consumer<RodEvent> worker) {
+        if (devLog != null) {
+            devLog.warn("x-rod[{}]: setWorker(subscription) -- a subscription selector does not apply to an R&R rod "
+                    + "(it selects by rod-id / slot-id); subscription '{}' NOT applied", name, subscription);
+        }
+        setWorker(worker);
     }
 
     /** R&R: a CLIENT consumes its own responses (filter by rod-id); a SERVER consumes its service's requests

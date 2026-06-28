@@ -16,6 +16,9 @@
  * 06/24/2026 mir0n  supportsBothLegs() default-true SPI method -- whether a single rod can run both legs (transmit
  *                   + receive) on the transport's node; false for a produce-only transport, so the bus fails a
  *                   CLIENT role fast over one that cannot
+ * 06/27/2026 mir0n  openConsumerOn(publisher, destination, settings, handler) default added -- open a consumer leg
+ *                   that REUSES an already-open publisher's connection (the dual-leg, one-connection shape); the
+ *                   default ignores the publisher and falls back to openConsumer (a separate connection)
  */
 package pro.mir0n.esquire.messaging.transport;
 
@@ -66,5 +69,19 @@ public interface ITransportProvider {
      */
     default boolean supportsBothLegs() {
         return true;
+    }
+
+    /**
+     * Opens a consumer leg that REUSES the connection of an already-open {@code publisher} (the producer leg) on
+     * the same rod -- the dual-leg, one-connection shape: at init the x-rod opens its publisher, then ADDs this
+     * consumer on the publisher's connection (the x-rod decides to do this; the transport only advertises it CAN
+     * via {@link #supportsBothLegs()}). Created PAUSED like {@link #openConsumer}. A provider that runs both legs
+     * on one connection reuses it here (and can honor a {@code noLocal} param to drop this connection's OWN
+     * publications -- the in-broker own-exclusion); the default IGNORES the publisher and falls back to a SEPARATE
+     * {@link #openConsumer}, so a provider with no shared-connection notion works unchanged.
+     */
+    default TransportConsumer openConsumerOn(TransportPublisher publisher, String destination,
+                                             ConsumeSettings settings, Consumer<TransportMessage> handler) {
+        return openConsumer(destination, settings, handler);
     }
 }

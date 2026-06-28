@@ -10,6 +10,9 @@
  *                   the messaging module (where the bus framework lives); the non-wire app constants
  *                   (BUS_KEY_* / TEXT_* / FLAG_OPEN / CCY_DEFAULT) split out to common.EsqConstants, so common no
  *                   longer carries any bus-wire definition.
+ * 06/27/2026 mir0n  PARAM_NO_LOCAL ("noLocal") added -- the transport-leg vendor param key for the shared-connection
+ *                   own-exclusion (broadcast only): a receive leg sharing the publisher's connection drops THIS
+ *                   connection's own publications
  */
 package pro.mir0n.esquire.messaging;
 
@@ -65,6 +68,13 @@ public class BusConstants {
     public static final String MSG_TYPE_HEARTBEAT       = "0";
     public static final String MSG_TYPE_TEST_REQUEST    = "1";
     public static final String MSG_ENCODING_JSON        = "JSON";
+
+    // --- Transport-leg vendor params (read by a transport provider off transport.params.*; named here so the
+    //     x-rod and the provider agree on the key) ---
+    //   noLocal -- a receive leg that shares its connection with the rod's own publisher leg does NOT get this
+    //   connection's own publications (the JMS noLocal semantic). A rod with two separate connections (no shared
+    //   connection) excludes its own in code instead. Broadcast (XRod) only; R&R never uses it.
+    public static final String PARAM_NO_LOCAL          = "noLocal";
 
     // --- EventType vocabulary ---
     public static final String EVENT_CREATE            = "C";

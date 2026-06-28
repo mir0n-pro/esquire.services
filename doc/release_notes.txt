@@ -1,6 +1,28 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v1.2.10-2606.2722  v1.2.10 -- full service redundancy: every service can run as more than one copy
+    :Feature:     every service can run as more than one copy at once
+    :Feature:     a record created on one copy of enyMan while another copy is moving its branch is now corrected
+    :Feature:     the backend (BFF) can run as more than one copy: its login sessions move to a shared store
+                  (Redis) where configured
+    :Fix:         the shared entity-field dictionary is now completed safely when several creates warm it at once
+    :Refactoring: a broadcast leg can now publish and listen on ONE connection so the message broker drops the
+                  leg's own messages
+    :Config:      every service runs as an ordinal-numbered set (StatefulSet) capped at ten copies; the k8s
+                  charts, the per-service values, and the rebuild / start scripts updated to match
+    :Doc:         doc\Esquire.HighAvailability.md
+                  doc\img\ha-failure-domains.svg
+                  doc\Messaging.md
+                  doc\Esquire.MessagingBus.md
+                  doc\Esquire.MessagingBus.ContinuingDev.md
+                  doc\services.configuring.md
+    Components:   enyMan,
+                  messaging,
+                  tp-activemq,
+                  common,
+                  k8s
+
 v1.2.9-2606.2417  v1.2.9 -- hardening: the bus keep-alive is now optional with a clearer health and role model; the bus wire constants moved into the messaging module
     :Feature:     the bus keep-alive (heartbeat) is an opt-in per-leg setting
     :Feature:     a Redis or Kafka leg wired as a consumer now fails to start with a clear message
