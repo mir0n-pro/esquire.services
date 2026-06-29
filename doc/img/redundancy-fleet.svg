@@ -1,0 +1,86 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="860" height="600" viewBox="0 0 860 600" font-family="Segoe UI, Arial, sans-serif">
+  <defs>
+    <marker id="a" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L8,3 L0,6 z" fill="#4D6A8D"/>
+    </marker>
+  </defs>
+
+  <text x="430" y="32" text-anchor="middle" font-size="19" font-weight="bold" fill="#26384a">Esquire fleet -- every service N replicas; all three channels survive duplication</text>
+
+  <!-- principle band -->
+  <rect x="40" y="48" width="780" height="30" rx="6" fill="#eef2f7" stroke="#aebfcf"/>
+  <text x="430" y="68" text-anchor="middle" font-size="12.5" fill="#26384a">Redundant for free when state lives in the DB / on a topic / on a queue. Per-pod memory is the only thing that needs moving.</text>
+
+  <!-- gateway (REST) -->
+  <rect x="350" y="96" width="160" height="58" rx="8" fill="#dde7f0" stroke="#4D6A8D" stroke-width="1.6"/>
+  <text x="430" y="120" text-anchor="middle" font-size="13.5" font-weight="bold" fill="#26384a">gateway  x N</text>
+  <text x="430" y="138" text-anchor="middle" font-size="11.5" fill="#4a5b6b">REST -- round-robin</text>
+
+  <!-- services row (each = 2 ordinal pods) -->
+  <g font-size="11" fill="#26384a">
+    <!-- helper visual: a small stacked-pods glyph per service -->
+    <!-- bizTree -->
+    <rect x="40" y="196" width="150" height="70" rx="8" fill="#f4f8fb" stroke="#4D6A8D" stroke-width="1.4"/>
+    <text x="115" y="216" text-anchor="middle" font-weight="bold">bizTree</text>
+    <rect x="58" y="226" width="52" height="28" rx="3" fill="#e7eef5" stroke="#aebfcf"/><text x="84" y="244" text-anchor="middle">-0</text>
+    <rect x="120" y="226" width="52" height="28" rx="3" fill="#e7eef5" stroke="#aebfcf"/><text x="146" y="244" text-anchor="middle">-1</text>
+
+    <!-- pacMan -->
+    <rect x="206" y="196" width="150" height="70" rx="8" fill="#f4f8fb" stroke="#4D6A8D" stroke-width="1.4"/>
+    <text x="281" y="216" text-anchor="middle" font-weight="bold">pacMan</text>
+    <rect x="224" y="226" width="52" height="28" rx="3" fill="#e7eef5" stroke="#aebfcf"/><text x="250" y="244" text-anchor="middle">-0</text>
+    <rect x="286" y="226" width="52" height="28" rx="3" fill="#e7eef5" stroke="#aebfcf"/><text x="312" y="244" text-anchor="middle">-1</text>
+
+    <!-- keySmith -->
+    <rect x="372" y="196" width="150" height="70" rx="8" fill="#f4f8fb" stroke="#4D6A8D" stroke-width="1.4"/>
+    <text x="447" y="216" text-anchor="middle" font-weight="bold">keySmith</text>
+    <rect x="390" y="226" width="52" height="28" rx="3" fill="#e7eef5" stroke="#aebfcf"/><text x="416" y="244" text-anchor="middle">-0</text>
+    <rect x="452" y="226" width="52" height="28" rx="3" fill="#e7eef5" stroke="#aebfcf"/><text x="478" y="244" text-anchor="middle">-1</text>
+
+    <!-- kcMaster -->
+    <rect x="538" y="196" width="150" height="70" rx="8" fill="#f4f8fb" stroke="#4D6A8D" stroke-width="1.4"/>
+    <text x="613" y="216" text-anchor="middle" font-weight="bold">kcMaster</text>
+    <rect x="556" y="226" width="52" height="28" rx="3" fill="#e7eef5" stroke="#aebfcf"/><text x="582" y="244" text-anchor="middle">-0</text>
+    <rect x="618" y="226" width="52" height="28" rx="3" fill="#e7eef5" stroke="#aebfcf"/><text x="644" y="244" text-anchor="middle">-1</text>
+
+    <!-- enyMan (highlight) -->
+    <rect x="704" y="196" width="116" height="70" rx="8" fill="#fff6e8" stroke="#c98a1e" stroke-width="1.6"/>
+    <text x="762" y="214" text-anchor="middle" font-weight="bold" fill="#8a5d10">enyMan</text>
+    <rect x="714" y="222" width="48" height="22" rx="3" fill="#f6e9cf" stroke="#d8b878"/><text x="738" y="238" text-anchor="middle">-0</text>
+    <rect x="768" y="222" width="44" height="22" rx="3" fill="#f6e9cf" stroke="#d8b878"/><text x="790" y="238" text-anchor="middle">-1</text>
+    <text x="762" y="259" text-anchor="middle" font-size="9.5" fill="#8a5d10">ordinal = id digit</text>
+  </g>
+
+  <!-- gateway to services -->
+  <line x1="430" y1="154" x2="430" y2="190" stroke="#4D6A8D" stroke-width="1.4" marker-end="url(#a)"/>
+
+  <!-- TOPIC channel -->
+  <rect x="40" y="304" width="780" height="44" rx="8" fill="#eaf3ea" stroke="#5a8a5a" stroke-width="1.6"/>
+  <text x="430" y="322" text-anchor="middle" font-size="13" font-weight="bold" fill="#2f5a2f">topic  esquire.entity  (fan-out)</text>
+  <text x="430" y="339" text-anchor="middle" font-size="11.5" fill="#3f6b3f">every replica of every consumer sees every event -> each keeps its own cache</text>
+
+  <!-- QUEUE channel -->
+  <rect x="40" y="360" width="780" height="44" rx="8" fill="#f0eaf3" stroke="#7a5a8a" stroke-width="1.6"/>
+  <text x="430" y="378" text-anchor="middle" font-size="13" font-weight="bold" fill="#5a2f6b">queue  esquire.kc  (competing consumers, one-of)</text>
+  <text x="430" y="395" text-anchor="middle" font-size="11.5" fill="#6b3f7a">work spreads across replicas; reply routes back by rod-id (one consumer = one KC write)</text>
+
+  <!-- connectors services<->bus -->
+  <line x1="430" y1="266" x2="430" y2="302" stroke="#5a8a5a" stroke-width="1.3" marker-end="url(#a)"/>
+
+  <!-- shared backends -->
+  <rect x="170" y="430" width="200" height="50" rx="8" fill="#fbeeee" stroke="#b23b3b" stroke-width="1.5"/>
+  <text x="270" y="452" text-anchor="middle" font-size="13" font-weight="bold" fill="#7a2727">PostgreSQL</text>
+  <text x="270" y="469" text-anchor="middle" font-size="11" fill="#7a2727">authoritative shared state</text>
+
+  <rect x="490" y="430" width="200" height="50" rx="8" fill="#fbeeee" stroke="#b23b3b" stroke-width="1.5"/>
+  <text x="590" y="452" text-anchor="middle" font-size="13" font-weight="bold" fill="#7a2727">ActiveMQ broker</text>
+  <text x="590" y="469" text-anchor="middle" font-size="11" fill="#7a2727">carries topic + queue</text>
+
+  <line x1="430" y1="404" x2="300" y2="428" stroke="#b23b3b" stroke-width="1.3" marker-end="url(#a)"/>
+  <line x1="430" y1="404" x2="560" y2="428" stroke="#b23b3b" stroke-width="1.3" marker-end="url(#a)"/>
+
+  <!-- fleet rule footer -->
+  <text x="430" y="512" text-anchor="middle" font-size="12" fill="#4a5b6b">All 8 services: StatefulSet, ordinal pods &lt;app&gt;-0..-9 (cap 10), headless &lt;app&gt;-hl, podManagementPolicy: Parallel</text>
+  <text x="430" y="532" text-anchor="middle" font-size="11.5" fill="#6b7a88">ordinal -> instanceNo -> rod-id &lt;app&gt;.&lt;instanceNo&gt;  (enyMan REQUIRES it for entity-id minting; uniform rule for the rest)</text>
+  <text x="430" y="558" text-anchor="middle" font-size="11.5" font-style="italic" fill="#9aa7b3">Note: the shared backends (Postgres, ActiveMQ, Redis) are single instances today -- their own HA is the next concern (see Esquire.HighAvailability).</text>
+</svg>

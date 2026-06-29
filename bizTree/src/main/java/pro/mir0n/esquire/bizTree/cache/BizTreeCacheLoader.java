@@ -15,18 +15,25 @@
  * 05/20/2026 mir0n  Taijitu refactor (v1.2.5): no longer an ApplicationReadyEvent
  *                   listener -- exposes load() invoked by the active director's
  *                   bootstrap; consumes precomposed CacheSqlSet (was BizTreeCacheSql)
+ * 06/29/2026 mir0n  the whole-tree entity read runs in one read-only TransactionTemplate (readTx) built over the
+ *                   JPA tx manager; its timeout opts out of the request-path cap via QueryTimeouts.resolveOptOut
+ *                   (biztree.cache-load.tx-timeout-s, 0 = uncapped, pre-HA default) (R6)
  */
 package pro.mir0n.esquire.bizTree.cache;
 
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 import pro.mir0n.esquire.backend.jpa.entity.EsqAcctJpa;
 import pro.mir0n.esquire.backend.jpa.entity.EsqOrgJpa;
 import pro.mir0n.esquire.backend.jpa.entity.EsqUsrJpa;
 import pro.mir0n.esquire.bizTree.BizTreeConstants;
+import pro.mir0n.esquire.common.QueryTimeouts;
 import pro.mir0n.esquire.bizTree.jpa.EsqAcctRepository;
 import pro.mir0n.esquire.bizTree.jpa.EsqOrgRepository;
 import pro.mir0n.esquire.bizTree.jpa.EsqUsrRepository;
@@ -51,17 +58,26 @@ public class BizTreeCacheLoader {
     private final EsqAcctRepository acctRepo;
     private final JdbcTemplate    cacheDb;
     private final CacheSqlSet     sql;
+    private final TransactionTemplate readTx;
 
     public BizTreeCacheLoader(EsqOrgRepository orgRepo,
                               EsqUsrRepository usrRepo,
                               EsqAcctRepository acctRepo,
                               @Qualifier("cacheJdbcTemplate") JdbcTemplate cacheDb,
-                              CacheSqlSet sql) {
+                              CacheSqlSet sql,
+                              PlatformTransactionManager txManager,
+                              @Value("${biztree.cache-load.tx-timeout-s:0}") int cacheLoadTimeoutS) {
         this.orgRepo  = orgRepo;
         this.usrRepo  = usrRepo;
         this.acctRepo = acctRepo;
         this.cacheDb  = cacheDb;
         this.sql      = sql;
+        // The entity reads run in ONE read-only transaction that opts out of the request-path cap: an explicit
+        // positive biztree.cache-load.tx-timeout-s caps it; 0/negative (the default) leaves it uncapped. The
+        // single transaction also gives the tree a consistent snapshot across the org/usr/acct reads.
+        this.readTx = new TransactionTemplate(txManager);
+        this.readTx.setReadOnly(true);
+        this.readTx.setTimeout(QueryTimeouts.resolveOptOut(cacheLoadTimeoutS));
     }
 
     /** Build the in-memory tree cache from the entity tables. Throws on failure
@@ -70,9 +86,13 @@ public class BizTreeCacheLoader {
         log.info("BizTreeCacheLoader: building in-memory tree cache from entity tables");
 
         List<Object[]> rows = new ArrayList<>();
-        buildOrgRows(rows);
-        Map<String, Long> usrOrgMap = buildUserRows(rows);
-        buildAccountRows(rows, usrOrgMap);
+        // The whole-tree entity reads run together in the uncapped read-only transaction (see ctor); the H2
+        // cache writes below are on the separate cache datasource and stay outside it.
+        readTx.executeWithoutResult(status -> {
+            buildOrgRows(rows);
+            Map<String, Long> usrOrgMap = buildUserRows(rows);
+            buildAccountRows(rows, usrOrgMap);
+        });
 
         int[] counts = cacheDb.batchUpdate(sql.insertNode(), rows);
         log.info("BizTreeCacheLoader: inserted {} nodes; computing paths", counts.length);

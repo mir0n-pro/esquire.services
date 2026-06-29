@@ -50,6 +50,13 @@ tokenRelay:
     exchangeClientId: esq-gw-exchange
     exchangeClientSecret: ""    # passed via --set at install
 
+# R1 outbound HTTP client connection pool (Spring Cloud Gateway -> backend services).
+# Defaults here = the Reactor Netty pool behavior we ran before HA work. The tuned
+# local-k8s budget lives in k8s/values/gateway.yaml; OKE keeps these pre-HA defaults.
+resilience:
+  gwPoolMaxConnections: "16"       # spring.cloud.gateway.httpclient.pool.max-connections
+  gwPoolAcquireTimeoutMs: "45000"  # spring.cloud.gateway.httpclient.pool.acquire-timeout
+
 logging:
   levelRoot: ERROR
   levelSf: ERROR

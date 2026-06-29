@@ -10,12 +10,20 @@ spring:
   mvc:
     problemdetails:
       enabled: true
+  # Request-path query/transaction cap (seconds): -1 = no cap (pre-HA default; behaviour unchanged when unset).
+  # Set ESQ_TX_TIMEOUT_S (e.g. 8) to bound the common request path so a stuck query frees its worker + connection
+  # instead of hanging. The move transaction opts out via enyman.move-queue.tx-timeout-s below.
+  transaction:
+    default-timeout: ${ESQ_TX_TIMEOUT_S:-1}
   config:
     import: "${TOPOLOGY_IMPORT:optional:file:/etc/esquire/topology.yml}"
 enyman:
   move-queue:
     capacity: ${ENYMAN_MOVE_QUEUE_CAPACITY:16384}
     validate-create-during-move: ${ENYMAN_VALIDATE_CREATE_DURING_MOVE:true}
+    # The move transaction opts OUT of the request-path cap: 0 = uncapped (pre-HA default). Set a positive
+    # value only to put a safety ceiling on a move (path-table lock + subtree rewrite can legitimately run long).
+    tx-timeout-s: ${ENYMAN_MOVE_TX_TIMEOUT_S:0}
   # this service's OWN overlay of the global esquire.messaging-bus catalog (added by MessagingBusCatalog):
   # its in-process audit-b leg, whose datasource is service-specific. Under the service namespace, beside move-queue.
   messaging-bus:
@@ -33,6 +41,8 @@ enyman:
               url: ${DB_DATAKEEP_URL:jdbc:postgresql://${DB_ENYMAN_HOST:localhost}:${DB_ENYMAN_PORT:5432}/${DB_ENYMAN_NAME:esq2025}}
               username: ${DB_DATAKEEP_USERNAME:${DB_ENYMAN_USERNAME:esq2025}}
               password: ${DB_DATAKEEP_PASSWORD:${DB_ENYMAN_PASSWORD:q}}
+              # per-apply statement cap (seconds): 0 = uncapped (pre-HA default). The keep surface of the cap.
+              query-timeout-seconds: ${ESQ_KEEP_QUERY_TIMEOUT_S:0}
               hikari:
                 maximum-pool-size: ${DB_DATAKEEP_POOL_SIZE:2}
 # Bus REFS: which slot this service joins on the shared buses.
@@ -51,12 +61,20 @@ esquire:
         pool-size: ${ENYMAN_KC_RESPONSE_POOL_SIZE:2}
         concurrency: ${ENYMAN_KC_RESPONSE_CONCURRENCY:1}
         publisher-pool-size: ${ENYMAN_KC_PUBLISHER_POOL_SIZE:0}
+  # v1.2.10 Goal-4: enyMan both PUBLISHES entity broadcasts and LISTENS for its peers' (CLIENT role -> the rod
+  # runs a receive leg; because the transport supports both legs on one connection it ALSO opens a producer leg
+  # on that same connection, so enyMan publishes through it too). The shared connection lets the broker's noLocal
+  # (set on the entity slot transport) drop enyMan's OWN publications, so the MOVING instance reconciles only a
+  # CREATE a DIFFERENT instance made during the move (the cross-instance race-8b gap the per-instance inMove()
+  # left open). EntityBusAdapter transmits; EntityRxBusAdapter sets the worker that forwards peer CREATEs.
   entity-bus:
     messaging-bus:
       bus-id: ${ENTITY_BUS_ID:esquire.entity}
       slot-id: ${ENTITY_SLOT_ID:entity}
-      role: SERVER
+      role: CLIENT
       x-rod:
+        pool-size: ${ENTITY_RX_POOL_SIZE:2}
+        concurrency: ${ENTITY_RX_CONCURRENCY:1}
         publisher-pool-size: ${ENTITY_BROADCAST_PUBLISHER_POOL_SIZE:0}
 logging:
   level:
@@ -102,9 +120,11 @@ spring:
     username: ${DB_ENYMAN_USERNAME:esq2025}
     password: ${DB_ENYMAN_PASSWORD:q}
     hikari:
-      maximum-pool-size: 20
-      minimum-idle: 20
-      connection-timeout: 30000
+      # pool sizing + connect-timeout: pre-HA defaults = current values; HA values (smaller pool, fast
+      # connect-timeout) set per service in the local-k8s chart (R3/R5).
+      maximum-pool-size: ${ESQ_DB_POOL_MAX:20}
+      minimum-idle: ${ESQ_DB_POOL_MIN_IDLE:20}
+      connection-timeout: ${ESQ_DB_CONNECT_TIMEOUT_MS:30000}
       max-lifetime: 1800000
       idle-timeout: 600000
   jpa:
@@ -120,6 +140,12 @@ spring:
         dialect: org.hibernate.dialect.OracleDialect
 server:
   port: ${ENYMAN_PORT:3000}
+  tomcat:
+    threads:
+      # request worker threads (pre-HA default = Boot's 200). HA bounds the worker pool so a slow
+      # downstream cannot exhaust threads fleet-wide; local-k8s value set in the chart (R2).
+      max: ${ESQ_TOMCAT_MAX_THREADS:200}
+    accept-count: ${ESQ_TOMCAT_ACCEPT_COUNT:100}
 
 ---
 spring:
@@ -131,11 +157,18 @@ spring:
     username: ${DB_ENYMAN_USERNAME:esq2025}
     password: ${DB_ENYMAN_PASSWORD:q}
     hikari:
-      maximum-pool-size: 20
-      minimum-idle: 20
-      connection-timeout: 30000
+      # pool sizing + connect-timeout: pre-HA defaults = current values; HA values (smaller pool, fast
+      # connect-timeout) set per service in the local-k8s chart (R3/R5).
+      maximum-pool-size: ${ESQ_DB_POOL_MAX:20}
+      minimum-idle: ${ESQ_DB_POOL_MIN_IDLE:20}
+      connection-timeout: ${ESQ_DB_CONNECT_TIMEOUT_MS:30000}
       max-lifetime: 1800000
       idle-timeout: 600000
+      # pgjdbc socketTimeout (s) + tcpKeepAlive: pre-HA defaults = off (0 / false). HA (local-k8s chart)
+      # makes a vanished DB fail fast on a half-open socket instead of hanging a worker (R1/R5).
+      data-source-properties:
+        socketTimeout: ${ESQ_DB_SOCKET_TIMEOUT_S:0}
+        tcpKeepAlive: ${ESQ_DB_TCP_KEEPALIVE:false}
   jpa:
     mapping-resources:
       - META-INF/postgres-dictionary.xml
@@ -149,3 +182,9 @@ spring:
         dialect: org.hibernate.dialect.PostgreSQLDialect
 server:
   port: ${ENYMAN_PORT:3000}
+  tomcat:
+    threads:
+      # request worker threads (pre-HA default = Boot's 200). HA bounds the worker pool so a slow
+      # downstream cannot exhaust threads fleet-wide; local-k8s value set in the chart (R2).
+      max: ${ESQ_TOMCAT_MAX_THREADS:200}
+    accept-count: ${ESQ_TOMCAT_ACCEPT_COUNT:100}

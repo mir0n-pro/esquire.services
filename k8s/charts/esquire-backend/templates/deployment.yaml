@@ -35,6 +35,10 @@ spec:
         - name: backend
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           ports:
             - containerPort: {{ .Values.service.port }}
           envFrom:
@@ -63,3 +67,19 @@ spec:
             periodSeconds: 15
             timeoutSeconds: 3
             failureThreshold: 5
+          {{- if .Values.spa.httpTimeoutMs }}
+          # R1 SPA runtime config: mount config.json over the baked one so the browser
+          # honors httpTimeoutMs. Absent (no spa.httpTimeoutMs) -> the image's baked
+          # config.json (httpTimeoutMs 0, pre-HA) is served untouched.
+          volumeMounts:
+            - name: spa-config
+              mountPath: /app/public/assets/config.json
+              subPath: config.json
+              readOnly: true
+          {{- end }}
+      {{- if .Values.spa.httpTimeoutMs }}
+      volumes:
+        - name: spa-config
+          configMap:
+            name: {{ .Release.Name }}-backend-spaconfig
+      {{- end }}

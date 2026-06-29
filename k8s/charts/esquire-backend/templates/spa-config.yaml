@@ -1,0 +1,18 @@
+{{- if .Values.spa.httpTimeoutMs }}
+# R1 SPA runtime config (browser-fetched at /assets/config.json). Rendered ONLY when
+# spa.httpTimeoutMs is set (the local-k8s overlay); the backend deployment mounts this
+# over the image's baked config.json. With no value (chart default), this ConfigMap is
+# absent and the baked config.json (httpTimeoutMs 0, pre-HA) is served unchanged.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-backend-spaconfig
+  labels:
+    app: {{ .Release.Name }}-backend
+data:
+  config.json: |
+    {
+      "apiBasePath": {{ .Values.spa.apiBasePath | default "/api" | quote }},
+      "httpTimeoutMs": {{ .Values.spa.httpTimeoutMs }}
+    }
+{{- end }}

@@ -20,6 +20,10 @@
  * 06/05/2026 mir0n  completedDictionary(kind) helper extracted: lazy custom-param merge from esq_parameter,
  *                   guarded by the completed flag -- fixes custom params silently skipped on create/save
  *                   unless /esq-dict was fetched first; shared by create/save and the dictionary endpoint
+ * 06/27/2026 mir0n  completedDictionary() completes the SHARED dictionary singleton once under its own monitor
+ *                   (synchronized + a volatile double-check) so concurrent first-callers do not sort the layers
+ *                   list mid-mutation; testCreateDelayMs() reads ENYMAN_TEST_CREATE_DELAY_MS (the test-only
+ *                   race-8b create-window lever, default 0 = off)
  */
 
 package pro.mir0n.esquire.enyMan.service.impl;
@@ -71,12 +75,39 @@ public abstract class AEnyManService  implements IEnyManService {
     // fetched first. Centralised so create/save and the dictionary endpoint share one completion.
     protected EsqEntityDictionary completedDictionary(int kind) {
         EsqEntityDictionary ret = EsqEntityDictionaryStorage.getInstance().get(kind);
+        // The dictionary is a SHARED singleton; completion mutates its layers (mapTo + sortLayers). Complete it
+        // ONCE under the dictionary's own monitor so concurrent first-callers (a cold cache + a burst of creates)
+        // do not sort the layers list while another thread is still mutating it. Double-checked: the volatile
+        // `completed` fast-path skips the lock once a kind is warm.
         if (ret != null && !ret.isCompleted()) {
-            List<EsqCustomEntityFieldJpa> custom = entityDictionaryRepository.findCustom(kind);
-            if (custom != null && !custom.isEmpty()) {
-                EsqEntityDictionaryMapper.mapTo(custom, ret);
+            synchronized (ret) {
+                if (!ret.isCompleted()) {
+                    List<EsqCustomEntityFieldJpa> custom = entityDictionaryRepository.findCustom(kind);
+                    if (custom != null && !custom.isEmpty()) {
+                        EsqEntityDictionaryMapper.mapTo(custom, ret);
+                    }
+                    ret.setCompleted(true);
+                }
             }
-            ret.setCompleted(true);
+        }
+        return ret;
+    }
+
+    // Test-only create-window widener, read straight from the OS environment
+    // (ENYMAN_TEST_CREATE_DELAY_MS, default 0 = off). Deliberately NOT a Spring-injected constructor
+    // parameter: it is an ops/test lever set on the k8s/docker container env, invisible to a service's
+    // public constructor. When > 0, createOrg/createUsr holds its transaction open between the
+    // parent-path read and the child insert, so a concurrent cross-instance move can rewrite the parent
+    // path in that gap -- the deterministic race-8b reproduction lever.
+    protected static long testCreateDelayMs() {
+        long ret = 0L;
+        String v = System.getenv("ENYMAN_TEST_CREATE_DELAY_MS");
+        if (v != null && !v.isBlank()) {
+            try {
+                ret = Long.parseLong(v.trim());
+            } catch (NumberFormatException nfe) {
+                ret = 0L;
+            }
         }
         return ret;
     }

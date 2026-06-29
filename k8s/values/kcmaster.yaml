@@ -2,7 +2,18 @@
 # Chart defaults already match local dev needs. Only image.tag is
 # restamped per rebuild here -- k8s-rebuild.bat patches it.
 image:
-  tag: "v1.2.10-2606.270308"
+  tag: "v1.2.10-2606.2820"
 
 # v1.2.10 redundancy: run 2 replicas (StatefulSet ordinal identity)
 replicaCount: 2
+
+# R4 local-k8s resource budget. kcMaster has no DB datasource and no inbound HTTP
+# surface under load (it drains the KC bus), so only the R4 resources floor/ceiling
+# applies -- no R1-R5 timeout/pool knobs.
+resources:
+  requests:
+    cpu: 250m
+    memory: 512Mi
+  limits:
+    cpu: "1"
+    memory: 768Mi

@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="780" height="580" viewBox="0 0 780 580" font-family="Segoe UI, Arial, sans-serif">
+  <defs>
+    <marker id="arr" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L8,3 L0,6 z" fill="#4D6A8D"/>
+    </marker>
+  </defs>
+
+  <text x="390" y="34" text-anchor="middle" font-size="19" font-weight="bold" fill="#26384a">Esquire browser-facing tier -- redundant (BFF + baked SPA + shared session)</text>
+
+  <!-- Browser -->
+  <rect x="305" y="56" width="170" height="46" rx="6" fill="#eef2f7" stroke="#4D6A8D" stroke-width="1.5"/>
+  <text x="390" y="84" text-anchor="middle" font-size="14" fill="#26384a">Browser (Angular SPA)</text>
+
+  <!-- arrow to ingress -->
+  <line x1="390" y1="102" x2="390" y2="142" stroke="#4D6A8D" stroke-width="1.6" marker-end="url(#arr)"/>
+
+  <!-- Ingress -->
+  <rect x="280" y="146" width="220" height="46" rx="6" fill="#dde7f0" stroke="#4D6A8D" stroke-width="1.5"/>
+  <text x="390" y="168" text-anchor="middle" font-size="14" font-weight="bold" fill="#26384a">ingress-nginx</text>
+  <text x="390" y="184" text-anchor="middle" font-size="12" fill="#4a5b6b">round-robins across pod IPs</text>
+
+  <!-- arrows to pods -->
+  <line x1="340" y1="192" x2="210" y2="262" stroke="#4D6A8D" stroke-width="1.6" marker-end="url(#arr)"/>
+  <line x1="440" y1="192" x2="570" y2="262" stroke="#4D6A8D" stroke-width="1.6" marker-end="url(#arr)"/>
+
+  <!-- backend-0 -->
+  <rect x="70" y="266" width="280" height="120" rx="8" fill="#f4f8fb" stroke="#4D6A8D" stroke-width="1.6"/>
+  <text x="210" y="290" text-anchor="middle" font-size="14" font-weight="bold" fill="#26384a">esquire-backend-0</text>
+  <text x="210" y="307" text-anchor="middle" font-size="11.5" fill="#6b7a88">StatefulSet pod (rod-id backend.0)</text>
+  <rect x="90" y="318" width="240" height="26" rx="4" fill="#e7eef5" stroke="#aebfcf"/>
+  <text x="210" y="335" text-anchor="middle" font-size="12" fill="#26384a">Node BFF -- /auth/* , /api/* proxy</text>
+  <rect x="90" y="350" width="240" height="26" rx="4" fill="#eaf3ea" stroke="#b7cdb7"/>
+  <text x="210" y="367" text-anchor="middle" font-size="12" fill="#26384a">baked SPA (static  public/ )</text>
+
+  <!-- backend-1 -->
+  <rect x="430" y="266" width="280" height="120" rx="8" fill="#f4f8fb" stroke="#4D6A8D" stroke-width="1.6"/>
+  <text x="570" y="290" text-anchor="middle" font-size="14" font-weight="bold" fill="#26384a">esquire-backend-1</text>
+  <text x="570" y="307" text-anchor="middle" font-size="11.5" fill="#6b7a88">StatefulSet pod (rod-id backend.1)</text>
+  <rect x="450" y="318" width="240" height="26" rx="4" fill="#e7eef5" stroke="#aebfcf"/>
+  <text x="570" y="335" text-anchor="middle" font-size="12" fill="#26384a">Node BFF -- /auth/* , /api/* proxy</text>
+  <rect x="450" y="350" width="240" height="26" rx="4" fill="#eaf3ea" stroke="#b7cdb7"/>
+  <text x="570" y="367" text-anchor="middle" font-size="12" fill="#26384a">baked SPA (static  public/ )</text>
+
+  <!-- note: identical SPA -->
+  <text x="390" y="412" text-anchor="middle" font-size="12" font-style="italic" fill="#6b7a88">every pod serves the SAME SPA files -- the frontend is redundant for free</text>
+
+  <!-- arrows to redis -->
+  <line x1="210" y1="386" x2="330" y2="452" stroke="#b23b3b" stroke-width="1.6" marker-end="url(#arr)"/>
+  <line x1="570" y1="386" x2="450" y2="452" stroke="#b23b3b" stroke-width="1.6" marker-end="url(#arr)"/>
+
+  <!-- Redis -->
+  <rect x="280" y="456" width="220" height="60" rx="8" fill="#fbeeee" stroke="#b23b3b" stroke-width="1.6"/>
+  <text x="390" y="480" text-anchor="middle" font-size="14" font-weight="bold" fill="#7a2727">Redis (esquire-infra-redis)</text>
+  <text x="390" y="498" text-anchor="middle" font-size="12" fill="#7a2727">shared session store  esq.sess:*</text>
+
+  <text x="390" y="542" text-anchor="middle" font-size="12" fill="#4a5b6b">session shared -> any pod authenticates the cookie, and a session survives a pod restart</text>
+  <text x="390" y="562" text-anchor="middle" font-size="11.5" font-style="italic" fill="#9aa7b3">OKE today: REDIS_URL unset -> in-memory MemoryStore, 1 replica (env-driven; keeps OKE small)</text>
+</svg>

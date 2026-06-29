@@ -1,5 +1,14 @@
 Esquire dataKeep library
 
+06/29/2026 mir0n  v1.2.10 -- R6 per-apply query-timeout (keep surface)
+keep.KeepDataSourceParams
+  - added queryTimeoutSeconds (Integer; null / <= 0 = no cap, pre-HA default) -- the per-apply JDBC statement cap
+keep.RodEventDbWriter
+  - constructor takes queryTimeoutSeconds: when > 0 applies it via JdbcTemplate setQueryTimeout; null / <= 0 leaves
+    it uncapped; added queryTimeoutSeconds() accessor
+keep.KeepApplier
+  - passes ds.queryTimeoutSeconds() to the RodEventDbWriter
+
 06/23/2026 mir0n  keep datasource: driver connection properties (data-source-properties)
 keep.KeepDataSourceParams
   - Hikari record gained dataSourceProperties (bound from data-source-properties, like

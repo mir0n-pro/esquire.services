@@ -19,6 +19,20 @@ db:
   username: esq2025
   password: q
 
+# R1-R5 resilience knobs (timeout ladder / pool sizing / fail-fast DB). Defaults
+# here are the pre-HA "no HA" behavior we ran before HA work (large / disabled), so a
+# plain `helm install` of this chart behaves exactly as before. The tuned local-k8s
+# budget lives in k8s/values/pacman.yaml; OKE keeps these pre-HA defaults.
+resilience:
+  txTimeoutSeconds: "-1"          # R1 spring.transaction.default-timeout (-1 = inherit, no cap)
+  tomcatMaxThreads: "200"         # R2 server.tomcat.threads.max (Boot default)
+  tomcatAcceptCount: "100"        # R2 server.tomcat.accept-count (Boot default)
+  dbPoolMax: "20"                 # R3 Hikari maximum-pool-size
+  dbPoolMinIdle: "20"             # R3 Hikari minimum-idle
+  dbConnectTimeoutMs: "30000"     # R3 Hikari connection-timeout (Hikari default)
+  dbSocketTimeoutSeconds: "0"     # R5 pgjdbc socketTimeout (0 = none)
+  dbTcpKeepAlive: "false"         # R5 pgjdbc tcpKeepAlive
+
 # entity-bus ref: pacMan is the PUBLISHER (broadcasts entity changes onto the bus).
 entity:
   busId: esquire.entity

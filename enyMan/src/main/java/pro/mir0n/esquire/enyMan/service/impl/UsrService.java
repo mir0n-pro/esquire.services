@@ -50,6 +50,10 @@
  *                   the trailing MSG_TYPE_AUDIT arg; the isEnabled() guard reads audit
  * 06/18/2026 mir0n  audit module left common: AuditBusBridge moved to pro.mir0n.esquire.audit
  * 06/22/2026 mir0n  RodEvent import retargeted messaging.xrod.RodEvent -> messaging.RodEvent (package move).
+ * 06/27/2026 mir0n  test-only createUsr window widener: sleepCreateWindow() (createDelayMs from
+ *                   ENYMAN_TEST_CREATE_DELAY_MS) holds the create transaction open between the parent-path read and
+ *                   the user insert, so a concurrent cross-instance move can rewrite the parent path in the gap
+ *                   (the deterministic race-8b repro lever; 0 = off)
  */
 
 package pro.mir0n.esquire.enyMan.service.impl;
@@ -96,6 +100,10 @@ public class UsrService  extends AEnyManService {
     private final TransactionTemplate transactionTemplate;
     private final EntityManager em;
     private final AuditBusBridge audit;
+    // Test-only window widener (ENYMAN_TEST_CREATE_DELAY_MS env var, default 0 = off). When > 0, createUsr
+    // sleeps between reading the parent path and inserting the user, so a concurrent move on another
+    // instance can rewrite the parent path in that gap -- the deterministic race-8b reproduction lever.
+    private final long createDelayMs = testCreateDelayMs();
 
     public UsrService(EsqEntityDictionaryRepository entityDictionaryRepository,
                       EsqUsrRepository usrRepository,
@@ -108,6 +116,18 @@ public class UsrService  extends AEnyManService {
         this.transactionTemplate = transactionTemplate;
         this.em = em;
         this.audit = audit;
+    }
+
+    // Test-only: hold the create transaction open between the parent-path read and the user insert,
+    // so a concurrent cross-instance move can rewrite the parent path in the gap (race-8b lever).
+    private void sleepCreateWindow() {
+        if (createDelayMs > 0L) {
+            try {
+                Thread.sleep(createDelayMs);
+            } catch (InterruptedException ie) {
+                Thread.currentThread().interrupt();
+            }
+        }
     }
 
 
@@ -293,6 +313,7 @@ public class UsrService  extends AEnyManService {
         if (parentPath == null) {
             throw new ResourceNotFoundException("createUsr", "parentId", parentId);
         }
+        sleepCreateWindow();
         long newId = EntityIdGenerator.generateEntityId();
         String idStr = String.valueOf(newId);
         EsqObjectKind eek = EsqObjectKindStorage.getInstance().get(kind);

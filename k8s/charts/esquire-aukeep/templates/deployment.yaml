@@ -28,6 +28,10 @@ spec:
         - name: aukeep
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           # dataKeep's Dockerfile has no ENTRYPOINT (compose supplies the command); the temurin base
           # entrypoint execs these args.
           args: ["java", "-jar", "app.jar"]

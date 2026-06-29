@@ -21,6 +21,7 @@
  * 06/23/2026 mir0n  buildPool forwards hikari.data-source-properties to the JDBC driver (addDataSourceProperty) --
  *                   so pgjdbc socketTimeout / tcpKeepAlive let health() fail fast on a vanished DB instead of
  *                   hanging on a half-open socket.
+ * 06/29/2026 mir0n  passes ds.queryTimeoutSeconds() to the RodEventDbWriter -- the per-apply statement cap (R6)
  */
 package pro.mir0n.esquire.dataKeep.keep;
 
@@ -50,7 +51,7 @@ public final class KeepApplier implements AutoCloseable {
      *  derived from the group's JDBC URL (its subprotocol). */
     public KeepApplier(KeepDataSourceParams ds, KeepSqlStore sql, Map<Integer, String> kindToSqlKey, Logger devLog) {
         this.dataSource = buildPool(ds);
-        RodEventDbWriter writer = new RodEventDbWriter(dataSource, KeepSqlStore.dialectOf(ds.url()), sql);
+        RodEventDbWriter writer = new RodEventDbWriter(dataSource, KeepSqlStore.dialectOf(ds.url()), sql, ds.queryTimeoutSeconds());
         RodEventRepoRegistry registry = new RodEventRepoRegistry();
         kindToSqlKey.forEach((kind, sqlKey) -> registry.register(kind, e -> writer.applyEvent(sqlKey, e)));
         this.applier = registry.applier(devLog);

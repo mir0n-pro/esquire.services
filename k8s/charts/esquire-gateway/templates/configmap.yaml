@@ -34,6 +34,9 @@ data:
   ESQ_GW_VANILLA_CLIENTS:    {{ .Values.tokenRelay.vanilla.clients | default "" | quote }}
   ESQ_GW_PHANTOM_CLIENTS:    {{ .Values.tokenRelay.phantom.clients | default "" | quote }}
   ESQ_GW_EXCHANGE_CLIENT_ID: {{ .Values.tokenRelay.phantom.exchangeClientId | default "" | quote }}
+  # --- resilience (R1): outbound httpclient connection pool (gateway -> backends) ---
+  GW_POOL_MAX_CONNECTIONS:    {{ .Values.resilience.gwPoolMaxConnections | quote }}
+  GW_POOL_ACQUIRE_TIMEOUT_MS: {{ .Values.resilience.gwPoolAcquireTimeoutMs | quote }}
   LOG_LEVEL_ROOT:       {{ .Values.logging.levelRoot | quote }}
   LOG_LEVEL_SF:         {{ .Values.logging.levelSf | quote }}
   LOG_LEVEL_MIR0N:      {{ .Values.logging.levelMir0n | quote }}

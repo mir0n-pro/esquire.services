@@ -27,6 +27,12 @@
  * 06/22/2026 mir0n  bus-adapter rename: broadcastPublisher EsqEntityBroadcastPublisher -> EntityBusAdapter,
  *                   kcRequestPublisher KcRequestPublisher -> KcBusAdapter (fields + ctor params + imports).
  * 06/23/2026 mir0n  EsqMsgConstants references -> messaging.BusConstants (wire) + common.EsqConstants (app)
+ * 06/27/2026 mir0n  registers broadcastPublisher.onPeerCreate(this::submitReconcile) once the rig is live -- a
+ *                   peer enyMan instance's CREATE feeds the reconcile intake; wired here (not via a ctor dep) so
+ *                   MoveQueueManager -> EntityBusAdapter stays one-way. Its own reconcile/move worker instances
+ *                   never run the create path, so the test create-delay is inert on them
+ * 06/29/2026 mir0n  move worker runs on a dedicated TransactionTemplate that opts out of the request-path cap via
+ *                   QueryTimeouts.resolveOptOut (enyman.move-queue.tx-timeout-s, 0 = uncapped, pre-HA default) (R6)
  */
 
 package pro.mir0n.esquire.enyMan.queue;
@@ -46,6 +52,7 @@ import pro.mir0n.esquire.backend.service.EsqContextHolder;
 import pro.mir0n.esquire.backend.service.EsqRequestContext;
 import pro.mir0n.esquire.backend.storage.EsqObjectKindStorage;
 import pro.mir0n.esquire.common.EsqConstants;
+import pro.mir0n.esquire.common.QueryTimeouts;
 import pro.mir0n.esquire.messaging.BusConstants;
 import pro.mir0n.esquire.audit.AuditBusBridge;
 import pro.mir0n.esquire.enyMan.jpa.EntityPathLookup;
@@ -92,9 +99,17 @@ public class MoveQueueManager implements IQueueRig.IQueueWorker<MoveQueueItem> {
                             KcBusAdapter kcRequestPublisher,
                             EntityPathLookup pathLookup,
                             AuditBusBridge audit,
-                            @Value("${enyman.move-queue.capacity:1024}") int capacity) {
-        this.orgService = new OrgService(entityDictionaryRepository, orgRepository, transactionTemplate, em, audit);
-        this.usrService = new UsrService(entityDictionaryRepository, usrRepository, transactionTemplate, em, audit);
+                            @Value("${enyman.move-queue.capacity:1024}") int capacity,
+                            @Value("${enyman.move-queue.tx-timeout-s:0}") int moveTxTimeoutS) {
+        // The move worker runs the move on a DEDICATED transaction template that opts out of the request-path
+        // query-timeout cap (R6): an explicit positive enyman.move-queue.tx-timeout-s caps it; 0/negative
+        // (the default) leaves the move uncapped so it never inherits the global default-timeout.
+        TransactionTemplate moveTx = new TransactionTemplate(transactionTemplate.getTransactionManager());
+        moveTx.setTimeout(QueryTimeouts.resolveOptOut(moveTxTimeoutS));
+        // These instances serve the reconcile/move worker, which never runs the createOrg/createUsr path,
+        // so the test-only create-window delay (ENYMAN_TEST_CREATE_DELAY_MS) is inert here even when set.
+        this.orgService = new OrgService(entityDictionaryRepository, orgRepository, moveTx, em, audit);
+        this.usrService = new UsrService(entityDictionaryRepository, usrRepository, moveTx, em, audit);
         this.broadcastPublisher = broadcastPublisher;
         this.kcRequestPublisher = kcRequestPublisher;
         this.pathLookup = pathLookup;
@@ -107,6 +122,9 @@ public class MoveQueueManager implements IQueueRig.IQueueWorker<MoveQueueItem> {
         rig.init("enyman.move-queue", devLog, capacity);
         rig.start();
         rig.setProcessing(true);
+        // Bind the entity-bus receive leg now the rig is live: a peer instance's CREATE -> reconcile intake.
+        // Registered here (not via a constructor dependency) so this manager -> EntityBusAdapter stays one-way.
+        broadcastPublisher.onPeerCreate(this::submitReconcile);
         devLog.info("MoveQueueManager started: capacity={}", capacity);
     }
 

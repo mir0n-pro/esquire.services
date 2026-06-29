@@ -1,6 +1,25 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v1.2.10-2606.2910  v1.2.10 -- full coverage of REST-stack HA tuning: a bound at every tier of the request path
+    :Feature:     every tier of a request now has a tunable limit
+    :Feature:     the gateway puts a time limit on each downstream call, steps back from a failing service whil
+                  it recovers, retries a read when the connection failed (a write is never resent), and bounds
+                  its own connection pool to the backends
+    :Feature:     each service can cap a database query/transaction, size its worker-thread and connection pools
+    :Config:      every knob defaults to the no-redundancy setting
+    :Doc:         doc\Esquire.HighAvailability.md
+                  doc\services.configuring.md
+    Components:   common,
+                  dataKeep,
+                  bizTree,
+                  gateway,
+                  enyMan,
+                  keySmith,
+                  pacMan,
+                  auKeep,
+                  k8s
+
 v1.2.10-2606.2722  v1.2.10 -- full service redundancy: every service can run as more than one copy
     :Feature:     every service can run as more than one copy at once
     :Feature:     a record created on one copy of enyMan while another copy is moving its branch is now corrected

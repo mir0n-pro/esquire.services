@@ -23,6 +23,8 @@
  *                   sweep interval / timeout / on-mismatch (parseMismatch) to the director.
  * 06/02/2026 mir0n  inject cacheTransactionTemplate into both Monads; biztree.queue.bulk-threshold @Value
  *                   applied to each monad rig via setBulkThreshold
+ * 06/29/2026 mir0n  inject the JPA PlatformTransactionManager + biztree.cache-load.tx-timeout-s @Value and pass
+ *                   them to BizTreeCacheLoader so the whole-tree load opts out of the request-path cap (R6)
  */
 package pro.mir0n.esquire.bizTree.access;
 
@@ -97,6 +99,10 @@ public class BizTreeDirectorConfig {
     @Value("${biztree.queue.bulk-threshold:10}")
     private int queueBulkThreshold;
 
+    /** The cache load (whole-tree entity read) opts OUT of the request-path cap; 0 = uncapped (pre-HA default). */
+    @Value("${biztree.cache-load.tx-timeout-s:0}")
+    private int cacheLoadTimeoutS;
+
     // ingredients for building a per-monad cache backend in the taijitu case (one H2 datasource, table-per-monad)
     @Autowired @Qualifier("cacheJdbcTemplate")
     private JdbcTemplate     cacheJdbcTemplate;
@@ -105,6 +111,8 @@ public class BizTreeDirectorConfig {
     @Autowired private EsqOrgRepository  orgRepo;
     @Autowired private EsqUsrRepository  usrRepo;
     @Autowired private EsqAcctRepository acctRepo;
+    // the JPA tx manager (entity reads) -- the loader builds its uncapped read-only template over it.
+    @Autowired private org.springframework.transaction.PlatformTransactionManager txManager;
 
     @Bean
     public IBizTreeDirector bizTreeDirector(IBizTreeService         bizTreeService,
@@ -159,7 +167,7 @@ public class BizTreeDirectorConfig {
         cacheJdbcTemplate.execute(sql.createIndexParent());
         cacheJdbcTemplate.execute(sql.createIndexEntityPk());
         BizTreeCacheRepository repo   = new BizTreeCacheRepository(cacheJdbcTemplate, sql);
-        BizTreeCacheLoader     loader = new BizTreeCacheLoader(orgRepo, usrRepo, acctRepo, cacheJdbcTemplate, sql);
+        BizTreeCacheLoader     loader = new BizTreeCacheLoader(orgRepo, usrRepo, acctRepo, cacheJdbcTemplate, sql, txManager, cacheLoadTimeoutS);
         return new MonadCache(loader, repo, new BizTreeService(repo));
     }
 

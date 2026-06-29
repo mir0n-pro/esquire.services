@@ -62,6 +62,8 @@ esquire:
       url: jdbc:postgresql://${DB_DATAKEEP_HOST:localhost}:${DB_DATAKEEP_PORT:5432}/${DB_DATAKEEP_NAME:esq2025}
       username: ${DB_DATAKEEP_USERNAME:esq2025}
       password: ${DB_DATAKEEP_PASSWORD:q}
+      # per-apply statement cap (seconds): 0 = uncapped (pre-HA default). The keep surface of the request-path cap.
+      query-timeout-seconds: ${ESQ_KEEP_QUERY_TIMEOUT_S:0}
       hikari:
         maximum-pool-size: 20
         minimum-idle: 10
@@ -94,6 +96,8 @@ esquire:
       url: jdbc:oracle:thin:@//${DB_DATAKEEP_HOST:localhost}:${DB_DATAKEEP_PORT:1521}/${DB_DATAKEEP_NAME:MIR0N}
       username: ${DB_DATAKEEP_USERNAME:esq2025}
       password: ${DB_DATAKEEP_PASSWORD:q}
+      # per-apply statement cap (seconds): 0 = uncapped (pre-HA default). The keep surface of the request-path cap.
+      query-timeout-seconds: ${ESQ_KEEP_QUERY_TIMEOUT_S:0}
       hikari:
         maximum-pool-size: 20
         minimum-idle: 10

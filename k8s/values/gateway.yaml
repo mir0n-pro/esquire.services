@@ -6,7 +6,7 @@
 #
 # image.tag is restamped per rebuild here -- k8s-rebuild.bat patches it.
 image:
-  tag: "v1.2.10-2606.270308"
+  tag: "v1.2.10-2606.2820"
 
 # Token Relay -- in-cluster KC endpoint (HTTP, no TLS); same allowlists as
 # OKE. exchangeClientSecret comes via --set at install (k8s-up.bat).
@@ -20,3 +20,17 @@ tokenRelay:
 
 # v1.2.10 redundancy: run 2 replicas (StatefulSet ordinal identity)
 replicaCount: 2
+
+# R1 local-k8s budget -- a larger outbound pool than the chart pre-HA default (16),
+# so the edge can fan out to the x2 backend fleet under load. (acquire-timeout stays
+# at the chart pre-HA default 45000.)
+resilience:
+  gwPoolMaxConnections: "64"      # R1
+
+resources:
+  requests:
+    cpu: 250m
+    memory: 512Mi
+  limits:
+    cpu: "1"
+    memory: 768Mi

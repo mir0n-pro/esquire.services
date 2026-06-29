@@ -1,5 +1,19 @@
 Esquire Gateway Microservice
 
+06/29/2026 mir0n  v1.2.10 -- R1 gateway-to-backend resilience (circuit breaker + per-route timeout/retry + pool)
+config.ResilienceConfig  (new)
+  - @Bean Customizer building the Resilience4j CircuitBreaker + per-route TimeLimiter from the
+    esq.gateway.resilience.circuit-breaker knobs; a default (fast) TimeLimiter, with a longer one for the
+    slow-write breakers (enyman-move-cb, pacman-acct-cb, enyman-new-cb)
+error.GatewayErrorWebExceptionHandler
+  - messageOf() yields a non-null message for any throwable (own / root-cause / class name) so the renderer
+    never NPEs on a null message; added a CallNotPermittedException branch that renders an open-circuit 503
+resources/application.yml
+  - esq.gateway.resilience block (circuit-breaker + retry attempts); httpclient connect/response-timeout +
+    backend connection pool (GW_POOL_MAX_CONNECTIONS / GW_POOL_ACQUIRE_TIMEOUT_MS); per-route CircuitBreaker
+    (outer) + Retry (inner) filters -- read routes retry on connect-failure + timeout (GET), write routes on
+    connect-failure only
+
 06/01/2026 mir0n  v1.2.6 -- account CREATE rerouted to enyMan
 resources/application.yml
   - pacman-new-route deleted (was Path=/esq-cmd-new + Method=POST + EntityKind=isAcct -> pacMan).

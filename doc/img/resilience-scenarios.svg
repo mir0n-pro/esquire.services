@@ -1,0 +1,72 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="920" height="700" viewBox="0 0 920 700" font-family="Segoe UI, Arial, sans-serif">
+  <defs>
+    <marker id="ar" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L7,3 L0,6 z" fill="#4D6A8D"/></marker>
+    <marker id="arR" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L7,3 L0,6 z" fill="#c0392b"/></marker>
+    <marker id="arG" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L7,3 L0,6 z" fill="#2f7a2f"/></marker>
+    <marker id="arA" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L7,3 L0,6 z" fill="#b5651d"/></marker>
+  </defs>
+
+  <text x="460" y="28" text-anchor="middle" font-size="19" font-weight="bold" fill="#26384a">Gateway resilience -- four outcomes of a backend failure at the edge</text>
+
+  <!-- ================= Panel 1: healthy ================= -->
+  <rect x="28" y="46" width="864" height="132" rx="8" fill="#f7f9fb" stroke="#d7dee6"/>
+  <text x="44" y="66" font-size="13" font-weight="bold" fill="#26384a">1.  Healthy backend -- normal call</text>
+  <rect x="44" y="102" width="92" height="40" rx="6" fill="#dde7f0" stroke="#4D6A8D" stroke-width="1.6"/><text x="90" y="126" text-anchor="middle" font-size="11.5" fill="#26384a">Client / BFF</text>
+  <rect x="232" y="100" width="200" height="44" rx="6" fill="#eef4f9" stroke="#4D6A8D" stroke-width="1.8"/><text x="332" y="118" text-anchor="middle" font-size="12" font-weight="bold" fill="#26384a">Gateway</text><text x="332" y="134" text-anchor="middle" font-size="10.5" fill="#5b6b7a">CircuitBreaker &#9656; Retry</text>
+  <rect x="556" y="86" width="96" height="30" rx="5" fill="#e3f0e3" stroke="#2f7a2f" stroke-width="1.5"/><text x="604" y="105" text-anchor="middle" font-size="11" fill="#2f5a2f">pod-0</text>
+  <rect x="556" y="132" width="96" height="30" rx="5" fill="#eef5ee" stroke="#a9c7a9" stroke-width="1.2"/><text x="604" y="151" text-anchor="middle" font-size="11" fill="#7fa07f">pod-1 (idle)</text>
+  <rect x="724" y="102" width="160" height="40" rx="6" fill="#e3f0e3" stroke="#2f7a2f" stroke-width="1.6"/><text x="804" y="126" text-anchor="middle" font-size="12.5" font-weight="bold" fill="#2f5a2f">200 OK</text>
+  <line x1="138" y1="122" x2="230" y2="122" stroke="#4D6A8D" stroke-width="1.6" marker-end="url(#ar)"/><text x="184" y="116" text-anchor="middle" font-size="10.5" fill="#5b6b7a">request</text>
+  <line x1="434" y1="116" x2="554" y2="103" stroke="#4D6A8D" stroke-width="1.6" marker-end="url(#ar)"/><text x="494" y="100" text-anchor="middle" font-size="10.5" fill="#5b6b7a">call</text>
+  <line x1="654" y1="103" x2="722" y2="120" stroke="#2f7a2f" stroke-width="1.6" marker-end="url(#arG)"/>
+  <text x="44" y="170" font-size="11.5" fill="#46586a">Any healthy replica serves the request -- the breaker is closed, no retry needed.</text>
+
+  <!-- ================= Panel 2: pod loss, retry ================= -->
+  <rect x="28" y="184" width="864" height="132" rx="8" fill="#f7f9fb" stroke="#d7dee6"/>
+  <text x="44" y="204" font-size="13" font-weight="bold" fill="#26384a">2.  Pod loss -- connect refused, retry onto a surviving replica</text>
+  <rect x="44" y="240" width="92" height="40" rx="6" fill="#dde7f0" stroke="#4D6A8D" stroke-width="1.6"/><text x="90" y="264" text-anchor="middle" font-size="11.5" fill="#26384a">Client / BFF</text>
+  <rect x="232" y="238" width="200" height="44" rx="6" fill="#eef4f9" stroke="#4D6A8D" stroke-width="1.8"/><text x="332" y="256" text-anchor="middle" font-size="12" font-weight="bold" fill="#26384a">Gateway</text><text x="332" y="272" text-anchor="middle" font-size="10.5" fill="#5b6b7a">CircuitBreaker &#9656; Retry</text>
+  <rect x="556" y="224" width="96" height="30" rx="5" fill="#fbe0d8" stroke="#c0392b" stroke-width="1.5"/><text x="604" y="243" text-anchor="middle" font-size="11" fill="#7a2218">pod-0 &#10007;</text>
+  <rect x="556" y="270" width="96" height="30" rx="5" fill="#e3f0e3" stroke="#2f7a2f" stroke-width="1.5"/><text x="604" y="289" text-anchor="middle" font-size="11" fill="#2f5a2f">pod-1</text>
+  <rect x="724" y="240" width="160" height="40" rx="6" fill="#e3f0e3" stroke="#2f7a2f" stroke-width="1.6"/><text x="804" y="264" text-anchor="middle" font-size="12.5" font-weight="bold" fill="#2f5a2f">200 OK</text>
+  <line x1="138" y1="260" x2="230" y2="260" stroke="#4D6A8D" stroke-width="1.6" marker-end="url(#ar)"/><text x="184" y="254" text-anchor="middle" font-size="10.5" fill="#5b6b7a">request</text>
+  <line x1="434" y1="252" x2="554" y2="240" stroke="#c0392b" stroke-width="1.6" marker-end="url(#arR)"/><text x="496" y="237" text-anchor="middle" font-size="10.5" fill="#a23a25">call &#10007; refused</text>
+  <line x1="434" y1="270" x2="554" y2="285" stroke="#2f7a2f" stroke-width="1.7" marker-end="url(#arG)"/><text x="496" y="300" text-anchor="middle" font-size="10.5" fill="#2f7a2f">retry</text>
+  <line x1="654" y1="285" x2="722" y2="266" stroke="#2f7a2f" stroke-width="1.6" marker-end="url(#arG)"/>
+  <text x="44" y="308" font-size="11.5" fill="#46586a">Connect refused = the request never reached pod-0, so the retry resends onto a surviving replica -- the pod loss is invisible.</text>
+
+  <!-- ================= Panel 3: write timeout, no retry ================= -->
+  <rect x="28" y="322" width="864" height="132" rx="8" fill="#f7f9fb" stroke="#d7dee6"/>
+  <text x="44" y="342" font-size="13" font-weight="bold" fill="#26384a">3.  Write timed out -- NO retry (it may already have committed)</text>
+  <rect x="44" y="378" width="92" height="40" rx="6" fill="#dde7f0" stroke="#4D6A8D" stroke-width="1.6"/><text x="90" y="402" text-anchor="middle" font-size="11.5" fill="#26384a">Client / BFF</text>
+  <rect x="232" y="376" width="200" height="44" rx="6" fill="#eef4f9" stroke="#4D6A8D" stroke-width="1.8"/><text x="332" y="394" text-anchor="middle" font-size="12" font-weight="bold" fill="#26384a">Gateway</text><text x="332" y="410" text-anchor="middle" font-size="10.5" fill="#5b6b7a">deadline 10s / 30s</text>
+  <rect x="556" y="362" width="96" height="30" rx="5" fill="#f7ecd6" stroke="#b5651d" stroke-width="1.5"/><text x="604" y="381" text-anchor="middle" font-size="11" fill="#6a3410">pod-0 (hangs)</text>
+  <rect x="556" y="408" width="96" height="30" rx="5" fill="#eef0f2" stroke="#c2cad2" stroke-width="1.2"/><text x="604" y="427" text-anchor="middle" font-size="11" fill="#9aa7b3">pod-1 (idle)</text>
+  <rect x="724" y="378" width="160" height="40" rx="6" fill="#fbe0d8" stroke="#c0392b" stroke-width="1.6"/><text x="804" y="397" text-anchor="middle" font-size="12.5" font-weight="bold" fill="#7a2218">504</text><text x="804" y="411" text-anchor="middle" font-size="9.5" fill="#a23a25">not resent</text>
+  <line x1="138" y1="398" x2="230" y2="398" stroke="#4D6A8D" stroke-width="1.6" marker-end="url(#ar)"/><text x="184" y="392" text-anchor="middle" font-size="10.5" fill="#5b6b7a">write</text>
+  <line x1="434" y1="392" x2="554" y2="379" stroke="#b5651d" stroke-width="1.6" marker-end="url(#arA)"/><text x="496" y="376" text-anchor="middle" font-size="10.5" fill="#6a3410">call . . . hangs</text>
+  <path d="M 432 384 C 545 356, 645 356, 722 380" fill="none" stroke="#c0392b" stroke-width="1.7" marker-end="url(#arR)"/><text x="578" y="354" text-anchor="middle" font-size="10.5" fill="#a23a25">deadline fires &#8594; 504</text>
+  <text x="44" y="446" font-size="11.5" fill="#46586a">The call reached pod-0 and may have committed -- so the timeout is NOT retried. The deadline returns a clean 504, and the write is not resent.</text>
+
+  <!-- ================= Panel 4: breaker open ================= -->
+  <rect x="28" y="460" width="864" height="132" rx="8" fill="#f7f9fb" stroke="#d7dee6"/>
+  <text x="44" y="480" font-size="13" font-weight="bold" fill="#26384a">4.  Breaker OPEN -- fast-fail, load shed (no backend call)</text>
+  <rect x="44" y="516" width="92" height="40" rx="6" fill="#dde7f0" stroke="#4D6A8D" stroke-width="1.6"/><text x="90" y="540" text-anchor="middle" font-size="11.5" fill="#26384a">Client / BFF</text>
+  <rect x="232" y="514" width="200" height="44" rx="6" fill="#fbeede" stroke="#b5651d" stroke-width="1.8"/><text x="332" y="532" text-anchor="middle" font-size="12" font-weight="bold" fill="#8a4b12">Gateway -- CB OPEN</text><text x="332" y="548" text-anchor="middle" font-size="10.5" fill="#a06a28">sheds load, no call</text>
+  <rect x="556" y="500" width="96" height="30" rx="5" fill="#eef0f2" stroke="#c2cad2" stroke-width="1.2"/><text x="604" y="519" text-anchor="middle" font-size="11" fill="#9aa7b3">pod-0</text>
+  <rect x="556" y="546" width="96" height="30" rx="5" fill="#eef0f2" stroke="#c2cad2" stroke-width="1.2"/><text x="604" y="565" text-anchor="middle" font-size="11" fill="#9aa7b3">pod-1</text>
+  <rect x="724" y="516" width="160" height="40" rx="6" fill="#f7ecd6" stroke="#b5651d" stroke-width="1.6"/><text x="804" y="535" text-anchor="middle" font-size="12.5" font-weight="bold" fill="#6a3410">503</text><text x="804" y="549" text-anchor="middle" font-size="9.5" fill="#8a4b12">in milliseconds</text>
+  <line x1="138" y1="536" x2="230" y2="536" stroke="#4D6A8D" stroke-width="1.6" marker-end="url(#ar)"/><text x="184" y="530" text-anchor="middle" font-size="10.5" fill="#5b6b7a">request</text>
+  <line x1="434" y1="528" x2="554" y2="516" stroke="#c2cad2" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#ar)"/><text x="496" y="513" text-anchor="middle" font-size="10.5" fill="#9aa7b3">no call</text>
+  <path d="M 432 522 C 545 494, 645 494, 722 518" fill="none" stroke="#b5651d" stroke-width="1.7" marker-end="url(#arA)"/><text x="578" y="492" text-anchor="middle" font-size="10.5" fill="#8a4b12">fast-fail &#8594; 503</text>
+  <text x="44" y="584" font-size="11.5" fill="#46586a">The breaker is OPEN -- calls fast-fail in ms to shed load off the failing backend; it auto half-opens after 10s to probe recovery.</text>
+
+  <!-- ================= CB state machine ================= -->
+  <text x="44" y="618" font-size="13" font-weight="bold" fill="#26384a">Circuit-breaker states (one breaker per backend):</text>
+  <rect x="120" y="632" width="120" height="36" rx="6" fill="#e3f0e3" stroke="#2f7a2f" stroke-width="1.6"/><text x="180" y="655" text-anchor="middle" font-size="12" font-weight="bold" fill="#2f5a2f">CLOSED</text>
+  <rect x="360" y="632" width="120" height="36" rx="6" fill="#fbe0d8" stroke="#c0392b" stroke-width="1.6"/><text x="420" y="655" text-anchor="middle" font-size="12" font-weight="bold" fill="#7a2218">OPEN</text>
+  <rect x="600" y="632" width="140" height="36" rx="6" fill="#f7ecd6" stroke="#b5651d" stroke-width="1.6"/><text x="670" y="655" text-anchor="middle" font-size="12" font-weight="bold" fill="#6a3410">HALF-OPEN</text>
+  <line x1="240" y1="650" x2="358" y2="650" stroke="#c0392b" stroke-width="1.6" marker-end="url(#arR)"/><text x="299" y="644" text-anchor="middle" font-size="10.5" fill="#a23a25">failures &gt; 50%</text>
+  <line x1="480" y1="650" x2="598" y2="650" stroke="#b5651d" stroke-width="1.6" marker-end="url(#arA)"/><text x="539" y="644" text-anchor="middle" font-size="10.5" fill="#8a4b12">after 10s</text>
+  <path d="M 600 668 C 460 692, 320 692, 182 670" fill="none" stroke="#2f7a2f" stroke-width="1.6" marker-end="url(#arG)"/><text x="392" y="690" text-anchor="middle" font-size="10.5" fill="#2f7a2f">trial calls OK &#8594; CLOSED   (trial fails &#8594; back to OPEN)</text>
+</svg>

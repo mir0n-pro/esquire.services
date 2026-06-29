@@ -7,13 +7,22 @@
 # Browser hits ingress -> ingress routes / to backend (SPA + /auth/* + /api/*)
 # and /kc-auth/* to keycloak. Mirrors OKE on https://esquire.mir0n.pro/.
 image:
-  tag: "v1.2.10-2606.2719"
+  tag: "v1.2.10-2606.2820"
 
 # Origins the BFF accepts on /auth/* requests besides publicBaseUrl.
 # Useful for tools that still bind to legacy localhost ports (e2e, hauberk).
 allowedOrigins: "http://localhost,http://localhost:4200,http://localhost:3000"
 
 nodeEnv: development
+
+# The BFF discovers KC server-to-server through the in-cluster service: the
+# public issuer host (esquire.localhost) is loopback inside a pod (RFC 6761), so
+# discovery over it fails. KC's backchannel-dynamic config makes this discovery
+# return the internal token/jwks endpoints while keeping the public issuer and
+# browser-facing authorize/logout endpoints. The browser still uses
+# keycloak.issuer (esquire.localhost via ingress).
+keycloak:
+  issuerInternal: http://esquire-infra-kc-keycloak:8080/kc-auth/realms/esquire
 
 # keycloak.clientSecret and session.secret come via --set at install
 # (k8s-up.bat) -- same dev literals as compose.yaml + the realm import.
@@ -24,3 +33,23 @@ nodeEnv: development
 redis:
   url: redis://esquire-infra-redis:6379
 replicaCount: 2
+
+# R1 local-k8s budget -- bound a hung request and a hung /api upstream call. Both sit
+# just above the gateway/service timeout ladder so an upstream stall surfaces as a clean
+# 504 rather than a hung socket. (Chart pre-HA default is 0 = no timeout.)
+resilience:
+  requestTimeoutMs: "35000"       # R1 whole-request deadline
+  proxyTimeoutMs: "32000"         # R1 /api upstream-proxy deadline
+
+# R1 SPA client-side timeout -- mounts a config.json over the baked one so the browser bounds
+# a hung request just above the server-side ladder (BFF request 35000). Defense-in-depth.
+spa:
+  httpTimeoutMs: "40000"
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: 500m
+    memory: 384Mi

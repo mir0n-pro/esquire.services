@@ -37,6 +37,10 @@
  *                   MSG_TYPE_AUDIT arg; the isEnabled() guard reads audit
  * 06/18/2026 mir0n  audit module left common: AuditBusBridge moved to pro.mir0n.esquire.audit
  * 06/22/2026 mir0n  RodEvent import retargeted messaging.xrod.RodEvent -> messaging.RodEvent (package move).
+ * 06/27/2026 mir0n  test-only createOrg window widener: sleepCreateWindow() (createDelayMs from
+ *                   ENYMAN_TEST_CREATE_DELAY_MS) holds the create transaction open between the parent-path read and
+ *                   the child insert, so a concurrent cross-instance move can rewrite the parent path in the gap
+ *                   (the deterministic race-8b repro lever; 0 = off)
  */
 
 package pro.mir0n.esquire.enyMan.service.impl;
@@ -77,6 +81,10 @@ public class OrgService  extends AEnyManService {
     private TransactionTemplate transactionTemplate;
     private EntityManager em;
     private AuditBusBridge audit;
+    // Test-only window widener (ENYMAN_TEST_CREATE_DELAY_MS env var, default 0 = off). When > 0, createOrg
+    // sleeps between reading the parent path and inserting the child, so a concurrent move on another
+    // instance can rewrite the parent path in that gap -- the deterministic race-8b reproduction lever.
+    private final long createDelayMs = testCreateDelayMs();
 
     public OrgService(EsqEntityDictionaryRepository entityDictionaryRepository,
                       EsqOrgRepository orgRepository,
@@ -89,6 +97,18 @@ public class OrgService  extends AEnyManService {
         this.transactionTemplate = transactionTemplate;
         this.em = em;
         this.audit = audit;
+    }
+
+    // Test-only: hold the create transaction open between the parent-path read and the child insert,
+    // so a concurrent cross-instance move can rewrite the parent path in the gap (race-8b lever).
+    private void sleepCreateWindow() {
+        if (createDelayMs > 0L) {
+            try {
+                Thread.sleep(createDelayMs);
+            } catch (InterruptedException ie) {
+                Thread.currentThread().interrupt();
+            }
+        }
     }
 
 
@@ -227,6 +247,7 @@ public class OrgService  extends AEnyManService {
         if (parentPath == null) {
             throw new ResourceNotFoundException("createOrg", "parentId", parentId);
         }
+        sleepCreateWindow();
         long newId = EntityIdGenerator.generateEntityId();
         String idStr = String.valueOf(newId);
         String path = parentPath + newId + ".";

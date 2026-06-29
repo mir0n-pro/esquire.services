@@ -24,6 +24,40 @@ esq:
         clients:                ${ESQ_GW_PHANTOM_CLIENTS:}
         exchange-client-id:     ${ESQ_GW_EXCHANGE_CLIENT_ID:}
         exchange-client-secret: ${ESQ_GW_EXCHANGE_CLIENT_SECRET:}
+    # Resilience knobs (gateway -> backend). All env-overridable; ResilienceConfig
+    # reads the circuit-breaker block to build the Resilience4j CircuitBreaker +
+    # TimeLimiter, and the Retry filters below reference the retry block. The
+    # per-route timeout is the CircuitBreaker's TimeLimiter (NOT the Netty
+    # response-timeout, which is a generous backstop above it) -- a backend call
+    # exceeding the limit, or a tripped/open breaker, surfaces as an error that
+    # GatewayErrorWebExceptionHandler renders as a 503/504 ProblemDetail.
+    resilience:
+      circuit-breaker:
+        timeout-seconds:        ${GW_CB_TIMEOUT_S:10}      # default per-route call deadline
+        slow-timeout-seconds:   ${GW_CB_SLOW_TIMEOUT_S:30} # move / acct / create routes
+        sliding-window:         ${GW_CB_WINDOW:20}
+        minimum-calls:          ${GW_CB_MIN_CALLS:10}
+        failure-rate:           ${GW_CB_FAILURE_RATE:50}
+        slow-call-rate:         ${GW_CB_SLOW_RATE:100}
+        slow-call-seconds:      ${GW_CB_SLOW_DURATION_S:8}
+        open-wait-seconds:      ${GW_CB_OPEN_WAIT_S:10}
+        half-open-calls:        ${GW_CB_HALFOPEN_CALLS:5}
+      retry:
+        # Retry is configured PER ROUTE (per command), not by a shared method gate
+        # -- the read/write split in Esquire is per command, and HTTP method is the
+        # wrong axis (e.g. /esq-sweep is an idempotent POST). Each route below
+        # carries its own Retry filter; only the attempt COUNT is shared here:
+        #   - READ routes  retry on connect-failure + timeout (idempotent), GET.
+        #   - WRITE routes retry on connect-failure ONLY -- exceptions:[ConnectException]
+        #     with an empty series, so a response-timeout / 5xx / reset never resends
+        #     a non-idempotent POST (the request provably never landed on a connect
+        #     failure; anything later may have already committed).
+        # To turn a route's retry off entirely, OMIT its Retry filter (SCG rejects
+        # retries=0, so an absent filter is the true per-route off-switch).
+        read:
+          attempts:  ${GW_RETRY_READ:3}
+        write:
+          attempts: ${GW_RETRY_WRITE:1}
 esquire:
   gateway:
     service-metrics:
@@ -42,6 +76,17 @@ spring:
     name: "gateway"
   cloud:
     gateway:
+       # Netty client timeouts -- connect fails fast if a pod is unreachable;
+       # response-timeout is a generous BACKSTOP above the per-route CircuitBreaker
+       # TimeLimiter (which is the real per-route deadline). Keep it > slow-timeout.
+       httpclient:
+         connect-timeout: ${GW_CONNECT_TIMEOUT_MS:2000}
+         response-timeout: ${GW_RESPONSE_TIMEOUT:35s}
+         # Backend connection pool. Pre-HA defaults ~ ReactorNetty (max-connections floor 16,
+         # acquire-timeout 45s); HA raises max-connections in the local-k8s chart (R1).
+         pool:
+           max-connections: ${GW_POOL_MAX_CONNECTIONS:16}
+           acquire-timeout: ${GW_POOL_ACQUIRE_TIMEOUT_MS:45000}
        #default-filters:
        #  - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_FIRST #RETAIN_UNIQUE
        # globalcors DISABLED — conflicts with custom SecurityWebFilterChain CORS
@@ -63,6 +108,28 @@ spring:
                 - GET
                 - POST
           filters:
+            # CircuitBreaker OUTER, Retry INNER: Retry re-runs the downstream call
+            # (lands on a healthy pod via kube-proxy); when the breaker trips or opens
+            # the error propagates to GatewayErrorWebExceptionHandler, which renders the
+            # 503/504 ProblemDetail (no fallbackUri -- reuses the gateway error path).
+            - name: CircuitBreaker
+              args:
+                name: keysmith-cb
+            - name: Retry
+              args:
+                # READ: idempotent -- retry on connect-failure + timeout, NOT on 5xx
+                # (a 5xx is usually a real error; the breaker handles overload).
+                retries: ${esq.gateway.resilience.retry.read.attempts}
+                methods: GET
+                series: []
+                exceptions:
+                  - java.net.ConnectException
+                  - java.util.concurrent.TimeoutException
+                backoff:
+                  firstBackoff: 50ms
+                  maxBackoff: 500ms
+                  factor: 2
+                  basedOnPreviousValue: false
              #RETAIN_UNIQUE
             - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_FIRST
             - RewritePath=/(?<segment>.*), /$\{segment}
@@ -76,6 +143,24 @@ spring:
                 - GET
                 - POST
           filters:
+            - name: CircuitBreaker
+              args:
+                name: biztree-cb
+            - name: Retry
+              args:
+                # READ: idempotent -- retry on connect-failure + timeout, NOT on 5xx
+                # (a 5xx is usually a real error; the breaker handles overload).
+                retries: ${esq.gateway.resilience.retry.read.attempts}
+                methods: GET
+                series: []
+                exceptions:
+                  - java.net.ConnectException
+                  - java.util.concurrent.TimeoutException
+                backoff:
+                  firstBackoff: 50ms
+                  maxBackoff: 500ms
+                  factor: 2
+                  basedOnPreviousValue: false
              #RETAIN_UNIQUE
             - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_FIRST
             - RewritePath=/(?<segment>.*), /$\{segment}
@@ -90,6 +175,24 @@ spring:
               - GET
               - POST
           filters:
+            - name: CircuitBreaker
+              args:
+                name: pacman-cb
+            - name: Retry
+              args:
+                # READ: idempotent -- retry on connect-failure + timeout, NOT on 5xx
+                # (a 5xx is usually a real error; the breaker handles overload).
+                retries: ${esq.gateway.resilience.retry.read.attempts}
+                methods: GET
+                series: []
+                exceptions:
+                  - java.net.ConnectException
+                  - java.util.concurrent.TimeoutException
+                backoff:
+                  firstBackoff: 50ms
+                  maxBackoff: 500ms
+                  factor: 2
+                  basedOnPreviousValue: false
             #RETAIN_UNIQUE
             - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_FIRST
             - RewritePath=/(?<segment>.*), /$\{segment}
@@ -103,6 +206,24 @@ spring:
               - GET
               - POST
           filters:
+            - name: CircuitBreaker
+              args:
+                name: enyman-cb
+            - name: Retry
+              args:
+                # READ: idempotent -- retry on connect-failure + timeout, NOT on 5xx
+                # (a 5xx is usually a real error; the breaker handles overload).
+                retries: ${esq.gateway.resilience.retry.read.attempts}
+                methods: GET
+                series: []
+                exceptions:
+                  - java.net.ConnectException
+                  - java.util.concurrent.TimeoutException
+                backoff:
+                  firstBackoff: 50ms
+                  maxBackoff: 500ms
+                  factor: 2
+                  basedOnPreviousValue: false
             #RETAIN_UNIQUE
             - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_FIRST
             - RewritePath=/(?<segment>.*), /$\{segment}
@@ -117,6 +238,24 @@ spring:
             allowedMethods:
               - POST
           filters:
+            - name: CircuitBreaker
+              args:
+                name: pacman-cb
+            - name: Retry
+              args:
+                # WRITE: non-idempotent -- retry on connect-failure ONLY (request
+                # provably never landed). Empty series + ConnectException-only means
+                # a response-timeout / 5xx / reset never resends the POST.
+                retries: ${esq.gateway.resilience.retry.write.attempts}
+                methods: POST
+                series: []
+                exceptions:
+                  - java.net.ConnectException
+                backoff:
+                  firstBackoff: 50ms
+                  maxBackoff: 200ms
+                  factor: 2
+                  basedOnPreviousValue: false
             - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_FIRST
             - RewritePath=/(?<segment>.*), /$\{segment}
             - TokenRelay=
@@ -129,6 +268,24 @@ spring:
             allowedMethods:
               - POST
           filters:
+            - name: CircuitBreaker
+              args:
+                name: enyman-cb
+            - name: Retry
+              args:
+                # WRITE: non-idempotent -- retry on connect-failure ONLY (request
+                # provably never landed). Empty series + ConnectException-only means
+                # a response-timeout / 5xx / reset never resends the POST.
+                retries: ${esq.gateway.resilience.retry.write.attempts}
+                methods: POST
+                series: []
+                exceptions:
+                  - java.net.ConnectException
+                backoff:
+                  firstBackoff: 50ms
+                  maxBackoff: 200ms
+                  factor: 2
+                  basedOnPreviousValue: false
             - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_FIRST
             - RewritePath=/(?<segment>.*), /$\{segment}
             - TokenRelay=
@@ -141,6 +298,24 @@ spring:
             allowedMethods:
               - POST
           filters:
+            - name: CircuitBreaker
+              args:
+                name: keysmith-cb
+            - name: Retry
+              args:
+                # WRITE: non-idempotent -- retry on connect-failure ONLY (request
+                # provably never landed). Empty series + ConnectException-only means
+                # a response-timeout / 5xx / reset never resends the POST.
+                retries: ${esq.gateway.resilience.retry.write.attempts}
+                methods: POST
+                series: []
+                exceptions:
+                  - java.net.ConnectException
+                backoff:
+                  firstBackoff: 50ms
+                  maxBackoff: 200ms
+                  factor: 2
+                  basedOnPreviousValue: false
             - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_FIRST
             - RewritePath=/(?<segment>.*), /$\{segment}
             - TokenRelay=
@@ -153,6 +328,24 @@ spring:
             allowedMethods:
               - POST
           filters:
+            - name: CircuitBreaker
+              args:
+                name: enyman-new-cb
+            - name: Retry
+              args:
+                # WRITE: non-idempotent -- retry on connect-failure ONLY (request
+                # provably never landed). Empty series + ConnectException-only means
+                # a response-timeout / 5xx / reset never resends the POST.
+                retries: ${esq.gateway.resilience.retry.write.attempts}
+                methods: POST
+                series: []
+                exceptions:
+                  - java.net.ConnectException
+                backoff:
+                  firstBackoff: 50ms
+                  maxBackoff: 200ms
+                  factor: 2
+                  basedOnPreviousValue: false
             - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_FIRST
             - RewritePath=/(?<segment>.*), /$\{segment}
             - TokenRelay=
@@ -166,6 +359,24 @@ spring:
             allowedMethods:
               - POST
           filters:
+            - name: CircuitBreaker
+              args:
+                name: pacman-cb
+            - name: Retry
+              args:
+                # WRITE: non-idempotent -- retry on connect-failure ONLY (request
+                # provably never landed). Empty series + ConnectException-only means
+                # a response-timeout / 5xx / reset never resends the POST.
+                retries: ${esq.gateway.resilience.retry.write.attempts}
+                methods: POST
+                series: []
+                exceptions:
+                  - java.net.ConnectException
+                backoff:
+                  firstBackoff: 50ms
+                  maxBackoff: 200ms
+                  factor: 2
+                  basedOnPreviousValue: false
             - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_FIRST
             - RewritePath=/(?<segment>.*), /$\{segment}
             - TokenRelay=
@@ -178,6 +389,24 @@ spring:
             allowedMethods:
               - POST
           filters:
+            - name: CircuitBreaker
+              args:
+                name: enyman-cb
+            - name: Retry
+              args:
+                # WRITE: non-idempotent -- retry on connect-failure ONLY (request
+                # provably never landed). Empty series + ConnectException-only means
+                # a response-timeout / 5xx / reset never resends the POST.
+                retries: ${esq.gateway.resilience.retry.write.attempts}
+                methods: POST
+                series: []
+                exceptions:
+                  - java.net.ConnectException
+                backoff:
+                  firstBackoff: 50ms
+                  maxBackoff: 200ms
+                  factor: 2
+                  basedOnPreviousValue: false
             - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_FIRST
             - RewritePath=/(?<segment>.*), /$\{segment}
             - TokenRelay=
@@ -191,6 +420,24 @@ spring:
             allowedMethods:
               - POST
           filters:
+            - name: CircuitBreaker
+              args:
+                name: pacman-acct-cb
+            - name: Retry
+              args:
+                # WRITE: non-idempotent -- retry on connect-failure ONLY (request
+                # provably never landed). Empty series + ConnectException-only means
+                # a response-timeout / 5xx / reset never resends the POST.
+                retries: ${esq.gateway.resilience.retry.write.attempts}
+                methods: POST
+                series: []
+                exceptions:
+                  - java.net.ConnectException
+                backoff:
+                  firstBackoff: 50ms
+                  maxBackoff: 200ms
+                  factor: 2
+                  basedOnPreviousValue: false
             - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_FIRST
             - RewritePath=/(?<segment>.*), /$\{segment}
             - TokenRelay=
@@ -203,6 +450,24 @@ spring:
             allowedMethods:
               - POST
           filters:
+            - name: CircuitBreaker
+              args:
+                name: enyman-move-cb
+            - name: Retry
+              args:
+                # WRITE: non-idempotent -- retry on connect-failure ONLY (request
+                # provably never landed). Empty series + ConnectException-only means
+                # a response-timeout / 5xx / reset never resends the POST.
+                retries: ${esq.gateway.resilience.retry.write.attempts}
+                methods: POST
+                series: []
+                exceptions:
+                  - java.net.ConnectException
+                backoff:
+                  firstBackoff: 50ms
+                  maxBackoff: 200ms
+                  factor: 2
+                  basedOnPreviousValue: false
             - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_FIRST
             - RewritePath=/(?<segment>.*), /$\{segment}
             - TokenRelay=
@@ -215,6 +480,24 @@ spring:
             allowedMethods:
               - GET
           filters:
+            - name: CircuitBreaker
+              args:
+                name: enyman-cb
+            - name: Retry
+              args:
+                # READ: idempotent -- retry on connect-failure + timeout, NOT on 5xx
+                # (a 5xx is usually a real error; the breaker handles overload).
+                retries: ${esq.gateway.resilience.retry.read.attempts}
+                methods: GET
+                series: []
+                exceptions:
+                  - java.net.ConnectException
+                  - java.util.concurrent.TimeoutException
+                backoff:
+                  firstBackoff: 50ms
+                  maxBackoff: 500ms
+                  factor: 2
+                  basedOnPreviousValue: false
             - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_FIRST
             - RewritePath=/(?<segment>.*), /$\{segment}
             - TokenRelay=

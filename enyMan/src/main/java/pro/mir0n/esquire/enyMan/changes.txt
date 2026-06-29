@@ -1,5 +1,46 @@
 Esquire enyMan Microservice
 
+06/29/2026 mir0n  v1.2.10 -- R6 move-tx opt-out + query-timeout test hook; R1-R5 env wiring
+queue.MoveQueueManager
+  - move worker runs on a dedicated TransactionTemplate that opts out of the request-path cap via
+    QueryTimeouts.resolveOptOut (enyman.move-queue.tx-timeout-s, 0 = uncapped, pre-HA default)
+testhook.SlowQueryTestController  (new)
+  - flag-gated /test/slow-query (capped) + /test/slow-query-optout endpoints; @ConditionalOnProperty
+    esq.test.slow-query-enabled=true (default false; never in prod)
+testhook.SlowQueryTestService  (new)
+  - runs a deliberately long DB statement (pg_sleep / DBMS_SESSION.SLEEP) on a capped tx and on the
+    QueryTimeouts opt-out tx; a QueryTimeoutException is the cap firing
+testhook.SlowQueryResult  (new)
+  - result record (mode, requestedSeconds, elapsedMs, timedOut, error)
+resources/application.yml
+  - spring.transaction.default-timeout (ESQ_TX_TIMEOUT_S, -1 = no cap); enyman.move-queue.tx-timeout-s
+    (ENYMAN_MOVE_TX_TIMEOUT_S, 0 = uncapped); keep query-timeout-seconds (ESQ_KEEP_QUERY_TIMEOUT_S); Tomcat
+    threads.max/accept-count, Hikari pool/connect-timeout, pgjdbc socketTimeout/tcpKeepAlive env-bound (pre-HA
+    defaults unchanged)
+
+06/27/2026 mir0n  v1.2.10 -- Goal-4 cross-instance reconcile (entity rod runs both legs; peer CREATE -> reconcile) + test race-8b create-window lever
+messaging.EntityBusAdapter
+  - one entity rod (BUS_KEY_ENTITY, role CLIENT) now runs BOTH legs on a shared connection: transmit (publish)
+    + receive. onPeerCreate(sink) sets a broker subscription selector (EventType = 'C') so the receive leg
+    forwards a PEER instance's CREATE to the move-queue reconcile intake; the slot's noLocal drops THIS
+    instance's own publications -- closes the cross-instance race-8b gap the per-instance inMove() left open
+queue.MoveQueueManager
+  - registers broadcastPublisher.onPeerCreate(this::submitReconcile) once the rig is live (a peer instance's
+    CREATE feeds the reconcile intake); wired here so MoveQueueManager -> EntityBusAdapter stays one-way
+service.impl.AEnyManService
+  - completedDictionary() completes the SHARED dictionary singleton once under its own monitor (synchronized +
+    a volatile double-check) so concurrent first-callers do not sort the layers list mid-mutation
+  - testCreateDelayMs() reads ENYMAN_TEST_CREATE_DELAY_MS (the test-only race-8b create-window lever, 0 = off)
+service.impl.OrgService
+  - test-only createOrg window widener: sleepCreateWindow() (ENYMAN_TEST_CREATE_DELAY_MS) holds the create
+    transaction open between the parent-path read and the child insert (race-8b repro lever; 0 = off)
+service.impl.UsrService
+  - test-only createUsr window widener: sleepCreateWindow() (ENYMAN_TEST_CREATE_DELAY_MS) holds the create
+    transaction open between the parent-path read and the user insert (race-8b repro lever; 0 = off)
+application.yml
+  - entity slot role SERVER -> CLIENT (the rod runs both legs on one shared connection -- publishes AND listens
+    for peer instances) + entity-rx pool-size / concurrency params
+
 06/24/2026 mir0n  v1.2.9 -- EsqMsgConstants references repointed
 EnyManApplication
   - EsqMsgConstants app constants -> common.EsqConstants (references repointed)

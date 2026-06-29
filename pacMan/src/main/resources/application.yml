@@ -10,6 +10,10 @@ spring:
   mvc:
     problemdetails:
       enabled: true
+  # Request-path query/transaction cap (seconds): -1 = no cap (pre-HA default; behaviour unchanged when unset).
+  # Set ESQ_TX_TIMEOUT_S (e.g. 8) to bound the common request path so a stuck query frees its worker + connection.
+  transaction:
+    default-timeout: ${ESQ_TX_TIMEOUT_S:-1}
   config:
     import: "${TOPOLOGY_IMPORT:optional:file:/etc/esquire/topology.yml}"
 # this service's OWN overlay of the global esquire.messaging-bus catalog: its in-process audit-b leg
@@ -30,6 +34,8 @@ pacman:
               url: ${DB_DATAKEEP_URL:jdbc:postgresql://${DB_PACMAN_HOST:localhost}:${DB_PACMAN_PORT:5432}/${DB_PACMAN_NAME:esq2025}}
               username: ${DB_DATAKEEP_USERNAME:${DB_PACMAN_USERNAME:esq2025}}
               password: ${DB_DATAKEEP_PASSWORD:${DB_PACMAN_PASSWORD:q}}
+              # per-apply statement cap (seconds): 0 = uncapped (pre-HA default). The keep surface of the cap.
+              query-timeout-seconds: ${ESQ_KEEP_QUERY_TIMEOUT_S:0}
               hikari:
                 maximum-pool-size: ${DB_DATAKEEP_POOL_SIZE:2}
 esquire:
@@ -86,9 +92,11 @@ spring:
     username: ${DB_PACMAN_USERNAME:esq2025}
     password: ${DB_PACMAN_PASSWORD:q}
     hikari:
-      maximum-pool-size: 20
-      minimum-idle: 20
-      connection-timeout: 30000
+      # pool sizing + connect-timeout: pre-HA defaults = current values; HA values (smaller pool, fast
+      # connect-timeout) set per service in the local-k8s chart (R3/R5).
+      maximum-pool-size: ${ESQ_DB_POOL_MAX:20}
+      minimum-idle: ${ESQ_DB_POOL_MIN_IDLE:20}
+      connection-timeout: ${ESQ_DB_CONNECT_TIMEOUT_MS:30000}
       max-lifetime: 1800000
       idle-timeout: 600000
   jpa:
@@ -101,6 +109,12 @@ spring:
         dialect: org.hibernate.dialect.OracleDialect
 server:
   port: ${PACMAN_PORT:3000}
+  tomcat:
+    threads:
+      # request worker threads (pre-HA default = Boot's 200). HA bounds the worker pool so a slow
+      # downstream cannot exhaust threads fleet-wide; local-k8s value set in the chart (R2).
+      max: ${ESQ_TOMCAT_MAX_THREADS:200}
+    accept-count: ${ESQ_TOMCAT_ACCEPT_COUNT:100}
 
 ---
 spring:
@@ -112,11 +126,18 @@ spring:
     username: ${DB_PACMAN_USERNAME:esq2025}
     password: ${DB_PACMAN_PASSWORD:q}
     hikari:
-      maximum-pool-size: 20
-      minimum-idle: 20
-      connection-timeout: 30000
+      # pool sizing + connect-timeout: pre-HA defaults = current values; HA values (smaller pool, fast
+      # connect-timeout) set per service in the local-k8s chart (R3/R5).
+      maximum-pool-size: ${ESQ_DB_POOL_MAX:20}
+      minimum-idle: ${ESQ_DB_POOL_MIN_IDLE:20}
+      connection-timeout: ${ESQ_DB_CONNECT_TIMEOUT_MS:30000}
       max-lifetime: 1800000
       idle-timeout: 600000
+      # pgjdbc socketTimeout (s) + tcpKeepAlive: pre-HA defaults = off (0 / false). HA (local-k8s chart)
+      # makes a vanished DB fail fast on a half-open socket instead of hanging a worker (R1/R5).
+      data-source-properties:
+        socketTimeout: ${ESQ_DB_SOCKET_TIMEOUT_S:0}
+        tcpKeepAlive: ${ESQ_DB_TCP_KEEPALIVE:false}
   jpa:
     mapping-resources:
       - META-INF/postgres-acct.xml
@@ -127,3 +148,9 @@ spring:
         dialect: org.hibernate.dialect.PostgreSQLDialect
 server:
   port: ${PACMAN_PORT:3000}
+  tomcat:
+    threads:
+      # request worker threads (pre-HA default = Boot's 200). HA bounds the worker pool so a slow
+      # downstream cannot exhaust threads fleet-wide; local-k8s value set in the chart (R2).
+      max: ${ESQ_TOMCAT_MAX_THREADS:200}
+    accept-count: ${ESQ_TOMCAT_ACCEPT_COUNT:100}

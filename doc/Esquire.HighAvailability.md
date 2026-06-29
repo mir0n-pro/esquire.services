@@ -1,4 +1,4 @@
-# <img src="../favicon.ico" alt="Esquire logo" valign="middle" width="64" height="64"> Esquire Application Frameworks(tm) 2.0
+    # <img src="../favicon.ico" alt="Esquire logo" valign="middle" width="64" height="64"> Esquire Application Frameworks(tm) 2.0
 
 # **Esquire High Availability -- Deployment Nuances & Recommendations**
 
@@ -44,11 +44,16 @@ The short version:
 | **R&R** | Request/Reply | a request-then-response exchange carried over a message queue |
 | **rod-id** | (Esquire term) | a per-instance routing id `<app>.<instanceNo>` that routes R&R replies back to the right caller |
 | **SIGTERM** | (OS signal) | the "shut down" signal a pod receives before it stops |
+| **CB** | Circuit Breaker | a switch that stops calling a failing backend and fast-fails instead, then probes for recovery |
+| **R4j** | Resilience4j | the library that provides the circuit breaker + the per-call timeout (TimeLimiter) |
+| **SCG** | Spring Cloud Gateway | the reactive framework the gateway is built on |
+| **RFC 7807** | Problem Details for HTTP APIs | the standard JSON error body (`application/problem+json`) the gateway returns |
+| **idempotent** | (not an acronym) | safe to repeat -- the same call twice has the same effect as once (true of reads, not of writes) |
 
 ![HA failure domains -- app tier spread vs. shared single-instance backends](img/ha-failure-domains.svg)
 
-The redundancy foundation this builds on is documented in `doc/plans/tasks1210.md` ("Redundant setup -- how it
-works"), with the diagrams `redundancy-fleet.svg` and `redundancy-browser-tier.svg`.
+The redundancy foundation this builds on -- N replicas with a shared session store, surviving pod loss -- is
+covered in sections 2 and 3.
 
 ---
 
@@ -80,6 +85,10 @@ redundancy into HA.
 - **Browser tier is redundant.** The Angular SPA is baked into the backend image (no separate frontend
   deployment), and the BFF login session is held in **shared Redis** (`connect-redis`), so any backend replica
   authenticates any cookie and a session survives a pod restart. See the browser-tier diagram.
+
+![Esquire redundant fleet -- every service at N replicas; the three channels (REST round-robin, entity topic fan-out, KC competing-consumer queue) all survive duplication, so per-pod cache is the only state that needs the shared backends](img/redundancy-fleet.svg)
+
+![Esquire browser-facing tier -- ingress round-robins across BFF pods (each serving the baked SPA), with the login session in shared Redis so any pod authenticates the cookie and a session survives a pod restart](img/redundancy-browser-tier.svg)
 
 This is the redundancy layer. HA is what you add on top.
 
@@ -232,14 +241,328 @@ form.
   requests are redelivered to a surviving copy (competing consumers). A `preStop` drain keeps an in-flight
   reply from being dropped.
 - **The BFF autoscales only with the shared session store on** (`REDIS_URL` set) -- already true on local k8s.
-  On OKE the BFF stays at 1 until HA Redis exists (section 4), so do not autoscale the BFF there yet.
+  On OKE the BFF stays at 1 until HA Redis exists (section 6), so do not autoscale the BFF there yet.
 - **Backends do not autoscale.** PostgreSQL, the broker, KeyCloak, and Redis are fixed single instances
-  (section 4); scaling the app tier only raises load on them, so backend capacity / HA -- not the autoscaler --
+  (section 6); scaling the app tier only raises load on them, so backend capacity / HA -- not the autoscaler --
   is the real ceiling.
 
 ---
 
-## 4. Stateful backends -- the real SPOFs today, and the HA path for each
+## 4. Gateway resilience -- failing fast and routing around a dead backend
+
+Sections 3.1-3.3 give you surviving replicas; this section is what the **edge** does with them when one backend
+pod dies or slows. Untuned, a dead backend is the worst case for a client: the request **hangs** (the gateway
+holds the connection until some far-off OS timeout) and then returns a blank error. Esquire folds three patterns
+into the gateway -- a **per-route timeout**, a **circuit breaker (CB)**, and **retry** -- plus a guaranteed error
+body, so a backend failure becomes a **fast, clean, meaningful** response, and (where it is provably safe) a
+**transparent retry onto a surviving replica**.
+
+This lives in the gateway only: its `application.yml` route filters plus two small classes (`ResilienceConfig`,
+`GatewayErrorWebExceptionHandler`). It changes **no** backend service code, and it is the REST-path complement to
+the replica/spread story above.
+
+**Status.** The timeouts, the circuit breaker, the per-backend isolation, and the guaranteed error body are
+**implemented and verified** on local k8s (gateway `v1.2.10`). The **per-route/per-command retry** in 4.4 is the
+**locked design**, implementation pending.
+
+![Four outcomes of a backend failure at the gateway edge -- healthy call, pod-loss with retry onto a surviving replica, write timeout with no retry, and an open breaker fast-failing -- plus the circuit-breaker state machine](img/resilience-scenarios.svg)
+
+### 4.1 One mechanism, not three (the breaker owns the timeout)
+SCG's `CircuitBreaker` filter already wraps each route in a Resilience4j **TimeLimiter**, and that TimeLimiter
+**defaults to 1 second** -- unconfigured, it cancels any legitimate call longer than 1s (a move, an account
+post). So timeout and breaker are *already* the same mechanism; bolting a separate Netty timeout on top just
+creates competing deadlines that fight each other. The design makes the relationship explicit:
+
+- **The per-route deadline IS the CB TimeLimiter**, set per route through an explicit
+  `@Bean Customizer<ReactiveResilience4JCircuitBreakerFactory>` (`ResilienceConfig`, no `@Autowired`).
+- The Netty **`response-timeout` is a generous backstop ABOVE** it (it should never fire first).
+- A short Netty **`connect-timeout` fails fast** when a pod is simply unreachable -- the common pod-loss case.
+- **Filter order is CircuitBreaker (outer) -> Retry (inner):** the outer TimeLimiter bounds the *whole* retry
+  sequence, and the breaker records the final outcome as a single call (retries don't inflate its failure count).
+
+### 4.2 Timeouts -- the ladder
+| Layer | Default | Env knob | Role |
+|---|---|---|---|
+| Netty connect | 2s | `GW_CONNECT_TIMEOUT_MS` | fail fast on an unreachable pod |
+| CB TimeLimiter (normal routes) | 10s | `GW_CB_TIMEOUT_S` | the real per-route deadline |
+| CB TimeLimiter (slow writes: move / acct / create) | 30s | `GW_CB_SLOW_TIMEOUT_S` | room for the legitimately-slow writes |
+| Netty response-timeout | 35s | `GW_RESPONSE_TIMEOUT` | backstop above the TimeLimiter; should never fire first |
+
+The slow-write breakers (`enyman-move-cb`, `pacman-acct-cb`, `enyman-new-cb`) get the 30s limit; every other
+breaker inherits the 10s default.
+
+### 4.3 Circuit breaker -- per-backend isolation
+Each backend gets its **own** breaker instance (`keysmith-cb`, `biztree-cb`, `pacman-cb`, `enyman-cb`, plus the
+three slow-write instances) so a failing backend trips only its own breaker, never a healthy neighbour's.
+
+| Knob | Default | Env | Meaning |
+|---|---|---|---|
+| sliding-window | 20 | `GW_CB_WINDOW` | count-based window of recent calls |
+| minimum-calls | 10 | `GW_CB_MIN_CALLS` | calls observed before the breaker may trip |
+| failure-rate | 50% | `GW_CB_FAILURE_RATE` | open when this share of the window fails |
+| slow-call-rate / duration | 100% / 8s | `GW_CB_SLOW_RATE` / `GW_CB_SLOW_DURATION_S` | a call over 8s counts as "slow" |
+| open-wait | 10s | `GW_CB_OPEN_WAIT_S` | how long it stays open before a half-open trial |
+| half-open-calls | 5 | `GW_CB_HALFOPEN_CALLS` | trial calls that probe recovery |
+
+**Behaviour.** Closed = normal. Once failures pass the threshold the breaker **opens** and every call
+**fast-fails with a 503** -- shedding load off the struggling backend instead of piling on. After `open-wait` it
+goes **half-open**, lets a few trial calls through, and **closes automatically** if they succeed. Recovery needs
+no operator action.
+
+### 4.4 Retry -- per-route / per-command (the refined, locked design)
+HTTP method is the **wrong** axis for retry-safety in Esquire: the read/write split is per **command** (which the
+gateway already routes on), and e.g. `/esq-sweep` is a POST that is idempotent. So retry is configured **per
+route**, on four principles:
+
+1. **One retry layer = the gateway.** Nothing else retries (the BFF is a thin proxy; inter-service traffic is the
+   message bus, not REST). This invariant blocks **retry amplification** -- retry at several layers multiplies
+   load on an already-failing backend (3 x 3 = 9 attempts).
+2. **Per-route, not per-method.** Each route owns its `Retry` filter; the old shared `read-methods` /
+   `write-methods` method-gate is gone.
+3. **The conditions encode safety** (the `exceptions` / `series` list, not the verb):
+   - **Reads** (idempotent): retry on **connection-not-established + response-timeout**. **Not on 5xx** -- a 5xx
+     is usually a real error; retrying only adds load, and the breaker already handles overload.
+   - **Writes** (non-idempotent): retry on **connection-not-established ONLY** --
+     `exceptions: [java.net.ConnectException]` (its subclasses are Netty's connect-refused and connect-timeout)
+     with an **empty `series`**. A response-timeout, a 5xx, or a reset-after-send never resends a write: the
+     request provably never landed, so it cannot double-commit.
+4. **The deadline bounds it** (see 4.5).
+
+| Route(s) | Class | Retry | Conditions |
+|---|---|---|---|
+| `/esq-key`, `/esq`, `/esq-path`, `/esq-enode`, `/esq-tree`, `/esq-sweep`*, `/esq-cmd`, `/esq-dict`, `/esq-kinds`, `/esq-cmd-tree` | read (* `/esq-sweep` = idempotent POST) | **ON**, `${GW_RETRY_READ:3}` attempts | connect-fail + timeout |
+| `/esq-cmd-save`, `/esq-key-save`, `/esq-cmd-new`, `/esq-cmd-del`, `/esq-move`, `/esq-acct` | write (non-idempotent) | **connect-fail ONLY**, `${GW_RETRY_WRITE:1}` attempt | `ConnectException` |
+
+**Recommendations applied (mir0n, locked).** Reads do **not** retry on 5xx. `/esq-acct` (the financial post)
+keeps the **uniform connect-fail retry** -- a failed connect means it was never sent, so a resend is safe and
+useful on a pod-roll. `/esq-move` is async-202 but the same holds (a failed connect was never queued -> no
+double-move).
+
+**Config shape** (`application.yml` is the source of truth; mirror to compose / charts):
+```yaml
+esq.gateway.resilience.retry:
+  read:  { attempts: ${GW_RETRY_READ:3} }
+  write: { attempts: ${GW_RETRY_WRITE:1} }
+```
+Per route, the read filter sets `methods: GET`, an empty `series`,
+`exceptions: [java.net.ConnectException, java.util.concurrent.TimeoutException]`, backoff 50->500ms; the write
+filter sets `methods: POST`, an empty `series`, `exceptions: [java.net.ConnectException]`, backoff 50->200ms.
+**To disable a route's retry entirely, OMIT its `Retry` filter** -- SCG forbids `retries: 0`, so leaving the
+filter off is the true per-route off-switch.
+
+![Retry / timeout balance -- the circuit-breaker TimeLimiter is the outer deadline that bounds the whole retry sequence; a fast connect-refused leaves room to retry onto a surviving pod, while a single slow call eats the budget and the deadline returns a 504 with no second attempt](img/resilience-retry-timeout.svg)
+
+### 4.5 Why retries can't run away
+A retry loop that outlives the client, or piles onto a failing backend, is its own outage. Four bounds prevent
+that:
+- **The per-route deadline** (the outer CB TimeLimiter) caps the *whole* retry sequence and **cancels** it when
+  it fires -- retries cannot exceed the 10s / 30s budget.
+- **The breaker opening** stops the *cross-request* storm: once open, new calls fast-fail instead of each
+  spinning up its own retries.
+- **Reactive client-disconnect:** if the browser / BFF gives up, WebFlux propagates the cancellation and the
+  retry loop stops.
+- **One retry layer:** no multiplication across tiers.
+
+**What it does NOT do (yet).** The gateway aborts the *downstream connection*, but a backend already parked in a
+blocking JDBC call is **not** cancelled -- it runs to completion for a result nobody reads (an orphaned worker
+thread + DB connection). True cancellation needs a **server-side** bound (a statement / query timeout, deadline
+propagation). That is the deferred **server-side hardening** (see section 5), not
+part of this gateway work.
+
+### 4.6 Always a meaningful error (never an empty body)
+Every failure shape -- unreachable pod, timeout, open breaker -- surfaces through the single global
+`GatewayErrorWebExceptionHandler`, which renders an **RFC 7807** `application/problem+json` body (status, title,
+detail, instance, traceId, timestamp, processingTime) -- never a blank response. The renderer is
+**null-message-safe** (`messageOf()`): an open breaker can surface with a null message, and an unguarded message
+inspection used to throw inside the renderer and return a blank HTTP 500 -- it now always produces a populated
+503 / 504. (Verified 6/28: a backend scaled to 0 and hammered returns a full 503 ProblemDetail on every call,
+including after the breaker opens.)
+
+### 4.7 What this buys for HA
+- A **dead or slow backend becomes a fast, clean, meaningful response** instead of a hung request -- the user is
+  told *Service Unavailable* in milliseconds, not left waiting.
+- The breaker **sheds load** off a struggling backend so it can recover, and **recovers itself**.
+- A **connect-level failure retries transparently onto a surviving replica** (kube-proxy lands the resend on
+  another pod), so a single pod loss is invisible -- for reads, and for writes that never reached the dead pod.
+- **Per-backend isolation** keeps one bad backend from dragging the others down through the shared edge.
+
+It is the REST-path partner to the replica / spread / PDB work: spread keeps a surviving pod alive; this routes
+around the dead one cleanly.
+
+---
+
+## 5. REST stack -- workers, pools and the end-to-end timeout ladder
+
+Section 4 bounds and cancels a call at the **edge**. This is the **server-side companion**: how many workers and
+connections each tier runs, and how the timeouts chain from the browser down to the DB so that work is bounded
+**end-to-end** -- not just at the gateway.
+
+![Esquire REST stack -- the five tiers with their concurrency models and pools (current -> local-k8s best), the nested browser-to-DB timeout ladder, the DB connection budget, and the k8s resource picture](img/rest-stack.svg)
+
+### 5.1 The tiers and what bounds concurrency
+Five tiers, three concurrency models. The reactive tiers (browser, BFF, gateway) scale by event loop + replicas;
+only the **services are thread-per-request (blocking)**, so they are where worker count and the DB pool must be
+matched.
+
+| Tier | Concurrency model | Key knobs (full detail in 5.3) |
+|---|---|---|
+| Browser / Angular | 6 conns/host (HTTP/1.1) | HttpClient timeout |
+| BFF (Node, x2 + redis) | single event loop; scale = replicas | proxy / `requestTimeout`; replicas |
+| Gateway (SCG / Netty) | reactive event loop; non-blocking | CB deadline; connect / response-timeout; backend pool |
+| Service (Tomcat MVC) | **thread-per-request, blocking** | `tomcat.threads.max`; Hikari pool / idle / connection-timeout; query timeout |
+| PostgreSQL | connection slots | `max_connections` |
+
+### 5.2 Rules for optimal setup
+- **R1 Timeout ladder.** `browser >= BFF >= gateway deadline >= DB statement_timeout`, each outer longer by a
+  margin, with the JDBC `socketTimeout` a hard backstop just above the largest deadline. The **gateway CB deadline
+  (4.2) is the anchor**; everything else is sized around it so the *innermost* layer fails first and returns a
+  clean error instead of an orphaned/dropped request.
+- **R2 Thread<->pool matching.** A DB-bound service's `threads.max` ~= `2 x Hikari pool` (not 10x). Admitting more
+  than the pool can serve only converts latency into thread pile-up. Hikari `connection-timeout` must be **short**
+  (fail fast when saturated), not 30s.
+- **R3 DB connection budget (the binding constraint).** `SUM(pool x replicas) + datakeep + admin <= max_connections x 0.8`.
+  This caps every pool choice.
+- **R4 k8s resource budget.** `SUM(requests) <= allocatable x 0.7`; `requests` = steady state, `limits` = burst;
+  JVM `-Xmx <= mem limit`. CPU limits are the precondition for an HPA (3.7).
+- **R5 No unbounded blocking wait.** Every place a thread/connection can park -- DB query, socket, connection
+  acquire, proxy -- has a timeout below the deadline above it. This closes the gap 4.5 flags: the gateway aborts
+  the downstream connection, but only a **server-side query timeout** actually cancels the parked JDBC call.
+- **R6 Query timeout = one default per surface + opt-out, never per-query, set per service.** A default query
+  timeout (8s, configurable and **disablable**) guards the common request path -- defined **per service**
+  (`application.yml` / env, the config-var standard), not a hardcoded fleet constant, and applied **per
+  data-access surface** (main JPA / audit keep / H2 cache; see *Data-access surfaces* below), each sized to its own
+  risk. Tuning a timeout **per query is rejected** -- it is an
+  unmanageable extra cluster of settings that has to be re-learned and re-tuned for every query. Instead a
+  transaction that legitimately runs long **explicitly opts out** (timeout 0 / NONE). The mechanism is
+  **dialect-portable**: the JDBC / JPA query timeout (`hibernate.jdbc.timeout`, or
+  `jakarta.persistence.query.timeout` / `@Transactional(timeout=...)`) drives the driver to cancel the statement
+  on **both Postgres and Oracle**. Postgres can add a server-side `statement_timeout` as a backstop; **Oracle has
+  no direct equivalent** (only DBA-level Resource Manager `MAX_EST_EXEC_TIME`), so the JDBC timeout is the common
+  guard. The **move processing transaction** is the standing exception (see 5.4).
+
+### 5.3 Best for local k8s
+Node = 24 vCPU / 16 GiB single node; `pg max_connections=200`; all services x2 replicas; **5 DB-attached services**
+(auKeep, bizTree, enyMan, keySmith, pacMan -- kcMaster has no datasource). DB budget: `200 x 0.8 = 160` for app
+pools; `5 x 2 x 10 (main) + 12 (datakeep, on enyMan/keySmith/pacMan) = 112` -- well inside budget, with headroom
+for a 3rd replica.
+
+Every parameter, where it is set, the **vendor preset default**, the local-k8s target, and the authoritative doc.
+"(no env)" marks a knob that is yaml- or code-only today -- making them all env-overridable is part of the work
+(see *Configurability* below). The `(Rn)` tag is the rule that drives the target.
+
+| Parameter (knob) | Set via (file - key / env) | Vendor default | Local-k8s best | Ref |
+|---|---|---|---|---|
+| `server.tomcat.threads.max` | svc `application.yml` *(no env)* | 200 | **25** (R2) | Spring Boot |
+| `server.tomcat.accept-count` | svc `application.yml` *(no env)* | 100 | **50** | Spring Boot |
+| `spring.datasource.hikari.maximum-pool-size` | svc `application.yml` *(no env)* | 10 | **10** (biztree 5) (R3) | HikariCP |
+| `spring.datasource.hikari.minimum-idle` | svc `application.yml` *(no env)* | = max-pool (10) | **2** | HikariCP |
+| `spring.datasource.hikari.connection-timeout` | svc `application.yml` *(no env)* | 30000 ms | **5000** (R5) | HikariCP |
+| `spring.transaction.default-timeout` (request-path query/tx cap) | svc `application.yml` - `ESQ_TX_TIMEOUT_S` | none (-1) | **8s; move + cache-load opt out** (R6) | Spring TX -> Hibernate/JDBC |
+| JDBC `socketTimeout` (PG) / `oracle.jdbc.ReadTimeout` | datasource URL (built from `DB_*` env) | 0 (none) | **~35s** (R1) | pgjdbc |
+| JDBC `tcpKeepAlive` (PG) | datasource URL | false | **true** | pgjdbc |
+| PG `statement_timeout` (server backstop) | `postgresql.conf` / chart | 0 (off) | optional (not set; the cap is client-side via the JDBC query timeout) | PostgreSQL |
+| audit/keep query timeout | shared `dataKeep` engine reads a **per-service** value (`KeepDataSourceParams`) - `ESQ_KEEP_QUERY_TIMEOUT_S` | none (0) | **8s** (R5 safety net) | dataKeep (JDBC) |
+| bizTree H2 cache query timeout | `cacheJdbcTemplate.setQueryTimeout` - `BIZTREE_H2_QUERY_TIMEOUT_S` | none (0) | **off** (in-memory; not a risk surface) | JdbcTemplate / H2 |
+| `spring.cloud.gateway.httpclient.connect-timeout` | gw `application.yml` - `GW_CONNECT_TIMEOUT_MS` | Netty 30000 ms | **2000** | SCG / ReactorNetty |
+| `...httpclient.response-timeout` | gw `application.yml` - `GW_RESPONSE_TIMEOUT` | none | **35s** (backstop) | SCG |
+| `...httpclient.pool.max-connections` | gw `application.yml` *(no env)* | ReactorNetty 2x CPU (min 16) | **~64** | ReactorNetty |
+| `...httpclient.pool.acquire-timeout` | gw `application.yml` *(no env)* | 45000 ms | keep | ReactorNetty |
+| R4j CircuitBreaker `timeoutDuration` | `ResilienceConfig.java` - `GW_CB_TIMEOUT_S` / `GW_CB_SLOW_TIMEOUT_S` | R4j 1000 ms | **10s / 30s** | Resilience4j |
+| gateway Retry attempts (read / write) | gw `application.yml` - `GW_RETRY_READ` / `GW_RETRY_WRITE` | n/a (SCG needs >=1) | **3 / 1** | SCG (4.4) |
+| Node `http.Server.requestTimeout` | `backend/src/index.ts` *(no env)* | 300000 ms | **35000** | Node http |
+| Node `http.Server.headersTimeout` | `backend/src/index.ts` *(no env)* | 60000 ms | keep | Node http |
+| Node `http.Server.keepAliveTimeout` | `backend/src/index.ts` *(no env)* | 5000 ms | keep | Node http |
+| proxy `proxyTimeout` | `backend/src/proxy/apiProxy.ts` *(no env)* | none | **32000** (R1) | http-proxy-mw |
+| `UV_THREADPOOL_SIZE` | env | 4 | keep | libuv/Node |
+| BFF `replicaCount` | `k8s/values/backend.yaml` | chart 1 | **2** | (chart) |
+| Angular HttpClient timeout | SPA HTTP interceptor (`timeout()`) *(absent today)* | none | **40000** (R1) | Angular |
+| PG `max_connections` | postgres chart / `postgresql.conf` | 100 | **200** | PostgreSQL |
+| pod `resources.requests` / `limits` | `k8s/values/<svc>.yaml` *(absent today)* | none (BestEffort) | **250m/512Mi - 1/768Mi** (R4) | Kubernetes |
+
+k8s resources (R4): Java service ~ `requests 250m/512Mi, limits 1/768Mi, -Xmx 512m`; BFF ~ `100m/256Mi, 500m/384Mi`;
+pg/KC/AMQ ~ `500m/1Gi`. Sum of requests ~ 6 vCPU / ~11 GiB -- inside the 0.7 envelope, CPU limits in place for a
+future HPA.
+
+**Configurability.** Several knobs above are yaml- or code-only today (*(no env)* / *(absent today)*). Part of this
+work is making **every** parameter env-overridable, per the Esquire config-var consistency standard -- the service
+`application.yml` (or chart values) is the source of truth and is mirrored **verbatim** to compose and the charts --
+so each value is tunable per environment without a rebuild. The gateway knobs already follow this (`GW_*` envs),
+and the R6 query-timeout knobs now do too (`ESQ_TX_TIMEOUT_S`, `ESQ_KEEP_QUERY_TIMEOUT_S`,
+`BIZTREE_H2_QUERY_TIMEOUT_S`, plus the `enyman.move-queue.tx-timeout-s` / `biztree.cache-load.tx-timeout-s`
+opt-outs); the service Tomcat / Hikari knobs and the BFF Node / proxy timeouts are the ones that still need their
+env handles added.
+
+**Data-access surfaces.** "Query timeout" is not one knob -- the services reach a database through **three**
+separate surfaces, each with its own datasource and its own single lever, and each timeout is a **per-service**
+knob:
+- **Main entity DB** (`spring.datasource`, JPA / Hibernate) -- the real risk (remote I/O, path / row locks, pool
+  exhaustion). Capped via `spring.transaction.default-timeout` (off by default; recommended 8s); the move
+  transaction and the full-tree cache load opt out (5.4).
+- **Audit / keep** (the `*_log` datakeep pool) -- runs through the **shared** `dataKeep` engine (`KeepSqlStore` +
+  `RodEventDbWriter`, plain JDBC), so it is **not** covered by `hibernate.jdbc.timeout`. One `setQueryTimeout` in
+  that engine bounds every service's audit writes, reading a per-service value from `KeepDataSourceParams`. Audit
+  is async fire-and-forget, off the request path -- the timeout is an R5 safety net, not a request bound.
+- **bizTree H2 cache** (`cache-h2`, in-memory, via `cacheJdbcTemplate`) -- no network and no remote locks, so a
+  SQL timeout is moot; a `biztree.h2.query-timeout-s` knob exists but defaults off (its Hikari pool already has a
+  5s `connection-timeout`).
+
+**References (vendor docs).**
+- Spring Boot -- application properties (Tomcat threads, accept-count): https://docs.spring.io/spring-boot/appendix/application-properties/
+- HikariCP -- configuration knobs: https://github.com/brettwooldridge/HikariCP#gear-configuration-knobs-baby
+- Hibernate / Jakarta Persistence -- `hibernate.jdbc.timeout` / `jakarta.persistence.query.timeout`: https://docs.jboss.org/hibernate/orm/current/userguide/html_single/Hibernate_User_Guide.html
+- PostgreSQL JDBC (pgjdbc) -- connection parameters (`socketTimeout`, `tcpKeepAlive`): https://jdbc.postgresql.org/documentation/use/
+- PostgreSQL -- `statement_timeout`, `max_connections`: https://www.postgresql.org/docs/current/runtime-config-client.html
+- Spring Cloud Gateway (SCG) -- httpclient config: https://docs.spring.io/spring-cloud-gateway/reference/
+- Reactor Netty -- connection pool (ConnectionProvider): https://projectreactor.io/docs/netty/release/reference/
+- Resilience4j -- TimeLimiter: https://resilience4j.readme.io/docs/timeout
+- Node.js -- `http.Server` timeouts: https://nodejs.org/api/http.html#class-httpserver
+- http-proxy-middleware: https://github.com/chimurai/http-proxy-middleware
+- Angular -- HttpClient: https://angular.dev/guide/http
+- Kubernetes -- resource requests / limits: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
+
+### 5.4 The slow bucket and the async-ACK rule (`/esq-move`)
+The 30s slow deadline (4.2) is for **genuinely synchronous heavy writes**. `/esq-move` is **not** one: enyMan
+answers with an **async 202 acknowledgment** ("command received") and the move itself runs through the **move
+queue** (the multi-instance coordination work), not inside the request. So move's *synchronous* path is a quick
+enqueue + ACK and belongs in the **normal (10s / 8s) bucket**; its durability is owned by the async pipeline, not
+a REST deadline. (The gateway's `enyman-move-cb` 30s slow limit is therefore over-provisioned for an ack -- a
+reconcile item.) `pacman-acct` / `enyman-new` need the same classification: keep them in the slow bucket only if
+their synchronous path genuinely blocks; if they are also ack-style, they move to the normal bucket too.
+
+**Move transaction -- query timeout NONE (locked decision, implemented).** The *async* move processing
+transaction is the explicit opt-out from the request-path cap (R6): it runs with **no effective query timeout**,
+set per transaction, because its initial **path-table lock** and the coordinated subtree rewrite can legitimately
+take far longer than any request-path budget. It is implemented by running the move on a **dedicated transaction
+template** (built in `MoveQueueManager`) whose timeout never inherits the global cap -- an explicit
+`enyman.move-queue.tx-timeout-s` caps it, otherwise it carries a no-practical-limit timeout. This is portable
+across Postgres and Oracle (it is the JDBC query timeout, not a server-side `statement_timeout`). The ladder (R1)
+governs the **synchronous** request path; move's async work is outside it, bounded by the move-queue
+coordination, not a SQL deadline. This is deliberately **not** per-query tuning -- the rest of the fleet keeps
+the cap; only the move (and the cache load below) disables it.
+
+**bizTree full-tree cache load -- also opts out.** Building the in-memory tree cache reads the whole org / usr /
+acct tables (`findAllForTree`), which can run past the request-path budget on a large tree. So the cache load
+runs in one read-only transaction that opts out the same way (`biztree.cache-load.tx-timeout-s`, default
+uncapped) -- otherwise enabling the cap would break cache warm-up. The move and the cache load are the only two
+long ops that opt out; everything else keeps the cap.
+
+**Status -- R6 (query timeouts) implemented (v1.2.10); R1-R5 still the recommended budget.** The query-timeout
+ladder of R6 is wired across all three data-access surfaces and both opt-outs, and verified on the local docker
+stack, with **every default at its pre-HA value (the cap is OFF until set)** so deploying it alone changes
+nothing -- an environment turns it on per the config-var standard (local-k8s best = 8s). The knobs:
+- request path (main JPA): `spring.transaction.default-timeout` / `ESQ_TX_TIMEOUT_S` (default `-1` = no cap).
+- audit / keep: per-service `KeepDataSourceParams.query-timeout-seconds` / `ESQ_KEEP_QUERY_TIMEOUT_S` (default `0` = off).
+- bizTree H2 cache: `biztree.h2.query-timeout-s` / `BIZTREE_H2_QUERY_TIMEOUT_S` (default `0` = off).
+- opt-outs: the **move** transaction `enyman.move-queue.tx-timeout-s` and the bizTree **full-tree cache load**
+  `biztree.cache-load.tx-timeout-s`, both default uncapped.
+
+The rest of the budget (R1-R5: Tomcat threads, Hikari pools, the gateway / BFF / Node timeouts, k8s resources)
+remains the **proposed local-k8s budget, not yet applied** -- the deferred server-side hardening (alongside the
+spread / PDB / autoscaling items).
+
+---
+
+## 6. Stateful backends -- the real SPOFs today, and the HA path for each
 
 These run as single instances. They are shared by the whole fleet, so each is a SPOF until put into an HA mode.
 HA here is a **deployment choice the operator makes**, not bundled by Esquire.
@@ -258,25 +581,29 @@ HA of Redis. The same logic applies to every service over Postgres and the broke
 
 ---
 
-## 5. OKE vs local k8s
+## 7. OKE vs local k8s
 
 | | Local (Docker Desktop, 1 node) | OKE (3x A1.Flex, multi-AD) |
 |---|---|---|
 | Redundancy (N replicas, shared session) | Yes -- exercised | Yes |
 | Real node/AD failure tolerance | **No** (one failure domain) | **Yes**, once replicas are spread (3.2) + PDBs (3.3) |
 | Redis (BFF session store) | present | **not deployed** -- BFF stays at 1 replica until Redis (HA) is added |
-| Stateful backend HA | single instances (fine for dev) | needs managed/clustered mode (section 4) |
+| Stateful backend HA | single instances (fine for dev) | needs managed/clustered mode (section 6) |
 
 Local k8s is the **correctness rehearsal** for the deployment shape; it is not a stand-in for HA. OKE is where
 spread + backend HA make the deployment actually highly available.
 
 ---
 
-## 6. What Esquire can provide -- the bottom line
+## 8. What Esquire can provide -- the bottom line
 
 - **The application tier: full horizontal HA.** Any pod serves any request; sessions are shared; the fleet
   survives pod loss now and node/AD loss once replicas are spread with disruption budgets. No code change --
   only chart/values settings (sections 3.1-3.5).
+- **The edge degrades gracefully.** The gateway turns a dead or slow backend into a fast, meaningful 503/504
+  (never a hang or a blank body), sheds load with a per-backend circuit breaker, and retries safely onto a
+  surviving replica -- so a single pod loss is invisible on the REST path (section 4). Timeouts + breaker +
+  meaningful-error are live today; the per-route/per-command retry is the locked design, implementation pending.
 - **The stateful backends: HA-enabled, not HA-bundled.** Postgres, the broker, Redis, and KeyCloak each need
   their HA mode switched on (managed service or clustered). Until then they are the limiting SPOFs, and the
   app-tier HA is capped by whichever backend a request touches.
@@ -291,3 +618,11 @@ spread + backend HA make the deployment actually highly available.
 These backend-HA items and the app-tier spread settings (anti-affinity, PDBs, graceful shutdown) are
 **recommendations, not yet applied to the charts.** They are the candidate scope for the HA hardening that
 follows the redundancy work.
+
+**Server-side resilience -- specified in section 5, not yet applied.** The gateway bounds and cancels work at the
+*edge*, but the backends themselves still run unbounded: Tomcat defaults to ~200 worker threads against a
+20-connection HikariCP pool (a 10:1 mismatch), and there is **no statement/query timeout** (except auKeep's 5s
+pgjdbc `socketTimeout`), so a slow query holds its connection and a gateway-abandoned request keeps running
+server-side. Section 5 gives the full parameter catalog, the sizing rules (thread<->pool match, short acquire
+timeout, a query timeout, the browser->DB ladder), and the local-k8s budget. Applying it is the deferred
+server-side hardening alongside the spread / PDB / autoscaling items.

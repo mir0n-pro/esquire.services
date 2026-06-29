@@ -19,6 +19,10 @@ spec:
         - name: postgres
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           # max_connections is not reloadable -> set it as a server arg (declarative, survives recreate).
           args: ["postgres", "-c", "max_connections={{ .Values.maxConnections | default 100 }}"]
           ports:

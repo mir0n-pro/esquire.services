@@ -6,6 +6,16 @@ call mvn clean install
 popd 
 rem pause
 
+pushd dataKeep
+call mvn clean install
+popd 
+rem pause
+
+pushd audit
+call mvn clean install
+popd 
+rem pause
+
 pushd bizTree
 call docker-compose-build.bat
 popd 
@@ -27,6 +37,11 @@ popd
 rem pause
 
 pushd kcMaster
+call docker-compose-build.bat
+popd 
+rem pause
+
+pushd auKeep
 call docker-compose-build.bat
 popd 
 rem pause

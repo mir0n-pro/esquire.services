@@ -1,4 +1,11 @@
 # Local k8s overlay for charts/infra/activemq
 # Chart defaults match local dev needs (apache/activemq-classic:6.1.4).
-# No local overrides required -- file exists for structural parity
-# with k8s-oci/values/activemq.yaml.
+
+# R4 local-k8s resource budget. The broker carries the entity/kc/audit buses for the
+# whole fleet; CPU is left burstable (request only).
+resources:
+  requests:
+    cpu: 500m
+    memory: 1Gi
+  limits:
+    memory: 1Gi

@@ -1,5 +1,11 @@
 Esquire pacMan Microservice
 
+06/29/2026 mir0n  v1.2.10 -- R1-R6 env wiring (request-path cap, keep cap, pool/threads/fail-fast DB)
+resources/application.yml
+  - spring.transaction.default-timeout (ESQ_TX_TIMEOUT_S, -1 = no cap); keep query-timeout-seconds
+    (ESQ_KEEP_QUERY_TIMEOUT_S); Tomcat threads.max/accept-count, Hikari pool/connect-timeout, pgjdbc
+    socketTimeout/tcpKeepAlive env-bound (pre-HA defaults unchanged)
+
 06/24/2026 mir0n  v1.2.9 -- EsqMsgConstants references repointed
 PacManApplication
   - EsqMsgConstants app constants -> common.EsqConstants (references repointed)

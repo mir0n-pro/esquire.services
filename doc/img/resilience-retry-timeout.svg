@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="920" height="600" viewBox="0 0 920 600" font-family="Segoe UI, Arial, sans-serif">
+  <defs>
+    <linearGradient id="slow" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#f7ecd6"/>
+      <stop offset="1" stop-color="#fbe0d8"/>
+    </linearGradient>
+  </defs>
+
+  <text x="460" y="30" text-anchor="middle" font-size="19" font-weight="bold" fill="#26384a">Retry / timeout balance -- the per-route deadline bounds the whole retry sequence</text>
+
+  <!-- nesting band: CB(outer) > Retry(inner) > HTTP call -->
+  <rect x="40" y="48" width="840" height="98" rx="8" fill="#eef4f9" stroke="#4D6A8D" stroke-width="2"/>
+  <text x="54" y="68" font-size="12.5" font-weight="bold" fill="#26384a">CircuitBreaker filter (OUTER) -- TimeLimiter deadline 10s (30s for slow writes): cancels everything inside when it fires</text>
+  <rect x="58" y="78" width="560" height="60" rx="6" fill="#eef7ee" stroke="#5a8a5a" stroke-width="1.6"/>
+  <text x="70" y="96" font-size="12" font-weight="bold" fill="#2f5a2f">Retry (INNER) -- up to N attempts, all sharing the ONE deadline budget</text>
+  <rect x="78" y="104" width="300" height="26" rx="4" fill="#ffffff" stroke="#9aa7b3" stroke-width="1.4"/>
+  <text x="90" y="121" font-size="11.5" fill="#26384a">HTTP call: connect 2s -&gt; response</text>
+  <text x="648" y="94" font-size="11.5" fill="#5b6b7a">Netty response-timeout 35s</text>
+  <text x="648" y="110" font-size="11.5" fill="#5b6b7a">= backstop ABOVE the deadline</text>
+  <text x="648" y="126" font-size="11.5" fill="#5b6b7a">(never fires first)</text>
+
+  <text x="40" y="178" font-size="13" font-weight="bold" fill="#26384a">The same 10s budget, spent two ways:</text>
+
+  <!-- time grid 0..10s, 110..810 (70px/s) -->
+  <g stroke="#e4e9ee" stroke-width="1">
+    <line x1="110" y1="196" x2="110" y2="406"/>
+    <line x1="250" y1="196" x2="250" y2="406"/>
+    <line x1="390" y1="196" x2="390" y2="406"/>
+    <line x1="530" y1="196" x2="530" y2="406"/>
+    <line x1="670" y1="196" x2="670" y2="406"/>
+  </g>
+  <g font-size="10.5" fill="#8a97a3" text-anchor="middle">
+    <text x="110" y="192">0s</text>
+    <text x="250" y="192">2s</text>
+    <text x="390" y="192">4s</text>
+    <text x="530" y="192">6s</text>
+    <text x="670" y="192">8s</text>
+  </g>
+  <!-- 10s deadline -->
+  <line x1="810" y1="196" x2="810" y2="406" stroke="#c0392b" stroke-width="1.6" stroke-dasharray="5 4"/>
+  <text x="810" y="192" text-anchor="middle" font-size="11.5" font-weight="bold" fill="#c0392b">10s deadline</text>
+
+  <!-- Lane A: fast failure -> retry helps -->
+  <text x="40" y="228" font-size="12.5" font-weight="bold" fill="#26384a">A.  Fast failure -- connect refused (the retry-worthy case)</text>
+  <rect x="110" y="236" width="30" height="24" rx="3" fill="#fbe0d8" stroke="#c0392b" stroke-width="1.4"/>
+  <text x="125" y="252" text-anchor="middle" font-size="10" fill="#7a2218">pod-0</text>
+  <rect x="148" y="236" width="62" height="24" rx="3" fill="#e3f0e3" stroke="#2f7a2f" stroke-width="1.4"/>
+  <text x="179" y="252" text-anchor="middle" font-size="10" fill="#2f5a2f">pod-1 OK</text>
+  <text x="220" y="253" font-size="13" fill="#2f7a2f">&#10003;</text>
+  <text x="118" y="282" font-size="11.5" fill="#2f5a2f">try pod-0 -&gt; refused (~0.3s), backoff 50ms, retry lands on a surviving pod -&gt; 200 OK at ~0.9s -- budget barely touched.</text>
+
+  <!-- Lane B: slow backend -> deadline -->
+  <text x="40" y="322" font-size="12.5" font-weight="bold" fill="#26384a">B.  Slow backend -- no fast failure (the deadline's job)</text>
+  <rect x="110" y="330" width="700" height="26" rx="3" fill="url(#slow)" stroke="#b5651d" stroke-width="1.4"/>
+  <text x="120" y="347" font-size="11.5" fill="#6a3410">one slow call consumes the entire budget . . .</text>
+  <text x="815" y="347" font-size="12" font-weight="bold" fill="#c0392b">&#10007; 504</text>
+  <text x="118" y="378" font-size="11.5" fill="#7a2218">TimeLimiter fires at 10s -&gt; 504; the loop is cancelled -- no 2nd attempt ever runs. Retry CANNOT help a slow call.</text>
+
+  <!-- takeaway -->
+  <rect x="40" y="410" width="840" height="150" rx="8" fill="#fbf6e9" stroke="#c9881f" stroke-width="1.6"/>
+  <text x="58" y="436" font-size="13.5" font-weight="bold" fill="#6a4a0f">The balance</text>
+  <text x="58" y="462" font-size="12" fill="#4a3a18">- Retry only HELPS -- and is only SAFE -- for fast, pre-send failures: a connect refused/timeout means the request never landed.</text>
+  <text x="58" y="486" font-size="12" fill="#4a3a18">- A SLOW call is bounded by the DEADLINE, not rescued by a retry (the shared budget is already spent on the first attempt).</text>
+  <text x="58" y="514" font-size="12" font-weight="bold" fill="#4a3a18">- Therefore: READS retry on connect-fail + timeout (idempotent).  WRITES retry on connect-fail ONLY --</text>
+  <text x="74" y="534" font-size="12" fill="#4a3a18">a write that timed out may have committed server-side; resending would double it.</text>
+</svg>

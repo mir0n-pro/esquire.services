@@ -21,6 +21,10 @@ spec:
         - name: keycloak
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           args: ["{{ .Values.keycloak.mode }}", "--import-realm"]
           ports:
             - containerPort: 8080
@@ -42,6 +46,15 @@ spec:
               value: "false"
             - name: KC_HOSTNAME_STRICT_BACKCHANNEL
               value: "false"
+            # Resolve back-channel URLs (token / jwks / userinfo) from the
+            # incoming request rather than the fixed front-channel hostname, so
+            # an in-cluster caller discovering KC by its service name gets the
+            # reachable service URL for those endpoints while the browser-facing
+            # endpoints (authorize / logout) and the token issuer stay on the
+            # public hostname. The BFF relies on this to reach KC server-to-server
+            # without resolving the public esquire.localhost (loopback in a pod).
+            - name: KC_HOSTNAME_BACKCHANNEL_DYNAMIC
+              value: "true"
             - name: KC_HOSTNAME_STRICT_HTTPS
               value: "false"
             - name: KC_HEALTH_ENABLED

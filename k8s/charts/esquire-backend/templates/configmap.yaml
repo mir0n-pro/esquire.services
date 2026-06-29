@@ -8,6 +8,7 @@ data:
   PORT:               {{ .Values.service.port | quote }}
   NODE_ENV:           {{ .Values.nodeEnv | quote }}
   KC_ISSUER:          {{ .Values.keycloak.issuer | quote }}
+  KC_ISSUER_INTERNAL: {{ .Values.keycloak.issuerInternal | default .Values.keycloak.issuer | quote }}
   KC_CLIENT_ID:       {{ .Values.keycloak.clientId | quote }}
   GATEWAY_URL:        {{ .Values.gateway.url | quote }}
   PUBLIC_BASE_URL:    {{ .Values.publicBaseUrl | quote }}
@@ -15,6 +16,9 @@ data:
   SESSION_MAX_AGE_MS: {{ .Values.session.cookieMaxAgeMs | quote }}
   ESQ_DICT_CACHE_TTL_MS: {{ .Values.cache.ttlMs | quote }}
   ESQ_DICT_CACHE_MAX:    {{ .Values.cache.maxEntries | quote }}
+  # --- resilience (R1): server request + /api upstream-proxy timeouts (0 = none) ---
+  BFF_REQUEST_TIMEOUT_MS: {{ .Values.resilience.requestTimeoutMs | quote }}
+  BFF_PROXY_TIMEOUT_MS:   {{ .Values.resilience.proxyTimeoutMs | quote }}
   {{- if .Values.redis.url }}
   # Shared session store -- when set, the BFF keeps sessions in redis so every
   # replica reads the same session (required to run more than one replica).

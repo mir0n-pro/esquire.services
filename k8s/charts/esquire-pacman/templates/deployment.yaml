@@ -27,6 +27,10 @@ spec:
         - name: pacman
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           args: ["java", "-jar", "app.jar"]
           ports:
             - containerPort: {{ .Values.service.port }}
