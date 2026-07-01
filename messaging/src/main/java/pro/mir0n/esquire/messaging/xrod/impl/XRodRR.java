@@ -24,6 +24,9 @@
  * 06/27/2026 mir0n  sharesConnection() = false (R&R keeps two connections on different nodes -- never the shared
  *                   dual-leg path, so never noLocal); setWorker(subscription) override warns and ignores the
  *                   selector (R&R already selects by rod-id / slot-id)
+ * 06/30/2026 mir0n  installSessionStack override builds the sublayers via SessionSublayerFactory (identity + role);
+ *                   buildKeepAlive / onSessionMsg removed (the role-driven keep-alive + the SERVER TestRequest echo
+ *                   move to AliveSessionRR)
  */
 package pro.mir0n.esquire.messaging.xrod.impl;
 
@@ -34,6 +37,7 @@ import pro.mir0n.esquire.messaging.catalog.BusTransport;
 import pro.mir0n.esquire.messaging.catalog.Role;
 import pro.mir0n.esquire.messaging.catalog.XRodParams;
 import pro.mir0n.esquire.messaging.transport.BusIdentity;
+import pro.mir0n.esquire.messaging.xrod.impl.sublayer.SessionSublayerFactory;
 
 import java.util.function.Consumer;
 
@@ -42,6 +46,15 @@ import java.util.function.Consumer;
  *  selector; everything else is the base transceiver. */
 public class XRodRR extends XRod {
 
+
+    @Override
+    protected void installSessionStack(boolean keepAliveEnabled) {
+        this.sendSublayers = SessionSublayerFactory.build(params, publisher, feed,
+                        identity,
+                        devLog,
+                        keepAliveEnabled,
+                        role);
+    }
     /** R&R always runs BOTH legs for its role: a CLIENT transmits requests + receives responses; a SERVER
      *  transmits responses + receives requests. (The receive leg still opens only if a worker is set.) */
     @Override
@@ -125,30 +138,6 @@ public class XRodRR extends XRod {
             }
         }
         return ret;
-    }
-
-    /** Alive protocol: an R&R CLIENT probes its SERVER with a TestRequest on inactivity (its own rod-id rides, so
-     *  the SERVER's HeartBeat reply routes back via the RodID selector); an R&R SERVER keeps its
-     *  response leg alive with an unsolicited HeartBeat (the base keep-alive). */
-    @Override
-    protected RodEvent buildKeepAlive() {
-        RodEvent ret;
-        if (role == Role.CLIENT) {
-            ret = RodEvent.testRequest(newCorrelationId(), null);
-        } else {
-            ret = super.buildKeepAlive();
-        }
-        return ret;
-    }
-
-    /** Alive protocol: an R&R SERVER answers a received TestRequest with a HeartBeat echoing the requester's
-     *  routing + correlation (the URS reply path), so the CLIENT observes the round trip. A CLIENT's received
-     *  HeartBeat is liveness only (already marked by the session). */
-    @Override
-    protected void onSessionMsg(RodEvent in) {
-        if (role == Role.SERVER && BusConstants.MSG_TYPE_TEST_REQUEST.equals(in.msgType())) {
-            transmit(RodEvent.heartbeat(in.correlationId(), in.requestId(), in.rodId()));
-        }
     }
 
     /** R&R already drives its receive selector by rod-id (CLIENT) / slot-id (SERVER) -- a subscription selector does

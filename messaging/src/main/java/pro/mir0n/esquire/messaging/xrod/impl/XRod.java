@@ -37,6 +37,9 @@
  *                   broker selector (effectiveSelector; re-open only when it CHANGES); a separate-connection
  *                   fallback drops own events in code (filterOwnInCode); the raw transportPublisher is kept so the
  *                   shared consumer can reuse its connection
+ * 06/30/2026 mir0n  the inline AliveSession build + the alive constants + buildKeepAlive / onSessionMsg /
+ *                   newCorrelationId removed -- init calls installSessionStack (the base builds the broadcast
+ *                   sublayer stack); health() = worst(transport indicator, sessionHealth())
  */
 package pro.mir0n.esquire.messaging.xrod.impl;
 
@@ -58,7 +61,6 @@ import pro.mir0n.esquire.messaging.RodEvent;
 import pro.mir0n.esquire.messaging.xrod.RodPublisher;
 import pro.mir0n.esquire.messaging.xrod.RodTransportAdapter;
 
-import java.util.UUID;
 import java.util.function.Consumer;
 
 /** The default x-Rod transceiver: a transmitter/receiver over a transport. It adds the transport to the
@@ -66,10 +68,6 @@ import java.util.function.Consumer;
  *  consumer (paused) by role, and builds the engine; {@link #start} runs the engine and begins consumer
  *  delivery. Non-final so a specialised x-rod (e.g. {@link XRodRR}, the Request/Response variant) can extend it. */
 public class XRod extends AXRod {
-
-    private static final int     DEFAULT_HEARTBEAT_INTERVAL_SEC = 10;
-    private static final int     ALIVE_TIMEOUT_FACTOR           = 3;     // alive-timeout default = factor x heartbeat-interval
-    private static final boolean DEFAULT_ALIVE_FAIL_FAST        = true;  // provisional: a send error flips DOWN at once (default to LEARN)
 
     protected Role role;               // CLIENT/SERVER -- picks the R&R node (request vs response); single-node ignores it
     private ObjectMapper objectMapper;  // for the RodEvent <-> wire codec
@@ -155,6 +153,12 @@ public class XRod extends AXRod {
 
         buildEngine(name, devLog, outbound, poolJob);
 
+        // install the producer session-sublayer stack AFTER the feed exists (the alive heartbeat is PUT on it). The
+        // factory builds the ALIVE-PROTOCOL session (OPT-IN via the 'alive' param, transport-agnostic) per role from
+        // the keep-alive factory -- a producing leg ({@code doTransmit}) drives the cadence -- plus the SEND-RETRY
+        // policy. With alive OFF the rod runs no session and health() rests on the transport indicator alone.
+        installSessionStack(doTransmit);
+
         // CREATE the transport consumer PAUSED (delivery begins at start(), after the pool is live); a
         // transport-less receive (e.g. a test) builds only the pool -- events arrive via a direct receive() call.
         if (doReceive && transportBacked) {   // supportsConsume() is guaranteed by the fail-fast above
@@ -171,17 +175,6 @@ public class XRod extends AXRod {
                 // own publications, so drop them in code instead (broadcast / XRod only; R&R never sets noLocal).
                 this.filterOwnInCode = doTransmit && noLocalConfigured(receiveLeg);
             }
-        }
-
-        // the ALIVE-PROTOCOL session is OPT-IN (the x-rod 'alive' param, default OFF; transport-agnostic). When
-        // ON, a producing leg ({@code doTransmit}) drives the heartbeat cadence (the keep-alive factory). When
-        // OFF the rod runs NO session -- no heartbeat -- and health() rests on the transport indicator alone.
-        if (params != null && params.aliveOr(false)) {
-            int heartbeatSec = params.heartbeatIntervalSecOr(DEFAULT_HEARTBEAT_INTERVAL_SEC);
-            int timeoutSec   = params.aliveTimeoutSecOr(heartbeatSec * ALIVE_TIMEOUT_FACTOR);
-            boolean failFast = params.aliveFailFastOr(DEFAULT_ALIVE_FAIL_FAST);
-            this.session = new AliveSession(heartbeatSec * 1000L, timeoutSec * 1000L, failFast,
-                    doTransmit ? this::buildKeepAlive : null, this::transmit, this::onSessionMsg, name, devLog);
         }
     }
 
@@ -203,24 +196,7 @@ public class XRod extends AXRod {
         TransportHealth transmit = outboundCloser != null ? outboundCloser.health() : null;
         TransportHealth receive  = inbound != null ? inbound.health() : null;
         TransportHealth transport = TransportHealth.worst(transmit, receive);
-        return session != null ? TransportHealth.worst(transport, session.health()) : transport;
-    }
-
-    /** The idle keep-alive this rod emits (alive protocol): a broadcast producer sends an UNSOLICITED HeartBeat
-     *  (no TestReqID, a fresh correlation). {@link XRodRR} overrides this -- an R&R CLIENT sends a TestRequest. */
-    protected RodEvent buildKeepAlive() {
-        return RodEvent.heartbeat(newCorrelationId(), null, null);
-    }
-
-    /** Handle an arriving SESSION message internally (the session already advanced the consumer leg). Base /
-     *  broadcast: an unsolicited HeartBeat is liveness only -- nothing to answer. {@link XRodRR} overrides this --
-     *  an R&R SERVER echoes a TestRequest back as a HeartBeat. */
-    protected void onSessionMsg(RodEvent in) {
-    }
-
-    /** A fresh correlation id for a self-originated session message (unsolicited HeartBeat / TestRequest). */
-    protected static String newCorrelationId() {
-        return UUID.randomUUID().toString();
+        return TransportHealth.worst(transport, sessionHealth());
     }
 
     /** A SERVER transmits as its ROLE (its producer carries the application broadcasts). A single-node

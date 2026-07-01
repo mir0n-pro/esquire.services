@@ -16,7 +16,7 @@ The short version:
 - **Spread is a deployment choice.** N replicas on a single node is redundancy, not HA. Real failure
   tolerance needs the replicas spread across nodes (and availability domains), with disruption budgets so an
   upgrade or drain never takes them all at once.
-- **Stateful backends are the limiting factor.** PostgreSQL, the ActiveMQ broker, Redis, and KeyCloak run as
+- **Stateful backends are the limiting factor.** PostgreSQL, the message bus broker (an ActiveMQ instance today), Redis, and KeyCloak run as
   single instances today. Each is a single point of failure (SPOF). HA for these is something the deployment
   **enables** (managed service or clustered mode), not something the framework bundles.
 
@@ -43,6 +43,8 @@ The short version:
 | **REST** | (HTTP API style) | the ordinary request/response web-API calls between tiers |
 | **R&R** | Request/Reply | a request-then-response exchange carried over a message queue |
 | **rod-id** | (Esquire term) | a per-instance routing id `<app>.<instanceNo>` that routes R&R replies back to the right caller |
+| **message bus** | (Esquire term) | the transport-agnostic layer the async channels ride; it binds to a pluggable transport provider |
+| **transport provider** | (Esquire term) | the driver that backs the bus with a concrete technology -- ActiveMQ, Redis, and Kafka drivers ship today |
 | **SIGTERM** | (OS signal) | the "shut down" signal a pod receives before it stops |
 | **CB** | Circuit Breaker | a switch that stops calling a failing backend and fast-fails instead, then probes for recovery |
 | **R4j** | Resilience4j | the library that provides the circuit breaker + the per-call timeout (TimeLimiter) |
@@ -81,7 +83,8 @@ redundancy into HA.
   `podManagementPolicy: Parallel`. The ordinal gives each pod a stable `instanceNo` and `rod-id`
   `<app>.<instanceNo>`.
 - **The three channels survive duplication.** REST (round-robin), entity sync (topic fan-out), and KC
-  maintenance (request/reply over a competing-consumer queue). See the fleet diagram.
+  maintenance (request/reply over a competing-consumer queue) -- the two async channels ride the **message
+  bus** (a transport-agnostic layer on a pluggable provider; ActiveMQ today). See the fleet diagram.
 - **Browser tier is redundant.** The Angular SPA is baked into the backend image (no separate frontend
   deployment), and the BFF login session is held in **shared Redis** (`connect-redis`), so any backend replica
   authenticates any cookie and a session survives a pod restart. See the browser-tier diagram.
@@ -229,7 +232,8 @@ form.
   upstream. It rides the same REST-load signal; no broker-specific trigger is needed.
 - **auKeep** is the one exception. The audit event is fire-and-forget (posted after commit, off the request
   thread), so its backlog is NOT visible as REST load. IF the audit consumer is ever autoscaled, **queue depth**
-  is the right signal -- an event-driven autoscaler (**KEDA**) `ScaledObject` on the ActiveMQ audit queue, same
+  is the right signal -- an event-driven autoscaler (**KEDA**) `ScaledObject` on the audit channel's backlog
+  depth (whatever provider backs it), same
   `maxReplicas: 10` ceiling. This is optional: the audit log is a background write, not on the request path.
 
 **Esquire-specific rules for any autoscaler:**
@@ -241,9 +245,9 @@ form.
   requests are redelivered to a surviving copy (competing consumers). A `preStop` drain keeps an in-flight
   reply from being dropped.
 - **The BFF autoscales only with the shared session store on** (`REDIS_URL` set) -- already true on local k8s.
-  On OKE the BFF stays at 1 until HA Redis exists (section 6), so do not autoscale the BFF there yet.
+  On OKE the BFF stays at 1 until HA Redis exists (section 7), so do not autoscale the BFF there yet.
 - **Backends do not autoscale.** PostgreSQL, the broker, KeyCloak, and Redis are fixed single instances
-  (section 6); scaling the app tier only raises load on them, so backend capacity / HA -- not the autoscaler --
+  (section 7); scaling the app tier only raises load on them, so backend capacity / HA -- not the autoscaler --
   is the real ceiling.
 
 ---
@@ -562,7 +566,56 @@ spread / PDB / autoscaling items).
 
 ---
 
-## 6. Stateful backends -- the real SPOFs today, and the HA path for each
+## 6. Async messaging-path resilience -- the bus carries its own
+
+Sections 4 (the gateway edge) and 5 (the REST pools) harden the **synchronous** request path -- both built on
+Resilience4j, which is sync-only. The **asynchronous** channels -- the entity-broadcast topic and the KC
+request/reply queue -- ride the **Esquire Messaging Bus**, a transport-agnostic layer that binds to a pluggable
+**transport provider** (ActiveMQ, Redis, and Kafka drivers ship; ActiveMQ carries the service channels today).
+The bus carries **its own** resilience, in the producer leg, *above* the transport -- so it applies over whatever
+provider is bound, precisely because the bus does not assume the transport supplies it. Two mechanisms are in
+place today; both are producer-leg **session-sublayers**, opt-in by configuration, and cost nothing when off.
+
+**Support matrix** (async / messaging path -- a bus capability, not a broker feature):
+
+| Pattern | What it does (plain) | Today | Turn it on with |
+|---|---|---|---|
+| **Keep-alive (liveness)** | a producing leg heartbeats when idle; if no send has landed within the timeout the leg reads DOWN and feeds the bus health signal (readiness) | **Live -- opt-in** | `alive` (+ `heartbeat-interval` 10s / `alive-timeout` 30s / `alive-fail-fast`) |
+| **Send-retry (survive a broker blip)** | on a failed send the producer HOLDS the message and re-sends it over a backoff ladder until it lands -- new work queues behind it rather than being lost; a resent message keeps the same id so a consumer can tell it is a repeat; while holding, the leg reads not-ready (bus health) so k8s depools the pod until it lands | **Live -- opt-in** (on in docker + local-k8s, off on OKE) | `send-retry` (+ `send-retry-backoff` 1,2,5,5s / `send-retry-max-attempts` 0 = never give up, N = drop after N) |
+| Circuit breaker | stop sending to a dead broker and fast-fail | **Deferred** -- needs an "on open" policy (drop / hold / dead-letter) the bus does not have yet | -- |
+| Retry / backoff variants | retry shapes beyond send-retry | **Deferred** | -- |
+| Per-message timeout | a deadline on one async send | **Deferred** -- async has no request/response deadline today | -- |
+| Per-destination bulkhead | isolate one destination's load from another's | **Deferred** -- only `pool-size` bounds concurrency today | -- |
+| Metrics | Micrometer counters, separate from the health signal | **Deferred** | -- |
+
+**Keep-alive.** Each producing leg heartbeats on inactivity (an R&R client sends a probe its server answers, so
+the round trip is observed); if no send has landed within `alive-timeout` the leg reads DOWN, which the bus
+health signal surfaces to the readiness probe. Known limit -- **provider-dependent**: the health reads the
+producer leg only, so a hard broker crash that leaves the socket half-open is not caught on the ActiveMQ driver
+(its async-send + failover buffering makes the "send" still succeed); other providers differ. See
+`doc/Esquire.MessagingBus.ContinuingDev.md` item 1.
+
+**Send-retry.** A broker outage makes a send fail; the single send worker holds that message and re-sends it over
+the backoff ladder (default 1, 2, 5, 5 seconds, the last step repeating) until it goes through. Because the one
+worker is held, new events queue behind it and producers block when the queue fills -- the change **waits** for
+the broker instead of being dropped. Two modes: **block** (`send-retry-max-attempts` 0 -- never give up, the
+default) or **drop-after-N** (a cap, for a channel that prefers to shed rather than back up). A held message keeps
+a stable id across resends so a consumer can drop a duplicate. Heartbeats are never retried. While it is holding,
+the leg reports **not-ready** (the bus health signal), so k8s depools the pod until the send lands -- a
+send-retry-only leg needs no alive protocol to signal a broker outage. This is the piece that bridges the
+**seconds of a broker failover** (the section-7 HA path) without losing an entity broadcast or a KC sync.
+
+**Where it fits HA.** These make the async channels survive the same broker events section 7's HA path introduces
+-- a restart, a master->slave / failover switchover, a brief blip -- and they do so **for any bound provider**,
+not just ActiveMQ: the resilience is the bus's, so swapping the transport (or putting it in an HA mode) does not
+change the guarantee. Enabled per bus in docker and the local-k8s overlay; **off on OKE today** (the pre-HA
+default -- turned on with the HA broker). The mechanism and the sublayer design are in
+`doc/Esquire.MessagingBus.md`; the deferred set and why R4j does not apply are in the "NOT Resilience4j" gap
+tables of `doc/plans/tasks1210.md`.
+
+---
+
+## 7. Stateful backends -- the real SPOFs today, and the HA path for each
 
 These run as single instances. They are shared by the whole fleet, so each is a SPOF until put into an HA mode.
 HA here is a **deployment choice the operator makes**, not bundled by Esquire.
@@ -570,7 +623,7 @@ HA here is a **deployment choice the operator makes**, not bundled by Esquire.
 | Backend | Carries | Today | SPOF? | HA path |
 |---|---|---|---|---|
 | **PostgreSQL** | all authoritative entity / account state | single instance | **Yes -- total** | OCI **managed** Postgres with a standby (OKE), or a Postgres operator (CloudNativePG / Patroni) with streaming replication + automatic failover |
-| **ActiveMQ broker** | the entity topic + the KC R&R queue | single broker | **Yes** | ActiveMQ **shared-store master/slave** (or Artemis HA); the messaging-bus SPI can target an HA-capable provider without service code change |
+| **Message bus broker** | the entity topic + the KC R&R queue (over the bus; ActiveMQ today) | single broker instance | **Yes** | put the bound provider in its HA mode (ActiveMQ **shared-store master/slave** / Artemis HA), or bind the bus to another HA-capable provider via the SPI (ActiveMQ / Redis / Kafka drivers ship) -- no service-code change |
 | **Redis** | BFF login sessions (+ audit stream) | single instance, **local k8s only** | **Yes** (lose it = everyone logged out) | **Redis Sentinel** or **Redis Cluster**, or OCI managed Redis. Required before the BFF is HA -- a shared store that is itself a SPOF only moves the failure |
 | **KeyCloak** | identity / login | single replica | **Yes** (login outage) | DB-backed KC at **>= 2 replicas** with a clustered Infinispan cache, plus ingress **session affinity** for the login round-trip; shares the (HA) Postgres |
 | **ingress-nginx** | the front door | typically 1 controller (local) | **Yes** | **>= 2** controller replicas behind the cloud load balancer |
@@ -581,21 +634,21 @@ HA of Redis. The same logic applies to every service over Postgres and the broke
 
 ---
 
-## 7. OKE vs local k8s
+## 8. OKE vs local k8s
 
 | | Local (Docker Desktop, 1 node) | OKE (3x A1.Flex, multi-AD) |
 |---|---|---|
 | Redundancy (N replicas, shared session) | Yes -- exercised | Yes |
 | Real node/AD failure tolerance | **No** (one failure domain) | **Yes**, once replicas are spread (3.2) + PDBs (3.3) |
 | Redis (BFF session store) | present | **not deployed** -- BFF stays at 1 replica until Redis (HA) is added |
-| Stateful backend HA | single instances (fine for dev) | needs managed/clustered mode (section 6) |
+| Stateful backend HA | single instances (fine for dev) | needs managed/clustered mode (section 7) |
 
 Local k8s is the **correctness rehearsal** for the deployment shape; it is not a stand-in for HA. OKE is where
 spread + backend HA make the deployment actually highly available.
 
 ---
 
-## 8. What Esquire can provide -- the bottom line
+## 9. What Esquire can provide -- the bottom line
 
 - **The application tier: full horizontal HA.** Any pod serves any request; sessions are shared; the fleet
   survives pod loss now and node/AD loss once replicas are spread with disruption budgets. No code change --
@@ -604,6 +657,11 @@ spread + backend HA make the deployment actually highly available.
   (never a hang or a blank body), sheds load with a per-backend circuit breaker, and retries safely onto a
   surviving replica -- so a single pod loss is invisible on the REST path (section 4). Timeouts + breaker +
   meaningful-error are live today; the per-route/per-command retry is the locked design, implementation pending.
+- **The async channels carry their own resilience.** The **message bus** -- not any one broker -- provides
+  keep-alive (a liveness / health signal) and send-retry (hold + re-send a change while the broker is down), so
+  an entity broadcast or a KC sync survives a broker restart or failover, over whatever transport is bound
+  (ActiveMQ / Redis / Kafka). Opt-in per bus; on in docker / local-k8s, off on OKE (section 6; the broker-HA path
+  is section 7).
 - **The stateful backends: HA-enabled, not HA-bundled.** Postgres, the broker, Redis, and KeyCloak each need
   their HA mode switched on (managed service or clustered). Until then they are the limiting SPOFs, and the
   app-tier HA is capped by whichever backend a request touches.

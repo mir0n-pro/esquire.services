@@ -12,6 +12,8 @@
  * 06/22/2026 mir0n  import RodEvent from messaging (was the same xrod package)
  * 06/22/2026 mir0n  health() default added; of(dispatcher,closer) surfaces the closer's TransportPublisher
  *                   health (the closer's health() iff it is a TransportPublisher, else UNKNOWN).
+ * 06/30/2026 mir0n  send-retry seam: encode(RodEvent) throws + dispatch(Object) throws defaults (encode once,
+ *                   dispatch the same unit throwing on failure), both routed through accept
  */
 package pro.mir0n.esquire.messaging.xrod;
 import pro.mir0n.esquire.messaging.RodEvent;
@@ -28,6 +30,20 @@ public interface RodPublisher extends Consumer<RodEvent>, AutoCloseable {
     /** The transmit leg's transport health -- delegated to the underlying {@link TransportPublisher} (UNKNOWN if none). */
     default TransportHealth health() {
         return TransportHealth.UNKNOWN;
+    }
+
+    /** Encode a {@link RodEvent} into the transport's concrete send unit, ONCE (the wire codec + the vendor's
+     *  broker-free prepare), so a send-retry relays the SAME unit per attempt instead of re-encoding. The unit is
+     *  opaque (only {@link #dispatch} understands it). Default: the event itself (re-encoded by the default
+     *  {@link #dispatch}). */
+    default Object encode(RodEvent event) throws Exception {
+        return event;
+    }
+
+    /** Send the concrete unit from {@link #encode} and THROW on a transport failure -- the send-retry failure
+     *  signal. Default: relay through the best-effort {@link #accept} (no throw -> the retry loop never engages). */
+    default void dispatch(Object encoded) throws Exception {
+        accept((RodEvent) encoded);
     }
 
     /** Wrap a RodEvent dispatcher + a closer (the transport publisher) as one closeable outbound. The closer's

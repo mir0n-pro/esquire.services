@@ -20,6 +20,8 @@
  * 06/23/2026 mir0n  alive-protocol knobs in SCALARS + getters: heartbeat-interval (10s) / alive-timeout (3x) /
  *                   alive-fail-fast; boolOr with a default
  * 06/24/2026 mir0n  'alive' on/off knob in SCALARS + aliveOr(boolean) getter -- the session is OPT-IN, default off
+ * 06/30/2026 mir0n  producer send-retry knobs in SCALARS + getters: send-retry (opt-in, default off) /
+ *                   send-retry-backoff (seconds ladder) / send-retry-max-attempts (0 = block, N = drop)
  */
 package pro.mir0n.esquire.messaging.catalog;
 
@@ -47,7 +49,8 @@ public record XRodParams(String busId, String slotId, Map<String, Object> raw) {
      *  groups ({@code transport} = the wire, and an x-rod's own sub-blocks) are NOT scalars: they bind as a whole. */
     public static final List<String> SCALARS = List.of(
             "rod-id", "rod-class", "pool-size", "feed-capacity", "virtual-threads", "publisher-pool-size", "concurrency",
-            "alive", "heartbeat-interval", "alive-timeout", "alive-fail-fast");
+            "alive", "heartbeat-interval", "alive-timeout", "alive-fail-fast",
+            "send-retry", "send-retry-backoff", "send-retry-max-attempts");
 
     /** Build from the raw x-rod node: flatten it (so nested transport / sub-blocks read by dotted key) and keep
      *  the flat map. bus-id / slot-id are NOT in the node -- the frontend folds them in via {@link #withBus}. */
@@ -205,6 +208,11 @@ public record XRodParams(String busId, String slotId, Map<String, Object> raw) {
     public int     heartbeatIntervalSecOr(int def){ return intOr("heartbeat-interval", def); }
     public int     aliveTimeoutSecOr(int def)     { return intOr("alive-timeout", def); }
     public boolean aliveFailFastOr(boolean def)   { return boolOr("alive-fail-fast", def); }
+
+    // --- producer send-retry sublayer knobs (opt-in, default off; backoff ladder in seconds, comma-separated) ---
+    public boolean sendRetryOr(boolean def)       { return boolOr("send-retry", def); }
+    public String  sendRetryBackoff()             { return str("send-retry-backoff"); }
+    public int     sendRetryMaxAttemptsOr(int def){ return intOr("send-retry-max-attempts", def); }
 
     private String str(String key) {
         Object v = raw != null ? raw.get(key) : null;

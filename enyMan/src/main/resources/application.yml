@@ -61,6 +61,14 @@ esquire:
         pool-size: ${ENYMAN_KC_RESPONSE_POOL_SIZE:2}
         concurrency: ${ENYMAN_KC_RESPONSE_CONCURRENCY:1}
         publisher-pool-size: ${ENYMAN_KC_PUBLISHER_POOL_SIZE:0}
+        # producer send-retry on the KC R&R bus (the CLIENT request leg); opt-in, default OFF here, ON in docker +
+        # the local-k8s overlay -- OKE stays on this pre-HA default. Block mode (max-attempts 0): hold + retry over
+        # the backoff ladder until the broker recovers so the KC sync request still goes through. A request
+        # replayed after the caller's reply timeout still does the work; the late reply is orphaned (no
+        # correlation) and the KC sync is idempotent.
+        send-retry: ${KC_SEND_RETRY:false}
+        send-retry-backoff: ${KC_SEND_RETRY_BACKOFF:1,2,5,5}
+        send-retry-max-attempts: ${KC_SEND_RETRY_MAX_ATTEMPTS:0}
   # v1.2.10 Goal-4: enyMan both PUBLISHES entity broadcasts and LISTENS for its peers' (CLIENT role -> the rod
   # runs a receive leg; because the transport supports both legs on one connection it ALSO opens a producer leg
   # on that same connection, so enyMan publishes through it too). The shared connection lets the broker's noLocal
@@ -76,6 +84,13 @@ esquire:
         pool-size: ${ENTITY_RX_POOL_SIZE:2}
         concurrency: ${ENTITY_RX_CONCURRENCY:1}
         publisher-pool-size: ${ENTITY_BROADCAST_PUBLISHER_POOL_SIZE:0}
+        # producer send-retry sublayer (opt-in, default OFF here; turned ON for the entity broadcast bus in
+        # docker compose + the local-k8s overlay -- OKE stays on this pre-HA default). Block mode (max-attempts
+        # 0): on a broker-down send, retry over the backoff ladder (seconds) until it goes through; the bounded
+        # feed back-pressures rather than dropping an entity broadcast. A cap > 0 switches to drop-after-N.
+        send-retry: ${ENTITY_BROADCAST_SEND_RETRY:false}
+        send-retry-backoff: ${ENTITY_BROADCAST_SEND_RETRY_BACKOFF:1,2,5,5}
+        send-retry-max-attempts: ${ENTITY_BROADCAST_SEND_RETRY_MAX_ATTEMPTS:0}
 logging:
   level:
     root: ${LOG_LEVEL_ROOT:ERROR}

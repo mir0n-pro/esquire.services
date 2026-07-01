@@ -19,6 +19,8 @@
  * 06/23/2026 mir0n  session-message branch in toProps/fromProps (the reduced field set; RequestID omitted on an
  *                   unsolicited HeartBeat); textOf() writes a prepared bodyText to Text (no Map / no Jackson), else the body Map
  * 06/23/2026 mir0n  EsqMsgConstants wire constants -> messaging.BusConstants (references repointed)
+ * 06/30/2026 mir0n  the ApplMsgID wire dedup id rides as a header when the event carries one (stamped once on the
+ *                   send path, frozen across a resend); fromProps carries it back via RodEvent.withApplMsgId
  */
 package pro.mir0n.esquire.messaging.xrod;
 
@@ -36,9 +38,10 @@ import java.util.Map;
 
 /**
  * Serializes a {@link RodEvent} to a JMS property map (the FIX-JSON envelope) and back. Identity / originator
- * fields ride as header properties; the {@code body} map rides as the {@code Text} JSON field. Envelope
- * meta that is per-send (ApplMsgID, SendingTime) is added by the publisher, not here, so this codec is a
- * pure, round-trippable mapping.
+ * fields ride as header properties; the {@code body} map rides as the {@code Text} JSON field. The stable wire
+ * dedup id ({@code ApplMsgID}) rides as a header when the event carries one (stamped once on the send path, frozen
+ * across a resend); {@code SendingTime} is the only PER-SEND meta and is still added by the publisher. The codec is
+ * a pure, round-trippable mapping.
  */
 public final class RodEventCodec {
 
@@ -63,6 +66,11 @@ public final class RodEventCodec {
         }
         ret.put(BusConstants.FIELD_MSG_TYPE,         e.msgType());
         ret.put(BusConstants.FIELD_MESSAGE_ENCODING, BusConstants.MSG_ENCODING_JSON);
+        if (e.applMsgId() != null) {
+            // the STABLE wire dedup id (ApplMsgID, FIX 1181), stamped once on the send path -- frozen across a held
+            // event's resends so a consumer can dedup. The publisher only adds the per-send SendingTime.
+            ret.put(BusConstants.FIELD_APPL_MSG_ID, e.applMsgId());
+        }
         if (e.isSession()) {
             // SESSION (alive) message -- the reduced field set: no CRUD fields (EventType / EntityKind / EntityID /
             // SubID / ActionTime / Uid), no header TestReqID (it rides inside Text). RequestID is omitted on an
@@ -123,7 +131,8 @@ public final class RodEventCodec {
                     msgType,
                     readBody(str(p.get(BusConstants.FIELD_TEXT)), om));
         }
-        return ret;
+        // carry the wire dedup id back onto the event (null when absent) so a consumer can read / dedup on it.
+        return ret.withApplMsgId(str(p.get(BusConstants.FIELD_APPL_MSG_ID)));
     }
 
     /** Evolution gate: an incoming message must carry THIS codec's schema version. A version that is PRESENT

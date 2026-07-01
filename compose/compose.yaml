@@ -276,9 +276,17 @@ services:
       - ENYMAN_KC_RESPONSE_POOL_SIZE=2
       - ENYMAN_KC_RESPONSE_CONCURRENCY=1
       - ENYMAN_KC_PUBLISHER_POOL_SIZE=0
+      # v1.2.10 send-retry on the KC R&R bus (CLIENT request leg): ON for docker (block mode -- retry until recovery)
+      - KC_SEND_RETRY=true
+      - KC_SEND_RETRY_BACKOFF=1,2,5,5
+      - KC_SEND_RETRY_MAX_ATTEMPTS=0
       - ENTITY_BUS_ID=esquire.entity
       - ENTITY_SLOT_ID=entity
       - ENTITY_BROADCAST_PUBLISHER_POOL_SIZE=0
+      # v1.2.10 send-retry on the entity broadcast bus: ON for docker (block mode -- retry until the broker recovers)
+      - ENTITY_BROADCAST_SEND_RETRY=true
+      - ENTITY_BROADCAST_SEND_RETRY_BACKOFF=1,2,5,5
+      - ENTITY_BROADCAST_SEND_RETRY_MAX_ATTEMPTS=0
       # v1.2.6 Goal 3: move queue capacity. Default 16384 (also the application.yml fallback)
       # is sized for normal load. Stress tests can override via ENYMAN_MOVE_QUEUE_CAPACITY.
       - ENYMAN_MOVE_QUEUE_CAPACITY=${ENYMAN_MOVE_QUEUE_CAPACITY:-16384}
@@ -338,6 +346,10 @@ services:
       - ENTITY_BUS_ID=esquire.entity
       - ENTITY_SLOT_ID=entity
       - ENTITY_BROADCAST_PUBLISHER_POOL_SIZE=0
+      # v1.2.10 send-retry on the entity broadcast bus: ON for docker (block mode -- retry until the broker recovers)
+      - ENTITY_BROADCAST_SEND_RETRY=true
+      - ENTITY_BROADCAST_SEND_RETRY_BACKOFF=1,2,5,5
+      - ENTITY_BROADCAST_SEND_RETRY_MAX_ATTEMPTS=0
       # v1.2.8 audit logging (x-rod). pacMan owns account UPDATE / DELETE / balance -> esq_account_log.
       # Per-vendor buses -- pick the sink by id (see enyMan for the full set). Demo = the bus -> auKeep.
       - AUDIT_BUS_ID=${AUDIT_BUS_ID:-audit-c}
@@ -433,6 +445,10 @@ services:
       - KEYSMITH_KC_RESPONSE_POOL_SIZE=2
       - KEYSMITH_KC_RESPONSE_CONCURRENCY=1
       - KEYSMITH_KC_PUBLISHER_POOL_SIZE=0
+      # v1.2.10 send-retry on the KC R&R bus (CLIENT request leg): ON for docker (block mode -- retry until recovery)
+      - KC_SEND_RETRY=true
+      - KC_SEND_RETRY_BACKOFF=1,2,5,5
+      - KC_SEND_RETRY_MAX_ATTEMPTS=0
       # TEST race-8c repro ONLY (revert after): hold between path read and URQ publish
       - KEYSMITH_TEST_CONNECT_HOLD_MS=${KEYSMITH_TEST_CONNECT_HOLD_MS:-0}
       # v1.2.8 audit logging (x-rod). keySmith owns the auth UPDATE -> esq_auth_log.
@@ -483,6 +499,10 @@ services:
       - KC_REQUEST_POOL_SIZE=4
       - KC_REQUEST_CONCURRENCY=1
       - KC_RESPONSE_PUBLISHER_POOL_SIZE=0
+      # v1.2.10 send-retry on the KC R&R bus (SERVER response leg): ON for docker (block mode -- retry until recovery)
+      - KC_SEND_RETRY=true
+      - KC_SEND_RETRY_BACKOFF=1,2,5,5
+      - KC_SEND_RETRY_MAX_ATTEMPTS=0
       - ENTITY_BUS_ID=esquire.entity
       - ENTITY_SLOT_ID=entity
       - ENTITY_BROADCAST_POOL_SIZE=4

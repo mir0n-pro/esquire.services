@@ -1,6 +1,27 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v1.2.10-2606.3021  v1.2.10 -- session sublayers: the producer send path becomes pluggable session layers 
+                  -- the keep-alive and the new send-retry protocols both live on one seam
+    :Refactoring: the single send worker now owns the whole send (prepare the message once, then deliver and
+                  retry); the producer's session protocols become pluggable layers it drives at each send 
+    :Feature:     send-retry: when the message broker is down a producer holds the message and keeps retrying
+                  until the broker recovers
+    :Config:      send-retry is off by default
+    :Doc:         doc\Esquire.HighAvailability.md
+                  doc\Esquire.MessagingBus.md
+                  doc\Esquire.MessagingBus.ContinuingDev.md
+                  doc\services.configuring.md
+                  doc\img\messaging-bus-classes.svg
+    Components:   messaging,
+                  tp-activemq,
+                  tp-redis,
+                  keySmith,
+                  kcMaster,
+                  enyMan,
+                  pacMan,
+                  k8s
+
 v1.2.10-2606.2910  v1.2.10 -- full coverage of REST-stack HA tuning: a bound at every tier of the request path
     :Feature:     every tier of a request now has a tunable limit
     :Feature:     the gateway puts a time limit on each downstream call, steps back from a failing service whil

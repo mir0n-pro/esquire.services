@@ -137,6 +137,37 @@ and on a non-selector transport it depends on the client-side subscription langu
 
 ---
 
+## 5. Full set of messaging-path resilience patterns (beyond `send-retry`)
+
+**Deferred.** v1.2.10 ships ONLY the producer **`send-retry`** sublayer -- the one messaging-path R pattern this
+sprint (design in `doc/plans/tasks1210.md` Part 3.3). The producer **extension point** is now the
+`ISessionSublayer` stack -- event-driven hooks the feed (tx) worker drives at each send outcome, built by
+`SessionSublayerFactory` beside the `AliveSession` alive protocol (never mixed with it). The remaining patterns
+are added LATER, each as an **additional sublayer** on that stack:
+
+- **Circuit breaker** -- needs an "on open" policy the bus does not have today (no fallback destination): DLQ /
+  drop / local buffer must be decided first.
+- **Retry / backoff variants** beyond `send-retry`.
+- **Per-message timeout** -- async has no request/response deadline today.
+- **Per-destination bulkhead** -- today only `pool-size` bounds concurrency; no per-destination isolation.
+- **Metrics** -- Micrometer, separate from the bus health indicator.
+
+See the "Messaging-path resilience -- NOT Resilience4j" gap tables in `doc/plans/tasks1210.md` for what exists vs
+not and why (R4j is sync-only; the bus carries its own resilience).
+
+## 6. Async protocol with continuing processing (FIX-like)
+
+**Deferred.** A request/response (R&R) client sends a request **with OR without a subscription**:
+
+- **WITH subscription** -- the client receives **processing-status updates at each status change** (a progress
+  stream as the request advances).
+- **WITHOUT subscription** -- the client receives an **ACK**, then **asks (polls) for the completion status**.
+
+Modeled on the FIX protocol's order-status flow. Builds on the R&R rod (`XRodRR`) + the existing request/reply
+rod-id correlation -- a defined continuing-processing protocol layered on top of it.
+
+---
+
 ## Related parked items (already tracked elsewhere -- not re-listed here)
 
 - Transport SPI is ActiveMQ-shaped; selector / `key()` / durability differ per driver -- `tasks129.md` item 13

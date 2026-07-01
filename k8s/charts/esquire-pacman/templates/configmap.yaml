@@ -27,6 +27,9 @@ data:
   ENTITY_BUS_ID:                  {{ .Values.entity.busId | quote }}
   ENTITY_SLOT_ID:              {{ .Values.entity.slotId | quote }}
   ENTITY_BROADCAST_PUBLISHER_POOL_SIZE: {{ .Values.entity.broadcastPublisherPoolSize | quote }}
+  ENTITY_BROADCAST_SEND_RETRY:    {{ .Values.entity.sendRetry | quote }}
+  ENTITY_BROADCAST_SEND_RETRY_BACKOFF: {{ .Values.entity.sendRetryBackoff | quote }}
+  ENTITY_BROADCAST_SEND_RETRY_MAX_ATTEMPTS: {{ .Values.entity.sendRetryMaxAttempts | quote }}
   # --- audit-bus ref + in-process (b) knobs ---
   AUDIT_BUS_ID:           {{ .Values.audit.busId | quote }}
   AUDIT_SLOT_ID:       {{ .Values.audit.slotId | quote }}

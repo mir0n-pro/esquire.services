@@ -2,7 +2,7 @@
 # Chart defaults already match local dev needs. Only image.tag is
 # restamped per rebuild here -- k8s-rebuild.bat patches it.
 image:
-  tag: "v1.2.10-2606.2820"
+  tag: "v1.2.10-2606.3023"
 
 # v1.2.10 redundancy: run 2 replicas (StatefulSet ordinal identity)
 replicaCount: 2
@@ -18,6 +18,11 @@ resilience:
   dbConnectTimeoutMs: "5000"      # R3 fail-fast on pool acquire
   dbSocketTimeoutSeconds: "35"    # R5
   dbTcpKeepAlive: "true"          # R5
+
+# producer send-retry on the entity broadcast bus: ON for local k8s (block mode -- hold + retry over the backoff
+# ladder until the broker recovers, never drop an entity broadcast). Overrides the chart pre-HA default (OFF).
+entity:
+  sendRetry: "true"
 
 resources:
   requests:

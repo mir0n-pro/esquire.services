@@ -30,6 +30,10 @@
  *                   pubSubNoLocal (the broker drops the shared connection's own publications, the real JMS
  *                   noLocal); openPublisher returns an AmqPublisher carrying the ccf for that reuse; consumer()
  *                   factored out with a noLocal flag (a separate-connection openConsumer passes false)
+ * 06/30/2026 mir0n  AmqPublisher implements the send-retry seam: encode() prepares the broker-free property bag
+ *                   (a stable ApplMsgID minted ONCE, absent-only), dispatch() materializes the JMS message + sends
+ *                   it THROWING on a transport failure (+ SendingTime per physical send), accept() is the
+ *                   best-effort (retry-off) encode+dispatch swallowing path; the swallowing sink Consumer removed
  */
 package pro.mir0n.esquire.tp.activemq;
 
@@ -94,27 +98,10 @@ public final class TransportProvider implements ITransportProvider {
         devLog.info("tp-activemq: publisher opened on {} (broker={}, {}, poolSize={})",
                 destination, brokerUrl, pubSub ? "topic" : "queue", s.poolSize());
 
-        // The send sink. close() (on the returned handle) releases the caching connection factory (the cached
-        // connection + sessions); the underlying ActiveMQConnectionFactory holds no connection of its own. The
-        // handle carries the ccf so a dual-leg rod's consumer can REUSE this connection (openConsumerOn).
-        Consumer<TransportMessage> sink = msg -> {
-            try {
-                Map<String, Object> props = new LinkedHashMap<>(msg.headers());
-                String applMsgId = UUID.randomUUID().toString();
-                props.put(BusConstants.FIELD_APPL_MSG_ID,  applMsgId);
-                props.put(BusConstants.FIELD_SENDING_TIME, Instant.now().toString());
-                jms.send(destination, session -> {
-                    Message m = session.createMessage();
-                    Utils.setProps(m, props);
-                    return m;
-                });
-                conn.set(TransportHealth.UP);           // a successful send -> the connection is up
-            } catch (Exception ex) {
-                conn.set(TransportHealth.DOWN);          // a failed send -> the connection is down
-                devLog.error("tp-activemq: publish failed on {}: {}", destination, ex.getMessage(), ex);
-            }
-        };
-        return new AmqPublisher(ccf, sink, conn);
+        // close() (on the returned handle) releases the caching connection factory (the cached connection +
+        // sessions); the underlying ActiveMQConnectionFactory holds no connection of its own. The handle carries
+        // the ccf so a dual-leg rod's consumer can REUSE this connection (openConsumerOn).
+        return new AmqPublisher(ccf, jms, destination, conn);
     }
 
     @Override
@@ -246,21 +233,65 @@ public final class TransportProvider implements ITransportProvider {
     /** The ActiveMQ publisher handle: it carries the {@link CachingConnectionFactory} (ONE shared connection) so a
      *  dual-leg rod's consumer can REUSE the same connection via {@link #openConsumerOn} -- which is what lets the
      *  broker's real JMS {@code noLocal} drop this connection's own publications. {@code close()} destroys the
-     *  factory (and the shared connection). */
+     *  factory (and the shared connection).
+     *
+     *  <p>The send-retry seam: {@link #encode} prepares the BROKER-FREE unit -- the stamped property bag (a stable
+     *  ApplMsgID minted ONCE) -- since a {@code jakarta.jms.Message} cannot be built without a live session, which
+     *  is exactly what a DOWN broker lacks. {@link #dispatch} materializes the JMS message from that bag and sends
+     *  it, THROWING on a transport failure (the retry signal) and flipping the health indicator. A held event's
+     *  resend relays the SAME bag (no re-encode); the per-physical-send {@code SendingTime} is stamped in dispatch.
+     *  {@link #accept} is the best-effort (retry-off) path: encode + dispatch, swallowing. */
     private static final class AmqPublisher implements TransportPublisher {
         private final CachingConnectionFactory ccf;
-        private final Consumer<TransportMessage> sink;
+        private final JmsTemplate jms;
+        private final String destination;
         private final AtomicReference<TransportHealth> conn;
 
-        AmqPublisher(CachingConnectionFactory ccf, Consumer<TransportMessage> sink, AtomicReference<TransportHealth> conn) {
-            this.ccf  = ccf;
-            this.sink = sink;
-            this.conn = conn;
+        AmqPublisher(CachingConnectionFactory ccf, JmsTemplate jms, String destination,
+                     AtomicReference<TransportHealth> conn) {
+            this.ccf         = ccf;
+            this.jms         = jms;
+            this.destination = destination;
+            this.conn        = conn;
+        }
+
+        @Override
+        public Object encode(TransportMessage message) {
+            // the broker-free prepared unit: copy the neutral headers, keep a STABLE ApplMsgID (a held event's
+            // resend reuses it = dedup-able), mint one only when absent. SendingTime is per physical send -> dispatch.
+            Map<String, Object> props = new LinkedHashMap<>(message.headers());
+            props.computeIfAbsent(BusConstants.FIELD_APPL_MSG_ID, k -> UUID.randomUUID().toString());
+            return props;
+        }
+
+        @Override
+        @SuppressWarnings("unchecked")
+        public void dispatch(Object encoded) throws Exception {
+            // materialize + send the JMS message from the prepared bag; THROW on a transport failure (the retry
+            // signal). createMessage needs a live session, so a DOWN broker throws HERE (not in encode).
+            Map<String, Object> props = (Map<String, Object>) encoded;
+            try {
+                jms.send(destination, session -> {
+                    Message m = session.createMessage();
+                    Utils.setProps(m, props);
+                    m.setStringProperty(BusConstants.FIELD_SENDING_TIME, Instant.now().toString());
+                    return m;
+                });
+                conn.set(TransportHealth.UP);           // a successful send -> the connection is up
+            } catch (Exception ex) {
+                conn.set(TransportHealth.DOWN);          // a failed send -> the connection is down
+                throw ex;
+            }
         }
 
         @Override
         public void accept(TransportMessage message) {
-            sink.accept(message);
+            // best-effort (retry off): encode + send, swallowing a failure (the health indicator still flips).
+            try {
+                dispatch(encode(message));
+            } catch (Exception ex) {
+                devLog.error("tp-activemq: publish failed on {}: {}", destination, ex.getMessage(), ex);
+            }
         }
 
         @Override

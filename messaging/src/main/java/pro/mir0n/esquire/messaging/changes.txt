@@ -1,5 +1,72 @@
 Esquire messaging framework classes
 
+06/30/2026 mir0n  v1.2.10 -- x-rod session-sublayer stack (the feed worker owns the send): keep-alive + the new send-retry as session protocols on one seam
+AXRod
+  - the feed (tx) worker OWNS the send: send() stamps the ApplMsgID once, runs beforeSend, then sendInProcess (a
+    non-transport outbound) or sendOut (encode once + the dispatch loop)
+  - the alive session field replaced by a session-sublayer list (installSessionStack via SessionSublayerFactory);
+    the worker fans the hooks out -- beforeSend / onSendSuccess / onSendError(ev, enc, Throwable) / onReceiveSessn /
+    sessionHealth -- and idle() ticks them
+  - the raw msgLog replaced by the MsgAudit module (TX / TX-ERR with the cause / RX); publisher / outbound / feed /
+    sendSublayers made protected
+XRod
+  - the inline AliveSession build + the alive constants + buildKeepAlive / onSessionMsg / newCorrelationId removed
+    -- init calls installSessionStack (the base builds the broadcast sublayer stack); health() = worst(transport
+    indicator, sessionHealth())
+XRodRR
+  - installSessionStack override builds the sublayers via SessionSublayerFactory (identity + role); buildKeepAlive /
+    onSessionMsg removed (the role-driven keep-alive + the SERVER TestRequest echo move to AliveSessionRR)
+XRodInfo
+  - the msgLog logger replaced by the MsgAudit module (built from the identity at init); logInfo logs via
+    msgAudit.info
+ISessionSublayer  (new)
+  - the x-rod SESSION-sublayer interface + producer extension point, in the engine package so the x-rod depends on
+    THIS, not on a concrete sublayer (implementations in the .sublayer sub-package, built in via
+    SessionSublayerFactory); hooks beforeSend / onSendSuccess / onSendError / onReceiveSessn / tick / health /
+    start / shutdown
+MsgAudit  (new)
+  - the x-rod MESSAGE-AUDIT module -- a null-safe wrapper over the per-leg msg.<bus-id>.<slot-id> logger, built
+    from the leg identity (no logger when the leg has no bus-id); centralises the leg-trace / transmit-error line
+    format; raw info / warn passthroughs
+SessionSublayerFactory  (new)
+  - builds the x-rod producer session-sublayer LIST so the engine (AXRod) never names a concrete sublayer: the
+    alive keepalive (opt-in 'alive'; AliveSessionRR by R&R role, else the base AliveSession) and the send-retry
+    policy (opt-in 'send-retry', only with a transport publisher), ordered alive FIRST then send-retry
+SendRetrySublayer  (new)
+  - the producer SEND-RETRY sublayer (an ISessionSublayer): on a dispatch throw onSendError marks the holds map
+    (keyed by the stable ApplMsgID) and reacts -- past the max-attempts cap DROP (null), else HOLD the worker over
+    the backoff ladder (a monitor wait released by tick()) and return the same encoded unit to re-dispatch;
+    onSendSuccess clears the hold; a SESSION event is never retried; the trail logs to MsgAudit
+  - health() override: DOWN while any request is held (heldCount > 0), else UP -- folded into the leg session
+    health, so a send-retry-only leg (no alive protocol) depools on a broker outage
+AliveSession
+  - moved to the .sublayer sub-package; now an ISessionSublayer -- an event-driven session sublayer the feed (tx)
+    worker drives (beforeSend / onSendSuccess / onSendError(ev, msg, Throwable) / tick / health); the keep-alive is
+    PUT on the feed (IQueueRig) instead of a transmit callback; ctor takes the feed + BusIdentity
+AliveSessionRR  (new)
+  - the R&R ALIVE-PROTOCOL session -- AliveSession specialised by R&R role: a CLIENT keep-alive is a TestRequest
+    (its rod-id rides so the SERVER HeartBeat reply routes back), a SERVER keep-alive the base HeartBeat; on
+    receive a SERVER echoes an arriving TestRequest back as a HeartBeat
+RodEvent
+  - applMsgId component (the ApplMsgID / FIX 1181 wire dedup id) + a 12-arg canonical ctor; the former 11-arg ctor
+    delegates with applMsgId null (stamped once on the send path); withApplMsgId() copy
+RodEventCodec
+  - the ApplMsgID wire dedup id rides as a header when the event carries one (stamped once on the send path,
+    frozen across a resend); fromProps carries it back via RodEvent.withApplMsgId
+RodPublisher
+  - send-retry seam: encode(RodEvent) throws + dispatch(Object) throws defaults (encode once, dispatch the same
+    unit throwing on failure), both routed through accept
+RodTransportAdapter
+  - publisher(TransportPublisher, ObjectMapper, BusIdentity) returns a full RodPublisher -- accept / encode /
+    dispatch / health / close delegating to the transport publisher (the send-retry encode-once + throwing-dispatch
+    path); toMessage() helper for the wire codec
+TransportPublisher
+  - send-retry seam: encode(TransportMessage) (build the concrete send unit ONCE, broker-free) + dispatch(Object)
+    throws (send the unit, throwing on a transport failure) defaults, both routed through accept
+XRodParams
+  - producer send-retry knobs in SCALARS + getters: send-retry (opt-in, default off) / send-retry-backoff (seconds
+    ladder) / send-retry-max-attempts (0 = block, N = drop)
+
 06/27/2026 mir0n  v1.2.10 -- broadcast dual-leg on one connection (broker noLocal own-exclusion) + setWorker subscription selector
 BusConstants
   - PARAM_NO_LOCAL ("noLocal") added -- the transport-leg vendor param key for the shared-connection

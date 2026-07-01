@@ -36,6 +36,10 @@ kc:
   requestPoolSize: "4"
   requestConcurrency: "1"
   responsePublisherPoolSize: "0"
+  # producer send-retry on the KC R&R bus; pre-HA default OFF (OKE). The local-k8s overlay turns it on (block mode).
+  sendRetry: "false"
+  sendRetryBackoff: "1,2,5,5"
+  sendRetryMaxAttempts: "0"
 
 # entity-bus ref: kcMaster is a CONSUMER of the entity broadcast.
 entity:

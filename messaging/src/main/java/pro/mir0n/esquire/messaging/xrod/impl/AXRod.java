@@ -21,19 +21,30 @@
  *                   session; idle() drives session.tick()
  * 06/27/2026 mir0n  name / devLog made protected (XRodRR reads them); rodId() override returns identity.rodId()
  *                   (null when the rod has no identity)
+ * 06/30/2026 mir0n  the feed (tx) worker OWNS the send: send() stamps the ApplMsgID once, runs beforeSend, then
+ *                   sendInProcess (a non-transport outbound) or sendOut (encode once + the dispatch loop). The
+ *                   alive session field is replaced by a session-sublayer list (installSessionStack via
+ *                   SessionSublayerFactory); the worker fans the hooks out -- beforeSend / onSendSuccess /
+ *                   onSendError(ev, enc, Throwable) / onReceiveSessn / sessionHealth -- and idle() ticks them. The
+ *                   raw msgLog is replaced by the MsgAudit module (TX / TX-ERR with the cause / RX); publisher /
+ *                   outbound / feed / sendSublayers made protected
  */
 package pro.mir0n.esquire.messaging.xrod.impl;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import pro.mir0n.esquire.messaging.catalog.Role;
 import pro.mir0n.esquire.messaging.catalog.XRodParams;
 import pro.mir0n.esquire.messaging.transport.BusIdentity;
 import pro.mir0n.esquire.messaging.IXRod;
 import pro.mir0n.esquire.messaging.RodEvent;
+import pro.mir0n.esquire.messaging.transport.TransportHealth;
+import pro.mir0n.esquire.messaging.xrod.RodPublisher;
+import pro.mir0n.esquire.messaging.xrod.impl.sublayer.SessionSublayerFactory;
 import pro.mir0n.utils.concurrent.BoundedQueueRig;
 
+import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
@@ -46,8 +57,8 @@ import java.util.function.Consumer;
  * The x-Rod transceiver engine, shared by every x-rod that has a feed and/or a worker pool. Two legs:
  * <ul>
  *   <li>TRANSMIT -- {@link #transmit} puts a pre-built event on the {@code feed} (a {@link BoundedQueueRig} of
- *       depth {@code feed-capacity}); its single worker {@code sendOut} logs the {@code TX} trace and hands the
- *       event to the {@code outbound}.</li>
+ *       depth {@code feed-capacity}); its single worker ({@code send}) OWNS the send -- encode once + dispatch --
+ *       driving the session-sublayer hooks and logging the {@code TX} / {@code TX-ERR} msg-audit at the outcome.</li>
  *   <li>RECEIVE -- {@link #receive} acquires a {@code Semaphore(pool-size)} permit, logs {@code RX}, and runs the
  *       pool worker on the reused pool (a fixed platform pool, or one virtual thread per task).</li>
  * </ul>
@@ -68,9 +79,11 @@ public abstract class AXRod implements IXRod {
     protected int poolSize;             // worker-pool size (a subclass may raise it before buildEngine, e.g. async publish)
 
     // --- transmit leg (the feed) ---
-    private Consumer<RodEvent> outbound;   // where the feed worker hands each event; null = no transmit leg
+    protected Consumer<RodEvent> outbound;      // the raw outbound: the transport publisher, this::receive (pooled async), or an in-process sink
+    protected RodPublisher publisher;           // the transport leg when 'outbound' is a RodPublisher (encode-once + throwing dispatch); null otherwise
+    protected List<ISessionSublayer> sendSublayers = List.of();   // the session sublayers (built by the factory); ticked on idle()
     private int feedCapacity;
-    private BoundedQueueRig<RodEvent> feed;
+    protected BoundedQueueRig<RodEvent> feed;
 
     // --- the bounded worker pool (the receive leg; also runs the in-process writer / the async publisher) ---
     private Consumer<RodEvent> poolWorker; // the job the pool runs; null = no pool leg
@@ -82,12 +95,9 @@ public abstract class AXRod implements IXRod {
     // from then; setWorker sets/RESETS this anytime -- a received event does nothing while it is null.
     protected volatile Consumer<RodEvent> worker;
 
-    // --- the alive-protocol session (heartbeat / health), set by a transport rod at init; null = no session
-    //     (an in-process / disabled rod has no bus leg to keep alive) ---
-    protected AliveSession session;
-
-    // --- message-audit (msgLog on both legs) ---
-    private Logger msgLog;              // msg.<bus-id>.<slot-id>; null = no msg-audit
+    // --- the x-rod-level in/out (TX/RX) message-audit (the msg.<bus-id>.<slot-id> channel) -- the MsgAudit module;
+    //     a no-op until buildEngine installs one built from the leg identity ---
+    private MsgAudit msgAudit = new MsgAudit(null);
 
     protected String name = "x-rod";
     protected Logger devLog;
@@ -145,11 +155,8 @@ public abstract class AXRod implements IXRod {
     protected synchronized void buildEngine(String name, Logger devLog, Consumer<RodEvent> outbound, Consumer<RodEvent> worker) {
         this.name       = name;
         this.devLog     = devLog;
-        this.outbound   = outbound;
         this.poolWorker = worker;
-        this.msgLog = identity != null && identity.busId() != null
-                ? LoggerFactory.getLogger("msg." + identity.busId() + "." + identity.slotId())
-                : null;
+        this.msgAudit = new MsgAudit(identity);
 
         if (poolWorker != null) {
             ThreadFactory tf = useVirtualThreads
@@ -163,8 +170,12 @@ public abstract class AXRod implements IXRod {
             this.permits = new Semaphore(poolSize);
             // running stays FALSE until runEngine() -- a receive before start is dropped, not run.
         }
+        // the transmit-leg send materials the feed worker drives directly (no send chain): the raw outbound, and --
+        // when it is a transport leg -- the RodPublisher whose encode-once + throwing dispatch the send loop runs.
+        this.outbound  = outbound;
+        this.publisher = (outbound instanceof RodPublisher rp) ? rp : null;
         if (outbound != null) {
-            this.feed = new BoundedQueueRig<>(this::sendOut);
+            this.feed = new BoundedQueueRig<>(this::send);
             feed.init(name, devLog, feedCapacity);   // allocate; do NOT pump until runEngine()
         }
         if (devLog != null) {
@@ -174,6 +185,18 @@ public abstract class AXRod implements IXRod {
         }
     }
 
+    /** Install the producer session-sublayer stack around the transmit leg -- the producer-side EXTENSION POINT.
+     *  The {@link SessionSublayerFactory} BUILDS the stack per leg config: the alive keepalive ({@code
+     *  keepAliveEnabled} = a producing leg; broadcast here, R&R in {@link XRodRR} which overrides this with its
+     *  role) and the send-retry policy. A transport rod calls this AFTER {@link #buildEngine} (the feed must exist
+     *  -- the alive heartbeat is PUT on it). The feed worker then calls the stack's hooks directly; no sublayer is
+     *  in the send path. Send-retry needs a transport-backed leg (a {@link RodPublisher} outbound, whose
+     *  encode-once + throwing dispatch the send loop drives); an in-process / non-transport outbound gets no
+     *  send-retry. */
+    protected void installSessionStack(boolean keepAliveEnabled) {
+        this.sendSublayers = SessionSublayerFactory.build(params, publisher,
+                feed, identity, devLog, keepAliveEnabled, null);
+    }
     /** RUN the engine (start phase, facade-driven): mark the receive pool live and start the transmit feed
      *  pumping. Idempotent-safe via the synchronized lifecycle; a subclass ({@link XRod}) overrides {@link #start}
      *  to ALSO begin transport delivery after calling {@code super.start()}. */
@@ -185,8 +208,8 @@ public abstract class AXRod implements IXRod {
             feed.start();
             feed.setProcessing(true);
         }
-        if (session != null) {
-            session.start();   // seed the timestamps + start the heartbeat cadence (producing legs)
+        for (ISessionSublayer sublayer : sendSublayers) {
+            sublayer.start();
         }
         if (devLog != null) {
             devLog.info("x-rod[{}]: started (transmit={}, pool={})", name, feed != null, poolWorker != null);
@@ -200,13 +223,16 @@ public abstract class AXRod implements IXRod {
         runEngine();
     }
 
-    /** Periodic maintenance pass (fired by the MessagingBus idle ticker): drive the alive-protocol heartbeat
-     *  cadence step. No-op when this rod runs no session (in-process / disabled). The hook to add any future
+    /** Periodic maintenance pass (fired by the MessagingBus idle ticker, ~1s): drive the session sublayers that
+     *  run off the tick rather than a thread of their own -- the alive-protocol heartbeat cadence and the
+     *  send-retry re-send of a held event. No-op for the sublayers this rod does not run. The hook for any future
      *  per-rod housekeeping. */
     @Override
     public void idle() {
-        if (session != null) {
-            session.tick();
+        for (ISessionSublayer sublayer : sendSublayers) {
+            // the session sublayers run their cadence off this tick: the alive session emits a heartbeat when the
+            // leg is idle; send-retry re-sends a held event when its backoff elapses.
+            sublayer.tick();
         }
     }
 
@@ -216,6 +242,9 @@ public abstract class AXRod implements IXRod {
     @Override
     public synchronized void shutdown() {
         running = false;
+        for (ISessionSublayer sublayer : sendSublayers) {
+            sublayer.shutdown();
+        }
         if (feed != null) {
             feed.shutdown();
         }
@@ -255,33 +284,76 @@ public abstract class AXRod implements IXRod {
         // event == null is the publisher-leg probe -- the leg exists, so just ignore it.
     }
 
-    /** Transmit-leg send point (the feed worker): reset the alive cadence, log the msg-audit, hand the event to
-     *  the outbound, and mark the producer leg's liveness (or its failure) for the alive protocol. */
-    private void sendOut(RodEvent e) {
-        if (session != null) {
-            session.markSendAttempt();
+    /** Transmit-leg send point (the feed/tx worker -- the ONLY sender): stamp the dedup id, then OWN the send --
+     *  encode once + dispatch -- calling the session-sublayer hooks as the message passes (the alive marks, the
+     *  send-retry decision). The TX msg-audit is logged at the OUTCOME ({@link #onSendSuccess} sent / {@link
+     *  #onSendError} failed), not here -- so the trace shows the send result. The sublayers never send; they react. */
+    private void send(RodEvent e) {
+        // stamp the stable wire dedup id ONCE (ApplMsgID): a held event's resends reuse this SAME id (so a consumer
+        // can dedup), instead of the transport minting a fresh one per physical send. The send-retry hold keeps the
+        // stamped event, so every re-send carries it; an event that already carries one (a decoded relay) keeps it.
+        RodEvent ev = e.applMsgId() != null ? e : e.withApplMsgId(UUID.randomUUID().toString());
+        beforeSend(ev);
+        if (publisher == null) {
+            sendInProcess(ev);           // a non-transport outbound (in-process sink, or the pooled-async this::receive)
+        } else {
+            sendOut(ev);           // an application event with send-retry on
         }
-        logMsg("TX", e);
+    }
+
+    /** Encode the event to the transport's concrete send unit ONCE; null on an (unexpected) encode failure (logged
+     *  -- there is nothing to dispatch). */
+    private Object encode(RodEvent ev) {
+        Object ret;
         try {
-            outbound.accept(e);
-            if (session != null) {
-                session.markSent();
+            ret = publisher.encode(ev);
+        } catch (Exception ex) {
+            ret = null;
+            if (devLog != null && devLog.isWarnEnabled()) {
+                devLog.warn("x-rod[{}]: encode failed -- dropping -- kind={}, entityId={}: {}",
+                        name, ev.kind(), ev.entityId(), ex.toString());
             }
+        }
+        return ret;
+    }
+    /** The transport send loop (the feed/tx worker): encode once, then dispatch the SAME unit, driving the
+     *  session-sublayer hooks at the outcome -- {@link #onSendSuccess} on a landing, {@link #onSendError} on a
+     *  throw. An application event is re-dispatched while send-retry HOLDS the worker across the backoff (the
+     *  back-pressure) and hands back the unit; a SESSION event is one-shot (send-retry skips it, so onSendError
+     *  returns null and the loop ends). The loop also ends on the cap (drop) or a shutdown interrupt. */
+    private void sendOut(RodEvent ev) {
+        Object enc = encode(ev);
+        if (enc != null) {
+            boolean done = false;
+            while (!done) {
+                try {
+                    publisher.dispatch(enc);
+                    onSendSuccess(ev);
+                    done = true;
+                } catch (Throwable ex) {
+                    Object next = onSendError(ev, enc, ex);
+                    if (next == null) {
+                        done = true;   // dropped (cap) or interrupted (shutdown)
+                    } else {
+                        enc = next;
+                    }
+                }
+            }
+        }
+    }
+
+    /** A non-transport outbound (an in-process sink, or the pooled-async {@code this::receive} enqueue): hand the
+     *  event straight to it and mark the producer leg. No encode / dispatch / retry -- there is no transport unit. */
+    private void sendInProcess(RodEvent ev) {
+        try {
+            outbound.accept(ev);
+            onSendSuccess(ev);
         } catch (RuntimeException ex) {
-            if (session != null) {
-                session.markSendFailed();
-            }
+            onSendError(ev, null, ex);
             throw ex;
         }
     }
 
-    /** Message-audit on a leg: {@code msg.<bus-id>.<slot-id>} (the msg appender). null logger = disabled. */
-    private void logMsg(String dir, RodEvent e) {
-        if (msgLog != null && msgLog.isInfoEnabled()) {
-            msgLog.info("{} | {} | {} | {} | {} | {} | {} | {}",
-                    dir, e.msgType(), e.opCode(), e.kind(), e.entityId(), e.subId(), e.rodId(), e.requestId());
-        }
-    }
 
     // --------------------------------------------------------------------- receive leg
 
@@ -297,13 +369,11 @@ public abstract class AXRod implements IXRod {
                 devLog.info("x-rod[{}]: receive while not running (before start / during shutdown) -- dropping (kind={}, entityId={})",
                         name, event.kind(), event.entityId());
             }
-        } else if (session != null && event.isSession()) {
+        } else if (event.isSession()) {
             // a SESSION (alive) message -- handled internally by the session layer, NEVER forwarded to the app worker.
-            session.receivedSession(event);
+            onReceiveSessn(event);
+            msgAudit.log("RX", event);
         } else {
-            if (session != null) {
-                session.markReceived();   // an application receive advances the consumer leg's liveness
-            }
             boolean acquired = false;
             try {
                 permits.acquire();
@@ -312,7 +382,7 @@ public abstract class AXRod implements IXRod {
                 Thread.currentThread().interrupt();
             }
             if (acquired) {
-                logMsg("RX", event);
+                msgAudit.log("RX", event);
                 try {
                     pool.execute(() -> {
                         try {
@@ -338,4 +408,53 @@ public abstract class AXRod implements IXRod {
             }
         }
     }
+
+    // --------------------------------------------------------------------- session-sublayer hooks (from the tx worker)
+
+    /** Before an attempt: reset each sublayer's per-send state (the alive cadence gate). */
+    protected void beforeSend(RodEvent ev) {
+        for (ISessionSublayer sublayer : sendSublayers) {
+            sublayer.beforeSend(ev);
+        }
+    }
+
+    /** A send LANDED: log the TX msg-audit (one line per delivered message), then notify each sublayer (alive marks
+     *  the producer leg sent, send-retry clears any hold). */
+    protected void onSendSuccess(RodEvent ev) {
+        msgAudit.log("TX", ev);
+        for (ISessionSublayer sublayer : sendSublayers) {
+            sublayer.onSendSuccess(ev);
+        }
+    }
+
+    /** A send THREW: log the TX-ERR msg-audit (with the cause), then let EVERY sublayer react (alive marks failed,
+     *  send-retry decides) -- the non-null return is the encoded unit to re-dispatch (send-retry's); null = stop. */
+    protected Object onSendError(RodEvent ev, Object msg, Throwable error) {
+        msgAudit.err(ev, error);
+        Object result = null;
+        for (ISessionSublayer sublayer : sendSublayers) {
+            Object r = sublayer.onSendError(ev, msg, error);
+            if (r != null) {
+                result = r;
+            }
+        }
+        return result;
+    }
+
+    /** An arriving SESSION (alive-protocol) message: run each sublayer's receive-side handler (an R&R SERVER echo). */
+    protected void onReceiveSessn(RodEvent ev) {
+        for (ISessionSublayer sublayer : sendSublayers) {
+            sublayer.onReceiveSessn(ev);
+        }
+    }
+
+    /** This leg's session health: the worst across the sublayers (the alive metric; the rest read UNKNOWN-benign). */
+    protected TransportHealth sessionHealth() {
+        TransportHealth ret = TransportHealth.UP;
+        for (ISessionSublayer sublayer : sendSublayers) {
+            ret = TransportHealth.worst(ret, sublayer.health());
+        }
+        return ret;
+    }
+
 }

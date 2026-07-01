@@ -53,6 +53,14 @@ esquire:
         pool-size: ${KEYSMITH_KC_RESPONSE_POOL_SIZE:2}
         concurrency: ${KEYSMITH_KC_RESPONSE_CONCURRENCY:1}
         publisher-pool-size: ${KEYSMITH_KC_PUBLISHER_POOL_SIZE:0}
+        # producer send-retry on the KC R&R bus (the CLIENT request leg); opt-in, default OFF here, ON in docker +
+        # the local-k8s overlay -- OKE stays on this pre-HA default. Block mode (max-attempts 0): hold + retry over
+        # the backoff ladder until the broker recovers so the KC sync request still goes through. A request
+        # replayed after the caller's reply timeout still does the work; the late reply is orphaned (no
+        # correlation) and the KC sync is idempotent.
+        send-retry: ${KC_SEND_RETRY:false}
+        send-retry-backoff: ${KC_SEND_RETRY_BACKOFF:1,2,5,5}
+        send-retry-max-attempts: ${KC_SEND_RETRY_MAX_ATTEMPTS:0}
 logging:
   level:
     root: ${LOG_LEVEL_ROOT:ERROR}

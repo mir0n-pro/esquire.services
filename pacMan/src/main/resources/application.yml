@@ -51,6 +51,13 @@ esquire:
       role: SERVER
       x-rod:
         publisher-pool-size: ${ENTITY_BROADCAST_PUBLISHER_POOL_SIZE:0}
+        # producer send-retry sublayer (opt-in, default OFF here; turned ON for the entity broadcast bus in
+        # docker compose + the local-k8s overlay -- OKE stays on this pre-HA default). Block mode (max-attempts
+        # 0): on a broker-down send, retry over the backoff ladder (seconds) until it goes through; the bounded
+        # feed back-pressures rather than dropping an entity change. A cap > 0 switches to drop-after-N.
+        send-retry: ${ENTITY_BROADCAST_SEND_RETRY:false}
+        send-retry-backoff: ${ENTITY_BROADCAST_SEND_RETRY_BACKOFF:1,2,5,5}
+        send-retry-max-attempts: ${ENTITY_BROADCAST_SEND_RETRY_MAX_ATTEMPTS:0}
 logging:
   level:
     root: ${LOG_LEVEL_ROOT:ERROR}
