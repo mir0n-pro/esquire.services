@@ -28,6 +28,9 @@
  *                   onSendError(ev, enc, Throwable) / onReceiveSessn / sessionHealth -- and idle() ticks them. The
  *                   raw msgLog is replaced by the MsgAudit module (TX / TX-ERR with the cause / RX); publisher /
  *                   outbound / feed / sendSublayers made protected
+ * 07/01/2026 mir0n  the receive/apply pool is now the common WorkerPool: the inline 3-way executor + Semaphore +
+ *                   drain-on-shutdown lift out; poolSize / poolMode read from receiver-pool.size / receiver-pool.mode
+ *                   (platform | virtual | virtual-per-task via WorkerPool.Mode.of); shutdown() calls pool.shutdown
  */
 package pro.mir0n.esquire.messaging.xrod.impl;
 
@@ -42,15 +45,10 @@ import pro.mir0n.esquire.messaging.transport.TransportHealth;
 import pro.mir0n.esquire.messaging.xrod.RodPublisher;
 import pro.mir0n.esquire.messaging.xrod.impl.sublayer.SessionSublayerFactory;
 import pro.mir0n.utils.concurrent.BoundedQueueRig;
+import pro.mir0n.utils.concurrent.WorkerPool;
 
 import java.util.List;
 import java.util.UUID;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.RejectedExecutionException;
-import java.util.concurrent.Semaphore;
-import java.util.concurrent.ThreadFactory;
-import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 /**
@@ -59,8 +57,9 @@ import java.util.function.Consumer;
  *   <li>TRANSMIT -- {@link #transmit} puts a pre-built event on the {@code feed} (a {@link BoundedQueueRig} of
  *       depth {@code feed-capacity}); its single worker ({@code send}) OWNS the send -- encode once + dispatch --
  *       driving the session-sublayer hooks and logging the {@code TX} / {@code TX-ERR} msg-audit at the outcome.</li>
- *   <li>RECEIVE -- {@link #receive} acquires a {@code Semaphore(pool-size)} permit, logs {@code RX}, and runs the
- *       pool worker on the reused pool (a fixed platform pool, or one virtual thread per task).</li>
+ *   <li>RECEIVE -- {@link #receive} hands each event to the {@link WorkerPool} (platform | virtual |
+ *       virtual-per-task, sized by {@code pool-size}), which bounds the concurrency, logs {@code RX}, and runs the
+ *       pool worker.</li>
  * </ul>
  * A subclass implements {@link #init} -- it decides the {@code outbound} and the pool {@code worker} (and may
  * raise {@link #poolSize}), then calls {@link #buildEngine} to CREATE the legs (idle). {@link #start} (this class)
@@ -87,9 +86,8 @@ public abstract class AXRod implements IXRod {
 
     // --- the bounded worker pool (the receive leg; also runs the in-process writer / the async publisher) ---
     private Consumer<RodEvent> poolWorker; // the job the pool runs; null = no pool leg
-    private boolean useVirtualThreads;
-    private Semaphore permits;
-    private ExecutorService pool;          // platform: a reused fixed pool of poolSize threads; virtual: one per task
+    protected WorkerPool.Mode poolMode = WorkerPool.Mode.PLATFORM;   // platform | virtual | virtual-per-task (a subclass may set it for an async-publish pool)
+    private WorkerPool pool;               // the receive/apply worker pool (WorkerPool owns the threads + the bound); null = no pool leg
     private volatile boolean running = false;
     // the receive worker (the listener's callback). The receive leg/listener is created at init() and is LIVE
     // from then; setWorker sets/RESETS this anytime -- a received event does nothing while it is null.
@@ -117,8 +115,10 @@ public abstract class AXRod implements IXRod {
         this.identity          = params != null
                 ? new BusIdentity(params.busId(), params.slotId(), params.rodId()) : null;
         this.feedCapacity      = params != null ? Math.max(1, params.feedCapacityOr(DEFAULT_FEED_CAPACITY)) : DEFAULT_FEED_CAPACITY;
-        this.poolSize          = params != null ? Math.max(1, params.poolSizeOr(DEFAULT_POOL_SIZE)) : DEFAULT_POOL_SIZE;
-        this.useVirtualThreads = params != null && params.virtualThreadsOrFalse();
+        this.poolSize          = params != null ? params.receiverPoolSizeOr(DEFAULT_POOL_SIZE) : DEFAULT_POOL_SIZE;   // 0 = per-task uncapped
+        // the receiver-pool thread model (platform | virtual | virtual-per-task); XRod.init overrides it for an
+        // async-publish pool (publisher-pool).
+        this.poolMode          = params != null ? WorkerPool.Mode.of(params.receiverPoolMode()) : WorkerPool.Mode.PLATFORM;
     }
 
     @Override
@@ -159,15 +159,9 @@ public abstract class AXRod implements IXRod {
         this.msgAudit = new MsgAudit(identity);
 
         if (poolWorker != null) {
-            ThreadFactory tf = useVirtualThreads
-                    ? Thread.ofVirtual().name(name + "-", 0).factory()
-                    : Thread.ofPlatform().daemon(true).name(name + "-", 0).factory();
-            // platform: a REUSED fixed pool of poolSize threads (no thread-per-message churn); virtual: one
-            // virtual thread per task. Either way the Semaphore(poolSize) caps concurrency + back-pressures.
-            this.pool = useVirtualThreads
-                    ? Executors.newThreadPerTaskExecutor(tf)
-                    : Executors.newFixedThreadPool(poolSize, tf);
-            this.permits = new Semaphore(poolSize);
+            // the receive/apply worker pool: platform | virtual | virtual-per-task per poolMode; pool-size is the
+            // worker count (or, for per-task, the concurrency cap). WorkerPool owns the 3-way + the bounded submit.
+            this.pool = WorkerPool.create(name, poolSize, poolMode);
             // running stays FALSE until runEngine() -- a receive before start is dropped, not run.
         }
         // the transmit-leg send materials the feed worker drives directly (no send chain): the raw outbound, and --
@@ -180,8 +174,7 @@ public abstract class AXRod implements IXRod {
         }
         if (devLog != null) {
             devLog.info("x-rod[{}]: built (transmit={}, pool={}, poolSize={}, {})",
-                    name, outbound != null, poolWorker != null, poolSize,
-                    useVirtualThreads ? "virtual" : "platform");
+                    name, outbound != null, poolWorker != null, poolSize, poolMode);
         }
     }
 
@@ -249,20 +242,8 @@ public abstract class AXRod implements IXRod {
             feed.shutdown();
         }
         if (pool != null) {
-            pool.shutdown();   // stop taking new work
-            try {
-                // let in-flight tasks (a receive apply, or a pooled-async publish) DRAIN before the caller closes
-                // the transport -- otherwise a send could hit an already-closed publisher.
-                if (!pool.awaitTermination(SHUTDOWN_AWAIT_SECONDS, TimeUnit.SECONDS)) {
-                    pool.shutdownNow();
-                    if (devLog != null) {
-                        devLog.warn("x-rod[{}]: receive pool did not drain within {}s -- forcing", name, SHUTDOWN_AWAIT_SECONDS);
-                    }
-                }
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                pool.shutdownNow();
-            }
+            // drain in-flight applies / async publishes before the caller closes the transport.
+            pool.shutdown(SHUTDOWN_AWAIT_SECONDS);
         }
     }
 
@@ -374,37 +355,23 @@ public abstract class AXRod implements IXRod {
             onReceiveSessn(event);
             msgAudit.log("RX", event);
         } else {
-            boolean acquired = false;
-            try {
-                permits.acquire();
-                acquired = true;
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            }
-            if (acquired) {
+            // hand the apply to the worker pool -- WorkerPool applies the concurrency bound and runs it. Log RX when
+            // it is accepted + dispatched; a false return is the teardown edge (interrupted acquiring, or the pool
+            // rejected it during shutdown) -> drop.
+            boolean accepted = pool.submit(() -> {
                 msgAudit.log("RX", event);
                 try {
-                    pool.execute(() -> {
-                        try {
-                            poolWorker.accept(event);
-                        } catch (Throwable t) {
-                            if (devLog != null) {
-                                devLog.error("x-rod[{}]: receive worker failed for kind={}, entityId={}, subId={}: {}",
-                                        name, event.kind(), event.entityId(), event.subId(), t.getMessage(), t);
-                            }
-                        } finally {
-                            permits.release();
-                        }
-                    });
-                } catch (RejectedExecutionException rex) {
-                    // the pool was shut down between the running-check and execute (the narrow shutdown race) --
-                    // drop + free the permit, rather than leak it or throw during teardown.
-                    permits.release();
+                    poolWorker.accept(event);
+                } catch (Throwable t) {
                     if (devLog != null) {
-                        devLog.info("x-rod[{}]: receive rejected during shutdown -- dropping (kind={}, entityId={})",
-                                name, event.kind(), event.entityId());
+                        devLog.error("x-rod[{}]: receive worker failed for kind={}, entityId={}, subId={}: {}",
+                                name, event.kind(), event.entityId(), event.subId(), t.getMessage(), t);
                     }
                 }
+            });
+            if (!accepted && devLog != null) {
+                devLog.info("x-rod[{}]: receive not accepted (shutdown) -- dropping (kind={}, entityId={})",
+                        name, event.kind(), event.entityId());
             }
         }
     }

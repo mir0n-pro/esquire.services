@@ -143,6 +143,36 @@ class SendRetrySublayerTest {
     }
 
     @Test
+    void shutdown_releasesHeldWorker_returnsNull() throws InterruptedException {
+        AtomicLong clock = new AtomicLong(0);
+        SendRetrySublayer s = new SendRetrySublayer("5", 0, ID, clock::get);   // long backoff -> would park 5s
+        RodEvent e = event();
+        Object[] back = new Object[]{ "pending" };
+
+        Thread worker = new Thread(() -> back[0] = s.onSendError(e, ENC, ERR), "tx-worker");
+        worker.start();
+        awaitHeld(s);                            // parked on the 5s backoff (broker still down)
+
+        s.shutdown();                            // lifecycle shutdown -> wake the held worker AT ONCE (no clock advance)
+        worker.join(2000);
+
+        assertThat(back[0]).isNull();            // gave up the re-send (no re-dispatch onto a closing leg)
+        assertThat(s.heldCount()).isZero();      // the hold is released
+    }
+
+    @Test
+    void afterShutdown_refusesToHold_returnsNull() {
+        AtomicLong clock = new AtomicLong(0);
+        SendRetrySublayer s = new SendRetrySublayer("5", 0, ID, clock::get);
+        s.shutdown();
+
+        Object back = s.onSendError(event(), ENC, ERR);   // a late failure during teardown -> never holds
+
+        assertThat(back).isNull();
+        assertThat(s.heldCount()).isZero();
+    }
+
+    @Test
     void health_downWhileHeld_upWhenClear() throws InterruptedException {
         AtomicLong clock = new AtomicLong(0);
         SendRetrySublayer s = new SendRetrySublayer("1", 0, ID, clock::get);

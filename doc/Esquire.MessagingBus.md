@@ -70,7 +70,7 @@ describing the topology; the **x-rod** and **network node** are the concrete sof
 | **messaging bus** | A logical aggregation of network elements that provides communication between computing services over a network. Two kinds — **broadcast** and **request-response**. An abstraction: a simplification for describing the network topology. |
 | **slot** | A part of one messaging bus — an entry point onto the bus for a specific need. A bus *is* a set of slots that share common infrastructure, behavior, and purpose. Abstract, like the bus. |
 | **network node** | The transport abstraction exposed by a vendor's (provider's) API — an ActiveMQ queue, a Kafka topic, a Redis stream. The concrete destination on the wire. |
-| **x-rod** (short: **rod**) | The transport-level software module *slotted* into a bus slot. It uniformly defines access to the network node(s) and so unifies a vendor's API with the messaging-bus concept — *as a lightning rod is slotted to a castle tower.* In code: an implementation of `IXRod`. |
+| **x-rod** (short: **rod**) | The session-level software module *slotted* into a bus slot. It uniformly defines access to the network node(s) and so unifies a vendor's API with the messaging-bus concept — *as a lightning rod is slotted to a castle tower.* In code: an implementation of `IXRod`. |
 | **leg** | A bus user — the publish or consume side. A **publisher leg** sends; a **consumer leg** receives. Every communication is a pair of legs. |
 | **role** | Which legs an x-rod runs. On a **request-response** bus: **CLIENT** (transmit request / receive response) or **SERVER** (transmit response / receive request). On a **single-node** bus: **CLIENT** = receive, **SERVER** = transmit. |
 
@@ -171,9 +171,11 @@ A leg is named `(bus-id, slot-id)`; the catalog binds it to an `XRodParams`.
 `XRodParams(busId, slotId, raw)`: `raw` is the leg's `x-rod` node **flattened** to dotted keys (so a
 nested `transport: { endpoint: … }` reads as `transport.endpoint`). All knobs are read FROM `raw` by name:
 
-- **Scalar knobs** — registered once in `XRodParams.SCALARS`: `rod-id`, `rod-class`, `pool-size`,
-  `feed-capacity`, `virtual-threads`, `publisher-pool-size`, `concurrency` (typed getters parse
-  String-or-Number).
+- **Scalar knobs** — registered once in `XRodParams.SCALARS`: `rod-id`, `rod-class`, `feed-capacity`,
+  `concurrency` (typed getters parse String-or-Number).
+- **Pool groups** — `receiver-pool` and `publisher-pool`, each a `{ size, mode }` block read by its dotted
+  keys (`receiver-pool.size`, `receiver-pool.mode`, …); `mode` = `platform` | `virtual` | `virtual-per-task`.
+  Each merges as a WHOLE group (see below).
 - **`transport()`** — binds the `transport.*` group into a `BusTransport`; the `params` map is rebuilt
   straight from `raw` so every `transport.params.*` key survives VERBATIM, including dotted vendor keys
   like `jms.useAsyncSend` (Spring's own `Map<String,String>` binding is unreliable for dotted keys).
@@ -213,7 +215,8 @@ required leg config — see the facade), `configure` (PREPARE), `init(name, devL
 `start()` (RUN); `setWorker` sets/resets the receive callback (any time after `configure`), `shutdown` stops it.
 
 - **`configure(params, role, objectMapper)`** reads the identity (`BusIdentity` = bus-id / slot-id / rod-id),
-  the engine knobs (`feed-capacity` default 4096, `pool-size` default 4, `virtual-threads`), and the `role`.
+  the engine knobs (`feed-capacity` default 4096, `receiver-pool.size` default 4, `receiver-pool.mode` default
+  `platform`), and the `role`.
 - **`init(name, devLog)`** builds the engine PAUSED — a transmit leg if the role transmits, a receive leg
   (pool) if the role receives; `transportBacked = transport != null && objectMapper != null` decides the
   shape. `start()` then opens the transport and runs the legs:
@@ -238,19 +241,21 @@ required leg config — see the facade), `configure` (PREPARE), `init(name, devL
   (see [Session sublayers](#session-sublayers-and-producer-resilience) and [Logging](#logging)). The
   sublayers never send; they only react. A transport failure (a throwing `dispatch`) is the send-retry
   signal; a successful landing marks the leg sent.
-- The **`outbound`** is the publisher for a direct producer; with `publisher-pool-size > 0` it becomes
-  `this::receive` and the publisher is run on the x-rod's own pool (`pool-size = publisher-pool-size`) — i.e.
+- The **`outbound`** is the publisher for a direct producer; with `publisher-pool.size > 0` it becomes
+  `this::receive` and the publisher is run on an async pool sized from `publisher-pool` (`{ size, mode }`) — i.e.
   **feed → bounded pool → publish**, asynchronous pooled publishing; for an in-process x-rod it is
   `this::receive` looping back to the receive worker.
 
 #### Receive leg
 
-- **`receive(event)`** acquires a permit from a `Semaphore(pool-size)`, logs the `RX` message trace, then
-  runs `worker.accept(event)` on the x-rod's **reused worker pool** — a fixed platform pool of `pool-size`
-  threads, or one virtual thread per task when `virtual-threads` — releasing the permit when done.
-  Concurrency is bounded by `pool-size` (the same pool also runs the publisher in pooled-async mode and the
-  writer for an in-process x-rod); a worker failure is logged and isolated. A `receive` with no receive leg
-  wired (or before `start`) throws; a late `receive` during shutdown is logged and dropped, not thrown.
+- **`receive(event)`** logs the `RX` message trace, then hands the event to the leg's **`WorkerPool`**
+  (`pro.mir0n.utils.concurrent`) via a bounded `submit`. The `WorkerPool` owns the thread model AND the bound:
+  `platform` / `virtual` = a fixed pool of `receiver-pool.size` reused workers (dedicated OS threads, or `size`
+  virtual threads), so the pool size IS the concurrency cap; `virtual-per-task` = one virtual thread per event,
+  capped by `Semaphore(size)` (uncapped when `size = 0`). The same pool runs the publisher in pooled-async mode
+  and the writer for an in-process x-rod; a worker failure is logged and isolated, and a `submit` that cannot be
+  admitted (pool shut down) is dropped. A `receive` with no receive leg wired (or before `start`) throws; a late
+  `receive` during shutdown is logged and dropped, not thrown.
 
 #### Lifecycle hooks (overridden by `XRodRR`)
 
@@ -325,7 +330,7 @@ set, each a future sublayer on the same seam (`ISessionSublayer`), so they slot 
 | Circuit breaker | deferred | needs an "on open" policy (drop / hold / dead-letter) the bus does not have yet |
 | Retry / backoff variants | deferred | shapes beyond `send-retry` |
 | Per-message timeout | deferred | async has no request/response deadline today |
-| Per-destination bulkhead | deferred | only `pool-size` bounds concurrency today |
+| Per-destination bulkhead | deferred | only `receiver-pool.size` bounds concurrency today |
 | Metrics | deferred | Micrometer, separate from the health signal |
 
 The deferred set and why R4j does not apply are tracked in `Esquire.MessagingBus.ContinuingDev.md` item 5.
@@ -758,7 +763,7 @@ record XRodParams(String busId, String slotId, Map<String,Object> raw) {
     BusTransport transport();          // transport.params.* carried verbatim (tokens resolved later, in the settings)
     List<BusNode> nodes();             // the R&R nodes (transport.nodes[*]) as a typed list
     <T> T sub(String key, Class<T> type);
-    // scalar getters: rodId / rodClassOr / poolSizeOr / feedCapacityOr / virtualThreadsOrFalse / publisherPoolSizeOr / concurrencyOr
+    // getters: rodId / rodClassOr / feedCapacityOr / concurrencyOr / receiverPoolSizeOr / receiverPoolMode / publisherPoolSizeOr / publisherPoolMode
     List<String> SCALARS;
 }
 record RodEvent(RodEvent.Op op, int kind, String entityId, String subId, long actionTime,
@@ -806,13 +811,16 @@ esquire:
       bus-id:  ${...}            # a catalog bus-id
       slot-id: ${...}            # the slot this service joins
       x-rod:                     # OPTIONAL: replaces the catalog leg's matching group(s)
-        pool-size: ${...}
+        receiver-pool:
+          size: ${...}
+          mode: ${...}           # platform | virtual | virtual-per-task
 ```
 
 A service may also extend the catalog with its OWN leg under its own namespace,
 `<spring.application.name>.messaging-bus` (the catalog merges this service overlay onto the shared
-topology BY ID — a same-id bus/slot replaces, a new one is added). x-rod knobs per leg: `rod-class`, `pool-size`, `feed-capacity`, `virtual-threads`, `publisher-pool-size`,
-`concurrency`, plus the `transport` group and any x-rod-owned sub-block. Vendor knobs ride
+topology BY ID — a same-id bus/slot replaces, a new one is added). x-rod knobs per leg: `rod-class`, `feed-capacity`,
+`concurrency`, the `receiver-pool` and `publisher-pool` groups (`{ size, mode }`), plus the `transport` group and any
+x-rod-owned sub-block. Vendor knobs ride
 `transport.params.*` and pass through verbatim. This appendix is the generic shape; the concrete catalog a
 deployment runs (which buses exist + the env that drives them) is documented with that deployment's bus
 configuration — for Esquire, in `doc/services.configuring.md`.
@@ -830,10 +838,13 @@ esquire:
         - slot-id: <slot-id>
           x-rod:
             rod-class: XRod
-            pool-size: 4
+            receiver-pool:
+              size: 4
+              mode: platform             # platform | virtual | virtual-per-task
             feed-capacity: 4096
-            virtual-threads: false
-            publisher-pool-size: 0
+            publisher-pool:
+              size: 0
+              mode: platform
             concurrency: 1
             transport:
               provider: <name>           # -> pro.mir0n.esquire.tp.<name>.TransportProvider

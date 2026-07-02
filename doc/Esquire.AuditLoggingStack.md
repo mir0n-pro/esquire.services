@@ -27,8 +27,8 @@ standalone `auKeep` consumer → SQL · **(d)** Redis Stream (the stream *is* th
 **The framework default is (0) — persist nothing** (all disabled; only the INFO request log). A fresh
 deploy with no audit config imposes no audit. Each **deployment then configures a topology** on top of that
 baseline, chosen for footprint / monitoring needs, *not* performance:
-- **Dev (Docker + local k8s) → (c) bus → auKeep over ActiveMQ, with the async publisher pool** (`publisher-
-  pool-size=4`), selected by **`AUDIT_BUS_ID=audit-c`**. Reason: **minimum external images** —
+- **Dev (Docker + local k8s) → (c) bus → auKeep over ActiveMQ, with the async publisher pool**
+  (`publisher-pool.size=4`), selected by **`AUDIT_BUS_ID=audit-c`**. Reason: **minimum external images** —
   ActiveMQ is **already in the stack** (the entity-broadcast bus runs on it), so (c) adds **no new external
   image**, only auKeep as an app pod; (d) would pull in Redis, Kafka a broker + Connect. The two dev
   environments run the **identical** topology so the GitHub Actions deploy scripts stay consistent; the async
@@ -46,7 +46,7 @@ and worst.
 - **Best (cheapest on the request path): (d) Redis** — effectively free (its direct `XADD` out-drains the
   feed worker), on par with audit-off and (a) triggers (which are unmeasurable end-to-end). (b) in-process
   is close behind (light).
-- **Worst: (c) bus → auKeep with a single *synchronous* publisher** (`publisher-pool-size=0`) — the one
+- **Worst: (c) bus → auKeep with a single *synchronous* publisher** (`publisher-pool.size=0`) — the one
   mode that **saturates under high load** (one broker round-trip per event caps the rate; p99 spikes). This
   is exactly why the (c) **default uses the async publisher pool** instead — the pool removes the
   saturation, and (c)'s real payoff is **offload** (the `*_log` writes leave the business DB/JVM entirely).
@@ -253,8 +253,8 @@ bus (bus-id)
  -> slot (slot-id)          -- a leg of the bus (the term is "slot", never "service")
     -> x-rod {
          rod-class                                  -- the x-rod type (A.2)
-         pool-size, feed-capacity, virtual-threads  -- consumer/feed sizing
-         publisher-pool-size, concurrency           -- producer sizing
+         receiver-pool {size, mode}, feed-capacity  -- consumer/apply sizing (mode: platform|virtual|virtual-per-task)
+         publisher-pool {size, mode}, concurrency   -- producer sizing
          transport {                                -- the wire vendor (A.4); absent for in-process
            provider, endpoint, destination,
            params,                                  -- generic per-vendor pass-through (e.g. ActiveMQ pubSubDomain)
@@ -322,9 +322,9 @@ module (`AuditBusBridge`, the `AuditKeepDirector`, the `*_log` SQL).
   obtained from `XRodManager` for the audit bus. The transactional buffering lives in **`AuditBusBridge`**
   (not the x-rod): it stamps `msgType=UA`, buffers each row-change in the current tx, and **after commit**
   builds each `RodEvent` and calls `IXRod.transmit(event)`; the x-rod is a pure relay — its feed (sized by
-  `feed-capacity` / `publisher-pool-size`) carries the event onto the transmit leg's transport, off the
+  `feed-capacity` / `publisher-pool.size`) carries the event onto the transmit leg's transport, off the
   request thread.
-- **Consumer leg (auKeep)** — female/receiver. A `Semaphore(pool-size)`-bounded worker pool with **no queue
+- **Consumer leg (auKeep)** — female/receiver. A `WorkerPool` bounded by `receiver-pool.size` with **no queue
   of its own**; the receive leg's transport hands each decoded `RodEvent` to it, the keep applier resolves
   the event's `kind` to a statement key, and writes it. The same consumer mechanism in every bus-fed option;
   only its **location and feed** differ — in-process `XRodInProcess` for (b); standalone, bus-fed auKeep for
@@ -561,12 +561,12 @@ writer, dedup index unchanged. How to run it well for audit:
 - **6.5 Delivery.** As built: async pool, offset commits before write → best-effort. Zero-loss upgrade:
   write synchronously, commit offset after (ack-mode `RECORD`/`BATCH`) → at-least-once → dedup index →
   effective exactly-once. Cost: one-write-at-a-time per consumer, so lean on partitions + replicas.
-- **6.6 DB connection budget.** Total audit-DB connections = **replicas × pool-size** (the smoke hit `too
-  many clients already` from this). Size the catalog leg's `pool-size` + Postgres `max_connections` together,
-  or front the DB with pgbouncer.
+- **6.6 DB connection budget.** Total audit-DB connections = **replicas × receiver-pool.size** (the smoke hit `too
+  many clients already` from this). Size the catalog leg's `receiver-pool.size` + Postgres `max_connections`
+  together, or front the DB with pgbouncer.
 - **6.7 Recommended:** `key=none` · N partitions (= max replicas) · `listener.concurrency=1` · scale via
   replicas · one dedicated pool per instance · no internal queue · best-effort default, ack-after-write +
-  dedup index for zero-loss · `pool-size × replicas ≤ DB connection budget`.
+  dedup index for zero-loss · `receiver-pool.size × replicas ≤ DB connection budget`.
 
 **6.8 Why partitioning earns its keep** (the case for Kafka over the ActiveMQ queue), most to least
 relevant for audit:
@@ -605,7 +605,7 @@ option + the env reference: [services.configuring.md](services.configuring.md).
   bus, or names an unconfigured one, resolves to `XRodDisabled` → **(0)**, persist nothing (only the INFO
   request log).
 - **Dev (Docker + local k8s) → (c) with the async pool.** Producers set `AUDIT_BUS_ID=audit-c`; the
-  `audit-c` catalog leg names `tp-activemq` and the async publisher pool (`publisher-pool-size=4`). `aukeep`
+  `audit-c` catalog leg names `tp-activemq` and the async publisher pool (`publisher-pool.size=4`). `aukeep`
   is a standard pod/service (Docker: a non-profile-gated compose service; k8s: the `esquire-aukeep` chart
   deployed by `k8s-up`). The shared topology file is delivered as a Docker bind-mount and a k8s ConfigMap
   (the `esquire-topology` chart, installed first by `k8s-up`/`k8s-rebuild`). (c) reuses the ActiveMQ already
@@ -718,7 +718,7 @@ each other, not to §8.2. All **0 KO**.
 | (d) redis stream | 1456 | 5 | 7 | 9 | stream XLEN 128,360 |
 
 Ranking: **disabled ≈ redis > in-process > bus.** (d) is effectively free; (b) costs ~23%; (c) is heaviest
-(~41% of baseline) with a saturation tail — `publisher-pool-size=0` so the single feed worker does one
+(~41% of baseline) with a saturation tail — `publisher-pool.size=0` so the single feed worker does one
 synchronous JMS publish per event (the §8.2 c-sync pattern; the async pool is the lever, not exercised
 here). (c)'s payoff remains offload — the `*_log` writes leave the business JVM/DB entirely.
 

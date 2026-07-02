@@ -2,7 +2,7 @@
 # Chart defaults already match local dev needs. Only image.tag is
 # restamped per rebuild here -- k8s-rebuild.bat patches it.
 image:
-  tag: "v1.2.10-2606.3023"
+  tag: "v1.2.10-2607.0120"
 
 # v1.2.10 redundancy: 2 replicas. StatefulSet ordinal gives each pod a distinct instanceNo (0/1)
 # -> distinct entity-id digit (no id collision) + distinct rod-id (R&R reply isolation). Cap=10.

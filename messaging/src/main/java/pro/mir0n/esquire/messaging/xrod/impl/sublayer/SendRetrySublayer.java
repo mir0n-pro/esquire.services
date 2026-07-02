@@ -15,6 +15,9 @@
  *                   the single worker is the back-pressure; onSendSuccess clears the hold. A SESSION (heartbeat)
  *                   event is never retried. The retry trail logs to the msg-audit (MsgAudit). health() reads DOWN
  *                   while any request is held -- the broker-down signal on a send-retry-only leg (no alive protocol).
+ * 07/01/2026 mir0n  shutdown() lifecycle: a volatile 'stopping' releases a held worker AT ONCE on service stop and
+ *                   refuses new holds (re-checked under the monitor so a shutdown notify is never lost); the holds
+ *                   map moved to a ConcurrentHashMap and the lock narrowed to the wait/notify monitor only
  */
 package pro.mir0n.esquire.messaging.xrod.impl.sublayer;
 
@@ -25,9 +28,8 @@ import pro.mir0n.esquire.messaging.xrod.impl.ISessionSublayer;
 import pro.mir0n.esquire.messaging.xrod.impl.MsgAudit;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.LongSupplier;
 
 /**
@@ -50,7 +52,14 @@ import java.util.function.LongSupplier;
  *       backoff has elapsed.</li>
  *   <li>{@link #health}: DOWN while any request is HELD (a send is stuck), else UP -- the broker-down signal for a
  *       leg that runs send-retry without the alive protocol.</li>
+ *   <li>{@link #shutdown}: the engine winding the leg down -- release a held worker AT ONCE (give up the re-send)
+ *       and refuse any new hold, so teardown never waits on a stuck send.</li>
  * </ul>
+ *
+ * <p>Concurrency: {@code holds} is a {@link ConcurrentHashMap} (each {@code ApplMsgID} is owned by exactly one
+ * worker, so its entry is never contended); {@code lock} is the wait/notify monitor ONLY -- taken solely around the
+ * held worker's {@code wait} and the {@link #tick} / {@link #shutdown} {@code notifyAll}. {@code stopping} is
+ * re-checked UNDER that monitor immediately before waiting, so a shutdown notify can never be lost.
  */
 public final class SendRetrySublayer implements ISessionSublayer {
 
@@ -64,8 +73,12 @@ public final class SendRetrySublayer implements ISessionSublayer {
     private final BusIdentity identity;     // the leg identity -- for identity.rodId() in the retry trail
     private final LongSupplier clock;       // wall clock in production; a test seam injects a controllable one
 
-    private final Object lock = new Object();
-    private final Map<String, Hold> holds = new HashMap<>();   // ApplMsgID -> hold state; GUARDED by lock
+    private final Object lock = new Object();   // the wait/notify monitor ONLY (held worker park/wake); the map guards itself
+    private final ConcurrentHashMap<String, Hold> holds = new ConcurrentHashMap<>();   // ApplMsgID -> hold state
+
+    private volatile boolean stopping = false;   // volatile: shutdown() sets it LOCK-FREE, then pokes tick(); the
+                                                 // wait/notify coordination lives in onSendError/tick. Set once to
+                                                 // release a held worker AT ONCE and refuse any new hold.
 
     /** Per held message: the attempts so far and when the next re-dispatch is due. */
     private static final class Hold {
@@ -88,42 +101,48 @@ public final class SendRetrySublayer implements ISessionSublayer {
     }
 
     /** The failure hook (the feed/tx worker calls it after a dispatch threw): mark the map and react. Skip a
-     *  SESSION event (never retried -> {@code null}). Past the cap DROP (return {@code null}). Else HOLD this
-     *  worker thread until the backoff elapses (a monitor wait released by {@link #tick}) and return {@code enc}
-     *  so the worker re-dispatches the SAME unit. */
+     *  SESSION event (never retried -> {@code null}). Past the cap DROP (return {@code null}). Else HOLD this worker
+     *  thread until the backoff elapses (a monitor wait released by {@link #tick}, or by {@link #shutdown}) and
+     *  return {@code enc} so the worker re-dispatches the SAME unit. The map op runs lock-free on the
+     *  ConcurrentHashMap; {@code lock} is taken only around the wait, and {@code stopping} is re-checked under it so
+     *  a shutdown notify is never lost. */
+    @Override
     public Object onSendError(RodEvent ev, Object enc, Throwable error) {
-        Object ret;
-        if (ev.isSession()) {
-            ret = null;   // a SESSION event (heartbeat) is NEVER retried -- best-effort; skip explicitly
-        } else {
+        Object ret = null;
+        if (!ev.isSession()) {
             String msgId = ev.applMsgId();
-            //TODO: optimize lock scope
-            synchronized (lock) {
-                Hold h = holds.computeIfAbsent(msgId, k -> new Hold());
+            if (!stopping) {
+                Hold h = holds.computeIfAbsent(msgId, k -> new Hold()); // lazy init
                 h.attempts++;
                 if (maxAttempts > 0 && h.attempts >= maxAttempts) {
                     holds.remove(msgId);
                     drop(h.attempts, ev);
-                    ret = null;
                 } else {
                     long backoff = backoffFor(h.attempts);
                     h.nextRetryAt = clock.getAsLong() + backoff;
                     held(h.attempts, backoff, ev);
                     boolean interrupted = false;
-                    while (!interrupted && holds.containsKey(msgId) && clock.getAsLong() < h.nextRetryAt) {
-                        try {
-                            // released by tick() once the backoff elapses (the primary path); the bounded wait is a
-                            // missed-signal safety net (~10x the ~1s idle tick) so a delayed/starved tick can never
-                            // hang the held worker -- it re-checks the clock. Mirrors BoundedQueueRig's await-timeout.
-                            lock.wait(WAIT_SAFETY_MS);
-                        } catch (InterruptedException ie) {
-                            Thread.currentThread().interrupt();
-                            interrupted = true;
+                    while (!interrupted && !stopping && holds.containsKey(msgId) && clock.getAsLong() < h.nextRetryAt) {
+                        synchronized (lock) {
+                            try {
+                                // released by tick() once the backoff elapses (the primary path) or by shutdown()
+                                // (which sets stopping + notifies); the bounded wait is a missed-signal safety net
+                                // (~10x the ~1s idle tick) so a delayed/starved tick can never hang the held worker
+                                // -- it re-checks the clock. Mirrors BoundedQueueRig's await-timeout. The stopping
+                                // re-check HERE, under the monitor, is what makes a shutdown notifyAll un-losable:
+                                // it is atomic with the wait, so a concurrent shutdown either is seen (skip the wait)
+                                // or lands after we are already waiting (and wakes us).
+                                if (!stopping) {
+                                    lock.wait(WAIT_SAFETY_MS);
+                                }
+                            } catch (InterruptedException ie) {
+                                Thread.currentThread().interrupt();
+                                interrupted = true;
+                            }
                         }
                     }
-                    if (interrupted) {
-                        holds.remove(msgId);
-                        ret = null;        // shutdown / interrupt -> give up so the worker can exit
+                    if (interrupted || stopping) {
+                        holds.remove(msgId);   // shutdown / interrupt -> give up so the worker can exit (ret stays null)
                     } else {
                         ret = enc;         // backoff elapsed -> re-dispatch the same unit
                     }
@@ -134,12 +153,10 @@ public final class SendRetrySublayer implements ISessionSublayer {
     }
 
     /** The success hook (the worker's dispatch landed): clear the hold; note the recovery when the message had
-     *  been held. */
+     *  been held. Lock-free -- the ConcurrentHashMap remove needs no monitor. */
+    @Override
     public void onSendSuccess(RodEvent ev) {
-        Hold h;
-        synchronized (lock) {
-            h = holds.remove(ev.applMsgId());
-        }
+        Hold h = holds.remove(ev.applMsgId());
         if (h != null) {
             msgAudit.info("send-retry[{}]: send recovered after {} attempt{} -- kind={}, entityId={}",
                     identity.rodId(), h.attempts, h.attempts == 1 ? "" : "s", ev.kind(), ev.entityId());
@@ -147,21 +164,29 @@ public final class SendRetrySublayer implements ISessionSublayer {
     }
 
     /** The idle maintenance step (the rod's idle() hook -- no own thread): wake any held worker whose backoff has
-     *  elapsed so it re-dispatches. */
+     *  elapsed (or ALL held workers on shutdown) so they re-dispatch or give up. The due-scan runs lock-free over
+     *  the ConcurrentHashMap; {@code lock} is taken only around the {@code notifyAll}. */
     @Override
     public void tick() {
-        synchronized (lock) {
+        boolean due = stopping;
+        if (!due) {
             long now = clock.getAsLong();
-            boolean due = false;
-            for (Hold h : holds.values()) {
-                if (now >= h.nextRetryAt) {
-                    due = true;
-                }
-            }
-            if (due) {
+            due = null != holds.searchValues(1, v -> now >= v.nextRetryAt ? v : null);
+        }
+        if (due) {
+            synchronized (lock) {
                 lock.notifyAll();
             }
         }
+    }
+
+    /** Lifecycle shutdown (the engine winds the leg down -- called BEFORE the feed stops): stop holding. Set the
+     *  stop flag and wake a held worker so it breaks out of the backoff wait AT ONCE and gives up the re-send (the
+     *  transport is closing, a further re-dispatch would only hit a closing leg). A held message is abandoned. */
+    @Override
+    public void shutdown() {
+        stopping = true;
+        tick();
     }
 
     /** The leg's send-retry health: DOWN while any request is HELD (a send is stuck -- the broker is down or
@@ -187,9 +212,7 @@ public final class SendRetrySublayer implements ISessionSublayer {
 
     /** The number of messages currently held (test seam: lets a test observe a parked worker). */
     int heldCount() {
-        synchronized (lock) {
-            return holds.size();
-        }
+        return holds.size();
     }
 
     /** The backoff for the n-th attempt (1-based): the n-th ladder step, clamped to the last (so the final step

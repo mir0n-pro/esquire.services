@@ -81,8 +81,8 @@ Esquire catalog: which buses exist and the env that drives them. The vocabulary:
 - **slot** (`slot-id`): a leg a participant joins -- `entity`, `kc`, `audit`.
 - **node** (`node-id`): request/response buses split a slot into `request` + `response` nodes (each
   its own destination); single-node buses just carry a `destination`.
-- **x-rod**: the per-slot x-rod config -- `rod-class` + engine knobs (pool-size, feed-capacity,
-  virtual-threads, publisher-pool-size, concurrency) + alive-protocol knobs (alive, heartbeat-interval,
+- **x-rod**: the per-slot x-rod config -- `rod-class` + engine knobs (receiver-pool.size, receiver-pool.mode,
+  feed-capacity, publisher-pool.size, publisher-pool.mode, concurrency) + alive-protocol knobs (alive, heartbeat-interval,
   alive-timeout, alive-fail-fast) + send-retry knobs (send-retry, send-retry-backoff, send-retry-max-attempts)
   + a `transport` block.
   - **alive protocol** (an OPT-IN session-layer keep-alive; **OFF by default**): `alive` (default `false`) --
@@ -102,6 +102,19 @@ Esquire catalog: which buses exist and the env that drives them. The vocabulary:
     positive N = FALLBACK mode (DROP after N attempts and move on). Only a transport publisher leg gets it (an
     in-process / non-transport leg has nothing to re-dispatch); a heartbeat is never retried. Keep these IN SYNC
     across the x-rods on a slot. The hold / recover / drop trail rides the leg's `msg` audit log.
+  - **worker sizing & thread model** (the leg's thread budget): `receiver-pool.size` (default `4`) is the receive /
+    apply pool -- the worker count, which is the concurrency cap; `receiver-pool.mode` (default `platform`) is that
+    pool's thread model -- `platform` | `virtual` | `virtual-per-task`; `concurrency` (default `1`) is the transport
+    listener's own threads; `publisher-pool.size` (default `0` = publish on the single feed worker, `>0` = an async
+    publish pool) with its own `publisher-pool.mode` (default `platform`); `feed-capacity` (default `4096`) is the
+    feed queue DEPTH (memory, not threads). The feed (tx) worker is ALWAYS one platform thread. Every pool is the
+    common `WorkerPool` (`pro.mir0n.utils.concurrent`): `platform` / `virtual` = a fixed pool of `size` reused
+    workers (OS threads, or `size` virtual threads); `virtual-per-task` = one virtual thread per event, capped by
+    `Semaphore(size)` (uncapped when `size = 0`). The `mode` lever is wired in every environment and passes the full
+    smoke + e2e matrix on both `platform` and `virtual`; the default is `platform` because Esquire's apply pools are
+    small and DB-pool-capped, so virtual threads buy nothing here -- they pay off only when a pod would otherwise
+    exhaust its OS file-handle / thread budget holding many concurrently-blocked waits. See the metal-vs-virtual
+    budget in `Esquire.HighAvailability.md` section 5.5.
 - **transport**: provider (`activemq` | `kafka` | `redis`, or a class name) + endpoint + destination +
   `params` (opaque per-vendor knobs, e.g. `jms.useAsyncSend` / `pubSubDomain` for ActiveMQ pub/sub-vs-queue
   / `noLocal` / `group-id` / `max-len`) + (R&R) `request-node` / `response-node` + a node list. The bus carries
@@ -175,9 +188,9 @@ flip + the matching topology leg (and infra) -- no code change, no rebuild.
 |---|---|---|
 | `AUDIT_BUS_ID` | `audit-b` code / `audit-c` deployed | Selects the audit bus (the sink) the producer posts to. |
 | `AUDIT_SLOT_ID` | `audit` | The audit `slot-id`. |
-| `AUDIT_POOL_SIZE` | `4` | Audit x-rod feed apply-pool size; keep <= the keep datasource pool. |
+| `AUDIT_POOL_SIZE` | `4` | Audit x-rod receive / apply-pool size; keep <= the keep datasource pool. |
 | `AUDIT_FEED_CAPACITY` | `4096` | Producer feed depth (bounded; full -> back-pressures flush-after-commit). |
-| `AUDIT_VIRTUAL_THREADS` | `false` | Feed-pool workers on virtual threads. |
+| `AUDIT_POOL_MODE` | `platform` | Apply-pool thread model: `platform` \| `virtual` \| `virtual-per-task`. |
 
 **audit-(b) keep datasource** (only when the `audit-b` in-process leg is active -- it writes `*_log`
 locally, so its datasource is service-specific and configured on the service-local topology key):
@@ -572,8 +585,9 @@ The keep director is wired in code, not selected by config: one `IKeepDirector` 
 which declares its kinds + SQL group `audit`. A future replication / doc-DB keep is a different
 `IKeepDirector`, also wired in code.
 
-The apply-pool sizing (`pool-size`, `virtual-threads`, `concurrency`) is the audit leg's `x-rod` block in
-the shared topology, not a per-service env var; keep `pool-size` <= the datasource Hikari pool.
+The apply-pool sizing (`receiver-pool.size`, `receiver-pool.mode`, `concurrency`) is the audit leg's `x-rod` block
+in the shared topology; keep `receiver-pool.size` <= the datasource Hikari pool. `receiver-pool.mode` stays
+`platform` -- this apply pool is DB-pool-capped, so virtual threads buy nothing here (see HA 5.5).
 
 ---
 

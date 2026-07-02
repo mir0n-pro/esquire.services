@@ -8,6 +8,9 @@ springProfilesActive: "console,dev-postgres"
 # shared bus topology is delivered by the esquire-topology ConfigMap, mounted at /etc/esquire.
 topologyImport: optional:file:/etc/esquire/topology.yml
 
+# v1.2.10 VT (UNVALIDATED test lever, default OFF -- see HA doc 5.5)
+esqVirtualThreads: "false"        # ESQ_VIRTUAL_THREADS (spring.threads.virtual.enabled, request path)
+
 service:
   port: 3002
 
@@ -44,6 +47,7 @@ kc:
   sendRetry: "false"
   sendRetryBackoff: "1,2,5,5"
   sendRetryMaxAttempts: "0"
+  poolMode: "platform"            # KC_POOL_MODE (platform | virtual | virtual-per-task, default platform)
 
 # audit: default k8s sink = (c) over the bus (ActiveMQ); esquire-aukeep drains it to the *_log tables.
 # Switch to in-process (b) with busId=audit-b (the datasource block below is the *_log datastore).
@@ -52,7 +56,7 @@ audit:
   slotId: audit
   poolSize: "4"
   feedCapacity: "4096"
-  virtualThreads: "false"
+  poolMode: "platform"            # AUDIT_POOL_MODE (platform | virtual | virtual-per-task, default platform)
   datasource:
     # the keep's OWN dedicated *_log pool, from the url/hikari below.
     url: jdbc:postgresql://esquire-infra-postgres:5432/esq2025

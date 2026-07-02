@@ -8,6 +8,8 @@ data:
   SPRING_PROFILES_ACTIVE:         {{ .Values.springProfilesActive | default "" | quote }}
   KCMASTER_PORT:                  {{ .Values.service.port | quote }}
   TOPOLOGY_IMPORT:        {{ .Values.topologyImport | quote }}
+  # --- v1.2.10 VT (UNVALIDATED test lever, default OFF -- see HA doc 5.5) ---
+  ESQ_VIRTUAL_THREADS:            {{ .Values.esqVirtualThreads | quote }}
   # --- KC admin client (secret -> Secret, injected as env in the deployment) ---
   KC_BASE_URL:                    {{ .Values.keycloak.baseUrl | quote }}
   KC_REALM:                       {{ .Values.keycloak.realm | quote }}
@@ -25,11 +27,13 @@ data:
   KC_SEND_RETRY:                  {{ .Values.kc.sendRetry | quote }}
   KC_SEND_RETRY_BACKOFF:          {{ .Values.kc.sendRetryBackoff | quote }}
   KC_SEND_RETRY_MAX_ATTEMPTS:     {{ .Values.kc.sendRetryMaxAttempts | quote }}
+  KC_POOL_MODE:                   {{ .Values.kc.poolMode | quote }}
   # --- entity-bus ref (CONSUMER: drain entity broadcast) ---
   ENTITY_BUS_ID:                  {{ .Values.entity.busId | quote }}
   ENTITY_SLOT_ID:              {{ .Values.entity.slotId | quote }}
   ENTITY_BROADCAST_POOL_SIZE:     {{ .Values.entity.broadcastPoolSize | quote }}
   ENTITY_BROADCAST_CONCURRENCY:   {{ .Values.entity.broadcastConcurrency | quote }}
+  ENTITY_BROADCAST_POOL_MODE:       {{ .Values.entity.poolMode | quote }}
   # --- logging ---
   LOG_LEVEL_ROOT:                 {{ .Values.logging.levelRoot | quote }}
   LOG_LEVEL_SF:                   {{ .Values.logging.levelSf | quote }}

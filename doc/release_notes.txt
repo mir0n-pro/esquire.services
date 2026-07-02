@@ -1,6 +1,29 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v1.2.10-2607.0121  v1.2.10 -- the messaging worker pools gain a virtual-threads option, Java 25 runtime
+    :Feature:     each messaging worker pool can run on ordinary (platform) threads or on virtual threads, chosen
+                  by a single setting per pool
+    :Refactoring: the pool that receives and applies messages is now one building
+    :Refactoring: a producer holding a message to retry now lets go at once when the service is shutting down
+    :Config:      the pool settings are regrouped into a receiver-pool and a publisher-pool block
+    :Config:      the services build for Java 24 and run on the Java 25 runtime
+    :Doc:         doc\Esquire.HighAvailability.md
+                  doc\services.configuring.md
+                  doc\Esquire.MessagingBus.md
+                  doc\Esquire.MessagingBus.ContinuingDev.md
+                  doc\Esquire.AuditLoggingStack.md
+    Components:   common,
+                  messaging,
+                  bizTree,
+                  enyMan,
+                  pacMan,
+                  keySmith,
+                  kcMaster,
+                  auKeep,
+                  gateway,
+                  k8s
+
 v1.2.10-2606.3021  v1.2.10 -- session sublayers: the producer send path becomes pluggable session layers 
                   -- the keep-alive and the new send-retry protocols both live on one seam
     :Refactoring: the single send worker now owns the whole send (prepare the message once, then deliver and

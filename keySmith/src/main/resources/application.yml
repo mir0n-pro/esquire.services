@@ -3,6 +3,10 @@ spring:
     active: ${DB_KEYSMITH_VENDOR:dev-postgres}
   application:
     name: keysmith
+  # v1.2.10 VT: run each REST request on a virtual thread (Tomcat); opt-in, default OFF (pre-HA). See HA doc 5.5.
+  threads:
+    virtual:
+      enabled: ${ESQ_VIRTUAL_THREADS:false}
   # Request-path query/transaction cap (seconds): -1 = no cap (pre-HA default; behaviour unchanged when unset).
   # Set ESQ_TX_TIMEOUT_S (e.g. 8) to bound the common request path so a stuck query frees its worker + connection.
   transaction:
@@ -26,9 +30,10 @@ keysmith:
           x-rod:
             rod-class: pro.mir0n.esquire.dataKeep.keep.XRodInProcessKeep
             director: pro.mir0n.esquire.audit.AuditKeepDirector
-            pool-size: ${AUDIT_POOL_SIZE:4}
+            receiver-pool:
+              size: ${AUDIT_POOL_SIZE:4}
+              mode: ${AUDIT_POOL_MODE:platform}   # platform | virtual | virtual-per-task
             feed-capacity: ${AUDIT_FEED_CAPACITY:4096}
-            virtual-threads: ${AUDIT_VIRTUAL_THREADS:false}
             datasource:
               # the keep's OWN dedicated *_log pool, from the url/hikari below.
               url: ${DB_DATAKEEP_URL:jdbc:postgresql://${DB_KEYSMITH_HOST:localhost}:${DB_KEYSMITH_PORT:5432}/${DB_KEYSMITH_NAME:esq2025}}
@@ -50,9 +55,13 @@ esquire:
       slot-id: ${KC_SLOT_ID:kc}
       role: CLIENT
       x-rod:
-        pool-size: ${KEYSMITH_KC_RESPONSE_POOL_SIZE:2}
+        receiver-pool:
+          size: ${KEYSMITH_KC_RESPONSE_POOL_SIZE:2}
+          mode: ${KC_POOL_MODE:platform}   # platform | virtual | virtual-per-task
         concurrency: ${KEYSMITH_KC_RESPONSE_CONCURRENCY:1}
-        publisher-pool-size: ${KEYSMITH_KC_PUBLISHER_POOL_SIZE:0}
+        publisher-pool:
+          size: ${KEYSMITH_KC_PUBLISHER_POOL_SIZE:0}
+          mode: ${KEYSMITH_KC_PUBLISHER_POOL_MODE:platform}
         # producer send-retry on the KC R&R bus (the CLIENT request leg); opt-in, default OFF here, ON in docker +
         # the local-k8s overlay -- OKE stays on this pre-HA default. Block mode (max-attempts 0): hold + retry over
         # the backoff ladder until the broker recovers so the KC sync request still goes through. A request

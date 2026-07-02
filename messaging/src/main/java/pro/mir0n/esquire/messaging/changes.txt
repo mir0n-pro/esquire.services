@@ -1,5 +1,21 @@
 Esquire messaging framework classes
 
+07/01/2026 mir0n  v1.2.10 -- x-rod worker pool = the common WorkerPool; the pool thread model becomes per-leg config (receiver-pool / publisher-pool {size, mode}); SendRetry shutdown lifecycle
+XRodParams
+  - the worker pool regrouped: pool-size / virtual-threads / publisher-pool-size dropped from SCALARS, replaced
+    by the receiver-pool / publisher-pool {size, mode} GROUPS -- getters receiverPoolSizeOr / receiverPoolMode /
+    publisherPoolSizeOr / publisherPoolMode; the flat-key getters + fallback removed
+AXRod
+  - the receive/apply pool is now the common WorkerPool: the inline 3-way executor + Semaphore + drain-on-shutdown
+    lift out; poolSize / poolMode read from receiver-pool.size / receiver-pool.mode (WorkerPool.Mode.of); shutdown()
+    calls pool.shutdown(SHUTDOWN_AWAIT_SECONDS)
+XRod
+  - the async-publish pool's thread model reads publisher-pool.mode -- init sets poolMode via WorkerPool.Mode.of(publisherPoolMode())
+SendRetrySublayer
+  - shutdown() lifecycle: a volatile 'stopping' releases a held worker AT ONCE on service stop and refuses new
+    holds (re-checked under the monitor so a shutdown notify is never lost); the holds map moved to a
+    ConcurrentHashMap and the lock narrowed to the wait/notify monitor only
+
 06/30/2026 mir0n  v1.2.10 -- x-rod session-sublayer stack (the feed worker owns the send): keep-alive + the new send-retry as session protocols on one seam
 AXRod
   - the feed (tx) worker OWNS the send: send() stamps the ApplMsgID once, runs beforeSend, then sendInProcess (a

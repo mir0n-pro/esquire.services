@@ -14,9 +14,13 @@ esquire:
       slots:
         - slot-id: entity
           x-rod:
-            pool-size: 4
+            receiver-pool:
+              size: 4
+              mode: platform
             concurrency: 1
-            publisher-pool-size: 0
+            publisher-pool:
+              size: 0
+              mode: platform
             transport:
               provider: activemq
               endpoint: failover:(tcp://esquire-infra-amq-activemq:61616)?timeout=3000
@@ -33,9 +37,13 @@ esquire:
         - slot-id: kc
           x-rod:
             rod-class: XRodRR
-            pool-size: 4
+            receiver-pool:
+              size: 4
+              mode: platform
             concurrency: 1
-            publisher-pool-size: 0
+            publisher-pool:
+              size: 0
+              mode: platform
             transport:
               provider: activemq
               endpoint: failover:(tcp://esquire-infra-amq-activemq:61616)?timeout=3000
@@ -52,10 +60,13 @@ esquire:
         - slot-id: audit
           x-rod:
             rod-class: XRod
-            pool-size: 4
+            receiver-pool:
+              size: 4
+              mode: platform
             feed-capacity: 4096
-            virtual-threads: false
-            publisher-pool-size: 0
+            publisher-pool:
+              size: 0
+              mode: platform
             concurrency: 1
             transport:
               provider: activemq
@@ -69,10 +80,13 @@ esquire:
         - slot-id: audit
           x-rod:
             rod-class: XRod
-            pool-size: 4
+            receiver-pool:
+              size: 4
+              mode: platform
             feed-capacity: 4096
-            virtual-threads: false
-            publisher-pool-size: 0
+            publisher-pool:
+              size: 0
+              mode: platform
             concurrency: 1
             transport:
               provider: kafka
@@ -86,10 +100,13 @@ esquire:
         - slot-id: audit
           x-rod:
             rod-class: XRod
-            pool-size: 4
+            receiver-pool:
+              size: 4
+              mode: platform
             feed-capacity: 4096
-            virtual-threads: false
-            publisher-pool-size: 0
+            publisher-pool:
+              size: 0
+              mode: platform
             transport:
               provider: redis
               endpoint: redis://esquire-infra-redis:6379
@@ -102,10 +119,13 @@ esquire:
         - slot-id: audit
           x-rod:
             rod-class: XRod
-            pool-size: 4
+            receiver-pool:
+              size: 4
+              mode: platform
             feed-capacity: 4096
-            virtual-threads: false
-            publisher-pool-size: 0
+            publisher-pool:
+              size: 0
+              mode: platform
             transport:
               provider: kafka
               endpoint: esquire-infra-kafka:9092

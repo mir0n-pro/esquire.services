@@ -23,11 +23,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
 
-      - name: Set up JDK 21 (Temurin) + Maven cache
+      - name: Set up JDK 24 (Temurin) + Maven cache
         uses: actions/setup-java@v5
         with:
           distribution: temurin
-          java-version: "21"
+          java-version: "24"
           cache: maven
 
       - name: Build + verify the reactor

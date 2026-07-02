@@ -208,6 +208,9 @@ services:
       - ENTITY_SLOT_ID=entity
       - ENTITY_BROADCAST_POOL_SIZE=4
       - ENTITY_BROADCAST_CONCURRENCY=1
+      # v1.2.10 worker-pool mode (platform | virtual | virtual-per-task; default platform -- UNVALIDATED, see HA doc 5.5)
+      - ESQ_VIRTUAL_THREADS=${ESQ_VIRTUAL_THREADS:-false}
+      - ENTITY_BROADCAST_POOL_MODE=${ENTITY_BROADCAST_POOL_MODE:-platform}
       # H2 in-memory cache store
       - BIZTREE_CACHE_VENDOR=cache-h2
       - BIZTREE_H2_URL=jdbc:h2:mem:biztree;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
@@ -287,6 +290,10 @@ services:
       - ENTITY_BROADCAST_SEND_RETRY=true
       - ENTITY_BROADCAST_SEND_RETRY_BACKOFF=1,2,5,5
       - ENTITY_BROADCAST_SEND_RETRY_MAX_ATTEMPTS=0
+      # v1.2.10 worker-pool mode (platform | virtual | virtual-per-task; default platform -- UNVALIDATED, see HA doc 5.5)
+      - ESQ_VIRTUAL_THREADS=${ESQ_VIRTUAL_THREADS:-false}
+      - KC_POOL_MODE=${KC_POOL_MODE:-platform}
+      - ENTITY_BROADCAST_POOL_MODE=${ENTITY_BROADCAST_POOL_MODE:-platform}
       # v1.2.6 Goal 3: move queue capacity. Default 16384 (also the application.yml fallback)
       # is sized for normal load. Stress tests can override via ENYMAN_MOVE_QUEUE_CAPACITY.
       - ENYMAN_MOVE_QUEUE_CAPACITY=${ENYMAN_MOVE_QUEUE_CAPACITY:-16384}
@@ -298,7 +305,7 @@ services:
       - AUDIT_BUS_ID=${AUDIT_BUS_ID:-audit-c}
       - AUDIT_SLOT_ID=audit
       - AUDIT_POOL_SIZE=${AUDIT_POOL_SIZE:-4}
-      - AUDIT_VIRTUAL_THREADS=${AUDIT_VIRTUAL_THREADS:-false}
+      - AUDIT_POOL_MODE=${AUDIT_POOL_MODE:-platform}
       - AUDIT_FEED_CAPACITY=${AUDIT_FEED_CAPACITY:-4096}
       # audit-b (in-process) datastore -- defaults to the service's own DB (its log tables); override to relocate.      - DB_DATAKEEP_URL=${DB_DATAKEEP_URL:-jdbc:postgresql://host.docker.internal:5432/esq2025}
       - DB_DATAKEEP_USERNAME=${DB_DATAKEEP_USERNAME:-esq2025}
@@ -350,12 +357,14 @@ services:
       - ENTITY_BROADCAST_SEND_RETRY=true
       - ENTITY_BROADCAST_SEND_RETRY_BACKOFF=1,2,5,5
       - ENTITY_BROADCAST_SEND_RETRY_MAX_ATTEMPTS=0
+      # v1.2.10 worker-pool mode (platform | virtual | virtual-per-task; default platform -- UNVALIDATED, see HA doc 5.5)
+      - ESQ_VIRTUAL_THREADS=${ESQ_VIRTUAL_THREADS:-false}
       # v1.2.8 audit logging (x-rod). pacMan owns account UPDATE / DELETE / balance -> esq_account_log.
       # Per-vendor buses -- pick the sink by id (see enyMan for the full set). Demo = the bus -> auKeep.
       - AUDIT_BUS_ID=${AUDIT_BUS_ID:-audit-c}
       - AUDIT_SLOT_ID=audit
       - AUDIT_POOL_SIZE=${AUDIT_POOL_SIZE:-4}
-      - AUDIT_VIRTUAL_THREADS=${AUDIT_VIRTUAL_THREADS:-false}
+      - AUDIT_POOL_MODE=${AUDIT_POOL_MODE:-platform}
       - AUDIT_FEED_CAPACITY=${AUDIT_FEED_CAPACITY:-4096}      - DB_DATAKEEP_URL=${DB_DATAKEEP_URL:-jdbc:postgresql://host.docker.internal:5432/esq2025}
       - DB_DATAKEEP_USERNAME=${DB_DATAKEEP_USERNAME:-esq2025}
       - DB_DATAKEEP_PASSWORD=${DB_DATAKEEP_PASSWORD:-q}
@@ -401,6 +410,9 @@ services:
       - AUDIT_BUS_ID=${AUDIT_BUS_ID:-audit-c}
       - AUDIT_SLOT_ID=audit
       - DATAKEEP_DIRECTOR=audit
+      # v1.2.10 worker-pool mode (platform | virtual | virtual-per-task; default platform -- UNVALIDATED, see HA doc 5.5)
+      - ESQ_VIRTUAL_THREADS=${ESQ_VIRTUAL_THREADS:-false}
+      - AUDIT_POOL_MODE=${AUDIT_POOL_MODE:-platform}
     command: ["java", "-jar", "app.jar"]
     depends_on:
       activemq:
@@ -449,6 +461,9 @@ services:
       - KC_SEND_RETRY=true
       - KC_SEND_RETRY_BACKOFF=1,2,5,5
       - KC_SEND_RETRY_MAX_ATTEMPTS=0
+      # v1.2.10 worker-pool mode (platform | virtual | virtual-per-task; default platform -- UNVALIDATED, see HA doc 5.5)
+      - ESQ_VIRTUAL_THREADS=${ESQ_VIRTUAL_THREADS:-false}
+      - KC_POOL_MODE=${KC_POOL_MODE:-platform}
       # TEST race-8c repro ONLY (revert after): hold between path read and URQ publish
       - KEYSMITH_TEST_CONNECT_HOLD_MS=${KEYSMITH_TEST_CONNECT_HOLD_MS:-0}
       # v1.2.8 audit logging (x-rod). keySmith owns the auth UPDATE -> esq_auth_log.
@@ -456,7 +471,7 @@ services:
       - AUDIT_BUS_ID=${AUDIT_BUS_ID:-audit-c}
       - AUDIT_SLOT_ID=audit
       - AUDIT_POOL_SIZE=${AUDIT_POOL_SIZE:-4}
-      - AUDIT_VIRTUAL_THREADS=${AUDIT_VIRTUAL_THREADS:-false}
+      - AUDIT_POOL_MODE=${AUDIT_POOL_MODE:-platform}
       - AUDIT_FEED_CAPACITY=${AUDIT_FEED_CAPACITY:-4096}      - DB_DATAKEEP_URL=${DB_DATAKEEP_URL:-jdbc:postgresql://host.docker.internal:5432/esq2025}
       - DB_DATAKEEP_USERNAME=${DB_DATAKEEP_USERNAME:-esq2025}
       - DB_DATAKEEP_PASSWORD=${DB_DATAKEEP_PASSWORD:-q}
@@ -507,6 +522,10 @@ services:
       - ENTITY_SLOT_ID=entity
       - ENTITY_BROADCAST_POOL_SIZE=4
       - ENTITY_BROADCAST_CONCURRENCY=1
+      # v1.2.10 worker-pool mode (platform | virtual | virtual-per-task; default platform -- UNVALIDATED, see HA doc 5.5)
+      - ESQ_VIRTUAL_THREADS=${ESQ_VIRTUAL_THREADS:-false}
+      - KC_POOL_MODE=${KC_POOL_MODE:-platform}
+      - ENTITY_BROADCAST_POOL_MODE=${ENTITY_BROADCAST_POOL_MODE:-platform}
       # Keycloak
       - KC_BASE_URL=http://keycloak:8080/kc-auth
       - KC_REALM=esquire

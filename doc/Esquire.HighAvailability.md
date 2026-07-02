@@ -1,4 +1,4 @@
-    # <img src="../favicon.ico" alt="Esquire logo" valign="middle" width="64" height="64"> Esquire Application Frameworks(tm) 2.0
+# <img src="../favicon.ico" alt="Esquire logo" valign="middle" width="64" height="64"> Esquire Application Frameworks(tm) 2.0
 
 # **Esquire High Availability -- Deployment Nuances & Recommendations**
 
@@ -564,6 +564,88 @@ The rest of the budget (R1-R5: Tomcat threads, Hikari pools, the gateway / BFF /
 remains the **proposed local-k8s budget, not yet applied** -- the deferred server-side hardening (alongside the
 spread / PDB / autoscaling items).
 
+### 5.5 Messaging-bus worker budget and virtual threads
+
+Sections 5.1-5.3 budget the **synchronous** tier -- Tomcat request threads (R2), the Hikari pool (R3), k8s
+resources (R4). A service also runs the **messaging-bus workers**, a separate slice of its thread footprint that
+the R-catalog above does not count. Sizing an instance means budgeting **both**, inside the same R4 CPU / memory
+envelope.
+
+**The messaging workers (per bus leg).** Each knob is a per-leg x-rod parameter (`XRodParams`), env-overridable:
+
+| Knob | Env | Default | What it spawns |
+|---|---|---|---|
+| feed (tx) worker | -- | **1** platform thread per producing leg (always) | the single `BoundedQueueRig` daemon that owns the send |
+| `receiver-pool.size` | `*_POOL_SIZE` | **4** | the receive / apply pool -- worker count (the concurrency cap) |
+| `receiver-pool.mode` | `*_POOL_MODE` | **platform** | the pool's thread model: `platform` \| `virtual` \| `virtual-per-task` |
+| `concurrency` | `*_CONCURRENCY` | **1** | the transport listener's own threads |
+| `publisher-pool.size` | `*_PUBLISHER_POOL_SIZE` | **0** | 0 = publish on the feed thread; >0 = an async publish pool |
+| `publisher-pool.mode` | `*_PUBLISHER_POOL_MODE` | **platform** | thread model of the async publish pool (when size > 0) |
+| `feed-capacity` | `*_FEED_CAPACITY` | **4096** | the feed queue depth -- **memory**, not threads |
+
+Every pool -- receive/apply or async-publish -- is the common `WorkerPool` (`pro.mir0n.utils.concurrent`), which
+owns the three-way thread model: `platform` and `virtual` are a FIXED pool of `size` reused workers (dedicated OS
+threads, or `size` virtual threads); `virtual-per-task` spawns one virtual thread per event, capped by a
+`Semaphore(size)` (or uncapped when `size = 0`). A service's messaging thread count is
+`SUM over its buses of (1 feed + receiver-pool.size x concurrency + publisher-pool.size)`. For a producer like
+keySmith (KC R&R client + audit producer + a broadcast consumer) that is ~8 threads -- small next to Tomcat, but
+real, and it grows the moment a leg raises `receiver-pool.size` or turns on async publish. The feed worker is
+**always** one platform thread (the ordered single-FIFO send leg cannot be virtual).
+
+**Metal vs virtual threads -- a wired, correctness-validated lever (default `platform`).** The pool `mode` is a
+first-class per-leg setting, live in every environment. It has been run end-to-end on BOTH docker and local k8s in
+BOTH modes -- the full smoke + e2e matrix passes identically on `platform` and `virtual` (8/8 cells green), so a
+service boots healthy and processes events the same either way. That is a **correctness** result, NOT a throughput
+measurement: on a saturated single-host docker / desktop-k8s box the timings are noise, and a real metal-vs-VT
+budget A/B is only meaningful on OKE under load.
+
+**What virtual threads actually buy -- and where.** A virtual thread's only saving is the cost of a *blocked*
+platform thread. A platform thread parked on a blocking call (a DB write, a broker send, a KC round-trip) still
+holds a real OS thread -- a cgroup `pids` slot plus ~1 MiB of reserved stack -- doing nothing, and each in-flight
+blocking call also ties up a file descriptor. A virtual thread unmounts from its carrier while blocked, so N
+simultaneous blocking waits ride a few carriers instead of N OS threads. So VT pays off in exactly one regime:
+**when a pod is about to exhaust the OS resources reserved for it -- the file-handle / thread (`pids`) budget --
+from holding many concurrently-blocked waits.** The win is about how cheaply you can hold many simultaneous
+*waits*; it is not throughput and not CPU.
+
+**Why it does NOT help Esquire's messaging pools today.** When a service already has enough worker budget for its
+load, VT gives no meaningful outcome -- and that is the case here:
+- the receive / apply pool is a small FIXED pool (~4 workers) on a bounded queue, not thousands of tasks;
+- its real ceiling is downstream -- the keep's dedicated DB connection pool (the sizing rule is
+  `receiver-pool.size <= keep DB pool`), so concurrency is capped by the DB pool, not by thread count. More
+  (virtual) threads just queue on the same connections and buy nothing;
+- `publisher-pool.size` is `0` everywhere, so there is no async-send fan-out either;
+- the `virtual` FIXED-pool mode cannot even capture VT's advantage by construction -- it is `size` threads either
+  way, so all it adds is a layer of scheduling indirection. It is kept for uniformity and for this test matrix,
+  not for a resource win.
+
+So the OS-limit reclaim below is what VT *would* buy a service that was genuinely thread-bound; Esquire's bounded,
+DB-capped apply work is not that service. Default stays `platform` everywhere (the committed value).
+
+| Thread source | `platform` | `virtual` | Ceiling either way |
+|---|---|---|---|
+| Tomcat request workers | 25 local / **200** default, ~1 MiB stack each | VTs on **~NCPU carriers** | **Hikari pool (10)**, not threads |
+| x-rod receive / apply pools | ~8 platform | VTs on the same carriers | `receiver-pool.size`, then the DB / downstream |
+| x-rod feed workers | ~3 platform (always) | ~3 platform (unchanged) | 1 per producing leg by design |
+
+The reclaim is real only where thread count is the binding limit: 200 blocked request threads reserve ~200 MiB of
+stacks (~1/3 of a 768 MiB budget); running them as VTs would return most of that to heap and drop the OS thread /
+`pids` count from hundreds to tens, moving the wall onto file descriptors (`ulimit ~65 k`, generous) and the DB
+pool / CPU. For Esquire's DB-capped consumers that reclaim buys nothing useful, because concurrency is already
+re-bound low by the DB pool.
+
+**Where VT would earn its keep (not today's shape).** A future service that fans out a large number of CONCURRENT
+blocking waits -- the Tomcat request path under thousands of simultaneous slow requests
+(`spring.threads.virtual.enabled` / `ESQ_VIRTUAL_THREADS`, already wired), or an async client holding many
+in-flight R&R waits (`virtual-per-task`) -- is where holding those waits on a few carriers avoids blowing the
+per-pod thread / FD budget. Bounded, DB-pool-capped apply work is not that case.
+
+**Runtime + pinning.** A virtual thread that blocks inside a `synchronized` monitor used to **pin** its carrier
+(the x-rod engine and the send-retry lock use `synchronized`; JDBC historically pinned). JEP 491 removes that
+pinning; the stack runs on the **JDK 25 LTS** runtime (compiled `--release 24`), so `synchronized` no longer pins.
+All pool modes default to `platform` per the pre-HA-default principle (5.3) -- an opt-in lever that costs nothing
+until a leg sets `mode`.
+
 ---
 
 ## 6. Async messaging-path resilience -- the bus carries its own
@@ -585,7 +667,7 @@ place today; both are producer-leg **session-sublayers**, opt-in by configuratio
 | Circuit breaker | stop sending to a dead broker and fast-fail | **Deferred** -- needs an "on open" policy (drop / hold / dead-letter) the bus does not have yet | -- |
 | Retry / backoff variants | retry shapes beyond send-retry | **Deferred** | -- |
 | Per-message timeout | a deadline on one async send | **Deferred** -- async has no request/response deadline today | -- |
-| Per-destination bulkhead | isolate one destination's load from another's | **Deferred** -- only `pool-size` bounds concurrency today | -- |
+| Per-destination bulkhead | isolate one destination's load from another's | **Deferred** -- only `receiver-pool.size` bounds concurrency today | -- |
 | Metrics | Micrometer counters, separate from the health signal | **Deferred** | -- |
 
 **Keep-alive.** Each producing leg heartbeats on inactivity (an R&R client sends a probe its server answers, so

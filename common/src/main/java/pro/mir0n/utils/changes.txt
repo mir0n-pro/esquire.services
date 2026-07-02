@@ -1,6 +1,13 @@
 mir0n java common frameworks -- pro.mir0n.utils
 
 
+07/01/2026 mir0n  v1.2.10 -- a common bounded worker pool with three thread models (platform / virtual / virtual-per-task)
+concurrent.WorkerPool  (new)
+  - a bounded worker pool with three thread models: PLATFORM / VIRTUAL = a FIXED pool of `size` reused workers
+    (OS threads, or `size` virtual threads); VIRTUAL_PER_TASK = one virtual thread per task, capped by a
+    Semaphore(size) (uncapped when size=0). create(name, size, mode); submit(Runnable) applies the bound
+    (acquire / execute / release); shutdown(awaitSeconds) drains; capacity(); Mode.of(String) parses the mode
+
 06/15/2026 mir0n  v1.2.8 -- Taijitu queue item carries a parsed body map instead of the raw wire body
 taijitu.QueueItem
   - the record field pair (messageEncoding, text) replaced by a single body Map<String,Object>; the

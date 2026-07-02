@@ -16,9 +16,13 @@ esquire:
       slots:
         - slot-id: entity
           x-rod:
-            pool-size: 4
+            receiver-pool:
+              size: 4
+              mode: platform
             concurrency: 1
-            publisher-pool-size: 0
+            publisher-pool:
+              size: 0
+              mode: platform
             transport:
               provider: activemq
               endpoint: tcp://esquire-infra-amq-activemq:61616
@@ -35,9 +39,13 @@ esquire:
         - slot-id: kc
           x-rod:
             rod-class: XRodRR
-            pool-size: 4
+            receiver-pool:
+              size: 4
+              mode: platform
             concurrency: 1
-            publisher-pool-size: 0
+            publisher-pool:
+              size: 0
+              mode: platform
             transport:
               provider: activemq
               endpoint: tcp://esquire-infra-amq-activemq:61616

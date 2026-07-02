@@ -40,6 +40,8 @@
  * 06/30/2026 mir0n  the inline AliveSession build + the alive constants + buildKeepAlive / onSessionMsg /
  *                   newCorrelationId removed -- init calls installSessionStack (the base builds the broadcast
  *                   sublayer stack); health() = worst(transport indicator, sessionHealth())
+ * 07/01/2026 mir0n  the async-publish pool's thread model reads publisher-pool.mode -- init sets poolMode via
+ *                   WorkerPool.Mode.of(publisherPoolMode())
  */
 package pro.mir0n.esquire.messaging.xrod.impl;
 
@@ -60,6 +62,7 @@ import pro.mir0n.esquire.messaging.transport.TransportPublisher;
 import pro.mir0n.esquire.messaging.RodEvent;
 import pro.mir0n.esquire.messaging.xrod.RodPublisher;
 import pro.mir0n.esquire.messaging.xrod.RodTransportAdapter;
+import pro.mir0n.utils.concurrent.WorkerPool;
 
 import java.util.function.Consumer;
 
@@ -146,6 +149,7 @@ public class XRod extends AXRod {
                 outbound      = this::receive;          // runs the receive worker, so it publishes directly instead)
                 poolJob       = publisher;
                 this.poolSize = pubPool;
+                this.poolMode = WorkerPool.Mode.of(params.publisherPoolMode());   // the publisher-pool mode
             } else {
                 outbound = publisher;                   // direct publish on the feed thread
             }

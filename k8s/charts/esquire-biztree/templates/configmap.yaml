@@ -23,6 +23,8 @@ data:
   ESQ_DB_CONNECT_TIMEOUT_MS:          {{ .Values.resilience.dbConnectTimeoutMs | quote }}
   ESQ_DB_SOCKET_TIMEOUT_S:            {{ .Values.resilience.dbSocketTimeoutSeconds | quote }}
   ESQ_DB_TCP_KEEPALIVE:               {{ .Values.resilience.dbTcpKeepAlive | quote }}
+  # --- v1.2.10 VT (UNVALIDATED test lever, default OFF -- see HA doc 5.5) ---
+  ESQ_VIRTUAL_THREADS:                {{ .Values.esqVirtualThreads | quote }}
   # --- H2 local cache (Taijitu two-monad store) ---
   BIZTREE_CACHE_VENDOR:               {{ .Values.h2.vendor | quote }}
   BIZTREE_H2_URL:                     {{ .Values.h2.url | quote }}
@@ -36,6 +38,7 @@ data:
   ENTITY_SLOT_ID:                  {{ .Values.entity.slotId | quote }}
   ENTITY_BROADCAST_POOL_SIZE:         {{ .Values.entity.broadcastPoolSize | quote }}
   ENTITY_BROADCAST_CONCURRENCY:       {{ .Values.entity.broadcastConcurrency | quote }}
+  ENTITY_BROADCAST_POOL_MODE:         {{ .Values.entity.poolMode | quote }}
   # --- Taijitu director + night-watch sweep (Java @Value relaxed binding) ---
   BIZTREE_DIRECTOR:                   {{ .Values.taijitu.director | quote }}
   BIZTREE_MONAD_QUEUE_CAPACITY:       {{ .Values.taijitu.queueCapacity | quote }}

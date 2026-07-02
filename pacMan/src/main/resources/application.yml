@@ -3,6 +3,10 @@ spring:
     active: ${DB_PACMAN_VENDOR:dev-postgres}
   application:
     name: pacman
+  # v1.2.10 VT: run each REST request on a virtual thread (Tomcat); opt-in, default OFF (pre-HA). See HA doc 5.5.
+  threads:
+    virtual:
+      enabled: ${ESQ_VIRTUAL_THREADS:false}
   jpa:
     hibernate:
       ddl-auto: none
@@ -26,9 +30,10 @@ pacman:
           x-rod:
             rod-class: pro.mir0n.esquire.dataKeep.keep.XRodInProcessKeep
             director: pro.mir0n.esquire.audit.AuditKeepDirector
-            pool-size: ${AUDIT_POOL_SIZE:4}
+            receiver-pool:
+              size: ${AUDIT_POOL_SIZE:4}
+              mode: ${AUDIT_POOL_MODE:platform}   # platform | virtual | virtual-per-task
             feed-capacity: ${AUDIT_FEED_CAPACITY:4096}
-            virtual-threads: ${AUDIT_VIRTUAL_THREADS:false}
             datasource:
               # the keep's OWN dedicated *_log pool, from the url/hikari below.
               url: ${DB_DATAKEEP_URL:jdbc:postgresql://${DB_PACMAN_HOST:localhost}:${DB_PACMAN_PORT:5432}/${DB_PACMAN_NAME:esq2025}}
@@ -50,7 +55,9 @@ esquire:
       slot-id: ${ENTITY_SLOT_ID:entity}
       role: SERVER
       x-rod:
-        publisher-pool-size: ${ENTITY_BROADCAST_PUBLISHER_POOL_SIZE:0}
+        publisher-pool:
+          size: ${ENTITY_BROADCAST_PUBLISHER_POOL_SIZE:0}
+          mode: ${ENTITY_BROADCAST_PUBLISHER_POOL_MODE:platform}
         # producer send-retry sublayer (opt-in, default OFF here; turned ON for the entity broadcast bus in
         # docker compose + the local-k8s overlay -- OKE stays on this pre-HA default). Block mode (max-attempts
         # 0): on a broker-down send, retry over the backoff ladder (seconds) until it goes through; the bounded

@@ -149,7 +149,7 @@ are added LATER, each as an **additional sublayer** on that stack:
   drop / local buffer must be decided first.
 - **Retry / backoff variants** beyond `send-retry`.
 - **Per-message timeout** -- async has no request/response deadline today.
-- **Per-destination bulkhead** -- today only `pool-size` bounds concurrency; no per-destination isolation.
+- **Per-destination bulkhead** -- today only `receiver-pool.size` bounds concurrency; no per-destination isolation.
 - **Metrics** -- Micrometer, separate from the bus health indicator.
 
 See the "Messaging-path resilience -- NOT Resilience4j" gap tables in `doc/plans/tasks1210.md` for what exists vs
@@ -165,6 +165,55 @@ not and why (R4j is sync-only; the bus carries its own resilience).
 
 Modeled on the FIX protocol's order-status flow. Builds on the R&R rod (`XRodRR`) + the existing request/reply
 rod-id correlation -- a defined continuing-processing protocol layered on top of it.
+
+---
+
+## 7. Broadcast topic delivery across a full broker restart -- the resubscribe race
+
+**First run.** The entity-change broadcast rides a NON-DURABLE topic: the broker delivers each publish only to the
+consumers subscribed AT THAT INSTANT. On a FULL broker restart -- a k8s broker-pod replacement (`scale 0->1`) or an
+OKE failover to a fresh broker -- the producer (enyMan, with `send-retry` holding a change) and the consumer
+(bizTree) each reconnect INDEPENDENTLY through `failover:`. Send-retry re-sends the held change on producer
+reconnect; if that re-send lands BEFORE bizTree has resubscribed, the topic has no subscriber for it and the broker
+drops it -- bizTree misses that one broadcast. The **night-watch anti-entropy sweep** is the backstop: it reloads
+bizTree from the DB and heals the drift (the `MessageLossSimulation` scenario). VERIFIED local k8s 2026-07-01
+(broker scaled `0->1`: an office broadcast was dropped to a mid-resubscribe bizTree, then a forced `/esq-sweep`
+restored it -- NO data lost).
+
+**Why the first run is acceptable.** No data is lost -- the change is committed in the DB and the night-watch
+reconciles the cache; only a WINDOW of cache staleness remains, until the next sweep. It bites ONLY on a full
+broker restart (rare), not a brief blip -- a `docker stop/start` (same broker process, fast reconnect) does not hit
+it. `send-retry` is producer-side: its contract is "the send LANDS on the broker", which it meets; it cannot make a
+non-durable-topic consumer be subscribed at the re-send instant. And send-retry already IMPROVES the prior behavior
+-- the change is held + re-sent instead of dropped outright during the outage.
+
+**Fuller form.** Close the CONSUMER side so a full broker restart needs no sweep to reconcile: a DURABLE topic
+subscription (the broker retains messages for a named subscriber while it is reconnecting), so the re-sent
+broadcast is delivered once bizTree returns. Pairs with the consumer-leg / round-trip health refinements in item 1
+and the drop-visibility counters (`tasks129.md` commit 7). Transport-dependent: durable subscriptions are an
+ActiveMQ concept; Kafka (offset retention) and Redis Streams (the log IS retained) survive a restart differently
+-- part of the per-driver durability work (`tasks129.md` item 13).
+
+## 8. Virtual-threads throughput budget on OKE (correctness done; perf A/B open)
+
+The pool thread model is now a first-class per-leg setting -- `receiver-pool.mode` / `publisher-pool.mode` =
+`platform` | `virtual` | `virtual-per-task`, backed by the common `WorkerPool` (`pro.mir0n.utils.concurrent`); the
+request path is wired via `spring.threads.virtual.enabled` (`ESQ_VIRTUAL_THREADS`). The stack runs on the **JDK 25
+LTS** runtime (compiled `--release 24`), so JEP 491 removes the old `synchronized`-monitor pinning that our x-rod
+engine + send-retry lock + JDBC would have hit. **CORRECTNESS is validated:** the full smoke + e2e matrix passes
+identically on `platform` and `virtual`, on BOTH docker and local k8s (8/8 cells green) -- a service boots healthy
+and processes events the same either way, with no pinning stall. Default stays `platform`.
+
+**What is still open -- the throughput / budget A/B, and it is OKE-only.** The matrix proved correctness, not
+performance: on a single saturated host the timings are noise. The finding so far (see `HighAvailability.md` 5.5)
+is that virtual threads buy **nothing** for Esquire's messaging pools, because they are small FIXED pools whose
+real ceiling is the keep's DB connection pool (`receiver-pool.size <= keep DB pool`), not thread count -- and VT
+only pays off when a pod would otherwise exhaust its per-pod OS file-handle / thread budget holding MANY
+concurrently-blocked waits. The open task is to confirm that no-benefit conclusion under real load on OKE (more
+cores, no CPU cap), and to check the one candidate that could differ -- a blocking-I/O consumer like
+kcMaster -> KeyCloak, or the Tomcat request path under high concurrent-slow-request load. Compare a thread dump /
+latency / memory against the platform baseline; the result decides whether VT is ever worth turning on for a
+specific leg, or stays an unused-by-default lever.
 
 ---
 

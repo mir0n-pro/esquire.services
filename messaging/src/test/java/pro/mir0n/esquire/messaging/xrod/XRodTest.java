@@ -37,7 +37,7 @@ class XRodTest {
     /** A receive x-rod: no transport (in-process) + the registry applier as the worker; tests receive() directly. */
     private static XRod receive(RodEventRepoRegistry reg, int poolSize, boolean virtualThreads) {
         XRod rig = new XRod();
-        rig.configure(XRodParams.from(Map.of("pool-size", poolSize, "virtual-threads", virtualThreads))
+        rig.configure(XRodParams.from(Map.of("receiver-pool", Map.of("size", poolSize, "mode", virtualThreads ? "virtual" : "platform")))
                 .withBus("test", "rx", null), Role.CLIENT, null);
         rig.init("test-rx", null);   // CREATE the receive pool (paused) -- before setWorker (the leg must exist)
         rig.setWorker(reg.applier(null));
