@@ -18,6 +18,8 @@
  * 07/01/2026 mir0n  shutdown() lifecycle: a volatile 'stopping' releases a held worker AT ONCE on service stop and
  *                   refuses new holds (re-checked under the monitor so a shutdown notify is never lost); the holds
  *                   map moved to a ConcurrentHashMap and the lock narrowed to the wait/notify monitor only
+ * 07/02/2026 mir0n  drop() also logs to the MAIN app log (msgAudit rides the msg-log channel, OFF in prod) so a
+ *                   dropped (dead) message is visible in prod logs
  */
 package pro.mir0n.esquire.messaging.xrod.impl.sublayer;
 
@@ -62,6 +64,8 @@ import java.util.function.LongSupplier;
  * re-checked UNDER that monitor immediately before waiting, so a shutdown notify can never be lost.
  */
 public final class SendRetrySublayer implements ISessionSublayer {
+
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(SendRetrySublayer.class);
 
     private static final long DEFAULT_BACKOFF_MS = 1000L;    // backoff when none is configured (1s)
     private static final long WAIT_SAFETY_MS     = 10_000L;  // bounded hold-wait: a missed-signal safety net (~10x the
@@ -208,6 +212,10 @@ public final class SendRetrySublayer implements ISessionSublayer {
     private void drop(int afterAttempts, RodEvent event) {
         msgAudit.warn("send-retry[{}]: send failed after {} attempts -- DROPPING {} -- kind={}, entityId={}",
                 identity.rodId(), afterAttempts, event.applMsgId(), event.kind(), event.entityId());
+        // Also surface the drop on the MAIN app log: msgAudit rides the msg-log channel, which is OFF in
+        // prod (OKE levelMsg:OFF), so a dropped (dead) message would otherwise be invisible there.
+        log.info("send-retry[{}]: message DROPPED after {} attempts -- kind={}, entityId={}, applMsgId={}",
+                identity.rodId(), afterAttempts, event.kind(), event.entityId(), event.applMsgId());
     }
 
     /** The number of messages currently held (test seam: lets a test observe a parked worker). */

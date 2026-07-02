@@ -24,6 +24,15 @@ Audit header fields (meaningful on `UA`; present in the envelope, otherwise null
 `TestReqID` carries the `RequestID` value (the request/response correlation key folded into `RequestID`,
 which the producer guarantees non-null); it is kept on the wire for shape.
 
+**Why one wide envelope (the FIX-precedent tradeoff).** All message types -- Request / Response /
+RequestReject / Entity / Audit / Session -- ride the SAME envelope (`RodEvent`), so most of its fields are null
+on any given message and the type is carried in DATA (`MsgType`) rather than in a Java type. This is a
+deliberate choice, modeled on FIX: ONE codec (`RodEventCodec`) and ONE wire shape for every message means a new
+message type or field is added WITHOUT a new class, a new codec, or a schema migration -- the same
+generic-envelope tradeoff FIX makes (a tag dictionary over typed messages). The cost is the obvious one: no
+per-message-type compile-time safety and a wide, mostly-null record. Producers and consumers validate the
+fields they actually use; the envelope stays open.
+
 Esquire Entity Broadcast Message : UE
 
 | Canonical field name | FIX tag | Type | Required | Example | Notes                                                                                                   |

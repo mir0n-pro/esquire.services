@@ -217,11 +217,60 @@ specific leg, or stays an unused-by-default lever.
 
 ---
 
+## 9. R&R reply-timeout / reply-tracking resilience (moved from v1.2.10 backlog #14, 2026-07-02)
+
+`XRodRR` fires a request and waits for a reply with **no per-request timeout, no pending-request map, and no
+replier-down detection**; and a failed R&R apply under `AUTO_ACKNOWLEDGE` is acked-and-lost with no redelivery.
+Today this is **bounded, not an active hang**: a missing reply surfaces as the caller's outer request timing out
+(the gateway / BFF timeout ladder), and R&R runs single-instance. The improvement -- a real R&R-level reply
+timeout + pending-request tracking + replier-down detection, and not losing a failed apply -- is
+**continuing-development, not v1.2 scope**: its full value is the multi-instance reply-routing case (kcMaster
+multi-instance, `tasks1210.md` #15), and the outer timeout already caps the single-instance wait. Not a big thing
+to fight for in v1.2.
+
+**Companion work (already posed):** the **async long-running-command protocol** -- item 6 above (FIX-like: a
+request WITH a subscription gets processing-status updates at each change; WITHOUT one gets an ACK, then polls for
+completion). A long-running R&R command's status / progress / completion-and-timeout semantics belong with that
+protocol -- so R&R reply-timeout resilience (this item) and the async-command protocol (item 6) are the SAME body
+of R&R continuing-dev work and should be designed together.
+
+(The rod-id **uniqueness** half of the original #14 was REJECTED -- rod-id is unique by default via StatefulSet
+ordinals, a manual override is a deliberate expert choice; see `doc/Esquire.Q&A.md`.)
+
+---
+
+## 10. Replay / seek API for retained-log transports (Kafka / Redis Streams)
+
+**Deferred (from the v1.2.10 Messaging-Bus assessment, `tasks1210.md` 3.4, 2026-07-02).** The bus has no API to
+REPLAY a leg from an earlier point: `IXRod` exposes send + set-worker, but no `replayFrom(offset)` /
+`seekToTimestamp(ts)`. On a **retained-log** transport this is a real, cheap capability the wire already supports
+-- Kafka keeps offsets, Redis Streams IS an append-only log (`XRANGE` / `XREVRANGE` from any id) -- so a consumer
+could re-read from a chosen point after a gap or for a rebuild. On ActiveMQ there is nothing to seek (a
+non-durable topic retains nothing; a queue is consume-once), so replay is inherently a **per-driver** capability,
+not a universal one. Belongs with the per-driver durability / selector work (`tasks129.md` item 13) and pairs with
+the durable-topic direction in item 7. When added, `IXRod` gains an OPTIONAL seek/replay method that a
+non-retaining driver rejects (the same shape as `tp-redis`'s `supportsConsume() == false`).
+
+---
+
+## 11. Javadoc quality gate for the bus public API (REQUIRED for the public API)
+
+**From the v1.2.10 Full-System Review (`tasks1210.md` D1, 2026-07-02).** The generation infrastructure now exists
+-- the `-Pjavadoc` profile + `make-javadoc.bat` publish per-module API docs under `doc/java-doc/`, with doclint
+OFF so it never blocks the build. What is NOT yet enforced is the QUALITY of that Javadoc on the bus's public
+surface: the extension SPI an adopter codes against -- `IXRod`, `ISessionSublayer`, the transport SPI, the
+catalog / `XRodParams` config keys, `RodEvent` / codec. For the PUBLIC API, complete and meaningful Javadoc is
+REQUIRED (every public / extendable type + method: purpose, params, return, contract, threading / lifecycle notes
+-- not a stub echo of the signature). Candidate mechanism: re-enable doclint SCOPED to the exported packages only
+(kept separate from the build-wide OFF setting) plus a doc-coverage check that fails if a public type / member is
+undocumented. Stays within the "mechanism-only, never where-applied" rule for framework docs.
+
+---
+
 ## Related parked items (already tracked elsewhere -- not re-listed here)
 
 - Transport SPI is ActiveMQ-shaped; selector / `key()` / durability differ per driver -- `tasks129.md` item 13
   (v1.2.10) and the selector design direction recorded there.
-- R&R reply timeout + rod-id uniqueness -- `tasks129.md` item 14 (v1.2.10).
 - Loss-visibility drop counters (the other half of commit 7) -- `tasks129.md` commit 7 / item 1.
 - DB-pool durability (pgjdbc `socketTimeout` / `tcpKeepAlive`; the `isValid()`-on-a-half-open-socket gap that
   makes `XRodInProcessKeep` / `keepDatasource` health blind on k8s) -- memory

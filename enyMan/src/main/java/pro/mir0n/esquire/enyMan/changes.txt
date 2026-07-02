@@ -1,5 +1,11 @@
 Esquire enyMan Microservice
 
+07/03/2026 mir0n  v1.2.10 -- X-Request-ID required on write commands; send-retry-backoff key -sec suffix
+service.impl.EnyManService
+  - write commands (esquireCommandSave / New / Delete / Move) read requestId via requireRequestId() -- X-Request-ID mandatory on writes
+resources/application.yml
+  - send-retry-backoff -> send-retry-backoff-sec (env *_SEND_RETRY_BACKOFF -> *_SEND_RETRY_BACKOFF_SEC) mirroring the XRodParams key rename
+
 06/29/2026 mir0n  v1.2.10 -- R6 move-tx opt-out + query-timeout test hook; R1-R5 env wiring
 queue.MoveQueueManager
   - move worker runs on a dedicated TransactionTemplate that opts out of the request-path cap via

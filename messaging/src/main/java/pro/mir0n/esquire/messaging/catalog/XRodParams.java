@@ -25,6 +25,8 @@
  * 07/01/2026 mir0n  worker pool regrouped: pool-size / virtual-threads / publisher-pool-size dropped from SCALARS,
  *                   replaced by the receiver-pool / publisher-pool {size, mode} GROUPS -- getters receiverPoolSizeOr /
  *                   receiverPoolMode / publisherPoolSizeOr / publisherPoolMode; the flat-key getters + fallback removed
+ * 07/02/2026 mir0n  config key send-retry-backoff -> send-retry-backoff-sec (unit suffix): SCALARS entry +
+ *                   sendRetryBackoff() getter now read send-retry-backoff-sec
  */
 package pro.mir0n.esquire.messaging.catalog;
 
@@ -53,7 +55,7 @@ public record XRodParams(String busId, String slotId, Map<String, Object> raw) {
     public static final List<String> SCALARS = List.of(
             "rod-id", "rod-class", "feed-capacity", "concurrency",
             "alive", "heartbeat-interval", "alive-timeout", "alive-fail-fast",
-            "send-retry", "send-retry-backoff", "send-retry-max-attempts");
+            "send-retry", "send-retry-backoff-sec", "send-retry-max-attempts");
     // NOTE: the worker pool is the receiver-pool / publisher-pool GROUPS ({size, mode}) -- groups, not scalars.
 
     /** Build from the raw x-rod node: flatten it (so nested transport / sub-blocks read by dotted key) and keep
@@ -219,7 +221,7 @@ public record XRodParams(String busId, String slotId, Map<String, Object> raw) {
 
     // --- producer send-retry sublayer knobs (opt-in, default off; backoff ladder in seconds, comma-separated) ---
     public boolean sendRetryOr(boolean def)       { return boolOr("send-retry", def); }
-    public String  sendRetryBackoff()             { return str("send-retry-backoff"); }
+    public String  sendRetryBackoff()             { return str("send-retry-backoff-sec"); }
     public int     sendRetryMaxAttemptsOr(int def){ return intOr("send-retry-max-attempts", def); }
 
     private String str(String key) {

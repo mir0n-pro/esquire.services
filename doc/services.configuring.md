@@ -83,7 +83,7 @@ Esquire catalog: which buses exist and the env that drives them. The vocabulary:
   its own destination); single-node buses just carry a `destination`.
 - **x-rod**: the per-slot x-rod config -- `rod-class` + engine knobs (receiver-pool.size, receiver-pool.mode,
   feed-capacity, publisher-pool.size, publisher-pool.mode, concurrency) + alive-protocol knobs (alive, heartbeat-interval,
-  alive-timeout, alive-fail-fast) + send-retry knobs (send-retry, send-retry-backoff, send-retry-max-attempts)
+  alive-timeout, alive-fail-fast) + send-retry knobs (send-retry, send-retry-backoff-sec, send-retry-max-attempts)
   + a `transport` block.
   - **alive protocol** (an OPT-IN session-layer keep-alive; **OFF by default**): `alive` (default `false`) --
     turn on the FIX-style HeartBeat / TestRequest session on this leg. When OFF, the leg runs no session and its
@@ -97,7 +97,7 @@ Esquire catalog: which buses exist and the env that drives them. The vocabulary:
     (default `false`) -- when a dispatch fails on a transport-backed producer leg, HOLD the message on the feed
     (tx) worker and re-dispatch it over a backoff ladder until the broker recovers (the SAME `ApplMsgID` per
     resend, so a consumer can dedup). Holding the single worker is the back-pressure -- queued events wait
-    behind it. `send-retry-backoff` (a comma list of SECONDS, default `1,2,5,5` -- the last step repeats) is the
+    behind it. `send-retry-backoff-sec` (a comma list of SECONDS, default `1,2,5,5` -- the last step repeats) is the
     ladder; `send-retry-max-attempts` (default `0`) is `0` = BLOCK mode (retry until recovery, never drop) or a
     positive N = FALLBACK mode (DROP after N attempts and move on). Only a transport publisher leg gets it (an
     in-process / non-transport leg has nothing to re-dispatch); a heartbeat is never retried. Keep these IN SYNC
@@ -448,10 +448,10 @@ overrides it actually uses:
 | `ENTITY_SLOT_ID` | `entity` | Entity slot-id. |
 | `ENTITY_RX_POOL_SIZE` | `2` | Entity-bus receive-leg listener pool size (Goal-4 peer-create receive). |
 | `ENTITY_RX_CONCURRENCY` | `1` | Entity-bus receive-leg listener concurrency. |
-| `ENTITY_BROADCAST_SEND_RETRY` | `false` | Producer [send-retry](#messaging-bus-the-x-rod--topology-import) on the entity broadcast leg; ON in docker + local-k8s, OFF on OKE. Ladder `ENTITY_BROADCAST_SEND_RETRY_BACKOFF` (`1,2,5,5`) + cap `ENTITY_BROADCAST_SEND_RETRY_MAX_ATTEMPTS` (`0` = block). |
+| `ENTITY_BROADCAST_SEND_RETRY` | `false` | Producer [send-retry](#messaging-bus-the-x-rod--topology-import) on the entity broadcast leg; ON in docker + local-k8s, OFF on OKE. Ladder `ENTITY_BROADCAST_SEND_RETRY_BACKOFF_SEC` (`1,2,5,5`) + cap `ENTITY_BROADCAST_SEND_RETRY_MAX_ATTEMPTS` (`0` = block). |
 | `KC_BUS_ID` | `esquire.kc` | KC request/response bus-id (R&R CLIENT). |
 | `KC_SLOT_ID` | `kc` | KC slot-id. |
-| `KC_SEND_RETRY` | `false` | Producer send-retry on the KC request leg (+ `KC_SEND_RETRY_BACKOFF` `1,2,5,5` / `KC_SEND_RETRY_MAX_ATTEMPTS` `0`); ON in docker + local-k8s. |
+| `KC_SEND_RETRY` | `false` | Producer send-retry on the KC request leg (+ `KC_SEND_RETRY_BACKOFF_SEC` `1,2,5,5` / `KC_SEND_RETRY_MAX_ATTEMPTS` `0`); ON in docker + local-k8s. |
 | `AUDIT_BUS_ID` | *(see [audit logging](#audit-logging-producers-enyman-pacman-keysmith))* | Audit sink bus-id (UA producer). |
 | `ENYMAN_MOVE_QUEUE_CAPACITY` | `16384` | Move-queue depth (bounded; on full, `submitMove`/`submitReconcile` drop + log). |
 | `ENYMAN_MOVE_TX_TIMEOUT_S` | `0` | Move-transaction cap (seconds); `0` = uncapped (pre-HA). The move opts OUT of the request-path cap ([`ESQ_TX_TIMEOUT_S`](#resilience-budget-timeouts-pool--thread-sizing)) -- set a positive value only to put a safety ceiling on a move. |
@@ -472,7 +472,7 @@ pacMan joins **entity-bus** (SERVER -- broadcasts UE) and **audit-bus** (UA prod
 |---|---|---|
 | `ENTITY_BUS_ID` | `esquire.entity` | Entity-broadcast bus-id (SERVER producer). |
 | `ENTITY_SLOT_ID` | `entity` | Entity slot-id. |
-| `ENTITY_BROADCAST_SEND_RETRY` | `false` | Producer [send-retry](#messaging-bus-the-x-rod--topology-import) on the entity broadcast leg; ON in docker + local-k8s, OFF on OKE. Ladder `ENTITY_BROADCAST_SEND_RETRY_BACKOFF` (`1,2,5,5`) + cap `ENTITY_BROADCAST_SEND_RETRY_MAX_ATTEMPTS` (`0` = block). |
+| `ENTITY_BROADCAST_SEND_RETRY` | `false` | Producer [send-retry](#messaging-bus-the-x-rod--topology-import) on the entity broadcast leg; ON in docker + local-k8s, OFF on OKE. Ladder `ENTITY_BROADCAST_SEND_RETRY_BACKOFF_SEC` (`1,2,5,5`) + cap `ENTITY_BROADCAST_SEND_RETRY_MAX_ATTEMPTS` (`0` = block). |
 | `AUDIT_BUS_ID` | *(see [audit logging](#audit-logging-producers-enyman-pacman-keysmith))* | Audit sink bus-id (UA producer). |
 
 ---
@@ -491,7 +491,7 @@ producer).
 |---|---|---|
 | `KC_BUS_ID` | `esquire.kc` | KC request/response bus-id (R&R CLIENT). |
 | `KC_SLOT_ID` | `kc` | KC slot-id. |
-| `KC_SEND_RETRY` | `false` | Producer [send-retry](#messaging-bus-the-x-rod--topology-import) on the KC request leg; ON in docker + local-k8s, OFF on OKE (pre-HA). Ladder `KC_SEND_RETRY_BACKOFF` (`1,2,5,5`) + cap `KC_SEND_RETRY_MAX_ATTEMPTS` (`0` = block until recovery). |
+| `KC_SEND_RETRY` | `false` | Producer [send-retry](#messaging-bus-the-x-rod--topology-import) on the KC request leg; ON in docker + local-k8s, OFF on OKE (pre-HA). Ladder `KC_SEND_RETRY_BACKOFF_SEC` (`1,2,5,5`) + cap `KC_SEND_RETRY_MAX_ATTEMPTS` (`0` = block until recovery). |
 | `AUDIT_BUS_ID` | *(see [audit logging](#audit-logging-producers-enyman-pacman-keysmith))* | Audit sink bus-id (UA producer). |
 | `KEYSMITH_TEST_CONNECT_HOLD_MS` | `0` | **Test-only** race-8c hook: ms to sleep between the committed path read and the activation URQ publish. `0` = disabled; never set in production. |
 
@@ -512,7 +512,7 @@ talks to KC over the admin REST API.
 | `KC_ADMIN_CLIENT_SECRET` | *(empty)* | Secret for a confidential admin client. |
 | `KC_BUS_ID` | `esquire.kc` | KC request/response bus-id (R&R SERVER; serves enyMan + keySmith). |
 | `KC_SLOT_ID` | `kc` | KC slot-id (SERVER consume filters `SlotID = '<slot-id>'`). |
-| `KC_SEND_RETRY` | `false` | Producer [send-retry](#messaging-bus-the-x-rod--topology-import) on the KC response leg; ON in docker + local-k8s, OFF on OKE. Ladder `KC_SEND_RETRY_BACKOFF` (`1,2,5,5`) + cap `KC_SEND_RETRY_MAX_ATTEMPTS` (`0` = block). |
+| `KC_SEND_RETRY` | `false` | Producer [send-retry](#messaging-bus-the-x-rod--topology-import) on the KC response leg; ON in docker + local-k8s, OFF on OKE. Ladder `KC_SEND_RETRY_BACKOFF_SEC` (`1,2,5,5`) + cap `KC_SEND_RETRY_MAX_ATTEMPTS` (`0` = block). |
 | `ENTITY_BUS_ID` | `esquire.entity` | Entity-broadcast bus-id (CLIENT consumer, for KC path sync). |
 | `ENTITY_SLOT_ID` | `entity` | Entity slot-id. |
 | `KCMASTER_PATH_BUFFER_TTL_MS` | `60000` code / `10000` deployed | Race-8c path-buffer TTL. Buffered topic-side paths older than this are not applied. **Test:** `-1` disables recovery (reproduces the race). |

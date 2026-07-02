@@ -1,5 +1,11 @@
 Esquire Common microservice classes
 
+07/03/2026 mir0n  v1.2.10 -- X-Request-ID required on write commands
+MissingRequestIdException  (new)
+  - 400 Bad Request when a write command arrives without X-Request-ID
+RequestContextUtils
+  - requireRequestId(): X-Request-ID presence guard (null/blank -> MissingRequestIdException / 400) for write commands
+
 06/29/2026 mir0n  v1.2.10 -- R6 request-path query-timeout opt-out helper
 QueryTimeouts  (new)
   - NO_PRACTICAL_LIMIT_SECONDS sentinel + resolveOptOut(int): a configured > 0 seconds is used as-is, else the

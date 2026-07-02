@@ -1,5 +1,11 @@
 Esquire messaging framework classes
 
+07/03/2026 mir0n  v1.2.10 -- send-retry drop visibility; send-retry-backoff config key -sec unit suffix
+XRodParams
+  - config key send-retry-backoff -> send-retry-backoff-sec (unit suffix): SCALARS entry + sendRetryBackoff() getter now read send-retry-backoff-sec
+SendRetrySublayer
+  - drop() also logs to the MAIN app log (msgAudit rides the msg-log channel, OFF in prod) so a dropped (dead) message is visible in prod logs
+
 07/01/2026 mir0n  v1.2.10 -- x-rod worker pool = the common WorkerPool; the pool thread model becomes per-leg config (receiver-pool / publisher-pool {size, mode}); SendRetry shutdown lifecycle
 XRodParams
   - the worker pool regrouped: pool-size / virtual-threads / publisher-pool-size dropped from SCALARS, replaced

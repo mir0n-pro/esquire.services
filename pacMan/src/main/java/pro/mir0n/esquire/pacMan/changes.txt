@@ -1,5 +1,13 @@
 Esquire pacMan Microservice
 
+07/03/2026 mir0n  v1.2.10 -- X-Request-ID required on write commands; send-retry-backoff key -sec suffix
+service.impl.PacManService
+  - saveAcct / deleteAcct read requestId via requireRequestId() -- X-Request-ID mandatory on writes
+acct.service.AcctTransactionService
+  - esquireCommandAcct guards X-Request-ID presence via requireRequestId()
+resources/application.yml
+  - send-retry-backoff -> send-retry-backoff-sec (env *_SEND_RETRY_BACKOFF -> *_SEND_RETRY_BACKOFF_SEC) mirroring the XRodParams key rename
+
 06/29/2026 mir0n  v1.2.10 -- R1-R6 env wiring (request-path cap, keep cap, pool/threads/fail-fast DB)
 resources/application.yml
   - spring.transaction.default-timeout (ESQ_TX_TIMEOUT_S, -1 = no cap); keep query-timeout-seconds

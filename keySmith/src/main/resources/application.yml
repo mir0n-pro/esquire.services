@@ -68,7 +68,7 @@ esquire:
         # replayed after the caller's reply timeout still does the work; the late reply is orphaned (no
         # correlation) and the KC sync is idempotent.
         send-retry: ${KC_SEND_RETRY:false}
-        send-retry-backoff: ${KC_SEND_RETRY_BACKOFF:1,2,5,5}
+        send-retry-backoff-sec: ${KC_SEND_RETRY_BACKOFF_SEC:1,2,5,5}
         send-retry-max-attempts: ${KC_SEND_RETRY_MAX_ATTEMPTS:0}
 logging:
   level:

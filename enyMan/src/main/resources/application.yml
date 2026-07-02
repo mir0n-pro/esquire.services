@@ -76,7 +76,7 @@ esquire:
         # replayed after the caller's reply timeout still does the work; the late reply is orphaned (no
         # correlation) and the KC sync is idempotent.
         send-retry: ${KC_SEND_RETRY:false}
-        send-retry-backoff: ${KC_SEND_RETRY_BACKOFF:1,2,5,5}
+        send-retry-backoff-sec: ${KC_SEND_RETRY_BACKOFF_SEC:1,2,5,5}
         send-retry-max-attempts: ${KC_SEND_RETRY_MAX_ATTEMPTS:0}
   # v1.2.10 Goal-4: enyMan both PUBLISHES entity broadcasts and LISTENS for its peers' (CLIENT role -> the rod
   # runs a receive leg; because the transport supports both legs on one connection it ALSO opens a producer leg
@@ -102,7 +102,7 @@ esquire:
         # 0): on a broker-down send, retry over the backoff ladder (seconds) until it goes through; the bounded
         # feed back-pressures rather than dropping an entity broadcast. A cap > 0 switches to drop-after-N.
         send-retry: ${ENTITY_BROADCAST_SEND_RETRY:false}
-        send-retry-backoff: ${ENTITY_BROADCAST_SEND_RETRY_BACKOFF:1,2,5,5}
+        send-retry-backoff-sec: ${ENTITY_BROADCAST_SEND_RETRY_BACKOFF_SEC:1,2,5,5}
         send-retry-max-attempts: ${ENTITY_BROADCAST_SEND_RETRY_MAX_ATTEMPTS:0}
 logging:
   level:

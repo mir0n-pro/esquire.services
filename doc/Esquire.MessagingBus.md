@@ -317,7 +317,7 @@ alive marks (and fail-fast) fire BEFORE send-retry's blocking hold. Two sublayer
   Holding the single feed worker IS the back-pressure: it stops dequeuing, the bounded feed fills, producers
   block. **Block mode** (`send-retry-max-attempts: 0`, the default) retries until the broker recovers;
   **fallback mode** (a positive cap) DROPS the message after that many attempts and moves on. The backoff is a
-  seconds ladder (`send-retry-backoff`, default `1,2,5,5` — the last step repeats). A SESSION (heartbeat) event
+  seconds ladder (`send-retry-backoff-sec`, default `1,2,5,5` — the last step repeats). A SESSION (heartbeat) event
   is skipped — best-effort, never held. The knobs are in `services.configuring.md`.
 
 **Producer resilience — what ships, what is deferred.** Two patterns ship (above); the rest are the DEFERRED
@@ -492,6 +492,19 @@ an R&R rod (which already selects by rod-id / slot-id) warns and ignores it.
   `nested.*`, `wireFormat.*`. No per-key code. The one exception is `pubSubDomain`: it is a
   `setPubSubDomain(...)` call on the template / listener container, not a URI option, so `tp-activemq`
   reads it and excludes it from the URI append.
+- **Acknowledge mode and broker redelivery** — the consumer listener runs `AUTO_ACKNOWLEDGE` (the
+  `DefaultMessageListenerContainer` default; not transacted): a message is acknowledged on delivery and an
+  apply failure is caught-and-logged, so the framework never NACKs or rolls a message back to the broker.
+  ActiveMQ's `jms.redeliveryPolicy.maximumRedeliveries` (a settable URI option, above) is therefore INERT
+  under this ack mode — broker-side redelivery only fires for a transacted / `CLIENT_ACKNOWLEDGE` consumer
+  that can roll a message back. This is deliberate: the bus carries its OWN, transport-agnostic resilience —
+  producer **send-retry** (holds + re-sends the failed publish) and consumer **reconcile** (the bizTree
+  night-watch / Taijitu anti-entropy heals cache drift; the DB is the source of truth) — rather than
+  coupling delivery guarantees to an ActiveMQ-only broker feature that Kafka (offsets) and Redis Streams (a
+  retained log) do not share. Turning broker redelivery ON (a transacted consumer + a DLQ destination) would
+  add at-least-once durability for a failed apply, but at the cost of requiring **idempotent consumers**
+  (only the audit channel carries dedup indexes today) and vendor-specific config — a trade, not a strict
+  improvement.
 
 #### `tp-kafka` (topic)
 

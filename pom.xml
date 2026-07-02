@@ -72,6 +72,8 @@
         <lombok.version>1.18.38</lombok.version>
         <spring-boot.version>3.5.9</spring-boot.version>
         <maven.compiler.version>3.13.0</maven.compiler.version>
+        <jacoco.version>0.8.13</jacoco.version>
+        <maven-javadoc.version>3.11.2</maven-javadoc.version>
 		<spring-cloud.version>2025.0.0</spring-cloud.version>
         <jjwt.version>0.12.6</jjwt.version>
         <springdoc.version>2.8.1</springdoc.version>
@@ -199,6 +201,39 @@
                     </systemPropertyVariables>
                 </configuration>
             </plugin>
+            <!-- Code coverage: prepare-agent instruments the forked test JVM (surefire), so ALL tests that
+                 run in that JVM are measured together: the unit tests AND the in-JVM Testcontainers /
+                 @SpringBootTest integration tests (the *IntegrationTest classes). One combined report per
+                 module at target/site/jacoco/index.html. e2e (Playwright) and hauberk exercise a separately
+                 deployed stack (other JVMs) and are out of this report's reach by design. -->
+            <plugin>
+                <groupId>org.jacoco</groupId>
+                <artifactId>jacoco-maven-plugin</artifactId>
+                <version>${jacoco.version}</version>
+                <executions>
+                    <execution>
+                        <id>jacoco-prepare-agent</id>
+                        <goals>
+                            <goal>prepare-agent</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>jacoco-report</id>
+                        <phase>test</phase>
+                        <goals>
+                            <goal>report</goal>
+                        </goals>
+                        <configuration>
+                            <!-- Write every module's report into one sibling folder,
+                                 services/test/JaCoCo/<artifactId>, DELIBERATELY outside the module
+                                 target/ so `mvn clean` does NOT wipe the collected coverage. The
+                                 test/JaCoCo/framed.html dashboard browses these. All Esquire modules
+                                 are direct children of services. -->
+                            <outputDirectory>${project.basedir}/../test/JaCoCo/${project.artifactId}</outputDirectory>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
         </plugins>
     </build>
 
@@ -218,5 +253,33 @@
         </profile>
         ...
     </profiles -->
+
+    <profiles>
+        <!-- On-demand API-doc generation for the reusable LIBRARY modules only (common, messaging,
+             dataKeep, audit, tp-*). Not bound to the normal build lifecycle: run it explicitly with
+             make-javadoc.bat (mvn -Pjavadoc javadoc:javadoc ...). Output lands OUTSIDE target, under
+             doc/java-doc/<artifactId>, so the generated reference is a visible, browsable deliverable.
+             doclint is off: the goal is an API reference, not a comment-police gate that fails the build. -->
+        <profile>
+            <id>javadoc</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-javadoc-plugin</artifactId>
+                        <version>${maven-javadoc.version}</version>
+                        <configuration>
+                            <doclint>none</doclint>
+                            <quiet>true</quiet>
+                            <failOnError>false</failOnError>
+                            <encoding>UTF-8</encoding>
+                            <docencoding>UTF-8</docencoding>
+                            <charset>UTF-8</charset>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
 
 </project>

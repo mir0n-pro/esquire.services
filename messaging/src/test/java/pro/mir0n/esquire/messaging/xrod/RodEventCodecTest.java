@@ -120,6 +120,21 @@ class RodEventCodecTest {
     }
 
     @Test
+    void aMalformedBodyIsRejectedWithAClearError() {
+        // A message whose body is not valid JSON must fail decode with a CLEAR, identifiable error -- the
+        // consumer's catch-and-log (e.g. the audit keep) relies on a malformed message failing cleanly here,
+        // not silently half-applying or throwing an opaque parser exception.
+        Map<String, Object> p = new LinkedHashMap<>();
+        p.put(BusConstants.FIELD_EVENT_TYPE, BusConstants.EVENT_CREATE);
+        p.put(BusConstants.FIELD_ENTITY_ID, "300");
+        p.put(BusConstants.FIELD_TEXT, "{ this is : not json ");   // malformed body
+
+        assertThatThrownBy(() -> RodEventCodec.fromProps(p, om))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("deserialize body");
+    }
+
+    @Test
     void identityAndMsgTypeRideTheEnvelope() {
         // the transport identity (bus-id / slot-id / rod-id) + the event's msg-type ride the envelope
         RodEvent audit = new RodEvent(RodEvent.Op.UPDATE, 50, "100", null, 1L, "crl", "req", "uid",

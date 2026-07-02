@@ -63,7 +63,7 @@ esquire:
         # 0): on a broker-down send, retry over the backoff ladder (seconds) until it goes through; the bounded
         # feed back-pressures rather than dropping an entity change. A cap > 0 switches to drop-after-N.
         send-retry: ${ENTITY_BROADCAST_SEND_RETRY:false}
-        send-retry-backoff: ${ENTITY_BROADCAST_SEND_RETRY_BACKOFF:1,2,5,5}
+        send-retry-backoff-sec: ${ENTITY_BROADCAST_SEND_RETRY_BACKOFF_SEC:1,2,5,5}
         send-retry-max-attempts: ${ENTITY_BROADCAST_SEND_RETRY_MAX_ATTEMPTS:0}
 logging:
   level:

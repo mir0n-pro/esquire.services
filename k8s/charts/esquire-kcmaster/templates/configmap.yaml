@@ -25,7 +25,7 @@ data:
   KC_REQUEST_CONCURRENCY:         {{ .Values.kc.requestConcurrency | quote }}
   KC_RESPONSE_PUBLISHER_POOL_SIZE: {{ .Values.kc.responsePublisherPoolSize | quote }}
   KC_SEND_RETRY:                  {{ .Values.kc.sendRetry | quote }}
-  KC_SEND_RETRY_BACKOFF:          {{ .Values.kc.sendRetryBackoff | quote }}
+  KC_SEND_RETRY_BACKOFF_SEC:          {{ .Values.kc.sendRetryBackoff | quote }}
   KC_SEND_RETRY_MAX_ATTEMPTS:     {{ .Values.kc.sendRetryMaxAttempts | quote }}
   KC_POOL_MODE:                   {{ .Values.kc.poolMode | quote }}
   # --- entity-bus ref (CONSUMER: drain entity broadcast) ---

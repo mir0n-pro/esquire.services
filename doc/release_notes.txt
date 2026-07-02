@@ -1,6 +1,34 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v1.2.10-2607.0300  v1.2.10 -- collected-backlog fixes
+    - X-Request-ID required on write operations
+    - messaging send-retry: a dropped (dead) message is now logged on the main app log
+    - send-retry-backoff config keys given the -sec unit suffix
+    - KeyCloak login Cancel link
+    - JaCoCo code-coverage tooling
+    - Javadoc generation for the library modules
+    :Doc:         doc\Esquire.TestingStack.md
+                  doc\Esquire.Haubergeon.md
+                  doc\Esquire.DevProcess.md
+                  doc\Esquire.DevSetup.md
+                  doc\Esquire.Q&A.md
+                  doc\Esquire.MessagingBus.md
+                  doc\Esquire.MessagingBus.ContinuingDev.md
+                  doc\Esquire.MessagingBus.Guides.md
+                  doc\Message.Structure.md
+                  doc\services.configuring.md
+                  doc\Esquire.HighAvailability.md
+                  doc\Testing.md  (removed -- folded into Haubergeon + TestingStack)
+    Components:   common,
+                  messaging,
+                  enyMan,
+                  pacMan,
+                  keySmith,
+                  kcMaster,
+                  keycloak,
+                  k8s
+
 v1.2.10-2607.0121  v1.2.10 -- the messaging worker pools gain a virtual-threads option, Java 25 runtime
     :Feature:     each messaging worker pool can run on ordinary (platform) threads or on virtual threads, chosen
                   by a single setting per pool

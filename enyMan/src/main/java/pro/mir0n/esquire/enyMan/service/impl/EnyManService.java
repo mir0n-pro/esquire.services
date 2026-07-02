@@ -64,6 +64,8 @@
  * 06/22/2026 mir0n  bus-adapter rename: broadcastPublisher EsqEntityBroadcastPublisher -> EntityBusAdapter
  *                   (field + ctor param + import).
  * 06/23/2026 mir0n  EsqMsgConstants references -> messaging.BusConstants (wire) + common.EsqConstants (app)
+ * 07/02/2026 mir0n  write commands (esquireCommandSave / New / Delete / Move) read requestId via
+ *                   requireRequestId() -- X-Request-ID mandatory on writes
  */
 
 package pro.mir0n.esquire.enyMan.service.impl;
@@ -159,6 +161,7 @@ public class EnyManService  extends AEnyManService {
     @Override
     public EsqEntity esquireCommandSave(int kind, String id, String cmd, Map<String, Object> fields, List<String> roles) {
         EsqEntity ret = null;
+        String requestId = RequestContextUtils.requireRequestId();
         EsqObjectKind eek = EsqObjectKindStorage.getInstance().get(kind);
         if (!eek.isOrg() && !eek.isUsr()) {
             throw new ResourceNotFoundException("esquireCommandSave", "kind", String.valueOf(kind));
@@ -173,7 +176,6 @@ public class EnyManService  extends AEnyManService {
             );
         }
         // Capture trace context before delegate call (still on request thread)
-        String requestId     = RequestContextUtils.getRequestId();
         String correlationId = RequestContextUtils.getCorrelationId();
         String uid           = RequestContextUtils.getUid();
         if (eek.isOrg()) {
@@ -203,6 +205,7 @@ public class EnyManService  extends AEnyManService {
     @Override
     public EsqEntity esquireCommandNew(int kind, String parentId, String cmd, Map<String, Object> fields, List<String> roles) {
         EsqEntity ret = null;
+        String requestId = RequestContextUtils.requireRequestId();
         EsqObjectKind eek = EsqObjectKindStorage.getInstance().get(kind);
         if (!eek.isOrg() && !eek.isUsr() && !eek.isAcct()) {
             throw new ResourceNotFoundException("esquireCommandNew", "kind", String.valueOf(kind));
@@ -216,7 +219,6 @@ public class EnyManService  extends AEnyManService {
                 EsqRolesStorage.AdminCmd.CREATE
             );
         }
-        String requestId     = RequestContextUtils.getRequestId();
         String correlationId = RequestContextUtils.getCorrelationId();
         if (eek.isOrg()) {
             if (permitted) {
@@ -258,6 +260,7 @@ public class EnyManService  extends AEnyManService {
 
     @Override
     public void esquireCommandDelete(int kind, String id, String cmd, List<String> roles) {
+        String requestId = RequestContextUtils.requireRequestId();
         EsqObjectKind eek = EsqObjectKindStorage.getInstance().get(kind);
         if (!eek.isOrg() && !eek.isUsr()) {
             throw new ResourceNotFoundException("esquireCommandDelete", "kind", String.valueOf(kind));
@@ -274,7 +277,6 @@ public class EnyManService  extends AEnyManService {
         if (!permitted) {
             throw new PermissionDeniedException(eek.getTitle(), "delete");
         }
-        String requestId     = RequestContextUtils.getRequestId();
         String correlationId = RequestContextUtils.getCorrelationId();
         if (eek.isOrg()) {
             orgService.esquireCommandDelete(k, id, cmd, roles);
@@ -290,6 +292,7 @@ public class EnyManService  extends AEnyManService {
         // v1.2.6 Goal 3: pre-checks stay on the request thread; actual move work happens on the
         // move-queue worker thread. Method returns null because the records are no longer surfaced
         // to the caller -- /esq-move's controller returns 202 Accepted at submit time.
+        String requestId = RequestContextUtils.requireRequestId();
         String rootPath = RequestContextUtils.getRootPath();
         String uid      = RequestContextUtils.getUid();
         EsqObjectKind eek = EsqObjectKindStorage.getInstance().get(kind);
@@ -327,7 +330,6 @@ public class EnyManService  extends AEnyManService {
         }
         // Pre-checks passed -- hand the command to the move queue. Counter increments here so a
         // CREATE that runs the next instant already sees inMove() == true.
-        String requestId     = RequestContextUtils.getRequestId();
         String correlationId = RequestContextUtils.getCorrelationId();
         moveQueue.submitMove(new MoveCommandItem(k, id, distId, rootPath, uid, roles, requestId, correlationId));
         devLog.debug("esquireCommandMove: submitted to move queue (kind={}, id={}, distId={}, queueSize={})",

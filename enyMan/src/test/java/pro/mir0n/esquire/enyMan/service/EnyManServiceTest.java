@@ -15,6 +15,7 @@ import pro.mir0n.esquire.backend.dto.EsqEntityDictionary;
 import pro.mir0n.esquire.backend.dto.EsqEntityLayer;
 import pro.mir0n.esquire.backend.dto.EsqObjectKind;
 import pro.mir0n.esquire.backend.error.DeleteRestrictedException;
+import pro.mir0n.esquire.backend.error.MissingRequestIdException;
 import pro.mir0n.esquire.backend.error.PermissionDeniedException;
 import pro.mir0n.esquire.backend.error.ResourceNotFoundException;
 import pro.mir0n.esquire.backend.jpa.access.EsqPermissionJpa;
@@ -170,7 +171,18 @@ class EnyManServiceTest {
     // not from method params. Each test establishes the context the same way the request thread
     // does -- with the rootPath its mocks are stubbed against and the fixed uid "99".
     private void ctx(String rootPath) {
-        EsqContextHolder.set(new EsqRequestContext(null, null, UID, rootPath));
+        EsqContextHolder.set(new EsqRequestContext(null, "req-test", UID, rootPath));
+    }
+
+    // ---- esquireCommandSave: missing X-Request-ID → MissingRequestIdException ----
+
+    @Test
+    @DisplayName("esquireCommandSave: missing X-Request-ID → MissingRequestIdException")
+    void esquireCommandSave_missingRequestId_throwsMissingRequestIdException() {
+        EsqContextHolder.set(new EsqRequestContext(null, null, UID, "1.2.3")); // no reqId
+        assertThatThrownBy(() ->
+            service.esquireCommandSave(20, "100", "save", Map.of(), List.of(ROLE_ADMIN))
+        ).isInstanceOf(MissingRequestIdException.class);
     }
 
     // ---- esquireCommandSave: org kind, null roles → PermissionDeniedException ----

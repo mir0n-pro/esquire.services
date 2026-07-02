@@ -281,14 +281,14 @@ services:
       - ENYMAN_KC_PUBLISHER_POOL_SIZE=0
       # v1.2.10 send-retry on the KC R&R bus (CLIENT request leg): ON for docker (block mode -- retry until recovery)
       - KC_SEND_RETRY=true
-      - KC_SEND_RETRY_BACKOFF=1,2,5,5
+      - KC_SEND_RETRY_BACKOFF_SEC=1,2,5,5
       - KC_SEND_RETRY_MAX_ATTEMPTS=0
       - ENTITY_BUS_ID=esquire.entity
       - ENTITY_SLOT_ID=entity
       - ENTITY_BROADCAST_PUBLISHER_POOL_SIZE=0
       # v1.2.10 send-retry on the entity broadcast bus: ON for docker (block mode -- retry until the broker recovers)
       - ENTITY_BROADCAST_SEND_RETRY=true
-      - ENTITY_BROADCAST_SEND_RETRY_BACKOFF=1,2,5,5
+      - ENTITY_BROADCAST_SEND_RETRY_BACKOFF_SEC=1,2,5,5
       - ENTITY_BROADCAST_SEND_RETRY_MAX_ATTEMPTS=0
       # v1.2.10 worker-pool mode (platform | virtual | virtual-per-task; default platform -- UNVALIDATED, see HA doc 5.5)
       - ESQ_VIRTUAL_THREADS=${ESQ_VIRTUAL_THREADS:-false}
@@ -355,7 +355,7 @@ services:
       - ENTITY_BROADCAST_PUBLISHER_POOL_SIZE=0
       # v1.2.10 send-retry on the entity broadcast bus: ON for docker (block mode -- retry until the broker recovers)
       - ENTITY_BROADCAST_SEND_RETRY=true
-      - ENTITY_BROADCAST_SEND_RETRY_BACKOFF=1,2,5,5
+      - ENTITY_BROADCAST_SEND_RETRY_BACKOFF_SEC=1,2,5,5
       - ENTITY_BROADCAST_SEND_RETRY_MAX_ATTEMPTS=0
       # v1.2.10 worker-pool mode (platform | virtual | virtual-per-task; default platform -- UNVALIDATED, see HA doc 5.5)
       - ESQ_VIRTUAL_THREADS=${ESQ_VIRTUAL_THREADS:-false}
@@ -459,7 +459,7 @@ services:
       - KEYSMITH_KC_PUBLISHER_POOL_SIZE=0
       # v1.2.10 send-retry on the KC R&R bus (CLIENT request leg): ON for docker (block mode -- retry until recovery)
       - KC_SEND_RETRY=true
-      - KC_SEND_RETRY_BACKOFF=1,2,5,5
+      - KC_SEND_RETRY_BACKOFF_SEC=1,2,5,5
       - KC_SEND_RETRY_MAX_ATTEMPTS=0
       # v1.2.10 worker-pool mode (platform | virtual | virtual-per-task; default platform -- UNVALIDATED, see HA doc 5.5)
       - ESQ_VIRTUAL_THREADS=${ESQ_VIRTUAL_THREADS:-false}
@@ -516,7 +516,7 @@ services:
       - KC_RESPONSE_PUBLISHER_POOL_SIZE=0
       # v1.2.10 send-retry on the KC R&R bus (SERVER response leg): ON for docker (block mode -- retry until recovery)
       - KC_SEND_RETRY=true
-      - KC_SEND_RETRY_BACKOFF=1,2,5,5
+      - KC_SEND_RETRY_BACKOFF_SEC=1,2,5,5
       - KC_SEND_RETRY_MAX_ATTEMPTS=0
       - ENTITY_BUS_ID=esquire.entity
       - ENTITY_SLOT_ID=entity
@@ -551,8 +551,9 @@ services:
     ports:
       - "7070:7070"
     healthcheck:
-      # Use localhost:7070 because this command runs INSIDE the container
-      test: ["CMD", "curl", "-f", "http://localhost:7070/actuator/health"]
+      # curl was dropped from temurin:25-jre-jammy; TCP probe on :7070 (Spring binds the port only when the app
+      # is ready) -- matches the keycloak / activemq healthchecks in this file. Runs INSIDE the container.
+      test: ["CMD-SHELL", "bash -c '</dev/tcp/127.0.0.1/7070' 2>/dev/null"]
       interval: 10s
       timeout: 3s
       retries: 10
