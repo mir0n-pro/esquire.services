@@ -1,7 +1,7 @@
 # Prod overrides for k8s/charts/infra/postgres
 image:
   repository: ghcr.io/mir0n-pro/esquire-postgres
-  tag: "v1.2.4-2605.1621"
+  # tag injected by oke-up.bat (--set image.tag=%image_tag%) -- single release tag for the whole stack.
   pullPolicy: Always
 
 # Pinned explicitly for prod (matches the chart default) rather than inherited, so a future

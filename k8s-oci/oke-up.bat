@@ -28,6 +28,17 @@ if "%mir0n_pwd%"=="" (
   exit /b 1
 )
 
+rem Release image tag pushed to GHCR (multi-arch amd64+arm64 via ghcr-push.bat).
+rem Applied to postgres + the 6 services + backend. KC and ActiveMQ keep their own
+rem pinned tags in values\keycloak.yaml / values\activemq.yaml (hand-rolled: KC only
+rem changes when the baked realm/theme changes -- bump its pinned tag there).
+if "%image_tag%"=="" (
+  echo ERROR: image_tag env var not set. Set the release tag pushed to GHCR:
+  echo   set image_tag=^<vMajor.Minor.Micro-YYMM.DDHH^>
+  exit /b 1
+)
+set IMAGE_TAG=%image_tag%
+
 rem esq-angular client secret. Defaults to the realm-import value (same one
 rem compose.yaml and k8s-up.bat already use as a literal). Override the env
 rem var when you rotate the client secret in the production KC admin UI:
@@ -53,15 +64,18 @@ rem === Infra ===
 echo --- Installing postgres...
 call helm upgrade --install esquire-infra %CHARTS%\infra\postgres ^
   -f values\postgres.yaml ^
+  --set image.tag=%IMAGE_TAG% ^
   --set db.password=%PG_PW% || exit /b 1
 
 echo --- Installing activemq...
 call helm upgrade --install esquire-infra-amq %CHARTS%\infra\activemq ^
-  -f values\activemq.yaml || exit /b 1
+  -f values\activemq.yaml ^
+  --set image.tag=%IMAGE_TAG% || exit /b 1
 
 echo --- Installing keycloak...
 call helm upgrade --install esquire-infra-kc %CHARTS%\infra\keycloak ^
   -f values\keycloak.yaml ^
+  --set image.tag=%IMAGE_TAG% ^
   --set keycloak.adminPassword=%KC_PW% || exit /b 1
 
 echo Waiting for postgres...
@@ -80,21 +94,25 @@ rem === Services ===
 echo --- Installing biztree...
 call helm upgrade --install esquire-biztree %CHARTS%\esquire-biztree ^
   -f values\biztree.yaml ^
+  --set image.tag=%IMAGE_TAG% ^
   --set db.password=%PG_PW% || exit /b 1
 
 echo --- Installing enyman...
 call helm upgrade --install esquire-enyman %CHARTS%\esquire-enyman ^
   -f values\enyman.yaml ^
+  --set image.tag=%IMAGE_TAG% ^
   --set db.password=%PG_PW% || exit /b 1
 
 echo --- Installing pacman...
 call helm upgrade --install esquire-pacman %CHARTS%\esquire-pacman ^
   -f values\pacman.yaml ^
+  --set image.tag=%IMAGE_TAG% ^
   --set db.password=%PG_PW% || exit /b 1
 
 echo --- Installing keysmith...
 call helm upgrade --install esquire-keysmith %CHARTS%\esquire-keysmith ^
   -f values\keysmith.yaml ^
+  --set image.tag=%IMAGE_TAG% ^
   --set db.password=%PG_PW% || exit /b 1
 
 echo Waiting for keycloak...
@@ -103,15 +121,17 @@ kubectl rollout status statefulset/esquire-infra-kc-keycloak -n default --timeou
 rem === KC-dependent ===
 echo --- Installing kcmaster...
 call helm upgrade --install esquire-kcmaster %CHARTS%\esquire-kcmaster ^
-  -f values\kcmaster.yaml || exit /b 1
+  -f values\kcmaster.yaml ^
+  --set image.tag=%IMAGE_TAG% || exit /b 1
 
 echo --- Installing gateway...
 call helm upgrade --install esquire-gateway %CHARTS%\esquire-gateway ^
   -f values\gateway.yaml ^
+  --set image.tag=%IMAGE_TAG% ^
   --set tokenRelay.phantom.exchangeClientSecret=%gw_exchange_secret% || exit /b 1
 
 echo Waiting for gateway...
-kubectl rollout status deployment/esquire-gateway-gateway -n default --timeout=120s
+kubectl rollout status statefulset/esquire-gateway-gateway -n default --timeout=120s
 
 rem === Backend (BFF) ===
 rem v1.2.3: BFF replaces the standalone frontend. Serves baked SPA on /, owns
@@ -124,11 +144,12 @@ rem confirmed stable: helm uninstall esquire-frontend
 echo --- Installing backend (BFF)...
 call helm upgrade --install esquire-backend %CHARTS%\esquire-backend ^
   -f values\backend.yaml ^
+  --set image.tag=%IMAGE_TAG% ^
   --set keycloak.clientSecret=%bff_kc_secret% ^
   --set session.secret=%bff_session_secret% || exit /b 1
 
 echo Waiting for backend...
-kubectl rollout status deployment/esquire-backend-backend -n default --timeout=120s
+kubectl rollout status statefulset/esquire-backend-backend -n default --timeout=120s
 
 rem === Public ingress ===
 rem Applied AFTER backend is ready -- the v1.2.3 ingress routes / to the BFF,

@@ -3,7 +3,7 @@
 # /auth/* (OIDC code+PKCE) and /api/* (server-to-server proxy to gateway).
 image:
   repository: ghcr.io/mir0n-pro/esquire.backend
-  tag: "v1.2.6-2606.0222"
+  # tag injected by oke-up.bat (--set image.tag=%image_tag%) -- single release tag for the whole stack.
   pullPolicy: Always
 
 service:
@@ -48,3 +48,24 @@ nodeEnv: production
 
 nodeSelector:
   tier: app
+
+# v1.2.10 HA: BFF stays a SINGLE replica on OKE (no Redis shared-session store -> the
+# in-memory MemoryStore would round-robin-split logins across replicas). It joins the
+# memory budget so one of the 13 app pods can't overrun a 6 GB app node.
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: 500m
+    memory: 384Mi
+
+# R1 budget promoted from the local-k8s overlay -- bound a hung request and a hung /api
+# upstream call just above the gateway/service timeout ladder (clean 504, not a hung
+# socket). spa.httpTimeoutMs mounts config.json over the baked one so the browser bounds
+# a hung request too (defense-in-depth).
+resilience:
+  requestTimeoutMs: "35000"       # R1 whole-request deadline
+  proxyTimeoutMs: "32000"         # R1 /api upstream-proxy deadline
+spa:
+  httpTimeoutMs: "40000"

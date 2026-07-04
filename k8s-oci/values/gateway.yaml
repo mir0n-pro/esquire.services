@@ -1,7 +1,7 @@
 ﻿# Prod overrides for k8s/charts/esquire-gateway
 image:
   repository: ghcr.io/mir0n-pro/esquire.gateway
-  tag: "v1.2.6-2606.0218"
+  # tag injected by oke-up.bat (--set image.tag=%image_tag%) -- single release tag for the whole stack.
   pullPolicy: Always
 
 springProfilesActive: console
@@ -56,3 +56,23 @@ logging:
 
 nodeSelector:
   tier: app
+
+# v1.2.10 HA (OKE Always-Free): x2 replicas, best-effort spread across the 3 app-tier nodes.
+replicaCount: 2
+topologySpread:
+  enabled: true
+
+# Memory-bounded for the 1 OCPU / 6 GB app nodes. CPU request trimmed from the local
+# 250m so the x2 fleet fits the ~2.5 vCPU app tier.
+resources:
+  requests:
+    cpu: 100m
+    memory: 512Mi
+  limits:
+    cpu: 750m
+    memory: 768Mi
+
+# R1 edge budget: a larger outbound pool than the chart pre-HA default (16) so the edge
+# can fan out to the x2 backend fleet. Promoted from the local-k8s overlay.
+resilience:
+  gwPoolMaxConnections: "64"      # R1

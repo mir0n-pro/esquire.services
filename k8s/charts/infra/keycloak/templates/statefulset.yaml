@@ -15,6 +15,10 @@ spec:
       labels:
         app: {{ .Release.Name }}-keycloak
     spec:
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       securityContext:
         fsGroup: 1000
       containers:

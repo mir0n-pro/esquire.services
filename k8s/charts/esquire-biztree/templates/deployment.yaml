@@ -23,6 +23,22 @@ spec:
       labels:
         app: {{ .Release.Name }}-biztree
     spec:
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if .Values.topologySpread.enabled }}
+      # HA: best-effort spread of the replicas across distinct nodes (soft -- a node
+      # loss still schedules). Off by default (pre-HA / single-node local); the OKE
+      # overlay turns it on so the x2 replicas land on different app-tier nodes.
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: {{ .Release.Name }}-biztree
+      {{- end }}
       containers:
         - name: biztree
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
@@ -51,6 +67,13 @@ spec:
                   fieldPath: metadata.name
           # readiness gates on the cacheReadiness indicator (cache loaded + serving) -- no traffic
           # until the bootstrap load completes; liveness is livenessState only so a slow load can't crashloop.
+          startupProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: {{ .Values.service.port }}
+            periodSeconds: 10
+            failureThreshold: 30      # up to 300s cold-start budget (H2 cache load / JPA init under node contention) before liveness applies
+            timeoutSeconds: 5
           readinessProbe:
             httpGet:
               path: /actuator/health/readiness

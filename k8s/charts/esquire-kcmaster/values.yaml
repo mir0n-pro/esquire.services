@@ -3,6 +3,13 @@ image:
   tag: latest
   pullPolicy: IfNotPresent
 
+# HA scheduling (pre-HA defaults: no node pinning, no spread). The OKE overlay sets
+# nodeSelector.tier=app and turns topologySpread on to place the x2 replicas on
+# distinct app-tier nodes; local (single node) leaves both off.
+nodeSelector: {}
+topologySpread:
+  enabled: false
+
 springProfilesActive: console
 
 # shared bus topology is delivered by the esquire-topology ConfigMap, mounted at /etc/esquire.

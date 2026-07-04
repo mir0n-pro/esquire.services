@@ -1,6 +1,36 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v1.2.10-2607.0416  v1.2.10 -- OKE high-availability deployment (two of each service)
+    - each backend service now runs as two copies on OKE, placed on separate machines, so
+      losing one machine keeps the site running
+    - the web/login backend (the BFF) stays a single copy on OKE to save room on the small machines
+    - the free cloud cluster grows to four small machines: one for the shared infrastructure
+      and three for the services
+    - services are given a longer start-up grace period, so a slow start on a busy machine is
+      not mistaken for a failure
+    - the reliability limits and the message resend-on-failure, first proven on the local
+      cluster, now apply on OKE as well
+    - the KeyCloak sign-in address is corrected to the full site address, which the newer
+      KeyCloak requires
+    - a single release label now drives both the image upload and the deployment
+    :Feature:     two copies of each backend service on OKE, spread across machines where possible
+    :Config:      machine placement, copy-spread, and start-up grace added to the deployment
+                  templates; switched on in the OKE settings and left off for the single-machine
+                  local setup
+    :Config:      the reliability limits and message resend now set in the OKE settings too
+    :Config:      the OKE machine pool sized to the full free allowance (four machines)
+    :Fix:         KeyCloak address set to the full site address so the newer KeyCloak accepts it
+    Components:   k8s,
+                  gateway,
+                  biztree,
+                  enyMan,
+                  pacMan,
+                  keySmith,
+                  kcMaster,
+                  BFF,
+                  keycloak
+
 v1.2.10-2607.0300  v1.2.10 -- collected-backlog fixes
     - X-Request-ID required on write operations
     - messaging send-retry: a dropped (dead) message is now logged on the main app log

@@ -24,6 +24,10 @@ spec:
       labels:
         app: {{ .Release.Name }}-aukeep
     spec:
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       containers:
         - name: aukeep
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
