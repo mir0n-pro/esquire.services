@@ -50,9 +50,10 @@ case "${CTX}" in
 esac
 echo "=== deploying to context: ${CTX}   image tag: ${IMAGE_TAG} ==="
 
-# --- Infra (idempotent install-if-absent). Only postgres is rebuilt per release
-#     (db.seed change) so only it takes the new IMAGE_TAG; activemq + keycloak keep
-#     their pinned values tag (stock-stable, pushed by hand when they change). ---
+# --- Infra (idempotent install-if-absent). postgres + keycloak are rebuilt per release
+#     (postgres bakes the db.seed schema; keycloak bakes the esquire theme + realm import),
+#     so both take the new IMAGE_TAG. Only activemq stays stock-stable at its chart-default
+#     version tag (pushed by hand when the ActiveMQ version itself changes). ---
 echo "--- infra: postgres"
 helm upgrade --install esquire-infra "${CHARTS}/infra/postgres" \
   -f "${OCIVALS}/postgres.yaml" \
@@ -66,6 +67,7 @@ helm upgrade --install esquire-infra-amq "${CHARTS}/infra/activemq" \
 echo "--- infra: keycloak"
 helm upgrade --install esquire-infra-kc "${CHARTS}/infra/keycloak" \
   -f "${OCIVALS}/keycloak.yaml" \
+  --set image.tag="${IMAGE_TAG}" \
   --set keycloak.adminPassword="${MIR0N_PWD}" --wait --timeout 6m
 
 # --- Shared messaging-bus topology (the one ConfigMap every service mounts at

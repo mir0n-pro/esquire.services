@@ -69,5 +69,10 @@ bx esquire.backend  "${WS}/explorer"       "${WS}/explorer/backend/Dockerfile"
 # (incl. create.log -> seeds the *_log tables; the OKE audit option (a) triggers live here too)
 bx esquire-postgres "${WS}"                "${SERVICES}/postgres/Dockerfile"
 
-echo "=== pushed 8 images to ${REG} at ${IMAGE_TAG} ==="
-echo "    (6 Spring services + backend/BFF + postgres; activemq + keycloak are stock-stable, pushed by hand)"
+# keycloak -- context = services/keycloak/; Dockerfile.keycloak bakes the esquire theme
+# (login Cancel link etc.) + the realm import, then runs kc.sh build. Built here (NOT
+# hand-pushed) so a sprint's theme/realm change ships with the release tag automatically.
+bx esquire-keycloak "${SERVICES}/keycloak" "${SERVICES}/keycloak/Dockerfile.keycloak"
+
+echo "=== pushed 9 images to ${REG} at ${IMAGE_TAG} ==="
+echo "    (6 Spring services + backend/BFF + postgres + keycloak; only activemq stays stock, hand-pushed)"
