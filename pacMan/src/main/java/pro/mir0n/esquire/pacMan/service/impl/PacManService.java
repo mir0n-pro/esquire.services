@@ -54,6 +54,7 @@
  * 06/22/2026 mir0n  broadcastPublisher retyped EsqEntityBroadcastPublisher -> EntityBusAdapter; RodEvent import
  *                   messaging.xrod.RodEvent -> messaging.RodEvent (package move)
  * 06/23/2026 mir0n  EsqMsgConstants references -> messaging.BusConstants (wire) + common.EsqConstants (app)
+ * 07/02/2026 mir0n  saveAcct / deleteAcct read requestId via requireRequestId() -- X-Request-ID mandatory on writes
  */
 
 package pro.mir0n.esquire.pacMan.service.impl;
@@ -137,7 +138,7 @@ public class PacManService  implements IPacManService {
     @Override
     public EsqEntity esquireCommandSave(int kind, String id, String cmd, Map<String, Object> fields, List<String> roles) {
         String correlationId = RequestContextUtils.getCorrelationId();
-        String requestId = RequestContextUtils.getRequestId();
+        String requestId = RequestContextUtils.requireRequestId();
         String rootPath = RequestContextUtils.getRootPath();
         String uid = RequestContextUtils.getUid();
 //        devLog.debug("srvc: esquireCommandSave: kind:{}, id:{}, cmd:{}, rootPath:{}, uid:{}", kind, id, cmd, rootPath, uid);
@@ -230,7 +231,7 @@ public class PacManService  implements IPacManService {
     @Override
     public void esquireCommandDelete(int kind, String id, String cmd, List<String> roles) {
         String correlationId = RequestContextUtils.getCorrelationId();
-        String requestId = RequestContextUtils.getRequestId();
+        String requestId = RequestContextUtils.requireRequestId();
         String rootPath = RequestContextUtils.getRootPath();
         devLog.debug("srvc: esquireCommandDelete: kind:{}, id:{}, cmd:{}, rootPath:{}", kind, id, cmd, rootPath);
 

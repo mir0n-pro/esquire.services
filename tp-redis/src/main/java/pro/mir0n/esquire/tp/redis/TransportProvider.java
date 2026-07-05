@@ -20,6 +20,10 @@
  *                   -> UP, a failed XADD -> DOWN (best-effort; producer-only stream).
  * 06/24/2026 mir0n  session (alive) messages routed to a separate <destination>.admin stream (streamFor; a capped
  *                   admin stream) so the append-only log stream keeps only real records; supportsBothLegs() = false
+ * 06/30/2026 mir0n  RedisPublisher (extracted class) implements the send-retry seam: encode() prepares the
+ *                   broker-free property bag (a stable ApplMsgID minted ONCE, absent-only), dispatch() builds the
+ *                   stream record + XADDs THROWING on a failure (+ SendingTime per physical send), accept() the
+ *                   best-effort path, health() / close() on the handle
  */
 package pro.mir0n.esquire.tp.redis;
 
@@ -96,27 +100,59 @@ public final class TransportProvider implements ITransportProvider {
         AutoCloseable closer = (redis.getConnectionFactory() instanceof DisposableBean db) ? db::destroy : () -> { };
         // health is XADD send-outcome (producer-only stream): a failed XADD -> DOWN, a good one -> UP.
         AtomicReference<TransportHealth> conn = new AtomicReference<>(TransportHealth.UP);
-        return TransportPublisher.of(msg -> {
+        return new RedisPublisher(redis, destination, maxLen, closer, conn);
+    }
+
+    /** The Redis-stream publisher handle. The send-retry seam: {@link #encode} prepares the BROKER-FREE unit (the
+     *  property bag with a STABLE ApplMsgID minted ONCE), {@link #dispatch} builds the stream record from it and
+     *  XADDs, THROWING on a failure (the retry signal) and flipping the health indicator. A held event's resend
+     *  relays the SAME bag (no re-encode); the per-physical-send SendingTime is stamped in dispatch. {@link #accept}
+     *  is the best-effort (retry-off) path. */
+    private static final class RedisPublisher implements TransportPublisher {
+        private final StringRedisTemplate redis;
+        private final String destination;
+        private final long maxLen;
+        private final AutoCloseable closer;
+        private final AtomicReference<TransportHealth> conn;
+
+        RedisPublisher(StringRedisTemplate redis, String destination, long maxLen, AutoCloseable closer,
+                       AtomicReference<TransportHealth> conn) {
+            this.redis       = redis;
+            this.destination = destination;
+            this.maxLen      = maxLen;
+            this.closer      = closer;
+            this.conn        = conn;
+        }
+
+        @Override
+        public Object encode(TransportMessage message) {
+            // the broker-free prepared unit: keep a STABLE ApplMsgID (a held event's resend reuses it = dedup-able),
+            // mint one only when absent. SendingTime is per physical send -> dispatch.
+            Map<String, Object> props = new LinkedHashMap<>(message.headers());
+            props.computeIfAbsent(BusConstants.FIELD_APPL_MSG_ID, k -> UUID.randomUUID().toString());
+            return props;
+        }
+
+        @Override
+        @SuppressWarnings("unchecked")
+        public void dispatch(Object encoded) throws Exception {
+            Map<String, Object> props = (Map<String, Object>) encoded;
+            Map<String, String> fields = new LinkedHashMap<>();
+            props.forEach((k, v) -> {
+                if (v != null) {
+                    fields.put(k, v.toString());   // stream fields are strings; null fields are omitted
+                }
+            });
+            fields.put(BusConstants.FIELD_SENDING_TIME, Instant.now().toString());
+
+            // a session (alive) message rides to <destination>.admin, never the log stream -- the log keeps only
+            // real records. A capped admin stream (latest probe only). An app message goes to the log.
+            Object msgType = props.get(BusConstants.FIELD_MSG_TYPE);
+            String streamKey = streamFor(destination, msgType != null ? msgType.toString() : null);
+            boolean admin = !streamKey.equals(destination);
+
+            MapRecord<String, String, String> record = StreamRecords.mapBacked(fields).withStreamKey(streamKey);
             try {
-                Map<String, Object> props = new LinkedHashMap<>(msg.headers());
-                String applMsgId = UUID.randomUUID().toString();
-                props.put(BusConstants.FIELD_APPL_MSG_ID,  applMsgId);
-                props.put(BusConstants.FIELD_SENDING_TIME, Instant.now().toString());
-
-                Map<String, String> fields = new LinkedHashMap<>();
-                props.forEach((k, v) -> {
-                    if (v != null) {
-                        fields.put(k, v.toString());   // stream fields are strings; null fields are omitted
-                    }
-                });
-
-                // a session (alive) message rides to <destination>.admin, never the log stream -- the log keeps
-                // only real records. A capped admin stream (latest probe only). An app message goes to the log.
-                Object msgType = msg.headers().get(BusConstants.FIELD_MSG_TYPE);
-                String streamKey = streamFor(destination, msgType != null ? msgType.toString() : null);
-                boolean admin = !streamKey.equals(destination);
-
-                MapRecord<String, String, String> record = StreamRecords.mapBacked(fields).withStreamKey(streamKey);
                 if (admin) {
                     redis.opsForStream().add(record, XAddOptions.maxlen(ADMIN_STREAM_MAXLEN).approximateTrimming(true));
                 } else if (maxLen > 0) {
@@ -127,9 +163,28 @@ public final class TransportProvider implements ITransportProvider {
                 conn.set(TransportHealth.UP);
             } catch (Exception ex) {
                 conn.set(TransportHealth.DOWN);
+                throw ex;
+            }
+        }
+
+        @Override
+        public void accept(TransportMessage message) {
+            try {
+                dispatch(encode(message));
+            } catch (Exception ex) {
                 devLog.error("tp-redis: XADD failed on {}: {}", destination, ex.getMessage(), ex);
             }
-        }, closer, conn::get);
+        }
+
+        @Override
+        public TransportHealth health() {
+            return conn.get();
+        }
+
+        @Override
+        public void close() throws Exception {
+            closer.close();
+        }
     }
 
     /** The stream a message rides by its {@code MsgType}: a session (alive) message -- HeartBeat / TestRequest --

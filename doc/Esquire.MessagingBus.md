@@ -56,7 +56,7 @@ end to end.
 |---|---|
 | Public API | `pro.mir0n.esquire.messaging` — `MessagingBus` (the facade), `IXRod`, `RodEvent`, `IRodEventRepo`, `RodEventRepoRegistry`, `BusHealthIndicator`, `TransportHealthIndicator`, `BusConstants` (the FIX-JSON wire constants) |
 | Bus config model + catalog | `messaging.catalog` — `MessagingBusCatalog`, `MessagingBus` (a catalog bus record), `BusSlot`, `BusNode`, `BusRef`, `BusTransport`, `XRodParams`, `Role` |
-| x-rods | `messaging.xrod` — `RodEventCodec`, `RodPublisher`, `RodTransportAdapter` — and `messaging.xrod.impl` — `AXRod`, `XRod`, `XRodRR`, `XRodInProcess`, `XRodInfo`, `XRodDisabled`, `AliveSession` (the alive-protocol collaborator). The in-process KEEP x-rod, `XRodInProcessKeep`, ships in the dataKeep library (resolved by `rod-class` like any other). |
+| x-rods | `messaging.xrod` — `RodEventCodec`, `RodPublisher`, `RodTransportAdapter` — and `messaging.xrod.impl` — `AXRod`, `XRod`, `XRodRR`, `XRodInProcess`, `XRodInfo`, `XRodDisabled`, `ISessionSublayer` (the session-sublayer seam), `MsgAudit` (the msg-audit). The concrete sublayers live in `messaging.xrod.impl.sublayer` — `SessionSublayerFactory`, `AliveSession` / `AliveSessionRR` (the alive protocol), `SendRetrySublayer` (the producer send-retry). The in-process KEEP x-rod, `XRodInProcessKeep`, ships in the dataKeep library (resolved by `rod-class` like any other). |
 | Transport SPI | `messaging.transport` — `ITransportProvider`, `TransportProviders`, `TransportMessage`, `TransportPublisher`, `TransportConsumer`, `TransportSettings`, `PublishSettings`, `ConsumeSettings`, `BusIdentity`, `TransportHealth` |
 | Transport drivers | one module per vendor — `pro.mir0n.esquire.tp.<name>.TransportProvider` + an `AutoConfigurationImportFilter` |
 
@@ -70,7 +70,7 @@ describing the topology; the **x-rod** and **network node** are the concrete sof
 | **messaging bus** | A logical aggregation of network elements that provides communication between computing services over a network. Two kinds — **broadcast** and **request-response**. An abstraction: a simplification for describing the network topology. |
 | **slot** | A part of one messaging bus — an entry point onto the bus for a specific need. A bus *is* a set of slots that share common infrastructure, behavior, and purpose. Abstract, like the bus. |
 | **network node** | The transport abstraction exposed by a vendor's (provider's) API — an ActiveMQ queue, a Kafka topic, a Redis stream. The concrete destination on the wire. |
-| **x-rod** (short: **rod**) | The transport-level software module *slotted* into a bus slot. It uniformly defines access to the network node(s) and so unifies a vendor's API with the messaging-bus concept — *as a lightning rod is slotted to a castle tower.* In code: an implementation of `IXRod`. |
+| **x-rod** (short: **rod**) | The session-level software module *slotted* into a bus slot. It uniformly defines access to the network node(s) and so unifies a vendor's API with the messaging-bus concept — *as a lightning rod is slotted to a castle tower.* In code: an implementation of `IXRod`. |
 | **leg** | A bus user — the publish or consume side. A **publisher leg** sends; a **consumer leg** receives. Every communication is a pair of legs. |
 | **role** | Which legs an x-rod runs. On a **request-response** bus: **CLIENT** (transmit request / receive response) or **SERVER** (transmit response / receive request). On a **single-node** bus: **CLIENT** = receive, **SERVER** = transmit. |
 
@@ -171,9 +171,11 @@ A leg is named `(bus-id, slot-id)`; the catalog binds it to an `XRodParams`.
 `XRodParams(busId, slotId, raw)`: `raw` is the leg's `x-rod` node **flattened** to dotted keys (so a
 nested `transport: { endpoint: … }` reads as `transport.endpoint`). All knobs are read FROM `raw` by name:
 
-- **Scalar knobs** — registered once in `XRodParams.SCALARS`: `rod-id`, `rod-class`, `pool-size`,
-  `feed-capacity`, `virtual-threads`, `publisher-pool-size`, `concurrency` (typed getters parse
-  String-or-Number).
+- **Scalar knobs** — registered once in `XRodParams.SCALARS`: `rod-id`, `rod-class`, `feed-capacity`,
+  `concurrency` (typed getters parse String-or-Number).
+- **Pool groups** — `receiver-pool` and `publisher-pool`, each a `{ size, mode }` block read by its dotted
+  keys (`receiver-pool.size`, `receiver-pool.mode`, …); `mode` = `platform` | `virtual` | `virtual-per-task`.
+  Each merges as a WHOLE group (see below).
 - **`transport()`** — binds the `transport.*` group into a `BusTransport`; the `params` map is rebuilt
   straight from `raw` so every `transport.params.*` key survives VERBATIM, including dotted vendor keys
   like `jms.useAsyncSend` (Spring's own `Map<String,String>` binding is unreliable for dotted keys).
@@ -213,7 +215,8 @@ required leg config — see the facade), `configure` (PREPARE), `init(name, devL
 `start()` (RUN); `setWorker` sets/resets the receive callback (any time after `configure`), `shutdown` stops it.
 
 - **`configure(params, role, objectMapper)`** reads the identity (`BusIdentity` = bus-id / slot-id / rod-id),
-  the engine knobs (`feed-capacity` default 4096, `pool-size` default 4, `virtual-threads`), and the `role`.
+  the engine knobs (`feed-capacity` default 4096, `receiver-pool.size` default 4, `receiver-pool.mode` default
+  `platform`), and the `role`.
 - **`init(name, devLog)`** builds the engine PAUSED — a transmit leg if the role transmits, a receive leg
   (pool) if the role receives; `transportBacked = transport != null && objectMapper != null` decides the
   shape. `start()` then opens the transport and runs the legs:
@@ -231,36 +234,106 @@ required leg config — see the facade), `configure` (PREPARE), `init(name, devL
   `msgType`) on the feed. The x-rod is a pure relay — it does NOT buffer in a transaction or stamp times.
   The producer builds the event and calls `transmit`; a producer that needs transactional ordering (buffer
   inside the transaction, flush after commit, stamp one time) does that on its own side, then `transmit`s.
-- The **feed** is a `BoundedQueueRig<RodEvent>` of depth `feed-capacity`; its single worker `sendOut`
-  logs the `TX` message trace then hands the event to the `outbound`.
-- The **`outbound`** is the publisher for a direct producer; with `publisher-pool-size > 0` it becomes
-  `this::receive` and the publisher is run on the x-rod's own pool (`pool-size = publisher-pool-size`) — i.e.
+- The **feed** is a `BoundedQueueRig<RodEvent>` of depth `feed-capacity`; its single worker (the feed / tx
+  worker) is the ONLY sender. It stamps the stable `ApplMsgID` once, then OWNS the send: `encode` the event
+  to the transport's concrete unit ONCE, then `dispatch` it — driving the **session-sublayer** hooks at each
+  step (the alive marks, the send-retry decision) and logging the `TX` / `TX-ERR` msg-audit at the OUTCOME
+  (see [Session sublayers](#session-sublayers-and-producer-resilience) and [Logging](#logging)). The
+  sublayers never send; they only react. A transport failure (a throwing `dispatch`) is the send-retry
+  signal; a successful landing marks the leg sent.
+- The **`outbound`** is the publisher for a direct producer; with `publisher-pool.size > 0` it becomes
+  `this::receive` and the publisher is run on an async pool sized from `publisher-pool` (`{ size, mode }`) — i.e.
   **feed → bounded pool → publish**, asynchronous pooled publishing; for an in-process x-rod it is
   `this::receive` looping back to the receive worker.
 
 #### Receive leg
 
-- **`receive(event)`** acquires a permit from a `Semaphore(pool-size)`, logs the `RX` message trace, then
-  runs `worker.accept(event)` on the x-rod's **reused worker pool** — a fixed platform pool of `pool-size`
-  threads, or one virtual thread per task when `virtual-threads` — releasing the permit when done.
-  Concurrency is bounded by `pool-size` (the same pool also runs the publisher in pooled-async mode and the
-  writer for an in-process x-rod); a worker failure is logged and isolated. A `receive` with no receive leg
-  wired (or before `start`) throws; a late `receive` during shutdown is logged and dropped, not thrown.
+- **`receive(event)`** logs the `RX` message trace, then hands the event to the leg's **`WorkerPool`**
+  (`pro.mir0n.utils.concurrent`) via a bounded `submit`. The `WorkerPool` owns the thread model AND the bound:
+  `platform` / `virtual` = a fixed pool of `receiver-pool.size` reused workers (dedicated OS threads, or `size`
+  virtual threads), so the pool size IS the concurrency cap; `virtual-per-task` = one virtual thread per event,
+  capped by `Semaphore(size)` (uncapped when `size = 0`). The same pool runs the publisher in pooled-async mode
+  and the writer for an in-process x-rod; a worker failure is logged and isolated, and a `submit` that cannot be
+  admitted (pool shut down) is dropped. A `receive` with no receive leg wired (or before `start`) throws; a late
+  `receive` during shutdown is logged and dropped, not thrown.
 
 #### Lifecycle hooks (overridden by `XRodRR`)
 
 - **`legTransport(produce, role)`** — the effective wire for this leg; base `XRod` is single-node (the
   one `transport`). `XRodRR` overrides it to pick the request/response node.
 - **`consumeSelector(role, identity)`** — the receive selector; base returns `null` (the whole node).
-- **`buildKeepAlive()` / `onSessionMsg(in)`** — the alive-protocol hooks (see Health): base `XRod` emits an
-  unsolicited `HeartBeat`; `XRodRR` emits a `TestRequest` (CLIENT) and echoes a received `TestRequest` back as a
-  `HeartBeat` (SERVER). The per-rod **`idle()`** maintenance step — fired by the one `MessagingBus` idle ticker —
-  drives the session cadence. (Base `XRod` always opens a transmit leg, so even a broadcast consumer has a
-  producer leg to self-heartbeat.)
+
+The per-rod **`idle()`** maintenance step — fired by the one `MessagingBus` idle ticker on every rod — drives
+the session-sublayer cadence (the alive heartbeat, the send-retry re-send). The alive keep-alive and the R&R
+echo are NO LONGER x-rod hooks; they live in the session sublayers below. (Base `XRod` always opens a transmit
+leg, so even a broadcast consumer has a producer leg to self-heartbeat.)
 
 `shutdown()` stops delivery first (closes the inbound transport consumer), winds the feed down, then DRAINS
 the worker pool (`awaitTermination`) so in-flight applies / async publishes finish, and closes the outbound
 transport publisher last — releasing its broker connection.
+
+#### Session sublayers and producer resilience
+
+The messaging path carries **its own** resilience. Resilience4j — the circuit breaker / timeout / retry the
+gateway uses (`Esquire.HighAvailability.md`, gateway resilience) — is **synchronous only**: it wraps a blocking
+call and cannot bound an async, fire-and-forget publish. So the bus provides the async-path patterns itself, as
+producer **session sublayers** on the x-rod. Because they live in the x-rod ABOVE the transport SPI, they apply
+over **whatever provider is bound** (ActiveMQ, Redis, Kafka) — the resilience is the bus's, not a broker feature,
+and does not change when the transport is swapped or put into an HA mode.
+
+The producer leg carries a stack of **session sublayers** — event-driven collaborators that sit BESIDE the
+send workflow, never in it. The feed worker owns the send (encode + dispatch); it calls the sublayer HOOKS as
+a message passes, and a sublayer marks its OWN state and reacts, but never sends. `SessionSublayerFactory`
+builds the stack per leg config and hands it to the engine; the engine (`AXRod`) names only the abstraction
+`ISessionSublayer`, so a new resilience pattern slots in as another sublayer without touching the worker.
+
+```java
+interface ISessionSublayer {
+    void beforeSend(RodEvent ev);                               // an attempt is starting
+    void onSendSuccess(RodEvent ev);                            // the dispatch landed
+    Object onSendError(RodEvent ev, Object enc, Throwable err); // the dispatch threw -> enc to re-dispatch, null to stop
+    void onReceiveSessn(RodEvent ev);                           // an arriving session (alive) message
+    void tick();                                                // the idle() cadence step (no own thread)
+    TransportHealth health();                                   // the leg's session-health contribution
+    void start(); void shutdown();                              // lifecycle
+}
+```
+
+The send loop drives the hooks at the OUTCOME: on a landing it calls `onSendSuccess` on every sublayer; on a
+throw it calls `onSendError` on every sublayer (all observe the failure) and re-dispatches the encoded unit a
+sublayer hands back, stopping when none does. The stack is ordered **alive first, then send-retry** — so the
+alive marks (and fail-fast) fire BEFORE send-retry's blocking hold. Two sublayers ship:
+
+- **`AliveSession`** (opt-in, `alive: true`) — the FIX-style keep-alive + timestamp-age health (see
+  [Health](#health)). `beforeSend` resets the cadence gate, `onSendSuccess` marks the producer leg alive,
+  `onSendError` flips it DOWN on fail-fast; `tick` PUTs an unsolicited `HeartBeat` on the feed when the leg is
+  idle; `health` is the producer-leg timestamp age. **`AliveSessionRR`** specialises it by R&R role: a CLIENT
+  keep-alive is a `TestRequest` (its rod-id rides so the SERVER's reply routes back), a SERVER's is the base
+  `HeartBeat`; `onReceiveSessn` on a SERVER echoes an arriving `TestRequest` back as a `HeartBeat`.
+- **`SendRetrySublayer`** (opt-in, `send-retry: true`) — the one producer messaging-path resilience pattern.
+  On a dispatch failure `onSendError` records the message (keyed by its stable `ApplMsgID`) and HOLDS the feed
+  worker across a backoff ladder (a monitor wait released by `tick`, NOT a sleep), then hands back the SAME
+  encoded unit so the worker re-dispatches it — the same `ApplMsgID` on every resend, so a consumer can dedup.
+  Holding the single feed worker IS the back-pressure: it stops dequeuing, the bounded feed fills, producers
+  block. **Block mode** (`send-retry-max-attempts: 0`, the default) retries until the broker recovers;
+  **fallback mode** (a positive cap) DROPS the message after that many attempts and moves on. The backoff is a
+  seconds ladder (`send-retry-backoff-sec`, default `1,2,5,5` — the last step repeats). A SESSION (heartbeat) event
+  is skipped — best-effort, never held. The knobs are in `services.configuring.md`.
+
+**Producer resilience — what ships, what is deferred.** Two patterns ship (above); the rest are the DEFERRED
+set, each a future sublayer on the same seam (`ISessionSublayer`), so they slot in without touching the worker:
+
+| Pattern | Status | Note |
+|---|---|---|
+| Keep-alive (liveness + health) | **ships** — `alive` | the alive protocol; `AliveSession` / `AliveSessionRR` |
+| Send-retry (hold + re-send on failure) | **ships** — `send-retry` | `SendRetrySublayer`; block or drop-after-N; `health()` DOWN while holding |
+| Circuit breaker | deferred | needs an "on open" policy (drop / hold / dead-letter) the bus does not have yet |
+| Retry / backoff variants | deferred | shapes beyond `send-retry` |
+| Per-message timeout | deferred | async has no request/response deadline today |
+| Per-destination bulkhead | deferred | only `receiver-pool.size` bounds concurrency today |
+| Metrics | deferred | Micrometer, separate from the health signal |
+
+The deferred set and why R4j does not apply are tracked in `Esquire.MessagingBus.ContinuingDev.md` item 5.
 
 ### x-rod types (`rod-class`)
 
@@ -380,6 +453,25 @@ transport:
     jms.clientID: ${rod-id}     # ActiveMQ -> e.g. enyman.0   (client.id: ${rod-id} for Kafka)
 ```
 
+#### Dual-leg on one connection (broadcast own-exclusion)
+
+A broadcast CLIENT both transmits and receives on the SAME topic, and it can run both legs over ONE broker
+connection: the x-rod opens its publisher leg, then ADDs the consumer onto that same connection via
+`ITransportProvider.openConsumerOn(publisher, ...)` (the default falls back to a separate `openConsumer`, so a
+transport with no shared-connection notion is unaffected; `supportsBothLegs()` advertises the capability). On
+one shared connection the broker can drop the connection's OWN publications -- the `noLocal` semantic -- so the
+receive leg sees only OTHER instances' messages. It is opted in per leg with the `transport.params.noLocal` key
+(a convention param; `tp-activemq` turns it into `pubSubNoLocal` on the listener). With TWO separate connections
+the broker cannot see a connection's own sends, so the x-rod excludes its own in code instead (it compares a
+received event's `rodId()` to the leg's own `rodId()`). R&R never takes this path: its two legs live on
+different nodes (request vs response), so it keeps two connections and never sets `noLocal`.
+
+A receive leg can also carry a broker-side **subscription selector**: `setWorker(subscription, worker)` narrows
+what the leg consumes to the caller's predicate (e.g. `EventType = 'C'`) -- the own-exclusion stays the
+transport's `noLocal`, NOT folded into the subscription. It is a plain selector (not a durable subscription),
+and the consumer is re-opened only when the selector changes. Only the single-node broadcast `XRod` applies it;
+an R&R rod (which already selects by rod-id / slot-id) warns and ignores it.
+
 #### `tp-activemq` (queue / topic)
 
 - **Publisher** — `ActiveMQConnectionFactory(brokerUrl)` where every `params` entry is appended to the
@@ -391,13 +483,28 @@ transport:
   caching connection factory.
 - **Consumer** — a `DefaultMessageListenerContainer` on the destination (`pubSubDomain` from the
   `pubSubDomain` param, `messageSelector = selector` if set, `concurrentConsumers = concurrency` if `> 0`);
-  the listener lifts EVERY JMS property back into the header map.
+  the listener lifts EVERY JMS property back into the header map. `openConsumerOn` reuses the publisher's
+  `CachingConnectionFactory` (one connection, both legs) and sets `pubSubNoLocal` when the `noLocal` param is
+  on, so the broker drops that connection's own publications.
 - **Vendor params** — ANY `transport.params.*` is appended to the broker URI; ActiveMQ parses its own URI
   options: `jms.*` on the factory (e.g. `jms.clientID`, `jms.useAsyncSend`, `jms.prefetchPolicy.queuePrefetch`,
   `jms.redeliveryPolicy.maximumRedeliveries`), `transport.*` on the wire (e.g. `transport.connectTimeout`),
   `nested.*`, `wireFormat.*`. No per-key code. The one exception is `pubSubDomain`: it is a
   `setPubSubDomain(...)` call on the template / listener container, not a URI option, so `tp-activemq`
   reads it and excludes it from the URI append.
+- **Acknowledge mode and broker redelivery** — the consumer listener runs `AUTO_ACKNOWLEDGE` (the
+  `DefaultMessageListenerContainer` default; not transacted): a message is acknowledged on delivery and an
+  apply failure is caught-and-logged, so the framework never NACKs or rolls a message back to the broker.
+  ActiveMQ's `jms.redeliveryPolicy.maximumRedeliveries` (a settable URI option, above) is therefore INERT
+  under this ack mode — broker-side redelivery only fires for a transacted / `CLIENT_ACKNOWLEDGE` consumer
+  that can roll a message back. This is deliberate: the bus carries its OWN, transport-agnostic resilience —
+  producer **send-retry** (holds + re-sends the failed publish) and consumer **reconcile** (the bizTree
+  night-watch / Taijitu anti-entropy heals cache drift; the DB is the source of truth) — rather than
+  coupling delivery guarantees to an ActiveMQ-only broker feature that Kafka (offsets) and Redis Streams (a
+  retained log) do not share. Turning broker redelivery ON (a transacted consumer + a DLQ destination) would
+  add at-least-once durability for a failed apply, but at the cost of requiring **idempotent consumers**
+  (only the audit channel carries dedup indexes today) and vendor-specific config — a trade, not a strict
+  improvement.
 
 #### `tp-kafka` (topic)
 
@@ -428,22 +535,33 @@ transport:
 ### Logging
 
 Each message crossing a leg is logged once, by the framework, on that leg's `msg.<bus-id>.<slot-id>`
-logger — the transmit leg logs `TX`, the receive leg logs `RX`:
+logger — the **msg-audit**, wrapped in a small `MsgAudit` module built from the leg identity (a leg with no
+bus-id — a test / disabled / in-process leg — gets none, and every call is a no-op). The transmit leg logs
+`TX` at the send OUTCOME (the message actually went out), the receive leg logs `RX`:
 
 ```
 <TX|RX> | <msgType> | <op> | <kind> | <entityId> | <subId> | <rodId> | <requestId>
 ```
 
-The `msg` logback logger is `additivity = false`, so the trail goes to the per-service msg file only,
-never stdout; production may set its level OFF. (`XRodInfo` logs a richer full-event line led by its
-directive.)
+A failed dispatch logs a `TX-ERR` line with the CAUSE (the transport exception), one per failed attempt:
+
+```
+TX-ERR | <msgType> | <op> | <kind> | <entityId> | <subId> | <rodId> | <requestId> | <error>
+```
+
+The producer send-retry sublayer's hold / recover / drop trail rides the SAME `msg` channel, so a broker
+outage reads end to end on one logger. **Session (alive-protocol) traffic is gated at `DEBUG`** — an
+application message logs at `INFO`, a heartbeat / `TestRequest` only when the `msg` logger is at `DEBUG` — so
+the heartbeat noise silences separately from the data trail. The `msg` logback logger is `additivity = false`,
+so the trail goes to the per-service msg file only, never stdout; production may set its level OFF.
+(`XRodInfo` logs a richer full-event line led by its directive, through the same `MsgAudit`.)
 
 ### Health
 
 Each bus reports its connection health to the service's `/actuator/health`, so a broker outage is visible to
 k8s probes instead of silently dropping traffic. A bus's health is the **worse of two sources**
-(`TransportHealth.worst`), each used when applicable -- the always-on TRANSPORT indicator and, only when the
-alive protocol is enabled on the leg (`alive: true`, **OFF by default**), the active session keep-alive:
+(`TransportHealth.worst`), each used when applicable -- the always-on TRANSPORT indicator and the opt-in producer
+session sublayers (the alive keep-alive and the send-retry hold signal, both **OFF by default**):
 
 - **The transport indicator (always on, the default source).** Each leg reports the connection health its vendor
   client already exposes -- no extra traffic: ActiveMQ a `TransportListener` (`interrupted -> DOWN` /
@@ -452,17 +570,24 @@ alive protocol is enabled on the leg (`alive: true`, **OFF by default**), the ac
   never fails readiness). Surfaced through `RodPublisher.health()` / `TransportConsumer.health()`, folded across
   the transmit + receive legs. The per-vendor settings + the when-to-enable-alive guidance live in
   `services.configuring.md`.
-- **The alive protocol (OPT-IN, `alive: true`, OFF by default)** (`AliveSession`, one per transport-backed x-rod
-  *when enabled*). Each leg keeps a timestamp of its
-  last successful send; when a producing leg is idle it emits a keep-alive — a broadcast leg sends an unsolicited
+- **The alive protocol (OPT-IN, `alive: true`, OFF by default)** — the `AliveSession` session sublayer (see
+  [Session sublayers](#session-sublayers-and-producer-resilience)), built on the producer leg when enabled. The
+  leg marks its last successful send through the send hooks (`onSendSuccess`); when a producing leg is idle its
+  `tick` emits a keep-alive — a broadcast leg sends an unsolicited
   `HeartBeat`, a request/response CLIENT sends a `TestRequest` that the SERVER echoes back as a `HeartBeat`. Health
   is the producer leg's timestamp AGE: a send landed within `alive-timeout` -> `UP`, else `DOWN` (and an immediate
   `DOWN` on a send failure when `alive-fail-fast`). Because the keep-alive runs on a cadence, a leg is exercised
   even when the application is quiet — so the signal works the SAME on every transport (ActiveMQ / Kafka / Redis),
   not just where the broker offers a connection callback. The session (`HeartBeat` / `TestRequest`) messages are
   handled internally and never reach the application worker (see Appendix A / `Message.Structure.md`).
+- **The send-retry sublayer (OPT-IN, `send-retry: true`)** — its `health()` reads `DOWN` while it is HOLDING a
+  stuck send (the broker is down or unreachable), else `UP`. So a leg that runs send-retry WITHOUT the alive
+  protocol still reads `DOWN` through a broker outage — a direct "sends are not landing" signal, complementary to
+  the transport indicator (which keys off the connection, not whether a send actually lands).
 - **`TransportHealth`** (`UP` / `DOWN` / `UNKNOWN`) is the value a leg reports; for a transport-backed x-rod it is
-  `worst(transport indicator, AliveSession.health() when alive is on)`.
+  `worst(transport indicator, the session sublayers' health)` — the sublayer health folds across the stack
+  (`AXRod.sessionHealth()`): `AliveSession` contributes the alive metric, `SendRetrySublayer` reads `DOWN` while
+  holding a stuck send (else `UP`), and any other sublayer reads `UNKNOWN`-benign.
 - **`IXRod.health()`** — an `XRod` reports that worst-of; an in-process / disabled / log-only rod has no broker,
   so it defaults `UP` (an `XRodInProcessKeep` overrides it to its keep-datasource connection — the DB it applies to).
 - **`MessagingBus.health()`** is the per-bus map (`busKey -> TransportHealth`) over every built rod.
@@ -584,11 +709,13 @@ interface IXRod {
     default void validate(XRodParams params);                                     // fail-fast on the required leg config
     void    configure(XRodParams params, Role role, ObjectMapper objectMapper);   // PREPARE
     void    setWorker(Consumer<RodEvent> worker);                                 // set/reset the receive callback
+    default void setWorker(String subscription, Consumer<RodEvent> worker);       // + a broker-side subscription selector (XRod only; R&R warns + ignores)
     void    init(String name, Logger devLog);                                     // CREATE the legs (paused)
     void    start();                                                              // RUN (engine threads + delivery)
     void    shutdown();
     default boolean isEnabled();           // default true; only XRodDisabled is false
     default TransportHealth health();      // default UP; XRod -> worst leg; XRodInProcessKeep -> keep datasource
+    default String rodId();                // the leg's <app>.<instanceNo>; null for in-process/disabled/info
     void    transmit(RodEvent event);   // send a pre-built event out the transmit leg
     void    receive(RodEvent event);    // apply an arrived event on the bounded receive pool
 }
@@ -608,8 +735,11 @@ class TransportHealthIndicator implements HealthIndicator { static void register
 ```java
 interface ITransportProvider {
     TransportPublisher openPublisher(String destination, PublishSettings settings);
-    AutoCloseable      openConsumer(String destination, ConsumeSettings settings, Consumer<TransportMessage> handler);
+    TransportConsumer  openConsumer(String destination, ConsumeSettings settings, Consumer<TransportMessage> handler);
+    default TransportConsumer openConsumerOn(TransportPublisher pub, String destination,   // ADD the consumer onto the
+                                ConsumeSettings settings, Consumer<TransportMessage> handler);  //   publisher's connection (dual leg)
     default boolean supportsConsume();
+    default boolean supportsBothLegs();    // a single rod can run both legs on one node/connection (noLocal own-exclusion)
 }
 interface TransportPublisher extends Consumer<TransportMessage>, AutoCloseable { }
 final class TransportProviders { static ITransportProvider resolve(String provider); }
@@ -646,7 +776,7 @@ record XRodParams(String busId, String slotId, Map<String,Object> raw) {
     BusTransport transport();          // transport.params.* carried verbatim (tokens resolved later, in the settings)
     List<BusNode> nodes();             // the R&R nodes (transport.nodes[*]) as a typed list
     <T> T sub(String key, Class<T> type);
-    // scalar getters: rodId / rodClassOr / poolSizeOr / feedCapacityOr / virtualThreadsOrFalse / publisherPoolSizeOr / concurrencyOr
+    // getters: rodId / rodClassOr / feedCapacityOr / concurrencyOr / receiverPoolSizeOr / receiverPoolMode / publisherPoolSizeOr / publisherPoolMode
     List<String> SCALARS;
 }
 record RodEvent(RodEvent.Op op, int kind, String entityId, String subId, long actionTime,
@@ -663,13 +793,15 @@ final class RodEventRepoRegistry { void register(int kind, IRodEventRepo r); Con
 
 ## Appendix C — Class Diagram
 
-![Type map across the framework packages: messaging (the MessagingBus facade, IXRod, RodEvent, IRodEventRepo, RodEventRepoRegistry), messaging.catalog (MessagingBusCatalog, the MessagingBus bus record, BusSlot, BusNode, XRodParams, BusTransport, BusRef, Role), messaging.xrod + messaging.xrod.impl (RodEventCodec/RodPublisher/RodTransportAdapter; AXRod, XRod, XRodRR, XRodInProcess, XRodInfo, XRodDisabled), and messaging.transport (ITransportProvider, TransportProviders, TransportMessage, the settings, BusIdentity, the tp-* drivers). The MessagingBus facade resolves the leg from the catalog and the driver from TransportProviders.](img/messaging-bus-classes.svg)
+![Type map across the framework packages: messaging (the MessagingBus facade, IXRod, RodEvent, IRodEventRepo, RodEventRepoRegistry), messaging.catalog (MessagingBusCatalog, the MessagingBus bus record, BusSlot, BusNode, XRodParams, BusTransport, BusRef, Role), messaging.xrod + messaging.xrod.impl (RodEventCodec/RodPublisher/RodTransportAdapter; AXRod, XRod, XRodRR, XRodInProcess, XRodInfo, XRodDisabled; the session sublayers ISessionSublayer / AliveSession / AliveSessionRR / SendRetrySublayer / SessionSublayerFactory and the MsgAudit module), and messaging.transport (ITransportProvider, TransportProviders, TransportMessage, the settings, BusIdentity, the tp-* drivers). The MessagingBus facade resolves the leg from the catalog and the driver from TransportProviders.](img/messaging-bus-classes.svg)
 
 Resolution is class-name-driven on two axes: `rod-class` selects the x-rod (resolved reflectively by the
 `MessagingBus` facade — a bare name under `messaging.xrod.impl`, a dotted value a full class name),
 `transport.provider` selects the driver (`TransportProviders`) — so a new x-rod or transport plugs in with no
 framework change. The send/receive engine lives in the abstract `AXRod` (extended by `XRod` and the in-process
-`XRodInProcess`); an R&R leg's two stops are typed `BusNode`s.
+`XRodInProcess`); an R&R leg's two stops are typed `BusNode`s. The producer leg's session sublayers
+(`ISessionSublayer` — `AliveSession` / `AliveSessionRR` and `SendRetrySublayer`, built by
+`SessionSublayerFactory`) sit BESIDE the send loop, and the `MsgAudit` module carries the per-leg msg-audit.
 
 ## Appendix D — Configuring
 
@@ -692,13 +824,16 @@ esquire:
       bus-id:  ${...}            # a catalog bus-id
       slot-id: ${...}            # the slot this service joins
       x-rod:                     # OPTIONAL: replaces the catalog leg's matching group(s)
-        pool-size: ${...}
+        receiver-pool:
+          size: ${...}
+          mode: ${...}           # platform | virtual | virtual-per-task
 ```
 
 A service may also extend the catalog with its OWN leg under its own namespace,
 `<spring.application.name>.messaging-bus` (the catalog merges this service overlay onto the shared
-topology BY ID — a same-id bus/slot replaces, a new one is added). x-rod knobs per leg: `rod-class`, `pool-size`, `feed-capacity`, `virtual-threads`, `publisher-pool-size`,
-`concurrency`, plus the `transport` group and any x-rod-owned sub-block. Vendor knobs ride
+topology BY ID — a same-id bus/slot replaces, a new one is added). x-rod knobs per leg: `rod-class`, `feed-capacity`,
+`concurrency`, the `receiver-pool` and `publisher-pool` groups (`{ size, mode }`), plus the `transport` group and any
+x-rod-owned sub-block. Vendor knobs ride
 `transport.params.*` and pass through verbatim. This appendix is the generic shape; the concrete catalog a
 deployment runs (which buses exist + the env that drives them) is documented with that deployment's bus
 configuration — for Esquire, in `doc/services.configuring.md`.
@@ -716,10 +851,13 @@ esquire:
         - slot-id: <slot-id>
           x-rod:
             rod-class: XRod
-            pool-size: 4
+            receiver-pool:
+              size: 4
+              mode: platform             # platform | virtual | virtual-per-task
             feed-capacity: 4096
-            virtual-threads: false
-            publisher-pool-size: 0
+            publisher-pool:
+              size: 0
+              mode: platform
             concurrency: 1
             transport:
               provider: <name>           # -> pro.mir0n.esquire.tp.<name>.TransportProvider

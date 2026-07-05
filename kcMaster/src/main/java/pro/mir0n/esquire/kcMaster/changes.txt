@@ -1,5 +1,9 @@
 Esquire kcMaster Microservice
 
+07/03/2026 mir0n  v1.2.10 -- send-retry-backoff config key -sec unit suffix
+resources/application.yml
+  - send-retry-backoff -> send-retry-backoff-sec (env *_SEND_RETRY_BACKOFF -> *_SEND_RETRY_BACKOFF_SEC) mirroring the XRodParams key rename
+
 06/24/2026 mir0n  v1.2.9 -- EsqMsgConstants references repointed
 KcMasterApplication
   - EsqMsgConstants app constants -> common.EsqConstants (references repointed)

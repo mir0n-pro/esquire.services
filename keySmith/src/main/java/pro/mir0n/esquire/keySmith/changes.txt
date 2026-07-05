@@ -1,8 +1,24 @@
 Esquire keySmith Microservice
 
+07/03/2026 mir0n  v1.2.10 -- X-Request-ID required on write commands; send-retry-backoff key -sec suffix
+service.impl.KeySmithService
+  - esquireKeySave reads requestId via requireRequestId() -- X-Request-ID mandatory on writes
+resources/application.yml
+  - send-retry-backoff -> send-retry-backoff-sec (env *_SEND_RETRY_BACKOFF -> *_SEND_RETRY_BACKOFF_SEC) mirroring the XRodParams key rename
+
+06/29/2026 mir0n  v1.2.10 -- R1-R6 env wiring (request-path cap, keep cap, pool/threads/fail-fast DB)
+resources/application.yml
+  - spring.transaction.default-timeout (ESQ_TX_TIMEOUT_S, -1 = no cap); keep query-timeout-seconds
+    (ESQ_KEEP_QUERY_TIMEOUT_S); Tomcat threads.max/accept-count, Hikari pool/connect-timeout, pgjdbc
+    socketTimeout/tcpKeepAlive env-bound (pre-HA defaults unchanged)
+
 06/24/2026 mir0n  v1.2.9 -- EsqMsgConstants references repointed
-KeySmithApplication / audit.AuditConfig / messaging.KcBusAdapter
-  - EsqMsgConstants references repointed: wire constants -> messaging.BusConstants, app constants -> common.EsqConstants
+KeySmithApplication
+  - EsqMsgConstants app constants -> common.EsqConstants (references repointed)
+audit.AuditConfig
+  - EsqMsgConstants app constants -> common.EsqConstants (references repointed)
+messaging.KcBusAdapter
+  - EsqMsgConstants references -> messaging.BusConstants (wire) + common.EsqConstants (app)
 
 06/22/2026 mir0n  messaging-bus health indicator + readiness/liveness
 KeySmithApplication

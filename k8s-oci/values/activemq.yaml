@@ -1,7 +1,7 @@
 # Prod overrides for k8s/charts/infra/activemq
 image:
   repository: ghcr.io/mir0n-pro/esquire-activemq
-  tag: "v1.2.4"
+  # tag injected by oke-up.bat (--set image.tag=%image_tag%) -- single release tag for the whole stack.
   pullPolicy: Always
 
 storage:

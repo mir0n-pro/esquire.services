@@ -80,7 +80,7 @@ class MoveQueueManagerTest {
     @BeforeEach
     void setUp() {
         manager = new MoveQueueManager(dictRepo, orgRepo, usrRepo, txTemplate, em,
-                publisher, kcPublisher, pathLookup, new AuditBusBridge(noopRod()), 16);
+                publisher, kcPublisher, pathLookup, new AuditBusBridge(noopRod()), 16, 0);
         // Do not call manager.start() -- we want to invoke process() directly without
         // racing the daemon worker thread. The rig is constructed but unstarted.
     }

@@ -3,10 +3,20 @@ image:
   tag: latest
   pullPolicy: IfNotPresent
 
+# HA scheduling (pre-HA defaults: no node pinning, no spread). The OKE overlay sets
+# nodeSelector.tier=app and turns topologySpread on to place the x2 replicas on
+# distinct app-tier nodes; local (single node) leaves both off.
+nodeSelector: {}
+topologySpread:
+  enabled: false
+
 springProfilesActive: console
 
 # shared bus topology is delivered by the esquire-topology ConfigMap, mounted at /etc/esquire.
 topologyImport: optional:file:/etc/esquire/topology.yml
+
+# v1.2.10 VT (UNVALIDATED test lever, default OFF -- see HA doc 5.5)
+esqVirtualThreads: "false"        # ESQ_VIRTUAL_THREADS (spring.threads.virtual.enabled, request path)
 
 service:
   port: 3006
@@ -36,6 +46,11 @@ kc:
   requestPoolSize: "4"
   requestConcurrency: "1"
   responsePublisherPoolSize: "0"
+  # producer send-retry on the KC R&R bus; pre-HA default OFF (OKE). The local-k8s overlay turns it on (block mode).
+  sendRetry: "false"
+  sendRetryBackoff: "1,2,5,5"
+  sendRetryMaxAttempts: "0"
+  poolMode: "platform"            # KC_POOL_MODE (platform | virtual | virtual-per-task, default platform)
 
 # entity-bus ref: kcMaster is a CONSUMER of the entity broadcast.
 entity:
@@ -43,6 +58,7 @@ entity:
   slotId: entity
   broadcastPoolSize: "4"
   broadcastConcurrency: "1"
+  poolMode: "platform"            # ENTITY_BROADCAST_POOL_MODE (platform | virtual | virtual-per-task, default platform)
 
 logging:
   levelRoot: ERROR

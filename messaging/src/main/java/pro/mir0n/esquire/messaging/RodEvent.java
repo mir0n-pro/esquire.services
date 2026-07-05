@@ -18,6 +18,8 @@
  * 06/23/2026 mir0n  session events: bodyText component (a prepared JSON Text string) + an 11-arg delegating ctor;
  *                   isSession + session/heartbeat/testRequest factories (prepared bodyText -- constant + concat); opCode() null-safe
  * 06/23/2026 mir0n  EsqMsgConstants wire constants -> messaging.BusConstants (references repointed)
+ * 06/30/2026 mir0n  applMsgId component (the ApplMsgID / FIX 1181 wire dedup id) + a 12-arg canonical ctor; the
+ *                   former 11-arg ctor delegates with applMsgId null (stamped once on the send path); withApplMsgId() copy
  */
 package pro.mir0n.esquire.messaging;
 
@@ -44,6 +46,9 @@ import java.util.Map;
  *       UE / UA). Header info that rides the wire ({@code MsgType}); a responder reads it to tell URS from URR
  *       without inspecting the body. Set by the producer; populated from the wire on receive.</li>
  *   <li>{@code body} -- the full committed row (CREATE/UPDATE); empty on DELETE (id + kind are in the header).</li>
+ *   <li>{@code applMsgId} -- the wire dedup id ({@code ApplMsgID}, FIX 1181), STAMPED ONCE on the send path
+ *       ({@code AXRod.sendOut}) so a held event's resend reuses the SAME id (a consumer can dedup); null until
+ *       stamped, then carried on the wire by the codec (so {@code SendingTime} stays the only per-send meta).</li>
  * </ul>
  */
 public record RodEvent(
@@ -58,7 +63,8 @@ public record RodEvent(
         String rodId,
         String msgType,
         Map<String, Object> body,
-        String bodyText
+        String bodyText,
+        String applMsgId
 ) {
     /** App-message constructor (the historical canonical shape): a {@code body} Map and no prepared
      *  {@code bodyText} -- the codec serializes the map to the {@code Text} field. */
@@ -72,6 +78,22 @@ public record RodEvent(
     public RodEvent(Op op, int kind, String entityId, String subId, long actionTime,
                     String correlationId, String requestId, String uid, Map<String, Object> body) {
         this(op, kind, entityId, subId, actionTime, correlationId, requestId, uid, null, null, body, null);
+    }
+
+    /** The former canonical shape (body + prepared {@code bodyText}), leaving the dedup id NULL -- the framework
+     *  stamps {@code applMsgId} ONCE on the send path ({@code AXRod.sendOut}), so every producer / factory / codec
+     *  call site keeps building events exactly as before; only the engine assigns the id. */
+    public RodEvent(Op op, int kind, String entityId, String subId, long actionTime,
+                    String correlationId, String requestId, String uid, String rodId, String msgType,
+                    Map<String, Object> body, String bodyText) {
+        this(op, kind, entityId, subId, actionTime, correlationId, requestId, uid, rodId, msgType, body, bodyText, null);
+    }
+
+    /** A copy carrying the stable wire dedup id ({@code ApplMsgID}, FIX 1181). Stamped ONCE at the send-chain entry
+     *  so every resend of a held event reuses the SAME id (a consumer can dedup); the event is otherwise unchanged. */
+    public RodEvent withApplMsgId(String applMsgId) {
+        return new RodEvent(op, kind, entityId, subId, actionTime, correlationId, requestId, uid, rodId, msgType,
+                body, bodyText, applMsgId);
     }
 
     // CREATE / UPDATE / DELETE are the change operations; UPDATE_PATH ("X", a move / re-path) rides only the

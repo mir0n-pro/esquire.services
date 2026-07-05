@@ -9,6 +9,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.transaction.PlatformTransactionManager;
 import pro.mir0n.esquire.backend.dto.EsqObjectKind;
 import pro.mir0n.esquire.backend.jpa.entity.EsqAcctJpa;
 import pro.mir0n.esquire.backend.jpa.entity.EsqOrgJpa;
@@ -57,7 +58,10 @@ class BizTreeCacheLoaderTest {
                 new BizTreeCacheSql.Loader("INSERT", "UPDATE", "SELECT")
         );
         CacheSqlSet sql = CacheSqlSet.forTable(templates, "ESQ_TREE");
-        loader = new BizTreeCacheLoader(orgRepo, usrRepo, acctRepo, cacheDb, sql);
+        // A mock tx manager: TransactionTemplate runs the callback (getTransaction returns null, commit is a
+        // no-op), so the read section executes exactly as before; the timeout/opt-out is exercised in integration.
+        PlatformTransactionManager txManager = mock(PlatformTransactionManager.class);
+        loader = new BizTreeCacheLoader(orgRepo, usrRepo, acctRepo, cacheDb, sql, txManager, 0);
         when(cacheDb.batchUpdate(anyString(), anyList()))
                 .thenAnswer(inv -> new int[((List<?>) inv.getArgument(1)).size()]);
     }

@@ -11,12 +11,18 @@ service:
   port: 3000          # container port (BFF listens on 3000 inside)
   lbPort: 3000        # service port -- aligned to container port (no LB tier)
 
-# OIDC / Keycloak. The issuer must be a URL reachable both from inside the BFF
-# pod (server-to-server discovery + token exchange) and from the browser
-# (authorize/end_session redirects). Both ends go through ingress-nginx now,
-# so the same external hostname works from inside the cluster and outside.
+# OIDC / Keycloak. The issuer is the public, browser-facing realm URL -- it is
+# the token issuer and the base for the authorize / end_session redirects.
+# issuerInternal is the URL the BFF discovers KC through server-to-server; when
+# empty it falls back to issuer (single-URL environments). On local k8s the
+# public host esquire.localhost is loopback inside a pod (RFC 6761), so the
+# overlay points issuerInternal at the in-cluster KC service. KC is configured
+# with backchannel-dynamic, so discovery over the internal URL returns the
+# internal token/jwks endpoints while keeping the public issuer + browser
+# endpoints.
 keycloak:
   issuer: http://esquire.localhost/kc-auth/realms/esquire
+  issuerInternal: ""
   clientId: esq-angular
   # clientSecret comes from a Secret (set via --set keycloak.clientSecret=... at install).
 
@@ -38,8 +44,28 @@ session:
   # secret comes from a Secret (set via --set session.secret=... at install).
   cookieMaxAgeMs: 43200000   # 12h
 
+# Shared session store. Empty -> in-memory MemoryStore (correct only at a single
+# replica; OKE keeps the BFF at 1 today). Set to the in-cluster redis to share
+# sessions across replicas (local k8s sets this in k8s/values/backend.yaml).
+redis:
+  url: ""
+
 cache:
   ttlMs: 3600000             # 1h
   maxEntries: 64
+
+# R1 request + upstream-proxy timeouts. Defaults = 0 (no timeout) -- the Node behavior
+# before HA work. The tuned local-k8s budget lives in k8s/values/backend.yaml.
+resilience:
+  requestTimeoutMs: "0"      # http.Server requestTimeout (BFF_REQUEST_TIMEOUT_MS); 0 = Node default (none)
+  proxyTimeoutMs: "0"        # /api upstream-proxy timeout (BFF_PROXY_TIMEOUT_MS); 0 = none
+
+# R1 SPA (Angular) runtime config served to the browser at /assets/config.json. The image
+# bakes httpTimeoutMs=0 (pre-HA). Leave httpTimeoutMs empty here -> no ConfigMap, the baked
+# config.json is served untouched. Set it in the overlay (k8s/values/backend.yaml) to mount
+# a config.json that bounds the in-browser request (R1, client-side defense-in-depth).
+spa:
+  apiBasePath: /api
+  httpTimeoutMs: ""          # "" = pre-HA (baked 0 served); a positive value mounts the override
 
 nodeEnv: production

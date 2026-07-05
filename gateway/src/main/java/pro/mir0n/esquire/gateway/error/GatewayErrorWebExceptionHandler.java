@@ -2,11 +2,14 @@
  *  Esquire frameworks (tm)
  *  Gateway service
  *
- *  Copyright(c) 2001, 2026 mir0n&co www.mir0n.me
+ *  Copyright(c) 2001, 2026 mir0n&co www.mir0n.pro
  *  mailto:mir0n.the.programmer@gmail.com
  *
  *  History:
  * 01/18/2026 mir0n  bypass shouldCaptureException to ProblemDetailMill
+ * 06/29/2026 mir0n  messageOf() yields a non-null message for any throwable (own / root-cause / class name) so the
+ *                   renderer never NPEs on a null message; added a CallNotPermittedException branch that renders an
+ *                   open-circuit 503 ProblemDetail (R1)
  */
 //properties:
 //spring.webflux.problemdetails.enabled=true
@@ -55,20 +58,32 @@ public GatewayErrorWebExceptionHandler(ErrorAttributes errorAttributes,
     private Mono<ServerResponse> renderErrorResponse(ServerRequest request) {
         Throwable error = getError(request);
         HttpStatus status = determineHttpStatus(error);
-        // 1. Improve the Title and Detail
+        // 1. Improve the Title and Detail. messageOf() is never null -- a bare
+        // circuit-open / timeout / cancellation error can carry a null message,
+        // and an unguarded error.getMessage().contains(...) here would throw and
+        // leave the client with an empty body (HTTP 500, nothing rendered).
+        String message = messageOf(error);
         String title = "Gateway Error";
-        String detail = error.getMessage();
+        String detail = message;
 
-        if (error instanceof java.net.UnknownHostException || error.getMessage().contains("Failed to resolve")) {
+        if (error instanceof java.net.UnknownHostException || message.contains("Failed to resolve")) {
             title = "Service Discovery Error";
             detail = "The requested service is currently unreachable or not registered. Please try again later.";
+        } else if (error instanceof io.github.resilience4j.circuitbreaker.CallNotPermittedException) {
+            // An OPEN circuit breaker can surface here in two shapes: the raw R4j
+            // CallNotPermittedException (this branch -- the most precise message), or a
+            // wrapped/cancellation form with a null message (handled by messageOf() above,
+            // which then falls into the generic SERVICE_UNAVAILABLE branch below). We do not
+            // depend on which one SCG emits -- both render a populated 503 ProblemDetail.
+            title = "Service Unavailable";
+            detail = "Esquire Gateway is shedding load away from a failing service (its circuit is open). Please retry shortly.";
         } else if (error instanceof java.util.concurrent.TimeoutException) {
             title = "Network Timeout";
             detail = "The downstream service took too long to respond.";
         } else if (status == HttpStatus.SERVICE_UNAVAILABLE) {
             title = "Service Unavailable";
             detail = "Esquire Gateway could not find an active instance of the requested service.";
-        } else if (detail != null && detail.contains("[A(")) {
+        } else if (message.contains("[A(")) {
             // Clean the message: Remove Netty DNS jargon like [A(1)]
             title = "Service Unavailable";
             detail = "The service destination could not be resolved.";
@@ -115,6 +130,27 @@ public GatewayErrorWebExceptionHandler(ErrorAttributes errorAttributes,
             bb.header(EsqConstants.X_RESPONSE_TIME, duration + "ms");
         }
         return bb.bodyValue(problem);
+    }
+
+    /**
+     * A non-null, human-meaningful message for any throwable: its own message,
+     * else the root cause's message, else the (root) exception's simple class
+     * name. Guarantees the renderer never NPEs on a null message and the client
+     * always receives a populated ProblemDetail rather than an empty body.
+     */
+    private static String messageOf(Throwable error) {
+        String ret = (error == null) ? null : error.getMessage();
+        if (ret == null && error != null) {
+            Throwable root = org.apache.commons.lang3.exception.ExceptionUtils.getRootCause(error);
+            ret = (root != null) ? root.getMessage() : null;
+            if (ret == null) {
+                ret = (root != null) ? root.getClass().getSimpleName() : error.getClass().getSimpleName();
+            }
+        }
+        if (ret == null) {
+            ret = "Unknown gateway error";
+        }
+        return ret;
     }
 
     private HttpStatus determineHttpStatus(Throwable error) {

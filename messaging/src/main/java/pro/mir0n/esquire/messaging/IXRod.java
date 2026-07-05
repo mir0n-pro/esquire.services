@@ -21,6 +21,9 @@
  * 06/23/2026 mir0n  idle() default no-op added -- the per-rod maintenance hook the MessagingBus idle ticker fires
  *                   (drives the alive-protocol heartbeat cadence today)
  * 06/24/2026 mir0n  configure() javadoc: role list CLIENT/SERVER (BOTH removed)
+ * 06/27/2026 mir0n  setWorker(subscription, worker) default added -- a broker-side selector narrowing what the
+ *                   receive leg consumes; the default ignores the subscription (R&R / non-transport rods too).
+ *                   rodId() default null added -- the leg's <app>.<instanceNo>, null for in-process/disabled/info
  */
 package pro.mir0n.esquire.messaging;
 
@@ -62,6 +65,26 @@ public interface IXRod {
      *  point after {@link #configure} -- the receive listener is created at {@link #init} and idles until a
      *  worker is set, and the worker can be replaced thereafter. */
     void setWorker(Consumer<RodEvent> worker);
+
+    /** Set the receive worker AND a SUBSCRIPTION selector on the receive leg: a broker-side message selector that
+     *  narrows what this leg consumes (e.g. {@code "EventType = 'C'"}). The {@code subscription} is the caller's
+     *  predicate ALONE -- own-exclusion is NOT part of it: a rod that runs both legs on ONE shared connection lets
+     *  the broker's {@code noLocal} (a transport param) drop the connection's own publications. Not a DURABLE
+     *  subscription -- a plain selector, and the receive consumer is re-opened only when the selector CHANGES. Only
+     *  the single-node broadcast x-rod ({@link pro.mir0n.esquire.messaging.xrod.impl.XRod}) applies it; the selector
+     *  syntax does not apply to R&R (which already selects by rod-id / slot-id), so an R&R rod logs a warning and
+     *  ignores it; a non-transport rod ignores it. Default: ignore the subscription, just set the worker. */
+    default void setWorker(String subscription, Consumer<RodEvent> worker) {
+        setWorker(worker);
+    }
+
+    /** This leg's rod-id (the per-instance id {@code <app>.<instanceNo>} from the leg identity), or null when the
+     *  rod has no identity (an in-process / disabled / info rod). A broadcast consumer reads it to tell its OWN
+     *  publications apart from a peer instance's: a received event's {@link RodEvent#rodId()} is the publishing
+     *  leg's rod-id, so {@code event.rodId().equals(thisRod.rodId())} marks a self-message. */
+    default String rodId() {
+        return null;
+    }
 
     /** CREATE the legs for the role -- a transmit leg (if {@code transmits()}) and/or a receive leg (if
      *  {@code receives()}): open the publisher connection, CREATE the receive listener (PAUSED -- it delivers

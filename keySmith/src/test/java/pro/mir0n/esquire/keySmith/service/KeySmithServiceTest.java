@@ -14,6 +14,7 @@ import org.springframework.transaction.support.TransactionCallback;
 import org.springframework.transaction.support.TransactionTemplate;
 import pro.mir0n.esquire.backend.dto.access.EsqAccessProfile;
 import pro.mir0n.esquire.backend.error.InvalidValueException;
+import pro.mir0n.esquire.backend.error.MissingRequestIdException;
 import pro.mir0n.esquire.backend.error.PermissionDeniedException;
 import pro.mir0n.esquire.backend.error.ResourceNotFoundException;
 import pro.mir0n.esquire.backend.jpa.access.EsqAccessProfileJpa;
@@ -72,7 +73,7 @@ class KeySmithServiceTest {
     // uid / rootPath now come from the unified per-request context. Each test sets the exact pair
     // its mocks / self-checks expect, the same way the request thread would.
     private void ctx(String rootPath, String uid) {
-        EsqContextHolder.set(new EsqRequestContext(null, null, uid, rootPath));
+        EsqContextHolder.set(new EsqRequestContext(null, "req-test", uid, rootPath));
     }
 
     // ---- helper: runs transactionTemplate.execute() lambda inline ----
@@ -123,6 +124,18 @@ class KeySmithServiceTest {
         ctx("1.2.3", "uid-99");
         assertThatThrownBy(() -> service.esquireKey(null))
                 .isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    // =========================================================
+    // esquireKeySave: missing X-Request-ID
+    // =========================================================
+
+    @Test
+    @DisplayName("esquireKeySave: missing X-Request-ID → MissingRequestIdException")
+    void esquireKeySave_missingRequestId_throwsMissingRequestIdException() {
+        EsqContextHolder.set(new EsqRequestContext(null, null, "uid-1", "/root")); // no reqId
+        assertThatThrownBy(() -> service.esquireKeySave("10", Map.of(), List.of()))
+                .isInstanceOf(MissingRequestIdException.class);
     }
 
     // =========================================================

@@ -12,6 +12,9 @@
  *                   per call, on the keep's worker thread. A param the body lacks binds NULL (e.g. a DELETE). The
  *                   writer knows nothing of any specific use -- the SQL keys + statements are the deployment's data.
  * 06/22/2026 mir0n  RodEvent import moved to messaging.xrod.
+ * 06/29/2026 mir0n  constructor takes queryTimeoutSeconds (Integer): when set (> 0) applies it via JdbcTemplate
+ *                   setQueryTimeout so a stuck *_log apply is cancelled instead of pinning a keep connection;
+ *                   null / <= 0 leaves it uncapped (pre-HA). Added queryTimeoutSeconds() accessor (R6)
  */
 package pro.mir0n.esquire.dataKeep.keep;
 
@@ -53,10 +56,21 @@ public class RodEventDbWriter {
     public static final String ACTION_UPDATE = "U";
     public static final String ACTION_DELETE = "D";
 
-    public RodEventDbWriter(DataSource dataSource, String dialect, KeepSqlStore sql) {
+    public RodEventDbWriter(DataSource dataSource, String dialect, KeepSqlStore sql, Integer queryTimeoutSeconds) {
         this.jdbc    = new NamedParameterJdbcTemplate(dataSource);
         this.dialect = dialect;
         this.sql     = sql;
+        // Per-service apply-statement cap (JDBC setQueryTimeout): null or <= 0 leaves it uncapped (pre-HA
+        // default). When set, a stuck *_log apply is cancelled instead of pinning a keep connection.
+        if (queryTimeoutSeconds != null && queryTimeoutSeconds > 0) {
+            this.jdbc.getJdbcTemplate().setQueryTimeout(queryTimeoutSeconds);
+        }
+    }
+
+    /** The effective per-statement query timeout (seconds) on this writer's template; -1 = none (the default
+     *  when no keep cap is configured). Exposed for the keep-surface timeout test. */
+    int queryTimeoutSeconds() {
+        return jdbc.getJdbcTemplate().getQueryTimeout();
     }
 
     /** Write one row for the event: uniform header (identity) + the event body, straight to the keyed SQL. */

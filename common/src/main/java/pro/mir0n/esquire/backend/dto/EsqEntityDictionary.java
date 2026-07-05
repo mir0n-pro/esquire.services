@@ -2,7 +2,7 @@
  *  Esquire frameworks (tm)
  *  common library
  *
- *  Copyright(c) 2001, 2025 mir0n&co www.mir0n.me
+ *  Copyright(c) 2001, 2026 mir0n&co www.mir0n.pro
  *  mailto:mir0n.the.programmer@gmail.com
  *
  *  History:
@@ -10,6 +10,8 @@
  * 03/06/2026 mir0n findField() and fillКindFieldLayer() methods added; @Slf4j added
  * 03/08/2026 mir0n  fillКindFieldLayer(): setLayerTitle() called to populate layer title context
  * 03/10/2026 mir0n  fillКindFieldLayer() renamed fillKindFieldLayer() — Cyrillic К replaced with ASCII K
+ * 06/27/2026 mir0n  completed field made volatile -- AEnyManService double-checks it OUTSIDE the lock, so the warm
+ *                   fast-path read must see the completing thread's merged layers (happens-before)
  */
 
 package pro.mir0n.esquire.backend.dto;
@@ -38,7 +40,9 @@ import java.util.List;
 public class EsqEntityDictionary {
     // not transportable
 
-    private boolean completed = false;
+    // volatile: lazy completion (AEnyManService.completedDictionary) double-checks this flag outside the lock,
+    // so the fast-path read must see the completing thread's writes (the merged layers) via happens-before.
+    private volatile boolean completed = false;
 
     @Schema(
             description = "Entity Kind", example = "1"

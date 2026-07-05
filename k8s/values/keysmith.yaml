@@ -2,4 +2,32 @@
 # Chart defaults already match local dev needs. Only image.tag is
 # restamped per rebuild here -- k8s-rebuild.bat patches it.
 image:
-  tag: "v1.2.8-2606.1922"
+  tag: "v1.2.10-2607.0221"
+
+# v1.2.10 redundancy: run 2 replicas (StatefulSet ordinal identity)
+replicaCount: 2
+
+# R1-R5 local-k8s budget -- overrides the chart's pre-HA defaults. Tuned for the
+# constrained single-node Docker Desktop cluster running the full x2 fleet.
+# (R1 tx-timeout stays at the chart pre-HA default -1: no service-side tx cap on local k8s.)
+resilience:
+  tomcatMaxThreads: "25"          # R2
+  tomcatAcceptCount: "50"         # R2
+  dbPoolMax: "10"                 # R3
+  dbPoolMinIdle: "2"              # R3
+  dbConnectTimeoutMs: "5000"      # R3 fail-fast on pool acquire
+  dbSocketTimeoutSeconds: "35"    # R5
+  dbTcpKeepAlive: "true"          # R5
+
+# producer send-retry on the KC R&R bus (CLIENT request leg): ON for local k8s (block mode). Overrides the chart
+# pre-HA default (OFF).
+kc:
+  sendRetry: "true"
+
+resources:
+  requests:
+    cpu: 250m
+    memory: 512Mi
+  limits:
+    cpu: "1"
+    memory: 768Mi

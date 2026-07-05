@@ -3,6 +3,10 @@ spring:
     active: ${DB_DATAKEEP_VENDOR:dev-postgres}
   application:
     name: aukeep
+  # v1.2.10 VT: run each REST request on a virtual thread (Tomcat); opt-in, default OFF (pre-HA). See HA doc 5.5.
+  threads:
+    virtual:
+      enabled: ${ESQ_VIRTUAL_THREADS:false}
   mvc:
     problemdetails:
       enabled: true
@@ -18,6 +22,10 @@ esquire:
       bus-id: ${AUDIT_BUS_ID:audit-c}
       slot-id: ${AUDIT_SLOT_ID:audit}
       role: CLIENT   # auKeep is the audit CLIENT: it drains the audit bus and applies the *_log
+      x-rod:
+        # the audit consumer apply-pool size comes from the shared topology; mode selects the worker kind.
+        receiver-pool:
+          mode: ${AUDIT_POOL_MODE:platform}   # platform | virtual | virtual-per-task
 
 logging:
   level:
@@ -62,6 +70,8 @@ esquire:
       url: jdbc:postgresql://${DB_DATAKEEP_HOST:localhost}:${DB_DATAKEEP_PORT:5432}/${DB_DATAKEEP_NAME:esq2025}
       username: ${DB_DATAKEEP_USERNAME:esq2025}
       password: ${DB_DATAKEEP_PASSWORD:q}
+      # per-apply statement cap (seconds): 0 = uncapped (pre-HA default). The keep surface of the request-path cap.
+      query-timeout-seconds: ${ESQ_KEEP_QUERY_TIMEOUT_S:0}
       hikari:
         maximum-pool-size: 20
         minimum-idle: 10
@@ -94,6 +104,8 @@ esquire:
       url: jdbc:oracle:thin:@//${DB_DATAKEEP_HOST:localhost}:${DB_DATAKEEP_PORT:1521}/${DB_DATAKEEP_NAME:MIR0N}
       username: ${DB_DATAKEEP_USERNAME:esq2025}
       password: ${DB_DATAKEEP_PASSWORD:q}
+      # per-apply statement cap (seconds): 0 = uncapped (pre-HA default). The keep surface of the request-path cap.
+      query-timeout-seconds: ${ESQ_KEEP_QUERY_TIMEOUT_S:0}
       hikari:
         maximum-pool-size: 20
         minimum-idle: 10

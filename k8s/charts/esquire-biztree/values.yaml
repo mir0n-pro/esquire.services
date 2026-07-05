@@ -3,12 +3,22 @@ image:
   tag: latest
   pullPolicy: IfNotPresent
 
+# HA scheduling (pre-HA defaults: no node pinning, no spread). The OKE overlay sets
+# nodeSelector.tier=app and turns topologySpread on to place the x2 replicas on
+# distinct app-tier nodes; local (single node) leaves both off.
+nodeSelector: {}
+topologySpread:
+  enabled: false
+
 # console profile = logback config; dev-postgres = JDBC datasource + named queries;
 # cache-h2 = biztree-specific local cache. OKE values override this.
 springProfilesActive: "console,dev-postgres,cache-h2"
 
 # shared bus topology is delivered by the esquire-topology ConfigMap, mounted at /etc/esquire.
 topologyImport: optional:file:/etc/esquire/topology.yml
+
+# v1.2.10 VT (UNVALIDATED test lever, default OFF -- see HA doc 5.5)
+esqVirtualThreads: "false"        # ESQ_VIRTUAL_THREADS (spring.threads.virtual.enabled, request path)
 
 service:
   port: 3002
@@ -20,6 +30,21 @@ db:
   name: esq2025
   username: esq2025
   password: q
+
+# R1-R5 resilience knobs (timeout ladder / pool sizing / fail-fast DB). Defaults
+# here are the pre-HA "no HA" behavior we ran before HA work (large / disabled), so a
+# plain `helm install` of this chart behaves exactly as before. The tuned local-k8s
+# budget lives in k8s/values/biztree.yaml; OKE keeps these pre-HA defaults.
+# NOTE: these size the POSTGRES pool. The H2 cache pool is the separate h2.* block below.
+resilience:
+  txTimeoutSeconds: "-1"          # R1 spring.transaction.default-timeout (-1 = inherit, no cap)
+  tomcatMaxThreads: "200"         # R2 server.tomcat.threads.max (Boot default)
+  tomcatAcceptCount: "100"        # R2 server.tomcat.accept-count (Boot default)
+  dbPoolMax: "20"                 # R3 Hikari maximum-pool-size
+  dbPoolMinIdle: "20"             # R3 Hikari minimum-idle
+  dbConnectTimeoutMs: "30000"     # R3 Hikari connection-timeout (Hikari default)
+  dbSocketTimeoutSeconds: "0"     # R5 pgjdbc socketTimeout (0 = none)
+  dbTcpKeepAlive: "false"         # R5 pgjdbc tcpKeepAlive
 
 # H2 local cache: the Taijitu two-monad store (in-mem, kept alive for the JVM lifetime).
 h2:
@@ -37,6 +62,7 @@ entity:
   slotId: entity
   broadcastPoolSize: "4"
   broadcastConcurrency: "1"
+  poolMode: "platform"            # ENTITY_BROADCAST_POOL_MODE (platform | virtual | virtual-per-task, default platform)
 
 # v1.2.5 Taijitu two-monad cache + night-watch sweep (mirrors the compose biztree env)
 #   director:   legacy (single-pass) | taijitu (two-monad + anti-entropy night-watch)

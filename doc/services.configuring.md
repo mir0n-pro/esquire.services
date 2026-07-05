@@ -45,8 +45,29 @@ env token is `DATAKEEP` -- a deferred rename, so the env prefix stays `DATAKEEP`
 | `DB_<SVC>_USERNAME` | `esq2025` | Database user. |
 | `DB_<SVC>_PASSWORD` | `q` | Database password. Set from a secret in real deployments. |
 
-Hikari pool settings are fixed in the yml (not env-driven): `maximum-pool-size=20`,
-`minimum-idle=20`, `connection-timeout=30000`, `max-lifetime=1800000`, `idle-timeout=600000`.
+Hikari `max-lifetime=1800000` and `idle-timeout=600000` are fixed in the yml. Pool sizing
+(`maximum-pool-size`, `minimum-idle`, `connection-timeout`) and the pgjdbc fail-fast properties are
+env-overridable -- see [Resilience budget](#resilience-budget-timeouts-pool--thread-sizing) below.
+
+### Resilience budget (timeouts, pool & thread sizing)
+
+The request-path timeout cap, the pool/thread sizing, and the fail-fast DB properties. **Every default
+here is the no-redundancy setting** -- the value the stack ran before HA work. The tuned budget is set
+per service in the local-k8s chart overlays (`k8s/values/*.yaml`); the OKE deploy leaves these unset and
+so inherits the pre-HA defaults below. Applies to the data services (enyMan, pacMan, keySmith, bizTree;
+the keep cap also to auKeep).
+
+| Env var | Default | Description |
+|---|---|---|
+| `ESQ_TX_TIMEOUT_S` | `-1` | Request-path query/transaction cap (seconds); `-1` = no cap (pre-HA). A stuck query frees its worker + connection instead of hanging. The long ops (a branch move, the bizTree full-tree cache load) opt out so they are never cut off. |
+| `ESQ_KEEP_QUERY_TIMEOUT_S` | `0` | Per-apply keep statement cap (seconds), via JDBC `setQueryTimeout`; `0` = uncapped (pre-HA). A stuck `*_log` apply is cancelled instead of pinning a keep connection. |
+| `ESQ_TOMCAT_MAX_THREADS` | `200` | Tomcat request worker threads max (pre-HA = Boot default). HA bounds the pool so a slow downstream cannot exhaust threads fleet-wide. |
+| `ESQ_TOMCAT_ACCEPT_COUNT` | `100` | Tomcat accept-queue depth. |
+| `ESQ_DB_POOL_MAX` | `20` | Hikari `maximum-pool-size`. |
+| `ESQ_DB_POOL_MIN_IDLE` | `20` | Hikari `minimum-idle`. |
+| `ESQ_DB_CONNECT_TIMEOUT_MS` | `30000` | Hikari `connection-timeout` (ms). |
+| `ESQ_DB_SOCKET_TIMEOUT_S` | `0` | pgjdbc `socketTimeout` (s); `0` = off (pre-HA). Makes a vanished DB fail fast on a half-open socket instead of hanging a worker. |
+| `ESQ_DB_TCP_KEEPALIVE` | `false` | pgjdbc `tcpKeepAlive`; `false` = off (pre-HA). |
 
 ### Messaging bus (the x-rod) + topology import
 
@@ -60,9 +81,10 @@ Esquire catalog: which buses exist and the env that drives them. The vocabulary:
 - **slot** (`slot-id`): a leg a participant joins -- `entity`, `kc`, `audit`.
 - **node** (`node-id`): request/response buses split a slot into `request` + `response` nodes (each
   its own destination); single-node buses just carry a `destination`.
-- **x-rod**: the per-slot x-rod config -- `rod-class` + engine knobs (pool-size, feed-capacity,
-  virtual-threads, publisher-pool-size, concurrency) + alive-protocol knobs (alive, heartbeat-interval,
-  alive-timeout, alive-fail-fast) + a `transport` block.
+- **x-rod**: the per-slot x-rod config -- `rod-class` + engine knobs (receiver-pool.size, receiver-pool.mode,
+  feed-capacity, publisher-pool.size, publisher-pool.mode, concurrency) + alive-protocol knobs (alive, heartbeat-interval,
+  alive-timeout, alive-fail-fast) + send-retry knobs (send-retry, send-retry-backoff-sec, send-retry-max-attempts)
+  + a `transport` block.
   - **alive protocol** (an OPT-IN session-layer keep-alive; **OFF by default**): `alive` (default `false`) --
     turn on the FIX-style HeartBeat / TestRequest session on this leg. When OFF, the leg runs no session and its
     health is the transport's own connection signal alone; when ON, a producing leg quiet for
@@ -71,11 +93,38 @@ Esquire catalog: which buses exist and the env that drives them. The vocabulary:
     DOWN at once on a send error (a no-op on ActiveMQ `failover:`, which queues a send rather than throwing, so
     the timeout governs there). Keep these IN SYNC across all x-rods on a slot. **When to enable it -- see
     "Connection monitoring & the alive protocol" under Health checks below.**
+  - **send-retry** (an OPT-IN producer messaging-path resilience pattern; **OFF by default**): `send-retry`
+    (default `false`) -- when a dispatch fails on a transport-backed producer leg, HOLD the message on the feed
+    (tx) worker and re-dispatch it over a backoff ladder until the broker recovers (the SAME `ApplMsgID` per
+    resend, so a consumer can dedup). Holding the single worker is the back-pressure -- queued events wait
+    behind it. `send-retry-backoff-sec` (a comma list of SECONDS, default `1,2,5,5` -- the last step repeats) is the
+    ladder; `send-retry-max-attempts` (default `0`) is `0` = BLOCK mode (retry until recovery, never drop) or a
+    positive N = FALLBACK mode (DROP after N attempts and move on). Only a transport publisher leg gets it (an
+    in-process / non-transport leg has nothing to re-dispatch); a heartbeat is never retried. Keep these IN SYNC
+    across the x-rods on a slot. The hold / recover / drop trail rides the leg's `msg` audit log.
+  - **worker sizing & thread model** (the leg's thread budget): `receiver-pool.size` (default `4`) is the receive /
+    apply pool -- the worker count, which is the concurrency cap; `receiver-pool.mode` (default `platform`) is that
+    pool's thread model -- `platform` | `virtual` | `virtual-per-task`; `concurrency` (default `1`) is the transport
+    listener's own threads; `publisher-pool.size` (default `0` = publish on the single feed worker, `>0` = an async
+    publish pool) with its own `publisher-pool.mode` (default `platform`); `feed-capacity` (default `4096`) is the
+    feed queue DEPTH (memory, not threads). The feed (tx) worker is ALWAYS one platform thread. Every pool is the
+    common `WorkerPool` (`pro.mir0n.utils.concurrent`): `platform` / `virtual` = a fixed pool of `size` reused
+    workers (OS threads, or `size` virtual threads); `virtual-per-task` = one virtual thread per event, capped by
+    `Semaphore(size)` (uncapped when `size = 0`). The `mode` lever is wired in every environment and passes the full
+    smoke + e2e matrix on both `platform` and `virtual`; the default is `platform` because Esquire's apply pools are
+    small and DB-pool-capped, so virtual threads buy nothing here -- they pay off only when a pod would otherwise
+    exhaust its OS file-handle / thread budget holding many concurrently-blocked waits. See the metal-vs-virtual
+    budget in `Esquire.HighAvailability.md` section 5.5.
 - **transport**: provider (`activemq` | `kafka` | `redis`, or a class name) + endpoint + destination +
   `params` (opaque per-vendor knobs, e.g. `jms.useAsyncSend` / `pubSubDomain` for ActiveMQ pub/sub-vs-queue
-  / `group-id` / `max-len`) + (R&R) `request-node` / `response-node` + a node list. The bus carries no
-  queue-vs-topic notion of its own: that is a JMS concept, set as the ActiveMQ `pubSubDomain` param
+  / `noLocal` / `group-id` / `max-len`) + (R&R) `request-node` / `response-node` + a node list. The bus carries
+  no queue-vs-topic notion of its own: that is a JMS concept, set as the ActiveMQ `pubSubDomain` param
   (`true` = topic, absent/`false` = queue) and read only by `tp-activemq`.
+  - **noLocal** (`transport.params.noLocal`, default off): for a broadcast `CLIENT` that both publishes and
+    listens on ONE topic when the fleet runs many instances. With it on, the x-rod runs both legs over a SINGLE
+    broker connection and the broker drops that connection's own publications, so the leg receives only OTHER
+    instances' events. Leave it off and the rod keeps two connections and excludes its own in code by rod-id
+    instead -- same result, one extra connection.
 - **rod-class**: `XRod` (standard transceiver), `XRodRR` (request/response, two-node, role-routed),
   `XRodInProcess` (a generic in-process relay that runs a worker applying events locally instead of sending
   them; `messaging.xrod.impl`), `XRodInProcessKeep` (the in-process KEEP that applies events to a DB via a
@@ -139,9 +188,9 @@ flip + the matching topology leg (and infra) -- no code change, no rebuild.
 |---|---|---|
 | `AUDIT_BUS_ID` | `audit-b` code / `audit-c` deployed | Selects the audit bus (the sink) the producer posts to. |
 | `AUDIT_SLOT_ID` | `audit` | The audit `slot-id`. |
-| `AUDIT_POOL_SIZE` | `4` | Audit x-rod feed apply-pool size; keep <= the keep datasource pool. |
+| `AUDIT_POOL_SIZE` | `4` | Audit x-rod receive / apply-pool size; keep <= the keep datasource pool. |
 | `AUDIT_FEED_CAPACITY` | `4096` | Producer feed depth (bounded; full -> back-pressures flush-after-commit). |
-| `AUDIT_VIRTUAL_THREADS` | `false` | Feed-pool workers on virtual threads. |
+| `AUDIT_POOL_MODE` | `platform` | Apply-pool thread model: `platform` \| `virtual` \| `virtual-per-task`. |
 
 **audit-(b) keep datasource** (only when the `audit-b` in-process leg is active -- it writes `*_log`
 locally, so its datasource is service-specific and configured on the service-local topology key):
@@ -345,6 +394,33 @@ Both variants are dormant when their `clients` allowlist is empty.
 |---|---|---|
 | `ESQ_JWE_PRIVATE_KEY_PATH` | *(empty)* | In-container path to the JWE keypair. When set, the JWE-aware decoder is wired and `/jwe-jwks` serves the public key; blank → plain JWS decoder (the v1.2.3 baseline). |
 
+### Resilience (circuit breaker, per-route timeout & retry, connection pool)
+
+The gateway sheds load away from a failing backend (an open circuit breaker) and bounds each call with a
+per-route timeout; an open/tripped breaker or a timed-out call surfaces as the `GatewayErrorWebExceptionHandler`
+503/504 ProblemDetail. The per-route deadline is the breaker's TimeLimiter (NOT the Netty response-timeout,
+which is a generous backstop above it). The slow-write breakers (`enyman-move-cb`, `pacman-acct-cb`,
+`enyman-new-cb`) use the longer `slow-timeout`. Defaults below are the no-redundancy settings; the tuned
+budget is in the local-k8s overlay.
+
+| Env var | Default | Description |
+|---|---|---|
+| `GW_CB_TIMEOUT_S` | `10` | Default per-route call deadline (the breaker's TimeLimiter). |
+| `GW_CB_SLOW_TIMEOUT_S` | `30` | Per-route deadline for the slow-write routes (move / acct / create). |
+| `GW_CB_WINDOW` | `20` | Breaker sliding-window size (count-based). |
+| `GW_CB_MIN_CALLS` | `10` | Minimum calls before the breaker computes its rates. |
+| `GW_CB_FAILURE_RATE` | `50` | Failure-rate % that opens the breaker. |
+| `GW_CB_SLOW_RATE` | `100` | Slow-call-rate % that opens the breaker. |
+| `GW_CB_SLOW_DURATION_S` | `8` | A call slower than this counts as a slow call. |
+| `GW_CB_OPEN_WAIT_S` | `10` | Time the breaker stays open before trialing half-open. |
+| `GW_CB_HALFOPEN_CALLS` | `5` | Trial calls allowed in the half-open state. |
+| `GW_RETRY_READ` | `3` | Retry attempts on read routes (connect-failure + timeout, GET only). |
+| `GW_RETRY_WRITE` | `1` | Retry attempts on write routes (connect-failure ONLY -- a non-idempotent POST is never resent). |
+| `GW_CONNECT_TIMEOUT_MS` | `2000` | Netty client connect-timeout (ms) -- fails fast if a pod is unreachable. |
+| `GW_RESPONSE_TIMEOUT` | `35s` | Netty response-timeout backstop (keep above `GW_CB_SLOW_TIMEOUT_S`). |
+| `GW_POOL_MAX_CONNECTIONS` | `16` | Backend connection pool max-connections. |
+| `GW_POOL_ACQUIRE_TIMEOUT_MS` | `45000` | Pool acquire-timeout (ms). |
+
 ### Route upstream hosts/ports
 
 The route table targets these (defaults are dev-quirky leftovers — always overridden by compose/k8s):
@@ -361,18 +437,24 @@ Entity manager: org/user/account CREATE, save, move, the in-process move queue, 
 **Port:** `ENYMAN_PORT` (`3000` code / `3003` deployed). **Shared:** DB token `ENYMAN`, messaging
 bus, logging, instance identity, [audit logging](#audit-logging-producers-enyman-pacman-keysmith).
 
-enyMan joins three buses: **entity-bus** (SERVER -- broadcasts UE), **kc-bus** (R&R CLIENT to
-kcMaster), and **audit-bus** (UA producer). The bus-id / slot-id and x-rod knobs come from the shared
-topology; the env overrides it actually uses:
+enyMan joins three buses: **entity-bus** (CLIENT, role both legs -- it broadcasts UE AND listens for its
+peers' creates on one shared connection, v1.2.10 Goal-4), **kc-bus** (R&R CLIENT to kcMaster), and
+**audit-bus** (UA producer). The bus-id / slot-id and x-rod knobs come from the shared topology; the env
+overrides it actually uses:
 
 | Env var | Default | Description |
 |---|---|---|
-| `ENTITY_BUS_ID` | `esquire.entity` | Entity-broadcast bus-id (SERVER producer). |
+| `ENTITY_BUS_ID` | `esquire.entity` | Entity-broadcast bus-id. enyMan runs both legs on it (publishes UE and listens for peer creates). |
 | `ENTITY_SLOT_ID` | `entity` | Entity slot-id. |
+| `ENTITY_RX_POOL_SIZE` | `2` | Entity-bus receive-leg listener pool size (Goal-4 peer-create receive). |
+| `ENTITY_RX_CONCURRENCY` | `1` | Entity-bus receive-leg listener concurrency. |
+| `ENTITY_BROADCAST_SEND_RETRY` | `false` | Producer [send-retry](#messaging-bus-the-x-rod--topology-import) on the entity broadcast leg; ON in docker + local-k8s, OFF on OKE. Ladder `ENTITY_BROADCAST_SEND_RETRY_BACKOFF_SEC` (`1,2,5,5`) + cap `ENTITY_BROADCAST_SEND_RETRY_MAX_ATTEMPTS` (`0` = block). |
 | `KC_BUS_ID` | `esquire.kc` | KC request/response bus-id (R&R CLIENT). |
 | `KC_SLOT_ID` | `kc` | KC slot-id. |
+| `KC_SEND_RETRY` | `false` | Producer send-retry on the KC request leg (+ `KC_SEND_RETRY_BACKOFF_SEC` `1,2,5,5` / `KC_SEND_RETRY_MAX_ATTEMPTS` `0`); ON in docker + local-k8s. |
 | `AUDIT_BUS_ID` | *(see [audit logging](#audit-logging-producers-enyman-pacman-keysmith))* | Audit sink bus-id (UA producer). |
 | `ENYMAN_MOVE_QUEUE_CAPACITY` | `16384` | Move-queue depth (bounded; on full, `submitMove`/`submitReconcile` drop + log). |
+| `ENYMAN_MOVE_TX_TIMEOUT_S` | `0` | Move-transaction cap (seconds); `0` = uncapped (pre-HA). The move opts OUT of the request-path cap ([`ESQ_TX_TIMEOUT_S`](#resilience-budget-timeouts-pool--thread-sizing)) -- set a positive value only to put a safety ceiling on a move. |
 | `ENYMAN_VALIDATE_CREATE_DURING_MOVE` | `true` | v1.2.6 Goal 3: `true` runs CREATE-during-move path reconciliation (race-8b closed); `false` reproduces the race (negative test). |
 
 ---
@@ -390,6 +472,7 @@ pacMan joins **entity-bus** (SERVER -- broadcasts UE) and **audit-bus** (UA prod
 |---|---|---|
 | `ENTITY_BUS_ID` | `esquire.entity` | Entity-broadcast bus-id (SERVER producer). |
 | `ENTITY_SLOT_ID` | `entity` | Entity slot-id. |
+| `ENTITY_BROADCAST_SEND_RETRY` | `false` | Producer [send-retry](#messaging-bus-the-x-rod--topology-import) on the entity broadcast leg; ON in docker + local-k8s, OFF on OKE. Ladder `ENTITY_BROADCAST_SEND_RETRY_BACKOFF_SEC` (`1,2,5,5`) + cap `ENTITY_BROADCAST_SEND_RETRY_MAX_ATTEMPTS` (`0` = block). |
 | `AUDIT_BUS_ID` | *(see [audit logging](#audit-logging-producers-enyman-pacman-keysmith))* | Audit sink bus-id (UA producer). |
 
 ---
@@ -408,6 +491,7 @@ producer).
 |---|---|---|
 | `KC_BUS_ID` | `esquire.kc` | KC request/response bus-id (R&R CLIENT). |
 | `KC_SLOT_ID` | `kc` | KC slot-id. |
+| `KC_SEND_RETRY` | `false` | Producer [send-retry](#messaging-bus-the-x-rod--topology-import) on the KC request leg; ON in docker + local-k8s, OFF on OKE (pre-HA). Ladder `KC_SEND_RETRY_BACKOFF_SEC` (`1,2,5,5`) + cap `KC_SEND_RETRY_MAX_ATTEMPTS` (`0` = block until recovery). |
 | `AUDIT_BUS_ID` | *(see [audit logging](#audit-logging-producers-enyman-pacman-keysmith))* | Audit sink bus-id (UA producer). |
 | `KEYSMITH_TEST_CONNECT_HOLD_MS` | `0` | **Test-only** race-8c hook: ms to sleep between the committed path read and the activation URQ publish. `0` = disabled; never set in production. |
 
@@ -428,6 +512,7 @@ talks to KC over the admin REST API.
 | `KC_ADMIN_CLIENT_SECRET` | *(empty)* | Secret for a confidential admin client. |
 | `KC_BUS_ID` | `esquire.kc` | KC request/response bus-id (R&R SERVER; serves enyMan + keySmith). |
 | `KC_SLOT_ID` | `kc` | KC slot-id (SERVER consume filters `SlotID = '<slot-id>'`). |
+| `KC_SEND_RETRY` | `false` | Producer [send-retry](#messaging-bus-the-x-rod--topology-import) on the KC response leg; ON in docker + local-k8s, OFF on OKE. Ladder `KC_SEND_RETRY_BACKOFF_SEC` (`1,2,5,5`) + cap `KC_SEND_RETRY_MAX_ATTEMPTS` (`0` = block). |
 | `ENTITY_BUS_ID` | `esquire.entity` | Entity-broadcast bus-id (CLIENT consumer, for KC path sync). |
 | `ENTITY_SLOT_ID` | `entity` | Entity slot-id. |
 | `KCMASTER_PATH_BUFFER_TTL_MS` | `60000` code / `10000` deployed | Race-8c path-buffer TTL. Buffered topic-side paths older than this are not applied. **Test:** `-1` disables recovery (reproduces the race). |
@@ -457,6 +542,7 @@ DB read at cache load), messaging bus, logging.
 | `BIZTREE_TAIJITU_ON_MISMATCH` | `LOG` code / `SWAP` deployed | Night-watch reaction when the two monads' checksums disagree: `LOG` \| `SWAP` \| `TERMINATE`. |
 | `BIZTREE_TAIJITU_SWEEP_INTERVAL_MS` | `10000` code / `600000` deployed | Interval between night-watch sweeps. |
 | `BIZTREE_TAIJITU_SWEEP_TIMEOUT_MS` | `10000` | Per-leg CHECKSUM deadline; a slower leg is cancelled (the sweep is inconclusive, not fatal). |
+| `BIZTREE_CACHE_LOAD_TX_TIMEOUT_S` | `0` | Startup full-tree cache load transaction cap (seconds); `0` = uncapped (pre-HA). The whole-tree read opts OUT of the request-path cap ([`ESQ_TX_TIMEOUT_S`](#resilience-budget-timeouts-pool--thread-sizing)) -- set a positive value only to put a safety ceiling on a full-tree load. |
 
 ### H2 cache datasource / pool
 
@@ -468,6 +554,7 @@ DB read at cache load), messaging bus, logging.
 | `BIZTREE_H2_POOL_CONN_TIMEOUT` | `5000` | Connection timeout (ms). |
 | `BIZTREE_H2_POOL_MAX_LIFETIME` | `1800000` | Connection max lifetime (ms). |
 | `BIZTREE_H2_POOL_IDLE_TIMEOUT` | `600000` | Idle timeout (ms). |
+| `BIZTREE_H2_QUERY_TIMEOUT_S` | `0` | Per-statement cap on the in-memory H2 cache (seconds); `0` = uncapped (pre-HA). The H2 cache surface of the request-path cap -- a guard against a pathological cache statement, not a tuning knob. |
 
 ---
 
@@ -498,8 +585,50 @@ The keep director is wired in code, not selected by config: one `IKeepDirector` 
 which declares its kinds + SQL group `audit`. A future replication / doc-DB keep is a different
 `IKeepDirector`, also wired in code.
 
-The apply-pool sizing (`pool-size`, `virtual-threads`, `concurrency`) is the audit leg's `x-rod` block in
-the shared topology, not a per-service env var; keep `pool-size` <= the datasource Hikari pool.
+The apply-pool sizing (`receiver-pool.size`, `receiver-pool.mode`, `concurrency`) is the audit leg's `x-rod` block
+in the shared topology; keep `receiver-pool.size` <= the datasource Hikari pool. `receiver-pool.mode` stays
+`platform` -- this apply pool is DB-pool-capped, so virtual threads buy nothing here (see HA 5.5).
+
+---
+
+## backend (BFF)
+
+Browser-facing Backend-for-Frontend (image `esquire.backend`, Node/Express): it serves the Angular SPA,
+owns the OIDC login (authorization-code + PKCE, session in an HttpOnly cookie), and proxies `/api/*` to the
+gateway with the session's bearer injected. The SPA and the BFF ship in one image; the SPA's browser-side
+runtime config is served at `/assets/config.json`. No messaging bus, no database.
+
+**Port:** `PORT` (`3000`). Deployed behind ingress (local: `esquire.localhost`; OKE: `esquire.mir0n.pro`).
+
+| Env var | Default | Description |
+|---|---|---|
+| `PORT` | `3000` | HTTP listen port. |
+| `NODE_ENV` | `development` (image: `production`) | Node environment. |
+| `PUBLIC_BASE_URL` | `http://localhost:3000` | Browser-visible base URL; the base for `redirect_uri` / post-login + post-logout locations. |
+| `ALLOWED_ORIGINS` | *(empty)* | Comma-separated extra origins accepted on `/auth/*` (the request Origin/Referer is validated against this list; `PUBLIC_BASE_URL` is always included). |
+| `KC_ISSUER` | `http://localhost:8080/kc-auth/realms/esquire` | Public, browser-facing realm issuer -- the token issuer and the base for authorize / end_session. |
+| `KC_ISSUER_INTERNAL` | *(= `KC_ISSUER`)* | URL the BFF discovers KC through server-to-server. On local k8s the public host is loopback inside a pod, so this points at the in-cluster KC service; KC's backchannel-dynamic config keeps the issuer + browser endpoints public. |
+| `KC_CLIENT_ID` | `esq-angular` | OIDC client registration id. |
+| `KC_CLIENT_SECRET` | *(dev literal; required)* | OIDC client secret. Set from a secret in real deployments. |
+| `GATEWAY_URL` | `http://localhost:7070` | In-cluster gateway base the `/api/*` proxy targets (skips the public hop). |
+| `SESSION_SECRET` | *(dev literal; required)* | express-session signing secret. Set from a secret in real deployments. |
+| `SESSION_MAX_AGE_MS` | `43200000` (12h) | Session cookie max age. |
+| `REDIS_URL` | *(empty)* | Shared session store. Empty -> in-memory `MemoryStore` (correct only at a single replica). Set to the in-cluster redis to share sessions across replicas (required to run more than one BFF copy). |
+| `ESQ_DICT_CACHE_TTL_MS` | `3600000` (1h) | Entity-dictionary proxy-cache TTL. |
+| `ESQ_DICT_CACHE_MAX` | `64` | Entity-dictionary proxy-cache max entries. |
+| `BFF_REQUEST_TIMEOUT_MS` | `0` | R1: whole-request deadline (`http.Server.requestTimeout`); `0` = Node default (none, pre-HA). |
+| `BFF_PROXY_TIMEOUT_MS` | `0` | R1: `/api` upstream-proxy deadline (BFF -> gateway hop); `0` = none (pre-HA). |
+
+### SPA runtime config (browser-fetched at `/assets/config.json`)
+
+Served to the browser, not BFF process env. The image bakes pre-HA defaults; on local k8s a ConfigMap
+(`{release}-backend-spaconfig`, rendered only when `spa.httpTimeoutMs` is set in the chart) is mounted over
+the baked `config.json`.
+
+| Key | Default | Description |
+|---|---|---|
+| `apiBasePath` | `/api` | Base path the SPA calls the BFF on. |
+| `httpTimeoutMs` | `0` | R1 client-side request timeout (ms); `0` / absent = no timeout (pre-HA). A positive value bounds a hung request in the browser. |
 
 ---
 
@@ -565,4 +694,6 @@ Upstream host/port for each is `${<SVC>_HOST}:${<SVC>_PORT}` (see the gateway ro
 | `KEYSMITH_TEST_CONNECT_HOLD_MS` | keySmith | `0` | Holds between the path read and the activation URQ publish to open the race-8c window. |
 | `KCMASTER_PATH_BUFFER_TTL_MS` | kcMaster | `10000` | `-1` disables path-buffer recovery so race-8c reproduces (buffer OFF). |
 | `ENYMAN_VALIDATE_CREATE_DURING_MOVE` | enyMan | `true` | `false` skips CREATE-during-move reconciliation so race-8b reproduces. |
+| `ENYMAN_TEST_CREATE_DELAY_MS` | enyMan | `0` | Holds the create transaction open between the parent-path read and the child insert, so a concurrent cross-instance move can rewrite the parent path in the gap (the race-8b multi-instance lever). |
+| `ESQ_TEST_SLOW_QUERY_ENABLED` | enyMan | `false` | `true` wires the `/test/slow-query` (capped) + `/test/slow-query-optout` endpoints used by the R6 query-timeout smoke. |
 | `BIZTREE_QUEUE_BULK_THRESHOLD` | bizTree | `10` | A very high value forces one-by-one cache processing (A/B against batched). |

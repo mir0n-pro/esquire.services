@@ -1,11 +1,20 @@
+{{- $replicas := int (.Values.replicaCount | default 1) -}}
+{{- if gt $replicas 10 -}}
+{{- fail (printf "esquire-pacman: replicaCount=%d exceeds the cap of 10. The per-instance number is a single decimal digit (0-9) -- the fleet naming rule (pod ordinal -> rod-id <app>.<instanceNo>) caps replicas at 10." $replicas) -}}
+{{- end -}}
+{{- if lt $replicas 1 -}}
+{{- fail (printf "esquire-pacman: replicaCount=%d must be >= 1" $replicas) -}}
+{{- end }}
 apiVersion: apps/v1
-kind: Deployment
+kind: StatefulSet
 metadata:
   name: {{ .Release.Name }}-pacman
   labels:
     app: {{ .Release.Name }}-pacman
 spec:
-  replicas: 1
+  serviceName: {{ .Release.Name }}-pacman-hl
+  replicas: {{ $replicas }}
+  podManagementPolicy: Parallel
   selector:
     matchLabels:
       app: {{ .Release.Name }}-pacman
@@ -14,10 +23,30 @@ spec:
       labels:
         app: {{ .Release.Name }}-pacman
     spec:
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if .Values.topologySpread.enabled }}
+      # HA: best-effort spread of the replicas across distinct nodes (soft -- a node
+      # loss still schedules). Off by default (pre-HA / single-node local); the OKE
+      # overlay turns it on so the x2 replicas land on different app-tier nodes.
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: {{ .Release.Name }}-pacman
+      {{- end }}
       containers:
         - name: pacman
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           args: ["java", "-jar", "app.jar"]
           ports:
             - containerPort: {{ .Values.service.port }}
@@ -30,6 +59,17 @@ spec:
                 secretKeyRef:
                   name: {{ .Release.Name }}-pacman-secret
                   key: db-password
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+          startupProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: {{ .Values.service.port }}
+            periodSeconds: 10
+            failureThreshold: 30      # up to 300s cold-start budget (JPA init under node contention) before liveness applies
+            timeoutSeconds: 5
           readinessProbe:
             httpGet:
               path: /actuator/health/readiness

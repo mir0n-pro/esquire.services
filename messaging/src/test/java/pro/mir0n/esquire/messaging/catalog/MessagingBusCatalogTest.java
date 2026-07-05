@@ -19,7 +19,7 @@ class MessagingBusCatalogTest {
         env.setProperty("esquire.messaging-bus[0].bus-id", "esquire.rod");
         env.setProperty("esquire.messaging-bus[0].slots[0].slot-id", "rod-audit");
         env.setProperty("esquire.messaging-bus[0].slots[0].x-rod.rod-id", "rod.0");
-        env.setProperty("esquire.messaging-bus[0].slots[0].x-rod.publisher-pool-size", "2");
+        env.setProperty("esquire.messaging-bus[0].slots[0].x-rod.publisher-pool.size", "2");
         env.setProperty("esquire.messaging-bus[0].slots[0].x-rod.transport.provider", FAKE);
         env.setProperty("esquire.messaging-bus[0].slots[0].x-rod.transport.endpoint", "tcp://localhost:61616");
         env.setProperty("esquire.messaging-bus[0].slots[0].x-rod.transport.destination", "esquire.rod.audit");
@@ -117,12 +117,12 @@ class MessagingBusCatalogTest {
     @Test
     void overrideMergesPerGroup_serviceGroupWinsInFull() {
         XRodParams base = catalog().resolve("esquire.rod", "rod-audit");
-        // the service override sets only the pool-size group; every other group stays from the base.
-        XRodParams override = XRodParams.from(Map.of("pool-size", 8));
+        // the service override sets only the receiver-pool group; every other group stays from the base.
+        XRodParams override = XRodParams.from(Map.of("receiver-pool", Map.of("size", 8)));
 
         XRodParams merged = base.merge(override);
 
-        assertThat(merged.poolSizeOr(0)).isEqualTo(8);                  // overwritten
+        assertThat(merged.receiverPoolSizeOr(0)).isEqualTo(8);          // overwritten (pool-size -> receiver-pool.size via fallback)
         assertThat(merged.rodId()).isEqualTo("rod.0");                  // base
         assertThat(merged.publisherPoolSizeOr(0)).isEqualTo(2);         // base
         assertThat(merged.transport().endpoint()).isEqualTo("tcp://localhost:61616");  // base group untouched

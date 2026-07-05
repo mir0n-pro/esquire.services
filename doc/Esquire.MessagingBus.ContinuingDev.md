@@ -102,11 +102,175 @@ when explicitly hooked. TBD/TODO; not in today's build.
 
 ---
 
+## 4. Multi-worker dispatch on one rod -- `addWorker` over a base subscription
+
+**First run.** A receive leg carries exactly ONE worker. `setWorker(String subscription, Consumer<RodEvent>
+worker)` opens the consumer with `subscription` as its selector and binds that single worker. On ActiveMQ the
+selector IS the broker's server-side subscription; a transport with no server-side selector (Kafka / Redis are
+fan-out-only) has no subscription narrowing at all yet -- see the client-side-selector direction in
+`tasks129.md` item 13.
+
+**Fuller form.** Let one rod fan a single base subscription out to MANY workers, each with its own finer filter,
+processed in order on one thread.
+
+- `setWorker(subscription, worker)` establishes the **base subscription** -- the connection-level subscription
+  that decides which messages the rod receives at all. On a transport WITH a server-side selector (ActiveMQ) the
+  base subscription is the broker selector. On a transport WITHOUT one, the framework filters incoming messages
+  against the base subscription in code -- a limited, framework-interpreted subscription language (only a subset
+  of the selector syntax need be supported); this is the same client-side-selector capability parked in item 13.
+- `addWorker(subscription, worker)` adds another worker whose `subscription` is an ADDITIONAL filter applied ON
+  TOP of the base subscription: that worker runs only for messages that pass BOTH the base subscription and its
+  own filter.
+- All workers on a rod run in ONE thread, in the SEQUENCE they were added: each received message is offered to
+  every matching worker's `action()` in registration order. No concurrency between a rod's workers; ordering is
+  deterministic.
+- A fluent chain expresses the set: `setWorker(base, w0).addWorker(f1, w1).addWorker(f2, w2)...` (or a similar
+  builder shape).
+- `worker` on `setWorker` is OPTIONAL (may be null): `setWorker(subscription, null)` establishes ONLY the base
+  subscription, expecting `addWorker(...)` calls to follow. (A base subscription with no workers receives but
+  dispatches to nothing.)
+
+**Why it is deferred.** Today each consuming concern gets its own rod/ref with one worker, which is enough for
+the current consumers. Multi-worker dispatch matters when several concerns share ONE physical
+subscription/connection and want to split that stream by finer filters without each opening its own consumer --
+and on a non-selector transport it depends on the client-side subscription language (item 13) to be meaningful.
+
+---
+
+## 5. Full set of messaging-path resilience patterns (beyond `send-retry`)
+
+**Deferred.** v1.2.10 ships ONLY the producer **`send-retry`** sublayer -- the one messaging-path R pattern this
+sprint (design in `doc/plans/tasks1210.md` Part 3.3). The producer **extension point** is now the
+`ISessionSublayer` stack -- event-driven hooks the feed (tx) worker drives at each send outcome, built by
+`SessionSublayerFactory` beside the `AliveSession` alive protocol (never mixed with it). The remaining patterns
+are added LATER, each as an **additional sublayer** on that stack:
+
+- **Circuit breaker** -- needs an "on open" policy the bus does not have today (no fallback destination): DLQ /
+  drop / local buffer must be decided first.
+- **Retry / backoff variants** beyond `send-retry`.
+- **Per-message timeout** -- async has no request/response deadline today.
+- **Per-destination bulkhead** -- today only `receiver-pool.size` bounds concurrency; no per-destination isolation.
+- **Metrics** -- Micrometer, separate from the bus health indicator.
+
+See the "Messaging-path resilience -- NOT Resilience4j" gap tables in `doc/plans/tasks1210.md` for what exists vs
+not and why (R4j is sync-only; the bus carries its own resilience).
+
+## 6. Async protocol with continuing processing (FIX-like)
+
+**Deferred.** A request/response (R&R) client sends a request **with OR without a subscription**:
+
+- **WITH subscription** -- the client receives **processing-status updates at each status change** (a progress
+  stream as the request advances).
+- **WITHOUT subscription** -- the client receives an **ACK**, then **asks (polls) for the completion status**.
+
+Modeled on the FIX protocol's order-status flow. Builds on the R&R rod (`XRodRR`) + the existing request/reply
+rod-id correlation -- a defined continuing-processing protocol layered on top of it.
+
+---
+
+## 7. Broadcast topic delivery across a full broker restart -- the resubscribe race
+
+**First run.** The entity-change broadcast rides a NON-DURABLE topic: the broker delivers each publish only to the
+consumers subscribed AT THAT INSTANT. On a FULL broker restart -- a k8s broker-pod replacement (`scale 0->1`) or an
+OKE failover to a fresh broker -- the producer (enyMan, with `send-retry` holding a change) and the consumer
+(bizTree) each reconnect INDEPENDENTLY through `failover:`. Send-retry re-sends the held change on producer
+reconnect; if that re-send lands BEFORE bizTree has resubscribed, the topic has no subscriber for it and the broker
+drops it -- bizTree misses that one broadcast. The **night-watch anti-entropy sweep** is the backstop: it reloads
+bizTree from the DB and heals the drift (the `MessageLossSimulation` scenario). VERIFIED local k8s 2026-07-01
+(broker scaled `0->1`: an office broadcast was dropped to a mid-resubscribe bizTree, then a forced `/esq-sweep`
+restored it -- NO data lost).
+
+**Why the first run is acceptable.** No data is lost -- the change is committed in the DB and the night-watch
+reconciles the cache; only a WINDOW of cache staleness remains, until the next sweep. It bites ONLY on a full
+broker restart (rare), not a brief blip -- a `docker stop/start` (same broker process, fast reconnect) does not hit
+it. `send-retry` is producer-side: its contract is "the send LANDS on the broker", which it meets; it cannot make a
+non-durable-topic consumer be subscribed at the re-send instant. And send-retry already IMPROVES the prior behavior
+-- the change is held + re-sent instead of dropped outright during the outage.
+
+**Fuller form.** Close the CONSUMER side so a full broker restart needs no sweep to reconcile: a DURABLE topic
+subscription (the broker retains messages for a named subscriber while it is reconnecting), so the re-sent
+broadcast is delivered once bizTree returns. Pairs with the consumer-leg / round-trip health refinements in item 1
+and the drop-visibility counters (`tasks129.md` commit 7). Transport-dependent: durable subscriptions are an
+ActiveMQ concept; Kafka (offset retention) and Redis Streams (the log IS retained) survive a restart differently
+-- part of the per-driver durability work (`tasks129.md` item 13).
+
+## 8. Virtual-threads throughput budget on OKE (correctness done; perf A/B open)
+
+The pool thread model is now a first-class per-leg setting -- `receiver-pool.mode` / `publisher-pool.mode` =
+`platform` | `virtual` | `virtual-per-task`, backed by the common `WorkerPool` (`pro.mir0n.utils.concurrent`); the
+request path is wired via `spring.threads.virtual.enabled` (`ESQ_VIRTUAL_THREADS`). The stack runs on the **JDK 25
+LTS** runtime (compiled `--release 24`), so JEP 491 removes the old `synchronized`-monitor pinning that our x-rod
+engine + send-retry lock + JDBC would have hit. **CORRECTNESS is validated:** the full smoke + e2e matrix passes
+identically on `platform` and `virtual`, on BOTH docker and local k8s (8/8 cells green) -- a service boots healthy
+and processes events the same either way, with no pinning stall. Default stays `platform`.
+
+**What is still open -- the throughput / budget A/B, and it is OKE-only.** The matrix proved correctness, not
+performance: on a single saturated host the timings are noise. The finding so far (see `HighAvailability.md` 5.5)
+is that virtual threads buy **nothing** for Esquire's messaging pools, because they are small FIXED pools whose
+real ceiling is the keep's DB connection pool (`receiver-pool.size <= keep DB pool`), not thread count -- and VT
+only pays off when a pod would otherwise exhaust its per-pod OS file-handle / thread budget holding MANY
+concurrently-blocked waits. The open task is to confirm that no-benefit conclusion under real load on OKE (more
+cores, no CPU cap), and to check the one candidate that could differ -- a blocking-I/O consumer like
+kcMaster -> KeyCloak, or the Tomcat request path under high concurrent-slow-request load. Compare a thread dump /
+latency / memory against the platform baseline; the result decides whether VT is ever worth turning on for a
+specific leg, or stays an unused-by-default lever.
+
+---
+
+## 9. R&R reply-timeout / reply-tracking resilience (moved from v1.2.10 backlog #14, 2026-07-02)
+
+`XRodRR` fires a request and waits for a reply with **no per-request timeout, no pending-request map, and no
+replier-down detection**; and a failed R&R apply under `AUTO_ACKNOWLEDGE` is acked-and-lost with no redelivery.
+Today this is **bounded, not an active hang**: a missing reply surfaces as the caller's outer request timing out
+(the gateway / BFF timeout ladder), and R&R runs single-instance. The improvement -- a real R&R-level reply
+timeout + pending-request tracking + replier-down detection, and not losing a failed apply -- is
+**continuing-development, not v1.2 scope**: its full value is the multi-instance reply-routing case (kcMaster
+multi-instance, `tasks1210.md` #15), and the outer timeout already caps the single-instance wait. Not a big thing
+to fight for in v1.2.
+
+**Companion work (already posed):** the **async long-running-command protocol** -- item 6 above (FIX-like: a
+request WITH a subscription gets processing-status updates at each change; WITHOUT one gets an ACK, then polls for
+completion). A long-running R&R command's status / progress / completion-and-timeout semantics belong with that
+protocol -- so R&R reply-timeout resilience (this item) and the async-command protocol (item 6) are the SAME body
+of R&R continuing-dev work and should be designed together.
+
+(The rod-id **uniqueness** half of the original #14 was REJECTED -- rod-id is unique by default via StatefulSet
+ordinals, a manual override is a deliberate expert choice; see `doc/Esquire.Q&A.md`.)
+
+---
+
+## 10. Replay / seek API for retained-log transports (Kafka / Redis Streams)
+
+**Deferred (from the v1.2.10 Messaging-Bus assessment, `tasks1210.md` 3.4, 2026-07-02).** The bus has no API to
+REPLAY a leg from an earlier point: `IXRod` exposes send + set-worker, but no `replayFrom(offset)` /
+`seekToTimestamp(ts)`. On a **retained-log** transport this is a real, cheap capability the wire already supports
+-- Kafka keeps offsets, Redis Streams IS an append-only log (`XRANGE` / `XREVRANGE` from any id) -- so a consumer
+could re-read from a chosen point after a gap or for a rebuild. On ActiveMQ there is nothing to seek (a
+non-durable topic retains nothing; a queue is consume-once), so replay is inherently a **per-driver** capability,
+not a universal one. Belongs with the per-driver durability / selector work (`tasks129.md` item 13) and pairs with
+the durable-topic direction in item 7. When added, `IXRod` gains an OPTIONAL seek/replay method that a
+non-retaining driver rejects (the same shape as `tp-redis`'s `supportsConsume() == false`).
+
+---
+
+## 11. Javadoc quality gate for the bus public API (REQUIRED for the public API)
+
+**From the v1.2.10 Full-System Review (`tasks1210.md` D1, 2026-07-02).** The generation infrastructure now exists
+-- the `-Pjavadoc` profile + `make-javadoc.bat` publish per-module API docs under `doc/java-doc/`, with doclint
+OFF so it never blocks the build. What is NOT yet enforced is the QUALITY of that Javadoc on the bus's public
+surface: the extension SPI an adopter codes against -- `IXRod`, `ISessionSublayer`, the transport SPI, the
+catalog / `XRodParams` config keys, `RodEvent` / codec. For the PUBLIC API, complete and meaningful Javadoc is
+REQUIRED (every public / extendable type + method: purpose, params, return, contract, threading / lifecycle notes
+-- not a stub echo of the signature). Candidate mechanism: re-enable doclint SCOPED to the exported packages only
+(kept separate from the build-wide OFF setting) plus a doc-coverage check that fails if a public type / member is
+undocumented. Stays within the "mechanism-only, never where-applied" rule for framework docs.
+
+---
+
 ## Related parked items (already tracked elsewhere -- not re-listed here)
 
 - Transport SPI is ActiveMQ-shaped; selector / `key()` / durability differ per driver -- `tasks129.md` item 13
   (v1.2.10) and the selector design direction recorded there.
-- R&R reply timeout + rod-id uniqueness -- `tasks129.md` item 14 (v1.2.10).
 - Loss-visibility drop counters (the other half of commit 7) -- `tasks129.md` commit 7 / item 1.
 - DB-pool durability (pgjdbc `socketTimeout` / `tcpKeepAlive`; the `isValid()`-on-a-half-open-socket gap that
   makes `XRodInProcessKeep` / `keepDatasource` health blind on k8s) -- memory

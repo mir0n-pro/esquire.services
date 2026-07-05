@@ -5,9 +5,11 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
+import pro.mir0n.esquire.backend.error.MissingRequestIdException;
 import pro.mir0n.esquire.common.EsqConstants;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -56,6 +58,25 @@ class RequestContextUtilsTest {
         bindRequest(req);
 
         assertThat(RequestContextUtils.getCorrelationId()).isEqualTo("x-corr");
+    }
+
+    @Test
+    void requireRequestId_returnsId_whenPresent() {
+        EsqContextHolder.set(new EsqRequestContext("corr", "req", "uid-9", "1.2."));
+        assertThat(RequestContextUtils.requireRequestId()).isEqualTo("req");
+    }
+
+    @Test
+    void requireRequestId_throws_whenAbsent() {
+        assertThatThrownBy(RequestContextUtils::requireRequestId)
+                .isInstanceOf(MissingRequestIdException.class);
+    }
+
+    @Test
+    void requireRequestId_throws_whenBlank() {
+        EsqContextHolder.set(new EsqRequestContext("corr", "  ", "uid-9", "1.2."));
+        assertThatThrownBy(RequestContextUtils::requireRequestId)
+                .isInstanceOf(MissingRequestIdException.class);
     }
 
     @Test

@@ -17,6 +17,8 @@
  * 05/23/2026 mir0n  wired the clear-all + checksum SQL properties into BizTreeCacheSql.Repo
  * 06/02/2026 mir0n  cacheTransactionTemplate bean (DataSourceTransactionManager over the cache
  *                   DataSource) so the monad can batch event applies in one transaction
+ * 06/29/2026 mir0n  biztree.h2.query-timeout-s @Value: when > 0 sets the cache JdbcTemplate setQueryTimeout (the
+ *                   H2 cache surface of the request-path cap); 0 = uncapped (pre-HA default) (R6)
  */
 package pro.mir0n.esquire.bizTree.h2;
 
@@ -63,6 +65,11 @@ public class BizTreeH2Config {
     private long    maxLifetime;
     @Value("${biztree.h2.pool.idle-timeout:600000}")
     private long    idleTimeout;
+    // Per-service cap on each cache query (JDBC setQueryTimeout): 0 (the default) leaves it uncapped (pre-HA).
+    // The H2 cache surface of the request-path query timeout -- the in-memory cache replies fast, so this is
+    // a guard against a pathological cache statement, not a tuning knob.
+    @Value("${biztree.h2.query-timeout-s:0}")
+    private int     queryTimeoutSeconds;
 
     @Bean
     public BizTreeCacheSql bizTreeCacheSql(Environment env) {
@@ -114,6 +121,9 @@ public class BizTreeH2Config {
         ds.setMaxLifetime(maxLifetime);
         ds.setIdleTimeout(idleTimeout);
         JdbcTemplate jt = new JdbcTemplate(ds);
+        if (queryTimeoutSeconds > 0) {
+            jt.setQueryTimeout(queryTimeoutSeconds);
+        }
         jt.execute(sql.createTable());
         jt.execute(sql.createIndexParent());
         jt.execute(sql.createIndexEntityPk());

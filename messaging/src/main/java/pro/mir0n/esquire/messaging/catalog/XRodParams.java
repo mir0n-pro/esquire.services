@@ -20,6 +20,13 @@
  * 06/23/2026 mir0n  alive-protocol knobs in SCALARS + getters: heartbeat-interval (10s) / alive-timeout (3x) /
  *                   alive-fail-fast; boolOr with a default
  * 06/24/2026 mir0n  'alive' on/off knob in SCALARS + aliveOr(boolean) getter -- the session is OPT-IN, default off
+ * 06/30/2026 mir0n  producer send-retry knobs in SCALARS + getters: send-retry (opt-in, default off) /
+ *                   send-retry-backoff (seconds ladder) / send-retry-max-attempts (0 = block, N = drop)
+ * 07/01/2026 mir0n  worker pool regrouped: pool-size / virtual-threads / publisher-pool-size dropped from SCALARS,
+ *                   replaced by the receiver-pool / publisher-pool {size, mode} GROUPS -- getters receiverPoolSizeOr /
+ *                   receiverPoolMode / publisherPoolSizeOr / publisherPoolMode; the flat-key getters + fallback removed
+ * 07/02/2026 mir0n  config key send-retry-backoff -> send-retry-backoff-sec (unit suffix): SCALARS entry +
+ *                   sendRetryBackoff() getter now read send-retry-backoff-sec
  */
 package pro.mir0n.esquire.messaging.catalog;
 
@@ -46,8 +53,10 @@ public record XRodParams(String busId, String slotId, Map<String, Object> raw) {
     /** The scalar knob keys -- the ONE place that registers a framework scalar (add one here + a getter). The
      *  groups ({@code transport} = the wire, and an x-rod's own sub-blocks) are NOT scalars: they bind as a whole. */
     public static final List<String> SCALARS = List.of(
-            "rod-id", "rod-class", "pool-size", "feed-capacity", "virtual-threads", "publisher-pool-size", "concurrency",
-            "alive", "heartbeat-interval", "alive-timeout", "alive-fail-fast");
+            "rod-id", "rod-class", "feed-capacity", "concurrency",
+            "alive", "heartbeat-interval", "alive-timeout", "alive-fail-fast",
+            "send-retry", "send-retry-backoff-sec", "send-retry-max-attempts");
+    // NOTE: the worker pool is the receiver-pool / publisher-pool GROUPS ({size, mode}) -- groups, not scalars.
 
     /** Build from the raw x-rod node: flatten it (so nested transport / sub-blocks read by dotted key) and keep
      *  the flat map. bus-id / slot-id are NOT in the node -- the frontend folds them in via {@link #withBus}. */
@@ -194,17 +203,26 @@ public record XRodParams(String busId, String slotId, Map<String, Object> raw) {
     public String  rodId()                        { return str("rod-id"); }
     public String  rodClass()                     { return str("rod-class"); }
     public String  rodClassOr(String def)         { String v = str("rod-class"); return v != null ? v : def; }
-    public int     poolSizeOr(int def)            { return intOr("pool-size", def); }
     public int     feedCapacityOr(int def)        { return intOr("feed-capacity", def); }
-    public boolean virtualThreadsOrFalse()        { return boolOr("virtual-threads"); }
-    public int     publisherPoolSizeOr(int def)   { return intOr("publisher-pool-size", def); }
     public int     concurrencyOr(int def)         { return intOr("concurrency", def); }
+
+    // --- worker-pool GROUPS: receiver-pool / publisher-pool -> {size, mode}. mode = platform | virtual |
+    //     virtual-per-task (absent -> platform, resolved by WorkerPool.Mode.of at the caller). ---
+    public int     receiverPoolSizeOr(int def)    { return intOr("receiver-pool.size", def); }
+    public String  receiverPoolMode()             { return str("receiver-pool.mode"); }
+    public int     publisherPoolSizeOr(int def)   { return intOr("publisher-pool.size", def); }
+    public String  publisherPoolMode()            { return str("publisher-pool.mode"); }
 
     // --- alive-protocol (x-rod session) knobs (seconds; on the x-rod, kept in sync across a slot by the operator) ---
     public boolean aliveOr(boolean def)          { return boolOr("alive", def); }
     public int     heartbeatIntervalSecOr(int def){ return intOr("heartbeat-interval", def); }
     public int     aliveTimeoutSecOr(int def)     { return intOr("alive-timeout", def); }
     public boolean aliveFailFastOr(boolean def)   { return boolOr("alive-fail-fast", def); }
+
+    // --- producer send-retry sublayer knobs (opt-in, default off; backoff ladder in seconds, comma-separated) ---
+    public boolean sendRetryOr(boolean def)       { return boolOr("send-retry", def); }
+    public String  sendRetryBackoff()             { return str("send-retry-backoff-sec"); }
+    public int     sendRetryMaxAttemptsOr(int def){ return intOr("send-retry-max-attempts", def); }
 
     private String str(String key) {
         Object v = raw != null ? raw.get(key) : null;

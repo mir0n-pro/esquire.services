@@ -16,7 +16,13 @@ rem one-component change (e.g. an SPA edit) only the BFF needs re-push. Same
 rem target-list shape as k8s-rebuild.bat / compose-rebuild.bat for muscle memory.
 
 set REGISTRY=ghcr.io/mir0n-pro
-set TAG=v1.2.4
+rem Release tag -- reads the image_tag env var (the same var oke-up.bat consumes), so one
+rem `set image_tag=vX.Y.Z-YYMM.DDHH` drives both the push here and the deploy there.
+if "%image_tag%"=="" (
+  echo ERROR: image_tag env var not set. Example:  set image_tag=v1.2.10-2607.0315
+  exit /b 1
+)
+set TAG=%image_tag%
 set PLATFORMS=linux/amd64,linux/arm64
 
 set TARGET=%1

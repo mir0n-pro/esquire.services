@@ -88,11 +88,11 @@ jobs:
           ref: develop
           path: db.seed
 
-      - name: Set up JDK 21
+      - name: Set up JDK 24
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: "21"
+          java-version: "24"
           cache: maven
 
       - name: Compute image stamp (Micro from release_notes + datetime)
@@ -206,11 +206,11 @@ jobs:
       # Load gate -- hauberk against OKE (hauberk-oke.properties).
       # TODO(mir0n): confirm the sim name + that hauberk-oke.properties is committed,
       # then drop continue-on-error to make load a hard gate.
-      - name: Set up JDK 21 (hauberk)
+      - name: Set up JDK 24 (hauberk)
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: "21"
+          java-version: "24"
           cache: maven
       - name: load -- hauberk smoke vs OKE
         continue-on-error: true

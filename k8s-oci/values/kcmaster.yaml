@@ -1,7 +1,7 @@
 ﻿# Prod overrides for k8s/charts/esquire-kcmaster
 image:
   repository: ghcr.io/mir0n-pro/esquire.kcmaster
-  tag: "v1.2.6-2606.0218"
+  # tag injected by oke-up.bat (--set image.tag=%image_tag%) -- single release tag for the whole stack.
   pullPolicy: Always
 
 springProfilesActive: console
@@ -21,3 +21,23 @@ logging:
 
 nodeSelector:
   tier: app
+
+# v1.2.10 HA (OKE Always-Free): x2 replicas, best-effort spread across the 3 app-tier nodes.
+replicaCount: 2
+topologySpread:
+  enabled: true
+
+# Memory-bounded for the 1 OCPU / 6 GB app nodes. kcMaster has no DB datasource and no
+# inbound HTTP load surface (it drains the KC bus), so only resources + send-retry apply
+# -- no R1-R5 timeout/pool knobs.
+resources:
+  requests:
+    cpu: 100m
+    memory: 512Mi
+  limits:
+    cpu: 750m
+    memory: 768Mi
+
+# producer send-retry (block mode) on the KC R&R server response leg.
+kc:
+  sendRetry: "true"

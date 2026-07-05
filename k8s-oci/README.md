@@ -28,7 +28,7 @@ k8s-oci/
     activemq.yaml
     keycloak.yaml
     biztree.yaml  enyman.yaml  pacman.yaml  keysmith.yaml  kcmaster.yaml
-    gateway.yaml  frontend.yaml
+    gateway.yaml  backend.yaml
   cluster/
     letsencrypt-prod.yaml       cert-manager ClusterIssuer
     ingress.yaml                public Ingress for frontend/gateway/keycloak
@@ -39,7 +39,8 @@ k8s-oci/
 
 ## Prerequisites
 
-- OCI account with OKE cluster (3 A1.Flex nodes — see `../doc/TodoCloud.md` Phase 3)
+- OCI account with OKE cluster (4 A1.Flex nodes: 1 infra + 3 app, each 1 OCPU / 6 GB =
+  the full 4 OCPU / 24 GB Always-Free envelope — see `../doc/TodoCloud.md` Phase 3)
 - OCI CLI installed and configured (`oci setup config`)
 - Domain `esquire.mir0n.pro` A record pointing to OCI LB IP (see step 3)
 - GHCR PAT with `write:packages` (set as `GHCR_TOKEN` env var)
@@ -75,7 +76,8 @@ k8s-oci/
    cluster\node-labels.bat
    ```
    Tags nodes with `tier=infra` / `tier=app` for nodeSelector targeting.
-   Edit script to match your actual node names from `kubectl get nodes`.
+   Set `INFRA_NODE` to your infra node from `kubectl get nodes`; every other
+   worker is labelled `app` automatically (the 3 app nodes carry the x2 fleet).
 
 5. **DNS check (manual)**
    ```
@@ -95,7 +97,9 @@ k8s-oci/
    ```
    show.them.all.bat
    ```
-   All 10 pods Ready, certificate Ready, ingress with TLS bound.
+   All 16 pods Ready (6 services x2 + BFF + 3 infra), certificate Ready,
+   ingress with TLS bound. The two replicas of each service should sit on
+   different app-tier nodes (`kubectl get pods -o wide`).
 
 8. **Open** `https://esquire.mir0n.pro`
 

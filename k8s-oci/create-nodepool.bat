@@ -3,7 +3,9 @@ rem ===========================================================================
 rem Create node pool for the existing Basic OKE cluster (cluster already exists).
 rem Use this after deleting a failed node pool, or to add additional pools.
 rem
-rem Pool: 3x VM.Standard.A1.Flex (1 OCPU, 8 GB) -- Always Free ARM
+rem Pool: 4x VM.Standard.A1.Flex (1 OCPU, 6 GB) -- Always Free ARM, the full
+rem       4 OCPU / 24 GB free envelope. Labelled 1 infra + 3 app by node-labels.bat;
+rem       the x2 service fleet spreads across the 3 app nodes (topologySpread).
 rem Pre-requisite: oke-rules security list attached (see add-oke-security-rules.bat)
 rem ===========================================================================
 
@@ -19,7 +21,7 @@ set POOL_NAME=pool1
 echo === Creating node pool (~5-10 min) ===
 echo Pool name: %POOL_NAME%
 echo Cluster:   %CLUSTER_ID%
-echo Shape:     VM.Standard.A1.Flex (1 OCPU, 8 GB) x 3 nodes = 3 OCPU / 24 GB total
+echo Shape:     VM.Standard.A1.Flex (1 OCPU, 6 GB) x 4 nodes = 4 OCPU / 24 GB total
 echo.
 
 call oci ce node-pool create ^
@@ -28,10 +30,10 @@ call oci ce node-pool create ^
   --name %POOL_NAME% ^
   --kubernetes-version %K8S_VER% ^
   --node-shape VM.Standard.A1.Flex ^
-  --node-shape-config "{\"ocpus\":1.0,\"memoryInGBs\":8.0}" ^
+  --node-shape-config "{\"ocpus\":1.0,\"memoryInGBs\":6.0}" ^
   --node-source-details file://cluster/create-nodepool-source.json ^
   --placement-configs file://cluster/create-nodepool-placement.json ^
-  --size 3 ^
+  --size 4 ^
   --region %REGION% ^
   --wait-for-state SUCCEEDED ^
   --max-wait-seconds 1500 || (

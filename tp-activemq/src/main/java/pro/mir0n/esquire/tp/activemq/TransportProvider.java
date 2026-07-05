@@ -26,9 +26,18 @@
  *                   feeding both the publisher and consumer handle health; a send outcome also refreshes it
  *                   (good send -> UP, failed send -> DOWN).
  * 06/23/2026 mir0n  EsqMsgConstants wire constants -> messaging.BusConstants (references repointed)
+ * 06/27/2026 mir0n  openConsumerOn() added -- a consumer that SHARES the AmqPublisher's connection and sets
+ *                   pubSubNoLocal (the broker drops the shared connection's own publications, the real JMS
+ *                   noLocal); openPublisher returns an AmqPublisher carrying the ccf for that reuse; consumer()
+ *                   factored out with a noLocal flag (a separate-connection openConsumer passes false)
+ * 06/30/2026 mir0n  AmqPublisher implements the send-retry seam: encode() prepares the broker-free property bag
+ *                   (a stable ApplMsgID minted ONCE, absent-only), dispatch() materializes the JMS message + sends
+ *                   it THROWING on a transport failure (+ SendingTime per physical send), accept() is the
+ *                   best-effort (retry-off) encode+dispatch swallowing path; the swallowing sink Consumer removed
  */
 package pro.mir0n.esquire.tp.activemq;
 
+import jakarta.jms.ConnectionFactory;
 import jakarta.jms.Message;
 import jakarta.jms.MessageListener;
 import org.apache.activemq.ActiveMQConnectionFactory;
@@ -89,38 +98,53 @@ public final class TransportProvider implements ITransportProvider {
         devLog.info("tp-activemq: publisher opened on {} (broker={}, {}, poolSize={})",
                 destination, brokerUrl, pubSub ? "topic" : "queue", s.poolSize());
 
-        // close() releases the caching connection factory (the cached connection + sessions); the underlying
-        // ActiveMQConnectionFactory holds no connection of its own.
-        return TransportPublisher.of(msg -> {
-            try {
-                Map<String, Object> props = new LinkedHashMap<>(msg.headers());
-                String applMsgId = UUID.randomUUID().toString();
-                props.put(BusConstants.FIELD_APPL_MSG_ID,  applMsgId);
-                props.put(BusConstants.FIELD_SENDING_TIME, Instant.now().toString());
-                jms.send(destination, session -> {
-                    Message m = session.createMessage();
-                    Utils.setProps(m, props);
-                    return m;
-                });
-                conn.set(TransportHealth.UP);           // a successful send -> the connection is up
-            } catch (Exception ex) {
-                conn.set(TransportHealth.DOWN);          // a failed send -> the connection is down
-                devLog.error("tp-activemq: publish failed on {}: {}", destination, ex.getMessage(), ex);
-            }
-        }, ccf::destroy, conn::get);
+        // close() (on the returned handle) releases the caching connection factory (the cached connection +
+        // sessions); the underlying ActiveMQConnectionFactory holds no connection of its own. The handle carries
+        // the ccf so a dual-leg rod's consumer can REUSE this connection (openConsumerOn).
+        return new AmqPublisher(ccf, jms, destination, conn);
     }
 
     @Override
     public TransportConsumer openConsumer(String destination, ConsumeSettings s, Consumer<TransportMessage> handler) {
         String brokerUrl = withParams(s.endpoint(), s.params());
-        boolean pubSub = Boolean.parseBoolean(s.param(PARAM_PUBSUB_DOMAIN, "false"));
         ActiveMQConnectionFactory amq = new ActiveMQConnectionFactory(brokerUrl);
         AtomicReference<TransportHealth> conn = new AtomicReference<>(TransportHealth.UP);
         amq.setTransportListener(stateListener(conn, "consumer " + destination));
+        // a SEPARATE-connection consumer: the broker's noLocal cannot see another connection's publications, so it
+        // is NOT applied here -- the x-rod does own-exclusion in code for the two-connection case.
+        return consumer(destination, s, handler, amq, conn, false, brokerUrl);
+    }
+
+    @Override
+    public TransportConsumer openConsumerOn(TransportPublisher publisher, String destination,
+                                            ConsumeSettings s, Consumer<TransportMessage> handler) {
+        TransportConsumer ret;
+        if (publisher instanceof AmqPublisher ap) {
+            // SHARE the publisher's connection (one connection, two legs); honor noLocal so the BROKER drops this
+            // connection's OWN publications -- the real JMS noLocal, which works only because both legs share it.
+            boolean noLocal = Boolean.parseBoolean(s.param(BusConstants.PARAM_NO_LOCAL, "false"));
+            ret = consumer(destination, s, handler, ap.ccf, ap.conn, noLocal, withParams(s.endpoint(), s.params()));
+        } else {
+            ret = openConsumer(destination, s, handler);   // unknown publisher handle -> separate-connection fallback
+        }
+        return ret;
+    }
+
+    /** Build the PAUSED listener container on {@code cf} -- a fresh factory for a separate leg, or the publisher's
+     *  shared {@link CachingConnectionFactory} for the dual leg. {@code noLocal} sets {@code pubSubNoLocal} so the
+     *  broker drops THIS connection's own publications (meaningful only on the shared connection). close() stops the
+     *  listener; the shared factory's connection is owned + closed by the publisher, not here. */
+    private TransportConsumer consumer(String destination, ConsumeSettings s, Consumer<TransportMessage> handler,
+                                       ConnectionFactory cf, AtomicReference<TransportHealth> conn, boolean noLocal,
+                                       String brokerUrl) {
+        boolean pubSub = Boolean.parseBoolean(s.param(PARAM_PUBSUB_DOMAIN, "false"));
         DefaultMessageListenerContainer c = new DefaultMessageListenerContainer();
-        c.setConnectionFactory(amq);
+        c.setConnectionFactory(cf);
         c.setDestinationName(destination);
         c.setPubSubDomain(pubSub);
+        if (noLocal) {
+            c.setPubSubNoLocal(true);   // the broker drops the shared connection's own publications (real JMS noLocal)
+        }
         c.setAutoStartup(false);   // created PAUSED -- the x-rod's start() begins delivery once the bus is wired
         if (s.selector() != null && !s.selector().isBlank()) {
             c.setMessageSelector(s.selector());
@@ -136,8 +160,8 @@ public final class TransportProvider implements ITransportProvider {
             }
         });
         c.afterPropertiesSet();   // subscribe, but do NOT start (autoStartup=false) -- delivery waits for start()
-        devLog.info("tp-activemq: consumer created (paused) on {} (broker={}, {}, concurrency={})",
-                destination, brokerUrl, pubSub ? "topic" : "queue", s.concurrency());
+        devLog.info("tp-activemq: consumer created (paused) on {} (broker={}, {}, concurrency={}, noLocal={})",
+                destination, brokerUrl, pubSub ? "topic" : "queue", s.concurrency(), noLocal);
         return TransportConsumer.of(c::start, () -> {
             c.stop();
             c.destroy();
@@ -183,8 +207,8 @@ public final class TransportProvider implements ITransportProvider {
         if (brokerUrl != null && params != null && !params.isEmpty()) {
             StringBuilder q = new StringBuilder();
             for (Map.Entry<String, String> e : params.entrySet()) {
-                if (PARAM_PUBSUB_DOMAIN.equals(e.getKey())) {
-                    continue;   // applied via setPubSubDomain(...), not a broker-URI option
+                if (PARAM_PUBSUB_DOMAIN.equals(e.getKey()) || BusConstants.PARAM_NO_LOCAL.equals(e.getKey())) {
+                    continue;   // applied via a setter (setPubSubDomain / setPubSubNoLocal), not a broker-URI option
                 }
                 q.append(q.length() == 0 ? "" : "&").append(e.getKey()).append('=').append(e.getValue());
             }
@@ -204,5 +228,80 @@ public final class TransportProvider implements ITransportProvider {
             headers.put(n, message.getObjectProperty(n));
         }
         return headers;
+    }
+
+    /** The ActiveMQ publisher handle: it carries the {@link CachingConnectionFactory} (ONE shared connection) so a
+     *  dual-leg rod's consumer can REUSE the same connection via {@link #openConsumerOn} -- which is what lets the
+     *  broker's real JMS {@code noLocal} drop this connection's own publications. {@code close()} destroys the
+     *  factory (and the shared connection).
+     *
+     *  <p>The send-retry seam: {@link #encode} prepares the BROKER-FREE unit -- the stamped property bag (a stable
+     *  ApplMsgID minted ONCE) -- since a {@code jakarta.jms.Message} cannot be built without a live session, which
+     *  is exactly what a DOWN broker lacks. {@link #dispatch} materializes the JMS message from that bag and sends
+     *  it, THROWING on a transport failure (the retry signal) and flipping the health indicator. A held event's
+     *  resend relays the SAME bag (no re-encode); the per-physical-send {@code SendingTime} is stamped in dispatch.
+     *  {@link #accept} is the best-effort (retry-off) path: encode + dispatch, swallowing. */
+    private static final class AmqPublisher implements TransportPublisher {
+        private final CachingConnectionFactory ccf;
+        private final JmsTemplate jms;
+        private final String destination;
+        private final AtomicReference<TransportHealth> conn;
+
+        AmqPublisher(CachingConnectionFactory ccf, JmsTemplate jms, String destination,
+                     AtomicReference<TransportHealth> conn) {
+            this.ccf         = ccf;
+            this.jms         = jms;
+            this.destination = destination;
+            this.conn        = conn;
+        }
+
+        @Override
+        public Object encode(TransportMessage message) {
+            // the broker-free prepared unit: copy the neutral headers, keep a STABLE ApplMsgID (a held event's
+            // resend reuses it = dedup-able), mint one only when absent. SendingTime is per physical send -> dispatch.
+            Map<String, Object> props = new LinkedHashMap<>(message.headers());
+            props.computeIfAbsent(BusConstants.FIELD_APPL_MSG_ID, k -> UUID.randomUUID().toString());
+            return props;
+        }
+
+        @Override
+        @SuppressWarnings("unchecked")
+        public void dispatch(Object encoded) throws Exception {
+            // materialize + send the JMS message from the prepared bag; THROW on a transport failure (the retry
+            // signal). createMessage needs a live session, so a DOWN broker throws HERE (not in encode).
+            Map<String, Object> props = (Map<String, Object>) encoded;
+            try {
+                jms.send(destination, session -> {
+                    Message m = session.createMessage();
+                    Utils.setProps(m, props);
+                    m.setStringProperty(BusConstants.FIELD_SENDING_TIME, Instant.now().toString());
+                    return m;
+                });
+                conn.set(TransportHealth.UP);           // a successful send -> the connection is up
+            } catch (Exception ex) {
+                conn.set(TransportHealth.DOWN);          // a failed send -> the connection is down
+                throw ex;
+            }
+        }
+
+        @Override
+        public void accept(TransportMessage message) {
+            // best-effort (retry off): encode + send, swallowing a failure (the health indicator still flips).
+            try {
+                dispatch(encode(message));
+            } catch (Exception ex) {
+                devLog.error("tp-activemq: publish failed on {}: {}", destination, ex.getMessage(), ex);
+            }
+        }
+
+        @Override
+        public TransportHealth health() {
+            return conn.get();
+        }
+
+        @Override
+        public void close() {
+            ccf.destroy();
+        }
     }
 }

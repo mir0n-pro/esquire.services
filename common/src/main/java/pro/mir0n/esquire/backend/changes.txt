@@ -1,5 +1,10 @@
 Esquire Backend common microservice classes
 
+06/27/2026 mir0n  v1.2.10 -- entity dictionary completion flag made thread-safe
+dto.EsqEntityDictionary
+  - completed field made volatile -- AEnyManService double-checks it OUTSIDE the lock, so the warm fast-path
+    read must see the completing thread's merged layers (happens-before)
+
 06/24/2026 mir0n  v1.2.9 -- EsqMsgConstants split: the non-wire app constants land in EsqConstants
 EsqConstants
   - BUS_KEY_AUDIT/KC/ENTITY, TEXT_* (id/kind/parentId/path/name/desc/status/deleted/ccy),

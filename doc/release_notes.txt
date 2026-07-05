@@ -1,6 +1,149 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v1.2.10-2607.0416  v1.2.10 -- OKE high-availability deployment (two of each service)
+    - each backend service now runs as two copies on OKE, placed on separate machines, so
+      losing one machine keeps the site running
+    - the web/login backend (the BFF) stays a single copy on OKE to save room on the small machines
+    - the free cloud cluster grows to four small machines: one for the shared infrastructure
+      and three for the services
+    - services are given a longer start-up grace period, so a slow start on a busy machine is
+      not mistaken for a failure
+    - the reliability limits and the message resend-on-failure, first proven on the local
+      cluster, now apply on OKE as well
+    - the KeyCloak sign-in address is corrected to the full site address, which the newer
+      KeyCloak requires
+    - a single release label now drives both the image upload and the deployment
+    :Feature:     two copies of each backend service on OKE, spread across machines where possible
+    :Config:      machine placement, copy-spread, and start-up grace added to the deployment
+                  templates; switched on in the OKE settings and left off for the single-machine
+                  local setup
+    :Config:      the reliability limits and message resend now set in the OKE settings too
+    :Config:      the OKE machine pool sized to the full free allowance (four machines)
+    :Fix:         KeyCloak address set to the full site address so the newer KeyCloak accepts it
+    Components:   k8s,
+                  gateway,
+                  biztree,
+                  enyMan,
+                  pacMan,
+                  keySmith,
+                  kcMaster,
+                  BFF,
+                  keycloak
+
+v1.2.10-2607.0300  v1.2.10 -- collected-backlog fixes
+    - X-Request-ID required on write operations
+    - messaging send-retry: a dropped (dead) message is now logged on the main app log
+    - send-retry-backoff config keys given the -sec unit suffix
+    - KeyCloak login Cancel link
+    - JaCoCo code-coverage tooling
+    - Javadoc generation for the library modules
+    :Doc:         doc\Esquire.TestingStack.md
+                  doc\Esquire.Haubergeon.md
+                  doc\Esquire.DevProcess.md
+                  doc\Esquire.DevSetup.md
+                  doc\Esquire.Q&A.md
+                  doc\Esquire.MessagingBus.md
+                  doc\Esquire.MessagingBus.ContinuingDev.md
+                  doc\Esquire.MessagingBus.Guides.md
+                  doc\Message.Structure.md
+                  doc\services.configuring.md
+                  doc\Esquire.HighAvailability.md
+                  doc\Testing.md  (removed -- folded into Haubergeon + TestingStack)
+    Components:   common,
+                  messaging,
+                  enyMan,
+                  pacMan,
+                  keySmith,
+                  kcMaster,
+                  keycloak,
+                  k8s
+
+v1.2.10-2607.0121  v1.2.10 -- the messaging worker pools gain a virtual-threads option, Java 25 runtime
+    :Feature:     each messaging worker pool can run on ordinary (platform) threads or on virtual threads, chosen
+                  by a single setting per pool
+    :Refactoring: the pool that receives and applies messages is now one building
+    :Refactoring: a producer holding a message to retry now lets go at once when the service is shutting down
+    :Config:      the pool settings are regrouped into a receiver-pool and a publisher-pool block
+    :Config:      the services build for Java 24 and run on the Java 25 runtime
+    :Doc:         doc\Esquire.HighAvailability.md
+                  doc\services.configuring.md
+                  doc\Esquire.MessagingBus.md
+                  doc\Esquire.MessagingBus.ContinuingDev.md
+                  doc\Esquire.AuditLoggingStack.md
+    Components:   common,
+                  messaging,
+                  bizTree,
+                  enyMan,
+                  pacMan,
+                  keySmith,
+                  kcMaster,
+                  auKeep,
+                  gateway,
+                  k8s
+
+v1.2.10-2606.3021  v1.2.10 -- session sublayers: the producer send path becomes pluggable session layers 
+                  -- the keep-alive and the new send-retry protocols both live on one seam
+    :Refactoring: the single send worker now owns the whole send (prepare the message once, then deliver and
+                  retry); the producer's session protocols become pluggable layers it drives at each send 
+    :Feature:     send-retry: when the message broker is down a producer holds the message and keeps retrying
+                  until the broker recovers
+    :Config:      send-retry is off by default
+    :Doc:         doc\Esquire.HighAvailability.md
+                  doc\Esquire.MessagingBus.md
+                  doc\Esquire.MessagingBus.ContinuingDev.md
+                  doc\services.configuring.md
+                  doc\img\messaging-bus-classes.svg
+    Components:   messaging,
+                  tp-activemq,
+                  tp-redis,
+                  keySmith,
+                  kcMaster,
+                  enyMan,
+                  pacMan,
+                  k8s
+
+v1.2.10-2606.2910  v1.2.10 -- full coverage of REST-stack HA tuning: a bound at every tier of the request path
+    :Feature:     every tier of a request now has a tunable limit
+    :Feature:     the gateway puts a time limit on each downstream call, steps back from a failing service whil
+                  it recovers, retries a read when the connection failed (a write is never resent), and bounds
+                  its own connection pool to the backends
+    :Feature:     each service can cap a database query/transaction, size its worker-thread and connection pools
+    :Config:      every knob defaults to the no-redundancy setting
+    :Doc:         doc\Esquire.HighAvailability.md
+                  doc\services.configuring.md
+    Components:   common,
+                  dataKeep,
+                  bizTree,
+                  gateway,
+                  enyMan,
+                  keySmith,
+                  pacMan,
+                  auKeep,
+                  k8s
+
+v1.2.10-2606.2722  v1.2.10 -- full service redundancy: every service can run as more than one copy
+    :Feature:     every service can run as more than one copy at once
+    :Feature:     a record created on one copy of enyMan while another copy is moving its branch is now corrected
+    :Feature:     the backend (BFF) can run as more than one copy: its login sessions move to a shared store
+                  (Redis) where configured
+    :Fix:         the shared entity-field dictionary is now completed safely when several creates warm it at once
+    :Refactoring: a broadcast leg can now publish and listen on ONE connection so the message broker drops the
+                  leg's own messages
+    :Config:      every service runs as an ordinal-numbered set (StatefulSet) capped at ten copies; the k8s
+                  charts, the per-service values, and the rebuild / start scripts updated to match
+    :Doc:         doc\Esquire.HighAvailability.md
+                  doc\img\ha-failure-domains.svg
+                  doc\Messaging.md
+                  doc\Esquire.MessagingBus.md
+                  doc\Esquire.MessagingBus.ContinuingDev.md
+                  doc\services.configuring.md
+    Components:   enyMan,
+                  messaging,
+                  tp-activemq,
+                  common,
+                  k8s
+
 v1.2.9-2606.2417  v1.2.9 -- hardening: the bus keep-alive is now optional with a clearer health and role model; the bus wire constants moved into the messaging module
     :Feature:     the bus keep-alive (heartbeat) is an opt-in per-leg setting
     :Feature:     a Redis or Kafka leg wired as a consumer now fails to start with a clear message

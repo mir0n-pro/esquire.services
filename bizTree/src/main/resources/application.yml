@@ -3,6 +3,10 @@ spring:
     active: ${DB_BIZTREE_VENDOR:dev-postgres},${BIZTREE_CACHE_VENDOR:cache-h2}
   application:
     name: biztree
+  # v1.2.10 VT: run each REST request on a virtual thread (Tomcat); opt-in, default OFF (pre-HA). See HA doc 5.5.
+  threads:
+    virtual:
+      enabled: ${ESQ_VIRTUAL_THREADS:false}
   jpa:
     hibernate:
       ddl-auto: none
@@ -10,12 +14,21 @@ spring:
   mvc:
     problemdetails:
       enabled: true
+  # Request-path query/transaction cap (seconds): -1 = no cap (pre-HA default; behaviour unchanged when unset).
+  # Set ESQ_TX_TIMEOUT_S (e.g. 8) to bound the common request path. The full-tree cache load opts out via
+  # biztree.cache-load.tx-timeout-s below; the in-memory H2 cache has its own cap (biztree.h2.query-timeout-s).
+  transaction:
+    default-timeout: ${ESQ_TX_TIMEOUT_S:-1}
   config:
     import: "${TOPOLOGY_IMPORT:optional:file:/etc/esquire/topology.yml}"
 biztree:
   # cache director + monad/taijitu knobs (read by @Value; surfaced here for env visibility -- defaults
   # match the @Value fallbacks, so behaviour is unchanged when the env var is unset).
   director: ${BIZTREE_DIRECTOR:legacy}
+  # The startup cache load (whole org/usr/acct read) opts OUT of the request-path cap: 0 = uncapped (pre-HA
+  # default). Set a positive value only to put a safety ceiling on a full-tree load.
+  cache-load:
+    tx-timeout-s: ${BIZTREE_CACHE_LOAD_TX_TIMEOUT_S:0}
   monad:
     queue:
       capacity: ${BIZTREE_MONAD_QUEUE_CAPACITY:4096}
@@ -28,6 +41,9 @@ biztree:
       timeout-ms: ${BIZTREE_TAIJITU_SWEEP_TIMEOUT_MS:10000}
   h2:
     url: ${BIZTREE_H2_URL:jdbc:h2:mem:biztree;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE}
+    # per-statement cap on the in-memory cache (seconds): 0 = uncapped (pre-HA default). The H2 cache surface
+    # of the request-path cap; the cache replies fast, so this only guards a pathological cache statement.
+    query-timeout-s: ${BIZTREE_H2_QUERY_TIMEOUT_S:0}
     pool:
       pool-name:            biztree-h2-cache
       maximum-pool-size:    ${BIZTREE_H2_POOL_MAX:10}
@@ -44,7 +60,9 @@ esquire:
       slot-id: ${ENTITY_SLOT_ID:entity}
       role: CLIENT
       x-rod:
-        pool-size: ${ENTITY_BROADCAST_POOL_SIZE:4}
+        receiver-pool:
+          size: ${ENTITY_BROADCAST_POOL_SIZE:4}
+          mode: ${ENTITY_BROADCAST_POOL_MODE:platform}   # platform | virtual | virtual-per-task
         concurrency: ${ENTITY_BROADCAST_CONCURRENCY:1}
 logging:
   level:
@@ -88,9 +106,11 @@ spring:
     username: ${DB_BIZTREE_USERNAME:esq2025}
     password: ${DB_BIZTREE_PASSWORD:q}
     hikari:
-      maximum-pool-size: 20
-      minimum-idle: 20
-      connection-timeout: 30000
+      # pool sizing + connect-timeout: pre-HA defaults = current values; HA values (smaller pool, fast
+      # connect-timeout) set per service in the local-k8s chart (R3/R5).
+      maximum-pool-size: ${ESQ_DB_POOL_MAX:20}
+      minimum-idle: ${ESQ_DB_POOL_MIN_IDLE:20}
+      connection-timeout: ${ESQ_DB_CONNECT_TIMEOUT_MS:30000}
       max-lifetime: 1800000
       idle-timeout: 600000
   jpa:
@@ -101,6 +121,12 @@ spring:
         dialect: org.hibernate.dialect.OracleDialect
 server:
   port: ${BIZTREE_PORT:3000}
+  tomcat:
+    threads:
+      # request worker threads (pre-HA default = Boot's 200). HA bounds the worker pool so a slow
+      # downstream cannot exhaust threads fleet-wide; local-k8s value set in the chart (R2).
+      max: ${ESQ_TOMCAT_MAX_THREADS:200}
+    accept-count: ${ESQ_TOMCAT_ACCEPT_COUNT:100}
 
 ---
 # Development Postgres
@@ -113,11 +139,18 @@ spring:
     username: ${DB_BIZTREE_USERNAME:esq2025}
     password: ${DB_BIZTREE_PASSWORD:q}
     hikari:
-      maximum-pool-size: 20
-      minimum-idle: 20
-      connection-timeout: 30000
+      # pool sizing + connect-timeout: pre-HA defaults = current values; HA values (smaller pool, fast
+      # connect-timeout) set per service in the local-k8s chart (R3/R5).
+      maximum-pool-size: ${ESQ_DB_POOL_MAX:20}
+      minimum-idle: ${ESQ_DB_POOL_MIN_IDLE:20}
+      connection-timeout: ${ESQ_DB_CONNECT_TIMEOUT_MS:30000}
       max-lifetime: 1800000
       idle-timeout: 600000
+      # pgjdbc socketTimeout (s) + tcpKeepAlive: pre-HA defaults = off (0 / false). HA (local-k8s chart)
+      # makes a vanished DB fail fast on a half-open socket instead of hanging a worker (R1/R5).
+      data-source-properties:
+        socketTimeout: ${ESQ_DB_SOCKET_TIMEOUT_S:0}
+        tcpKeepAlive: ${ESQ_DB_TCP_KEEPALIVE:false}
   jpa:
     mapping-resources:
       - META-INF/postgres-entity.xml
@@ -126,3 +159,9 @@ spring:
         dialect: org.hibernate.dialect.PostgreSQLDialect
 server:
   port: ${BIZTREE_PORT:3000}
+  tomcat:
+    threads:
+      # request worker threads (pre-HA default = Boot's 200). HA bounds the worker pool so a slow
+      # downstream cannot exhaust threads fleet-wide; local-k8s value set in the chart (R2).
+      max: ${ESQ_TOMCAT_MAX_THREADS:200}
+    accept-count: ${ESQ_TOMCAT_ACCEPT_COUNT:100}

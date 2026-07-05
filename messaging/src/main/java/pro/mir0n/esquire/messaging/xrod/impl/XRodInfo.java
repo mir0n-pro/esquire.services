@@ -14,12 +14,13 @@
  *                   line (no feed / pool / transport); usesOutboundTransport() / bindInbound() removed
  * 06/22/2026 mir0n  start(name,devLog,worker) split into setWorker (no-op) + init (the log-line setup) + start
  *                   (no-op); import Role/XRodParams from messaging.catalog, IXRod/RodEvent from messaging.
+ * 06/30/2026 mir0n  the msgLog logger replaced by the MsgAudit module (built from the identity at init); logInfo
+ *                   logs via msgAudit.info
  */
 package pro.mir0n.esquire.messaging.xrod.impl;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import pro.mir0n.esquire.messaging.catalog.Role;
 import pro.mir0n.esquire.messaging.catalog.XRodParams;
 import pro.mir0n.esquire.messaging.transport.BusIdentity;
@@ -38,7 +39,7 @@ public final class XRodInfo implements IXRod {
 
     private String dir;                      // the directive logged in the dir slot (from x-rod.info)
     private BusIdentity identity;            // names the leg -> this x-rod's msg-audit logger
-    private Logger msgLog;                   // msg.<bus-id>.<slot-id>; null = no msg-audit
+    private MsgAudit msgAudit;               // the msg.<bus-id>.<slot-id> audit -- built from the identity at init
 
     @Override
     public void configure(XRodParams params, Role role, ObjectMapper objectMapper) {
@@ -56,9 +57,7 @@ public final class XRodInfo implements IXRod {
 
     @Override
     public void init(String name, Logger devLog) {
-        this.msgLog = identity != null && identity.busId() != null
-                ? LoggerFactory.getLogger("msg." + identity.busId() + "." + identity.slotId())
-                : null;
+        this.msgAudit = new MsgAudit(identity);
         if (devLog != null) {
             devLog.info("x-rod-info[{}]: log-only (directive={}) -- events are logged, never sent", name, dir);
         }
@@ -86,9 +85,7 @@ public final class XRodInfo implements IXRod {
 
     /** Log-only "send": the full event content, led by the directive in the dir slot (TX|RX's place). */
     private void logInfo(RodEvent e) {
-        if (msgLog != null && msgLog.isInfoEnabled()) {
-            msgLog.info(describe(dir, e));
-        }
+        msgAudit.info("{}", describe(dir, e));
     }
 
     /** The logged line: {@code <directive> | <msgType> | <op> | <kind> | <entityId> | <subId> | <rodId> |

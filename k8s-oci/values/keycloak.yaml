@@ -1,7 +1,8 @@
 # Prod overrides for k8s/charts/infra/keycloak
 image:
   repository: ghcr.io/mir0n-pro/esquire-keycloak
-  tag: "v1.2.4-2605.1621"
+  # tag injected by oke-up.bat (--set image.tag=%image_tag%) -- single release tag for the whole stack.
+  # KC is rebuilt each release the baked realm/theme changes (v1.2.10: esquire-explorer login Cancel link).
   pullPolicy: Always
 
 service:
@@ -9,7 +10,10 @@ service:
 
 keycloak:
   mode: start                # production mode (was start-dev locally)
-  hostname: esquire.mir0n.pro
+  # Full URL (scheme+host+path) -- REQUIRED because the chart sets
+  # KC_HOSTNAME_BACKCHANNEL_DYNAMIC=true, and KC 26.4 rejects backchannel-dynamic
+  # unless hostname is a full URL. Path /kc-auth matches httpRelativePath below.
+  hostname: https://esquire.mir0n.pro/kc-auth
   realm: esquire
   adminUsername: admin
   # adminPassword passed via --set

@@ -3,10 +3,22 @@
 # X-Forwarded-* headers and renders absolute URLs under esquire.localhost.
 # Mirrors OKE shape (k8s-oci/values/keycloak.yaml + ingress-nginx in front).
 image:
-  tag: "26.4.7-2605.172254"
+  tag: "26.4.7-2607.021355"
 
 service:
   type: ClusterIP
 
 keycloak:
-  hostname: esquire.localhost
+  # Full front-channel URL (scheme+host+path) so the issuer is port-stable and
+  # the BFF can discover KC over the internal service while the browser keeps
+  # esquire.localhost. See chart values.yaml for the rationale.
+  hostname: http://esquire.localhost/kc-auth
+
+# R4 local-k8s resource budget. KC is JVM-heavy at boot (realm import); CPU is left
+# burstable (request only) so startup is not throttled.
+resources:
+  requests:
+    cpu: 500m
+    memory: 1Gi
+  limits:
+    memory: 1Gi

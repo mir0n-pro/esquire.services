@@ -31,11 +31,23 @@
  *                   transmits() role+alive-aware (a single-node CLIENT opens a producer leg only to self-heartbeat,
  *                   i.e. when alive on); receives() = role==CLIENT (BOTH removed); init FAILS FAST when a receiving
  *                   role hits a transport that cannot run the needed legs (supportsBothLegs / supportsConsume)
+ * 06/27/2026 mir0n  dual-leg on ONE connection: a single-node CLIENT that shares its connection opens a producer
+ *                   leg too and ADDs the consumer onto it (openConsumerOn), so the broker's noLocal drops this
+ *                   connection's own publications; setWorker(subscription) re-opens the receive consumer with a
+ *                   broker selector (effectiveSelector; re-open only when it CHANGES); a separate-connection
+ *                   fallback drops own events in code (filterOwnInCode); the raw transportPublisher is kept so the
+ *                   shared consumer can reuse its connection
+ * 06/30/2026 mir0n  the inline AliveSession build + the alive constants + buildKeepAlive / onSessionMsg /
+ *                   newCorrelationId removed -- init calls installSessionStack (the base builds the broadcast
+ *                   sublayer stack); health() = worst(transport indicator, sessionHealth())
+ * 07/01/2026 mir0n  the async-publish pool's thread model reads publisher-pool.mode -- init sets poolMode via
+ *                   WorkerPool.Mode.of(publisherPoolMode())
  */
 package pro.mir0n.esquire.messaging.xrod.impl;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
+import pro.mir0n.esquire.messaging.BusConstants;
 import pro.mir0n.esquire.messaging.catalog.BusTransport;
 import pro.mir0n.esquire.messaging.catalog.Role;
 import pro.mir0n.esquire.messaging.catalog.XRodParams;
@@ -46,11 +58,12 @@ import pro.mir0n.esquire.messaging.transport.PublishSettings;
 import pro.mir0n.esquire.messaging.transport.TransportConsumer;
 import pro.mir0n.esquire.messaging.transport.TransportHealth;
 import pro.mir0n.esquire.messaging.transport.TransportProviders;
+import pro.mir0n.esquire.messaging.transport.TransportPublisher;
 import pro.mir0n.esquire.messaging.RodEvent;
 import pro.mir0n.esquire.messaging.xrod.RodPublisher;
 import pro.mir0n.esquire.messaging.xrod.RodTransportAdapter;
+import pro.mir0n.utils.concurrent.WorkerPool;
 
-import java.util.UUID;
 import java.util.function.Consumer;
 
 /** The default x-Rod transceiver: a transmitter/receiver over a transport. It adds the transport to the
@@ -59,14 +72,17 @@ import java.util.function.Consumer;
  *  delivery. Non-final so a specialised x-rod (e.g. {@link XRodRR}, the Request/Response variant) can extend it. */
 public class XRod extends AXRod {
 
-    private static final int     DEFAULT_HEARTBEAT_INTERVAL_SEC = 10;
-    private static final int     ALIVE_TIMEOUT_FACTOR           = 3;     // alive-timeout default = factor x heartbeat-interval
-    private static final boolean DEFAULT_ALIVE_FAIL_FAST        = true;  // provisional: a send error flips DOWN at once (default to LEARN)
-
     protected Role role;               // CLIENT/SERVER -- picks the R&R node (request vs response); single-node ignores it
     private ObjectMapper objectMapper;  // for the RodEvent <-> wire codec
     private TransportConsumer inbound;    // the transport consumer this rod owns (created paused, started in start()); closed on shutdown
     private RodPublisher outboundCloser;  // the open transport publisher (RodPublisher) this rod owns; closed on shutdown
+    private TransportPublisher transportPublisher;  // the raw transport publisher, kept so a shared consumer leg reuses ITS connection
+    private ITransportProvider receiveProvider;   // saved at init so setWorker(subscription) can RE-OPEN the consumer
+    private BusTransport      receiveLeg;         // the resolved receive leg, saved at init for that re-open
+    private boolean           sharedConsumer;     // the receive leg shares the publisher's connection (opened via openConsumerOn)
+    private volatile String   subscriptionSelector;  // the caller's broadcast subscription selector (own-exclusion is the transport's noLocal, not folded here); null = none
+    private volatile String   openedSelector;        // the selector the live consumer was actually opened with -- re-open only when it CHANGES
+    private boolean           filterOwnInCode;       // separate-connection own-exclusion fallback (no shared connection / JMS noLocal): drop a received event whose rod-id == self
 
     /** No-arg: x-rods are class-name-resolved + reflectively instantiated, then {@link #configure}d. */
     public XRod() {
@@ -101,8 +117,12 @@ public class XRod extends AXRod {
         BusTransport transport = params != null ? params.transport() : null;
         boolean transportBacked = transport != null && objectMapper != null;
         ITransportProvider provider = transportBacked ? TransportProviders.resolve(transport.provider()) : null;
-        boolean doTransmit = transmits() && transportBacked;
         boolean doReceive  = receives();   // build the receive pool; the transport consumer (below) also needs a transport
+        // A single-node CLIENT that SHARES one connection also opens a producer leg -- so it can publish AND listen
+        // on the same topic over ONE connection (the broker's noLocal then drops its own publications). The x-rod
+        // decides this; the transport only advertises it CAN run both legs on one connection (supportsBothLegs()).
+        boolean shared     = doReceive && transportBacked && sharesConnection() && provider.supportsBothLegs();
+        boolean doTransmit = transportBacked && (transmits() || shared);
 
         // FAIL-FAST on an impossible role over this transport, BEFORE any leg opens: a rod that RECEIVES needs a
         // transport that can consume; if it ALSO runs a producer leg on the same node (a single-node CLIENT
@@ -129,6 +149,7 @@ public class XRod extends AXRod {
                 outbound      = this::receive;          // runs the receive worker, so it publishes directly instead)
                 poolJob       = publisher;
                 this.poolSize = pubPool;
+                this.poolMode = WorkerPool.Mode.of(params.publisherPoolMode());   // the publisher-pool mode
             } else {
                 outbound = publisher;                   // direct publish on the feed thread
             }
@@ -136,21 +157,28 @@ public class XRod extends AXRod {
 
         buildEngine(name, devLog, outbound, poolJob);
 
+        // install the producer session-sublayer stack AFTER the feed exists (the alive heartbeat is PUT on it). The
+        // factory builds the ALIVE-PROTOCOL session (OPT-IN via the 'alive' param, transport-agnostic) per role from
+        // the keep-alive factory -- a producing leg ({@code doTransmit}) drives the cadence -- plus the SEND-RETRY
+        // policy. With alive OFF the rod runs no session and health() rests on the transport indicator alone.
+        installSessionStack(doTransmit);
+
         // CREATE the transport consumer PAUSED (delivery begins at start(), after the pool is live); a
         // transport-less receive (e.g. a test) builds only the pool -- events arrive via a direct receive() call.
         if (doReceive && transportBacked) {   // supportsConsume() is guaranteed by the fail-fast above
-            this.inbound = openConsumer(provider, legTransport(false, role));
-        }
-
-        // the ALIVE-PROTOCOL session is OPT-IN (the x-rod 'alive' param, default OFF; transport-agnostic). When
-        // ON, a producing leg ({@code doTransmit}) drives the heartbeat cadence (the keep-alive factory). When
-        // OFF the rod runs NO session -- no heartbeat -- and health() rests on the transport indicator alone.
-        if (params != null && params.aliveOr(false)) {
-            int heartbeatSec = params.heartbeatIntervalSecOr(DEFAULT_HEARTBEAT_INTERVAL_SEC);
-            int timeoutSec   = params.aliveTimeoutSecOr(heartbeatSec * ALIVE_TIMEOUT_FACTOR);
-            boolean failFast = params.aliveFailFastOr(DEFAULT_ALIVE_FAIL_FAST);
-            this.session = new AliveSession(heartbeatSec * 1000L, timeoutSec * 1000L, failFast,
-                    doTransmit ? this::buildKeepAlive : null, this::transmit, this::onSessionMsg, name, devLog);
+            this.receiveProvider = provider;                 // kept so setWorker(subscription) can re-open with a selector
+            this.receiveLeg      = legTransport(false, role);
+            this.sharedConsumer  = shared;
+            if (shared) {
+                // ADD the consumer leg onto the publisher's EXISTING connection (one connection, two legs); the
+                // broker's noLocal (a transport param) drops this connection's own publications.
+                this.inbound = openConsumerOn(provider, transportPublisher, receiveLeg);
+            } else {
+                this.inbound = openConsumer(provider, receiveLeg);
+                // own-exclusion FALLBACK: with two separate connections the broker's noLocal cannot see this rod's
+                // own publications, so drop them in code instead (broadcast / XRod only; R&R never sets noLocal).
+                this.filterOwnInCode = doTransmit && noLocalConfigured(receiveLeg);
+            }
         }
     }
 
@@ -172,24 +200,7 @@ public class XRod extends AXRod {
         TransportHealth transmit = outboundCloser != null ? outboundCloser.health() : null;
         TransportHealth receive  = inbound != null ? inbound.health() : null;
         TransportHealth transport = TransportHealth.worst(transmit, receive);
-        return session != null ? TransportHealth.worst(transport, session.health()) : transport;
-    }
-
-    /** The idle keep-alive this rod emits (alive protocol): a broadcast producer sends an UNSOLICITED HeartBeat
-     *  (no TestReqID, a fresh correlation). {@link XRodRR} overrides this -- an R&R CLIENT sends a TestRequest. */
-    protected RodEvent buildKeepAlive() {
-        return RodEvent.heartbeat(newCorrelationId(), null, null);
-    }
-
-    /** Handle an arriving SESSION message internally (the session already advanced the consumer leg). Base /
-     *  broadcast: an unsolicited HeartBeat is liveness only -- nothing to answer. {@link XRodRR} overrides this --
-     *  an R&R SERVER echoes a TestRequest back as a HeartBeat. */
-    protected void onSessionMsg(RodEvent in) {
-    }
-
-    /** A fresh correlation id for a self-originated session message (unsolicited HeartBeat / TestRequest). */
-    protected static String newCorrelationId() {
-        return UUID.randomUUID().toString();
+        return TransportHealth.worst(transport, sessionHealth());
     }
 
     /** A SERVER transmits as its ROLE (its producer carries the application broadcasts). A single-node
@@ -213,16 +224,77 @@ public class XRod extends AXRod {
     private RodPublisher publisher(ITransportProvider provider, BusTransport leg) {
         PublishSettings ps = new PublishSettings(objectMapper, leg.endpoint(),
                 identity, leg.paramsOrEmpty(), params.publisherPoolSizeOr(0));
-        return RodTransportAdapter.publisher(provider, leg.destination(), ps);
+        // open the raw transport publisher HERE and keep the handle, so a shared consumer leg (openConsumerOn)
+        // can reuse ITS connection (one connection, two legs).
+        this.transportPublisher = provider.openPublisher(leg.destination(), ps);
+        return RodTransportAdapter.publisher(transportPublisher, objectMapper, identity);
     }
 
     /** Open the receive-leg transport consumer: decode each message + receive it to this rod's pool. A CLIENT
      *  consuming responses filters to its own rod-id (so each instance only gets the responses it requested).
      *  The effective per-leg wire ({@code leg}) is what {@link #legTransport} resolved (XRodRR = the consume node). */
     private TransportConsumer openConsumer(ITransportProvider provider, BusTransport leg) {
+        String sel = effectiveSelector(role, identity);
+        this.openedSelector = sel;
         ConsumeSettings cs = new ConsumeSettings(objectMapper, leg.endpoint(),
-                identity, leg.paramsOrEmpty(), params.concurrencyOr(1), consumeSelector(role, identity));
+                identity, leg.paramsOrEmpty(), params.concurrencyOr(1), sel);
         return provider.openConsumer(leg.destination(), cs, RodTransportAdapter.handler(this::receive, objectMapper));
+    }
+
+    /** Open the receive leg on the publisher's EXISTING connection (the shared, one-connection dual leg). Same as
+     *  {@link #openConsumer} but via {@link ITransportProvider#openConsumerOn} so the consumer reuses {@code pub}'s
+     *  connection -- the broker's noLocal can then drop this connection's own publications. */
+    private TransportConsumer openConsumerOn(ITransportProvider provider, TransportPublisher pub, BusTransport leg) {
+        String sel = effectiveSelector(role, identity);
+        this.openedSelector = sel;
+        ConsumeSettings cs = new ConsumeSettings(objectMapper, leg.endpoint(),
+                identity, leg.paramsOrEmpty(), params.concurrencyOr(1), sel);
+        return provider.openConsumerOn(pub, leg.destination(), cs, RodTransportAdapter.handler(this::receive, objectMapper));
+    }
+
+    /** The selector applied to the receive consumer: a subscription set via {@link #setWorker(String,
+     *  java.util.function.Consumer)} wins (the caller's predicate ALONE -- own-exclusion is the transport's noLocal
+     *  param, not folded here); otherwise the role's base {@link #consumeSelector} (null for broadcast, the rod-id /
+     *  slot-id filter for R&R). */
+    private String effectiveSelector(Role role, BusIdentity identity) {
+        return subscriptionSelector != null ? subscriptionSelector : consumeSelector(role, identity);
+    }
+
+    /** Set the receive worker AND a broadcast subscription selector (single-node only). The {@code subscription} is
+     *  the caller's predicate ALONE -- own-exclusion is the transport's {@code noLocal} param (the broker drops the
+     *  shared connection's own publications), NOT folded into the selector here. A plain selector, not a durable
+     *  subscription. The receive consumer (created at {@link #init}) is re-opened with the new selector ONLY when it
+     *  actually CHANGES from the one the live consumer already holds; otherwise just the worker is attached. */
+    @Override
+    public synchronized void setWorker(String subscription, Consumer<RodEvent> worker) {
+        String desired = (subscription != null && !subscription.isBlank())
+                ? subscription : consumeSelector(role, identity);
+        if (!java.util.Objects.equals(desired, openedSelector)
+                && inbound != null && receiveProvider != null && receiveLeg != null) {
+            this.subscriptionSelector = subscription;   // effectiveSelector() picks it up on the re-open
+            try {
+                inbound.close();                         // drop the consumer built with the previous selector (not started yet)
+            } catch (Exception ignore) {
+                // best-effort: it has not started delivering yet
+            }
+            // re-open exactly as init did -- on the shared connection (dual leg) or a separate one.
+            this.inbound = sharedConsumer
+                    ? openConsumerOn(receiveProvider, transportPublisher, receiveLeg)
+                    : openConsumer(receiveProvider, receiveLeg);
+        }
+        setWorker(worker);
+    }
+
+    /** Whether the receive leg may share the publisher's connection (the single-node dual leg). Base XRod: yes.
+     *  {@link XRodRR} overrides to NO -- its request and response legs are different nodes / connections. */
+    protected boolean sharesConnection() {
+        return true;
+    }
+
+    /** Whether this leg's transport declares the {@code noLocal} param (own-exclusion requested). Read from the
+     *  consume leg's vendor params; drives the in-code fallback when the connection is NOT shared. */
+    private boolean noLocalConfigured(BusTransport leg) {
+        return leg != null && Boolean.parseBoolean(leg.paramsOrEmpty().getOrDefault(BusConstants.PARAM_NO_LOCAL, "false"));
     }
 
     /** The effective wire for THIS leg (produce or consume). Base XRod is SINGLE-NODE -- always the leg's one
@@ -239,6 +311,23 @@ public class XRod extends AXRod {
      *  selector is a future addition. */
     protected String consumeSelector(Role role, BusIdentity identity) {
         return null;
+    }
+
+    /** Receive override for the own-exclusion FALLBACK: when this rod runs both legs on SEPARATE connections (no
+     *  shared connection, so the broker's noLocal cannot see its own publications) and {@code noLocal} is set, drop
+     *  an event this very instance published (its rod-id == ours). The shared / JMS-noLocal path leaves
+     *  {@code filterOwnInCode} false (the broker already dropped own); R&R never enables it. */
+    @Override
+    public void receive(RodEvent event) {
+        boolean own = filterOwnInCode && event != null && identity != null
+                && identity.rodId() != null && identity.rodId().equals(event.rodId());
+        if (own) {
+            if (devLog != null) {
+                devLog.debug("x-rod[{}]: dropping own publication (rod-id={}) -- noLocal in-code fallback", name, event.rodId());
+            }
+        } else {
+            super.receive(event);
+        }
     }
 
     @Override

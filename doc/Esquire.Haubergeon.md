@@ -27,6 +27,24 @@ Alongside *haubergeon* you'll see *hauberk* used in code, config, and
 system properties (`hauberk.cmd`, `pro.mir0n.esquire.hauberk`,
 `esq-hauberk-S`, `hauberk.metrics`) -- same thing, shorter name.
 
+## Gatling vocabulary
+
+Gatling's terminology, used verbatim across the harness:
+
+| Term | Meaning |
+|---|---|
+| **Simulation** | One Java class (extends `Simulation`) -- the top-level "test run". One Simulation = one `hauberk.cmd run <sim>` invocation. |
+| **Scenario** (`ScenarioBuilder`) | Sequence of actions a virtual user performs. Built by chaining `.exec(...)` calls. |
+| **Chain** (`ChainBuilder`) | Reusable building block -- one logical command. Composes into Scenarios. Each Chain lives in `.../chain/` and is a static `ChainBuilder` field or factory method. |
+| **Virtual User (VU)** | An async actor running a Scenario. Cheap -- a single JVM scales to thousands. |
+| **Injection profile** | How VUs are spawned: `atOnceUsers(N)`, `rampUsers(N).during(...)`, `constantUsersPerSec(N).during(...)`. |
+| **`setUp(...)`** | One call per Simulation; wires Scenarios with their injection profiles. Multiple populations in one `setUp` run in parallel. |
+| **`andThen(...)`** | Sequential populations: the next population starts only after the previous finishes. |
+| **`before()` / `after()`** | Hooks that run once per Simulation -- typically for token fetch / shared setup / cleanup. |
+| **Session** | Per-VU state. `.exec(session -> session.set("k", v))` to write; `${k}` interpolation to read. |
+| **Feeder** | Data source (CSV, JSON, in-memory) that injects values into Sessions. |
+| **Check** | Response assertion: `check(status().is(200))`, `check(jsonPath("$.id").saveAs("entityId"))`. |
+
 ## Where it lives
 
 `explorer/hauberk/` -- Maven module, sibling of `explorer/frontend/`,
@@ -164,6 +182,14 @@ Prove the bizTree night-watch sweep detects and reacts to dropped JMS broadcasts
 |---|---|
 | `MessageLossSimulation` | Night-watch **SWAP**: broker down, user missed in cache, sweep promotes the fresh shadow -- recovered |
 | `MessageLossTerminateSimulation` | Night-watch **TERMINATE**: broker down, user missed, sweep mismatch -> bizTree exits (asserts DOWN) |
+
+### Resilience / HA
+
+Self-validating Simulations that prove a resilience budget holds (PASS only when the cap / recovery behaves):
+
+| Simulation | What it proves |
+|---|---|
+| `HaTimeoutSmokeSimulation` | R6 query cap: a capped slow query is cancelled at the cap; an opt-out slow query completes. Hits enyMan directly (the flag-gated slow-query test hook) |
 
 ## Configuration
 
@@ -428,8 +454,9 @@ The picocli CLI lives in `cli/` (`HauberkCli`, `RunCommand`,
   section explains why Opaque + Introspection (RFC 7662) and
   Lightweight Access Tokens + Userinfo were not chosen. The hauberk's
   three non-browser clients each correspond to one of Patterns 2/3/4.
-- [Testing.md](Testing.md) -- Gatling as Esquire's standard testing
-  framework. The hauberk's Simulation set is the first; future testing
-  work composes new Chains and Simulations on the same foundation.
+- [Esquire.TestingStack.md](Esquire.TestingStack.md) -- the full testing-stack
+  overview (every tier + framework); positions Gatling / Haubergeon as the
+  Esquire standard for stress / load / race-repro, of which this harness's
+  Simulation set is the first.
 - [v1.2.x.Planning.md](v1.2.x.Planning.md) -- the v1.2.4 sprint record;
   full delivered-scope summary.

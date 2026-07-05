@@ -17,6 +17,7 @@
  * 06/15/2026 mir0n  audit-producer ctor param retyped messaging.xrod.IXRod (was common.xrod.XYRod)
  * 06/17/2026 mir0n  audit-producer ctor param IXRod -> AuditBusBridge
  * 06/18/2026 mir0n  audit module left common: AuditBusBridge moved to pro.mir0n.esquire.audit
+ * 07/02/2026 mir0n  esquireCommandAcct guards X-Request-ID presence via requireRequestId()
  */
 
 package pro.mir0n.esquire.pacMan.acct.service;
@@ -52,6 +53,7 @@ public class AcctTransactionService {
     }
 
     public AcctTransactionSingle esquireCommandAcct(int kind, String id, String cmd, Map<String, Object> fields, List<String> roles) {
+        RequestContextUtils.requireRequestId();
         String rootPath = RequestContextUtils.getRootPath();
         String uid = RequestContextUtils.getUid();
         if (fields == null) {

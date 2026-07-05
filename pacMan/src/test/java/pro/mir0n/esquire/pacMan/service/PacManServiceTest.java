@@ -17,6 +17,7 @@ import pro.mir0n.esquire.backend.dto.EsqEntityLayer;
 import pro.mir0n.esquire.backend.dto.EsqObjectKind;
 import pro.mir0n.esquire.backend.error.DeleteRestrictedException;
 import pro.mir0n.esquire.backend.storage.EsqEntityDictionaryStorage;
+import pro.mir0n.esquire.backend.error.MissingRequestIdException;
 import pro.mir0n.esquire.backend.error.PermissionDeniedException;
 import pro.mir0n.esquire.backend.error.ResourceNotFoundException;
 import pro.mir0n.esquire.backend.jpa.entity.EsqAcctJpa;
@@ -127,12 +128,23 @@ class PacManServiceTest {
         service = new PacManService(entityRepository, transactionTemplate, em, broadcastPublisher, acctTrxRepo, Mockito.mock(pro.mir0n.esquire.audit.AuditBusBridge.class));
         // uid / rootPath now come from the unified per-request context; default to the rootPath the
         // mocks are stubbed against (the Test-House test overrides to "1.14.").
-        EsqContextHolder.set(new EsqRequestContext(null, null, "99", "1.2.3"));
+        EsqContextHolder.set(new EsqRequestContext(null, "req-test", "99", "1.2.3"));
     }
 
     @AfterEach
     void tearDown() {
         EsqContextHolder.clear();
+    }
+
+    // ---- esquireCommandSave: missing X-Request-ID → MissingRequestIdException ----
+
+    @Test
+    @DisplayName("esquireCommandSave: missing X-Request-ID → MissingRequestIdException")
+    void esquireCommandSave_missingRequestId_throwsMissingRequestIdException() {
+        EsqContextHolder.set(new EsqRequestContext(null, null, "99", "1.2.3")); // no reqId
+        assertThatThrownBy(() ->
+            service.esquireCommandSave(50, "10", "save", Map.of(), List.of(ROLE_ADMIN))
+        ).isInstanceOf(MissingRequestIdException.class);
     }
 
     // ---- esquireCommand: unknown or odd kind → ResourceNotFoundException ----
@@ -287,7 +299,7 @@ class PacManServiceTest {
         when(entityRepository.detailAcctForUpdate("10", 50, "1.14.")).thenReturn(acct);
         when(entityRepository.acctPath("10")).thenReturn("1.14.15.10.");
 
-        EsqContextHolder.set(new EsqRequestContext(null, null, "99", "1.14."));
+        EsqContextHolder.set(new EsqRequestContext(null, "req-test", "99", "1.14."));
         service.esquireCommandDelete(50, "10", "delete", List.of(ROLE_ADMIN));
 
         verify(acctTrxRepo).deleteAcctTransactionsByAccPk(10L);

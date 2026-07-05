@@ -82,6 +82,29 @@ schema, and the delivery analysis are in [Esquire.AuditLoggingStack.md](Esquire.
 
 ---
 
+## Running as a fleet
+
+Every Esquire service can run as more than one copy at once (see
+[Esquire.HighAvailability.md](Esquire.HighAvailability.md) for the deployment side). Each copy gets a distinct
+instance id (`<service>.<number>`, from its ordinal in the set), and all three buses keep working under the
+duplication with no extra wiring:
+
+- **Entity Broadcast** — enyMan and pacMan each run as several copies; every copy publishes its `UE`, and
+  every OTHER copy receives — the consumers (bizTree, kcMaster) AND the publisher's own sibling copies. A copy
+  never re-applies its own publication: on one shared broker connection the broker drops it, otherwise the copy
+  filters its own out by instance id. This is what corrects the cross-copy case in enyMan — a copy busy moving a
+  branch hears a SIBLING copy's create on the broadcast and fixes the new record's stale location, the gap a
+  single copy's own "move in progress" check could not see.
+- **IAM Request/Response** — kcMaster runs as several copies that all listen on the one request queue as
+  competing consumers, so each request is handled by exactly ONE copy (the work spreads across them). The reply
+  carries the asking copy's instance id and routes back only to it, so sharded requesters never read each
+  other's replies.
+- **Audit** — each producing copy posts its own `UA` independently; for the broker sinks auKeep also runs as
+  several copies competing on the one queue, so each audit event lands once. A redelivered duplicate is
+  collapsed by the `*_log` unique key (see Current limitations), not by the bus.
+
+---
+
 ## Bus health
 
 Each service forwards its bus connection health to `/actuator/health`: every bus it uses reports UP / DOWN.
@@ -117,6 +140,14 @@ additionally reports its keep `*_log` database (the apply side). Wiring: [Esquir
   matters (the audit `*_log`) rests on a unique key in the database, not on the bus. A consumer that is down
   misses broadcasts while it is gone — bizTree's recoverable cache reconciles that on its own (its periodic
   night-watch rebuild), but the bus itself does not redeliver.
+
+- **The fleet size is fixed -- nothing autoscales.** Each service runs a set number of copies; no copies are
+  added or removed automatically as load changes. At the scale this runs today the traffic is small and steady,
+  so a fixed small fleet covers it, and the shared single-instance backends (Postgres, the broker, KeyCloak)
+  are the real ceiling -- adding app copies against a fixed backend only pushes more load onto it. Autoscaling
+  earns its keep only with real, spiky production traffic AND after those backends are in a scalable / HA mode.
+  Where and how it would attach -- driven by REST request rate / duration, the copy count capped at ten -- is in
+  [Esquire.HighAvailability.md](Esquire.HighAvailability.md) (section 3.7).
 
 - **One broker per bus** (reached through a `failover:` endpoint). A bus names a single transport; the ActiveMQ
   legs use a `failover:(tcp://...)` endpoint, so a dropped connection auto-reconnects to that broker (and the

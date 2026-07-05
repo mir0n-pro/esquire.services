@@ -154,7 +154,7 @@ if errorlevel 1 (
 echo [helm] upgrading esquire-backend to tag %TS%...
 call helm upgrade esquire-backend charts\esquire-backend --reset-then-reuse-values --set image.tag=%TS%
 if errorlevel 1 ( echo helm upgrade failed & exit /b 1 )
-kubectl rollout status deploy/esquire-backend-backend --timeout=180s
+kubectl rollout status statefulset/esquire-backend-backend --timeout=180s
 goto end
 
 :one
@@ -191,7 +191,7 @@ if errorlevel 1 (
 echo [helm] upgrading esquire-%SVC% to tag %TS%...
 call helm upgrade esquire-%SVC% charts\esquire-%SVC% --reset-then-reuse-values --set image.tag=%TS%
 if errorlevel 1 ( echo helm upgrade failed for esquire-%SVC% & exit /b 1 )
-kubectl rollout status deploy/esquire-%SVC%-%SVC% --timeout=180s
+kubectl rollout status statefulset/esquire-%SVC%-%SVC% --timeout=180s
 exit /b 0
 
 :resolve_tag

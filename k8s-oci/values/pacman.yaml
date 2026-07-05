@@ -1,7 +1,7 @@
 ﻿# Prod overrides for k8s/charts/esquire-pacman
 image:
   repository: ghcr.io/mir0n-pro/esquire.pacman
-  tag: "v1.2.6-2606.0218"
+  # tag injected by oke-up.bat (--set image.tag=%image_tag%) -- single release tag for the whole stack.
   pullPolicy: Always
 
 springProfilesActive: console,dev-postgres
@@ -22,6 +22,36 @@ logging:
 
 nodeSelector:
   tier: app
+
+# v1.2.10 HA (OKE Always-Free): x2 replicas, best-effort spread across the 3 app-tier nodes.
+replicaCount: 2
+topologySpread:
+  enabled: true
+
+# Memory-bounded for the 1 OCPU / 6 GB app nodes (~4.75 GiB alloc; ~4-5 pods/node). CPU
+# request trimmed from the local 250m so the x2 fleet fits the ~2.5 vCPU app tier.
+resources:
+  requests:
+    cpu: 100m
+    memory: 512Mi
+  limits:
+    cpu: 750m
+    memory: 768Mi
+
+# R1-R5 resilience budget promoted from the local-k8s overlay (pools fit Postgres
+# max_connections=200 across the x2 fleet).
+resilience:
+  tomcatMaxThreads: "25"          # R2
+  tomcatAcceptCount: "50"         # R2
+  dbPoolMax: "10"                 # R3
+  dbPoolMinIdle: "2"              # R3
+  dbConnectTimeoutMs: "5000"      # R3 fail-fast on pool acquire
+  dbSocketTimeoutSeconds: "35"    # R5
+  dbTcpKeepAlive: "true"          # R5
+
+# producer send-retry (block mode) on the entity broadcast bus.
+entity:
+  sendRetry: "true"
 
 # OKE deploy = option (a) DB triggers: the app producer stays OFF (no auKeep pod, no extra broker
 # audit load on the Always-Free tier -- it is a demo, not a load-test sandbox). The DB-side trigger

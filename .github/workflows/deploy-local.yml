@@ -1,12 +1,14 @@
-# Esquire services -- deploy to LOCAL k8s (phase 2).
-# On an intermediate commit (push to a pending-** branch), a SELF-HOSTED runner on the dev box
-# builds the full stack and brings it up on Docker Desktop k8s. Full stack = the 6 Java services
-# + the explorer backend/BFF, so the explorer repo is checked out alongside this one.
+# Esquire services -- deploy to the LOCAL targets (phase 2): docker-compose AND Docker Desktop k8s.
+# On an intermediate commit (push to a pending-** branch), a SELF-HOSTED runner on the dev box builds
+# the full stack and brings it up on BOTH local targets, so a green pipeline proves both environments
+# come up on the pending code. Full stack = the 6 Java services + the explorer backend/BFF (plus the
+# explorer frontend container on docker-compose), so the explorer repo is checked out alongside this one.
 #
 # SECURITY (public repo + self-hosted runner): triggers ONLY on push to our own pending-** branches,
 # NEVER on pull_request -- a fork PR cannot push to our branches, so it can never run on the runner.
 # Design: doc/Esquire.GitHubActions.md (sections 4.2, 9a). Logic: .github/scripts/deploy-local.cmd
-# which reuses k8s/*.bat (the single source of deploy logic).
+# (reuses k8s/*.bat) for k8s, and .github/scripts/deploy-compose.cmd (reuses compose/compose-rebuild.bat)
+# for docker-compose -- the *.bat scripts remain the single source of deploy logic.
 name: Deploy local
 
 on:
@@ -33,26 +35,52 @@ jobs:
         with:
           path: services
 
-      - name: Checkout explorer (provides the backend/BFF image)
+      # explorer (backend/BFF image): use the same-named sprint branch WHEN the sprint touches explorer
+      # (both repos' work deploys in lockstep), otherwise fall back to develop -- a sprint that does not
+      # touch explorer has no pending-vX branch there, and must not hard-fail the deploy.
+      - name: Checkout explorer (sprint branch if present)
+        id: explorer-sprint
+        continue-on-error: true
         uses: actions/checkout@v5
         with:
           repository: mir0n-pro/esquire.explorer
-          path: explorer
-          # Same branch name as the triggering services branch (e.g. pending-v1.2.7), so both repos'
-          # sprint work deploys in lockstep. Explorer must have a branch of the same name.
           ref: ${{ github.ref_name }}
+          path: explorer
 
-      - name: Checkout db.seed (postgres image build input for k8s-rebuild)
+      - name: Checkout explorer (fall back to develop when no sprint branch)
+        if: steps.explorer-sprint.outcome == 'failure'
+        uses: actions/checkout@v5
+        with:
+          repository: mir0n-pro/esquire.explorer
+          ref: develop
+          path: explorer
+
+      # db.seed is the postgres-image build input, NOT a deployed service -- so it does NOT require a
+      # same-named sprint branch every sprint. Use the sprint branch WHEN db.seed has sprint schema work
+      # (the postgres image must then carry the schema matching the pending code, e.g. v1.2.8's
+      # ORG_SYSTEM_FLG lived on pending-v1.2.8, not develop); otherwise fall back to develop. The Dockerfile
+      # COPYs db.seed/postgres/* from the workspace root, so db.seed sits beside services/ + explorer/.
+      - name: Checkout db.seed (sprint branch if present)
+        id: dbseed-sprint
+        continue-on-error: true
         uses: actions/checkout@v5
         with:
           repository: mir0n-pro/esquire.db.seed
-          # Lockstep with the services branch -- k8s-rebuild now builds the esquire-postgres image (compose
-          # no longer carries it), and that image must carry the schema matching the pending code (e.g.
-          # v1.2.8's ORG_SYSTEM_FLG / USR_SYSTEM_FLG live on pending-v1.2.8, not develop). The Dockerfile
-          # COPYs db.seed/postgres/* from the workspace root, so db.seed sits beside services/ + explorer/.
           ref: ${{ github.ref_name }}
+          path: db.seed
+
+      - name: Checkout db.seed (fall back to develop when no sprint branch)
+        if: steps.dbseed-sprint.outcome == 'failure'
+        uses: actions/checkout@v5
+        with:
+          repository: mir0n-pro/esquire.db.seed
+          ref: develop
           path: db.seed
 
       - name: Build + bring up the full stack on Docker Desktop k8s
         shell: cmd
         run: services\.github\scripts\deploy-local.cmd
+
+      - name: Build + bring up the docker-compose stack
+        shell: cmd
+        run: services\.github\scripts\deploy-compose.cmd

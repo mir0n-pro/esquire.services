@@ -1,5 +1,5 @@
 
-FROM eclipse-temurin:21-jre-jammy
+FROM eclipse-temurin:25-jre-jammy
 
 #RUN mkdir -p /app/logs && chmod 777 /app/logs   
 WORKDIR /app

@@ -13,6 +13,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.transaction.support.TransactionTemplate;
 import pro.mir0n.esquire.backend.dto.EsqObjectKind;
 import pro.mir0n.esquire.backend.error.InvalidValueException;
+import pro.mir0n.esquire.backend.error.MissingRequestIdException;
 import pro.mir0n.esquire.backend.error.PermissionDeniedException;
 import pro.mir0n.esquire.backend.error.ResourceNotFoundException;
 import pro.mir0n.esquire.backend.jpa.access.EsqPermissionJpa;
@@ -21,6 +22,8 @@ import pro.mir0n.esquire.backend.jpa.entity.EsqAcctJpa;
 import pro.mir0n.esquire.backend.storage.EsqEntityDictionaryStorage;
 import pro.mir0n.esquire.backend.storage.EsqObjectKindStorage;
 import pro.mir0n.esquire.backend.storage.EsqRolesStorage;
+import pro.mir0n.esquire.backend.service.EsqContextHolder;
+import pro.mir0n.esquire.backend.service.EsqRequestContext;
 import pro.mir0n.esquire.backend.storage.roles.JpaRolesRepository;
 import pro.mir0n.esquire.backend.validator.ValidatorFactory;
 import pro.mir0n.esquire.common.EsqConstants;
@@ -78,6 +81,24 @@ class AcctTransactionServiceTest {
     @BeforeEach
     void setUp() {
         service = new AcctTransactionProcessorSingle(entityRepository, transactionRepository, transactionTemplate, em, Mockito.mock(pro.mir0n.esquire.audit.AuditBusBridge.class));
+    }
+
+    // ---- missing X-Request-ID → MissingRequestIdException ----
+
+    @Test
+    @DisplayName("esquireCommandAcct: missing X-Request-ID → MissingRequestIdException")
+    void esquireCommandAcct_missingRequestId_throwsMissingRequestIdException() {
+        AcctTransactionService svc = new AcctTransactionService(
+                entityRepository, transactionRepository, transactionTemplate, em,
+                Mockito.mock(pro.mir0n.esquire.audit.AuditBusBridge.class));
+        EsqContextHolder.set(new EsqRequestContext(null, null, "99", "1.2.3")); // no reqId
+        try {
+            assertThatThrownBy(() ->
+                svc.esquireCommandAcct(50, "10", "acct", Map.of(), List.of(ROLE_ADMIN))
+            ).isInstanceOf(MissingRequestIdException.class);
+        } finally {
+            EsqContextHolder.clear();
+        }
     }
 
     // ---- unknown or odd kind → ResourceNotFoundException ----

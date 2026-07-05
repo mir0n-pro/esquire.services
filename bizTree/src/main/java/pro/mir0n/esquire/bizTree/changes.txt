@@ -1,6 +1,22 @@
 Esquire BizTree Microservice
 
 
+06/29/2026 mir0n  v1.2.10 -- R6 cache-load opt-out + H2 query cap; R1-R5 env wiring
+cache.BizTreeCacheLoader
+  - the whole-tree entity read runs in one read-only TransactionTemplate built over the JPA tx manager; its
+    timeout opts out of the request-path cap via QueryTimeouts.resolveOptOut (biztree.cache-load.tx-timeout-s,
+    0 = uncapped, pre-HA default)
+h2.BizTreeH2Config
+  - biztree.h2.query-timeout-s @Value: when > 0 sets the cache JdbcTemplate setQueryTimeout; 0 = uncapped (pre-HA)
+access.BizTreeDirectorConfig
+  - inject the JPA PlatformTransactionManager + biztree.cache-load.tx-timeout-s @Value and pass them to
+    BizTreeCacheLoader
+resources/application.yml
+  - spring.transaction.default-timeout (ESQ_TX_TIMEOUT_S, -1 = no cap); biztree.cache-load.tx-timeout-s
+    (BIZTREE_CACHE_LOAD_TX_TIMEOUT_S) + biztree.h2.query-timeout-s (BIZTREE_H2_QUERY_TIMEOUT_S), both 0 = uncapped;
+    Tomcat threads.max/accept-count, Hikari pool/connect-timeout, pgjdbc socketTimeout/tcpKeepAlive env-bound
+    (pre-HA defaults unchanged)
+
 06/24/2026 mir0n  v1.2.9 -- EsqMsgConstants references repointed
 BizTreeApplication
   - EsqMsgConstants app constants -> common.EsqConstants (references repointed)

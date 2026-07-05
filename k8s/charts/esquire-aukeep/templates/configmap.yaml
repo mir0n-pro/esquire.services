@@ -8,6 +8,8 @@ data:
   SPRING_PROFILES_ACTIVE:    {{ .Values.springProfilesActive | default "" | quote }}
   DATAKEEP_PORT:             {{ .Values.service.port | quote }}
   TOPOLOGY_IMPORT:   {{ .Values.topologyImport | quote }}
+  # --- v1.2.10 VT (UNVALIDATED test lever, default OFF -- see HA doc 5.5) ---
+  ESQ_VIRTUAL_THREADS:       {{ .Values.esqVirtualThreads | quote }}
   # --- datasource (writes the *_log tables; password -> Secret, injected as env in the deployment) ---
   DB_DATAKEEP_VENDOR:        {{ .Values.db.vendor | quote }}
   DB_DATAKEEP_HOST:          {{ .Values.db.host | quote }}
@@ -18,6 +20,7 @@ data:
   AUDIT_BUS_ID:      {{ .Values.audit.busId | quote }}
   AUDIT_SLOT_ID:  {{ .Values.audit.slotId | quote }}
   DATAKEEP_DIRECTOR:         {{ .Values.audit.director | quote }}
+  AUDIT_POOL_MODE:           {{ .Values.audit.poolMode | quote }}
   # --- logging ---
   LOG_LEVEL_ROOT:            {{ .Values.logging.levelRoot | quote }}
   LOG_LEVEL_SF:              {{ .Values.logging.levelSf | quote }}

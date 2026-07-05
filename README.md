@@ -27,9 +27,9 @@ The framework's messaging is not a future direction — the vendor-agnostic **Es
 
 ---
 > 
-> **v1.2.9 — complete.** A **hardening** sprint that tightens what the v1.2.8 Messaging Bus refactoring put in place: the bus now has one front-door per service with a defined start-up order — check the configuration, build everything, then open connections — and each conversation's role set in configuration. A service that is misconfigured, or that names a bus it does not actually have, stops at start-up with a clear message instead of silently doing nothing; every service reports whether its bus connection is up on its health check; and incoming messages are handled more defensively. See [Release History](#release-history).
+> **v1.2.10 — complete.** A **Resilience / Durability** sprint: every service can now bound how long it waits — on a slow request, a stuck database call, or a stuck downstream — and fail fast with a clear error instead of hanging; the messaging bus gains a resend-on-failure step so a message survives a brief connection drop, and keeps idle connections alive so they do not go stale; each messaging worker pool can run on ordinary or virtual threads by a single setting; and the framework now runs as **two copies of each service** in the cloud, spread across machines, so losing one machine keeps the site up. See [Release History](#release-history).
 > 
-> **The end of the v1.2.x horizon is now in view.** Two sprints remain — **Resilience / Durability** and **Observability** — then **v1.3.0** externalizes the **Messaging Bus** into its own product backing the Esquire Application Frameworks. See the [v1.2.x roadmap](doc/v1.2.x.Planning.md).
+> **The end of the v1.2.x horizon is now in view.** One sprint remains — **Observability**. See the [v1.2.x roadmap](doc/v1.2.x.Planning.md).
 >
 
 
@@ -72,10 +72,10 @@ The framework's messaging is not a future direction — the vendor-agnostic **Es
 
 |                                                                   |                                                                                                                                                                                                                                                                                                                                                                        |
 |-------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| **esquire.services**| - [v1.2.9 Milestone Report](doc/reports/report_v1.2.9.md)<br/>- [v1.2.8 Milestone Report](doc/reports/report_v1.2.8.md)<br/>- [v1.2.7 Milestone Report](doc/reports/report_v1.2.7.md)<br/>- [v1.2.6 Milestone Report](doc/reports/report_v1.2.6.md)<br/>- [v1.2.5 Milestone Report](doc/reports/report_v1.2.5.md)<br/>- [v1.2.4 Milestone Report](doc/reports/report_v1.2.4.md)<br/>- [v1.2.3 Milestone Report](doc/reports/report_v1.2.3.md)<br/>- [v1.2.2 Milestone Report](doc/reports/report_v1.2.2.md)                                                                                                                                                                                  |
-| **esquire.explorer**| - [v1.2.9 Milestone Report](https://github.com/mir0n-pro/esquire.explorer/blob/develop/doc/reports/report_v1.2.9.md)<br/>- [v1.2.8 Milestone Report](https://github.com/mir0n-pro/esquire.explorer/blob/develop/doc/reports/report_v1.2.8.md)<br/>- [v1.2.7 Milestone Report](https://github.com/mir0n-pro/esquire.explorer/blob/develop/doc/reports/report_v1.2.7.md)<br/>- [v1.2.6 Milestone Report](https://github.com/mir0n-pro/esquire.explorer/blob/develop/doc/reports/report_v1.2.6.md)<br/>- [v1.2.5 Milestone Report](https://github.com/mir0n-pro/esquire.explorer/blob/develop/doc/reports/report_v1.2.5.md)<br/>- [v1.2.4 Milestone Report](https://github.com/mir0n-pro/esquire.explorer/blob/develop/doc/reports/report_v1.2.4.md)<br/>- [v1.2.3 Milestone Report](https://github.com/mir0n-pro/esquire.explorer/blob/develop/doc/reports/report_v1.2.3.md)<br/>- [v1.2.2 Milestone Report](https://github.com/mir0n-pro/esquire.explorer/blob/develop/doc/reports/report_v1.2.2.md) |
+| **esquire.services**| - [v1.2.10 Milestone Report](doc/reports/report_v1.2.10.md)<br/>- [v1.2.9 Milestone Report](doc/reports/report_v1.2.9.md)<br/>- [v1.2.8 Milestone Report](doc/reports/report_v1.2.8.md)<br/>- [v1.2.7 Milestone Report](doc/reports/report_v1.2.7.md)<br/>- [v1.2.6 Milestone Report](doc/reports/report_v1.2.6.md)<br/>- [v1.2.5 Milestone Report](doc/reports/report_v1.2.5.md)<br/>- [v1.2.4 Milestone Report](doc/reports/report_v1.2.4.md)<br/>- [v1.2.3 Milestone Report](doc/reports/report_v1.2.3.md)<br/>- [v1.2.2 Milestone Report](doc/reports/report_v1.2.2.md)                                                                                                                                                                                  |
+| **esquire.explorer**| - [v1.2.10 Milestone Report](https://github.com/mir0n-pro/esquire.explorer/blob/develop/doc/reports/report_v1.2.10.md)<br/>- [v1.2.9 Milestone Report](https://github.com/mir0n-pro/esquire.explorer/blob/develop/doc/reports/report_v1.2.9.md)<br/>- [v1.2.8 Milestone Report](https://github.com/mir0n-pro/esquire.explorer/blob/develop/doc/reports/report_v1.2.8.md)<br/>- [v1.2.7 Milestone Report](https://github.com/mir0n-pro/esquire.explorer/blob/develop/doc/reports/report_v1.2.7.md)<br/>- [v1.2.6 Milestone Report](https://github.com/mir0n-pro/esquire.explorer/blob/develop/doc/reports/report_v1.2.6.md)<br/>- [v1.2.5 Milestone Report](https://github.com/mir0n-pro/esquire.explorer/blob/develop/doc/reports/report_v1.2.5.md)<br/>- [v1.2.4 Milestone Report](https://github.com/mir0n-pro/esquire.explorer/blob/develop/doc/reports/report_v1.2.4.md)<br/>- [v1.2.3 Milestone Report](https://github.com/mir0n-pro/esquire.explorer/blob/develop/doc/reports/report_v1.2.3.md)<br/>- [v1.2.2 Milestone Report](https://github.com/mir0n-pro/esquire.explorer/blob/develop/doc/reports/report_v1.2.2.md) |
 | **esquire.ui.lib**| - [v1.2.3 Release Report](https://github.com/mir0n-pro/esquire.ui.lib/blob/develop/doc/reports/report_v1.2.3.md)<br/> - [v1.2.2 Release Report](https://github.com/mir0n-pro/esquire.ui.lib/blob/develop/doc/reports/report_2026_04_19_31750f3.md)                                                                                                                     |
-| **esquire.db.seed**| - [v1.2.9 Milestone Report](https://github.com/mir0n-pro/esquire.db.seed/blob/develop/doc/reports/report_v1.2.9.md)<br/> - [v1.2.8 Milestone Report](https://github.com/mir0n-pro/esquire.db.seed/blob/develop/doc/reports/report_v1.2.8.md)<br/> - [v1.2.7 Milestone Report](https://github.com/mir0n-pro/esquire.db.seed/blob/develop/doc/reports/report_v1.2.7.md)<br/> - [v1.2.4 Milestone Report](https://github.com/mir0n-pro/esquire.db.seed/blob/develop/doc/reports/report_v1.2.4.md)<br/> - [v1.2.2 Milestone Report](https://github.com/mir0n-pro/esquire.db.seed/blob/develop/doc/reports/report_v1.2.2.md)                                                                                                                          |
+| **esquire.db.seed**| - [v1.2.10 Milestone Report](https://github.com/mir0n-pro/esquire.db.seed/blob/develop/doc/reports/report_v1.2.10.md)<br/> - [v1.2.9 Milestone Report](https://github.com/mir0n-pro/esquire.db.seed/blob/develop/doc/reports/report_v1.2.9.md)<br/> - [v1.2.8 Milestone Report](https://github.com/mir0n-pro/esquire.db.seed/blob/develop/doc/reports/report_v1.2.8.md)<br/> - [v1.2.7 Milestone Report](https://github.com/mir0n-pro/esquire.db.seed/blob/develop/doc/reports/report_v1.2.7.md)<br/> - [v1.2.4 Milestone Report](https://github.com/mir0n-pro/esquire.db.seed/blob/develop/doc/reports/report_v1.2.4.md)<br/> - [v1.2.2 Milestone Report](https://github.com/mir0n-pro/esquire.db.seed/blob/develop/doc/reports/report_v1.2.2.md)                                                                                                                          |
 
 
 ### Deployment
@@ -95,6 +95,12 @@ The framework's messaging is not a future direction — the vendor-agnostic **Es
 ![Component Model](doc/media/ComponentModel.png)
 
 ---
+
+The **gateway**, the six backend **services** (bizTree, enyMan, pacMan, keySmith, kcMaster, auKeep), and the
+**BFF** each run **redundant, with (optional) autoscale**, for high availability — spread across separate
+nodes so losing one keeps the site up. The databases, Keycloak, the message broker, and the Session Store
+run as a single instance here; each is a third-party platform that brings its **own** high-availability
+(clustering / replication), set up by the operator when wanted — outside Esquire's concern.
 
 **Esq2025**
 <img src="./doc/logo/postgres.svg" alt="postgres logo" valign="middle" height="24">
@@ -143,7 +149,9 @@ so an event missed while the service was down is reconciled automatically, with 
 <img src="./doc/logo/spring-boot.svg" alt="Spring Boot logo" valign="middle" height="24">
 <img src="./doc/logo/enyMan.3.png" alt="enyMan logo" valign="middle" height="28">
 <br>Entity Manager; manages organizations and users; handles create, update, delete,
-and move operations; publishes entity change events to the broadcast bus.
+and move operations; publishes entity change events to the entity broadcast bus, and now also
+receives from it — a two-way link, so the redundant copies stay coordinated, each aware of the
+entity changes the other makes.
 
 **keySmith**
 <img src="./doc/logo/java.svg" alt="Java logo" valign="middle" height="24">
@@ -196,7 +204,14 @@ GUI entry point** at `https://esquire.mir0n.pro`. Owns the OIDC code+PKCE flow w
 (`/auth/login`, `/callback`, `/logout`, `/me`); proxies `/api/*` to the gateway with bearer
 injection; caches static entity dictionaries (`/esq-kinds`, `/esq-dictionary`) per pod, shared
 across users; bakes the Angular SPA into its image at build time and serves it on `/`. The
-browser never sees the access token — it holds an opaque session cookie.
+browser never sees the access token — it holds an opaque session cookie. When run redundant, login
+sessions are kept in the **Session Store** so any copy can serve any request.
+
+**Session Store**
+<img src="./doc/logo/redis.svg" alt="Redis logo" valign="middle" height="24">
+<br>Optional; a Redis instance holding the BFF's login sessions, so the redundant BFF copies share them —
+any copy can serve any request. Only needed when the BFF runs as more than one copy; distinct from the
+audit-sink Redis.
 
 **Esquire Explorer Frontend**
 <img src="./doc/logo/node.js.svg" alt="Node.js logo" valign="middle" height="24">
@@ -221,27 +236,32 @@ The two public hosts at a glance:
 
 ---
 ## Release History
+### v1.2.10 — complete (07/04/2026)
+
+v1.2.10 is a **Resilience / Durability** sprint — bounding every wait, making the messaging bus survive
+brief outages, and running the whole framework as redundant copies in the cloud.
+
+**Bounded waits, fail fast.** Every service can now cap how long it waits — on a slow inbound request, a
+stuck database call, or a stuck downstream service — and return a clear error instead of hanging, with the
+connection pools and worker queues sized to a defined budget. Each limit is off by default and turned on per
+environment.
+
+**A messaging bus that recovers.** The bus gains a resend-on-failure step, so a message that meets a briefly
+broken connection is retried rather than lost, plus a keep-alive that stops idle connections going stale and
+notices an outage sooner. Each messaging worker pool can run on ordinary or virtual threads by a single
+setting.
+
+**Redundant in the cloud.** The framework now runs as two copies of each service on the managed cluster,
+spread across separate machines so losing one machine keeps the site up, and each service is given a start-up
+grace period so a slow cold start on a busy machine is not mistaken for a failure. Smaller collected fixes
+rode along — a request id is now required on write operations, a dropped message is logged on the main app
+log, and the sign-in screen gains a Cancel link.<br>
+[The Esquire Messaging Bus](doc/Esquire.MessagingBus.md) · [High Availability](doc/Esquire.HighAvailability.md) · [v1.2.10 Release Notes](doc/release_notes.txt)<br>
+
 ### v1.2.9 — complete (06/24/2026)
 
-v1.2.9 is a **hardening** sprint — working through the smaller issues collected but set aside during the
-v1.2.8 Messaging Bus build, and tightening Esquire as a whole, to stabilize what that big refactoring put
-in place.
-
-**A cleaner bus front-door.** Each service now reaches the bus through one entry point with a defined
-start-up sequence — read and check the configuration, build everything, then open connections — so broker
-connections no longer open in an undefined order while a service is starting. Each conversation's role (who
-sends, who receives) is declared in configuration, and a service that is misconfigured, or that names a bus
-it does not actually have, now stops at start-up with a clear message instead of silently doing nothing.
-
-**Health and robustness.** Every service reports whether its bus connection is up on its standard health
-check, now split into "ready to serve" and "still alive"; a regular keep-alive catches an outage faster, and
-the audit-writer **`auKeep`** additionally reports its own database. Incoming messages are handled more
-defensively — a single malformed field falls back to a default rather than discarding the whole message, and
-a message in an unknown format is refused. On the data side, missing timestamp columns and lookup indexes
-were added, and a service now detects its database flavor from the connection address. Finally, the bus
-message-format definitions were moved into the messaging module, so the shared `common` library no longer
-carries any wire detail.<br>
-[The Esquire Messaging Bus](doc/Esquire.MessagingBus.md) · [Testing Stack](doc/Esquire.TestingStack.md) · [v1.2.9 Release Notes](doc/release_notes.txt)<br>
+v1.2.9 is a **hardening** sprint that stabilizes the v1.2.8 Messaging Bus: each service reaches the bus through one entry point with a defined start-up sequence and configured roles, fail-fast on misconfiguration, the bus connection surfaced on each service's health check (split into "ready" and "alive") with a keep-alive, and more defensive handling of incoming messages — plus added timestamp columns and lookup indexes and the wire-format definitions moved out of `common` into the messaging module.<br>
+[More Details: v1.2.9 README](https://github.com/mir0n-pro/esquire.services/tree/release/v1.2.9?tab=readme-ov-file#project-structure)
 
 ### v1.2.8 — complete (06/19/2026)
 

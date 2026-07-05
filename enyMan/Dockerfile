@@ -1,9 +1,9 @@
 # Stage 1: Build the application
 # Use the full JDK for building
-#FROM eclipse-temurin:21-jdk-jammy AS builder
+#FROM eclipse-temurin:25-jdk-jammy AS builder
 #WORKDIR /app
 
-FROM eclipse-temurin:21-jre-jammy
+FROM eclipse-temurin:25-jre-jammy
 WORKDIR /app
 
 # Create a non-root user for security

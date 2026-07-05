@@ -17,14 +17,20 @@
  *                   carries only url/username/password/hikari.
  * 06/23/2026 mir0n  Hikari record gained dataSourceProperties (bound from data-source-properties, like
  *                   spring.datasource.hikari.data-source-properties) -- driver connection props forwarded verbatim.
+ * 06/29/2026 mir0n  added queryTimeoutSeconds (Integer; null / <= 0 = no cap, pre-HA default) -- the per-apply
+ *                   JDBC statement cap (R6 keep surface)
  */
 package pro.mir0n.esquire.dataKeep.keep;
 
 import java.util.Map;
 
 /** A keep's DB sink datasource + pool (bound from a leg's datasource group). The keep builds its OWN
- *  auto-commit pool from this -- a keep applies relayed events outside any caller transaction. */
-public record KeepDataSourceParams(String url, String username, String password, Hikari hikari) {
+ *  auto-commit pool from this -- a keep applies relayed events outside any caller transaction.
+ *  {@code queryTimeoutSeconds} caps each apply statement (JDBC setQueryTimeout); null or {@code <= 0}
+ *  means no cap (the pre-HA default). It is the keep surface of the per-service request-path query timeout
+ *  -- a stuck *_log apply cannot pin a keep connection forever once it is set. */
+public record KeepDataSourceParams(String url, String username, String password, Hikari hikari,
+                                   Integer queryTimeoutSeconds) {
 
     /** Connection-pool settings, mirroring spring.datasource.hikari -- the keep DB is configured the same way
      *  as a service DB, just in its own group. All nullable -> Hikari/our defaults apply. {@code dataSourceProperties}

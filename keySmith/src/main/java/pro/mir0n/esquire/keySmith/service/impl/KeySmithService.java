@@ -46,6 +46,7 @@
  * 06/18/2026 mir0n  audit module left common: AuditBusBridge moved to pro.mir0n.esquire.audit
  * 06/22/2026 mir0n  KcSyncPublisher field/import -> KcBusAdapter (the merged kc-CLIENT adapter); RodEvent import
  *                   repointed messaging.xrod.RodEvent -> messaging.RodEvent
+ * 07/02/2026 mir0n  esquireKeySave reads requestId via requireRequestId() -- X-Request-ID mandatory on writes
  */
 
 package pro.mir0n.esquire.keySmith.service.impl;
@@ -138,7 +139,7 @@ public class KeySmithService implements IKeySmithService {
     public EsqAccessProfile esquireKeySave(String id, Map<String, Object> fields, List<String> roles) {
         EsqAccessProfile ret = null;
         String correlationId = RequestContextUtils.getCorrelationId();
-        String requestId = RequestContextUtils.getRequestId();
+        String requestId = RequestContextUtils.requireRequestId();
         String rootPath = RequestContextUtils.getRootPath();
         String uid = RequestContextUtils.getUid();
         devLog.debug("KeySmithService: esquireKeySave: id:{}, rootPath:{}, uid:{}", id, rootPath, uid);

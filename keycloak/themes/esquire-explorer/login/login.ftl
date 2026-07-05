@@ -34,6 +34,31 @@
             <#if realm.resetPasswordAllowed>
                 <a tabindex="5" class="esq-forgot-link" href="${url.loginResetCredentialsUrl}">${msg("doForgotPassword")}</a>
             </#if>
+            <#-- Escape hatch: return to the application without signing in. The target is the
+                 app origin, taken from this flow's redirect_uri (this client has no fixed
+                 baseUrl and serves many origins). Stashed in sessionStorage so it survives a
+                 wrong-password re-render (where the URL no longer carries redirect_uri). Hidden
+                 until the origin is known, so it never becomes a misleading dead link. -->
+            <a tabindex="6" id="esq-cancel" class="esq-forgot-link" href="#" style="display:none">${msg("doCancel")}</a>
         </div>
     </form>
+
+    <script>
+      (function () {
+        try {
+          var params = new URLSearchParams(window.location.search);
+          var ru = params.get('redirect_uri');
+          if (ru) {
+            try { sessionStorage.setItem('esqAppOrigin', new URL(ru).origin); } catch (e) {}
+          }
+          var origin = null;
+          try { origin = sessionStorage.getItem('esqAppOrigin'); } catch (e) {}
+          var link = document.getElementById('esq-cancel');
+          if (link && origin) {
+            link.setAttribute('href', origin + '/');
+            link.style.display = '';
+          }
+        } catch (e) {}
+      })();
+    </script>
 </@layout.registrationLayout>

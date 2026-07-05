@@ -1,5 +1,9 @@
 Esquire auKeep service
 
+06/29/2026 mir0n  v1.2.10 -- R6 per-apply query-timeout (keep surface)
+resources/application.yml
+  - keep query-timeout-seconds on both keep datasources (ESQ_KEEP_QUERY_TIMEOUT_S, 0 = uncapped, pre-HA default)
+
 06/24/2026 mir0n  v1.2.9 -- EsqMsgConstants references repointed
 AuKeepApplication
   - EsqMsgConstants app constants -> common.EsqConstants (references repointed)
