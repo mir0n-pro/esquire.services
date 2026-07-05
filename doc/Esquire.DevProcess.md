@@ -131,7 +131,27 @@ At sprint end, beyond the per-commit code-change docs:
 
 - Settle the **deferred design-doc placement** — interim `doc/<sprint>.tasks` notes and any saga docs
   land in their proper, visible home now that the final structure is known.
-- Refresh the **README(s)**, the landing page, and other release-facing material.
+- Refresh the **README(s)**, the landing page, and other release-facing material. The per-version README
+  notes — "**do the versioning**", i.e. describing what the sprint delivered, NOT bumping build-file
+  versions — follow a strict **roll-down**:
+  - **Add** the finished sprint as the newest version in FULL detail (intro line naming the sprint theme +
+    bullets / per-subproject table), heading dated the **finalization date** (not the change date), and
+    **no** "More Details" link (its release branch is not archived yet).
+  - **Collapse** the previously-newest version down to a **single sentence + its release-branch
+    `[More Details: vX.Y.Z README](…/tree/release/vX.Y.Z?tab=readme-ov-file)` link** — it just lost "newest".
+  - Per-repo shape: `db.seed` and `explorer` use `## vX — complete (date)` sections (collapse the prior one
+    in place). `services` uses BOTH a top **blockquote callout** — current sprint only + a horizon line, with
+    the prior sprint note **removed** — AND a `## Release History` section that rolls down like the others.
+  - **Front-door prose only**: omit mechanical plumbing (e.g. the `DB_VERSION` / package-version bump); the
+    horizon line names only the current release line's remaining sprints — no next-major / future-product promo.
+  - **Milestone-report placeholder**: in the Release History table, reserve the new version as a real linked
+    reference in the existing convention (`[vX.Y.Z Milestone Report](…/report_vX.Y.Z.md)`) — a deliberately
+    dead link that resolves once the report lands after release — in every repo row that had work this sprint.
+- The finalization refresh itself (the README version notes, the landing-page / component-model /
+  diagram refresh, other release-facing copy) IS the sprint's release-facing documentation &mdash; it
+  does NOT get its own dated `release_notes` change entry. Per-commit `release_notes` entries are for the
+  sprint's CODE changes, recorded when each landed; the finalization refresh only re-states them for the
+  front door.
 - Run the **release finalization** proper: version finalize, then the branch flow
   `pending → PR → develop → tag → archive release/ → new pending` (the maintainer's git step).
 

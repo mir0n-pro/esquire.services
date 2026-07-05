@@ -1,12 +1,14 @@
-# Esquire services -- deploy to LOCAL k8s (phase 2).
-# On an intermediate commit (push to a pending-** branch), a SELF-HOSTED runner on the dev box
-# builds the full stack and brings it up on Docker Desktop k8s. Full stack = the 6 Java services
-# + the explorer backend/BFF, so the explorer repo is checked out alongside this one.
+# Esquire services -- deploy to the LOCAL targets (phase 2): docker-compose AND Docker Desktop k8s.
+# On an intermediate commit (push to a pending-** branch), a SELF-HOSTED runner on the dev box builds
+# the full stack and brings it up on BOTH local targets, so a green pipeline proves both environments
+# come up on the pending code. Full stack = the 6 Java services + the explorer backend/BFF (plus the
+# explorer frontend container on docker-compose), so the explorer repo is checked out alongside this one.
 #
 # SECURITY (public repo + self-hosted runner): triggers ONLY on push to our own pending-** branches,
 # NEVER on pull_request -- a fork PR cannot push to our branches, so it can never run on the runner.
 # Design: doc/Esquire.GitHubActions.md (sections 4.2, 9a). Logic: .github/scripts/deploy-local.cmd
-# which reuses k8s/*.bat (the single source of deploy logic).
+# (reuses k8s/*.bat) for k8s, and .github/scripts/deploy-compose.cmd (reuses compose/compose-rebuild.bat)
+# for docker-compose -- the *.bat scripts remain the single source of deploy logic.
 name: Deploy local
 
 on:
@@ -78,3 +80,7 @@ jobs:
       - name: Build + bring up the full stack on Docker Desktop k8s
         shell: cmd
         run: services\.github\scripts\deploy-local.cmd
+
+      - name: Build + bring up the docker-compose stack
+        shell: cmd
+        run: services\.github\scripts\deploy-compose.cmd
