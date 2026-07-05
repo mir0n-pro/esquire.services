@@ -27,9 +27,12 @@ The framework's messaging is not a future direction — the vendor-agnostic **Es
 
 ---
 > 
-> **v1.2.10 — complete.** A **Resilience / Durability** sprint: every service can now bound how long it waits — on a slow request, a stuck database call, or a stuck downstream — and fail fast with a clear error instead of hanging; the messaging bus gains a resend-on-failure step so a message survives a brief connection drop, and keeps idle connections alive so they do not go stale; each messaging worker pool can run on ordinary or virtual threads by a single setting; and the framework now runs as **two copies of each service** in the cloud, spread across machines, so losing one machine keeps the site up. See [Release History](#release-history).
+> **v1.2.11 — in progress.** The final **v1.2.x** sprint is now underway: **Observability**. The goal is to
+> complete the observability layer as common, reusable solutions and shared tooling built into the framework —
+> one consistent way to see what the running system is doing (its health, timing, and traffic), provided once
+> for every service rather than wired up service by service. See the [v1.2.x roadmap](doc/v1.2.x.Planning.md).
 > 
-> **The end of the v1.2.x horizon is now in view.** One sprint remains — **Observability**. See the [v1.2.x roadmap](doc/v1.2.x.Planning.md).
+> **v1.2.10 — complete.** A **Resilience / Durability** sprint: every service can now bound how long it waits — on a slow request, a stuck database call, or a stuck downstream — and fail fast with a clear error instead of hanging; the messaging bus gains a resend-on-failure step so a message survives a brief connection drop, and keeps idle connections alive so they do not go stale; each messaging worker pool can run on ordinary or virtual threads by a single setting; and the framework now runs as **two copies of each service** in the cloud, spread across machines, so losing one machine keeps the site up. See [Release History](#release-history).
 >
 
 
