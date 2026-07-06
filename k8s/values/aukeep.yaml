@@ -2,7 +2,7 @@
 # Chart defaults already match local dev (postgres + activemq + transport=activemq).
 # Only image.tag is restamped per rebuild here -- k8s-rebuild.bat patches it.
 image:
-  tag: "v1.2.10-2607.0221"
+  tag: "v1.2.10-2607.0517"
 
 # v1.2.10 redundancy: run 2 replicas (StatefulSet ordinal identity)
 replicaCount: 2
