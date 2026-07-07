@@ -1,6 +1,17 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v1.2.11-2607.0701  v1.2.11 -- observability: search every service's logs in one place
+    - a ready-to-run log-viewing stack (a log viewer over a log store, fed by a log collector) can now be
+      started alongside the local docker stack and the local Kubernetes cluster
+    - each service's logs are gathered automatically and searched from one screen; a single request can be
+      followed across services by its request / correlation id
+    - it is opt-in and off by default -- it does not start with the everyday stack (a docker "o11y" profile,
+      and a separate start script on Kubernetes) -- so the normal stack stays light
+    :Feature:     one screen to search all the services' logs, with per-request follow-through
+    :Config:      the log-viewing stack added to the docker compose stack and as local Kubernetes charts,
+                  both opt-in and off by default
+
 v1.2.10-2607.0416  v1.2.10 -- OKE high-availability deployment (two of each service)
     - each backend service now runs as two copies on OKE, placed on separate machines, so
       losing one machine keeps the site running

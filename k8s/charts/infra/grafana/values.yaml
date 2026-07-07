@@ -1,0 +1,13 @@
+# Grafana UI for the T1 observability stack (local/dev k8s only).
+image:
+  repository: grafana/grafana
+  tag: "11.5.2"
+  pullPolicy: IfNotPresent
+admin:
+  user: admin
+  password: admin
+ingress:
+  # Browsers resolve *.localhost -> 127.0.0.1 (RFC 6761); ingress-nginx binds localhost:80.
+  host: grafana.localhost
+loki:
+  url: http://esquire-infra-loki:3100

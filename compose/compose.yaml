@@ -677,7 +677,74 @@ services:
     networks:
       - esquirenet
 
+  # ---- Observability stack (T1: logging visualize) -- opt-in profile "o11y" ----
+  # Grafana single pane over Loki; Alloy tails the esq-* container stdout (ECS JSON) into Loki.
+  #   Start:  docker compose --profile o11y up -d
+  #   Open:   http://localhost:3009  (admin/admin)  ->  Explore  ->  Loki  ->  {job="esq-docker"}
+  #   Filter by correlation id:  {job="esq-docker"} | json | correlationId = "<id>"
+  # No service change -- the emit side (console: ecs, INCOMING/OUTGOING, MDC ids) is already in place.
+  loki:
+    container_name: esq-loki
+    image: grafana/loki:3.4.2
+    profiles: ["o11y"]
+    command: ["-config.file=/etc/loki/loki-config.yaml"]
+    ports:
+      - "3100:3100"
+    volumes:
+      - ./o11y/loki-config.yaml:/etc/loki/loki-config.yaml:ro
+      - loki-data:/loki
+    networks:
+      - esquirenet
+
+  alloy:
+    container_name: esq-alloy
+    image: grafana/alloy:v1.7.4
+    profiles: ["o11y"]
+    command:
+      - run
+      - /etc/alloy/config.alloy
+      - --server.http.listen-addr=0.0.0.0:12345
+      - --storage.path=/var/lib/alloy/data
+    ports:
+      - "12345:12345"     # Alloy debug UI
+    volumes:
+      - ./o11y/alloy-config.alloy:/etc/alloy/config.alloy:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - alloy-data:/var/lib/alloy/data
+    depends_on:
+      loki:
+        condition: service_started
+    networks:
+      - esquirenet
+
+  grafana:
+    container_name: esq-grafana
+    image: grafana/grafana:11.5.2
+    profiles: ["o11y"]
+    ports:
+      - "3009:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
+      - GF_USERS_DEFAULT_THEME=light
+      - GF_ANALYTICS_REPORTING_ENABLED=false
+    volumes:
+      - ./o11y/grafana/provisioning:/etc/grafana/provisioning:ro
+      - grafana-data:/var/lib/grafana
+    depends_on:
+      loki:
+        condition: service_started
+    networks:
+      - esquirenet
+
 networks:
   esquirenet:
     driver: "bridge"
+
+volumes:
+  loki-data:
+  grafana-data:
+  alloy-data:
 

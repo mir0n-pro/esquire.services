@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-datasources
+  labels:
+    app: {{ .Release.Name }}
+data:
+  loki.yaml: |
+    apiVersion: 1
+    datasources:
+      - name: Loki
+        type: loki
+        access: proxy
+        uid: esq-loki
+        url: {{ .Values.loki.url }}
+        isDefault: true
+        jsonData:
+          maxLines: 1000

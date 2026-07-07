@@ -1,0 +1,5 @@
+# Loki log store for the T1 observability stack (local/dev k8s only; not deployed on OKE).
+image:
+  repository: grafana/loki
+  tag: "3.4.2"
+  pullPolicy: IfNotPresent

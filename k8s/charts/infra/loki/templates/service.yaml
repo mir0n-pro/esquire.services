@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  # service name == release name (esquire-infra-loki) so Alloy / Grafana reach it at
+  # http://esquire-infra-loki:3100.
+  name: {{ .Release.Name }}
+  labels:
+    app: {{ .Release.Name }}
+spec:
+  type: ClusterIP
+  selector:
+    app: {{ .Release.Name }}
+  ports:
+    - name: http
+      port: 3100
+      targetPort: 3100
