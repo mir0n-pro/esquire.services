@@ -1,0 +1,19 @@
+# Grafana datasource provisioning -- Loki (the T1 log store). Auto-loaded at Grafana start.
+apiVersion: 1
+
+datasources:
+  - name: Loki
+    type: loki
+    access: proxy
+    uid: esq-loki
+    url: http://loki:3100
+    isDefault: true
+    jsonData:
+      maxLines: 1000
+      # correlationId rides as structured metadata; expose it as a derived field so a log line
+      # links straight to "all lines with this correlationId".
+      derivedFields:
+        - name: correlationId
+          matcherType: label
+          matcherRegex: correlationId
+          url: ""

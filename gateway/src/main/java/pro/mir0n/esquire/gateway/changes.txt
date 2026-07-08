@@ -1,5 +1,28 @@
 Esquire Gateway Microservice
 
+07/08/2026 mir0n  v1.2.11 -- distributed tracing (O2): the gateway settles the trace id at the edge
+filters.RequestTraceFilter
+  - obtainCorrelationId() returns a settled W3C-shaped id (EsqUtils.settleCorrelationId over
+    Esq-/X-Correlation-ID; X-Request-ID is no longer a seed); Esq-Correlation-ID is now stamped on EVERY
+    downstream request, not only when it was absent
+  - settleTraceparent() added: keeps an incoming traceparent whose trace id equals the settled correlation id,
+    else mints a root one from it; the traceparent header is stamped downstream so span traceId == correlationId
+error.ProblemDetailMill
+  - createProblemDetail(): the incoming correlation id runs through EsqUtils.settleCorrelationId(); the settled
+    value is set on BOTH the traceId and the correlationId problem-detail properties (was: traceId only when no
+    correlation id came in)
+GatewayApplication
+  - @Import(TracingConfig.class): the common distributed-tracing wiring
+resources/application.yml
+  - esquire.tracing block (enabled / otlp-endpoint / sampling-ratio / marks-enabled / excluded-paths) with
+    the ESQ_TRACING_* env overrides; management.tracing.enabled mirrors esquire.tracing.enabled
+k8s chart esquire-gateway/values.yaml
+  - tracing block (enabled "false" / otlpEndpoint / samplingRatio / marksEnabled / excludedPaths) --
+    opt-in, off by default
+k8s chart esquire-gateway/templates/configmap.yaml
+  - ESQ_TRACING_ENABLED / ESQ_OTLP_ENDPOINT / ESQ_TRACING_SAMPLING_RATIO / ESQ_TRACING_MARKS_ENABLED /
+    ESQ_TRACING_EXCLUDED_PATHS rendered from .Values.tracing
+
 06/29/2026 mir0n  v1.2.10 -- R1 gateway-to-backend resilience (circuit breaker + per-route timeout/retry + pool)
 config.ResilienceConfig  (new)
   - @Bean Customizer building the Resilience4j CircuitBreaker + per-route TimeLimiter from the

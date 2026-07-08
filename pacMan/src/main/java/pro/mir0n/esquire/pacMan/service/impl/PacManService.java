@@ -55,6 +55,8 @@
  *                   messaging.xrod.RodEvent -> messaging.RodEvent (package move)
  * 06/23/2026 mir0n  EsqMsgConstants references -> messaging.BusConstants (wire) + common.EsqConstants (app)
  * 07/02/2026 mir0n  saveAcct / deleteAcct read requestId via requireRequestId() -- X-Request-ID mandatory on writes
+ * 07/08/2026 mir0n  @EsqTraced on esquireCommand / esquireCommandSave / esquireCommandDelete
+ *                   (esq.svc.acct.read / save / delete)
  */
 
 package pro.mir0n.esquire.pacMan.service.impl;
@@ -63,6 +65,7 @@ import jakarta.persistence.EntityManager;
 import jakarta.persistence.FlushModeType;
 import java.util.*;
 
+import pro.mir0n.esquire.backend.o11y.EsqTraced;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.LoggerFactory;
 import pro.mir0n.esquire.backend.dto.*;
@@ -116,6 +119,7 @@ public class PacManService  implements IPacManService {
 
 
     @Override
+    @EsqTraced(name = "esq.svc.acct.read", label = "read account")
     public EsqEntity esquireCommand(int kind, String id, String cmd) {
         String rootPath = RequestContextUtils.getRootPath();
         devLog.debug("srvc: esquireCommand: kind:{}, id:{}, cmd:{}, rootPath:{}",  kind, id, cmd, rootPath);
@@ -136,6 +140,7 @@ public class PacManService  implements IPacManService {
     }
 
     @Override
+    @EsqTraced(name = "esq.svc.acct.save", label = "save account")
     public EsqEntity esquireCommandSave(int kind, String id, String cmd, Map<String, Object> fields, List<String> roles) {
         String correlationId = RequestContextUtils.getCorrelationId();
         String requestId = RequestContextUtils.requireRequestId();
@@ -229,6 +234,7 @@ public class PacManService  implements IPacManService {
     }
 
     @Override
+    @EsqTraced(name = "esq.svc.acct.delete", label = "delete account")
     public void esquireCommandDelete(int kind, String id, String cmd, List<String> roles) {
         String correlationId = RequestContextUtils.getCorrelationId();
         String requestId = RequestContextUtils.requireRequestId();

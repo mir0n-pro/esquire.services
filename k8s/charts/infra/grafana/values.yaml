@@ -11,3 +11,5 @@ ingress:
   host: grafana.localhost
 loki:
   url: http://esquire-infra-loki:3100
+tempo:
+  url: http://esquire-infra-tempo:3200

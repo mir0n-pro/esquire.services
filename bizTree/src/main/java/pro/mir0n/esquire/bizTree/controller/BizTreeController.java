@@ -23,6 +23,9 @@
  * 05/23/2026 mir0n  POST /esq-sweep: async force-sweep -> director.sweepAsync(); returns 202 (ACCEPTED).
  * 06/04/2026 mir0n  rootPath / uid no longer extracted from claims; forwards only id / kind / name to
  *                   the director (uid / rootPath ride the unified request context)
+ * 07/08/2026 mir0n  @EsqTraced on the four GET reads (esq.svc.tree / node / subtree / path) -- marked
+ *                   here, at the REST entry point, so a cache-served read is traced whichever director
+ *                   is wired; POST /esq-sweep is not marked
  */
 
 package pro.mir0n.esquire.bizTree.controller;
@@ -33,6 +36,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.http.ProblemDetail;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import pro.mir0n.esquire.backend.dto.EsqTreeNode;
+import pro.mir0n.esquire.backend.o11y.EsqTraced;
 import pro.mir0n.esquire.bizTree.access.IBizTreeDirector;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -100,6 +104,7 @@ public class BizTreeController {
     })
 
     @GetMapping("/esq")
+    @EsqTraced(name = "esq.svc.tree", label = "read tree")
     public ResponseEntity<List<EsqTreeNode>> esquire(
         @Parameter(description = "Tree node id, a parent node to retrieve children")
         @RequestParam(name = "id", required = false)  String id,
@@ -115,6 +120,7 @@ public class BizTreeController {
     }
 
     @GetMapping("/esq-enode")
+    @EsqTraced(name = "esq.svc.node", label = "read node")
     public ResponseEntity<EsqTreeNode> esquireEntityNode(
             @Parameter(description = "Entity kind code")
             @RequestParam(name = "kind", required = true) Integer kind,
@@ -137,6 +143,7 @@ public class BizTreeController {
                         + "Counterpart to enyMan's /esq-cmd-tree (authoritative DB walk); used "
                         + "together by the hauberk CompareTrees diff scenario."
     )
+    @EsqTraced(name = "esq.svc.subtree", label = "read subtree")
     public ResponseEntity<List<EsqTreeNode>> esquireSubtree(
             @Parameter(description = "Seed tree-node id (subtree root)")
             @RequestParam(name = "id", required = true) String id,
@@ -148,6 +155,7 @@ public class BizTreeController {
     }
 
     @GetMapping("/esq-path")
+    @EsqTraced(name = "esq.svc.path", label = "read path")
     public ResponseEntity<List<String>> esquirePath(
         @Parameter(description = "Tree node id")
         @RequestParam(name = "id", required = true) String id,

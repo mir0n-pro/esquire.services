@@ -80,3 +80,11 @@ logging:
   levelJms: INFO
   developLogPath: /tmp/keySmith-develop.log
   msgLogPath: /tmp/keySmith-msg.log
+
+# v1.2.11 O2 distributed tracing (opt-in; the o11y stack + o11y-on.bat enable it). OFF by default.
+tracing:
+  enabled: "false"
+  otlpEndpoint: http://esquire-infra-otel-collector:4318/v1/traces
+  samplingRatio: "1.0"
+  marksEnabled: "true"
+  excludedPaths: "/actuator"

@@ -44,6 +44,14 @@ pacman:
               hikari:
                 maximum-pool-size: ${DB_DATAKEEP_POOL_SIZE:2}
 esquire:
+  # Distributed tracing (v1.2.11 O2) via common.TracingConfig. Off by default = zero cost; the
+  # collector endpoint + sampling ratio are set per environment (compose / k8s).
+  tracing:
+    enabled: ${ESQ_TRACING_ENABLED:false}
+    otlp-endpoint: ${ESQ_OTLP_ENDPOINT:http://localhost:4318/v1/traces}
+    sampling-ratio: ${ESQ_TRACING_SAMPLING_RATIO:1.0}
+    marks-enabled: ${ESQ_TRACING_MARKS_ENABLED:true}
+    excluded-paths: ${ESQ_TRACING_EXCLUDED_PATHS:/actuator}
   audit-bus:
     messaging-bus:
       bus-id: ${AUDIT_BUS_ID:audit-b}
@@ -82,6 +90,10 @@ logging:
   msg:
     log-path: ${MSG_LOG_PATH:logs/pacMan-msg.log}
 management:
+  # Micrometer-Tracing bridge is active only when tracing is enabled; the OTel exporter + sampler are
+  # still declared explicitly by common.TracingConfig (mirrors esquire.tracing.enabled).
+  tracing:
+    enabled: ${ESQ_TRACING_ENABLED:false}
   endpoint:
     health:
       probes:

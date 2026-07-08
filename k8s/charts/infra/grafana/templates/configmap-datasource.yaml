@@ -16,3 +16,13 @@ data:
         isDefault: true
         jsonData:
           maxLines: 1000
+  tempo.yaml: |
+    apiVersion: 1
+    datasources:
+      - name: Tempo
+        type: tempo
+        access: proxy
+        uid: esq-tempo
+        url: {{ .Values.tempo.url }}
+        jsonData:
+          httpMethod: GET

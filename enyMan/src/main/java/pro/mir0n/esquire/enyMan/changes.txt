@@ -1,5 +1,21 @@
 Esquire enyMan Microservice
 
+07/08/2026 mir0n  v1.2.11 -- distributed tracing (O2): trace marks on the entity commands
+service.impl.EnyManService
+  - @EsqTraced on esquireCommand / Save / New / Delete / Move / Tree
+    (esq.svc.read / save / create / delete / move / tree)
+EnyManApplication
+  - @Import(TracingConfig.class): the common distributed-tracing wiring
+resources/application.yml
+  - esquire.tracing block (enabled / otlp-endpoint / sampling-ratio / marks-enabled / excluded-paths) with
+    the ESQ_TRACING_* env overrides; management.tracing.enabled mirrors esquire.tracing.enabled
+k8s chart esquire-enyman/values.yaml
+  - tracing block (enabled "false" / otlpEndpoint / samplingRatio / marksEnabled / excludedPaths) --
+    opt-in, off by default
+k8s chart esquire-enyman/templates/configmap.yaml
+  - ESQ_TRACING_ENABLED / ESQ_OTLP_ENDPOINT / ESQ_TRACING_SAMPLING_RATIO / ESQ_TRACING_MARKS_ENABLED /
+    ESQ_TRACING_EXCLUDED_PATHS rendered from .Values.tracing
+
 07/03/2026 mir0n  v1.2.10 -- X-Request-ID required on write commands; send-retry-backoff key -sec suffix
 service.impl.EnyManService
   - write commands (esquireCommandSave / New / Delete / Move) read requestId via requireRequestId() -- X-Request-ID mandatory on writes

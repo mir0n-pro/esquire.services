@@ -1,0 +1,52 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-config
+  labels:
+    app: {{ .Release.Name }}
+data:
+  # Mirror of compose/o11y/otel-collector-config.yaml -- OTLP in (services), OTLP out (Tempo).
+  config.yaml: |
+    receivers:
+      otlp:
+        protocols:
+          http:
+            endpoint: 0.0.0.0:4318
+          grpc:
+            endpoint: 0.0.0.0:4317
+    processors:
+      batch: {}
+      # BACKSTOP ONLY (v1.2.11 O2). Health-probe traces are no longer produced: the services refuse the
+      # request observation for esquire.tracing.excluded-paths (/actuator) and the BFF opens no span off
+      # its traced paths, so nothing arrives here to drop. This rule stays as a second line of defence
+      # for a deployment that leaves excluded-paths empty.
+      #
+      # CAVEAT -- know what invert_match does before trusting it: a trace is sampled when ANY span
+      # satisfies the (inverted) rule, so a single span WITHOUT an http.url attribute rescues the whole
+      # trace. While Spring Security's observations were on, its 4 attribute-less child spans did
+      # exactly that and this rule silently dropped nothing on the Java services (it only ever worked
+      # on the BFF's single-span /healthz). With those observations off a health trace is one span.
+      tail_sampling:
+        decision_wait: 5s
+        policies:
+          - name: drop-health
+            type: string_attribute
+            string_attribute:
+              key: http.url
+              values:
+                - /actuator/health.*
+                - /healthz
+                - /readyz
+              enabled_regex_matching: true
+              invert_match: true
+    exporters:
+      otlp/tempo:
+        endpoint: {{ .Values.tempo.endpoint }}
+        tls:
+          insecure: true
+    service:
+      pipelines:
+        traces:
+          receivers: [otlp]
+          processors: [tail_sampling, batch]
+          exporters: [otlp/tempo]

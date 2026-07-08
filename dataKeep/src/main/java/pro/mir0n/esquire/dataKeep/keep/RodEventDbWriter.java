@@ -15,6 +15,8 @@
  * 06/29/2026 mir0n  constructor takes queryTimeoutSeconds (Integer): when set (> 0) applies it via JdbcTemplate
  *                   setQueryTimeout so a stuck *_log apply is cancelled instead of pinning a keep connection;
  *                   null / <= 0 leaves it uncapped (pre-HA). Added queryTimeoutSeconds() accessor (R6)
+ * 07/08/2026 mir0n  applyEvent() body wrapped in EsqTraceMark.around("esq.keep.apply", "keep audit log", ...) --
+ *                   the writer is not a Spring bean, so the programmatic mark stands in for @EsqTraced
  */
 package pro.mir0n.esquire.dataKeep.keep;
 
@@ -22,6 +24,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.namedparam.AbstractSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
+import pro.mir0n.esquire.backend.o11y.EsqTraceMark;
 import pro.mir0n.esquire.messaging.RodEvent;
 
 import javax.sql.DataSource;
@@ -75,12 +78,14 @@ public class RodEventDbWriter {
 
     /** Write one row for the event: uniform header (identity) + the event body, straight to the keyed SQL. */
     public void applyEvent(String sqlKey, RodEvent e) {
-        Map<String, Object> params = header(e);
-        if (e.body() != null) {
-            params.putAll(e.body());   // field names -> the SQL's data params (a DELETE body is empty)
-        }
-        int rows = jdbc.update(sql.forVendor(dialect, sqlKey), new TolerantSource(params));
-        devLog.debug("keep-db apply key={} rows={}", sqlKey, rows);
+        EsqTraceMark.around("esq.keep.apply", "keep audit log", () -> {
+            Map<String, Object> params = header(e);
+            if (e.body() != null) {
+                params.putAll(e.body());   // field names -> the SQL's data params (a DELETE body is empty)
+            }
+            int rows = jdbc.update(sql.forVendor(dialect, sqlKey), new TolerantSource(params));
+            devLog.debug("keep-db apply key={} rows={}", sqlKey, rows);
+        });
     }
 
     /** Uniform identity + header params, by the standardized names the SQL uses for every table. */

@@ -1,5 +1,18 @@
 Esquire auKeep service
 
+07/08/2026 mir0n  v1.2.11 -- distributed tracing (O2): tracing wired into auKeep
+AuKeepApplication
+  - @Import(TracingConfig.class): the common distributed-tracing wiring
+resources/application.yml
+  - esquire.tracing block (enabled / otlp-endpoint / sampling-ratio / marks-enabled / excluded-paths) with
+    the ESQ_TRACING_* env overrides; management.tracing.enabled mirrors esquire.tracing.enabled
+k8s chart esquire-aukeep/values.yaml
+  - tracing block (enabled "false" / otlpEndpoint / samplingRatio / marksEnabled / excludedPaths) --
+    opt-in, off by default
+k8s chart esquire-aukeep/templates/configmap.yaml
+  - ESQ_TRACING_ENABLED / ESQ_OTLP_ENDPOINT / ESQ_TRACING_SAMPLING_RATIO / ESQ_TRACING_MARKS_ENABLED /
+    ESQ_TRACING_EXCLUDED_PATHS rendered from .Values.tracing
+
 06/29/2026 mir0n  v1.2.10 -- R6 per-apply query-timeout (keep surface)
 resources/application.yml
   - keep query-timeout-seconds on both keep datasources (ESQ_KEEP_QUERY_TIMEOUT_S, 0 = uncapped, pre-HA default)

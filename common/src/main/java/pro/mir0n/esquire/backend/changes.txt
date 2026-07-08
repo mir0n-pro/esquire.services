@@ -1,5 +1,51 @@
 Esquire Backend common microservice classes
 
+07/08/2026 mir0n  v1.2.11 -- distributed tracing (O2): the Esquire trace-mark facility
+o11y.EsqTraced  (new)
+  - the Esquire trace-mark annotation: put it on a Spring-managed service method and the method becomes its
+    own span (a child of the request span) via EsqTracedAspect. name = the low-cardinality observation name;
+    label = the span name in the trace. The programmatic twin for non-Spring / final code is
+    EsqTraceMark.around(); both ride the same ObservationRegistry, so ONE gate (TracingConfig's
+    ObservationPredicate) and the ESQ_TRACING_ENABLED master switch govern them together with the HTTP spans
+o11y.EsqTracedAspect  (new)
+  - the aspect that turns @EsqTraced into a span. Around an annotated Spring-managed method it opens an
+    Observation named by the annotation; the shared ObservationRegistry's tracing handler renders it as a span
+    nested in the request trace, and TracingConfig's ObservationPredicate decides whether that span is
+    populated. Our own aspect (not Micrometer's ObservedAspect) so the annotation and its label are Esquire's
+o11y.EsqTraceMark  (new)
+  - the programmatic half of the trace-mark facility: around(name, label, () -> ...) / aroundChecked() wrap a
+    processing step in an Observation the tracing handler renders as a span nested in the request trace. The
+    twin of @EsqTraced, for code Spring AOP cannot proxy (non-bean or final classes) -- the dataKeep
+    RodEventDbWriter apply, and the pacMan acct transaction / transfer processors. Both entry points share the
+    ObservationRegistry handed in by TracingConfig; when tracing is off the registry is NOOP, so the action
+    runs with zero span overhead
+o11y.TracingConfig  (new)
+  - explicit distributed-tracing wiring: the OTLP span exporter (endpoint) and the head sampler declared as
+    explicit @Beans; the Micrometer-Tracing bridge assembles them onto the request observations.
+    esqTracedAspect backs @EsqTraced; esqTraceRegistrar hands the shared ObservationRegistry to EsqTraceMark.
+    Gated by esquire.tracing.enabled (off by default = zero cost); management.tracing.enabled mirrors it.
+    Imported per service
+  - esqObservationGate is ONE ObservationPredicate deciding whether an observation is populated: it governs
+    the esq.* marks (esquire.tracing.marks-enabled) and refuses an http.* SERVER observation whose request
+    path sits under esquire.tracing.excluded-paths (default /actuator), so a health probe never builds a span
+  - requestPath(Observation.Context) reads the path off micrometer's ReceiverContext carrier (HttpServletRequest
+    or reactive ServerHttpRequest), so neither Spring context type is named; isExcluded / parsePrefixes support it
+  - nested SecurityObservationsOff (@Configuration, @ConditionalOnClass) contributes
+    SecurityObservationSettings.noObservations(): Spring Security's filter-chain / authentication /
+    authorization observations are off. Nested + conditional because kcMaster and auKeep carry no
+    spring-security-config, and a @Bean method on TracingConfig would force every importer to resolve that
+    return type
+error.ProblemDetailMill
+  - createProblemDetail(): the incoming correlation id runs through EsqUtils.settleCorrelationId(); the settled
+    value is set on BOTH the traceId and the correlationId problem-detail properties (was: traceId only when no
+    correlation id came in)
+pom.xml
+  - micrometer-tracing-bridge-otel + opentelemetry-exporter-otlp added (compile); spring-boot-autoconfigure
+    added (provided) for the @ConditionalOnProperty on TracingConfig
+  - aspectjweaver added (compile): EsqTracedAspect references org.aspectj.lang.ProceedingJoinPoint, and
+    spring-aspects is provided-only, so a service importing TracingConfig without the AOP starter on its own
+    classpath (gateway / kcMaster / auKeep) failed to create esqTracedAspect (NoClassDefFoundError)
+
 06/27/2026 mir0n  v1.2.10 -- entity dictionary completion flag made thread-safe
 dto.EsqEntityDictionary
   - completed field made volatile -- AEnyManService double-checks it OUTSIDE the lock, so the warm fast-path

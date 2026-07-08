@@ -1,0 +1,12 @@
+apiVersion: 1
+
+# Tempo trace store, queried through the Grafana proxy. traceId == the settled Esq-Correlation-ID, so a
+# log line's correlationId pastes straight into the Tempo "Search by TraceID" box to jump logs -> trace.
+datasources:
+  - name: Tempo
+    type: tempo
+    uid: esq-tempo
+    access: proxy
+    url: http://tempo:3200
+    jsonData:
+      httpMethod: GET

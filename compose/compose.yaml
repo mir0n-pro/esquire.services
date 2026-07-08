@@ -213,6 +213,13 @@ services:
       - ENTITY_BROADCAST_POOL_MODE=${ENTITY_BROADCAST_POOL_MODE:-platform}
       # H2 in-memory cache store
       - BIZTREE_CACHE_VENDOR=cache-h2
+      # Distributed tracing (v1.2.11 O2) -- OFF by default; the o11y profile brings up the collector + Tempo.
+      # Enable end-to-end: ESQ_TRACING_ENABLED=true docker compose --profile o11y up -d --force-recreate
+      - ESQ_TRACING_ENABLED=${ESQ_TRACING_ENABLED:-false}
+      - ESQ_OTLP_ENDPOINT=${ESQ_OTLP_ENDPOINT:-http://otel-collector:4318/v1/traces}
+      - ESQ_TRACING_SAMPLING_RATIO=${ESQ_TRACING_SAMPLING_RATIO:-1.0}
+      - ESQ_TRACING_MARKS_ENABLED=${ESQ_TRACING_MARKS_ENABLED:-true}
+      - ESQ_TRACING_EXCLUDED_PATHS=${ESQ_TRACING_EXCLUDED_PATHS:-/actuator}
       - BIZTREE_H2_URL=jdbc:h2:mem:biztree;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
       - BIZTREE_H2_POOL_MAX=10
       - BIZTREE_H2_POOL_MIN_IDLE=10
@@ -276,6 +283,13 @@ services:
       # Messaging
       - KC_BUS_ID=esquire.kc
       - KC_SLOT_ID=kc
+      # Distributed tracing (v1.2.11 O2) -- OFF by default; the o11y profile brings up the collector + Tempo.
+      # Enable end-to-end: ESQ_TRACING_ENABLED=true docker compose --profile o11y up -d --force-recreate
+      - ESQ_TRACING_ENABLED=${ESQ_TRACING_ENABLED:-false}
+      - ESQ_OTLP_ENDPOINT=${ESQ_OTLP_ENDPOINT:-http://otel-collector:4318/v1/traces}
+      - ESQ_TRACING_SAMPLING_RATIO=${ESQ_TRACING_SAMPLING_RATIO:-1.0}
+      - ESQ_TRACING_MARKS_ENABLED=${ESQ_TRACING_MARKS_ENABLED:-true}
+      - ESQ_TRACING_EXCLUDED_PATHS=${ESQ_TRACING_EXCLUDED_PATHS:-/actuator}
       - ENYMAN_KC_RESPONSE_POOL_SIZE=2
       - ENYMAN_KC_RESPONSE_CONCURRENCY=1
       - ENYMAN_KC_PUBLISHER_POOL_SIZE=0
@@ -339,6 +353,13 @@ services:
       - LOG_LEVEL_JMS=INFO
       - DEVELOP_LOG_PATH=logs/pacMan-develop.log
       - MSG_LOG_PATH=logs/pacMan-msg.log
+      # Distributed tracing (v1.2.11 O2) -- OFF by default; the o11y profile brings up the collector + Tempo.
+      # Enable end-to-end: ESQ_TRACING_ENABLED=true docker compose --profile o11y up -d --force-recreate
+      - ESQ_TRACING_ENABLED=${ESQ_TRACING_ENABLED:-false}
+      - ESQ_OTLP_ENDPOINT=${ESQ_OTLP_ENDPOINT:-http://otel-collector:4318/v1/traces}
+      - ESQ_TRACING_SAMPLING_RATIO=${ESQ_TRACING_SAMPLING_RATIO:-1.0}
+      - ESQ_TRACING_MARKS_ENABLED=${ESQ_TRACING_MARKS_ENABLED:-true}
+      - ESQ_TRACING_EXCLUDED_PATHS=${ESQ_TRACING_EXCLUDED_PATHS:-/actuator}
       - TOPOLOGY_IMPORT=optional:file:/etc/esquire/topology.yml
       - DB_PACMAN_VENDOR=${DB_PACMAN_VENDOR:-dev-postgres}
       - DB_PACMAN_PORT=${DB_PACMAN_PORT:-5432}
@@ -397,6 +418,13 @@ services:
       - LOG_LEVEL_JMS=INFO
       - DEVELOP_LOG_PATH=logs/datakeep-develop.log
       - MSG_LOG_PATH=logs/datakeep-msg.log
+      # Distributed tracing (v1.2.11 O2) -- OFF by default; the o11y profile brings up the collector + Tempo.
+      # Enable end-to-end: ESQ_TRACING_ENABLED=true docker compose --profile o11y up -d --force-recreate
+      - ESQ_TRACING_ENABLED=${ESQ_TRACING_ENABLED:-false}
+      - ESQ_OTLP_ENDPOINT=${ESQ_OTLP_ENDPOINT:-http://otel-collector:4318/v1/traces}
+      - ESQ_TRACING_SAMPLING_RATIO=${ESQ_TRACING_SAMPLING_RATIO:-1.0}
+      - ESQ_TRACING_MARKS_ENABLED=${ESQ_TRACING_MARKS_ENABLED:-true}
+      - ESQ_TRACING_EXCLUDED_PATHS=${ESQ_TRACING_EXCLUDED_PATHS:-/actuator}
       - TOPOLOGY_IMPORT=optional:file:/etc/esquire/topology.yml
       - DB_DATAKEEP_VENDOR=${DB_DATAKEEP_VENDOR:-dev-postgres}
       - DB_DATAKEEP_PORT=${DB_DATAKEEP_PORT:-5432}
@@ -441,6 +469,13 @@ services:
       - LOG_LEVEL_JMS=INFO
       - DEVELOP_LOG_PATH=logs/keySmith-develop.log
       - MSG_LOG_PATH=logs/keySmith-msg.log
+      # Distributed tracing (v1.2.11 O2) -- OFF by default; the o11y profile brings up the collector + Tempo.
+      # Enable end-to-end: ESQ_TRACING_ENABLED=true docker compose --profile o11y up -d --force-recreate
+      - ESQ_TRACING_ENABLED=${ESQ_TRACING_ENABLED:-false}
+      - ESQ_OTLP_ENDPOINT=${ESQ_OTLP_ENDPOINT:-http://otel-collector:4318/v1/traces}
+      - ESQ_TRACING_SAMPLING_RATIO=${ESQ_TRACING_SAMPLING_RATIO:-1.0}
+      - ESQ_TRACING_MARKS_ENABLED=${ESQ_TRACING_MARKS_ENABLED:-true}
+      - ESQ_TRACING_EXCLUDED_PATHS=${ESQ_TRACING_EXCLUDED_PATHS:-/actuator}
       - TOPOLOGY_IMPORT=optional:file:/etc/esquire/topology.yml
       - DB_KEYSMITH_VENDOR=${DB_KEYSMITH_VENDOR:-dev-postgres}
       - DB_KEYSMITH_PORT=${DB_KEYSMITH_PORT:-5432}
@@ -504,6 +539,13 @@ services:
       - LOG_LEVEL_JMS=INFO
       - DEVELOP_LOG_PATH=logs/kcMaster-develop.log
       - MSG_LOG_PATH=logs/kcMaster-msg.log
+      # Distributed tracing (v1.2.11 O2) -- OFF by default; the o11y profile brings up the collector + Tempo.
+      # Enable end-to-end: ESQ_TRACING_ENABLED=true docker compose --profile o11y up -d --force-recreate
+      - ESQ_TRACING_ENABLED=${ESQ_TRACING_ENABLED:-false}
+      - ESQ_OTLP_ENDPOINT=${ESQ_OTLP_ENDPOINT:-http://otel-collector:4318/v1/traces}
+      - ESQ_TRACING_SAMPLING_RATIO=${ESQ_TRACING_SAMPLING_RATIO:-1.0}
+      - ESQ_TRACING_MARKS_ENABLED=${ESQ_TRACING_MARKS_ENABLED:-true}
+      - ESQ_TRACING_EXCLUDED_PATHS=${ESQ_TRACING_EXCLUDED_PATHS:-/actuator}
       - TOPOLOGY_IMPORT=optional:file:/etc/esquire/topology.yml
       # Messaging
       # TEST race-8c repro ONLY (revert after): default 10000 (fix). -1 disables the buffer.
@@ -581,6 +623,13 @@ services:
       - LOG_LEVEL_SF=ERROR
       - LOG_LEVEL_MIR0N=DEBUG
       - GW_SERVICE_METRICS_ENABLED=true
+      # Distributed tracing (v1.2.11 O2) -- OFF by default; the o11y profile brings up the collector + Tempo.
+      # Enable end-to-end: ESQ_TRACING_ENABLED=true docker compose --profile o11y up -d --force-recreate
+      - ESQ_TRACING_ENABLED=${ESQ_TRACING_ENABLED:-false}
+      - ESQ_OTLP_ENDPOINT=${ESQ_OTLP_ENDPOINT:-http://otel-collector:4318/v1/traces}
+      - ESQ_TRACING_SAMPLING_RATIO=${ESQ_TRACING_SAMPLING_RATIO:-1.0}
+      - ESQ_TRACING_MARKS_ENABLED=${ESQ_TRACING_MARKS_ENABLED:-true}
+      - ESQ_TRACING_EXCLUDED_PATHS=${ESQ_TRACING_EXCLUDED_PATHS:-/actuator}
       # v1.2.4 JWE re-evaluation -- mounts the gateway RSA private key at the
       # path below; SecurityConfig switches to JweAwareJwtDecoder when present.
       # Blank/unset -> plain JWS decoder (v1.2.3 baseline).
@@ -644,6 +693,11 @@ services:
       # in this list (or absent referer/origin headers) fall back to PUBLIC_BASE_URL.
       - ALLOWED_ORIGINS=http://localhost:3000,http://localhost:4200
       - SESSION_SECRET=esq-bff-dev-session-secret-rotate-in-prod
+      # Distributed tracing (v1.2.11 O2) -- OFF by default; the o11y profile brings up the collector.
+      # Enable end-to-end: ESQ_TRACING_ENABLED=true docker compose --profile o11y up -d --force-recreate
+      - ESQ_TRACING_ENABLED=${ESQ_TRACING_ENABLED:-false}
+      - ESQ_OTLP_ENDPOINT=${ESQ_OTLP_ENDPOINT:-http://otel-collector:4318/v1/traces}
+      - ESQ_TRACING_SAMPLING_RATIO=${ESQ_TRACING_SAMPLING_RATIO:-1.0}
     extra_hosts:
       - "localhost:host-gateway"
     depends_on:
@@ -677,12 +731,15 @@ services:
     networks:
       - esquirenet
 
-  # ---- Observability stack (T1: logging visualize) -- opt-in profile "o11y" ----
-  # Grafana single pane over Loki; Alloy tails the esq-* container stdout (ECS JSON) into Loki.
-  #   Start:  docker compose --profile o11y up -d
-  #   Open:   http://localhost:3009  (admin/admin)  ->  Explore  ->  Loki  ->  {job="esq-docker"}
-  #   Filter by correlation id:  {job="esq-docker"} | json | correlationId = "<id>"
-  # No service change -- the emit side (console: ecs, INCOMING/OUTGOING, MDC ids) is already in place.
+  # ---- Observability stack -- opt-in profile "o11y" ----
+  # Grafana single pane over Loki (logs, T1) + Tempo (traces, T2). Alloy tails the esq-* container stdout
+  # (ECS JSON) into Loki; the OTel Collector receives service spans over OTLP and forwards them to Tempo.
+  #   Start (logs only):     docker compose --profile o11y up -d
+  #   Start with tracing:    ESQ_TRACING_ENABLED=true docker compose --profile o11y up -d --force-recreate
+  #   Open:   http://localhost:3009  (admin/admin)  ->  Explore
+  #     Loki:   {job="esq-docker"} | json | correlationId = "<id>"
+  #     Tempo:  Search by TraceID = the same correlationId (traceId == settled Esq-Correlation-ID).
+  # Logs need no service change; tracing is wired by common.TracingConfig (esquire.tracing.enabled).
   loki:
     container_name: esq-loki
     image: grafana/loki:3.4.2
@@ -736,6 +793,39 @@ services:
     depends_on:
       loki:
         condition: service_started
+      tempo:
+        condition: service_started
+    networks:
+      - esquirenet
+
+  # OTLP ingest hub (D1): services export spans here; it forwards to Tempo. Swappable trace backend.
+  otel-collector:
+    container_name: esq-otel-collector
+    image: otel/opentelemetry-collector-contrib:0.119.0
+    profiles: ["o11y"]
+    command: ["--config=/etc/otelcol/config.yaml"]
+    volumes:
+      - ./o11y/otel-collector-config.yaml:/etc/otelcol/config.yaml:ro
+    ports:
+      - "4318:4318"     # OTLP/HTTP (services -> collector)
+      - "4317:4317"     # OTLP/gRPC
+    depends_on:
+      tempo:
+        condition: service_started
+    networks:
+      - esquirenet
+
+  # Tempo -- the trace store (T of LGTM). Receives OTLP from the collector; Grafana queries it on :3200.
+  tempo:
+    container_name: esq-tempo
+    image: grafana/tempo:2.7.1
+    profiles: ["o11y"]
+    command: ["-config.file=/etc/tempo/tempo-config.yaml"]
+    volumes:
+      - ./o11y/tempo-config.yaml:/etc/tempo/tempo-config.yaml:ro
+      - tempo-data:/var/tempo
+    ports:
+      - "3200:3200"     # Tempo query API
     networks:
       - esquirenet
 
@@ -747,4 +837,5 @@ volumes:
   loki-data:
   grafana-data:
   alloy-data:
+  tempo-data:
 

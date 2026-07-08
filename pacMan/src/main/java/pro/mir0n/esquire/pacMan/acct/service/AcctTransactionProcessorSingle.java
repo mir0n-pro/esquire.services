@@ -18,10 +18,14 @@
  * 06/18/2026 mir0n  audit module left common: AuditBusBridge moved to pro.mir0n.esquire.audit
  * 06/22/2026 mir0n  RodEvent import: messaging.xrod.RodEvent -> messaging.RodEvent (package move)
  * 06/23/2026 mir0n  EsqMsgConstants app constants -> common.EsqConstants (references repointed)
+ * 07/08/2026 mir0n  esquireCommandAcct() body wrapped in EsqTraceMark.around("esq.svc.acct.tx", "account
+ *                   transaction", ...) -- this processor is constructed with new() by AcctTransactionService,
+ *                   so Spring never proxies it and @EsqTraced would not be advised
  */
 
 package pro.mir0n.esquire.pacMan.acct.service;
 
+import pro.mir0n.esquire.backend.o11y.EsqTraceMark;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.FlushModeType;
 import lombok.AllArgsConstructor;
@@ -64,10 +68,15 @@ public class AcctTransactionProcessorSingle implements IAcctTransactionProcessor
 
     /** skipValidation: For test use only — allows bypassing status/balance/field validation. */
     public AcctTransactionSingle esquireCommandAcct(int kind, String id, AcctOperation.Code oper, Map<String, Object> fields, boolean skipValidation, String rootPath, String uid, List<String> roles) {
-        String correlationId = RequestContextUtils.getCorrelationId();
-        String requestId = RequestContextUtils.getRequestId();
-        EsqObjectKind eek = validatePermissions(kind, roles);
-        return _esquireCommandAcct(eek, id, oper, fields, skipValidation, rootPath, uid, correlationId, requestId, null, null, null, null, null);
+        // Programmatic mark, not @EsqTraced: this processor is constructed with new() by
+        // AcctTransactionService, so Spring never proxies it and the annotation would not be advised.
+        AcctTransactionSingle ret = EsqTraceMark.around("esq.svc.acct.tx", "account transaction", () -> {
+            String correlationId = RequestContextUtils.getCorrelationId();
+            String requestId = RequestContextUtils.getRequestId();
+            EsqObjectKind eek = validatePermissions(kind, roles);
+            return _esquireCommandAcct(eek, id, oper, fields, skipValidation, rootPath, uid, correlationId, requestId, null, null, null, null, null);
+        });
+        return ret;
     }
 
     protected EsqObjectKind validatePermissions(int kind, List<String> roles) {

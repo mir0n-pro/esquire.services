@@ -44,3 +44,9 @@ data:
   LOG_LEVEL_JMS:                  {{ .Values.logging.levelJms | quote }}
   DEVELOP_LOG_PATH:               {{ .Values.logging.developLogPath | quote }}
   MSG_LOG_PATH:                   {{ .Values.logging.msgLogPath | quote }}
+  # --- v1.2.11 O2 distributed tracing (opt-in; OFF by default; o11y-on enables it) ---
+  ESQ_TRACING_ENABLED:        {{ .Values.tracing.enabled | quote }}
+  ESQ_OTLP_ENDPOINT:          {{ .Values.tracing.otlpEndpoint | quote }}
+  ESQ_TRACING_SAMPLING_RATIO: {{ .Values.tracing.samplingRatio | quote }}
+  ESQ_TRACING_MARKS_ENABLED:  {{ .Values.tracing.marksEnabled | quote }}
+  ESQ_TRACING_EXCLUDED_PATHS: {{ .Values.tracing.excludedPaths | quote }}

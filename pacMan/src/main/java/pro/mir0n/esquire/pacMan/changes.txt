@@ -1,5 +1,29 @@
 Esquire pacMan Microservice
 
+07/08/2026 mir0n  v1.2.11 -- distributed tracing (O2): trace marks on the account commands
+service.impl.PacManService
+  - @EsqTraced on esquireCommand / esquireCommandSave / esquireCommandDelete
+    (esq.svc.acct.read / save / delete)
+acct.service.AcctTransactionProcessorSingle
+  - esquireCommandAcct() body wrapped in EsqTraceMark.around("esq.svc.acct.tx", "account transaction", ...) -- this
+    processor is constructed with new() by AcctTransactionService, so Spring never proxies it and @EsqTraced
+    would not be advised
+acct.service.AcctTransactionProcessorTransfer
+  - esquireCommandAcct() delegates to the new private esquireCommandTransfer(), wrapped in
+    EsqTraceMark.around("esq.svc.acct.tx", "account transfer", ...) -- this processor is constructed with new() by
+    AcctTransactionService, so Spring never proxies it and @EsqTraced would not be advised
+PacManApplication
+  - @Import(TracingConfig.class): the common distributed-tracing wiring
+resources/application.yml
+  - esquire.tracing block (enabled / otlp-endpoint / sampling-ratio / marks-enabled / excluded-paths) with
+    the ESQ_TRACING_* env overrides; management.tracing.enabled mirrors esquire.tracing.enabled
+k8s chart esquire-pacman/values.yaml
+  - tracing block (enabled "false" / otlpEndpoint / samplingRatio / marksEnabled / excludedPaths) --
+    opt-in, off by default
+k8s chart esquire-pacman/templates/configmap.yaml
+  - ESQ_TRACING_ENABLED / ESQ_OTLP_ENDPOINT / ESQ_TRACING_SAMPLING_RATIO / ESQ_TRACING_MARKS_ENABLED /
+    ESQ_TRACING_EXCLUDED_PATHS rendered from .Values.tracing
+
 07/03/2026 mir0n  v1.2.10 -- X-Request-ID required on write commands; send-retry-backoff key -sec suffix
 service.impl.PacManService
   - saveAcct / deleteAcct read requestId via requireRequestId() -- X-Request-ID mandatory on writes

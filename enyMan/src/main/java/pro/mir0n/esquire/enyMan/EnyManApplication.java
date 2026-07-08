@@ -22,6 +22,7 @@
  * 06/22/2026 mir0n  registrar registers a BusHealthIndicator (bus facade handed in) into the Actuator
  *                   HealthContributorRegistry programmatically at ApplicationReadyEvent (no @Bean) -> /actuator/health
  * 06/23/2026 mir0n  EsqMsgConstants app constants -> common.EsqConstants (references repointed)
+ * 07/08/2026 mir0n  @Import(TracingConfig.class): the common distributed-tracing wiring (v1.2.11 O2)
  */
 
 package pro.mir0n.esquire.enyMan;
@@ -33,7 +34,9 @@ import org.springframework.boot.context.event.ApplicationEnvironmentPreparedEven
 import org.springframework.context.ApplicationEvent;
 import org.springframework.context.event.ContextClosedEvent;
 import org.springframework.core.Ordered;
+import org.springframework.context.annotation.Import;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
+import pro.mir0n.esquire.backend.o11y.TracingConfig;
 import pro.mir0n.esquire.backend.storage.EsqEntityDictionaryStorage;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
@@ -55,6 +58,7 @@ import pro.mir0n.esquire.messaging.MessagingBus;
         "pro.mir0n.esquire.backend.security",
         "pro.mir0n.esquire.backend.exception"
 })
+@Import(TracingConfig.class)
 @EntityScan(basePackages = {
         "pro.mir0n.esquire.backend.jpa",
         "pro.mir0n.esquire.enyMan.jpa"

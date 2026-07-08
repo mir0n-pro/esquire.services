@@ -25,6 +25,14 @@ kcmaster:
 # Bus TOPOLOGY (which buses exist + their transport) is the shared esquire-topology.yml imported above.
 # Here: this service's bus REFS + per-service knob OVERRIDES (kc SERVER + entity consumer).
 esquire:
+  # Distributed tracing (v1.2.11 O2) via common.TracingConfig. Off by default = zero cost; the
+  # collector endpoint + sampling ratio are set per environment (compose / k8s).
+  tracing:
+    enabled: ${ESQ_TRACING_ENABLED:false}
+    otlp-endpoint: ${ESQ_OTLP_ENDPOINT:http://localhost:4318/v1/traces}
+    sampling-ratio: ${ESQ_TRACING_SAMPLING_RATIO:1.0}
+    marks-enabled: ${ESQ_TRACING_MARKS_ENABLED:true}
+    excluded-paths: ${ESQ_TRACING_EXCLUDED_PATHS:/actuator}
   kc-bus:
     messaging-bus:
       bus-id: ${KC_BUS_ID:esquire.kc}
@@ -73,6 +81,10 @@ logging:
   msg:
     log-path: ${MSG_LOG_PATH:logs/kcMaster-msg.log}
 management:
+  # Micrometer-Tracing bridge is active only when tracing is enabled; the OTel exporter + sampler are
+  # still declared explicitly by common.TracingConfig (mirrors esquire.tracing.enabled).
+  tracing:
+    enabled: ${ESQ_TRACING_ENABLED:false}
   endpoint:
     health:
       probes:

@@ -1,5 +1,21 @@
 Esquire kcMaster Microservice
 
+07/08/2026 mir0n  v1.2.11 -- distributed tracing (O2): trace marks on the KeyCloak identity calls
+service.impl.KcIdentityService
+  - @EsqTraced on createUser / updateUserAuthState / deleteUser
+    (esq.kc.create-user / esq.kc.update-auth / esq.kc.delete-user)
+KcMasterApplication
+  - @Import(TracingConfig.class): the common distributed-tracing wiring
+resources/application.yml
+  - esquire.tracing block (enabled / otlp-endpoint / sampling-ratio / marks-enabled / excluded-paths) with
+    the ESQ_TRACING_* env overrides; management.tracing.enabled mirrors esquire.tracing.enabled
+k8s chart esquire-kcmaster/values.yaml
+  - tracing block (enabled "false" / otlpEndpoint / samplingRatio / marksEnabled / excludedPaths) --
+    opt-in, off by default
+k8s chart esquire-kcmaster/templates/configmap.yaml
+  - ESQ_TRACING_ENABLED / ESQ_OTLP_ENDPOINT / ESQ_TRACING_SAMPLING_RATIO / ESQ_TRACING_MARKS_ENABLED /
+    ESQ_TRACING_EXCLUDED_PATHS rendered from .Values.tracing
+
 07/03/2026 mir0n  v1.2.10 -- send-retry-backoff config key -sec unit suffix
 resources/application.yml
   - send-retry-backoff -> send-retry-backoff-sec (env *_SEND_RETRY_BACKOFF -> *_SEND_RETRY_BACKOFF_SEC) mirroring the XRodParams key rename

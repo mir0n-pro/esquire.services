@@ -69,3 +69,9 @@ spa:
   httpTimeoutMs: ""          # "" = pre-HA (baked 0 served); a positive value mounts the override
 
 nodeEnv: production
+
+# v1.2.11 O2 distributed tracing (opt-in; the o11y stack + o11y-on.bat enable it). OFF by default.
+tracing:
+  enabled: "false"
+  otlpEndpoint: http://esquire-infra-otel-collector:4318/v1/traces
+  samplingRatio: "1.0"

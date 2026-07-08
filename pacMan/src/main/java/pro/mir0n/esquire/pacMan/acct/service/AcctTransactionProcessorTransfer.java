@@ -14,10 +14,15 @@
  * 06/15/2026 mir0n  audit-producer ctor param retyped messaging.xrod.IXRod (was common.xrod.XYRod)
  * 06/17/2026 mir0n  audit-producer ctor param IXRod -> AuditBusBridge
  * 06/18/2026 mir0n  audit module left common: AuditBusBridge moved to pro.mir0n.esquire.audit
+ * 07/08/2026 mir0n  esquireCommandAcct() delegates to the new private esquireCommandTransfer(), wrapped in
+ *                   EsqTraceMark.around("esq.svc.acct.tx", "account transfer", ...) -- this processor is constructed
+ *                   with new() by AcctTransactionService, so Spring never proxies it and @EsqTraced would not
+ *                   be advised
  */
 
 package pro.mir0n.esquire.pacMan.acct.service;
 
+import pro.mir0n.esquire.backend.o11y.EsqTraceMark;
 import jakarta.persistence.EntityManager;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.LoggerFactory;
@@ -43,6 +48,14 @@ public class AcctTransactionProcessorTransfer extends AcctTransactionProcessorSi
     }
 
     public AcctTransactionSingle esquireCommandAcct(int kind, String id, AcctOperation.Code oper, Map<String, Object> fields, boolean skipValidation, String rootPath, String uid, List<String> roles) {
+        // Programmatic mark, not @EsqTraced: this processor is constructed with new() by
+        // AcctTransactionService, so Spring never proxies it and the annotation would not be advised.
+        AcctTransactionSingle marked = EsqTraceMark.around("esq.svc.acct.tx", "account transfer", () ->
+                esquireCommandTransfer(kind, id, oper, fields, skipValidation, rootPath, uid, roles));
+        return marked;
+    }
+
+    private AcctTransactionSingle esquireCommandTransfer(int kind, String id, AcctOperation.Code oper, Map<String, Object> fields, boolean skipValidation, String rootPath, String uid, List<String> roles) {
         Object rawId2 = fields.get(AcctTransactionSingle.FIELD_ID2);
         Object rawKind2 = fields.get(AcctTransactionSingle.FIELD_KIND2);
         if (rawId2 == null || rawKind2 == null) {

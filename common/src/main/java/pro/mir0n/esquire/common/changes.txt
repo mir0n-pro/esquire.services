@@ -1,5 +1,14 @@
 Esquire Common microservice classes
 
+07/08/2026 mir0n  v1.2.11 -- W3C trace-id settlement (O2)
+EsqUtils
+  - generateCorrelationId() now emits 32 lowercase hex from 16 SecureRandom bytes, non-zero (was a UUID string)
+  - isW3cTraceId(String), toW3cTraceId(String) (SHA-256, first 16 bytes -> 32 hex), settleCorrelationId(String)
+    (keep-if-W3C / convert / generate), buildTraceparent(String traceId), isValidTraceparent(String) and
+    traceIdFromTraceparent(String) added
+EsqConstants
+  - TRACEPARENT ("traceparent") added: the W3C Trace Context header name
+
 07/03/2026 mir0n  v1.2.10 -- X-Request-ID required on write commands
 MissingRequestIdException  (new)
   - 400 Bad Request when a write command arrives without X-Request-ID

@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: Service
+metadata:
+  # service name == release name (esquire-infra-tempo) so the collector reaches it at
+  # esquire-infra-tempo:4317 and Grafana queries it at http://esquire-infra-tempo:3200.
+  name: {{ .Release.Name }}
+  labels:
+    app: {{ .Release.Name }}
+spec:
+  type: ClusterIP
+  selector:
+    app: {{ .Release.Name }}
+  ports:
+    - name: http
+      port: 3200
+      targetPort: 3200
+    - name: otlp-grpc
+      port: 4317
+      targetPort: 4317
+    - name: otlp-http
+      port: 4318
+      targetPort: 4318

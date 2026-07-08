@@ -17,12 +17,15 @@
  *                   consume(entityId) after the KC user is created and applyBufferedPath() writes
  *                   esq_rootpath when it differs; updateEntityPath() no-KC-user branch no longer
  *                   buffers (request side just skips -- the X topic message feeds the buffer)
+ * 07/08/2026 mir0n  @EsqTraced on createUser / updateUserAuthState / deleteUser
+ *                   (esq.kc.create-user / esq.kc.update-auth / esq.kc.delete-user)
  */
 
 package pro.mir0n.esquire.kcMaster.service.impl;
 
 import jakarta.ws.rs.NotFoundException;
 import jakarta.ws.rs.core.Response;
+import pro.mir0n.esquire.backend.o11y.EsqTraced;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.keycloak.admin.client.Keycloak;
@@ -57,6 +60,7 @@ public class KcIdentityService implements IKcIdentityService {
     private final KcPathBuffer pathBuffer;
 
     @Override
+    @EsqTraced(name = "esq.kc.create-user", label = "KC create user")
     public void createUser(
             String loginId,
             String email,
@@ -151,6 +155,7 @@ public class KcIdentityService implements IKcIdentityService {
     }
 
     @Override
+    @EsqTraced(name = "esq.kc.update-auth", label = "KC update auth state")
     public void updateUserAuthState(
             String loginId,
             String newLoginId,
@@ -241,6 +246,7 @@ public class KcIdentityService implements IKcIdentityService {
     }
 
     @Override
+    @EsqTraced(name = "esq.kc.delete-user", label = "KC delete user")
     public void deleteUser(String loginId, String correlationId, String requestId) {
         log.info("KC | DELETE | username={} | state=STARTED", loginId);
         devLog.debug("Deleting user from Keycloak: username={}", loginId);

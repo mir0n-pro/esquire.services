@@ -66,6 +66,8 @@
  * 06/23/2026 mir0n  EsqMsgConstants references -> messaging.BusConstants (wire) + common.EsqConstants (app)
  * 07/02/2026 mir0n  write commands (esquireCommandSave / New / Delete / Move) read requestId via
  *                   requireRequestId() -- X-Request-ID mandatory on writes
+ * 07/08/2026 mir0n  @EsqTraced on esquireCommand / Save / New / Delete / Move / Tree
+ *                   (esq.svc.read / save / create / delete / move / tree)
  */
 
 package pro.mir0n.esquire.enyMan.service.impl;
@@ -73,6 +75,7 @@ package pro.mir0n.esquire.enyMan.service.impl;
 import jakarta.persistence.EntityManager;
 import java.util.*;
 
+import pro.mir0n.esquire.backend.o11y.EsqTraced;
 import lombok.extern.slf4j.Slf4j;
 import pro.mir0n.esquire.backend.dto.*;
 import pro.mir0n.esquire.backend.dto.access.EsqPermission;
@@ -143,6 +146,7 @@ public class EnyManService  extends AEnyManService {
     }
 
     @Override
+    @EsqTraced(name = "esq.svc.read", label = "read entity")
     public EsqEntity esquireCommand(int kind, String id, String cmd) {
         EsqEntity ret = null;
         EsqObjectKind eek = EsqObjectKindStorage.getInstance().get(kind);
@@ -159,6 +163,7 @@ public class EnyManService  extends AEnyManService {
     }
 
     @Override
+    @EsqTraced(name = "esq.svc.save", label = "save entity")
     public EsqEntity esquireCommandSave(int kind, String id, String cmd, Map<String, Object> fields, List<String> roles) {
         EsqEntity ret = null;
         String requestId = RequestContextUtils.requireRequestId();
@@ -203,6 +208,7 @@ public class EnyManService  extends AEnyManService {
     }
 
     @Override
+    @EsqTraced(name = "esq.svc.create", label = "create entity")
     public EsqEntity esquireCommandNew(int kind, String parentId, String cmd, Map<String, Object> fields, List<String> roles) {
         EsqEntity ret = null;
         String requestId = RequestContextUtils.requireRequestId();
@@ -259,6 +265,7 @@ public class EnyManService  extends AEnyManService {
     }
 
     @Override
+    @EsqTraced(name = "esq.svc.delete", label = "delete entity")
     public void esquireCommandDelete(int kind, String id, String cmd, List<String> roles) {
         String requestId = RequestContextUtils.requireRequestId();
         EsqObjectKind eek = EsqObjectKindStorage.getInstance().get(kind);
@@ -288,6 +295,7 @@ public class EnyManService  extends AEnyManService {
     }
 
     @Override
+    @EsqTraced(name = "esq.svc.move", label = "move entity")
     public List<EsqMoveRecord> esquireCommandMove(int kind, String id, String distId, List<String> roles) {
         // v1.2.6 Goal 3: pre-checks stay on the request thread; actual move work happens on the
         // move-queue worker thread. Method returns null because the records are no longer surfaced
@@ -370,6 +378,7 @@ public class EnyManService  extends AEnyManService {
     // If broker latency becomes observable in production, promote to @Async with an MDC
     // task decorator to preserve correlationId/requestId in the async thread.
     @Override
+    @EsqTraced(name = "esq.svc.tree", label = "read subtree")
     public List<EsqTreeNode> esquireCommandTree(int kind, String id) {
         String rootPath = RequestContextUtils.getRootPath();
         EsqObjectKind eek = EsqObjectKindStorage.getInstance().get(kind);

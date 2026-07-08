@@ -1,6 +1,36 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v1.2.11-2607.0813  v1.2.11 -- observability: request tracing across the backend services
+    - each service now records the steps a request takes through it and how long each one lasts, so a
+      single request can be followed from the gateway through every service it reaches -- drawn as one
+      timeline
+    - the recorded steps: read, save, create, delete, move, account transaction, sign-in account
+      changes, audit write
+    - one id names a request's timeline and tags its log lines, so the log viewer and the timeline
+      point at the same request
+    - the timeline stays clean: the security framework's own internal steps are left out, and the
+      platform's every-few-seconds health checks make no timeline at all
+    - it is opt-in and off by default, switched on together with the log-viewing stack
+    :Feature:     request tracing across the gateway and every backend service, drawn as one timeline
+    :Feature:     the gateway settles one id per request that names both its timeline and its log lines
+    :Config:      the trace collector and store added to the docker stack and the local Kubernetes
+                  charts, both opt-in and off by default
+    :Config:      tracing settings added to every service and to every service chart, off by default
+    :Fix:         the aspect weaver now ships with the common library, so every service records its
+                  steps from the first start
+    Components:   common,
+                  gateway,
+                  biztree,
+                  enyMan,
+                  pacMan,
+                  keySmith,
+                  kcMaster,
+                  auKeep,
+                  dataKeep,
+                  k8s,
+                  compose
+
 v1.2.11-2607.0701  v1.2.11 -- observability: search every service's logs in one place
     - a ready-to-run log-viewing stack (a log viewer over a log store, fed by a log collector) can now be
       started alongside the local docker stack and the local Kubernetes cluster

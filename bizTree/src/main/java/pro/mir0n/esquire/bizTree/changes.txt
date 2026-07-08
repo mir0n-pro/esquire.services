@@ -1,6 +1,24 @@
 Esquire BizTree Microservice
 
 
+07/08/2026 mir0n  v1.2.11 -- distributed tracing (O2): trace marks on the tree reads
+controller.BizTreeController
+  - @EsqTraced on the four GET reads (esq.svc.tree / node / subtree / path) -- marked here, at the REST entry
+    point, so a cache-served read is traced whichever director is wired; POST /esq-sweep is not marked
+service.impl.BizTreeService
+  - @EsqTraced on esquire / esquireEntityNode / esquirePath / esquireSubtree (esq.svc.tree / node / path / subtree)
+BizTreeApplication
+  - @Import(TracingConfig.class): the common distributed-tracing wiring
+resources/application.yml
+  - esquire.tracing block (enabled / otlp-endpoint / sampling-ratio / marks-enabled / excluded-paths) with
+    the ESQ_TRACING_* env overrides; management.tracing.enabled mirrors esquire.tracing.enabled
+k8s chart esquire-biztree/values.yaml
+  - tracing block (enabled "false" / otlpEndpoint / samplingRatio / marksEnabled / excludedPaths) --
+    opt-in, off by default
+k8s chart esquire-biztree/templates/configmap.yaml
+  - ESQ_TRACING_ENABLED / ESQ_OTLP_ENDPOINT / ESQ_TRACING_SAMPLING_RATIO / ESQ_TRACING_MARKS_ENABLED /
+    ESQ_TRACING_EXCLUDED_PATHS rendered from .Values.tracing
+
 06/29/2026 mir0n  v1.2.10 -- R6 cache-load opt-out + H2 query cap; R1-R5 env wiring
 cache.BizTreeCacheLoader
   - the whole-tree entity read runs in one read-only TransactionTemplate built over the JPA tx manager; its

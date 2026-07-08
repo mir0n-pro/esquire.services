@@ -1,0 +1,8 @@
+# OpenTelemetry Collector for the T2 observability stack (local/dev k8s only; not deployed on OKE).
+image:
+  repository: otel/opentelemetry-collector-contrib
+  tag: "0.119.0"
+  pullPolicy: IfNotPresent
+# where the collector forwards spans (the Tempo OTLP/gRPC receiver).
+tempo:
+  endpoint: esquire-infra-tempo:4317

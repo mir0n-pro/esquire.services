@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: Service
+metadata:
+  # service name == release name (esquire-infra-otel-collector) so services export to
+  # http://esquire-infra-otel-collector:4318/v1/traces.
+  name: {{ .Release.Name }}
+  labels:
+    app: {{ .Release.Name }}
+spec:
+  type: ClusterIP
+  selector:
+    app: {{ .Release.Name }}
+  ports:
+    - name: otlp-http
+      port: 4318
+      targetPort: 4318
+    - name: otlp-grpc
+      port: 4317
+      targetPort: 4317
