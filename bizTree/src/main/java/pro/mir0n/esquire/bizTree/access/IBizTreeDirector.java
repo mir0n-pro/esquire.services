@@ -18,10 +18,13 @@
  * 06/15/2026 mir0n  added default onRodEvent(RodEvent): unpacks the RodEvent off the entity-broadcast
  *                   bus onto the generic onEntityBroadcast intake (body rides already parsed, no re-parse)
  * 06/22/2026 mir0n  import update: RodEvent moved to messaging.xrod (was messaging)
+ * 07/09/2026 mir0n  v1.2.11 -- onRodEvent() captures the traceparent (EsqAsyncTrace.capture) and passes it on;
+ *                   onEntityBroadcast() signature gains a traceparent parameter (last)
  */
 package pro.mir0n.esquire.bizTree.access;
 
 import pro.mir0n.esquire.backend.dto.EsqTreeNode;
+import pro.mir0n.esquire.backend.o11y.EsqAsyncTrace;
 import pro.mir0n.esquire.messaging.RodEvent;
 import pro.mir0n.utils.taijitu.ITaijituRig;
 
@@ -44,7 +47,10 @@ public interface IBizTreeDirector extends ITaijituRig {
      * parsed, so the monad applies it with no re-parse. The same substrate will later serve the KC bus.
      */
     default void onRodEvent(RodEvent e) {
-        onEntityBroadcast(e.opCode(), e.entityId(), e.kind(), e.requestId(), e.correlationId(), e.body());
+        // Capture the trace HERE (inside the "receive from <bus>" span, on the receive thread) so the monad
+        // worker that later applies the event to the H2 cache can continue this trace (O2/T3). null = tracing off.
+        String traceparent = EsqAsyncTrace.capture(e.correlationId());
+        onEntityBroadcast(e.opCode(), e.entityId(), e.kind(), e.requestId(), e.correlationId(), e.body(), traceparent);
     }
 
     /* --- Read surface (bizTree-specific) -- uid / rootPath come from the unified per-request

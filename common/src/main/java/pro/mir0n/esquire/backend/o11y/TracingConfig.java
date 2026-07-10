@@ -21,9 +21,15 @@
  *                   so refusing the request span would have promoted them to roots of their own traces.
  *                   Gated by esquire.tracing.enabled (off by default = zero cost);
  *                   management.tracing.enabled mirrors it. Imported per service.
+ * 07/09/2026 mir0n  v1.2.11 -- esqOtelResource() @Bean added: the OTel resource carries service.name plus
+ *                   service.instance.id (<app>.<instanceNo>); esqRodTraceRegistrar() @Bean registers the
+ *                   EsqRodTracer (carrying the esquire.tracing.msg-bus-alive-trace opt-in) into the messaging
+ *                   o11y.RodTracerHolder hand-off; esqAsyncTraceRegistrar() @Bean hands the
+ *                   ObservationRegistry to EsqAsyncTrace
  */
 
 package pro.mir0n.esquire.backend.o11y;
+
 
 import io.micrometer.observation.Observation;
 import io.micrometer.observation.ObservationPredicate;
@@ -41,6 +47,7 @@ import org.springframework.http.server.reactive.ServerHttpRequest;
 
 import java.util.ArrayList;
 import java.util.List;
+import pro.mir0n.esquire.messaging.o11y.RodTracerHolder;
 
 // Distributed tracing, wired the Esquire way: the OTel span exporter and the sampler are EXPLICIT
 // @Beans (no reliance on management.otlp.* / management.tracing.sampling.* magic values). The gateway
@@ -67,6 +74,31 @@ public class TracingConfig {
     // Filtering here means the span is never CREATED (vs. created, exported, then dropped downstream).
     @Value("${esquire.tracing.excluded-paths:/actuator}")
     private String excludedPaths;
+
+    // Opt-in: trace the RR liveness round-trip (a CLIENT TestRequest and the SERVER HeartBeat reply), so an RR
+    // bus's health is observable end-to-end. Off by default -- heartbeats fire every interval, so this is a
+    // deliberate choice (pair with sampling if turned on broadly). Only meaningful on RR buses running the
+    // alive session; one-way buses ignore it. Handed to the messaging layer on the tracer itself.
+    @Value("${esquire.tracing.msg-bus-alive-trace:false}")
+    private boolean msgBusAliveTrace;
+
+    // The OTel resource carried by every span this service emits. Boot builds a default (service.name from
+    // spring.application.name); we REPLACE it (@ConditionalOnMissingBean on Boot's) to add service.instance.id
+    // so the x2 replicas are distinguishable in the trace -- the value is the rod-id token <app>.<instanceNo>,
+    // matching the bus "from" attribute. instanceNo() is lazy-cached in EsqUtils (resolved once per JVM). Only
+    // contributed when tracing is enabled (this whole config is @ConditionalOnProperty).
+    @Bean
+    public io.opentelemetry.sdk.resources.Resource esqOtelResource(
+            @org.springframework.beans.factory.annotation.Value("${spring.application.name:unknown}") String appName) {
+        String instanceId = appName + "." + pro.mir0n.esquire.common.EsqUtils.instanceNo();
+        // service.instance.id = the rod-id <app>.<instanceNo>. The o11y collector rewrites service.name to this
+        // on the traces pipeline, so the trace waterfall badges each span with its replica (logs / future
+        // metrics do not pass through that collector and keep the logical service.name).
+        return io.opentelemetry.sdk.resources.Resource.getDefault().toBuilder()
+                .put("service.name", appName)
+                .put("service.instance.id", instanceId)
+                .build();
+    }
 
     // Explicit OTLP exporter -> the collector. Its presence backs off Boot's default OTLP exporter,
     // so the collector endpoint is owned here, not by a management.otlp.tracing.endpoint property.
@@ -171,6 +203,25 @@ public class TracingConfig {
     @Bean
     public org.springframework.beans.factory.InitializingBean esqTraceRegistrar(ObservationRegistry observationRegistry) {
         return () -> EsqTraceMark.setRegistry(observationRegistry);
+    }
+
+    // Hand the OTel-backed bus-hop tracer to the messaging engine (O2/T3) so a trace continues across the
+    // messaging bus: the producer stamps a traceparent (trace id = correlationId), the consumer runs its worker
+    // inside a span nested under it. Built on the raw OTel Tracer (not the ObservationRegistry) so the two bus
+    // legs get explicit span kinds -- PRODUCER on send, CONSUMER on receive -- which a viewer renders as an async
+    // messaging pair. Registered ONLY here (tracing enabled) -- when off, the engine keeps IRodTracer.NOOP and the
+    // bus pays nothing. The msg-bus-alive-trace opt-in rides on the tracer (IRodTracer.aliveTrace()).
+    @Bean
+    public org.springframework.beans.factory.InitializingBean esqRodTraceRegistrar(io.opentelemetry.api.OpenTelemetry openTelemetry) {
+        return () -> RodTracerHolder.setTracer(
+                new EsqRodTracer(openTelemetry.getTracer("pro.mir0n.esquire.o11y.bus"), msgBusAliveTrace));
+    }
+
+    // Hand the registry to the async-boundary primitive (O2/T3), so work handed to a queue worker (the enyMan
+    // move queue) continues the request's trace on the worker thread. Only registered when tracing is enabled.
+    @Bean
+    public org.springframework.beans.factory.InitializingBean esqAsyncTraceRegistrar(ObservationRegistry observationRegistry) {
+        return () -> EsqAsyncTrace.setRegistry(observationRegistry);
     }
 
     // Spring Security observes its own filter chain, authentications and authorizations. On an Esquire

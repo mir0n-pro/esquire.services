@@ -11,6 +11,7 @@
  *                   ObservationRegistry's tracing handler renders it as a span nested in the request trace,
  *                   and TracingConfig's ObservationPredicate decides whether that span is populated. Our own
  *                   aspect (not Micrometer's ObservedAspect) so the annotation and its label are Esquire's.
+ * 07/09/2026 mir0n  contextualName(label): the span name no longer carries the instance id
  */
 
 package pro.mir0n.esquire.backend.o11y;
@@ -37,7 +38,7 @@ public class EsqTracedAspect {
         // Typed callable so observeChecked resolves to the value-returning overload (proceed() returns Object).
         Observation.CheckedCallable<Object, Throwable> body = pjp::proceed;
         return Observation.createNotStarted(esqTraced.name(), registry)
-                .contextualName(esqTraced.label())
+                .contextualName(esqTraced.label())   // replica shows in the span's service badge, not the name
                 .observeChecked(body);
     }
 }

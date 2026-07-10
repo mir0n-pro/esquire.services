@@ -17,12 +17,10 @@
     <packaging>jar</packaging>
 
     <dependencies>
-        <!-- the messaging bus depends only on common's utils + constants (BoundedQueueRig, EsqMsgConstants,
-             EsqUtils); common does NOT depend back on messaging, so the edge is one-directional. -->
         <dependency>
-            <groupId>pro.mir0n.esquire</groupId>
-            <artifactId>esquire-common</artifactId>
-            <version>${common.version}</version>
+            <groupId>pro.mir0n</groupId>
+            <artifactId>mir0n-utils</artifactId>
+            <version>${utils.version}</version>
         </dependency>
 
         <!-- logging API (common pulled it transitively via its provided deps, which don't propagate here).
@@ -31,6 +29,14 @@
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-api</artifactId>
             <scope>provided</scope>
+        </dependency>
+
+        <!-- JSON codec: the RodEvent wire format and the transport settings bind through ObjectMapper.
+             Declared here since it no longer arrives over the (removed) esquire-common edge. -->
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+            <version>2.18.2</version>
         </dependency>
 
         <!-- Spring Boot Binder: the messaging-bus catalog binds esquire.messaging-bus into typed records.

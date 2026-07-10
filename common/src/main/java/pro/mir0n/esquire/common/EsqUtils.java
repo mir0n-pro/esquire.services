@@ -20,8 +20,13 @@
  *                   toW3cTraceId(String) (SHA-256, first 16 bytes -> 32 hex), settleCorrelationId(String)
  *                   (keep-if-W3C / convert / generate), buildTraceparent(String traceId),
  *                   isValidTraceparent(String) and traceIdFromTraceparent(String)
+ * 07/09/2026 mir0n  v1.2.11 -- instanceNo() / instanceHost() and the private parsePodNameOrdinal() moved to
+ *                   pro.mir0n.utils.HostId (mir0n-utils); instanceNo() / instanceHost() and the test seams now
+ *                   delegate to it
  */
 package pro.mir0n.esquire.common;
+
+import pro.mir0n.utils.HostId;
 
 
 public class EsqUtils {
@@ -191,71 +196,28 @@ public class EsqUtils {
 
 // This service instance's number within its replica set -- the bottom-digit shard key for
     // entity-id minting AND the per-instance token of the default rod-id (<app>.<instanceNo>).
-    //
-    // ONE source: the trailing ordinal of this instance's host name (instanceHost() -- HOSTNAME /
-    // POD_NAME, always present in Docker and k8s). The deployment carries the sequence IN the name
-    // whenever it runs for resilience: a StatefulSet pod name ("enyman-0" -> 0), or a
-    // "hostname: <app>-N" on the Docker container. No ordinal in the name (a single instance / a
-    // plain Deployment) -> 0.
-    //
-    // Lazy-cached: the number is fixed per JVM lifetime (the host name is set at startup and doesn't
-    // change). EntityIdGenerator and the move-queue worker call this on every mint / reconcile, so
-    // the resolution is amortised to a single walk. Tests inject a value via setInstanceNoForTests()
-    // and drop it via resetInstanceNoCacheForTests() (both package-private).
-    private static volatile Integer cachedInstanceNo;
-
+    // The rule itself lives ONE layer down, in pro.mir0n.utils.HostId: the messaging bus builds its
+    // default rod-id from the same ordinal and must not depend on anything Esquire. These stay as the
+    // Esquire-side name for it.
     public static int instanceNo() {
-        Integer cached = cachedInstanceNo;
-        if (cached != null) {
-            return cached;
-        }
-        int ret = 0;
-        String ordinal = parsePodNameOrdinal(instanceHost());
-        if (ordinal != null) {
-            try {
-                ret = Integer.parseInt(ordinal);
-            } catch (NumberFormatException ignored) {
-                // ret stays 0 -- parsePodNameOrdinal returns only all-digit strings, so this guards
-                // a pathologically long tail (overflow) alone
-            }
-        }
-        cachedInstanceNo = ret;
-        return ret;
+        return HostId.instanceNo();
     }
 
     /** Test-only: drop the cached instance number so a subsequent {@link #instanceNo()} call
      *  re-resolves from the host name. */
     static void resetInstanceNoCacheForTests() {
-        cachedInstanceNo = null;
+        HostId.resetInstanceNoCacheForTests();
     }
 
     /** Test-only: pin the cached instance number, bypassing host-name resolution. Lets tests drive
      *  the shard digit (and out-of-range guards) without depending on the runner's host name. */
     static void setInstanceNoForTests(int instanceNo) {
-        cachedInstanceNo = instanceNo;
+        HostId.setInstanceNoForTests(instanceNo);
     }
 
-    // This container/pod's host identity -- THE single instance-identity source. The pod name in
-    // k8s (the kubelet sets the pod hostname to metadata.name) or the container id in Docker.
-    // instanceNo() parses its trailing ordinal for the shard digit; callers needing the full token
-    // (e.g. diagnostics) use it directly. Resolved in priority order:
-    //   1. HOSTNAME env  -- set by every container runtime (k8s pod name / Docker container id)
-    //   2. POD_NAME env  -- the downward API metadata.name, when HOSTNAME is suppressed
-    //   3. the resolved local hostname  -- the bare-metal / local-dev fallback
-    // Returns null only when no hostname is resolvable at all; instanceNo() then defaults to 0.
+    /** This container/pod's host identity -- the pod name in k8s, the container id in Docker. */
     public static String instanceHost() {
-        String ret = firstNonBlank(
-            System.getenv("HOSTNAME"),
-            System.getenv("POD_NAME")
-        );
-        if (ret == null) {
-            try {
-                ret = java.net.InetAddress.getLocalHost().getHostName();
-            } catch (java.net.UnknownHostException ignored) {
-                // ret stays null -- caller defaults (e.g. to instanceNo())
-            }
-        }
-        return ret;
+        return HostId.instanceHost();
     }
 
     public static String firstNonBlank(String... candidates) {
@@ -269,21 +231,5 @@ public class EsqUtils {
         return ret;
     }
 
-    // StatefulSet pod names are "<set>-<ordinal>" (e.g. "enyman-0").
-    // Returns the trailing integer as a string, or null if the input
-    // doesn't match the pattern.
-    private static String parsePodNameOrdinal(String podName) {
-        String ret = null;
-        if (podName != null) {
-            int dash = podName.lastIndexOf('-');
-            if (dash >= 0 && dash < podName.length() - 1) {
-                String tail = podName.substring(dash + 1);
-                if (!tail.isEmpty() && tail.chars().allMatch(Character::isDigit)) {
-                    ret = tail;
-                }
-            }
-        }
-        return ret;
-    }
 
 }

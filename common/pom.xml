@@ -20,6 +20,20 @@
     <packaging>jar</packaging>
 
     <dependencies>
+        <!-- esquire-common sits ABOVE the bus: backend.o11y.EsqRodTracer implements the messaging-declared
+             o11y.IRodTracer hook. mir0n-utils is the base of both. -->
+        <dependency>
+            <groupId>pro.mir0n</groupId>
+            <artifactId>mir0n-utils</artifactId>
+            <version>${utils.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>pro.mir0n.esquire</groupId>
+            <artifactId>esquire-messaging</artifactId>
+            <version>${messaging.version}</version>
+        </dependency>
+
 <!--        
         <dependency>
             <groupId>org.jetbrains</groupId>

@@ -19,6 +19,8 @@
  *                   buffers (request side just skips -- the X topic message feeds the buffer)
  * 07/08/2026 mir0n  @EsqTraced on createUser / updateUserAuthState / deleteUser
  *                   (esq.kc.create-user / esq.kc.update-auth / esq.kc.delete-user)
+ * 07/09/2026 mir0n  v1.2.11 -- @EsqTraced labels "KC ..." -> "Keycloak ..."; @EsqTraced on updateUserPath
+ *                   (esq.kc.update-path, "Keycloak update path")
  */
 
 package pro.mir0n.esquire.kcMaster.service.impl;
@@ -60,7 +62,7 @@ public class KcIdentityService implements IKcIdentityService {
     private final KcPathBuffer pathBuffer;
 
     @Override
-    @EsqTraced(name = "esq.kc.create-user", label = "KC create user")
+    @EsqTraced(name = "esq.kc.create-user", label = "Keycloak create user")
     public void createUser(
             String loginId,
             String email,
@@ -155,7 +157,7 @@ public class KcIdentityService implements IKcIdentityService {
     }
 
     @Override
-    @EsqTraced(name = "esq.kc.update-auth", label = "KC update auth state")
+    @EsqTraced(name = "esq.kc.update-auth", label = "Keycloak update auth state")
     public void updateUserAuthState(
             String loginId,
             String newLoginId,
@@ -246,7 +248,7 @@ public class KcIdentityService implements IKcIdentityService {
     }
 
     @Override
-    @EsqTraced(name = "esq.kc.delete-user", label = "KC delete user")
+    @EsqTraced(name = "esq.kc.delete-user", label = "Keycloak delete user")
     public void deleteUser(String loginId, String correlationId, String requestId) {
         log.info("KC | DELETE | username={} | state=STARTED", loginId);
         devLog.debug("Deleting user from Keycloak: username={}", loginId);
@@ -267,6 +269,7 @@ public class KcIdentityService implements IKcIdentityService {
     }
 
     @Override
+    @EsqTraced(name = "esq.kc.update-path", label = "Keycloak update path")
     public void updateEntityPath(String entityId, String newPath, String correlationId, String requestId) {
         log.info("KC | MOVE | entityId={} | state=STARTED", entityId);
 

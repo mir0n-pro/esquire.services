@@ -1,6 +1,33 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v1.2.11-2607.0922  v1.2.11 -- observability: request timelines cross the messaging bus
+    :Feature:     a request's timeline now continues across the messaging bus -- the service that sends a
+                  message and the service that receives it appear as one timeline, drawn as a send-and-receive
+                  pair
+    :Feature:     work handed to a background worker stays on the same timeline as the request that queued it --
+                  the queued move and the tree-cache update included
+    :Feature:     every request carries one id, whether or not the caller supplied one, and that id names both
+                  the request's timeline and its log lines
+    :Feature:     every recorded step is labelled with the copy of the service that ran it
+    :Feature:     the request/response bus can have its liveness check timed end to end -- the probe and the
+                  reply it draws form one timeline, so the bus itself can be watched
+    :Feature:     the KeyCloak path update is recorded as its own step
+    :Config:      the liveness-check timing added to every service, off by default; switched on for the docker
+                  stack
+    :Refactoring: the shared base library (queue rig, worker pool, taijitu, host identity) moved into its own
+                  module, mir0n-utils; the messaging bus now builds on it alone and carries nothing Esquire
+    Components:   mir0n-utils, 
+                  messaging, 
+                  common, 
+                  gateway, 
+                  bizTree, 
+                  enyMan, 
+                  pacMan, 
+                  keySmith, 
+                  kcMaster,
+                  auKeep
+
 v1.2.11-2607.0813  v1.2.11 -- observability: request tracing across the backend services
     - each service now records the steps a request takes through it and how long each one lasts, so a
       single request can be followed from the gateway through every service it reaches -- drawn as one

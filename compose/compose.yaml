@@ -216,6 +216,7 @@ services:
       # Distributed tracing (v1.2.11 O2) -- OFF by default; the o11y profile brings up the collector + Tempo.
       # Enable end-to-end: ESQ_TRACING_ENABLED=true docker compose --profile o11y up -d --force-recreate
       - ESQ_TRACING_ENABLED=${ESQ_TRACING_ENABLED:-false}
+      - ESQ_MSG_BUS_ALIVE_TRACE=${ESQ_MSG_BUS_ALIVE_TRACE:-true}   # RR liveness round-trip traced on docker; off on k8s/default
       - ESQ_OTLP_ENDPOINT=${ESQ_OTLP_ENDPOINT:-http://otel-collector:4318/v1/traces}
       - ESQ_TRACING_SAMPLING_RATIO=${ESQ_TRACING_SAMPLING_RATIO:-1.0}
       - ESQ_TRACING_MARKS_ENABLED=${ESQ_TRACING_MARKS_ENABLED:-true}
@@ -286,6 +287,7 @@ services:
       # Distributed tracing (v1.2.11 O2) -- OFF by default; the o11y profile brings up the collector + Tempo.
       # Enable end-to-end: ESQ_TRACING_ENABLED=true docker compose --profile o11y up -d --force-recreate
       - ESQ_TRACING_ENABLED=${ESQ_TRACING_ENABLED:-false}
+      - ESQ_MSG_BUS_ALIVE_TRACE=${ESQ_MSG_BUS_ALIVE_TRACE:-true}   # RR liveness round-trip traced on docker; off on k8s/default
       - ESQ_OTLP_ENDPOINT=${ESQ_OTLP_ENDPOINT:-http://otel-collector:4318/v1/traces}
       - ESQ_TRACING_SAMPLING_RATIO=${ESQ_TRACING_SAMPLING_RATIO:-1.0}
       - ESQ_TRACING_MARKS_ENABLED=${ESQ_TRACING_MARKS_ENABLED:-true}
@@ -356,6 +358,7 @@ services:
       # Distributed tracing (v1.2.11 O2) -- OFF by default; the o11y profile brings up the collector + Tempo.
       # Enable end-to-end: ESQ_TRACING_ENABLED=true docker compose --profile o11y up -d --force-recreate
       - ESQ_TRACING_ENABLED=${ESQ_TRACING_ENABLED:-false}
+      - ESQ_MSG_BUS_ALIVE_TRACE=${ESQ_MSG_BUS_ALIVE_TRACE:-true}   # RR liveness round-trip traced on docker; off on k8s/default
       - ESQ_OTLP_ENDPOINT=${ESQ_OTLP_ENDPOINT:-http://otel-collector:4318/v1/traces}
       - ESQ_TRACING_SAMPLING_RATIO=${ESQ_TRACING_SAMPLING_RATIO:-1.0}
       - ESQ_TRACING_MARKS_ENABLED=${ESQ_TRACING_MARKS_ENABLED:-true}
@@ -421,6 +424,7 @@ services:
       # Distributed tracing (v1.2.11 O2) -- OFF by default; the o11y profile brings up the collector + Tempo.
       # Enable end-to-end: ESQ_TRACING_ENABLED=true docker compose --profile o11y up -d --force-recreate
       - ESQ_TRACING_ENABLED=${ESQ_TRACING_ENABLED:-false}
+      - ESQ_MSG_BUS_ALIVE_TRACE=${ESQ_MSG_BUS_ALIVE_TRACE:-true}   # RR liveness round-trip traced on docker; off on k8s/default
       - ESQ_OTLP_ENDPOINT=${ESQ_OTLP_ENDPOINT:-http://otel-collector:4318/v1/traces}
       - ESQ_TRACING_SAMPLING_RATIO=${ESQ_TRACING_SAMPLING_RATIO:-1.0}
       - ESQ_TRACING_MARKS_ENABLED=${ESQ_TRACING_MARKS_ENABLED:-true}
@@ -472,6 +476,7 @@ services:
       # Distributed tracing (v1.2.11 O2) -- OFF by default; the o11y profile brings up the collector + Tempo.
       # Enable end-to-end: ESQ_TRACING_ENABLED=true docker compose --profile o11y up -d --force-recreate
       - ESQ_TRACING_ENABLED=${ESQ_TRACING_ENABLED:-false}
+      - ESQ_MSG_BUS_ALIVE_TRACE=${ESQ_MSG_BUS_ALIVE_TRACE:-true}   # RR liveness round-trip traced on docker; off on k8s/default
       - ESQ_OTLP_ENDPOINT=${ESQ_OTLP_ENDPOINT:-http://otel-collector:4318/v1/traces}
       - ESQ_TRACING_SAMPLING_RATIO=${ESQ_TRACING_SAMPLING_RATIO:-1.0}
       - ESQ_TRACING_MARKS_ENABLED=${ESQ_TRACING_MARKS_ENABLED:-true}
@@ -542,6 +547,7 @@ services:
       # Distributed tracing (v1.2.11 O2) -- OFF by default; the o11y profile brings up the collector + Tempo.
       # Enable end-to-end: ESQ_TRACING_ENABLED=true docker compose --profile o11y up -d --force-recreate
       - ESQ_TRACING_ENABLED=${ESQ_TRACING_ENABLED:-false}
+      - ESQ_MSG_BUS_ALIVE_TRACE=${ESQ_MSG_BUS_ALIVE_TRACE:-true}   # RR liveness round-trip traced on docker; off on k8s/default
       - ESQ_OTLP_ENDPOINT=${ESQ_OTLP_ENDPOINT:-http://otel-collector:4318/v1/traces}
       - ESQ_TRACING_SAMPLING_RATIO=${ESQ_TRACING_SAMPLING_RATIO:-1.0}
       - ESQ_TRACING_MARKS_ENABLED=${ESQ_TRACING_MARKS_ENABLED:-true}
@@ -626,6 +632,7 @@ services:
       # Distributed tracing (v1.2.11 O2) -- OFF by default; the o11y profile brings up the collector + Tempo.
       # Enable end-to-end: ESQ_TRACING_ENABLED=true docker compose --profile o11y up -d --force-recreate
       - ESQ_TRACING_ENABLED=${ESQ_TRACING_ENABLED:-false}
+      - ESQ_MSG_BUS_ALIVE_TRACE=${ESQ_MSG_BUS_ALIVE_TRACE:-true}   # RR liveness round-trip traced on docker; off on k8s/default
       - ESQ_OTLP_ENDPOINT=${ESQ_OTLP_ENDPOINT:-http://otel-collector:4318/v1/traces}
       - ESQ_TRACING_SAMPLING_RATIO=${ESQ_TRACING_SAMPLING_RATIO:-1.0}
       - ESQ_TRACING_MARKS_ENABLED=${ESQ_TRACING_MARKS_ENABLED:-true}
@@ -696,6 +703,7 @@ services:
       # Distributed tracing (v1.2.11 O2) -- OFF by default; the o11y profile brings up the collector.
       # Enable end-to-end: ESQ_TRACING_ENABLED=true docker compose --profile o11y up -d --force-recreate
       - ESQ_TRACING_ENABLED=${ESQ_TRACING_ENABLED:-false}
+      - ESQ_MSG_BUS_ALIVE_TRACE=${ESQ_MSG_BUS_ALIVE_TRACE:-true}   # RR liveness round-trip traced on docker; off on k8s/default
       - ESQ_OTLP_ENDPOINT=${ESQ_OTLP_ENDPOINT:-http://otel-collector:4318/v1/traces}
       - ESQ_TRACING_SAMPLING_RATIO=${ESQ_TRACING_SAMPLING_RATIO:-1.0}
     extra_hosts:

@@ -21,6 +21,8 @@
  * 06/23/2026 mir0n  EsqMsgConstants wire constants -> messaging.BusConstants (references repointed)
  * 06/30/2026 mir0n  the ApplMsgID wire dedup id rides as a header when the event carries one (stamped once on the
  *                   send path, frozen across a resend); fromProps carries it back via RodEvent.withApplMsgId
+ * 07/09/2026 mir0n  v1.2.11 -- toProps() writes FIELD_TRACEPARENT on both the entity and the session branch
+ *                   when the event carries one; fromProps() reads it back via withTraceparent()
  */
 package pro.mir0n.esquire.messaging.xrod;
 
@@ -79,6 +81,12 @@ public final class RodEventCodec {
             if (e.requestId() != null) {
                 ret.put(BusConstants.FIELD_REQUEST_ID, e.requestId());
             }
+            // W3C trace hop for the RR liveness round-trip (msg-bus-alive-trace): present only when the round-trip
+            // is being traced (a stamped TestRequest / its HeartBeat reply), so the receive leg nests under the
+            // producer span; a plain untraced heartbeat carries none.
+            if (e.traceparent() != null) {
+                ret.put(BusConstants.FIELD_TRACEPARENT,  e.traceparent());
+            }
             ret.put(BusConstants.FIELD_TEXT,         textOf(e, om));
         } else {
             ret.put(BusConstants.FIELD_EVENT_TYPE,       e.opCode());
@@ -87,6 +95,10 @@ public final class RodEventCodec {
             ret.put(BusConstants.FIELD_SUB_ID,           e.subId());
             ret.put(BusConstants.FIELD_ACTION_TIME,      e.actionTime());
             ret.put(BusConstants.FIELD_CORRELATION_ID,   e.correlationId());
+            // W3C trace hop (O2/T3): only the producer's parent-span carrier; the trace id is the correlationId above.
+            if (e.traceparent() != null) {
+                ret.put(BusConstants.FIELD_TRACEPARENT,  e.traceparent());
+            }
             ret.put(BusConstants.FIELD_REQUEST_ID,       e.requestId());
             // keep the R&R wire structure: testReqId rides as the requestId value (the producer guarantees it non-null).
             ret.put(BusConstants.FIELD_TEST_REQ_ID,      e.requestId());
@@ -131,8 +143,10 @@ public final class RodEventCodec {
                     msgType,
                     readBody(str(p.get(BusConstants.FIELD_TEXT)), om));
         }
-        // carry the wire dedup id back onto the event (null when absent) so a consumer can read / dedup on it.
-        return ret.withApplMsgId(str(p.get(BusConstants.FIELD_APPL_MSG_ID)));
+        // carry the wire dedup id back onto the event (null when absent) so a consumer can read / dedup on it,
+        // and the W3C traceparent (null when absent / session) so the receive leg can nest under the producer span.
+        return ret.withApplMsgId(str(p.get(BusConstants.FIELD_APPL_MSG_ID)))
+                  .withTraceparent(str(p.get(BusConstants.FIELD_TRACEPARENT)));
     }
 
     /** Evolution gate: an incoming message must carry THIS codec's schema version. A version that is PRESENT

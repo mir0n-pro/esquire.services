@@ -68,6 +68,8 @@
  *                   requireRequestId() -- X-Request-ID mandatory on writes
  * 07/08/2026 mir0n  @EsqTraced on esquireCommand / Save / New / Delete / Move / Tree
  *                   (esq.svc.read / save / create / delete / move / tree)
+ * 07/09/2026 mir0n  v1.2.11 -- esquireCommandMove() captures the traceparent (EsqAsyncTrace.capture) inside the
+ *                   traced move and passes it to MoveCommandItem
  */
 
 package pro.mir0n.esquire.enyMan.service.impl;
@@ -75,6 +77,7 @@ package pro.mir0n.esquire.enyMan.service.impl;
 import jakarta.persistence.EntityManager;
 import java.util.*;
 
+import pro.mir0n.esquire.backend.o11y.EsqAsyncTrace;
 import pro.mir0n.esquire.backend.o11y.EsqTraced;
 import lombok.extern.slf4j.Slf4j;
 import pro.mir0n.esquire.backend.dto.*;
@@ -339,7 +342,10 @@ public class EnyManService  extends AEnyManService {
         // Pre-checks passed -- hand the command to the move queue. Counter increments here so a
         // CREATE that runs the next instant already sees inMove() == true.
         String correlationId = RequestContextUtils.getCorrelationId();
-        moveQueue.submitMove(new MoveCommandItem(k, id, distId, rootPath, uid, roles, requestId, correlationId));
+        // Capture the trace HERE (inside the traced "move entity", span current) so the async move worker can
+        // continue this request's trace when it later emits the move broadcasts (O2/T3). null when tracing off.
+        String traceparent = EsqAsyncTrace.capture(correlationId);
+        moveQueue.submitMove(new MoveCommandItem(k, id, distId, rootPath, uid, roles, requestId, correlationId, traceparent));
         devLog.debug("esquireCommandMove: submitted to move queue (kind={}, id={}, distId={}, queueSize={})",
                 k, id, distId, moveQueue.queueSize());
         return null;

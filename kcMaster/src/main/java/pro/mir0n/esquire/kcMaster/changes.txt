@@ -1,5 +1,12 @@
 Esquire kcMaster Microservice
 
+07/09/2026 mir0n  v1.2.11 -- distributed tracing (O2/T3): the KeyCloak path update is traced; span labels spelled out
+service.impl.KcIdentityService
+  - @EsqTraced labels "KC ..." -> "Keycloak ..."; @EsqTraced on updateUserPath (esq.kc.update-path,
+    "Keycloak update path")
+resources/application.yml
+  - esquire.tracing.msg-bus-alive-trace: ${ESQ_MSG_BUS_ALIVE_TRACE:false} added
+
 07/08/2026 mir0n  v1.2.11 -- distributed tracing (O2): trace marks on the KeyCloak identity calls
 service.impl.KcIdentityService
   - @EsqTraced on createUser / updateUserAuthState / deleteUser

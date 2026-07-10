@@ -27,6 +27,7 @@
  * 06/30/2026 mir0n  installSessionStack override builds the sublayers via SessionSublayerFactory (identity + role);
  *                   buildKeepAlive / onSessionMsg removed (the role-driven keep-alive + the SERVER TestRequest echo
  *                   move to AliveSessionRR)
+ * 07/09/2026 mir0n  v1.2.11 -- tracesAliveRoundTrip() overridden to true
  */
 package pro.mir0n.esquire.messaging.xrod.impl;
 
@@ -64,6 +65,13 @@ public class XRodRR extends XRod {
 
     @Override
     protected boolean receives() {
+        return true;
+    }
+
+    /** R&R is the ONLY leg with a true liveness round-trip (a CLIENT TestRequest always draws a SERVER HeartBeat
+     *  reply), so it opts into the round-trip trace when msg-bus-alive-trace is on. One-way buses stay out. (T3) */
+    @Override
+    protected boolean tracesAliveRoundTrip() {
         return true;
     }
 

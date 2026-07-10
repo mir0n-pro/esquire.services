@@ -1,5 +1,34 @@
 Esquire Backend common microservice classes
 
+07/09/2026 mir0n  v1.2.11 -- distributed tracing (O2/T3): the OTel implementation of the bus-hop hook, the async-boundary primitive, the replica badge
+o11y.EsqRodTracer  (new)
+  - the OTel implementation of the messaging-declared o11y.IRodTracer, built on the raw OTel Tracer (not the
+    ObservationRegistry) so each bus leg carries an explicit span kind: outbound() opens a PRODUCER span on the
+    send and returns a traceparent whose TRACE ID is the correlationId (authoritative) and whose span id is that
+    span; inbound() rebuilds the remote parent and runs the consumer worker inside a CONSUMER span, so the
+    worker's marks nest under the producer span in ONE trace. aliveOutbound() / aliveInbound() are the same pair
+    for the RR liveness round-trip (aliveOutbound opens a ROOT trace when the send has no current span -- a
+    CLIENT TestRequest off the heartbeat cadence); newTraceId() mints a fresh W3C-shaped correlation id;
+    aliveTrace() carries the esquire.tracing.msg-bus-alive-trace opt-in, passed to the constructor. Span names
+    carry no instance id -- the collector badges each span with its replica
+o11y.W3CTraceContext  (new)
+  - the shared W3C trace-context helpers used by both the bus-hop tracer (EsqRodTracer) and the async-boundary
+    primitive (EsqAsyncTrace). The trace id is ALWAYS the correlationId (authoritative); a traceparent only
+    carries the parent span id
+o11y.EsqAsyncTrace  (new)
+  - the async-boundary trace primitive. When work is HANDED OFF to another thread (a queue worker) the OTel span
+    does not follow -- only the correlationId travels. capture() grabs the current traceparent on the submitting
+    thread; continueIn() re-establishes it on the worker thread so the worker's spans nest in the SAME trace
+o11y.TracingConfig
+  - esqOtelResource() @Bean added: the OTel resource carries service.name plus service.instance.id
+    (<app>.<instanceNo>); esqRodTraceRegistrar() @Bean registers the EsqRodTracer (carrying the
+    esquire.tracing.msg-bus-alive-trace opt-in) into the messaging o11y.RodTracerHolder hand-off;
+    esqAsyncTraceRegistrar() @Bean hands the ObservationRegistry to EsqAsyncTrace
+o11y.EsqTraceMark
+  - contextualName(label): the span name no longer carries the instance id
+o11y.EsqTracedAspect
+  - contextualName(label): the span name no longer carries the instance id
+
 07/08/2026 mir0n  v1.2.11 -- distributed tracing (O2): the Esquire trace-mark facility
 o11y.EsqTraced  (new)
   - the Esquire trace-mark annotation: put it on a Spring-managed service method and the method becomes its

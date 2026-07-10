@@ -38,6 +38,10 @@ esquire:
         - slot-id: kc
           x-rod:
             rod-class: XRodRR
+            # RR liveness protocol ON (docker): CLIENT (enyMan/keySmith) probes with a TestRequest, SERVER
+            # (kcMaster) echoes a HeartBeat -- the round-trip is observable when msg-bus-alive-trace is on.
+            # Enabled here on docker; OFF on k8s (the k8s topology omits this); OFF by default. Default cadence.
+            alive: true
             receiver-pool:
               size: 4
               mode: platform

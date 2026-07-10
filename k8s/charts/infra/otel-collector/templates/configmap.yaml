@@ -16,6 +16,20 @@ data:
             endpoint: 0.0.0.0:4317
     processors:
       batch: {}
+      # Trace-only display choice (v1.2.11 O2/T3): Grafana's trace waterfall badges every span by the
+      # resource service.name and cannot badge by service.instance.id, so the x2 replicas are otherwise
+      # indistinguishable. In the TRACES pipeline only, overwrite service.name with service.instance.id
+      # (the rod-id <app>.<instanceNo>) so a span shows which replica emitted it. Logs (Alloy -> Loki) and
+      # future metrics do not pass through this collector, so their logical service.name is untouched.
+      # O1 METRICS CAVEAT (observe when metrics land): metrics will carry the LOGICAL service.name while
+      # traces carry the INSTANCE id here, so trace<->metric correlation keyed on service.name will not line
+      # up. Revisit this trade-off (per-signal service.name, or exemplars keyed on trace id) at O1.
+      transform/instance-as-service:
+        error_mode: ignore
+        trace_statements:
+          - context: resource
+            statements:
+              - set(attributes["service.name"], attributes["service.instance.id"]) where attributes["service.instance.id"] != nil
       # BACKSTOP ONLY (v1.2.11 O2). Health-probe traces are no longer produced: the services refuse the
       # request observation for esquire.tracing.excluded-paths (/actuator) and the BFF opens no span off
       # its traced paths, so nothing arrives here to drop. This rule stays as a second line of defence
@@ -48,5 +62,5 @@ data:
       pipelines:
         traces:
           receivers: [otlp]
-          processors: [tail_sampling, batch]
+          processors: [transform/instance-as-service, tail_sampling, batch]
           exporters: [otlp/tempo]

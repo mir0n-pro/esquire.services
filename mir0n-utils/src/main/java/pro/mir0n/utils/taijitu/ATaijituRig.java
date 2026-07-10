@@ -117,8 +117,9 @@ public abstract class ATaijituRig extends ATaijituRigY {
 
     @Override
     public void onEntityBroadcast(String eventType, String entityId, int entityKind,
-                                  String requestId, String correlationId, java.util.Map<String, Object> body) {
-        QueueItem item = new QueueItem(eventType, entityId, entityKind, requestId, correlationId, body);
+                                  String requestId, String correlationId, java.util.Map<String, Object> body,
+                                  String traceparent) {
+        QueueItem item = new QueueItem(eventType, entityId, entityKind, requestId, correlationId, body, traceparent);
         yang().offer(item);
         yin().offer(item);
     }

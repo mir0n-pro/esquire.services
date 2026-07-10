@@ -13,6 +13,7 @@
  * 06/27/2026 mir0n  PARAM_NO_LOCAL ("noLocal") added -- the transport-leg vendor param key for the shared-connection
  *                   own-exclusion (broadcast only): a receive leg sharing the publisher's connection drops THIS
  *                   connection's own publications
+ * 07/09/2026 mir0n  v1.2.11 -- FIELD_TRACEPARENT ("TraceParent", FIX 50014) added
  */
 package pro.mir0n.esquire.messaging;
 
@@ -54,6 +55,10 @@ public class BusConstants {
     public static final String FIELD_SUB_ID            = "SubID";             // FIX 50011
     public static final String FIELD_UID               = "Uid";               // FIX 50012
     public static final String FIELD_ACTION_TIME       = "ActionTime";        // FIX 50013 (epoch-ms at commit)
+    // W3C traceparent riding the bus hop (v1.2.11 O2/T3): carries the PRODUCER's parent span id so a
+    // consumer span nests under it. The trace id half is authoritative from FIELD_CORRELATION_ID, not
+    // this field. Absent on session (heartbeat / test-request) messages.
+    public static final String FIELD_TRACEPARENT       = "TraceParent";        // FIX 50014 (W3C trace context)
 
 
     // --- Fixed phase-1 values ---

@@ -1,5 +1,19 @@
 Esquire Gateway Microservice
 
+07/09/2026 mir0n  v1.2.11 -- distributed tracing (O2/T3): the gateway seeds the trace with the settled correlation id
+config.CorrelationPropagatorConfig  (new)
+  - the edge trace-context propagator: a @Primary Propagator whose extract() settles the correlation id
+    (Esq-Correlation-ID / X-Correlation-ID, kept when W3C-shaped, converted otherwise, else generated) and builds
+    the parent TraceContext with THAT id as the trace id, so traceId == correlationId for every client, whether
+    or not it sent a traceparent; inject() writes the traceparent alone, and fields() declares only that header
+    so the correlation headers are never cleared from the outgoing request
+filters.RequestTraceFilter
+  - constructor takes ObjectProvider<Tracer>; settleTraceparent() and the downstream traceparent stamp removed
+    (the CorrelationPropagator injects it); currentTraceId(exchange) reads the trace id off the server request
+    observation; a one-shot WARN when tracing is on and a proxied request has no current span
+resources/application.yml
+  - esquire.tracing.msg-bus-alive-trace: ${ESQ_MSG_BUS_ALIVE_TRACE:false} added
+
 07/08/2026 mir0n  v1.2.11 -- distributed tracing (O2): the gateway settles the trace id at the edge
 filters.RequestTraceFilter
   - obtainCorrelationId() returns a settled W3C-shaped id (EsqUtils.settleCorrelationId over

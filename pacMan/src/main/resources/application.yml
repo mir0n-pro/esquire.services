@@ -52,6 +52,8 @@ esquire:
     sampling-ratio: ${ESQ_TRACING_SAMPLING_RATIO:1.0}
     marks-enabled: ${ESQ_TRACING_MARKS_ENABLED:true}
     excluded-paths: ${ESQ_TRACING_EXCLUDED_PATHS:/actuator}
+    # opt-in RR liveness round-trip trace (TestRequest -> HeartBeat); off by default (heartbeats are frequent)
+    msg-bus-alive-trace: ${ESQ_MSG_BUS_ALIVE_TRACE:false}
   audit-bus:
     messaging-bus:
       bus-id: ${AUDIT_BUS_ID:audit-b}

@@ -14,6 +14,7 @@
  *                   transfer processors. Both entry points share the ObservationRegistry handed in by
  *                   TracingConfig; when tracing is off the registry is NOOP, so the action runs with zero
  *                   span overhead.
+ * 07/09/2026 mir0n  contextualName(label): the span name no longer carries the instance id
  */
 
 package pro.mir0n.esquire.backend.o11y;
@@ -36,7 +37,8 @@ public final class EsqTraceMark {
     }
 
     // Mark a value-returning processing step as a span. name = observation/metric name (low cardinality);
-    // label = the span name shown in the trace.
+    // label = the span name shown in the trace. WHICH replica acted shows in the span's service badge (the
+    // collector rewrites service.name to service.instance.id on the traces pipeline), so the label is plain.
     public static <T> T around(String name, String label, Supplier<T> action) {
         return Observation.createNotStarted(name, registry).contextualName(label).observe(action);
     }

@@ -34,5 +34,13 @@ public record QueueItem(String eventType,
                         int    entityKind,
                         String requestId,
                         String correlationId,
-                        Map<String, Object> body) {
+                        Map<String, Object> body,
+                        String traceparent) {
+
+    /** The historical shape (no traceparent) -- commands and callers that carry no trace context; the
+     *  monad worker then applies the item with no async trace continuation. */
+    public QueueItem(String eventType, String entityId, int entityKind, String requestId,
+                     String correlationId, Map<String, Object> body) {
+        this(eventType, entityId, entityKind, requestId, correlationId, body, null);
+    }
 }

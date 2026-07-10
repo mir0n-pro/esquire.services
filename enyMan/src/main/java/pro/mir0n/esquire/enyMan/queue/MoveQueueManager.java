@@ -33,6 +33,8 @@
  *                   never run the create path, so the test create-delay is inert on them
  * 06/29/2026 mir0n  move worker runs on a dedicated TransactionTemplate that opts out of the request-path cap via
  *                   QueryTimeouts.resolveOptOut (enyman.move-queue.tx-timeout-s, 0 = uncapped, pre-HA default) (R6)
+ * 07/09/2026 mir0n  v1.2.11 -- processMove() runs inside EsqAsyncTrace.continueIn(item.traceparent(),
+ *                   item.correlationId(), "move (async)", ...)
  */
 
 package pro.mir0n.esquire.enyMan.queue;
@@ -48,6 +50,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.support.TransactionTemplate;
 import pro.mir0n.esquire.backend.dto.EsqObjectKind;
+import pro.mir0n.esquire.backend.o11y.EsqAsyncTrace;
 import pro.mir0n.esquire.backend.service.EsqContextHolder;
 import pro.mir0n.esquire.backend.service.EsqRequestContext;
 import pro.mir0n.esquire.backend.storage.EsqObjectKindStorage;
@@ -200,20 +203,24 @@ public class MoveQueueManager implements IQueueRig.IQueueWorker<MoveQueueItem> {
                 item.correlationId(), item.requestId(), item.uid(), item.rootPath()));
 
         try {
-            devLog.debug("processMove: kind={}, id={}, distId={}, rootPath={}, uid={}",
-                    item.kind(), item.id(), item.distId(), item.rootPath(), item.uid());
-            EsqObjectKind eek = EsqObjectKindStorage.getInstance().get(item.kind());
-            List<EsqMoveRecord> records;
-            if (eek.isOrg()) {
-                records = orgService.esquireCommandMove(item.kind(), item.id(), item.distId(), item.roles());
-            } else {
-                records = usrService.esquireCommandMove(item.kind(), item.id(), item.distId(), item.roles());
-            }
-            // Transaction has committed by the time esquireCommandMove returns -- publish outside it.
-            for (EsqMoveRecord r : records) {
-                publishMoveEvent(r, item.requestId(), item.correlationId());
-                publishKcMoveRequest(r, item.requestId(), item.correlationId());
-            }
+            // Continue the request's trace on this worker thread (the "move entity" span was captured at submit):
+            // the move + its broadcasts nest under it, so the async move shows in the request's trace (O2/T3).
+            EsqAsyncTrace.continueIn(item.traceparent(), item.correlationId(), "move (async)", () -> {
+                devLog.debug("processMove: kind={}, id={}, distId={}, rootPath={}, uid={}",
+                        item.kind(), item.id(), item.distId(), item.rootPath(), item.uid());
+                EsqObjectKind eek = EsqObjectKindStorage.getInstance().get(item.kind());
+                List<EsqMoveRecord> records;
+                if (eek.isOrg()) {
+                    records = orgService.esquireCommandMove(item.kind(), item.id(), item.distId(), item.roles());
+                } else {
+                    records = usrService.esquireCommandMove(item.kind(), item.id(), item.distId(), item.roles());
+                }
+                // Transaction has committed by the time esquireCommandMove returns -- publish outside it.
+                for (EsqMoveRecord r : records) {
+                    publishMoveEvent(r, item.requestId(), item.correlationId());
+                    publishKcMoveRequest(r, item.requestId(), item.correlationId());
+                }
+            });
         } finally {
             EsqContextHolder.clear();     // do not leak this move's identity onto the next item
             counter.decrementAndGet();    // ALWAYS decrement, even if the move threw

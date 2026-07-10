@@ -31,11 +31,18 @@
  * 07/01/2026 mir0n  the receive/apply pool is now the common WorkerPool: the inline 3-way executor + Semaphore +
  *                   drain-on-shutdown lift out; poolSize / poolMode read from receiver-pool.size / receiver-pool.mode
  *                   (platform | virtual | virtual-per-task via WorkerPool.Mode.of); shutdown() calls pool.shutdown
+ * 07/09/2026 mir0n  v1.2.11 -- transmit() stamps the W3C traceparent on the caller's thread for non-session
+ *                   events (o11y.RodTracerHolder.tracer().outbound()); the receive path runs the pool worker
+ *                   inside inbound() and, on a rod that tracesAliveRoundTrip() with the tracer's aliveTrace() on,
+ *                   wraps onReceiveSessn in aliveInbound(); tracesAliveRoundTrip() (false) and
+ *                   aliveMsgLabel(String) added
  */
 package pro.mir0n.esquire.messaging.xrod.impl;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
+import pro.mir0n.esquire.messaging.o11y.RodTracerHolder;
+import pro.mir0n.esquire.messaging.BusConstants;
 import pro.mir0n.esquire.messaging.catalog.Role;
 import pro.mir0n.esquire.messaging.catalog.XRodParams;
 import pro.mir0n.esquire.messaging.transport.BusIdentity;
@@ -260,7 +267,16 @@ public abstract class AXRod implements IXRod {
                     + "(its role does not produce); a publisher adapter is wired to a non-producing bus");
         }
         if (event != null) {
-            feed.put(event);   // the feed worker (sendOut) logs the TX msg-audit, then hands to the outbound
+            // Stamp the W3C traceparent HERE, on the caller's thread, where the producer's span is current (the
+            // feed worker that later sends runs on its own thread, where it is not). Non-session only -- heartbeats
+            // are never traced. NOOP tracer / no current span -> null -> the event is unchanged. (O2/T3)
+            RodEvent ev = event.isSession()
+                    ? event
+                    : event.withTraceparent(RodTracerHolder.tracer().outbound(event.correlationId(),
+                            identity != null ? identity.busId() : name,
+                            identity != null ? identity.slotId() : null,
+                            identity != null ? identity.rodId() : null));   // this SENDING instance
+            feed.put(ev);   // the feed worker (sendOut) logs the TX msg-audit, then hands to the outbound
         }
         // event == null is the publisher-leg probe -- the leg exists, so just ignore it.
     }
@@ -352,7 +368,19 @@ public abstract class AXRod implements IXRod {
             }
         } else if (event.isSession()) {
             // a SESSION (alive) message -- handled internally by the session layer, NEVER forwarded to the app worker.
-            onReceiveSessn(event);
+            // On an RR bus with msg-bus-alive-trace on, wrap the handling in a CONSUMER span so the liveness
+            // round-trip is observable -- a SERVER's HeartBeat reply, sent from inside onReceiveSessn, nests under
+            // it; a CLIENT's HeartBeat receipt is the closing leg. Otherwise handle it plain, exactly as before. (T3)
+            if (RodTracerHolder.tracer().aliveTrace() && tracesAliveRoundTrip() && event.traceparent() != null) {
+                RodTracerHolder.tracer().aliveInbound(event.traceparent(), event.correlationId(),
+                        identity != null ? identity.busId() : name,
+                        "receive " + aliveMsgLabel(event.msgType()),
+                        event.rodId(),                                     // the SENDER's rod-id
+                        identity != null ? identity.rodId() : null,       // this RECEIVING instance
+                        () -> onReceiveSessn(event));
+            } else {
+                onReceiveSessn(event);
+            }
             msgAudit.log("RX", event);
         } else {
             // hand the apply to the worker pool -- WorkerPool applies the concurrency bound and runs it. Log RX when
@@ -361,7 +389,15 @@ public abstract class AXRod implements IXRod {
             boolean accepted = pool.submit(() -> {
                 msgAudit.log("RX", event);
                 try {
-                    poolWorker.accept(event);
+                    // Continue the producer's trace across the bus hop: run the app worker inside a consumer span
+                    // whose trace id is the correlationId (authoritative) and whose parent is the wire traceparent,
+                    // so the worker's marks nest in the originating request's trace. NOOP tracer -> runs plain. (O2/T3)
+                    RodTracerHolder.tracer().inbound(event.traceparent(), event.correlationId(),
+                            identity != null ? identity.busId() : name,
+                            identity != null ? identity.slotId() : null,
+                            event.rodId(),   // the SENDER's rod-id (who produced the message)
+                            identity != null ? identity.rodId() : null,   // this RECEIVING instance
+                            () -> poolWorker.accept(event));
                 } catch (Throwable t) {
                     if (devLog != null) {
                         devLog.error("x-rod[{}]: receive worker failed for kind={}, entityId={}, subId={}: {}",
@@ -413,6 +449,19 @@ public abstract class AXRod implements IXRod {
         for (ISessionSublayer sublayer : sendSublayers) {
             sublayer.onReceiveSessn(ev);
         }
+    }
+
+    /** Whether this rod traces the RR liveness round-trip when msg-bus-alive-trace is on. Base rods do NOT -- a
+     *  one-way bus's alive is a lone heartbeat, not a round-trip; {@link XRodRR} overrides this to true. (T3) */
+    protected boolean tracesAliveRoundTrip() {
+        return false;
+    }
+
+    /** Human label for a session message type in a trace span -- "TestRequest" / "HeartBeat". */
+    protected static String aliveMsgLabel(String msgType) {
+        return BusConstants.MSG_TYPE_TEST_REQUEST.equals(msgType) ? "TestRequest"
+             : BusConstants.MSG_TYPE_HEARTBEAT.equals(msgType) ? "HeartBeat"
+             : "alive";
     }
 
     /** This leg's session health: the worst across the sublayers (the alive metric; the rest read UNKNOWN-benign). */

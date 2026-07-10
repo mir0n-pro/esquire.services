@@ -19,6 +19,8 @@
  *                   the injected TransactionTemplate (cacheTx); a null cacheTx falls back to one-by-one
  * 06/15/2026 mir0n  message branch applies the already-parsed item.body() via valueToTree; removed the
  *                   private parse(QueueItem) helper that did readTree(item.text())
+ * 07/09/2026 mir0n  v1.2.11 -- the H2 apply runs inside EsqAsyncTrace.continueIn(item.traceparent(),
+ *                   item.correlationId(), "cache apply", ...)
  */
 package pro.mir0n.esquire.bizTree.taijitu;
 
@@ -26,6 +28,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.MDC;
 import pro.mir0n.esquire.backend.dto.EsqTreeNode;
+import pro.mir0n.esquire.backend.o11y.EsqAsyncTrace;
 import pro.mir0n.esquire.bizTree.access.CacheNotReadyException;
 import pro.mir0n.esquire.bizTree.cache.BizTreeCacheLoader;
 import pro.mir0n.esquire.bizTree.cache.CancelableStatement;
@@ -93,7 +96,11 @@ public class Monad extends AMonad {
             putMdc(item);
             try {
                 JsonNode textNode = (item.body() == null) ? null : objectMapper.valueToTree(item.body());
-                eventHub.apply(item.eventType(), item.entityId(), item.entityKind(), textNode);
+                // The H2 apply runs on THIS monad worker thread (off the bus-receive thread). Continue the
+                // request's trace from the item's traceparent so the cache apply nests under the "receive from
+                // <bus>" span (O2/T3). null traceparent / tracing off -> runs plain.
+                EsqAsyncTrace.continueIn(item.traceparent(), item.correlationId(), "cache apply", () ->
+                        eventHub.apply(item.eventType(), item.entityId(), item.entityKind(), textNode));
             } finally {
                 clearMdc();
             }

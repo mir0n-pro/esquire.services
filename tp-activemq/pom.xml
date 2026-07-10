@@ -19,11 +19,6 @@
     <dependencies>
         <dependency>
             <groupId>pro.mir0n.esquire</groupId>
-            <artifactId>esquire-common</artifactId>
-            <version>${common.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>pro.mir0n.esquire</groupId>
             <artifactId>esquire-messaging</artifactId>
             <version>${messaging.version}</version>
         </dependency>

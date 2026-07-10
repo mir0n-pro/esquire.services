@@ -1,10 +1,15 @@
 package pro.mir0n.esquire.gateway.filters;
 
+import io.micrometer.tracing.Tracer;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.http.HttpHeaders;
 import pro.mir0n.esquire.common.EsqConstants;
 import pro.mir0n.esquire.common.EsqUtils;
+
+import java.util.Collections;
+import java.util.Iterator;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -14,7 +19,18 @@ class RequestTraceFilterTest {
 
     @BeforeEach
     void setUp() {
-        filter = new RequestTraceFilter();
+        // obtainCorrelationId does not use the tracer; a null-yielding provider models tracing being off.
+        filter = new RequestTraceFilter(noTracer());
+    }
+
+    private static ObjectProvider<Tracer> noTracer() {
+        return new ObjectProvider<>() {
+            @Override public Tracer getObject() { return null; }
+            @Override public Tracer getObject(Object... args) { return null; }
+            @Override public Tracer getIfAvailable() { return null; }
+            @Override public Tracer getIfUnique() { return null; }
+            @Override public Iterator<Tracer> iterator() { return Collections.emptyIterator(); }
+        };
     }
 
     @Test
@@ -70,36 +86,5 @@ class RequestTraceFilterTest {
         String result = filter.obtainCorrelationId(headers);
 
         assertThat(EsqUtils.isW3cTraceId(result)).isTrue();
-    }
-
-    @Test
-    void settleTraceparent_matchingIncoming_keptSoUpstreamSpanStaysParent() {
-        String correlationId = "0123456789abcdef0123456789abcdef";
-        String incoming = "00-" + correlationId + "-aaaaaaaaaaaaaaaa-01";
-
-        String result = filter.settleTraceparent(incoming, correlationId);
-
-        assertThat(result).isEqualTo(incoming);
-    }
-
-    @Test
-    void settleTraceparent_incomingTraceIdDiffers_freshTraceparentFromCorrelationId() {
-        String correlationId = "0123456789abcdef0123456789abcdef";
-        String incoming = "00-ffffffffffffffffffffffffffffffff-aaaaaaaaaaaaaaaa-01";
-
-        String result = filter.settleTraceparent(incoming, correlationId);
-
-        assertThat(result).isNotEqualTo(incoming);
-        assertThat(EsqUtils.traceIdFromTraceparent(result)).isEqualTo(correlationId);
-    }
-
-    @Test
-    void settleTraceparent_noIncoming_mintsFromCorrelationId() {
-        String correlationId = "0123456789abcdef0123456789abcdef";
-
-        String result = filter.settleTraceparent(null, correlationId);
-
-        assertThat(EsqUtils.isValidTraceparent(result)).isTrue();
-        assertThat(EsqUtils.traceIdFromTraceparent(result)).isEqualTo(correlationId);
     }
 }

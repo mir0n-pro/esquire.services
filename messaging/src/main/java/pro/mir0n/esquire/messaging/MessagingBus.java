@@ -21,6 +21,8 @@
  *                   bus health indicator forwards to /actuator/health.
  * 06/23/2026 mir0n  one per-service idle ticker (scheduleWithFixedDelay, daemon "messaging-idle") firing IXRod.idle()
  *                   on every rod; start()/close() manage it; idleSweep() catches Throwable per rod, logs on the develop tier
+ * 07/09/2026 mir0n  v1.2.11 -- instanceId(): the per-instance token now reads pro.mir0n.utils.HostId.instanceNo()
+ *                   (was EsqUtils.instanceNo()); the bus no longer imports anything Esquire
  */
 package pro.mir0n.esquire.messaging;
 
@@ -33,7 +35,7 @@ import org.springframework.core.env.ConfigurableEnvironment;
 import org.springframework.core.env.EnumerablePropertySource;
 import org.springframework.core.env.Environment;
 import org.springframework.core.env.PropertySource;
-import pro.mir0n.esquire.common.EsqUtils;
+import pro.mir0n.utils.HostId;
 import pro.mir0n.esquire.messaging.catalog.BusRef;
 import pro.mir0n.esquire.messaging.catalog.MessagingBusCatalog;
 import pro.mir0n.esquire.messaging.catalog.Role;
@@ -303,7 +305,7 @@ public class MessagingBus implements AutoCloseable {
      *  a distinct rod-id, so an R&R CLIENT's {@code RodID} selector isolates its own responses). */
     private String instanceId() {
         String app = environment.getProperty("spring.application.name");
-        return (app != null ? app : "") + "." + EsqUtils.instanceNo();
+        return (app != null ? app : "") + "." + HostId.instanceNo();
     }
 
     /** Resolve a logical bus key: the service-level ref esquire.&lt;key&gt;.messaging-bus -> {bus-id, slot-id,

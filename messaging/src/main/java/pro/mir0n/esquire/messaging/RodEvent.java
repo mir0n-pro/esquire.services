@@ -20,6 +20,8 @@
  * 06/23/2026 mir0n  EsqMsgConstants wire constants -> messaging.BusConstants (references repointed)
  * 06/30/2026 mir0n  applMsgId component (the ApplMsgID / FIX 1181 wire dedup id) + a 12-arg canonical ctor; the
  *                   former 11-arg ctor delegates with applMsgId null (stamped once on the send path); withApplMsgId() copy
+ * 07/09/2026 mir0n  v1.2.11 -- the record gains a traceparent component (last); the applMsgId-shaped
+ *                   constructor leaves it null; withTraceparent(String) copy added, withApplMsgId preserves it
  */
 package pro.mir0n.esquire.messaging;
 
@@ -64,7 +66,8 @@ public record RodEvent(
         String msgType,
         Map<String, Object> body,
         String bodyText,
-        String applMsgId
+        String applMsgId,
+        String traceparent
 ) {
     /** App-message constructor (the historical canonical shape): a {@code body} Map and no prepared
      *  {@code bodyText} -- the codec serializes the map to the {@code Text} field. */
@@ -89,11 +92,32 @@ public record RodEvent(
         this(op, kind, entityId, subId, actionTime, correlationId, requestId, uid, rodId, msgType, body, bodyText, null);
     }
 
+    /** The applMsgId shape (…, applMsgId) leaving {@code traceparent} NULL -- the framework stamps the trace hop
+     *  ONCE on the send path ({@code AXRod.send}), so every producer / factory / codec call site keeps building
+     *  events exactly as before; only the engine assigns it. traceparent is INDEPENDENT of applMsgId: applMsgId
+     *  is the per-message wire dedup id (FIX 1181, no correlation), traceparent is the trace hop's parent-span
+     *  carrier whose trace id is the correlationId. */
+    public RodEvent(Op op, int kind, String entityId, String subId, long actionTime,
+                    String correlationId, String requestId, String uid, String rodId, String msgType,
+                    Map<String, Object> body, String bodyText, String applMsgId) {
+        this(op, kind, entityId, subId, actionTime, correlationId, requestId, uid, rodId, msgType,
+                body, bodyText, applMsgId, null);
+    }
+
     /** A copy carrying the stable wire dedup id ({@code ApplMsgID}, FIX 1181). Stamped ONCE at the send-chain entry
-     *  so every resend of a held event reuses the SAME id (a consumer can dedup); the event is otherwise unchanged. */
+     *  so every resend of a held event reuses the SAME id (a consumer can dedup); the event is otherwise unchanged
+     *  (traceparent preserved). */
     public RodEvent withApplMsgId(String applMsgId) {
         return new RodEvent(op, kind, entityId, subId, actionTime, correlationId, requestId, uid, rodId, msgType,
-                body, bodyText, applMsgId);
+                body, bodyText, applMsgId, traceparent);
+    }
+
+    /** A copy carrying the W3C {@code traceparent} for the bus hop (v1.2.11 O2/T3). Stamped ONCE on the send path
+     *  (non-session events); the trace id half is the correlationId, the span id half is the producer's parent
+     *  span. The event is otherwise unchanged (applMsgId preserved). */
+    public RodEvent withTraceparent(String traceparent) {
+        return new RodEvent(op, kind, entityId, subId, actionTime, correlationId, requestId, uid, rodId, msgType,
+                body, bodyText, applMsgId, traceparent);
     }
 
     // CREATE / UPDATE / DELETE are the change operations; UPDATE_PATH ("X", a move / re-path) rides only the

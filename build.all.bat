@@ -1,5 +1,15 @@
 @echo off
-echo ---- services ----
+echo ---- common ----
+
+pushd mir0n-utils
+call mvn clean install
+popd 
+rem pause
+
+pushd messaging
+call mvn clean install
+popd 
+rem pause
 
 pushd common
 call mvn clean install
@@ -16,6 +26,7 @@ call mvn clean install
 popd 
 rem pause
 
+echo ---- services ----
 pushd bizTree
 call docker-compose-build.bat
 popd 

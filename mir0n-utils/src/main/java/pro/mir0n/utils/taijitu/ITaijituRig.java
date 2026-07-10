@@ -38,9 +38,11 @@ public interface ITaijituRig {
     void shutdown();
 
     /** Hand one entity event to the active monad as its already-parsed {@code body} map (the wire decode
-     *  happened upstream, off the worker). {@code body} is null for a bodiless event (e.g. DELETE). */
+     *  happened upstream, off the worker). {@code body} is null for a bodiless event (e.g. DELETE).
+     *  {@code traceparent} is an opaque correlation token (like {@code correlationId}) carried onto the item so
+     *  the caller's trace can continue on the monad worker; null when there is none. */
     void onEntityBroadcast(String eventType, String entityId, int entityKind,
-                           String requestId, String correlationId, Map<String, Object> body);
+                           String requestId, String correlationId, Map<String, Object> body, String traceparent);
 
     /** Whether the cache is loaded and serving reads -- the k8s readiness gate (false during the
      *  blocking bootstrap load, true once serving). Kept out of liveness so a slow load can't crashloop. */

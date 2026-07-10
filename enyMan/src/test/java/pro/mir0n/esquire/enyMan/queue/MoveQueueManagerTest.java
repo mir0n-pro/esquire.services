@@ -107,7 +107,7 @@ class MoveQueueManagerTest {
         // mid-Goal-3 where 16k queued items left inMove() stuck true forever.
         assertThat(manager.inMove()).isFalse();
         manager.submitMove(new MoveCommandItem(20, "100", "200", "1.", "99",
-                java.util.List.of("ROLE_ADMIN"), "rid-1", "cid-1"));
+                java.util.List.of("ROLE_ADMIN"), "rid-1", "cid-1", null));
         assertThat(manager.inMove())
                 .as("counter must be rolled back when tryPut returns false")
                 .isFalse();
@@ -119,7 +119,7 @@ class MoveQueueManagerTest {
         manager.start();    // rig running + processing enabled; worker drains.
         try {
             manager.submitMove(new MoveCommandItem(20, "100", "200", "1.", "99",
-                    java.util.List.of("ROLE_ADMIN"), "rid-1", "cid-1"));
+                    java.util.List.of("ROLE_ADMIN"), "rid-1", "cid-1", null));
             // The worker decrements once it processes (calls orgService -- mocks return null;
             // org dispatch throws because eek isOrg but service returns null List). Either way,
             // counter is decremented by the finally block. We assert that AT LEAST the
