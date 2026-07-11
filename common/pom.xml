@@ -68,6 +68,17 @@
             <scope>provided</scope>
         </dependency>
 
+        <!-- Netty edge bandwidth (v1.2.11 O1/T5-C): reactor.netty.http.server.HttpServer is needed only to COMPILE
+             the NettyServerCustomizer in ObservabilityConfig (the gateway's byte counters; it runs on Netty, so the
+             Tomcat MBean counters cannot see it). PROVIDED scope: the reactive gateway already supplies
+             reactor-netty at runtime (via spring-cloud-gateway), and the servlet services never have it, so their
+             nested @ConditionalOnClass keeps that config class from ever being loaded. -->
+        <dependency>
+            <groupId>io.projectreactor.netty</groupId>
+            <artifactId>reactor-netty-http</artifactId>
+            <scope>provided</scope>
+        </dependency>
+
         <!-- Observability (v1.2.11 O2): distributed tracing. Micrometer Tracing bridged to
              OpenTelemetry, spans exported over OTLP. Wired by EXPLICIT @Bean (TracingConfig);
              Spring Boot's tracing auto-config is off (management.tracing.enabled=false) and

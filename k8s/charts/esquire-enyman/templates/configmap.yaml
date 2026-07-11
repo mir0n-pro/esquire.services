@@ -68,6 +68,8 @@ data:
   MSG_LOG_PATH:                     {{ .Values.logging.msgLogPath | quote }}
   # --- v1.2.11 O2 distributed tracing (opt-in; OFF by default; o11y-on enables it) ---
   ESQ_OBSERVABILITY_ENABLED:  {{ .Values.observability.enabled | quote }}
+  ESQ_METRICS_HISTOGRAMS:     {{ .Values.observability.metricsHistograms | quote }}
+  ESQ_METRICS_BANDWIDTH:      {{ .Values.observability.metricsBandwidth | quote }}
   ESQ_OTLP_ENDPOINT:          {{ .Values.tracing.otlpEndpoint | quote }}
   ESQ_TRACING_SAMPLING_RATIO: {{ .Values.tracing.samplingRatio | quote }}
   ESQ_TRACING_MARKS_ENABLED:  {{ .Values.tracing.marksEnabled | quote }}

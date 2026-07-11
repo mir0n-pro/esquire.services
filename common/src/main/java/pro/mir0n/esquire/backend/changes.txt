@@ -1,5 +1,47 @@
 Esquire Backend common microservice classes
 
+07/11/2026 mir0n  v1.2.11 -- bus meters + latency bands + bandwidth (O1/T5): ONE bus observer, the esq.* latency timers, the HTTP byte counters, ONE config namespace
+o11y.EsqRodObserver  (new -- was EsqRodTracer)
+  - renamed from EsqRodTracer and widened to the ONE bus observer: it now implements o11y.IRodObserver
+    (IRodTracer + IRodMeters), so the SAME object that traces the bus hop also meters it. The ctor takes the
+    Micrometer MeterRegistry alongside the OTel Tracer. The meter side emits messaging.send.total /
+    receive.total / error.total (counters, tagged bus-id / slot / msg-type; error also by leg),
+    messaging.send.duration (timer), messaging.retry.backoff / retry.dropped, and registers the
+    messaging.feed.depth / messaging.retry.held GAUGES. Both gauges are built .strongReference(true): the state
+    object is the supplier lambda itself and nothing else holds it, so Micrometer's default WEAK reference lets
+    it be GC'd and the gauge then reports NaN
+o11y.ObservabilityConfig
+  - ONE config namespace: every key moves under esquire.observability.* (the five tracing @Values now read
+    esquire.observability.tracing.*; no sibling esquire.tracing.* root is left). SUB-SWITCHES under the master,
+    each defaulted so the master alone is enough: esqHttpLatencyHistogram() becomes esqLatencyHistograms(),
+    widened to the esq.* latency timers as well as http.server.requests and now gated by
+    esquire.observability.metrics.histograms-enabled (opt-in, default false); the nested TomcatByteMetrics and
+    NettyByteMetrics (@ConditionalOnClass, so a servlet service takes the first and the reactive gateway the
+    second) are gated by esquire.observability.metrics.bandwidth-enabled (default true): TomcatByteMetrics
+    contributes a LOWEST_PRECEDENCE WebServerFactoryCustomizer re-enabling the Tomcat MBean registry Boot
+    disables (without it tomcat.global.sent/received never exist), NettyByteMetrics a NettyServerCustomizer
+    turning on reactor-netty server metrics with a coarseUri mapper (first path segment only -- the raw uri
+    carries entity ids = unbounded cardinality). esqRodTraceRegistrar() becomes esqRodObserverRegistrar(): it
+    takes the MeterRegistry too and registers ONE EsqRodObserver (trace + meters) into RodObserverHolder
+service.MdcFilter
+  - the two numbers behind the timing headers are now also recorded as Micrometer timers: esq.srv.outer (the
+    whole servlet wall time) and esq.srv.inner (the JPA/DB time PerformanceAspect accumulated for the request =
+    the DB band), tagged by the matched route pattern
+    (HandlerMapping.BEST_MATCHING_PATTERN_ATTRIBUTE). Explicit ctor (RequestPerformance,
+    ObjectProvider<MeterRegistry>); the registry is absent when observability is off and the timers are then
+    not recorded. The X-Capture-Metrics response headers are untouched
+service.PerformanceAspect
+  - the JPA timing is now also collected when observability is on, not only when the caller asked for it with
+    the X-Capture-Metrics header. @RequiredArgsConstructor dropped for an explicit ctor taking
+    (RequestPerformance, ObjectProvider<MeterRegistry>) -- observability-on is resolved ONCE at construction.
+    The request-scope probe (RequestPerformance.isMetricsCaptured) is made FIRST and ALWAYS and the
+    ScopeNotActiveException it raises off-request keeps driving the skip; it must NOT be folded into
+    'observabilityOn || isMetricsCaptured()', because || short-circuits the probe away and the aspect then
+    calls addJpaTime() on an off-request thread (the taijitu cache loader runs JPA on a monad worker)
+pom.xml
+  - reactor-netty-http (provided) added -- the NettyServerCustomizer / HttpServer types ObservabilityConfig
+    compiles against; only the gateway supplies it at runtime
+
 07/10/2026 mir0n  v1.2.11 -- metrics foundation (O1): free JVM/HTTP/pool meters under the observability umbrella
 o11y.ObservabilityConfig
   - metrics folded onto the tracing umbrella (class was TracingConfig): the Prometheus meter registry is

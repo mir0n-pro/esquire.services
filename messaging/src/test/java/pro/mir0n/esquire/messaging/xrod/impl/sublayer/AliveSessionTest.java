@@ -19,8 +19,10 @@ import org.slf4j.Logger;
 import pro.mir0n.esquire.messaging.BusConstants;
 import pro.mir0n.esquire.messaging.RodEvent;
 import pro.mir0n.esquire.messaging.catalog.Role;
+import pro.mir0n.esquire.messaging.o11y.IRodMeters;
+import pro.mir0n.esquire.messaging.o11y.IRodObserver;
 import pro.mir0n.esquire.messaging.o11y.IRodTracer;
-import pro.mir0n.esquire.messaging.o11y.RodTracerHolder;
+import pro.mir0n.esquire.messaging.o11y.RodObserverHolder;
 import pro.mir0n.esquire.messaging.transport.BusIdentity;
 import pro.mir0n.esquire.messaging.transport.TransportHealth;
 import pro.mir0n.utils.concurrent.IQueueRig;
@@ -214,11 +216,11 @@ class AliveSessionTest {
 
     /** Run {@code body} with a stub tracer registered (its aliveTrace() is on); always restore the static holder. */
     private static void withAliveTrace(StubTracer tracer, Runnable body) {
-        RodTracerHolder.setTracer(tracer);
+        RodObserverHolder.setObserver(IRodObserver.of(tracer, IRodMeters.NOOP));
         try {
             body.run();
         } finally {
-            RodTracerHolder.setTracer(IRodTracer.NOOP);
+            RodObserverHolder.setObserver(null);
         }
     }
 

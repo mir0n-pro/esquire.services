@@ -1,5 +1,37 @@
 Esquire messaging framework classes
 
+07/11/2026 mir0n  v1.2.11 -- bus meters (O1/T5): the bus-hop meter hook, declared by the bus; trace + metrics unified into ONE bus observer
+o11y.IRodMeters  (new)
+  - the bus-hop METER hook, DECLARED by the messaging bus. The mirror of IRodTracer for metrics: the bus deals
+    only in String / primitives / IntSupplier through it and imports no Micrometer (or anything above itself);
+    the Micrometer-backed implementation is the host application's, handed in via RodObserverHolder as part of
+    the ONE bus observer. sent / sendDuration / received / error / retryBackoff / retryDropped report events;
+    registerFeedDepth / registerRetryHeld hand over an IntSupplier the host reads as a gauge. NOOP = zero cost
+o11y.IRodObserver  (new)
+  - the ONE bus-hop observer umbrella: joins IRodTracer + IRodMeters so a single host object covers both, is
+    held once in RodObserverHolder and is registered by one bean. of(IRodTracer, IRodMeters) combines two
+    separate hooks into one observer; NOOP. The interfaces stay separate -- only the object / holder /
+    registrar / umbrella switch are unified
+o11y.RodObserverHolder  (new -- was RodTracerHolder)
+  - generalised from RodTracerHolder to the ONE bus observer umbrella: holds a single volatile IRodObserver
+    (default NOOP); setObserver() registers it, observer() / tracer() / meters() return it as each view. One
+    object, two views -- so a trace seam and a metric seam read the SAME registered observer
+o11y.IRodTracer
+  - javadoc {@link} repointed RodTracerHolder -> RodObserverHolder
+xrod.impl.AXRod
+  - the tracer holder is repointed to o11y.RodObserverHolder. The bus METERS are emitted from the same seams
+    the tracer already owns: onSendSuccess -> sent(), onSendError -> error(..,"send"), the receive worker ->
+    received() / error(..,"receive"), and send() times the whole dispatch into sendDuration() in a finally.
+    runEngine registers the feed-depth gauge (registerFeedDepth(meterBusId(), meterSlotId(), feed::size)).
+    Session (heartbeat) events are excluded from every meter. meterBusId() / meterSlotId() added (the identity's
+    bus / slot, or the rod name when it has no identity)
+xrod.impl.sublayer.SendRetrySublayer
+  - retry meters over o11y.RodObserverHolder.meters(): start() registers the held-count gauge
+    (registerRetryHeld(.., this::heldCount)), a hold reports retryBackoff(busId, backoffMs) and drop() reports
+    retryDropped(busId, slotId); start() added as an ISessionSublayer override
+xrod.impl.sublayer.AliveSessionRR
+  - RodTracerHolder -> RodObserverHolder at the four alive round-trip trace call sites
+
 07/09/2026 mir0n  v1.2.11 -- distributed tracing (O2/T3): the bus-hop trace hook, declared by the bus; the RR liveness round-trip; the bus drops its Esquire dependency
 o11y.IRodTracer  (new)
   - the bus-hop trace hook, DECLARED by the messaging bus. The bus deals only in String + Runnable through it

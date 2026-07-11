@@ -18,9 +18,21 @@
  *                   collector badges each span with its replica. Carries the msg-bus-alive-trace opt-in
  *                   (aliveTrace()). Registered into RodTracerHolder by TracingConfig
  *                   only when tracing is enabled; off = the bus keeps NOOP.
+ * 07/11/2026 mir0n  v1.2.11 O1/T5 -- renamed from EsqRodTracer and widened to the ONE bus observer: it now
+ *                   implements o11y.IRodObserver (IRodTracer + IRodMeters), so the SAME object that traces the
+ *                   bus hop also meters it (a later exemplar can tag a metric sample with its trace id). The
+ *                   ctor takes the Micrometer MeterRegistry alongside the OTel Tracer. The meter side emits
+ *                   messaging.send.total / receive.total / error.total (counters, tagged bus-id / slot /
+ *                   msg-type; error also by leg), messaging.send.duration (timer), messaging.retry.backoff /
+ *                   retry.dropped, and registers the messaging.feed.depth / messaging.retry.held GAUGES.
+ *                   Both gauges are built .strongReference(true): the state object is the supplier lambda
+ *                   itself and nothing else holds it, so Micrometer's default WEAK reference lets it be GC'd
+ *                   and the gauge then reports NaN. ObservabilityConfig.esqRodObserverRegistrar registers it.
  */
 package pro.mir0n.esquire.backend.o11y;
 
+import io.micrometer.core.instrument.Gauge;
+import io.micrometer.core.instrument.MeterRegistry;
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.api.trace.SpanContext;
 import io.opentelemetry.api.trace.SpanKind;
@@ -31,35 +43,42 @@ import io.opentelemetry.context.Context;
 import io.opentelemetry.context.Scope;
 import io.opentelemetry.sdk.trace.IdGenerator;
 import pro.mir0n.esquire.common.EsqUtils;
-import pro.mir0n.esquire.messaging.o11y.IRodTracer;
+import pro.mir0n.esquire.messaging.o11y.IRodObserver;
+
+import java.util.concurrent.TimeUnit;
+import java.util.function.IntSupplier;
 
 /**
- * The OTel implementation of {@link IRodTracer}. The trace id is ALWAYS the correlationId (the W3C-shaped id the
- * gateway settled in T2 -- {@code traceId == correlationId}); the wire {@code traceparent} only carries the
- * producer's span id, so the consumer span nests under it. The two bus legs are built on the raw OTel
- * {@link Tracer} (not a Micrometer Observation) so their span KIND is set explicitly: a bus hop is an
- * asynchronous message, whose consumer starts AFTER the producer span ends -- modelling it as an OTel
- * PRODUCER/CONSUMER pair (vs. the default INTERNAL) tells a viewer to render it as an async messaging link,
- * not a synchronous parent that must temporally contain its child. The consumer span is made current while the
- * worker runs, so the worker's {@code @EsqTraced} / {@code EsqTraceMark} Observation marks nest under it in the
- * SAME trace (they read the OTel context this tracer writes).
+ * The host implementation of the ONE bus-hop observer -- both the OTel trace side ({@code IRodTracer}) and the
+ * Micrometer meter side ({@code IRodMeters}) in one object, so a single instance carries the {@link Tracer} AND the
+ * {@link MeterRegistry} and both bus seams read the same registered observer.
  * <p>
- * O1 METRICS CAVEAT (observe when metrics land): being on the raw OTel Tracer rather than the
- * ObservationRegistry, these bus spans do NOT pass through the esq.* observation gate -- so
- * {@code esquire.tracing.marks-enabled} does not silence them (they always emit when tracing is on) -- and
- * they emit NO {@code esq.bus.*} Micrometer metrics (the Observation path did). Revisit this trade-off (the
- * marks-enabled toggle + metrics for all raw spans, a common raw-span-vs-observation decision) at O1.
+ * Trace side: the trace id is ALWAYS the correlationId (the W3C-shaped id the gateway settled in T2 --
+ * {@code traceId == correlationId}); the wire {@code traceparent} only carries the producer's span id, so the
+ * consumer span nests under it. The two bus legs are built on the raw OTel {@link Tracer} (not a Micrometer
+ * Observation) so their span KIND is set explicitly: a bus hop is an asynchronous message, whose consumer starts
+ * AFTER the producer span ends -- modelling it as an OTel PRODUCER/CONSUMER pair (vs. the default INTERNAL) tells a
+ * viewer to render it as an async messaging link. The consumer span is made current while the worker runs, so the
+ * worker's {@code @EsqTraced} / {@code EsqTraceMark} marks nest under it in the SAME trace.
+ * <p>
+ * Meter side: explicit {@code messaging.*} meters emitted at the x-rod send / receive / error seams + the
+ * send-retry sublayer -- counters (send / receive / error / retry.dropped), a send-duration timer, a retry-backoff
+ * summary, and two gauges (feed depth, retry hold). These are SEPARATE from the raw trace spans (the raw spans
+ * still produce no Observation metrics); tags are bounded (bus-id / slot / msgType / leg) -- no correlationId /
+ * entity id.
  */
-public final class EsqRodTracer implements IRodTracer {
+public final class EsqRodObserver implements IRodObserver {
 
     private final Tracer tracer;
+    private final MeterRegistry registry;
 
     // The host's opt-in for the RR liveness round-trip trace (esquire.tracing.msg-bus-alive-trace). Held here,
-    // not in the bus's holder: it is this tracer's own setting, and the bus reads it through the hook.
+    // not in the bus's holder: it is this observer's own setting, and the bus reads it through the hook.
     private final boolean aliveTrace;
 
-    public EsqRodTracer(Tracer otelTracer, boolean msgBusAliveTrace) {
+    public EsqRodObserver(Tracer otelTracer, MeterRegistry meterRegistry, boolean msgBusAliveTrace) {
         this.tracer = otelTracer;
+        this.registry = meterRegistry;
         this.aliveTrace = msgBusAliveTrace;
     }
 
@@ -197,5 +216,60 @@ public final class EsqRodTracer implements IRodTracer {
                 recv.end();
             }
         }
+    }
+
+    // ------------------------------------------------------------------ meter side (IRodMeters)
+
+    // Micrometer tag values cannot be null; the engine may pass null slot/msgType on an unidentified leg.
+    private static String nz(String s) {
+        return s != null ? s : "";
+    }
+
+    @Override
+    public void sent(String busId, String slotId, String msgType) {
+        registry.counter("messaging.send.total", "bus-id", nz(busId), "slot", nz(slotId), "msgType", nz(msgType))
+                .increment();
+    }
+
+    @Override
+    public void sendDuration(String busId, String slotId, String msgType, long nanos) {
+        registry.timer("messaging.send.duration", "bus-id", nz(busId), "slot", nz(slotId), "msgType", nz(msgType))
+                .record(nanos, TimeUnit.NANOSECONDS);
+    }
+
+    @Override
+    public void received(String busId, String slotId, String msgType) {
+        registry.counter("messaging.receive.total", "bus-id", nz(busId), "slot", nz(slotId), "msgType", nz(msgType))
+                .increment();
+    }
+
+    @Override
+    public void error(String busId, String slotId, String msgType, String leg) {
+        registry.counter("messaging.error.total", "bus-id", nz(busId), "slot", nz(slotId), "msgType", nz(msgType),
+                "leg", nz(leg)).increment();
+    }
+
+    @Override
+    public void retryBackoff(String busId, long backoffMs) {
+        registry.summary("messaging.retry.backoff", "bus-id", nz(busId)).record(backoffMs);
+    }
+
+    @Override
+    public void retryDropped(String busId, String msgType) {
+        registry.counter("messaging.retry.dropped", "bus-id", nz(busId), "msgType", nz(msgType)).increment();
+    }
+
+    @Override
+    public void registerFeedDepth(String busId, String slotId, IntSupplier depth) {
+        // strongReference: the state object is the supplier lambda (feed::size), not stored anywhere else, so
+        // Micrometer's default WEAK reference lets it be GC'd -> the gauge reports NaN. Hold it strongly.
+        Gauge.builder("messaging.feed.depth", depth, IntSupplier::getAsInt).strongReference(true)
+                .tag("bus-id", nz(busId)).tag("slot", nz(slotId)).register(registry);
+    }
+
+    @Override
+    public void registerRetryHeld(String busId, String slotId, IntSupplier held) {
+        Gauge.builder("messaging.retry.held", held, IntSupplier::getAsInt).strongReference(true)
+                .tag("bus-id", nz(busId)).tag("slot", nz(slotId)).register(registry);
     }
 }

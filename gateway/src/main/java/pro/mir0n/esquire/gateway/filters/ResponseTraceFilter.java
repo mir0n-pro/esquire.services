@@ -18,13 +18,23 @@
  *                   Spring Security); this filter just consumes that attribute to compute
  *                   X-Response-Time. Service-tier headers renamed: Esq-Srv-Outer-Time and
  *                   Esq-Srv-Inner-Time (was Esq-Service-Time / Esq-Backend-Time).
+ * 07/11/2026 mir0n  v1.2.11 O1/T5-B -- the OUTER window is now also recorded as the esq.gw.outer Micrometer timer
+ *                   (the edge band of the 4-layer latency breakdown), tagged by the matched gateway route id
+ *                   (ServerWebExchangeUtils.GATEWAY_ROUTE_ATTR, so the tag stays bounded). Explicit ctor taking
+ *                   ObjectProvider<MeterRegistry>: absent when observability is off, and the timer is then not
+ *                   recorded. Recording is INDEPENDENT of the X-Capture-Metrics header instrument -- the header
+ *                   is still written only when the caller asks, the timer always
  */
 package pro.mir0n.esquire.gateway.filters;
 
+import io.micrometer.core.instrument.MeterRegistry;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
+import org.springframework.cloud.gateway.route.Route;
+import org.springframework.cloud.gateway.support.ServerWebExchangeUtils;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Component;
@@ -32,12 +42,27 @@ import org.springframework.web.server.ServerWebExchange;
 import pro.mir0n.esquire.common.EsqConstants;
 import reactor.core.publisher.Mono;
 
+import java.util.concurrent.TimeUnit;
+
 @Slf4j
 @Order(0)
 @Component
 public class ResponseTraceFilter implements GlobalFilter {
 
     private static final org.slf4j.Logger devLog = LoggerFactory.getLogger("develop." + ResponseTraceFilter.class.getName());
+
+    // Non-null only when observability is on (the MeterRegistry bean exists). Resolved once at construction.
+    private final MeterRegistry registry;
+
+    public ResponseTraceFilter(ObjectProvider<MeterRegistry> registryProvider) {
+        this.registry = registryProvider.getIfAvailable();
+    }
+
+    // The matched route id -- a bounded tag (never the raw URI, which carries entity ids).
+    private static String routeId(ServerWebExchange exchange) {
+        Route route = exchange.getAttribute(ServerWebExchangeUtils.GATEWAY_ROUTE_ATTR);
+        return route != null ? route.getId() : "unknown";
+    }
 
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
@@ -56,6 +81,12 @@ public class ResponseTraceFilter implements GlobalFilter {
             Long startTime = exchange.getAttribute(EsqConstants.ESQ_START_TIME);
             if (startTime != null) {
                 duration = System.currentTimeMillis() - startTime;
+            }
+
+            // Steady-state latency-band meter (O1/T5-B): the gateway-outer total, recorded whenever observability
+            // is on, tagged by route -- independent of the X-Capture-Metrics header instrument below.
+            if (registry != null && duration != null) {
+                registry.timer("esq.gw.outer", "route", routeId(exchange)).record(duration, TimeUnit.MILLISECONDS);
             }
 
             if (duration != null

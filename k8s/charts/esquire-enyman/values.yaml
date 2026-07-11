@@ -106,6 +106,10 @@ logging:
 observability:
   # ONE master switch: tracing + metrics together (v1.2.11 O1/O2). Off by default.
   enabled: "false"
+  # Percentile buckets for the extra latency timers (O1/T5-B). Off = count/sum/max only.
+  metricsHistograms: "false"
+  # HTTP byte counters (O1/T5-C). Cheap, so ON by default. One knob for BOTH embedded servers.
+  metricsBandwidth: "true"
 tracing:
   otlpEndpoint: http://esquire-infra-otel-collector:4318/v1/traces
   samplingRatio: "1.0"

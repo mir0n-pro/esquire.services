@@ -32,6 +32,21 @@
  *                   application=<spring.application.name> on every meter) and esqHttpLatencyHistogram()
  *                   (MeterFilter: percentile-histogram on http.server.requests so p95 has _bucket series). Gate
  *                   widened to esquire.observability.enabled -- ONE switch for tracing AND metrics.
+ * 07/11/2026 mir0n  v1.2.11 O1/T5 -- ONE config namespace: every key moves under esquire.observability.* (the
+ *                   five tracing @Values now read esquire.observability.tracing.*; no sibling esquire.tracing.*
+ *                   root is left). SUB-SWITCHES under the master, each defaulted so the master alone is enough:
+ *                   esqHttpLatencyHistogram() becomes esqLatencyHistograms(), widened to the esq.* latency timers
+ *                   as well as http.server.requests and now gated by esquire.observability.metrics
+ *                   .histograms-enabled (OPT-IN, default false: the buckets are ~+73% series; off still leaves
+ *                   count/sum/max); the nested TomcatByteMetrics and NettyByteMetrics (@ConditionalOnClass, so a
+ *                   servlet service takes the first and the reactive gateway the second) are gated by
+ *                   esquire.observability.metrics.bandwidth-enabled (default TRUE, cheap): TomcatByteMetrics
+ *                   contributes a LOWEST_PRECEDENCE WebServerFactoryCustomizer re-enabling the Tomcat MBean
+ *                   registry Boot disables (without it tomcat.global.sent/received never exist), NettyByteMetrics
+ *                   a NettyServerCustomizer turning on reactor-netty server metrics with a coarseUri mapper (first
+ *                   path segment only -- the raw uri carries entity ids = unbounded cardinality).
+ *                   esqRodTraceRegistrar() becomes esqRodObserverRegistrar(): it takes the MeterRegistry too and
+ *                   registers ONE EsqRodObserver (trace + meters) into the messaging o11y.RodObserverHolder.
  */
 
 package pro.mir0n.esquire.backend.o11y;
@@ -55,7 +70,7 @@ import org.springframework.http.server.reactive.ServerHttpRequest;
 
 import java.util.ArrayList;
 import java.util.List;
-import pro.mir0n.esquire.messaging.o11y.RodTracerHolder;
+import pro.mir0n.esquire.messaging.o11y.RodObserverHolder;
 
 // Observability, wired the Esquire way -- ONE umbrella over the two emit pillars, tracing and metrics, so a
 // service never has one without the other. Everything is EXPLICIT @Beans (no reliance on management.otlp.* /
@@ -65,33 +80,58 @@ import pro.mir0n.esquire.messaging.o11y.RodTracerHolder;
 // cross-link to the ECS log lines. Metrics: an explicit Prometheus meter registry the free JVM / HTTP / pool
 // binders attach to, tagged with the same replica identity as a span. The whole config is gated by the single
 // master switch esquire.observability.enabled (off by default = zero cost).
+//
+// SWITCHES -- one master, then Esquire-vocabulary SUB-switches under it (the msg-bus-alive-trace pattern). A
+// sub-switch never names a vendor lever: it says WHAT is wanted, and this config knows HOW to get it on whatever
+// embedded server the service happens to run. Nothing outside this file touches Tomcat MBeans or Netty metrics.
+//
+// EVERYTHING lives UNDER esquire.observability -- the two pillars are peers beneath the one master, and there is
+// no esquire.tracing.* namespace sitting outside the umbrella (it existed while tracing was the only pillar; it
+// was folded in when metrics arrived, so the tree cannot drift into "the master is here, its knobs are over there").
+//
+//   esquire.observability.enabled                        MASTER   off  -- gates tracing AND metrics, all of it
+//     esquire.observability.tracing.otlp-endpoint        sub           -- collector endpoint
+//     esquire.observability.tracing.sampling-ratio       sub      1.0  -- head sampling
+//     esquire.observability.tracing.marks-enabled        sub      ON   -- keep/silence our own esq.* marks
+//     esquire.observability.tracing.excluded-paths       sub           -- never open a span for these (/actuator)
+//     esquire.observability.tracing.msg-bus-alive-trace  sub      off  -- trace the RR liveness round-trip
+//     esquire.observability.metrics.histograms-enabled   sub      off  -- percentile buckets on the extra latency
+//                                                                          timers. THE EXPENSIVE ONE: buckets are
+//                                                                          ~+73% series (measured), so it is opt-in;
+//                                                                          off still leaves count/sum/max (avg).
+//     esquire.observability.metrics.bandwidth-enabled    sub      ON   -- HTTP byte counters. Cheap, so on by
+//                                                                          default. ONE knob covering BOTH embedded
+//                                                                          servers: it turns on Tomcat's MBean
+//                                                                          registry (servlet services) and Reactor
+//                                                                          Netty's server metrics (the gateway) --
+//                                                                          the caller never needs to know which.
 @Configuration
 @ConditionalOnProperty(name = "esquire.observability.enabled", havingValue = "true")
 public class ObservabilityConfig {
 
     // OTLP/HTTP traces endpoint of the collector (e.g. http://otel-collector:4318/v1/traces).
-    @Value("${esquire.tracing.otlp-endpoint:http://localhost:4318/v1/traces}")
+    @Value("${esquire.observability.tracing.otlp-endpoint:http://localhost:4318/v1/traces}")
     private String otlpEndpoint;
 
     // Head sampling ratio [0.0 .. 1.0]; parent-based, so a sampled upstream keeps the whole trace.
-    @Value("${esquire.tracing.sampling-ratio:1.0}")
+    @Value("${esquire.observability.tracing.sampling-ratio:1.0}")
     private double samplingRatio;
 
     // Fine gate (below the master switch): keep/silence our own esq.* trace marks. Default on.
-    @Value("${esquire.tracing.marks-enabled:true}")
+    @Value("${esquire.observability.tracing.marks-enabled:true}")
     private boolean marksEnabled;
 
     // Request paths that are NOT Esquire work and must never open a span: the actuator surface, hit by
     // the kubelet/docker health probes several times a minute per instance. Comma-separated prefixes.
     // Filtering here means the span is never CREATED (vs. created, exported, then dropped downstream).
-    @Value("${esquire.tracing.excluded-paths:/actuator}")
+    @Value("${esquire.observability.tracing.excluded-paths:/actuator}")
     private String excludedPaths;
 
     // Opt-in: trace the RR liveness round-trip (a CLIENT TestRequest and the SERVER HeartBeat reply), so an RR
     // bus's health is observable end-to-end. Off by default -- heartbeats fire every interval, so this is a
     // deliberate choice (pair with sampling if turned on broadly). Only meaningful on RR buses running the
     // alive session; one-way buses ignore it. Handed to the messaging layer on the tracer itself.
-    @Value("${esquire.tracing.msg-bus-alive-trace:false}")
+    @Value("${esquire.observability.tracing.msg-bus-alive-trace:false}")
     private boolean msgBusAliveTrace;
 
     // --- Metrics (O1): common tags, same umbrella as tracing ---
@@ -110,19 +150,29 @@ public class ObservabilityConfig {
         return MeterFilter.commonTags(java.util.List.of(Tag.of("application", appName)));
     }
 
-    // Publish latency-histogram buckets for http.server.requests. By default the Boot timer emits only _count /
-    // _sum, so a Prometheus histogram_quantile (the dashboard's p95 latency panel) has no _bucket series to read
-    // and comes back empty. This filter turns on the percentile-histogram for that ONE meter -> the le buckets
-    // are exported and p95/p99 become queryable. Scoped to http.server.requests to keep bucket cardinality down.
+    // Publish latency-histogram buckets so a Prometheus histogram_quantile (p95/p99) has _bucket series to read --
+    // by default a Boot timer emits only _count / _sum, and the quantile comes back empty (O1/T5 part B). Two tiers:
+    //   - http.server.requests: ALWAYS on -- the REST p95 dashboard panel depends on it (T4), and its cardinality
+    //     is bounded (uri / method / status).
+    //   - the extra latency timers (the Hikari borrow/acquire timers, the bus send-duration, and the four request
+    //     timing bands esq.gw.*/esq.srv.*): buckets are added ONLY when esquire.observability.metrics.histograms-
+    //     enabled=true, because each is tagged (bus-id / slot / msgType, or the band label) and the le buckets
+    //     multiply that cardinality. Off by default = the timers still emit count/sum/max (avg is queryable); on =
+    //     full percentiles.
     @Bean
-    public MeterFilter esqHttpLatencyHistogram() {
+    public MeterFilter esqLatencyHistograms(
+            @Value("${esquire.observability.metrics.histograms-enabled:false}") boolean histogramsEnabled) {
+        java.util.Set<String> gated = java.util.Set.of(
+                "hikaricp.connections.usage", "hikaricp.connections.acquire", "messaging.send.duration",
+                "esq.gw.outer", "esq.gw.inner", "esq.srv.outer", "esq.srv.inner");
         return new MeterFilter() {
             @Override
             public io.micrometer.core.instrument.distribution.DistributionStatisticConfig configure(
                     io.micrometer.core.instrument.Meter.Id id,
                     io.micrometer.core.instrument.distribution.DistributionStatisticConfig config) {
                 io.micrometer.core.instrument.distribution.DistributionStatisticConfig ret = config;
-                if ("http.server.requests".equals(id.getName())) {
+                String n = id.getName();
+                if ("http.server.requests".equals(n) || (histogramsEnabled && gated.contains(n))) {
                     ret = io.micrometer.core.instrument.distribution.DistributionStatisticConfig.builder()
                             .percentilesHistogram(true)
                             .build()
@@ -256,16 +306,18 @@ public class ObservabilityConfig {
         return () -> EsqTraceMark.setRegistry(observationRegistry);
     }
 
-    // Hand the OTel-backed bus-hop tracer to the messaging engine (O2/T3) so a trace continues across the
-    // messaging bus: the producer stamps a traceparent (trace id = correlationId), the consumer runs its worker
-    // inside a span nested under it. Built on the raw OTel Tracer (not the ObservationRegistry) so the two bus
-    // legs get explicit span kinds -- PRODUCER on send, CONSUMER on receive -- which a viewer renders as an async
-    // messaging pair. Registered ONLY here (observability enabled) -- when off, the engine keeps IRodTracer.NOOP
-    // and the bus pays nothing. The msg-bus-alive-trace opt-in rides on the tracer (IRodTracer.aliveTrace()).
+    // Hand the ONE bus-hop observer to the messaging engine so trace AND metrics continue across the bus (O2/T3
+    // trace + O1/T5 meters, under one umbrella). Trace: the producer stamps a traceparent (trace id =
+    // correlationId), the consumer runs its worker inside a span nested under it; built on the raw OTel Tracer
+    // (not the ObservationRegistry) so the two legs get explicit span kinds (PRODUCER / CONSUMER). Meters: the
+    // same object carries the MeterRegistry and emits the messaging.* meters at the send / receive / retry seams.
+    // Registered ONLY here (observability enabled) -- when off, the engine keeps IRodObserver.NOOP and the bus
+    // pays nothing. The msg-bus-alive-trace opt-in rides on the observer (IRodTracer.aliveTrace()).
     @Bean
-    public org.springframework.beans.factory.InitializingBean esqRodTraceRegistrar(io.opentelemetry.api.OpenTelemetry openTelemetry) {
-        return () -> RodTracerHolder.setTracer(
-                new EsqRodTracer(openTelemetry.getTracer("pro.mir0n.esquire.o11y.bus"), msgBusAliveTrace));
+    public org.springframework.beans.factory.InitializingBean esqRodObserverRegistrar(
+            io.opentelemetry.api.OpenTelemetry openTelemetry, io.micrometer.core.instrument.MeterRegistry meterRegistry) {
+        return () -> RodObserverHolder.setObserver(
+                new EsqRodObserver(openTelemetry.getTracer("pro.mir0n.esquire.o11y.bus"), meterRegistry, msgBusAliveTrace));
     }
 
     // Hand the registry to the async-boundary primitive (O2/T3), so work handed to a queue worker (the enyMan
@@ -292,6 +344,65 @@ public class ObservabilityConfig {
         @Bean
         public org.springframework.security.config.observation.SecurityObservationSettings esqSecurityObservations() {
             return org.springframework.security.config.observation.SecurityObservationSettings.noObservations();
+        }
+    }
+
+    // Bandwidth (O1/T5-C): the tomcat.global.* byte counters (sent / received) are read by Micrometer's Tomcat
+    // binder off the GlobalRequestProcessor MBean -- but Boot DISABLES Tomcat's MBean registry by default
+    // (TomcatServletWebServerFactory.setDisableMBeanRegistry(true)), so the binder finds nothing and only the
+    // tomcat.sessions.* meters ever appear. Re-enable the registry HERE, from the observability config itself:
+    // this class exists only when the umbrella is on, so the registry -- and its cost -- turns on and off WITH
+    // observability, and no service has to repeat the setting in its own application.yml (D6: the machinery lives
+    // in common; per-service stays thin).
+    // Ordered LAST so it runs AFTER Boot's TomcatWebServerFactoryCustomizer, which would otherwise disable it.
+    // Nested + @ConditionalOnClass (string form) for the same reason as above: the reactive gateway has no servlet
+    // Tomcat, and a nested class is condition-checked before its methods -- and their return types -- are read.
+    @Configuration(proxyBeanMethods = false)
+    @ConditionalOnClass(name = "org.springframework.boot.web.embedded.tomcat.TomcatServletWebServerFactory")
+    @ConditionalOnProperty(name = "esquire.observability.metrics.bandwidth-enabled",
+                           havingValue = "true", matchIfMissing = true)
+    static class TomcatByteMetrics {
+
+        @Bean
+        @org.springframework.core.annotation.Order(org.springframework.core.Ordered.LOWEST_PRECEDENCE)
+        public org.springframework.boot.web.server.WebServerFactoryCustomizer<
+                org.springframework.boot.web.embedded.tomcat.TomcatServletWebServerFactory> esqTomcatMBeanRegistry() {
+            return factory -> factory.setDisableMBeanRegistry(false);
+        }
+    }
+
+    // Bandwidth at the EDGE (O1/T5-C): the gateway runs on Netty (Spring Cloud Gateway), which has no Tomcat MBean,
+    // so the Tomcat byte counters above cannot see the client-facing traffic -- the very traffic that matters most.
+    // Reactor Netty keeps its own server metrics; switching them on publishes reactor.netty.http.server.data.sent /
+    // .received (bytes) into Micrometer's GLOBAL registry, which Boot binds to this service's registry, so they are
+    // scraped with everything else. Same umbrella gating as the rest of this class: on only when observability is.
+    // Nested + @ConditionalOnClass on the reactor-netty class (string form): the servlet services have no Netty
+    // server, and the nested class is condition-checked before its methods -- and their return types -- are read.
+    @Configuration(proxyBeanMethods = false)
+    @ConditionalOnClass(name = "reactor.netty.http.server.HttpServer")
+    @ConditionalOnProperty(name = "esquire.observability.metrics.bandwidth-enabled",
+                           havingValue = "true", matchIfMissing = true)
+    static class NettyByteMetrics {
+
+        @Bean
+        public org.springframework.boot.web.embedded.netty.NettyServerCustomizer esqNettyByteMetrics() {
+            return httpServer -> httpServer.metrics(true, NettyByteMetrics::coarseUri);
+        }
+
+        // Reactor Netty tags every sample with the RAW uri, which carries entity ids -- unbounded cardinality.
+        // Collapse it to the first path segment (/api/esq?id=14 -> /api), so the byte series stay a handful while
+        // still separating /api from /auth traffic.
+        private static String coarseUri(String uri) {
+            String ret = "/root";
+            if (uri != null && uri.length() > 1) {
+                int cut = uri.indexOf('/', 1);
+                ret = (cut > 0) ? uri.substring(0, cut) : uri;
+                int query = ret.indexOf('?');
+                if (query > 0) {
+                    ret = ret.substring(0, query);
+                }
+            }
+            return ret;
         }
     }
 

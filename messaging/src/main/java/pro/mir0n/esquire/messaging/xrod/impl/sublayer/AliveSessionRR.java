@@ -19,7 +19,7 @@
 package pro.mir0n.esquire.messaging.xrod.impl.sublayer;
 
 import org.slf4j.Logger;
-import pro.mir0n.esquire.messaging.o11y.RodTracerHolder;
+import pro.mir0n.esquire.messaging.o11y.RodObserverHolder;
 import pro.mir0n.esquire.messaging.BusConstants;
 import pro.mir0n.esquire.messaging.RodEvent;
 import pro.mir0n.esquire.messaging.catalog.Role;
@@ -67,13 +67,13 @@ public final class AliveSessionRR extends AliveSession {
     protected RodEvent keepAliveEvent() {
         RodEvent ret;
         if (rrRole == Role.CLIENT) {
-            String traceId = RodTracerHolder.tracer().aliveTrace() ? RodTracerHolder.tracer().newTraceId() : null;
+            String traceId = RodObserverHolder.tracer().aliveTrace() ? RodObserverHolder.tracer().newTraceId() : null;
             if (traceId != null) {
                 // Traced liveness probe (msg-bus-alive-trace): the correlation id IS the trace id the tracer
                 // minted, and a ROOT PRODUCER span is opened for the TestRequest send here (off the cadence, no
                 // current span) -- its traceparent rides the wire so the SERVER's HeartBeat reply nests under it:
                 // one round-trip trace. The bus never mints a trace id itself; the tracer owns that shape.
-                String traceparent = RodTracerHolder.tracer().aliveOutbound(
+                String traceparent = RodObserverHolder.tracer().aliveOutbound(
                         traceId, identity.busId(), "TestRequest", identity.rodId(), true);
                 ret = RodEvent.testRequest(traceId, identity.rodId()).withTraceparent(traceparent);
             } else {
@@ -92,11 +92,11 @@ public final class AliveSessionRR extends AliveSession {
     public void onReceiveSessn(RodEvent ev) {
         if (rrRole == Role.SERVER && BusConstants.MSG_TYPE_TEST_REQUEST.equals(ev.msgType())) {
             RodEvent hb = RodEvent.heartbeat(ev.correlationId(), ev.requestId(), ev.rodId());
-            if (RodTracerHolder.tracer().aliveTrace() && ev.traceparent() != null) {
+            if (RodObserverHolder.tracer().aliveTrace() && ev.traceparent() != null) {
                 // This runs INSIDE the receive CONSUMER span (AXRod wraps onReceiveSessn), so opening the HeartBeat
                 // send as a nested PRODUCER span (asRoot=false) parents it under the receive; its traceparent rides
                 // back on the reply so the CLIENT's receive closes the round-trip.
-                String traceparent = RodTracerHolder.tracer().aliveOutbound(
+                String traceparent = RodObserverHolder.tracer().aliveOutbound(
                         ev.correlationId(), identity.busId(), "HeartBeat", identity.rodId(), false);
                 hb = hb.withTraceparent(traceparent);
             }

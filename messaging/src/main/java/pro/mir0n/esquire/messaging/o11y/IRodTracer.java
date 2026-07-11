@@ -23,7 +23,7 @@ package pro.mir0n.esquire.messaging.o11y;
  * The bus-hop trace hook -- the generic seam the x-rod engine calls so a trace crosses the messaging bus without
  * the {@code messaging} module ever depending on OpenTelemetry -- or on anything above it. The hook is DECLARED
  * beside its only caller, the x-rod engine; a concrete implementation is supplied by the host application's
- * observability layer and registered through {@link RodTracerHolder}. Off by default ({@link #NOOP}) -- the engine
+ * observability layer and registered through {@link RodObserverHolder}. Off by default ({@link #NOOP}) -- the engine
  * pays nothing when tracing is disabled.
  */
 public interface IRodTracer {

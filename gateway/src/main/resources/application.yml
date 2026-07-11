@@ -64,13 +64,20 @@ esquire:
   # collector endpoint + sampling ratio are set per environment (compose / k8s).
   observability:
     enabled: ${ESQ_OBSERVABILITY_ENABLED:false}
-  tracing:
-    otlp-endpoint: ${ESQ_OTLP_ENDPOINT:http://localhost:4318/v1/traces}
-    sampling-ratio: ${ESQ_TRACING_SAMPLING_RATIO:1.0}
-    marks-enabled: ${ESQ_TRACING_MARKS_ENABLED:true}
-    excluded-paths: ${ESQ_TRACING_EXCLUDED_PATHS:/actuator}
-    # opt-in RR liveness round-trip trace (TestRequest -> HeartBeat); off by default (heartbeats are frequent)
-    msg-bus-alive-trace: ${ESQ_MSG_BUS_ALIVE_TRACE:false}
+    tracing:
+      otlp-endpoint: ${ESQ_OTLP_ENDPOINT:http://localhost:4318/v1/traces}
+      sampling-ratio: ${ESQ_TRACING_SAMPLING_RATIO:1.0}
+      marks-enabled: ${ESQ_TRACING_MARKS_ENABLED:true}
+      excluded-paths: ${ESQ_TRACING_EXCLUDED_PATHS:/actuator}
+      # opt-in RR liveness round-trip trace (TestRequest -> HeartBeat); off by default (heartbeats are frequent)
+      msg-bus-alive-trace: ${ESQ_MSG_BUS_ALIVE_TRACE:false}
+    metrics:
+      # percentile buckets on the extra latency timers (O1/T5-B). THE EXPENSIVE ONE (~+73% series), so opt-in;
+      # off still leaves count/sum/max, so the avg panels stay populated.
+      histograms-enabled: ${ESQ_METRICS_HISTOGRAMS:false}
+      # HTTP byte counters (O1/T5-C). Cheap, so ON by default. ONE knob for BOTH embedded servers: Esquire
+      # turns on Tomcat's MBean registry (servlet services) or Reactor Netty's metrics (the gateway) as needed.
+      bandwidth-enabled: ${ESQ_METRICS_BANDWIDTH:true}
   gateway:
     service-metrics:
       enabled: ${GW_SERVICE_METRICS_ENABLED:false} # Control whether to collect metrics for the gateway on backend services

@@ -13,6 +13,14 @@
  * 04/20/2026 mir0n  String.valueOf() applied to getTotalJpaTime() in log statement
  * 05/14/2026 mir0n  metrics header names migrated to Esq-Srv-Outer-Time / Esq-Srv-Inner-Time
  *                   (observability four-layer protocol; was Esq-Service-Time / Esq-Backend-Time)
+ * 07/11/2026 mir0n  v1.2.11 O1/T5-B -- the same two numbers behind the timing headers are now also recorded as
+ *                   Micrometer timers, so the service-side latency bands exist without a client asking for the
+ *                   headers: esq.srv.outer (the whole servlet wall time) and esq.srv.inner (the JPA/DB time the
+ *                   PerformanceAspect accumulated for this request = the DB band), tagged by the matched route
+ *                   pattern (HandlerMapping.BEST_MATCHING_PATTERN_ATTRIBUTE, so the tag stays bounded). Explicit
+ *                   ctor (RequestPerformance, ObjectProvider<MeterRegistry>): the registry is absent when
+ *                   observability is off, and the timers are then simply not recorded. The X-Capture-Metrics
+ *                   response headers are untouched -- the timers are a second, independent consumer of the numbers
  */
 
 package pro.mir0n.esquire.backend.service;
@@ -21,19 +29,22 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import lombok.RequiredArgsConstructor;
+import io.micrometer.core.instrument.MeterRegistry;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
+import org.springframework.web.servlet.HandlerMapping;
 import org.springframework.web.util.ContentCachingResponseWrapper;
 import pro.mir0n.esquire.common.EsqConstants;
 
 import java.io.IOException;
 import java.util.Enumeration;
 import java.util.Collection;
+import java.util.concurrent.TimeUnit;
 
 /*
     If your Esquire service ever starts using @Async methods or CompletableFuture,
@@ -47,12 +58,25 @@ import java.util.Collection;
 @Slf4j
 @Component
 @Order(1) // Ensure this runs early in the filter chain
-@RequiredArgsConstructor
 public class MdcFilter extends OncePerRequestFilter {
 
     private static final org.slf4j.Logger devLog = LoggerFactory.getLogger("develop." + MdcFilter.class.getName());
 
-    private final RequestPerformance performance; //lets lombok work
+    private final RequestPerformance performance;
+    // Non-null only when observability is on (the MeterRegistry bean exists). Resolved once at construction.
+    private final MeterRegistry registry;
+
+    public MdcFilter(RequestPerformance performance, ObjectProvider<MeterRegistry> registryProvider) {
+        this.performance = performance;
+        this.registry = registryProvider.getIfAvailable();
+    }
+
+    // The matched handler pattern (e.g. /api/{...}) -- a bounded tag; populated only after doFilter, so read in the
+    // finally block, never at entry.
+    private static String routeTag(HttpServletRequest req) {
+        Object pattern = req.getAttribute(HandlerMapping.BEST_MATCHING_PATTERN_ATTRIBUTE);
+        return pattern != null ? pattern.toString() : "unknown";
+    }
 
     @Override
     protected void doFilterInternal(HttpServletRequest givenRequest, HttpServletResponse givenResponse, FilterChain filterChain)
@@ -99,6 +123,16 @@ public class MdcFilter extends OncePerRequestFilter {
             filterChain.doFilter(givenRequest, response);
         } finally {
             long duration = System.currentTimeMillis() - startTime;
+            // Steady-state latency-band meters (O1/T5-B): the service-outer wall time and the service-inner (JPA/DB)
+            // time, both recorded whenever observability is on -- PerformanceAspect accumulates the JPA time under
+            // the same condition, so the DB band is real here, not a capture-only number. Tagged by the matched
+            // route pattern (bounded), and separate from the response-header instrument below, which stays gated on
+            // the X-Capture-Metrics load-test trigger exactly as before.
+            if (registry != null) {
+                String route = routeTag(givenRequest);
+                registry.timer("esq.srv.outer", "route", route).record(duration, TimeUnit.MILLISECONDS);
+                registry.timer("esq.srv.inner", "route", route).record(performance.getTotalJpaTime(), TimeUnit.MILLISECONDS);
+            }
             if (performance.isMetricsCaptured()
             && wrappedResponse != null) {
                 try {

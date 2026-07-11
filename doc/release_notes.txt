@@ -1,6 +1,34 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v1.2.11-2607.1111  v1.2.11 -- observability: the messaging bus, the time breakdown and the traffic volume are measured
+    :Feature:     the messaging bus now reports its own measurements -- messages sent and received, how long a
+                  send takes, send errors, how deep the outgoing queue is, and how many messages are held or
+                  dropped by the send retry
+    :Feature:     the time a request takes is now broken down into the four stretches that make it up -- the
+                  entry point, the gateway's own work, the service's own work, and the database -- per route, so
+                  a slow stretch is visible instead of a single total
+    :Feature:     the traffic volume in and out of each service, and at the entry point, is measured
+    :Feature:     the dashboard gains rows for the messaging bus, the time breakdown and the traffic volume
+    :Config:      all observability settings now sit under one name, esquire.observability -- the request-timeline
+                  settings moved under it, and the new measurement settings joined them there
+    :Config:      two settings under the one observability switch: the fine-grained timing detail is off by
+                  default (it is what costs), the traffic-volume counters are on
+    :Refactoring: the bus hook that carries request timelines across the bus now carries measurements as well --
+                  one bus observer instead of two: RodTracerHolder and EsqRodTracer are renamed RodObserverHolder
+                  and EsqRodObserver
+    Components:   common,
+                  messaging,
+                  gateway,
+                  bizTree,
+                  enyMan,
+                  pacMan,
+                  keySmith,
+                  kcMaster,
+                  auKeep,
+                  compose,
+                  k8s
+
 v1.2.11-2607.1019  v1.2.11 -- observability: live measurements for every service on one dashboard
     :Feature:     every service now publishes its own live measurements -- how many requests it handles and how
                   long they take, its memory and thread use, and how busy its database connections are -- gathered

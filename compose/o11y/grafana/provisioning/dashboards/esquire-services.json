@@ -1,6 +1,6 @@
 {
  "uid": "esq-services",
- "title": "Esquire Services -- REST / JVM / Pool / CPU / BFF / DB / KC",
+ "title": "Esquire Services -- REST / JVM / Pool / CPU / BFF / DB / KC / Bus / Latency",
  "tags": [
   "esquire",
   "o11y"
@@ -598,7 +598,7 @@
   },
   {
    "type": "timeseries",
-   "title": "BFF request rate by route",
+   "title": "BFF request rate by replica",
    "datasource": {
     "type": "prometheus",
     "uid": "esq-prometheus"
@@ -627,10 +627,11 @@
       "type": "prometheus",
       "uid": "esq-prometheus"
      },
-     "expr": "sum by (route) (rate(bff_http_request_duration_seconds_count[1m]))",
-     "legendFormat": "{{route}}"
+     "expr": "sum by (instance) (rate(bff_http_request_duration_seconds_count[1m]))",
+     "legendFormat": "{{instance}}"
     }
-   ]
+   ],
+   "description": "Per-replica request rate -- shows how the load balances across the x2 BFF pods. On docker there is a single instance."
   },
   {
    "type": "timeseries",
@@ -666,11 +667,12 @@
      "expr": "histogram_quantile(0.95, sum by (le, route) (rate(bff_http_request_duration_seconds_bucket[5m])))",
      "legendFormat": "{{route}}"
     }
-   ]
+   ],
+   "description": "Latency per route, aggregated ACROSS replicas (the question here is which route is slow, not which pod). Use the request-rate panel for the per-replica split."
   },
   {
    "type": "timeseries",
-   "title": "BFF memory (resident + heap used)",
+   "title": "BFF memory by replica (resident + heap used)",
    "datasource": {
     "type": "prometheus",
     "uid": "esq-prometheus"
@@ -700,7 +702,7 @@
       "uid": "esq-prometheus"
      },
      "expr": "process_resident_memory_bytes{application=\"esq-backend\"}",
-     "legendFormat": "resident"
+     "legendFormat": "resident {{instance}}"
     },
     {
      "refId": "B",
@@ -709,13 +711,13 @@
       "uid": "esq-prometheus"
      },
      "expr": "nodejs_heap_size_used_bytes{application=\"esq-backend\"}",
-     "legendFormat": "heap used"
+     "legendFormat": "heap used {{instance}}"
     }
    ]
   },
   {
    "type": "timeseries",
-   "title": "BFF event-loop lag (s) + CPU (cores)",
+   "title": "BFF event-loop lag (s) + CPU (cores) by replica",
    "datasource": {
     "type": "prometheus",
     "uid": "esq-prometheus"
@@ -745,7 +747,7 @@
       "uid": "esq-prometheus"
      },
      "expr": "nodejs_eventloop_lag_seconds{application=\"esq-backend\"}",
-     "legendFormat": "event-loop lag"
+     "legendFormat": "lag {{instance}}"
     },
     {
      "refId": "B",
@@ -754,7 +756,7 @@
       "uid": "esq-prometheus"
      },
      "expr": "rate(process_cpu_seconds_total{application=\"esq-backend\"}[1m])",
-     "legendFormat": "cpu (cores)"
+     "legendFormat": "cpu {{instance}}"
     }
    ]
   },
@@ -1101,6 +1103,565 @@
      "legendFormat": "non-heap used"
     }
    ]
+  },
+  {
+   "type": "row",
+   "title": "Messaging bus",
+   "gridPos": {
+    "h": 1,
+    "w": 24,
+    "x": 0,
+    "y": 93
+   }
+  },
+  {
+   "type": "timeseries",
+   "title": "Bus send rate (msg/s)",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "esq-prometheus"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 0,
+    "y": 94
+   },
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+      "drawStyle": "line",
+      "fillOpacity": 10
+     },
+     "unit": "ops",
+     "min": 0
+    },
+    "overrides": []
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "sum by (application, bus_id) (rate(messaging_send_total{application=~\"$application\"}[1m]))",
+     "legendFormat": "{{application}} -> {{bus_id}}"
+    }
+   ]
+  },
+  {
+   "type": "timeseries",
+   "title": "Bus receive rate (msg/s)",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "esq-prometheus"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 8,
+    "y": 94
+   },
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+      "drawStyle": "line",
+      "fillOpacity": 10
+     },
+     "unit": "ops",
+     "min": 0
+    },
+    "overrides": []
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "sum by (application, bus_id) (rate(messaging_receive_total{application=~\"$application\"}[1m]))",
+     "legendFormat": "{{application}} <- {{bus_id}}"
+    }
+   ]
+  },
+  {
+   "type": "timeseries",
+   "title": "Bus error rate (msg/s)",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "esq-prometheus"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 16,
+    "y": 94
+   },
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+      "drawStyle": "line",
+      "fillOpacity": 10
+     },
+     "unit": "ops",
+     "min": 0
+    },
+    "overrides": []
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "sum by (application, bus_id, leg) (rate(messaging_error_total{application=~\"$application\"}[5m]))",
+     "legendFormat": "{{application}} {{bus_id}} {{leg}}"
+    }
+   ]
+  },
+  {
+   "type": "timeseries",
+   "title": "Bus send latency (avg + p95 ms)",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "esq-prometheus"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 0,
+    "y": 102
+   },
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+      "drawStyle": "line",
+      "fillOpacity": 10
+     },
+     "unit": "ms",
+     "min": 0
+    },
+    "overrides": []
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "1000 * sum by (application, bus_id)(rate(messaging_send_duration_seconds_sum{application=~\"$application\"}[5m])) / clamp_min(sum by (application, bus_id)(rate(messaging_send_duration_seconds_count{application=~\"$application\"}[5m])), 1)",
+     "legendFormat": "avg {{application}} -> {{bus_id}}"
+    },
+    {
+     "refId": "B",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "1000 * histogram_quantile(0.95, sum by (le, application, bus_id) (rate(messaging_send_duration_seconds_bucket{application=~\"$application\"}[5m])))",
+     "legendFormat": "p95 {{application}} -> {{bus_id}}"
+    }
+   ],
+   "description": "avg is always available. p95 needs the percentile buckets -- turn on the sub-switch esquire.observability.metrics.histograms-enabled (ESQ_METRICS_HISTOGRAMS); with it off the p95 series are simply absent and the avg still plots."
+  },
+  {
+   "type": "timeseries",
+   "title": "Feed depth (tx queue)",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "esq-prometheus"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 8,
+    "y": 102
+   },
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+      "drawStyle": "line",
+      "fillOpacity": 10
+     },
+     "unit": "short",
+     "min": 0
+    },
+    "overrides": []
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "messaging_feed_depth{application=~\"$application\"}",
+     "legendFormat": "{{application}} {{bus_id}}"
+    }
+   ]
+  },
+  {
+   "type": "timeseries",
+   "title": "Send-retry: held / dropped / backoff",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "esq-prometheus"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 16,
+    "y": 102
+   },
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+      "drawStyle": "line",
+      "fillOpacity": 10
+     },
+     "unit": "short",
+     "min": 0
+    },
+    "overrides": []
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "messaging_retry_held{application=~\"$application\"}",
+     "legendFormat": "held (count) {{application}} {{bus_id}}"
+    },
+    {
+     "refId": "B",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "sum by (application, bus_id) (rate(messaging_retry_dropped{application=~\"$application\"}[5m]))",
+     "legendFormat": "dropped/s {{application}} {{bus_id}}"
+    },
+    {
+     "refId": "C",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "sum by (application, bus_id)(rate(messaging_retry_backoff_sum{application=~\"$application\"}[5m])) / clamp_min(sum by (application, bus_id)(rate(messaging_retry_backoff_count{application=~\"$application\"}[5m])), 1)",
+     "legendFormat": "backoff avg (ms) {{application}} {{bus_id}}"
+    }
+   ],
+   "description": "The send-retry sublayer. FLAT AT ZERO is the healthy state -- these only move when the transport is failing sends: held = messages parked awaiting re-dispatch, dropped/s = given up after max attempts, backoff avg = the ladder step being waited out. Mixed units (count, /s, ms) on one axis deliberately: this is a diagnostic panel you read when something is wrong, and all three are small numbers."
+  },
+  {
+   "type": "row",
+   "title": "Latency bands",
+   "gridPos": {
+    "h": 1,
+    "w": 24,
+    "x": 0,
+    "y": 110
+   }
+  },
+  {
+   "type": "timeseries",
+   "title": "Request latency bands -- DERIVED (avg ms)",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "esq-prometheus"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 8,
+    "y": 111
+   },
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+      "drawStyle": "line",
+      "fillOpacity": 10
+     },
+     "unit": "ms",
+     "min": null
+    },
+    "overrides": []
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "1000 * ((sum(rate(esq_gw_outer_seconds_sum[5m])) / clamp_min(sum(rate(esq_gw_outer_seconds_count[5m])), 1)) - (sum(rate(esq_gw_inner_seconds_sum[5m])) / clamp_min(sum(rate(esq_gw_inner_seconds_count[5m])), 1)))",
+     "legendFormat": "net (client <-> gw)"
+    },
+    {
+     "refId": "B",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "1000 * ((sum(rate(esq_gw_inner_seconds_sum[5m])) / clamp_min(sum(rate(esq_gw_inner_seconds_count[5m])), 1)) - (sum(rate(esq_srv_outer_seconds_sum[5m])) / clamp_min(sum(rate(esq_srv_outer_seconds_count[5m])), 1)))",
+     "legendFormat": "in-cluster (gw <-> srv)"
+    },
+    {
+     "refId": "C",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "1000 * ((sum(rate(esq_srv_outer_seconds_sum[5m])) / clamp_min(sum(rate(esq_srv_outer_seconds_count[5m])), 1)) - ((sum(rate(esq_srv_inner_seconds_sum[5m])) / clamp_min(sum(rate(esq_srv_inner_seconds_count[5m])), 1)) or vector(0)))",
+     "legendFormat": "srv self (compute)"
+    },
+    {
+     "refId": "D",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "1000 * ((sum(rate(esq_srv_inner_seconds_sum[5m])) / clamp_min(sum(rate(esq_srv_inner_seconds_count[5m])), 1)) or vector(0))",
+     "legendFormat": "srv inner (db)"
+    }
+   ],
+   "description": "The four raw timers SUBTRACTED into the bands they imply: net = gw.outer - gw.inner; in-cluster = gw.inner - srv.outer; srv self = srv.outer - srv.inner; srv inner = DB time. Fully aggregated (scalars) on purpose: the gw timers are tagged application=gateway and the srv timers application=<service>, so they cannot be subtracted label-wise. NOTE: srv inner (DB) is CAPTURE-gated -- with X-Capture-Metrics off the series does not exist, so it is defaulted to 0 here and 'srv self' absorbs the DB time (the bands still sum to the total)."
+  },
+  {
+   "type": "timeseries",
+   "title": "Request latency bands -- RAW (avg ms by layer)",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "esq-prometheus"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 0,
+    "y": 111
+   },
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+      "drawStyle": "line",
+      "fillOpacity": 10
+     },
+     "unit": "ms",
+     "min": 0
+    },
+    "overrides": []
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "1000 * sum(rate(esq_gw_outer_seconds_sum[5m])) / clamp_min(sum(rate(esq_gw_outer_seconds_count[5m])), 1)",
+     "legendFormat": "gw outer (total)"
+    },
+    {
+     "refId": "B",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "1000 * sum(rate(esq_gw_inner_seconds_sum[5m])) / clamp_min(sum(rate(esq_gw_inner_seconds_count[5m])), 1)",
+     "legendFormat": "gw inner (proxied)"
+    },
+    {
+     "refId": "C",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "1000 * sum(rate(esq_srv_outer_seconds_sum[5m])) / clamp_min(sum(rate(esq_srv_outer_seconds_count[5m])), 1)",
+     "legendFormat": "srv outer (wall)"
+    },
+    {
+     "refId": "D",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "1000 * sum(rate(esq_srv_inner_seconds_sum[5m])) / clamp_min(sum(rate(esq_srv_inner_seconds_count[5m])), 1)",
+     "legendFormat": "srv inner (db, capture-gated)"
+    }
+   ]
+  },
+  {
+   "type": "timeseries",
+   "title": "Gateway total p95 by route (ms)",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "esq-prometheus"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 16,
+    "y": 111
+   },
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+      "drawStyle": "line",
+      "fillOpacity": 10
+     },
+     "unit": "ms",
+     "min": 0
+    },
+    "overrides": []
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "1000 * histogram_quantile(0.95, sum by (le, route) (rate(esq_gw_outer_seconds_bucket[5m])))",
+     "legendFormat": "{{route}}"
+    }
+   ],
+   "description": "Percentile buckets are opt-in: this panel needs esquire.observability.metrics.histograms-enabled=true (ESQ_METRICS_HISTOGRAMS). With it off the timers still emit count/sum/max, so the avg-by-layer panel beside this one stays populated."
+  },
+  {
+   "type": "row",
+   "title": "Bandwidth",
+   "gridPos": {
+    "h": 1,
+    "w": 24,
+    "x": 0,
+    "y": 119
+   }
+  },
+  {
+   "type": "timeseries",
+   "title": "Service HTTP bytes OUT (B/s)",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "esq-prometheus"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 0,
+    "y": 120
+   },
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+      "drawStyle": "line",
+      "fillOpacity": 10
+     },
+     "unit": "Bps",
+     "min": 0
+    },
+    "overrides": []
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "sum by (application, instance) (rate(tomcat_global_sent_bytes_total{application=~\"$application\"}[5m]))",
+     "legendFormat": "{{application}} {{instance}}"
+    }
+   ],
+   "description": "Servlet services only. The gateway runs on Netty (Spring Cloud Gateway), which has no Tomcat MBean -- so the client-facing bandwidth at the edge is NOT in these panels, only the in-cluster service traffic. Bytes-in reads 0 for GET-only services (a GET has no request body)."
+  },
+  {
+   "type": "timeseries",
+   "title": "Service HTTP bytes IN (B/s)",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "esq-prometheus"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 8,
+    "y": 120
+   },
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+      "drawStyle": "line",
+      "fillOpacity": 10
+     },
+     "unit": "Bps",
+     "min": 0
+    },
+    "overrides": []
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "sum by (application, instance) (rate(tomcat_global_received_bytes_total{application=~\"$application\"}[5m]))",
+     "legendFormat": "{{application}} {{instance}}"
+    }
+   ],
+   "description": "Servlet services only. The gateway runs on Netty (Spring Cloud Gateway), which has no Tomcat MBean -- so the client-facing bandwidth at the edge is NOT in these panels, only the in-cluster service traffic. Bytes-in reads 0 for GET-only services (a GET has no request body)."
+  },
+  {
+   "type": "timeseries",
+   "title": "Gateway EDGE bytes (B/s) -- client-facing",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "esq-prometheus"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 16,
+    "y": 120
+   },
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+      "drawStyle": "line",
+      "fillOpacity": 10
+     },
+     "unit": "Bps",
+     "min": 0
+    },
+    "overrides": []
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "sum(rate(reactor_netty_http_server_data_sent_bytes_sum{uri!=\"/actuator\"}[5m]))",
+     "legendFormat": "edge out"
+    },
+    {
+     "refId": "B",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "sum(rate(reactor_netty_http_server_data_received_bytes_sum{uri!=\"/actuator\"}[5m]))",
+     "legendFormat": "edge in"
+    }
+   ],
+   "description": "The gateway runs on Netty, so its bytes come from reactor-netty (not the Tomcat MBean). This is the CLIENT-facing bandwidth at the edge; the two panels to the left are in-cluster service traffic. /actuator is excluded: that is Prometheus scraping the gateway itself."
   }
  ]
 }

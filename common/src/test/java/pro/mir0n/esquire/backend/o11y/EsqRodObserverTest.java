@@ -11,6 +11,8 @@ import io.opentelemetry.sdk.trace.data.SpanData;
 import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor;
 import io.opentelemetry.sdk.trace.export.SpanExporter;
 import io.opentelemetry.sdk.trace.samplers.Sampler;
+import io.micrometer.core.instrument.Timer;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -18,20 +20,22 @@ import org.junit.jupiter.api.Test;
 import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 // Unit coverage for the OTel-backed bus-hop tracer (v1.2.11 O2/T3), driven by a real SDK tracer with a
 // capturing span processor (no sdk-testing dependency): send = PRODUCER, receive = CONSUMER, the trace id is
 // ALWAYS the correlationId, and the receive span nests under the producer span id carried on the wire.
-class EsqRodTracerTest {
+class EsqRodObserverTest {
 
     private static final String CORRELATION = "0af7651916cd43dd8448eb211c80319c";
     private static final String WIRE_SPAN = "b7ad6b7169203331";
 
     private final List<SpanData> exported = new CopyOnWriteArrayList<>();
     private SdkTracerProvider provider;
-    private EsqRodTracer rodTracer;
+    private EsqRodObserver rodTracer;
+    private SimpleMeterRegistry registry;
 
     @BeforeEach
     void setUp() {
@@ -48,7 +52,8 @@ class EsqRodTracerTest {
                 .addSpanProcessor(SimpleSpanProcessor.create(capturing))
                 .build();
         Tracer otel = provider.get("test");
-        rodTracer = new EsqRodTracer(otel, true);   // alive-trace on: the RR round-trip legs are exercised below
+        registry = new SimpleMeterRegistry();
+        rodTracer = new EsqRodObserver(otel, registry, true);   // alive-trace on: the RR round-trip legs are exercised below
     }
 
     @AfterEach
@@ -203,5 +208,82 @@ class EsqRodTracerTest {
 
         assertThat(traceparent).startsWith("00-" + traceId + "-");
         assertThat(spanNamed("TestRequest").getSpanContext().getTraceId()).isEqualTo(traceId);
+    }
+
+    // ---- the METER side (O1/T5): the same observer object also emits the messaging.* meters ----
+
+    @Test
+    void sent_receive_error_incrementTheirCountersTaggedByBusSlotMsgType() {
+        rodTracer.sent("audit-c", "audit", "UA");
+        rodTracer.sent("audit-c", "audit", "UA");
+        rodTracer.received("esquire.entity", "entity", "UE");
+        rodTracer.error("audit-c", "audit", "UA", "send");
+
+        assertThat(registry.get("messaging.send.total")
+                .tags("bus-id", "audit-c", "slot", "audit", "msgType", "UA").counter().count()).isEqualTo(2.0);
+        assertThat(registry.get("messaging.receive.total")
+                .tags("bus-id", "esquire.entity", "slot", "entity", "msgType", "UE").counter().count()).isEqualTo(1.0);
+        // the error counter separates the leg, so a send failure never reads as a receive failure
+        assertThat(registry.get("messaging.error.total")
+                .tags("bus-id", "audit-c", "slot", "audit", "msgType", "UA", "leg", "send").counter().count())
+                .isEqualTo(1.0);
+    }
+
+    @Test
+    void sendDuration_recordsTheOwnedSendTimer() {
+        rodTracer.sendDuration("audit-c", "audit", "UA", 5_000_000L);   // 5 ms in nanos
+
+        Timer timer = registry.get("messaging.send.duration")
+                .tags("bus-id", "audit-c", "slot", "audit", "msgType", "UA").timer();
+        assertThat(timer.count()).isEqualTo(1L);
+        assertThat(timer.totalTime(TimeUnit.MILLISECONDS)).isEqualTo(5.0);
+    }
+
+    @Test
+    void retryBackoffAndDropped_areRecorded() {
+        rodTracer.retryBackoff("audit-c", 1000L);
+        rodTracer.retryBackoff("audit-c", 2000L);
+        rodTracer.retryDropped("audit-c", "UA");
+
+        assertThat(registry.get("messaging.retry.backoff").tags("bus-id", "audit-c").summary().count()).isEqualTo(2L);
+        assertThat(registry.get("messaging.retry.backoff").tags("bus-id", "audit-c").summary().totalAmount())
+                .isEqualTo(3000.0);
+        assertThat(registry.get("messaging.retry.dropped")
+                .tags("bus-id", "audit-c", "msgType", "UA").counter().count()).isEqualTo(1.0);
+    }
+
+    @Test
+    void nullSlotOrMsgType_doNotBlowUpTheTags() {
+        // the engine may hand a null slot / msgType on an unidentified leg; Micrometer forbids null tag values
+        rodTracer.sent("audit-c", null, null);
+
+        assertThat(registry.get("messaging.send.total")
+                .tags("bus-id", "audit-c", "slot", "", "msgType", "").counter().count()).isEqualTo(1.0);
+    }
+
+    @Test
+    void gauges_areLive_andSurviveGc() {
+        // REGRESSION GUARD: the gauge's state object is the supplier LAMBDA, referenced nowhere else. Micrometer's
+        // DEFAULT weak reference lets GC collect it, after which the gauge reports NaN -- exactly the bug seen on the
+        // first deploy of the feed-depth gauge. strongReference(true) is what keeps these alive.
+        int[] depth = {7};
+        int[] held = {2};
+        rodTracer.registerFeedDepth("audit-c", "audit", () -> depth[0]);
+        rodTracer.registerRetryHeld("audit-c", "audit", () -> held[0]);
+
+        System.gc();   // with a weak reference, this is where the supplier would vanish
+
+        assertThat(registry.get("messaging.feed.depth").tags("bus-id", "audit-c", "slot", "audit").gauge().value())
+                .isEqualTo(7.0);
+        assertThat(registry.get("messaging.retry.held").tags("bus-id", "audit-c", "slot", "audit").gauge().value())
+                .isEqualTo(2.0);
+
+        // and they READ THROUGH to the live supplier -- a gauge is not a snapshot taken at registration
+        depth[0] = 3;
+        held[0] = 0;
+        assertThat(registry.get("messaging.feed.depth").tags("bus-id", "audit-c", "slot", "audit").gauge().value())
+                .isEqualTo(3.0);
+        assertThat(registry.get("messaging.retry.held").tags("bus-id", "audit-c", "slot", "audit").gauge().value())
+                .isEqualTo(0.0);
     }
 }
