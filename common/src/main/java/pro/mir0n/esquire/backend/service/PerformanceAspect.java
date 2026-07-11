@@ -19,6 +19,12 @@
  *                   into 'observabilityOn || isMetricsCaptured()', because || short-circuits the probe away and the
  *                   aspect then calls addJpaTime() on an off-request thread (the taijitu cache loader runs JPA on a
  *                   monad worker) and the request fails with HTTP 500
+ * 07/11/2026 mir0n  v1.2.11 O1/T7 phase B -- the exception is no longer the detector. The aspect asks
+ *                   RequestContextHolder.getRequestAttributes() != null FIRST, and only then whether anyone wants
+ *                   the number; the try / catch (ScopeNotActiveException) is gone, and the @RequestScope bean is
+ *                   never touched on a thread that has no request. The || that caused the 500 is now harmless --
+ *                   whichever side answers it, the thread is already known to be serving a request -- so there is
+ *                   no ordering left in the condition for a later edit to break
  */
 package pro.mir0n.esquire.backend.service;
 
@@ -27,8 +33,8 @@ import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
 import org.springframework.beans.factory.ObjectProvider;
-import org.springframework.beans.factory.support.ScopeNotActiveException;
 import org.springframework.stereotype.Component;
+import org.springframework.web.context.request.RequestContextHolder;
 
 /*
 Note:
@@ -42,6 +48,11 @@ Note:
       - observability: the umbrella is on, so the esq.srv.inner DB latency band is being charted.
     Neither asking -> a single boolean check per JPA call and nothing else. The observability answer is resolved
     ONCE at construction (the MeterRegistry bean exists only when the umbrella is on), not per call.
+
+    Off-request: plenty of JPA runs with no request at all -- the taijitu cache loader drives it on a monad
+    worker. RequestPerformance is @RequestScope, so there is nothing there to attribute the time to, and touching
+    it would fail. The aspect therefore asks FIRST whether this thread is serving a request, and only then whether
+    anyone wants the number. Asking in that order is what keeps the scoped bean off a non-request thread.
  */
 
 @Aspect
@@ -61,20 +72,12 @@ public class PerformanceAspect {
     @Around("execution(* pro.mir0n.esquire..jpa.*.*(..))")
     public Object trackJpaTime(ProceedingJoinPoint joinPoint) throws Throwable {
         Object ret;
-        boolean wanted;
-        try {
-            // Probe the request scope FIRST and ALWAYS. isMetricsCaptured() touches the @RequestScope bean, so it
-            // THROWS when there is no active request -- and plenty of JPA runs off-request (the taijitu cache
-            // loader drives it on a monad worker). That probe is what the catch below relies on.
-            // Do NOT fold this into `observabilityOn || performance.isMetricsCaptured()`: `||` short-circuits, so
-            // with observability on the probe would never run, and the finally block would then call addJpaTime()
-            // off-request and blow up (ScopeNotActiveException -> 500).
-            boolean captured = performance.isMetricsCaptured();
-            wanted = observabilityOn || captured;
-        } catch (ScopeNotActiveException e) {
-            // No active request scope (e.g. startup / cache loaders) -- nothing to attribute the time to, so skip.
-            wanted = false;
-        }
+        // Am I serving a request? Ask directly -- do not find out by touching the @RequestScope bean and catching
+        // what it throws. Off-request there is nothing to attribute the time to, so there is nothing to do; and
+        // because this test comes first, the scoped bean is only ever touched on a thread that HAS a request.
+        // The || below is therefore harmless: whichever side answers, we are already on a request thread.
+        boolean wanted = RequestContextHolder.getRequestAttributes() != null
+                && (observabilityOn || performance.isMetricsCaptured());
         if (!wanted) {
             ret = joinPoint.proceed();     // nobody asked -> do no timing work at all
         } else {

@@ -1,5 +1,22 @@
 Esquire Backend common microservice classes
 
+07/11/2026 mir0n  v1.2.11 -- trap removal (O1/T7): the weak-reference gauge and the request-scope probe resolved in code
+o11y.EsqGauge  (new)
+  - the ONE place a Micrometer gauge is built. Micrometer holds a gauge's state object WEAKLY: when that state
+    object IS the supplier lambda and nothing else holds it, GC collects it and the gauge reports NaN -- a dead
+    panel, no error, no stack trace. register() always sets strongReference(true), so a caller cannot get it
+    wrong; callers hand over a name, an IntSupplier and tags, and never touch Gauge.builder
+o11y.EsqRodObserver
+  - registerFeedDepth / registerRetryHeld no longer build their gauge: both hand off to EsqGauge.register(),
+    which owns Gauge.builder and always applies strongReference(true). The hand-written strongReference at each
+    call site is gone, and with it the last raw Gauge.builder in the codebase; the io.micrometer Gauge import
+    drops out
+service.PerformanceAspect
+  - the exception is no longer the detector. The aspect asks RequestContextHolder.getRequestAttributes() != null
+    FIRST, and only then whether anyone wants the number; the try / catch (ScopeNotActiveException) is gone, and
+    the @RequestScope bean is never touched on a thread that has no request. The || that caused the 500 is now
+    harmless -- whichever side answers it, the thread is already known to be serving a request
+
 07/11/2026 mir0n  v1.2.11 -- bus meters + latency bands + bandwidth (O1/T5): ONE bus observer, the esq.* latency timers, the HTTP byte counters, ONE config namespace
 o11y.EsqRodObserver  (new -- was EsqRodTracer)
   - renamed from EsqRodTracer and widened to the ONE bus observer: it now implements o11y.IRodObserver

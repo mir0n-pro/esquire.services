@@ -15,6 +15,7 @@
 
 import json
 import os
+import re
 
 DS = {"type": "prometheus", "uid": "esq-prometheus"}
 
@@ -57,6 +58,45 @@ def stat(title, x, y, w, targets, unit=None, h=5):
 
 def row(title, y):
     return {"type": "row", "title": title, "gridPos": {"h": 1, "w": 24, "x": 0, "y": y}}
+
+
+# ---------------------------------------------------------------------------------------------------------------
+# Series arithmetic. THE TRAP: in PromQL, `A - B` where B is an EMPTY vector yields EMPTY -- it does not yield A,
+# it deletes the whole series. So a band whose subtrahend has no samples yet (a fresh deploy, a service not hit
+# yet, a meter behind an opt-in flag) does not degrade -- it VANISHES, silently, with no error anywhere. That is
+# how the derived latency bands read "No data" on k8s while every raw timer had data.
+#
+# safe() and band() are the ONLY way this generator subtracts one series from another. Nothing hand-writes a `-`
+# between two series -- check_no_naked_subtraction() below refuses to emit a dashboard that does.
+# ---------------------------------------------------------------------------------------------------------------
+
+def safe(expr):
+    """A series that may legitimately be EMPTY, defaulted to 0 so arithmetic on it survives."""
+    return "((%s) or vector(0))" % expr
+
+
+def band(minuend, subtrahend):
+    """minuend - subtrahend, with the subtrahend defaulted to 0 so an empty B cannot delete the whole band."""
+    return "((%s) - %s)" % (minuend, safe(subtrahend))
+
+
+def check_no_naked_subtraction(panels):
+    """Refuse to emit a naked series subtraction -- the guard that keeps the trap removed, not just fixed once.
+
+    Every `) - (` between two series must be matched by an `or vector(0)` guard on its subtrahend, which is what
+    band()/safe() produce. A panel that hand-writes the minus sign fails HERE, at generation time, naming itself.
+    """
+    for p in panels:
+        for t in p.get("targets", []):
+            expr = t.get("expr", "")
+            subtractions = len(re.findall(r"\)\s*-\s*\(", expr))
+            guards = expr.count("or vector(0)")
+            if subtractions > guards:
+                raise SystemExit(
+                    "naked series subtraction in panel %r:\n  %s\n"
+                    "A PromQL subtraction against an EMPTY vector yields EMPTY and deletes the band.\n"
+                    "Use band(a, b) / safe(x) instead of hand-writing '-' between series."
+                    % (p.get("title"), expr))
 
 
 APP = 'application=~"$application"'
@@ -198,26 +238,24 @@ def build_panels():
     # The RAW timers (each layer as measured), the DERIVED bands (the subtractions those layers imply), and the
     # gateway percentile. Three across, so the Bandwidth row below keeps its y.
     AVG = "sum(rate(esq_%s_seconds_sum[5m])) / clamp_min(sum(rate(esq_%s_seconds_count[5m])), 1)"
-    # srv_inner (the DB band) is CAPTURE-gated: when X-Capture-Metrics is off the JPA timer never runs, so the
-    # series does not exist at all. A PromQL subtraction against an EMPTY vector yields EMPTY -- which would make
-    # the whole 'srv self' band vanish even though srv_outer has data. Default it to 0 so the decomposition
-    # degrades gracefully: srv self then simply absorbs the DB time.
-    DB = "((%s) or vector(0))" % (AVG % ("srv_inner", "srv_inner"))
+    GW_OUTER = AVG % ("gw_outer", "gw_outer")
+    GW_INNER = AVG % ("gw_inner", "gw_inner")
+    SRV_OUTER = AVG % ("srv_outer", "srv_outer")
+    SRV_INNER = AVG % ("srv_inner", "srv_inner")
+    # Every band goes through band() -- see the trap note at the top. A subtrahend with no samples (a service not
+    # hit yet, a fresh deploy) must make its band read 0, never delete it.
     p.append(ts("Request latency bands -- DERIVED (avg ms)", 8, 111, 8, "ms",
-                [tgt("1000 * ((%s) - (%s))" % (AVG % ("gw_outer", "gw_outer"), AVG % ("gw_inner", "gw_inner")),
-                     "net (client <-> gw)"),
-                 tgt("1000 * ((%s) - (%s))" % (AVG % ("gw_inner", "gw_inner"), AVG % ("srv_outer", "srv_outer")),
-                     "in-cluster (gw <-> srv)"),
-                 tgt("1000 * ((%s) - %s)" % (AVG % ("srv_outer", "srv_outer"), DB),
-                     "srv self (compute)"),
-                 tgt("1000 * %s" % DB, "srv inner (db)")],
+                [tgt("1000 * %s" % band(GW_OUTER, GW_INNER), "net (client <-> gw)"),
+                 tgt("1000 * %s" % band(GW_INNER, SRV_OUTER), "in-cluster (gw <-> srv)"),
+                 tgt("1000 * %s" % band(SRV_OUTER, SRV_INNER), "srv self (compute)"),
+                 tgt("1000 * %s" % safe(SRV_INNER), "srv inner (db)")],
                 minv=None,   # a band can dip slightly negative on clock/rounding skew -- do not clamp it away
                 desc="The four raw timers SUBTRACTED into the bands they imply: net = gw.outer - gw.inner; "
                      "in-cluster = gw.inner - srv.outer; srv self = srv.outer - srv.inner; srv inner = DB time. "
                      "Fully aggregated (scalars) on purpose: the gw timers are tagged application=gateway and the "
-                     "srv timers application=<service>, so they cannot be subtracted label-wise. NOTE: srv inner "
-                     "(DB) is CAPTURE-gated -- with X-Capture-Metrics off the series does not exist, so it is "
-                     "defaulted to 0 here and 'srv self' absorbs the DB time (the bands still sum to the total)."))
+                     "srv timers application=<service>, so they cannot be subtracted label-wise. The DB band is "
+                     "STEADY-STATE: the JPA time is collected on every request while observability is on, so it "
+                     "no longer depends on the X-Capture-Metrics load-test header."))
     p.append(ts("Request latency bands -- RAW (avg ms by layer)", 0, 111, 8, "ms",
                 [tgt("1000 * sum(rate(esq_gw_outer_seconds_sum[5m])) / clamp_min(sum(rate(esq_gw_outer_seconds_count[5m])), 1)",
                      "gw outer (total)"),
@@ -260,6 +298,8 @@ def build_panels():
 
 
 def build_dashboard():
+    panels = build_panels()
+    check_no_naked_subtraction(panels)   # refuse to emit a band that an empty vector could delete
     return {
         "uid": "esq-services",
         "title": "Esquire Services -- REST / JVM / Pool / CPU / BFF / DB / KC / Bus / Latency",
@@ -275,7 +315,7 @@ def build_dashboard():
             "includeAll": True, "multi": True, "allValue": ".*",
             "current": {"text": "All", "value": "$__all"}, "sort": 1,
         }]},
-        "panels": build_panels(),
+        "panels": panels,
     }
 
 

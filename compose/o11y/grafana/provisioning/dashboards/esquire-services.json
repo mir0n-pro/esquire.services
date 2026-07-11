@@ -1400,7 +1400,7 @@
       "type": "prometheus",
       "uid": "esq-prometheus"
      },
-     "expr": "1000 * ((sum(rate(esq_gw_outer_seconds_sum[5m])) / clamp_min(sum(rate(esq_gw_outer_seconds_count[5m])), 1)) - (sum(rate(esq_gw_inner_seconds_sum[5m])) / clamp_min(sum(rate(esq_gw_inner_seconds_count[5m])), 1)))",
+     "expr": "1000 * ((sum(rate(esq_gw_outer_seconds_sum[5m])) / clamp_min(sum(rate(esq_gw_outer_seconds_count[5m])), 1)) - ((sum(rate(esq_gw_inner_seconds_sum[5m])) / clamp_min(sum(rate(esq_gw_inner_seconds_count[5m])), 1)) or vector(0)))",
      "legendFormat": "net (client <-> gw)"
     },
     {
@@ -1409,7 +1409,7 @@
       "type": "prometheus",
       "uid": "esq-prometheus"
      },
-     "expr": "1000 * ((sum(rate(esq_gw_inner_seconds_sum[5m])) / clamp_min(sum(rate(esq_gw_inner_seconds_count[5m])), 1)) - (sum(rate(esq_srv_outer_seconds_sum[5m])) / clamp_min(sum(rate(esq_srv_outer_seconds_count[5m])), 1)))",
+     "expr": "1000 * ((sum(rate(esq_gw_inner_seconds_sum[5m])) / clamp_min(sum(rate(esq_gw_inner_seconds_count[5m])), 1)) - ((sum(rate(esq_srv_outer_seconds_sum[5m])) / clamp_min(sum(rate(esq_srv_outer_seconds_count[5m])), 1)) or vector(0)))",
      "legendFormat": "in-cluster (gw <-> srv)"
     },
     {
@@ -1431,7 +1431,7 @@
      "legendFormat": "srv inner (db)"
     }
    ],
-   "description": "The four raw timers SUBTRACTED into the bands they imply: net = gw.outer - gw.inner; in-cluster = gw.inner - srv.outer; srv self = srv.outer - srv.inner; srv inner = DB time. Fully aggregated (scalars) on purpose: the gw timers are tagged application=gateway and the srv timers application=<service>, so they cannot be subtracted label-wise. NOTE: srv inner (DB) is CAPTURE-gated -- with X-Capture-Metrics off the series does not exist, so it is defaulted to 0 here and 'srv self' absorbs the DB time (the bands still sum to the total)."
+   "description": "The four raw timers SUBTRACTED into the bands they imply: net = gw.outer - gw.inner; in-cluster = gw.inner - srv.outer; srv self = srv.outer - srv.inner; srv inner = DB time. Fully aggregated (scalars) on purpose: the gw timers are tagged application=gateway and the srv timers application=<service>, so they cannot be subtracted label-wise. The DB band is STEADY-STATE: the JPA time is collected on every request while observability is on, so it no longer depends on the X-Capture-Metrics load-test header."
   },
   {
    "type": "timeseries",

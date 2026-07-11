@@ -1,6 +1,22 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v1.2.11-2607.1115  v1.2.11 -- observability: four ways of getting the measurements wrong are now impossible
+    :Fix:         a measurement that reads a live value (queue depth, messages held) could stop reporting after a
+                  while and show nothing at all; it now keeps reporting for as long as the service runs
+    :Fix:         the request-time breakdown could drop one of its four parts entirely -- showing nothing rather
+                  than zero -- whenever that part had no traffic yet; each part now reads zero and the four
+                  still add up to the total
+    :Fix:         the database part of the request-time breakdown was described as needing the load-test switch;
+                  it is measured on every request while observability is on, and the dashboard now says so
+    :Refactoring: a live-value measurement can now only be created one way, and the build fails if it is created
+                  any other way
+    :Refactoring: the timing of database work no longer relies on catching an error to find out whether it is
+                  running inside a request; it asks directly
+    :Config:      new scripts to reach the local cluster's observability tools from the desktop, on ports that
+                  cannot be confused with the ones the docker sandbox already uses
+    Components:   common, compose, k8s
+
 v1.2.11-2607.1111  v1.2.11 -- observability: the messaging bus, the time breakdown and the traffic volume are measured
     :Feature:     the messaging bus now reports its own measurements -- messages sent and received, how long a
                   send takes, send errors, how deep the outgoing queue is, and how many messages are held or

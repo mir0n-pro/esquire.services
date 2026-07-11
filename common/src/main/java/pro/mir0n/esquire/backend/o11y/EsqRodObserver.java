@@ -28,10 +28,13 @@
  *                   Both gauges are built .strongReference(true): the state object is the supplier lambda
  *                   itself and nothing else holds it, so Micrometer's default WEAK reference lets it be GC'd
  *                   and the gauge then reports NaN. ObservabilityConfig.esqRodObserverRegistrar registers it.
+ * 07/11/2026 mir0n  v1.2.11 O1/T7 phase A -- registerFeedDepth / registerRetryHeld no longer build their gauge:
+ *                   both hand off to EsqGauge.register(), which owns Gauge.builder and always applies
+ *                   strongReference(true). The hand-written strongReference at each call site is gone, and with
+ *                   it the last raw Gauge.builder in the codebase; the io.micrometer Gauge import drops out
  */
 package pro.mir0n.esquire.backend.o11y;
 
-import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.api.trace.SpanContext;
@@ -261,15 +264,11 @@ public final class EsqRodObserver implements IRodObserver {
 
     @Override
     public void registerFeedDepth(String busId, String slotId, IntSupplier depth) {
-        // strongReference: the state object is the supplier lambda (feed::size), not stored anywhere else, so
-        // Micrometer's default WEAK reference lets it be GC'd -> the gauge reports NaN. Hold it strongly.
-        Gauge.builder("messaging.feed.depth", depth, IntSupplier::getAsInt).strongReference(true)
-                .tag("bus-id", nz(busId)).tag("slot", nz(slotId)).register(registry);
+        EsqGauge.register(registry, "messaging.feed.depth", depth, "bus-id", nz(busId), "slot", nz(slotId));
     }
 
     @Override
     public void registerRetryHeld(String busId, String slotId, IntSupplier held) {
-        Gauge.builder("messaging.retry.held", held, IntSupplier::getAsInt).strongReference(true)
-                .tag("bus-id", nz(busId)).tag("slot", nz(slotId)).register(registry);
+        EsqGauge.register(registry, "messaging.retry.held", held, "bus-id", nz(busId), "slot", nz(slotId));
     }
 }
