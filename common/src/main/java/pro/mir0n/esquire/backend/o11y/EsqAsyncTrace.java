@@ -38,7 +38,7 @@ public final class EsqAsyncTrace {
 
     private static volatile ObservationRegistry registry = ObservationRegistry.NOOP;
 
-    /** Register the app's ObservationRegistry (TracingConfig, at startup, only when tracing is enabled). */
+    /** Register the app's ObservationRegistry (ObservabilityConfig, at startup, only when observability is enabled). */
     public static void setRegistry(ObservationRegistry observationRegistry) {
         registry = (observationRegistry != null) ? observationRegistry : ObservationRegistry.NOOP;
     }

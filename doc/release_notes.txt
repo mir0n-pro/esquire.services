@@ -1,6 +1,19 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v1.2.11-2607.1019  v1.2.11 -- observability: live measurements for every service on one dashboard
+    :Feature:     every service now publishes its own live measurements -- how many requests it handles and how
+                  long they take, its memory and thread use, and how busy its database connections are -- gathered
+                  onto a single metrics dashboard
+    :Feature:     the login gateway, the identity server, and the database each report their own measurements to
+                  the same dashboard, so the whole running stack is visible in one place
+    :Feature:     the audit writer's own database connections are measured too, not only the services' shared pools
+    :Config:      measurements are off by default and turn on with the one switch per service that also turns on
+                  request timelines -- no cost until asked for
+    :Config:      the local sandbox now runs its database as a container (matching the cluster) with room for more
+                  connections
+    Components:   common, bizTree, enyMan, pacMan, keySmith, kcMaster, gateway, auKeep, dataKeep, compose, k8s
+
 v1.2.11-2607.0922  v1.2.11 -- observability: request timelines cross the messaging bus
     :Feature:     a request's timeline now continues across the messaging bus -- the service that sends a
                   message and the service that receives it appear as one timeline, drawn as a send-and-receive

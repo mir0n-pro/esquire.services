@@ -33,7 +33,7 @@ import org.springframework.context.event.ContextClosedEvent;
 import org.springframework.core.Ordered;
 import org.springframework.context.annotation.Import;
 import org.springframework.scheduling.annotation.EnableAsync;
-import pro.mir0n.esquire.backend.o11y.TracingConfig;
+import pro.mir0n.esquire.backend.o11y.ObservabilityConfig;
 import pro.mir0n.esquire.backend.storage.EsqObjectKindStorage;
 import pro.mir0n.esquire.common.EsqConstants;
 import pro.mir0n.esquire.messaging.BusHealthIndicator;
@@ -44,7 +44,7 @@ import pro.mir0n.esquire.messaging.MessagingBus;
 @SpringBootApplication(scanBasePackages = {
         "pro.mir0n.esquire.kcMaster"
 })
-@Import(TracingConfig.class)
+@Import(ObservabilityConfig.class)
 public class KcMasterApplication {
 
     private static final org.slf4j.Logger devLog = LoggerFactory.getLogger("develop." + KcMasterApplication.class.getName());

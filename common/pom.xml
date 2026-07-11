@@ -81,6 +81,14 @@
             <groupId>io.opentelemetry</groupId>
             <artifactId>opentelemetry-exporter-otlp</artifactId>
         </dependency>
+        <!-- Metrics (v1.2.11 O1): the Prometheus meter registry, declared as an EXPLICIT @Bean by
+             ObservabilityConfig (same umbrella as tracing). Compile scope so every service inheriting common
+             gets the registry + the free JVM/HTTP/pool binders; Actuator (present in each service) exposes
+             /actuator/prometheus once the registry bean exists. -->
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-registry-prometheus</artifactId>
+        </dependency>
         <!-- @ConditionalOnProperty for the explicit tracing config; provided (present at runtime
              in every Boot service). -->
         <dependency>

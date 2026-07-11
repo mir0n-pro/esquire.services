@@ -13,3 +13,5 @@ loki:
   url: http://esquire-infra-loki:3100
 tempo:
   url: http://esquire-infra-tempo:3200
+prometheus:
+  url: http://esquire-infra-prometheus:9090

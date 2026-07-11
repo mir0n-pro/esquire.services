@@ -52,10 +52,12 @@ enyman:
                 maximum-pool-size: ${DB_DATAKEEP_POOL_SIZE:2}
 # Bus REFS: which slot this service joins on the shared buses.
 esquire:
-  # Distributed tracing (v1.2.11 O2) via common.TracingConfig. Off by default = zero cost; the
+  # Observability umbrella (v1.2.11 O1/O2) via common.ObservabilityConfig: ONE master switch gates BOTH
+  # tracing and metrics -- a service never has one without the other. Off by default = zero cost; the
   # collector endpoint + sampling ratio are set per environment (compose / k8s).
+  observability:
+    enabled: ${ESQ_OBSERVABILITY_ENABLED:false}
   tracing:
-    enabled: ${ESQ_TRACING_ENABLED:false}
     otlp-endpoint: ${ESQ_OTLP_ENDPOINT:http://localhost:4318/v1/traces}
     sampling-ratio: ${ESQ_TRACING_SAMPLING_RATIO:1.0}
     marks-enabled: ${ESQ_TRACING_MARKS_ENABLED:true}
@@ -131,10 +133,21 @@ logging:
   msg:
     log-path: ${MSG_LOG_PATH:logs/enyMan-msg.log}
 management:
-  # Micrometer-Tracing bridge is active only when tracing is enabled; the OTel exporter + sampler are
-  # still declared explicitly by common.TracingConfig (mirrors esquire.tracing.enabled).
+  # The Micrometer-Tracing bridge and Prometheus metrics export are active only when observability is
+  # enabled; the OTel exporter + sampler + meter registry are declared explicitly by
+  # common.ObservabilityConfig (mirrors esquire.observability.enabled).
   tracing:
-    enabled: ${ESQ_TRACING_ENABLED:false}
+    enabled: ${ESQ_OBSERVABILITY_ENABLED:false}
+  prometheus:
+    metrics:
+      export:
+        enabled: ${ESQ_OBSERVABILITY_ENABLED:false}
+  endpoints:
+    web:
+      exposure:
+        # /actuator/prometheus scraped by the metrics collector; the endpoint bean exists only when the
+        # registry does (observability on), so listing it here is harmless when off.
+        include: health, prometheus
   endpoint:
     health:
       probes:

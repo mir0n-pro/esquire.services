@@ -10,7 +10,7 @@
  *                   service method and the method becomes its own span (a child of the request span) via
  *                   EsqTracedAspect. name = the low-cardinality observation name; label = the span name in
  *                   the trace. The programmatic twin for non-Spring / final code is EsqTrace.mark(); both
- *                   ride the same ObservationRegistry, so ONE gate (TracingConfig's ObservationPredicate)
+ *                   ride the same ObservationRegistry, so ONE gate (ObservabilityConfig's ObservationPredicate)
  *                   and the ESQ_TRACING_ENABLED master switch govern them together with the HTTP spans.
  */
 

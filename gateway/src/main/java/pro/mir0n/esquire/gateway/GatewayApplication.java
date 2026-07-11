@@ -20,7 +20,7 @@ import org.springframework.boot.context.event.ApplicationStartingEvent;
 import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
 import org.springframework.context.ApplicationListener;
 import org.springframework.context.annotation.Import;
-import pro.mir0n.esquire.backend.o11y.TracingConfig;
+import pro.mir0n.esquire.backend.o11y.ObservabilityConfig;
 import pro.mir0n.esquire.backend.storage.EsqObjectKindStorage;
 
 //TODO: get Roles with permissions from keySmith
@@ -31,7 +31,7 @@ import pro.mir0n.esquire.backend.storage.EsqObjectKindStorage;
 
 @SpringBootApplication
 @ConfigurationPropertiesScan
-@Import(TracingConfig.class)
+@Import(ObservabilityConfig.class)
 public class GatewayApplication {
 
     private static final org.slf4j.Logger devLog = LoggerFactory.getLogger("develop." + GatewayApplication.class.getName());

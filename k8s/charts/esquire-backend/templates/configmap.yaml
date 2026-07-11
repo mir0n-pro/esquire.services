@@ -25,7 +25,7 @@ data:
   # Omitted (no key) when redis.url is empty -> in-memory MemoryStore, 1 replica.
   REDIS_URL:          {{ .Values.redis.url | quote }}
   # --- v1.2.11 O2 distributed tracing (opt-in; OFF by default; o11y-on enables it) ---
-  ESQ_TRACING_ENABLED:        {{ .Values.tracing.enabled | quote }}
+  ESQ_TRACING_ENABLED:        {{ .Values.observability.enabled | quote }}   # BFF tracing rides the umbrella switch (own metrics = T5c)
   ESQ_OTLP_ENDPOINT:          {{ .Values.tracing.otlpEndpoint | quote }}
   ESQ_TRACING_SAMPLING_RATIO: {{ .Values.tracing.samplingRatio | quote }}
   {{- end }}

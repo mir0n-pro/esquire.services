@@ -31,7 +31,7 @@ public final class EsqTraceMark {
 
     private static volatile ObservationRegistry registry = ObservationRegistry.NOOP;
 
-    // Wire the app's ObservationRegistry (the one carrying the tracing handlers). Called from TracingConfig.
+    // Wire the app's ObservationRegistry (the one carrying the tracing handlers). Called from ObservabilityConfig.
     public static void setRegistry(ObservationRegistry observationRegistry) {
         registry = observationRegistry;
     }

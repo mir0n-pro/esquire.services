@@ -1,5 +1,16 @@
 Esquire Backend common microservice classes
 
+07/10/2026 mir0n  v1.2.11 -- metrics foundation (O1): free JVM/HTTP/pool meters under the observability umbrella
+o11y.ObservabilityConfig
+  - metrics folded onto the tracing umbrella (class was TracingConfig): the Prometheus meter registry is
+    Boot-owned; this config contributes only the policy -- esqCommonMetricTags() (MeterFilter: common tag
+    application=<spring.application.name> on every meter) and esqHttpLatencyHistogram() (MeterFilter:
+    percentile-histogram on http.server.requests so p95 has _bucket series); gate widened to
+    esquire.observability.enabled (one switch for tracing AND metrics)
+pom.xml
+  - micrometer-registry-prometheus (compile) added -- the Prometheus meter registry + the free jvm/http/pool
+    binders on common's classpath; Actuator exposes /actuator/prometheus once the registry bean exists
+
 07/09/2026 mir0n  v1.2.11 -- distributed tracing (O2/T3): the OTel implementation of the bus-hop hook, the async-boundary primitive, the replica badge
 o11y.EsqRodTracer  (new)
   - the OTel implementation of the messaging-declared o11y.IRodTracer, built on the raw OTel Tracer (not the

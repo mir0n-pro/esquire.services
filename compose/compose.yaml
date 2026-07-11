@@ -1,8 +1,49 @@
 name: esq-omnibus
 services:
-  # NOTE: no Postgres container here -- docker compose uses the EXTERNAL local Postgres (pg18) on the host,
-  # reached as host.docker.internal:5432 (DB_*_HOST defaults below). The dockerized Postgres image is a
-  # k8s-only concern (the esquire-infra-postgres StatefulSet / charts/infra/postgres).
+  # Postgres runs as a CONTAINER (esquire-postgres:17, built from db.seed via services/postgres/Dockerfile) --
+  # the same image k8s uses. The five DB-backed services reach it at postgres:5432 (DB_*_HOST defaults
+  # below). It seeds on first init (empty volume); host access is on :5433 (the host's own pg keeps :5432).
+
+  postgres:
+    container_name: esq-postgres
+    build:
+      context: ../..
+      dockerfile: services/postgres/Dockerfile
+    image: esquire-postgres:17
+    # Raise max_connections to 200 (stock default is 100): the five DB services' Hikari pools
+    # (up to 2 pools x 10 each) sit near 90 at idle and would exhaust 100 on a rolling restart.
+    # Matches the k8s postgres chart (maxConnections 200).
+    command: ["postgres", "-c", "max_connections=200"]
+    environment:
+      - POSTGRES_USER=esq2025
+      - POSTGRES_PASSWORD=q
+      - POSTGRES_DB=esq2025
+    ports:
+      - "5433:5432"   # host access on 5433; the host own pg keeps 5432
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U esq2025 -d esq2025"]
+      interval: 5s
+      timeout: 3s
+      retries: 40
+      start_period: 30s
+    networks:
+      - esquirenet
+
+  # Prometheus exporter for the Postgres container -- turns pg_stat_* into metrics
+  # (connections, transactions, cache hit ratio, DB size). Scraped by the "postgres" job on :9187.
+  postgres-exporter:
+    container_name: esq-postgres-exporter
+    image: quay.io/prometheuscommunity/postgres-exporter:v0.16.0
+    profiles: ["o11y"]
+    environment:
+      - DATA_SOURCE_NAME=postgresql://esq2025:q@postgres:5432/esq2025?sslmode=disable
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - esquirenet
 
   activemq:
     container_name: esq-activemq
@@ -158,6 +199,10 @@ services:
       KC_HOSTNAME_STRICT_BACKCHANNEL: "false"
       KC_HOSTNAME_STRICT_HTTPS: "false"
       KC_HEALTH_ENABLED: "true"
+      # Prometheus metrics on the management interface (:9000/kc-auth/metrics) -- gated by the observability
+      # umbrella: off by default, ON when ESQ_OBSERVABILITY_ENABLED=true (o11y-on recreates KC to apply it,
+      # since KC_METRICS_ENABLED is a boot-time option).
+      KC_METRICS_ENABLED: "${ESQ_OBSERVABILITY_ENABLED:-false}"
       KC_HTTP_RELATIVE_PATH: /kc-auth
       # Phantom Token Relay: RFC 8693 token-exchange (KC 26.4 preview).
       # admin-fine-grained-authz is enabled by default in KC 26 -- no flag needed.
@@ -200,7 +245,7 @@ services:
       #- DB_BIZTREE_VENDOR=dev-oracle
       #- DB_BIZTREE_PORT=1521
       #- DB_BIZTREE_NAME=MIR0N
-      - DB_BIZTREE_HOST=${DB_BIZTREE_HOST:-host.docker.internal}
+      - DB_BIZTREE_HOST=${DB_BIZTREE_HOST:-postgres}
       - DB_BIZTREE_USERNAME=esq2025
       - DB_BIZTREE_PASSWORD=q
       # Messaging
@@ -214,8 +259,8 @@ services:
       # H2 in-memory cache store
       - BIZTREE_CACHE_VENDOR=cache-h2
       # Distributed tracing (v1.2.11 O2) -- OFF by default; the o11y profile brings up the collector + Tempo.
-      # Enable end-to-end: ESQ_TRACING_ENABLED=true docker compose --profile o11y up -d --force-recreate
-      - ESQ_TRACING_ENABLED=${ESQ_TRACING_ENABLED:-false}
+      # Enable end-to-end: ESQ_OBSERVABILITY_ENABLED=true docker compose --profile o11y up -d --force-recreate
+      - ESQ_OBSERVABILITY_ENABLED=${ESQ_OBSERVABILITY_ENABLED:-false}
       - ESQ_MSG_BUS_ALIVE_TRACE=${ESQ_MSG_BUS_ALIVE_TRACE:-true}   # RR liveness round-trip traced on docker; off on k8s/default
       - ESQ_OTLP_ENDPOINT=${ESQ_OTLP_ENDPOINT:-http://otel-collector:4318/v1/traces}
       - ESQ_TRACING_SAMPLING_RATIO=${ESQ_TRACING_SAMPLING_RATIO:-1.0}
@@ -245,6 +290,8 @@ services:
       - BIZTREE_QUEUE_BULK_THRESHOLD=${BIZTREE_QUEUE_BULK_THRESHOLD:-10}
     command: ["java", "-jar", "app.jar"]
     depends_on:
+      postgres:
+        condition: service_healthy
       activemq:
         condition: service_healthy
     volumes:
@@ -278,15 +325,15 @@ services:
       #- DB_ENYMAN_VENDOR=dev-oracle
       #- DB_ENYMAN_PORT=1521
       #- DB_ENYMAN_NAME=MIR0N
-      - DB_ENYMAN_HOST=${DB_ENYMAN_HOST:-host.docker.internal}
+      - DB_ENYMAN_HOST=${DB_ENYMAN_HOST:-postgres}
       - DB_ENYMAN_USERNAME=esq2025
       - DB_ENYMAN_PASSWORD=q
       # Messaging
       - KC_BUS_ID=esquire.kc
       - KC_SLOT_ID=kc
       # Distributed tracing (v1.2.11 O2) -- OFF by default; the o11y profile brings up the collector + Tempo.
-      # Enable end-to-end: ESQ_TRACING_ENABLED=true docker compose --profile o11y up -d --force-recreate
-      - ESQ_TRACING_ENABLED=${ESQ_TRACING_ENABLED:-false}
+      # Enable end-to-end: ESQ_OBSERVABILITY_ENABLED=true docker compose --profile o11y up -d --force-recreate
+      - ESQ_OBSERVABILITY_ENABLED=${ESQ_OBSERVABILITY_ENABLED:-false}
       - ESQ_MSG_BUS_ALIVE_TRACE=${ESQ_MSG_BUS_ALIVE_TRACE:-true}   # RR liveness round-trip traced on docker; off on k8s/default
       - ESQ_OTLP_ENDPOINT=${ESQ_OTLP_ENDPOINT:-http://otel-collector:4318/v1/traces}
       - ESQ_TRACING_SAMPLING_RATIO=${ESQ_TRACING_SAMPLING_RATIO:-1.0}
@@ -323,12 +370,14 @@ services:
       - AUDIT_POOL_SIZE=${AUDIT_POOL_SIZE:-4}
       - AUDIT_POOL_MODE=${AUDIT_POOL_MODE:-platform}
       - AUDIT_FEED_CAPACITY=${AUDIT_FEED_CAPACITY:-4096}
-      # audit-b (in-process) datastore -- defaults to the service's own DB (its log tables); override to relocate.      - DB_DATAKEEP_URL=${DB_DATAKEEP_URL:-jdbc:postgresql://host.docker.internal:5432/esq2025}
+      # audit-b (in-process) datastore -- defaults to the service's own DB (its log tables); override to relocate.      - DB_DATAKEEP_URL=${DB_DATAKEEP_URL:-jdbc:postgresql://postgres:5432/esq2025}
       - DB_DATAKEEP_USERNAME=${DB_DATAKEEP_USERNAME:-esq2025}
       - DB_DATAKEEP_PASSWORD=${DB_DATAKEEP_PASSWORD:-q}
       - DB_DATAKEEP_POOL_SIZE=${DB_DATAKEEP_POOL_SIZE:-2}
     command: ["java", "-jar", "app.jar"]
     depends_on:
+      postgres:
+        condition: service_healthy
       activemq:
         condition: service_healthy
     volumes:
@@ -356,8 +405,8 @@ services:
       - DEVELOP_LOG_PATH=logs/pacMan-develop.log
       - MSG_LOG_PATH=logs/pacMan-msg.log
       # Distributed tracing (v1.2.11 O2) -- OFF by default; the o11y profile brings up the collector + Tempo.
-      # Enable end-to-end: ESQ_TRACING_ENABLED=true docker compose --profile o11y up -d --force-recreate
-      - ESQ_TRACING_ENABLED=${ESQ_TRACING_ENABLED:-false}
+      # Enable end-to-end: ESQ_OBSERVABILITY_ENABLED=true docker compose --profile o11y up -d --force-recreate
+      - ESQ_OBSERVABILITY_ENABLED=${ESQ_OBSERVABILITY_ENABLED:-false}
       - ESQ_MSG_BUS_ALIVE_TRACE=${ESQ_MSG_BUS_ALIVE_TRACE:-true}   # RR liveness round-trip traced on docker; off on k8s/default
       - ESQ_OTLP_ENDPOINT=${ESQ_OTLP_ENDPOINT:-http://otel-collector:4318/v1/traces}
       - ESQ_TRACING_SAMPLING_RATIO=${ESQ_TRACING_SAMPLING_RATIO:-1.0}
@@ -370,7 +419,7 @@ services:
       #- DB_PACMAN_VENDOR=dev-oracle
       #- DB_PACMAN_PORT=1521
       #- DB_PACMAN_NAME=MIR0N
-      - DB_PACMAN_HOST=${DB_PACMAN_HOST:-host.docker.internal}
+      - DB_PACMAN_HOST=${DB_PACMAN_HOST:-postgres}
       - DB_PACMAN_USERNAME=esq2025
       - DB_PACMAN_PASSWORD=q
       # Messaging
@@ -389,12 +438,14 @@ services:
       - AUDIT_SLOT_ID=audit
       - AUDIT_POOL_SIZE=${AUDIT_POOL_SIZE:-4}
       - AUDIT_POOL_MODE=${AUDIT_POOL_MODE:-platform}
-      - AUDIT_FEED_CAPACITY=${AUDIT_FEED_CAPACITY:-4096}      - DB_DATAKEEP_URL=${DB_DATAKEEP_URL:-jdbc:postgresql://host.docker.internal:5432/esq2025}
+      - AUDIT_FEED_CAPACITY=${AUDIT_FEED_CAPACITY:-4096}      - DB_DATAKEEP_URL=${DB_DATAKEEP_URL:-jdbc:postgresql://postgres:5432/esq2025}
       - DB_DATAKEEP_USERNAME=${DB_DATAKEEP_USERNAME:-esq2025}
       - DB_DATAKEEP_PASSWORD=${DB_DATAKEEP_PASSWORD:-q}
       - DB_DATAKEEP_POOL_SIZE=${DB_DATAKEEP_POOL_SIZE:-2}
     command: ["java", "-jar", "app.jar"]
     depends_on:
+      postgres:
+        condition: service_healthy
       activemq:
         condition: service_healthy
     volumes:
@@ -422,8 +473,8 @@ services:
       - DEVELOP_LOG_PATH=logs/datakeep-develop.log
       - MSG_LOG_PATH=logs/datakeep-msg.log
       # Distributed tracing (v1.2.11 O2) -- OFF by default; the o11y profile brings up the collector + Tempo.
-      # Enable end-to-end: ESQ_TRACING_ENABLED=true docker compose --profile o11y up -d --force-recreate
-      - ESQ_TRACING_ENABLED=${ESQ_TRACING_ENABLED:-false}
+      # Enable end-to-end: ESQ_OBSERVABILITY_ENABLED=true docker compose --profile o11y up -d --force-recreate
+      - ESQ_OBSERVABILITY_ENABLED=${ESQ_OBSERVABILITY_ENABLED:-false}
       - ESQ_MSG_BUS_ALIVE_TRACE=${ESQ_MSG_BUS_ALIVE_TRACE:-true}   # RR liveness round-trip traced on docker; off on k8s/default
       - ESQ_OTLP_ENDPOINT=${ESQ_OTLP_ENDPOINT:-http://otel-collector:4318/v1/traces}
       - ESQ_TRACING_SAMPLING_RATIO=${ESQ_TRACING_SAMPLING_RATIO:-1.0}
@@ -433,7 +484,7 @@ services:
       - DB_DATAKEEP_VENDOR=${DB_DATAKEEP_VENDOR:-dev-postgres}
       - DB_DATAKEEP_PORT=${DB_DATAKEEP_PORT:-5432}
       - DB_DATAKEEP_NAME=${DB_DATAKEEP_NAME:-esq2025}
-      - DB_DATAKEEP_HOST=${DB_DATAKEEP_HOST:-host.docker.internal}
+      - DB_DATAKEEP_HOST=${DB_DATAKEEP_HOST:-postgres}
       - DB_DATAKEEP_USERNAME=${DB_DATAKEEP_USERNAME:-esq2025}
       - DB_DATAKEEP_PASSWORD=${DB_DATAKEEP_PASSWORD:-q}
       # Audit bus (x-rod). auKeep is the bus CONSUMER -- pick the SAME bus the producers publish to:
@@ -447,6 +498,8 @@ services:
       - AUDIT_POOL_MODE=${AUDIT_POOL_MODE:-platform}
     command: ["java", "-jar", "app.jar"]
     depends_on:
+      postgres:
+        condition: service_healthy
       activemq:
         condition: service_healthy
     volumes:
@@ -474,8 +527,8 @@ services:
       - DEVELOP_LOG_PATH=logs/keySmith-develop.log
       - MSG_LOG_PATH=logs/keySmith-msg.log
       # Distributed tracing (v1.2.11 O2) -- OFF by default; the o11y profile brings up the collector + Tempo.
-      # Enable end-to-end: ESQ_TRACING_ENABLED=true docker compose --profile o11y up -d --force-recreate
-      - ESQ_TRACING_ENABLED=${ESQ_TRACING_ENABLED:-false}
+      # Enable end-to-end: ESQ_OBSERVABILITY_ENABLED=true docker compose --profile o11y up -d --force-recreate
+      - ESQ_OBSERVABILITY_ENABLED=${ESQ_OBSERVABILITY_ENABLED:-false}
       - ESQ_MSG_BUS_ALIVE_TRACE=${ESQ_MSG_BUS_ALIVE_TRACE:-true}   # RR liveness round-trip traced on docker; off on k8s/default
       - ESQ_OTLP_ENDPOINT=${ESQ_OTLP_ENDPOINT:-http://otel-collector:4318/v1/traces}
       - ESQ_TRACING_SAMPLING_RATIO=${ESQ_TRACING_SAMPLING_RATIO:-1.0}
@@ -488,7 +541,7 @@ services:
       #- DB_KEYSMITH_VENDOR=dev-oracle
       #- DB_KEYSMITH_PORT=1521
       #- DB_KEYSMITH_NAME=MIR0N
-      - DB_KEYSMITH_HOST=${DB_KEYSMITH_HOST:-host.docker.internal}
+      - DB_KEYSMITH_HOST=${DB_KEYSMITH_HOST:-postgres}
       - DB_KEYSMITH_USERNAME=esq2025
       - DB_KEYSMITH_PASSWORD=q
       # Messaging
@@ -512,12 +565,14 @@ services:
       - AUDIT_SLOT_ID=audit
       - AUDIT_POOL_SIZE=${AUDIT_POOL_SIZE:-4}
       - AUDIT_POOL_MODE=${AUDIT_POOL_MODE:-platform}
-      - AUDIT_FEED_CAPACITY=${AUDIT_FEED_CAPACITY:-4096}      - DB_DATAKEEP_URL=${DB_DATAKEEP_URL:-jdbc:postgresql://host.docker.internal:5432/esq2025}
+      - AUDIT_FEED_CAPACITY=${AUDIT_FEED_CAPACITY:-4096}      - DB_DATAKEEP_URL=${DB_DATAKEEP_URL:-jdbc:postgresql://postgres:5432/esq2025}
       - DB_DATAKEEP_USERNAME=${DB_DATAKEEP_USERNAME:-esq2025}
       - DB_DATAKEEP_PASSWORD=${DB_DATAKEEP_PASSWORD:-q}
       - DB_DATAKEEP_POOL_SIZE=${DB_DATAKEEP_POOL_SIZE:-2}
     command: ["java", "-jar", "app.jar"]
     depends_on:
+      postgres:
+        condition: service_healthy
       activemq:
         condition: service_healthy
     volumes:
@@ -545,8 +600,8 @@ services:
       - DEVELOP_LOG_PATH=logs/kcMaster-develop.log
       - MSG_LOG_PATH=logs/kcMaster-msg.log
       # Distributed tracing (v1.2.11 O2) -- OFF by default; the o11y profile brings up the collector + Tempo.
-      # Enable end-to-end: ESQ_TRACING_ENABLED=true docker compose --profile o11y up -d --force-recreate
-      - ESQ_TRACING_ENABLED=${ESQ_TRACING_ENABLED:-false}
+      # Enable end-to-end: ESQ_OBSERVABILITY_ENABLED=true docker compose --profile o11y up -d --force-recreate
+      - ESQ_OBSERVABILITY_ENABLED=${ESQ_OBSERVABILITY_ENABLED:-false}
       - ESQ_MSG_BUS_ALIVE_TRACE=${ESQ_MSG_BUS_ALIVE_TRACE:-true}   # RR liveness round-trip traced on docker; off on k8s/default
       - ESQ_OTLP_ENDPOINT=${ESQ_OTLP_ENDPOINT:-http://otel-collector:4318/v1/traces}
       - ESQ_TRACING_SAMPLING_RATIO=${ESQ_TRACING_SAMPLING_RATIO:-1.0}
@@ -630,8 +685,8 @@ services:
       - LOG_LEVEL_MIR0N=DEBUG
       - GW_SERVICE_METRICS_ENABLED=true
       # Distributed tracing (v1.2.11 O2) -- OFF by default; the o11y profile brings up the collector + Tempo.
-      # Enable end-to-end: ESQ_TRACING_ENABLED=true docker compose --profile o11y up -d --force-recreate
-      - ESQ_TRACING_ENABLED=${ESQ_TRACING_ENABLED:-false}
+      # Enable end-to-end: ESQ_OBSERVABILITY_ENABLED=true docker compose --profile o11y up -d --force-recreate
+      - ESQ_OBSERVABILITY_ENABLED=${ESQ_OBSERVABILITY_ENABLED:-false}
       - ESQ_MSG_BUS_ALIVE_TRACE=${ESQ_MSG_BUS_ALIVE_TRACE:-true}   # RR liveness round-trip traced on docker; off on k8s/default
       - ESQ_OTLP_ENDPOINT=${ESQ_OTLP_ENDPOINT:-http://otel-collector:4318/v1/traces}
       - ESQ_TRACING_SAMPLING_RATIO=${ESQ_TRACING_SAMPLING_RATIO:-1.0}
@@ -701,8 +756,8 @@ services:
       - ALLOWED_ORIGINS=http://localhost:3000,http://localhost:4200
       - SESSION_SECRET=esq-bff-dev-session-secret-rotate-in-prod
       # Distributed tracing (v1.2.11 O2) -- OFF by default; the o11y profile brings up the collector.
-      # Enable end-to-end: ESQ_TRACING_ENABLED=true docker compose --profile o11y up -d --force-recreate
-      - ESQ_TRACING_ENABLED=${ESQ_TRACING_ENABLED:-false}
+      # Enable end-to-end: ESQ_OBSERVABILITY_ENABLED=true docker compose --profile o11y up -d --force-recreate
+      - ESQ_TRACING_ENABLED=${ESQ_OBSERVABILITY_ENABLED:-false}   # BFF tracing rides the umbrella switch (own metrics = T5c)
       - ESQ_MSG_BUS_ALIVE_TRACE=${ESQ_MSG_BUS_ALIVE_TRACE:-true}   # RR liveness round-trip traced on docker; off on k8s/default
       - ESQ_OTLP_ENDPOINT=${ESQ_OTLP_ENDPOINT:-http://otel-collector:4318/v1/traces}
       - ESQ_TRACING_SAMPLING_RATIO=${ESQ_TRACING_SAMPLING_RATIO:-1.0}
@@ -743,7 +798,7 @@ services:
   # Grafana single pane over Loki (logs, T1) + Tempo (traces, T2). Alloy tails the esq-* container stdout
   # (ECS JSON) into Loki; the OTel Collector receives service spans over OTLP and forwards them to Tempo.
   #   Start (logs only):     docker compose --profile o11y up -d
-  #   Start with tracing:    ESQ_TRACING_ENABLED=true docker compose --profile o11y up -d --force-recreate
+  #   Start with observability: ESQ_OBSERVABILITY_ENABLED=true docker compose --profile o11y up -d --force-recreate
   #   Open:   http://localhost:3009  (admin/admin)  ->  Explore
   #     Loki:   {job="esq-docker"} | json | correlationId = "<id>"
   #     Tempo:  Search by TraceID = the same correlationId (traceId == settled Esq-Correlation-ID).
@@ -837,11 +892,28 @@ services:
     networks:
       - esquirenet
 
+  # Prometheus -- the metrics store (the M of LGTM). Scrapes each service's /actuator/prometheus (pull model)
+  # on the docker network; Grafana queries it on :9090. Part of the "o11y" profile, off by default.
+  prometheus:
+    container_name: esq-prometheus
+    image: prom/prometheus:v3.1.0
+    profiles: ["o11y"]
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=6h
+    volumes:
+      - ./o11y/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - "9090:9090"     # Prometheus query API / UI
+    networks:
+      - esquirenet
+
 networks:
   esquirenet:
     driver: "bridge"
 
 volumes:
+  postgres-data:
   loki-data:
   grafana-data:
   alloy-data:

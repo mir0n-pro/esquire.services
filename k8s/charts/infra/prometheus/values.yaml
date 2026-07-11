@@ -1,0 +1,6 @@
+# Prometheus metrics store for the v1.2.11 O1 observability stack (local/dev k8s only; not deployed on OKE).
+image:
+  repository: prom/prometheus
+  tag: "v3.1.0"
+  pullPolicy: IfNotPresent
+retention: 6h

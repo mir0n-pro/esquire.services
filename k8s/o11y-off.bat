@@ -7,10 +7,15 @@ setlocal
 cd /d "%~dp0"
 echo --- Disabling tracing on the app services...
 for %%s in (gateway enyman biztree pacman keysmith kcmaster aukeep backend) do (
-  call helm upgrade esquire-%%s charts\esquire-%%s --reset-then-reuse-values --set tracing.enabled=false
+  call helm upgrade esquire-%%s charts\esquire-%%s --reset-then-reuse-values --set observability.enabled=false
   call kubectl rollout restart statefulset esquire-%%s-%%s
 )
+echo --- Disabling metrics on keycloak...
+call helm upgrade esquire-infra-kc charts\infra\keycloak -f values\keycloak.yaml --reset-then-reuse-values --set observability.enabled=false
+call kubectl rollout restart statefulset esquire-infra-kc-keycloak
 call helm uninstall esquire-infra-grafana
+call helm uninstall esquire-infra-postgres-exporter
+call helm uninstall esquire-infra-prometheus
 call helm uninstall esquire-infra-otel-collector
 call helm uninstall esquire-infra-tempo
 call helm uninstall esquire-infra-alloy

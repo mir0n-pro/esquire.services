@@ -22,8 +22,8 @@ import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
 
-// Wraps every @EsqTraced service method in an Observation. Registered as an explicit @Bean by TracingConfig
-// (D3); only loaded when esquire.tracing.enabled=true, so with tracing off the annotation is inert.
+// Wraps every @EsqTraced service method in an Observation. Registered as an explicit @Bean by ObservabilityConfig
+// (D3); only loaded when esquire.observability.enabled=true, so with observability off the annotation is inert.
 @Aspect
 public class EsqTracedAspect {
 

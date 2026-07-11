@@ -1,5 +1,10 @@
 Esquire keySmith Microservice
 
+07/10/2026 mir0n  v1.2.11 -- metrics foundation (O1): Prometheus export + the observability umbrella switch
+resources/application.yml
+  - esquire.observability.enabled (ESQ_OBSERVABILITY_ENABLED) now gates BOTH tracing and metrics (replaces the
+    tracing-only switch); management.prometheus.metrics.export.enabled + endpoints.web.exposure.include prometheus added
+
 07/09/2026 mir0n  v1.2.11 -- the RR liveness round-trip trace knob
 resources/application.yml
   - esquire.tracing.msg-bus-alive-trace: ${ESQ_MSG_BUS_ALIVE_TRACE:false} added

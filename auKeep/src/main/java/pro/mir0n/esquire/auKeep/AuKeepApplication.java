@@ -34,7 +34,7 @@ import org.springframework.context.ApplicationListener;
 import org.springframework.context.event.ContextClosedEvent;
 import org.springframework.context.annotation.Import;
 import org.springframework.core.Ordered;
-import pro.mir0n.esquire.backend.o11y.TracingConfig;
+import pro.mir0n.esquire.backend.o11y.ObservabilityConfig;
 import pro.mir0n.esquire.backend.storage.EsqObjectKindStorage;
 import pro.mir0n.esquire.common.EsqConstants;
 import pro.mir0n.esquire.messaging.MessagingBus;
@@ -50,7 +50,7 @@ import pro.mir0n.esquire.auKeep.messaging.AuditConsumerConfig;
         "pro.mir0n.esquire.audit",
         "pro.mir0n.esquire.auKeep"
 }, exclude = { DataSourceAutoConfiguration.class })
-@Import(TracingConfig.class)
+@Import(ObservabilityConfig.class)
 public class AuKeepApplication {
 
     private static final org.slf4j.Logger devLog = LoggerFactory.getLogger("develop." + AuKeepApplication.class.getName());

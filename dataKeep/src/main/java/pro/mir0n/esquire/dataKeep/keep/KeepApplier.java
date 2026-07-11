@@ -22,6 +22,10 @@
  *                   so pgjdbc socketTimeout / tcpKeepAlive let health() fail fast on a vanished DB instead of
  *                   hanging on a half-open socket.
  * 06/29/2026 mir0n  passes ds.queryTimeoutSeconds() to the RodEventDbWriter -- the per-apply statement cap (R6)
+ * 07/10/2026 mir0n  v1.2.11 O1 -- 5-arg constructor + buildPool(p, metricRegistry): an optional metricRegistry
+ *                   (nullable, typed Object so dataKeep stays Micrometer-free) is handed to HikariConfig
+ *                   .setMetricRegistry, so this OWN (non-Spring) keep pool reports its hikaricp_* meters
+ *                   alongside the services' Spring-managed pools.
  */
 package pro.mir0n.esquire.dataKeep.keep;
 
@@ -50,7 +54,15 @@ public final class KeepApplier implements AutoCloseable {
     /** The keep builds and OWNS its own auto-commit Hikari pool from the datasource group; the dialect is
      *  derived from the group's JDBC URL (its subprotocol). */
     public KeepApplier(KeepDataSourceParams ds, KeepSqlStore sql, Map<Integer, String> kindToSqlKey, Logger devLog) {
-        this.dataSource = buildPool(ds);
+        this(ds, sql, kindToSqlKey, devLog, null);
+    }
+
+    // metricRegistry (nullable, typed Object so dataKeep's API stays Micrometer-free): a Micrometer MeterRegistry
+    // handed in by the host -> HikariCP wires the pool's hikaricp_* meters onto it, so this OWN keep pool (which
+    // is NOT a Spring-managed DataSource and so is invisible to Boot's auto-instrumentation) still reports.
+    public KeepApplier(KeepDataSourceParams ds, KeepSqlStore sql, Map<Integer, String> kindToSqlKey, Logger devLog,
+                       Object metricRegistry) {
+        this.dataSource = buildPool(ds, metricRegistry);
         RodEventDbWriter writer = new RodEventDbWriter(dataSource, KeepSqlStore.dialectOf(ds.url()), sql, ds.queryTimeoutSeconds());
         RodEventRepoRegistry registry = new RodEventRepoRegistry();
         kindToSqlKey.forEach((kind, sqlKey) -> registry.register(kind, e -> writer.applyEvent(sqlKey, e)));
@@ -83,7 +95,7 @@ public final class KeepApplier implements AutoCloseable {
         }
     }
 
-    private static HikariDataSource buildPool(KeepDataSourceParams p) {
+    private static HikariDataSource buildPool(KeepDataSourceParams p, Object metricRegistry) {
         HikariConfig hc = new HikariConfig();
         hc.setJdbcUrl(p.url());
         hc.setUsername(p.username());
@@ -102,6 +114,11 @@ public final class KeepApplier implements AutoCloseable {
         hc.setPoolName("keep-db");
         // the applies run OUTSIDE any caller transaction -> each INSERT/MERGE must auto-commit.
         hc.setAutoCommit(true);
+        if (metricRegistry != null) {
+            // HikariCP wires its hikaricp_* meters onto the given Micrometer MeterRegistry -- so this OWN
+            // (non-Spring) keep pool reports alongside the services' Spring-managed pools.
+            hc.setMetricRegistry(metricRegistry);
+        }
         return new HikariDataSource(hc);
     }
 }

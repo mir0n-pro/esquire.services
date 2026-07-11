@@ -1,5 +1,11 @@
 Esquire dataKeep library
 
+07/10/2026 mir0n  v1.2.11 -- metrics foundation (O1): the keep pool reports hikaricp_* meters
+keep.KeepApplier
+  - 5-arg constructor + buildPool(p, metricRegistry): an optional metricRegistry (nullable Object, so dataKeep
+    stays Micrometer-free) is handed to HikariConfig.setMetricRegistry, so this OWN (non-Spring) keep pool
+    reports its hikaricp_* meters alongside the services' Spring-managed pools
+
 07/08/2026 mir0n  v1.2.11 -- distributed tracing (O2): trace mark on the keep apply
 keep.RodEventDbWriter
   - applyEvent() body wrapped in EsqTraceMark.around("esq.keep.apply", "keep audit log", ...) -- the writer is not a

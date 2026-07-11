@@ -1,0 +1,99 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-config
+  labels:
+    app: {{ .Release.Name }}
+data:
+  prometheus.yml: |
+    # Pod discovery: each Java service pod (both StatefulSet replicas) is scraped directly on its own IP, so
+    # both replicas appear as separate targets -- instance = the pod name (esquire-enyman-enyman-0 / -1). The
+    # metric already carries application=<service> (Micrometer common tag); instance separates the x2. The
+    # /actuator/prometheus endpoint exists only when observability is enabled. Separate jobs below scrape the
+    # BFF (esq-backend, Node/prom-client :3000), KeyCloak (Quarkus mgmt :9000/kc-auth/metrics), and Postgres
+    # (via postgres-exporter :9187).
+    global:
+      scrape_interval: 15s
+      scrape_timeout: 10s
+    scrape_configs:
+      - job_name: esquire-services
+        metrics_path: /actuator/prometheus
+        kubernetes_sd_configs:
+          - role: pod
+            namespaces:
+              names: [{{ .Release.Namespace }}]
+        relabel_configs:
+          # keep only the seven Java service pods (app label esquire-<svc>-<svc>); infra + the Node BFF drop out.
+          - source_labels: [__meta_kubernetes_pod_label_app]
+            regex: "esquire-(gateway|biztree|enyman|pacman|keysmith|kcmaster|aukeep)-.*"
+            action: keep
+          # scrape the pod IP on its declared container port (each service's own port, resolved per pod).
+          - source_labels: [__meta_kubernetes_pod_ip, __meta_kubernetes_pod_container_port_number]
+            separator: ":"
+            target_label: __address__
+          # instance = the pod name -> the x2 replicas show as ...-0 and ...-1.
+          - source_labels: [__meta_kubernetes_pod_name]
+            target_label: instance
+          - source_labels: [__meta_kubernetes_pod_name]
+            target_label: pod
+
+      # KeyCloak -- Quarkus management interface on :9000; metrics honor KC_HTTP_RELATIVE_PATH (/kc-auth).
+      - job_name: keycloak
+        metrics_path: /kc-auth/metrics
+        kubernetes_sd_configs:
+          - role: pod
+            namespaces:
+              names: [{{ .Release.Namespace }}]
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_label_app]
+            regex: "esquire-infra-kc-keycloak"
+            action: keep
+          # KC exposes two container ports (8080 app, 9000 mgmt) -- keep only the mgmt-port target.
+          - source_labels: [__meta_kubernetes_pod_container_port_number]
+            regex: "9000"
+            action: keep
+          - source_labels: [__meta_kubernetes_pod_ip, __meta_kubernetes_pod_container_port_number]
+            separator: ":"
+            target_label: __address__
+          - source_labels: [__meta_kubernetes_pod_name]
+            target_label: instance
+          - source_labels: [__meta_kubernetes_pod_name]
+            target_label: pod
+
+      # BFF (esq-backend, Node/prom-client) -- its own /metrics on :3000 (both replicas scraped per pod).
+      - job_name: esquire-bff
+        metrics_path: /metrics
+        kubernetes_sd_configs:
+          - role: pod
+            namespaces:
+              names: [{{ .Release.Namespace }}]
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_label_app]
+            regex: "esquire-backend-backend"
+            action: keep
+          - source_labels: [__meta_kubernetes_pod_ip, __meta_kubernetes_pod_container_port_number]
+            separator: ":"
+            target_label: __address__
+          - source_labels: [__meta_kubernetes_pod_name]
+            target_label: instance
+          - source_labels: [__meta_kubernetes_pod_name]
+            target_label: pod
+
+      # Postgres -- via postgres-exporter (pg_stat_* -> metrics) on :9187.
+      - job_name: postgres
+        metrics_path: /metrics
+        kubernetes_sd_configs:
+          - role: pod
+            namespaces:
+              names: [{{ .Release.Namespace }}]
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_label_app]
+            regex: "esquire-infra-postgres-exporter"
+            action: keep
+          - source_labels: [__meta_kubernetes_pod_ip, __meta_kubernetes_pod_container_port_number]
+            separator: ":"
+            target_label: __address__
+          - source_labels: [__meta_kubernetes_pod_name]
+            target_label: instance
+          - source_labels: [__meta_kubernetes_pod_name]
+            target_label: pod

@@ -16,6 +16,8 @@
  * 06/22/2026 mir0n  added keepHealth() -> Supplier<TransportHealth> over the keep applier (UP when no keep active);
  *                   the lifecycle registrar registers it as the "keepDatasource" health contributor.
  * 06/23/2026 mir0n  EsqMsgConstants app constants -> common.EsqConstants (references repointed)
+ * 07/10/2026 mir0n  v1.2.11 O1 -- injects ObjectProvider<MeterRegistry> and hands getIfAvailable() to the
+ *                   KeepApplier, so the keep pool's hikaricp_* meters report when observability is enabled.
  */
 package pro.mir0n.esquire.auKeep.messaging;
 
@@ -47,10 +49,15 @@ public class AuditConsumerConfig {
     private static final String KEEP_DATASOURCE = "esquire.keep.datasource";
 
     private final Environment env;
+    // The Micrometer registry (present only when observability is enabled) -- handed to the keep pool so its
+    // hikaricp_* meters report; the keep pool is an OWN HikariDataSource, invisible to Boot's auto-instrumentation.
+    private final org.springframework.beans.factory.ObjectProvider<io.micrometer.core.instrument.MeterRegistry> meterRegistry;
     private KeepApplier keepApplier;   // the *_log pool; closed on destroy
 
-    public AuditConsumerConfig(Environment env) {
+    public AuditConsumerConfig(Environment env,
+                               org.springframework.beans.factory.ObjectProvider<io.micrometer.core.instrument.MeterRegistry> meterRegistry) {
         this.env = env;
+        this.meterRegistry = meterRegistry;
     }
 
     /**
@@ -71,7 +78,8 @@ public class AuditConsumerConfig {
                 devLog.info("auKeep: no {} configured -- no audit consumer started", KEEP_DATASOURCE);
             } else {
                 IKeepDirector dir = new AuditKeepDirector();
-                this.keepApplier = new KeepApplier(ds, new KeepSqlStore(dir.sqlGroup()), dir.kinds(), devLog);
+                this.keepApplier = new KeepApplier(ds, new KeepSqlStore(dir.sqlGroup()), dir.kinds(), devLog,
+                        meterRegistry.getIfAvailable());
                 rod.setWorker(keepApplier.applier());
                 devLog.info("auKeep: audit consumer applying to keep datasource (kinds={})", dir.kinds().size());
             }

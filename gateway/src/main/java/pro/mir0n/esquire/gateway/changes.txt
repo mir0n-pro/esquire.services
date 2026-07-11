@@ -1,5 +1,10 @@
 Esquire Gateway Microservice
 
+07/10/2026 mir0n  v1.2.11 -- metrics foundation (O1): Prometheus export + the observability umbrella switch
+resources/application.yml
+  - esquire.observability.enabled (ESQ_OBSERVABILITY_ENABLED) now gates BOTH tracing and metrics (replaces the
+    tracing-only switch); management.prometheus.metrics.export.enabled + endpoints.web.exposure.include health, info, prometheus
+
 07/09/2026 mir0n  v1.2.11 -- distributed tracing (O2/T3): the gateway seeds the trace with the settled correlation id
 config.CorrelationPropagatorConfig  (new)
   - the edge trace-context propagator: a @Primary Propagator whose extract() settles the correlation id

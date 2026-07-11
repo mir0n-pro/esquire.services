@@ -82,8 +82,10 @@ logging:
   msgLogPath: /tmp/keySmith-msg.log
 
 # v1.2.11 O2 distributed tracing (opt-in; the o11y stack + o11y-on.bat enable it). OFF by default.
-tracing:
+observability:
+  # ONE master switch: tracing + metrics together (v1.2.11 O1/O2). Off by default.
   enabled: "false"
+tracing:
   otlpEndpoint: http://esquire-infra-otel-collector:4318/v1/traces
   samplingRatio: "1.0"
   marksEnabled: "true"

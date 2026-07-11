@@ -26,6 +26,12 @@
  *                   EsqRodTracer (carrying the esquire.tracing.msg-bus-alive-trace opt-in) into the messaging
  *                   o11y.RodTracerHolder hand-off; esqAsyncTraceRegistrar() @Bean hands the
  *                   ObservationRegistry to EsqAsyncTrace
+ * 07/10/2026 mir0n  v1.2.11 O1 -- metrics folded onto the same umbrella (class was TracingConfig): the Prometheus
+ *                   registry is Boot-owned (micrometer-registry-prometheus on common's classpath); this config
+ *                   contributes only the policy -- esqCommonMetricTags() (MeterFilter: common tag
+ *                   application=<spring.application.name> on every meter) and esqHttpLatencyHistogram()
+ *                   (MeterFilter: percentile-histogram on http.server.requests so p95 has _bucket series). Gate
+ *                   widened to esquire.observability.enabled -- ONE switch for tracing AND metrics.
  */
 
 package pro.mir0n.esquire.backend.o11y;
@@ -34,6 +40,8 @@ package pro.mir0n.esquire.backend.o11y;
 import io.micrometer.observation.Observation;
 import io.micrometer.observation.ObservationPredicate;
 import io.micrometer.observation.ObservationRegistry;
+import io.micrometer.core.instrument.Tag;
+import io.micrometer.core.instrument.config.MeterFilter;
 import io.micrometer.observation.transport.ReceiverContext;
 import io.opentelemetry.exporter.otlp.http.trace.OtlpHttpSpanExporter;
 import io.opentelemetry.sdk.trace.samplers.Sampler;
@@ -49,13 +57,17 @@ import java.util.ArrayList;
 import java.util.List;
 import pro.mir0n.esquire.messaging.o11y.RodTracerHolder;
 
-// Distributed tracing, wired the Esquire way: the OTel span exporter and the sampler are EXPLICIT
-// @Beans (no reliance on management.otlp.* / management.tracing.sampling.* magic values). The gateway
-// settles a W3C-shaped Esq-Correlation-ID and stamps it into the traceparent header, so the exported
-// spans carry traceId == correlationId and cross-link to the ECS log lines.
+// Observability, wired the Esquire way -- ONE umbrella over the two emit pillars, tracing and metrics, so a
+// service never has one without the other. Everything is EXPLICIT @Beans (no reliance on management.otlp.* /
+// management.tracing.sampling.* / metrics-export auto-config magic values). Tracing: the OTLP span exporter
+// + head sampler, the ONE observation gate, the @EsqTraced aspect, and the bus / async trace registrars --
+// the gateway settles a W3C-shaped Esq-Correlation-ID so exported spans carry traceId == correlationId and
+// cross-link to the ECS log lines. Metrics: an explicit Prometheus meter registry the free JVM / HTTP / pool
+// binders attach to, tagged with the same replica identity as a span. The whole config is gated by the single
+// master switch esquire.observability.enabled (off by default = zero cost).
 @Configuration
-@ConditionalOnProperty(name = "esquire.tracing.enabled", havingValue = "true")
-public class TracingConfig {
+@ConditionalOnProperty(name = "esquire.observability.enabled", havingValue = "true")
+public class ObservabilityConfig {
 
     // OTLP/HTTP traces endpoint of the collector (e.g. http://otel-collector:4318/v1/traces).
     @Value("${esquire.tracing.otlp-endpoint:http://localhost:4318/v1/traces}")
@@ -82,18 +94,57 @@ public class TracingConfig {
     @Value("${esquire.tracing.msg-bus-alive-trace:false}")
     private boolean msgBusAliveTrace;
 
+    // --- Metrics (O1): common tags, same umbrella as tracing ---
+    // The Prometheus registry, the free standard binders (jvm.*, http.server.requests, hikaricp.*, executor.*,
+    // logback.events, tomcat.*) and the /actuator/prometheus endpoint are assembled by Boot when
+    // management.prometheus.metrics.export.enabled is on (it mirrors the master switch) -- the metrics analog of
+    // the Micrometer-Tracing bridge assembling the OTel beans onto the registry. Letting Boot own the registry
+    // is deliberate: an explicit PrometheusMeterRegistry bean writes to its OWN prometheus client registry while
+    // the scrape endpoint reads Boot's, so the scrape comes back empty. What we OWN explicitly is the POLICY:
+    // ONE common tag application=<service> stamped on every meter (Boot applies each MeterFilter bean to every
+    // registry), so PromQL filters across replicas by service ({application="enyman"}). The replica itself is
+    // Prometheus's own instance=<host:port> per scrape target (a distinct target per k8s pod), so no instance
+    // tag is added here -- it would collide with that reserved label.
+    @Bean
+    public MeterFilter esqCommonMetricTags(@Value("${spring.application.name:unknown}") String appName) {
+        return MeterFilter.commonTags(java.util.List.of(Tag.of("application", appName)));
+    }
+
+    // Publish latency-histogram buckets for http.server.requests. By default the Boot timer emits only _count /
+    // _sum, so a Prometheus histogram_quantile (the dashboard's p95 latency panel) has no _bucket series to read
+    // and comes back empty. This filter turns on the percentile-histogram for that ONE meter -> the le buckets
+    // are exported and p95/p99 become queryable. Scoped to http.server.requests to keep bucket cardinality down.
+    @Bean
+    public MeterFilter esqHttpLatencyHistogram() {
+        return new MeterFilter() {
+            @Override
+            public io.micrometer.core.instrument.distribution.DistributionStatisticConfig configure(
+                    io.micrometer.core.instrument.Meter.Id id,
+                    io.micrometer.core.instrument.distribution.DistributionStatisticConfig config) {
+                io.micrometer.core.instrument.distribution.DistributionStatisticConfig ret = config;
+                if ("http.server.requests".equals(id.getName())) {
+                    ret = io.micrometer.core.instrument.distribution.DistributionStatisticConfig.builder()
+                            .percentilesHistogram(true)
+                            .build()
+                            .merge(config);
+                }
+                return ret;
+            }
+        };
+    }
+
     // The OTel resource carried by every span this service emits. Boot builds a default (service.name from
     // spring.application.name); we REPLACE it (@ConditionalOnMissingBean on Boot's) to add service.instance.id
     // so the x2 replicas are distinguishable in the trace -- the value is the rod-id token <app>.<instanceNo>,
     // matching the bus "from" attribute. instanceNo() is lazy-cached in EsqUtils (resolved once per JVM). Only
-    // contributed when tracing is enabled (this whole config is @ConditionalOnProperty).
+    // contributed when observability is enabled (this whole config is @ConditionalOnProperty).
     @Bean
     public io.opentelemetry.sdk.resources.Resource esqOtelResource(
             @org.springframework.beans.factory.annotation.Value("${spring.application.name:unknown}") String appName) {
         String instanceId = appName + "." + pro.mir0n.esquire.common.EsqUtils.instanceNo();
         // service.instance.id = the rod-id <app>.<instanceNo>. The o11y collector rewrites service.name to this
-        // on the traces pipeline, so the trace waterfall badges each span with its replica (logs / future
-        // metrics do not pass through that collector and keep the logical service.name).
+        // on the traces pipeline, so the trace waterfall badges each span with its replica (logs / metrics do
+        // not pass through that collector and keep the logical service.name).
         return io.opentelemetry.sdk.resources.Resource.getDefault().toBuilder()
                 .put("service.name", appName)
                 .put("service.instance.id", instanceId)
@@ -209,8 +260,8 @@ public class TracingConfig {
     // messaging bus: the producer stamps a traceparent (trace id = correlationId), the consumer runs its worker
     // inside a span nested under it. Built on the raw OTel Tracer (not the ObservationRegistry) so the two bus
     // legs get explicit span kinds -- PRODUCER on send, CONSUMER on receive -- which a viewer renders as an async
-    // messaging pair. Registered ONLY here (tracing enabled) -- when off, the engine keeps IRodTracer.NOOP and the
-    // bus pays nothing. The msg-bus-alive-trace opt-in rides on the tracer (IRodTracer.aliveTrace()).
+    // messaging pair. Registered ONLY here (observability enabled) -- when off, the engine keeps IRodTracer.NOOP
+    // and the bus pays nothing. The msg-bus-alive-trace opt-in rides on the tracer (IRodTracer.aliveTrace()).
     @Bean
     public org.springframework.beans.factory.InitializingBean esqRodTraceRegistrar(io.opentelemetry.api.OpenTelemetry openTelemetry) {
         return () -> RodTracerHolder.setTracer(
@@ -218,7 +269,7 @@ public class TracingConfig {
     }
 
     // Hand the registry to the async-boundary primitive (O2/T3), so work handed to a queue worker (the enyMan
-    // move queue) continues the request's trace on the worker thread. Only registered when tracing is enabled.
+    // move queue) continues the request's trace on the worker thread. Only registered when observability is enabled.
     @Bean
     public org.springframework.beans.factory.InitializingBean esqAsyncTraceRegistrar(ObservationRegistry observationRegistry) {
         return () -> EsqAsyncTrace.setRegistry(observationRegistry);
@@ -231,7 +282,7 @@ public class TracingConfig {
     // them off is therefore what makes the path filter correct as well as what makes a trace readable.
     //
     // Its own @Configuration guarded by @ConditionalOnClass: kcMaster and auKeep carry no
-    // spring-security-config, and a @Bean method on TracingConfig itself would force Spring to resolve
+    // spring-security-config, and a @Bean method on ObservabilityConfig itself would force Spring to resolve
     // this return type on every service that imports it (NoClassDefFoundError -- the aspectjweaver trap).
     // A nested class is condition-checked before its methods are ever read.
     @Configuration(proxyBeanMethods = false)

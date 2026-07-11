@@ -29,6 +29,11 @@ keycloak:
   clientId: esq-angular
   httpRelativePath: /kc-auth   # KC serves under /kc-auth so the BFF owns /auth/*
 
+# Observability umbrella -- gates KC_METRICS_ENABLED (the :9000/kc-auth/metrics surface). Off by default;
+# o11y-on.bat flips it true and rolls the StatefulSet (KC_METRICS_ENABLED is a boot-time option).
+observability:
+  enabled: false
+
 storage:
   storageClass: standard
   size: 5Gi

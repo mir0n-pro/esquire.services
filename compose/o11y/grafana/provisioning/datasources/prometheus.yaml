@@ -1,0 +1,14 @@
+apiVersion: 1
+
+# Prometheus metrics store (the M of LGTM), queried through the Grafana proxy. Scrapes each service's
+# /actuator/prometheus; filter a series by the logical service with the common tag application="<svc>",
+# and by replica with Prometheus's own instance="<host:port>".
+datasources:
+  - name: Prometheus
+    type: prometheus
+    uid: esq-prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: false
+    jsonData:
+      httpMethod: POST

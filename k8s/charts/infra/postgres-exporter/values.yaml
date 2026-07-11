@@ -1,0 +1,23 @@
+# postgres-exporter -- turns the Postgres StatefulSet's pg_stat_* into Prometheus metrics
+# (connections, transactions, cache hit ratio, DB size). Scraped by the "postgres" job on :9187.
+image:
+  repository: quay.io/prometheuscommunity/postgres-exporter
+  tag: "v0.16.0"
+  pullPolicy: IfNotPresent
+
+# The Postgres StatefulSet this exporter reads. host:port and the database name go into the
+# DATA_SOURCE_URI; the username/password come from the DB's own secret (never inlined here).
+db:
+  host: esquire-infra-postgres
+  port: 5432
+  name: esq2025
+  secretName: esquire-infra-postgres-secret
+  secretUserKey: username
+  secretPasswordKey: password
+
+resources:
+  requests:
+    cpu: 25m
+    memory: 32Mi
+  limits:
+    memory: 64Mi

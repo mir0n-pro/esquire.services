@@ -42,7 +42,7 @@ import org.springframework.context.event.ContextClosedEvent;
 import org.springframework.core.Ordered;
 import org.springframework.context.annotation.Import;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
-import pro.mir0n.esquire.backend.o11y.TracingConfig;
+import pro.mir0n.esquire.backend.o11y.ObservabilityConfig;
 import pro.mir0n.esquire.backend.storage.EsqEntityDictionaryStorage;
 import pro.mir0n.esquire.backend.storage.EsqObjectKindStorage;
 import pro.mir0n.esquire.backend.storage.EsqRolesStorage;
@@ -60,7 +60,7 @@ import pro.mir0n.esquire.pacMan.service.BizValidatorFactory;
         "pro.mir0n.esquire.backend.security",
         "pro.mir0n.esquire.backend.exception"
 })
-@Import(TracingConfig.class)
+@Import(ObservabilityConfig.class)
 @EntityScan(basePackages = {"pro.mir0n.esquire.backend.jpa", "pro.mir0n.esquire.pacMan.acct.jpa"})
 @EnableJpaRepositories(basePackages = {
         "pro.mir0n.esquire.pacMan.jpa",

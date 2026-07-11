@@ -26,3 +26,14 @@ data:
         url: {{ .Values.tempo.url }}
         jsonData:
           httpMethod: GET
+  prometheus.yaml: |
+    apiVersion: 1
+    datasources:
+      - name: Prometheus
+        type: prometheus
+        access: proxy
+        uid: esq-prometheus
+        url: {{ .Values.prometheus.url }}
+        isDefault: false
+        jsonData:
+          httpMethod: POST
