@@ -7,8 +7,13 @@
 #   * k8s    : k8s/charts/infra/grafana/dashboards/esquire-services.json
 # Run with no arguments (python gen-dashboard.py) after changing a panel; commit the .py AND both .json.
 #
-# Rows: Overview / JVM / Pool-DB-Logs / CPU / DB-connection-detail / BFF(Node) / Postgres / KeyCloak /
+# Rows -- HOW THE SYSTEM RUNS:
+#       Overview / JVM / Pool-DB-Logs / CPU / DB-connection-detail / BFF(Node) / Postgres / KeyCloak /
 #       Messaging bus (the x-rod meters) / Latency bands (the 4-layer request timing) / Bandwidth.
+# Rows -- WHAT THE SYSTEM DOES (the esq.biz.* business meters, O1/T8):
+#       Business: entity operations / money / identity + token relay / cache, keep + permissions.
+#       A service can be perfectly healthy on every row above and still be doing the wrong thing -- or
+#       nothing at all -- and only these rows would show it.
 # The Java-service panels filter by the $application template var (Micrometer common tag); Postgres (via
 # postgres-exporter) and KeyCloak (Quarkus mgmt :9000/kc-auth/metrics) carry no application tag, so those
 # panels select by job / datname instead.
@@ -80,6 +85,22 @@ def band(minuend, subtrahend):
     return "((%s) - %s)" % (minuend, safe(subtrahend))
 
 
+def avg_ms(sum_metric, count_metric, by=None, extra=""):
+    """Average latency in ms = rate(sum) / rate(count).
+
+    NO clamp_min on the denominator. `clamp_min(rate(count), 1)` looks like a safe divide-by-zero guard, and it
+    is -- for HIGH-rate meters. But it DIVIDES BY ONE whenever the event rate is below 1/s, which is the normal
+    case for a business meter: one KeyCloak sync in five minutes is a count rate of 0.0067/s, so the clamp turns
+    a real 130 ms average into 0.3 ms. Off by a factor of 400, silently, and it LOOKS plausible.
+
+    Dividing by the true rate yields NaN when there is no traffic, which Grafana draws as a gap -- honest, and
+    the correct reading of "nothing happened". A gap is not a bug; a fabricated 0.3 ms is.
+    """
+    grp = ("sum by (%s) " % by) if by else "sum"
+    return "1000 * (%s(rate(%s[5m])%s) / %s(rate(%s[5m])%s))" % (
+        grp, sum_metric, extra, grp, count_metric, extra)
+
+
 def check_no_naked_subtraction(panels):
     """Refuse to emit a naked series subtraction -- the guard that keeps the trap removed, not just fixed once.
 
@@ -114,7 +135,16 @@ def build_panels():
                      "{{application}} {{instance}}")]))
     p.append(ts("HTTP p95 latency by replica", 0, 6, 12, "s",
                 [tgt("histogram_quantile(0.95, sum by (le, application, instance) "
-                     "(rate(http_server_requests_seconds_bucket{%s}[5m])))" % APP, "{{application}} {{instance}}")]))
+                     "(rate(http_server_requests_seconds_bucket{%s}[5m])))" % APP, "{{application}} {{instance}}")],
+                desc="A GAP HERE IS NOT A BUG -- it means histogram buckets are off, which is the DEFAULT. "
+                     "Percentiles need buckets, and buckets are the single most expensive thing on this stack: "
+                     "the http ones ALONE were 20.5% of the entire scrape (39 series per label-combo), on "
+                     "whether or not anyone ever looked at a percentile. So they are OPT-IN: set "
+                     "esquire.observability.metrics.histograms-enabled=true (ESQ_METRICS_HISTOGRAMS). With it "
+                     "off the timer still records count/sum/max, so every AVERAGE panel stays populated and "
+                     "only the percentile goes dark. Switch it on to investigate a percentile; switch it off "
+                     "for steady state."))
+
     # ---- JVM ----
     p.append(row("JVM", 14))
     p.append(ts("JVM heap used", 0, 15, 8, "bytes",
@@ -191,7 +221,7 @@ def build_panels():
                 [tgt('sum(rate(http_server_requests_seconds_count{job="keycloak"}[1m]))', "requests/s")]))
     p.append(ts("KeyCloak avg HTTP latency (ms)", 12, 77, 12, "ms",
                 [tgt('1000 * sum(rate(http_server_requests_seconds_sum{job="keycloak"}[1m])) / '
-                     'clamp_min(sum(rate(http_server_requests_seconds_count{job="keycloak"}[1m])), 1)', "avg")]))
+                     'sum(rate(http_server_requests_seconds_count{job="keycloak"}[1m]))', "avg")]))
     p.append(ts("KeyCloak DB pool (agroal)", 0, 85, 12, "short",
                 [tgt('agroal_active_count{job="keycloak"}', "active"),
                  tgt('agroal_available_count{job="keycloak"}', "available")]))
@@ -211,7 +241,7 @@ def build_panels():
                      "{{application}} {{bus_id}} {{leg}}")]))
     p.append(ts("Bus send latency (avg + p95 ms)", 0, 102, 8, "ms",
                 [tgt("1000 * sum by (application, bus_id)(rate(messaging_send_duration_seconds_sum{%s}[5m])) / "
-                     "clamp_min(sum by (application, bus_id)(rate(messaging_send_duration_seconds_count{%s}[5m])), 1)"
+                     "sum by (application, bus_id)(rate(messaging_send_duration_seconds_count{%s}[5m]))"
                      % (APP, APP), "avg {{application}} -> {{bus_id}}"),
                  tgt("1000 * histogram_quantile(0.95, sum by (le, application, bus_id) "
                      "(rate(messaging_send_duration_seconds_bucket{%s}[5m])))" % APP,
@@ -221,23 +251,28 @@ def build_panels():
                      "p95 series are simply absent and the avg still plots."))
     p.append(ts("Feed depth (tx queue)", 8, 102, 8, "short",
                 [tgt("messaging_feed_depth{%s}" % APP, "{{application}} {{bus_id}}")]))
-    p.append(ts("Send-retry: held / dropped / backoff", 16, 102, 8, "short",
-                [tgt("messaging_retry_held{%s}" % APP, "held (count) {{application}} {{bus_id}}"),
-                 tgt("sum by (application, bus_id) (rate(messaging_retry_dropped{%s}[5m]))" % APP,
-                     "dropped/s {{application}} {{bus_id}}"),
-                 tgt("sum by (application, bus_id)(rate(messaging_retry_backoff_sum{%s}[5m])) / "
-                     "clamp_min(sum by (application, bus_id)(rate(messaging_retry_backoff_count{%s}[5m])), 1)"
-                     % (APP, APP), "backoff avg (ms) {{application}} {{bus_id}}")],
+    p.append(ts("Send-retry: held + dropped (counts)", 16, 102, 4, "short",
+                [tgt("sum by (application, bus_id)(messaging_retry_held{%s})" % APP,
+                     "held {{application}} {{bus_id}}"),
+                 tgt("(sum by (application, bus_id)(increase(messaging_retry_dropped_total{%s}[5m]))) or vector(0)"
+                     % APP, "dropped/5m {{application}} {{bus_id}}")],
+                minv=0,
                 desc="The send-retry sublayer. FLAT AT ZERO is the healthy state -- these only move when the "
-                     "transport is failing sends: held = messages parked awaiting re-dispatch, dropped/s = given up "
-                     "after max attempts, backoff avg = the ladder step being waited out. Mixed units (count, /s, "
-                     "ms) on one axis deliberately: this is a diagnostic panel you read when something is wrong, "
-                     "and all three are small numbers."))
+                     "transport is failing sends: held = messages parked awaiting re-dispatch, dropped = given up "
+                     "after max attempts. Both are COUNTS, so they share an axis honestly; the backoff duration "
+                     "is milliseconds and lives on its own panel to the right."))
+    p.append(ts("Send-retry: backoff (avg ms)", 20, 102, 4, "ms",
+                [tgt(avg_ms("messaging_retry_backoff_sum{%s}" % APP,
+                            "messaging_retry_backoff_count{%s}" % APP, by="application, bus_id"),
+                     "{{application}} {{bus_id}}")],
+                desc="The backoff ladder step being waited out. A GAP here is the healthy state -- no retries, "
+                     "nothing to average. It was previously drawn on the same axis as the held/dropped COUNTS, "
+                     "which put milliseconds and message counts on one scale."))
     # ---- Latency bands (4-layer request timing decomposed into timers, O1/T5-B) ----
     p.append(row("Latency bands", 110))
     # The RAW timers (each layer as measured), the DERIVED bands (the subtractions those layers imply), and the
     # gateway percentile. Three across, so the Bandwidth row below keeps its y.
-    AVG = "sum(rate(esq_%s_seconds_sum[5m])) / clamp_min(sum(rate(esq_%s_seconds_count[5m])), 1)"
+    AVG = "sum(rate(esq_%s_seconds_sum[5m])) / sum(rate(esq_%s_seconds_count[5m]))"
     GW_OUTER = AVG % ("gw_outer", "gw_outer")
     GW_INNER = AVG % ("gw_inner", "gw_inner")
     SRV_OUTER = AVG % ("srv_outer", "srv_outer")
@@ -257,13 +292,13 @@ def build_panels():
                      "STEADY-STATE: the JPA time is collected on every request while observability is on, so it "
                      "no longer depends on the X-Capture-Metrics load-test header."))
     p.append(ts("Request latency bands -- RAW (avg ms by layer)", 0, 111, 8, "ms",
-                [tgt("1000 * sum(rate(esq_gw_outer_seconds_sum[5m])) / clamp_min(sum(rate(esq_gw_outer_seconds_count[5m])), 1)",
+                [tgt("1000 * sum(rate(esq_gw_outer_seconds_sum[5m])) / sum(rate(esq_gw_outer_seconds_count[5m]))",
                      "gw outer (total)"),
-                 tgt("1000 * sum(rate(esq_gw_inner_seconds_sum[5m])) / clamp_min(sum(rate(esq_gw_inner_seconds_count[5m])), 1)",
+                 tgt("1000 * sum(rate(esq_gw_inner_seconds_sum[5m])) / sum(rate(esq_gw_inner_seconds_count[5m]))",
                      "gw inner (proxied)"),
-                 tgt("1000 * sum(rate(esq_srv_outer_seconds_sum[5m])) / clamp_min(sum(rate(esq_srv_outer_seconds_count[5m])), 1)",
+                 tgt("1000 * sum(rate(esq_srv_outer_seconds_sum[5m])) / sum(rate(esq_srv_outer_seconds_count[5m]))",
                      "srv outer (wall)"),
-                 tgt("1000 * sum(rate(esq_srv_inner_seconds_sum[5m])) / clamp_min(sum(rate(esq_srv_inner_seconds_count[5m])), 1)",
+                 tgt("1000 * sum(rate(esq_srv_inner_seconds_sum[5m])) / sum(rate(esq_srv_inner_seconds_count[5m]))",
                      "srv inner (db, capture-gated)")]))
     p.append(ts("Gateway total p95 by route (ms)", 16, 111, 8, "ms",
                 [tgt("1000 * histogram_quantile(0.95, sum by (le, route) (rate(esq_gw_outer_seconds_bucket[5m])))",
@@ -294,6 +329,140 @@ def build_panels():
                 desc="The gateway runs on Netty, so its bytes come from reactor-netty (not the Tomcat MBean). This "
                      "is the CLIENT-facing bandwidth at the edge; the two panels to the left are in-cluster service "
                      "traffic. /actuator is excluded: that is Prometheus scraping the gateway itself."))
+
+    # ================================================================================================
+    # BUSINESS METERS (esq.biz.*, O1/T8) -- the one tier that cannot be inherited.
+    #
+    # Everything above this line measures how the system RUNS: requests, memory, pools, bus hops, bytes.
+    # These rows measure what it DOES: entities created, money moved, identities synced, caches applied.
+    # A service can be perfectly healthy on every panel above and still be doing the wrong thing -- or
+    # nothing at all -- and only these rows would show it.
+    #
+    # Read them as OUTCOMES, not volumes: the interesting series on every panel here is the one that is
+    # NOT "ok" -- a denied permission, a failed move, a handler that swallowed an exception, a keep write
+    # that never reached the DB. Those are flat at zero on a healthy system, which is exactly why a single
+    # non-zero point is worth looking at.
+    # ================================================================================================
+
+    # ---- Business: entity operations (enyMan) ----
+    p.append(row("Business -- entity operations", 128))
+    p.append(ts("Entity operations (ops/s by op + outcome)", 0, 129, 8, "ops",
+                [tgt("sum by (op, outcome) (rate(esq_biz_entity_ops_total{%s}[5m]))" % APP,
+                     "{{op}} {{outcome}}")],
+                desc="What enyMan actually DID: creates, deletes and moves, by outcome. No free meter can see "
+                     "this -- http.server.requests knows the endpoint and the HTTP status, not which KIND of "
+                     "entity was acted on nor whether a refusal was an authorization decision. NOTE a MOVE here "
+                     "means the command was ACCEPTED (/esq-move answers 202); whether the move SUCCEEDED is the "
+                     "next panel, because the work happens off-request on the queue worker."))
+    # A queue DEPTH is a count and processed/failed are rates -- two units. On one axis a depth spike to 1000
+    # would flatten the rates into the floor and hide exactly the failure you opened the panel for. Two panels.
+    p.append(ts("Move queue -- depth (pending)", 8, 129, 4, "short",
+                [tgt("sum(esq_biz_move_queue_depth{%s})" % APP, "pending")],
+                minv=0,
+                desc="The move backlog. /esq-move answers 202 at submit time and the work happens on the queue "
+                     "worker, so a rising depth means the worker is not keeping up -- and nothing on the request "
+                     "side would tell you."))
+    p.append(ts("Move outcome (per s)", 12, 129, 4, "ops",
+                [tgt("sum(rate(esq_biz_move_processed_total{%s}[5m]))" % APP, "processed/s"),
+                 tgt("(sum(rate(esq_biz_move_failed_total{%s}[5m]))) or vector(0)" % APP, "FAILED/s")],
+                minv=0,
+                desc="The async half of a move. A move that FAILS on the worker is invisible to the caller (it "
+                     "already got its 202) and to every HTTP meter -- this is the only place it shows. FAILED is "
+                     "flat at zero on a healthy system; `or vector(0)` keeps it drawing a zero line rather than "
+                     "vanishing, because a vanished series is indistinguishable from a broken panel."))
+    p.append(ts("Dictionary lookups (by kind)", 16, 129, 8, "ops",
+                [tgt("sum by (kind) (rate(esq_biz_dict_lookup_total{%s}[5m]))" % APP, "kind {{kind}}")],
+                desc="Which DICTIONARY is being fetched. Not a duplicate of http.server.requests: that meter is "
+                     "tagged by URI template (/esq-dict), and the kind is a query param -- so the free meter can "
+                     "tell you the endpoint is busy but never which dictionary."))
+
+    # ---- Business: money (pacMan) ----
+    p.append(row("Business -- money", 137))
+    p.append(ts("Account transactions (tx/s by type + outcome)", 0, 138, 8, "ops",
+                [tgt("sum by (type, outcome) (rate(esq_biz_acct_tx_total{%s}[5m]))" % APP,
+                     "{{type}} {{outcome}}")],
+                desc="The money path: deposits, withdrawals, transfers, by outcome. Both processors report here "
+                     "-- the transfer processor OVERRIDES the single one and does not call super, so it needed "
+                     "its own meter or every transfer would have been silently missing from this panel."))
+    p.append(ts("Transaction latency (avg ms by type)", 8, 138, 8, "ms",
+                [tgt(avg_ms("esq_biz_acct_tx_duration_seconds_sum{%s}" % APP,
+                           "esq_biz_acct_tx_duration_seconds_count{%s}" % APP, by="type"), "{{type}}")],
+                desc="How long a transaction takes end to end inside pacMan, by operation. A transfer is two "
+                     "legs and a rate lookup, so it is legitimately dearer than a deposit -- the shape to watch "
+                     "is a type getting slower against ITSELF, not one type against another."))
+    p.append(ts("FX applied + accounts closed", 16, 138, 8, "ops",
+                [tgt("sum(rate(esq_biz_acct_fx_apply_total{%s}[5m]))" % APP, "fx applied/s"),
+                 tgt('sum by (purge) (rate(esq_biz_acct_close_total{%s}[5m]))' % APP, "closed ({{purge}})")],
+                desc="A conversion rate is only present on the cross-currency leg of a transfer, so a non-null "
+                     "convRate IS the FX application. Closures are counted only once the delete has SUCCEEDED "
+                     "past the three guards; purge=test-house marks the demo-data path that forces those guards "
+                     "open, so a real closure is never confused with a fixture teardown."))
+
+    # ---- Business: identity + token relay (kcMaster, gateway) ----
+    p.append(row("Business -- identity + token relay", 146))
+    p.append(ts("KeyCloak identity sync (by op + outcome)", 0, 147, 6, "ops",
+                [tgt("sum by (op, outcome) (rate(esq_biz_kc_sync_total{%s}[5m]))" % APP,
+                     "{{op}} {{outcome}}")],
+                desc="Whether Esquire and KeyCloak still AGREE about who exists. The bus meters say a sync "
+                     "request arrived; only this says whether the identity was actually brought into line. A "
+                     "non-zero error line means the two systems have DRIFTED -- a user Esquire thinks can log "
+                     "in, and KeyCloak does not."))
+    p.append(ts("KeyCloak sync latency (avg ms)", 6, 147, 6, "ms",
+                [tgt(avg_ms("esq_biz_kc_sync_duration_seconds_sum{%s}" % APP,
+                           "esq_biz_kc_sync_duration_seconds_count{%s}" % APP), "kc sync")],
+                desc="KeyCloak is a SEPARATE SERVER and nothing else times it. Measured around the whole sync "
+                     "rather than inside the admin client, so it is the sync's wall time -- but the KC "
+                     "round-trip dominates it (the attribute mapping either side is microseconds against "
+                     "KeyCloak's milliseconds)."))
+    # The hit rate and the acquire cost are TWO UNITS -- a percentage (0..100) and milliseconds. On one axis the
+    # percentage owns the scale and the latency line lies flat against zero, unreadable. They are two panels.
+    p.append(ts("Token relay -- cache hit rate", 12, 147, 6, "percent",
+                [tgt('100 * sum(rate(esq_biz_gw_tokenrelay_total{result="hit"}[5m])) '
+                     '/ sum(rate(esq_biz_gw_tokenrelay_total[5m]))', "cache hit rate")],
+                minv=0,
+                desc="THE MOST LOAD-BEARING NUMBER ON THIS DASHBOARD. A cache hit serves the request without "
+                     "touching KeyCloak; a miss is a live /token round-trip on the hot path. So the hit rate IS "
+                     "how much of KeyCloak's latency the users are spared -- read it against the acquire cost on "
+                     "the panel to the right. If it collapses (a TTL change, an unstable cache key, an eviction "
+                     "storm) every request starts paying that cost, and the only other symptom is 'the gateway "
+                     "got slower' with no cause visible anywhere. "
+                     "NOTE: the relay is DORMANT unless the calling client is on the gateway's allowlist, so this "
+                     "is a GAP on a plain-JWT workload -- that is correct, not a broken panel."))
+    p.append(ts("Token relay -- KC /token acquire (avg ms)", 18, 147, 6, "ms",
+                [tgt(avg_ms("esq_biz_gw_tokenrelay_duration_seconds_sum",
+                            "esq_biz_gw_tokenrelay_duration_seconds_count", by="outcome"), "{{outcome}}")],
+                desc="What a cache MISS costs: a live round-trip to KeyCloak, an external server, on the "
+                     "request's hot path. Multiply it by (100 - hit rate) from the panel on the left to get what "
+                     "the relay is actually costing users. Split BY OUTCOME so a failure is still visible without "
+                     "putting a second unit on the axis -- an error or a cancelled relay has a duration too, and "
+                     "those lines simply do not exist on a healthy system."))
+
+    # ---- Business: cache, keep + permissions (bizTree, dataKeep, cross-cutting) ----
+    p.append(row("Business -- cache, keep + permissions", 155))
+    p.append(ts("Tree cache -- broadcast dispatch (by outcome)", 0, 156, 8, "ops",
+                [tgt("sum by (outcome) (rate(esq_biz_tree_handler_dispatch_total{%s}[5m]))" % APP,
+                     "{{outcome}}"),
+                 tgt("sum by (outcome) (rate(esq_biz_tree_rebuild_total{%s}[5m]))" % APP,
+                     "rebuild ({{outcome}})")],
+                desc="What the CACHE did with each broadcast -- applied it, found no handler, found no payload, "
+                     "or FAILED. The failed line is the point: the dispatch hub SWALLOWS a handler exception, so "
+                     "a handler that blows up leaves the tree silently stale while the bus still counts the "
+                     "message as received. Rebuilds should be RARE -- a rising rebuild rate is itself a finding."))
+    p.append(ts("Audit keep -- DB writes (by op + outcome)", 8, 156, 8, "ops",
+                [tgt("sum by (op, outcome) (rate(esq_biz_keep_write_total{%s}[5m]))" % APP,
+                     "{{op}} {{outcome}}")],
+                desc="THE DB WRITE at the keep sink -- the one thing the bus meters cannot see. "
+                     "messaging.receive.total says the audit event ARRIVED; only this says whether the row was "
+                     "actually WRITTEN. An audit event that lands on the bus and then fails to persist is "
+                     "exactly the failure that was invisible before. These counts must RECONCILE with the bus "
+                     "receive count on the Messaging bus row: a divergence is a real finding."))
+    p.append(ts("Permission checks (allow vs DENY)", 16, 156, 8, "ops",
+                [tgt("sum by (cmd, result) (rate(esq_biz_perm_check_total{%s}[5m]))" % APP,
+                     "{{cmd}} {{result}}")],
+                desc="The authorization decision itself, counted at the one gate every service goes through. A "
+                     "rising DENY rate is either a misconfigured role or someone probing. NOTE the gate sees "
+                     "allow and deny only: a self-update BYPASSES it entirely (a user editing their own profile "
+                     "never asks permission), which is why there is no third value here."))
     return p
 
 
@@ -302,7 +471,7 @@ def build_dashboard():
     check_no_naked_subtraction(panels)   # refuse to emit a band that an empty vector could delete
     return {
         "uid": "esq-services",
-        "title": "Esquire Services -- REST / JVM / Pool / CPU / BFF / DB / KC / Bus / Latency",
+        "title": "Esquire Services -- REST / JVM / Pool / CPU / BFF / DB / KC / Bus / Latency / Bandwidth / Biz",
         "tags": ["esquire", "o11y"],
         "timezone": "",
         "schemaVersion": 39,

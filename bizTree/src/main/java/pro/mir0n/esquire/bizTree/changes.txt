@@ -1,5 +1,18 @@
 Esquire BizTree Microservice
 
+07/11/2026 mir0n  v1.2.11 -- business meters (O1/T8): what the cache did with each broadcast
+access.MessageHandlerHub
+  - dispatch() counts esq.biz.tree.handler.dispatch.total (tags event, kind, outcome = handled|no-handler|
+    no-payload|failed) in a finally; the body is unchanged. The FAILED value is the point: the catch here SWALLOWS
+    the handler exception, so a handler that blows up leaves the cache silently stale while the bus still counts
+    the message as received
+cache.BizTreeCacheLoader
+  - load() counts esq.biz.tree.rebuild.total (tag outcome) in a finally; it still throws so the caller can
+    transition its monad to FAILED
+resources/application.yml
+  - esquire.observability.metrics.business-enabled: ${ESQ_METRICS_BUSINESS:true} added -- the sub-switch gating
+    the esq.biz.* domain tier under the observability master
+
 07/11/2026 mir0n  v1.2.11 -- observability config namespace + the metrics sub-switches (O1/T5)
 resources/application.yml
   - the tracing keys move under the umbrella: esquire.tracing.* -> esquire.observability.tracing.*

@@ -1,6 +1,38 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v1.2.11-2607.1120  v1.2.11 -- observability: what each service DOES, not just how it runs
+    :Feature:     every service now reports on its own work, not only its health -- entities created, moved and
+                  deleted, money moved, identities synced with the login server, tree updates applied, audit
+                  records written, and permission decisions allowed or refused
+    :Feature:     the login gateway reports how often it can answer a request from its own token cache instead of
+                  going to the login server, and how long that server takes when it has to
+    :Feature:     work that finishes after the caller has been answered -- a queued move, an audit write -- now
+                  reports whether it actually succeeded; until now nothing did
+    :Feature:     four new dashboard rows carry all of it, arranged so the line worth looking at is always the one
+                  that is not "ok"
+    :Fix:         the detailed timing breakdowns were being collected for every web request whether or not anyone
+                  had asked for them, at a cost of a fifth of everything the system records; they are now
+                  collected only when switched on, and the ordinary averages still work without them
+    :Fix:         several dashboard readings were wrong in a way that looked plausible -- one showed a tenth of a
+                  millisecond for an operation that really took a hundred and thirty, and a cache that was working
+                  99% of the time was drawn as 42%
+    :Fix:         readings that mix different units (a percentage and a duration, a queue length and a rate) no
+                  longer share one scale, where the larger number flattened the smaller one out of sight
+    :Config:      the new per-service reporting has its own switch under the observability switch, on by default;
+                  turning it off removes it entirely at no cost to anything else
+    Components:   common,
+                  enyMan,
+                  pacMan,
+                  bizTree,
+                  dataKeep,
+                  kcMaster,
+                  gateway,
+                  auKeep,
+                  keySmith,
+                  compose,
+                  k8s
+
 v1.2.11-2607.1115  v1.2.11 -- observability: four ways of getting the measurements wrong are now impossible
     :Fix:         a measurement that reads a live value (queue depth, messages held) could stop reporting after a
                   while and show nothing at all; it now keeps reporting for as long as the service runs

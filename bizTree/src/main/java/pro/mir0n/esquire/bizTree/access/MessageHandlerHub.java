@@ -14,9 +14,15 @@
  * 06/02/2026 mir0n  dispatch(): skip path now logs devLog.warn (no handler / null textNode) split
  *                   into two guarded branches, instead of a single silent no-op.
  * 06/23/2026 mir0n  EsqMsgConstants wire constants -> messaging.BusConstants (references repointed)
+ * 07/11/2026 mir0n  v1.2.11 O1/T8 -- dispatch() counts esq.biz.tree.handler.dispatch.total (tags event, kind,
+ *                   outcome = handled|no-handler|no-payload|failed) in a finally; the body is unchanged. The
+ *                   FAILED value is the point: the catch here SWALLOWS the handler exception, so a handler that
+ *                   blows up leaves the cache silently stale while the bus still counts the message as received --
+ *                   nothing else anywhere reports that the tree did not change
  */
 package pro.mir0n.esquire.bizTree.access;
 
+import pro.mir0n.esquire.backend.o11y.EsqBizMeters;
 import com.fasterxml.jackson.databind.JsonNode;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.Logger;
@@ -86,30 +92,45 @@ public final class MessageHandlerHub {
      * silent no-op which hid possible mis-routing or schema drift between publisher and consumer.
      */
     public void dispatch(String eventType, String entityId, int entityKind, JsonNode textNode) {
-        EsqObjectKind eek = EsqObjectKindStorage.getInstance().get(entityKind);
-        int kindBits = 0;
-        if (eek.isAcct()) kindBits += 4;
-        if (eek.isUsr())  kindBits += 2;
-        if (eek.isOrg())  kindBits += 1;
-
-        IBizTreeEventHandler handler = handlers.get(new HandlerKey(eventType, kindBits));
-        if (handler == null) {
-            devLog.warn("MessageHandlerHub: SKIP no handler for eventType={} entityKind={} (kindBits={}) entityId={}",
-                    eventType, entityKind, kindBits, entityId);
-            return;
-        }
-        if (textNode == null) {
-            devLog.warn("MessageHandlerHub: SKIP null textNode for eventType={} entityKind={} entityId={}",
-                    eventType, entityKind, entityId);
-            return;
-        }
+        // esq.biz.tree.handler.dispatch.total (O1/T8 phase C): what the CACHE did with a broadcast, which the bus
+        // meters cannot know. messaging.receive.total says the message arrived; this says whether it was applied,
+        // skipped for want of a handler, skipped for want of a payload, or FAILED. The failure case matters most:
+        // the catch below swallows the exception, so a handler that blows up leaves the cache silently stale --
+        // the broadcast counts as received, and nothing else anywhere says the tree did not change.
+        // Tags bounded: event is the BusConstants event set, kind the EsqObjectKind code, outcome one of four.
+        String outcome = "handled";
         try {
-            handler.handle(entityId, entityKind, textNode);
-        } catch (Exception ex) {
-            log.error("MessageHandlerHub: handler failed eventType={} kind={} entityId={}: {}",
-                    eventType, entityKind, entityId, ex.getMessage());
-            devLog.error("MessageHandlerHub: handler failed eventType={} kind={} entityId={}: {}",
-                    eventType, entityKind, entityId, ex.getMessage(), ex);
+            EsqObjectKind eek = EsqObjectKindStorage.getInstance().get(entityKind);
+            int kindBits = 0;
+            if (eek.isAcct()) kindBits += 4;
+            if (eek.isUsr())  kindBits += 2;
+            if (eek.isOrg())  kindBits += 1;
+
+            IBizTreeEventHandler handler = handlers.get(new HandlerKey(eventType, kindBits));
+            if (handler == null) {
+                outcome = "no-handler";
+                devLog.warn("MessageHandlerHub: SKIP no handler for eventType={} entityKind={} (kindBits={}) entityId={}",
+                        eventType, entityKind, kindBits, entityId);
+                return;
+            }
+            if (textNode == null) {
+                outcome = "no-payload";
+                devLog.warn("MessageHandlerHub: SKIP null textNode for eventType={} entityKind={} entityId={}",
+                        eventType, entityKind, entityId);
+                return;
+            }
+            try {
+                handler.handle(entityId, entityKind, textNode);
+            } catch (Exception ex) {
+                outcome = "failed";
+                log.error("MessageHandlerHub: handler failed eventType={} kind={} entityId={}: {}",
+                        eventType, entityKind, entityId, ex.getMessage());
+                devLog.error("MessageHandlerHub: handler failed eventType={} kind={} entityId={}: {}",
+                        eventType, entityKind, entityId, ex.getMessage(), ex);
+            }
+        } finally {
+            EsqBizMeters.count("esq.biz.tree.handler.dispatch.total",
+                    "event", String.valueOf(eventType), "kind", String.valueOf(entityKind), "outcome", outcome);
         }
     }
 }

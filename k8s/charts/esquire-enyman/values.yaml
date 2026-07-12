@@ -110,6 +110,8 @@ observability:
   metricsHistograms: "false"
   # HTTP byte counters (O1/T5-C). Cheap, so ON by default. One knob for BOTH embedded servers.
   metricsBandwidth: "true"
+  # Business meters (O1/T8): the esq.biz.* domain tier. ON by default; off = every call site a null check.
+  metricsBusiness: "true"
 tracing:
   otlpEndpoint: http://esquire-infra-otel-collector:4318/v1/traces
   samplingRatio: "1.0"

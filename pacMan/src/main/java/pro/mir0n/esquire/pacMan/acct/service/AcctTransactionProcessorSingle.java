@@ -21,10 +21,17 @@
  * 07/08/2026 mir0n  esquireCommandAcct() body wrapped in EsqTraceMark.around("esq.svc.acct.tx", "account
  *                   transaction", ...) -- this processor is constructed with new() by AcctTransactionService,
  *                   so Spring never proxies it and @EsqTraced would not be advised
+ * 07/11/2026 mir0n  v1.2.11 O1/T8 -- esquireCommandAcct() counts esq.biz.acct.tx.total and times
+ *                   esq.biz.acct.tx.duration (tags type = AcctOperation.Code, outcome = ok|denied|error);
+ *                   _esquireCommandAcct() counts esq.biz.acct.fx.apply.total when convRate is non-null (a
+ *                   conversion rate is present only on the cross-currency leg, so it IS the FX application).
+ *                   operTag() added: the type tag is NULL-SAFE because these read from a finally, and a raw
+ *                   oper.name() there throws an NPE that REPLACES the real exception on its way out
  */
 
 package pro.mir0n.esquire.pacMan.acct.service;
 
+import pro.mir0n.esquire.backend.o11y.EsqBizMeters;
 import pro.mir0n.esquire.backend.o11y.EsqTraceMark;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.FlushModeType;
@@ -68,15 +75,43 @@ public class AcctTransactionProcessorSingle implements IAcctTransactionProcessor
 
     /** skipValidation: For test use only — allows bypassing status/balance/field validation. */
     public AcctTransactionSingle esquireCommandAcct(int kind, String id, AcctOperation.Code oper, Map<String, Object> fields, boolean skipValidation, String rootPath, String uid, List<String> roles) {
-        // Programmatic mark, not @EsqTraced: this processor is constructed with new() by
-        // AcctTransactionService, so Spring never proxies it and the annotation would not be advised.
-        AcctTransactionSingle ret = EsqTraceMark.around("esq.svc.acct.tx", "account transaction", () -> {
-            String correlationId = RequestContextUtils.getCorrelationId();
-            String requestId = RequestContextUtils.getRequestId();
-            EsqObjectKind eek = validatePermissions(kind, roles);
-            return _esquireCommandAcct(eek, id, oper, fields, skipValidation, rootPath, uid, correlationId, requestId, null, null, null, null, null);
-        });
+        AcctTransactionSingle ret = null;
+        // esq.biz.acct.tx.total / .duration (O1/T8 phase B) -- the money path, counted and timed by OPERATION.
+        // EsqBizMeters is static for the same reason EsqTraceMark is (see the mark below): this processor is
+        // new()-ed, never proxied, so nothing can be injected into it. Both tags bounded: type is the
+        // AcctOperation.Code enum, outcome is ok | denied | error.
+        String outcome = "error";
+        long startedAt = System.nanoTime();
+        try {
+            // Programmatic mark, not @EsqTraced: this processor is constructed with new() by
+            // AcctTransactionService, so Spring never proxies it and the annotation would not be advised.
+            ret = EsqTraceMark.around("esq.svc.acct.tx", "account transaction", () -> {
+                String correlationId = RequestContextUtils.getCorrelationId();
+                String requestId = RequestContextUtils.getRequestId();
+                EsqObjectKind eek = validatePermissions(kind, roles);
+                return _esquireCommandAcct(eek, id, oper, fields, skipValidation, rootPath, uid, correlationId, requestId, null, null, null, null, null);
+            });
+            outcome = "ok";
+        } catch (PermissionDeniedException e) {
+            outcome = "denied";
+            throw e;
+        } finally {
+            EsqBizMeters.count("esq.biz.acct.tx.total", "type", operTag(oper), "outcome", outcome);
+            EsqBizMeters.time("esq.biz.acct.tx.duration", System.nanoTime() - startedAt, "type", operTag(oper));
+        }
         return ret;
+    }
+
+    /**
+     * The tx-type tag, NULL-SAFE.
+     *
+     * <p>oper can legitimately be null (a malformed request reaches the processor before validation refuses it),
+     * and these meters are read from a finally block. A raw oper.name() there throws an NPE that REPLACES the
+     * real exception on its way out -- turning a clean PermissionDenied into an NPE and hiding what actually
+     * happened. Instrumentation must never alter control flow; a meter that can throw is worse than no meter.
+     */
+    protected static String operTag(AcctOperation.Code oper) {
+        return (oper != null) ? oper.name() : "unknown";
     }
 
     protected EsqObjectKind validatePermissions(int kind, List<String> roles) {
@@ -115,6 +150,12 @@ public class AcctTransactionProcessorSingle implements IAcctTransactionProcessor
             String counterpartId) {
 
         devLog.debug("srvc: esquireCommandAcct: kind:{}, id:{}, cmd:{}, rootPath:{}, uid:{}", eek.getId(), id, oper, rootPath, uid);
+        // esq.biz.acct.fx.apply.total (O1/T8 phase B): a conversion rate is present only on the cross-currency
+        // leg of a transfer, so a non-null convRate IS the FX application -- no new plumbing, just the condition
+        // that already decides it. Counted here because both the single and the transfer path come through.
+        if (convRate != null) {
+            EsqBizMeters.count("esq.biz.acct.fx.apply.total", "type", operTag(oper));
+        }
         AcctTransactionSingle result[] = {null}; // xxx: trick to handle lambda syntax
 
         transactionTemplate.execute(status -> {

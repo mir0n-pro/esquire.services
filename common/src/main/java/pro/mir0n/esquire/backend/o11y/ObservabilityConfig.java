@@ -47,6 +47,17 @@
  *                   path segment only -- the raw uri carries entity ids = unbounded cardinality).
  *                   esqRodTraceRegistrar() becomes esqRodObserverRegistrar(): it takes the MeterRegistry too and
  *                   registers ONE EsqRodObserver (trace + meters) into the messaging o11y.RodObserverHolder.
+ * 07/11/2026 mir0n  v1.2.11 O1/T8 -- esqBizMetersRegistrar() @Bean hands the MeterRegistry to the esq.biz.*
+ *                   business-meter facility (EsqBizMeters), gated by the NEW sub-switch
+ *                   esquire.observability.metrics.business-enabled (default TRUE). Gating the REGISTRAR is what
+ *                   makes off free: no registry reaches the facility, so every esq.biz.* call site in the fleet
+ *                   collapses to a null check. esqLatencyHistograms(): esq.biz.* timers ride histograms-enabled
+ *                   BY PREFIX (a name list would need editing every time a service gains a timer), and
+ *                   http.server.requests moves INTO the gated set -- it was special-cased always-on so p95 would
+ *                   work without asking, and that one clause emitted 1,173 bucket series, 20.5% of the entire
+ *                   scrape, whether or not anyone ever looked at a percentile. ONE switch now governs every
+ *                   bucket in the fleet: off = 4,597 series, on = 10,686. Count/sum/max survive with it off, so
+ *                   the average panels stay populated and only the percentile panels go dark
  */
 
 package pro.mir0n.esquire.backend.o11y;
@@ -95,16 +106,31 @@ import pro.mir0n.esquire.messaging.o11y.RodObserverHolder;
 //     esquire.observability.tracing.marks-enabled        sub      ON   -- keep/silence our own esq.* marks
 //     esquire.observability.tracing.excluded-paths       sub           -- never open a span for these (/actuator)
 //     esquire.observability.tracing.msg-bus-alive-trace  sub      off  -- trace the RR liveness round-trip
-//     esquire.observability.metrics.histograms-enabled   sub      off  -- percentile buckets on the extra latency
-//                                                                          timers. THE EXPENSIVE ONE: buckets are
-//                                                                          ~+73% series (measured), so it is opt-in;
-//                                                                          off still leaves count/sum/max (avg).
+//     esquire.observability.metrics.histograms-enabled   sub      off  -- percentile buckets on EVERY latency timer,
+//                                                                          http.server.requests INCLUDED. THE
+//                                                                          EXPENSIVE ONE, by a distance: buckets are
+//                                                                          ~+79% of the whole scrape, and the http
+//                                                                          ones ALONE were 20.5% of it (39 buckets
+//                                                                          per label-combo). Opt-in. OFF still
+//                                                                          leaves count/sum/max, so every AVERAGE
+//                                                                          panel stays populated -- only the p95
+//                                                                          panels go dark, and they are exactly the
+//                                                                          thing you switch this on to look at.
 //     esquire.observability.metrics.bandwidth-enabled    sub      ON   -- HTTP byte counters. Cheap, so on by
 //                                                                          default. ONE knob covering BOTH embedded
 //                                                                          servers: it turns on Tomcat's MBean
 //                                                                          registry (servlet services) and Reactor
 //                                                                          Netty's server metrics (the gateway) --
 //                                                                          the caller never needs to know which.
+//     esquire.observability.metrics.business-enabled     sub      ON   -- the esq.biz.* domain tier (what a service
+//                                                                          DOES, not how it runs). Measured at 1.25%
+//                                                                          of series and tens of ns per call, against
+//                                                                          work orders of magnitude dearer -- so ON.
+//                                                                          Off gates the REGISTRAR, so every esq.biz.*
+//                                                                          call site in the fleet becomes a null check
+//                                                                          (0.5 ns): nothing allocated, nothing looked
+//                                                                          up, no meter created. Tracing, the free
+//                                                                          meters and the bus meters all stay on.
 @Configuration
 @ConditionalOnProperty(name = "esquire.observability.enabled", havingValue = "true")
 public class ObservabilityConfig {
@@ -163,6 +189,7 @@ public class ObservabilityConfig {
     public MeterFilter esqLatencyHistograms(
             @Value("${esquire.observability.metrics.histograms-enabled:false}") boolean histogramsEnabled) {
         java.util.Set<String> gated = java.util.Set.of(
+                "http.server.requests",
                 "hikaricp.connections.usage", "hikaricp.connections.acquire", "messaging.send.duration",
                 "esq.gw.outer", "esq.gw.inner", "esq.srv.outer", "esq.srv.inner");
         return new MeterFilter() {
@@ -172,7 +199,18 @@ public class ObservabilityConfig {
                     io.micrometer.core.instrument.distribution.DistributionStatisticConfig config) {
                 io.micrometer.core.instrument.distribution.DistributionStatisticConfig ret = config;
                 String n = id.getName();
-                if ("http.server.requests".equals(n) || (histogramsEnabled && gated.contains(n))) {
+                // esq.biz.* timers ride the same sub-switch BY PREFIX -- the business meters are added per
+                // service (T8), so listing each name here would mean editing this filter every time a service
+                // gains a timer, and forgetting to would silently cost it its percentiles.
+                //
+                // http.server.requests is in the `gated` set like everything else. It used to be special-cased
+                // ALWAYS ON (so p95 worked without asking), and that one clause cost 20.5% OF THE ENTIRE SCRAPE
+                // -- 1,173 bucket series, 39 buckets per label-combo, on by default, whether or not anyone ever
+                // looked at a percentile. ONE switch now governs every bucket in the fleet: histograms off means
+                // no buckets anywhere, and the p95 panels are dark until you ask for them. That is the honest
+                // trade, and it is the same one the bus / gateway p95 panels already made.
+                boolean gatedName = gated.contains(n) || n.startsWith("esq.biz.");
+                if (histogramsEnabled && gatedName) {
                     ret = io.micrometer.core.instrument.distribution.DistributionStatisticConfig.builder()
                             .percentilesHistogram(true)
                             .build()
@@ -325,6 +363,25 @@ public class ObservabilityConfig {
     @Bean
     public org.springframework.beans.factory.InitializingBean esqAsyncTraceRegistrar(ObservationRegistry observationRegistry) {
         return () -> EsqAsyncTrace.setRegistry(observationRegistry);
+    }
+
+    // Hand the registry to the esq.biz.* business-meter facility (O1/T8). Registered ONLY here (observability
+    // enabled), so with the umbrella off EsqBizMeters holds no registry and every business call site is a null
+    // check. Static + registrar for the same reason EsqTraceMark is: the domain seams include objects the
+    // container never builds (AcctTransactionProcessor*, the taijitu Monad, KeepSqlStore are new-ed and never
+    // proxied), and constructor injection cannot reach those without inventing plumbing to carry a registry in.
+    //
+    // SUB-SWITCH esquire.observability.metrics.business-enabled (default TRUE). Gating the REGISTRAR is what
+    // makes "off" actually free: no registry reaches the facility, so every esq.biz.* call site anywhere in the
+    // fleet collapses to a volatile read and a null check (measured: 0.5 ns, vs tens of ns when on). Nothing is
+    // allocated, nothing is looked up, no meter exists. That is the lever for a run where the hot path must not
+    // pay for the domain tier at all -- the free JVM/HTTP/pool meters, the bus meters and tracing all stay on.
+    @Bean
+    @ConditionalOnProperty(name = "esquire.observability.metrics.business-enabled",
+                           havingValue = "true", matchIfMissing = true)
+    public org.springframework.beans.factory.InitializingBean esqBizMetersRegistrar(
+            io.micrometer.core.instrument.MeterRegistry meterRegistry) {
+        return () -> EsqBizMeters.setRegistry(meterRegistry);
     }
 
     // Spring Security observes its own filter chain, authentications and authorizations. On an Esquire

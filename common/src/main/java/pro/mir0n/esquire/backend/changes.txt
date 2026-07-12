@@ -1,5 +1,31 @@
 Esquire Backend common microservice classes
 
+07/11/2026 mir0n  v1.2.11 -- business meters (O1/T8): the esq.biz.* facility, the one cross-cutting meter, the business sub-switch, and ONE switch for every histogram bucket
+o11y.EsqBizMeters  (new)
+  - the shared esq.biz.* meter facility -- the ONE entry point for every business meter, so per-service work stays
+    THIN (a meter name, its tags, and the call site at its own domain seam) and the machinery stays generic in
+    common (D6). count / time / gauge; gauge() delegates to EsqGauge so an esq.biz.* gauge is strongReference'd
+    by construction. STATIC + registrar-backed (the EsqTraceMark shape) -- the only shape that reaches BOTH Spring
+    beans and the new-ed, never-proxied objects (AcctTransactionProcessor*, the taijitu Monad, KeepSqlStore).
+    Registry null while the umbrella is off, so every call is a null check and nothing else. A gauge asked for
+    BEFORE the registry arrives is HELD and registered when it does: a bean's @PostConstruct can run before the
+    registrar, and a gauge() call at that moment would quietly do nothing and the gauge would never exist
+o11y.ObservabilityConfig
+  - esqBizMetersRegistrar() @Bean hands the MeterRegistry to EsqBizMeters, gated by the NEW sub-switch
+    esquire.observability.metrics.business-enabled (default TRUE). Gating the REGISTRAR is what makes off free:
+    no registry reaches the facility, so every esq.biz.* call site in the fleet collapses to a null check.
+    esqLatencyHistograms(): esq.biz.* timers ride histograms-enabled BY PREFIX (a name list would need editing
+    every time a service gains a timer), and http.server.requests moves INTO the gated set -- it was special-cased
+    always-on so p95 would work without asking, and that one clause emitted 1,173 bucket series, 20.5% of the
+    entire scrape, whether or not anyone ever looked at a percentile. ONE switch now governs every bucket in the
+    fleet: off = 4,597 series, on = 10,686. Count/sum/max survive with it off, so the average panels stay
+    populated and only the percentile panels go dark
+storage.EsqRolesStorage
+  - isAdminCmdPermitted() counts esq.biz.perm.check.total (tags cmd = the AdminCmd enum, result = allow|deny):
+    the authorization decision itself, at the one gate every service goes through. The gate sees allow and deny
+    ONLY -- a self-update BYPASSES it entirely (id.equals(uid) short-circuits at the caller), which is why there
+    is no third tag value
+
 07/11/2026 mir0n  v1.2.11 -- trap removal (O1/T7): the weak-reference gauge and the request-scope probe resolved in code
 o11y.EsqGauge  (new)
   - the ONE place a Micrometer gauge is built. Micrometer holds a gauge's state object WEAKLY: when that state

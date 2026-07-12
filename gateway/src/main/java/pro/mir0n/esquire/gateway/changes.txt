@@ -1,5 +1,20 @@
 Esquire Gateway Microservice
 
+07/11/2026 mir0n  v1.2.11 -- business meters (O1/T8): the token relay -- cache hit rate and the KeyCloak round-trip
+security.tokenrelay.TokenRelayCache
+  - getOrAcquire() counts esq.biz.gw.tokenrelay.total (tag result = hit|miss). A GENUINE hit/miss: a hit serves
+    the request without touching KeyCloak, a miss is a live /token round-trip on the hot path -- so the hit RATE
+    is exactly how much of KeyCloak's latency the users are spared
+security.tokenrelay.WebClientTokenRelayClient
+  - acquire() counts esq.biz.gw.tokenrelay.acquire.total and times esq.biz.gw.tokenrelay.duration (tag outcome =
+    ok|error|cancelled) around the KC /token call -- an EXTERNAL server on the hot path that nothing measured.
+    Wrapped in Mono.defer so the clock starts at SUBSCRIPTION, not assembly: a nanoTime() outside the chain is
+    captured when the Mono is BUILT and times the wrong window. doOnSuccess / doOnError / doOnCancel cover every
+    terminal signal, so a client that hangs up mid-relay does not vanish from the count
+resources/application.yml
+  - esquire.observability.metrics.business-enabled: ${ESQ_METRICS_BUSINESS:true} added -- the sub-switch gating
+    the esq.biz.* domain tier under the observability master
+
 07/11/2026 mir0n  v1.2.11 -- edge latency bands + edge bandwidth (O1/T5): the gateway's own timers; ONE config namespace
 filters.ResponseTraceFilter
   - the OUTER window is now also recorded as the esq.gw.outer Micrometer timer, tagged by the matched gateway

@@ -1,5 +1,10 @@
 Esquire auKeep service
 
+07/11/2026 mir0n  v1.2.11 -- the business-meter sub-switch (O1/T8)
+resources/application.yml
+  - esquire.observability.metrics.business-enabled: ${ESQ_METRICS_BUSINESS:true} added -- the sub-switch gating
+    the esq.biz.* domain tier under the observability master
+
 07/11/2026 mir0n  v1.2.11 -- observability config namespace + the metrics sub-switches (O1/T5)
 resources/application.yml
   - the tracing keys move under the umbrella: esquire.tracing.* -> esquire.observability.tracing.*

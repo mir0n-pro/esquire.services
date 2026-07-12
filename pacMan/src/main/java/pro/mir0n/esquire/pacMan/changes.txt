@@ -1,5 +1,24 @@
 Esquire pacMan Microservice
 
+07/11/2026 mir0n  v1.2.11 -- business meters (O1/T8): the money path
+acct.service.AcctTransactionProcessorSingle
+  - esquireCommandAcct() counts esq.biz.acct.tx.total and times esq.biz.acct.tx.duration (tags type =
+    AcctOperation.Code, outcome = ok|denied|error); _esquireCommandAcct() counts esq.biz.acct.fx.apply.total when
+    convRate is non-null (a conversion rate is present only on the cross-currency leg, so it IS the FX
+    application). operTag() added: the type tag is NULL-SAFE because these read from a finally, and a raw
+    oper.name() there throws an NPE that REPLACES the real exception on its way out
+acct.service.AcctTransactionProcessorTransfer
+  - esquireCommandAcct() counts esq.biz.acct.tx.total and times esq.biz.acct.tx.duration (tags type, outcome) --
+    its OWN meters, because this override does NOT call super, so the meters on AcctTransactionProcessorSingle
+    never see a transfer and the whole transfer path would have been silently missing from the money panel
+service.impl.PacManService
+  - deleteAcct() counts esq.biz.acct.close.total (tag purge = test-house|none), only once the delete has SUCCEEDED
+    past the three guards, so a refused delete never inflates it; the purge tag names the Test-House branch that
+    forces those guards open. The branch condition is lifted to a local flag
+resources/application.yml
+  - esquire.observability.metrics.business-enabled: ${ESQ_METRICS_BUSINESS:true} added -- the sub-switch gating
+    the esq.biz.* domain tier under the observability master
+
 07/11/2026 mir0n  v1.2.11 -- observability config namespace + the metrics sub-switches (O1/T5)
 resources/application.yml
   - the tracing keys move under the umbrella: esquire.tracing.* -> esquire.observability.tracing.*

@@ -18,9 +18,13 @@
  * 06/29/2026 mir0n  the whole-tree entity read runs in one read-only TransactionTemplate (readTx) built over the
  *                   JPA tx manager; its timeout opts out of the request-path cap via QueryTimeouts.resolveOptOut
  *                   (biztree.cache-load.tx-timeout-s, 0 = uncapped, pre-HA default) (R6)
+ * 07/11/2026 mir0n  v1.2.11 O1/T8 -- load() counts esq.biz.tree.rebuild.total (tag outcome) in a finally; it
+ *                   still throws so the caller can transition its monad to FAILED. Rebuilds should be RARE, so a
+ *                   rising rate is itself the finding
  */
 package pro.mir0n.esquire.bizTree.cache;
 
+import pro.mir0n.esquire.backend.o11y.EsqBizMeters;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -85,20 +89,30 @@ public class BizTreeCacheLoader {
     public void load() {
         log.info("BizTreeCacheLoader: building in-memory tree cache from entity tables");
 
-        List<Object[]> rows = new ArrayList<>();
-        // The whole-tree entity reads run together in the uncapped read-only transaction (see ctor); the H2
-        // cache writes below are on the separate cache datasource and stay outside it.
-        readTx.executeWithoutResult(status -> {
-            buildOrgRows(rows);
-            Map<String, Long> usrOrgMap = buildUserRows(rows);
-            buildAccountRows(rows, usrOrgMap);
-        });
+        // esq.biz.tree.rebuild.total (O1/T8 phase C): a cache rebuild is the heaviest thing bizTree does -- it
+        // reads the whole entity tree. A rebuild that FAILS leaves its monad in FAILED (this method throws so the
+        // caller can transition it), so the outcome tag is what says whether the cache actually came back.
+        // Rebuilds should be RARE: a rising rate is itself the finding.
+        String outcome = "error";
+        try {
+            List<Object[]> rows = new ArrayList<>();
+            // The whole-tree entity reads run together in the uncapped read-only transaction (see ctor); the H2
+            // cache writes below are on the separate cache datasource and stay outside it.
+            readTx.executeWithoutResult(status -> {
+                buildOrgRows(rows);
+                Map<String, Long> usrOrgMap = buildUserRows(rows);
+                buildAccountRows(rows, usrOrgMap);
+            });
 
-        int[] counts = cacheDb.batchUpdate(sql.insertNode(), rows);
-        log.info("BizTreeCacheLoader: inserted {} nodes; computing paths", counts.length);
+            int[] counts = cacheDb.batchUpdate(sql.insertNode(), rows);
+            log.info("BizTreeCacheLoader: inserted {} nodes; computing paths", counts.length);
 
-        computePathsAndLevels();
-        log.info("BizTreeCacheLoader: in-memory tree cache ready");
+            computePathsAndLevels();
+            log.info("BizTreeCacheLoader: in-memory tree cache ready");
+            outcome = "ok";
+        } finally {
+            EsqBizMeters.count("esq.biz.tree.rebuild.total", "outcome", outcome);
+        }
     }
 
     private void buildOrgRows(List<Object[]> rows) {

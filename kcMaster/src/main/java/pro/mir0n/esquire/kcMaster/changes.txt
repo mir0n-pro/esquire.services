@@ -1,5 +1,15 @@
 Esquire kcMaster Microservice
 
+07/11/2026 mir0n  v1.2.11 -- business meters (O1/T8): the KeyCloak identity sync
+messaging.KcRequestHandler
+  - handle() counts esq.biz.kc.sync.total and times esq.biz.kc.sync.duration (tags op = the BusConstants command,
+    outcome) in a finally; the switch is unchanged. A sync that arrives and then FAILS leaves Esquire and KeyCloak
+    disagreeing about who exists. The duration is the whole sync, not the admin client alone -- the KC round-trip
+    dominates it, and the name says what it measures rather than implying an isolation that was not built
+resources/application.yml
+  - esquire.observability.metrics.business-enabled: ${ESQ_METRICS_BUSINESS:true} added -- the sub-switch gating
+    the esq.biz.* domain tier under the observability master
+
 07/11/2026 mir0n  v1.2.11 -- observability config namespace + the metrics sub-switches (O1/T5)
 resources/application.yml
   - the tracing keys move under the umbrella: esquire.tracing.* -> esquire.observability.tracing.*

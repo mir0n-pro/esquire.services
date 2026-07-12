@@ -27,10 +27,14 @@
  *                   -- move is queued and processed async on the worker; OpenAPI response 200 -> 202
  * 06/04/2026 mir0n  rootPath / uid no longer extracted from claims or passed to the service -- they ride
  *                   the unified request context; only roles is still read from realm_access
+ * 07/11/2026 mir0n  v1.2.11 O1/T8 -- esquireDictionary() counts esq.biz.dict.lookup.total (tag kind). Not a
+ *                   duplicate of http.server.requests: that is tagged by URI TEMPLATE (/esq-dict) and the kind is
+ *                   a query param, so the free meter can say the endpoint is busy but never WHICH dictionary
  */
 
 package pro.mir0n.esquire.enyMan.controller;
 
+import pro.mir0n.esquire.backend.o11y.EsqBizMeters;
 import io.jsonwebtoken.Claims;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.LoggerFactory;
@@ -112,6 +116,10 @@ public class EnyManController {
             @AuthenticationPrincipal Claims claims
     ) {
         List<EsqEntityLayer> layers = iEnyManService.esquireDictionary(kind);
+        // esq.biz.dict.lookup.total (O1/T8 phase B). Not a duplicate of the free http.server.requests: that meter
+        // is tagged by the URI TEMPLATE (/esq-dict), so it cannot tell WHICH dictionary was fetched -- kind is a
+        // query param. The kind code is a small fixed set, so the tag stays bounded.
+        EsqBizMeters.count("esq.biz.dict.lookup.total", "kind", String.valueOf(kind));
         devLog.debug("esquireDictionary: kind:{}, result:{}, claims:{}", kind, String.valueOf(layers), String.valueOf(claims));
         return ResponseEntity.status(HttpStatus.OK).body(layers);
     }

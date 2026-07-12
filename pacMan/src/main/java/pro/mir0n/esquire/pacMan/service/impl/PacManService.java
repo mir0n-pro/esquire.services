@@ -57,10 +57,15 @@
  * 07/02/2026 mir0n  saveAcct / deleteAcct read requestId via requireRequestId() -- X-Request-ID mandatory on writes
  * 07/08/2026 mir0n  @EsqTraced on esquireCommand / esquireCommandSave / esquireCommandDelete
  *                   (esq.svc.acct.read / save / delete)
+ * 07/11/2026 mir0n  v1.2.11 O1/T8 -- deleteAcct() counts esq.biz.acct.close.total (tag purge = test-house|none),
+ *                   only once the delete has SUCCEEDED past the three guards, so a refused delete never inflates
+ *                   it; the purge tag names the Test-House branch that forces those guards open, so a real closure
+ *                   is never confused with a fixture teardown. The branch condition is lifted to a local flag
  */
 
 package pro.mir0n.esquire.pacMan.service.impl;
 
+import pro.mir0n.esquire.backend.o11y.EsqBizMeters;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.FlushModeType;
 import java.util.*;
@@ -280,7 +285,8 @@ public class PacManService  implements IPacManService {
         // closed, no transactions) all pass. Outside the Test House subtree
         // the branch is skipped and the validator runs unchanged.
         String acctPath = entityRepository.acctPath(id);
-        if (acctPath != null && acctPath.startsWith(TEST_HOUSE_PATH_PREFIX)) {
+        boolean testHousePurge = acctPath != null && acctPath.startsWith(TEST_HOUSE_PATH_PREFIX);
+        if (testHousePurge) {
             acctTrxRepo.deleteAcctTransactionsByAccPk(Long.parseLong(id));
             acct.setFundedDate(null);
             acct.setStatus("C");
@@ -288,6 +294,11 @@ public class PacManService  implements IPacManService {
         ValidatorFactory.getInstance().validateDelete(acct);
         entityRepository.deleteAcct(id);
         entityRepository.deleteEntityPath(id);
+        // esq.biz.acct.close.total (O1/T8 phase B): an account actually closed. Counted only once the delete has
+        // SUCCEEDED (past the three guards), so a refused delete never inflates it. The purge tag says whether
+        // this went through the Test-House branch -- the demo-data path that forces the guards open -- so a real
+        // closure is never confused with a test-fixture teardown on the panel.
+        EsqBizMeters.count("esq.biz.acct.close.total", "purge", testHousePurge ? "test-house" : "none");
         // audit: account DELETE (id + kind).
         audit.post(RodEvent.Op.DELETE, kind, id, null);
     }

@@ -18,10 +18,16 @@
  *                   EsqTraceMark.around("esq.svc.acct.tx", "account transfer", ...) -- this processor is constructed
  *                   with new() by AcctTransactionService, so Spring never proxies it and @EsqTraced would not
  *                   be advised
+ * 07/11/2026 mir0n  v1.2.11 O1/T8 -- esquireCommandAcct() counts esq.biz.acct.tx.total and times
+ *                   esq.biz.acct.tx.duration (tags type, outcome) -- its OWN meters, because this override does
+ *                   NOT call super, so the meters on AcctTransactionProcessorSingle never see a transfer and the
+ *                   whole transfer path would have been silently missing from the money panel
  */
 
 package pro.mir0n.esquire.pacMan.acct.service;
 
+import pro.mir0n.esquire.backend.error.PermissionDeniedException;
+import pro.mir0n.esquire.backend.o11y.EsqBizMeters;
 import pro.mir0n.esquire.backend.o11y.EsqTraceMark;
 import jakarta.persistence.EntityManager;
 import lombok.extern.slf4j.Slf4j;
@@ -48,10 +54,25 @@ public class AcctTransactionProcessorTransfer extends AcctTransactionProcessorSi
     }
 
     public AcctTransactionSingle esquireCommandAcct(int kind, String id, AcctOperation.Code oper, Map<String, Object> fields, boolean skipValidation, String rootPath, String uid, List<String> roles) {
-        // Programmatic mark, not @EsqTraced: this processor is constructed with new() by
-        // AcctTransactionService, so Spring never proxies it and the annotation would not be advised.
-        AcctTransactionSingle marked = EsqTraceMark.around("esq.svc.acct.tx", "account transfer", () ->
-                esquireCommandTransfer(kind, id, oper, fields, skipValidation, rootPath, uid, roles));
+        AcctTransactionSingle marked = null;
+        // esq.biz.acct.tx.total / .duration (O1/T8 phase B). This override does NOT call super, so the meters on
+        // AcctTransactionProcessorSingle.esquireCommandAcct never see a transfer -- it needs its own, or the
+        // whole transfer path would be silently missing from the money panel.
+        String outcome = "error";
+        long startedAt = System.nanoTime();
+        try {
+            // Programmatic mark, not @EsqTraced: this processor is constructed with new() by
+            // AcctTransactionService, so Spring never proxies it and the annotation would not be advised.
+            marked = EsqTraceMark.around("esq.svc.acct.tx", "account transfer", () ->
+                    esquireCommandTransfer(kind, id, oper, fields, skipValidation, rootPath, uid, roles));
+            outcome = "ok";
+        } catch (PermissionDeniedException e) {
+            outcome = "denied";
+            throw e;
+        } finally {
+            EsqBizMeters.count("esq.biz.acct.tx.total", "type", operTag(oper), "outcome", outcome);
+            EsqBizMeters.time("esq.biz.acct.tx.duration", System.nanoTime() - startedAt, "type", operTag(oper));
+        }
         return marked;
     }
 

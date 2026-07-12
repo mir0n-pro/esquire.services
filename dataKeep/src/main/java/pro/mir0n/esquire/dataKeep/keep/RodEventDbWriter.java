@@ -17,9 +17,15 @@
  *                   null / <= 0 leaves it uncapped (pre-HA). Added queryTimeoutSeconds() accessor (R6)
  * 07/08/2026 mir0n  applyEvent() body wrapped in EsqTraceMark.around("esq.keep.apply", "keep audit log", ...) --
  *                   the writer is not a Spring bean, so the programmatic mark stands in for @EsqTraced
+ * 07/11/2026 mir0n  v1.2.11 O1/T8 -- applyEvent() counts esq.biz.keep.write.total and times
+ *                   esq.biz.keep.write.duration (tags op = the RodEvent op, outcome = ok|error) around the DB
+ *                   write. This is the one thing the bus meters cannot see: messaging.receive.total says the
+ *                   audit event ARRIVED, only this says whether the row was WRITTEN. The op tag is null-safe --
+ *                   these read from a finally, and a meter that throws there would REPLACE the real exception
  */
 package pro.mir0n.esquire.dataKeep.keep;
 
+import pro.mir0n.esquire.backend.o11y.EsqBizMeters;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.namedparam.AbstractSqlParameterSource;
@@ -78,14 +84,29 @@ public class RodEventDbWriter {
 
     /** Write one row for the event: uniform header (identity) + the event body, straight to the keyed SQL. */
     public void applyEvent(String sqlKey, RodEvent e) {
-        EsqTraceMark.around("esq.keep.apply", "keep audit log", () -> {
-            Map<String, Object> params = header(e);
-            if (e.body() != null) {
-                params.putAll(e.body());   // field names -> the SQL's data params (a DELETE body is empty)
-            }
-            int rows = jdbc.update(sql.forVendor(dialect, sqlKey), new TolerantSource(params));
-            devLog.debug("keep-db apply key={} rows={}", sqlKey, rows);
-        });
+        // esq.biz.keep.write.total / .duration (O1/T8 phase C) -- THE DB WRITE at the keep sink, which is the one
+        // thing the bus meters cannot see. messaging.receive.total says the audit event ARRIVED; it says nothing
+        // about whether the row was actually WRITTEN, how long the write took, or whether it blew up. An audit
+        // event that lands on the bus and then fails to persist is exactly the failure that is invisible today.
+        // Tags: op is the RodEvent op (a small enum), outcome is ok | error. sqlKey is NOT a tag -- it is the
+        // per-table key and would grow the series with the schema.
+        String outcome = "error";
+        long startedAt = System.nanoTime();
+        try {
+            EsqTraceMark.around("esq.keep.apply", "keep audit log", () -> {
+                Map<String, Object> params = header(e);
+                if (e.body() != null) {
+                    params.putAll(e.body());   // field names -> the SQL's data params (a DELETE body is empty)
+                }
+                int rows = jdbc.update(sql.forVendor(dialect, sqlKey), new TolerantSource(params));
+                devLog.debug("keep-db apply key={} rows={}", sqlKey, rows);
+            });
+            outcome = "ok";
+        } finally {
+            String op = (e != null && e.op() != null) ? e.op().name() : "unknown";   // never throw from a meter
+            EsqBizMeters.count("esq.biz.keep.write.total", "op", op, "outcome", outcome);
+            EsqBizMeters.time("esq.biz.keep.write.duration", System.nanoTime() - startedAt, "op", op);
+        }
     }
 
     /** Uniform identity + header params, by the standardized names the SQL uses for every table. */

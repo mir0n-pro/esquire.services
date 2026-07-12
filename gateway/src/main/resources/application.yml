@@ -78,6 +78,10 @@ esquire:
       # HTTP byte counters (O1/T5-C). Cheap, so ON by default. ONE knob for BOTH embedded servers: Esquire
       # turns on Tomcat's MBean registry (servlet services) or Reactor Netty's metrics (the gateway) as needed.
       bandwidth-enabled: ${ESQ_METRICS_BANDWIDTH:true}
+      # Business meters (O1/T8): the esq.biz.* domain tier -- what a service DOES, not how it runs. ON by
+      # default: measured at 1.25% of the series and a few tens of ns per call, against work that is orders of
+      # magnitude dearer. Off drops every esq.biz.* call site to a null check -- the lever for a hot-path run.
+      business-enabled: ${ESQ_METRICS_BUSINESS:true}
   gateway:
     service-metrics:
       enabled: ${GW_SERVICE_METRICS_ENABLED:false} # Control whether to collect metrics for the gateway on backend services

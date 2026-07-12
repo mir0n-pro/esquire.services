@@ -1,6 +1,6 @@
 {
  "uid": "esq-services",
- "title": "Esquire Services -- REST / JVM / Pool / CPU / BFF / DB / KC / Bus / Latency",
+ "title": "Esquire Services -- REST / JVM / Pool / CPU / BFF / DB / KC / Bus / Latency / Bandwidth / Biz",
  "tags": [
   "esquire",
   "o11y"
@@ -175,7 +175,8 @@
      "expr": "histogram_quantile(0.95, sum by (le, application, instance) (rate(http_server_requests_seconds_bucket{application=~\"$application\"}[5m])))",
      "legendFormat": "{{application}} {{instance}}"
     }
-   ]
+   ],
+   "description": "A GAP HERE IS NOT A BUG -- it means histogram buckets are off, which is the DEFAULT. Percentiles need buckets, and buckets are the single most expensive thing on this stack: the http ones ALONE were 20.5% of the entire scrape (39 series per label-combo), on whether or not anyone ever looked at a percentile. So they are OPT-IN: set esquire.observability.metrics.histograms-enabled=true (ESQ_METRICS_HISTOGRAMS). With it off the timer still records count/sum/max, so every AVERAGE panel stays populated and only the percentile goes dark. Switch it on to investigate a percentile; switch it off for steady state."
   },
   {
    "type": "row",
@@ -1009,7 +1010,7 @@
       "type": "prometheus",
       "uid": "esq-prometheus"
      },
-     "expr": "1000 * sum(rate(http_server_requests_seconds_sum{job=\"keycloak\"}[1m])) / clamp_min(sum(rate(http_server_requests_seconds_count{job=\"keycloak\"}[1m])), 1)",
+     "expr": "1000 * sum(rate(http_server_requests_seconds_sum{job=\"keycloak\"}[1m])) / sum(rate(http_server_requests_seconds_count{job=\"keycloak\"}[1m]))",
      "legendFormat": "avg"
     }
    ]
@@ -1253,7 +1254,7 @@
       "type": "prometheus",
       "uid": "esq-prometheus"
      },
-     "expr": "1000 * sum by (application, bus_id)(rate(messaging_send_duration_seconds_sum{application=~\"$application\"}[5m])) / clamp_min(sum by (application, bus_id)(rate(messaging_send_duration_seconds_count{application=~\"$application\"}[5m])), 1)",
+     "expr": "1000 * sum by (application, bus_id)(rate(messaging_send_duration_seconds_sum{application=~\"$application\"}[5m])) / sum by (application, bus_id)(rate(messaging_send_duration_seconds_count{application=~\"$application\"}[5m]))",
      "legendFormat": "avg {{application}} -> {{bus_id}}"
     },
     {
@@ -1306,14 +1307,14 @@
   },
   {
    "type": "timeseries",
-   "title": "Send-retry: held / dropped / backoff",
+   "title": "Send-retry: held + dropped (counts)",
    "datasource": {
     "type": "prometheus",
     "uid": "esq-prometheus"
    },
    "gridPos": {
     "h": 8,
-    "w": 8,
+    "w": 4,
     "x": 16,
     "y": 102
    },
@@ -1335,8 +1336,8 @@
       "type": "prometheus",
       "uid": "esq-prometheus"
      },
-     "expr": "messaging_retry_held{application=~\"$application\"}",
-     "legendFormat": "held (count) {{application}} {{bus_id}}"
+     "expr": "sum by (application, bus_id)(messaging_retry_held{application=~\"$application\"})",
+     "legendFormat": "held {{application}} {{bus_id}}"
     },
     {
      "refId": "B",
@@ -1344,20 +1345,48 @@
       "type": "prometheus",
       "uid": "esq-prometheus"
      },
-     "expr": "sum by (application, bus_id) (rate(messaging_retry_dropped{application=~\"$application\"}[5m]))",
-     "legendFormat": "dropped/s {{application}} {{bus_id}}"
+     "expr": "(sum by (application, bus_id)(increase(messaging_retry_dropped_total{application=~\"$application\"}[5m]))) or vector(0)",
+     "legendFormat": "dropped/5m {{application}} {{bus_id}}"
+    }
+   ],
+   "description": "The send-retry sublayer. FLAT AT ZERO is the healthy state -- these only move when the transport is failing sends: held = messages parked awaiting re-dispatch, dropped = given up after max attempts. Both are COUNTS, so they share an axis honestly; the backoff duration is milliseconds and lives on its own panel to the right."
+  },
+  {
+   "type": "timeseries",
+   "title": "Send-retry: backoff (avg ms)",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "esq-prometheus"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 4,
+    "x": 20,
+    "y": 102
+   },
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+      "drawStyle": "line",
+      "fillOpacity": 10
+     },
+     "unit": "ms",
+     "min": 0
     },
+    "overrides": []
+   },
+   "targets": [
     {
-     "refId": "C",
+     "refId": "A",
      "datasource": {
       "type": "prometheus",
       "uid": "esq-prometheus"
      },
-     "expr": "sum by (application, bus_id)(rate(messaging_retry_backoff_sum{application=~\"$application\"}[5m])) / clamp_min(sum by (application, bus_id)(rate(messaging_retry_backoff_count{application=~\"$application\"}[5m])), 1)",
-     "legendFormat": "backoff avg (ms) {{application}} {{bus_id}}"
+     "expr": "1000 * (sum by (application, bus_id) (rate(messaging_retry_backoff_sum{application=~\"$application\"}[5m])) / sum by (application, bus_id) (rate(messaging_retry_backoff_count{application=~\"$application\"}[5m])))",
+     "legendFormat": "{{application}} {{bus_id}}"
     }
    ],
-   "description": "The send-retry sublayer. FLAT AT ZERO is the healthy state -- these only move when the transport is failing sends: held = messages parked awaiting re-dispatch, dropped/s = given up after max attempts, backoff avg = the ladder step being waited out. Mixed units (count, /s, ms) on one axis deliberately: this is a diagnostic panel you read when something is wrong, and all three are small numbers."
+   "description": "The backoff ladder step being waited out. A GAP here is the healthy state -- no retries, nothing to average. It was previously drawn on the same axis as the held/dropped COUNTS, which put milliseconds and message counts on one scale."
   },
   {
    "type": "row",
@@ -1400,7 +1429,7 @@
       "type": "prometheus",
       "uid": "esq-prometheus"
      },
-     "expr": "1000 * ((sum(rate(esq_gw_outer_seconds_sum[5m])) / clamp_min(sum(rate(esq_gw_outer_seconds_count[5m])), 1)) - ((sum(rate(esq_gw_inner_seconds_sum[5m])) / clamp_min(sum(rate(esq_gw_inner_seconds_count[5m])), 1)) or vector(0)))",
+     "expr": "1000 * ((sum(rate(esq_gw_outer_seconds_sum[5m])) / sum(rate(esq_gw_outer_seconds_count[5m]))) - ((sum(rate(esq_gw_inner_seconds_sum[5m])) / sum(rate(esq_gw_inner_seconds_count[5m]))) or vector(0)))",
      "legendFormat": "net (client <-> gw)"
     },
     {
@@ -1409,7 +1438,7 @@
       "type": "prometheus",
       "uid": "esq-prometheus"
      },
-     "expr": "1000 * ((sum(rate(esq_gw_inner_seconds_sum[5m])) / clamp_min(sum(rate(esq_gw_inner_seconds_count[5m])), 1)) - ((sum(rate(esq_srv_outer_seconds_sum[5m])) / clamp_min(sum(rate(esq_srv_outer_seconds_count[5m])), 1)) or vector(0)))",
+     "expr": "1000 * ((sum(rate(esq_gw_inner_seconds_sum[5m])) / sum(rate(esq_gw_inner_seconds_count[5m]))) - ((sum(rate(esq_srv_outer_seconds_sum[5m])) / sum(rate(esq_srv_outer_seconds_count[5m]))) or vector(0)))",
      "legendFormat": "in-cluster (gw <-> srv)"
     },
     {
@@ -1418,7 +1447,7 @@
       "type": "prometheus",
       "uid": "esq-prometheus"
      },
-     "expr": "1000 * ((sum(rate(esq_srv_outer_seconds_sum[5m])) / clamp_min(sum(rate(esq_srv_outer_seconds_count[5m])), 1)) - ((sum(rate(esq_srv_inner_seconds_sum[5m])) / clamp_min(sum(rate(esq_srv_inner_seconds_count[5m])), 1)) or vector(0)))",
+     "expr": "1000 * ((sum(rate(esq_srv_outer_seconds_sum[5m])) / sum(rate(esq_srv_outer_seconds_count[5m]))) - ((sum(rate(esq_srv_inner_seconds_sum[5m])) / sum(rate(esq_srv_inner_seconds_count[5m]))) or vector(0)))",
      "legendFormat": "srv self (compute)"
     },
     {
@@ -1427,7 +1456,7 @@
       "type": "prometheus",
       "uid": "esq-prometheus"
      },
-     "expr": "1000 * ((sum(rate(esq_srv_inner_seconds_sum[5m])) / clamp_min(sum(rate(esq_srv_inner_seconds_count[5m])), 1)) or vector(0))",
+     "expr": "1000 * ((sum(rate(esq_srv_inner_seconds_sum[5m])) / sum(rate(esq_srv_inner_seconds_count[5m]))) or vector(0))",
      "legendFormat": "srv inner (db)"
     }
    ],
@@ -1464,7 +1493,7 @@
       "type": "prometheus",
       "uid": "esq-prometheus"
      },
-     "expr": "1000 * sum(rate(esq_gw_outer_seconds_sum[5m])) / clamp_min(sum(rate(esq_gw_outer_seconds_count[5m])), 1)",
+     "expr": "1000 * sum(rate(esq_gw_outer_seconds_sum[5m])) / sum(rate(esq_gw_outer_seconds_count[5m]))",
      "legendFormat": "gw outer (total)"
     },
     {
@@ -1473,7 +1502,7 @@
       "type": "prometheus",
       "uid": "esq-prometheus"
      },
-     "expr": "1000 * sum(rate(esq_gw_inner_seconds_sum[5m])) / clamp_min(sum(rate(esq_gw_inner_seconds_count[5m])), 1)",
+     "expr": "1000 * sum(rate(esq_gw_inner_seconds_sum[5m])) / sum(rate(esq_gw_inner_seconds_count[5m]))",
      "legendFormat": "gw inner (proxied)"
     },
     {
@@ -1482,7 +1511,7 @@
       "type": "prometheus",
       "uid": "esq-prometheus"
      },
-     "expr": "1000 * sum(rate(esq_srv_outer_seconds_sum[5m])) / clamp_min(sum(rate(esq_srv_outer_seconds_count[5m])), 1)",
+     "expr": "1000 * sum(rate(esq_srv_outer_seconds_sum[5m])) / sum(rate(esq_srv_outer_seconds_count[5m]))",
      "legendFormat": "srv outer (wall)"
     },
     {
@@ -1491,7 +1520,7 @@
       "type": "prometheus",
       "uid": "esq-prometheus"
      },
-     "expr": "1000 * sum(rate(esq_srv_inner_seconds_sum[5m])) / clamp_min(sum(rate(esq_srv_inner_seconds_count[5m])), 1)",
+     "expr": "1000 * sum(rate(esq_srv_inner_seconds_sum[5m])) / sum(rate(esq_srv_inner_seconds_count[5m]))",
      "legendFormat": "srv inner (db, capture-gated)"
     }
    ]
@@ -1662,6 +1691,591 @@
     }
    ],
    "description": "The gateway runs on Netty, so its bytes come from reactor-netty (not the Tomcat MBean). This is the CLIENT-facing bandwidth at the edge; the two panels to the left are in-cluster service traffic. /actuator is excluded: that is Prometheus scraping the gateway itself."
+  },
+  {
+   "type": "row",
+   "title": "Business -- entity operations",
+   "gridPos": {
+    "h": 1,
+    "w": 24,
+    "x": 0,
+    "y": 128
+   }
+  },
+  {
+   "type": "timeseries",
+   "title": "Entity operations (ops/s by op + outcome)",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "esq-prometheus"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 0,
+    "y": 129
+   },
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+      "drawStyle": "line",
+      "fillOpacity": 10
+     },
+     "unit": "ops",
+     "min": 0
+    },
+    "overrides": []
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "sum by (op, outcome) (rate(esq_biz_entity_ops_total{application=~\"$application\"}[5m]))",
+     "legendFormat": "{{op}} {{outcome}}"
+    }
+   ],
+   "description": "What enyMan actually DID: creates, deletes and moves, by outcome. No free meter can see this -- http.server.requests knows the endpoint and the HTTP status, not which KIND of entity was acted on nor whether a refusal was an authorization decision. NOTE a MOVE here means the command was ACCEPTED (/esq-move answers 202); whether the move SUCCEEDED is the next panel, because the work happens off-request on the queue worker."
+  },
+  {
+   "type": "timeseries",
+   "title": "Move queue -- depth (pending)",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "esq-prometheus"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 4,
+    "x": 8,
+    "y": 129
+   },
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+      "drawStyle": "line",
+      "fillOpacity": 10
+     },
+     "unit": "short",
+     "min": 0
+    },
+    "overrides": []
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "sum(esq_biz_move_queue_depth{application=~\"$application\"})",
+     "legendFormat": "pending"
+    }
+   ],
+   "description": "The move backlog. /esq-move answers 202 at submit time and the work happens on the queue worker, so a rising depth means the worker is not keeping up -- and nothing on the request side would tell you."
+  },
+  {
+   "type": "timeseries",
+   "title": "Move outcome (per s)",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "esq-prometheus"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 4,
+    "x": 12,
+    "y": 129
+   },
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+      "drawStyle": "line",
+      "fillOpacity": 10
+     },
+     "unit": "ops",
+     "min": 0
+    },
+    "overrides": []
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "sum(rate(esq_biz_move_processed_total{application=~\"$application\"}[5m]))",
+     "legendFormat": "processed/s"
+    },
+    {
+     "refId": "B",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(sum(rate(esq_biz_move_failed_total{application=~\"$application\"}[5m]))) or vector(0)",
+     "legendFormat": "FAILED/s"
+    }
+   ],
+   "description": "The async half of a move. A move that FAILS on the worker is invisible to the caller (it already got its 202) and to every HTTP meter -- this is the only place it shows. FAILED is flat at zero on a healthy system; `or vector(0)` keeps it drawing a zero line rather than vanishing, because a vanished series is indistinguishable from a broken panel."
+  },
+  {
+   "type": "timeseries",
+   "title": "Dictionary lookups (by kind)",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "esq-prometheus"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 16,
+    "y": 129
+   },
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+      "drawStyle": "line",
+      "fillOpacity": 10
+     },
+     "unit": "ops",
+     "min": 0
+    },
+    "overrides": []
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "sum by (kind) (rate(esq_biz_dict_lookup_total{application=~\"$application\"}[5m]))",
+     "legendFormat": "kind {{kind}}"
+    }
+   ],
+   "description": "Which DICTIONARY is being fetched. Not a duplicate of http.server.requests: that meter is tagged by URI template (/esq-dict), and the kind is a query param -- so the free meter can tell you the endpoint is busy but never which dictionary."
+  },
+  {
+   "type": "row",
+   "title": "Business -- money",
+   "gridPos": {
+    "h": 1,
+    "w": 24,
+    "x": 0,
+    "y": 137
+   }
+  },
+  {
+   "type": "timeseries",
+   "title": "Account transactions (tx/s by type + outcome)",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "esq-prometheus"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 0,
+    "y": 138
+   },
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+      "drawStyle": "line",
+      "fillOpacity": 10
+     },
+     "unit": "ops",
+     "min": 0
+    },
+    "overrides": []
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "sum by (type, outcome) (rate(esq_biz_acct_tx_total{application=~\"$application\"}[5m]))",
+     "legendFormat": "{{type}} {{outcome}}"
+    }
+   ],
+   "description": "The money path: deposits, withdrawals, transfers, by outcome. Both processors report here -- the transfer processor OVERRIDES the single one and does not call super, so it needed its own meter or every transfer would have been silently missing from this panel."
+  },
+  {
+   "type": "timeseries",
+   "title": "Transaction latency (avg ms by type)",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "esq-prometheus"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 8,
+    "y": 138
+   },
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+      "drawStyle": "line",
+      "fillOpacity": 10
+     },
+     "unit": "ms",
+     "min": 0
+    },
+    "overrides": []
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "1000 * (sum by (type) (rate(esq_biz_acct_tx_duration_seconds_sum{application=~\"$application\"}[5m])) / sum by (type) (rate(esq_biz_acct_tx_duration_seconds_count{application=~\"$application\"}[5m])))",
+     "legendFormat": "{{type}}"
+    }
+   ],
+   "description": "How long a transaction takes end to end inside pacMan, by operation. A transfer is two legs and a rate lookup, so it is legitimately dearer than a deposit -- the shape to watch is a type getting slower against ITSELF, not one type against another."
+  },
+  {
+   "type": "timeseries",
+   "title": "FX applied + accounts closed",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "esq-prometheus"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 16,
+    "y": 138
+   },
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+      "drawStyle": "line",
+      "fillOpacity": 10
+     },
+     "unit": "ops",
+     "min": 0
+    },
+    "overrides": []
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "sum(rate(esq_biz_acct_fx_apply_total{application=~\"$application\"}[5m]))",
+     "legendFormat": "fx applied/s"
+    },
+    {
+     "refId": "B",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "sum by (purge) (rate(esq_biz_acct_close_total{application=~\"$application\"}[5m]))",
+     "legendFormat": "closed ({{purge}})"
+    }
+   ],
+   "description": "A conversion rate is only present on the cross-currency leg of a transfer, so a non-null convRate IS the FX application. Closures are counted only once the delete has SUCCEEDED past the three guards; purge=test-house marks the demo-data path that forces those guards open, so a real closure is never confused with a fixture teardown."
+  },
+  {
+   "type": "row",
+   "title": "Business -- identity + token relay",
+   "gridPos": {
+    "h": 1,
+    "w": 24,
+    "x": 0,
+    "y": 146
+   }
+  },
+  {
+   "type": "timeseries",
+   "title": "KeyCloak identity sync (by op + outcome)",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "esq-prometheus"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 6,
+    "x": 0,
+    "y": 147
+   },
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+      "drawStyle": "line",
+      "fillOpacity": 10
+     },
+     "unit": "ops",
+     "min": 0
+    },
+    "overrides": []
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "sum by (op, outcome) (rate(esq_biz_kc_sync_total{application=~\"$application\"}[5m]))",
+     "legendFormat": "{{op}} {{outcome}}"
+    }
+   ],
+   "description": "Whether Esquire and KeyCloak still AGREE about who exists. The bus meters say a sync request arrived; only this says whether the identity was actually brought into line. A non-zero error line means the two systems have DRIFTED -- a user Esquire thinks can log in, and KeyCloak does not."
+  },
+  {
+   "type": "timeseries",
+   "title": "KeyCloak sync latency (avg ms)",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "esq-prometheus"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 6,
+    "x": 6,
+    "y": 147
+   },
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+      "drawStyle": "line",
+      "fillOpacity": 10
+     },
+     "unit": "ms",
+     "min": 0
+    },
+    "overrides": []
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "1000 * (sum(rate(esq_biz_kc_sync_duration_seconds_sum{application=~\"$application\"}[5m])) / sum(rate(esq_biz_kc_sync_duration_seconds_count{application=~\"$application\"}[5m])))",
+     "legendFormat": "kc sync"
+    }
+   ],
+   "description": "KeyCloak is a SEPARATE SERVER and nothing else times it. Measured around the whole sync rather than inside the admin client, so it is the sync's wall time -- but the KC round-trip dominates it (the attribute mapping either side is microseconds against KeyCloak's milliseconds)."
+  },
+  {
+   "type": "timeseries",
+   "title": "Token relay -- cache hit rate",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "esq-prometheus"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 6,
+    "x": 12,
+    "y": 147
+   },
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+      "drawStyle": "line",
+      "fillOpacity": 10
+     },
+     "unit": "percent",
+     "min": 0
+    },
+    "overrides": []
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "100 * sum(rate(esq_biz_gw_tokenrelay_total{result=\"hit\"}[5m])) / sum(rate(esq_biz_gw_tokenrelay_total[5m]))",
+     "legendFormat": "cache hit rate"
+    }
+   ],
+   "description": "THE MOST LOAD-BEARING NUMBER ON THIS DASHBOARD. A cache hit serves the request without touching KeyCloak; a miss is a live /token round-trip on the hot path. So the hit rate IS how much of KeyCloak's latency the users are spared -- read it against the acquire cost on the panel to the right. If it collapses (a TTL change, an unstable cache key, an eviction storm) every request starts paying that cost, and the only other symptom is 'the gateway got slower' with no cause visible anywhere. NOTE: the relay is DORMANT unless the calling client is on the gateway's allowlist, so this is a GAP on a plain-JWT workload -- that is correct, not a broken panel."
+  },
+  {
+   "type": "timeseries",
+   "title": "Token relay -- KC /token acquire (avg ms)",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "esq-prometheus"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 6,
+    "x": 18,
+    "y": 147
+   },
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+      "drawStyle": "line",
+      "fillOpacity": 10
+     },
+     "unit": "ms",
+     "min": 0
+    },
+    "overrides": []
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "1000 * (sum by (outcome) (rate(esq_biz_gw_tokenrelay_duration_seconds_sum[5m])) / sum by (outcome) (rate(esq_biz_gw_tokenrelay_duration_seconds_count[5m])))",
+     "legendFormat": "{{outcome}}"
+    }
+   ],
+   "description": "What a cache MISS costs: a live round-trip to KeyCloak, an external server, on the request's hot path. Multiply it by (100 - hit rate) from the panel on the left to get what the relay is actually costing users. Split BY OUTCOME so a failure is still visible without putting a second unit on the axis -- an error or a cancelled relay has a duration too, and those lines simply do not exist on a healthy system."
+  },
+  {
+   "type": "row",
+   "title": "Business -- cache, keep + permissions",
+   "gridPos": {
+    "h": 1,
+    "w": 24,
+    "x": 0,
+    "y": 155
+   }
+  },
+  {
+   "type": "timeseries",
+   "title": "Tree cache -- broadcast dispatch (by outcome)",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "esq-prometheus"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 0,
+    "y": 156
+   },
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+      "drawStyle": "line",
+      "fillOpacity": 10
+     },
+     "unit": "ops",
+     "min": 0
+    },
+    "overrides": []
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "sum by (outcome) (rate(esq_biz_tree_handler_dispatch_total{application=~\"$application\"}[5m]))",
+     "legendFormat": "{{outcome}}"
+    },
+    {
+     "refId": "B",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "sum by (outcome) (rate(esq_biz_tree_rebuild_total{application=~\"$application\"}[5m]))",
+     "legendFormat": "rebuild ({{outcome}})"
+    }
+   ],
+   "description": "What the CACHE did with each broadcast -- applied it, found no handler, found no payload, or FAILED. The failed line is the point: the dispatch hub SWALLOWS a handler exception, so a handler that blows up leaves the tree silently stale while the bus still counts the message as received. Rebuilds should be RARE -- a rising rebuild rate is itself a finding."
+  },
+  {
+   "type": "timeseries",
+   "title": "Audit keep -- DB writes (by op + outcome)",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "esq-prometheus"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 8,
+    "y": 156
+   },
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+      "drawStyle": "line",
+      "fillOpacity": 10
+     },
+     "unit": "ops",
+     "min": 0
+    },
+    "overrides": []
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "sum by (op, outcome) (rate(esq_biz_keep_write_total{application=~\"$application\"}[5m]))",
+     "legendFormat": "{{op}} {{outcome}}"
+    }
+   ],
+   "description": "THE DB WRITE at the keep sink -- the one thing the bus meters cannot see. messaging.receive.total says the audit event ARRIVED; only this says whether the row was actually WRITTEN. An audit event that lands on the bus and then fails to persist is exactly the failure that was invisible before. These counts must RECONCILE with the bus receive count on the Messaging bus row: a divergence is a real finding."
+  },
+  {
+   "type": "timeseries",
+   "title": "Permission checks (allow vs DENY)",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "esq-prometheus"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 16,
+    "y": 156
+   },
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+      "drawStyle": "line",
+      "fillOpacity": 10
+     },
+     "unit": "ops",
+     "min": 0
+    },
+    "overrides": []
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "sum by (cmd, result) (rate(esq_biz_perm_check_total{application=~\"$application\"}[5m]))",
+     "legendFormat": "{{cmd}} {{result}}"
+    }
+   ],
+   "description": "The authorization decision itself, counted at the one gate every service goes through. A rising DENY rate is either a misconfigured role or someone probing. NOTE the gate sees allow and deny only: a self-update BYPASSES it entirely (a user editing their own profile never asks permission), which is why there is no third value here."
   }
  ]
 }

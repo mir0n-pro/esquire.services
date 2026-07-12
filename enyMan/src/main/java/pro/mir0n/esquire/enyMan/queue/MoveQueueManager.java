@@ -35,10 +35,16 @@
  *                   QueryTimeouts.resolveOptOut (enyman.move-queue.tx-timeout-s, 0 = uncapped, pre-HA default) (R6)
  * 07/09/2026 mir0n  v1.2.11 -- processMove() runs inside EsqAsyncTrace.continueIn(item.traceparent(),
  *                   item.correlationId(), "move (async)", ...)
+ * 07/11/2026 mir0n  v1.2.11 O1/T8 -- start() registers the esq.biz.move.queue.depth gauge (queueSize);
+ *                   processMove() counts esq.biz.move.processed.total / .failed.total (tag kind) from a boolean
+ *                   flag in the existing finally -- the exception flow is untouched. The move's REAL outcome:
+ *                   /esq-move answers 202 at submit time, so a move that fails on the worker is invisible to the
+ *                   caller and to every HTTP meter
  */
 
 package pro.mir0n.esquire.enyMan.queue;
 
+import pro.mir0n.esquire.backend.o11y.EsqBizMeters;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import jakarta.persistence.EntityManager;
@@ -128,6 +134,10 @@ public class MoveQueueManager implements IQueueRig.IQueueWorker<MoveQueueItem> {
         // Bind the entity-bus receive leg now the rig is live: a peer instance's CREATE -> reconcile intake.
         // Registered here (not via a constructor dependency) so this manager -> EntityBusAdapter stays one-way.
         broadcastPublisher.onPeerCreate(this::submitReconcile);
+        // esq.biz.move.queue.depth (O1/T8 phase B): the pending move backlog, read live at scrape time. Registered
+        // ONCE here, at start-up of the thing that owns the value -- a gauge is registered, never incremented.
+        // Held strongly by EsqGauge (via EsqBizMeters), so the supplier cannot be collected and read NaN.
+        EsqBizMeters.gauge("esq.biz.move.queue.depth", this::queueSize);
         devLog.info("MoveQueueManager started: capacity={}", capacity);
     }
 
@@ -202,6 +212,10 @@ public class MoveQueueManager implements IQueueRig.IQueueWorker<MoveQueueItem> {
         EsqContextHolder.set(new EsqRequestContext(
                 item.correlationId(), item.requestId(), item.uid(), item.rootPath()));
 
+        // esq.biz.move.processed / failed (O1/T8 phase B): the move's REAL outcome, which nothing on the request
+        // side can see -- /esq-move answers 202 Accepted at submit time and the work happens here, off-request.
+        // A flag, not a catch: the exception flow above is left exactly as it was.
+        boolean moved = false;
         try {
             // Continue the request's trace on this worker thread (the "move entity" span was captured at submit):
             // the move + its broadcasts nest under it, so the async move shows in the request's trace (O2/T3).
@@ -221,9 +235,12 @@ public class MoveQueueManager implements IQueueRig.IQueueWorker<MoveQueueItem> {
                     publishKcMoveRequest(r, item.requestId(), item.correlationId());
                 }
             });
+            moved = true;
         } finally {
             EsqContextHolder.clear();     // do not leak this move's identity onto the next item
             counter.decrementAndGet();    // ALWAYS decrement, even if the move threw
+            EsqBizMeters.count(moved ? "esq.biz.move.processed.total" : "esq.biz.move.failed.total",
+                    "kind", String.valueOf(item.kind()));
         }
     }
 
