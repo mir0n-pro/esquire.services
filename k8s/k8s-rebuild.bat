@@ -105,6 +105,30 @@ echo [docker] building infra image esquire-postgres:17 (db.seed schema)...
 docker build %NOCACHE% -f ..\postgres\Dockerfile -t esquire-postgres:17 ..\..
 if errorlevel 1 ( echo postgres image build failed & exit /b 1 )
 
+rem === Infra image: esquire-activemq (the broker config + the JMX exporter agent). Built HERE because
+rem     NOTHING else did: compose only ever built it implicitly on a first `up`, and `docker compose up -d`
+rem     does not rebuild on a Dockerfile change -- so a broker change reached neither target and the pod
+rem     quietly kept running the old image.
+rem     Stamped like the service images for the same reason they are: the chart's FIXED :6.1.4 tag hits the
+rem     kubelet digest cache, so after a rebuild the kubelet keeps serving the OLD 6.1.4 it already resolved.
+rem     A stale broker is silent -- the pod is Running, and only the missing scrape target gives it away. ===
+echo [docker] building infra image esquire-activemq (broker config + JMX exporter agent)...
+docker build %NOCACHE% -t esquire-activemq:6.1.4 ..\activemq
+if errorlevel 1 ( echo activemq image build failed & exit /b 1 )
+docker image inspect esquire-activemq:%BASE_TS% >nul 2>&1
+if errorlevel 1 ( set "TS=%BASE_TS%" ) else ( set "TS=%BASE_TS%%MM%" )
+docker tag esquire-activemq:6.1.4 esquire-activemq:%TS%
+call :patch_yaml activemq
+helm status esquire-infra-amq >nul 2>&1
+if errorlevel 1 (
+  echo [skip] esquire-infra-amq not deployed -- yaml stamped %TS%; next k8s-up will deploy it.
+) else (
+  echo [helm] upgrading esquire-infra-amq to tag %TS%...
+  call helm upgrade esquire-infra-amq charts\infra\activemq -f values\activemq.yaml --reset-then-reuse-values --set image.tag=%TS%
+  if errorlevel 1 ( echo helm upgrade failed for esquire-infra-amq & exit /b 1 )
+  kubectl rollout status statefulset/esquire-infra-amq-activemq --timeout=180s
+)
+
 set "SVC=gateway"&set "DIR=gateway"
 call :one
 if errorlevel 1 exit /b 1

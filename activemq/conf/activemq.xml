@@ -1,27 +1,109 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<beans xmlns="http://www.springframework.org/schema/beans"
-       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-       xsi:schemaLocation="http://www.springframework.org/schema/beans
-           http://www.springframework.org/schema/beans/spring-beans.xsd
-           http://activemq.apache.org/schema/core
-           http://activemq.apache.org/schema/core/activemq-core.xsd">
+<!--
+  Esquire frameworks (tm) : ActiveMQ Classic broker configuration.
 
-  <broker xmlns="http://activemq.apache.org/schema/core"
-          brokerName="esquire"
-          dataDirectory="${activemq.data}">
+  Derived from the stock apache/activemq-classic:6.1.4 conf/activemq.xml. Everything the stock file carries is
+  kept as-is (persistence, system usage limits, destination policy, management context, the jetty import that
+  serves the web console and Jolokia). Three deliberate deltas:
 
-    <!-- Declared destinations -->
-    <destinations>
-      <topic physicalName="esquire.entity.broadcast"/>
-      <queue physicalName="esquire.kc.request"/>
-      <queue physicalName="esquire.kc.response"/>
-    </destinations>
+    1. brokerName          : "esquire", not the stock "localhost". The broker name is the first key of every
+                             JMX MBean object name, so the JMX exporter rules and any Jolokia selector key on it.
+    2. destinations        : the four destinations the bus uses are DECLARED, so they exist at broker start
+                             instead of being auto-created on first message. A queue-depth gauge that only
+                             appears after the first message is a trap: a dashboard cannot tell "empty" apart
+                             from "not there yet".
+    3. transportConnectors : OpenWire only. The stock file also opens AMQP, STOMP, MQTT and WS; nothing in
+                             Esquire speaks any of them. The DOS-protection parameters on the OpenWire connector
+                             are the stock ones, kept verbatim.
+-->
+<beans
+  xmlns="http://www.springframework.org/schema/beans"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd
+  http://activemq.apache.org/schema/core http://activemq.apache.org/schema/core/activemq-core.xsd">
 
-    <!-- Transport connectors -->
-    <transportConnectors>
-      <transportConnector name="openwire" uri="tcp://0.0.0.0:61616"/>
-    </transportConnectors>
+    <bean class="org.springframework.beans.factory.config.PropertyPlaceholderConfigurer">
+        <property name="locations">
+            <value>file:${activemq.conf}/credentials.properties</value>
+        </property>
+    </bean>
 
-  </broker>
+    <!-- persistent="false" : the bus is IN-MEMORY. Nothing here needs to survive a broker restart, and the
+         MessagingBus design says so (at-least-once durability is listed as a FUTURE option, not a guarantee).
+
+         This is a deliberate change, NOT the old behaviour left alone. JMS defaults every send to PERSISTENT and
+         nothing in the framework overrode it, so the broker was writing each message to KahaDB and fsyncing it,
+         at a MEASURED 0.93 ms per send, into a data directory that was destroyed on every restart anyway: the
+         full cost of durability, none of the benefit. Turning it off is what collects the difference.
+         MEASURED on this broker: 2000 sends, 1853 ms persistent vs 25 ms non-persistent (74x).
+
+         Consequence, accepted: a broker restart drops whatever is still in flight, including an undrained
+         esquire.rod.audit backlog. Every other destination is in-flight only and self-heals on reconnect. -->
+    <broker xmlns="http://activemq.apache.org/schema/core" brokerName="esquire" dataDirectory="${activemq.data}"
+            persistent="false">
+
+        <!-- Declared up front so every destination (and its depth / consumer-count meters) exists at broker
+             start, at zero traffic, rather than springing into existence on the first message. -->
+        <destinations>
+            <topic physicalName="esquire.entity.broadcast"/>
+            <queue physicalName="esquire.kc.request"/>
+            <queue physicalName="esquire.kc.response"/>
+            <queue physicalName="esquire.rod.audit"/>
+        </destinations>
+
+        <destinationPolicy>
+            <policyMap>
+              <policyEntries>
+                <policyEntry topic=">" >
+                  <pendingMessageLimitStrategy>
+                    <constantPendingMessageLimitStrategy limit="1000"/>
+                  </pendingMessageLimitStrategy>
+                </policyEntry>
+              </policyEntries>
+            </policyMap>
+        </destinationPolicy>
+
+        <managementContext>
+            <managementContext createConnector="false"/>
+        </managementContext>
+
+        <!-- No persistenceAdapter: there is no message store. The stock kahaDB adapter is gone with
+             persistent="false", not merely unused. -->
+
+        <!-- Usage limits. There is deliberately NO storeUsage here: with the broker non-persistent there IS no
+             message store, so a store limit would bound nothing and store% would read 0 forever. (Stock set it
+             to 100 gb, a limit on a disk that does not exist, which is how it went unnoticed.)
+
+             The two that DO bound this broker:
+               memoryUsage : 70% of the JVM heap. This is the real back-pressure now. An in-memory bus that
+                             cannot page out is bounded by RAM, so this is the limit a dead consumer runs into.
+               tempUsage   : the spool memoryUsage overflows into. With persistent="false" every message is
+                             non-persistent, so THIS is the disk the bus can actually touch, and it is bounded.
+
+             tempUsage is supplied per target as a system property by esq-entrypoint.sh (one image, three
+             environments); the default here is what every target currently uses. -->
+        <systemUsage>
+            <systemUsage>
+                <memoryUsage>
+                    <memoryUsage percentOfJvmHeap="70" />
+                </memoryUsage>
+                <tempUsage>
+                    <tempUsage limit="${esq.amq.temp.limit:512mb}"/>
+                </tempUsage>
+            </systemUsage>
+        </systemUsage>
+
+        <!-- OpenWire only: the Esquire bus speaks tcp:// and nothing else. -->
+        <transportConnectors>
+            <transportConnector name="openwire" uri="tcp://0.0.0.0:61616?maximumConnections=1000&amp;wireFormat.maxFrameSize=104857600"/>
+        </transportConnectors>
+
+        <shutdownHooks>
+            <bean xmlns="http://www.springframework.org/schema/beans" class="org.apache.activemq.hooks.SpringContextHook" />
+        </shutdownHooks>
+
+    </broker>
+
+    <import resource="jetty.xml"/>
 
 </beans>

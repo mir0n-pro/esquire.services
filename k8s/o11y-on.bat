@@ -49,13 +49,18 @@ kubectl rollout status deployment/esquire-infra-grafana -n default --timeout=150
 echo --- Enabling observability on the app services (mirrors docker ESQ_OBSERVABILITY_ENABLED=true)...
 for %%s in (gateway enyman biztree pacman keysmith kcmaster aukeep backend) do (
   echo   esquire-%%s observability ON
-  call helm upgrade esquire-%%s charts\esquire-%%s --reset-then-reuse-values --set observability.enabled=true
+  call helm upgrade esquire-%%s charts\esquire-%%s --reset-then-reuse-values --set observability.enabled=true --set observability.metricsHistograms=true
   call kubectl rollout restart statefulset esquire-%%s-%%s
 )
 
 echo --- Enabling metrics on keycloak (KC_METRICS_ENABLED via the umbrella)...
 call helm upgrade esquire-infra-kc charts\infra\keycloak -f values\keycloak.yaml --reset-then-reuse-values --set observability.enabled=true
 call kubectl rollout restart statefulset esquire-infra-kc-keycloak
+
+echo --- Enabling metrics on activemq (the JMX exporter agent on :9404 via the umbrella)...
+call helm upgrade esquire-infra-amq charts\infra\activemq -f values\activemq.yaml --reset-then-reuse-values --set observability.enabled=true
+call kubectl rollout restart statefulset esquire-infra-amq-activemq
+kubectl rollout status statefulset/esquire-infra-amq-activemq -n default --timeout=150s
 
 echo.
 echo o11y stack up (logs + traces + metrics). Grafana: http://grafana.localhost  (admin/admin)

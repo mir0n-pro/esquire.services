@@ -47,7 +47,12 @@ spec:
           resources:
             {{- toYaml . | nindent 12 }}
           {{- end }}
-          args: ["java", "-jar", "app.jar"]
+          # --enable-native-access=ALL-UNNAMED : the gateway is the ONE Netty runtime in the fleet (Spring Cloud
+          # Gateway); the rest are Tomcat. Netty loads a native library, and on Java 25 (JEP 472) that is a
+          # RESTRICTED method: the JVM warns today and says so itself -- "Restricted methods will be BLOCKED in a
+          # future release unless native access is enabled". So this is not warning-suppression, it is granting
+          # the access Netty legitimately needs before a future JDK refuses to start the gateway at all.
+          args: ["java", "--enable-native-access=ALL-UNNAMED", "-jar", "app.jar"]
           ports:
             - containerPort: {{ .Values.service.port }}
           envFrom:

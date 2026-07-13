@@ -29,6 +29,12 @@ spec:
           args:
             - --config.file=/etc/prometheus/prometheus.yml
             - --storage.tsdb.retention.time={{ .Values.retention }}
+            # Exemplars are the metrics -> trace hop: the services already ATTACH a trace_id to every histogram
+            # bucket (Boot wires the exemplar SpanContext), but without this feature flag Prometheus parses them
+            # and THROWS THEM AWAY -- silently, with no error anywhere. Off by default upstream.
+            # NOTE the buckets are the carrier: exemplars only exist on histogram buckets, so the hop is inert
+            # until histograms-enabled=true (off by default -- it costs 2.3x the scrape; see the T8 cost table).
+            - --enable-feature=exemplar-storage
           ports:
             - containerPort: 9090
           readinessProbe:

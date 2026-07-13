@@ -26,12 +26,18 @@
  *                   traceparent stamp removed (the CorrelationPropagator injects it); currentTraceId(exchange)
  *                   reads the trace id off the server request observation; a one-shot WARN when tracing is on
  *                   and a proxied request has no current span
+ * 07/12/2026 mir0n  v1.2.11 -- the INCOMING log line is wrapped in MDC.put/remove of PD_CORRELATION_ID and
+ *                   PD_REQUEST_ID, so correlationId is emitted as a log FIELD and not only as message text. The
+ *                   gateway is reactive, so the servlet MdcFilter never runs here; the put is safe because the
+ *                   log call is synchronous on this thread, and the remove is in a finally because a reactor
+ *                   thread is pooled and a leaked entry would stamp the next request
  */
 package pro.mir0n.esquire.gateway.filters;
 
 import io.micrometer.tracing.Tracer;
 import io.micrometer.tracing.handler.TracingObservationHandler;
 import lombok.extern.slf4j.Slf4j;
+import org.slf4j.MDC;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.Ordered;
@@ -106,12 +112,31 @@ public class RequestTraceFilter implements WebFilter {
         exchange.getAttributes().put(EsqConstants.ESQ_START_TIME, System.currentTimeMillis());
         exchange.getAttributes().put(EsqConstants.ESQ_CAPTURE_METRICS, serviceMetricsEnabled);
 
-        log.info("INCOMING: correlationId={}, requestId={}, {} {}",
-            correlationId,
-            requestId,
-            exchange.getRequest().getMethod(),
-            exchange.getRequest().getURI()
-        );
+        // The correlation id has to be a FIELD on this line, not merely text inside the message. Both the
+        // logs -> trace link (Grafana's derived field) and the "one request end-to-end" log trail key on the
+        // correlationId FIELD, and this is the gateway's only per-request log line -- so without the MDC the
+        // FIRST HOP of every request is missing from the trail, while every servlet service is present (their
+        // MdcFilter populates the MDC and the ECS encoder emits it).
+        //
+        // The gateway is reactive, so that servlet filter never runs here and the MDC is empty. Setting it
+        // around this ONE call is safe precisely because the call is SYNCHRONOUS on this thread -- and it is
+        // removed immediately, because a reactor thread is POOLED and a leaked MDC entry would silently stamp
+        // the NEXT request with this request's correlation id.
+        MDC.put(EsqConstants.PD_CORRELATION_ID, correlationId);
+        if (requestId != null) {
+            MDC.put(EsqConstants.PD_REQUEST_ID, requestId);
+        }
+        try {
+            log.info("INCOMING: correlationId={}, requestId={}, {} {}",
+                correlationId,
+                requestId,
+                exchange.getRequest().getMethod(),
+                exchange.getRequest().getURI()
+            );
+        } finally {
+            MDC.remove(EsqConstants.PD_CORRELATION_ID);
+            MDC.remove(EsqConstants.PD_REQUEST_ID);
+        }
         return chain.filter(exchange);
     }
 

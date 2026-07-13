@@ -79,6 +79,52 @@ data:
           - source_labels: [__meta_kubernetes_pod_name]
             target_label: pod
 
+      # The SERVICE GRAPH (T9-C). The Collector's servicegraph connector derives caller->callee edges from the
+      # spans passing through it and exposes them as traces_service_graph_request_* . The ONLY metric source that
+      # knows the SHAPE of the system rather than the state of one component -- and it discovers it from real
+      # traffic, so it stays true when the architecture changes and a hand-drawn map would not.
+      - job_name: otel-servicegraph
+        metrics_path: /metrics
+        static_configs:
+          - targets: [ {{ .Values.otelCollector.servicegraph }} ]
+
+      # The Collector's OWN telemetry -- spans accepted / REFUSED. The hub every trace in the fleet passes through
+      # was reporting nothing about itself: if it started dropping spans, traces would go quietly missing and no
+      # metric anywhere would say so.
+      - job_name: otel-collector
+        metrics_path: /metrics
+        static_configs:
+          - targets: [ {{ .Values.otelCollector.telemetry }} ]
+        relabel_configs:
+          - target_label: component
+            replacement: collector
+
+      # ActiveMQ broker -- via the Prometheus JMX exporter agent running INSIDE the broker JVM on :9404 (no
+      # sidecar, no bridge). Gives what the service-side bus meters cannot: what is SITTING in each destination
+      # (queue depth), whether a consumer is still attached, and how full the broker's memory / store / temp is.
+      - job_name: activemq
+        metrics_path: /metrics
+        kubernetes_sd_configs:
+          - role: pod
+            namespaces:
+              names: [{{ .Release.Namespace }}]
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_label_app]
+            regex: "esquire-infra-amq-activemq"
+            action: keep
+          # The broker declares three container ports (61616 openwire, 8161 console, 9404 metrics) -- without
+          # this the pod would yield three targets, two of which do not speak Prometheus.
+          - source_labels: [__meta_kubernetes_pod_container_port_number]
+            regex: "9404"
+            action: keep
+          - source_labels: [__meta_kubernetes_pod_ip, __meta_kubernetes_pod_container_port_number]
+            separator: ":"
+            target_label: __address__
+          - source_labels: [__meta_kubernetes_pod_name]
+            target_label: instance
+          - source_labels: [__meta_kubernetes_pod_name]
+            target_label: pod
+
       # Postgres -- via postgres-exporter (pg_stat_* -> metrics) on :9187.
       - job_name: postgres
         metrics_path: /metrics

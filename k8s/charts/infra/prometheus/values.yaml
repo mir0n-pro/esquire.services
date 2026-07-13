@@ -4,3 +4,10 @@ image:
   tag: "v3.1.0"
   pullPolicy: IfNotPresent
 retention: 6h
+
+# The OTel Collector's two scrape surfaces (T9-C): the servicegraph edges it derives from spans, and its own
+# telemetry (accepted vs REFUSED spans -- the hub every trace passes through, previously reporting nothing about
+# itself).
+otelCollector:
+  servicegraph: esquire-infra-otel-collector:8889
+  telemetry: esquire-infra-otel-collector:8888

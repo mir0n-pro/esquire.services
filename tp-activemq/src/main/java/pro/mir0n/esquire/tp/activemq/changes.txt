@@ -1,5 +1,12 @@
 Esquire ActiveMQ transport provider classes
 
+07/12/2026 mir0n  v1.2.11 -- JMS delivery mode as a declared bus param (O1/T9)
+tp.activemq.TransportProvider
+  - PARAM_PERSISTENT ("persistent") added: the JMS delivery mode read from transport.params.persistent (absent =
+    false = NON_PERSISTENT), applied on the JmsTemplate via setExplicitQosEnabled(true) + setDeliveryPersistent(...)
+    -- without explicit QoS the delivery mode is silently ignored. Excluded from withParams (a setter, not a
+    broker-URI option); the publisher-opened devLog line now carries persistent=
+
 06/30/2026 mir0n  v1.2.10 -- publisher send-retry seam (encode-once / throwing dispatch)
 tp.activemq.TransportProvider
   - AmqPublisher implements the send-retry seam: encode() prepares the broker-free property bag (a stable

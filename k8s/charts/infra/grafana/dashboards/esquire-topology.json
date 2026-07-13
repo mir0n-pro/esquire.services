@@ -1,0 +1,7251 @@
+{
+ "uid": "esq-topology",
+ "title": "Esquire Topology -- the system, live",
+ "editable": false,
+ "tags": [
+  "esquire",
+  "o11y",
+  "topology"
+ ],
+ "timezone": "",
+ "schemaVersion": 39,
+ "version": 1,
+ "refresh": "30s",
+ "time": {
+  "from": "now-1h",
+  "to": "now"
+ },
+ "panels": [
+  {
+   "type": "row",
+   "title": "The system",
+   "gridPos": {
+    "h": 1,
+    "w": 24,
+    "x": 0,
+    "y": 0
+   },
+   "collapsed": false
+  },
+  {
+   "type": "canvas",
+   "title": "The system -- every component, live",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "esq-prometheus"
+   },
+   "gridPos": {
+    "h": 27,
+    "w": 24,
+    "x": 0,
+    "y": 1
+   },
+   "description": "Every component of the system, live. Each box carries a LIVE NUMBER, not just a colour -- a traffic light tells you a thing is RUNNING, not that it has stopped doing any WORK, which is the failure that actually happens. CLICK A BOX for its detail. GREEN = reporting, RED = down, GREY = no data (which here almost always means observability is OFF -- ESQ_OBSERVABILITY_ENABLED, off by default -- not that the component is broken). THE SHAPE IS AN ASSERTION ABOUT THE ARCHITECTURE. An ARROW is a point-to-point call (REST / DB): something called and WAITED for an answer. A DROP onto a BAR is the async bus -- a shared medium, where a service publishes to a destination and walks away, and who is listening is not its business. THERE ARE THREE BARS, not one, because there are THREE BUSES -- and which services share a medium (and which never meet) is the whole thing this picture is for: bizTree and keySmith never touch; auKeep hears everyone and answers no one; enyMan sits on all three. One bar would hide all of that. The observability stack is deliberately NOT on this board: the viewer is not the system, and six boxes of tooling watching the tooling would drown the question this board exists to answer.",
+   "targets": [
+    {
+     "refId": "h0",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(clamp_max((max(pg_up)) or vector(0), 1)) * (2 - clamp_max(((((100 * sum(pg_stat_database_numbackends) / max(pg_settings_max_connections) > bool 80)) or vector(0)) + (((100 * sum(pg_stat_database_blks_hit) / (sum(pg_stat_database_blks_hit) + sum(pg_stat_database_blks_read)) < bool 90)) or vector(0))), 1))",
+     "legendFormat": "postgres",
+     "instant": true
+    },
+    {
+     "refId": "v0_0",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(sum(pg_stat_database_numbackends)) or vector(0)",
+     "legendFormat": "postgres conns",
+     "instant": true
+    },
+    {
+     "refId": "v0_1",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(sum(rate(pg_stat_database_xact_commit[5m]))) or vector(0)",
+     "legendFormat": "postgres tx/s",
+     "instant": true
+    },
+    {
+     "refId": "v0_2",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(100 * sum(pg_stat_database_blks_hit) / (sum(pg_stat_database_blks_hit) + sum(pg_stat_database_blks_read))) or vector(0)",
+     "legendFormat": "postgres cache",
+     "instant": true
+    },
+    {
+     "refId": "h1_0",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(clamp_max((count(process_uptime_seconds{job=\"esquire-services\", application=\"aukeep\", instance=~\".*-0$\"})) or vector(0), 1)) * (2 - clamp_max(((((max(process_cpu_usage{job=\"esquire-services\", application=\"aukeep\", instance=~\".*-0$\"}) > bool 0.80)) or vector(0)) + (((100 * sum(jvm_memory_used_bytes{application=\"aukeep\", instance=~\".*-0$\", area=\"heap\"}) / sum(jvm_memory_max_bytes{application=\"aukeep\", instance=~\".*-0$\", area=\"heap\"}) > bool 85)) or vector(0)) + (((100 * sum(hikaricp_connections_active{application=\"aukeep\", instance=~\".*-0$\"}) / sum(hikaricp_connections_max{application=\"aukeep\", instance=~\".*-0$\"}) > bool 90)) or vector(0)) + (((((sum(rate(messaging_receive_total{application=\"aukeep\"}[15m])) or vector(0)) - (sum(rate(messaging_receive_total{application=\"aukeep\", instance=~\".*-0$\"}[15m])) or vector(0)) > bool 0.01) * ((sum(rate(messaging_receive_total{application=\"aukeep\", instance=~\".*-0$\"}[15m])) or vector(0)) == bool 0))) or vector(0))), 1))",
+     "legendFormat": "aukeep 0",
+     "instant": true
+    },
+    {
+     "refId": "v1_0_0",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(sum(rate(messaging_receive_total{application=\"aukeep\", instance=~\".*-0$\"}[5m]))) or vector(0)",
+     "legendFormat": "aukeep 0 msg/s",
+     "instant": true
+    },
+    {
+     "refId": "v1_1_0",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(avg(process_cpu_usage{job=\"esquire-services\", application=\"aukeep\", instance=~\".*-0$\"}) * 100) or vector(0)",
+     "legendFormat": "aukeep 0 cpu",
+     "instant": true
+    },
+    {
+     "refId": "v1_2_0",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(sum(jvm_memory_used_bytes{application=\"aukeep\", instance=~\".*-0$\", area=\"heap\"})) or vector(0)",
+     "legendFormat": "aukeep 0 heap",
+     "instant": true
+    },
+    {
+     "refId": "h1_1",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(clamp_max((count(process_uptime_seconds{job=\"esquire-services\", application=\"aukeep\", instance=~\".*-1$\"})) or vector(0), 1)) * (2 - clamp_max(((((max(process_cpu_usage{job=\"esquire-services\", application=\"aukeep\", instance=~\".*-1$\"}) > bool 0.80)) or vector(0)) + (((100 * sum(jvm_memory_used_bytes{application=\"aukeep\", instance=~\".*-1$\", area=\"heap\"}) / sum(jvm_memory_max_bytes{application=\"aukeep\", instance=~\".*-1$\", area=\"heap\"}) > bool 85)) or vector(0)) + (((100 * sum(hikaricp_connections_active{application=\"aukeep\", instance=~\".*-1$\"}) / sum(hikaricp_connections_max{application=\"aukeep\", instance=~\".*-1$\"}) > bool 90)) or vector(0)) + (((((sum(rate(messaging_receive_total{application=\"aukeep\"}[15m])) or vector(0)) - (sum(rate(messaging_receive_total{application=\"aukeep\", instance=~\".*-1$\"}[15m])) or vector(0)) > bool 0.01) * ((sum(rate(messaging_receive_total{application=\"aukeep\", instance=~\".*-1$\"}[15m])) or vector(0)) == bool 0))) or vector(0))), 1))",
+     "legendFormat": "aukeep 1",
+     "instant": true
+    },
+    {
+     "refId": "v1_0_1",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(sum(rate(messaging_receive_total{application=\"aukeep\", instance=~\".*-1$\"}[5m]))) or vector(0)",
+     "legendFormat": "aukeep 1 msg/s",
+     "instant": true
+    },
+    {
+     "refId": "v1_1_1",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(avg(process_cpu_usage{job=\"esquire-services\", application=\"aukeep\", instance=~\".*-1$\"}) * 100) or vector(0)",
+     "legendFormat": "aukeep 1 cpu",
+     "instant": true
+    },
+    {
+     "refId": "v1_2_1",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(sum(jvm_memory_used_bytes{application=\"aukeep\", instance=~\".*-1$\", area=\"heap\"})) or vector(0)",
+     "legendFormat": "aukeep 1 heap",
+     "instant": true
+    },
+    {
+     "refId": "h2",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(clamp_max((max(activemq_broker_uptime_millis)) or vector(0), 1)) * (2 - clamp_max(((((max(activemq_broker_memory_percent_usage) > bool 70)) or vector(0)) + (((max(activemq_queue_depth) > bool 100)) or vector(0)) + (((min(activemq_queue_consumer_count) < bool 1)) or vector(0))), 1))",
+     "legendFormat": "activemq",
+     "instant": true
+    },
+    {
+     "refId": "v2_0",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(max(activemq_broker_total_message_count)) or vector(0)",
+     "legendFormat": "activemq held",
+     "instant": true
+    },
+    {
+     "refId": "v2_1",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(max(activemq_broker_current_connections_count)) or vector(0)",
+     "legendFormat": "activemq conns",
+     "instant": true
+    },
+    {
+     "refId": "v2_2",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(max(activemq_broker_memory_percent_usage)) or vector(0)",
+     "legendFormat": "activemq memory",
+     "instant": true
+    },
+    {
+     "refId": "h3_0",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(clamp_max((count(process_uptime_seconds{job=\"esquire-services\", application=\"pacman\", instance=~\".*-0$\"})) or vector(0), 1)) * (2 - clamp_max(((((max(process_cpu_usage{job=\"esquire-services\", application=\"pacman\", instance=~\".*-0$\"}) > bool 0.80)) or vector(0)) + (((100 * sum(jvm_memory_used_bytes{application=\"pacman\", instance=~\".*-0$\", area=\"heap\"}) / sum(jvm_memory_max_bytes{application=\"pacman\", instance=~\".*-0$\", area=\"heap\"}) > bool 85)) or vector(0)) + (((sum(rate(http_server_requests_seconds_count{application=\"pacman\", instance=~\".*-0$\", status=~\"5..\"}[5m])) > bool 0)) or vector(0)) + (((100 * sum(hikaricp_connections_active{application=\"pacman\", instance=~\".*-0$\"}) / sum(hikaricp_connections_max{application=\"pacman\", instance=~\".*-0$\"}) > bool 90)) or vector(0)) + (((((sum(rate(http_server_requests_seconds_count{application=\"pacman\"}[15m])) or vector(0)) - (sum(rate(http_server_requests_seconds_count{application=\"pacman\", instance=~\".*-0$\"}[15m])) or vector(0)) > bool 0.01) * ((sum(rate(http_server_requests_seconds_count{application=\"pacman\", instance=~\".*-0$\"}[15m])) or vector(0)) == bool 0))) or vector(0))), 1))",
+     "legendFormat": "pacman 0",
+     "instant": true
+    },
+    {
+     "refId": "v3_0_0",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(sum(rate(http_server_requests_seconds_count{application=\"pacman\", instance=~\".*-0$\"}[5m]))) or vector(0)",
+     "legendFormat": "pacman 0 req/s",
+     "instant": true
+    },
+    {
+     "refId": "v3_1_0",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(avg(process_cpu_usage{job=\"esquire-services\", application=\"pacman\", instance=~\".*-0$\"}) * 100) or vector(0)",
+     "legendFormat": "pacman 0 cpu",
+     "instant": true
+    },
+    {
+     "refId": "v3_2_0",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(sum(jvm_memory_used_bytes{application=\"pacman\", instance=~\".*-0$\", area=\"heap\"})) or vector(0)",
+     "legendFormat": "pacman 0 heap",
+     "instant": true
+    },
+    {
+     "refId": "h3_1",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(clamp_max((count(process_uptime_seconds{job=\"esquire-services\", application=\"pacman\", instance=~\".*-1$\"})) or vector(0), 1)) * (2 - clamp_max(((((max(process_cpu_usage{job=\"esquire-services\", application=\"pacman\", instance=~\".*-1$\"}) > bool 0.80)) or vector(0)) + (((100 * sum(jvm_memory_used_bytes{application=\"pacman\", instance=~\".*-1$\", area=\"heap\"}) / sum(jvm_memory_max_bytes{application=\"pacman\", instance=~\".*-1$\", area=\"heap\"}) > bool 85)) or vector(0)) + (((sum(rate(http_server_requests_seconds_count{application=\"pacman\", instance=~\".*-1$\", status=~\"5..\"}[5m])) > bool 0)) or vector(0)) + (((100 * sum(hikaricp_connections_active{application=\"pacman\", instance=~\".*-1$\"}) / sum(hikaricp_connections_max{application=\"pacman\", instance=~\".*-1$\"}) > bool 90)) or vector(0)) + (((((sum(rate(http_server_requests_seconds_count{application=\"pacman\"}[15m])) or vector(0)) - (sum(rate(http_server_requests_seconds_count{application=\"pacman\", instance=~\".*-1$\"}[15m])) or vector(0)) > bool 0.01) * ((sum(rate(http_server_requests_seconds_count{application=\"pacman\", instance=~\".*-1$\"}[15m])) or vector(0)) == bool 0))) or vector(0))), 1))",
+     "legendFormat": "pacman 1",
+     "instant": true
+    },
+    {
+     "refId": "v3_0_1",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(sum(rate(http_server_requests_seconds_count{application=\"pacman\", instance=~\".*-1$\"}[5m]))) or vector(0)",
+     "legendFormat": "pacman 1 req/s",
+     "instant": true
+    },
+    {
+     "refId": "v3_1_1",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(avg(process_cpu_usage{job=\"esquire-services\", application=\"pacman\", instance=~\".*-1$\"}) * 100) or vector(0)",
+     "legendFormat": "pacman 1 cpu",
+     "instant": true
+    },
+    {
+     "refId": "v3_2_1",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(sum(jvm_memory_used_bytes{application=\"pacman\", instance=~\".*-1$\", area=\"heap\"})) or vector(0)",
+     "legendFormat": "pacman 1 heap",
+     "instant": true
+    },
+    {
+     "refId": "h4_0",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(clamp_max((count(process_uptime_seconds{job=\"esquire-services\", application=\"biztree\", instance=~\".*-0$\"})) or vector(0), 1)) * (2 - clamp_max(((((max(process_cpu_usage{job=\"esquire-services\", application=\"biztree\", instance=~\".*-0$\"}) > bool 0.80)) or vector(0)) + (((100 * sum(jvm_memory_used_bytes{application=\"biztree\", instance=~\".*-0$\", area=\"heap\"}) / sum(jvm_memory_max_bytes{application=\"biztree\", instance=~\".*-0$\", area=\"heap\"}) > bool 85)) or vector(0)) + (((sum(rate(http_server_requests_seconds_count{application=\"biztree\", instance=~\".*-0$\", status=~\"5..\"}[5m])) > bool 0)) or vector(0)) + (((100 * sum(hikaricp_connections_active{application=\"biztree\", instance=~\".*-0$\"}) / sum(hikaricp_connections_max{application=\"biztree\", instance=~\".*-0$\"}) > bool 90)) or vector(0)) + (((((sum(rate(http_server_requests_seconds_count{application=\"biztree\"}[15m])) or vector(0)) - (sum(rate(http_server_requests_seconds_count{application=\"biztree\", instance=~\".*-0$\"}[15m])) or vector(0)) > bool 0.01) * ((sum(rate(http_server_requests_seconds_count{application=\"biztree\", instance=~\".*-0$\"}[15m])) or vector(0)) == bool 0))) or vector(0))), 1))",
+     "legendFormat": "biztree 0",
+     "instant": true
+    },
+    {
+     "refId": "v4_0_0",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(sum(rate(http_server_requests_seconds_count{application=\"biztree\", instance=~\".*-0$\"}[5m]))) or vector(0)",
+     "legendFormat": "biztree 0 req/s",
+     "instant": true
+    },
+    {
+     "refId": "v4_1_0",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(avg(process_cpu_usage{job=\"esquire-services\", application=\"biztree\", instance=~\".*-0$\"}) * 100) or vector(0)",
+     "legendFormat": "biztree 0 cpu",
+     "instant": true
+    },
+    {
+     "refId": "v4_2_0",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(sum(jvm_memory_used_bytes{application=\"biztree\", instance=~\".*-0$\", area=\"heap\"})) or vector(0)",
+     "legendFormat": "biztree 0 heap",
+     "instant": true
+    },
+    {
+     "refId": "h4_1",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(clamp_max((count(process_uptime_seconds{job=\"esquire-services\", application=\"biztree\", instance=~\".*-1$\"})) or vector(0), 1)) * (2 - clamp_max(((((max(process_cpu_usage{job=\"esquire-services\", application=\"biztree\", instance=~\".*-1$\"}) > bool 0.80)) or vector(0)) + (((100 * sum(jvm_memory_used_bytes{application=\"biztree\", instance=~\".*-1$\", area=\"heap\"}) / sum(jvm_memory_max_bytes{application=\"biztree\", instance=~\".*-1$\", area=\"heap\"}) > bool 85)) or vector(0)) + (((sum(rate(http_server_requests_seconds_count{application=\"biztree\", instance=~\".*-1$\", status=~\"5..\"}[5m])) > bool 0)) or vector(0)) + (((100 * sum(hikaricp_connections_active{application=\"biztree\", instance=~\".*-1$\"}) / sum(hikaricp_connections_max{application=\"biztree\", instance=~\".*-1$\"}) > bool 90)) or vector(0)) + (((((sum(rate(http_server_requests_seconds_count{application=\"biztree\"}[15m])) or vector(0)) - (sum(rate(http_server_requests_seconds_count{application=\"biztree\", instance=~\".*-1$\"}[15m])) or vector(0)) > bool 0.01) * ((sum(rate(http_server_requests_seconds_count{application=\"biztree\", instance=~\".*-1$\"}[15m])) or vector(0)) == bool 0))) or vector(0))), 1))",
+     "legendFormat": "biztree 1",
+     "instant": true
+    },
+    {
+     "refId": "v4_0_1",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(sum(rate(http_server_requests_seconds_count{application=\"biztree\", instance=~\".*-1$\"}[5m]))) or vector(0)",
+     "legendFormat": "biztree 1 req/s",
+     "instant": true
+    },
+    {
+     "refId": "v4_1_1",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(avg(process_cpu_usage{job=\"esquire-services\", application=\"biztree\", instance=~\".*-1$\"}) * 100) or vector(0)",
+     "legendFormat": "biztree 1 cpu",
+     "instant": true
+    },
+    {
+     "refId": "v4_2_1",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(sum(jvm_memory_used_bytes{application=\"biztree\", instance=~\".*-1$\", area=\"heap\"})) or vector(0)",
+     "legendFormat": "biztree 1 heap",
+     "instant": true
+    },
+    {
+     "refId": "h5_0",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(clamp_max((count(process_uptime_seconds{job=\"esquire-services\", application=\"enyman\", instance=~\".*-0$\"})) or vector(0), 1)) * (2 - clamp_max(((((max(process_cpu_usage{job=\"esquire-services\", application=\"enyman\", instance=~\".*-0$\"}) > bool 0.80)) or vector(0)) + (((100 * sum(jvm_memory_used_bytes{application=\"enyman\", instance=~\".*-0$\", area=\"heap\"}) / sum(jvm_memory_max_bytes{application=\"enyman\", instance=~\".*-0$\", area=\"heap\"}) > bool 85)) or vector(0)) + (((sum(rate(http_server_requests_seconds_count{application=\"enyman\", instance=~\".*-0$\", status=~\"5..\"}[5m])) > bool 0)) or vector(0)) + (((100 * sum(hikaricp_connections_active{application=\"enyman\", instance=~\".*-0$\"}) / sum(hikaricp_connections_max{application=\"enyman\", instance=~\".*-0$\"}) > bool 90)) or vector(0)) + (((((sum(rate(http_server_requests_seconds_count{application=\"enyman\"}[15m])) or vector(0)) - (sum(rate(http_server_requests_seconds_count{application=\"enyman\", instance=~\".*-0$\"}[15m])) or vector(0)) > bool 0.01) * ((sum(rate(http_server_requests_seconds_count{application=\"enyman\", instance=~\".*-0$\"}[15m])) or vector(0)) == bool 0))) or vector(0))), 1))",
+     "legendFormat": "enyman 0",
+     "instant": true
+    },
+    {
+     "refId": "v5_0_0",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(sum(rate(http_server_requests_seconds_count{application=\"enyman\", instance=~\".*-0$\"}[5m]))) or vector(0)",
+     "legendFormat": "enyman 0 req/s",
+     "instant": true
+    },
+    {
+     "refId": "v5_1_0",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(avg(process_cpu_usage{job=\"esquire-services\", application=\"enyman\", instance=~\".*-0$\"}) * 100) or vector(0)",
+     "legendFormat": "enyman 0 cpu",
+     "instant": true
+    },
+    {
+     "refId": "v5_2_0",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(sum(jvm_memory_used_bytes{application=\"enyman\", instance=~\".*-0$\", area=\"heap\"})) or vector(0)",
+     "legendFormat": "enyman 0 heap",
+     "instant": true
+    },
+    {
+     "refId": "h5_1",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(clamp_max((count(process_uptime_seconds{job=\"esquire-services\", application=\"enyman\", instance=~\".*-1$\"})) or vector(0), 1)) * (2 - clamp_max(((((max(process_cpu_usage{job=\"esquire-services\", application=\"enyman\", instance=~\".*-1$\"}) > bool 0.80)) or vector(0)) + (((100 * sum(jvm_memory_used_bytes{application=\"enyman\", instance=~\".*-1$\", area=\"heap\"}) / sum(jvm_memory_max_bytes{application=\"enyman\", instance=~\".*-1$\", area=\"heap\"}) > bool 85)) or vector(0)) + (((sum(rate(http_server_requests_seconds_count{application=\"enyman\", instance=~\".*-1$\", status=~\"5..\"}[5m])) > bool 0)) or vector(0)) + (((100 * sum(hikaricp_connections_active{application=\"enyman\", instance=~\".*-1$\"}) / sum(hikaricp_connections_max{application=\"enyman\", instance=~\".*-1$\"}) > bool 90)) or vector(0)) + (((((sum(rate(http_server_requests_seconds_count{application=\"enyman\"}[15m])) or vector(0)) - (sum(rate(http_server_requests_seconds_count{application=\"enyman\", instance=~\".*-1$\"}[15m])) or vector(0)) > bool 0.01) * ((sum(rate(http_server_requests_seconds_count{application=\"enyman\", instance=~\".*-1$\"}[15m])) or vector(0)) == bool 0))) or vector(0))), 1))",
+     "legendFormat": "enyman 1",
+     "instant": true
+    },
+    {
+     "refId": "v5_0_1",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(sum(rate(http_server_requests_seconds_count{application=\"enyman\", instance=~\".*-1$\"}[5m]))) or vector(0)",
+     "legendFormat": "enyman 1 req/s",
+     "instant": true
+    },
+    {
+     "refId": "v5_1_1",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(avg(process_cpu_usage{job=\"esquire-services\", application=\"enyman\", instance=~\".*-1$\"}) * 100) or vector(0)",
+     "legendFormat": "enyman 1 cpu",
+     "instant": true
+    },
+    {
+     "refId": "v5_2_1",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(sum(jvm_memory_used_bytes{application=\"enyman\", instance=~\".*-1$\", area=\"heap\"})) or vector(0)",
+     "legendFormat": "enyman 1 heap",
+     "instant": true
+    },
+    {
+     "refId": "h6_0",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(clamp_max((count(process_uptime_seconds{job=\"esquire-services\", application=\"keysmith\", instance=~\".*-0$\"})) or vector(0), 1)) * (2 - clamp_max(((((max(process_cpu_usage{job=\"esquire-services\", application=\"keysmith\", instance=~\".*-0$\"}) > bool 0.80)) or vector(0)) + (((100 * sum(jvm_memory_used_bytes{application=\"keysmith\", instance=~\".*-0$\", area=\"heap\"}) / sum(jvm_memory_max_bytes{application=\"keysmith\", instance=~\".*-0$\", area=\"heap\"}) > bool 85)) or vector(0)) + (((sum(rate(http_server_requests_seconds_count{application=\"keysmith\", instance=~\".*-0$\", status=~\"5..\"}[5m])) > bool 0)) or vector(0)) + (((100 * sum(hikaricp_connections_active{application=\"keysmith\", instance=~\".*-0$\"}) / sum(hikaricp_connections_max{application=\"keysmith\", instance=~\".*-0$\"}) > bool 90)) or vector(0)) + (((((sum(rate(http_server_requests_seconds_count{application=\"keysmith\"}[15m])) or vector(0)) - (sum(rate(http_server_requests_seconds_count{application=\"keysmith\", instance=~\".*-0$\"}[15m])) or vector(0)) > bool 0.01) * ((sum(rate(http_server_requests_seconds_count{application=\"keysmith\", instance=~\".*-0$\"}[15m])) or vector(0)) == bool 0))) or vector(0))), 1))",
+     "legendFormat": "keysmith 0",
+     "instant": true
+    },
+    {
+     "refId": "v6_0_0",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(sum(rate(http_server_requests_seconds_count{application=\"keysmith\", instance=~\".*-0$\"}[5m]))) or vector(0)",
+     "legendFormat": "keysmith 0 req/s",
+     "instant": true
+    },
+    {
+     "refId": "v6_1_0",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(avg(process_cpu_usage{job=\"esquire-services\", application=\"keysmith\", instance=~\".*-0$\"}) * 100) or vector(0)",
+     "legendFormat": "keysmith 0 cpu",
+     "instant": true
+    },
+    {
+     "refId": "v6_2_0",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(sum(jvm_memory_used_bytes{application=\"keysmith\", instance=~\".*-0$\", area=\"heap\"})) or vector(0)",
+     "legendFormat": "keysmith 0 heap",
+     "instant": true
+    },
+    {
+     "refId": "h6_1",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(clamp_max((count(process_uptime_seconds{job=\"esquire-services\", application=\"keysmith\", instance=~\".*-1$\"})) or vector(0), 1)) * (2 - clamp_max(((((max(process_cpu_usage{job=\"esquire-services\", application=\"keysmith\", instance=~\".*-1$\"}) > bool 0.80)) or vector(0)) + (((100 * sum(jvm_memory_used_bytes{application=\"keysmith\", instance=~\".*-1$\", area=\"heap\"}) / sum(jvm_memory_max_bytes{application=\"keysmith\", instance=~\".*-1$\", area=\"heap\"}) > bool 85)) or vector(0)) + (((sum(rate(http_server_requests_seconds_count{application=\"keysmith\", instance=~\".*-1$\", status=~\"5..\"}[5m])) > bool 0)) or vector(0)) + (((100 * sum(hikaricp_connections_active{application=\"keysmith\", instance=~\".*-1$\"}) / sum(hikaricp_connections_max{application=\"keysmith\", instance=~\".*-1$\"}) > bool 90)) or vector(0)) + (((((sum(rate(http_server_requests_seconds_count{application=\"keysmith\"}[15m])) or vector(0)) - (sum(rate(http_server_requests_seconds_count{application=\"keysmith\", instance=~\".*-1$\"}[15m])) or vector(0)) > bool 0.01) * ((sum(rate(http_server_requests_seconds_count{application=\"keysmith\", instance=~\".*-1$\"}[15m])) or vector(0)) == bool 0))) or vector(0))), 1))",
+     "legendFormat": "keysmith 1",
+     "instant": true
+    },
+    {
+     "refId": "v6_0_1",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(sum(rate(http_server_requests_seconds_count{application=\"keysmith\", instance=~\".*-1$\"}[5m]))) or vector(0)",
+     "legendFormat": "keysmith 1 req/s",
+     "instant": true
+    },
+    {
+     "refId": "v6_1_1",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(avg(process_cpu_usage{job=\"esquire-services\", application=\"keysmith\", instance=~\".*-1$\"}) * 100) or vector(0)",
+     "legendFormat": "keysmith 1 cpu",
+     "instant": true
+    },
+    {
+     "refId": "v6_2_1",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(sum(jvm_memory_used_bytes{application=\"keysmith\", instance=~\".*-1$\", area=\"heap\"})) or vector(0)",
+     "legendFormat": "keysmith 1 heap",
+     "instant": true
+    },
+    {
+     "refId": "h7_0",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(clamp_max((count(process_uptime_seconds{job=\"esquire-services\", application=\"kcmaster\", instance=~\".*-0$\"})) or vector(0), 1)) * (2 - clamp_max(((((max(process_cpu_usage{job=\"esquire-services\", application=\"kcmaster\", instance=~\".*-0$\"}) > bool 0.80)) or vector(0)) + (((100 * sum(jvm_memory_used_bytes{application=\"kcmaster\", instance=~\".*-0$\", area=\"heap\"}) / sum(jvm_memory_max_bytes{application=\"kcmaster\", instance=~\".*-0$\", area=\"heap\"}) > bool 85)) or vector(0)) + (((((sum(rate(messaging_receive_total{application=\"kcmaster\"}[15m])) or vector(0)) - (sum(rate(messaging_receive_total{application=\"kcmaster\", instance=~\".*-0$\"}[15m])) or vector(0)) > bool 0.01) * ((sum(rate(messaging_receive_total{application=\"kcmaster\", instance=~\".*-0$\"}[15m])) or vector(0)) == bool 0))) or vector(0))), 1))",
+     "legendFormat": "kcmaster 0",
+     "instant": true
+    },
+    {
+     "refId": "v7_0_0",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(sum(rate(messaging_receive_total{application=\"kcmaster\", instance=~\".*-0$\"}[5m]))) or vector(0)",
+     "legendFormat": "kcmaster 0 msg/s",
+     "instant": true
+    },
+    {
+     "refId": "v7_1_0",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(avg(process_cpu_usage{job=\"esquire-services\", application=\"kcmaster\", instance=~\".*-0$\"}) * 100) or vector(0)",
+     "legendFormat": "kcmaster 0 cpu",
+     "instant": true
+    },
+    {
+     "refId": "v7_2_0",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(sum(jvm_memory_used_bytes{application=\"kcmaster\", instance=~\".*-0$\", area=\"heap\"})) or vector(0)",
+     "legendFormat": "kcmaster 0 heap",
+     "instant": true
+    },
+    {
+     "refId": "h7_1",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(clamp_max((count(process_uptime_seconds{job=\"esquire-services\", application=\"kcmaster\", instance=~\".*-1$\"})) or vector(0), 1)) * (2 - clamp_max(((((max(process_cpu_usage{job=\"esquire-services\", application=\"kcmaster\", instance=~\".*-1$\"}) > bool 0.80)) or vector(0)) + (((100 * sum(jvm_memory_used_bytes{application=\"kcmaster\", instance=~\".*-1$\", area=\"heap\"}) / sum(jvm_memory_max_bytes{application=\"kcmaster\", instance=~\".*-1$\", area=\"heap\"}) > bool 85)) or vector(0)) + (((((sum(rate(messaging_receive_total{application=\"kcmaster\"}[15m])) or vector(0)) - (sum(rate(messaging_receive_total{application=\"kcmaster\", instance=~\".*-1$\"}[15m])) or vector(0)) > bool 0.01) * ((sum(rate(messaging_receive_total{application=\"kcmaster\", instance=~\".*-1$\"}[15m])) or vector(0)) == bool 0))) or vector(0))), 1))",
+     "legendFormat": "kcmaster 1",
+     "instant": true
+    },
+    {
+     "refId": "v7_0_1",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(sum(rate(messaging_receive_total{application=\"kcmaster\", instance=~\".*-1$\"}[5m]))) or vector(0)",
+     "legendFormat": "kcmaster 1 msg/s",
+     "instant": true
+    },
+    {
+     "refId": "v7_1_1",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(avg(process_cpu_usage{job=\"esquire-services\", application=\"kcmaster\", instance=~\".*-1$\"}) * 100) or vector(0)",
+     "legendFormat": "kcmaster 1 cpu",
+     "instant": true
+    },
+    {
+     "refId": "v7_2_1",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(sum(jvm_memory_used_bytes{application=\"kcmaster\", instance=~\".*-1$\", area=\"heap\"})) or vector(0)",
+     "legendFormat": "kcmaster 1 heap",
+     "instant": true
+    },
+    {
+     "refId": "h8_0",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(clamp_max((count(process_uptime_seconds{job=\"esquire-services\", application=\"gateway\", instance=~\".*-0$\"})) or vector(0), 1)) * (2 - clamp_max(((((max(process_cpu_usage{job=\"esquire-services\", application=\"gateway\", instance=~\".*-0$\"}) > bool 0.80)) or vector(0)) + (((100 * sum(jvm_memory_used_bytes{application=\"gateway\", instance=~\".*-0$\", area=\"heap\"}) / sum(jvm_memory_max_bytes{application=\"gateway\", instance=~\".*-0$\", area=\"heap\"}) > bool 85)) or vector(0)) + (((sum(rate(http_server_requests_seconds_count{application=\"gateway\", instance=~\".*-0$\", status=~\"5..\"}[5m])) > bool 0)) or vector(0)) + (((((sum(rate(http_server_requests_seconds_count{application=\"gateway\"}[15m])) or vector(0)) - (sum(rate(http_server_requests_seconds_count{application=\"gateway\", instance=~\".*-0$\"}[15m])) or vector(0)) > bool 0.01) * ((sum(rate(http_server_requests_seconds_count{application=\"gateway\", instance=~\".*-0$\"}[15m])) or vector(0)) == bool 0))) or vector(0))), 1))",
+     "legendFormat": "gateway 0",
+     "instant": true
+    },
+    {
+     "refId": "v8_0_0",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(sum(rate(http_server_requests_seconds_count{application=\"gateway\", instance=~\".*-0$\"}[5m]))) or vector(0)",
+     "legendFormat": "gateway 0 req/s",
+     "instant": true
+    },
+    {
+     "refId": "v8_1_0",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(avg(process_cpu_usage{job=\"esquire-services\", application=\"gateway\", instance=~\".*-0$\"}) * 100) or vector(0)",
+     "legendFormat": "gateway 0 cpu",
+     "instant": true
+    },
+    {
+     "refId": "v8_2_0",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(sum(rate(reactor_netty_http_server_data_sent_bytes_sum{uri!=\"/actuator\", instance=~\".*-0$\"}[5m]))) or vector(0)",
+     "legendFormat": "gateway 0 net out",
+     "instant": true
+    },
+    {
+     "refId": "h8_1",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(clamp_max((count(process_uptime_seconds{job=\"esquire-services\", application=\"gateway\", instance=~\".*-1$\"})) or vector(0), 1)) * (2 - clamp_max(((((max(process_cpu_usage{job=\"esquire-services\", application=\"gateway\", instance=~\".*-1$\"}) > bool 0.80)) or vector(0)) + (((100 * sum(jvm_memory_used_bytes{application=\"gateway\", instance=~\".*-1$\", area=\"heap\"}) / sum(jvm_memory_max_bytes{application=\"gateway\", instance=~\".*-1$\", area=\"heap\"}) > bool 85)) or vector(0)) + (((sum(rate(http_server_requests_seconds_count{application=\"gateway\", instance=~\".*-1$\", status=~\"5..\"}[5m])) > bool 0)) or vector(0)) + (((((sum(rate(http_server_requests_seconds_count{application=\"gateway\"}[15m])) or vector(0)) - (sum(rate(http_server_requests_seconds_count{application=\"gateway\", instance=~\".*-1$\"}[15m])) or vector(0)) > bool 0.01) * ((sum(rate(http_server_requests_seconds_count{application=\"gateway\", instance=~\".*-1$\"}[15m])) or vector(0)) == bool 0))) or vector(0))), 1))",
+     "legendFormat": "gateway 1",
+     "instant": true
+    },
+    {
+     "refId": "v8_0_1",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(sum(rate(http_server_requests_seconds_count{application=\"gateway\", instance=~\".*-1$\"}[5m]))) or vector(0)",
+     "legendFormat": "gateway 1 req/s",
+     "instant": true
+    },
+    {
+     "refId": "v8_1_1",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(avg(process_cpu_usage{job=\"esquire-services\", application=\"gateway\", instance=~\".*-1$\"}) * 100) or vector(0)",
+     "legendFormat": "gateway 1 cpu",
+     "instant": true
+    },
+    {
+     "refId": "v8_2_1",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(sum(rate(reactor_netty_http_server_data_sent_bytes_sum{uri!=\"/actuator\", instance=~\".*-1$\"}[5m]))) or vector(0)",
+     "legendFormat": "gateway 1 net out",
+     "instant": true
+    },
+    {
+     "refId": "h9",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(clamp_max((max(up{job=\"keycloak\"})) or vector(0), 1)) * (2 - clamp_max(((((max(process_cpu_usage{job=\"keycloak\"}) > bool 0.80)) or vector(0)) + (((100 * sum(jvm_memory_used_bytes{job=\"keycloak\", area=\"heap\"}) / sum(jvm_memory_max_bytes{job=\"keycloak\", area=\"heap\"}) > bool 85)) or vector(0))), 1))",
+     "legendFormat": "keycloak",
+     "instant": true
+    },
+    {
+     "refId": "v9_0",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(sum(rate(http_server_requests_seconds_count{job=\"keycloak\"}[5m]))) or vector(0)",
+     "legendFormat": "keycloak req/s",
+     "instant": true
+    },
+    {
+     "refId": "v9_1",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(avg(process_cpu_usage{job=\"keycloak\"}) * 100) or vector(0)",
+     "legendFormat": "keycloak cpu",
+     "instant": true
+    },
+    {
+     "refId": "v9_2",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(sum(jvm_memory_used_bytes{job=\"keycloak\", area=\"heap\"})) or vector(0)",
+     "legendFormat": "keycloak heap",
+     "instant": true
+    },
+    {
+     "refId": "h10_0",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(clamp_max((max(up{job=\"esquire-bff\", instance=~\".*-0$\"})) or vector(0), 1)) * (2 - clamp_max(((((sum(rate(process_cpu_seconds_total{job=\"esquire-bff\", instance=~\".*-0$\"}[5m])) * 100 > bool 80)) or vector(0)) + (((((sum(rate(bff_http_request_duration_seconds_count{instance=~\".*\"}[15m])) or vector(0)) - (sum(rate(bff_http_request_duration_seconds_count{instance=~\".*-0$\"}[15m])) or vector(0)) > bool 0.01) * ((sum(rate(bff_http_request_duration_seconds_count{instance=~\".*-0$\"}[15m])) or vector(0)) == bool 0))) or vector(0))), 1))",
+     "legendFormat": "backend 0",
+     "instant": true
+    },
+    {
+     "refId": "v10_0_0",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(sum(rate(bff_http_request_duration_seconds_count{instance=~\".*-0$\"}[5m]))) or vector(0)",
+     "legendFormat": "backend 0 req/s",
+     "instant": true
+    },
+    {
+     "refId": "v10_1_0",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(sum(rate(process_cpu_seconds_total{job=\"esquire-bff\", instance=~\".*-0$\"}[5m])) * 100) or vector(0)",
+     "legendFormat": "backend 0 cpu",
+     "instant": true
+    },
+    {
+     "refId": "v10_2_0",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(sum(process_resident_memory_bytes{job=\"esquire-bff\", instance=~\".*-0$\"})) or vector(0)",
+     "legendFormat": "backend 0 rss",
+     "instant": true
+    },
+    {
+     "refId": "h10_1",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(clamp_max((max(up{job=\"esquire-bff\", instance=~\".*-1$\"})) or vector(0), 1)) * (2 - clamp_max(((((sum(rate(process_cpu_seconds_total{job=\"esquire-bff\", instance=~\".*-1$\"}[5m])) * 100 > bool 80)) or vector(0)) + (((((sum(rate(bff_http_request_duration_seconds_count{instance=~\".*\"}[15m])) or vector(0)) - (sum(rate(bff_http_request_duration_seconds_count{instance=~\".*-1$\"}[15m])) or vector(0)) > bool 0.01) * ((sum(rate(bff_http_request_duration_seconds_count{instance=~\".*-1$\"}[15m])) or vector(0)) == bool 0))) or vector(0))), 1))",
+     "legendFormat": "backend 1",
+     "instant": true
+    },
+    {
+     "refId": "v10_0_1",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(sum(rate(bff_http_request_duration_seconds_count{instance=~\".*-1$\"}[5m]))) or vector(0)",
+     "legendFormat": "backend 1 req/s",
+     "instant": true
+    },
+    {
+     "refId": "v10_1_1",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(sum(rate(process_cpu_seconds_total{job=\"esquire-bff\", instance=~\".*-1$\"}[5m])) * 100) or vector(0)",
+     "legendFormat": "backend 1 cpu",
+     "instant": true
+    },
+    {
+     "refId": "v10_2_1",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(sum(process_resident_memory_bytes{job=\"esquire-bff\", instance=~\".*-1$\"})) or vector(0)",
+     "legendFormat": "backend 1 rss",
+     "instant": true
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "color": {
+      "mode": "thresholds"
+     },
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "red",
+        "value": null
+       },
+       {
+        "color": "orange",
+        "value": 1
+       },
+       {
+        "color": "green",
+        "value": 2
+       }
+      ]
+     },
+     "decimals": 2,
+     "mappings": []
+    },
+    "overrides": [
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "postgres conns"
+      },
+      "properties": [
+       {
+        "id": "unit",
+        "value": "short"
+       },
+       {
+        "id": "decimals",
+        "value": 0
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "postgres tx/s"
+      },
+      "properties": [
+       {
+        "id": "unit",
+        "value": "ops"
+       },
+       {
+        "id": "decimals",
+        "value": 1
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "postgres cache"
+      },
+      "properties": [
+       {
+        "id": "unit",
+        "value": "percent"
+       },
+       {
+        "id": "decimals",
+        "value": 1
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "aukeep 0 msg/s"
+      },
+      "properties": [
+       {
+        "id": "unit",
+        "value": "ops"
+       },
+       {
+        "id": "decimals",
+        "value": 1
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "aukeep 0 cpu"
+      },
+      "properties": [
+       {
+        "id": "unit",
+        "value": "percent"
+       },
+       {
+        "id": "decimals",
+        "value": 1
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "aukeep 0 heap"
+      },
+      "properties": [
+       {
+        "id": "unit",
+        "value": "bytes"
+       },
+       {
+        "id": "decimals",
+        "value": 0
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "aukeep 1 msg/s"
+      },
+      "properties": [
+       {
+        "id": "unit",
+        "value": "ops"
+       },
+       {
+        "id": "decimals",
+        "value": 1
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "aukeep 1 cpu"
+      },
+      "properties": [
+       {
+        "id": "unit",
+        "value": "percent"
+       },
+       {
+        "id": "decimals",
+        "value": 1
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "aukeep 1 heap"
+      },
+      "properties": [
+       {
+        "id": "unit",
+        "value": "bytes"
+       },
+       {
+        "id": "decimals",
+        "value": 0
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "activemq held"
+      },
+      "properties": [
+       {
+        "id": "unit",
+        "value": "short"
+       },
+       {
+        "id": "decimals",
+        "value": 0
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "activemq conns"
+      },
+      "properties": [
+       {
+        "id": "unit",
+        "value": "short"
+       },
+       {
+        "id": "decimals",
+        "value": 0
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "activemq memory"
+      },
+      "properties": [
+       {
+        "id": "unit",
+        "value": "percent"
+       },
+       {
+        "id": "decimals",
+        "value": 1
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "pacman 0 req/s"
+      },
+      "properties": [
+       {
+        "id": "unit",
+        "value": "reqps"
+       },
+       {
+        "id": "decimals",
+        "value": 1
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "pacman 0 cpu"
+      },
+      "properties": [
+       {
+        "id": "unit",
+        "value": "percent"
+       },
+       {
+        "id": "decimals",
+        "value": 1
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "pacman 0 heap"
+      },
+      "properties": [
+       {
+        "id": "unit",
+        "value": "bytes"
+       },
+       {
+        "id": "decimals",
+        "value": 0
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "pacman 1 req/s"
+      },
+      "properties": [
+       {
+        "id": "unit",
+        "value": "reqps"
+       },
+       {
+        "id": "decimals",
+        "value": 1
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "pacman 1 cpu"
+      },
+      "properties": [
+       {
+        "id": "unit",
+        "value": "percent"
+       },
+       {
+        "id": "decimals",
+        "value": 1
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "pacman 1 heap"
+      },
+      "properties": [
+       {
+        "id": "unit",
+        "value": "bytes"
+       },
+       {
+        "id": "decimals",
+        "value": 0
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "biztree 0 req/s"
+      },
+      "properties": [
+       {
+        "id": "unit",
+        "value": "reqps"
+       },
+       {
+        "id": "decimals",
+        "value": 1
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "biztree 0 cpu"
+      },
+      "properties": [
+       {
+        "id": "unit",
+        "value": "percent"
+       },
+       {
+        "id": "decimals",
+        "value": 1
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "biztree 0 heap"
+      },
+      "properties": [
+       {
+        "id": "unit",
+        "value": "bytes"
+       },
+       {
+        "id": "decimals",
+        "value": 0
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "biztree 1 req/s"
+      },
+      "properties": [
+       {
+        "id": "unit",
+        "value": "reqps"
+       },
+       {
+        "id": "decimals",
+        "value": 1
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "biztree 1 cpu"
+      },
+      "properties": [
+       {
+        "id": "unit",
+        "value": "percent"
+       },
+       {
+        "id": "decimals",
+        "value": 1
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "biztree 1 heap"
+      },
+      "properties": [
+       {
+        "id": "unit",
+        "value": "bytes"
+       },
+       {
+        "id": "decimals",
+        "value": 0
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "enyman 0 req/s"
+      },
+      "properties": [
+       {
+        "id": "unit",
+        "value": "reqps"
+       },
+       {
+        "id": "decimals",
+        "value": 1
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "enyman 0 cpu"
+      },
+      "properties": [
+       {
+        "id": "unit",
+        "value": "percent"
+       },
+       {
+        "id": "decimals",
+        "value": 1
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "enyman 0 heap"
+      },
+      "properties": [
+       {
+        "id": "unit",
+        "value": "bytes"
+       },
+       {
+        "id": "decimals",
+        "value": 0
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "enyman 1 req/s"
+      },
+      "properties": [
+       {
+        "id": "unit",
+        "value": "reqps"
+       },
+       {
+        "id": "decimals",
+        "value": 1
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "enyman 1 cpu"
+      },
+      "properties": [
+       {
+        "id": "unit",
+        "value": "percent"
+       },
+       {
+        "id": "decimals",
+        "value": 1
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "enyman 1 heap"
+      },
+      "properties": [
+       {
+        "id": "unit",
+        "value": "bytes"
+       },
+       {
+        "id": "decimals",
+        "value": 0
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "keysmith 0 req/s"
+      },
+      "properties": [
+       {
+        "id": "unit",
+        "value": "reqps"
+       },
+       {
+        "id": "decimals",
+        "value": 1
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "keysmith 0 cpu"
+      },
+      "properties": [
+       {
+        "id": "unit",
+        "value": "percent"
+       },
+       {
+        "id": "decimals",
+        "value": 1
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "keysmith 0 heap"
+      },
+      "properties": [
+       {
+        "id": "unit",
+        "value": "bytes"
+       },
+       {
+        "id": "decimals",
+        "value": 0
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "keysmith 1 req/s"
+      },
+      "properties": [
+       {
+        "id": "unit",
+        "value": "reqps"
+       },
+       {
+        "id": "decimals",
+        "value": 1
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "keysmith 1 cpu"
+      },
+      "properties": [
+       {
+        "id": "unit",
+        "value": "percent"
+       },
+       {
+        "id": "decimals",
+        "value": 1
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "keysmith 1 heap"
+      },
+      "properties": [
+       {
+        "id": "unit",
+        "value": "bytes"
+       },
+       {
+        "id": "decimals",
+        "value": 0
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "kcmaster 0 msg/s"
+      },
+      "properties": [
+       {
+        "id": "unit",
+        "value": "ops"
+       },
+       {
+        "id": "decimals",
+        "value": 1
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "kcmaster 0 cpu"
+      },
+      "properties": [
+       {
+        "id": "unit",
+        "value": "percent"
+       },
+       {
+        "id": "decimals",
+        "value": 1
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "kcmaster 0 heap"
+      },
+      "properties": [
+       {
+        "id": "unit",
+        "value": "bytes"
+       },
+       {
+        "id": "decimals",
+        "value": 0
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "kcmaster 1 msg/s"
+      },
+      "properties": [
+       {
+        "id": "unit",
+        "value": "ops"
+       },
+       {
+        "id": "decimals",
+        "value": 1
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "kcmaster 1 cpu"
+      },
+      "properties": [
+       {
+        "id": "unit",
+        "value": "percent"
+       },
+       {
+        "id": "decimals",
+        "value": 1
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "kcmaster 1 heap"
+      },
+      "properties": [
+       {
+        "id": "unit",
+        "value": "bytes"
+       },
+       {
+        "id": "decimals",
+        "value": 0
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "gateway 0 req/s"
+      },
+      "properties": [
+       {
+        "id": "unit",
+        "value": "reqps"
+       },
+       {
+        "id": "decimals",
+        "value": 1
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "gateway 0 cpu"
+      },
+      "properties": [
+       {
+        "id": "unit",
+        "value": "percent"
+       },
+       {
+        "id": "decimals",
+        "value": 1
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "gateway 0 net out"
+      },
+      "properties": [
+       {
+        "id": "unit",
+        "value": "Bps"
+       },
+       {
+        "id": "decimals",
+        "value": 1
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "gateway 1 req/s"
+      },
+      "properties": [
+       {
+        "id": "unit",
+        "value": "reqps"
+       },
+       {
+        "id": "decimals",
+        "value": 1
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "gateway 1 cpu"
+      },
+      "properties": [
+       {
+        "id": "unit",
+        "value": "percent"
+       },
+       {
+        "id": "decimals",
+        "value": 1
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "gateway 1 net out"
+      },
+      "properties": [
+       {
+        "id": "unit",
+        "value": "Bps"
+       },
+       {
+        "id": "decimals",
+        "value": 1
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "keycloak req/s"
+      },
+      "properties": [
+       {
+        "id": "unit",
+        "value": "reqps"
+       },
+       {
+        "id": "decimals",
+        "value": 1
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "keycloak cpu"
+      },
+      "properties": [
+       {
+        "id": "unit",
+        "value": "percent"
+       },
+       {
+        "id": "decimals",
+        "value": 1
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "keycloak heap"
+      },
+      "properties": [
+       {
+        "id": "unit",
+        "value": "bytes"
+       },
+       {
+        "id": "decimals",
+        "value": 0
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "backend 0 req/s"
+      },
+      "properties": [
+       {
+        "id": "unit",
+        "value": "reqps"
+       },
+       {
+        "id": "decimals",
+        "value": 1
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "backend 0 cpu"
+      },
+      "properties": [
+       {
+        "id": "unit",
+        "value": "percent"
+       },
+       {
+        "id": "decimals",
+        "value": 1
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "backend 0 rss"
+      },
+      "properties": [
+       {
+        "id": "unit",
+        "value": "bytes"
+       },
+       {
+        "id": "decimals",
+        "value": 0
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "backend 1 req/s"
+      },
+      "properties": [
+       {
+        "id": "unit",
+        "value": "reqps"
+       },
+       {
+        "id": "decimals",
+        "value": 1
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "backend 1 cpu"
+      },
+      "properties": [
+       {
+        "id": "unit",
+        "value": "percent"
+       },
+       {
+        "id": "decimals",
+        "value": 1
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "backend 1 rss"
+      },
+      "properties": [
+       {
+        "id": "unit",
+        "value": "bytes"
+       },
+       {
+        "id": "decimals",
+        "value": 0
+       }
+      ]
+     }
+    ]
+   },
+   "options": {
+    "inlineEditing": false,
+    "showAdvancedTypes": true,
+    "panZoom": false,
+    "infinitePan": false,
+    "root": {
+     "name": "Esquire",
+     "type": "frame",
+     "elements": [
+      {
+       "name": "postgres",
+       "type": "rectangle",
+       "background": {
+        "color": {
+         "field": "postgres",
+         "fixed": "#D9D9D9"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "center",
+        "valign": "top",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 12,
+        "text": {
+         "fixed": "Esq2025",
+         "mode": "fixed"
+        },
+        "links": [
+         {
+          "title": "details",
+          "url": "/d/esq-services/",
+          "targetBlank": false
+         }
+        ]
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 30,
+        "top": 250,
+        "width": 140,
+        "height": 80,
+        "rotation": 0
+       },
+       "links": [
+        {
+         "title": "details for postgres",
+         "url": "/d/esq-services/",
+         "targetBlank": false
+        }
+       ],
+       "connections": []
+      },
+      {
+       "name": "aukeep 1",
+       "type": "rectangle",
+       "background": {
+        "color": {
+         "field": "aukeep 1",
+         "fixed": "#D9D9D9"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "width": 2
+       },
+       "config": {
+        "align": "center",
+        "valign": "top",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 12,
+        "text": {
+         "fixed": "",
+         "mode": "fixed"
+        },
+        "links": [
+         {
+          "title": "details",
+          "url": "/d/esq-services/?var-application=aukeep",
+          "targetBlank": false
+         }
+        ]
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 30,
+        "top": 60,
+        "width": 140,
+        "height": 80,
+        "rotation": 0
+       },
+       "links": [
+        {
+         "title": "details for aukeep",
+         "url": "/d/esq-services/?var-application=aukeep",
+         "targetBlank": false
+        }
+       ],
+       "connections": []
+      },
+      {
+       "name": "aukeep 0",
+       "type": "rectangle",
+       "background": {
+        "color": {
+         "field": "aukeep 0",
+         "fixed": "#D9D9D9"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "width": 2
+       },
+       "config": {
+        "align": "center",
+        "valign": "top",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 12,
+        "text": {
+         "fixed": "auKeep 0",
+         "mode": "fixed"
+        },
+        "links": [
+         {
+          "title": "details",
+          "url": "/d/esq-services/?var-application=aukeep",
+          "targetBlank": false
+         }
+        ]
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 126,
+        "top": 40,
+        "width": 140,
+        "height": 80,
+        "rotation": 0
+       },
+       "links": [
+        {
+         "title": "details for aukeep",
+         "url": "/d/esq-services/?var-application=aukeep",
+         "targetBlank": false
+        }
+       ],
+       "connections": [
+        {
+         "targetName": "bus:audit-c",
+         "path": "straight",
+         "source": {
+          "x": 1,
+          "y": -0.0
+         },
+         "target": {
+          "x": -1,
+          "y": 0.78
+         },
+         "color": {
+          "fixed": "#8FA8C8"
+         },
+         "size": {
+          "fixed": 2
+         },
+         "direction": "reverse"
+        },
+        {
+         "targetName": "postgres",
+         "path": "angled",
+         "source": {
+          "x": 0.0,
+          "y": -1
+         },
+         "target": {
+          "x": 0.0,
+          "y": 1
+         },
+         "color": {
+          "fixed": "#C0392B"
+         },
+         "size": {
+          "fixed": 1.25
+         },
+         "direction": "forward"
+        }
+       ]
+      },
+      {
+       "name": "activemq",
+       "type": "rectangle",
+       "background": {
+        "color": {
+         "field": "activemq",
+         "fixed": "#D9D9D9"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "center",
+        "valign": "top",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 12,
+        "text": {
+         "fixed": "ActiveMQ",
+         "mode": "fixed"
+        },
+        "links": [
+         {
+          "title": "details",
+          "url": "/d/esq-services/",
+          "targetBlank": false
+         }
+        ]
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 333,
+        "top": 596,
+        "width": 140,
+        "height": 80,
+        "rotation": 0
+       },
+       "links": [
+        {
+         "title": "details for activemq",
+         "url": "/d/esq-services/",
+         "targetBlank": false
+        }
+       ],
+       "connections": [
+        {
+         "targetName": "bus:audit-c",
+         "path": "straight",
+         "source": {
+          "x": -0.66,
+          "y": 1
+         },
+         "target": {
+          "x": 0,
+          "y": -1
+         },
+         "color": {
+          "fixed": "#8FA8C8"
+         },
+         "size": {
+          "fixed": 2
+         },
+         "direction": "none"
+        },
+        {
+         "targetName": "bus:esquire.kc",
+         "path": "straight",
+         "source": {
+          "x": 0.0,
+          "y": 1
+         },
+         "target": {
+          "x": 0,
+          "y": -1
+         },
+         "color": {
+          "fixed": "#D9C48A"
+         },
+         "size": {
+          "fixed": 2
+         },
+         "direction": "none"
+        },
+        {
+         "targetName": "bus:esquire.entity",
+         "path": "straight",
+         "source": {
+          "x": 0.66,
+          "y": 1
+         },
+         "target": {
+          "x": 0,
+          "y": -1
+         },
+         "color": {
+          "fixed": "#9DC08B"
+         },
+         "size": {
+          "fixed": 2
+         },
+         "direction": "none"
+        }
+       ]
+      },
+      {
+       "name": "pacman 1",
+       "type": "rectangle",
+       "background": {
+        "color": {
+         "field": "pacman 1",
+         "fixed": "#D9D9D9"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "width": 2
+       },
+       "config": {
+        "align": "center",
+        "valign": "top",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 12,
+        "text": {
+         "fixed": "",
+         "mode": "fixed"
+        },
+        "links": [
+         {
+          "title": "details",
+          "url": "/d/esq-services/?var-application=pacman",
+          "targetBlank": false
+         }
+        ]
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 656,
+        "top": 50,
+        "width": 140,
+        "height": 80,
+        "rotation": 0
+       },
+       "links": [
+        {
+         "title": "details for pacman",
+         "url": "/d/esq-services/?var-application=pacman",
+         "targetBlank": false
+        }
+       ],
+       "connections": []
+      },
+      {
+       "name": "pacman 0",
+       "type": "rectangle",
+       "background": {
+        "color": {
+         "field": "pacman 0",
+         "fixed": "#D9D9D9"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "width": 2
+       },
+       "config": {
+        "align": "center",
+        "valign": "top",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 12,
+        "text": {
+         "fixed": "pacMan 0",
+         "mode": "fixed"
+        },
+        "links": [
+         {
+          "title": "details",
+          "url": "/d/esq-services/?var-application=pacman",
+          "targetBlank": false
+         }
+        ]
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 560,
+        "top": 30,
+        "width": 140,
+        "height": 80,
+        "rotation": 0
+       },
+       "links": [
+        {
+         "title": "details for pacman",
+         "url": "/d/esq-services/?var-application=pacman",
+         "targetBlank": false
+        }
+       ],
+       "connections": [
+        {
+         "targetName": "bus:audit-c",
+         "path": "straight",
+         "source": {
+          "x": -1,
+          "y": 0.66
+         },
+         "target": {
+          "x": 1,
+          "y": 0.9256
+         },
+         "color": {
+          "fixed": "#8FA8C8"
+         },
+         "size": {
+          "fixed": 2
+         },
+         "direction": "forward"
+        },
+        {
+         "targetName": "bus:esquire.entity",
+         "path": "straight",
+         "source": {
+          "x": -1,
+          "y": -0.0
+         },
+         "target": {
+          "x": 1,
+          "y": 0.82
+         },
+         "color": {
+          "fixed": "#9DC08B"
+         },
+         "size": {
+          "fixed": 2
+         },
+         "direction": "forward"
+        },
+        {
+         "targetName": "postgres",
+         "path": "angled",
+         "source": {
+          "x": -1,
+          "y": -0.66
+         },
+         "target": {
+          "x": 1,
+          "y": 0.66
+         },
+         "color": {
+          "fixed": "#C0392B"
+         },
+         "size": {
+          "fixed": 1.25
+         },
+         "direction": "forward"
+        }
+       ]
+      },
+      {
+       "name": "biztree 1",
+       "type": "rectangle",
+       "background": {
+        "color": {
+         "field": "biztree 1",
+         "fixed": "#D9D9D9"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "width": 2
+       },
+       "config": {
+        "align": "center",
+        "valign": "top",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 12,
+        "text": {
+         "fixed": "",
+         "mode": "fixed"
+        },
+        "links": [
+         {
+          "title": "details",
+          "url": "/d/esq-services/?var-application=biztree",
+          "targetBlank": false
+         }
+        ]
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 656,
+        "top": 150,
+        "width": 140,
+        "height": 80,
+        "rotation": 0
+       },
+       "links": [
+        {
+         "title": "details for biztree",
+         "url": "/d/esq-services/?var-application=biztree",
+         "targetBlank": false
+        }
+       ],
+       "connections": []
+      },
+      {
+       "name": "biztree 0",
+       "type": "rectangle",
+       "background": {
+        "color": {
+         "field": "biztree 0",
+         "fixed": "#D9D9D9"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "width": 2
+       },
+       "config": {
+        "align": "center",
+        "valign": "top",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 12,
+        "text": {
+         "fixed": "bizTree 0",
+         "mode": "fixed"
+        },
+        "links": [
+         {
+          "title": "details",
+          "url": "/d/esq-services/?var-application=biztree",
+          "targetBlank": false
+         }
+        ]
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 560,
+        "top": 130,
+        "width": 140,
+        "height": 80,
+        "rotation": 0
+       },
+       "links": [
+        {
+         "title": "details for biztree",
+         "url": "/d/esq-services/?var-application=biztree",
+         "targetBlank": false
+        }
+       ],
+       "connections": [
+        {
+         "targetName": "bus:esquire.entity",
+         "path": "straight",
+         "source": {
+          "x": -1,
+          "y": 0.66
+         },
+         "target": {
+          "x": 1,
+          "y": 0.5256000000000001
+         },
+         "color": {
+          "fixed": "#9DC08B"
+         },
+         "size": {
+          "fixed": 2
+         },
+         "direction": "reverse"
+        },
+        {
+         "targetName": "postgres",
+         "path": "angled",
+         "source": {
+          "x": -1,
+          "y": -0.66
+         },
+         "target": {
+          "x": 1,
+          "y": 0.22000000000000003
+         },
+         "color": {
+          "fixed": "#C0392B"
+         },
+         "size": {
+          "fixed": 1.25
+         },
+         "direction": "forward"
+        }
+       ]
+      },
+      {
+       "name": "enyman 1",
+       "type": "rectangle",
+       "background": {
+        "color": {
+         "field": "enyman 1",
+         "fixed": "#D9D9D9"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "width": 2
+       },
+       "config": {
+        "align": "center",
+        "valign": "top",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 12,
+        "text": {
+         "fixed": "",
+         "mode": "fixed"
+        },
+        "links": [
+         {
+          "title": "details",
+          "url": "/d/esq-services/?var-application=enyman",
+          "targetBlank": false
+         }
+        ]
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 656,
+        "top": 250,
+        "width": 140,
+        "height": 80,
+        "rotation": 0
+       },
+       "links": [
+        {
+         "title": "details for enyman",
+         "url": "/d/esq-services/?var-application=enyman",
+         "targetBlank": false
+        }
+       ],
+       "connections": []
+      },
+      {
+       "name": "enyman 0",
+       "type": "rectangle",
+       "background": {
+        "color": {
+         "field": "enyman 0",
+         "fixed": "#D9D9D9"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "width": 2
+       },
+       "config": {
+        "align": "center",
+        "valign": "top",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 12,
+        "text": {
+         "fixed": "enyMan 0",
+         "mode": "fixed"
+        },
+        "links": [
+         {
+          "title": "details",
+          "url": "/d/esq-services/?var-application=enyman",
+          "targetBlank": false
+         }
+        ]
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 560,
+        "top": 230,
+        "width": 140,
+        "height": 80,
+        "rotation": 0
+       },
+       "links": [
+        {
+         "title": "details for enyman",
+         "url": "/d/esq-services/?var-application=enyman",
+         "targetBlank": false
+        }
+       ],
+       "connections": [
+        {
+         "targetName": "bus:audit-c",
+         "path": "straight",
+         "source": {
+          "x": -1,
+          "y": 0.66
+         },
+         "target": {
+          "x": 1,
+          "y": 0.12560000000000002
+         },
+         "color": {
+          "fixed": "#8FA8C8"
+         },
+         "size": {
+          "fixed": 2
+         },
+         "direction": "forward"
+        },
+        {
+         "targetName": "bus:esquire.kc",
+         "path": "straight",
+         "source": {
+          "x": -1,
+          "y": 0.22000000000000003
+         },
+         "target": {
+          "x": 1,
+          "y": 0.05520000000000005
+         },
+         "color": {
+          "fixed": "#D9C48A"
+         },
+         "size": {
+          "fixed": 2
+         },
+         "direction": "both"
+        },
+        {
+         "targetName": "bus:esquire.entity",
+         "path": "straight",
+         "source": {
+          "x": -1,
+          "y": -0.21999999999999997
+         },
+         "target": {
+          "x": 1,
+          "y": -0.015200000000000045
+         },
+         "color": {
+          "fixed": "#9DC08B"
+         },
+         "size": {
+          "fixed": 2
+         },
+         "direction": "forward"
+        },
+        {
+         "targetName": "postgres",
+         "path": "angled",
+         "source": {
+          "x": -1,
+          "y": -0.66
+         },
+         "target": {
+          "x": 1,
+          "y": -0.21999999999999997
+         },
+         "color": {
+          "fixed": "#C0392B"
+         },
+         "size": {
+          "fixed": 1.25
+         },
+         "direction": "forward"
+        }
+       ]
+      },
+      {
+       "name": "keysmith 1",
+       "type": "rectangle",
+       "background": {
+        "color": {
+         "field": "keysmith 1",
+         "fixed": "#D9D9D9"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "width": 2
+       },
+       "config": {
+        "align": "center",
+        "valign": "top",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 12,
+        "text": {
+         "fixed": "",
+         "mode": "fixed"
+        },
+        "links": [
+         {
+          "title": "details",
+          "url": "/d/esq-services/?var-application=keysmith",
+          "targetBlank": false
+         }
+        ]
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 656,
+        "top": 350,
+        "width": 140,
+        "height": 80,
+        "rotation": 0
+       },
+       "links": [
+        {
+         "title": "details for keysmith",
+         "url": "/d/esq-services/?var-application=keysmith",
+         "targetBlank": false
+        }
+       ],
+       "connections": []
+      },
+      {
+       "name": "keysmith 0",
+       "type": "rectangle",
+       "background": {
+        "color": {
+         "field": "keysmith 0",
+         "fixed": "#D9D9D9"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "width": 2
+       },
+       "config": {
+        "align": "center",
+        "valign": "top",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 12,
+        "text": {
+         "fixed": "keySmith 0",
+         "mode": "fixed"
+        },
+        "links": [
+         {
+          "title": "details",
+          "url": "/d/esq-services/?var-application=keysmith",
+          "targetBlank": false
+         }
+        ]
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 560,
+        "top": 330,
+        "width": 140,
+        "height": 80,
+        "rotation": 0
+       },
+       "links": [
+        {
+         "title": "details for keysmith",
+         "url": "/d/esq-services/?var-application=keysmith",
+         "targetBlank": false
+        }
+       ],
+       "connections": [
+        {
+         "targetName": "bus:audit-c",
+         "path": "straight",
+         "source": {
+          "x": -1,
+          "y": -0.0
+         },
+         "target": {
+          "x": 1,
+          "y": -0.38
+         },
+         "color": {
+          "fixed": "#8FA8C8"
+         },
+         "size": {
+          "fixed": 2
+         },
+         "direction": "forward"
+        },
+        {
+         "targetName": "bus:esquire.kc",
+         "path": "straight",
+         "source": {
+          "x": -1,
+          "y": -0.66
+         },
+         "target": {
+          "x": 1,
+          "y": -0.4855999999999999
+         },
+         "color": {
+          "fixed": "#D9C48A"
+         },
+         "size": {
+          "fixed": 2
+         },
+         "direction": "both"
+        },
+        {
+         "targetName": "postgres",
+         "path": "angled",
+         "source": {
+          "x": -1,
+          "y": 0.66
+         },
+         "target": {
+          "x": 1,
+          "y": -0.66
+         },
+         "color": {
+          "fixed": "#C0392B"
+         },
+         "size": {
+          "fixed": 1.25
+         },
+         "direction": "forward"
+        }
+       ]
+      },
+      {
+       "name": "kcmaster 1",
+       "type": "rectangle",
+       "background": {
+        "color": {
+         "field": "kcmaster 1",
+         "fixed": "#D9D9D9"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "width": 2
+       },
+       "config": {
+        "align": "center",
+        "valign": "top",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 12,
+        "text": {
+         "fixed": "",
+         "mode": "fixed"
+        },
+        "links": [
+         {
+          "title": "details",
+          "url": "/d/esq-services/?var-application=kcmaster",
+          "targetBlank": false
+         }
+        ]
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 656,
+        "top": 450,
+        "width": 140,
+        "height": 80,
+        "rotation": 0
+       },
+       "links": [
+        {
+         "title": "details for kcmaster",
+         "url": "/d/esq-services/?var-application=kcmaster",
+         "targetBlank": false
+        }
+       ],
+       "connections": []
+      },
+      {
+       "name": "kcmaster 0",
+       "type": "rectangle",
+       "background": {
+        "color": {
+         "field": "kcmaster 0",
+         "fixed": "#D9D9D9"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "width": 2
+       },
+       "config": {
+        "align": "center",
+        "valign": "top",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 12,
+        "text": {
+         "fixed": "kcMaster 0",
+         "mode": "fixed"
+        },
+        "links": [
+         {
+          "title": "details",
+          "url": "/d/esq-services/?var-application=kcmaster",
+          "targetBlank": false
+         }
+        ]
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 560,
+        "top": 430,
+        "width": 140,
+        "height": 80,
+        "rotation": 0
+       },
+       "links": [
+        {
+         "title": "details for kcmaster",
+         "url": "/d/esq-services/?var-application=kcmaster",
+         "targetBlank": false
+        }
+       ],
+       "connections": [
+        {
+         "targetName": "bus:esquire.kc",
+         "path": "straight",
+         "source": {
+          "x": -1,
+          "y": 0.66
+         },
+         "target": {
+          "x": 1,
+          "y": -0.6744000000000001
+         },
+         "color": {
+          "fixed": "#D9C48A"
+         },
+         "size": {
+          "fixed": 2
+         },
+         "direction": "both"
+        },
+        {
+         "targetName": "bus:esquire.entity",
+         "path": "straight",
+         "source": {
+          "x": -1,
+          "y": -0.66
+         },
+         "target": {
+          "x": 1,
+          "y": -0.8855999999999999
+         },
+         "color": {
+          "fixed": "#9DC08B"
+         },
+         "size": {
+          "fixed": 2
+         },
+         "direction": "reverse"
+        },
+        {
+         "targetName": "keycloak",
+         "path": "angled",
+         "source": {
+          "x": 1,
+          "y": -0.0
+         },
+         "target": {
+          "x": -1,
+          "y": -0.0
+         },
+         "color": {
+          "fixed": "#000000"
+         },
+         "size": {
+          "fixed": 1.25
+         },
+         "direction": "forward"
+        }
+       ]
+      },
+      {
+       "name": "gateway 1",
+       "type": "rectangle",
+       "background": {
+        "color": {
+         "field": "gateway 1",
+         "fixed": "#D9D9D9"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "width": 2
+       },
+       "config": {
+        "align": "center",
+        "valign": "top",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 12,
+        "text": {
+         "fixed": "",
+         "mode": "fixed"
+        },
+        "links": [
+         {
+          "title": "details",
+          "url": "/d/esq-services/?var-application=gateway",
+          "targetBlank": false
+         }
+        ]
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 926,
+        "top": 200,
+        "width": 140,
+        "height": 80,
+        "rotation": 0
+       },
+       "links": [
+        {
+         "title": "details for gateway",
+         "url": "/d/esq-services/?var-application=gateway",
+         "targetBlank": false
+        }
+       ],
+       "connections": []
+      },
+      {
+       "name": "gateway 0",
+       "type": "rectangle",
+       "background": {
+        "color": {
+         "field": "gateway 0",
+         "fixed": "#D9D9D9"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "width": 2
+       },
+       "config": {
+        "align": "center",
+        "valign": "top",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 12,
+        "text": {
+         "fixed": "gateway 0",
+         "mode": "fixed"
+        },
+        "links": [
+         {
+          "title": "details",
+          "url": "/d/esq-services/?var-application=gateway",
+          "targetBlank": false
+         }
+        ]
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 830,
+        "top": 180,
+        "width": 140,
+        "height": 80,
+        "rotation": 0
+       },
+       "links": [
+        {
+         "title": "details for gateway",
+         "url": "/d/esq-services/?var-application=gateway",
+         "targetBlank": false
+        }
+       ],
+       "connections": [
+        {
+         "targetName": "enyman 0",
+         "path": "angled",
+         "source": {
+          "x": -1,
+          "y": -0.21999999999999997
+         },
+         "target": {
+          "x": 1,
+          "y": -0.0
+         },
+         "color": {
+          "fixed": "#000000"
+         },
+         "size": {
+          "fixed": 1.25
+         },
+         "direction": "forward"
+        },
+        {
+         "targetName": "biztree 0",
+         "path": "angled",
+         "source": {
+          "x": -1,
+          "y": 0.22000000000000003
+         },
+         "target": {
+          "x": 1,
+          "y": -0.0
+         },
+         "color": {
+          "fixed": "#000000"
+         },
+         "size": {
+          "fixed": 1.25
+         },
+         "direction": "forward"
+        },
+        {
+         "targetName": "pacman 0",
+         "path": "angled",
+         "source": {
+          "x": -1,
+          "y": 0.66
+         },
+         "target": {
+          "x": 1,
+          "y": -0.0
+         },
+         "color": {
+          "fixed": "#000000"
+         },
+         "size": {
+          "fixed": 1.25
+         },
+         "direction": "forward"
+        },
+        {
+         "targetName": "keysmith 0",
+         "path": "angled",
+         "source": {
+          "x": -1,
+          "y": -0.66
+         },
+         "target": {
+          "x": 1,
+          "y": -0.0
+         },
+         "color": {
+          "fixed": "#000000"
+         },
+         "size": {
+          "fixed": 1.25
+         },
+         "direction": "forward"
+        },
+        {
+         "targetName": "keycloak",
+         "path": "angled",
+         "source": {
+          "x": 0.0,
+          "y": -1
+         },
+         "target": {
+          "x": 0.0,
+          "y": 1
+         },
+         "color": {
+          "fixed": "#000000"
+         },
+         "size": {
+          "fixed": 1.25
+         },
+         "direction": "forward"
+        }
+       ]
+      },
+      {
+       "name": "keycloak",
+       "type": "rectangle",
+       "background": {
+        "color": {
+         "field": "keycloak",
+         "fixed": "#D9D9D9"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "center",
+        "valign": "top",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 12,
+        "text": {
+         "fixed": "KEYCLOAK",
+         "mode": "fixed"
+        },
+        "links": [
+         {
+          "title": "details",
+          "url": "/d/esq-services/",
+          "targetBlank": false
+         }
+        ]
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 830,
+        "top": 430,
+        "width": 140,
+        "height": 80,
+        "rotation": 0
+       },
+       "links": [
+        {
+         "title": "details for keycloak",
+         "url": "/d/esq-services/",
+         "targetBlank": false
+        }
+       ],
+       "connections": []
+      },
+      {
+       "name": "backend 1",
+       "type": "rectangle",
+       "background": {
+        "color": {
+         "field": "backend 1",
+         "fixed": "#D9D9D9"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "width": 2
+       },
+       "config": {
+        "align": "center",
+        "valign": "top",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 12,
+        "text": {
+         "fixed": "",
+         "mode": "fixed"
+        },
+        "links": [
+         {
+          "title": "details",
+          "url": "/d/esq-services/",
+          "targetBlank": false
+         }
+        ]
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 1176,
+        "top": 200,
+        "width": 140,
+        "height": 80,
+        "rotation": 0
+       },
+       "links": [
+        {
+         "title": "details for backend",
+         "url": "/d/esq-services/",
+         "targetBlank": false
+        }
+       ],
+       "connections": []
+      },
+      {
+       "name": "backend 0",
+       "type": "rectangle",
+       "background": {
+        "color": {
+         "field": "backend 0",
+         "fixed": "#D9D9D9"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "width": 2
+       },
+       "config": {
+        "align": "center",
+        "valign": "top",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 12,
+        "text": {
+         "fixed": "Explorer 0",
+         "mode": "fixed"
+        },
+        "links": [
+         {
+          "title": "details",
+          "url": "/d/esq-services/",
+          "targetBlank": false
+         }
+        ]
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 1080,
+        "top": 180,
+        "width": 140,
+        "height": 80,
+        "rotation": 0
+       },
+       "links": [
+        {
+         "title": "details for backend",
+         "url": "/d/esq-services/",
+         "targetBlank": false
+        }
+       ],
+       "connections": [
+        {
+         "targetName": "gateway 0",
+         "path": "angled",
+         "source": {
+          "x": -1,
+          "y": -0.0
+         },
+         "target": {
+          "x": 1,
+          "y": -0.0
+         },
+         "color": {
+          "fixed": "#000000"
+         },
+         "size": {
+          "fixed": 1.25
+         },
+         "direction": "forward"
+        }
+       ]
+      },
+      {
+       "name": "postgres icon",
+       "type": "icon",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "path": {
+         "fixed": "img/icons/esq/postgres.svg",
+         "mode": "fixed"
+        },
+        "fill": {
+         "fixed": "transparent"
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 35,
+        "top": 254,
+        "width": 28,
+        "height": 28,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "postgres conns",
+       "type": "metric-value",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 12,
+        "text": {
+         "field": "postgres conns",
+         "mode": "field",
+         "fixed": ""
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 30,
+        "top": 272,
+        "width": 140,
+        "height": 19,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "postgres tx/s",
+       "type": "metric-value",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 12,
+        "text": {
+         "field": "postgres tx/s",
+         "mode": "field",
+         "fixed": ""
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 30,
+        "top": 291,
+        "width": 140,
+        "height": 19,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "postgres cache",
+       "type": "metric-value",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 12,
+        "text": {
+         "field": "postgres cache",
+         "mode": "field",
+         "fixed": ""
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 30,
+        "top": 310,
+        "width": 140,
+        "height": 19,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "aukeep icon",
+       "type": "icon",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "path": {
+         "fixed": "img/icons/esq/aukeep.svg",
+         "mode": "fixed"
+        },
+        "fill": {
+         "fixed": "transparent"
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 131,
+        "top": 44,
+        "width": 28,
+        "height": 28,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "aukeep 0 msg/s",
+       "type": "metric-value",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 12,
+        "text": {
+         "field": "aukeep 0 msg/s",
+         "mode": "field",
+         "fixed": ""
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 126,
+        "top": 62,
+        "width": 140,
+        "height": 19,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "aukeep 0 cpu",
+       "type": "metric-value",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 12,
+        "text": {
+         "field": "aukeep 0 cpu",
+         "mode": "field",
+         "fixed": ""
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 126,
+        "top": 81,
+        "width": 140,
+        "height": 19,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "aukeep 0 heap",
+       "type": "metric-value",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 12,
+        "text": {
+         "field": "aukeep 0 heap",
+         "mode": "field",
+         "fixed": ""
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 126,
+        "top": 100,
+        "width": 140,
+        "height": 19,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "aukeep 1 name",
+       "type": "text",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 11,
+        "text": {
+         "fixed": "auKeep 1",
+         "mode": "fixed"
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 30,
+        "top": 62,
+        "width": 96,
+        "height": 18,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "aukeep 1 msg/s",
+       "type": "metric-value",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 11,
+        "text": {
+         "field": "aukeep 1 msg/s",
+         "mode": "field",
+         "fixed": ""
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 30,
+        "top": 82,
+        "width": 96,
+        "height": 19,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "aukeep 1 cpu",
+       "type": "metric-value",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 11,
+        "text": {
+         "field": "aukeep 1 cpu",
+         "mode": "field",
+         "fixed": ""
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 30,
+        "top": 101,
+        "width": 96,
+        "height": 19,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "aukeep 1 heap",
+       "type": "metric-value",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 11,
+        "text": {
+         "field": "aukeep 1 heap",
+         "mode": "field",
+         "fixed": ""
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 30,
+        "top": 120,
+        "width": 96,
+        "height": 19,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "activemq icon",
+       "type": "icon",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "path": {
+         "fixed": "img/icons/esq/activemq.svg",
+         "mode": "fixed"
+        },
+        "fill": {
+         "fixed": "transparent"
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 338,
+        "top": 600,
+        "width": 28,
+        "height": 28,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "activemq held",
+       "type": "metric-value",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 12,
+        "text": {
+         "field": "activemq held",
+         "mode": "field",
+         "fixed": ""
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 333,
+        "top": 618,
+        "width": 140,
+        "height": 19,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "activemq conns",
+       "type": "metric-value",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 12,
+        "text": {
+         "field": "activemq conns",
+         "mode": "field",
+         "fixed": ""
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 333,
+        "top": 637,
+        "width": 140,
+        "height": 19,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "activemq memory",
+       "type": "metric-value",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 12,
+        "text": {
+         "field": "activemq memory",
+         "mode": "field",
+         "fixed": ""
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 333,
+        "top": 656,
+        "width": 140,
+        "height": 19,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "pacman icon",
+       "type": "icon",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "path": {
+         "fixed": "img/icons/esq/pacman.svg",
+         "mode": "fixed"
+        },
+        "fill": {
+         "fixed": "transparent"
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 565,
+        "top": 34,
+        "width": 28,
+        "height": 28,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "pacman 0 req/s",
+       "type": "metric-value",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 12,
+        "text": {
+         "field": "pacman 0 req/s",
+         "mode": "field",
+         "fixed": ""
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 560,
+        "top": 52,
+        "width": 140,
+        "height": 19,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "pacman 0 cpu",
+       "type": "metric-value",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 12,
+        "text": {
+         "field": "pacman 0 cpu",
+         "mode": "field",
+         "fixed": ""
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 560,
+        "top": 71,
+        "width": 140,
+        "height": 19,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "pacman 0 heap",
+       "type": "metric-value",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 12,
+        "text": {
+         "field": "pacman 0 heap",
+         "mode": "field",
+         "fixed": ""
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 560,
+        "top": 90,
+        "width": 140,
+        "height": 19,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "pacman 1 name",
+       "type": "text",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 11,
+        "text": {
+         "fixed": "pacMan 1",
+         "mode": "fixed"
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 700,
+        "top": 52,
+        "width": 96,
+        "height": 18,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "pacman 1 req/s",
+       "type": "metric-value",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 11,
+        "text": {
+         "field": "pacman 1 req/s",
+         "mode": "field",
+         "fixed": ""
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 700,
+        "top": 72,
+        "width": 96,
+        "height": 19,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "pacman 1 cpu",
+       "type": "metric-value",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 11,
+        "text": {
+         "field": "pacman 1 cpu",
+         "mode": "field",
+         "fixed": ""
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 700,
+        "top": 91,
+        "width": 96,
+        "height": 19,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "pacman 1 heap",
+       "type": "metric-value",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 11,
+        "text": {
+         "field": "pacman 1 heap",
+         "mode": "field",
+         "fixed": ""
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 700,
+        "top": 110,
+        "width": 96,
+        "height": 19,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "biztree icon",
+       "type": "icon",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "path": {
+         "fixed": "img/icons/esq/biztree.svg",
+         "mode": "fixed"
+        },
+        "fill": {
+         "fixed": "transparent"
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 565,
+        "top": 134,
+        "width": 28,
+        "height": 28,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "biztree 0 req/s",
+       "type": "metric-value",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 12,
+        "text": {
+         "field": "biztree 0 req/s",
+         "mode": "field",
+         "fixed": ""
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 560,
+        "top": 152,
+        "width": 140,
+        "height": 19,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "biztree 0 cpu",
+       "type": "metric-value",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 12,
+        "text": {
+         "field": "biztree 0 cpu",
+         "mode": "field",
+         "fixed": ""
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 560,
+        "top": 171,
+        "width": 140,
+        "height": 19,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "biztree 0 heap",
+       "type": "metric-value",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 12,
+        "text": {
+         "field": "biztree 0 heap",
+         "mode": "field",
+         "fixed": ""
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 560,
+        "top": 190,
+        "width": 140,
+        "height": 19,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "biztree 1 name",
+       "type": "text",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 11,
+        "text": {
+         "fixed": "bizTree 1",
+         "mode": "fixed"
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 700,
+        "top": 152,
+        "width": 96,
+        "height": 18,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "biztree 1 req/s",
+       "type": "metric-value",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 11,
+        "text": {
+         "field": "biztree 1 req/s",
+         "mode": "field",
+         "fixed": ""
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 700,
+        "top": 172,
+        "width": 96,
+        "height": 19,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "biztree 1 cpu",
+       "type": "metric-value",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 11,
+        "text": {
+         "field": "biztree 1 cpu",
+         "mode": "field",
+         "fixed": ""
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 700,
+        "top": 191,
+        "width": 96,
+        "height": 19,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "biztree 1 heap",
+       "type": "metric-value",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 11,
+        "text": {
+         "field": "biztree 1 heap",
+         "mode": "field",
+         "fixed": ""
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 700,
+        "top": 210,
+        "width": 96,
+        "height": 19,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "enyman icon",
+       "type": "icon",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "path": {
+         "fixed": "img/icons/esq/enyman.svg",
+         "mode": "fixed"
+        },
+        "fill": {
+         "fixed": "transparent"
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 565,
+        "top": 234,
+        "width": 28,
+        "height": 28,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "enyman 0 req/s",
+       "type": "metric-value",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 12,
+        "text": {
+         "field": "enyman 0 req/s",
+         "mode": "field",
+         "fixed": ""
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 560,
+        "top": 252,
+        "width": 140,
+        "height": 19,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "enyman 0 cpu",
+       "type": "metric-value",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 12,
+        "text": {
+         "field": "enyman 0 cpu",
+         "mode": "field",
+         "fixed": ""
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 560,
+        "top": 271,
+        "width": 140,
+        "height": 19,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "enyman 0 heap",
+       "type": "metric-value",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 12,
+        "text": {
+         "field": "enyman 0 heap",
+         "mode": "field",
+         "fixed": ""
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 560,
+        "top": 290,
+        "width": 140,
+        "height": 19,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "enyman 1 name",
+       "type": "text",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 11,
+        "text": {
+         "fixed": "enyMan 1",
+         "mode": "fixed"
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 700,
+        "top": 252,
+        "width": 96,
+        "height": 18,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "enyman 1 req/s",
+       "type": "metric-value",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 11,
+        "text": {
+         "field": "enyman 1 req/s",
+         "mode": "field",
+         "fixed": ""
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 700,
+        "top": 272,
+        "width": 96,
+        "height": 19,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "enyman 1 cpu",
+       "type": "metric-value",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 11,
+        "text": {
+         "field": "enyman 1 cpu",
+         "mode": "field",
+         "fixed": ""
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 700,
+        "top": 291,
+        "width": 96,
+        "height": 19,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "enyman 1 heap",
+       "type": "metric-value",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 11,
+        "text": {
+         "field": "enyman 1 heap",
+         "mode": "field",
+         "fixed": ""
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 700,
+        "top": 310,
+        "width": 96,
+        "height": 19,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "keysmith icon",
+       "type": "icon",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "path": {
+         "fixed": "img/icons/esq/keysmith.svg",
+         "mode": "fixed"
+        },
+        "fill": {
+         "fixed": "transparent"
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 565,
+        "top": 334,
+        "width": 28,
+        "height": 28,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "keysmith 0 req/s",
+       "type": "metric-value",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 12,
+        "text": {
+         "field": "keysmith 0 req/s",
+         "mode": "field",
+         "fixed": ""
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 560,
+        "top": 352,
+        "width": 140,
+        "height": 19,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "keysmith 0 cpu",
+       "type": "metric-value",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 12,
+        "text": {
+         "field": "keysmith 0 cpu",
+         "mode": "field",
+         "fixed": ""
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 560,
+        "top": 371,
+        "width": 140,
+        "height": 19,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "keysmith 0 heap",
+       "type": "metric-value",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 12,
+        "text": {
+         "field": "keysmith 0 heap",
+         "mode": "field",
+         "fixed": ""
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 560,
+        "top": 390,
+        "width": 140,
+        "height": 19,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "keysmith 1 name",
+       "type": "text",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 11,
+        "text": {
+         "fixed": "keySmith 1",
+         "mode": "fixed"
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 700,
+        "top": 352,
+        "width": 96,
+        "height": 18,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "keysmith 1 req/s",
+       "type": "metric-value",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 11,
+        "text": {
+         "field": "keysmith 1 req/s",
+         "mode": "field",
+         "fixed": ""
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 700,
+        "top": 372,
+        "width": 96,
+        "height": 19,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "keysmith 1 cpu",
+       "type": "metric-value",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 11,
+        "text": {
+         "field": "keysmith 1 cpu",
+         "mode": "field",
+         "fixed": ""
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 700,
+        "top": 391,
+        "width": 96,
+        "height": 19,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "keysmith 1 heap",
+       "type": "metric-value",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 11,
+        "text": {
+         "field": "keysmith 1 heap",
+         "mode": "field",
+         "fixed": ""
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 700,
+        "top": 410,
+        "width": 96,
+        "height": 19,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "kcmaster icon",
+       "type": "icon",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "path": {
+         "fixed": "img/icons/esq/kcmaster.svg",
+         "mode": "fixed"
+        },
+        "fill": {
+         "fixed": "transparent"
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 565,
+        "top": 434,
+        "width": 28,
+        "height": 28,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "kcmaster 0 msg/s",
+       "type": "metric-value",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 12,
+        "text": {
+         "field": "kcmaster 0 msg/s",
+         "mode": "field",
+         "fixed": ""
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 560,
+        "top": 452,
+        "width": 140,
+        "height": 19,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "kcmaster 0 cpu",
+       "type": "metric-value",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 12,
+        "text": {
+         "field": "kcmaster 0 cpu",
+         "mode": "field",
+         "fixed": ""
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 560,
+        "top": 471,
+        "width": 140,
+        "height": 19,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "kcmaster 0 heap",
+       "type": "metric-value",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 12,
+        "text": {
+         "field": "kcmaster 0 heap",
+         "mode": "field",
+         "fixed": ""
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 560,
+        "top": 490,
+        "width": 140,
+        "height": 19,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "kcmaster 1 name",
+       "type": "text",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 11,
+        "text": {
+         "fixed": "kcMaster 1",
+         "mode": "fixed"
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 700,
+        "top": 452,
+        "width": 96,
+        "height": 18,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "kcmaster 1 msg/s",
+       "type": "metric-value",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 11,
+        "text": {
+         "field": "kcmaster 1 msg/s",
+         "mode": "field",
+         "fixed": ""
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 700,
+        "top": 472,
+        "width": 96,
+        "height": 19,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "kcmaster 1 cpu",
+       "type": "metric-value",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 11,
+        "text": {
+         "field": "kcmaster 1 cpu",
+         "mode": "field",
+         "fixed": ""
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 700,
+        "top": 491,
+        "width": 96,
+        "height": 19,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "kcmaster 1 heap",
+       "type": "metric-value",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 11,
+        "text": {
+         "field": "kcmaster 1 heap",
+         "mode": "field",
+         "fixed": ""
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 700,
+        "top": 510,
+        "width": 96,
+        "height": 19,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "gateway icon",
+       "type": "icon",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "path": {
+         "fixed": "img/icons/esq/gateway.svg",
+         "mode": "fixed"
+        },
+        "fill": {
+         "fixed": "transparent"
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 835,
+        "top": 184,
+        "width": 28,
+        "height": 28,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "gateway 0 req/s",
+       "type": "metric-value",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 12,
+        "text": {
+         "field": "gateway 0 req/s",
+         "mode": "field",
+         "fixed": ""
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 830,
+        "top": 202,
+        "width": 140,
+        "height": 19,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "gateway 0 cpu",
+       "type": "metric-value",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 12,
+        "text": {
+         "field": "gateway 0 cpu",
+         "mode": "field",
+         "fixed": ""
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 830,
+        "top": 221,
+        "width": 140,
+        "height": 19,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "gateway 0 net out",
+       "type": "metric-value",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 12,
+        "text": {
+         "field": "gateway 0 net out",
+         "mode": "field",
+         "fixed": ""
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 830,
+        "top": 240,
+        "width": 140,
+        "height": 19,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "gateway 1 name",
+       "type": "text",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 11,
+        "text": {
+         "fixed": "gateway 1",
+         "mode": "fixed"
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 970,
+        "top": 202,
+        "width": 96,
+        "height": 18,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "gateway 1 req/s",
+       "type": "metric-value",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 11,
+        "text": {
+         "field": "gateway 1 req/s",
+         "mode": "field",
+         "fixed": ""
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 970,
+        "top": 222,
+        "width": 96,
+        "height": 19,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "gateway 1 cpu",
+       "type": "metric-value",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 11,
+        "text": {
+         "field": "gateway 1 cpu",
+         "mode": "field",
+         "fixed": ""
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 970,
+        "top": 241,
+        "width": 96,
+        "height": 19,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "gateway 1 net out",
+       "type": "metric-value",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 11,
+        "text": {
+         "field": "gateway 1 net out",
+         "mode": "field",
+         "fixed": ""
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 970,
+        "top": 260,
+        "width": 96,
+        "height": 19,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "keycloak icon",
+       "type": "icon",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "path": {
+         "fixed": "img/icons/esq/keycloak.svg",
+         "mode": "fixed"
+        },
+        "fill": {
+         "fixed": "transparent"
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 835,
+        "top": 434,
+        "width": 28,
+        "height": 28,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "keycloak req/s",
+       "type": "metric-value",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 12,
+        "text": {
+         "field": "keycloak req/s",
+         "mode": "field",
+         "fixed": ""
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 830,
+        "top": 452,
+        "width": 140,
+        "height": 19,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "keycloak cpu",
+       "type": "metric-value",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 12,
+        "text": {
+         "field": "keycloak cpu",
+         "mode": "field",
+         "fixed": ""
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 830,
+        "top": 471,
+        "width": 140,
+        "height": 19,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "keycloak heap",
+       "type": "metric-value",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 12,
+        "text": {
+         "field": "keycloak heap",
+         "mode": "field",
+         "fixed": ""
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 830,
+        "top": 490,
+        "width": 140,
+        "height": 19,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "backend icon",
+       "type": "icon",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "path": {
+         "fixed": "img/icons/esq/explorer.svg",
+         "mode": "fixed"
+        },
+        "fill": {
+         "fixed": "transparent"
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 1085,
+        "top": 184,
+        "width": 28,
+        "height": 28,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "backend 0 req/s",
+       "type": "metric-value",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 12,
+        "text": {
+         "field": "backend 0 req/s",
+         "mode": "field",
+         "fixed": ""
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 1080,
+        "top": 202,
+        "width": 140,
+        "height": 19,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "backend 0 cpu",
+       "type": "metric-value",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 12,
+        "text": {
+         "field": "backend 0 cpu",
+         "mode": "field",
+         "fixed": ""
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 1080,
+        "top": 221,
+        "width": 140,
+        "height": 19,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "backend 0 rss",
+       "type": "metric-value",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 12,
+        "text": {
+         "field": "backend 0 rss",
+         "mode": "field",
+         "fixed": ""
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 1080,
+        "top": 240,
+        "width": 140,
+        "height": 19,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "backend 1 name",
+       "type": "text",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 11,
+        "text": {
+         "fixed": "Explorer 1",
+         "mode": "fixed"
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 1220,
+        "top": 202,
+        "width": 96,
+        "height": 18,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "backend 1 req/s",
+       "type": "metric-value",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 11,
+        "text": {
+         "field": "backend 1 req/s",
+         "mode": "field",
+         "fixed": ""
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 1220,
+        "top": 222,
+        "width": 96,
+        "height": 19,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "backend 1 cpu",
+       "type": "metric-value",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 11,
+        "text": {
+         "field": "backend 1 cpu",
+         "mode": "field",
+         "fixed": ""
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 1220,
+        "top": 241,
+        "width": 96,
+        "height": 19,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "backend 1 rss",
+       "type": "metric-value",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 11,
+        "text": {
+         "field": "backend 1 rss",
+         "mode": "field",
+         "fixed": ""
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 1220,
+        "top": 260,
+        "width": 96,
+        "height": 19,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "bus:audit-c",
+       "type": "rectangle",
+       "background": {
+        "color": {
+         "fixed": "#8FA8C8"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 10,
+        "text": {
+         "fixed": "",
+         "mode": "fixed"
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 300,
+        "top": 25,
+        "width": 46,
+        "height": 500,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "buslabel:audit-c",
+       "type": "text",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 12,
+        "text": {
+         "fixed": "Audit Broadcast Bus    (audit-c)",
+         "mode": "fixed"
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 193.0,
+        "top": 264.0,
+        "width": 260,
+        "height": 22,
+        "rotation": -90
+       },
+       "connections": []
+      },
+      {
+       "name": "bus:esquire.kc",
+       "type": "rectangle",
+       "background": {
+        "color": {
+         "fixed": "#D9C48A"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 10,
+        "text": {
+         "fixed": "",
+         "mode": "fixed"
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 380,
+        "top": 25,
+        "width": 46,
+        "height": 500,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "buslabel:esquire.kc",
+       "type": "text",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 12,
+        "text": {
+         "fixed": "IAM Request-Response Bus    (esquire.kc)",
+         "mode": "fixed"
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 273.0,
+        "top": 264.0,
+        "width": 260,
+        "height": 22,
+        "rotation": -90
+       },
+       "connections": []
+      },
+      {
+       "name": "bus:esquire.entity",
+       "type": "rectangle",
+       "background": {
+        "color": {
+         "fixed": "#9DC08B"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 10,
+        "text": {
+         "fixed": "",
+         "mode": "fixed"
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 460,
+        "top": 25,
+        "width": 46,
+        "height": 500,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "buslabel:esquire.entity",
+       "type": "text",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 12,
+        "text": {
+         "fixed": "Entity Broadcast Bus    (esquire.entity)",
+         "mode": "fixed"
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 353.0,
+        "top": 264.0,
+        "width": 260,
+        "height": 22,
+        "rotation": -90
+       },
+       "connections": []
+      },
+      {
+       "name": "legend:HEALTH:420",
+       "type": "text",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "left",
+        "valign": "middle",
+        "color": {
+         "fixed": "#B0B0B0"
+        },
+        "size": 11,
+        "text": {
+         "fixed": "HEALTH",
+         "mode": "fixed"
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 30,
+        "top": 420,
+        "width": 80,
+        "height": 18,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "legend:sw:OK",
+       "type": "rectangle",
+       "background": {
+        "color": {
+         "fixed": "#37872D"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 10,
+        "text": {
+         "fixed": "OK",
+         "mode": "fixed"
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 30,
+        "top": 440,
+        "width": 62,
+        "height": 18,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "legend:sw:TROUBLE",
+       "type": "rectangle",
+       "background": {
+        "color": {
+         "fixed": "#E0752D"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 10,
+        "text": {
+         "fixed": "TROUBLE",
+         "mode": "fixed"
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 96,
+        "top": 440,
+        "width": 62,
+        "height": 18,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "legend:sw:DOWN",
+       "type": "rectangle",
+       "background": {
+        "color": {
+         "fixed": "#C4162A"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 10,
+        "text": {
+         "fixed": "DOWN",
+         "mode": "fixed"
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 162,
+        "top": 440,
+        "width": 62,
+        "height": 18,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "legend:LINES:468",
+       "type": "text",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "left",
+        "valign": "middle",
+        "color": {
+         "fixed": "#B0B0B0"
+        },
+        "size": 11,
+        "text": {
+         "fixed": "LINES",
+         "mode": "fixed"
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 30,
+        "top": 468,
+        "width": 80,
+        "height": 18,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "legend:--  bus   (p:488",
+       "type": "text",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "left",
+        "valign": "middle",
+        "color": {
+         "fixed": "#9DC08B"
+        },
+        "size": 11,
+        "text": {
+         "fixed": "--  bus   (publish / consume)",
+         "mode": "fixed"
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 30,
+        "top": 488,
+        "width": 230,
+        "height": 18,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "legend:--  database:506",
+       "type": "text",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "left",
+        "valign": "middle",
+        "color": {
+         "fixed": "#C0392B"
+        },
+        "size": 11,
+        "text": {
+         "fixed": "--  database",
+         "mode": "fixed"
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 30,
+        "top": 506,
+        "width": 230,
+        "height": 18,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "legend:--  REST:524",
+       "type": "text",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "left",
+        "valign": "middle",
+        "color": {
+         "fixed": "#000000"
+        },
+        "size": 11,
+        "text": {
+         "fixed": "--  REST",
+         "mode": "fixed"
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 30,
+        "top": 524,
+        "width": 230,
+        "height": 18,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "legend:REDUNDANCY:552",
+       "type": "text",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "left",
+        "valign": "middle",
+        "color": {
+         "fixed": "#B0B0B0"
+        },
+        "size": 11,
+        "text": {
+         "fixed": "REDUNDANCY",
+         "mode": "fixed"
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 30,
+        "top": 552,
+        "width": 100,
+        "height": 18,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "legend:card:40",
+       "type": "rectangle",
+       "background": {
+        "color": {
+         "fixed": "#37872D"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "width": 2
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 10,
+        "text": {
+         "fixed": "",
+         "mode": "fixed"
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 40,
+        "top": 578,
+        "width": 26,
+        "height": 18,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "legend:card:30",
+       "type": "rectangle",
+       "background": {
+        "color": {
+         "fixed": "#37872D"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "width": 2
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 10,
+        "text": {
+         "fixed": "",
+         "mode": "fixed"
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 30,
+        "top": 572,
+        "width": 26,
+        "height": 18,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "legend:--  one card:572",
+       "type": "text",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "left",
+        "valign": "middle",
+        "color": {
+         "fixed": "#B0B0B0"
+        },
+        "size": 11,
+        "text": {
+         "fixed": "--  one card per parallel replica, its OWN number",
+         "mode": "fixed"
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 76,
+        "top": 572,
+        "width": 300,
+        "height": 18,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "legend:    both ser:588",
+       "type": "text",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "left",
+        "valign": "middle",
+        "color": {
+         "fixed": "#B0B0B0"
+        },
+        "size": 11,
+        "text": {
+         "fixed": "    both serve; either can carry alone",
+         "mode": "fixed"
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 76,
+        "top": 588,
+        "width": 300,
+        "height": 18,
+        "rotation": 0
+       },
+       "connections": []
+      }
+     ],
+     "background": {
+      "color": {
+       "fixed": "transparent"
+      }
+     },
+     "border": {
+      "color": {
+       "fixed": "transparent"
+      }
+     },
+     "constraint": {
+      "horizontal": "left",
+      "vertical": "top"
+     },
+     "placement": {
+      "left": 0,
+      "top": 0,
+      "width": 100,
+      "height": 100
+     }
+    }
+   }
+  },
+  {
+   "type": "row",
+   "title": "The bus -- both ends of every hop",
+   "gridPos": {
+    "h": 1,
+    "w": 24,
+    "x": 0,
+    "y": 25
+   },
+   "collapsed": false
+  },
+  {
+   "type": "timeseries",
+   "title": "Traffic per BUS (msg/s)",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "esq-prometheus"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 0,
+    "y": 26
+   },
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+      "drawStyle": "line",
+      "fillOpacity": 10
+     },
+     "unit": "ops",
+     "min": 0
+    },
+    "overrides": []
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "sum by (bus_id) (rate(messaging_send_total[1m]))",
+     "legendFormat": "sent -> {{bus_id}}"
+    },
+    {
+     "refId": "B",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "sum by (bus_id) (rate(messaging_receive_total[1m]))",
+     "legendFormat": "recv <- {{bus_id}}"
+    }
+   ],
+   "description": "The three lanes above, as traffic. audit-c, esquire.kc and esquire.entity are SEPARATE MEDIA with different participants -- which is what the three lanes in the picture say, and what a single bar (or a mesh of arrows) would hide."
+  },
+  {
+   "type": "timeseries",
+   "title": "Queue depth per destination  (what the BROKER holds)",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "esq-prometheus"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 8,
+    "y": 26
+   },
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+      "drawStyle": "line",
+      "fillOpacity": 10
+     },
+     "unit": "short",
+     "min": 0
+    },
+    "overrides": []
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "activemq_queue_depth",
+     "legendFormat": "{{destination}}"
+    }
+   ],
+   "description": "Flat at zero is healthy. Climbing = consumers gone, wedged, or slower than the producers -- and unlike any service-side meter, this STAYS TRUE WHEN THE CONSUMER IS DEAD."
+  },
+  {
+   "type": "timeseries",
+   "title": "Consumers per destination  (the broker's view)",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "esq-prometheus"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 16,
+    "y": 26
+   },
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+      "drawStyle": "line",
+      "fillOpacity": 10
+     },
+     "unit": "short",
+     "min": 0
+    },
+    "overrides": []
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "activemq_queue_consumer_count",
+     "legendFormat": "{{destination}}"
+    },
+    {
+     "refId": "B",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "activemq_topic_consumer_count",
+     "legendFormat": "{{destination}}"
+    }
+   ],
+   "description": "A destination whose consumer count drops to ZERO while its box stays GREEN in the picture: the process is alive and has STOPPED LISTENING. Only the broker can see that."
+  },
+  {
+   "type": "row",
+   "title": "Live request flow -- discovered from real traces",
+   "gridPos": {
+    "h": 1,
+    "w": 24,
+    "x": 0,
+    "y": 34
+   },
+   "collapsed": false
+  },
+  {
+   "type": "nodeGraph",
+   "title": "Service graph -- who ACTUALLY calls whom",
+   "datasource": {
+    "type": "tempo",
+    "uid": "esq-tempo"
+   },
+   "gridPos": {
+    "h": 12,
+    "w": 12,
+    "x": 0,
+    "y": 35
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "tempo",
+      "uid": "esq-tempo"
+     },
+     "queryType": "serviceMap"
+    }
+   ],
+   "description": "The picture above is the architecture as DESIGNED -- always-on, every component, even at zero traffic. THIS is the architecture as it is actually RUNNING, derived by the Collector's servicegraph connector from real spans: it stays true when the code changes and a hand-laid picture would quietly go stale. It includes the R&R BUS HOPS, because those are real PRODUCER/CONSUMER spans. It shows only what TRAFFIC has touched -- a component nobody called is simply ABSENT, which is exactly why the drawn board exists alongside it. Empty at rest is CORRECT."
+  },
+  {
+   "type": "timeseries",
+   "title": "Edge throughput -- caller -> callee (req/s)",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "esq-prometheus"
+   },
+   "gridPos": {
+    "h": 12,
+    "w": 12,
+    "x": 12,
+    "y": 35
+   },
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+      "drawStyle": "line",
+      "fillOpacity": 10
+     },
+     "unit": "reqps",
+     "min": 0
+    },
+    "overrides": []
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "sum by (client, server) (rate(traces_service_graph_request_total[5m]))",
+     "legendFormat": "{{client}} -> {{server}}"
+    }
+   ],
+   "description": "THE INTERESTING FAILURE: an edge that VANISHES here while both of its boxes stay GREEN in the picture above. Both ends are alive and the CALL BETWEEN THEM has stopped -- and no per-component health check anywhere would ever tell you that."
+  }
+ ]
+}

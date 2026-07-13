@@ -173,10 +173,82 @@
       "uid": "esq-prometheus"
      },
      "expr": "histogram_quantile(0.95, sum by (le, application, instance) (rate(http_server_requests_seconds_bucket{application=~\"$application\"}[5m])))",
-     "legendFormat": "{{application}} {{instance}}"
+     "legendFormat": "{{application}} {{instance}}",
+     "exemplar": true
     }
    ],
-   "description": "A GAP HERE IS NOT A BUG -- it means histogram buckets are off, which is the DEFAULT. Percentiles need buckets, and buckets are the single most expensive thing on this stack: the http ones ALONE were 20.5% of the entire scrape (39 series per label-combo), on whether or not anyone ever looked at a percentile. So they are OPT-IN: set esquire.observability.metrics.histograms-enabled=true (ESQ_METRICS_HISTOGRAMS). With it off the timer still records count/sum/max, so every AVERAGE panel stays populated and only the percentile goes dark. Switch it on to investigate a percentile; switch it off for steady state."
+   "description": "CLICK A DIAMOND -- this is the metrics -> trace hop, and the most valuable jump on the pane: a spike here is where a human NOTICES a problem, and each diamond opens the TRACE THAT PRODUCED THAT EXACT SAMPLE (not a similar request -- that one). AN EMPTY PANEL IS NOT A BUG. Both the line and the diamonds ride on histogram buckets, and buckets are OFF BY DEFAULT: they cost ~2.3x the entire scrape (4,597 -> 10,686 series), paid always, whether or not anyone looks at a percentile. So they are opt-in -- set esquire.observability.metrics.histograms-enabled=true (ESQ_METRICS_HISTOGRAMS) to light this panel AND the diamonds, and turn it back off for steady state. With it off every AVERAGE panel stays populated (the timers still record count/sum/max); only the percentile and the exemplars go dark, and they go dark TOGETHER."
+  },
+  {
+   "type": "row",
+   "title": "Logs + Traces",
+   "gridPos": {
+    "h": 1,
+    "w": 24,
+    "x": 0,
+    "y": 14
+   }
+  },
+  {
+   "type": "logs",
+   "title": "Errors + warnings (all services)",
+   "datasource": {
+    "type": "loki",
+    "uid": "esq-loki"
+   },
+   "gridPos": {
+    "h": 9,
+    "w": 12,
+    "x": 0,
+    "y": 15
+   },
+   "options": {
+    "showTime": true,
+    "wrapLogMessage": true,
+    "sortOrder": "Descending",
+    "enableLogDetails": true,
+    "prettifyLogMessage": false
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "loki",
+      "uid": "esq-loki"
+     },
+     "expr": "{job=~\"esq-.*\", container=~\"(esq-)?(gateway|biztree|enyman|pacman|keysmith|kcmaster|aukeep|backend|frontend)\"} | detected_level =~ \"warn|error\"",
+     "queryType": "range"
+    }
+   ],
+   "description": "Live WARN/ERROR across the whole fleet, both targets. Click a line to expand it: the correlationId carries a 'View trace' link (the logs -> trace hop) that opens the trace that produced it. Empty is the healthy state. NOTE correlationId rides as structured METADATA, not a Loki label -- labels would explode cardinality -- which is why it is filtered with a | expression and not inside the {} stream selector."
+  },
+  {
+   "type": "table",
+   "title": "Slowest recent traces (>100ms)",
+   "datasource": {
+    "type": "tempo",
+    "uid": "esq-tempo"
+   },
+   "gridPos": {
+    "h": 9,
+    "w": 12,
+    "x": 12,
+    "y": 15
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "tempo",
+      "uid": "esq-tempo"
+     },
+     "queryType": "traceql",
+     "query": "{ duration > 100ms }",
+     "limit": 20,
+     "tableType": "traces"
+    }
+   ],
+   "description": "Recent traces over 100ms, newest first. Click one to open the waterfall; from a span you can then jump to its logs (trace -> logs) and to the RED metrics of the service it ran in (trace -> metrics). The service.name badge is the ROD-ID (enyman.0) -- the traces pipeline overwrites it with the instance id so the waterfall shows WHICH replica emitted a span; the logical service name rides alongside as esq.app."
   },
   {
    "type": "row",
@@ -185,7 +257,7 @@
     "h": 1,
     "w": 24,
     "x": 0,
-    "y": 14
+    "y": 24
    }
   },
   {
@@ -199,7 +271,7 @@
     "h": 8,
     "w": 8,
     "x": 0,
-    "y": 15
+    "y": 25
    },
    "fieldConfig": {
     "defaults": {
@@ -235,7 +307,7 @@
     "h": 8,
     "w": 8,
     "x": 8,
-    "y": 15
+    "y": 25
    },
    "fieldConfig": {
     "defaults": {
@@ -271,7 +343,7 @@
     "h": 8,
     "w": 8,
     "x": 16,
-    "y": 15
+    "y": 25
    },
    "fieldConfig": {
     "defaults": {
@@ -303,7 +375,7 @@
     "h": 1,
     "w": 24,
     "x": 0,
-    "y": 23
+    "y": 33
    }
   },
   {
@@ -317,7 +389,7 @@
     "h": 8,
     "w": 8,
     "x": 0,
-    "y": 24
+    "y": 34
    },
    "fieldConfig": {
     "defaults": {
@@ -362,7 +434,7 @@
     "h": 8,
     "w": 8,
     "x": 8,
-    "y": 24
+    "y": 34
    },
    "fieldConfig": {
     "defaults": {
@@ -398,7 +470,7 @@
     "h": 8,
     "w": 8,
     "x": 16,
-    "y": 24
+    "y": 34
    },
    "fieldConfig": {
     "defaults": {
@@ -430,7 +502,7 @@
     "h": 1,
     "w": 24,
     "x": 0,
-    "y": 32
+    "y": 42
    }
   },
   {
@@ -444,7 +516,7 @@
     "h": 8,
     "w": 12,
     "x": 0,
-    "y": 33
+    "y": 43
    },
    "fieldConfig": {
     "defaults": {
@@ -480,7 +552,7 @@
     "h": 8,
     "w": 12,
     "x": 12,
-    "y": 33
+    "y": 43
    },
    "fieldConfig": {
     "defaults": {
@@ -512,7 +584,7 @@
     "h": 1,
     "w": 24,
     "x": 0,
-    "y": 41
+    "y": 51
    }
   },
   {
@@ -526,7 +598,7 @@
     "h": 8,
     "w": 12,
     "x": 0,
-    "y": 42
+    "y": 52
    },
    "fieldConfig": {
     "defaults": {
@@ -562,7 +634,7 @@
     "h": 8,
     "w": 12,
     "x": 12,
-    "y": 42
+    "y": 52
    },
    "fieldConfig": {
     "defaults": {
@@ -594,7 +666,7 @@
     "h": 1,
     "w": 24,
     "x": 0,
-    "y": 50
+    "y": 60
    }
   },
   {
@@ -608,7 +680,7 @@
     "h": 8,
     "w": 6,
     "x": 0,
-    "y": 51
+    "y": 61
    },
    "fieldConfig": {
     "defaults": {
@@ -645,7 +717,7 @@
     "h": 8,
     "w": 6,
     "x": 6,
-    "y": 51
+    "y": 61
    },
    "fieldConfig": {
     "defaults": {
@@ -682,7 +754,7 @@
     "h": 8,
     "w": 6,
     "x": 12,
-    "y": 51
+    "y": 61
    },
    "fieldConfig": {
     "defaults": {
@@ -727,7 +799,7 @@
     "h": 8,
     "w": 6,
     "x": 18,
-    "y": 51
+    "y": 61
    },
    "fieldConfig": {
     "defaults": {
@@ -768,7 +840,7 @@
     "h": 1,
     "w": 24,
     "x": 0,
-    "y": 59
+    "y": 69
    }
   },
   {
@@ -782,7 +854,7 @@
     "h": 8,
     "w": 12,
     "x": 0,
-    "y": 60
+    "y": 70
    },
    "fieldConfig": {
     "defaults": {
@@ -827,7 +899,7 @@
     "h": 8,
     "w": 12,
     "x": 12,
-    "y": 60
+    "y": 70
    },
    "fieldConfig": {
     "defaults": {
@@ -872,7 +944,7 @@
     "h": 8,
     "w": 12,
     "x": 0,
-    "y": 68
+    "y": 78
    },
    "fieldConfig": {
     "defaults": {
@@ -908,7 +980,7 @@
     "h": 8,
     "w": 12,
     "x": 12,
-    "y": 68
+    "y": 78
    },
    "fieldConfig": {
     "defaults": {
@@ -940,7 +1012,7 @@
     "h": 1,
     "w": 24,
     "x": 0,
-    "y": 76
+    "y": 86
    }
   },
   {
@@ -954,7 +1026,7 @@
     "h": 8,
     "w": 12,
     "x": 0,
-    "y": 77
+    "y": 87
    },
    "fieldConfig": {
     "defaults": {
@@ -990,7 +1062,7 @@
     "h": 8,
     "w": 12,
     "x": 12,
-    "y": 77
+    "y": 87
    },
    "fieldConfig": {
     "defaults": {
@@ -1026,7 +1098,7 @@
     "h": 8,
     "w": 12,
     "x": 0,
-    "y": 85
+    "y": 95
    },
    "fieldConfig": {
     "defaults": {
@@ -1071,7 +1143,7 @@
     "h": 8,
     "w": 12,
     "x": 12,
-    "y": 85
+    "y": 95
    },
    "fieldConfig": {
     "defaults": {
@@ -1112,7 +1184,7 @@
     "h": 1,
     "w": 24,
     "x": 0,
-    "y": 93
+    "y": 103
    }
   },
   {
@@ -1126,7 +1198,7 @@
     "h": 8,
     "w": 8,
     "x": 0,
-    "y": 94
+    "y": 104
    },
    "fieldConfig": {
     "defaults": {
@@ -1162,7 +1234,7 @@
     "h": 8,
     "w": 8,
     "x": 8,
-    "y": 94
+    "y": 104
    },
    "fieldConfig": {
     "defaults": {
@@ -1198,7 +1270,7 @@
     "h": 8,
     "w": 8,
     "x": 16,
-    "y": 94
+    "y": 104
    },
    "fieldConfig": {
     "defaults": {
@@ -1234,7 +1306,7 @@
     "h": 8,
     "w": 8,
     "x": 0,
-    "y": 102
+    "y": 112
    },
    "fieldConfig": {
     "defaults": {
@@ -1264,7 +1336,8 @@
       "uid": "esq-prometheus"
      },
      "expr": "1000 * histogram_quantile(0.95, sum by (le, application, bus_id) (rate(messaging_send_duration_seconds_bucket{application=~\"$application\"}[5m])))",
-     "legendFormat": "p95 {{application}} -> {{bus_id}}"
+     "legendFormat": "p95 {{application}} -> {{bus_id}}",
+     "exemplar": true
     }
    ],
    "description": "avg is always available. p95 needs the percentile buckets -- turn on the sub-switch esquire.observability.metrics.histograms-enabled (ESQ_METRICS_HISTOGRAMS); with it off the p95 series are simply absent and the avg still plots."
@@ -1280,7 +1353,7 @@
     "h": 8,
     "w": 8,
     "x": 8,
-    "y": 102
+    "y": 112
    },
    "fieldConfig": {
     "defaults": {
@@ -1316,7 +1389,7 @@
     "h": 8,
     "w": 4,
     "x": 16,
-    "y": 102
+    "y": 112
    },
    "fieldConfig": {
     "defaults": {
@@ -1362,7 +1435,7 @@
     "h": 8,
     "w": 4,
     "x": 20,
-    "y": 102
+    "y": 112
    },
    "fieldConfig": {
     "defaults": {
@@ -1390,12 +1463,334 @@
   },
   {
    "type": "row",
+   "title": "Broker (ActiveMQ)",
+   "gridPos": {
+    "h": 1,
+    "w": 24,
+    "x": 0,
+    "y": 120
+   }
+  },
+  {
+   "type": "timeseries",
+   "title": "Queue depth (pending messages)",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "esq-prometheus"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 0,
+    "y": 121
+   },
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+      "drawStyle": "line",
+      "fillOpacity": 10
+     },
+     "unit": "short",
+     "min": 0
+    },
+    "overrides": []
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "activemq_queue_depth",
+     "legendFormat": "{{destination}}"
+    }
+   ],
+   "description": "THE number that says the bus is in trouble. Healthy is flat at (or near) zero: messages are consumed as fast as they arrive. A depth that climbs and does not come back down means the consumers are gone, wedged, or slower than the producers -- and unlike a service-side meter, this keeps being true when the consumer is dead. All four destinations are DECLARED in activemq.xml, so they are plotted from broker start at zero traffic rather than appearing only after the first message."
+  },
+  {
+   "type": "timeseries",
+   "title": "Enqueue / dequeue rate (msg/s)",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "esq-prometheus"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 8,
+    "y": 121
+   },
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+      "drawStyle": "line",
+      "fillOpacity": 10
+     },
+     "unit": "ops",
+     "min": 0
+    },
+    "overrides": []
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "sum by (destination) (rate(activemq_queue_enqueue_count[1m]))",
+     "legendFormat": "in  {{destination}}"
+    },
+    {
+     "refId": "B",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "sum by (destination) (rate(activemq_queue_dequeue_count[1m]))",
+     "legendFormat": "out {{destination}}"
+    },
+    {
+     "refId": "C",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "sum by (destination) (rate(activemq_topic_enqueue_count[1m]))",
+     "legendFormat": "in  {{destination}}"
+    },
+    {
+     "refId": "D",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "sum by (destination) (rate(activemq_topic_dispatch_count[1m]))",
+     "legendFormat": "out {{destination}}"
+    }
+   ],
+   "description": "In vs out per destination. The two lines tracking each other is the healthy shape -- in running above out is what fills the queue-depth panel to the left. Topics dispatch once per subscriber, so a topic's out legitimately runs at a MULTIPLE of its in (3 consumers on esquire.entity.broadcast means out = 3x in), which is not a leak. From the broker's own JMX MBeans (the JMX exporter agent inside the broker JVM), not from any service. This is the only place the bus can be seen from the OUTSIDE: what is actually sitting in a destination, and whether anyone is still consuming it."
+  },
+  {
+   "type": "timeseries",
+   "title": "Consumers / producers per destination",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "esq-prometheus"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 16,
+    "y": 121
+   },
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+      "drawStyle": "line",
+      "fillOpacity": 10
+     },
+     "unit": "short",
+     "min": 0
+    },
+    "overrides": []
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "activemq_queue_consumer_count",
+     "legendFormat": "consumers {{destination}}"
+    },
+    {
+     "refId": "B",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "activemq_topic_consumer_count",
+     "legendFormat": "consumers {{destination}}"
+    },
+    {
+     "refId": "C",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "activemq_queue_producer_count",
+     "legendFormat": "producers {{destination}}"
+    }
+   ],
+   "description": "A consumer count that DROPS TO ZERO on a live destination is the failure the service-side meters cannot report -- the service that should be listening is simply not there, and no meter of its own will ever say so because it is not running. Pair this with the depth panel: consumers 0 + depth climbing is an outage, in that order."
+  },
+  {
+   "type": "timeseries",
+   "title": "Broker usage (%)",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "esq-prometheus"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 0,
+    "y": 129
+   },
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+      "drawStyle": "line",
+      "fillOpacity": 10
+     },
+     "unit": "percent",
+     "min": 0
+    },
+    "overrides": []
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "activemq_broker_memory_percent_usage",
+     "legendFormat": "memory"
+    },
+    {
+     "refId": "B",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "activemq_broker_temp_percent_usage",
+     "legendFormat": "temp"
+    }
+   ],
+   "description": "Percent of the broker's CONFIGURED limits (systemUsage in activemq.xml), not of the disk or the pod. MEMORY is the one to watch: the broker is non-persistent, so the bus lives in RAM and this is what back-pressures producers when a consumer dies. Temp is the spool memory overflows into. There is deliberately NO store line -- with no message store it could only ever read 0, and a metric that is always zero reads like a healthy signal."
+  },
+  {
+   "type": "timeseries",
+   "title": "Broker connections + total messages",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "esq-prometheus"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 8,
+    "y": 129
+   },
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+      "drawStyle": "line",
+      "fillOpacity": 10
+     },
+     "unit": "short",
+     "min": 0
+    },
+    "overrides": []
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "activemq_broker_current_connections_count",
+     "legendFormat": "connections"
+    },
+    {
+     "refId": "B",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "activemq_broker_total_message_count",
+     "legendFormat": "messages held (all destinations)"
+    },
+    {
+     "refId": "C",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "activemq_broker_total_consumer_count",
+     "legendFormat": "consumers"
+    },
+    {
+     "refId": "D",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "activemq_broker_total_producer_count",
+     "legendFormat": "producers"
+    }
+   ],
+   "description": "Broker-wide totals. Connections dropping is the fleet losing the bus; messages-held is the sum of every destination's depth, so it is the single number to alarm on. From the broker's own JMX MBeans (the JMX exporter agent inside the broker JVM), not from any service. This is the only place the bus can be seen from the OUTSIDE: what is actually sitting in a destination, and whether anyone is still consuming it."
+  },
+  {
+   "type": "timeseries",
+   "title": "Broker JVM heap (MB) + uptime",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "esq-prometheus"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 16,
+    "y": 129
+   },
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+      "drawStyle": "line",
+      "fillOpacity": 10
+     },
+     "unit": "short",
+     "min": 0
+    },
+    "overrides": []
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "sum(jvm_memory_used_bytes{job=\"activemq\", area=\"heap\"}) / 1024 / 1024",
+     "legendFormat": "heap used (MB)"
+    },
+    {
+     "refId": "B",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "activemq_broker_uptime_millis / 1000 / 60",
+     "legendFormat": "uptime (min)"
+    }
+   ],
+   "description": "The broker's OWN JVM -- free with the agent, since it runs inside that JVM. A broker heap climbing to its ceiling is what turns into the memory%% back-pressure on the panel to the left. Uptime resetting to zero means the broker restarted, which resets every counter on this row (they are broker-lifetime totals, not persisted)."
+  },
+  {
+   "type": "row",
    "title": "Latency bands",
    "gridPos": {
     "h": 1,
     "w": 24,
     "x": 0,
-    "y": 110
+    "y": 137
    }
   },
   {
@@ -1409,7 +1804,7 @@
     "h": 8,
     "w": 8,
     "x": 8,
-    "y": 111
+    "y": 138
    },
    "fieldConfig": {
     "defaults": {
@@ -1473,7 +1868,7 @@
     "h": 8,
     "w": 8,
     "x": 0,
-    "y": 111
+    "y": 138
    },
    "fieldConfig": {
     "defaults": {
@@ -1536,7 +1931,7 @@
     "h": 8,
     "w": 8,
     "x": 16,
-    "y": 111
+    "y": 138
    },
    "fieldConfig": {
     "defaults": {
@@ -1557,7 +1952,8 @@
       "uid": "esq-prometheus"
      },
      "expr": "1000 * histogram_quantile(0.95, sum by (le, route) (rate(esq_gw_outer_seconds_bucket[5m])))",
-     "legendFormat": "{{route}}"
+     "legendFormat": "{{route}}",
+     "exemplar": true
     }
    ],
    "description": "Percentile buckets are opt-in: this panel needs esquire.observability.metrics.histograms-enabled=true (ESQ_METRICS_HISTOGRAMS). With it off the timers still emit count/sum/max, so the avg-by-layer panel beside this one stays populated."
@@ -1569,7 +1965,7 @@
     "h": 1,
     "w": 24,
     "x": 0,
-    "y": 119
+    "y": 146
    }
   },
   {
@@ -1583,7 +1979,7 @@
     "h": 8,
     "w": 8,
     "x": 0,
-    "y": 120
+    "y": 147
    },
    "fieldConfig": {
     "defaults": {
@@ -1620,7 +2016,7 @@
     "h": 8,
     "w": 8,
     "x": 8,
-    "y": 120
+    "y": 147
    },
    "fieldConfig": {
     "defaults": {
@@ -1657,7 +2053,7 @@
     "h": 8,
     "w": 8,
     "x": 16,
-    "y": 120
+    "y": 147
    },
    "fieldConfig": {
     "defaults": {
@@ -1699,7 +2095,7 @@
     "h": 1,
     "w": 24,
     "x": 0,
-    "y": 128
+    "y": 155
    }
   },
   {
@@ -1713,7 +2109,7 @@
     "h": 8,
     "w": 8,
     "x": 0,
-    "y": 129
+    "y": 156
    },
    "fieldConfig": {
     "defaults": {
@@ -1750,7 +2146,7 @@
     "h": 8,
     "w": 4,
     "x": 8,
-    "y": 129
+    "y": 156
    },
    "fieldConfig": {
     "defaults": {
@@ -1787,7 +2183,7 @@
     "h": 8,
     "w": 4,
     "x": 12,
-    "y": 129
+    "y": 156
    },
    "fieldConfig": {
     "defaults": {
@@ -1833,7 +2229,7 @@
     "h": 8,
     "w": 8,
     "x": 16,
-    "y": 129
+    "y": 156
    },
    "fieldConfig": {
     "defaults": {
@@ -1866,7 +2262,7 @@
     "h": 1,
     "w": 24,
     "x": 0,
-    "y": 137
+    "y": 164
    }
   },
   {
@@ -1880,7 +2276,7 @@
     "h": 8,
     "w": 8,
     "x": 0,
-    "y": 138
+    "y": 165
    },
    "fieldConfig": {
     "defaults": {
@@ -1917,7 +2313,7 @@
     "h": 8,
     "w": 8,
     "x": 8,
-    "y": 138
+    "y": 165
    },
    "fieldConfig": {
     "defaults": {
@@ -1954,7 +2350,7 @@
     "h": 8,
     "w": 8,
     "x": 16,
-    "y": 138
+    "y": 165
    },
    "fieldConfig": {
     "defaults": {
@@ -1996,7 +2392,7 @@
     "h": 1,
     "w": 24,
     "x": 0,
-    "y": 146
+    "y": 173
    }
   },
   {
@@ -2010,7 +2406,7 @@
     "h": 8,
     "w": 6,
     "x": 0,
-    "y": 147
+    "y": 174
    },
    "fieldConfig": {
     "defaults": {
@@ -2047,7 +2443,7 @@
     "h": 8,
     "w": 6,
     "x": 6,
-    "y": 147
+    "y": 174
    },
    "fieldConfig": {
     "defaults": {
@@ -2084,7 +2480,7 @@
     "h": 8,
     "w": 6,
     "x": 12,
-    "y": 147
+    "y": 174
    },
    "fieldConfig": {
     "defaults": {
@@ -2121,7 +2517,7 @@
     "h": 8,
     "w": 6,
     "x": 18,
-    "y": 147
+    "y": 174
    },
    "fieldConfig": {
     "defaults": {
@@ -2154,7 +2550,7 @@
     "h": 1,
     "w": 24,
     "x": 0,
-    "y": 155
+    "y": 182
    }
   },
   {
@@ -2168,7 +2564,7 @@
     "h": 8,
     "w": 8,
     "x": 0,
-    "y": 156
+    "y": 183
    },
    "fieldConfig": {
     "defaults": {
@@ -2214,7 +2610,7 @@
     "h": 8,
     "w": 8,
     "x": 8,
-    "y": 156
+    "y": 183
    },
    "fieldConfig": {
     "defaults": {
@@ -2251,7 +2647,7 @@
     "h": 8,
     "w": 8,
     "x": 16,
-    "y": 156
+    "y": 183
    },
    "fieldConfig": {
     "defaults": {

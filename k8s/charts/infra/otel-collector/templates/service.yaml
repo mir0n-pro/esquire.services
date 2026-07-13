@@ -17,3 +17,11 @@ spec:
     - name: otlp-grpc
       port: 4317
       targetPort: 4317
+    # T9-C: the servicegraph edges (8889) and the collector's own telemetry (8888). Both are SCRAPED, so they
+    # must be reachable -- a connector emitting perfectly into a port nobody can reach is the same as no graph.
+    - name: servicegraph
+      port: 8889
+      targetPort: 8889
+    - name: telemetry
+      port: 8888
+      targetPort: 8888

@@ -15,7 +15,7 @@ spec:
         app: {{ .Release.Name }}
       annotations:
         checksum/datasource: {{ .Files.Get "templates/configmap-datasource.yaml" | sha256sum }}
-        checksum/dashboards: {{ .Files.Get "dashboards/esquire-services.json" | sha256sum }}
+        checksum/dashboards: {{ printf "%s%s%s" (.Files.Get "dashboards/esquire-services.json") (.Files.Get "dashboards/esquire-logging.json") (.Files.Get "dashboards/esquire-topology.json") | sha256sum }}
     spec:
       securityContext:
         # grafana image default uid 472; fsGroup so the ephemeral /var/lib/grafana is writable.
@@ -54,6 +54,10 @@ spec:
               mountPath: /etc/grafana/provisioning/datasources
             - name: dashboards
               mountPath: /etc/grafana/provisioning/dashboards
+            # OUR component logos, served from Grafana's own public tree (the topology canvas references them as
+            # img/icons/esq/<name>.svg). Same set as docker, from the same source.
+            - name: icons
+              mountPath: /usr/share/grafana/public/img/icons/esq
             - name: data
               mountPath: /var/lib/grafana
       volumes:
@@ -63,5 +67,8 @@ spec:
         - name: dashboards
           configMap:
             name: {{ .Release.Name }}-dashboards
+        - name: icons
+          configMap:
+            name: {{ .Release.Name }}-icons
         - name: data
           emptyDir: {}

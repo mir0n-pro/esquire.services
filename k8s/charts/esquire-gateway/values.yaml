@@ -75,7 +75,11 @@ logging:
 observability:
   # ONE master switch: tracing + metrics together (v1.2.11 O1/O2). Off by default.
   enabled: "false"
-  # Percentile buckets for the extra latency timers (O1/T5-B). Off = count/sum/max only.
+  # Percentile buckets on every latency timer (O1/T5-B). OFF by default -- they cost ~2.3x the
+  # scrape (4,597 -> 10,686 series), paid on every scrape whether or not anyone looks.
+  # NOTE what goes dark WITH them: the exemplar diamonds. The metrics -> trace hop hangs a
+  # trace_id off a BUCKET sample, so with buckets off there is nowhere to attach one -- the hop
+  # is wired but inert. Set true to investigate a percentile or to use that hop.
   metricsHistograms: "false"
   # HTTP byte counters (O1/T5-C). Cheap, so ON by default. One knob for BOTH embedded servers.
   metricsBandwidth: "true"

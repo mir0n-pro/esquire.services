@@ -1,6 +1,34 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v1.2.11-2607.1222  v1.2.11 -- observability: the message broker reports, the three signals link up, and the system draws itself
+    :Feature:     the message broker now reports on itself -- what is waiting in each queue, whether anyone is
+                  listening to it, how full its memory is, and how many clients are connected
+    :Feature:     a reading on a chart, a request trace, and a log line are now linked to one another: from a slow
+                  point on a graph you reach the request that caused it, from that request its log lines, and from
+                  a log line back to the request
+    :Feature:     a new picture of the running system -- every component, the three message buses, and the calls
+                  between them, each box carrying its own live readings and turning red when it stops reporting
+    :Feature:     on the cluster the picture shows each parallel copy of a service as its own box with its own
+                  readings, and warns when one copy sits idle while its twin does all the work
+    :Feature:     a new logging view: how much each service is saying, what it is complaining about, and every log
+                  line of a single request across every service it touched
+    :Fix:         switching the detailed timing breakdowns on is what makes the chart-to-trace link work at all;
+                  they were being switched on by an environment variable someone had typed by hand, so the link
+                  worked on the developer machine and silently did not exist on the cluster
+    :Fix:         messages were being sent in the mode that makes the sender wait for the broker to confirm every
+                  one of them, although the broker keeps nothing on disk and there was nothing to confirm; sending
+                  the same 2000 messages now takes 27ms instead of 233ms
+    :Fix:         the gateway is the first thing every request meets, and it was the one service whose log lines
+                  could not be found when tracing that request
+    :Config:      the broker's reporting rides the same observability switch as everything else, and is off unless
+                  it is turned on
+    Components:   gateway,
+                  tp-activemq,
+                  activemq,
+                  compose,
+                  k8s
+
 v1.2.11-2607.1120  v1.2.11 -- observability: what each service DOES, not just how it runs
     :Feature:     every service now reports on its own work, not only its health -- entities created, moved and
                   deleted, money moved, identities synced with the login server, tree updates applied, audit

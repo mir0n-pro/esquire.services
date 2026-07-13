@@ -40,3 +40,38 @@ scrape_configs:
     metrics_path: /metrics
     static_configs:
       - targets: [ postgres-exporter:9187 ]
+
+  # The SERVICE GRAPH (T9-C). The OTel Collector's servicegraph connector derives caller->callee edges from the
+  # spans flowing through it and exposes them here as traces_service_graph_request_* . This is the ONLY metric
+  # source that knows the SHAPE of the system rather than the state of one component -- and it discovers it from
+  # real traffic, so it stays true when the architecture changes and a hand-drawn map would not.
+  - job_name: otel-servicegraph
+    metrics_path: /metrics
+    static_configs:
+      - targets: [ otel-collector:8889 ]
+
+  # The collector's OWN telemetry (:8888) -- spans accepted / refused, exporter queue. The hub every trace passes
+  # through was reporting nothing about itself: if it started DROPPING spans the only symptom would have been
+  # traces quietly going missing, with no metric anywhere to say so.
+  - job_name: otel-collector
+    metrics_path: /metrics
+    static_configs:
+      - targets: [ otel-collector:8888 ]
+    relabel_configs:
+      - target_label: component
+        replacement: collector
+
+  # NOTE what is deliberately NOT scraped (mir0n, 2026-07-12): Prometheus / Loki / Tempo / Grafana / Alloy all
+  # expose /metrics natively and it would cost nothing to scrape them -- and they are still left alone. The
+  # topology board answers "what is the SYSTEM doing", and six boxes of tooling watching the tooling drowns that
+  # question. The VIEWER IS NOT THE SYSTEM. Scraping them with nothing reading it would just be dead config.
+  # The Collector is the one exception below, and for a reason that is about our DATA, not about the tool.
+
+  # ActiveMQ broker -- via the Prometheus JMX exporter agent running INSIDE the broker JVM on :9404 (no sidecar,
+  # no bridge). Gives what the service-side bus meters cannot: what is SITTING in each destination (queue depth),
+  # whether a consumer is still attached, and how full the broker's memory / store / temp is. Like the Java
+  # services, the endpoint exists only when ESQ_OBSERVABILITY_ENABLED=true; otherwise the target reads "down".
+  - job_name: activemq
+    metrics_path: /metrics
+    static_configs:
+      - targets: [ activemq:9404 ]

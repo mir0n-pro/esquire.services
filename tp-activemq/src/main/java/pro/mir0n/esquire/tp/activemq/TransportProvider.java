@@ -34,6 +34,11 @@
  *                   (a stable ApplMsgID minted ONCE, absent-only), dispatch() materializes the JMS message + sends
  *                   it THROWING on a transport failure (+ SendingTime per physical send), accept() is the
  *                   best-effort (retry-off) encode+dispatch swallowing path; the swallowing sink Consumer removed
+ * 07/12/2026 mir0n  v1.2.11 -- PARAM_PERSISTENT ("persistent") added: the JMS delivery mode read from
+ *                   transport.params.persistent (absent = false = NON_PERSISTENT), applied on the JmsTemplate via
+ *                   setExplicitQosEnabled(true) + setDeliveryPersistent(...) -- without explicit QoS the delivery
+ *                   mode is silently ignored. Excluded from withParams (a setter, not a broker-URI option); the
+ *                   publisher-opened devLog line now carries persistent=
  */
 package pro.mir0n.esquire.tp.activemq;
 
@@ -76,6 +81,21 @@ public final class TransportProvider implements ITransportProvider {
      *  listener container -- so it is read here and excluded from {@link #withParams}. Absent = false = queue. */
     private static final String PARAM_PUBSUB_DOMAIN = "pubSubDomain";
 
+    /** JMS delivery mode, carried as a vendor param ({@code transport.params.persistent}). Absent = false =
+     *  NON_PERSISTENT. Like {@link #PARAM_PUBSUB_DOMAIN} it is applied via a setter, not a broker-URI option, so
+     *  it is excluded from {@link #withParams}.
+     *
+     *  <p>It matters far more than "does the broker write to disk". JMS requires a SYNCHRONOUS send for a
+     *  message marked PERSISTENT -- the producer blocks for a broker ack on every message -- whether or not the
+     *  broker persists anything. So against a non-persistent broker the PERSISTENT flag buys nothing at all and
+     *  still costs a round-trip per send. Measured on the local broker, 2000 sends: 233 ms persistent vs 27 ms
+     *  non-persistent.
+     *
+     *  <p>This MUST agree with the broker's own {@code persistent} setting. That is exactly why it is a declared
+     *  bus param rather than a constant here: the coupling is visible in the topology, where whoever changes the
+     *  broker will see it, instead of hidden in a file they will never open. */
+    private static final String PARAM_PERSISTENT = "persistent";
+
     public TransportProvider() {
     }
 
@@ -93,10 +113,15 @@ public final class TransportProvider implements ITransportProvider {
         if (s.poolSize() > 0) {
             ccf.setSessionCacheSize(s.poolSize());
         }
+        boolean persistent = Boolean.parseBoolean(s.param(PARAM_PERSISTENT, "false"));
         JmsTemplate jms = new JmsTemplate(ccf);
         jms.setPubSubDomain(pubSub);
-        devLog.info("tp-activemq: publisher opened on {} (broker={}, {}, poolSize={})",
-                destination, brokerUrl, pubSub ? "topic" : "queue", s.poolSize());
+        // JmsTemplate ignores the delivery mode unless explicit QoS is switched on -- without this line
+        // setDeliveryPersistent is silently a no-op and every send stays PERSISTENT.
+        jms.setExplicitQosEnabled(true);
+        jms.setDeliveryPersistent(persistent);
+        devLog.info("tp-activemq: publisher opened on {} (broker={}, {}, poolSize={}, persistent={})",
+                destination, brokerUrl, pubSub ? "topic" : "queue", s.poolSize(), persistent);
 
         // close() (on the returned handle) releases the caching connection factory (the cached connection +
         // sessions); the underlying ActiveMQConnectionFactory holds no connection of its own. The handle carries
@@ -207,8 +232,10 @@ public final class TransportProvider implements ITransportProvider {
         if (brokerUrl != null && params != null && !params.isEmpty()) {
             StringBuilder q = new StringBuilder();
             for (Map.Entry<String, String> e : params.entrySet()) {
-                if (PARAM_PUBSUB_DOMAIN.equals(e.getKey()) || BusConstants.PARAM_NO_LOCAL.equals(e.getKey())) {
-                    continue;   // applied via a setter (setPubSubDomain / setPubSubNoLocal), not a broker-URI option
+                if (PARAM_PUBSUB_DOMAIN.equals(e.getKey()) || BusConstants.PARAM_NO_LOCAL.equals(e.getKey())
+                        || PARAM_PERSISTENT.equals(e.getKey())) {
+                    continue;   // applied via a setter (setPubSubDomain / setPubSubNoLocal / setDeliveryPersistent),
+                                // not a broker-URI option
                 }
                 q.append(q.length() == 0 ? "" : "&").append(e.getKey()).append('=').append(e.getValue());
             }

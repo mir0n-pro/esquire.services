@@ -1,5 +1,12 @@
 Esquire Gateway Microservice
 
+07/12/2026 mir0n  v1.2.11 -- the gateway's request log line carries correlationId as a FIELD (O1/T9)
+filters.RequestTraceFilter
+  - the INCOMING log line is wrapped in MDC.put/remove of PD_CORRELATION_ID and PD_REQUEST_ID, so correlationId is
+    emitted as a log FIELD and not only as message text. The gateway is reactive, so the servlet MdcFilter never
+    runs here; the put is safe because the log call is synchronous on this thread, and the remove is in a finally
+    because a reactor thread is pooled and a leaked entry would stamp the next request
+
 07/11/2026 mir0n  v1.2.11 -- business meters (O1/T8): the token relay -- cache hit rate and the KeyCloak round-trip
 security.tokenrelay.TokenRelayCache
   - getOrAcquire() counts esq.biz.gw.tokenrelay.total (tag result = hit|miss). A GENUINE hit/miss: a hit serves

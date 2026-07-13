@@ -35,7 +35,13 @@ services:
   # (connections, transactions, cache hit ratio, DB size). Scraped by the "postgres" job on :9187.
   postgres-exporter:
     container_name: esq-postgres-exporter
-    image: quay.io/prometheuscommunity/postgres-exporter:v0.16.0
+    # v0.16.0 -> v0.20.1 (v1.2.11 T9-B). PostgreSQL 17 REMOVED the checkpoint columns from pg_stat_bgwriter and
+    # moved them to pg_stat_checkpointer; v0.16.0 still queried the PG16 shape, so its stat_bgwriter collector
+    # failed on EVERY scrape ("column checkpoints_timed does not exist") against our PG18 host / PG17 k8s DB.
+    # 2,728 ERROR lines and counting -- invisible until the T9-B logging dashboard put errors on screen, and
+    # exactly the noise that drowns a panel whose value is "empty is healthy". No panel used those metrics, so
+    # nothing was lost; v0.20.1 scrapes PG18 clean AND adds the stat_checkpointer collector.
+    image: quay.io/prometheuscommunity/postgres-exporter:v0.20.1
     profiles: ["o11y"]
     environment:
       - DATA_SOURCE_NAME=postgresql://esq2025:q@postgres:5432/esq2025?sslmode=disable
@@ -54,6 +60,18 @@ services:
     ports:
       - "61616:61616"   # JMS/OpenWire broker port
       - "8161:8161"     # ActiveMQ web console (admin/admin)
+    environment:
+      # Loads the JMX exporter agent inside the broker JVM and serves /metrics on :9404 (in-network only --
+      # Prometheus scrapes it over esquirenet). Off by default, like every other observability surface: the
+      # agent is baked into the image but the entrypoint only passes -javaagent when this is true.
+      ESQ_OBSERVABILITY_ENABLED: "${ESQ_OBSERVABILITY_ENABLED:-false}"
+      # The broker is NON-PERSISTENT (activemq.xml): no message store, nothing survives a restart -- by design.
+      # The data dir still holds the temp spool + the broker log, and it must match the volume mounted below,
+      # which otherwise sits empty (the broker's own default data dir is the container's ephemeral layer).
+      ESQ_AMQ_DATA_DIR: /var/opt/activemq/data
+      # No store limit exists: with no store there is nothing to bound. This is the spool that memoryUsage
+      # (70% of heap) overflows into -- the only disk an in-memory bus can touch.
+      ESQ_AMQ_TEMP_LIMIT: 512mb
     volumes:
       - ./data/activemq:/var/opt/activemq/data
     healthcheck:
@@ -735,7 +753,12 @@ services:
       - ESQ_GW_PHANTOM_CLIENTS=esq-hauberk-M
       - ESQ_GW_EXCHANGE_CLIENT_ID=esq-gw-exchange
       - ESQ_GW_EXCHANGE_CLIENT_SECRET=esq-gw-exchange-dev-secret-rotate-in-prod
-    command: ["java", "-jar", "app.jar"]
+    # --enable-native-access=ALL-UNNAMED : the gateway is the ONE Netty runtime in the fleet (Spring
+    # Cloud Gateway); the rest are Tomcat. Netty loads a native library, and on Java 25 (JEP 472) that
+    # is a RESTRICTED method -- the JVM warns today and says so itself: "Restricted methods will be
+    # BLOCKED in a future release unless native access is enabled". Not warning-suppression: it grants
+    # the access Netty legitimately needs, before a future JDK refuses to start the gateway at all.
+    command: ["java", "--enable-native-access=ALL-UNNAMED", "-jar", "app.jar"]
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
@@ -873,6 +896,10 @@ services:
       - GF_ANALYTICS_REPORTING_ENABLED=false
     volumes:
       - ./o11y/grafana/provisioning:/etc/grafana/provisioning:ro
+      # OUR OWN component logos (the same set the README legend and ComponentModel.svg use), served from
+      # Grafana's public tree so the topology canvas can reference them as img/icons/esq/<component>.svg.
+      # Generic third-party icons would have made the board a THIRD picture of the same system.
+      - ./o11y/grafana/icons:/usr/share/grafana/public/img/icons/esq:ro
       - grafana-data:/var/lib/grafana
     depends_on:
       loki:
@@ -922,6 +949,12 @@ services:
     command:
       - --config.file=/etc/prometheus/prometheus.yml
       - --storage.tsdb.retention.time=6h
+      # Exemplars are the metrics -> trace hop: the services already ATTACH a trace_id to every histogram
+      # bucket (Boot wires the exemplar SpanContext), but without this feature flag Prometheus parses them and
+      # THROWS THEM AWAY -- silently, with no error anywhere. Off by default upstream.
+      # NOTE the buckets are the carrier: exemplars only exist on histogram buckets, so the hop is inert until
+      # ESQ_METRICS_HISTOGRAMS=true (off by default -- it costs 2.3x the scrape; see the T8 cost table).
+      - --enable-feature=exemplar-storage
     volumes:
       - ./o11y/prometheus.yml:/etc/prometheus/prometheus.yml:ro
     ports:
