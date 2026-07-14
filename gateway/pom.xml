@@ -38,6 +38,14 @@
 			<groupId>org.springframework.cloud</groupId>
 			<artifactId>spring-cloud-starter-circuitbreaker-reactor-resilience4j</artifactId>
 		</dependency>
+		<!-- The bulkhead. Spring Cloud puts one in front of every circuit breaker and it was already on the
+		     RUNTIME classpath (it ran at the library default of 25 concurrent calls, unnamed and unowned).
+		     The starter does not expose it for COMPILE, so declaring it here is what lets ResilienceConfig
+		     size the bulkhead on purpose and tell the breaker to ignore its rejections (T10). -->
+		<dependency>
+			<groupId>io.github.resilience4j</groupId>
+			<artifactId>resilience4j-bulkhead</artifactId>
+		</dependency>
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-data-redis-reactive</artifactId>

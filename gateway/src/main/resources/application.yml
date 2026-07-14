@@ -35,13 +35,36 @@ esq:
       circuit-breaker:
         timeout-seconds:        ${GW_CB_TIMEOUT_S:10}      # default per-route call deadline
         slow-timeout-seconds:   ${GW_CB_SLOW_TIMEOUT_S:30} # move / acct / create routes
-        sliding-window:         ${GW_CB_WINDOW:20}
+        # COUNT_BASED = the last N calls; TIME_BASED = the last N seconds. TIME_BASED because a count
+        # window never forgets on a QUIET route: /esq-enode's "last 20 calls" can span minutes, so a
+        # verdict formed in one burst was still being enforced in the next run. sliding-window is the
+        # size -- calls when COUNT_BASED, SECONDS when TIME_BASED.
+        sliding-window-type:    ${GW_CB_WINDOW_TYPE:TIME_BASED}
+        sliding-window:         ${GW_CB_WINDOW:30}
         minimum-calls:          ${GW_CB_MIN_CALLS:10}
         failure-rate:           ${GW_CB_FAILURE_RATE:50}
         slow-call-rate:         ${GW_CB_SLOW_RATE:100}
         slow-call-seconds:      ${GW_CB_SLOW_DURATION_S:8}
         open-wait-seconds:      ${GW_CB_OPEN_WAIT_S:10}
-        half-open-calls:        ${GW_CB_HALFOPEN_CALLS:5}
+        # The HALF_OPEN probe window: the breaker permits this many calls and refuses the rest. At the
+        # old value of 5 a start-up burst of ~70 got 5 probes and ~65 x 503 -- recovery WAS the outage.
+        half-open-calls:        ${GW_CB_HALFOPEN_CALLS:20}
+      # The cap on CONCURRENT in-flight calls per BREAKER. Spring Cloud adds one whether or not you ask;
+      # left unnamed it ran at the library default of 25 and REJECTED the 26th caller -- and the breaker
+      # counted that rejection as a backend failure, so a burst on a healthy route opened the breaker (T10).
+      #
+      # It is a BACKSTOP, never the primary limiter: concurrency is really bounded by the httpclient pool
+      # above, which QUEUES. So it is DERIVED from that pool rather than fixed -- max-connections x
+      # queue-per-connection. A fixed number silently becomes the primary limiter as soon as demand grows
+      # past it, and then sheds work the system could have served. A hand-picked 100 did exactly that: a
+      # breaker fronts SEVERAL routes (enyman-cb = /esq-cmd + -save + -del + -tree), so their concurrency
+      # ADDS UP (64+32+32 = 128 > 100) -- and whether it shed at all depended on the REPLICA COUNT.
+      #
+      # max-concurrent-calls: 0 = derive (16 x pool). Set a positive number only to override deliberately.
+      bulkhead:
+        max-concurrent-calls:   ${GW_BULKHEAD_MAX_CONCURRENT:0}
+        queue-per-connection:   ${GW_BULKHEAD_QUEUE_PER_CONN:16}
+        max-wait-ms:            ${GW_BULKHEAD_MAX_WAIT_MS:0}   # 0 = shed at once; never block the event loop
       retry:
         # Retry is configured PER ROUTE (per command), not by a shared method gate
         # -- the read/write split in Esquire is per command, and HTTP method is the

@@ -2004,7 +2004,7 @@
           "y": -1
          },
          "target": {
-          "x": 0.0,
+          "x": -0.66,
           "y": 1
          },
          "color": {
@@ -2134,6 +2134,25 @@
          "target": {
           "x": 1,
           "y": -0.0
+         },
+         "color": {
+          "fixed": "#000000"
+         },
+         "size": {
+          "fixed": 1.25
+         },
+         "direction": "forward"
+        },
+        {
+         "targetName": "keycloak",
+         "path": "angled",
+         "source": {
+          "x": 0.0,
+          "y": -1
+         },
+         "target": {
+          "x": 0.66,
+          "y": 1
          },
          "color": {
           "fixed": "#000000"
@@ -4369,7 +4388,7 @@
        "connections": []
       },
       {
-       "name": "legend:--  REST:524",
+       "name": "legend:--  REST/HTT:524",
        "type": "text",
        "background": {
         "color": {
@@ -4390,7 +4409,7 @@
         },
         "size": 11,
         "text": {
-         "fixed": "--  REST",
+         "fixed": "--  REST/HTTP",
          "mode": "fixed"
         }
        },

@@ -1,5 +1,23 @@
 Esquire Gateway Microservice
 
+07/14/2026 mir0n  v1.2.11 -- the bulkhead is declared, sized from the pool, and no longer opens the breaker (T10)
+config.ResilienceConfig
+  - the BULKHEAD is now declared and sized here. circuitBreakerConfig() adds ignoreExceptions(BulkheadFullException)
+    -- a bulkhead rejection is "too many at once", not a backend fault, and must not open the breaker. New @Bean
+    bulkheadCustomizer() (Customizer<ReactiveResilience4jBulkheadProvider>) replaces the library default of 25
+    concurrent calls; bulkheadCap() reads max-concurrent-calls, and 0 (the default) DERIVES it from the pool it
+    backstops: spring.cloud.gateway.httpclient.pool.max-connections x queue-per-connection. slidingWindowType is
+    now a knob (TIME_BASED default, was hard-coded COUNT_BASED); half-open-calls default 5 -> 20
+resources/application.yml
+  - esq.gateway.resilience.bulkhead block added: max-concurrent-calls (${GW_BULKHEAD_MAX_CONCURRENT:0}, 0 = derive
+    from the pool), queue-per-connection (${GW_BULKHEAD_QUEUE_PER_CONN:16}), max-wait-ms. circuit-breaker gains
+    sliding-window-type (${GW_CB_WINDOW_TYPE:TIME_BASED}); sliding-window 20 -> 30 (now SECONDS, not calls);
+    half-open-calls 5 -> 20
+pom.xml
+  - io.github.resilience4j:resilience4j-bulkhead added -- the bulkhead classes were on the RUNTIME classpath but
+    the starter does not expose them for COMPILE, so ResilienceConfig could not name BulkheadConfig /
+    BulkheadFullException
+
 07/12/2026 mir0n  v1.2.11 -- the gateway's request log line carries correlationId as a FIELD (O1/T9)
 filters.RequestTraceFilter
   - the INCOMING log line is wrapped in MDC.put/remove of PD_CORRELATION_ID and PD_REQUEST_ID, so correlationId is

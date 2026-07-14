@@ -43,6 +43,9 @@
  *                   runEngine registers the feed-depth gauge (registerFeedDepth(meterBusId(), meterSlotId(),
  *                   feed::size)). Session (heartbeat) events are excluded from every meter. meterBusId() /
  *                   meterSlotId() added (the identity's bus / slot, or the rod name when it has no identity)
+ * 07/14/2026 mir0n  feedAwaitMs read from params (feed-await-ms, default BoundedQueueRig.DEFAULT_AWAIT_TIMEOUT_MS)
+ *                   and applied to the feed via setPutAwaitMs in buildEngine -- <= 0 holds the producer on a
+ *                   full feed instead of discarding the event
  */
 package pro.mir0n.esquire.messaging.xrod.impl;
 
@@ -96,6 +99,9 @@ public abstract class AXRod implements IXRod {
     protected RodPublisher publisher;           // the transport leg when 'outbound' is a RodPublisher (encode-once + throwing dispatch); null otherwise
     protected List<ISessionSublayer> sendSublayers = List.of();   // the session sublayers (built by the factory); ticked on idle()
     private int feedCapacity;
+    // How long transmit() waits on a FULL feed before the event is DISCARDED. <= 0 = wait forever
+    // (backpressure, never drop) -- what a leg whose every message must be processed asks for.
+    private long feedAwaitMs;
     protected BoundedQueueRig<RodEvent> feed;
 
     // --- the bounded worker pool (the receive leg; also runs the in-process writer / the async publisher) ---
@@ -129,6 +135,8 @@ public abstract class AXRod implements IXRod {
         this.identity          = params != null
                 ? new BusIdentity(params.busId(), params.slotId(), params.rodId()) : null;
         this.feedCapacity      = params != null ? Math.max(1, params.feedCapacityOr(DEFAULT_FEED_CAPACITY)) : DEFAULT_FEED_CAPACITY;
+        this.feedAwaitMs       = params != null
+                ? params.feedAwaitMsOr(BoundedQueueRig.DEFAULT_AWAIT_TIMEOUT_MS) : BoundedQueueRig.DEFAULT_AWAIT_TIMEOUT_MS;
         this.poolSize          = params != null ? params.receiverPoolSizeOr(DEFAULT_POOL_SIZE) : DEFAULT_POOL_SIZE;   // 0 = per-task uncapped
         // the receiver-pool thread model (platform | virtual | virtual-per-task); XRod.init overrides it for an
         // async-publish pool (publisher-pool).
@@ -185,6 +193,7 @@ public abstract class AXRod implements IXRod {
         if (outbound != null) {
             this.feed = new BoundedQueueRig<>(this::send);
             feed.init(name, devLog, feedCapacity);   // allocate; do NOT pump until runEngine()
+            feed.setPutAwaitMs(feedAwaitMs);         // <= 0 -> hold the producer rather than discard the event
         }
         if (devLog != null) {
             devLog.info("x-rod[{}]: built (transmit={}, pool={}, poolSize={}, {})",

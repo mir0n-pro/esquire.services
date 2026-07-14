@@ -258,7 +258,11 @@ def build_panels():
     # ---- CPU ----
     p.append(row("CPU", 42))
     p.append(ts("CPU usage by replica (process)", 0, 43, 12, "percentunit",
-                [tgt("process_cpu_usage{%s}" % APP, "{{application}} {{instance}}")]))
+                [tgt("process_cpu_usage{%s}" % APP, "{{application}} {{instance}}")],
+                desc="A FRACTION OF THAT JVM'S OWN EFFECTIVE CPUs -- not of the machine. The same 1.0 means "
+                     "'using its one allotted core' on k8s and 'using all 24' on docker, so this line is NOT "
+                     "comparable across targets and cannot answer 'are we using the machine'. The Capacity row "
+                     "converts it to CORES, which is."))
     p.append(ts("Host CPU (system)", 12, 43, 12, "percentunit",
                 [tgt("avg(system_cpu_usage{%s})" % APP, "host")]))
     # ---- DB connection detail ----
@@ -614,6 +618,108 @@ def build_panels():
                      "rising DENY rate is either a misconfigured role or someone probing. NOTE the gate sees "
                      "allow and deny only: a self-update BYPASSES it entirely (a user editing their own profile "
                      "never asks permission), which is why there is no third value here."))
+
+    # ---- Resilience -- the circuit breakers (T10) ----
+    # These meters existed and were SCRAPED from the day the gateway got its breakers -- and nothing rendered
+    # them. A breaker could open, shed a route, and close again, and the only trace was a 503 in the logs with
+    # no way to tell WHOSE 503 it was. That is the distinction this row exists to draw:
+    #
+    #   a 503 because the BACKEND failed        -> the backend is the problem
+    #   a 503 because the BREAKER refused       -> the BREAKER is the problem
+    #
+    # They look identical from the client. Under load they are opposite findings, and tuning against the wrong
+    # one makes things worse: a breaker that opens on a backend that is merely SLOW converts a degradation into
+    # an outage, and the retry ladder then hands the struggling backend 3x the load. "Calls REFUSED" below is
+    # the panel that tells them apart.
+    p.append(row("Resilience -- circuit breakers", 191))
+    p.append(ts("Breaker state -- OPEN / half-open (1 = yes)", 0, 192, 8, "short",
+                [tgt('sum by (name) (resilience4j_circuitbreaker_state{%s, state="open"})' % APP,
+                     "{{name}} OPEN"),
+                 tgt('sum by (name) (resilience4j_circuitbreaker_state{%s, state="half_open"})' % APP,
+                     "{{name}} half-open")],
+                desc="Flat at zero is the healthy shape. A line stepping to 1 is a breaker that has STOPPED "
+                     "calling its backend -- every request on that route now fails fast with a 503 without ever "
+                     "reaching the service. Half-open is the probe state: the breaker is letting a few calls "
+                     "through to decide whether to close again."))
+    p.append(ts("Slow-call rate (%) -- the threshold that OPENS the breaker on a healthy backend", 8, 192, 8,
+                "percent",
+                [tgt('max by (name) (resilience4j_circuitbreaker_slow_call_rate{%s})' % APP, "{{name}}")],
+                minv=-1,
+                desc="THE number to watch under load, and it carries a trap: Resilience4j reports -1, NOT 0, "
+                     "while the breaker has seen fewer than minimum-calls -- it means NO VERDICT YET, not "
+                     "'0% slow'. The axis starts at -1 so that reads honestly; clamping it to 0 would paint "
+                     "'healthy' over 'no data'. A call counts as slow past slow-call-seconds even when it "
+                     "SUCCEEDS, so this rate -- not the failure rate -- is what opens a breaker on a backend "
+                     "that is working perfectly and merely slow."))
+    p.append(ts("Failure rate (%) -- the threshold that opens on a backend that is actually failing", 16, 192, 8,
+                "percent",
+                [tgt('max by (name) (resilience4j_circuitbreaker_failure_rate{%s})' % APP, "{{name}}")],
+                minv=-1,
+                desc="Same -1 = not-enough-calls convention as the slow-call rate. This one rises only on real "
+                     "errors, so a breaker opening HERE is the breaker doing its job. A breaker opening on the "
+                     "slow-call rate while this stays flat is the failure mode T10 exists to prevent."))
+    p.append(ts("Calls through the breaker (by outcome)", 0, 200, 8, "ops",
+                [tgt('sum by (name, kind) (rate(resilience4j_circuitbreaker_calls_seconds_count{%s}[1m]))' % APP,
+                     "{{name}} {{kind}}")],
+                desc="What the breaker actually saw: successful / failed / ignored. Read together with the rate "
+                     "panels above -- these are the calls the rates are computed FROM, so a rate that looks "
+                     "alarming on a handful of calls is not yet a signal."))
+    p.append(ts("Calls REFUSED by the breaker (the 503s the breaker itself caused)", 8, 200, 8, "ops",
+                [tgt(safe('sum by (name) '
+                          '(rate(resilience4j_circuitbreaker_not_permitted_calls_total{%s}[1m]))' % APP),
+                     "{{name}} refused")],
+                desc="The smoking gun, and the reason this row was built. Every call counted here NEVER REACHED "
+                     "the backend -- the breaker rejected it at the gateway. If a load run collapses while this "
+                     "line is up, the collapse is the BREAKER's doing, not the service's, and the fix is to tune "
+                     "the breaker rather than to chase a backend that was never even called. Guarded with "
+                     "or vector(0) so it reads a flat zero instead of vanishing when nothing is refused."))
+    p.append(ts("Per-route deadline -- TimeLimiter outcomes", 16, 200, 8, "ops",
+                [tgt(safe('sum by (name, kind) (rate(resilience4j_timelimiter_calls_total{%s}[1m]))' % APP),
+                     "{{name}} {{kind}}")],
+                desc="The REAL per-route deadline is the breaker's TimeLimiter, not the Netty response-timeout. "
+                     "A rising 'timeout' line means calls are being cancelled at the deadline -- those count as "
+                     "FAILURES at the breaker, so a timeout storm drives the failure rate up and opens the "
+                     "breaker on top of the slowness that caused it."))
+
+    # ---- Capacity: cores, not percentages ----
+    # "We have 24 cores -- are we using them?" was unanswerable from this dashboard, and the CPU row above is
+    # why: process_cpu_usage is a fraction of the JVM's OWN effective CPUs. Multiply it by system_cpu_count and
+    # the fraction becomes CORES, which is the same unit on every target and can be summed and compared against
+    # the machine.
+    #
+    # The trap this row exists to expose: a JVM is container-aware. It reads the cgroup quota, NOT nproc, and
+    # sizes GC threads / the ForkJoin common pool / Reactor's event loops from what it finds. Under the local-k8s
+    # R4 budget (limits.cpu=1) `nproc` inside the pod still says 24 while the JVM reports an Effective CPU Count
+    # of 1 -- so the JVM BUILDS ITSELF for a single-core machine, on a 24-core host. That is not throttling at the
+    # margin; it is a different JVM. Measured 2026-07-13: raising the limit from 1 to 6, changing nothing else,
+    # DOUBLED throughput (76,748 -> 151,825 requests). The "effective CPUs" panel is where you SEE it -- a flat
+    # line at 1 across every replica while the host has 24 idle cores.
+    CORES = "(process_cpu_usage{%s} * on(instance) group_left system_cpu_count{%s})" % (APP, APP)
+    p.append(row("Capacity -- cores in use (are we using the machine?)", 208))
+    p.append(ts("Cores in use -- TOTAL across all services", 0, 209, 12, "short",
+                [tgt("sum(%s)" % CORES, "cores in use")],
+                desc="The headline number: how many CPU cores the Esquire services are actually burning, right "
+                     "now, added up. Compare it against the host's core count. If this plateaus well BELOW the "
+                     "machine while latency climbs, CPU is not the limit and tuning the CPU budget will not help "
+                     "-- look at a pool, a lock, or a serialized path instead."))
+    p.append(ts("Cores in use by replica", 12, 209, 12, "short",
+                [tgt(CORES, "{{application}} {{instance}}")],
+                desc="Cores, per replica -- process_cpu_usage re-expressed in the one unit that means the same "
+                     "thing on docker and on k8s. A replica pinned flat against its ceiling is CPU-bound; the "
+                     "next panel says what that ceiling is."))
+    p.append(ts("Effective CPUs the JVM sized itself for", 0, 217, 12, "short",
+                [tgt("system_cpu_count{%s}" % APP, "{{application}} {{instance}}")],
+                desc="What each JVM believes it is running on -- Runtime.availableProcessors(), which on a "
+                     "container is the CGROUP QUOTA, not the host's core count. This is the panel that catches "
+                     "the trap: under the local-k8s R4 budget it reads 1 on every replica while the host has 24 "
+                     "cores sitting idle, and the JVM has already sized its GC, ForkJoin and event-loop threads "
+                     "for that 1. A number here that surprises you is a capacity bug, not a display quirk."))
+    p.append(ts("Host CPU -- the whole machine", 12, 217, 12, "percentunit",
+                [tgt("max(system_cpu_usage{%s})" % APP, "host"),
+                 tgt("avg(system_cpu_usage{%s})" % APP, "host (avg of reporters)")],
+                desc="Whole-machine CPU load. Read it WITH 'Cores in use': the load generator and the "
+                     "observability stack live on this same host, so a busy machine is not the same thing as a "
+                     "busy Esquire."))
     return p
 
 

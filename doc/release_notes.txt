@@ -1,6 +1,36 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v1.2.11-2607.1413  v1.2.11 -- circuit breaker: its parameters set up and verified under a heavy load test
+    :Fix:         under a heavy burst the gateway was refusing requests it could have served. A limit nobody had
+                  set -- 25 calls at once, a default that came with the library -- was rejecting the overflow, and
+                  those rejections were then counted against the service as if IT had failed, so the gateway
+                  stopped calling a service that was perfectly healthy. The limit is now set deliberately, from
+                  the size of the connection pool it protects, and a request turned away for arriving in a crowd
+                  is no longer held against the service it was going to
+    :Fix:         a fresh install could not build its database. The setup script inside the Postgres image had
+                  Windows line endings, so the container could not run it and stopped at start-up. It went
+                  unnoticed for months because that script only runs on an EMPTY database -- which is exactly what
+                  a new machine, or anyone rebuilding from scratch, has
+    :Feature:     a message that must not be lost can now wait instead of being thrown away: when the outgoing
+                  queue is full the sender holds until there is room, rather than discarding the message after ten
+                  seconds. Switched on for the login-server sync, where every change has to arrive eventually and
+                  how long it takes does not matter
+    :Feature:     each message queue is now given its own share of the broker's memory, so one queue that falls
+                  behind can no longer starve the others
+    :Feature:     two new views on the dashboard: what the gateway's safety switches are doing (and which service
+                  they are turning away), and how many of the machine's processor cores the system is actually
+                  using -- including what each service THINKS it has been given, which is not always what the
+                  machine has
+    :Doc:         doc/review/Esquire.PerfMatrix-07-14.md -- the performance matrix: every environment measured on
+                  the same hardware, what a second copy of each service buys, and what watching the system costs it
+    Components:   gateway,
+                  messaging,
+                  mir0n-utils,
+                  keySmith,
+                  activemq,
+                  postgres
+
 v1.2.11-2607.1222  v1.2.11 -- observability: the message broker reports, the three signals link up, and the system draws itself
     :Feature:     the message broker now reports on itself -- what is waiting in each queue, whether anyone is
                   listening to it, how full its memory is, and how many clients are connected

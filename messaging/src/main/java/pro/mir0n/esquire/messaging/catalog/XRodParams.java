@@ -27,6 +27,9 @@
  *                   receiverPoolMode / publisherPoolSizeOr / publisherPoolMode; the flat-key getters + fallback removed
  * 07/02/2026 mir0n  config key send-retry-backoff -> send-retry-backoff-sec (unit suffix): SCALARS entry +
  *                   sendRetryBackoff() getter now read send-retry-backoff-sec
+ * 07/14/2026 mir0n  feed-await-ms in SCALARS + feedAwaitMsOr(long) getter -- how long a producer waits on a
+ *                   FULL feed before the event is DISCARDED; <= 0 = wait forever (backpressure, never drop).
+ *                   longOr(key, def) helper added alongside intOr / boolOr
  */
 package pro.mir0n.esquire.messaging.catalog;
 
@@ -53,7 +56,7 @@ public record XRodParams(String busId, String slotId, Map<String, Object> raw) {
     /** The scalar knob keys -- the ONE place that registers a framework scalar (add one here + a getter). The
      *  groups ({@code transport} = the wire, and an x-rod's own sub-blocks) are NOT scalars: they bind as a whole. */
     public static final List<String> SCALARS = List.of(
-            "rod-id", "rod-class", "feed-capacity", "concurrency",
+            "rod-id", "rod-class", "feed-capacity", "feed-await-ms", "concurrency",
             "alive", "heartbeat-interval", "alive-timeout", "alive-fail-fast",
             "send-retry", "send-retry-backoff-sec", "send-retry-max-attempts");
     // NOTE: the worker pool is the receiver-pool / publisher-pool GROUPS ({size, mode}) -- groups, not scalars.
@@ -204,6 +207,9 @@ public record XRodParams(String busId, String slotId, Map<String, Object> raw) {
     public String  rodClass()                     { return str("rod-class"); }
     public String  rodClassOr(String def)         { String v = str("rod-class"); return v != null ? v : def; }
     public int     feedCapacityOr(int def)        { return intOr("feed-capacity", def); }
+    /** How long a producer waits on a FULL feed before the item is DISCARDED. {@code <= 0} = wait forever
+     *  (backpressure, never drop) -- the setting for a leg whose every message must reach the consumer. */
+    public long    feedAwaitMsOr(long def)        { return longOr("feed-await-ms", def); }
     public int     concurrencyOr(int def)         { return intOr("concurrency", def); }
 
     // --- worker-pool GROUPS: receiver-pool / publisher-pool -> {size, mode}. mode = platform | virtual |
@@ -236,6 +242,19 @@ public record XRodParams(String busId, String slotId, Map<String, Object> raw) {
             ret = n.intValue();
         } else if (v != null && !v.toString().isBlank()) {
             ret = Integer.parseInt(v.toString().trim());
+        } else {
+            ret = def;
+        }
+        return ret;
+    }
+
+    private long longOr(String key, long def) {
+        Object v = raw != null ? raw.get(key) : null;
+        long ret;
+        if (v instanceof Number n) {
+            ret = n.longValue();
+        } else if (v != null && !v.toString().isBlank()) {
+            ret = Long.parseLong(v.toString().trim());
         } else {
             ret = def;
         }

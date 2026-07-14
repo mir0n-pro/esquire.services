@@ -549,9 +549,16 @@ SPINE_TOP, SPINE_H, SPINE_W = 25, 500, 46
 #   kcMaster -> KC  : the admin sync, REST.
 #   gateway  -> KC  : jwk-set-uri / token-uri -- the gateway fetches the JWK set to validate every JWT. A real
 #                     dependency: if KeyCloak is unreachable, no request authenticates.
+#   Explorer -> KC  : the BFF's OWN server-to-server call, and it was missing from this board. backend config.ts
+#                     takes KC_ISSUER and KC_ISSUER_INTERNAL -- "the URL the BFF discovers KC through
+#                     server-to-server" -- so the BFF discovers the realm, exchanges the code for tokens and
+#                     fetches the JWKS ITSELF. It does NOT reach KeyCloak through the gateway. Without this line
+#                     the board said the BFF's only outbound call was to the gateway, and a reader would conclude
+#                     that KeyCloak going down cannot break login at the Explorer -- which is the opposite of true.
 # ---------------------------------------------------------------------------------------------------------------
 ARROWS = [
     ("backend", "gateway"),            # BFF proxies /api/* (and relays the session bearer)
+    ("backend", "keycloak"),           # the BFF's own server-to-server calls: discovery, token exchange, JWKS
     ("gateway", "enyman"),
     ("gateway", "biztree"),
     ("gateway", "pacman"),
@@ -564,6 +571,17 @@ ARROWS = [
     ("aukeep", "postgres"),
     ("kcmaster", "keycloak"),          # the KC admin sync
 ]
+
+# Where an arrow MUST leave / land, when the generic "whichever axis is further apart wins" rule gets it wrong.
+# Keyed by (from, to) -- the box named first is the one whose edge is being pinned. See edge_anchor().
+#
+# Explorer -> KeyCloak: it leaves the CENTRE OF THE BOTTOM EDGE (mir0n). The rule would send it out of the LEFT
+# edge on the k8s board -- the two boxes land exactly 250px apart on both axes there, the tie goes to horizontal,
+# and the same arrow then leaves a different edge on each board.
+PINNED_EDGE = {
+    ("backend", "keycloak"): {"x": 0, "y": -1},    # leave Explorer's BOTTOM edge  (canvas y is UP)
+    ("keycloak", "backend"): {"x": 0, "y": 1},     # land on KeyCloak's TOP edge
+}
 
 # Line colours. The lanes carry their own (the bus colours, from the component model); these two are
 # for the point-to-point calls -- RED for the database, as ComponentModel.svg draws it, grey for REST.
@@ -881,7 +899,7 @@ def legend():
     txt("LINES", L, T + 48, 80, "#B0B0B0", 11)
     txt("--  bus   (publish / consume)", L, T + 68, 230, "#9DC08B", 11)
     txt("--  database", L, T + 86, 230, DB_RED, 11)
-    txt("--  REST", L, T + 104, 230, REST_BLACK, 11)
+    txt("--  REST/HTTP", L, T + 104, 230, REST_BLACK, 11)
 
     # Only where there IS a stack to explain. A card peeking out from behind another is not self-evident, and an
     # unexplained shape on a monitoring board is read as a rendering glitch.
@@ -971,7 +989,17 @@ def canvas():
 
         Whichever axis the two boxes are further apart on wins -- a mostly-horizontal pair meets left/right, a
         mostly-vertical pair meets top/bottom. Grafana's canvas axis is Y-UP (y=1 top, y=-1 bottom).
+
+        PINNED_EDGE overrides that rule for a pair that the rule gets wrong. The distance test is a heuristic, and
+        it BREAKS ON A TIE: Explorer -> KeyCloak sits 175px across and 250px down on docker (vertical -- bottom
+        edge, right), but the k8s board shifts both boxes and the gap becomes 250 x 250. Exactly equal, `>=` picks
+        the horizontal branch, and the SAME arrow leaves the LEFT edge on one board and the BOTTOM edge on the
+        other. Two boards that are meant to be the same picture then disagree about the shape of the system, which
+        is the one thing this drawing must never do. Pinning the pair makes it leave the bottom edge on both.
         """
+        pin = PINNED_EDGE.get((me, other))
+        if pin is not None:
+            return dict(pin)
         a, b = C[me], C[other]
         dx = (b["left"] + W / 2.0) - (a["left"] + W / 2.0)
         dy = (b["top"] + H / 2.0) - (a["top"] + H / 2.0)

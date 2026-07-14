@@ -539,7 +539,8 @@
      "expr": "process_cpu_usage{application=~\"$application\"}",
      "legendFormat": "{{application}} {{instance}}"
     }
-   ]
+   ],
+   "description": "A FRACTION OF THAT JVM'S OWN EFFECTIVE CPUs -- not of the machine. The same 1.0 means 'using its one allotted core' on k8s and 'using all 24' on docker, so this line is NOT comparable across targets and cannot answer 'are we using the machine'. The Capacity row converts it to CORES, which is."
   },
   {
    "type": "timeseries",
@@ -2672,6 +2673,414 @@
     }
    ],
    "description": "The authorization decision itself, counted at the one gate every service goes through. A rising DENY rate is either a misconfigured role or someone probing. NOTE the gate sees allow and deny only: a self-update BYPASSES it entirely (a user editing their own profile never asks permission), which is why there is no third value here."
+  },
+  {
+   "type": "row",
+   "title": "Resilience -- circuit breakers",
+   "gridPos": {
+    "h": 1,
+    "w": 24,
+    "x": 0,
+    "y": 191
+   }
+  },
+  {
+   "type": "timeseries",
+   "title": "Breaker state -- OPEN / half-open (1 = yes)",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "esq-prometheus"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 0,
+    "y": 192
+   },
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+      "drawStyle": "line",
+      "fillOpacity": 10
+     },
+     "unit": "short",
+     "min": 0
+    },
+    "overrides": []
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "sum by (name) (resilience4j_circuitbreaker_state{application=~\"$application\", state=\"open\"})",
+     "legendFormat": "{{name}} OPEN"
+    },
+    {
+     "refId": "B",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "sum by (name) (resilience4j_circuitbreaker_state{application=~\"$application\", state=\"half_open\"})",
+     "legendFormat": "{{name}} half-open"
+    }
+   ],
+   "description": "Flat at zero is the healthy shape. A line stepping to 1 is a breaker that has STOPPED calling its backend -- every request on that route now fails fast with a 503 without ever reaching the service. Half-open is the probe state: the breaker is letting a few calls through to decide whether to close again."
+  },
+  {
+   "type": "timeseries",
+   "title": "Slow-call rate (%) -- the threshold that OPENS the breaker on a healthy backend",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "esq-prometheus"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 8,
+    "y": 192
+   },
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+      "drawStyle": "line",
+      "fillOpacity": 10
+     },
+     "unit": "percent",
+     "min": -1
+    },
+    "overrides": []
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "max by (name) (resilience4j_circuitbreaker_slow_call_rate{application=~\"$application\"})",
+     "legendFormat": "{{name}}"
+    }
+   ],
+   "description": "THE number to watch under load, and it carries a trap: Resilience4j reports -1, NOT 0, while the breaker has seen fewer than minimum-calls -- it means NO VERDICT YET, not '0% slow'. The axis starts at -1 so that reads honestly; clamping it to 0 would paint 'healthy' over 'no data'. A call counts as slow past slow-call-seconds even when it SUCCEEDS, so this rate -- not the failure rate -- is what opens a breaker on a backend that is working perfectly and merely slow."
+  },
+  {
+   "type": "timeseries",
+   "title": "Failure rate (%) -- the threshold that opens on a backend that is actually failing",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "esq-prometheus"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 16,
+    "y": 192
+   },
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+      "drawStyle": "line",
+      "fillOpacity": 10
+     },
+     "unit": "percent",
+     "min": -1
+    },
+    "overrides": []
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "max by (name) (resilience4j_circuitbreaker_failure_rate{application=~\"$application\"})",
+     "legendFormat": "{{name}}"
+    }
+   ],
+   "description": "Same -1 = not-enough-calls convention as the slow-call rate. This one rises only on real errors, so a breaker opening HERE is the breaker doing its job. A breaker opening on the slow-call rate while this stays flat is the failure mode T10 exists to prevent."
+  },
+  {
+   "type": "timeseries",
+   "title": "Calls through the breaker (by outcome)",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "esq-prometheus"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 0,
+    "y": 200
+   },
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+      "drawStyle": "line",
+      "fillOpacity": 10
+     },
+     "unit": "ops",
+     "min": 0
+    },
+    "overrides": []
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "sum by (name, kind) (rate(resilience4j_circuitbreaker_calls_seconds_count{application=~\"$application\"}[1m]))",
+     "legendFormat": "{{name}} {{kind}}"
+    }
+   ],
+   "description": "What the breaker actually saw: successful / failed / ignored. Read together with the rate panels above -- these are the calls the rates are computed FROM, so a rate that looks alarming on a handful of calls is not yet a signal."
+  },
+  {
+   "type": "timeseries",
+   "title": "Calls REFUSED by the breaker (the 503s the breaker itself caused)",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "esq-prometheus"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 8,
+    "y": 200
+   },
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+      "drawStyle": "line",
+      "fillOpacity": 10
+     },
+     "unit": "ops",
+     "min": 0
+    },
+    "overrides": []
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "((sum by (name) (rate(resilience4j_circuitbreaker_not_permitted_calls_total{application=~\"$application\"}[1m]))) or vector(0))",
+     "legendFormat": "{{name}} refused"
+    }
+   ],
+   "description": "The smoking gun, and the reason this row was built. Every call counted here NEVER REACHED the backend -- the breaker rejected it at the gateway. If a load run collapses while this line is up, the collapse is the BREAKER's doing, not the service's, and the fix is to tune the breaker rather than to chase a backend that was never even called. Guarded with or vector(0) so it reads a flat zero instead of vanishing when nothing is refused."
+  },
+  {
+   "type": "timeseries",
+   "title": "Per-route deadline -- TimeLimiter outcomes",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "esq-prometheus"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 16,
+    "y": 200
+   },
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+      "drawStyle": "line",
+      "fillOpacity": 10
+     },
+     "unit": "ops",
+     "min": 0
+    },
+    "overrides": []
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "((sum by (name, kind) (rate(resilience4j_timelimiter_calls_total{application=~\"$application\"}[1m]))) or vector(0))",
+     "legendFormat": "{{name}} {{kind}}"
+    }
+   ],
+   "description": "The REAL per-route deadline is the breaker's TimeLimiter, not the Netty response-timeout. A rising 'timeout' line means calls are being cancelled at the deadline -- those count as FAILURES at the breaker, so a timeout storm drives the failure rate up and opens the breaker on top of the slowness that caused it."
+  },
+  {
+   "type": "row",
+   "title": "Capacity -- cores in use (are we using the machine?)",
+   "gridPos": {
+    "h": 1,
+    "w": 24,
+    "x": 0,
+    "y": 208
+   }
+  },
+  {
+   "type": "timeseries",
+   "title": "Cores in use -- TOTAL across all services",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "esq-prometheus"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 12,
+    "x": 0,
+    "y": 209
+   },
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+      "drawStyle": "line",
+      "fillOpacity": 10
+     },
+     "unit": "short",
+     "min": 0
+    },
+    "overrides": []
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "sum((process_cpu_usage{application=~\"$application\"} * on(instance) group_left system_cpu_count{application=~\"$application\"}))",
+     "legendFormat": "cores in use"
+    }
+   ],
+   "description": "The headline number: how many CPU cores the Esquire services are actually burning, right now, added up. Compare it against the host's core count. If this plateaus well BELOW the machine while latency climbs, CPU is not the limit and tuning the CPU budget will not help -- look at a pool, a lock, or a serialized path instead."
+  },
+  {
+   "type": "timeseries",
+   "title": "Cores in use by replica",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "esq-prometheus"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 12,
+    "x": 12,
+    "y": 209
+   },
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+      "drawStyle": "line",
+      "fillOpacity": 10
+     },
+     "unit": "short",
+     "min": 0
+    },
+    "overrides": []
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(process_cpu_usage{application=~\"$application\"} * on(instance) group_left system_cpu_count{application=~\"$application\"})",
+     "legendFormat": "{{application}} {{instance}}"
+    }
+   ],
+   "description": "Cores, per replica -- process_cpu_usage re-expressed in the one unit that means the same thing on docker and on k8s. A replica pinned flat against its ceiling is CPU-bound; the next panel says what that ceiling is."
+  },
+  {
+   "type": "timeseries",
+   "title": "Effective CPUs the JVM sized itself for",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "esq-prometheus"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 12,
+    "x": 0,
+    "y": 217
+   },
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+      "drawStyle": "line",
+      "fillOpacity": 10
+     },
+     "unit": "short",
+     "min": 0
+    },
+    "overrides": []
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "system_cpu_count{application=~\"$application\"}",
+     "legendFormat": "{{application}} {{instance}}"
+    }
+   ],
+   "description": "What each JVM believes it is running on -- Runtime.availableProcessors(), which on a container is the CGROUP QUOTA, not the host's core count. This is the panel that catches the trap: under the local-k8s R4 budget it reads 1 on every replica while the host has 24 cores sitting idle, and the JVM has already sized its GC, ForkJoin and event-loop threads for that 1. A number here that surprises you is a capacity bug, not a display quirk."
+  },
+  {
+   "type": "timeseries",
+   "title": "Host CPU -- the whole machine",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "esq-prometheus"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 12,
+    "x": 12,
+    "y": 217
+   },
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+      "drawStyle": "line",
+      "fillOpacity": 10
+     },
+     "unit": "percentunit",
+     "min": 0
+    },
+    "overrides": []
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "max(system_cpu_usage{application=~\"$application\"})",
+     "legendFormat": "host"
+    },
+    {
+     "refId": "B",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "avg(system_cpu_usage{application=~\"$application\"})",
+     "legendFormat": "host (avg of reporters)"
+    }
+   ],
+   "description": "Whole-machine CPU load. Read it WITH 'Cores in use': the load generator and the observability stack live on this same host, so a busy machine is not the same thing as a busy Esquire."
   }
  ]
 }

@@ -78,6 +78,12 @@ esquire:
       slot-id: ${KC_SLOT_ID:kc}
       role: CLIENT
       x-rod:
+        # EVERY KC sync must be processed; how long it takes does not matter. So a full feed must HOLD the
+        # producer, never discard the event: 0 = wait forever (the default, 10000ms, DROPS the item once the
+        # feed has been full that long -- for an identity sync that is silent, unrecoverable loss). The wait
+        # ends when space appears or the rig shuts down; kcMaster drains this leg serially by design, so
+        # backpressure -- not a drop -- is the correct answer when it falls behind.
+        feed-await-ms: ${KEYSMITH_KC_FEED_AWAIT_MS:0}
         receiver-pool:
           size: ${KEYSMITH_KC_RESPONSE_POOL_SIZE:2}
           mode: ${KC_POOL_MODE:platform}   # platform | virtual | virtual-per-task

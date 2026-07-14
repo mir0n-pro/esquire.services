@@ -1,5 +1,11 @@
 Esquire keySmith Microservice
 
+07/14/2026 mir0n  v1.2.11 -- the KC request leg holds instead of dropping when its feed is full (T10)
+resources/application.yml
+  - kc-bus x-rod: feed-await-ms: ${KEYSMITH_KC_FEED_AWAIT_MS:0} added -- 0 = wait forever, so a full feed holds
+    the producer instead of discarding the KC sync event (the default, 10000ms, DROPS it once the feed has been
+    full that long)
+
 07/11/2026 mir0n  v1.2.11 -- the business-meter sub-switch (O1/T8)
 resources/application.yml
   - esquire.observability.metrics.business-enabled: ${ESQ_METRICS_BUSINESS:true} added -- the sub-switch gating

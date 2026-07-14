@@ -18,6 +18,10 @@
  *                   whole deque is handed over as one ArrayList; the worker's returned remainder is
  *                   re-queued to the front, a thrown bulk is routed to the IListErrorListener (null = stop).
  *                   run / process flags now read through an ISignaler; LoggingErrorListener is an IListErrorListener
+ * 07/14/2026 mir0n  putAwaitMs + setPutAwaitMs(long) added -- the producer's own wait on a FULL queue, split off
+ *                   from awaitTimeoutMs (which now only paces the worker's missed-signal re-check). <= 0 = NO
+ *                   TIMEOUT: put() awaits notFull without a deadline and never discards; shutdown() / clear()
+ *                   already signal notFull, so a parked producer still wakes. Default unchanged (10s, drops)
  */
 package pro.mir0n.utils.concurrent;
 
@@ -91,14 +95,32 @@ public class BoundedQueueRig<E> implements IQueueRig<E> {
         this.bulkThreshold = n;
     }
 
-    /** Upper bound on any single condition wait. put() drops the item if the queue stays
-     *  full this long (so a producer never hangs forever while processing is paused); the
-     *  worker simply re-checks its loop condition on timeout (a missed-signal safety net). */
+    /** Upper bound on any single condition wait. The WORKER re-checks its loop condition on timeout
+     *  (a missed-signal safety net) -- that is all this bound does now; the producer's behaviour when
+     *  the queue is full is governed separately by {@link #setPutAwaitMs}. */
     public static final long DEFAULT_AWAIT_TIMEOUT_MS = 10_000L;
     private volatile long awaitTimeoutMs = DEFAULT_AWAIT_TIMEOUT_MS;
 
     public void setAwaitTimeoutMs(long ms) {
         this.awaitTimeoutMs = ms;
+    }
+
+    /** How long {@link #put} waits on a FULL queue before it gives up and DISCARDS the item.
+     *
+     *  Discarding is the right answer for a feed whose work is disposable -- better to shed than to
+     *  hang a producer behind a queue that may never drain. It is the WRONG answer for a feed whose
+     *  every item must eventually be processed: a KC identity sync that is dropped here is simply gone,
+     *  and the only trace is a warn line.
+     *
+     *  So the wait is a per-feed decision. {@code <= 0} means NO TIMEOUT: hold the producer until space
+     *  appears (or the rig shuts down) and never discard. That converts a full feed from silent loss
+     *  into honest BACKPRESSURE -- the producer waits, which is acceptable precisely when the work must
+     *  not be lost and latency does not matter. A producer parked this way still wakes on
+     *  {@link #shutdown} / {@link #clear}, both of which signal {@code notFull}. */
+    private volatile long putAwaitMs = DEFAULT_AWAIT_TIMEOUT_MS;
+
+    public void setPutAwaitMs(long ms) {
+        this.putAwaitMs = ms;
     }
 
     public BoundedQueueRig(IQueueWorker<E> worker) {
@@ -174,13 +196,21 @@ public class BoundedQueueRig<E> implements IQueueRig<E> {
     public void put(E item) {
         lock.lock();
         try {
-            long nanos = TimeUnit.MILLISECONDS.toNanos(awaitTimeoutMs);
+            final long waitMs      = putAwaitMs;
+            final boolean holdOnly = waitMs <= 0L;   // no timeout -- backpressure, never discard
+            long nanos = holdOnly ? 0L : TimeUnit.MILLISECONDS.toNanos(waitMs);
             while (signaler.isRunning() && deque.size() >= capacity) {
+                if (holdOnly) {
+                    // The producer WAITS. shutdown() and clear() both signal notFull, so this is not a
+                    // hang: it ends when space appears or the rig stops.
+                    notFull.await();
+                    continue;
+                }
                 if (nanos <= 0L) {
                     // Full for longer than the timeout (e.g. processing paused) -- drop, don't hang.
                     if (devLog != null) {
                         devLog.warn("queue-rig[{}]: put timed out after {}ms (full, size={}) -- item dropped: {}",
-                                name, awaitTimeoutMs, deque.size(), item);
+                                name, waitMs, deque.size(), item);
                     }
                     return;
                 }

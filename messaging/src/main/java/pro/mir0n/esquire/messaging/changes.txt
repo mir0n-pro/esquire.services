@@ -1,5 +1,15 @@
 Esquire messaging framework classes
 
+07/14/2026 mir0n  v1.2.11 -- feed-await-ms: a producer leg can HOLD on a full feed instead of dropping the event (T10)
+catalog.XRodParams
+  - feed-await-ms in SCALARS + feedAwaitMsOr(long) getter -- how long a producer waits on a FULL feed before the
+    event is DISCARDED; <= 0 = wait forever (backpressure, never drop). longOr(key, def) helper added alongside
+    intOr / boolOr
+xrod.impl.AXRod
+  - feedAwaitMs read from params (feed-await-ms, default BoundedQueueRig.DEFAULT_AWAIT_TIMEOUT_MS) and applied to
+    the feed via setPutAwaitMs in buildEngine -- <= 0 holds the producer on a full feed instead of discarding the
+    event
+
 07/11/2026 mir0n  v1.2.11 -- bus meters (O1/T5): the bus-hop meter hook, declared by the bus; trace + metrics unified into ONE bus observer
 o11y.IRodMeters  (new)
   - the bus-hop METER hook, DECLARED by the messaging bus. The mirror of IRodTracer for metrics: the bus deals

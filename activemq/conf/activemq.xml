@@ -59,6 +59,23 @@
                     <constantPendingMessageLimitStrategy limit="1000"/>
                   </pendingMessageLimitStrategy>
                 </policyEntry>
+                <!-- QUEUES had NO policy at all, so every queue drew on the whole systemUsage memory pool
+                     (70% of the broker heap, ~717MB). One destination that backs up could therefore eat the
+                     memory the OTHER destinations need and apply producer flow control to all of them: an
+                     audit or entity-broadcast stall caused by a KC backlog it has nothing to do with.
+
+                     memoryLimit BOUNDS EACH QUEUE SEPARATELY. It is an isolation wall, not a capacity target.
+                     128mb is ~75,000 messages at the measured 1.7KB average, roughly 18x the deepest backlog
+                     ever observed (4,184, under 200 virtual users), so it never fires in normal operation.
+
+                     It is deliberately NOT a few thousand. kc.request legitimately reaches ~4k, and a limit
+                     near that would engage producer flow control on a HEALTHY system, backing the producer's
+                     feed up until it starts discarding messages. A tight bound here would CAUSE the very loss
+                     it looks like it prevents.
+
+                     (Note for the next editor: an XML comment may not contain a double hyphen. This one used
+                     to, and the broker died on a parse error at start-up.) -->
+                <policyEntry queue=">" memoryLimit="128mb" producerFlowControl="true"/>
               </policyEntries>
             </policyMap>
         </destinationPolicy>
