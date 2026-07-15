@@ -9,11 +9,15 @@
  * 06/22/2026 mir0n  created (was BizTreeBroadcastConsumer): the bizTree end of the entity bus (CLIENT) -- the
  *                   entity-broadcast receive worker (rod from the facade) feeding the cache director.
  * 06/23/2026 mir0n  EsqMsgConstants app constants -> common.EsqConstants (references repointed)
+ * 07/15/2026 mir0n  v1.2.11 T11 -- the entity-broadcast receive worker stamps MDC via
+ *                   EsqContextHolder.applyMessage(event) and clears in a finally, so its INFO log line carries
+ *                   the message's correlationId / requestId (I10)
  */
 package pro.mir0n.esquire.bizTree.messaging;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
+import pro.mir0n.esquire.backend.service.EsqContextHolder;
 import pro.mir0n.esquire.bizTree.access.IBizTreeDirector;
 import pro.mir0n.esquire.common.EsqConstants;
 import pro.mir0n.esquire.messaging.MessagingBus;
@@ -37,7 +41,12 @@ public class EntityBusAdapter {
     /** Receive one entity-broadcast event: app-level console log (uniform with the producers and the kc
      *  consumers), then hand it to the cache director. The separate TX/RX msg-audit rides the x-Rod msgLog. */
     public void onRodEvent(RodEvent e) {
-        log.info("ENTITY | {} | {} | {} | {} | {}", e.msgType(), e.opCode(), e.kind(), e.entityId(), e.requestId());
-        director.onRodEvent(e);
+        EsqContextHolder.applyMessage(e);   // console log below is INFO -> stamp correlationId from the received event
+        try {
+            log.info("ENTITY | {} | {} | {} | {} | {}", e.msgType(), e.opCode(), e.kind(), e.entityId(), e.requestId());
+            director.onRodEvent(e);
+        } finally {
+            EsqContextHolder.clear();
+        }
     }
 }

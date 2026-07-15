@@ -47,11 +47,16 @@ echo Waiting for grafana...
 kubectl rollout status deployment/esquire-infra-grafana -n default --timeout=150s
 
 echo --- Enabling observability on the app services (mirrors docker ESQ_OBSERVABILITY_ENABLED=true)...
-for %%s in (gateway enyman biztree pacman keysmith kcmaster aukeep backend) do (
+for %%s in (gateway enyman biztree pacman keysmith kcmaster aukeep) do (
   echo   esquire-%%s observability ON
   call helm upgrade esquire-%%s charts\esquire-%%s --reset-then-reuse-values --set observability.enabled=true --set observability.metricsHistograms=true
   call kubectl rollout restart statefulset esquire-%%s-%%s
 )
+rem The BFF (Node) is out of the loop: it has NO histogram sub-switch (its one HTTP histogram has fixed
+rem buckets), so its chart never reads observability.metricsHistograms. It takes observability.enabled ONLY.
+echo   esquire-backend observability ON
+call helm upgrade esquire-backend charts\esquire-backend --reset-then-reuse-values --set observability.enabled=true
+call kubectl rollout restart statefulset esquire-backend-backend
 
 echo --- Enabling metrics on keycloak (KC_METRICS_ENABLED via the umbrella)...
 call helm upgrade esquire-infra-kc charts\infra\keycloak -f values\keycloak.yaml --reset-then-reuse-values --set observability.enabled=true

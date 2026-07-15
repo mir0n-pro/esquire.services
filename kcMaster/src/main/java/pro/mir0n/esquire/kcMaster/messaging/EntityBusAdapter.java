@@ -11,6 +11,8 @@
  *                   (UPDATE_PATH) it parks the new path in KcPathBuffer when the KC user does not exist yet; the
  *                   URQ handler owns the update when it does.
  * 06/23/2026 mir0n  EsqMsgConstants app constants -> common.EsqConstants (references repointed)
+ * 07/15/2026 mir0n  v1.2.11 T11 -- the entity-broadcast receive worker stamps MDC via
+ *                   EsqContextHolder.applyMessage(event) and clears in a finally (I10)
  */
 package pro.mir0n.esquire.kcMaster.messaging;
 
@@ -21,8 +23,8 @@ import org.keycloak.admin.client.resource.UsersResource;
 import org.keycloak.representations.idm.UserRepresentation;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.slf4j.MDC;
 import org.springframework.stereotype.Component;
+import pro.mir0n.esquire.backend.service.EsqContextHolder;
 import pro.mir0n.esquire.common.EsqConstants;
 import pro.mir0n.esquire.messaging.MessagingBus;
 import pro.mir0n.esquire.messaging.IXRod;
@@ -67,8 +69,7 @@ public class EntityBusAdapter {
 
     /** Receive one entity-broadcast event off the bus. */
     public void onRodEvent(RodEvent e) {
-        MDC.put(EsqConstants.PD_REQUEST_ID,     e.requestId());
-        MDC.put(EsqConstants.PD_CORRELATION_ID, e.correlationId());
+        EsqContextHolder.applyMessage(e);
         try {
             // Only a move (UPDATE_PATH / "X") drives the race-8c buffer; everything else is someone else's.
             if (e.op() != RodEvent.Op.UPDATE_PATH) {
@@ -90,7 +91,7 @@ public class EntityBusAdapter {
             pathBuffer.store(e.entityId(), newPath);
             log.info("KC | TOPIC-X | entityId={} | path={} | BUFFERED (no KC user yet)", e.entityId(), newPath);
         } finally {
-            MDC.clear();
+            EsqContextHolder.clear();
         }
     }
 

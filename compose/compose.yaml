@@ -282,7 +282,7 @@ services:
       - ESQ_METRICS_HISTOGRAMS=${ESQ_METRICS_HISTOGRAMS:-false}
       - ESQ_METRICS_BANDWIDTH=${ESQ_METRICS_BANDWIDTH:-true}
       - ESQ_METRICS_BUSINESS=${ESQ_METRICS_BUSINESS:-true}
-      - ESQ_MSG_BUS_ALIVE_TRACE=${ESQ_MSG_BUS_ALIVE_TRACE:-true}   # RR liveness round-trip traced on docker; off on k8s/default
+      - ESQ_MSG_BUS_ALIVE_TRACE=${ESQ_MSG_BUS_ALIVE_TRACE:-false}   # RR liveness heartbeat spans -- OFF by default on every target (I14); opt in via this env
       - ESQ_OTLP_ENDPOINT=${ESQ_OTLP_ENDPOINT:-http://otel-collector:4318/v1/traces}
       - ESQ_TRACING_SAMPLING_RATIO=${ESQ_TRACING_SAMPLING_RATIO:-1.0}
       - ESQ_TRACING_MARKS_ENABLED=${ESQ_TRACING_MARKS_ENABLED:-true}
@@ -358,7 +358,7 @@ services:
       - ESQ_METRICS_HISTOGRAMS=${ESQ_METRICS_HISTOGRAMS:-false}
       - ESQ_METRICS_BANDWIDTH=${ESQ_METRICS_BANDWIDTH:-true}
       - ESQ_METRICS_BUSINESS=${ESQ_METRICS_BUSINESS:-true}
-      - ESQ_MSG_BUS_ALIVE_TRACE=${ESQ_MSG_BUS_ALIVE_TRACE:-true}   # RR liveness round-trip traced on docker; off on k8s/default
+      - ESQ_MSG_BUS_ALIVE_TRACE=${ESQ_MSG_BUS_ALIVE_TRACE:-false}   # RR liveness heartbeat spans -- OFF by default on every target (I14); opt in via this env
       - ESQ_OTLP_ENDPOINT=${ESQ_OTLP_ENDPOINT:-http://otel-collector:4318/v1/traces}
       - ESQ_TRACING_SAMPLING_RATIO=${ESQ_TRACING_SAMPLING_RATIO:-1.0}
       - ESQ_TRACING_MARKS_ENABLED=${ESQ_TRACING_MARKS_ENABLED:-true}
@@ -434,7 +434,7 @@ services:
       - ESQ_METRICS_HISTOGRAMS=${ESQ_METRICS_HISTOGRAMS:-false}
       - ESQ_METRICS_BANDWIDTH=${ESQ_METRICS_BANDWIDTH:-true}
       - ESQ_METRICS_BUSINESS=${ESQ_METRICS_BUSINESS:-true}
-      - ESQ_MSG_BUS_ALIVE_TRACE=${ESQ_MSG_BUS_ALIVE_TRACE:-true}   # RR liveness round-trip traced on docker; off on k8s/default
+      - ESQ_MSG_BUS_ALIVE_TRACE=${ESQ_MSG_BUS_ALIVE_TRACE:-false}   # RR liveness heartbeat spans -- OFF by default on every target (I14); opt in via this env
       - ESQ_OTLP_ENDPOINT=${ESQ_OTLP_ENDPOINT:-http://otel-collector:4318/v1/traces}
       - ESQ_TRACING_SAMPLING_RATIO=${ESQ_TRACING_SAMPLING_RATIO:-1.0}
       - ESQ_TRACING_MARKS_ENABLED=${ESQ_TRACING_MARKS_ENABLED:-true}
@@ -505,7 +505,7 @@ services:
       - ESQ_METRICS_HISTOGRAMS=${ESQ_METRICS_HISTOGRAMS:-false}
       - ESQ_METRICS_BANDWIDTH=${ESQ_METRICS_BANDWIDTH:-true}
       - ESQ_METRICS_BUSINESS=${ESQ_METRICS_BUSINESS:-true}
-      - ESQ_MSG_BUS_ALIVE_TRACE=${ESQ_MSG_BUS_ALIVE_TRACE:-true}   # RR liveness round-trip traced on docker; off on k8s/default
+      - ESQ_MSG_BUS_ALIVE_TRACE=${ESQ_MSG_BUS_ALIVE_TRACE:-false}   # RR liveness heartbeat spans -- OFF by default on every target (I14); opt in via this env
       - ESQ_OTLP_ENDPOINT=${ESQ_OTLP_ENDPOINT:-http://otel-collector:4318/v1/traces}
       - ESQ_TRACING_SAMPLING_RATIO=${ESQ_TRACING_SAMPLING_RATIO:-1.0}
       - ESQ_TRACING_MARKS_ENABLED=${ESQ_TRACING_MARKS_ENABLED:-true}
@@ -562,7 +562,7 @@ services:
       - ESQ_METRICS_HISTOGRAMS=${ESQ_METRICS_HISTOGRAMS:-false}
       - ESQ_METRICS_BANDWIDTH=${ESQ_METRICS_BANDWIDTH:-true}
       - ESQ_METRICS_BUSINESS=${ESQ_METRICS_BUSINESS:-true}
-      - ESQ_MSG_BUS_ALIVE_TRACE=${ESQ_MSG_BUS_ALIVE_TRACE:-true}   # RR liveness round-trip traced on docker; off on k8s/default
+      - ESQ_MSG_BUS_ALIVE_TRACE=${ESQ_MSG_BUS_ALIVE_TRACE:-false}   # RR liveness heartbeat spans -- OFF by default on every target (I14); opt in via this env
       - ESQ_OTLP_ENDPOINT=${ESQ_OTLP_ENDPOINT:-http://otel-collector:4318/v1/traces}
       - ESQ_TRACING_SAMPLING_RATIO=${ESQ_TRACING_SAMPLING_RATIO:-1.0}
       - ESQ_TRACING_MARKS_ENABLED=${ESQ_TRACING_MARKS_ENABLED:-true}
@@ -638,7 +638,7 @@ services:
       - ESQ_METRICS_HISTOGRAMS=${ESQ_METRICS_HISTOGRAMS:-false}
       - ESQ_METRICS_BANDWIDTH=${ESQ_METRICS_BANDWIDTH:-true}
       - ESQ_METRICS_BUSINESS=${ESQ_METRICS_BUSINESS:-true}
-      - ESQ_MSG_BUS_ALIVE_TRACE=${ESQ_MSG_BUS_ALIVE_TRACE:-true}   # RR liveness round-trip traced on docker; off on k8s/default
+      - ESQ_MSG_BUS_ALIVE_TRACE=${ESQ_MSG_BUS_ALIVE_TRACE:-false}   # RR liveness heartbeat spans -- OFF by default on every target (I14); opt in via this env
       - ESQ_OTLP_ENDPOINT=${ESQ_OTLP_ENDPOINT:-http://otel-collector:4318/v1/traces}
       - ESQ_TRACING_SAMPLING_RATIO=${ESQ_TRACING_SAMPLING_RATIO:-1.0}
       - ESQ_TRACING_MARKS_ENABLED=${ESQ_TRACING_MARKS_ENABLED:-true}
@@ -726,7 +726,7 @@ services:
       - ESQ_METRICS_HISTOGRAMS=${ESQ_METRICS_HISTOGRAMS:-false}
       - ESQ_METRICS_BANDWIDTH=${ESQ_METRICS_BANDWIDTH:-true}
       - ESQ_METRICS_BUSINESS=${ESQ_METRICS_BUSINESS:-true}
-      - ESQ_MSG_BUS_ALIVE_TRACE=${ESQ_MSG_BUS_ALIVE_TRACE:-true}   # RR liveness round-trip traced on docker; off on k8s/default
+      - ESQ_MSG_BUS_ALIVE_TRACE=${ESQ_MSG_BUS_ALIVE_TRACE:-false}   # RR liveness heartbeat spans -- OFF by default on every target (I14); opt in via this env
       - ESQ_OTLP_ENDPOINT=${ESQ_OTLP_ENDPOINT:-http://otel-collector:4318/v1/traces}
       - ESQ_TRACING_SAMPLING_RATIO=${ESQ_TRACING_SAMPLING_RATIO:-1.0}
       - ESQ_TRACING_MARKS_ENABLED=${ESQ_TRACING_MARKS_ENABLED:-true}
@@ -801,8 +801,8 @@ services:
       - SESSION_SECRET=esq-bff-dev-session-secret-rotate-in-prod
       # Distributed tracing (v1.2.11 O2) -- OFF by default; the o11y profile brings up the collector.
       # Enable end-to-end: ESQ_OBSERVABILITY_ENABLED=true docker compose --profile o11y up -d --force-recreate
-      - ESQ_TRACING_ENABLED=${ESQ_OBSERVABILITY_ENABLED:-false}   # BFF tracing rides the umbrella switch (own metrics = T5c)
-      - ESQ_MSG_BUS_ALIVE_TRACE=${ESQ_MSG_BUS_ALIVE_TRACE:-true}   # RR liveness round-trip traced on docker; off on k8s/default
+      - ESQ_OBSERVABILITY_ENABLED=${ESQ_OBSERVABILITY_ENABLED:-false}   # BFF: same umbrella switch as the Java services (gates tracing + metrics, T5c)
+      - ESQ_MSG_BUS_ALIVE_TRACE=${ESQ_MSG_BUS_ALIVE_TRACE:-false}   # RR liveness heartbeat spans -- OFF by default on every target (I14); opt in via this env
       - ESQ_OTLP_ENDPOINT=${ESQ_OTLP_ENDPOINT:-http://otel-collector:4318/v1/traces}
       - ESQ_TRACING_SAMPLING_RATIO=${ESQ_TRACING_SAMPLING_RATIO:-1.0}
     extra_hosts:
@@ -957,6 +957,11 @@ services:
       - --enable-feature=exemplar-storage
     volumes:
       - ./o11y/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      # NAMED, like every other store here. The image declares VOLUME /prometheus, so without this line docker
+      # hands it an ANONYMOUS volume: a fresh empty one on every recreate, and exactly what `docker volume prune`
+      # reclaims. An anonymous volume is not a storage choice, it is an accident -- Prometheus was the only
+      # component in the stack still keeping its data in one.
+      - prometheus-data:/prometheus
     ports:
       - "9090:9090"     # Prometheus query API / UI
     networks:
@@ -972,4 +977,5 @@ volumes:
   grafana-data:
   alloy-data:
   tempo-data:
+  prometheus-data:
 

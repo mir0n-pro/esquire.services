@@ -149,6 +149,19 @@ def band(minuend, subtrahend):
     return "((%s) - %s)" % (minuend, safe(subtrahend))
 
 
+def zero_line(expr, key, val):
+    """Draw an affirmative FLAT-ZERO line for a failure outcome that may not have happened yet.
+
+    A failure series (outcome=error|failed, result=deny) has NO samples on a healthy system, so a
+    `sum by (...)` breakdown simply omits it -- and an omitted line is indistinguishable from a reassuring
+    zero. `or vector(0)` cannot fix this: vector(0) carries NO labels, so it cannot BE the missing failure
+    series. label_replace() stamps the label onto a zero vector, so the failure line is always drawn -- flat
+    at zero until a real failure lands on it, at which point the real labelled series draws alongside (the
+    synthesized zero line is harmless). This is what lets a healthy zero read as zero, not as "No data".
+    """
+    return '(%s) or label_replace(vector(0), "%s", "%s", "", "")' % (expr, key, val)
+
+
 def avg_ms(sum_metric, count_metric, by=None, extra=""):
     """Average latency in ms = rate(sum) / rate(count).
 
@@ -502,7 +515,8 @@ def build_panels():
     # ---- Business: entity operations (enyMan) ----
     p.append(row("Business -- entity operations", 155))
     p.append(ts("Entity operations (ops/s by op + outcome)", 0, 156, 8, "ops",
-                [tgt("sum by (op, outcome) (rate(esq_biz_entity_ops_total{%s}[5m]))" % APP,
+                [tgt(zero_line("sum by (op, outcome) (rate(esq_biz_entity_ops_total{%s}[5m]))" % APP,
+                               "outcome", "error"),
                      "{{op}} {{outcome}}")],
                 desc="What enyMan actually DID: creates, deletes and moves, by outcome. No free meter can see "
                      "this -- http.server.requests knows the endpoint and the HTTP status, not which KIND of "
@@ -534,7 +548,8 @@ def build_panels():
     # ---- Business: money (pacMan) ----
     p.append(row("Business -- money", 164))
     p.append(ts("Account transactions (tx/s by type + outcome)", 0, 165, 8, "ops",
-                [tgt("sum by (type, outcome) (rate(esq_biz_acct_tx_total{%s}[5m]))" % APP,
+                [tgt(zero_line("sum by (type, outcome) (rate(esq_biz_acct_tx_total{%s}[5m]))" % APP,
+                               "outcome", "error"),
                      "{{type}} {{outcome}}")],
                 desc="The money path: deposits, withdrawals, transfers, by outcome. Both processors report here "
                      "-- the transfer processor OVERRIDES the single one and does not call super, so it needed "
@@ -556,7 +571,8 @@ def build_panels():
     # ---- Business: identity + token relay (kcMaster, gateway) ----
     p.append(row("Business -- identity + token relay", 173))
     p.append(ts("KeyCloak identity sync (by op + outcome)", 0, 174, 6, "ops",
-                [tgt("sum by (op, outcome) (rate(esq_biz_kc_sync_total{%s}[5m]))" % APP,
+                [tgt(zero_line("sum by (op, outcome) (rate(esq_biz_kc_sync_total{%s}[5m]))" % APP,
+                               "outcome", "error"),
                      "{{op}} {{outcome}}")],
                 desc="Whether Esquire and KeyCloak still AGREE about who exists. The bus meters say a sync "
                      "request arrived; only this says whether the identity was actually brought into line. A "
@@ -595,16 +611,19 @@ def build_panels():
     # ---- Business: cache, keep + permissions (bizTree, dataKeep, cross-cutting) ----
     p.append(row("Business -- cache, keep + permissions", 182))
     p.append(ts("Tree cache -- broadcast dispatch (by outcome)", 0, 183, 8, "ops",
-                [tgt("sum by (outcome) (rate(esq_biz_tree_handler_dispatch_total{%s}[5m]))" % APP,
+                [tgt(zero_line("sum by (outcome) (rate(esq_biz_tree_handler_dispatch_total{%s}[5m]))" % APP,
+                               "outcome", "failed"),
                      "{{outcome}}"),
-                 tgt("sum by (outcome) (rate(esq_biz_tree_rebuild_total{%s}[5m]))" % APP,
+                 tgt(zero_line("sum by (outcome) (rate(esq_biz_tree_rebuild_total{%s}[5m]))" % APP,
+                               "outcome", "error"),
                      "rebuild ({{outcome}})")],
                 desc="What the CACHE did with each broadcast -- applied it, found no handler, found no payload, "
                      "or FAILED. The failed line is the point: the dispatch hub SWALLOWS a handler exception, so "
                      "a handler that blows up leaves the tree silently stale while the bus still counts the "
                      "message as received. Rebuilds should be RARE -- a rising rebuild rate is itself a finding."))
     p.append(ts("Audit keep -- DB writes (by op + outcome)", 8, 183, 8, "ops",
-                [tgt("sum by (op, outcome) (rate(esq_biz_keep_write_total{%s}[5m]))" % APP,
+                [tgt(zero_line("sum by (op, outcome) (rate(esq_biz_keep_write_total{%s}[5m]))" % APP,
+                               "outcome", "error"),
                      "{{op}} {{outcome}}")],
                 desc="THE DB WRITE at the keep sink -- the one thing the bus meters cannot see. "
                      "messaging.receive.total says the audit event ARRIVED; only this says whether the row was "
@@ -612,7 +631,8 @@ def build_panels():
                      "exactly the failure that was invisible before. These counts must RECONCILE with the bus "
                      "receive count on the Messaging bus row: a divergence is a real finding."))
     p.append(ts("Permission checks (allow vs DENY)", 16, 183, 8, "ops",
-                [tgt("sum by (cmd, result) (rate(esq_biz_perm_check_total{%s}[5m]))" % APP,
+                [tgt(zero_line("sum by (cmd, result) (rate(esq_biz_perm_check_total{%s}[5m]))" % APP,
+                               "result", "deny"),
                      "{{cmd}} {{result}}")],
                 desc="The authorization decision itself, counted at the one gate every service goes through. A "
                      "rising DENY rate is either a misconfigured role or someone probing. NOTE the gate sees "

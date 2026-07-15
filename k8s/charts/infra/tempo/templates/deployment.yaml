@@ -14,7 +14,10 @@ spec:
       labels:
         app: {{ .Release.Name }}
       annotations:
-        checksum/config: {{ .Files.Get "templates/configmap.yaml" | sha256sum }}
+        # Rolls the pod when the ConfigMap changes. Must use `include` (renders the template): .Files.Get on a
+        # path under templates/ returns "" -- Helm excludes templates/ from .Files -- so the old form hashed the
+        # empty string to a CONSTANT and NEVER rolled. See I5.
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
     spec:
       securityContext:
         # tempo image default uid; fsGroup so the ephemeral /var/tempo volume is writable.
@@ -38,6 +41,8 @@ spec:
             periodSeconds: 10
             timeoutSeconds: 3
             failureThreshold: 12
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
           volumeMounts:
             - name: config
               mountPath: /etc/tempo
@@ -48,4 +53,9 @@ spec:
           configMap:
             name: {{ .Release.Name }}-config
         - name: data
+          {{- if .Values.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ .Release.Name }}-data
+          {{- else }}
           emptyDir: {}
+          {{- end }}

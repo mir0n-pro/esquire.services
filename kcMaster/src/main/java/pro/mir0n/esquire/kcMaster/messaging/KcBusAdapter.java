@@ -12,14 +12,16 @@
  *                   KcRequestHandler, and replies URS (success) / URR (reject) on the response leg; the requester's
  *                   rod-id is echoed on the reply so only the originating instance's RodID selector picks it up.
  * 06/23/2026 mir0n  EsqMsgConstants references -> messaging.BusConstants (wire) + common.EsqConstants (app)
+ * 07/15/2026 mir0n  v1.2.11 T11 -- the kc-bus receive worker stamps MDC via EsqContextHolder.applyMessage(event)
+ *                   and clears in a finally (I10)
  */
 package pro.mir0n.esquire.kcMaster.messaging;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.LoggerFactory;
-import org.slf4j.MDC;
 import org.springframework.stereotype.Component;
+import pro.mir0n.esquire.backend.service.EsqContextHolder;
 import pro.mir0n.esquire.common.EsqConstants;
 import pro.mir0n.esquire.messaging.BusConstants;
 import pro.mir0n.esquire.messaging.MessagingBus;
@@ -63,8 +65,7 @@ public class KcBusAdapter {
         String requestId     = e.requestId();
         String correlationId = e.correlationId();
 
-        MDC.put(EsqConstants.PD_REQUEST_ID, requestId);
-        MDC.put(EsqConstants.PD_CORRELATION_ID, correlationId);
+        EsqContextHolder.applyMessage(requestId, correlationId);
         try {
             log.info("KC | URQ | {} | {} | {} | {}", command, entityKind, entityId, requesterRodId);
 
@@ -81,7 +82,7 @@ public class KcBusAdapter {
             publishFailure(entityId, entityKind, command, "KC_SYNC_ERROR", ex.getMessage(),
                     requesterRodId, requestId, correlationId, e.body());
         } finally {
-            MDC.clear();
+            EsqContextHolder.clear();
         }
     }
 

@@ -120,4 +120,7 @@ tracing:
   otlpEndpoint: http://esquire-infra-otel-collector:4318/v1/traces
   samplingRatio: "1.0"
   marksEnabled: "true"
+  # RR liveness heartbeat (TestRequest/HeartBeat) spans -- OFF by default on EVERY target (unified I14):
+  # heartbeats fire every interval, so tracing them floods Tempo; set true per env to debug the RR bus.
+  msgBusAliveTrace: "false"
   excludedPaths: "/actuator"

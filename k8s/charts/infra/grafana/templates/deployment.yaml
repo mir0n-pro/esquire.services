@@ -14,7 +14,11 @@ spec:
       labels:
         app: {{ .Release.Name }}
       annotations:
-        checksum/datasource: {{ .Files.Get "templates/configmap-datasource.yaml" | sha256sum }}
+        # Must use `include` (renders the template): .Files.Get on a path under templates/ returns "" -- Helm
+        # excludes templates/ from .Files -- so the old form hashed the empty string to a CONSTANT and never
+        # rolled the pod on a datasource change. See I5. (checksum/dashboards below is correct as-is: it reads
+        # the dashboards/*.json data files, which are NOT under templates/.)
+        checksum/datasource: {{ include (print $.Template.BasePath "/configmap-datasource.yaml") . | sha256sum }}
         checksum/dashboards: {{ printf "%s%s%s" (.Files.Get "dashboards/esquire-services.json") (.Files.Get "dashboards/esquire-logging.json") (.Files.Get "dashboards/esquire-topology.json") | sha256sum }}
     spec:
       securityContext:
@@ -49,6 +53,8 @@ spec:
             periodSeconds: 10
             timeoutSeconds: 3
             failureThreshold: 12
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
           volumeMounts:
             - name: datasources
               mountPath: /etc/grafana/provisioning/datasources
@@ -71,4 +77,9 @@ spec:
           configMap:
             name: {{ .Release.Name }}-icons
         - name: data
+          {{- if .Values.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ .Release.Name }}-data
+          {{- else }}
           emptyDir: {}
+          {{- end }}

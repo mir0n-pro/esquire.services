@@ -46,11 +46,14 @@
  * 07/14/2026 mir0n  feedAwaitMs read from params (feed-await-ms, default BoundedQueueRig.DEFAULT_AWAIT_TIMEOUT_MS)
  *                   and applied to the feed via setPutAwaitMs in buildEngine -- <= 0 holds the producer on a
  *                   full feed instead of discarding the event
+ * 07/15/2026 mir0n  v1.2.11 T11 -- runEngine() calls RodObserverHolder.noteFeedDepthAgainstNoop() when the
+ *                   observer is still NOOP at feed-depth registration, arming the ordering tripwire (I11)
  */
 package pro.mir0n.esquire.messaging.xrod.impl;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
+import pro.mir0n.esquire.messaging.o11y.IRodObserver;
 import pro.mir0n.esquire.messaging.o11y.RodObserverHolder;
 import pro.mir0n.esquire.messaging.BusConstants;
 import pro.mir0n.esquire.messaging.catalog.Role;
@@ -225,6 +228,12 @@ public abstract class AXRod implements IXRod {
             feed.setProcessing(true);
             // register the feed-depth gauge at the start phase: the observer is set by now (its registrar runs at
             // context refresh, before this lifecycle start), so the gauge binds to the real registry, not NOOP. (O1/T5)
+            // Tripwire: if the observer is STILL NOOP here, either o11y is off (fine) or the start-vs-registrar
+            // ordering regressed (bad) -- latch it; RodObserverHolder.setObserver reports the bad case, staying
+            // silent for o11y-off (where setObserver never runs).
+            if (RodObserverHolder.observer() == IRodObserver.NOOP) {
+                RodObserverHolder.noteFeedDepthAgainstNoop();
+            }
             RodObserverHolder.meters().registerFeedDepth(meterBusId(), meterSlotId(), feed::size);
         }
         for (ISessionSublayer sublayer : sendSublayers) {

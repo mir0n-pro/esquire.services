@@ -21,14 +21,16 @@
  *                   private parse(QueueItem) helper that did readTree(item.text())
  * 07/09/2026 mir0n  v1.2.11 -- the H2 apply runs inside EsqAsyncTrace.continueIn(item.traceparent(),
  *                   item.correlationId(), "cache apply", ...)
+ * 07/15/2026 mir0n  v1.2.11 T11 -- the cache-apply worker stamps MDC via EsqContextHolder.applyMessage(requestId,
+ *                   correlationId) and clears in a finally, so its log lines carry the message ids (I10)
  */
 package pro.mir0n.esquire.bizTree.taijitu;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.slf4j.MDC;
 import pro.mir0n.esquire.backend.dto.EsqTreeNode;
 import pro.mir0n.esquire.backend.o11y.EsqAsyncTrace;
+import pro.mir0n.esquire.backend.service.EsqContextHolder;
 import pro.mir0n.esquire.bizTree.access.CacheNotReadyException;
 import pro.mir0n.esquire.bizTree.cache.BizTreeCacheLoader;
 import pro.mir0n.esquire.bizTree.cache.CancelableStatement;
@@ -170,13 +172,11 @@ public class Monad extends AMonad {
 
 
     private static void putMdc(QueueItem item) {
-        if (item.requestId() != null)     MDC.put(EsqConstants.PD_REQUEST_ID,     item.requestId());
-        if (item.correlationId() != null) MDC.put(EsqConstants.PD_CORRELATION_ID, item.correlationId());
+        EsqContextHolder.applyMessage(item.requestId(), item.correlationId());
     }
 
     private static void clearMdc() {
-        MDC.remove(EsqConstants.PD_REQUEST_ID);
-        MDC.remove(EsqConstants.PD_CORRELATION_ID);
+        EsqContextHolder.clear();
     }
 
     /* ====================================================================

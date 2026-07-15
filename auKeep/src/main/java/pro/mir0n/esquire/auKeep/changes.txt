@@ -1,5 +1,10 @@
 Esquire auKeep service
 
+07/15/2026 mir0n  v1.2.11 -- T11 cleanup: fix/resolve issues noted during development
+messaging.AuditConsumerConfig
+  - wraps the keep applier so the audit consumer stamps MDC via EsqContextHolder.applyMessage(event) before
+    applying and clears in a finally, correlating its log lines to the audited message (I10)
+
 07/11/2026 mir0n  v1.2.11 -- the business-meter sub-switch (O1/T8)
 resources/application.yml
   - esquire.observability.metrics.business-enabled: ${ESQ_METRICS_BUSINESS:true} added -- the sub-switch gating

@@ -1,5 +1,13 @@
 Esquire enyMan Microservice
 
+07/15/2026 mir0n  v1.2.11 -- T11 cleanup: fix/resolve issues noted during development
+messaging.KcBusAdapter
+  - the kc-bus receive worker (onResponse) stamps MDC via EsqContextHolder.applyMessage(event) and clears in a
+    finally (I10)
+queue.MoveQueueManager
+  - processMove() binds the worker context with EsqContextHolder.set(), which now stamps MDC itself; the separate,
+    now-redundant MDC apply was dropped (I10)
+
 07/11/2026 mir0n  v1.2.11 -- business meters (O1/T8): entity operations, the move queue, dictionary lookups
 service.impl.EnyManService
   - esquireCommandNew / Delete / Move count esq.biz.entity.ops.total (tags op, kind, outcome = ok|denied|error)

@@ -610,10 +610,8 @@ management:
   health:
     redis:
       enabled: false
-endpoint:
+  endpoint:
     health:
-      db:
-        enabled: false
       probes:
-        enabled: true
+        enabled: true               # expose the liveness + readiness health groups
       show-details: always        

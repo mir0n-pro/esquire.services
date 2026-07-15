@@ -24,8 +24,12 @@ data:
   # replica reads the same session (required to run more than one replica).
   # Omitted (no key) when redis.url is empty -> in-memory MemoryStore, 1 replica.
   REDIS_URL:          {{ .Values.redis.url | quote }}
-  # --- v1.2.11 O2 distributed tracing (opt-in; OFF by default; o11y-on enables it) ---
-  ESQ_TRACING_ENABLED:        {{ .Values.observability.enabled | quote }}   # BFF tracing rides the umbrella switch (own metrics = T5c)
+  {{- end }}
+  # --- v1.2.11 observability umbrella (opt-in; OFF by default; o11y-on enables it) ---
+  # ESQ_OBSERVABILITY_ENABLED is the SAME umbrella switch the Java services take; it gates BOTH the BFF tracing
+  # (a root span per request, exported over OTLP) AND the BFF metrics surface (/metrics, T5c). Rendered
+  # UNCONDITIONALLY -- it must NOT sit inside the redis block above, or a redis-less target (OKE, 1 replica)
+  # would never receive it and observability.enabled would be silently dead there.
+  ESQ_OBSERVABILITY_ENABLED:  {{ .Values.observability.enabled | quote }}
   ESQ_OTLP_ENDPOINT:          {{ .Values.tracing.otlpEndpoint | quote }}
   ESQ_TRACING_SAMPLING_RATIO: {{ .Values.tracing.samplingRatio | quote }}
-  {{- end }}

@@ -6,3 +6,25 @@ image:
 loki:
   # Push endpoint -- the in-cluster Loki service (release name esquire-infra-loki).
   endpoint: http://esquire-infra-loki:3100/loki/api/v1/push
+
+# Resource budget -- MEASURED on local k8s under a 200-VU super-load (2026-07-14), not guessed: peak RSS
+# 166Mi and peak 0.4 cores at 657 rps, and the box tops out near 1130 rps with observability on, so the
+# limits carry headroom over that ceiling rather than over the sample. Requests are the RESERVATION the
+# scheduler holds; limits are the CEILING. With neither, this pod runs BestEffort -- no reservation, no
+# ceiling, competing for the very CPU the JVMs are capped on, and FIRST in line to be evicted under the load
+# that most needs observing.
+resources:
+  requests:
+    cpu: 100m
+    memory: 192Mi
+  limits:
+    cpu: 1000m
+    memory: 512Mi
+
+# Storage is the SYSTEM ADMIN's choice -- Esquire does not dictate it. The default is emptyDir: history lives
+# and dies with the pod, which is the right default for a dev/demo stack and costs nothing. Set
+# persistence.enabled=true (with a storageClass and size that suit the cluster) to keep it across restarts.
+persistence:
+  enabled: false
+  storageClass: ""          # "" = the cluster default StorageClass
+  size: 2Gi

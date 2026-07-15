@@ -28,7 +28,7 @@ ingester:
 
 compactor:
   compaction:
-    block_retention: 168h
+    block_retention: 6h            # matches Prometheus metrics retention -- one window for all three signals
 
 storage:
   trace:

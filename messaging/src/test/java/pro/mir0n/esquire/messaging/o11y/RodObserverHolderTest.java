@@ -1,6 +1,13 @@
 package pro.mir0n.esquire.messaging.o11y;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import org.junit.jupiter.api.Test;
+import org.slf4j.LoggerFactory;
+
+import java.lang.reflect.Field;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -105,5 +112,62 @@ class RodObserverHolderTest {
     void holder_nullRestoresNoop() {
         RodObserverHolder.setObserver(null);
         assertThat(RodObserverHolder.observer()).isSameAs(IRodObserver.NOOP);
+    }
+
+    // The registrar-vs-bus-start ordering tripwire (I11): a feed-depth gauge registered against NOOP is silent when
+    // observability is off (setObserver never runs), but if the observer is installed LATE -- meaning the bus
+    // started before its registrar -- setObserver reports it on the develop channel at ERROR.
+    @Test
+    void feedDepthAgainstNoop_thenLateObserver_logsErrorOnce() throws Exception {
+        Logger devLog = (Logger) LoggerFactory.getLogger(
+                "develop." + RodObserverHolder.class.getName());
+        ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        appender.start();
+        devLog.addAppender(appender);
+        IRodObserver stub = IRodObserver.of(new NoopTracer(), new NoopMeters());
+        try {
+            resetFeedDepthLatch();
+
+            // Correct ordering: observer installed with NO prior NOOP feed-depth -> silent.
+            RodObserverHolder.setObserver(stub);
+            assertThat(appender.list).noneMatch(e -> e.getLevel() == Level.ERROR);
+
+            // The race: a feed-depth registered against NOOP, THEN the observer arrives late -> ERROR.
+            RodObserverHolder.noteFeedDepthAgainstNoop();
+            RodObserverHolder.setObserver(stub);
+            assertThat(appender.list)
+                    .anyMatch(e -> e.getLevel() == Level.ERROR
+                            && e.getFormattedMessage().contains("registered against NOOP"));
+        } finally {
+            devLog.detachAppender(appender);
+            resetFeedDepthLatch();
+            RodObserverHolder.setObserver(null); // restore for other tests sharing this static holder
+        }
+    }
+
+    private static void resetFeedDepthLatch() throws Exception {
+        Field f = RodObserverHolder.class.getDeclaredField("feedDepthAgainstNoop");
+        f.setAccessible(true);
+        f.setBoolean(null, false);
+    }
+
+    // Minimal no-op views so the test can build a real (non-NOOP) observer without a mocking framework.
+    private static final class NoopTracer implements IRodTracer {
+        @Override public String outbound(String c, String b, String s, String o) { return null; }
+        @Override public boolean aliveTrace() { return false; }
+        @Override public String newTraceId() { return null; }
+        @Override public void inbound(String tp, String c, String b, String s, String f, String o, Runnable w) { w.run(); }
+        @Override public String aliveOutbound(String c, String b, String l, String o, boolean r) { return null; }
+        @Override public void aliveInbound(String tp, String c, String b, String l, String f, String o, Runnable w) { w.run(); }
+    }
+    private static final class NoopMeters implements IRodMeters {
+        @Override public void sent(String b, String s, String m) { }
+        @Override public void sendDuration(String b, String s, String m, long n) { }
+        @Override public void received(String b, String s, String m) { }
+        @Override public void error(String b, String s, String m, String leg) { }
+        @Override public void retryBackoff(String b, long ms) { }
+        @Override public void retryDropped(String b, String m) { }
+        @Override public void registerFeedDepth(String b, String s, java.util.function.IntSupplier d) { }
+        @Override public void registerRetryHeld(String b, String s, java.util.function.IntSupplier h) { }
     }
 }

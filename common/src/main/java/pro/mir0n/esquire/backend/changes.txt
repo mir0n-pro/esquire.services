@@ -1,5 +1,11 @@
 Esquire Backend common microservice classes
 
+07/15/2026 mir0n  v1.2.11 -- T11 cleanup: fix/resolve issues noted during development
+service.EsqContextHolder
+  - MDC control centralised here (I10): set() now also stamps correlationId / requestId into MDC (the priority
+    path), clear() removes them, and applyMessage(RodEvent) / applyMessage(requestId, correlationId) stamp MDC
+    ONLY -- for a bus worker that has no full context to set. Bus listener workers no longer touch MDC directly
+
 07/11/2026 mir0n  v1.2.11 -- business meters (O1/T8): the esq.biz.* facility, the one cross-cutting meter, the business sub-switch, and ONE switch for every histogram bucket
 o11y.EsqBizMeters  (new)
   - the shared esq.biz.* meter facility -- the ONE entry point for every business meter, so per-service work stays

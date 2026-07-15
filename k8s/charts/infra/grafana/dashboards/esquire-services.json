@@ -2130,7 +2130,7 @@
       "type": "prometheus",
       "uid": "esq-prometheus"
      },
-     "expr": "sum by (op, outcome) (rate(esq_biz_entity_ops_total{application=~\"$application\"}[5m]))",
+     "expr": "(sum by (op, outcome) (rate(esq_biz_entity_ops_total{application=~\"$application\"}[5m]))) or label_replace(vector(0), \"outcome\", \"error\", \"\", \"\")",
      "legendFormat": "{{op}} {{outcome}}"
     }
    ],
@@ -2297,7 +2297,7 @@
       "type": "prometheus",
       "uid": "esq-prometheus"
      },
-     "expr": "sum by (type, outcome) (rate(esq_biz_acct_tx_total{application=~\"$application\"}[5m]))",
+     "expr": "(sum by (type, outcome) (rate(esq_biz_acct_tx_total{application=~\"$application\"}[5m]))) or label_replace(vector(0), \"outcome\", \"error\", \"\", \"\")",
      "legendFormat": "{{type}} {{outcome}}"
     }
    ],
@@ -2427,7 +2427,7 @@
       "type": "prometheus",
       "uid": "esq-prometheus"
      },
-     "expr": "sum by (op, outcome) (rate(esq_biz_kc_sync_total{application=~\"$application\"}[5m]))",
+     "expr": "(sum by (op, outcome) (rate(esq_biz_kc_sync_total{application=~\"$application\"}[5m]))) or label_replace(vector(0), \"outcome\", \"error\", \"\", \"\")",
      "legendFormat": "{{op}} {{outcome}}"
     }
    ],
@@ -2585,7 +2585,7 @@
       "type": "prometheus",
       "uid": "esq-prometheus"
      },
-     "expr": "sum by (outcome) (rate(esq_biz_tree_handler_dispatch_total{application=~\"$application\"}[5m]))",
+     "expr": "(sum by (outcome) (rate(esq_biz_tree_handler_dispatch_total{application=~\"$application\"}[5m]))) or label_replace(vector(0), \"outcome\", \"failed\", \"\", \"\")",
      "legendFormat": "{{outcome}}"
     },
     {
@@ -2594,7 +2594,7 @@
       "type": "prometheus",
       "uid": "esq-prometheus"
      },
-     "expr": "sum by (outcome) (rate(esq_biz_tree_rebuild_total{application=~\"$application\"}[5m]))",
+     "expr": "(sum by (outcome) (rate(esq_biz_tree_rebuild_total{application=~\"$application\"}[5m]))) or label_replace(vector(0), \"outcome\", \"error\", \"\", \"\")",
      "legendFormat": "rebuild ({{outcome}})"
     }
    ],
@@ -2631,7 +2631,7 @@
       "type": "prometheus",
       "uid": "esq-prometheus"
      },
-     "expr": "sum by (op, outcome) (rate(esq_biz_keep_write_total{application=~\"$application\"}[5m]))",
+     "expr": "(sum by (op, outcome) (rate(esq_biz_keep_write_total{application=~\"$application\"}[5m]))) or label_replace(vector(0), \"outcome\", \"error\", \"\", \"\")",
      "legendFormat": "{{op}} {{outcome}}"
     }
    ],
@@ -2668,7 +2668,7 @@
       "type": "prometheus",
       "uid": "esq-prometheus"
      },
-     "expr": "sum by (cmd, result) (rate(esq_biz_perm_check_total{application=~\"$application\"}[5m]))",
+     "expr": "(sum by (cmd, result) (rate(esq_biz_perm_check_total{application=~\"$application\"}[5m]))) or label_replace(vector(0), \"result\", \"deny\", \"\", \"\")",
      "legendFormat": "{{cmd}} {{result}}"
     }
    ],

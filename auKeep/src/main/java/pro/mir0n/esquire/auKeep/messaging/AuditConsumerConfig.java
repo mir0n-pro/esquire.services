@@ -18,6 +18,9 @@
  * 06/23/2026 mir0n  EsqMsgConstants app constants -> common.EsqConstants (references repointed)
  * 07/10/2026 mir0n  v1.2.11 O1 -- injects ObjectProvider<MeterRegistry> and hands getIfAvailable() to the
  *                   KeepApplier, so the keep pool's hikaricp_* meters report when observability is enabled.
+ * 07/15/2026 mir0n  v1.2.11 T11 -- wraps the keep applier so the audit consumer stamps MDC via
+ *                   EsqContextHolder.applyMessage(event) before applying and clears in a finally, correlating its
+ *                   log lines to the audited message (I10)
  */
 package pro.mir0n.esquire.auKeep.messaging;
 
@@ -30,6 +33,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.env.Environment;
 import pro.mir0n.esquire.audit.AuditKeepDirector;
+import pro.mir0n.esquire.backend.service.EsqContextHolder;
 import pro.mir0n.esquire.common.EsqConstants;
 import pro.mir0n.esquire.dataKeep.director.IKeepDirector;
 import pro.mir0n.esquire.dataKeep.keep.KeepApplier;
@@ -37,8 +41,10 @@ import pro.mir0n.esquire.dataKeep.keep.KeepDataSourceParams;
 import pro.mir0n.esquire.dataKeep.keep.KeepSqlStore;
 import pro.mir0n.esquire.messaging.MessagingBus;
 import pro.mir0n.esquire.messaging.IXRod;
+import pro.mir0n.esquire.messaging.RodEvent;
 import pro.mir0n.esquire.messaging.transport.TransportHealth;
 
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 @Configuration
@@ -80,7 +86,18 @@ public class AuditConsumerConfig {
                 IKeepDirector dir = new AuditKeepDirector();
                 this.keepApplier = new KeepApplier(ds, new KeepSqlStore(dir.sqlGroup()), dir.kinds(), devLog,
                         meterRegistry.getIfAvailable());
-                rod.setWorker(keepApplier.applier());
+                // The generic keep applier logs the apply (develop channel) but does not establish a context, and
+                // its item IS a RodEvent -- so applyMessage (not set) is the right tool. Wrapped HERE (auKeep, above
+                // common) so the keep engine in dataKeep never learns the MDC key vocabulary.
+                final Consumer<RodEvent> keepWorker = keepApplier.applier();
+                rod.setWorker(e -> {
+                    EsqContextHolder.applyMessage(e);
+                    try {
+                        keepWorker.accept(e);
+                    } finally {
+                        EsqContextHolder.clear();
+                    }
+                });
                 devLog.info("auKeep: audit consumer applying to keep datasource (kinds={})", dir.kinds().size());
             }
         }

@@ -11,15 +11,17 @@
  *                   kc-CLIENT rod (from the facade). publish() builds the URQ from the access profile + roles and
  *                   transmits it; onResponse() handles the reply tagged with this instance's rod-id.
  * 06/23/2026 mir0n  EsqMsgConstants references -> messaging.BusConstants (wire) + common.EsqConstants (app)
+ * 07/15/2026 mir0n  v1.2.11 T11 -- the kc-bus receive worker (onResponse) stamps MDC via
+ *                   EsqContextHolder.applyMessage(event) and clears in a finally (I10)
  */
 package pro.mir0n.esquire.keySmith.messaging;
 
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.slf4j.MDC;
 import org.springframework.stereotype.Component;
 import pro.mir0n.esquire.backend.jpa.access.EsqAccessProfileJpa;
+import pro.mir0n.esquire.backend.service.EsqContextHolder;
 import pro.mir0n.esquire.backend.jpa.access.EsqRoleJpa;
 import pro.mir0n.esquire.common.EsqConstants;
 import pro.mir0n.esquire.messaging.BusConstants;
@@ -93,14 +95,13 @@ public class KcBusAdapter {
 
     /** Receive the KC sync response (URS/URR) for this keySmith instance off the kc-response leg. */
     void onResponse(RodEvent e) {
-        MDC.put(EsqConstants.PD_REQUEST_ID, e.requestId());
-        MDC.put(EsqConstants.PD_CORRELATION_ID, e.correlationId());
+        EsqContextHolder.applyMessage(e);
         try {
             // msgType is the authoritative URS/URR tag (no need to inspect the body).
             log.info("KC | {} | {} | {} | {} | {}", e.msgType(), e.opCode(), e.kind(), e.entityId(), e.requestId());
             // todo: correlate by requestId; update sync status / reconciliation record
         } finally {
-            MDC.clear();
+            EsqContextHolder.clear();
         }
     }
 

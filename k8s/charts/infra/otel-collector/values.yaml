@@ -6,3 +6,17 @@ image:
 # where the collector forwards spans (the Tempo OTLP/gRPC receiver).
 tempo:
   endpoint: esquire-infra-tempo:4317
+
+# Resource budget -- MEASURED on local k8s under a 200-VU super-load (2026-07-14), not guessed: peak RSS
+# 326Mi and peak 0.82 cores at 657 rps, and the box tops out near 1130 rps with observability on, so the
+# limits carry headroom over that ceiling rather than over the sample. Requests are the RESERVATION the
+# scheduler holds; limits are the CEILING. With neither, this pod runs BestEffort -- no reservation, no
+# ceiling, competing for the very CPU the JVMs are capped on, and FIRST in line to be evicted under the load
+# that most needs observing.
+resources:
+  requests:
+    cpu: 200m
+    memory: 256Mi
+  limits:
+    cpu: 2000m
+    memory: 1Gi

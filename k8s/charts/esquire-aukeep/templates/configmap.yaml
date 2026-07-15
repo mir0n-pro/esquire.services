@@ -39,4 +39,5 @@ data:
   ESQ_OTLP_ENDPOINT:          {{ .Values.tracing.otlpEndpoint | quote }}
   ESQ_TRACING_SAMPLING_RATIO: {{ .Values.tracing.samplingRatio | quote }}
   ESQ_TRACING_MARKS_ENABLED:  {{ .Values.tracing.marksEnabled | quote }}
+  ESQ_MSG_BUS_ALIVE_TRACE:    {{ .Values.tracing.msgBusAliveTrace | quote }}
   ESQ_TRACING_EXCLUDED_PATHS: {{ .Values.tracing.excludedPaths | quote }}

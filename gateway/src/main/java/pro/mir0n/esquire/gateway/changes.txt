@@ -1,5 +1,11 @@
 Esquire Gateway Microservice
 
+07/15/2026 mir0n  v1.2.11 -- T11 cleanup: fix/resolve issues noted during development
+resources/application.yml
+  - the management.endpoint block sat at column 0 (a sibling of management, not a child), so
+    endpoint.health.probes.enabled was silently ignored and /actuator/health/liveness + /readiness returned 404;
+    indented under management so the probe groups are exposed. Removed the dead management.health.db block (I1)
+
 07/14/2026 mir0n  v1.2.11 -- the bulkhead is declared, sized from the pool, and no longer opens the breaker (T10)
 config.ResilienceConfig
   - the BULKHEAD is now declared and sized here. circuitBreakerConfig() adds ignoreExceptions(BulkheadFullException)

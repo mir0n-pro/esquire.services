@@ -1,5 +1,10 @@
 Esquire keySmith Microservice
 
+07/15/2026 mir0n  v1.2.11 -- T11 cleanup: fix/resolve issues noted during development
+messaging.KcBusAdapter
+  - the kc-bus receive worker (onResponse) stamps MDC via EsqContextHolder.applyMessage(event) and clears in a
+    finally (I10)
+
 07/14/2026 mir0n  v1.2.11 -- the KC request leg holds instead of dropping when its feed is full (T10)
 resources/application.yml
   - kc-bus x-rod: feed-await-ms: ${KEYSMITH_KC_FEED_AWAIT_MS:0} added -- 0 = wait forever, so a full feed holds

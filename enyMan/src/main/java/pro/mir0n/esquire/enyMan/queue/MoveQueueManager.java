@@ -40,6 +40,8 @@
  *                   flag in the existing finally -- the exception flow is untouched. The move's REAL outcome:
  *                   /esq-move answers 202 at submit time, so a move that fails on the worker is invisible to the
  *                   caller and to every HTTP meter
+ * 07/15/2026 mir0n  v1.2.11 T11 -- processMove() binds the worker context with EsqContextHolder.set(), which now
+ *                   stamps MDC itself; the separate, now-redundant MDC apply was dropped (I10)
  */
 
 package pro.mir0n.esquire.enyMan.queue;
@@ -200,15 +202,11 @@ public class MoveQueueManager implements IQueueRig.IQueueWorker<MoveQueueItem> {
     }
 
     private void processMove(MoveCommandItem item) {
-        // Set MDC for this move; leave it set across subsequent reconcile items so they
-        // inherit the move's CID/RID (the "events get the last move command IDs" rule).
-        if (item.requestId()     != null) MDC.put(EsqConstants.PD_REQUEST_ID,     item.requestId());
-        if (item.correlationId() != null) MDC.put(EsqConstants.PD_CORRELATION_ID, item.correlationId());
-
-        // Re-establish the unified per-request context on this worker thread from the queued item.
-        // The request thread's EsqContextHolder / SecurityContext do not follow here, so without
-        // this the service-layer RequestContextUtils.getUid()/getRootPath()/getCorrelationId() would
-        // all read empty -- the same reason MDC has to be re-set above.
+        // Re-establish the unified per-request context on this worker thread from the queued item, and with it
+        // the MDC ids -- set() carries both. The request thread's EsqContextHolder / SecurityContext do not follow
+        // here, so without this the service-layer RequestContextUtils.getUid()/getRootPath()/getCorrelationId()
+        // and the log lines would all read empty. Left set across subsequent reconcile items so they inherit the
+        // move's CID/RID (the "events get the last move command IDs" rule).
         EsqContextHolder.set(new EsqRequestContext(
                 item.correlationId(), item.requestId(), item.uid(), item.rootPath()));
 

@@ -1,6 +1,27 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v1.2.11-2607.1513  v1.2.11 -- T11 cleanup: fix/resolve issues noted during development
+    - gateway liveness and readiness were not separated from the aggregate health check
+    - messages handled off the bus were not correlated in the logs
+    - a dashboard panel read "No data" for a counter that had not yet fired
+    - a configuration change did not restart the observability tools that depend on it
+    - the log collector was ingesting its own stack's logs
+    - the browser tier stood outside the single observability switch
+    - heartbeat tracing differed between environments
+    - the observability tools ran without a fixed history window or resource limits
+    - the metrics store used an unnamed data volume
+    Components:   gateway,
+                  common,
+                  messaging,
+                  bizTree,
+                  enyMan,
+                  kcMaster,
+                  keySmith,
+                  auKeep,
+                  compose,
+                  k8s
+
 v1.2.11-2607.1413  v1.2.11 -- circuit breaker: its parameters set up and verified under a heavy load test
     :Fix:         under a heavy burst the gateway was refusing requests it could have served. A limit nobody had
                   set -- 25 calls at once, a default that came with the library -- was rejecting the overflow, and

@@ -1,5 +1,13 @@
 Esquire BizTree Microservice
 
+07/15/2026 mir0n  v1.2.11 -- T11 cleanup: fix/resolve issues noted during development
+messaging.EntityBusAdapter
+  - the entity-broadcast receive worker stamps MDC via EsqContextHolder.applyMessage(event) and clears in a
+    finally, so its INFO log line carries the message's correlationId / requestId (I10)
+taijitu.Monad
+  - the cache-apply worker stamps MDC via EsqContextHolder.applyMessage(requestId, correlationId) and clears in a
+    finally, so its log lines carry the message ids (I10)
+
 07/11/2026 mir0n  v1.2.11 -- business meters (O1/T8): what the cache did with each broadcast
 access.MessageHandlerHub
   - dispatch() counts esq.biz.tree.handler.dispatch.total (tags event, kind, outcome = handled|no-handler|

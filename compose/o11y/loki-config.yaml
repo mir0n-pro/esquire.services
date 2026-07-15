@@ -32,7 +32,7 @@ schema_config:
 
 limits_config:
   allow_structured_metadata: true
-  retention_period: 168h        # 7 days
+  retention_period: 6h          # matches Prometheus metrics retention -- one window for all three signals
   volume_enabled: true
 
 compactor:
