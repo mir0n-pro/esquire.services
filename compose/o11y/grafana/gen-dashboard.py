@@ -162,8 +162,10 @@ def zero_line(expr, key, val):
     return '(%s) or label_replace(vector(0), "%s", "%s", "", "")' % (expr, key, val)
 
 
-def avg_ms(sum_metric, count_metric, by=None, extra=""):
-    """Average latency in ms = rate(sum) / rate(count).
+def avg_s(sum_metric, count_metric, by=None, extra="", window="5m"):
+    """Average in SECONDS = rate(sum) / rate(count) -- the ONE way to average a timer. avg_ms() scales it to ms;
+    a band() subtracts two of these. Nothing hand-writes rate(sum)/rate(count). `window` is the rate window
+    (default 5m; pass "1m" for a more responsive panel).
 
     NO clamp_min on the denominator. `clamp_min(rate(count), 1)` looks like a safe divide-by-zero guard, and it
     is -- for HIGH-rate meters. But it DIVIDES BY ONE whenever the event rate is below 1/s, which is the normal
@@ -172,22 +174,42 @@ def avg_ms(sum_metric, count_metric, by=None, extra=""):
 
     Dividing by the true rate yields NaN when there is no traffic, which Grafana draws as a gap -- honest, and
     the correct reading of "nothing happened". A gap is not a bug; a fabricated 0.3 ms is.
+    check_no_clamped_rate_denominator() enforces this against the whole board, so the trap stays removed.
     """
     grp = ("sum by (%s) " % by) if by else "sum"
-    return "1000 * (%s(rate(%s[5m])%s) / %s(rate(%s[5m])%s))" % (
-        grp, sum_metric, extra, grp, count_metric, extra)
+    return "(%s(rate(%s[%s])%s) / %s(rate(%s[%s])%s))" % (
+        grp, sum_metric, window, extra, grp, count_metric, window, extra)
+
+
+def avg_ms(sum_metric, count_metric, by=None, extra="", window="5m"):
+    """Average latency in MILLISECONDS -- avg_s() scaled to ms. Use on any 'ms' latency panel."""
+    return "1000 * %s" % avg_s(sum_metric, count_metric, by=by, extra=extra, window=window)
+
+
+def ratio(numerator, denominator, scale=""):
+    """A rate-windowed proportion numerator/denominator -- the ONE way to write a ratio (cache hit rate, ...).
+
+    Both terms are rate() windows, so it is a LIVE proportion, never a lifetime average off cumulative counters
+    (a raw-counter ratio can never move once it has run a while -- exactly why the PG topology WARN was inert,
+    see I30). NO clamp_min: same trap as avg_s -- a small denominator is honest as a gap, not fabricated as a
+    plausible-but-wrong number. `scale` is "100 * " for a percent panel, "" for a 0..1 ratio.
+    """
+    return "%s(%s) / (%s)" % (scale, numerator, denominator)
 
 
 def check_no_naked_subtraction(panels):
     """Refuse to emit a naked series subtraction -- the guard that keeps the trap removed, not just fixed once.
 
-    Every `) - (` between two series must be matched by an `or vector(0)` guard on its subtrahend, which is what
-    band()/safe() produce. A panel that hand-writes the minus sign fails HERE, at generation time, naming itself.
+    A subtraction whose SUBTRAHEND is a series (one that can be empty) must be matched by an `or vector(0)` guard,
+    which is what band()/safe() produce. This matches the subtrahend in every form it takes -- `) - (`, but also
+    `) - rate(`, `) - sum(`, `) - histogram_quantile(` -- not only the parenthesised case, so a hand-written minus
+    in any shape fails HERE, at generation time, naming itself. A bare scalar subtraction (`x - 1`) is not a
+    series and does not match.
     """
     for p in panels:
         for t in p.get("targets", []):
             expr = t.get("expr", "")
-            subtractions = len(re.findall(r"\)\s*-\s*\(", expr))
+            subtractions = len(re.findall(r"\)\s*-\s*(?:\(|rate\(|sum[\s(]|histogram_quantile\()", expr))
             guards = expr.count("or vector(0)")
             if subtractions > guards:
                 raise SystemExit(
@@ -195,6 +217,26 @@ def check_no_naked_subtraction(panels):
                     "A PromQL subtraction against an EMPTY vector yields EMPTY and deletes the band.\n"
                     "Use band(a, b) / safe(x) instead of hand-writing '-' between series."
                     % (p.get("title"), expr))
+
+
+def check_no_clamped_rate_denominator(panels):
+    """Refuse a division whose denominator CLAMPS a rate() -- the clamp_min(rate(count), 1) lie, build-enforced.
+
+    clamp_min(rate(x), N) divides by N whenever the true rate is below N/s, so it renders a real 130 ms average
+    as 0.3 ms (or a 99% hit rate as 42%) SILENTLY -- and it looks plausible, so reading the query never catches
+    it. avg_s() / avg_ms() / ratio() divide by the TRUE rate on purpose (a gap when idle is the honest reading).
+    A panel that reintroduces a clamped rate denominator -- in any of the shapes the generators produce -- fails
+    HERE. This is the guard that makes "fixed in 9 queries" into "cannot come back".
+    """
+    for p in panels:
+        for t in p.get("targets", []):
+            expr = t.get("expr", "")
+            if re.search(r"clamp_min\(\s*(?:sum(?:\s+by\s*\([^)]*\))?\s*\()?\s*rate\(", expr):
+                raise SystemExit(
+                    "clamped rate() denominator in panel %r:\n  %s\n"
+                    "clamp_min(rate(count), N) divides by N below N events/second and renders a real average as a\n"
+                    "fraction of it -- silently, and it looks plausible. Use avg_s()/avg_ms()/ratio(), which divide\n"
+                    "by the TRUE rate." % (p.get("title"), expr))
 
 
 APP = 'application=~"$application"'
@@ -284,19 +326,19 @@ def build_panels():
                 [tgt("sum by (application, instance) (rate(hikaricp_connections_usage_seconds_sum{%s}[1m]))" % APP,
                      "{{application}} {{instance}}")]))
     p.append(ts("Avg DB connection hold time (ms/borrow)", 12, 52, 12, "ms",
-                [tgt("1000 * sum by (application, instance)(rate(hikaricp_connections_usage_seconds_sum{%s}[5m])) / "
-                     "sum by (application, instance)(rate(hikaricp_connections_usage_seconds_count{%s}[5m]))"
-                     % (APP, APP), "{{application}} {{instance}}")]))
+                [tgt(avg_ms("hikaricp_connections_usage_seconds_sum{%s}" % APP,
+                            "hikaricp_connections_usage_seconds_count{%s}" % APP, by="application, instance"),
+                     "{{application}} {{instance}}")]))
     # ---- BFF (Node.js) ----
     p.append(row("BFF (Node.js)", 60))
     # The BFF runs x2 on k8s -- every panel carries the instance dimension (same convention as the Java panels),
     # so the two replicas are DISTINCT series, never silently summed into one line.
     p.append(ts("BFF request rate by replica", 0, 61, 6, "reqps",
-                [tgt("sum by (instance) (rate(bff_http_request_duration_seconds_count[1m]))", "{{instance}}")],
+                [tgt("sum by (instance) (rate(esq_bff_inbound_duration_seconds_count[1m]))", "{{instance}}")],
                 desc="Per-replica request rate -- shows how the load balances across the x2 BFF pods. "
                      "On docker there is a single instance."))
     p.append(ts("BFF p95 latency by route", 6, 61, 6, "s",
-                [tgt("histogram_quantile(0.95, sum by (le, route) (rate(bff_http_request_duration_seconds_bucket[5m])))",
+                [tgt("histogram_quantile(0.95, sum by (le, route) (rate(esq_bff_inbound_duration_seconds_bucket[5m])))",
                      "{{route}}")],
                 desc="Latency per route, aggregated ACROSS replicas (the question here is which route is slow, "
                      "not which pod). Use the request-rate panel for the per-replica split."))
@@ -315,9 +357,9 @@ def build_panels():
                 [tgt('rate(pg_stat_database_xact_commit{datname="esq2025"}[1m])', "commit"),
                  tgt('rate(pg_stat_database_xact_rollback{datname="esq2025"}[1m])', "rollback")]))
     p.append(ts("Postgres cache hit ratio", 0, 78, 12, "percentunit",
-                [tgt('rate(pg_stat_database_blks_hit{datname="esq2025"}[5m]) / '
-                     '(rate(pg_stat_database_blks_hit{datname="esq2025"}[5m]) + '
-                     'rate(pg_stat_database_blks_read{datname="esq2025"}[5m]))', "hit ratio")]))
+                [tgt(ratio('rate(pg_stat_database_blks_hit{datname="esq2025"}[5m])',
+                           'rate(pg_stat_database_blks_hit{datname="esq2025"}[5m]) + '
+                           'rate(pg_stat_database_blks_read{datname="esq2025"}[5m])'), "hit ratio")]))
     p.append(ts("Postgres database size", 12, 78, 12, "bytes",
                 [tgt('pg_database_size_bytes{datname="esq2025"}', "{{datname}}")]))
     # ---- KeyCloak (Quarkus mgmt :9000/kc-auth/metrics) ----
@@ -325,8 +367,8 @@ def build_panels():
     p.append(ts("KeyCloak HTTP request rate", 0, 87, 12, "reqps",
                 [tgt('sum(rate(http_server_requests_seconds_count{job="keycloak"}[1m]))', "requests/s")]))
     p.append(ts("KeyCloak avg HTTP latency (ms)", 12, 87, 12, "ms",
-                [tgt('1000 * sum(rate(http_server_requests_seconds_sum{job="keycloak"}[1m])) / '
-                     'sum(rate(http_server_requests_seconds_count{job="keycloak"}[1m]))', "avg")]))
+                [tgt(avg_ms('http_server_requests_seconds_sum{job="keycloak"}',
+                            'http_server_requests_seconds_count{job="keycloak"}', window="1m"), "avg")]))
     p.append(ts("KeyCloak DB pool (agroal)", 0, 95, 12, "short",
                 [tgt('agroal_active_count{job="keycloak"}', "active"),
                  tgt('agroal_available_count{job="keycloak"}', "available")]))
@@ -342,12 +384,16 @@ def build_panels():
                 [tgt("sum by (application, bus_id) (rate(messaging_receive_total{%s}[1m]))" % APP,
                      "{{application}} <- {{bus_id}}")]))
     p.append(ts("Bus error rate (msg/s)", 16, 104, 8, "ops",
-                [tgt("sum by (application, bus_id, leg) (rate(messaging_error_total{%s}[5m]))" % APP,
-                     "{{application}} {{bus_id}} {{leg}}")]))
+                [tgt(zero_line("sum by (application, bus_id, leg) (rate(messaging_error_total{%s}[5m]))" % APP,
+                               "leg", "send"),
+                     "{{application}} {{bus_id}} {{leg}}")],
+                desc="A healthy bus has NO error series, which reads as 'No data' -- indistinguishable from a "
+                     "broken meter. The zero-line draws a flat 0 until a real error lands (I20, same fix as I9 for "
+                     "the business failure panels)."))
     p.append(ts("Bus send latency (avg + p95 ms)", 0, 112, 8, "ms",
-                [tgt("1000 * sum by (application, bus_id)(rate(messaging_send_duration_seconds_sum{%s}[5m])) / "
-                     "sum by (application, bus_id)(rate(messaging_send_duration_seconds_count{%s}[5m]))"
-                     % (APP, APP), "avg {{application}} -> {{bus_id}}"),
+                [tgt(avg_ms("messaging_send_duration_seconds_sum{%s}" % APP,
+                            "messaging_send_duration_seconds_count{%s}" % APP, by="application, bus_id"),
+                     "avg {{application}} -> {{bus_id}}"),
                  tgt("1000 * histogram_quantile(0.95, sum by (le, application, bus_id) "
                      "(rate(messaging_send_duration_seconds_bucket{%s}[5m])))" % APP,
                      "p95 {{application}} -> {{bus_id}}", exemplar=True)],
@@ -440,34 +486,70 @@ def build_panels():
     p.append(row("Latency bands", 137))
     # The RAW timers (each layer as measured), the DERIVED bands (the subtractions those layers imply), and the
     # gateway percentile. Three across, so the Bandwidth row below keeps its y.
-    AVG = "sum(rate(esq_%s_seconds_sum[5m])) / sum(rate(esq_%s_seconds_count[5m]))"
-    GW_OUTER = AVG % ("gw_outer", "gw_outer")
-    GW_INNER = AVG % ("gw_inner", "gw_inner")
-    SRV_OUTER = AVG % ("srv_outer", "srv_outer")
-    SRV_INNER = AVG % ("srv_inner", "srv_inner")
+    GW_OUTER = avg_s("esq_gw_outer_seconds_sum", "esq_gw_outer_seconds_count")
+    GW_INNER = avg_s("esq_gw_inner_seconds_sum", "esq_gw_inner_seconds_count")
+    SRV_OUTER = avg_s("esq_srv_outer_seconds_sum", "esq_srv_outer_seconds_count")
+    SRV_INNER = avg_s("esq_srv_inner_seconds_sum", "esq_srv_inner_seconds_count")
+    # I42/L8+L9: the BFF's own view of its outbound leg to the gateway -- the OUTERMOST measured layer, and the
+    # only one recorded on the Node side. Covers BOTH BFF outbound paths (the cacheable-GET fetch and the streaming
+    # proxy). Drawn RAW only, NEVER as a band: see the RAW panel's desc for why subtracting it from gw.outer is
+    # wrong no matter how many BFF paths are timed.
+    BFF_UPSTREAM = avg_s("esq_bff_outbound_duration_seconds_sum", "esq_bff_outbound_duration_seconds_count")
     # Every band goes through band() -- see the trap note at the top. A subtrahend with no samples (a service not
     # hit yet, a fresh deploy) must make its band read 0, never delete it.
+    # I47: the gw.outer-minus-gw.inner bucket, split. It was drawn as "net (client <-> gw)" -- a name the code
+    # cannot support: ESQ_START_TIME is stamped by the GATEWAY's own clock (RequestTraceFilter, a WebFilter at
+    # HIGHEST_PRECEDENCE, so it runs only once the request has ARRIVED) and closed by ResponseTraceFilter before
+    # the response leaves. Both ends are in-process: the bucket is the gateway's SELF overhead, and NO client
+    # network can be in it. InnerTimerFilter's javadoc always said so; only this board disagreed.
+    # KC is amortized over GATEWAY REQUESTS, not over relay calls: the relay fires only on a cache MISS, so
+    # avg(tokenrelay.duration) is the cost of A RELAY, not the cost carried by an average request. Dividing the
+    # total relay seconds by the gateway's request count gives what each request actually pays. Valid because both
+    # terms are gateway-side over the SAME population -- unlike the BFF upstream timer (see the RAW panel).
+    KC_PER_REQ = ratio("sum(rate(esq_biz_gw_tokenrelay_duration_seconds_sum[5m]))",
+                       "sum(rate(esq_gw_outer_seconds_count[5m]))")
     p.append(ts("Request latency bands -- DERIVED (avg ms)", 8, 138, 8, "ms",
-                [tgt("1000 * %s" % band(GW_OUTER, GW_INNER), "net (client <-> gw)"),
+                [tgt("1000 * %s" % band(band(GW_OUTER, GW_INNER), KC_PER_REQ), "gw self (auth + routing + assembly)"),
+                 tgt("1000 * %s" % safe(KC_PER_REQ), "KC token-relay (per gw request)"),
                  tgt("1000 * %s" % band(GW_INNER, SRV_OUTER), "in-cluster (gw <-> srv)"),
                  tgt("1000 * %s" % band(SRV_OUTER, SRV_INNER), "srv self (compute)"),
                  tgt("1000 * %s" % safe(SRV_INNER), "srv inner (db)")],
                 minv=None,   # a band can dip slightly negative on clock/rounding skew -- do not clamp it away
-                desc="The four raw timers SUBTRACTED into the bands they imply: net = gw.outer - gw.inner; "
+                desc="The raw timers SUBTRACTED into the bands they imply. Together they account for gw.outer "
+                     "end to end: gw self + KC token-relay + in-cluster + srv self + srv inner. "
+                     "gw self = (gw.outer - gw.inner) - KC; KC = total relay seconds / gateway requests; "
                      "in-cluster = gw.inner - srv.outer; srv self = srv.outer - srv.inner; srv inner = DB time. "
+                     "THERE IS NO client<->gateway NETWORK BAND, and there cannot be one: every timer here is "
+                     "stamped by the gateway's own clock AFTER the request arrived, so a server-side metric can "
+                     "never see its own client's network. (This band was once drawn as 'net (client <-> gw)' -- "
+                     "I47. It never was: it is the gateway's SELF overhead, and the KC token-relay call sits "
+                     "INSIDE it, so a slow KeyCloak used to read as a slow NETWORK. KC is now its own line.) "
+                     "READ THE KC LINE AS PER-REQUEST, NOT PER-RELAY: the relay only runs on a cache MISS, so "
+                     "this is what an average request pays for KeyCloak -- use the 'Token relay -- KC /token "
+                     "acquire' panel for the cost of one relay, and the hit-rate panel for how often it is paid. "
+                     "The line sits flat at zero when the relay is dormant (a plain-JWT workload never relays) -- "
+                     "correct, not a broken panel. "
                      "Fully aggregated (scalars) on purpose: the gw timers are tagged application=gateway and the "
                      "srv timers application=<service>, so they cannot be subtracted label-wise. The DB band is "
                      "STEADY-STATE: the JPA time is collected on every request while observability is on, so it "
                      "no longer depends on the X-Capture-Metrics load-test header."))
     p.append(ts("Request latency bands -- RAW (avg ms by layer)", 0, 138, 8, "ms",
-                [tgt("1000 * sum(rate(esq_gw_outer_seconds_sum[5m])) / sum(rate(esq_gw_outer_seconds_count[5m]))",
-                     "gw outer (total)"),
-                 tgt("1000 * sum(rate(esq_gw_inner_seconds_sum[5m])) / sum(rate(esq_gw_inner_seconds_count[5m]))",
-                     "gw inner (proxied)"),
-                 tgt("1000 * sum(rate(esq_srv_outer_seconds_sum[5m])) / sum(rate(esq_srv_outer_seconds_count[5m]))",
-                     "srv outer (wall)"),
-                 tgt("1000 * sum(rate(esq_srv_inner_seconds_sum[5m])) / sum(rate(esq_srv_inner_seconds_count[5m]))",
-                     "srv inner (db, capture-gated)")]))
+                [tgt("1000 * %s" % BFF_UPSTREAM, "bff -> gw upstream (BFF traffic only)"),
+                 tgt("1000 * %s" % GW_OUTER, "gw outer (total)"),
+                 tgt("1000 * %s" % GW_INNER, "gw inner (proxied)"),
+                 tgt("1000 * %s" % SRV_OUTER, "srv outer (wall)"),
+                 tgt("1000 * %s" % SRV_INNER, "srv inner (db, capture-gated)")],
+                desc="The raw timers, each nested inside the one above it: the BFF's outbound call wraps the "
+                     "gateway's whole window, which wraps the proxied downstream call, which wraps the service's "
+                     "wall time, which wraps its DB time. "
+                     "READ THE TOP LINE AGAINST A DIFFERENT POPULATION -- 'bff -> gw upstream' (I42/L8+L9) times "
+                     "the BFF's outbound leg on BOTH its paths, so it covers all traffic THE BFF sends. But the "
+                     "gateway is NOT only the BFF's callee: Token Relay clients (the hauberk load-test IAS "
+                     "clients, any direct API consumer) call it straight, and gw.outer counts them too. So "
+                     "'bff upstream - gw outer' is NOT a valid band -- under a load test it would compare two "
+                     "different populations and can even go negative. That is why the BFF<->gw network has no "
+                     "band on the DERIVED panel while every other hop does. Deliberate: a wrong band is worse "
+                     "than a missing one. Read this line on its own, as the BFF's view of its own hop."))
     p.append(ts("Gateway total p95 by route (ms)", 16, 138, 8, "ms",
                 [tgt("1000 * histogram_quantile(0.95, sum by (le, route) (rate(esq_gw_outer_seconds_bucket[5m])))",
                      "{{route}}", exemplar=True)],
@@ -588,8 +670,8 @@ def build_panels():
     # The hit rate and the acquire cost are TWO UNITS -- a percentage (0..100) and milliseconds. On one axis the
     # percentage owns the scale and the latency line lies flat against zero, unreadable. They are two panels.
     p.append(ts("Token relay -- cache hit rate", 12, 174, 6, "percent",
-                [tgt('100 * sum(rate(esq_biz_gw_tokenrelay_total{result="hit"}[5m])) '
-                     '/ sum(rate(esq_biz_gw_tokenrelay_total[5m]))', "cache hit rate")],
+                [tgt(ratio('sum(rate(esq_biz_gw_tokenrelay_total{result="hit"}[5m]))',
+                           'sum(rate(esq_biz_gw_tokenrelay_total[5m]))', scale="100 * "), "cache hit rate")],
                 minv=0,
                 desc="THE MOST LOAD-BEARING NUMBER ON THIS DASHBOARD. A cache hit serves the request without "
                      "touching KeyCloak; a miss is a live /token round-trip on the hot path. So the hit rate IS "
@@ -714,6 +796,13 @@ def build_panels():
     # margin; it is a different JVM. Measured 2026-07-13: raising the limit from 1 to 6, changing nothing else,
     # DOUBLED throughput (76,748 -> 151,825 requests). The "effective CPUs" panel is where you SEE it -- a flat
     # line at 1 across every replica while the host has 24 idle cores.
+    # The on(instance) group_left join needs system_cpu_count PRESENT for a replica to appear in these panels: a
+    # replica with process_cpu_usage but no system_cpu_count cannot be converted to cores (the multiplier is
+    # unknown) and DROPS from the join. That is honest -- fabricating a count would be the same plausible-lie this
+    # dashboard exists to refuse -- and it is not silent: the drop shows as a GAP on the "Effective CPUs" panel
+    # below, which reads system_cpu_count directly. Measured live 2026-07-15: 14 = 14 = 14 (process_cpu_usage,
+    # the join, and system_cpu_count all carry the same instances), so the two are co-present in practice and a
+    # gap here means a scrape gap on that replica, not a wrong number.
     CORES = "(process_cpu_usage{%s} * on(instance) group_left system_cpu_count{%s})" % (APP, APP)
     p.append(row("Capacity -- cores in use (are we using the machine?)", 208))
     p.append(ts("Cores in use -- TOTAL across all services", 0, 209, 12, "short",
@@ -746,6 +835,7 @@ def build_panels():
 def build_dashboard():
     panels = build_panels()
     check_no_naked_subtraction(panels)   # refuse to emit a band that an empty vector could delete
+    check_no_clamped_rate_denominator(panels)   # refuse a clamp_min(rate(count),1) denominator -- the plausible-lie trap
     return {
         "uid": "esq-services",
         "title": "Esquire Services -- REST / JVM / Pool / CPU / BFF / DB / KC / Bus / Latency / Bandwidth / Biz",

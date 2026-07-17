@@ -32,6 +32,9 @@
  *                   both hand off to EsqGauge.register(), which owns Gauge.builder and always applies
  *                   strongReference(true). The hand-written strongReference at each call site is gone, and with
  *                   it the last raw Gauge.builder in the codebase; the io.micrometer Gauge import drops out
+ * 07/17/2026 mir0n  note at the switch: no producer->consumer span LINKS by design -- fan-out is drawn
+ *                   consumer-side via the carried traceparent (I36); alive-trace opt-in key under
+ *                   esquire.observability.tracing.*.
  */
 package pro.mir0n.esquire.backend.o11y;
 
@@ -75,7 +78,7 @@ public final class EsqRodObserver implements IRodObserver {
     private final Tracer tracer;
     private final MeterRegistry registry;
 
-    // The host's opt-in for the RR liveness round-trip trace (esquire.tracing.msg-bus-alive-trace). Held here,
+    // The host's opt-in for the RR liveness round-trip trace (esquire.observability.tracing.msg-bus-alive-trace). Held here,
     // not in the bus's holder: it is this observer's own setting, and the bus reads it through the hook.
     private final boolean aliveTrace;
 
@@ -112,6 +115,10 @@ public final class EsqRodObserver implements IRodObserver {
             // The SENDING service's "send to <bus-id>" span, a PRODUCER child of the current command span. Capture
             // its span id for the wire traceparent (trace id = correlationId), then close it -- a publish is a point
             // event; the consumer's receive span starts later, on its own thread, parented at this span id.
+            // NO producer->consumer span LINKS by design (I36, reviewed + rejected): a producer is CONSUMER-AGNOSTIC
+            // -- it does not know how many consumers exist, or whether any do -- so linking to them would re-couple
+            // the bus. The fan-out is drawn CONSUMER-side instead: each receive span parents to THIS send span via
+            // the carried traceparent (see inbound). The "span links for fan-out" review note misreads pub-sub.
             Span send = tracer.spanBuilder(spanName("send to", busId))
                     .setSpanKind(SpanKind.PRODUCER)
                     .setParent(Context.current())

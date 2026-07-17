@@ -93,6 +93,10 @@ logging:
 observability:
   # ONE master switch: tracing + metrics together (v1.2.11 O1/O2). Off by default.
   enabled: "false"
+  # Per-pillar enable (I41). Empty = follow the master `enabled`. Set "false" to run that pillar off:
+  #   tracingEnabled "false" = metrics-only (service-mesh coexistence -- a mesh already traces the wire).
+  tracingEnabled: ""
+  metricsEnabled: ""
   # Percentile buckets on every latency timer (O1/T5-B). OFF by default -- they cost ~2.3x the
   # scrape (4,597 -> 10,686 series), paid on every scrape whether or not anyone looks.
   # NOTE what goes dark WITH them: the exemplar diamonds. The metrics -> trace hop hangs a

@@ -331,7 +331,7 @@ set, each a future sublayer on the same seam (`ISessionSublayer`), so they slot 
 | Retry / backoff variants | deferred | shapes beyond `send-retry` |
 | Per-message timeout | deferred | async has no request/response deadline today |
 | Per-destination bulkhead | deferred | only `receiver-pool.size` bounds concurrency today |
-| Metrics | deferred | Micrometer, separate from the health signal |
+| Metrics | **ships** -- v1.2.11 | Micrometer counters (`EsqRodObserver`) -- send/receive/error/duration + retry backoff/held/dropped, drawn on the bus dashboards; separate from the health signal |
 
 The deferred set and why R4j does not apply are tracked in `Esquire.MessagingBus.ContinuingDev.md` item 5.
 

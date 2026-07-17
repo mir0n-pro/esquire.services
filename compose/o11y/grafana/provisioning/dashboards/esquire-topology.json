@@ -48,8 +48,18 @@
       "type": "prometheus",
       "uid": "esq-prometheus"
      },
-     "expr": "(clamp_max((max(pg_up)) or vector(0), 1)) * (2 - clamp_max(((((100 * sum(pg_stat_database_numbackends) / max(pg_settings_max_connections) > bool 80)) or vector(0)) + (((100 * sum(pg_stat_database_blks_hit) / (sum(pg_stat_database_blks_hit) + sum(pg_stat_database_blks_read)) < bool 90)) or vector(0))), 1))",
+     "expr": "(clamp_max((max(pg_up)) or vector(0), 1)) * (2 - clamp_max(((((100 * sum(pg_stat_database_numbackends) / max(pg_settings_max_connections) > bool 80)) or vector(0)) + ((((100 * sum(rate(pg_stat_database_blks_hit[5m])) / (sum(rate(pg_stat_database_blks_hit[5m])) + sum(rate(pg_stat_database_blks_read[5m]))) < bool 90) and (sum(rate(pg_stat_database_blks_read[5m])) > 0))) or vector(0))), 1))",
      "legendFormat": "postgres",
+     "instant": true
+    },
+    {
+     "refId": "a0",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(vector(0)) or vector(0)",
+     "legendFormat": "postgres alarm",
      "instant": true
     },
     {
@@ -88,8 +98,18 @@
       "type": "prometheus",
       "uid": "esq-prometheus"
      },
-     "expr": "(clamp_max((count(process_uptime_seconds{job=\"esquire-services\", application=\"aukeep\"})) or vector(0), 1)) * (2 - clamp_max(((((max(process_cpu_usage{job=\"esquire-services\", application=\"aukeep\"}) > bool 0.80)) or vector(0)) + (((100 * sum(jvm_memory_used_bytes{application=\"aukeep\", area=\"heap\"}) / sum(jvm_memory_max_bytes{application=\"aukeep\", area=\"heap\"}) > bool 85)) or vector(0)) + (((100 * sum(hikaricp_connections_active{application=\"aukeep\"}) / sum(hikaricp_connections_max{application=\"aukeep\"}) > bool 90)) or vector(0))), 1))",
+     "expr": "(clamp_max((count(process_uptime_seconds{job=\"esquire-services\", application=\"aukeep\"})) or vector(0), 1)) * (2 - clamp_max(((((max(process_cpu_usage{job=\"esquire-services\", application=\"aukeep\"}) > bool 0.8)) or vector(0)) + (((100 * sum(jvm_memory_used_bytes{application=\"aukeep\", area=\"heap\"}) / sum(jvm_memory_max_bytes{application=\"aukeep\", area=\"heap\"}) > bool 85)) or vector(0)) + (((100 * sum(hikaricp_connections_active{application=\"aukeep\"}) / sum(hikaricp_connections_max{application=\"aukeep\"}) > bool 90)) or vector(0))), 1))",
      "legendFormat": "aukeep",
+     "instant": true
+    },
+    {
+     "refId": "a1",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(clamp_max(((((sum(increase(logback_events_total{application=\"aukeep\", level=\"error\"}[1m])) > bool 0)) or vector(0)) + ((((sum(increase(messaging_error_total{application=\"aukeep\"}[1m])) or vector(0)) > bool 0)) or vector(0))), 1)) or vector(0)",
+     "legendFormat": "aukeep alarm",
      "instant": true
     },
     {
@@ -133,6 +153,16 @@
      "instant": true
     },
     {
+     "refId": "a2",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(vector(0)) or vector(0)",
+     "legendFormat": "activemq alarm",
+     "instant": true
+    },
+    {
      "refId": "v2_0",
      "datasource": {
       "type": "prometheus",
@@ -168,12 +198,72 @@
       "type": "prometheus",
       "uid": "esq-prometheus"
      },
-     "expr": "(clamp_max((count(process_uptime_seconds{job=\"esquire-services\", application=\"pacman\"})) or vector(0), 1)) * (2 - clamp_max(((((max(process_cpu_usage{job=\"esquire-services\", application=\"pacman\"}) > bool 0.80)) or vector(0)) + (((100 * sum(jvm_memory_used_bytes{application=\"pacman\", area=\"heap\"}) / sum(jvm_memory_max_bytes{application=\"pacman\", area=\"heap\"}) > bool 85)) or vector(0)) + (((sum(rate(http_server_requests_seconds_count{application=\"pacman\", status=~\"5..\"}[5m])) > bool 0)) or vector(0)) + (((100 * sum(hikaricp_connections_active{application=\"pacman\"}) / sum(hikaricp_connections_max{application=\"pacman\"}) > bool 90)) or vector(0))), 1))",
-     "legendFormat": "pacman",
+     "expr": "(clamp_max((max(up{job=\"otel-collector\"})) or vector(0), 1)) * (2 - clamp_max(((((sum(rate(otelcol_receiver_refused_spans_total[1m])) > bool 0)) or vector(0))), 1))",
+     "legendFormat": "collector",
+     "instant": true
+    },
+    {
+     "refId": "a3",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(vector(0)) or vector(0)",
+     "legendFormat": "collector alarm",
      "instant": true
     },
     {
      "refId": "v3_0",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(sum(rate(otelcol_receiver_accepted_spans_total[5m]))) or vector(0)",
+     "legendFormat": "collector spans/s",
+     "instant": true
+    },
+    {
+     "refId": "v3_1",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(sum(otelcol_exporter_queue_size)) or vector(0)",
+     "legendFormat": "collector queue",
+     "instant": true
+    },
+    {
+     "refId": "v3_2",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(sum(increase(otelcol_receiver_refused_spans_total[1m]))) or vector(0)",
+     "legendFormat": "collector refused",
+     "instant": true
+    },
+    {
+     "refId": "h4",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(clamp_max((count(process_uptime_seconds{job=\"esquire-services\", application=\"pacman\"})) or vector(0), 1)) * (2 - clamp_max(((((max(process_cpu_usage{job=\"esquire-services\", application=\"pacman\"}) > bool 0.8)) or vector(0)) + (((100 * sum(jvm_memory_used_bytes{application=\"pacman\", area=\"heap\"}) / sum(jvm_memory_max_bytes{application=\"pacman\", area=\"heap\"}) > bool 85)) or vector(0)) + (((100 * sum(hikaricp_connections_active{application=\"pacman\"}) / sum(hikaricp_connections_max{application=\"pacman\"}) > bool 90)) or vector(0))), 1))",
+     "legendFormat": "pacman",
+     "instant": true
+    },
+    {
+     "refId": "a4",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(clamp_max(((((sum(increase(http_server_requests_seconds_count{application=\"pacman\", status=~\"5..\"}[1m])) > bool 0)) or vector(0)) + (((sum(increase(logback_events_total{application=\"pacman\", level=\"error\"}[1m])) > bool 0)) or vector(0)) + ((((sum(increase(messaging_error_total{application=\"pacman\"}[1m])) or vector(0)) > bool 0)) or vector(0))), 1)) or vector(0)",
+     "legendFormat": "pacman alarm",
+     "instant": true
+    },
+    {
+     "refId": "v4_0",
      "datasource": {
       "type": "prometheus",
       "uid": "esq-prometheus"
@@ -183,7 +273,7 @@
      "instant": true
     },
     {
-     "refId": "v3_1",
+     "refId": "v4_1",
      "datasource": {
       "type": "prometheus",
       "uid": "esq-prometheus"
@@ -193,7 +283,7 @@
      "instant": true
     },
     {
-     "refId": "v3_2",
+     "refId": "v4_2",
      "datasource": {
       "type": "prometheus",
       "uid": "esq-prometheus"
@@ -203,17 +293,27 @@
      "instant": true
     },
     {
-     "refId": "h4",
+     "refId": "h5",
      "datasource": {
       "type": "prometheus",
       "uid": "esq-prometheus"
      },
-     "expr": "(clamp_max((count(process_uptime_seconds{job=\"esquire-services\", application=\"biztree\"})) or vector(0), 1)) * (2 - clamp_max(((((max(process_cpu_usage{job=\"esquire-services\", application=\"biztree\"}) > bool 0.80)) or vector(0)) + (((100 * sum(jvm_memory_used_bytes{application=\"biztree\", area=\"heap\"}) / sum(jvm_memory_max_bytes{application=\"biztree\", area=\"heap\"}) > bool 85)) or vector(0)) + (((sum(rate(http_server_requests_seconds_count{application=\"biztree\", status=~\"5..\"}[5m])) > bool 0)) or vector(0)) + (((100 * sum(hikaricp_connections_active{application=\"biztree\"}) / sum(hikaricp_connections_max{application=\"biztree\"}) > bool 90)) or vector(0))), 1))",
+     "expr": "(clamp_max((count(process_uptime_seconds{job=\"esquire-services\", application=\"biztree\"})) or vector(0), 1)) * (2 - clamp_max(((((max(process_cpu_usage{job=\"esquire-services\", application=\"biztree\"}) > bool 0.8)) or vector(0)) + (((100 * sum(jvm_memory_used_bytes{application=\"biztree\", area=\"heap\"}) / sum(jvm_memory_max_bytes{application=\"biztree\", area=\"heap\"}) > bool 85)) or vector(0)) + (((100 * sum(hikaricp_connections_active{application=\"biztree\"}) / sum(hikaricp_connections_max{application=\"biztree\"}) > bool 90)) or vector(0))), 1))",
      "legendFormat": "biztree",
      "instant": true
     },
     {
-     "refId": "v4_0",
+     "refId": "a5",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(clamp_max(((((sum(increase(http_server_requests_seconds_count{application=\"biztree\", status=~\"5..\"}[1m])) > bool 0)) or vector(0)) + (((sum(increase(logback_events_total{application=\"biztree\", level=\"error\"}[1m])) > bool 0)) or vector(0)) + ((((sum(increase(messaging_error_total{application=\"biztree\"}[1m])) or vector(0)) > bool 0)) or vector(0))), 1)) or vector(0)",
+     "legendFormat": "biztree alarm",
+     "instant": true
+    },
+    {
+     "refId": "v5_0",
      "datasource": {
       "type": "prometheus",
       "uid": "esq-prometheus"
@@ -223,7 +323,7 @@
      "instant": true
     },
     {
-     "refId": "v4_1",
+     "refId": "v5_1",
      "datasource": {
       "type": "prometheus",
       "uid": "esq-prometheus"
@@ -233,7 +333,7 @@
      "instant": true
     },
     {
-     "refId": "v4_2",
+     "refId": "v5_2",
      "datasource": {
       "type": "prometheus",
       "uid": "esq-prometheus"
@@ -243,17 +343,27 @@
      "instant": true
     },
     {
-     "refId": "h5",
+     "refId": "h6",
      "datasource": {
       "type": "prometheus",
       "uid": "esq-prometheus"
      },
-     "expr": "(clamp_max((count(process_uptime_seconds{job=\"esquire-services\", application=\"enyman\"})) or vector(0), 1)) * (2 - clamp_max(((((max(process_cpu_usage{job=\"esquire-services\", application=\"enyman\"}) > bool 0.80)) or vector(0)) + (((100 * sum(jvm_memory_used_bytes{application=\"enyman\", area=\"heap\"}) / sum(jvm_memory_max_bytes{application=\"enyman\", area=\"heap\"}) > bool 85)) or vector(0)) + (((sum(rate(http_server_requests_seconds_count{application=\"enyman\", status=~\"5..\"}[5m])) > bool 0)) or vector(0)) + (((100 * sum(hikaricp_connections_active{application=\"enyman\"}) / sum(hikaricp_connections_max{application=\"enyman\"}) > bool 90)) or vector(0))), 1))",
+     "expr": "(clamp_max((count(process_uptime_seconds{job=\"esquire-services\", application=\"enyman\"})) or vector(0), 1)) * (2 - clamp_max(((((max(process_cpu_usage{job=\"esquire-services\", application=\"enyman\"}) > bool 0.8)) or vector(0)) + (((100 * sum(jvm_memory_used_bytes{application=\"enyman\", area=\"heap\"}) / sum(jvm_memory_max_bytes{application=\"enyman\", area=\"heap\"}) > bool 85)) or vector(0)) + (((100 * sum(hikaricp_connections_active{application=\"enyman\"}) / sum(hikaricp_connections_max{application=\"enyman\"}) > bool 90)) or vector(0))), 1))",
      "legendFormat": "enyman",
      "instant": true
     },
     {
-     "refId": "v5_0",
+     "refId": "a6",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(clamp_max(((((sum(increase(http_server_requests_seconds_count{application=\"enyman\", status=~\"5..\"}[1m])) > bool 0)) or vector(0)) + (((sum(increase(logback_events_total{application=\"enyman\", level=\"error\"}[1m])) > bool 0)) or vector(0)) + ((((sum(increase(messaging_error_total{application=\"enyman\"}[1m])) or vector(0)) > bool 0)) or vector(0)) + ((((sum(increase(esq_biz_move_failed_total{application=\"enyman\"}[1m])) or vector(0)) > bool 0)) or vector(0))), 1)) or vector(0)",
+     "legendFormat": "enyman alarm",
+     "instant": true
+    },
+    {
+     "refId": "v6_0",
      "datasource": {
       "type": "prometheus",
       "uid": "esq-prometheus"
@@ -263,7 +373,7 @@
      "instant": true
     },
     {
-     "refId": "v5_1",
+     "refId": "v6_1",
      "datasource": {
       "type": "prometheus",
       "uid": "esq-prometheus"
@@ -273,7 +383,7 @@
      "instant": true
     },
     {
-     "refId": "v5_2",
+     "refId": "v6_2",
      "datasource": {
       "type": "prometheus",
       "uid": "esq-prometheus"
@@ -283,17 +393,27 @@
      "instant": true
     },
     {
-     "refId": "h6",
+     "refId": "h7",
      "datasource": {
       "type": "prometheus",
       "uid": "esq-prometheus"
      },
-     "expr": "(clamp_max((count(process_uptime_seconds{job=\"esquire-services\", application=\"keysmith\"})) or vector(0), 1)) * (2 - clamp_max(((((max(process_cpu_usage{job=\"esquire-services\", application=\"keysmith\"}) > bool 0.80)) or vector(0)) + (((100 * sum(jvm_memory_used_bytes{application=\"keysmith\", area=\"heap\"}) / sum(jvm_memory_max_bytes{application=\"keysmith\", area=\"heap\"}) > bool 85)) or vector(0)) + (((sum(rate(http_server_requests_seconds_count{application=\"keysmith\", status=~\"5..\"}[5m])) > bool 0)) or vector(0)) + (((100 * sum(hikaricp_connections_active{application=\"keysmith\"}) / sum(hikaricp_connections_max{application=\"keysmith\"}) > bool 90)) or vector(0))), 1))",
+     "expr": "(clamp_max((count(process_uptime_seconds{job=\"esquire-services\", application=\"keysmith\"})) or vector(0), 1)) * (2 - clamp_max(((((max(process_cpu_usage{job=\"esquire-services\", application=\"keysmith\"}) > bool 0.8)) or vector(0)) + (((100 * sum(jvm_memory_used_bytes{application=\"keysmith\", area=\"heap\"}) / sum(jvm_memory_max_bytes{application=\"keysmith\", area=\"heap\"}) > bool 85)) or vector(0)) + (((100 * sum(hikaricp_connections_active{application=\"keysmith\"}) / sum(hikaricp_connections_max{application=\"keysmith\"}) > bool 90)) or vector(0))), 1))",
      "legendFormat": "keysmith",
      "instant": true
     },
     {
-     "refId": "v6_0",
+     "refId": "a7",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(clamp_max(((((sum(increase(http_server_requests_seconds_count{application=\"keysmith\", status=~\"5..\"}[1m])) > bool 0)) or vector(0)) + (((sum(increase(logback_events_total{application=\"keysmith\", level=\"error\"}[1m])) > bool 0)) or vector(0)) + ((((sum(increase(messaging_error_total{application=\"keysmith\"}[1m])) or vector(0)) > bool 0)) or vector(0))), 1)) or vector(0)",
+     "legendFormat": "keysmith alarm",
+     "instant": true
+    },
+    {
+     "refId": "v7_0",
      "datasource": {
       "type": "prometheus",
       "uid": "esq-prometheus"
@@ -303,7 +423,7 @@
      "instant": true
     },
     {
-     "refId": "v6_1",
+     "refId": "v7_1",
      "datasource": {
       "type": "prometheus",
       "uid": "esq-prometheus"
@@ -313,7 +433,7 @@
      "instant": true
     },
     {
-     "refId": "v6_2",
+     "refId": "v7_2",
      "datasource": {
       "type": "prometheus",
       "uid": "esq-prometheus"
@@ -323,17 +443,27 @@
      "instant": true
     },
     {
-     "refId": "h7",
+     "refId": "h8",
      "datasource": {
       "type": "prometheus",
       "uid": "esq-prometheus"
      },
-     "expr": "(clamp_max((count(process_uptime_seconds{job=\"esquire-services\", application=\"kcmaster\"})) or vector(0), 1)) * (2 - clamp_max(((((max(process_cpu_usage{job=\"esquire-services\", application=\"kcmaster\"}) > bool 0.80)) or vector(0)) + (((100 * sum(jvm_memory_used_bytes{application=\"kcmaster\", area=\"heap\"}) / sum(jvm_memory_max_bytes{application=\"kcmaster\", area=\"heap\"}) > bool 85)) or vector(0))), 1))",
+     "expr": "(clamp_max((count(process_uptime_seconds{job=\"esquire-services\", application=\"kcmaster\"})) or vector(0), 1)) * (2 - clamp_max(((((max(process_cpu_usage{job=\"esquire-services\", application=\"kcmaster\"}) > bool 0.8)) or vector(0)) + (((100 * sum(jvm_memory_used_bytes{application=\"kcmaster\", area=\"heap\"}) / sum(jvm_memory_max_bytes{application=\"kcmaster\", area=\"heap\"}) > bool 85)) or vector(0))), 1))",
      "legendFormat": "kcmaster",
      "instant": true
     },
     {
-     "refId": "v7_0",
+     "refId": "a8",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(clamp_max(((((sum(increase(logback_events_total{application=\"kcmaster\", level=\"error\"}[1m])) > bool 0)) or vector(0)) + ((((sum(increase(messaging_error_total{application=\"kcmaster\"}[1m])) or vector(0)) > bool 0)) or vector(0))), 1)) or vector(0)",
+     "legendFormat": "kcmaster alarm",
+     "instant": true
+    },
+    {
+     "refId": "v8_0",
      "datasource": {
       "type": "prometheus",
       "uid": "esq-prometheus"
@@ -343,7 +473,7 @@
      "instant": true
     },
     {
-     "refId": "v7_1",
+     "refId": "v8_1",
      "datasource": {
       "type": "prometheus",
       "uid": "esq-prometheus"
@@ -353,7 +483,7 @@
      "instant": true
     },
     {
-     "refId": "v7_2",
+     "refId": "v8_2",
      "datasource": {
       "type": "prometheus",
       "uid": "esq-prometheus"
@@ -363,17 +493,27 @@
      "instant": true
     },
     {
-     "refId": "h8",
+     "refId": "h9",
      "datasource": {
       "type": "prometheus",
       "uid": "esq-prometheus"
      },
-     "expr": "(clamp_max((count(process_uptime_seconds{job=\"esquire-services\", application=\"gateway\"})) or vector(0), 1)) * (2 - clamp_max(((((max(process_cpu_usage{job=\"esquire-services\", application=\"gateway\"}) > bool 0.80)) or vector(0)) + (((100 * sum(jvm_memory_used_bytes{application=\"gateway\", area=\"heap\"}) / sum(jvm_memory_max_bytes{application=\"gateway\", area=\"heap\"}) > bool 85)) or vector(0)) + (((sum(rate(http_server_requests_seconds_count{application=\"gateway\", status=~\"5..\"}[5m])) > bool 0)) or vector(0))), 1))",
+     "expr": "(clamp_max((count(process_uptime_seconds{job=\"esquire-services\", application=\"gateway\"})) or vector(0), 1)) * (2 - clamp_max(((((max(process_cpu_usage{job=\"esquire-services\", application=\"gateway\"}) > bool 0.8)) or vector(0)) + (((100 * sum(jvm_memory_used_bytes{application=\"gateway\", area=\"heap\"}) / sum(jvm_memory_max_bytes{application=\"gateway\", area=\"heap\"}) > bool 85)) or vector(0))), 1))",
      "legendFormat": "gateway",
      "instant": true
     },
     {
-     "refId": "v8_0",
+     "refId": "a9",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(clamp_max(((((sum(increase(http_server_requests_seconds_count{application=\"gateway\", status=~\"5..\"}[1m])) > bool 0)) or vector(0)) + (((sum(increase(logback_events_total{application=\"gateway\", level=\"error\"}[1m])) > bool 0)) or vector(0)) + ((((sum(increase(messaging_error_total{application=\"gateway\"}[1m])) or vector(0)) > bool 0)) or vector(0)) + (((max(resilience4j_circuitbreaker_state{job=\"esquire-services\", application=\"gateway\", state=\"open\"}) > bool 0)) or vector(0))), 1)) or vector(0)",
+     "legendFormat": "gateway alarm",
+     "instant": true
+    },
+    {
+     "refId": "v9_0",
      "datasource": {
       "type": "prometheus",
       "uid": "esq-prometheus"
@@ -383,7 +523,7 @@
      "instant": true
     },
     {
-     "refId": "v8_1",
+     "refId": "v9_1",
      "datasource": {
       "type": "prometheus",
       "uid": "esq-prometheus"
@@ -393,7 +533,7 @@
      "instant": true
     },
     {
-     "refId": "v8_2",
+     "refId": "v9_2",
      "datasource": {
       "type": "prometheus",
       "uid": "esq-prometheus"
@@ -403,17 +543,27 @@
      "instant": true
     },
     {
-     "refId": "h9",
+     "refId": "h10",
      "datasource": {
       "type": "prometheus",
       "uid": "esq-prometheus"
      },
-     "expr": "(clamp_max((max(up{job=\"keycloak\"})) or vector(0), 1)) * (2 - clamp_max(((((max(process_cpu_usage{job=\"keycloak\"}) > bool 0.80)) or vector(0)) + (((100 * sum(jvm_memory_used_bytes{job=\"keycloak\", area=\"heap\"}) / sum(jvm_memory_max_bytes{job=\"keycloak\", area=\"heap\"}) > bool 85)) or vector(0))), 1))",
+     "expr": "(clamp_max((max(up{job=\"keycloak\"})) or vector(0), 1)) * (2 - clamp_max(((((max(process_cpu_usage{job=\"keycloak\"}) > bool 0.8)) or vector(0)) + (((100 * sum(jvm_memory_used_bytes{job=\"keycloak\", area=\"heap\"}) / sum(jvm_memory_max_bytes{job=\"keycloak\", area=\"heap\"}) > bool 85)) or vector(0))), 1))",
      "legendFormat": "keycloak",
      "instant": true
     },
     {
-     "refId": "v9_0",
+     "refId": "a10",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(vector(0)) or vector(0)",
+     "legendFormat": "keycloak alarm",
+     "instant": true
+    },
+    {
+     "refId": "v10_0",
      "datasource": {
       "type": "prometheus",
       "uid": "esq-prometheus"
@@ -423,7 +573,7 @@
      "instant": true
     },
     {
-     "refId": "v9_1",
+     "refId": "v10_1",
      "datasource": {
       "type": "prometheus",
       "uid": "esq-prometheus"
@@ -433,7 +583,7 @@
      "instant": true
     },
     {
-     "refId": "v9_2",
+     "refId": "v10_2",
      "datasource": {
       "type": "prometheus",
       "uid": "esq-prometheus"
@@ -443,7 +593,7 @@
      "instant": true
     },
     {
-     "refId": "h10",
+     "refId": "h11",
      "datasource": {
       "type": "prometheus",
       "uid": "esq-prometheus"
@@ -453,17 +603,27 @@
      "instant": true
     },
     {
-     "refId": "v10_0",
+     "refId": "a11",
      "datasource": {
       "type": "prometheus",
       "uid": "esq-prometheus"
      },
-     "expr": "(sum(rate(bff_http_request_duration_seconds_count[5m]))) or vector(0)",
+     "expr": "(vector(0)) or vector(0)",
+     "legendFormat": "backend alarm",
+     "instant": true
+    },
+    {
+     "refId": "v11_0",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(sum(rate(esq_bff_inbound_duration_seconds_count[5m]))) or vector(0)",
      "legendFormat": "backend req/s",
      "instant": true
     },
     {
-     "refId": "v10_1",
+     "refId": "v11_1",
      "datasource": {
       "type": "prometheus",
       "uid": "esq-prometheus"
@@ -473,7 +633,7 @@
      "instant": true
     },
     {
-     "refId": "v10_2",
+     "refId": "v11_2",
      "datasource": {
       "type": "prometheus",
       "uid": "esq-prometheus"
@@ -650,6 +810,54 @@
        {
         "id": "decimals",
         "value": 1
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "collector spans/s"
+      },
+      "properties": [
+       {
+        "id": "unit",
+        "value": "ops"
+       },
+       {
+        "id": "decimals",
+        "value": 1
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "collector queue"
+      },
+      "properties": [
+       {
+        "id": "unit",
+        "value": "short"
+       },
+       {
+        "id": "decimals",
+        "value": 0
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "collector refused"
+      },
+      "properties": [
+       {
+        "id": "unit",
+        "value": "short"
+       },
+       {
+        "id": "decimals",
+        "value": 0
        }
       ]
      },
@@ -1036,6 +1244,294 @@
         "value": 0
        }
       ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "postgres alarm"
+      },
+      "properties": [
+       {
+        "id": "thresholds",
+        "value": {
+         "mode": "absolute",
+         "steps": [
+          {
+           "color": "#FFFFFF",
+           "value": null
+          },
+          {
+           "color": "#FF2D95",
+           "value": 1
+          }
+         ]
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "aukeep alarm"
+      },
+      "properties": [
+       {
+        "id": "thresholds",
+        "value": {
+         "mode": "absolute",
+         "steps": [
+          {
+           "color": "#FFFFFF",
+           "value": null
+          },
+          {
+           "color": "#FF2D95",
+           "value": 1
+          }
+         ]
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "activemq alarm"
+      },
+      "properties": [
+       {
+        "id": "thresholds",
+        "value": {
+         "mode": "absolute",
+         "steps": [
+          {
+           "color": "#FFFFFF",
+           "value": null
+          },
+          {
+           "color": "#FF2D95",
+           "value": 1
+          }
+         ]
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "collector alarm"
+      },
+      "properties": [
+       {
+        "id": "thresholds",
+        "value": {
+         "mode": "absolute",
+         "steps": [
+          {
+           "color": "#FFFFFF",
+           "value": null
+          },
+          {
+           "color": "#FF2D95",
+           "value": 1
+          }
+         ]
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "pacman alarm"
+      },
+      "properties": [
+       {
+        "id": "thresholds",
+        "value": {
+         "mode": "absolute",
+         "steps": [
+          {
+           "color": "#FFFFFF",
+           "value": null
+          },
+          {
+           "color": "#FF2D95",
+           "value": 1
+          }
+         ]
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "biztree alarm"
+      },
+      "properties": [
+       {
+        "id": "thresholds",
+        "value": {
+         "mode": "absolute",
+         "steps": [
+          {
+           "color": "#FFFFFF",
+           "value": null
+          },
+          {
+           "color": "#FF2D95",
+           "value": 1
+          }
+         ]
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "enyman alarm"
+      },
+      "properties": [
+       {
+        "id": "thresholds",
+        "value": {
+         "mode": "absolute",
+         "steps": [
+          {
+           "color": "#FFFFFF",
+           "value": null
+          },
+          {
+           "color": "#FF2D95",
+           "value": 1
+          }
+         ]
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "keysmith alarm"
+      },
+      "properties": [
+       {
+        "id": "thresholds",
+        "value": {
+         "mode": "absolute",
+         "steps": [
+          {
+           "color": "#FFFFFF",
+           "value": null
+          },
+          {
+           "color": "#FF2D95",
+           "value": 1
+          }
+         ]
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "kcmaster alarm"
+      },
+      "properties": [
+       {
+        "id": "thresholds",
+        "value": {
+         "mode": "absolute",
+         "steps": [
+          {
+           "color": "#FFFFFF",
+           "value": null
+          },
+          {
+           "color": "#FF2D95",
+           "value": 1
+          }
+         ]
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "gateway alarm"
+      },
+      "properties": [
+       {
+        "id": "thresholds",
+        "value": {
+         "mode": "absolute",
+         "steps": [
+          {
+           "color": "#FFFFFF",
+           "value": null
+          },
+          {
+           "color": "#FF2D95",
+           "value": 1
+          }
+         ]
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "keycloak alarm"
+      },
+      "properties": [
+       {
+        "id": "thresholds",
+        "value": {
+         "mode": "absolute",
+         "steps": [
+          {
+           "color": "#FFFFFF",
+           "value": null
+          },
+          {
+           "color": "#FF2D95",
+           "value": 1
+          }
+         ]
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "backend alarm"
+      },
+      "properties": [
+       {
+        "id": "thresholds",
+        "value": {
+         "mode": "absolute",
+         "steps": [
+          {
+           "color": "#FFFFFF",
+           "value": null
+          },
+          {
+           "color": "#FF2D95",
+           "value": 1
+          }
+         ]
+        }
+       }
+      ]
      }
     ]
    },
@@ -1059,9 +1555,9 @@
        },
        "border": {
         "color": {
-         "fixed": "transparent"
+         "field": "postgres alarm"
         },
-        "width": 0
+        "width": 3
        },
        "config": {
         "align": "center",
@@ -1113,9 +1609,9 @@
        },
        "border": {
         "color": {
-         "fixed": "transparent"
+         "field": "aukeep alarm"
         },
-        "width": 0
+        "width": 3
        },
        "config": {
         "align": "center",
@@ -1206,9 +1702,9 @@
        },
        "border": {
         "color": {
-         "fixed": "transparent"
+         "field": "activemq alarm"
         },
-        "width": 0
+        "width": 3
        },
        "config": {
         "align": "center",
@@ -1308,6 +1804,60 @@
        ]
       },
       {
+       "name": "collector",
+       "type": "ellipse",
+       "background": {
+        "color": {
+         "field": "collector",
+         "fixed": "#D9D9D9"
+        }
+       },
+       "border": {
+        "color": {
+         "field": "collector alarm"
+        },
+        "width": 3
+       },
+       "config": {
+        "align": "center",
+        "valign": "top",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 12,
+        "text": {
+         "fixed": "COLLECTOR",
+         "mode": "fixed"
+        },
+        "links": [
+         {
+          "title": "details",
+          "url": "/d/esq-services/",
+          "targetBlank": false
+         }
+        ]
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 745,
+        "top": 596,
+        "width": 140,
+        "height": 80,
+        "rotation": 0
+       },
+       "links": [
+        {
+         "title": "details for collector",
+         "url": "/d/esq-services/",
+         "targetBlank": false
+        }
+       ],
+       "connections": []
+      },
+      {
        "name": "pacman",
        "type": "rectangle",
        "background": {
@@ -1318,9 +1868,9 @@
        },
        "border": {
         "color": {
-         "fixed": "transparent"
+         "field": "pacman alarm"
         },
-        "width": 0
+        "width": 3
        },
        "config": {
         "align": "center",
@@ -1430,9 +1980,9 @@
        },
        "border": {
         "color": {
-         "fixed": "transparent"
+         "field": "biztree alarm"
         },
-        "width": 0
+        "width": 3
        },
        "config": {
         "align": "center",
@@ -1523,9 +2073,9 @@
        },
        "border": {
         "color": {
-         "fixed": "transparent"
+         "field": "enyman alarm"
         },
-        "width": 0
+        "width": 3
        },
        "config": {
         "align": "center",
@@ -1654,9 +2204,9 @@
        },
        "border": {
         "color": {
-         "fixed": "transparent"
+         "field": "keysmith alarm"
         },
-        "width": 0
+        "width": 3
        },
        "config": {
         "align": "center",
@@ -1766,9 +2316,9 @@
        },
        "border": {
         "color": {
-         "fixed": "transparent"
+         "field": "kcmaster alarm"
         },
-        "width": 0
+        "width": 3
        },
        "config": {
         "align": "center",
@@ -1878,9 +2428,9 @@
        },
        "border": {
         "color": {
-         "fixed": "transparent"
+         "field": "gateway alarm"
         },
-        "width": 0
+        "width": 3
        },
        "config": {
         "align": "center",
@@ -2028,9 +2578,9 @@
        },
        "border": {
         "color": {
-         "fixed": "transparent"
+         "field": "keycloak alarm"
         },
-        "width": 0
+        "width": 3
        },
        "config": {
         "align": "center",
@@ -2082,9 +2632,9 @@
        },
        "border": {
         "color": {
-         "fixed": "transparent"
+         "field": "backend alarm"
         },
-        "width": 0
+        "width": 3
        },
        "config": {
         "align": "center",
@@ -2625,6 +3175,126 @@
        },
        "placement": {
         "left": 333,
+        "top": 656,
+        "width": 140,
+        "height": 19,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "collector spans/s",
+       "type": "metric-value",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 12,
+        "text": {
+         "field": "collector spans/s",
+         "mode": "field",
+         "fixed": ""
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 745,
+        "top": 618,
+        "width": 140,
+        "height": 19,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "collector queue",
+       "type": "metric-value",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 12,
+        "text": {
+         "field": "collector queue",
+         "mode": "field",
+         "fixed": ""
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 745,
+        "top": 637,
+        "width": 140,
+        "height": 19,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "collector refused",
+       "type": "metric-value",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 12,
+        "text": {
+         "field": "collector refused",
+         "mode": "field",
+         "fixed": ""
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 745,
         "top": 656,
         "width": 140,
         "height": 19,
@@ -4422,6 +5092,123 @@
         "top": 524,
         "width": 230,
         "height": 18,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "hubcap:0",
+       "type": "text",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "left",
+        "valign": "middle",
+        "color": {
+         "fixed": "#B0B0B0"
+        },
+        "size": 11,
+        "text": {
+         "fixed": "the telemetry hub: not a service, not infra.",
+         "mode": "fixed"
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 899,
+        "top": 612.0,
+        "width": 330,
+        "height": 16,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "hubcap:1",
+       "type": "text",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "left",
+        "valign": "middle",
+        "color": {
+         "fixed": "#B0B0B0"
+        },
+        "size": 11,
+        "text": {
+         "fixed": "every trace passes through it to be stored --",
+         "mode": "fixed"
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 899,
+        "top": 628.0,
+        "width": 330,
+        "height": 16,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "hubcap:2",
+       "type": "text",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "left",
+        "valign": "middle",
+        "color": {
+         "fixed": "#B0B0B0"
+        },
+        "size": 11,
+        "text": {
+         "fixed": "if it stops, traces are lost with no warning.",
+         "mode": "fixed"
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 899,
+        "top": 644.0,
+        "width": 330,
+        "height": 16,
         "rotation": 0
        },
        "connections": []

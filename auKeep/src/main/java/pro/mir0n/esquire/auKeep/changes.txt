@@ -1,5 +1,10 @@
 Esquire auKeep service
 
+07/17/2026 mir0n  v1.2.11 -- T11 cleanup: fix/resolve issues noted during development
+resources/application.yml
+  - the tracing and metrics switches each read their own env var (ESQ_TRACING_ENABLED / ESQ_METRICS_ENABLED),
+    defaulting to the ESQ_OBSERVABILITY_ENABLED umbrella, so either pillar can be turned off on its own (I41)
+
 07/15/2026 mir0n  v1.2.11 -- T11 cleanup: fix/resolve issues noted during development
 messaging.AuditConsumerConfig
   - wraps the keep applier so the audit consumer stamps MDC via EsqContextHolder.applyMessage(event) before

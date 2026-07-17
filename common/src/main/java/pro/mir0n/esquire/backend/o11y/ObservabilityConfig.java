@@ -58,6 +58,9 @@
  *                   scrape, whether or not anyone ever looked at a percentile. ONE switch now governs every
  *                   bucket in the fleet: off = 4,597 series, on = 10,686. Count/sum/max survive with it off, so
  *                   the average panels stay populated and only the percentile panels go dark
+ * 07/17/2026 mir0n  note at the switch: the OTLP exporter is wrapped by Boot's default BatchSpanProcessor
+ *                   (bounded queue, drops on overflow, never blocks the request thread) -- the o11y path is not
+ *                   a request-failure mode (I53).
  */
 
 package pro.mir0n.esquire.backend.o11y;
@@ -101,11 +104,22 @@ import pro.mir0n.esquire.messaging.o11y.RodObserverHolder;
 // was folded in when metrics arrived, so the tree cannot drift into "the master is here, its knobs are over there").
 //
 //   esquire.observability.enabled                        MASTER   off  -- gates tracing AND metrics, all of it
+//     esquire.observability.tracing.enabled              sub  =MASTER  -- the TRACING pillar on/off (I41). Defaults
+//                                                                         to the master, so a bare master keeps it
+//                                                                         on. Set OFF to run metrics-only -- the
+//                                                                         service-mesh coexistence case: a mesh
+//                                                                         (Istio/Linkerd) already traces the wire, so
+//                                                                         Esquire tracing is turned off to avoid
+//                                                                         double-tracing while the metrics pillar
+//                                                                         stays up.
 //     esquire.observability.tracing.otlp-endpoint        sub           -- collector endpoint
 //     esquire.observability.tracing.sampling-ratio       sub      1.0  -- head sampling
 //     esquire.observability.tracing.marks-enabled        sub      ON   -- keep/silence our own esq.* marks
 //     esquire.observability.tracing.excluded-paths       sub           -- never open a span for these (/actuator)
 //     esquire.observability.tracing.msg-bus-alive-trace  sub      off  -- trace the RR liveness round-trip
+//     esquire.observability.metrics.enabled              sub  =MASTER  -- the METRICS pillar on/off (symmetry with
+//                                                                         tracing.enabled). Defaults to the master;
+//                                                                         set OFF to run traces-only.
 //     esquire.observability.metrics.histograms-enabled   sub      off  -- percentile buckets on EVERY latency timer,
 //                                                                          http.server.requests INCLUDED. THE
 //                                                                          EXPENSIVE ONE, by a distance: buckets are
@@ -113,9 +127,12 @@ import pro.mir0n.esquire.messaging.o11y.RodObserverHolder;
 //                                                                          ones ALONE were 20.5% of it (39 buckets
 //                                                                          per label-combo). Opt-in. OFF still
 //                                                                          leaves count/sum/max, so every AVERAGE
-//                                                                          panel stays populated -- only the p95
-//                                                                          panels go dark, and they are exactly the
-//                                                                          thing you switch this on to look at.
+//                                                                          panel stays populated -- the p95 panels
+//                                                                          AND the metric->trace exemplars go dark
+//                                                                          (an exemplar hangs off a bucket sample),
+//                                                                          exactly what you switch this on to see.
+//                                                                          o11y-on.bat sets it; a bare master
+//                                                                          switch leaves BOTH dark.
 //     esquire.observability.metrics.bandwidth-enabled    sub      ON   -- HTTP byte counters. Cheap, so on by
 //                                                                          default. ONE knob covering BOTH embedded
 //                                                                          servers: it turns on Tomcat's MBean
@@ -131,6 +148,27 @@ import pro.mir0n.esquire.messaging.o11y.RodObserverHolder;
 //                                                                          (0.5 ns): nothing allocated, nothing looked
 //                                                                          up, no meter created. Tracing, the free
 //                                                                          meters and the bus meters all stay on.
+//
+// PER-PILLAR ENABLE -- how tracing.enabled / metrics.enabled are honoured (I41). Each pillar is gated at TWO layers,
+// and the split is deliberate because an Observation is CROSS-PILLAR: one @EsqTraced/http.* Observation yields BOTH a
+// span (tracing handler) AND a timer (metrics handler) from the same event. So:
+//   - Boot layer (each application.yml): management.tracing.enabled follows tracing.enabled; management.prometheus.
+//     metrics.export.enabled follows metrics.enabled. This is the REAL on/off -- it decides whether Boot assembles
+//     the tracing bridge (span handler) and the Prometheus registry+scrape. Turn tracing off there and Observations
+//     still make their timers; turn metrics off and they still make their spans.
+//   - @Bean layer (here): ONLY the PURE-per-pillar beans carry the sub-condition -- the tracing EXPORT beans
+//     (esqOtelResource / esqOtlpSpanExporter / esqTraceSampler) by tracing.enabled, and the metrics-only beans
+//     (esqCommonMetricTags / esqTagCardinalityCap / esqLatencyHistograms / esqBizMetersRegistrar / the two byte-metric
+//     configs) by metrics.enabled. The SHARED observation machinery (esqObservationGate, esqTracedAspect,
+//     esqTraceRegistrar, esqAsyncTraceRegistrar, esqRodObserverRegistrar, SecurityObservationsOff) stays at the
+//     MASTER level: it feeds both a span and a timer, so gating it to one pillar would silently starve the other
+//     (e.g. gating the aspect to tracing would drop the esq.svc.* TIMERS in a metrics-only deployment, and gating the
+//     gate would let /actuator health noise back into http.server.requests METRICS). It costs a cheap no-op
+//     Observation when its pillar is off, which is the correct trade for keeping the other pillar whole.
+// Approach (b): the bus observer is registered at MASTER and takes OpenTelemetry via ObjectProvider with a NO-OP
+// fallback -- when tracing is off there is no OpenTelemetry bean, so the PRODUCER/CONSUMER span legs go inert while
+// the bus meters keep flowing. (Reverse combo metrics-off/tracing-on: bus meters still record into the unscraped
+// registry -- harmless, not free; make the observer pillar-aware only if that ever needs to be zero-cost.)
 @Configuration
 @ConditionalOnProperty(name = "esquire.observability.enabled", havingValue = "true")
 public class ObservabilityConfig {
@@ -148,7 +186,9 @@ public class ObservabilityConfig {
     private boolean marksEnabled;
 
     // Request paths that are NOT Esquire work and must never open a span: the actuator surface, hit by
-    // the kubelet/docker health probes several times a minute per instance. Comma-separated prefixes.
+    // the kubelet/docker health probes several times a minute per instance. Comma-separated PREFIXES -- each
+    // matches itself AND everything under it (/actuator covers /actuator/health); NOT regex, and a prefix list is
+    // enough here: the only non-Esquire noise on these API services IS the actuator surface (I34: accept, not regex).
     // Filtering here means the span is never CREATED (vs. created, exported, then dropped downstream).
     @Value("${esquire.observability.tracing.excluded-paths:/actuator}")
     private String excludedPaths;
@@ -171,9 +211,43 @@ public class ObservabilityConfig {
     // registry), so PromQL filters across replicas by service ({application="enyman"}). The replica itself is
     // Prometheus's own instance=<host:port> per scrape target (a distinct target per k8s pod), so no instance
     // tag is added here -- it would collide with that reserved label.
+    //
+    // I40 (COVERED 2026-07-15, reaffirmed 07-16): MEASURED is not the same as SPANNED. I40 was filed as "no DB
+    // instrumentation" -- that is FALSE. The SYNC in-request DB/SQL timing is ALREADY captured and DRAWN as
+    // "srv inner (db, capture-gated)"; what is deliberately absent is only the per-STATEMENT OTel SPAN in the
+    // trace waterfall. Do NOT re-file this as "the DB calls are not measured".
+    // The primary measure is the esq.srv.inner timer (MdcFilter records performance.getTotalJpaTime() -- the
+    // per-request total JPA/DB time, tagged by route; PerformanceAspect captures the repository/DB time). It is
+    // "capture-gated": recorded ONLY while observability is on, else simply not emitted (historically the
+    // X-Capture-Metrics load-test header gated it; now steady-state under the o11y umbrella). It renders as the
+    // innermost band on the "Request latency bands" panels ("srv inner (db)"). Two more DB-timing views back it:
+    // hikaricp.connections.usage -> "DB query rate (connection borrows/s)" = rate(_count) and "Avg DB connection
+    // hold time (ms/borrow)" = _sum/_count (per-query duration); and esq.biz.keep.write.duration for THE write at
+    // the keep sink. What we do NOT add: opentelemetry-jdbc / datasource-proxy per-STATEMENT spans. For a design
+    // where reads are served from the in-memory bizTree cache (a request is a cache HIT -- zero SQL; JPA runs
+    // only at bulk cache-load in BizTreeCacheLoader, off the request path) and writes are ONE self-contained SQL
+    // per repository method (DB-layer rule, no dynamic SQL), no single trace hides an N+1 fan-out a per-statement
+    // span would reveal -- "srv inner (db)" already answers how long the DB took per request. A per-statement span
+    // would add a dependency + span-per-SQL volume + SQL-text cardinality for no hidden depth. (I39 is the same
+    // sentence about the ASYNC kcMaster->KC hop -- also COVERED: its duration is measured by
+    // esq.biz.kc.sync.duration, only the per-CALL span is absent.) Revisit ONLY if a DB-heavy,
+    // many-queries-per-request path is ever introduced.
     @Bean
+    @ConditionalOnProperty(name = "esquire.observability.metrics.enabled", havingValue = "true", matchIfMissing = true)
     public MeterFilter esqCommonMetricTags(@Value("${spring.application.name:unknown}") String appName) {
         return MeterFilter.commonTags(java.util.List.of(Tag.of("application", appName)));
+    }
+
+    // I25: cap the distinct VALUES any esq.biz.* / messaging.* tag may take, so an unbounded tag -- an exception
+    // message, an entity id, a correlationId reaching a call site (the I6 class) -- can NEVER explode the series
+    // count. Past the cap a new value collapses to a sentinel, so the blast radius of the mistake is one extra
+    // series, not thousands (and the sentinel is loud, so o11y-verify still flags it). The runtime PREVENTION that
+    // pairs with o11y-verify's cardinality DETECTION (I21). 100 is far above any real Esquire tag (the widest is a
+    // couple dozen) and far below a leak -- so legitimate meters are never touched, only a runaway is contained.
+    @Bean
+    @ConditionalOnProperty(name = "esquire.observability.metrics.enabled", havingValue = "true", matchIfMissing = true)
+    public MeterFilter esqTagCardinalityCap() {
+        return new EsqTagCardinalityCap(100);
     }
 
     // Publish latency-histogram buckets so a Prometheus histogram_quantile (p95/p99) has _bucket series to read --
@@ -186,6 +260,7 @@ public class ObservabilityConfig {
     //     multiply that cardinality. Off by default = the timers still emit count/sum/max (avg is queryable); on =
     //     full percentiles.
     @Bean
+    @ConditionalOnProperty(name = "esquire.observability.metrics.enabled", havingValue = "true", matchIfMissing = true)
     public MeterFilter esqLatencyHistograms(
             @Value("${esquire.observability.metrics.histograms-enabled:false}") boolean histogramsEnabled) {
         java.util.Set<String> gated = java.util.Set.of(
@@ -213,6 +288,9 @@ public class ObservabilityConfig {
                 if (histogramsEnabled && gatedName) {
                     ret = io.micrometer.core.instrument.distribution.DistributionStatisticConfig.builder()
                             .percentilesHistogram(true)
+                            // it is not needed by Micrometer's design -- exemplars attach to THESE histogram buckets
+                            // automatically (the tracing bridge's SpanContextSupplier); there is no per-meter flag.
+                            // .exemplarsEnabled(true)
                             .build()
                             .merge(config);
                 }
@@ -226,7 +304,9 @@ public class ObservabilityConfig {
     // so the x2 replicas are distinguishable in the trace -- the value is the rod-id token <app>.<instanceNo>,
     // matching the bus "from" attribute. instanceNo() is lazy-cached in EsqUtils (resolved once per JVM). Only
     // contributed when observability is enabled (this whole config is @ConditionalOnProperty).
+    // Pure TRACING (span resource) -- gated by the tracing pillar; no metrics role.
     @Bean
+    @ConditionalOnProperty(name = "esquire.observability.tracing.enabled", havingValue = "true", matchIfMissing = true)
     public io.opentelemetry.sdk.resources.Resource esqOtelResource(
             @org.springframework.beans.factory.annotation.Value("${spring.application.name:unknown}") String appName) {
         String instanceId = appName + "." + pro.mir0n.esquire.common.EsqUtils.instanceNo();
@@ -241,7 +321,18 @@ public class ObservabilityConfig {
 
     // Explicit OTLP exporter -> the collector. Its presence backs off Boot's default OTLP exporter,
     // so the collector endpoint is owned here, not by a management.otlp.tracing.endpoint property.
+    // Pure TRACING (span export) -- gated by the tracing pillar.
+    //
+    // The o11y path CANNOT become a request-failure mode (I53 REJECT). Boot wraps this exporter in its default
+    // BatchSpanProcessor -- a BOUNDED queue that DROPS spans on overflow and never blocks the request thread (we
+    // set no SimpleSpanProcessor and no queue override, so the SDK default stands). Metrics are PULL (Prometheus
+    // scrapes /actuator/prometheus on its own 15s clock, cost O(series) with bounded-cardinality tags -- request
+    // rate cannot flood it). Logs go to stdout, tailed out-of-process by Alloy -- a slow Loki backpressures Alloy,
+    // not the app. Proven empirically: 3.6M requests including o11y FULL at 100% host CPU -> 0 request failures in
+    // the full-stack arms (doc/review/Esquire.PerfMatrix-07-17.md). o11y COSTS throughput under load (24-27%,
+    // measured in I49) but never FAILS a request; there is nothing to shed that is not already shed.
     @Bean
+    @ConditionalOnProperty(name = "esquire.observability.tracing.enabled", havingValue = "true", matchIfMissing = true)
     public OtlpHttpSpanExporter esqOtlpSpanExporter() {
         return OtlpHttpSpanExporter.builder()
                 .setEndpoint(otlpEndpoint)
@@ -250,7 +341,9 @@ public class ObservabilityConfig {
 
     // Explicit head sampler (parent-based ratio). Its presence backs off Boot's probability sampler,
     // so the sampling posture is owned here, not by management.tracing.sampling.probability.
+    // Pure TRACING (sampling posture) -- gated by the tracing pillar.
     @Bean
+    @ConditionalOnProperty(name = "esquire.observability.tracing.enabled", havingValue = "true", matchIfMissing = true)
     public Sampler esqTraceSampler() {
         return Sampler.parentBased(Sampler.traceIdRatioBased(samplingRatio));
     }
@@ -353,9 +446,16 @@ public class ObservabilityConfig {
     // pays nothing. The msg-bus-alive-trace opt-in rides on the observer (IRodTracer.aliveTrace()).
     @Bean
     public org.springframework.beans.factory.InitializingBean esqRodObserverRegistrar(
-            io.opentelemetry.api.OpenTelemetry openTelemetry, io.micrometer.core.instrument.MeterRegistry meterRegistry) {
+            org.springframework.beans.factory.ObjectProvider<io.opentelemetry.api.OpenTelemetry> openTelemetry,
+            io.micrometer.core.instrument.MeterRegistry meterRegistry) {
+        // Approach (b), per-pillar enable (I41): this observer carries BOTH pillars (bus trace + bus meters), so it is
+        // registered at MASTER level, NOT pillar-gated. When tracing.enabled is off there is NO OpenTelemetry bean
+        // (Boot never assembled the tracing bridge), so fall back to OpenTelemetry.noop() -- the PRODUCER/CONSUMER span
+        // legs go inert while the bus meters keep flowing off the MeterRegistry (which always exists). ObjectProvider
+        // is what makes this safe either way: bean present -> real tracer; bean absent -> no-op, no startup failure.
+        io.opentelemetry.api.OpenTelemetry otel = openTelemetry.getIfAvailable(io.opentelemetry.api.OpenTelemetry::noop);
         return () -> RodObserverHolder.setObserver(
-                new EsqRodObserver(openTelemetry.getTracer("pro.mir0n.esquire.o11y.bus"), meterRegistry, msgBusAliveTrace));
+                new EsqRodObserver(otel.getTracer("pro.mir0n.esquire.o11y.bus"), meterRegistry, msgBusAliveTrace));
     }
 
     // Hand the registry to the async-boundary primitive (O2/T3), so work handed to a queue worker (the enyMan
@@ -377,7 +477,8 @@ public class ObservabilityConfig {
     // allocated, nothing is looked up, no meter exists. That is the lever for a run where the hot path must not
     // pay for the domain tier at all -- the free JVM/HTTP/pool meters, the bus meters and tracing all stay on.
     @Bean
-    @ConditionalOnProperty(name = "esquire.observability.metrics.business-enabled",
+    @ConditionalOnProperty(name = {"esquire.observability.metrics.enabled",
+                                   "esquire.observability.metrics.business-enabled"},
                            havingValue = "true", matchIfMissing = true)
     public org.springframework.beans.factory.InitializingBean esqBizMetersRegistrar(
             io.micrometer.core.instrument.MeterRegistry meterRegistry) {
@@ -416,7 +517,8 @@ public class ObservabilityConfig {
     // Tomcat, and a nested class is condition-checked before its methods -- and their return types -- are read.
     @Configuration(proxyBeanMethods = false)
     @ConditionalOnClass(name = "org.springframework.boot.web.embedded.tomcat.TomcatServletWebServerFactory")
-    @ConditionalOnProperty(name = "esquire.observability.metrics.bandwidth-enabled",
+    @ConditionalOnProperty(name = {"esquire.observability.metrics.enabled",
+                                   "esquire.observability.metrics.bandwidth-enabled"},
                            havingValue = "true", matchIfMissing = true)
     static class TomcatByteMetrics {
 
@@ -437,7 +539,8 @@ public class ObservabilityConfig {
     // server, and the nested class is condition-checked before its methods -- and their return types -- are read.
     @Configuration(proxyBeanMethods = false)
     @ConditionalOnClass(name = "reactor.netty.http.server.HttpServer")
-    @ConditionalOnProperty(name = "esquire.observability.metrics.bandwidth-enabled",
+    @ConditionalOnProperty(name = {"esquire.observability.metrics.enabled",
+                                   "esquire.observability.metrics.bandwidth-enabled"},
                            havingValue = "true", matchIfMissing = true)
     static class NettyByteMetrics {
 

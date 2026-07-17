@@ -16,6 +16,8 @@
  *                   one looks like; aliveTrace() carries the host's opt-in for the round-trip trace. traceId is
  *                   ALWAYS the correlationId (authoritative); the traceparent only carries the parent span id.
  *                   NOOP when tracing is off = zero cost.
+ * 07/17/2026 mir0n  the alive-trace opt-in key is namespaced under
+ *                   esquire.observability.tracing.msg-bus-alive-trace (was esquire.tracing.*).
  */
 package pro.mir0n.esquire.messaging.o11y;
 
@@ -49,7 +51,7 @@ public interface IRodTracer {
 
     /**
      * Whether the RR liveness round-trip (a CLIENT TestRequest and the SERVER HeartBeat it draws) should be
-     * traced -- the host's opt-in {@code esquire.tracing.msg-bus-alive-trace}. It rides on the tracer because it
+     * traced -- the host's opt-in {@code esquire.observability.tracing.msg-bus-alive-trace}. It rides on the tracer because it
      * is the tracer's own setting: heartbeats fire on a steady cadence, so tracing them is a deliberate choice.
      * False on a NOOP tracer.
      */

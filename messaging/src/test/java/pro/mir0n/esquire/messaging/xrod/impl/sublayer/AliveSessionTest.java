@@ -197,7 +197,7 @@ class AliveSessionTest {
             worker.run();
         }
         @Override public boolean aliveTrace() {
-            return true;   // the host opted in (esquire.tracing.msg-bus-alive-trace)
+            return true;   // the host opted in (esquire.observability.tracing.msg-bus-alive-trace)
         }
         @Override public String newTraceId() {
             return TRACE_ID;

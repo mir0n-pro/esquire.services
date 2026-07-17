@@ -36,7 +36,7 @@ data:
               - set(attributes["esq.app"], attributes["service.name"]) where attributes["service.name"] != nil
               - set(attributes["service.name"], attributes["service.instance.id"]) where attributes["service.instance.id"] != nil
       # BACKSTOP ONLY (v1.2.11 O2). Health-probe traces are no longer produced: the services refuse the
-      # request observation for esquire.tracing.excluded-paths (/actuator) and the BFF opens no span off
+      # request observation for esquire.observability.tracing.excluded-paths (/actuator) and the BFF opens no span off
       # its traced paths, so nothing arrives here to drop. This rule stays as a second line of defence
       # for a deployment that leaves excluded-paths empty.
       #
@@ -58,6 +58,11 @@ data:
                 - /readyz
               enabled_regex_matching: true
               invert_match: true
+          # I38 (deferred to T12/D5): drop-health is the ONLY policy today because the HEAD sampler keeps everything
+          # (ESQ_TRACING_SAMPLING_RATIO=1.0), so every non-health trace reaches here and is kept -- no error is ever
+          # dropped. When a production sampling ratio is chosen to control cost at scale, ADD A keep-error policy HERE
+          # (keep status_code=ERROR / http 5xx, sample the rest). Do it on the TAIL, NOT by lowering the head ratio: a
+          # lower head ratio drops error traces at the source, before this processor can see (and keep) them.
     # The service graph (T9-C). The connector pairs each CLIENT span with the SERVER span it called and emits an
     # EDGE metric per caller->callee pair. That is what makes the topology view LIVE rather than hand-drawn: it
     # discovers the real request flow -- including the R&R bus hops (T3), because those are real PRODUCER/CONSUMER

@@ -15,6 +15,11 @@ data:
     global:
       scrape_interval: 15s
       scrape_timeout: 10s
+    # Framework-health alert rules (I55). Routing to an Alertmanager is the OPERATOR slot -- add an `alerting:`
+    # block here and a contact point at deploy. The whole configmap mounts at /etc/prometheus, so the rules.yml
+    # key below lands as /etc/prometheus/rules.yml.
+    rule_files:
+      - rules.yml
     scrape_configs:
       - job_name: esquire-services
         metrics_path: /actuator/prometheus
@@ -143,3 +148,8 @@ data:
             target_label: instance
           - source_labels: [__meta_kubernetes_pod_name]
             target_label: pod
+  # Framework-health alert rules (I55). Included verbatim via .Files.Get so Prometheus's own annotation
+  # templating (the double-brace label refs) survives Helm rendering. Lands as /etc/prometheus/rules.yml
+  # (referenced by rule_files above).
+  rules.yml: |
+{{ .Files.Get "rules.yml" | indent 4 }}

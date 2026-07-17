@@ -249,11 +249,12 @@ services:
       - BIZTREE_PORT=3002
       - LOG_LEVEL_ROOT=ERROR
       - LOG_LEVEL_SF=ERROR
-      - LOG_LEVEL_MIR0N=DEBUG
-      - LOG_LEVEL_DEVELOP=DEBUG
-      - LOG_LEVEL_MSG=DEBUG
-      - LOG_LEVEL_AMQ=INFO
-      - LOG_LEVEL_JMS=INFO
+      # I49 knob: o11y-log-off/on.bat set this OFF / INFO. Keep overridable or both arms run identical.
+      - LOG_LEVEL_MIR0N=${LOG_LEVEL_MIR0N:-DEBUG}
+      - LOG_LEVEL_DEVELOP=${LOG_LEVEL_DEVELOP:-DEBUG}
+      - LOG_LEVEL_MSG=${LOG_LEVEL_MSG:-DEBUG}
+      - LOG_LEVEL_AMQ=${LOG_LEVEL_AMQ:-INFO}
+      - LOG_LEVEL_JMS=${LOG_LEVEL_JMS:-INFO}
       - DEVELOP_LOG_PATH=logs/bizTree-develop.log
       - MSG_LOG_PATH=logs/bizTree-msg.log
       - TOPOLOGY_IMPORT=optional:file:/etc/esquire/topology.yml
@@ -279,6 +280,9 @@ services:
       # Distributed tracing (v1.2.11 O2) -- OFF by default; the o11y profile brings up the collector + Tempo.
       # Enable end-to-end: ESQ_OBSERVABILITY_ENABLED=true docker compose --profile o11y up -d --force-recreate
       - ESQ_OBSERVABILITY_ENABLED=${ESQ_OBSERVABILITY_ENABLED:-false}
+      # per-pillar enable (I41): default to master; set ESQ_TRACING_ENABLED=false for metrics-only (mesh case)
+      - ESQ_TRACING_ENABLED=${ESQ_TRACING_ENABLED:-${ESQ_OBSERVABILITY_ENABLED:-false}}
+      - ESQ_METRICS_ENABLED=${ESQ_METRICS_ENABLED:-${ESQ_OBSERVABILITY_ENABLED:-false}}
       - ESQ_METRICS_HISTOGRAMS=${ESQ_METRICS_HISTOGRAMS:-false}
       - ESQ_METRICS_BANDWIDTH=${ESQ_METRICS_BANDWIDTH:-true}
       - ESQ_METRICS_BUSINESS=${ESQ_METRICS_BUSINESS:-true}
@@ -332,11 +336,12 @@ services:
       - ENYMAN_PORT=3003
       - LOG_LEVEL_ROOT=ERROR
       - LOG_LEVEL_SF=ERROR
-      - LOG_LEVEL_MIR0N=DEBUG
-      - LOG_LEVEL_DEVELOP=DEBUG
-      - LOG_LEVEL_MSG=INFO
-      - LOG_LEVEL_AMQ=INFO
-      - LOG_LEVEL_JMS=INFO
+      # I49 knob: o11y-log-off/on.bat set this OFF / INFO. Keep overridable or both arms run identical.
+      - LOG_LEVEL_MIR0N=${LOG_LEVEL_MIR0N:-DEBUG}
+      - LOG_LEVEL_DEVELOP=${LOG_LEVEL_DEVELOP:-DEBUG}
+      - LOG_LEVEL_MSG=${LOG_LEVEL_MSG:-INFO}
+      - LOG_LEVEL_AMQ=${LOG_LEVEL_AMQ:-INFO}
+      - LOG_LEVEL_JMS=${LOG_LEVEL_JMS:-INFO}
       - DEVELOP_LOG_PATH=logs/enyMan-develop.log
       - MSG_LOG_PATH=logs/enyMan-msg.log
       - TOPOLOGY_IMPORT=optional:file:/etc/esquire/topology.yml
@@ -355,6 +360,9 @@ services:
       # Distributed tracing (v1.2.11 O2) -- OFF by default; the o11y profile brings up the collector + Tempo.
       # Enable end-to-end: ESQ_OBSERVABILITY_ENABLED=true docker compose --profile o11y up -d --force-recreate
       - ESQ_OBSERVABILITY_ENABLED=${ESQ_OBSERVABILITY_ENABLED:-false}
+      # per-pillar enable (I41): default to master; set ESQ_TRACING_ENABLED=false for metrics-only (mesh case)
+      - ESQ_TRACING_ENABLED=${ESQ_TRACING_ENABLED:-${ESQ_OBSERVABILITY_ENABLED:-false}}
+      - ESQ_METRICS_ENABLED=${ESQ_METRICS_ENABLED:-${ESQ_OBSERVABILITY_ENABLED:-false}}
       - ESQ_METRICS_HISTOGRAMS=${ESQ_METRICS_HISTOGRAMS:-false}
       - ESQ_METRICS_BANDWIDTH=${ESQ_METRICS_BANDWIDTH:-true}
       - ESQ_METRICS_BUSINESS=${ESQ_METRICS_BUSINESS:-true}
@@ -421,16 +429,20 @@ services:
       - PACMAN_PORT=3004
       - LOG_LEVEL_ROOT=ERROR
       - LOG_LEVEL_SF=ERROR
-      - LOG_LEVEL_MIR0N=DEBUG
-      - LOG_LEVEL_DEVELOP=DEBUG
-      - LOG_LEVEL_MSG=INFO
-      - LOG_LEVEL_AMQ=INFO
-      - LOG_LEVEL_JMS=INFO
+      # I49 knob: o11y-log-off/on.bat set this OFF / INFO. Keep overridable or both arms run identical.
+      - LOG_LEVEL_MIR0N=${LOG_LEVEL_MIR0N:-DEBUG}
+      - LOG_LEVEL_DEVELOP=${LOG_LEVEL_DEVELOP:-DEBUG}
+      - LOG_LEVEL_MSG=${LOG_LEVEL_MSG:-INFO}
+      - LOG_LEVEL_AMQ=${LOG_LEVEL_AMQ:-INFO}
+      - LOG_LEVEL_JMS=${LOG_LEVEL_JMS:-INFO}
       - DEVELOP_LOG_PATH=logs/pacMan-develop.log
       - MSG_LOG_PATH=logs/pacMan-msg.log
       # Distributed tracing (v1.2.11 O2) -- OFF by default; the o11y profile brings up the collector + Tempo.
       # Enable end-to-end: ESQ_OBSERVABILITY_ENABLED=true docker compose --profile o11y up -d --force-recreate
       - ESQ_OBSERVABILITY_ENABLED=${ESQ_OBSERVABILITY_ENABLED:-false}
+      # per-pillar enable (I41): default to master; set ESQ_TRACING_ENABLED=false for metrics-only (mesh case)
+      - ESQ_TRACING_ENABLED=${ESQ_TRACING_ENABLED:-${ESQ_OBSERVABILITY_ENABLED:-false}}
+      - ESQ_METRICS_ENABLED=${ESQ_METRICS_ENABLED:-${ESQ_OBSERVABILITY_ENABLED:-false}}
       - ESQ_METRICS_HISTOGRAMS=${ESQ_METRICS_HISTOGRAMS:-false}
       - ESQ_METRICS_BANDWIDTH=${ESQ_METRICS_BANDWIDTH:-true}
       - ESQ_METRICS_BUSINESS=${ESQ_METRICS_BUSINESS:-true}
@@ -492,16 +504,20 @@ services:
       - DATAKEEP_PORT=3007
       - LOG_LEVEL_ROOT=ERROR
       - LOG_LEVEL_SF=ERROR
-      - LOG_LEVEL_MIR0N=DEBUG
-      - LOG_LEVEL_DEVELOP=DEBUG
-      - LOG_LEVEL_MSG=INFO
-      - LOG_LEVEL_AMQ=INFO
-      - LOG_LEVEL_JMS=INFO
+      # I49 knob: o11y-log-off/on.bat set this OFF / INFO. Keep overridable or both arms run identical.
+      - LOG_LEVEL_MIR0N=${LOG_LEVEL_MIR0N:-DEBUG}
+      - LOG_LEVEL_DEVELOP=${LOG_LEVEL_DEVELOP:-DEBUG}
+      - LOG_LEVEL_MSG=${LOG_LEVEL_MSG:-INFO}
+      - LOG_LEVEL_AMQ=${LOG_LEVEL_AMQ:-INFO}
+      - LOG_LEVEL_JMS=${LOG_LEVEL_JMS:-INFO}
       - DEVELOP_LOG_PATH=logs/datakeep-develop.log
       - MSG_LOG_PATH=logs/datakeep-msg.log
       # Distributed tracing (v1.2.11 O2) -- OFF by default; the o11y profile brings up the collector + Tempo.
       # Enable end-to-end: ESQ_OBSERVABILITY_ENABLED=true docker compose --profile o11y up -d --force-recreate
       - ESQ_OBSERVABILITY_ENABLED=${ESQ_OBSERVABILITY_ENABLED:-false}
+      # per-pillar enable (I41): default to master; set ESQ_TRACING_ENABLED=false for metrics-only (mesh case)
+      - ESQ_TRACING_ENABLED=${ESQ_TRACING_ENABLED:-${ESQ_OBSERVABILITY_ENABLED:-false}}
+      - ESQ_METRICS_ENABLED=${ESQ_METRICS_ENABLED:-${ESQ_OBSERVABILITY_ENABLED:-false}}
       - ESQ_METRICS_HISTOGRAMS=${ESQ_METRICS_HISTOGRAMS:-false}
       - ESQ_METRICS_BANDWIDTH=${ESQ_METRICS_BANDWIDTH:-true}
       - ESQ_METRICS_BUSINESS=${ESQ_METRICS_BUSINESS:-true}
@@ -549,16 +565,20 @@ services:
       - KEYSMITH_PORT=3005
       - LOG_LEVEL_ROOT=ERROR
       - LOG_LEVEL_SF=ERROR
-      - LOG_LEVEL_MIR0N=DEBUG
-      - LOG_LEVEL_DEVELOP=DEBUG
-      - LOG_LEVEL_MSG=DEBUG
-      - LOG_LEVEL_AMQ=INFO
-      - LOG_LEVEL_JMS=INFO
+      # I49 knob: o11y-log-off/on.bat set this OFF / INFO. Keep overridable or both arms run identical.
+      - LOG_LEVEL_MIR0N=${LOG_LEVEL_MIR0N:-DEBUG}
+      - LOG_LEVEL_DEVELOP=${LOG_LEVEL_DEVELOP:-DEBUG}
+      - LOG_LEVEL_MSG=${LOG_LEVEL_MSG:-DEBUG}
+      - LOG_LEVEL_AMQ=${LOG_LEVEL_AMQ:-INFO}
+      - LOG_LEVEL_JMS=${LOG_LEVEL_JMS:-INFO}
       - DEVELOP_LOG_PATH=logs/keySmith-develop.log
       - MSG_LOG_PATH=logs/keySmith-msg.log
       # Distributed tracing (v1.2.11 O2) -- OFF by default; the o11y profile brings up the collector + Tempo.
       # Enable end-to-end: ESQ_OBSERVABILITY_ENABLED=true docker compose --profile o11y up -d --force-recreate
       - ESQ_OBSERVABILITY_ENABLED=${ESQ_OBSERVABILITY_ENABLED:-false}
+      # per-pillar enable (I41): default to master; set ESQ_TRACING_ENABLED=false for metrics-only (mesh case)
+      - ESQ_TRACING_ENABLED=${ESQ_TRACING_ENABLED:-${ESQ_OBSERVABILITY_ENABLED:-false}}
+      - ESQ_METRICS_ENABLED=${ESQ_METRICS_ENABLED:-${ESQ_OBSERVABILITY_ENABLED:-false}}
       - ESQ_METRICS_HISTOGRAMS=${ESQ_METRICS_HISTOGRAMS:-false}
       - ESQ_METRICS_BANDWIDTH=${ESQ_METRICS_BANDWIDTH:-true}
       - ESQ_METRICS_BUSINESS=${ESQ_METRICS_BUSINESS:-true}
@@ -625,16 +645,20 @@ services:
       - KCMASTER_PORT=3006
       - LOG_LEVEL_ROOT=ERROR
       - LOG_LEVEL_SF=ERROR
-      - LOG_LEVEL_MIR0N=DEBUG
-      - LOG_LEVEL_DEVELOP=DEBUG
-      - LOG_LEVEL_MSG=INFO
-      - LOG_LEVEL_AMQ=INFO
-      - LOG_LEVEL_JMS=INFO
+      # I49 knob: o11y-log-off/on.bat set this OFF / INFO. Keep overridable or both arms run identical.
+      - LOG_LEVEL_MIR0N=${LOG_LEVEL_MIR0N:-DEBUG}
+      - LOG_LEVEL_DEVELOP=${LOG_LEVEL_DEVELOP:-DEBUG}
+      - LOG_LEVEL_MSG=${LOG_LEVEL_MSG:-INFO}
+      - LOG_LEVEL_AMQ=${LOG_LEVEL_AMQ:-INFO}
+      - LOG_LEVEL_JMS=${LOG_LEVEL_JMS:-INFO}
       - DEVELOP_LOG_PATH=logs/kcMaster-develop.log
       - MSG_LOG_PATH=logs/kcMaster-msg.log
       # Distributed tracing (v1.2.11 O2) -- OFF by default; the o11y profile brings up the collector + Tempo.
       # Enable end-to-end: ESQ_OBSERVABILITY_ENABLED=true docker compose --profile o11y up -d --force-recreate
       - ESQ_OBSERVABILITY_ENABLED=${ESQ_OBSERVABILITY_ENABLED:-false}
+      # per-pillar enable (I41): default to master; set ESQ_TRACING_ENABLED=false for metrics-only (mesh case)
+      - ESQ_TRACING_ENABLED=${ESQ_TRACING_ENABLED:-${ESQ_OBSERVABILITY_ENABLED:-false}}
+      - ESQ_METRICS_ENABLED=${ESQ_METRICS_ENABLED:-${ESQ_OBSERVABILITY_ENABLED:-false}}
       - ESQ_METRICS_HISTOGRAMS=${ESQ_METRICS_HISTOGRAMS:-false}
       - ESQ_METRICS_BANDWIDTH=${ESQ_METRICS_BANDWIDTH:-true}
       - ESQ_METRICS_BUSINESS=${ESQ_METRICS_BUSINESS:-true}
@@ -699,7 +723,7 @@ services:
       start_period: 30s
     environment:
       - GATEWAY_PORT=7070
-      - LOG_LEVEL_DEVELOP=DEBUG
+      - LOG_LEVEL_DEVELOP=${LOG_LEVEL_DEVELOP:-DEBUG}
       - DEVELOP_LOG_PATH=logs/gateway-develop.log
       - BIZTREE_PORT=3002
       - BIZTREE_HOST=biztree
@@ -718,11 +742,15 @@ services:
       - CORS_ALLOWED_ORIGINS=http://localhost:4200,http://localhost:3000
       - LOG_LEVEL_ROOT=ERROR
       - LOG_LEVEL_SF=ERROR
-      - LOG_LEVEL_MIR0N=DEBUG
+      # I49 knob: o11y-log-off/on.bat set this OFF / INFO. Keep overridable or both arms run identical.
+      - LOG_LEVEL_MIR0N=${LOG_LEVEL_MIR0N:-DEBUG}
       - GW_SERVICE_METRICS_ENABLED=true
       # Distributed tracing (v1.2.11 O2) -- OFF by default; the o11y profile brings up the collector + Tempo.
       # Enable end-to-end: ESQ_OBSERVABILITY_ENABLED=true docker compose --profile o11y up -d --force-recreate
       - ESQ_OBSERVABILITY_ENABLED=${ESQ_OBSERVABILITY_ENABLED:-false}
+      # per-pillar enable (I41): default to master; set ESQ_TRACING_ENABLED=false for metrics-only (mesh case)
+      - ESQ_TRACING_ENABLED=${ESQ_TRACING_ENABLED:-${ESQ_OBSERVABILITY_ENABLED:-false}}
+      - ESQ_METRICS_ENABLED=${ESQ_METRICS_ENABLED:-${ESQ_OBSERVABILITY_ENABLED:-false}}
       - ESQ_METRICS_HISTOGRAMS=${ESQ_METRICS_HISTOGRAMS:-false}
       - ESQ_METRICS_BANDWIDTH=${ESQ_METRICS_BANDWIDTH:-true}
       - ESQ_METRICS_BUSINESS=${ESQ_METRICS_BUSINESS:-true}
@@ -801,8 +829,15 @@ services:
       - SESSION_SECRET=esq-bff-dev-session-secret-rotate-in-prod
       # Distributed tracing (v1.2.11 O2) -- OFF by default; the o11y profile brings up the collector.
       # Enable end-to-end: ESQ_OBSERVABILITY_ENABLED=true docker compose --profile o11y up -d --force-recreate
-      - ESQ_OBSERVABILITY_ENABLED=${ESQ_OBSERVABILITY_ENABLED:-false}   # BFF: same umbrella switch as the Java services (gates tracing + metrics, T5c)
-      - ESQ_MSG_BUS_ALIVE_TRACE=${ESQ_MSG_BUS_ALIVE_TRACE:-false}   # RR liveness heartbeat spans -- OFF by default on every target (I14); opt in via this env
+      - ESQ_OBSERVABILITY_ENABLED=${ESQ_OBSERVABILITY_ENABLED:-false}   # BFF: same umbrella MASTER as the Java services
+      # per-pillar enable (I41): default to master; ESQ_TRACING_ENABLED=false -> BFF metrics-only (mesh case), matching Java
+      - ESQ_TRACING_ENABLED=${ESQ_TRACING_ENABLED:-${ESQ_OBSERVABILITY_ENABLED:-false}}
+      - ESQ_METRICS_ENABLED=${ESQ_METRICS_ENABLED:-${ESQ_OBSERVABILITY_ENABLED:-false}}
+      # NO ESQ_MSG_BUS_ALIVE_TRACE here on purpose (I43): that switch turns on RR liveness-HEARTBEAT spans, and the
+      # BFF is not a message-bus participant -- it has no x-rod, no heartbeat, and never reads the var. It was set
+      # here as symmetry-noise with the 7 Java services and was INERT: the k8s esquire-backend chart never had it,
+      # so the two targets disagreed about a key that did nothing on either. Deleted rather than propagated to the
+      # chart -- the asymmetry was the tell, not the bug (I13/I14 class, resolved by DELETION).
       - ESQ_OTLP_ENDPOINT=${ESQ_OTLP_ENDPOINT:-http://otel-collector:4318/v1/traces}
       - ESQ_TRACING_SAMPLING_RATIO=${ESQ_TRACING_SAMPLING_RATIO:-1.0}
     extra_hosts:
@@ -957,6 +992,7 @@ services:
       - --enable-feature=exemplar-storage
     volumes:
       - ./o11y/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./o11y/rules.yml:/etc/prometheus/rules.yml:ro   # framework-health alert rules (I55; rule_files in prometheus.yml)
       # NAMED, like every other store here. The image declares VOLUME /prometheus, so without this line docker
       # hands it an ANONYMOUS volume: a fresh empty one on every recreate, and exactly what `docker volume prune`
       # reclaims. An anonymous volume is not a storage choice, it is an accident -- Prometheus was the only

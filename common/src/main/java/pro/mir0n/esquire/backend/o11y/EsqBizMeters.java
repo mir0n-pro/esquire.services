@@ -14,6 +14,8 @@
  *                   the only shape that reaches BOTH Spring beans and the new-ed, never-proxied objects
  *                   (AcctTransactionProcessor*, the taijitu Monad, KeepSqlStore). Registry null while the
  *                   observability umbrella is off, so every call is a null check and nothing else.
+ * 07/17/2026 mir0n  safeTags(): a null tag element is coerced to "null" centrally, so an esq.biz.* meter called
+ *                   from a finally cannot throw over a label (I18); clones only when a null is present.
  */
 package pro.mir0n.esquire.backend.o11y;
 
@@ -66,12 +68,37 @@ public final class EsqBizMeters {
     private record PendingGauge(String name, IntSupplier value, String[] tags) {
     }
 
+    /**
+     * Coerce any null tag element to the string {@code "null"} so a meter is UNCONDITIONALLY safe to call.
+     *
+     * <p>Micrometer rejects a null tag key or value with an exception. From a meter in a {@code finally} that is
+     * exactly the T8-B trap: the throw would MASK the real exception on its way out. A tag is never worth throwing
+     * over -- it is a label, not a decision -- so a null becomes {@code "null"} here (the same thing the call sites
+     * do with {@code String.valueOf}, now guaranteed centrally). This closes the case where an already-null value
+     * is PASSED to a meter; the other T8-B shape, computing a tag from a nullable ({@code x.name()} where {@code x}
+     * is null), throws in the caller's argument expression before this method is reached and can only be avoided at
+     * the call site -- which every {@code esq.biz.*} site does (audited, I18). Clones only when a null is present,
+     * so the clean path allocates nothing.
+     */
+    private static String[] safeTags(String[] tags) {
+        String[] ret = tags;
+        for (int i = 0; i < ret.length; i++) {
+            if (ret[i] == null) {
+                if (ret == tags) {
+                    ret = tags.clone();
+                }
+                ret[i] = "null";
+            }
+        }
+        return ret;
+    }
+
     /** Wire the app's MeterRegistry. Called from ObservabilityConfig, only when observability is enabled. */
     public static void setRegistry(MeterRegistry meterRegistry) {
         registry = meterRegistry;
         if (meterRegistry != null) {
             for (PendingGauge g : PENDING) {
-                EsqGauge.register(meterRegistry, g.name(), g.value(), g.tags());
+                EsqGauge.register(meterRegistry, g.name(), g.value(), safeTags(g.tags()));
             }
             PENDING.clear();
         }
@@ -87,7 +114,7 @@ public final class EsqBizMeters {
     public static void count(String name, String... tags) {
         MeterRegistry reg = registry;
         if (reg != null) {
-            reg.counter(name, tags).increment();
+            reg.counter(name, safeTags(tags)).increment();
         }
     }
 
@@ -99,7 +126,7 @@ public final class EsqBizMeters {
     public static void time(String name, long nanos, String... tags) {
         MeterRegistry reg = registry;
         if (reg != null) {
-            reg.timer(name, tags).record(nanos, TimeUnit.NANOSECONDS);
+            reg.timer(name, safeTags(tags)).record(nanos, TimeUnit.NANOSECONDS);
         }
     }
 
@@ -113,12 +140,12 @@ public final class EsqBizMeters {
     public static void gauge(String name, IntSupplier value, String... tags) {
         MeterRegistry reg = registry;
         if (reg != null) {
-            EsqGauge.register(reg, name, value, tags);
+            EsqGauge.register(reg, name, value, safeTags(tags));
         } else {
             // The registry is not here YET (a @PostConstruct beat the registrar) -- or the umbrella is off and it
-            // never will be. Hold the gauge either way: if the registry arrives, setRegistry() registers it; if it
-            // does not, this is a handful of tiny records retained for the life of the process, and nothing else.
-            // Registering nothing and saying nothing is the outcome we are removing.
+            // never will be. Hold the gauge either way: if the registry arrives, setRegistry() registers it (and
+            // safeTags it then); if it does not, this is a handful of tiny records retained for the life of the
+            // process, and nothing else -- NO coercion work is done while off (I19: off must cost zero).
             PENDING.add(new PendingGauge(name, value, tags));
         }
     }

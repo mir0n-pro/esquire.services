@@ -1,5 +1,18 @@
 Esquire kcMaster Microservice
 
+07/17/2026 mir0n  v1.2.11 -- T11 cleanup: fix/resolve issues noted during development
+resources/application.yml
+  - the tracing and metrics switches each read their own env var (ESQ_TRACING_ENABLED / ESQ_METRICS_ENABLED),
+    defaulting to the ESQ_OBSERVABILITY_ENABLED umbrella, so either pillar can be turned off on its own (I41)
+config.KeycloakConfig
+  - the KC-admin client is un-instrumented at the wire on purpose (I39 covered) -- the KC-sync duration IS
+    measured at the operation grain (esq.biz.kc.sync.duration), only a per-call span is absent; copyright URL
+    mir0n.me -> mir0n.pro
+messaging.KcRequestHandler
+  - esq.biz.kc.sync.duration is orthogonal to the bus-hop span pair -- the KC request/response hop IS traced
+    (PRODUCER/CONSUMER via AXRod), not a waterfall gap (I51)
+
+
 07/15/2026 mir0n  v1.2.11 -- T11 cleanup: fix/resolve issues noted during development
 messaging.EntityBusAdapter
   - the entity-broadcast receive worker stamps MDC via EsqContextHolder.applyMessage(event) and clears in a

@@ -25,6 +25,8 @@
  *                   never touched on a thread that has no request. The || that caused the 500 is now harmless --
  *                   whichever side answers it, the thread is already known to be serving a request -- so there is
  *                   no ordering left in the condition for a later edit to break
+ * 07/17/2026 mir0n  the request-thread test is extracted to isRequestThread() and made the FIRST && operand, so
+ *                   the @RequestScope bean is read only on a request thread (no exception-as-detector).
  */
 package pro.mir0n.esquire.backend.service;
 
@@ -72,12 +74,10 @@ public class PerformanceAspect {
     @Around("execution(* pro.mir0n.esquire..jpa.*.*(..))")
     public Object trackJpaTime(ProceedingJoinPoint joinPoint) throws Throwable {
         Object ret;
-        // Am I serving a request? Ask directly -- do not find out by touching the @RequestScope bean and catching
-        // what it throws. Off-request there is nothing to attribute the time to, so there is nothing to do; and
-        // because this test comes first, the scoped bean is only ever touched on a thread that HAS a request.
-        // The || below is therefore harmless: whichever side answers, we are already on a request thread.
-        boolean wanted = RequestContextHolder.getRequestAttributes() != null
-                && (observabilityOn || performance.isMetricsCaptured());
+        // isRequestThread() MUST be the FIRST operand: it gates the @RequestScope read on the right of the && so
+        // the scoped bean (performance.isMetricsCaptured()) is only ever touched on a thread that HAS a request.
+        // Off-request there is nothing to attribute the time to, so there is nothing to do.
+        boolean wanted = isRequestThread() && (observabilityOn || performance.isMetricsCaptured());
         if (!wanted) {
             ret = joinPoint.proceed();     // nobody asked -> do no timing work at all
         } else {
@@ -89,5 +89,12 @@ public class PerformanceAspect {
             }
         }
         return ret;
+    }
+
+    // Am I serving a request? Ask DIRECTLY -- never find out by touching the @RequestScope bean and catching what
+    // it throws off-request. The name carries the contract: this must be tested FIRST, before any read of a
+    // request-scoped bean (see trackJpaTime's guard). Reversing that order once turned a clean 403 into a 500.
+    private static boolean isRequestThread() {
+        return RequestContextHolder.getRequestAttributes() != null;
     }
 }

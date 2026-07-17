@@ -15,6 +15,8 @@
  *                   TracingConfig; when tracing is off the registry is NOOP, so the action runs with zero
  *                   span overhead.
  * 07/09/2026 mir0n  contextualName(label): the span name no longer carries the instance id
+ * 07/17/2026 mir0n  note at the switch: observe() records the WHOLE Throwable hierarchy incl. Error -- the I33
+ *                   "misses Error" review claim, checked live, is FALSE.
  */
 
 package pro.mir0n.esquire.backend.o11y;
@@ -39,6 +41,8 @@ public final class EsqTraceMark {
     // Mark a value-returning processing step as a span. name = observation/metric name (low cardinality);
     // label = the span name shown in the trace. WHICH replica acted shows in the span's service badge (the
     // collector rewrites service.name to service.instance.id on the traces pipeline), so the label is plain.
+    // (observe() records the WHOLE Throwable hierarchy on the span, incl. Error -- verified by EsqTraceMarkTest;
+    // the o11y-review "misses Error" claim, I33, was checked live and is FALSE.)
     public static <T> T around(String name, String label, Supplier<T> action) {
         return Observation.createNotStarted(name, registry).contextualName(label).observe(action);
     }

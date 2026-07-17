@@ -1,5 +1,5 @@
 # OpenTelemetry Collector -- the OTLP ingest hub (D1). Esquire services export spans here over OTLP/HTTP
-# (esquire.tracing.otlp-endpoint = http://otel-collector:4318/v1/traces); the collector forwards them to
+# (esquire.observability.tracing.otlp-endpoint = http://otel-collector:4318/v1/traces); the collector forwards them to
 # Tempo. Keeping the collector as the single ingest point lets the trace backend be swapped without
 # touching any service.
 receivers:
@@ -33,7 +33,7 @@ processors:
           - set(attributes["esq.app"], attributes["service.name"]) where attributes["service.name"] != nil
           - set(attributes["service.name"], attributes["service.instance.id"]) where attributes["service.instance.id"] != nil
   # BACKSTOP ONLY (v1.2.11 O2). Health-probe traces are no longer produced: the services refuse the
-  # request observation for esquire.tracing.excluded-paths (/actuator) and the BFF opens no span off
+  # request observation for esquire.observability.tracing.excluded-paths (/actuator) and the BFF opens no span off
   # its traced paths, so nothing arrives here to drop. This rule stays as a second line of defence for
   # a deployment that leaves excluded-paths empty.
   #
@@ -55,6 +55,15 @@ processors:
             - /readyz
           enabled_regex_matching: true
           invert_match: true
+      # I38 (deferred to T12/D5): drop-health is the ONLY policy today because the HEAD sampler keeps everything
+      # (ESQ_TRACING_SAMPLING_RATIO=1.0), so every non-health trace reaches here and is kept -- no error is ever
+      # dropped. When a production sampling ratio is chosen to control cost at scale, ADD A keep-error policy HERE
+      # (keep status_code=ERROR / http 5xx, sample the rest). Do it on the TAIL, NOT by lowering the head ratio: a
+      # lower head ratio drops error traces at the source, before this processor can see (and keep) them.
+      #
+      # I54 REJECT ("no span sampling by route"): per-route sampling is exactly what this processor does --
+      # drop-health above is a per-route (http.url) policy. To sample a noisy endpoint down, add a string_attribute
+      # policy on its route here, same shape as drop-health. Route-level tail sampling is not missing; it ships.
 
 # The service graph (T9-C). The connector watches spans go by, pairs each CLIENT span with the SERVER span it
 # called, and emits an EDGE metric per caller->callee pair. That is what makes the topology view LIVE rather than

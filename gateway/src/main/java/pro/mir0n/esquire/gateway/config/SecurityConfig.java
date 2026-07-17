@@ -24,6 +24,9 @@
  *                   @Value injections added;
  *                   CORS exposed-headers extended with the four observability headers
  *                   (X-Response-Time, Esq-Gw-Inner-Time, Esq-Srv-Outer-Time, Esq-Srv-Inner-Time)
+ * 07/17/2026 mir0n  note at the switch: the JWKS fetch to KeyCloak is left un-instrumented on purpose (I42/L3
+ *                   accepted) -- it has no meter and its time falls in the gw.outer-minus-gw.inner window; the
+ *                   cost lands on one request per key rotation (ReactiveRemoteJWKSource caches).
  */
 package pro.mir0n.esquire.gateway.config;
 
@@ -114,6 +117,20 @@ public class SecurityConfig {
      */
     @Bean
     public ReactiveJwtDecoder jwtDecoder() {
+        // I42/L3 (ACCEPTED, 2026-07-16): the JWKS fetch to KC is left UN-instrumented on purpose -- no span, no
+        // timer. The question I42 asks is whether every step of a REST collaboration can have its DURATION
+        // accounted for, and this step's cannot: it has no meter, and its time falls inside the gateway's own
+        // gw.outer-minus-gw.inner window. That is accepted because of FREQUENCY, not because it is measured.
+        // ReactiveRemoteJWKSource caches the JWK set (AtomicReference<Mono<JWKSet>>) and re-fetches ONLY when a
+        // kid is missing from the cache -- i.e. at first use and at key rotation. So the cost lands on ONE request
+        // per pod lifetime / per rotation, not on the hot path. Contrast L2, the Token Relay /token call, which
+        // EVERY cache-missing request pays and which therefore does carry its own drawn meter
+        // (esq.biz.gw.tokenrelay.duration by outcome).
+        // If this ever needs instrumenting, the seam already exists -- withJwkSetUri(uri).webClient(wc) accepts a
+        // WebClient, so handing it an observation-instrumented one (the autoconfigured WebClient.Builder bean,
+        // NOT the static WebClient.builder()) gives it a CLIENT span + http.client.requests timer with no new
+        // machinery. Deliberately not done: it would buy visibility into an event that hits one request per
+        // rotation. The same note sits on the JWE path -- see JweAwareJwtDecoder's ctor.
         ReactiveJwtDecoder ret = NimbusReactiveJwtDecoder.withJwkSetUri(jwkSetUri).build();
         if (jwePrivateKeyPath != null && !jwePrivateKeyPath.isBlank()) {
             try (FileInputStream fis = new FileInputStream(jwePrivateKeyPath)) {

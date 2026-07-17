@@ -1,5 +1,17 @@
 Esquire Gateway Microservice
 
+07/17/2026 mir0n  v1.2.11 -- T11 cleanup: fix/resolve issues noted during development
+resources/application.yml
+  - the tracing and metrics switches each read their own env var (ESQ_TRACING_ENABLED / ESQ_METRICS_ENABLED),
+    defaulting to the ESQ_OBSERVABILITY_ENABLED umbrella, so either pillar can be turned off on its own (I41)
+config.SecurityConfig
+  - the JWKS fetch to KeyCloak is left un-instrumented on purpose (I42/L3 accepted) -- no meter, its time falls
+    in the gw.outer-minus-gw.inner window; the cost lands on one request per key rotation (JWK set cached)
+security.JweAwareJwtDecoder
+  - the JWE-path twin leaves the JWKS fetch un-instrumented for the same reason (I42/L3); the full note and the
+    instrument-it seam live at SecurityConfig.jwtDecoder()
+
+
 07/15/2026 mir0n  v1.2.11 -- T11 cleanup: fix/resolve issues noted during development
 resources/application.yml
   - the management.endpoint block sat at column 0 (a sibling of management, not a child), so

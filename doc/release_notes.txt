@@ -1,6 +1,26 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v1.2.11-2607.1714  v1.2.11 -- T11 cleanup: fix/resolve issues noted during development
+    - a business measurement with a missing label could throw and hide the real error
+    - a mislabeled measurement could flood the metrics store with unbounded labels
+    - the trace-id format was defined in two places and could drift
+    - there were no ready-made alerts for the obvious failures: a service gone dark, a dropped
+      message, a tripped safety switch, a database with no spare connections
+    - tracing and metrics could not be switched on or off independently of one another
+    - the message-queue metrics were still listed as planned although they ship and are on the dashboards
+    Components:   common,
+                  gateway,
+                  enyMan,
+                  bizTree,
+                  pacMan,
+                  kcMaster,
+                  keySmith,
+                  auKeep,
+                  messaging,
+                  compose,
+                  k8s
+
 v1.2.11-2607.1513  v1.2.11 -- T11 cleanup: fix/resolve issues noted during development
     - gateway liveness and readiness were not separated from the aggregate health check
     - messages handled off the bus were not correlated in the logs

@@ -50,6 +50,9 @@ esquire:
   observability:
     enabled: ${ESQ_OBSERVABILITY_ENABLED:false}
     tracing:
+      # the TRACING pillar on/off (I41). Defaults to the master; set OFF (ESQ_TRACING_ENABLED=false) to run
+      # metrics-only -- service-mesh coexistence (a mesh already traces the wire, so avoid double-tracing).
+      enabled: ${ESQ_TRACING_ENABLED:${ESQ_OBSERVABILITY_ENABLED:false}}
       otlp-endpoint: ${ESQ_OTLP_ENDPOINT:http://localhost:4318/v1/traces}
       sampling-ratio: ${ESQ_TRACING_SAMPLING_RATIO:1.0}
       marks-enabled: ${ESQ_TRACING_MARKS_ENABLED:true}
@@ -57,8 +60,13 @@ esquire:
       # opt-in RR liveness round-trip trace (TestRequest -> HeartBeat); off by default (heartbeats are frequent)
       msg-bus-alive-trace: ${ESQ_MSG_BUS_ALIVE_TRACE:false}
     metrics:
+      # the METRICS pillar on/off (symmetry with tracing.enabled). Defaults to the master; OFF = traces-only.
+      enabled: ${ESQ_METRICS_ENABLED:${ESQ_OBSERVABILITY_ENABLED:false}}
       # percentile buckets on the extra latency timers (O1/T5-B). THE EXPENSIVE ONE (~+73% series), so opt-in;
-      # off still leaves count/sum/max, so the avg panels stay populated.
+      # off still leaves count/sum/max, so the avg panels stay populated. TWO things go dark with it OFF and
+      # nothing else turns them on: the p95/p99 panels (they read the _bucket series) AND the metric->trace
+      # exemplars (a trace id hangs off a bucket sample -- no buckets, no carrier, the metrics->trace hop is
+      # inert). o11y-on sets it (ESQ_METRICS_HISTOGRAMS=true); a bare ESQ_OBSERVABILITY_ENABLED=true leaves both dark.
       histograms-enabled: ${ESQ_METRICS_HISTOGRAMS:false}
       # HTTP byte counters (O1/T5-C). Cheap, so ON by default. ONE knob for BOTH embedded servers: Esquire
       # turns on Tomcat's MBean registry (servlet services) or Reactor Netty's metrics (the gateway) as needed.
@@ -105,15 +113,17 @@ logging:
   msg:
     log-path: ${MSG_LOG_PATH:logs/pacMan-msg.log}
 management:
-  # The Micrometer-Tracing bridge and Prometheus metrics export are active only when observability is
-  # enabled; the OTel exporter + sampler + meter registry are declared explicitly by
-  # common.ObservabilityConfig (mirrors esquire.observability.enabled).
+  # The Micrometer-Tracing bridge and Prometheus metrics export are gated PER PILLAR: management.tracing.enabled
+  # follows esquire.observability.tracing.enabled (the span bridge), management.prometheus.metrics.export.enabled
+  # follows esquire.observability.metrics.enabled (the Prometheus registry+scrape). Each sub-switch defaults to
+  # the master esquire.observability.enabled. The OTel exporter + sampler + meter registry are declared explicitly
+  # by common.ObservabilityConfig. Set ESQ_TRACING_ENABLED=false to run metrics-only (service-mesh coexistence).
   tracing:
-    enabled: ${ESQ_OBSERVABILITY_ENABLED:false}
+    enabled: ${ESQ_TRACING_ENABLED:${ESQ_OBSERVABILITY_ENABLED:false}}
   prometheus:
     metrics:
       export:
-        enabled: ${ESQ_OBSERVABILITY_ENABLED:false}
+        enabled: ${ESQ_METRICS_ENABLED:${ESQ_OBSERVABILITY_ENABLED:false}}
   endpoints:
     web:
       exposure:

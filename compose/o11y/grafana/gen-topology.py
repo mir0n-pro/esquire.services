@@ -121,8 +121,8 @@ C = {}
 # keeps a clear strip in which to show its numbers; only the FRONT card carries the icon, and every arrow is drawn
 # ONCE, against the stack (mir0n).
 #
-# Every query therefore comes in two flavours: aggregate (docker, one instance -- and the health-tiles row, which
-# is per component by design) and per-instance. The ONLY difference is a label matcher on `instance`, which the
+# Every query therefore comes in two flavours: aggregate (docker, one instance) and per-instance. The ONLY
+# difference is a label matcher on `instance`, which the
 # k8s scrape sets to the POD NAME -- and every app component is a StatefulSet, so the pod name ends in its ordinal
 # (esquire-enyman-enyman-0). That ordinal IS the replica number, stable across restarts.
 # ---------------------------------------------------------------------------------------------------------------
@@ -147,7 +147,7 @@ def ASEL(name, r):
     return 'application="%s"%s' % (name, AND(r))
 
 
-def comp(name, label, health, vitals, link, left, top, probe=False):
+def comp(name, label, health, vitals, link, left, top, probe=False, shape="rectangle", alarm=None):
     """A component: a health colour and THREE LIVE VITALS -- per instance.
 
     One number was not enough (mir0n). A colour says the process is RUNNING; a single req/s says it is serving.
@@ -160,8 +160,8 @@ def comp(name, label, health, vitals, link, left, top, probe=False):
     card renders "108 MB" / "1.2%" / "0.3 req/s" and not three naked numbers.
     """
     C[name] = dict(label=label, health_of=health, vitals_of=vitals, link=link,
-                   health=health(None), vitals=vitals(None),      # the aggregate form -- used by the tiles row
-                   left=left, top=top, probe=probe)
+                   left=left, top=top, probe=probe, shape=shape,
+                   alarm_of=alarm if alarm is not None else (lambda r: "vector(0)"))
 
 
 
@@ -198,16 +198,54 @@ def health(alive_expr, *warnings):
     return "(%s) * (2 - clamp_max((%s), 1))" % (alive(alive_expr), w)
 
 
-# The warning conditions, per kind of component. `> bool` yields 1/0 and keeps the expression aggregatable.
-# Each takes a full SELECTOR, not a bare name, so the same condition serves the whole component (docker) or one
-# instance of it (k8s) with nothing but a label added.
-def w_cpu(sel):        return "(max(process_cpu_usage{%s}) > bool 0.80)" % sel
+# ---- ONE place for every blunt threshold + the alarm window (mir0n: UNIFIED, so nothing can drift) --------------
+# The FILL-health thresholds. keycloak and the BFF re-express these INLINE (they select by job=, not application=),
+# and they read the SAME constants -- a retune here moves every card, none is left behind.
+CPU_FRAC = 0.80        # process CPU as a fraction of the pod's 1-core limit -> amber fill
+HEAP_PCT = 85          # % of max heap -> amber fill
+POOL_PCT = 90          # % of the DB connection pool -> amber fill
+# The ALARM (border) window. NOT a latch: an event stays counted for this long, so the border holds ~this long then
+# self-clears -- no alerting engine, no "for" duration ("the card IS the alert"). ONE dial for EVERY alarm term
+# (5xx / error-log / failure-counter), so they all hold for the SAME time. mir0n: default 1m.
+ALERT_HOLD = "1m"
+
+# The FILL (health) warning conditions. `> bool` yields 1/0 and keeps the expression aggregatable. Each takes a
+# full SELECTOR, so the same condition serves docker (whole component) or one k8s instance with a label added.
+def w_cpu(sel):        return "(max(process_cpu_usage{%s}) > bool %g)" % (sel, CPU_FRAC)
 def w_heap(sel):       return ("(100 * sum(jvm_memory_used_bytes{%s, area=\"heap\"}) / "
-                               "sum(jvm_memory_max_bytes{%s, area=\"heap\"}) > bool 85)" % (sel, sel))
-def w_5xx(sel):        return ("(sum(rate(http_server_requests_seconds_count{%s, "
-                               "status=~\"5..\"}[5m])) > bool 0)" % sel)
+                               "sum(jvm_memory_max_bytes{%s, area=\"heap\"}) > bool %d)" % (sel, sel, HEAP_PCT))
 def w_pool(sel):       return ("(100 * sum(hikaricp_connections_active{%s}) / "
-                               "sum(hikaricp_connections_max{%s}) > bool 90)" % (sel, sel))
+                               "sum(hikaricp_connections_max{%s}) > bool %d)" % (sel, sel, POOL_PCT))
+
+# The BORDER (alarm) terms -- ALL share the ALERT_HOLD window (mir0n: unified). 5xx is an alarm (a service SHEDDING
+# errors), NOT its own health, so it rides the border and holds for the SAME window as the rest -- was a stray
+# rate([5m]) before, which lingered 5x longer than every other alarm.
+def w_5xx(sel):        return ("(sum(increase(http_server_requests_seconds_count{%s, "
+                               "status=~\"5..\"}[%s])) > bool 0)" % (sel, ALERT_HOLD))
+# An ERROR log in the last ALERT_HOLD. logback_events_total is Boot's per-service log-event counter -- same
+# datasource as the card, so the colour needs no Loki query.
+def w_errlog(sel):     return "(sum(increase(logback_events_total{%s, level=\"error\"}[%s])) > bool 0)" % (sel, ALERT_HOLD)
+# A resilience4j breaker OPEN -- the component has started SHEDDING calls to a downstream. Every breaker lives on
+# the gateway (it wraps each downstream), so this term is the gateway's alone. (A state gauge, so no window.)
+def w_breaker(sel):    return "(max(resilience4j_circuitbreaker_state{%s, state=\"open\"}) > bool 0)" % sel
+# A failure counter that TICKED in the last ALERT_HOLD. `or vector(0)` is mandatory (I9): these counters have NO
+# series until the first failure, and an absent series must read 0, not vanish -- a vanished term can never fire.
+def w_fail(sel, metric): return "((sum(increase(%s{%s}[%s])) or vector(0)) > bool 0)" % (metric, sel, ALERT_HOLD)
+
+
+# --- TWO CHANNELS (mir0n) ---------------------------------------------------------------------------------------
+# The card's FILL is HEALTH (up/down + CPU/heap/pool/5xx) -- how the component ITSELF is doing. The card's BORDER
+# is a separate ALARM -- an error log / a tripped breaker / a failure counter, which is usually a DEPENDENCY going
+# wrong, not the component itself. So when Postgres dies, its own card fills RED, and every service that talks to it
+# stays GREEN (its process is fine) but rims RED (it is logging DB errors). One fill colour cannot say both.
+# The alarm carries the SAME 1m tail (ALERT_HOLD) as its terms, so a one-off error stays visible for a minute.
+def alarm(*terms):
+    """1 when ANY alarm term fired, else 0 -- the BORDER channel. Absent series read 0 (I9); no terms -> vector(0),
+    a clean 0 for an infra card that has no alarm of its own."""
+    if not terms:
+        return "vector(0)"
+    s = " + ".join("((%s) or vector(0))" % t for t in terms)
+    return "clamp_max((%s), 1)" % s
 
 
 # ---------------------------------------------------------------------------------------------------------------
@@ -286,14 +324,21 @@ comp("aukeep", "auKeep",
      lambda r: [(MSG % ASEL("aukeep", r), "ops", "msg/s"),
                 (CPU % SSEL("aukeep", r), "percent", "cpu"),
                 (HEAP % ASEL("aukeep", r), "bytes", "heap")],
-     SERVICES_D % "aukeep", 30, 40)
+     SERVICES_D % "aukeep", 30, 40,
+     alarm=lambda r: alarm(w_errlog(ASEL("aukeep", r)),
+                           w_fail(ASEL("aukeep", r), "messaging_error_total")))
 comp("postgres", "Esq2025",
      lambda r: health('max(pg_up)',
                       # connections near the server limit -- the failure that takes EVERY service down at once
                       '(100 * sum(pg_stat_database_numbackends) / max(pg_settings_max_connections) > bool 80)',
-                      # a cache hit-rate collapse means it has started going to disk for everything
-                      '(100 * sum(pg_stat_database_blks_hit) / (sum(pg_stat_database_blks_hit) + '
-                      'sum(pg_stat_database_blks_read)) < bool 90)'),
+                      # a cache hit-rate collapse means it has started going to disk for everything. I17: the ratio
+                      # MUST be a LIVE signal -- rate() over a window, NOT the cumulative counters, whose lifetime
+                      # ratio barely moves and so a recent collapse cannot trip it (a dead threshold). The trailing
+                      # `and reads>0` makes it EMPTY when the DB is idle (no reads -> 0/0 = NaN), so health()'s
+                      # `or vector(0)` reads it as healthy rather than a NaN poisoning the whole warning sum.
+                      '((100 * sum(rate(pg_stat_database_blks_hit[5m])) / '
+                      '(sum(rate(pg_stat_database_blks_hit[5m])) + sum(rate(pg_stat_database_blks_read[5m]))) '
+                      '< bool 90) and (sum(rate(pg_stat_database_blks_read[5m])) > 0))'),
      lambda r: [('sum(pg_stat_database_numbackends)', "short", "conns"),
                 ('sum(rate(pg_stat_database_xact_commit[5m]))', "ops", "tx/s"),
                 ('100 * sum(pg_stat_database_blks_hit) / (sum(pg_stat_database_blks_hit) + '
@@ -301,15 +346,27 @@ comp("postgres", "Esq2025",
      "/d/esq-services/", 30, 250)
 
 # ---- RIGHT of the buses: the services, in the component model's order ----
+# Failure counters that belong to a SPECIFIC service (I30). Generic messaging errors alarm every card below; these
+# are the ones with a single home -- the move pipeline is enyMan's. They ride the BORDER (alarm), not the fill.
+SVC_FAIL = {"enyman": ["esq_biz_move_failed_total"]}
+
+
 def _svc(n):
     """The four REST services differ only by name -- bind it, or every lambda would close over the loop variable
-    and all four would end up describing whichever service happened to be last."""
-    return (lambda r: health('count(process_uptime_seconds{%s})' % SSEL(n, r),
-                             w_cpu(SSEL(n, r)),
-                             w_heap(ASEL(n, r)),
-                             w_5xx(ASEL(n, r)),
-                             w_pool(ASEL(n, r)),
-                             *w_idle("http_server_requests_seconds_count", n, r)),
+    and all four would end up describing whichever service happened to be last. FILL = health (cpu/heap/5xx/pool);
+    BORDER = alarm (error log + messaging errors + this service's own failure counters)."""
+    def h(r):
+        warns = [w_cpu(SSEL(n, r)), w_heap(ASEL(n, r)), w_pool(ASEL(n, r))]
+        warns += w_idle("http_server_requests_seconds_count", n, r)
+        return health('count(process_uptime_seconds{%s})' % SSEL(n, r), *warns)
+
+    def a(r):
+        # 5xx rides the BORDER too (mir0n): a service returning errors is SHEDDING, an alarm, not its own health --
+        # so its fill stays green (it is up, resources fine) and the border alarms.
+        terms = [w_5xx(ASEL(n, r)), w_errlog(ASEL(n, r)), w_fail(ASEL(n, r), "messaging_error_total")]
+        terms += [w_fail(ASEL(n, r), m) for m in SVC_FAIL.get(n, ())]
+        return alarm(*terms)
+    return (h, a,
             lambda r: [(REQ % ASEL(n, r), "reqps", "req/s"),
                        (CPU % SSEL(n, r), "percent", "cpu"),
                        (HEAP % ASEL(n, r), "bytes", "heap")])
@@ -317,8 +374,8 @@ def _svc(n):
 
 for _n, _lbl, _top in (("pacman", "pacMan", 30), ("biztree", "bizTree", 130),
                        ("enyman", "enyMan", 230), ("keysmith", "keySmith", 330)):
-    _h, _v = _svc(_n)
-    comp(_n, _lbl, _h, _v, SERVICES_D % _n, 560, _top)
+    _h, _a, _v = _svc(_n)
+    comp(_n, _lbl, _h, _v, SERVICES_D % _n, 560, _top, alarm=_a)
 
 # kcMaster has NO REST door and NO database -- it is reached only over the bus and owns no state, so its work
 # shows as MESSAGES, not requests. Putting req/s on it would be a permanently-zero number pretending to be a vital.
@@ -330,7 +387,9 @@ comp("kcmaster", "kcMaster",
      lambda r: [(MSG % ASEL("kcmaster", r), "ops", "msg/s"),
                 (CPU % SSEL("kcmaster", r), "percent", "cpu"),
                 (HEAP % ASEL("kcmaster", r), "bytes", "heap")],
-     SERVICES_D % "kcmaster", 560, 430)
+     SERVICES_D % "kcmaster", 560, 430,
+     alarm=lambda r: alarm(w_errlog(ASEL("kcmaster", r)),
+                           w_fail(ASEL("kcmaster", r), "messaging_error_total")))
 
 # ---- the broker: beneath the lanes, CENTRED ON THE MIDDLE ONE ----
 # MEMORY is the one that matters here: the broker is NON-PERSISTENT, so the bus lives in RAM and memory% is what
@@ -357,18 +416,25 @@ comp("gateway", "gateway",
      lambda r: health('count(process_uptime_seconds{%s})' % SSEL("gateway", r),
                       w_cpu(SSEL("gateway", r)),
                       w_heap(ASEL("gateway", r)),
-                      w_5xx(ASEL("gateway", r)),
                       *w_idle("http_server_requests_seconds_count", "gateway", r)),
      lambda r: [(REQ % ASEL("gateway", r), "reqps", "req/s"),
                 (CPU % SSEL("gateway", r), "percent", "cpu"),
                 ('sum(rate(reactor_netty_http_server_data_sent_bytes_sum{uri!="/actuator"%s}[5m]))' % AND(r),
                  "Bps", "net out")],
-     SERVICES_D % "gateway", 745, 180)
+     SERVICES_D % "gateway", 745, 180,
+     # ALL of the gateway's alarms ride the border: 5xx (it is shedding), errors, and a resilience4j breaker OPEN
+     # (every breaker lives here -- the gateway wraps each downstream). These are dependency problems, not the
+     # gateway's own health, so the fill stays green and the border alarms.
+     alarm=lambda r: alarm(w_5xx(ASEL("gateway", r)),
+                           w_errlog(ASEL("gateway", r)),
+                           w_fail(ASEL("gateway", r), "messaging_error_total"),
+                           w_breaker(SSEL("gateway", r))))
 comp("keycloak", "KEYCLOAK",
      lambda r: health('max(up{job="keycloak"})',
-                      '(max(process_cpu_usage{job="keycloak"}) > bool 0.80)',
+                      # inline (job= selector, not application=) but reads the SAME constants as w_cpu/w_heap
+                      '(max(process_cpu_usage{job="keycloak"}) > bool %g)' % CPU_FRAC,
                       '(100 * sum(jvm_memory_used_bytes{job="keycloak", area="heap"}) / '
-                      'sum(jvm_memory_max_bytes{job="keycloak", area="heap"}) > bool 85)'),
+                      'sum(jvm_memory_max_bytes{job="keycloak", area="heap"}) > bool %d)' % HEAP_PCT),
      lambda r: [('sum(rate(http_server_requests_seconds_count{job="keycloak"}[5m]))', "reqps", "req/s"),
                 ('avg(process_cpu_usage{job="keycloak"}) * 100', "percent", "cpu"),
                 ('sum(jvm_memory_used_bytes{job="keycloak", area="heap"})', "bytes", "heap")],
@@ -376,23 +442,36 @@ comp("keycloak", "KEYCLOAK",
 # The BFF is a StatefulSet too, so its pods carry the same -0 / -1 ordinal and its cards split like the rest.
 comp("backend", "Explorer",
      lambda r: health('max(up{job="esquire-bff"%s})' % AND(r),
-                      '(sum(rate(process_cpu_seconds_total{job="esquire-bff"%s}[5m])) * 100 > bool 80)' % AND(r),
-                      *w_idle("bff_http_request_duration_seconds_count", "backend", r,
+                      # Node CPU is process_cpu_seconds_total-rate*100 (a percentage), so the threshold is
+                      # CPU_FRAC*100 -- the SAME dial as the JVM cards, expressed for this metric.
+                      '(sum(rate(process_cpu_seconds_total{job="esquire-bff"%s}[5m])) * 100 > bool %d)'
+                      % (AND(r), int(CPU_FRAC * 100)),
+                      *w_idle("esq_bff_inbound_duration_seconds_count", "backend", r,
                               sel=lambda _n, i: 'instance=~".*"' if i is None else 'instance=~".*-%d$"' % i)),
-     lambda r: [('sum(rate(bff_http_request_duration_seconds_count%s[5m]))' % ONLY(r), "reqps", "req/s"),
+     lambda r: [('sum(rate(esq_bff_inbound_duration_seconds_count%s[5m]))' % ONLY(r), "reqps", "req/s"),
                 ('sum(rate(process_cpu_seconds_total{job="esquire-bff"%s}[5m])) * 100' % AND(r), "percent", "cpu"),
                 ('sum(process_resident_memory_bytes{job="esquire-bff"%s})' % AND(r), "bytes", "rss")],
      "/d/esq-services/", 920, 180)
 
-# ---- THE OBSERVABILITY STACK IS DELIBERATELY *NOT* ON THIS BOARD (mir0n, 2026-07-12) ----
-# Prometheus / Loki / Tempo / Grafana / Alloy / the Collector were on it briefly and came straight back off: this
-# board answers "what is the SYSTEM doing", and six boxes of tooling watching the tooling drowns that question in
-# exactly the noise T9-B spent the day removing from the log panels. The viewer is not the system.
+# ---- THE OBSERVABILITY STACK IS *NOT* ON THIS BOARD -- with ONE exception, the Collector (mir0n) ----
+# Prometheus / Loki / Tempo / Grafana / Alloy were on it briefly and came straight back off: this board answers
+# "what is the SYSTEM doing", and boxes of tooling watching the tooling drown that question in exactly the noise
+# T9-B spent the day removing from the log panels. The viewer is not the system.
 #
-# The ONE piece that stays instrumented is the Collector -- not as a box, but as a panel in the detail row
-# (spans accepted vs REFUSED). That is not "watching Grafana": it is the hub every trace in the fleet passes
-# through, and if it starts dropping spans then traces go quietly missing and NOTHING else on any dashboard would
-# say so. It is about the integrity of OUR data, not the health of the tool.
+# The Collector is the ONE piece that earns a box (I31, mir0n 2026-07-14 -- it was a detail-row panel before). It
+# is the hub EVERY trace in the fleet passes through, and if it starts DROPPING spans then traces go quietly
+# missing and NOTHING else on any dashboard would say so. So it is drawn as a component -- health (up, and not
+# refusing) + accepted / queue / refused. It is deliberately the one box ComponentModel.svg does NOT carry: it is
+# about the integrity of OUR DATA, not the health of the tool. No arrows -- a health indicator, not a data-flow
+# node -- and no esq icon, which is itself the tell that this box is the exception, not a system component.
+comp("collector", "COLLECTOR",
+     lambda r: health('max(up{job="otel-collector"})',
+                      # refusing spans = the hub is DROPPING traces; this is the whole reason it earns a box
+                      '(sum(rate(otelcol_receiver_refused_spans_total[%s])) > bool 0)' % ALERT_HOLD),
+     lambda r: [('sum(rate(otelcol_receiver_accepted_spans_total[5m]))', "ops", "spans/s"),
+                ('sum(otelcol_exporter_queue_size)', "short", "queue"),
+                ('sum(increase(otelcol_receiver_refused_spans_total[%s]))' % ALERT_HOLD, "short", "refused")],
+     "/d/esq-services/", 745, 596, shape="ellipse")
 
 ORDER = list(C.keys())
 
@@ -419,6 +498,13 @@ K8S_CARDS = {n: 2 for n in ("aukeep", "pacman", "biztree", "enyman", "keysmith",
 # between the boards -- same arrangement, same lanes, same arrows, same picture.
 K8S_LEFT = {"gateway": 830, "keycloak": 830, "backend": 1080}
 
+# k8s-only FLOW overrides -- what REDUNDANCY changes about the arrows, which the single-instance picture cannot
+# show. On ONE instance enyMan only PUBLISHES entity CREATEs; with TWO instances a PEER enyMan's CREATE comes
+# back to the other over the entity broadcast bus -- the reconcile intake (MoveQueueManager.onPeerCreate, its own
+# publications filtered out) -- so on the entity lane enyMan both publishes AND receives: a double-ended arrow.
+# {bus id -> {component -> flow}}, applied only when a redundant (x2) board is drawn.
+K8S_FLOW = {"esquire.entity": {"enyman": "both"}}
+
 # Set by main() per target. Docker = {} -> one card per component, and nothing about that board moves.
 CARDS = {}
 
@@ -429,8 +515,11 @@ CARDS = {}
 PEEK_X, PEEK_Y = 96, 20
 
 # The rim that keeps a stack from fusing into one blob. White, because this Grafana defaults to the LIGHT theme
-# (GF_USERS_DEFAULT_THEME), so it reads as a GAP between two cards rather than as a drawn line.
+# (GF_USERS_DEFAULT_THEME), so it reads as a GAP between two cards rather than as a drawn line. The card border is
+# now the ALARM channel (mir0n): white = no alarm (the normal rim); ALARM_COLOR = an alarm fired in the last 1m.
+# Bright magenta-red, deliberately OUTSIDE the health palette (red/amber/green fills) so it stands out on ANY fill.
 CARD_RIM = "#FFFFFF"
+ALARM_COLOR = "#FF2D95"
 
 
 # auKeep is the only replicated component LEFT of the lanes, and it must stack the OTHER WAY (mir0n).
@@ -474,6 +563,11 @@ def card_field(name, r):
     said "enyman" would be two answers to a question nobody could ask.
     """
     return name if cards(name) == 1 else "%s %d" % (name, r)
+
+
+def alarm_field(name, r):
+    """The field a card's BORDER is coloured by -- the ALARM channel, distinct from the health FILL field."""
+    return "%s alarm" % card_field(name, r)
 
 
 def vital_field(name, r, vname):
@@ -608,7 +702,9 @@ BUS_LEFT, BUS_WIDTH = 180, 817   # the bars run beside the broker, spanning the 
 # ---------------------------------------------------------------------------------------------------------------
 LAYERS = [
     ["postgres", "aukeep"],                                    # 1 -- back:  the store, and the audit sink
-    ["activemq"],                                              # 2 --        the buses (lanes) + the broker
+    ["activemq", "collector"],                                 # 2 --        the buses (lanes) + the broker; the
+                                                               #             Collector rides here too (bottom-row
+                                                               #             infra hub, the I31 exception box)
     ["pacman", "biztree", "enyman", "keysmith", "kcmaster"],   # 3 --        the services
     ["gateway", "keycloak"],                                   # 4 --        the edge + identity
     ["backend"],                                               # 5 -- front: the BFF
@@ -636,6 +732,11 @@ def targets():
             sfx = "" if cards(name) == 1 else "_%d" % r
             out.append({"refId": "h%d%s" % (i, sfx), "datasource": DS, "expr": C[name]["health_of"](o),
                         "legendFormat": card_field(name, r), "instant": True})
+            # the BORDER's ALARM field (mir0n): a separate channel from the fill. `or vector(0)` so an infra card
+            # (vector(0)) and a never-fired counter both read a clean 0 = no alarm = the normal white rim.
+            out.append({"refId": "a%d%s" % (i, sfx), "datasource": DS,
+                        "expr": "(%s) or vector(0)" % C[name]["alarm_of"](o),
+                        "legendFormat": alarm_field(name, r), "instant": True})
             for k, (expr, _unit, vname) in enumerate(C[name]["vitals_of"](o)):
                 # `or vector(0)` -- for EXACTLY the reason the health colour needs it. A counter that has never
                 # been incremented HAS NO SERIES (Micrometer materialises it on first use), and an instance that
@@ -666,6 +767,22 @@ def unit_overrides():
     return ov
 
 
+def alarm_overrides():
+    """The ALARM field maps DIFFERENTLY from the health field: 0 = no alarm -> WHITE (the normal rim), >=1 = an
+    alarm fired -> ALARM_COLOR. Without this override an alarm field would fall under the panel's health thresholds
+    (0 -> red) and every card would rim red. One override per card."""
+    ov = []
+    for name in VISIBLE:
+        for r in range(cards(name)):
+            ov.append({
+                "matcher": {"id": "byName", "options": alarm_field(name, r)},
+                "properties": [{"id": "thresholds", "value": {"mode": "absolute", "steps": [
+                    {"color": CARD_RIM, "value": None},
+                    {"color": ALARM_COLOR, "value": 1}]}}],
+            })
+    return ov
+
+
 def card(name, r):
     """ONE INSTANCE: a health colour, its name, and (on the front card) the icon.
 
@@ -676,12 +793,16 @@ def card(name, r):
     label = c["label"] if cards(name) == 1 else "%s %d" % (c["label"], r)
     return {
         "name": card_field(name, r),
-        "type": "rectangle",
+        # Shape carries KIND: services and infra are rectangles; the Collector is an ELLIPSE -- not a service, not
+        # infra, the telemetry hub (I31). A reader sees a different shape and knows before reading that this box is
+        # a different kind of thing. Health still colours it exactly the same way.
+        "type": c.get("shape", "rectangle"),
         "background": {"color": {"field": card_field(name, r), "fixed": "#D9D9D9"}},
-        # A rim ONLY where there is a stack: two green rectangles with no edge between them fuse into one L-shaped
-        # blob and the stack stops reading as a stack. On docker (one card) the box is untouched.
-        "border": ({"color": {"fixed": CARD_RIM}, "width": 2} if cards(name) > 1
-                   else {"color": {"fixed": "transparent"}, "width": 0}),
+        # The border is the ALARM channel (mir0n), SEPARATE from the health fill: its colour is the alarm FIELD --
+        # white when 0 (no alarm = the normal rim) and ALARM_COLOR when an alarm fired in the last 1m. A constant
+        # width so the rim shows on EVERY card, which on a stack also keeps the two cards from fusing into one blob
+        # (the job the old fixed white rim did).
+        "border": {"color": {"field": alarm_field(name, r)}, "width": 3},
         "config": {
             "align": "center", "valign": "top",
             "color": {"fixed": "#FFFFFF"},
@@ -928,6 +1049,35 @@ def legend():
         # A component with NO card behind it has no such cover -- which is the other half of what this row says.
         txt("--  one card per parallel replica, its OWN number", L + 46, T + 152, 300, "#B0B0B0", 11)
         txt("    both serve; either can carry alone", L + 46, T + 168, 300, "#B0B0B0", 11)
+
+    # SHAPE says KIND. Everything on this board is a rectangle EXCEPT one oval -- and an unexplained shape reads as
+    # a rendering glitch, so it is spelled out. Sits below the redundancy block (k8s) / below the lines (docker).
+    return out
+
+
+def hub_caption():
+    """The Collector's WHAT-IS-THIS -- 3 lines, LEFT-ALIGNED, to the RIGHT of its oval (mir0n) -- a caption on the
+    card itself, not a legend entry. The oval is its own header, so the words just explain it."""
+    c = C["collector"]
+    box = 330
+    left = c["left"] + W + 14                    # to the RIGHT of the oval, small gap
+    top = c["top"] + (H - 3 * 16) / 2.0          # vertically centred against the oval
+    lines = ["the telemetry hub: not a service, not infra.",
+             "every trace passes through it to be stored --",
+             "if it stops, traces are lost with no warning."]
+    out = []
+    for i, ln in enumerate(lines):
+        out.append({
+            "name": "hubcap:%d" % i,
+            "type": "text",
+            "background": {"color": {"fixed": "transparent"}},
+            "border": {"color": {"fixed": "transparent"}, "width": 0},
+            "config": {"align": "left", "valign": "middle", "color": {"fixed": "#B0B0B0"}, "size": 11,
+                       "text": {"fixed": ln, "mode": "fixed"}},
+            "constraint": {"horizontal": "left", "vertical": "top"},
+            "placement": {"left": left, "top": top + i * 16, "width": box, "height": 16, "rotation": 0},
+            "connections": [],
+        })
     return out
 
 
@@ -951,7 +1101,8 @@ def canvas():
                 by_card[(name, r)] = e
             by_name[name] = by_card[(name, 0)]
     for name in VISIBLE:
-        elements.append(icon(name))
+        if name in ICON:                       # the Collector is the one box with no esq icon -- see its comp() note
+            elements.append(icon(name))
         for r in range(cards(name)):
             elements.extend(card_texts(name, r))
 
@@ -1065,7 +1216,10 @@ def canvas():
     order = []     # keeps emission deterministic
 
     for b in (BUSES if BUSES_ON else []):
-        for name, flow in sorted(b["flow"].items()):
+        flow_map = dict(b["flow"])
+        if CARDS:   # a redundant (x2) board -- apply the k8s-only flow overrides (e.g. enyMan <-> entity = both)
+            flow_map.update(K8S_FLOW.get(b["id"], {}))
+        for name, flow in sorted(flow_map.items()):
             if name not in by_name:
                 continue
             on_right = C[name]["left"] > b["left"]
@@ -1177,6 +1331,7 @@ def canvas():
         elements.append(bus_label(b))
 
     elements.extend(legend())
+    elements.extend(hub_caption())
 
     return {
         "type": "canvas",
@@ -1209,7 +1364,7 @@ def canvas():
                 "decimals": 2,
                 "mappings": [],
             },
-            "overrides": unit_overrides(),
+            "overrides": unit_overrides() + alarm_overrides(),
         },
         "options": {
             "inlineEditing": False,
@@ -1238,68 +1393,6 @@ def row(title, y, collapsed=False, panels=None):
 
 def tgt(expr, legend=None):
     return {"refId": "A", "datasource": DS, "expr": expr, "legendFormat": legend}
-
-
-# ---------------------------------------------------------------------------------------------------------------
-# LAYER BY LAYER, not a drawn picture (mir0n, 2026-07-12).
-#
-# The hand-laid canvas board is gone. It mirrored doc/model/ComponentModel.svg faithfully, but a drawing is the
-# one thing on this whole stack that CANNOT be verified without a human looking at it: I can prove every query
-# returns data and every edge matches the config, and still not know whether a box overlaps a lane or an arrow
-# points at nothing. After a day in which three "verified" hops shipped carrying empty payloads, an artefact whose
-# correctness is only visible to the eye is the wrong thing to be building.
-#
-# So: LAYERS. Each layer gets a HEALTH TILE-GRID (one tile per component -- UP/DOWN, coloured, clickable through
-# to its detail) and that layer's own metrics beside it. Everything here is a normal panel, which means everything
-# here is CHECKABLE, and the architecture still reads top to bottom: edge -> services -> bus -> data.
-#
-# What is lost: the shape. The picture said "three buses, and which services share each" in one glance, and a tile
-# grid cannot say that. The BUS layer therefore carries it in the panels themselves -- per-bus rates and per-
-# destination depth/consumers -- and doc/model/ComponentModel.svg remains the drawing of record. The generator for
-# the canvas is left in this file (canvas(), box(), bus_spine(), ...) so it can be put back in one line if the
-# picture is wanted again; it is not deleted, just not emitted.
-# ---------------------------------------------------------------------------------------------------------------
-
-def health_tiles(title, x, y, w, names, h=6, desc=None):
-    """One tile per component: UP / DOWN, coloured, and clickable straight through to that component's detail.
-
-    NOTE `noValue`: a component that is DOWN does not report 0 -- it reports NOTHING, because the thing that
-    would have reported is the thing that died. Without noValue the tile simply VANISHES, and a missing tile is
-    the easiest thing in the world not to notice. "NO DATA" in red is the honest rendering of "we cannot see it".
-    """
-    targets = []
-    for i, n in enumerate(names):
-        targets.append({"refId": chr(65 + i), "datasource": DS, "expr": C[n]["health"],
-                        "legendFormat": C[n]["label"], "instant": True})
-    p = {
-        "type": "stat", "title": title, "datasource": DS,
-        "gridPos": {"h": h, "w": w, "x": x, "y": y},
-        "targets": targets,
-        "options": {
-            "colorMode": "background", "graphMode": "none", "justifyMode": "auto",
-            "textMode": "value_and_name", "orientation": "auto", "wideLayout": True,
-            "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": False},
-        },
-        "fieldConfig": {
-            "defaults": {
-                "color": {"mode": "thresholds"},
-                # 0 = DOWN (red) | 1 = TROUBLE (amber) | 2 = OK (green). See health() above.
-                "thresholds": {"mode": "absolute",
-                               "steps": [{"color": "red", "value": None},
-                                         {"color": "orange", "value": 1},
-                                         {"color": "green", "value": 2}]},
-                "mappings": [{"type": "range", "options": {"from": 1, "to": 99,
-                                                           "result": {"text": "UP", "index": 0}}},
-                             {"type": "value", "options": {"0": {"text": "DOWN", "index": 1}}}],
-                "noValue": "NO DATA",
-                "links": [],
-            },
-            "overrides": [],
-        },
-    }
-    if desc:
-        p["description"] = desc
-    return p
 
 
 def ts(title, x, y, w, unit, tl, h=8, desc=None, ds=None):

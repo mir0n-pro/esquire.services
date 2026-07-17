@@ -655,7 +655,7 @@
       "type": "prometheus",
       "uid": "esq-prometheus"
      },
-     "expr": "1000 * sum by (application, instance)(rate(hikaricp_connections_usage_seconds_sum{application=~\"$application\"}[5m])) / sum by (application, instance)(rate(hikaricp_connections_usage_seconds_count{application=~\"$application\"}[5m]))",
+     "expr": "1000 * (sum by (application, instance) (rate(hikaricp_connections_usage_seconds_sum{application=~\"$application\"}[5m])) / sum by (application, instance) (rate(hikaricp_connections_usage_seconds_count{application=~\"$application\"}[5m])))",
      "legendFormat": "{{application}} {{instance}}"
     }
    ]
@@ -701,7 +701,7 @@
       "type": "prometheus",
       "uid": "esq-prometheus"
      },
-     "expr": "sum by (instance) (rate(bff_http_request_duration_seconds_count[1m]))",
+     "expr": "sum by (instance) (rate(esq_bff_inbound_duration_seconds_count[1m]))",
      "legendFormat": "{{instance}}"
     }
    ],
@@ -738,7 +738,7 @@
       "type": "prometheus",
       "uid": "esq-prometheus"
      },
-     "expr": "histogram_quantile(0.95, sum by (le, route) (rate(bff_http_request_duration_seconds_bucket[5m])))",
+     "expr": "histogram_quantile(0.95, sum by (le, route) (rate(esq_bff_inbound_duration_seconds_bucket[5m])))",
      "legendFormat": "{{route}}"
     }
    ],
@@ -965,7 +965,7 @@
       "type": "prometheus",
       "uid": "esq-prometheus"
      },
-     "expr": "rate(pg_stat_database_blks_hit{datname=\"esq2025\"}[5m]) / (rate(pg_stat_database_blks_hit{datname=\"esq2025\"}[5m]) + rate(pg_stat_database_blks_read{datname=\"esq2025\"}[5m]))",
+     "expr": "(rate(pg_stat_database_blks_hit{datname=\"esq2025\"}[5m])) / (rate(pg_stat_database_blks_hit{datname=\"esq2025\"}[5m]) + rate(pg_stat_database_blks_read{datname=\"esq2025\"}[5m]))",
      "legendFormat": "hit ratio"
     }
    ]
@@ -1083,7 +1083,7 @@
       "type": "prometheus",
       "uid": "esq-prometheus"
      },
-     "expr": "1000 * sum(rate(http_server_requests_seconds_sum{job=\"keycloak\"}[1m])) / sum(rate(http_server_requests_seconds_count{job=\"keycloak\"}[1m]))",
+     "expr": "1000 * (sum(rate(http_server_requests_seconds_sum{job=\"keycloak\"}[1m])) / sum(rate(http_server_requests_seconds_count{job=\"keycloak\"}[1m])))",
      "legendFormat": "avg"
     }
    ]
@@ -1291,10 +1291,11 @@
       "type": "prometheus",
       "uid": "esq-prometheus"
      },
-     "expr": "sum by (application, bus_id, leg) (rate(messaging_error_total{application=~\"$application\"}[5m]))",
+     "expr": "(sum by (application, bus_id, leg) (rate(messaging_error_total{application=~\"$application\"}[5m]))) or label_replace(vector(0), \"leg\", \"send\", \"\", \"\")",
      "legendFormat": "{{application}} {{bus_id}} {{leg}}"
     }
-   ]
+   ],
+   "description": "A healthy bus has NO error series, which reads as 'No data' -- indistinguishable from a broken meter. The zero-line draws a flat 0 until a real error lands (I20, same fix as I9 for the business failure panels)."
   },
   {
    "type": "timeseries",
@@ -1327,7 +1328,7 @@
       "type": "prometheus",
       "uid": "esq-prometheus"
      },
-     "expr": "1000 * sum by (application, bus_id)(rate(messaging_send_duration_seconds_sum{application=~\"$application\"}[5m])) / sum by (application, bus_id)(rate(messaging_send_duration_seconds_count{application=~\"$application\"}[5m]))",
+     "expr": "1000 * (sum by (application, bus_id) (rate(messaging_send_duration_seconds_sum{application=~\"$application\"}[5m])) / sum by (application, bus_id) (rate(messaging_send_duration_seconds_count{application=~\"$application\"}[5m])))",
      "legendFormat": "avg {{application}} -> {{bus_id}}"
     },
     {
@@ -1825,8 +1826,8 @@
       "type": "prometheus",
       "uid": "esq-prometheus"
      },
-     "expr": "1000 * ((sum(rate(esq_gw_outer_seconds_sum[5m])) / sum(rate(esq_gw_outer_seconds_count[5m]))) - ((sum(rate(esq_gw_inner_seconds_sum[5m])) / sum(rate(esq_gw_inner_seconds_count[5m]))) or vector(0)))",
-     "legendFormat": "net (client <-> gw)"
+     "expr": "1000 * (((((sum(rate(esq_gw_outer_seconds_sum[5m])) / sum(rate(esq_gw_outer_seconds_count[5m])))) - (((sum(rate(esq_gw_inner_seconds_sum[5m])) / sum(rate(esq_gw_inner_seconds_count[5m])))) or vector(0)))) - (((sum(rate(esq_biz_gw_tokenrelay_duration_seconds_sum[5m]))) / (sum(rate(esq_gw_outer_seconds_count[5m])))) or vector(0)))",
+     "legendFormat": "gw self (auth + routing + assembly)"
     },
     {
      "refId": "B",
@@ -1834,8 +1835,8 @@
       "type": "prometheus",
       "uid": "esq-prometheus"
      },
-     "expr": "1000 * ((sum(rate(esq_gw_inner_seconds_sum[5m])) / sum(rate(esq_gw_inner_seconds_count[5m]))) - ((sum(rate(esq_srv_outer_seconds_sum[5m])) / sum(rate(esq_srv_outer_seconds_count[5m]))) or vector(0)))",
-     "legendFormat": "in-cluster (gw <-> srv)"
+     "expr": "1000 * (((sum(rate(esq_biz_gw_tokenrelay_duration_seconds_sum[5m]))) / (sum(rate(esq_gw_outer_seconds_count[5m])))) or vector(0))",
+     "legendFormat": "KC token-relay (per gw request)"
     },
     {
      "refId": "C",
@@ -1843,8 +1844,8 @@
       "type": "prometheus",
       "uid": "esq-prometheus"
      },
-     "expr": "1000 * ((sum(rate(esq_srv_outer_seconds_sum[5m])) / sum(rate(esq_srv_outer_seconds_count[5m]))) - ((sum(rate(esq_srv_inner_seconds_sum[5m])) / sum(rate(esq_srv_inner_seconds_count[5m]))) or vector(0)))",
-     "legendFormat": "srv self (compute)"
+     "expr": "1000 * (((sum(rate(esq_gw_inner_seconds_sum[5m])) / sum(rate(esq_gw_inner_seconds_count[5m])))) - (((sum(rate(esq_srv_outer_seconds_sum[5m])) / sum(rate(esq_srv_outer_seconds_count[5m])))) or vector(0)))",
+     "legendFormat": "in-cluster (gw <-> srv)"
     },
     {
      "refId": "D",
@@ -1852,11 +1853,20 @@
       "type": "prometheus",
       "uid": "esq-prometheus"
      },
-     "expr": "1000 * ((sum(rate(esq_srv_inner_seconds_sum[5m])) / sum(rate(esq_srv_inner_seconds_count[5m]))) or vector(0))",
+     "expr": "1000 * (((sum(rate(esq_srv_outer_seconds_sum[5m])) / sum(rate(esq_srv_outer_seconds_count[5m])))) - (((sum(rate(esq_srv_inner_seconds_sum[5m])) / sum(rate(esq_srv_inner_seconds_count[5m])))) or vector(0)))",
+     "legendFormat": "srv self (compute)"
+    },
+    {
+     "refId": "E",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "1000 * (((sum(rate(esq_srv_inner_seconds_sum[5m])) / sum(rate(esq_srv_inner_seconds_count[5m])))) or vector(0))",
      "legendFormat": "srv inner (db)"
     }
    ],
-   "description": "The four raw timers SUBTRACTED into the bands they imply: net = gw.outer - gw.inner; in-cluster = gw.inner - srv.outer; srv self = srv.outer - srv.inner; srv inner = DB time. Fully aggregated (scalars) on purpose: the gw timers are tagged application=gateway and the srv timers application=<service>, so they cannot be subtracted label-wise. The DB band is STEADY-STATE: the JPA time is collected on every request while observability is on, so it no longer depends on the X-Capture-Metrics load-test header."
+   "description": "The raw timers SUBTRACTED into the bands they imply. Together they account for gw.outer end to end: gw self + KC token-relay + in-cluster + srv self + srv inner. gw self = (gw.outer - gw.inner) - KC; KC = total relay seconds / gateway requests; in-cluster = gw.inner - srv.outer; srv self = srv.outer - srv.inner; srv inner = DB time. THERE IS NO client<->gateway NETWORK BAND, and there cannot be one: every timer here is stamped by the gateway's own clock AFTER the request arrived, so a server-side metric can never see its own client's network. (This band was once drawn as 'net (client <-> gw)' -- I47. It never was: it is the gateway's SELF overhead, and the KC token-relay call sits INSIDE it, so a slow KeyCloak used to read as a slow NETWORK. KC is now its own line.) READ THE KC LINE AS PER-REQUEST, NOT PER-RELAY: the relay only runs on a cache MISS, so this is what an average request pays for KeyCloak -- use the 'Token relay -- KC /token acquire' panel for the cost of one relay, and the hit-rate panel for how often it is paid. The line sits flat at zero when the relay is dormant (a plain-JWT workload never relays) -- correct, not a broken panel. Fully aggregated (scalars) on purpose: the gw timers are tagged application=gateway and the srv timers application=<service>, so they cannot be subtracted label-wise. The DB band is STEADY-STATE: the JPA time is collected on every request while observability is on, so it no longer depends on the X-Capture-Metrics load-test header."
   },
   {
    "type": "timeseries",
@@ -1889,8 +1899,8 @@
       "type": "prometheus",
       "uid": "esq-prometheus"
      },
-     "expr": "1000 * sum(rate(esq_gw_outer_seconds_sum[5m])) / sum(rate(esq_gw_outer_seconds_count[5m]))",
-     "legendFormat": "gw outer (total)"
+     "expr": "1000 * (sum(rate(esq_bff_outbound_duration_seconds_sum[5m])) / sum(rate(esq_bff_outbound_duration_seconds_count[5m])))",
+     "legendFormat": "bff -> gw upstream (BFF traffic only)"
     },
     {
      "refId": "B",
@@ -1898,8 +1908,8 @@
       "type": "prometheus",
       "uid": "esq-prometheus"
      },
-     "expr": "1000 * sum(rate(esq_gw_inner_seconds_sum[5m])) / sum(rate(esq_gw_inner_seconds_count[5m]))",
-     "legendFormat": "gw inner (proxied)"
+     "expr": "1000 * (sum(rate(esq_gw_outer_seconds_sum[5m])) / sum(rate(esq_gw_outer_seconds_count[5m])))",
+     "legendFormat": "gw outer (total)"
     },
     {
      "refId": "C",
@@ -1907,8 +1917,8 @@
       "type": "prometheus",
       "uid": "esq-prometheus"
      },
-     "expr": "1000 * sum(rate(esq_srv_outer_seconds_sum[5m])) / sum(rate(esq_srv_outer_seconds_count[5m]))",
-     "legendFormat": "srv outer (wall)"
+     "expr": "1000 * (sum(rate(esq_gw_inner_seconds_sum[5m])) / sum(rate(esq_gw_inner_seconds_count[5m])))",
+     "legendFormat": "gw inner (proxied)"
     },
     {
      "refId": "D",
@@ -1916,10 +1926,20 @@
       "type": "prometheus",
       "uid": "esq-prometheus"
      },
-     "expr": "1000 * sum(rate(esq_srv_inner_seconds_sum[5m])) / sum(rate(esq_srv_inner_seconds_count[5m]))",
+     "expr": "1000 * (sum(rate(esq_srv_outer_seconds_sum[5m])) / sum(rate(esq_srv_outer_seconds_count[5m])))",
+     "legendFormat": "srv outer (wall)"
+    },
+    {
+     "refId": "E",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "1000 * (sum(rate(esq_srv_inner_seconds_sum[5m])) / sum(rate(esq_srv_inner_seconds_count[5m])))",
      "legendFormat": "srv inner (db, capture-gated)"
     }
-   ]
+   ],
+   "description": "The raw timers, each nested inside the one above it: the BFF's outbound call wraps the gateway's whole window, which wraps the proxied downstream call, which wraps the service's wall time, which wraps its DB time. READ THE TOP LINE AGAINST A DIFFERENT POPULATION -- 'bff -> gw upstream' (I42/L8+L9) times the BFF's outbound leg on BOTH its paths, so it covers all traffic THE BFF sends. But the gateway is NOT only the BFF's callee: Token Relay clients (the hauberk load-test IAS clients, any direct API consumer) call it straight, and gw.outer counts them too. So 'bff upstream - gw outer' is NOT a valid band -- under a load test it would compare two different populations and can even go negative. That is why the BFF<->gw network has no band on the DERIVED panel while every other hop does. Deliberate: a wrong band is worse than a missing one. Read this line on its own, as the BFF's view of its own hop."
   },
   {
    "type": "timeseries",
@@ -2501,7 +2521,7 @@
       "type": "prometheus",
       "uid": "esq-prometheus"
      },
-     "expr": "100 * sum(rate(esq_biz_gw_tokenrelay_total{result=\"hit\"}[5m])) / sum(rate(esq_biz_gw_tokenrelay_total[5m]))",
+     "expr": "100 * (sum(rate(esq_biz_gw_tokenrelay_total{result=\"hit\"}[5m]))) / (sum(rate(esq_biz_gw_tokenrelay_total[5m])))",
      "legendFormat": "cache hit rate"
     }
    ],

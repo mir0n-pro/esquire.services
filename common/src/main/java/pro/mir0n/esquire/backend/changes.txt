@@ -1,5 +1,29 @@
 Esquire Backend common microservice classes
 
+07/17/2026 mir0n  v1.2.11 -- T11 cleanup: fix/resolve issues noted during development
+o11y.EsqBizMeters
+  - safeTags(): a null tag element is coerced to "null" centrally, so an esq.biz.* meter called from a finally
+    cannot throw over a label (I18); clones only when a null is present
+o11y.EsqRodObserver
+  - no producer->consumer span LINKS by design -- fan-out is drawn consumer-side via the carried traceparent
+    (I36); alive-trace opt-in key under esquire.observability.tracing.*
+o11y.EsqTagCardinalityCap  (new)
+  - a MeterFilter that CAPS the distinct values any esq.biz.* / messaging.* tag may take (I25); past the cap a
+    value collapses to a sentinel, so an unbounded tag is structurally impossible
+o11y.EsqTraceMark
+  - observe() records the WHOLE Throwable hierarchy incl. Error -- the I33 "misses Error" review claim, checked
+    live, is FALSE
+o11y.ObservabilityConfig
+  - the OTLP exporter is wrapped by Boot's default BatchSpanProcessor (bounded queue, drops on overflow, never
+    blocks the request thread) -- the o11y path is not a request-failure mode (I53)
+o11y.W3CTraceContext
+  - isW3cTraceId delegates to common.EsqUtils so the trace-id shape cannot drift (I35); tracestate kept empty by
+    design (I37)
+service.PerformanceAspect
+  - the request-thread test is extracted to isRequestThread() and made the FIRST && operand, so the @RequestScope
+    bean is read only on a request thread (no exception-as-detector)
+
+
 07/15/2026 mir0n  v1.2.11 -- T11 cleanup: fix/resolve issues noted during development
 service.EsqContextHolder
   - MDC control centralised here (I10): set() now also stamps correlationId / requestId into MDC (the priority

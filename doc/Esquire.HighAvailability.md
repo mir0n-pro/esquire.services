@@ -668,7 +668,7 @@ place today; both are producer-leg **session-sublayers**, opt-in by configuratio
 | Retry / backoff variants | retry shapes beyond send-retry | **Deferred** | -- |
 | Per-message timeout | a deadline on one async send | **Deferred** -- async has no request/response deadline today | -- |
 | Per-destination bulkhead | isolate one destination's load from another's | **Deferred** -- only `receiver-pool.size` bounds concurrency today | -- |
-| Metrics | Micrometer counters, separate from the health signal | **Deferred** | -- |
+| Metrics | Micrometer counters, separate from the health signal | **Live** (v1.2.11) -- send/receive/error/duration + retry backoff/held/dropped, drawn on the bus dashboards | observability enabled (`ESQ_OBSERVABILITY_ENABLED`) |
 
 **Keep-alive.** Each producing leg heartbeats on inactivity (an R&R client sends a probe its server answers, so
 the round trip is observed); if no send has landed within `alive-timeout` the leg reads DOWN, which the bus

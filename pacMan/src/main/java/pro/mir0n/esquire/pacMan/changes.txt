@@ -1,5 +1,10 @@
 Esquire pacMan Microservice
 
+07/17/2026 mir0n  v1.2.11 -- T11 cleanup: fix/resolve issues noted during development
+resources/application.yml
+  - the tracing and metrics switches each read their own env var (ESQ_TRACING_ENABLED / ESQ_METRICS_ENABLED),
+    defaulting to the ESQ_OBSERVABILITY_ENABLED umbrella, so either pillar can be turned off on its own (I41)
+
 07/11/2026 mir0n  v1.2.11 -- business meters (O1/T8): the money path
 acct.service.AcctTransactionProcessorSingle
   - esquireCommandAcct() counts esq.biz.acct.tx.total and times esq.biz.acct.tx.duration (tags type =

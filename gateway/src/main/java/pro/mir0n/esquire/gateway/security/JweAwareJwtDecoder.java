@@ -10,6 +10,9 @@
  * 05/14/2026 mir0n  v1.2.4 hauberk sprint: restored from backup tree for client_credentials
  *                   JWE re-evaluation; kept in tree as latent capability (KC 26 still does not
  *                   emit JWE on /token -- armed but inert; topic parked until v1.3+ or alt-IAS)
+ * 07/17/2026 mir0n  note at the switch: the JWE-path twin of the SecurityConfig decoder leaves the JWKS fetch
+ *                   un-instrumented for the same reason (I42/L3 accepted); the full note and the instrument-it
+ *                   seam live at SecurityConfig.jwtDecoder().
  */
 package pro.mir0n.esquire.gateway.security;
 
@@ -47,6 +50,12 @@ public class JweAwareJwtDecoder implements ReactiveJwtDecoder {
 
     public JweAwareJwtDecoder(RSAPrivateKey privateKey, String jwkSetUri) {
         this.privateKey = privateKey;
+        // I42/L3 (ACCEPTED, 2026-07-16): the JWKS fetch is left UN-instrumented here too -- this is the JWE-path
+        // twin of the decoder built in SecurityConfig.jwtDecoder(), and only ONE of the two is ever active. Same
+        // reasoning: ReactiveRemoteJWKSource caches the JWK set and re-fetches only on a missing kid (first use +
+        // key rotation), so the unmeasured cost lands on one request per rotation, not the hot path. The full
+        // note -- including the withJwkSetUri(uri).webClient(wc) seam to instrument it if that ever changes --
+        // lives at SecurityConfig.jwtDecoder(); keep the two decisions together.
         this.delegate   = NimbusReactiveJwtDecoder.withJwkSetUri(jwkSetUri).build();
     }
 

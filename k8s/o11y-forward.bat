@@ -19,7 +19,11 @@ rem
 rem       k8s tempo       -> http://localhost:13200      (docker tempo      is on :3200)
 rem       k8s prometheus  -> http://localhost:19090      (docker prometheus is on :9090)
 rem       k8s loki        -> http://localhost:13100      (docker loki       is on :3100)
-rem       k8s grafana     -> http://grafana.localhost    (via ingress -- no forward needed)
+rem       k8s grafana     -> http://localhost:13009      (docker grafana    is on :3009)
+rem
+rem   Grafana was reached via its ingress (grafana.localhost) before, but *.localhost resolves for curl only
+rem   (RFC 6761) -- python's getaddrinfo does not, so o11y-verify's live datasource check could not reach it.
+rem   A forward on the 1xxxx band works for every client.
 rem
 rem   And the script REFUSES to start if one of those local ports is already busy, rather than forwarding into a
 rem   port someone else owns -- which is the whole failure mode, restated.
@@ -43,18 +47,20 @@ rem --- guard 2: every local port must be FREE. If it is taken, we would silentl
 call :checkport 13200 tempo      || exit /b 1
 call :checkport 19090 prometheus || exit /b 1
 call :checkport 13100 loki       || exit /b 1
+call :checkport 13009 grafana    || exit /b 1
 
 echo.
 echo   forwarding...
 start "esq-k8s-tempo"      /min kubectl port-forward svc/esquire-infra-tempo      13200:3200
 start "esq-k8s-prometheus" /min kubectl port-forward svc/esquire-infra-prometheus 19090:9090
 start "esq-k8s-loki"       /min kubectl port-forward svc/esquire-infra-loki       13100:3100
+start "esq-k8s-grafana"    /min kubectl port-forward svc/esquire-infra-grafana    13009:3000
 
 echo.
 echo   k8s tempo       http://localhost:13200      (docker tempo      stays on :3200)
 echo   k8s prometheus  http://localhost:19090      (docker prometheus stays on :9090)
 echo   k8s loki        http://localhost:13100      (docker loki       stays on :3100)
-echo   k8s grafana     http://grafana.localhost    (ingress, admin/admin)
+echo   k8s grafana     http://localhost:13009      (docker grafana    stays on :3009; admin/admin)
 echo.
 echo   stop them with:  o11y-forward-stop.bat
 endlocal

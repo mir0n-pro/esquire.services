@@ -9,6 +9,8 @@
  * 07/09/2026 mir0n  created: the shared W3C trace-context helpers (v1.2.11 O2/T3) used by both the bus-hop
  *                   tracer (EsqRodTracer) and the async-boundary primitive (EsqAsyncTrace). The trace id is
  *                   ALWAYS the correlationId (authoritative); a traceparent only carries the parent span id.
+ * 07/17/2026 mir0n  isW3cTraceId now delegates to common.EsqUtils so the trace-id shape cannot drift (I35);
+ *                   tracestate kept empty by design, note added (I37).
  */
 package pro.mir0n.esquire.backend.o11y;
 
@@ -35,15 +37,20 @@ final class W3CTraceContext {
             String[] parts = traceparent.split("-");        // W3C: version-traceId-spanId-flags
             if (parts.length >= 4 && isSpanId(parts[2])) {
                 TraceFlags flags = "00".equals(parts[3]) ? TraceFlags.getDefault() : TraceFlags.getSampled();
+                // TraceState is EMPTY by design -- no baggage / tracestate (I37, reviewed + accepted): app-level
+                // context (user identity, the rootPath "tenant") rides the JWT bearer, RELAYED to REST downstreams
+                // by the Token Relay, and bus events carry their own payload -- so there is nothing to propagate in
+                // tracestate. Add a baggage propagator only if a real cross-hop app-context need ever appears.
                 ret = SpanContext.createFromRemoteParent(correlationId, parts[2], flags, TraceState.getDefault());
             }
         }
         return ret;
     }
 
-    /** 32 lowercase hex, not all zero. */
+    /** 32 lowercase hex, not all zero. ONE authority for the trace-id shape in Java -- delegates to
+     *  {@link pro.mir0n.esquire.common.EsqUtils#isW3cTraceId} so this file cannot drift from it (I35). */
     static boolean isTraceId(String s) {
-        return s != null && s.length() == 32 && isHex(s) && !isAllZero(s);
+        return pro.mir0n.esquire.common.EsqUtils.isW3cTraceId(s);
     }
 
     /** 16 lowercase hex, not all zero. */

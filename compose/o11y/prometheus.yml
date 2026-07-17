@@ -10,6 +10,11 @@ global:
   scrape_interval: 15s
   scrape_timeout: 10s
 
+# Framework-health alert rules (I55). Routing to an Alertmanager is the OPERATOR slot -- add an `alerting:`
+# block here and a contact point when you deploy. See rules.yml for the operator-slot notes.
+rule_files:
+  - rules.yml
+
 scrape_configs:
   - job_name: esquire-services
     metrics_path: /actuator/prometheus
