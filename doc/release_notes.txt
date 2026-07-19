@@ -1,6 +1,19 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v1.2.11-2607.1910  v1.2.11 -- T12: on-demand monitoring on the OKE cloud cluster
+    :Feature:     monitoring can be switched on for the OKE cloud cluster on demand -- logs only, or the full
+                  logs + traces + metrics stack -- and switched back off again
+    :Config:      the monitoring stack (its collectors and dashboards) runs on its own dedicated cluster nodes,
+                  apart from the services, so bringing it up or down does not compete with a running service
+    :Config:      the OKE services log at ERROR by default -- quiet until monitoring is switched on
+    Components:   gateway,
+                  bizTree,
+                  enyMan,
+                  pacMan,
+                  keySmith,
+                  kcMaster
+
 v1.2.11-2607.1714  v1.2.11 -- T11 cleanup: fix/resolve issues noted during development
     - a business measurement with a missing label could throw and hide the real error
     - a mislabeled measurement could flood the metrics store with unbounded labels

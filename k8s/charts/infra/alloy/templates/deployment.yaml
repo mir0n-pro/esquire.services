@@ -21,6 +21,10 @@ spec:
         # empty string to a CONSTANT and NEVER rolled. See I5.
         checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
     spec:
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       serviceAccountName: {{ .Release.Name }}
       containers:
         - name: alloy

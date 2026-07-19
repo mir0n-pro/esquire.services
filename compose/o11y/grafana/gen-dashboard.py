@@ -703,7 +703,9 @@ def build_panels():
                      "or FAILED. The failed line is the point: the dispatch hub SWALLOWS a handler exception, so "
                      "a handler that blows up leaves the tree silently stale while the bus still counts the "
                      "message as received. Rebuilds should be RARE -- a rising rebuild rate is itself a finding."))
-    p.append(ts("Audit keep -- DB writes (by op + outcome)", 8, 183, 8, "ops",
+    # auKeep is absent on OKE (audit = DB triggers, no keep sink) -- drop this panel there. The OKE pass removes
+    # `aukeep` from ESQ_SERVICES, which is the signal (T12).
+    ("aukeep" in ESQ_SERVICES) and p.append(ts("Audit keep -- DB writes (by op + outcome)", 8, 183, 8, "ops",
                 [tgt(zero_line("sum by (op, outcome) (rate(esq_biz_keep_write_total{%s}[5m]))" % APP,
                                "outcome", "error"),
                      "{{op}} {{outcome}}")],
@@ -952,18 +954,27 @@ def build_logging_dashboard():
 
 
 def main():
+    global ESQ_SERVICES
     here = os.path.dirname(os.path.abspath(__file__))
     svc_root = os.path.abspath(os.path.join(here, "..", "..", ".."))   # compose/o11y/grafana -> services
     compose_dir = os.path.join(svc_root, "compose", "o11y", "grafana", "provisioning", "dashboards")
     k8s_dir = os.path.join(svc_root, "k8s", "charts", "infra", "grafana", "dashboards")
+    oke_dir = os.path.join(svc_root, "k8s-oci", "grafana")
 
-    for name, builder in (("esquire-services", build_dashboard),
-                          ("esquire-logging", build_logging_dashboard)):
-        d = builder()
-        for path in (os.path.join(compose_dir, "%s.json" % name), os.path.join(k8s_dir, "%s.json" % name)):
+    # docker + k8s draw the full fleet; OKE has NO auKeep (audit = DB triggers), so its boards drop auKeep from
+    # the service set -- which also skips the "Audit keep -- DB writes" panel (guarded on `"aukeep" in
+    # ESQ_SERVICES`). Nothing else forks: the boards aggregate by application, so BFF x1-vs-x2 does not matter here.
+    services_full = ESQ_SERVICES
+    services_oke = ESQ_SERVICES.replace("aukeep|", "")
+    for target_dir, svcs in ((compose_dir, services_full), (k8s_dir, services_full), (oke_dir, services_oke)):
+        ESQ_SERVICES = svcs
+        os.makedirs(target_dir, exist_ok=True)
+        for name, builder in (("esquire-services", build_dashboard),
+                              ("esquire-logging", build_logging_dashboard)):
+            path = os.path.join(target_dir, "%s.json" % name)
             with open(path, "w") as f:
-                json.dump(d, f, indent=1)
-            print("wrote", path)
+                json.dump(builder(), f, indent=1)
+            print("wrote", path, "(OKE -- no auKeep)" if svcs is services_oke else "")
 
 
 if __name__ == "__main__":

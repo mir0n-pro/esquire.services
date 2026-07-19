@@ -1347,9 +1347,14 @@ def canvas():
             "THE SHAPE IS AN ASSERTION ABOUT THE ARCHITECTURE. An ARROW is a point-to-point call (REST / DB): "
             "something called and WAITED for an answer. A DROP onto a BAR is the async bus -- a shared medium, "
             "where a service publishes to a destination and walks away, and who is listening is not its business. "
-            "THERE ARE THREE BARS, not one, because there are THREE BUSES -- and which services share a medium "
-            "(and which never meet) is the whole thing this picture is for: bizTree and keySmith never touch; "
-            "auKeep hears everyone and answers no one; enyMan sits on all three. One bar would hide all of that. "
+            + (("THERE ARE TWO BARS, not one, because there are TWO BUSES -- and which services share a medium "
+                "(and which never meet) is the whole thing this picture is for: bizTree and keySmith never touch; "
+                "enyMan is on both. One bar would hide that. ")
+               if "aukeep" not in VISIBLE else
+               ("THERE ARE THREE BARS, not one, because there are THREE BUSES -- and which services share a medium "
+                "(and which never meet) is the whole thing this picture is for: bizTree and keySmith never touch; "
+                "auKeep hears everyone and answers no one; enyMan sits on all three. One bar would hide all of that. "))
+            +
             "The observability stack is deliberately NOT on this board: the viewer is not the system, and six "
             "boxes of tooling watching the tooling would drown the question this board exists to answer."),
         "targets": targets(),
@@ -1427,9 +1432,13 @@ def build():
     p.append(ts("Traffic per BUS (msg/s)", 0, 26, 8, "ops",
                 [tgt("sum by (bus_id) (rate(messaging_send_total[1m]))", "sent -> {{bus_id}}"),
                  tgt("sum by (bus_id) (rate(messaging_receive_total[1m]))", "recv <- {{bus_id}}")],
-                desc="The three lanes above, as traffic. audit-c, esquire.kc and esquire.entity are SEPARATE "
-                     "MEDIA with different participants -- which is what the three lanes in the picture say, and "
-                     "what a single bar (or a mesh of arrows) would hide."))
+                desc=("The two lanes above, as traffic. esquire.kc and esquire.entity are SEPARATE MEDIA with "
+                      "different participants -- which is what the two lanes in the picture say, and what a single "
+                      "bar (or a mesh of arrows) would hide."
+                      if "aukeep" not in VISIBLE else
+                      "The three lanes above, as traffic. audit-c, esquire.kc and esquire.entity are SEPARATE "
+                      "MEDIA with different participants -- which is what the three lanes in the picture say, and "
+                      "what a single bar (or a mesh of arrows) would hide.")))
     p.append(ts("Queue depth per destination  (what the BROKER holds)", 8, 26, 8, "short",
                 [tgt("activemq_queue_depth", "{{destination}}")],
                 desc="Flat at zero is healthy. Climbing = consumers gone, wedged, or slower than the producers -- "
@@ -1480,28 +1489,57 @@ def build():
 
 
 def main():
-    """ONE source, TWO boards -- and they are no longer the same file.
+    """ONE source, THREE boards -- docker (x1), local-k8s (x2), and OKE (x2 minus the cloud deltas).
 
-    They were, until k8s: same picture, same queries, written to both trees. But docker runs one of everything and
-    k8s runs the app tier x2, and a board that draws the same single box for both is telling one of them a lie.
-    The difference is EXACTLY the replica map -- nothing else forks -- so the two boards stay the same drawing,
-    with the k8s one showing what is doubled and what is not.
+    They were the same file until k8s: docker runs one of everything, k8s runs the app tier x2, and a board that
+    draws the same single box for both is telling one of them a lie. The difference is the replica map -- nothing
+    else forks -- so the two stay the same drawing with the k8s one showing what is doubled.
+
+    OKE is a THIRD board (T12). It runs the app tier x2 too, but the cloud topology genuinely differs -- and the
+    generator header's own rule applies: if the ARCHITECTURE changes, the picture changes. The OKE deltas:
+      * NO auKeep and NO audit lane -- OKE audits via DB TRIGGERS; the audit-off bus is a disabled no-op
+        (k8s-oci/esquire-topology.yml), so there is no audit medium to draw and no drain to draw it to.
+      * BFF x1 -- the OKE BFF uses an in-memory session store (no redis), so it is a single card, not a pair.
+    Everything else is the k8s board. The two dropped names (component `aukeep`, bus `audit-c`) filter out of
+    VISIBLE / BUSES / ARROWS for the OKE pass; the replica map is OKE_CARDS. FIRST-CUT: the geometry is NOT
+    re-tuned for the two gaps this leaves (auKeep's empty slot left of the lanes, the missing audit lane at
+    left=300) -- the topology is correct, the hand-laid spacing is mir0n's step, diff-locked to its OWN OKE model.
     """
-    global CARDS
+    global CARDS, LAYERS, VISIBLE, BUSES, ARROWS
     here = os.path.dirname(os.path.abspath(__file__))
     root = os.path.abspath(os.path.join(here, "..", "..", ".."))
     base = {n: C[n]["left"] for n in C}          # the docker x-coordinates, to restore between targets
-    for path, model, lefts in (
+    layers0 = [list(layer) for layer in LAYERS]  # pristine; a target filters dropped components out of the Z-walk
+    buses0 = [dict(b) for b in BUSES]            # pristine COPIES -- the OKE target slides a lane's `left`
+    arrows0 = list(ARROWS)
+    # OKE app tier x2 (the six Java services). BFF (backend) is NOT listed -> one card. auKeep is dropped below.
+    OKE_CARDS = {n: 2 for n in ("pacman", "biztree", "enyman", "keysmith", "kcmaster", "gateway")}
+    # (drop_comp, drop_bus, bus_left) per target. OKE: drop auKeep + the audit lane, and slide the IAM (kc) lane
+    # into the vacated audit slot (300) -- with only two lanes left, that puts the broker (which does NOT move)
+    # centred under BOTH of them instead of under the left one (mir0n's alternative to moving the broker).
+    for path, model, lefts, drop_comp, drop_bus, bus_left in (
             (os.path.join(root, "compose", "o11y", "grafana", "provisioning", "dashboards",
-                          "esquire-topology.json"), {}, {}),
+                          "esquire-topology.json"), {}, {}, set(), set(), {}),
             (os.path.join(root, "k8s", "charts", "infra", "grafana", "dashboards",
-                          "esquire-topology.json"), K8S_CARDS, K8S_LEFT)):
+                          "esquire-topology.json"), K8S_CARDS, K8S_LEFT, set(), set(), {}),
+            (os.path.join(root, "k8s-oci", "grafana", "esquire-topology.json"),
+                          OKE_CARDS, K8S_LEFT, {"aukeep"}, {"audit-c"}, {"esquire.kc": 300})):
         CARDS = model
+        LAYERS = [[n for n in layer if n not in drop_comp] for layer in layers0]
+        VISIBLE = [n for layer in LAYERS[:LAYERS_ON] for n in layer]
+        BUSES = [dict(b) for b in buses0 if b["id"] not in drop_bus]
+        for b in BUSES:
+            if b["id"] in bus_left:
+                b["left"] = bus_left[b["id"]]
+        ARROWS = [a for a in arrows0 if not (set(a) & drop_comp)]
         for n in C:
             C[n]["left"] = lefts.get(n, base[n])
+        os.makedirs(os.path.dirname(path), exist_ok=True)
         with open(path, "w") as f:
             json.dump(build(), f, indent=1)
-        print("wrote", path, "(%s)" % ("k8s -- x2, one card per instance" if model else "docker -- single instance"))
+        tag = ("OKE -- x2, BFF x1, no auKeep, IAM lane in the audit slot (broker centred under both)" if drop_comp
+               else "k8s -- x2, one card per instance" if model else "docker -- single instance")
+        print("wrote", path, "(%s)" % tag)
 
 
 if __name__ == "__main__":

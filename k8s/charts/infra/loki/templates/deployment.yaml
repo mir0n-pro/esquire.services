@@ -18,6 +18,10 @@ spec:
         # path under templates/ returns "" -- Helm excludes templates/ from .Files. See I5.
         checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
     spec:
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       securityContext:
         # loki image default uid; fsGroup so the ephemeral /loki volume is writable.
         runAsUser: 10001

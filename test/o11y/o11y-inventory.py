@@ -626,6 +626,15 @@ def declared_lists():
             continue
         code = re.sub(r"#[^\n]*", "", match.group(1))     # drop trailing comments, keep the entries
         ret[list_name] = set(re.findall(r'"([^"]+)"', code))
+    # Topology exclusion (T12): a fleet that legitimately lacks a component (OKE has NO auKeep -- audit = DB
+    # triggers) drops its assets, so the inventory is "whole" for THAT fleet instead of forever short the keep-write
+    # meters + auKeep trace node. Same EXCLUDE_METERS / EXCLUDE_TRACE_NODES the o11y-verify launcher sets.
+    excl_m = set(s.strip() for s in os.environ.get("EXCLUDE_METERS", "").split(",") if s.strip())
+    excl_t = set(s.strip() for s in os.environ.get("EXCLUDE_TRACE_NODES", "").split(",") if s.strip())
+    for k in ("METERS_EXPECTED", "METERS_CONDITIONAL", "GAUGES"):
+        ret[k] -= excl_m
+    for k in ("TRACE_NODES_EXPECTED", "TRACE_NODES_CONDITIONAL"):
+        ret[k] -= excl_t
     return ret
 
 

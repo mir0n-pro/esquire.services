@@ -1,0 +1,226 @@
+{
+ "uid": "esq-logging",
+ "title": "Esquire Logging -- volume / errors / one request end-to-end",
+ "tags": [
+  "esquire",
+  "o11y",
+  "logs"
+ ],
+ "timezone": "",
+ "schemaVersion": 39,
+ "version": 1,
+ "refresh": "30s",
+ "time": {
+  "from": "now-1h",
+  "to": "now"
+ },
+ "templating": {
+  "list": [
+   {
+    "name": "container",
+    "label": "Service",
+    "type": "query",
+    "datasource": {
+     "type": "loki",
+     "uid": "esq-loki"
+    },
+    "query": {
+     "label": "container",
+     "stream": "{job=~\"esq-.*\", container=~\"(esq-)?(gateway|biztree|enyman|pacman|keysmith|kcmaster|backend|frontend)\"}",
+     "type": 1
+    },
+    "refresh": 2,
+    "includeAll": true,
+    "multi": true,
+    "allValue": ".*",
+    "current": {
+     "text": "All",
+     "value": "$__all"
+    },
+    "sort": 1
+   },
+   {
+    "name": "correlationId",
+    "label": "correlationId (trace id)",
+    "type": "textbox",
+    "query": ".*",
+    "current": {
+     "text": ".*",
+     "value": ".*"
+    }
+   }
+  ]
+ },
+ "panels": [
+  {
+   "type": "row",
+   "title": "Volume",
+   "gridPos": {
+    "h": 1,
+    "w": 24,
+    "x": 0,
+    "y": 0
+   }
+  },
+  {
+   "type": "timeseries",
+   "title": "Log rate by level (lines/s)",
+   "datasource": {
+    "type": "loki",
+    "uid": "esq-loki"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 12,
+    "x": 0,
+    "y": 1
+   },
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+      "drawStyle": "line",
+      "fillOpacity": 10
+     },
+     "unit": "logs",
+     "min": 0
+    },
+    "overrides": []
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "loki",
+      "uid": "esq-loki"
+     },
+     "expr": "sum by (detected_level) (rate({job=~\"esq-.*\", container=~\"$container\", container=~\"(esq-)?(gateway|biztree|enyman|pacman|keysmith|kcmaster|backend|frontend)\"} | correlationId =~ \"$correlationId\" [1m]))",
+     "legendFormat": "{{detected_level}}"
+    }
+   ],
+   "description": "The shape to know: error and warn flat at zero, info steady. A step change in error is the signal; a step change in info usually means a deploy or a load change, not a fault."
+  },
+  {
+   "type": "timeseries",
+   "title": "Log rate by service (lines/s)",
+   "datasource": {
+    "type": "loki",
+    "uid": "esq-loki"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 12,
+    "x": 12,
+    "y": 1
+   },
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+      "drawStyle": "line",
+      "fillOpacity": 10
+     },
+     "unit": "logs",
+     "min": 0
+    },
+    "overrides": []
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "loki",
+      "uid": "esq-loki"
+     },
+     "expr": "sum by (container) (rate({job=~\"esq-.*\", container=~\"$container\", container=~\"(esq-)?(gateway|biztree|enyman|pacman|keysmith|kcmaster|backend|frontend)\"} | correlationId =~ \"$correlationId\" [1m]))",
+     "legendFormat": "{{container}}"
+    }
+   ],
+   "description": "A service that goes SILENT is as interesting as one that gets loud -- a flatline to zero here, while the others keep talking, means it stopped doing work (or stopped shipping logs), and no error will be raised to tell you."
+  },
+  {
+   "type": "row",
+   "title": "Errors",
+   "gridPos": {
+    "h": 1,
+    "w": 24,
+    "x": 0,
+    "y": 10
+   }
+  },
+  {
+   "type": "logs",
+   "title": "ERROR + WARN stream",
+   "datasource": {
+    "type": "loki",
+    "uid": "esq-loki"
+   },
+   "gridPos": {
+    "h": 10,
+    "w": 24,
+    "x": 0,
+    "y": 11
+   },
+   "options": {
+    "showTime": true,
+    "wrapLogMessage": true,
+    "sortOrder": "Descending",
+    "enableLogDetails": true,
+    "prettifyLogMessage": false
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "loki",
+      "uid": "esq-loki"
+     },
+     "expr": "{job=~\"esq-.*\", container=~\"$container\", container=~\"(esq-)?(gateway|biztree|enyman|pacman|keysmith|kcmaster|backend|frontend)\"} | detected_level =~ \"warn|error\" | correlationId =~ \"$correlationId\"",
+     "queryType": "range"
+    }
+   ],
+   "description": "Expand a line: its correlationId carries a 'View trace' link straight into the Tempo waterfall (the logs -> trace hop). Empty is healthy."
+  },
+  {
+   "type": "row",
+   "title": "Everything",
+   "gridPos": {
+    "h": 1,
+    "w": 24,
+    "x": 0,
+    "y": 21
+   }
+  },
+  {
+   "type": "logs",
+   "title": "All log lines",
+   "datasource": {
+    "type": "loki",
+    "uid": "esq-loki"
+   },
+   "gridPos": {
+    "h": 12,
+    "w": 24,
+    "x": 0,
+    "y": 22
+   },
+   "options": {
+    "showTime": true,
+    "wrapLogMessage": true,
+    "sortOrder": "Descending",
+    "enableLogDetails": true,
+    "prettifyLogMessage": false
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "loki",
+      "uid": "esq-loki"
+     },
+     "expr": "{job=~\"esq-.*\", container=~\"$container\", container=~\"(esq-)?(gateway|biztree|enyman|pacman|keysmith|kcmaster|backend|frontend)\"} | correlationId =~ \"$correlationId\"",
+     "queryType": "range"
+    }
+   ],
+   "description": "The full stream for the selected services. Paste a correlationId into the variable at the top and this becomes the complete story of ONE request across every service it touched -- which is the question the whole correlation-id design exists to answer. NOTE what Loki actually HAS: the services' per-request INFO/DEBUG goes to the develop/msg FILES (the 3-tier logging design, additivity=false), so what reaches Loki is the console tier -- errors, warnings and startup. A healthy request leaves no service log line here, and that is by design, not a gap."
+  }
+ ]
+}

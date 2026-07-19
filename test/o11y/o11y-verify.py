@@ -155,6 +155,19 @@ TRACE_NODES_EXPECTED = [     # on the login+tree-load path -- traced by ANY Esqu
 TRACE_NODES_CONDITIONAL = [  # traced only on their own op (a KC sync, a permission write, an audit keep) -> WARN when quiet
     "enyman", "pacman", "keysmith", "kcmaster", "aukeep",
 ]
+
+# A topology-specific exclusion (T12): OKE has NO auKeep (audit = DB triggers), so its keep-write meters never
+# exist and its auKeep trace node never emits -- asserting them there is a permanent false FAIL. The OKE launcher
+# sets EXCLUDE_METERS / EXCLUDE_TRACE_NODES so the same shared script validates the OKE fleet honestly.
+_EXCL_M = set(s.strip() for s in os.environ.get("EXCLUDE_METERS", "").split(",") if s.strip())
+_EXCL_T = set(s.strip() for s in os.environ.get("EXCLUDE_TRACE_NODES", "").split(",") if s.strip())
+if _EXCL_M:
+    METERS_EXPECTED = [m for m in METERS_EXPECTED if m not in _EXCL_M]
+    METERS_CONDITIONAL = [m for m in METERS_CONDITIONAL if m not in _EXCL_M]
+    GAUGES = [g for g in GAUGES if g not in _EXCL_M]
+if _EXCL_T:
+    TRACE_NODES_EXPECTED = [n for n in TRACE_NODES_EXPECTED if n not in _EXCL_T]
+    TRACE_NODES_CONDITIONAL = [n for n in TRACE_NODES_CONDITIONAL if n not in _EXCL_T]
 # The BFF's outbound hop to KeyCloak is its OWN node in the /auth waterfall (I27): the BFF opens a CLIENT span
 # around each KC round-trip -- issuer discovery, the login token exchange, a token refresh. Discovery runs at BFF
 # BOOT (a warm), so at least one KC span is present whenever the BFF started with tracing on -> an EXPECTED node,
@@ -414,17 +427,27 @@ def check_chain():
     if not LOKI:
         warn("LOKI_URL not set -- skipping the log<->trace join")
     else:
-        seeds = tempo_traces('{ resource.service.name =~ "gateway.*" }') or tempo_traces("{ }")
+        # FLUSH RACE: a trace becomes Tempo-SEARCHABLE before its log line is Loki-queryable (Alloy ships on its
+        # own interval, and Tempo's ingester answers search ahead of the by-id read). Seeding from the very newest
+        # traces can therefore find a trace whose log has not landed yet and read a WORKING join as broken. Re-seed
+        # and retry a few times with a short wait so the check reflects the join, not the flush timing (T12). Each
+        # pass re-fetches -- newer traces AND newer logs both settle -- so a hit only needs ONE aligned pair.
+        seeds = []
+        hit = None
+        for _attempt in range(5):
+            seeds = tempo_traces('{ resource.service.name =~ "gateway.*" }') or tempo_traces("{ }")
+            hit = next((t["traceID"] for t in seeds if loki_has_correlation_id(t["traceID"])), None)
+            if hit or not seeds:
+                break
+            time.sleep(3)
         if not seeds:
             warn("no trace in Tempo to seed the log<->trace join (no traffic yet?) -- unproven")
+        elif hit:
+            ok("log<->trace: trace id %s... is carried by a Loki log line's correlationId -- logs and traces "
+               "share the id" % hit[:16])
         else:
-            hit = next((t["traceID"] for t in seeds if loki_has_correlation_id(t["traceID"])), None)
-            if hit:
-                ok("log<->trace: trace id %s... is carried by a Loki log line's correlationId -- logs and traces "
-                   "share the id" % hit[:16])
-            else:
-                fail("log<->trace: none of %d gateway trace id(s) appear as a Loki correlationId -- logs and "
-                     "traces are NOT sharing the id (the join is broken)" % len(seeds))
+            fail("log<->trace: none of %d gateway trace id(s) appear as a Loki correlationId after retries -- logs "
+                 "and traces are NOT sharing the id (the join is broken, not a flush lag)" % len(seeds))
     # metric -> trace (the exemplar leg): gated on histograms. When on, an exemplar's trace_id MUST resolve in
     # Tempo -- this is the exact hop that was DEAD on k8s for a sprint (T9-D) with nothing to catch it.
     if not PROM:

@@ -14,9 +14,9 @@ db:
   username: esq2025
 
 logging:
-  levelRoot: WARN
+  levelRoot: ERROR
   levelSf: WARN
-  levelMir0n: INFO
+  levelMir0n: ERROR
   levelDevelop: "OFF"
   levelMsg: "OFF"
 

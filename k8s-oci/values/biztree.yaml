@@ -17,9 +17,9 @@ db:
 
 # Console-only logging in prod (LOG_OUTPUT=console requires logback support)
 logging:
-  levelRoot: WARN
+  levelRoot: ERROR
   levelSf: WARN
-  levelMir0n: INFO
+  levelMir0n: ERROR
   levelDevelop: "OFF"
   levelMsg: "OFF"
 
