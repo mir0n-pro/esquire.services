@@ -15,6 +15,7 @@ esqVirtualThreads: "false"        # ESQ_VIRTUAL_THREADS (spring.threads.virtual.
 
 service:
   port: 3007
+  managementPort: 8090   # actuator/management port (F0 A6); probes + MANAGEMENT_SERVER_PORT read this
 
 db:
   vendor: dev-postgres

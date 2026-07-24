@@ -18,6 +18,7 @@ springProfilesActive: console
 service:
   type: ClusterIP
   port: 8080
+  managementPort: 8090   # actuator/management port (F0 A6); probes + MANAGEMENT_SERVER_PORT read this
   lbPort: 8080         # service port, aligned to container port (no LB tier)
 
 keycloak:

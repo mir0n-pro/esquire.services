@@ -20,6 +20,7 @@ esqVirtualThreads: "false"        # ESQ_VIRTUAL_THREADS (spring.threads.virtual.
 
 service:
   port: 3006
+  managementPort: 8090   # actuator/management port (F0 A6); probes + MANAGEMENT_SERVER_PORT read this
 
 keycloak:
   # KC serves under HTTP_RELATIVE_PATH=/kc-auth in the infra-kc chart;
@@ -32,7 +33,8 @@ keycloak:
   # cannot drive the KC admin REST API. Matches the compose default.
   adminClientId: esq-kcMaster
   # adminClientSecret -> kc-admin-client-secret Secret, injected as env in the deployment.
-  adminClientSecret: MHgq0Nu69u2uJ2johaK1wxQLMdakELXN
+  # NO chart default: helm-required, set via --set keycloak.adminClientSecret=... at install
+  # (same as the BFF keycloak.clientSecret / gateway exchangeClientSecret secrets).
 
 # path-buffer: in-flight KC path-sync de-dup window.
 pathBuffer:
@@ -46,7 +48,7 @@ kc:
   requestPoolSize: "4"
   requestConcurrency: "1"
   responsePublisherPoolSize: "0"
-  # producer send-retry on the KC R&R bus; pre-HA default OFF (OKE). The local-k8s overlay turns it on (block mode).
+  # producer send-retry on the KC R&R bus; pre-HA default OFF; BOTH the local-k8s AND the OKE overlay turn it ON (block mode).
   sendRetry: "false"
   sendRetryBackoff: "1,2,5,5"
   sendRetryMaxAttempts: "0"

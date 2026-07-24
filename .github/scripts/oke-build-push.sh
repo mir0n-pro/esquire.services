@@ -74,5 +74,11 @@ bx esquire-postgres "${WS}"                "${SERVICES}/postgres/Dockerfile"
 # hand-pushed) so a sprint's theme/realm change ships with the release tag automatically.
 bx esquire-keycloak "${SERVICES}/keycloak" "${SERVICES}/keycloak/Dockerfile.keycloak"
 
-echo "=== pushed 9 images to ${REG} at ${IMAGE_TAG} ==="
-echo "    (6 Spring services + backend/BFF + postgres + keycloak; only activemq stays stock, hand-pushed)"
+# activemq -- custom broker image (bakes activemq.xml + the JMX exporter agent). Built here per release so the
+# release-tagged image EXISTS in GHCR: deploy-oke.sh --set image.tag=${IMAGE_TAG} for activemq would otherwise
+# ImagePullBackOff (the GHA build formerly skipped it -> re-run 2026-07-23 finding V1). A broker-config change
+# now ships with the release tag automatically, same as keycloak/postgres.
+bx esquire-activemq "${SERVICES}/activemq" "${SERVICES}/activemq/Dockerfile"
+
+echo "=== pushed 10 images to ${REG} at ${IMAGE_TAG} ==="
+echo "    (6 Spring services + backend/BFF + postgres + keycloak + activemq)"

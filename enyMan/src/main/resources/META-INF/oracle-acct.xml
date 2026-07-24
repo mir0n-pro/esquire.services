@@ -4,9 +4,14 @@
     xsi:schemaLocation="http://java.sun.com/xml/ns/persistence/orm http://java.sun.com/xml/ns/persistence/orm_2_0.xsd"
     version="2.0">
 
+    <!-- Parent (user) resolution for account CREATE, scoped to the caller's rootPath so a cross-tenant
+         parentId does not resolve. This is the visibility gate: the whole framework validates a target /
+         parent by a rootPath-scoped lookup (usr detailUsrForUpdate, org/usr orgPath/usrPath, pacMan
+         detailAcctForUpdate) - acct create matches that pattern here. A parentId outside rootPath returns
+         null -> AcctService.createAcct throws ResourceNotFoundException, exactly as org/usr create do. -->
     <named-native-query name="EsqAcctJpa.acctPath">
         <query>
- SELECT ep_path FROM esq_entity_path WHERE ep_pk = :parentId
+ SELECT ep_path FROM esq_entity_path WHERE ep_pk = :parentId AND ep_path LIKE :rootPath || '%'
         </query>
     </named-native-query>
 

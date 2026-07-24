@@ -112,6 +112,11 @@ logging:
   msg:
     log-path: ${MSG_LOG_PATH:logs/bizTree-msg.log}
 management:
+  # Actuator listens on a SEPARATE, internal-only port (8090), NOT the public server.port -- Prometheus and the
+  # k8s probes hit 8090 in-cluster while the ingress exposes only the main port, so /actuator is unreachable from
+  # the internet (audit F0 A6; mir0n 2026-07-20). Override with MANAGEMENT_SERVER_PORT.
+  server:
+    port: ${MANAGEMENT_SERVER_PORT:8090}
   # The Micrometer-Tracing bridge and Prometheus metrics export are gated PER PILLAR: management.tracing.enabled
   # follows esquire.observability.tracing.enabled (the span bridge), management.prometheus.metrics.export.enabled
   # follows esquire.observability.metrics.enabled (the Prometheus registry+scrape). Each sub-switch defaults to

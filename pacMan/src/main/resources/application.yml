@@ -89,10 +89,15 @@ esquire:
         publisher-pool:
           size: ${ENTITY_BROADCAST_PUBLISHER_POOL_SIZE:0}
           mode: ${ENTITY_BROADCAST_PUBLISHER_POOL_MODE:platform}
-        # producer send-retry sublayer (opt-in, default OFF here; turned ON for the entity broadcast bus in
-        # docker compose + the local-k8s overlay -- OKE stays on this pre-HA default). Block mode (max-attempts
-        # 0): on a broker-down send, retry over the backoff ladder (seconds) until it goes through; the bounded
-        # feed back-pressures rather than dropping an entity change. A cap > 0 switches to drop-after-N.
+        # A full feed must HOLD the producer, never DROP an entity change: 0 = wait forever. The default (10000ms)
+        # DROPS the item once the feed has been full that long -- and an entity/move broadcast lost that way is
+        # silent, and the night-watch cannot always heal it. Matches the KC leg (F0 B4); this is what makes the
+        # send-retry "back-pressures rather than dropping" below actually TRUE.
+        feed-await-ms: ${ENTITY_BROADCAST_FEED_AWAIT_MS:0}
+        # producer send-retry sublayer (opt-in, default OFF here; turned ON for the entity broadcast bus in docker
+        # compose + the local-k8s AND OKE overlays). Block mode (max-attempts 0): on a broker-down send, retry over
+        # the backoff ladder (seconds) until it goes through; the bounded feed then back-pressures rather than
+        # dropping an entity change (feed-await-ms:0 above). A cap > 0 switches to drop-after-N.
         send-retry: ${ENTITY_BROADCAST_SEND_RETRY:false}
         send-retry-backoff-sec: ${ENTITY_BROADCAST_SEND_RETRY_BACKOFF_SEC:1,2,5,5}
         send-retry-max-attempts: ${ENTITY_BROADCAST_SEND_RETRY_MAX_ATTEMPTS:0}
@@ -113,6 +118,11 @@ logging:
   msg:
     log-path: ${MSG_LOG_PATH:logs/pacMan-msg.log}
 management:
+  # Actuator listens on a SEPARATE, internal-only port (8090), NOT the public server.port -- Prometheus and the
+  # k8s probes hit 8090 in-cluster while the ingress exposes only the main port, so /actuator is unreachable from
+  # the internet (audit F0 A6; mir0n 2026-07-20). Override with MANAGEMENT_SERVER_PORT.
+  server:
+    port: ${MANAGEMENT_SERVER_PORT:8090}
   # The Micrometer-Tracing bridge and Prometheus metrics export are gated PER PILLAR: management.tracing.enabled
   # follows esquire.observability.tracing.enabled (the span bridge), management.prometheus.metrics.export.enabled
   # follows esquire.observability.metrics.enabled (the Prometheus registry+scrape). Each sub-switch defaults to

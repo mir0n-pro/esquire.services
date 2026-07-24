@@ -76,14 +76,14 @@ spec:
           startupProbe:
             httpGet:
               path: /actuator/health/liveness
-              port: {{ .Values.service.port }}
+              port: {{ .Values.service.managementPort }}   # actuator/management port (F0 A6) -- NOT the public service.port
             periodSeconds: 10
             failureThreshold: 30      # up to 300s cold-start budget under node contention before liveness applies
             timeoutSeconds: 5
           readinessProbe:
             httpGet:
               path: /actuator/health/readiness
-              port: {{ .Values.service.port }}
+              port: {{ .Values.service.managementPort }}   # actuator/management port (F0 A6) -- NOT the public service.port
             initialDelaySeconds: 20
             periodSeconds: 10
             timeoutSeconds: 5
@@ -91,7 +91,7 @@ spec:
           livenessProbe:
             httpGet:
               path: /actuator/health/liveness
-              port: {{ .Values.service.port }}
+              port: {{ .Values.service.managementPort }}   # actuator/management port (F0 A6) -- NOT the public service.port
             initialDelaySeconds: 40
             periodSeconds: 15
             timeoutSeconds: 5

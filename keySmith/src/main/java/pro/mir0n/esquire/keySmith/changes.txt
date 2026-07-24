@@ -1,5 +1,12 @@
 Esquire keySmith Microservice
 
+07/23/2026 mir0n  v1.2.11 -- homework: fix/resolve issues found in the fresh-mind audit
+resources/application.yml
+  - the KC send-retry comment now states the honest limit: it covers a send that THROWS (broker down at send time),
+    NOT a request lost after landing on the non-persistent kc bus (reply tracking deferred)
+  - actuator moved to a separate internal-only management port 8090 (MANAGEMENT_SERVER_PORT), off the public
+    server.port
+
 07/17/2026 mir0n  v1.2.11 -- T11 cleanup: fix/resolve issues noted during development
 resources/application.yml
   - the tracing and metrics switches each read their own env var (ESQ_TRACING_ENABLED / ESQ_METRICS_ENABLED),

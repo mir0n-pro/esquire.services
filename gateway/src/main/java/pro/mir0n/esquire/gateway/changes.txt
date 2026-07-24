@@ -1,5 +1,21 @@
 Esquire Gateway Microservice
 
+07/23/2026 mir0n  v1.2.11 -- homework: fix/resolve issues found in the fresh-mind audit
+config.CorrelationPropagatorConfig
+  - the propagator bean is @ConditionalOnProperty(esquire.observability.tracing.enabled, matchIfMissing=true) so it
+    does not load in a metrics-only observability config
+config.KeycloakRoleConverter
+  - single-ret pattern: realm_access.roles -> ROLE_<role> collected into one ret list
+config.SecurityConfig
+  - the "/esq*" authorization is a SINGLE hasRole("TREE") rule (implies authenticated AND the TREE realm role);
+    comment on why there must be exactly one /esq* rule (first-match-wins)
+security.tokenrelay.TokenRelayCache
+  - note-at-switch: a cache HIT returns the stored JWT WITHOUT re-verifying the caller's credential (Vanilla =
+    client_id key, secret not re-checked; Phantom = jti read unvalidated)
+resources/application.yml
+  - actuator moved to a separate internal-only management port 8090 (MANAGEMENT_SERVER_PORT), off the public
+    server.port
+
 07/17/2026 mir0n  v1.2.11 -- T11 cleanup: fix/resolve issues noted during development
 resources/application.yml
   - the tracing and metrics switches each read their own env var (ESQ_TRACING_ENABLED / ESQ_METRICS_ENABLED),

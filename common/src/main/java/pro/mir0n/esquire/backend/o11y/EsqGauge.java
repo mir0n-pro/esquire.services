@@ -13,6 +13,8 @@
  *                   over a name, an IntSupplier and tags, and never touch Gauge.builder. NoRawGaugeBuilderTest
  *                   fails the build if any other class references Gauge.builder, which is what makes the trap
  *                   UNREACHABLE rather than merely documented.
+ * 07/23/2026 mir0n  v1.2.11 -- javadoc: register() is idempotent per meter id (re-registration keeps the FIRST
+ *                   supplier); safe because gauged objects are process-lifetime singletons, never rebuilt in-process
  */
 package pro.mir0n.esquire.backend.o11y;
 
@@ -33,6 +35,16 @@ import java.util.function.IntSupplier;
  * <p>So the choice is not left to the call site: this class is the ONLY place {@code Gauge.builder} is allowed to
  * appear ({@code NoRawGaugeBuilderTest} enforces it against the whole source tree). A caller states WHAT to
  * measure; HOW to register it is settled here, once.
+ *
+ * <p><b>Re-registration is idempotent per meter id.</b> Micrometer keys a meter by (name + tags); calling
+ * {@code register()} again with the SAME name+tags returns the EXISTING gauge and SILENTLY IGNORES the new
+ * supplier -- so you cannot swap a gauge's supplier by re-registering. That is safe in Esquire because every
+ * gauged object is a process-lifetime SINGLETON, built once and never rebuilt in-process: a feed / worker-pool /
+ * queue is created once at the rod's {@code buildEngine} (or the manager's construction), the gauge is registered
+ * once at start, and a transport reconnect does NOT replace the in-memory object -- a broken bus recovers by a
+ * pod restart (a fresh process re-registers cleanly), not an in-process rebuild. So the supplier a gauge holds
+ * always points at the live object. Do NOT rely on re-registration to rebind a supplier; if a future design ever
+ * DID rebuild a gauged object in-process, it would have to remove the old meter first, not just re-register.
  */
 public final class EsqGauge {
 

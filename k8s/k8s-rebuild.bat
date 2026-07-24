@@ -213,7 +213,12 @@ if errorlevel 1 (
   exit /b 0
 )
 echo [helm] upgrading esquire-%SVC% to tag %TS%...
-call helm upgrade esquire-%SVC% charts\esquire-%SVC% --reset-then-reuse-values --set image.tag=%TS%
+rem Required secrets that are NOT reusable on the first upgrade after they became helm-required
+rem (nothing to --reset-then-reuse yet). kcMaster's admin secret matches the realm-import literal,
+rem same dev value k8s-up.bat / compose use.
+set "SECRETS="
+if /i "%SVC%"=="kcmaster" set "SECRETS=--set keycloak.adminClientSecret=MHgq0Nu69u2uJ2johaK1wxQLMdakELXN"
+call helm upgrade esquire-%SVC% charts\esquire-%SVC% --reset-then-reuse-values --set image.tag=%TS% %SECRETS%
 if errorlevel 1 ( echo helm upgrade failed for esquire-%SVC% & exit /b 1 )
 kubectl rollout status statefulset/esquire-%SVC%-%SVC% --timeout=180s
 exit /b 0

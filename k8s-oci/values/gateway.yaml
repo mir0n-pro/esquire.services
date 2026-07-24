@@ -9,6 +9,7 @@ springProfilesActive: console
 service:
   type: ClusterIP            # behind ingress-nginx; no public LB
   port: 8080
+  managementPort: 8090       # actuator/management probe port (F0 A6); in sync with the chart default (RF3)
   lbPort: 8080               # unused when type=ClusterIP, kept for chart compatibility
 
 keycloak:
@@ -40,12 +41,18 @@ cors:
 # - esq-hauberk-S is the Vanilla Token Relay client today
 # - esq-hauberk-M is the Phantom Token Relay client today
 # exchangeClientSecret is passed via --set at install (oke-up.bat).
+# DISABLED on OKE (mir0n 2026-07-20). Vanilla / Phantom Token Relay are the not-recommended JWE-workaround LAB
+# patterns (see doc/keyCloak-gateway.JWE.md); the recommended production paths are BFF + plain JWT. They are NOT
+# armed on the internet-facing public API: an empty allowlist means the gateway never brokers/exchanges a relay
+# token, so the per-client_id / per-jti cache is never populated and cannot be presented. (esq-hauberk-S resolves
+# to the mainadmin identity, so leaving the lab relay live on the public API put a full-admin token one warm-cache
+# away -- audit F0 finding A1.) Re-arm only for a deliberate load-test window, never as a standing config.
 tokenRelay:
   tokenUri: https://esquire.mir0n.pro/kc-auth/realms/esquire/protocol/openid-connect/token
   vanilla:
-    clients: esq-hauberk-S
+    clients: ""
   phantom:
-    clients: esq-hauberk-M
+    clients: ""
     exchangeClientId: esq-gw-exchange
 
 logging:

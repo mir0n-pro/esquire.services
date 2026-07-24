@@ -246,7 +246,10 @@ def build_panels():
     p = []
     # ---- Overview ----
     p.append(row("Overview", 0))
-    p.append(stat("Services scraped (up)", 0, 1, 6, [tgt("sum(up)")]))
+    # sum(up) is EVERY scrape target -- the Esquire services AND the infra (keycloak / postgres / activemq) AND
+    # the o11y tooling (otel-collector / otel-servicegraph). The title says "all monitored" on purpose so it is not
+    # read as "Esquire services only" (which would contradict the ESQ_SERVICES allow-list the rest of the board uses).
+    p.append(stat("All monitored targets (up)", 0, 1, 6, [tgt("sum(up)")]))
     p.append(stat("Total request rate (req/s)", 6, 1, 6,
                   [tgt("sum(rate(http_server_requests_seconds_count{%s}[1m]))" % APP)], unit="reqps"))
     p.append(ts("HTTP request rate by replica", 12, 1, 12, "reqps",
@@ -849,7 +852,12 @@ def build_dashboard():
         "time": {"from": "now-1h", "to": "now"},
         "templating": {"list": [{
             "name": "application", "label": "Service", "type": "query", "datasource": DS,
-            "query": "label_values(up, application)", "refresh": 2,
+            # up{} carries NO `application` label (only job/instance), so label_values(up, application) returned
+            # nothing and the picker collapsed to just "All". `application` is a Micrometer common tag on the Java
+            # services; jvm_memory_used_bytes is a reliable Java-only source of it, so the picker lists exactly the
+            # services the $application panels filter on. The Node BFF has no jvm_* and stays out, matching its
+            # own panels that hardcode application="esq-backend".
+            "query": "label_values(jvm_memory_used_bytes, application)", "refresh": 2,
             "includeAll": True, "multi": True, "allValue": ".*",
             "current": {"text": "All", "value": "$__all"}, "sort": 1,
         }]},

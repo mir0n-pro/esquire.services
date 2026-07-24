@@ -235,7 +235,69 @@ majority.** Neither supersedes the other. They must not be quoted as if they wer
   rig stopped). Had it run on it might have reached ~1010, which would put logging nearer -18% than -20.3% and
   tracing+metrics nearer -8%. Read 4.2 as "logging costs roughly a fifth", not as a figure to the decimal.
 - **OKE (T12)** -- the number that actually counts. Local k8s reproduces the OKE envelope (~1 effective CPU per
-  JVM) but not its network, its nodes, or its real traffic.
+  JVM) but not its network, its nodes, or its real traffic. The OKE **OFF baseline** is now in section 6; the
+  LOG / IN-FULL arms (the real OKE delta) land in Stages 3-4.
 - **The rig extends a run only while it is CLIMBING** (`ClimbPct`). A run that SAGS is never extended and gets
   logged "settled" while still falling. It did not bite here -- every k8s arm plateaued -- but it is what
   wrecked every docker measurement, and it is still in the rig.
+
+
+---
+
+## 6. OKE -- the full super-load matrix (one run per setup, 2026-07-19)
+
+The OKE analogue of sections 2-4: the standard 200-VU super-load (read 64 / update 32 / create 32 / move 8 /
+tx 64) across x1 and x2, each OFF / LOG / FULL, on the LIVE OKE cluster (`api.esquire.mir0n.pro`, Test House
+org 14).
+
+### 6.1 Method
+
+- Driver: hauberk `oke-perf-matrix.ps1`. TOGGLE IN PLACE, not from scratch -- OKE is live and ALTER-migrated,
+  no PVC wipe: each cell scales the replicas + calls `oke-o11y-on <arm>`, with `clean-house` between cells.
+  The broker is never rolled (a bounce drops the app's messagingBus, which does not self-heal).
+- o11y rides SEPARATE paid nodes (`tier=o11y`), so OFF->FULL prices the in-app instrumentation alone -- the
+  loki/tempo/prometheus backend CPU does not compete with the app (unlike local single-node k8s).
+- ONE run per config (no from-scratch, so a second run is not an independent replicate -- it only deepens the
+  run-order drift). Discard load 1, extend while the last load climbs >3%, cap 12 (OKE warms ~13x slower than
+  local -- far fewer requests per load over the ~55ms RTT).
+- NOISY RIG -- read x2 with caution (see 6.3). The plateau detector ("last load within 3% of the previous")
+  trips early on OKE's slow, jittery climb; x1 reproduces across passes, x2 does not.
+
+### 6.2 Every run, every load
+
+rps per 120s load; load 1 is warm-up (discarded); `**` = the trailing loads judged steady.
+
+| run | config  | steady | rps per load                                                  |
+|-----|---------|--------|---------------------------------------------------------------|
+| 1   | x1-OFF  | 163    | 68, 94, 121, 140, 164, 172, **163**                           |
+| 2   | x1-LOG  | 100    | 44, 52, 64, 74, 80, 85, 98, **101**, **100**                  |
+| 3   | x1-FULL | 106    | 50, 52, 60, 69, 79, 86, **106**, **106**                      |
+| 4   | x2-OFF  | 170    | 82, 107, 132, 155, **168**, **171**                           |
+| 5   | x2-LOG  | 98     | 53, 70, 72, 82, 89, **99**, **97**                            |
+| 6   | x2-FULL | 144    | 54, 66, 77, 85, 83, 101, 114, 118, 123, 139, **145**, **142** |
+
+0 KO on every cell except x2-FULL (196 KO, 0.131% -- a brief shed as its 12-load run saturated).
+
+### 6.3 What it says
+
+**x1 is clean and reproduces the shape from every earlier pass:**
+
+|      | OFF | LOG | FULL | OFF->LOG | LOG->FULL |
+|------|-----|-----|------|----------|-----------|
+| x1   | 163 | 100 | 106  | -39%     | +6%       |
+
+Logging is the whole of the observability cost at x1 -- OFF->LOG is the drop, and adding tracing+metrics on
+top (LOG->FULL) is within the noise. The -39% is larger than local's -20% because the ~55ms RTT dilutes the
+server-CPU fraction of each request; the SPLIT (logging dominant) is the portable result, not the magnitude.
+
+**x2 is NOT trustworthy this run.** The plateau detector settled x2-OFF and x2-LOG early -- x2-OFF stopped at
+170 on a momentary flattening (`…155, 168, 171`), where the earlier pass showed it climbing on to ~264
+(`…163, 189, 240, 258`) -- while x2-FULL ran its full 12 loads and reached 144. So x2-FULL reads FASTER than
+x2-LOG (144 > 98), which is impossible: these are settle artifacts on a noisy, network-bound climb, not
+measurements. Left as-is by decision -- OKE is inherently noisy on the toggle-in-place rig and not worth
+another chase.
+
+**Clean, portable results from OKE:** durability -- 0 KO under the saturating 200-VU load in every mode
+(bar the small x2-FULL shed) -- and the x1 shape: logging IS the observability cost, tracing+metrics add
+little on top. The precise per-mode magnitudes, especially at x2, are noise-limited on this rig; the per-pillar
+split of record stays the local matrix (sections 2-4). OKE confirms the shape on real ~1-OCPU nodes.

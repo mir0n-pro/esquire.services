@@ -12,10 +12,13 @@
 #                             audit.enabled=false -> option (a) DB triggers)
 #   k8s-oci/cluster/ingress.yaml
 #
-# Topology note: OKE audits via DB TRIGGERS (option a) -- the app producers stay
-# OFF (the OKE values set audit.enabled=false), so there is NO auKeep pod and no
-# audit bus traffic. The trigger DDL ships baked into the esquire-postgres image
-# (db.seed/postgres/triggers).
+# Topology note: OKE runs with audit OFF (free-tier demo). The app producers stay
+# OFF (the OKE values point the audit ref at audit-off), so there is NO auKeep pod
+# and no audit bus traffic. The option-(a) DB-trigger DDL is baked into the
+# esquire-postgres image (db.seed/postgres/triggers) but is an OPT-IN overlay -- it
+# is NOT applied by this deploy, so OKE writes no *_log rows unless applied by hand
+# (\i ../triggers/all.sql). See Esquire.Q&A.md ("no audit on OKE"). Baked = available,
+# not active.
 #
 # Pre: kubectl context already points at the OKE cluster (the workflow runs
 #      `oci ce cluster create-kubeconfig` first).
@@ -24,9 +27,10 @@
 #   IMAGE_TAG            the stamp pushed to GHCR this run (e.g. v1.2.7-2606.1009)
 #   MIR0N_PWD           postgres + Keycloak admin password (single secret)
 # Optional (default to the realm-import literals; OVERRIDE in prod via secrets):
-#   BFF_KC_SECRET       esq-angular BFF client secret
-#   GW_EXCHANGE_SECRET  gateway phantom-token-relay exchange client secret
-#   BFF_SESSION_SECRET  BFF session-cookie HMAC secret
+#   BFF_KC_SECRET          esq-angular BFF client secret
+#   GW_EXCHANGE_SECRET     gateway phantom-token-relay exchange client secret
+#   BFF_SESSION_SECRET     BFF session-cookie HMAC secret
+#   KCMASTER_ADMIN_SECRET  esq-kcMaster KC admin service-account client secret
 # ===========================================================================
 set -euo pipefail
 
@@ -35,6 +39,7 @@ MIR0N_PWD="${MIR0N_PWD:?MIR0N_PWD not set}"
 BFF_KC_SECRET="${BFF_KC_SECRET:-esq-angular-bff-dev-secret-rotate-in-prod}"
 GW_EXCHANGE_SECRET="${GW_EXCHANGE_SECRET:-esq-gw-exchange-dev-secret-rotate-in-prod}"
 BFF_SESSION_SECRET="${BFF_SESSION_SECRET:-esq-bff-session-secret}"
+KCMASTER_ADMIN_SECRET="${KCMASTER_ADMIN_SECRET:-MHgq0Nu69u2uJ2johaK1wxQLMdakELXN}"
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CHARTS="$(cd "${HERE}/../../k8s/charts" && pwd)"
@@ -50,10 +55,10 @@ case "${CTX}" in
 esac
 echo "=== deploying to context: ${CTX}   image tag: ${IMAGE_TAG} ==="
 
-# --- Infra (idempotent install-if-absent). postgres + keycloak are rebuilt per release
-#     (postgres bakes the db.seed schema; keycloak bakes the esquire theme + realm import),
-#     so both take the new IMAGE_TAG. Only activemq stays stock-stable at its chart-default
-#     version tag (pushed by hand when the ActiveMQ version itself changes). ---
+# --- Infra (idempotent install-if-absent). postgres + keycloak + activemq are all built + pushed per
+#     release by oke-build-push.sh (postgres bakes the db.seed schema; keycloak bakes the esquire theme +
+#     realm import; activemq bakes activemq.xml + the JMX agent), so all three take the new IMAGE_TAG and the
+#     tag EXISTS in GHCR -- kept in step with the manual oke-up.bat / ghcr-push.bat path. ---
 echo "--- infra: postgres"
 helm upgrade --install esquire-infra "${CHARTS}/infra/postgres" \
   -f "${OCIVALS}/postgres.yaml" \
@@ -62,7 +67,8 @@ helm upgrade --install esquire-infra "${CHARTS}/infra/postgres" \
 
 echo "--- infra: activemq"
 helm upgrade --install esquire-infra-amq "${CHARTS}/infra/activemq" \
-  -f "${OCIVALS}/activemq.yaml" --wait --timeout 5m
+  -f "${OCIVALS}/activemq.yaml" \
+  --set image.tag="${IMAGE_TAG}" --wait --timeout 5m
 
 echo "--- infra: keycloak"
 helm upgrade --install esquire-infra-kc "${CHARTS}/infra/keycloak" \
@@ -104,7 +110,8 @@ helm upgrade --install esquire-keysmith "${CHARTS}/esquire-keysmith" \
 echo "--- kcmaster"
 helm upgrade --install esquire-kcmaster "${CHARTS}/esquire-kcmaster" \
   -f "${OCIVALS}/kcmaster.yaml" \
-  --set image.tag="${IMAGE_TAG}" --wait --timeout 5m
+  --set image.tag="${IMAGE_TAG}" \
+  --set keycloak.adminClientSecret="${KCMASTER_ADMIN_SECRET}" --wait --timeout 5m
 
 echo "--- gateway"
 helm upgrade --install esquire-gateway "${CHARTS}/esquire-gateway" \

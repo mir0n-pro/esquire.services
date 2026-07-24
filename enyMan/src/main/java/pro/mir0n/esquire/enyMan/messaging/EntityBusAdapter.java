@@ -15,6 +15,8 @@
  *                   (EventType = 'C') so the receive leg forwards a PEER instance's CREATE to the move-queue
  *                   reconcile intake; the slot's noLocal drops THIS instance's own publications -- closes the
  *                   cross-instance race-8b gap the per-instance inMove() left open
+ * 07/23/2026 mir0n  v1.2.11 -- forwardPeerCreate carries the create's OWN cid/rid onto the CreateReconcileItem
+ *                   (the path-fix reissue stays correlated to the create it repairs, no leftover-worker-MDC reliance)
  */
 package pro.mir0n.esquire.enyMan.messaging;
 
@@ -92,13 +94,15 @@ public class EntityBusAdapter {
     }
 
     // Each delivered event is already narrowed by the broker selector (CREATE op) and the transport noLocal (not
-    // self); extract the parent context and hand it to the reconcile sink.
+    // self); extract the parent context PLUS the create's own cid/rid, and hand them to the reconcile sink so the
+    // path-fix runs -- and reissues -- under the create's identity (no reliance on leftover worker MDC).
     private void forwardPeerCreate(RodEvent e, Consumer<CreateReconcileItem> sink) {
         if (e != null) {
             Map<String, Object> body = e.body();
             String parentId = (body != null && body.get(EsqConstants.TEXT_PARENT_ID) instanceof String s) ? s : null;
             String path     = (body != null && body.get(EsqConstants.TEXT_PATH)      instanceof String s) ? s : null;
-            sink.accept(new CreateReconcileItem(e.entityId(), e.kind(), parentId, path));
+            sink.accept(new CreateReconcileItem(e.entityId(), e.kind(), parentId, path,
+                    e.correlationId(), e.requestId()));
         }
     }
 }

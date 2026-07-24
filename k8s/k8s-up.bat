@@ -97,7 +97,8 @@ kubectl rollout status statefulset/esquire-infra-kc-keycloak -n default --timeou
 
 rem === KC-dependent ===
 echo --- Installing kcmaster...
-call helm upgrade --install esquire-kcmaster  charts\esquire-kcmaster  -f values\kcmaster.yaml  || exit /b 1
+call helm upgrade --install esquire-kcmaster  charts\esquire-kcmaster  -f values\kcmaster.yaml ^
+  --set keycloak.adminClientSecret=MHgq0Nu69u2uJ2johaK1wxQLMdakELXN || exit /b 1
 
 rem Gateway: dev exchange-client secret passed via --set (matches realm import).
 echo --- Installing gateway...

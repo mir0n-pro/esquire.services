@@ -15,6 +15,8 @@
  *                   from o11y.IRodTracer.newTraceId() and opens a ROOT producer span (aliveOutbound asRoot=true),
  *                   stamping the traceparent on the TestRequest; a SERVER onReceiveSessn() stamps its HeartBeat
  *                   reply from a nested producer span (asRoot=false)
+ * 07/23/2026 mir0n  v1.2.11 -- comment: the SERVER HeartBeat reply uses a BLOCKING put -- a reply can be needed
+ *                   while the leg is busy, and dropping it would cause a false SERVER-DOWN at the client
  */
 package pro.mir0n.esquire.messaging.xrod.impl.sublayer;
 
@@ -100,6 +102,12 @@ public final class AliveSessionRR extends AliveSession {
                         ev.correlationId(), identity.busId(), "HeartBeat", identity.rodId(), false);
                 hb = hb.withTraceparent(traceparent);
             }
+            // BLOCKING put, DELIBERATELY. This is the SERVER's HeartBeat REPLY to a client's TestRequest, on the
+            // receive path (the RR consumer thread). Unlike the unsolicited tick() heartbeat -- which fires only
+            // when the leg is idle, so its feed is empty -- a reply can be needed while this leg is BUSY (feed
+            // non-empty). DROPPING it would leave the client without its liveness confirmation, so after
+            // alive-timeout the client marks this (healthy, merely busy) SERVER DOWN -- a false failure. So the
+            // reply blocks until the feed has room rather than being discarded. Inert today (no leg sets alive).
             feed.put(hb);
         }
     }

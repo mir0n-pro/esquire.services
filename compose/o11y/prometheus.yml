@@ -20,13 +20,15 @@ scrape_configs:
     metrics_path: /actuator/prometheus
     static_configs:
       - targets:
-          - gateway:7070
-          - biztree:3002
-          - enyman:3003
-          - pacman:3004
-          - keysmith:3005
-          - kcmaster:3006
-          - aukeep:3007
+          # actuator (incl. /actuator/prometheus) on the SEPARATE management port 8090, NOT the public main port
+          # (audit F0 A6) -- the main ports stay client-facing and never serve /actuator.
+          - gateway:8090
+          - biztree:8090
+          - enyman:8090
+          - pacman:8090
+          - keysmith:8090
+          - kcmaster:8090
+          - aukeep:8090
       # BFF (Node/prom-client, T5c) -- its own /metrics endpoint, not /actuator/prometheus
   - job_name: esquire-bff
     metrics_path: /metrics

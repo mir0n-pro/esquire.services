@@ -42,6 +42,9 @@
  *                   caller and to every HTTP meter
  * 07/15/2026 mir0n  v1.2.11 T11 -- processMove() binds the worker context with EsqContextHolder.set(), which now
  *                   stamps MDC itself; the separate, now-redundant MDC apply was dropped (I10)
+ * 07/23/2026 mir0n  v1.2.11 -- "elastic end of move": inMove() stays true for a grace window
+ *                   (enyman.move-queue.in-move-grace-ms, default 200, 0 disables) after the last move drains, so a
+ *                   create racing that move is still caught by the reconcile queue; stamped on decrement-to-zero
  */
 
 package pro.mir0n.esquire.enyMan.queue;
@@ -53,7 +56,6 @@ import jakarta.persistence.EntityManager;
 
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.LoggerFactory;
-import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -93,6 +95,14 @@ public class MoveQueueManager implements IQueueRig.IQueueWorker<MoveQueueItem> {
     private final AtomicInteger counter = new AtomicInteger(0);
     private final BoundedQueueRig<MoveQueueItem> rig;
 
+    // "Elastic end of move": inMove() stays true for a grace window AFTER the last move drains, so a CREATE
+    // that lands just behind a move it raced is still CAUGHT by the move queue (gets a reconcile) instead of
+    // slipping past. Set on the decrement-to-zero; everMoved guards the startup window (no false positive before
+    // the first move). graceNanos <= 0 disables the grace (inMove() is then exactly counter > 0).
+    private final long graceNanos;
+    private volatile boolean everMoved = false;
+    private volatile long lastMoveDoneNanos = 0L;
+
     private final IEnyManService orgService;
     private final IEnyManService usrService;
     private final EntityBusAdapter broadcastPublisher;
@@ -111,7 +121,8 @@ public class MoveQueueManager implements IQueueRig.IQueueWorker<MoveQueueItem> {
                             EntityPathLookup pathLookup,
                             AuditBusBridge audit,
                             @Value("${enyman.move-queue.capacity:1024}") int capacity,
-                            @Value("${enyman.move-queue.tx-timeout-s:0}") int moveTxTimeoutS) {
+                            @Value("${enyman.move-queue.tx-timeout-s:0}") int moveTxTimeoutS,
+                            @Value("${enyman.move-queue.in-move-grace-ms:200}") long inMoveGraceMs) {
         // The move worker runs the move on a DEDICATED transaction template that opts out of the request-path
         // query-timeout cap (R6): an explicit positive enyman.move-queue.tx-timeout-s caps it; 0/negative
         // (the default) leaves the move uncapped so it never inherits the global default-timeout.
@@ -125,6 +136,7 @@ public class MoveQueueManager implements IQueueRig.IQueueWorker<MoveQueueItem> {
         this.kcRequestPublisher = kcRequestPublisher;
         this.pathLookup = pathLookup;
         this.capacity = capacity;
+        this.graceNanos = inMoveGraceMs * 1_000_000L;
         this.rig = new BoundedQueueRig<>(this);
     }
 
@@ -152,9 +164,18 @@ public class MoveQueueManager implements IQueueRig.IQueueWorker<MoveQueueItem> {
 
     // ---- public API used by EnyManService ----
 
-    /** True iff at least one MoveCommandItem is queued or in flight. */
+    /** True iff at least one MoveCommandItem is queued or in flight, OR a move drained less than the grace
+     *  window (enyman.move-queue.in-move-grace-ms, default 200) ago. The grace is the "elastic end of move":
+     *  a CREATE races a move by reading the pre-move parent path, then the move can finish and drain before
+     *  the CREATE reaches its inMove() check -- without the grace that CREATE slips past the queue (no
+     *  reconcile) and its stale DB path is left stranded (the night-watch heals cache-vs-DB, but here the DB
+     *  itself is wrong, so it cannot). Lingering true for graceNanos after the drain keeps catching such a
+     *  late CREATE, so its reconcile still fixes the DB and rebroadcasts. Not a hard guarantee (a CREATE that
+     *  stalls longer than the grace between its read and its check would still miss) -- the residual falls to
+     *  a subsequent move / the night-watch once the DB is corrected. graceNanos <= 0 disables it. */
     public boolean inMove() {
-        return counter.get() > 0;
+        return counter.get() > 0
+                || (everMoved && System.nanoTime() - lastMoveDoneNanos < graceNanos);
     }
 
     /** Enqueue a move command. Increments the counter on the handler thread BEFORE put,
@@ -205,8 +226,8 @@ public class MoveQueueManager implements IQueueRig.IQueueWorker<MoveQueueItem> {
         // Re-establish the unified per-request context on this worker thread from the queued item, and with it
         // the MDC ids -- set() carries both. The request thread's EsqContextHolder / SecurityContext do not follow
         // here, so without this the service-layer RequestContextUtils.getUid()/getRootPath()/getCorrelationId()
-        // and the log lines would all read empty. Left set across subsequent reconcile items so they inherit the
-        // move's CID/RID (the "events get the last move command IDs" rule).
+        // and the log lines would all read empty. Cleared in the finally so this move's identity does not linger on
+        // the worker thread; a reconcile item carries its OWN create's cid/rid and stamps them itself.
         EsqContextHolder.set(new EsqRequestContext(
                 item.correlationId(), item.requestId(), item.uid(), item.rootPath()));
 
@@ -236,49 +257,60 @@ public class MoveQueueManager implements IQueueRig.IQueueWorker<MoveQueueItem> {
             moved = true;
         } finally {
             EsqContextHolder.clear();     // do not leak this move's identity onto the next item
-            counter.decrementAndGet();    // ALWAYS decrement, even if the move threw
+            if (counter.decrementAndGet() == 0) {   // ALWAYS decrement, even if the move threw
+                // Last move drained -- open the "elastic end of move" grace so a CREATE that lands just behind
+                // this move is still caught by the queue (see inMove()).
+                lastMoveDoneNanos = System.nanoTime();
+                everMoved = true;
+            }
             EsqBizMeters.count(moved ? "esq.biz.move.processed.total" : "esq.biz.move.failed.total",
                     "kind", String.valueOf(item.kind()));
         }
     }
 
     private void processReconcile(CreateReconcileItem item) {
-        // Read MDC -- set by the preceding MoveCommandItem. FIFO guarantees that
-        // by the time we get here at least one MoveCommandItem ahead of us has run.
-        String moveRid = MDC.get(EsqConstants.PD_REQUEST_ID);
-        String moveCid = MDC.get(EsqConstants.PD_CORRELATION_ID);
-
-        devLog.debug("processReconcile: entityId={}, kind={}, parentId={}, pathAtPublish={}, moveCid={}, moveRid={}",
-                item.entityId(), item.kind(), item.parentId(), item.pathAtPublish(), moveCid, moveRid);
-
-        String currentParentPath = pathLookup.pathFor(item.parentId());
-        if (currentParentPath == null) {
-            devLog.warn("processReconcile: parent {} has no ep_path -- skip", item.parentId());
-            return;
-        }
-        String expectedPath = PathRule.expectedFor(item.kind(), currentParentPath, item.entityId());
-        if (expectedPath.equals(item.pathAtPublish())) {
-            devLog.debug("processReconcile: no drift (entityId={}, path={})", item.entityId(), expectedPath);
-            return;
-        }
-
-        // Drift detected -- fix DB and reissue.
-        int rows = pathLookup.updatePath(item.entityId(), expectedPath);
-        devLog.info("processReconcile: drift fixed entityId={}, was={}, now={}, rows={}",
-                item.entityId(), item.pathAtPublish(), expectedPath, rows);
-
-        Map<String, Object> text = new LinkedHashMap<>();
-        text.put(EsqConstants.TEXT_ID,   item.entityId());
-        text.put(EsqConstants.TEXT_KIND, item.kind());
-        text.put(EsqConstants.TEXT_PATH, expectedPath);
+        // The item carries the originating CREATE's ids (captured at submit off the peer-create receive leg).
+        // Stamp them into MDC so this worker's log lines -- and the reissued EVENT_UPDATE_PATH broadcast -- all
+        // identify with the create being reconciled. applyMessage is the MDC-only path (this worker has ids to
+        // apply but no full request context to set); paired with clear() in the finally so nothing lingers.
+        String cid = item.correlationId();
+        String rid = item.requestId();
+        EsqContextHolder.applyMessage(rid, cid);
         try {
-            broadcastPublisher.publish(item.kind(), item.entityId(), BusConstants.EVENT_UPDATE_PATH,
-                    moveRid, moveCid, text);
-        } catch (Exception e) {
-            log.error("processReconcile: broadcast failed for kind={}, id={}: {}",
-                    item.kind(), item.entityId(), e.getMessage());
-            devLog.error("processReconcile: broadcast failed for kind={}, id={}: {}",
-                    item.kind(), item.entityId(), e.getMessage(), e);
+            devLog.debug("processReconcile: entityId={}, kind={}, parentId={}, pathAtPublish={}, cid={}, rid={}",
+                    item.entityId(), item.kind(), item.parentId(), item.pathAtPublish(), cid, rid);
+
+            String currentParentPath = pathLookup.pathFor(item.parentId());
+            if (currentParentPath == null) {
+                devLog.warn("processReconcile: parent {} has no ep_path -- skip", item.parentId());
+                return;
+            }
+            String expectedPath = PathRule.expectedFor(item.kind(), currentParentPath, item.entityId());
+            if (expectedPath.equals(item.pathAtPublish())) {
+                devLog.debug("processReconcile: no drift (entityId={}, path={})", item.entityId(), expectedPath);
+                return;
+            }
+
+            // Drift detected -- fix DB and reissue.
+            int rows = pathLookup.updatePath(item.entityId(), expectedPath);
+            devLog.info("processReconcile: drift fixed entityId={}, was={}, now={}, rows={}",
+                    item.entityId(), item.pathAtPublish(), expectedPath, rows);
+
+            Map<String, Object> text = new LinkedHashMap<>();
+            text.put(EsqConstants.TEXT_ID,   item.entityId());
+            text.put(EsqConstants.TEXT_KIND, item.kind());
+            text.put(EsqConstants.TEXT_PATH, expectedPath);
+            try {
+                broadcastPublisher.publish(item.kind(), item.entityId(), BusConstants.EVENT_UPDATE_PATH,
+                        rid, cid, text);
+            } catch (Exception e) {
+                log.error("processReconcile: broadcast failed for kind={}, id={}: {}",
+                        item.kind(), item.entityId(), e.getMessage());
+                devLog.error("processReconcile: broadcast failed for kind={}, id={}: {}",
+                        item.kind(), item.entityId(), e.getMessage(), e);
+            }
+        } finally {
+            EsqContextHolder.clear();
         }
     }
 

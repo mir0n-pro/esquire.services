@@ -28,6 +28,10 @@ enyman:
     # The move transaction opts OUT of the request-path cap: 0 = uncapped (pre-HA default). Set a positive
     # value only to put a safety ceiling on a move (path-table lock + subtree rewrite can legitimately run long).
     tx-timeout-s: ${ENYMAN_MOVE_TX_TIMEOUT_S:0}
+    # "Elastic end of move": how long inMove() stays true AFTER the last move drains, so a CREATE that raced a
+    # move but reaches its inMove() check just after the move finished is still caught (gets a reconcile) instead
+    # of stranding a stale path. 0 disables the grace (inMove() = a move is queued/in flight only).
+    in-move-grace-ms: ${ENYMAN_MOVE_QUEUE_IN_MOVE_GRACE_MS:200}
   # this service's OWN overlay of the global esquire.messaging-bus catalog (added by MessagingBusCatalog):
   # its in-process audit-b leg, whose datasource is service-specific. Under the service namespace, beside move-queue.
   messaging-bus:
@@ -94,6 +98,12 @@ esquire:
       slot-id: ${KC_SLOT_ID:kc}
       role: CLIENT
       x-rod:
+        # EVERY KC sync must be processed; how long it takes does not matter. So a full feed must HOLD the
+        # producer, never discard the event: 0 = wait forever (the default, 10000ms, DROPS the item once the
+        # feed has been full that long -- for an identity sync that is silent, unrecoverable loss). Matches the
+        # keySmith KC leg and enyMan's own entity leg; this is what makes the send-retry below back-pressure
+        # rather than drop.
+        feed-await-ms: ${ENYMAN_KC_FEED_AWAIT_MS:0}
         receiver-pool:
           size: ${ENYMAN_KC_RESPONSE_POOL_SIZE:2}
           mode: ${KC_POOL_MODE:platform}   # platform | virtual | virtual-per-task
@@ -103,9 +113,11 @@ esquire:
           mode: ${ENYMAN_KC_PUBLISHER_POOL_MODE:platform}
         # producer send-retry on the KC R&R bus (the CLIENT request leg); opt-in, default OFF here, ON in docker +
         # the local-k8s overlay -- OKE stays on this pre-HA default. Block mode (max-attempts 0): hold + retry over
-        # the backoff ladder until the broker recovers so the KC sync request still goes through. A request
-        # replayed after the caller's reply timeout still does the work; the late reply is orphaned (no
-        # correlation) and the KC sync is idempotent.
+        # the backoff ladder until the broker recovers so the KC sync request still goes through. This covers only a
+        # send that THROWS (broker unreachable at send time); the KC sync is idempotent, so a re-sent request is
+        # safe. It does NOT cover a request that lands on the broker and is then lost (the kc bus is
+        # persistent:false): reply tracking / a caller reply-timeout was an idea we deferred (R&R reliability,
+        # backlog #14), not built here -- such a loss is not detected or reconciled today.
         send-retry: ${KC_SEND_RETRY:false}
         send-retry-backoff-sec: ${KC_SEND_RETRY_BACKOFF_SEC:1,2,5,5}
         send-retry-max-attempts: ${KC_SEND_RETRY_MAX_ATTEMPTS:0}
@@ -128,10 +140,15 @@ esquire:
         publisher-pool:
           size: ${ENTITY_BROADCAST_PUBLISHER_POOL_SIZE:0}
           mode: ${ENTITY_BROADCAST_PUBLISHER_POOL_MODE:platform}
-        # producer send-retry sublayer (opt-in, default OFF here; turned ON for the entity broadcast bus in
-        # docker compose + the local-k8s overlay -- OKE stays on this pre-HA default). Block mode (max-attempts
-        # 0): on a broker-down send, retry over the backoff ladder (seconds) until it goes through; the bounded
-        # feed back-pressures rather than dropping an entity broadcast. A cap > 0 switches to drop-after-N.
+        # A full feed must HOLD the producer, never DROP an entity broadcast: 0 = wait forever. The default
+        # (10000ms) DROPS the item once the feed has been full that long -- and an entity/move broadcast lost that
+        # way is silent, and the night-watch cannot always heal it. Matches the KC leg (F0 B4); this is what makes
+        # the send-retry "back-pressures rather than dropping" below actually TRUE.
+        feed-await-ms: ${ENTITY_BROADCAST_FEED_AWAIT_MS:0}
+        # producer send-retry sublayer (opt-in, default OFF here; turned ON for the entity broadcast bus in docker
+        # compose + the local-k8s AND OKE overlays). Block mode (max-attempts 0): on a broker-down send, retry over
+        # the backoff ladder (seconds) until it goes through; the bounded feed then back-pressures rather than
+        # dropping an entity broadcast (feed-await-ms:0 above). A cap > 0 switches to drop-after-N.
         send-retry: ${ENTITY_BROADCAST_SEND_RETRY:false}
         send-retry-backoff-sec: ${ENTITY_BROADCAST_SEND_RETRY_BACKOFF_SEC:1,2,5,5}
         send-retry-max-attempts: ${ENTITY_BROADCAST_SEND_RETRY_MAX_ATTEMPTS:0}
@@ -152,6 +169,11 @@ logging:
   msg:
     log-path: ${MSG_LOG_PATH:logs/enyMan-msg.log}
 management:
+  # Actuator listens on a SEPARATE, internal-only port (8090), NOT the public server.port -- Prometheus and the
+  # k8s probes hit 8090 in-cluster while the ingress exposes only the main port, so /actuator is unreachable from
+  # the internet (audit F0 A6; mir0n 2026-07-20). Override with MANAGEMENT_SERVER_PORT.
+  server:
+    port: ${MANAGEMENT_SERVER_PORT:8090}
   # The Micrometer-Tracing bridge and Prometheus metrics export are gated PER PILLAR: management.tracing.enabled
   # follows esquire.observability.tracing.enabled (the span bridge), management.prometheus.metrics.export.enabled
   # follows esquire.observability.metrics.enabled (the Prometheus registry+scrape). Each sub-switch defaults to

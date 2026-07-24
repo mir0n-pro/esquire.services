@@ -7,6 +7,7 @@ metadata:
 data:
   SPRING_PROFILES_ACTIVE:    {{ .Values.springProfilesActive | default "" | quote }}
   DATAKEEP_PORT:             {{ .Values.service.port | quote }}
+  MANAGEMENT_SERVER_PORT:    {{ .Values.service.managementPort | quote }}
   TOPOLOGY_IMPORT:   {{ .Values.topologyImport | quote }}
   # --- v1.2.10 VT (UNVALIDATED test lever, default OFF -- see HA doc 5.5) ---
   ESQ_VIRTUAL_THREADS:       {{ .Values.esqVirtualThreads | quote }}

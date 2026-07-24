@@ -17,6 +17,8 @@
  *                   the feed (tx) worker drives (beforeSend / onSendSuccess / onSendError(ev, msg, Throwable) / tick
  *                   / health); the keep-alive is PUT on the feed (IQueueRig) instead of a transmit callback; ctor
  *                   takes the feed + BusIdentity
+ * 07/23/2026 mir0n  v1.2.11 -- comment: the tick() heartbeat uses a BLOCKING put (not tryPut) -- it fires only when
+ *                   the leg is idle, so the feed is drained/empty and put() returns at once; never drops a heartbeat
  */
 package pro.mir0n.esquire.messaging.xrod.impl.sublayer;
 
@@ -139,6 +141,13 @@ public class AliveSession implements ISessionSublayer {
                 if (now() - lastSendAttempt >= heartbeatIntervalMs) {
                     RodEvent ka = keepAliveEvent();
                     if (ka != null) {
+                        // A BLOCKING put is correct here (not tryPut). The heartbeat fires ONLY when this leg has
+                        // been idle for heartbeat-interval, and beforeSend() resets lastSendAttempt on EVERY send --
+                        // including every send-retry RE-DISPATCH (the worker re-runs the send path while holding a
+                        // unit). So while the feed is backing up (broker down, worker re-dispatching) the gate stays
+                        // fresh and NO heartbeat fires; when a heartbeat DOES fire the leg is genuinely idle, the
+                        // worker has drained the feed, and it is EMPTY -- so put() returns at once. Feed-full and
+                        // heartbeat-fires are mutually exclusive; there is nothing to guard against here.
                         feed.put(ka);
                     }
                 }

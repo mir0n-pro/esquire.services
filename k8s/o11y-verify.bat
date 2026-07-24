@@ -27,5 +27,10 @@ rem python's getaddrinfo, so the live datasource check needs a real localhost po
 set GRAFANA_URL=http://localhost:13009
 set LOKI_JOB=esq-k8s
 set SERVICES=gateway,biztree,enyman,pacman,keysmith,kcmaster,aukeep
+rem LOG_SERVICES = the Loki `service_name` label, which on k8s is the FULL workload name
+rem (esquire-<svc>-<svc>), NOT the short meter name. Without this the log-stream sweep looks for
+rem a stream that does not exist and FAILs every service (the logs ARE shipped). Mirrors the OKE
+rem launcher (oke-o11y-verify.bat); k8s keeps aukeep (OKE has none).
+set LOG_SERVICES=esquire-gateway-gateway,esquire-biztree-biztree,esquire-enyman-enyman,esquire-pacman-pacman,esquire-keysmith-keysmith,esquire-kcmaster-kcmaster,esquire-aukeep-aukeep,esquire-backend-backend
 python ..\test\o11y\o11y-verify.py
 endlocal

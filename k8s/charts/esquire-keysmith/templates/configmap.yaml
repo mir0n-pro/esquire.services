@@ -7,6 +7,7 @@ metadata:
 data:
   SPRING_PROFILES_ACTIVE:         {{ .Values.springProfilesActive | default "" | quote }}
   KEYSMITH_PORT:                  {{ .Values.service.port | quote }}
+  MANAGEMENT_SERVER_PORT:    {{ .Values.service.managementPort | quote }}
   TOPOLOGY_IMPORT:        {{ .Values.topologyImport | quote }}
   # --- datasource (password -> Secret, injected as env in the deployment) ---
   DB_KEYSMITH_VENDOR:             {{ .Values.db.vendor | quote }}

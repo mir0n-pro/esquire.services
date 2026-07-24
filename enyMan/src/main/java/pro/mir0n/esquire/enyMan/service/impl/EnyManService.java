@@ -75,6 +75,7 @@
  *                   try / catch (PermissionDeniedException, rethrown) / finally, otherwise unchanged. For a MOVE
  *                   this records that the command was ACCEPTED, not that the move succeeded -- the work happens
  *                   off-request on the queue worker (esq.biz.move.processed / failed)
+ * 07/23/2026 mir0n  v1.2.11 -- submitReconcileIfInMove passes the create's cid/rid onto the CreateReconcileItem
  */
 
 package pro.mir0n.esquire.enyMan.service.impl;
@@ -241,19 +242,19 @@ public class EnyManService  extends AEnyManService {
                 if (permitted) {
                     ret = orgService.esquireCommandNew(k, parentId, cmd, fields, roles);
                     publishEntityEvent(ret, k, BusConstants.EVENT_CREATE, requestId, correlationId, fields);
-                    submitReconcileIfInMove(ret, k, parentId, fields);
+                    submitReconcileIfInMove(ret, k, parentId, requestId, correlationId, fields);
                 }
             } else if (eek.isUsr()) {
                 if (permitted) {
                     ret = usrService.esquireCommandNew(k, parentId, cmd, fields, roles);
                     publishEntityEvent(ret, k, BusConstants.EVENT_CREATE, requestId, correlationId, fields);
-                    submitReconcileIfInMove(ret, k, parentId, fields);
+                    submitReconcileIfInMove(ret, k, parentId, requestId, correlationId, fields);
                 }
             } else if (eek.isAcct()) {
                 if (permitted) {
                     ret = acctService.esquireCommandNew(k, parentId, cmd, fields, roles);
                     publishEntityEvent(ret, k, BusConstants.EVENT_CREATE, requestId, correlationId, fields);
-                    submitReconcileIfInMove(ret, k, parentId, fields);
+                    submitReconcileIfInMove(ret, k, parentId, requestId, correlationId, fields);
                 }
             }
             if (ret == null && !permitted) {
@@ -286,13 +287,17 @@ public class EnyManService  extends AEnyManService {
     // CREATE we just broadcast. The worker will re-read the parent path on its turn and emit
     // an EVENT_UPDATE_PATH to bizTree if it sees drift. Gated by the validateCreateDuringMove
     // toggle so the race-8b sim can flip the fix off and prove the race still fires.
-    private void submitReconcileIfInMove(EsqEntity entity, int kind, String parentId, Map<String, Object> fields) {
+    private void submitReconcileIfInMove(EsqEntity entity, int kind, String parentId,
+                                         String requestId, String correlationId, Map<String, Object> fields) {
         if (entity == null || !validateCreateDuringMove || !moveQueue.inMove()) {
             return;
         }
         Object pathObj = (fields != null) ? fields.get(EsqConstants.TEXT_PATH) : null;
         String pathAtPublish = (pathObj instanceof String s) ? s : null;
-        moveQueue.submitReconcile(new CreateReconcileItem(entity.getId(), kind, parentId, pathAtPublish));
+        // Carry THIS create's cid/rid onto the reconcile item so the worker stamps them itself and the
+        // path-fix broadcast stays correlated to the create it repairs (no leftover-MDC dependency).
+        moveQueue.submitReconcile(new CreateReconcileItem(entity.getId(), kind, parentId, pathAtPublish,
+                correlationId, requestId));
     }
 
     @Override

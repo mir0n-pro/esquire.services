@@ -235,20 +235,34 @@
         </query>
     </named-native-query>
 
+    <!-- Parents-first ordering for the EVENT_UPDATE_PATH broadcast, so bizTree applies the user
+         before the accounts that derive their tree_path from it. This is an EQUALITY select (a
+         regular user and all their accounts share the one ep_path value), so every row has the same
+         ep_path - the secondary ep_path key the ORG sibling below uses would order nothing here, so
+         it is omitted. ep_et_pk alone is exact: kinds are numbered in tree order (user 34/36,
+         account 50/52/54), so the user's lower kind sorts ahead of its accounts. Ties among sibling
+         accounts (equal kind) are harmless - an account derives only from its user, never from
+         another account. -->
     <named-native-query name="EsqUsrJpa.listMovedPaths" result-set-mapping="EsqEntityPathRaw">
         <query>
- SELECT ep_pk, ep_et_pk, ep_path FROM esq_entity_path WHERE ep_path = :newPath
+ SELECT ep_pk, ep_et_pk, ep_path FROM esq_entity_path WHERE ep_path = :newPath ORDER BY ep_et_pk
         </query>
     </named-native-query>
 
-    <!-- v1.2.6 Goal 3: parents-first ORDER BY LENGTH(ep_path) so the EVENT_UPDATE_PATH
-         broadcast emits ancestor rows before descendant rows. bizTree's per-node move
-         handlers derive a descendant's tree_path from the cached state of the immediate
-         parent at message-process time, so a child arriving before its parent picks up
-         a stale folder_path and the cache diverges. -->
+    <!-- Parents-first ordering for the EVENT_UPDATE_PATH broadcast, so bizTree applies a parent
+         before the children that derive their tree_path from it. Kinds are numbered in tree order
+         (org 20, admin 30/32, user 34/36, account 50/52/54) and a child's kind is always at least
+         its parent's, so ep_et_pk first puts each parent's kind group ahead of its children. That
+         breaks the parent-only tie (an admin shares its org's ep_path, an account its user's).
+         ep_path second orders org-under-org: a parent org's path is a prefix of its descendants',
+         so the prefix sorts a parent ahead of its descendants. Plain columns, no function.
+         Optimization option (DBA / DB developer): if this query ever needs speeding up on very
+         large trees, materialize an EP_TREE_LEVEL column (segment count, i.e. number of dots in
+         ep_path, maintained when ep_path is written) and ORDER BY ep_et_pk, ep_tree_level with a
+         supporting index. Not needed at the current scale (the result set is one moved subtree). -->
     <named-native-query name="EsqOrgJpa.listMovedPaths" result-set-mapping="EsqEntityPathRaw">
         <query>
- SELECT ep_pk, ep_et_pk, ep_path FROM esq_entity_path WHERE ep_path LIKE :newPath || '%' ORDER BY LENGTH(ep_path)
+ SELECT ep_pk, ep_et_pk, ep_path FROM esq_entity_path WHERE ep_path LIKE :newPath || '%' ORDER BY ep_et_pk, ep_path
         </query>
     </named-native-query>
 

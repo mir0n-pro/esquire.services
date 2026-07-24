@@ -7,7 +7,7 @@
 # Browser hits ingress -> ingress routes / to backend (SPA + /auth/* + /api/*)
 # and /kc-auth/* to keycloak. Mirrors OKE on https://esquire.mir0n.pro/.
 image:
-  tag: "v1.2.11-2607.1517"
+  tag: "v1.2.11-2607.2316"
 
 # Origins the BFF accepts on /auth/* requests besides publicBaseUrl.
 # Useful for tools that still bind to legacy localhost ports (e2e, hauberk).

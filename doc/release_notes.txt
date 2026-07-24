@@ -1,6 +1,40 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v1.2.11-2607.2320  v1.2.11 -- homework: fix/resolve issues found in the fresh-mind audit
+    - while a branch is being moved, path changes are applied to parent entities before their
+      children, so the tree the cache serves can never briefly show a child ahead of its parent
+    - a new account's parent is looked up only within the signed-in tenant's own branch
+    - an entity created at the very end of a move is now repaired onto the moved path, closing a
+      brief window where it could keep the old one
+    - the entity-id counter can no longer wrap into a negative value and corrupt an id after very
+      high volume
+    - money amounts and balances are rounded to the ledger's scale before any check or storage, so
+      tiny floating-point remainders never reach the books
+    - when a service's outgoing message queue is full it now waits rather than dropping an identity
+      sync or an entity change
+    - on the cloud cluster a message-broker restart now reconnects on its own, instead of a brief
+      broker outage turning into a lasting service outage
+    - the monitoring and health endpoints are served on a separate internal-only port, unreachable
+      from the internet
+    - more log lines now carry the request's own id -- the first line of each request, and the
+      automatic path-repair message keeps the id of the create it repairs
+    - the monitoring dashboard's "Service" list shows the services again, and its all-targets count
+      is relabeled so it is not misread as counting only the Esquire services
+    - the cloud monitoring deploy no longer points the message broker at an image that was never
+      published, which had blocked the rollout
+    Components:   gateway,
+                  enyMan,
+                  pacMan,
+                  bizTree,
+                  common,
+                  messaging,
+                  auKeep,
+                  kcMaster,
+                  keySmith,
+                  compose,
+                  k8s
+
 v1.2.11-2607.1910  v1.2.11 -- T12: on-demand monitoring on the OKE cloud cluster
     :Feature:     monitoring can be switched on for the OKE cloud cluster on demand -- logs only, or the full
                   logs + traces + metrics stack -- and switched back off again

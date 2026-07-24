@@ -9,6 +9,7 @@
  * 06/01/2026 mir0n  created: CREATE-only Spring Data repository for esq_account on enyMan side;
  *                   acctPath, insertAcctPath, insertAcct native queries (mirrors pacMan acct.xml,
  *                   CREATE subset). READ/UPDATE/DELETE stay on pacMan.
+ * 07/23/2026 mir0n  v1.2.11 -- acctPath() gains a rootPath @Param (tenant scope, matching orgPath/usrPath)
  */
 
 package pro.mir0n.esquire.enyMan.jpa;
@@ -25,7 +26,7 @@ import pro.mir0n.esquire.backend.jpa.entity.EsqAcctJpa;
 public interface EsqAcctRepository extends JpaRepository<EsqAcctJpa, String> {
 
     @NativeQuery
-    String acctPath(@Param("parentId") String parentId);
+    String acctPath(@Param("parentId") String parentId, @Param("rootPath") String rootPath);
 
     @Modifying(clearAutomatically = true, flushAutomatically = false)
     @Transactional

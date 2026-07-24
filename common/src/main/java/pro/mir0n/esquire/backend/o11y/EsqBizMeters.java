@@ -16,6 +16,8 @@
  *                   observability umbrella is off, so every call is a null check and nothing else.
  * 07/17/2026 mir0n  safeTags(): a null tag element is coerced to "null" centrally, so an esq.biz.* meter called
  *                   from a finally cannot throw over a label (I18); clones only when a null is present.
+ * 07/23/2026 mir0n  v1.2.11 -- gauge(): defensive re-check after PENDING.add so a gauge is not stranded by a
+ *                   concurrent setRegistry() drain (idempotent per meter id; zero-cost while off)
  */
 package pro.mir0n.esquire.backend.o11y;
 
@@ -147,6 +149,16 @@ public final class EsqBizMeters {
             // safeTags it then); if it does not, this is a handful of tiny records retained for the life of the
             // process, and nothing else -- NO coercion work is done while off (I19: off must cost zero).
             PENDING.add(new PendingGauge(name, value, tags));
+            // Defensive against a concurrent setRegistry(): start-up is single-threaded today, so this cannot race
+            // now, but it keeps the hand-off correct even under parallel bean init. If the registry ARRIVED between
+            // the read above and this add, setRegistry() may have already drained PENDING past this entry and would
+            // strand it (a dead gauge). Re-check and register directly if so -- idempotent per meter id (see
+            // EsqGauge), so it is harmless even when setRegistry's own drain also registered it. Still zero-cost
+            // while off: the re-check is one volatile read, and safeTags runs only when the registry is present.
+            MeterRegistry arrived = registry;
+            if (arrived != null) {
+                EsqGauge.register(arrived, name, value, safeTags(tags));
+            }
         }
     }
 }

@@ -7,6 +7,7 @@ metadata:
 data:
   SPRING_PROFILES_ACTIVE: {{ .Values.springProfilesActive | default "" | quote }}
   GATEWAY_PORT:         {{ .Values.service.port | quote }}
+  MANAGEMENT_SERVER_PORT:    {{ .Values.service.managementPort | quote }}
   KEYCLOAK_HOST:        {{ .Values.keycloak.host | quote }}
   KEYCLOAK_PORT:        {{ .Values.keycloak.port | quote }}
   KEYCLOAK_PATH:        {{ .Values.keycloak.path | default "" | quote }}

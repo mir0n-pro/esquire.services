@@ -1,5 +1,42 @@
 Esquire enyMan Microservice
 
+07/23/2026 mir0n  v1.2.11 -- homework: fix/resolve issues found in the fresh-mind audit
+jpa.EsqAcctRepository
+  - acctPath() gains a rootPath @Param (tenant scope, matching orgPath/usrPath)
+messaging.EntityBusAdapter
+  - forwardPeerCreate carries the create's OWN cid/rid onto the CreateReconcileItem (the path-fix reissue stays
+    correlated to the create it repairs, no leftover-worker-MDC reliance)
+queue.CreateReconcileItem
+  - gains correlationId/requestId components: the item now carries the originating create's ids, which the worker
+    stamps itself (no reliance on leftover worker MDC)
+queue.MoveQueueManager
+  - "elastic end of move": inMove() stays true for a grace window (enyman.move-queue.in-move-grace-ms, default 200,
+    0 disables) after the last move drains, so a create event with a pre-move path is still reconciled
+service.EntityIdGenerator
+  - the sequence digit is forced non-negative (AtomicInteger wraps negative after 2^31; a negative seq would borrow
+    into the instance/time digits and corrupt the id)
+service.impl.AcctService
+  - createAcct reads rootPath (RequestContextUtils) and passes it to acctPath(parentId, rootPath) -- the parent
+    lookup is now tenant-scoped, like org/usr create
+service.impl.EnyManService
+  - submitReconcileIfInMove passes the create's cid/rid onto the CreateReconcileItem
+resources/META-INF/postgres-entity.xml
+  - EsqUsrJpa.listMovedPaths orders by ep_et_pk (entity-kind first) so a move broadcast emits parents before
+    children by construction
+resources/META-INF/oracle-entity.xml
+  - EsqUsrJpa.listMovedPaths orders by ep_et_pk (entity-kind first), matching the postgres dialect
+resources/META-INF/postgres-acct.xml
+  - EsqAcctRepository.acctPath adds AND ep_path LIKE :rootPath || '%' so the account parent lookup is tenant-scoped
+resources/META-INF/oracle-acct.xml
+  - EsqAcctRepository.acctPath adds the rootPath LIKE filter, matching the postgres dialect
+resources/application.yml
+  - move-queue.in-move-grace-ms added (ENYMAN_MOVE_QUEUE_IN_MOVE_GRACE_MS, default 200) -- the elastic-end-of-move
+    grace window
+  - the KC leg and the entity-broadcast leg each get feed-await-ms:0 (wait forever) so a full feed HOLDS the
+    producer instead of dropping an identity sync / entity broadcast
+  - actuator moved to a separate internal-only management port 8090 (MANAGEMENT_SERVER_PORT), off the public
+    server.port
+
 07/17/2026 mir0n  v1.2.11 -- T11 cleanup: fix/resolve issues noted during development
 resources/application.yml
   - the tracing and metrics switches each read their own env var (ESQ_TRACING_ENABLED / ESQ_METRICS_ENABLED),

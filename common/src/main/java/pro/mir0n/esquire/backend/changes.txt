@@ -1,5 +1,19 @@
 Esquire Backend common microservice classes
 
+07/23/2026 mir0n  v1.2.11 -- homework: fix/resolve issues found in the fresh-mind audit
+o11y.EsqBizMeters
+  - gauge(): defensive re-check after PENDING.add so a gauge is not stranded by a concurrent setRegistry() drain
+    (idempotent per meter id; zero-cost while off)
+o11y.EsqGauge
+  - javadoc: register() is idempotent per meter id (re-registration keeps the FIRST supplier); safe because gauged
+    objects are process-lifetime singletons, never rebuilt in-process
+o11y.EsqTagCardinalityCap
+  - javadoc: the once-per-id property relies on Micrometer's preFilterIdToMeterMap cache (>= 1.12), so map() is not
+    per-op; and the cap is a best-effort SAFETY BOUND, not an exact quota
+service.MdcFilter
+  - the INCOMING log line is emitted AFTER MDC is populated, so it carries the correlationId / requestId fields
+    like every other line in the request
+
 07/17/2026 mir0n  v1.2.11 -- T11 cleanup: fix/resolve issues noted during development
 o11y.EsqBizMeters
   - safeTags(): a null tag element is coerced to "null" centrally, so an esq.biz.* meter called from a finally

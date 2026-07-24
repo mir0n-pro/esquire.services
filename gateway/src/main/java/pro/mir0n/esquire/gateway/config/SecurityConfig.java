@@ -27,6 +27,8 @@
  * 07/17/2026 mir0n  note at the switch: the JWKS fetch to KeyCloak is left un-instrumented on purpose (I42/L3
  *                   accepted) -- it has no meter and its time falls in the gw.outer-minus-gw.inner window; the
  *                   cost lands on one request per key rotation (ReactiveRemoteJWKSource caches).
+ * 07/23/2026 mir0n  v1.2.11 -- the "/esq*" authorization is a SINGLE hasRole("TREE") rule (implies authenticated
+ *                   AND the TREE realm role); comment on why there must be exactly one /esq* rule (first-match-wins)
  */
 package pro.mir0n.esquire.gateway.config;
 
@@ -267,15 +269,22 @@ public class SecurityConfig {
                 .addFilterBefore(tokenRelayFilter, SecurityWebFiltersOrder.AUTHENTICATION)
                 .authorizeExchange(exchanges -> exchanges
                     .pathMatchers(HttpMethod.OPTIONS,"/**").permitAll()
-                    //XXX: hasRole already implies the user must be authenticated.
-                    // for some reason it does not work well
-                    // we keep Double-checks authentication and TREE role for esq* paths for a while
-                    .pathMatchers("/esq-kinds").permitAll() // Protect your endpoint
-                    .pathMatchers("/esq*").authenticated() // Protect your endpoint
-                    .pathMatchers("/esq*").hasRole("TREE")
+                    // hasRole("TREE") implies authenticated (an anonymous request carries no ROLE_TREE), so this
+                    // single rule enforces BOTH: a valid realm JWT AND the TREE realm role. authorizeExchange is
+                    // first-match-wins -- an earlier ".authenticated()" on the same "/esq*" pattern would shadow
+                    // this and skip the role check, so there must be exactly ONE "/esq*" rule and it must be the
+                    // role one. It works only because the JWT converter is wired to KeycloakRoleConverter (see
+                    // oauth2ResourceServer below), which maps realm_access.roles -> ROLE_<role>; Spring's default
+                    // converter emits SCOPE_* only, which is why "hasRole did not work" before and it had been
+                    // left as bare authenticated().
+                    .pathMatchers("/esq-kinds").permitAll() // public dictionary endpoint
+                    .pathMatchers("/esq*").hasRole("TREE")  // authenticated + TREE realm role
                     .anyExchange().permitAll()
                 )
-                .oauth2ResourceServer(oauth2 -> oauth2.jwt(Customizer.withDefaults()))
+                // Wire KeycloakRoleConverter (realm_access.roles -> ROLE_<role>) so hasRole("TREE") above can
+                // actually match; the default converter emits SCOPE_* only and ROLE_TREE would never be present.
+                .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwtSpec ->
+                        jwtSpec.jwtAuthenticationConverter(grantedAuthoritiesExtractor())))
                 .oauth2Client(Customizer.withDefaults())
                 .securityContextRepository(NoOpServerSecurityContextRepository.getInstance());
         return serverHttpSecurity.build();

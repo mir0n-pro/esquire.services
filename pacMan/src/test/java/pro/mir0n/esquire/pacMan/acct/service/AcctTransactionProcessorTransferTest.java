@@ -6,6 +6,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -34,6 +35,7 @@ import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.within;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
@@ -225,5 +227,41 @@ class AcctTransactionProcessorTransferTest {
         assertThat(ret.getRefCode4()).isEqualTo("Transfer 100.00 USD to Account 20");
         verify(entityRepository).updateAcctBalance(eq("10"), eq(400.0), any(), any(), any());
         verify(entityRepository).updateAcctBalance(eq("20"), eq(225.0), any(), any(), any());
+    }
+
+    // ---- RD1: an amount exactly on a 3rd-decimal tie must round symmetrically, so the two legs balance ----
+
+    @Test
+    @DisplayName("transfer: 3rd-decimal tie amount rounds symmetrically → debit and credit magnitudes balance")
+    void transfer_tieAmount_legsBalance() {
+        when(transactionTemplate.execute(any())).thenAnswer(inv -> {
+            inv.<org.springframework.transaction.support.TransactionCallback<?>>getArgument(0).doInTransaction(null);
+            return null;
+        });
+        EsqAcctJpa source = new EsqAcctJpa();
+        source.setId("10"); source.setKind(50); source.setBalance(500.0); source.setNegativeAllowed("N"); source.setStatus("O"); source.setCcy("USD");
+        EsqAcctJpa target = new EsqAcctJpa();
+        target.setId("20"); target.setKind(50); target.setBalance(100.0); target.setNegativeAllowed("N"); target.setStatus("C");
+        when(entityRepository.detailAcctForUpdate("10", 50, "1.2.3")).thenReturn(source);
+        when(entityRepository.detailAcctForUpdate("20", 50, "1.2.3")).thenReturn(target);
+
+        Map<String, Object> fields = new HashMap<>();
+        fields.put("amount", -100.0005);   // exactly on a 3rd-decimal tie
+        fields.put("id2", "20");
+        fields.put("kind2", 50);
+        fields.put("rate", 1.0);           // same currency: the legs must be equal and opposite
+
+        service.esquireCommandAcct(50, "10", AcctOperation.Code.TRANSFER, fields, true, "1.2.3", "99", List.of(ROLE_ADMIN));
+
+        ArgumentCaptor<Double> src = ArgumentCaptor.forClass(Double.class);
+        ArgumentCaptor<Double> tgt = ArgumentCaptor.forClass(Double.class);
+        verify(entityRepository).updateAcctBalance(eq("10"), src.capture(), any(), any(), any());
+        verify(entityRepository).updateAcctBalance(eq("20"), tgt.capture(), any(), any(), any());
+        double debited  = 500.0 - src.getValue();   // magnitude removed from the source
+        double credited = tgt.getValue() - 100.0;    // magnitude added to the target
+        // symmetric round3(-x) == -round3(x): both legs are 100.001. Under the old half-up round3 the debit was
+        // 100.000 and the credit 100.001 -> off by 0.001 (RD1).
+        assertThat(debited).isCloseTo(credited, within(1e-9));
+        assertThat(debited).isCloseTo(100.001, within(1e-9));
     }
 }

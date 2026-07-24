@@ -22,6 +22,8 @@
  *                   esq.biz.acct.tx.duration (tags type, outcome) -- its OWN meters, because this override does
  *                   NOT call super, so the meters on AcctTransactionProcessorSingle never see a transfer and the
  *                   whole transfer path would have been silently missing from the money panel
+ * 07/23/2026 mir0n  v1.2.11 -- credit leg promotes the shared fields map (AMOUNT overwritten with the credit
+ *                   amount) and passes it straight through -- per-request map, deliberately not cloned
  */
 
 package pro.mir0n.esquire.pacMan.acct.service;
@@ -112,6 +114,9 @@ public class AcctTransactionProcessorTransfer extends AcctTransactionProcessorSi
 
         String sourceCcy = ret.getCcy();
         double creditAmount = Math.abs(amount) * rate;
+        // Promote the shared fields map from the debit leg to the credit leg: overwrite AMOUNT with the credit
+        // amount and pass the same map straight through. Deliberately NOT cloned -- the map is per-request and not
+        // read again after the transfer, so a copy would only cost time + memory for no gain.
         fields.put(AcctTransactionSingle.FIELD_AMOUNT, creditAmount);
         _esquireCommandAcct(eek2, id2, oper, fields, true, rootPath, uid, correlationId, requestId, rate, Math.abs(amount), sourceCcy, pkTx, id);
         return ret;

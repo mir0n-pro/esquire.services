@@ -290,7 +290,7 @@ class EnyManServiceTest {
             inv.<org.springframework.transaction.support.TransactionCallback<?>>getArgument(0).doInTransaction(null);
             return null;
         });
-        when(acctRepo.acctPath("1")).thenReturn(null);
+        when(acctRepo.acctPath("1", "1.2.3")).thenReturn(null);
 
         assertThatThrownBy(() ->
             service.esquireCommandNew(50, "1", "new", new HashMap<>(), List.of(ROLE_ADMIN))
@@ -456,7 +456,7 @@ class EnyManServiceTest {
             inv.<org.springframework.transaction.support.TransactionCallback<?>>getArgument(0).doInTransaction(null);
             return null;
         });
-        when(acctRepo.acctPath("10")).thenReturn("1.5.");
+        when(acctRepo.acctPath("10", "1.5.")).thenReturn("1.5.");
 
         service.esquireCommandNew(50, "10", "new", new HashMap<>(), List.of(ROLE_ADMIN));
 

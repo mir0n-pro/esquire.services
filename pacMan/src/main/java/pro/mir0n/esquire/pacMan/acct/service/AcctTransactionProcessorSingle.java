@@ -27,6 +27,8 @@
  *                   conversion rate is present only on the cross-currency leg, so it IS the FX application).
  *                   operTag() added: the type tag is NULL-SAFE because these read from a finally, and a raw
  *                   oper.name() there throws an NPE that REPLACES the real exception on its way out
+ * 07/23/2026 mir0n  v1.2.11 -- round3(): the amount and the new balance are rounded to 3 decimals (the NUMERIC(16,3)
+ *                   scale, half away from zero) before any check or store, so double FP dust never reaches the ledger
  */
 
 package pro.mir0n.esquire.pacMan.acct.service;
@@ -178,6 +180,7 @@ public class AcctTransactionProcessorSingle implements IAcctTransactionProcessor
                                                       String pkTx, String counterpartId) {
         Object rawAmount = fields.get(AcctTransactionSingle.FIELD_AMOUNT);
         double amount = rawAmount instanceof Number ? ((Number) rawAmount).doubleValue() : Double.parseDouble(rawAmount.toString());
+        amount = round3(amount);   // 3dp (NUMERIC(16,3)) -- clip double FP dust before any check or store
         if (!skipValidation) {
             switch (oper.effect) {
                 case AcctOperation.AmountEffect.NEGATIVE:
@@ -213,7 +216,7 @@ public class AcctTransactionProcessorSingle implements IAcctTransactionProcessor
         }
 
         double prevBalance = acct.getBalance() != null ? acct.getBalance() : 0.0;
-        double newBalance  = prevBalance + amount;
+        double newBalance  = round3(prevBalance + amount);   // 3dp -- clip the addition's FP dust before store
 
         Map<String, Object> validated = fields;
         if (!skipValidation) {
@@ -257,5 +260,16 @@ public class AcctTransactionProcessorSingle implements IAcctTransactionProcessor
         }
         audit.post(pro.mir0n.esquire.messaging.RodEvent.Op.UPDATE, acct.getKind(), acctId, null, acct);
         return ret;
+    }
+
+    /** Round a money value to 3 decimals (the NUMERIC(16,3) scale), half away from zero, so the double
+     *  arithmetic's binary-floating-point dust never reaches the ledger amount or the stored balance. Rounds the
+     *  MAGNITUDE and reapplies the sign, so round3(-x) == -round3(x): a transfer's debit (signed) and credit (abs)
+     *  legs stay balanced even for an amount sitting exactly on a 3rd-decimal tie. */
+    private static double round3(double amt) {
+        double a = amt < 0 ? -amt : amt;
+        long l = (long) Math.floor(a * 1000 + 0.5);
+        double ret = (double) l / 1000;
+        return amt < 0 ? -ret : ret;
     }
 }

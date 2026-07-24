@@ -1,5 +1,16 @@
 Esquire messaging framework classes
 
+07/23/2026 mir0n  v1.2.11 -- homework: fix/resolve issues found in the fresh-mind audit
+xrod.impl.XRod
+  - setWorker(subscription) comment: set the subscription BEFORE start(); the x-rod does not support changing a
+    broker subscription on the fly
+xrod.impl.sublayer.AliveSession
+  - comment: the tick() heartbeat uses a BLOCKING put (not tryPut) -- it fires only when the leg is idle, so the
+    feed is drained/empty and put() returns at once; never drops a heartbeat
+xrod.impl.sublayer.AliveSessionRR
+  - comment: the SERVER HeartBeat reply uses a BLOCKING put -- a reply can be needed while the leg is busy, and
+    dropping it would cause a false SERVER-DOWN at the client
+
 07/17/2026 mir0n  v1.2.11 -- T11 cleanup: fix/resolve issues noted during development
 o11y.IRodTracer
   - the alive-trace opt-in key is namespaced under esquire.observability.tracing.msg-bus-alive-trace (was

@@ -1,5 +1,20 @@
 Esquire pacMan Microservice
 
+07/23/2026 mir0n  v1.2.11 -- homework: fix/resolve issues found in the fresh-mind audit
+acct.service.AcctTransactionProcessorSingle
+  - round3(): the amount and the new balance are rounded to 3 decimals (the NUMERIC(16,3) scale, half away from
+    zero) before any check or store, so double FP dust never reaches the ledger
+acct.service.AcctTransactionProcessorTransfer
+  - credit leg promotes the shared fields map (AMOUNT overwritten with the credit amount) and passes it straight
+    through -- per-request map, deliberately not cloned
+service.BizValidatorFactory
+  - account validation guard refined with a balance != 0 condition
+resources/application.yml
+  - the entity-broadcast leg gets feed-await-ms:0 (wait forever) so a full feed HOLDS the producer instead of
+    dropping an entity broadcast
+  - actuator moved to a separate internal-only management port 8090 (MANAGEMENT_SERVER_PORT), off the public
+    server.port
+
 07/17/2026 mir0n  v1.2.11 -- T11 cleanup: fix/resolve issues noted during development
 resources/application.yml
   - the tracing and metrics switches each read their own env var (ESQ_TRACING_ENABLED / ESQ_METRICS_ENABLED),

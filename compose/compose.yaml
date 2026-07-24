@@ -402,7 +402,8 @@ services:
       - AUDIT_POOL_SIZE=${AUDIT_POOL_SIZE:-4}
       - AUDIT_POOL_MODE=${AUDIT_POOL_MODE:-platform}
       - AUDIT_FEED_CAPACITY=${AUDIT_FEED_CAPACITY:-4096}
-      # audit-b (in-process) datastore -- defaults to the service's own DB (its log tables); override to relocate.      - DB_DATAKEEP_URL=${DB_DATAKEEP_URL:-jdbc:postgresql://postgres:5432/esq2025}
+      # audit-b (in-process) datastore -- defaults to the service's own DB (its log tables); override to relocate.
+      - DB_DATAKEEP_URL=${DB_DATAKEEP_URL:-jdbc:postgresql://postgres:5432/esq2025}
       - DB_DATAKEEP_USERNAME=${DB_DATAKEEP_USERNAME:-esq2025}
       - DB_DATAKEEP_PASSWORD=${DB_DATAKEEP_PASSWORD:-q}
       - DB_DATAKEEP_POOL_SIZE=${DB_DATAKEEP_POOL_SIZE:-2}
@@ -477,7 +478,8 @@ services:
       - AUDIT_SLOT_ID=audit
       - AUDIT_POOL_SIZE=${AUDIT_POOL_SIZE:-4}
       - AUDIT_POOL_MODE=${AUDIT_POOL_MODE:-platform}
-      - AUDIT_FEED_CAPACITY=${AUDIT_FEED_CAPACITY:-4096}      - DB_DATAKEEP_URL=${DB_DATAKEEP_URL:-jdbc:postgresql://postgres:5432/esq2025}
+      - AUDIT_FEED_CAPACITY=${AUDIT_FEED_CAPACITY:-4096}
+      - DB_DATAKEEP_URL=${DB_DATAKEEP_URL:-jdbc:postgresql://postgres:5432/esq2025}
       - DB_DATAKEEP_USERNAME=${DB_DATAKEEP_USERNAME:-esq2025}
       - DB_DATAKEEP_PASSWORD=${DB_DATAKEEP_PASSWORD:-q}
       - DB_DATAKEEP_POOL_SIZE=${DB_DATAKEEP_POOL_SIZE:-2}
@@ -618,7 +620,8 @@ services:
       - AUDIT_SLOT_ID=audit
       - AUDIT_POOL_SIZE=${AUDIT_POOL_SIZE:-4}
       - AUDIT_POOL_MODE=${AUDIT_POOL_MODE:-platform}
-      - AUDIT_FEED_CAPACITY=${AUDIT_FEED_CAPACITY:-4096}      - DB_DATAKEEP_URL=${DB_DATAKEEP_URL:-jdbc:postgresql://postgres:5432/esq2025}
+      - AUDIT_FEED_CAPACITY=${AUDIT_FEED_CAPACITY:-4096}
+      - DB_DATAKEEP_URL=${DB_DATAKEEP_URL:-jdbc:postgresql://postgres:5432/esq2025}
       - DB_DATAKEEP_USERNAME=${DB_DATAKEEP_USERNAME:-esq2025}
       - DB_DATAKEEP_PASSWORD=${DB_DATAKEEP_PASSWORD:-q}
       - DB_DATAKEEP_POOL_SIZE=${DB_DATAKEEP_POOL_SIZE:-2}

@@ -20,6 +20,7 @@ esqVirtualThreads: "false"        # ESQ_VIRTUAL_THREADS (spring.threads.virtual.
 
 service:
   port: 3002
+  managementPort: 8090   # actuator/management port (F0 A6); probes + MANAGEMENT_SERVER_PORT read this
 
 db:
   vendor: dev-postgres
@@ -50,7 +51,7 @@ kc:
   responsePoolSize: "2"
   responseConcurrency: "1"
   publisherPoolSize: "0"
-  # producer send-retry on the KC R&R bus; pre-HA default OFF (OKE). The local-k8s overlay turns it on (block mode).
+  # producer send-retry on the KC R&R bus; pre-HA default OFF; BOTH the local-k8s AND the OKE overlay turn it ON (block mode).
   sendRetry: "false"
   sendRetryBackoff: "1,2,5,5"
   sendRetryMaxAttempts: "0"

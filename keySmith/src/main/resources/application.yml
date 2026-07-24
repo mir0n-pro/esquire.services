@@ -101,9 +101,11 @@ esquire:
           mode: ${KEYSMITH_KC_PUBLISHER_POOL_MODE:platform}
         # producer send-retry on the KC R&R bus (the CLIENT request leg); opt-in, default OFF here, ON in docker +
         # the local-k8s overlay -- OKE stays on this pre-HA default. Block mode (max-attempts 0): hold + retry over
-        # the backoff ladder until the broker recovers so the KC sync request still goes through. A request
-        # replayed after the caller's reply timeout still does the work; the late reply is orphaned (no
-        # correlation) and the KC sync is idempotent.
+        # the backoff ladder until the broker recovers so the KC sync request still goes through. This covers only a
+        # send that THROWS (broker unreachable at send time); the KC sync is idempotent, so a re-sent request is
+        # safe. It does NOT cover a request that lands on the broker and is then lost (the kc bus is
+        # persistent:false): reply tracking / a caller reply-timeout was an idea we deferred (R&R reliability,
+        # backlog #14), not built here -- such a loss is not detected or reconciled today.
         send-retry: ${KC_SEND_RETRY:false}
         send-retry-backoff-sec: ${KC_SEND_RETRY_BACKOFF_SEC:1,2,5,5}
         send-retry-max-attempts: ${KC_SEND_RETRY_MAX_ATTEMPTS:0}
@@ -124,6 +126,11 @@ logging:
   msg:
     log-path: ${MSG_LOG_PATH:logs/keySmith-msg.log}
 management:
+  # Actuator listens on a SEPARATE, internal-only port (8090), NOT the public server.port -- Prometheus and the
+  # k8s probes hit 8090 in-cluster while the ingress exposes only the main port, so /actuator is unreachable from
+  # the internet (audit F0 A6; mir0n 2026-07-20). Override with MANAGEMENT_SERVER_PORT.
+  server:
+    port: ${MANAGEMENT_SERVER_PORT:8090}
   # The Micrometer-Tracing bridge and Prometheus metrics export are gated PER PILLAR: management.tracing.enabled
   # follows esquire.observability.tracing.enabled (the span bridge), management.prometheus.metrics.export.enabled
   # follows esquire.observability.metrics.enabled (the Prometheus registry+scrape). Each sub-switch defaults to

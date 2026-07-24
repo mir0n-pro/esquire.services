@@ -15,6 +15,8 @@
  *                   and forces it as the server span's trace id, so span traceId == correlationId at the edge
  *                   and the tracer propagates that same id to every downstream service and bus span. Injection
  *                   is plain W3C. Gated by esquire.observability.enabled (backs Boot's default Propagator only then).
+ * 07/23/2026 mir0n  v1.2.11 -- the propagator bean is @ConditionalOnProperty(esquire.observability.tracing.enabled,
+ *                   matchIfMissing=true) so it does not load in a metrics-only observability config
  */
 package pro.mir0n.esquire.gateway.config;
 
@@ -42,7 +44,7 @@ import java.util.List;
 // Only contributed when tracing is enabled; downstream services keep the stock W3C propagator and simply
 // inherit the id the gateway stamps.
 @Configuration
-@ConditionalOnProperty(name = "esquire.observability.enabled", havingValue = "true")
+@ConditionalOnProperty(name = "esquire.observability.tracing.enabled", havingValue = "true", matchIfMissing = true)
 public class CorrelationPropagatorConfig {
 
     // @Primary: Boot's otelPropagator is not @ConditionalOnMissingBean, so both beans coexist; the tracing

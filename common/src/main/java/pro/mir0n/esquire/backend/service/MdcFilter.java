@@ -21,6 +21,8 @@
  *                   ctor (RequestPerformance, ObjectProvider<MeterRegistry>): the registry is absent when
  *                   observability is off, and the timers are then simply not recorded. The X-Capture-Metrics
  *                   response headers are untouched -- the timers are a second, independent consumer of the numbers
+ * 07/23/2026 mir0n  v1.2.11 -- the INCOMING log line is emitted AFTER MDC is populated, so it carries the
+ *                   correlationId / requestId fields like every other line in the request
  */
 
 package pro.mir0n.esquire.backend.service;
@@ -87,11 +89,6 @@ public class MdcFilter extends OncePerRequestFilter {
             return;
         }
 
-        log.info("INCOMING: {} {}",
-            givenRequest.getMethod(),
-            givenRequest.getRequestURI()
-        );
-
         devLog.debug("MDC , headers: {}", headerNames(givenRequest.getHeaderNames()));
 
         long startTime = System.currentTimeMillis();
@@ -120,6 +117,13 @@ public class MdcFilter extends OncePerRequestFilter {
                 MDC.put(EsqConstants.PD_REQUEST_ID, requestId);
             }
             devLog.debug("MDC populated with correlationId: {}, requestId: {}", correlationId, requestId);
+            // Log arrival AFTER MDC is populated so the INCOMING line carries the correlationId / requestId
+            // structured fields -- like every other line in the request, and like the gateway's own INCOMING
+            // (RequestTraceFilter wraps its INCOMING in MDC.put/remove for the same reason).
+            log.info("INCOMING: {} {}",
+                givenRequest.getMethod(),
+                givenRequest.getRequestURI()
+            );
             filterChain.doFilter(givenRequest, response);
         } finally {
             long duration = System.currentTimeMillis() - startTime;

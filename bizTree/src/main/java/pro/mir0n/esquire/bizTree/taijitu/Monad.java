@@ -23,6 +23,9 @@
  *                   item.correlationId(), "cache apply", ...)
  * 07/15/2026 mir0n  v1.2.11 T11 -- the cache-apply worker stamps MDC via EsqContextHolder.applyMessage(requestId,
  *                   correlationId) and clears in a finally, so its log lines carry the message ids (I10)
+ * 07/23/2026 mir0n  v1.2.11 -- javadoc: a handler exception in MessageHandlerHub.dispatch is swallowed (logged +
+ *                   outcome=failed) and the batch commits, not rolled back -- a should-not-happen condition; the
+ *                   night-watch SWAP heals any resulting cache/DB drift
  */
 package pro.mir0n.esquire.bizTree.taijitu;
 
@@ -114,8 +117,18 @@ public class Monad extends AMonad {
      * Bulk apply: run the whole batch of events in ONE cache transaction. Each {@link #_processItem}
      * applies its event through the same cacheJdbcTemplate, which joins the thread-bound connection,
      * so the batch commits once instead of once-per-event -- the throughput win under a flood of
-     * move broadcasts. If any event fails the whole batch rolls back and the throwable propagates to
-     * the rig (its list error listener stops the bulk); the night-watch sweep heals the gap.
+     * move broadcasts.
+     *
+     * <p>A handler applies a broadcast that our own enyMan published AFTER its DB commit, keyed by an id
+     * we generated, into an embedded H2 cache -- so a handler throwing is a should-not-happen condition,
+     * not a modelled failure mode, and there is no defensive handling for it. {@code MessageHandlerHub.dispatch}
+     * simply LOGS the exception (app log + develop log with the stack) and counts {@code outcome=failed},
+     * then returns. The consequence worth noting is the control flow: because the exception is swallowed
+     * there, this batch does NOT roll back -- it COMMITS the events that applied and the failed one is just
+     * absent. The DB already holds the change, so under {@code onMismatch=SWAP} the night-watch reload
+     * differs from the serving monad and SWAP heals the gap (a {@code LOG}-mode deployment would not).
+     * A failure OUTSIDE a handler (JSON parse, unknown-kind lookup) escapes the swallow, so the whole
+     * batch rolls back and propagates to the rig; the sweep heals that too.
      */
     @Override
     protected void _processItems(List<QueueItem> events) {

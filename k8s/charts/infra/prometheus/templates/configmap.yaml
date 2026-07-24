@@ -32,9 +32,11 @@ data:
           - source_labels: [__meta_kubernetes_pod_label_app]
             regex: "esquire-(gateway|biztree|enyman|pacman|keysmith|kcmaster|aukeep)-.*"
             action: keep
-          # scrape the pod IP on its declared container port (each service's own port, resolved per pod).
-          - source_labels: [__meta_kubernetes_pod_ip, __meta_kubernetes_pod_container_port_number]
-            separator: ":"
+          # scrape the pod IP on the SEPARATE management port 8090 (F0 A6) -- actuator (incl. /actuator/prometheus)
+          # lives there now, NOT on the public main port, so the ingress never exposes it.
+          - source_labels: [__meta_kubernetes_pod_ip]
+            regex: (.+)
+            replacement: "$1:8090"
             target_label: __address__
           # instance = the pod name -> the x2 replicas show as ...-0 and ...-1.
           - source_labels: [__meta_kubernetes_pod_name]
