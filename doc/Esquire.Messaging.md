@@ -1,14 +1,15 @@
 # <img src="../favicon.ico" alt="Esquire logo" valign="middle" width="64" height="64"> Esquire Application Frameworks(tm) 2.0
 
-# Esquire Messaging Bus topology
+# Esquire Messaging — how Esquire uses the Messaging Bus
 
-This page describes the **message buses that run in Esquire today** — what each one carries, who publishes
-and who consumes, and over which transport — together with the **current limitations** of the running
-topology.
+This page is about **how Esquire applies the Messaging Bus** — the message buses that actually run in Esquire
+today: what each one carries, who publishes and who consumes, over which transport — together with the
+**current limitations** of the running topology.
 
-It is the *instance* view. For how the bus works underneath — the catalog, the x-rod frontend, rod-classes,
-and the transport-provider SPI — see [Esquire Messaging Bus](Esquire.MessagingBus.md). For the wire format
-of each message, see [Message.Structure.md](Message.Structure.md).
+It is the *instance* view (Esquire's use of the bus), NOT the generic bus framework. For how the bus works
+underneath — the catalog, the x-rod frontend, rod-classes, and the transport-provider SPI — see
+[Esquire Messaging Bus — Framework](Esquire.MessagingBus.md). For the wire format of each message, see
+[Esquire.MessagingBus.MessageStructure.md](Esquire.MessagingBus.MessageStructure.md).
 
 A bus is one logical conversation: a set of channels (a topic, a queue, or a stream) grouped to serve a
 single purpose. A service never talks to ActiveMQ / Kafka / Redis directly — it joins a named bus through
@@ -39,7 +40,7 @@ subscribe; more consumers can be added without touching the publishers.
 
 The event carries raw entity field values only (id, kind, name, path, status, …); each consumer interprets
 them, and a field absent from a message is a no-op. The `UE` wire format is in
-[Message.Structure.md](Message.Structure.md).
+[Esquire.MessagingBus.MessageStructure.md](Esquire.MessagingBus.MessageStructure.md).
 
 ---
 
@@ -58,7 +59,7 @@ queue. The requester is the *client* (publishes the request, reads its own reply
   so sharded replicas never steal each other's replies.
 
 kcMaster dispatches each request to a create / update / delete / update-path Keycloak operation. The `URQ` /
-`URS` / `URR` wire formats are in [Message.Structure.md](Message.Structure.md).
+`URS` / `URR` wire formats are in [Esquire.MessagingBus.MessageStructure.md](Esquire.MessagingBus.MessageStructure.md).
 
 ---
 

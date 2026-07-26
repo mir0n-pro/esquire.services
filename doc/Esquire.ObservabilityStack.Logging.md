@@ -1,6 +1,20 @@
 # <img src="../favicon.ico" alt="Esquire logo" valign="middle" width="64" height="64"> Esquire Application Frameworks(tm) 2.0
 
-# Esquire Services — Logging Strategy
+# Esquire Observability Stack -- Logging Strategy
+
+> Companion to [`Esquire.ObservabilityStack.md`](Esquire.ObservabilityStack.md) (Structured Logging is one of its
+> four pillars); this is the full strategy.
+>
+> **Do not mix this with Audit Logging**, which is a different thing -- the business audit trail (who changed
+> which entity: the BRIUD `*_log` records written by auKeep), documented in
+> [`Esquire.AuditLoggingStack.md`](Esquire.AuditLoggingStack.md).
+
+**Logging is an observability feature.** All three tiers below are observability data -- what a service records so
+it can be watched, debugged, and traced. WHERE a tier is shipped is a separate, configurable choice and does not
+change what it is: the console tier is simply the one the running log tooling aggregates (by default
+Alloy -> Loki -> Grafana, but that stack is just tooling -- the same records could go to a shared database, a
+TCP / syslog endpoint, or any sink the logging runtime is configured with). Console-to-a-collector is one simple
+way to gather every service's logs into a single store for easy searching, no more.
 
 ## Three-Tier Architecture
 
@@ -225,3 +239,10 @@ Gateway has no JMS and no msg tier — omit `springframework.jms`, `apache.activ
 | `MSG_FILE` | `<logger name="msg">` additivity=false | 30 days |
 
 The `develop` and `msg` parent loggers catch all `develop.*` and `msg.*` child loggers respectively.
+
+### Routing `develop` / `msg` to the console
+
+`develop` / `msg` use `additivity=false` so they stay OUT of stdout by default -- keeping the console a clean
+request narrative. There is **nothing wrong with also routing them to the console** (add the `CONSOLE` appender,
+or set `additivity=true`) when you want that detail aggregated and searched alongside the rest. It is a routing
+choice, not a rule -- the sink never changes that a log is observability data (see the top).

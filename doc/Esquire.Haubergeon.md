@@ -57,7 +57,7 @@ mvn -pl hauberk install            (from services/ -- builds + installs)
 ```
 
 Output: `explorer/hauberk/target/hauberk.jar` -- single fat jar with
-Gatling 3.13, picocli, and all transitive dependencies. One artifact
+Gatling 3.13.5, picocli, and all transitive dependencies. One artifact
 to deploy or copy anywhere.
 
 ## Run
@@ -116,12 +116,11 @@ hauberk playground roots itself under Test House (config knob
 Reserved future slot: `esq-hauberk-L` -- for an additional protocol
 variant (JWE-when-supported, mTLS-bound tokens, DPoP, etc.).
 
-> **Note (v1.2.4 close):** the hauberk harness's auth client (`KcTokenClient` +
-> `RefreshableToken`) currently sends `client_credentials` and Bearer JWT for
-> all three clients. The gateway-side Vanilla Token Relay enforcement
-> rejects Bearer with `azp=esq-hauberk-S`; the hauberk harness needs a follow-up
-> update to send HTTP Basic for `-S` and the stripped flow for `-M`. Tracked
-> for v1.2.5+ alongside the race-fix work.
+The harness presents the right edge credential per run automatically:
+`tokenRelay.type=vanilla` sends **HTTP Basic** (`client_id:client_secret`) so
+the gateway brokers the JWT; `plain` and `phantom` send a **Bearer** KC token.
+The branch is `HauberkConfig.isBasicAuth()`, read by both the Simulations and
+the health pre-check -- the harness never hardcodes which client it is.
 
 ## Simulation catalog
 
@@ -172,7 +171,7 @@ Self-validating Simulations that surface known races in the entity-broadcast + b
 
 Full catalog, repro commands (compose + local k8s), and PASS/FAIL
 behavior live in a dedicated doc: see
-[Race.Conditions.Repro.md](Race.Conditions.Repro.md).
+[Race.Conditions.Repro.md](review/Race.Conditions.Repro.md).
 
 ### Message-loss / night-watch repros
 
@@ -416,7 +415,7 @@ hauberk.cmd run clean-house                                    (teardown)
 
 ### Race-condition repro
 
-See [Race.Conditions.Repro.md](Race.Conditions.Repro.md) for the
+See [Race.Conditions.Repro.md](review/Race.Conditions.Repro.md) for the
 step-by-step commands (compose + local k8s variants) and self-
 validation behavior.
 
@@ -448,7 +447,7 @@ The picocli CLI lives in `cli/` (`HauberkCli`, `RunCommand`,
   `Esq-Gw-Inner-Time` / `Esq-Srv-Outer-Time` / `Esq-Srv-Inner-Time`)
   that PerformanceMatrix consumes. Defines what each header captures
   at the wire + which filter emits it.
-- [keyCloak-gateway.JWE.md](keyCloak-gateway.JWE.md) -- the four
+- [Esquire.Auth.TokenPatterns.md](Esquire.Auth.TokenPatterns.md) -- the four
   certified auth patterns (BFF / Plain JWT / Vanilla Token Relay / Phantom Token Relay);
   diagrams + decision matrix; "Patterns we deliberately don't use"
   section explains why Opaque + Introspection (RFC 7662) and
@@ -458,5 +457,5 @@ The picocli CLI lives in `cli/` (`HauberkCli`, `RunCommand`,
   overview (every tier + framework); positions Gatling / Haubergeon as the
   Esquire standard for stress / load / race-repro, of which this harness's
   Simulation set is the first.
-- [v1.2.x.Planning.md](v1.2.x.Planning.md) -- the v1.2.4 sprint record;
-  full delivered-scope summary.
+- [v1.2.x.Planning.md](v1.2.x.Planning.md) -- the release-line planning /
+  roadmap (the Haubergeon harness first landed in the v1.2.4 sprint).

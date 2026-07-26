@@ -2,13 +2,19 @@
 
 # Esquire Messaging Bus — Framework
 
-> **Status: DRAFTED (v1.2.8).** The Messaging Bus is a shared module that gives services one uniform way
+> The Messaging Bus is a shared module that gives services one uniform way
 > to do asynchronous messaging. This document is the **complete framework reference** — the bus model,
 > the x-rod engine, the parameter model, the transport-driver SPI and every driver's parameters, and the
 > wire message structure — described abstractly, free of any one application's use of it. The concrete
 > bus catalog a given deployment runs (which buses exist, their bus configuration) is documented
 > separately. The framework is today still partly coupled to its host application; a later refactoring
 > completes the separation — see [Coupling and the separation roadmap](#coupling-and-the-separation-roadmap).
+
+**The Messaging Bus documents.** This reference is the architecture; four companions complete the family:
+- [`Esquire.MessagingBus.Guides.md`](Esquire.MessagingBus.Guides.md) — plain-language how-to guides.
+- [`Esquire.MessagingBus.MessageStructure.md`](Esquire.MessagingBus.MessageStructure.md) — the wire message structure (every message type's fields).
+- [`Esquire.MessagingBus.Q&A.md`](Esquire.MessagingBus.Q&A.md) — Design Q&A: things that *sound like* bus defects and why each is deliberate.
+- [`Esquire.MessagingBus.ContinuingDev.md`](Esquire.MessagingBus.ContinuingDev.md) — forward-looking work and the separation roadmap.
 
 ---
 
@@ -56,7 +62,7 @@ end to end.
 |---|---|
 | Public API | `pro.mir0n.esquire.messaging` — `MessagingBus` (the facade), `IXRod`, `RodEvent`, `IRodEventRepo`, `RodEventRepoRegistry`, `BusHealthIndicator`, `TransportHealthIndicator`, `BusConstants` (the FIX-JSON wire constants) |
 | Bus config model + catalog | `messaging.catalog` — `MessagingBusCatalog`, `MessagingBus` (a catalog bus record), `BusSlot`, `BusNode`, `BusRef`, `BusTransport`, `XRodParams`, `Role` |
-| x-rods | `messaging.xrod` — `RodEventCodec`, `RodPublisher`, `RodTransportAdapter` — and `messaging.xrod.impl` — `AXRod`, `XRod`, `XRodRR`, `XRodInProcess`, `XRodInfo`, `XRodDisabled`, `ISessionSublayer` (the session-sublayer seam), `MsgAudit` (the msg-audit). The concrete sublayers live in `messaging.xrod.impl.sublayer` — `SessionSublayerFactory`, `AliveSession` / `AliveSessionRR` (the alive protocol), `SendRetrySublayer` (the producer send-retry). The in-process KEEP x-rod, `XRodInProcessKeep`, ships in the dataKeep library (resolved by `rod-class` like any other). |
+| x-rods | `messaging.xrod` — `RodEventCodec`, `RodPublisher`, `RodTransportAdapter` — and `messaging.xrod.impl` — `AXRod`, `XRod`, `XRodRR`, `XRodInProcess`, `XRodInfo`, `XRodDisabled`, `ISessionSublayer` (the session-sublayer seam), `MsgAudit` (the per-leg message log). The concrete sublayers live in `messaging.xrod.impl.sublayer` — `SessionSublayerFactory`, `AliveSession` / `AliveSessionRR` (the alive protocol), `SendRetrySublayer` (the producer send-retry). The in-process KEEP x-rod, `XRodInProcessKeep`, ships in the dataKeep library (resolved by `rod-class` like any other). |
 | Transport SPI | `messaging.transport` — `ITransportProvider`, `TransportProviders`, `TransportMessage`, `TransportPublisher`, `TransportConsumer`, `TransportSettings`, `PublishSettings`, `ConsumeSettings`, `BusIdentity`, `TransportHealth` |
 | Transport drivers | one module per vendor — `pro.mir0n.esquire.tp.<name>.TransportProvider` + an `AutoConfigurationImportFilter` |
 
@@ -237,7 +243,7 @@ required leg config — see the facade), `configure` (PREPARE), `init(name, devL
 - The **feed** is a `BoundedQueueRig<RodEvent>` of depth `feed-capacity`; its single worker (the feed / tx
   worker) is the ONLY sender. It stamps the stable `ApplMsgID` once, then OWNS the send: `encode` the event
   to the transport's concrete unit ONCE, then `dispatch` it — driving the **session-sublayer** hooks at each
-  step (the alive marks, the send-retry decision) and logging the `TX` / `TX-ERR` msg-audit at the OUTCOME
+  step (the alive marks, the send-retry decision) and logging the `TX` / `TX-ERR` message-log line at the OUTCOME
   (see [Session sublayers](#session-sublayers-and-producer-resilience) and [Logging](#logging)). The
   sublayers never send; they only react. A transport failure (a throwing `dispatch`) is the send-retry
   signal; a successful landing marks the leg sent.
@@ -331,7 +337,7 @@ set, each a future sublayer on the same seam (`ISessionSublayer`), so they slot 
 | Retry / backoff variants | deferred | shapes beyond `send-retry` |
 | Per-message timeout | deferred | async has no request/response deadline today |
 | Per-destination bulkhead | deferred | only `receiver-pool.size` bounds concurrency today |
-| Metrics | **ships** -- v1.2.11 | Micrometer counters (`EsqRodObserver`) -- send/receive/error/duration + retry backoff/held/dropped, drawn on the bus dashboards; separate from the health signal |
+| Metrics | **ships** | Micrometer counters (`EsqRodObserver`) -- send/receive/error/duration + retry backoff/held/dropped, drawn on the bus dashboards; separate from the health signal |
 
 The deferred set and why R4j does not apply are tracked in `Esquire.MessagingBus.ContinuingDev.md` item 5.
 
@@ -382,8 +388,9 @@ one line (the whole `RodEvent`, led by the directive) to the leg's `msg` logger.
 #### `XRodDisabled` — OFF
 
 A fully inert `IXRod`: every method a no-op, no config, no transport, `isEnabled()` false. Selected ONLY
-explicitly — `rod-class: XRodDisabled` — to run a service WITHOUT a bus it would otherwise use (e.g. an
-`audit-off` bus in the catalog that turns the bus audit off, so DB triggers carry it instead). There is no
+explicitly — `rod-class: XRodDisabled` — to run a service WITHOUT a bus it would otherwise use (a bus declared
+in the catalog but pointed at the disabled rod, so that channel is switched off while another mechanism carries
+the concern). There is no
 silent fallback: an undeclared / unbuilt bus key **throws** at `getXRod` (a wiring bug), so a disabled bus is
 always a deliberate, in-catalog declaration — never a quietly-absent one.
 
@@ -503,7 +510,7 @@ an R&R rod (which already selects by rod-id / slot-id) warns and ignores it.
   coupling delivery guarantees to an ActiveMQ-only broker feature that Kafka (offsets) and Redis Streams (a
   retained log) do not share. Turning broker redelivery ON (a transacted consumer + a DLQ destination) would
   add at-least-once durability for a failed apply, but at the cost of requiring **idempotent consumers**
-  (only the audit channel carries dedup indexes today) and vendor-specific config — a trade, not a strict
+  (a consumer that dedups on its own key) and vendor-specific config — a trade, not a strict
   improvement.
 
 #### `tp-kafka` (topic)
@@ -535,7 +542,7 @@ an R&R rod (which already selects by rod-id / slot-id) warns and ignores it.
 ### Logging
 
 Each message crossing a leg is logged once, by the framework, on that leg's `msg.<bus-id>.<slot-id>`
-logger — the **msg-audit**, wrapped in a small `MsgAudit` module built from the leg identity (a leg with no
+logger — the **message log**, wrapped in a small `MsgAudit` module built from the leg identity (a leg with no
 bus-id — a test / disabled / in-process leg — gets none, and every call is a no-op). The transmit leg logs
 `TX` at the send OUTCOME (the message actually went out), the receive leg logs `RX`:
 
@@ -579,7 +586,7 @@ session sublayers (the alive keep-alive and the send-retry hold signal, both **O
   `DOWN` on a send failure when `alive-fail-fast`). Because the keep-alive runs on a cadence, a leg is exercised
   even when the application is quiet — so the signal works the SAME on every transport (ActiveMQ / Kafka / Redis),
   not just where the broker offers a connection callback. The session (`HeartBeat` / `TestRequest`) messages are
-  handled internally and never reach the application worker (see Appendix A / `Message.Structure.md`).
+  handled internally and never reach the application worker (see Appendix A / `Esquire.MessagingBus.MessageStructure.md`).
 - **The send-retry sublayer (OPT-IN, `send-retry: true`)** — its `health()` reads `DOWN` while it is HOLDING a
   stuck send (the broker is down or unreachable), else `UP`. So a leg that runs send-retry WITHOUT the alive
   protocol still reads `DOWN` through a broker outage — a direct "sends are not landing" signal, complementary to
@@ -625,8 +632,8 @@ are routed to a SEPARATE `<destination>.admin` stream/topic (capped / short-rete
 ActiveMQ the consumer's `isSession()` filter drops them.
 
 A separate single-source indicator (`TransportHealthIndicator`) forwards a standalone `TransportHealth` source
-that is not a bus rod -- auKeep uses it to report its keep datasource (`keepDatasource`) beside its consumer's
-broker health.
+that is not a bus rod -- a consumer service uses it to report an extra downstream (e.g. its own datasource)
+beside its broker health.
 
 ## Coupling and the separation roadmap
 
@@ -634,7 +641,7 @@ The transport-neutral core is already clean — `MessagingBus` / `BusSlot` / `Bu
 `MessagingBusCatalog`, the `ITransportProvider` SPI and its drivers, the `IXRod` substrate, and
 `TransportMessage`. What still carries host-application shape: `RodEvent` is a change-record with
 application-specific fields (an operation, a kind, identity, tracing) rather than a fully generic
-envelope, and a producer such as `AuditBusBridge` reads an application source object + request context.
+envelope, and an application producer bridge reads an application source object + request context.
 The planned refactoring (later) extracts a transport-neutral relayed-message and substrate and leaves the
 application-shaped pieces as adapters on top — the application **on top of** the Messaging Bus, the bus
 reusable on its own.
@@ -689,7 +696,7 @@ The same envelope maps differently per wire: **ActiveMQ** — properties-only JM
 JMS property, no body); **Kafka** — a record keyed by `TransportMessage.key`, value = the header bag as
 JSON; **Redis** — a stream entry whose fields are the (stringified) header bag.
 
-> The complete per-message-type field semantics are in [`Message.Structure.md`](Message.Structure.md);
+> The complete per-message-type field semantics are in [`Esquire.MessagingBus.MessageStructure.md`](Esquire.MessagingBus.MessageStructure.md);
 > this appendix is the envelope as the bus relays it.
 
 ## Appendix B — API Definition
@@ -801,7 +808,7 @@ Resolution is class-name-driven on two axes: `rod-class` selects the x-rod (reso
 framework change. The send/receive engine lives in the abstract `AXRod` (extended by `XRod` and the in-process
 `XRodInProcess`); an R&R leg's two stops are typed `BusNode`s. The producer leg's session sublayers
 (`ISessionSublayer` — `AliveSession` / `AliveSessionRR` and `SendRetrySublayer`, built by
-`SessionSublayerFactory`) sit BESIDE the send loop, and the `MsgAudit` module carries the per-leg msg-audit.
+`SessionSublayerFactory`) sit BESIDE the send loop, and the `MsgAudit` module carries the per-leg message log.
 
 ## Appendix D — Configuring
 
@@ -889,37 +896,7 @@ names that bus key in its `init(env, {…})` (i.e. it declares a `role` for it a
 
 ## Appendix F — Design Q&A
 
-> Things that *sound like* issues on a first read of the bus, and why each is a deliberate choice rather than
-> a defect.
-
-**Q. `rod-class` / `director` are class-name strings resolved by `Class.forName` — no compile-time safety; rename a class and the YAML silently breaks.**
-A. That openness is the point. Naming an x-rod or director by class name is an OPEN extension point: any
-implementation — built-in or third-party — plugs in by naming it in config, with zero framework change and
-nothing to register (built-ins get short bare names; only out-of-tree classes need the dotted name). An in-code
-`code → class` registry would force every new implementation to also extend the map — coupling the framework to
-the full set and making third-party x-rods second-class. A rename is just the cost of naming a class in config,
-and the reaction is the right one: **fail-fast** (`no x-rod class X on the classpath`), not a silent no-op.
-
-**Q. The bus builds once at `ApplicationEnvironmentPreparedEvent` — live config refresh (Spring Cloud Config / `@RefreshScope`) won't reach the rods.**
-A. By design — the contract is **restart-over-refresh**. The transport layer is vendor code (ActiveMQ / Kafka /
-Redis clients); even re-reading config live cannot guarantee a change reaches already-open connections, so a
-hot-refresh would be a half-truth. Making the bus refreshable field-by-field is large cost for no real gain. A
-config change is applied by restarting; on a redundant deployment a rolling restart is zero-downtime, and a
-clean start from a fresh snapshot always beats a partially-refreshed live state.
-
-**Q. `RodEvent` is a wide, stringly-typed envelope — ~12 fields (most null per message) plus an untyped `Map` body. No per-message-type safety.**
-A. It is a GENERIC envelope on purpose — the normal shape of a generic wire protocol (the FIX precedent: ~1000
-tags, any one message uses a handful, and that is accepted). A typed-per-kind body / sealed hierarchy would
-CLOSE the open structure — a new (or third-party) message type would then need a framework-side subtype instead
-of just riding the envelope. A generic envelope is decoded tolerantly by design; the codec's NFE guards +
-schema-version gate are the correct, proportionate robustness, not a symptom.
-
-**Q. The audit mode (in-process vs bus) is selected across several config knobs (`AUDIT_BUS_ID` + the leg's `role` / `rod-class` / `director`) that must agree — an inconsistent combo could misbehave.**
-A. It is explicit per-service config, the same kind as the service database (each service's YAML sets
-url + driver + dialect, which also must agree) — not a defect wanting a single derived selector. The knobs are
-layered, not independent: `AUDIT_BUS_ID` picks a leg, the leg's `rod-class` + params define the behavior, and an
-INCOMPLETE combo **fails fast** (`XRodInProcessKeep` requires its datasource + director; `XRod` a complete
-transport) rather than booting and misbehaving.
+The bus's Design Q&A now lives in its own doc: [`Esquire.MessagingBus.Q&A.md`](Esquire.MessagingBus.Q&A.md).
 
 ---
 

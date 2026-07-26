@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 360" font-family="Calibri, Segoe UI, sans-serif">
+  <defs>
+    <marker id="tick" markerUnits="userSpaceOnUse" markerWidth="10" markerHeight="8" refX="5" refY="7" orient="auto">
+      <path d="M0,0 L5,7 L10,0 Z" fill="#7a2b2b"/>
+    </marker>
+    <marker id="tickg" markerUnits="userSpaceOnUse" markerWidth="10" markerHeight="8" refX="5" refY="7" orient="auto">
+      <path d="M0,0 L5,7 L10,0 Z" fill="#375623"/>
+    </marker>
+  </defs>
+  <style>
+    .hseg{fill:#5b9bd5;stroke:#41719c;stroke-width:1.5}.read{fill:#f4b183;stroke:#c55a11;stroke-width:1.5}.enc{fill:#c6e0b4;stroke:#6ca43d;stroke-width:1.5}
+    .wt{fill:#fff;font-weight:bold;font-size:12.5px}.dt{fill:#2b2b2b;font-weight:bold;font-size:12.5px}
+    .dot{fill:#2b2b2b;font-weight:bold;font-size:18px}
+    .lbl{fill:#1f3864;font-size:13px;font-weight:bold}
+    .warn{fill:#7a2b2b;font-size:12px;font-weight:bold}.safe{fill:#375623;font-size:12px;font-weight:bold}
+    .title{fill:#1f3864;font-size:18px;font-weight:bold}
+  </style>
+
+  <text class="title" x="20" y="28">A JWT on the wire: JWS (signed) vs JWE (encrypted)</text>
+
+  <!-- JWS row -->
+  <text class="lbl" x="20" y="80">JWS compact -- what stock Keycloak issues today (3 parts)</text>
+  <rect class="hseg" x="40"  y="92" width="150" height="48" rx="5"/><text class="wt" x="115" y="121" text-anchor="middle">header</text>
+  <text class="dot" x="196" y="122" text-anchor="middle">.</text>
+  <rect class="read" x="210" y="92" width="240" height="48" rx="5"/><text class="dt" x="330" y="121" text-anchor="middle">payload</text>
+  <text class="dot" x="456" y="122" text-anchor="middle">.</text>
+  <rect class="hseg" x="470" y="92" width="150" height="48" rx="5"/><text class="wt" x="545" y="121" text-anchor="middle">signature</text>
+  <line x1="330" y1="140" x2="330" y2="164" stroke="#7a2b2b" stroke-width="1.4" marker-end="url(#tick)"/>
+  <text class="warn" x="330" y="182" text-anchor="middle">JWT claims -- READABLE (anyone can base64-decode)</text>
+
+  <!-- JWE row -->
+  <text class="lbl" x="20" y="234">JWE compact -- the "ideal", NOT issued by stock KC (5 parts)</text>
+  <rect class="hseg" x="40"  y="246" width="104" height="48" rx="5"/><text class="wt" x="92" y="275" text-anchor="middle">header</text>
+  <text class="dot" x="150" y="276" text-anchor="middle">.</text>
+  <rect class="hseg" x="158" y="246" width="118" height="48" rx="5"/><text class="wt" x="217" y="275" text-anchor="middle">enc. key</text>
+  <text class="dot" x="282" y="276" text-anchor="middle">.</text>
+  <rect class="hseg" x="290" y="246" width="70" height="48" rx="5"/><text class="wt" x="325" y="275" text-anchor="middle">iv</text>
+  <text class="dot" x="366" y="276" text-anchor="middle">.</text>
+  <rect class="enc"  x="374" y="246" width="210" height="48" rx="5"/><text class="dt" x="479" y="275" text-anchor="middle">ciphertext</text>
+  <text class="dot" x="590" y="276" text-anchor="middle">.</text>
+  <rect class="hseg" x="598" y="246" width="90" height="48" rx="5"/><text class="wt" x="643" y="275" text-anchor="middle">tag</text>
+  <line x1="479" y1="294" x2="479" y2="318" stroke="#375623" stroke-width="1.4" marker-end="url(#tickg)"/>
+  <text class="safe" x="479" y="336" text-anchor="middle">JWT claims -- ENCRYPTED (needs the recipient's private key)</text>
+</svg>

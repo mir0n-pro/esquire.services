@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 420" width="760" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="13">
+  <defs>
+    <marker id="ar" markerWidth="8" markerHeight="8" refX="6.5" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L7,3 L0,6 Z" fill="#4D6A8D"/>
+    </marker>
+  </defs>
+
+  <text x="380" y="26" text-anchor="middle" font-size="15" font-weight="bold" fill="#2b3b52">One move &#8594; one EVENT_UPDATE_PATH per node, parents first</text>
+
+  <!-- lifelines -->
+  <rect x="70" y="48" width="150" height="30" rx="5" fill="#4D6A8D"/>
+  <text x="145" y="68" text-anchor="middle" fill="#fff" font-weight="bold">enyMan (move worker)</text>
+  <rect x="540" y="48" width="150" height="30" rx="5" fill="#4D6A8D"/>
+  <text x="615" y="68" text-anchor="middle" fill="#fff" font-weight="bold">bizTree (cache apply)</text>
+
+  <line x1="145" y1="78" x2="145" y2="392" stroke="#9aa7b8" stroke-dasharray="4 3"/>
+  <line x1="615" y1="78" x2="615" y2="392" stroke="#9aa7b8" stroke-dasharray="4 3"/>
+
+  <!-- order bracket -->
+  <text x="40" y="120" text-anchor="middle" fill="#7a5">&#8595;</text>
+  <text x="40" y="235" text-anchor="middle" font-size="11" fill="#6b7a8d" transform="rotate(-90 40 235)">ORDER BY ep_et_pk, ep_path</text>
+
+  <!-- ordered messages -->
+  <g>
+    <line x1="145" y1="118" x2="611" y2="118" stroke="#4D6A8D" marker-end="url(#ar)"/>
+    <text x="378" y="112" text-anchor="middle" fill="#2b3b52">1.  org  (kind 20)</text>
+    <text x="378" y="134" text-anchor="middle" font-size="11" fill="#7a8698">the moved parent org</text>
+  </g>
+  <g>
+    <line x1="145" y1="178" x2="611" y2="178" stroke="#4D6A8D" marker-end="url(#ar)"/>
+    <text x="378" y="172" text-anchor="middle" fill="#2b3b52">2.  admin  (kind 30/32)</text>
+    <text x="378" y="194" text-anchor="middle" font-size="11" fill="#7a8698">shares the org's ep_path &#8594; tie broken by kind</text>
+  </g>
+  <g>
+    <line x1="145" y1="238" x2="611" y2="238" stroke="#4D6A8D" marker-end="url(#ar)"/>
+    <text x="378" y="232" text-anchor="middle" fill="#2b3b52">3.  user  (kind 34/36)</text>
+  </g>
+  <g>
+    <line x1="145" y1="298" x2="611" y2="298" stroke="#4D6A8D" marker-end="url(#ar)"/>
+    <text x="378" y="292" text-anchor="middle" fill="#2b3b52">4.  account  (kind 50/52/54)</text>
+    <text x="378" y="314" text-anchor="middle" font-size="11" fill="#7a8698">shares the user's ep_path &#8594; tie broken by kind</text>
+  </g>
+
+  <!-- why note -->
+  <rect x="470" y="340" width="290" height="66" rx="6" fill="#eef2f7" stroke="#c7d2e0"/>
+  <text x="482" y="360" fill="#2b3b52" font-weight="bold" font-size="12">bizTree rebuilds each node's tree_path</text>
+  <text x="482" y="378" fill="#3a4a5f" font-size="12">from its parent's ALREADY-updated path,</text>
+  <text x="482" y="396" fill="#3a4a5f" font-size="12">so the parent must arrive first.</text>
+
+  <text x="10" y="360" fill="#3a4a5f" font-size="12">Kinds are numbered in tree order,</text>
+  <text x="10" y="378" fill="#3a4a5f" font-size="12">and a child's kind &#8805; its parent's &#8212;</text>
+  <text x="10" y="396" fill="#3a4a5f" font-size="12">so kind-first orders parents before children.</text>
+</svg>

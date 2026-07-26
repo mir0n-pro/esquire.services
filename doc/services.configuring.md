@@ -53,9 +53,9 @@ env-overridable -- see [Resilience budget](#resilience-budget-timeouts-pool--thr
 
 The request-path timeout cap, the pool/thread sizing, and the fail-fast DB properties. **Every default
 here is the no-redundancy setting** -- the value the stack ran before HA work. The tuned budget is set
-per service in the local-k8s chart overlays (`k8s/values/*.yaml`); the OKE deploy leaves these unset and
-so inherits the pre-HA defaults below. Applies to the data services (enyMan, pacMan, keySmith, bizTree;
-the keep cap also to auKeep).
+per service in BOTH the local-k8s (`k8s/values/*.yaml`) AND OKE (`k8s-oci/values/*.yaml`) chart overlays;
+a bare install with no overlay inherits the pre-HA defaults below. Applies to the data services (enyMan,
+pacMan, keySmith, bizTree; the keep cap also to auKeep).
 
 | Env var | Default | Description |
 |---|---|---|
@@ -68,6 +68,7 @@ the keep cap also to auKeep).
 | `ESQ_DB_CONNECT_TIMEOUT_MS` | `30000` | Hikari `connection-timeout` (ms). |
 | `ESQ_DB_SOCKET_TIMEOUT_S` | `0` | pgjdbc `socketTimeout` (s); `0` = off (pre-HA). Makes a vanished DB fail fast on a half-open socket instead of hanging a worker. |
 | `ESQ_DB_TCP_KEEPALIVE` | `false` | pgjdbc `tcpKeepAlive`; `false` = off (pre-HA). |
+| `ESQ_VIRTUAL_THREADS` | `false` | Run the request path on virtual threads (`spring.threads.virtual.enabled`). Independent of the pool sizes above; left off -- the DB-pool-capped work sees no benefit (see `Esquire.HighAvailability.md` 5.5). |
 
 ### Messaging bus (the x-rod) + topology import
 
@@ -392,7 +393,7 @@ Both variants are dormant when their `clients` allowlist is empty.
 
 | Env var | Default | Description |
 |---|---|---|
-| `ESQ_JWE_PRIVATE_KEY_PATH` | *(empty)* | In-container path to the JWE keypair. When set, the JWE-aware decoder is wired and `/jwe-jwks` serves the public key; blank → plain JWS decoder (the v1.2.3 baseline). |
+| `ESQ_JWE_PRIVATE_KEY_PATH` | *(empty)* | In-container path to the JWE keypair. When set, the JWE-aware decoder is wired and `/jwe-jwks` serves the public key; blank → plain JWS decoder (the default). |
 
 ### Resilience (circuit breaker, per-route timeout & retry, connection pool)
 
@@ -401,7 +402,7 @@ per-route timeout; an open/tripped breaker or a timed-out call surfaces as the `
 503/504 ProblemDetail. The per-route deadline is the breaker's TimeLimiter (NOT the Netty response-timeout,
 which is a generous backstop above it). The slow-write breakers (`enyman-move-cb`, `pacman-acct-cb`,
 `enyman-new-cb`) use the longer `slow-timeout`. Defaults below are the no-redundancy settings; the tuned
-budget is in the local-k8s overlay.
+budget is in the local-k8s AND OKE overlays.
 
 | Env var | Default | Description |
 |---|---|---|
@@ -438,7 +439,7 @@ Entity manager: org/user/account CREATE, save, move, the in-process move queue, 
 bus, logging, instance identity, [audit logging](#audit-logging-producers-enyman-pacman-keysmith).
 
 enyMan joins three buses: **entity-bus** (CLIENT, role both legs -- it broadcasts UE AND listens for its
-peers' creates on one shared connection, v1.2.10 Goal-4), **kc-bus** (R&R CLIENT to kcMaster), and
+peers' creates on one shared connection), **kc-bus** (R&R CLIENT to kcMaster), and
 **audit-bus** (UA producer). The bus-id / slot-id and x-rod knobs come from the shared topology; the env
 overrides it actually uses:
 
@@ -448,14 +449,14 @@ overrides it actually uses:
 | `ENTITY_SLOT_ID` | `entity` | Entity slot-id. |
 | `ENTITY_RX_POOL_SIZE` | `2` | Entity-bus receive-leg listener pool size (Goal-4 peer-create receive). |
 | `ENTITY_RX_CONCURRENCY` | `1` | Entity-bus receive-leg listener concurrency. |
-| `ENTITY_BROADCAST_SEND_RETRY` | `false` | Producer [send-retry](#messaging-bus-the-x-rod--topology-import) on the entity broadcast leg; ON in docker + local-k8s, OFF on OKE. Ladder `ENTITY_BROADCAST_SEND_RETRY_BACKOFF_SEC` (`1,2,5,5`) + cap `ENTITY_BROADCAST_SEND_RETRY_MAX_ATTEMPTS` (`0` = block). |
+| `ENTITY_BROADCAST_SEND_RETRY` | `false` | Producer [send-retry](#messaging-bus-the-x-rod--topology-import) on the entity broadcast leg; ON in docker, local-k8s, AND OKE. Ladder `ENTITY_BROADCAST_SEND_RETRY_BACKOFF_SEC` (`1,2,5,5`) + cap `ENTITY_BROADCAST_SEND_RETRY_MAX_ATTEMPTS` (`0` = block). |
 | `KC_BUS_ID` | `esquire.kc` | KC request/response bus-id (R&R CLIENT). |
 | `KC_SLOT_ID` | `kc` | KC slot-id. |
-| `KC_SEND_RETRY` | `false` | Producer send-retry on the KC request leg (+ `KC_SEND_RETRY_BACKOFF_SEC` `1,2,5,5` / `KC_SEND_RETRY_MAX_ATTEMPTS` `0`); ON in docker + local-k8s. |
+| `KC_SEND_RETRY` | `false` | Producer send-retry on the KC request leg (+ `KC_SEND_RETRY_BACKOFF_SEC` `1,2,5,5` / `KC_SEND_RETRY_MAX_ATTEMPTS` `0`); ON in docker, local-k8s, AND OKE. |
 | `AUDIT_BUS_ID` | *(see [audit logging](#audit-logging-producers-enyman-pacman-keysmith))* | Audit sink bus-id (UA producer). |
 | `ENYMAN_MOVE_QUEUE_CAPACITY` | `16384` | Move-queue depth (bounded; on full, `submitMove`/`submitReconcile` drop + log). |
 | `ENYMAN_MOVE_TX_TIMEOUT_S` | `0` | Move-transaction cap (seconds); `0` = uncapped (pre-HA). The move opts OUT of the request-path cap ([`ESQ_TX_TIMEOUT_S`](#resilience-budget-timeouts-pool--thread-sizing)) -- set a positive value only to put a safety ceiling on a move. |
-| `ENYMAN_VALIDATE_CREATE_DURING_MOVE` | `true` | v1.2.6 Goal 3: `true` runs CREATE-during-move path reconciliation (race-8b closed); `false` reproduces the race (negative test). |
+| `ENYMAN_VALIDATE_CREATE_DURING_MOVE` | `true` | `true` runs CREATE-during-move path reconciliation (race-8b closed); `false` reproduces the race (negative test). |
 
 ---
 
@@ -472,7 +473,7 @@ pacMan joins **entity-bus** (SERVER -- broadcasts UE) and **audit-bus** (UA prod
 |---|---|---|
 | `ENTITY_BUS_ID` | `esquire.entity` | Entity-broadcast bus-id (SERVER producer). |
 | `ENTITY_SLOT_ID` | `entity` | Entity slot-id. |
-| `ENTITY_BROADCAST_SEND_RETRY` | `false` | Producer [send-retry](#messaging-bus-the-x-rod--topology-import) on the entity broadcast leg; ON in docker + local-k8s, OFF on OKE. Ladder `ENTITY_BROADCAST_SEND_RETRY_BACKOFF_SEC` (`1,2,5,5`) + cap `ENTITY_BROADCAST_SEND_RETRY_MAX_ATTEMPTS` (`0` = block). |
+| `ENTITY_BROADCAST_SEND_RETRY` | `false` | Producer [send-retry](#messaging-bus-the-x-rod--topology-import) on the entity broadcast leg; ON in docker, local-k8s, AND OKE. Ladder `ENTITY_BROADCAST_SEND_RETRY_BACKOFF_SEC` (`1,2,5,5`) + cap `ENTITY_BROADCAST_SEND_RETRY_MAX_ATTEMPTS` (`0` = block). |
 | `AUDIT_BUS_ID` | *(see [audit logging](#audit-logging-producers-enyman-pacman-keysmith))* | Audit sink bus-id (UA producer). |
 
 ---
@@ -491,7 +492,7 @@ producer).
 |---|---|---|
 | `KC_BUS_ID` | `esquire.kc` | KC request/response bus-id (R&R CLIENT). |
 | `KC_SLOT_ID` | `kc` | KC slot-id. |
-| `KC_SEND_RETRY` | `false` | Producer [send-retry](#messaging-bus-the-x-rod--topology-import) on the KC request leg; ON in docker + local-k8s, OFF on OKE (pre-HA). Ladder `KC_SEND_RETRY_BACKOFF_SEC` (`1,2,5,5`) + cap `KC_SEND_RETRY_MAX_ATTEMPTS` (`0` = block until recovery). |
+| `KC_SEND_RETRY` | `false` | Producer [send-retry](#messaging-bus-the-x-rod--topology-import) on the KC request leg; ON in docker, local-k8s, AND OKE. Ladder `KC_SEND_RETRY_BACKOFF_SEC` (`1,2,5,5`) + cap `KC_SEND_RETRY_MAX_ATTEMPTS` (`0` = block until recovery). |
 | `AUDIT_BUS_ID` | *(see [audit logging](#audit-logging-producers-enyman-pacman-keysmith))* | Audit sink bus-id (UA producer). |
 | `KEYSMITH_TEST_CONNECT_HOLD_MS` | `0` | **Test-only** race-8c hook: ms to sleep between the committed path read and the activation URQ publish. `0` = disabled; never set in production. |
 
@@ -512,7 +513,7 @@ talks to KC over the admin REST API.
 | `KC_ADMIN_CLIENT_SECRET` | *(empty)* | Secret for a confidential admin client. |
 | `KC_BUS_ID` | `esquire.kc` | KC request/response bus-id (R&R SERVER; serves enyMan + keySmith). |
 | `KC_SLOT_ID` | `kc` | KC slot-id (SERVER consume filters `SlotID = '<slot-id>'`). |
-| `KC_SEND_RETRY` | `false` | Producer [send-retry](#messaging-bus-the-x-rod--topology-import) on the KC response leg; ON in docker + local-k8s, OFF on OKE. Ladder `KC_SEND_RETRY_BACKOFF_SEC` (`1,2,5,5`) + cap `KC_SEND_RETRY_MAX_ATTEMPTS` (`0` = block). |
+| `KC_SEND_RETRY` | `false` | Producer [send-retry](#messaging-bus-the-x-rod--topology-import) on the KC response leg; ON in docker, local-k8s, AND OKE. Ladder `KC_SEND_RETRY_BACKOFF_SEC` (`1,2,5,5`) + cap `KC_SEND_RETRY_MAX_ATTEMPTS` (`0` = block). |
 | `ENTITY_BUS_ID` | `esquire.entity` | Entity-broadcast bus-id (CLIENT consumer, for KC path sync). |
 | `ENTITY_SLOT_ID` | `entity` | Entity slot-id. |
 | `KCMASTER_PATH_BUFFER_TTL_MS` | `60000` code / `10000` deployed | Race-8c path-buffer TTL. Buffered topic-side paths older than this are not applied. **Test:** `-1` disables recovery (reproduces the race). |
@@ -634,7 +635,7 @@ the baked `config.json`.
 
 ## Logging configuration
 
-Three log tiers (see `doc/Logging.md` for the full strategy):
+Three log tiers (see `doc/Esquire.ObservabilityStack.Logging.md` for the full strategy):
 
 - **console** (`log`) — operational, level `LOG_LEVEL_MIR0N`.
 - **develop** (`devLog` → logger `develop.<class>`) — verbose diagnostics, written to a file.
@@ -661,6 +662,29 @@ File paths:
 
 ---
 
+## Observability (metrics & tracing)
+
+Off by default -- a bare deploy emits no metrics and no traces (full picture: `doc/Esquire.ObservabilityStack.md`).
+One MASTER switch turns the whole layer on; the two pillars inherit it and can be tuned. The `o11y-on` scripts set
+these for you. Shared by all Spring services.
+
+| Env var | Default | Description |
+|---|---|---|
+| `ESQ_OBSERVABILITY_ENABLED` | `false` | The **master switch** -- gates BOTH tracing and metrics. Off = the whole layer is dark and every meter / tracer call is a no-op (zero cost). |
+| `ESQ_TRACING_ENABLED` | inherits `ESQ_OBSERVABILITY_ENABLED` | Distributed tracing (OTel spans) on its own; set it to override the master for tracing only. |
+| `ESQ_METRICS_ENABLED` | inherits `ESQ_OBSERVABILITY_ENABLED` | Micrometer metrics on their own; set it to override the master for metrics only. |
+| `ESQ_METRICS_HISTOGRAMS` | `false` | Histogram buckets -> the percentile panels + the exemplar diamonds (the metric->trace link). The **expensive** tier (~2.3x scrape series); stays OFF even when observability is ON, unless set. `o11y-on` turns it on. |
+| `ESQ_METRICS_BANDWIDTH` | `true` | HTTP bytes-in / bytes-out meters. |
+| `ESQ_METRICS_BUSINESS` | `true` | Business meters (`esq.biz.*` -- entity ops, money, identity, cache / keep / permissions). |
+| `ESQ_OTLP_ENDPOINT` | `http://localhost:4318/v1/traces` | OTLP/HTTP endpoint the tracer exports spans to (the OTel Collector). |
+| `ESQ_MSG_BUS_ALIVE_TRACE` | `false` | Trace the R&R bus keep-alive round-trip (TestRequest -> HeartBeat) as its own four-span trace; an opt-in on top of tracing. |
+
+Cost model in one line: metrics OFF = free; metrics ON without histograms = cheap counters / timers; histograms ON
+= the percentile / exemplar tier (see `doc/Esquire.ObservabilityStack.md`, "Metrics cost -- read before adding a
+meter").
+
+---
+
 ## Gateway routes
 
 All routes apply the same filters: `DedupeResponseHeader=... RETAIN_FIRST`, `RewritePath` (strip
@@ -676,7 +700,7 @@ commands to pacMan; the same path without it falls through to enyMan.
 | `pacman-save-route` | `/esq-cmd-save` | POST | `EntityKind=isAcct` | pacMan |
 | `enyman-save-route` | `/esq-cmd-save` | POST | — | enyMan |
 | `keysmith-save-route` | `/esq-key-save` | POST | — | keySmith |
-| `enyman-new-route` | `/esq-cmd-new` | POST | — | enyMan *(account CREATE moved here in v1.2.6)* |
+| `enyman-new-route` | `/esq-cmd-new` | POST | — | enyMan *(account CREATE routes to enyMan)* |
 | `pacman-del-route` | `/esq-cmd-del` | POST | `EntityKind=isAcct` | pacMan |
 | `enyman-del-route` | `/esq-cmd-del` | POST | — | enyMan |
 | `pacman-acct-route` | `/esq-acct` | POST | `EntityKind=isAcct` | pacMan |

@@ -1,4 +1,9 @@
+# <img src="../favicon.ico" alt="Esquire logo" valign="middle" width="64" height="64"> Esquire Application Frameworks(tm) 2.0
+
 # Keycloak / Gateway -- Authentication Patterns
+
+> Part of the **[Esquire.Auth suite](Esquire.Auth.md)** — this member covers the token-handling patterns at the
+> edge; the tree-shaped security model and identity claims are in [`Esquire.Auth.md`](Esquire.Auth.md).
 
 The platform ships four working authentication patterns. Each pattern wins on a different combination of properties; clients pick by kind. JWE is the only access-token format in the standards space that satisfies both *claim-hidden from client* and *self-contained on the hot path* simultaneously, but stock Keycloak does not emit JWE on its standard `/token` endpoint -- so the platform compromises across patterns instead. The gateway-side JWE decoder lives in tree as a latent lab, inert under the current IAS.
 
@@ -12,18 +17,7 @@ These five names appear together throughout this doc and are **not** synonyms:
 - **JWK** (RFC 7517) -- *one public key in JSON form*. Carries `kty` (key type, e.g. RSA), `kid` (key id), `use`, plus the key material itself (modulus + exponent for RSA). The signer's `kid` lands in the JWS header; the verifier uses it to pick the right JWK.
 - **JWKS** (JSON Web Key Set, also RFC 7517) -- *a JSON document containing a list of JWKs*, published at a well-known URL (KC: `/realms/esquire/protocol/openid-connect/certs`). The gateway fetches this once on startup, caches it ~hours TTL, and uses it to local-validate every JWS signature without calling KC per request. This is the mechanism that keeps KC off the hot path for Patterns 1 and 2.
 
-```
-   JWS compact (what KC issues today):    eyJhbGc...  .  eyJzdWI...  .  3uS9pE...
-                                          └─ header ─┘└─ payload ──┘└─ signature ┘
-                                                          ▲
-                                                          └─ JWT claims (readable!)
-
-   JWE compact (the "ideal" -- not issued by stock KC):
-                                          eyJhbGc...  .  Qq9Hd...  .  fRk...  .  Wg7y...  .  Hp8...
-                                          └─ header ─┘└─ enc.key ─┘└─ iv ──┘└─ ciphertext ─┘└─ tag ┘
-                                                                              ▲
-                                                                              └─ JWT claims (encrypted)
-```
+![A JWT on the wire as JWS versus JWE: the JWS compact form KC issues today is header.payload.signature, and the payload carries the JWT claims in the clear (anyone can base64-decode them); the JWE compact form (the ideal, not issued by stock KC) is header.enc-key.iv.ciphertext.tag, where the claims sit in the ciphertext and need the recipient's private key.](media/token-formats.svg)
 
 A JWT can be carried inside either wrapper: a JWS (signed, 3 parts) or a JWE (encrypted, 5 parts). When the industry says "JWT" casually, it almost always means *a signed JWT in JWS compact form* -- which is exactly what stock Keycloak issues. When this doc says "Bearer JWT" in the block / sequence diagrams, that's what's on the wire. In this doc, **JWS** is used only where the wrapper format itself matters -- specifically the JWS-vs-JWE comparison that motivates the "ideal" below.
 
@@ -31,12 +25,7 @@ A JWT can be carried inside either wrapper: a JWS (signed, 3 parts) or a JWE (en
 
 The "perfect" handshake protocol from the platform's perspective has two simultaneous properties:
 
-```
-ideal access token:
-   - ENCRYPTED bytes      -- client cannot read claims
-   - SELF-CONTAINED       -- gateway + services validate locally,
-                             no roundtrip to IAS per request
-```
+![The ideal access token has two properties at once -- ENCRYPTED bytes so the client cannot read the claims, and SELF-CONTAINED so gateway and services validate locally with no IAS roundtrip per request; only JWE carries both in a single token, and stock Keycloak 26 does not emit JWE.](media/token-ideal.svg)
 
 Only one single-token answer meets both properties simultaneously: JWE. Every other option in the standards space trades one property for the other -- as the catalog of generic options below shows.
 
@@ -44,15 +33,7 @@ Only one single-token answer meets both properties simultaneously: JWE. Every ot
 
 Stock Keycloak 26 does not emit JWE on its standard `/token` endpoint for any standard grant; `DefaultTokenManager` has no encryption code path there. **Plain JWE is therefore inaccessible** until KC ships it or the platform swaps the IAS. The working answer is a detour — three patterns that incrementally hide more from the client, together approximating what a single JWE token would have given us:
 
-```
-   Plain JWT  ───►  Vanilla Token Relay  ───►  Phantom Token Relay
-       │                    │                          │
-       │                    │                          └─ client holds a JWT whose claims are empty
-       │                    └─ client holds NO token, only credentials
-       └─ client holds a JWT with readable claims (the OAuth baseline)
-
-                       ⤴ detour around the inaccessible Plain JWE goal
-```
+![The detour around the inaccessible Plain JWE goal: three steps -- Plain JWT (client holds a JWT with readable claims, the OAuth baseline), then Vanilla Token Relay (client holds no token, only credentials), then Phantom Token Relay (client holds a JWT whose claims are empty). Each step hides one more thing from the client; together they approximate what a single JWE token would have given.](media/token-detour.svg)
 
 Each step hides one more thing from the client. The three together form the working answer KC's missing JWE forced us into. The pattern catalog below details each option; the chosen ones are the ones along this detour.
 
@@ -119,32 +100,9 @@ The generic options above assume an IAS that cleanly implements the relevant sta
 - **No JWE on `/token`.** KC's `DefaultTokenManager` has no encryption branch on `/token` for any standard grant; the relevant client attribute (`access.token.encrypted.response.alg=RSA-OAEP`) is silently ignored. JWE on the wire is therefore unavailable until KC ships it or the platform swaps to an IAS that does (Auth0, Okta, ForgeRock, Ping all do). The "ideal" single-token option is out.
 - **RFC 8693 token-exchange doesn't interoperate cleanly with KC's admin fine-grained permissions.** In plain terms: on KC 26.4.7 the gateway can't ask the exchange to mint a token *for a specific downstream (audience) client*, so that client's claim mappers never run on the exchanged token -- which is exactly the cleanest Phantom Token form. The mechanics (and why the raw "v1 / v2" error is cryptic):
 
-```text
-"v1 / v2" are Keycloak FEATURE versions -- KC ships each of these features in two
-implementation generations (v1 and v2), selected by feature flags and independent of
-the Keycloak product version (26.4.7) -- and two different features are in play at once:
+![The v1/v2 clash: token-exchange (RFC 8693) ships as v1 on KC 26.4.7 while the realm's admin fine-grained permissions run v2; a v1 exchange with audience=client hits the v2 permissions model on a code path that was never implemented, throwing UnsupportedOperationException "Not supported in V2", so the exchanged token is not minted for the audience client and its claim mappers never run. A second, independent blocker: the source client has lightweight.access.token=true, so the stripped payload is carried through the exchange unchanged. Resolved by token-exchange v2 (not in 26.4.7) or a per-target lightweight switch.](media/token-exchange-v1v2.svg)
 
-  FEATURE                            VERSIONS                    in this deployment
-  token-exchange (RFC 8693)          legacy v1 | reworked v2     KC 26.4.7 ships --> v1
-  admin fine-grained permissions     legacy v1 | current   v2    realm runs     --> v2
-    (the model deciding who may exchange a token for which audience)
-
-Failure path:
-  v1 token-exchange  --(audience=<client>)-->  v2 permissions model
-      -> code path never implemented in the v2 model
-      -> UnsupportedOperationException: Not supported in V2
-         ("V2" in the message is the PERMISSIONS model, not token-exchange)
-  => can't mint the exchanged token FOR the audience client, so its mappers never run.
-
-Second blocker (independent of the above):
-  source client has  client.use.lightweight.access.token.enabled=true
-      -> the stripped (claim-less) payload is carried through the exchange unchanged
-      -> even the mappers that do run never refill the claims
-
-Resolved by: token-exchange v2 (not in 26.4.7), or a per-target lightweight switch.
-```
-
-The platform deploys **BFF + JWT + Vanilla Token Relay + Phantom Token Relay**, and applies a workaround for the Phantom Token Relay gap.
+The platform builds all four -- **BFF + JWT + Vanilla Token Relay + Phantom Token Relay** -- and applies a workaround for the Phantom Token Relay gap. **BFF and plain JWT are the RECOMMENDED production paths.** Vanilla and Phantom Token Relay are the lab / exploration patterns of the JWE detour, and they are **NOT armed on the public OKE API** -- their gateway allowlists (`vanilla.clients` / `phantom.clients` in `k8s-oci/values/gateway.yaml`) are empty there, so the gateway never brokers or caches a relay token. Re-arm only for a deliberate load-test window, never as standing config.
 
 ### Phantom Token Relay -- deployed workaround
 
@@ -315,7 +273,7 @@ The four patterns coexist in one realm. Each client opts in via its KC config: V
 
 Reopen this design only when one of:
 
-1. **KC ships proper access-token JWE on `/token` for standard grants.** No roadmap signals as of May 2026.
+1. **KC ships proper access-token JWE on `/token` for standard grants.** No roadmap signals for this.
 2. **An alternative IAS enters the deployment story.** Auth0, Okta, ForgeRock, and Ping all emit JWE on the standard token endpoint natively; the gateway-side decoder we keep in tree (`JweAwareJwtDecoder` + `/jwe-jwks` exposure) is the standard consumer-side pattern and would work without code changes -- just swap the issuer URL and adjust realm / issuer claim configuration.
 3. **A new threat model demands claim-hidden + local-validation together in a single token format** -- which none of BFF, Vanilla Token Relay, or Phantom Token Relay can satisfy without partitioning across tiers. (Only JWE achieves both properties in one token.)
 

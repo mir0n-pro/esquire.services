@@ -7,34 +7,68 @@
 
 ***Tree-shaped authorization. Write business logic only. The server defines the UI.***
 
-Esquire is a **business entity framework** — the structural backbone for any system that
-needs to organize people, organizations, and resources in a tree, enforce who can see and
-do what within that tree, and run business operations against it.
+Esquire is a **business entity framework** — the structural backbone for any backoffice system. It
+organizes people, organizations, and resources in a single tree, and runs your business operations against it.
 
-The point of a framework is to let you write **only business logic.** You place an entity on the tree
-and describe what it *means*; how it is stored, synchronized across services, secured, audited, and
-served to the browser is **inherited, not coded.** Persistence, messaging, identity, deployment — the
-plumbing every application drags along — is the framework's job, not the domain developer's.
+Authorization comes from the tree itself, in two dimensions at once: **role-based rules** for what a user
+may *do*, and **tree-based scope** for what a user may *see*. A user's position resolves both — no permission
+filter written by hand.
 
-The backoffice scenario — onboarding, profile maintenance, permissions, accounting — is the
-demonstration domain. Accounting in particular is the "everybody's know-how" example: a
-universally understood domain that exercises the full framework stack end to end. It is not
-the destination. It is the proof of concept for the real idea.
+And you write **only business logic.** Place an entity on the tree and describe what it *means* — its fields,
+its rules, its commands — and the browser **renders that description at runtime**, with no field layout coded
+in the frontend. How the entity is stored, synchronized across services, secured, and audited is **inherited,
+not coded** — persistence, messaging, identity, and deployment are the framework's job, not yours.
 
-**See it live: [esquire.mir0n.pro](https://esquire.mir0n.pro)** — sign in, browse the tree, run the operations.
+To show it all works together, Esquire ships a complete backoffice — onboarding, profile maintenance,
+permissions, and a working accounting domain. Accounting is the deliberately familiar example, so the
+framework speaks for itself; any other hierarchy sits on the same backbone.
 
-The framework's messaging is not a future direction — the vendor-agnostic **Esquire Messaging Bus** runs across every service today, with ActiveMQ, Kafka, and Redis transport providers.
+Esquire takes the **widely used stack** (a relational database, Spring Boot, Node.js with Angular,
+Grafana/Prometheus) and drives it **to the end of what the stack can do**: ordinary parts taken as far as
+they go — a hybrid REST-and-event engine, vendor-neutral messaging, high availability that shrugs off losing
+a machine, and full, switch-on-anywhere observability. **Released by pipeline and live in production,**
+everything the framework promises, it does — in a running deployment, on three targets, open for anyone to
+check.
+
+**See it live — [esquire.mir0n.pro](https://esquire.mir0n.pro).** Sign in, browse the tree, run the operations.
 
 ---
 > 
-> **v1.2.11 — in progress.** The final **v1.2.x** sprint is now underway: **Observability**. The goal is to
-> complete the observability layer as common, reusable solutions and shared tooling built into the framework —
-> one consistent way to see what the running system is doing (its health, timing, and traffic), provided once
-> for every service rather than wired up service by service. See the [v1.2.x roadmap](doc/v1.2.x.Planning.md).
+> **v1.2.11 — complete. The [goal](doc/v1.2.x.Goal.md) is met.** The final **v1.2.x** sprint,
+> **Observability**, is the capstone of the whole line. Seeing what the running system is doing arrives not as
+> a bolted-on afterthought but as a **common layer built into the framework** — one consistent way to watch
+> health, timing, and traffic, provided once for every service instead of wired up service by service.
 > 
-> **v1.2.10 — complete.** A **Resilience / Durability** sprint: every service can now bound how long it waits — on a slow request, a stuck database call, or a stuck downstream — and fail fast with a clear error instead of hanging; the messaging bus gains a resend-on-failure step so a message survives a brief connection drop, and keeps idle connections alive so they do not go stale; each messaging worker pool can run on ordinary or virtual threads by a single setting; and the framework now runs as **two copies of each service** in the cloud, spread across machines, so losing one machine keeps the site up. See [Release History](#release-history).
+> **One pane over three pillars.** Metrics, traces, and logs are tied together by a single **correlation id**,
+> so a log line, its trace, and its numbers are one click apart in a single **Grafana** view — and a single
+> request is followed across services *and* across message-bus hops. It is **off by default** and switched on
+> on demand — on a laptop, on the test cluster, or briefly on the cloud — so the everyday stack carries no
+> weight when nobody is watching. Business counters, ready-made alerts for the obvious failures, and
+> purpose-built dashboards all ship with it.
+> 
+> The sprint also brought a run of **hardening fixes** from a fresh, top-to-bottom review — safer entity moves,
+> money rounded to the ledger's precision before it is stored, a cloud broker that reconnects on its own after
+> a blip, and health and metrics moved onto an internal-only port — and a **full documentation refresh**,
+> including the framework's first **step-by-step install guides** for Docker and local Kubernetes.
 >
 
+
+## Installation
+
+Esquire runs as a whole framework on your own machine — the services, the browser tier, the
+messaging bus, a seeded demo database, and identity, all together. Two step-by-step routines bring up
+the same application, each with an optional one-click view of what the running system is doing:
+
+- **[Install & Run — Docker sandbox](doc/install/Docker.md)** — the fast single-instance stack: build,
+  start, open the browser.
+- **[Install & Run — Local Kubernetes](doc/install/LocalK8s.md)** (Docker Desktop) — the same
+  application in its redundant deploy shape, every service running twice.
+
+Both seed a demo organization tree with a working accounting example, so there is something to click
+through the moment it is up. Background, the architecture, and the developer workflow are in
+[Developer Setup](doc/Esquire.DevSetup.md).
+
+---
 
 ## Project Structure
 
@@ -47,48 +81,43 @@ The framework's messaging is not a future direction — the vendor-agnostic **Es
 
 ---
 
+## Release History
+
+**[Releases.md](Releases.md)** -- full release notes for every version, plus milestone reports across all four repositories.
+
+---
+
 ## Documentation
 
 ### Architecture & Design
-- [Esquire Messaging Bus — the vendor-agnostic bus subframework](doc/Esquire.MessagingBus.md) *(topology catalog, x-rod frontend, and a pluggable transport-provider SPI: tp-activemq / tp-kafka / tp-redis)*
-- [Esquire Messaging Bus topology](doc/Messaging.md) *(the live buses — entity broadcast, IAM request/response, audit)*
-- [Observability Stack](doc/Esquire.ObservabilityStack.md)
-- [Logging Strategy](doc/Logging.md)
-- [Keycloak / Gateway — Authentication Patterns](doc/keyCloak-gateway.JWE.md) *(four working patterns: BFF / JWT / Vanilla Token Relay / Phantom Token Relay; JWE parked under stock KC, gateway-side lab kept armed)*
-- [KeySmith Credential Routines — State Machine & Collaboration](doc/keySmithCredentialRoutine.md)
+- [Esquire Messaging Bus — the vendor-agnostic bus subframework](doc/Esquire.MessagingBus.md) *(topology catalog, x-rod frontend, and a pluggable transport-provider SPI: tp-activemq / tp-kafka / tp-redis)* — suite: [how Esquire uses the bus](doc/Esquire.Messaging.md), [message structure](doc/Esquire.MessagingBus.MessageStructure.md), [integration guides](doc/Esquire.MessagingBus.Guides.md), [design Q&A](doc/Esquire.MessagingBus.Q&A.md), [continuing development](doc/Esquire.MessagingBus.ContinuingDev.md)
+- [Observability Stack](doc/Esquire.ObservabilityStack.md) *(metrics, tracing, and logging as common tooling)* — suite: [logging strategy](doc/Esquire.ObservabilityStack.Logging.md), [Grafana dashboards guide](doc/Esquire.GrafanaGuide.md)
+- [Authentication & Authorization — the tree-shaped security model](doc/Esquire.Auth.md) *(identity claims `esq_uid` / `esq_rootpath`; the keySmith / kcMaster / KeyCloak collaboration; `ep_path` visibility + role-based authority)* — suite: [token patterns](doc/Esquire.Auth.TokenPatterns.md) (BFF / JWT / Vanilla & Phantom Token Relay; JWE parked under stock KC) and [keySmith credential routines](doc/Esquire.Auth.keySmithRoutine.md)
 - [bizTree — Taijitu Recoverable Cache Architecture](doc/Esquire.BizTree.md) *(the Supreme Ultimate Cache: two-monad anti-entropy double-buffer + night-watch sweep)*
 - [Audit Logging Stack](doc/Esquire.AuditLoggingStack.md) *(pluggable audit seam over the generic keep engine; six selectable strategies, ActiveMQ / Kafka / Redis transport, the auKeep consumer service)*
+- [High Availability](doc/Esquire.HighAvailability.md) *(replica topology, the resilience budget, and how each delivery channel survives duplication)*
+- [Design Q&A](doc/Esquire.Q&A.md) *(cross-cutting design questions and how they were resolved)*
 
 ### Domain & Data Model
-- [Object Kind Enumeration](doc/Object.Kind.enum.md)
-- [Entity Path Semantics](doc/entity.path.semantics.md)
-- [Default Field Rule](doc/DefaultRule.md)
-- [bizTree — H2-backed In-Memory Cache](doc/H2BizTree.md)
+- [Entity Dictionary](doc/EntityDictionary.md) *(what an entity says about itself: its fields, labels, allowed values, defaults, and how the screens are built from them; the full kind enumeration is its appendix)*
 - [Database Dictionary](doc/DatabaseDictionary.md)
 
 ### Testing
-- [Testing Stack — frameworks, scope, coverage](doc/Esquire.TestingStack.md) *(every framework in use across all Esquire projects, what it covers, current test counts at v1.2.9)*
+- [Testing Stack — frameworks, scope, coverage](doc/Esquire.TestingStack.md) *(every framework in use across all Esquire projects, what it covers, current test counts)*
 - [Haubergeon — Gatling harness reference](doc/Esquire.Haubergeon.md)
 
-### Reports
-
-
-|                                                                   |                                                                                                                                                                                                                                                                                                                                                                        |
-|-------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| **esquire.services**| - [v1.2.10 Milestone Report](doc/reports/report_v1.2.10.md)<br/>- [v1.2.9 Milestone Report](doc/reports/report_v1.2.9.md)<br/>- [v1.2.8 Milestone Report](doc/reports/report_v1.2.8.md)<br/>- [v1.2.7 Milestone Report](doc/reports/report_v1.2.7.md)<br/>- [v1.2.6 Milestone Report](doc/reports/report_v1.2.6.md)<br/>- [v1.2.5 Milestone Report](doc/reports/report_v1.2.5.md)<br/>- [v1.2.4 Milestone Report](doc/reports/report_v1.2.4.md)<br/>- [v1.2.3 Milestone Report](doc/reports/report_v1.2.3.md)<br/>- [v1.2.2 Milestone Report](doc/reports/report_v1.2.2.md)                                                                                                                                                                                  |
-| **esquire.explorer**| - [v1.2.10 Milestone Report](https://github.com/mir0n-pro/esquire.explorer/blob/develop/doc/reports/report_v1.2.10.md)<br/>- [v1.2.9 Milestone Report](https://github.com/mir0n-pro/esquire.explorer/blob/develop/doc/reports/report_v1.2.9.md)<br/>- [v1.2.8 Milestone Report](https://github.com/mir0n-pro/esquire.explorer/blob/develop/doc/reports/report_v1.2.8.md)<br/>- [v1.2.7 Milestone Report](https://github.com/mir0n-pro/esquire.explorer/blob/develop/doc/reports/report_v1.2.7.md)<br/>- [v1.2.6 Milestone Report](https://github.com/mir0n-pro/esquire.explorer/blob/develop/doc/reports/report_v1.2.6.md)<br/>- [v1.2.5 Milestone Report](https://github.com/mir0n-pro/esquire.explorer/blob/develop/doc/reports/report_v1.2.5.md)<br/>- [v1.2.4 Milestone Report](https://github.com/mir0n-pro/esquire.explorer/blob/develop/doc/reports/report_v1.2.4.md)<br/>- [v1.2.3 Milestone Report](https://github.com/mir0n-pro/esquire.explorer/blob/develop/doc/reports/report_v1.2.3.md)<br/>- [v1.2.2 Milestone Report](https://github.com/mir0n-pro/esquire.explorer/blob/develop/doc/reports/report_v1.2.2.md) |
-| **esquire.ui.lib**| - [v1.2.3 Release Report](https://github.com/mir0n-pro/esquire.ui.lib/blob/develop/doc/reports/report_v1.2.3.md)<br/> - [v1.2.2 Release Report](https://github.com/mir0n-pro/esquire.ui.lib/blob/develop/doc/reports/report_2026_04_19_31750f3.md)                                                                                                                     |
-| **esquire.db.seed**| - [v1.2.10 Milestone Report](https://github.com/mir0n-pro/esquire.db.seed/blob/develop/doc/reports/report_v1.2.10.md)<br/> - [v1.2.9 Milestone Report](https://github.com/mir0n-pro/esquire.db.seed/blob/develop/doc/reports/report_v1.2.9.md)<br/> - [v1.2.8 Milestone Report](https://github.com/mir0n-pro/esquire.db.seed/blob/develop/doc/reports/report_v1.2.8.md)<br/> - [v1.2.7 Milestone Report](https://github.com/mir0n-pro/esquire.db.seed/blob/develop/doc/reports/report_v1.2.7.md)<br/> - [v1.2.4 Milestone Report](https://github.com/mir0n-pro/esquire.db.seed/blob/develop/doc/reports/report_v1.2.4.md)<br/> - [v1.2.2 Milestone Report](https://github.com/mir0n-pro/esquire.db.seed/blob/develop/doc/reports/report_v1.2.2.md)                                                                                                                          |
-
-
-### Deployment
+### Deployment & Setup
+- [Developer Setup](doc/Esquire.DevSetup.md) *(local build, the docker stack, and OCI / OKE cloud setup)*
 - [CI/CD — Automated Build and Release Pipeline](doc/Esquire.GitHubActions.md) *(three stages: automatic build-and-test on every change, deploy to a local test cluster during development, and a human-approved cloud release deploy checked against the live site)*
 - [Configuration Reference — every service parameter, logging, gateway routes, audit-logging modes/options](doc/services.configuring.md)
-- [Where To Go — Deployment Plan and Platform Decisions](doc/WhereToGo.md)
-- [OCI Pricing Reference](doc/OCI.Pricing.md)
 
-### Value Proposition
+### Development Process
+- [Development Process](doc/Esquire.DevProcess.md) *(the sprint lifecycle, the documentation routine, and the release flow)*
+- [Continuing Development](doc/Esquire.ContinuingDev.md) *(cross-cutting backlog and deferred design notes)*
+
+### Value Proposition & Roadmap
 - [Esquire Application Frameworks — What, Why, and for Whom](doc/Esquire.Vision.md)
+- [v1.2.x Goal](doc/v1.2.x.Goal.md) *(what the v1.2.x horizon set out to achieve, and the maturity it reached)*
 - [v1.2.x Planning — release-line roadmap, sprint themes, and the road to v1.3.0](doc/v1.2.x.Planning.md) *(rolling roadmap / white paper across all four Esquire repositories)*
 
 ---
@@ -237,80 +266,39 @@ The two public hosts at a glance:
 | `esquire.mir0n.pro` | Administrative GUI (BFF + SPA) | OIDC code+PKCE -> opaque session cookie | Humans in a browser |
 | `api.esquire.mir0n.pro` | Public REST API (gateway direct) | Bearer JWT on every request | Service-to-service callers, integrations, load / smoke harnesses |
 
----
-## Release History
-### v1.2.10 — complete (07/04/2026)
 
-v1.2.10 is a **Resilience / Durability** sprint — bounding every wait, making the messaging bus survive
-brief outages, and running the whole framework as redundant copies in the cloud.
+**Observability Stack**
+<img src="doc/media/o11yStack.png" alt="Observability Stack" width="790">
 
-**Bounded waits, fail fast.** Every service can now cap how long it waits — on a slow inbound request, a
-stuck database call, or a stuck downstream service — and return a clear error instead of hanging, with the
-connection pools and worker queues sized to a defined budget. Each limit is off by default and turned on per
-environment.
+Every piece below is open-source, and any of it can be swapped out — no lock-in, the same rule as the rest of the platform.
 
-**A messaging bus that recovers.** The bus gains a resend-on-failure step, so a message that meets a briefly
-broken connection is retried rather than lost, plus a keep-alive that stops idle connections going stale and
-notices an outage sooner. Each messaging worker pool can run on ordinary or virtual threads by a single
-setting.
+**Postgres Exporter**
+<img src="doc/logo/postgres.svg" alt="Postgres logo" valign="middle" height="24">
+<br> Turns the database's own statistics into numbers the metrics store can read.
 
-**Redundant in the cloud.** The framework now runs as two copies of each service on the managed cluster,
-spread across separate machines so losing one machine keeps the site up, and each service is given a start-up
-grace period so a slow cold start on a busy machine is not mistaken for a failure. Smaller collected fixes
-rode along — a request id is now required on write operations, a dropped message is logged on the main app
-log, and the sign-in screen gains a Cancel link.<br>
-[The Esquire Messaging Bus](doc/Esquire.MessagingBus.md) · [High Availability](doc/Esquire.HighAvailability.md) · [v1.2.10 Release Notes](doc/release_notes.txt)<br>
+**Prometheus**
+<img src="doc/media/prometheus_logo.svg" alt="Prometheus logo" valign="middle" height="24">
+<br> The metrics store — collects the numbers (rates, timings, counts) from every service and keeps their history.
 
-### v1.2.9 — complete (06/24/2026)
+**OpenTelemetry Collector**
+<img src="doc/logo/OTelCollector.png" alt="OpenTelemetry Collector logo" valign="middle" height="24">
+<br> The traces hub — a separate service that gathers each request's trace from every service, passes it to the trace store, and builds the live map of which service calls which.
 
-v1.2.9 is a **hardening** sprint that stabilizes the v1.2.8 Messaging Bus: each service reaches the bus through one entry point with a defined start-up sequence and configured roles, fail-fast on misconfiguration, the bus connection surfaced on each service's health check (split into "ready" and "alive") with a keep-alive, and more defensive handling of incoming messages — plus added timestamp columns and lookup indexes and the wire-format definitions moved out of `common` into the messaging module.<br>
-[More Details: v1.2.9 README](https://github.com/mir0n-pro/esquire.services/tree/release/v1.2.9?tab=readme-ov-file#project-structure)
+**Grafana Tempo**
+<img src="doc/media/tempo_logo.svg" alt="Tempo logo" valign="middle" height="24">
+<br> The trace store — keeps each request's end-to-end trace, found by the same id as its logs.
 
-### v1.2.8 — complete (06/19/2026)
+**Grafana Alloy**
+<img src="doc/logo/alloy_icon.png" alt="Alloy logo" valign="middle" height="24">
+<br> The log collector — gathers the log lines from every service and passes them to the log store.
 
-v1.2.8 is a **major refactoring** sprint built around the **Messaging Bus** — the audit-specific, ActiveMQ-wired fan-out became a general, vendor-agnostic bus the whole services set shares (entity broadcast and the keySmith ↔ kcMaster identity request/response), shipped as the reusable `esquire-messaging` library plus the pluggable `tp-activemq` / `tp-kafka` / `tp-redis` transport drivers. The keep stack was split into shared `esquire-data-keep` + `esquire-audit` libraries out of `common`, the audit-writer `xx-rod` was renamed **`auKeep`**, and a small **system-entity flag** (protects core entities from deletion) rode along.<br>
-[More Details: v1.2.8 README](https://github.com/mir0n-pro/esquire.services/tree/release/v1.2.8?tab=readme-ov-file#project-structure)
+**Grafana Loki**
+<img src="doc/media/loki_icon.svg" alt="Loki logo" valign="middle" height="24">
+<br> The log store — keeps all the logs, searchable, and serves them to the dashboard.
 
-### v1.2.7 — complete (06/10/2026)
+**Grafana**
+<img src="doc/media/grafana_icon.svg" alt="Grafana logo" valign="middle" height="24">
+<br> The one screen — dashboards for logs, traces, and numbers together; because everything shares one id, a log line, its trace, and its numbers are one click apart.
 
-v1.2.7 is the **audit-logging** sprint: entity-change auditing reframed from in-database triggers into a
-**pluggable, decoupled concern** — one audit seam in the entity services with six interchangeable strategies
-behind it, from DB triggers to an in-process write to a fully bus-driven pipeline (ActiveMQ / Kafka / Redis),
-plus a standalone audit-writer service. It also **established the CI/CD pipeline** — automated build-and-test,
-local-cluster deploy, and a human-approved cloud release.<br>
-[More Details: v1.2.7 README](https://github.com/mir0n-pro/esquire.services/tree/release/v1.2.7?tab=readme-ov-file#project-structure)
-
-### v1.2.6 — complete (06/02/2026)
-
-v1.2.6 is an **enyMan-redundancy** sprint: instance-aware entity-id minting consolidated into enyMan, account CREATE moved from pacMan to enyMan, an async move queue, the race-8b / race-8c move-path fixes, and bizTree event work-batching.<br>
-[More Details: v1.2.6 README](https://github.com/mir0n-pro/esquire.services/tree/release/v1.2.6?tab=readme-ov-file#project-structure)
-
-### v1.2.5 — complete (05/24/2026)
-
-bizTree's cache rebuilt as the **Taijitu** recoverable cache service — a two-monad anti-entropy
-double-buffer reconciled by a periodic night-watch that rebuilds a shadow from the database, checksums
-both, and self-heals drift, so a non-durable broadcast subscription suffices.<br>
-[More Details: v1.2.5 README](https://github.com/mir0n-pro/esquire.services/tree/release/v1.2.5?tab=readme-ov-file#project-structure)
-
-### v1.2.4 — complete (05/14/2026)
-
-v1.2.4 is the **stress / load / race-repro + auth-pattern sprint** — a pure-REST Gatling 3.13
-harness (codename "hauberk") becomes the platform's standard testing surface, and the gateway
-gains two non-browser auth patterns — **Vanilla Token Relay** and **Phantom Token Relay** —
-alongside BFF and plain JWT.<br>
-[More Details: v1.2.4 README](https://github.com/mir0n-pro/esquire.services/tree/release/v1.2.4?tab=readme-ov-file#project-structure)
-
-### v1.2.3 — complete (05/08/2026)
-
-v1.2.3 is the **BFF sprint** — Backend-for-Frontend tier introduced between the Angular SPA and
-the Spring Cloud Gateway. The browser is now a thin client over an opaque session cookie; the
-access token never leaves the cluster.<br>
-[More Details: v1.2.3 README](https://github.com/mir0n-pro/esquire.services/tree/release/v1.2.3?tab=readme-ov-file#project-structure)
-
-### v1.2.2 — complete (04/20/2026)
-
-v1.2.2 is the first complete vertical slice of the Esquire framework — schema, services,
-UI library, and frontend all built, connected, and tested as one working system.
-<br>
-[More Details: v1.2.2 README](https://github.com/mir0n-pro/esquire.services/tree/release/v1.2.2?tab=readme-ov-file#project-structure)
+For how the pieces connect — the protocols, the ports, and the full detail — see the [Observability Stack](doc/Esquire.ObservabilityStack.md) design doc.
 

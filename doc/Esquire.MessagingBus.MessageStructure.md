@@ -1,5 +1,10 @@
+# <img src="../favicon.ico" alt="Esquire logo" valign="middle" width="64" height="64"> Esquire Application Frameworks(tm) 2.0
 
-Esquire Request/Response/RequestReject/Entity/Audit/Session Message Structure
+# Esquire Messaging Bus -- Message Structure
+
+Companion to `Esquire.MessagingBus.md` (the framework reference) -- the wire format for every Esquire message
+type: **Entity (UE)**, **Request (URQ)**, **Response (URS)**, **Request Reject (URR)**, **Audit (UA)**, and the
+**Session** pair (TestRequest / HeartBeat).
 
 Every Esquire message is a FIX-JSON envelope produced by one shared codec (`RodEventCodec`) and carried
 by any x-rod bus regardless of transport (ActiveMQ queue, Kafka topic, Redis stream). Identity / audit
@@ -33,6 +38,28 @@ generic-envelope tradeoff FIX makes (a tag dictionary over typed messages). The 
 per-message-type compile-time safety and a wide, mostly-null record. Producers and consumers validate the
 fields they actually use; the envelope stays open.
 
+**Timestamps -- ISO-8601, not the FIX UTCTimestamp format (a deliberate deviation).** FIX defines UTCTimestamp
+(tag 52) as `YYYYMMDD-HH:MM:SS` or `YYYYMMDD-HH:MM:SS.sss`. Esquire does NOT emit that format. On the wire:
+
+- `SendingTime` (tag 52) is an **ISO-8601 / RFC 3339** string -- the transport driver stamps it per physical send
+  as `Instant.now().toString()` (e.g. `2026-03-17T10:15:30.482Z`, fractional seconds as produced).
+- `ActionTime` (the audit "when", tag 50013) is **epoch-milliseconds** as a JSON number (e.g. `1718470800000`).
+
+The deviation is deliberate. The bus is JSON-encoded and internal, so timestamps use the JSON-native forms:
+ISO-8601 is parsed by every JSON library and by the browser `Date`, sorts lexicographically, and is unambiguous
+about the zone (`Z` = UTC); epoch-ms is the cheapest machine form for the commit instant. Neither needs a
+FIX-specific parser.
+
+**On FIX-format support -- common practice and intent.** The FIX Trading Community's official *FIX JSON Encoding*
+keeps each field value as a JSON string and, for a UTCTimestamp field, RETAINS the FIX `YYYYMMDD-HH:MM:SS.sss`
+string -- it does NOT convert to ISO-8601. Pragmatic "FIX-flavored" JSON APIs (the shape Esquire follows) instead
+use ISO-8601 / RFC 3339 strings (or epoch-ms numbers) precisely because they interoperate with JSON tooling out
+of the box. Esquire is **FIX-INSPIRED, not strict FIX-JSON**: it borrows the tag dictionary and the one-wide-
+envelope idea, but encodes timestamps the JSON-native way. The intent was the FIX format; returning `SendingTime`
+to the FIX `YYYYMMDD-HH:MM:SS.sss` form is tracked in `Esquire.MessagingBus.ContinuingDev.md` -- we go back to
+FIX eventually, not important for the internal bus now. The `Type` column below names each field's FIX semantic
+type (`UTCTimestamp`); the ENCODING of that type is the JSON-native form described here.
+
 Esquire Entity Broadcast Message : UE
 
 | Canonical field name | FIX tag | Type | Required | Example | Notes                                                                                                   |
@@ -48,7 +75,7 @@ Esquire Entity Broadcast Message : UE
 | `EntityKind` | `50006` | Int | yes      | `34` | entity kind code                                                                                        |
 | `EntityID` | `50007` | String | yes      | `1234` | entity identifier                                                                                       |
 | `RequestID` | `50008` | String | no       | `req-789` | request trace id                                                                                        |
-| `CorrelationID` | `50009` | String | no       | `corr-456` | cross-service correlation id                                                                            |
+| `CorrelationID` | `50009` | String | no       | `4bf92f3577b34da6a3ce929d0e0e4736` | cross-service correlation id                                                                            |
 | `MessageEncoding` | `347` | String | yes      | `JSON` | body encoding                                                                                           |
 | `Text` | `58` | String (JSON) | yes      | `{"id":"1234","kind":34,"name":"ACME"}` | entity state snapshot; JSON string property; `id` and `kind` always present                             |
 
@@ -68,7 +95,7 @@ Esquire Request Message : URQ
 | `EntityKind`         | `50006` | Int | no       | `34`                                    | entity kind code                                                                                                      |
 | `EntityID`           | `50007` | String | no       | `1234`                                  | entity identifier                                                                                                     |
 | `RequestID`          | `50008` | String | yes      | `req-789`                               | cross-service request trace id; the request/response correlation key                                                  |
-| `CorrelationID`      | `50009` | String | no       | `corr-456`                              | cross-service correlation id                                                                                          |
+| `CorrelationID`      | `50009` | String | no       | `4bf92f3577b34da6a3ce929d0e0e4736`                              | cross-service correlation id                                                                                          |
 | `TestReqID`          |   `112` | String | yes      | `req-789`                               | echo of `RequestID`, retained for wire shape (FIX TestRequest/Heartbeat lineage). The producer guarantees `RequestID` non-null. |
 | `MessageEncoding`    |   `347` | String | no       | `JSON`                                  | body encoding                                                                                                         |
 | `Text`               | `58` | String (JSON) | no       | `{"id":"1234","kind":34,"name":"ACME"}` | JSON string property; depends on context of request command, can be an entity state or array of name-value parameters |
@@ -88,7 +115,7 @@ Esquire Request Response : URS
 | `EntityKind`         | `50006` | Int | no       | `34`                                    | entity kind code  (echo from request)                                                         |
 | `EntityID`           | `50007` | String | no       | `1234`                                  | entity identifier (echo from request)                                                         |
 | `RequestID`          | `50008` | String | yes      | `req-789`                               | cross-service request trace id (echo from request); the correlation key    |
-| `CorrelationID`      | `50009` | String | no       | `corr-456`                              | cross-service correlation id (echo from request)                           |
+| `CorrelationID`      | `50009` | String | no       | `4bf92f3577b34da6a3ce929d0e0e4736`                              | cross-service correlation id (echo from request)                           |
 | `TestReqID`          |   `112` | String | yes      | `req-789`                               | echo of `RequestID`, retained for wire shape; echoed back unchanged from the URQ.            |
 | `MessageEncoding`    |   `347` | String | no       | `JSON`                                  | body encoding                                                              |
 | `Text`               | `58` | String (JSON) | no       | `{"id":"1234","kind":34,"name":"ACME"}` | response body; JSON string property; optional and command-dependent — absent when the command produces no result (e.g. KC sync U/D); present when the command returns data (e.g. create returning the assigned id). Absence of Text implies the URS is a silent acknowledgement. |
@@ -108,7 +135,7 @@ Esquire Request Reject : URR
 | `EntityKind`        | `50006` | Int | no       | `34`                                    | entity kind code  (echo from request)                     |
 | `EntityID`          | `50007` | String | no       | `1234`                                  | entity identifier (echo from request)                     |
 | `RequestID`         | `50008` | String | yes      | `req-789`                               | cross-service request trace id (echo from request)        |
-| `CorrelationID`     | `50009` | String | no       | `corr-456`                              | cross-service correlation id (echo from request)          |
+| `CorrelationID`     | `50009` | String | no       | `4bf92f3577b34da6a3ce929d0e0e4736`                              | cross-service correlation id (echo from request)          |
 | `TestReqID`         |   `112` | String | yes      | `req-789`                               | echo of `RequestID`, retained for wire shape; echoed back unchanged from the URQ. |
 | `MessageEncoding`   |   `347` | String | no       | `JSON`                                  | body encoding (echo from request)                         |
 | `Text`              |    `58` | String (JSON) | no       | `{"id":"1234","kind":34,"name":"ACME"}` | request body; JSON string property; (echo from request)   |
@@ -136,7 +163,7 @@ consumer (auKeep) or the sink stream to apply with no request context.
 | `ActionTime`         | `50013` | Long | yes      | `1718470800000`                         | epoch-ms stamped at commit (the audit "when")                              |
 | `Uid`                | `50012` | String | no       | `4`                                     | the acting user id (the audit actor)                                       |
 | `RequestID`          | `50008` | String | no       | `req-789`                               | request trace id (snapshotted from the request context at post time)       |
-| `CorrelationID`      | `50009` | String | no       | `corr-456`                              | cross-service correlation id (snapshotted at post time)                    |
+| `CorrelationID`      | `50009` | String | no       | `4bf92f3577b34da6a3ce929d0e0e4736`                              | cross-service correlation id (snapshotted at post time)                    |
 | `MessageEncoding`    |   `347` | String | yes      | `JSON`                                  | body encoding                                                              |
 | `Text`               |    `58` | String (JSON) | no       | `{"id":"8","kind":36,"name":"Mer Chant"}` | the full committed row (CREATE/UPDATE); empty on DELETE (id + kind are in the header) |
 
@@ -170,10 +197,10 @@ Esquire TestRequest Message : MsgType "1"
 | `SlotID`             | `50003` | String | yes | `kc` | bus slot (leg) id (from the x-rod identity) |
 | `RodID`              | `50004` | String | yes | `enyman` | originating instance id; the reply-routing selector |
 | `MsgType`            |    `35` | String | yes | `1` | FIX-canonical TestRequest |
-| `CorrelationID`      | `50009` | String | yes | `corr-456` | freshly generated per TestRequest |
-| `RequestID`          | `50008` | String | yes | `corr-456` | = `CorrelationID` |
+| `CorrelationID`      | `50009` | String | yes | `4bf92f3577b34da6a3ce929d0e0e4736` | freshly generated per TestRequest |
+| `RequestID`          | `50008` | String | yes | `4bf92f3577b34da6a3ce929d0e0e4736` | = `CorrelationID` |
 | `MessageEncoding`    |   `347` | String | yes | `JSON` | body encoding |
-| `Text`               |    `58` | String (JSON) | yes | `{"MsgType":"1","TestReqID":"corr-456"}` | session body: `MsgType` + `TestReqID` (= `RequestID`) |
+| `Text`               |    `58` | String (JSON) | yes | `{"MsgType":"1","TestReqID":"4bf92f3577b34da6a3ce929d0e0e4736"}` | session body: `MsgType` + `TestReqID` (= `RequestID`) |
 
 Esquire HeartBeat Message : MsgType "0"
 
@@ -190,7 +217,7 @@ requester via the `RodID` selector; the unsolicited form carries a fresh `Correl
 | `SlotID`             | `50003` | String | yes | `kc` | x-rod identity (unsolicited) OR echoed from the TestRequest (response) |
 | `RodID`              | `50004` | String | yes | `enyman` | x-rod identity (unsolicited) OR echoed from the TestRequest, so the response routes to the requester |
 | `MsgType`            |    `35` | String | yes | `0` | FIX-canonical HeartBeat |
-| `CorrelationID`      | `50009` | String | yes | `corr-456` | freshly generated (unsolicited) OR echoed from the TestRequest (response) |
-| `RequestID`          | `50008` | String | no | `corr-456` | ABSENT (unsolicited) OR echoed from the TestRequest (response) |
+| `CorrelationID`      | `50009` | String | yes | `4bf92f3577b34da6a3ce929d0e0e4736` | freshly generated (unsolicited) OR echoed from the TestRequest (response) |
+| `RequestID`          | `50008` | String | no | `4bf92f3577b34da6a3ce929d0e0e4736` | ABSENT (unsolicited) OR echoed from the TestRequest (response) |
 | `MessageEncoding`    |   `347` | String | yes | `JSON` | body encoding |
-| `Text`               |    `58` | String (JSON) | yes | `{"MsgType":"0","TestReqID":"corr-456"}` | session body: `MsgType`; plus `TestReqID` (echoed) on a response, omitted when unsolicited |
+| `Text`               |    `58` | String (JSON) | yes | `{"MsgType":"0","TestReqID":"4bf92f3577b34da6a3ce929d0e0e4736"}` | session body: `MsgType`; plus `TestReqID` (echoed) on a response, omitted when unsolicited |

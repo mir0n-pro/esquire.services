@@ -1,6 +1,8 @@
+# <img src="../favicon.ico" alt="Esquire logo" valign="middle" width="64" height="64"> Esquire Application Frameworks(tm) 2.0
+
 # Esquire — Development Process
 
-DRAFT (v1.2.10). How Esquire is built: the integrated pipeline from **analysis & planning →
+How Esquire is built: the integrated pipeline from **analysis & planning →
 coding → testing → documenting → releasing**. This is also Esquire's decision-recording approach —
 deliberately in place of formal ADRs. Decisions are not filed off to the side as after-the-fact
 records; they are captured continuously as a change moves through the pipeline.
@@ -123,6 +125,13 @@ working phase; steps 5–7 are maintainer-gated.
 - **One commit = one dated entry** — all of a commit's changes go into one entry. The version lives
   in `release_notes.txt` only.
 
+**Single line, then parallel.** Through v1.2.x, development ran as **one sequential line** — one
+sprint, one Micro version, at a time (v1.2.2 → … → v1.2.11). With the active-development horizon
+complete, the framework moves into **support / continuous-development mode**: sprints are still
+defined against a target and still carry a version, but they no longer march in one strict sequence —
+**several sprints can run in parallel**, each on its own pending line (§8), each finalized on its own
+schedule. The pool of candidate targets is [Esquire.ContinuingDev.md](Esquire.ContinuingDev.md).
+
 ---
 
 ## 8. Sprint finalization
@@ -153,7 +162,9 @@ At sprint end, beyond the per-commit code-change docs:
   sprint's CODE changes, recorded when each landed; the finalization refresh only re-states them for the
   front door.
 - Run the **release finalization** proper: version finalize, then the branch flow
-  `pending → PR → develop → tag → archive release/ → new pending` (the maintainer's git step).
+  `pending → PR → develop → tag → archive release/ → new pending` (the maintainer's git step). Each
+  sprint runs this flow on **its own pending line** off `develop`; in continuous-development mode more
+  than one such line can be open at once, each finalizing independently.
 
 ---
 

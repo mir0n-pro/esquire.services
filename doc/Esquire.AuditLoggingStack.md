@@ -6,23 +6,22 @@
 
 Every business mutation (create / update / delete / move) must leave an audit trail — *who changed what,
 when, from what to what*. The traditional OLTP answer is **DB triggers** — the row-level shadow-table
-pattern audit trails have historically come from. The v1.2.7 sprint reframes
-audit as a **pluggable concern**: one seam in the services, several interchangeable strategies behind it,
-each picked by configuration so a deployment chooses the trade-off that fits its environment.
-
-The mechanism is the **x-rod substrate** — a generic entity **fan-out** messaging frontend. Every messaging
-participant (audit, entity broadcast, KC request/response) is an **x-rod** obtained from `XRodManager`
-by logical **bus key + role**; a single x-rod type, **`XRod`**, whose wiring (a transmit leg and/or a receive
-leg) makes it producer-only, consumer-only, or in-process. The producer captures each committed change and
-relays it to one or more **sinks**; **audit is the first sink** (replication / search-index / cache-warm are
-future siblings on the same frontend). The audit sink writes per-entity `*_log` tables, or streams to Redis,
-or rides Kafka — the wire vendor is a **pluggable transport** picked per bus (§A), never named by the
-framework.
+pattern audit trails have historically come from. Esquire treats audit as a **pluggable concern**: one seam
+in the services, several interchangeable strategies behind it, each picked by configuration so a deployment
+chooses the trade-off that fits its environment.
 
 **Options:** **(0)** persist nothing · **(a)** DB triggers · **(b)** in-process write · **(c)** bus → a
 standalone `auKeep` consumer → SQL · **(d)** Redis Stream (the stream *is* the log) · **(e)** log-based CDC
 (out of framework scope). Both broadcast options also run over **Kafka** instead of ActiveMQ: **(c-k)**
 `service → Kafka → auKeep → SQL`, and **(d-k)** `service → Kafka → Kafka Connect Redis sink → Redis`.
+
+**These live at two separate levels, and they are not the same switch:**
+- **At the database level** (option **a**, DB triggers) — *not* a service setting at all. Triggers are part
+  of the **database setup** (the trigger DDL applied to the DB); the services stay out of it.
+- **At the service level** (options **b / c / d**) — a service's own config turns audit on, and it runs
+  over the **Messaging Bus**. Even the in-process option (b) is a bus leg: instead of fanning the event out
+  over a wire, it hooks it straight to a datasource and writes the `*_log` there. So "audit on a service"
+  always means a bus x-rod, wire or not.
 
 **The framework default is (0) — persist nothing** (all disabled; only the INFO request log). A fresh
 deploy with no audit config imposes no audit. Each **deployment then configures a topology** on top of that
@@ -78,8 +77,8 @@ decoupling as a *feature*. The honest case against triggers is the **operational
 audit *in* the live DB**; the case for moving it off (b/c/d) is **write offload + transactional
 independence**, not request latency (§8).
 
-The sprint does not throw triggers away. It makes audit **one seam with interchangeable strategies** —
-triggers become *one* option, not *the* option.
+Triggers are not thrown away. Audit is **one seam with interchangeable strategies** — triggers become
+*one* option, not *the* option.
 
 ---
 
@@ -211,124 +210,85 @@ a sensible default — not a mandate.
 
 ---
 
-## A. Pluggable transport layer (v1.2.8)
+## A. On the Messaging Bus
 
-The v1.2.8 messaging-bus rework replaced the audit-specific producer/consumer wiring (mode constants and a
-hard-coded `transport=activemq|kafka` switch) with a **uniform x-rod frontend over a declarative bus catalog
-and a per-vendor transport SPI**. The option taxonomy of §3 is unchanged — (b) in-process, (c) bus, (d)
-redis, plus the Kafka variants — but an option is now selected by **bus-id**, not a mode constant, and the
-wire vendor is a swappable module the framework never names.
+Audit runs on the **Messaging Bus** — a declarative bus catalog with a per-vendor transport SPI. There is no
+audit-specific producer/consumer wiring and no hard-coded `transport=activemq|kafka` switch: an option is
+selected by **bus-id**, and the wire vendor is a swappable module the framework never names — (b) in-process,
+(c) bus, (d) redis, plus the Kafka variants. Everything below is the bus, seen from the audit sink. For the
+bus itself, see [Esquire.MessagingBus.md](Esquire.MessagingBus.md).
 
-### A.1 One frontend — the x-rod
+The bus itself — the access point (x-rod) and its two legs, the rod-class catalogue, the topology-file
+shape, the transport SPI and drivers, and the message logging channel — is **not audited-specific and is not
+described here**. It is the [Messaging Bus](Esquire.MessagingBus.md). This section is only what the **audit
+sink** adds on top of it.
 
-Every messaging participant in the platform — audit, entity broadcast, and the KC request/response sync —
-is an **x-rod** obtained from **`XRodManager`** by a logical **bus key** plus a **role**. There is no
-longer a separate producer class and consumer class: a single x-rod type, **`XRod`**, carries a **transmit
-leg** and/or a **receive leg**. Its wiring decides its character — a transmit leg only makes it producer-only
-(audit-d/dk), a receive leg only makes it consumer-only (auKeep's bus consumer), both legs make it a
-transceiver, and the in-process **`XRodInProcess`** (audit-b) has no wire leg at all — it feeds each event to
-its own worker pool, which applies it locally.
+### A.1 The audit sink is one bus leg
 
-### A.2 Rod-class — the x-rod type
+Audit reaches the bus the same way any participant does: it takes a per-leg **access point** (an x-rod) from
+the bus for its leg. Nothing about the access point, its transmit/receive legs, or the rod-class model is
+audit's — see [Esquire.MessagingBus.md](Esquire.MessagingBus.md#the-x-rod-engine-axrod-and-the-two-legs).
+The audit legs use three of the bus's rod-classes:
 
-A bus leg names a **rod-class**, the x-rod implementation, resolved by name: a **bare** name maps to the
-convention package `pro.mir0n.esquire.messaging.xrod.impl.<name>`, a **dotted** value is taken as a FQCN.
-The rod-classes relevant to audit:
-
-| rod-class | role | what it does |
+| Audit leg | Bus rod-class | Ends on |
 |---|---|---|
-| **`XRod`** | the standard bus transceiver | feed + pool + the wire codec; the producer leg of c/ck/d/dk and the auKeep's receive leg |
-| **`XRodRR`** | request/response | two role-routed nodes (request-node / response-node); used by the KC bus, not audit |
-| **`XRodInProcess`** | in-process audit (option b) | generic in-process x-rod: feeds each event to its own worker pool, which runs the audit keep applier against the `*_log` tables — no transport. The applier's pool (auto-commit, outside any Spring tx) is DEDICATED (its own, the default) or SHARED (`datasource.shared=true` -> the service's own pool); its datasource is read from the leg's `datasource` sub-block, and the SQL dialect comes from that datasource's URL (`jdbc:postgresql...` -> Postgres, `jdbc:oracle...` -> Oracle). FQCN `pro.mir0n.esquire.dataKeep.keep.XRodInProcess` |
-| **`XRodInfo`** | log-only | logs the whole event instead of sending it (the future access-violation-log seam) |
-| **`XRodDisabled`** | no-op | the default x-rod when a bus is unconfigured (audit OFF, option 0) |
+| producer (options c / ck / d / dk) and the auKeep receiver | the standard transceiver | a broker / topic / stream |
+| in-process (option b) | the in-process rod-class | a datasource — no wire; writes the `*_log` directly |
+| audit off (option 0) | the disabled (no-op) rod-class | nothing |
 
-### A.3 The bus catalog (topology)
+### A.2 Selecting the audit sink — `AUDIT_BUS_ID`
 
-Every bus is defined **once, cross-service, in an external topology file** (`spring.config.import:
-file:/etc/esquire/topology.yml` — a bind-mount on Docker, a ConfigMap on k8s). The shape:
+Audit picks its sink by **bus-id**, one env var: the audit entry binds `{ bus-id: ${AUDIT_BUS_ID}, slot-id:
+audit }`. `AUDIT_BUS_ID` names which catalog bus the producer (and the auKeep) uses — `audit-b` / `audit-c` /
+`audit-ck` / `audit-d` / `audit-dk`, or unset → the disabled rod-class (option 0). Docker and k8s default to
+`audit-c`; the code default in `application.yml` is `audit-b`. The in-process (b) leg lives in the service's
+own catalog overlay, because its keep datasource is service-specific. How a catalog is written, unioned and
+loaded is the bus's — see
+[Esquire.MessagingBus.md](Esquire.MessagingBus.md#configuration-and-the-parameter-model).
 
-```
-bus (bus-id)
- -> slot (slot-id)          -- a leg of the bus (the term is "slot", never "service")
-    -> x-rod {
-         rod-class                                  -- the x-rod type (A.2)
-         receiver-pool {size, mode}, feed-capacity  -- consumer/apply sizing (mode: platform|virtual|virtual-per-task)
-         publisher-pool {size, mode}, concurrency   -- producer sizing
-         transport {                                -- the wire vendor (A.4); absent for in-process
-           provider, endpoint, destination,
-           params,                                  -- generic per-vendor pass-through (e.g. ActiveMQ pubSubDomain)
-           request-node / response-node + node list -- R&R only (XRodRR)
-         }
-       }
-```
+The one logical audit destination is **`esquire.rod.audit`**; the leg's driver maps it to a queue / topic /
+stream, and vendor knobs pass through `transport.params` (e.g. `jms.useAsyncSend`, a Kafka `group-id`, a
+Redis `max-len`) — the driver model itself is the bus's.
 
-A service **selects a sink by bus-id**: the audit sink is the entry `esquire.audit-bus.messaging-bus ->
-{ bus-id: ${AUDIT_BUS_ID}, slot-id: audit }`. One env var, `AUDIT_BUS_ID`, names which
-catalog bus the audit producer (and the auKeep) binds — `audit-b` / `audit-c` / `audit-ck` / `audit-d` /
-`audit-dk`, or unset → `XRodDisabled` (option 0). Docker and k8s default to **`audit-c`**; the code default
-in `application.yml` is **`audit-b`**. The catalog unions the shared cross-service topology with a service
-overlay under the service's own key `<spring.application.name>.messaging-bus` (where the per-service audit-b
-in-process leg lives, since its keep datasource is service-specific).
+### A.3 Reading a `UA` event in the message log
 
-### A.4 The transport SPI — per-vendor modules
-
-The wire vendors are **pluggable modules implementing the `ITransportProvider` SPI**, resolved by name via
-**`TransportProviders`**: a **bare** provider name maps to `pro.mir0n.esquire.tp.<name>.TransportProvider`,
-a **dotted** value is a FQCN. The shipped providers:
-
-| module | wire form | direction |
-|---|---|---|
-| **`tp-activemq`** | a queue | producer + consumer |
-| **`tp-kafka`** | a topic | producer + consumer |
-| **`tp-redis`** | a stream | producer-only |
-
-A deployment carries **only the modules it uses**. To keep a service transport-agnostic, each module ships an
-**`AutoConfigurationImportFilter`** (via `META-INF/spring.factories`) that **suppresses Boot's matching
-auto-configuration** — so adding a module pulls in its vendor wiring deliberately, through the SPI, rather
-than having Spring Boot auto-configure a broker the service never asked for.
-
-**The framework names no vendor.** There is one logical audit destination, **`esquire.rod.audit`**, and each
-provider maps it to its own wire form (an ActiveMQ queue / a Kafka topic / a Redis stream). Vendor-specific
-knobs pass through **generically** via `transport.params` (e.g. `jms.useAsyncSend`, a Kafka `group-id`, a
-Redis `max-len`) — the catalog stays declarative and the framework stays vendor-neutral.
-
-### A.5 Message-audit logging — the per-leg msg channel
-
-The msg-audit logger is now **per-leg**, named `msg.<bus-id>.<slot-id>` (was `msg.<class>`). The **transmit
-leg logs `TX`**, the **receive leg logs `RX`**, in the format
-`<TX|RX> | <msgType> | <op> | <kind> | <entityId> | <subId> | <rodId> | <requestId>`. The channel is its own
-file with `additivity=false` (it does not bleed into the console/develop logs). A `UA` audit event shows on
-the producer leg (`TX`) and, for the `audit-c` / `audit-ck` buses, again on the auKeep leg (`RX`); the
-producer-only buses (`audit-d` / `audit-dk`) log only `TX`.
+The bus's per-leg message log (a `TX`/`RX` line per hop) shows the audit event under `msgType` **`UA`**: it
+logs `TX` on the producer leg and, for the `audit-c` / `audit-ck` buses, `RX` again on the auKeep leg; the
+producer-only buses (`audit-d` / `audit-dk`) log only `TX`. The channel itself — its per-leg naming, format
+and routing — is the bus's, see [Esquire.MessagingBus.md](Esquire.MessagingBus.md#logging).
 
 ---
 
 ## 4. Architecture — where & how
 
-### 4.1 The x-rod substrate (generic fan-out)
+### 4.1 On the Messaging Bus — the audit sink
 
-**Rod = RoD = Relay of Data.** The x-rod is a generic entity fan-out frontend, **not** audit-specific: a
-producer leg captures every committed (sub)entity change and relays it to one or more **sinks**; a consumer
-leg (option c) relays it onward. **Audit is the first sink** — replication, search-index feed, webhook,
-cache-warm are future sinks on the *same* frontend, plugged in behind the sink seam without touching the
-write sites. So the substrate types carry no "audit" in their names. The generic substrate lives in
-**`messaging.xrod`** (the `XRodManager`, the `XRod` and its rod-class impls, the transport SPI), and the
-generic keep engine in **`esquire-dataKeep`** (the in-process `XRodInProcess`, `RodEventDbWriter`,
-`KeepSqlStore`, `KeepApplier` — none of it audit-aware); the audit specifics are a thin **`esquire-audit`**
-module (`AuditBusBridge`, the `AuditKeepDirector`, the `*_log` SQL).
+Audit runs on the **Messaging Bus**. A service does not open a broker connection or a datasource of its own
+for audit; it asks the bus for the audit leg and relays committed changes through it. The bus is the whole
+mechanism — the bus catalog names the audit leg, the transport driver carries the wire, and the same access
+point works whether the leg ends on a broker, a stream, or a local datasource.
 
-- **Producer leg** — male/transmitter. One `XRod` per asset-updating service (enyMan, pacMan, keySmith),
-  obtained from `XRodManager` for the audit bus. The transactional buffering lives in **`AuditBusBridge`**
-  (not the x-rod): it stamps `msgType=UA`, buffers each row-change in the current tx, and **after commit**
-  builds each `RodEvent` and calls `IXRod.transmit(event)`; the x-rod is a pure relay — its feed (sized by
-  `feed-capacity` / `publisher-pool.size`) carries the event onto the transmit leg's transport, off the
-  request thread.
+The bus's per-leg access point is the **x-rod** (**Rod = RoD = Relay of Data**). It is not audit-specific:
+a producer leg captures every committed (sub)entity change and relays it to one or more **sinks**; a
+consumer leg (option c) relays it onward. **Audit is the first sink** — replication, search-index feed,
+webhook, cache-warm are future sinks on the *same* access point, plugged in behind the sink seam without
+touching the write sites. So the bus types carry no "audit" in their names: the access point lives in the
+messaging library (`XRodManager`, the `XRod` and its rod-class impls, the transport SPI), the generic keep
+engine in **`esquire-dataKeep`** (the in-process `XRodInProcess`, `RodEventDbWriter`, `KeepSqlStore`,
+`KeepApplier` — none of it audit-aware), and the audit specifics in a thin **`esquire-audit`** module
+(`AuditBusBridge`, the `AuditKeepDirector`, the `*_log` SQL).
+
+- **Producer leg** — male/transmitter. One audit access point per asset-updating service (enyMan, pacMan,
+  keySmith), taken from the bus for the audit leg. The transactional buffering lives in **`AuditBusBridge`**
+  (not the access point): it stamps `msgType=UA`, buffers each row-change in the current tx, and **after
+  commit** builds each `RodEvent` and hands it to the access point; the access point is a pure relay — its
+  feed (sized by `feed-capacity` / `publisher-pool.size`) carries the event onto the leg's transport, off
+  the request thread.
 - **Consumer leg (auKeep)** — female/receiver. A `WorkerPool` bounded by `receiver-pool.size` with **no queue
   of its own**; the receive leg's transport hands each decoded `RodEvent` to it, the keep applier resolves
   the event's `kind` to a statement key, and writes it. The same consumer mechanism in every bus-fed option;
-  only its **location and feed** differ — in-process `XRodInProcess` for (b); standalone, bus-fed auKeep for
-  (c)/(ck).
+  only its **location and feed** differ — the in-process leg (option b) has no wire and its access point
+  writes straight to a datasource; the standalone, bus-fed auKeep serves (c)/(ck).
 
 > **As-built note.** Per-`kind` work is a dialect-keyed SQL statement: the keep applier (`KeepApplier`)
 > resolves the event `kind` through the director's kind->statement-key map and `RodEventDbWriter` binds the
@@ -339,7 +299,7 @@ The **body is built by the entity itself** via `IMappable.fillMap(Map)` (a JPA-l
 `EsqEntityJpa` emits `name`/`desc`/`parentId`, concrete entities override) — so the producer carries **no
 domain field names** and there is no reflection. The keep applier binds that body straight to dialect-keyed
 SQL via `RodEventDbWriter`. There is **no Rod-owned context type**: the audit triple
-(`crl_id`/`req_id`/`uid`) already lives in the v1.2.7 `EsqRequestContext`, read via
+(`crl_id`/`req_id`/`uid`) already lives in the `EsqRequestContext`, read via
 `RequestContextUtils.getContext()` — captured once per request and re-established on worker threads.
 
 ### 4.2 The Rod event (`RodEvent`)
@@ -479,13 +439,23 @@ restricts which tables are logged. SQL stays a **deployable spec artifact**, dec
 ## 5. Delivery semantics — loss, duplication, and why dedup lives only on the bus path
 
 **In plain terms:** once a service commits its change, the audit event is held in memory and then sent to
-the bus. If the broker is down, or the process crashes, before that send lands, the event is dropped —
-there is no automatic resend and nothing is written to disk to recover it. So an audit event is **not
-guaranteed to follow the change it records** — except option (a), which writes the audit row inside the
-same transaction as the change. This is not a gap to close: async audit is decoupled from the change's
-transaction on purpose, to keep the change path as fast as possible when everything works — it is the
-fast-path record, not the source you reconstruct an outage from. The rest of this section is the per-option
-detail behind that statement.
+the bus. If the broker is down, or the process crashes, before that send lands, the event can be dropped —
+nothing is written to disk to recover it. So an audit event is **not guaranteed to follow the change it
+records** — except option (a), which writes the audit row inside the same transaction as the change. This
+is not a gap to close: async audit is decoupled from the change's transaction on purpose, to keep the
+change path as fast as possible when everything works — it is the fast-path record, not the source you
+reconstruct an outage from. The rest of this section is the per-option detail behind that statement.
+
+> **Send-retry — a brief broker blip no longer drops the event.** The messaging layer has an
+> opt-in producer **send-retry** sublayer: when a send throws, the feed worker holds and re-dispatches the
+> same event over a backoff ladder (holding the worker is the back-pressure), dropping it only past an
+> optional attempt cap. So a short broker outage is ridden out rather than lost. Two limits keep §5's
+> statement true for audit as shipped: send-retry is **not enabled on the audit buses** by default (the
+> `audit-c` leg does not set it), and that leg runs the broker **non-persistent** (`persistent: false`), so
+> a broker *restart* still drops any backlog auKeep has not yet drained — accepted for dev/demo. Durable,
+> zero-loss audit is still the **ack-after-write + dedup** hardening of (c) below, not send-retry. The
+> retry path reports its own metrics (held-count gauge, backoff and drop counters) — see the observability
+> stack.
 
 Each option sits at a different point on the **loss vs duplication** spectrum, and only some can be made
 zero-loss. This decides where a dedup mechanism is needed — and is the real reason the `*_log` dedup unique
@@ -524,68 +494,31 @@ on-the-tx, **(c)-hardened** never-lose-off-box, **(b)/(c)-best-effort/(d)** lose
 
 ---
 
-## 6. Kafka as the audit transport — partitioning & the consumer model
+## 6. Kafka under audit — why, and the audit-specific choices
 
-Kafka is a **transport choice for the bus options, not a new option**: it can replace ActiveMQ under **(c)**
-and front Redis under **(d)**. Both are proven:
-- **(c)-style — BUILT (`audit-ck`):** `service → Kafka → auKeep` — Kafka in place of ActiveMQ; the producer
-  and auKeep both bind the `audit-ck` bus, whose leg names the `tp-kafka` provider (topic). Same codec,
-  director, `*_log`, dedup.
-- **(d)-style (`audit-dk`):** `service → Kafka → Redis Kafka Sink (Kafka Connect) → Redis`, or the Kafka
-  topic as the log itself (producer-only, no auKeep). Smoke-proven infra-only (no framework code).
+Kafka is a **transport choice for the bus options, not a new audit option**: it can replace ActiveMQ under
+**(c)** and front Redis under **(d)** — a bus-id swap (`audit-c` → `audit-ck`, `audit-d` → `audit-dk`), same
+codec, director, `*_log`, dedup. Both are proven: `audit-ck` (`service → Kafka → auKeep`) is built;
+`audit-dk` (`service → Kafka → Kafka Connect Redis sink → Redis`, or the topic as the log itself) is
+smoke-proven, infra-only.
 
-The rest of this section is the (c) case in depth — partitioning and the consumer model — since that is the
-path with framework code; the (d-k) variant is infra-only.
+How Kafka is partitioned, how its consumer is sized, connection budgeting, replay and replication are **bus /
+Kafka concerns, not audit's** — the running guidance lives with the transport. Only the choices that are
+*audit's own* are here:
 
-(c) keeps its shape (producer → bus → auKeep → `*_log`) with the **transport swappable by bus-id**:
-`AUDIT_BUS_ID=audit-c` (the `tp-activemq` leg) vs `audit-ck` (the `tp-kafka` leg). Codec, director,
-writer, dedup index unchanged. How to run it well for audit:
+- **Partition key = none.** Audit is **order-independent** — each event is a self-contained full snapshot and
+  the write is pure append — so audit deliberately does **not** ask for per-key ordering. `key=none` gives
+  even spread and full parallelism. (`key=entityId` would buy per-entity order audit does not need and risk a
+  hot partition; `key=kind` has only ~8–10 heavily-skewed keys — the worst.)
+- **Fan-out is the reason audit would pick Kafka.** One topic, many consumer groups, each getting every
+  record: the same audit stream can feed the SQL `*_log`, a Redis sink, and a future search index off a
+  single publish — which the ActiveMQ queue (one delivery, one consumer) cannot do. Replay/backfill (a sink
+  added later rebuilds itself from offset 0) is the second draw. These, more than the transport swap, are
+  audit's case for Kafka; everything else is a have-it-when-needed dial.
 
-- **6.1 Partitioning — key = none.** Audit is order-independent, so we do not need per-key ordering.
-  `key=none` (round-robin / sticky) gives maximum even spread, no hot partitions, full parallelism — the
-  default. Rejected: `key=entityId` (per-entity order we don't need; risks a hot partition from a busy
-  entity — write skew, not cardinality, is the issue); `key=kind` (only ~8–10 keys, heavily skewed →
-  guaranteed hot+idle partitions — the worst). Partitions are the unit + cap of consumer parallelism; size
-  to the max replicas you'd ever want (with `key=none` they can be grown later freely).
-- **6.2 Consumer model — one per instance, scale by replicas.** auKeep's consumer side is a **single
-  consumer thread** (`@KafkaListener`). **Do NOT raise `listener.concurrency` above 1** (that puts N
-  threads on one shared pool — head-of-line blocking). **Add auKeep replicas** in the same group instead;
-  Kafka distributes partitions across instances (competing consumers, also the redundancy story).
-- **6.3 A dedicated worker pool per consumer.** Each consumer owns its **own** auKeep pool — never share.
-  Isolation (a blocked partition mustn't steal permits), per-partition offset correctness, backpressure
-  locality. The process boundary gives this for free (one instance = one director = one pool = one Hikari
-  pool); the only way to violate it is `concurrency>1`.
-- **6.4 No internal queue — the topic is the buffer.** The consumer pulls at its own pace; the pool's
-  semaphore backpressures `submit()`, which makes Spring Kafka **pause polling** when writers saturate; the
-  backlog stays in the broker, replayable by offset. Nothing accumulates in memory.
-- **6.5 Delivery.** As built: async pool, offset commits before write → best-effort. Zero-loss upgrade:
-  write synchronously, commit offset after (ack-mode `RECORD`/`BATCH`) → at-least-once → dedup index →
-  effective exactly-once. Cost: one-write-at-a-time per consumer, so lean on partitions + replicas.
-- **6.6 DB connection budget.** Total audit-DB connections = **replicas × receiver-pool.size** (the smoke hit `too
-  many clients already` from this). Size the catalog leg's `receiver-pool.size` + Postgres `max_connections`
-  together, or front the DB with pgbouncer.
-- **6.7 Recommended:** `key=none` · N partitions (= max replicas) · `listener.concurrency=1` · scale via
-  replicas · one dedicated pool per instance · no internal queue · best-effort default, ack-after-write +
-  dedup index for zero-loss · `receiver-pool.size × replicas ≤ DB connection budget`.
-
-**6.8 Why partitioning earns its keep** (the case for Kafka over the ActiveMQ queue), most to least
-relevant for audit:
-1. **Fan-out to many independent sinks (decisive).** One topic, **multiple consumer groups**, each getting
-   *every* record. The same `esquire.rod.audit` topic feeds **auKeep → SQL `*_log` AND Kafka Connect → Redis
-   AND a future search index** off a **single publish** — impossible on the ActiveMQ queue (delivers each
-   message once, to one consumer). Demonstrated by the (d-k) variant (producer unchanged, a Connect Redis
-   sink added as just another group).
-2. **Throughput / scale-out (the dial).** Partitions = unit of parallelism at every stage; add partitions +
-   replicas → near-linear scale, no code change.
-3. **Replay / backfill (free with retention).** A new consumer group starts at offset 0 and replays the
-   whole history — a sink added months later **backfills itself**; a wiped sink is **rebuilt** by replaying.
-4. **Ordering on demand (key choice).** Order within a partition; `key=none` (default) or `key=entityId`
-   *only if* a particular sink needs per-entity order.
-5. **HA via replication.** `replication.factor>1` survives a broker loss.
-
-**Net for us:** the leverage points we'd genuinely use are **fan-out** and **replay**; scale + HA are
-have-it-when-needed dials. None exist on the ActiveMQ queue — they, more than the transport swap, are the
-case for Kafka under (c).
+For running Kafka well on the bus (consumer-per-instance, the dedicated pool, the topic-as-buffer, the
+connection budget, ack-after-write for zero-loss), see
+[Esquire.MessagingBus.md](Esquire.MessagingBus.md).
 
 ---
 
@@ -776,40 +709,36 @@ here). (c)'s payoff remains offload — the `*_log` writes leave the business JV
 
 ---
 
-## 10. The xx queue worker pool (enabling infrastructure)
+## 10. auKeep — the audit consumer service
 
-Options (b), (c), and the high-volume end of (d) share the **xx queue worker pool** shape, so they all need
-it to keep up. The next chapter for the queue-rig framework is a **multi-worker pool with an assignment** —
-records distributed across N workers by an assignment key (the target `*_log` table / asset type), so writes
-fan out in parallel across tables while **per-table FIFO ordering is preserved**. (A separate track from the
-LMAX-Disruptor "endgame" in the queue-rig research; the xx consumer is its first real customer.)
+**auKeep** (image `esquire.aukeep`) is the standalone consumer service of options (c)/(ck): it hosts a bus
+receive leg, decodes each event and applies it to the `*_log` through the generic keep engine (§4.7). It is
+audit's own deployable — the in-process option (b) needs no auKeep, and the producer-only options (d)/(dk)
+have none.
 
----
+The worker-pool that (b), (c) and the busy end of (d) all lean on to keep up — its sizing, the planned
+multi-worker assignment model (fan writes across `*_log` tables while keeping per-table order) — is the
+messaging/keep enabling infrastructure, not audit's; auKeep is simply its first real user. See
+[Esquire.MessagingBus.md](Esquire.MessagingBus.md).
 
-## 11. The Rod — name, metaphor
-
-<img src="img/x-rod.7.svg" alt="Rod logo" align="left" width="100" height="100">
-
-**Rod = RoD = Relay of Data.** The async distributing collaboration that relays data from A to B — here, an
-audit event from the originating service to its resting place. A single x-rod type, the **`XRod`** (obtained
-from `XRodManager` by bus key + role), reusable beyond audit for any migrate/replicate job: a transmit leg
-makes it a producer, a receive leg makes it a consumer, both make it a transceiver. Prose: **x-rod** for the
-relay; the standalone audit consumer SERVICE that hosts a bus-fed consumer x-rod and lands events in the
-`*_log` is **auKeep** (image `esquire.aukeep`).
-
-**The metaphor:** a **lightning rod** on a castle's corner tower channels the strike safely to the ground. The
-audit event is the lightning; the Rod catches it and conducts it to the log store without it tearing through
-the operational path.
+**The name.** *au* = audit, *Keep* = the keep engine it hosts. The audit event is like a lightning strike
+and the pipeline a **lightning rod** — it catches the event and conducts it to the log store without letting
+it tear through the operational path.
 
 ---
 
-## 12. Cross-references
+## 11. Cross-references
 
+- [Esquire.MessagingBus.md](Esquire.MessagingBus.md) — the bus this sink rides: the access point (x-rod) and
+  its legs, the rod-class model, the catalog and parameter model, the transport SPI and drivers, the message
+  log channel, health, and Kafka on the bus. Everything about the bus mechanism lives there.
 - [services.configuring.md](services.configuring.md) — the external config reference (*Selecting an audit
   option*, the env table, deploy defaults).
-- [Object.Kind.enum.md](Object.Kind.enum.md) — the `kind` codes (entity + sub-entity kinds 988–998).
+- [EntityDictionary.md](EntityDictionary.md#appendix----the-kind-enumeration) — the `kind` codes (entity + sub-entity kinds 988–998).
 - [DatabaseDictionary.md](DatabaseDictionary.md) — §2 Entity Structure + the `*_log` tables.
-- [Message.Structure.md](Message.Structure.md) — the `UE` entity message this design extends.
-- [Messaging.md](Messaging.md) — the entity-broadcast + IAM buses (the audit queue is parallel to, and
+- [Esquire.MessagingBus.MessageStructure.md](Esquire.MessagingBus.MessageStructure.md) — the `UE` entity message this design extends.
+- [Esquire.Messaging.md](Esquire.Messaging.md) — the entity-broadcast + IAM buses (the audit queue is parallel to, and
   separate from, the entity-broadcast bus).
+- [Esquire.ObservabilityStack.md](Esquire.ObservabilityStack.md) — the metrics, logs and traces that
+  cover the audit path (the send-retry meters, and the traced bus hops from producer to auKeep).
 - `doc/research/Redis-on-OCI.md`, `doc/research/RedisJSON-local.md` — the Redis sink research.

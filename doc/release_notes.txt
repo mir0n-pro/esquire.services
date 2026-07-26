@@ -1,6 +1,26 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v1.2.11-2607.2614  v1.2.11 -- T13: sprint documentation finalization
+    :Fix:         the paper-client-account entity-kind title corrected to "Paper Client Account" (and its description)
+    :Doc:         doc\Esquire.Auth.md  (new -- authentication and authorization: the token and its claims
+                  and roles, the personal self-service flag, user creation, two-factor, entity synchronization)
+                  doc\Esquire.Auth.TokenPatterns.md  (new)
+                  doc\Esquire.Auth.keySmithRoutine.md  (new -- was keySmithCredentialRoutine.md)
+                  doc\install\Docker.md  (new -- step-by-step install and run, Docker sandbox)
+                  doc\install\LocalK8s.md  (new -- step-by-step install and run, local Kubernetes)
+                  doc\v1.2.x.Goal.md  (new -- the goal, and the fifteen-factor scorecard)
+                  doc\Esquire.GrafanaGuide.md  (new)
+                  doc\Esquire.ObservabilityStack.Logging.md  (new -- was Logging.md)
+                  Releases.md  (new -- the release history)
+                  README.md  (installation section, refreshed component model and observability stack,
+                  release history, documentation links)
+                  doc\Esquire.Vision.md  (the mature-framework value proposition)
+                  doc\Esquire.ObservabilityStack.md
+                  doc\entity.path.semantics.md  (removed -- folded into Esquire.Auth.md)
+    Components:   common,
+                  doc
+
 v1.2.11-2607.2320  v1.2.11 -- homework: fix/resolve issues found in the fresh-mind audit
     - while a branch is being moved, path changes are applied to parent entities before their
       children, so the tree the cache serves can never briefly show a child ahead of its parent

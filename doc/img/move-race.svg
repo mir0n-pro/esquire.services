@@ -1,0 +1,101 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 540" width="900" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="12.5">
+  <defs>
+    <marker id="ar" markerWidth="8" markerHeight="8" refX="6.5" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L7,3 L0,6 Z" fill="#4D6A8D"/>
+    </marker>
+    <marker id="arR" markerWidth="8" markerHeight="8" refX="6.5" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L7,3 L0,6 Z" fill="#b4553f"/>
+    </marker>
+    <marker id="arG" markerWidth="8" markerHeight="8" refX="6.5" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L7,3 L0,6 Z" fill="#3f7a4f"/>
+    </marker>
+  </defs>
+
+  <text x="450" y="24" text-anchor="middle" font-size="15" font-weight="bold" fill="#2b3b52">Create-while-move across two instances, and the repair</text>
+
+  <!-- bands -->
+  <rect x="8" y="92" width="884" height="188" fill="#fbeeea"/>
+  <rect x="8" y="280" width="884" height="238" fill="#eaf5ee"/>
+  <text x="16" y="110" font-size="11" font-weight="bold" fill="#b4553f">THE RACE</text>
+  <text x="16" y="298" font-size="11" font-weight="bold" fill="#3f7a4f">THE REPAIR</text>
+
+  <!-- lifelines -->
+  <g fill="#4D6A8D">
+    <rect x="20"  y="52" width="100" height="30" rx="5"/>
+    <rect x="170" y="52" width="120" height="30" rx="5"/>
+    <rect x="385" y="52" width="120" height="30" rx="5"/>
+    <rect x="595" y="52" width="115" height="30" rx="5"/>
+    <rect x="795" y="52" width="95"  height="30" rx="5"/>
+  </g>
+  <g text-anchor="middle" fill="#fff" font-weight="bold" font-size="12">
+    <text x="70"  y="72">Client</text>
+    <text x="230" y="72">enyMan-A</text>
+    <text x="445" y="72">enyMan-B</text>
+    <text x="652" y="72">esq_entity_path</text>
+    <text x="842" y="72">bizTree</text>
+  </g>
+  <g text-anchor="middle" fill="#d7e0ec" font-size="10">
+    <text x="230" y="90">(the CREATE)</text>
+    <text x="445" y="90">(the MOVE)</text>
+  </g>
+  <g stroke="#9aa7b8" stroke-dasharray="4 3">
+    <line x1="70"  y1="90" x2="70"  y2="518"/>
+    <line x1="230" y1="90" x2="230" y2="518"/>
+    <line x1="445" y1="90" x2="445" y2="518"/>
+    <line x1="652" y1="90" x2="652" y2="518"/>
+    <line x1="842" y1="90" x2="842" y2="518"/>
+  </g>
+
+  <!-- RACE -->
+  <g>
+    <line x1="70" y1="128" x2="441" y2="128" stroke="#4D6A8D" marker-end="url(#ar)"/>
+    <text x="255" y="122" text-anchor="middle" fill="#2b3b52">POST /esq-move &#8594; 202</text>
+    <text x="255" y="141" text-anchor="middle" font-size="10.5" fill="#7a8698">submitMove: inMove() = true</text>
+  </g>
+  <g>
+    <line x1="445" y1="166" x2="648" y2="166" stroke="#4D6A8D" marker-end="url(#ar)"/>
+    <text x="548" y="160" text-anchor="middle" fill="#2b3b52">LOCK ep_pk=1 FOR UPDATE</text>
+    <text x="548" y="178" text-anchor="middle" font-size="10.5" fill="#7a8698">system lock &#8212; moves are cluster-serial</text>
+  </g>
+  <g>
+    <line x1="70" y1="206" x2="226" y2="206" stroke="#4D6A8D" marker-end="url(#ar)"/>
+    <text x="150" y="200" text-anchor="middle" fill="#2b3b52">POST create</text>
+    <rect x="150" y="212" width="200" height="20" rx="4" fill="#f6d9d0" stroke="#d9a690"/>
+    <text x="250" y="226" text-anchor="middle" font-size="10.5" fill="#8a3d28">reads parent ep_path = OLD</text>
+  </g>
+  <g>
+    <line x1="445" y1="250" x2="648" y2="250" stroke="#4D6A8D" marker-end="url(#ar)"/>
+    <text x="548" y="244" text-anchor="middle" fill="#2b3b52">rewrite subtree OLD&#8594;NEW</text>
+    <text x="548" y="262" text-anchor="middle" font-size="10.5" fill="#7a8698">commit + unlock</text>
+  </g>
+  <g>
+    <line x1="230" y1="272" x2="648" y2="272" stroke="#b4553f" marker-end="url(#arR)"/>
+    <text x="440" y="266" text-anchor="middle" fill="#8a3d28" font-weight="bold">create commits &#8212; path still OLD  &#9888; STALE</text>
+  </g>
+
+  <!-- REPAIR -->
+  <g>
+    <line x1="230" y1="322" x2="441" y2="322" stroke="#3f7a4f" marker-end="url(#arG)"/>
+    <text x="336" y="316" text-anchor="middle" fill="#2b3b52">CREATE broadcast</text>
+    <text x="336" y="334" text-anchor="middle" font-size="10.5" fill="#7a8698">peer, noLocal &#8594; onPeerCreate &#8594; submitReconcile</text>
+  </g>
+  <rect x="360" y="346" width="300" height="22" rx="4" fill="#dcefe2" stroke="#a9d3ba"/>
+  <text x="510" y="361" text-anchor="middle" font-size="10.5" fill="#2f6a41">inMove() still true &#8212; elastic grace (200 ms) catches the late create</text>
+  <g>
+    <line x1="445" y1="392" x2="648" y2="392" stroke="#3f7a4f" marker-end="url(#arG)"/>
+    <text x="548" y="386" text-anchor="middle" fill="#2b3b52">reconcile</text>
+    <text x="548" y="404" text-anchor="middle" font-size="10.5" fill="#7a8698">expected(parent NEW) &#8800; published &#8594; updatePath NEW</text>
+  </g>
+  <g>
+    <line x1="445" y1="440" x2="839" y2="440" stroke="#3f7a4f" marker-end="url(#arG)"/>
+    <text x="640" y="434" text-anchor="middle" fill="#2b3b52">reissue EVENT_UPDATE_PATH</text>
+    <text x="640" y="452" text-anchor="middle" font-size="10.5" fill="#7a8698">bizTree re-paths the node</text>
+  </g>
+  <rect x="470" y="474" width="420" height="30" rx="6" fill="#cfe8d7" stroke="#8fc3a3"/>
+  <text x="680" y="493" text-anchor="middle" font-weight="bold" fill="#2f6a41">DB path correct &#8658; cache (and the night-watch) stay correct</text>
+
+  <!-- local-create footnote -->
+  <text x="16" y="493" font-size="10.5" fill="#3a4a5f">Same-instance create:</text>
+  <text x="16" y="508" font-size="10.5" fill="#3a4a5f">submitReconcileIfInMove &#8212;</text>
+  <text x="16" y="523" font-size="10.5" fill="#3a4a5f">same repair, no bus hop.</text>
+</svg>

@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 920 340" font-family="Calibri, Segoe UI, sans-serif">
+  <defs>
+    <marker id="arw" markerUnits="userSpaceOnUse" markerWidth="13" markerHeight="10" refX="11" refY="5" orient="auto">
+      <path d="M0,0 L11,5 L0,10 Z" fill="#6ca43d"/>
+    </marker>
+  </defs>
+  <style>
+    .goal{fill:none;stroke:#9a9a9a;stroke-width:1.6;stroke-dasharray:7,4}.goalt{fill:#6b6b6b;font-size:12.5px}.goalb{fill:#4a4a4a;font-weight:bold;font-size:13px}
+    .step{fill:#5b9bd5;stroke:#41719c;stroke-width:1.5}.stept{fill:#fff;font-weight:bold;font-size:14px}
+    .edge{stroke:#6ca43d;stroke-width:2.2;fill:none;marker-end:url(#arw)}
+    .desc{fill:#404040;font-size:11.5px}
+    .title{fill:#1f3864;font-size:18px;font-weight:bold}
+    .detour{fill:#c55a11;font-size:12px;font-style:italic}
+    .cap{fill:#404040;font-size:12px}
+  </style>
+
+  <text class="title" x="20" y="28">The detour around the inaccessible Plain JWE goal</text>
+
+  <rect class="goal" x="250" y="50" width="420" height="46" rx="8"/>
+  <text class="goalb" x="460" y="72" text-anchor="middle">Plain JWE -- the goal</text>
+  <text class="goalt" x="460" y="88" text-anchor="middle">self-contained + claim-hidden in ONE token; not emitted by stock KC</text>
+
+  <path class="edge" d="M300,96 C 230,130 180,140 152,168"/>
+  <text class="detour" x="196" y="132">detour</text>
+
+  <rect class="step" x="40"  y="172" width="220" height="58" rx="8"/><text class="stept" x="150" y="206" text-anchor="middle">Plain JWT</text>
+  <path class="edge" d="M260,201 L 306,201"/>
+  <rect class="step" x="310" y="172" width="250" height="58" rx="8"/><text class="stept" x="435" y="206" text-anchor="middle">Vanilla Token Relay</text>
+  <path class="edge" d="M560,201 L 606,201"/>
+  <rect class="step" x="610" y="172" width="250" height="58" rx="8"/><text class="stept" x="735" y="206" text-anchor="middle">Phantom Token Relay</text>
+
+  <text class="desc" x="150" y="256" text-anchor="middle">client holds a JWT with</text>
+  <text class="desc" x="150" y="272" text-anchor="middle">readable claims (OAuth baseline)</text>
+  <text class="desc" x="435" y="256" text-anchor="middle">client holds NO token --</text>
+  <text class="desc" x="435" y="272" text-anchor="middle">only credentials</text>
+  <text class="desc" x="735" y="256" text-anchor="middle">client holds a JWT whose</text>
+  <text class="desc" x="735" y="272" text-anchor="middle">claims are empty</text>
+
+  <text class="cap" x="20" y="312">Each step hides one more thing from the client; the three together approximate what a single JWE token would have given.</text>
+</svg>

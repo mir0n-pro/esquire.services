@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 460" width="656" height="368" font-family="Calibri, Segoe UI, sans-serif">
+  <defs>
+    <marker id="arw" markerUnits="userSpaceOnUse" markerWidth="12" markerHeight="9" refX="10" refY="4.5" orient="auto">
+      <path d="M0,0 L10,4.5 L0,9 Z" fill="#6ca43d"/>
+    </marker>
+  </defs>
+  <style>
+    .state{fill:#5b9bd5;stroke:#41719c;stroke-width:1.5}
+    .pend{fill:#f4b183;stroke:#c55a11;stroke-width:1.5}
+    .stt{fill:#ffffff;font-weight:bold;font-size:22px}
+    .ptt{fill:#5a2d0c;font-weight:bold;font-size:22px}
+    .sts{fill:#eaf2fb;font-size:11px}
+    .psts{fill:#5a2d0c;font-size:11px}
+    .edge{stroke:#6ca43d;stroke-width:1.9;fill:none;marker-end:url(#arw)}
+    .et{fill:#2b2b2b;font-size:13px}
+    .es{fill:#57606a;font-size:11.5px}
+    .title{fill:#1f3864;font-size:18px;font-weight:bold}
+    .leg{fill:#fdf3e7;stroke:#e0b483;stroke-width:1}
+    .lt{fill:#5a2d0c;font-size:11.5px}
+  </style>
+
+  <text class="title" x="20" y="28">Two-factor (TOTP)  au_tfa_method  (N | g | G | n)</text>
+
+  <!-- states -->
+  <rect class="state" x="95"  y="105" width="150" height="70" rx="12"/>
+  <text class="stt" x="170" y="138" text-anchor="middle">N</text><text class="sts" x="170" y="159" text-anchor="middle">TOTP off</text>
+
+  <rect class="pend" x="575" y="105" width="150" height="70" rx="12"/>
+  <text class="ptt" x="650" y="138" text-anchor="middle">g</text><text class="psts" x="650" y="159" text-anchor="middle">enable requested</text>
+
+  <rect class="state" x="575" y="290" width="150" height="70" rx="12"/>
+  <text class="stt" x="650" y="323" text-anchor="middle">G</text><text class="sts" x="650" y="344" text-anchor="middle">TOTP active</text>
+
+  <rect class="pend" x="95"  y="290" width="150" height="70" rx="12"/>
+  <text class="ptt" x="170" y="323" text-anchor="middle">n</text><text class="psts" x="170" y="344" text-anchor="middle">disable requested</text>
+
+  <!-- N -> g (top) -->
+  <path class="edge" d="M245,140 L 571,140"/>
+  <text class="et" x="408" y="128" text-anchor="middle">request enable</text>
+  <text class="es" x="408" y="98" text-anchor="middle">POST /esq-key-save { tfaMethod: "G" }</text>
+
+  <!-- g -> G (right) -->
+  <path class="edge" d="M650,175 L 650,286"/>
+  <text class="et" x="668" y="222" text-anchor="start">configure TOTP in KC</text>
+  <text class="es" x="668" y="240" text-anchor="start">(scan QR); self-read</text>
+  <text class="es" x="668" y="256" text-anchor="start">confirms  g -&gt; G</text>
+
+  <!-- G -> n (bottom) -->
+  <path class="edge" d="M575,325 L 249,325"/>
+  <text class="et" x="412" y="343" text-anchor="middle">request disable</text>
+  <text class="es" x="412" y="360" text-anchor="middle">POST /esq-key-save { tfaMethod: "N" }</text>
+
+  <!-- n -> N (left) -->
+  <path class="edge" d="M170,290 L 170,179"/>
+  <text class="et" x="152" y="222" text-anchor="end">KC OTP credential</text>
+  <text class="es" x="152" y="240" text-anchor="end">removed; self-read</text>
+  <text class="es" x="152" y="256" text-anchor="end">confirms  n -&gt; N</text>
+
+  <rect class="leg" x="95" y="392" width="630" height="30" rx="5"/>
+  <text class="lt" x="107" y="411">Lowercase (g, n) = pending -- confirmed to uppercase on the user's next self-read (GET /esq-key, id = null).</text>
+</svg>

@@ -1,4 +1,10 @@
+# <img src="../favicon.ico" alt="Esquire logo" valign="middle" width="64" height="64"> Esquire Application Frameworks(tm) 2.0
+
 # KeySmith Credential Routines — State Machine & Collaboration
+
+> Part of the **[Esquire.Auth suite](Esquire.Auth.md)** — this member covers the credential-lifecycle state
+> machines; the tree-shaped security model and the keySmith / kcMaster / KeyCloak collaboration overview are in
+> [`Esquire.Auth.md`](Esquire.Auth.md).
 
 Describes the collaboration between **End-User UI**, **keySmith service**, and **KeyCloak (KC)**
 for the three credential lifecycle operations: reset password, TOTP, and connection flag.
@@ -22,13 +28,7 @@ for the three credential lifecycle operations: reset password, TOTP, and connect
 
 ### State diagram
 
-```
-[N] --admin sets--> [Y] --user logs in & sets new pwd--> (KC cleared)
-                              |
-                         GET /esq-key (id=null)
-                              |
-                             [N]  ← keySmith clears DB flag
-```
+![Reset-password state machine for au_force_change_flg: N to Y when an admin forces a reset (pwdChangeForced Y); back to N after the user changes the password in KeyCloak and the flag clears on the next self-read.](img/keysmith-password.svg)
 
 ---
 
@@ -72,19 +72,7 @@ for the three credential lifecycle operations: reset password, TOTP, and connect
 
 ### State diagram
 
-```
-[N] --user requests enable--> [g] --user configures TOTP in KC--> (KC cleared)
-                                          |
-                                     GET /esq-key (id=null)
-                                          |
-                                         [G]  ← confirmed active
-
-[G] --user requests disable--> [n] --KC OTP credential removed-->
-                                          |
-                                     GET /esq-key (id=null)
-                                          |
-                                         [N]  ← confirmed disabled
-```
+![TOTP state machine for au_tfa_method: a four-state cycle N to g to G to n to N. Uppercase N and G are stable (off / active); lowercase g and n are pending (enable / disable requested) and confirm to uppercase on the next self-read.](img/keysmith-totp.svg)
 
 ### Validation rules (applyFields)
 - Only `"G"` and `"N"` are accepted from the UI; any other value is silently ignored
@@ -124,10 +112,7 @@ for the three credential lifecycle operations: reset password, TOTP, and connect
 
 ### State diagram
 
-```
-[N] --admin activates--> [Y]  → KC user created (temporary pwd, TOTP off)
-[Y] --admin deactivates-> [N] → KC user deleted
-```
+![Connection-flag state machine for au_connect_flg: N to Y when an admin activates (KC user created with a temporary password, TOTP off); Y to N when an admin deactivates (KC user deleted, entity stays).](img/keysmith-connect.svg)
 
 ### KC attributes set at creation
 | Attribute | Value | Constant |

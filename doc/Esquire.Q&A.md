@@ -1,25 +1,26 @@
+# <img src="../favicon.ico" alt="Esquire logo" valign="middle" width="64" height="64"> Esquire Application Frameworks(tm) 2.0
+
 # Esquire -- Design Q&A
 
-> TEMPORARY / WORKING FILE. The framework-wide Design Q&A for Esquire OVERALL -- things that *sound like* defects
-> on a first read of Esquire, and why each is a deliberate choice (or a non-issue in the actual usage model)
-> rather than a bug. This is the Esquire-level Q&A; it is NOT tied to any single subsystem. (A subsystem may keep
-> its own topic-scoped Q&A -- e.g. the messaging bus has "Appendix F -- Design Q&A" in `Esquire.MessagingBus.md`
-> -- but framework-wide questions like the ones below live HERE.) Temporary location: once we settle where the
-> framework-level Q&A belongs, this content gets compiled into its permanent home.
+> **WORKING doc** -- a living log, appended as questions come up. The framework-wide Design Q&A for Esquire
+> OVERALL: things that *sound like* defects on a first read of Esquire, and why each is a deliberate choice (or a
+> non-issue in the actual usage model) rather than a bug. This is the Esquire-level Q&A; it is NOT tied to any
+> single subsystem -- framework-wide questions live HERE. (A self-contained subframework keeps its own notes --
+> e.g. the messaging bus has its own continuing-development doc, `Esquire.MessagingBus.ContinuingDev.md`.)
 
 ## Contents
 
 Design questions grouped by context. Each group collects the "this *sounds like* a defect -- here is why it is a deliberate choice (or a non-issue in the actual usage model)" entries for one area of the framework.
 
 1. [Entity model and lifecycle](#entity-model-and-lifecycle) -- How entities are edited, identified, and deleted -- and why the usual version-column / cascade prescriptions do not apply.
-2. [Move ordering and the bizTree cache](#move-ordering-and-the-biztree-cache) -- Re-parenting a subtree, the order events apply in, and the recoverable Taijitu cache that backstops it.
-3. [Messaging bus](#messaging-bus) -- The x-rod bus -- delivery guarantees, subscriptions, rod identity, and how bad config is caught.
-4. [Audit trail](#audit-trail) -- How the *_log audit is keyed for idempotency, and the deploy-time audit posture.
+2. [Move ordering and the bizTree cache](#move-ordering-and-the-biztree-cache) -- Re-parenting a subtree (moving a branch to a new parent), the order events apply in, and the recoverable Taijitu cache that backs it up.
+3. [Messaging bus](#messaging-bus) -- how ESQUIRE uses the x-rod bus: delivery guarantees on its channels and rod identity in its deployment. (Generic bus-framework Q&A: `Esquire.MessagingBus.Q&A.md`.)
+4. [Audit trail](#audit-trail) -- How the *_log audit is keyed so a redelivered message still makes one row (idempotency), and what audit is on at deploy time.
 5. [Security and authentication](#security-and-authentication) -- Token format and the trusted-perimeter model, onboarding credentials, and CORS.
 6. [Accounting (the pacMan demonstration domain)](#accounting-the-pacman-demonstration-domain) -- What the demonstration accounting service deliberately simplifies, and where the line to a production ledger is.
 7. [Database schema and migrations](#database-schema-and-migrations) -- The seed-plus-idempotent-forward-patch model, and why no migration tool is imposed on adopters.
 8. [Frontend and UI](#frontend-and-ui) -- The UI library's deliberately fixed look, and the Explorer's status as a reference example rather than a product.
-9. [Testing and QA](#testing-and-qa) -- Why shared types + shared constants + e2e are the de-facto contract at this scale.
+9. [Testing and QA](#testing-and-qa) -- Why shared types + shared constants + e2e are the effective contract at this scale.
 
 ---
 
@@ -27,91 +28,94 @@ Design questions grouped by context. Each group collects the "this *sounds like*
 
 *How entities are edited, identified, and deleted -- and why the usual version-column / cascade prescriptions do not apply.*
 
-**Q. There is no optimistic locking on entity edits -- no version column / ETag / `If-Match` on `ESQ_ORG` /
-`ESQ_USER` / `ESQ_ACCOUNT`. Two concurrent edits of the same entity look like a lost update: the first writer's
-change is silently overwritten, with no 409.**
+**Q1. There is no optimistic locking (a version check that rejects a save when the row changed since it was read) on
+entity edits -- no version column / ETag / `If-Match` on `ESQ_ORG` / `ESQ_USER` / `ESQ_ACCOUNT`. Two edits of the
+same entity at the same time look like a lost update: the first writer's change is silently overwritten, with no
+`409` conflict returned.**
 
-A. Not a defect in the Esquire model. The classic lost update needs three conditions to hold at once, and Esquire
-breaks the chain:
+A. Not a defect in the Esquire model. A classic lost update needs three conditions to be true at the same time,
+and Esquire removes at least one of them:
 
 1. **Update requests carry only the changed fields**, not the whole entity. So a change to field X and a change
-   to field Y never clobber each other the way a full-row rewrite would -- there is no read-the-whole-row /
+   to field Y do not overwrite each other the way a full-row rewrite would -- there is no read-the-whole-row /
    write-the-whole-row window in which one request's untouched fields overwrite another's.
-2. **The usage model is one modification per entity at a time.** The UI/API drives a single editor per node at
-   human pace; there is no second concurrent writer to lose against -- not even under multi-instance, because two
-   replicas only race if two requests target the *same* entity in the *same* instant, which the model does not
-   produce.
-3. **Same-field last-wins is the intended resolution, and nothing is lost even then.** The one case that does
+2. **The usage model is one change per entity at a time.** The UI/API drives a single editor per node at
+   human pace, so there is no second writer to lose against -- not even under multi-instance (more than one
+   running copy of a service), because two copies only race if two requests hit the *same* entity in the *same*
+   instant, which the model does not produce.
+3. **Same-field last-wins is the intended result, and nothing is lost even then.** The one case that does
    resolve by last-wins -- two edits to the *same* field -- is the correct outcome, and the overwritten value is
-   still fully preserved: every field change is written to the **audit log** (`*_log`, via the x-rod / keep
-   stack), so the prior value is recorded and recoverable.
+   still kept: every field change is written to the **audit log** (the `*_log` tables, via the x-rod / keep
+   stack), so the earlier value is recorded and can be recovered.
 
-The generic "add a version column + `If-Match` + 409" prescription assumes full-row writes and concurrent
+The generic "add a version column + `If-Match` + `409`" advice assumes full-row writes and concurrent
 editors; Esquire has neither.
 
-Note the account **balance** is not an exception to this: a balance is never changed by the entity update / save
-path at all -- it is maintained solely by the **accounting-transaction command**, a separate mechanism where
-transaction **ordering** is enforced (the last transaction lands last). It is a different thing entirely from an
-entity field edit, so there is no plain-update lost-update case for balances either.
+Note the account **balance** is not an exception. A balance is never changed by the entity update / save
+path at all -- it is maintained only by the **accounting-transaction command**, a separate mechanism where
+transaction **ordering** is enforced (the last transaction lands last). That is a different thing from an
+entity field edit, so there is no lost-update case for balances either.
 
 ---
 
-**Q. The entity-id minter (`EntityIdGenerator`) packs a per-millisecond sequence into just 3 decimal digits, so it
-can mint at most 1000 ids per millisecond per instance. Above that the sequence wraps and two ids collide -- isn't
-that a latent duplicate-PK bug?**
+**Q2. The entity-id generator (`EntityIdGenerator`) packs a per-millisecond sequence into just 3 decimal digits, so
+it can mint at most 1000 ids per millisecond per instance. Above that the sequence wraps and two ids collide --
+isn't that a latent duplicate-PK (primary-key) bug?**
 
 A. It is a real ceiling, and it is intended -- it sits about a thousand times above anything a single instance can
-actually do. The id is a compact decimal-positional **single BIGINT**:
+actually reach. The id is a compact decimal-positional **single `BIGINT`** (one 64-bit integer whose digit
+positions each carry a part of the id):
 
 ```
 id = (ms since the esquire era) * 10000  +  instanceNo * 1000  +  (sequence % 1000)
 ```
 
-The bottom four digits are one instance digit (up to 10 enyMan instances, `0..9`) plus three sequence digits (up to
-1000 ids per instance **per millisecond**). This shape is a deliberate design choice, not an oversight: it keeps the
-PK a plain sortable number that doubles as the `ESQ_ENTITY_PATH` shared-key satellite and preserves the numeric
-globally-unique-PK invariant -- a UUID or a central DB sequence would drop those properties and add coordination.
+The bottom four digits are one instance digit (up to 10 enyMan copies, `0..9`) plus three sequence digits (up to
+1000 ids per instance **per millisecond**). This shape is a deliberate choice, not an oversight: it keeps the
+PK a plain sortable number that also serves as the `ESQ_ENTITY_PATH` shared key, and it keeps the numeric
+globally-unique-PK guarantee -- a UUID or a central DB sequence would drop those properties and add coordination
+between instances.
 
-Why the ceiling is unreachable in practice: **on present-day hardware a single enyMan instance cannot create
+Why the ceiling is out of reach in practice: **on today's hardware a single enyMan instance cannot create
 anything close to 1000 entities in a whole second, let alone in one millisecond.** Each CREATE is a full multi-step
 transaction -- permission check, the PK + `ESQ_ENTITY_PATH` inserts, sub-entity rows (person / address / ...), the
-audit post, and the entity broadcast -- and entity creation is admin/back-office paced, not a high-rate ingest. So
-real per-instance throughput today is well under 1000 per *second*; the collision boundary of 1000 per *millisecond*
-is roughly 1000x above it. To exceed it you would need 1000 committed creates inside the same 1 ms window on one
-instance, which is far beyond what the create path reaches on current machines. (It is a throughput headroom, not a
-permanent law -- if some future hardware ever made one instance mint that fast, the sequence width would be revisited
-then; sharding across the 10 instance digits also multiplies the headroom.)
+audit post, and the entity broadcast -- and entity creation runs at admin / back-office pace, not as high-rate data
+loading. So real throughput per instance today is well under 1000 per *second*; the collision point of 1000 per
+*millisecond* is about 1000x higher. To reach it you would need 1000 committed creates inside the same 1 ms window
+on one instance, far beyond what the create path does on current machines. (This is spare capacity, not a
+permanent law -- if future hardware ever minted that fast, the sequence width would be revisited then; spreading
+load across the 10 instance digits also multiplies the room.)
 
-And if it somehow were reached, it fails **loud, not silent**: a wrapped sequence would reproduce an id already
-minted in that same millisecond, and the second INSERT hits the primary-key constraint and is rejected -- a failed
+And if it somehow were reached, it fails **visibly, not silently**: a wrapped sequence would repeat an id already
+minted in that same millisecond, so the second INSERT hits the primary-key constraint and is rejected -- a failed
 CREATE, never a silently corrupted or overwritten row. The encoding also fails fast on the other axis: an
-`instanceNo` outside `0..9` throws at the first mint (one instance digit), and the sequence is forced non-negative
-so an `AtomicInteger` wrap after 2^31 mints cannot borrow into the instance/time digits. Cap replicas at 10; the
-per-millisecond ceiling needs no runtime guard because the workload cannot approach it.
+`instanceNo` outside `0..9` throws on the first mint (one instance digit only), and the sequence is forced
+non-negative so an `AtomicInteger` wrap after 2^31 mints cannot borrow into the instance/time digits. Cap copies at
+10; the per-millisecond ceiling needs no runtime guard because the workload cannot get near it.
 
 ---
 
-**Q. When you delete an org or a user, the service does not first check whether it still has children (sub-orgs,
+**Q3. When you delete an org or a user, the service does not first check whether it still has children (sub-orgs,
 users, accounts), and the cache delete is not recursive. Doesn't that risk orphaning the children or leaving the
 tree inconsistent?**
 
 A. No -- deleting a non-empty parent is prevented by the DATABASE, on purpose, so the service does not re-check it.
 
-1. **The structural tree foreign keys are RESTRICT.** `esq_account.acc_usr_pk -> esq_user`,
-   `esq_user.usr_org_pk -> esq_org`, and `esq_org.org_org_pk -> esq_org` all carry NO `ON DELETE` clause (both
-   Oracle and Postgres), so the default NO ACTION / RESTRICT applies: the database refuses to delete a row that
-   still has children. `deleteOrg` then throws, the transaction rolls back, and the entity-path row is never
-   removed -- no orphan, no half-written state. (The satellite records a user OWNS -- auth, person, params -- are
-   the opposite: their FKs are `ON DELETE CASCADE`, so they go with the user, which is correct.)
+1. **The structural tree foreign keys are RESTRICT (the database refuses to delete a row that still has children).**
+   `esq_account.acc_usr_pk -> esq_user`, `esq_user.usr_org_pk -> esq_org`, and `esq_org.org_org_pk -> esq_org` all
+   carry NO `ON DELETE` clause (both Oracle and Postgres), so the default NO ACTION / RESTRICT applies. `deleteOrg`
+   then throws, the transaction rolls back, and the entity-path row is never removed -- no orphan, no half-written
+   state. (The satellite records a user OWNS -- auth, person, params -- are the opposite: their FKs are
+   `ON DELETE CASCADE`, so they are removed together with the user, which is correct.)
 
 2. **A service-layer children-exists check is deliberately NOT added.** It would add an extra query to EVERY
    delete, including the common leaf delete, to re-verify something the foreign key already enforces for free. The
-   framework keeps the delete path one strict rule -- attempt the delete and let referential integrity be the
+   framework keeps the delete path to one strict rule -- attempt the delete and let the foreign key be the
    guard -- which keeps entity maintenance simple.
 
-3. **The non-recursive cache delete is moot.** The database never lets a non-empty parent be deleted, so the cache
-   is never asked to remove a node that still has children; any residual drift is reconciled by the bizTree
-   night-watch sweep.
+3. **The non-recursive cache delete does not matter here.** The database never lets a non-empty parent be deleted,
+   so the cache is never asked to remove a node that still has children; any leftover drift is reconciled by the
+   bizTree night-watch sweep (the background pass that re-checks the cache against the database).
 
 An adopter who wants richer delete semantics -- a cascade delete, a soft delete, or a friendly "this still has
 children" message instead of a raw constraint error -- adds it at their own business-rules layer. The framework
@@ -121,36 +125,36 @@ provides the safe minimum (the foreign key) rather than baking one deletion poli
 
 ## Move ordering and the bizTree cache
 
-*Re-parenting a subtree, the order events apply in, and the recoverable Taijitu cache that backstops it.*
+*Re-parenting a subtree (moving a branch to a new parent), the order events apply in, and the recoverable Taijitu cache that backs it up.*
 
-**Q. A CREATE that races a MOVE checks `inMove()` only AFTER it has inserted and broadcast. If the move finishes
+**Q1. A CREATE that races a MOVE checks `inMove()` only AFTER it has inserted and broadcast. If the move finishes
 before that check, the create gets no reconcile and its path is left stale -- doesn't the bizTree night-watch heal
 it anyway?**
 
-A. No -- and that is exactly why the check must not miss the create. Walk the race: the create reads the parent's
-OLD path, the move rewrites that subtree in the DB (not seeing the not-yet-inserted child), then the create inserts
-the child with the OLD path. The child's **DB row** is now stale. The reconcile is the only thing that repairs it --
-`processReconcile` fixes the DB (`updatePath`) and then rebroadcasts -- so if the create slips past the move queue
-(no `CreateReconcileItem` enqueued), the DB stays wrong. The night-watch reconciles the bizTree CACHE against the
-DB; when the DB itself is wrong, cache and DB agree on the wrong path and nothing heals (the same limit noted above
-for a dropped move reconcile). So the create MUST be caught by the move queue.
+A. No -- and that is exactly why the check must not miss the create. Follow the sequence: the create reads the
+parent's OLD path, the move rewrites that subtree in the DB (not seeing the not-yet-inserted child), then the create
+inserts the child with the OLD path. The child's **DB row** is now stale. The reconcile is the only thing that
+repairs it -- `processReconcile` fixes the DB (`updatePath`) and then rebroadcasts -- so if the create gets past the
+move queue (no `CreateReconcileItem` enqueued), the DB stays wrong. The night-watch reconciles the bizTree CACHE
+against the DB; when the DB itself is wrong, cache and DB agree on the wrong path and nothing heals (the same limit
+noted above for a dropped move reconcile). So the create MUST be caught by the move queue.
 
-The gate is the **"elastic end of move"**: `inMove()` stays true for a grace window after the last move drains
-(`enyman.move-queue.in-move-grace-ms`, default 200 ms; 0 disables). Without it, a move that both ran and fully
-drained inside the create's read->check span would read `inMove()` false and the create would slip through; the
-grace keeps the queue catching such a late create, so its reconcile still fixes the DB. It is a heuristic, not a
-hard guarantee -- a create that stalls longer than the grace between its read and its check would still miss -- but
-that is deliberate: a hard per-create guarantee (a move-generation token) only hardens the LOCAL single-instance
-path, while real deployments are multi-instance where the cross-instance create-during-move already has its own
-unconditional cover (the peer-create reconcile off the entity bus, not `inMove()`-gated). 200 ms catches every
-realistic case; the residual (a pathological stall, or a total broadcast-bus outage) falls to a subsequent move or,
-once the DB is corrected, the night-watch. The grace is stamped when the move drains the queue to zero (not at
-submit -- a queue-full rollback there must not erase a still-valid grace), and only ever extends the window, never
-cuts it short.
+The gate is the **"elastic end of move"**: `inMove()` stays true for a grace window (a short extra period) after
+the last move drains (`enyman.move-queue.in-move-grace-ms`, default 200 ms; 0 disables). Without it, a move that
+both ran and fully drained inside the create's read->check span would read `inMove()` false and the create would
+slip through; the grace keeps the queue catching such a late create, so its reconcile still fixes the DB. It is a
+best-effort rule, not a hard guarantee -- a create that stalls longer than the grace between its read and its check
+would still miss -- but that is deliberate: a hard per-create guarantee (a move-generation token) only hardens the
+LOCAL single-instance path, while real deployments are multi-instance (more than one running copy) where the
+cross-instance create-during-move already has its own unconditional cover (the peer-create reconcile off the entity
+bus, not `inMove()`-gated). 200 ms catches every realistic case; the rest (an extreme stall, or a total
+broadcast-bus outage) falls to a later move or, once the DB is corrected, the night-watch. The grace is stamped when
+the move drains the queue to zero (not at submit -- a queue-full rollback there must not erase a still-valid grace),
+and only ever extends the window, never cuts it short.
 
 ---
 
-**Q. The entity-broadcast bus sets `concurrency: 1` (one in-order consumer) but then applies events on a 4-thread
+**Q2. The entity-broadcast bus sets `concurrency: 1` (one in-order consumer) but then applies events on a 4-thread
 `receiver-pool` -- so in-order delivery is immediately re-parallelized, and two events for the SAME entity can be
 applied out of order in bizTree's cache. Isn't `concurrency: 1` pointless, and the ordering a bug?**
 
@@ -173,17 +177,17 @@ A. No -- it is a deliberate split of two DIFFERENT concerns, and same-entity app
    the cache against the DB (source of truth) and heals any drift, so a transient out-of-order apply is corrected.
 
 So `concurrency: 1` + a parallel apply pool is intended (in-order delivery, parallel apply); same-entity ordering
-is traded for throughput, backstopped by the usage model and the night-watch. A hard per-entity ordering guarantee
+is traded for throughput, backed up by the usage model and the night-watch. A hard per-entity ordering guarantee
 (per-key affinity in the pool) is tracked as a continuing-dev item ([CD-2](Esquire.ContinuingDev.md)), not a fix.
 
 ---
 
-**Q. In bizTree's cache-apply path, `MessageHandlerHub.dispatch` catches a handler exception, logs it, and
+**Q3. In bizTree's cache-apply path, `MessageHandlerHub.dispatch` catches a handler exception, logs it, and
 returns -- so the event-batch still COMMITS with that one event not applied, instead of rolling back. Why swallow
 the exception instead of handling the failure?**
 
-A. Because a handler failing here is a should-not-happen condition, not a modelled failure mode, and the recovery
-for it already exists elsewhere -- the night-watch sweep.
+A. Because a handler failing here is a should-not-happen condition, not an expected failure we plan for, and the
+recovery for it already exists elsewhere -- the night-watch sweep.
 
 1. **The failure is hypothetical.** A handler applies a broadcast that our own enyMan published AFTER its DB commit,
    keyed by an id we generated, into an embedded H2 cache. The parse cannot fail (we produced the id), and the
@@ -206,28 +210,32 @@ single, already-built safety net.
 
 ---
 
-**Q. A move (re-parenting a subtree) starts by locking a single sentinel row -- `SELECT ep_pk FROM esq_entity_path
+**Q4. A move (re-parenting a subtree) starts by locking a single sentinel row -- `SELECT ep_pk FROM esq_entity_path
 WHERE ep_pk = 1 FOR UPDATE` -- which serializes EVERY move across all instances, even two moves in unrelated
 subtrees. Isn't that a bottleneck? Shouldn't it lock only the affected subtree?**
 
 A. It is deliberate. A move rewrites many rows by path prefix; two moves running at once could interleave those
-rewrites or deadlock on overlapping ranges. Serializing all moves through one control row makes that impossible with
-almost no code -- it mimics the classic OLTP "lock a control row" pattern, done with one raw JPA `FOR UPDATE` call.
+rewrites or deadlock on overlapping ranges. Running every move one at a time (serializing) through one control row
+makes that impossible with almost no code -- it mimics the classic OLTP (online transaction processing) "lock a
+control row" pattern, done with one raw JPA `FOR UPDATE` call.
 
-A finer, per-subtree lock would need overlap detection and deadlock avoidance -- heavy machinery that would bring
-down the simple structure -- to speed up an operation that is rare, admin-initiated, and human-paced. So global move
-serialization is the right trade: trivial and correct, at no cost that matters. Moves do not run in parallel, and
-nothing needs them to.
+A finer, per-subtree lock would need overlap detection and deadlock avoidance -- heavy machinery that would spoil
+the simple structure -- to speed up an operation that is rare, admin-initiated, and human-paced. So running all
+moves one at a time is the right trade: trivial and correct, at no cost that matters. Moves do not run in parallel,
+and nothing needs them to.
 
 ---
 
 ## Messaging bus
 
-*The x-rod bus -- delivery guarantees, subscriptions, rod identity, and how bad config is caught.*
+*How ESQUIRE applies the x-rod bus -- delivery guarantees on its channels, and rod identity in its deployment.
+These are questions about Esquire's USE of the bus; questions about the generic bus subframework itself (config
+resolution, subscriptions, the envelope, catalog validation) live in `Esquire.MessagingBus.Q&A.md`.*
 
-**Q. The bus consumers run `AUTO_ACKNOWLEDGE` with a catch-and-log listener -- a failed DB apply is acked and
-LOST (no nack / redelivery / DLQ). And the audit `INSERT .. ON CONFLICT DO NOTHING` has no explicit conflict
-target, so it silently depends on a unique index existing on every `*_log` table.**
+**Q1. The bus consumers run `AUTO_ACKNOWLEDGE` (each message is acknowledged to the broker the moment it is
+received) with a catch-and-log listener -- so a failed DB apply is still acked and LOST (no nack / redelivery /
+dead-letter queue, DLQ). And the audit `INSERT .. ON CONFLICT DO NOTHING` has no explicit conflict target, so it
+silently depends on a unique index existing on every `*_log` table.**
 
 A. Two separate concerns, both already handled by design.
 
@@ -235,12 +243,13 @@ A. Two separate concerns, both already handled by design.
 - **Audit** -- best-effort *by design*: the documented async-audit loss boundary. The consumer acks on RECEIPT (the
   apply runs on an async worker pool), so a failed audit apply -- whether a broker-restart backlog drop OR a
   TRANSIENT, recoverable keep-DB blip while the broker is healthy -- is logged, not retried or redelivered. This is
-  acceptable because the audit trail is not on the request's critical path AND the broker is non-persistent, so
-  audit is already best-effort end to end. If a deployment ever wants durable, redelivered audit, the lever is a
-  per-consumer ack-after-apply mode (the keep write is idempotent via `ON CONFLICT`, so redelivery is safe) -- not
-  a generic DLQ.
+  acceptable because the audit trail is not on the request's critical path AND the broker is non-persistent (it
+  does not keep messages across a restart), so audit is already best-effort end to end. If a deployment ever wants
+  durable, redelivered audit, the way to change it is a per-consumer ack-after-apply mode (the keep write is
+  idempotent -- safe to run twice -- via `ON CONFLICT`, so redelivery is safe) -- not a generic DLQ.
 - **Entity-broadcast** -- a lost apply leaves bizTree's *cache* stale, but the **Taijitu night-watch**
-  anti-entropy reconciles cache-vs-DB and heals it (the DB is the source of truth here; contrast the dropped
+  anti-entropy (a background compare-and-heal pass) reconciles cache-vs-DB and heals it (the DB is the source of
+  truth here; contrast the dropped
   *move* reconcile, where the DB row itself goes stale and the night-watch cannot help). The SAME heal covers a
   *missed delivery*, not only a failed apply: the entity broadcast is a NON-durable topic subscription (the broker
   is non-persistent), so a consumer that is disconnected -- a restart or a network blip -- does not receive whatever
@@ -252,7 +261,8 @@ A. Two separate concerns, both already handled by design.
   race-8c SAFETY-NET (it parks a not-yet-created user's new path); the authoritative KC channel is the URQ
   `EVENT_UPDATE_PATH` request/response, so a missed broadcast there costs nothing.
 - **R&R (KeyCloak request/response)** -- the one channel where lost delivery is a genuine reliability question;
-  that is tracked as R&R reply tracking / timeout / replier-down (backlog #14), not a generic DLQ.
+  that is the R&R reply-tracking / timeout / replier-down work, tracked in
+  `Esquire.MessagingBus.ContinuingDev.md`, not a generic DLQ.
 
 *The `ON CONFLICT` target is deliberate.* The dedup unique indexes DO exist for all eight `*_log` tables
 (`db.seed/.../dedup/all.sql`), keyed on `(crl_id + pk[, kind])`. `ON CONFLICT DO NOTHING` *without* a named target
@@ -270,79 +280,30 @@ with the change-number work in `Esquire.ContinuingDev.md` (CD-2).
 
 ---
 
-**Q. `setWorker(subscription, worker)` re-opens the receive consumer with the new broker selector but never
-`start()`s it. If it is called AFTER the rod has already started, wouldn't the rod silently stop receiving?**
-
-A. It would -- and that is why the API contract is "set the worker (and subscription) BEFORE `start()`". The x-rod
-deliberately does NOT support changing a broker subscription on the fly. The consumer is created once at `init()`
-(paused); `start()` runs the engine threads and begins delivery; `setWorker(subscription, ...)` is a wiring call
-the bus owner makes while the rod is still paused, before the bus is started. It is stated at the switch in code
-(`XRod.setWorker(String,...)`: "You need setWorker() before start(). The x-rod does not support changing the
-subscription on the fly."), and every caller obeys it -- the one place that uses the subscription variant
-(enyMan's `EntityBusAdapter.onPeerCreate`, the peer-CREATE `EventType='C'` selector) wires it during init, before
-`MessagingBus.start()`; all other consumers use the plain `setWorker(worker)`, also before start. So the
-"called after start" case does not arise in Esquire; there is no live subscription-swap path.
-
-Changing a broker-side selector at runtime is intentionally out of scope: the current need is a single, fixed
-narrowing per consumer, decided at wiring time. The planned direction, when a use case actually needs it, is a
-CONSUMER-side filter (the worker inspects the event and skips what it does not want) rather than a live re-open of
-the broker subscription -- but current Esquire does not require it, so it is not built. If a runtime subscription
-change were ever wanted, the correct shape would be an explicit stop / re-open / start, not an in-place
-`setWorker`.
-
----
-
-**Q. R&R rod-id uniqueness is unenforced -- rod-id defaults to `<app>.<instanceNo>` and there is no runtime check
+**Q2. R&R rod-id uniqueness is unenforced -- rod-id defaults to `<app>.<instanceNo>` and there is no runtime check
 that two rods don't share an id. A plain Deployment gives every replica `<app>.0`, so replicas would share the
 reply selector and steal each other's replies.**
 
 A. Not worth a runtime enforcement. rod-id is **unique by default**: the charts deploy every service as a
 **StatefulSet**, so each replica gets a distinct ordinal (`<app>.0`, `<app>.1`, ...) and therefore a distinct
-rod-id -- the v1.2.10 redundancy work already made this structural, not a "run it as a StatefulSet" hope. You
+rod-id -- this is structural (the charts deploy StatefulSets), not a "run it as a StatefulSet" hope. You
 *can* set rod-id manually in config, but that is a deliberate, not-recommended, expert override -- defining a
 colliding rod-id by hand means you know what you are doing. A runtime fail-fast on duplicate rod-ids would need
 real cross-instance coordination (to see another instance's id) -- a large mechanism for a case that does not
-arise by default and only arises by deliberate misconfiguration. Huge effort for a non-existing case.
+arise by default and only arises by deliberate misconfiguration. A large amount of work for a case that does not
+exist.
 
-(Note this covers ONLY the rod-id **uniqueness** half of backlog #14. The other half -- R&R **reply timeout /
-pending-request tracking / replier-down detection**, plus the delivery-reliability piece folded in from #12 -- is
-a separate, still-open question.)
-
----
-
-**Q. The messaging-bus catalog does no config validation at load -- a typo in a slot's `rod-class` or
-`transport.provider` is not caught at `catalog.load()`; it only throws later "at resolve." Shouldn't the catalog
-dry-resolve every slot at load so a bad config fails fast?**
-
-A. It already fails fast for everything that matters, and dry-resolving EVERY slot would be actively wrong.
-
-1. **Resolution is eager at startup, not lazy.** `MessagingBus.init()` runs `catalog.load()` -> `buildRods()` ->
-   `initRods()` in ONE call. `buildRods` calls `resolveRod(rod-class)` + `rod.validate(params)` for every bus the
-   service USES, so a rod-class / provider typo on a used bus fails at boot with a clear message ("no x-rod class
-   ... on the classpath") -- a breath after `load()`, not lazily at first message. "Throws at resolve, not at
-   load" is technically true, but they are the same startup breath.
-
-2. **A universal dry-resolve is unsafe.** The SHARED topology catalog holds ALL buses, and each slot's rod-class /
-   provider class is on the classpath ONLY of the services that USE it -- `XRodInProcessKeep` ships only in
-   dataKeep services; `tp-redis` / `tp-kafka` only where those brokers are used. A service correctly bundles only
-   its own drivers. Dry-resolving EVERY slot would `Class.forName` a driver / rod the service does not have and
-   CRASH at boot for a slot it never touches. The "validate every slot" prescription assumes ONE process owns
-   every driver; Esquire's per-service classpath does not.
-
-3. The only residual gap -- a typo in a slot NO service uses -- is harmless (nobody builds it) and impossible to
-   validate universally (its driver is on no single service's classpath).
-
-So the catalog validates STRUCTURE at load (unique bus / slot / node ids) and defers rod-class / provider
-resolution to the per-service build, where it is both correct (only the drivers that service actually has) and
-still fail-fast at startup.
+(Note this covers ONLY the rod-id **uniqueness** question. The related R&R **reply-timeout / pending-request
+tracking / replier-down detection** -- and the delivery-reliability piece -- are a separate, still-open question,
+tracked in `Esquire.MessagingBus.ContinuingDev.md`.)
 
 ---
 
 ## Audit trail
 
-*How the *_log audit is keyed for idempotency, and the deploy-time audit posture.*
+*How the *_log audit is keyed so a redelivered message still makes just one row (idempotency), and what audit is turned on at deploy time.*
 
-**Q. The audit log dedups on `(correlationId, entity)` with `INSERT .. ON CONFLICT DO NOTHING`, and the
+**Q1. The audit log dedups on `(correlationId, entity)` with `INSERT .. ON CONFLICT DO NOTHING`, and the
 correlationId can be supplied by the client. Couldn't a client reuse one correlationId across two real edits of the
 same entity and make the audit drop the second row -- hiding their own change history?**
 
@@ -360,20 +321,21 @@ uses.
    as far as the whole system is concerned (trace, logs, and audit all show one), and every layer reflects that
    identically. There is no gap between "what happened" and "what the audit shows."
 
-2. **The dedup exists for redelivery idempotency.** The bus is at-least-once, so a replayed message must not write a
-   second log row. `(correlationId, entity)` + `ON CONFLICT DO NOTHING` gives exactly one row per operation per
-   entity -- that is the point.
+2. **The dedup exists for redelivery idempotency (safe redelivery -> still one row).** The bus is at-least-once (a
+   message can arrive more than once), so a replayed message must not write a second log row.
+   `(correlationId, entity)` + `ON CONFLICT DO NOTHING` gives exactly one row per operation per entity -- that is
+   the point.
 
 3. **Per-physical-change auditing is a different mode, already offered.** If someone wants one audit row per
-   physical DML regardless of the operation id, that is the DB-trigger audit (option a), which the framework
-   provides. The bus audit (option c) is deliberately one-row-per-operation. Both granularities exist by choice.
+   physical database change (an insert / update / delete, "DML") regardless of the operation id, that is the
+   DB-trigger audit (option a), which the framework provides. The bus audit (option c) is deliberately one-row-per-operation. Both granularities exist by choice.
 
-So keying the audit on the operation id is correct and consistent, not a suppression vector: the correlationId is
+So keying the audit on the operation id is correct and consistent, not a way to hide history: the correlationId is
 the system's own record of the operation, and the audit agrees with it.
 
 ---
 
-**Q. On OKE the services run with audit turned OFF (`audit-off` bus, no auKeep pod), yet the deploy notes say
+**Q2. On OKE the services run with audit turned OFF (`audit-off` bus, no auKeep pod), yet the deploy notes say
 "OKE audits via DB triggers." Nothing actually applies those triggers -- so does OKE audit anything at all?**
 
 A. No -- and that is a deliberate choice for the free-tier demo, not a defect. OKE runs with NO audit by design:
@@ -382,7 +344,7 @@ A. No -- and that is a deliberate choice for the free-tier demo, not a defect. O
    the services publish nothing and there is no auKeep pod / audit bus traffic -- deliberately, to keep load off the
    Always-Free tier (it is a demo, not a load-test sandbox).
 
-2. **The DB-trigger audit (option a) is SHIPPED but not APPLIED.** The trigger DDL is baked into the
+2. **The DB-trigger audit (option a) is SHIPPED but not APPLIED.** The trigger DDL (the SQL that defines the triggers) is baked into the
    esquire-postgres image (`db.seed/postgres/triggers`), but it is an OPT-IN overlay: the base seed is trigger-free
    (`create/all.sql`), `initdb/init.sh` runs only create + fill, and no deploy step runs `triggers/all.sql`. Baked
    into the image means AVAILABLE, not ACTIVE.
@@ -391,32 +353,33 @@ A. No -- and that is a deliberate choice for the free-tier demo, not a defect. O
    against the OKE database. For the demo tier that is intended -- audit is a local / full-deployment concern, and
    the framework offers both audit modes (bus option c, DB-trigger option a) for a real deployment that wants one.
 
-So "no audit on OKE" is the deliberate free-tier posture; the DB-trigger overlay sits ready to switch on by hand
+So "no audit on OKE" is the deliberate free-tier setup; the DB-trigger overlay sits ready to switch on by hand
 (or to wire into the deploy) if a particular OKE deployment ever needs audit.
 
 ---
 
 ## Security and authentication
 
-*Token format and the trusted-perimeter model, onboarding credentials, and CORS.*
+*Token format and the trusted-perimeter model (validate once at the edge, trust inside), onboarding credentials, and CORS (cross-origin browser calls).*
 
-**Q. Access tokens are signed JWTs (JWS), not encrypted (JWE) -- so any holder can read the claims (`esq_uid`,
+**Q1. Access tokens are signed JWTs (JWS), not encrypted (JWE) -- so any holder can read the claims (`esq_uid`,
 rootPath, roles). And the gateway "token relay" hands a full downstream JWT to a client that presented only
 credentials, or a claim-stripped token. Isn't a readable, or a relayed, token a security weakness?**
 
 A. No -- it is the deliberate, documented compromise the identity server forces, not a gap. The full rationale, the
 pattern catalog, the measured cost, and the "which pattern when" decision matrix are in
-[Keycloak / Gateway -- Authentication Patterns](keyCloak-gateway.JWE.md); the framework-level summary:
+[Keycloak / Gateway -- Authentication Patterns](Esquire.Auth.TokenPatterns.md); the framework-level summary:
 
 1. **JWE (an encrypted access token) is the only single-token format that hides claims from the client AND stays
-   self-contained on the hot path -- but stock Keycloak 26 does not emit JWE.** Its `DefaultTokenManager` has no
-   encryption path on `/token` for any standard grant (the `access.token.encrypted.response.alg` attribute is
-   silently ignored). So the ideal is inaccessible until KC ships it or the IAS is swapped (Auth0 / Okta /
-   ForgeRock / Ping all emit JWE). A gateway-side JWE decoder is kept in tree, inert, for that day.
+   self-contained on the request's fast path -- but stock Keycloak 26 does not emit JWE.** Its `DefaultTokenManager`
+   has no encryption path on `/token` for any standard grant (the `access.token.encrypted.response.alg` attribute is
+   silently ignored). So the ideal is inaccessible until KC ships it or the identity server (IAS) is swapped (Auth0
+   / Okta / ForgeRock / Ping all emit JWE). A gateway-side JWE decoder is kept in tree, inert, for that day.
 
 2. **The recommended production patterns are BFF and plain JWT.** The browser never holds a token at all -- the BFF
-   keeps it server-side and the browser carries an opaque session cookie. A service-to-service caller holds a
-   standard signed JWT, validated locally at every hop against KC's JWKS. Readable claims are by design here:
+   keeps it server-side and the browser carries an opaque session cookie (meaningless on its own). A
+   service-to-service caller holds a standard signed JWT, validated locally at every hop against KC's public keys
+   (JWKS). Readable claims are by design here:
    authorization comes from validating the signature and the claims at each hop, not from hiding them;
    confidentiality on the wire is TLS.
 
@@ -440,7 +403,7 @@ parked ideal; and the two relay patterns are a documented lab detour, not the re
 
 ---
 
-**Q. Every interactive user that kcMaster creates in Keycloak gets the SAME hardcoded temporary password
+**Q2. Every interactive user that kcMaster creates in Keycloak gets the SAME hardcoded temporary password
 (`"changeit"`), enabled immediately, with only a "must change password" flag. Anyone who knows a not-yet-onboarded
 user's `loginId` can log in with `"changeit"` and take the account over before the owner's first login -- isn't
 that an account-takeover hole?**
@@ -455,7 +418,7 @@ the adopting product owns the hardened end-user experience.
    forced to change on first login (`UPDATE_PASSWORD`); it is not a claim that `"changeit"` + force-change is a
    production onboarding.
 
-2. **A production adopter replaces the placeholder at the same create seam**, using Keycloak's own primitives -- a
+2. **A production adopter replaces the placeholder at the same create seam**, using Keycloak's own built-in features -- a
    per-user random password that is never transmitted plus `executeActionsEmail(UPDATE_PASSWORD)` (the owner sets
    the password from an emailed link; the account is unusable until then), or create-disabled until first
    credential set. It is a one-call change; the framework does NOT bake in an email/SMTP dependency for every
@@ -469,7 +432,7 @@ So it is the framework/demo connect flow by design; hardened onboarding is the a
 
 ---
 
-**Q. The individual services do NOT verify the token they receive -- `JwtService.extractAllClaims` base64-decodes
+**Q3. The individual services do NOT verify the token they receive -- `JwtService.extractAllClaims` base64-decodes
 and JSON-parses the JWT payload with the signature check commented out, and the per-service filter checks only that
 the claims are PRESENT (it never checks the signature or the expiry). So a request that reaches a service directly
 with a hand-crafted, unsigned, or expired token carrying the right claims is accepted. Isn't that a hole?**
@@ -483,22 +446,23 @@ everything behind it trusts the claims the gateway forwards.
    rootPath, roles) rather than re-validating on every hop -- re-checking the signature at each service would add a
    cost the perimeter model is designed to avoid.
 
-2. **The services are not directly reachable in a real deployment.** On k8s / OKE the services are ClusterIP -- only
-   the gateway is exposed; no outside actor can hand a service a forged token. The only place a service port is
+2. **The services are not directly reachable in a real deployment.** On k8s / OKE the services are ClusterIP
+   (reachable only inside the cluster) -- only the gateway is exposed; no outside actor can hand a service a forged
+   token. The only place a service port is
    directly reachable is the local sandbox (host-published ports for development), which is not a production surface.
 
 3. **Reading the claims without re-verifying is intentional, not an unfinished check.** The unused
    `isClaimsValid` / expiration helpers on `JwtService` are the leftover of an earlier per-hop idea that the
    perimeter model made unnecessary; they are kept inert, not wired. If an adopter wants defense-in-depth (validate
    the signature and expiry at each hop as well), that is a one-place change at the service filter -- but the
-   framework's shipped posture is: validate once at the gateway, trust inside.
+   framework's shipped stance is: validate once at the gateway, trust inside.
 
 So per-service claim-trust is the deliberate perimeter design (single validation at the gateway; ClusterIP services
 inside); it is not a missing check.
 
 ---
 
-**Q. Each service's CORS allows ANY origin (`addAllowedOriginPattern("*")`, all methods, all headers). Isn't an
+**Q4. Each service's CORS allows ANY origin (`addAllowedOriginPattern("*")`, all methods, all headers). Isn't an
 any-origin CORS policy a hole?**
 
 A. No -- it is the SAFE wildcard combination: any origin, but WITHOUT credentials. The dangerous pattern is
@@ -527,9 +491,9 @@ behind the perimeter); the strict origin list lives where it matters, at the gat
 
 *What the demonstration accounting service deliberately simplifies, and where the line to a production ledger is.*
 
-**Q. Transaction idempotency -- `AcctTransactionProcessorSingle.generateTransId()` mints a fresh
-`UUID.randomUUID()` per call, so a retried / timed-out transaction POST would insert a SECOND transaction and move
-the balance again. There is no client idempotency key, no dedup window, no 409 on duplicate.**
+**Q1. Transaction idempotency (a retry must not post the money twice) -- `AcctTransactionProcessorSingle.generateTransId()`
+mints a fresh `UUID.randomUUID()` per call, so a retried / timed-out transaction POST would insert a SECOND
+transaction and move the balance again. There is no client idempotency key, no dedup window, no 409 on duplicate.**
 
 A. Not a real exposure in Esquire. A duplicate transaction requires two POSTs carrying the SAME identity, and the
 only thing that produces that is an automated retry re-sending the identical request -- which reuses the
@@ -546,7 +510,7 @@ Verified (2026-07-02): the explorer already sends `X-Request-ID` on every reques
 interceptor generates one UUID **per outbound call** (so the GUI cannot even emit two POSTs under one id), and the
 BFF preserves a client-supplied id, fabricating one only when absent.
 
-PLANNED HARDENING (accepted -- a code change, tracked in `tasks1210.md`): make `X-Request-ID` **required for
+PLANNED HARDENING (accepted -- a code change): make `X-Request-ID` **required for
 writeable operations** (the write commands), so every write carries a client-controlled identity rather than a
 server-fabricated fallback. This is **presence-only**; a **uniqueness / dedup validation is deliberately NOT
 added** (there is no source of duplicate transactions today) -- but requiring the id keeps the door open to add
@@ -554,7 +518,7 @@ that dedup cheaply, on the key that is then guaranteed present, if a real duplic
 
 ---
 
-**Q. A money transfer runs the debit (take from the source) and the credit (give to the target) as two SEPARATE
+**Q2. A money transfer runs the debit (take from the source) and the credit (give to the target) as two SEPARATE
 database transactions, not one. The debit is already committed before the credit runs -- so if the credit failed,
 the source would be short and the target would never get the money. Why isn't a transfer one all-or-nothing
 transaction?**
@@ -586,7 +550,7 @@ hidden.)
 
 ---
 
-**Q. Accounting (the pacMan service) is called Esquire's "demonstration" domain. What does that mean in practice --
+**Q3. Accounting (the pacMan service) is called Esquire's "demonstration" domain. What does that mean in practice --
 what is deliberately simplified, and where is the line?**
 
 A. Accounting exists to DEMONSTRATE the framework -- entities, permissions, the messaging bus, audit -- with a
@@ -597,11 +561,11 @@ as the demonstration needs. The deliberate simplifications, each stated plainly:
 - **A transfer is two legs, not one atomic transaction.** Debit-then-credit, linked by a shared transfer id -- see
   the transfer-atomicity entry above for the full reasoning (asymmetric legs + deadlock avoidance).
 
-- **The conversion rate is a trusted operator input.** A cross-currency transfer takes the FX rate from the request
-  and checks only that it is positive; there is no server-side rate service, and no `rate == 1` guard when the two
-  currencies are the same. Supporting foreign exchange "in full" would require online infrastructure to recommend
-  and verify a rate -- which is not a goal of the framework. In the demonstration the operator supplies a sensible
-  rate.
+- **The conversion rate is a trusted operator input.** A cross-currency transfer takes the exchange rate (FX rate)
+  from the request and checks only that it is positive; there is no server-side rate service, and no `rate == 1`
+  guard when the two currencies are the same. Supporting foreign exchange "in full" would require online
+  infrastructure to recommend and verify a rate -- which is not a goal of the framework. In the demonstration the
+  operator supplies a sensible rate.
 
 - **Money is carried as `double`, rounded to the stored scale on every write.** Amounts and balances are plain
   `double`, which cannot represent every decimal value exactly, so raw arithmetic can leave a tiny
@@ -617,19 +581,19 @@ as the demonstration needs. The deliberate simplifications, each stated plainly:
 
 *The seed-plus-idempotent-forward-patch model, and why no migration tool is imposed on adopters.*
 
-**Q. There is no schema migration tooling (Flyway / Liquibase). db.seed manages schema with hand-written
+**Q1. There is no schema migration tooling (Flyway / Liquibase). db.seed manages schema with hand-written
 `patch/v*/forward.sql` files -- ordering, rollback, and "which patches ran" are manual. Shouldn't the framework
 enforce a migration tool?**
 
 A. No -- that would be the wrong thing for a FRAMEWORK to impose.
 
-1. **Esquire ships a basement schema, not a finished product database.** db.seed is a SEED -- the foundational
+1. **Esquire ships a foundation schema, not a finished product database.** db.seed is a SEED -- the foundational
    tables an adopter is EXPECTED to EXTEND with their own domain specifics. Esquire is a framework, not a
    product-from-a-box, so it does not own (or dictate) the adopter's schema-evolution tooling any more than it
-   dictates their build system. Bolting Flyway / Liquibase onto the seed would force that choice onto every
+   dictates their build system. Forcing Flyway / Liquibase onto the seed would push that choice onto every
    adopter.
 
-2. **The framework's own convention is deliberate and disciplined**, not ad-hoc: per-release
+2. **The framework's own convention is deliberate and disciplined**, not improvised: per-release
    `patch/v<ver>/forward.sql` for BOTH dialects (Oracle + Postgres), each additive-only, idempotent,
    transactional, re-runnable (`ADD COLUMN IF NOT EXISTS`, `ON_ERROR_STOP`, `BEGIN..COMMIT`), never dropping or
    reseeding, with the exact apply command in its header and a `DB_VERSION` marker the database carries. A
@@ -637,7 +601,7 @@ A. No -- that would be the wrong thing for a FRAMEWORK to impose.
    on an empty data dir.
 
 3. **The real risk it is pointed at -- "did this DB get the right patch?" -- is a DEPLOY check, not a tool.**
-   Asserting `DB_VERSION` at deploy time catches drift without a migration framework; that belongs with the deploy
+   Asserting `DB_VERSION` at deploy time catches drift (a database that missed a patch) without a migration framework; that belongs with the deploy
    step (the OKE-migration commit), not with imposing Flyway on every adopter.
 
 So the seed-plus-idempotent-forward-patch model is the intended framework contract; migration tooling is the
@@ -649,7 +613,7 @@ adopter's choice layered on top of it.
 
 *The UI library's deliberately fixed look, and the Explorer's status as a reference example rather than a product.*
 
-**Q. The UI library hardcodes its colors (the Windows-beveled palette -- `#ccc`, `#f0f0f0`, ... repeated across
+**Q1. The UI library hardcodes its colors (the Windows-beveled palette -- `#ccc`, `#f0f0f0`, ... repeated across
 the SCSS) with no CSS custom properties, no theme file, and no dark-mode path. Shouldn't there be a theming layer
 so the look can be customized?**
 
@@ -657,7 +621,7 @@ A. No -- a theming layer has never been a requirement, and is not planned.
 
 The Windows-era beveled look is a DELIBERATE design identity, not a customization surface. The palette is small and
 consistent; it is applied directly because it IS the intended, fixed appearance -- not a default an adopter is
-expected to re-skin. A CSS-custom-property / theme-file / dark-mode layer would be machinery for a customization
+expected to restyle. A CSS-custom-property / theme-file / dark-mode layer would be machinery for a customization
 goal Esquire does not have.
 
 More fundamentally: **Esquire is a BACK-OFFICE framework.** Every domain that adopts it is expected to develop its
@@ -669,7 +633,7 @@ does not owe a theming API it was never meant to provide.
 
 ---
 
-**Q. The frontend (Esquire Explorer) has gaps a production app would close -- raw `console.*` instead of
+**Q2. The frontend (Esquire Explorer) has gaps a production app would close -- raw `console.*` instead of
 structured / shippable logging, no global Angular `ErrorHandler` for unhandled exceptions, no theming layer.
 Shouldn't the framework harden these?**
 
@@ -678,7 +642,7 @@ A. No -- because the **Esquire Explorer is NOT a final product; it is an EXAMPLE
 The Explorer is a reference application that demonstrates the framework's UI library (the tree explorer, the
 entity dialogs, the server-driven forms) end to end. It is a worked example, not a shipping product an end user
 runs. So the product-hardening a real app needs -- centralized / structured frontend logging, a global
-error-boundary with graceful "something went wrong" UX, a theming layer / dark mode -- belongs to the DOMAIN
+error-boundary (a catch-all that shows a graceful "something went wrong" screen), a theming layer / dark mode -- belongs to the DOMAIN
 PRODUCT an adopter builds on top of `esquire.ui.lib`, not to the example.
 
 On the specific gaps:
@@ -699,16 +663,17 @@ adopter's app built on `esquire.ui.lib`).
 
 ## Testing and QA
 
-*Why shared types + shared constants + e2e are the de-facto contract at this scale.*
+*Why shared types + shared constants + e2e are the effective contract at this scale.*
 
-**Q. There are no API contract tests -- neither the REST (gateway-routed) nor the messaging (bus) interfaces have
-Pact / Spring Cloud Contract tests. A field renamed in one service's DTO could silently break a consumer, and
-drift is caught only by the (late) e2e tests. Shouldn't the framework add contract tests?**
+**Q1. There are no API contract tests -- neither the REST (gateway-routed) nor the messaging (bus) interfaces have
+Pact / Spring Cloud Contract tests. A field renamed in one service's DTO (data transfer object -- the shape of a
+request / response) could silently break a consumer, and drift is caught only by the (late) e2e tests. Shouldn't
+the framework add contract tests?**
 
 A. The "silent break" it guards against is already prevented structurally, so a contract-test framework is
 disproportionate here.
 
-1. **Messaging body fields are SHARED CONSTANTS, not stringly-typed on each side.** The entity-broadcast body keys
+1. **Messaging body fields are SHARED CONSTANTS, not stringly-typed (matched by raw text on each side).** The entity-broadcast body keys
    are `EsqConstants.TEXT_*` used by BOTH the producer (enyMan `publishEntityEvent`) and the consumer (bizTree). A
    rename changes the ONE constant -> both sides move together at compile time. It is compile-linked, not a silent
    string-vs-string mismatch. (The generic RodEvent envelope carries no per-message schema, but the KEYS are the
@@ -720,10 +685,10 @@ disproportionate here.
    caught, not silent (late, but present).
 
 3. A dedicated framework (Pact / Spring Cloud Contract) would catch drift EARLIER (in CI, before e2e), but it is
-   heavy infra -- a broker, contract repositories, a verification stage per service pair -- for the incremental
-   gain over the coupling that shared DTOs + shared constants + e2e already provide at this scale. It is the
-   adopter's choice to add if their team topology needs it (many independent teams evolving services in parallel);
+   heavy infrastructure -- a broker, contract repositories, a verification stage per service pair -- for the small
+   extra gain over the coupling that shared DTOs + shared constants + e2e already provide at this scale. It is the
+   adopter's choice to add if their team structure needs it (many independent teams evolving services in parallel);
    the framework does not impose it.
 
-So the de-facto contract is the shared `common` types + `EsqConstants` + the e2e client; a contract-test framework
+So the effective contract is the shared `common` types + `EsqConstants` + the e2e client; a contract-test framework
 is a scale-dependent add, not a gap.

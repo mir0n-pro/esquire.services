@@ -100,16 +100,20 @@ This is the redundancy layer. HA is what you add on top.
 ## 3. Application-tier nuances -- turning redundancy into HA
 
 These apply to the 8 Esquire services. None of them change application code; they are deployment (chart /
-values) settings. **Status below is "recommended" -- they are not all in the charts yet.**
+values) settings. **What is in place:** the replica count, the R2/R3/R4/R5 budget, and the pod resources are
+applied in the local-k8s and OKE overlays (the chart defaults stay pre-HA, so a bare install is unchanged), and
+spread is on in the OKE overlay. **What is not:** PodDisruptionBudgets, graceful-shutdown hooks, and
+autoscaling -- called out per item below.
 
-### 3.1 Replica count
-- Run **>= 2** replicas of every service. On a 3-node cluster, **3** gives one replica per node.
+### 3.1 Replica count -- applied (x2)
+- Every service runs **2** replicas in the local-k8s and OKE overlays (`replicaCount: 2`). On a 3-node cluster
+  **3** would give one replica per node.
 - Hard cap is **10** (the `instanceNo` is a single decimal digit; the charts reject `replicaCount > 10`).
 
-### 3.2 Spread across failure domains (the big one)
-N replicas on one node all die with that node. Add **pod anti-affinity** (or
-`topologySpreadConstraints`) so a service's replicas land on **different nodes**, and on the cloud across
-**availability domains**:
+### 3.2 Spread across failure domains -- applied on OKE
+N replicas on one node all die with that node. The chart renders `topologySpreadConstraints` under
+`topologySpread.enabled` so a service's replicas land on **different nodes**, and on the cloud across
+**availability domains**. It is **on in the OKE overlay** and off on single-node local:
 
 ```yaml
 # per service template -- prefer separate nodes, then separate zones
@@ -266,8 +270,8 @@ This lives in the gateway only: its `application.yml` route filters plus two sma
 the replica/spread story above.
 
 **Status.** The timeouts, the circuit breaker, the per-backend isolation, and the guaranteed error body are
-**implemented and verified** on local k8s (gateway `v1.2.10`). The **per-route/per-command retry** in 4.4 is the
-**locked design**, implementation pending.
+**implemented and verified** on local k8s. The **per-route/per-command retry** in 4.4 is designed but not yet
+implemented.
 
 ![Four outcomes of a backend failure at the gateway edge -- healthy call, pod-loss with retry onto a surviving replica, write timeout with no retry, and an open breaker fast-failing -- plus the circuit-breaker state machine](img/resilience-scenarios.svg)
 
@@ -370,7 +374,7 @@ that:
 **What it does NOT do (yet).** The gateway aborts the *downstream connection*, but a backend already parked in a
 blocking JDBC call is **not** cancelled -- it runs to completion for a result nobody reads (an orphaned worker
 thread + DB connection). True cancellation needs a **server-side** bound (a statement / query timeout, deadline
-propagation). That is the deferred **server-side hardening** (see section 5), not
+propagation). That is the **server-side hardening** (see section 5), not
 part of this gateway work.
 
 ### 4.6 Always a meaningful error (never an empty body)
@@ -379,8 +383,8 @@ Every failure shape -- unreachable pod, timeout, open breaker -- surfaces throug
 detail, instance, traceId, timestamp, processingTime) -- never a blank response. The renderer is
 **null-message-safe** (`messageOf()`): an open breaker can surface with a null message, and an unguarded message
 inspection used to throw inside the renderer and return a blank HTTP 500 -- it now always produces a populated
-503 / 504. (Verified 6/28: a backend scaled to 0 and hammered returns a full 503 ProblemDetail on every call,
-including after the breaker opens.)
+503 / 504. (A backend scaled to 0 and hammered returns a full 503 ProblemDetail on every call, including after
+the breaker opens.)
 
 ### 4.7 What this buys for HA
 - A **dead or slow backend becomes a fast, clean, meaningful response** instead of a hung request -- the user is
@@ -481,7 +485,7 @@ Every parameter, where it is set, the **vendor preset default**, the local-k8s t
 | BFF `replicaCount` | `k8s/values/backend.yaml` | chart 1 | **2** | (chart) |
 | Angular HttpClient timeout | SPA HTTP interceptor (`timeout()`) *(absent today)* | none | **40000** (R1) | Angular |
 | PG `max_connections` | postgres chart / `postgresql.conf` | 100 | **200** | PostgreSQL |
-| pod `resources.requests` / `limits` | `k8s/values/<svc>.yaml` *(absent today)* | none (BestEffort) | **250m/512Mi - 1/768Mi** (R4) | Kubernetes |
+| pod `resources.requests` / `limits` | `k8s/values/<svc>.yaml` + OKE overlay | none (BestEffort) | **250m/512Mi - 1/768Mi** (R4) | Kubernetes |
 
 k8s resources (R4): Java service ~ `requests 250m/512Mi, limits 1/768Mi, -Xmx 512m`; BFF ~ `100m/256Mi, 500m/384Mi`;
 pg/KC/AMQ ~ `500m/1Gi`. Sum of requests ~ 6 vCPU / ~11 GiB -- inside the 0.7 envelope, CPU limits in place for a
@@ -493,8 +497,9 @@ work is making **every** parameter env-overridable, per the Esquire config-var c
 so each value is tunable per environment without a rebuild. The gateway knobs already follow this (`GW_*` envs),
 and the R6 query-timeout knobs now do too (`ESQ_TX_TIMEOUT_S`, `ESQ_KEEP_QUERY_TIMEOUT_S`,
 `BIZTREE_H2_QUERY_TIMEOUT_S`, plus the `enyman.move-queue.tx-timeout-s` / `biztree.cache-load.tx-timeout-s`
-opt-outs); the service Tomcat / Hikari knobs and the BFF Node / proxy timeouts are the ones that still need their
-env handles added.
+opt-outs); the service Tomcat / Hikari / DB-socket knobs are wired through the chart's `resilience.*` values and
+applied in the overlays. The **BFF Node / proxy / Angular timeouts** are the ones that still need their env
+handles added.
 
 **Data-access surfaces.** "Query timeout" is not one knob -- the services reach a database through **three**
 separate surfaces, each with its own datasource and its own single lever, and each timeout is a **per-service**
@@ -550,19 +555,20 @@ runs in one read-only transaction that opts out the same way (`biztree.cache-loa
 uncapped) -- otherwise enabling the cap would break cache warm-up. The move and the cache load are the only two
 long ops that opt out; everything else keeps the cap.
 
-**Status -- R6 (query timeouts) implemented (v1.2.10); R1-R5 still the recommended budget.** The query-timeout
-ladder of R6 is wired across all three data-access surfaces and both opt-outs, and verified on the local docker
-stack, with **every default at its pre-HA value (the cap is OFF until set)** so deploying it alone changes
-nothing -- an environment turns it on per the config-var standard (local-k8s best = 8s). The knobs:
+**Status -- what is applied.** The R6 query-timeout ladder is wired across all three data-access surfaces and
+both opt-outs, with **every default at its pre-HA value (the cap is OFF until set)** so deploying it alone
+changes nothing -- an environment turns it on per the config-var standard (local-k8s best = 8s). The knobs:
 - request path (main JPA): `spring.transaction.default-timeout` / `ESQ_TX_TIMEOUT_S` (default `-1` = no cap).
 - audit / keep: per-service `KeepDataSourceParams.query-timeout-seconds` / `ESQ_KEEP_QUERY_TIMEOUT_S` (default `0` = off).
 - bizTree H2 cache: `biztree.h2.query-timeout-s` / `BIZTREE_H2_QUERY_TIMEOUT_S` (default `0` = off).
 - opt-outs: the **move** transaction `enyman.move-queue.tx-timeout-s` and the bizTree **full-tree cache load**
   `biztree.cache-load.tx-timeout-s`, both default uncapped.
 
-The rest of the budget (R1-R5: Tomcat threads, Hikari pools, the gateway / BFF / Node timeouts, k8s resources)
-remains the **proposed local-k8s budget, not yet applied** -- the deferred server-side hardening (alongside the
-spread / PDB / autoscaling items).
+The R2/R3/R4/R5 budget -- Tomcat threads (25/50), the Hikari pool (10/2, 5s connect-timeout), the DB socket
+timeout (35s) + keep-alive, and the pod resource requests/limits -- **is applied in the local-k8s and OKE
+overlays** (the chart defaults stay pre-HA, so a bare install is unchanged). What is **not** wired everywhere:
+the R1 ladder's browser / BFF / Node timeouts (the gateway and DB-socket ends are in place; the BFF / Node /
+Angular knobs are not all env-wired), plus the graceful-shutdown / PodDisruptionBudget / autoscaling items.
 
 ### 5.5 Messaging-bus worker budget and virtual threads
 
@@ -663,19 +669,19 @@ place today; both are producer-leg **session-sublayers**, opt-in by configuratio
 | Pattern | What it does (plain) | Today | Turn it on with |
 |---|---|---|---|
 | **Keep-alive (liveness)** | a producing leg heartbeats when idle; if no send has landed within the timeout the leg reads DOWN and feeds the bus health signal (readiness) | **Live -- opt-in** | `alive` (+ `heartbeat-interval` 10s / `alive-timeout` 30s / `alive-fail-fast`) |
-| **Send-retry (survive a broker blip)** | on a failed send the producer HOLDS the message and re-sends it over a backoff ladder until it lands -- new work queues behind it rather than being lost; a resent message keeps the same id so a consumer can tell it is a repeat; while holding, the leg reads not-ready (bus health) so k8s depools the pod until it lands | **Live -- opt-in** (on in docker + local-k8s, off on OKE) | `send-retry` (+ `send-retry-backoff-sec` 1,2,5,5s / `send-retry-max-attempts` 0 = never give up, N = drop after N) |
+| **Send-retry (survive a broker blip)** | on a failed send the producer HOLDS the message and re-sends it over a backoff ladder until it lands -- new work queues behind it rather than being lost; a resent message keeps the same id so a consumer can tell it is a repeat; while holding, the leg reads not-ready (bus health) so k8s depools the pod until it lands | **Live -- opt-in** (on in docker, local-k8s, AND OKE) | `send-retry` (+ `send-retry-backoff-sec` 1,2,5,5s / `send-retry-max-attempts` 0 = never give up, N = drop after N) |
 | Circuit breaker | stop sending to a dead broker and fast-fail | **Deferred** -- needs an "on open" policy (drop / hold / dead-letter) the bus does not have yet | -- |
 | Retry / backoff variants | retry shapes beyond send-retry | **Deferred** | -- |
 | Per-message timeout | a deadline on one async send | **Deferred** -- async has no request/response deadline today | -- |
 | Per-destination bulkhead | isolate one destination's load from another's | **Deferred** -- only `receiver-pool.size` bounds concurrency today | -- |
-| Metrics | Micrometer counters, separate from the health signal | **Live** (v1.2.11) -- send/receive/error/duration + retry backoff/held/dropped, drawn on the bus dashboards | observability enabled (`ESQ_OBSERVABILITY_ENABLED`) |
+| Metrics | Micrometer counters, separate from the health signal | **Live** -- send/receive/error/duration + retry backoff/held/dropped, drawn on the bus dashboards | observability enabled (`ESQ_OBSERVABILITY_ENABLED`) |
 
 **Keep-alive.** Each producing leg heartbeats on inactivity (an R&R client sends a probe its server answers, so
 the round trip is observed); if no send has landed within `alive-timeout` the leg reads DOWN, which the bus
 health signal surfaces to the readiness probe. Known limit -- **provider-dependent**: the health reads the
 producer leg only, so a hard broker crash that leaves the socket half-open is not caught on the ActiveMQ driver
 (its async-send + failover buffering makes the "send" still succeed); other providers differ. See
-`doc/Esquire.MessagingBus.ContinuingDev.md` item 1.
+`doc/Esquire.MessagingBus.ContinuingDev.md`.
 
 **Send-retry.** A broker outage makes a send fail; the single send worker holds that message and re-sends it over
 the backoff ladder (default 1, 2, 5, 5 seconds, the last step repeating) until it goes through. Because the one
@@ -690,10 +696,8 @@ send-retry-only leg needs no alive protocol to signal a broker outage. This is t
 **Where it fits HA.** These make the async channels survive the same broker events section 7's HA path introduces
 -- a restart, a master->slave / failover switchover, a brief blip -- and they do so **for any bound provider**,
 not just ActiveMQ: the resilience is the bus's, so swapping the transport (or putting it in an HA mode) does not
-change the guarantee. Enabled per bus in docker and the local-k8s overlay; **off on OKE today** (the pre-HA
-default -- turned on with the HA broker). The mechanism and the sublayer design are in
-`doc/Esquire.MessagingBus.md`; the deferred set and why R4j does not apply are in the "NOT Resilience4j" gap
-tables of `doc/plans/tasks1210.md`.
+change the guarantee. Enabled per bus in docker, the local-k8s overlay, AND the OKE overlay -- safe on OKE because its broker
+endpoint uses `failover:`. The mechanism and the sublayer design are in `doc/Esquire.MessagingBus.md`.
 
 ---
 
@@ -742,7 +746,7 @@ spread + backend HA make the deployment actually highly available.
 - **The async channels carry their own resilience.** The **message bus** -- not any one broker -- provides
   keep-alive (a liveness / health signal) and send-retry (hold + re-send a change while the broker is down), so
   an entity broadcast or a KC sync survives a broker restart or failover, over whatever transport is bound
-  (ActiveMQ / Redis / Kafka). Opt-in per bus; on in docker / local-k8s, off on OKE (section 6; the broker-HA path
+  (ActiveMQ / Redis / Kafka). Opt-in per bus; on in docker / local-k8s / OKE (section 6; the broker-HA path
   is section 7).
 - **The stateful backends: HA-enabled, not HA-bundled.** Postgres, the broker, Redis, and KeyCloak each need
   their HA mode switched on (managed service or clustered). Until then they are the limiting SPOFs, and the
@@ -755,14 +759,15 @@ spread + backend HA make the deployment actually highly available.
   fire-and-forget audit consumer; `maxReplicas` capped at 10) is in section 3.7. It is left off by choice -- it
   is not part of the demo deployment.
 
-These backend-HA items and the app-tier spread settings (anti-affinity, PDBs, graceful shutdown) are
-**recommendations, not yet applied to the charts.** They are the candidate scope for the HA hardening that
-follows the redundancy work.
+The app-tier **spread** is applied in the OKE overlay (off on single-node local, where it is moot). What is
+**not** applied: **PodDisruptionBudgets**, **graceful-shutdown hooks**, and **autoscaling**, plus the backend-HA
+items above. These, and the remaining backend-HA modes, are the candidate HA-hardening scope, collected in
+`doc/Esquire.ContinuingDev.md`.
 
-**Server-side resilience -- specified in section 5, not yet applied.** The gateway bounds and cancels work at the
-*edge*, but the backends themselves still run unbounded: Tomcat defaults to ~200 worker threads against a
-20-connection HikariCP pool (a 10:1 mismatch), and there is **no statement/query timeout** (except auKeep's 5s
-pgjdbc `socketTimeout`), so a slow query holds its connection and a gateway-abandoned request keeps running
-server-side. Section 5 gives the full parameter catalog, the sizing rules (thread<->pool match, short acquire
-timeout, a query timeout, the browser->DB ladder), and the local-k8s budget. Applying it is the deferred
-server-side hardening alongside the spread / PDB / autoscaling items.
+**Server-side resilience -- the budget is applied in the overlays; a bare chart-default install is not.** The
+local-k8s and OKE overlays size Tomcat (25 threads) against the Hikari pool (10) and set the DB socket timeout,
+so the deployed fleet is bounded. A **bare chart-default install** inherits Tomcat's ~200 worker threads against
+its small default pool and **no statement/query timeout** (except auKeep's pgjdbc `socketTimeout`), so a slow
+query would hold its connection and a gateway-abandoned request would keep running server-side. The piece still
+off everywhere is the **request-path query-timeout cap** (R6, default off until an environment sets it) and the
+BFF / Node timeout wiring. Section 5 has the full parameter catalog and the sizing rules.

@@ -12,7 +12,11 @@
 #   ./run.sh docker
 #   ./run.sh k8s        local-k8s mode (kubectl context MUST be docker-desktop)
 #
-# Prereqs: the stack up (compose, or local k8s) + curl (+ kubectl for k8s mode).
+# Prereqs: the stack up (compose, or local k8s) + docker (docker mode) / kubectl (k8s mode).
+# Actuator listens on a SEPARATE, internal-only port (8090 = management.server.port); it is NOT
+# host-published in docker and NOT on the public ingress in k8s, so this probes it INSIDE the
+# container/pod via `docker exec` / `kubectl exec`. The service images carry no curl/wget, so the
+# request goes through the bash /dev/tcp builtin.
 # NOTE: this validates the bus connection health (the alive protocol). The keepDatasource DB-health
 # dimension has its own kill-the-DB capture (see results-*-k8s-db.md); it is not driven here.
 # =============================================================================
@@ -32,13 +36,16 @@ ORDER=(enyman pacman keysmith kcmaster biztree aukeep)
 CHAOS_SVC="enyman"                      # carries all three buses (audit / kc / entity)
 DOWN_WAIT=60                            # seconds to wait for the DOWN edge (bounded by alive-timeout + termination)
 UP_WAIT=120                            # seconds to wait for recovery (broker restart + failover reconnect)
+MPORT=8090                             # actuator's internal-only management port (the same in every service)
 
-# docker stack: actuator ports on localhost
-declare -A DPORT=( [enyman]=3003 [pacman]=3004 [keysmith]=3005 [kcmaster]=3006 [biztree]=3002 [aukeep]=3007 )
-# k8s: container actuator ports (reached via kubectl port-forward)
-declare -A KPORT=( [enyman]=3003 [pacman]=3003 [keysmith]=3002 [kcmaster]=3006 [biztree]=3002 [aukeep]=3007 )
-
-rc() { curl -s --max-time 12 -o /dev/null -w '%{http_code}' "$1" 2>/dev/null; }
+# Probe the actuator INSIDE the container/pod (it is not reachable from the host / ingress). The service
+# images have no curl/wget, so the request goes through the bash /dev/tcp builtin. Echoes the HTTP status
+# code (200/503) or 000 when the port is unreachable.
+#   $1 = exec prefix, e.g. "docker exec esq-enyman"  or  "kubectl exec pod/esquire-enyman-enyman-0 --"
+#   $2 = health path (readiness | liveness)
+hc() {
+  $1 bash -c "exec 3<>/dev/tcp/127.0.0.1/$MPORT 2>/dev/null || { echo 000; exit 0; }; printf 'GET /actuator/health/$2 HTTP/1.0\r\nConnection: close\r\n\r\n' >&3; read -r -t 10 _ code _ <&3; echo \"\${code:-000}\"" 2>/dev/null
+}
 
 log "# Health smoke run -- ${MODE} -- ${STAMP}"
 log ""
@@ -46,11 +53,11 @@ log ""
 # ----------------------------------------------------------------------------- docker mode
 if [ "$MODE" = "docker" ]; then
   BROKER="esq-activemq"
-  url() { echo "http://localhost:${DPORT[$1]}/actuator/health/$2"; }
+  ex() { echo "docker exec esq-$1"; }
 
   log "## 1. readiness sweep (all UP)"
   for s in "${ORDER[@]}"; do
-    c=$(rc "$(url "$s" readiness)")
+    c=$(hc "$(ex "$s")" readiness)
     [ "$c" = "200" ] && pass "readiness $s = 200" || fail "readiness $s = $c (expected 200)"
   done
 
@@ -58,9 +65,9 @@ if [ "$MODE" = "docker" ]; then
   docker stop "$BROKER" >/dev/null 2>&1
   t0=$(date +%s); c=200
   while [ $(($(date +%s) - t0)) -lt $DOWN_WAIT ]; do
-    c=$(rc "$(url "$CHAOS_SVC" readiness)"); [ "$c" != "200" ] && break; sleep 2
+    c=$(hc "$(ex "$CHAOS_SVC")" readiness); [ "$c" != "200" ] && break; sleep 2
   done
-  lv=$(rc "$(url "$CHAOS_SVC" liveness)"); el=$(($(date +%s) - t0))
+  lv=$(hc "$(ex "$CHAOS_SVC")" liveness); el=$(($(date +%s) - t0))
   [ "$c" = "503" ] && pass "readiness=503 at +${el}s (broker down)" || fail "readiness=$c after ${el}s (expected 503)"
   [ "$lv" = "200" ] && pass "liveness=200 (pod stays up)" || fail "liveness=$lv (expected 200 -- a broker outage must NOT fail liveness)"
 
@@ -68,7 +75,7 @@ if [ "$MODE" = "docker" ]; then
   docker start "$BROKER" >/dev/null 2>&1
   t1=$(date +%s); c=503
   while [ $(($(date +%s) - t1)) -lt $UP_WAIT ]; do
-    c=$(rc "$(url "$CHAOS_SVC" readiness)"); [ "$c" = "200" ] && break; sleep 2
+    c=$(hc "$(ex "$CHAOS_SVC")" readiness); [ "$c" = "200" ] && break; sleep 2
   done
   el=$(($(date +%s) - t1))
   [ "$c" = "200" ] && pass "recovered readiness=200 after +${el}s" || fail "readiness=$c after ${el}s (did not recover)"
@@ -82,27 +89,18 @@ elif [ "$MODE" = "k8s" ]; then
   BROKER_STS="esquire-infra-amq-activemq"
   podof() { kubectl get pods -o name 2>/dev/null | grep "$1" | head -1 | sed 's|pod/||'; }
 
-  # port-forward helper: forward <pod> <containerPort> on a local port, curl readiness/liveness, kill.
-  LP=18200
-  fw_rc() { # args: pod cport path
-    kubectl port-forward "pod/$1" "$LP:$2" >/dev/null 2>&1 & local pf=$!; sleep 2
-    local code; code=$(rc "http://localhost:$LP/actuator/health/$3")
-    kill "$pf" >/dev/null 2>&1; wait "$pf" 2>/dev/null; LP=$((LP + 1)); echo "$code"
-  }
-
   log "## 1. readiness sweep (all UP)"
   for s in "${ORDER[@]}"; do
     pod=$(podof "$s")
     if [ -z "$pod" ]; then fail "readiness $s -- no pod"; continue; fi
-    c=$(fw_rc "$pod" "${KPORT[$s]}" readiness)
+    c=$(hc "kubectl exec pod/$pod --" readiness)
     [ "$c" = "200" ] && pass "readiness $s = 200" || fail "readiness $s = $c (expected 200)"
   done
 
   log ""; log "## 2. broker DOWN -> liveness 200 (assert) + readiness DOWN (OBSERVE) on ${CHAOS_SVC}"
   ENY=$(podof "$CHAOS_SVC")
-  kubectl port-forward "pod/$ENY" 18250:${KPORT[$CHAOS_SVC]} >/dev/null 2>&1 & PF=$!; sleep 3
-  rdy() { rc "http://localhost:18250/actuator/health/readiness"; }
-  liv() { rc "http://localhost:18250/actuator/health/liveness"; }
+  rdy() { hc "kubectl exec pod/$ENY --" readiness; }
+  liv() { hc "kubectl exec pod/$ENY --" liveness; }
   # GRACEFUL shutdown -- the realistic k8s rolling-restart case. activemq closes its connections cleanly (FIN),
   # which the producer-leg health CAN detect (~tens of seconds). The readiness DOWN is OBSERVED, not asserted on
   # k8s: a HARD failure (crashed pod / node loss -> half-open socket) is NOT detected, because with
@@ -131,7 +129,6 @@ elif [ "$MODE" = "k8s" ]; then
   done
   el=$(($(date +%s) - t1))
   [ "$c" = "200" ] && pass "recovered readiness=200 after +${el}s" || fail "readiness=$c after ${el}s (did not recover)"
-  kill "$PF" >/dev/null 2>&1; wait "$PF" 2>/dev/null
 
 else
   echo "unknown mode '$MODE' -- use: docker | k8s"; exit 2

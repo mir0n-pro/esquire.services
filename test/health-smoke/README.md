@@ -6,7 +6,7 @@ only (a broker outage depools the pod but never restarts it), and that an Active
 through the `failover:` transport.
 
 There are two ways to run it: the AUTOMATED `run.sh` (the broker-chaos smoke with assertions, like audit-smoke)
-and the MANUAL procedure below (curl + `docker stop/start`). The unit-level logic (`TransportHealth.worst`,
+and the MANUAL procedure below (an in-container `/dev/tcp` probe + `docker stop/start`). The unit-level logic (`TransportHealth.worst`,
 `BusHealthIndicator`, `TransportHealthIndicator`, `AliveSession`) is covered by the messaging module's unit
 tests; this harness covers the live end-to-end behavior they cannot.
 
@@ -46,31 +46,41 @@ by `run.sh`. The active health SOURCE is the x-rod alive protocol (the `HeartBea
 
 ---
 
-## The services (docker stack ports)
+## The services
 
-| Service | Port | Buses it reports |
-|---|---|---|
-| enyman   | 3003 | audit-bus, kc-bus, entity-bus |
-| pacman   | 3004 | audit-bus, entity-bus |
-| keysmith | 3005 | audit-bus, kc-bus |
-| kcmaster | 3006 | kc-bus, entity-bus |
-| biztree  | 3002 | entity-bus (+ its own `cacheReadiness`) |
-| aukeep   | 3007 | audit-bus (+ `keepDatasource`, the keep `*_log` DB) |
+Actuator listens on a SEPARATE, internal-only management port **8090** (`management.server.port`) in every
+service — NOT the published app port, and NOT reachable from the host or the public ingress. Probe it INSIDE
+the container/pod with `docker exec` / `kubectl exec` (the service images carry no curl/wget, so the request
+goes through the bash `/dev/tcp` builtin); `run.sh` does this for you.
 
-Endpoints per service: `/actuator/health/readiness` and `/actuator/health/liveness`.
+| Service | Buses it reports |
+|---|---|
+| enyman   | audit-bus, kc-bus, entity-bus |
+| pacman   | audit-bus, entity-bus |
+| keysmith | audit-bus, kc-bus |
+| kcmaster | kc-bus, entity-bus |
+| biztree  | entity-bus (+ its own `cacheReadiness`) |
+| aukeep   | audit-bus (+ `keepDatasource`, the keep `*_log` DB) |
+
+Endpoints per service (on `:8090`): `/actuator/health/readiness` and `/actuator/health/liveness`.
 
 ---
 
-## Run
+## Run (manual)
+
+Actuator is internal-only (`:8090`), so probe it inside the container — the same `/dev/tcp` request `run.sh`
+uses (the images have no curl):
+
+```bash
+# raw actuator GET inside a service container: hc <esq-container> <readiness|liveness>
+hc(){ docker exec "$1" bash -c 'exec 3<>/dev/tcp/127.0.0.1/8090; printf "GET /actuator/health/'"$2"' HTTP/1.0\r\nConnection: close\r\n\r\n" >&3; cat <&3'; }
+```
 
 ### 1. Readiness sweep (all 6 services UP)
 
 ```bash
-declare -A SVC=( [enyman]=3003 [pacman]=3004 [keysmith]=3005 [kcmaster]=3006 [biztree]=3002 [aukeep]=3007 )
 for s in enyman pacman keysmith kcmaster biztree aukeep; do
-  p=${SVC[$s]}
-  code=$(curl -s -o /tmp/r.json -w '%{http_code}' "http://localhost:$p/actuator/health/readiness")
-  echo "--- $s (:$p) HTTP $code"; cat /tmp/r.json; echo
+  echo "--- $s"; hc "esq-$s" readiness | tail -1; echo
 done
 ```
 PASS = every service `HTTP 200` with `messagingBus.status: UP` and every bus detail `UP`.
@@ -80,28 +90,26 @@ PASS = every service `HTTP 200` with `messagingBus.status: UP` and every bus det
 Run against enyman (it carries all three buses incl. two ActiveMQ legs). Poll, do not sleep-wait:
 
 ```bash
-rd(){ curl -s -o /tmp/r.json -w '%{http_code}' "http://localhost:3003/actuator/health/readiness"; }
-lv(){ curl -s -o /tmp/l.json -w '%{http_code}' "http://localhost:3003/actuator/health/liveness"; }
+st(){ hc "esq-enyman" "$1" | head -1; }            # first line = "HTTP/1.1 <code> ..."
 
-docker stop esq-activemq                     # broker down
-for i in $(seq 1 25); do c=$(rd); [ "$c" != "200" ] && break; read -t 1 _ </dev/null; done
-echo "down: readiness HTTP $c $(cat /tmp/r.json) | liveness HTTP $(lv) $(cat /tmp/l.json)"
+docker stop esq-activemq                            # broker down
+for i in $(seq 1 25); do st readiness | grep -q ' 200' || break; sleep 1; done
+echo "down: readiness [$(st readiness)] | liveness [$(st liveness)]"
 
-docker start esq-activemq                     # broker up
-for i in $(seq 1 90); do c=$(rd); [ "$c" = "200" ] && break; read -t 1 _ </dev/null; done
-echo "recovered after ${i}s: readiness HTTP $c | liveness HTTP $(lv)"
+docker start esq-activemq                            # broker up
+for i in $(seq 1 90); do st readiness | grep -q ' 200' && break; sleep 1; done
+echo "recovered after ${i}s: readiness [$(st readiness)] | liveness [$(st liveness)]"
 ```
 PASS = broker down -> readiness `503 DOWN` + liveness `200 UP`; broker up -> readiness back to `200 UP` on its
 own.
 
-**Local k8s:** check the context is `docker-desktop` first; reach each pod with `kubectl port-forward
-pod/<pod> <local>:<containerPort>` (ports: enyman/pacman 3003, keysmith/biztree 3002, kcmaster 3006, aukeep
-3007 — aukeep has no Service). Drop the broker by scaling its StatefulSet: `kubectl scale statefulset
-esquire-infra-amq-activemq --replicas=0` (then `--replicas=1`). The DOWN window is SHORT on k8s — the
-StatefulSet recreates the broker in seconds and `failover:` reconnects fast — so an HTTP-only poll can miss
-the flip; the reliable evidence is the service's transport-listener log (`kubectl logs <pod> | grep -i
-"transport interrupted\|transport resumed"`), which shows each leg going DOWN on the connection drop and back
-UP on reconnect. See `results-260623-0059-k8s.md`.
+**Local k8s:** check the context is `docker-desktop` first; reach each pod's actuator the same way with
+`kubectl exec pod/<pod> -- bash -c 'exec 3<>/dev/tcp/127.0.0.1/8090; ...'` (`:8090` in every pod). Drop the
+broker by scaling its StatefulSet: `kubectl scale statefulset esquire-infra-amq-activemq --replicas=0` (then
+`--replicas=1`). The DOWN window is SHORT on k8s — the StatefulSet recreates the broker in seconds and
+`failover:` reconnects fast — so an HTTP-only poll can miss the flip; the reliable evidence is the service's
+transport-listener log (`kubectl logs <pod> | grep -i "transport interrupted\|transport resumed"`), which
+shows each leg going DOWN on the connection drop and back UP on reconnect. See `results-260623-0059-k8s.md`.
 
 ---
 
