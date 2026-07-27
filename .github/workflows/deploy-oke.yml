@@ -38,7 +38,12 @@ on:
   pull_request:
     types: [closed]
     branches: [develop]
-  workflow_dispatch: {}   # allow a manual re-deploy of the current develop tip
+  workflow_dispatch:
+    inputs:
+      deploy_infra:
+        description: "Re-roll infra (postgres / activemq / keycloak) too. Leave FALSE for app-only deploys: rolling the broker drops every app pod's messaging bus and stalls the rollout."
+        type: boolean
+        default: false
 
 # Never interrupt a prod rollout already in flight.
 concurrency:
@@ -172,6 +177,10 @@ jobs:
         shell: bash
         env:
           IMAGE_TAG: ${{ needs.build-push.outputs.image_tag }}
+          # Routine app deploys leave infra running (default false); rolling the broker drops the
+          # app buses (which do not self-heal) and stalls the rollout. Set true only when the
+          # postgres / activemq / keycloak image itself changed.
+          DEPLOY_INFRA: ${{ github.event.inputs.deploy_infra || 'false' }}
           MIR0N_PWD: ${{ secrets.MIR0N_PWD }}
           BFF_KC_SECRET: ${{ secrets.BFF_KC_SECRET }}
           GW_EXCHANGE_SECRET: ${{ secrets.GW_EXCHANGE_SECRET }}
@@ -198,6 +207,14 @@ jobs:
         working-directory: e2e-test
         env:
           BASE_URL: https://esquire.mir0n.pro
+          # 20-token-relay talks to the gateway + KeyCloak DIRECTLY (not through the BFF), so it needs the
+          # public OKE gateway host and KC path; without them it falls back to localhost and ECONNREFUSEs.
+          GATEWAY_URL: https://api.esquire.mir0n.pro
+          KC_URL: https://esquire.mir0n.pro/kc-auth
+          # Token Relay is DISABLED on the internet-facing OKE gateway (empty allowlists -- see
+          # k8s-oci/values/gateway.yaml, mir0n 2026-07-20). This flag makes 20-token-relay's two specs
+          # skip on OKE only; docker / local k8s leave it unset and keep running them.
+          RELAY_DISABLED: "true"
         run: |
           npm ci || npm install
           npx playwright install --with-deps chromium

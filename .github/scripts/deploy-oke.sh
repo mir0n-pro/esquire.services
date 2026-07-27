@@ -55,23 +55,38 @@ case "${CTX}" in
 esac
 echo "=== deploying to context: ${CTX}   image tag: ${IMAGE_TAG} ==="
 
-# --- Infra (idempotent install-if-absent). postgres + keycloak + activemq are all built + pushed per
-#     release by oke-build-push.sh (postgres bakes the db.seed schema; keycloak bakes the esquire theme +
-#     realm import; activemq bakes activemq.xml + the JMX agent), so all three take the new IMAGE_TAG and the
-#     tag EXISTS in GHCR -- kept in step with the manual oke-up.bat / ghcr-push.bat path. ---
-echo "--- infra: postgres"
-helm upgrade --install esquire-infra "${CHARTS}/infra/postgres" \
+# --- Infra (postgres / activemq / keycloak). All three are built + pushed per release by oke-build-push.sh
+#     (postgres bakes the db.seed schema; keycloak bakes the esquire theme + realm import; activemq bakes
+#     activemq.xml + the JMX agent), so passing the per-release IMAGE_TAG changes their spec EVERY run and
+#     helm re-rolls them. RE-ROLLING THE BROKER IS WHAT BREAKS DEPLOYS: a broker bounce drops every app pod's
+#     messaging bus, and the services do NOT self-heal from it -- so a mid-deploy broker roll leaves the
+#     not-yet-rolled services wedged (readiness 503), and an unready current-revision pod STALLS its
+#     StatefulSet rollout (the "biztree 1/2 context deadline exceeded" failure).
+#     So: INSTALL infra when absent (first deploy), but do NOT re-roll long-lived infra on a routine app
+#     deploy. Set DEPLOY_INFRA=true (workflow input) ONLY when the postgres / activemq / keycloak image
+#     itself changed (schema, realm, broker config) -- then expect to kick the app pods afterward
+#     (kubectl delete the wedged pods; see the OKE runbook). ---
+DEPLOY_INFRA="${DEPLOY_INFRA:-false}"
+infra() {  # release  chart  [helm args...]
+  local rel="$1" chart="$2"; shift 2
+  if [ "${DEPLOY_INFRA}" != "true" ] && helm status "${rel}" >/dev/null 2>&1; then
+    echo "--- infra: ${rel} left running (DEPLOY_INFRA=false -- not re-rolled, keeps the app buses up)"
+  else
+    echo "--- infra: ${rel} (install/upgrade)"
+    helm upgrade --install "${rel}" "${chart}" "$@"
+  fi
+}
+
+infra esquire-infra "${CHARTS}/infra/postgres" \
   -f "${OCIVALS}/postgres.yaml" \
   --set image.tag="${IMAGE_TAG}" \
   --set db.password="${MIR0N_PWD}" --wait --timeout 5m
 
-echo "--- infra: activemq"
-helm upgrade --install esquire-infra-amq "${CHARTS}/infra/activemq" \
+infra esquire-infra-amq "${CHARTS}/infra/activemq" \
   -f "${OCIVALS}/activemq.yaml" \
   --set image.tag="${IMAGE_TAG}" --wait --timeout 5m
 
-echo "--- infra: keycloak"
-helm upgrade --install esquire-infra-kc "${CHARTS}/infra/keycloak" \
+infra esquire-infra-kc "${CHARTS}/infra/keycloak" \
   -f "${OCIVALS}/keycloak.yaml" \
   --set image.tag="${IMAGE_TAG}" \
   --set keycloak.adminPassword="${MIR0N_PWD}" --wait --timeout 6m

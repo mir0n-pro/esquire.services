@@ -87,7 +87,7 @@ rem the app pods' messagingBus connection, which does NOT self-heal (needs a pod
 rem toggle-in-place matrix must never roll it. Infra metrics are the broker's/kc's OWN, not app o11y
 rem cost, so skipping them is measurement-neutral.
 if not defined SKIP_INFRA_ROLL (
-  echo --- keycloak: metrics OFF (no JMX exporter agent)...
+  echo --- keycloak: metrics OFF ^(no JMX exporter agent^)...
   call helm upgrade esquire-infra-kc %CH%\infra\keycloak -f values\keycloak.yaml --reset-then-reuse-values --set observability.enabled=false
   call kubectl rollout restart statefulset esquire-infra-kc-keycloak
 )
@@ -123,7 +123,7 @@ call kubectl rollout restart statefulset esquire-backend-backend
 rem SKIP_INFRA_ROLL (see the LOG block): the matrix suppresses the kc/amq metric rolls so the broker
 rem is never bounced under running app pods (messagingBus does not self-heal a broker bounce).
 if not defined SKIP_INFRA_ROLL (
-  echo --- keycloak / activemq: metrics ON (JMX exporter agent)...
+  echo --- keycloak / activemq: metrics ON ^(JMX exporter agent^)...
   call helm upgrade esquire-infra-kc  %CH%\infra\keycloak -f values\keycloak.yaml --reset-then-reuse-values --set observability.enabled=true
   call kubectl rollout restart statefulset esquire-infra-kc-keycloak
   call helm upgrade esquire-infra-amq %CH%\infra\activemq -f values\activemq.yaml --reset-then-reuse-values --set observability.enabled=true

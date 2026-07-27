@@ -1,6 +1,12 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v1.2.11-2607.2714  v1.2.11 -- Finalization
+    :Fix:         the on-demand cloud observability routine now completes in both directions -- switching
+                  the full stack on also enables the message-broker and identity metrics, and switching it
+                  off again also removes the viewing tools
+    Components:   k8s
+
 v1.2.11-2607.2614  v1.2.11 -- T13: sprint documentation finalization
     :Fix:         the paper-client-account entity-kind title corrected to "Paper Client Account" (and its description)
     :Doc:         doc\Esquire.Auth.md  (new -- authentication and authorization: the token and its claims
