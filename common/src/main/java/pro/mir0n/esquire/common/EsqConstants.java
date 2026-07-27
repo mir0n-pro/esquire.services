@@ -21,6 +21,7 @@
  *                   parameter sub-entity audit events (route to the *_par_log writer; param et_pk rides the body)
  * 06/23/2026 mir0n  BUS_KEY_AUDIT/KC/ENTITY, TEXT_* (id/kind/parentId/path/name/desc/status/deleted/ccy),
  *                   FLAG_OPEN, CCY_DEFAULT moved here from common.EsqMsgConstants (the non-wire app constants)
+ * 07/08/2026 mir0n  TRACEPARENT ("traceparent") added: the W3C Trace Context header name
  */
 package pro.mir0n.esquire.common;
 
@@ -38,6 +39,7 @@ public class EsqConstants {
 
     public static final String X_CORRELATION_ID = "X-Correlation-ID";
     public static final String X_REQUEST_ID = "X-Request-ID";
+    public static final String TRACEPARENT = "traceparent"; // W3C Trace Context: 00-<traceId>-<spanId>-<flags>
     public static final String X_RESPONSE_TIME = "X-Response-Time";
     public static final String X_CAPTURE_METRICS = "X-Capture-Metrics"; // The trigger
 

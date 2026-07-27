@@ -14,10 +14,23 @@
  * 06/15/2026 mir0n  audit-producer ctor param retyped messaging.xrod.IXRod (was common.xrod.XYRod)
  * 06/17/2026 mir0n  audit-producer ctor param IXRod -> AuditBusBridge
  * 06/18/2026 mir0n  audit module left common: AuditBusBridge moved to pro.mir0n.esquire.audit
+ * 07/08/2026 mir0n  esquireCommandAcct() delegates to the new private esquireCommandTransfer(), wrapped in
+ *                   EsqTraceMark.around("esq.svc.acct.tx", "account transfer", ...) -- this processor is constructed
+ *                   with new() by AcctTransactionService, so Spring never proxies it and @EsqTraced would not
+ *                   be advised
+ * 07/11/2026 mir0n  v1.2.11 O1/T8 -- esquireCommandAcct() counts esq.biz.acct.tx.total and times
+ *                   esq.biz.acct.tx.duration (tags type, outcome) -- its OWN meters, because this override does
+ *                   NOT call super, so the meters on AcctTransactionProcessorSingle never see a transfer and the
+ *                   whole transfer path would have been silently missing from the money panel
+ * 07/23/2026 mir0n  v1.2.11 -- credit leg promotes the shared fields map (AMOUNT overwritten with the credit
+ *                   amount) and passes it straight through -- per-request map, deliberately not cloned
  */
 
 package pro.mir0n.esquire.pacMan.acct.service;
 
+import pro.mir0n.esquire.backend.error.PermissionDeniedException;
+import pro.mir0n.esquire.backend.o11y.EsqBizMeters;
+import pro.mir0n.esquire.backend.o11y.EsqTraceMark;
 import jakarta.persistence.EntityManager;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.LoggerFactory;
@@ -43,6 +56,29 @@ public class AcctTransactionProcessorTransfer extends AcctTransactionProcessorSi
     }
 
     public AcctTransactionSingle esquireCommandAcct(int kind, String id, AcctOperation.Code oper, Map<String, Object> fields, boolean skipValidation, String rootPath, String uid, List<String> roles) {
+        AcctTransactionSingle marked = null;
+        // esq.biz.acct.tx.total / .duration (O1/T8 phase B). This override does NOT call super, so the meters on
+        // AcctTransactionProcessorSingle.esquireCommandAcct never see a transfer -- it needs its own, or the
+        // whole transfer path would be silently missing from the money panel.
+        String outcome = "error";
+        long startedAt = System.nanoTime();
+        try {
+            // Programmatic mark, not @EsqTraced: this processor is constructed with new() by
+            // AcctTransactionService, so Spring never proxies it and the annotation would not be advised.
+            marked = EsqTraceMark.around("esq.svc.acct.tx", "account transfer", () ->
+                    esquireCommandTransfer(kind, id, oper, fields, skipValidation, rootPath, uid, roles));
+            outcome = "ok";
+        } catch (PermissionDeniedException e) {
+            outcome = "denied";
+            throw e;
+        } finally {
+            EsqBizMeters.count("esq.biz.acct.tx.total", "type", operTag(oper), "outcome", outcome);
+            EsqBizMeters.time("esq.biz.acct.tx.duration", System.nanoTime() - startedAt, "type", operTag(oper));
+        }
+        return marked;
+    }
+
+    private AcctTransactionSingle esquireCommandTransfer(int kind, String id, AcctOperation.Code oper, Map<String, Object> fields, boolean skipValidation, String rootPath, String uid, List<String> roles) {
         Object rawId2 = fields.get(AcctTransactionSingle.FIELD_ID2);
         Object rawKind2 = fields.get(AcctTransactionSingle.FIELD_KIND2);
         if (rawId2 == null || rawKind2 == null) {
@@ -78,6 +114,9 @@ public class AcctTransactionProcessorTransfer extends AcctTransactionProcessorSi
 
         String sourceCcy = ret.getCcy();
         double creditAmount = Math.abs(amount) * rate;
+        // Promote the shared fields map from the debit leg to the credit leg: overwrite AMOUNT with the credit
+        // amount and pass the same map straight through. Deliberately NOT cloned -- the map is per-request and not
+        // read again after the transfer, so a copy would only cost time + memory for no gain.
         fields.put(AcctTransactionSingle.FIELD_AMOUNT, creditAmount);
         _esquireCommandAcct(eek2, id2, oper, fields, true, rootPath, uid, correlationId, requestId, rate, Math.abs(amount), sourceCcy, pkTx, id);
         return ret;

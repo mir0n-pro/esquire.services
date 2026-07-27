@@ -2,13 +2,14 @@
  *  Esquire frameworks (tm)
  *  Gateway service
  *
- *  Copyright(c) 2001, 2025 mir0n&co www.mir0n.me
+ *  Copyright(c) 2001, 2026 mir0n&co www.mir0n.pro
  *  mailto:mir0n.the.programmer@gmail.com
  *
  *  History:
  * 01/08/2026 mir0n @ConfigurationPropertiesScan is required now
  * 04/07/2026 mir0n  EsqObjectKindStorage loaded on startup (required by EntityKindRoutePredicateFactory)
  *                   SpringApplication builder; GatewayApplicationStartingListener added
+ * 07/08/2026 mir0n  @Import(TracingConfig.class): the common distributed-tracing wiring (v1.2.11 O2)
  */
 package pro.mir0n.esquire.gateway;
 
@@ -18,6 +19,8 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.event.ApplicationStartingEvent;
 import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
 import org.springframework.context.ApplicationListener;
+import org.springframework.context.annotation.Import;
+import pro.mir0n.esquire.backend.o11y.ObservabilityConfig;
 import pro.mir0n.esquire.backend.storage.EsqObjectKindStorage;
 
 //TODO: get Roles with permissions from keySmith
@@ -28,6 +31,7 @@ import pro.mir0n.esquire.backend.storage.EsqObjectKindStorage;
 
 @SpringBootApplication
 @ConfigurationPropertiesScan
+@Import(ObservabilityConfig.class)
 public class GatewayApplication {
 
     private static final org.slf4j.Logger devLog = LoggerFactory.getLogger("develop." + GatewayApplication.class.getName());

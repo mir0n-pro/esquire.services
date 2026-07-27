@@ -76,6 +76,12 @@ if errorlevel 1 ( echo backend build failed & exit /b 1 )
 echo [docker] rebuilding frontend (ng-serve)...
 docker compose build %NOCACHE% frontend
 if errorlevel 1 ( echo frontend build failed & exit /b 1 )
+rem The broker image carries our own activemq.xml AND the JMX exporter agent, so it must be rebuilt like any
+rem other. It never was: `docker compose up -d` below does NOT rebuild on a Dockerfile change, so before this
+rem line a broker change simply never reached the running stack.
+echo [docker] rebuilding activemq (broker config + JMX exporter agent)...
+docker compose build %NOCACHE% activemq
+if errorlevel 1 ( echo activemq build failed & exit /b 1 )
 echo [docker] recreating all containers...
 docker compose up -d --force-recreate
 goto end

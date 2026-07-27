@@ -17,6 +17,8 @@
  * 06/18/2026 mir0n  audit module left common: AuditBusBridge moved to pro.mir0n.esquire.audit
  * 06/22/2026 mir0n  RodEvent import retargeted messaging.xrod.RodEvent -> messaging.RodEvent (package move).
  * 06/23/2026 mir0n  EsqMsgConstants app constants -> common.EsqConstants (references repointed)
+ * 07/23/2026 mir0n  v1.2.11 -- createAcct reads rootPath (RequestContextUtils) and passes it to
+ *                   acctPath(parentId, rootPath) -- the parent lookup is now tenant-scoped, like org/usr create
  */
 
 package pro.mir0n.esquire.enyMan.service.impl;
@@ -92,13 +94,14 @@ public class AcctService extends AEnyManService {
         String correlationId = RequestContextUtils.getCorrelationId();
         String requestId = RequestContextUtils.getRequestId();
         String uid = RequestContextUtils.getUid();
-        devLog.debug("srvc: esquireCommandNew(acct): kind:{}, parentId:{}, cmd:{}, uid:{}", kind, parentId, cmd, uid);
+        String rootPath = RequestContextUtils.getRootPath();
+        devLog.debug("srvc: esquireCommandNew(acct): kind:{}, parentId:{}, cmd:{}, rootPath:{}, uid:{}", kind, parentId, cmd, rootPath, uid);
 
         EsqEntityJpa[] created = {null};
 
         transactionTemplate.execute(status -> {
             em.setFlushMode(FlushModeType.COMMIT);
-            createAcct(kind, parentId, fields, uid, correlationId, requestId, created);
+            createAcct(kind, parentId, fields, rootPath, uid, correlationId, requestId, created);
             return null;
         });
 
@@ -110,9 +113,9 @@ public class AcctService extends AEnyManService {
     // Account is a leaf: ep_path of the new account equals the parent's path
     // (no own-pk segment appended). Mirrors EsqObjectKind.isPathParentOnly() for acct.
     private void createAcct(int kind, String parentId, Map<String, Object> fields,
-                            String uid, String correlationId, String requestId,
+                            String rootPath, String uid, String correlationId, String requestId,
                             EsqEntityJpa[] created) {
-        String parentPath = acctRepository.acctPath(parentId);
+        String parentPath = acctRepository.acctPath(parentId, rootPath);
         if (parentPath == null) {
             throw new ResourceNotFoundException("createAcct", "parentId", parentId);
         }

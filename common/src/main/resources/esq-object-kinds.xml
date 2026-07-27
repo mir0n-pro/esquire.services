@@ -457,9 +457,9 @@
     <kind>
       <id>55</id>
       <name>pacctlnk</name>
-      <title>Paper Client</title>
+      <title>Paper Client Account</title>
       <plural>pacctlnks</plural>
-      <desc>Shortcut to Paper Client  Account  entity</desc>
+      <desc>Shortcut to Paper Client Account entity</desc>
       <icon>img/pacctl.ico</icon>
       <acct>true</acct>
       <detailed>true</detailed>

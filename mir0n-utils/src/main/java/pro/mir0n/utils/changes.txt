@@ -1,0 +1,191 @@
+mir0n java common frameworks -- pro.mir0n.utils
+
+
+07/14/2026 mir0n  v1.2.11 -- BoundedQueueRig: the producer's wait on a FULL queue is its own knob, and can be endless (T10)
+concurrent.BoundedQueueRig
+  - putAwaitMs + setPutAwaitMs(long) added -- the producer's own wait on a FULL queue, split off from
+    awaitTimeoutMs (which now only paces the worker's missed-signal re-check). <= 0 = NO TIMEOUT: put() awaits
+    notFull without a deadline and never discards; shutdown() / clear() already signal notFull, so a parked
+    producer still wakes. Default unchanged (10s, drops)
+
+07/09/2026 mir0n  v1.2.11 -- pro.mir0n.utils becomes its own module (mir0n-utils); HostId
+HostId  (new)
+  - this instance's host identity -- instanceHost() + the lazy-cached instanceNo(), moved down from esquire
+    common.EsqUtils (which now delegates) so the messaging bus can build its default rod-id without depending
+    on anything Esquire
+concurrent.IQueueRig
+  - moved from the esquire-common module to mir0n-utils; package pro.mir0n.utils.concurrent unchanged
+concurrent.BoundedQueueRig
+  - moved from the esquire-common module to mir0n-utils; package pro.mir0n.utils.concurrent unchanged
+concurrent.WorkerPool
+  - moved from the esquire-common module to mir0n-utils; package pro.mir0n.utils.concurrent unchanged
+taijitu.*
+  - moved from the esquire-common module to mir0n-utils; package pro.mir0n.utils.taijitu unchanged
+
+07/01/2026 mir0n  v1.2.10 -- a common bounded worker pool with three thread models (platform / virtual / virtual-per-task)
+concurrent.WorkerPool  (new)
+  - a bounded worker pool with three thread models: PLATFORM / VIRTUAL = a FIXED pool of `size` reused workers
+    (OS threads, or `size` virtual threads); VIRTUAL_PER_TASK = one virtual thread per task, capped by a
+    Semaphore(size) (uncapped when size=0). create(name, size, mode); submit(Runnable) applies the bound
+    (acquire / execute / release); shutdown(awaitSeconds) drains; capacity(); Mode.of(String) parses the mode
+
+06/15/2026 mir0n  v1.2.8 -- Taijitu queue item carries a parsed body map instead of the raw wire body
+taijitu.QueueItem
+  - the record field pair (messageEncoding, text) replaced by a single body Map<String,Object>; the
+    constructor is now (eventType, entityId, entityKind, requestId, correlationId, body). command items
+    pass body=null; event items carry the parsed map, applied by the monad with no re-parse
+taijitu.ITaijituRig
+  - pass(...) contract changed: the (messageEncoding, text) params replaced by Map<String,Object> body
+    (null = bodiless event, e.g. DELETE); import java.util.Map added
+taijitu.ATaijituRig
+  - pass(...) signature updated to the body-map form; forwards body into the body-map QueueItem
+taijitu.ATaijituRigY
+  - pass(...) signature updated to the body-map form; forwards body into the body-map QueueItem
+taijitu.AMonadY
+  - CMD QueueItem construction updated to the body-map ctor (raw messageEncoding+text args dropped;
+    command items pass body=null)
+
+06/02/2026 mir0n  v1.2.6 -- bulk processing on the queue rig + monad
+concurrent.IQueueRig
+  - IQueueListWorker (extends IQueueWorker): List<E> process(ArrayList<E>, ISignaler) returning the unprocessed remainder
+  - ISignaler: isRunning / isProcessing / shouldContinue (read-only run/process view)
+  - IListErrorListener (extends IErrorListener): List<E> onError(Throwable, ArrayList<E>) -- null = stop the bulk
+  - put(Collection<E>) and setBulkThreshold(int) default methods added
+concurrent.BoundedQueueRig
+  - bulk drain: when the worker is an IQueueListWorker and backlog > bulkThreshold (default 10), the whole deque
+    is snapshot into one ArrayList and passed to process(ArrayList, signaler); the returned remainder is re-queued
+    to the front; a thrown bulk is routed to the IListErrorListener (null/empty = stop, else re-run the continuation)
+  - run / process state read through an ISignaler (processing made volatile); setBulkThreshold(int);
+    LoggingErrorListener now implements IListErrorListener
+taijitu.AMonadY
+  - inner MonadWorker (IQueueListWorker) replaces the method-ref worker; processBatch accumulates consecutive
+    events and flushes _processItems(List) before any command (arrival order preserved), capped at eventBatchMax
+  - _processItems(List) default loops _processItem; setEventBatchMax / setBulkThreshold added
+
+06/02/2026 mir0n  v1.2.6 Goal 3 -- non-blocking tryPut on the queue rig
+concurrent.IQueueRig
+  - tryPut(E) default method enabled (was commented out); delegates to put(E) and returns true
+concurrent.BoundedQueueRig
+  - tryPut(E) override: offers under the lock; returns false when stopped or at capacity (size >= capacity),
+    signals the worker on success -- no wait, no silent drop
+
+05/23/2026 mir0n  v1.2.5 Taijitu night-watch -- periodic sweep, mismatch reactions, readiness gate
+taijitu.MismatchAction  (new)
+  - enum LOG | SWAP | TERMINATE: the night-watch reaction when the two monads' checksums disagree
+taijitu.ATaijituRig
+  - night-watch scheduler: a single daemon ScheduledExecutorService (nightWatchExec) re-arms each
+    sweep sweepIntervalMs AFTER the previous one ends; a sweeping AtomicBoolean allows one at a time
+  - sweep(): load the shadow fresh, post CHECKSUM to both legs, collect each within sweepTimeoutMs
+    (resultCommand), screen FAILED via checksumFailed() (inconclusive -> abandon), compare digests,
+    react per onMismatch (LOG keep serving / SWAP swapYinYang / TERMINATE System.exit), finally
+    clearMonad(yin()) back to idle
+  - sweepAsync(): dispatch sweepGuarded onto nightWatchExec and return at once (REST force-sweep);
+    sweepGuarded() swallows any throw so a fault cannot cancel the periodic schedule
+  - configurable cadence/policy: sweepIntervalMs (10s), sweepTimeoutMs (10s), onMismatch (LOG) +
+    setSweepIntervalMs / setSweepTimeoutMs / setOnMismatch
+  - checksumFailed(String): true for null or FAILED -- the only inconclusive outcome to screen out
+taijitu.AMonadY
+  - submit(commandId) -> submitCommand(commandId, boolean enableQueue): clears the gate, posts the
+    command, opens the accept-gate when enableQueue
+  - doCommand split: doCommand = submitCommand + resultCommand; new resultCommand(timeoutMs) blocks
+    on the gate, cancels the registered cancelable + grace-waits on a positive timeout
+  - removed dead NOOP_CANCEL field; unknown-command log demoted devLog.warn -> devLog.debug
+taijitu.IMonad
+  - added submitCommand(String commandId, boolean enableQueue) and resultCommand(long timeoutMs)
+taijitu.ITaijituRig
+  - added isReady() (readiness gate: true once loaded + serving) and the sweepAsync() default no-op
+taijitu.ATaijituRigY
+  - added isReady(): true once the serving monad is LOADED
+taijitu.MonadStatus
+  - dropped the String code field/constructor/code() accessor -- plain enum (IDLE/LOADING/LOADED/FAILED)
+taijitu.AMonad
+  - removed unused Logger/LoggerFactory imports; javadoc: the timed-out-checksum cancel seam is wired
+taijitu.MonadCmd
+  - javadoc: submit -> submitCommand; CHECKSUM is the off-queue order-independent hash
+concurrent.IQueueRig
+  - dropped redundant public modifiers from the interface members
+
+05/22/2026 mir0n  v1.2.5 Taijitu dark side -- two-monad director + off-queue CHECKSUM
+taijitu.AMonad  (new)
+  - dark-side monad: extends AMonadY; handleCommand intercepts CHECKSUM and runs it on a separate
+    thread (checksumExec, not the queue worker) via the abstract _processItemCancellable(listener,
+    item); the digest is reported through the 3-arg onResult. shutdown() also stops checksumExec.
+taijitu.ATaijituRig  (new)
+  - dark-side director: extends ATaijituRigY; holds a second monad yinMonad (AtomicReference<IMonad>)
+    + swapYinYang() (pointer flip); start() sets the shadow's gateFor listener and starts it, then
+    super.start() brings up + loads the serving monad; shutdown() also stops the shadow;
+    onEntityBroadcast fans events to both monads.
+taijitu.AMonadY
+  - onResult + CommandGate carry a result String (doCommand returns it; notifyComplete uses the
+    result, else status.name()); _processItem returns String; handleCommand + commandGate + log/devLog
+    made protected; CHECKSUM stub branch removed from handleCommand
+taijitu.ATaijituRigY
+  - no longer implements ICmdResponseListener; added gateFor(IMonad) building a per-monad listener,
+    registered in start() (was the ctor self-registration); onResult 3-arg; log/devLog protected
+taijitu.ICmdResponseListener
+  - onResult(String commandId, MonadStatus status, String result) -- added the result arg
+
+05/22/2026 mir0n  v1.2.5 Taijitu -- synchronous command model + IMonad control contract
+taijitu.IMonad  (new)
+  - the monad CONTROL contract a director drives: start/shutdown, offer, setQueueEnabled/
+    setProcessingEnabled/queueClear, status/queueSize/id, setCmdResponseListener,
+    doCommand(String cmd, boolean enableQueue, long timeoutMs). AMonadY implements it
+taijitu.AMonadY
+  - implements IMonad; public control methods renamed to the IMonad names: stop()->shutdown(),
+    clearQueue()->queueClear(), queueDepth()->queueSize(), monadId()->id() (submit() stays, used
+    internally by doCommand -- not on the interface)
+  - added doCommand(cmd, enableQueue, timeoutMs): posts the command, opens the queue right after
+    (when enableQueue), BLOCKS on an inner CommandGate monitor until the worker signals; timeoutMs<=0
+    waits indefinitely, a positive timeout cancels the registered cancelable + grace-waits; returns
+    the result string (status name / "TIMEDOUT" / "INTERRUPTED")
+  - new inner CommandGate implements ICmdResponseListener: holds result + cancelable; the worker
+    notifies it (onStarted/onResult), it forwards to the rig listener and notifies doCommand
+  - handleCommand notifies via the gate; CLEAR wrapped in try/finally -> always IDLE + onResult
+  - listener field renamed cmdResponseListener -> rigCmdResponseListener
+  - instance loggers via getClass() (was static AMonadY.class)
+taijitu.ATaijituRigY
+  - bootstrap() renamed start(); active monad held as AtomicReference<IMonad>
+  - ctor registers the director as the monad's ICmdResponseListener (yang.setCmdResponseListener(this))
+  - start() is a synchronous retry loop: clearMonad(active) then doCommand(LOAD, true, 0) until
+    LOADED, else sleep(retryDelayMs) + retry
+  - added clearMonad(IMonad): setQueueEnabled(false) + queueClear() + setProcessingEnabled(true) +
+    doCommand(CLEAR, false, 0)
+  - onStarted/onResult drive the per-command gate-flag policy (LOAD: processing off during load,
+    on at LOADED; FAILED / CLEAR: queue + processing off)
+  - instance loggers via getClass()
+taijitu.ITaijituRig
+  - bootstrap() renamed start()
+taijitu.MonadStatus
+  - each constant carries a String code; added code() accessor
+
+05/21/2026 mir0n  v1.2.5 Taijitu Step 3 generalization -- queue rig + monad framework lifted from bizTree
+concurrent.IQueueRig  (new)
+  - generic active-object queue contract <E>: bounded FIFO drained by one worker (IQueueWorker);
+    processing gate (setProcessing -- when false the worker leaves the queue UNTOUCHED, no dequeue);
+    put / size / clear; nested IErrorListener<E> seam
+concurrent.BoundedQueueRig  (new)
+  - implements IQueueRig<E>: ArrayBlockingQueue + single daemon worker; gate parks before dequeue;
+    recoverable Throwable -> IErrorListener and the worker keeps running; Error propagates;
+    InterruptedException = shutdown; clear() bulk-drops. Lifted from bizTree MonadY
+taijitu.QueueItem  (new)
+  - flat record(eventType, entityId, entityKind, requestId, correlationId, messageEncoding, text);
+    commands and events share the one record; a command is eventType==MonadCmd.CMD with
+    entityId=the command id -- no sealed hierarchy
+taijitu.MonadCmd  (new)
+  - final class; interned String command vocabulary: CMD (eventType marker), LOAD, CLEAR, CHECKSUM
+taijitu.MonadStatus  (new)
+  - enum IDLE / LOADING / LOADED / FAILED
+taijitu.AMonadY  (new)
+  - abstract cache monad: owns a BoundedQueueRig over QueueItem, the status machine, two gates,
+    and command EXECUTION (LOAD/CLEAR/CHECKSUM); single abstract hook _processItem(QueueItem);
+    fires onStarted/onResult; only LOAD/CLEAR change status, message/CHECKSUM faults traced by the rig
+taijitu.ATaijituRigY  (new)
+  - abstract director: implements ITaijituRig + ICmdResponseListener; holds the active AMonadY;
+    bootstrap (submit LOAD, enable queue + processing); DRIVES the processing gate off the monad
+    callbacks (onStarted LOAD -> processing off; onResult LOADED -> on; FAILED -> setQueueEnabled(false)+clearQueue)
+taijitu.ITaijituRig  (new)
+  - director contract: bootstrap() / onEntityBroadcast(7 raw fields) / shutdown(); bean-blind, REST-free
+taijitu.ICmdResponseListener  (new)
+  - onStarted(commandId, ICancelable) + onResult(commandId, MonadStatus); NOOP default
+taijitu.ICancelable  (new)
+  - in-flight command abort handle: cancel()

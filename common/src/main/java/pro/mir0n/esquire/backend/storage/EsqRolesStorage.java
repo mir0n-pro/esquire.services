@@ -2,7 +2,7 @@
  *  Esquire frameworks (tm)
  *  common library
  *
- *  Copyright(c) 2001, 2025 mir0n&co www.mir0n.me
+ *  Copyright(c) 2001, 2026 mir0n&co www.mir0n.pro
  *  mailto:mir0n.the.programmer@gmail.com
  *
  *  History:
@@ -10,6 +10,10 @@
  * 03/10/2026 mir0n  roles() added: all roles as List<EsqRole>
  *                   fillPermissionsForRole() added: accumulates permissions for one role into a list
  * 03/21/2026 mir0n  devLog added; log.debug→devLog.debug; dual error pattern; unused imports removed
+ * 07/11/2026 mir0n  v1.2.11 O1/T8 -- isAdminCmdPermitted() counts esq.biz.perm.check.total (tags cmd = the
+ *                   AdminCmd enum, result = allow|deny): the authorization decision itself, at the one gate every
+ *                   service goes through. The gate sees allow and deny ONLY -- a self-update BYPASSES it entirely
+ *                   (id.equals(uid) short-circuits at the caller), which is why there is no third tag value
  */
 
 package pro.mir0n.esquire.backend.storage;
@@ -21,6 +25,7 @@ import org.slf4j.LoggerFactory;
 
 import pro.mir0n.esquire.backend.dto.access.EsqRole;
 import pro.mir0n.esquire.backend.dto.access.EsqPermission;
+import pro.mir0n.esquire.backend.o11y.EsqBizMeters;
 import pro.mir0n.esquire.backend.storage.roles.IRolesService;
 import pro.mir0n.esquire.backend.storage.roles.JpaRolesRepository;
 import pro.mir0n.esquire.backend.storage.roles.JpaRolesService;
@@ -125,6 +130,11 @@ devLog.debug("EsqRolesStorage.findAdminPermissions found role {} with permnissio
             }
         }
 devLog.debug("EsqRolesStorage.isAdminCmdPermitted found role {} = {}.", cmd.ordinal(),  ret);
+        // The authorization decision itself, counted once at the gate every service goes through (O1/T8 phase A).
+        // Both tag values are bounded: cmd is the AdminCmd enum (5 values), result is allow|deny. NOTE the gate
+        // sees ALLOW and DENY only -- the self-update bypass never reaches here, it short-circuits at the caller
+        // (id.equals(uid) -> permitted), which is not an authorization decision to begin with.
+        EsqBizMeters.count("esq.biz.perm.check.total", "cmd", cmd.name(), "result", ret ? "allow" : "deny");
         return ret;
     }
 

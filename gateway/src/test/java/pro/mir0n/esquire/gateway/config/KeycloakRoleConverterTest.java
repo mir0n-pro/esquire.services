@@ -58,4 +58,14 @@ class KeycloakRoleConverterTest {
 
         assertThat(result).isEmpty();
     }
+
+    @Test
+    void convert_realmAccessWithoutRoles_returnsEmptyList() {
+        Map<String, Object> realmAccess = Map.of("other", "value");
+        when(jwt.getClaims()).thenReturn(Map.of(EsqConstants.JWT_CLAIM_REALM_ACCESS, realmAccess));
+
+        Collection<GrantedAuthority> result = converter.convert(jwt);
+
+        assertThat(result).isEmpty();
+    }
 }

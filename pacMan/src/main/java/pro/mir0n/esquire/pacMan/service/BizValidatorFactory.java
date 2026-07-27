@@ -10,6 +10,7 @@
  * 03/08/2026 mir0n  validate(): boolean personal param added (interface alignment, no behavior change)
  * 04/09/2026 mir0n  StatusBizValidator renamed AcctBizValidator; ccy rule: cannot change on funded account;
  *                   validateDelete(): funded account cannot be deleted; account must be closed before delete
+ * 07/23/2026 mir0n  v1.2.11 -- account validation guard refined with a balance != 0 condition
  */
 
 package pro.mir0n.esquire.pacMan.service;
@@ -48,7 +49,7 @@ public class BizValidatorFactory {
 //log.debug("keySmith:BizValidator:validate: {} value:{} balance:{}", field.getName(), value, ((EsqAcctJpa)origin).getBalance());
                 if (field.getName().equals(IPacManService.FIELD_STATUS)
                 && "C".equals(value)
-                && ((EsqAcctJpa)origin).getBalance() > 0) {
+                && ((EsqAcctJpa)origin).getBalance() != 0) {
                     throw new InvalidValueException("Cannot close account while it has balance", field.getName(),
                         field.getLabel(), String.valueOf(kfl.getLayer() -1));
                 }

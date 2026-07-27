@@ -241,8 +241,8 @@ portfolios — sits on the same backbone and inherits the same structural rules.
 
 ### 5. Asynchronous entity synchronization
 
-Entity changes propagate across services via an ActiveMQ broadcast bus. The in-memory
-entity tree (bizTree) stays current without polling. Keycloak identity operations are
+Entity changes propagate across services over the Esquire Messaging Bus (an ActiveMQ broadcast
+topic by default). The in-memory entity tree (bizTree) stays current without polling. Keycloak identity operations are
 decoupled from the entity write path — keySmith publishes a command to the IAM bus;
 kcMaster executes it asynchronously. The entity mutation and the downstream synchronization
 never block each other.
@@ -262,7 +262,7 @@ Vendor independence is an architectural principle, not a feature. It operates at
 
 **Database.** Oracle and Postgres are supported today, with vendor-specific SQL isolated in
 named query XML files so switching does not touch application code. MySQL and other RDBMS
-targets are on the roadmap — the same isolation principle makes them straightforward additions.
+targets are straightforward additions — the same isolation principle applies.
 
 **Messaging Bus.** Esquire ships a vendor-agnostic **Messaging Bus** — the broadcast and
 request-response patterns are the contract, and the transport is a deployment choice behind a
@@ -278,6 +278,36 @@ the system is unchanged. This is a deployment decision, not an architectural one
 Esquire is a working, connected system from database to browser. Many routes are open from here —
 new database targets, new transports, new IAM providers, new entity domains — without any dramatic
 change to the core architecture.
+
+---
+
+## A mature framework — everything the stack makes possible
+
+Esquire has reached its **mature phase**. It is not a prototype or a half-built foundation: it takes the ordinary,
+widely used technology stack — a relational database with JPA, Spring Boot, Node.js with Angular, the
+Grafana/Prometheus observability tooling — and delivers **everything that stack makes possible**, as one working
+system from database to browser.
+
+That is the whole cloud-native picture, not a slice of it. Esquire answers all **fifteen factors** of a modern
+cloud-native application — from API-first design through configuration, backing services, and disposability, to
+telemetry, authentication, and authorization. Concretely, it already carries what most teams reach only years in:
+
+- **High availability** — every service runs redundantly, spread across nodes and availability domains, so a lost
+  pod or a lost node does not take the system down.
+- **Full observability** — metrics, logs, and distributed traces on one screen, joined by a single correlation id,
+  so any request's whole story is one search away.
+- **A hybrid REST + event-driven engine** — synchronous APIs and an asynchronous messaging bus, each carrying its
+  own resilience.
+- **Open at every layer** — database, messaging transport, and identity are each a deployment choice behind a
+  stable interface; no single vendor is baked in.
+- **Running for real** — the complete stack is deployed live in the cloud (Kubernetes), not only on a developer's
+  laptop.
+
+The three backbone ideas — tree-shaped visibility, positional authority, entity self-description — sit on a
+finished, production-grade cloud-native foundation. The floor is not just laid; it is complete.
+
+The full goal — *what Esquire is, and what the stack was made to deliver* — is stated in
+[`v1.2.x.Goal.md`](v1.2.x.Goal.md).
 
 ---
 

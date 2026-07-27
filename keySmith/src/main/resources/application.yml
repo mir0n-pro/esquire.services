@@ -44,6 +44,37 @@ keysmith:
               hikari:
                 maximum-pool-size: ${DB_DATAKEEP_POOL_SIZE:2}
 esquire:
+  # Observability umbrella (v1.2.11 O1/O2) via common.ObservabilityConfig: ONE master switch gates BOTH
+  # tracing and metrics -- a service never has one without the other. Off by default = zero cost; the
+  # collector endpoint + sampling ratio are set per environment (compose / k8s).
+  observability:
+    enabled: ${ESQ_OBSERVABILITY_ENABLED:false}
+    tracing:
+      # the TRACING pillar on/off (I41). Defaults to the master; set OFF (ESQ_TRACING_ENABLED=false) to run
+      # metrics-only -- service-mesh coexistence (a mesh already traces the wire, so avoid double-tracing).
+      enabled: ${ESQ_TRACING_ENABLED:${ESQ_OBSERVABILITY_ENABLED:false}}
+      otlp-endpoint: ${ESQ_OTLP_ENDPOINT:http://localhost:4318/v1/traces}
+      sampling-ratio: ${ESQ_TRACING_SAMPLING_RATIO:1.0}
+      marks-enabled: ${ESQ_TRACING_MARKS_ENABLED:true}
+      excluded-paths: ${ESQ_TRACING_EXCLUDED_PATHS:/actuator}
+      # opt-in RR liveness round-trip trace (TestRequest -> HeartBeat); off by default (heartbeats are frequent)
+      msg-bus-alive-trace: ${ESQ_MSG_BUS_ALIVE_TRACE:false}
+    metrics:
+      # the METRICS pillar on/off (symmetry with tracing.enabled). Defaults to the master; OFF = traces-only.
+      enabled: ${ESQ_METRICS_ENABLED:${ESQ_OBSERVABILITY_ENABLED:false}}
+      # percentile buckets on the extra latency timers (O1/T5-B). THE EXPENSIVE ONE (~+73% series), so opt-in;
+      # off still leaves count/sum/max, so the avg panels stay populated. TWO things go dark with it OFF and
+      # nothing else turns them on: the p95/p99 panels (they read the _bucket series) AND the metric->trace
+      # exemplars (a trace id hangs off a bucket sample -- no buckets, no carrier, the metrics->trace hop is
+      # inert). o11y-on sets it (ESQ_METRICS_HISTOGRAMS=true); a bare ESQ_OBSERVABILITY_ENABLED=true leaves both dark.
+      histograms-enabled: ${ESQ_METRICS_HISTOGRAMS:false}
+      # HTTP byte counters (O1/T5-C). Cheap, so ON by default. ONE knob for BOTH embedded servers: Esquire
+      # turns on Tomcat's MBean registry (servlet services) or Reactor Netty's metrics (the gateway) as needed.
+      bandwidth-enabled: ${ESQ_METRICS_BANDWIDTH:true}
+      # Business meters (O1/T8): the esq.biz.* domain tier -- what a service DOES, not how it runs. ON by
+      # default: measured at 1.25% of the series and a few tens of ns per call, against work that is orders of
+      # magnitude dearer. Off drops every esq.biz.* call site to a null check -- the lever for a hot-path run.
+      business-enabled: ${ESQ_METRICS_BUSINESS:true}
   audit-bus:
     messaging-bus:
       bus-id: ${AUDIT_BUS_ID:audit-b}
@@ -55,6 +86,12 @@ esquire:
       slot-id: ${KC_SLOT_ID:kc}
       role: CLIENT
       x-rod:
+        # EVERY KC sync must be processed; how long it takes does not matter. So a full feed must HOLD the
+        # producer, never discard the event: 0 = wait forever (the default, 10000ms, DROPS the item once the
+        # feed has been full that long -- for an identity sync that is silent, unrecoverable loss). The wait
+        # ends when space appears or the rig shuts down; kcMaster drains this leg serially by design, so
+        # backpressure -- not a drop -- is the correct answer when it falls behind.
+        feed-await-ms: ${KEYSMITH_KC_FEED_AWAIT_MS:0}
         receiver-pool:
           size: ${KEYSMITH_KC_RESPONSE_POOL_SIZE:2}
           mode: ${KC_POOL_MODE:platform}   # platform | virtual | virtual-per-task
@@ -64,9 +101,11 @@ esquire:
           mode: ${KEYSMITH_KC_PUBLISHER_POOL_MODE:platform}
         # producer send-retry on the KC R&R bus (the CLIENT request leg); opt-in, default OFF here, ON in docker +
         # the local-k8s overlay -- OKE stays on this pre-HA default. Block mode (max-attempts 0): hold + retry over
-        # the backoff ladder until the broker recovers so the KC sync request still goes through. A request
-        # replayed after the caller's reply timeout still does the work; the late reply is orphaned (no
-        # correlation) and the KC sync is idempotent.
+        # the backoff ladder until the broker recovers so the KC sync request still goes through. This covers only a
+        # send that THROWS (broker unreachable at send time); the KC sync is idempotent, so a re-sent request is
+        # safe. It does NOT cover a request that lands on the broker and is then lost (the kc bus is
+        # persistent:false): reply tracking / a caller reply-timeout was an idea we deferred (R&R reliability,
+        # backlog #14), not built here -- such a loss is not detected or reconciled today.
         send-retry: ${KC_SEND_RETRY:false}
         send-retry-backoff-sec: ${KC_SEND_RETRY_BACKOFF_SEC:1,2,5,5}
         send-retry-max-attempts: ${KC_SEND_RETRY_MAX_ATTEMPTS:0}
@@ -87,6 +126,28 @@ logging:
   msg:
     log-path: ${MSG_LOG_PATH:logs/keySmith-msg.log}
 management:
+  # Actuator listens on a SEPARATE, internal-only port (8090), NOT the public server.port -- Prometheus and the
+  # k8s probes hit 8090 in-cluster while the ingress exposes only the main port, so /actuator is unreachable from
+  # the internet (audit F0 A6; mir0n 2026-07-20). Override with MANAGEMENT_SERVER_PORT.
+  server:
+    port: ${MANAGEMENT_SERVER_PORT:8090}
+  # The Micrometer-Tracing bridge and Prometheus metrics export are gated PER PILLAR: management.tracing.enabled
+  # follows esquire.observability.tracing.enabled (the span bridge), management.prometheus.metrics.export.enabled
+  # follows esquire.observability.metrics.enabled (the Prometheus registry+scrape). Each sub-switch defaults to
+  # the master esquire.observability.enabled. The OTel exporter + sampler + meter registry are declared explicitly
+  # by common.ObservabilityConfig. Set ESQ_TRACING_ENABLED=false to run metrics-only (service-mesh coexistence).
+  tracing:
+    enabled: ${ESQ_TRACING_ENABLED:${ESQ_OBSERVABILITY_ENABLED:false}}
+  prometheus:
+    metrics:
+      export:
+        enabled: ${ESQ_METRICS_ENABLED:${ESQ_OBSERVABILITY_ENABLED:false}}
+  endpoints:
+    web:
+      exposure:
+        # /actuator/prometheus scraped by the metrics collector; the endpoint bean exists only when the
+        # registry does (observability on), so listing it here is harmless when off.
+        include: health, prometheus
   endpoint:
     health:
       probes:
@@ -99,6 +160,7 @@ management:
         # bus health depools the pod (READINESS), never liveness -- a broker outage must not let liveness kill it.
         readiness:
           include: readinessState, messagingBus
+
 
 ---
 # Development Oracle

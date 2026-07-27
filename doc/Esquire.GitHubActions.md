@@ -1,10 +1,11 @@
 # <img src="../favicon.ico" alt="Esquire logo" valign="middle" width="64" height="64"> Esquire Application Frameworks(tm) 2.0
 
-# Esquire Services -- GitHub Actions (CI/CD) Design
+# Esquire Services -- GitHub Actions (CI/CD)
 
-Status: DRAFT / design notes. Captures the agreed pipeline shape. The two environment decisions are
-resolved from current usage (Docker Desktop locally, OKE via OCI CLI + GHCR + helm); ready to write
-the workflow YAML when we choose to, starting with CI.
+The CI/CD pipeline: what runs, where, and why. Three phases are live -- **CI** (build + test on every
+push), **local deploy** (an intermediate `pending-**` commit brings the full stack up on both local
+targets), and **OKE deploy** (a sprint PR merged into `develop` releases to the cloud). A stable-release
+flow on `main` is the only piece still reserved.
 
 All Esquire repositories are **public**, so GitHub-hosted runner minutes are free and unlimited.
 The only target that needs special handling is the local cluster (see the core rule below).
@@ -55,8 +56,8 @@ This single constraint drives the whole design.
 | Trigger | Runner | Job |
 |---|---|---|
 | PR opened / push (any branch) | GitHub-hosted | **CI** -- `mvn -B verify` (unit tests + Testcontainers IT) |
-| push to `pending-**` (intermediate commit) | **self-hosted, on the dev box** | build images -> load into local k8s -> `helm upgrade` (local) -> smoke |
-| `pending-*` PR **merged** into `develop` | GitHub-hosted (OCI creds) | build -> **GHCR push** -> `helm upgrade` (OKE) -> validate |
+| push to `pending-**` (intermediate commit) | **self-hosted, on the dev box** | build the full stack -> bring it up on **docker-compose AND local k8s** |
+| `pending-*` PR **merged** into `develop` | GitHub-hosted (OCI creds) | build -> **GHCR push** -> `helm upgrade` (OKE) -> validate (e2e + load) |
 | `main` | -- | reserved; stable-release / tag flow added when v1.2 is complete |
 
 Net effect: intermediate commit -> local k8s; sprint PR merge into `develop` -> OKE; `main`
@@ -67,37 +68,46 @@ untouched until v1.2 stable.
 ## 4. The workflows
 
 ### 4.1 CI (GitHub-hosted) -- `ci.yml`
-- **On:** `pull_request` + `push` (all branches).
-- **Steps:** checkout -> `setup-java` (21, Temurin) with Maven `~/.m2` cache -> build the
-  `esquire-activemq` image first (the `RodBusIntegrationTest` Testcontainers IT needs it, else it
-  silently skips) -> `mvn -B verify` over the reactor.
-- **Why first:** zero secrets, no runner, no deploy. Lowest risk, immediate value -- a broken
-  reactor never reaches a deploy. Build this one before anything else.
+- **On:** `pull_request` + `push` (all branches). One in-flight run per ref; a newer push cancels the older.
+- **Steps** (logic in `.github/scripts/ci.sh`): checkout -> `setup-java` (**24**, Temurin) with Maven
+  cache -> build the `esquire-activemq:6.1.4` image first -> `mvn -B -ntp clean verify` over the reactor.
+- **Why activemq first:** auKeep's `RodBusIntegrationTest` is `@Testcontainers(disabledWithoutDocker=true)`
+  -- on CI (Docker present) it RUNS, starting an `esquire-activemq:6.1.4` container. That image is local
+  (built from `activemq/`), so it must exist before the reactor reaches auKeep's test phase or the test
+  FAILS on a missing image. (Postgres is pulled by Testcontainers.)
+- **No secrets, no runner, no deploy** -- a broken reactor never reaches a deploy.
 
-### 4.2 Local k8s deploy (self-hosted, dev box) -- `deploy-local.yml`  [BUILT]
+### 4.2 Local deploy (self-hosted, dev box) -- `deploy-local.yml`
 - **On:** `push` to `pending-**` **only** (never `pull_request` -- see security note).
 - **Runner:** `runs-on: [self-hosted, windows]` -- a runner registered on the Windows dev box (the
   `.bat` + Docker Desktop + local kube context force Windows; a cloud/Linux runner cannot reach Docker
   Desktop's image daemon). Matches the built-in `self-hosted` + `windows` labels -- with a single
   runner no custom label is needed (add one only when more than one self-hosted runner exists).
   Installed with its **own isolated work folder** -- never the dev tree or the git mirror (see 9a).
-- **Scope (chosen):** **full stack, brought up from scratch.** The 6 Java services **and** the explorer
-  backend/BFF. Because the backend is a different repo, the workflow checks out **both** repos as
-  siblings in the runner workspace (`<ws>\services` + `<ws>\explorer`) so `k8s-rebuild` can build
-  `..\..\explorer\backend`. Explorer is checked out at the **same branch name as the triggering
-  services branch** (`ref: ${{ github.ref_name }}`, e.g. `pending-v1.2.7`) so both repos' sprint work
-  deploys in lockstep -- explorer must have a branch of that name (its `package-lock.json` lives there,
-  not necessarily on its default branch).
-- **Steps:** checkout services (`path: services`) -> checkout `mir0n-pro/esquire.explorer`
-  (`path: explorer`, public -> default `GITHUB_TOKEN` reads it) -> run
-  `services\.github\scripts\deploy-local.cmd`, which reuses the proven `k8s\*.bat` (single source):
-  `k8s-rebuild.bat all` (mvn package + docker build + stamp every image) then `k8s-up.bat`
-  (`helm upgrade --install` infra + all services + gateway + backend, wait for readiness). Both `.bat`
-  guard on `kubectl context == docker-desktop`.
+- **Scope:** **the full stack, brought up from scratch on BOTH local targets** -- docker-compose AND
+  Docker Desktop k8s. A green run proves both environments come up on the pending code. Full stack =
+  the 6 Java services + the explorer backend/BFF (plus the explorer frontend container on
+  docker-compose).
+- **Three repos, checked out as siblings** in the runner workspace so the builds can reach each other
+  (`<ws>\services` + `<ws>\explorer` + `<ws>\db.seed` -- the postgres image `COPY`s `db.seed/postgres/*`
+  from the workspace root):
+  - **services** -- the triggering commit.
+  - **explorer** (backend/BFF image) -- the **same-named sprint branch when it exists**
+    (`ref: ${{ github.ref_name }}`), else **falls back to `develop`** (a sprint that does not touch
+    explorer has no `pending-vX` branch there and must not hard-fail the deploy). The checkout is
+    `continue-on-error` with a `develop` fallback step.
+  - **db.seed** (postgres-image build input) -- same rule: the sprint branch when it carries schema work
+    (the postgres image must match the pending code), else `develop`.
+- **Steps:** the three checkouts -> `services\.github\scripts\deploy-local.cmd` (k8s: reuses
+  `k8s-rebuild.bat all` = mvn package + docker build + stamp every image, then `k8s-up.bat` =
+  `helm upgrade --install` infra + services + gateway + backend, wait for readiness) ->
+  `services\.github\scripts\deploy-compose.cmd` (docker-compose: reuses `compose\compose-rebuild.bat`).
+  The `.bat` scripts stay the single source of deploy logic; both k8s `.bat` guard on
+  `kubectl context == docker-desktop`.
 - **Serialization:** `concurrency: deploy-local`, `cancel-in-progress: false` -- never interrupt a
   helm/k8s rollout already in flight; queue the next.
 - **One-time prerequisites on the dev box** (see section 10): Docker Desktop k8s, kubectl, helm,
-  JDK 21 + Maven, PowerShell; MetalLB + ingress-nginx installed once (`addMetalLB.bat`,
+  JDK 24 + Maven, PowerShell; MetalLB + ingress-nginx installed once (`addMetalLB.bat`,
   `addIngressNginx.bat`); the runner registered on the box (built-in `self-hosted` + `windows` labels).
 
 ### 4.2a Verify -- NOT in the local scope (lives in the OKE release chain)
@@ -107,7 +117,7 @@ untouched until v1.2 stable.
 - Automated e2e + load belong to the **OKE release chain** (see 4.3): the release is validated, not
   every intermediate local deploy.
 
-### 4.3 OKE deploy (`develop`) -- `deploy-oke.yml`  [BUILT -- awaiting first run]
+### 4.3 OKE deploy (`develop`) -- `deploy-oke.yml`
 - **On:** a `pending-*` PR **merged** into `develop` -- `pull_request` (`types: [closed]`,
   `branches: [develop]`) gated by an `if:` on `merged == true` **and** head branch `pending-*`; plus
   `workflow_dispatch` for a manual re-deploy. Chosen over `push: develop` so that a direct push or a
@@ -118,25 +128,29 @@ untouched until v1.2 stable.
 - **Runner:** **GitHub-hosted with OCI credentials** (mirrors today's manual flow:
   `k8s-oci/oke-login.bat` fetches the kubeconfig via the OCI CLI, then `helm upgrade` per
   `k8s-oci/oke-up.bat`).
-- **Steps (3 jobs):** **build-push** -- checkout services (the merge commit) + explorer + db.seed as
-  siblings -> `setup-java` 21 -> `mvn -B package -DskipTests` (CI already ran full verify on the PR) ->
-  multi-arch `buildx` (`linux/amd64,linux/arm64` -- the OKE nodes are Ampere A1.Flex / arm64) -> **push 8
-  images to GHCR** (`GITHUB_TOKEN`, no PAT). **deploy** (behind the Environment gate) -- configure the OCI
-  CLI from the Environment secrets -> fetch the OKE kubeconfig (`oci ce cluster create-kubeconfig`) ->
-  `deploy-oke.sh` = `helm upgrade --install` each chart with the GHCR tag + the `k8s-oci/values` overlay
-  (audit option **(a)** DB triggers -- no auKeep on OKE). A context guard refuses any
-  `docker-desktop/minikube/kind` context. **validate** -- e2e + load (below).
+- **Steps (3 jobs):** **build-push** -- checkout services (the merge commit) + explorer (`develop`) +
+  db.seed (`develop`) as siblings -> `setup-java` **24** -> compute the image tag (Micro read from
+  `release_notes.txt` + a UTC datetime stamp) -> `mvn -B package -DskipTests` (CI already ran full verify
+  on the PR) -> multi-arch `buildx` (`linux/amd64,linux/arm64` -- the OKE nodes are Ampere A1.Flex /
+  arm64) -> **push the 8 app images to GHCR** with a `GHCR_TOKEN` PAT (`write:packages`, the same
+  `mir0n-pro` identity that created the packages via the manual push). **deploy** (behind the Environment
+  gate) -- configure the OCI CLI from the Environment secrets -> fetch the OKE kubeconfig
+  (`oci ce cluster create-kubeconfig`) -> `deploy-oke.sh` = `helm upgrade --install` each chart with the
+  GHCR tag + the `k8s-oci/values` overlay (audit option **(a)** DB triggers -- no auKeep on OKE).
+  **validate** -- e2e + load (below).
 - **Validate = the e2e + load chain** (the part deliberately kept OUT of the local scope, see 4.2a):
   after the rollout, run the explorer **e2e** (Playwright, `BASE_URL=https://esquire.mir0n.pro`) and the
   **hauberk load** (`hauberk-oke.properties`) against OKE as the release gate. Both target the public OKE
   domain, so this runs on the **GitHub-hosted** runner (install Node + Playwright; no hosts-file needed --
   a real domain). Load is currently `continue-on-error` until `hauberk-oke.properties` + the sim name are
   confirmed committed on explorer's `develop`, then it becomes a hard gate.
-- **Environment gate (DONE):** the `deploy` job pins the **`oke-production`** Environment with a required
+- **Environment gate:** the `deploy` job pins the **`oke-production`** Environment with a required
   reviewer -- a manual approval before the deploy step, where automation bites hardest. The Environment
   holds the OCI api-key secrets (`OCI_CLI_USER` / `OCI_CLI_TENANCY` / `OCI_CLI_FINGERPRINT` /
-  `OCI_CLI_KEY_CONTENT`), `MIR0N_PWD`, and the `OKE_CLUSTER_OCID` / `OKE_REGION` variables; nothing can use
-  them until the deploy is approved. GHCR push needs no Environment -- it uses the built-in `GITHUB_TOKEN`.
+  `OCI_CLI_KEY_CONTENT`), `MIR0N_PWD` (postgres + Keycloak admin), the optional app secrets
+  (`BFF_KC_SECRET` / `GW_EXCHANGE_SECRET` / `BFF_SESSION_SECRET`), and the `OKE_CLUSTER_OCID` /
+  `OKE_REGION` (default `ca-toronto-1`) variables; nothing can use them until the deploy is approved. The
+  GHCR push runs in the ungated `build-push` job and authenticates with the `GHCR_TOKEN` PAT.
 
 ### 4.4 `main` -- reserved
 - No workflow yet. When v1.2 is complete: a tag / release flow on `main` that publishes the stable
@@ -185,21 +199,25 @@ refs.
 
 ## 7. Secrets
 
-- **GHCR push:** the built-in `GITHUB_TOKEN` with `packages: write` -- no PAT needed.
-- **OKE (if GitHub-hosted runner):** `KUBECONFIG_OKE` (+ any `OCI_*`) as repo / Environment secrets.
-- **OKE (if self-hosted-on-OKE runner):** none exported -- the runner uses the in-cluster service
-  account. This is the main reason to consider that option.
+- **GHCR push:** a `GHCR_TOKEN` PAT (`write:packages`) as a repository Actions secret -- the `mir0n-pro`
+  identity that owns the existing packages.
+- **OKE deploy:** the OCI api-key set in the `oke-production` Environment (`OCI_CLI_USER` /
+  `OCI_CLI_TENANCY` / `OCI_CLI_FINGERPRINT` / `OCI_CLI_KEY_CONTENT` + the `OKE_CLUSTER_OCID` / `OKE_REGION`
+  vars); the kubeconfig is fetched at run time via `oci ce cluster create-kubeconfig`, not stored. Plus
+  `MIR0N_PWD` and the optional app secrets (`BFF_KC_SECRET` / `GW_EXCHANGE_SECRET` / `BFF_SESSION_SECRET`).
 - **Local deploy:** none -- the self-hosted runner already has the local kube context + docker.
 
 ---
 
-## 8. Phased adoption (do not do it all at once)
+## 8. Adoption status
 
-1. **CI** (`ci.yml`) -- hosted, no secrets, no runner. Get the build green per commit.
-2. **Local deploy** (`deploy-local.yml`) -- after registering the self-hosted runner; `push` to
-   `pending-**` only.
-3. **OKE deploy** (`deploy-oke.yml`) -- last, behind a manual-approval Environment.
-4. **`main` release flow** -- when v1.2 is complete.
+The pipeline was adopted in phases; three are live, one reserved:
+
+1. **CI** (`ci.yml`) -- LIVE. Hosted, no secrets, no runner; the build stays green per commit.
+2. **Local deploy** (`deploy-local.yml`) -- LIVE. Self-hosted runner on the dev box; `push` to
+   `pending-**` only; brings the stack up on docker-compose AND local k8s.
+3. **OKE deploy** (`deploy-oke.yml`) -- LIVE. Behind the manual-approval `oke-production` Environment.
+4. **`main` release flow** -- RESERVED; added when v1.2 is complete (section 4.4).
 
 ---
 
@@ -217,10 +235,11 @@ repo (CI/CD config is part of the curated source of truth) and runs on the runne
     deploy-local.yml
     deploy-oke.yml
   scripts/            <- the real logic ("special folder")
-    build-images.sh
-    deploy-local.sh
-    deploy-oke.sh
-  actions/            <- optional: composite actions for shared steps
+    ci.sh               (build activemq image + mvn verify)
+    deploy-local.cmd    (local k8s: k8s-rebuild + k8s-up)
+    deploy-compose.cmd  (docker-compose: compose-rebuild)
+    oke-build-push.sh   (mvn + multi-arch buildx -> GHCR)
+    deploy-oke.sh       (helm upgrade --install per chart, OKE values)
 ```
 
 A workflow stays tiny -- triggers + a call into the scripts folder:
@@ -229,17 +248,22 @@ A workflow stays tiny -- triggers + a call into the scripts folder:
 # .github/workflows/deploy-local.yml
 on: { push: { branches: ['pending-**'] } }
 jobs:
-  deploy:
-    runs-on: [self-hosted, local-k8s]
+  deploy-local:
+    runs-on: [self-hosted, windows]
     steps:
-      - uses: actions/checkout@v4
-      - run: .github/scripts/deploy-local.sh
+      - uses: actions/checkout@v5
+        with: { path: services }
+      # ... checkout explorer + db.seed (sprint branch or develop) ...
+      - shell: cmd
+        run: services\.github\scripts\deploy-local.cmd
+      - shell: cmd
+        run: services\.github\scripts\deploy-compose.cmd
 ```
 
 Notes:
-- This mirrors the existing split: `k8s/*.bat` / `k8s-oci/*.bat` are the **manual** scripts;
-  `.github/scripts/*.sh` are the **automated** equivalents. They can call **shared** deploy logic so
-  there is one source of truth for the deploy steps.
+- This mirrors the existing split: `k8s/*.bat` / `k8s-oci/*.bat` / `compose/*.bat` are the **manual**
+  scripts; the `.github/scripts/*` entries are the **automated** wrappers that reuse those same `.bat`
+  scripts (the single source of deploy logic).
 - Keeping the logic in scripts (not inline YAML) makes the steps runnable / debuggable outside GHA
   and keeps the workflow files readable.
 
@@ -305,7 +329,7 @@ new toolchain.
 
 **Prerequisites on the box** (the runner shells out to these):
 - Docker Desktop with **Kubernetes enabled**; `kubectl config current-context` == `docker-desktop`.
-- `kubectl`, `helm`, **JDK 21**, **Maven**, PowerShell (built in).
+- `kubectl`, `helm`, **JDK 24**, **Maven**, PowerShell (built in).
 - MetalLB + ingress-nginx installed once: `k8s\addMetalLB.bat`, `k8s\addIngressNginx.bat`
   (they survive `k8s-down`; `k8s-up.bat` only warns if missing).
 
@@ -328,8 +352,10 @@ custom `--labels` only once there is more than one self-hosted runner to target 
 **Security (public repo):** the runner only ever runs `deploy-local.yml`, which triggers on
 `push` to `pending-**` -- never `pull_request` -- so a fork PR can never execute on the box (see 5).
 
-**First-run note:** the explorer repo is fetched fresh into the runner workspace at the **same branch
-name as the triggering services branch** (`ref: ${{ github.ref_name }}`, e.g. `pending-v1.2.7`) -- NOT
-its default branch. The deployed backend is therefore explorer's committed *pending-branch* state
-(where the sprint work + its `package-lock.json` live), not the dev box's local working copy. Explorer
-must have a branch of the same name as the services branch being deployed.
+**Cross-repo branch note:** explorer and db.seed are fetched fresh into the runner workspace at the
+**same branch name as the triggering services branch** (`ref: ${{ github.ref_name }}`, e.g.
+`pending-v1.2.7`) WHEN such a branch exists there -- so a sprint touching more than one repo deploys in
+lockstep. When it does not (a sprint that leaves explorer or db.seed untouched has no `pending-vX`
+branch there), the checkout **falls back to `develop`** rather than hard-failing. So the deployed
+backend / schema is the committed *pending-branch* state when the sprint has one, else `develop` --
+never the dev box's local working copy.

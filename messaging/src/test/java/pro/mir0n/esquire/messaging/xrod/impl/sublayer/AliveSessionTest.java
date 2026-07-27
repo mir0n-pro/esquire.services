@@ -19,6 +19,10 @@ import org.slf4j.Logger;
 import pro.mir0n.esquire.messaging.BusConstants;
 import pro.mir0n.esquire.messaging.RodEvent;
 import pro.mir0n.esquire.messaging.catalog.Role;
+import pro.mir0n.esquire.messaging.o11y.IRodMeters;
+import pro.mir0n.esquire.messaging.o11y.IRodObserver;
+import pro.mir0n.esquire.messaging.o11y.IRodTracer;
+import pro.mir0n.esquire.messaging.o11y.RodObserverHolder;
 import pro.mir0n.esquire.messaging.transport.BusIdentity;
 import pro.mir0n.esquire.messaging.transport.TransportHealth;
 import pro.mir0n.utils.concurrent.IQueueRig;
@@ -174,6 +178,126 @@ class AliveSessionTest {
         assertThat(emitted).hasSize(1);
         assertThat(emitted.get(0).msgType()).isEqualTo(BusConstants.MSG_TYPE_TEST_REQUEST);   // CLIENT -> TestRequest
         assertThat(emitted.get(0).rodId()).isEqualTo("client.0");   // its own rod-id rides for the reply route
+    }
+
+    // ------------------------------------------------- R&R liveness round-trip TRACE (msg-bus-alive-trace on)
+
+    /** A stub tracer standing in for the host application's OTel implementation: alive-trace ON, it mints a fixed
+     *  trace id and returns a traceparent built from it, recording whether the send was opened as a ROOT trace. */
+    private static final class StubTracer implements IRodTracer {
+        static final String TRACE_ID = "0af7651916cd43dd8448eb211c80319c";
+        final List<String> labels = new ArrayList<>();
+        final List<Boolean> asRoots = new ArrayList<>();
+
+        @Override public String outbound(String correlationId, String busId, String slotId, String ownRodId) {
+            return null;
+        }
+        @Override public void inbound(String traceparent, String correlationId, String busId, String slotId,
+                                      String fromRodId, String ownRodId, Runnable worker) {
+            worker.run();
+        }
+        @Override public boolean aliveTrace() {
+            return true;   // the host opted in (esquire.observability.tracing.msg-bus-alive-trace)
+        }
+        @Override public String newTraceId() {
+            return TRACE_ID;
+        }
+        @Override public String aliveOutbound(String correlationId, String busId, String label, String ownRodId,
+                                              boolean asRoot) {
+            labels.add(label);
+            asRoots.add(asRoot);
+            return "00-" + correlationId + "-b7ad6b7169203331-01";
+        }
+        @Override public void aliveInbound(String traceparent, String correlationId, String busId, String label,
+                                           String fromRodId, String ownRodId, Runnable worker) {
+            worker.run();
+        }
+    }
+
+    /** Run {@code body} with a stub tracer registered (its aliveTrace() is on); always restore the static holder. */
+    private static void withAliveTrace(StubTracer tracer, Runnable body) {
+        RodObserverHolder.setObserver(IRodObserver.of(tracer, IRodMeters.NOOP));
+        try {
+            body.run();
+        } finally {
+            RodObserverHolder.setObserver(null);
+        }
+    }
+
+    @Test
+    void rrClient_tracedTestRequest_takesItsCorrelationIdFromTheTracerAndRidesARootTraceparent() {
+        AtomicLong clock = new AtomicLong(0);
+        List<RodEvent> emitted = new ArrayList<>();
+        StubTracer tracer = new StubTracer();
+        AliveSessionRR s = new AliveSessionRR(new CaptureRig(emitted), Role.CLIENT, 1000L, 3000L, true, true,
+                CLIENT_ID, null, clock::get);
+        s.start();
+
+        withAliveTrace(tracer, () -> {
+            clock.set(1000);
+            s.tick();   // idle a full interval -> emit the traced TestRequest
+        });
+
+        assertThat(emitted).hasSize(1);
+        RodEvent ev = emitted.get(0);
+        assertThat(ev.msgType()).isEqualTo(BusConstants.MSG_TYPE_TEST_REQUEST);
+        assertThat(ev.correlationId()).isEqualTo(StubTracer.TRACE_ID);   // the bus mints no trace id of its own
+        assertThat(ev.traceparent()).isEqualTo("00-" + StubTracer.TRACE_ID + "-b7ad6b7169203331-01");
+        assertThat(tracer.labels).containsExactly("TestRequest");
+        assertThat(tracer.asRoots).containsExactly(true);   // no current span off the cadence -> a ROOT trace
+    }
+
+    @Test
+    void rrServer_tracedTestRequest_repliesWithAHeartbeatNestedUnderTheReceive() {
+        AtomicLong clock = new AtomicLong(0);
+        List<RodEvent> emitted = new ArrayList<>();
+        StubTracer tracer = new StubTracer();
+        AliveSessionRR s = new AliveSessionRR(new CaptureRig(emitted), Role.SERVER, 1000L, 3000L, true, true,
+                SERVER_ID, null, clock::get);
+
+        withAliveTrace(tracer, () ->
+                s.onReceiveSessn(RodEvent.testRequest("corr", "client.0")
+                        .withTraceparent("00-corr-aaaaaaaaaaaaaaaa-01")));
+
+        assertThat(emitted).hasSize(1);
+        RodEvent hb = emitted.get(0);
+        assertThat(hb.msgType()).isEqualTo(BusConstants.MSG_TYPE_HEARTBEAT);
+        assertThat(hb.correlationId()).isEqualTo("corr");                       // the requester's id is echoed
+        assertThat(hb.traceparent()).isEqualTo("00-corr-b7ad6b7169203331-01");  // stamped for the reply leg
+        assertThat(tracer.labels).containsExactly("HeartBeat");
+        assertThat(tracer.asRoots).containsExactly(false);   // sent inside the receive span -> nested, not root
+    }
+
+    @Test
+    void rrServer_untracedTestRequest_repliesWithAPlainHeartbeat() {
+        AtomicLong clock = new AtomicLong(0);
+        List<RodEvent> emitted = new ArrayList<>();
+        StubTracer tracer = new StubTracer();
+        AliveSessionRR s = new AliveSessionRR(new CaptureRig(emitted), Role.SERVER, 1000L, 3000L, true, true,
+                SERVER_ID, null, clock::get);
+
+        // alive-trace is ON, but the arriving TestRequest carries no traceparent (an untraced peer)
+        withAliveTrace(tracer, () -> s.onReceiveSessn(RodEvent.testRequest("corr", "client.0")));
+
+        assertThat(emitted).hasSize(1);
+        assertThat(emitted.get(0).traceparent()).isNull();   // nothing to nest under -> no stamp
+        assertThat(tracer.labels).isEmpty();
+    }
+
+    @Test
+    void rrClient_aliveTraceOff_keepsItsOwnCorrelationIdAndNoTraceparent() {
+        AtomicLong clock = new AtomicLong(0);
+        List<RodEvent> emitted = new ArrayList<>();
+        AliveSessionRR s = new AliveSessionRR(new CaptureRig(emitted), Role.CLIENT, 1000L, 3000L, true, true,
+                CLIENT_ID, null, clock::get);
+        s.start();
+
+        clock.set(1000);
+        s.tick();   // NOOP tracer -> aliveTrace() false -> the ordinary, untraced probe
+
+        assertThat(emitted).hasSize(1);
+        assertThat(emitted.get(0).traceparent()).isNull();
+        assertThat(emitted.get(0).correlationId()).isNotEqualTo(StubTracer.TRACE_ID);
     }
 
     // ----------------------------------------------------------------- cadence (tick, clock-driven, no thread)

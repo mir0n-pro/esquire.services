@@ -7,6 +7,7 @@ metadata:
 data:
   SPRING_PROFILES_ACTIVE: {{ .Values.springProfilesActive | default "" | quote }}
   GATEWAY_PORT:         {{ .Values.service.port | quote }}
+  MANAGEMENT_SERVER_PORT:    {{ .Values.service.managementPort | quote }}
   KEYCLOAK_HOST:        {{ .Values.keycloak.host | quote }}
   KEYCLOAK_PORT:        {{ .Values.keycloak.port | quote }}
   KEYCLOAK_PATH:        {{ .Values.keycloak.path | default "" | quote }}
@@ -42,3 +43,18 @@ data:
   LOG_LEVEL_MIR0N:      {{ .Values.logging.levelMir0n | quote }}
   LOG_LEVEL_DEVELOP:    {{ .Values.logging.levelDevelop | quote }}
   DEVELOP_LOG_PATH:     {{ .Values.logging.developLogPath | quote }}
+  # --- v1.2.11 O2 distributed tracing (opt-in; OFF by default; o11y-on enables it) ---
+  ESQ_OBSERVABILITY_ENABLED:  {{ .Values.observability.enabled | quote }}
+  # Per-pillar enable (I41): default to the master, override to run one pillar off. tracingEnabled=false ->
+  # metrics-only (service-mesh coexistence). Empty string follows the master; any explicit value (incl. false) wins
+  # -- toString+eq "" avoids Helm's default-trap where --set x=false (boolean) would be swallowed as empty.
+  ESQ_TRACING_ENABLED:        {{ if eq (toString .Values.observability.tracingEnabled) "" }}{{ .Values.observability.enabled | quote }}{{ else }}{{ .Values.observability.tracingEnabled | quote }}{{ end }}
+  ESQ_METRICS_ENABLED:        {{ if eq (toString .Values.observability.metricsEnabled) "" }}{{ .Values.observability.enabled | quote }}{{ else }}{{ .Values.observability.metricsEnabled | quote }}{{ end }}
+  ESQ_METRICS_HISTOGRAMS:     {{ .Values.observability.metricsHistograms | quote }}
+  ESQ_METRICS_BANDWIDTH:      {{ .Values.observability.metricsBandwidth | quote }}
+  ESQ_METRICS_BUSINESS:      {{ .Values.observability.metricsBusiness | quote }}
+  ESQ_OTLP_ENDPOINT:          {{ .Values.tracing.otlpEndpoint | quote }}
+  ESQ_TRACING_SAMPLING_RATIO: {{ .Values.tracing.samplingRatio | quote }}
+  ESQ_TRACING_MARKS_ENABLED:  {{ .Values.tracing.marksEnabled | quote }}
+  ESQ_MSG_BUS_ALIVE_TRACE:    {{ .Values.tracing.msgBusAliveTrace | quote }}
+  ESQ_TRACING_EXCLUDED_PATHS: {{ .Values.tracing.excludedPaths | quote }}

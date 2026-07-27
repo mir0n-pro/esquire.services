@@ -19,13 +19,21 @@
  *                   the injected TransactionTemplate (cacheTx); a null cacheTx falls back to one-by-one
  * 06/15/2026 mir0n  message branch applies the already-parsed item.body() via valueToTree; removed the
  *                   private parse(QueueItem) helper that did readTree(item.text())
+ * 07/09/2026 mir0n  v1.2.11 -- the H2 apply runs inside EsqAsyncTrace.continueIn(item.traceparent(),
+ *                   item.correlationId(), "cache apply", ...)
+ * 07/15/2026 mir0n  v1.2.11 T11 -- the cache-apply worker stamps MDC via EsqContextHolder.applyMessage(requestId,
+ *                   correlationId) and clears in a finally, so its log lines carry the message ids (I10)
+ * 07/23/2026 mir0n  v1.2.11 -- javadoc: a handler exception in MessageHandlerHub.dispatch is swallowed (logged +
+ *                   outcome=failed) and the batch commits, not rolled back -- a should-not-happen condition; the
+ *                   night-watch SWAP heals any resulting cache/DB drift
  */
 package pro.mir0n.esquire.bizTree.taijitu;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.slf4j.MDC;
 import pro.mir0n.esquire.backend.dto.EsqTreeNode;
+import pro.mir0n.esquire.backend.o11y.EsqAsyncTrace;
+import pro.mir0n.esquire.backend.service.EsqContextHolder;
 import pro.mir0n.esquire.bizTree.access.CacheNotReadyException;
 import pro.mir0n.esquire.bizTree.cache.BizTreeCacheLoader;
 import pro.mir0n.esquire.bizTree.cache.CancelableStatement;
@@ -93,7 +101,11 @@ public class Monad extends AMonad {
             putMdc(item);
             try {
                 JsonNode textNode = (item.body() == null) ? null : objectMapper.valueToTree(item.body());
-                eventHub.apply(item.eventType(), item.entityId(), item.entityKind(), textNode);
+                // The H2 apply runs on THIS monad worker thread (off the bus-receive thread). Continue the
+                // request's trace from the item's traceparent so the cache apply nests under the "receive from
+                // <bus>" span (O2/T3). null traceparent / tracing off -> runs plain.
+                EsqAsyncTrace.continueIn(item.traceparent(), item.correlationId(), "cache apply", () ->
+                        eventHub.apply(item.eventType(), item.entityId(), item.entityKind(), textNode));
             } finally {
                 clearMdc();
             }
@@ -105,8 +117,18 @@ public class Monad extends AMonad {
      * Bulk apply: run the whole batch of events in ONE cache transaction. Each {@link #_processItem}
      * applies its event through the same cacheJdbcTemplate, which joins the thread-bound connection,
      * so the batch commits once instead of once-per-event -- the throughput win under a flood of
-     * move broadcasts. If any event fails the whole batch rolls back and the throwable propagates to
-     * the rig (its list error listener stops the bulk); the night-watch sweep heals the gap.
+     * move broadcasts.
+     *
+     * <p>A handler applies a broadcast that our own enyMan published AFTER its DB commit, keyed by an id
+     * we generated, into an embedded H2 cache -- so a handler throwing is a should-not-happen condition,
+     * not a modelled failure mode, and there is no defensive handling for it. {@code MessageHandlerHub.dispatch}
+     * simply LOGS the exception (app log + develop log with the stack) and counts {@code outcome=failed},
+     * then returns. The consequence worth noting is the control flow: because the exception is swallowed
+     * there, this batch does NOT roll back -- it COMMITS the events that applied and the failed one is just
+     * absent. The DB already holds the change, so under {@code onMismatch=SWAP} the night-watch reload
+     * differs from the serving monad and SWAP heals the gap (a {@code LOG}-mode deployment would not).
+     * A failure OUTSIDE a handler (JSON parse, unknown-kind lookup) escapes the swallow, so the whole
+     * batch rolls back and propagates to the rig; the sweep heals that too.
      */
     @Override
     protected void _processItems(List<QueueItem> events) {
@@ -163,13 +185,11 @@ public class Monad extends AMonad {
 
 
     private static void putMdc(QueueItem item) {
-        if (item.requestId() != null)     MDC.put(EsqConstants.PD_REQUEST_ID,     item.requestId());
-        if (item.correlationId() != null) MDC.put(EsqConstants.PD_CORRELATION_ID, item.correlationId());
+        EsqContextHolder.applyMessage(item.requestId(), item.correlationId());
     }
 
     private static void clearMdc() {
-        MDC.remove(EsqConstants.PD_REQUEST_ID);
-        MDC.remove(EsqConstants.PD_CORRELATION_ID);
+        EsqContextHolder.clear();
     }
 
     /* ====================================================================

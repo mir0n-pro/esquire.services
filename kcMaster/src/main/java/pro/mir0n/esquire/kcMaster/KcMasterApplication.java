@@ -15,6 +15,7 @@
  * 06/22/2026 mir0n  registrar registers a BusHealthIndicator (bus facade handed in) into the Actuator
  *                   HealthContributorRegistry programmatically at ApplicationReadyEvent (no @Bean) -> /actuator/health
  * 06/23/2026 mir0n  EsqMsgConstants app constants -> common.EsqConstants (references repointed)
+ * 07/08/2026 mir0n  @Import(TracingConfig.class): the common distributed-tracing wiring (v1.2.11 O2)
  */
 
 package pro.mir0n.esquire.kcMaster;
@@ -30,7 +31,9 @@ import org.springframework.context.ApplicationEvent;
 import org.springframework.context.ApplicationListener;
 import org.springframework.context.event.ContextClosedEvent;
 import org.springframework.core.Ordered;
+import org.springframework.context.annotation.Import;
 import org.springframework.scheduling.annotation.EnableAsync;
+import pro.mir0n.esquire.backend.o11y.ObservabilityConfig;
 import pro.mir0n.esquire.backend.storage.EsqObjectKindStorage;
 import pro.mir0n.esquire.common.EsqConstants;
 import pro.mir0n.esquire.messaging.BusHealthIndicator;
@@ -41,6 +44,7 @@ import pro.mir0n.esquire.messaging.MessagingBus;
 @SpringBootApplication(scanBasePackages = {
         "pro.mir0n.esquire.kcMaster"
 })
+@Import(ObservabilityConfig.class)
 public class KcMasterApplication {
 
     private static final org.slf4j.Logger devLog = LoggerFactory.getLogger("develop." + KcMasterApplication.class.getName());

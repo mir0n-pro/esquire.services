@@ -1,0 +1,6 @@
+apiVersion: v2
+name: esquire-prometheus
+description: Prometheus metrics store (O1 metrics) for local/dev k8s -- scrapes each service's /actuator/prometheus.
+type: application
+version: 0.1.0
+appVersion: "3.1.0"

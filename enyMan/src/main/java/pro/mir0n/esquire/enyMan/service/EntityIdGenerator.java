@@ -11,6 +11,8 @@
  *                   + EsqUtils.instanceNo() * 1000 + (AtomicInteger sequence % 1000);
  *                   esquireEpoch = 26 Jun 2025 13:20 EDT (kept from v1.2.5);
  *                   IllegalStateException at mint time if instanceNo outside [0, 9].
+ * 07/23/2026 mir0n  v1.2.11 -- the sequence digit is forced non-negative (AtomicInteger wraps negative after 2^31;
+ *                   a negative seq would borrow into the instance/time digits and corrupt the id)
  */
 
 package pro.mir0n.esquire.enyMan.service;
@@ -59,8 +61,14 @@ public final class EntityIdGenerator {
               + "v1.2.6 id encoding allocates one decimal digit for instance. "
               + "Cap deployment replicas at 10.");
         }
-        return (System.currentTimeMillis() - esquireEpoch) * 10000L
-             + inst * 1000L
-             + (sequence.getAndIncrement() % 1000);
+        // AtomicInteger wraps to negative after 2^31 mints, and Java's % keeps the sign; a negative
+        // sequence digit would borrow into the instance/time digits and corrupt the id. Force it
+        // non-negative so the bottom 3 digits stay a clean sequence.
+        int seq = sequence.getAndIncrement() % 1000;
+        seq = seq < 0 ? -seq : seq;
+        long ret = (System.currentTimeMillis() - esquireEpoch) * 10000L
+                 + inst * 1000L
+                 + seq;
+        return ret;
     }
 }

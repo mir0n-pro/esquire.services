@@ -42,6 +42,8 @@
  *                   sublayer stack); health() = worst(transport indicator, sessionHealth())
  * 07/01/2026 mir0n  the async-publish pool's thread model reads publisher-pool.mode -- init sets poolMode via
  *                   WorkerPool.Mode.of(publisherPoolMode())
+ * 07/23/2026 mir0n  v1.2.11 -- setWorker(subscription) comment: set the subscription BEFORE start(); the x-rod
+ *                   does not support changing a broker subscription on the fly
  */
 package pro.mir0n.esquire.messaging.xrod.impl;
 
@@ -267,6 +269,7 @@ public class XRod extends AXRod {
      *  actually CHANGES from the one the live consumer already holds; otherwise just the worker is attached. */
     @Override
     public synchronized void setWorker(String subscription, Consumer<RodEvent> worker) {
+        // You need setWorker() before start(). The x-rod does not support changing the subscription on the fly.
         String desired = (subscription != null && !subscription.isBlank())
                 ? subscription : consumeSelector(role, identity);
         if (!java.util.Objects.equals(desired, openedSelector)

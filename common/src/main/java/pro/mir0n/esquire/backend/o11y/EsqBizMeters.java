@@ -1,0 +1,164 @@
+/*
+ *  Esquire frameworks (tm)
+ *  common library
+ *
+ *  Copyright(c) 2001, 2026 mir0n&co www.mir0n.pro
+ *  mailto:mir0n.the.programmer@gmail.com
+ *
+ *  History:
+ * 07/11/2026 mir0n  created: the shared esq.biz.* meter facility (v1.2.11 O1/T8 phase A) -- the ONE entry point
+ *                   for every business meter, so per-service work stays THIN (a meter name, its tags, and the
+ *                   call site at its own domain seam) and the machinery stays generic in common (D6).
+ *                   count / time / gauge; gauge() delegates to EsqGauge so an esq.biz.* gauge is
+ *                   strongReference'd by construction. STATIC + registrar-backed (the EsqTraceMark shape) --
+ *                   the only shape that reaches BOTH Spring beans and the new-ed, never-proxied objects
+ *                   (AcctTransactionProcessor*, the taijitu Monad, KeepSqlStore). Registry null while the
+ *                   observability umbrella is off, so every call is a null check and nothing else.
+ * 07/17/2026 mir0n  safeTags(): a null tag element is coerced to "null" centrally, so an esq.biz.* meter called
+ *                   from a finally cannot throw over a label (I18); clones only when a null is present.
+ * 07/23/2026 mir0n  v1.2.11 -- gauge(): defensive re-check after PENDING.add so a gauge is not stranded by a
+ *                   concurrent setRegistry() drain (idempotent per meter id; zero-cost while off)
+ */
+package pro.mir0n.esquire.backend.o11y;
+
+import io.micrometer.core.instrument.MeterRegistry;
+
+import java.util.concurrent.TimeUnit;
+import java.util.function.IntSupplier;
+
+/**
+ * The single seam for Esquire's BUSINESS meters -- the {@code esq.biz.*} family.
+ *
+ * <p>The free tiers (JVM, HTTP, pools) and the bus meters are inherited: a service gets them without writing a
+ * line. Business meters cannot work that way, because they measure what a service DOES, not how it runs -- they
+ * can only fire at the domain seam where the thing actually happens. What CAN stay generic is the machinery, and
+ * this is it: a call site names its meter and its tags, and nothing else. It never touches a Micrometer builder,
+ * never holds a registry, never decides how a gauge is referenced or whether a histogram is affordable.
+ *
+ * <p><b>Why static, when the framework rule is explicit {@code @Bean} + constructor injection.</b> Several of the
+ * seams this must reach are not Spring beans at all: {@code AcctTransactionProcessorSingle} / {@code ...Transfer},
+ * the taijitu {@code Monad} and {@code KeepSqlStore} are {@code new}-ed and never proxied -- which is exactly why
+ * the T2 {@code @EsqTraced} annotation was INERT on them and needed the {@code EsqTraceMark.around} twin.
+ * Constructor injection cannot reach them without inventing plumbing to carry a registry into objects the
+ * container does not build. So this follows the established twin pattern: a static facility whose registry is
+ * set ONCE at startup by an explicit {@code @Bean} in {@link ObservabilityConfig}. Same shape as
+ * {@link EsqTraceMark} and {@link EsqAsyncTrace}.
+ *
+ * <p><b>Off is free.</b> The registry is null until the umbrella registers one, so with observability off every
+ * method here is a null check and a return. Nothing is built, nothing is counted, nothing is held.
+ */
+public final class EsqBizMeters {
+
+    private EsqBizMeters() {
+    }
+
+    /** Set once at startup by ObservabilityConfig; null while the observability umbrella is off. */
+    private static volatile MeterRegistry registry;
+
+    /**
+     * Gauges asked for BEFORE the registry arrived -- see {@link #gauge}.
+     *
+     * <p>A gauge is registered ONCE, at start-up of whatever owns the value. But a bean's {@code @PostConstruct}
+     * can run BEFORE this facility's registrar does (MoveQueueManager.start() is exactly that case), and a
+     * gauge() call at that moment would find a null registry, quietly do nothing, and the gauge would never exist
+     * -- a dead panel with no error anywhere. Counters and timers never hit this: they fire at request time, long
+     * after start-up. So gauges are HELD here and registered when the registry arrives; start-up order stops
+     * mattering, and no call site has to know about it.
+     */
+    private static final java.util.List<PendingGauge> PENDING = new java.util.concurrent.CopyOnWriteArrayList<>();
+
+    private record PendingGauge(String name, IntSupplier value, String[] tags) {
+    }
+
+    /**
+     * Coerce any null tag element to the string {@code "null"} so a meter is UNCONDITIONALLY safe to call.
+     *
+     * <p>Micrometer rejects a null tag key or value with an exception. From a meter in a {@code finally} that is
+     * exactly the T8-B trap: the throw would MASK the real exception on its way out. A tag is never worth throwing
+     * over -- it is a label, not a decision -- so a null becomes {@code "null"} here (the same thing the call sites
+     * do with {@code String.valueOf}, now guaranteed centrally). This closes the case where an already-null value
+     * is PASSED to a meter; the other T8-B shape, computing a tag from a nullable ({@code x.name()} where {@code x}
+     * is null), throws in the caller's argument expression before this method is reached and can only be avoided at
+     * the call site -- which every {@code esq.biz.*} site does (audited, I18). Clones only when a null is present,
+     * so the clean path allocates nothing.
+     */
+    private static String[] safeTags(String[] tags) {
+        String[] ret = tags;
+        for (int i = 0; i < ret.length; i++) {
+            if (ret[i] == null) {
+                if (ret == tags) {
+                    ret = tags.clone();
+                }
+                ret[i] = "null";
+            }
+        }
+        return ret;
+    }
+
+    /** Wire the app's MeterRegistry. Called from ObservabilityConfig, only when observability is enabled. */
+    public static void setRegistry(MeterRegistry meterRegistry) {
+        registry = meterRegistry;
+        if (meterRegistry != null) {
+            for (PendingGauge g : PENDING) {
+                EsqGauge.register(meterRegistry, g.name(), g.value(), safeTags(g.tags()));
+            }
+            PENDING.clear();
+        }
+    }
+
+    /**
+     * Count a business event.
+     *
+     * @param name the meter name, e.g. {@code esq.biz.perm.check.total}
+     * @param tags key/value pairs, e.g. {@code "cmd", "UPDATE", "result", "deny"} -- keep the VALUES bounded
+     *             (an entity id or a correlation id here would blow the series count up)
+     */
+    public static void count(String name, String... tags) {
+        MeterRegistry reg = registry;
+        if (reg != null) {
+            reg.counter(name, safeTags(tags)).increment();
+        }
+    }
+
+    /**
+     * Record how long a business step took.
+     *
+     * @param nanos elapsed time; the caller owns the clock (System.nanoTime around its own seam)
+     */
+    public static void time(String name, long nanos, String... tags) {
+        MeterRegistry reg = registry;
+        if (reg != null) {
+            reg.timer(name, safeTags(tags)).record(nanos, TimeUnit.NANOSECONDS);
+        }
+    }
+
+    /**
+     * Register a gauge that reads a live value (a queue depth, a cache size) whenever the registry is scraped.
+     *
+     * <p>Delegates to {@link EsqGauge}, which is the ONLY place a Micrometer gauge is built and always holds the
+     * supplier STRONGLY -- without that the supplier lambda is collected and the gauge silently reports NaN.
+     * Register ONCE, at start-up of whatever owns the value; not per event.
+     */
+    public static void gauge(String name, IntSupplier value, String... tags) {
+        MeterRegistry reg = registry;
+        if (reg != null) {
+            EsqGauge.register(reg, name, value, safeTags(tags));
+        } else {
+            // The registry is not here YET (a @PostConstruct beat the registrar) -- or the umbrella is off and it
+            // never will be. Hold the gauge either way: if the registry arrives, setRegistry() registers it (and
+            // safeTags it then); if it does not, this is a handful of tiny records retained for the life of the
+            // process, and nothing else -- NO coercion work is done while off (I19: off must cost zero).
+            PENDING.add(new PendingGauge(name, value, tags));
+            // Defensive against a concurrent setRegistry(): start-up is single-threaded today, so this cannot race
+            // now, but it keeps the hand-off correct even under parallel bean init. If the registry ARRIVED between
+            // the read above and this add, setRegistry() may have already drained PENDING past this entry and would
+            // strand it (a dead gauge). Re-check and register directly if so -- idempotent per meter id (see
+            // EsqGauge), so it is harmless even when setRegistry's own drain also registered it. Still zero-cost
+            // while off: the re-check is one volatile read, and safeTags runs only when the registry is present.
+            MeterRegistry arrived = registry;
+            if (arrived != null) {
+                EsqGauge.register(arrived, name, value, safeTags(tags));
+            }
+        }
+    }
+}

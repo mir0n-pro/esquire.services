@@ -20,12 +20,15 @@
  * 04/16/2026 mir0n  rootId extracted as named local variable
  * 05/14/2026 mir0n  esquireSubtree(id, rootPath, uid) implementation for /esq-tree
  *                   (recursive subtree from biztree H2 cache; via IBizTreeCacheRepository.findSubtree)
+ * 07/08/2026 mir0n  @EsqTraced on esquire / esquireEntityNode / esquirePath / esquireSubtree
+ *                   (esq.svc.tree / node / path / subtree)
  */
 
 package pro.mir0n.esquire.bizTree.service.impl;
 
 import java.util.*;
 
+import pro.mir0n.esquire.backend.o11y.EsqTraced;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.LoggerFactory;
 import pro.mir0n.esquire.backend.dto.*;
@@ -49,6 +52,7 @@ public class BizTreeService  implements IBizTreeService {
     private IBizTreeCacheRepository treeNodeRepository;
 
     @Override
+    @EsqTraced(name = "esq.svc.tree", label = "read tree")
     public List<EsqTreeNode> esquire(String id, Integer skip, Integer take, String rootPath, String uid) {
         //xxx: ignore skip, take for now
         String correlationId = RequestContextUtils.getCorrelationId();
@@ -77,6 +81,7 @@ public class BizTreeService  implements IBizTreeService {
     }
 
     @Override
+    @EsqTraced(name = "esq.svc.node", label = "read node")
     public EsqTreeNode esquireEntityNode(Integer kind, String id, String name, String rootPath, String uid) {
         String correlationId = RequestContextUtils.getCorrelationId();
         String requestId = RequestContextUtils.getRequestId();
@@ -99,6 +104,7 @@ public class BizTreeService  implements IBizTreeService {
     }
 
     @Override
+    @EsqTraced(name = "esq.svc.path", label = "read path")
     public List<String> esquirePath(String id, String rootPath) {
         String correlationId = RequestContextUtils.getCorrelationId();
         String requestId = RequestContextUtils.getRequestId();
@@ -120,6 +126,7 @@ public class BizTreeService  implements IBizTreeService {
     }
 
     @Override
+    @EsqTraced(name = "esq.svc.subtree", label = "read subtree")
     public List<EsqTreeNode> esquireSubtree(String id, String rootPath, String uid) {
         List<String> path = EsqTreeNodeMapper.pathArray(rootPath);
         int rootLevel = rootLevel(path, uid);

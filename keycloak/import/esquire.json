@@ -950,6 +950,7 @@
       "requiredActions": [],
       "realmRoles": [
         "SYSADMIN",
+        "TREE",
         "default-roles-esquire"
       ],
       "notBefore": 0,

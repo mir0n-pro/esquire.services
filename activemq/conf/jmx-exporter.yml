@@ -1,0 +1,75 @@
+# Esquire frameworks (tm) -- Prometheus JMX exporter rules for the ActiveMQ Classic broker.
+#
+# The broker is the one component of the stack whose code we do not own, so it is the one place the service-side
+# meters cannot reach: `messaging.send.total` / `receive.total` (T5) say what a service THINKS it sent and
+# received; only the broker knows what is SITTING in a destination, whether a consumer is still attached, and
+# whether the store is filling up. This file maps those JMX MBeans onto Prometheus metrics.
+#
+# The agent runs INSIDE the broker JVM (see the Dockerfile) and reads the local MBean server, so no remote JMX
+# port, no Jolokia credentials and no bridge process are involved. It is loaded only when observability is on.
+# The agent also emits ~90 jvm_* series for the broker JVM itself (heap, GC, threads) with no rules needed.
+#
+# TRAP, do not re-discover: `attrNameSnakeCase: true` rewrites the attribute name BEFORE the pattern is matched
+# against it. A rule that sets the flag must therefore hunt `enqueue_count`, NOT `EnqueueCount` -- matching the
+# CamelCase name yields ZERO series, silently, and a rules file that looks perfectly correct. Every attribute
+# name below was read back off the running exporter, not guessed.
+
+lowercaseOutputName: true
+lowercaseOutputLabelNames: true
+
+# Only these MBeans are walked. Everything else in the broker's JMX tree (per-connection, per-subscription and
+# advisory beans) is high-cardinality churn -- a series per client connection id -- and is deliberately left out.
+includeObjectNames:
+  - "org.apache.activemq:type=Broker,brokerName=*,destinationType=Queue,destinationName=*"
+  - "org.apache.activemq:type=Broker,brokerName=*,destinationType=Topic,destinationName=*"
+  - "org.apache.activemq:type=Broker,brokerName=*"
+
+# ActiveMQ's own advisory topics (ActiveMQ.Advisory.Connection, .Consumer.Queue.<dest>, .Producer.Queue.<dest>,
+# ...) are broker bookkeeping, not Esquire traffic, and the set GROWS with every destination and every client
+# connection. Exporting them buys nothing and turns the scrape into a cardinality problem that only shows up
+# under load, which is the worst time to find it.
+excludeObjectNames:
+  - "org.apache.activemq:type=Broker,brokerName=*,destinationType=Topic,destinationName=ActiveMQ.Advisory.*"
+
+rules:
+
+  # ---- the headline number: what is actually backed up in a queue right now ----
+  # Named for what it MEANS (depth), not for the ActiveMQ attribute it came from (QueueSize). This rule does NOT
+  # set attrNameSnakeCase, so it matches the raw CamelCase attribute; see the trap note above.
+  - pattern: 'org.apache.activemq<type=Broker, brokerName=(\S+), destinationType=Queue, destinationName=(\S+)><>QueueSize'
+    name: activemq_queue_depth
+    type: GAUGE
+    help: "Messages pending in the queue and not yet consumed (ActiveMQ QueueSize)"
+    labels:
+      broker: "$1"
+      destination: "$2"
+
+  # ---- per-destination: queues ----
+  - pattern: 'org.apache.activemq<type=Broker, brokerName=(\S+), destinationType=Queue, destinationName=(\S+)><>(enqueue_count|dequeue_count|dispatch_count|expired_count|in_flight_count|consumer_count|producer_count|average_enqueue_time|max_enqueue_time|average_message_size|memory_percent_usage|cursor_percent_usage|blocked_sends)'
+    name: activemq_queue_$3
+    attrNameSnakeCase: true
+    labels:
+      broker: "$1"
+      destination: "$2"
+
+  # ---- per-destination: topics ----
+  - pattern: 'org.apache.activemq<type=Broker, brokerName=(\S+), destinationType=Topic, destinationName=(\S+)><>(enqueue_count|dequeue_count|dispatch_count|expired_count|in_flight_count|consumer_count|producer_count|average_enqueue_time|max_enqueue_time|average_message_size|memory_percent_usage)'
+    name: activemq_topic_$3
+    attrNameSnakeCase: true
+    labels:
+      broker: "$1"
+      destination: "$2"
+
+  # ---- broker-wide: totals, usage and connections ----
+  # NOTE what is NOT here: store_percent_usage / store_limit. The broker is NON-PERSISTENT (activemq.xml,
+  # persistent="false") -- there is no message store, so those would read 0 forever. A metric that can only ever
+  # be zero is worse than no metric: it looks like a healthy signal. memory (70% of heap) is the real
+  # back-pressure on an in-memory bus, and temp is the spool it overflows into.
+  - pattern: 'org.apache.activemq<type=Broker, brokerName=(\S+)><>(total_enqueue_count|total_dequeue_count|total_consumer_count|total_producer_count|total_message_count|current_connections_count|total_connections_count|memory_percent_usage|temp_percent_usage|memory_limit|temp_limit|uptime_millis)'
+    name: activemq_broker_$2
+    attrNameSnakeCase: true
+    labels:
+      broker: "$1"
+
+  # Anything not named above is dropped rather than exported blindly -- an exporter that emits every attribute it
+  # can reach is how a scrape quietly turns into thousands of series nobody reads.

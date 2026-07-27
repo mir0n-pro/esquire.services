@@ -1,5 +1,75 @@
 Esquire kcMaster Microservice
 
+07/23/2026 mir0n  v1.2.11 -- homework: fix/resolve issues found in the fresh-mind audit
+resources/application.yml
+  - actuator moved to a separate internal-only management port 8090 (MANAGEMENT_SERVER_PORT), off the public
+    server.port
+
+07/17/2026 mir0n  v1.2.11 -- T11 cleanup: fix/resolve issues noted during development
+resources/application.yml
+  - the tracing and metrics switches each read their own env var (ESQ_TRACING_ENABLED / ESQ_METRICS_ENABLED),
+    defaulting to the ESQ_OBSERVABILITY_ENABLED umbrella, so either pillar can be turned off on its own (I41)
+config.KeycloakConfig
+  - the KC-admin client is un-instrumented at the wire on purpose (I39 covered) -- the KC-sync duration IS
+    measured at the operation grain (esq.biz.kc.sync.duration), only a per-call span is absent; copyright URL
+    mir0n.me -> mir0n.pro
+messaging.KcRequestHandler
+  - esq.biz.kc.sync.duration is orthogonal to the bus-hop span pair -- the KC request/response hop IS traced
+    (PRODUCER/CONSUMER via AXRod), not a waterfall gap (I51)
+
+
+07/15/2026 mir0n  v1.2.11 -- T11 cleanup: fix/resolve issues noted during development
+messaging.EntityBusAdapter
+  - the entity-broadcast receive worker stamps MDC via EsqContextHolder.applyMessage(event) and clears in a
+    finally (I10)
+messaging.KcBusAdapter
+  - the kc-bus receive worker stamps MDC via EsqContextHolder.applyMessage(event) and clears in a finally (I10)
+
+07/11/2026 mir0n  v1.2.11 -- business meters (O1/T8): the KeyCloak identity sync
+messaging.KcRequestHandler
+  - handle() counts esq.biz.kc.sync.total and times esq.biz.kc.sync.duration (tags op = the BusConstants command,
+    outcome) in a finally; the switch is unchanged. A sync that arrives and then FAILS leaves Esquire and KeyCloak
+    disagreeing about who exists. The duration is the whole sync, not the admin client alone -- the KC round-trip
+    dominates it, and the name says what it measures rather than implying an isolation that was not built
+resources/application.yml
+  - esquire.observability.metrics.business-enabled: ${ESQ_METRICS_BUSINESS:true} added -- the sub-switch gating
+    the esq.biz.* domain tier under the observability master
+
+07/11/2026 mir0n  v1.2.11 -- observability config namespace + the metrics sub-switches (O1/T5)
+resources/application.yml
+  - the tracing keys move under the umbrella: esquire.tracing.* -> esquire.observability.tracing.*
+    (otlp-endpoint, sampling-ratio, marks-enabled, excluded-paths, msg-bus-alive-trace);
+    esquire.observability.metrics.* sub-switches added -- histograms-enabled (ESQ_METRICS_HISTOGRAMS,
+    default false) and bandwidth-enabled (ESQ_METRICS_BANDWIDTH, default true)
+
+07/10/2026 mir0n  v1.2.11 -- metrics foundation (O1): Prometheus export + the observability umbrella switch
+resources/application.yml
+  - esquire.observability.enabled (ESQ_OBSERVABILITY_ENABLED) now gates BOTH tracing and metrics (replaces the
+    tracing-only switch); management.prometheus.metrics.export.enabled + endpoints.web.exposure.include prometheus added
+
+07/09/2026 mir0n  v1.2.11 -- distributed tracing (O2/T3): the KeyCloak path update is traced; span labels spelled out
+service.impl.KcIdentityService
+  - @EsqTraced labels "KC ..." -> "Keycloak ..."; @EsqTraced on updateUserPath (esq.kc.update-path,
+    "Keycloak update path")
+resources/application.yml
+  - esquire.tracing.msg-bus-alive-trace: ${ESQ_MSG_BUS_ALIVE_TRACE:false} added
+
+07/08/2026 mir0n  v1.2.11 -- distributed tracing (O2): trace marks on the KeyCloak identity calls
+service.impl.KcIdentityService
+  - @EsqTraced on createUser / updateUserAuthState / deleteUser
+    (esq.kc.create-user / esq.kc.update-auth / esq.kc.delete-user)
+KcMasterApplication
+  - @Import(TracingConfig.class): the common distributed-tracing wiring
+resources/application.yml
+  - esquire.tracing block (enabled / otlp-endpoint / sampling-ratio / marks-enabled / excluded-paths) with
+    the ESQ_TRACING_* env overrides; management.tracing.enabled mirrors esquire.tracing.enabled
+k8s chart esquire-kcmaster/values.yaml
+  - tracing block (enabled "false" / otlpEndpoint / samplingRatio / marksEnabled / excludedPaths) --
+    opt-in, off by default
+k8s chart esquire-kcmaster/templates/configmap.yaml
+  - ESQ_TRACING_ENABLED / ESQ_OTLP_ENDPOINT / ESQ_TRACING_SAMPLING_RATIO / ESQ_TRACING_MARKS_ENABLED /
+    ESQ_TRACING_EXCLUDED_PATHS rendered from .Values.tracing
+
 07/03/2026 mir0n  v1.2.10 -- send-retry-backoff config key -sec unit suffix
 resources/application.yml
   - send-retry-backoff -> send-retry-backoff-sec (env *_SEND_RETRY_BACKOFF -> *_SEND_RETRY_BACKOFF_SEC) mirroring the XRodParams key rename

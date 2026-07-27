@@ -1,0 +1,22 @@
+# Esquire frameworks (tm) -- line-ending law.
+#
+# WHY THIS FILE EXISTS. The CI runner is Windows and its git has core.autocrlf=true, so git stores LF and hands
+# the working tree CRLF. That is harmless for source that only ever gets compiled -- and fatal for a file that has
+# to be EXECUTED inside a Linux container: the kernel reads the shebang literally, tries to exec "/bin/sh\r",
+# cannot find it, and reports
+#
+#     exec /usr/local/bin/esq-entrypoint.sh: no such file or directory
+#
+# -- which names the script, so it reads as "the file is missing" when the file is right there. The broker
+# CrashLoopBackOff'd on exactly this: the dev tree was LF, the git blob was LF, and the CI CHECKOUT was CRLF.
+#
+# Declaring the endings here settles it at the source: every checkout, on every machine, whatever the local
+# core.autocrlf says.
+
+# Shell scripts are EXECUTED (container entrypoints, the OKE build/deploy scripts). LF, always.
+*.sh text eol=lf
+
+# Batch files are executed by cmd, which cannot resolve `call :label` in an LF-only file -- a lesson already
+# learned the hard way on compose-rebuild.bat. CRLF, always.
+*.bat text eol=crlf
+*.cmd text eol=crlf

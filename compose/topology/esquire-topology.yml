@@ -28,6 +28,8 @@ esquire:
               destination: esquire.entity.broadcast
               params:
                 pubSubDomain: true
+                # MUST agree with the broker (activemq.xml: persistent="false"). See the KeyCloak bus below.
+                persistent: false
                 # enyMan runs both legs (publish + listen) on ONE shared connection, so the broker drops its OWN
                 # publications -- the moving instance reconciles only a PEER instance's create-during-move. Inert
                 # for pure consumers (bizTree / kcMaster publish nothing) and publish-only producers (no consumer).
@@ -38,6 +40,10 @@ esquire:
         - slot-id: kc
           x-rod:
             rod-class: XRodRR
+            # RR liveness protocol ON (docker): CLIENT (enyMan/keySmith) probes with a TestRequest, SERVER
+            # (kcMaster) echoes a HeartBeat -- the round-trip is observable when msg-bus-alive-trace is on.
+            # Enabled here on docker; OFF on k8s (the k8s topology omits this); OFF by default. Default cadence.
+            alive: true
             receiver-pool:
               size: 4
               mode: platform
@@ -50,6 +56,12 @@ esquire:
               endpoint: failover:(tcp://activemq:61616)?timeout=3000
               request-node: request
               response-node: response
+              params:
+                # MUST agree with the broker's own persistent setting (activemq.xml: persistent="false").
+                # JMS makes a PERSISTENT send SYNCHRONOUS -- the producer blocks for a broker ack on every
+                # message -- even when the broker persists nothing, so against our in-memory broker the flag
+                # costs a round-trip per send and buys nothing.
+                persistent: false
               nodes:
                 - node-id: request
                   destination: esquire.kc.request
@@ -75,6 +87,11 @@ esquire:
               destination: esquire.rod.audit
               params:
                 jms.useAsyncSend: true
+                # MUST agree with the broker (activemq.xml: persistent="false"). NOTE what this accepts: a broker
+                # restart drops any audit backlog auKeep has not yet drained. That is the one destination where
+                # the loss is semantically real, and it is accepted -- dev/demo, and the MessagingBus design lists
+                # at-least-once durability as a FUTURE option, not a guarantee.
+                persistent: false
     # --- audit (ck): Kafka -> auKeep consumer writes the *_log ---
     - bus-id: audit-ck
       slots:

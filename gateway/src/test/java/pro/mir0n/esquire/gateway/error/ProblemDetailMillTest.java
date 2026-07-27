@@ -9,6 +9,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.web.reactive.function.server.ServerRequest;
 import pro.mir0n.esquire.common.EsqConstants;
+import pro.mir0n.esquire.common.EsqUtils;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
@@ -97,7 +98,21 @@ class ProblemDetailMillTest {
     }
 
     @Test
-    void createProblemDetail_withEsqCorrelationId_setsTraceIdAndCorrelationId() {
+    void createProblemDetail_withW3cEsqCorrelationId_keepsTraceIdAndCorrelationId() {
+        String valid = "0123456789abcdef0123456789abcdef";
+        HttpHeaders headers = new HttpHeaders();
+        headers.add(EsqConstants.ESQ_CORRELATION_ID, valid);
+        stubRequest(headers);
+
+        ProblemDetail problem = ProblemDetailMill.createProblemDetail(
+                request, HttpStatus.BAD_REQUEST, "Bad", "msg", false, null);
+
+        assertThat(problem.getProperties()).containsEntry(EsqConstants.PD_TRACE_ID, valid);
+        assertThat(problem.getProperties()).containsEntry(EsqConstants.PD_CORRELATION_ID, valid);
+    }
+
+    @Test
+    void createProblemDetail_withNonW3cEsqCorrelationId_settlesToW3cTraceId() {
         HttpHeaders headers = new HttpHeaders();
         headers.add(EsqConstants.ESQ_CORRELATION_ID, "esq-abc");
         stubRequest(headers);
@@ -105,8 +120,10 @@ class ProblemDetailMillTest {
         ProblemDetail problem = ProblemDetailMill.createProblemDetail(
                 request, HttpStatus.BAD_REQUEST, "Bad", "msg", false, null);
 
-        assertThat(problem.getProperties()).containsEntry(EsqConstants.PD_TRACE_ID, "esq-abc");
-        assertThat(problem.getProperties()).containsEntry(EsqConstants.PD_CORRELATION_ID, "esq-abc");
+        String settled = EsqUtils.toW3cTraceId("esq-abc");
+        assertThat(problem.getProperties()).containsEntry(EsqConstants.PD_TRACE_ID, settled);
+        assertThat(problem.getProperties()).containsEntry(EsqConstants.PD_CORRELATION_ID, settled);
+        assertThat(EsqUtils.isW3cTraceId(settled)).isTrue();
     }
 
     @Test

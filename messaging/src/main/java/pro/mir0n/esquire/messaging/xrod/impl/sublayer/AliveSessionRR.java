@@ -11,10 +11,17 @@
  *                   SERVER's is the base unsolicited HeartBeat. On receive a SERVER echoes an arriving TestRequest
  *                   back as a HeartBeat (the URS reply); a CLIENT's session message is liveness only. Everything
  *                   else -- timestamps / health / cadence / send hooks -- is the base AliveSession.
+ * 07/09/2026 mir0n  v1.2.11 -- when the registered tracer's aliveTrace() is on: a CLIENT keepAliveEvent() takes its correlation id
+ *                   from o11y.IRodTracer.newTraceId() and opens a ROOT producer span (aliveOutbound asRoot=true),
+ *                   stamping the traceparent on the TestRequest; a SERVER onReceiveSessn() stamps its HeartBeat
+ *                   reply from a nested producer span (asRoot=false)
+ * 07/23/2026 mir0n  v1.2.11 -- comment: the SERVER HeartBeat reply uses a BLOCKING put -- a reply can be needed
+ *                   while the leg is busy, and dropping it would cause a false SERVER-DOWN at the client
  */
 package pro.mir0n.esquire.messaging.xrod.impl.sublayer;
 
 import org.slf4j.Logger;
+import pro.mir0n.esquire.messaging.o11y.RodObserverHolder;
 import pro.mir0n.esquire.messaging.BusConstants;
 import pro.mir0n.esquire.messaging.RodEvent;
 import pro.mir0n.esquire.messaging.catalog.Role;
@@ -62,7 +69,18 @@ public final class AliveSessionRR extends AliveSession {
     protected RodEvent keepAliveEvent() {
         RodEvent ret;
         if (rrRole == Role.CLIENT) {
-            ret = RodEvent.testRequest(newCorrelationId(), identity.rodId());
+            String traceId = RodObserverHolder.tracer().aliveTrace() ? RodObserverHolder.tracer().newTraceId() : null;
+            if (traceId != null) {
+                // Traced liveness probe (msg-bus-alive-trace): the correlation id IS the trace id the tracer
+                // minted, and a ROOT PRODUCER span is opened for the TestRequest send here (off the cadence, no
+                // current span) -- its traceparent rides the wire so the SERVER's HeartBeat reply nests under it:
+                // one round-trip trace. The bus never mints a trace id itself; the tracer owns that shape.
+                String traceparent = RodObserverHolder.tracer().aliveOutbound(
+                        traceId, identity.busId(), "TestRequest", identity.rodId(), true);
+                ret = RodEvent.testRequest(traceId, identity.rodId()).withTraceparent(traceparent);
+            } else {
+                ret = RodEvent.testRequest(newCorrelationId(), identity.rodId());
+            }
         } else {
             ret = super.keepAliveEvent();   // SERVER -> an unsolicited HeartBeat
         }
@@ -75,7 +93,22 @@ public final class AliveSessionRR extends AliveSession {
     @Override
     public void onReceiveSessn(RodEvent ev) {
         if (rrRole == Role.SERVER && BusConstants.MSG_TYPE_TEST_REQUEST.equals(ev.msgType())) {
-            feed.put(RodEvent.heartbeat(ev.correlationId(), ev.requestId(), ev.rodId()));
+            RodEvent hb = RodEvent.heartbeat(ev.correlationId(), ev.requestId(), ev.rodId());
+            if (RodObserverHolder.tracer().aliveTrace() && ev.traceparent() != null) {
+                // This runs INSIDE the receive CONSUMER span (AXRod wraps onReceiveSessn), so opening the HeartBeat
+                // send as a nested PRODUCER span (asRoot=false) parents it under the receive; its traceparent rides
+                // back on the reply so the CLIENT's receive closes the round-trip.
+                String traceparent = RodObserverHolder.tracer().aliveOutbound(
+                        ev.correlationId(), identity.busId(), "HeartBeat", identity.rodId(), false);
+                hb = hb.withTraceparent(traceparent);
+            }
+            // BLOCKING put, DELIBERATELY. This is the SERVER's HeartBeat REPLY to a client's TestRequest, on the
+            // receive path (the RR consumer thread). Unlike the unsolicited tick() heartbeat -- which fires only
+            // when the leg is idle, so its feed is empty -- a reply can be needed while this leg is BUSY (feed
+            // non-empty). DROPPING it would leave the client without its liveness confirmation, so after
+            // alive-timeout the client marks this (healthy, merely busy) SERVER DOWN -- a false failure. So the
+            // reply blocks until the feed has room rather than being discarded. Inert today (no leg sets alive).
+            feed.put(hb);
         }
     }
 }

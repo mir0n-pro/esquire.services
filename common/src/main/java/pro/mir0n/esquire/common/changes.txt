@@ -1,5 +1,24 @@
 Esquire Common microservice classes
 
+07/26/2026 mir0n  v1.2.11 -- Paper Client Account kind label correction
+esq-object-kinds.xml
+  - the paper-client-account shortcut kind <title> "Paper Client" -> "Paper Client Account";
+    <desc> double space removed
+
+07/09/2026 mir0n  v1.2.11 -- the instance-identity rule moves down to mir0n-utils
+EsqUtils
+  - instanceNo() / instanceHost() and the private parsePodNameOrdinal() moved to pro.mir0n.utils.HostId
+    (mir0n-utils); instanceNo() / instanceHost() and the test seams now delegate to it
+
+07/08/2026 mir0n  v1.2.11 -- W3C trace-id settlement (O2)
+EsqUtils
+  - generateCorrelationId() now emits 32 lowercase hex from 16 SecureRandom bytes, non-zero (was a UUID string)
+  - isW3cTraceId(String), toW3cTraceId(String) (SHA-256, first 16 bytes -> 32 hex), settleCorrelationId(String)
+    (keep-if-W3C / convert / generate), buildTraceparent(String traceId), isValidTraceparent(String) and
+    traceIdFromTraceparent(String) added
+EsqConstants
+  - TRACEPARENT ("traceparent") added: the W3C Trace Context header name
+
 07/03/2026 mir0n  v1.2.10 -- X-Request-ID required on write commands
 MissingRequestIdException  (new)
   - 400 Bad Request when a write command arrives without X-Request-ID

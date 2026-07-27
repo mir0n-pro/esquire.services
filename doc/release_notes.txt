@@ -1,6 +1,329 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v1.2.11-2607.2614  v1.2.11 -- T13: sprint documentation finalization
+    :Fix:         the paper-client-account entity-kind title corrected to "Paper Client Account" (and its description)
+    :Doc:         doc\Esquire.Auth.md  (new -- authentication and authorization: the token and its claims
+                  and roles, the personal self-service flag, user creation, two-factor, entity synchronization)
+                  doc\Esquire.Auth.TokenPatterns.md  (new)
+                  doc\Esquire.Auth.keySmithRoutine.md  (new -- was keySmithCredentialRoutine.md)
+                  doc\install\Docker.md  (new -- step-by-step install and run, Docker sandbox)
+                  doc\install\LocalK8s.md  (new -- step-by-step install and run, local Kubernetes)
+                  doc\v1.2.x.Goal.md  (new -- the goal, and the fifteen-factor scorecard)
+                  doc\Esquire.GrafanaGuide.md  (new)
+                  doc\Esquire.ObservabilityStack.Logging.md  (new -- was Logging.md)
+                  Releases.md  (new -- the release history)
+                  README.md  (installation section, refreshed component model and observability stack,
+                  release history, documentation links)
+                  doc\Esquire.Vision.md  (the mature-framework value proposition)
+                  doc\Esquire.ObservabilityStack.md
+                  doc\entity.path.semantics.md  (removed -- folded into Esquire.Auth.md)
+    Components:   common,
+                  doc
+
+v1.2.11-2607.2320  v1.2.11 -- homework: fix/resolve issues found in the fresh-mind audit
+    - while a branch is being moved, path changes are applied to parent entities before their
+      children, so the tree the cache serves can never briefly show a child ahead of its parent
+    - a new account's parent is looked up only within the signed-in tenant's own branch
+    - an entity created at the very end of a move is now repaired onto the moved path, closing a
+      brief window where it could keep the old one
+    - the entity-id counter can no longer wrap into a negative value and corrupt an id after very
+      high volume
+    - money amounts and balances are rounded to the ledger's scale before any check or storage, so
+      tiny floating-point remainders never reach the books
+    - when a service's outgoing message queue is full it now waits rather than dropping an identity
+      sync or an entity change
+    - on the cloud cluster a message-broker restart now reconnects on its own, instead of a brief
+      broker outage turning into a lasting service outage
+    - the monitoring and health endpoints are served on a separate internal-only port, unreachable
+      from the internet
+    - more log lines now carry the request's own id -- the first line of each request, and the
+      automatic path-repair message keeps the id of the create it repairs
+    - the monitoring dashboard's "Service" list shows the services again, and its all-targets count
+      is relabeled so it is not misread as counting only the Esquire services
+    - the cloud monitoring deploy no longer points the message broker at an image that was never
+      published, which had blocked the rollout
+    Components:   gateway,
+                  enyMan,
+                  pacMan,
+                  bizTree,
+                  common,
+                  messaging,
+                  auKeep,
+                  kcMaster,
+                  keySmith,
+                  compose,
+                  k8s
+
+v1.2.11-2607.1910  v1.2.11 -- T12: on-demand monitoring on the OKE cloud cluster
+    :Feature:     monitoring can be switched on for the OKE cloud cluster on demand -- logs only, or the full
+                  logs + traces + metrics stack -- and switched back off again
+    :Config:      the monitoring stack (its collectors and dashboards) runs on its own dedicated cluster nodes,
+                  apart from the services, so bringing it up or down does not compete with a running service
+    :Config:      the OKE services log at ERROR by default -- quiet until monitoring is switched on
+    Components:   gateway,
+                  bizTree,
+                  enyMan,
+                  pacMan,
+                  keySmith,
+                  kcMaster
+
+v1.2.11-2607.1714  v1.2.11 -- T11 cleanup: fix/resolve issues noted during development
+    - a business measurement with a missing label could throw and hide the real error
+    - a mislabeled measurement could flood the metrics store with unbounded labels
+    - the trace-id format was defined in two places and could drift
+    - there were no ready-made alerts for the obvious failures: a service gone dark, a dropped
+      message, a tripped safety switch, a database with no spare connections
+    - tracing and metrics could not be switched on or off independently of one another
+    - the message-queue metrics were still listed as planned although they ship and are on the dashboards
+    Components:   common,
+                  gateway,
+                  enyMan,
+                  bizTree,
+                  pacMan,
+                  kcMaster,
+                  keySmith,
+                  auKeep,
+                  messaging,
+                  compose,
+                  k8s
+
+v1.2.11-2607.1513  v1.2.11 -- T11 cleanup: fix/resolve issues noted during development
+    - gateway liveness and readiness were not separated from the aggregate health check
+    - messages handled off the bus were not correlated in the logs
+    - a dashboard panel read "No data" for a counter that had not yet fired
+    - a configuration change did not restart the observability tools that depend on it
+    - the log collector was ingesting its own stack's logs
+    - the browser tier stood outside the single observability switch
+    - heartbeat tracing differed between environments
+    - the observability tools ran without a fixed history window or resource limits
+    - the metrics store used an unnamed data volume
+    Components:   gateway,
+                  common,
+                  messaging,
+                  bizTree,
+                  enyMan,
+                  kcMaster,
+                  keySmith,
+                  auKeep,
+                  compose,
+                  k8s
+
+v1.2.11-2607.1413  v1.2.11 -- circuit breaker: its parameters set up and verified under a heavy load test
+    :Fix:         under a heavy burst the gateway was refusing requests it could have served. A limit nobody had
+                  set -- 25 calls at once, a default that came with the library -- was rejecting the overflow, and
+                  those rejections were then counted against the service as if IT had failed, so the gateway
+                  stopped calling a service that was perfectly healthy. The limit is now set deliberately, from
+                  the size of the connection pool it protects, and a request turned away for arriving in a crowd
+                  is no longer held against the service it was going to
+    :Fix:         a fresh install could not build its database. The setup script inside the Postgres image had
+                  Windows line endings, so the container could not run it and stopped at start-up. It went
+                  unnoticed for months because that script only runs on an EMPTY database -- which is exactly what
+                  a new machine, or anyone rebuilding from scratch, has
+    :Feature:     a message that must not be lost can now wait instead of being thrown away: when the outgoing
+                  queue is full the sender holds until there is room, rather than discarding the message after ten
+                  seconds. Switched on for the login-server sync, where every change has to arrive eventually and
+                  how long it takes does not matter
+    :Feature:     each message queue is now given its own share of the broker's memory, so one queue that falls
+                  behind can no longer starve the others
+    :Feature:     two new views on the dashboard: what the gateway's safety switches are doing (and which service
+                  they are turning away), and how many of the machine's processor cores the system is actually
+                  using -- including what each service THINKS it has been given, which is not always what the
+                  machine has
+    :Doc:         doc/review/Esquire.PerfMatrix-07-14.md -- the performance matrix: every environment measured on
+                  the same hardware, what a second copy of each service buys, and what watching the system costs it
+    Components:   gateway,
+                  messaging,
+                  mir0n-utils,
+                  keySmith,
+                  activemq,
+                  postgres
+
+v1.2.11-2607.1222  v1.2.11 -- observability: the message broker reports, the three signals link up, and the system draws itself
+    :Feature:     the message broker now reports on itself -- what is waiting in each queue, whether anyone is
+                  listening to it, how full its memory is, and how many clients are connected
+    :Feature:     a reading on a chart, a request trace, and a log line are now linked to one another: from a slow
+                  point on a graph you reach the request that caused it, from that request its log lines, and from
+                  a log line back to the request
+    :Feature:     a new picture of the running system -- every component, the three message buses, and the calls
+                  between them, each box carrying its own live readings and turning red when it stops reporting
+    :Feature:     on the cluster the picture shows each parallel copy of a service as its own box with its own
+                  readings, and warns when one copy sits idle while its twin does all the work
+    :Feature:     a new logging view: how much each service is saying, what it is complaining about, and every log
+                  line of a single request across every service it touched
+    :Fix:         switching the detailed timing breakdowns on is what makes the chart-to-trace link work at all;
+                  they were being switched on by an environment variable someone had typed by hand, so the link
+                  worked on the developer machine and silently did not exist on the cluster
+    :Fix:         messages were being sent in the mode that makes the sender wait for the broker to confirm every
+                  one of them, although the broker keeps nothing on disk and there was nothing to confirm; sending
+                  the same 2000 messages now takes 27ms instead of 233ms
+    :Fix:         the gateway is the first thing every request meets, and it was the one service whose log lines
+                  could not be found when tracing that request
+    :Config:      the broker's reporting rides the same observability switch as everything else, and is off unless
+                  it is turned on
+    Components:   gateway,
+                  tp-activemq,
+                  activemq,
+                  compose,
+                  k8s
+
+v1.2.11-2607.1120  v1.2.11 -- observability: what each service DOES, not just how it runs
+    :Feature:     every service now reports on its own work, not only its health -- entities created, moved and
+                  deleted, money moved, identities synced with the login server, tree updates applied, audit
+                  records written, and permission decisions allowed or refused
+    :Feature:     the login gateway reports how often it can answer a request from its own token cache instead of
+                  going to the login server, and how long that server takes when it has to
+    :Feature:     work that finishes after the caller has been answered -- a queued move, an audit write -- now
+                  reports whether it actually succeeded; until now nothing did
+    :Feature:     four new dashboard rows carry all of it, arranged so the line worth looking at is always the one
+                  that is not "ok"
+    :Fix:         the detailed timing breakdowns were being collected for every web request whether or not anyone
+                  had asked for them, at a cost of a fifth of everything the system records; they are now
+                  collected only when switched on, and the ordinary averages still work without them
+    :Fix:         several dashboard readings were wrong in a way that looked plausible -- one showed a tenth of a
+                  millisecond for an operation that really took a hundred and thirty, and a cache that was working
+                  99% of the time was drawn as 42%
+    :Fix:         readings that mix different units (a percentage and a duration, a queue length and a rate) no
+                  longer share one scale, where the larger number flattened the smaller one out of sight
+    :Config:      the new per-service reporting has its own switch under the observability switch, on by default;
+                  turning it off removes it entirely at no cost to anything else
+    Components:   common,
+                  enyMan,
+                  pacMan,
+                  bizTree,
+                  dataKeep,
+                  kcMaster,
+                  gateway,
+                  auKeep,
+                  keySmith,
+                  compose,
+                  k8s
+
+v1.2.11-2607.1115  v1.2.11 -- observability: four ways of getting the measurements wrong are now impossible
+    :Fix:         a measurement that reads a live value (queue depth, messages held) could stop reporting after a
+                  while and show nothing at all; it now keeps reporting for as long as the service runs
+    :Fix:         the request-time breakdown could drop one of its four parts entirely -- showing nothing rather
+                  than zero -- whenever that part had no traffic yet; each part now reads zero and the four
+                  still add up to the total
+    :Fix:         the database part of the request-time breakdown was described as needing the load-test switch;
+                  it is measured on every request while observability is on, and the dashboard now says so
+    :Refactoring: a live-value measurement can now only be created one way, and the build fails if it is created
+                  any other way
+    :Refactoring: the timing of database work no longer relies on catching an error to find out whether it is
+                  running inside a request; it asks directly
+    :Config:      new scripts to reach the local cluster's observability tools from the desktop, on ports that
+                  cannot be confused with the ones the docker sandbox already uses
+    Components:   common, compose, k8s
+
+v1.2.11-2607.1111  v1.2.11 -- observability: the messaging bus, the time breakdown and the traffic volume are measured
+    :Feature:     the messaging bus now reports its own measurements -- messages sent and received, how long a
+                  send takes, send errors, how deep the outgoing queue is, and how many messages are held or
+                  dropped by the send retry
+    :Feature:     the time a request takes is now broken down into the four stretches that make it up -- the
+                  entry point, the gateway's own work, the service's own work, and the database -- per route, so
+                  a slow stretch is visible instead of a single total
+    :Feature:     the traffic volume in and out of each service, and at the entry point, is measured
+    :Feature:     the dashboard gains rows for the messaging bus, the time breakdown and the traffic volume
+    :Config:      all observability settings now sit under one name, esquire.observability -- the request-timeline
+                  settings moved under it, and the new measurement settings joined them there
+    :Config:      two settings under the one observability switch: the fine-grained timing detail is off by
+                  default (it is what costs), the traffic-volume counters are on
+    :Refactoring: the bus hook that carries request timelines across the bus now carries measurements as well --
+                  one bus observer instead of two: RodTracerHolder and EsqRodTracer are renamed RodObserverHolder
+                  and EsqRodObserver
+    Components:   common,
+                  messaging,
+                  gateway,
+                  bizTree,
+                  enyMan,
+                  pacMan,
+                  keySmith,
+                  kcMaster,
+                  auKeep,
+                  compose,
+                  k8s
+
+v1.2.11-2607.1019  v1.2.11 -- observability: live measurements for every service on one dashboard
+    :Feature:     every service now publishes its own live measurements -- how many requests it handles and how
+                  long they take, its memory and thread use, and how busy its database connections are -- gathered
+                  onto a single metrics dashboard
+    :Feature:     the login gateway, the identity server, and the database each report their own measurements to
+                  the same dashboard, so the whole running stack is visible in one place
+    :Feature:     the audit writer's own database connections are measured too, not only the services' shared pools
+    :Config:      measurements are off by default and turn on with the one switch per service that also turns on
+                  request timelines -- no cost until asked for
+    :Config:      the local sandbox now runs its database as a container (matching the cluster) with room for more
+                  connections
+    Components:   common, bizTree, enyMan, pacMan, keySmith, kcMaster, gateway, auKeep, dataKeep, compose, k8s
+
+v1.2.11-2607.0922  v1.2.11 -- observability: request timelines cross the messaging bus
+    :Feature:     a request's timeline now continues across the messaging bus -- the service that sends a
+                  message and the service that receives it appear as one timeline, drawn as a send-and-receive
+                  pair
+    :Feature:     work handed to a background worker stays on the same timeline as the request that queued it --
+                  the queued move and the tree-cache update included
+    :Feature:     every request carries one id, whether or not the caller supplied one, and that id names both
+                  the request's timeline and its log lines
+    :Feature:     every recorded step is labelled with the copy of the service that ran it
+    :Feature:     the request/response bus can have its liveness check timed end to end -- the probe and the
+                  reply it draws form one timeline, so the bus itself can be watched
+    :Feature:     the KeyCloak path update is recorded as its own step
+    :Config:      the liveness-check timing added to every service, off by default; switched on for the docker
+                  stack
+    :Refactoring: the shared base library (queue rig, worker pool, taijitu, host identity) moved into its own
+                  module, mir0n-utils; the messaging bus now builds on it alone and carries nothing Esquire
+    Components:   mir0n-utils, 
+                  messaging, 
+                  common, 
+                  gateway, 
+                  bizTree, 
+                  enyMan, 
+                  pacMan, 
+                  keySmith, 
+                  kcMaster,
+                  auKeep
+
+v1.2.11-2607.0813  v1.2.11 -- observability: request tracing across the backend services
+    - each service now records the steps a request takes through it and how long each one lasts, so a
+      single request can be followed from the gateway through every service it reaches -- drawn as one
+      timeline
+    - the recorded steps: read, save, create, delete, move, account transaction, sign-in account
+      changes, audit write
+    - one id names a request's timeline and tags its log lines, so the log viewer and the timeline
+      point at the same request
+    - the timeline stays clean: the security framework's own internal steps are left out, and the
+      platform's every-few-seconds health checks make no timeline at all
+    - it is opt-in and off by default, switched on together with the log-viewing stack
+    :Feature:     request tracing across the gateway and every backend service, drawn as one timeline
+    :Feature:     the gateway settles one id per request that names both its timeline and its log lines
+    :Config:      the trace collector and store added to the docker stack and the local Kubernetes
+                  charts, both opt-in and off by default
+    :Config:      tracing settings added to every service and to every service chart, off by default
+    :Fix:         the aspect weaver now ships with the common library, so every service records its
+                  steps from the first start
+    Components:   common,
+                  gateway,
+                  biztree,
+                  enyMan,
+                  pacMan,
+                  keySmith,
+                  kcMaster,
+                  auKeep,
+                  dataKeep,
+                  k8s,
+                  compose
+
+v1.2.11-2607.0701  v1.2.11 -- observability: search every service's logs in one place
+    - a ready-to-run log-viewing stack (a log viewer over a log store, fed by a log collector) can now be
+      started alongside the local docker stack and the local Kubernetes cluster
+    - each service's logs are gathered automatically and searched from one screen; a single request can be
+      followed across services by its request / correlation id
+    - it is opt-in and off by default -- it does not start with the everyday stack (a docker "o11y" profile,
+      and a separate start script on Kubernetes) -- so the normal stack stays light
+    :Feature:     one screen to search all the services' logs, with per-request follow-through
+    :Config:      the log-viewing stack added to the docker compose stack and as local Kubernetes charts,
+                  both opt-in and off by default
+
 v1.2.10-2607.0416  v1.2.10 -- OKE high-availability deployment (two of each service)
     - each backend service now runs as two copies on OKE, placed on separate machines, so
       losing one machine keeps the site running

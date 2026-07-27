@@ -1,5 +1,82 @@
 Esquire BizTree Microservice
 
+07/23/2026 mir0n  v1.2.11 -- homework: fix/resolve issues found in the fresh-mind audit
+taijitu.Monad
+  - javadoc: a handler exception in MessageHandlerHub.dispatch is swallowed (logged + outcome=failed) and the batch
+    commits, not rolled back -- a should-not-happen condition; the night-watch SWAP heals any resulting cache/DB drift
+resources/application.yml
+  - actuator moved to a separate internal-only management port 8090 (MANAGEMENT_SERVER_PORT), off the public
+    server.port
+
+07/17/2026 mir0n  v1.2.11 -- T11 cleanup: fix/resolve issues noted during development
+resources/application.yml
+  - the tracing and metrics switches each read their own env var (ESQ_TRACING_ENABLED / ESQ_METRICS_ENABLED),
+    defaulting to the ESQ_OBSERVABILITY_ENABLED umbrella, so either pillar can be turned off on its own (I41)
+
+07/15/2026 mir0n  v1.2.11 -- T11 cleanup: fix/resolve issues noted during development
+messaging.EntityBusAdapter
+  - the entity-broadcast receive worker stamps MDC via EsqContextHolder.applyMessage(event) and clears in a
+    finally, so its INFO log line carries the message's correlationId / requestId (I10)
+taijitu.Monad
+  - the cache-apply worker stamps MDC via EsqContextHolder.applyMessage(requestId, correlationId) and clears in a
+    finally, so its log lines carry the message ids (I10)
+
+07/11/2026 mir0n  v1.2.11 -- business meters (O1/T8): what the cache did with each broadcast
+access.MessageHandlerHub
+  - dispatch() counts esq.biz.tree.handler.dispatch.total (tags event, kind, outcome = handled|no-handler|
+    no-payload|failed) in a finally; the body is unchanged. The FAILED value is the point: the catch here SWALLOWS
+    the handler exception, so a handler that blows up leaves the cache silently stale while the bus still counts
+    the message as received
+cache.BizTreeCacheLoader
+  - load() counts esq.biz.tree.rebuild.total (tag outcome) in a finally; it still throws so the caller can
+    transition its monad to FAILED
+resources/application.yml
+  - esquire.observability.metrics.business-enabled: ${ESQ_METRICS_BUSINESS:true} added -- the sub-switch gating
+    the esq.biz.* domain tier under the observability master
+
+07/11/2026 mir0n  v1.2.11 -- observability config namespace + the metrics sub-switches (O1/T5)
+resources/application.yml
+  - the tracing keys move under the umbrella: esquire.tracing.* -> esquire.observability.tracing.*
+    (otlp-endpoint, sampling-ratio, marks-enabled, excluded-paths, msg-bus-alive-trace);
+    esquire.observability.metrics.* sub-switches added -- histograms-enabled (ESQ_METRICS_HISTOGRAMS,
+    default false) and bandwidth-enabled (ESQ_METRICS_BANDWIDTH, default true)
+
+07/10/2026 mir0n  v1.2.11 -- metrics foundation (O1): Prometheus export + the observability umbrella switch
+resources/application.yml
+  - esquire.observability.enabled (ESQ_OBSERVABILITY_ENABLED) now gates BOTH tracing and metrics (replaces the
+    tracing-only switch); management.prometheus.metrics.export.enabled + endpoints.web.exposure.include prometheus added
+
+07/09/2026 mir0n  v1.2.11 -- distributed tracing (O2/T3): the cache apply continues the producer's trace
+access.IBizTreeDirector
+  - onRodEvent() captures the traceparent (EsqAsyncTrace.capture) and passes it on; onEntityBroadcast()
+    signature gains a traceparent parameter (last)
+access.legacy.BizTreeDirectorLegacy
+  - onEntityBroadcast() signature gains a traceparent parameter (unused: the legacy apply is synchronous on the
+    receive thread); the H2 apply wrapped in EsqTraceMark.around("esq.svc.cache", "cache apply", ...)
+taijitu.Monad
+  - the H2 apply runs inside EsqAsyncTrace.continueIn(item.traceparent(), item.correlationId(),
+    "cache apply", ...)
+resources/application.yml
+  - esquire.tracing.msg-bus-alive-trace: ${ESQ_MSG_BUS_ALIVE_TRACE:false} added
+
+
+07/08/2026 mir0n  v1.2.11 -- distributed tracing (O2): trace marks on the tree reads
+controller.BizTreeController
+  - @EsqTraced on the four GET reads (esq.svc.tree / node / subtree / path) -- marked here, at the REST entry
+    point, so a cache-served read is traced whichever director is wired; POST /esq-sweep is not marked
+service.impl.BizTreeService
+  - @EsqTraced on esquire / esquireEntityNode / esquirePath / esquireSubtree (esq.svc.tree / node / path / subtree)
+BizTreeApplication
+  - @Import(TracingConfig.class): the common distributed-tracing wiring
+resources/application.yml
+  - esquire.tracing block (enabled / otlp-endpoint / sampling-ratio / marks-enabled / excluded-paths) with
+    the ESQ_TRACING_* env overrides; management.tracing.enabled mirrors esquire.tracing.enabled
+k8s chart esquire-biztree/values.yaml
+  - tracing block (enabled "false" / otlpEndpoint / samplingRatio / marksEnabled / excludedPaths) --
+    opt-in, off by default
+k8s chart esquire-biztree/templates/configmap.yaml
+  - ESQ_TRACING_ENABLED / ESQ_OTLP_ENDPOINT / ESQ_TRACING_SAMPLING_RATIO / ESQ_TRACING_MARKS_ENABLED /
+    ESQ_TRACING_EXCLUDED_PATHS rendered from .Values.tracing
 
 06/29/2026 mir0n  v1.2.10 -- R6 cache-load opt-out + H2 query cap; R1-R5 env wiring
 cache.BizTreeCacheLoader

@@ -1,0 +1,67 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 472" font-family="Calibri, Segoe UI, sans-serif">
+  <defs>
+    <marker id="arw" markerUnits="userSpaceOnUse" markerWidth="12" markerHeight="9" refX="10" refY="4.5" orient="auto">
+      <path d="M0,0 L10,4.5 L0,9 Z" fill="#6ca43d"/>
+    </marker>
+  </defs>
+  <style>
+    .svc{fill:#5b9bd5;stroke:#41719c;stroke-width:1.5}
+    .svct{fill:#ffffff;font-weight:bold;font-size:15px}
+    .chan{fill:#e2efda;stroke:#6ca43d;stroke-width:1.5}
+    .chant{fill:#375623;font-weight:bold;font-size:14px}
+    .chansub{fill:#548235;font-size:11.5px}
+    .kc{fill:#ffd966;stroke:#bf9000;stroke-width:1.5}
+    .kct{fill:#523c00;font-weight:bold;font-size:15px}
+    .edge{stroke:#6ca43d;stroke-width:1.8;fill:none;marker-end:url(#arw)}
+    .el{fill:#2b2b2b;font-size:12px}
+    .title{fill:#1f3864;font-size:18px;font-weight:bold}
+    .stk1{fill:#9ec3e6;stroke:#5a8bc0;stroke-width:1}
+    .stk2{fill:#c5daf0;stroke:#7ba7d4;stroke-width:1}
+    .xn{fill:#dbe9f7;font-size:11px;font-weight:bold}
+    .cap{fill:#404040;font-size:12.5px}
+    .c1{fill:#ffffff;font-size:11px}
+  </style>
+
+  <text class="title" x="20" y="30">The esq2025 -&gt; KeyCloak sync collaboration</text>
+
+  <!-- publishers -->
+  <rect class="stk2" x="47" y="89" width="150" height="54" rx="6"/><rect class="stk1" x="44" y="92" width="150" height="54" rx="6"/>
+  <rect class="svc" x="40" y="96"  width="150" height="54" rx="6"/><text class="svct" x="115" y="123" text-anchor="middle">keySmith</text><text class="c1" x="115" y="140" text-anchor="middle">access profile</text><text class="xn" x="184" y="111" text-anchor="end">xN</text>
+  <rect class="stk2" x="47" y="241" width="150" height="54" rx="6"/><rect class="stk1" x="44" y="244" width="150" height="54" rx="6"/>
+  <rect class="svc" x="40" y="248" width="150" height="54" rx="6"/><text class="svct" x="115" y="275" text-anchor="middle">enyMan</text><text class="c1" x="115" y="292" text-anchor="middle">entity + move</text><text class="xn" x="184" y="263" text-anchor="end">xN</text>
+
+  <!-- channels -->
+  <rect class="chan" x="380" y="92"  width="200" height="60" rx="6"/><text class="chant" x="480" y="117" text-anchor="middle">IAM request bus (URQ)</text><text class="chansub" x="480" y="136" text-anchor="middle">authoritative command path</text>
+  <rect class="chan" x="380" y="246" width="200" height="60" rx="6"/><text class="chant" x="480" y="271" text-anchor="middle">entity broadcast topic</text><text class="chansub" x="480" y="290" text-anchor="middle">safety-net (race-8c)</text>
+
+  <!-- kcMaster + KeyCloak -->
+  <rect class="stk2" x="707" y="163" width="150" height="60" rx="6"/><rect class="stk1" x="704" y="166" width="150" height="60" rx="6"/>
+  <rect class="svc" x="700" y="170" width="150" height="60" rx="6"/><text class="svct" x="775" y="195" text-anchor="middle">kcMaster</text><text class="c1" x="775" y="213" text-anchor="middle">the only KC writer</text><text class="xn" x="844" y="185" text-anchor="end">xN</text>
+  <rect class="kc"  x="878" y="170" width="104" height="60" rx="6"/><text class="kct" x="930" y="205" text-anchor="middle">KeyCloak</text>
+
+  <!-- edges publishers -> channels -->
+  <line class="edge" x1="190" y1="120" x2="376" y2="120"/>
+  <text class="el" x="284" y="112" text-anchor="middle">CREATE / UPDATE / DELETE</text>
+
+  <line class="edge" x1="190" y1="262" x2="376" y2="140"/>
+  <text class="el" x="292" y="196" text-anchor="middle">UPDATE_PATH</text>
+
+  <line class="edge" x1="190" y1="278" x2="376" y2="278"/>
+  <text class="el" x="284" y="270" text-anchor="middle">UPDATE_PATH (copy)</text>
+
+  <!-- edges channels -> kcMaster -->
+  <line class="edge" x1="580" y1="126" x2="700" y2="188"/>
+  <text class="el" x="646" y="140" text-anchor="middle">authoritative</text>
+
+  <line class="edge" x1="580" y1="272" x2="700" y2="214"/>
+  <text class="el" x="640" y="268" text-anchor="middle">KcPathBuffer</text>
+
+  <!-- kcMaster -> KeyCloak -->
+  <line class="edge" x1="850" y1="200" x2="874" y2="200"/>
+
+  <rect x="20" y="356" width="962" height="96" rx="6" fill="#f2f6fb" stroke="#c9d6e5"/>
+  <text class="cap" x="34" y="378">kcMaster consumes BOTH channels and is the single writer to KeyCloak, so KeyCloak state has one authority.</text>
+  <text class="cap" x="34" y="396">The URQ is authoritative; the broadcast copy only parks a moved path when the KC user does not exist yet (create-while-move).</text>
+  <text class="cap" x="34" y="420"><tspan font-weight="bold" fill="#1f3864">Redundancy (xN):</tspan> all three services run at N replicas. A URQ is competing-consumed by ONE kcMaster and its reply routes</text>
+  <text class="cap" x="34" y="438">back to the originating instance by rod-id; the entity topic instead fans out to EVERY kcMaster replica, each with its own KcPathBuffer.</text>
+</svg>

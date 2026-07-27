@@ -1,0 +1,86 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 682" font-family="Calibri, Segoe UI, sans-serif">
+  <defs>
+    <marker id="arw" markerUnits="userSpaceOnUse" markerWidth="12" markerHeight="9" refX="10" refY="4.5" orient="auto">
+      <path d="M0,0 L10,4.5 L0,9 Z" fill="#6ca43d"/>
+    </marker>
+    <marker id="arwo" markerUnits="userSpaceOnUse" markerWidth="12" markerHeight="9" refX="10" refY="4.5" orient="auto">
+      <path d="M0,0 L10,4.5 L0,9 Z" fill="#ffffff" stroke="#6ca43d" stroke-width="1.2"/>
+    </marker>
+  </defs>
+  <style>
+    .hdr{fill:#5b9bd5;stroke:#41719c;stroke-width:1.5}
+    .hdrtxt{fill:#ffffff;font-weight:bold;font-size:14px}
+    .life{stroke:#5592c9;stroke-width:1.2;stroke-dasharray:4,3}
+    .msg{stroke:#6ca43d;stroke-width:1.7;fill:none;marker-end:url(#arw)}
+    .ret{stroke:#6ca43d;stroke-width:1.3;fill:none;stroke-dasharray:6,3;marker-end:url(#arwo)}
+    .mt{fill:#2b2b2b;font-size:12.5px}
+    .note{fill:#fff3cd;stroke:#e0c068;stroke-width:1}
+    .nt{fill:#5b4a00;font-size:12px}
+    .title{fill:#1f3864;font-size:18px;font-weight:bold}
+    .stk1{fill:#9ec3e6;stroke:#5a8bc0;stroke-width:1}
+    .stk2{fill:#c5daf0;stroke:#7ba7d4;stroke-width:1}
+    .xn{fill:#dbe9f7;font-size:10px}
+    .leg{fill:#eef2f7;stroke:#c9d6e5;stroke-width:1}
+    .legt{fill:#404040;font-size:11.5px}
+    .legb{fill:#1f3864;font-size:11.5px;font-weight:bold}
+    .div{stroke:#b0b0b0;stroke-width:1.2;stroke-dasharray:7,4}
+    .divbox{fill:#eef2f7;stroke:#b0b0b0;stroke-width:1}
+    .divtxt{fill:#404040;font-size:12px;font-style:italic}
+    .lbl{fill:#41719c;font-size:12.5px;font-weight:bold}
+  </style>
+
+  <text class="title" x="20" y="28">Change person properties -- email / login-id synchronization</text>
+
+  <g>
+    <rect class="hdr" x="20"  y="44" width="140" height="34" rx="5"/><text class="hdrtxt" x="90"  y="66" text-anchor="middle">UI</text><line class="life" x1="90"  y1="78" x2="90"  y2="610"/>
+    <rect class="stk2" x="203" y="34" width="140" height="34" rx="5"/><rect class="stk1" x="199" y="39" width="140" height="34" rx="5"/><rect class="hdr" x="195" y="44" width="140" height="34" rx="5"/><text class="hdrtxt" x="265" y="66" text-anchor="middle">enyMan</text><text class="xn" x="329" y="55" text-anchor="end">xN</text><line class="life" x1="265" y1="78" x2="265" y2="610"/>
+    <rect class="hdr" x="370" y="44" width="140" height="34" rx="5"/><text class="hdrtxt" x="440" y="66" text-anchor="middle">esq2025</text><line class="life" x1="440" y1="78" x2="440" y2="610"/>
+    <rect class="stk2" x="553" y="34" width="140" height="34" rx="5"/><rect class="stk1" x="549" y="39" width="140" height="34" rx="5"/><rect class="hdr" x="545" y="44" width="140" height="34" rx="5"/><text class="hdrtxt" x="615" y="66" text-anchor="middle">keySmith</text><text class="xn" x="679" y="55" text-anchor="end">xN</text><line class="life" x1="615" y1="78" x2="615" y2="610"/>
+    <rect class="stk2" x="728" y="34" width="140" height="34" rx="5"/><rect class="stk1" x="724" y="39" width="140" height="34" rx="5"/><rect class="hdr" x="720" y="44" width="140" height="34" rx="5"/><text class="hdrtxt" x="790" y="66" text-anchor="middle">kcMaster</text><text class="xn" x="854" y="55" text-anchor="end">xN</text><line class="life" x1="790" y1="78" x2="790" y2="610"/>
+    <rect class="hdr" x="895" y="44" width="140" height="34" rx="5"/><text class="hdrtxt" x="965" y="66" text-anchor="middle">KeyCloak</text><line class="life" x1="965" y1="78" x2="965" y2="610"/>
+  </g>
+
+  <text class="lbl" x="20" y="106">A. enyMan keeps esq2025 in sync (person -&gt; access-profile row)</text>
+
+  <line class="msg" x1="90" y1="140" x2="261" y2="140"/>
+  <text class="mt" x="176" y="127" text-anchor="middle">POST /esq-command</text>
+  <text class="mt" x="176" y="136" text-anchor="middle" font-size="11">(person: email, name, ...)</text>
+
+  <line class="msg" x1="265" y1="186" x2="436" y2="186"/>
+  <text class="mt" x="352" y="179" text-anchor="middle">countByEmail (unique?)</text>
+
+  <line class="msg" x1="265" y1="226" x2="436" y2="226"/>
+  <text class="mt" x="352" y="219" text-anchor="middle">update person</text>
+
+  <line class="msg" x1="265" y1="270" x2="436" y2="270"/>
+  <text class="mt" x="352" y="257" text-anchor="middle">UPDATE esq_auth</text>
+  <text class="mt" x="352" y="266" text-anchor="middle" font-size="11">(au_login_id / au_email)</text>
+
+  <line class="div" x1="20" y1="312" x2="1040" y2="312"/>
+  <rect class="divbox" x="330" y="300" width="420" height="24" rx="4"/>
+  <text class="divtxt" x="540" y="316" text-anchor="middle">the KC login / email is a separate leg -- keySmith owns it</text>
+
+  <text class="lbl" x="20" y="350">B. keySmith propagates the credential (login / email) to KeyCloak</text>
+
+  <line class="msg" x1="90" y1="384" x2="611" y2="384"/>
+  <text class="mt" x="350" y="371" text-anchor="middle">POST /esq-key-save</text>
+  <text class="mt" x="350" y="380" text-anchor="middle" font-size="11">{ loginId / email }</text>
+
+  <line class="msg" x1="615" y1="428" x2="444" y2="428"/>
+  <text class="mt" x="528" y="421" text-anchor="middle">update esq_auth</text>
+
+  <line class="msg" x1="615" y1="474" x2="786" y2="474"/>
+  <text class="mt" x="702" y="461" text-anchor="middle">URQ - EVENT_UPDATE</text>
+  <text class="mt" x="702" y="470" text-anchor="middle" font-size="11">{ newLoginId, email }</text>
+
+  <line class="msg" x1="790" y1="518" x2="961" y2="518"/>
+  <text class="mt" x="878" y="511" text-anchor="middle" font-size="11">update username / email</text>
+
+  <rect class="note" x="20" y="548" width="720" height="44" rx="4"/>
+  <text class="nt" x="30" y="566">enyMan keeps the esq_auth row consistent with the person inside esq2025;</text>
+  <text class="nt" x="30" y="582">keySmith is what carries a login / email change on to KeyCloak (the KC username = loginId).</text>
+
+  <rect class="leg" x="20" y="614" width="1020" height="42" rx="5"/>
+  <text class="legt" x="30" y="633"><tspan class="legb">Redundancy:</tspan> enyMan, keySmith and kcMaster run at N replicas (stacked). The keySmith to kcMaster URQ is</text>
+  <text class="legt" x="30" y="649">competing-consumed by any one kcMaster; its reply routes back to the originating instance by rod-id.</text>
+</svg>

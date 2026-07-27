@@ -20,6 +20,7 @@ esqVirtualThreads: "false"        # ESQ_VIRTUAL_THREADS (spring.threads.virtual.
 
 service:
   port: 3006
+  managementPort: 8090   # actuator/management port (F0 A6); probes + MANAGEMENT_SERVER_PORT read this
 
 keycloak:
   # KC serves under HTTP_RELATIVE_PATH=/kc-auth in the infra-kc chart;
@@ -32,7 +33,8 @@ keycloak:
   # cannot drive the KC admin REST API. Matches the compose default.
   adminClientId: esq-kcMaster
   # adminClientSecret -> kc-admin-client-secret Secret, injected as env in the deployment.
-  adminClientSecret: MHgq0Nu69u2uJ2johaK1wxQLMdakELXN
+  # NO chart default: helm-required, set via --set keycloak.adminClientSecret=... at install
+  # (same as the BFF keycloak.clientSecret / gateway exchangeClientSecret secrets).
 
 # path-buffer: in-flight KC path-sync de-dup window.
 pathBuffer:
@@ -46,7 +48,7 @@ kc:
   requestPoolSize: "4"
   requestConcurrency: "1"
   responsePublisherPoolSize: "0"
-  # producer send-retry on the KC R&R bus; pre-HA default OFF (OKE). The local-k8s overlay turns it on (block mode).
+  # producer send-retry on the KC R&R bus; pre-HA default OFF; BOTH the local-k8s AND the OKE overlay turn it ON (block mode).
   sendRetry: "false"
   sendRetryBackoff: "1,2,5,5"
   sendRetryMaxAttempts: "0"
@@ -70,3 +72,30 @@ logging:
   levelJms: INFO
   developLogPath: /tmp/kcMaster-develop.log
   msgLogPath: /tmp/kcMaster-msg.log
+
+# v1.2.11 O2 distributed tracing (opt-in; the o11y stack + o11y-on.bat enable it). OFF by default.
+observability:
+  # ONE master switch: tracing + metrics together (v1.2.11 O1/O2). Off by default.
+  enabled: "false"
+  # Per-pillar enable (I41). Empty = follow the master `enabled`. Set "false" to run that pillar off:
+  #   tracingEnabled "false" = metrics-only (service-mesh coexistence -- a mesh already traces the wire).
+  tracingEnabled: ""
+  metricsEnabled: ""
+  # Percentile buckets on every latency timer (O1/T5-B). OFF by default -- they cost ~2.3x the
+  # scrape (4,597 -> 10,686 series), paid on every scrape whether or not anyone looks.
+  # NOTE what goes dark WITH them: the exemplar diamonds. The metrics -> trace hop hangs a
+  # trace_id off a BUCKET sample, so with buckets off there is nowhere to attach one -- the hop
+  # is wired but inert. Set true to investigate a percentile or to use that hop.
+  metricsHistograms: "false"
+  # HTTP byte counters (O1/T5-C). Cheap, so ON by default. One knob for BOTH embedded servers.
+  metricsBandwidth: "true"
+  # Business meters (O1/T8): the esq.biz.* domain tier. ON by default; off = every call site a null check.
+  metricsBusiness: "true"
+tracing:
+  otlpEndpoint: http://esquire-infra-otel-collector:4318/v1/traces
+  samplingRatio: "1.0"
+  marksEnabled: "true"
+  # RR liveness heartbeat (TestRequest/HeartBeat) spans -- OFF by default on EVERY target (unified I14):
+  # heartbeats fire every interval, so tracing them floods Tempo; set true per env to debug the RR bus.
+  msgBusAliveTrace: "false"
+  excludedPaths: "/actuator"

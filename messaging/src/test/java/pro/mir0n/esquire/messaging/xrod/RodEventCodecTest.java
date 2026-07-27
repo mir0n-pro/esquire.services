@@ -55,6 +55,43 @@ class RodEventCodecTest {
     }
 
     @Test
+    void traceparentRidesTheWireOnAppEventsAndIsNullWhenAbsent() {
+        RodEvent in = new RodEvent(RodEvent.Op.UPDATE, 50, "100", null, 1717000000123L,
+                "0af7651916cd43dd8448eb211c80319c", "req-1", "uid-9", null, BusConstants.MSG_TYPE_AUDIT, Map.of())
+                .withTraceparent("00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01");
+
+        RodEvent out = RodEventCodec.fromProps(RodEventCodec.toProps(in, om,
+                new BusIdentity("audit-bus", "audit", null)), om);
+        assertThat(out.traceparent()).isEqualTo("00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01");
+
+        // no traceparent set -> the wire carries none, and the decoded event has none.
+        RodEvent bare = new RodEvent(RodEvent.Op.UPDATE, 50, "100", null, 1L,
+                "crl-x", "req-x", "uid-x", null, BusConstants.MSG_TYPE_AUDIT, Map.of());
+        Map<String, Object> props = RodEventCodec.toProps(bare, om, new BusIdentity("audit-bus", "audit", null));
+        assertThat(props).doesNotContainKey(BusConstants.FIELD_TRACEPARENT);
+        assertThat(RodEventCodec.fromProps(props, om).traceparent()).isNull();
+    }
+
+    @Test
+    void traceparentRidesTheWireOnSessionEventsForTheRrAliveRoundTrip() {
+        // a TRACED RR liveness message (TestRequest) must carry its traceparent on the wire so the SERVER's
+        // HeartBeat reply -- and the CLIENT's receipt -- nest into the same round-trip trace.
+        String tp = "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01";
+        RodEvent testReq = RodEvent.testRequest("0af7651916cd43dd8448eb211c80319c", "client.0").withTraceparent(tp);
+
+        Map<String, Object> props = RodEventCodec.toProps(testReq, om, new BusIdentity("esquire.rr", "rr", "client.0"));
+        assertThat(props).containsEntry(BusConstants.FIELD_TRACEPARENT, tp);
+        RodEvent out = RodEventCodec.fromProps(props, om);
+        assertThat(out.isSession()).isTrue();
+        assertThat(out.traceparent()).isEqualTo(tp);
+
+        // an UNtraced heartbeat (the default) carries no traceparent on the wire.
+        RodEvent bareHb = RodEvent.heartbeat("crl-x", null, "server.0");
+        Map<String, Object> hbProps = RodEventCodec.toProps(bareHb, om, new BusIdentity("esquire.rr", "rr", "server.0"));
+        assertThat(hbProps).doesNotContainKey(BusConstants.FIELD_TRACEPARENT);
+    }
+
+    @Test
     void deleteRoundTripHasEmptyBodyAndKeepsSubId() {
         RodEvent in = new RodEvent(RodEvent.Op.DELETE, 988, "200", "777", 5L,
                 "crl-2", "req-2", null, null, BusConstants.MSG_TYPE_AUDIT, Map.of());

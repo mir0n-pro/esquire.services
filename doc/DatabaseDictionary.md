@@ -3,10 +3,13 @@
 # Esquire Database Dictionary
 
 Covers all persistent tables in **Esq2025** — the Esquire relational store (Oracle and Postgres).
-Does not cover the H2 in-memory cache (ESQ_TREE_MONAD / ESQ_TREE_DANOM), which is documented in the
-[Navigation — H2 In-Memory Cache](#7-navigation--h2-in-memory-cache) section below.
+The H2 in-memory cache (ESQ_TREE_MONAD / ESQ_TREE_DANOM) is not part of that store; it is held inside
+the bizTree service and is described separately in
+[Navigation — H2 In-Memory Cache](#7-navigation--h2-in-memory-cache) below.
 
-Source scripts: `esquire.db.seed / postgres|oracle / create`
+Source scripts: `esquire.db.seed / postgres|oracle /` — `create` (tables, keys and indexes),
+`create.log` (the audit-log tables, deployable on their own), `dedup` and `patch`
+(optional overlays and forward migrations), `fill` (seed data).
 
 ---
 
@@ -251,7 +254,10 @@ Primary key: `EP_PK`
 |---|---|---|---|
 | EP_PK | BIGINT | NUMBER(16,0) | Entity primary key (equals org_pk / usr_pk / acc_pk) |
 | EP_ET_PK | INT | NUMBER(5,0) | Entity kind (equals org_et_pk / usr_et_pk / acc_et_pk) |
-| EP_PATH | VARCHAR(4000) | VARCHAR2(4000) | Entity path string (e.g. /1/100/200) |
+| EP_PATH | VARCHAR(4000) | VARCHAR2(4000) | Entity path string — the PK chain from the root, dot-separated, with a trailing dot (root `1.`, a child of it `1.2.`, its child `1.2.3.`) |
+
+Index: `ESQ_EP_PATH_I` on `EP_PATH` — serves both the tree-scoped read (every user's own branch) and the
+subtree rewrite performed by a move.
 
 ---
 
@@ -389,7 +395,7 @@ Foreign key: `PAR_ET_PK` -> ESQ_ENTITY_TYPE
 | PAR_ET_PK | INT | NUMBER(5,0) | Entity kind this parameter belongs to -> ESQ_ENTITY_TYPE |
 | PAR_NAME | VARCHAR(25) | VARCHAR2(25) | Parameter name (field key) |
 | PAR_DESC | VARCHAR(50) | VARCHAR2(50) | Parameter description |
-| PAR_TYPE | VARCHAR(25) | VARCHAR2(25) | Value type: STRING, NUMBER, DATE, DATETIME, LIST, IMAGE, HREF |
+| PAR_TYPE | VARCHAR(25) | VARCHAR2(25) | Value type, lower-case, default `string`: `string`, `text`, `flag`, `number`, `date`, `datetime`, `tablist`, `tabstring`, `href`, `image` (enforced by the `ESQ_PAR_TYPE_CC` check) |
 | PAR_LABEL | VARCHAR(25) | VARCHAR2(25) | UI field label |
 | PAR_READWRITE | SMALLINT | NUMBER(5,0) | Access bitmap: 0=hidden, 1=read-only, 3=editable |
 | PAR_LAYER | INT | NUMBER(5,0) | UI tab number |
@@ -550,7 +556,7 @@ Foreign keys:
 ## 7. Navigation — H2 In-Memory Cache
 
 Under the **bizTree** service's embedded, memory-only H2 database the entity tree is held in
-**two equal tables — `ESQ_TREE_MONAD` and `ESQ_TREE_DANOM`**.See [H2BizTree.md](H2BizTree.md) for more details.
+**two equal tables — `ESQ_TREE_MONAD` and `ESQ_TREE_DANOM`**. See the [H2 storage-layer appendix in Esquire.BizTree.md](Esquire.BizTree.md#appendix----the-h2-storage-layer) for more details.
 
 ### ESQ_TREE_MONAD / ESQ_TREE_DANOM
 
@@ -602,7 +608,7 @@ Foreign keys:
 | ATR_CONV_RATE | NUMERIC(12,6) | NUMBER(12,6) | Conversion rate applied (incoming / posted) |
 | ATR_AMT | NUMERIC(16,3) | NUMBER(16,3) | Amount posted to account (positive = credit, negative = debit) |
 | ATR_PREV_BALANCE | NUMERIC(16,3) | NUMBER(16,3) | Account balance immediately before this transaction |
-| ATR_TS | TIMESTAMP | TIMESTAMP | Transaction timestamp |
+| ATR_TS | TIMESTAMP | TIMESTAMP | Transaction timestamp (UTC; set by the DB default when the row is created, like the `*_CREATED_TS` columns) |
 | ATR_DESC | VARCHAR(512) | VARCHAR2(512) | Transaction description |
 | ATR_REF_CODE | VARCHAR(512) | VARCHAR2(512) | Reference code 1 |
 | ATR_REF_CODE2 | VARCHAR(512) | VARCHAR2(512) | Reference code 2 |

@@ -35,13 +35,36 @@ esq:
       circuit-breaker:
         timeout-seconds:        ${GW_CB_TIMEOUT_S:10}      # default per-route call deadline
         slow-timeout-seconds:   ${GW_CB_SLOW_TIMEOUT_S:30} # move / acct / create routes
-        sliding-window:         ${GW_CB_WINDOW:20}
+        # COUNT_BASED = the last N calls; TIME_BASED = the last N seconds. TIME_BASED because a count
+        # window never forgets on a QUIET route: /esq-enode's "last 20 calls" can span minutes, so a
+        # verdict formed in one burst was still being enforced in the next run. sliding-window is the
+        # size -- calls when COUNT_BASED, SECONDS when TIME_BASED.
+        sliding-window-type:    ${GW_CB_WINDOW_TYPE:TIME_BASED}
+        sliding-window:         ${GW_CB_WINDOW:30}
         minimum-calls:          ${GW_CB_MIN_CALLS:10}
         failure-rate:           ${GW_CB_FAILURE_RATE:50}
         slow-call-rate:         ${GW_CB_SLOW_RATE:100}
         slow-call-seconds:      ${GW_CB_SLOW_DURATION_S:8}
         open-wait-seconds:      ${GW_CB_OPEN_WAIT_S:10}
-        half-open-calls:        ${GW_CB_HALFOPEN_CALLS:5}
+        # The HALF_OPEN probe window: the breaker permits this many calls and refuses the rest. At the
+        # old value of 5 a start-up burst of ~70 got 5 probes and ~65 x 503 -- recovery WAS the outage.
+        half-open-calls:        ${GW_CB_HALFOPEN_CALLS:20}
+      # The cap on CONCURRENT in-flight calls per BREAKER. Spring Cloud adds one whether or not you ask;
+      # left unnamed it ran at the library default of 25 and REJECTED the 26th caller -- and the breaker
+      # counted that rejection as a backend failure, so a burst on a healthy route opened the breaker (T10).
+      #
+      # It is a BACKSTOP, never the primary limiter: concurrency is really bounded by the httpclient pool
+      # above, which QUEUES. So it is DERIVED from that pool rather than fixed -- max-connections x
+      # queue-per-connection. A fixed number silently becomes the primary limiter as soon as demand grows
+      # past it, and then sheds work the system could have served. A hand-picked 100 did exactly that: a
+      # breaker fronts SEVERAL routes (enyman-cb = /esq-cmd + -save + -del + -tree), so their concurrency
+      # ADDS UP (64+32+32 = 128 > 100) -- and whether it shed at all depended on the REPLICA COUNT.
+      #
+      # max-concurrent-calls: 0 = derive (16 x pool). Set a positive number only to override deliberately.
+      bulkhead:
+        max-concurrent-calls:   ${GW_BULKHEAD_MAX_CONCURRENT:0}
+        queue-per-connection:   ${GW_BULKHEAD_QUEUE_PER_CONN:16}
+        max-wait-ms:            ${GW_BULKHEAD_MAX_WAIT_MS:0}   # 0 = shed at once; never block the event loop
       retry:
         # Retry is configured PER ROUTE (per command), not by a shared method gate
         # -- the read/write split in Esquire is per command, and HTTP method is the
@@ -59,6 +82,37 @@ esq:
         write:
           attempts: ${GW_RETRY_WRITE:1}
 esquire:
+  # Observability umbrella (v1.2.11 O1/O2) via common.ObservabilityConfig: ONE master switch gates BOTH
+  # tracing and metrics -- a service never has one without the other. Off by default = zero cost; the
+  # collector endpoint + sampling ratio are set per environment (compose / k8s).
+  observability:
+    enabled: ${ESQ_OBSERVABILITY_ENABLED:false}
+    tracing:
+      # the TRACING pillar on/off (I41). Defaults to the master; set OFF (ESQ_TRACING_ENABLED=false) to run
+      # metrics-only -- service-mesh coexistence (a mesh already traces the wire, so avoid double-tracing).
+      enabled: ${ESQ_TRACING_ENABLED:${ESQ_OBSERVABILITY_ENABLED:false}}
+      otlp-endpoint: ${ESQ_OTLP_ENDPOINT:http://localhost:4318/v1/traces}
+      sampling-ratio: ${ESQ_TRACING_SAMPLING_RATIO:1.0}
+      marks-enabled: ${ESQ_TRACING_MARKS_ENABLED:true}
+      excluded-paths: ${ESQ_TRACING_EXCLUDED_PATHS:/actuator}
+      # opt-in RR liveness round-trip trace (TestRequest -> HeartBeat); off by default (heartbeats are frequent)
+      msg-bus-alive-trace: ${ESQ_MSG_BUS_ALIVE_TRACE:false}
+    metrics:
+      # the METRICS pillar on/off (symmetry with tracing.enabled). Defaults to the master; OFF = traces-only.
+      enabled: ${ESQ_METRICS_ENABLED:${ESQ_OBSERVABILITY_ENABLED:false}}
+      # percentile buckets on the extra latency timers (O1/T5-B). THE EXPENSIVE ONE (~+73% series), so opt-in;
+      # off still leaves count/sum/max, so the avg panels stay populated. TWO things go dark with it OFF and
+      # nothing else turns them on: the p95/p99 panels (they read the _bucket series) AND the metric->trace
+      # exemplars (a trace id hangs off a bucket sample -- no buckets, no carrier, the metrics->trace hop is
+      # inert). o11y-on sets it (ESQ_METRICS_HISTOGRAMS=true); a bare ESQ_OBSERVABILITY_ENABLED=true leaves both dark.
+      histograms-enabled: ${ESQ_METRICS_HISTOGRAMS:false}
+      # HTTP byte counters (O1/T5-C). Cheap, so ON by default. ONE knob for BOTH embedded servers: Esquire
+      # turns on Tomcat's MBean registry (servlet services) or Reactor Netty's metrics (the gateway) as needed.
+      bandwidth-enabled: ${ESQ_METRICS_BANDWIDTH:true}
+      # Business meters (O1/T8): the esq.biz.* domain tier -- what a service DOES, not how it runs. ON by
+      # default: measured at 1.25% of the series and a few tens of ns per call, against work that is orders of
+      # magnitude dearer. Off drops every esq.biz.* call site to a null check -- the lever for a hot-path run.
+      business-enabled: ${ESQ_METRICS_BUSINESS:true}
   gateway:
     service-metrics:
       enabled: ${GW_SERVICE_METRICS_ENABLED:false} # Control whether to collect metrics for the gateway on backend services
@@ -548,17 +602,31 @@ logging:
   develop:
     log-path: ${DEVELOP_LOG_PATH:logs/gateway-develop.log}
 management:
+  # Actuator listens on a SEPARATE, internal-only port (8090), NOT the public server.port -- Prometheus and the
+  # k8s probes hit 8090 in-cluster while the ingress exposes only the main port, so /actuator is unreachable from
+  # the internet (audit F0 A6; mir0n 2026-07-20). Override with MANAGEMENT_SERVER_PORT.
+  server:
+    port: ${MANAGEMENT_SERVER_PORT:8090}
+  # The Micrometer-Tracing bridge and Prometheus metrics export are gated PER PILLAR: management.tracing.enabled
+  # follows esquire.observability.tracing.enabled (the span bridge), management.prometheus.metrics.export.enabled
+  # follows esquire.observability.metrics.enabled (the Prometheus registry+scrape). Each sub-switch defaults to
+  # the master esquire.observability.enabled. The OTel exporter + sampler + meter registry are declared explicitly
+  # by common.ObservabilityConfig. Set ESQ_TRACING_ENABLED=false to run metrics-only (service-mesh coexistence).
+  tracing:
+    enabled: ${ESQ_TRACING_ENABLED:${ESQ_OBSERVABILITY_ENABLED:false}}
+  prometheus:
+    metrics:
+      export:
+        enabled: ${ESQ_METRICS_ENABLED:${ESQ_OBSERVABILITY_ENABLED:false}}
   endpoints:
     web:
       exposure:
-        include: health,info
+        include: health,info,prometheus
   health:
     redis:
       enabled: false
-endpoint:
+  endpoint:
     health:
-      db:
-        enabled: false
       probes:
-        enabled: true
+        enabled: true               # expose the liveness + readiness health groups
       show-details: always        

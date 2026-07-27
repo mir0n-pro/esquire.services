@@ -18,6 +18,7 @@ springProfilesActive: console
 service:
   type: ClusterIP
   port: 8080
+  managementPort: 8090   # actuator/management port (F0 A6); probes + MANAGEMENT_SERVER_PORT read this
   lbPort: 8080         # service port, aligned to container port (no LB tier)
 
 keycloak:
@@ -70,3 +71,30 @@ logging:
   levelMir0n: DEBUG
   levelDevelop: DEBUG
   developLogPath: /tmp/gateway-develop.log
+
+# v1.2.11 O2 distributed tracing (opt-in; the o11y stack + o11y-on.bat enable it). OFF by default.
+observability:
+  # ONE master switch: tracing + metrics together (v1.2.11 O1/O2). Off by default.
+  enabled: "false"
+  # Per-pillar enable (I41). Empty = follow the master `enabled`. Set "false" to run that pillar off:
+  #   tracingEnabled "false" = metrics-only (service-mesh coexistence -- a mesh already traces the wire).
+  tracingEnabled: ""
+  metricsEnabled: ""
+  # Percentile buckets on every latency timer (O1/T5-B). OFF by default -- they cost ~2.3x the
+  # scrape (4,597 -> 10,686 series), paid on every scrape whether or not anyone looks.
+  # NOTE what goes dark WITH them: the exemplar diamonds. The metrics -> trace hop hangs a
+  # trace_id off a BUCKET sample, so with buckets off there is nowhere to attach one -- the hop
+  # is wired but inert. Set true to investigate a percentile or to use that hop.
+  metricsHistograms: "false"
+  # HTTP byte counters (O1/T5-C). Cheap, so ON by default. One knob for BOTH embedded servers.
+  metricsBandwidth: "true"
+  # Business meters (O1/T8): the esq.biz.* domain tier. ON by default; off = every call site a null check.
+  metricsBusiness: "true"
+tracing:
+  otlpEndpoint: http://esquire-infra-otel-collector:4318/v1/traces
+  samplingRatio: "1.0"
+  marksEnabled: "true"
+  # RR liveness heartbeat (TestRequest/HeartBeat) spans -- OFF by default on EVERY target (unified I14):
+  # heartbeats fire every interval, so tracing them floods Tempo; set true per env to debug the RR bus.
+  msgBusAliveTrace: "false"
+  excludedPaths: "/actuator"

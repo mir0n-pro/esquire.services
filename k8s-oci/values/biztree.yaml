@@ -7,6 +7,10 @@ image:
 # Activates 'console' profile in logback-spring.xml; develop/msg loggers go to stdout
 springProfilesActive: console,dev-postgres,cache-h2
 
+# actuator/management probe port (F0 A6); set here to keep the OKE overlay in sync with the chart default (RF3)
+service:
+  managementPort: 8090
+
 # db.password passed via --set
 db:
   vendor: dev-postgres
@@ -17,9 +21,9 @@ db:
 
 # Console-only logging in prod (LOG_OUTPUT=console requires logback support)
 logging:
-  levelRoot: WARN
+  levelRoot: ERROR
   levelSf: WARN
-  levelMir0n: INFO
+  levelMir0n: ERROR
   levelDevelop: "OFF"
   levelMsg: "OFF"
 

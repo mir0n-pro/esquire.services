@@ -31,11 +31,31 @@
  * 07/01/2026 mir0n  the receive/apply pool is now the common WorkerPool: the inline 3-way executor + Semaphore +
  *                   drain-on-shutdown lift out; poolSize / poolMode read from receiver-pool.size / receiver-pool.mode
  *                   (platform | virtual | virtual-per-task via WorkerPool.Mode.of); shutdown() calls pool.shutdown
+ * 07/09/2026 mir0n  v1.2.11 -- transmit() stamps the W3C traceparent on the caller's thread for non-session
+ *                   events (o11y.RodTracerHolder.tracer().outbound()); the receive path runs the pool worker
+ *                   inside inbound() and, on a rod that tracesAliveRoundTrip() with the tracer's aliveTrace() on,
+ *                   wraps onReceiveSessn in aliveInbound(); tracesAliveRoundTrip() (false) and
+ *                   aliveMsgLabel(String) added
+ * 07/11/2026 mir0n  v1.2.11 -- the tracer holder is repointed to o11y.RodObserverHolder (one observer, two views:
+ *                   .tracer() / .meters()). The bus METERS are emitted from the same seams the tracer already owns:
+ *                   onSendSuccess -> sent(), onSendError -> error(..,"send"), the receive worker -> received() /
+ *                   error(..,"receive"), and send() times the whole dispatch into sendDuration() in a finally.
+ *                   runEngine registers the feed-depth gauge (registerFeedDepth(meterBusId(), meterSlotId(),
+ *                   feed::size)). Session (heartbeat) events are excluded from every meter. meterBusId() /
+ *                   meterSlotId() added (the identity's bus / slot, or the rod name when it has no identity)
+ * 07/14/2026 mir0n  feedAwaitMs read from params (feed-await-ms, default BoundedQueueRig.DEFAULT_AWAIT_TIMEOUT_MS)
+ *                   and applied to the feed via setPutAwaitMs in buildEngine -- <= 0 holds the producer on a
+ *                   full feed instead of discarding the event
+ * 07/15/2026 mir0n  v1.2.11 T11 -- runEngine() calls RodObserverHolder.noteFeedDepthAgainstNoop() when the
+ *                   observer is still NOOP at feed-depth registration, arming the ordering tripwire (I11)
  */
 package pro.mir0n.esquire.messaging.xrod.impl;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
+import pro.mir0n.esquire.messaging.o11y.IRodObserver;
+import pro.mir0n.esquire.messaging.o11y.RodObserverHolder;
+import pro.mir0n.esquire.messaging.BusConstants;
 import pro.mir0n.esquire.messaging.catalog.Role;
 import pro.mir0n.esquire.messaging.catalog.XRodParams;
 import pro.mir0n.esquire.messaging.transport.BusIdentity;
@@ -82,6 +102,9 @@ public abstract class AXRod implements IXRod {
     protected RodPublisher publisher;           // the transport leg when 'outbound' is a RodPublisher (encode-once + throwing dispatch); null otherwise
     protected List<ISessionSublayer> sendSublayers = List.of();   // the session sublayers (built by the factory); ticked on idle()
     private int feedCapacity;
+    // How long transmit() waits on a FULL feed before the event is DISCARDED. <= 0 = wait forever
+    // (backpressure, never drop) -- what a leg whose every message must be processed asks for.
+    private long feedAwaitMs;
     protected BoundedQueueRig<RodEvent> feed;
 
     // --- the bounded worker pool (the receive leg; also runs the in-process writer / the async publisher) ---
@@ -115,6 +138,8 @@ public abstract class AXRod implements IXRod {
         this.identity          = params != null
                 ? new BusIdentity(params.busId(), params.slotId(), params.rodId()) : null;
         this.feedCapacity      = params != null ? Math.max(1, params.feedCapacityOr(DEFAULT_FEED_CAPACITY)) : DEFAULT_FEED_CAPACITY;
+        this.feedAwaitMs       = params != null
+                ? params.feedAwaitMsOr(BoundedQueueRig.DEFAULT_AWAIT_TIMEOUT_MS) : BoundedQueueRig.DEFAULT_AWAIT_TIMEOUT_MS;
         this.poolSize          = params != null ? params.receiverPoolSizeOr(DEFAULT_POOL_SIZE) : DEFAULT_POOL_SIZE;   // 0 = per-task uncapped
         // the receiver-pool thread model (platform | virtual | virtual-per-task); XRod.init overrides it for an
         // async-publish pool (publisher-pool).
@@ -171,6 +196,7 @@ public abstract class AXRod implements IXRod {
         if (outbound != null) {
             this.feed = new BoundedQueueRig<>(this::send);
             feed.init(name, devLog, feedCapacity);   // allocate; do NOT pump until runEngine()
+            feed.setPutAwaitMs(feedAwaitMs);         // <= 0 -> hold the producer rather than discard the event
         }
         if (devLog != null) {
             devLog.info("x-rod[{}]: built (transmit={}, pool={}, poolSize={}, {})",
@@ -200,6 +226,15 @@ public abstract class AXRod implements IXRod {
         if (feed != null) {
             feed.start();
             feed.setProcessing(true);
+            // register the feed-depth gauge at the start phase: the observer is set by now (its registrar runs at
+            // context refresh, before this lifecycle start), so the gauge binds to the real registry, not NOOP. (O1/T5)
+            // Tripwire: if the observer is STILL NOOP here, either o11y is off (fine) or the start-vs-registrar
+            // ordering regressed (bad) -- latch it; RodObserverHolder.setObserver reports the bad case, staying
+            // silent for o11y-off (where setObserver never runs).
+            if (RodObserverHolder.observer() == IRodObserver.NOOP) {
+                RodObserverHolder.noteFeedDepthAgainstNoop();
+            }
+            RodObserverHolder.meters().registerFeedDepth(meterBusId(), meterSlotId(), feed::size);
         }
         for (ISessionSublayer sublayer : sendSublayers) {
             sublayer.start();
@@ -260,7 +295,16 @@ public abstract class AXRod implements IXRod {
                     + "(its role does not produce); a publisher adapter is wired to a non-producing bus");
         }
         if (event != null) {
-            feed.put(event);   // the feed worker (sendOut) logs the TX msg-audit, then hands to the outbound
+            // Stamp the W3C traceparent HERE, on the caller's thread, where the producer's span is current (the
+            // feed worker that later sends runs on its own thread, where it is not). Non-session only -- heartbeats
+            // are never traced. NOOP tracer / no current span -> null -> the event is unchanged. (O2/T3)
+            RodEvent ev = event.isSession()
+                    ? event
+                    : event.withTraceparent(RodObserverHolder.tracer().outbound(event.correlationId(),
+                            identity != null ? identity.busId() : name,
+                            identity != null ? identity.slotId() : null,
+                            identity != null ? identity.rodId() : null));   // this SENDING instance
+            feed.put(ev);   // the feed worker (sendOut) logs the TX msg-audit, then hands to the outbound
         }
         // event == null is the publisher-leg probe -- the leg exists, so just ignore it.
     }
@@ -275,10 +319,17 @@ public abstract class AXRod implements IXRod {
         // stamped event, so every re-send carries it; an event that already carries one (a decoded relay) keeps it.
         RodEvent ev = e.applMsgId() != null ? e : e.withApplMsgId(UUID.randomUUID().toString());
         beforeSend(ev);
-        if (publisher == null) {
-            sendInProcess(ev);           // a non-transport outbound (in-process sink, or the pooled-async this::receive)
-        } else {
-            sendOut(ev);           // an application event with send-retry on
+        long t0 = System.nanoTime();   // time the owned send -> messaging.send.duration (O1/T5)
+        try {
+            if (publisher == null) {
+                sendInProcess(ev);           // a non-transport outbound (in-process sink, or the pooled-async this::receive)
+            } else {
+                sendOut(ev);           // an application event with send-retry on
+            }
+        } finally {
+            if (!ev.isSession()) {
+                RodObserverHolder.meters().sendDuration(meterBusId(), meterSlotId(), ev.msgType(), System.nanoTime() - t0);
+            }
         }
     }
 
@@ -352,7 +403,19 @@ public abstract class AXRod implements IXRod {
             }
         } else if (event.isSession()) {
             // a SESSION (alive) message -- handled internally by the session layer, NEVER forwarded to the app worker.
-            onReceiveSessn(event);
+            // On an RR bus with msg-bus-alive-trace on, wrap the handling in a CONSUMER span so the liveness
+            // round-trip is observable -- a SERVER's HeartBeat reply, sent from inside onReceiveSessn, nests under
+            // it; a CLIENT's HeartBeat receipt is the closing leg. Otherwise handle it plain, exactly as before. (T3)
+            if (RodObserverHolder.tracer().aliveTrace() && tracesAliveRoundTrip() && event.traceparent() != null) {
+                RodObserverHolder.tracer().aliveInbound(event.traceparent(), event.correlationId(),
+                        identity != null ? identity.busId() : name,
+                        "receive " + aliveMsgLabel(event.msgType()),
+                        event.rodId(),                                     // the SENDER's rod-id
+                        identity != null ? identity.rodId() : null,       // this RECEIVING instance
+                        () -> onReceiveSessn(event));
+            } else {
+                onReceiveSessn(event);
+            }
             msgAudit.log("RX", event);
         } else {
             // hand the apply to the worker pool -- WorkerPool applies the concurrency bound and runs it. Log RX when
@@ -360,9 +423,19 @@ public abstract class AXRod implements IXRod {
             // rejected it during shutdown) -> drop.
             boolean accepted = pool.submit(() -> {
                 msgAudit.log("RX", event);
+                RodObserverHolder.meters().received(meterBusId(), meterSlotId(), event.msgType());   // bus receive meter (O1/T5)
                 try {
-                    poolWorker.accept(event);
+                    // Continue the producer's trace across the bus hop: run the app worker inside a consumer span
+                    // whose trace id is the correlationId (authoritative) and whose parent is the wire traceparent,
+                    // so the worker's marks nest in the originating request's trace. NOOP tracer -> runs plain. (O2/T3)
+                    RodObserverHolder.tracer().inbound(event.traceparent(), event.correlationId(),
+                            identity != null ? identity.busId() : name,
+                            identity != null ? identity.slotId() : null,
+                            event.rodId(),   // the SENDER's rod-id (who produced the message)
+                            identity != null ? identity.rodId() : null,   // this RECEIVING instance
+                            () -> poolWorker.accept(event));
                 } catch (Throwable t) {
+                    RodObserverHolder.meters().error(meterBusId(), meterSlotId(), event.msgType(), "receive");   // (O1/T5)
                     if (devLog != null) {
                         devLog.error("x-rod[{}]: receive worker failed for kind={}, entityId={}, subId={}: {}",
                                 name, event.kind(), event.entityId(), event.subId(), t.getMessage(), t);
@@ -389,6 +462,9 @@ public abstract class AXRod implements IXRod {
      *  the producer leg sent, send-retry clears any hold). */
     protected void onSendSuccess(RodEvent ev) {
         msgAudit.log("TX", ev);
+        if (!ev.isSession()) {
+            RodObserverHolder.meters().sent(meterBusId(), meterSlotId(), ev.msgType());   // bus send meter (O1/T5)
+        }
         for (ISessionSublayer sublayer : sendSublayers) {
             sublayer.onSendSuccess(ev);
         }
@@ -398,6 +474,9 @@ public abstract class AXRod implements IXRod {
      *  send-retry decides) -- the non-null return is the encoded unit to re-dispatch (send-retry's); null = stop. */
     protected Object onSendError(RodEvent ev, Object msg, Throwable error) {
         msgAudit.err(ev, error);
+        if (!ev.isSession()) {
+            RodObserverHolder.meters().error(meterBusId(), meterSlotId(), ev.msgType(), "send");   // (O1/T5)
+        }
         Object result = null;
         for (ISessionSublayer sublayer : sendSublayers) {
             Object r = sublayer.onSendError(ev, msg, error);
@@ -413,6 +492,28 @@ public abstract class AXRod implements IXRod {
         for (ISessionSublayer sublayer : sendSublayers) {
             sublayer.onReceiveSessn(ev);
         }
+    }
+
+    /** Whether this rod traces the RR liveness round-trip when msg-bus-alive-trace is on. Base rods do NOT -- a
+     *  one-way bus's alive is a lone heartbeat, not a round-trip; {@link XRodRR} overrides this to true. (T3) */
+    protected boolean tracesAliveRoundTrip() {
+        return false;
+    }
+
+    // --- meter tag helpers (O1/T5): bus-id / slot-id for the messaging.* meters; identity may be null on an
+    //     unnamed leg -> fall back to the rod name. ---
+    private String meterBusId() {
+        return identity != null ? identity.busId() : name;
+    }
+    private String meterSlotId() {
+        return identity != null ? identity.slotId() : null;
+    }
+
+    /** Human label for a session message type in a trace span -- "TestRequest" / "HeartBeat". */
+    protected static String aliveMsgLabel(String msgType) {
+        return BusConstants.MSG_TYPE_TEST_REQUEST.equals(msgType) ? "TestRequest"
+             : BusConstants.MSG_TYPE_HEARTBEAT.equals(msgType) ? "HeartBeat"
+             : "alive";
     }
 
     /** This leg's session health: the worst across the sublayers (the alive metric; the rest read UNKNOWN-benign). */

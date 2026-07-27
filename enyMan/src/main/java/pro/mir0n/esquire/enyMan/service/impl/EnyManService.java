@@ -66,6 +66,16 @@
  * 06/23/2026 mir0n  EsqMsgConstants references -> messaging.BusConstants (wire) + common.EsqConstants (app)
  * 07/02/2026 mir0n  write commands (esquireCommandSave / New / Delete / Move) read requestId via
  *                   requireRequestId() -- X-Request-ID mandatory on writes
+ * 07/08/2026 mir0n  @EsqTraced on esquireCommand / Save / New / Delete / Move / Tree
+ *                   (esq.svc.read / save / create / delete / move / tree)
+ * 07/09/2026 mir0n  v1.2.11 -- esquireCommandMove() captures the traceparent (EsqAsyncTrace.capture) inside the
+ *                   traced move and passes it to MoveCommandItem
+ * 07/11/2026 mir0n  v1.2.11 O1/T8 -- esquireCommandNew / Delete / Move count esq.biz.entity.ops.total (tags op,
+ *                   kind, outcome = ok|denied|error) via the private meterEntityOp(); each body is wrapped in
+ *                   try / catch (PermissionDeniedException, rethrown) / finally, otherwise unchanged. For a MOVE
+ *                   this records that the command was ACCEPTED, not that the move succeeded -- the work happens
+ *                   off-request on the queue worker (esq.biz.move.processed / failed)
+ * 07/23/2026 mir0n  v1.2.11 -- submitReconcileIfInMove passes the create's cid/rid onto the CreateReconcileItem
  */
 
 package pro.mir0n.esquire.enyMan.service.impl;
@@ -73,6 +83,9 @@ package pro.mir0n.esquire.enyMan.service.impl;
 import jakarta.persistence.EntityManager;
 import java.util.*;
 
+import pro.mir0n.esquire.backend.o11y.EsqAsyncTrace;
+import pro.mir0n.esquire.backend.o11y.EsqBizMeters;
+import pro.mir0n.esquire.backend.o11y.EsqTraced;
 import lombok.extern.slf4j.Slf4j;
 import pro.mir0n.esquire.backend.dto.*;
 import pro.mir0n.esquire.backend.dto.access.EsqPermission;
@@ -143,6 +156,7 @@ public class EnyManService  extends AEnyManService {
     }
 
     @Override
+    @EsqTraced(name = "esq.svc.read", label = "read entity")
     public EsqEntity esquireCommand(int kind, String id, String cmd) {
         EsqEntity ret = null;
         EsqObjectKind eek = EsqObjectKindStorage.getInstance().get(kind);
@@ -159,6 +173,7 @@ public class EnyManService  extends AEnyManService {
     }
 
     @Override
+    @EsqTraced(name = "esq.svc.save", label = "save entity")
     public EsqEntity esquireCommandSave(int kind, String id, String cmd, Map<String, Object> fields, List<String> roles) {
         EsqEntity ret = null;
         String requestId = RequestContextUtils.requireRequestId();
@@ -203,137 +218,190 @@ public class EnyManService  extends AEnyManService {
     }
 
     @Override
+    @EsqTraced(name = "esq.svc.create", label = "create entity")
     public EsqEntity esquireCommandNew(int kind, String parentId, String cmd, Map<String, Object> fields, List<String> roles) {
         EsqEntity ret = null;
-        String requestId = RequestContextUtils.requireRequestId();
-        EsqObjectKind eek = EsqObjectKindStorage.getInstance().get(kind);
-        if (!eek.isOrg() && !eek.isUsr() && !eek.isAcct()) {
-            throw new ResourceNotFoundException("esquireCommandNew", "kind", String.valueOf(kind));
-        }
-        int k = eek.getId();
-        Map<Integer, EsqPermission> permissions = EsqRolesStorage.getInstance().findAdminPermissions(roles);
-        boolean permitted = false;
-        if (permissions != null) {
-            permitted = EsqRolesStorage.getInstance().isAdminCmdPermitted(
-                permissions.get(k),
-                EsqRolesStorage.AdminCmd.CREATE
-            );
-        }
-        String correlationId = RequestContextUtils.getCorrelationId();
-        if (eek.isOrg()) {
-            if (permitted) {
-                ret = orgService.esquireCommandNew(k, parentId, cmd, fields, roles);
-                publishEntityEvent(ret, k, BusConstants.EVENT_CREATE, requestId, correlationId, fields);
-                submitReconcileIfInMove(ret, k, parentId, fields);
+        String outcome = OUTCOME_ERROR;   // esq.biz.entity.ops.total -- see meterEntityOp()
+        try {
+            String requestId = RequestContextUtils.requireRequestId();
+            EsqObjectKind eek = EsqObjectKindStorage.getInstance().get(kind);
+            if (!eek.isOrg() && !eek.isUsr() && !eek.isAcct()) {
+                throw new ResourceNotFoundException("esquireCommandNew", "kind", String.valueOf(kind));
             }
-        } else if (eek.isUsr()) {
-            if (permitted) {
-                ret = usrService.esquireCommandNew(k, parentId, cmd, fields, roles);
-                publishEntityEvent(ret, k, BusConstants.EVENT_CREATE, requestId, correlationId, fields);
-                submitReconcileIfInMove(ret, k, parentId, fields);
+            int k = eek.getId();
+            Map<Integer, EsqPermission> permissions = EsqRolesStorage.getInstance().findAdminPermissions(roles);
+            boolean permitted = false;
+            if (permissions != null) {
+                permitted = EsqRolesStorage.getInstance().isAdminCmdPermitted(
+                    permissions.get(k),
+                    EsqRolesStorage.AdminCmd.CREATE
+                );
             }
-        } else if (eek.isAcct()) {
-            if (permitted) {
-                ret = acctService.esquireCommandNew(k, parentId, cmd, fields, roles);
-                publishEntityEvent(ret, k, BusConstants.EVENT_CREATE, requestId, correlationId, fields);
-                submitReconcileIfInMove(ret, k, parentId, fields);
+            String correlationId = RequestContextUtils.getCorrelationId();
+            if (eek.isOrg()) {
+                if (permitted) {
+                    ret = orgService.esquireCommandNew(k, parentId, cmd, fields, roles);
+                    publishEntityEvent(ret, k, BusConstants.EVENT_CREATE, requestId, correlationId, fields);
+                    submitReconcileIfInMove(ret, k, parentId, requestId, correlationId, fields);
+                }
+            } else if (eek.isUsr()) {
+                if (permitted) {
+                    ret = usrService.esquireCommandNew(k, parentId, cmd, fields, roles);
+                    publishEntityEvent(ret, k, BusConstants.EVENT_CREATE, requestId, correlationId, fields);
+                    submitReconcileIfInMove(ret, k, parentId, requestId, correlationId, fields);
+                }
+            } else if (eek.isAcct()) {
+                if (permitted) {
+                    ret = acctService.esquireCommandNew(k, parentId, cmd, fields, roles);
+                    publishEntityEvent(ret, k, BusConstants.EVENT_CREATE, requestId, correlationId, fields);
+                    submitReconcileIfInMove(ret, k, parentId, requestId, correlationId, fields);
+                }
             }
-        }
-        if (ret == null && !permitted) {
-            throw new PermissionDeniedException(eek.getTitle(), "create");
+            if (ret == null && !permitted) {
+                throw new PermissionDeniedException(eek.getTitle(), "create");
+            }
+            outcome = OUTCOME_OK;
+        } catch (PermissionDeniedException e) {
+            outcome = OUTCOME_DENIED;
+            throw e;
+        } finally {
+            meterEntityOp("create", kind, outcome);
         }
         return ret;
+    }
+
+    // esq.biz.entity.ops.total (O1/T8 phase B) -- the domain result of a create / delete / move, which no free
+    // meter can see: http.server.requests knows the endpoint and the HTTP status, not WHICH KIND of entity was
+    // acted on nor whether the refusal was an authorization decision. Both tag values are bounded: op is one of
+    // three literals, kind is the EsqObjectKind code (a small fixed set), outcome is ok | denied | error.
+    private static final String OUTCOME_OK = "ok";
+    private static final String OUTCOME_DENIED = "denied";
+    private static final String OUTCOME_ERROR = "error";
+
+    private static void meterEntityOp(String op, int kind, String outcome) {
+        EsqBizMeters.count("esq.biz.entity.ops.total",
+                "op", op, "kind", String.valueOf(kind), "outcome", outcome);
     }
 
     // v1.2.6 Goal 3: when a move is in flight, enqueue a path-reconciliation task for the
     // CREATE we just broadcast. The worker will re-read the parent path on its turn and emit
     // an EVENT_UPDATE_PATH to bizTree if it sees drift. Gated by the validateCreateDuringMove
     // toggle so the race-8b sim can flip the fix off and prove the race still fires.
-    private void submitReconcileIfInMove(EsqEntity entity, int kind, String parentId, Map<String, Object> fields) {
+    private void submitReconcileIfInMove(EsqEntity entity, int kind, String parentId,
+                                         String requestId, String correlationId, Map<String, Object> fields) {
         if (entity == null || !validateCreateDuringMove || !moveQueue.inMove()) {
             return;
         }
         Object pathObj = (fields != null) ? fields.get(EsqConstants.TEXT_PATH) : null;
         String pathAtPublish = (pathObj instanceof String s) ? s : null;
-        moveQueue.submitReconcile(new CreateReconcileItem(entity.getId(), kind, parentId, pathAtPublish));
+        // Carry THIS create's cid/rid onto the reconcile item so the worker stamps them itself and the
+        // path-fix broadcast stays correlated to the create it repairs (no leftover-MDC dependency).
+        moveQueue.submitReconcile(new CreateReconcileItem(entity.getId(), kind, parentId, pathAtPublish,
+                correlationId, requestId));
     }
 
     @Override
+    @EsqTraced(name = "esq.svc.delete", label = "delete entity")
     public void esquireCommandDelete(int kind, String id, String cmd, List<String> roles) {
-        String requestId = RequestContextUtils.requireRequestId();
-        EsqObjectKind eek = EsqObjectKindStorage.getInstance().get(kind);
-        if (!eek.isOrg() && !eek.isUsr()) {
-            throw new ResourceNotFoundException("esquireCommandDelete", "kind", String.valueOf(kind));
-        }
-        int k = eek.getId();
-        Map<Integer, EsqPermission> permissions = EsqRolesStorage.getInstance().findAdminPermissions(roles);
-        boolean permitted = false;
-        if (permissions != null) {
-            permitted = EsqRolesStorage.getInstance().isAdminCmdPermitted(
-                permissions.get(k),
-                EsqRolesStorage.AdminCmd.DELETE
-            );
-        }
-        if (!permitted) {
-            throw new PermissionDeniedException(eek.getTitle(), "delete");
-        }
-        String correlationId = RequestContextUtils.getCorrelationId();
-        if (eek.isOrg()) {
-            orgService.esquireCommandDelete(k, id, cmd, roles);
-            publishDeleteEvent(id, k, BusConstants.EVENT_DELETE, requestId, correlationId);
-        } else if (eek.isUsr()) {
-            usrService.esquireCommandDelete(k, id, cmd, roles);
-            publishDeleteEvent(id, k, BusConstants.EVENT_DELETE, requestId, correlationId);
+        String outcome = OUTCOME_ERROR;   // esq.biz.entity.ops.total -- see meterEntityOp()
+        try {
+            String requestId = RequestContextUtils.requireRequestId();
+            EsqObjectKind eek = EsqObjectKindStorage.getInstance().get(kind);
+            if (!eek.isOrg() && !eek.isUsr()) {
+                throw new ResourceNotFoundException("esquireCommandDelete", "kind", String.valueOf(kind));
+            }
+            int k = eek.getId();
+            Map<Integer, EsqPermission> permissions = EsqRolesStorage.getInstance().findAdminPermissions(roles);
+            boolean permitted = false;
+            if (permissions != null) {
+                permitted = EsqRolesStorage.getInstance().isAdminCmdPermitted(
+                    permissions.get(k),
+                    EsqRolesStorage.AdminCmd.DELETE
+                );
+            }
+            if (!permitted) {
+                throw new PermissionDeniedException(eek.getTitle(), "delete");
+            }
+            String correlationId = RequestContextUtils.getCorrelationId();
+            if (eek.isOrg()) {
+                orgService.esquireCommandDelete(k, id, cmd, roles);
+                publishDeleteEvent(id, k, BusConstants.EVENT_DELETE, requestId, correlationId);
+            } else if (eek.isUsr()) {
+                usrService.esquireCommandDelete(k, id, cmd, roles);
+                publishDeleteEvent(id, k, BusConstants.EVENT_DELETE, requestId, correlationId);
+            }
+            outcome = OUTCOME_OK;
+        } catch (PermissionDeniedException e) {
+            outcome = OUTCOME_DENIED;
+            throw e;
+        } finally {
+            meterEntityOp("delete", kind, outcome);
         }
     }
 
     @Override
+    @EsqTraced(name = "esq.svc.move", label = "move entity")
     public List<EsqMoveRecord> esquireCommandMove(int kind, String id, String distId, List<String> roles) {
         // v1.2.6 Goal 3: pre-checks stay on the request thread; actual move work happens on the
         // move-queue worker thread. Method returns null because the records are no longer surfaced
         // to the caller -- /esq-move's controller returns 202 Accepted at submit time.
-        String requestId = RequestContextUtils.requireRequestId();
-        String rootPath = RequestContextUtils.getRootPath();
-        String uid      = RequestContextUtils.getUid();
-        EsqObjectKind eek = EsqObjectKindStorage.getInstance().get(kind);
-        int k = eek.getId();
-        if (!eek.isOrg() && !eek.isUsr()) {
-            throw new ResourceNotFoundException("esquireDictionary", "kind", String.valueOf(kind));
+        // The move is ASYNC: this records whether the command was ACCEPTED (pre-checks passed, handed to the
+        // queue), not whether the move itself succeeded -- that is esq.biz.move.processed/failed, counted on the
+        // worker where the work actually happens.
+        String outcome = OUTCOME_ERROR;
+        try {
+            String requestId = RequestContextUtils.requireRequestId();
+            String rootPath = RequestContextUtils.getRootPath();
+            String uid      = RequestContextUtils.getUid();
+            EsqObjectKind eek = EsqObjectKindStorage.getInstance().get(kind);
+            int k = eek.getId();
+            if (!eek.isOrg() && !eek.isUsr()) {
+                throw new ResourceNotFoundException("esquireDictionary", "kind", String.valueOf(kind));
+            }
+            Map<Integer, EsqPermission> permissions = EsqRolesStorage.getInstance().findAdminPermissions(roles);
+            boolean permitted = false;
+            if (permissions != null) {
+                permitted = EsqRolesStorage.getInstance().isAdminCmdPermitted(
+                    permissions.get(k),
+                    EsqRolesStorage.AdminCmd.UPDATE
+                );
+            }
+            if (!permitted) {
+                throw new PermissionDeniedException(eek.getTitle(), "move");
+            }
+            if (eek.isUsr() && id.equals(uid)) {
+                throw new PermissionDeniedException(eek.getTitle(), "cannot move yourself");
+            }
+            EsqOrgJpa destOrg = orgRepository.detailOrg(distId, rootPath);
+            if (destOrg == null) {
+                throw new ResourceNotFoundException("esq-move", "dist_id", distId);
+            }
+            boolean destPermitted = false;
+            if (permissions != null) {
+                destPermitted = EsqRolesStorage.getInstance().isAdminCmdPermitted(
+                    permissions.get(destOrg.getKind()),
+                    EsqRolesStorage.AdminCmd.UPDATE
+                );
+            }
+            if (!destPermitted) {
+                throw new PermissionDeniedException(destOrg.getName(), "move target");
+            }
+            // Pre-checks passed -- hand the command to the move queue. Counter increments here so a
+            // CREATE that runs the next instant already sees inMove() == true.
+            String correlationId = RequestContextUtils.getCorrelationId();
+            // Capture the trace HERE (inside the traced "move entity", span current) so the async move worker can
+            // continue this request's trace when it later emits the move broadcasts (O2/T3). null when tracing off.
+            String traceparent = EsqAsyncTrace.capture(correlationId);
+            moveQueue.submitMove(new MoveCommandItem(k, id, distId, rootPath, uid, roles, requestId, correlationId, traceparent));
+            devLog.debug("esquireCommandMove: submitted to move queue (kind={}, id={}, distId={}, queueSize={})",
+                    k, id, distId, moveQueue.queueSize());
+            outcome = OUTCOME_OK;
+        } catch (PermissionDeniedException e) {
+            outcome = OUTCOME_DENIED;
+            throw e;
+        } finally {
+            meterEntityOp("move", kind, outcome);
         }
-        Map<Integer, EsqPermission> permissions = EsqRolesStorage.getInstance().findAdminPermissions(roles);
-        boolean permitted = false;
-        if (permissions != null) {
-            permitted = EsqRolesStorage.getInstance().isAdminCmdPermitted(
-                permissions.get(k),
-                EsqRolesStorage.AdminCmd.UPDATE
-            );
-        }
-        if (!permitted) {
-            throw new PermissionDeniedException(eek.getTitle(), "move");
-        }
-        if (eek.isUsr() && id.equals(uid)) {
-            throw new PermissionDeniedException(eek.getTitle(), "cannot move yourself");
-        }
-        EsqOrgJpa destOrg = orgRepository.detailOrg(distId, rootPath);
-        if (destOrg == null) {
-            throw new ResourceNotFoundException("esq-move", "dist_id", distId);
-        }
-        boolean destPermitted = false;
-        if (permissions != null) {
-            destPermitted = EsqRolesStorage.getInstance().isAdminCmdPermitted(
-                permissions.get(destOrg.getKind()),
-                EsqRolesStorage.AdminCmd.UPDATE
-            );
-        }
-        if (!destPermitted) {
-            throw new PermissionDeniedException(destOrg.getName(), "move target");
-        }
-        // Pre-checks passed -- hand the command to the move queue. Counter increments here so a
-        // CREATE that runs the next instant already sees inMove() == true.
-        String correlationId = RequestContextUtils.getCorrelationId();
-        moveQueue.submitMove(new MoveCommandItem(k, id, distId, rootPath, uid, roles, requestId, correlationId));
-        devLog.debug("esquireCommandMove: submitted to move queue (kind={}, id={}, distId={}, queueSize={})",
-                k, id, distId, moveQueue.queueSize());
         return null;
     }
 
@@ -370,6 +438,7 @@ public class EnyManService  extends AEnyManService {
     // If broker latency becomes observable in production, promote to @Async with an MDC
     // task decorator to preserve correlationId/requestId in the async thread.
     @Override
+    @EsqTraced(name = "esq.svc.tree", label = "read subtree")
     public List<EsqTreeNode> esquireCommandTree(int kind, String id) {
         String rootPath = RequestContextUtils.getRootPath();
         EsqObjectKind eek = EsqObjectKindStorage.getInstance().get(kind);

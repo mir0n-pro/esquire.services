@@ -1,8 +1,9 @@
+# <img src="../favicon.ico" alt="Esquire logo" valign="middle" width="64" height="64"> Esquire Application Frameworks(tm) 2.0
+
 # Esquire Messaging Bus -- Guides (DRAFT)
 
-> DRAFT (2026-07-02). Plain-language companions to the reference spec (`Esquire.MessagingBus.md`), which is dense
-> on purpose. These guides say the same things in simpler words -- a friendly on-ramp, not a second spec. Final
-> home / structure is settled at sprint end (drafted here per the v1.2.10 Messaging-Bus assessment, `plans/tasks1210.md` 3.6).
+> **DRAFT.** Plain-language companions to the reference spec (`Esquire.MessagingBus.md`), which is dense on
+> purpose. These guides say the same things in simpler words -- a friendly on-ramp, not a second spec.
 
 Three short guides:
 1. **Getting started** -- send and receive your first message in five minutes.

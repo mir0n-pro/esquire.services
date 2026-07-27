@@ -1,5 +1,220 @@
 Esquire Backend common microservice classes
 
+07/23/2026 mir0n  v1.2.11 -- homework: fix/resolve issues found in the fresh-mind audit
+o11y.EsqBizMeters
+  - gauge(): defensive re-check after PENDING.add so a gauge is not stranded by a concurrent setRegistry() drain
+    (idempotent per meter id; zero-cost while off)
+o11y.EsqGauge
+  - javadoc: register() is idempotent per meter id (re-registration keeps the FIRST supplier); safe because gauged
+    objects are process-lifetime singletons, never rebuilt in-process
+o11y.EsqTagCardinalityCap
+  - javadoc: the once-per-id property relies on Micrometer's preFilterIdToMeterMap cache (>= 1.12), so map() is not
+    per-op; and the cap is a best-effort SAFETY BOUND, not an exact quota
+service.MdcFilter
+  - the INCOMING log line is emitted AFTER MDC is populated, so it carries the correlationId / requestId fields
+    like every other line in the request
+
+07/17/2026 mir0n  v1.2.11 -- T11 cleanup: fix/resolve issues noted during development
+o11y.EsqBizMeters
+  - safeTags(): a null tag element is coerced to "null" centrally, so an esq.biz.* meter called from a finally
+    cannot throw over a label (I18); clones only when a null is present
+o11y.EsqRodObserver
+  - no producer->consumer span LINKS by design -- fan-out is drawn consumer-side via the carried traceparent
+    (I36); alive-trace opt-in key under esquire.observability.tracing.*
+o11y.EsqTagCardinalityCap  (new)
+  - a MeterFilter that CAPS the distinct values any esq.biz.* / messaging.* tag may take (I25); past the cap a
+    value collapses to a sentinel, so an unbounded tag is structurally impossible
+o11y.EsqTraceMark
+  - observe() records the WHOLE Throwable hierarchy incl. Error -- the I33 "misses Error" review claim, checked
+    live, is FALSE
+o11y.ObservabilityConfig
+  - the OTLP exporter is wrapped by Boot's default BatchSpanProcessor (bounded queue, drops on overflow, never
+    blocks the request thread) -- the o11y path is not a request-failure mode (I53)
+o11y.W3CTraceContext
+  - isW3cTraceId delegates to common.EsqUtils so the trace-id shape cannot drift (I35); tracestate kept empty by
+    design (I37)
+service.PerformanceAspect
+  - the request-thread test is extracted to isRequestThread() and made the FIRST && operand, so the @RequestScope
+    bean is read only on a request thread (no exception-as-detector)
+
+
+07/15/2026 mir0n  v1.2.11 -- T11 cleanup: fix/resolve issues noted during development
+service.EsqContextHolder
+  - MDC control centralised here (I10): set() now also stamps correlationId / requestId into MDC (the priority
+    path), clear() removes them, and applyMessage(RodEvent) / applyMessage(requestId, correlationId) stamp MDC
+    ONLY -- for a bus worker that has no full context to set. Bus listener workers no longer touch MDC directly
+
+07/11/2026 mir0n  v1.2.11 -- business meters (O1/T8): the esq.biz.* facility, the one cross-cutting meter, the business sub-switch, and ONE switch for every histogram bucket
+o11y.EsqBizMeters  (new)
+  - the shared esq.biz.* meter facility -- the ONE entry point for every business meter, so per-service work stays
+    THIN (a meter name, its tags, and the call site at its own domain seam) and the machinery stays generic in
+    common (D6). count / time / gauge; gauge() delegates to EsqGauge so an esq.biz.* gauge is strongReference'd
+    by construction. STATIC + registrar-backed (the EsqTraceMark shape) -- the only shape that reaches BOTH Spring
+    beans and the new-ed, never-proxied objects (AcctTransactionProcessor*, the taijitu Monad, KeepSqlStore).
+    Registry null while the umbrella is off, so every call is a null check and nothing else. A gauge asked for
+    BEFORE the registry arrives is HELD and registered when it does: a bean's @PostConstruct can run before the
+    registrar, and a gauge() call at that moment would quietly do nothing and the gauge would never exist
+o11y.ObservabilityConfig
+  - esqBizMetersRegistrar() @Bean hands the MeterRegistry to EsqBizMeters, gated by the NEW sub-switch
+    esquire.observability.metrics.business-enabled (default TRUE). Gating the REGISTRAR is what makes off free:
+    no registry reaches the facility, so every esq.biz.* call site in the fleet collapses to a null check.
+    esqLatencyHistograms(): esq.biz.* timers ride histograms-enabled BY PREFIX (a name list would need editing
+    every time a service gains a timer), and http.server.requests moves INTO the gated set -- it was special-cased
+    always-on so p95 would work without asking, and that one clause emitted 1,173 bucket series, 20.5% of the
+    entire scrape, whether or not anyone ever looked at a percentile. ONE switch now governs every bucket in the
+    fleet: off = 4,597 series, on = 10,686. Count/sum/max survive with it off, so the average panels stay
+    populated and only the percentile panels go dark
+storage.EsqRolesStorage
+  - isAdminCmdPermitted() counts esq.biz.perm.check.total (tags cmd = the AdminCmd enum, result = allow|deny):
+    the authorization decision itself, at the one gate every service goes through. The gate sees allow and deny
+    ONLY -- a self-update BYPASSES it entirely (id.equals(uid) short-circuits at the caller), which is why there
+    is no third tag value
+
+07/11/2026 mir0n  v1.2.11 -- trap removal (O1/T7): the weak-reference gauge and the request-scope probe resolved in code
+o11y.EsqGauge  (new)
+  - the ONE place a Micrometer gauge is built. Micrometer holds a gauge's state object WEAKLY: when that state
+    object IS the supplier lambda and nothing else holds it, GC collects it and the gauge reports NaN -- a dead
+    panel, no error, no stack trace. register() always sets strongReference(true), so a caller cannot get it
+    wrong; callers hand over a name, an IntSupplier and tags, and never touch Gauge.builder
+o11y.EsqRodObserver
+  - registerFeedDepth / registerRetryHeld no longer build their gauge: both hand off to EsqGauge.register(),
+    which owns Gauge.builder and always applies strongReference(true). The hand-written strongReference at each
+    call site is gone, and with it the last raw Gauge.builder in the codebase; the io.micrometer Gauge import
+    drops out
+service.PerformanceAspect
+  - the exception is no longer the detector. The aspect asks RequestContextHolder.getRequestAttributes() != null
+    FIRST, and only then whether anyone wants the number; the try / catch (ScopeNotActiveException) is gone, and
+    the @RequestScope bean is never touched on a thread that has no request. The || that caused the 500 is now
+    harmless -- whichever side answers it, the thread is already known to be serving a request
+
+07/11/2026 mir0n  v1.2.11 -- bus meters + latency bands + bandwidth (O1/T5): ONE bus observer, the esq.* latency timers, the HTTP byte counters, ONE config namespace
+o11y.EsqRodObserver  (new -- was EsqRodTracer)
+  - renamed from EsqRodTracer and widened to the ONE bus observer: it now implements o11y.IRodObserver
+    (IRodTracer + IRodMeters), so the SAME object that traces the bus hop also meters it. The ctor takes the
+    Micrometer MeterRegistry alongside the OTel Tracer. The meter side emits messaging.send.total /
+    receive.total / error.total (counters, tagged bus-id / slot / msg-type; error also by leg),
+    messaging.send.duration (timer), messaging.retry.backoff / retry.dropped, and registers the
+    messaging.feed.depth / messaging.retry.held GAUGES. Both gauges are built .strongReference(true): the state
+    object is the supplier lambda itself and nothing else holds it, so Micrometer's default WEAK reference lets
+    it be GC'd and the gauge then reports NaN
+o11y.ObservabilityConfig
+  - ONE config namespace: every key moves under esquire.observability.* (the five tracing @Values now read
+    esquire.observability.tracing.*; no sibling esquire.tracing.* root is left). SUB-SWITCHES under the master,
+    each defaulted so the master alone is enough: esqHttpLatencyHistogram() becomes esqLatencyHistograms(),
+    widened to the esq.* latency timers as well as http.server.requests and now gated by
+    esquire.observability.metrics.histograms-enabled (opt-in, default false); the nested TomcatByteMetrics and
+    NettyByteMetrics (@ConditionalOnClass, so a servlet service takes the first and the reactive gateway the
+    second) are gated by esquire.observability.metrics.bandwidth-enabled (default true): TomcatByteMetrics
+    contributes a LOWEST_PRECEDENCE WebServerFactoryCustomizer re-enabling the Tomcat MBean registry Boot
+    disables (without it tomcat.global.sent/received never exist), NettyByteMetrics a NettyServerCustomizer
+    turning on reactor-netty server metrics with a coarseUri mapper (first path segment only -- the raw uri
+    carries entity ids = unbounded cardinality). esqRodTraceRegistrar() becomes esqRodObserverRegistrar(): it
+    takes the MeterRegistry too and registers ONE EsqRodObserver (trace + meters) into RodObserverHolder
+service.MdcFilter
+  - the two numbers behind the timing headers are now also recorded as Micrometer timers: esq.srv.outer (the
+    whole servlet wall time) and esq.srv.inner (the JPA/DB time PerformanceAspect accumulated for the request =
+    the DB band), tagged by the matched route pattern
+    (HandlerMapping.BEST_MATCHING_PATTERN_ATTRIBUTE). Explicit ctor (RequestPerformance,
+    ObjectProvider<MeterRegistry>); the registry is absent when observability is off and the timers are then
+    not recorded. The X-Capture-Metrics response headers are untouched
+service.PerformanceAspect
+  - the JPA timing is now also collected when observability is on, not only when the caller asked for it with
+    the X-Capture-Metrics header. @RequiredArgsConstructor dropped for an explicit ctor taking
+    (RequestPerformance, ObjectProvider<MeterRegistry>) -- observability-on is resolved ONCE at construction.
+    The request-scope probe (RequestPerformance.isMetricsCaptured) is made FIRST and ALWAYS and the
+    ScopeNotActiveException it raises off-request keeps driving the skip; it must NOT be folded into
+    'observabilityOn || isMetricsCaptured()', because || short-circuits the probe away and the aspect then
+    calls addJpaTime() on an off-request thread (the taijitu cache loader runs JPA on a monad worker)
+pom.xml
+  - reactor-netty-http (provided) added -- the NettyServerCustomizer / HttpServer types ObservabilityConfig
+    compiles against; only the gateway supplies it at runtime
+
+07/10/2026 mir0n  v1.2.11 -- metrics foundation (O1): free JVM/HTTP/pool meters under the observability umbrella
+o11y.ObservabilityConfig
+  - metrics folded onto the tracing umbrella (class was TracingConfig): the Prometheus meter registry is
+    Boot-owned; this config contributes only the policy -- esqCommonMetricTags() (MeterFilter: common tag
+    application=<spring.application.name> on every meter) and esqHttpLatencyHistogram() (MeterFilter:
+    percentile-histogram on http.server.requests so p95 has _bucket series); gate widened to
+    esquire.observability.enabled (one switch for tracing AND metrics)
+pom.xml
+  - micrometer-registry-prometheus (compile) added -- the Prometheus meter registry + the free jvm/http/pool
+    binders on common's classpath; Actuator exposes /actuator/prometheus once the registry bean exists
+
+07/09/2026 mir0n  v1.2.11 -- distributed tracing (O2/T3): the OTel implementation of the bus-hop hook, the async-boundary primitive, the replica badge
+o11y.EsqRodTracer  (new)
+  - the OTel implementation of the messaging-declared o11y.IRodTracer, built on the raw OTel Tracer (not the
+    ObservationRegistry) so each bus leg carries an explicit span kind: outbound() opens a PRODUCER span on the
+    send and returns a traceparent whose TRACE ID is the correlationId (authoritative) and whose span id is that
+    span; inbound() rebuilds the remote parent and runs the consumer worker inside a CONSUMER span, so the
+    worker's marks nest under the producer span in ONE trace. aliveOutbound() / aliveInbound() are the same pair
+    for the RR liveness round-trip (aliveOutbound opens a ROOT trace when the send has no current span -- a
+    CLIENT TestRequest off the heartbeat cadence); newTraceId() mints a fresh W3C-shaped correlation id;
+    aliveTrace() carries the esquire.tracing.msg-bus-alive-trace opt-in, passed to the constructor. Span names
+    carry no instance id -- the collector badges each span with its replica
+o11y.W3CTraceContext  (new)
+  - the shared W3C trace-context helpers used by both the bus-hop tracer (EsqRodTracer) and the async-boundary
+    primitive (EsqAsyncTrace). The trace id is ALWAYS the correlationId (authoritative); a traceparent only
+    carries the parent span id
+o11y.EsqAsyncTrace  (new)
+  - the async-boundary trace primitive. When work is HANDED OFF to another thread (a queue worker) the OTel span
+    does not follow -- only the correlationId travels. capture() grabs the current traceparent on the submitting
+    thread; continueIn() re-establishes it on the worker thread so the worker's spans nest in the SAME trace
+o11y.TracingConfig
+  - esqOtelResource() @Bean added: the OTel resource carries service.name plus service.instance.id
+    (<app>.<instanceNo>); esqRodTraceRegistrar() @Bean registers the EsqRodTracer (carrying the
+    esquire.tracing.msg-bus-alive-trace opt-in) into the messaging o11y.RodTracerHolder hand-off;
+    esqAsyncTraceRegistrar() @Bean hands the ObservationRegistry to EsqAsyncTrace
+o11y.EsqTraceMark
+  - contextualName(label): the span name no longer carries the instance id
+o11y.EsqTracedAspect
+  - contextualName(label): the span name no longer carries the instance id
+
+07/08/2026 mir0n  v1.2.11 -- distributed tracing (O2): the Esquire trace-mark facility
+o11y.EsqTraced  (new)
+  - the Esquire trace-mark annotation: put it on a Spring-managed service method and the method becomes its
+    own span (a child of the request span) via EsqTracedAspect. name = the low-cardinality observation name;
+    label = the span name in the trace. The programmatic twin for non-Spring / final code is
+    EsqTraceMark.around(); both ride the same ObservationRegistry, so ONE gate (TracingConfig's
+    ObservationPredicate) and the ESQ_TRACING_ENABLED master switch govern them together with the HTTP spans
+o11y.EsqTracedAspect  (new)
+  - the aspect that turns @EsqTraced into a span. Around an annotated Spring-managed method it opens an
+    Observation named by the annotation; the shared ObservationRegistry's tracing handler renders it as a span
+    nested in the request trace, and TracingConfig's ObservationPredicate decides whether that span is
+    populated. Our own aspect (not Micrometer's ObservedAspect) so the annotation and its label are Esquire's
+o11y.EsqTraceMark  (new)
+  - the programmatic half of the trace-mark facility: around(name, label, () -> ...) / aroundChecked() wrap a
+    processing step in an Observation the tracing handler renders as a span nested in the request trace. The
+    twin of @EsqTraced, for code Spring AOP cannot proxy (non-bean or final classes) -- the dataKeep
+    RodEventDbWriter apply, and the pacMan acct transaction / transfer processors. Both entry points share the
+    ObservationRegistry handed in by TracingConfig; when tracing is off the registry is NOOP, so the action
+    runs with zero span overhead
+o11y.TracingConfig  (new)
+  - explicit distributed-tracing wiring: the OTLP span exporter (endpoint) and the head sampler declared as
+    explicit @Beans; the Micrometer-Tracing bridge assembles them onto the request observations.
+    esqTracedAspect backs @EsqTraced; esqTraceRegistrar hands the shared ObservationRegistry to EsqTraceMark.
+    Gated by esquire.tracing.enabled (off by default = zero cost); management.tracing.enabled mirrors it.
+    Imported per service
+  - esqObservationGate is ONE ObservationPredicate deciding whether an observation is populated: it governs
+    the esq.* marks (esquire.tracing.marks-enabled) and refuses an http.* SERVER observation whose request
+    path sits under esquire.tracing.excluded-paths (default /actuator), so a health probe never builds a span
+  - requestPath(Observation.Context) reads the path off micrometer's ReceiverContext carrier (HttpServletRequest
+    or reactive ServerHttpRequest), so neither Spring context type is named; isExcluded / parsePrefixes support it
+  - nested SecurityObservationsOff (@Configuration, @ConditionalOnClass) contributes
+    SecurityObservationSettings.noObservations(): Spring Security's filter-chain / authentication /
+    authorization observations are off. Nested + conditional because kcMaster and auKeep carry no
+    spring-security-config, and a @Bean method on TracingConfig would force every importer to resolve that
+    return type
+error.ProblemDetailMill
+  - createProblemDetail(): the incoming correlation id runs through EsqUtils.settleCorrelationId(); the settled
+    value is set on BOTH the traceId and the correlationId problem-detail properties (was: traceId only when no
+    correlation id came in)
+pom.xml
+  - micrometer-tracing-bridge-otel + opentelemetry-exporter-otlp added (compile); spring-boot-autoconfigure
+    added (provided) for the @ConditionalOnProperty on TracingConfig
+  - aspectjweaver added (compile): EsqTracedAspect references org.aspectj.lang.ProceedingJoinPoint, and
+    spring-aspects is provided-only, so a service importing TracingConfig without the AOP starter on its own
+    classpath (gateway / kcMaster / auKeep) failed to create esqTracedAspect (NoClassDefFoundError)
+
 06/27/2026 mir0n  v1.2.10 -- entity dictionary completion flag made thread-safe
 dto.EsqEntityDictionary
   - completed field made volatile -- AEnyManService double-checks it OUTSIDE the lock, so the warm fast-path

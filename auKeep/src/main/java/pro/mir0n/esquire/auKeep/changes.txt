@@ -1,5 +1,57 @@
 Esquire auKeep service
 
+07/23/2026 mir0n  v1.2.11 -- homework: fix/resolve issues found in the fresh-mind audit
+resources/application.yml
+  - actuator moved to a separate internal-only management port 8090 (MANAGEMENT_SERVER_PORT), off the public
+    server.port
+
+07/17/2026 mir0n  v1.2.11 -- T11 cleanup: fix/resolve issues noted during development
+resources/application.yml
+  - the tracing and metrics switches each read their own env var (ESQ_TRACING_ENABLED / ESQ_METRICS_ENABLED),
+    defaulting to the ESQ_OBSERVABILITY_ENABLED umbrella, so either pillar can be turned off on its own (I41)
+
+07/15/2026 mir0n  v1.2.11 -- T11 cleanup: fix/resolve issues noted during development
+messaging.AuditConsumerConfig
+  - wraps the keep applier so the audit consumer stamps MDC via EsqContextHolder.applyMessage(event) before
+    applying and clears in a finally, correlating its log lines to the audited message (I10)
+
+07/11/2026 mir0n  v1.2.11 -- the business-meter sub-switch (O1/T8)
+resources/application.yml
+  - esquire.observability.metrics.business-enabled: ${ESQ_METRICS_BUSINESS:true} added -- the sub-switch gating
+    the esq.biz.* domain tier under the observability master
+
+07/11/2026 mir0n  v1.2.11 -- observability config namespace + the metrics sub-switches (O1/T5)
+resources/application.yml
+  - the tracing keys move under the umbrella: esquire.tracing.* -> esquire.observability.tracing.*
+    (otlp-endpoint, sampling-ratio, marks-enabled, excluded-paths, msg-bus-alive-trace);
+    esquire.observability.metrics.* sub-switches added -- histograms-enabled (ESQ_METRICS_HISTOGRAMS,
+    default false) and bandwidth-enabled (ESQ_METRICS_BANDWIDTH, default true)
+
+07/10/2026 mir0n  v1.2.11 -- metrics foundation (O1): keep-pool meters + the observability umbrella switch
+messaging.AuditConsumerConfig
+  - injects ObjectProvider<MeterRegistry> and hands getIfAvailable() to the KeepApplier, so the keep pool's
+    hikaricp_* meters report when observability is enabled
+resources/application.yml
+  - esquire.observability.enabled (ESQ_OBSERVABILITY_ENABLED) now gates BOTH tracing and metrics (replaces the
+    tracing-only switch); management.prometheus.metrics.export.enabled + endpoints.web.exposure.include prometheus added
+
+07/09/2026 mir0n  v1.2.11 -- the RR liveness round-trip trace knob
+resources/application.yml
+  - esquire.tracing.msg-bus-alive-trace: ${ESQ_MSG_BUS_ALIVE_TRACE:false} added
+
+07/08/2026 mir0n  v1.2.11 -- distributed tracing (O2): tracing wired into auKeep
+AuKeepApplication
+  - @Import(TracingConfig.class): the common distributed-tracing wiring
+resources/application.yml
+  - esquire.tracing block (enabled / otlp-endpoint / sampling-ratio / marks-enabled / excluded-paths) with
+    the ESQ_TRACING_* env overrides; management.tracing.enabled mirrors esquire.tracing.enabled
+k8s chart esquire-aukeep/values.yaml
+  - tracing block (enabled "false" / otlpEndpoint / samplingRatio / marksEnabled / excludedPaths) --
+    opt-in, off by default
+k8s chart esquire-aukeep/templates/configmap.yaml
+  - ESQ_TRACING_ENABLED / ESQ_OTLP_ENDPOINT / ESQ_TRACING_SAMPLING_RATIO / ESQ_TRACING_MARKS_ENABLED /
+    ESQ_TRACING_EXCLUDED_PATHS rendered from .Values.tracing
+
 06/29/2026 mir0n  v1.2.10 -- R6 per-apply query-timeout (keep surface)
 resources/application.yml
   - keep query-timeout-seconds on both keep datasources (ESQ_KEEP_QUERY_TIMEOUT_S, 0 = uncapped, pre-HA default)

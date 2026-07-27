@@ -11,6 +11,7 @@
  *                   then publishing move events + KC URQ, then decrementing the counter.
  *                   No CompletableFuture: handler returns 202 Accepted at submit time and
  *                   does not wait for the worker.
+ * 07/09/2026 mir0n  v1.2.11 -- the record gains a traceparent component (last)
  */
 
 package pro.mir0n.esquire.enyMan.queue;
@@ -30,6 +31,7 @@ public record MoveCommandItem(
         String uid,
         List<String> roles,
         String requestId,
-        String correlationId
+        String correlationId,
+        String traceparent
 ) implements MoveQueueItem {
 }

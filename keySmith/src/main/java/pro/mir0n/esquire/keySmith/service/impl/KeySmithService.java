@@ -47,6 +47,7 @@
  * 06/22/2026 mir0n  KcSyncPublisher field/import -> KcBusAdapter (the merged kc-CLIENT adapter); RodEvent import
  *                   repointed messaging.xrod.RodEvent -> messaging.RodEvent
  * 07/02/2026 mir0n  esquireKeySave reads requestId via requireRequestId() -- X-Request-ID mandatory on writes
+ * 07/08/2026 mir0n  @EsqTraced on esquireKey / esquireKeySave (esq.svc.key.read / esq.svc.key.save)
  */
 
 package pro.mir0n.esquire.keySmith.service.impl;
@@ -60,6 +61,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import pro.mir0n.esquire.backend.o11y.EsqTraced;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.BeanWrapper;
@@ -100,6 +102,7 @@ public class KeySmithService implements IKeySmithService {
     private AuditBusBridge audit;
 
     @Override
+    @EsqTraced(name = "esq.svc.key.read", label = "read access profile")
     public EsqAccessProfile esquireKey(String id) {
         EsqAccessProfile ret = null;
         String rootPath = RequestContextUtils.getRootPath();
@@ -136,6 +139,7 @@ public class KeySmithService implements IKeySmithService {
     }
 
     @Override
+    @EsqTraced(name = "esq.svc.key.save", label = "save access profile")
     public EsqAccessProfile esquireKeySave(String id, Map<String, Object> fields, List<String> roles) {
         EsqAccessProfile ret = null;
         String correlationId = RequestContextUtils.getCorrelationId();

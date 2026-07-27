@@ -20,6 +20,20 @@
     <packaging>jar</packaging>
 
     <dependencies>
+        <!-- esquire-common sits ABOVE the bus: backend.o11y.EsqRodTracer implements the messaging-declared
+             o11y.IRodTracer hook. mir0n-utils is the base of both. -->
+        <dependency>
+            <groupId>pro.mir0n</groupId>
+            <artifactId>mir0n-utils</artifactId>
+            <version>${utils.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>pro.mir0n.esquire</groupId>
+            <artifactId>esquire-messaging</artifactId>
+            <version>${messaging.version}</version>
+        </dependency>
+
 <!--        
         <dependency>
             <groupId>org.jetbrains</groupId>
@@ -51,6 +65,46 @@
         <dependency>
             <groupId>org.springframework</groupId>
             <artifactId>spring-webmvc</artifactId>
+            <scope>provided</scope>
+        </dependency>
+
+        <!-- Netty edge bandwidth (v1.2.11 O1/T5-C): reactor.netty.http.server.HttpServer is needed only to COMPILE
+             the NettyServerCustomizer in ObservabilityConfig (the gateway's byte counters; it runs on Netty, so the
+             Tomcat MBean counters cannot see it). PROVIDED scope: the reactive gateway already supplies
+             reactor-netty at runtime (via spring-cloud-gateway), and the servlet services never have it, so their
+             nested @ConditionalOnClass keeps that config class from ever being loaded. -->
+        <dependency>
+            <groupId>io.projectreactor.netty</groupId>
+            <artifactId>reactor-netty-http</artifactId>
+            <scope>provided</scope>
+        </dependency>
+
+        <!-- Observability (v1.2.11 O2): distributed tracing. Micrometer Tracing bridged to
+             OpenTelemetry, spans exported over OTLP. Wired by EXPLICIT @Bean (TracingConfig);
+             Spring Boot's tracing auto-config is off (management.tracing.enabled=false) and
+             esquire.tracing.enabled gates the whole thing (off by default = zero cost).
+             Compile scope so every service inheriting common gets the tracing bridge at runtime. -->
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-tracing-bridge-otel</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.opentelemetry</groupId>
+            <artifactId>opentelemetry-exporter-otlp</artifactId>
+        </dependency>
+        <!-- Metrics (v1.2.11 O1): the Prometheus meter registry, declared as an EXPLICIT @Bean by
+             ObservabilityConfig (same umbrella as tracing). Compile scope so every service inheriting common
+             gets the registry + the free JVM/HTTP/pool binders; Actuator (present in each service) exposes
+             /actuator/prometheus once the registry bean exists. -->
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-registry-prometheus</artifactId>
+        </dependency>
+        <!-- @ConditionalOnProperty for the explicit tracing config; provided (present at runtime
+             in every Boot service). -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-autoconfigure</artifactId>
             <scope>provided</scope>
         </dependency>
 
@@ -102,6 +156,18 @@
             <groupId>org.springframework</groupId>
             <artifactId>spring-aspects</artifactId>
             <scope>provided</scope>
+        </dependency>
+
+        <!-- aspectjweaver at RUNTIME for every service (v1.2.11 O2): the @EsqTraced aspect
+             (o11y.EsqTracedAspect) references org.aspectj.lang.ProceedingJoinPoint and Boot's AOP
+             auto-proxy needs the weaver on the classpath to advise annotated methods. compile scope
+             so every service inheriting common carries it (spring-aspects above stays provided for
+             common's own compile). Without this, a service that imports TracingConfig but does not
+             otherwise pull the weaver (gateway / kcMaster / auKeep) fails to create esqTracedAspect
+             (NoClassDefFoundError: org/aspectj/lang/ProceedingJoinPoint). -->
+        <dependency>
+            <groupId>org.aspectj</groupId>
+            <artifactId>aspectjweaver</artifactId>
         </dependency>
 
         <dependency>

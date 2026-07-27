@@ -1,0 +1,31 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-dashboards
+  labels:
+    app: {{ .Release.Name }}
+data:
+  # The dashboard provider: load any *.json in this dir under the "Esquire" folder.
+  provider.yaml: |
+    apiVersion: 1
+    providers:
+      - name: Esquire
+        orgId: 1
+        folder: Esquire
+        type: file
+        disableDeletion: false
+        editable: true
+        options:
+          path: /etc/grafana/provisioning/dashboards
+          foldersFromFilesStructure: false
+  # The "Esquire Services" dashboard (REST / JVM / pool / CPU / bus / broker / biz), same as the docker stack.
+  esquire-services.json: |-
+{{ .Files.Get "dashboards/esquire-services.json" | indent 4 }}
+  # The "Esquire Logging" dashboard (T9-B): volume by level/service, the error stream, and -- the point of it --
+  # a correlationId box that narrows every panel to ONE request across every service it touched.
+  esquire-logging.json: |-
+{{ .Files.Get "dashboards/esquire-logging.json" | indent 4 }}
+  # The "Esquire Topology" board (T9-C): the system as a picture -- every component, the three bus lanes, live
+  # vitals. The SAME JSON as docker; both are emitted by compose/o11y/grafana/gen-topology.py.
+  esquire-topology.json: |-
+{{ .Files.Get "dashboards/esquire-topology.json" | indent 4 }}

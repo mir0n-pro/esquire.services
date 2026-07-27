@@ -6,6 +6,10 @@ image:
 
 springProfilesActive: console,dev-postgres
 
+# actuator/management probe port (F0 A6); set here to keep the OKE overlay in sync with the chart default (RF3)
+service:
+  managementPort: 8090
+
 db:
   vendor: dev-postgres
   host: esquire-infra-postgres
@@ -14,9 +18,9 @@ db:
   username: esq2025
 
 logging:
-  levelRoot: WARN
+  levelRoot: ERROR
   levelSf: WARN
-  levelMir0n: INFO
+  levelMir0n: ERROR
   levelDevelop: "OFF"
   levelMsg: "OFF"
 

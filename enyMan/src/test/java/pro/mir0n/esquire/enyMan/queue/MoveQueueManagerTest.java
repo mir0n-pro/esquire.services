@@ -44,8 +44,9 @@ import static org.mockito.Mockito.when;
  * suite. Here we focus on:
  *   - counter / inMove() invariants
  *   - CreateReconcileItem path-drift detection + reissue
- *   - MDC inheritance: a MoveCommandItem sets MDC, a following CreateReconcileItem
- *     reads it (the "events get the last move command IDs" attribution rule).
+ *   - identity: a CreateReconcileItem carries its originating create's cid/rid and the
+ *     worker stamps them itself, so the reissued broadcast is correlated to that create
+ *     WITHOUT depending on leftover worker MDC (RE1).
  */
 @ExtendWith(MockitoExtension.class)
 class MoveQueueManagerTest {
@@ -80,7 +81,7 @@ class MoveQueueManagerTest {
     @BeforeEach
     void setUp() {
         manager = new MoveQueueManager(dictRepo, orgRepo, usrRepo, txTemplate, em,
-                publisher, kcPublisher, pathLookup, new AuditBusBridge(noopRod()), 16, 0);
+                publisher, kcPublisher, pathLookup, new AuditBusBridge(noopRod()), 16, 0, 0);
         // Do not call manager.start() -- we want to invoke process() directly without
         // racing the daemon worker thread. The rig is constructed but unstarted.
     }
@@ -107,7 +108,7 @@ class MoveQueueManagerTest {
         // mid-Goal-3 where 16k queued items left inMove() stuck true forever.
         assertThat(manager.inMove()).isFalse();
         manager.submitMove(new MoveCommandItem(20, "100", "200", "1.", "99",
-                java.util.List.of("ROLE_ADMIN"), "rid-1", "cid-1"));
+                java.util.List.of("ROLE_ADMIN"), "rid-1", "cid-1", null));
         assertThat(manager.inMove())
                 .as("counter must be rolled back when tryPut returns false")
                 .isFalse();
@@ -119,7 +120,7 @@ class MoveQueueManagerTest {
         manager.start();    // rig running + processing enabled; worker drains.
         try {
             manager.submitMove(new MoveCommandItem(20, "100", "200", "1.", "99",
-                    java.util.List.of("ROLE_ADMIN"), "rid-1", "cid-1"));
+                    java.util.List.of("ROLE_ADMIN"), "rid-1", "cid-1", null));
             // The worker decrements once it processes (calls orgService -- mocks return null;
             // org dispatch throws because eek isOrg but service returns null List). Either way,
             // counter is decremented by the finally block. We assert that AT LEAST the
@@ -131,9 +132,36 @@ class MoveQueueManagerTest {
                 Thread.sleep(20);
             }
             // After drain, counter is back to 0 -- which is the correct post-processing state.
+            // (This manager is built with grace 0, so inMove() is exactly counter > 0.)
             assertThat(manager.inMove()).isFalse();
         } finally {
             manager.stop();
+        }
+    }
+
+    @Test
+    @DisplayName("inMove(): grace window keeps it true briefly after the last move drains (elastic end of move)")
+    void inMove_graceLingersAfterDrain() throws InterruptedException {
+        // A manager with a 500ms grace: after a move drains, inMove() must stay true within the window so a
+        // CREATE landing just behind the move is still caught (the grace=0 manager reads false at this same point).
+        MoveQueueManager graced = new MoveQueueManager(dictRepo, orgRepo, usrRepo, txTemplate, em,
+                publisher, kcPublisher, pathLookup, new AuditBusBridge(noopRod()), 16, 0, 500);
+        graced.start();
+        try {
+            assertThat(graced.inMove()).as("nothing moved yet -> grace not open").isFalse();
+            graced.submitMove(new MoveCommandItem(20, "100", "200", "1.", "99",
+                    java.util.List.of("ROLE_ADMIN"), "rid-1", "cid-1", null));
+            // Wait for the worker to drain the queue (item taken + finally stamps the grace).
+            long deadline = System.currentTimeMillis() + 2000;
+            while (graced.queueSize() > 0 && System.currentTimeMillis() < deadline) {
+                Thread.sleep(10);
+            }
+            Thread.sleep(60);   // let the worker's finally run (decrement -> stamp lastMoveDoneNanos)
+            assertThat(graced.inMove())
+                    .as("grace keeps inMove() true just after the move drained")
+                    .isTrue();
+        } finally {
+            graced.stop();
         }
     }
 
@@ -145,7 +173,8 @@ class MoveQueueManagerTest {
         // acct kind 50 is path-parent-only: expected path == parent path.
         when(pathLookup.pathFor("parent-7")).thenReturn("1.5.7.");
 
-        CreateReconcileItem item = new CreateReconcileItem("acct-42", 50, "parent-7", "1.5.7.");
+        CreateReconcileItem item = new CreateReconcileItem("acct-42", 50, "parent-7", "1.5.7.",
+                "create-cid", "create-rid");
         manager.process(item);
 
         verify(pathLookup).pathFor("parent-7");
@@ -162,18 +191,17 @@ class MoveQueueManagerTest {
         when(pathLookup.pathFor("parent-7")).thenReturn("1.9.200.7.");
         when(pathLookup.updatePath(eq("acct-42"), eq("1.9.200.7."))).thenReturn(1);
 
-        // Worker reads MDC for the move's cid/rid -- simulate that MoveCommandItem ran first.
-        MDC.put(EsqConstants.PD_REQUEST_ID,     "move-rid");
-        MDC.put(EsqConstants.PD_CORRELATION_ID, "move-cid");
-
-        CreateReconcileItem item = new CreateReconcileItem("acct-42", 50, "parent-7", "1.5.7.");
+        // The item carries the originating create's cid/rid; the worker stamps them itself and the
+        // reissued broadcast is published under them (no leftover-MDC dependency).
+        CreateReconcileItem item = new CreateReconcileItem("acct-42", 50, "parent-7", "1.5.7.",
+                "create-cid", "create-rid");
         manager.process(item);
 
         verify(pathLookup).updatePath("acct-42", "1.9.200.7.");
         ArgumentCaptor<Map<String, Object>> textCapt =
                 org.mockito.ArgumentCaptor.forClass(Map.class);
         verify(publisher).publish(eq(50), eq("acct-42"), eq(BusConstants.EVENT_UPDATE_PATH),
-                eq("move-rid"), eq("move-cid"), textCapt.capture());
+                eq("create-rid"), eq("create-cid"), textCapt.capture());
         Map<String, Object> text = textCapt.getValue();
         assertThat(text).containsEntry(EsqConstants.TEXT_ID, "acct-42")
                         .containsEntry(EsqConstants.TEXT_KIND, 50)
@@ -181,11 +209,35 @@ class MoveQueueManagerTest {
     }
 
     @Test
+    @DisplayName("processReconcile: broadcast carries the item's OWN cid/rid with worker MDC empty; cleared after (RE1)")
+    void processReconcile_usesItemIds_notWorkerMdc() {
+        // RE1 regression: after I10 the move worker clears MDC in its finally, so by the time a reconcile
+        // runs the worker MDC is EMPTY. The reconcile must therefore carry its create's ids ON THE ITEM and
+        // stamp them itself, NOT read leftover MDC. Assert: MDC empty in, broadcast carries the item's ids,
+        // MDC cleared out (nothing lingers on the worker thread).
+        assertThat(MDC.get(EsqConstants.PD_CORRELATION_ID)).isNull();
+        assertThat(MDC.get(EsqConstants.PD_REQUEST_ID)).isNull();
+
+        when(pathLookup.pathFor("parent-7")).thenReturn("1.9.200.7.");
+        when(pathLookup.updatePath(eq("acct-42"), eq("1.9.200.7."))).thenReturn(1);
+
+        CreateReconcileItem item = new CreateReconcileItem("acct-42", 50, "parent-7", "1.5.7.",
+                "create-cid", "create-rid");
+        manager.process(item);
+
+        verify(publisher).publish(eq(50), eq("acct-42"), eq(BusConstants.EVENT_UPDATE_PATH),
+                eq("create-rid"), eq("create-cid"), any());
+        assertThat(MDC.get(EsqConstants.PD_CORRELATION_ID)).isNull();
+        assertThat(MDC.get(EsqConstants.PD_REQUEST_ID)).isNull();
+    }
+
+    @Test
     @DisplayName("processReconcile: parent has no ep_path -> skip (no update, no broadcast)")
     void processReconcile_parentMissing() {
         when(pathLookup.pathFor("parent-7")).thenReturn(null);
 
-        CreateReconcileItem item = new CreateReconcileItem("acct-42", 50, "parent-7", "1.5.7.");
+        CreateReconcileItem item = new CreateReconcileItem("acct-42", 50, "parent-7", "1.5.7.",
+                "create-cid", "create-rid");
         manager.process(item);
 
         verify(pathLookup, never()).updatePath(anyString(), anyString());

@@ -29,9 +29,9 @@ if "%mir0n_pwd%"=="" (
 )
 
 rem Release image tag pushed to GHCR (multi-arch amd64+arm64 via ghcr-push.bat).
-rem Applied to postgres + the 6 services + backend. KC and ActiveMQ keep their own
-rem pinned tags in values\keycloak.yaml / values\activemq.yaml (hand-rolled: KC only
-rem changes when the baked realm/theme changes -- bump its pinned tag there).
+rem Applied to postgres + the 6 services + backend + activemq (all pushed at the release
+rem tag by ghcr-push.bat). Only KC keeps its own pinned tag in values\keycloak.yaml
+rem (hand-rolled -- changes only when the baked realm/theme changes; bump it there).
 if "%image_tag%"=="" (
   echo ERROR: image_tag env var not set. Set the release tag pushed to GHCR:
   echo   set image_tag=^<vMajor.Minor.Micro-YYMM.DDHH^>
@@ -51,10 +51,15 @@ if "%gw_exchange_secret%"=="" set "gw_exchange_secret=esq-gw-exchange-dev-secret
 
 rem BFF session-cookie HMAC secret. Lower-risk than the KC client secret:
 rem leak alone doesn't grant access (session IDs are server-side random,
-rem session data is in MemoryStore not in the cookie). Defaulted per-release
-rem so it naturally rotates on every cutover; override the env var only if
-rem you want to keep existing sessions alive across an upgrade.
-if "%bff_session_secret%"=="" set "bff_session_secret=esq-bff-v1.2.4-session-secret"
+rem session data is in MemoryStore not in the cookie). SAME default as the GHA
+rem path (deploy-oke.sh) so switching deploy paths does not invalidate sessions;
+rem override the env var to rotate it (or to keep sessions alive across an upgrade).
+if "%bff_session_secret%"=="" set "bff_session_secret=esq-bff-session-secret"
+
+rem esq-kcMaster KC admin service-account client secret (client_credentials -> KC admin REST API). Set the same
+rem way as the BFF / gateway KC secrets: --set at install, defaulting to the realm-import value. Override the env
+rem var if you rotate the esq-kcMaster secret in the production KC admin UI.
+if "%kcmaster_admin_secret%"=="" set "kcmaster_admin_secret=MHgq0Nu69u2uJ2johaK1wxQLMdakELXN"
 
 set PG_PW=%mir0n_pwd%
 set KC_PW=%mir0n_pwd%
@@ -122,7 +127,8 @@ rem === KC-dependent ===
 echo --- Installing kcmaster...
 call helm upgrade --install esquire-kcmaster %CHARTS%\esquire-kcmaster ^
   -f values\kcmaster.yaml ^
-  --set image.tag=%IMAGE_TAG% || exit /b 1
+  --set image.tag=%IMAGE_TAG% ^
+  --set keycloak.adminClientSecret=%kcmaster_admin_secret% || exit /b 1
 
 echo --- Installing gateway...
 call helm upgrade --install esquire-gateway %CHARTS%\esquire-gateway ^

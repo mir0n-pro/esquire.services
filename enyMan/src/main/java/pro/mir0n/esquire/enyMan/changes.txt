@@ -1,5 +1,113 @@
 Esquire enyMan Microservice
 
+07/23/2026 mir0n  v1.2.11 -- homework: fix/resolve issues found in the fresh-mind audit
+jpa.EsqAcctRepository
+  - acctPath() gains a rootPath @Param (tenant scope, matching orgPath/usrPath)
+messaging.EntityBusAdapter
+  - forwardPeerCreate carries the create's OWN cid/rid onto the CreateReconcileItem (the path-fix reissue stays
+    correlated to the create it repairs, no leftover-worker-MDC reliance)
+queue.CreateReconcileItem
+  - gains correlationId/requestId components: the item now carries the originating create's ids, which the worker
+    stamps itself (no reliance on leftover worker MDC)
+queue.MoveQueueManager
+  - "elastic end of move": inMove() stays true for a grace window (enyman.move-queue.in-move-grace-ms, default 200,
+    0 disables) after the last move drains, so a create event with a pre-move path is still reconciled
+service.EntityIdGenerator
+  - the sequence digit is forced non-negative (AtomicInteger wraps negative after 2^31; a negative seq would borrow
+    into the instance/time digits and corrupt the id)
+service.impl.AcctService
+  - createAcct reads rootPath (RequestContextUtils) and passes it to acctPath(parentId, rootPath) -- the parent
+    lookup is now tenant-scoped, like org/usr create
+service.impl.EnyManService
+  - submitReconcileIfInMove passes the create's cid/rid onto the CreateReconcileItem
+resources/META-INF/postgres-entity.xml
+  - EsqUsrJpa.listMovedPaths orders by ep_et_pk (entity-kind first) so a move broadcast emits parents before
+    children by construction
+resources/META-INF/oracle-entity.xml
+  - EsqUsrJpa.listMovedPaths orders by ep_et_pk (entity-kind first), matching the postgres dialect
+resources/META-INF/postgres-acct.xml
+  - EsqAcctRepository.acctPath adds AND ep_path LIKE :rootPath || '%' so the account parent lookup is tenant-scoped
+resources/META-INF/oracle-acct.xml
+  - EsqAcctRepository.acctPath adds the rootPath LIKE filter, matching the postgres dialect
+resources/application.yml
+  - move-queue.in-move-grace-ms added (ENYMAN_MOVE_QUEUE_IN_MOVE_GRACE_MS, default 200) -- the elastic-end-of-move
+    grace window
+  - the KC leg and the entity-broadcast leg each get feed-await-ms:0 (wait forever) so a full feed HOLDS the
+    producer instead of dropping an identity sync / entity broadcast
+  - actuator moved to a separate internal-only management port 8090 (MANAGEMENT_SERVER_PORT), off the public
+    server.port
+
+07/17/2026 mir0n  v1.2.11 -- T11 cleanup: fix/resolve issues noted during development
+resources/application.yml
+  - the tracing and metrics switches each read their own env var (ESQ_TRACING_ENABLED / ESQ_METRICS_ENABLED),
+    defaulting to the ESQ_OBSERVABILITY_ENABLED umbrella, so either pillar can be turned off on its own (I41)
+
+07/15/2026 mir0n  v1.2.11 -- T11 cleanup: fix/resolve issues noted during development
+messaging.KcBusAdapter
+  - the kc-bus receive worker (onResponse) stamps MDC via EsqContextHolder.applyMessage(event) and clears in a
+    finally (I10)
+queue.MoveQueueManager
+  - processMove() binds the worker context with EsqContextHolder.set(), which now stamps MDC itself; the separate,
+    now-redundant MDC apply was dropped (I10)
+
+07/11/2026 mir0n  v1.2.11 -- business meters (O1/T8): entity operations, the move queue, dictionary lookups
+service.impl.EnyManService
+  - esquireCommandNew / Delete / Move count esq.biz.entity.ops.total (tags op, kind, outcome = ok|denied|error)
+    via the private meterEntityOp(); each body is wrapped in try / catch (PermissionDeniedException, rethrown) /
+    finally, otherwise unchanged. For a MOVE this records that the command was ACCEPTED, not that the move
+    succeeded -- the work happens off-request on the queue worker
+queue.MoveQueueManager
+  - start() registers the esq.biz.move.queue.depth gauge (queueSize); processMove() counts
+    esq.biz.move.processed.total / .failed.total (tag kind) from a boolean flag in the existing finally -- the
+    exception flow is untouched. The move's REAL outcome: /esq-move answers 202 at submit time, so a move that
+    fails on the worker is invisible to the caller and to every HTTP meter
+controller.EnyManController
+  - esquireDictionary() counts esq.biz.dict.lookup.total (tag kind). Not a duplicate of http.server.requests:
+    that is tagged by URI TEMPLATE (/esq-dict) and the kind is a query param
+resources/application.yml
+  - esquire.observability.metrics.business-enabled: ${ESQ_METRICS_BUSINESS:true} added -- the sub-switch gating
+    the esq.biz.* domain tier under the observability master
+
+07/11/2026 mir0n  v1.2.11 -- observability config namespace + the metrics sub-switches (O1/T5)
+resources/application.yml
+  - the tracing keys move under the umbrella: esquire.tracing.* -> esquire.observability.tracing.*
+    (otlp-endpoint, sampling-ratio, marks-enabled, excluded-paths, msg-bus-alive-trace);
+    esquire.observability.metrics.* sub-switches added -- histograms-enabled (ESQ_METRICS_HISTOGRAMS,
+    default false) and bandwidth-enabled (ESQ_METRICS_BANDWIDTH, default true)
+
+07/10/2026 mir0n  v1.2.11 -- metrics foundation (O1): Prometheus export + the observability umbrella switch
+resources/application.yml
+  - esquire.observability.enabled (ESQ_OBSERVABILITY_ENABLED) now gates BOTH tracing and metrics (replaces the
+    tracing-only switch); management.prometheus.metrics.export.enabled + endpoints.web.exposure.include prometheus added
+
+07/09/2026 mir0n  v1.2.11 -- distributed tracing (O2/T3): the async move continues the request's trace
+service.impl.EnyManService
+  - esquireCommandMove() captures the traceparent (EsqAsyncTrace.capture) inside the traced move and passes it
+    to MoveCommandItem
+queue.MoveCommandItem
+  - the record gains a traceparent component (last)
+queue.MoveQueueManager
+  - processMove() runs inside EsqAsyncTrace.continueIn(item.traceparent(), item.correlationId(),
+    "move (async)", ...)
+resources/application.yml
+  - esquire.tracing.msg-bus-alive-trace: ${ESQ_MSG_BUS_ALIVE_TRACE:false} added
+
+07/08/2026 mir0n  v1.2.11 -- distributed tracing (O2): trace marks on the entity commands
+service.impl.EnyManService
+  - @EsqTraced on esquireCommand / Save / New / Delete / Move / Tree
+    (esq.svc.read / save / create / delete / move / tree)
+EnyManApplication
+  - @Import(TracingConfig.class): the common distributed-tracing wiring
+resources/application.yml
+  - esquire.tracing block (enabled / otlp-endpoint / sampling-ratio / marks-enabled / excluded-paths) with
+    the ESQ_TRACING_* env overrides; management.tracing.enabled mirrors esquire.tracing.enabled
+k8s chart esquire-enyman/values.yaml
+  - tracing block (enabled "false" / otlpEndpoint / samplingRatio / marksEnabled / excludedPaths) --
+    opt-in, off by default
+k8s chart esquire-enyman/templates/configmap.yaml
+  - ESQ_TRACING_ENABLED / ESQ_OTLP_ENDPOINT / ESQ_TRACING_SAMPLING_RATIO / ESQ_TRACING_MARKS_ENABLED /
+    ESQ_TRACING_EXCLUDED_PATHS rendered from .Values.tracing
+
 07/03/2026 mir0n  v1.2.10 -- X-Request-ID required on write commands; send-retry-backoff key -sec suffix
 service.impl.EnyManService
   - write commands (esquireCommandSave / New / Delete / Move) read requestId via requireRequestId() -- X-Request-ID mandatory on writes

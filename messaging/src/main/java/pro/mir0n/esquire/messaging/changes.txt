@@ -1,5 +1,112 @@
 Esquire messaging framework classes
 
+07/23/2026 mir0n  v1.2.11 -- homework: fix/resolve issues found in the fresh-mind audit
+xrod.impl.XRod
+  - setWorker(subscription) comment: set the subscription BEFORE start(); the x-rod does not support changing a
+    broker subscription on the fly
+xrod.impl.sublayer.AliveSession
+  - comment: the tick() heartbeat uses a BLOCKING put (not tryPut) -- it fires only when the leg is idle, so the
+    feed is drained/empty and put() returns at once; never drops a heartbeat
+xrod.impl.sublayer.AliveSessionRR
+  - comment: the SERVER HeartBeat reply uses a BLOCKING put -- a reply can be needed while the leg is busy, and
+    dropping it would cause a false SERVER-DOWN at the client
+
+07/17/2026 mir0n  v1.2.11 -- T11 cleanup: fix/resolve issues noted during development
+o11y.IRodTracer
+  - the alive-trace opt-in key is namespaced under esquire.observability.tracing.msg-bus-alive-trace (was
+    esquire.tracing.*)
+
+
+07/15/2026 mir0n  v1.2.11 -- T11 cleanup: fix/resolve issues noted during development
+o11y.RodObserverHolder
+  - registrar-vs-bus-start ordering tripwire (I11): a feedDepthAgainstNoop latch + a develop-channel logger.
+    noteFeedDepthAgainstNoop() latches when a feed-depth gauge is registered while the observer is still NOOP;
+    setObserver() logs an ERROR if a real observer is installed AFTER that. Silent when observability is off
+xrod.impl.AXRod
+  - runEngine() calls RodObserverHolder.noteFeedDepthAgainstNoop() when the observer is still NOOP at feed-depth
+    registration, arming the ordering tripwire (I11)
+
+07/14/2026 mir0n  v1.2.11 -- feed-await-ms: a producer leg can HOLD on a full feed instead of dropping the event (T10)
+catalog.XRodParams
+  - feed-await-ms in SCALARS + feedAwaitMsOr(long) getter -- how long a producer waits on a FULL feed before the
+    event is DISCARDED; <= 0 = wait forever (backpressure, never drop). longOr(key, def) helper added alongside
+    intOr / boolOr
+xrod.impl.AXRod
+  - feedAwaitMs read from params (feed-await-ms, default BoundedQueueRig.DEFAULT_AWAIT_TIMEOUT_MS) and applied to
+    the feed via setPutAwaitMs in buildEngine -- <= 0 holds the producer on a full feed instead of discarding the
+    event
+
+07/11/2026 mir0n  v1.2.11 -- bus meters (O1/T5): the bus-hop meter hook, declared by the bus; trace + metrics unified into ONE bus observer
+o11y.IRodMeters  (new)
+  - the bus-hop METER hook, DECLARED by the messaging bus. The mirror of IRodTracer for metrics: the bus deals
+    only in String / primitives / IntSupplier through it and imports no Micrometer (or anything above itself);
+    the Micrometer-backed implementation is the host application's, handed in via RodObserverHolder as part of
+    the ONE bus observer. sent / sendDuration / received / error / retryBackoff / retryDropped report events;
+    registerFeedDepth / registerRetryHeld hand over an IntSupplier the host reads as a gauge. NOOP = zero cost
+o11y.IRodObserver  (new)
+  - the ONE bus-hop observer umbrella: joins IRodTracer + IRodMeters so a single host object covers both, is
+    held once in RodObserverHolder and is registered by one bean. of(IRodTracer, IRodMeters) combines two
+    separate hooks into one observer; NOOP. The interfaces stay separate -- only the object / holder /
+    registrar / umbrella switch are unified
+o11y.RodObserverHolder  (new -- was RodTracerHolder)
+  - generalised from RodTracerHolder to the ONE bus observer umbrella: holds a single volatile IRodObserver
+    (default NOOP); setObserver() registers it, observer() / tracer() / meters() return it as each view. One
+    object, two views -- so a trace seam and a metric seam read the SAME registered observer
+o11y.IRodTracer
+  - javadoc {@link} repointed RodTracerHolder -> RodObserverHolder
+xrod.impl.AXRod
+  - the tracer holder is repointed to o11y.RodObserverHolder. The bus METERS are emitted from the same seams
+    the tracer already owns: onSendSuccess -> sent(), onSendError -> error(..,"send"), the receive worker ->
+    received() / error(..,"receive"), and send() times the whole dispatch into sendDuration() in a finally.
+    runEngine registers the feed-depth gauge (registerFeedDepth(meterBusId(), meterSlotId(), feed::size)).
+    Session (heartbeat) events are excluded from every meter. meterBusId() / meterSlotId() added (the identity's
+    bus / slot, or the rod name when it has no identity)
+xrod.impl.sublayer.SendRetrySublayer
+  - retry meters over o11y.RodObserverHolder.meters(): start() registers the held-count gauge
+    (registerRetryHeld(.., this::heldCount)), a hold reports retryBackoff(busId, backoffMs) and drop() reports
+    retryDropped(busId, slotId); start() added as an ISessionSublayer override
+xrod.impl.sublayer.AliveSessionRR
+  - RodTracerHolder -> RodObserverHolder at the four alive round-trip trace call sites
+
+07/09/2026 mir0n  v1.2.11 -- distributed tracing (O2/T3): the bus-hop trace hook, declared by the bus; the RR liveness round-trip; the bus drops its Esquire dependency
+o11y.IRodTracer  (new)
+  - the bus-hop trace hook, DECLARED by the messaging bus. The bus deals only in String + Runnable through it
+    and imports nothing above itself; the OTel-backed implementation is the host application's and is handed in
+    via RodTracerHolder. Legs: outbound() on the PRODUCER thread stamps the traceparent (parent span) onto the
+    event; inbound() on the CONSUMER (pool) thread runs the worker inside a span continuing the producer's trace;
+    aliveOutbound() / aliveInbound() are the same pair for the RR liveness round-trip; newTraceId() mints a trace
+    id in the tracer's own shape, so the bus never has to know what one looks like; aliveTrace() carries the
+    host's opt-in for the round-trip trace. traceId is ALWAYS the correlationId (authoritative); the traceparent
+    only carries the parent span id. NOOP when tracing is off
+o11y.RodTracerHolder  (new)
+  - the single-slot hand-off for the bus-hop trace hook. The host application's tracing config sets its
+    IRodTracer once at startup (only when tracing is enabled); the x-rod engine reads tracer() at each bus hop.
+    Defaults to IRodTracer.NOOP so the bus pays nothing when tracing is off / never registered. Holds the tracer
+    and nothing else -- the RR liveness round-trip switch rides on the tracer (IRodTracer.aliveTrace())
+BusConstants
+  - FIELD_TRACEPARENT ("TraceParent", FIX 50014) added
+RodEvent
+  - the record gains a traceparent component (last); the applMsgId-shaped constructor leaves it null;
+    withTraceparent(String) copy added, withApplMsgId preserves it
+xrod.RodEventCodec
+  - toProps() writes FIELD_TRACEPARENT on both the entity and the session branch when the event carries one;
+    fromProps() reads it back via withTraceparent()
+xrod.impl.AXRod
+  - transmit() stamps the W3C traceparent on the caller's thread for non-session events
+    (o11y.RodTracerHolder.tracer().outbound()); the receive path runs the pool worker inside inbound() and, on a rod
+    that tracesAliveRoundTrip() with msg-bus-alive-trace on, wraps onReceiveSessn in aliveInbound();
+    tracesAliveRoundTrip() (false) and aliveMsgLabel(String) added
+xrod.impl.XRodRR
+  - tracesAliveRoundTrip() overridden to true
+xrod.impl.sublayer.AliveSessionRR
+  - when the registered tracer's aliveTrace() is on: a CLIENT keepAliveEvent() takes its correlation id from
+    o11y.IRodTracer.newTraceId() and opens a ROOT producer span (aliveOutbound asRoot=true), stamping the
+    traceparent on the TestRequest; a SERVER onReceiveSessn() stamps its HeartBeat reply from a nested producer
+    span (asRoot=false)
+MessagingBus
+  - instanceId(): the per-instance token now reads pro.mir0n.utils.HostId.instanceNo() (was EsqUtils.instanceNo());
+    the bus no longer imports anything Esquire
+
 07/03/2026 mir0n  v1.2.10 -- send-retry drop visibility; send-retry-backoff config key -sec unit suffix
 XRodParams
   - config key send-retry-backoff -> send-retry-backoff-sec (unit suffix): SCALARS entry + sendRetryBackoff() getter now read send-retry-backoff-sec

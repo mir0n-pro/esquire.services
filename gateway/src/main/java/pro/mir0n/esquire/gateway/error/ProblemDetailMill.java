@@ -2,11 +2,14 @@
  *  Esquire frameworks (tm)
  *  BizTree service
  *
- *  Copyright(c) 2001, 2025 mir0n&co www.mir0n.me
+ *  Copyright(c) 2001, 2026 mir0n&co www.mir0n.pro
  *  mailto:mir0n.the.programmer@gmail.com
  *
  *  History:
   * 01/18/2026 mir0n  let stack trace optional
+  * 07/08/2026 mir0n  createProblemDetail(): the incoming correlation id runs through
+  *                   EsqUtils.settleCorrelationId(); the settled value is set on BOTH the traceId and the
+  *                   correlationId problem-detail properties (was: traceId only when no correlation id came in)
 */
 
 package pro.mir0n.esquire.gateway.error;
@@ -54,16 +57,13 @@ public class ProblemDetailMill {
         problem.setProperty(EsqConstants.PD_TIMESTAMP, OffsetDateTime.now(ZoneOffset.UTC));
         HttpHeaders headers = request.headers().asHttpHeaders();
 
-        String correlationId = getCorrelationId(headers);
-        if (correlationId == null) {
-            problem.setProperty(EsqConstants.PD_TRACE_ID, EsqUtils.generateCorrelationId());
-        } else {
-            problem.setProperty(EsqConstants.PD_TRACE_ID,correlationId);
-            problem.setProperty(EsqConstants.PD_CORRELATION_ID,correlationId);
-        }
+        String incomingCorrelationId = getCorrelationId(headers);
         String requestId = getRequestId(headers);
+        String traceId = EsqUtils.settleCorrelationId(incomingCorrelationId);
+        problem.setProperty(EsqConstants.PD_TRACE_ID, traceId);
+        problem.setProperty(EsqConstants.PD_CORRELATION_ID, traceId);
         if (requestId != null) {
-            problem.setProperty(EsqConstants.PD_REQUEST_ID,requestId);
+            problem.setProperty(EsqConstants.PD_REQUEST_ID, requestId);
         }
         if (problem.getType() == null || problem.getType().toString().equals("about:blank")) {
             problem.setType(URI.create("https://mir0n.pro/errors"));

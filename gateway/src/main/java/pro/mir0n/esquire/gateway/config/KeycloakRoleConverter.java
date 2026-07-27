@@ -7,6 +7,7 @@
  *
  *  History:
  * 03/10/2026 mir0n  EsqConstants used for JWT claim keys (realm_access, roles)
+ * 07/23/2026 mir0n  v1.2.11 -- single-ret pattern: realm_access.roles -> ROLE_<role> collected into one ret list
  */
 package pro.mir0n.esquire.gateway.config;
 
@@ -20,21 +21,22 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 public class KeycloakRoleConverter  implements Converter<Jwt, Collection<GrantedAuthority>> {
 
     @Override
     public Collection<GrantedAuthority> convert(Jwt source) {
+        Collection<GrantedAuthority> ret = new ArrayList<>();
         Map<String, Object> realmAccess = (Map<String, Object>) source.getClaims().get(EsqConstants.JWT_CLAIM_REALM_ACCESS);
-        if (realmAccess == null || realmAccess.isEmpty()) {
-            return new ArrayList<>();
+        if (realmAccess != null) {
+            List<String> roles = (List<String>) realmAccess.get(EsqConstants.JWT_CLAIM_REALM_ACCESS_ROLES);
+            if (roles != null) {
+                for (String roleName : roles) {
+                    ret.add(new SimpleGrantedAuthority("ROLE_" + roleName));
+                }
+            }
         }
-        Collection<GrantedAuthority> returnValue = ((List<String>) realmAccess.get(EsqConstants.JWT_CLAIM_REALM_ACCESS_ROLES))
-                .stream().map(roleName -> "ROLE_" + roleName)
-                .map(SimpleGrantedAuthority::new)
-                .collect(Collectors.toList());
-        return returnValue;
+        return ret;
     }
 
 }

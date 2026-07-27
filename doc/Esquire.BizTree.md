@@ -202,10 +202,22 @@ serve. bizTree closes that window with a readiness gate:
 
 - `isReady()` on the director is true once the serving monad is `LOADED`.
 - `CacheReadinessHealthIndicator` (health name `cacheReadiness`) reports UP/DOWN
-  off `isReady()` and is wired into the **readiness** probe group only
-  (`/actuator/health/readiness`). k8s holds traffic until the cache is serving.
-- **Liveness** (`/actuator/health/liveness`) is `livenessState` only -- a slow
-  load delays traffic but never crashloops the pod.
+  off `isReady()` and is wired into the **readiness** probe group. k8s holds
+  traffic until the cache is serving.
+- The readiness group carries **two** cache-independent conditions, not one:
+  `cacheReadiness` (the cache is loaded) **and** `messagingBus` (the
+  entity-broadcast connection is up). Either being DOWN depools the pod, because
+  a bizTree that cannot receive events would serve an increasingly stale tree.
+  The bus indicator is registered late (at application-ready, after the
+  membership-validating refresh), so startup group-membership validation is off
+  and the group resolves it per request.
+- **Liveness** is `livenessState` only -- a slow load, or a broker outage,
+  delays or depools traffic but never crashloops the pod.
+
+Actuator (health, and the Prometheus scrape) listens on a **separate,
+internal-only port** (`8090`, `MANAGEMENT_SERVER_PORT`), reached in-cluster by
+the k8s probes and the metrics collector; the ingress exposes only the main
+service port, so `/actuator` is never reachable from outside.
 
 
 ## Invariants
@@ -215,7 +227,10 @@ Architectural rules, not knobs:
 - **Two monads, always.** "Taijitu" *is* "two equal units behind one director."
 - **Sequential message processing.** Each monad drains its queue with exactly
   one worker thread; event ordering (`CREATE` before `UPDATE` before `DELETE`)
-  is preserved end-to-end. There is no concurrency on the write path.
+  is preserved end-to-end. There is no concurrency on the write path. Under a
+  backlog the worker batches a run of queued events into one cache transaction
+  (`biztree.queue.bulk-threshold`) -- still strictly in order, still one thread,
+  just fewer commits.
 - **Event fanout during a sweep is ALL.** From the moment yin's `queueEnabled`
   flips on it receives every entity-broadcast event, unfiltered, so it converges
   with yang on the same stream -- otherwise the CHECKSUM comparison can't be
@@ -233,9 +248,11 @@ Architectural rules, not knobs:
 
 ## Configuration
 
-All exposed via Spring properties (env-overridable). The **Default** column is the
-shipped deployment default (compose + Helm); the **Code fallback** is the value the
-`@Value` binding uses if the property is left entirely unset:
+The cache and Taijitu knobs, exposed via Spring properties (env-overridable). The
+**Default** column is the shipped deployment default (compose + Helm); the **Code
+fallback** is the value the `@Value` binding uses if the property is left entirely
+unset. The full service configuration (H2 pool, datasource, logging) is in
+[services.configuring.md](services.configuring.md):
 
 | Property | Default | Code fallback | Role |
 |---|---|---|---|
@@ -244,11 +261,13 @@ shipped deployment default (compose + Helm); the **Code fallback** is the value 
 | `biztree.taijitu.sweep.interval-ms` | `600000` (10 min) | `10000` | Delay between the end of one sweep and the start of the next. |
 | `biztree.taijitu.sweep.timeout-ms` | `10000` (10 s) | `10000` | Per-leg CHECKSUM deadline within a sweep. |
 | `biztree.monad.queue.capacity` | `4096` | `4096` | Max queue depth per monad (event-stream back-pressure boundary). |
+| `biztree.queue.bulk-threshold` | `10` | `10` | Backlog depth above which the worker batches queued events into one cache transaction (drain a burst in one commit). |
+| `biztree.cache-load.tx-timeout-s` | `0` | `0` | Cap on the startup full-tree LOAD transaction; `0` = uncapped. |
 | `biztree.cache.table` | `ESQ_TREE` | `ESQ_TREE` | Base cache table; each monad suffixes it (`ESQ_TREE_MONAD`, `ESQ_TREE_DANOM`). |
 
 The compose / Helm deployments wire these from environment variables:
 `BIZTREE_DIRECTOR`, `BIZTREE_TAIJITU_ON_MISMATCH`, `BIZTREE_TAIJITU_SWEEP_INTERVAL_MS`,
-`BIZTREE_TAIJITU_SWEEP_TIMEOUT_MS`, `BIZTREE_MONAD_QUEUE_CAPACITY`.
+`BIZTREE_TAIJITU_SWEEP_TIMEOUT_MS`, `BIZTREE_MONAD_QUEUE_CAPACITY`, `BIZTREE_QUEUE_BULK_THRESHOLD`.
 
 
 ## How it's built
@@ -371,3 +390,190 @@ composite is an Esquire-original synthesis:
 
 One-liner when the metaphor isn't wanted:
 **"anti-entropy double-buffer with shadow promotion."**
+
+
+---
+
+## Appendix -- the H2 storage layer
+
+The control architecture above sits on top of an embedded **H2 database, memory-only**, queried
+with plain JDBC. This appendix is the **data model and storage mechanics** -- the table each monad
+holds, the node kinds, how it is loaded, and where the SQL lives.
+
+### Where it sits
+
+- **Embedded + in-memory.** H2 runs inside the bizTree JVM (`jdbc:h2:mem:biztree`); nothing is
+  persisted to disk. A restart rebuilds the tree from scratch.
+- **Outside `esquireDB`.** The tree table is independent of the business-entity tables -- no
+  foreign keys, no shared datasource. `esq2025` (Oracle / Postgres) remains the source of truth;
+  the H2 tree is a derived, traversal-shaped projection of it.
+- **One table per monad.** The table name is a `{table}` token. The Taijitu builds one table per
+  monad (`ESQ_TREE_MONAD`, `ESQ_TREE_DANOM`) inside the single H2 instance, so the serving and
+  shadow caches never collide; `ESQ_TREE` is the configurable base name (`biztree.cache.table`).
+
+### The tree table
+
+One row per tree node. Real entities, virtual folders, and account shortcuts all share the same
+table, distinguished by which columns are set.
+
+| Column | Type | Meaning |
+|---|---|---|
+| `TREE_PK` | VARCHAR(33), PK | Node id. Real entity = the entity id; virtual folder = `<parentPk>~<kind>`; account shortcut = its own pk. |
+| `TREE_ET_PK` | INTEGER | Entity-type / kind code (e.g. org=20, client user=34, account=50; folder kinds 4 / 6 / 8 / 10). |
+| `TREE_NAME` | VARCHAR(50) | Display name. |
+| `TREE_DESC` | VARCHAR(1024) | Description. |
+| `TREE_TREE_PK_PARENT` | VARCHAR(33) | Parent node's `TREE_PK` -- the tree edge. |
+| `TREE_TREE_PK_LINK` | VARCHAR(33) | Set on an **account shortcut** node; links it back to the real account row. |
+| `TREE_ENTITY_PK` | BIGINT | The business entity id. **NULL for virtual folder nodes.** |
+| `TREE_LEVEL` | INTEGER | Depth from the root. |
+| `TREE_PATH` | VARCHAR(2000) | Materialized path of `TREE_PK`s -- fast subtree queries via prefix `LIKE`. |
+| `TREE_ENTITY_PATH` | VARCHAR(2000) | Materialized path of entity ids -- the rootPath-scoping axis for JWT-scoped reads. |
+| `TREE_STATUS` | INTEGER | Status code (0 default; 1 / 2 derived from entity status). |
+
+Indexes: `{table}_PARENT_I` on `TREE_TREE_PK_PARENT`, `{table}_ENTITY_PK_I` on `TREE_ENTITY_PK`;
+primary key `{table}_PK` on `TREE_PK`. Index, constraint, and table names are all parameterized
+by the `{table}` token so multiple monad tables coexist in one H2 instance without name clashes.
+
+#### Node kinds
+
+- **Real-entity node** -- `TREE_ENTITY_PK` set; an org, user, or account.
+- **Virtual folder node** -- `TREE_ENTITY_PK` NULL; the grouping folders under an entity
+  ("All clients", "All accounts", "All admin-s", ...), with `TREE_PK = <parentPk>~<kind>`.
+- **Account shortcut node** -- `TREE_TREE_PK_LINK` set; a second placement of an account under
+  the owning org's accounts folder, linked back to the real account row.
+
+### Loading and staying current
+
+- **Startup load.** `BizTreeCacheLoader` bulk-reads the canonical entity tables (org / user /
+  account repositories), inserts one node per entity plus the virtual folders and account
+  shortcuts, then computes `TREE_LEVEL` / `TREE_PATH` in a second pass (`update-path`). There is
+  no tree seed script -- the tree is derived from the live entity data on every load.
+- **Live updates.** The cache stays current by consuming the entity-broadcast bus:
+  CREATE / UPDATE / DELETE / MOVE events from enyMan and pacMan are applied directly to the table
+  (insert / CASE-based update / delete / re-path).
+- **Reconciliation.** The night-watch sweep (above) reloads a shadow table from `esq2025`,
+  checksums both legs, and self-heals any drift -- so an event missed while the service was down is
+  recovered automatically.
+
+### SQL
+
+All cache SQL lives in `bizTree/src/main/resources/META-INF/h2-cache-sql.properties` -- one
+template per query, carrying the `{table}` token, grouped as **DDL / Repository / Loader**
+(a different embedded vendor would supply its own `*-cache-sql.properties`). At startup
+`CacheSqlSet.forTable(templates, table)` substitutes the table name and pre-joins the read
+fragments **once per monad**, so the hot path executes ready statements with no per-call string
+assembly.
+
+
+---
+
+## Appendix -- path consistency under a move
+
+The night-watch heals **cache-vs-DB**: it copies whatever the DB says into the cache. It cannot heal
+**DB-vs-reality** -- a wrong path in the DB is faithfully copied into the cache, drift and all. So the
+tree stays correct only if two things hold whenever the tree is reshaped by a **move**:
+
+1. a single move's path-update events reach the cache **parents-before-children**, and
+2. the DB path itself stays correct when a **create races a move**.
+
+Both are enyMan's doing, not bizTree's -- but they are the other half of "the tree stays consistent,"
+so they are documented here beside the cache that depends on them.
+
+### 1. The move broadcast, and why parents-first
+
+A move rewrites `ep_path` for the **whole moved subtree** in one prefix rewrite, then lists the moved
+nodes and broadcasts one `EVENT_UPDATE_PATH` per node. bizTree applies each event by rebuilding that
+node's cached `tree_path` **from its parent's already-updated cached path** (`moveOrgNode` /
+`moveUsrNode` / `moveAcctNode`). A child processed before its parent would rebuild off the parent's
+*old* path and corrupt the cache. So the broadcast must be ordered **parents first**.
+
+The order is `ORDER BY ep_et_pk, ep_path` (`EsqOrgJpa.listMovedPaths`):
+
+- **Kind first (`ep_et_pk`).** The entity kinds are numbered in tree order -- org `20` < admin
+  `30/32` < user `34/36` < account `50/52/54` -- and a child's kind is always **at least** its
+  parent's. So ordering by kind puts every parent's kind-group ahead of its children's, by
+  construction. This is what breaks the **parent-only tie**: an admin shares its org's `ep_path` and
+  an account shares its user's `ep_path` (`isPathParentOnly`), so they would tie on path or depth --
+  but their kinds differ, and the higher kind sorts after. (A user move needs only `ORDER BY
+  ep_et_pk`: its subtree is the user plus its accounts, and user `<` account settles it.)
+- **`ep_path` second** orders org-under-org (all kind `20`, no parent-only among orgs): a parent
+  org's path is a prefix of its descendants', so a lexicographic sort places the parent ahead.
+
+This replaced an earlier `ORDER BY length(ep_path)`, which was a weak string-length proxy: it
+mis-weighted same-depth nodes (`1.2.` length 4 vs `1.14.` length 5) and, fatally, could not separate
+a parent-only child from its parent -- they share the same path, so they tied. Kind-first fixes both,
+with plain columns and no function in the `ORDER BY`.
+
+> A materialized `EP_TREE_LEVEL` column (the dot-count of `ep_path`, maintained on every path write)
+> ordered as `ep_et_pk, ep_tree_level` would be the conceptually cleanest key and is noted in the
+> query as a **DBA optimization option** for very large trees. It is deliberately **not** built at the
+> current scale -- the result set is one moved subtree, and the plain columns already sort correctly.
+
+### 2. The create-while-move race, and how the DB path stays correct
+
+**Move is the heaviest operation, and the rarest.** Moving a branch rewrites the `ep_path` of every
+node beneath it: a small move touches a handful of rows, but moving a large branch can rewrite
+thousands, then broadcast one event per moved node and have bizTree re-path each one. It is the most
+expensive thing the tree does. It is also rare -- a move is an administrative reshaping of the org
+tree, not a per-second or even per-hour event. The race below needs a move **and** a create landing in
+the same brief window on the same subtree, which a normal workload almost never produces and only a
+heavy-duty load test reliably reproduces. Everything in this section exists to keep the cache correct
+in **real time**, at best effort, for that rare collision -- a deliberate cost, for the reason spelled
+out at the end of the appendix.
+
+**The race (race-8b).** A move rewrites the subtree's `ep_path`; a concurrent `CREATE` under a node in
+that subtree reads the parent's `ep_path` to compose the child's. If the create reads the **pre-move**
+path but commits **after** the move rewrote it, the new entity is left with a path under the old
+location -- one that no longer exists. The DB is now wrong, and the night-watch cannot fix it.
+
+In a **redundant deployment** the create and the move may run on **different enyMan instances**, so an
+in-JVM guard is not enough. Four mechanisms close the window:
+
+- **A system lock serializes moves across the whole cluster.** Every move first takes a DB row lock
+  on the entity-path root -- `SELECT ep_pk FROM esq_entity_path WHERE ep_pk = 1 FOR UPDATE`. Because
+  every instance contends on the *same* row, moves are **globally serial**: one move at a time across
+  all instances, no interleaved subtree rewrites.
+- **The move runs on an async FIFO queue.** `/esq-move` returns `202` at once; `MoveQueueManager`'s
+  single worker drains the queue in order. An in-flight counter (`inMove()`) is incremented **at
+  submit, before the item is queued**, so a `CREATE` the instant after already sees a move in
+  progress. The worker runs the move on a dedicated transaction that opts out of the request-path
+  timeout cap (a full-subtree rewrite may be long).
+- **Reconciliation events repair a create that raced.** When a `CREATE` fires while `inMove()`:
+  - a **local** create (same instance) enqueues a `CreateReconcileItem` on the move queue after it
+    broadcasts (`submitReconcileIfInMove`);
+  - a **peer** create (another instance) is delivered to the instance running the move through the
+    entity-broadcast receive leg -- a broker selector for `CREATE` events plus `noLocal` (not self) --
+    and forwarded to the same reconcile intake (`onPeerCreate`).
+
+    The reconcile worker recomputes the expected path from the parent's **current** (post-move) path;
+    if it differs from the path the create published, it **fixes the DB** (`updatePath`) and
+    **reissues `EVENT_UPDATE_PATH`** -- which bizTree applies, re-pathing the node. DB and cache
+    converge.
+- **"Elastic end of move" catches the last stragglers.** A create can read the pre-move path, then
+  the move can finish and drain **before** the create reaches its `inMove()` check -- slipping past
+  with no reconcile. So `inMove()` stays true for a short **grace window**
+  (`enyman.move-queue.in-move-grace-ms`, default `200`) after the last move drains. It is not a hard
+  guarantee -- a create stalled longer than the grace between its read and its check still misses, and
+  its residual falls to a later move (the night-watch cannot, since the DB is wrong) -- but it closes
+  the common window cheaply.
+
+**Config (`enyman.move-queue.*`):**
+
+| Property | Default | Role |
+|---|---|---|
+| `capacity` | `16384` | Move/reconcile queue depth. |
+| `validate-create-during-move` | `true` | Master toggle for the reconcile path (the race-8b simulation flips it off to prove the race still fires). |
+| `in-move-grace-ms` | `200` | The elastic-end grace window; `0` disables it (`inMove()` becomes exactly "counter > 0"). |
+| `tx-timeout-s` | `0` | The move worker's transaction timeout; `0` = uncapped (opts out of the request-path cap). |
+
+**Why carry all this for a rare case.** The cheap way to dodge the whole problem would be to stop
+caching and read the tree straight from `esq2025` on every query -- no cache, no move-vs-create window,
+nothing to reconcile. But that is exactly what bizTree exists to avoid: a live join against the source
+tree makes every UI traversal slow, and a fast tree is the entire reason the cache is there. So the
+choice is made the other way -- keep the cache, and keep it correct in real time even through the rare,
+heavy move. The lock, the queue, the reconcile, and the elastic grace are the price of a tree that is
+both fast and current; the night-watch is the backstop beneath them.
+
+![The create-while-move race across two enyMan instances, and how the system lock, move queue, reconcile events, and the elastic grace window keep the DB path correct so bizTree stays consistent.](img/move-race.svg)
+
+![A single move broadcasts one EVENT_UPDATE_PATH per moved node, ordered parents-first (ORDER BY ep_et_pk, ep_path), so bizTree rebuilds each node's cached path from its parent's already-updated path.](img/move-ordering.svg)

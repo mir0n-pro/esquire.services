@@ -20,12 +20,16 @@
  *                   map moved to a ConcurrentHashMap and the lock narrowed to the wait/notify monitor only
  * 07/02/2026 mir0n  drop() also logs to the MAIN app log (msgAudit rides the msg-log channel, OFF in prod) so a
  *                   dropped (dead) message is visible in prod logs
+ * 07/11/2026 mir0n  v1.2.11 -- retry meters over o11y.RodObserverHolder.meters(): start() registers the held-count
+ *                   gauge (registerRetryHeld(.., this::heldCount)), a hold reports retryBackoff(busId, backoffMs)
+ *                   and drop() reports retryDropped(busId, slotId); start() added as an ISessionSublayer override
  */
 package pro.mir0n.esquire.messaging.xrod.impl.sublayer;
 
 import pro.mir0n.esquire.messaging.RodEvent;
 import pro.mir0n.esquire.messaging.transport.BusIdentity;
 import pro.mir0n.esquire.messaging.transport.TransportHealth;
+import pro.mir0n.esquire.messaging.o11y.RodObserverHolder;
 import pro.mir0n.esquire.messaging.xrod.impl.ISessionSublayer;
 import pro.mir0n.esquire.messaging.xrod.impl.MsgAudit;
 
@@ -202,14 +206,23 @@ public final class SendRetrySublayer implements ISessionSublayer {
         return ret;
     }
 
+    /** Register the retry-hold gauge (messaging.retry.held) at the engine start phase -- the observer is set by
+     *  then (its registrar runs at context refresh, before the lifecycle start), so it binds the real registry. (O1/T5) */
+    @Override
+    public void start() {
+        RodObserverHolder.meters().registerRetryHeld(identity.busId(), identity.slotId(), this::heldCount);
+    }
+
     /** Log that a failed send is held for the backoff. */
     private void held(int attempts, long backoffMs, RodEvent event) {
+        RodObserverHolder.meters().retryBackoff(identity.busId(), backoffMs);   // (O1/T5)
         msgAudit.warn("send-retry[{}]: send failed (transport DOWN) -- holding {} (attempt {}, next retry in {}ms) -- kind={}, entityId={}",
                 identity.rodId(), event.applMsgId(), attempts, backoffMs, event.kind(), event.entityId());
     }
 
     /** Give up on the held event (the fallback): note it and let the worker move on. */
     private void drop(int afterAttempts, RodEvent event) {
+        RodObserverHolder.meters().retryDropped(identity.busId(), event.msgType());   // (O1/T5)
         msgAudit.warn("send-retry[{}]: send failed after {} attempts -- DROPPING {} -- kind={}, entityId={}",
                 identity.rodId(), afterAttempts, event.applMsgId(), event.kind(), event.entityId());
         // Also surface the drop on the MAIN app log: msgAudit rides the msg-log channel, which is OFF in
