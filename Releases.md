@@ -1,8 +1,13 @@
-# <img src="favicon.ico" alt="Esquire logo" valign="middle" width="64" height="64"> Esquire Application Frameworks(tm) 2.0
 
-# **Esquire Releases**
+<table style="width: 100%; table-layout: fixed;"">
+  <tr>
+    <td style="width: 12%"><img src="favicon.ico" alt="Esquire logo" align="right" valign="middle" width="64"</td>
+    <td style="width: 88%;">
+       <h1>Esquire Application Frameworks(tm) 2.0</h1>
+    </td>
+  </tr>
+</table>
 
-Full release notes for every version of Esquire services, and the milestone reports across the four Esquire repositories (services, explorer, ui.lib, db.seed).
 
 ## Release Notes
 

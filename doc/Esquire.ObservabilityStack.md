@@ -1,4 +1,11 @@
-# <img src="../favicon.ico" alt="Esquire logo" valign="middle" width="64" height="64"> Esquire Application Frameworks(tm) 2.0
+<table style="width: 100%; table-layout: fixed;">
+  <tr>
+    <td style="width: 12%"><img src="../favicon.ico" alt="Esquire logo" align="right" valign="middle" width="64"></td>
+    <td style="width: 88%;">
+       <h1>Esquire Application Frameworks(tm) 2.0</h1>
+    </td>
+  </tr>
+</table>
 
 # **Esquire Observability Stack**
 
@@ -40,46 +47,74 @@ Prometheus --> Grafana**. Every id is the same end to end (`correlationId` == `t
 exemplar), so any pillar jumps to any other.
 
 ---
+<table style="width: 100%; table-layout: fixed;">
+  <tr>
+    <td style="width: auto; white-space: nowrap;"><b>Grafana Alloy</b></td>
+    <td style="width: 100%;"><img src="./logo/alloy_icon.png" alt="Alloy logo" valign="middle" height="24"></td>
+  </tr>
+</table>
 
-**Grafana Alloy**
-<img src="logo/alloy_icon.png" alt="Alloy logo" valign="middle" height="24">
-<br> The log collector. Discovers the pods on the cluster, tails each container's stdout -- already ECS JSON, so no service change -- attaches the `correlationId` / `requestId` as structured metadata, and ships the stream on.
+The log collector. Discovers the pods on the cluster, tails each container's stdout -- already ECS JSON, so no service change -- attaches the `correlationId` / `requestId` as structured metadata, and ships the stream on.
 *Communication:*
 - **IN** -- reads pod logs through the Kubernetes API / kubelet
 - **OUT** -- HTTP POSTs the batched log lines to Loki's `push` endpoint (`POST /loki/api/v1/push`)
 
 *Source:* [grafana/alloy](https://github.com/grafana/alloy) (Grafana Labs, open source).
 
-**Grafana Loki**
-<img src="media/loki_icon.svg" alt="Loki logo" valign="middle" height="24">
-<br> The log store; aggregates and indexes the ECS streams by a small label set, keeping `correlationId` / `requestId` as structured metadata (never a label, so the index stays small).
+---
+<table style="width: 100%; table-layout: fixed;">
+  <tr>
+    <td style="width: auto; white-space: nowrap;"><b>Grafana Loki</b></td>
+    <td style="width: 100%;"><img src="./media/loki_icon.svg" alt="Loki logo" valign="middle" height="24"></td>
+  </tr>
+</table>
+
+The log store; aggregates and indexes the ECS streams by a small label set, keeping `correlationId` / `requestId` as structured metadata (never a label, so the index stays small).
 *Communication:*
 - **IN** -- the log lines Alloy HTTP POSTs to its `push` endpoint (`/loki/api/v1/push`)
 - **OUT** -- queried by Grafana in LogQL over HTTP
 
 *Source:* [grafana/loki](https://github.com/grafana/loki) (Grafana Labs, open source).
 
-**OpenTelemetry Collector**
-<img src="logo/OTelCollector.png" alt="OpenTelemetry Collector logo" valign="middle" height="24">
-<br> A separate routing hub for traces -- its OWN service, NOT part of any app. It receives spans from every service, tail-samples (keeps the error traces, thins the rest), and forwards them to the trace store. It also derives a **service graph**: for every service-to-service call it sees in the spans (including the bus hops), it computes that edge's request / error / latency and publishes them as metrics on `:8889` -- the one place a trace becomes a metric, and what feeds the topology view. It is the ONE swap point: aim its exporter at a different trace backend and no service changes. (The `-contrib` build is required -- the `servicegraph` connector and `tail_sampling` processor are not in the core Collector.)
+---
+<table style="width: 100%; table-layout: fixed;">
+  <tr>
+    <td style="width: auto; white-space: nowrap;"><b>OpenTelemetry Collector</b></td>
+    <td style="width: 100%;"><img src="./logo/OTelCollector.png" alt="OpenTelemetry Collector logo" valign="middle" height="24"></td>
+  </tr>
+</table>
+
+A separate routing hub for traces -- its OWN service, NOT part of any app. It receives spans from every service, tail-samples (keeps the error traces, thins the rest), and forwards them to the trace store. It also derives a **service graph**: for every service-to-service call it sees in the spans (including the bus hops), it computes that edge's request / error / latency and publishes them as metrics on `:8889` -- the one place a trace becomes a metric, and what feeds the topology view. It is the ONE swap point: aim its exporter at a different trace backend and no service changes. (The `-contrib` build is required -- the `servicegraph` connector and `tail_sampling` processor are not in the core Collector.)
 *Communication:*
 - **IN** -- OTLP over gRPC (`:4317`) and HTTP (`:4318`) from the services
 - **OUT** -- OTLP to Tempo, and service-graph metrics on `:8889` (scraped by Prometheus)
 
 *Source:* [open-telemetry/opentelemetry-collector-contrib](https://github.com/open-telemetry/opentelemetry-collector-contrib) (OpenTelemetry / CNCF, open source).
 
-**Grafana Tempo**
-<img src="media/tempo_logo.svg" alt="Tempo logo" valign="middle" height="24">
-<br> The trace store; keeps each request's spans under its `traceId` -- which equals the `correlationId`, so a log line and its trace share one id.
+---
+<table style="width: 100%; table-layout: fixed;">
+  <tr>
+    <td style="width: auto; white-space: nowrap;"><b>Grafana Tempo</b></td>
+    <td style="width: 100%;"><img src="./media/tempo_logo.png" alt="Tempo logo" valign="middle" height="24"></td>
+  </tr>
+</table>
+
+The trace store; keeps each request's spans under its `traceId` -- which equals the `correlationId`, so a log line and its trace share one id.
 *Communication:*
 - **IN** -- OTLP from the OTel Collector
 - **OUT** -- queried by Grafana (by id / TraceQL) over HTTP
 
 *Source:* [grafana/tempo](https://github.com/grafana/tempo) (Grafana Labs, open source).
 
-**Prometheus**
-<img src="media/prometheus_logo.svg" alt="Prometheus logo" valign="middle" height="24">
-<br> The metrics store; **pull-based**. "Scrape" means Prometheus makes a plain HTTP GET to each target's `/metrics` page on a fixed interval (15s) and reads the numbers off it -- the target only exposes a text page, it pushes nothing, and every target is read the same way (no per-source driver). Where a source is not already Prometheus text, a small **exporter** does the translation first: most services expose it themselves (Spring Actuator, Keycloak/Quarkus, the BFF's prom-client); the **ActiveMQ JMX exporter is a Java agent INSIDE the broker JVM** (`:9404`, not a separate box); **postgres-exporter is a SEPARATE service** that queries Postgres over SQL and re-publishes it (`:9187`).
+---
+<table style="width: 100%; table-layout: fixed;">
+  <tr>
+    <td style="width: auto; white-space: nowrap;"><b>Prometheus</b></td>
+    <td style="width: 100%;"><img src="./media/prometheus_logo.svg" alt="Prometheus logo" valign="middle" height="24"></td>
+  </tr>
+</table>
+
+The metrics store; **pull-based**. "Scrape" means Prometheus makes a plain HTTP GET to each target's `/metrics` page on a fixed interval (15s) and reads the numbers off it -- the target only exposes a text page, it pushes nothing, and every target is read the same way (no per-source driver). Where a source is not already Prometheus text, a small **exporter** does the translation first: most services expose it themselves (Spring Actuator, Keycloak/Quarkus, the BFF's prom-client); the **ActiveMQ JMX exporter is a Java agent INSIDE the broker JVM** (`:9404`, not a separate box); **postgres-exporter is a SEPARATE service** that queries Postgres over SQL and re-publishes it (`:9187`).
 *Communication:*
 - **IN** -- scrapes these `/metrics` endpoints (HTTP GET pull, 15s):
     - the services' `/actuator/prometheus`
@@ -92,18 +127,31 @@ exemplar), so any pillar jumps to any other.
 
 *Source:* [prometheus/prometheus](https://github.com/prometheus/prometheus) (Prometheus / CNCF, open source).
 
-**Postgres Exporter**
-<img src="logo/postgres.svg" alt="Postgres logo" valign="middle" height="24">
-<br> A SEPARATE service (Postgres cannot expose Prometheus metrics itself, and you cannot load an agent into it). It connects to the database, reads the `pg_stat_*` views, and re-publishes them as a Prometheus `/metrics` page.
+---
+<table style="width: 100%; table-layout: fixed;">
+    <tr>
+    <td style="width: auto; white-space: nowrap;"><b>Postgres Exporter</b></td>
+    <td style="width: 8%;"><img src="./media/prometheus_logo.svg" alt="Prometheus logo" valign="middle" height="24"></td>
+    <td style="width: 100%;"><img src="./logo/postgres.svg" alt="Postgres logo" valign="middle" height="24"></td>
+  </tr>
+</table>
+
+A SEPARATE service (Postgres cannot expose Prometheus metrics itself, and you cannot load an agent into it). It connects to the database, reads the `pg_stat_*` views, and re-publishes them as a Prometheus `/metrics` page.
 *Communication:*
 - **IN** -- SQL to Postgres (`pg_stat_*`)
 - **OUT** -- `/metrics` on `:9187` (HTTP pull), scraped by Prometheus
 
 *Source:* [prometheus-community/postgres_exporter](https://github.com/prometheus-community/postgres_exporter) (open source).
 
-**Grafana**
-<img src="media/grafana_icon.svg" alt="Grafana logo" valign="middle" height="24">
-<br> The one screen; dashboards for all three -- logs, traces, metrics -- and the cross-links between them: a log line jumps to its trace (the `TraceID` derived field), a metric spike jumps to an example trace (exemplars), all in one place.
+---
+<table style="width: 100%; table-layout: fixed;">
+  <tr>
+    <td style="width: auto; white-space: nowrap;"><b>Grafana</b></td>
+    <td style="width: 100%;"><img src="./media/grafana_icon.svg" alt="Grafana logo" valign="middle" height="24"></td>
+  </tr>
+</table>
+
+The one screen; dashboards for all three -- logs, traces, metrics -- and the cross-links between them: a log line jumps to its trace (the `TraceID` derived field), a metric spike jumps to an example trace (exemplars), all in one place.
 *Communication:* three data sources, all over HTTP:
 - Loki -- LogQL
 - Tempo -- TraceQL

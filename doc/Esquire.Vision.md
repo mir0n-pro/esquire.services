@@ -1,4 +1,11 @@
-# <img src="../favicon.ico" alt="Esquire logo" valign="middle" width="64" height="64"> Esquire Frameworks — Value Proposition
+<table style="width: 100%; table-layout: fixed;">
+  <tr>
+    <td style="width: 12%"><img src="../favicon.ico" alt="Esquire logo" align="right" valign="middle" width="64"></td>
+    <td style="width: 88%;">
+       <h1>Esquire Frameworks — Value Proposition</h1>
+    </td>
+  </tr>
+</table>
 
 ---
 ## The Vision

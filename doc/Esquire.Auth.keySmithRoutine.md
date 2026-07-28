@@ -1,4 +1,11 @@
-# <img src="../favicon.ico" alt="Esquire logo" valign="middle" width="64" height="64"> Esquire Application Frameworks(tm) 2.0
+<table style="width: 100%; table-layout: fixed;">
+  <tr>
+    <td style="width: 12%"><img src="../favicon.ico" alt="Esquire logo" align="right" valign="middle" width="64"></td>
+    <td style="width: 88%;">
+       <h1>Esquire Application Frameworks(tm) 2.0</h1>
+    </td>
+  </tr>
+</table>
 
 # KeySmith Credential Routines — State Machine & Collaboration
 

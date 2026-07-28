@@ -1,4 +1,11 @@
-# <img src="../favicon.ico" alt="Esquire logo" valign="middle" width="64" height="64"> Esquire Application Frameworks(tm) 2.0
+<table style="width: 100%; table-layout: fixed;">
+  <tr>
+    <td width="10%"><img src="../favicon.ico" alt="Esquire logo" align="right" valign="middle" width="64"></td>
+    <td>
+       <h1>Esquire Application Frameworks(tm) 2.0</h1>
+    </td>
+  </tr>
+</table>
 
 # Esquire Testing Stack
 
@@ -6,16 +13,22 @@ The Esquire framework spans Java microservices, a Node.js BFF, an Angular SPA + 
 
 ## At a glance
 
-|                                                               | Tier                                          | Framework(s) | Project(s) | Tests |
-|---------------------------------------------------------------|-----------------------------------------------|---|---|---|
-| ![Alt text](media/junit.svg)                                  | Java unit + service                           | **JUnit 5** + **Mockito** + **AssertJ** | `services/*` | **610** `@Test` methods across **94** classes |
-| ![Alt text](media/jacoco.png)                              | Java code coverage (a test of the tests)      | **JaCoCo** | `services/*` &rarr; `test/JaCoCo` | **15** per-module line / branch reports (unit + in-JVM ITs) |
-| ![Alt text](media/hauberk.svg) ![Alt text](media/gatling.svg) | Running-stack load / stress / race-repro      | **Haubergeon** (on **Gatling 3.13** Java DSL) | `explorer/hauberk` | **23** self-validating Simulations (smoke / load / super / race-repro / message-loss / HA) + 3 JUnit catalog tests |
-| ![Alt text](media/hauberk.svg) ![Alt text](media/gatling.svg) | Running-stack integration matrices            | **Bash** driver + `psql` / `sqlplus` / `kubectl` (drives the **hauberk** `EntitySmoke` workload) | `services/test` | **~27-cell** audit matrix (audit sink x primary DB x environment) + a **bus health** readiness/liveness chaos smoke |
-| ![Alt text](media/vitest.svg)                                 | Node.js (BFF)                                 | **Vitest** + **Supertest** | `explorer/backend` | **47** specs across **5** files (config / cache / trace / tokens / W3C trace-id conformance) |
-| ![Alt text](media/karma.svg) ![Alt text](media/jasmine.svg)   | Angular SPA                                   | **Karma** + **Jasmine** (`ng test`) | `explorer/frontend` | **25** `it()` specs in **4** files |
-| ![Alt text](media/karma.svg) ![Alt text](media/jasmine.svg)   |  Angular UI library                           | **Karma** + **Jasmine** (`ng test`) | `esquire.ui.lib` | **146** `it()` specs in **23** files |
-| ![Alt text](media/playwrite.svg)                              | Browser end-to-end                            | **Playwright** | `explorer/e2e-test` | **47** `test()` cases in **23** `.spec.ts` files |
+<table style="width: 100%; table-layout: fixed;">
+  <tr><th></th><th>Tier</th><th>Framework(s)</th><th>Project(s)</th><th>Tests</th></tr>
+  <tr>
+      <td width="8%"><img src="media/junit.svg" alt="Alt text" height="24"></td>
+      <td>Java unit + service</td><td><b>JUnit 5</b> + <b>Mockito</b> + <b>AssertJ</b></td>
+      <td><code>services/*</code></td>
+      <td><b>610</b> <code>@Test</code> methods across <b>94</b> classes</td>
+  </tr>
+  <tr><td><img src="media/jacoco.png" alt="Alt text" height="24"></td><td>Java code coverage (a test of the tests)</td><td><b>JaCoCo</b></td><td><code>services/*</code> &rarr; <code>test/JaCoCo</code></td><td><b>15</b> per-module line / branch reports (unit + in-JVM ITs)</td></tr>
+  <tr><td><img src="media/hauberk.svg" alt="Alt text" height="24"> <img src="media/gatling.svg" alt="Alt text" height="24"></td><td>Running-stack load / stress / race-repro</td><td><b>Haubergeon</b> (on <b>Gatling 3.13</b> Java DSL)</td><td><code>explorer/hauberk</code></td><td><b>23</b> self-validating Simulations (smoke / load / super / race-repro / message-loss / HA) + 3 JUnit catalog tests</td></tr>
+  <tr><td><img src="media/hauberk.svg" alt="Alt text" height="24"> <img src="media/gatling.svg" alt="Alt text" height="24"></td><td>Running-stack integration matrices</td><td><b>Bash</b> driver + <code>psql</code> / <code>sqlplus</code> / <code>kubectl</code> (drives the <b>hauberk</b> <code>EntitySmoke</code> workload)</td><td><code>services/test</code></td><td><b>~27-cell</b> audit matrix (audit sink x primary DB x environment) + a <b>bus health</b> readiness/liveness chaos smoke</td></tr>
+  <tr><td><img src="media/vitest.svg" alt="Alt text" height="24"></td><td>Node.js (BFF)</td><td><b>Vitest</b> + <b>Supertest</b></td><td><code>explorer/backend</code></td><td><b>47</b> specs across <b>5</b> files (config / cache / trace / tokens / W3C trace-id conformance)</td></tr>
+  <tr><td><img src="media/karma.svg" alt="Alt text" height="24"> <img src="media/jasmine.svg" alt="Alt text" height="24"></td><td>Angular SPA</td><td><b>Karma</b> + <b>Jasmine</b> (<code>ng test</code>)</td><td><code>explorer/frontend</code></td><td><b>25</b> <code>it()</code> specs in <b>4</b> files</td></tr>
+  <tr><td><img src="media/karma.svg" alt="Alt text" height="24"> <img src="media/jasmine.svg" alt="Alt text" height="24"></td><td>Angular UI library</td><td><b>Karma</b> + <b>Jasmine</b> (<code>ng test</code>)</td><td><code>esquire.ui.lib</code></td><td><b>146</b> <code>it()</code> specs in <b>23</b> files</td></tr>
+  <tr><td><img src="media/playwrite.svg" alt="Alt text" height="24"></td><td>Browser end-to-end</td><td><b>Playwright</b></td><td><code>explorer/e2e-test</code></td><td><b>47</b> <code>test()</code> cases in <b>23</b> <code>.spec.ts</code> files</td></tr>
+</table>
 
 ---
 

@@ -134,132 +134,240 @@ nodes so losing one keeps the site up. The databases, Keycloak, the message brok
 run as a single instance here; each is a third-party platform that brings its **own** high-availability
 (clustering / replication), set up by the operator when wanted — outside Esquire's concern.
 
-**Esq2025**
-<img src="./doc/logo/postgres.svg" alt="postgres logo" valign="middle" height="24">
-<img src="./doc/logo/oracle.svg" alt="oracle logo" valign="middle" height="24">
-<br> The database (Postgres or Oracle); persistent store for all entity data,
-transactions, permissions, configuration parameters, and the audit log (when triggers are enabled).
+<table style="width: 100%; table-layout: fixed;">
+  <tr></tr>
+  <tr><td style="width: 100%;">
+    <table style="width: 100%; table-layout: fixed;">
+      <tr></tr>
+      <tr>
+        <td style="width: auto; white-space: nowrap;"><b>Esq2025</b></td>
+        <td style="width: 8%;"><img src="./doc/logo/postgres.svg" alt="postgres logo" valign="middle" height="24"></td>
+        <td style="width: 100%;"><img src="./doc/logo/oracle.svg" alt="oracle logo" valign="middle" height="24"></td>
+      </tr>
+    </table>
+    The database (Postgres or Oracle); persistent store for all entity data,
+       transactions, permissions, configuration parameters, and the audit log (when triggers are enabled).
+  </td></tr>
 
-**Esq2025 audit**
-<img src="./doc/logo/postgres.svg" alt="postgres logo" valign="middle" height="24">
-<img src="./doc/logo/oracle.svg" alt="oracle logo" valign="middle" height="24">
-<br> Optional, the database (Postgres or Oracle); persistent store for the entity audit log (`*_log` tables).
+  <tr><td style="width: 100%;">
+    <table style="width: 100%; table-layout: fixed;">
+      <tr>
+        <td style="width: auto; white-space: nowrap;"><b>Esq2025 audit</b></td>
+        <td style="width: 8%;"><img src="./doc/logo/postgres.svg" alt="postgres logo" valign="middle" height="24"></td>
+        <td style="width: 100%;"><img src="./doc/logo/oracle.svg" alt="oracle logo" valign="middle" height="24"></td>
+      </tr>
+    </table>
+    Optional, the database (Postgres or Oracle); persistent store for the entity audit log (<code>*_log</code> tables).
+  </td></tr>
 
-**Messaging Bus**
-<img src="./doc/logo/activemq.png" alt="ActiveMQ logo" valign="middle" height="24">
-<img src="./doc/logo/redis.svg" alt="Redis logo" valign="middle" height="24">
-<img src="./doc/logo/kafka.svg" alt="Kafka logo" valign="middle" height="24">
-<br> Three logical channels:
-- *IAM Request-Response Bus* — carries identity commands (create / update / delete user)
-  from keySmith to kcMaster, and acknowledgement replies back
-- *Entity Broadcast Bus* — enyMan and pacMan publish entity change events on every mutation;
-  bizTree and other interested consumers subscribe
-- *Audit Broadcast Bus* — optional (off by default); the entity-updating services (enyMan, pacMan, keySmith)
-  publish each committed change event. Transport vendors: ActiveMQ, Kafka, or Redis. 
+  <tr><td style="width: 100%;">
+    <table style="width: 100%; table-layout: fixed;">
+      <tr></tr>
+      <tr>
+        <td style="width: auto; white-space: nowrap;"><b>Messaging Bus</b></td>
+        <td style="width: 8%;"><img src="./doc/logo/activemq.png" alt="ActiveMQ logo" valign="middle" height="24"></td>
+        <td style="width: 8%;"><img src="./doc/logo/redis.svg" alt="Redis logo" valign="middle" height="24"></td>
+        <td style="width: 100%;"><img src="./doc/logo/kafka.svg" alt="Kafka logo" valign="middle" height="24"></td>
+      </tr>
+    </table>
+    Three logical channels:
+       <br> - <i>IAM Request-Response Bus</i> — carries identity commands (create / update / delete user)
+         from keySmith to kcMaster, and acknowledgement replies back
+       <br> - <i>Entity Broadcast Bus</i> — enyMan and pacMan publish entity change events on every mutation;
+         bizTree and other interested consumers subscribe
+       <br> - <i>Audit Broadcast Bus</i> — optional (off by default); the entity-updating services (enyMan, pacMan, keySmith)
+         publish each committed change event. Transport vendors: ActiveMQ, Kafka, or Redis.
+  </td></tr>
 
-**pacMan**
-<img src="./doc/logo/java.svg" alt="Java logo" valign="middle" height="24">
-<img src="./doc/logo/spring-boot.svg" alt="Spring Boot logo" valign="middle" height="24">
-<img src="./doc/logo/pac-man.svg" alt="pacMan logo" valign="middle" height="24">
-<br>Personal Account Manager; the accounting service; manages account balance
-operations: deposit, withdrawal, cross-currency transfer; the place where business logic lives;
-all other services exist to support it.
+  <tr><td style="width: 100%;">
+    <table style="width: 100%; table-layout: fixed;">
+      <tr>
+        <td style="width: auto; white-space: nowrap;"><b>pacMan</b></td>
+        <td style="width: 8%;"><img src="./doc/logo/java.svg" alt="Java logo" valign="middle" height="24"></td>
+        <td style="width: 8%;"><img src="./doc/logo/spring-boot.svg" alt="Spring Boot logo" valign="middle" height="24"></td>
+        <td style="width: 100%;"><img src="./doc/logo/pac-man.svg" alt="pacMan logo" valign="middle" height="24"></td>
+      </tr>
+    </table>
+    Personal Account Manager; the accounting service; manages account balance
+       operations: deposit, withdrawal, cross-currency transfer; the place where business logic lives;
+       all other services exist to support it.
+  </td></tr>
 
-**bizTree**
-<img src="./doc/logo/java.svg" alt="Java logo" valign="middle" height="24">
-<img src="./doc/logo/spring-boot.svg" alt="Spring Boot logo" valign="middle"  height="24">
-<img src="./doc/logo/h2.svg" alt="H2 logo" valign="middle" height="24">
-<img src="./doc/logo/bizTree.png" alt="bizTree logo" valign="middle" height="24">
-<br>The entity tree service; maintains an H2 database in-memory cache of the business entity
-tree; serves tree navigation to the frontend; stays current by consuming the broadcast bus.
-A **recoverable cache service**: a two-buffer anti-entropy design whose periodic
-night-watch rebuilds a shadow from the database, compares the two, and self-heals any drift —
-so an event missed while the service was down is reconciled automatically, with no restart.
+  <tr><td style="width: 100%;">
+    <table style="width: 100%; table-layout: fixed;">
+      <tr></tr>
+      <tr>
+        <td style="width: auto; white-space: nowrap;"><b>bizTree</b></td>
+        <td style="width: 8%;"><img src="./doc/logo/java.svg" alt="Java logo" valign="middle" height="24"></td>
+        <td style="width: 8%;"><img src="./doc/logo/spring-boot.svg" alt="Spring Boot logo" valign="middle"  height="24"></td>
+        <td style="width: 8%;"><img src="./doc/logo/h2.svg" alt="H2 logo" valign="middle" height="24"></td>
+        <td style="width: 100%;"><img src="./doc/logo/bizTree.png" alt="bizTree logo" valign="middle" height="24"></td>
+      </tr>
+    </table>
+    The entity tree service; maintains an H2 database in-memory cache of the business entity
+       tree; serves tree navigation to the frontend; stays current by consuming the broadcast bus.
+       A <b>recoverable cache service</b>: a two-buffer anti-entropy design whose periodic
+       night-watch rebuilds a shadow from the database, compares the two, and self-heals any drift —
+       so an event missed while the service was down is reconciled automatically, with no restart.
+  </td></tr>
 
-**enyMan**
-<img src="./doc/logo/java.svg" alt="Java logo" valign="middle" height="24">
-<img src="./doc/logo/spring-boot.svg" alt="Spring Boot logo" valign="middle" height="24">
-<img src="./doc/logo/enyMan.3.png" alt="enyMan logo" valign="middle" height="28">
-<br>Entity Manager; manages organizations and users; handles create, update, delete,
-and move operations; publishes entity change events to the entity broadcast bus, and now also
-receives from it — a two-way link, so the redundant copies stay coordinated, each aware of the
-entity changes the other makes.
+  <tr><td style="width: 100%;">
+    <table style="width: 100%; table-layout: fixed;">
+      <tr>
+        <td style="width: auto; white-space: nowrap;"><b>enyMan</b></td>
+        <td style="width: 8%;"><img src="./doc/logo/java.svg" alt="Java logo" valign="middle" height="24"></td>
+        <td style="width: 8%;"><img src="./doc/logo/spring-boot.svg" alt="Spring Boot logo" valign="middle" height="24"></td>
+        <td style="width: 100%;"><img src="./doc/logo/enyMan.3.png" alt="enyMan logo" valign="middle" height="28"></td>
+      </tr>
+    </table>
+    Entity Manager; manages organizations and users; handles create, update, delete,
+       and move operations; publishes entity change events to the entity broadcast bus, and now also
+       receives from it — a two-way link, so the redundant copies stay coordinated, each aware of the
+       entity changes the other makes.
+  </td></tr>
 
-**keySmith**
-<img src="./doc/logo/java.svg" alt="Java logo" valign="middle" height="24">
-<img src="./doc/logo/spring-boot.svg" alt="Spring Boot logo" valign="middle" height="24">
-<img src="./doc/logo/keySmith.3.png" alt="keySmith logo" valign="middle" height="40">
-<br>Authentication and access profile service; manages IAS integration and
-JWT-based authorization; serves access profiles to the frontend; publishes identity change
-requests to the IAM bus.
+  <tr><td style="width: 100%;">
+    <table style="width: 100%; table-layout: fixed;">
+      <tr></tr>
+      <tr>
+        <td style="width: auto; white-space: nowrap;"><b>keySmith</b></td>
+        <td style="width: 8%;"><img src="./doc/logo/java.svg" alt="Java logo" valign="middle" height="24"></td>
+        <td style="width: 8%;"><img src="./doc/logo/spring-boot.svg" alt="Spring Boot logo" valign="middle" height="24"></td>
+        <td style="width: 100%;"><img src="./doc/logo/keySmith.3.png" alt="keySmith logo" valign="middle" height="40"></td>
+      </tr>
+    </table>
+    Authentication and access profile service; manages IAS integration and
+       JWT-based authorization; serves access profiles to the frontend; publishes identity change
+       requests to the IAM bus.
+  </td></tr>
 
-**kcMaster**
-<img src="./doc/logo/java.svg" alt="Java logo" valign="middle" height="24">
-<img src="./doc/logo/spring-boot.svg" alt="Spring Boot logo" valign="middle" height="24">
-<img src="./doc/logo/kcMaster.png" alt="kcMaster logo" valign="middle" height="24">
-<br>Keycloak IAS sync coordinator; the only service that writes to Keycloak directly;
-consumes identity commands from the IAM bus and executes create / update / delete in the IAM. Also
-listens on the entity broadcast bus to keep a moved entity's Keycloak path in sync.
+  <tr><td style="width: 100%;">
+    <table style="width: 100%; table-layout: fixed;">
+      <tr>
+        <td style="width: auto; white-space: nowrap;"><b>kcMaster</b></td>
+        <td style="width: 8%;"><img src="./doc/logo/java.svg" alt="Java logo" valign="middle" height="24"></td>
+        <td style="width: 8%;"><img src="./doc/logo/spring-boot.svg" alt="Spring Boot logo" valign="middle" height="24"></td>
+        <td style="width: 100%;"><img src="./doc/logo/kcMaster.png" alt="kcMaster logo" valign="middle" height="24"></td>
+      </tr>
+    </table>
+    Keycloak IAS sync coordinator; the only service that writes to Keycloak directly;
+       consumes identity commands from the IAM bus and executes create / update / delete in the IAM. Also
+       listens on the entity broadcast bus to keep a moved entity's Keycloak path in sync.
+  </td></tr>
 
-**auKeep**
-<img src="./doc/logo/java.svg" alt="Java logo" valign="middle" height="24">
-<img src="./doc/logo/spring-boot.svg" alt="Spring Boot logo" valign="middle" height="24">
-<img src="./doc/logo/keep.svg" alt="x-rod logo" valign="middle" height="24">
-<br> Optional, the audit consumer service, writes audit events to the `*_log` tables.
+  <tr><td style="width: 100%;">
+    <table style="width: 100%; table-layout: fixed;">
+      <tr></tr>
+      <tr>
+        <td style="width: auto; white-space: nowrap;"><b>auKeep</b></td>
+        <td style="width: 8%;"><img src="./doc/logo/java.svg" alt="Java logo" valign="middle" height="24"></td>
+        <td style="width: 8%;"><img src="./doc/logo/spring-boot.svg" alt="Spring Boot logo" valign="middle" height="24"></td>
+        <td style="width: 100%;"><img src="./doc/logo/keep.svg" alt="x-rod logo" valign="middle" height="24"></td>
+      </tr>
+    </table>
+    Optional, the audit consumer service, writes audit events to the <code>*_log</code> tables.
+  </td></tr>
 
-**Redis DB**
-<img src="./doc/logo/redis.svg" alt="Redis logo" valign="middle" height="24">
-<br>Optional, the alternative non-SQL (document-DB) audit sink; the Redis stream itself holds the
-audit trail (the stream *is* the log). Feeding it from the Kafka transport needs one extra component, a
-**Kafka Connect Redis Sink**
-<img src="./doc/logo/kafka.svg" alt="Kafka logo" valign="middle" height="16">.
+  <tr><td style="width: 100%;">
+    <table style="width: 100%; table-layout: fixed;">
+      <tr>
+        <td style="width: auto; white-space: nowrap;"><b>Redis DB</b></td>
+        <td style="width: 100%;"><img src="./doc/logo/redis.svg" alt="Redis logo" valign="middle" height="24"></td>
+      </tr>
+    </table>
+    Optional, the alternative non-SQL (document-DB) audit sink; the Redis stream itself holds the
+       audit trail (the stream <i>is</i> the log). Feeding it from the Kafka transport needs one extra component, a
+       <b>Kafka Connect Redis Sink</b>
+       <img src="./doc/logo/kafka.svg" alt="Kafka logo" valign="middle" height="16">.
+  </td></tr>
 
-**gateway**
-<img src="./doc/logo/java.svg" alt="Java logo" valign="middle" height="24">
-<img src="./doc/logo/spring-boot.svg" alt="Spring Boot logo" valign="middle" width="24">
-<img src="./doc/logo/gateway.svg" alt="Gateway logo" valign="middle" width="24">
-<br> Spring Cloud Gateway; the API router; routes requests to the appropriate
-backend service by path and entity kind; validates JWT tokens on every request and, for
-opted-in clients, accepts two additional auth shapes. Reachable two ways: in-cluster
-from the BFF on `/api/*`, and externally at `https://api.esquire.mir0n.pro` — the
-**public REST API** for non-browser callers.
+  <tr><td style="width: 100%;">
+    <table style="width: 100%; table-layout: fixed;">
+      <tr></tr>
+      <tr>
+        <td style="width: auto; white-space: nowrap;"><b>gateway</b></td>
+        <td style="width: 8%;"><img src="./doc/logo/java.svg" alt="Java logo" valign="middle" height="24"></td>
+        <td style="width: 8%;"><img src="./doc/logo/spring-boot.svg" alt="Spring Boot logo" valign="middle" width="24"></td>
+        <td style="width: 100%;"><img src="./doc/logo/gateway.svg" alt="Gateway logo" valign="middle" width="24"></td>
+      </tr>
+    </table>
+    Spring Cloud Gateway; the API router; routes requests to the appropriate
+       backend service by path and entity kind; validates JWT tokens on every request and, for
+       opted-in clients, accepts two additional auth shapes. Reachable two ways: in-cluster
+       from the BFF on <code>/api/*</code>, and externally at <code>https://api.esquire.mir0n.pro</code> —
+       the <code>public REST API</code> for non-browser callers.
+  </td></tr>
 
-**Keycloak**
-<img src="./doc/logo/keycloak.png" alt="Keycloak logo" valign="middle" height="24">
-<br>External IAM; issues JWT access tokens; manages user identities, realm
-configuration, and authentication flows including TOTP; runs as a containerized service.
+  <tr><td style="width: 100%;">
+    <table style="width: 100%; table-layout: fixed;">
+      <tr>
+        <td style="width: auto; white-space: nowrap;"><b>Keycloak</b></td>
+        <td style="width: 100%;"><img src="./doc/logo/keycloak.png" alt="Keycloak logo" valign="middle" height="24"></td>
+      </tr>
+    </table>
+    External IAM; issues JWT access tokens; manages user identities, realm
+       configuration, and authentication flows including TOTP; runs as a containerized service.
+  </td></tr>
 
-**Esquire Explorer Backend**
-<img src="./doc/logo/node.js.svg" alt="Node.js logo" valign="middle" height="24">
-<br>Node.js BFF tier — Backend-for-Frontend; the **administrative
-GUI entry point** at `https://esquire.mir0n.pro`. Owns the OIDC code+PKCE flow with Keycloak
-(`/auth/login`, `/callback`, `/logout`, `/me`); proxies `/api/*` to the gateway with bearer
-injection; caches static entity dictionaries (`/esq-kinds`, `/esq-dictionary`) per pod, shared
-across users; bakes the Angular SPA into its image at build time and serves it on `/`. The
-browser never sees the access token — it holds an opaque session cookie. When run redundant, login
-sessions are kept in the **Session Store** so any copy can serve any request.
+  <tr><td style="width: 100%;">
+    <table style="width: 100%; table-layout: fixed;">
+      <tr></tr>
+      <tr>
+        <td style="width: auto; white-space: nowrap;"><b>Esquire Explorer Backend</b></td>
+        <td style="width: 100%;"><img src="./doc/logo/node.js.png" alt="Node.js logo" valign="middle" height="24"></td>
+      </tr>
+    </table>
+    Node.js BFF tier — Backend-for-Frontend; the <br>administrative GUI entry point</b>
+       at <code>https://esquire.mir0n.pro</code>. 
+       Owns the OIDC code+PKCE flow with Keycloak
+       (<code>/auth/login</code>, <code>/callback</code>, <code>/logout</code>, <code>/me</code>); 
+       proxies <code>/api/*</code>to the gateway with bearer
+       injection; caches static entity dictionaries (<code>/esq-kinds</code>, <code>/esq-dictionary</code>) per pod,
+       shared across users; bakes the Angular SPA into its image at build time and serves it on <code>/</code>.
+       The  browser never sees the access token — it holds an opaque session cookie. When run redundant, login
+       sessions are kept in the <b>Session Store</b> so any copy can serve any request.
+  </td></tr>
 
-**Session Store**
-<img src="./doc/logo/redis.svg" alt="Redis logo" valign="middle" height="24">
-<br>Optional; a Redis instance holding the BFF's login sessions, so the redundant BFF copies share them —
-any copy can serve any request. Only needed when the BFF runs as more than one copy; distinct from the
-audit-sink Redis.
+  <tr><td style="width: 100%;">
+    <table style="width: 100%; table-layout: fixed;">
+      <tr>
+        <td style="width: auto; white-space: nowrap;"><b>Session Store</b></td>
+        <td style="width: 100%;"><img src="./doc/logo/redis.svg" alt="Redis logo" valign="middle" height="24"></td>
+      </tr>
+    </table>
+    Optional; a Redis instance holding the BFF's login sessions, so the redundant BFF copies share them —
+       any copy can serve any request. Only needed when the BFF runs as more than one copy; distinct from the
+       audit-sink Redis.
+  </td></tr>
 
-**Esquire Explorer Frontend**
-<img src="./doc/logo/node.js.svg" alt="Node.js logo" valign="middle" height="24">
-<img src="./doc/logo/angular.svg" alt="Angular logo" valign="middle" height="24">
-<img src="./doc/logo/esquire.png" alt="Esquire logo" valign="middle" height="24">
-<br>Angular SPA — the user-facing tree explorer and operations UI;
-consumes the `@mir0n-pro/esquire.ui` library; communicates only with the BFF via same-origin
-`/auth/*` and `/api/*`, never directly with the gateway or Keycloak. Shipped baked into the
-BFF image; one deployable.
+  <tr><td style="width: 100%;">
+    <table style="width: 100%; table-layout: fixed;">
+      <tr></tr>
+      <tr>
+        <td style="width: auto; white-space: nowrap;"><b>Esquire Explorer Frontend</b></td>
+        <td style="width: 8%;"><img src="./doc/logo/node.js.png" alt="Node.js logo" valign="middle" height="24"></td>
+        <td style="width: 8%;"><img src="./doc/logo/angular.png" alt="Angular logo" valign="middle" height="24"></td>
+        <td style="width: 100%;"><img src="./doc/logo/esquire.png" alt="Esquire logo" valign="middle" height="24"></td>
+      </tr>
+    </table>
+    Angular SPA — the user-facing tree explorer and operations UI; consumes the <code>@mir0n-pro/esquire.ui</code> library;
+       communicates only with the BFF via same-origin <code>/auth/*</code> and <code>/api/*</code>, never directly with the gateway or Keycloak.
+       Shipped baked into the BFF image; one deployable.
+  </td></tr>
 
-**Public REST API**
-<img src="./doc/logo/hauberk.svg" alt="Hauberk logo" valign="middle" height="24">
-<img src="./doc/logo/gatling.svg" alt="Gatling logo" valign="middle" height="24">
-<br>Exposed for gatling-based load / smoke harnesses and other integrations.
+  <tr><td style="width: 100%;">
+    <table style="width: 100%; table-layout: fixed;">
+      <tr>
+        <td style="width: auto; white-space: nowrap;"><b>Public REST API</b></td>
+        <td style="width: 8%;"><img src="./doc/logo/hauberk.svg" alt="Hauberk logo" valign="middle" height="24"></td>
+        <td style="width: 100%;"><img src="./doc/logo/gatling.svg" alt="Gatling logo" valign="middle" height="24"></td>
+      </tr>
+    </table>
+    Exposed for gatling-based load / smoke harnesses and other integrations.
+  </td></tr>
+</table>
 
-The two public hosts at a glance:
+**The two public hosts at a glance:**
 
 | Host | Purpose | Auth shape | Who talks to it |
 |---|---|---|---|
@@ -268,37 +376,87 @@ The two public hosts at a glance:
 
 
 **Observability Stack**
-<img src="doc/media/o11yStack.png" alt="Observability Stack" width="790">
 
 Every piece below is open-source, and any of it can be swapped out — no lock-in, the same rule as the rest of the platform.
+<img src="doc/media/o11yStack.png" alt="Observability Stack" width="790">
 
-**Postgres Exporter**
-<img src="doc/logo/postgres.svg" alt="Postgres logo" valign="middle" height="24">
-<br> Turns the database's own statistics into numbers the metrics store can read.
+<table style="width: 100%; table-layout: fixed;">
+  <tr></tr>
+  <tr><td style="width: 100%;">
+    <table style="width: 100%; table-layout: fixed;">
+        <tr></tr>
+        <tr>
+        <td style="width: auto; white-space: nowrap;"><b>Postgres Exporter</b></td>
+        <td style="width: 8%;"><img src="doc/media/prometheus_logo.svg" alt="Prometheus logo" valign="middle" height="24"></td>
+        <td style="width: 100%;"><img src="doc/logo/postgres.svg" alt="Postgres logo" valign="middle" height="24"></td>
+      </tr>
+    </table>
+    Turns the database's own statistics into numbers the metrics store can read.
+  </td></tr>
 
-**Prometheus**
-<img src="doc/media/prometheus_logo.svg" alt="Prometheus logo" valign="middle" height="24">
-<br> The metrics store — collects the numbers (rates, timings, counts) from every service and keeps their history.
+  <tr><td style="width: 100%;">
+    <table style="width: 100%; table-layout: fixed;">
+      <tr>
+        <td style="width: auto; white-space: nowrap;"><b>Prometheus</b></td>
+        <td style="width: 100%;"><img src="doc/media/prometheus_logo.svg" alt="Prometheus logo" valign="middle" height="24"></td>
+      </tr>
+    </table>
+    The metrics store — collects the numbers (rates, timings, counts) from every service and keeps their history.
+  </td></tr>
+  
+  <tr><td style="width: 100%;">
+    <table style="width: 100%; table-layout: fixed;">
+      <tr></tr>
+      <tr>
+        <td style="width: auto; white-space: nowrap;"><b>OpenTelemetry Collector</b></td>
+        <td style="width: 100%;"><img src="doc/logo/OTelCollector.png" alt="OpenTelemetry Collector logo" valign="middle" height="24"></td>
+      </tr>
+    </table>
+    The traces hub — a separate service that gathers each request's trace from every service, passes it to the trace store, and builds the live map of which service calls which.
+  </td></tr>
+  
+  <tr><td style="width: 100%;">
+    <table style="width: 100%; table-layout: fixed;">
+      <tr>
+        <td style="width: auto; white-space: nowrap;"><b>Grafana Tempo</b></td>
+        <td style="width: 100%;"><img src="doc/media/tempo_logo.png" alt="Tempo logo" valign="middle" height="24"></td>
+      </tr>
+    </table>
+    The trace store — keeps each request's end-to-end trace, found by the same id as its logs.
+  </td></tr>
+  
+  <tr><td style="width: 100%;">
+    <table style="width: 100%; table-layout: fixed;">
+      <tr></tr>
+      <tr>
+        <td style="width: auto; white-space: nowrap;"><b>Grafana Alloy</b></td>
+        <td style="width: 100%;"><img src="doc/logo/alloy_icon.png" alt="Alloy logo" valign="middle" height="24"></td>
+      </tr>
+    </table>
+    The log collector — gathers the log lines from every service and passes them to the log store.
+  </td></tr>
+  
+  <tr><td style="width: 100%;">
+    <table style="width: 100%; table-layout: fixed;">
+      <tr>
+        <td style="width: auto; white-space: nowrap;"><b>Grafana Loki</b></td>
+        <td style="width: 100%;"><img src="doc/media/loki_icon.svg" alt="Loki logo" valign="middle" height="24"></td>
+      </tr>
+    </table>
+    The log store — keeps all the logs, searchable, and serves them to the dashboard.
+  </td></tr>
 
-**OpenTelemetry Collector**
-<img src="doc/logo/OTelCollector.png" alt="OpenTelemetry Collector logo" valign="middle" height="24">
-<br> The traces hub — a separate service that gathers each request's trace from every service, passes it to the trace store, and builds the live map of which service calls which.
-
-**Grafana Tempo**
-<img src="doc/media/tempo_logo.svg" alt="Tempo logo" valign="middle" height="24">
-<br> The trace store — keeps each request's end-to-end trace, found by the same id as its logs.
-
-**Grafana Alloy**
-<img src="doc/logo/alloy_icon.png" alt="Alloy logo" valign="middle" height="24">
-<br> The log collector — gathers the log lines from every service and passes them to the log store.
-
-**Grafana Loki**
-<img src="doc/media/loki_icon.svg" alt="Loki logo" valign="middle" height="24">
-<br> The log store — keeps all the logs, searchable, and serves them to the dashboard.
-
-**Grafana**
-<img src="doc/media/grafana_icon.svg" alt="Grafana logo" valign="middle" height="24">
-<br> The one screen — dashboards for logs, traces, and numbers together; because everything shares one id, a log line, its trace, and its numbers are one click apart.
+  <tr><td style="width: 100%;">
+    <table style="width: 100%; table-layout: fixed;">
+      <tr></tr>
+      <tr>
+        <td style="width: auto; white-space: nowrap;"><b>Grafana</b></td>
+        <td style="width: 100%;"><img src="doc/media/grafana_icon.svg" alt="Grafana logo" valign="middle" height="24"></td>
+      </tr>
+    </table>
+    The one screen — dashboards for logs, traces, and numbers together; because everything shares one id, a log line, its trace, and its numbers are one click apart.</td></tr>
+  </td></tr>
+</table>
 
 For how the pieces connect — the protocols, the ports, and the full detail — see the [Observability Stack](doc/Esquire.ObservabilityStack.md) design doc.
 
