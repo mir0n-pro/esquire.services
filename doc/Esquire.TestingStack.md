@@ -19,15 +19,15 @@ The Esquire framework spans Java microservices, a Node.js BFF, an Angular SPA + 
       <td width="8%"><img src="media/junit.svg" alt="Alt text" height="24"></td>
       <td>Java unit + service</td><td><b>JUnit 5</b> + <b>Mockito</b> + <b>AssertJ</b></td>
       <td><code>services/*</code></td>
-      <td><b>610</b> <code>@Test</code> methods across <b>94</b> classes</td>
+      <td><b>664</b> <code>@Test</code> methods across <b>104</b> classes</td>
   </tr>
-  <tr><td><img src="media/jacoco.png" alt="Alt text" height="24"></td><td>Java code coverage (a test of the tests)</td><td><b>JaCoCo</b></td><td><code>services/*</code> &rarr; <code>test/JaCoCo</code></td><td><b>15</b> per-module line / branch reports (unit + in-JVM ITs)</td></tr>
+  <tr><td><img src="media/jacoco.png" alt="Alt text" height="24"></td><td>Java code coverage (a test of the tests)</td><td><b>JaCoCo</b></td><td><code>services/*</code> &rarr; <code>test/JaCoCo</code></td><td><b>16</b> per-module line / branch reports (unit + in-JVM ITs)</td></tr>
   <tr><td><img src="media/hauberk.svg" alt="Alt text" height="24"> <img src="media/gatling.svg" alt="Alt text" height="24"></td><td>Running-stack load / stress / race-repro</td><td><b>Haubergeon</b> (on <b>Gatling 3.13</b> Java DSL)</td><td><code>explorer/hauberk</code></td><td><b>23</b> self-validating Simulations (smoke / load / super / race-repro / message-loss / HA) + 3 JUnit catalog tests</td></tr>
   <tr><td><img src="media/hauberk.svg" alt="Alt text" height="24"> <img src="media/gatling.svg" alt="Alt text" height="24"></td><td>Running-stack integration matrices</td><td><b>Bash</b> driver + <code>psql</code> / <code>sqlplus</code> / <code>kubectl</code> (drives the <b>hauberk</b> <code>EntitySmoke</code> workload)</td><td><code>services/test</code></td><td><b>~27-cell</b> audit matrix (audit sink x primary DB x environment) + a <b>bus health</b> readiness/liveness chaos smoke</td></tr>
   <tr><td><img src="media/vitest.svg" alt="Alt text" height="24"></td><td>Node.js (BFF)</td><td><b>Vitest</b> + <b>Supertest</b></td><td><code>explorer/backend</code></td><td><b>47</b> specs across <b>5</b> files (config / cache / trace / tokens / W3C trace-id conformance)</td></tr>
   <tr><td><img src="media/karma.svg" alt="Alt text" height="24"> <img src="media/jasmine.svg" alt="Alt text" height="24"></td><td>Angular SPA</td><td><b>Karma</b> + <b>Jasmine</b> (<code>ng test</code>)</td><td><code>explorer/frontend</code></td><td><b>25</b> <code>it()</code> specs in <b>4</b> files</td></tr>
   <tr><td><img src="media/karma.svg" alt="Alt text" height="24"> <img src="media/jasmine.svg" alt="Alt text" height="24"></td><td>Angular UI library</td><td><b>Karma</b> + <b>Jasmine</b> (<code>ng test</code>)</td><td><code>esquire.ui.lib</code></td><td><b>146</b> <code>it()</code> specs in <b>23</b> files</td></tr>
-  <tr><td><img src="media/playwrite.svg" alt="Alt text" height="24"></td><td>Browser end-to-end</td><td><b>Playwright</b></td><td><code>explorer/e2e-test</code></td><td><b>47</b> <code>test()</code> cases in <b>23</b> <code>.spec.ts</code> files</td></tr>
+  <tr><td><img src="media/playwrite.svg" alt="Alt text" height="24"></td><td>Browser end-to-end</td><td><b>Playwright</b></td><td><code>explorer/e2e-test</code></td><td><b>45</b> <code>test()</code> cases in <b>17</b> <code>.spec.ts</code> files</td></tr>
 </table>
 
 ---
@@ -46,22 +46,22 @@ The Esquire framework spans Java microservices, a Node.js BFF, an Angular SPA + 
 
 | Module | `@Test` methods | Notes |
 |---|---|---|
-| mir0n-utils | 26 | base utilities split out of `common` — identity / string / numeric helpers |
-| common | 201 | core framework: entity / field utils, roles storage, access profile, validators, Taijitu cache rigs, request-context guard, worker-pool |
-| messaging | 112 | the messaging-bus + x-rod substrate (the old `XRodManager` dissolved into the facade): catalog / codec / transport, the facade (`MessagingBusTest`, `MessagingBusCatalogTest`, `RodEventCodecTest`, `XRodTest`), bus health (`BusHealthIndicatorTest`, `TransportHealthIndicatorTest`, `TransportHealthTest`, `AliveSessionTest`), role + config-bind validation (`XRodRoleSupportTest`, `XRodValidateTest`, `BusRefBindTest`, `XRodParamsTest`), broker-down resilience (`XRodBrokerDownTest`) |
-| audit | 18 | the audit rules on the generic keep engine: `AuditSqlTest`, `AuditKeepDirectorTest`, `AuditBusBridgeTest`, `AuditKindsTest` |
+| mir0n-utils | 43 | base utilities split out of `common` — identity / string / numeric helpers, the worker pool and bounded-queue rig, and the expiring hand-off cache (`ExpiringCacheTest`, `ExpiringCacheStoreIfGreaterTest`, including a 16-thread race on one key) |
+| common | 202 | core framework: entity / field utils, roles storage, access profile, validators, Taijitu cache rigs, request-context guard, worker-pool |
+| messaging | 116 | the messaging-bus + x-rod substrate (the old `XRodManager` dissolved into the facade): catalog / codec / transport, the facade (`MessagingBusTest`, `MessagingBusCatalogTest`, `RodEventCodecTest`, `XRodTest`), bus health (`BusHealthIndicatorTest`, `TransportHealthIndicatorTest`, `TransportHealthTest`, `AliveSessionTest`), role + config-bind validation (`XRodRoleSupportTest`, `XRodValidateTest`, `BusRefBindTest`, `XRodParamsTest`), broker-down resilience (`XRodBrokerDownTest`) |
+| audit | 22 | the audit rules on the generic keep engine: `AuditSqlTest`, `AuditKeepDirectorTest`, `AuditBusBridgeTest`, `AuditKindsTest` |
 | dataKeep | 3 | the generic keep-engine SQL / applier units |
-| bizTree | 42 | — |
-| enyMan | 70 | — |
-| pacMan | 42 | — |
-| keySmith | 22 | — |
-| kcMaster | 31 | — |
+| bizTree | 58 | includes the receiver-side freshness guard (`MessageHandlerHubGuardTest`) and the cache-statement arity check (`InsertNodeArityTest`) |
+| enyMan | 71 | — |
+| pacMan | 50 | includes the ledger-statement dialect guard (`AcctTransactionSqlTest`) |
+| keySmith | 24 | — |
+| kcMaster | 31 | includes the parked-path ordering rules (`ParkedPathTest`) |
 | gateway | 35 | gateway typically light on JUnit; reactive WebFlux code is harder to mock-test cleanly |
-| auKeep | 2 | the audit-bus consumer integration test |
+| auKeep | 3 | the audit-bus consumer integration test (real Postgres + ActiveMQ via Testcontainers) |
 | tp-activemq | 2 | transport-provider unit checks |
 | tp-redis | 2 | transport-provider unit checks |
 | tp-kafka | 2 | transport-provider unit checks |
-| **total** | **610** | across **94** classes |
+| **total** | **664** | across **104** classes |
 
 **Coverage tooling — JaCoCo.** Line / branch coverage of this Java tier is measured with **JaCoCo** (0.8.13, wired in the parent `pom.xml`: `prepare-agent` + `report`). It counts whatever runs in the forked test JVM — the unit tests **and** the in-JVM Testcontainers / `@SpringBootTest` integration tests; e2e and hauberk drive a separately deployed stack, so they fall outside its reach. Reports are written to `services/test/JaCoCo/<artifactId>` (deliberately outside module `target/`, so `mvn clean` keeps them). Run via `build-with-JaCoCo.bat` (`mvn clean test`) and browse `test/JaCoCo/framed.html`. Coverage is a signal, not a build gate; mutation testing (PIT) is not used.
 
@@ -89,7 +89,7 @@ The Esquire framework spans Java microservices, a Node.js BFF, an Angular SPA + 
 
 Sits right beside the Haubergeon harness above — **same running stack, different question.** Haubergeon asks *how fast / does it survive concurrency*; these matrices ask *did the data land where the configuration says it should*. They reuse ONE hauberk workload (`EntitySmoke`) as the probe and assert the result in the database across a grid of configurations. (This is the tier that can look like a hauberk duplicate but is not: Haubergeon = 23 Gatling Simulations under `explorer/hauberk`; this = ~27 Bash-orchestrated **config cells** under `services/test`.)
 
-**Used in:** `services/test/` — two scenario sets: `audit-smoke/` and `health-smoke/`.
+**Used in:** `services/test/` — three scenario sets: `audit-smoke/`, `health-smoke/` and `t8-guard/`.
 
 **What for:** reproducible correctness scenarios over the *running* stack across a grid of configurations. Where unit tests mock collaborators, Haubergeon drives throughput, and Playwright drives the browser, these push a small real workload through the gateway and check the data landed where the configuration says — the correctness counterpart to Haubergeon's performance matrices.
 
@@ -99,6 +99,7 @@ Sits right beside the Haubergeon harness above — **same running stack, differe
 
 - the **audit-smoke matrix** — ~27 cells = audit sink (`a` DB triggers / `b` in-process shared+dedicated / `c` ActiveMQ / `ck` Kafka / `d` Redis stream / `dk` Kafka stream) x primary DB (Postgres / Oracle) x environment (docker / local k8s). Proves the audit log lands in the right place for every combination: the relational `*_log` tables for the consumed sinks (a / b / c / ck), the stream itself for the producer-only sinks (d / dk).
 - the **health-smoke** chaos smoke — drives the broker up / down / back and asserts every service forwards its bus connection health to `/actuator/health`, that the indicator sits in the **readiness** group only (a broker outage depools the pod but never restarts it), and that an ActiveMQ leg recovers on its own through the `failover:` transport. The readiness-DOWN edge is asserted on docker (a clean `docker stop`) and observed on local k8s (a graceful `scale --replicas=0`); a separate capture kills the keep database to check the `keepDatasource` health dimension.
+- the **t8-guard** smoke — republishes an entity event the tree cache has already applied, and an event carrying an older change number, then reads the cache back to prove both were skipped and the counter moved; a move follows, to prove path events are guarded on their own counter rather than the entity's. This is the tier that catches the failure the unit tests cannot see: a guard that silently drops a legitimate update leaves a stale cache, not a red test.
 
 ---
 
@@ -158,7 +159,7 @@ Sits right beside the Haubergeon harness above — **same running stack, differe
 
 **How wired:** `@playwright/test` v1.49+. `npm test` runs the suite headless; `npm run test:ui` opens the Playwright UI runner. Tests target `localhost`, `localhost:4200` (live SPA), and OKE prod URLs as needed.
 
-**Coverage:** **47** `test()` cases across **23** `.spec.ts` files (01-prelogin through 20-token-relay, plus the `_disc` / `cycle` helpers and 99-debug-login); the move / delete / withdrawal / transfer specs (09, 10, 12, 13) remain placeholders with no `test()` cases. Specs 16-session-expiry (expiry notice + pre-empt), 17-login-cancel (the KeyCloak Cancel link), 18-details-esc-focus, 19-access-profile-sync, and 20-token-relay cover the newer flows. The mutating specs (08 entity lifecycle, 11 accounting) now build and tear down their OWN working data under the seeded Test House via the `/api` proxy instead of mutating the shared seed tree. The suite runs green on Docker, local k8s, and OKE (`https://esquire.mir0n.pro`); `timeout: 60s` + `retries: 2` and 30s login-path waits absorb cold-start latency after a (re)deploy.
+**Coverage:** **45** `test()` cases across **17** `.spec.ts` files — what `npx playwright test --list` reports, and what a run executes. There are 21 files under `tests/` (01-prelogin through 20-token-relay and 99-debug-login): the move / delete / withdrawal / transfer specs (09, 10, 12, 13) are placeholders that point at the specs which cover those flows and declare no `test()` of their own. The `_disc` / `cycle` helpers live outside `testDir` and are driven by the cycle launchers, not by `npm test`. Specs 16-session-expiry (expiry notice + pre-empt), 17-login-cancel (the KeyCloak Cancel link), 18-details-esc-focus, 19-access-profile-sync, and 20-token-relay cover the newer flows. The mutating specs (08 entity lifecycle, 11 accounting) now build and tear down their OWN working data under the seeded Test House via the `/api` proxy instead of mutating the shared seed tree. The suite runs green on Docker, local k8s, and OKE (`https://esquire.mir0n.pro`); `timeout: 60s` + `retries: 2` and 30s login-path waits absorb cold-start latency after a (re)deploy.
 
 ---
 
