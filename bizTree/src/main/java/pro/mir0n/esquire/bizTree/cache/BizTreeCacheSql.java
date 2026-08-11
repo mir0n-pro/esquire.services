@@ -11,6 +11,8 @@
  * 04/02/2026 mir0n  added 3 Repo queries:  moveNode, moveAcctLink, findFolderPks
  * 05/14/2026 mir0n  selectSubtree field added to Repo record (for fetchSubtree / /esq-tree endpoint)
  * 05/23/2026 mir0n  Repo record: added clearAll + checksum fields (night-watch TRUNCATE + MD5 digest).
+ * 08/11/2026 mir0n  v1.2.12 -- findChangeNumbers, stampEntityChangeNo and stampPathChangeNo added to the
+ *                   SQL set
  */
 package pro.mir0n.esquire.bizTree.cache;
 
@@ -41,7 +43,11 @@ public class BizTreeCacheSql {
             String findFolderPks,
             String findSubtree,
             String clearAll,
-            String checksum
+            String checksum,
+            // v1.2.12 freshness guard: read the node's two change numbers, and stamp the applied one back.
+            String findChangeNumbers,
+            String stampEntityChangeNo,
+            String stampPathChangeNo
     ) {}
 
     public record Loader(

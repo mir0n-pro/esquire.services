@@ -279,7 +279,7 @@ class AcctTransactionServiceTest {
         AcctTransactionSingle ret = service.esquireCommandAcct(50, "10", AcctOperation.Code.DEPOSIT,fields, "1.2.3", "99", List.of(ROLE_ADMIN));
 
         org.assertj.core.api.Assertions.assertThat(ret).isNotNull();
-        verify(entityRepository).updateAcctBalance(eq("10"), eq(-850.0), any(), any(), any());
+        verify(entityRepository).updateAcctBalance(eq("10"), eq(-850.0), any(), any(), any(), any());
     }
 
     // ---- skipValidation=true → posts despite insufficient balance and closed status ----
@@ -302,8 +302,8 @@ class AcctTransactionServiceTest {
 
         org.assertj.core.api.Assertions.assertThat(ret).isNotNull();
         verify(transactionRepository).insertAcctTransaction(anyString(), any(), anyLong(), anyInt(),
-                eq(50.0), eq(-900.0), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any());
-        verify(entityRepository).updateAcctBalance(eq("10"), eq(-850.0), any(), any(), any());
+                eq(50.0), eq(-900.0), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any());
+        verify(entityRepository).updateAcctBalance(eq("10"), eq(-850.0), any(), any(), any(), any());
     }
 
     // ---- success — insertAcctTransaction then updateAcctBalance ----
@@ -317,6 +317,7 @@ class AcctTransactionServiceTest {
         });
         EsqAcctJpa acct = new EsqAcctJpa();
         acct.setId("10"); acct.setKind(50); acct.setBalance(500.0); acct.setNegativeAllowed("N"); acct.setStatus("O");
+        acct.setChangeNo(7L);   // so the raised number is 8, and BOTH statements must carry that same 8
         when(entityRepository.detailAcctForUpdate("10", 50, "1.2.3")).thenReturn(acct);
 
         Map<String, Object> fields = new HashMap<>();
@@ -337,8 +338,10 @@ class AcctTransactionServiceTest {
         org.assertj.core.api.Assertions.assertThat(ret.getMemo()).isEqualTo("test deposit");
 
         InOrder order = inOrder(transactionRepository, entityRepository);
+        // The ledger line and the balance update must carry the SAME raised number -- that identity is the
+        // whole point of the column: the transaction points at the account history record it caused.
         order.verify(transactionRepository).insertAcctTransaction(anyString(), any(), eq(10L), eq(1),
-                eq(100.0), eq(500.0), any(), eq("cash"), eq("REF-001"), any(), any(), eq("test deposit"), any(), any(), any(), any(), any(), any());
-        order.verify(entityRepository).updateAcctBalance(eq("10"), eq(600.0), any(), any(), any());
+                eq(100.0), eq(500.0), eq(8L), any(), eq("cash"), eq("REF-001"), any(), any(), eq("test deposit"), any(), any(), any(), any(), any(), any());
+        order.verify(entityRepository).updateAcctBalance(eq("10"), eq(600.0), eq(8L), any(), any(), any());
     }
 }

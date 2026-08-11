@@ -1,5 +1,23 @@
 Esquire kcMaster Microservice
 
+08/11/2026 mir0n  v1.2.12 -- entity change number
+messaging.ParkedPath  (new)
+  - a moved entity's new path parked with the PATH change number that produced it, so the race-8c buffer
+    keeps the newest arrival rather than the last one. Orders itself by that number (Comparable), which is
+    all ExpiringCache.storeIfGreater needs; an absent number never displaces a numbered path
+messaging.EntityBusAdapter
+  - the path park moved to the shared ExpiringCache and now holds a ParkedPath: storeIfGreater keeps the
+    newest path by its path change number instead of the last arrival, in one atomic step
+messaging.KcBusAdapter
+  - the RodEvent constructor call carries a null change number: a KeyCloak request leg reports none
+service.impl.KcIdentityService
+  - createUser consumes a ParkedPath from the shared ExpiringCache and applies its path
+config.KeycloakConfig
+  - the race-8c path buffer is declared here as an ExpiringCache<String,ParkedPath> bean, shared by the
+    topic adapter and createUser, and logs its effective ttl and prune interval at startup
+buffer.KcPathBuffer  (removed)
+  - the map, timestamps, ttl, prune thread and lazy expiry moved to mir0n-utils ExpiringCache
+
 07/23/2026 mir0n  v1.2.11 -- homework: fix/resolve issues found in the fresh-mind audit
 resources/application.yml
   - actuator moved to a separate internal-only management port 8090 (MANAGEMENT_SERVER_PORT), off the public

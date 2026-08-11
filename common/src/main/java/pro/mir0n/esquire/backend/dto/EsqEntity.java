@@ -2,7 +2,7 @@
  *  Esquire frameworks (tm)
  *  common library
  *
- *  Copyright(c) 2001, 2025 mir0n&co www.mir0n.me
+ *  Copyright(c) 2001, 2026 mir0n&co www.mir0n.pro
  *  mailto:mir0n.the.programmer@gmail.com
  *
  *  History:
@@ -16,10 +16,13 @@
  * 02/28/2026 mir0n  fillPerson/fillAddress/fillBizAddress abstract methods added
  *                   fill() extended with person, address, address2 subentity params
  * 03/26/2026 mir0n  parentId field added
+ * 08/11/2026 mir0n  v1.2.12 -- changeNo field added, carried from the JPA row; @JsonIgnore +
+ *                   @Schema(hidden) keep it out of the REST contract
  */
 
 package pro.mir0n.esquire.backend.dto;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.*;
 import lombok.experimental.SuperBuilder;
@@ -56,6 +59,16 @@ public abstract class EsqEntity extends EsqThing{
     )
     private String parentId;
 
+    /**
+     * The row's CHANGE NUMBER, carried from the JPA row so the service layer can put it on the entity
+     * broadcast. INTERNAL ONLY -- {@code @JsonIgnore} plus {@code hidden} keeps it out of every request,
+     * every response and the OpenAPI model, so the REST contract is unchanged (decision 4: the number lives
+     * in the database, the message header and the audit log, never on the API).
+     */
+    @JsonIgnore
+    @Schema(hidden = true)
+    private Long changeNo;
+
     public void fill (EsqEntityJpa jpa,
             List<EsqNameValueJpa> custom,
             List<EsqEntityJpa> children,
@@ -69,6 +82,7 @@ public abstract class EsqEntity extends EsqThing{
         setName (jpa.getName());
         setDesc(jpa.getDesc());
         setParentId(jpa.getParentId());
+        setChangeNo(jpa.getChangeNo());
         fillDetails(jpa);
         if (custom != null) {
             fillCustom(custom);

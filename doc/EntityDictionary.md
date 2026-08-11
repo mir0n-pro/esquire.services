@@ -27,6 +27,7 @@ interpreted on the client side.
 - [What a field can say](#what-a-field-can-say) -- every field element, and the field types
 - [Standard fields and custom fields](#standard-fields-and-custom-fields)
 - [Kinds -- the key of the dictionary](#kinds----the-key-of-the-dictionary)
+- [How a (sub)entity is identified](#how-a-subentity-is-identified) -- what names a row in the database and in the object, the change number, and what has none
 - [Defaults -- filling a value that was not given](#defaults----filling-a-value-that-was-not-given)
 - [What the browser does with it](#what-the-browser-does-with-it)
 - [What ships is the demonstration, not the domain](#what-ships-is-the-demonstration-not-the-domain)
@@ -247,6 +248,62 @@ The kind decides much more than the dictionary -- routing, permissions, tree pla
 semantics, and which commands are offered. The full code list, and everything a kind definition
 carries, are in [Appendix -- the kind enumeration](#appendix----the-kind-enumeration) at the end of
 this document.
+
+---
+
+## How a (sub)entity is identified
+
+The dictionary names a kind; the kind alone does not name a row. What identifies a row differs between
+the database and the object the browser sees, and for sub-entities the two are not the same shape at all.
+This table is the reference.
+
+**Virtual** in the kind column means the kind exists only on the wire and in the object -- it says WHICH
+sub-entity of the user is meant. There is no kind column in that table.
+
+| (sub)entity | object | kind(s) | identity in the database | identity in the object | change number |
+|---|---|---|---|---|---|
+| `esq_org` | `EsqOrg` | any kind with `ET_ORG_FLG='Y'` | `ORG_PK` | `entity.id` | `ORG_CHANGE_NO` |
+| `esq_user` | `EsqUsr` | any kind with `ET_USR_FLG='Y'` | `USR_PK` | `entity.id` | `USR_CHANGE_NO` |
+| `esq_account` | `EsqAcct` | any kind with `ET_ACC_FLG='Y'` | `ACC_PK` | `entity.id` | `ACC_CHANGE_NO` |
+| `esq_auth` | `EsqAccessProfile` | 998 access profile (virtual) | `AU_USR_PK` | `entity.id` + `entity.kind` | `AU_CHANGE_NO` |
+| `esq_person` | `EsqPerson` | 992 primary, 994 secondary, 996 joint -- a REAL column, `PE_KIND` | `PE_USR_PK` + `PE_KIND` | `entity.id` + `entity.kind` | `PE_CHANGE_NO` |
+| `esq_address` | `EsqAddress` | 988 postal, 990 business (virtual) | `AD_PK` | `entity.id` + `entity.kind` | `AD_CHANGE_NO` |
+| `esq_usr_par` | `EsqNameValue` | 970 user parameter (virtual) | `UPR_USR_PK` + `UPR_PAR_NAME` + `UPR_PAR_ET_PK` | `entity.id` + `entity.kind` + the parameter name | `UPR_CHANGE_NO` |
+| `esq_org_par` | `EsqNameValue` | 972 organization parameter (virtual) | `OPR_ORG_PK` + `OPR_PAR_NAME` + `OPR_PAR_ET_PK` | `entity.id` + `entity.kind` + the parameter name | `OPR_CHANGE_NO` |
+
+Two notes travel with the table:
+
+- **An address is reached through its person.** Both address updates key off the USER, not the address
+  key: `WHERE ad_pk = (SELECT pe_ad_pk FROM esq_person WHERE pe_usr_pk = :id AND pe_kind = :kind)`. The two
+  virtual kinds pick between the two foreign keys, `PE_AD_PK` and `PE_AD_PK_BIZ`. That is why an address
+  needs no kind column of its own.
+- **`esq_entity_path` is not an entity.** It is a materialized path, sharing its key with org / user /
+  account. It still carries a change number of its own (`EP_CHANGE_NO`) -- not because it is an entity, but
+  because a moved descendant has nothing else to report: a move rewrites its path row while leaving its
+  entity row untouched.
+
+### The change number
+
+Every row above carries a count that goes up by one each time that row is written. It is kept in the
+database, rides on the message header, and lands in the audit log, which is what lets the audit trail be
+put back into true order and lets a receiver skip a repeated or out-of-date event.
+
+**It is not part of the entity object.** It never appears in the REST answer and never in the dictionary
+as a field -- the browser has no use for it, and showing it would invite someone to send it back. Its
+behaviour, and why it is a per-row counter rather than a database sequence, are in
+[DatabaseDictionary.md](DatabaseDictionary.md).
+
+### What deliberately has NO change number
+
+State it here so nobody adds one later:
+
+- **`esq_acct_transaction` -- a read-only record.** A transaction is written once and never updated, so
+  there is nothing for a counter to count. This is not a deferral; it does not get one.
+  It does carry `ATR_ACC_CHANGE_NO`, but read that column for what it is: **the ACCOUNT's number, not the
+  transaction's** -- a pointer to the account-history record this ledger line produced, so the ledger and
+  the account history can be reconciled by number instead of by time.
+- **The reference and dictionary tables** -- `esq_parameter`, `esq_entity_type`, `esq_permission`,
+  `esq_role` and the many-to-many tables. They are configuration, not entities, and are not audited.
 
 ---
 

@@ -1,5 +1,19 @@
 Esquire messaging framework classes
 
+08/11/2026 mir0n  v1.2.12 -- entity change number
+BusConstants
+  - FIELD_CHANGE_NO added (ChangeNo, FIX 50015), the per-row change number supplied by the producer; the
+    declared exception is stated at the field: C/U/D carry the entity row's number, X the path row's,
+    never comparable
+RodEvent
+  - changeNo component added to the identity group and to the producer constructor as a normal argument;
+    the record is documented as identity / header / payload / engine-stamped tail
+xrod.RodEventCodec
+  - changeNo written to and read from the wire properties; new longOrNull() keeps an absent number null
+    instead of 0
+xrod.impl.MsgAudit
+  - changeNo added to the TX/RX leg trace, printed as "-" when the producer supplied none
+
 07/23/2026 mir0n  v1.2.11 -- homework: fix/resolve issues found in the fresh-mind audit
 xrod.impl.XRod
   - setWorker(subscription) comment: set the subscription BEFORE start(); the x-rod does not support changing a

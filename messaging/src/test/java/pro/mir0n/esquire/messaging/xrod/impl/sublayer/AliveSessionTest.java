@@ -4,13 +4,6 @@
  *
  *  Copyright(c) 2001, 2026 mir0n&co www.mir0n.pro
  *  mailto:mir0n.the.programmer@gmail.com
- *
- *  History:
- * 06/23/2026 mir0n  created: AliveSession tests -- timestamp-age health (clock-driven, deterministic) for a
- *                   producing leg (UP within alive-timeout, DOWN past it), the fail-fast vs timeout send-error
- *                   paths, a receive-only leg (always UP, Q&D), the cadence step tick() (emits a keep-alive when
- *                   idle, suppressed by recent send activity -- driven externally, no own thread), and the
- *                   internal session-message dispatch.
  */
 package pro.mir0n.esquire.messaging.xrod.impl.sublayer;
 

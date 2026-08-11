@@ -18,6 +18,7 @@
  * 04/14/2026 mir0n  KIND_P_ACCT spacing corrected
  * 06/01/2026 mir0n  esquireCommandNew() removed -- account CREATE moved to enyMan.
  * 06/04/2026 mir0n  esquireCommand / Save / Delete: rootPath + uid params removed (read from request context)
+ * 08/11/2026 mir0n  v1.2.12 -- esquireCommandDelete returns the delete's change number
  */
 
 package pro.mir0n.esquire.pacMan.service;
@@ -37,6 +38,7 @@ public interface IPacManService {
     // uid / rootPath come from the unified per-request context (RequestContextUtils), not params.
     public EsqEntity esquireCommand(int kind, String id, String cmd);
     public EsqEntity esquireCommandSave(int kind, String id, String cmd, Map<String, Object> fields, List<String> roles);
-    public void esquireCommandDelete(int kind, String id, String cmd, List<String> roles);
+    /** Deletes the account and RETURNS the delete's change number (see {@code EsqEntityJpa.bumpChangeNo}). */
+    public Long esquireCommandDelete(int kind, String id, String cmd, List<String> roles);
 
     }

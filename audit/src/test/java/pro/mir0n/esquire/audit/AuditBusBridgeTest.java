@@ -4,11 +4,6 @@
  *
  *  Copyright(c) 2001, 2026 mir0n&co www.mir0n.pro
  *  mailto:mir0n.the.programmer@gmail.com
- *
- *  History:
- * 06/17/2026 mir0n  created: AuditBusBridge transmit-path tests (lifted from XRodTest's transmit leg) -- buffer /
- *                   after-commit / rollback / immediate / audit-triple / IMappable body build, wrapping a
- *                   capturing x-rod that records each transmit().
  */
 package pro.mir0n.esquire.audit;
 
@@ -201,19 +196,66 @@ class AuditBusBridgeTest {
         assertThat(transmitted.get(0).body()).isEmpty();
     }
 
+    @Test
+    void post_withMappable_carriesTheSourceChangeNumberOnTheHeader() {
+        AuditBusBridge bridge = bridge(true);
+        CountingMappable src = new CountingMappable(Map.of("name", "ACME"), 7L);
+        inCommittedTx(() -> bridge.post(RodEvent.Op.UPDATE, 50, "100", null, src));
+        assertThat(transmitted.get(0).changeNo()).isEqualTo(7L);
+        // the number rides the HEADER, never the body -- a DELETE has no body to put it in
+        assertThat(transmitted.get(0).body()).doesNotContainKey("changeNo");
+    }
+
+    @Test
+    void post_withMappable_onDelete_carriesWhateverTheRowHolds() {
+        // The bridge does NOT compute a delete's number any more -- the CALLER bumps the row once and every
+        // reporter reads it off that object. Two computations of one value is how they drift apart.
+        AuditBusBridge bridge = bridge(true);
+        CountingMappable src = new CountingMappable(Map.of("name", "ACME"), 8L);   // caller already bumped 7 -> 8
+        inCommittedTx(() -> bridge.post(RodEvent.Op.DELETE, 50, "100", null, src));
+        assertThat(transmitted.get(0).changeNo()).isEqualTo(8L);
+    }
+
+    @Test
+    void post_withMappable_noChangeNumber_staysAbsent() {
+        AuditBusBridge bridge = bridge(true);
+        CountingMappable src = new CountingMappable(Map.of("name", "ACME"), null);
+        inCommittedTx(() -> bridge.post(RodEvent.Op.DELETE, 50, "100", null, src));
+        assertThat(transmitted.get(0).changeNo()).isNull();
+    }
+
+    @Test
+    void post_immediate_withMappable_carriesTheChangeNumber() {
+        // the no-transaction path builds its own event -- it must stamp the number too
+        AuditBusBridge bridge = bridge(true);
+        bridge.post(RodEvent.Op.UPDATE, 50, "100", null, new CountingMappable(Map.of("name", "ACME"), 3L));
+        assertThat(transmitted.get(0).changeNo()).isEqualTo(3L);
+    }
+
     /** An IMappable that records whether fillMap was invoked, so the overload's guards can be asserted. */
     private static final class CountingMappable implements IMappable {
         private final Map<String, Object> data;
+        private final Long changeNo;
         private boolean filled = false;
 
         CountingMappable(Map<String, Object> data) {
+            this(data, null);
+        }
+
+        CountingMappable(Map<String, Object> data, Long changeNo) {
             this.data = data;
+            this.changeNo = changeNo;
         }
 
         @Override
         public void fillMap(Map<String, Object> body) {
             filled = true;
             body.putAll(data);
+        }
+
+        @Override
+        public Long getChangeNo() {
+            return changeNo;
         }
     }
 }

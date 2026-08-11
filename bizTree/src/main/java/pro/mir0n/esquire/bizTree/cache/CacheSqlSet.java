@@ -13,6 +13,7 @@
  *                   own CacheSqlSet bound to its own table (ESQ_TREE for Yang; the full
  *                   Taijitu builds one per table, e.g. ESQ_TREE_YANG / ESQ_TREE_YIN).
  * 05/23/2026 mir0n  forTable: substitute the {table} token into and carry the new clearAll + checksum SQL.
+ * 08/11/2026 mir0n  v1.2.12 -- the three change-number statements added to the per-table substitution set
  */
 package pro.mir0n.esquire.bizTree.cache;
 
@@ -46,6 +47,10 @@ public record CacheSqlSet(
         String findFolderPks,
         String clearAll,
         String checksum,
+        // v1.2.12 freshness guard
+        String findChangeNumbers,
+        String stampEntityChangeNo,
+        String stampPathChangeNo,
         // loader
         String insertNode,
         String updatePath,
@@ -78,6 +83,9 @@ public record CacheSqlSet(
                 sub(t.repo.findFolderPks(),  table),
                 sub(t.repo.clearAll(),       table),
                 sub(t.repo.checksum(),       table),
+                sub(t.repo.findChangeNumbers(),   table),
+                sub(t.repo.stampEntityChangeNo(), table),
+                sub(t.repo.stampPathChangeNo(),   table),
                 sub(t.loader.insertNode(),   table),
                 sub(t.loader.updatePath(),   table),
                 sub(t.loader.selectPaths(),  table)

@@ -4,12 +4,6 @@
  *
  *  Copyright(c) 2001, 2026 mir0n&co www.mir0n.pro
  *  mailto:mir0n.the.programmer@gmail.com
- *
- *  History:
- * 06/22/2026 mir0n  created: broker-DOWN behaviour. A transport-backed rod against an unreachable broker DEGRADES
- *                   gracefully -- it still init + starts (the service boots), it does NOT fail-fast. The transport
- *                   (lazy publisher + self-recovering consumer container) owns reconnection; the rod does not gate
- *                   startup on broker reachability.
  */
 package pro.mir0n.esquire.messaging.xrod;
 

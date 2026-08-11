@@ -4,11 +4,6 @@
  *
  *  Copyright(c) 2001, 2026 mir0n&co www.mir0n.pro
  *  mailto:mir0n.the.programmer@gmail.com
- *
- *  History:
- * 06/27/2026 mir0n  created: regression guard for the lazy dictionary-completion race -- concurrent
- *                   first-completion of a COLD shared singleton dictionary must NOT throw
- *                   ConcurrentModificationException and must merge the dictionary exactly once.
  */
 package pro.mir0n.esquire.enyMan.service;
 
@@ -166,7 +161,8 @@ class DictionaryCompletionConcurrencyTest {
         }
 
         @Override
-        public void esquireCommandDelete(int kind, String id, String cmd, List<String> roles) {
+        public Long esquireCommandDelete(int kind, String id, String cmd, List<String> roles) {
+            return null;
         }
 
         @Override

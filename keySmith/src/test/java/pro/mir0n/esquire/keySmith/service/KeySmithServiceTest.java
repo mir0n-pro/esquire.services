@@ -7,6 +7,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -26,6 +27,7 @@ import pro.mir0n.esquire.backend.service.EsqRequestContext;
 import pro.mir0n.esquire.keySmith.jpa.EsqAccessProfileRepository;
 import pro.mir0n.esquire.keySmith.messaging.KcBusAdapter;
 import pro.mir0n.esquire.keySmith.service.impl.KeySmithService;
+import pro.mir0n.esquire.messaging.RodEvent;
 
 import java.util.List;
 import java.util.Map;
@@ -49,6 +51,9 @@ class KeySmithServiceTest {
     @Mock
     private KcBusAdapter kcSyncPublisher;
 
+    @Mock
+    private pro.mir0n.esquire.audit.AuditBusBridge audit;
+
     private KeySmithService service;
 
     @BeforeAll
@@ -59,7 +64,7 @@ class KeySmithServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new KeySmithService(accessProfileRepository, transactionTemplate, em, kcSyncPublisher, mock(pro.mir0n.esquire.audit.AuditBusBridge.class));
+        service = new KeySmithService(accessProfileRepository, transactionTemplate, em, kcSyncPublisher, audit);
         // Default context for the majority of tests (rootPath "/root", uid "uid-1");
         // the three "1.2.3" / "uid-99" tests override it.
         ctx("/root", "uid-1");
@@ -304,6 +309,27 @@ class KeySmithServiceTest {
         service.esquireKeySave("uid-1", Map.of(), null);
 
         verify(kcSyncPublisher).publish(any(), eq("Y"), argThat(j -> "Y".equals(j.getConnectFlg())), any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("audit: the auth event is a COPY of the row, so it must carry the raised change number")
+    void esquireKeySave_auditEvent_carriesRaisedChangeNumber() {
+        // The audit source here is a fresh EsqAuthJpa built for the event, NOT the row that was read, so the
+        // change number does not come along on its own. It has to be copied over, and the *_log column is
+        // NOT NULL -- miss it and the keep drops the record with a constraint violation, asynchronously,
+        // long after the save has already answered 200.
+        executeTransactionInline();
+        EsqAccessProfileJpa jpa = jpaWith("Y", "N", "user9");
+        jpa.setChangeNo(4L);
+        when(accessProfileRepository.accessForUpdate("uid-1", "/root")).thenReturn(jpa);
+        when(accessProfileRepository.roles("uid-1")).thenReturn(List.of());
+
+        service.esquireKeySave("uid-1", Map.of("tfaMethod", "G"), null);
+
+        ArgumentCaptor<pro.mir0n.esquire.backend.jpa.IMappable> src =
+                ArgumentCaptor.forClass(pro.mir0n.esquire.backend.jpa.IMappable.class);
+        verify(audit).post(eq(RodEvent.Op.UPDATE), anyInt(), eq("uid-1"), isNull(), src.capture());
+        assertThat(src.getValue().getChangeNo()).isEqualTo(5L);   // read at 4, raised by the UPDATE
     }
 
     // =========================================================

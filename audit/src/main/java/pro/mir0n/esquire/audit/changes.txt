@@ -1,5 +1,17 @@
 Esquire audit library
 
+08/11/2026 mir0n  v1.2.12 -- entity change number
+AuditBusBridge
+  - post() carries the row's change number onto the event header: the IMappable overload reads it from the
+    source (passed on a DELETE too, where the body is dropped), and a new overload takes it with a
+    pre-mapped body
+resources/META-INF/audit/postgres.xml
+  - all eight *_log INSERTs carry *_change_no from :changeNo; the ON CONFLICT target stays off so the
+    statement follows whatever dedup index is installed
+resources/META-INF/audit/oracle.xml
+  - all eight *_log MERGEs carry *_change_no from :changeNo, and their ON clauses are rekeyed to the row
+    plus its change number, with the correlation id out of the key
+
 06/24/2026 mir0n  v1.2.9 -- EsqMsgConstants references repointed
 AuditBusBridge
   - EsqMsgConstants wire constants -> messaging.BusConstants (references repointed)

@@ -29,6 +29,9 @@
  *                   oper.name() there throws an NPE that REPLACES the real exception on its way out
  * 07/23/2026 mir0n  v1.2.11 -- round3(): the amount and the new balance are rounded to 3 decimals (the NUMERIC(16,3)
  *                   scale, half away from zero) before any check or store, so double FP dust never reaches the ledger
+ * 08/11/2026 mir0n  v1.2.12 -- the account's change number is raised before the insert, so the ledger line
+ *                   and the balance update carry the same value and the transaction row points at the
+ *                   account history record it causes
  */
 
 package pro.mir0n.esquire.pacMan.acct.service;
@@ -244,14 +247,19 @@ public class AcctTransactionProcessorSingle implements IAcctTransactionProcessor
         }
         ret.setCcyIncoming(ccyIncoming);
 
+        // Raise the account's number BEFORE the insert, so the ledger line and the balance update carry the
+        // SAME value: the transaction row then points at the account history record it is about to cause.
+        // The account is already held by detailAcctForUpdate above, so this costs no read and no extra lock.
+        Long accChangeNo = acct.bumpChangeNo();
+
         transactionRepository.insertAcctTransaction(
                 trPk, pkTx, Long.parseLong(acctId), oper.id,
-                amount, prevBalance,
+                amount, prevBalance, accChangeNo,
                 ret.getDesc(), ret.getRefCode(), ret.getRefCode2(), ret.getRefCode3(), ret.getRefCode4(),
                 ret.getMemo(), correlationId, requestId, uid,
                 amtIncoming, ccyIncoming, convRate);
 
-        entityRepository.updateAcctBalance(acctId, newBalance, uid, correlationId, requestId);
+        entityRepository.updateAcctBalance(acctId, newBalance, accChangeNo, uid, correlationId, requestId);
         // audit: balance change -> account UPDATE. Reflect the new balance on the loaded acct, and mirror the
         // updateAcctBalance COALESCE(acc_funded_dt, NOW()) so the first funding shows funded_dt in the log too.
         acct.setBalance(newBalance);

@@ -37,6 +37,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.within;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyDouble;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -225,8 +227,8 @@ class AcctTransactionProcessorTransferTest {
         assertThat(ret).isNotNull();
         assertThat(ret.getAmount()).isEqualTo(-100.0);
         assertThat(ret.getRefCode4()).isEqualTo("Transfer 100.00 USD to Account 20");
-        verify(entityRepository).updateAcctBalance(eq("10"), eq(400.0), any(), any(), any());
-        verify(entityRepository).updateAcctBalance(eq("20"), eq(225.0), any(), any(), any());
+        verify(entityRepository).updateAcctBalance(eq("10"), eq(400.0), any(), any(), any(), any());
+        verify(entityRepository).updateAcctBalance(eq("20"), eq(225.0), any(), any(), any(), any());
     }
 
     // ---- RD1: an amount exactly on a 3rd-decimal tie must round symmetrically, so the two legs balance ----
@@ -255,13 +257,87 @@ class AcctTransactionProcessorTransferTest {
 
         ArgumentCaptor<Double> src = ArgumentCaptor.forClass(Double.class);
         ArgumentCaptor<Double> tgt = ArgumentCaptor.forClass(Double.class);
-        verify(entityRepository).updateAcctBalance(eq("10"), src.capture(), any(), any(), any());
-        verify(entityRepository).updateAcctBalance(eq("20"), tgt.capture(), any(), any(), any());
+        verify(entityRepository).updateAcctBalance(eq("10"), src.capture(), any(), any(), any(), any());
+        verify(entityRepository).updateAcctBalance(eq("20"), tgt.capture(), any(), any(), any(), any());
         double debited  = 500.0 - src.getValue();   // magnitude removed from the source
         double credited = tgt.getValue() - 100.0;    // magnitude added to the target
         // symmetric round3(-x) == -round3(x): both legs are 100.001. Under the old half-up round3 the debit was
         // 100.000 and the credit 100.001 -> off by 0.001 (RD1).
         assertThat(debited).isCloseTo(credited, within(1e-9));
         assertThat(debited).isCloseTo(100.001, within(1e-9));
+    }
+
+    // ---- T9: each leg carries ITS OWN account's change number ----
+
+    @Test
+    @DisplayName("transfer: each leg's ledger line carries its OWN account's raised number, not the other's")
+    void transfer_eachLegCarriesItsOwnAccountChangeNo() {
+        // A transfer writes TWO ledger rows against TWO different accounts. The reference column needs no
+        // "which leg" discriminator precisely because each row is scoped to one account -- but only while
+        // the two legs keep their numbers apart. Crossing them would still balance the money and still
+        // insert two rows, so nothing else in the suite would notice.
+        when(transactionTemplate.execute(any())).thenAnswer(inv -> {
+            inv.<org.springframework.transaction.support.TransactionCallback<?>>getArgument(0).doInTransaction(null);
+            return null;
+        });
+        EsqAcctJpa source = new EsqAcctJpa();
+        source.setId("10"); source.setKind(50); source.setBalance(500.0); source.setNegativeAllowed("N");
+        source.setStatus("O"); source.setCcy("USD");
+        source.setChangeNo(7L);           // -> the source leg must carry 8
+        EsqAcctJpa target = new EsqAcctJpa();
+        target.setId("20"); target.setKind(50); target.setBalance(100.0); target.setNegativeAllowed("N");
+        target.setStatus("C");
+        target.setChangeNo(3L);           // -> the target leg must carry 4, from a DIFFERENT counter
+        when(entityRepository.detailAcctForUpdate("10", 50, "1.2.3")).thenReturn(source);
+        when(entityRepository.detailAcctForUpdate("20", 50, "1.2.3")).thenReturn(target);
+
+        Map<String, Object> fields = new HashMap<>();
+        fields.put("amount", -100.0);
+        fields.put("id2", "20");
+        fields.put("kind2", 50);
+        fields.put("rate", 1.0);
+
+        service.esquireCommandAcct(50, "10", AcctOperation.Code.TRANSFER, fields, true, "1.2.3", "99", List.of(ROLE_ADMIN));
+
+        // the ledger row of each leg
+        verify(transactionRepository).insertAcctTransaction(any(), any(), eq(10L), anyInt(),
+                anyDouble(), anyDouble(), eq(8L),
+                any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any());
+        verify(transactionRepository).insertAcctTransaction(any(), any(), eq(20L), anyInt(),
+                anyDouble(), anyDouble(), eq(4L),
+                any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any());
+        // and the balance update of each leg carries the SAME number as that leg's ledger row
+        verify(entityRepository).updateAcctBalance(eq("10"), anyDouble(), eq(8L), any(), any(), any());
+        verify(entityRepository).updateAcctBalance(eq("20"), anyDouble(), eq(4L), any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("transfer: an account with no number yet starts its ledger reference at 1")
+    void transfer_nullChangeNo_startsAtOne() {
+        // Defensive: bumpChangeNo() treats an absent number as 0, so the first write is 1 rather than a
+        // NullPointerException. A ledger row is not the place to discover that.
+        when(transactionTemplate.execute(any())).thenAnswer(inv -> {
+            inv.<org.springframework.transaction.support.TransactionCallback<?>>getArgument(0).doInTransaction(null);
+            return null;
+        });
+        EsqAcctJpa source = new EsqAcctJpa();
+        source.setId("10"); source.setKind(50); source.setBalance(500.0); source.setNegativeAllowed("N");
+        source.setStatus("O"); source.setCcy("USD");           // changeNo left null on purpose
+        EsqAcctJpa target = new EsqAcctJpa();
+        target.setId("20"); target.setKind(50); target.setBalance(100.0); target.setNegativeAllowed("N");
+        target.setStatus("C");
+        when(entityRepository.detailAcctForUpdate("10", 50, "1.2.3")).thenReturn(source);
+        when(entityRepository.detailAcctForUpdate("20", 50, "1.2.3")).thenReturn(target);
+
+        Map<String, Object> fields = new HashMap<>();
+        fields.put("amount", -100.0);
+        fields.put("id2", "20");
+        fields.put("kind2", 50);
+        fields.put("rate", 1.0);
+
+        service.esquireCommandAcct(50, "10", AcctOperation.Code.TRANSFER, fields, true, "1.2.3", "99", List.of(ROLE_ADMIN));
+
+        verify(entityRepository).updateAcctBalance(eq("10"), anyDouble(), eq(1L), any(), any(), any());
+        verify(entityRepository).updateAcctBalance(eq("20"), anyDouble(), eq(1L), any(), any(), any());
     }
 }

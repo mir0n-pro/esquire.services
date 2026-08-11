@@ -8,7 +8,7 @@
         <query>
  INSERT INTO esq_acct_transaction (
   atr_pk, atr_pk_tx, atr_acc_pk, atr_at_pk
- ,atr_amt, atr_prev_balance
+ ,atr_amt, atr_prev_balance, atr_acc_change_no
  ,atr_desc
  ,atr_ref_code, atr_ref_code2, atr_ref_code3, atr_ref_code4
  ,atr_memo
@@ -16,7 +16,7 @@
  ,atr_amt_incoming, atr_ccy_incoming, atr_conv_rate
  ) VALUES (
   :pk, :pkTx, CAST(:accPk AS bigint), :atPk
- ,CAST(:amt AS numeric), CAST(:prevBalance AS numeric)
+ ,CAST(:amt AS numeric), CAST(:prevBalance AS numeric), CAST(:accChangeNo AS bigint)
  ,:desc
  ,:refCode, :refCode2, :refCode3, :refCode4
  ,:memo
@@ -40,6 +40,7 @@
             <field-result name="atPk"        column="atr_at_pk"/>
             <field-result name="amt"         column="atr_amt"/>
             <field-result name="prevBalance" column="atr_prev_balance"/>
+            <field-result name="accChangeNo" column="atr_acc_change_no"/>
             <field-result name="desc"        column="atr_desc"/>
             <field-result name="refCode"     column="atr_ref_code"/>
             <field-result name="refCode2"    column="atr_ref_code2"/>

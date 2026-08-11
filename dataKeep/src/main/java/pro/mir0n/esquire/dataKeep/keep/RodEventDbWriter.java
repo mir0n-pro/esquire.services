@@ -22,6 +22,7 @@
  *                   write. This is the one thing the bus meters cannot see: messaging.receive.total says the
  *                   audit event ARRIVED, only this says whether the row was WRITTEN. The op tag is null-safe --
  *                   these read from a finally, and a meter that throws there would REPLACE the real exception
+ * 08/11/2026 mir0n  v1.2.12 -- PARAM_CHANGE_NO added and bound from the event in the header parameter map
  */
 package pro.mir0n.esquire.dataKeep.keep;
 
@@ -59,6 +60,7 @@ public class RodEventDbWriter {
     public static final String PARAM_REQ       = "req";
     public static final String PARAM_UID       = "uid";
     public static final String PARAM_ACTION_TS = "actionTs";
+    public static final String PARAM_CHANGE_NO = "changeNo";
 
     // action column codes (Insert / Update / Delete).
     public static final String ACTION_INSERT = "I";
@@ -120,6 +122,7 @@ public class RodEventDbWriter {
         p.put(PARAM_REQ,       e.requestId());
         p.put(PARAM_UID,       e.uid());
         p.put(PARAM_ACTION_TS, Timestamp.from(Instant.ofEpochMilli(e.actionTime())));
+        p.put(PARAM_CHANGE_NO, e.changeNo());
         return p;
     }
 

@@ -81,11 +81,24 @@ Esquire Entity Broadcast Message : UE
 | `EventType` | `50005` | String | yes      | `U` | event type (C,D,U,X) X: reserved for only path update                                                   |
 | `EntityKind` | `50006` | Int | yes      | `34` | entity kind code                                                                                        |
 | `EntityID` | `50007` | String | yes      | `1234` | entity identifier                                                                                       |
+| `ChangeNo` | `50015` | Long | yes      | `7` | which version of the row this event carries. **C / D / U carry the ENTITY row's number; X carries the PATH row's number** — see the note below the table |
 | `RequestID` | `50008` | String | no       | `req-789` | request trace id                                                                                        |
 | `CorrelationID` | `50009` | String | no       | `4bf92f3577b34da6a3ce929d0e0e4736` | cross-service correlation id                                                                            |
 | `MessageEncoding` | `347` | String | yes      | `JSON` | body encoding                                                                                           |
 | `Text` | `58` | String (JSON) | yes      | `{"id":"1234","kind":34,"name":"ACME"}` | entity state snapshot; JSON string property; `id` and `kind` always present                             |
+| `TraceParent` | `50014` | String | no       | `00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01` | W3C trace context, so a consumer's work nests in the originating request's trace |
 
+**One field, two counters — the declared exception.** There is one `ChangeNo` on the wire, but which
+counter it carries follows the event type: **C / D / U carry the entity row's number, X carries the path
+row's number.** `EntityKind` still means the entity kind on an X message; only the number changes meaning.
+
+The reason is the move. A move rewrites every descendant's path row while leaving their entity rows
+untouched, so a descendant has only a path number to report — its entity number did not move. Both are
+per-entity counters, each unique within its entity id, and they are **never comparable with each other**.
+
+A receiver must therefore guard like against like: a path event against its stored path number, an entity
+event against its stored entity number. Comparing across the two drops path updates and leaves a moved
+subtree half-repathed.
 
 Esquire Request Message : URQ
 
@@ -106,6 +119,13 @@ Esquire Request Message : URQ
 | `TestReqID`          |   `112` | String | yes      | `req-789`                               | echo of `RequestID`, retained for wire shape (FIX TestRequest/Heartbeat lineage). The producer guarantees `RequestID` non-null. |
 | `MessageEncoding`    |   `347` | String | no       | `JSON`                                  | body encoding                                                                                                         |
 | `Text`               | `58` | String (JSON) | no       | `{"id":"1234","kind":34,"name":"ACME"}` | JSON string property; depends on context of request command, can be an entity state or array of name-value parameters |
+
+**The request legs carry no `ChangeNo`, by decision.** A request is an instruction, not an announcement of
+a committed change, and the leg is a QUEUE — one consumer, no fan-out, so it has no by-design duplicate to
+filter. The receiver already skips a value that matches what it holds. The number earns its place on the
+broadcast, which is a TOPIC applied on a worker pool where duplicates and reordering are normal. The
+reasoning, and what it would take to guard the request legs if that is ever wanted, is in
+`Esquire.ContinuingDev.md` (CD-13).
 
 Esquire Request Response : URS
 
@@ -167,12 +187,18 @@ consumer (auKeep) or the sink stream to apply with no request context.
 | `EntityKind`         | `50006` | Int | yes      | `36`                                    | the (sub)asset kind; routes the event to its `*_log` table                 |
 | `EntityID`           | `50007` | String | yes      | `8`                                     | the owning entity id (usr_pk / org_pk / acct)                              |
 | `SubID`              | `50011` | String | no       | `12`                                    | sub-row discriminator (ad_pk / par_name) when `(EntityID, EntityKind)` is not unique; else null |
+| `ChangeNo`           | `50015` | Long | yes      | `7`                                     | which version of the row this record is — the order key, and half the dedup key `(row, ChangeNo)` |
 | `ActionTime`         | `50013` | Long | yes      | `1718470800000`                         | epoch-ms stamped at commit (the audit "when")                              |
 | `Uid`                | `50012` | String | no       | `4`                                     | the acting user id (the audit actor)                                       |
 | `RequestID`          | `50008` | String | no       | `req-789`                               | request trace id (snapshotted from the request context at post time)       |
 | `CorrelationID`      | `50009` | String | no       | `4bf92f3577b34da6a3ce929d0e0e4736`                              | cross-service correlation id (snapshotted at post time)                    |
 | `MessageEncoding`    |   `347` | String | yes      | `JSON`                                  | body encoding                                                              |
 | `Text`               |    `58` | String (JSON) | no       | `{"id":"8","kind":36,"name":"Mer Chant"}` | the full committed row (CREATE/UPDATE); empty on DELETE (id + kind are in the header) |
+| `TraceParent`        | `50014` | String | no       | `00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01` | W3C trace context |
+
+`ChangeNo` is taken from the row, not computed by the producer — including on a DELETE, where the row's
+number is raised before the event is posted, so the delete record continues that row's history. It is what
+puts an entity's audit trail in true order: `ActionTime` is the human "when", not the order.
 
 Esquire Session (Alive) Messages : TestRequest / HeartBeat
 

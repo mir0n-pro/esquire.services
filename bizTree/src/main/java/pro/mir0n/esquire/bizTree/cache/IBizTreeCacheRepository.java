@@ -20,6 +20,9 @@
  *                   prefix for the new /esq-tree endpoint (counterpart to enyMan /esq-cmd-tree)
  * 05/23/2026 mir0n  clear() (TRUNCATE the cache table) + prepareCancelable(command) returning a
  *                   CancelableStatement (statement + connection) for the night-watch cancelable CHECKSUM.
+ * 08/11/2026 mir0n  v1.2.12 -- findChangeNumbers() returns the node's [entityChangeNo, pathChangeNo] (null
+ *                   when the entity is not cached); stampEntityChangeNo() and stampPathChangeNo() write an
+ *                   applied number onto every row of the entity
  */
 package pro.mir0n.esquire.bizTree.cache;
 
@@ -61,6 +64,24 @@ public interface IBizTreeCacheRepository {
      *   statusCode: null = absent/skip; 0=ok, 1=deleted/closed, 2=locked
      */
     void updateNode(long entityPk, String name, String desc, Integer statusCode);
+
+    /**
+     * The node's two change numbers, for the freshness guard: {@code [entityChangeNo, pathChangeNo]},
+     * either element null when unknown. Null return = the entity is not in the cache at all (a CREATE
+     * that has not landed yet, or a node outside this cache) -- the caller then applies unguarded.
+     *
+     * <p>TWO numbers because a node is fed by two independent counters: the entity row (C/U/D events)
+     * and the path row (X events). They are separate per-entity counters and are never comparable with
+     * each other -- guarding a path event against the entity number would drop legitimate move updates
+     * and leave a moved subtree half-repathed.
+     */
+    Long[] findChangeNumbers(long entityPk);
+
+    /** Stamp an applied ENTITY event's number onto every row of the entity. */
+    void stampEntityChangeNo(long entityPk, Long changeNo);
+
+    /** Stamp an applied PATH event's number onto every row of the entity. */
+    void stampPathChangeNo(long entityPk, Long changeNo);
 
     /**
      * Inserts a new org entity node and its folder nodes into the cache.

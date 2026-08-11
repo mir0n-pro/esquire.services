@@ -1,5 +1,19 @@
 Esquire keySmith Microservice
 
+08/11/2026 mir0n  v1.2.12 -- entity change number
+jpa.EsqAccessProfileRepository
+  - updateAccess takes a changeNo @Param
+messaging.KcBusAdapter
+  - the RodEvent constructor call carries a null change number: a KeyCloak request leg reports none
+service.impl.KeySmithService
+  - saveAccessProfile raises the auth row's change number and passes it to updateAccess; the audit copy is
+    stamped with the raised value
+resources/META-INF/postgres-access-profile.xml
+  - the access reads select au_change_no, updateAccess sets it from :changeNo, and confirmPendingFlags
+    raises it inline in its own UPDATE
+resources/META-INF/oracle-access-profile.xml
+  - the same auth change-number read, update and inline raise, matching the postgres dialect
+
 07/23/2026 mir0n  v1.2.11 -- homework: fix/resolve issues found in the fresh-mind audit
 resources/application.yml
   - the KC send-retry comment now states the honest limit: it covers a send that THROWS (broker down at send time),

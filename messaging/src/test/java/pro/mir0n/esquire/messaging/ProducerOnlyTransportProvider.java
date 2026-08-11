@@ -4,11 +4,6 @@
  *
  *  Copyright(c) 2001, 2026 mir0n&co www.mir0n.pro
  *  mailto:mir0n.the.programmer@gmail.com
- *
- *  History:
- * 06/24/2026 mir0n  created: a PRODUCE-ONLY test transport (like the XADD-only Redis stream) -- supportsConsume()
- *                   and supportsBothLegs() both false, so a CLIENT/BOTH role must FAIL FAST while a SERVER is fine.
- *                   Its publisher reports DOWN health, so a SERVER rod's health() reflects the transport indicator.
  */
 package pro.mir0n.esquire.messaging;
 

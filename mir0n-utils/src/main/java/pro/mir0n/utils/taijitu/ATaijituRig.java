@@ -20,6 +20,7 @@
  *                   sweep. Cadence/policy configurable: sweepIntervalMs / sweepTimeoutMs / onMismatch + setters.
  * 06/15/2026 mir0n  pass(...) event-intake signature changed: the raw (messageEncoding, text) pair replaced
  *                   by a single already-parsed body Map<String,Object>, forwarded into the body-map QueueItem.
+ * 08/11/2026 mir0n  v1.2.12 -- onEntityBroadcast takes the change number and puts it on the QueueItem
  */
 package pro.mir0n.utils.taijitu;
 
@@ -118,8 +119,8 @@ public abstract class ATaijituRig extends ATaijituRigY {
     @Override
     public void onEntityBroadcast(String eventType, String entityId, int entityKind,
                                   String requestId, String correlationId, java.util.Map<String, Object> body,
-                                  String traceparent) {
-        QueueItem item = new QueueItem(eventType, entityId, entityKind, requestId, correlationId, body, traceparent);
+                                  String traceparent, Long changeNo) {
+        QueueItem item = new QueueItem(eventType, entityId, entityKind, requestId, correlationId, body, traceparent, changeNo);
         yang().offer(item);
         yin().offer(item);
     }

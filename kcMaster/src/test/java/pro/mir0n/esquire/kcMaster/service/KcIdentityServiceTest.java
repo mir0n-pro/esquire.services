@@ -13,7 +13,8 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import pro.mir0n.esquire.common.EsqConstants;
-import pro.mir0n.esquire.kcMaster.buffer.KcPathBuffer;
+import pro.mir0n.esquire.kcMaster.messaging.ParkedPath;
+import pro.mir0n.utils.concurrent.ExpiringCache;
 import pro.mir0n.esquire.kcMaster.config.KeycloakConfig;
 import pro.mir0n.esquire.kcMaster.service.impl.KcIdentityService;
 
@@ -34,7 +35,8 @@ class KcIdentityServiceTest {
 
     @Mock private Keycloak keycloak;
     @Mock private KeycloakConfig kcConfig;
-    @Mock private KcPathBuffer pathBuffer;
+    @SuppressWarnings("unchecked")
+    @Mock private ExpiringCache<String, ParkedPath> pathBuffer;
     @Mock private RealmResource realmResource;
     @Mock private UsersResource usersResource;
     @Mock private UserResource userResource;
@@ -242,9 +244,9 @@ class KcIdentityServiceTest {
     private UserRepresentation userRepWithPath(String path) {
         UserRepresentation rep = new UserRepresentation();
         rep.setId("kc-001");
-        rep.setAttributes(new HashMap<>(Map.of(
-                EsqConstants.JWT_CLAIM_ENTITY_ROOTPATH, List.of(path)
-        )));
+        Map<String, List<String>> attrs = new HashMap<>();
+        attrs.put(EsqConstants.JWT_CLAIM_ENTITY_ROOTPATH, List.of(path));
+        rep.setAttributes(attrs);
         return rep;
     }
 

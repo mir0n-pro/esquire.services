@@ -21,6 +21,8 @@
  * 07/11/2026 mir0n  v1.2.11 O1/T8 -- load() counts esq.biz.tree.rebuild.total (tag outcome) in a finally; it
  *                   still throws so the caller can transition its monad to FAILED. Rebuilds should be RARE, so a
  *                   rising rate is itself the finding
+ * 08/11/2026 mir0n  v1.2.12 -- the loaded node rows carry the entity and path change numbers read from the
+ *                   database; folder rows get null for both
  */
 package pro.mir0n.esquire.bizTree.cache;
 
@@ -126,7 +128,8 @@ public class BizTreeCacheLoader {
             String entityPath = o.getPath();
             long   entityPk   = Long.parseLong(pk);
 
-            rows.add(node(pk, etPk, name, desc, parentPk, null, entityPk, entityPath, BizTreeConstants.STATUS_OK));
+            rows.add(node(pk, etPk, name, desc, parentPk, null, entityPk, entityPath, BizTreeConstants.STATUS_OK,
+                          o.getChangeNo(), o.getPathChangeNo()));
 
             if (etPk > 1) {
                 rows.add(node(pk + "~" + BizTreeConstants.FOLDER_ADMIN,    BizTreeConstants.FOLDER_ADMIN,    BizTreeConstants.FOLDER_ADMIN_NAME,    BizTreeConstants.FOLDER_ADMIN_DESC,    pk, null, null, entityPath, BizTreeConstants.STATUS_OK));
@@ -160,7 +163,8 @@ public class BizTreeCacheLoader {
 
             int    status   = BizTreeConstants.FLAG_DELETED.equals(deletedFlg) ? BizTreeConstants.STATUS_DELETED : BizTreeConstants.STATUS_OK;
             String parentPk = orgPk + "~" + folderType;
-            rows.add(node(pk, etPk, name, desc, parentPk, null, usrPk, entityPath, status));
+            rows.add(node(pk, etPk, name, desc, parentPk, null, usrPk, entityPath, status,
+                          u.getChangeNo(), u.getPathChangeNo()));
             devLog.debug("added user: pk={}, etPk={}, name={}, desc={}, parentPk={}, usrPk={}, entityPath={}, status={}", pk, etPk, name, desc, parentPk, usrPk, entityPath, status);
         }
         return ret;
@@ -184,11 +188,13 @@ public class BizTreeCacheLoader {
             else if (BizTreeConstants.FLAG_LOCKED.equals(accStatus))                                                status = BizTreeConstants.STATUS_LOCKED;
             else                                                                                                     status = BizTreeConstants.STATUS_OK;
 
-            rows.add(node(pk, etPk, name, desc, usrPk, null, accPk, entityPath, status));
+            rows.add(node(pk, etPk, name, desc, usrPk, null, accPk, entityPath, status,
+                          a.getChangeNo(), a.getPathChangeNo()));
 
             String shortcutPk     = orgPk + "~" + pk;
             String shortcutParent = orgPk + "~" + BizTreeConstants.FOLDER_ACCOUNT;
-            rows.add(node(shortcutPk, etPk + 1, name, desc, shortcutParent, pk, accPk, entityPath, status));
+            rows.add(node(shortcutPk, etPk + 1, name, desc, shortcutParent, pk, accPk, entityPath, status,
+                          a.getChangeNo(), a.getPathChangeNo()));
         }
     }
 
@@ -237,9 +243,21 @@ public class BizTreeCacheLoader {
         devLog.debug("BizTreeCacheLoader: path/level updated for {} nodes", updates.size());
     }
 
+    /** Folder rows (no entity behind them) call this and get null change numbers -- nothing broadcasts
+     *  against a folder, so there is nothing to guard. */
     private static Object[] node(String pk, int etPk, String name, String desc,
                                   String parentPk, String linkPk, Long entityPk,
                                   String entityPath, int status) {
-        return new Object[]{ pk, etPk, name, desc, parentPk, linkPk, entityPk, 0, null, entityPath, status };
+        return node(pk, etPk, name, desc, parentPk, linkPk, entityPk, entityPath, status, null, null);
+    }
+
+    /** Entity rows: seed BOTH change numbers from the database read, so a freshly loaded shadow matches a
+     *  serving monad that has been applying broadcasts (otherwise the night-watch sees a false mismatch). */
+    private static Object[] node(String pk, int etPk, String name, String desc,
+                                  String parentPk, String linkPk, Long entityPk,
+                                  String entityPath, int status,
+                                  Long entityChangeNo, Long pathChangeNo) {
+        return new Object[]{ pk, etPk, name, desc, parentPk, linkPk, entityPk, 0, null, entityPath, status,
+                             entityChangeNo, pathChangeNo };
     }
 }

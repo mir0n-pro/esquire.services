@@ -4,12 +4,6 @@
  *
  *  Copyright(c) 2001, 2026 mir0n&co www.mir0n.pro
  *  mailto:mir0n.the.programmer@gmail.com
- *
- *  History:
- * 06/22/2026 mir0n  created: fail-fast on a MISTYPED role. The facade discovers a bus to build by the presence of
- *                   the esquire.<key>.messaging-bus.role property, then binds the ref (BusRef, role = enum Role).
- *                   A role value that is not CLIENT/SERVER/BOTH must FAIL the bind (so the facade fails fast at
- *                   init), not silently fall back to no-role and skip the bus.
  */
 package pro.mir0n.esquire.messaging;
 

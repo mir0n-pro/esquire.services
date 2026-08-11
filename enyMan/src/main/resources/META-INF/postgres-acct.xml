@@ -40,7 +40,16 @@
 
     <named-native-query name="EsqAcctJpa.updatePath">
         <query>
- UPDATE esq_entity_path SET ep_path = :path WHERE ep_pk = CAST(:id AS bigint)
+ UPDATE esq_entity_path SET ep_path = :path, ep_change_no = ep_change_no + 1 WHERE ep_pk = CAST(:id AS bigint)
+        </query>
+    </named-native-query>
+
+    <!-- Read the path change number back after updatePath raised it inline. The path table is not read
+         for update per row (the move takes ONE global lock on the root row), so the number is not known
+         in Java before the write: it is raised in the statement and read back here. -->
+    <named-native-query name="EsqAcctJpa.pathChangeNoFor">
+        <query>
+ SELECT ep_change_no FROM esq_entity_path WHERE ep_pk = CAST(:id AS bigint)
         </query>
     </named-native-query>
 

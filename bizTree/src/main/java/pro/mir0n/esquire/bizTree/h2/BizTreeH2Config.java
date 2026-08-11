@@ -19,6 +19,8 @@
  *                   DataSource) so the monad can batch event applies in one transaction
  * 06/29/2026 mir0n  biztree.h2.query-timeout-s @Value: when > 0 sets the cache JdbcTemplate setQueryTimeout (the
  *                   H2 cache surface of the request-path cap); 0 = uncapped (pre-HA default) (R6)
+ * 08/11/2026 mir0n  v1.2.12 -- the three change-number statements resolved from the properties into the SQL
+ *                   set
  */
 package pro.mir0n.esquire.bizTree.h2;
 
@@ -94,7 +96,10 @@ public class BizTreeH2Config {
                         env.getRequiredProperty("biztree.cache.sql.repo.find-folder-pks"),
                         env.getRequiredProperty("biztree.cache.sql.repo.find-subtree"),
                         env.getRequiredProperty("biztree.cache.sql.repo.clear-all"),
-                        env.getRequiredProperty("biztree.cache.sql.repo.checksum")
+                        env.getRequiredProperty("biztree.cache.sql.repo.checksum"),
+                        env.getRequiredProperty("biztree.cache.sql.repo.find-change-numbers"),
+                        env.getRequiredProperty("biztree.cache.sql.repo.stamp-entity-change-no"),
+                        env.getRequiredProperty("biztree.cache.sql.repo.stamp-path-change-no")
                 ),
                 new BizTreeCacheSql.Loader(
                         env.getRequiredProperty("biztree.cache.sql.loader.insert-node"),

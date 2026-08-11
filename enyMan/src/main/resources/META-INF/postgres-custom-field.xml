@@ -11,7 +11,8 @@
         <query>
 SELECT 
     opr_par_name AS "name",
-    opr_value AS "value"
+    opr_value AS "value",
+    opr_change_no AS "changeNo"
 FROM esq_org_par
 WHERE opr_org_pk = CAST(:id AS bigint)
         </query>
@@ -21,7 +22,8 @@ WHERE opr_org_pk = CAST(:id AS bigint)
         <query>
 SELECT
     upr_par_name AS "name",
-    upr_value AS "value"
+    upr_value AS "value",
+    upr_change_no AS "changeNo"
 FROM esq_usr_par
 WHERE upr_usr_pk = CAST(:id AS bigint)
         </query>
@@ -31,6 +33,7 @@ WHERE upr_usr_pk = CAST(:id AS bigint)
         <query>
 UPDATE esq_usr_par
 SET upr_value = :value
+  ,upr_change_no = :changeNo
   ,upr_crl_id = :correlationId
   ,upr_req_id = :requestId
   ,upr_uid = :uid
@@ -61,6 +64,7 @@ WHERE par_et_pk = :kind
         <query>
 UPDATE esq_org_par
 SET opr_value = :value
+  ,opr_change_no = :changeNo
   ,opr_crl_id = :correlationId
   ,opr_req_id = :requestId
   ,opr_uid = :uid
@@ -74,6 +78,7 @@ AND opr_par_name = :name
     <entity-result entity-class="pro.mir0n.esquire.backend.jpa.EsqNameValueJpa">
         <field-result name="name" column="name"/>
         <field-result name="value" column="value"/>
+        <field-result name="changeNo" column="changeNo"/>
     </entity-result>
     </sql-result-set-mapping>
 

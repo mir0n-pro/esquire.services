@@ -2,7 +2,7 @@
  *  Esquire frameworks (tm)
  *  PacMan service
  *
- *  Copyright(c) 2001, 2025 mir0n&co www.mir0n.me
+ *  Copyright(c) 2001, 2026 mir0n&co www.mir0n.pro
  *  mailto:mir0n.the.programmer@gmail.com
  *
  *  History:
@@ -23,6 +23,7 @@
  * 04/14/2026 mir0n  detailAcctForUpdate: kind (@Param) param removed; query: AND acc_et_pk = :kind dropped
  * 06/01/2026 mir0n  insertAcct() and insertAcctPath() removed (CREATE moved to enyMan).
  *                   acctPath() stays -- still used by deleteAcct() Test House branch.
+ * 08/11/2026 mir0n  v1.2.12 -- updateAcct and updateAcctBalance take a changeNo @Param
  */
 
 package pro.mir0n.esquire.pacMan.jpa;
@@ -51,6 +52,7 @@ public interface EsqAcctRepository extends JpaRepository<EsqAcctJpa, String> {
         @Param("ccy") String ccy,
         @Param("status") String status,
         @Param("negativeAllowed") String negativeAllowed,
+        @Param("changeNo") Long changeNo,
         @Param("uid") String uid,
         @Param("correlationId") String correlationId,
         @Param("requestId") String requestId
@@ -65,6 +67,7 @@ public interface EsqAcctRepository extends JpaRepository<EsqAcctJpa, String> {
     int updateAcctBalance(
         @Param("id") String id,
         @Param("balance") double balance,
+        @Param("changeNo") Long changeNo,
         @Param("uid") String uid,
         @Param("correlationId") String correlationId,
         @Param("requestId") String requestId

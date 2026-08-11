@@ -4,13 +4,6 @@
  *
  *  Copyright(c) 2001, 2026 mir0n&co www.mir0n.pro
  *  mailto:mir0n.the.programmer@gmail.com
- *
- *  History:
- * 06/22/2026 mir0n  created: a test transport provider that models an UNREACHABLE broker. The publisher's send
- *                   throws (a down broker rejects sends); the consumer's start is a no-op (a real listener
- *                   container -- e.g. ActiveMQ's DefaultMessageListenerContainer -- recovers in the background
- *                   rather than throwing at start). Used to verify broker-down DEGRADES gracefully (the rod still
- *                   inits + starts -- the service boots), it does not fail-fast.
  */
 package pro.mir0n.esquire.messaging;
 

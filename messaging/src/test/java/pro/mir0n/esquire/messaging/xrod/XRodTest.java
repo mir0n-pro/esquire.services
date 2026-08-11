@@ -4,13 +4,6 @@
  *
  *  Copyright(c) 2001, 2026 mir0n&co www.mir0n.pro
  *  mailto:mir0n.the.programmer@gmail.com
- *
- *  History:
- * 06/13/2026 mir0n  created: the XRod transceiver tests -- the TRANSMIT leg (post/buffer/after-commit, was
- *                   XYRodTest) wired with outbound = a capture sink, and the RECEIVE leg (submit/apply pool,
- *                   was XXRodTest) wired with receiveWorker = a registry applier. Replaces XYRodTest + XXRodTest.
- * 06/17/2026 mir0n  transmit-leg tests moved to AuditBusBridgeTest (post() lifted out of XRod into the audit
- *                   bridge); this now covers the RECEIVE leg (submit / apply pool) only.
  */
 package pro.mir0n.esquire.messaging.xrod;
 import pro.mir0n.esquire.messaging.RodEvent;
@@ -46,7 +39,7 @@ class XRodTest {
     }
 
     private static RodEvent event(int kind, String id) {
-        return new RodEvent(RodEvent.Op.CREATE, kind, id, null, 0L, "c", "r", "u", Map.of());
+        return new RodEvent(RodEvent.Op.CREATE, kind, id, null, null, 0L, "c", "r", "u", null, null, Map.of());
     }
 
     // ----------------------------------------------------------------- receive leg (receive / apply pool)

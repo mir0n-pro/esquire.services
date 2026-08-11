@@ -14,6 +14,8 @@
  * 06/23/2026 mir0n  EsqMsgConstants references -> messaging.BusConstants (wire) + common.EsqConstants (app)
  * 07/15/2026 mir0n  v1.2.11 T11 -- the kc-bus receive worker stamps MDC via EsqContextHolder.applyMessage(event)
  *                   and clears in a finally (I10)
+ * 08/11/2026 mir0n  v1.2.12 -- the RodEvent constructor call carries a null change number: a KeyCloak
+ *                   request leg reports none
  */
 package pro.mir0n.esquire.kcMaster.messaging;
 
@@ -89,7 +91,7 @@ public class KcBusAdapter {
     /** Transmit a URS (success) reply on the response leg. */
     private void publishSuccess(String entityId, int entityKind, String command,
                                 String requesterRodId, String requestId, String correlationId) {
-        RodEvent e = new RodEvent(RodEvent.opFromCode(command), entityKind, entityId, null,
+        RodEvent e = new RodEvent(RodEvent.opFromCode(command), entityKind, entityId, null, null,
                 System.currentTimeMillis(), correlationId, requestId, null, requesterRodId,
                 BusConstants.MSG_TYPE_RESPONSE, Map.of());
         rod.transmit(e);
@@ -111,7 +113,7 @@ public class KcBusAdapter {
         if (requestBody != null) {
             body.put("request", requestBody);
         }
-        RodEvent e = new RodEvent(RodEvent.opFromCode(command), entityKind, entityId, null,
+        RodEvent e = new RodEvent(RodEvent.opFromCode(command), entityKind, entityId, null, null,
                 System.currentTimeMillis(), correlationId, requestId, null, requesterRodId,
                 BusConstants.MSG_TYPE_REJECT, body);
         rod.transmit(e);

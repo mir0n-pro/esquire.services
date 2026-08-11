@@ -190,20 +190,54 @@ so your team never has to solve them again.
 
 ## What Esquire does that others do not
 
-### 1. The server defines the UI
+### 1. Tree-shaped visibility, resolved from position rather than written by hand
+
+**This is the claim to lead with, and the only one no comparable framework can currently
+match.** A user sits somewhere in a hierarchy — region, branch, team, portfolio — and what they
+may see is their subtree. Not a rule attached to their role, not a filter added to each query:
+their position resolves it, for every entity, everywhere.
+
+The alternative is the state of the art elsewhere, and it is worth being precise about, because
+it is where the difference lives:
+
+- **[Jmix](https://www.jmix.io/)** has row-level security, and it is good. But every constraint
+  is authored per entity class by the developer — `@JpqlRowLevelPolicy(entityClass =
+  Customer.class, where = "{E}.region = :current_user_region")` — and the context available is a
+  flat attribute on the user. Its own documentation states there is no native support for a
+  "user sees their own subtree" constraint: explicit constraints must be written for each level,
+  with no automatic cascade.
+- **[Apache Causeway](https://causeway.apache.org/)** does not filter rows at all. SecMan grants
+  ALLOW/VETO over namespaces, types and members — authorization over what exists in the UI,
+  not over which rows come back.
+- **[OpenFGA](https://openfga.dev/)**, **[SpiceDB](https://authzed.com/)** and the other
+  Zanzibar engines answer relationship questions with far more rigour than Esquire does, as a
+  separate service. Their hard case is the same one Esquire is built around: filtering a list to
+  a subtree, on every screen, rather than checking one object at a time.
+
+So the honest form of the claim is not "nobody does authorization" — plenty do, some better in
+their own dimension. It is that **a hierarchy is a structure here rather than a facility**, and
+one forgotten hand-written filter is a data leak nobody notices.
+
+### 2. The server defines the UI
 
 Field layouts, control types, validation rules, and available commands are delivered at
 runtime from a server configuration. Add a new entity type, change a field label, adjust a
 validation rule — the Angular frontend adapts without a redeployment. The UI team is not
 in the loop for every schema change.
 
-This is unique in the competitive landscape. Every comparable tool — React Admin, AdminJS,
-Forest Admin, Retool — uses a static component library. Fields are defined in frontend code.
-A schema change is a deployment. In regulated environments where compliance requirements
-change quarterly, or in multi-tenant platforms where different client tiers see different
-field sets, that model does not hold.
+Against the low-code tools — react-admin, AdminJS, Forest, Retool — this is a real difference:
+they use a static component library, fields are defined in frontend code, and a schema change is
+a deployment.
 
-### 2. A permission model that enforces itself at both layers
+**It is not unique, and this document used to say it was.** Apache Causeway generates its UI
+directly from the domain model — that is the entire identity of the project, and it runs on
+Spring Boot as Esquire does. [Jmix](https://www.jmix.io/) generates UI from the entity model
+too. The distinction that survives is narrower: Causeway derives the UI from *code* — the domain
+classes as written — while Esquire derives it from runtime server *configuration*, so the
+change that reaches the browser is a configuration change rather than a redeployment. That is
+worth claiming. "Nobody else does server-driven UI" is not.
+
+### 3. A permission model that enforces itself at both layers
 
 Every command and every editable field is gated by the logged-in user's access profile,
 resolved server-side, and reflected in the frontend without duplication. There is no way to
@@ -211,12 +245,13 @@ call an endpoint the user is not permitted to call, and no way to render a field
 is not permitted to edit. The frontend and backend enforce the same model from the same
 server configuration.
 
-Most competitors implement RBAC at the authentication boundary and leave field-level and
-command-level enforcement to the application team. In Esquire, it is structural — the
-permission check is part of every service method signature, not a layer the developer
-remembers to add.
+**Field-level enforcement itself is not exclusive**, and the earlier version of this section
+implied it was. Jmix has entity-attribute permissions, with UI components adapting
+automatically; Causeway's SecMan permissions reach member level. What remains true is the
+*single source*: one server-side resolution drives both the API refusal and the rendered form,
+rather than a backend rule and a frontend rule that have to be kept in agreement by hand.
 
-### 3. Audit trail as a first-class, pluggable concern
+### 4. Audit trail as a first-class, pluggable concern
 
 Every write to every entity carries a correlation ID, request ID, and the acting user ID, so
 audit entries tie back to distributed-tracing correlation IDs. Audit logging itself is
@@ -229,7 +264,7 @@ entries to distributed tracing correlation IDs, making it possible to reconstruc
 what sequence of operations — across multiple services, over JMS — produced any given
 database state.
 
-### 4. Accounting as the demo business model
+### 5. Accounting as the demo business model
 
 Everyone knows what to expect from accounting — that is exactly why it is the demo.
 The accounting domain — multi-currency deposit, withdrawal, and two-leg transfer with
@@ -246,7 +281,7 @@ entry in the competitive landscape ships a framework demonstration this complete
 accounting domain is the proof. Any other domain — KYC, case management, contracts,
 portfolios — sits on the same backbone and inherits the same structural rules.
 
-### 5. Asynchronous entity synchronization
+### 6. Asynchronous entity synchronization
 
 Entity changes propagate across services over the Esquire Messaging Bus (an ActiveMQ broadcast
 topic by default). The in-memory entity tree (bizTree) stays current without polling. Keycloak identity operations are
@@ -258,7 +293,7 @@ JHipster and Apache Syncope work in similar architectural territory (Spring Boot
 microservices, Java) but neither ship a pre-wired messaging topology for entity sync.
 Teams using those tools build the messaging layer themselves.
 
-### 6. No vendor lock-in at any layer
+### 7. No vendor lock-in at any layer
 
 The backend is Spring Boot and Spring Cloud — the most widely deployed Java microservices
 stack in the industry. The frontend is Angular with a published npm library. Every component
@@ -320,17 +355,51 @@ The full goal — *what Esquire is, and what the stack was made to deliver* — 
 
 ## The competitive landscape
 
+### Domain-model-driven application frameworks — the closest comparison
+
+[Apache Causeway](https://causeway.apache.org/) · [Jmix](https://www.jmix.io/) · [OpenXava](https://www.openxava.org/) · [Skyve](https://skyve.org/)
+
+**This is the category Esquire is actually in, and the comparison worth having.**
+
+**Apache Causeway** — formerly Apache Isis — runs on Spring Boot and generates its UI directly
+from the domain model, as a webapp, REST or GraphQL, with Spring Security and Keycloak
+integration. It is the closest project alive to Esquire's shape, and closer than Syncope, which
+this document previously called the nearest cousin. The difference is where the UI definition
+comes from: Causeway derives it from the domain classes as written, Esquire from runtime server
+configuration. Causeway does not filter data rows — SecMan grants ALLOW/VETO over namespaces,
+types and members, which governs what appears in the UI rather than which rows are returned.
+
+**Jmix**, from Haulmont and the successor to CUBA Platform, is the closest commercial-grade one:
+Spring Boot, Apache 2.0, built for large data models and complex internal UIs. It has genuine
+row-level security and entity-attribute permissions, both of which Esquire has too. The
+distinction is how a hierarchy is handled. In Jmix each constraint is authored per entity class
+by the developer — a JPQL `where` clause with the session user's attributes available — and its
+documentation states plainly that there is no native support for a user seeing their own
+subtree: explicit constraints must be written for each level, with no automatic cascade. That is
+the per-query filter written by hand, which is precisely what Esquire exists to remove.
+
+Esquire's honest position against this category: **not more capable across the board, but
+structural where they are procedural.** Both are frameworks you build on; Esquire additionally
+ships the operational floor — HA, correlated metrics, logs and traces, async messaging —
+assembled and running.
+
 ### Low-code admin panel tools
 
-[Forest Admin](https://www.forestadmin.com/) · [Retool](https://retool.com/) · [AdminJS](https://adminjs.co/) · [React Admin](https://marmelab.com/react-admin/)
+[Retool](https://retool.com/) · [Forest](https://forest.app/) · [AdminJS](https://adminjs.co/) · [react-admin](https://marmelab.com/react-admin/)
 
-These tools generate a working UI quickly. The tradeoff is that they are UI tools, not
-backoffice frameworks. They have no opinion about your permission model beyond what the
-database schema implies. They have no audit trail. They have no accounting layer. They work
-well for internal dashboards and data browsing. They are not a foundation for a regulated
-backoffice system.
+These generate a working UI quickly, and they are UI tools rather than backoffice frameworks:
+fields are defined in frontend code, so a schema change is a deployment, and the permission
+model is whatever the application team writes around them.
 
-Esquire is slower to get started with than Retool. It is incomparably more complete.
+Two qualifications this document previously lacked. **react-admin is a framework, not a low-code
+tool** — you write React with it, it does not generate a panel by inspecting a schema, and it is
+maintained by the agency [Marmelab](https://marmelab.com/). And **Forest Admin now appears to
+trade as Forest** at `forest.app`.
+
+Esquire is slower to get started with than Retool, and Retool covers a breadth of integrations
+Esquire does not attempt. The distinction is the destination, not the speed: a panel over an
+existing schema is the right tool for an internal data browser and the wrong starting point for
+a regulated back office whose permission model is a tree.
 
 ### Identity and access management
 
@@ -349,10 +418,24 @@ model is strong. But it is a SaaS product with proprietary IAM, and it stops at 
 organization/user boundary — there is no entity layer below users, no server-driven UI,
 no async messaging topology, no path to host it yourself.
 
-OpenFGA is a fine-grained authorization engine — it solves one part of the permission
-problem with great depth. Esquire's permission model is less academically rigorous than
-ReBAC, but it is fully integrated with the entity model and the UI, and ships as part of
-the framework rather than as a separate service to integrate.
+### Authorization engines
+
+[OpenFGA](https://openfga.dev/) · [SpiceDB](https://authzed.com/) · [Cerbos](https://cerbos.dev/) · [Casbin](https://casbin.org/) · [OPA](https://www.openpolicyagent.org/) · [Oso](https://www.osohq.com/)
+
+A field rather than a product, and this document used to name one member of it. The
+Zanzibar-derived engines — OpenFGA, SpiceDB, Ory Keto, Permify — model relationships with far
+more rigour than Esquire does; SpiceDB is the most faithful to the original paper and runs at
+very large scale. Alongside them sit policy-as-code (OPA/Rego, Cerbos, AWS Cedar) and embedded
+libraries (Oso, Casbin, the broadest language coverage of any of them).
+
+Esquire's permission model is less academically rigorous than ReBAC. What it is instead is
+**integrated**: part of the entity model and the UI, shipped with the framework rather than
+operated as a separate service, and resolved from tree position rather than from tuples somebody
+maintains.
+
+The interesting common ground is the hard case both share. Point checks — may this user do this
+to this object — are the easy half. Filtering a list to a subtree, thousands of rows, on every
+screen, is where these systems are tested, and it is the operation Esquire is built around.
 
 ### Microservice generators
 
@@ -368,11 +451,20 @@ JHipster leaves off.
 
 [Broadleaf Commerce](https://broadleafcommerce.com/) · [Strapi](https://strapi.io/)
 
-These platforms ship strong admin panels for a fixed domain (products, content). Their
-admin domain is closed — extending it means rebuilding what the platform was built around.
-Esquire's admin domain is open: any hierarchy of any entities sits on the framework's
-structural backbone with no domain-specific assumptions baked in. Broadleaf's Spring Boot
-foundation is relevant; its domain model is not.
+The weakest comparison on this page, kept short for that reason.
+
+These ship strong admin panels shaped around their own domain — commerce objects, content
+documents. Extending them means working through those abstractions, which is exactly right if
+you are building commerce or publishing and the wrong starting point otherwise. Esquire's entity
+layer carries no domain assumptions.
+
+Two corrections to an earlier version. **"Closed" was the wrong word**: Broadleaf's
+extensibility has always been a selling point, and Strapi's Content-Type Builder exists
+precisely so its domain is *not* fixed — describing a headless CMS as a fixed-domain platform is
+a mistake about the central thing it does. The distinction that survives is narrower: Strapi
+models content, with documents, fields, relations and a publish workflow; it does not resolve
+"this user sits here and therefore sees this subtree". Broadleaf now describes itself as
+**source-available** rather than open-source.
 
 ---
 
@@ -397,20 +489,37 @@ never solve it again.**
 
 ## Feature comparison
 
-| Feature | Esquire | Apache Syncope | JHipster | Broadleaf | Forest Admin | Retool | Frontegg |
-|---|---|---|---|---|---|---|---|
-| Hierarchical entity tree (domain-agnostic) | Yes | Partial | No | No | No | No | Partial |
-| Server-driven UI | Yes | No | No | No | No | No | No |
-| Audit trail (pluggable, optional) | Yes | Yes | No | No | No | No | No |
-| Distributed trace correlation | Yes | No | No | No | No | No | No |
-| Microservices + async messaging | Yes | Partial | Yes | Yes | No | No | No |
-| Field-level permission enforcement | Yes | Partial | No | No | No | No | No |
-| Tree-shaped (positional) authorization | Yes | Partial | No | No | No | No | No |
-| Pluggable IAM adapter (Keycloak today) | Yes | No | No | No | No | No | No |
-| Oracle + Postgres | Yes | Yes | Yes | Yes | Partial | Yes | No |
-| No vendor lock-in | Yes | Yes | Yes | Partial | No | No | No |
-| Open source / self-hosted | Yes | Yes | Yes | Partial | No | No | No |
-| End-to-end demonstration domain | Yes | No | No | Partial | No | No | No |
+Against the nearest comparable frameworks rather than against every tool that ships an admin
+panel. A row that only Esquire can answer is not evidence of anything if the products in the
+columns were never trying.
+
+| Feature | Esquire | Apache Causeway | Jmix | Apache Syncope | JHipster |
+|---|---|---|---|---|---|
+| Hierarchical entity tree (domain-agnostic) | Yes | Yes | Yes | Partial | No |
+| **Tree-shaped (positional) authorization** | **Yes** | **No** | **No** | Partial | No |
+| Row-level data filtering | Yes | No | Yes | Partial | No |
+| Field-level permission enforcement | Yes | Yes | Yes | Partial | No |
+| UI derived from the model | Yes, from runtime config | Yes, from domain code | Yes | No | No |
+| Audit trail (pluggable, optional) | Yes | Partial | Yes | Yes | Partial |
+| Distributed trace correlation | Yes | No | No | No | No |
+| Microservices + async messaging | Yes | No | Partial | Partial | Yes |
+| High availability, shipped assembled | Yes | No | No | Partial | Partial |
+| Full observability, shipped assembled | Yes | No | No | No | Partial |
+| Pluggable IAM adapter (Keycloak today) | Yes | Partial | Partial | No | No |
+| Oracle + Postgres | Yes | Yes | Yes | Yes | Yes |
+| Open source / self-hosted | Yes | Yes | Yes | Yes | Yes |
+| End-to-end demonstration domain | Yes | Partial | Partial | No | No |
+
+**The bolded row is the argument.** Everything else in this table is a difference of degree;
+that one is a difference in kind, and it is the reason the framework exists. Causeway does not
+filter rows at all. Jmix filters them well, per entity, with a constraint the developer writes —
+and its documentation states that hierarchy is not handled natively.
+
+Two rows that appeared in earlier versions have been removed because they were not true.
+*Server-driven UI* was marked as Esquire-only; generating the UI from the model is the entire
+identity of Apache Causeway. *Field-level permission enforcement* was marked as Esquire-only;
+both Causeway and Jmix have it. A comparison table with two false exclusives discredits its
+other eleven rows for any reader who checks one.
 
 ---
 

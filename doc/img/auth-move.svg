@@ -63,15 +63,15 @@
   <!-- self-message: park in buffer -->
   <path class="msg" d="M615,392 h46 v26 h-42"/>
   <text class="mt" x="668" y="404" font-size="11">park in</text>
-  <text class="mt" x="668" y="416" font-size="11">KcPathBuffer</text>
+  <text class="mt" x="668" y="416" font-size="11">path buffer</text>
 
   <rect class="race" x="20" y="446" width="840" height="70" rx="6"/>
   <text class="racet" x="34" y="468" font-weight="bold">The race we fought (race-8c): a user created WHILE being moved.</text>
   <text class="racet" x="34" y="486">If the KC identity does not exist yet, the authoritative URQ silently skips -- so the broadcast copy parks the new</text>
-  <text class="racet" x="34" y="502">path in KcPathBuffer (per kcMaster pod). The next keySmith CREATE URQ flushes the buffer and applies the</text>
-  <text class="racet" x="34" y="518">post-move path, so the relocation is never lost. When the user already exists, the URQ owns it and the topic stays passive.</text>
+  <text class="racet" x="34" y="502">path in a per-pod expiring path buffer -- keeping the NEWEST path by change number, not the last to arrive. The</text>
+  <text class="racet" x="34" y="518">next keySmith CREATE URQ flushes it and applies that path. When the user already exists, the URQ owns it and the topic stays passive.</text>
 
   <rect class="leg" x="20" y="540" width="840" height="42" rx="5"/>
   <text class="legt" x="30" y="559"><tspan class="legb">Redundancy:</tspan> enyMan and kcMaster run at N replicas (stacked). The URQ is competing-consumed by ONE kcMaster;</text>
-  <text class="legt" x="30" y="575">the entity topic fans out to EVERY kcMaster replica, each with its own KcPathBuffer -- which is why the race-8c fix is per-pod.</text>
+  <text class="legt" x="30" y="575">the entity topic fans out to EVERY kcMaster replica, each with its own path buffer -- which is why the race-8c fix is per-pod.</text>
 </svg>

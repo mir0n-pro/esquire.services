@@ -43,7 +43,7 @@ class XRodInfoTest {
 
     @Test
     void describeLeadsWithTheDirectiveAndCarriesTheWholeEvent() {
-        RodEvent e = new RodEvent(RodEvent.Op.UPDATE, 30, "8", "3", 1000L,
+        RodEvent e = new RodEvent(RodEvent.Op.UPDATE, 30, "8", "3", null, 1000L,
                 "crl-1", "req-1", "uid-1", "rod-1", "UA", Map.of("k", "v"));
         String line = XRodInfo.describe("Skipped", e);
         assertTrue(line.startsWith("Skipped | UA | "), line);   // directive in the dir slot, then msg-type

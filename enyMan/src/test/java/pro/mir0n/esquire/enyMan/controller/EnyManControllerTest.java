@@ -154,7 +154,7 @@ class EnyManControllerTest {
     void esquireCommandDelete_extractsRolesAndDelegates_returnsOk() {
         Map<String, Object> realmAccess = Map.of(EsqConstants.JWT_CLAIM_REALM_ACCESS_ROLES, List.of("admin"));
         when(claims.get(EsqConstants.JWT_CLAIM_REALM_ACCESS, Map.class)).thenReturn(realmAccess);
-        doNothing().when(service).esquireCommandDelete(10, "100", "delete", List.of("admin"));
+        when(service.esquireCommandDelete(10, "100", "delete", List.of("admin"))).thenReturn(4L);
 
         ResponseEntity<Void> response = controller.esquireCommandDelete(10, "100", "delete", claims);
 
@@ -168,7 +168,7 @@ class EnyManControllerTest {
     @DisplayName("esquireCommandDelete: null realm_access passes null roles to service")
     void esquireCommandDelete_nullRealmAccess_passesNullRolesToService() {
         when(claims.get(EsqConstants.JWT_CLAIM_REALM_ACCESS, Map.class)).thenReturn(null);
-        doNothing().when(service).esquireCommandDelete(10, "100", "delete", null);
+        when(service.esquireCommandDelete(10, "100", "delete", null)).thenReturn(4L);
 
         controller.esquireCommandDelete(10, "100", "delete", claims);
 

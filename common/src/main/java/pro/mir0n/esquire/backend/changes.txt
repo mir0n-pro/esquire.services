@@ -1,5 +1,19 @@
 Esquire Backend common microservice classes
 
+08/11/2026 mir0n  v1.2.12 -- entity change number
+dto.EsqEntity
+  - changeNo field added, carried from the JPA row; @JsonIgnore + @Schema(hidden) keep it out of the REST
+    contract
+jpa.EsqEntityJpa
+  - changeNo and pathChangeNo fields added (two separate counters) plus bumpChangeNo(), the one place a
+    change number moves; neither is emitted by fillMap()
+jpa.EsqNameValueJpa
+  - changeNo field and bumpChangeNo() added
+jpa.IMappable
+  - getChangeNo() default added; read separately from fillMap() because the number rides the x-Rod header
+jpa.entity.EsqParRow
+  - changeNo field and bumpChangeNo() added, its own copy: the class is outside the EsqEntityJpa hierarchy
+
 07/23/2026 mir0n  v1.2.11 -- homework: fix/resolve issues found in the fresh-mind audit
 o11y.EsqBizMeters
   - gauge(): defensive re-check after PENDING.add so a gauge is not stranded by a concurrent setRegistry() drain

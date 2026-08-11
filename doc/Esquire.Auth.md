@@ -86,7 +86,7 @@ the entity mutation and the KeyCloak sync never block each other:
 > **Everything here runs redundant.** keySmith, enyMan, and kcMaster each run at **N replicas**, and that is what
 > gives these flows their shape: a request (`URQ`) is competing-consumed by **one** kcMaster and its reply routes
 > back to the **originating** instance by rod-id, while the entity-broadcast **topic** fans out to **every** kcMaster
-> replica (each holding its own `KcPathBuffer`). The sequence diagrams below draw the services as stacked replicas,
+> replica (each holding its own path buffer). The sequence diagrams below draw the services as stacked replicas,
 > and each legend calls out where the redundancy adds routing complexity.
 
 ### 3.1 KeyCloak — the identification host
@@ -117,7 +117,7 @@ Every change flows one way, **DB → KeyCloak, always through kcMaster** (the si
    (`EVENT_UPDATE_PATH`, which re-stamps `esq_rootpath` when a user is moved).
 2. **The broadcast safety-net.** kcMaster also consumes the entity-broadcast topic. If a moved user's new path
    arrives before KeyCloak has that user (the race a create-during-move opens), kcMaster parks it in a small
-   path buffer (`KcPathBuffer`) and the pending create flushes the post-move path. The command path is
+   path buffer (a per-pod expiring cache) and the pending create flushes the post-move path. The command path is
    authoritative; the broadcast is belt-and-suspenders so a relocation is never lost.
 
 `esq_uid` is written once, at create, and never changes — identity is stable. `esq_rootpath` is the one attribute
@@ -193,7 +193,7 @@ KeyCloak aligned.
 re-stamps each moved user's `esq_rootpath` in KeyCloak. This is where the **create-while-move race (race-8c)** is
 fought:
 
-![Move rootpath sync with the create-while-move safety-net: enyMan updates ep_path in esq2025 and publishes an authoritative EVENT_UPDATE_PATH URQ that kcMaster applies to KeyCloak when the user exists; the same move is also broadcast on the entity topic, and when the KeyCloak identity does not exist yet kcMaster parks the new path in a per-pod KcPathBuffer that the next keySmith CREATE URQ flushes, so the relocation is never lost.](img/auth-move.svg)
+![Move rootpath sync with the create-while-move safety-net: enyMan updates ep_path in esq2025 and publishes an authoritative EVENT_UPDATE_PATH URQ that kcMaster applies to KeyCloak when the user exists; the same move is also broadcast on the entity topic, and when the KeyCloak identity does not exist yet kcMaster parks the new path in a per-pod expiring path buffer, keeping the newest path by change number, which the next keySmith CREATE URQ flushes, so the relocation is never lost.](img/auth-move.svg)
 
 - **Authoritative path.** enyMan publishes an `EVENT_UPDATE_PATH` URQ; kcMaster re-stamps `esq_rootpath` on the KC
   user — *if that user exists*.
@@ -201,9 +201,15 @@ fought:
   before the user's KeyCloak identity has been created. The authoritative URQ then finds no user and **silently
   skips** — the new path would be lost.
 - **The safety-net.** The same move is also broadcast on the entity-broadcast topic; kcMaster's topic worker parks
-  the new path in a per-pod **`KcPathBuffer`**. The next keySmith `CREATE` URQ for that user **flushes the buffer**
+  the new path in a per-pod **expiring path buffer** (an `ExpiringCache`, bean in `KeycloakConfig`). The next keySmith `CREATE` URQ for that user **flushes the buffer**
   and applies the post-move path — so the relocation is never lost. When the user already exists, the URQ owns the
   update and the topic side stays passive (no double write).
+- **The buffer keeps the newest path, not the last one to arrive.** A path is parked with the change number of
+  the path row it came from, and a park only replaces what is there when its number is greater. That matters
+  because the topic worker runs on a pool: two moves of the same entity can be handled at once, and in either
+  order. The comparison is one atomic step inside the cache, so two workers cannot both decide they are newer and
+  have the slower one land last. A path with no number parks into an empty slot but never displaces a numbered
+  one — an arrival that says nothing about its order cannot outrank one that does.
 
 The broader create-while-move handling on the entity / tree side (the move queue, parents-first ordering, and the
 bizTree cache) is in [`Esquire.BizTree.md`](Esquire.BizTree.md); here it matters only for keeping `esq_rootpath`

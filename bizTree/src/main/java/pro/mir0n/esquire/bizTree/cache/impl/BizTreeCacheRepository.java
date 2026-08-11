@@ -27,6 +27,8 @@
  * 05/23/2026 mir0n  clear() = TRUNCATE via sql.clearAll(); prepareCancelable(CHECKSUM) opens a
  *                   connection + prepares sql.checksum(), returned as a CancelableStatement
  *                   (closeQuietly the connection if prepare throws -- no leak).
+ * 08/11/2026 mir0n  v1.2.12 -- findChangeNumbers, stampEntityChangeNo and stampPathChangeNo implemented;
+ *                   the node mapper reads the two new columns
  */
 package pro.mir0n.esquire.bizTree.cache.impl;
 
@@ -107,6 +109,29 @@ public class BizTreeCacheRepository implements IBizTreeCacheRepository {
     public EsqTreeNodeJpa findByNameKind(String name, Integer kind, int rootLevel, String rootPath) {
         List<EsqTreeNodeJpa> ret = cache.query(sql.findByNameKind(), NODE_MAPPER, rootLevel, name, kind, rootPath + "%");
         return ret.isEmpty() ? null : ret.get(0);
+    }
+
+    @Override
+    public Long[] findChangeNumbers(long entityPk) {
+        Long[] ret = null;
+        List<Long[]> rows = cache.query(sql.findChangeNumbers(),
+                (rs, i) -> new Long[]{ (Long) rs.getObject("tree_entity_change_no"),
+                                       (Long) rs.getObject("tree_path_change_no") },
+                entityPk);
+        if (!rows.isEmpty()) {
+            ret = rows.get(0);
+        }
+        return ret;
+    }
+
+    @Override
+    public void stampEntityChangeNo(long entityPk, Long changeNo) {
+        cache.update(sql.stampEntityChangeNo(), changeNo, entityPk);
+    }
+
+    @Override
+    public void stampPathChangeNo(long entityPk, Long changeNo) {
+        cache.update(sql.stampPathChangeNo(), changeNo, entityPk);
     }
 
     @Override
@@ -351,9 +376,19 @@ public class BizTreeCacheRepository implements IBizTreeCacheRepository {
         return ret;
     }
 
+    /**
+     * A row for the shared {@code insert-node} statement -- the SAME statement the loader uses, so the
+     * column list and this array must stay in step (v1.2.12 added the two change-number columns).
+     *
+     * <p>The two numbers are left NULL here on purpose. These inserts happen on the CREATE broadcast path,
+     * and {@code MessageHandlerHub.dispatch} stamps the event's number onto the row immediately after the
+     * handler returns -- so writing it here as well would be the same value twice, and getting it wrong
+     * here would be a number the guard then trusts. One writer, one place.
+     */
     private static Object[] row(String pk, int etPk, String name, String desc,
                                  String parentPk, String linkPk, Long entityPk,
                                  int level, String path, String entityPath, int status) {
-        return new Object[]{ pk, etPk, name, desc, parentPk, linkPk, entityPk, level, path, entityPath, status };
+        return new Object[]{ pk, etPk, name, desc, parentPk, linkPk, entityPk, level, path, entityPath, status,
+                             null, null };
     }
 }

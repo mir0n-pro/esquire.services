@@ -7,6 +7,8 @@
  *
  *  History:
  * 05/19/2026 mir0n  created: event-apply seam (v1.2.5 Taijitu refactor Step 2, Yang).
+ * 08/11/2026 mir0n  v1.2.12 -- apply() takes the event's change number; null means the producer sent none
+ *                   and the event applies unguarded
  */
 package pro.mir0n.esquire.bizTree.taijitu;
 
@@ -19,5 +21,10 @@ import com.fasterxml.jackson.databind.JsonNode;
  */
 @FunctionalInterface
 public interface IEventSink {
-    void apply(String eventType, String entityId, int entityKind, JsonNode textNode);
+    /**
+     * @param changeNo the event's change number, or null when the producer sent none (apply unguarded).
+     *                 WHICH counter it is follows the event type -- entity number on C/U/D, PATH number
+     *                 on X. They are separate counters and are never compared with each other.
+     */
+    void apply(String eventType, String entityId, int entityKind, JsonNode textNode, Long changeNo);
 }

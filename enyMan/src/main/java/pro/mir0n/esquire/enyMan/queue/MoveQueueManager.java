@@ -45,6 +45,9 @@
  * 07/23/2026 mir0n  v1.2.11 -- "elastic end of move": inMove() stays true for a grace window
  *                   (enyman.move-queue.in-move-grace-ms, default 200, 0 disables) after the last move drains, so a
  *                   create racing that move is still caught by the reconcile queue; stamped on decrement-to-zero
+ * 08/11/2026 mir0n  v1.2.12 -- the move broadcast carries the PATH change number: taken from the move
+ *                   record, and read back with pathChangeNoFor after a reconcile repair so the reissue is
+ *                   not skipped by the receiver's guard
  */
 
 package pro.mir0n.esquire.enyMan.queue;
@@ -293,8 +296,12 @@ public class MoveQueueManager implements IQueueRig.IQueueWorker<MoveQueueItem> {
 
             // Drift detected -- fix DB and reissue.
             int rows = pathLookup.updatePath(item.entityId(), expectedPath);
-            devLog.info("processReconcile: drift fixed entityId={}, was={}, now={}, rows={}",
-                    item.entityId(), item.pathAtPublish(), expectedPath, rows);
+            // updatePath raised ep_change_no inline (the path table is not read for update per row), so the
+            // new number is read back here -- the reissued broadcast has to carry it or bizTree's path guard
+            // would compare this repair against a stale number and skip it.
+            Long pathChangeNo = pathLookup.pathChangeNoFor(item.entityId());
+            devLog.info("processReconcile: drift fixed entityId={}, was={}, now={}, rows={}, pathChangeNo={}",
+                    item.entityId(), item.pathAtPublish(), expectedPath, rows, pathChangeNo);
 
             Map<String, Object> text = new LinkedHashMap<>();
             text.put(EsqConstants.TEXT_ID,   item.entityId());
@@ -302,7 +309,7 @@ public class MoveQueueManager implements IQueueRig.IQueueWorker<MoveQueueItem> {
             text.put(EsqConstants.TEXT_PATH, expectedPath);
             try {
                 broadcastPublisher.publish(item.kind(), item.entityId(), BusConstants.EVENT_UPDATE_PATH,
-                        rid, cid, text);
+                        rid, cid, text, pathChangeNo);
             } catch (Exception e) {
                 log.error("processReconcile: broadcast failed for kind={}, id={}: {}",
                         item.kind(), item.entityId(), e.getMessage());
@@ -323,7 +330,7 @@ public class MoveQueueManager implements IQueueRig.IQueueWorker<MoveQueueItem> {
         text.put(EsqConstants.TEXT_PATH, record.getPath());
         try {
             broadcastPublisher.publish(record.getKind(), record.getId(), BusConstants.EVENT_UPDATE_PATH,
-                    requestId, correlationId, text);
+                    requestId, correlationId, text, record.getChangeNo());
         } catch (Exception e) {
             log.error("publishMoveEvent: broadcast failed for kind={}, id={}: {}",
                     record.getKind(), record.getId(), e.getMessage());

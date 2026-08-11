@@ -8,11 +8,14 @@
  *  History:
  * 06/22/2026 mir0n  created (was KcEntityBroadcastConsumer): the kcMaster end of the entity bus (CLIENT) -- the
  *                   race-8c safety-net receive worker on the entity-broadcast rod (from the facade). On a move
- *                   (UPDATE_PATH) it parks the new path in KcPathBuffer when the KC user does not exist yet; the
+ *                   (UPDATE_PATH) it parks the new path in the race-8c ExpiringCache when the KC user does not exist yet; the
  *                   URQ handler owns the update when it does.
  * 06/23/2026 mir0n  EsqMsgConstants app constants -> common.EsqConstants (references repointed)
  * 07/15/2026 mir0n  v1.2.11 T11 -- the entity-broadcast receive worker stamps MDC via
  *                   EsqContextHolder.applyMessage(event) and clears in a finally (I10)
+ * 08/11/2026 mir0n  v1.2.12 -- the path park moved to the shared ExpiringCache and now holds a ParkedPath:
+ *                   storeIfGreater keeps the newest path by its path change number instead of the last
+ *                   arrival, in one atomic step
  */
 package pro.mir0n.esquire.kcMaster.messaging;
 
@@ -29,7 +32,7 @@ import pro.mir0n.esquire.common.EsqConstants;
 import pro.mir0n.esquire.messaging.MessagingBus;
 import pro.mir0n.esquire.messaging.IXRod;
 import pro.mir0n.esquire.messaging.RodEvent;
-import pro.mir0n.esquire.kcMaster.buffer.KcPathBuffer;
+import pro.mir0n.utils.concurrent.ExpiringCache;
 import pro.mir0n.esquire.kcMaster.config.KeycloakConfig;
 
 import java.util.List;
@@ -41,7 +44,8 @@ import java.util.Map;
  * <p>The URQ EVENT_UPDATE_PATH handler is the authoritative imperative channel: it updates KC when the user
  * is there and silent-skips when the user is not -- but the silent-skip drops the path on the floor. enyMan's
  * move also publishes the same move ({@link RodEvent.Op#UPDATE_PATH}) on the entity-broadcast TOPIC; this
- * worker picks it up and, when the KC user is missing, parks the new path in {@link KcPathBuffer}. The next
+ * worker picks it up and, when the KC user is missing, parks the new path in the race-8c
+ * {@link ExpiringCache} (bean in KeycloakConfig). The next
  * keySmith CREATE URQ for that entity flushes the buffer in {@code KcIdentityService.createUser}.
  *
  * <p>Multi-instance safety: the TOPIC broadcasts to every kcMaster pod, each holds its own buffer, the pod
@@ -56,9 +60,12 @@ public class EntityBusAdapter {
 
     private final Keycloak keycloak;
     private final KeycloakConfig keycloakConfig;
-    private final KcPathBuffer pathBuffer;
+    /** Race-8c park: the moved entity's new path, held until its KC user exists. Shared with
+     *  KcIdentityService.createUser, which drains it -- the bean is declared in KeycloakConfig. */
+    private final ExpiringCache<String, ParkedPath> pathBuffer;
 
-    public EntityBusAdapter(Keycloak keycloak, KeycloakConfig keycloakConfig, KcPathBuffer pathBuffer) {
+    public EntityBusAdapter(Keycloak keycloak, KeycloakConfig keycloakConfig,
+                            ExpiringCache<String, ParkedPath> pathBuffer) {
         this.keycloak = keycloak;
         this.keycloakConfig = keycloakConfig;
         this.pathBuffer = pathBuffer;
@@ -88,8 +95,19 @@ public class EntityBusAdapter {
                 return;
             }
 
-            pathBuffer.store(e.entityId(), newPath);
-            log.info("KC | TOPIC-X | entityId={} | path={} | BUFFERED (no KC user yet)", e.entityId(), newPath);
+            // Park the NEWEST path, not the last one to arrive. This worker runs on the receive pool
+            // (receiver-pool.size 4, no per-entity affinity), so two moves of the same entity can land here at
+            // once and out of order; storeIfGreater settles it in ONE atomic step, which a read-compare-write
+            // here could not. ParkedPath orders itself by the PATH change number off the X message (T8).
+            ParkedPath incoming = new ParkedPath(newPath, e.changeNo());
+            boolean parked = pathBuffer.storeIfGreater(e.entityId(), incoming);
+            if (parked) {
+                log.info("KC | TOPIC-X | entityId={} | path={} | changeNo={} | BUFFERED (no KC user yet, parked={})",
+                        e.entityId(), newPath, e.changeNo(), pathBuffer.size());
+            } else {
+                log.info("KC | TOPIC-X | entityId={} | path={} | changeNo={} | NOT BUFFERED (a newer path is already parked)",
+                        e.entityId(), newPath, e.changeNo());
+            }
         } finally {
             EsqContextHolder.clear();
         }

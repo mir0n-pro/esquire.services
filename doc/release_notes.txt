@@ -1,6 +1,46 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v1.2.12-2608.1114  v1.2.12 -- Entity change number
+    :Feature:     every office, user, account, sign-in record, personal-details record, address and custom
+                  parameter row carries a change number that goes up by one each time the row is written
+    :Feature:     where an entity sits in the tree is counted separately from the entity itself, so moving a
+                  branch is told apart from changing the records under it
+    :Feature:     the change number travels on the message that announces a change (ChangeNo, FIX tag 50015)
+                  and is written into the audit trail
+    :Feature:     bizTree applies an announced change only when its number is newer than the one the cache
+                  already holds, so a repeat or a late arrival is skipped instead of being repaired afterwards
+    :Feature:     the audit trail's optional repeat protection is keyed on the record and its change number
+                  rather than on the request that caused the change, so the database-trigger and the
+                  messaging routes agree and can be used together
+    :Feature:     a money movement records which version of the account it produced, so the ledger and the
+                  account history can be checked against each other by number
+    :Fix:         kcMaster's create-while-move path buffer keeps the newest path rather than the last one to
+                  arrive
+    :Refactoring: the expiring hand-off cache behind that buffer moved out of kcMaster into the shared
+                  mir0n-utils library
+    :Refactoring: the unused bank-details table and its access code removed
+    Components:   common,
+                  messaging,
+                  mir0n-utils,
+                  dataKeep,
+                  audit,
+                  bizTree,
+                  enyMan,
+                  keySmith,
+                  kcMaster,
+                  pacMan
+    Doc:          doc\EntityDictionary.md
+                  doc\DatabaseDictionary.md
+                  doc\Esquire.AuditLoggingStack.md
+                  doc\Esquire.MessagingBus.MessageStructure.md
+                  doc\Esquire.MessagingBus.md
+                  doc\Esquire.MessagingBus.ContinuingDev.md
+                  doc\Esquire.Auth.md
+                  doc\Esquire.Q&A.md
+                  doc\Esquire.ContinuingDev.md
+                  doc\Esquire.Vision.md
+
 v1.2.11-2607.2714  v1.2.11 -- Finalization
     :Fix:         the on-demand cloud observability routine now completes in both directions -- switching
                   the full stack on also enables the message-broker and identity metrics, and switching it

@@ -4,11 +4,6 @@
  *
  *  Copyright(c) 2001, 2026 mir0n&co www.mir0n.pro
  *  mailto:mir0n.the.programmer@gmail.com
- *
- *  History:
- * 07/15/2026 mir0n  created (v1.2.11 T11/I33): LIVE check that around() records the whole Throwable hierarchy on
- *                   the span (incl. Error). The o11y-review "observe() misses Error" claim was FALSE; kept as a
- *                   regression guard.
  */
 package pro.mir0n.esquire.backend.o11y;
 

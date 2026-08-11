@@ -1,5 +1,9 @@
 Esquire dataKeep library
 
+08/11/2026 mir0n  v1.2.12 -- entity change number
+keep.RodEventDbWriter
+  - PARAM_CHANGE_NO added and bound from the event in the header parameter map
+
 07/11/2026 mir0n  v1.2.11 -- business meters (O1/T8): the DB write at the keep sink
 keep.RodEventDbWriter
   - applyEvent() counts esq.biz.keep.write.total and times esq.biz.keep.write.duration (tags op = the RodEvent op,

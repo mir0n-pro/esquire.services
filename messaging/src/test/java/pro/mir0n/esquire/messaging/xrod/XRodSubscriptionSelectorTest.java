@@ -4,9 +4,6 @@
  *
  *  Copyright(c) 2001, 2026 mir0n&co www.mir0n.pro
  *  mailto:mir0n.the.programmer@gmail.com
- *
- *  History:
- * 06/26/2026 mir0n  created: setWorker(subscription, worker) subscription mechanics on a single-node XRod.
  */
 package pro.mir0n.esquire.messaging.xrod;
 

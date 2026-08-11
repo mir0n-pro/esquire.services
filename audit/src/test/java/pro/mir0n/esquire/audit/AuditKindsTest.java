@@ -4,10 +4,6 @@
  *
  *  Copyright(c) 2001, 2026 mir0n&co www.mir0n.pro
  *  mailto:mir0n.the.programmer@gmail.com
- *
- *  History:
- * 06/06/2026 mir0n  created: the audit kind -> sql-key routing map (entity kinds from the dictionary by
- *                   flag; sub-entity / param / auth kinds from EsqConstants).
  */
 package pro.mir0n.esquire.audit;
 

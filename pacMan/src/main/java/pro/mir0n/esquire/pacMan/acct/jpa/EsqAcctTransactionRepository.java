@@ -8,6 +8,7 @@
  * 04/09/2026 mir0n  created: insertAcctTransaction 14-param native INSERT
  * 04/15/2026 mir0n  nextId(): sequence-based PK via ESQ_ATR_SEQ (vendor SQL in XML)
  * 04/20/2026 mir0n  nextId() removed; PK type Long->String; insertAcctTransaction: pkTx, amtIncoming, ccyIncoming, convRate params added
+ * 08/11/2026 mir0n  v1.2.12 -- insertAcctTransaction takes an accChangeNo @Param
  */
 
 package pro.mir0n.esquire.pacMan.acct.jpa;
@@ -32,6 +33,7 @@ public interface EsqAcctTransactionRepository extends JpaRepository<EsqAcctTrans
         @Param("atPk")        int    atPk,
         @Param("amt")         double amt,
         @Param("prevBalance") double prevBalance,
+        @Param("accChangeNo") Long   accChangeNo,
         @Param("desc")        String desc,
         @Param("refCode")     String refCode,
         @Param("refCode2")    String refCode2,

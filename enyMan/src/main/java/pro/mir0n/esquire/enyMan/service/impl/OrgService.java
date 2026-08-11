@@ -41,6 +41,9 @@
  *                   ENYMAN_TEST_CREATE_DELAY_MS) holds the create transaction open between the parent-path read and
  *                   the child insert, so a concurrent cross-instance move can rewrite the parent path in the gap
  *                   (the deterministic race-8b repro lever; 0 = off)
+ * 08/11/2026 mir0n  v1.2.12 -- the org row's change number is raised before every update and passed to the
+ *                   statement; delete bumps once and returns the number, which the delete event and the
+ *                   audit record share
  */
 
 package pro.mir0n.esquire.enyMan.service.impl;
@@ -128,7 +131,8 @@ public class OrgService  extends AEnyManService {
     }
 
     @Override
-    public EsqEntity esquireCommandSave(int kind, String id, String cmd, Map<String, Object> fields, List<String> roles) {
+    public EsqEntity esquireCommandSave(int kind, String id, String cmd, Map<String, Object> fields,
+                                        List<String> roles) {
         EsqEntity ret = null;
         String correlationId = RequestContextUtils.getCorrelationId();
         String requestId = RequestContextUtils.getRequestId();
@@ -158,7 +162,8 @@ public class OrgService  extends AEnyManService {
     }
 
     @Override
-    public EsqEntity esquireCommandNew(int kind, String parentId, String cmd, Map<String, Object> fields, List<String> roles) {
+    public EsqEntity esquireCommandNew(int kind, String parentId, String cmd, Map<String, Object> fields,
+                                       List<String> roles) {
         EsqEntity ret = null;
         String correlationId = RequestContextUtils.getCorrelationId();
         String requestId = RequestContextUtils.getRequestId();
@@ -189,14 +194,19 @@ public class OrgService  extends AEnyManService {
     }
 
     @Override
-    public void esquireCommandDelete(int kind, String id, String cmd, List<String> roles) {
+    public Long esquireCommandDelete(int kind, String id, String cmd, List<String> roles) {
         String rootPath = RequestContextUtils.getRootPath();
         devLog.debug("srvc: esquireCommandDelete(org): kind:{}, id:{}, cmd:{}, rootPath:{}", kind, id, cmd, rootPath);
-        transactionTemplate.execute(status -> {
+        return transactionTemplate.execute(status -> {
             em.setFlushMode(FlushModeType.COMMIT);
-            deleteOrg(id, rootPath);
-            audit.post(RodEvent.Op.DELETE, kind, id, null);
-            return null;
+            EsqOrgJpa deleted = deleteOrg(id, rootPath);
+            // ONE bump for this delete, on the row object itself. Everything that reports the delete then reads
+            // the same value off the same object -- the returned number for the broadcast, the source for the
+            // audit event. The delete record gets the number AFTER the last live state, exactly what the
+            // database trigger writes (OLD.<x>_change_no + 1), so both audit paths agree.
+            Long cn = deleted.bumpChangeNo();
+            audit.post(RodEvent.Op.DELETE, kind, id, null, deleted);
+            return cn;
         });
     }
 
@@ -232,7 +242,7 @@ public class OrgService  extends AEnyManService {
             String newEntityPath = destPath + id + ".";
             orgRepository.moveOrgPaths(currentPath, newEntityPath);
             rows = orgRepository.listMovedPaths(newEntityPath);
-            orgRepository.moveOrgParent(id, distId, uid, correlationId, requestId);
+            orgRepository.moveOrgParent(id, distId, org.bumpChangeNo(), uid, correlationId, requestId);
             // x-Rod audit: move is one parent-ref UPDATE (org_org_pk); path rewrites are not audited.
             org.setParentId(distId);
             audit.post(RodEvent.Op.UPDATE, org.getKind(), org.getId(), null, org);
@@ -265,6 +275,9 @@ public class OrgService  extends AEnyManService {
         orgRepository.insertOrgPath(newId, kind, path);
         orgRepository.insertOrg(newId, kind, org.getName(), org.getDesc(), org.getFullName(), parentId, uid, correlationId, requestId);
         orgRepository.insertCustomOrg(newId, kind, uid, correlationId, requestId);
+        // The INSERT left the row at 1 (column default) and no create-time UPDATE follows on the org row
+        // itself. The object still has to carry it -- the CREATE audit event is built from this object.
+        org.setChangeNo(1L);
 
         List<EsqCustomEntityFieldJpa> customFields = entityDictionaryRepository.findCustom(kind);
         if (customFields != null && !customFields.isEmpty()) {
@@ -277,7 +290,7 @@ public class OrgService  extends AEnyManService {
                     if (rawVal == null) continue;
                     kfl = (dict != null) ? dict.fillKindFieldLayer(fieldName, kfl) : null;
                     String val = (String) ValidatorFactory.getInstance().validate(org, kfl, false, rawVal);
-                    orgRepository.updateCustomOrg(idStr, fieldName, val, uid, correlationId, requestId);
+                    orgRepository.updateCustomOrg(idStr, fieldName, val, 2L, uid, correlationId, requestId);
                 }
             }
         }
@@ -288,7 +301,9 @@ public class OrgService  extends AEnyManService {
         created[0] = org;
     }
 
-    private void deleteOrg(String id, String rootPath) {
+    /** Deletes the org and returns the row as it was read for the delete -- the caller posts the audit event
+     *  from it, which is the only place its change number is still available. */
+    private EsqOrgJpa deleteOrg(String id, String rootPath) {
         EsqOrgJpa org = orgRepository.detailOrgForUpdate(id, rootPath);
         if (org == null) {
             throw new ResourceNotFoundException("deleteOrg", "id", id);
@@ -296,6 +311,7 @@ public class OrgService  extends AEnyManService {
         ValidatorFactory.getInstance().validateDelete(org);
         orgRepository.deleteOrg(id);
         orgRepository.deleteEntityPath(id);
+        return org;
     }
 
     private void saveOrg(String id, Map<String, Object> fields, String rootPath,
@@ -307,7 +323,8 @@ public class OrgService  extends AEnyManService {
         }
         List<EsqNameValueJpa> cstm = orgRepository.customOrg(id);
         if (EntityFieldUtils.applyFields(org, fields, false, 0, null)) {
-            orgRepository.updateOrg(id, org.getName(), org.getDesc(), org.getFullName(), uid, correlationId, requestId);
+            orgRepository.updateOrg(id, org.getName(), org.getDesc(), org.getFullName(),
+                    org.bumpChangeNo(), uid, correlationId, requestId);
         }
 
         Set<String> changedPars = new HashSet<>();
@@ -323,7 +340,7 @@ public class OrgService  extends AEnyManService {
                     if (field != null && (field.getReadwrite()  & 2) == 2) {
                         val = (String) ValidatorFactory.getInstance().validate(org, kfl, false, val);
                         nv.setValue(val);
-                        orgRepository.updateCustomOrg(id, nm, val, uid, correlationId, requestId);
+                        orgRepository.updateCustomOrg(id, nm, val, nv.bumpChangeNo(), uid, correlationId, requestId);
                         changedPars.add(nm);
                     }
                 }

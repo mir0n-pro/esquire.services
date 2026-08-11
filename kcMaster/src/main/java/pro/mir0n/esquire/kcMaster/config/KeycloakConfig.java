@@ -11,21 +11,30 @@
  *                   covered) -- the KC-sync duration IS measured at the operation grain
  *                   (esq.biz.kc.sync.duration), only a per-call span is absent; copyright URL mir0n.me ->
  *                   mir0n.pro.
+ * 08/11/2026 mir0n  v1.2.12 -- the race-8c path buffer is declared here as an
+ *                   ExpiringCache<String,ParkedPath> bean, shared by the topic adapter and createUser, and
+ *                   logs its effective ttl and prune interval at startup
  */
 
 package pro.mir0n.esquire.kcMaster.config;
 
 import lombok.Getter;
+import lombok.extern.slf4j.Slf4j;
 import lombok.Setter;
 import org.keycloak.OAuth2Constants;
 import org.keycloak.admin.client.Keycloak;
 import org.keycloak.admin.client.KeycloakBuilder;
 import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
+import pro.mir0n.esquire.kcMaster.messaging.ParkedPath;
+import pro.mir0n.utils.concurrent.ExpiringCache;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.task.AsyncTaskExecutor;
 import org.springframework.core.task.SimpleAsyncTaskExecutor;
 
+@Slf4j
 @Getter
 @Setter
 @Configuration
@@ -38,6 +47,34 @@ public class KeycloakConfig {
     private String clientSecret;
     private int connectTimeoutMs;
     private int readTimeoutMs;
+
+    /**
+     * The race-8c path buffer: a moved entity's new path, parked when its KeyCloak user does not exist yet.
+     * {@code EntityBusAdapter} (topic side) stores; {@code KcIdentityService.createUser} consumes, so the two
+     * must share ONE instance -- hence a bean rather than a field on either of them.
+     *
+     * <p>It is a plain {@link ExpiringCache} now: the map, the timestamps, the TTL, the prune thread and the
+     * lazy expiry on read were never kcMaster's business, and a kcMaster class wrapping them added a name and
+     * nothing else. What IS kcMaster's -- what gets parked and why -- lives at the two call sites.
+     *
+     * <p>Note the shipped timings: prune every 30s against a 10s TTL, so an expired entry sits in the map for
+     * up to 30s. That is CORRECT only because {@code consume()} re-checks the age of what it removed. Do not
+     * "optimise" that check away on the grounds that a pruner exists.
+     */
+    @Bean(destroyMethod = "stop")
+    public ExpiringCache<String, ParkedPath> kcPathBuffer(
+            @Value("${kcmaster.path-buffer.ttl-ms:10000}") long ttlMs,
+            @Value("${kcmaster.path-buffer.prune-interval-ms:30000}") long pruneIntervalMs) {
+        ExpiringCache<String, ParkedPath> ret = new ExpiringCache<>(
+                LoggerFactory.getLogger("develop.kcmaster.path-buffer"), ttlMs, pruneIntervalMs);
+        ret.start();
+        // Log the EFFECTIVE timings. Losing this line (it used to live on KcPathBuffer) cost real diagnosis
+        // time: with the buffer disabled via ttl <= 0 there was no way to confirm the knob had reached the
+        // bean at all. A component whose behaviour is switched by config must say what config it got.
+        log.info("kcMaster path-buffer: ttlMs={} pruneIntervalMs={}{}",
+                ttlMs, pruneIntervalMs, ttlMs <= 0 ? "  (DISABLED -- every consume returns null)" : "");
+        return ret;
+    }
 
     @Bean
     public AsyncTaskExecutor taskExecutor() {

@@ -4,11 +4,6 @@
  *
  *  Copyright(c) 2001, 2026 mir0n&co www.mir0n.pro
  *  mailto:mir0n.the.programmer@gmail.com
- *
- *  History:
- * 06/24/2026 mir0n  created: the supportsBothLegs() role fail-fast (an impossible CLIENT/BOTH role over a
- *                   produce-only transport throws at init) + health() folding the transport indicator with the
- *                   alive metric (alive OFF -> health is the transport indicator alone).
  */
 package pro.mir0n.esquire.messaging.xrod;
 

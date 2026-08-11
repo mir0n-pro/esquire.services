@@ -11,6 +11,9 @@
  *                   Two queries: pathFor(id) returns the current ep_path; updatePath(id, path)
  *                   sets it. Kept separate from EsqOrgRepository / EsqUsrRepository / EsqAcctRepository
  *                   so the worker reads via one entity-kind-agnostic seam.
+ * 08/11/2026 mir0n  v1.2.12 -- updatePath raises ep_change_no inline (the path table is written under one
+ *                   global lock, not read for update per row); pathChangeNoFor() reads the raised number
+ *                   back
  */
 
 package pro.mir0n.esquire.enyMan.jpa;
@@ -29,8 +32,15 @@ public interface EntityPathLookup extends JpaRepository<EsqAcctJpa, String> {
     @NativeQuery
     String pathFor(@Param("id") String id);
 
+    /** Rewrites the path and raises its change number INLINE ({@code ep_change_no + 1}). The path table is
+     *  not read for update per row -- a move takes ONE global lock on the root row -- so the number cannot
+     *  be raised in Java before the write. Read it back with {@link #pathChangeNoFor}. */
     @Modifying(clearAutomatically = true, flushAutomatically = false)
     @Transactional
     @NativeQuery
     int updatePath(@Param("id") String id, @Param("path") String path);
+
+    /** The path change number as it stands now -- read after {@link #updatePath} raised it. */
+    @NativeQuery
+    Long pathChangeNoFor(@Param("id") String id);
 }

@@ -19,6 +19,8 @@
  * 04/06/2026 mir0n  moveAdminPath, listAdminMovedPath: pk-based path update/query for admin users
  * 06/05/2026 mir0n  x-Rod param audit: listUsrPar re-SELECT (EsqParRow) added (feeds USR_PAR events)
  * 06/12/2026 mir0n  insertPerson(): adPk / bizAdPk params long -> Long (admin has no address -> nullable FK)
+ * 08/11/2026 mir0n  v1.2.12 -- the user, person, address and custom-parameter update statements take a
+ *                   changeNo @Param; deletePersonBankInfo removed with the bank-info table
  */
 
 package pro.mir0n.esquire.enyMan.jpa;
@@ -66,6 +68,7 @@ public interface EsqUsrRepository extends JpaRepository<EsqUsrJpa, String> {
         @Param("registration") String registration,
         @Param("deleted") String deleted,
         @Param("desc") String desc,
+        @Param("changeNo") Long changeNo,
         @Param("uid") String uid,
         @Param("correlationId") String correlationId,
         @Param("requestId") String requestId
@@ -78,6 +81,7 @@ public interface EsqUsrRepository extends JpaRepository<EsqUsrJpa, String> {
     int updateCustomUsr(@Param("id") String id,
         @Param("name") String name,
         @Param("value") String value,
+        @Param("changeNo") Long changeNo,
         @Param("uid") String uid,
         @Param("correlationId") String correlationId,
         @Param("requestId") String requestId
@@ -101,6 +105,7 @@ public interface EsqUsrRepository extends JpaRepository<EsqUsrJpa, String> {
          @Param("province") String province,
          @Param("title") String title,
          @Param("url") String url,
+         @Param("changeNo") Long changeNo,
          @Param("uid") String uid,
          @Param("correlationId") String correlationId,
          @Param("requestId") String requestId
@@ -123,6 +128,7 @@ public interface EsqUsrRepository extends JpaRepository<EsqUsrJpa, String> {
                       @Param("province") String province,
                       @Param("title") String title,
                       @Param("url") String url,
+                      @Param("changeNo") Long changeNo,
                       @Param("uid") String uid,
                       @Param("correlationId") String correlationId,
                       @Param("requestId") String requestId
@@ -148,6 +154,7 @@ public interface EsqUsrRepository extends JpaRepository<EsqUsrJpa, String> {
          @Param("email") String email,
          @Param("phone") String phone,
          @Param("phone2") String phone2,
+         @Param("changeNo") Long changeNo,
          @Param("uid") String uid,
          @Param("correlationId") String correlationId,
          @Param("requestId") String requestId
@@ -232,11 +239,6 @@ public interface EsqUsrRepository extends JpaRepository<EsqUsrJpa, String> {
     @Modifying(clearAutomatically = true, flushAutomatically = false)
     @Transactional
     @NativeQuery
-    int deletePersonBankInfo(@Param("id") String id);
-
-    @Modifying(clearAutomatically = true, flushAutomatically = false)
-    @Transactional
-    @NativeQuery
     int deleteUsr(@Param("id") String id);
 
     @Modifying(clearAutomatically = true, flushAutomatically = false)
@@ -268,6 +270,7 @@ public interface EsqUsrRepository extends JpaRepository<EsqUsrJpa, String> {
     @NativeQuery
     int moveUsrParent(@Param("id") String id,
         @Param("parentId") String parentId,
+        @Param("changeNo") Long changeNo,
         @Param("uid") String uid,
         @Param("correlationId") String correlationId,
         @Param("requestId") String requestId

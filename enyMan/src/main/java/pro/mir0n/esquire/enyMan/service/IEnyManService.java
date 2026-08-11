@@ -20,6 +20,8 @@
  *                   (async-ack: submits to move queue); per-kind impls still return records for the worker
  * 06/04/2026 mir0n  rootPath + uid params removed from esquireCommand / Save / New / Delete / Move / Tree --
  *                   read from the unified request context (RequestContextUtils)
+ * 08/11/2026 mir0n  v1.2.12 -- esquireCommandDelete returns the delete's change number for the caller's
+ *                   broadcast
  */
 
 package pro.mir0n.esquire.enyMan.service;
@@ -41,7 +43,10 @@ public interface IEnyManService {
     public EsqEntity esquireCommand(int kind, String id, String cmd );
     public EsqEntity esquireCommandSave(int kind, String id, String cmd, Map<String, Object> fields, List<String> roles );
     public EsqEntity esquireCommandNew(int kind, String parentId, String cmd, Map<String, Object> fields, List<String> roles);
-    public void esquireCommandDelete(int kind, String id, String cmd, List<String> roles);
+    /** Deletes the entity and RETURNS the delete's change number -- the number the row's own counter took
+     *  when it went (see {@code EsqEntityJpa.bumpChangeNo}). The caller needs it for the broadcast; a caller
+     *  that does not may ignore it. Null when the implementation has no row behind the delete. */
+    public Long esquireCommandDelete(int kind, String id, String cmd, List<String> roles);
     // v1.2.6 Goal 3: returns List<EsqMoveRecord> at the OrgService/UsrService level (the per-kind
     // workers still produce them for the worker thread to publish), but the top-level
     // EnyManService implementation returns null because /esq-move is now async-ack: handler
