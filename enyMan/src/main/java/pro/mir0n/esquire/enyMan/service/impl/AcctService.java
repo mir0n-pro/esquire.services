@@ -19,6 +19,8 @@
  * 06/23/2026 mir0n  EsqMsgConstants app constants -> common.EsqConstants (references repointed)
  * 07/23/2026 mir0n  v1.2.11 -- createAcct reads rootPath (RequestContextUtils) and passes it to
  *                   acctPath(parentId, rootPath) -- the parent lookup is now tenant-scoped, like org/usr create
+ * 08/11/2026 mir0n  v1.2.12 -- esquireCommandDelete returns the delete's change number; a created account
+ *                   is stamped with 1, the column default, for its CREATE event
  */
 
 package pro.mir0n.esquire.enyMan.service.impl;
@@ -79,7 +81,7 @@ public class AcctService extends AEnyManService {
     }
 
     @Override
-    public void esquireCommandDelete(int kind, String id, String cmd, List<String> roles) {
+    public Long esquireCommandDelete(int kind, String id, String cmd, List<String> roles) {
         throw new UnsupportedOperationException("esquireCommandDelete(acct) is owned by pacMan");
     }
 
@@ -89,7 +91,8 @@ public class AcctService extends AEnyManService {
     }
 
     @Override
-    public EsqEntity esquireCommandNew(int kind, String parentId, String cmd, Map<String, Object> fields, List<String> roles) {
+    public EsqEntity esquireCommandNew(int kind, String parentId, String cmd, Map<String, Object> fields,
+                                       List<String> roles) {
         EsqEntity ret = null;
         String correlationId = RequestContextUtils.getCorrelationId();
         String requestId = RequestContextUtils.getRequestId();
@@ -150,6 +153,9 @@ public class AcctService extends AEnyManService {
 
         acctRepository.insertAcctPath(newId, kind, path);
         acctRepository.insertAcct(newId, kind, name, acct.getDesc(), acct.getCcy(), acct.getStatus(), acct.getNegativeAllowed(), parentId, uid, correlationId, requestId);
+        // The INSERT left the row at 1 (column default) and no create-time UPDATE follows. The object still
+        // has to carry it -- the CREATE audit event below is built from this object.
+        acct.setChangeNo(1L);
 
         created[0] = acct;
 

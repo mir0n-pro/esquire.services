@@ -107,5 +107,18 @@ cd services/test/audit-smoke
 ./run.sh docker-pg c-ora     # a single cell
 ./run.sh all                 # the whole matrix (docker-pg, docker-ora, k8s) + e2e per env
 ```
-Results are written to `results-<stamp>.md`. Bind-mount reseed rules apply (a primary-DB switch wipes
-`compose/data/postgres` + re-seeds; see the project deploy notes).
+Results are written to `results-<stamp>.md`. Fresh-init reseed rules apply on a primary-DB switch, and
+**both steps fail silently if missed** -- the matrix would then run against a stale database and report a
+false pass:
+
+```
+cd services/compose
+docker compose build postgres                    # the seed is BAKED INTO the image (db.seed/postgres/*)
+docker compose down
+docker volume rm esq-omnibus_postgres-data       # postgres data is a NAMED VOLUME, not a bind mount
+docker compose up -d
+```
+
+Wiping `compose/data/postgres` does **nothing** -- it is an orphan directory referenced by no compose file
+or script. If it is missed, postgres logs *"Skipping initialization"* and keeps the old database. See the
+project deploy notes.

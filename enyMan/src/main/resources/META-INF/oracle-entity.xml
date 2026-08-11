@@ -15,6 +15,7 @@
      ,org_full_name
      ,org_org_pk
      ,org_system_flg
+     ,org_change_no
  FROM esq_org
  JOIN esq_entity_path ON ep_pk = org_pk
  WHERE org_pk = :id
@@ -35,6 +36,7 @@
      ,au_email
      ,usr_org_pk
      ,usr_system_flg
+     ,usr_change_no
  FROM esq_user, esq_auth, esq_entity_path
  WHERE usr_pk = :id
  AND usr_pk = au_usr_pk
@@ -65,6 +67,7 @@
      ,org_full_name
      ,org_org_pk
      ,org_system_flg
+     ,org_change_no
  FROM esq_org
  JOIN esq_entity_path ON ep_pk = org_pk
  WHERE org_pk = :id
@@ -86,6 +89,7 @@
      ,au_email
      ,usr_org_pk
      ,usr_system_flg
+     ,usr_change_no
  FROM esq_user, esq_auth, esq_entity_path
  WHERE usr_pk = :id
  AND usr_pk = au_usr_pk
@@ -134,6 +138,7 @@
  SET org_name = :name
     ,org_desc = :desc
     ,org_full_name = :fullName
+    ,org_change_no = :changeNo
     ,org_crl_id = :correlationId
     ,org_req_id = :requestId
     ,org_uid = :uid
@@ -180,15 +185,6 @@
         </query>
     </named-native-query>
 
-    <named-native-query name="EsqUsrJpa.deletePersonBankInfo">
-        <query>
- DELETE FROM esq_bank_info
- WHERE bi_pk IN (
-     SELECT pe_bi_pk FROM esq_person WHERE pe_usr_pk = :id AND pe_bi_pk IS NOT NULL
- )
-        </query>
-    </named-native-query>
-
     <named-native-query name="EsqUsrJpa.deleteUsr">
         <query>
  DELETE FROM esq_user WHERE usr_pk = :id
@@ -208,18 +204,11 @@
     ,usr_desc = :desc
     ,usr_reg_option = :registration
     ,usr_deleted_flg = :deleted
+    ,usr_change_no = :changeNo
     ,usr_crl_id = :correlationId
     ,usr_req_id = :requestId
     ,usr_uid = :uid
  WHERE usr_pk = :id
-        </query>
-    </named-native-query>
-
-    <named-native-query name="EsqUsrJpa.updateAuth">
-        <query>
- UPDATE esq_auth
- SET au_email = :email
- WHERE au_usr_pk = :id
         </query>
     </named-native-query>
 
@@ -245,7 +234,7 @@
          another account. -->
     <named-native-query name="EsqUsrJpa.listMovedPaths" result-set-mapping="EsqEntityPathRaw">
         <query>
- SELECT ep_pk, ep_et_pk, ep_path FROM esq_entity_path WHERE ep_path = :newPath ORDER BY ep_et_pk
+ SELECT ep_pk, ep_et_pk, ep_path, ep_change_no FROM esq_entity_path WHERE ep_path = :newPath ORDER BY ep_et_pk
         </query>
     </named-native-query>
 
@@ -262,7 +251,7 @@
          supporting index. Not needed at the current scale (the result set is one moved subtree). -->
     <named-native-query name="EsqOrgJpa.listMovedPaths" result-set-mapping="EsqEntityPathRaw">
         <query>
- SELECT ep_pk, ep_et_pk, ep_path FROM esq_entity_path WHERE ep_path LIKE :newPath || '%' ORDER BY ep_et_pk, ep_path
+ SELECT ep_pk, ep_et_pk, ep_path, ep_change_no FROM esq_entity_path WHERE ep_path LIKE :newPath || '%' ORDER BY ep_et_pk, ep_path
         </query>
     </named-native-query>
 
@@ -270,6 +259,7 @@
         <query>
  UPDATE esq_entity_path
  SET ep_path = :newPath || SUBSTR(ep_path, LENGTH(:oldPath) + 1)
+    ,ep_change_no = ep_change_no + 1
  WHERE ep_path LIKE :oldPath || '%'
         </query>
     </named-native-query>
@@ -278,6 +268,7 @@
         <query>
  UPDATE esq_org
  SET org_org_pk = :parentId
+    ,org_change_no = :changeNo
     ,org_crl_id = :correlationId
     ,org_req_id = :requestId
     ,org_uid = :uid
@@ -289,19 +280,20 @@
         <query>
  UPDATE esq_entity_path
  SET ep_path = :newPath
+    ,ep_change_no = ep_change_no + 1
  WHERE ep_path = :oldPath
         </query>
     </named-native-query>
 
     <named-native-query name="EsqUsrJpa.moveAdminPath">
         <query>
- UPDATE esq_entity_path SET ep_path = :newPath WHERE ep_pk = :id
+ UPDATE esq_entity_path SET ep_path = :newPath, ep_change_no = ep_change_no + 1 WHERE ep_pk = :id
         </query>
     </named-native-query>
 
     <named-native-query name="EsqUsrJpa.listAdminMovedPath" result-set-mapping="EsqEntityPathRaw">
         <query>
- SELECT ep_pk, ep_et_pk, ep_path FROM esq_entity_path WHERE ep_pk = :id
+ SELECT ep_pk, ep_et_pk, ep_path, ep_change_no FROM esq_entity_path WHERE ep_pk = :id
         </query>
     </named-native-query>
 
@@ -309,6 +301,7 @@
         <query>
  UPDATE esq_user
  SET usr_org_pk = :parentId
+    ,usr_change_no = :changeNo
     ,usr_crl_id = :correlationId
     ,usr_req_id = :requestId
     ,usr_uid = :uid
@@ -332,7 +325,8 @@
                 ad_postal_code,
                 ad_province,
                 ad_title,
-                ad_url
+                ad_url,
+                ad_change_no
             FROM esq_person
             JOIN esq_address ON pe_ad_pk = ad_pk
             WHERE pe_usr_pk = :id
@@ -356,7 +350,8 @@
                 ad_postal_code,
                 ad_province,
                 ad_title,
-                ad_url
+                ad_url,
+                ad_change_no
             FROM esq_person
             JOIN esq_address ON pe_ad_pk_biz = ad_pk
             WHERE pe_usr_pk = :id
@@ -405,6 +400,7 @@
       ,ad_province = :province
       ,ad_title = :title
       ,ad_url = :url
+      ,ad_change_no = :changeNo
       ,ad_crl_id = :correlationId
       ,ad_req_id = :requestId
       ,ad_uid = :uid
@@ -429,6 +425,7 @@
               ,ad_province = :province
               ,ad_title = :title
               ,ad_url = :url
+              ,ad_change_no = :changeNo
               ,ad_crl_id = :correlationId
               ,ad_req_id = :requestId
               ,ad_uid = :uid
@@ -457,6 +454,7 @@
          ,pe_email
          ,pe_phone
          ,pe_phone2
+         ,pe_change_no
     FROM esq_person
     WHERE pe_usr_pk = :id
       AND pe_kind = :kind
@@ -481,6 +479,7 @@
         ,pe_email = :email
         ,pe_phone = :phone
         ,pe_phone2 = :phone2
+        ,pe_change_no = :changeNo
         ,pe_crl_id = :correlationId
         ,pe_req_id = :requestId
         ,pe_uid = :uid
@@ -502,6 +501,7 @@
             <field-result name="email" column="au_email"/>
             <field-result name="parentId" column="usr_org_pk"/>
             <field-result name="systemFlg" column="usr_system_flg"/>
+            <field-result name="changeNo" column="usr_change_no"/>
         </entity-result>
     </sql-result-set-mapping>
 
@@ -514,6 +514,7 @@
             <field-result name="fullName" column="org_full_name"/>
             <field-result name="parentId" column="org_org_pk"/>
             <field-result name="systemFlg" column="org_system_flg"/>
+            <field-result name="changeNo" column="org_change_no"/>
         </entity-result>
     </sql-result-set-mapping>
 
@@ -542,6 +543,7 @@
             <field-result name="province" column="ad_province"/>
             <field-result name="title" column="ad_title"/>
             <field-result name="url" column="ad_url"/>
+            <field-result name="changeNo" column="ad_change_no"/>
         </entity-result>
     </sql-result-set-mapping>
 
@@ -564,6 +566,7 @@
             <field-result name="email" column="pe_email"/>
             <field-result name="phone" column="pe_phone"/>
             <field-result name="phone2" column="pe_phone2"/>
+            <field-result name="changeNo" column="pe_change_no"/>
         </entity-result>
     </sql-result-set-mapping>
 
@@ -572,6 +575,7 @@
             <field-result name="id" column="ep_pk"/>
             <field-result name="kind" column="ep_et_pk"/>
             <field-result name="path" column="ep_path"/>
+            <field-result name="changeNo" column="ep_change_no"/>
         </entity-result>
     </sql-result-set-mapping>
 

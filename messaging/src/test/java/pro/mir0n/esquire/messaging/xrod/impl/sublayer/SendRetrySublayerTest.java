@@ -4,14 +4,6 @@
  *
  *  Copyright(c) 2001, 2026 mir0n&co www.mir0n.pro
  *  mailto:mir0n.the.programmer@gmail.com
- *
- *  History:
- * 06/29/2026 mir0n  created: SendRetrySublayer tests -- event-driven (clock-driven, no sleep). A healthy send
- *                   passes straight through (no hold, feed not paused). A send the transport reports DOWN is HELD
- *                   and the feed PAUSED; tick() re-sends only once the backoff step has elapsed; on recovery the
- *                   hold clears and the feed resumes; with a max-attempts cap the held event is DROPPED after that
- *                   many tries and the feed resumes (a cap of 1 drops the first failure without ever pausing).
- *                   Health + the feed gate are observed via scripted suppliers and an injected clock.
  */
 package pro.mir0n.esquire.messaging.xrod.impl.sublayer;
 
@@ -43,7 +35,7 @@ class SendRetrySublayerTest {
     private static RodEvent event() {
         // the feed worker stamps the ApplMsgID before the hooks run, so give the test event one (onSendError keys
         // its holds map on ev.applMsgId()).
-        return new RodEvent(RodEvent.Op.UPDATE, 2, "e1", null, 0L, null, null, null, Map.of()).withApplMsgId("m1");
+        return new RodEvent(RodEvent.Op.UPDATE, 2, "e1", null, null, 0L, null, null, null, null, null, Map.of()).withApplMsgId("m1");
     }
 
     private static void awaitHeld(SendRetrySublayer s) throws InterruptedException {

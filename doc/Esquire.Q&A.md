@@ -176,16 +176,19 @@ A. No -- it is a deliberate split of two DIFFERENT concerns, and same-entity app
    otherwise serialize away. One in-order consumer (no duplicates) feeding a parallel apply pool is the correct
    topic pattern, not a self-defeating one.
 
-2. **Out-of-order same-entity apply cannot arise under the usage model.** Esquire's model is one modification per
-   entity at a time, at human pace (see the optimistic-locking entry above). Two events for the SAME entity racing
-   in the pool in the same instant is exactly what the model does not produce; different entities in parallel is fine.
+2. **An out-of-order apply is refused, not tolerated.** Every event carries the change number of the row it
+   describes, and the cache keeps the last number it applied per node. `MessageHandlerHub.dispatch` compares them
+   and skips anything that is not newer, then stamps the number it just applied. So a late or repeated event
+   cannot overwrite a newer one, whichever worker picks it up.
 
-3. **And if it ever did, it self-heals.** bizTree is a recoverable Taijitu cache: the night-watch sweep reconciles
-   the cache against the DB (source of truth) and heals any drift, so a transient out-of-order apply is corrected.
+3. **The usage model makes the case rare, and the night-watch is the backstop.** Esquire's model is one
+   modification per entity at a time, at human pace (see the optimistic-locking entry above), so two events for
+   the SAME entity racing in the pool is not what it produces. And bizTree is a recoverable Taijitu cache: the
+   night-watch sweep reconciles it against the DB (the source of truth) and heals any drift.
 
-So `concurrency: 1` + a parallel apply pool is intended (in-order delivery, parallel apply); same-entity ordering
-is traded for throughput, backed up by the usage model and the night-watch. A hard per-entity ordering guarantee
-(per-key affinity in the pool) is tracked as a continuing-dev item ([CD-2](Esquire.ContinuingDev.md)), not a fix.
+So `concurrency: 1` + a parallel apply pool is intended: in-order delivery for correctness on a topic, parallel
+apply for throughput, and the change number for same-entity order — which is why per-key affinity in the pool is
+not needed.
 
 ---
 
@@ -272,18 +275,17 @@ A. Two separate concerns, both already handled by design.
   `Esquire.MessagingBus.ContinuingDev.md`, not a generic DLQ.
 
 *The `ON CONFLICT` target is deliberate.* The dedup unique indexes DO exist for all eight `*_log` tables
-(`db.seed/.../dedup/all.sql`), keyed on `(crl_id + pk[, kind])`. `ON CONFLICT DO NOTHING` *without* a named target
-is a forward-compatible clause on purpose: **active** (dedups at-least-once redelivery -> exactly one log row)
-when the dedup overlay is applied (bus audit, option c/ck), **inert** when it is not (DB-trigger / in-process
-audit, where the overlay is deliberately absent because a per-DML trigger would collide on the same dedup key).
-So it is not a silent dependency -- it is an intended, documented overlay.
+(`db.seed/.../dedup/all.sql`), keyed on the row plus its change number -- `(pk, change_no)`, or the row's
+composite identity plus the number where a pk alone does not pin one row. `ON CONFLICT DO NOTHING` *without* a
+named target is a forward-compatible clause on purpose: **active** (dedups at-least-once redelivery -> exactly
+one log row) when the dedup overlay is applied (bus audit, option c/ck), **inert** when it is not. So it is not
+a silent dependency -- it is an intended, documented overlay.
 
-*Forward simplification (once the per-entity change number lands -- CD-2).* Today the dedup key is
-`(crl_id, pk[, kind/sub])`: the correlationId is the per-operation discriminator. When every change carries a
-strictly-increasing per-entity change number, `(pk, change_no)` becomes the operation identity -- a redelivered
-event carries the same change number and collides; two real changes carry different numbers and both survive. The
-dedup index then simplifies to `(pk, change_no)`, keyed on the entity itself instead of a request-scoped id. Tracked
-with the change-number work in `Esquire.ContinuingDev.md` (CD-2).
+*The key is the row's own version, not the request.* A redelivered event carries the same change number,
+collides, and is dropped; two real changes carry different numbers and both survive. The same change
+re-announced under a different correlation id is caught as well, because the key names a version of a row
+rather than an operation. And because every physical write carries its own version, the DB-trigger option and
+the dedup overlay apply together -- each write produces a distinct key, so nothing collides.
 
 ---
 
@@ -310,35 +312,33 @@ tracked in `Esquire.MessagingBus.ContinuingDev.md`.)
 
 *How the *_log audit is keyed so a redelivered message still makes just one row (idempotency), and what audit is turned on at deploy time.*
 
-**Q1. The audit log dedups on `(correlationId, entity)` with `INSERT .. ON CONFLICT DO NOTHING`, and the
-correlationId can be supplied by the client. Couldn't a client reuse one correlationId across two real edits of the
-same entity and make the audit drop the second row -- hiding their own change history?**
+**Q1. The audit log dedups with `INSERT .. ON CONFLICT DO NOTHING`. Since the correlationId can be supplied by
+the client, could a client reuse one across two real edits of the same entity and make the audit drop the second
+record -- hiding their own change history?**
 
-A. No -- and understanding why comes down to what a correlationId IS. It is the **through-system key for one
-operation**: no write happens without one, and the SAME id threads the whole path -- the edge, the services, the
-message bus, the logs, and the audit. So the audit's notion of "one operation" is the SAME notion every other layer
-uses.
+A. No. **The dedup key is the row plus its own change number, and a client cannot touch either.** The number is
+raised by the service under the row's lock on every write, so two real edits are two versions and produce two
+records no matter what correlation id arrives with them.
 
-1. **Two distinct updates of one (sub)entity CANNOT share a correlationId.** The dedup key is per (sub)entity -- an
-   org, but also its parameters, and a user with its person / address / bank / auth records, each keyed
-   `(correlationId, its own pk[, kind/name])`. A new operation gets a new correlationId -- that is what the key is.
-   So two genuinely-separate edits of the same (sub)entity necessarily carry two different ids and produce two audit
-   rows; the dedup never collapses them. There is no "second edit" for it to hide, because a second edit is, by
-   definition, a second operation with a second id. Reusing a correlationId is not "two edits" -- it is one operation
-   as far as the whole system is concerned (trace, logs, and audit all show one), and every layer reflects that
-   identically. There is no gap between "what happened" and "what the audit shows."
+1. **Two distinct updates of one (sub)entity CANNOT collapse into one record.** The dedup key is per (sub)entity
+   and carries that row's change number -- an org, but also its parameters, and a user with its person / address /
+   auth records, each keyed on its own identity plus its own number. Every write raises that row's number, so two
+   genuinely-separate edits carry two different numbers and produce two audit records. The dedup never collapses
+   them: there is no "second edit" for it to hide, because a second edit is a second version of the row.
 
 2. **The dedup exists for redelivery idempotency (safe redelivery -> still one row).** The bus is at-least-once (a
-   message can arrive more than once), so a replayed message must not write a second log row.
-   `(correlationId, entity)` + `ON CONFLICT DO NOTHING` gives exactly one row per operation per entity -- that is
-   the point.
+   message can arrive more than once), so a replayed message must not write a second log row. The row's version
+   plus `ON CONFLICT DO NOTHING` gives exactly one record per version -- that is the point. It also catches the
+   same change re-announced under a different correlation id, which a request-scoped key cannot.
 
 3. **Per-physical-change auditing is a different mode, already offered.** If someone wants one audit row per
    physical database change (an insert / update / delete, "DML") regardless of the operation id, that is the
    DB-trigger audit (option a), which the framework provides. The bus audit (option c) is deliberately one-row-per-operation. Both granularities exist by choice.
 
-So keying the audit on the operation id is correct and consistent, not a way to hide history: the correlationId is
-the system's own record of the operation, and the audit agrees with it.
+So the audit is keyed on something the caller does not control: the version the row actually reached. The
+correlationId still rides along as the through-system key for one operation -- the same id threads the edge, the
+services, the bus, the logs and the audit -- but it identifies the operation, it does not decide what the audit
+keeps.
 
 ---
 
@@ -600,12 +600,13 @@ A. No -- that would be the wrong thing for a FRAMEWORK to impose.
    dictates their build system. Forcing Flyway / Liquibase onto the seed would push that choice onto every
    adopter.
 
-2. **The framework's own convention is deliberate and disciplined**, not improvised: per-release
-   `patch/v<ver>/forward.sql` for BOTH dialects (Oracle + Postgres), each additive-only, idempotent,
-   transactional, re-runnable (`ADD COLUMN IF NOT EXISTS`, `ON_ERROR_STOP`, `BEGIN..COMMIT`), never dropping or
-   reseeding, with the exact apply command in its header and a `DB_VERSION` marker the database carries. A
-   single-history / checksum tool like Flyway does not map cleanly onto TWO dialects + a baked seed that only runs
-   on an empty data dir.
+2. **The framework's own convention is deliberate and disciplined**, not improvised: a per-release
+   `patch/v<ver>/forward.sql` for Postgres, idempotent, transactional, re-runnable (`ADD COLUMN IF NOT EXISTS`,
+   `ON_ERROR_STOP`, `BEGIN..COMMIT`), never reseeding, with the exact apply command in its header, a
+   `DB_VERSION` marker the database carries, and a header that says plainly what the patch does to the data it
+   finds -- including any object it drops. Oracle is brought up from the seed, so an Oracle database starts
+   with the version already in it. A single-history / checksum tool like Flyway does not map cleanly onto TWO
+   dialects + a baked seed that only runs on an empty data dir.
 
 3. **The real risk it is pointed at -- "did this DB get the right patch?" -- is a DEPLOY check, not a tool.**
    Asserting `DB_VERSION` at deploy time catches drift (a database that missed a patch) without a migration framework; that belongs with the deploy

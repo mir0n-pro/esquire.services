@@ -61,6 +61,9 @@
  *                   only once the delete has SUCCEEDED past the three guards, so a refused delete never inflates
  *                   it; the purge tag names the Test-House branch that forces those guards open, so a real closure
  *                   is never confused with a fixture teardown. The branch condition is lifted to a local flag
+ * 08/11/2026 mir0n  v1.2.12 -- the account row raises its change number before every update, the entity
+ *                   broadcast carries it on create, save and delete, and esquireCommandDelete returns the
+ *                   number the delete raised
  */
 
 package pro.mir0n.esquire.pacMan.service.impl;
@@ -194,13 +197,13 @@ public class PacManService  implements IPacManService {
     }
 
     private void publishDeleteEvent(String id, int entityKind, String eventType,
-                                    String requestId, String correlationId) {
+                                    String requestId, String correlationId, Long changeNo) {
         Map<String, Object> text = new java.util.LinkedHashMap<>();
         text.put(EsqConstants.TEXT_ID,   id);
         text.put(EsqConstants.TEXT_KIND, entityKind);
         try {
             broadcastPublisher.publish(entityKind, id, eventType,
-                    requestId, correlationId, text);
+                    requestId, correlationId, text, changeNo);
         } catch (Exception e) {
             log.error("publishDeleteEvent: broadcast failed for kind={}, id={}: {}", entityKind, id, e.getMessage());
             devLog.error("publishDeleteEvent: broadcast failed for kind={}, id={}, requestId={}, correlationId={}: {}", entityKind, id, requestId, correlationId, e.getMessage(), e);
@@ -230,8 +233,9 @@ public class PacManService  implements IPacManService {
         if (fields.containsKey(EsqConstants.TEXT_STATUS)) text.put(EsqConstants.TEXT_STATUS, fields.get(EsqConstants.TEXT_STATUS));
         if (fields.containsKey(EsqConstants.TEXT_PATH))   text.put(EsqConstants.TEXT_PATH,   fields.get(EsqConstants.TEXT_PATH));
         try {
+            // the number rides on the entity the service just built from the row it wrote
             broadcastPublisher.publish(entityKind, entity.getId(), eventType,
-                    requestId, correlationId, text);
+                    requestId, correlationId, text, entity.getChangeNo());
         } catch (Exception e) {
             log.error("publishEntityEvent: broadcast failed for kind={}, id={}: {}", entityKind, entity.getId(), e.getMessage());
             devLog.error("publishEntityEvent: broadcast failed for kind={}, id={}, requestId={}, correlationId={}: {}", entityKind, entity.getId(), requestId, correlationId, e.getMessage(), e);
@@ -240,7 +244,7 @@ public class PacManService  implements IPacManService {
 
     @Override
     @EsqTraced(name = "esq.svc.acct.delete", label = "delete account")
-    public void esquireCommandDelete(int kind, String id, String cmd, List<String> roles) {
+    public Long esquireCommandDelete(int kind, String id, String cmd, List<String> roles) {
         String correlationId = RequestContextUtils.getCorrelationId();
         String requestId = RequestContextUtils.requireRequestId();
         String rootPath = RequestContextUtils.getRootPath();
@@ -264,17 +268,18 @@ public class PacManService  implements IPacManService {
             throw new PermissionDeniedException(eek.getTitle(), "delete");
         }
 
-        transactionTemplate.execute(status -> {
+        Long changeNo = transactionTemplate.execute(status -> {
             em.setFlushMode(FlushModeType.COMMIT);
-            deleteAcct(k, id, rootPath);
-            return null;
+            return deleteAcct(k, id, rootPath);
         });
 
-        publishDeleteEvent(id, k, BusConstants.EVENT_DELETE, requestId, correlationId);
+        publishDeleteEvent(id, k, BusConstants.EVENT_DELETE, requestId, correlationId, changeNo);
         devLog.debug("srvc: esquireCommandDelete(2): kind:{}, id:{}", k, id);
+        return changeNo;
     }
 
-    private void deleteAcct(int kind, String id, String rootPath) {
+    /** Deletes the account and returns the delete's change number (bumped once, on the row). */
+    private Long deleteAcct(int kind, String id, String rootPath) {
         EsqAcctJpa acct = entityRepository.detailAcctForUpdate(id, kind, rootPath);
         if (acct == null) {
             throw new ResourceNotFoundException("deleteAcct", "id", id);
@@ -299,8 +304,12 @@ public class PacManService  implements IPacManService {
         // this went through the Test-House branch -- the demo-data path that forces the guards open -- so a real
         // closure is never confused with a test-fixture teardown on the panel.
         EsqBizMeters.count("esq.biz.acct.close.total", "purge", testHousePurge ? "test-house" : "none");
-        // audit: account DELETE (id + kind).
-        audit.post(RodEvent.Op.DELETE, kind, id, null);
+        // audit: account DELETE (id + kind). ONE bump on the row object; the returned number (for the
+        // broadcast) and the audit event (the source) then read the same value, and it matches what the
+        // trigger path writes.
+        Long ret = acct.bumpChangeNo();
+        audit.post(RodEvent.Op.DELETE, kind, id, null, acct);
+        return ret;
     }
 
     private void saveAcct(int kind, String id, Map<String, Object> fields, String rootPath,
@@ -311,7 +320,8 @@ public class PacManService  implements IPacManService {
             throw new ResourceNotFoundException("saveAcct", "id", id);
         }
         if (EntityFieldUtils.applyFields(acct, fields)) {
-            entityRepository.updateAcct(id, acct.getDesc(), acct.getCcy(), acct.getStatus(), acct.getNegativeAllowed(), uid, correlationId, requestId);
+            entityRepository.updateAcct(id, acct.getDesc(), acct.getCcy(), acct.getStatus(), acct.getNegativeAllowed(),
+                    acct.bumpChangeNo(), uid, correlationId, requestId);
         }
         //note: if a DB trigger or default value modifies the row, saveAcct won't reflect it.
         updated[0] = acct;

@@ -10,6 +10,8 @@
  *                   transmit leg onto the entity-broadcast TOPIC (rod from the facade). publish() builds a
  *                   RodEvent (msg-type UE) and transmits it post-commit.
  * 06/23/2026 mir0n  EsqMsgConstants references -> messaging.BusConstants (wire) + common.EsqConstants (app)
+ * 08/11/2026 mir0n  v1.2.12 -- publish() takes the change number onto the event header and prints it on the
+ *                   UE line
  */
 package pro.mir0n.esquire.pacMan.messaging;
 
@@ -49,12 +51,15 @@ public class EntityBusAdapter {
      * @param correlationId from correlation context; may be null
      * @param text          entity state snapshot (may be null)
      */
+    /** @param changeNo the change number this event reports. WHICH counter it is follows the event type:
+     *                  C / U / D carry the ENTITY row's number, X (path) carries the PATH row's number --
+     *                  a declared exception to the uniform rule, see {@code BusConstants.FIELD_CHANGE_NO}. */
     public void publish(int entityKind, String entityId, String eventType,
-                        String requestId, String correlationId, Map<String, Object> text) {
-        RodEvent e = new RodEvent(RodEvent.opFromCode(eventType), entityKind, entityId, null,
+                        String requestId, String correlationId, Map<String, Object> text, Long changeNo) {
+        RodEvent e = new RodEvent(RodEvent.opFromCode(eventType), entityKind, entityId, null, changeNo,
                 System.currentTimeMillis(), correlationId, requestId, null, null,
                 BusConstants.MSG_TYPE_ENTITY_BROADCASTS, text != null ? text : Map.of());
         rod.transmit(e);
-        log.info("ENTITY | UE | {} | {} | {} | {}", eventType, entityKind, entityId, correlationId);
+        log.info("ENTITY | UE | {} | {} | {} | {} | cn={}", eventType, entityKind, entityId, correlationId, changeNo);
     }
 }

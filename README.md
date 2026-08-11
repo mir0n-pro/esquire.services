@@ -34,22 +34,15 @@ check.
 
 ---
 > 
-> **v1.2.11 — complete. The [goal](doc/v1.2.x.Goal.md) is met.** The final **v1.2.x** sprint,
-> **Observability**, is the capstone of the whole line. Seeing what the running system is doing arrives not as
-> a bolted-on afterthought but as a **common layer built into the framework** — one consistent way to watch
-> health, timing, and traffic, provided once for every service instead of wired up service by service.
+> **v1.2.12 — complete.** The build-out is finished; the framework now grows by **continuous
+> development** — sprints against a target, rather than one long sequential line. The first of them gives
+> every record a **change number**: a count that goes up by one each time the record is written. Small in
+> itself, it settles two things that were left open — a record's history reads back in the order the changes
+> really happened, and a message that arrives twice, or late and out of turn, is recognised and skipped.
 > 
-> **One pane over three pillars.** Metrics, traces, and logs are tied together by a single **correlation id**,
-> so a log line, its trace, and its numbers are one click apart in a single **Grafana** view — and a single
-> request is followed across services *and* across message-bus hops. It is **off by default** and switched on
-> on demand — on a laptop, on the test cluster, or briefly on the cloud — so the everyday stack carries no
-> weight when nobody is watching. Business counters, ready-made alerts for the obvious failures, and
-> purpose-built dashboards all ship with it.
-> 
-> The sprint also brought a run of **hardening fixes** from a fresh, top-to-bottom review — safer entity moves,
-> money rounded to the ledger's precision before it is stored, a cloud broker that reconnects on its own after
-> a blip, and health and metrics moved onto an internal-only port — and a **full documentation refresh**,
-> including the framework's first **step-by-step install guides** for Docker and local Kubernetes.
+> What comes next is chosen from the
+> [continuing-development backlog](doc/Esquire.ContinuingDev.md) — several sprints can run in parallel, each
+> against its own target. See [Release History](#release-history).
 >
 
 

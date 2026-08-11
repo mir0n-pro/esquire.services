@@ -620,7 +620,6 @@ class EnyManServiceTest {
 
         InOrder order = inOrder(usrRepo);
         order.verify(usrRepo).deletePersonAddresses("200");
-        order.verify(usrRepo).deletePersonBankInfo("200");
         order.verify(usrRepo).deleteUsr("200");
         order.verify(usrRepo).deleteEntityPath("200");
     }

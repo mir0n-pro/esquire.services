@@ -54,6 +54,9 @@
  *                   ENYMAN_TEST_CREATE_DELAY_MS) holds the create transaction open between the parent-path read and
  *                   the user insert, so a concurrent cross-instance move can rewrite the parent path in the gap
  *                   (the deterministic race-8b repro lever; 0 = off)
+ * 08/11/2026 mir0n  v1.2.12 -- the user, person, address and custom-parameter rows raise their change
+ *                   numbers before their updates; delete bumps once and returns the number, which the
+ *                   delete event and the audit record share
  */
 
 package pro.mir0n.esquire.enyMan.service.impl;
@@ -178,7 +181,8 @@ public class UsrService  extends AEnyManService {
     }
 
     @Override
-    public EsqEntity esquireCommandSave(int kind, String id, String cmd, Map<String, Object> fields, List<String> roles) {
+    public EsqEntity esquireCommandSave(int kind, String id, String cmd, Map<String, Object> fields,
+                                        List<String> roles) {
         EsqEntity ret = null;
         String correlationId = RequestContextUtils.getCorrelationId();
         String requestId = RequestContextUtils.getRequestId();
@@ -213,7 +217,8 @@ public class UsrService  extends AEnyManService {
     }
 
     @Override
-    public EsqEntity esquireCommandNew(int kind, String parentId, String cmd, Map<String, Object> fields, List<String> roles) {
+    public EsqEntity esquireCommandNew(int kind, String parentId, String cmd, Map<String, Object> fields,
+                                       List<String> roles) {
         EsqEntity ret = null;
         String correlationId = RequestContextUtils.getCorrelationId();
         String requestId = RequestContextUtils.getRequestId();
@@ -241,16 +246,19 @@ public class UsrService  extends AEnyManService {
     }
 
     @Override
-    public void esquireCommandDelete(int kind, String id, String cmd, List<String> roles) {
+    public Long esquireCommandDelete(int kind, String id, String cmd, List<String> roles) {
         String rootPath = RequestContextUtils.getRootPath();
         devLog.debug("srvc: esquireCommandDelete(usr): kind:{}, id:{}, cmd:{}, rootPath:{}", kind, id, cmd, rootPath);
-        transactionTemplate.execute(status -> {
+        return transactionTemplate.execute(status -> {
             em.setFlushMode(FlushModeType.COMMIT);
-            deleteUsr(id, rootPath);
+            EsqUsrJpa deleted = deleteUsr(id, rootPath);
+            // ONE bump for this delete -- see OrgService.esquireCommandDelete for the reasoning.
+            Long cn = deleted.bumpChangeNo();
             // x-Rod audit: one DELETE event for the user (id + kind); cascaded person/address/params
-            // are implied by the owner delete (no per-child delete events).
-            audit.post(RodEvent.Op.DELETE, kind, id, null);
-            return null;
+            // are implied by the owner delete (no per-child delete events). The deleted row is passed as the
+            // source so the event carries the same number the broadcast gets.
+            audit.post(RodEvent.Op.DELETE, kind, id, null, deleted);
+            return cn;
         });
     }
 
@@ -293,7 +301,7 @@ public class UsrService  extends AEnyManService {
                 usrRepository.moveUsrPaths(currentPath, newPath);
                 rows = usrRepository.listMovedPaths(newPath);
             }
-            usrRepository.moveUsrParent(id, distId, uid, correlationId, requestId);
+            usrRepository.moveUsrParent(id, distId, usr.bumpChangeNo(), uid, correlationId, requestId);
             // x-Rod audit: move is one parent-ref UPDATE (usr_org_pk); path rewrites are not audited.
             usr.setParentId(distId);
             audit.post(RodEvent.Op.UPDATE, usr.getKind(), usr.getId(), null, usr);
@@ -378,17 +386,26 @@ public class UsrService  extends AEnyManService {
         }
         usrRepository.insertPerson(newId, EsqConstants.KIND_PERSON_PRIMARY, adPk, bizAdPk, uid, correlationId, requestId);
 
+        // The INSERTs above left every row at 1 (column default). Seed the in-memory objects with that
+        // known value so the create-time UPDATEs below raise 1 -> 2 through the normal routine: EVERY
+        // physical write raises the row's number, and only the LAST state is sent (decisions 7 and 8).
+        // The user row itself takes no create-time UPDATE, so it stays at 1 -- but the object still has to
+        // carry it, because the CREATE audit event is built from this object.
+        usr.setChangeNo(1L);
+        prsn.setChangeNo(1L);
+
         // Persist validated person fields
         usrRepository.updatePerson(idStr, prsn.getKind(), prsn.getFirstName(), prsn.getMiddleName(),
                 prsn.getLastName(), prsn.getTitle(), prsn.getDob(), prsn.getBirthPlace(),
                 prsn.getSex(), prsn.getTaxId(), prsn.getCitizenship(), prsn.getMarStatus(),
                 prsn.getPersonIdType(), prsn.getPersonIdNumber(), prsn.getEmail(),
-                prsn.getPhone(), prsn.getPhone2(), uid, correlationId, requestId);
+                prsn.getPhone(), prsn.getPhone2(), prsn.bumpChangeNo(), uid, correlationId, requestId);
 
         if (address != null) {
             // Validate and persist postal address fields
             EsqAddressJpa addr = new EsqAddressJpa();
             addr.setKind(EsqConstants.KIND_ADDRESS_POSTAL);
+            addr.setChangeNo(1L);   // row INSERTed at 1 above; the UPDATE below raises it to 2
             Map<String, Object> maddr = (Map<String, Object>) fields.get(EsqConstants.SUBENTITY_ADDRESS);
             kfl = dictUser.fillKindFieldLayer(EsqConstants.SUBENTITY_ADDRESS, kfl);
             EsqEntityLayer addrLayer = dictUser.findLayer(kfl.getLayer());
@@ -398,7 +415,7 @@ public class UsrService  extends AEnyManService {
                         addr.getAddr(), addr.getAddr2(), addr.getCity(), addr.getCompany(),
                         addr.getCountry(), addr.getDepartment(), addr.getFax(),
                         addr.getPostalCode(), addr.getProvince(), addr.getTitle(), addr.getUrl(),
-                        uid, correlationId, requestId);
+                        addr.bumpChangeNo(), uid, correlationId, requestId);
             }
             address[0] = addr;
         }
@@ -407,6 +424,7 @@ public class UsrService  extends AEnyManService {
             // Validate and persist business address fields
             EsqAddressJpa addr2 = new EsqAddressJpa();
             addr2.setKind(EsqConstants.KIND_ADDRESS_BIZ);
+            addr2.setChangeNo(1L);  // row INSERTed at 1 above; the UPDATE below raises it to 2
             Map<String, Object> maddr2 = (Map<String, Object>) fields.get(EsqConstants.SUBENTITY_ADDRESS2);
             kfl = dictUser.fillKindFieldLayer(EsqConstants.SUBENTITY_ADDRESS2, kfl);
             EsqEntityLayer addr2Layer = dictUser.findLayer(kfl.getLayer());
@@ -416,7 +434,7 @@ public class UsrService  extends AEnyManService {
                         addr2.getAddr(), addr2.getAddr2(), addr2.getCity(), addr2.getCompany(),
                         addr2.getCountry(), addr2.getDepartment(), addr2.getFax(),
                         addr2.getPostalCode(), addr2.getProvince(), addr2.getTitle(), addr2.getUrl(),
-                        uid, correlationId, requestId);
+                        addr2.bumpChangeNo(), uid, correlationId, requestId);
             }
             address2[0] = addr2;
         }
@@ -431,7 +449,7 @@ public class UsrService  extends AEnyManService {
                     if (rawVal == null) continue;
                     kfl = dictUser.fillKindFieldLayer(fieldName, kfl);
                     String val = (String) ValidatorFactory.getInstance().validate(usr, kfl, false, rawVal);
-                    usrRepository.updateCustomUsr(idStr, fieldName, val, uid, correlationId, requestId);
+                    usrRepository.updateCustomUsr(idStr, fieldName, val, 2L, uid, correlationId, requestId);
                 }
             }
         }
@@ -465,7 +483,7 @@ public class UsrService  extends AEnyManService {
         }
     }
 
-    private void deleteUsr(String id, String rootPath) {
+    private EsqUsrJpa deleteUsr(String id, String rootPath) {
         EsqUsrJpa usr = usrRepository.detailUsrForUpdate(id, rootPath);
         if (usr == null) {
             throw new ResourceNotFoundException("deleteUsr", "id", id);
@@ -474,29 +492,38 @@ public class UsrService  extends AEnyManService {
             throw new DeleteRestrictedException("user", "active auth connection — disable login before deleting");
         }
         ValidatorFactory.getInstance().validateDelete(usr);
-        // x-Rod audit: capture the child address pks BEFORE the cascade (the DB removes them silently,
-        // so they must be enumerated here). Only when enabled -- no extra reads otherwise.
+        // x-Rod audit: capture the child rows BEFORE the cascade (the DB removes them silently, so they must
+        // be enumerated here) -- the pks AND their change numbers, which the delete events carry. Only when
+        // enabled -- no extra reads otherwise.
+        EsqPersonJpa pers = null;
         EsqAddressJpa addr = null;
         EsqAddressJpa addr2 = null;
         if (audit.isEnabled()) {
+            pers  = usrRepository.person(id, EsqConstants.KIND_PERSON_PRIMARY);
             addr  = usrRepository.address(id, EsqConstants.KIND_PERSON_PRIMARY);
             addr2 = usrRepository.address2(id, EsqConstants.KIND_PERSON_PRIMARY);
         }
         usrRepository.deletePersonAddresses(id);
-        usrRepository.deletePersonBankInfo(id);
         usrRepository.deleteUsr(id);
         usrRepository.deleteEntityPath(id);
         // One DELETE event per cascaded child row (id + kind only). person id = usr_pk (known, no query);
         // usr_par params cascade with the owner and get NO per-row event (owner DELETE implies them gone).
         if (audit.isEnabled()) {
-            audit.post(RodEvent.Op.DELETE, EsqConstants.KIND_PERSON_PRIMARY, id, null);
+            // Same rule for the cascaded children: bump the row, then post it. The bump IS the delete's number.
+            if (pers != null) {
+                pers.bumpChangeNo();
+                audit.post(RodEvent.Op.DELETE, EsqConstants.KIND_PERSON_PRIMARY, id, null, pers);
+            }
             if (addr != null) {
-                audit.post(RodEvent.Op.DELETE, addr.getKind(), id, addr.getId());
+                addr.bumpChangeNo();
+                audit.post(RodEvent.Op.DELETE, addr.getKind(), id, addr.getId(), addr);
             }
             if (addr2 != null) {
-                audit.post(RodEvent.Op.DELETE, addr2.getKind(), id, addr2.getId());
+                addr2.bumpChangeNo();
+                audit.post(RodEvent.Op.DELETE, addr2.getKind(), id, addr2.getId(), addr2);
             }
         }
+        return usr;
     }
 
     private static final Set<String> USR_WRITABLE = Set.of("name"); //, xxx overwrite readonly field 'name'
@@ -548,13 +575,14 @@ public class UsrService  extends AEnyManService {
                     prsn.getEmail(),
                     prsn.getPhone(),
                     prsn.getPhone2(),
-                    uid, correlationId, requestId
+                    prsn.bumpChangeNo(), uid, correlationId, requestId
             );
             audit.post(RodEvent.Op.UPDATE, prsn.getKind(), id, null, prsn);
         }
 
         if (EntityFieldUtils.applyFields(usr, fields, personal, 0, USR_WRITABLE)) {
-            usrRepository.updateUsr(id, usr.getName(), usr.getRegistration(), usr.getDeleted(), usr.getDesc(), uid, correlationId, requestId);
+            usrRepository.updateUsr(id, usr.getName(), usr.getRegistration(), usr.getDeleted(), usr.getDesc(),
+                    usr.bumpChangeNo(), uid, correlationId, requestId);
             audit.post(RodEvent.Op.UPDATE, usr.getKind(), usr.getId(), null, usr);
         }
         Set<String> changedPars = new HashSet<>();
@@ -568,7 +596,7 @@ public class UsrService  extends AEnyManService {
                     if (field != null && (field.getReadwrite()  & 2) == 2) {
                         val = (String)ValidatorFactory.getInstance().validate(usr, kfl, personal, val);
                         nv.setValue(val);
-                        usrRepository.updateCustomUsr(id, nm, val, uid, correlationId, requestId);
+                        usrRepository.updateCustomUsr(id, nm, val, nv.bumpChangeNo(), uid, correlationId, requestId);
                         changedPars.add(nm);
                     }
                 }
@@ -595,7 +623,7 @@ public class UsrService  extends AEnyManService {
                             addr.getAddr(), addr.getAddr2(), addr.getCity(), addr.getCompany(),
                             addr.getCountry(), addr.getDepartment(), addr.getFax(),
                             addr.getPostalCode(), addr.getProvince(), addr.getTitle(), addr.getUrl(),
-                            uid, correlationId, requestId);
+                            addr.bumpChangeNo(), uid, correlationId, requestId);
                     audit.post(RodEvent.Op.UPDATE, addr.getKind(), id, addr.getId(), addr);
                 }
             }
@@ -612,7 +640,7 @@ public class UsrService  extends AEnyManService {
                             addr2.getAddr(), addr2.getAddr2(), addr2.getCity(), addr2.getCompany(),
                             addr2.getCountry(), addr2.getDepartment(), addr2.getFax(),
                             addr2.getPostalCode(), addr2.getProvince(), addr2.getTitle(), addr2.getUrl(),
-                            uid, correlationId, requestId);
+                            addr2.bumpChangeNo(), uid, correlationId, requestId);
                     audit.post(RodEvent.Op.UPDATE, addr2.getKind(), id, addr2.getId(), addr2);
                 }
             }

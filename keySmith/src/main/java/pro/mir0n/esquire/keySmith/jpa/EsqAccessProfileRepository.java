@@ -2,7 +2,7 @@
  *  Esquire frameworks (tm)
  *  EnyMan service
  *
- *  Copyright(c) 2001, 2026 mir0n&co www.mir0n.me
+ *  Copyright(c) 2001, 2026 mir0n&co www.mir0n.pro
  *  mailto:mir0n.the.programmer@gmail.com
  *
  *  History:
@@ -12,6 +12,7 @@
  * 03/03/2026 mir0n  added roleAll
  * 03/16/2026 mir0n  updateAccess(): connectFlg param added
  *                   confirmPendingFlags() added (replaces clearPwdChangeForced + confirmTfaMethod)
+ * 08/11/2026 mir0n  v1.2.12 -- updateAccess takes a changeNo @Param
  */
 
 package pro.mir0n.esquire.keySmith.jpa;
@@ -51,6 +52,7 @@ public interface EsqAccessProfileRepository extends JpaRepository<EsqAccessProfi
         @Param("pwdChangeForced") String pwdChangeForced,
         @Param("tfaMethod") String tfaMethod,
         @Param("connectFlg") String connectFlg,
+        @Param("changeNo") Long changeNo,
         @Param("uid") String uid,
         @Param("correlationId") String correlationId,
         @Param("requestId") String requestId

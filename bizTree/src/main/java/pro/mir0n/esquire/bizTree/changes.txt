@@ -1,5 +1,44 @@
 Esquire BizTree Microservice
 
+08/11/2026 mir0n  v1.2.12 -- entity change number
+access.IBizTreeDirector
+  - onRodEvent passes e.changeNo() to onEntityBroadcast, whose signature gains the parameter
+access.MessageHandlerHub
+  - dispatch() takes the event's change number and guards on it: a path event against the node's stored
+    path number, every other event against its entity number; unknown or unseen applies unguarded, and the
+    applied number is stamped back. Takes IBizTreeCacheRepository for those reads
+access.legacy.BizTreeDirectorLegacy
+  - onEntityBroadcast takes the change number and passes it to handlerHub.dispatch
+cache.IBizTreeCacheRepository
+  - findChangeNumbers() returns the node's [entityChangeNo, pathChangeNo] (null when the entity is not
+    cached); stampEntityChangeNo() and stampPathChangeNo() write an applied number onto every row of the
+    entity
+cache.impl.BizTreeCacheRepository
+  - findChangeNumbers, stampEntityChangeNo and stampPathChangeNo implemented; the node mapper reads the two
+    new columns
+cache.BizTreeCacheLoader
+  - the loaded node rows carry the entity and path change numbers read from the database; folder rows get
+    null for both
+cache.BizTreeCacheSql
+  - findChangeNumbers, stampEntityChangeNo and stampPathChangeNo added to the SQL set
+cache.CacheSqlSet
+  - the three change-number statements added to the per-table substitution set
+h2.BizTreeH2Config
+  - the three change-number statements resolved from the properties into the SQL set
+taijitu.IEventSink
+  - apply() takes the event's change number; null means the producer sent none and the event applies
+    unguarded
+taijitu.Monad
+  - the queued item's change number is passed to eventHub.apply
+resources/META-INF/h2-cache-sql.properties
+  - the node table gains TREE_ENTITY_CHANGE_NO and TREE_PATH_CHANGE_NO, both in the checksum; new
+    find-change-numbers read and stamp-entity-change-no / stamp-path-change-no updates
+resources/META-INF/postgres-entity.xml
+  - the three findAllForTree reads select org/usr/acc_change_no and ep_change_no, mapped to changeNo and
+    pathChangeNo, so a cache load starts from the database values
+resources/META-INF/oracle-entity.xml
+  - the three findAllForTree reads select the entity and path change numbers, matching the postgres dialect
+
 07/23/2026 mir0n  v1.2.11 -- homework: fix/resolve issues found in the fresh-mind audit
 taijitu.Monad
   - javadoc: a handler exception in MessageHandlerHub.dispatch is swallowed (logged + outcome=failed) and the batch

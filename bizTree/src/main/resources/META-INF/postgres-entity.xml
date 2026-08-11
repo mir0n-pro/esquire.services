@@ -14,6 +14,8 @@
      ,org_desc AS "desc"
      ,org_org_pk
      ,ep_path AS org_path
+     ,org_change_no
+     ,ep_change_no
  FROM esq_org
  JOIN esq_entity_path ON ep_pk = org_pk
         </query>
@@ -28,6 +30,8 @@
      ,usr_org_pk
      ,ep_path AS usr_path
      ,usr_deleted_flg
+     ,usr_change_no
+     ,ep_change_no
  FROM esq_user
  JOIN esq_entity_path ON ep_pk = usr_pk
         </query>
@@ -42,6 +46,8 @@
      ,acc_usr_pk
      ,ep_path AS acc_path
      ,acc_status
+     ,acc_change_no
+     ,ep_change_no
  FROM esq_account
  JOIN esq_entity_path ON ep_pk = acc_pk
         </query>
@@ -55,6 +61,8 @@
             <field-result name="desc"     column="desc"/>
             <field-result name="parentId" column="org_org_pk"/>
             <field-result name="path"     column="org_path"/>
+            <field-result name="changeNo"     column="org_change_no"/>
+            <field-result name="pathChangeNo" column="ep_change_no"/>
         </entity-result>
     </sql-result-set-mapping>
 
@@ -67,6 +75,8 @@
             <field-result name="parentId"  column="usr_org_pk"/>
             <field-result name="path"     column="usr_path"/>
             <field-result name="deleted"  column="usr_deleted_flg"/>
+            <field-result name="changeNo"     column="usr_change_no"/>
+            <field-result name="pathChangeNo" column="ep_change_no"/>
         </entity-result>
     </sql-result-set-mapping>
 
@@ -79,6 +89,8 @@
             <field-result name="parentId" column="acc_usr_pk"/>
             <field-result name="path"   column="acc_path"/>
             <field-result name="status" column="acc_status"/>
+            <field-result name="changeNo"     column="acc_change_no"/>
+            <field-result name="pathChangeNo" column="ep_change_no"/>
         </entity-result>
     </sql-result-set-mapping>
 

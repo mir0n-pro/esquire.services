@@ -1,7 +1,6 @@
-
-<table style="width: 100%; table-layout: fixed;"">
+<table style="width: 100%; table-layout: fixed;">
   <tr>
-    <td style="width: 12%"><img src="favicon.ico" alt="Esquire logo" align="right" valign="middle" width="64"</td>
+    <td style="width: 12%"><img src="favicon.ico" alt="Esquire logo" align="right" valign="middle" width="64"></td>
     <td style="width: 88%;">
        <h1>Esquire Application Frameworks(tm) 2.0</h1>
     </td>
@@ -11,42 +10,43 @@
 
 ## Release Notes
 
+### v1.2.12 — complete (08/11/2026)
+
+v1.2.12 is the **Entity change number** sprint — the first of the continuous-development line, and a small
+addition that settles several things at once. Every record now carries a **change number**: a count that
+goes up by one each time that record is written.
+
+**A history that can be read in order.** Until now the trail of changes to a record was sorted by a
+timestamp, which cannot separate two changes made in the same instant. The number gives each change its
+place, so a record's history reads back in the order it really happened.
+
+**Messages that arrive twice, or late.** Services tell each other about changes by message, and a message
+can arrive more than once or out of turn. Carrying the number on the message lets the receiver see that it
+already has this change, or a newer one, and skip it — instead of applying it and leaning on the system to
+repair itself afterwards.
+
+**Where a thing sits is counted apart from the thing itself.** Moving a branch of the tree changes where
+everything under it sits without changing any of those records. So placement carries its own count,
+separate from the records', and the two are never mistaken for one another.
+
+**The books point at the account's own history.** A money movement now records which version of the
+account it produced, so the ledger and the account's history can be checked against each other directly,
+by number, rather than by matching on time.
+
+**One trail, whichever way it is recorded.** The framework can record an audit trail in several ways — in
+the database itself, or through the messaging bus to a separate store. Keying that trail on the record and
+its version, rather than on the request that caused the change, makes those ways agree: they can now be run
+side by side, and a change re-announced by a different route is recognised as the same change.<br>
+[Entity Dictionary](doc/EntityDictionary.md) · [Database Dictionary](doc/DatabaseDictionary.md) · [Audit Logging Stack](doc/Esquire.AuditLoggingStack.md) · [Message Structure](doc/Esquire.MessagingBus.MessageStructure.md) · [v1.2.12 Release Notes](doc/release_notes.txt)
+
 ### v1.2.11 — complete (07/25/2026)
 
-v1.2.11 is the **Observability** sprint — and the capstone of the whole **v1.2.x** line. Seeing what the
-running system is doing arrives not as a bolted-on afterthought but as a **common, reusable layer built into
-the framework**: one consistent way to watch health, timing, and traffic, provided once for every service
-rather than wired up service by service.
-
-**One pane over three pillars.** Metrics, traces, and logs are tied together by a single **correlation id**,
-so a log line, its trace, and its numbers are one click apart in a single **Grafana** pane — over Prometheus
-(metrics), Tempo + OpenTelemetry (traces), and Loki + Alloy (logs). The whole thing is **off by default** and
-switched on on demand — locally, on the test cluster, or transiently on the cloud — so the everyday stack
-carries no weight when nobody is looking. Business meters, ready-made alerts for the obvious failures (a
-service gone dark, a dropped message, a tripped safety switch, a database out of spare connections), and
-purpose-built topology / services / logging dashboards all ship with it.
-
-**Warm-up, hardening, and polish.** A warm-up fix makes the shared entity-field dictionary complete safely
-when several creates hit it at once. A run of hardening commits — the product of a fresh-mind audit of the
-whole framework — closes real edge cases: parents-before-children move ordering, tenant-scoped parent lookup,
-a create-at-the-very-end-of-a-move repair, an id counter that can no longer wrap negative, money rounded to
-the ledger's scale before it ever touches the books, a full outgoing queue that waits instead of dropping,
-and a cloud broker that reconnects on its own after a blip. The monitoring endpoints moved to an
-internal-only port, and more log lines now carry the request's own id. A few schema-definition
-corrections landed on both the Oracle and Postgres branches — among them a server-side "now (UTC)"
-default so a ledger row is always stamped.
-
-**Docs grew up too.** The design docs were refreshed end to end — the messaging-bus, observability,
-high-availability, and authentication suites, with fresh sequence and state diagrams — and, for the first
-time, the framework ships **step-by-step installation routines** for docker and local Kubernetes.
-
-**Esquire is mature.** With v1.2.x complete, the framework now has everything the stack promises — a
-tree-shaped security model, a self-healing recoverable cache, a vendor-agnostic messaging bus, resilient
-cloud redundancy, and now full, single-pane observability — each solved once, correctly, and visible from
-database to browser. It is, frankly, in superb shape: quick to stand up, honest about what it is doing under
-load, and ready for whatever business domain sits on top. From here the work is support and incremental
-hardening, not churn — the hard problems are behind it.<br>
-[Observability Stack](doc/Esquire.ObservabilityStack.md) · [Grafana Guide](doc/Esquire.GrafanaGuide.md) · [High Availability](doc/Esquire.HighAvailability.md) · [Install &amp; Run](doc/install/Docker.md) · [v1.2.11 Release Notes](doc/release_notes.txt)<br>
+v1.2.11 is the **Observability** sprint and the capstone of the whole **v1.2.x** line: one consistent way to
+watch health, timing, and traffic, built into the framework and provided once for every service — metrics,
+traces, and logs tied together by a single correlation id in a single **Grafana** view, off by default and
+switched on on demand — together with a run of hardening fixes from a fresh, top-to-bottom review and the
+framework's first step-by-step install guides.<br>
+[More Details: v1.2.11 README](https://github.com/mir0n-pro/esquire.services/tree/release/v1.2.11?tab=readme-ov-file#project-structure)
 
 ### v1.2.10 — complete (07/04/2026)
 
@@ -115,8 +115,8 @@ UI library, and frontend all built, connected, and tested as one working system.
 
 | Repository | Milestone Reports |
 |---|---|
-| **esquire.services**| - [v1.2.11 Milestone Report](doc/reports/report_v1.2.11.md)<br/>- [v1.2.10 Milestone Report](doc/reports/report_v1.2.10.md)<br/>- [v1.2.9 Milestone Report](doc/reports/report_v1.2.9.md)<br/>- [v1.2.8 Milestone Report](doc/reports/report_v1.2.8.md)<br/>- [v1.2.7 Milestone Report](doc/reports/report_v1.2.7.md)<br/>- [v1.2.6 Milestone Report](doc/reports/report_v1.2.6.md)<br/>- [v1.2.5 Milestone Report](doc/reports/report_v1.2.5.md)<br/>- [v1.2.4 Milestone Report](doc/reports/report_v1.2.4.md)<br/>- [v1.2.3 Milestone Report](doc/reports/report_v1.2.3.md)<br/>- [v1.2.2 Milestone Report](doc/reports/report_v1.2.2.md)                                                                                                                                                                                  |
-| **esquire.explorer**| - [v1.2.11 Milestone Report](https://github.com/mir0n-pro/esquire.explorer/blob/develop/doc/reports/report_v1.2.11.md)<br/>- [v1.2.10 Milestone Report](https://github.com/mir0n-pro/esquire.explorer/blob/develop/doc/reports/report_v1.2.10.md)<br/>- [v1.2.9 Milestone Report](https://github.com/mir0n-pro/esquire.explorer/blob/develop/doc/reports/report_v1.2.9.md)<br/>- [v1.2.8 Milestone Report](https://github.com/mir0n-pro/esquire.explorer/blob/develop/doc/reports/report_v1.2.8.md)<br/>- [v1.2.7 Milestone Report](https://github.com/mir0n-pro/esquire.explorer/blob/develop/doc/reports/report_v1.2.7.md)<br/>- [v1.2.6 Milestone Report](https://github.com/mir0n-pro/esquire.explorer/blob/develop/doc/reports/report_v1.2.6.md)<br/>- [v1.2.5 Milestone Report](https://github.com/mir0n-pro/esquire.explorer/blob/develop/doc/reports/report_v1.2.5.md)<br/>- [v1.2.4 Milestone Report](https://github.com/mir0n-pro/esquire.explorer/blob/develop/doc/reports/report_v1.2.4.md)<br/>- [v1.2.3 Milestone Report](https://github.com/mir0n-pro/esquire.explorer/blob/develop/doc/reports/report_v1.2.3.md)<br/>- [v1.2.2 Milestone Report](https://github.com/mir0n-pro/esquire.explorer/blob/develop/doc/reports/report_v1.2.2.md) |
+| **esquire.services**| - [v1.2.12 Milestone Report](doc/reports/report_v1.2.12.md)<br/>- [v1.2.11 Milestone Report](doc/reports/report_v1.2.11.md)<br/>- [v1.2.10 Milestone Report](doc/reports/report_v1.2.10.md)<br/>- [v1.2.9 Milestone Report](doc/reports/report_v1.2.9.md)<br/>- [v1.2.8 Milestone Report](doc/reports/report_v1.2.8.md)<br/>- [v1.2.7 Milestone Report](doc/reports/report_v1.2.7.md)<br/>- [v1.2.6 Milestone Report](doc/reports/report_v1.2.6.md)<br/>- [v1.2.5 Milestone Report](doc/reports/report_v1.2.5.md)<br/>- [v1.2.4 Milestone Report](doc/reports/report_v1.2.4.md)<br/>- [v1.2.3 Milestone Report](doc/reports/report_v1.2.3.md)<br/>- [v1.2.2 Milestone Report](doc/reports/report_v1.2.2.md)                                                                                                                                                                                  |
+| **esquire.explorer**| - [v1.2.12 Milestone Report](https://github.com/mir0n-pro/esquire.explorer/blob/develop/doc/reports/report_v1.2.12.md)<br/>- [v1.2.11 Milestone Report](https://github.com/mir0n-pro/esquire.explorer/blob/develop/doc/reports/report_v1.2.11.md)<br/>- [v1.2.10 Milestone Report](https://github.com/mir0n-pro/esquire.explorer/blob/develop/doc/reports/report_v1.2.10.md)<br/>- [v1.2.9 Milestone Report](https://github.com/mir0n-pro/esquire.explorer/blob/develop/doc/reports/report_v1.2.9.md)<br/>- [v1.2.8 Milestone Report](https://github.com/mir0n-pro/esquire.explorer/blob/develop/doc/reports/report_v1.2.8.md)<br/>- [v1.2.7 Milestone Report](https://github.com/mir0n-pro/esquire.explorer/blob/develop/doc/reports/report_v1.2.7.md)<br/>- [v1.2.6 Milestone Report](https://github.com/mir0n-pro/esquire.explorer/blob/develop/doc/reports/report_v1.2.6.md)<br/>- [v1.2.5 Milestone Report](https://github.com/mir0n-pro/esquire.explorer/blob/develop/doc/reports/report_v1.2.5.md)<br/>- [v1.2.4 Milestone Report](https://github.com/mir0n-pro/esquire.explorer/blob/develop/doc/reports/report_v1.2.4.md)<br/>- [v1.2.3 Milestone Report](https://github.com/mir0n-pro/esquire.explorer/blob/develop/doc/reports/report_v1.2.3.md)<br/>- [v1.2.2 Milestone Report](https://github.com/mir0n-pro/esquire.explorer/blob/develop/doc/reports/report_v1.2.2.md) |
 | **esquire.ui.lib**| - [v1.2.11 Release Report](https://github.com/mir0n-pro/esquire.ui.lib/blob/develop/doc/reports/report_v1.2.11.md)<br/> - [v1.2.3 Release Report](https://github.com/mir0n-pro/esquire.ui.lib/blob/develop/doc/reports/report_v1.2.3.md)<br/> - [v1.2.2 Release Report](https://github.com/mir0n-pro/esquire.ui.lib/blob/develop/doc/reports/report_2026_04_19_31750f3.md)                                                                                                                     |
-| **esquire.db.seed**| - [v1.2.11 Milestone Report](https://github.com/mir0n-pro/esquire.db.seed/blob/develop/doc/reports/report_v1.2.11.md)<br/> - [v1.2.10 Milestone Report](https://github.com/mir0n-pro/esquire.db.seed/blob/develop/doc/reports/report_v1.2.10.md)<br/> - [v1.2.9 Milestone Report](https://github.com/mir0n-pro/esquire.db.seed/blob/develop/doc/reports/report_v1.2.9.md)<br/> - [v1.2.8 Milestone Report](https://github.com/mir0n-pro/esquire.db.seed/blob/develop/doc/reports/report_v1.2.8.md)<br/> - [v1.2.7 Milestone Report](https://github.com/mir0n-pro/esquire.db.seed/blob/develop/doc/reports/report_v1.2.7.md)<br/> - [v1.2.4 Milestone Report](https://github.com/mir0n-pro/esquire.db.seed/blob/develop/doc/reports/report_v1.2.4.md)<br/> - [v1.2.2 Milestone Report](https://github.com/mir0n-pro/esquire.db.seed/blob/develop/doc/reports/report_v1.2.2.md)                                                                                                                          |
+| **esquire.db.seed**| - [v1.2.12 Milestone Report](https://github.com/mir0n-pro/esquire.db.seed/blob/develop/doc/reports/report_v1.2.12.md)<br/> - [v1.2.11 Milestone Report](https://github.com/mir0n-pro/esquire.db.seed/blob/develop/doc/reports/report_v1.2.11.md)<br/> - [v1.2.10 Milestone Report](https://github.com/mir0n-pro/esquire.db.seed/blob/develop/doc/reports/report_v1.2.10.md)<br/> - [v1.2.9 Milestone Report](https://github.com/mir0n-pro/esquire.db.seed/blob/develop/doc/reports/report_v1.2.9.md)<br/> - [v1.2.8 Milestone Report](https://github.com/mir0n-pro/esquire.db.seed/blob/develop/doc/reports/report_v1.2.8.md)<br/> - [v1.2.7 Milestone Report](https://github.com/mir0n-pro/esquire.db.seed/blob/develop/doc/reports/report_v1.2.7.md)<br/> - [v1.2.4 Milestone Report](https://github.com/mir0n-pro/esquire.db.seed/blob/develop/doc/reports/report_v1.2.4.md)<br/> - [v1.2.2 Milestone Report](https://github.com/mir0n-pro/esquire.db.seed/blob/develop/doc/reports/report_v1.2.2.md)                                                                                                                          |
 

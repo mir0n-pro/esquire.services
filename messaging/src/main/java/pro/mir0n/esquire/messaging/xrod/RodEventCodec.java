@@ -23,6 +23,8 @@
  *                   send path, frozen across a resend); fromProps carries it back via RodEvent.withApplMsgId
  * 07/09/2026 mir0n  v1.2.11 -- toProps() writes FIELD_TRACEPARENT on both the entity and the session branch
  *                   when the event carries one; fromProps() reads it back via withTraceparent()
+ * 08/11/2026 mir0n  v1.2.12 -- changeNo written to and read from the wire properties; new longOrNull()
+ *                   keeps an absent number null instead of 0
  */
 package pro.mir0n.esquire.messaging.xrod;
 
@@ -94,6 +96,11 @@ public final class RodEventCodec {
             ret.put(BusConstants.FIELD_ENTITY_ID,        e.entityId());
             ret.put(BusConstants.FIELD_SUB_ID,           e.subId());
             ret.put(BusConstants.FIELD_ACTION_TIME,      e.actionTime());
+            // The (sub)entity change number (v1.2.12). Written only when the producer supplied one, so an
+            // ABSENT field means "unknown" rather than zero -- a consumer must not read a missing number as 0.
+            if (e.changeNo() != null) {
+                ret.put(BusConstants.FIELD_CHANGE_NO,    e.changeNo());
+            }
             ret.put(BusConstants.FIELD_CORRELATION_ID,   e.correlationId());
             // W3C trace hop (O2/T3): only the producer's parent-span carrier; the trace id is the correlationId above.
             if (e.traceparent() != null) {
@@ -135,6 +142,9 @@ public final class RodEventCodec {
                     intOf(p, BusConstants.FIELD_ENTITY_KIND),
                     str(p.get(BusConstants.FIELD_ENTITY_ID)),
                     str(p.get(BusConstants.FIELD_SUB_ID)),
+                    // NULL-preserving on purpose: "no number supplied" and "number 0" must stay apart, or a
+                    // consumer guarding on "greater wins" would read an unknown as the lowest possible value.
+                    longOrNull(p, BusConstants.FIELD_CHANGE_NO),
                     longOf(p, BusConstants.FIELD_ACTION_TIME),
                     str(p.get(BusConstants.FIELD_CORRELATION_ID)),
                     str(p.get(BusConstants.FIELD_REQUEST_ID)),
@@ -147,6 +157,24 @@ public final class RodEventCodec {
         // and the W3C traceparent (null when absent / session) so the receive leg can nest under the producer span.
         return ret.withApplMsgId(str(p.get(BusConstants.FIELD_APPL_MSG_ID)))
                   .withTraceparent(str(p.get(BusConstants.FIELD_TRACEPARENT)));
+    }
+
+    /** Like {@link #longOf} but NULL-preserving: an absent (or unparseable) field yields {@code null}, not 0.
+     *  The change number needs this -- "no number supplied" and "number 0" must stay distinguishable, or a
+     *  consumer guarding on "greater wins" would treat an unknown as the lowest possible value. */
+    private static Long longOrNull(Map<String, Object> p, String key) {
+        Object o = p.get(key);
+        Long ret = null;
+        if (o instanceof Number n) {
+            ret = n.longValue();
+        } else if (o != null && !o.toString().isBlank()) {
+            try {
+                ret = Long.parseLong(o.toString().trim());
+            } catch (NumberFormatException nfe) {
+                devLog.warn("rod-codec: field {} has a non-long value '{}' -- treating as absent", key, o);
+            }
+        }
+        return ret;
     }
 
     /** Evolution gate: an incoming message must carry THIS codec's schema version. A version that is PRESENT

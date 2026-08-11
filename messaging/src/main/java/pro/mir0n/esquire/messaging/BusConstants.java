@@ -14,6 +14,9 @@
  *                   own-exclusion (broadcast only): a receive leg sharing the publisher's connection drops THIS
  *                   connection's own publications
  * 07/09/2026 mir0n  v1.2.11 -- FIELD_TRACEPARENT ("TraceParent", FIX 50014) added
+ * 08/11/2026 mir0n  v1.2.12 -- FIELD_CHANGE_NO added (ChangeNo, FIX 50015), the per-row change number
+ *                   supplied by the producer; the declared exception is stated at the field: C/U/D carry
+ *                   the entity row's number, X the path row's, never comparable
  */
 package pro.mir0n.esquire.messaging;
 
@@ -59,6 +62,25 @@ public class BusConstants {
     // consumer span nests under it. The trace id half is authoritative from FIELD_CORRELATION_ID, not
     // this field. Absent on session (heartbeat / test-request) messages.
     public static final String FIELD_TRACEPARENT       = "TraceParent";        // FIX 50014 (W3C trace context)
+    // The (sub)entity CHANGE NUMBER (v1.2.12). Wire identity is EntityID + EntityKind + (optional) SubID
+    // plus this number; a GREATER number is fresher. Supplied by the PRODUCER (it just raised and wrote it),
+    // never stamped by the engine. Absent on session messages, and on any producer that has no row behind
+    // the event -- so a consumer must treat "missing" as "unknown", not as zero.
+    //
+    // THE ONE EXCEPTION TO THE UNIFORM RULE -- read this before comparing two numbers.
+    // The uniform rule is: this field is the ENTITY row's change number. A PATH message (op X,
+    // EVENT_UPDATE_PATH) breaks it: EntityKind still names the entity kind, and EntityID still names the
+    // entity, but the number is the PATH row's (ESQ_ENTITY_PATH.EP_CHANGE_NO), NOT the entity row's.
+    //
+    // It has to be that way. A move rewrites every DESCENDANT's path row while leaving those descendants'
+    // entity rows untouched, so a descendant's move has no entity number to report -- the path number is
+    // the only one that moved. Both are per-entity counters (each unique within its entity id), but they
+    // are SEPARATE counters and are never comparable with each other.
+    //
+    // So a receiver must guard like against like: a path event against its stored PATH number, an entity
+    // event against its stored ENTITY number. Comparing across the two drops path updates and leaves a
+    // moved subtree half-repathed. There is no rule without an exception; this is the one.
+    public static final String FIELD_CHANGE_NO         = "ChangeNo";           // FIX 50015 (per-row change number)
 
 
     // --- Fixed phase-1 values ---

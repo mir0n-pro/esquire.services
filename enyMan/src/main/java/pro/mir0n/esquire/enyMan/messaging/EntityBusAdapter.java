@@ -17,6 +17,8 @@
  *                   cross-instance race-8b gap the per-instance inMove() left open
  * 07/23/2026 mir0n  v1.2.11 -- forwardPeerCreate carries the create's OWN cid/rid onto the CreateReconcileItem
  *                   (the path-fix reissue stays correlated to the create it repairs, no leftover-worker-MDC reliance)
+ * 08/11/2026 mir0n  v1.2.12 -- publish() takes the change number onto the event header and prints it on the
+ *                   UE line; the parameter doc states which counter each event type carries
  */
 package pro.mir0n.esquire.enyMan.messaging;
 
@@ -65,14 +67,20 @@ public class EntityBusAdapter {
      * @param requestId     from request context; may be null
      * @param correlationId from correlation context; may be null
      * @param text          entity state snapshot (may be null)
+     * @param changeNo      the change number this event is reporting, or null when none is known.
+     *                      WHICH counter it is follows the event type: C / U / D carry the ENTITY row's
+     *                      number, X (path) carries the PATH row's number. They are separate counters --
+     *                      each unique within the entity id, neither comparable with the other -- so a
+     *                      receiver must guard a path event against a path number and an entity event
+     *                      against an entity number.
      */
     public void publish(int entityKind, String entityId, String eventType,
-                        String requestId, String correlationId, Map<String, Object> text) {
-        RodEvent e = new RodEvent(RodEvent.opFromCode(eventType), entityKind, entityId, null,
+                        String requestId, String correlationId, Map<String, Object> text, Long changeNo) {
+        RodEvent e = new RodEvent(RodEvent.opFromCode(eventType), entityKind, entityId, null, changeNo,
                 System.currentTimeMillis(), correlationId, requestId, null, null,
                 BusConstants.MSG_TYPE_ENTITY_BROADCASTS, text != null ? text : Map.of());
         rod.transmit(e);
-        log.info("ENTITY | UE | {} | {} | {} | {}", eventType, entityKind, entityId, correlationId);
+        log.info("ENTITY | UE | {} | {} | {} | {} | cn={}", eventType, entityKind, entityId, correlationId, changeNo);
     }
 
     /**

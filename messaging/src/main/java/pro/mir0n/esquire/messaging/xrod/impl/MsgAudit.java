@@ -11,6 +11,8 @@
  *                   bus-id), it centralises the audit-logger construction + the standard leg-trace / transmit-error
  *                   line format so the engine (AXRod), the log-only rod (XRodInfo), and the session sublayers
  *                   (send-retry) do not each repeat it. Raw info/warn passthroughs cover a custom line.
+ * 08/11/2026 mir0n  v1.2.12 -- changeNo added to the TX/RX leg trace, printed as "-" when the producer
+ *                   supplied none
  */
 package pro.mir0n.esquire.messaging.xrod.impl;
 
@@ -33,15 +35,18 @@ public final class MsgAudit {
                 : null;
     }
 
-    /** The standard leg trace: {@code <dir> | msgType | op | kind | entityId | subId | rodId | requestId}. A SESSION
+    /** The standard leg trace:
+     *  {@code <dir> | msgType | op | kind | entityId | subId | changeNo | rodId | requestId}. A SESSION
      *  (alive-protocol) event is gated at DEBUG so heartbeat noise can be silenced separately; an application event
-     *  at INFO. */
+     *  at INFO. The change number prints as "-" when the producer supplied none (session messages, and any event
+     *  with no row behind it) -- absent is NOT zero. */
     public void log(String dir, RodEvent e) {
         if (log != null
                 && ((e.isSession() && log.isDebugEnabled())
                  || (!e.isSession() && log.isInfoEnabled()))) {
-            log.info("{} | {} | {} | {} | {} | {} | {} | {}",
-                    dir, e.msgType(), e.opCode(), e.kind(), e.entityId(), e.subId(), e.rodId(), e.requestId());
+            log.info("{} | {} | {} | {} | {} | {} | {} | {} | {}",
+                    dir, e.msgType(), e.opCode(), e.kind(), e.entityId(), e.subId(),
+                    e.changeNo() != null ? e.changeNo() : "-", e.rodId(), e.requestId());
         }
     }
 

@@ -2,11 +2,13 @@
  *  Esquire frameworks (tm)
  *  PacMan service
  *
- *  Copyright(c) 2001, 2026 mir0n&co www.mir0n.me
+ *  Copyright(c) 2001, 2026 mir0n&co www.mir0n.pro
  *
  *  History:
  * 04/09/2026 mir0n  created: JPA entity for ESQ_ACCT_TRANSACTION;
  * 04/20/2026 mir0n  fields added: pkTx, amtIncoming, ccyIncoming, convRate; id type Long->String
+ * 08/11/2026 mir0n  v1.2.12 -- accChangeNo field added: the ACCOUNT change number the transaction produced,
+ *                   nullable
  */
 
 package pro.mir0n.esquire.pacMan.acct.jpa;
@@ -27,6 +29,9 @@ public class EsqAcctTransactionJpa {
     private int atPk;
     private Double amt;
     private Double prevBalance;
+    /** The ACCOUNT change number this transaction produced, not a number of the transaction itself.
+     *  Nullable: informative rather than functional, and empty on rows written before the column existed. */
+    private Long accChangeNo;
     private String desc;
     private String refCode;
     private String refCode2;

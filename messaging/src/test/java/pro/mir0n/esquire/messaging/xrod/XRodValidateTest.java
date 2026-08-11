@@ -4,12 +4,6 @@
  *
  *  Copyright(c) 2001, 2026 mir0n&co www.mir0n.pro
  *  mailto:mir0n.the.programmer@gmail.com
- *
- *  History:
- * 06/22/2026 mir0n  created: fail-fast validation tests. A transport-backed x-rod (XRod / XRodRR) REQUIRES a
- *                   complete transport -- a role-declared bus that resolves to NO transport (the gap: a bogus
- *                   bus-id whose only x-rod is a knobs-only service override) must fail fast at init, not build a
- *                   silent do-nothing rod.
  */
 package pro.mir0n.esquire.messaging.xrod;
 

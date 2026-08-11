@@ -4,12 +4,6 @@
  *
  *  Copyright(c) 2001, 2026 mir0n&co www.mir0n.pro
  *  mailto:mir0n.the.programmer@gmail.com
- *
- *  History:
- * 06/27/2026 mir0n  created: the noLocal own-exclusion against an EMBEDDED ActiveMQ broker (broker-enforced, so
- *                   it cannot be mocked). Proves BOTH directions: a shared-connection consumer does NOT receive
- *                   its OWN publications with noLocal on, and DOES with noLocal off; a separate connection always
- *                   receives -- confirming the message was really published and the exclusion is the connection.
  */
 package pro.mir0n.esquire.tp.activemq;
 

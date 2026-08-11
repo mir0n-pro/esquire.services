@@ -48,6 +48,8 @@
  *                   repointed messaging.xrod.RodEvent -> messaging.RodEvent
  * 07/02/2026 mir0n  esquireKeySave reads requestId via requireRequestId() -- X-Request-ID mandatory on writes
  * 07/08/2026 mir0n  @EsqTraced on esquireKey / esquireKeySave (esq.svc.key.read / esq.svc.key.save)
+ * 08/11/2026 mir0n  v1.2.12 -- saveAccessProfile raises the auth row's change number and passes it to
+ *                   updateAccess; the audit copy is stamped with the raised value
  */
 
 package pro.mir0n.esquire.keySmith.service.impl;
@@ -229,15 +231,19 @@ public class KeySmithService implements IKeySmithService {
             changed = true;
         }
         if (changed) {
-            accessProfileRepository.updateAccess(id, jpa.getEmail(), jpa.getLoginId(), jpa.getPwdChangeForced(), jpa.getTfaMethod(), jpa.getConnectFlg(), uid, correlationId, requestId);
+            accessProfileRepository.updateAccess(id, jpa.getEmail(), jpa.getLoginId(), jpa.getPwdChangeForced(),
+                    jpa.getTfaMethod(), jpa.getConnectFlg(), jpa.bumpChangeNo(), uid, correlationId, requestId);
             // audit: auth UPDATE -> esq_auth_log (entityId = au_usr_pk, kind = KIND_ACCESS_PROFILE). Carries
             // only the managed, non-secret fields; security question / answer are never logged.
+            // This is a COPY built for the audit event, not the row that was read -- so the change number has
+            // to be carried over by hand. The UPDATE above already raised it on jpa.
             EsqAuthJpa auth = new EsqAuthJpa();
             auth.setLoginId(jpa.getLoginId());
             auth.setEmail(jpa.getEmail());
             auth.setConnectFlg(jpa.getConnectFlg());
             auth.setTfaMethod(jpa.getTfaMethod());
             auth.setForceChangeFlg(jpa.getPwdChangeForced());
+            auth.setChangeNo(jpa.getChangeNo());
             audit.post(RodEvent.Op.UPDATE, EsqConstants.KIND_ACCESS_PROFILE, id, null, auth);
         }
         List<EsqRoleJpa> originRoles = accessProfileRepository.roles(id);

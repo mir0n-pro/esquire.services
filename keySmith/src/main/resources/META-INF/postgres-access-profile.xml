@@ -17,6 +17,7 @@
   ,COALESCE(au_force_change_flg, 'N') AS au_force_change_flg
   ,au_tfa_method
   ,au_connect_flg
+  ,au_change_no
  FROM esq_user
  JOIN esq_auth
   ON au_usr_pk = usr_pk
@@ -81,6 +82,7 @@
   ,COALESCE(au_force_change_flg, 'N') AS au_force_change_flg
   ,au_tfa_method
   ,au_connect_flg
+  ,au_change_no
  FROM esq_user
  JOIN esq_auth
   ON au_usr_pk = usr_pk
@@ -112,6 +114,7 @@
  UPDATE esq_auth
     SET au_force_change_flg = COALESCE(CAST(:pwdChangeForced AS varchar), au_force_change_flg)
        ,au_tfa_method        = COALESCE(CAST(:tfaMethod AS varchar), au_tfa_method)
+       ,au_change_no        = au_change_no + 1
   WHERE au_usr_pk = CAST(:id AS bigint)
         </query>
     </named-native-query>
@@ -124,6 +127,7 @@
     ,au_force_change_flg = :pwdChangeForced
     ,au_tfa_method = :tfaMethod
     ,au_connect_flg = :connectFlg
+    ,au_change_no = :changeNo
     ,au_crl_id = :correlationId
     ,au_req_id = :requestId
     ,au_uid = :uid
@@ -142,6 +146,7 @@
             <field-result name="pwdChangeForced" column="au_force_change_flg"/>
             <field-result name="tfaMethod" column="au_tfa_method"/>
             <field-result name="connectFlg" column="au_connect_flg"/>
+            <field-result name="changeNo" column="au_change_no"/>
         </entity-result>
     </sql-result-set-mapping>
 

@@ -19,6 +19,10 @@
  *                   FAILED value is the point: the catch here SWALLOWS the handler exception, so a handler that
  *                   blows up leaves the cache silently stale while the bus still counts the message as received --
  *                   nothing else anywhere reports that the tree did not change
+ * 08/11/2026 mir0n  v1.2.12 -- dispatch() takes the event's change number and guards on it: a path event
+ *                   against the node's stored path number, every other event against its entity number;
+ *                   unknown or unseen applies unguarded, and the applied number is stamped back. Takes
+ *                   IBizTreeCacheRepository for those reads
  */
 package pro.mir0n.esquire.bizTree.access;
 
@@ -64,8 +68,11 @@ public final class MessageHandlerHub {
     private record HandlerKey(String eventType, int kindBits) {}
 
     private final Map<HandlerKey, IBizTreeEventHandler> handlers;
+    /** Needed by the freshness guard (v1.2.12): reads the node's stored change numbers, stamps the applied one. */
+    private final IBizTreeCacheRepository cacheRepository;
 
     public MessageHandlerHub(IBizTreeCacheRepository cacheRepository) {
+        this.cacheRepository = cacheRepository;
         UpdateEntityHandler updateHandler = new UpdateEntityHandler(cacheRepository);
         DeleteEntityHandler deleteHandler = new DeleteEntityHandler(cacheRepository);
 
@@ -91,7 +98,23 @@ public final class MessageHandlerHub {
      * unexpected events is visible -- prior to v1.2.6 Goal 3 instrumentation this path was a
      * silent no-op which hid possible mis-routing or schema drift between publisher and consumer.
      */
-    public void dispatch(String eventType, String entityId, int entityKind, JsonNode textNode) {
+    /**
+     * Dispatch, guarding on the change number (v1.2.12).
+     *
+     * <p>WHICH number is compared follows the event type, and this is the one place that has to know it:
+     * a PATH event (X) carries the PATH row's number and is compared against the node's stored path
+     * number; every other event carries the ENTITY row's number and is compared against the stored entity
+     * number. The two are separate per-entity counters and are never comparable with each other -- see
+     * {@code BusConstants.FIELD_CHANGE_NO}, which spells the exception out. Compare across them and a
+     * moved subtree silently stays half-repathed.
+     *
+     * <p>A null {@code changeNo} means the producer sent none: apply unguarded, because "unknown" must
+     * never be read as "old". Same for a node the cache has never seen.
+     *
+     * <p>Read-then-write is safe without locking: the monad worker is single-threaded, and a batch runs
+     * in one cache transaction.
+     */
+    public void dispatch(String eventType, String entityId, int entityKind, JsonNode textNode, Long changeNo) {
         // esq.biz.tree.handler.dispatch.total (O1/T8 phase C): what the CACHE did with a broadcast, which the bus
         // meters cannot know. messaging.receive.total says the message arrived; this says whether it was applied,
         // skipped for want of a handler, skipped for want of a payload, or FAILED. The failure case matters most:
@@ -119,8 +142,24 @@ public final class MessageHandlerHub {
                         eventType, entityKind, entityId);
                 return;
             }
+            boolean isPath = BusConstants.EVENT_UPDATE_PATH.equals(eventType);
+            Long entityPk = parseEntityPk(entityId);
+            if (changeNo != null && entityPk != null && isStale(entityPk, isPath, changeNo)) {
+                outcome = "stale";
+                devLog.debug("MessageHandlerHub: SKIP stale eventType={} entityKind={} entityId={} changeNo={}",
+                        eventType, entityKind, entityId, changeNo);
+                return;
+            }
             try {
                 handler.handle(entityId, entityKind, textNode);
+                if (changeNo != null && entityPk != null) {
+                    // Stamp AFTER the handler: a CREATE has no row to stamp until its handler made one.
+                    if (isPath) {
+                        cacheRepository.stampPathChangeNo(entityPk, changeNo);
+                    } else {
+                        cacheRepository.stampEntityChangeNo(entityPk, changeNo);
+                    }
+                }
             } catch (Exception ex) {
                 outcome = "failed";
                 log.error("MessageHandlerHub: handler failed eventType={} kind={} entityId={}: {}",
@@ -132,5 +171,30 @@ public final class MessageHandlerHub {
             EsqBizMeters.count("esq.biz.tree.handler.dispatch.total",
                     "event", String.valueOf(eventType), "kind", String.valueOf(entityKind), "outcome", outcome);
         }
+    }
+
+    /** True when the cache already holds this event's change (or a later one) -- a redelivery or an
+     *  out-of-order arrival. Unknown stored number = never stale: applying twice beats losing a change. */
+    private boolean isStale(long entityPk, boolean isPath, long changeNo) {
+        boolean ret = false;
+        Long[] stored = cacheRepository.findChangeNumbers(entityPk);
+        if (stored != null) {
+            Long current = isPath ? stored[1] : stored[0];
+            ret = current != null && changeNo <= current;
+        }
+        return ret;
+    }
+
+    /** The entity id as a cache key, or null when it is not a plain number (nothing to guard against). */
+    private static Long parseEntityPk(String entityId) {
+        Long ret = null;
+        if (entityId != null) {
+            try {
+                ret = Long.valueOf(entityId);
+            } catch (NumberFormatException ignored) {
+                ret = null;   // not a numeric entity id -- apply unguarded
+            }
+        }
+        return ret;
     }
 }

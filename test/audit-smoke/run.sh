@@ -21,11 +21,13 @@ SEED="$(cd "${SVCS}/../db.seed" && pwd)"
 STAMP="$(date +%y%m%d-%H%M)"
 RESULTS="${HERE}/results-${STAMP}.md"
 ORA="esq2025/q@//localhost:1521/MIR0N"
-# docker uses the EXTERNAL host Postgres (pg18) -- there is NO esq-postgres container (the dockerized
-# Postgres is k8s-only). All docker-pg DB access goes to the host instance via hpg(); k8s keeps using its
+# docker uses the esq-postgres CONTAINER. It used to use the external host instance (pg18 on
+# localhost:5432) and this driver read that -- but compose.yaml now defaults every DB_*_HOST to the
+# "postgres" service, and the seed is baked into that image. Reading the host instance here measured a
+# database the services never write to, so every docker-pg cell reported whatever that stale database
+# happened to hold. All docker-pg DB access now goes through the container; k8s keeps using its
 # in-cluster postgres (k8s_pg_* via kubectl exec, further below).
-HPGSQL="${HPGSQL:-/c/PostgreSQL/18/bin/psql.exe}"
-hpg() { PGPASSWORD=q "$HPGSQL" -h localhost -p 5432 -U esq2025 -d esq2025 "$@"; }
+hpg() { docker exec -i esq-postgres psql -U esq2025 -d esq2025 "$@"; }
 
 # ---- audit option (a): DB triggers. The base seed is trigger-FREE; the (a) cell applies the trigger
 # overlay, runs, validates, then DROPS it so the next (bus/in-process) cell is trigger-free again
@@ -220,7 +222,7 @@ cell_docker_ora() {
   local ORAURL="jdbc:oracle:thin:@//host.docker.internal:1521/MIR0N" db="ora" desc="" stream="" streamfn="" idx="0,1,2,4" trig=""
   case "$cell" in
     a)         export AUDIT_BUS_ID="$AUDIT_OFF"; db="ora"; trig="ora"; desc="DB triggers in-tx (oracle primary, audit msg off)";;
-    b-ded-pg)  export AUDIT_BUS_ID=audit-b DB_DATAKEEP_URL="jdbc:postgresql://host.docker.internal:5432/esq2025"; db="pg"; desc="in-proc keep -> PG audit";;
+    b-ded-pg)  export AUDIT_BUS_ID=audit-b DB_DATAKEEP_URL="jdbc:postgresql://postgres:5432/esq2025"; db="pg"; desc="in-proc keep -> PG audit";;
     b-ded-ora) export AUDIT_BUS_ID=audit-b DB_DATAKEEP_URL="$ORAURL"; db="ora"; desc="in-proc keep -> ORA audit";;
     c-pg)      export AUDIT_BUS_ID=audit-c;  db="pg";  desc="bus AMQ -> auKeep -> PG audit";;
     c-ora)     export AUDIT_BUS_ID=audit-c  DB_DATAKEEP_VENDOR=dev-oracle DB_DATAKEEP_HOST=host.docker.internal DB_DATAKEEP_PORT=1521 DB_DATAKEEP_NAME=MIR0N; db="ora"; desc="bus AMQ -> auKeep -> ORA audit";;

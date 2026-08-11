@@ -136,6 +136,9 @@ asynchronous / separate store / non-SQL*.
   retention — continuous DBA work; finite space when the DB is a pod); the audit INSERT shares the
   mutation's transaction. (Dialect-specific trigger code is a one-time seed write, not the real con.)
 - **Use when:** integrity is paramount and the operational DB has headroom + DBA care.
+- **The triggers write the change number too**, taking it from the row being written — and on a delete, the
+  row's number **plus one**, so the delete record continues that row's history rather than repeating its
+  last number. That is what keeps a trigger-written trail and a bus-written trail the same shape.
 
 ### b) Local Async Logging — *"off the hot path, still ours"*
 - **Where:** log tables in a **separate log DB**. **Filled by** the originating service, asynchronously
@@ -311,25 +314,35 @@ SQL via `RodEventDbWriter`. There is **no Rod-owned context type**: the audit tr
 
 ### 4.2 The Rod event (`RodEvent`)
 
-The `RodEvent` is the carried event: `{ op, kind, entityId, subId, actionTime, correlationId, requestId,
-uid, rodId, msgType, body }`. On the wire it **extends the entity `UE` message** with **three optional audit
-header fields** and a **full body**; the audit message's `msgType` is **`UA`**. No structural fork; the
-cache-broadcast simply omits the optional fields.
+The `RodEvent` is the carried event: `{ op, kind, entityId, subId, changeNo, actionTime, correlationId,
+requestId, uid, rodId, msgType, body }`. On the wire it **extends the entity `UE` message** with **four
+optional audit header fields** and a **full body**; the audit message's `msgType` is **`UA`**. No structural
+fork; the cache-broadcast simply omits the optional fields.
 
 **Header:** the existing envelope (`op` C/U/D, `kind` → routes to the `*_log` table, `entityId` = owning
 entity, `correlationId`=crl_id, `requestId`=req_id, `rodId` = the producing instance, `msgType`=`UA` for
-audit) **plus** three audit header fields on the wire: **`SubID` (50011)** (the sub-row's own id; absent for
-the entity itself), **`Uid` (50012)** (the acting user), and **`ActionTime` (50013)** (epoch-ms captured
-**at commit** — the audit "when" → `*_log.action_ts`, distinct from the build/flush time). The audit triple
-(crl/req/uid) is **header**, not body — infra metadata, not entity data.
+audit) **plus** four audit header fields on the wire: **`SubID` (50011)** (the sub-row's own id; absent for
+the entity itself), **`Uid` (50012)** (the acting user), **`ActionTime` (50013)** (epoch-ms captured
+**at commit** — the audit "when" → `*_log.action_ts`, distinct from the build/flush time), and
+**`ChangeNo` (50015)** (which version of the row this event carries — the order key, and half the dedup
+key; see 4.3). The audit triple (crl/req/uid) is **header**, not body — infra metadata, not entity data.
 
-**Body (`Text`, JSON):** strictly (sub)entity **data** fields (no audit triple, no `path` this phase).
+**The change number is taken from the row, not computed here.** The service raises it under the row's own
+lock and the producer reads it off the object it just wrote — including a DELETE, which raises the number on
+the row object before posting, so the delete record continues the row's history instead of repeating its
+last number.
+
+**Body (`Text`, JSON):** strictly (sub)entity **data** fields (no audit triple, no `path`).
 **CREATE/UPDATE → the FULL committed row**; **DELETE → empty** (id+kind are in the header; the last full
 state is recoverable from prior CREATE/UPDATE entries). The body is a complete self-contained record; the
 header *duplicates* the identity so the consumer can route and dedup **from the header alone** without
-parsing the body. `path` is skipped deliberately — it keeps the producer fully generic (removes the only
-extra read, the `esq_entity_path` lookup the old triggers did); `*_log.*_path` goes NULL, path stays
-recoverable via a join.
+parsing the body.
+
+**The path is not carried, and the log tables have no column for it.** Leaving it out keeps the producer
+fully generic — it needs no extra read. And it is a matter of truth, not effort: these paths are
+**asynchronous**, so a lookup at write time reads the path as it is *then*, not as it was when the change
+happened, and would record a plausible falsehood. A path is a point of view on the data, not the data. The
+current path is always available by joining `esq_entity_path`.
 
 ### 4.3 Identity & routing — the uniform model
 
@@ -342,8 +355,28 @@ sub_id    = a discriminator, present ONLY when (entity_id, kind) is not unique o
 
    row identity     = (entity_id, kind, sub_id)
    footprint group  = (crl_id, entity_id)                  -- the owner's whole footprint in one operation
-   dedup key        = (crl_id, entity_id, kind, sub_id)    -- exactly-one row per (operation, row)
+   dedup key        = (row identity, change_no)            -- exactly-one record per (row, version)
 ```
+
+**The dedup key is the row plus its change number** — the correlation id is not in it. That is the point of
+the change number: it belongs to the row itself, not to the request that happened to change it. A
+redelivered message carries the same number, collides, and is dropped; two real changes carry different
+numbers and both survive. The **same change re-announced under a different correlation id** — a producer
+re-issue — is caught as well, because the key names a version of a row, not an operation.
+
+In each table the key is spelled with that table's own row identity, so a `pk` alone where it is already
+unique and a composite where it is not:
+
+| `*_log` table | dedup key |
+|---|---|
+| `esq_org_log` | `(orgl_pk, orgl_change_no)` |
+| `esq_user_log` | `(usrl_pk, usrl_change_no)` |
+| `esq_account_log` | `(accl_pk, accl_change_no)` |
+| `esq_auth_log` | `(aul_usr_pk, aul_change_no)` |
+| `esq_address_log` | `(adl_pk, adl_change_no)` |
+| `esq_person_log` | `(pel_usr_pk, pel_kind, pel_change_no)` |
+| `esq_usr_par_log` | `(uprl_usr_pk, uprl_par_name, uprl_change_no)` |
+| `esq_org_par_log` | `(oprl_org_pk, oprl_par_name, oprl_change_no)` |
 
 `sub_id` is needed **only when `(entity_id, kind)` does not already pin a single row** — i.e. address
 (`sub_id`=`ad_pk`) and custom param (`sub_id`=`par_name`). Not for the entity itself, nor for person (its
@@ -368,7 +401,7 @@ stores `adl_pk`=ad_pk, unique); the owner link is the FK chain `address → pers
 
 - **Coalesce within the tx.** A request may write the same row twice (insertPerson then updatePerson);
   those are intra-tx intermediate states. Last-snapshot-wins yields **one event per row per transaction =
-  its final committed state**, keeping `(crl_id, entity_id, kind, sub_id)` a single entry. Op precedence:
+  its final committed state**, and it carries the change number that state was committed with. Op precedence:
   any insert → CREATE; only updates → UPDATE; ends in delete → DELETE; created **and** deleted in one tx →
   emit nothing (never committed).
 - **Flush is post-commit, out of the entity tx.** In-tx flush is rejected — it would let an audit failure
@@ -406,9 +439,10 @@ stores `adl_pk`=ad_pk, unique); the owner link is the FK chain `address → pers
   is read-modify-write and must be parents-first). This HD shape is essentially **free**: the queue's
   competing-consumer semantics + `replicaCount` give it with no custom coordination. At-least-once; **ack
   only after the log row commits** ⇒ consumer/DB downtime holds messages in the queue, no loss.
-- **Dedup / exactly-one:** the key `(crl_id, entity_id, kind, sub_id)` maps to a per-table unique
-  constraint `*_crl_id + the row's own pk` (e.g. `esq_org_log(orgl_crl_id, orgl_pk)`,
-  `esq_address_log(adl_crl_id, adl_pk)`). A redelivered message collides and is dropped. **This is a
+- **Dedup / exactly-one:** the key `(row identity, change_no)` maps to a per-table unique constraint
+  (e.g. `esq_org_log(orgl_pk, orgl_change_no)`, `esq_address_log(adl_pk, adl_change_no)`). A redelivered
+  message carries the same change number, collides, and is dropped — and so does the same change re-issued
+  under a different correlation id. **This is a
   (c)/(d)-only concern** — (b) has no redelivery (one in-process delivery) so no duplicates by definition;
   the Postgres `ON CONFLICT DO NOTHING` is a forward-compatible clause inert under (b), active under (c).
 
@@ -453,7 +487,7 @@ is not a gap to close: async audit is decoupled from the change's transaction on
 change path as fast as possible when everything works — it is the fast-path record, not the source you
 reconstruct an outage from. The rest of this section is the per-option detail behind that statement.
 
-> **Send-retry — a brief broker blip no longer drops the event.** The messaging layer has an
+> **Send-retry — a brief broker blip does not drop the event.** The messaging layer has an
 > opt-in producer **send-retry** sublayer: when a send throws, the feed worker holds and re-dispatches the
 > same event over a backoff ladder (holding the worker is the back-pressure), dropping it only past an
 > optional attempt cap. So a short broker outage is ridden out rather than lost. Two limits keep §5's
@@ -693,8 +727,16 @@ here). (c)'s payoff remains offload — the `*_log` writes leave the business JV
   without the writer knowing each table's columns. The trade is loss of fail-fast on a future name drift;
   `EntityFillMapTest` + the SQL pin the keys independently. Lowest priority; resolved structurally by a
   future DaBaBeRe persistence layer.
-- **`actionTime` = app-node wall-clock ms** (M6) — not monotonic across pods; accepted (no robust id also
-  guarantees ordering; queries sort by `action_ts`, crl/req disambiguate).
+- **`actionTime` = app-node wall-clock ms** (M6) — not monotonic across pods, and not an order key.
+  **The change number is the order key.** Sort a row's history by `*_change_no` and it is in true order
+  whatever the clocks did; `action_ts` is the human "when".
+- **The dedup key is the row plus its change number.** The number belongs to the row, so the key means
+  "this version of this row" — one record per version, whatever the transport or the producer did. A key
+  built on the correlation id would name an *operation* instead, and the same change re-announced under a
+  new correlation id would read as a new change.
+- **The trigger option and the dedup overlay deploy together.** A trigger fires on every physical write,
+  and every physical write carries its own version, so each one produces a distinct key and nothing
+  collides. Verified live on both dialects rather than reasoned about.
 
 ### 9.2 Operational lessons / gotchas (k8s)
 - **Docker Desktop containerd image store:** an `:latest`-tagged local-only image with

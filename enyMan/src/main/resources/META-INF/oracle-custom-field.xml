@@ -11,6 +11,7 @@
         <query>
             SELECT opr_par_name as "name"
             , opr_value as "value"
+            , opr_change_no as "changeNo"
             FROM esq_org_par
             WHERE opr_org_pk = :id
         </query>
@@ -20,6 +21,7 @@
         <query>
             SELECT upr_par_name as "name"
             , upr_value as "value"
+            , upr_change_no as "changeNo"
             FROM esq_usr_par
             WHERE upr_usr_pk = :id
         </query>
@@ -29,6 +31,7 @@
         <query>
  UPDATE esq_usr_par
  SET upr_value = :value
+   ,upr_change_no = :changeNo
    ,upr_crl_id = :correlationId
    ,upr_req_id = :requestId
    ,upr_uid = :uid
@@ -59,6 +62,7 @@
         <query>
  UPDATE esq_org_par
  SET opr_value = :value
+   ,opr_change_no = :changeNo
    ,opr_crl_id = :correlationId
    ,opr_req_id = :requestId
    ,opr_uid = :uid
@@ -72,6 +76,7 @@
     <entity-result entity-class="pro.mir0n.esquire.backend.jpa.EsqNameValueJpa">
         <field-result name="name" column="name"/>
         <field-result name="value" column="value"/>
+        <field-result name="changeNo" column="changeNo"/>
     </entity-result>
     </sql-result-set-mapping>
 

@@ -1,5 +1,31 @@
 Esquire pacMan Microservice
 
+08/11/2026 mir0n  v1.2.12 -- entity change number
+acct.jpa.EsqAcctTransactionJpa
+  - accChangeNo field added: the ACCOUNT change number the transaction produced, nullable
+acct.jpa.EsqAcctTransactionRepository
+  - insertAcctTransaction takes an accChangeNo @Param
+acct.service.AcctTransactionProcessorSingle
+  - the account's change number is raised before the insert, so the ledger line and the balance update
+    carry the same value and the transaction row points at the account history record it causes
+jpa.EsqAcctRepository
+  - updateAcct and updateAcctBalance take a changeNo @Param
+messaging.EntityBusAdapter
+  - publish() takes the change number onto the event header and prints it on the UE line
+service.IPacManService
+  - esquireCommandDelete returns the delete's change number
+service.impl.PacManService
+  - the account row raises its change number before every update, the entity broadcast carries it on
+    create, save and delete, and esquireCommandDelete returns the number the delete raised
+resources/META-INF/postgres-acct.xml
+  - the account reads select acc_change_no, and updateAcct / updateAcctBalance set it from :changeNo
+resources/META-INF/oracle-acct.xml
+  - the same account change-number read and updates, matching the postgres dialect
+resources/META-INF/postgres-acct-transaction.xml
+  - the ledger INSERT carries atr_acc_change_no from :accChangeNo, and the read maps it to accChangeNo
+resources/META-INF/oracle-acct-transaction.xml
+  - the same ledger column and mapping, matching the postgres dialect
+
 07/23/2026 mir0n  v1.2.11 -- homework: fix/resolve issues found in the fresh-mind audit
 acct.service.AcctTransactionProcessorSingle
   - round3(): the amount and the new balance are rounded to 3 decimals (the NUMERIC(16,3) scale, half away from

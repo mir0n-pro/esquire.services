@@ -21,6 +21,8 @@
  *                   (esq.kc.create-user / esq.kc.update-auth / esq.kc.delete-user)
  * 07/09/2026 mir0n  v1.2.11 -- @EsqTraced labels "KC ..." -> "Keycloak ..."; @EsqTraced on updateUserPath
  *                   (esq.kc.update-path, "Keycloak update path")
+ * 08/11/2026 mir0n  v1.2.12 -- createUser consumes a ParkedPath from the shared ExpiringCache and applies
+ *                   its path
  */
 
 package pro.mir0n.esquire.kcMaster.service.impl;
@@ -39,7 +41,8 @@ import org.keycloak.representations.idm.RoleRepresentation;
 import org.keycloak.representations.idm.UserRepresentation;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
-import pro.mir0n.esquire.kcMaster.buffer.KcPathBuffer;
+import pro.mir0n.esquire.kcMaster.messaging.ParkedPath;
+import pro.mir0n.utils.concurrent.ExpiringCache;
 import pro.mir0n.esquire.kcMaster.config.KeycloakConfig;
 import pro.mir0n.esquire.kcMaster.service.IKcIdentityService;
 
@@ -59,7 +62,8 @@ public class KcIdentityService implements IKcIdentityService {
 
     private final Keycloak keycloak;
     private final KeycloakConfig keycloakConfig;
-    private final KcPathBuffer pathBuffer;
+    /** Race-8c park, filled by EntityBusAdapter off the topic; drained here once the user exists. */
+    private final ExpiringCache<String, ParkedPath> pathBuffer;
 
     @Override
     @EsqTraced(name = "esq.kc.create-user", label = "Keycloak create user")
@@ -124,16 +128,21 @@ public class KcIdentityService implements IKcIdentityService {
 
         // Race-8c flush: if enyMan's move-cascade EVENT_UPDATE_PATH for this entity
         // arrived on the topic before the user existed, KcEntityBroadcastConsumer
-        // parked the post-move path in KcPathBuffer. Consume it now and apply --
+        // parked the post-move path in the race-8c cache. Consume it now and apply --
         // otherwise the URQ EVENT_UPDATE_PATH path was silent-skipped and the KC
         // user would be left with the stale CREATE-time path forever.
         String entityId = (attributes != null && attributes.get(EsqConstants.JWT_CLAIM_ENTITY_ID) != null
                 && !attributes.get(EsqConstants.JWT_CLAIM_ENTITY_ID).isEmpty())
                 ? attributes.get(EsqConstants.JWT_CLAIM_ENTITY_ID).get(0) : null;
         if (entityId != null) {
-            String bufferedPath = pathBuffer.consume(entityId);
-            if (bufferedPath != null) {
-                applyBufferedPath(usersResource, kcId, entityId, bufferedPath);
+            ParkedPath buffered = pathBuffer.consume(entityId);
+            if (buffered != null) {
+                // The park keeps the NEWEST move, so this is the last known path, not merely the last one to
+                // arrive on the topic (T11). The number is logged, never compared here -- there is nothing on
+                // a brand-new KC user to compare it against.
+                devLog.debug("Race-8c flush: entityId={} path={} pathChangeNo={}",
+                        entityId, buffered.path(), buffered.changeNo());
+                applyBufferedPath(usersResource, kcId, entityId, buffered.path());
             }
         }
 

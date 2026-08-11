@@ -26,6 +26,7 @@
  * 07/23/2026 mir0n  v1.2.11 -- javadoc: a handler exception in MessageHandlerHub.dispatch is swallowed (logged +
  *                   outcome=failed) and the batch commits, not rolled back -- a should-not-happen condition; the
  *                   night-watch SWAP heals any resulting cache/DB drift
+ * 08/11/2026 mir0n  v1.2.12 -- the queued item's change number is passed to eventHub.apply
  */
 package pro.mir0n.esquire.bizTree.taijitu;
 
@@ -105,7 +106,8 @@ public class Monad extends AMonad {
                 // request's trace from the item's traceparent so the cache apply nests under the "receive from
                 // <bus>" span (O2/T3). null traceparent / tracing off -> runs plain.
                 EsqAsyncTrace.continueIn(item.traceparent(), item.correlationId(), "cache apply", () ->
-                        eventHub.apply(item.eventType(), item.entityId(), item.entityKind(), textNode));
+                        eventHub.apply(item.eventType(), item.entityId(), item.entityKind(), textNode,
+                                item.changeNo()));
             } finally {
                 clearMdc();
             }

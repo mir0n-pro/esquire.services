@@ -50,38 +50,97 @@ prefer to own.
 
 ---
 
-## Messaging / entity apply
+### CD-13 -- A freshness guard on the synchronized identity claims, if it is ever asked for
 
-### CD-2 -- A per-entity change number (out-of-order-safe apply, ordered audit, simpler dedup)
+**Today:** `kcMaster` applies what the KC request queue hands it, and its only defence is a **value
+comparison** -- `updateEntityPath` writes the path only when it differs from the one already on the KeyCloak
+user. There is no change number on `KcSyncRequest`, and the auth row's `au_change_no` is not carried across.
+That is a deliberate decision, and it is recorded here rather than in the code because it is a design
+question, not a detail of any one class.
 
-**Today:** the entity-broadcast x-rod delivers in order (`concurrency: 1`, one topic consumer) but applies on a
-flat `receiver-pool` (default size 4) with no per-entity affinity, so two events for the SAME entity
-(CREATE->UPDATE, UPDATE->DELETE) can be applied out of order in bizTree's cache. It is NOT a blocking issue -- the
-**app-logic collaboration keeps one editor per entity at a time** (the editing flow coordinates so a second
-concurrent write to the SAME entity does not arise), and the Taijitu night-watch reconciles the cache against the DB
-(source of truth) anyway -- so nothing is lost or corrupted; it self-heals. A good-to-have guarantee, not a fix.
+**The question is not about the path.** Every claim kcMaster writes into the identity store can go stale the
+same way, and the path is only the one that showed itself first (race-8c). The full set, with the row each
+claim actually comes from -- which is what a guard would have to compare against:
 
-**The improvement -- a per-entity change number.** Carry a per-entity **change number** (a version counter) kept in
-the DB. When the entity is written the DB increments it atomically (`SET change_no = change_no + 1`), so every change
-gets a strictly higher number than the one before it, and the number rides on the broadcast event. Then:
-- **Replication (bizTree cache):** an apply compares the event's change number to the cached node's -- apply only if
-  it is HIGHER, skip if lower or equal. An out-of-order or duplicate apply becomes harmless: the older event is
-  skipped and the newer wins regardless of arrival order. Workers stay fully parallel, no per-worker routing.
-- **Audit:** the same change number is a per-entity order key, so the audit trail can be sorted back into true order
-  even when events were produced or applied out of order (also gives the demo accounting ledger the monotonic order
-  key it lacks -- today it orders only by a random-UUID PK plus a timestamp).
-- **Audit dedup:** it also simplifies the audit-log dedup key. Today the `*_log` dedup unique index is keyed
-  `(crl_id, pk[, kind/sub])` -- the correlationId is the per-operation discriminator. Once every change carries a
-  strictly-increasing per-entity change number, `(pk, change_no)` IS the operation identity: a redelivered event
-  carries the same change number → collides → dropped; two real changes carry different numbers → both kept. The
-  dedup key drops correlationId and simplifies to `(pk, change_no)` -- one number tied to the entity itself rather
-  than to a request-scoped id.
+| claim in KeyCloak | source row | its counter |
+|---|---|---|
+| `esq_rootpath` | `esq_entity_path` | `EP_CHANGE_NO` |
+| `username` (the login id, and a rename) | `esq_auth` | `AU_CHANGE_NO` |
+| `email` | `esq_auth` | `AU_CHANGE_NO` |
+| `enabled` (the connect flag) | `esq_auth` | `AU_CHANGE_NO` |
+| required actions (`UPDATE_PASSWORD`, `CONFIGURE_TOTP`) | `esq_auth` | `AU_CHANGE_NO` |
+| realm roles | the role tables | **none today** |
+| `esq_uid` | set once at creation, never updated | cannot go stale |
 
-This is more general than per-worker affinity: ONE DB-maintained number fixes order for BOTH the cache replication
-AND the audit record (and simplifies the audit dedup key) -- the correct way to handle out-of-order updates in a
-replication flow. It also makes the move-broadcast's parents-first `ORDER BY` redundant (the version guard settles
-apply order regardless). Deferred because the usage model plus the night-watch already cover it today; worth it if a
-future workload produces same-entity bursts or if audit / the ledger ever needs a guaranteed event order.
+**So the counters are NOT interchangeable.** A path claim is guarded by the path row's number, an
+auth-derived claim by the auth row's number, and the two are never compared with each other -- the same
+declared exception the wire already makes between an entity and its path (see
+`Esquire.MessagingBus.MessageStructure.md`). One number covering every claim would
+repeat that mistake: an auth update would look "older" than a move that had nothing to do with it, and be
+skipped. **Roles have no counter at all**: guarding them means giving them one first, so they stay on
+value comparison.
+
+**Why nothing is needed today.** The request leg is a **queue**: one consumer, no fan-out, so there is no
+by-design duplicate to filter. A repeat of the same value was already a no-op, because of the comparison
+above. That leaves exactly one case a number would catch -- an OLDER update arriving after a newer one --
+which is narrow, and is what `hauberk kc-reconcile` exists to repair. A guard here would buy that one case
+and cost a field on the request, a parameter on the publisher, and a second place where "which number wins"
+has to stay correct.
+
+Contrast the entity broadcast, where the number **does** earn its place: a TOPIC, fanned out, applied on a
+worker pool with no per-entity affinity -- duplicates and reordering are by design there, not exceptional.
+That is why bizTree is guarded and kcMaster is not.
+
+**The strategy IF it is ever requested** -- announced here so the shape is settled before anyone starts:
+
+1. **Expand the identity user profile with the change number of each guarded claim's source row.** kcMaster
+   instances would then synchronize against **the identity store itself as the primary source**, rather than
+   each holding a private opinion in memory. That is the point: with more than one instance, an in-process
+   guard is per-instance state that a restart empties and that no two instances share, so the identity store
+   is the only place a shared answer can live. Applied per claim group, not once for the whole user -- one
+   number for the path, one for the auth-derived claims, per the table above.
+2. **Declaring the attribute is part of the work, not a detail.** KeyCloak 26 runs a declarative user profile
+   (`unmanagedAttributePolicy: null`) and **silently discards** an attribute the realm does not declare -- the
+   write succeeds, the log says SUCCESS, the value is not there. So it drags realm configuration with it, and a
+   realm change only re-imports on a FRESH KeyCloak init.
+3. **`hauberk kc-reconcile` / `reconcile.KcRecover` must move with it.** Repair a claim but not its number and
+   kcMaster then SKIPS the next legitimate update for it -- the recovery tool would arm the guard against the
+   truth. It repairs the path today; it would have to carry every guarded claim.
+
+**The blocking issue, and why this stays announced rather than planned: PORTABILITY.** Esquire is meant to take
+other IAM drivers, and a custom-attribute trick may be impossible or costly on another provider. Anything built
+here has to be expressible by whatever identity store sits behind the driver, or it is not a framework feature --
+it is a KeyCloak feature wearing one. Settle that before the first line of code.
+
+**Size it honestly: this is a SEPARATE VERTICAL PROJECT, not a change to kcMaster.** It cuts through every
+layer at once, and each layer has work of its own:
+
+| layer | what it needs |
+|---|---|
+| database | a counter on every source row a guarded claim comes from -- the roles side has none today |
+| message contract | the numbers on `KcSyncRequest`, per claim group, and the producers that fill them |
+| identity driver | the guard itself, and the driver abstraction that lets a NON-KeyCloak store carry it |
+| identity config | the realm user profile declaring each attribute, plus the fresh-init routine that lands it |
+| recovery | `kc-reconcile` / `KcRecover` carrying every guarded claim, not just the path |
+| test | a way to force an out-of-order arrival per claim, which today exists only for the path (race-8c) |
+
+None of those is large on its own; together they are a sprint with its own target, not a task inside someone
+else's. Take it as one vertical slice or not at all -- half of it (a guard with no recovery, or a guard on one
+claim) is worse than none, because it skips real updates while looking like it works.
+
+**Build it only when something requires it.** Not "one day, for completeness" -- today the value comparison
+plus `kc-reconcile` cover the case, and a guard built ahead of a real need buys nothing and adds a way to
+skip a legitimate update. What would make it required, so the condition is checkable rather than a feeling:
+
+- **The request leg stops being a plain queue.** It is guarded by "one consumer, no fan-out, no by-design
+  duplicate" -- and that premise is what the bus dual-channel item would remove, since it publishes the same
+  change on two channels on purpose (see the Messaging Bus backlog). If that lands, re-open this entry first.
+- **A stale claim is observed that recovery cannot explain**, i.e. `kc-reconcile` repairs it and it comes
+  back -- which would mean the ordering, not the repair, is the problem.
+- **An adopter needs the freshness guaranteed rather than repaired** -- a claim that must never be briefly
+  wrong, instead of one that self-corrects on the next sweep.
+
+Until one of those is true, the entry stays as written: the shape is settled, nothing is built.
 
 ---
 
@@ -233,3 +292,340 @@ The accounting engine redesigned around per-account concurrency and an open, mes
   stream) → xxRay → (esq2025, logs, transactions)`.
 - **Messaging-only access to pacMax**, and a **WebSocket / async-media facade** (open architecture) as its front --
   the BFF gaining a direct REST-messaging route, WebSocket first.
+
+---
+
+## Deployment / packaging
+
+### CD-12 -- "Mesnie": running several services under one roof, to cut the pod count
+
+**Why this exists -- the reason, before the arithmetic.** This is about **someone adopting Esquire**, not
+about our own upkeep. A prospective user can look at the current shape -- seven services, a broker, an
+identity server, a database -- and reasonably feel it is **too much for what they need**: a detailed
+microservice topology brings real cost in support effort and in resources, and not every adopter wants to
+take that on to run a backoffice.
+
+That objection is hard to answer with words. Mesnie answers it **by demonstration**: the same code and the
+same configuration, deployed in fewer processes. It turns "this is too fine-grained for us" into "the split
+is a deployment choice -- here is the other choice."
+
+**State it as a CAPABILITY CLAIM, not a defence.** Not *"the split is heavy, so here is a lighter
+version"* -- but:
+
+> **The framework separates architecture from deployment topology. Compose it to fit the situation you are
+> in.**
+
+That is a claim the existing design already earns, and it is credible precisely because **most systems
+cannot do it** -- their services are welded to their process boundaries. Esquire is not, for reasons
+already in the code rather than new work:
+
+- no `@Autowired` and no auto-configuration -- nothing to collide when beans share one context;
+- the bus leg is chosen by configuration (`rod-class`, in-process rods), not by wiring;
+- the audit stack already carries the dial -- option b removes the consumer service, option a removes the
+  audit bus altogether.
+
+So Mesnie **demonstrates something already true** about the architecture; it does not add a capability to
+prop up a claim.
+
+**Scope the claim honestly, or it invites an easy rebuttal.** It reduces **operational** complexity and
+**baseline** overhead. It does **not** reduce **conceptual** complexity -- the bus, the Taijitu cache, the
+audit options and the identity server are all still there, only in fewer processes. And it does not reduce
+the **work** under load, only the fixed cost per process.
+
+**Two traps that would turn the argument against itself:**
+
+- **A second-class compact profile proves the opposite.** If it lags, is undertested, or ships dashboards
+  that do not work, it demonstrates that the split *is* required. It has to be a first-class profile.
+- **Two profiles must not mean two of everything.** The objection being answered is "extra effort to
+  support". If the compact setup becomes a second deploy path with its own config, its own docs and its own
+  tests, the objection is proved rather than answered. This is exactly why the **same messaging config
+  file** and the **unmixed metrics** requirements matter -- they are what keep the argument honest, not
+  conveniences.
+
+> **Wording still to settle.** The above is the reasoning, not the final text. The public phrasing for the
+> Mesnie sprint gets written **when or if we come back to this** -- and it belongs with the positioning
+> material (`Esquire.Vision.md`, the landing pages), written to the same honest standard used there.
+
+**Today:** the framework deploys as seven services, each in its own container. At two copies for high
+availability that is fourteen application pods before any infrastructure -- and on a small or
+capacity-limited tenancy the pod count, not the load, is what runs the tenancy out of room. The pod
+arithmetic below is the **consequence** of the reason above, not the reason itself.
+
+**The idea -- a "Mesnie" service.** *Mesnie* is the Anglo-Norman word for the permanent household under the
+lord's roof: the family, the domestic staff, and the knights. It names the concept exactly -- three services
+under one umbrella, one service process.
+
+**It is ONE ordinary Spring service**, built the traditional way. It is **not** three applications bolted
+into one JVM. It **reuses the existing code** of enyMan / keySmith / kcMaster, with the implementation
+specific to each of them, wired into a single application. Two shapes, one codebase:
+
+- **Mesnie** -- enyMan + keySmith
+- **Mesnie3** -- the same code, kcMaster optionally included as the third
+
+**This is the COMPACT setup** -- a second deployment profile beside the full one, not a replacement for it.
+Counted on the household itself, at two copies for high availability:
+
+| | full setup | compact setup |
+|---|---|---|
+| enyMan + keySmith + kcMaster | 3 x 2 = **6 pods** | 1 x 2 = **2 pods** |
+| whole framework | 7 services -> **14 pods** | 5 services -> **10 pods** |
+
+Mesnie (enyMan + keySmith) is the smaller step: 2 x 2 = 4 pods become 2.
+
+**What happens to the messaging -- less than it first appears.**
+
+- **Entity broadcast and audit broadcast: unchanged.** Same bus, same catalog, nothing to alter. Mesnie is
+  simply one participant on them instead of three.
+- **The request/response IAM bus is not needed at all** once the three are together. Today keySmith
+  publishes a KeyCloak sync request and kcMaster consumes it; under one roof there is no hop to make. That
+  leg is not reconfigured -- it goes away.
+
+This is why the messaging configuration can stay the same file for both deployment shapes: nothing about
+the remaining buses changes, and the one bus that would have needed changing is simply not referenced.
+
+The kcMaster entry keeps an **asynchronous interface** -- the keySmith-to-kcMaster hop is fire-and-forget
+today and stays that way, so a save still does not wait on KeyCloak. How that is built is an
+**implementation detail, not settled here** (the in-process x-rod may have a place).
+
+**The real obstacle: the three modules have never been libraries.** enyMan, keySmith and kcMaster are each
+a Spring Boot **application** -- each carries `spring-boot-maven-plugin` with the default `repackage` goal,
+so the published jar is an executable fat jar with its classes under `BOOT-INF/`. **Nothing in the build
+depends on any of them**; they have only ever been endpoints, never ingredients. So "reuse the existing
+code" is the task, and it needs one of:
+
+- a **classifier** on the repackage goal, leaving the plain jar as the Maven artifact (small, but the
+  executable jar's name changes, which ripples into the Dockerfiles and deploy scripts); or
+- a **module split** -- the reusable business code (`service`, `jpa`, `messaging`) separated from the
+  application shell (`*Application`, `application.yml`, controllers). Bigger, and it matches what the
+  framework has already done twice: messaging lifted out of common, and mir0n-utils split out.
+
+kcMaster is the easiest of the three to fold in: it has **no REST controller at all**, only a bus consumer
+and a KeyCloak client.
+
+**What makes the rest of it feasible.** The framework uses **no `@Autowired` and no auto-configuration** --
+every bean comes from an explicit factory. Assembling several services' beans into one context normally
+dies on component scanning; here there is none to collide with.
+
+**The challenging part -- business metrics must stay UNMIXED.** The requirement is not to merge them under
+one label. Each original service's business meters keep **the same names and the same meaning they have
+today**, and enyMan's numbers must never blend with keySmith's or kcMaster's. Where a service has no meter
+today, one gets implemented rather than borrowed from a neighbour.
+
+Counting what exists shows the work is smaller than it sounds, and exactly where it bites:
+
+- **enyMan owns five, all distinctly named** -- `esq.biz.entity.ops.total`, `esq.biz.dict.lookup.total`,
+  `esq.biz.move.processed.total`, `esq.biz.move.failed.total`, `esq.biz.move.queue.depth`.
+- **kcMaster owns two** -- `esq.biz.kc.sync.total`, `esq.biz.kc.sync.duration`.
+- Because those names are already distinct, **one registry does not mix them**. Seven meters carry straight
+  over with nothing to change. This half is free.
+- **keySmith owns none at all.** It emits no business meter today, so there is nothing to keep separate --
+  and nothing to see either. These are the ones to implement.
+- **The blending happens in the SHARED meters**, and only there: `esq.biz.perm.check.total` (emitted from
+  `common`, on behalf of whichever service ran the check) and `esq.biz.keep.write.total` / `.duration`
+  (emitted from `dataKeep`, on behalf of whichever service wrote the audit row). Today they are told apart
+  by **which pod reported them**. Under one roof that separator is gone, and enyMan's permission checks and
+  audit writes become indistinguishable from keySmith's.
+
+**REST request processing has the same requirement** -- enyMan's requests must not blend with keySmith's.
+REST timing comes from Boot's standard `http.server.requests`, tagged by URI template, so under one roof
+every controller's requests land in one meter.
+
+### The tag that already exists -- this is the whole answer
+
+`ObservabilityConfig.esqCommonMetricTags()` is a MeterFilter that already puts
+**`application=<spring.application.name>` on EVERY meter** -- `http.server.requests` included, and the two
+shared `esq.biz.*` meters included. So the discriminator was never only "which pod answered": every meter
+already says which service produced it.
+
+That makes the Mesnie problem narrow and precise: **one process has one `spring.application.name`, so the
+tag collapses to a single value** and everything becomes `application=mesnie`.
+
+**The idea, then, is not to add a dimension but to keep an existing one truthful:** let `application` mean
+**"which Esquire service produced this"**, not "which process is running". In the seven-service shape that
+is exactly what it means today -- nothing changes, no dashboard moves, and the Grafana services dropdown
+keeps working because it already groups by that tag. Under Mesnie, one process simply reports several
+values of it.
+
+This also removes the earlier worry about re-tagging a framework meter. Nothing new is added to
+`http.server.requests`; a label it already carries is merely made to tell the truth, so cardinality does
+not grow and the REST p95 panel is unaffected.
+
+**One mechanism, not several -- keep it as uniform as possible.** A per-request value can no longer come
+from a static MeterFilter, and the temptation is to solve REST one way and the shared meters another. Do
+not: that leaves two things to keep in step and two ways to be wrong.
+
+**The framework already carries the vehicle.** `EsqContextHolder` is a `ThreadLocal<EsqRequestContext>`
+established at **every entry point** and cleared in a `finally` -- a REST request sets the full context, and
+a bus or queue worker calls `applyMessage(...)`. It is already how the correlation id and request id reach
+MDC and the logs. Adding **"which Esquire service is this code acting as"** to that same context gives one
+notion, set at the seams that already exist, read by anything that needs it:
+
+- a REST request takes it from the controller that handled it;
+- a bus worker takes it from the service whose worker is running;
+- a queue worker (for example the move queue) takes it the same way, at the same `applyMessage` /
+  `clear()` boundary it already uses.
+
+Then **every meter reads one place** -- REST, the service-owned `esq.biz.*`, and the shared
+`esq.biz.perm.check.total` (`common`) and `esq.biz.keep.write.*` (`dataKeep`). The shared facilities need
+no new argument from their callers, because the answer is already on the thread.
+
+This also satisfies the constraint above by construction: **at seven services the value is constant and
+equal to `spring.application.name`, so nothing changes there at all.** No Mesnie-only special case is
+bolted into shared code, and the common modules carry no deployment-shape assumption.
+
+A further gain worth taking: because that context already feeds MDC, the same answer becomes available to
+**logs and traces as well as metrics** -- one "which service" across all three pillars, consistent with how
+the correlation id already ties them together.
+
+**One detail to settle when it is built:** `applyMessage(...)` deliberately stamps MDC *only*, for workers
+that have no full request context. So the service identity must be carried in a way that works on both
+paths -- the full-context REST path and the MDC-only worker path.
+
+**No REST split or redirect is needed.** The two controllers do not collide -- both use
+`@RequestMapping(path="")` and their endpoints are disjoint (enyMan: `/esq-dict`, `/esq-cmd`,
+`/esq-cmd-save`, `/esq-cmd-new`, `/esq-cmd-del`, `/esq-move`, `/esq-kinds`, `/esq-cmd-tree`; keySmith:
+`/esq-key`, `/esq-key-save`). They sit in one application unchanged, with no prefix and no API change.
+Two alternatives were considered and rejected:
+
+- **An HTTP redirect to the original controllers** -- double-counts `http.server.requests` and adds a round
+  trip.
+- **Thin Mesnie controllers delegating to the original services** -- restates the whole REST surface, and
+  the measured controller would then be the Mesnie one, so the tag would still be needed. Duplication for
+  no gain.
+
+### What else folds -- and what does not (sketch, not settled)
+
+**auKeep does not move -- it is simply NOT DEPLOYED.** This one needs no work at all, because the dial
+already exists. The audit stack is selected by `AUDIT_BUS_ID`: option **b** (`XRodInProcessKeep`) has the
+producing service write its own audit row through the generic keep engine -- no consumer service, no broker
+hop -- and option **a** drops to DB triggers, with no audit bus traffic at all. So a compact setup takes
+option b and an auKeep pod never exists; a **super-compact** setup takes option a and the audit stack
+leaves the application entirely. Zero code, one environment variable.
+
+> Caveat that ties back to the change-number work: option **a** (triggers) and the audit-log **dedup
+> overlay** are mutually exclusive. A super-compact setup on triggers therefore runs without the dedup
+> indexes -- which is fine, because the trigger path is not the redelivery path, but it must be stated
+> rather than discovered.
+
+**bizTree does NOT belong under Mesnie -- it belongs with the GATEWAY.** Mesnie is the *write* side (entity
+management, credentials, identity sync); bizTree is the *read* side, and its Taijitu cache holds **two**
+copies of the tree in H2. Folding that into the compact write pod would make the thing it is trying to keep
+small large again, and the two have opposite scaling profiles. Its natural neighbour is the tier that
+serves reads.
+
+> **The BFF was considered first and is the WORSE answer.** The BFF is **Node / Express**, so bizTree could
+> only ever be a co-located container in the same pod -- saving a **pod object, not a JVM**. Worse, the BFF
+> proxies `/api/*` to the gateway, so the hop only shortens if the BFF calls bizTree directly on
+> localhost -- which **bypasses the gateway's token relay and auth gate**. That is security-shaped, not
+> packaging. And **porting Taijitu to Node is ruled out** -- reimplementing the two-monad cache, the
+> night-watch sweep and the H2 store in Node is a different project altogether.
+
+**Why the gateway is the right host.** Three things the BFF version could not offer:
+
+- **Both are Java, so it is a real merge** -- one JVM removed, exactly like Mesnie.
+- **The auth problem disappears.** The gateway *is* the security boundary (`SecurityConfig`,
+  `KeycloakRoleConverter`), so a cache read from inside it happens after authentication. There is nothing
+  to bypass.
+- **It removes a hop from the hottest read path**, and the gateway already carries tree awareness -- it
+  routes by entity kind today (`EntityKindRoutePredicateFactory`).
+
+**The engineering risk, and it is the whole problem: reactive vs blocking.** The gateway is
+`spring-cloud-starter-gateway` -- WebFlux on a Netty event loop, stateless, with no database. bizTree is
+blocking throughout: H2 JDBC to serve the tree, JDBC to Postgres/Oracle for the cache load and the
+night-watch reconcile, JMS for the broadcast, plus the Taijitu monad workers. **Blocking work on an event
+loop stalls the whole gateway for every route, not just the tree route** -- an availability problem at the
+ingress, not a latency one. Solvable (blocking work on its own scheduler; the monads already own their
+threads), but real engineering that has to be right.
+
+**The second consequence: the gateway stops being stateless.** It gains two tree copies in H2, a database
+pool and a broker consumer. Three follow-ons:
+
+- **Scaling multiplies caches.** The gateway scales with API traffic, the cache with tree size and write
+  rate -- unrelated drivers, now coupled. N gateway copies means N tree caches and N night-watch sweeps.
+- **Blast radius** -- a bizTree defect takes routing down for everything.
+- **Startup** -- the gateway would need the database before it is healthy; today it can start without one.
+
+**Verdict: right for the COMPACT profile, wrong as a general architecture change.** In a small deployment
+at two copies, not scaled for traffic, none of those objections bite, and a wider blast radius is the trade
+this profile already makes. That is exactly why it is a *profile* and not a redesign.
+
+**It also gives the compact setup a principled shape -- three tiers by responsibility**, rather than
+merging whatever happens to fit:
+
+| tier | contains |
+|-------------------|--------------------------------------------------|
+| edge / read | gateway + bizTree cache -- auth, routing, tree reads |
+| household / write | Mesnie3 -- enyMan + keySmith + kcMaster |
+| accounting | pacMan |
+
+plus the BFF, with audit in-process or on triggers so no audit service exists.
+
+**The profile ladder this suggests** (at two copies each):
+
+| profile | shape | pods |
+|---------|-------|------|
+| full | 8 processes: gateway, bizTree, enyMan, keySmith, kcMaster, pacMan, auKeep, BFF | **16** |
+| compact | gateway+bizTree, Mesnie3, pacMan, BFF; auKeep not deployed (audit option b) | **8** |
+| super-compact | as compact, audit dropped to DB triggers (option a) | **8**, no audit bus |
+
+### What the compact setup buys -- six services become two
+
+**bizTree, enyMan, keySmith, kcMaster, auKeep and the gateway -- six -- become two:** `gateway+bizTree`
+(edge / read) and `Mesnie3` (household / write), with auKeep not deployed at all. pacMan and the BFF are
+untouched. **Scaling stays in place** -- the two tiers still run at two or more copies.
+
+Beyond the pod count, two things get genuinely simpler. Both are worth stating at their true size:
+
+**1. The cross-service concurrency around kcMaster goes away.** Today a user CREATE and its path broadcast
+reach kcMaster by two different routes -- the KC request queue and the entity topic -- and may arrive in
+either order. That is exactly why the kcMaster path buffer exists: it parks a path while the KeyCloak user does not
+exist yet, and `KcRequestHandler` takes over once it does. Under one roof that hand-off is an in-memory,
+locally ordered step instead of a time-of-check race across a broker, and the deep `esquire.kc.request`
+queue disappears with it.
+
+> **Draw the boundary honestly: this removes CROSS-SERVICE races, not CROSS-COPY ones.** At two copies
+> Mesnie3 is still two processes, so the multi-instance concerns (the Goal-4 / race-8b territory, the
+> entity-id instance digit, rod-id routing) are unchanged. Claiming both would be an overclaim.
+
+**2. The gateway-to-bizTree round trip disappears** -- but its value is not mainly speed. The latency saved
+is one intra-cluster hop, small against a client round trip our own OKE measurements put at roughly 55 ms
+dominated by network distance. **The real gain is that a whole failure mode is deleted:** that route needs
+a timeout, a circuit breaker and a resilience budget, and it can fail, retry and time out. Removing the
+route removes its configuration and its failure paths. That belongs under *less to support*, not under
+*faster*.
+
+**And the nuance on scaling:** the two tiers now scale as units, and scaling the edge tier multiplies tree
+caches -- the gateway scales with API traffic while the cache scales with tree size. Harmless at the sizes
+this profile targets, but it should not surprise anyone.
+
+### Does the compact setup help the cloud budget?
+
+It helps the **footprint** reliably, and the **bill** only under one condition. Worth stating so the item
+is not sold on the wrong number.
+
+On OKE every Java service reserves the same thing (`k8s-oci/values/*.yaml`): `requests` 100m CPU / 512Mi,
+`limits` 750m CPU / 768Mi. Six pods reserve **600m CPU and 3 GiB**. The two compact pods need more than
+512Mi each -- they carry three services' work -- but not three times it: one JVM means one heap, one
+metaspace with the framework classes loaded once instead of three times, one set of GC and JIT threads,
+one actuator, one health probe. Call it **~600m CPU and ~1-1.5 GiB of reservation freed**.
+
+- **The bill follows nodes, not pods.** A1.Flex is charged by OCPU-hour and GB-hour on the *node shape*, so
+  freeing reservation changes the invoice only if it lets a node shrink or go away. Below that threshold
+  the nodes are simply emptier.
+- **The load balancer, block storage and egress are untouched** -- and on a small cluster the load balancer
+  is usually the largest recurring line. That caps how much any of this can save.
+- **A real gain that is not in the arithmetic:** today each of the three is capped at 750m and cannot lend
+  headroom to the others -- one can throttle while its neighbours idle. Under one roof that burst capacity
+  is pooled. Better utilisation, not merely less reservation.
+- **On a fixed free allocation the effect is different and better:** there "budget" means *fitting*, and the
+  freed room is what lets something else run inside the same zero -- which matters while observability has
+  to be switched on and torn back down to stay there.
+
+**The cost, stated plainly:** the three lose independent restart and independent scaling, and one crash
+takes the whole household down together. Scaling granularity is the case where the compact setup costs
+more rather than less: if enyMan needs another copy under load, keySmith and kcMaster are scaled with it.
+Bin-packing too -- one larger pod needs a single node with room, where three small ones can spread. That is the trade being made for the pod count.
+
+**Logo note, so it is not forgotten:** a **two- or three-keep castle** -- one keep per collocated service,
+so the mark itself says which composition was deployed. Heraldic, sits beside the existing helm, and stays
+readable small.

@@ -4,9 +4,6 @@
  *
  *  Copyright(c) 2001, 2026 mir0n&co www.mir0n.pro
  *  mailto:mir0n.the.programmer@gmail.com
- *
- *  History:
- * 07/15/2026 mir0n  created (v1.2.11 T11/I32): proves the auto-reset guard actually runs between tests.
  */
 package pro.mir0n.esquire.backend.o11y;
 

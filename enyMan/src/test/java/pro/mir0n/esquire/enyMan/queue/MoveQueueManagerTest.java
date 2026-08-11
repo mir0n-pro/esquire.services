@@ -179,7 +179,7 @@ class MoveQueueManagerTest {
 
         verify(pathLookup).pathFor("parent-7");
         verify(pathLookup, never()).updatePath(anyString(), anyString());
-        verify(publisher, never()).publish(anyInt(), anyString(), anyString(), any(), any(), any());
+        verify(publisher, never()).publish(anyInt(), anyString(), anyString(), any(), any(), any(), any());
     }
 
     // ---- reconcile: drift detected ----
@@ -190,6 +190,8 @@ class MoveQueueManagerTest {
         // CREATE was published with "1.5.7." but the parent has since moved to "1.9.200.7."
         when(pathLookup.pathFor("parent-7")).thenReturn("1.9.200.7.");
         when(pathLookup.updatePath(eq("acct-42"), eq("1.9.200.7."))).thenReturn(1);
+        // updatePath raises ep_change_no inline, so the worker reads it back and the reissue carries it.
+        when(pathLookup.pathChangeNoFor("acct-42")).thenReturn(5L);
 
         // The item carries the originating create's cid/rid; the worker stamps them itself and the
         // reissued broadcast is published under them (no leftover-MDC dependency).
@@ -201,7 +203,7 @@ class MoveQueueManagerTest {
         ArgumentCaptor<Map<String, Object>> textCapt =
                 org.mockito.ArgumentCaptor.forClass(Map.class);
         verify(publisher).publish(eq(50), eq("acct-42"), eq(BusConstants.EVENT_UPDATE_PATH),
-                eq("create-rid"), eq("create-cid"), textCapt.capture());
+                eq("create-rid"), eq("create-cid"), textCapt.capture(), eq(5L));
         Map<String, Object> text = textCapt.getValue();
         assertThat(text).containsEntry(EsqConstants.TEXT_ID, "acct-42")
                         .containsEntry(EsqConstants.TEXT_KIND, 50)
@@ -220,13 +222,14 @@ class MoveQueueManagerTest {
 
         when(pathLookup.pathFor("parent-7")).thenReturn("1.9.200.7.");
         when(pathLookup.updatePath(eq("acct-42"), eq("1.9.200.7."))).thenReturn(1);
+        when(pathLookup.pathChangeNoFor("acct-42")).thenReturn(5L);
 
         CreateReconcileItem item = new CreateReconcileItem("acct-42", 50, "parent-7", "1.5.7.",
                 "create-cid", "create-rid");
         manager.process(item);
 
         verify(publisher).publish(eq(50), eq("acct-42"), eq(BusConstants.EVENT_UPDATE_PATH),
-                eq("create-rid"), eq("create-cid"), any());
+                eq("create-rid"), eq("create-cid"), any(), eq(5L));
         assertThat(MDC.get(EsqConstants.PD_CORRELATION_ID)).isNull();
         assertThat(MDC.get(EsqConstants.PD_REQUEST_ID)).isNull();
     }
@@ -241,6 +244,6 @@ class MoveQueueManagerTest {
         manager.process(item);
 
         verify(pathLookup, never()).updatePath(anyString(), anyString());
-        verify(publisher, never()).publish(anyInt(), anyString(), anyString(), any(), any(), any());
+        verify(publisher, never()).publish(anyInt(), anyString(), anyString(), any(), any(), any(), any());
     }
 }

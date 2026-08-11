@@ -4,11 +4,6 @@
  *
  *  Copyright(c) 2001, 2026 mir0n&co www.mir0n.pro
  *  mailto:mir0n.the.programmer@gmail.com
- *
- *  History:
- * 07/01/2026 mir0n  created: WorkerPool tests -- the three thread models (platform | virtual | virtual-per-task),
- *                   the bounded submit, the size>=1 fail-fast for the fixed-pool modes, and the per-task uncapped
- *                   (size 0) case.
  */
 package pro.mir0n.utils.concurrent;
 

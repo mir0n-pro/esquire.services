@@ -1,5 +1,22 @@
 mir0n java common frameworks -- pro.mir0n.utils
 
+08/11/2026 mir0n  v1.2.12 -- entity change number
+concurrent.ExpiringCache  (new)
+  - generic hand-off cache whose entries expire by age -- a ConcurrentHashMap with a timestamp per entry,
+    one daemon prune thread and a lazy age check on read, so an un-started cache is still correct.
+    store() parks a value, consume() takes it away, storeIfGreater() parks only when the arrival compares
+    greater than what is there, in one atomic merge. The value type is Comparable, so the cache needs no
+    comparator and never learns what its callers order by
+taijitu.ITaijituRig
+  - onEntityBroadcast gains a changeNo parameter, with an unnumbered default overload for producers that
+    report none
+taijitu.ATaijituRig
+  - onEntityBroadcast takes the change number and puts it on the QueueItem
+taijitu.ATaijituRigY
+  - onEntityBroadcast takes the change number and puts it on the QueueItem
+taijitu.QueueItem
+  - changeNo component added, plus a traced-but-unnumbered constructor; the no-trace constructor passes
+    null for both
 
 07/14/2026 mir0n  v1.2.11 -- BoundedQueueRig: the producer's wait on a FULL queue is its own knob, and can be endless (T10)
 concurrent.BoundedQueueRig

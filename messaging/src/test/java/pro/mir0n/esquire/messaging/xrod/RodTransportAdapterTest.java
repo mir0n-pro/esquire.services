@@ -36,7 +36,7 @@ class RodTransportAdapterTest {
     }
 
     private static RodEvent event() {
-        return new RodEvent(RodEvent.Op.UPDATE, 50, "100", null, 123L, "crl", "req", "uid",
+        return new RodEvent(RodEvent.Op.UPDATE, 50, "100", null, null, 123L, "crl", "req", "uid",
                 null, BusConstants.MSG_TYPE_AUDIT, Map.of("name", "ACC", "balance", 10));
     }
 

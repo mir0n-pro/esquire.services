@@ -278,7 +278,7 @@ required leg config — see the facade), `configure` (PREPARE), `init(name, devL
 
 The per-rod **`idle()`** maintenance step — fired by the one `MessagingBus` idle ticker on every rod — drives
 the session-sublayer cadence (the alive heartbeat, the send-retry re-send). The alive keep-alive and the R&R
-echo are NO LONGER x-rod hooks; they live in the session sublayers below. (Base `XRod` always opens a transmit
+echo are NOT x-rod hooks; they live in the session sublayers below. (Base `XRod` always opens a transmit
 leg, so even a broadcast consumer has a producer leg to self-heartbeat.)
 
 `shutdown()` stops delivery first (closes the inbound transport consumer), winds the feed down, then DRAINS
@@ -518,7 +518,9 @@ an R&R rod (which already selects by rod-id / slot-id) warns and ignores it.
   retained log) do not share. Turning broker redelivery ON (a transacted consumer + a DLQ destination) would
   add at-least-once durability for a failed apply, but at the cost of requiring **idempotent consumers**
   (a consumer that dedups on its own key) and vendor-specific config — a trade, not a strict
-  improvement.
+  improvement. The `ChangeNo` on the header is such a key: it names a version of a row, so a receiver that
+  compares it against what it already applied is idempotent whatever the transport does — which is how the
+  bizTree cache and the audit log both behave.
 
 #### `tp-kafka` (topic)
 
@@ -554,8 +556,11 @@ bus-id — a test / disabled / in-process leg — gets none, and every call is a
 `TX` at the send OUTCOME (the message actually went out), the receive leg logs `RX`:
 
 ```
-<TX|RX> | <msgType> | <op> | <kind> | <entityId> | <subId> | <rodId> | <requestId>
+<TX|RX> | <msgType> | <op> | <kind> | <entityId> | <subId> | <changeNo> | <rodId> | <requestId>
 ```
+
+`changeNo` prints as `-` when the message carries none — a session message, or any event with no row behind
+it. **Absent is not zero**, and the line says so rather than inventing a number.
 
 A failed dispatch logs a `TX-ERR` line with the CAUSE (the transport exception), one per failed attempt:
 
@@ -662,12 +667,24 @@ body in a single `Text` JSON field. Per-send envelope meta (`ApplMsgID`, `Sendin
 driver at publish. The relayed event:
 
 ```java
-record RodEvent(Op op, int kind, String entityId, String subId, long actionTime,
-                String correlationId, String requestId, String uid, String rodId, String msgType,
-                Map<String,Object> body) { enum Op { CREATE, UPDATE, DELETE, UPDATE_PATH } }
+record RodEvent(
+        // identity: the row this change touched, plus WHICH change of it
+        Op op, int kind, String entityId, String subId, Long changeNo,
+        // header
+        long actionTime, String correlationId, String requestId, String uid, String rodId, String msgType,
+        // payload
+        Map<String,Object> body,
+        // optional tail: stamped by the ENGINE, never by a producer
+        String bodyText, String applMsgId, String traceparent
+) { enum Op { CREATE, UPDATE, DELETE, UPDATE_PATH } }
 ```
 
 `op` maps to the wire `EventType` code via `opCode()` (`C` / `U` / `D` / `X`).
+
+The tail is filled in `AXRod` on the send path: `traceparent` from the outbound tracer, then `applMsgId` —
+a UUID, set only when the event does not already carry one, so every re-send of a held event keeps the same
+id. `bodyText` is a ready-made JSON body (a session message rides one); `RodEventCodec` writes it straight
+to `Text` when present, and serializes the `body` map otherwise.
 
 ### Wire field registry (FIX-JSON)
 
@@ -688,14 +705,20 @@ wire constants — the non-wire application constants live in `common.EsqConstan
 | `EntityKind` | `50006` | event | the change's kind (routing) |
 | `EntityID` | `50007` | event | the changed entity id |
 | `SubID` | `50011` | event | sub-row discriminator (else null) |
+| `ChangeNo` | `50015` | event | which version of the row — C/U/D carry the entity number, X the path number |
 | `ActionTime` | `50013` | event | epoch-ms stamped at the producer |
 | `CorrelationID` | `50009` | event | cross-service correlation id |
 | `RequestID` | `50008` | event | request trace id / correlation key |
 | `TestReqID` | `112` | `= RequestID` | echo, retained for wire shape |
 | `Uid` | `50012` | event | the acting user id |
 | `Text` | `58` | body | the body, JSON |
+| `TraceParent` | `50014` | event | W3C trace context, so a consumer's work nests in the originating trace |
 | `ApplMsgID` | `1181` | driver | unique per-send message id |
 | `SendingTime` | `52` | driver | per-send timestamp |
+
+**`SchemaVersion` stays at `1` while fields are added.** The codec rejects a *different* version but
+tolerates an *absent* field, so an older message simply arrives without the newer ones. Bumping the version
+would be a hard cut-over with no rolling upgrade — adding an optional field does not need one.
 
 ### Per-transport encoding
 
@@ -793,9 +816,12 @@ record XRodParams(String busId, String slotId, Map<String,Object> raw) {
     // getters: rodId / rodClassOr / feedCapacityOr / concurrencyOr / receiverPoolSizeOr / receiverPoolMode / publisherPoolSizeOr / publisherPoolMode
     List<String> SCALARS;
 }
-record RodEvent(RodEvent.Op op, int kind, String entityId, String subId, long actionTime,
-                String correlationId, String requestId, String uid, String rodId, String msgType,
-                Map<String,Object> body) { enum Op { CREATE, UPDATE, DELETE, UPDATE_PATH } }
+record RodEvent(RodEvent.Op op, int kind, String entityId, String subId, Long changeNo,       // identity
+                long actionTime, String correlationId, String requestId, String uid,
+                String rodId, String msgType,                                                // header
+                Map<String,Object> body,                                                     // payload
+                String bodyText, String applMsgId, String traceparent)                       // engine-stamped tail
+                { enum Op { CREATE, UPDATE, DELETE, UPDATE_PATH } }
 final class RodEventCodec { static Map<String,Object> toProps(RodEvent e, ObjectMapper om, BusIdentity id);
                             static RodEvent fromProps(Map<String,Object> p, ObjectMapper om); }
 interface RodPublisher extends Consumer<RodEvent>, AutoCloseable { }                 // closeable transmit-leg outbound

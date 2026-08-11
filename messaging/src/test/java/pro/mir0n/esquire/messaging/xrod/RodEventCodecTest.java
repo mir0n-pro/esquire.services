@@ -4,12 +4,6 @@
  *
  *  Copyright(c) 2001, 2026 mir0n&co www.mir0n.pro
  *  mailto:mir0n.the.programmer@gmail.com
- *
- *  History:
- * 06/06/2026 mir0n  created: round-trip tests for the x-Rod option (c) wire codec.
- * 06/13/2026 mir0n  +identity test: slot-id / ctrl-id are config-driven (toProps args).
- * 06/14/2026 mir0n  identity is a BusIdentity (bus-id / slot-id / rod-id); the msg-type rides ON the event
- *                   (e.msgType()) -- the test exercises both buses (RDA / UE) through the codec.
  */
 package pro.mir0n.esquire.messaging.xrod;
 
@@ -36,7 +30,7 @@ class RodEventCodecTest {
         body.put("ccy", "USD");
         body.put("status", "O");
         body.put("etPk", 50);
-        RodEvent in = new RodEvent(RodEvent.Op.UPDATE, 50, "100", null, 1717000000123L,
+        RodEvent in = new RodEvent(RodEvent.Op.UPDATE, 50, "100", null, null, 1717000000123L,
                 "crl-1", "req-1", "uid-9", null, BusConstants.MSG_TYPE_AUDIT, body);
 
         RodEvent out = RodEventCodec.fromProps(RodEventCodec.toProps(in, om,
@@ -56,7 +50,7 @@ class RodEventCodecTest {
 
     @Test
     void traceparentRidesTheWireOnAppEventsAndIsNullWhenAbsent() {
-        RodEvent in = new RodEvent(RodEvent.Op.UPDATE, 50, "100", null, 1717000000123L,
+        RodEvent in = new RodEvent(RodEvent.Op.UPDATE, 50, "100", null, null, 1717000000123L,
                 "0af7651916cd43dd8448eb211c80319c", "req-1", "uid-9", null, BusConstants.MSG_TYPE_AUDIT, Map.of())
                 .withTraceparent("00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01");
 
@@ -65,7 +59,7 @@ class RodEventCodecTest {
         assertThat(out.traceparent()).isEqualTo("00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01");
 
         // no traceparent set -> the wire carries none, and the decoded event has none.
-        RodEvent bare = new RodEvent(RodEvent.Op.UPDATE, 50, "100", null, 1L,
+        RodEvent bare = new RodEvent(RodEvent.Op.UPDATE, 50, "100", null, null, 1L,
                 "crl-x", "req-x", "uid-x", null, BusConstants.MSG_TYPE_AUDIT, Map.of());
         Map<String, Object> props = RodEventCodec.toProps(bare, om, new BusIdentity("audit-bus", "audit", null));
         assertThat(props).doesNotContainKey(BusConstants.FIELD_TRACEPARENT);
@@ -93,7 +87,7 @@ class RodEventCodecTest {
 
     @Test
     void deleteRoundTripHasEmptyBodyAndKeepsSubId() {
-        RodEvent in = new RodEvent(RodEvent.Op.DELETE, 988, "200", "777", 5L,
+        RodEvent in = new RodEvent(RodEvent.Op.DELETE, 988, "200", "777", null, 5L,
                 "crl-2", "req-2", null, null, BusConstants.MSG_TYPE_AUDIT, Map.of());
 
         RodEvent out = RodEventCodec.fromProps(RodEventCodec.toProps(in, om,
@@ -174,7 +168,7 @@ class RodEventCodecTest {
     @Test
     void identityAndMsgTypeRideTheEnvelope() {
         // the transport identity (bus-id / slot-id / rod-id) + the event's msg-type ride the envelope
-        RodEvent audit = new RodEvent(RodEvent.Op.UPDATE, 50, "100", null, 1L, "crl", "req", "uid",
+        RodEvent audit = new RodEvent(RodEvent.Op.UPDATE, 50, "100", null, null, 1L, "crl", "req", "uid",
                 null, BusConstants.MSG_TYPE_AUDIT, Map.of());
         Map<String, Object> auditProps = RodEventCodec.toProps(audit, om,
                 new BusIdentity("audit-bus", "eny-rod", "ctrl-7"));
@@ -184,7 +178,7 @@ class RodEventCodecTest {
         assertThat(auditProps).containsEntry(BusConstants.FIELD_MSG_TYPE, BusConstants.MSG_TYPE_AUDIT);
 
         // a DIFFERENT bus + msg-type rides the SAME codec unchanged; a blank rod-id is omitted
-        RodEvent bcast = new RodEvent(RodEvent.Op.UPDATE, 50, "100", null, 1L, "crl", "req", "uid",
+        RodEvent bcast = new RodEvent(RodEvent.Op.UPDATE, 50, "100", null, null, 1L, "crl", "req", "uid",
                 null, BusConstants.MSG_TYPE_ENTITY_BROADCASTS, Map.of());
         Map<String, Object> bcastProps = RodEventCodec.toProps(bcast, om,
                 new BusIdentity("esquire.entity", "entity", ""));
@@ -247,5 +241,58 @@ class RodEventCodecTest {
         assertThat(out.msgType()).isEqualTo(BusConstants.MSG_TYPE_HEARTBEAT);
         assertThat(out.rodId()).isEqualTo("client.3");
         assertThat(out.requestId()).isEqualTo("corr-tr");
+    }
+
+    // --- v1.2.12: the (sub)entity change number on the wire (ChangeNo, tag 50015) ---
+
+    @Test
+    void changeNoRoundTrips() {
+        RodEvent in = new RodEvent(RodEvent.Op.UPDATE, 34, "100", null, 7L, 1717000000123L,
+                "crl-1", "req-1", "uid-9", null, BusConstants.MSG_TYPE_AUDIT, Map.of());
+
+        Map<String, Object> props = RodEventCodec.toProps(in, om, new BusIdentity("audit-bus", "audit", null));
+        assertThat(props).containsEntry(BusConstants.FIELD_CHANGE_NO, 7L);
+
+        assertThat(RodEventCodec.fromProps(props, om).changeNo()).isEqualTo(7L);
+    }
+
+    @Test
+    void changeNoAbsentStaysNullAndIsNotWrittenToTheWire() {
+        // A producer with no row behind the event supplies none. Absent must NOT decode as 0: a receiver
+        // guarding on "greater wins" would otherwise treat an unknown number as the lowest possible value.
+        RodEvent in = new RodEvent(RodEvent.Op.UPDATE, 34, "100", null, null, 1717000000123L,
+                "crl-1", "req-1", "uid-9", null, BusConstants.MSG_TYPE_AUDIT, Map.of());
+
+        Map<String, Object> props = RodEventCodec.toProps(in, om, new BusIdentity("audit-bus", "audit", null));
+        assertThat(props).doesNotContainKey(BusConstants.FIELD_CHANGE_NO);
+
+        assertThat(RodEventCodec.fromProps(props, om).changeNo()).isNull();
+    }
+
+    @Test
+    void changeNoSurvivesAsAStringOnTheWire() {
+        // ActiveMQ carries every non-Integer property as a String (jms/Utils.setProps), so the decoder must
+        // accept the string form and still yield the number.
+        Map<String, Object> props = RodEventCodec.toProps(
+                new RodEvent(RodEvent.Op.UPDATE, 34, "100", null, 42L, 1717000000123L,
+                        "crl-1", "req-1", "uid-9", null, BusConstants.MSG_TYPE_AUDIT, Map.of()),
+                om, new BusIdentity("audit-bus", "audit", null));
+        props.put(BusConstants.FIELD_CHANGE_NO, "42");          // as ActiveMQ would hand it back
+
+        assertThat(RodEventCodec.fromProps(props, om).changeNo()).isEqualTo(42L);
+    }
+
+    @Test
+    void changeNoIsPreservedByTheEngineStamps() {
+        // applMsgId and traceparent are stamped by the engine AFTER the producer set the change number in the
+        // constructor -- both withX() copiers must carry it through, or the number is lost on the send path.
+        RodEvent e = new RodEvent(RodEvent.Op.UPDATE, 34, "100", null, 5L, 1717000000123L,
+                "crl-1", "req-1", "uid-9", null, BusConstants.MSG_TYPE_AUDIT, Map.of())
+                .withApplMsgId("msg-1")
+                .withTraceparent("00-aaaa-bbbb-01");
+
+        assertThat(e.changeNo()).isEqualTo(5L);
+        assertThat(e.applMsgId()).isEqualTo("msg-1");
+        assertThat(e.traceparent()).isEqualTo("00-aaaa-bbbb-01");
     }
 }

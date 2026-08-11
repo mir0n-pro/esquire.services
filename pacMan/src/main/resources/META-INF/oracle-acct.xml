@@ -16,6 +16,7 @@
      ,acc_usr_pk
      ,TO_CHAR(acc_funded_dt, 'YYYY-MM-DD') AS acc_funded_dt
      ,acct_neg_allowed_flg
+    ,acc_change_no
  FROM esq_account
  JOIN esq_entity_path ON ep_pk = acc_pk
  WHERE acc_pk = :id
@@ -35,6 +36,7 @@
      ,acc_usr_pk
      ,TO_CHAR(acc_funded_dt, 'YYYY-MM-DD') AS acc_funded_dt
      ,acct_neg_allowed_flg
+    ,acc_change_no
  FROM esq_account
  JOIN esq_entity_path ON ep_pk = acc_pk
  WHERE acc_pk = :id
@@ -55,6 +57,7 @@
  UPDATE esq_account
  SET acc_balance = :balance
     ,acc_funded_dt = COALESCE(acc_funded_dt, SYSDATE)
+    ,acc_change_no = :changeNo
     ,acc_crl_id  = :correlationId
     ,acc_req_id  = :requestId
     ,acc_uid     = :uid
@@ -81,6 +84,7 @@
     ,acc_ccy = :ccy
     ,acc_status = :status
     ,acct_neg_allowed_flg = :negativeAllowed
+    ,acc_change_no = :changeNo
     ,acc_crl_id = :correlationId
     ,acc_req_id = :requestId
     ,acc_uid = :uid
@@ -100,6 +104,7 @@
             <field-result name="parentId" column="acc_usr_pk"/>
             <field-result name="fundedDate" column="acc_funded_dt"/>
             <field-result name="negativeAllowed" column="acct_neg_allowed_flg"/>
+            <field-result name="changeNo" column="acc_change_no"/>
         </entity-result>
     </sql-result-set-mapping>
 

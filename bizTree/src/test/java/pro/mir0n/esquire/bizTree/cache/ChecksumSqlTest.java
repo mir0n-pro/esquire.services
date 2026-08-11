@@ -35,7 +35,8 @@ class ChecksumSqlTest {
         jt.execute("CREATE TABLE " + table + " (TREE_PK VARCHAR(33) PRIMARY KEY, TREE_ET_PK INT DEFAULT 0, " +
                 "TREE_NAME VARCHAR(50), TREE_DESC VARCHAR(1024), TREE_TREE_PK_PARENT VARCHAR(33), " +
                 "TREE_TREE_PK_LINK VARCHAR(33), TREE_ENTITY_PK BIGINT, TREE_LEVEL INT, " +
-                "TREE_PATH VARCHAR(2000), TREE_ENTITY_PATH VARCHAR(2000), TREE_STATUS INT DEFAULT 0)");
+                "TREE_PATH VARCHAR(2000), TREE_ENTITY_PATH VARCHAR(2000), TREE_STATUS INT DEFAULT 0, " +
+                "TREE_ENTITY_CHANGE_NO BIGINT, TREE_PATH_CHANGE_NO BIGINT)");
     }
 
     private static void insert(JdbcTemplate jt, String table, String pk, int et, String name) {

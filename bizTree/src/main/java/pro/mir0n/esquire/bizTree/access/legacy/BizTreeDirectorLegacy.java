@@ -26,6 +26,8 @@
  * 07/09/2026 mir0n  v1.2.11 -- onEntityBroadcast() signature gains a traceparent parameter (unused: the legacy
  *                   apply is synchronous on the receive thread); the H2 apply wrapped in
  *                   EsqTraceMark.around("esq.svc.cache", "cache apply", ...)
+ * 08/11/2026 mir0n  v1.2.12 -- onEntityBroadcast takes the change number and passes it to
+ *                   handlerHub.dispatch
  */
 package pro.mir0n.esquire.bizTree.access.legacy;
 
@@ -139,12 +141,12 @@ public class BizTreeDirectorLegacy implements IBizTreeDirector {
     @Override
     public void onEntityBroadcast(String eventType, String entityId, int entityKind,
                                   String requestId, String correlationId, java.util.Map<String, Object> body,
-                                  String traceparent) {
+                                  String traceparent, Long changeNo) {
         // The body arrives already parsed (decoded upstream by the codec); just adapt the map to a tree.
         // Legacy applies SYNCHRONOUSLY on the receive thread (no monad queue), so it is already inside the
         // "receive from <bus>" span -- mark the H2 apply and it nests naturally (traceparent unused here).
         JsonNode textNode = (body == null) ? null : objectMapper.valueToTree(body);
         EsqTraceMark.around("esq.svc.cache", "cache apply", () ->
-                handlerHub.dispatch(eventType, entityId, entityKind, textNode));
+                handlerHub.dispatch(eventType, entityId, entityKind, textNode, changeNo));
     }
 }

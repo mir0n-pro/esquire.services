@@ -14,6 +14,9 @@
  * 06/22/2026 mir0n  IXRod / RodEvent imports moved to messaging.xrod; the audit x-rod passed in is the one the
  *                   facade builds (MessagingBus.getXRod).
  * 06/23/2026 mir0n  EsqMsgConstants wire constants -> messaging.BusConstants (references repointed)
+ * 08/11/2026 mir0n  v1.2.12 -- post() carries the row's change number onto the event header: the IMappable
+ *                   overload reads it from the source (passed on a DELETE too, where the body is dropped),
+ *                   and a new overload takes it with a pre-mapped body
  */
 package pro.mir0n.esquire.audit;
 
@@ -53,7 +56,9 @@ public final class AuditBusBridge {
         return xrod.isEnabled();
     }
 
-    /** Post an entity / param row directly: its fields are mapped into the event body (skipped for a DELETE). */
+    /** Post an entity / param row directly: its fields are mapped into the event body (skipped for a DELETE),
+     *  and its CHANGE NUMBER is taken from the row and carried on the header. Pass the source on a DELETE too --
+     *  the body is dropped but the number still travels, which is the only way a delete record gets one. */
     public void post(RodEvent.Op op, int kind, String entityId, String subId, IMappable source) {
         if (xrod.isEnabled()) {
             Map<String, Object> body = null;
@@ -61,21 +66,29 @@ public final class AuditBusBridge {
                 body = new HashMap<>();
                 source.fillMap(body);
             }
-            post(op, kind, entityId, subId, body);
+            post(op, kind, entityId, subId, body, source != null ? source.getChangeNo() : null);
         }
     }
 
-    /** Post with no body (e.g. a DELETE). */
+    /** Post with no body and no change number. */
     public void post(RodEvent.Op op, int kind, String entityId, String subId) {
-        post(op, kind, entityId, subId, (Map<String, Object>) null);
+        post(op, kind, entityId, subId, (Map<String, Object>) null, null);
     }
 
     /** Post a pre-mapped body. Buffers in the active transaction (flushed after commit); transmits immediately
      *  when no transaction is active. The event always carries msg-type {@code MSG_TYPE_AUDIT}. */
     public void post(RodEvent.Op op, int kind, String entityId, String subId, Map<String, Object> body) {
+        post(op, kind, entityId, subId, body, null);
+    }
+
+    /** Post a pre-mapped body and the row's change number. Buffers in the active transaction (flushed after
+     *  commit); transmits immediately when no transaction is active. The event always carries msg-type
+     *  {@code MSG_TYPE_AUDIT}, and the change number rides the header, never the body. */
+    public void post(RodEvent.Op op, int kind, String entityId, String subId,
+                     Map<String, Object> body, Long changeNo) {
         if (xrod.isEnabled()) {
             if (!TransactionSynchronizationManager.isSynchronizationActive()) {
-                xrod.transmit(new RodEvent(op, kind, entityId, subId, System.currentTimeMillis(),
+                xrod.transmit(new RodEvent(op, kind, entityId, subId, changeNo, System.currentTimeMillis(),
                         crl(), req(), uid(), null, BusConstants.MSG_TYPE_AUDIT, normalizeBody(op, body)));
             } else {
                 List<Entry> buf = buffer.get();
@@ -84,7 +97,7 @@ public final class AuditBusBridge {
                     buffer.set(buf);
                     TransactionSynchronizationManager.registerSynchronization(new FlushOnCommit());
                 }
-                buf.add(new Entry(op, kind, entityId, subId, normalizeBody(op, body)));
+                buf.add(new Entry(op, kind, entityId, subId, normalizeBody(op, body), changeNo));
             }
         }
     }
@@ -109,7 +122,8 @@ public final class AuditBusBridge {
     }
 
     /** One buffered change in the current transaction (one entry per posted entity), flushed after commit. */
-    private record Entry(RodEvent.Op op, int kind, String entityId, String subId, Map<String, Object> body) { }
+    private record Entry(RodEvent.Op op, int kind, String entityId, String subId, Map<String, Object> body,
+                         Long changeNo) { }
 
     /** After the caller's transaction commits: stamp one actionTime, snapshot the request context, and transmit
      *  the buffered events OUT of the transaction. Cleared on completion (commit OR rollback). */
@@ -123,8 +137,8 @@ public final class AuditBusBridge {
                 String req = req();
                 String uid = uid();
                 for (Entry e : buf) {
-                    xrod.transmit(new RodEvent(e.op(), e.kind(), e.entityId(), e.subId(), actionTime,
-                            crl, req, uid, null, BusConstants.MSG_TYPE_AUDIT, e.body()));
+                    xrod.transmit(new RodEvent(e.op(), e.kind(), e.entityId(), e.subId(), e.changeNo(),
+                            actionTime, crl, req, uid, null, BusConstants.MSG_TYPE_AUDIT, e.body()));
                 }
             }
         }

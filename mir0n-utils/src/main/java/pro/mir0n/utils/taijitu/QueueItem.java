@@ -13,6 +13,8 @@
  * 06/14/2026 mir0n  carries the already-PARSED body (a generic Map) instead of the raw (messageEncoding +
  *                   text): the wire decode happens upstream (the codec, off the worker), so the monad
  *                   applies the map directly with no re-parse. Stays a generic record -- no esquire types.
+ * 08/11/2026 mir0n  v1.2.12 -- changeNo component added, plus a traced-but-unnumbered constructor; the
+ *                   no-trace constructor passes null for both
  */
 package pro.mir0n.utils.taijitu;
 
@@ -35,12 +37,20 @@ public record QueueItem(String eventType,
                         String requestId,
                         String correlationId,
                         Map<String, Object> body,
-                        String traceparent) {
+                        String traceparent,
+                        Long   changeNo) {
 
-    /** The historical shape (no traceparent) -- commands and callers that carry no trace context; the
-     *  monad worker then applies the item with no async trace continuation. */
+    /** The historical shape (no traceparent, no change number) -- commands and callers that carry
+     *  neither; the monad worker then applies the item with no async trace continuation and no
+     *  freshness guard. */
     public QueueItem(String eventType, String entityId, int entityKind, String requestId,
                      String correlationId, Map<String, Object> body) {
-        this(eventType, entityId, entityKind, requestId, correlationId, body, null);
+        this(eventType, entityId, entityKind, requestId, correlationId, body, null, null);
+    }
+
+    /** Traced but unnumbered -- a producer that carries trace context but no change number. */
+    public QueueItem(String eventType, String entityId, int entityKind, String requestId,
+                     String correlationId, Map<String, Object> body, String traceparent) {
+        this(eventType, entityId, entityKind, requestId, correlationId, body, traceparent, null);
     }
 }

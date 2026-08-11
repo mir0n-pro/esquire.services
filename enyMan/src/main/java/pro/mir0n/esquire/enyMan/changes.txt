@@ -1,5 +1,59 @@
 Esquire enyMan Microservice
 
+08/11/2026 mir0n  v1.2.12 -- entity change number
+jpa.EntityPathLookup
+  - updatePath raises ep_change_no inline (the path table is written under one global lock, not read for
+    update per row); pathChangeNoFor() reads the raised number back
+jpa.EsqMoveRecord
+  - changeNo component added: the PATH row's number, the only number a descendant's move can carry
+jpa.EsqOrgRepository
+  - updateOrg, moveOrgParent and the org path statements take a changeNo @Param
+jpa.EsqUsrRepository
+  - the user, person, address and custom-parameter update statements take a changeNo @Param;
+    deletePersonBankInfo removed with the bank-info table
+messaging.EntityBusAdapter
+  - publish() takes the change number onto the event header and prints it on the UE line; the parameter doc
+    states which counter each event type carries
+messaging.KcBusAdapter
+  - the RodEvent constructor call carries a null change number: a KeyCloak request leg reports none
+queue.MoveQueueManager
+  - the move broadcast carries the PATH change number: taken from the move record, and read back with
+    pathChangeNoFor after a reconcile repair so the reissue is not skipped by the receiver's guard
+service.IEnyManService
+  - esquireCommandDelete returns the delete's change number for the caller's broadcast
+service.impl.EnyManService
+  - esquireCommandDelete returns the number the delete raised and publishDeleteEvent carries it; the entity
+    broadcast carries the change number on create, save and move
+service.impl.OrgService
+  - the org row's change number is raised before every update and passed to the statement; delete bumps
+    once and returns the number, which the delete event and the audit record share
+service.impl.UsrService
+  - the user, person, address and custom-parameter rows raise their change numbers before their updates;
+    delete bumps once and returns the number, which the delete event and the audit record share
+service.impl.AcctService
+  - esquireCommandDelete returns the delete's change number; a created account is stamped with 1, the
+    column default, for its CREATE event
+resources/META-INF/postgres-entity.xml
+  - the org, user, person and address reads select their *_change_no and their updates set it from
+    :changeNo; the move statements and the path update raise ep_change_no inline, and the moved-path reads
+    return it; EsqUsrJpa.deletePersonBankInfo removed
+resources/META-INF/oracle-entity.xml
+  - the same change-number reads, updates and inline path raises, matching the postgres dialect;
+    EsqUsrJpa.deletePersonBankInfo removed
+resources/META-INF/postgres-acct.xml
+  - EsqAcctJpa.updatePath raises ep_change_no inline, and the new EsqAcctJpa.pathChangeNoFor reads it back
+resources/META-INF/oracle-acct.xml
+  - EsqAcctJpa.updatePath raises ep_change_no inline and EsqAcctJpa.pathChangeNoFor reads it back, matching
+    the postgres dialect
+resources/META-INF/postgres-custom-field.xml
+  - the org and user parameter reads select *_change_no as changeNo and their updates set it from :changeNo
+resources/META-INF/oracle-custom-field.xml
+  - the same parameter change-number reads and updates, matching the postgres dialect
+resources/META-INF/audit/postgres-par.xml
+  - the parameter re-SELECTs carry *_change_no as changeNo onto the audit rows
+resources/META-INF/audit/oracle-par.xml
+  - the parameter re-SELECTs carry *_change_no as changeNo, matching the postgres dialect
+
 07/23/2026 mir0n  v1.2.11 -- homework: fix/resolve issues found in the fresh-mind audit
 jpa.EsqAcctRepository
   - acctPath() gains a rootPath @Param (tenant scope, matching orgPath/usrPath)

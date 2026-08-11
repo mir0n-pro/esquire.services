@@ -14,6 +14,7 @@
  * 03/31/2026 mir0n  insertOrgPath: kind param added; moveOrgPaths, moveOrgParent queries added
  * 04/02/2026 mir0n  lockEntityPathRoot, listMovedPaths added for move broadcast
  * 06/05/2026 mir0n  x-Rod param audit: listOrgPar re-SELECT (EsqParRow) added (feeds ORG_PAR events)
+ * 08/11/2026 mir0n  v1.2.12 -- updateOrg, moveOrgParent and the org path statements take a changeNo @Param
  */
 
 package pro.mir0n.esquire.enyMan.jpa;
@@ -47,6 +48,7 @@ public interface EsqOrgRepository extends JpaRepository<EsqOrgJpa, String> {
         @Param("name") String name,
         @Param("desc") String desc,
         @Param("fullName") String fullName,
+        @Param("changeNo") Long changeNo,
         @Param("uid") String uid,
         @Param("correlationId") String correlationId,
         @Param("requestId") String requestId
@@ -68,6 +70,7 @@ public interface EsqOrgRepository extends JpaRepository<EsqOrgJpa, String> {
     int updateCustomOrg(@Param("id") String id,
         @Param("name") String name,
         @Param("value") String value,
+        @Param("changeNo") Long changeNo,
         @Param("uid") String uid,
         @Param("correlationId") String correlationId,
         @Param("requestId") String requestId
@@ -121,6 +124,7 @@ public interface EsqOrgRepository extends JpaRepository<EsqOrgJpa, String> {
     @NativeQuery
     int moveOrgParent(@Param("id") String id,
         @Param("parentId") String parentId,
+        @Param("changeNo") Long changeNo,
         @Param("uid") String uid,
         @Param("correlationId") String correlationId,
         @Param("requestId") String requestId

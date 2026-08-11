@@ -76,6 +76,9 @@
  *                   this records that the command was ACCEPTED, not that the move succeeded -- the work happens
  *                   off-request on the queue worker (esq.biz.move.processed / failed)
  * 07/23/2026 mir0n  v1.2.11 -- submitReconcileIfInMove passes the create's cid/rid onto the CreateReconcileItem
+ * 08/11/2026 mir0n  v1.2.12 -- esquireCommandDelete returns the number the delete raised and
+ *                   publishDeleteEvent carries it; the entity broadcast carries the change number on
+ *                   create, save and move
  */
 
 package pro.mir0n.esquire.enyMan.service.impl;
@@ -302,7 +305,8 @@ public class EnyManService  extends AEnyManService {
 
     @Override
     @EsqTraced(name = "esq.svc.delete", label = "delete entity")
-    public void esquireCommandDelete(int kind, String id, String cmd, List<String> roles) {
+    public Long esquireCommandDelete(int kind, String id, String cmd, List<String> roles) {
+        Long ret = null;
         String outcome = OUTCOME_ERROR;   // esq.biz.entity.ops.total -- see meterEntityOp()
         try {
             String requestId = RequestContextUtils.requireRequestId();
@@ -324,12 +328,11 @@ public class EnyManService  extends AEnyManService {
             }
             String correlationId = RequestContextUtils.getCorrelationId();
             if (eek.isOrg()) {
-                orgService.esquireCommandDelete(k, id, cmd, roles);
-                publishDeleteEvent(id, k, BusConstants.EVENT_DELETE, requestId, correlationId);
+                ret = orgService.esquireCommandDelete(k, id, cmd, roles);
             } else if (eek.isUsr()) {
-                usrService.esquireCommandDelete(k, id, cmd, roles);
-                publishDeleteEvent(id, k, BusConstants.EVENT_DELETE, requestId, correlationId);
+                ret = usrService.esquireCommandDelete(k, id, cmd, roles);
             }
+            publishDeleteEvent(id, k, BusConstants.EVENT_DELETE, requestId, correlationId, ret);
             outcome = OUTCOME_OK;
         } catch (PermissionDeniedException e) {
             outcome = OUTCOME_DENIED;
@@ -337,6 +340,7 @@ public class EnyManService  extends AEnyManService {
         } finally {
             meterEntityOp("delete", kind, outcome);
         }
+        return ret;
     }
 
     @Override
@@ -420,13 +424,13 @@ public class EnyManService  extends AEnyManService {
     // request thread returns 202 Accepted at submit time without running the move itself.
 
     private void publishDeleteEvent(String id, int entityKind, String eventType,
-                                    String requestId, String correlationId) {
+                                    String requestId, String correlationId, Long changeNo) {
         Map<String, Object> text = new java.util.LinkedHashMap<>();
         text.put(EsqConstants.TEXT_ID,   id);
         text.put(EsqConstants.TEXT_KIND, entityKind);
         try {
             broadcastPublisher.publish(entityKind, id, eventType,
-                    requestId, correlationId, text);
+                    requestId, correlationId, text, changeNo);
         } catch (Exception e) {
             log.error("publishDeleteEvent: broadcast failed for kind={}, id={}: {}", entityKind, id, e.getMessage());
             devLog.error("publishDeleteEvent: broadcast failed for kind={}, id={}, requestId={}, correlationId={}: {}", entityKind, id, requestId, correlationId, e.getMessage(), e);
@@ -485,8 +489,9 @@ public class EnyManService  extends AEnyManService {
         if (fields.containsKey(EsqConstants.TEXT_DELETED)) text.put(EsqConstants.TEXT_DELETED, fields.get(EsqConstants.TEXT_DELETED));
         if (fields.containsKey(EsqConstants.TEXT_STATUS))  text.put(EsqConstants.TEXT_STATUS,  fields.get(EsqConstants.TEXT_STATUS));
         try {
+            // the number rides on the entity the service just built from the row it wrote
             broadcastPublisher.publish(entityKind, entity.getId(), eventType,
-                    requestId, correlationId, text);
+                    requestId, correlationId, text, entity.getChangeNo());
         } catch (Exception e) {
             log.error("publishEntityEvent: broadcast failed for kind={}, id={}: {}", entityKind, entity.getId(), e.getMessage());
             devLog.error("publishEntityEvent: broadcast failed for kind={}, id={}, requestId={}, correlationId={}: {}", entityKind, entity.getId(), requestId, correlationId, e.getMessage(), e);

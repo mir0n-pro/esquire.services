@@ -22,6 +22,9 @@
  *                   former 11-arg ctor delegates with applMsgId null (stamped once on the send path); withApplMsgId() copy
  * 07/09/2026 mir0n  v1.2.11 -- the record gains a traceparent component (last); the applMsgId-shaped
  *                   constructor leaves it null; withTraceparent(String) copy added, withApplMsgId preserves it
+ * 08/11/2026 mir0n  v1.2.12 -- changeNo component added to the identity group and to the producer
+ *                   constructor as a normal argument; the record is documented as identity / header /
+ *                   payload / engine-stamped tail
  */
 package pro.mir0n.esquire.messaging;
 
@@ -29,14 +32,26 @@ package pro.mir0n.esquire.messaging;
 import java.util.Map;
 
 /**
- * One relayed change. Identity is {@code (entityId, kind, subId)} -- the row the change
- * touched; {@code kind} routes it to an {@link IRodEventRepo} via {@link RodEventRepoRegistry}.
+ * One relayed change. Identity is {@code (entityId, kind, subId)} PLUS {@code changeNo} -- the row the
+ * change touched and WHICH change of that row it is; {@code kind} routes it to an {@link IRodEventRepo} via
+ * {@link RodEventRepoRegistry}.
+ *
+ * <p><b>Component order is a contract, not a habit.</b> Identity first, then the header, then the payload,
+ * then a TAIL of fields the ENGINE stamps and a producer never sets ({@code bodyText}, {@code applMsgId},
+ * {@code traceparent}). {@code changeNo} sits in the identity group precisely because it is NOT one of those:
+ * for an entity event it always exists, supplied by the producer that just raised and wrote it. Keeping it
+ * out of the optional tail is what stops "no number" from being an accident -- and what stopped a second
+ * trailing-optional constructor from becoming ambiguous with the first.
  *
  * <ul>
  *   <li>{@code op} -- CREATE / UPDATE / DELETE (the coalesced, committed op).</li>
  *   <li>{@code kind} -- the (sub)kind; the registry key.</li>
  *   <li>{@code entityId} -- the owning entity id (usr_pk / org_pk / acct).</li>
  *   <li>{@code subId} -- discriminator when (entityId, kind) is not unique (ad_pk, par_name); else null.</li>
+ *   <li>{@code changeNo} -- the (sub)entity CHANGE NUMBER ({@code ChangeNo}, tag 50015); a greater number is
+ *       fresher. WHICH counter it is follows the event type: C / U / D carry the ENTITY row's number, X (path)
+ *       carries the PATH row's -- see {@code BusConstants.FIELD_CHANGE_NO}, which spells that exception out.
+ *       Null only where there is no row behind the message (session events, R&amp;R responses).</li>
  *   <li>{@code actionTime} -- when the change occurred (epoch-ms, stamped at commit).</li>
  *   <li>{@code correlationId} / {@code requestId} / {@code uid} -- the originator ids (correlation /
  *       request / user), snapshotted from the unified EsqRequestContext at post time so the event is
@@ -54,70 +69,57 @@ import java.util.Map;
  * </ul>
  */
 public record RodEvent(
+        // ---- identity: the row this change touched, plus WHICH change of it ----
         Op op,
         int kind,
         String entityId,
         String subId,
+        Long changeNo,
+        // ---- header ----
         long actionTime,
         String correlationId,
         String requestId,
         String uid,
         String rodId,
         String msgType,
+        // ---- payload ----
         Map<String, Object> body,
+        // ---- OPTIONAL TAIL: stamped by the ENGINE, never by a producer ----
         String bodyText,
         String applMsgId,
         String traceparent
 ) {
-    /** App-message constructor (the historical canonical shape): a {@code body} Map and no prepared
-     *  {@code bodyText} -- the codec serializes the map to the {@code Text} field. */
-    public RodEvent(Op op, int kind, String entityId, String subId, long actionTime,
+    /**
+     * THE producer constructor -- and, with the canonical one the record generates, the ONLY two ways to build
+     * a RodEvent. Deliberately: a family of near-identical overloads is how a positional argument ends up in
+     * the wrong slot, and two of them differing only in a trailing type is how a bare {@code null} becomes
+     * ambiguous. Anything the producer does not set (the engine's tail) is filled here, once.
+     *
+     * <p>Everything a producer knows, with the engine's tail left for the engine.
+     * {@code changeNo} is a NORMAL argument here, not an optional extra -- for an entity event the number
+     * always exists, because the producer has just raised and written it. A message with no row behind it
+     * (a session event, an R&amp;R response) passes null.
+     */
+    public RodEvent(Op op, int kind, String entityId, String subId, Long changeNo, long actionTime,
                     String correlationId, String requestId, String uid, String rodId, String msgType,
                     Map<String, Object> body) {
-        this(op, kind, entityId, subId, actionTime, correlationId, requestId, uid, rodId, msgType, body, null);
+        this(op, kind, entityId, subId, changeNo, actionTime, correlationId, requestId, uid, rodId, msgType,
+                body, null, null, null);
     }
 
-    /** Convenience constructor: no per-message rod-id (the codec falls back to the leg's rod-id), no msg-type. */
-    public RodEvent(Op op, int kind, String entityId, String subId, long actionTime,
-                    String correlationId, String requestId, String uid, Map<String, Object> body) {
-        this(op, kind, entityId, subId, actionTime, correlationId, requestId, uid, null, null, body, null);
-    }
-
-    /** The former canonical shape (body + prepared {@code bodyText}), leaving the dedup id NULL -- the framework
-     *  stamps {@code applMsgId} ONCE on the send path ({@code AXRod.sendOut}), so every producer / factory / codec
-     *  call site keeps building events exactly as before; only the engine assigns the id. */
-    public RodEvent(Op op, int kind, String entityId, String subId, long actionTime,
-                    String correlationId, String requestId, String uid, String rodId, String msgType,
-                    Map<String, Object> body, String bodyText) {
-        this(op, kind, entityId, subId, actionTime, correlationId, requestId, uid, rodId, msgType, body, bodyText, null);
-    }
-
-    /** The applMsgId shape (…, applMsgId) leaving {@code traceparent} NULL -- the framework stamps the trace hop
-     *  ONCE on the send path ({@code AXRod.send}), so every producer / factory / codec call site keeps building
-     *  events exactly as before; only the engine assigns it. traceparent is INDEPENDENT of applMsgId: applMsgId
-     *  is the per-message wire dedup id (FIX 1181, no correlation), traceparent is the trace hop's parent-span
-     *  carrier whose trace id is the correlationId. */
-    public RodEvent(Op op, int kind, String entityId, String subId, long actionTime,
-                    String correlationId, String requestId, String uid, String rodId, String msgType,
-                    Map<String, Object> body, String bodyText, String applMsgId) {
-        this(op, kind, entityId, subId, actionTime, correlationId, requestId, uid, rodId, msgType,
-                body, bodyText, applMsgId, null);
-    }
-
-    /** A copy carrying the stable wire dedup id ({@code ApplMsgID}, FIX 1181). Stamped ONCE at the send-chain entry
-     *  so every resend of a held event reuses the SAME id (a consumer can dedup); the event is otherwise unchanged
-     *  (traceparent preserved). */
+    /** A copy carrying the stable wire dedup id ({@code ApplMsgID}, FIX 1181). Stamped ONCE at the send-chain
+     *  entry so every resend of a held event reuses the SAME id (a consumer can dedup); otherwise unchanged. */
     public RodEvent withApplMsgId(String applMsgId) {
-        return new RodEvent(op, kind, entityId, subId, actionTime, correlationId, requestId, uid, rodId, msgType,
-                body, bodyText, applMsgId, traceparent);
+        return new RodEvent(op, kind, entityId, subId, changeNo, actionTime, correlationId, requestId, uid,
+                rodId, msgType, body, bodyText, applMsgId, traceparent);
     }
 
-    /** A copy carrying the W3C {@code traceparent} for the bus hop (v1.2.11 O2/T3). Stamped ONCE on the send path
-     *  (non-session events); the trace id half is the correlationId, the span id half is the producer's parent
-     *  span. The event is otherwise unchanged (applMsgId preserved). */
+    /** A copy carrying the W3C {@code traceparent} for the bus hop (v1.2.11 O2/T3). Stamped ONCE on the send
+     *  path (non-session events); the trace id half is the correlationId, the span id half the producer's
+     *  parent span. Otherwise unchanged (applMsgId preserved). */
     public RodEvent withTraceparent(String traceparent) {
-        return new RodEvent(op, kind, entityId, subId, actionTime, correlationId, requestId, uid, rodId, msgType,
-                body, bodyText, applMsgId, traceparent);
+        return new RodEvent(op, kind, entityId, subId, changeNo, actionTime, correlationId, requestId, uid,
+                rodId, msgType, body, bodyText, applMsgId, traceparent);
     }
 
     // CREATE / UPDATE / DELETE are the change operations; UPDATE_PATH ("X", a move / re-path) rides only the
@@ -189,7 +191,7 @@ public record RodEvent(
      *  the wire (the produce side uses the prepared-{@code bodyText} factories below). */
     public static RodEvent session(String msgType, String correlationId, String requestId, String rodId,
                                    Map<String, Object> body) {
-        return new RodEvent(null, 0, null, null, 0L, correlationId, requestId, null, rodId, msgType, body);
+        return new RodEvent(null, 0, null, null, null, 0L, correlationId, requestId, null, rodId, msgType, body);
     }
 
     /** A HeartBeat (MsgType "0"): unsolicited (a broadcast / R&R SERVER keepalive -- {@code requestId}/{@code rodId}
@@ -198,8 +200,8 @@ public record RodEvent(
      *  constant {@link #HEARTBEAT_BODY} when unsolicited, else the template filled with the echoed TestReqID. */
     public static RodEvent heartbeat(String correlationId, String requestId, String rodId) {
         String text = requestId != null ? HEARTBEAT_TR_OPEN + requestId + BODY_CLOSE : HEARTBEAT_BODY;
-        return new RodEvent(null, 0, null, null, 0L, correlationId, requestId, null, rodId,
-                BusConstants.MSG_TYPE_HEARTBEAT, Map.of(), text);
+        return new RodEvent(null, 0, null, null, null, 0L, correlationId, requestId, null, rodId,
+                BusConstants.MSG_TYPE_HEARTBEAT, Map.of(), text, null, null);
     }
 
     /** A TestRequest (MsgType "1"): an R&R CLIENT probe on inactivity. {@code requestId} = {@code correlationId};
@@ -207,7 +209,7 @@ public record RodEvent(
      *  {@code Text} body is the prepared template filled with the TestReqID (= {@code correlationId}). */
     public static RodEvent testRequest(String correlationId, String rodId) {
         String text = TESTREQUEST_OPEN + correlationId + BODY_CLOSE;
-        return new RodEvent(null, 0, null, null, 0L, correlationId, correlationId, null, rodId,
-                BusConstants.MSG_TYPE_TEST_REQUEST, Map.of(), text);
+        return new RodEvent(null, 0, null, null, null, 0L, correlationId, correlationId, null, rodId,
+                BusConstants.MSG_TYPE_TEST_REQUEST, Map.of(), text, null, null);
     }
 }

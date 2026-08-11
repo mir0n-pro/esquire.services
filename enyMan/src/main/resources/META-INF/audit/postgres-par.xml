@@ -11,7 +11,7 @@
 
     <named-native-query name="EsqOrgJpa.listOrgPar" result-set-mapping="EsqParRowMapping">
         <query>
- SELECT opr_par_name AS "name", opr_par_et_pk AS "etPk", opr_value AS "value"
+ SELECT opr_par_name AS "name", opr_par_et_pk AS "etPk", opr_value AS "value", opr_change_no AS "changeNo"
  FROM esq_org_par
  WHERE opr_org_pk = CAST(:id AS bigint)
         </query>
@@ -19,7 +19,7 @@
 
     <named-native-query name="EsqUsrJpa.listUsrPar" result-set-mapping="EsqParRowMapping">
         <query>
- SELECT upr_par_name AS "name", upr_par_et_pk AS "etPk", upr_value AS "value"
+ SELECT upr_par_name AS "name", upr_par_et_pk AS "etPk", upr_value AS "value", upr_change_no AS "changeNo"
  FROM esq_usr_par
  WHERE upr_usr_pk = CAST(:id AS bigint)
         </query>
@@ -30,6 +30,7 @@
             <field-result name="name"  column="name"/>
             <field-result name="etPk"  column="etPk"/>
             <field-result name="value" column="value"/>
+            <field-result name="changeNo" column="changeNo"/>
         </entity-result>
     </sql-result-set-mapping>
 

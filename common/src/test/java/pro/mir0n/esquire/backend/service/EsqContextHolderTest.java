@@ -76,7 +76,7 @@ class EsqContextHolderTest {
 
     @Test
     void applyMessageRodEvent_stampsMdcFromTheEvent() {
-        RodEvent event = new RodEvent(RodEvent.Op.UPDATE, 2, "e1", null, 0L, "corr-ev", "req-ev", "uid", Map.of());
+        RodEvent event = new RodEvent(RodEvent.Op.UPDATE, 2, "e1", null, null, 0L, "corr-ev", "req-ev", "uid", null, null, Map.of());
         EsqContextHolder.applyMessage(event);
 
         assertThat(MDC.get(EsqConstants.PD_CORRELATION_ID)).isEqualTo("corr-ev");
