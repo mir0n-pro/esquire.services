@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "esquire-mesnie chart values",
+  "type": "object",
+  "properties": {
+    "replicaCount": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 10,
+      "description": "Number of Mesnie pods. Capped at 10 -- v1.2.6 id encoding allocates one decimal digit for the instance number (0-9). Exceeding 10 would overflow into the time portion of generated entity ids."
+    }
+  }
+}

@@ -1,0 +1,157 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-config
+  labels:
+    app: {{ .Release.Name }}
+data:
+  prometheus.yml: |
+    # Pod discovery: each Java service pod (both StatefulSet replicas) is scraped directly on its own IP, so
+    # both replicas appear as separate targets -- instance = the pod name (esquire-mesnie-mesnie-0 / -1). The
+    # metric already carries application=<service> (Micrometer common tag); instance separates the x2. The
+    # /actuator/prometheus endpoint exists only when observability is enabled. Separate jobs below scrape the
+    # BFF (esq-backend, Node/prom-client :3000), KeyCloak (Quarkus mgmt :9000/kc-auth/metrics), and Postgres
+    # (via postgres-exporter :9187).
+    global:
+      scrape_interval: 15s
+      scrape_timeout: 10s
+    # Framework-health alert rules (I55). Routing to an Alertmanager is the OPERATOR slot -- add an `alerting:`
+    # block here and a contact point at deploy. The whole configmap mounts at /etc/prometheus, so the rules.yml
+    # key below lands as /etc/prometheus/rules.yml.
+    rule_files:
+      - rules.yml
+    scrape_configs:
+      - job_name: esquire-services
+        metrics_path: /actuator/prometheus
+        kubernetes_sd_configs:
+          - role: pod
+            namespaces:
+              names: [{{ .Release.Namespace }}]
+        relabel_configs:
+          # keep only the seven Java service pods (app label esquire-<svc>-<svc>); infra + the Node BFF drop out.
+          - source_labels: [__meta_kubernetes_pod_label_app]
+            regex: "esquire-(gateway|biztree|mesnie|pacman)-.*"
+            action: keep
+          # scrape the pod IP on the SEPARATE management port 8090 (F0 A6) -- actuator (incl. /actuator/prometheus)
+          # lives there now, NOT on the public main port, so the ingress never exposes it.
+          - source_labels: [__meta_kubernetes_pod_ip]
+            regex: (.+)
+            replacement: "$1:8090"
+            target_label: __address__
+          # instance = the pod name -> the x2 replicas show as ...-0 and ...-1.
+          - source_labels: [__meta_kubernetes_pod_name]
+            target_label: instance
+          - source_labels: [__meta_kubernetes_pod_name]
+            target_label: pod
+
+      # KeyCloak -- Quarkus management interface on :9000; metrics honor KC_HTTP_RELATIVE_PATH (/kc-auth).
+      - job_name: keycloak
+        metrics_path: /kc-auth/metrics
+        kubernetes_sd_configs:
+          - role: pod
+            namespaces:
+              names: [{{ .Release.Namespace }}]
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_label_app]
+            regex: "esquire-infra-kc-keycloak"
+            action: keep
+          # KC exposes two container ports (8080 app, 9000 mgmt) -- keep only the mgmt-port target.
+          - source_labels: [__meta_kubernetes_pod_container_port_number]
+            regex: "9000"
+            action: keep
+          - source_labels: [__meta_kubernetes_pod_ip, __meta_kubernetes_pod_container_port_number]
+            separator: ":"
+            target_label: __address__
+          - source_labels: [__meta_kubernetes_pod_name]
+            target_label: instance
+          - source_labels: [__meta_kubernetes_pod_name]
+            target_label: pod
+
+      # BFF (esq-backend, Node/prom-client) -- its own /metrics on :3000 (both replicas scraped per pod).
+      - job_name: esquire-bff
+        metrics_path: /metrics
+        kubernetes_sd_configs:
+          - role: pod
+            namespaces:
+              names: [{{ .Release.Namespace }}]
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_label_app]
+            regex: "esquire-backend-backend"
+            action: keep
+          - source_labels: [__meta_kubernetes_pod_ip, __meta_kubernetes_pod_container_port_number]
+            separator: ":"
+            target_label: __address__
+          - source_labels: [__meta_kubernetes_pod_name]
+            target_label: instance
+          - source_labels: [__meta_kubernetes_pod_name]
+            target_label: pod
+
+      # The SERVICE GRAPH (T9-C). The Collector's servicegraph connector derives caller->callee edges from the
+      # spans passing through it and exposes them as traces_service_graph_request_* . The ONLY metric source that
+      # knows the SHAPE of the system rather than the state of one component -- and it discovers it from real
+      # traffic, so it stays true when the architecture changes and a hand-drawn map would not.
+      - job_name: otel-servicegraph
+        metrics_path: /metrics
+        static_configs:
+          - targets: [ {{ .Values.otelCollector.servicegraph }} ]
+
+      # The Collector's OWN telemetry -- spans accepted / REFUSED. The hub every trace in the fleet passes through
+      # was reporting nothing about itself: if it started dropping spans, traces would go quietly missing and no
+      # metric anywhere would say so.
+      - job_name: otel-collector
+        metrics_path: /metrics
+        static_configs:
+          - targets: [ {{ .Values.otelCollector.telemetry }} ]
+        relabel_configs:
+          - target_label: component
+            replacement: collector
+
+      # ActiveMQ broker -- via the Prometheus JMX exporter agent running INSIDE the broker JVM on :9404 (no
+      # sidecar, no bridge). Gives what the service-side bus meters cannot: what is SITTING in each destination
+      # (queue depth), whether a consumer is still attached, and how full the broker's memory / store / temp is.
+      - job_name: activemq
+        metrics_path: /metrics
+        kubernetes_sd_configs:
+          - role: pod
+            namespaces:
+              names: [{{ .Release.Namespace }}]
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_label_app]
+            regex: "esquire-infra-amq-activemq"
+            action: keep
+          # The broker declares three container ports (61616 openwire, 8161 console, 9404 metrics) -- without
+          # this the pod would yield three targets, two of which do not speak Prometheus.
+          - source_labels: [__meta_kubernetes_pod_container_port_number]
+            regex: "9404"
+            action: keep
+          - source_labels: [__meta_kubernetes_pod_ip, __meta_kubernetes_pod_container_port_number]
+            separator: ":"
+            target_label: __address__
+          - source_labels: [__meta_kubernetes_pod_name]
+            target_label: instance
+          - source_labels: [__meta_kubernetes_pod_name]
+            target_label: pod
+
+      # Postgres -- via postgres-exporter (pg_stat_* -> metrics) on :9187.
+      - job_name: postgres
+        metrics_path: /metrics
+        kubernetes_sd_configs:
+          - role: pod
+            namespaces:
+              names: [{{ .Release.Namespace }}]
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_label_app]
+            regex: "esquire-infra-postgres-exporter"
+            action: keep
+          - source_labels: [__meta_kubernetes_pod_ip, __meta_kubernetes_pod_container_port_number]
+            separator: ":"
+            target_label: __address__
+          - source_labels: [__meta_kubernetes_pod_name]
+            target_label: instance
+          - source_labels: [__meta_kubernetes_pod_name]
+            target_label: pod
+  # Framework-health alert rules (I55). Included verbatim via .Files.Get so Prometheus's own annotation
+  # templating (the double-brace label refs) survives Helm rendering. Lands as /etc/prometheus/rules.yml
+  # (referenced by rule_files above).
+  rules.yml: |
+{{ .Files.Get "rules.yml" | indent 4 }}

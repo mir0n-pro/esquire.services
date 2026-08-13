@@ -1,0 +1,60 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-gateway-config
+  labels:
+    app: {{ .Release.Name }}-gateway
+data:
+  SPRING_PROFILES_ACTIVE: {{ .Values.springProfilesActive | default "" | quote }}
+  GATEWAY_PORT:         {{ .Values.service.port | quote }}
+  MANAGEMENT_SERVER_PORT:    {{ .Values.service.managementPort | quote }}
+  KEYCLOAK_HOST:        {{ .Values.keycloak.host | quote }}
+  KEYCLOAK_PORT:        {{ .Values.keycloak.port | quote }}
+  KEYCLOAK_PATH:        {{ .Values.keycloak.path | default "" | quote }}
+  KEYCLOAK_REALM:       {{ .Values.keycloak.realm | quote }}
+  KEYCLOAK_CLIENT_ID:   {{ .Values.keycloak.clientId | quote }}
+  # Spring's ${KEYCLOAK_PATH:} placeholder in application.yml resolves to empty
+  # in some envs (Spring Boot 3.5 + envFrom configMapRef + empty default value),
+  # which breaks the JWKS fetch URL when KC uses KC_HTTP_RELATIVE_PATH. Override
+  # the resolved property directly to sidestep placeholder interpolation.
+  SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI: {{ printf "http://%s:%v%s/realms/%s/protocol/openid-connect/certs" .Values.keycloak.host (.Values.keycloak.port | toString) (.Values.keycloak.path | default "") .Values.keycloak.realm | quote }}
+  BIZTREE_HOST:         {{ .Values.backends.biztreeHost | quote }}
+  BIZTREE_PORT:         {{ .Values.backends.biztreePort | quote }}
+  ENYMAN_HOST:          {{ .Values.backends.enymanHost | quote }}
+  ENYMAN_PORT:          {{ .Values.backends.enymanPort | quote }}
+  PACMAN_HOST:          {{ .Values.backends.pacmanHost | quote }}
+  PACMAN_PORT:          {{ .Values.backends.pacmanPort | quote }}
+  KEYSMITH_HOST:        {{ .Values.backends.keysmithHost | quote }}
+  KEYSMITH_PORT:        {{ .Values.backends.keysmithPort | quote }}
+  CORS_ALLOWED_ORIGINS: {{ .Values.cors.allowedOrigins | quote }}
+  # Token Relay -- shared KC /token endpoint + per-variant allowlists.
+  # Vanilla: no gateway-side client_secret (proxies client's Basic auth one hop).
+  # Phantom: gateway-side confidential client_id for RFC 8693 token-exchange;
+  # the matching exchange-client-secret comes from a Secret (see deployment.yaml).
+  ESQ_GW_TOKEN_URI:          {{ .Values.tokenRelay.tokenUri | default "" | quote }}
+  ESQ_GW_VANILLA_CLIENTS:    {{ .Values.tokenRelay.vanilla.clients | default "" | quote }}
+  ESQ_GW_PHANTOM_CLIENTS:    {{ .Values.tokenRelay.phantom.clients | default "" | quote }}
+  ESQ_GW_EXCHANGE_CLIENT_ID: {{ .Values.tokenRelay.phantom.exchangeClientId | default "" | quote }}
+  # --- resilience (R1): outbound httpclient connection pool (gateway -> backends) ---
+  GW_POOL_MAX_CONNECTIONS:    {{ .Values.resilience.gwPoolMaxConnections | quote }}
+  GW_POOL_ACQUIRE_TIMEOUT_MS: {{ .Values.resilience.gwPoolAcquireTimeoutMs | quote }}
+  LOG_LEVEL_ROOT:       {{ .Values.logging.levelRoot | quote }}
+  LOG_LEVEL_SF:         {{ .Values.logging.levelSf | quote }}
+  LOG_LEVEL_MIR0N:      {{ .Values.logging.levelMir0n | quote }}
+  LOG_LEVEL_DEVELOP:    {{ .Values.logging.levelDevelop | quote }}
+  DEVELOP_LOG_PATH:     {{ .Values.logging.developLogPath | quote }}
+  # --- v1.2.11 O2 distributed tracing (opt-in; OFF by default; o11y-on enables it) ---
+  ESQ_OBSERVABILITY_ENABLED:  {{ .Values.observability.enabled | quote }}
+  # Per-pillar enable (I41): default to the master, override to run one pillar off. tracingEnabled=false ->
+  # metrics-only (service-mesh coexistence). Empty string follows the master; any explicit value (incl. false) wins
+  # -- toString+eq "" avoids Helm's default-trap where --set x=false (boolean) would be swallowed as empty.
+  ESQ_TRACING_ENABLED:        {{ if eq (toString .Values.observability.tracingEnabled) "" }}{{ .Values.observability.enabled | quote }}{{ else }}{{ .Values.observability.tracingEnabled | quote }}{{ end }}
+  ESQ_METRICS_ENABLED:        {{ if eq (toString .Values.observability.metricsEnabled) "" }}{{ .Values.observability.enabled | quote }}{{ else }}{{ .Values.observability.metricsEnabled | quote }}{{ end }}
+  ESQ_METRICS_HISTOGRAMS:     {{ .Values.observability.metricsHistograms | quote }}
+  ESQ_METRICS_BANDWIDTH:      {{ .Values.observability.metricsBandwidth | quote }}
+  ESQ_METRICS_BUSINESS:      {{ .Values.observability.metricsBusiness | quote }}
+  ESQ_OTLP_ENDPOINT:          {{ .Values.tracing.otlpEndpoint | quote }}
+  ESQ_TRACING_SAMPLING_RATIO: {{ .Values.tracing.samplingRatio | quote }}
+  ESQ_TRACING_MARKS_ENABLED:  {{ .Values.tracing.marksEnabled | quote }}
+  ESQ_MSG_BUS_ALIVE_TRACE:    {{ .Values.tracing.msgBusAliveTrace | quote }}
+  ESQ_TRACING_EXCLUDED_PATHS: {{ .Values.tracing.excludedPaths | quote }}

@@ -8,7 +8,7 @@ WORKDIR /app
 RUN useradd -ms /bin/bash springuser
 USER springuser
 
-COPY target/*.jar app.jar
+COPY target/esquire-kc-master.jar app.jar
 
 # Define how to start the application
 #ENTRYPOINT ["java", "-jar", "app.jar"]

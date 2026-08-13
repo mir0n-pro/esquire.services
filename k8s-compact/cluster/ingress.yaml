@@ -1,0 +1,54 @@
+# Local k8s ingress -- HTTP-only mirror of k8s-oci/cluster/ingress.yaml.
+# Two hosts, single ingress-nginx entry at localhost:80:
+#
+#   esquire.localhost       -- BFF tier (browser users)
+#     /kc-auth  -> esquire-infra-kc-keycloak:8080  (KC authorize / token / jwks)
+#     /         -> esquire-backend-backend:3000    (BFF: SPA + /auth/* + /api/*)
+#
+#   api.esquire.localhost   -- direct gateway access (server-to-server JWT, hauberk)
+#     /         -> esquire-gateway-gateway:8080    (gateway: JWT validation only)
+#
+# Browsers resolve *.localhost -> 127.0.0.1 automatically per RFC 6761
+# (Chrome, Edge, Firefox, curl >= 7.83). No hosts file edit needed.
+#
+# No TLS: dev only. OKE adds cert-manager / Let's Encrypt for the same
+# routes under https://esquire.mir0n.pro + https://api.esquire.mir0n.pro.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: esquire-local
+  namespace: default
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: 16m
+spec:
+  ingressClassName: nginx
+  rules:
+    # --- BFF tier ----------------------------------------------------------
+    - host: esquire.localhost
+      http:
+        paths:
+          - path: /kc-auth
+            pathType: Prefix
+            backend:
+              service:
+                name: esquire-infra-kc-keycloak
+                port:
+                  number: 8080
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: esquire-backend-backend
+                port:
+                  number: 3000
+    # --- Gateway (direct, JWT-only) ----------------------------------------
+    - host: api.esquire.localhost
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: esquire-gateway-gateway
+                port:
+                  number: 8080

@@ -1,0 +1,803 @@
+name: esq-compact
+services:
+  # Postgres runs as a CONTAINER (esquire-postgres:17, built from db.seed via services/postgres/Dockerfile) --
+  # the same image k8s uses. The five DB-backed services reach it at postgres:5432 (DB_*_HOST defaults
+  # below). It seeds on first init (empty volume); host access is on :5433 (the host's own pg keeps :5432).
+
+  postgres:
+    container_name: esqc-postgres
+    build:
+      context: ../..
+      dockerfile: services/postgres/Dockerfile
+    image: esquire-postgres:17
+    # Raise max_connections to 200 (stock default is 100): the five DB services' Hikari pools
+    # (up to 2 pools x 10 each) sit near 90 at idle and would exhaust 100 on a rolling restart.
+    # Matches the k8s postgres chart (maxConnections 200).
+    command: ["postgres", "-c", "max_connections=200"]
+    environment:
+      - POSTGRES_USER=esq2025
+      - POSTGRES_PASSWORD=q
+      - POSTGRES_DB=esq2025
+    ports:
+      - "5433:5432"   # host access on 5433; the host own pg keeps 5432
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U esq2025 -d esq2025"]
+      interval: 5s
+      timeout: 3s
+      retries: 40
+      start_period: 30s
+    networks:
+      - esquirenet
+
+  # Prometheus exporter for the Postgres container -- turns pg_stat_* into metrics
+  # (connections, transactions, cache hit ratio, DB size). Scraped by the "postgres" job on :9187.
+  postgres-exporter:
+    container_name: esqc-postgres-exporter
+    # v0.16.0 -> v0.20.1 (v1.2.11 T9-B). PostgreSQL 17 REMOVED the checkpoint columns from pg_stat_bgwriter and
+    # moved them to pg_stat_checkpointer; v0.16.0 still queried the PG16 shape, so its stat_bgwriter collector
+    # failed on EVERY scrape ("column checkpoints_timed does not exist") against our PG18 host / PG17 k8s DB.
+    # 2,728 ERROR lines and counting -- invisible until the T9-B logging dashboard put errors on screen, and
+    # exactly the noise that drowns a panel whose value is "empty is healthy". No panel used those metrics, so
+    # nothing was lost; v0.20.1 scrapes PG18 clean AND adds the stat_checkpointer collector.
+    image: quay.io/prometheuscommunity/postgres-exporter:v0.20.1
+    profiles: ["o11y"]
+    environment:
+      - DATA_SOURCE_NAME=postgresql://esq2025:q@postgres:5432/esq2025?sslmode=disable
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - esquirenet
+
+  activemq:
+    container_name: esqc-activemq
+    build:
+      context: ../activemq
+      dockerfile: Dockerfile
+    image: esquire-activemq:6.1.4
+    ports:
+      - "61616:61616"   # JMS/OpenWire broker port
+      - "8161:8161"     # ActiveMQ web console (admin/admin)
+    environment:
+      # Loads the JMX exporter agent inside the broker JVM and serves /metrics on :9404 (in-network only --
+      # Prometheus scrapes it over esquirenet). Off by default, like every other observability surface: the
+      # agent is baked into the image but the entrypoint only passes -javaagent when this is true.
+      ESQ_OBSERVABILITY_ENABLED: "${ESQ_OBSERVABILITY_ENABLED:-false}"
+      # The broker is NON-PERSISTENT (activemq.xml): no message store, nothing survives a restart -- by design.
+      # The data dir still holds the temp spool + the broker log, and it must match the volume mounted below,
+      # which otherwise sits empty (the broker's own default data dir is the container's ephemeral layer).
+      ESQ_AMQ_DATA_DIR: /var/opt/activemq/data
+      # No store limit exists: with no store there is nothing to bound. This is the spool that memoryUsage
+      # (70% of heap) overflows into -- the only disk an in-memory bus can touch.
+      ESQ_AMQ_TEMP_LIMIT: 512mb
+    volumes:
+      - ./data/activemq:/var/opt/activemq/data
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c '</dev/tcp/127.0.0.1/61616' 2>/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    networks:
+      - esquirenet
+
+  # x-Rod audit option (d): the Redis Stream sink. Producers in audit mode=redis XADD here; the stream is
+  # the append-only audit log (read with XRANGE). maxmemory bounded + noeviction (never drop audit data).
+  redis:
+    container_name: esqc-redis
+    image: redis:8
+    command: ["redis-server", "--maxmemory", "384mb", "--maxmemory-policy", "noeviction", "--appendonly", "yes"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - ./data/redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+    networks:
+      - esquirenet
+
+  # RedisInsight -- web GUI for the (d) audit Redis Stream. Dev-only tool, gated behind the "tools" profile
+  # so it does NOT start with the default stack. Start it explicitly:
+  #   docker compose up -d redisinsight        (or: docker compose --profile tools up -d)
+  # Then open http://localhost:5540 ; the audit db is pre-added (host=redis, port=6379) via RI_REDIS_*.
+  redisinsight:
+    container_name: esqc-redisinsight
+    image: redis/redisinsight:latest
+    profiles: ["tools"]
+    ports:
+      - "5540:5540"
+    environment:
+      - RI_REDIS_HOST=redis
+      - RI_REDIS_PORT=6379
+      - RI_REDIS_ALIAS=esq-audit
+    depends_on:
+      - redis
+    networks:
+      - esquirenet
+
+  # x-Rod audit option (c) over Kafka: single-node KRaft broker. Producers (bus.transport=kafka) publish to
+  # the audit topic; auKeep (transport=kafka) consumes + writes the *_log. Ephemeral (no volume) for dev.
+  kafka:
+    container_name: esqc-kafka
+    image: apache/kafka:3.9.0
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_NUM_PARTITIONS: 3
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 15
+      start_period: 20s
+    networks:
+      - esquirenet
+
+  # x-Rod audit option (d) over Kafka: a Kafka Connect worker with the Redis sink connector. It consumes the
+  # audit topic and XADDs each record to a Redis stream (no producer change, no auKeep -- pure connector).
+  # Dev-only tool (profile "kafka-sink"), installs the connector at start:
+  #   docker compose up -d kafka-connect   (then register compose/kafka-connect/redis-audit-sink.json via :8083)
+  kafka-connect:
+    container_name: esqc-kafka-connect
+    image: confluentinc/cp-kafka-connect:7.9.0
+    profiles: ["kafka-sink"]
+    ports:
+      - "8083:8083"
+    environment:
+      CONNECT_BOOTSTRAP_SERVERS: kafka:9092
+      CONNECT_GROUP_ID: esq-connect
+      CONNECT_CONFIG_STORAGE_TOPIC: esq-connect-configs
+      CONNECT_OFFSET_STORAGE_TOPIC: esq-connect-offsets
+      CONNECT_STATUS_STORAGE_TOPIC: esq-connect-status
+      CONNECT_CONFIG_STORAGE_REPLICATION_FACTOR: 1
+      CONNECT_OFFSET_STORAGE_REPLICATION_FACTOR: 1
+      CONNECT_STATUS_STORAGE_REPLICATION_FACTOR: 1
+      CONNECT_KEY_CONVERTER: org.apache.kafka.connect.storage.StringConverter
+      CONNECT_VALUE_CONVERTER: org.apache.kafka.connect.json.JsonConverter
+      CONNECT_VALUE_CONVERTER_SCHEMAS_ENABLE: "false"
+      CONNECT_REST_ADVERTISED_HOST_NAME: kafka-connect
+      CONNECT_PLUGIN_PATH: /usr/share/java,/usr/share/confluent-hub-components
+    command:
+      - bash
+      - -c
+      - |
+        confluent-hub install --no-prompt redis/redis-kafka-connect:latest
+        /etc/confluent/docker/run
+    depends_on:
+      kafka:
+        condition: service_healthy
+    networks:
+      - esquirenet
+
+  keycloak:
+    container_name: esqc-keycloak
+    build:
+      context: ../keycloak
+      dockerfile: Dockerfile.keycloak
+    image: esquire-keycloak:26.4.7
+    # Run as root inside the container -- compose-only workaround for
+    # Windows + Docker Desktop bind-mount permissions: KC's default uid 1000
+    # can't write to ./data/keycloak when it comes back as root-owned after
+    # rmdir/recreate. The OKE chart sets securityContext.fsGroup: 1000
+    # properly; this user override does NOT propagate to k8s/OKE.
+    user: "0:0"
+    command: start-dev --import-realm
+    ports:
+      - "8081:8080"
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: q
+      # localhost works from the host browser AND from inside compose containers
+      # because the BFF (and any other container that needs to reach KC) maps
+      # "localhost" -> host-gateway via extra_hosts. KC publishes its discovery
+      # URLs and "iss" claim with this hostname:port pair; both sides resolve
+      # to the same KC instance.
+      KC_HOSTNAME: localhost
+      KC_HOSTNAME_PORT: 8081
+      KC_HOSTNAME_STRICT: "false"
+      KC_HOSTNAME_STRICT_BACKCHANNEL: "false"
+      KC_HOSTNAME_STRICT_HTTPS: "false"
+      KC_HEALTH_ENABLED: "true"
+      # Prometheus metrics on the management interface (:9000/kc-auth/metrics) -- gated by the observability
+      # umbrella: off by default, ON when ESQ_OBSERVABILITY_ENABLED=true (o11y-on recreates KC to apply it,
+      # since KC_METRICS_ENABLED is a boot-time option).
+      KC_METRICS_ENABLED: "${ESQ_OBSERVABILITY_ENABLED:-false}"
+      KC_HTTP_RELATIVE_PATH: /kc-auth
+      # Phantom Token Relay: RFC 8693 token-exchange (KC 26.4 preview).
+      # admin-fine-grained-authz is enabled by default in KC 26 -- no flag needed.
+      KC_FEATURES: token-exchange
+    volumes:
+      - ./data/keycloak:/opt/keycloak/data
+      - ../keycloak/import/esquire.json:/opt/keycloak/data/import/realm.json
+    healthcheck:
+      # KC 26.4.7 management interface on :9000 returns 404 for /health/ready; TCP probe on :8080 sidesteps it.
+      test: ["CMD-SHELL", "bash -c '</dev/tcp/127.0.0.1/8080' 2>/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks:
+      - esquirenet
+
+  biztree:
+    container_name: esqc-biztree
+    build:
+      context: ../bizTree
+    image: esquire.biztree
+    ports:
+      - "3002:3002"
+    environment:
+      - BIZTREE_PORT=3002
+      - LOG_LEVEL_ROOT=ERROR
+      - LOG_LEVEL_SF=ERROR
+      # I49 knob: o11y-log-off/on.bat set this OFF / INFO. Keep overridable or both arms run identical.
+      - LOG_LEVEL_MIR0N=${LOG_LEVEL_MIR0N:-DEBUG}
+      - LOG_LEVEL_DEVELOP=${LOG_LEVEL_DEVELOP:-DEBUG}
+      - LOG_LEVEL_MSG=${LOG_LEVEL_MSG:-DEBUG}
+      - LOG_LEVEL_AMQ=${LOG_LEVEL_AMQ:-INFO}
+      - LOG_LEVEL_JMS=${LOG_LEVEL_JMS:-INFO}
+      - DEVELOP_LOG_PATH=logs/bizTree-develop.log
+      - MSG_LOG_PATH=logs/bizTree-msg.log
+      - TOPOLOGY_IMPORT=optional:file:/etc/esquire/topology.yml
+      - DB_BIZTREE_VENDOR=${DB_BIZTREE_VENDOR:-dev-postgres}
+      - DB_BIZTREE_PORT=${DB_BIZTREE_PORT:-5432}
+      - DB_BIZTREE_NAME=${DB_BIZTREE_NAME:-esq2025}
+      #- DB_BIZTREE_VENDOR=dev-oracle
+      #- DB_BIZTREE_PORT=1521
+      #- DB_BIZTREE_NAME=MIR0N
+      - DB_BIZTREE_HOST=${DB_BIZTREE_HOST:-postgres}
+      - DB_BIZTREE_USERNAME=esq2025
+      - DB_BIZTREE_PASSWORD=q
+      # Messaging
+      - ENTITY_BUS_ID=esquire.entity
+      - ENTITY_SLOT_ID=entity
+      - ENTITY_BROADCAST_POOL_SIZE=4
+      - ENTITY_BROADCAST_CONCURRENCY=1
+      # v1.2.10 worker-pool mode (platform | virtual | virtual-per-task; default platform -- UNVALIDATED, see HA doc 5.5)
+      - ESQ_VIRTUAL_THREADS=${ESQ_VIRTUAL_THREADS:-false}
+      - ENTITY_BROADCAST_POOL_MODE=${ENTITY_BROADCAST_POOL_MODE:-platform}
+      # H2 in-memory cache store
+      - BIZTREE_CACHE_VENDOR=cache-h2
+      # Distributed tracing (v1.2.11 O2) -- OFF by default; the o11y profile brings up the collector + Tempo.
+      # Enable end-to-end: ESQ_OBSERVABILITY_ENABLED=true docker compose --profile o11y up -d --force-recreate
+      - ESQ_OBSERVABILITY_ENABLED=${ESQ_OBSERVABILITY_ENABLED:-false}
+      # per-pillar enable (I41): default to master; set ESQ_TRACING_ENABLED=false for metrics-only (mesh case)
+      - ESQ_TRACING_ENABLED=${ESQ_TRACING_ENABLED:-${ESQ_OBSERVABILITY_ENABLED:-false}}
+      - ESQ_METRICS_ENABLED=${ESQ_METRICS_ENABLED:-${ESQ_OBSERVABILITY_ENABLED:-false}}
+      - ESQ_METRICS_HISTOGRAMS=${ESQ_METRICS_HISTOGRAMS:-false}
+      - ESQ_METRICS_BANDWIDTH=${ESQ_METRICS_BANDWIDTH:-true}
+      - ESQ_METRICS_BUSINESS=${ESQ_METRICS_BUSINESS:-true}
+      - ESQ_MSG_BUS_ALIVE_TRACE=${ESQ_MSG_BUS_ALIVE_TRACE:-false}   # RR liveness heartbeat spans -- OFF by default on every target (I14); opt in via this env
+      - ESQ_OTLP_ENDPOINT=${ESQ_OTLP_ENDPOINT:-http://otel-collector:4318/v1/traces}
+      - ESQ_TRACING_SAMPLING_RATIO=${ESQ_TRACING_SAMPLING_RATIO:-1.0}
+      - ESQ_TRACING_MARKS_ENABLED=${ESQ_TRACING_MARKS_ENABLED:-true}
+      - ESQ_TRACING_EXCLUDED_PATHS=${ESQ_TRACING_EXCLUDED_PATHS:-/actuator}
+      - BIZTREE_H2_URL=jdbc:h2:mem:biztree;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+      - BIZTREE_H2_POOL_MAX=10
+      - BIZTREE_H2_POOL_MIN_IDLE=10
+      - BIZTREE_H2_POOL_CONN_TIMEOUT=5000
+      - BIZTREE_H2_POOL_IDLE_TIMEOUT=600000
+      - BIZTREE_H2_POOL_MAX_LIFETIME=1800000
+      # v1.2.5 Taijitu refactor: select the cache director impl
+      #   legacy (default) | taijitu (two-monad + night-watch)
+      - BIZTREE_DIRECTOR=taijitu
+      # night-watch checksum-mismatch reaction: LOG | SWAP | TERMINATE
+      # (fed by host BIZTREE_ON_MISMATCH so a hauberk cmd can recreate biztree per test)
+      - BIZTREE_TAIJITU_ON_MISMATCH=${BIZTREE_ON_MISMATCH:-SWAP}
+      # night-watch sweep interval ms (host BIZTREE_SWEEP_INTERVAL_MS; a test sets it high so the
+      # periodic sweep doesn't auto-heal before the sim observes the miss + forces a sweep)
+      - BIZTREE_TAIJITU_SWEEP_INTERVAL_MS=${BIZTREE_SWEEP_INTERVAL_MS:-600000}
+      # night-watch per-leg CHECKSUM deadline ms (host BIZTREE_SWEEP_TIMEOUT_MS)
+      - BIZTREE_TAIJITU_SWEEP_TIMEOUT_MS=${BIZTREE_SWEEP_TIMEOUT_MS:-10000}
+      # per-monad event queue depth (back-pressure boundary)
+      - BIZTREE_MONAD_QUEUE_CAPACITY=${BIZTREE_QUEUE_CAPACITY:-4096}
+      # backlog size above which the monad worker batches events into one cache tx (default 10).
+      # Set very high (e.g. 999999999) to force one-by-one processing for an A/B perf comparison.
+      - BIZTREE_QUEUE_BULK_THRESHOLD=${BIZTREE_QUEUE_BULK_THRESHOLD:-10}
+    command: ["java", "-jar", "app.jar"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      activemq:
+        condition: service_healthy
+    volumes:
+      - ./logs:/app/logs
+      - ./topology/esquire-topology.yml:/etc/esquire/topology.yml:ro
+    networks:
+      - esquirenet
+
+  # Mesnie -- enyMan + keySmith in ONE process, with kcMaster's identity work served in that same process.
+  # The image and every setting below are the classic ones; what differs is only WHICH processes run. The kc
+  # bus is absent on purpose: KeyCloak is reached through the in-process identity gateway, so this service
+  # builds two rods (entity, audit) where the three separate services together build three.
+  mesnie:
+    container_name: esqc-mesnie
+    build:
+      context: ../mesnie
+    image: esquire.mesnie
+    ports:
+      - "3003:3003"
+    environment:
+      - MESNIE_PORT=3003
+      - LOG_LEVEL_ROOT=ERROR
+      - LOG_LEVEL_SF=ERROR
+      - LOG_LEVEL_MIR0N=${LOG_LEVEL_MIR0N:-DEBUG}
+      - LOG_LEVEL_DEVELOP=${LOG_LEVEL_DEVELOP:-DEBUG}
+      - LOG_LEVEL_MSG=${LOG_LEVEL_MSG:-INFO}
+      - LOG_LEVEL_AMQ=${LOG_LEVEL_AMQ:-INFO}
+      - LOG_LEVEL_JMS=${LOG_LEVEL_JMS:-INFO}
+      - DEVELOP_LOG_PATH=logs/mesnie-develop.log
+      - MSG_LOG_PATH=logs/mesnie-msg.log
+      - TOPOLOGY_IMPORT=optional:file:/etc/esquire/topology.yml
+      # Database -- the household's own prefix; one datasource for both composed services.
+      - DB_MESNIE_VENDOR=${DB_MESNIE_VENDOR:-dev-postgres}
+      - DB_MESNIE_PORT=${DB_MESNIE_PORT:-5432}
+      - DB_MESNIE_NAME=${DB_MESNIE_NAME:-esq2025}
+      - DB_MESNIE_HOST=${DB_MESNIE_HOST:-postgres}
+      - DB_MESNIE_USERNAME=esq2025
+      - DB_MESNIE_PASSWORD=q
+      # Distributed tracing / metrics (v1.2.11 O2) -- OFF by default, same switches as classic.
+      - ESQ_OBSERVABILITY_ENABLED=${ESQ_OBSERVABILITY_ENABLED:-false}
+      - ESQ_TRACING_ENABLED=${ESQ_TRACING_ENABLED:-${ESQ_OBSERVABILITY_ENABLED:-false}}
+      - ESQ_METRICS_ENABLED=${ESQ_METRICS_ENABLED:-${ESQ_OBSERVABILITY_ENABLED:-false}}
+      - ESQ_METRICS_HISTOGRAMS=${ESQ_METRICS_HISTOGRAMS:-false}
+      - ESQ_METRICS_BANDWIDTH=${ESQ_METRICS_BANDWIDTH:-true}
+      - ESQ_METRICS_BUSINESS=${ESQ_METRICS_BUSINESS:-true}
+      - ESQ_MSG_BUS_ALIVE_TRACE=${ESQ_MSG_BUS_ALIVE_TRACE:-false}
+      - ESQ_OTLP_ENDPOINT=${ESQ_OTLP_ENDPOINT:-http://otel-collector:4318/v1/traces}
+      - ESQ_TRACING_SAMPLING_RATIO=${ESQ_TRACING_SAMPLING_RATIO:-1.0}
+      - ESQ_TRACING_MARKS_ENABLED=${ESQ_TRACING_MARKS_ENABLED:-true}
+      - ESQ_TRACING_EXCLUDED_PATHS=${ESQ_TRACING_EXCLUDED_PATHS:-/actuator}
+      # Entity broadcast -- enyMan's leg, unchanged. It also feeds the identity relay: a move is handed to
+      # the gateway, which parks its new path when the KeyCloak user does not exist yet.
+      - ENTITY_BUS_ID=esquire.entity
+      - ENTITY_SLOT_ID=entity
+      - ENTITY_BROADCAST_PUBLISHER_POOL_SIZE=0
+      - ENTITY_BROADCAST_SEND_RETRY=true
+      - ENTITY_BROADCAST_SEND_RETRY_BACKOFF_SEC=1,2,5,5
+      - ENTITY_BROADCAST_SEND_RETRY_MAX_ATTEMPTS=0
+      - ENTITY_BROADCAST_POOL_MODE=${ENTITY_BROADCAST_POOL_MODE:-platform}
+      - ESQ_VIRTUAL_THREADS=${ESQ_VIRTUAL_THREADS:-false}
+      # enyMan's move queue -- bound by the literal "enyman." prefix, so the name stays as the code reads it.
+      - ENYMAN_MOVE_QUEUE_CAPACITY=${ENYMAN_MOVE_QUEUE_CAPACITY:-16384}
+      - ENYMAN_VALIDATE_CREATE_DURING_MOVE=${ENYMAN_VALIDATE_CREATE_DURING_MOVE:-true}
+      # TEST race-8c repro ONLY: hold between the committed path read and the identity post, so a move can
+      # land in that window. Default 0 = disabled; never set outside a repro run.
+      - KEYSMITH_TEST_CONNECT_HOLD_MS=${KEYSMITH_TEST_CONNECT_HOLD_MS:-0}
+      # KeyCloak -- read by the identity gateway itself, by kcMaster's own property names.
+      - KC_BASE_URL=http://keycloak:8080/kc-auth
+      - KC_REALM=esquire
+      - KC_ADMIN_CLIENT_ID=esq-kcMaster
+      - KC_ADMIN_CLIENT_SECRET=MHgq0Nu69u2uJ2johaK1wxQLMdakELXN
+      # The race-8c path park. Nothing fills it on one copy; across copies the entity broadcast does.
+      - KCMASTER_PATH_BUFFER_TTL_MS=${KCMASTER_PATH_BUFFER_TTL_MS:-10000}
+      - KCMASTER_PATH_BUFFER_PRUNE_MS=30000
+      # Audit -- the in-process keep (audit-b). auKeep is absent from the compact stack, so the bus producer
+      # option (audit-c) has no consumer here; the household applies its own log rows.
+      - AUDIT_BUS_ID=${AUDIT_BUS_ID:-audit-b}
+      - AUDIT_SLOT_ID=audit
+      - AUDIT_POOL_SIZE=${AUDIT_POOL_SIZE:-4}
+      - AUDIT_POOL_MODE=${AUDIT_POOL_MODE:-platform}
+      - AUDIT_FEED_CAPACITY=${AUDIT_FEED_CAPACITY:-4096}
+      - DB_DATAKEEP_URL=${DB_DATAKEEP_URL:-jdbc:postgresql://postgres:5432/esq2025}
+      - DB_DATAKEEP_USERNAME=${DB_DATAKEEP_USERNAME:-esq2025}
+      - DB_DATAKEEP_PASSWORD=${DB_DATAKEEP_PASSWORD:-q}
+      - DB_DATAKEEP_POOL_SIZE=${DB_DATAKEEP_POOL_SIZE:-2}
+    command: ["java", "-jar", "app.jar"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      activemq:
+        condition: service_healthy
+      keycloak:
+        condition: service_healthy
+    volumes:
+      - ./logs:/app/logs
+      - ./topology/esquire-topology.yml:/etc/esquire/topology.yml:ro
+    networks:
+      - esquirenet
+
+  pacman:
+    container_name: esqc-pacman
+    build:
+      context: ../pacMan
+    image: esquire.pacman
+    ports:
+      - "3004:3004"
+    environment:
+      - PACMAN_PORT=3004
+      - LOG_LEVEL_ROOT=ERROR
+      - LOG_LEVEL_SF=ERROR
+      # I49 knob: o11y-log-off/on.bat set this OFF / INFO. Keep overridable or both arms run identical.
+      - LOG_LEVEL_MIR0N=${LOG_LEVEL_MIR0N:-DEBUG}
+      - LOG_LEVEL_DEVELOP=${LOG_LEVEL_DEVELOP:-DEBUG}
+      - LOG_LEVEL_MSG=${LOG_LEVEL_MSG:-INFO}
+      - LOG_LEVEL_AMQ=${LOG_LEVEL_AMQ:-INFO}
+      - LOG_LEVEL_JMS=${LOG_LEVEL_JMS:-INFO}
+      - DEVELOP_LOG_PATH=logs/pacMan-develop.log
+      - MSG_LOG_PATH=logs/pacMan-msg.log
+      # Distributed tracing (v1.2.11 O2) -- OFF by default; the o11y profile brings up the collector + Tempo.
+      # Enable end-to-end: ESQ_OBSERVABILITY_ENABLED=true docker compose --profile o11y up -d --force-recreate
+      - ESQ_OBSERVABILITY_ENABLED=${ESQ_OBSERVABILITY_ENABLED:-false}
+      # per-pillar enable (I41): default to master; set ESQ_TRACING_ENABLED=false for metrics-only (mesh case)
+      - ESQ_TRACING_ENABLED=${ESQ_TRACING_ENABLED:-${ESQ_OBSERVABILITY_ENABLED:-false}}
+      - ESQ_METRICS_ENABLED=${ESQ_METRICS_ENABLED:-${ESQ_OBSERVABILITY_ENABLED:-false}}
+      - ESQ_METRICS_HISTOGRAMS=${ESQ_METRICS_HISTOGRAMS:-false}
+      - ESQ_METRICS_BANDWIDTH=${ESQ_METRICS_BANDWIDTH:-true}
+      - ESQ_METRICS_BUSINESS=${ESQ_METRICS_BUSINESS:-true}
+      - ESQ_MSG_BUS_ALIVE_TRACE=${ESQ_MSG_BUS_ALIVE_TRACE:-false}   # RR liveness heartbeat spans -- OFF by default on every target (I14); opt in via this env
+      - ESQ_OTLP_ENDPOINT=${ESQ_OTLP_ENDPOINT:-http://otel-collector:4318/v1/traces}
+      - ESQ_TRACING_SAMPLING_RATIO=${ESQ_TRACING_SAMPLING_RATIO:-1.0}
+      - ESQ_TRACING_MARKS_ENABLED=${ESQ_TRACING_MARKS_ENABLED:-true}
+      - ESQ_TRACING_EXCLUDED_PATHS=${ESQ_TRACING_EXCLUDED_PATHS:-/actuator}
+      - TOPOLOGY_IMPORT=optional:file:/etc/esquire/topology.yml
+      - DB_PACMAN_VENDOR=${DB_PACMAN_VENDOR:-dev-postgres}
+      - DB_PACMAN_PORT=${DB_PACMAN_PORT:-5432}
+      - DB_PACMAN_NAME=${DB_PACMAN_NAME:-esq2025}
+      #- DB_PACMAN_VENDOR=dev-oracle
+      #- DB_PACMAN_PORT=1521
+      #- DB_PACMAN_NAME=MIR0N
+      - DB_PACMAN_HOST=${DB_PACMAN_HOST:-postgres}
+      - DB_PACMAN_USERNAME=esq2025
+      - DB_PACMAN_PASSWORD=q
+      # Messaging
+      - ENTITY_BUS_ID=esquire.entity
+      - ENTITY_SLOT_ID=entity
+      - ENTITY_BROADCAST_PUBLISHER_POOL_SIZE=0
+      # v1.2.10 send-retry on the entity broadcast bus: ON for docker (block mode -- retry until the broker recovers)
+      - ENTITY_BROADCAST_SEND_RETRY=true
+      - ENTITY_BROADCAST_SEND_RETRY_BACKOFF_SEC=1,2,5,5
+      - ENTITY_BROADCAST_SEND_RETRY_MAX_ATTEMPTS=0
+      # v1.2.10 worker-pool mode (platform | virtual | virtual-per-task; default platform -- UNVALIDATED, see HA doc 5.5)
+      - ESQ_VIRTUAL_THREADS=${ESQ_VIRTUAL_THREADS:-false}
+      # v1.2.8 audit logging (x-rod). pacMan owns account UPDATE / DELETE / balance -> esq_account_log.
+      # Per-vendor buses -- pick the sink by id (see enyMan for the full set). Demo = the bus -> auKeep.
+      - AUDIT_BUS_ID=${AUDIT_BUS_ID:-audit-b}
+      - AUDIT_SLOT_ID=audit
+      - AUDIT_POOL_SIZE=${AUDIT_POOL_SIZE:-4}
+      - AUDIT_POOL_MODE=${AUDIT_POOL_MODE:-platform}
+      - AUDIT_FEED_CAPACITY=${AUDIT_FEED_CAPACITY:-4096}
+      - DB_DATAKEEP_URL=${DB_DATAKEEP_URL:-jdbc:postgresql://postgres:5432/esq2025}
+      - DB_DATAKEEP_USERNAME=${DB_DATAKEEP_USERNAME:-esq2025}
+      - DB_DATAKEEP_PASSWORD=${DB_DATAKEEP_PASSWORD:-q}
+      - DB_DATAKEEP_POOL_SIZE=${DB_DATAKEEP_POOL_SIZE:-2}
+    command: ["java", "-jar", "app.jar"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      activemq:
+        condition: service_healthy
+    volumes:
+      - ./logs:/app/logs
+      - ./topology/esquire-topology.yml:/etc/esquire/topology.yml:ro
+    networks:
+      - esquirenet
+
+  gateway:
+    container_name: esqc-gateway
+    build:
+      context: ../gateway
+    image: esquire.gateway
+    ports:
+      - "7070:7070"
+    healthcheck:
+      # curl was dropped from temurin:25-jre-jammy; TCP probe on :7070 (Spring binds the port only when the app
+      # is ready) -- matches the keycloak / activemq healthchecks in this file. Runs INSIDE the container.
+      test: ["CMD-SHELL", "bash -c '</dev/tcp/127.0.0.1/7070' 2>/dev/null"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 30s
+    environment:
+      - GATEWAY_PORT=7070
+      - LOG_LEVEL_DEVELOP=${LOG_LEVEL_DEVELOP:-DEBUG}
+      - DEVELOP_LOG_PATH=logs/gateway-develop.log
+      - BIZTREE_PORT=3002
+      - BIZTREE_HOST=biztree
+      - ENYMAN_PORT=3003
+      - ENYMAN_HOST=mesnie          # both halves of the household answer on one process
+      - PACMAN_PORT=3004
+      - PACMAN_HOST=pacman
+      - KEYSMITH_PORT=3003
+      - KEYSMITH_HOST=mesnie
+      - BACKEND_HOST=localhost
+      - KEYCLOAK_HOST=host.docker.internal
+      - KEYCLOAK_PORT=8081
+      - KEYCLOAK_PATH=/kc-auth
+      - KEYCLOAK_REALM=esquire
+      - KEYCLOAK_CLIENT_ID=esq-angular
+      - CORS_ALLOWED_ORIGINS=http://localhost:4200,http://localhost:3000
+      - LOG_LEVEL_ROOT=ERROR
+      - LOG_LEVEL_SF=ERROR
+      # I49 knob: o11y-log-off/on.bat set this OFF / INFO. Keep overridable or both arms run identical.
+      - LOG_LEVEL_MIR0N=${LOG_LEVEL_MIR0N:-DEBUG}
+      - GW_SERVICE_METRICS_ENABLED=true
+      # Distributed tracing (v1.2.11 O2) -- OFF by default; the o11y profile brings up the collector + Tempo.
+      # Enable end-to-end: ESQ_OBSERVABILITY_ENABLED=true docker compose --profile o11y up -d --force-recreate
+      - ESQ_OBSERVABILITY_ENABLED=${ESQ_OBSERVABILITY_ENABLED:-false}
+      # per-pillar enable (I41): default to master; set ESQ_TRACING_ENABLED=false for metrics-only (mesh case)
+      - ESQ_TRACING_ENABLED=${ESQ_TRACING_ENABLED:-${ESQ_OBSERVABILITY_ENABLED:-false}}
+      - ESQ_METRICS_ENABLED=${ESQ_METRICS_ENABLED:-${ESQ_OBSERVABILITY_ENABLED:-false}}
+      - ESQ_METRICS_HISTOGRAMS=${ESQ_METRICS_HISTOGRAMS:-false}
+      - ESQ_METRICS_BANDWIDTH=${ESQ_METRICS_BANDWIDTH:-true}
+      - ESQ_METRICS_BUSINESS=${ESQ_METRICS_BUSINESS:-true}
+      - ESQ_MSG_BUS_ALIVE_TRACE=${ESQ_MSG_BUS_ALIVE_TRACE:-false}   # RR liveness heartbeat spans -- OFF by default on every target (I14); opt in via this env
+      - ESQ_OTLP_ENDPOINT=${ESQ_OTLP_ENDPOINT:-http://otel-collector:4318/v1/traces}
+      - ESQ_TRACING_SAMPLING_RATIO=${ESQ_TRACING_SAMPLING_RATIO:-1.0}
+      - ESQ_TRACING_MARKS_ENABLED=${ESQ_TRACING_MARKS_ENABLED:-true}
+      - ESQ_TRACING_EXCLUDED_PATHS=${ESQ_TRACING_EXCLUDED_PATHS:-/actuator}
+      # v1.2.4 JWE re-evaluation -- mounts the gateway RSA private key at the
+      # path below; SecurityConfig switches to JweAwareJwtDecoder when present.
+      # Blank/unset -> plain JWS decoder (v1.2.3 baseline).
+      - ESQ_JWE_PRIVATE_KEY_PATH=/etc/esquire/jwe-private.pem
+      # Vanilla Token Relay -- client sends HTTP Basic with its own
+      # client_id:client_secret; gateway brokers a JWT from KC via the
+      # client_credentials grant and caches it per client_id. Per-client
+      # opt-in via the allowlist below.
+      # Certified clients:
+      #   esq-hauberk   -- Plain JWT (client carries Bearer JWT)
+      #   esq-hauberk-S -- Vanilla Token Relay (client carries Basic; no token)
+      # Use host.docker.internal:8081 (same URL as clients see) so KC token-exchange
+      # iss validation matches between subject_token and gateway's call. Gateway
+      # gets extra_hosts mapping below to resolve host.docker.internal.
+      - ESQ_GW_TOKEN_URI=http://host.docker.internal:8081/kc-auth/realms/esquire/protocol/openid-connect/token
+      - ESQ_GW_VANILLA_CLIENTS=esq-hauberk-S
+      # Phantom Token Relay -- esq-hauberk-M presents a stripped JWT;
+      # gateway exchanges it for a full JWT via RFC 8693 using the
+      # esq-gw-exchange confidential client.
+      - ESQ_GW_PHANTOM_CLIENTS=esq-hauberk-M
+      - ESQ_GW_EXCHANGE_CLIENT_ID=esq-gw-exchange
+      - ESQ_GW_EXCHANGE_CLIENT_SECRET=esq-gw-exchange-dev-secret-rotate-in-prod
+    # --enable-native-access=ALL-UNNAMED : the gateway is the ONE Netty runtime in the fleet (Spring
+    # Cloud Gateway); the rest are Tomcat. Netty loads a native library, and on Java 25 (JEP 472) that
+    # is a RESTRICTED method -- the JVM warns today and says so itself: "Restricted methods will be
+    # BLOCKED in a future release unless native access is enabled". Not warning-suppression: it grants
+    # the access Netty legitimately needs, before a future JDK refuses to start the gateway at all.
+    command: ["java", "--enable-native-access=ALL-UNNAMED", "-jar", "app.jar"]
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      keycloak:
+        condition: service_healthy
+    volumes:
+      - ./logs:/app/logs
+      - ../gateway/conf:/etc/esquire:ro
+    networks:
+      - esquirenet
+
+  backend:
+    container_name: esqc-backend
+    build:
+      context: ../../explorer
+      dockerfile: backend/Dockerfile
+    image: esquire.backend
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+      # NODE_ENV=development keeps session.cookie.secure=false so the cookie
+      # works over plain HTTP on localhost:3000. Switch to "production" when
+      # the deployment fronts the BFF with HTTPS (k8s ingress + cert-manager).
+      - NODE_ENV=development
+      # KC publishes its discovery URLs and "iss" claim using KC_HOSTNAME +
+      # KC_HOSTNAME_PORT (set to localhost:8081 on the keycloak service). The
+      # BFF discovers from the same URL so the "iss" the SPA receives matches
+      # the one this container validates. extra_hosts below maps "localhost"
+      # inside this container -> host gateway -> host port 8081 -> KC.
+      - KC_ISSUER=http://localhost:8081/kc-auth/realms/esquire
+      - KC_CLIENT_ID=esq-angular
+      - KC_CLIENT_SECRET=esq-angular-bff-dev-secret-rotate-in-prod
+      - GATEWAY_URL=http://gateway:7070
+      - PUBLIC_BASE_URL=http://localhost:3000
+      # Login from :4200 (ng serve dev container) lands back on :4200; from
+      # :3000 (production-style baked SPA) lands back on :3000. Origins not
+      # in this list (or absent referer/origin headers) fall back to PUBLIC_BASE_URL.
+      - ALLOWED_ORIGINS=http://localhost:3000,http://localhost:4200
+      - SESSION_SECRET=esq-bff-dev-session-secret-rotate-in-prod
+      # Distributed tracing (v1.2.11 O2) -- OFF by default; the o11y profile brings up the collector.
+      # Enable end-to-end: ESQ_OBSERVABILITY_ENABLED=true docker compose --profile o11y up -d --force-recreate
+      - ESQ_OBSERVABILITY_ENABLED=${ESQ_OBSERVABILITY_ENABLED:-false}   # BFF: same umbrella MASTER as the Java services
+      # per-pillar enable (I41): default to master; ESQ_TRACING_ENABLED=false -> BFF metrics-only (mesh case), matching Java
+      - ESQ_TRACING_ENABLED=${ESQ_TRACING_ENABLED:-${ESQ_OBSERVABILITY_ENABLED:-false}}
+      - ESQ_METRICS_ENABLED=${ESQ_METRICS_ENABLED:-${ESQ_OBSERVABILITY_ENABLED:-false}}
+      # NO ESQ_MSG_BUS_ALIVE_TRACE here on purpose (I43): that switch turns on RR liveness-HEARTBEAT spans, and the
+      # BFF is not a message-bus participant -- it has no x-rod, no heartbeat, and never reads the var. It was set
+      # here as symmetry-noise with the 7 Java services and was INERT: the k8s esquire-backend chart never had it,
+      # so the two targets disagreed about a key that did nothing on either. Deleted rather than propagated to the
+      # chart -- the asymmetry was the tell, not the bug (I13/I14 class, resolved by DELETION).
+      - ESQ_OTLP_ENDPOINT=${ESQ_OTLP_ENDPOINT:-http://otel-collector:4318/v1/traces}
+      - ESQ_TRACING_SAMPLING_RATIO=${ESQ_TRACING_SAMPLING_RATIO:-1.0}
+    extra_hosts:
+      - "localhost:host-gateway"
+    depends_on:
+      gateway:
+        condition: service_healthy
+      keycloak:
+        condition: service_healthy
+    networks:
+      - esquirenet
+
+  # Live-reload Angular dev container. Optional: skip this service on prod-like
+  # runs by using `docker compose up backend` (or any subset that excludes
+  # frontend). The :3000 backend image already bakes the Angular SPA, so the
+  # dev server here is only useful when iterating on frontend code.
+  frontend:
+    container_name: esqc-frontend
+    build:
+      context: ../../explorer/frontend
+    image: esquire.frontend
+    ports:
+      - "4200:4200"
+    command: >
+      npx ng serve
+      --host 0.0.0.0
+      --port 4200
+      --proxy-config proxy.conf.docker.json
+      --poll 2000
+    depends_on:
+      backend:
+        condition: service_started
+    networks:
+      - esquirenet
+
+  # ---- Observability stack -- opt-in profile "o11y" ----
+  # Grafana single pane over Loki (logs, T1) + Tempo (traces, T2). Alloy tails the esq-* container stdout
+  # (ECS JSON) into Loki; the OTel Collector receives service spans over OTLP and forwards them to Tempo.
+  #   Start (logs only):     docker compose --profile o11y up -d
+  #   Start with observability: ESQ_OBSERVABILITY_ENABLED=true docker compose --profile o11y up -d --force-recreate
+  #   Open:   http://localhost:3009  (admin/admin)  ->  Explore
+  #     Loki:   {job="esq-docker"} | json | correlationId = "<id>"
+  #     Tempo:  Search by TraceID = the same correlationId (traceId == settled Esq-Correlation-ID).
+  # Logs need no service change; tracing is wired by common.ObservabilityConfig (esquire.observability.enabled).
+  loki:
+    container_name: esqc-loki
+    image: grafana/loki:3.4.2
+    profiles: ["o11y"]
+    command: ["-config.file=/etc/loki/loki-config.yaml"]
+    ports:
+      - "3100:3100"
+    volumes:
+      - ./o11y/loki-config.yaml:/etc/loki/loki-config.yaml:ro
+      - loki-data:/loki
+    networks:
+      - esquirenet
+
+  alloy:
+    container_name: esqc-alloy
+    image: grafana/alloy:v1.7.4
+    profiles: ["o11y"]
+    command:
+      - run
+      - /etc/alloy/config.alloy
+      - --server.http.listen-addr=0.0.0.0:12345
+      - --storage.path=/var/lib/alloy/data
+    ports:
+      - "12345:12345"     # Alloy debug UI
+    volumes:
+      - ./o11y/alloy-config.alloy:/etc/alloy/config.alloy:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - alloy-data:/var/lib/alloy/data
+    depends_on:
+      loki:
+        condition: service_started
+    networks:
+      - esquirenet
+
+  grafana:
+    container_name: esqc-grafana
+    image: grafana/grafana:11.5.2
+    profiles: ["o11y"]
+    ports:
+      - "3009:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
+      - GF_USERS_DEFAULT_THEME=light
+      - GF_ANALYTICS_REPORTING_ENABLED=false
+    volumes:
+      - ./o11y/grafana/provisioning:/etc/grafana/provisioning:ro
+      # OUR OWN component logos (the same set the README legend and ComponentModel.svg use), served from
+      # Grafana's public tree so the topology canvas can reference them as img/icons/esq/<component>.svg.
+      # Generic third-party icons would have made the board a THIRD picture of the same system.
+      - ./o11y/grafana/icons:/usr/share/grafana/public/img/icons/esq:ro
+      - grafana-data:/var/lib/grafana
+    depends_on:
+      loki:
+        condition: service_started
+      tempo:
+        condition: service_started
+    networks:
+      - esquirenet
+
+  # OTLP ingest hub (D1): services export spans here; it forwards to Tempo. Swappable trace backend.
+  otel-collector:
+    container_name: esqc-otel-collector
+    image: otel/opentelemetry-collector-contrib:0.119.0
+    profiles: ["o11y"]
+    command: ["--config=/etc/otelcol/config.yaml"]
+    volumes:
+      - ./o11y/otel-collector-config.yaml:/etc/otelcol/config.yaml:ro
+    ports:
+      - "4318:4318"     # OTLP/HTTP (services -> collector)
+      - "4317:4317"     # OTLP/gRPC
+    depends_on:
+      tempo:
+        condition: service_started
+    networks:
+      - esquirenet
+
+  # Tempo -- the trace store (T of LGTM). Receives OTLP from the collector; Grafana queries it on :3200.
+  tempo:
+    container_name: esqc-tempo
+    image: grafana/tempo:2.7.1
+    profiles: ["o11y"]
+    command: ["-config.file=/etc/tempo/tempo-config.yaml"]
+    volumes:
+      - ./o11y/tempo-config.yaml:/etc/tempo/tempo-config.yaml:ro
+      - tempo-data:/var/tempo
+    ports:
+      - "3200:3200"     # Tempo query API
+    networks:
+      - esquirenet
+
+  # Prometheus -- the metrics store (the M of LGTM). Scrapes each service's /actuator/prometheus (pull model)
+  # on the docker network; Grafana queries it on :9090. Part of the "o11y" profile, off by default.
+  prometheus:
+    container_name: esqc-prometheus
+    image: prom/prometheus:v3.1.0
+    profiles: ["o11y"]
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=6h
+      # Exemplars are the metrics -> trace hop: the services already ATTACH a trace_id to every histogram
+      # bucket (Boot wires the exemplar SpanContext), but without this feature flag Prometheus parses them and
+      # THROWS THEM AWAY -- silently, with no error anywhere. Off by default upstream.
+      # NOTE the buckets are the carrier: exemplars only exist on histogram buckets, so the hop is inert until
+      # ESQ_METRICS_HISTOGRAMS=true (off by default -- it costs 2.3x the scrape; see the T8 cost table).
+      - --enable-feature=exemplar-storage
+    volumes:
+      - ./o11y/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./o11y/rules.yml:/etc/prometheus/rules.yml:ro   # framework-health alert rules (I55; rule_files in prometheus.yml)
+      # NAMED, like every other store here. The image declares VOLUME /prometheus, so without this line docker
+      # hands it an ANONYMOUS volume: a fresh empty one on every recreate, and exactly what `docker volume prune`
+      # reclaims. An anonymous volume is not a storage choice, it is an accident -- Prometheus was the only
+      # component in the stack still keeping its data in one.
+      - prometheus-data:/prometheus
+    ports:
+      - "9090:9090"     # Prometheus query API / UI
+    networks:
+      - esquirenet
+
+networks:
+  esquirenet:
+    driver: "bridge"
+
+volumes:
+  postgres-data:
+  loki-data:
+  grafana-data:
+  alloy-data:
+  tempo-data:
+  prometheus-data:
+

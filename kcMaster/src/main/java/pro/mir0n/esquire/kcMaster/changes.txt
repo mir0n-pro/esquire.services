@@ -1,5 +1,38 @@
 Esquire kcMaster Microservice
 
+08/12/2026 mir0n  v1.2.13 -- Mesnie
+KcMasterApplication
+  - the package list moved to KcMasterConfig (@Import)
+KcMasterConfig  (new)
+  - created: kcMaster's @ComponentScan, the one place its packages are named; excludes KcMasterApplication;
+    declares @Bean KcIdentityGateway identityGateway(Environment) with initMethod start / destroyMethod stop
+identity.KcIdentityGateway  (new)
+  - created: THE identity workflow and the only copy of it. Builds its own KeyCloak admin client, path park,
+    KcIdentityService and KcRequestHandler from keycloak.admin.* and kcmaster.path-buffer.*; serve(RodEvent)
+    routes by msgType -- a request to the handler, a broadcast to the park; postRequest / postMessage queue
+    onto a BoundedQueueRig (one worker, FIFO); start()/stop() drive the park pruner and the queue gate
+config.KeycloakConfig
+  - the keycloak() and kcPathBuffer() beans removed: KcIdentityGateway builds the admin client and the path
+    park itself; the I39 note moved with the client
+messaging.EntityBusAdapter
+  - transport only: the receive worker is KcIdentityGateway.serve; the park decision, the KC user lookup and
+    the path extraction moved to the gateway
+messaging.KcBusAdapter
+  - transport only: the receive worker is KcIdentityGateway.serve and the gateway's answers transmit back on
+    the rod; the dispatch and the URS/URR building moved to the gateway
+messaging.KcRequestHandler
+  - KcSyncRequest -> AuthSyncRequest (moved to common backend.identity); @Component dropped -- the handler is
+    built by KcIdentityGateway
+messaging.KcSyncRequest
+  - moved to common backend.identity as AuthSyncRequest
+service.impl.KcIdentityService
+  - @Service dropped -- built by KcIdentityGateway; KcSyncRequest -> AuthSyncRequest
+pom.xml
+  - maven-jar-plugin execution attaches a plain classes jar (classifier "classes"), excluding application.yml
+    and logback-spring.xml
+Dockerfile, Dockerfile.win, Dockerfile.lx
+  - COPY names esquire-kc-master.jar instead of target/*.jar
+
 08/11/2026 mir0n  v1.2.12 -- entity change number
 messaging.ParkedPath  (new)
   - a moved entity's new path parked with the PATH change number that produced it, so the race-8c buffer

@@ -1,0 +1,6 @@
+apiVersion: v2
+name: esquire-tempo
+description: Grafana Tempo trace store (T2 tracing) for local/dev k8s -- single binary, filesystem, ephemeral.
+type: application
+version: 0.1.0
+appVersion: "2.7.1"

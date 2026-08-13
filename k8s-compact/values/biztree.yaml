@@ -1,0 +1,31 @@
+# Local k8s overlay for charts/esquire-biztree
+# Chart defaults already match local dev needs (esquire.biztree image,
+# IfNotPresent pull, dev-postgres + cache-h2 profile, DEBUG logging,
+# in-cluster postgres / activemq hostnames). Only image.tag is restamped
+# per rebuild here -- k8s-rebuild.bat patches it.
+image:
+  tag: "v1.2.13-2608.1315"
+
+# v1.2.10 redundancy: run 2 replicas (StatefulSet ordinal identity)
+replicaCount: 2
+
+# R1-R5 local-k8s budget -- overrides the chart's pre-HA defaults. Tuned for the
+# constrained single-node Docker Desktop cluster running the full x2 fleet.
+# bizTree serves most reads from its in-JVM H2 cache, so its POSTGRES pool is the
+# smallest of the fleet (5). (R1 tx-timeout stays at the chart pre-HA default -1.)
+resilience:
+  tomcatMaxThreads: "25"          # R2
+  tomcatAcceptCount: "50"         # R2
+  dbPoolMax: "5"                  # R3 (smaller -- cache-served reads)
+  dbPoolMinIdle: "2"              # R3
+  dbConnectTimeoutMs: "5000"      # R3 fail-fast on pool acquire
+  dbSocketTimeoutSeconds: "35"    # R5
+  dbTcpKeepAlive: "true"          # R5
+
+resources:
+  requests:
+    cpu: 250m
+    memory: 512Mi
+  limits:
+    cpu: "1"
+    memory: 768Mi

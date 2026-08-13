@@ -1,5 +1,27 @@
 Esquire enyMan Microservice
 
+08/12/2026 mir0n  v1.2.13 -- Mesnie
+EnyManApplication
+  - the package list moved to EnyManConfig (@Import); @Bean IIdentityGateway identityGateway() declared here
+    with initMethod start / destroyMethod stop -- one gateway per PROCESS
+EnyManConfig  (new)
+  - created: enyMan's @ComponentScan / @EntityScan / @EnableJpaRepositories, the one place its packages are
+    named; excludes EnyManApplication and AuditConfig from the scan
+messaging.EntityBusAdapter
+  - IIdentityGateway injected; publish() and the receive worker hand a PATH broadcast to postMessage, which is
+    all that arm takes; one worker over subscription EventType IN ('C','X')
+messaging.KcBusAdapter
+  - implements IIdentityGateway: postRequest(RodEvent) transmits, postMessage is skipped, start()/stop() take
+    the kc leg (was the constructor)
+queue.MoveQueueManager
+  - field/ctor param KcBusAdapter -> IIdentityGateway; publishKcMoveRequest builds an AuthSyncRequest +
+    RodEvent and calls postRequest, carrying the PATH change number
+pom.xml
+  - maven-jar-plugin execution attaches a plain classes jar (classifier "classes"), excluding application.yml
+    and logback-spring.xml
+Dockerfile, Dockerfile.win, Dockerfile.lx
+  - COPY names esquire-eny-man.jar instead of target/*.jar
+
 08/11/2026 mir0n  v1.2.12 -- entity change number
 jpa.EntityPathLookup
   - updatePath raises ep_change_no inline (the path table is written under one global lock, not read for

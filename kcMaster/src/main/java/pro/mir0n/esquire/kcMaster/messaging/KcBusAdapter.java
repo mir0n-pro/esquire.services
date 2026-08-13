@@ -16,107 +16,49 @@
  *                   and clears in a finally (I10)
  * 08/11/2026 mir0n  v1.2.12 -- the RodEvent constructor call carries a null change number: a KeyCloak
  *                   request leg reports none
+ * 08/12/2026 mir0n  v1.2.13 -- transport only: the receive worker is KcIdentityGateway.serve and the gateway's answers
+ *                   transmit back on the rod; the dispatch and the URS/URR building moved to the gateway
  */
 package pro.mir0n.esquire.kcMaster.messaging;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
-import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
-import pro.mir0n.esquire.backend.service.EsqContextHolder;
 import pro.mir0n.esquire.common.EsqConstants;
-import pro.mir0n.esquire.messaging.BusConstants;
+import pro.mir0n.esquire.kcMaster.identity.KcIdentityGateway;
 import pro.mir0n.esquire.messaging.MessagingBus;
 import pro.mir0n.esquire.messaging.IXRod;
-import pro.mir0n.esquire.messaging.RodEvent;
-
-import java.util.LinkedHashMap;
-import java.util.Map;
 
 /**
- * The kcMaster end of the kc bus (SERVER role): one rod, both legs. It receives a URQ off the request leg (shared
- * work -- no selector, any kcMaster pod takes the next one), dispatches to {@link KcRequestHandler}, and transmits
- * the reply (URS success / URR reject) on the response leg. The requester's rod-id is stamped on the reply so only
- * the originating producer instance's RodID selector picks it up.
+ * The kcMaster end of the kc bus (SERVER role): one rod, both legs, and nothing else. Each received URQ goes to
+ * the identity gateway, and whatever the gateway answers is transmitted back -- URS on success, URR on a reject.
+ *
+ * <p>No identity work happens here. The workflow has one home, {@link KcIdentityGateway}, and this class only
+ * says that the work arrives as a message and that the answer leaves the same way. The gateway serves on THIS
+ * thread, so the rod's worker pool still bounds how many syncs run at once.
+ *
+ * <p>The request leg carries no selector -- shared work, any kcMaster pod takes the next one. The gateway
+ * stamps the requester's rod-id on the answer, so only the originating producer instance's RodID selector picks
+ * it up.
  */
 @Slf4j
 @Component
 public class KcBusAdapter {
 
-    private static final org.slf4j.Logger devLog = LoggerFactory.getLogger("develop." + KcBusAdapter.class.getName());
+    private final KcIdentityGateway gateway;
+    private IXRod rod;
 
-    private final KcRequestHandler handler;
-    private final ObjectMapper objectMapper;
-    private final IXRod rod;
+    public KcBusAdapter(KcIdentityGateway gateway) {
+        this.gateway = gateway;
+    }
 
-    public KcBusAdapter(KcRequestHandler handler, ObjectMapper objectMapper) {
-        this.handler      = handler;
-        this.objectMapper = objectMapper;
+    /** Takes the kc leg and points it at the gateway, with the answers going back out the same rod. */
+    @PostConstruct
+    public void start() {
         // kc SERVER: receive URQ requests (no selector -- shared work) + transmit URS/URR replies, on one rod.
         this.rod = MessagingBus.getInstance().getXRod(EsqConstants.BUS_KEY_KC);
-        this.rod.setWorker(this::onRodEvent);   // role-support: throws if the rod has no receive leg
-        this.rod.transmit(null);                // role-support: probe -- throws if the rod has no transmit leg
-    }
-
-    /** Receive one URQ off the {esquire.kc, kc-request} leg, handle it, and reply URS (success) or URR (reject). */
-    public void onRodEvent(RodEvent e) {
-        String command       = e.opCode();
-        String entityId      = e.entityId();
-        int    entityKind    = e.kind();
-        String requesterRodId = e.rodId();
-        String requestId     = e.requestId();
-        String correlationId = e.correlationId();
-
-        EsqContextHolder.applyMessage(requestId, correlationId);
-        try {
-            log.info("KC | URQ | {} | {} | {} | {}", command, entityKind, entityId, requesterRodId);
-
-            KcSyncRequest req = objectMapper.convertValue(e.body(), KcSyncRequest.class);
-            handler.handle(command, req, correlationId, requestId);
-
-            publishSuccess(entityId, entityKind, command, requesterRodId, requestId, correlationId);
-
-        } catch (Exception ex) {
-            log.error("kcMaster: URQ processing failed: entityId={}, command={}, rodId={}, error={}",
-                    entityId, command, requesterRodId, ex.getMessage());
-            devLog.error("kcMaster: URQ processing failed: entityId={}, command={}, rodId={}, requestId={}, correlationId={}, error={}",
-                    entityId, command, requesterRodId, requestId, correlationId, ex.getMessage(), ex);
-            publishFailure(entityId, entityKind, command, "KC_SYNC_ERROR", ex.getMessage(),
-                    requesterRodId, requestId, correlationId, e.body());
-        } finally {
-            EsqContextHolder.clear();
-        }
-    }
-
-    /** Transmit a URS (success) reply on the response leg. */
-    private void publishSuccess(String entityId, int entityKind, String command,
-                                String requesterRodId, String requestId, String correlationId) {
-        RodEvent e = new RodEvent(RodEvent.opFromCode(command), entityKind, entityId, null, null,
-                System.currentTimeMillis(), correlationId, requestId, null, requesterRodId,
-                BusConstants.MSG_TYPE_RESPONSE, Map.of());
-        rod.transmit(e);
-        log.info("KC | URS | {} | {} | {} | {}", command, entityKind, entityId, requesterRodId);
-    }
-
-    /** Transmit a URR (reject) reply on the response leg, carrying the RFC-9457 error + the original request. */
-    private void publishFailure(String entityId, int entityKind, String command,
-                                String errorCode, String errorMessage,
-                                String requesterRodId, String requestId, String correlationId,
-                                Map<String, Object> requestBody) {
-        Map<String, Object> error = new LinkedHashMap<>();
-        error.put("type",   "about:blank");
-        error.put("title",  errorCode);
-        error.put("status", 500);
-        error.put("detail", errorMessage);
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("error", error);
-        if (requestBody != null) {
-            body.put("request", requestBody);
-        }
-        RodEvent e = new RodEvent(RodEvent.opFromCode(command), entityKind, entityId, null, null,
-                System.currentTimeMillis(), correlationId, requestId, null, requesterRodId,
-                BusConstants.MSG_TYPE_REJECT, body);
-        rod.transmit(e);
-        log.info("KC | URR | {} | {} | {} | {}", command, entityKind, entityId, requesterRodId);
+        this.rod.setWorker(gateway::serve);   // role-support: throws if the rod has no receive leg
+        this.rod.transmit(null);              // role-support: probe -- throws if the rod has no transmit leg
+        gateway.setResultHandler(this.rod::transmit);
     }
 }

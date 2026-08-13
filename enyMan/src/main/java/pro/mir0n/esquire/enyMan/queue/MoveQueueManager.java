@@ -48,6 +48,8 @@
  * 08/11/2026 mir0n  v1.2.12 -- the move broadcast carries the PATH change number: taken from the move
  *                   record, and read back with pathChangeNoFor after a reconcile repair so the reissue is
  *                   not skipped by the receiver's guard
+ * 08/12/2026 mir0n  v1.2.13 -- field/ctor param KcBusAdapter -> IIdentityGateway; publishKcMoveRequest builds an
+ *                   AuthSyncRequest + RodEvent and calls postRequest, carrying the PATH change number
  */
 
 package pro.mir0n.esquire.enyMan.queue;
@@ -70,6 +72,7 @@ import pro.mir0n.esquire.backend.storage.EsqObjectKindStorage;
 import pro.mir0n.esquire.common.EsqConstants;
 import pro.mir0n.esquire.common.QueryTimeouts;
 import pro.mir0n.esquire.messaging.BusConstants;
+import pro.mir0n.esquire.messaging.RodEvent;
 import pro.mir0n.esquire.audit.AuditBusBridge;
 import pro.mir0n.esquire.enyMan.jpa.EntityPathLookup;
 import pro.mir0n.esquire.enyMan.jpa.EsqEntityDictionaryRepository;
@@ -77,7 +80,8 @@ import pro.mir0n.esquire.enyMan.jpa.EsqMoveRecord;
 import pro.mir0n.esquire.enyMan.jpa.EsqOrgRepository;
 import pro.mir0n.esquire.enyMan.jpa.EsqUsrRepository;
 import pro.mir0n.esquire.enyMan.messaging.EntityBusAdapter;
-import pro.mir0n.esquire.enyMan.messaging.KcBusAdapter;
+import pro.mir0n.esquire.backend.identity.IIdentityGateway;
+import pro.mir0n.esquire.backend.identity.AuthSyncRequest;
 import pro.mir0n.esquire.enyMan.service.IEnyManService;
 import pro.mir0n.esquire.enyMan.service.impl.OrgService;
 import pro.mir0n.esquire.enyMan.service.impl.UsrService;
@@ -87,6 +91,7 @@ import pro.mir0n.utils.concurrent.IQueueRig;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 
 @Slf4j
@@ -109,7 +114,7 @@ public class MoveQueueManager implements IQueueRig.IQueueWorker<MoveQueueItem> {
     private final IEnyManService orgService;
     private final IEnyManService usrService;
     private final EntityBusAdapter broadcastPublisher;
-    private final KcBusAdapter kcRequestPublisher;
+    private final IIdentityGateway identityGateway;
     private final EntityPathLookup pathLookup;
 
     private final int capacity;
@@ -120,7 +125,7 @@ public class MoveQueueManager implements IQueueRig.IQueueWorker<MoveQueueItem> {
                             TransactionTemplate transactionTemplate,
                             EntityManager em,
                             EntityBusAdapter broadcastPublisher,
-                            KcBusAdapter kcRequestPublisher,
+                            IIdentityGateway identityGateway,
                             EntityPathLookup pathLookup,
                             AuditBusBridge audit,
                             @Value("${enyman.move-queue.capacity:1024}") int capacity,
@@ -136,7 +141,7 @@ public class MoveQueueManager implements IQueueRig.IQueueWorker<MoveQueueItem> {
         this.orgService = new OrgService(entityDictionaryRepository, orgRepository, moveTx, em, audit);
         this.usrService = new UsrService(entityDictionaryRepository, usrRepository, moveTx, em, audit);
         this.broadcastPublisher = broadcastPublisher;
-        this.kcRequestPublisher = kcRequestPublisher;
+        this.identityGateway = identityGateway;
         this.pathLookup = pathLookup;
         this.capacity = capacity;
         this.graceNanos = inMoveGraceMs * 1_000_000L;
@@ -339,13 +344,23 @@ public class MoveQueueManager implements IQueueRig.IQueueWorker<MoveQueueItem> {
         }
     }
 
-    // KC URQ (EVENT_UPDATE_PATH) only for USR entities -- only USRs have a KC identity.
+    // The moved path goes to the identity provider only for USR entities -- only USRs have an identity there.
     private void publishKcMoveRequest(EsqMoveRecord record, String requestId, String correlationId) {
         EsqObjectKind eek = EsqObjectKindStorage.getInstance().get(record.getKind());
         if (eek.isUsr()) {
             try {
-                kcRequestPublisher.publishPathUpdate(record.getId(), record.getKind(), record.getPath(),
-                        requestId, correlationId);
+                AuthSyncRequest req = new AuthSyncRequest();
+                req.setId(record.getId());
+                req.setKind(record.getKind());
+                req.setPath(record.getPath());
+                // guarantee a non-null tracking id (the former testReqId; it rides as the requestId on the wire).
+                String reqId = (requestId != null && !requestId.isBlank()) ? requestId : UUID.randomUUID().toString();
+                // The PATH change number rides along, on both legs: a gateway that has to hold the path keeps
+                // the newest move rather than the last to arrive. It is the ep_change_no the move just raised
+                // (T8's declared exception: an X carries the PATH number, never the entity row's).
+                identityGateway.postRequest(new RodEvent(RodEvent.Op.UPDATE_PATH, record.getKind(), record.getId(), null,
+                        record.getChangeNo(), System.currentTimeMillis(), correlationId, reqId, null, null,
+                        BusConstants.MSG_TYPE_REQUEST, req.toMap()));
             } catch (Exception e) {
                 log.error("publishKcMoveRequest: failed for id={}: {}", record.getId(), e.getMessage());
                 devLog.error("publishKcMoveRequest: failed for id={}: {}", record.getId(), e.getMessage(), e);

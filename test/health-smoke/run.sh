@@ -11,6 +11,8 @@
 #   ./run.sh            docker mode (default) -- the compose stack
 #   ./run.sh docker
 #   ./run.sh k8s        local-k8s mode (kubectl context MUST be docker-desktop)
+#   ./run.sh docker compact   the compact stack (Mesnie in place of enyMan/keySmith/kcMaster; no auKeep)
+#   ./run.sh k8s compact
 #
 # Prereqs: the stack up (compose, or local k8s) + docker (docker mode) / kubectl (k8s mode).
 # Actuator listens on a SEPARATE, internal-only port (8090 = management.server.port); it is NOT
@@ -24,16 +26,25 @@ set -uo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 MODE="${1:-docker}"
+PROFILE="${2:-classic}"
 STAMP="$(date +%y%m%d-%H%M)"
-RESULTS="${HERE}/results-${STAMP}-${MODE}.md"
+RESULTS="${HERE}/results-${STAMP}-${MODE}${PROFILE:+-$PROFILE}.md"
 FAILS=0
 
 log()  { echo "$@" | tee -a "$RESULTS"; }
 pass() { log "PASS -- $*"; }
 fail() { log "FAIL -- $*"; FAILS=$((FAILS + 1)); }
 
+# Which services this profile expects, and which one carries the buses the chaos step needs.
+# classic: six processes. compact: Mesnie IS enyMan + keySmith + the identity work, and auKeep is absent.
 ORDER=(enyman pacman keysmith kcmaster biztree aukeep)
 CHAOS_SVC="enyman"                      # carries all three buses (audit / kc / entity)
+DPREFIX="esq-"                          # docker container-name prefix
+if [ "$PROFILE" = "compact" ]; then
+  ORDER=(mesnie pacman biztree)
+  CHAOS_SVC="mesnie"                    # carries entity + audit; here "the service" is a composition
+  DPREFIX="esqc-"
+fi
 DOWN_WAIT=60                            # seconds to wait for the DOWN edge (bounded by alive-timeout + termination)
 UP_WAIT=120                            # seconds to wait for recovery (broker restart + failover reconnect)
 MPORT=8090                             # actuator's internal-only management port (the same in every service)
@@ -47,13 +58,13 @@ hc() {
   $1 bash -c "exec 3<>/dev/tcp/127.0.0.1/$MPORT 2>/dev/null || { echo 000; exit 0; }; printf 'GET /actuator/health/$2 HTTP/1.0\r\nConnection: close\r\n\r\n' >&3; read -r -t 10 _ code _ <&3; echo \"\${code:-000}\"" 2>/dev/null
 }
 
-log "# Health smoke run -- ${MODE} -- ${STAMP}"
+log "# Health smoke run -- ${MODE} / ${PROFILE} -- ${STAMP}"
 log ""
 
 # ----------------------------------------------------------------------------- docker mode
 if [ "$MODE" = "docker" ]; then
-  BROKER="esq-activemq"
-  ex() { echo "docker exec esq-$1"; }
+  BROKER="${DPREFIX}activemq"
+  ex() { echo "docker exec ${DPREFIX}$1"; }
 
   log "## 1. readiness sweep (all UP)"
   for s in "${ORDER[@]}"; do

@@ -1,0 +1,16 @@
+apiVersion: 1
+
+# Provision the Esquire starter dashboards from JSON files sitting beside this provider. The whole
+# provisioning tree is mounted read-only into Grafana, so any *.json here shows up automatically under
+# Dashboards. Editable in the UI, but changes do not persist back to the file (re-provisioned on restart).
+providers:
+  - name: Esquire
+    orgId: 1
+    folder: Esquire
+    type: file
+    disableDeletion: false
+    editable: true
+    allowUiUpdates: true
+    options:
+      path: /etc/grafana/provisioning/dashboards
+      foldersFromFilesStructure: false

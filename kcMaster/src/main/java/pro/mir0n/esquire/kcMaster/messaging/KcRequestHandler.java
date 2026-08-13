@@ -17,6 +17,8 @@
  *                   isolation that was not built. It is the ONLY view we have of an external dependency's latency
  * 07/17/2026 mir0n  note at the switch: esq.biz.kc.sync.duration is orthogonal to the bus-hop span pair -- the
  *                   KC request/response hop IS traced (PRODUCER/CONSUMER via AXRod), not a waterfall gap (I51).
+ * 08/12/2026 mir0n  v1.2.13 -- KcSyncRequest -> AuthSyncRequest (moved to common backend.identity); @Component dropped --
+ *                   the handler is built by KcIdentityGateway
  */
 
 package pro.mir0n.esquire.kcMaster.messaging;
@@ -24,7 +26,7 @@ package pro.mir0n.esquire.kcMaster.messaging;
 import pro.mir0n.esquire.backend.o11y.EsqBizMeters;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Component;
+import pro.mir0n.esquire.backend.identity.AuthSyncRequest;
 import pro.mir0n.esquire.common.EsqConstants;
 import pro.mir0n.esquire.messaging.BusConstants;
 import pro.mir0n.esquire.kcMaster.service.IKcIdentityService;
@@ -38,13 +40,12 @@ import java.util.Map;
  * Returns success/failure to caller; caller (KcRequestConsumer) publishes URS.
  */
 @Slf4j
-@Component
 @RequiredArgsConstructor
 public class KcRequestHandler {
 
     private final IKcIdentityService kcIdentityService;
 
-    public void handle(String command, KcSyncRequest req, String correlationId, String requestId) {
+    public void handle(String command, AuthSyncRequest req, String correlationId, String requestId) {
         // esq.biz.kc.sync.total / .duration (O1/T8 phase D): the identity sync's OUTCOME and how long it took.
         // The bus meters say a sync request arrived; only this says whether the identity in KeyCloak was actually
         // brought into line. A sync that arrives and then fails leaves Esquire and KeyCloak DISAGREEING about who
@@ -87,7 +88,7 @@ public class KcRequestHandler {
         }
     }
 
-    private void handleCreate(KcSyncRequest req, String correlationId, String requestId) {
+    private void handleCreate(AuthSyncRequest req, String correlationId, String requestId) {
         Map<String, List<String>> attributes = new java.util.HashMap<>();
         attributes.put(EsqConstants.JWT_CLAIM_ENTITY_ID,       Collections.singletonList(req.getId()));
         attributes.put(EsqConstants.JWT_CLAIM_ENTITY_ROOTPATH, Collections.singletonList(req.getPath()));
@@ -106,7 +107,7 @@ public class KcRequestHandler {
         );
     }
 
-    private void handleUpdate(KcSyncRequest req, String correlationId, String requestId) {
+    private void handleUpdate(AuthSyncRequest req, String correlationId, String requestId) {
         String tfaMethod = req.getTfaMethod();
         Boolean requireTotp = "g".equals(tfaMethod) ? Boolean.TRUE : null;
         Boolean removeTotp  = "n".equals(tfaMethod) ? Boolean.TRUE : null;
@@ -128,11 +129,11 @@ public class KcRequestHandler {
         );
     }
 
-    private void handleDelete(KcSyncRequest req, String correlationId, String requestId) {
+    private void handleDelete(AuthSyncRequest req, String correlationId, String requestId) {
         kcIdentityService.deleteUser(req.getLoginId(), correlationId, requestId);
     }
 
-    private void handleUpdatePath(KcSyncRequest req, String correlationId, String requestId) {
+    private void handleUpdatePath(AuthSyncRequest req, String correlationId, String requestId) {
         kcIdentityService.updateEntityPath(req.getId(), req.getPath(), correlationId, requestId);
     }
 }

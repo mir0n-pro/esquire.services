@@ -140,6 +140,26 @@ the current consumers. Multi-worker dispatch matters when several concerns share
 subscription/connection and want to split that stream by finer filters without each opening its own consumer --
 and on a non-selector transport it depends on the client-side subscription language to be meaningful.
 
+**The first caller waiting on it: Mesnie's entity leg.** A composed process has two concerns on the one entity
+rod -- enyMan wants peer CREATEs for the move-queue reconcile, and the identity gateway wants moves for the path
+park. One worker and one selector cannot serve both, so the build widens the base subscription to
+`EventType IN ('C','X')` and enyMan **relays** the moves to the gateway, which decides what one is worth holding.
+That relay is a stand-in for this item, and it costs something measurable: an enyMan pod now receives peer
+X broadcasts it drops on the floor, one per moved entity per pod.
+
+**Half of it has a second exit, needing no framework work at all.** The relay carries two kinds of
+broadcast: a PEER copy's, which only the bus can deliver, and this process's OWN, which is fed back in at
+publish time. The own half exists solely because the request arm applies-or-skips and never holds a path;
+move the park decision into the request arm and that half is redundant -- the request already arrives
+in-process carrying the path. Only the peer half genuinely needs this item.
+
+When `addWorker` lands, Mesnie distributes by subscription instead: enyMan keeps `EventType = 'C'`, the gateway
+adds `EventType = 'X'`, each gets only what it asked for, and the relay comes out -- `relayTo` on the entity
+adapter, `postMessage` on the gateway seam, and the widened base subscription with it. This is the whole reason
+to build the item, and it is worth doing properly rather than in pieces: the fuller form above (base subscription,
+per-worker filters, in-order dispatch on one thread) including the framework-side subscription language for
+transports with no server-side selector.
+
 ---
 
 ## 5. Full set of messaging-path resilience patterns (beyond `send-retry`)

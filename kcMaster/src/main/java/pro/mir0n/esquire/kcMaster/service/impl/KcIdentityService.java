@@ -23,6 +23,7 @@
  *                   (esq.kc.update-path, "Keycloak update path")
  * 08/11/2026 mir0n  v1.2.12 -- createUser consumes a ParkedPath from the shared ExpiringCache and applies
  *                   its path
+ * 08/12/2026 mir0n  v1.2.13 -- @Service dropped -- built by KcIdentityGateway; KcSyncRequest -> AuthSyncRequest
  */
 
 package pro.mir0n.esquire.kcMaster.service.impl;
@@ -40,7 +41,6 @@ import org.keycloak.representations.idm.CredentialRepresentation;
 import org.keycloak.representations.idm.RoleRepresentation;
 import org.keycloak.representations.idm.UserRepresentation;
 import org.slf4j.LoggerFactory;
-import org.springframework.stereotype.Service;
 import pro.mir0n.esquire.kcMaster.messaging.ParkedPath;
 import pro.mir0n.utils.concurrent.ExpiringCache;
 import pro.mir0n.esquire.kcMaster.config.KeycloakConfig;
@@ -55,7 +55,6 @@ import java.util.List;
 import java.util.Map;
 
 @Slf4j
-@Service
 @RequiredArgsConstructor
 public class KcIdentityService implements IKcIdentityService {
     private static final org.slf4j.Logger devLog = LoggerFactory.getLogger("develop." + KcIdentityService.class.getName());

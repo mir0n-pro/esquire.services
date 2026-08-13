@@ -21,21 +21,26 @@
  *                   HealthContributorRegistry programmatically at ApplicationReadyEvent (no @Bean) -> /actuator/health
  * 06/23/2026 mir0n  EsqMsgConstants app constants -> common.EsqConstants (references repointed)
  * 07/08/2026 mir0n  @Import(TracingConfig.class): the common distributed-tracing wiring (v1.2.11 O2)
+ * 08/12/2026 mir0n  v1.2.13 -- the package list moved to KeySmithConfig (@Import); @Bean IIdentityGateway identityGateway()
+ *                   declared here with initMethod start / destroyMethod stop -- one gateway per PROCESS
  */
 
 package pro.mir0n.esquire.keySmith;
 
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.LoggerFactory;
-import org.springframework.boot.autoconfigure.domain.EntityScan;
 import org.springframework.boot.context.event.ApplicationEnvironmentPreparedEvent;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
+import pro.mir0n.esquire.backend.identity.IIdentityGateway;
 import pro.mir0n.esquire.backend.o11y.ObservabilityConfig;
+import pro.mir0n.esquire.keySmith.messaging.KcBusAdapter;
 import pro.mir0n.esquire.backend.storage.EsqEntityDictionaryStorage;
 import org.springframework.boot.SpringApplication;
-import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.boot.SpringBootConfiguration;
+import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.context.event.ApplicationStartingEvent;
 import org.springframework.context.ApplicationEvent;
 import org.springframework.context.ApplicationListener;
@@ -45,23 +50,21 @@ import pro.mir0n.esquire.backend.storage.EsqRolesStorage;
 import pro.mir0n.esquire.backend.storage.roles.JpaRolesRepository;
 import pro.mir0n.esquire.backend.validator.ValidatorFactory;
 import pro.mir0n.esquire.common.EsqConstants;
+import pro.mir0n.esquire.keySmith.audit.AuditConfig;
 import pro.mir0n.esquire.keySmith.service.BizValidatorFactory;
 import pro.mir0n.esquire.messaging.BusHealthIndicator;
 import pro.mir0n.esquire.messaging.MessagingBus;
 
+// @SpringBootConfiguration + @EnableAutoConfiguration is @SpringBootApplication without its implicit
+// @ComponentScan: the scan comes from KeySmithConfig, which is the one place keySmith's packages are
+// named. The roles repository, the audit bridge and the identity gateway are one-per-PROCESS, so the
+// process declares them -- not the service config: under Mesnie, enyMan and keySmith share all three, and
+// there the gateway is the in-process one.
 @Slf4j
-@SpringBootApplication(scanBasePackages = {
-        "pro.mir0n.esquire.keySmith",
-        "pro.mir0n.esquire.backend.service",
-        "pro.mir0n.esquire.backend.security",
-        "pro.mir0n.esquire.backend.exception"
-})
-@Import(ObservabilityConfig.class)
-@EntityScan(basePackages = "pro.mir0n.esquire.backend.jpa")
-@EnableJpaRepositories(basePackages = {
-        "pro.mir0n.esquire.keySmith.jpa",
-        "pro.mir0n.esquire.backend.storage.roles"
-})
+@SpringBootConfiguration
+@EnableAutoConfiguration
+@Import({ObservabilityConfig.class, KeySmithConfig.class, AuditConfig.class})
+@EnableJpaRepositories(basePackages = "pro.mir0n.esquire.backend.storage.roles")
 public class KeySmithApplication {
 
     private static final org.slf4j.Logger devLog = LoggerFactory.getLogger("develop." + KeySmithApplication.class.getName());
@@ -73,6 +76,13 @@ public class KeySmithApplication {
         // the bus lifecycle (build/start/close) in one call -- registered LAST so start() runs after roles load.
         app.addListeners(new MessagingBusLifecycleRegistrar());
         app.run(args);
+    }
+
+    /** keySmith's way to the identity provider: kcMaster is another service here, so the call goes over the
+     *  kc bus. The service layer is handed the gateway and never learns which one it got. */
+    @Bean(initMethod = "start", destroyMethod = "stop")
+    public IIdentityGateway identityGateway() {
+        return new KcBusAdapter();
     }
 
     public static class keySmithApplicationStartingListener implements ApplicationListener<ApplicationStartingEvent> {

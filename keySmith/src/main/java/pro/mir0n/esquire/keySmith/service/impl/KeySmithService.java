@@ -50,6 +50,8 @@
  * 07/08/2026 mir0n  @EsqTraced on esquireKey / esquireKeySave (esq.svc.key.read / esq.svc.key.save)
  * 08/11/2026 mir0n  v1.2.12 -- saveAccessProfile raises the auth row's change number and passes it to
  *                   updateAccess; the audit copy is stamped with the raised value
+ * 08/12/2026 mir0n  v1.2.13 -- field KcBusAdapter -> IIdentityGateway; identityCommand() picks C/U/D from the connect flag
+ *                   and identityEvent() builds the AuthSyncRequest + RodEvent posted to it
  */
 
 package pro.mir0n.esquire.keySmith.service.impl;
@@ -62,6 +64,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 
 import pro.mir0n.esquire.backend.o11y.EsqTraced;
 import lombok.extern.slf4j.Slf4j;
@@ -78,12 +81,14 @@ import pro.mir0n.esquire.backend.storage.EsqEntityDictionaryStorage;
 import pro.mir0n.esquire.backend.storage.EsqRolesStorage;
 import pro.mir0n.esquire.backend.validator.ValidatorFactory;
 import pro.mir0n.esquire.common.EsqConstants;
+import pro.mir0n.esquire.backend.identity.IIdentityGateway;
+import pro.mir0n.esquire.backend.identity.AuthSyncRequest;
+import pro.mir0n.esquire.messaging.BusConstants;
 import pro.mir0n.esquire.messaging.RodEvent;
 import pro.mir0n.esquire.audit.AuditBusBridge;
 import pro.mir0n.esquire.keySmith.jpa.EsqAccessProfileRepository;
 import pro.mir0n.esquire.backend.service.RequestContextUtils;
 import pro.mir0n.esquire.backend.error.ResourceNotFoundException;
-import pro.mir0n.esquire.keySmith.messaging.KcBusAdapter;
 import pro.mir0n.esquire.keySmith.service.IKeySmithService;
 import lombok.AllArgsConstructor;
 import org.springframework.context.annotation.Primary;
@@ -100,7 +105,7 @@ public class KeySmithService implements IKeySmithService {
     private EsqAccessProfileRepository accessProfileRepository;
     private TransactionTemplate transactionTemplate;
     private EntityManager em;
-    private KcBusAdapter kcSyncPublisher;
+    private IIdentityGateway identityGateway;
     private AuditBusBridge audit;
 
     @Override
@@ -186,7 +191,9 @@ public class KeySmithService implements IKeySmithService {
             try { Thread.sleep(testHoldMs); } catch (InterruptedException ie) { Thread.currentThread().interrupt(); }
         }
 
-        kcSyncPublisher.publish(oldLoginId[0], oldConnectFlg[0], updated[0], rolesAssigned[0], correlationId, requestId);
+        String command = identityCommand(oldConnectFlg[0], updated[0]);
+        identityGateway.postRequest(identityEvent(command, oldLoginId[0], updated[0], rolesAssigned[0],
+                correlationId, requestId));
 
         List<EsqRole> rolesAll = EsqRolesStorage.getInstance().roles();
         List<EsqPermission> permissions = null;
@@ -196,6 +203,69 @@ public class KeySmithService implements IKeySmithService {
         ret = new EsqAccessProfile().fill( updated[0], rolesAssigned[0], rolesAll, permissions);
         devLog.debug("KeySmithService: esquireKeySave(2): accessProfile:{}", ret);
         return ret;
+    }
+
+    /**
+     * What the identity provider is being asked to do, read from the connect flag either side of the save:
+     * the flag turning on means the identity starts existing, turning off means it stops, and anything else
+     * is a change to an identity that already exists.
+     */
+    private String identityCommand(String oldConnectFlg, EsqAccessProfileJpa jpa) {
+        String ret;
+        if ("Y".equals(oldConnectFlg) && "N".equals(jpa.getConnectFlg())) {
+            ret = BusConstants.EVENT_DELETE;
+        } else if ("N".equals(oldConnectFlg) && "Y".equals(jpa.getConnectFlg())) {
+            ret = BusConstants.EVENT_CREATE;
+        } else {
+            ret = BusConstants.EVENT_UPDATE;
+        }
+        return ret;
+    }
+
+    /**
+     * The saved access profile as one identity command. Each command fills only the fields it is about: a
+     * delete needs the login id to remove, a create carries the whole profile including the path the new
+     * identity starts at, and an update carries what may have changed. On a create the provider knows nothing
+     * yet, so the login id is the saved one; otherwise it is the login id the provider still knows, and a
+     * rename travels as the new one beside it.
+     */
+    private RodEvent identityEvent(String command, String oldLoginId, EsqAccessProfileJpa jpa,
+                                   List<EsqRoleJpa> roles, String correlationId, String requestId) {
+        String entityId = String.valueOf(jpa.getId());
+        AuthSyncRequest req = new AuthSyncRequest();
+        req.setId(entityId);
+        req.setKind(EsqConstants.KIND_ACCESS_PROFILE);
+
+        if (BusConstants.EVENT_DELETE.equals(command)) {
+            req.setLoginId(oldLoginId);
+        } else {
+            boolean created = BusConstants.EVENT_CREATE.equals(command);
+            req.setLoginId(created ? jpa.getLoginId() : oldLoginId);
+            if (!created && jpa.getLoginId() != null && !jpa.getLoginId().equals(oldLoginId)) {
+                req.setNewLoginId(jpa.getLoginId());
+            }
+            req.setEmail(jpa.getEmail());
+            req.setPwdChangeForced(jpa.getPwdChangeForced());
+            req.setTfaMethod(jpa.getTfaMethod());
+            req.setConnectFlg(jpa.getConnectFlg());
+            if (created) {
+                req.setPath(jpa.getPath());
+            }
+            List<String> roleNames = new ArrayList<>();
+            if (roles != null) {
+                for (EsqRoleJpa r : roles) {
+                    roleNames.add(r.getName());
+                }
+            }
+            req.setRoles(roleNames);
+        }
+
+        // guarantee a non-null tracking id (the former testReqId; it rides as the requestId on the wire).
+        String reqId = (requestId != null && !requestId.isBlank()) ? requestId : UUID.randomUUID().toString();
+        // null change number: a KeyCloak request leg reports none.
+        return new RodEvent(RodEvent.opFromCode(command), EsqConstants.KIND_ACCESS_PROFILE, entityId, null,
+                null, System.currentTimeMillis(), correlationId, reqId, null, null,
+                BusConstants.MSG_TYPE_REQUEST, req.toMap());
     }
 
     private void saveAccess(String id, Map<String, Object> fields, String rootPath,

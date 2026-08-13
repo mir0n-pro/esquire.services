@@ -1,0 +1,39 @@
+image:
+  repository: esquire-keycloak
+  tag: "26.4.7"
+  pullPolicy: IfNotPresent
+
+# ClusterIP for both local and OKE -- both environments front KC via
+# ingress-nginx (local: esquire.localhost/kc-auth; OKE: esquire.mir0n.pro/kc-auth).
+service:
+  type: ClusterIP
+  port: 8080
+  lbPort: 8080         # service port, aligned to container port (no LB tier)
+
+keycloak:
+  mode: start-dev          # start-dev for local; start for prod
+  # KC_HOSTNAME is the public front-channel base URL KC uses for discovery /
+  # token-iss / browser redirects. A full URL (scheme + host + path) fixes the
+  # scheme and port so the issuer is stable regardless of which host/port KC was
+  # reached on -- without it KC reflects the request port into the issuer, which
+  # breaks token validation when the BFF discovers KC over the internal service
+  # port. The /kc-auth path here sets the front-channel path; httpRelativePath
+  # below is the actual serving path (the two must match). Local uses the ingress
+  # host esquire.localhost (resolves to 127.0.0.1 per RFC 6761 in modern
+  # browsers, no hosts file edit needed); OKE overlay overrides to
+  # https://esquire.mir0n.pro/kc-auth.
+  hostname: http://esquire.localhost/kc-auth
+  realm: esquire
+  adminUsername: admin
+  adminPassword: q
+  clientId: esq-angular
+  httpRelativePath: /kc-auth   # KC serves under /kc-auth so the BFF owns /auth/*
+
+# Observability umbrella -- gates KC_METRICS_ENABLED (the :9000/kc-auth/metrics surface). Off by default;
+# o11y-on.bat flips it true and rolls the StatefulSet (KC_METRICS_ENABLED is a boot-time option).
+observability:
+  enabled: false
+
+storage:
+  storageClass: standard
+  size: 5Gi

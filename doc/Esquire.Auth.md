@@ -70,14 +70,17 @@ services never need the KC user UUID to address a principal.
 
 ## 3. The collaboration — keySmith / kcMaster / KeyCloak
 
-Esquire never writes to KeyCloak from the business path. Identity changes are a **command over the IAM bus**, so
-the entity mutation and the KeyCloak sync never block each other:
+Esquire never writes to KeyCloak from the business path. Identity changes are **queued work handed to a
+gateway**, so the entity mutation and the KeyCloak sync never block each other:
 
 ![The esq2025 to KeyCloak sync collaboration: keySmith (access profile) and enyMan (entity + move) publish onto two channels -- the authoritative IAM request bus (URQ) and the entity-broadcast topic (the race-8c safety-net); kcMaster consumes both and is the only writer to KeyCloak.](img/auth-collaboration.svg)
 
 - **keySmith** owns the credential side of a user: it writes the `esq_usr` access columns (connection flag,
-  force-password-change, TOTP method) and **publishes** the matching identity command to the IAM bus. It never
-  touches KeyCloak directly.
+  force-password-change, TOTP method) and **posts** the matching identity command to the identity gateway. It
+  never touches KeyCloak directly.
+- **The identity gateway** (`IIdentityGateway`) is what a caller holds instead of the provider. keySmith and
+  enyMan hand it the command and return; how far the work then travels is the gateway's business, and the
+  caller is told nothing about it. The gateway each service is given puts the command on the IAM bus.
 - **kcMaster** is the **only** service that writes to KeyCloak. It consumes the request, performs the create /
   update / delete / update-path against KC, and replies. Because it is the single writer, KeyCloak state has one
   authority.
@@ -108,17 +111,25 @@ The two stores hold two views of the same user, and **`esq2025` is the source of
 - **KeyCloak** mirrors only the auth-relevant slice — the login credential, the two claims, and the roles — so it
   can authenticate and stamp a token.
 
-Every change flows one way, **DB → KeyCloak, always through kcMaster** (the single writer), by two paths:
+Every change flows one way, **DB → KeyCloak, always through kcMaster** (the single writer), by two paths. The
+gateway has an arm for each, and a caller picks the arm by what it has in hand — a command it is asking for, or
+a move it merely heard about:
 
-1. **The command path (authoritative).** When a user is created / updated / deleted, or a credential state changes
-   (activation, password reset, TOTP), keySmith — or enyMan for a **move** — publishes a request (`URQ`) on the KC
-   request/response bus. kcMaster applies it to KeyCloak: create / update / delete the user, set the **roles**
-   (`req.getRoles()`), write the **claim** attributes (`esq_uid`, `esq_rootpath`), or update the path
-   (`EVENT_UPDATE_PATH`, which re-stamps `esq_rootpath` when a user is moved).
-2. **The broadcast safety-net.** kcMaster also consumes the entity-broadcast topic. If a moved user's new path
-   arrives before KeyCloak has that user (the race a create-during-move opens), kcMaster parks it in a small
-   path buffer (a per-pod expiring cache) and the pending create flushes the post-move path. The command path is
-   authoritative; the broadcast is belt-and-suspenders so a relocation is never lost.
+1. **The command path (authoritative)** — `postRequest`. When a user is created / updated / deleted, or a
+   credential state changes (activation, password reset, TOTP), keySmith — or enyMan for a **move** — posts a
+   request. It travels as a `URQ` on the KC request/response bus, and kcMaster applies it to KeyCloak: create /
+   update / delete the user, set the **roles** (`req.getRoles()`), write the **claim** attributes (`esq_uid`,
+   `esq_rootpath`), or update the path (`EVENT_UPDATE_PATH`, which re-stamps `esq_rootpath` when a user is
+   moved). A request that finds no KeyCloak user is skipped — path 2 is what catches that case.
+2. **The broadcast safety-net** — `postMessage`. kcMaster consumes the entity-broadcast topic. If a moved user's
+   new path arrives before KeyCloak has that user (the race a create-during-move opens), kcMaster parks it in a
+   small path buffer (a per-pod expiring cache) and the pending create flushes the post-move path. enyMan relays
+   the moves — the ones it receives and the ones it makes — to its gateway: a path broadcast is the whole of what
+   this arm takes, and a gateway whose provider subscribes to the topic itself skips them.
+
+The command path is authoritative; the broadcast is belt-and-suspenders so a relocation is never lost. The two
+are not interchangeable: a **request** reaches one replica, a **broadcast** reaches every replica, which is
+exactly why the safety-net is the broadcast and not a second request.
 
 `esq_uid` is written once, at create, and never changes — identity is stable. `esq_rootpath` is the one attribute
 re-issued on a move, so the token's visibility root always matches the tree.
@@ -132,7 +143,7 @@ log in second:
    **exists in the tree** — it has an id, a kind, a position, and can be seen and managed — but has **no way to log
    in**: the connection flag is `N`, and **no KeyCloak identity exists** yet.
 2. **Activate the access profile (keySmith).** A separate operation flips the connection flag `N → Y`. keySmith
-   writes the access columns and publishes the identity command; kcMaster creates the KeyCloak user with the
+   writes the access columns and posts the identity command; kcMaster creates the KeyCloak user with the
    user's **roles + claims**, a **temporary password `"changeit"`**, and a force-password-change action. Only now
    can the user log in — and on first login KeyCloak makes them replace `"changeit"` with a real password.
 
@@ -195,8 +206,8 @@ fought:
 
 ![Move rootpath sync with the create-while-move safety-net: enyMan updates ep_path in esq2025 and publishes an authoritative EVENT_UPDATE_PATH URQ that kcMaster applies to KeyCloak when the user exists; the same move is also broadcast on the entity topic, and when the KeyCloak identity does not exist yet kcMaster parks the new path in a per-pod expiring path buffer, keeping the newest path by change number, which the next keySmith CREATE URQ flushes, so the relocation is never lost.](img/auth-move.svg)
 
-- **Authoritative path.** enyMan publishes an `EVENT_UPDATE_PATH` URQ; kcMaster re-stamps `esq_rootpath` on the KC
-  user — *if that user exists*.
+- **Authoritative path.** enyMan posts an `EVENT_UPDATE_PATH` request and its gateway transmits it as a URQ;
+  kcMaster re-stamps `esq_rootpath` on the KC user — *if that user exists*.
 - **The race.** A user can be **created while it is being moved**: the move's `UPDATE_PATH` can reach kcMaster
   before the user's KeyCloak identity has been created. The authoritative URQ then finds no user and **silently
   skips** — the new path would be lost.

@@ -169,6 +169,33 @@
 			</plugin>
 -->
 			
+            <!-- Second artifact: a PLAIN classes jar (esquire-key-smith-classes.jar) beside the
+                 executable one. repackage keeps the fat jar under its own name; this one carries the
+                 classes at the root so a composed service (Mesnie) can depend on keySmith's code.
+                 application.yml and logback-spring.xml are left out on purpose: they belong to the
+                 keySmith PROCESS, and on a shared classpath Spring would silently take whichever copy
+                 it found first. The META-INF SQL mappings belong to the code and stay in. -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>classes-jar</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>jar</goal>
+                        </goals>
+                        <configuration>
+                            <classifier>classes</classifier>
+                            <excludes>
+                                <exclude>application.yml</exclude>
+                                <exclude>logback-spring.xml</exclude>
+                            </excludes>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+
 			<plugin>
 				<groupId>org.springframework.boot</groupId>
 				<artifactId>spring-boot-maven-plugin</artifactId>

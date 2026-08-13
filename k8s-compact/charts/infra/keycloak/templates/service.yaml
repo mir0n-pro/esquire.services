@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-keycloak
+  labels:
+    app: {{ .Release.Name }}-keycloak
+spec:
+  type: {{ .Values.service.type | default "ClusterIP" }}
+  selector:
+    app: {{ .Release.Name }}-keycloak
+  ports:
+    - name: http
+      port: {{ .Values.service.lbPort }}
+      targetPort: 8080
+    - name: health
+      port: 9000
+      targetPort: 9000

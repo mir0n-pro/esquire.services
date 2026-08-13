@@ -1,6 +1,36 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v1.2.13-2608.1316  v1.2.13 -- Mesnie
+    :Feature:     Mesnie: one service that runs the entity, sign-in and identity work together in a single
+                  process, in place of the three separate services
+    :Feature:     a service asks for identity work through one way in, and what answers it -- another service
+                  over the message bus, or the same process -- is decided where the service is wired
+    :Feature:     a compact stack that runs Mesnie, the gate, the tree cache, the money service and the
+                  browser tier, with its own docker and local-kubernetes folders kept apart from the classic
+                  ones
+    :Feature:     a moved entity's new position is announced to every copy of a process, so whichever copy
+                  later creates that sign-in identity still gives it the position it ended up at
+    :Refactoring: the identity work has one home: the message-bus ends of kcMaster now only carry messages in
+                  and answers out
+    :Refactoring: the sign-in request that travels to the identity provider is one shared class, filled by the
+                  caller and read by the provider
+    :Config:      the audit trail on the compact stack is written by the service itself, so no separate audit
+                  writer is deployed
+    :Config:      the compact stack's deploy scripts build and run it from its own folder alone -- what each
+                  image is built from, what is watched, and which services are started are all named there,
+                  so building or starting either stack never reaches into the other
+    :Doc:         doc\Esquire.Auth.md
+                  doc\Esquire.ContinuingDev.md
+                  doc\Esquire.MessagingBus.ContinuingDev.md
+    Components:   common,
+                  enyMan,
+                  keySmith,
+                  kcMaster,
+                  mesnie,
+                  compose-compact,
+                  k8s-compact
+
 v1.2.12-2608.1114  v1.2.12 -- Entity change number
     :Feature:     every office, user, account, sign-in record, personal-details record, address and custom
                   parameter row carries a change number that goes up by one each time the row is written

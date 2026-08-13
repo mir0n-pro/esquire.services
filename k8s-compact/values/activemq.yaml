@@ -1,0 +1,17 @@
+# Local k8s overlay for charts/infra/activemq
+# Chart defaults match local dev needs (apache/activemq-classic:6.1.4).
+
+# Stamped by k8s-rebuild.bat on every build. The chart default (6.1.4) is the tag OKE/GHCR needs, but a FIXED
+# tag is exactly what the kubelet caches: rebuild the image, keep the tag, and the kubelet serves the old digest
+# forever. The stamp gives it a tag it has never resolved. Local k8s only -- k8s-oci has its own values file.
+image:
+  tag: "v1.2.13-2608.1315"
+
+# R4 local-k8s resource budget. The broker carries the entity/kc/audit buses for the
+# whole fleet; CPU is left burstable (request only).
+resources:
+  requests:
+    cpu: 500m
+    memory: 1Gi
+  limits:
+    memory: 1Gi

@@ -34,11 +34,16 @@ check.
 
 ---
 > 
-> **v1.2.12 — complete.** The build-out is finished; the framework now grows by **continuous
-> development** — sprints against a target, rather than one long sequential line. The first of them gives
-> every record a **change number**: a count that goes up by one each time the record is written. Small in
-> itself, it settles two things that were left open — a record's history reads back in the order the changes
-> really happened, and a message that arrives twice, or late and out of turn, is recognised and skipped.
+> **v1.2.13 — in progress.** The framework grows by **continuous development** — sprints against a target,
+> rather than one long sequential line. This one separates **what the framework is** from **how many
+> programs it runs as**. The same code, the same settings, run either as eight separate services or as
+> four — you choose the shape that fits where you are running it, and nothing about the framework changes.
+> A small deployment stops paying for a large one.
+> 
+> **v1.2.12 — complete.** Every record has a **change number**: a count that goes up by one each time the
+> record is written. Small in itself, it settles two things that were left open — a record's history reads
+> back in the order the changes really happened, and a message that arrives twice, or late and out of turn,
+> is recognised and skipped.
 > 
 > What comes next is chosen from the
 > [continuing-development backlog](doc/Esquire.ContinuingDev.md) — several sprints can run in parallel, each

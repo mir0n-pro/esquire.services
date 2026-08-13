@@ -629,3 +629,40 @@ Bin-packing too -- one larger pod needs a single node with room, where three sma
 **Logo note, so it is not forgotten:** a **two- or three-keep castle** -- one keep per collocated service,
 so the mark itself says which composition was deployed. Heraldic, sits beside the existing helm, and stays
 readable small.
+
+#### The identity seam this needs -- `IIdentityGateway`
+
+Under one roof there is no request/response bus leg between the services: a request for the identity store
+is posted straight onto the handler's own queue. So the household needs a seam that is **an API rather than
+a transport**, and that seam is worth more than the composition that prompts it.
+
+**What it is.** An interface plus the message structure that travels across it -- a contract package, not a
+single Java file. It gives a caller two entry points against what is, to that caller, a black box: **post a
+request and receive its response**, and **post a path (X) message**.
+
+**Who is on each side.** `kcMaster` implements it. In the full deployment `kcMaster` is a service and the
+call travels over the messaging bus; under one roof the household holds that implementation directly and
+the call is a method call onto an in-memory queue. **The caller never learns which**, so one code base
+serves both shapes with no branch in enyMan or keySmith. The hand-off stays **asynchronous and queued
+either way** -- the queue is what keeps it ordered, and only the broker destination goes.
+
+**The name is the networking one, chosen precisely:** a bridge joins two segments of one protocol; a
+**gateway translates between different ones**. Here it is an Esquire message -- the `RodEvent` object -- on
+one side, and the identity system's own API on the other, so the word is earned: this is a translator.
+
+The edge service is a different thing under the same borrowed word. It takes HTTP and passes HTTP, so what
+it does is route, authenticate and enforce policy -- **a reverse proxy**, whatever the industry habit of
+calling such a tier an "API gateway". `gateway` there names the Spring Cloud component it is built on.
+
+**Why it matters past the pod count.** The messaging side already has a defined way to plug in: the bus
+talks to its network leg through `ITransportProvider`, with ActiveMQ, Kafka and Redis providers chosen by
+configuration. **The identity side has the claim of portability without a shape for it** -- which is the
+blocker CD-13 names, that anything built there has to be expressible by whatever identity store sits behind
+the driver or it is not a framework feature. `IIdentityGateway` is what turns that claim into a seam, and
+it gives identity the form messaging already has.
+
+**Where it can go from here**, once more than one identity system is in the picture: a single identity
+service configured to use one implementation or another -- the instance keeping whatever name suits it,
+with the vendor named by configuration rather than by the service; the implementation carried in its own
+jar and attached at deployment; and the household choosing the same way, by configuration rather than by
+what it was compiled against.

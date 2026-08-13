@@ -1,0 +1,34 @@
+# Two services for the StatefulSet:
+#   * ClusterIP `{{ .Release.Name }}-mesnie` -- the HTTP entrypoint
+#     consumers (gateway, kcMaster, etc.) hit; kube-proxy load-balances
+#     across pods.
+#   * Headless `{{ .Release.Name }}-mesnie-hl` -- governs StatefulSet pod
+#     DNS (per-pod `<release>-mesnie-N.<release>-mesnie-hl`) so the
+#     downward API ordinal stays stable. Not used for traffic.
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-mesnie
+  labels:
+    app: {{ .Release.Name }}-mesnie
+spec:
+  type: ClusterIP
+  selector:
+    app: {{ .Release.Name }}-mesnie
+  ports:
+    - port: {{ .Values.service.port }}
+      targetPort: {{ .Values.service.port }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-mesnie-hl
+  labels:
+    app: {{ .Release.Name }}-mesnie
+spec:
+  clusterIP: None
+  selector:
+    app: {{ .Release.Name }}-mesnie
+  ports:
+    - port: {{ .Values.service.port }}
+      targetPort: {{ .Values.service.port }}
