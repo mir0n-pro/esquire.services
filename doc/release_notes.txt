@@ -1,6 +1,15 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v1.2.13-2608.1321  v1.2.13 -- Mesnie CI/CD
+    :Config:      the automatic local build-and-deploy now deploys whichever of the two stacks the machine is
+                  already running, and shuts the other one down before it starts. The two answer on the same
+                  addresses, so with the other one still up the deploy stopped part way and nothing said why
+    :Fix:         taking the compact stack down on kubernetes now removes Mesnie as well, so the two stacks
+                  cannot end up running side by side
+    Components:   .github (CI/CD),
+                  k8s-compact
+
 v1.2.13-2608.1316  v1.2.13 -- Mesnie
     :Feature:     Mesnie: one service that runs the entity, sign-in and identity work together in a single
                   process, in place of the three separate services

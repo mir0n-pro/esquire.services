@@ -20,6 +20,7 @@ kubectl delete -f cluster\ingress.yaml --ignore-not-found=true
 call helm uninstall esquire-backend
 call helm uninstall esquire-gateway
 
+call helm uninstall esquire-mesnie
 call helm uninstall esquire-pacman
 call helm uninstall esquire-biztree
 

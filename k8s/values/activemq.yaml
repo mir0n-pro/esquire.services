@@ -5,7 +5,7 @@
 # tag is exactly what the kubelet caches: rebuild the image, keep the tag, and the kubelet serves the old digest
 # forever. The stamp gives it a tag it has never resolved. Local k8s only -- k8s-oci has its own values file.
 image:
-  tag: "v1.2.11-2607.2316"
+  tag: "v1.2.13-2608.131733"
 
 # R4 local-k8s resource budget. The broker carries the entity/kc/audit buses for the
 # whole fleet; CPU is left burstable (request only).
