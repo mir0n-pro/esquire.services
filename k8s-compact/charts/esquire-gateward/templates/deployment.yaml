@@ -1,0 +1,120 @@
+{{- $replicas := int (.Values.replicaCount | default 1) -}}
+{{- if gt $replicas 10 -}}
+{{- fail (printf "esquire-gateward: replicaCount=%d exceeds the cap of 10. The per-instance number is a single decimal digit (0-9) -- the fleet naming rule (pod ordinal -> rod-id <app>.<instanceNo>) caps replicas at 10." $replicas) -}}
+{{- end -}}
+{{- if lt $replicas 1 -}}
+{{- fail (printf "esquire-gateward: replicaCount=%d must be >= 1" $replicas) -}}
+{{- end }}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ .Release.Name }}-gateward
+  labels:
+    app: {{ .Release.Name }}-gateward
+spec:
+  serviceName: {{ .Release.Name }}-gateward-hl
+  replicas: {{ $replicas }}
+  podManagementPolicy: Parallel
+  selector:
+    matchLabels:
+      app: {{ .Release.Name }}-gateward
+  template:
+    metadata:
+      labels:
+        app: {{ .Release.Name }}-gateward
+    spec:
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if .Values.topologySpread.enabled }}
+      # HA: best-effort spread of the replicas across distinct nodes (soft -- a node
+      # loss still schedules). Off by default (pre-HA / single-node local); the OKE
+      # overlay turns it on so the x2 replicas land on different app-tier nodes.
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: {{ .Release.Name }}-gateward
+      {{- end }}
+      containers:
+        - name: gateward
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          # --enable-native-access=ALL-UNNAMED : this is the Netty runtime in the compact fleet (Spring Cloud
+          # Gateway); the rest are Tomcat. Netty loads a native library, and on Java 25 (JEP 472) that is a
+          # RESTRICTED method: the JVM warns today and says so itself -- "Restricted methods will be BLOCKED in a
+          # future release unless native access is enabled". So this is not warning-suppression, it is granting
+          # the access Netty legitimately needs before a future JDK refuses to start the process at all.
+          args: ["java", "--enable-native-access=ALL-UNNAMED", "-jar", "app.jar"]
+          ports:
+            - containerPort: {{ .Values.service.port }}
+          envFrom:
+            - configMapRef:
+                name: {{ .Release.Name }}-gateward-config
+          env:
+            # The ward loads its cache from the database, so this process needs the password the standalone
+            # bizTree needed. The gate alone never did.
+            - name: DB_BIZTREE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-gateward-secret
+                  key: db-password
+            # Downward API -- POD_NAME is the host identity EsqUtils.instanceHost() reads; instanceNo()
+            # parses its trailing StatefulSet ordinal ("gateward-0" -> 0) so each pod owns a distinct rod-id.
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+          {{- if .Values.tokenRelay.phantom.exchangeClientSecret }}
+            - name: ESQ_GW_EXCHANGE_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-gateward-secret
+                  key: exchange-client-secret
+          {{- end }}
+          # The three probes address the health GROUPS, not the aggregate: readiness may depool the pod, but only
+          # liveness may kill it. Pointing both at /actuator/health made any DOWN indicator a restart -- there is
+          # no "not ready but alive" state on an aggregate.
+          #
+          # Readiness matters MORE here than on the standalone gateway, and for a reason worth stating: the
+          # readiness group includes cacheReadiness, so this pod takes no traffic until the tree has loaded.
+          # A gate with a cold cache does not answer slowly, it answers WRONGLY -- an empty tree -- and a k8s
+          # Service routes to a pod the moment it reports ready. Liveness stays livenessState only, so a slow
+          # load delays traffic instead of crashlooping the edge.
+          startupProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: {{ .Values.service.managementPort }}   # actuator/management port (F0 A6) -- NOT the public service.port
+            periodSeconds: 10
+            failureThreshold: 30      # up to 300s cold-start budget (H2 cache load / JPA init under node contention) before liveness applies
+            timeoutSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: {{ .Values.service.managementPort }}   # actuator/management port (F0 A6) -- NOT the public service.port
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 10
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: {{ .Values.service.managementPort }}   # actuator/management port (F0 A6) -- NOT the public service.port
+            initialDelaySeconds: 40
+            periodSeconds: 15
+            timeoutSeconds: 5
+          volumeMounts:
+            - name: esquire-topology
+              mountPath: /etc/esquire
+              readOnly: true
+      volumes:
+        - name: esquire-topology
+          configMap:
+            name: esquire-topology

@@ -26,10 +26,11 @@ keycloak:
   clientId: esq-angular
   # clientSecret comes from a Secret (set via --set keycloak.clientSecret=... at install).
 
-# Gateway service is ClusterIP on port 8080; BFF talks to it in-cluster
-# (not through the api.esquire.localhost ingress -- skip the public hop).
+# The gate is ClusterIP on port 8080; the BFF talks to it in-cluster (not through the
+# api.esquire.localhost ingress -- skip the public hop). On this topology the gate is gateWard, which also
+# holds the tree cache, so a tree read the BFF proxies is answered without a further hop.
 gateway:
-  url: http://esquire-gateway-gateway:8080
+  url: http://esquire-gateward-gateward:8080
 
 # Browser-visible base URL the BFF uses for redirect_uri / post-login Location.
 # Matches the ingress host for esquire.local stack.

@@ -6,7 +6,7 @@
 #     /         -> esquire-backend-backend:3000    (BFF: SPA + /auth/* + /api/*)
 #
 #   api.esquire.localhost   -- direct gateway access (server-to-server JWT, hauberk)
-#     /         -> esquire-gateway-gateway:8080    (gateway: JWT validation only)
+#     /         -> esquire-gateward-gateward:8080  (the gate: JWT validation, and the tree from its cache)
 #
 # Browsers resolve *.localhost -> 127.0.0.1 automatically per RFC 6761
 # (Chrome, Edge, Firefox, curl >= 7.83). No hosts file edit needed.
@@ -49,6 +49,6 @@ spec:
             pathType: Prefix
             backend:
               service:
-                name: esquire-gateway-gateway
+                name: esquire-gateward-gateward
                 port:
                   number: 8080

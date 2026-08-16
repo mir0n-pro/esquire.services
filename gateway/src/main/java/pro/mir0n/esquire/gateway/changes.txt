@@ -1,5 +1,22 @@
 Esquire Gateway Microservice
 
+08/15/2026 mir0n  v1.2.13 -- gateWard
+GatewayConfig  (new)
+  - created: the gateway's @ComponentScan and @ConfigurationPropertiesScan, the one place its packages are
+    named; excludes GatewayApplication
+GatewayApplication
+  - @SpringBootApplication + @ConfigurationPropertiesScan split into @SpringBootConfiguration +
+    @EnableAutoConfiguration + @Import(GatewayConfig), which now carries both scans
+pom.xml
+  - maven-jar-plugin classes-jar execution attaches a plain classes jar (classifier "classes"), excluding
+    application.yml and logback-spring.xml
+Dockerfile
+  - COPY target/esquire-gateway.jar app.jar
+Dockerfile.win
+  - COPY target/esquire-gateway.jar app.jar
+Dockerfile.lx
+  - COPY --from=builder /build/gateway/target/esquire-gateway.jar app.jar
+
 07/23/2026 mir0n  v1.2.11 -- homework: fix/resolve issues found in the fresh-mind audit
 config.CorrelationPropagatorConfig
   - the propagator bean is @ConditionalOnProperty(esquire.observability.tracing.enabled, matchIfMissing=true) so it

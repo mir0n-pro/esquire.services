@@ -12,7 +12,7 @@ USER springuser
 
 # Copy the JAR file that was built locally on your machine into the container
 # This assumes you ran 'mvn clean package' before running 'docker compose build'
-COPY target/*.jar app.jar
+COPY target/esquire-biz-tree.jar app.jar
 
 # Define how to start the application
 #ENTRYPOINT ["java", "-jar", "app.jar"]

@@ -8,7 +8,7 @@ rem Usage:
 rem   k8s-rebuild.bat                  rebuild all images (java services + backend)
 rem   k8s-rebuild.bat backend          rebuild only explorer/backend (SPA + BFF)
 rem   k8s-rebuild.bat <service>        rebuild a single Spring service
-rem                                    (gateway, biztree, mesnie, pacman)
+rem                                    (gateward, mesnie, pacman)
 rem
 rem Flags (must come AFTER the target):
 rem   --no-cache                       pass --no-cache to docker compose build
@@ -77,8 +77,7 @@ rem    Per-service checks below decide (a) vs (b) for each release individually.
 
 if /i "%TARGET%"=="all"      goto target_all
 if /i "%TARGET%"=="backend"  goto target_backend
-if /i "%TARGET%"=="gateway"  ( set "SVC=gateway"&set "DIR=gateway"&goto target_one )
-if /i "%TARGET%"=="biztree"  ( set "SVC=biztree"&set "DIR=bizTree"&goto target_one )
+if /i "%TARGET%"=="gateward" ( set "SVC=gateward"&set "DIR=gateWard"&goto target_one )
 if /i "%TARGET%"=="mesnie"   ( set "SVC=mesnie"&set "DIR=mesnie"&goto target_one )
 if /i "%TARGET%"=="pacman"   ( set "SVC=pacman"&set "DIR=pacMan"&goto target_one )
 
@@ -125,10 +124,7 @@ if errorlevel 1 (
   kubectl rollout status statefulset/esquire-infra-amq-activemq --timeout=180s
 )
 
-set "SVC=gateway"&set "DIR=gateway"
-call :one
-if errorlevel 1 exit /b 1
-set "SVC=biztree"&set "DIR=bizTree"
+set "SVC=gateward"&set "DIR=gateWard"
 call :one
 if errorlevel 1 exit /b 1
 set "SVC=mesnie"&set "DIR=mesnie"

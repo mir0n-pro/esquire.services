@@ -22,10 +22,9 @@ scrape_configs:
       - targets:
           # actuator (incl. /actuator/prometheus) on the SEPARATE management port 8090, NOT the public main port
           # (audit F0 A6) -- the main ports stay client-facing and never serve /actuator.
-          # Mesnie answers for enyMan, keySmith and the identity work in ONE process, so it is one target
-          # on one management port. The audit trail is written in-process (audit-b), so there is no auKeep.
-          - gateway:8090
-          - biztree:8090
+          # Mesnie answers for enyMan, keySmith and the identity work in ONE process, and gateWard for the
+          # gate and the tree cache, so each is ONE target. The audit trail is in-process (audit-b): no auKeep.
+          - gateward:8090
           - mesnie:8090
           - pacman:8090
       # BFF (Node/prom-client, T5c) -- its own /metrics endpoint, not /actuator/prometheus

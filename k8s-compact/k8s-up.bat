@@ -80,8 +80,8 @@ echo Waiting for redis...
 kubectl rollout status deployment/esquire-infra-redis -n default --timeout=60s
 
 rem === Services (depend on postgres + amq) ===
-echo --- Installing biztree...
-call helm upgrade --install esquire-biztree   charts\esquire-biztree   -f values\biztree.yaml   || exit /b 1
+rem No biztree here: gateWard holds the tree cache in the gate's own process, and it is installed with the
+rem other KC-dependent services below (it needs KeyCloak for the JWKS its security chain fetches).
 echo --- Installing pacman...
 call helm upgrade --install esquire-pacman    charts\esquire-pacman    -f values\pacman.yaml    || exit /b 1
 
@@ -94,13 +94,17 @@ rem so the secret belongs to this process rather than to a separate kcMaster.
 call helm upgrade --install esquire-mesnie    charts\esquire-mesnie    -f values\mesnie.yaml ^
   --set keycloak.adminClientSecret=MHgq0Nu69u2uJ2johaK1wxQLMdakELXN || exit /b 1
 
-rem Gateway: dev exchange-client secret passed via --set (matches realm import).
-echo --- Installing gateway...
-call helm upgrade --install esquire-gateway   charts\esquire-gateway   -f values\gateway.yaml ^
+rem gateWard: the gate AND the tree cache in one process. Dev exchange-client secret passed via --set
+rem (matches realm import), as the gateway's was.
+echo --- Installing gateward...
+call helm upgrade --install esquire-gateward  charts\esquire-gateward  -f values\gateward.yaml ^
   --set tokenRelay.phantom.exchangeClientSecret=esq-gw-exchange-dev-secret-rotate-in-prod || exit /b 1
 
-echo Waiting for gateway...
-kubectl rollout status statefulset/esquire-gateway-gateway -n default --timeout=60s
+rem A longer wait than the gateway's 60s on purpose: this pod reports ready only once the tree cache has
+rem loaded from the database (the readiness group carries cacheReadiness), so the wait covers a whole
+rem cache load, not just a Netty bind.
+echo Waiting for gateward...
+kubectl rollout status statefulset/esquire-gateward-gateward -n default --timeout=180s
 
 rem === Backend / BFF ===
 rem Secrets passed via --set (same dev literals as compose.yaml + realm import).

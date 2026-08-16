@@ -26,11 +26,11 @@ rem Grafana on the same 1xxxx band as the others (o11y-forward.bat): *.localhost
 rem python's getaddrinfo, so the live datasource check needs a real localhost port.
 set GRAFANA_URL=http://localhost:13009
 set LOKI_JOB=esq-k8s
-set SERVICES=gateway,biztree,mesnie,pacman
+set SERVICES=gateward,mesnie,pacman
 rem LOG_SERVICES = the Loki `service_name` label, which on k8s is the FULL workload name
 rem (esquire-<svc>-<svc>), NOT the short meter name. Without this the log-stream sweep looks for
 rem a stream that does not exist and FAILs every service (the logs ARE shipped). Mirrors the OKE
 rem launcher (oke-o11y-verify.bat). Mesnie is ONE workload for enyMan, keySmith and the identity work.
-set LOG_SERVICES=esquire-gateway-gateway,esquire-biztree-biztree,esquire-mesnie-mesnie,esquire-pacman-pacman,esquire-backend-backend
+set LOG_SERVICES=esquire-gateward-gateward,esquire-mesnie-mesnie,esquire-pacman-pacman,esquire-backend-backend
 python ..\test\o11y\o11y-verify.py
 endlocal

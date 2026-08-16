@@ -47,7 +47,7 @@ call helm upgrade --install esquire-infra-postgres-exporter charts\infra\postgre
 call helm upgrade --install esquire-infra-grafana           charts\infra\grafana           || exit /b 1
 
 echo --- App services: tracing/metrics ON, ONLY pro.mir0n at INFO...
-for %%s in (gateway biztree mesnie pacman) do (
+for %%s in (gateward mesnie pacman) do (
   call helm upgrade esquire-%%s charts\esquire-%%s --reset-then-reuse-values --set observability.enabled=true --set observability.metricsHistograms=true --set logging.levelMir0n=INFO --set logging.levelDevelop=OFF --set logging.levelMsg=OFF --set logging.levelAmq=OFF --set logging.levelJms=OFF
   call kubectl rollout restart statefulset esquire-%%s-%%s
 )

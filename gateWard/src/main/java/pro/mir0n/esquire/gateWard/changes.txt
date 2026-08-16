@@ -1,0 +1,39 @@
+Esquire gateWard Microservice
+
+08/15/2026 mir0n  v1.2.13 -- gateWard
+GateWardApplication  (new)
+  - created: the gateway and the bizTree CACHE in ONE process. Imports GatewayConfig and BizTreeCacheConfig,
+    scans gateWard's own handlers and read scheduler, loads the object kinds at start-up, and runs one
+    MessagingBusLifecycleRegistrar over the entity bus. No web starter comes in with the cache, so the
+    process stays WebFlux
+BizTreeCacheController  (new)
+  - created: the five tree routes answered IN PROCESS from the cache instead of proxied to bizTree -- the
+    same director calls the bizTree controller makes, each handed to the cache-read scheduler so no blocking
+    JDBC lands on an event-loop thread, and each carrying the caller's rootPath / uid across that thread hop
+CacheReadScheduler  (new)
+  - created: the one scheduler the cache reads run on, a bounded elastic named gateward-cache-read, sized
+    from gateward.cache-read.pool-size against biztree.h2.pool.maximum-pool-size
+TreeRouteTimingFilter  (new)
+  - created: a WebFilter recording esq.gw.outer / esq.gw.inner / esq.srv.outer / esq.srv.inner (route tag
+    biztree-local) for a locally answered tree route, writing the four capture headers, echoing X-Request-ID
+    and X-Correlation-ID and logging the OUTGOING line. gateInner / wardOuter take the two stamps from
+    BizTreeCacheController; all four bands are recorded together or not at all
+BizTreeCacheErrorAdvice  (new)
+  - created: @RestControllerAdvice(assignableTypes = BizTreeCacheController) mapping GenericRuntimeException
+    to the statuses backend.error.GenericExceptionHandler gives it -- 403 / 409 / 404 / 400 -- rendered
+    through the gateway's reactive ProblemDetailMill and logged on both tiers
+application.yml  (new)
+  - created: the union of the gateway's and bizTree's settings under spring.application.name gateward --
+    twelve proxy routes with no biztree-route, the reactive security chain and token relay, DB_BIZTREE_*
+    datasource, the H2 cache and taijitu knobs, the entity bus ref, and a readiness group of
+    readinessState, cacheReadiness and messagingBus
+logback-spring.xml  (new)
+  - created: the develop and msg channels writing logs/gateWard-develop.log and logs/gateWard-msg.log
+pom.xml  (new)
+  - created: depends on the gateway and bizTree plain classes jars (classifier "classes"), excluding
+    spring-boot-starter-web and springdoc-openapi-starter-webmvc-ui from bizTree; spring-boot-maven-plugin
+    builds esquire-gate-ward.jar
+Dockerfile  (new)
+  - created: COPY target/esquire-gate-ward.jar app.jar
+compose.yaml  (new)
+  - created: builds the esquire.gateward image from this module

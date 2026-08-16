@@ -27,6 +27,7 @@
         <module>keySmith</module>
         <module>kcMaster</module>
         <module>mesnie</module>
+        <module>gateWard</module>
         <module>dataKeep</module>
         <module>audit</module>
         <module>auKeep</module>
@@ -66,6 +67,7 @@
         <keySmith.version>${esquire.version}</keySmith.version>
         <kcMaster.version>${esquire.version}</kcMaster.version>
         <mesnie.version>${esquire.version}</mesnie.version>
+        <gateWard.version>${esquire.version}</gateWard.version>
         <dataKeep.version>${esquire.version}</dataKeep.version>
         <audit.version>${esquire.version}</audit.version>
         <auKeep.version>${esquire.version}</auKeep.version>

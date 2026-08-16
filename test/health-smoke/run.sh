@@ -36,12 +36,13 @@ pass() { log "PASS -- $*"; }
 fail() { log "FAIL -- $*"; FAILS=$((FAILS + 1)); }
 
 # Which services this profile expects, and which one carries the buses the chaos step needs.
-# classic: six processes. compact: Mesnie IS enyMan + keySmith + the identity work, and auKeep is absent.
+# classic: six processes. compact: Mesnie IS enyMan + keySmith + the identity work, gateWard IS the
+# gateway + the bizTree cache, and auKeep is absent.
 ORDER=(enyman pacman keysmith kcmaster biztree aukeep)
 CHAOS_SVC="enyman"                      # carries all three buses (audit / kc / entity)
 DPREFIX="esq-"                          # docker container-name prefix
 if [ "$PROFILE" = "compact" ]; then
-  ORDER=(mesnie pacman biztree)
+  ORDER=(mesnie pacman gateward)
   CHAOS_SVC="mesnie"                    # carries entity + audit; here "the service" is a composition
   DPREFIX="esqc-"
 fi

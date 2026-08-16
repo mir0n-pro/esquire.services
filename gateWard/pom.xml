@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>pro.mir0n.esquire</groupId>
+        <artifactId>esquire-parent</artifactId>
+        <version>1.2.0</version>
+        <relativePath>../pom.xml</relativePath>
+    </parent>
+
+    <artifactId>esquire-gate-ward</artifactId>
+    <version>${gateWard.version}</version>
+
+    <url/>
+
+    <name>gateWard</name>
+    <description>Esquire gateWard (the gate: gateway + the bizTree cache) Microservice</description>
+
+    <dependencies>
+        <!-- The gate itself, as CODE: routes, filters, the reactive security chain and the token relay. -->
+        <dependency>
+            <groupId>pro.mir0n.esquire</groupId>
+            <artifactId>esquire-gateway</artifactId>
+            <version>${gateway.version}</version>
+            <classifier>classes</classifier>
+        </dependency>
+
+        <!-- bizTree comes in as the CACHE, not as a service: the director and its monads, the H2 cache and
+             its loader, the JPA read side and the entity-bus consumer. Its WEB layer stays behind, and with
+             it spring-boot-starter-web, which must be excluded here rather than merely unused. A servlet
+             web starter anywhere on this classpath makes Boot choose WebApplicationType.SERVLET, and Spring
+             Cloud Gateway then refuses to start at all. The failure is loud and at boot; the exclusion is
+             what keeps it from ever happening. -->
+        <dependency>
+            <groupId>pro.mir0n.esquire</groupId>
+            <artifactId>esquire-biz-tree</artifactId>
+            <version>${bizTree.version}</version>
+            <classifier>classes</classifier>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.springframework.boot</groupId>
+                    <artifactId>spring-boot-starter-web</artifactId>
+                </exclusion>
+                <!-- The SECOND door to the servlet stack, and the one that is easy to miss: bizTree's Swagger
+                     UI is the webmvc flavour, and it drags spring-webmvc in with it. Boot decides the web type
+                     by looking for DispatcherServlet on the classpath, so this alone is enough to turn the
+                     process servlet and leave it with no web server at all. The gate publishes its own API
+                     surface; the cache's UI belongs to the standalone service. -->
+                <exclusion>
+                    <groupId>org.springdoc</groupId>
+                    <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <finalName>${project.artifactId}</finalName>
+        <plugins>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+            </plugin>
+        </plugins>
+    </build>
+
+</project>

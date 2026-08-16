@@ -1,5 +1,25 @@
 Esquire BizTree Microservice
 
+08/15/2026 mir0n  v1.2.13 -- gateWard
+BizTreeCacheConfig  (new)
+  - created: the CACHE half of bizTree as a set of beans -- the one place its packages are named. Excludes
+    BizTreeApplication; leaves the web layer (bizTree.controller) and the servlet security (backend.security)
+    to the standalone process
+BizTreeApplication
+  - @SpringBootApplication(scanBasePackages) split into @SpringBootConfiguration + @EnableAutoConfiguration +
+    @Import(BizTreeCacheConfig) + a @ComponentScan naming only the PROCESS packages (bizTree.controller,
+    backend.security, backend.exception, backend.service); @EntityScan / @EnableJpaRepositories moved to
+    BizTreeCacheConfig
+pom.xml
+  - maven-jar-plugin classes-jar execution attaches a plain classes jar (classifier "classes"), excluding
+    application.yml and logback-spring.xml
+Dockerfile
+  - COPY target/esquire-biz-tree.jar app.jar
+Dockerfile.win
+  - COPY target/esquire-biz-tree.jar app.jar
+Dockerfile.lx
+  - COPY --from=builder /build/bizTree/target/esquire-biz-tree.jar app.jar
+
 08/11/2026 mir0n  v1.2.12 -- entity change number
 access.IBizTreeDirector
   - onRodEvent passes e.changeNo() to onEntityBroadcast, whose signature gains the parameter

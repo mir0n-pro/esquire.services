@@ -1,6 +1,23 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v1.2.13-2608.1521  v1.2.13 -- gateWard
+    :Feature:     gateWard: one service that runs the gate and the tree cache together in a single process,
+                  in place of the two separate services
+    :Feature:     a request for the tree is answered inside the gate from its own copy, with no call out to
+                  another service
+    :Fix:         asking for something that is not there is answered "not found" instead of "bad request",
+                  in every service
+    :Fix:         the gate reports itself unavailable while the message broker is down, so it stops being
+                  sent work
+    Components:   common,
+                  messaging,
+                  bizTree,
+                  gateway,
+                  gateWard,
+                  compose-compact,
+                  k8s-compact
+
 v1.2.13-2608.1321  v1.2.13 -- Mesnie CI/CD
     :Config:      the automatic local build-and-deploy now deploys whichever of the two stacks the machine is
                   already running, and shuts the other one down before it starts. The two answer on the same

@@ -57,6 +57,7 @@ if /i "%TOPOLOGY%"=="compact" goto compact
 :classic
 echo --- [deploy-local] removing compact-only releases...
 call :drop esquire-mesnie
+call :drop esquire-gateward
 echo === [deploy-local] build + stamp all images (CLASSIC) ===
 call "%HERE%..\..\k8s\k8s-rebuild.bat" all
 if errorlevel 1 ( echo k8s-rebuild [classic] failed & exit /b 1 )
@@ -71,6 +72,9 @@ call :drop esquire-enyman
 call :drop esquire-keysmith
 call :drop esquire-kcmaster
 call :drop esquire-aukeep
+rem gateWard replaces the gateway + bizTree pair, so those two belong to the classic shape now.
+call :drop esquire-gateway
+call :drop esquire-biztree
 echo === [deploy-local] build + stamp all images (COMPACT) ===
 call "%HERE%..\..\k8s-compact\k8s-rebuild.bat" all
 if errorlevel 1 ( echo k8s-rebuild [compact] failed & exit /b 1 )

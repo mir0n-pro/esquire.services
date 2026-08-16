@@ -18,10 +18,16 @@ echo --- Deleting public ingress...
 kubectl delete -f cluster\ingress.yaml --ignore-not-found=true
 
 call helm uninstall esquire-backend
-call helm uninstall esquire-gateway
+call helm uninstall esquire-gateward
 
 call helm uninstall esquire-mesnie
 call helm uninstall esquire-pacman
+
+rem The classic pair this compact stack replaces. Uninstalled too, and deliberately: a machine that ran
+rem classic before still holds them, and leaving either behind is how a cluster ends up serving from two
+rem shapes at once -- the same way a missing mesnie line once left the old identity trio running under a
+rem compact deploy. "not found" here is the normal case and is ignored.
+call helm uninstall esquire-gateway
 call helm uninstall esquire-biztree
 
 call helm uninstall esquire-infra-kc

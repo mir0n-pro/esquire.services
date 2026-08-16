@@ -33,7 +33,7 @@ if not "%CTX%"=="docker-desktop" (
 )
 
 echo --- App services: tracing/metrics OFF, ALL LOGGERS OFF...
-for %%s in (gateway biztree mesnie pacman) do (
+for %%s in (gateward mesnie pacman) do (
   call helm upgrade esquire-%%s charts\esquire-%%s --reset-then-reuse-values --set observability.enabled=false --set observability.metricsHistograms=false --set logging.levelMir0n=OFF --set logging.levelDevelop=OFF --set logging.levelMsg=OFF --set logging.levelAmq=OFF --set logging.levelJms=OFF
   call kubectl rollout restart statefulset esquire-%%s-%%s
 )

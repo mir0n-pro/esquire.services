@@ -30,7 +30,7 @@ set LOKI_URL=http://localhost:13100
 set TEMPO_URL=http://localhost:13200
 set GRAFANA_URL=http://localhost:13009
 set LOKI_JOB=esq-k8s
-set SERVICES=gateway,biztree,mesnie,pacman
+set SERVICES=gateward,mesnie,pacman
 
 rem Credentials from the e2e's .env -- ONE place for the sandbox login, never a literal in a script.
 if exist "..\..\explorer\e2e-test\.env" (

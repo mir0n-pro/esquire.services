@@ -1,5 +1,10 @@
 Esquire Backend common microservice classes
 
+08/15/2026 mir0n  v1.2.13 -- gateWard
+error.GenericExceptionHandler
+  - ResourceNotFoundException gets its own branch: 404 NOT_FOUND, title "Not Found" (was the 400 BAD_REQUEST
+    branch it shared with InvalidValueException)
+
 08/12/2026 mir0n  v1.2.13 -- Mesnie
 identity.IIdentityGateway  (new)
   - created: the way into an identity provider -- start / stop, postRequest(RodEvent), postMessage(RodEvent)

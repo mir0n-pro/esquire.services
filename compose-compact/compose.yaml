@@ -238,97 +238,6 @@ services:
     networks:
       - esquirenet
 
-  biztree:
-    container_name: esqc-biztree
-    build:
-      context: ../bizTree
-    image: esquire.biztree
-    ports:
-      - "3002:3002"
-    environment:
-      - BIZTREE_PORT=3002
-      - LOG_LEVEL_ROOT=ERROR
-      - LOG_LEVEL_SF=ERROR
-      # I49 knob: o11y-log-off/on.bat set this OFF / INFO. Keep overridable or both arms run identical.
-      - LOG_LEVEL_MIR0N=${LOG_LEVEL_MIR0N:-DEBUG}
-      - LOG_LEVEL_DEVELOP=${LOG_LEVEL_DEVELOP:-DEBUG}
-      - LOG_LEVEL_MSG=${LOG_LEVEL_MSG:-DEBUG}
-      - LOG_LEVEL_AMQ=${LOG_LEVEL_AMQ:-INFO}
-      - LOG_LEVEL_JMS=${LOG_LEVEL_JMS:-INFO}
-      - DEVELOP_LOG_PATH=logs/bizTree-develop.log
-      - MSG_LOG_PATH=logs/bizTree-msg.log
-      - TOPOLOGY_IMPORT=optional:file:/etc/esquire/topology.yml
-      - DB_BIZTREE_VENDOR=${DB_BIZTREE_VENDOR:-dev-postgres}
-      - DB_BIZTREE_PORT=${DB_BIZTREE_PORT:-5432}
-      - DB_BIZTREE_NAME=${DB_BIZTREE_NAME:-esq2025}
-      #- DB_BIZTREE_VENDOR=dev-oracle
-      #- DB_BIZTREE_PORT=1521
-      #- DB_BIZTREE_NAME=MIR0N
-      - DB_BIZTREE_HOST=${DB_BIZTREE_HOST:-postgres}
-      - DB_BIZTREE_USERNAME=esq2025
-      - DB_BIZTREE_PASSWORD=q
-      # Messaging
-      - ENTITY_BUS_ID=esquire.entity
-      - ENTITY_SLOT_ID=entity
-      - ENTITY_BROADCAST_POOL_SIZE=4
-      - ENTITY_BROADCAST_CONCURRENCY=1
-      # v1.2.10 worker-pool mode (platform | virtual | virtual-per-task; default platform -- UNVALIDATED, see HA doc 5.5)
-      - ESQ_VIRTUAL_THREADS=${ESQ_VIRTUAL_THREADS:-false}
-      - ENTITY_BROADCAST_POOL_MODE=${ENTITY_BROADCAST_POOL_MODE:-platform}
-      # H2 in-memory cache store
-      - BIZTREE_CACHE_VENDOR=cache-h2
-      # Distributed tracing (v1.2.11 O2) -- OFF by default; the o11y profile brings up the collector + Tempo.
-      # Enable end-to-end: ESQ_OBSERVABILITY_ENABLED=true docker compose --profile o11y up -d --force-recreate
-      - ESQ_OBSERVABILITY_ENABLED=${ESQ_OBSERVABILITY_ENABLED:-false}
-      # per-pillar enable (I41): default to master; set ESQ_TRACING_ENABLED=false for metrics-only (mesh case)
-      - ESQ_TRACING_ENABLED=${ESQ_TRACING_ENABLED:-${ESQ_OBSERVABILITY_ENABLED:-false}}
-      - ESQ_METRICS_ENABLED=${ESQ_METRICS_ENABLED:-${ESQ_OBSERVABILITY_ENABLED:-false}}
-      - ESQ_METRICS_HISTOGRAMS=${ESQ_METRICS_HISTOGRAMS:-false}
-      - ESQ_METRICS_BANDWIDTH=${ESQ_METRICS_BANDWIDTH:-true}
-      - ESQ_METRICS_BUSINESS=${ESQ_METRICS_BUSINESS:-true}
-      - ESQ_MSG_BUS_ALIVE_TRACE=${ESQ_MSG_BUS_ALIVE_TRACE:-false}   # RR liveness heartbeat spans -- OFF by default on every target (I14); opt in via this env
-      - ESQ_OTLP_ENDPOINT=${ESQ_OTLP_ENDPOINT:-http://otel-collector:4318/v1/traces}
-      - ESQ_TRACING_SAMPLING_RATIO=${ESQ_TRACING_SAMPLING_RATIO:-1.0}
-      - ESQ_TRACING_MARKS_ENABLED=${ESQ_TRACING_MARKS_ENABLED:-true}
-      - ESQ_TRACING_EXCLUDED_PATHS=${ESQ_TRACING_EXCLUDED_PATHS:-/actuator}
-      - BIZTREE_H2_URL=jdbc:h2:mem:biztree;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
-      - BIZTREE_H2_POOL_MAX=10
-      - BIZTREE_H2_POOL_MIN_IDLE=10
-      - BIZTREE_H2_POOL_CONN_TIMEOUT=5000
-      - BIZTREE_H2_POOL_IDLE_TIMEOUT=600000
-      - BIZTREE_H2_POOL_MAX_LIFETIME=1800000
-      # v1.2.5 Taijitu refactor: select the cache director impl
-      #   legacy (default) | taijitu (two-monad + night-watch)
-      - BIZTREE_DIRECTOR=taijitu
-      # night-watch checksum-mismatch reaction: LOG | SWAP | TERMINATE
-      # (fed by host BIZTREE_ON_MISMATCH so a hauberk cmd can recreate biztree per test)
-      - BIZTREE_TAIJITU_ON_MISMATCH=${BIZTREE_ON_MISMATCH:-SWAP}
-      # night-watch sweep interval ms (host BIZTREE_SWEEP_INTERVAL_MS; a test sets it high so the
-      # periodic sweep doesn't auto-heal before the sim observes the miss + forces a sweep)
-      - BIZTREE_TAIJITU_SWEEP_INTERVAL_MS=${BIZTREE_SWEEP_INTERVAL_MS:-600000}
-      # night-watch per-leg CHECKSUM deadline ms (host BIZTREE_SWEEP_TIMEOUT_MS)
-      - BIZTREE_TAIJITU_SWEEP_TIMEOUT_MS=${BIZTREE_SWEEP_TIMEOUT_MS:-10000}
-      # per-monad event queue depth (back-pressure boundary)
-      - BIZTREE_MONAD_QUEUE_CAPACITY=${BIZTREE_QUEUE_CAPACITY:-4096}
-      # backlog size above which the monad worker batches events into one cache tx (default 10).
-      # Set very high (e.g. 999999999) to force one-by-one processing for an A/B perf comparison.
-      - BIZTREE_QUEUE_BULK_THRESHOLD=${BIZTREE_QUEUE_BULK_THRESHOLD:-10}
-    command: ["java", "-jar", "app.jar"]
-    depends_on:
-      postgres:
-        condition: service_healthy
-      activemq:
-        condition: service_healthy
-    volumes:
-      - ./logs:/app/logs
-      - ./topology/esquire-topology.yml:/etc/esquire/topology.yml:ro
-    networks:
-      - esquirenet
-
-  # Mesnie -- enyMan + keySmith in ONE process, with kcMaster's identity work served in that same process.
-  # The image and every setting below are the classic ones; what differs is only WHICH processes run. The kc
-  # bus is absent on purpose: KeyCloak is reached through the in-process identity gateway, so this service
-  # builds two rods (entity, audit) where the three separate services together build three.
   mesnie:
     container_name: esqc-mesnie
     build:
@@ -492,27 +401,35 @@ services:
     networks:
       - esquirenet
 
-  gateway:
-    container_name: esqc-gateway
+  # gateWard -- the gate with the bizTree CACHE in the same process. It replaces two containers: there is no
+  # biztree service here and no hop to one, because the tree routes are answered from memory in this process.
+  gateward:
+    container_name: esqc-gateward
     build:
-      context: ../gateway
-    image: esquire.gateway
+      context: ../gateWard
+    image: esquire.gateward
     ports:
       - "7070:7070"
     healthcheck:
-      # curl was dropped from temurin:25-jre-jammy; TCP probe on :7070 (Spring binds the port only when the app
-      # is ready) -- matches the keycloak / activemq healthchecks in this file. Runs INSIDE the container.
+      # TCP probe on :7070 -- Spring binds the port only when the app is ready.
       test: ["CMD-SHELL", "bash -c '</dev/tcp/127.0.0.1/7070' 2>/dev/null"]
       interval: 10s
       timeout: 3s
       retries: 10
-      start_period: 30s
+      start_period: 60s          # longer than the gateway's: the cache loads from the database first
     environment:
-      - GATEWAY_PORT=7070
+      - GATEWARD_PORT=7070
+      - LOG_LEVEL_ROOT=ERROR
+      - LOG_LEVEL_SF=ERROR
+      - LOG_LEVEL_MIR0N=${LOG_LEVEL_MIR0N:-DEBUG}
       - LOG_LEVEL_DEVELOP=${LOG_LEVEL_DEVELOP:-DEBUG}
-      - DEVELOP_LOG_PATH=logs/gateway-develop.log
-      - BIZTREE_PORT=3002
-      - BIZTREE_HOST=biztree
+      - LOG_LEVEL_MSG=${LOG_LEVEL_MSG:-DEBUG}
+      - LOG_LEVEL_AMQ=${LOG_LEVEL_AMQ:-INFO}
+      - LOG_LEVEL_JMS=${LOG_LEVEL_JMS:-INFO}
+      - DEVELOP_LOG_PATH=logs/gateWard-develop.log
+      - MSG_LOG_PATH=logs/gateWard-msg.log
+      - TOPOLOGY_IMPORT=optional:file:/etc/esquire/topology.yml
+      # --- the gate: where the OTHER services are. No BIZTREE_HOST: that route is gone. ---
       - ENYMAN_PORT=3003
       - ENYMAN_HOST=mesnie          # both halves of the household answer on one process
       - PACMAN_PORT=3004
@@ -526,64 +443,72 @@ services:
       - KEYCLOAK_REALM=esquire
       - KEYCLOAK_CLIENT_ID=esq-angular
       - CORS_ALLOWED_ORIGINS=http://localhost:4200,http://localhost:3000
-      - LOG_LEVEL_ROOT=ERROR
-      - LOG_LEVEL_SF=ERROR
-      # I49 knob: o11y-log-off/on.bat set this OFF / INFO. Keep overridable or both arms run identical.
-      - LOG_LEVEL_MIR0N=${LOG_LEVEL_MIR0N:-DEBUG}
       - GW_SERVICE_METRICS_ENABLED=true
-      # Distributed tracing (v1.2.11 O2) -- OFF by default; the o11y profile brings up the collector + Tempo.
-      # Enable end-to-end: ESQ_OBSERVABILITY_ENABLED=true docker compose --profile o11y up -d --force-recreate
+      - ESQ_JWE_PRIVATE_KEY_PATH=/etc/esquire-gw/jwe-private.pem
+      - ESQ_GW_TOKEN_URI=http://host.docker.internal:8081/kc-auth/realms/esquire/protocol/openid-connect/token
+      - ESQ_GW_VANILLA_CLIENTS=esq-hauberk-S
+      - ESQ_GW_PHANTOM_CLIENTS=esq-hauberk-M
+      - ESQ_GW_EXCHANGE_CLIENT_ID=esq-gw-exchange
+      - ESQ_GW_EXCHANGE_CLIENT_SECRET=esq-gw-exchange-dev-secret-rotate-in-prod
+      # --- the ward: the cache this process now holds, and the database it fills itself from ---
+      - DB_BIZTREE_VENDOR=${DB_BIZTREE_VENDOR:-dev-postgres}
+      - DB_BIZTREE_PORT=${DB_BIZTREE_PORT:-5432}
+      - DB_BIZTREE_NAME=${DB_BIZTREE_NAME:-esq2025}
+      - DB_BIZTREE_HOST=${DB_BIZTREE_HOST:-postgres}
+      - DB_BIZTREE_USERNAME=esq2025
+      - DB_BIZTREE_PASSWORD=q
+      - BIZTREE_CACHE_VENDOR=cache-h2
+      - BIZTREE_H2_URL=jdbc:h2:mem:biztree;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+      - BIZTREE_H2_POOL_MAX=10
+      - BIZTREE_H2_POOL_MIN_IDLE=10
+      - BIZTREE_H2_POOL_CONN_TIMEOUT=5000
+      - BIZTREE_H2_POOL_IDLE_TIMEOUT=600000
+      - BIZTREE_H2_POOL_MAX_LIFETIME=1800000
+      - BIZTREE_DIRECTOR=taijitu
+      - BIZTREE_TAIJITU_ON_MISMATCH=${BIZTREE_ON_MISMATCH:-SWAP}
+      - BIZTREE_TAIJITU_SWEEP_INTERVAL_MS=${BIZTREE_SWEEP_INTERVAL_MS:-600000}
+      - BIZTREE_TAIJITU_SWEEP_TIMEOUT_MS=${BIZTREE_SWEEP_TIMEOUT_MS:-10000}
+      - BIZTREE_MONAD_QUEUE_CAPACITY=${BIZTREE_QUEUE_CAPACITY:-4096}
+      - BIZTREE_QUEUE_BULK_THRESHOLD=${BIZTREE_QUEUE_BULK_THRESHOLD:-10}
+      # the cache reads run on their own scheduler, never the event loop -- sized to the H2 pool above
+      - GATEWARD_CACHE_READ_POOL_SIZE=${GATEWARD_CACHE_READ_POOL_SIZE:-10}
+      # --- the entity broadcast that keeps the cache in step ---
+      - ENTITY_BUS_ID=esquire.entity
+      - ENTITY_SLOT_ID=entity
+      - ENTITY_BROADCAST_POOL_SIZE=4
+      - ENTITY_BROADCAST_CONCURRENCY=1
+      - ENTITY_BROADCAST_POOL_MODE=${ENTITY_BROADCAST_POOL_MODE:-platform}
+      - ESQ_VIRTUAL_THREADS=${ESQ_VIRTUAL_THREADS:-false}
+      # --- observability, same switches as every other service ---
       - ESQ_OBSERVABILITY_ENABLED=${ESQ_OBSERVABILITY_ENABLED:-false}
-      # per-pillar enable (I41): default to master; set ESQ_TRACING_ENABLED=false for metrics-only (mesh case)
       - ESQ_TRACING_ENABLED=${ESQ_TRACING_ENABLED:-${ESQ_OBSERVABILITY_ENABLED:-false}}
       - ESQ_METRICS_ENABLED=${ESQ_METRICS_ENABLED:-${ESQ_OBSERVABILITY_ENABLED:-false}}
       - ESQ_METRICS_HISTOGRAMS=${ESQ_METRICS_HISTOGRAMS:-false}
       - ESQ_METRICS_BANDWIDTH=${ESQ_METRICS_BANDWIDTH:-true}
       - ESQ_METRICS_BUSINESS=${ESQ_METRICS_BUSINESS:-true}
-      - ESQ_MSG_BUS_ALIVE_TRACE=${ESQ_MSG_BUS_ALIVE_TRACE:-false}   # RR liveness heartbeat spans -- OFF by default on every target (I14); opt in via this env
+      - ESQ_MSG_BUS_ALIVE_TRACE=${ESQ_MSG_BUS_ALIVE_TRACE:-false}
       - ESQ_OTLP_ENDPOINT=${ESQ_OTLP_ENDPOINT:-http://otel-collector:4318/v1/traces}
       - ESQ_TRACING_SAMPLING_RATIO=${ESQ_TRACING_SAMPLING_RATIO:-1.0}
       - ESQ_TRACING_MARKS_ENABLED=${ESQ_TRACING_MARKS_ENABLED:-true}
       - ESQ_TRACING_EXCLUDED_PATHS=${ESQ_TRACING_EXCLUDED_PATHS:-/actuator}
-      # v1.2.4 JWE re-evaluation -- mounts the gateway RSA private key at the
-      # path below; SecurityConfig switches to JweAwareJwtDecoder when present.
-      # Blank/unset -> plain JWS decoder (v1.2.3 baseline).
-      - ESQ_JWE_PRIVATE_KEY_PATH=/etc/esquire/jwe-private.pem
-      # Vanilla Token Relay -- client sends HTTP Basic with its own
-      # client_id:client_secret; gateway brokers a JWT from KC via the
-      # client_credentials grant and caches it per client_id. Per-client
-      # opt-in via the allowlist below.
-      # Certified clients:
-      #   esq-hauberk   -- Plain JWT (client carries Bearer JWT)
-      #   esq-hauberk-S -- Vanilla Token Relay (client carries Basic; no token)
-      # Use host.docker.internal:8081 (same URL as clients see) so KC token-exchange
-      # iss validation matches between subject_token and gateway's call. Gateway
-      # gets extra_hosts mapping below to resolve host.docker.internal.
-      - ESQ_GW_TOKEN_URI=http://host.docker.internal:8081/kc-auth/realms/esquire/protocol/openid-connect/token
-      - ESQ_GW_VANILLA_CLIENTS=esq-hauberk-S
-      # Phantom Token Relay -- esq-hauberk-M presents a stripped JWT;
-      # gateway exchanges it for a full JWT via RFC 8693 using the
-      # esq-gw-exchange confidential client.
-      - ESQ_GW_PHANTOM_CLIENTS=esq-hauberk-M
-      - ESQ_GW_EXCHANGE_CLIENT_ID=esq-gw-exchange
-      - ESQ_GW_EXCHANGE_CLIENT_SECRET=esq-gw-exchange-dev-secret-rotate-in-prod
-    # --enable-native-access=ALL-UNNAMED : the gateway is the ONE Netty runtime in the fleet (Spring
-    # Cloud Gateway); the rest are Tomcat. Netty loads a native library, and on Java 25 (JEP 472) that
-    # is a RESTRICTED method -- the JVM warns today and says so itself: "Restricted methods will be
-    # BLOCKED in a future release unless native access is enabled". Not warning-suppression: it grants
-    # the access Netty legitimately needs, before a future JDK refuses to start the gateway at all.
     command: ["java", "--enable-native-access=ALL-UNNAMED", "-jar", "app.jar"]
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
+      postgres:
+        condition: service_healthy
+      activemq:
+        condition: service_healthy
       keycloak:
         condition: service_healthy
     volumes:
       - ./logs:/app/logs
-      - ../gateway/conf:/etc/esquire:ro
+      # /etc/esquire holds the shared bus topology, as it does for every service. The gate's own conf
+      # (the JWE key) gets its OWN path: a read-only directory mount cannot have a file mounted inside it.
+      - ./topology/esquire-topology.yml:/etc/esquire/topology.yml:ro
+      - ../gateway/conf:/etc/esquire-gw:ro
     networks:
       - esquirenet
-
   backend:
     container_name: esqc-backend
     build:
@@ -606,7 +531,7 @@ services:
       - KC_ISSUER=http://localhost:8081/kc-auth/realms/esquire
       - KC_CLIENT_ID=esq-angular
       - KC_CLIENT_SECRET=esq-angular-bff-dev-secret-rotate-in-prod
-      - GATEWAY_URL=http://gateway:7070
+      - GATEWAY_URL=http://gateward:7070
       - PUBLIC_BASE_URL=http://localhost:3000
       # Login from :4200 (ng serve dev container) lands back on :4200; from
       # :3000 (production-style baked SPA) lands back on :3000. Origins not
@@ -629,7 +554,7 @@ services:
     extra_hosts:
       - "localhost:host-gateway"
     depends_on:
-      gateway:
+      gateward:
         condition: service_healthy
       keycloak:
         condition: service_healthy

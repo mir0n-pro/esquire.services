@@ -6,7 +6,7 @@ rem
 rem Usage:
 rem   compose-rebuild.bat                  rebuild ALL images, recreate
 rem   compose-rebuild.bat mesnie           rebuild only Mesnie
-rem   compose-rebuild.bat <service>        gateway | biztree | pacman | backend | frontend
+rem   compose-rebuild.bat <service>        gateward | pacman | backend | frontend
 rem
 rem Flags (after the target):  --no-cache
 rem

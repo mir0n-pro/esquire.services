@@ -47,7 +47,7 @@ echo Waiting for grafana...
 kubectl rollout status deployment/esquire-infra-grafana -n default --timeout=150s
 
 echo --- Enabling observability on the app services (mirrors docker ESQ_OBSERVABILITY_ENABLED=true)...
-for %%s in (gateway biztree mesnie pacman) do (
+for %%s in (gateward mesnie pacman) do (
   echo   esquire-%%s observability ON
   call helm upgrade esquire-%%s charts\esquire-%%s --reset-then-reuse-values --set observability.enabled=true --set observability.metricsHistograms=true
   call kubectl rollout restart statefulset esquire-%%s-%%s
