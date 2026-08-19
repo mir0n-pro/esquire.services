@@ -4,7 +4,7 @@
 # ingress-nginx on api.esquire.localhost). Only image.tag is restamped per rebuild here --
 # k8s-rebuild.bat patches it.
 image:
-  tag: "v1.2.13-2608.1520"
+  tag: "v1.2.13-2608.1712"
 
 # Token Relay -- in-cluster KC endpoint (HTTP, no TLS); same allowlists as OKE.
 # exchangeClientSecret comes via --set at install (k8s-up.bat).

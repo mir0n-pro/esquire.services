@@ -16,18 +16,18 @@ The Esquire framework spans Java microservices, a Node.js BFF, an Angular SPA + 
 <table style="width: 100%; table-layout: fixed;">
   <tr><th></th><th>Tier</th><th>Framework(s)</th><th>Project(s)</th><th>Tests</th></tr>
   <tr>
-      <td width="8%"><img src="media/junit.svg" alt="Alt text" height="24"></td>
+      <td width="8%"><img src="logo/junit.svg" alt="Alt text" height="24"></td>
       <td>Java unit + service</td><td><b>JUnit 5</b> + <b>Mockito</b> + <b>AssertJ</b></td>
       <td><code>services/*</code></td>
       <td><b>664</b> <code>@Test</code> methods across <b>104</b> classes</td>
   </tr>
-  <tr><td><img src="media/jacoco.png" alt="Alt text" height="24"></td><td>Java code coverage (a test of the tests)</td><td><b>JaCoCo</b></td><td><code>services/*</code> &rarr; <code>test/JaCoCo</code></td><td><b>16</b> per-module line / branch reports (unit + in-JVM ITs)</td></tr>
-  <tr><td><img src="media/hauberk.svg" alt="Alt text" height="24"> <img src="media/gatling.svg" alt="Alt text" height="24"></td><td>Running-stack load / stress / race-repro</td><td><b>Haubergeon</b> (on <b>Gatling 3.13</b> Java DSL)</td><td><code>explorer/hauberk</code></td><td><b>23</b> self-validating Simulations (smoke / load / super / race-repro / message-loss / HA) + 3 JUnit catalog tests</td></tr>
-  <tr><td><img src="media/hauberk.svg" alt="Alt text" height="24"> <img src="media/gatling.svg" alt="Alt text" height="24"></td><td>Running-stack integration matrices</td><td><b>Bash</b> driver + <code>psql</code> / <code>sqlplus</code> / <code>kubectl</code> (drives the <b>hauberk</b> <code>EntitySmoke</code> workload)</td><td><code>services/test</code></td><td><b>~27-cell</b> audit matrix (audit sink x primary DB x environment) + a <b>bus health</b> readiness/liveness chaos smoke</td></tr>
-  <tr><td><img src="media/vitest.svg" alt="Alt text" height="24"></td><td>Node.js (BFF)</td><td><b>Vitest</b> + <b>Supertest</b></td><td><code>explorer/backend</code></td><td><b>47</b> specs across <b>5</b> files (config / cache / trace / tokens / W3C trace-id conformance)</td></tr>
-  <tr><td><img src="media/karma.svg" alt="Alt text" height="24"> <img src="media/jasmine.svg" alt="Alt text" height="24"></td><td>Angular SPA</td><td><b>Karma</b> + <b>Jasmine</b> (<code>ng test</code>)</td><td><code>explorer/frontend</code></td><td><b>25</b> <code>it()</code> specs in <b>4</b> files</td></tr>
-  <tr><td><img src="media/karma.svg" alt="Alt text" height="24"> <img src="media/jasmine.svg" alt="Alt text" height="24"></td><td>Angular UI library</td><td><b>Karma</b> + <b>Jasmine</b> (<code>ng test</code>)</td><td><code>esquire.ui.lib</code></td><td><b>146</b> <code>it()</code> specs in <b>23</b> files</td></tr>
-  <tr><td><img src="media/playwrite.svg" alt="Alt text" height="24"></td><td>Browser end-to-end</td><td><b>Playwright</b></td><td><code>explorer/e2e-test</code></td><td><b>45</b> <code>test()</code> cases in <b>17</b> <code>.spec.ts</code> files</td></tr>
+  <tr><td><img src="logo/jacoco.png" alt="Alt text" height="24"></td><td>Java code coverage (a test of the tests)</td><td><b>JaCoCo</b></td><td><code>services/*</code> &rarr; <code>test/JaCoCo</code></td><td><b>16</b> per-module line / branch reports (unit + in-JVM ITs)</td></tr>
+  <tr><td><img src="logo/hauberk.svg" alt="Alt text" height="24"> <img src="logo/gatling.svg" alt="Alt text" height="24"></td><td>Running-stack load / stress / race-repro</td><td><b>Haubergeon</b> (on <b>Gatling 3.13</b> Java DSL)</td><td><code>explorer/hauberk</code></td><td><b>23</b> self-validating Simulations (smoke / load / super / race-repro / message-loss / HA) + 3 JUnit catalog tests</td></tr>
+  <tr><td><img src="logo/hauberk.svg" alt="Alt text" height="24"> <img src="logo/gatling.svg" alt="Alt text" height="24"></td><td>Running-stack integration matrices</td><td><b>Bash</b> driver + <code>psql</code> / <code>sqlplus</code> / <code>kubectl</code> (drives the <b>hauberk</b> <code>EntitySmoke</code> workload)</td><td><code>services/test</code></td><td><b>~27-cell</b> audit matrix (audit sink x primary DB x environment) + a <b>bus health</b> readiness/liveness chaos smoke</td></tr>
+  <tr><td><img src="logo/vitest.svg" alt="Alt text" height="24"></td><td>Node.js (BFF)</td><td><b>Vitest</b> + <b>Supertest</b></td><td><code>explorer/backend</code></td><td><b>47</b> specs across <b>5</b> files (config / cache / trace / tokens / W3C trace-id conformance)</td></tr>
+  <tr><td><img src="logo/karma.svg" alt="Alt text" height="24"> <img src="logo/jasmine.svg" alt="Alt text" height="24"></td><td>Angular SPA</td><td><b>Karma</b> + <b>Jasmine</b> (<code>ng test</code>)</td><td><code>explorer/frontend</code></td><td><b>25</b> <code>it()</code> specs in <b>4</b> files</td></tr>
+  <tr><td><img src="logo/karma.svg" alt="Alt text" height="24"> <img src="logo/jasmine.svg" alt="Alt text" height="24"></td><td>Angular UI library</td><td><b>Karma</b> + <b>Jasmine</b> (<code>ng test</code>)</td><td><code>esquire.ui.lib</code></td><td><b>146</b> <code>it()</code> specs in <b>23</b> files</td></tr>
+  <tr><td><img src="logo/playwrite.svg" alt="Alt text" height="24"></td><td>Browser end-to-end</td><td><b>Playwright</b></td><td><code>explorer/e2e-test</code></td><td><b>45</b> <code>test()</code> cases in <b>17</b> <code>.spec.ts</code> files</td></tr>
 </table>
 
 ---
@@ -89,7 +89,7 @@ The Esquire framework spans Java microservices, a Node.js BFF, an Angular SPA + 
 
 Sits right beside the Haubergeon harness above — **same running stack, different question.** Haubergeon asks *how fast / does it survive concurrency*; these matrices ask *did the data land where the configuration says it should*. They reuse ONE hauberk workload (`EntitySmoke`) as the probe and assert the result in the database across a grid of configurations. (This is the tier that can look like a hauberk duplicate but is not: Haubergeon = 23 Gatling Simulations under `explorer/hauberk`; this = ~27 Bash-orchestrated **config cells** under `services/test`.)
 
-**Used in:** `services/test/` — three scenario sets: `audit-smoke/`, `health-smoke/` and `t8-guard/`.
+**Used in:** `services/test/` — three scenario sets: `audit-smoke/`, `health-smoke/` and `freshness-guard/`.
 
 **What for:** reproducible correctness scenarios over the *running* stack across a grid of configurations. Where unit tests mock collaborators, Haubergeon drives throughput, and Playwright drives the browser, these push a small real workload through the gateway and check the data landed where the configuration says — the correctness counterpart to Haubergeon's performance matrices.
 
@@ -99,7 +99,7 @@ Sits right beside the Haubergeon harness above — **same running stack, differe
 
 - the **audit-smoke matrix** — ~27 cells = audit sink (`a` DB triggers / `b` in-process shared+dedicated / `c` ActiveMQ / `ck` Kafka / `d` Redis stream / `dk` Kafka stream) x primary DB (Postgres / Oracle) x environment (docker / local k8s). Proves the audit log lands in the right place for every combination: the relational `*_log` tables for the consumed sinks (a / b / c / ck), the stream itself for the producer-only sinks (d / dk).
 - the **health-smoke** chaos smoke — drives the broker up / down / back and asserts every service forwards its bus connection health to `/actuator/health`, that the indicator sits in the **readiness** group only (a broker outage depools the pod but never restarts it), and that an ActiveMQ leg recovers on its own through the `failover:` transport. The readiness-DOWN edge is asserted on docker (a clean `docker stop`) and observed on local k8s (a graceful `scale --replicas=0`); a separate capture kills the keep database to check the `keepDatasource` health dimension.
-- the **t8-guard** smoke — republishes an entity event the tree cache has already applied, and an event carrying an older change number, then reads the cache back to prove both were skipped and the counter moved; a move follows, to prove path events are guarded on their own counter rather than the entity's. This is the tier that catches the failure the unit tests cannot see: a guard that silently drops a legitimate update leaves a stale cache, not a red test.
+- the **freshness-guard** smoke — republishes an entity event the tree cache has already applied, and an event carrying an older change number, then reads the cache back to prove both were skipped and the counter moved; a move follows, to prove path events are guarded on their own counter rather than the entity's. This is the tier that catches the failure the unit tests cannot see: a guard that silently drops a legitimate update leaves a stale cache, not a red test.
 
 ---
 

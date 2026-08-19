@@ -2,7 +2,7 @@
 # Chart defaults already match local dev needs. Only image.tag is
 # restamped per rebuild here -- k8s-rebuild.bat patches it.
 image:
-  tag: "v1.2.13-2608.1520"
+  tag: "v1.2.13-2608.1712"
 
 # v1.2.10 redundancy: 2 replicas. StatefulSet ordinal gives each pod a distinct instanceNo (0/1)
 # -> distinct entity-id digit (no id collision) + distinct rod-id (R&R reply isolation). Cap=10.
@@ -28,10 +28,10 @@ resilience:
 entity:
   sendRetry: "true"
 
-# auKeep is absent from the compact stack, so the audit bus producer (audit-c) would have no consumer here.
-# The household applies its own log rows through the in-process keep.
+# The audit BUS, drained by auKeep -- which stays its own process here. What compact composes is the REQUEST
+# path; the audit trail is not on it, so the sink is not folded into a request-serving process.
 audit:
-  busId: audit-b
+  busId: audit-c
 
 resources:
   requests:

@@ -93,6 +93,8 @@ METERS_EXPECTED = [        # present whenever o11y is on and the fleet has serve
     "esq_gw_outer_seconds", "esq_gw_inner_seconds", "esq_srv_outer_seconds", "esq_srv_inner_seconds",
     "messaging_send_total", "messaging_receive_total", "messaging_send_duration_seconds",
     "esq_biz_perm_check_total", "esq_biz_entity_ops_total", "esq_biz_tree_handler_dispatch_total",
+    "esq_biz_key_ops_total",                      # keySmith's own throughput -- the sign-in handshake reads an
+                                                  # access profile, so any authenticated traffic fires it
     "esq_biz_kc_sync_total", "esq_biz_kc_sync_duration_seconds", "esq_biz_keep_write_total",
     "esq_biz_keep_write_duration_seconds",        # I48: twin of keep_write_total (EXPECTED), was drifting
     "http_server_requests_seconds", "esq_bff_inbound_duration_seconds",
@@ -104,6 +106,8 @@ METERS_CONDITIONAL = [     # legitimately EMPTY until the condition happens -- W
     "esq_biz_move_failed_total", "esq_biz_acct_tx_total", "esq_biz_acct_close_total",
     "esq_biz_acct_tx_duration_seconds",           # I48: twin of acct_tx_total (CONDITIONAL), was drifting
     "esq_biz_acct_fx_apply_total", "esq_biz_dict_lookup_total", "esq_biz_tree_rebuild_total",
+    "esq_biz_key_identity_total",                 # only when a save actually asks the identity provider for
+                                                  # something -- a read-only run never fires it
     "esq_biz_move_processed_total", "esq_biz_gw_tokenrelay_total", "esq_biz_gw_tokenrelay_acquire_total",
     "esq_biz_gw_tokenrelay_duration_seconds",
     "messaging_error_total", "messaging_retry_backoff", "messaging_retry_dropped_total",
@@ -155,6 +159,17 @@ TRACE_NODES_EXPECTED = [     # on the login+tree-load path -- traced by ANY Esqu
 TRACE_NODES_CONDITIONAL = [  # traced only on their own op (a KC sync, a permission write, an audit keep) -> WARN when quiet
     "enyman", "pacman", "keysmith", "kcmaster", "aukeep",
 ]
+
+# A topology-specific REPLACEMENT (v1.2.13): a trace node is a PROCESS -- the collector rewrites service.name to
+# <app>.<instance> -- so a profile that composes services into fewer processes has different nodes, not fewer.
+# On compact there is no gateway node and no bizTree node; there is a gateward node that is both. The launcher
+# states its own fleet, the same way SERVICES already does for the metric side.
+_NODES = [s.strip() for s in os.environ.get("TRACE_NODES", "").split(",") if s.strip()]
+_NODES_COND = [s.strip() for s in os.environ.get("TRACE_NODES_CONDITIONAL", "").split(",") if s.strip()]
+if _NODES:
+    TRACE_NODES_EXPECTED = _NODES
+if _NODES_COND:
+    TRACE_NODES_CONDITIONAL = _NODES_COND
 
 # A topology-specific exclusion (T12): OKE has NO auKeep (audit = DB triggers), so its keep-write meters never
 # exist and its auKeep trace node never emits -- asserting them there is a permanent false FAIL. The OKE launcher

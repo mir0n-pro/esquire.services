@@ -147,7 +147,8 @@ def ASEL(name, r):
     return 'application="%s"%s' % (name, AND(r))
 
 
-def comp(name, label, health, vitals, link, left, top, probe=False, shape="rectangle", alarm=None):
+def comp(name, label, health, vitals, link, left, top, probe=False, shape="rectangle", alarm=None,
+         height=None, inner=()):
     """A component: a health colour and THREE LIVE VITALS -- per instance.
 
     One number was not enough (mir0n). A colour says the process is RUNNING; a single req/s says it is serving.
@@ -161,7 +162,19 @@ def comp(name, label, health, vitals, link, left, top, probe=False, shape="recta
     """
     C[name] = dict(label=label, health_of=health, vitals_of=vitals, link=link,
                    left=left, top=top, probe=probe, shape=shape,
-                   alarm_of=alarm if alarm is not None else (lambda r: "vector(0)"))
+                   alarm_of=alarm if alarm is not None else (lambda r: "vector(0)"),
+                   h=height, inner=inner)
+
+
+def CH(name):
+    """This component's card height. An aggregated service is TALLER, to hold the inner blocks that name what it
+    composes; everything else is the standard H. Read at emit time, so H may be declared further down."""
+    return C[name]["h"] or H
+
+
+def CH_OF(c):
+    """The same, from an already-fetched component dict."""
+    return c["h"] or H
 
 
 
@@ -315,6 +328,8 @@ HEAP = 'sum(jvm_memory_used_bytes{%s, area="heap"})'
 MSG = 'sum(rate(messaging_receive_total{%s}[5m]))'
 
 # ---- LEFT of the buses: the audit sink, the store ----
+# auKeep stays its OWN process on the compact profile, in its OWN place: what compact composes is the REQUEST
+# path, and the audit trail is not on it. It keeps the classic coordinates -- same box, same corner, same lane.
 comp("aukeep", "auKeep",
      lambda r: health('count(process_uptime_seconds{%s})' % SSEL("aukeep", r),
                       w_cpu(SSEL("aukeep", r)),
@@ -348,7 +363,7 @@ comp("postgres", "Esq2025",
 # ---- RIGHT of the buses: the services, in the component model's order ----
 # Failure counters that belong to a SPECIFIC service (I30). Generic messaging errors alarm every card below; these
 # are the ones with a single home -- the move pipeline is enyMan's. They ride the BORDER (alarm), not the fill.
-SVC_FAIL = {"enyman": ["esq_biz_move_failed_total"]}
+SVC_FAIL = {"mesnie": ["esq_biz_move_failed_total"]}
 
 
 def _svc(n):
@@ -372,24 +387,18 @@ def _svc(n):
                        (HEAP % ASEL(n, r), "bytes", "heap")])
 
 
-for _n, _lbl, _top in (("pacman", "pacMan", 30), ("biztree", "bizTree", 130),
-                       ("enyman", "enyMan", 230), ("keysmith", "keySmith", 330)):
+for _n, _lbl, _top in (("pacman", "pacMan", 30),):
     _h, _a, _v = _svc(_n)
-    comp(_n, _lbl, _h, _v, SERVICES_D % _n, 560, _top, alarm=_a)
+    comp(_n, _lbl, _h, _v, SERVICES_D % _n, 500, _top, alarm=_a)
 
-# kcMaster has NO REST door and NO database -- it is reached only over the bus and owns no state, so its work
-# shows as MESSAGES, not requests. Putting req/s on it would be a permanently-zero number pretending to be a vital.
-comp("kcmaster", "kcMaster",
-     lambda r: health('count(process_uptime_seconds{%s})' % SSEL("kcmaster", r),
-                      w_cpu(SSEL("kcmaster", r)),
-                      w_heap(ASEL("kcmaster", r)),
-                      *w_idle("messaging_receive_total", "kcmaster", r)),
-     lambda r: [(MSG % ASEL("kcmaster", r), "ops", "msg/s"),
-                (CPU % SSEL("kcmaster", r), "percent", "cpu"),
-                (HEAP % ASEL("kcmaster", r), "bytes", "heap")],
-     SERVICES_D % "kcmaster", 560, 430,
-     alarm=lambda r: alarm(w_errlog(ASEL("kcmaster", r)),
-                           w_fail(ASEL("kcmaster", r), "messaging_error_total")))
+# Mesnie -- the household: enyMan, keySmith and kcMaster in ONE process. The card is the PROCESS (that is what
+# `application` names and what has a JVM, a pool and a CPU); the small blocks inside name what it composes. No
+# line touches an inner block: nothing connects to enyMan any more, it connects to Mesnie.
+_h, _a, _v = _svc("mesnie")
+# The height is the SMALLEST the layout allows, the same way gateWard's is: the label, the three vitals, the
+# block stack and the bottom margin, and nothing spare. One more inner block is one more 28px, no re-tuning.
+comp("mesnie", "Mesnie", _h, _v, SERVICES_D % "mesnie", 500, 332, alarm=_a,
+     height=178, inner=("enyMan", "keySmith", "kcMaster"))
 
 # ---- the broker: beneath the lanes, CENTRED ON THE MIDDLE ONE ----
 # MEMORY is the one that matters here: the broker is NON-PERSISTENT, so the bus lives in RAM and memory% is what
@@ -407,28 +416,29 @@ comp("activemq", "ActiveMQ",
      lambda r: [('max(activemq_broker_total_message_count)', "short", "held"),
                 ('max(activemq_broker_current_connections_count)', "short", "conns"),
                 ('max(activemq_broker_memory_percent_usage)', "percent", "memory")],
-     "/d/esq-services/", 333, 596)
+     "/d/esq-services/", 293, 596)
 
-# ---- the edge: gateway -> Explorer (BFF), and KeyCloak ----
-# The gateway is NETTY, not Tomcat, so its bandwidth comes from reactor-netty; /actuator is excluded or the
-# Prometheus scrape of the gateway itself would dwarf the real client traffic.
-comp("gateway", "gateway",
-     lambda r: health('count(process_uptime_seconds{%s})' % SSEL("gateway", r),
-                      w_cpu(SSEL("gateway", r)),
-                      w_heap(ASEL("gateway", r)),
-                      *w_idle("http_server_requests_seconds_count", "gateway", r)),
-     lambda r: [(REQ % ASEL("gateway", r), "reqps", "req/s"),
-                (CPU % SSEL("gateway", r), "percent", "cpu"),
+# ---- the edge: gateWard -> Explorer (BFF), and KeyCloak ----
+# gateWard is the gateway with the tree cache inside it. It is NETTY, not Tomcat, so its bandwidth comes from
+# reactor-netty; /actuator is excluded or the Prometheus scrape of the gate itself would dwarf the real client
+# traffic.
+comp("gateward", "gateWard",
+     lambda r: health('count(process_uptime_seconds{%s})' % SSEL("gateward", r),
+                      w_cpu(SSEL("gateward", r)),
+                      w_heap(ASEL("gateward", r)),
+                      *w_idle("http_server_requests_seconds_count", "gateward", r)),
+     lambda r: [(REQ % ASEL("gateward", r), "reqps", "req/s"),
+                (CPU % SSEL("gateward", r), "percent", "cpu"),
                 ('sum(rate(reactor_netty_http_server_data_sent_bytes_sum{uri!="/actuator"%s}[5m]))' % AND(r),
                  "Bps", "net out")],
-     SERVICES_D % "gateway", 745, 180,
+     SERVICES_D % "gateward", 714, 180, height=150, inner=("gateway", "bizTree"),
      # ALL of the gateway's alarms ride the border: 5xx (it is shedding), errors, and a resilience4j breaker OPEN
      # (every breaker lives here -- the gateway wraps each downstream). These are dependency problems, not the
      # gateway's own health, so the fill stays green and the border alarms.
-     alarm=lambda r: alarm(w_5xx(ASEL("gateway", r)),
-                           w_errlog(ASEL("gateway", r)),
-                           w_fail(ASEL("gateway", r), "messaging_error_total"),
-                           w_breaker(SSEL("gateway", r))))
+     alarm=lambda r: alarm(w_5xx(ASEL("gateward", r)),
+                           w_errlog(ASEL("gateward", r)),
+                           w_fail(ASEL("gateward", r), "messaging_error_total"),
+                           w_breaker(SSEL("gateward", r))))
 comp("keycloak", "KEYCLOAK",
      lambda r: health('max(up{job="keycloak"})',
                       # inline (job= selector, not application=) but reads the SAME constants as w_cpu/w_heap
@@ -438,7 +448,7 @@ comp("keycloak", "KEYCLOAK",
      lambda r: [('sum(rate(http_server_requests_seconds_count{job="keycloak"}[5m]))', "reqps", "req/s"),
                 ('avg(process_cpu_usage{job="keycloak"}) * 100', "percent", "cpu"),
                 ('sum(jvm_memory_used_bytes{job="keycloak", area="heap"})', "bytes", "heap")],
-     "/d/esq-services/", 745, 430)
+     "/d/esq-services/", 714, 430)
 # The BFF is a StatefulSet too, so its pods carry the same -0 / -1 ordinal and its cards split like the rest.
 comp("backend", "Explorer",
      lambda r: health('max(up{job="esquire-bff"%s})' % AND(r),
@@ -451,7 +461,7 @@ comp("backend", "Explorer",
      lambda r: [('sum(rate(esq_bff_inbound_duration_seconds_count%s[5m]))' % ONLY(r), "reqps", "req/s"),
                 ('sum(rate(process_cpu_seconds_total{job="esquire-bff"%s}[5m])) * 100' % AND(r), "percent", "cpu"),
                 ('sum(process_resident_memory_bytes{job="esquire-bff"%s})' % AND(r), "bytes", "rss")],
-     "/d/esq-services/", 920, 180)
+     "/d/esq-services/", 928, 180)
 
 # ---- THE OBSERVABILITY STACK IS *NOT* ON THIS BOARD -- with ONE exception, the Collector (mir0n) ----
 # Prometheus / Loki / Tempo / Grafana / Alloy were on it briefly and came straight back off: this board answers
@@ -471,7 +481,7 @@ comp("collector", "COLLECTOR",
      lambda r: [('sum(rate(otelcol_receiver_accepted_spans_total[5m]))', "ops", "spans/s"),
                 ('sum(otelcol_exporter_queue_size)', "short", "queue"),
                 ('sum(increase(otelcol_receiver_refused_spans_total[%s]))' % ALERT_HOLD, "short", "refused")],
-     "/d/esq-services/", 745, 596, shape="ellipse")
+     "/d/esq-services/", 714, 596, shape="ellipse")
 
 ORDER = list(C.keys())
 
@@ -491,19 +501,26 @@ ORDER = list(C.keys())
 # Local k8s (k8s/values/*.yaml): every app component is replicaCount: 2. Infra -- Postgres, ActiveMQ, KeyCloak --
 # is x1 and stays a single card, which is itself worth seeing: the board then SHOWS what is redundant and what is
 # not, and the three components with nothing behind them are the three single points of failure.
-K8S_CARDS = {n: 2 for n in ("aukeep", "pacman", "biztree", "enyman", "keysmith", "kcmaster", "gateway", "backend")}
+K8S_CARDS = {n: 2 for n in ("aukeep", "pacman", "mesnie", "gateward", "backend")}
 
 # The k8s board needs ROOM: a stack is PEEK_X wider than a single card, and the two right-hand columns would
 # otherwise sit ON TOP of the stack in front of them. These three numbers are the ONLY coordinates that differ
 # between the boards -- same arrangement, same lanes, same arrows, same picture.
-K8S_LEFT = {"gateway": 830, "keycloak": 830, "backend": 1080}
+# ONE gap between every vertical group, and the value is the gap BETWEEN THE TWO LANES (34) -- the picture's
+# own unit. A stack is 236 wide (a card plus the peek), not 140, so the x2 board cannot inherit the x1 columns:
+# with the docker numbers the gateWard stack ran to within 14px of the Explorer while pacMan/Mesnie had 74.
+#   aukeep ends 266 -> lanes 300 | lanes end 426 -> services 460 | services end 696 -> gate 730 |
+#   gate end 966 -> Explorer 1000
+# The Collector follows gateWard's column, as it does on the x1 board.
+K8S_LEFT = {"pacman": 460, "mesnie": 460,
+            "gateward": 730, "keycloak": 730, "collector": 730,
+            "backend": 1000}
 
 # k8s-only FLOW overrides -- what REDUNDANCY changes about the arrows, which the single-instance picture cannot
-# show. On ONE instance enyMan only PUBLISHES entity CREATEs; with TWO instances a PEER enyMan's CREATE comes
-# back to the other over the entity broadcast bus -- the reconcile intake (MoveQueueManager.onPeerCreate, its own
-# publications filtered out) -- so on the entity lane enyMan both publishes AND receives: a double-ended arrow.
+# show. Mesnie is already `both` on the entity lane at x1 (enyMan publishes and listens for its peers'), so this
+# profile has nothing left to override -- the map stays, empty, because the next composed service may need it.
 # {bus id -> {component -> flow}}, applied only when a redundant (x2) board is drawn.
-K8S_FLOW = {"esquire.entity": {"enyman": "both"}}
+K8S_FLOW = {}
 
 # Set by main() per target. Docker = {} -> one card per component, and nothing about that board moves.
 CARDS = {}
@@ -521,6 +538,11 @@ PEEK_X, PEEK_Y = 96, 20
 CARD_RIM = "#FFFFFF"
 ALARM_COLOR = "#FF2D95"
 
+# The inner blocks are LABELS on the card they sit on, so they are drawn quietly: a translucent fill and a thin
+# rim, dark enough to read against every health colour the card can take (green, amber, red, grey).
+INNER_FILL = "rgba(0, 0, 0, 0.28)"
+INNER_EDGE = "rgba(255, 255, 255, 0.55)"
+
 
 # auKeep is the only replicated component LEFT of the lanes, and it must stack the OTHER WAY (mir0n).
 #
@@ -537,7 +559,7 @@ ALARM_COLOR = "#FF2D95"
 #                                                   "auKeep"; it means the same thing on every stack.
 #   * "instances read 0,1 left to right"         -- given up on auKeep alone, where they read 1,0. Harmless: every
 #                                                   card is LABELLED with its own instance number.
-MIRROR = {"aukeep"}
+MIRROR = {"aukeep"}   # all of auKeep's wiring leaves right and below, so its stack opens away from its own lines
 
 
 def cards(name):
@@ -614,15 +636,16 @@ BUSES = [
     # for the reply; kcMaster receives the request and sends the reply back. A single arrowhead on that bus would
     # be a lie in one direction or the other -- and the component model draws it with double arrows for exactly
     # this reason.
+    # TWO lanes here, and the missing one is missing for a REASON: the IAM request-response bus is GONE --
+    # kcMaster runs inside Mesnie, so identity is a method call onto an in-memory queue, not a message. There is
+    # no medium left to draw. The other two keep their classic slots, which leaves the broker centred under both.
+    # Mesnie is `both` on the entity lane: enyMan publishes its broadcasts AND listens for its peers' (Goal-4).
     dict(id="audit-c", name="Audit Broadcast Bus", kind="audit-c",
          color="#8FA8C8", left=300,
-         flow={"enyman": "pub", "keysmith": "pub", "pacman": "pub", "aukeep": "sub"}),
-    dict(id="esquire.kc", name="IAM Request-Response Bus", kind="esquire.kc",
-         color="#D9C48A", left=380,
-         flow={"enyman": "both", "keysmith": "both", "kcmaster": "both"}),
+         flow={"mesnie": "pub", "pacman": "pub", "aukeep": "sub"}),
     dict(id="esquire.entity", name="Entity Broadcast Bus", kind="esquire.entity",
-         color="#9DC08B", left=460,
-         flow={"enyman": "pub", "pacman": "pub", "biztree": "sub", "kcmaster": "sub"}),
+         color="#9DC08B", left=380,
+         flow={"mesnie": "both", "pacman": "pub", "gateward": "sub"}),
 ]
 
 # The lanes run the full height of the service column, so any service can tap any of them at its own height.
@@ -651,19 +674,16 @@ SPINE_TOP, SPINE_H, SPINE_W = 25, 500, 46
 #                     that KeyCloak going down cannot break login at the Explorer -- which is the opposite of true.
 # ---------------------------------------------------------------------------------------------------------------
 ARROWS = [
-    ("backend", "gateway"),            # BFF proxies /api/* (and relays the session bearer)
+    ("backend", "gateward"),           # BFF proxies /api/* (and relays the session bearer)
     ("backend", "keycloak"),           # the BFF's own server-to-server calls: discovery, token exchange, JWKS
-    ("gateway", "enyman"),
-    ("gateway", "biztree"),
-    ("gateway", "pacman"),
-    ("gateway", "keysmith"),
-    ("gateway", "keycloak"),           # JWK set -- every JWT is validated against it
-    ("enyman", "postgres"),
-    ("biztree", "postgres"),
+    ("gateward", "mesnie"),            # the proxied routes -- entity, dictionary, key
+    ("gateward", "pacman"),
+    ("gateward", "keycloak"),          # JWK set -- every JWT is validated against it
+    ("gateward", "postgres"),          # the tree cache loads itself from the database
+    ("mesnie", "postgres"),
     ("pacman", "postgres"),
-    ("keysmith", "postgres"),
-    ("aukeep", "postgres"),
-    ("kcmaster", "keycloak"),          # the KC admin sync
+    ("aukeep", "postgres"),            # the audit sink writes the log rows
+    ("mesnie", "keycloak"),            # the KC admin sync -- kcMaster's call, made from inside the household
 ]
 
 # Where an arrow MUST leave / land, when the generic "whichever axis is further apart wins" rule gets it wrong.
@@ -672,9 +692,34 @@ ARROWS = [
 # Explorer -> KeyCloak: it leaves the CENTRE OF THE BOTTOM EDGE (mir0n). The rule would send it out of the LEFT
 # edge on the k8s board -- the two boxes land exactly 250px apart on both axes there, the tie goes to horizontal,
 # and the same arrow then leaves a different edge on each board.
+# Lines that must run FLAT -- 0 degrees, like a bus tap. The even spread on an edge places each line by where it
+# is heading, which is right for a fan of lines and wrong for the one that should simply run straight across.
+# Both ends are re-anchored onto ONE pixel row, and the value says WHOSE middle that row is: "src" or "dst".
+# The row is COMPUTED from that box, so the line stays flat if either of them moves. Keyed (from, to).
+HORIZONTAL = {("mesnie", "keycloak"): "dst",     # KeyCloak's middle
+              ("backend", "gateward"): "src"}    # the Explorer's middle
+
+# The same idea on the other axis: lines that must run STRAIGHT DOWN. Both ends are re-anchored onto one pixel
+# COLUMN, and the value says whose middle that column is. Keyed (from, to).
+VERTICAL = {("gateward", "keycloak"): "src"}     # gateWard's middle
+
+# Where a line SITS along the edge it was given, when the even spread's answer is not the one wanted. The value
+# is the canvas anchor: y is UP, so a POSITIVE number lifts the point above the middle of a side edge. Keyed
+# (box, other end) -- the box named first is the one whose anchor moves.
+EDGE_BIAS = {("keycloak", "backend"): 0.4}       # the Explorer's line lands high on KeyCloak's right border
+
 PINNED_EDGE = {
     ("backend", "keycloak"): {"x": 0, "y": -1},    # leave Explorer's BOTTOM edge  (canvas y is UP)
-    ("keycloak", "backend"): {"x": 0, "y": 1},     # land on KeyCloak's TOP edge
+    # ...and land on KeyCloak's RIGHT border (mir0n). Landing on its TOP edge sends the line diagonally across
+    # the gate's column -- harmless at x1, but at x2 the gateWard STACK is 236 wide and the line runs through it.
+    # Coming in from the right keeps it outside the column on both boards.
+    ("keycloak", "backend"): {"x": 1, "y": 0},     # land on KeyCloak's RIGHT border
+
+    # gateWard -> Esq2025 lands on the store's RIGHT border, at its middle (mir0n) -- the near side, so the
+    # line stops at the box instead of running across it. gateWard keeps the facing
+    # (left) edge, so this line takes its place in the even spread with the other three and the order down that
+    # edge falls out of the geometry: pacMan, the entity lane, Esq2025, Mesnie.
+    ("postgres", "gateward"): {"x": 1, "y": 0},    # land on Esq2025's RIGHT border, centre
 }
 
 # Line colours. The lanes carry their own (the bus colours, from the component model); these two are
@@ -701,13 +746,11 @@ BUS_LEFT, BUS_WIDTH = 180, 817   # the bars run beside the broker, spanning the 
 # for free: the store sits behind the buses, the buses behind the services, the BFF on top.
 # ---------------------------------------------------------------------------------------------------------------
 LAYERS = [
-    ["postgres", "aukeep"],                                    # 1 -- back:  the store, and the audit sink
-    ["activemq", "collector"],                                 # 2 --        the buses (lanes) + the broker; the
-                                                               #             Collector rides here too (bottom-row
-                                                               #             infra hub, the I31 exception box)
-    ["pacman", "biztree", "enyman", "keysmith", "kcmaster"],   # 3 --        the services
-    ["gateway", "keycloak"],                                   # 4 --        the edge + identity
-    ["backend"],                                               # 5 -- front: the BFF
+    ["postgres", "aukeep"],                # 1 -- back:  the store, and the audit sink
+    ["activemq", "collector"],             # 2 --        the bus lane + the broker; the Collector rides here too
+    ["pacman", "mesnie"],                  # 3 --        the services
+    ["gateward", "keycloak"],              # 4 --        the edge + identity
+    ["backend"],                           # 5 -- front: the BFF
 ]
 LAYERS_ON = len(LAYERS)   # ALL layers are drawn. LAYERS is the BACK-TO-FRONT Z-ORDER of the whole
                           # picture (element order IS paint order in a canvas frame), NOT a switch
@@ -815,7 +858,7 @@ def card(name, r):
         },
         "constraint": {"horizontal": "left", "vertical": "top"},
         "placement": {"left": card_left(name, r), "top": card_top(name, r),
-                      "width": W, "height": H, "rotation": 0},
+                      "width": W, "height": CH(name), "rotation": 0},
         "links": [{"title": "details for %s" % name, "url": c["link"], "targetBlank": False}],
         "connections": [],
     }
@@ -841,12 +884,24 @@ def card(name, r):
 # thing twice and leaving nothing to say "this is a database".
 # ---------------------------------------------------------------------------------------------------------------
 ICON = {n: "img/icons/esq/%s.svg" % n for n in
-        ("gateway", "pacman", "biztree", "enyman", "keysmith",
-         "kcmaster", "aukeep", "activemq", "postgres", "keycloak")}
+        ("pacman", "activemq", "postgres")}
+ICON["keycloak"] = "img/icons/esq/keycloak.svg?v=2"
+# A drawing that CHANGES keeps its filename and carries `?v=N`. The canvas fetches its icons from script at
+# runtime, so a browser holding the old drawing under the old URL keeps showing it through any refresh --
+# the query makes the URL new without making the FILE new. Bump N whenever the drawing changes.
+ICON["gateward"] = "img/icons/esq/gateward.svg?v=3"
+# Mesnie carries `?v=N` because the canvas fetches its icons from script at runtime: a browser holding the
+# old drawing under the old URL keeps showing it through any refresh. The query makes the URL new without
+# making the FILE new -- bump N whenever the drawing changes.
+ICON["mesnie"] = "img/icons/esq/mesnie.svg?v=3"
+# A drawing that CHANGES keeps its filename and carries `?v=N`. The canvas fetches its icons from script at
+# runtime, so a browser holding the old drawing under the old URL keeps showing it through any refresh --
+# the query makes the URL new without making the FILE new. Bump N whenever the drawing changes.
+ICON["aukeep"] = "img/icons/esq/aukeep.svg?v=2"
 # The FILE is `explorer.svg`, not `backend.svg`, deliberately: backend.svg previously held the Node.js logo, and a
 # browser that had cached that URL kept serving it forever even though the file on disk had changed. A new path is
 # the only cache-bust that always works.
-ICON["backend"] = "img/icons/esq/explorer.svg"
+ICON["backend"] = "img/icons/esq/explorer.svg?v=3"
 
 
 def icon(name):
@@ -919,8 +974,109 @@ def card_texts(name, r):
                 "text": {"field": vital_field(name, r, vname), "mode": "field", "fixed": ""},
             },
             "constraint": {"horizontal": "left", "vertical": "top"},
-            "placement": {"left": left, "top": card_top(name, r) + 22 + k * 19,
+            "placement": {"left": left, "top": vitals_top(name, r) + k * 19,
                           "width": width, "height": 19, "rotation": 0},
+            "connections": [],
+        })
+    return out
+
+
+# ---------------------------------------------------------------------------------------------------------------
+# THE INNER BLOCKS -- what a composed service is made of.
+#
+# A card on this board is a PROCESS: it has a JVM, a pool, a CPU, and it is what `application` names. Mesnie and
+# gateWard are each ONE process holding several Esquire services, and a reader who only sees "Mesnie" cannot tell
+# what became of enyMan. So the composed card carries small blocks naming what it composes.
+#
+# They are LABELS, not components. No health colour, no vitals, no link, and above all NO LINE TOUCHES ONE: every
+# arrow lands on the card. That is the architecture -- nothing connects to enyMan any more, it connects to Mesnie
+# -- and an arrow into an inner block would say the opposite.
+# ---------------------------------------------------------------------------------------------------------------
+# The blocks sit on the BOTTOM of the card, ONE size on every card however tall it is -- a name in a 60px box
+# reads as a component, which is the one thing these must not look like. The vitals then drop down to sit just
+# above them (VITALS_GAP), so the numbers and the blocks read as one group and the slack ends up above them.
+INNER_W, INNER_H, INNER_GAP, INNER_BOTTOM, VITALS_GAP = 116, 22, 6, 12, 6
+
+# The label a composed service shows -> the icon file of the service it names. Same marks the classic board gives
+# those services as boxes of their own: a reader who knew enyMan by its face still knows it inside Mesnie.
+INNER_ICON = {"enyMan": "enyman.svg?v=2", "keySmith": "keysmith.svg?v=2", "kcMaster": "kcmaster.svg?v=2",
+              "gateway": "gateway.svg?v=3", "bizTree": "biztree.svg?v=2"}
+
+
+def inner_stack_top(name):
+    """Where the block stack starts: bottom-anchored, so the blocks sit on the card's lower edge."""
+    c = C[name]
+    n = len(c["inner"])
+    stack_h = n * INNER_H + (n - 1) * INNER_GAP
+    return c["top"] + CH(name) - INNER_BOTTOM - stack_h
+
+
+def vitals_top(name, r):
+    """Where a card's three live numbers start. A plain card puts them under its label; a COMPOSED card drops
+    them to just above its blocks, so the numbers and the names they belong to read as one group."""
+    ret = card_top(name, r) + 22
+    if C[name]["inner"] and r == 0:
+        nv = len(C[name]["vitals_of"](ordinal(name, r)))
+        near = inner_stack_top(name) - VITALS_GAP - nv * 19
+        if near > ret:
+            ret = near
+    return ret
+
+
+def inner_blocks(name):
+    """The small named blocks inside a composed card, sitting on its bottom edge."""
+    out = []
+    c = C[name]
+    n = len(c["inner"])
+    if n == 0:
+        return out
+    box_h = INNER_H
+    first_top = inner_stack_top(name)
+    for i, label in enumerate(c["inner"]):
+        out.append({
+            "name": "%s inner %s" % (name, label),
+            "type": "rectangle",
+            "background": {"color": {"fixed": INNER_FILL}},
+            "border": {"color": {"fixed": INNER_EDGE}, "width": 1},
+            # the text is nudged right by the icon's width, so the mark and the name sit side by side instead of
+            # printing over each other
+            "config": {"align": "center", "valign": "middle",
+                       "color": {"fixed": "#FFFFFF"}, "size": 11,
+                       "text": {"fixed": "", "mode": "fixed"}},
+            "constraint": {"horizontal": "left", "vertical": "top"},
+            "placement": {"left": c["left"] + (W - INNER_W) / 2.0,
+                          "top": first_top + i * (box_h + INNER_GAP),
+                          "width": INNER_W, "height": box_h, "rotation": 0},
+            "connections": [],
+        })
+        block_left = c["left"] + (W - INNER_W) / 2.0
+        block_top = first_top + i * (box_h + INNER_GAP)
+        mark = INNER_ICON.get(label)
+        icon_w = min(box_h - 6, 22)
+        if mark:
+            out.append({
+                "name": "%s inner %s icon" % (name, label),
+                "type": "icon",
+                "background": {"color": {"fixed": "transparent"}},
+                "border": {"color": {"fixed": "transparent"}, "width": 0},
+                "config": {"path": {"fixed": "img/icons/esq/%s" % mark, "mode": "fixed"},
+                           "fill": {"fixed": "transparent"}},
+                "constraint": {"horizontal": "left", "vertical": "top"},
+                "placement": {"left": block_left + 4, "top": block_top + (box_h - icon_w) / 2.0,
+                              "width": icon_w, "height": icon_w, "rotation": 0},
+                "connections": [],
+            })
+        out.append({
+            "name": "%s inner %s label" % (name, label),
+            "type": "text",
+            "background": {"color": {"fixed": "transparent"}},
+            "border": {"color": {"fixed": "transparent"}, "width": 0},
+            "config": {"align": "center", "valign": "middle",
+                       "color": {"fixed": "#FFFFFF"}, "size": 11,
+                       "text": {"fixed": label, "mode": "fixed"}},
+            "constraint": {"horizontal": "left", "vertical": "top"},
+            "placement": {"left": block_left + icon_w + 6, "top": block_top,
+                          "width": INNER_W - icon_w - 10, "height": box_h, "rotation": 0},
             "connections": [],
         })
     return out
@@ -1061,7 +1217,7 @@ def hub_caption():
     c = C["collector"]
     box = 330
     left = c["left"] + W + 14                    # to the RIGHT of the oval, small gap
-    top = c["top"] + (H - 3 * 16) / 2.0          # vertically centred against the oval
+    top = c["top"] + (CH_OF(c) - 3 * 16) / 2.0   # vertically centred against the oval
     lines = ["the telemetry hub: not a service, not infra.",
              "every trace passes through it to be stored --",
              "if it stops, traces are lost with no warning."]
@@ -1105,6 +1261,9 @@ def canvas():
             elements.append(icon(name))
         for r in range(cards(name)):
             elements.extend(card_texts(name, r))
+        # only on the FRONT card: the blocks name the COMPONENT, and a second instance of a thing is not a
+        # different thing -- the same reason the icon is drawn once
+        elements.extend(inner_blocks(name))
 
     # EVERY LINE HANGS OFF THE FRONT CARD (mir0n: "glue gateway arrows to upper box").
     #
@@ -1153,7 +1312,7 @@ def canvas():
             return dict(pin)
         a, b = C[me], C[other]
         dx = (b["left"] + W / 2.0) - (a["left"] + W / 2.0)
-        dy = (b["top"] + H / 2.0) - (a["top"] + H / 2.0)
+        dy = (b["top"] + CH_OF(b) / 2.0) - (a["top"] + CH_OF(a) / 2.0)
         if abs(dx) >= abs(dy):
             return {"x": 1 if dx > 0 else -1, "y": 0}          # right / left edge
         return {"x": 0, "y": -1 if dy > 0 else 1}              # bottom / top edge  (y is UP)
@@ -1170,7 +1329,7 @@ def canvas():
         you TAP, anywhere along it. Grafana's canvas axis is Y-UP (y=1 top, y=-1 bottom), hence (mid - y)/half.
         """
         c = C[comp_name]
-        comp_mid = c["top"] + H / 2.0
+        comp_mid = c["top"] + CH_OF(c) / 2.0
         return (spine_mid - comp_mid) / spine_half
 
     # Every connection below is drawn FROM the service TO the lane, and the ARROWHEAD is placed by `direction`:
@@ -1199,12 +1358,16 @@ def canvas():
     # slides up or down as a whole instead of tilting.
     # ---------------------------------------------------------------------------------------------------------
     SPREAD = 0.66      # how much of an edge to use, -SPREAD..+SPREAD (leaves the corners alone)
+    # The BROKER is the exception, and deliberately: it is the MEDIUM, not a participant, so its lines should
+    # read as rising out of the middle of it rather than as two separate couplings leaving opposite corners.
+    # A narrow spread gathers them at its centre (mir0n).
+    BROKER_SPREAD = 0.40
 
-    def slots(n):
+    def slots(n, spread=SPREAD):
         """n evenly spaced positions across an edge, in canvas anchor units. A lone line keeps the middle."""
         if n <= 1:
             return [0.0]
-        return [(-SPREAD + 2.0 * SPREAD * k / (n - 1.0)) for k in range(n)]
+        return [(-spread + 2.0 * spread * k / (n - 1.0)) for k in range(n)]
 
     def side_of(anchor):
         return "R" if anchor["x"] == 1 else "L" if anchor["x"] == -1 else "T" if anchor["y"] == 1 else "B"
@@ -1230,7 +1393,7 @@ def canvas():
             # vertical offset is ZERO -- it heads straight sideways, neither up nor down.
             item = {"kind": "bus", "comp": name, "bus": b, "flow": flow, "side": side,
                     "ox": b["left"] + SPINE_W / 2.0,
-                    "oy": elem_top(name, side) + H / 2.0}
+                    "oy": elem_top(name, side) + CH(name) / 2.0}
             ends.setdefault(key, []).append(item)
             order.append(item)
 
@@ -1247,7 +1410,7 @@ def canvas():
         for me, other, role in ((a, z, "src"), (z, a, "dst")):
             e = edge_anchor(me, other)
             item = {"kind": "p2p-end", "comp": me, "pair": pair, "role": role, "side": side_of(e),
-                    "ox": C[other]["left"] + W / 2.0, "oy": C[other]["top"] + H / 2.0}
+                    "ox": C[other]["left"] + W / 2.0, "oy": C[other]["top"] + CH(other) / 2.0}
             ends.setdefault((me, side_of(e)), []).append(item)
         order.append(pair)
 
@@ -1255,7 +1418,7 @@ def canvas():
     for (comp_name, side), group in ends.items():
         vertical = side in ("L", "R")
         cx = elem_left(comp_name, side) + W / 2.0
-        cy = elem_top(comp_name, side) + H / 2.0
+        cy = elem_top(comp_name, side) + CH(comp_name) / 2.0
 
         # ORDER BY WHERE THE LINE IS ACTUALLY HEADING -- purely geometric, no rule about "kinds".
         #
@@ -1271,11 +1434,19 @@ def canvas():
         #      happens to sit below them -- and gets keySmith WRONG, because Esq2025 is ABOVE keySmith, so its
         #      arrow belongs at the TOP of that edge. A rule about kinds cannot know that; the geometry does.
         group.sort(key=lambda it: ((it["oy"] - cy, it["ox"]) if vertical else (it["ox"] - cx, it["oy"])))
-        for pos, item in zip(slots(len(group)), group):
+        edge_spread = BROKER_SPREAD if comp_name == "activemq" else SPREAD
+        for pos, item in zip(slots(len(group), edge_spread), group):
             if vertical:
                 item["anchor"] = {"x": 1 if side == "R" else -1, "y": -pos}
             else:
                 item["anchor"] = {"x": pos, "y": 1 if side == "T" else -1}
+            other = item.get("pair", {}).get("dst") if item.get("role") == "src" else                     item.get("pair", {}).get("src") if item.get("role") == "dst" else None
+            bias = EDGE_BIAS.get((comp_name, other))
+            if bias is not None:
+                if vertical:
+                    item["anchor"]["y"] = bias
+                else:
+                    item["anchor"]["x"] = bias
 
     # ---- 3. emit ------------------------------------------------------------------------------------------
     for item in order:
@@ -1283,7 +1454,7 @@ def canvas():
             b, name, side = item["bus"], item["comp"], item["side"]
             a = item["anchor"]
             # the pixel row this tap runs along, and the point on the lane at that SAME row -> still 0 degrees
-            pixel_y = (elem_top(name, side) + H / 2.0) - a["y"] * (H / 2.0)
+            pixel_y = (elem_top(name, side) + CH(name) / 2.0) - a["y"] * (CH(name) / 2.0)
             elem(name, side)["connections"].append({
                 "targetName": "bus:" + b["id"], "path": "straight",
                 "source": a,
@@ -1308,6 +1479,16 @@ def canvas():
             de = next(x for g in ends.values() for x in g
                       if x.get("pair") is item and x["role"] == "dst")
             sa, da = se["anchor"], de["anchor"]
+            if (src, dst) in VERTICAL:
+                anchor_on = dst if VERTICAL[(src, dst)] == "dst" else src
+                col = C[anchor_on]["left"] + W / 2.0                  # the column both ends share
+                sa = {"x": ((col - (C[src]["left"] + W / 2.0)) / (W / 2.0)), "y": sa["y"]}
+                da = {"x": ((col - (C[dst]["left"] + W / 2.0)) / (W / 2.0)), "y": da["y"]}
+            if (src, dst) in HORIZONTAL:
+                anchor_on = dst if HORIZONTAL[(src, dst)] == "dst" else src
+                row = C[anchor_on]["top"] + CH(anchor_on) / 2.0      # the row both ends share
+                sa = {"x": sa["x"], "y": ((C[src]["top"] + CH(src) / 2.0) - row) / (CH(src) / 2.0)}
+                da = {"x": da["x"], "y": ((C[dst]["top"] + CH(dst) / 2.0) - row) / (CH(dst) / 2.0)}
             # THREE KINDS OF LINE, THREE COLOURS -- so the KIND of coupling is readable without following the wire:
             #   coloured lane colour : the async bus (a publish; nobody waits)
             #   RED                  : a DB call  -- the component model draws these red, and the board matches it
@@ -1347,13 +1528,10 @@ def canvas():
             "THE SHAPE IS AN ASSERTION ABOUT THE ARCHITECTURE. An ARROW is a point-to-point call (REST / DB): "
             "something called and WAITED for an answer. A DROP onto a BAR is the async bus -- a shared medium, "
             "where a service publishes to a destination and walks away, and who is listening is not its business. "
-            + (("THERE ARE TWO BARS, not one, because there are TWO BUSES -- and which services share a medium "
-                "(and which never meet) is the whole thing this picture is for: bizTree and keySmith never touch; "
-                "enyMan is on both. One bar would hide that. ")
-               if "aukeep" not in VISIBLE else
-               ("THERE ARE THREE BARS, not one, because there are THREE BUSES -- and which services share a medium "
-                "(and which never meet) is the whole thing this picture is for: bizTree and keySmith never touch; "
-                "auKeep hears everyone and answers no one; enyMan sits on all three. One bar would hide all of that. "))
+            + ("THERE ARE TWO BARS, not one, because there are TWO BUSES -- and which services share a medium "
+               "(and which never meet) is the whole thing this picture is for: auKeep hears everyone and answers "
+               "no one; gateWard is on the entity lane alone. The IAM request-response bus is GONE: kcMaster runs "
+               "inside Mesnie, so identity is a method call, not a message. ")
             +
             "The observability stack is deliberately NOT on this board: the viewer is not the system, and six "
             "boxes of tooling watching the tooling would drown the question this board exists to answer."),
@@ -1432,13 +1610,10 @@ def build():
     p.append(ts("Traffic per BUS (msg/s)", 0, 26, 8, "ops",
                 [tgt("sum by (bus_id) (rate(messaging_send_total[1m]))", "sent -> {{bus_id}}"),
                  tgt("sum by (bus_id) (rate(messaging_receive_total[1m]))", "recv <- {{bus_id}}")],
-                desc=("The two lanes above, as traffic. esquire.kc and esquire.entity are SEPARATE MEDIA with "
-                      "different participants -- which is what the two lanes in the picture say, and what a single "
-                      "bar (or a mesh of arrows) would hide."
-                      if "aukeep" not in VISIBLE else
-                      "The three lanes above, as traffic. audit-c, esquire.kc and esquire.entity are SEPARATE "
-                      "MEDIA with different participants -- which is what the three lanes in the picture say, and "
-                      "what a single bar (or a mesh of arrows) would hide.")))
+                desc=("The two lanes above, as traffic. audit-c and esquire.entity are SEPARATE MEDIA with "
+                      "different participants -- which is what the two lanes in the picture say, and what a "
+                      "single bar (or a mesh of arrows) would hide. There is no esquire.kc lane on this profile: "
+                      "identity is served inside Mesnie, so it never reaches the wire.")))
     p.append(ts("Queue depth per destination  (what the BROKER holds)", 8, 26, 8, "short",
                 [tgt("activemq_queue_depth", "{{destination}}")],
                 desc="Flat at zero is healthy. Climbing = consumers gone, wedged, or slower than the producers -- "
@@ -1489,57 +1664,40 @@ def build():
 
 
 def main():
-    """ONE source, THREE boards -- docker (x1), local-k8s (x2), and OKE (x2 minus the cloud deltas).
+    """ONE source, TWO boards -- docker compact (x1) and local-k8s compact (x2).
 
-    They were the same file until k8s: docker runs one of everything, k8s runs the app tier x2, and a board that
-    draws the same single box for both is telling one of them a lie. The difference is the replica map -- nothing
-    else forks -- so the two stay the same drawing with the k8s one showing what is doubled.
+    This is the COMPACT generator, and it writes ONLY into the compact trees. The classic generator is its own
+    file under compose/o11y/grafana and owns the classic boards; neither may write the other's artifact.
 
-    OKE is a THIRD board (T12). It runs the app tier x2 too, but the cloud topology genuinely differs -- and the
-    generator header's own rule applies: if the ARCHITECTURE changes, the picture changes. The OKE deltas:
-      * NO auKeep and NO audit lane -- OKE audits via DB TRIGGERS; the audit-off bus is a disabled no-op
-        (k8s-oci/esquire-topology.yml), so there is no audit medium to draw and no drain to draw it to.
-      * BFF x1 -- the OKE BFF uses an in-memory session store (no redis), so it is a single card, not a pair.
-    Everything else is the k8s board. The two dropped names (component `aukeep`, bus `audit-c`) filter out of
-    VISIBLE / BUSES / ARROWS for the OKE pass; the replica map is OKE_CARDS. FIRST-CUT: the geometry is NOT
-    re-tuned for the two gaps this leaves (auKeep's empty slot left of the lanes, the missing audit lane at
-    left=300) -- the topology is correct, the hand-laid spacing is mir0n's step, diff-locked to its OWN OKE model.
+    docker runs one of everything; local k8s runs the app tier x2, and a board that draws the same single box for
+    both is telling one of them a lie. The difference is the replica map -- nothing else forks.
+
+    OKE is NOT here yet: the compact k8s-oci folder is T4. When it exists it becomes a third target in this loop.
     """
     global CARDS, LAYERS, VISIBLE, BUSES, ARROWS
     here = os.path.dirname(os.path.abspath(__file__))
     root = os.path.abspath(os.path.join(here, "..", "..", ".."))
     base = {n: C[n]["left"] for n in C}          # the docker x-coordinates, to restore between targets
-    layers0 = [list(layer) for layer in LAYERS]  # pristine; a target filters dropped components out of the Z-walk
-    buses0 = [dict(b) for b in BUSES]            # pristine COPIES -- the OKE target slides a lane's `left`
+    layers0 = [list(layer) for layer in LAYERS]
+    buses0 = [dict(b) for b in BUSES]
     arrows0 = list(ARROWS)
-    # OKE app tier x2 (the six Java services). BFF (backend) is NOT listed -> one card. auKeep is dropped below.
-    OKE_CARDS = {n: 2 for n in ("pacman", "biztree", "enyman", "keysmith", "kcmaster", "gateway")}
-    # (drop_comp, drop_bus, bus_left) per target. OKE: drop auKeep + the audit lane, and slide the IAM (kc) lane
-    # into the vacated audit slot (300) -- with only two lanes left, that puts the broker (which does NOT move)
-    # centred under BOTH of them instead of under the left one (mir0n's alternative to moving the broker).
-    for path, model, lefts, drop_comp, drop_bus, bus_left in (
-            (os.path.join(root, "compose", "o11y", "grafana", "provisioning", "dashboards",
-                          "esquire-topology.json"), {}, {}, set(), set(), {}),
-            (os.path.join(root, "k8s", "charts", "infra", "grafana", "dashboards",
-                          "esquire-topology.json"), K8S_CARDS, K8S_LEFT, set(), set(), {}),
-            (os.path.join(root, "k8s-oci", "grafana", "esquire-topology.json"),
-                          OKE_CARDS, K8S_LEFT, {"aukeep"}, {"audit-c"}, {"esquire.kc": 300})):
+    for path, model, lefts in (
+            (os.path.join(root, "compose-compact", "o11y", "grafana", "provisioning", "dashboards",
+                          "esquire-topology.json"), {}, {}),
+            (os.path.join(root, "k8s-compact", "charts", "infra", "grafana", "dashboards",
+                          "esquire-topology.json"), K8S_CARDS, K8S_LEFT)):
         CARDS = model
-        LAYERS = [[n for n in layer if n not in drop_comp] for layer in layers0]
+        LAYERS = [list(layer) for layer in layers0]
         VISIBLE = [n for layer in LAYERS[:LAYERS_ON] for n in layer]
-        BUSES = [dict(b) for b in buses0 if b["id"] not in drop_bus]
-        for b in BUSES:
-            if b["id"] in bus_left:
-                b["left"] = bus_left[b["id"]]
-        ARROWS = [a for a in arrows0 if not (set(a) & drop_comp)]
+        BUSES = [dict(b) for b in buses0]
+        ARROWS = list(arrows0)
         for n in C:
             C[n]["left"] = lefts.get(n, base[n])
         os.makedirs(os.path.dirname(path), exist_ok=True)
         with open(path, "w") as f:
             json.dump(build(), f, indent=1)
-        tag = ("OKE -- x2, BFF x1, no auKeep, IAM lane in the audit slot (broker centred under both)" if drop_comp
-               else "k8s -- x2, one card per instance" if model else "docker -- single instance")
-        print("wrote", path, "(%s)" % tag)
+        print("wrote", path, "(%s)" % ("k8s compact -- x2, one card per instance" if model
+                                       else "docker compact -- single instance"))
 
 
 if __name__ == "__main__":

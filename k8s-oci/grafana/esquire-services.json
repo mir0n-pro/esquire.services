@@ -2418,6 +2418,80 @@
   },
   {
    "type": "timeseries",
+   "title": "Access profile reads + saves (by op + outcome)",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "esq-prometheus"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 6,
+    "x": 0,
+    "y": 182
+   },
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+      "drawStyle": "line",
+      "fillOpacity": 10
+     },
+     "unit": "ops",
+     "min": 0
+    },
+    "overrides": []
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(sum by (op, outcome) (rate(esq_biz_key_ops_total{application=~\"$application\"}[5m]))) or label_replace(vector(0), \"outcome\", \"error\", \"\", \"\")",
+     "legendFormat": "{{op}} {{outcome}}"
+    }
+   ],
+   "description": "What keySmith actually did. A read is the sign-in handshake, so this line is the closest thing to a login rate the fleet emits; a save is a permission or profile change, which is the rarer and more consequential one. The error line is a save that threw -- the caller saw a 4xx/5xx, and this says which operation it was."
+  },
+  {
+   "type": "timeseries",
+   "title": "Identity commands asked for (by command)",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "esq-prometheus"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 6,
+    "x": 6,
+    "y": 182
+   },
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+      "drawStyle": "line",
+      "fillOpacity": 10
+     },
+     "unit": "ops",
+     "min": 0
+    },
+    "overrides": []
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "sum by (op) (rate(esq_biz_key_identity_total{application=~\"$application\"}[5m]))",
+     "legendFormat": "{{op}}"
+    }
+   ],
+   "description": "What keySmith ASKED the identity provider to do. Read it against KeyCloak identity sync above, which is what was DONE: the two should track each other, and a gap between them is a request that never landed. Nothing else compares the two sides."
+  },
+  {
+   "type": "timeseries",
    "title": "KeyCloak identity sync (by op + outcome)",
    "datasource": {
     "type": "prometheus",

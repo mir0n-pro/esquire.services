@@ -8,7 +8,7 @@
 </table>
 
 
-# ![biztree logo](media/dblTree.32.png) **Esquire bizTree**
+# ![biztree logo](logo/bizTree.svg) **Esquire bizTree**
 
 
 **The read-side query model.** bizTree owns the in-memory, hierarchical view of

@@ -300,9 +300,9 @@ services:
       # The race-8c path park. Nothing fills it on one copy; across copies the entity broadcast does.
       - KCMASTER_PATH_BUFFER_TTL_MS=${KCMASTER_PATH_BUFFER_TTL_MS:-10000}
       - KCMASTER_PATH_BUFFER_PRUNE_MS=30000
-      # Audit -- the in-process keep (audit-b). auKeep is absent from the compact stack, so the bus producer
-      # option (audit-c) has no consumer here; the household applies its own log rows.
-      - AUDIT_BUS_ID=${AUDIT_BUS_ID:-audit-b}
+      # Audit -- the BUS (audit-c), drained by auKeep. The compact profile composes the REQUEST path; the audit
+      # trail keeps its own sink, so the log rows are written by a process that is not on the request path at all.
+      - AUDIT_BUS_ID=${AUDIT_BUS_ID:-audit-c}
       - AUDIT_SLOT_ID=audit
       - AUDIT_POOL_SIZE=${AUDIT_POOL_SIZE:-4}
       - AUDIT_POOL_MODE=${AUDIT_POOL_MODE:-platform}
@@ -379,8 +379,8 @@ services:
       # v1.2.10 worker-pool mode (platform | virtual | virtual-per-task; default platform -- UNVALIDATED, see HA doc 5.5)
       - ESQ_VIRTUAL_THREADS=${ESQ_VIRTUAL_THREADS:-false}
       # v1.2.8 audit logging (x-rod). pacMan owns account UPDATE / DELETE / balance -> esq_account_log.
-      # Per-vendor buses -- pick the sink by id (see enyMan for the full set). Demo = the bus -> auKeep.
-      - AUDIT_BUS_ID=${AUDIT_BUS_ID:-audit-b}
+      # Per-vendor buses -- pick the sink by id (see Mesnie for the full set). Demo = the bus -> auKeep.
+      - AUDIT_BUS_ID=${AUDIT_BUS_ID:-audit-c}
       - AUDIT_SLOT_ID=audit
       - AUDIT_POOL_SIZE=${AUDIT_POOL_SIZE:-4}
       - AUDIT_POOL_MODE=${AUDIT_POOL_MODE:-platform}
@@ -509,6 +509,70 @@ services:
       - ../gateway/conf:/etc/esquire-gw:ro
     networks:
       - esquirenet
+  # auKeep -- the audit sink, and it stays its OWN process on the compact profile. What compact composes is the
+  # REQUEST path; the audit trail is not on it. Folding the sink into a request-serving process would put a write
+  # that must not be lost behind the same crash as the request that caused it.
+  aukeep:
+    container_name: esqc-aukeep
+    build:
+      context: ../auKeep
+    image: esquire.aukeep
+    ports:
+      - "3007:3007"
+    environment:
+      - DATAKEEP_PORT=3007
+      - LOG_LEVEL_ROOT=ERROR
+      - LOG_LEVEL_SF=ERROR
+      # I49 knob: o11y-log-off/on.bat set this OFF / INFO. Keep overridable or both arms run identical.
+      - LOG_LEVEL_MIR0N=${LOG_LEVEL_MIR0N:-DEBUG}
+      - LOG_LEVEL_DEVELOP=${LOG_LEVEL_DEVELOP:-DEBUG}
+      - LOG_LEVEL_MSG=${LOG_LEVEL_MSG:-INFO}
+      - LOG_LEVEL_AMQ=${LOG_LEVEL_AMQ:-INFO}
+      - LOG_LEVEL_JMS=${LOG_LEVEL_JMS:-INFO}
+      - DEVELOP_LOG_PATH=logs/datakeep-develop.log
+      - MSG_LOG_PATH=logs/datakeep-msg.log
+      # Distributed tracing (v1.2.11 O2) -- OFF by default; the o11y profile brings up the collector + Tempo.
+      # Enable end-to-end: ESQ_OBSERVABILITY_ENABLED=true docker compose --profile o11y up -d --force-recreate
+      - ESQ_OBSERVABILITY_ENABLED=${ESQ_OBSERVABILITY_ENABLED:-false}
+      # per-pillar enable (I41): default to master; set ESQ_TRACING_ENABLED=false for metrics-only (mesh case)
+      - ESQ_TRACING_ENABLED=${ESQ_TRACING_ENABLED:-${ESQ_OBSERVABILITY_ENABLED:-false}}
+      - ESQ_METRICS_ENABLED=${ESQ_METRICS_ENABLED:-${ESQ_OBSERVABILITY_ENABLED:-false}}
+      - ESQ_METRICS_HISTOGRAMS=${ESQ_METRICS_HISTOGRAMS:-false}
+      - ESQ_METRICS_BANDWIDTH=${ESQ_METRICS_BANDWIDTH:-true}
+      - ESQ_METRICS_BUSINESS=${ESQ_METRICS_BUSINESS:-true}
+      - ESQ_MSG_BUS_ALIVE_TRACE=${ESQ_MSG_BUS_ALIVE_TRACE:-false}   # RR liveness heartbeat spans -- OFF by default on every target (I14); opt in via this env
+      - ESQ_OTLP_ENDPOINT=${ESQ_OTLP_ENDPOINT:-http://otel-collector:4318/v1/traces}
+      - ESQ_TRACING_SAMPLING_RATIO=${ESQ_TRACING_SAMPLING_RATIO:-1.0}
+      - ESQ_TRACING_MARKS_ENABLED=${ESQ_TRACING_MARKS_ENABLED:-true}
+      - ESQ_TRACING_EXCLUDED_PATHS=${ESQ_TRACING_EXCLUDED_PATHS:-/actuator}
+      - TOPOLOGY_IMPORT=optional:file:/etc/esquire/topology.yml
+      - DB_DATAKEEP_VENDOR=${DB_DATAKEEP_VENDOR:-dev-postgres}
+      - DB_DATAKEEP_PORT=${DB_DATAKEEP_PORT:-5432}
+      - DB_DATAKEEP_NAME=${DB_DATAKEEP_NAME:-esq2025}
+      - DB_DATAKEEP_HOST=${DB_DATAKEEP_HOST:-postgres}
+      - DB_DATAKEEP_USERNAME=${DB_DATAKEEP_USERNAME:-esq2025}
+      - DB_DATAKEEP_PASSWORD=${DB_DATAKEEP_PASSWORD:-q}
+      # Audit bus (x-rod). auKeep is the bus CONSUMER -- pick the SAME bus the producers publish to:
+      # audit-c (AMQ) | audit-ck (Kafka); demo default = audit-c. audit-b (in-process) + audit-d / audit-dk
+      # (producer-only streams) have no auKeep consumer.
+      - AUDIT_BUS_ID=${AUDIT_BUS_ID:-audit-c}
+      - AUDIT_SLOT_ID=audit
+      - DATAKEEP_DIRECTOR=audit
+      # v1.2.10 worker-pool mode (platform | virtual | virtual-per-task; default platform -- UNVALIDATED, see HA doc 5.5)
+      - ESQ_VIRTUAL_THREADS=${ESQ_VIRTUAL_THREADS:-false}
+      - AUDIT_POOL_MODE=${AUDIT_POOL_MODE:-platform}
+    command: ["java", "-jar", "app.jar"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      activemq:
+        condition: service_healthy
+    volumes:
+      - ./logs:/app/logs
+      - ./topology/esquire-topology.yml:/etc/esquire/topology.yml:ro
+    networks:
+      - esquirenet
+
   backend:
     container_name: esqc-backend
     build:

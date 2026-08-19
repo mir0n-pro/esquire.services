@@ -2886,7 +2886,7 @@
        },
        "config": {
         "path": {
-         "fixed": "img/icons/esq/aukeep.svg",
+         "fixed": "img/icons/esq/aukeep.svg?v=2",
          "mode": "fixed"
         },
         "fill": {
@@ -3474,7 +3474,7 @@
        },
        "config": {
         "path": {
-         "fixed": "img/icons/esq/biztree.svg",
+         "fixed": "img/icons/esq/biztree.svg?v=2",
          "mode": "fixed"
         },
         "fill": {
@@ -3630,7 +3630,7 @@
        },
        "config": {
         "path": {
-         "fixed": "img/icons/esq/enyman.svg",
+         "fixed": "img/icons/esq/enyman.svg?v=2",
          "mode": "fixed"
         },
         "fill": {
@@ -3786,7 +3786,7 @@
        },
        "config": {
         "path": {
-         "fixed": "img/icons/esq/keysmith.svg",
+         "fixed": "img/icons/esq/keysmith.svg?v=2",
          "mode": "fixed"
         },
         "fill": {
@@ -3942,7 +3942,7 @@
        },
        "config": {
         "path": {
-         "fixed": "img/icons/esq/kcmaster.svg",
+         "fixed": "img/icons/esq/kcmaster.svg?v=2",
          "mode": "fixed"
         },
         "fill": {
@@ -4098,7 +4098,7 @@
        },
        "config": {
         "path": {
-         "fixed": "img/icons/esq/gateway.svg",
+         "fixed": "img/icons/esq/gateway.svg?v=3",
          "mode": "fixed"
         },
         "fill": {
@@ -4254,7 +4254,7 @@
        },
        "config": {
         "path": {
-         "fixed": "img/icons/esq/keycloak.svg",
+         "fixed": "img/icons/esq/keycloak.svg?v=2",
          "mode": "fixed"
         },
         "fill": {
@@ -4410,7 +4410,7 @@
        },
        "config": {
         "path": {
-         "fixed": "img/icons/esq/explorer.svg",
+         "fixed": "img/icons/esq/explorer.svg?v=3",
          "mode": "fixed"
         },
         "fill": {

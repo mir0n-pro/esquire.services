@@ -10,6 +10,8 @@
  *                   kcMaster's identity work served in that same process. Declares what a PROCESS owns: the roles
  *                   repository, one AuditBusBridge, one IIdentityGateway, the startup storages and one
  *                   MessagingBusLifecycleRegistrar over the entity and audit buses. No kc rod is built.
+ * 08/17/2026 mir0n  v1.2.13 T3.1 -- @Bean IMeterOwner meterOwner(entityBusId) declared here: a
+ *                   MesnieMeterOwner, handed the entity bus id from the property the bus itself reads
  */
 
 package pro.mir0n.esquire.mesnie;
@@ -22,6 +24,7 @@ import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.context.event.ApplicationEnvironmentPreparedEvent;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.boot.context.event.ApplicationStartingEvent;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEvent;
 import org.springframework.context.ApplicationListener;
 import org.springframework.context.annotation.Bean;
@@ -32,6 +35,7 @@ import org.springframework.core.env.Environment;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 import pro.mir0n.esquire.audit.AuditBusBridge;
 import pro.mir0n.esquire.backend.identity.IIdentityGateway;
+import pro.mir0n.esquire.backend.o11y.IMeterOwner;
 import pro.mir0n.esquire.backend.o11y.ObservabilityConfig;
 import pro.mir0n.esquire.kcMaster.identity.KcIdentityGateway;
 import pro.mir0n.esquire.backend.storage.EsqEntityDictionaryStorage;
@@ -85,6 +89,14 @@ public class MesnieApplication {
     @Bean
     public AuditBusBridge audit() {
         return new AuditBusBridge(MessagingBus.getInstance().getXRod(EsqConstants.BUS_KEY_AUDIT));
+    }
+
+    /** Which of the three each meter belongs to. Wired here, in the process that composes them; a service
+     *  standing alone contributes none and every one of its meters carries its own name. The entity bus id
+     *  comes from the same property the bus itself reads. */
+    @Bean
+    public IMeterOwner meterOwner(@Value("${esquire.entity-bus.messaging-bus.bus-id:}") String entityBusId) {
+        return new MesnieMeterOwner(entityBusId);
     }
 
     /**

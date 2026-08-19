@@ -163,7 +163,7 @@ run as a single instance here; each is a third-party platform that brings its **
       <tr></tr>
       <tr>
         <td style="width: auto; white-space: nowrap;"><b>Messaging Bus</b></td>
-        <td style="width: 8%;"><img src="./doc/logo/activemq.png" alt="ActiveMQ logo" valign="middle" height="24"></td>
+        <td style="width: 8%;"><img src="./doc/logo/activemq.svg" alt="ActiveMQ logo" valign="middle" height="24"></td>
         <td style="width: 8%;"><img src="./doc/logo/redis.svg" alt="Redis logo" valign="middle" height="24"></td>
         <td style="width: 100%;"><img src="./doc/logo/kafka.svg" alt="Kafka logo" valign="middle" height="24"></td>
       </tr>
@@ -199,7 +199,7 @@ run as a single instance here; each is a third-party platform that brings its **
         <td style="width: 8%;"><img src="./doc/logo/java.svg" alt="Java logo" valign="middle" height="24"></td>
         <td style="width: 8%;"><img src="./doc/logo/spring-boot.svg" alt="Spring Boot logo" valign="middle"  height="24"></td>
         <td style="width: 8%;"><img src="./doc/logo/h2.svg" alt="H2 logo" valign="middle" height="24"></td>
-        <td style="width: 100%;"><img src="./doc/logo/bizTree.png" alt="bizTree logo" valign="middle" height="24"></td>
+        <td style="width: 100%;"><img src="./doc/logo/bizTree.svg" alt="bizTree logo" valign="middle" height="24"></td>
       </tr>
     </table>
     The entity tree service; maintains an H2 database in-memory cache of the business entity
@@ -215,7 +215,7 @@ run as a single instance here; each is a third-party platform that brings its **
         <td style="width: auto; white-space: nowrap;"><b>enyMan</b></td>
         <td style="width: 8%;"><img src="./doc/logo/java.svg" alt="Java logo" valign="middle" height="24"></td>
         <td style="width: 8%;"><img src="./doc/logo/spring-boot.svg" alt="Spring Boot logo" valign="middle" height="24"></td>
-        <td style="width: 100%;"><img src="./doc/logo/enyMan.3.png" alt="enyMan logo" valign="middle" height="28"></td>
+        <td style="width: 100%;"><img src="./doc/logo/enyMan.svg" alt="enyMan logo" valign="middle" height="28"></td>
       </tr>
     </table>
     Entity Manager; manages organizations and users; handles create, update, delete,
@@ -231,7 +231,7 @@ run as a single instance here; each is a third-party platform that brings its **
         <td style="width: auto; white-space: nowrap;"><b>keySmith</b></td>
         <td style="width: 8%;"><img src="./doc/logo/java.svg" alt="Java logo" valign="middle" height="24"></td>
         <td style="width: 8%;"><img src="./doc/logo/spring-boot.svg" alt="Spring Boot logo" valign="middle" height="24"></td>
-        <td style="width: 100%;"><img src="./doc/logo/keySmith.3.png" alt="keySmith logo" valign="middle" height="40"></td>
+        <td style="width: 100%;"><img src="./doc/logo/keySmith.svg" alt="keySmith logo" valign="middle" height="40"></td>
       </tr>
     </table>
     Authentication and access profile service; manages IAS integration and
@@ -245,7 +245,7 @@ run as a single instance here; each is a third-party platform that brings its **
         <td style="width: auto; white-space: nowrap;"><b>kcMaster</b></td>
         <td style="width: 8%;"><img src="./doc/logo/java.svg" alt="Java logo" valign="middle" height="24"></td>
         <td style="width: 8%;"><img src="./doc/logo/spring-boot.svg" alt="Spring Boot logo" valign="middle" height="24"></td>
-        <td style="width: 100%;"><img src="./doc/logo/kcMaster.png" alt="kcMaster logo" valign="middle" height="24"></td>
+        <td style="width: 100%;"><img src="./doc/logo/kcMaster.svg" alt="kcMaster logo" valign="middle" height="24"></td>
       </tr>
     </table>
     Keycloak IAS sync coordinator; the only service that writes to Keycloak directly;
@@ -300,7 +300,7 @@ run as a single instance here; each is a third-party platform that brings its **
     <table style="width: 100%; table-layout: fixed;">
       <tr>
         <td style="width: auto; white-space: nowrap;"><b>Keycloak</b></td>
-        <td style="width: 100%;"><img src="./doc/logo/keycloak.png" alt="Keycloak logo" valign="middle" height="24"></td>
+        <td style="width: 100%;"><img src="./doc/logo/keycloak.svg" alt="Keycloak logo" valign="middle" height="24"></td>
       </tr>
     </table>
     External IAM; issues JWT access tokens; manages user identities, realm
@@ -312,7 +312,7 @@ run as a single instance here; each is a third-party platform that brings its **
       <tr></tr>
       <tr>
         <td style="width: auto; white-space: nowrap;"><b>Esquire Explorer Backend</b></td>
-        <td style="width: 100%;"><img src="./doc/logo/node.js.png" alt="Node.js logo" valign="middle" height="24"></td>
+        <td style="width: 100%;"><img src="./doc/logo/node.js.svg" alt="Node.js logo" valign="middle" height="24"></td>
       </tr>
     </table>
     Node.js BFF tier — Backend-for-Frontend; the <br>administrative GUI entry point</b>
@@ -343,9 +343,9 @@ run as a single instance here; each is a third-party platform that brings its **
       <tr></tr>
       <tr>
         <td style="width: auto; white-space: nowrap;"><b>Esquire Explorer Frontend</b></td>
-        <td style="width: 8%;"><img src="./doc/logo/node.js.png" alt="Node.js logo" valign="middle" height="24"></td>
-        <td style="width: 8%;"><img src="./doc/logo/angular.png" alt="Angular logo" valign="middle" height="24"></td>
-        <td style="width: 100%;"><img src="./doc/logo/esquire.png" alt="Esquire logo" valign="middle" height="24"></td>
+        <td style="width: 8%;"><img src="./doc/logo/node.js.svg" alt="Node.js logo" valign="middle" height="24"></td>
+        <td style="width: 8%;"><img src="./doc/logo/angular.svg" alt="Angular logo" valign="middle" height="24"></td>
+        <td style="width: 100%;"><img src="./doc/logo/esquire.svg" alt="Esquire logo" valign="middle" height="24"></td>
       </tr>
     </table>
     Angular SPA — the user-facing tree explorer and operations UI; consumes the <code>@mir0n-pro/esquire.ui</code> library;
@@ -385,7 +385,7 @@ Every piece below is open-source, and any of it can be swapped out — no lock-i
         <tr></tr>
         <tr>
         <td style="width: auto; white-space: nowrap;"><b>Postgres Exporter</b></td>
-        <td style="width: 8%;"><img src="doc/media/prometheus_logo.svg" alt="Prometheus logo" valign="middle" height="24"></td>
+        <td style="width: 8%;"><img src="doc/logo/prometheus_logo.svg" alt="Prometheus logo" valign="middle" height="24"></td>
         <td style="width: 100%;"><img src="doc/logo/postgres.svg" alt="Postgres logo" valign="middle" height="24"></td>
       </tr>
     </table>
@@ -396,7 +396,7 @@ Every piece below is open-source, and any of it can be swapped out — no lock-i
     <table style="width: 100%; table-layout: fixed;">
       <tr>
         <td style="width: auto; white-space: nowrap;"><b>Prometheus</b></td>
-        <td style="width: 100%;"><img src="doc/media/prometheus_logo.svg" alt="Prometheus logo" valign="middle" height="24"></td>
+        <td style="width: 100%;"><img src="doc/logo/prometheus_logo.svg" alt="Prometheus logo" valign="middle" height="24"></td>
       </tr>
     </table>
     The metrics store — collects the numbers (rates, timings, counts) from every service and keeps their history.
@@ -417,7 +417,7 @@ Every piece below is open-source, and any of it can be swapped out — no lock-i
     <table style="width: 100%; table-layout: fixed;">
       <tr>
         <td style="width: auto; white-space: nowrap;"><b>Grafana Tempo</b></td>
-        <td style="width: 100%;"><img src="doc/media/tempo_logo.png" alt="Tempo logo" valign="middle" height="24"></td>
+        <td style="width: 100%;"><img src="doc/logo/tempo_logo.svg" alt="Tempo logo" valign="middle" height="24"></td>
       </tr>
     </table>
     The trace store — keeps each request's end-to-end trace, found by the same id as its logs.
@@ -438,7 +438,7 @@ Every piece below is open-source, and any of it can be swapped out — no lock-i
     <table style="width: 100%; table-layout: fixed;">
       <tr>
         <td style="width: auto; white-space: nowrap;"><b>Grafana Loki</b></td>
-        <td style="width: 100%;"><img src="doc/media/loki_icon.svg" alt="Loki logo" valign="middle" height="24"></td>
+        <td style="width: 100%;"><img src="doc/logo/loki_icon.svg" alt="Loki logo" valign="middle" height="24"></td>
       </tr>
     </table>
     The log store — keeps all the logs, searchable, and serves them to the dashboard.
@@ -449,7 +449,7 @@ Every piece below is open-source, and any of it can be swapped out — no lock-i
       <tr></tr>
       <tr>
         <td style="width: auto; white-space: nowrap;"><b>Grafana</b></td>
-        <td style="width: 100%;"><img src="doc/media/grafana_icon.svg" alt="Grafana logo" valign="middle" height="24"></td>
+        <td style="width: 100%;"><img src="doc/logo/grafana_icon.svg" alt="Grafana logo" valign="middle" height="24"></td>
       </tr>
     </table>
     The one screen — dashboards for logs, traces, and numbers together; because everything shares one id, a log line, its trace, and its numbers are one click apart.</td></tr>

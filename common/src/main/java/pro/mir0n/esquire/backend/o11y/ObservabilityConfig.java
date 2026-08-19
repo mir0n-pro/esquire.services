@@ -61,6 +61,12 @@
  * 07/17/2026 mir0n  note at the switch: the OTLP exporter is wrapped by Boot's default BatchSpanProcessor
  *                   (bounded queue, drops on overflow, never blocks the request thread) -- the o11y path is not
  *                   a request-failure mode (I53).
+ * 08/17/2026 mir0n  v1.2.13 T3.1 -- esqServiceTag() @Bean added (metrics.enabled): an EsqServiceTagFilter
+ *                   stamping service=<esquire service> beside application=<process>, taking the running
+ *                   service's IMeterOwner through ObjectProvider. No owner -> service == application, which is
+ *                   what every classic service reports. The owner is asked with the meter ID and nothing else:
+ *                   a MeterFilter runs at REGISTRATION, so a per-request value would freeze whichever service
+ *                   touched the meter first
  */
 
 package pro.mir0n.esquire.backend.o11y;
@@ -236,6 +242,18 @@ public class ObservabilityConfig {
     @ConditionalOnProperty(name = "esquire.observability.metrics.enabled", havingValue = "true", matchIfMissing = true)
     public MeterFilter esqCommonMetricTags(@Value("${spring.application.name:unknown}") String appName) {
         return MeterFilter.commonTags(java.util.List.of(Tag.of("application", appName)));
+    }
+
+    // The SECOND identity, beside application (T3.1): application = which PROCESS, service = which ESQUIRE
+    // SERVICE. A composed process (Mesnie, gateWard) runs more than one service, and a meter's tags are fixed
+    // when the meter is REGISTERED -- so the answer comes from the meter id (its name, its route, its bus),
+    // never from the calling thread. The running service contributes at most one IMeterOwner; with none, every
+    // meter takes the process name and service == application, which is what every classic service does.
+    @Bean
+    @ConditionalOnProperty(name = "esquire.observability.metrics.enabled", havingValue = "true", matchIfMissing = true)
+    public MeterFilter esqServiceTag(@Value("${spring.application.name:unknown}") String appName,
+                                     org.springframework.beans.factory.ObjectProvider<IMeterOwner> meterOwner) {
+        return new EsqServiceTagFilter(appName, meterOwner.getIfAvailable());
     }
 
     // I25: cap the distinct VALUES any esq.biz.* / messaging.* tag may take, so an unbounded tag -- an exception

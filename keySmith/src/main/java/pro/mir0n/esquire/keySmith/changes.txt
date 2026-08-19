@@ -1,5 +1,13 @@
 Esquire keySmith Microservice
 
+08/17/2026 mir0n  v1.2.13 -- observability for the composed services
+service.impl.KeySmithService
+  - business meters added: meterKeyOp() records esq.biz.key.ops.total (op=read|save, outcome=ok|error) in a
+    finally around each of the two operations, and esq.biz.key.identity.total (op=<command>) is counted after
+    the identity request is posted. esquireKeySave() body extracted to saveAndSync(), so the meter wraps it with
+    one exit. Both meter names are spelled at the call: the o11y inventory scan reads the tree for the literal,
+    so a name held in a constant never reaches the sheet
+
 08/12/2026 mir0n  v1.2.13 -- Mesnie
 KeySmithApplication
   - the package list moved to KeySmithConfig (@Import); @Bean IIdentityGateway identityGateway() declared here

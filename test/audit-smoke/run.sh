@@ -11,17 +11,17 @@
 #   ./run.sh docker-ora           Oracle-primary docker cells   (needs Oracle up: esq2025/q @ //host:1521/MIR0N)
 #   ./run.sh k8s                  local-k8s cells
 #
-# COMPACT (Mesnie; no auKeep) -- every target is an env override, so the same script drives it. auKeep is
-# gone there, so the options ending at it (c / ck) and the producer-only ones that park it (d / dk) are not
-# cells; what remains is what compact runs -- the in-process keep (b-ded-pg) and the triggers (a):
-#   DPREFIX=esqc- DCOMPOSE_DIR=compose-compact DPRODUCERS="mesnie pacman" DAUKEEP= ./run.sh docker-pg b-ded-pg
-#   K8S_DIR=k8s-compact PRODUCERS="mesnie pacman" DAUKEEP= PRODUCER_WORKLOADS="statefulset/esquire-mesnie-mesnie deployment/esquire-pacman-pacman" ./run.sh k8s b-ded-pg
-#   ./run.sh k8s-compact          local-k8s COMPACT cells (Mesnie; auKeep absent)
-#   ./run.sh k8s-compact b-ded-pg a single compact cell (b-ded-pg | a)
+# COMPACT (Mesnie + gateWard) -- every target is an env override, so the same script drives it. What
+# compact composes is the REQUEST path; the audit sink is not on it, so auKeep runs as its own workload
+# and every sink option is a cell here exactly as on classic. Two producers where classic has three, and
+# the gate is called gateward:
+#   DPREFIX=esqc- DCOMPOSE_DIR=compose-compact DPRODUCERS="mesnie pacman" DGATE=esqc-gateward ./run.sh docker-pg
+#   K8S_DIR=k8s-compact PRODUCERS="mesnie pacman" PRODUCER_WORKLOADS="statefulset/esquire-mesnie-mesnie statefulset/esquire-pacman-pacman" ./run.sh k8s c
+#   ./run.sh k8s-compact          local-k8s COMPACT cells (Mesnie composes the producers; auKeep is its own)
+#   ./run.sh k8s-compact b-ded-pg a single compact cell (b-ded-pg | a | c)
 #
-# COMPACT has no auKeep, so the sink options that end at auKeep (c / ck) and the producer-only
-# stream options (d / dk, which park auKeep out of the way) are not cells there. What remains is
-# what the compact stack actually runs: the in-process keep (b) and the in-transaction triggers (a).
+# DGATE matters: the gate is restarted after every recreate so it drops the producers' old container IPs.
+# Naming one that does not exist restarts nothing and says so to no one.
 # Prereqs: docker stack up (compose), hauberk.jar built, sqlplus(host)+psql(docker exec).
 # =============================================================================
 set -uo pipefail
@@ -88,14 +88,44 @@ run_smoke() { # runs one EntitySmoke against gw :7070
       --add-opens=java.base/sun.nio.ch=ALL-UNNAMED -jar target/hauberk.jar run entity-smoke >/dev/null 2>&1 )
 }
 
+# What a recreate would otherwise THROW AWAY. `docker compose up --force-recreate` rebuilds a container from
+# the compose file plus whatever is exported HERE, and this script exports only the cell's audit variables --
+# so every other opt-in falls back to its compose default. Observability is opt-in and defaults to OFF, which
+# means running this smoke used to turn the whole stack's observability off silently, and a later o11y-verify
+# then failed on meters that were never emitted. Read the flags off a running producer and put them back.
+keep_o11y_env() {
+  local c="${DPREFIX}$(echo "$DPRODUCERS" | awk '{print $1}')"
+  local v
+  for v in ESQ_OBSERVABILITY_ENABLED ESQ_METRICS_HISTOGRAMS ESQ_TRACING_ENABLED ESQ_METRICS_ENABLED; do
+    if [ -z "${!v-}" ]; then
+      local cur
+      cur="$(docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' "$c" 2>/dev/null | grep "^$v=" | cut -d= -f2-)"
+      [ -n "$cur" ] && export "$v=$cur"
+    fi
+  done
+}
+
 recreate_docker() { # recreate producers (+aukeep unless $1=no-aukeep) with the current exported env
   local extra="$DAUKEEP"; [ "${1:-}" = "no-aukeep" ] && extra=""
+  keep_o11y_env
   ( cd "${SVCS}/${DCOMPOSE_DIR}" && docker compose up -d --force-recreate --no-deps ${DPRODUCERS} ${extra} >/dev/null 2>&1 )
-  # The gateway caches routes by container IP; a force-recreate gives producers NEW IPs, so the gateway
-  # must be restarted or the smoke's calls hit dead IPs (503) and audit nothing.
-  docker restart ${DPREFIX}gateway >/dev/null 2>&1
-  # poll the gateway until it answers HTTP (any code, even 401) -> routes are live
-  local i code
+  # Wait for every recreated container to finish BOOTING before the gate is told about it. The gate's
+  # own answer is not proof: on compact it serves the probe route from its own cache and replies in two
+  # seconds while Mesnie is still starting -- the smoke then runs against a producer that is not there
+  # and audits nothing.
+  local c i up
+  for c in ${DPRODUCERS} ${extra}; do
+    for i in $(seq 1 60); do
+      up="$(docker logs ${DPREFIX}${c} 2>&1 | grep -c "Started .*Application in")"
+      [ "$up" -gt 0 ] && break
+      sleep 2
+    done
+  done
+  # The gate caches routes by container IP; a force-recreate gives producers NEW IPs, so the gate must
+  # be restarted or the smoke's calls hit dead IPs (503) and audit nothing.
+  docker restart ${DGATE} >/dev/null 2>&1
+  # poll the gate until it answers HTTP (any code, even 401) -> routes are live
+  local code
   for i in $(seq 1 40); do
     code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 3 "http://localhost:7070/esq-enode?kind=20&name=probe" 2>/dev/null)"
     [ -n "$code" ] && [ "$code" != "000" ] && [ "$code" != "502" ] && [ "$code" != "503" ] && break
@@ -215,6 +245,7 @@ unset_oracle_primary() { for s in ENYMAN PACMAN KEYSMITH BIZTREE; do
 
 recreate_full() { # biztree + producers (+aukeep) -- oracle-primary needs biztree re-pointed too
   local extra="$DAUKEEP"; [ "${1:-}" = "no-aukeep" ] && extra=""
+  keep_o11y_env
   ( cd "${SVCS}/compose" && docker compose up -d --force-recreate --no-deps biztree enyman pacman keysmith ${extra} >/dev/null 2>&1 )
   docker restart ${DPREFIX}gateway >/dev/null 2>&1
   local i code
@@ -326,6 +357,9 @@ DCOMPOSE_DIR="${DCOMPOSE_DIR:-compose}"
 DPRODUCERS="${DPRODUCERS:-enyman pacman keysmith}"
 # The audit CONSUMER. Empty = there is none (compact drops auKeep).
 DAUKEEP="${DAUKEEP:-aukeep}"
+# The GATE in front of the producers -- `gateway` on classic, `gateward` on compact. It is restarted
+# after every recreate (see recreate_docker); naming one that does not exist restarts nothing, silently.
+DGATE="${DGATE:-${DPREFIX}gateway}"
 helm_set_producers() { local svc; for svc in $PRODUCERS; do
   ( cd "${SVCS}/${K8S_DIR}" && helm upgrade --install esquire-$svc charts/esquire-$svc --reuse-values \
       --set-string audit.busId="$1" --wait --timeout 180s >/dev/null 2>&1 ); done; }
@@ -448,14 +482,14 @@ main() {
       # restore default: bus (c) producers + auKeep
       helm_set_producers audit-c; helm_set_aukeep audit-c; restart_k8s_producers; restart_k8s_aukeep ;;
     k8s-compact)
-      # Mesnie composes the three Spring producers, and there is no auKeep -- so the sink options that end
-      # at it (c / ck) and the producer-only ones that park it (d / dk) are not cells here.
+      # Mesnie composes the three Spring producers. auKeep is NOT composed -- what compact composes is the
+      # request path, and the audit sink is not on it -- so the bus sink (c) is a cell here like anywhere else.
       K8S_DIR="k8s-compact"
       K8SLBL="k8s-compact"
       PRODUCERS="mesnie pacman"
       PRODUCER_WORKLOADS="statefulset/esquire-mesnie-mesnie statefulset/esquire-pacman-pacman"
       k8s_infra_ensure
-      local cells=("$@"); [ ${#cells[@]} -eq 0 ] && cells=(a b-ded-pg)
+      local cells=("$@"); [ ${#cells[@]} -eq 0 ] && cells=(a b-ded-pg c)
       for c in "${cells[@]}"; do cell_k8s "$c"; done
       # restore the compact default: the in-process keep, which is what this stack runs
       helm_set_producers audit-b; restart_k8s_producers ;;

@@ -40,7 +40,7 @@
     "x": 0,
     "y": 1
    },
-   "description": "Every component of the system, live. Each box carries a LIVE NUMBER, not just a colour -- a traffic light tells you a thing is RUNNING, not that it has stopped doing any WORK, which is the failure that actually happens. CLICK A BOX for its detail. GREEN = reporting, RED = down, GREY = no data (which here almost always means observability is OFF -- ESQ_OBSERVABILITY_ENABLED, off by default -- not that the component is broken). THE SHAPE IS AN ASSERTION ABOUT THE ARCHITECTURE. An ARROW is a point-to-point call (REST / DB): something called and WAITED for an answer. A DROP onto a BAR is the async bus -- a shared medium, where a service publishes to a destination and walks away, and who is listening is not its business. THERE ARE THREE BARS, not one, because there are THREE BUSES -- and which services share a medium (and which never meet) is the whole thing this picture is for: bizTree and keySmith never touch; auKeep hears everyone and answers no one; enyMan sits on all three. One bar would hide all of that. The observability stack is deliberately NOT on this board: the viewer is not the system, and six boxes of tooling watching the tooling would drown the question this board exists to answer.",
+   "description": "Every component of the system, live. Each box carries a LIVE NUMBER, not just a colour -- a traffic light tells you a thing is RUNNING, not that it has stopped doing any WORK, which is the failure that actually happens. CLICK A BOX for its detail. GREEN = reporting, RED = down, GREY = no data (which here almost always means observability is OFF -- ESQ_OBSERVABILITY_ENABLED, off by default -- not that the component is broken). THE SHAPE IS AN ASSERTION ABOUT THE ARCHITECTURE. An ARROW is a point-to-point call (REST / DB): something called and WAITED for an answer. A DROP onto a BAR is the async bus -- a shared medium, where a service publishes to a destination and walks away, and who is listening is not its business. THERE ARE TWO BARS, not one, because there are TWO BUSES -- and which services share a medium (and which never meet) is the whole thing this picture is for: auKeep hears everyone and answers no one; gateWard is on the entity lane alone. The IAM request-response bus is GONE: kcMaster runs inside Mesnie, so identity is a method call, not a message. The observability stack is deliberately NOT on this board: the viewer is not the system, and six boxes of tooling watching the tooling would drown the question this board exists to answer.",
    "targets": [
     {
      "refId": "h0",
@@ -298,8 +298,8 @@
       "type": "prometheus",
       "uid": "esq-prometheus"
      },
-     "expr": "(clamp_max((count(process_uptime_seconds{job=\"esquire-services\", application=\"biztree\"})) or vector(0), 1)) * (2 - clamp_max(((((max(process_cpu_usage{job=\"esquire-services\", application=\"biztree\"}) > bool 0.8)) or vector(0)) + (((100 * sum(jvm_memory_used_bytes{application=\"biztree\", area=\"heap\"}) / sum(jvm_memory_max_bytes{application=\"biztree\", area=\"heap\"}) > bool 85)) or vector(0)) + (((100 * sum(hikaricp_connections_active{application=\"biztree\"}) / sum(hikaricp_connections_max{application=\"biztree\"}) > bool 90)) or vector(0))), 1))",
-     "legendFormat": "biztree",
+     "expr": "(clamp_max((count(process_uptime_seconds{job=\"esquire-services\", application=\"mesnie\"})) or vector(0), 1)) * (2 - clamp_max(((((max(process_cpu_usage{job=\"esquire-services\", application=\"mesnie\"}) > bool 0.8)) or vector(0)) + (((100 * sum(jvm_memory_used_bytes{application=\"mesnie\", area=\"heap\"}) / sum(jvm_memory_max_bytes{application=\"mesnie\", area=\"heap\"}) > bool 85)) or vector(0)) + (((100 * sum(hikaricp_connections_active{application=\"mesnie\"}) / sum(hikaricp_connections_max{application=\"mesnie\"}) > bool 90)) or vector(0))), 1))",
+     "legendFormat": "mesnie",
      "instant": true
     },
     {
@@ -308,8 +308,8 @@
       "type": "prometheus",
       "uid": "esq-prometheus"
      },
-     "expr": "(clamp_max(((((sum(increase(http_server_requests_seconds_count{application=\"biztree\", status=~\"5..\"}[1m])) > bool 0)) or vector(0)) + (((sum(increase(logback_events_total{application=\"biztree\", level=\"error\"}[1m])) > bool 0)) or vector(0)) + ((((sum(increase(messaging_error_total{application=\"biztree\"}[1m])) or vector(0)) > bool 0)) or vector(0))), 1)) or vector(0)",
-     "legendFormat": "biztree alarm",
+     "expr": "(clamp_max(((((sum(increase(http_server_requests_seconds_count{application=\"mesnie\", status=~\"5..\"}[1m])) > bool 0)) or vector(0)) + (((sum(increase(logback_events_total{application=\"mesnie\", level=\"error\"}[1m])) > bool 0)) or vector(0)) + ((((sum(increase(messaging_error_total{application=\"mesnie\"}[1m])) or vector(0)) > bool 0)) or vector(0)) + ((((sum(increase(esq_biz_move_failed_total{application=\"mesnie\"}[1m])) or vector(0)) > bool 0)) or vector(0))), 1)) or vector(0)",
+     "legendFormat": "mesnie alarm",
      "instant": true
     },
     {
@@ -318,8 +318,8 @@
       "type": "prometheus",
       "uid": "esq-prometheus"
      },
-     "expr": "(sum(rate(http_server_requests_seconds_count{application=\"biztree\"}[5m]))) or vector(0)",
-     "legendFormat": "biztree req/s",
+     "expr": "(sum(rate(http_server_requests_seconds_count{application=\"mesnie\"}[5m]))) or vector(0)",
+     "legendFormat": "mesnie req/s",
      "instant": true
     },
     {
@@ -328,8 +328,8 @@
       "type": "prometheus",
       "uid": "esq-prometheus"
      },
-     "expr": "(avg(process_cpu_usage{job=\"esquire-services\", application=\"biztree\"}) * 100) or vector(0)",
-     "legendFormat": "biztree cpu",
+     "expr": "(avg(process_cpu_usage{job=\"esquire-services\", application=\"mesnie\"}) * 100) or vector(0)",
+     "legendFormat": "mesnie cpu",
      "instant": true
     },
     {
@@ -338,8 +338,8 @@
       "type": "prometheus",
       "uid": "esq-prometheus"
      },
-     "expr": "(sum(jvm_memory_used_bytes{application=\"biztree\", area=\"heap\"})) or vector(0)",
-     "legendFormat": "biztree heap",
+     "expr": "(sum(jvm_memory_used_bytes{application=\"mesnie\", area=\"heap\"})) or vector(0)",
+     "legendFormat": "mesnie heap",
      "instant": true
     },
     {
@@ -348,8 +348,8 @@
       "type": "prometheus",
       "uid": "esq-prometheus"
      },
-     "expr": "(clamp_max((count(process_uptime_seconds{job=\"esquire-services\", application=\"enyman\"})) or vector(0), 1)) * (2 - clamp_max(((((max(process_cpu_usage{job=\"esquire-services\", application=\"enyman\"}) > bool 0.8)) or vector(0)) + (((100 * sum(jvm_memory_used_bytes{application=\"enyman\", area=\"heap\"}) / sum(jvm_memory_max_bytes{application=\"enyman\", area=\"heap\"}) > bool 85)) or vector(0)) + (((100 * sum(hikaricp_connections_active{application=\"enyman\"}) / sum(hikaricp_connections_max{application=\"enyman\"}) > bool 90)) or vector(0))), 1))",
-     "legendFormat": "enyman",
+     "expr": "(clamp_max((count(process_uptime_seconds{job=\"esquire-services\", application=\"gateward\"})) or vector(0), 1)) * (2 - clamp_max(((((max(process_cpu_usage{job=\"esquire-services\", application=\"gateward\"}) > bool 0.8)) or vector(0)) + (((100 * sum(jvm_memory_used_bytes{application=\"gateward\", area=\"heap\"}) / sum(jvm_memory_max_bytes{application=\"gateward\", area=\"heap\"}) > bool 85)) or vector(0))), 1))",
+     "legendFormat": "gateward",
      "instant": true
     },
     {
@@ -358,8 +358,8 @@
       "type": "prometheus",
       "uid": "esq-prometheus"
      },
-     "expr": "(clamp_max(((((sum(increase(http_server_requests_seconds_count{application=\"enyman\", status=~\"5..\"}[1m])) > bool 0)) or vector(0)) + (((sum(increase(logback_events_total{application=\"enyman\", level=\"error\"}[1m])) > bool 0)) or vector(0)) + ((((sum(increase(messaging_error_total{application=\"enyman\"}[1m])) or vector(0)) > bool 0)) or vector(0)) + ((((sum(increase(esq_biz_move_failed_total{application=\"enyman\"}[1m])) or vector(0)) > bool 0)) or vector(0))), 1)) or vector(0)",
-     "legendFormat": "enyman alarm",
+     "expr": "(clamp_max(((((sum(increase(http_server_requests_seconds_count{application=\"gateward\", status=~\"5..\"}[1m])) > bool 0)) or vector(0)) + (((sum(increase(logback_events_total{application=\"gateward\", level=\"error\"}[1m])) > bool 0)) or vector(0)) + ((((sum(increase(messaging_error_total{application=\"gateward\"}[1m])) or vector(0)) > bool 0)) or vector(0)) + (((max(resilience4j_circuitbreaker_state{job=\"esquire-services\", application=\"gateward\", state=\"open\"}) > bool 0)) or vector(0))), 1)) or vector(0)",
+     "legendFormat": "gateward alarm",
      "instant": true
     },
     {
@@ -368,8 +368,8 @@
       "type": "prometheus",
       "uid": "esq-prometheus"
      },
-     "expr": "(sum(rate(http_server_requests_seconds_count{application=\"enyman\"}[5m]))) or vector(0)",
-     "legendFormat": "enyman req/s",
+     "expr": "(sum(rate(http_server_requests_seconds_count{application=\"gateward\"}[5m]))) or vector(0)",
+     "legendFormat": "gateward req/s",
      "instant": true
     },
     {
@@ -378,8 +378,8 @@
       "type": "prometheus",
       "uid": "esq-prometheus"
      },
-     "expr": "(avg(process_cpu_usage{job=\"esquire-services\", application=\"enyman\"}) * 100) or vector(0)",
-     "legendFormat": "enyman cpu",
+     "expr": "(avg(process_cpu_usage{job=\"esquire-services\", application=\"gateward\"}) * 100) or vector(0)",
+     "legendFormat": "gateward cpu",
      "instant": true
     },
     {
@@ -388,162 +388,12 @@
       "type": "prometheus",
       "uid": "esq-prometheus"
      },
-     "expr": "(sum(jvm_memory_used_bytes{application=\"enyman\", area=\"heap\"})) or vector(0)",
-     "legendFormat": "enyman heap",
+     "expr": "(sum(rate(reactor_netty_http_server_data_sent_bytes_sum{uri!=\"/actuator\"}[5m]))) or vector(0)",
+     "legendFormat": "gateward net out",
      "instant": true
     },
     {
      "refId": "h7",
-     "datasource": {
-      "type": "prometheus",
-      "uid": "esq-prometheus"
-     },
-     "expr": "(clamp_max((count(process_uptime_seconds{job=\"esquire-services\", application=\"keysmith\"})) or vector(0), 1)) * (2 - clamp_max(((((max(process_cpu_usage{job=\"esquire-services\", application=\"keysmith\"}) > bool 0.8)) or vector(0)) + (((100 * sum(jvm_memory_used_bytes{application=\"keysmith\", area=\"heap\"}) / sum(jvm_memory_max_bytes{application=\"keysmith\", area=\"heap\"}) > bool 85)) or vector(0)) + (((100 * sum(hikaricp_connections_active{application=\"keysmith\"}) / sum(hikaricp_connections_max{application=\"keysmith\"}) > bool 90)) or vector(0))), 1))",
-     "legendFormat": "keysmith",
-     "instant": true
-    },
-    {
-     "refId": "a7",
-     "datasource": {
-      "type": "prometheus",
-      "uid": "esq-prometheus"
-     },
-     "expr": "(clamp_max(((((sum(increase(http_server_requests_seconds_count{application=\"keysmith\", status=~\"5..\"}[1m])) > bool 0)) or vector(0)) + (((sum(increase(logback_events_total{application=\"keysmith\", level=\"error\"}[1m])) > bool 0)) or vector(0)) + ((((sum(increase(messaging_error_total{application=\"keysmith\"}[1m])) or vector(0)) > bool 0)) or vector(0))), 1)) or vector(0)",
-     "legendFormat": "keysmith alarm",
-     "instant": true
-    },
-    {
-     "refId": "v7_0",
-     "datasource": {
-      "type": "prometheus",
-      "uid": "esq-prometheus"
-     },
-     "expr": "(sum(rate(http_server_requests_seconds_count{application=\"keysmith\"}[5m]))) or vector(0)",
-     "legendFormat": "keysmith req/s",
-     "instant": true
-    },
-    {
-     "refId": "v7_1",
-     "datasource": {
-      "type": "prometheus",
-      "uid": "esq-prometheus"
-     },
-     "expr": "(avg(process_cpu_usage{job=\"esquire-services\", application=\"keysmith\"}) * 100) or vector(0)",
-     "legendFormat": "keysmith cpu",
-     "instant": true
-    },
-    {
-     "refId": "v7_2",
-     "datasource": {
-      "type": "prometheus",
-      "uid": "esq-prometheus"
-     },
-     "expr": "(sum(jvm_memory_used_bytes{application=\"keysmith\", area=\"heap\"})) or vector(0)",
-     "legendFormat": "keysmith heap",
-     "instant": true
-    },
-    {
-     "refId": "h8",
-     "datasource": {
-      "type": "prometheus",
-      "uid": "esq-prometheus"
-     },
-     "expr": "(clamp_max((count(process_uptime_seconds{job=\"esquire-services\", application=\"kcmaster\"})) or vector(0), 1)) * (2 - clamp_max(((((max(process_cpu_usage{job=\"esquire-services\", application=\"kcmaster\"}) > bool 0.8)) or vector(0)) + (((100 * sum(jvm_memory_used_bytes{application=\"kcmaster\", area=\"heap\"}) / sum(jvm_memory_max_bytes{application=\"kcmaster\", area=\"heap\"}) > bool 85)) or vector(0))), 1))",
-     "legendFormat": "kcmaster",
-     "instant": true
-    },
-    {
-     "refId": "a8",
-     "datasource": {
-      "type": "prometheus",
-      "uid": "esq-prometheus"
-     },
-     "expr": "(clamp_max(((((sum(increase(logback_events_total{application=\"kcmaster\", level=\"error\"}[1m])) > bool 0)) or vector(0)) + ((((sum(increase(messaging_error_total{application=\"kcmaster\"}[1m])) or vector(0)) > bool 0)) or vector(0))), 1)) or vector(0)",
-     "legendFormat": "kcmaster alarm",
-     "instant": true
-    },
-    {
-     "refId": "v8_0",
-     "datasource": {
-      "type": "prometheus",
-      "uid": "esq-prometheus"
-     },
-     "expr": "(sum(rate(messaging_receive_total{application=\"kcmaster\"}[5m]))) or vector(0)",
-     "legendFormat": "kcmaster msg/s",
-     "instant": true
-    },
-    {
-     "refId": "v8_1",
-     "datasource": {
-      "type": "prometheus",
-      "uid": "esq-prometheus"
-     },
-     "expr": "(avg(process_cpu_usage{job=\"esquire-services\", application=\"kcmaster\"}) * 100) or vector(0)",
-     "legendFormat": "kcmaster cpu",
-     "instant": true
-    },
-    {
-     "refId": "v8_2",
-     "datasource": {
-      "type": "prometheus",
-      "uid": "esq-prometheus"
-     },
-     "expr": "(sum(jvm_memory_used_bytes{application=\"kcmaster\", area=\"heap\"})) or vector(0)",
-     "legendFormat": "kcmaster heap",
-     "instant": true
-    },
-    {
-     "refId": "h9",
-     "datasource": {
-      "type": "prometheus",
-      "uid": "esq-prometheus"
-     },
-     "expr": "(clamp_max((count(process_uptime_seconds{job=\"esquire-services\", application=\"gateway\"})) or vector(0), 1)) * (2 - clamp_max(((((max(process_cpu_usage{job=\"esquire-services\", application=\"gateway\"}) > bool 0.8)) or vector(0)) + (((100 * sum(jvm_memory_used_bytes{application=\"gateway\", area=\"heap\"}) / sum(jvm_memory_max_bytes{application=\"gateway\", area=\"heap\"}) > bool 85)) or vector(0))), 1))",
-     "legendFormat": "gateway",
-     "instant": true
-    },
-    {
-     "refId": "a9",
-     "datasource": {
-      "type": "prometheus",
-      "uid": "esq-prometheus"
-     },
-     "expr": "(clamp_max(((((sum(increase(http_server_requests_seconds_count{application=\"gateway\", status=~\"5..\"}[1m])) > bool 0)) or vector(0)) + (((sum(increase(logback_events_total{application=\"gateway\", level=\"error\"}[1m])) > bool 0)) or vector(0)) + ((((sum(increase(messaging_error_total{application=\"gateway\"}[1m])) or vector(0)) > bool 0)) or vector(0)) + (((max(resilience4j_circuitbreaker_state{job=\"esquire-services\", application=\"gateway\", state=\"open\"}) > bool 0)) or vector(0))), 1)) or vector(0)",
-     "legendFormat": "gateway alarm",
-     "instant": true
-    },
-    {
-     "refId": "v9_0",
-     "datasource": {
-      "type": "prometheus",
-      "uid": "esq-prometheus"
-     },
-     "expr": "(sum(rate(http_server_requests_seconds_count{application=\"gateway\"}[5m]))) or vector(0)",
-     "legendFormat": "gateway req/s",
-     "instant": true
-    },
-    {
-     "refId": "v9_1",
-     "datasource": {
-      "type": "prometheus",
-      "uid": "esq-prometheus"
-     },
-     "expr": "(avg(process_cpu_usage{job=\"esquire-services\", application=\"gateway\"}) * 100) or vector(0)",
-     "legendFormat": "gateway cpu",
-     "instant": true
-    },
-    {
-     "refId": "v9_2",
-     "datasource": {
-      "type": "prometheus",
-      "uid": "esq-prometheus"
-     },
-     "expr": "(sum(rate(reactor_netty_http_server_data_sent_bytes_sum{uri!=\"/actuator\"}[5m]))) or vector(0)",
-     "legendFormat": "gateway net out",
-     "instant": true
-    },
-    {
-     "refId": "h10",
      "datasource": {
       "type": "prometheus",
       "uid": "esq-prometheus"
@@ -553,7 +403,7 @@
      "instant": true
     },
     {
-     "refId": "a10",
+     "refId": "a7",
      "datasource": {
       "type": "prometheus",
       "uid": "esq-prometheus"
@@ -563,7 +413,7 @@
      "instant": true
     },
     {
-     "refId": "v10_0",
+     "refId": "v7_0",
      "datasource": {
       "type": "prometheus",
       "uid": "esq-prometheus"
@@ -573,7 +423,7 @@
      "instant": true
     },
     {
-     "refId": "v10_1",
+     "refId": "v7_1",
      "datasource": {
       "type": "prometheus",
       "uid": "esq-prometheus"
@@ -583,7 +433,7 @@
      "instant": true
     },
     {
-     "refId": "v10_2",
+     "refId": "v7_2",
      "datasource": {
       "type": "prometheus",
       "uid": "esq-prometheus"
@@ -593,7 +443,7 @@
      "instant": true
     },
     {
-     "refId": "h11",
+     "refId": "h8",
      "datasource": {
       "type": "prometheus",
       "uid": "esq-prometheus"
@@ -603,7 +453,7 @@
      "instant": true
     },
     {
-     "refId": "a11",
+     "refId": "a8",
      "datasource": {
       "type": "prometheus",
       "uid": "esq-prometheus"
@@ -613,7 +463,7 @@
      "instant": true
     },
     {
-     "refId": "v11_0",
+     "refId": "v8_0",
      "datasource": {
       "type": "prometheus",
       "uid": "esq-prometheus"
@@ -623,7 +473,7 @@
      "instant": true
     },
     {
-     "refId": "v11_1",
+     "refId": "v8_1",
      "datasource": {
       "type": "prometheus",
       "uid": "esq-prometheus"
@@ -633,7 +483,7 @@
      "instant": true
     },
     {
-     "refId": "v11_2",
+     "refId": "v8_2",
      "datasource": {
       "type": "prometheus",
       "uid": "esq-prometheus"
@@ -912,7 +762,7 @@
      {
       "matcher": {
        "id": "byName",
-       "options": "biztree req/s"
+       "options": "mesnie req/s"
       },
       "properties": [
        {
@@ -928,7 +778,7 @@
      {
       "matcher": {
        "id": "byName",
-       "options": "biztree cpu"
+       "options": "mesnie cpu"
       },
       "properties": [
        {
@@ -944,7 +794,7 @@
      {
       "matcher": {
        "id": "byName",
-       "options": "biztree heap"
+       "options": "mesnie heap"
       },
       "properties": [
        {
@@ -960,7 +810,7 @@
      {
       "matcher": {
        "id": "byName",
-       "options": "enyman req/s"
+       "options": "gateward req/s"
       },
       "properties": [
        {
@@ -976,7 +826,7 @@
      {
       "matcher": {
        "id": "byName",
-       "options": "enyman cpu"
+       "options": "gateward cpu"
       },
       "properties": [
        {
@@ -992,151 +842,7 @@
      {
       "matcher": {
        "id": "byName",
-       "options": "enyman heap"
-      },
-      "properties": [
-       {
-        "id": "unit",
-        "value": "bytes"
-       },
-       {
-        "id": "decimals",
-        "value": 0
-       }
-      ]
-     },
-     {
-      "matcher": {
-       "id": "byName",
-       "options": "keysmith req/s"
-      },
-      "properties": [
-       {
-        "id": "unit",
-        "value": "reqps"
-       },
-       {
-        "id": "decimals",
-        "value": 1
-       }
-      ]
-     },
-     {
-      "matcher": {
-       "id": "byName",
-       "options": "keysmith cpu"
-      },
-      "properties": [
-       {
-        "id": "unit",
-        "value": "percent"
-       },
-       {
-        "id": "decimals",
-        "value": 1
-       }
-      ]
-     },
-     {
-      "matcher": {
-       "id": "byName",
-       "options": "keysmith heap"
-      },
-      "properties": [
-       {
-        "id": "unit",
-        "value": "bytes"
-       },
-       {
-        "id": "decimals",
-        "value": 0
-       }
-      ]
-     },
-     {
-      "matcher": {
-       "id": "byName",
-       "options": "kcmaster msg/s"
-      },
-      "properties": [
-       {
-        "id": "unit",
-        "value": "ops"
-       },
-       {
-        "id": "decimals",
-        "value": 1
-       }
-      ]
-     },
-     {
-      "matcher": {
-       "id": "byName",
-       "options": "kcmaster cpu"
-      },
-      "properties": [
-       {
-        "id": "unit",
-        "value": "percent"
-       },
-       {
-        "id": "decimals",
-        "value": 1
-       }
-      ]
-     },
-     {
-      "matcher": {
-       "id": "byName",
-       "options": "kcmaster heap"
-      },
-      "properties": [
-       {
-        "id": "unit",
-        "value": "bytes"
-       },
-       {
-        "id": "decimals",
-        "value": 0
-       }
-      ]
-     },
-     {
-      "matcher": {
-       "id": "byName",
-       "options": "gateway req/s"
-      },
-      "properties": [
-       {
-        "id": "unit",
-        "value": "reqps"
-       },
-       {
-        "id": "decimals",
-        "value": 1
-       }
-      ]
-     },
-     {
-      "matcher": {
-       "id": "byName",
-       "options": "gateway cpu"
-      },
-      "properties": [
-       {
-        "id": "unit",
-        "value": "percent"
-       },
-       {
-        "id": "decimals",
-        "value": 1
-       }
-      ]
-     },
-     {
-      "matcher": {
-       "id": "byName",
-       "options": "gateway net out"
+       "options": "gateward net out"
       },
       "properties": [
        {
@@ -1368,7 +1074,7 @@
      {
       "matcher": {
        "id": "byName",
-       "options": "biztree alarm"
+       "options": "mesnie alarm"
       },
       "properties": [
        {
@@ -1392,79 +1098,7 @@
      {
       "matcher": {
        "id": "byName",
-       "options": "enyman alarm"
-      },
-      "properties": [
-       {
-        "id": "thresholds",
-        "value": {
-         "mode": "absolute",
-         "steps": [
-          {
-           "color": "#FFFFFF",
-           "value": null
-          },
-          {
-           "color": "#FF2D95",
-           "value": 1
-          }
-         ]
-        }
-       }
-      ]
-     },
-     {
-      "matcher": {
-       "id": "byName",
-       "options": "keysmith alarm"
-      },
-      "properties": [
-       {
-        "id": "thresholds",
-        "value": {
-         "mode": "absolute",
-         "steps": [
-          {
-           "color": "#FFFFFF",
-           "value": null
-          },
-          {
-           "color": "#FF2D95",
-           "value": 1
-          }
-         ]
-        }
-       }
-      ]
-     },
-     {
-      "matcher": {
-       "id": "byName",
-       "options": "kcmaster alarm"
-      },
-      "properties": [
-       {
-        "id": "thresholds",
-        "value": {
-         "mode": "absolute",
-         "steps": [
-          {
-           "color": "#FFFFFF",
-           "value": null
-          },
-          {
-           "color": "#FF2D95",
-           "value": 1
-          }
-         ]
-        }
-       }
-      ]
-     },
-     {
-      "matcher": {
-       "id": "byName",
-       "options": "gateway alarm"
+       "options": "gateward alarm"
       },
       "properties": [
        {
@@ -1730,7 +1364,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 333,
+        "left": 293,
         "top": 596,
         "width": 140,
         "height": 80,
@@ -1748,7 +1382,7 @@
          "targetName": "bus:audit-c",
          "path": "straight",
          "source": {
-          "x": -0.66,
+          "x": -0.4,
           "y": 1
          },
          "target": {
@@ -1764,29 +1398,10 @@
          "direction": "none"
         },
         {
-         "targetName": "bus:esquire.kc",
-         "path": "straight",
-         "source": {
-          "x": 0.0,
-          "y": 1
-         },
-         "target": {
-          "x": 0,
-          "y": -1
-         },
-         "color": {
-          "fixed": "#D9C48A"
-         },
-         "size": {
-          "fixed": 2
-         },
-         "direction": "none"
-        },
-        {
          "targetName": "bus:esquire.entity",
          "path": "straight",
          "source": {
-          "x": 0.66,
+          "x": 0.4,
           "y": 1
          },
          "target": {
@@ -1842,7 +1457,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 745,
+        "left": 714,
         "top": 596,
         "width": 140,
         "height": 80,
@@ -1896,7 +1511,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 560,
+        "left": 500,
         "top": 30,
         "width": 140,
         "height": 80,
@@ -1970,17 +1585,17 @@
        ]
       },
       {
-       "name": "biztree",
+       "name": "mesnie",
        "type": "rectangle",
        "background": {
         "color": {
-         "field": "biztree",
+         "field": "mesnie",
          "fixed": "#D9D9D9"
         }
        },
        "border": {
         "color": {
-         "field": "biztree alarm"
+         "field": "mesnie alarm"
         },
         "width": 3
        },
@@ -1992,13 +1607,13 @@
         },
         "size": 12,
         "text": {
-         "fixed": "bizTree",
+         "fixed": "Mesnie",
          "mode": "fixed"
         },
         "links": [
          {
           "title": "details",
-          "url": "/d/esq-services/?var-application=biztree",
+          "url": "/d/esq-services/?var-application=mesnie",
           "targetBlank": false
          }
         ]
@@ -2008,240 +1623,16 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 560,
-        "top": 130,
+        "left": 500,
+        "top": 332,
         "width": 140,
-        "height": 80,
+        "height": 178,
         "rotation": 0
        },
        "links": [
         {
-         "title": "details for biztree",
-         "url": "/d/esq-services/?var-application=biztree",
-         "targetBlank": false
-        }
-       ],
-       "connections": [
-        {
-         "targetName": "bus:esquire.entity",
-         "path": "straight",
-         "source": {
-          "x": -1,
-          "y": 0.66
-         },
-         "target": {
-          "x": 1,
-          "y": 0.5256000000000001
-         },
-         "color": {
-          "fixed": "#9DC08B"
-         },
-         "size": {
-          "fixed": 2
-         },
-         "direction": "reverse"
-        },
-        {
-         "targetName": "postgres",
-         "path": "angled",
-         "source": {
-          "x": -1,
-          "y": -0.66
-         },
-         "target": {
-          "x": 1,
-          "y": 0.22000000000000003
-         },
-         "color": {
-          "fixed": "#C0392B"
-         },
-         "size": {
-          "fixed": 1.25
-         },
-         "direction": "forward"
-        }
-       ]
-      },
-      {
-       "name": "enyman",
-       "type": "rectangle",
-       "background": {
-        "color": {
-         "field": "enyman",
-         "fixed": "#D9D9D9"
-        }
-       },
-       "border": {
-        "color": {
-         "field": "enyman alarm"
-        },
-        "width": 3
-       },
-       "config": {
-        "align": "center",
-        "valign": "top",
-        "color": {
-         "fixed": "#FFFFFF"
-        },
-        "size": 12,
-        "text": {
-         "fixed": "enyMan",
-         "mode": "fixed"
-        },
-        "links": [
-         {
-          "title": "details",
-          "url": "/d/esq-services/?var-application=enyman",
-          "targetBlank": false
-         }
-        ]
-       },
-       "constraint": {
-        "horizontal": "left",
-        "vertical": "top"
-       },
-       "placement": {
-        "left": 560,
-        "top": 230,
-        "width": 140,
-        "height": 80,
-        "rotation": 0
-       },
-       "links": [
-        {
-         "title": "details for enyman",
-         "url": "/d/esq-services/?var-application=enyman",
-         "targetBlank": false
-        }
-       ],
-       "connections": [
-        {
-         "targetName": "bus:audit-c",
-         "path": "straight",
-         "source": {
-          "x": -1,
-          "y": 0.66
-         },
-         "target": {
-          "x": 1,
-          "y": 0.12560000000000002
-         },
-         "color": {
-          "fixed": "#8FA8C8"
-         },
-         "size": {
-          "fixed": 2
-         },
-         "direction": "forward"
-        },
-        {
-         "targetName": "bus:esquire.kc",
-         "path": "straight",
-         "source": {
-          "x": -1,
-          "y": 0.22000000000000003
-         },
-         "target": {
-          "x": 1,
-          "y": 0.05520000000000005
-         },
-         "color": {
-          "fixed": "#D9C48A"
-         },
-         "size": {
-          "fixed": 2
-         },
-         "direction": "both"
-        },
-        {
-         "targetName": "bus:esquire.entity",
-         "path": "straight",
-         "source": {
-          "x": -1,
-          "y": -0.21999999999999997
-         },
-         "target": {
-          "x": 1,
-          "y": -0.015200000000000045
-         },
-         "color": {
-          "fixed": "#9DC08B"
-         },
-         "size": {
-          "fixed": 2
-         },
-         "direction": "forward"
-        },
-        {
-         "targetName": "postgres",
-         "path": "angled",
-         "source": {
-          "x": -1,
-          "y": -0.66
-         },
-         "target": {
-          "x": 1,
-          "y": -0.21999999999999997
-         },
-         "color": {
-          "fixed": "#C0392B"
-         },
-         "size": {
-          "fixed": 1.25
-         },
-         "direction": "forward"
-        }
-       ]
-      },
-      {
-       "name": "keysmith",
-       "type": "rectangle",
-       "background": {
-        "color": {
-         "field": "keysmith",
-         "fixed": "#D9D9D9"
-        }
-       },
-       "border": {
-        "color": {
-         "field": "keysmith alarm"
-        },
-        "width": 3
-       },
-       "config": {
-        "align": "center",
-        "valign": "top",
-        "color": {
-         "fixed": "#FFFFFF"
-        },
-        "size": 12,
-        "text": {
-         "fixed": "keySmith",
-         "mode": "fixed"
-        },
-        "links": [
-         {
-          "title": "details",
-          "url": "/d/esq-services/?var-application=keysmith",
-          "targetBlank": false
-         }
-        ]
-       },
-       "constraint": {
-        "horizontal": "left",
-        "vertical": "top"
-       },
-       "placement": {
-        "left": 560,
-        "top": 330,
-        "width": 140,
-        "height": 80,
-        "rotation": 0
-       },
-       "links": [
-        {
-         "title": "details for keysmith",
-         "url": "/d/esq-services/?var-application=keysmith",
+         "title": "details for mesnie",
+         "url": "/d/esq-services/?var-application=mesnie",
          "targetBlank": false
         }
        ],
@@ -2255,7 +1646,7 @@
          },
          "target": {
           "x": 1,
-          "y": -0.38
+          "y": -0.584
          },
          "color": {
           "fixed": "#8FA8C8"
@@ -2266,7 +1657,7 @@
          "direction": "forward"
         },
         {
-         "targetName": "bus:esquire.kc",
+         "targetName": "bus:esquire.entity",
          "path": "straight",
          "source": {
           "x": -1,
@@ -2274,10 +1665,10 @@
          },
          "target": {
           "x": 1,
-          "y": -0.4855999999999999
+          "y": -0.81896
          },
          "color": {
-          "fixed": "#D9C48A"
+          "fixed": "#9DC08B"
          },
          "size": {
           "fixed": 2
@@ -2302,110 +1693,17 @@
           "fixed": 1.25
          },
          "direction": "forward"
-        }
-       ]
-      },
-      {
-       "name": "kcmaster",
-       "type": "rectangle",
-       "background": {
-        "color": {
-         "field": "kcmaster",
-         "fixed": "#D9D9D9"
-        }
-       },
-       "border": {
-        "color": {
-         "field": "kcmaster alarm"
-        },
-        "width": 3
-       },
-       "config": {
-        "align": "center",
-        "valign": "top",
-        "color": {
-         "fixed": "#FFFFFF"
-        },
-        "size": 12,
-        "text": {
-         "fixed": "kcMaster",
-         "mode": "fixed"
-        },
-        "links": [
-         {
-          "title": "details",
-          "url": "/d/esq-services/?var-application=kcmaster",
-          "targetBlank": false
-         }
-        ]
-       },
-       "constraint": {
-        "horizontal": "left",
-        "vertical": "top"
-       },
-       "placement": {
-        "left": 560,
-        "top": 430,
-        "width": 140,
-        "height": 80,
-        "rotation": 0
-       },
-       "links": [
-        {
-         "title": "details for kcmaster",
-         "url": "/d/esq-services/?var-application=kcmaster",
-         "targetBlank": false
-        }
-       ],
-       "connections": [
-        {
-         "targetName": "bus:esquire.kc",
-         "path": "straight",
-         "source": {
-          "x": -1,
-          "y": 0.66
-         },
-         "target": {
-          "x": 1,
-          "y": -0.6744000000000001
-         },
-         "color": {
-          "fixed": "#D9C48A"
-         },
-         "size": {
-          "fixed": 2
-         },
-         "direction": "both"
-        },
-        {
-         "targetName": "bus:esquire.entity",
-         "path": "straight",
-         "source": {
-          "x": -1,
-          "y": -0.66
-         },
-         "target": {
-          "x": 1,
-          "y": -0.8855999999999999
-         },
-         "color": {
-          "fixed": "#9DC08B"
-         },
-         "size": {
-          "fixed": 2
-         },
-         "direction": "reverse"
         },
         {
          "targetName": "keycloak",
          "path": "angled",
          "source": {
           "x": 1,
-          "y": -0.0
+          "y": -0.550561797752809
          },
          "target": {
           "x": -1,
-          "y": -0.0
+          "y": 0.0
          },
          "color": {
           "fixed": "#000000"
@@ -2418,17 +1716,17 @@
        ]
       },
       {
-       "name": "gateway",
+       "name": "gateward",
        "type": "rectangle",
        "background": {
         "color": {
-         "field": "gateway",
+         "field": "gateward",
          "fixed": "#D9D9D9"
         }
        },
        "border": {
         "color": {
-         "field": "gateway alarm"
+         "field": "gateward alarm"
         },
         "width": 3
        },
@@ -2440,13 +1738,13 @@
         },
         "size": 12,
         "text": {
-         "fixed": "gateway",
+         "fixed": "gateWard",
          "mode": "fixed"
         },
         "links": [
          {
           "title": "details",
-          "url": "/d/esq-services/?var-application=gateway",
+          "url": "/d/esq-services/?var-application=gateward",
           "targetBlank": false
          }
         ]
@@ -2456,49 +1754,49 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 745,
+        "left": 714,
         "top": 180,
         "width": 140,
-        "height": 80,
+        "height": 150,
         "rotation": 0
        },
        "links": [
         {
-         "title": "details for gateway",
-         "url": "/d/esq-services/?var-application=gateway",
+         "title": "details for gateward",
+         "url": "/d/esq-services/?var-application=gateward",
          "targetBlank": false
         }
        ],
        "connections": [
         {
-         "targetName": "enyman",
-         "path": "angled",
-         "source": {
-          "x": -1,
-          "y": -0.21999999999999997
-         },
-         "target": {
-          "x": 1,
-          "y": -0.0
-         },
-         "color": {
-          "fixed": "#000000"
-         },
-         "size": {
-          "fixed": 1.25
-         },
-         "direction": "forward"
-        },
-        {
-         "targetName": "biztree",
-         "path": "angled",
+         "targetName": "bus:esquire.entity",
+         "path": "straight",
          "source": {
           "x": -1,
           "y": 0.22000000000000003
          },
          "target": {
           "x": 1,
-          "y": -0.0
+          "y": 0.146
+         },
+         "color": {
+          "fixed": "#9DC08B"
+         },
+         "size": {
+          "fixed": 2
+         },
+         "direction": "reverse"
+        },
+        {
+         "targetName": "mesnie",
+         "path": "angled",
+         "source": {
+          "x": -1,
+          "y": -0.66
+         },
+         "target": {
+          "x": 1,
+          "y": 0.66
          },
          "color": {
           "fixed": "#000000"
@@ -2528,15 +1826,15 @@
          "direction": "forward"
         },
         {
-         "targetName": "keysmith",
+         "targetName": "keycloak",
          "path": "angled",
          "source": {
-          "x": -1,
-          "y": -0.66
+          "x": 0.0,
+          "y": -1
          },
          "target": {
-          "x": 1,
-          "y": -0.0
+          "x": 0.0,
+          "y": 1
          },
          "color": {
           "fixed": "#000000"
@@ -2547,18 +1845,18 @@
          "direction": "forward"
         },
         {
-         "targetName": "keycloak",
+         "targetName": "postgres",
          "path": "angled",
          "source": {
-          "x": 0.0,
-          "y": -1
+          "x": -1,
+          "y": -0.21999999999999997
          },
          "target": {
-          "x": -0.66,
-          "y": 1
+          "x": 1,
+          "y": -0.0
          },
          "color": {
-          "fixed": "#000000"
+          "fixed": "#C0392B"
          },
          "size": {
           "fixed": 1.25
@@ -2606,7 +1904,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 745,
+        "left": 714,
         "top": 430,
         "width": 140,
         "height": 80,
@@ -2660,7 +1958,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 920,
+        "left": 928,
         "top": 180,
         "width": 140,
         "height": 80,
@@ -2675,15 +1973,15 @@
        ],
        "connections": [
         {
-         "targetName": "gateway",
+         "targetName": "gateward",
          "path": "angled",
          "source": {
           "x": -1,
-          "y": -0.0
+          "y": 0.0
          },
          "target": {
           "x": 1,
-          "y": -0.0
+          "y": 0.4666666666666667
          },
          "color": {
           "fixed": "#000000"
@@ -2701,8 +1999,8 @@
           "y": -1
          },
          "target": {
-          "x": 0.66,
-          "y": 1
+          "x": 1,
+          "y": 0.4
          },
          "color": {
           "fixed": "#000000"
@@ -2886,7 +2184,7 @@
        },
        "config": {
         "path": {
-         "fixed": "img/icons/esq/aukeep.svg",
+         "fixed": "img/icons/esq/aukeep.svg?v=2",
          "mode": "fixed"
         },
         "fill": {
@@ -3054,7 +2352,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 338,
+        "left": 298,
         "top": 600,
         "width": 28,
         "height": 28,
@@ -3094,7 +2392,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 333,
+        "left": 293,
         "top": 618,
         "width": 140,
         "height": 19,
@@ -3134,7 +2432,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 333,
+        "left": 293,
         "top": 637,
         "width": 140,
         "height": 19,
@@ -3174,7 +2472,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 333,
+        "left": 293,
         "top": 656,
         "width": 140,
         "height": 19,
@@ -3214,7 +2512,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 745,
+        "left": 714,
         "top": 618,
         "width": 140,
         "height": 19,
@@ -3254,7 +2552,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 745,
+        "left": 714,
         "top": 637,
         "width": 140,
         "height": 19,
@@ -3294,7 +2592,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 745,
+        "left": 714,
         "top": 656,
         "width": 140,
         "height": 19,
@@ -3330,7 +2628,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 565,
+        "left": 505,
         "top": 34,
         "width": 28,
         "height": 28,
@@ -3370,7 +2668,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 560,
+        "left": 500,
         "top": 52,
         "width": 140,
         "height": 19,
@@ -3410,7 +2708,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 560,
+        "left": 500,
         "top": 71,
         "width": 140,
         "height": 19,
@@ -3450,7 +2748,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 560,
+        "left": 500,
         "top": 90,
         "width": 140,
         "height": 19,
@@ -3459,7 +2757,7 @@
        "connections": []
       },
       {
-       "name": "biztree icon",
+       "name": "mesnie icon",
        "type": "icon",
        "background": {
         "color": {
@@ -3474,7 +2772,7 @@
        },
        "config": {
         "path": {
-         "fixed": "img/icons/esq/biztree.svg",
+         "fixed": "img/icons/esq/mesnie.svg?v=3",
          "mode": "fixed"
         },
         "fill": {
@@ -3486,8 +2784,8 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 565,
-        "top": 134,
+        "left": 505,
+        "top": 336,
         "width": 28,
         "height": 28,
         "rotation": 0
@@ -3495,7 +2793,7 @@
        "connections": []
       },
       {
-       "name": "biztree req/s",
+       "name": "mesnie req/s",
        "type": "metric-value",
        "background": {
         "color": {
@@ -3516,7 +2814,7 @@
         },
         "size": 12,
         "text": {
-         "field": "biztree req/s",
+         "field": "mesnie req/s",
          "mode": "field",
          "fixed": ""
         }
@@ -3526,8 +2824,8 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 560,
-        "top": 152,
+        "left": 500,
+        "top": 357,
         "width": 140,
         "height": 19,
         "rotation": 0
@@ -3535,7 +2833,7 @@
        "connections": []
       },
       {
-       "name": "biztree cpu",
+       "name": "mesnie cpu",
        "type": "metric-value",
        "background": {
         "color": {
@@ -3556,7 +2854,7 @@
         },
         "size": 12,
         "text": {
-         "field": "biztree cpu",
+         "field": "mesnie cpu",
          "mode": "field",
          "fixed": ""
         }
@@ -3566,8 +2864,8 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 560,
-        "top": 171,
+        "left": 500,
+        "top": 376,
         "width": 140,
         "height": 19,
         "rotation": 0
@@ -3575,7 +2873,7 @@
        "connections": []
       },
       {
-       "name": "biztree heap",
+       "name": "mesnie heap",
        "type": "metric-value",
        "background": {
         "color": {
@@ -3596,7 +2894,7 @@
         },
         "size": 12,
         "text": {
-         "field": "biztree heap",
+         "field": "mesnie heap",
          "mode": "field",
          "fixed": ""
         }
@@ -3606,8 +2904,8 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 560,
-        "top": 190,
+        "left": 500,
+        "top": 395,
         "width": 140,
         "height": 19,
         "rotation": 0
@@ -3615,7 +2913,46 @@
        "connections": []
       },
       {
-       "name": "enyman icon",
+       "name": "mesnie inner enyMan",
+       "type": "rectangle",
+       "background": {
+        "color": {
+         "fixed": "rgba(0, 0, 0, 0.28)"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "rgba(255, 255, 255, 0.55)"
+        },
+        "width": 1
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 11,
+        "text": {
+         "fixed": "",
+         "mode": "fixed"
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 512.0,
+        "top": 420,
+        "width": 116,
+        "height": 22,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "mesnie inner enyMan icon",
        "type": "icon",
        "background": {
         "color": {
@@ -3630,7 +2967,7 @@
        },
        "config": {
         "path": {
-         "fixed": "img/icons/esq/enyman.svg",
+         "fixed": "img/icons/esq/enyman.svg?v=2",
          "mode": "fixed"
         },
         "fill": {
@@ -3642,17 +2979,17 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 565,
-        "top": 234,
-        "width": 28,
-        "height": 28,
+        "left": 516.0,
+        "top": 423.0,
+        "width": 16,
+        "height": 16,
         "rotation": 0
        },
        "connections": []
       },
       {
-       "name": "enyman req/s",
-       "type": "metric-value",
+       "name": "mesnie inner enyMan label",
+       "type": "text",
        "background": {
         "color": {
          "fixed": "transparent"
@@ -3670,11 +3007,10 @@
         "color": {
          "fixed": "#FFFFFF"
         },
-        "size": 12,
+        "size": 11,
         "text": {
-         "field": "enyman req/s",
-         "mode": "field",
-         "fixed": ""
+         "fixed": "enyMan",
+         "mode": "fixed"
         }
        },
        "constraint": {
@@ -3682,27 +3018,27 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 560,
-        "top": 252,
-        "width": 140,
-        "height": 19,
+        "left": 534.0,
+        "top": 420,
+        "width": 90,
+        "height": 22,
         "rotation": 0
        },
        "connections": []
       },
       {
-       "name": "enyman cpu",
-       "type": "metric-value",
+       "name": "mesnie inner keySmith",
+       "type": "rectangle",
        "background": {
         "color": {
-         "fixed": "transparent"
+         "fixed": "rgba(0, 0, 0, 0.28)"
         }
        },
        "border": {
         "color": {
-         "fixed": "transparent"
+         "fixed": "rgba(255, 255, 255, 0.55)"
         },
-        "width": 0
+        "width": 1
        },
        "config": {
         "align": "center",
@@ -3710,11 +3046,10 @@
         "color": {
          "fixed": "#FFFFFF"
         },
-        "size": 12,
+        "size": 11,
         "text": {
-         "field": "enyman cpu",
-         "mode": "field",
-         "fixed": ""
+         "fixed": "",
+         "mode": "fixed"
         }
        },
        "constraint": {
@@ -3722,56 +3057,16 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 560,
-        "top": 271,
-        "width": 140,
-        "height": 19,
+        "left": 512.0,
+        "top": 448,
+        "width": 116,
+        "height": 22,
         "rotation": 0
        },
        "connections": []
       },
       {
-       "name": "enyman heap",
-       "type": "metric-value",
-       "background": {
-        "color": {
-         "fixed": "transparent"
-        }
-       },
-       "border": {
-        "color": {
-         "fixed": "transparent"
-        },
-        "width": 0
-       },
-       "config": {
-        "align": "center",
-        "valign": "middle",
-        "color": {
-         "fixed": "#FFFFFF"
-        },
-        "size": 12,
-        "text": {
-         "field": "enyman heap",
-         "mode": "field",
-         "fixed": ""
-        }
-       },
-       "constraint": {
-        "horizontal": "left",
-        "vertical": "top"
-       },
-       "placement": {
-        "left": 560,
-        "top": 290,
-        "width": 140,
-        "height": 19,
-        "rotation": 0
-       },
-       "connections": []
-      },
-      {
-       "name": "keysmith icon",
+       "name": "mesnie inner keySmith icon",
        "type": "icon",
        "background": {
         "color": {
@@ -3786,7 +3081,7 @@
        },
        "config": {
         "path": {
-         "fixed": "img/icons/esq/keysmith.svg",
+         "fixed": "img/icons/esq/keysmith.svg?v=2",
          "mode": "fixed"
         },
         "fill": {
@@ -3798,17 +3093,17 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 565,
-        "top": 334,
-        "width": 28,
-        "height": 28,
+        "left": 516.0,
+        "top": 451.0,
+        "width": 16,
+        "height": 16,
         "rotation": 0
        },
        "connections": []
       },
       {
-       "name": "keysmith req/s",
-       "type": "metric-value",
+       "name": "mesnie inner keySmith label",
+       "type": "text",
        "background": {
         "color": {
          "fixed": "transparent"
@@ -3826,11 +3121,10 @@
         "color": {
          "fixed": "#FFFFFF"
         },
-        "size": 12,
+        "size": 11,
         "text": {
-         "field": "keysmith req/s",
-         "mode": "field",
-         "fixed": ""
+         "fixed": "keySmith",
+         "mode": "fixed"
         }
        },
        "constraint": {
@@ -3838,27 +3132,27 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 560,
-        "top": 352,
-        "width": 140,
-        "height": 19,
+        "left": 534.0,
+        "top": 448,
+        "width": 90,
+        "height": 22,
         "rotation": 0
        },
        "connections": []
       },
       {
-       "name": "keysmith cpu",
-       "type": "metric-value",
+       "name": "mesnie inner kcMaster",
+       "type": "rectangle",
        "background": {
         "color": {
-         "fixed": "transparent"
+         "fixed": "rgba(0, 0, 0, 0.28)"
         }
        },
        "border": {
         "color": {
-         "fixed": "transparent"
+         "fixed": "rgba(255, 255, 255, 0.55)"
         },
-        "width": 0
+        "width": 1
        },
        "config": {
         "align": "center",
@@ -3866,11 +3160,10 @@
         "color": {
          "fixed": "#FFFFFF"
         },
-        "size": 12,
+        "size": 11,
         "text": {
-         "field": "keysmith cpu",
-         "mode": "field",
-         "fixed": ""
+         "fixed": "",
+         "mode": "fixed"
         }
        },
        "constraint": {
@@ -3878,56 +3171,16 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 560,
-        "top": 371,
-        "width": 140,
-        "height": 19,
+        "left": 512.0,
+        "top": 476,
+        "width": 116,
+        "height": 22,
         "rotation": 0
        },
        "connections": []
       },
       {
-       "name": "keysmith heap",
-       "type": "metric-value",
-       "background": {
-        "color": {
-         "fixed": "transparent"
-        }
-       },
-       "border": {
-        "color": {
-         "fixed": "transparent"
-        },
-        "width": 0
-       },
-       "config": {
-        "align": "center",
-        "valign": "middle",
-        "color": {
-         "fixed": "#FFFFFF"
-        },
-        "size": 12,
-        "text": {
-         "field": "keysmith heap",
-         "mode": "field",
-         "fixed": ""
-        }
-       },
-       "constraint": {
-        "horizontal": "left",
-        "vertical": "top"
-       },
-       "placement": {
-        "left": 560,
-        "top": 390,
-        "width": 140,
-        "height": 19,
-        "rotation": 0
-       },
-       "connections": []
-      },
-      {
-       "name": "kcmaster icon",
+       "name": "mesnie inner kcMaster icon",
        "type": "icon",
        "background": {
         "color": {
@@ -3942,7 +3195,7 @@
        },
        "config": {
         "path": {
-         "fixed": "img/icons/esq/kcmaster.svg",
+         "fixed": "img/icons/esq/kcmaster.svg?v=2",
          "mode": "fixed"
         },
         "fill": {
@@ -3954,17 +3207,17 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 565,
-        "top": 434,
-        "width": 28,
-        "height": 28,
+        "left": 516.0,
+        "top": 479.0,
+        "width": 16,
+        "height": 16,
         "rotation": 0
        },
        "connections": []
       },
       {
-       "name": "kcmaster msg/s",
-       "type": "metric-value",
+       "name": "mesnie inner kcMaster label",
+       "type": "text",
        "background": {
         "color": {
          "fixed": "transparent"
@@ -3982,11 +3235,10 @@
         "color": {
          "fixed": "#FFFFFF"
         },
-        "size": 12,
+        "size": 11,
         "text": {
-         "field": "kcmaster msg/s",
-         "mode": "field",
-         "fixed": ""
+         "fixed": "kcMaster",
+         "mode": "fixed"
         }
        },
        "constraint": {
@@ -3994,96 +3246,16 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 560,
-        "top": 452,
-        "width": 140,
-        "height": 19,
+        "left": 534.0,
+        "top": 476,
+        "width": 90,
+        "height": 22,
         "rotation": 0
        },
        "connections": []
       },
       {
-       "name": "kcmaster cpu",
-       "type": "metric-value",
-       "background": {
-        "color": {
-         "fixed": "transparent"
-        }
-       },
-       "border": {
-        "color": {
-         "fixed": "transparent"
-        },
-        "width": 0
-       },
-       "config": {
-        "align": "center",
-        "valign": "middle",
-        "color": {
-         "fixed": "#FFFFFF"
-        },
-        "size": 12,
-        "text": {
-         "field": "kcmaster cpu",
-         "mode": "field",
-         "fixed": ""
-        }
-       },
-       "constraint": {
-        "horizontal": "left",
-        "vertical": "top"
-       },
-       "placement": {
-        "left": 560,
-        "top": 471,
-        "width": 140,
-        "height": 19,
-        "rotation": 0
-       },
-       "connections": []
-      },
-      {
-       "name": "kcmaster heap",
-       "type": "metric-value",
-       "background": {
-        "color": {
-         "fixed": "transparent"
-        }
-       },
-       "border": {
-        "color": {
-         "fixed": "transparent"
-        },
-        "width": 0
-       },
-       "config": {
-        "align": "center",
-        "valign": "middle",
-        "color": {
-         "fixed": "#FFFFFF"
-        },
-        "size": 12,
-        "text": {
-         "field": "kcmaster heap",
-         "mode": "field",
-         "fixed": ""
-        }
-       },
-       "constraint": {
-        "horizontal": "left",
-        "vertical": "top"
-       },
-       "placement": {
-        "left": 560,
-        "top": 490,
-        "width": 140,
-        "height": 19,
-        "rotation": 0
-       },
-       "connections": []
-      },
-      {
-       "name": "gateway icon",
+       "name": "gateward icon",
        "type": "icon",
        "background": {
         "color": {
@@ -4098,7 +3270,7 @@
        },
        "config": {
         "path": {
-         "fixed": "img/icons/esq/gateway.svg",
+         "fixed": "img/icons/esq/gateward.svg?v=3",
          "mode": "fixed"
         },
         "fill": {
@@ -4110,7 +3282,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 750,
+        "left": 719,
         "top": 184,
         "width": 28,
         "height": 28,
@@ -4119,7 +3291,7 @@
        "connections": []
       },
       {
-       "name": "gateway req/s",
+       "name": "gateward req/s",
        "type": "metric-value",
        "background": {
         "color": {
@@ -4140,7 +3312,7 @@
         },
         "size": 12,
         "text": {
-         "field": "gateway req/s",
+         "field": "gateward req/s",
          "mode": "field",
          "fixed": ""
         }
@@ -4150,8 +3322,8 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 745,
-        "top": 202,
+        "left": 714,
+        "top": 205,
         "width": 140,
         "height": 19,
         "rotation": 0
@@ -4159,7 +3331,7 @@
        "connections": []
       },
       {
-       "name": "gateway cpu",
+       "name": "gateward cpu",
        "type": "metric-value",
        "background": {
         "color": {
@@ -4180,7 +3352,7 @@
         },
         "size": 12,
         "text": {
-         "field": "gateway cpu",
+         "field": "gateward cpu",
          "mode": "field",
          "fixed": ""
         }
@@ -4190,8 +3362,8 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 745,
-        "top": 221,
+        "left": 714,
+        "top": 224,
         "width": 140,
         "height": 19,
         "rotation": 0
@@ -4199,7 +3371,7 @@
        "connections": []
       },
       {
-       "name": "gateway net out",
+       "name": "gateward net out",
        "type": "metric-value",
        "background": {
         "color": {
@@ -4220,7 +3392,7 @@
         },
         "size": 12,
         "text": {
-         "field": "gateway net out",
+         "field": "gateward net out",
          "mode": "field",
          "fixed": ""
         }
@@ -4230,10 +3402,238 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 745,
-        "top": 240,
+        "left": 714,
+        "top": 243,
         "width": 140,
         "height": 19,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "gateward inner gateway",
+       "type": "rectangle",
+       "background": {
+        "color": {
+         "fixed": "rgba(0, 0, 0, 0.28)"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "rgba(255, 255, 255, 0.55)"
+        },
+        "width": 1
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 11,
+        "text": {
+         "fixed": "",
+         "mode": "fixed"
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 726.0,
+        "top": 268,
+        "width": 116,
+        "height": 22,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "gateward inner gateway icon",
+       "type": "icon",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "path": {
+         "fixed": "img/icons/esq/gateway.svg?v=3",
+         "mode": "fixed"
+        },
+        "fill": {
+         "fixed": "transparent"
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 730.0,
+        "top": 271.0,
+        "width": 16,
+        "height": 16,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "gateward inner gateway label",
+       "type": "text",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 11,
+        "text": {
+         "fixed": "gateway",
+         "mode": "fixed"
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 748.0,
+        "top": 268,
+        "width": 90,
+        "height": 22,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "gateward inner bizTree",
+       "type": "rectangle",
+       "background": {
+        "color": {
+         "fixed": "rgba(0, 0, 0, 0.28)"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "rgba(255, 255, 255, 0.55)"
+        },
+        "width": 1
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 11,
+        "text": {
+         "fixed": "",
+         "mode": "fixed"
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 726.0,
+        "top": 296,
+        "width": 116,
+        "height": 22,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "gateward inner bizTree icon",
+       "type": "icon",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "path": {
+         "fixed": "img/icons/esq/biztree.svg?v=2",
+         "mode": "fixed"
+        },
+        "fill": {
+         "fixed": "transparent"
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 730.0,
+        "top": 299.0,
+        "width": 16,
+        "height": 16,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "gateward inner bizTree label",
+       "type": "text",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 11,
+        "text": {
+         "fixed": "bizTree",
+         "mode": "fixed"
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 748.0,
+        "top": 296,
+        "width": 90,
+        "height": 22,
         "rotation": 0
        },
        "connections": []
@@ -4254,7 +3654,7 @@
        },
        "config": {
         "path": {
-         "fixed": "img/icons/esq/keycloak.svg",
+         "fixed": "img/icons/esq/keycloak.svg?v=2",
          "mode": "fixed"
         },
         "fill": {
@@ -4266,7 +3666,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 750,
+        "left": 719,
         "top": 434,
         "width": 28,
         "height": 28,
@@ -4306,7 +3706,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 745,
+        "left": 714,
         "top": 452,
         "width": 140,
         "height": 19,
@@ -4346,7 +3746,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 745,
+        "left": 714,
         "top": 471,
         "width": 140,
         "height": 19,
@@ -4386,7 +3786,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 745,
+        "left": 714,
         "top": 490,
         "width": 140,
         "height": 19,
@@ -4410,7 +3810,7 @@
        },
        "config": {
         "path": {
-         "fixed": "img/icons/esq/explorer.svg",
+         "fixed": "img/icons/esq/explorer.svg?v=3",
          "mode": "fixed"
         },
         "fill": {
@@ -4422,7 +3822,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 925,
+        "left": 933,
         "top": 184,
         "width": 28,
         "height": 28,
@@ -4462,7 +3862,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 920,
+        "left": 928,
         "top": 202,
         "width": 140,
         "height": 19,
@@ -4502,7 +3902,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 920,
+        "left": 928,
         "top": 221,
         "width": 140,
         "height": 19,
@@ -4542,7 +3942,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 920,
+        "left": 928,
         "top": 240,
         "width": 140,
         "height": 19,
@@ -4629,84 +4029,6 @@
        "connections": []
       },
       {
-       "name": "bus:esquire.kc",
-       "type": "rectangle",
-       "background": {
-        "color": {
-         "fixed": "#D9C48A"
-        }
-       },
-       "border": {
-        "color": {
-         "fixed": "transparent"
-        },
-        "width": 0
-       },
-       "config": {
-        "align": "center",
-        "valign": "middle",
-        "color": {
-         "fixed": "#FFFFFF"
-        },
-        "size": 10,
-        "text": {
-         "fixed": "",
-         "mode": "fixed"
-        }
-       },
-       "constraint": {
-        "horizontal": "left",
-        "vertical": "top"
-       },
-       "placement": {
-        "left": 380,
-        "top": 25,
-        "width": 46,
-        "height": 500,
-        "rotation": 0
-       },
-       "connections": []
-      },
-      {
-       "name": "buslabel:esquire.kc",
-       "type": "text",
-       "background": {
-        "color": {
-         "fixed": "transparent"
-        }
-       },
-       "border": {
-        "color": {
-         "fixed": "transparent"
-        },
-        "width": 0
-       },
-       "config": {
-        "align": "center",
-        "valign": "middle",
-        "color": {
-         "fixed": "#FFFFFF"
-        },
-        "size": 12,
-        "text": {
-         "fixed": "IAM Request-Response Bus    (esquire.kc)",
-         "mode": "fixed"
-        }
-       },
-       "constraint": {
-        "horizontal": "left",
-        "vertical": "top"
-       },
-       "placement": {
-        "left": 273.0,
-        "top": 264.0,
-        "width": 260,
-        "height": 22,
-        "rotation": -90
-       },
-       "connections": []
-      },
-      {
        "name": "bus:esquire.entity",
        "type": "rectangle",
        "background": {
@@ -4737,7 +4059,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 460,
+        "left": 380,
         "top": 25,
         "width": 46,
         "height": 500,
@@ -4776,7 +4098,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 353.0,
+        "left": 273.0,
         "top": 264.0,
         "width": 260,
         "height": 22,
@@ -5127,7 +4449,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 899,
+        "left": 868,
         "top": 612.0,
         "width": 330,
         "height": 16,
@@ -5166,7 +4488,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 899,
+        "left": 868,
         "top": 628.0,
         "width": 330,
         "height": 16,
@@ -5205,7 +4527,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 899,
+        "left": 868,
         "top": 644.0,
         "width": 330,
         "height": 16,
@@ -5292,7 +4614,7 @@
      "legendFormat": "recv <- {{bus_id}}"
     }
    ],
-   "description": "The three lanes above, as traffic. audit-c, esquire.kc and esquire.entity are SEPARATE MEDIA with different participants -- which is what the three lanes in the picture say, and what a single bar (or a mesh of arrows) would hide."
+   "description": "The two lanes above, as traffic. audit-c and esquire.entity are SEPARATE MEDIA with different participants -- which is what the two lanes in the picture say, and what a single bar (or a mesh of arrows) would hide. There is no esquire.kc lane on this profile: identity is served inside Mesnie, so it never reaches the wire."
   },
   {
    "type": "timeseries",

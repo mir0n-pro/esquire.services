@@ -8,7 +8,7 @@ rem Usage:
 rem   k8s-rebuild.bat                  rebuild all images (java services + backend)
 rem   k8s-rebuild.bat backend          rebuild only explorer/backend (SPA + BFF)
 rem   k8s-rebuild.bat <service>        rebuild a single Spring service
-rem                                    (gateward, mesnie, pacman)
+rem                                    (gateward, mesnie, pacman, aukeep)
 rem
 rem Flags (must come AFTER the target):
 rem   --no-cache                       pass --no-cache to docker compose build
@@ -80,6 +80,7 @@ if /i "%TARGET%"=="backend"  goto target_backend
 if /i "%TARGET%"=="gateward" ( set "SVC=gateward"&set "DIR=gateWard"&goto target_one )
 if /i "%TARGET%"=="mesnie"   ( set "SVC=mesnie"&set "DIR=mesnie"&goto target_one )
 if /i "%TARGET%"=="pacman"   ( set "SVC=pacman"&set "DIR=pacMan"&goto target_one )
+if /i "%TARGET%"=="aukeep"   ( set "SVC=aukeep"&set "DIR=auKeep"&goto target_one )
 
 echo ERROR: unknown target "%TARGET%"
 exit /b 1
@@ -133,6 +134,9 @@ if errorlevel 1 exit /b 1
 set "SVC=pacman"&set "DIR=pacMan"
 call :one
 if errorlevel 1 exit /b 1
+set "SVC=aukeep"&set "DIR=auKeep"
+call :one
+if errorlevel 1 exit /b 1
 goto target_backend
 
 :target_one
@@ -174,7 +178,9 @@ set "IMG=%SVC%"
 if /i "%TARGET%" neq "all" (
   echo [mvn] building %DIR%...
   pushd ..
-  call mvn -q -DskipTests -pl %DIR% -am package
+  rem clean AND -am, both required: without clean a service whose OWN classes are unchanged keeps its old
+  rem fat jar and silently ships the PREVIOUS common; without -am, common comes from ~/.m2, older still.
+  call mvn -q -DskipTests -pl %DIR% -am clean package
   if errorlevel 1 ( popd & echo mvn failed for %DIR% & exit /b 1 )
   popd
 )

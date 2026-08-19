@@ -82,10 +82,10 @@ entity:
   sendRetryMaxAttempts: "0"
   poolMode: "platform"            # ENTITY_BROADCAST_POOL_MODE (platform | virtual | virtual-per-task, default platform)
 
-# audit: the compact sink is (b), the in-process keep -- each process applies its own *_log rows through the
-# datasource block below. There is no auKeep workload in this stack to drain a bus, so (c) has no consumer here.
+# audit: the sink is (c) over the bus (ActiveMQ), drained by esquire-aukeep -- which stays its own workload on
+# this profile too. Switch to in-process (b) with busId=audit-b (the datasource block below is the *_log store).
 audit:
-  busId: audit-b
+  busId: audit-c
   slotId: audit
   poolSize: "4"
   feedCapacity: "4096"

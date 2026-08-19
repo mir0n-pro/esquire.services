@@ -1,5 +1,13 @@
 Esquire Mesnie Microservice
 
+08/17/2026 mir0n  v1.2.13 -- observability for the composed services
+MesnieMeterOwner  (new)
+  - created: which of the three the household's meters belong to, read off the meter id: its name, the route
+    it was served on, or the bus it travelled
+MesnieApplication
+  - @Bean IMeterOwner meterOwner(entityBusId) declared here: a MesnieMeterOwner, handed the entity bus id from
+    the property the bus itself reads
+
 08/12/2026 mir0n  v1.2.13 -- Mesnie
 MesnieApplication  (new)
   - created: enyMan and keySmith in ONE process, each imported as its own @Configuration, with kcMaster's

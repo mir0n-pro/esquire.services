@@ -10,6 +10,8 @@
  *                   BizTreeCacheConfig, scans gateWard's own handlers and read scheduler, loads the object
  *                   kinds at start-up, and runs one MessagingBusLifecycleRegistrar over the entity bus. No
  *                   web starter comes in with the cache, so the process stays WebFlux
+ * 08/17/2026 mir0n  v1.2.13 T3.2 -- @Bean IMeterOwner meterOwner(entityBusId) declared here: a
+ *                   GateWardMeterOwner, handed the entity bus id from the property the bus itself reads
  */
 
 package pro.mir0n.esquire.gateWard;
@@ -22,12 +24,15 @@ import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.context.event.ApplicationEnvironmentPreparedEvent;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.boot.context.event.ApplicationStartingEvent;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEvent;
 import org.springframework.context.ApplicationListener;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.event.ContextClosedEvent;
 import org.springframework.core.Ordered;
+import pro.mir0n.esquire.backend.o11y.IMeterOwner;
 import pro.mir0n.esquire.backend.o11y.ObservabilityConfig;
 import pro.mir0n.esquire.backend.storage.EsqObjectKindStorage;
 import pro.mir0n.esquire.bizTree.BizTreeCacheConfig;
@@ -76,6 +81,14 @@ public class GateWardApplication {
         app.addListeners(new MessagingBusLifecycleRegistrar());
 
         app.run(args);
+    }
+
+    /** Whether a meter is the gate's or the cache's. Wired here, in the process that composes them; a service
+     *  standing alone contributes none and every one of its meters carries its own name. The entity bus id
+     *  comes from the same property the bus itself reads. */
+    @Bean
+    public IMeterOwner meterOwner(@Value("${esquire.entity-bus.messaging-bus.bus-id:}") String entityBusId) {
+        return new GateWardMeterOwner(entityBusId);
     }
 
     /** The object kinds both halves read; the gateway loads them for its route predicate, bizTree for the cache. */

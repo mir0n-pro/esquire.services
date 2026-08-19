@@ -26,12 +26,6 @@ import org.springframework.context.annotation.Import;
 import pro.mir0n.esquire.backend.o11y.ObservabilityConfig;
 import pro.mir0n.esquire.backend.storage.EsqObjectKindStorage;
 
-//TODO: get Roles with permissions from keySmith
-//      use tool id (100 for tree) id instead of role name
-//
-//TODO: have JWT optionally encrypted
-//
-
 @SpringBootConfiguration
 @EnableAutoConfiguration
 @Import({ObservabilityConfig.class, GatewayConfig.class})

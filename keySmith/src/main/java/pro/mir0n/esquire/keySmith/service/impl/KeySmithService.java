@@ -52,6 +52,12 @@
  *                   updateAccess; the audit copy is stamped with the raised value
  * 08/12/2026 mir0n  v1.2.13 -- field KcBusAdapter -> IIdentityGateway; identityCommand() picks C/U/D from the connect flag
  *                   and identityEvent() builds the AuthSyncRequest + RodEvent posted to it
+ * 08/17/2026 mir0n  v1.2.13 T3.1 -- business meters added: meterKeyOp() records esq.biz.key.ops.total
+ *                   (op=read|save, outcome=ok|error) in a finally around each of the two operations, and
+ *                   esq.biz.key.identity.total (op=<command>) is counted after the identity request is posted.
+ *                   esquireKeySave() body extracted to saveAndSync(), so the meter wraps it with one exit.
+ *                   Both meter names are spelled at the call: the o11y inventory scan reads the tree for the
+ *                   literal, so a name held in a constant never reaches the sheet
  */
 
 package pro.mir0n.esquire.keySmith.service.impl;
@@ -66,6 +72,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
+import pro.mir0n.esquire.backend.o11y.EsqBizMeters;
 import pro.mir0n.esquire.backend.o11y.EsqTraced;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.LoggerFactory;
@@ -102,6 +109,17 @@ public class KeySmithService implements IKeySmithService {
 
     private static final org.slf4j.Logger devLog = LoggerFactory.getLogger("develop." + KeySmithService.class.getName());
 
+    private static final String OP_READ = "read";
+    private static final String OP_SAVE = "save";
+    private static final String OUTCOME_OK = "ok";
+    private static final String OUTCOME_ERROR = "error";
+
+    // The meter name is spelled out at the call, not held in a constant: the o11y inventory scan reads the tree
+    // for the literal, so a name reached through a constant never reaches the sheet.
+    private static void meterKeyOp(String op, String outcome) {
+        EsqBizMeters.count("esq.biz.key.ops.total", "op", op, "outcome", outcome);
+    }
+
     private EsqAccessProfileRepository accessProfileRepository;
     private TransactionTemplate transactionTemplate;
     private EntityManager em;
@@ -112,42 +130,60 @@ public class KeySmithService implements IKeySmithService {
     @EsqTraced(name = "esq.svc.key.read", label = "read access profile")
     public EsqAccessProfile esquireKey(String id) {
         EsqAccessProfile ret = null;
-        String rootPath = RequestContextUtils.getRootPath();
-        String uid = RequestContextUtils.getUid();
+        String outcome = OUTCOME_ERROR;
+        try {
+            String rootPath = RequestContextUtils.getRootPath();
+            String uid = RequestContextUtils.getUid();
 
-        devLog.debug("KeySmithService: esquireKey: id:{}, rootPath:{}, uid:{}",  id, rootPath, uid);
+            devLog.debug("KeySmithService: esquireKey: id:{}, rootPath:{}, uid:{}",  id, rootPath, uid);
 
-        String upk = id == null ? uid : id;
+            String upk = id == null ? uid : id;
 
-        EsqAccessProfileJpa jpa = accessProfileRepository.access(upk, rootPath);
-        if (jpa == null) {
-            throw new ResourceNotFoundException("esquireKey", "id", upk);
-        }
-        if (id == null) {
-            String newPwdForced = "Y".equals(jpa.getPwdChangeForced()) ? "N" : null;
-            String tfa = jpa.getTfaMethod();
-            String newTfa = ("g".equals(tfa) || "n".equals(tfa)) ? tfa.toUpperCase() : null;
-            if (newPwdForced != null || newTfa != null) {
-                accessProfileRepository.confirmPendingFlags(upk, newPwdForced, newTfa);
-                if (newPwdForced != null) jpa.setPwdChangeForced(newPwdForced);
-                if (newTfa != null) jpa.setTfaMethod(newTfa);
+            EsqAccessProfileJpa jpa = accessProfileRepository.access(upk, rootPath);
+            if (jpa == null) {
+                throw new ResourceNotFoundException("esquireKey", "id", upk);
             }
-        }
-        List<EsqRoleJpa> roles = accessProfileRepository.roles(upk);
-        List<EsqRole> rolesAll = EsqRolesStorage.getInstance().roles();
-        List<EsqPermission> permissions = null;
-        for (EsqRoleJpa r : roles) {
-            permissions = EsqRolesStorage.getInstance().fillPermissionsForRole(r.getName(), permissions);
-        }
+            if (id == null) {
+                String newPwdForced = "Y".equals(jpa.getPwdChangeForced()) ? "N" : null;
+                String tfa = jpa.getTfaMethod();
+                String newTfa = ("g".equals(tfa) || "n".equals(tfa)) ? tfa.toUpperCase() : null;
+                if (newPwdForced != null || newTfa != null) {
+                    accessProfileRepository.confirmPendingFlags(upk, newPwdForced, newTfa);
+                    if (newPwdForced != null) jpa.setPwdChangeForced(newPwdForced);
+                    if (newTfa != null) jpa.setTfaMethod(newTfa);
+                }
+            }
+            List<EsqRoleJpa> roles = accessProfileRepository.roles(upk);
+            List<EsqRole> rolesAll = EsqRolesStorage.getInstance().roles();
+            List<EsqPermission> permissions = null;
+            for (EsqRoleJpa r : roles) {
+                permissions = EsqRolesStorage.getInstance().fillPermissionsForRole(r.getName(), permissions);
+            }
 
-        ret = new EsqAccessProfile().fill(jpa, roles, rolesAll, permissions);
-        devLog.debug("KeySmithService: esquireKey(2): accessProfile:{}",  ret);
+            ret = new EsqAccessProfile().fill(jpa, roles, rolesAll, permissions);
+            devLog.debug("KeySmithService: esquireKey(2): accessProfile:{}",  ret);
+            outcome = OUTCOME_OK;
+        } finally {
+            meterKeyOp(OP_READ, outcome);
+        }
         return  ret;
     }
 
     @Override
     @EsqTraced(name = "esq.svc.key.save", label = "save access profile")
     public EsqAccessProfile esquireKeySave(String id, Map<String, Object> fields, List<String> roles) {
+        EsqAccessProfile ret = null;
+        String outcome = OUTCOME_ERROR;
+        try {
+            ret = saveAndSync(id, fields, roles);
+            outcome = OUTCOME_OK;
+        } finally {
+            meterKeyOp(OP_SAVE, outcome);
+        }
+        return ret;
+    }
+
+    private EsqAccessProfile saveAndSync(String id, Map<String, Object> fields, List<String> roles) {
         EsqAccessProfile ret = null;
         String correlationId = RequestContextUtils.getCorrelationId();
         String requestId = RequestContextUtils.requireRequestId();
@@ -194,6 +230,9 @@ public class KeySmithService implements IKeySmithService {
         String command = identityCommand(oldConnectFlg[0], updated[0]);
         identityGateway.postRequest(identityEvent(command, oldLoginId[0], updated[0], rolesAssigned[0],
                 correlationId, requestId));
+        // what keySmith ASKED the identity provider to do; kcMaster's esq.biz.kc.sync.total is what was DONE,
+        // and a gap between the two is a sync that never landed
+        EsqBizMeters.count("esq.biz.key.identity.total", "op", command);
 
         List<EsqRole> rolesAll = EsqRolesStorage.getInstance().roles();
         List<EsqPermission> permissions = null;

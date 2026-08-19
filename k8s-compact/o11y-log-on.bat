@@ -49,7 +49,7 @@ call helm uninstall esquire-infra-prometheus        2>nul
 call helm uninstall esquire-infra-postgres-exporter 2>nul
 
 echo --- App services: tracing/metrics OFF, ONLY pro.mir0n at INFO...
-for %%s in (gateward mesnie pacman) do (
+for %%s in (gateward mesnie pacman aukeep) do (
   call helm upgrade esquire-%%s charts\esquire-%%s --reset-then-reuse-values --set observability.enabled=false --set observability.metricsHistograms=false --set logging.levelMir0n=INFO --set logging.levelDevelop=OFF --set logging.levelMsg=OFF --set logging.levelAmq=OFF --set logging.levelJms=OFF
   call kubectl rollout restart statefulset esquire-%%s-%%s
 )

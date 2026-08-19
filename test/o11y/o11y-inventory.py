@@ -62,11 +62,32 @@ SVC = os.path.abspath(os.path.join(HERE, "..", ".."))           # ...\esquire\se
 ROOT = os.path.abspath(os.path.join(SVC, ".."))                  # ...\esquire
 EXP = os.path.join(ROOT, "explorer")
 # The o11y STACK configs (prometheus.yml, grafana boards) live with the compose stack, not with this test
-# script. HERE holds only the test scripts; the stack files are under services/compose/o11y/.
-O11Y = os.path.join(SVC, "compose", "o11y")
+# script. HERE holds only the test scripts; the stack files are under services/<compose dir>/o11y/.
+#
+# TWO PROFILES, TWO SHEETS. The same code emits the same signals either way -- what a deployment changes is WHO
+# carries them: the classic stack runs eight processes, the compact one runs five, with Mesnie carrying what
+# enyMan, keySmith and kcMaster emit and gateWard what the gateway and bizTree emit. So the profile decides
+# three inputs -- which stack folder is read, which launcher declares the fleet, and which sheet is written --
+# and nothing else forks. Each sheet is the inventory OF ITS OWN DEPLOYMENT, kept as separate as the folders are.
+PROFILES = {
+    "classic": {"compose": "compose",         "out": "Esquire.ObservabilityStack.Inventory.csv"},
+    "compact": {"compose": "compose-compact", "out": "Esquire.ObservabilityStack.Inventory.Compact.csv"},
+}
+PROFILE = "classic"
+COMPOSE_DIR = os.path.join(SVC, "compose")
+O11Y = os.path.join(COMPOSE_DIR, "o11y")
 
 # The sheet is a DOC -- it lives with the observability doc it belongs to, not beside this script.
 DEFAULT_OUT = os.path.join(SVC, "doc", "Esquire.ObservabilityStack.Inventory.csv")
+
+
+def use_profile(name):
+    """Point the scan at one deployment: its stack folder, its launcher, its sheet."""
+    global PROFILE, COMPOSE_DIR, O11Y, DEFAULT_OUT
+    PROFILE = name
+    COMPOSE_DIR = os.path.join(SVC, PROFILES[name]["compose"])
+    O11Y = os.path.join(COMPOSE_DIR, "o11y")
+    DEFAULT_OUT = os.path.join(SVC, "doc", PROFILES[name]["out"])
 
 # ---------------------------------------------------------------------------------------------------------------
 # The ONLY hand-written part: what each asset MEANS (description) and what it is FOR (use).
@@ -109,6 +130,12 @@ DESC = {
     "esq.biz.acct.tx.duration": ("Account transaction latency by type.", "Drawn on 'Transaction latency'."),
     "esq.biz.acct.close.total": ("Accounts closed.", "Conditional domain event."),
     "esq.biz.acct.fx.apply.total": ("FX applications.", "Conditional domain event."),
+    "esq.biz.key.ops.total": (
+        "keySmith access-profile reads and saves by op + outcome, recorded in a finally so a FAILED one counts.",
+        "keySmith domain throughput -- the service owned no business meter at all before v1.2.13."),
+    "esq.biz.key.identity.total": (
+        "What keySmith ASKS the identity provider to do, by command (create / update / delete), counted after the request is posted.",
+        "Read against esq.biz.kc.sync.total, which is what was DONE: a gap between the two is a sync that never landed, and nothing else reports it."),
     "esq.biz.kc.sync.total": (
         "kcMaster KC identity syncs by op + outcome, recorded in a finally so a FAILED sync counts.",
         "A failed sync leaves Esquire and KeyCloak disagreeing about who exists -- nothing else reports that."),
@@ -513,19 +540,26 @@ def collect_signals():
 
 
 def collect_log_streams():
-    """The LOG pillar: one stdout stream per DEPLOYABLE service.
+    """The LOG pillar: one stdout stream per DEPLOYED PROCESS.
 
     Derived from the tree -- a Java module is deployable when it carries an application.yml, plus the Node BFF.
     So a new service brings its log asset with it and nobody has to remember. (dataKeep emits meters but is a
     LIBRARY, not a deployable, so it has no stdout stream of its own.)
+
+    A stream belongs to a PROCESS, not to a service: the tree carries an application.yml for enyMan and for
+    Mesnie alike, but a deployment runs only one of those two. So the module scan is narrowed to the fleet THIS
+    profile actually deploys, taken from its own launcher -- the same list the log sweep verifies against.
 
     The signal is named with the LOKI LABEL (lowercase), not the module directory (auKeep, bizTree). A row must
     be the name you can actually LOOK THE THING UP BY -- `log.stdout.auKeep` matched nothing in Loki, because the
     label is `aukeep`. The module's real spelling is kept in emitted_by, where it belongs.
     """
     ret = {}
+    deployed = verified_services()
     for path in sorted(glob.glob(os.path.join(SVC, "*", "src", "main", "resources", "application.yml"))):
         module = _norm(path).split("/services/")[1].split("/")[0]
+        if deployed and module.lower() not in deployed:
+            continue
         ret["log.stdout." + module.lower()] = {"kind": "log-stream", "where": module, "svc": module.lower(),
                                                "fmt": "ECS JSON"}
     if os.path.isdir(os.path.join(EXP, "backend", "src")):
@@ -594,7 +628,7 @@ def verified_services():
     sweep started verifying them.
     """
     ret = set()
-    bat = os.path.join(SVC, "compose", "o11y-verify.bat")
+    bat = os.path.join(COMPOSE_DIR, "o11y-verify.bat")
     if os.path.isfile(bat):
         match = re.search(r"(?im)^\s*set\s+SERVICES\s*=\s*(.+)$", _read(bat))
         if match:
@@ -889,6 +923,8 @@ def selftest():
 
 def main():
     parser = argparse.ArgumentParser(description="Refresh the Esquire o11y asset inventory (CSV).")
+    parser.add_argument("--profile", default="classic", choices=sorted(PROFILES),
+                        help="which deployment the sheet is taken of (default: classic)")
     parser.add_argument("--out", default=None,
                         help="write the CSV here ('-' for stdout). Default: the doc sheet, or stdout with --gaps.")
     parser.add_argument("--gaps", action="store_true", help="only rows carrying a GAP (the worklist) -> stdout")
@@ -896,6 +932,7 @@ def main():
     parser.add_argument("--report", action="store_true",
                         help="THE ANSWER: every inventory item, numbered, with its test result")
     args = parser.parse_args()
+    use_profile(args.profile)
 
     # Always, before writing anything -- the gen-dashboard.py posture: a tool that can silently emit a WRONG
     # artefact checks itself first. A scan missing a shape produces a SHORT sheet, and a short sheet reads

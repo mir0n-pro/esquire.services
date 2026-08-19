@@ -33,6 +33,25 @@
      "value": "$__all"
     },
     "sort": 1
+   },
+   {
+    "name": "service",
+    "label": "Esquire service",
+    "type": "query",
+    "datasource": {
+     "type": "prometheus",
+     "uid": "esq-prometheus"
+    },
+    "query": "label_values(service)",
+    "refresh": 2,
+    "includeAll": true,
+    "multi": true,
+    "allValue": ".*",
+    "current": {
+     "text": "All",
+     "value": "$__all"
+    },
+    "sort": 1
    }
   ]
  },
@@ -101,7 +120,7 @@
       "type": "prometheus",
       "uid": "esq-prometheus"
      },
-     "expr": "sum(rate(http_server_requests_seconds_count{application=~\"$application\"}[1m]))"
+     "expr": "sum(rate(http_server_requests_seconds_count{service=~\"$service\"}[1m]))"
     }
    ]
   },
@@ -136,8 +155,8 @@
       "type": "prometheus",
       "uid": "esq-prometheus"
      },
-     "expr": "sum by (application, instance) (rate(http_server_requests_seconds_count{application=~\"$application\"}[1m]))",
-     "legendFormat": "{{application}} {{instance}}"
+     "expr": "sum by (service, instance) (rate(http_server_requests_seconds_count{service=~\"$service\"}[1m]))",
+     "legendFormat": "{{service}} {{instance}}"
     }
    ]
   },
@@ -172,8 +191,8 @@
       "type": "prometheus",
       "uid": "esq-prometheus"
      },
-     "expr": "histogram_quantile(0.95, sum by (le, application, instance) (rate(http_server_requests_seconds_bucket{application=~\"$application\"}[5m])))",
-     "legendFormat": "{{application}} {{instance}}",
+     "expr": "histogram_quantile(0.95, sum by (le, service, instance) (rate(http_server_requests_seconds_bucket{service=~\"$service\"}[5m])))",
+     "legendFormat": "{{service}} {{instance}}",
      "exemplar": true
     }
    ],
@@ -216,7 +235,7 @@
       "type": "loki",
       "uid": "esq-loki"
      },
-     "expr": "{job=~\"esq-.*\", container=~\"(esq-)?(gateway|biztree|enyman|pacman|keysmith|kcmaster|aukeep|backend|frontend)\"} | detected_level =~ \"warn|error\"",
+     "expr": "{job=~\"esq-.*\", container=~\"(esqc?-)?(gateward|mesnie|pacman|aukeep|backend|frontend)\"} | detected_level =~ \"warn|error\"",
      "queryType": "range"
     }
    ],
@@ -1219,8 +1238,8 @@
       "type": "prometheus",
       "uid": "esq-prometheus"
      },
-     "expr": "sum by (application, bus_id) (rate(messaging_send_total{application=~\"$application\"}[1m]))",
-     "legendFormat": "{{application}} -> {{bus_id}}"
+     "expr": "sum by (service, bus_id) (rate(messaging_send_total{service=~\"$service\"}[1m]))",
+     "legendFormat": "{{service}} -> {{bus_id}}"
     }
    ]
   },
@@ -1255,8 +1274,8 @@
       "type": "prometheus",
       "uid": "esq-prometheus"
      },
-     "expr": "sum by (application, bus_id) (rate(messaging_receive_total{application=~\"$application\"}[1m]))",
-     "legendFormat": "{{application}} <- {{bus_id}}"
+     "expr": "sum by (service, bus_id) (rate(messaging_receive_total{service=~\"$service\"}[1m]))",
+     "legendFormat": "{{service}} <- {{bus_id}}"
     }
    ]
   },
@@ -1291,8 +1310,8 @@
       "type": "prometheus",
       "uid": "esq-prometheus"
      },
-     "expr": "(sum by (application, bus_id, leg) (rate(messaging_error_total{application=~\"$application\"}[5m]))) or label_replace(vector(0), \"leg\", \"send\", \"\", \"\")",
-     "legendFormat": "{{application}} {{bus_id}} {{leg}}"
+     "expr": "(sum by (service, bus_id, leg) (rate(messaging_error_total{service=~\"$service\"}[5m]))) or label_replace(vector(0), \"leg\", \"send\", \"\", \"\")",
+     "legendFormat": "{{service}} {{bus_id}} {{leg}}"
     }
    ],
    "description": "A healthy bus has NO error series, which reads as 'No data' -- indistinguishable from a broken meter. The zero-line draws a flat 0 until a real error lands (I20, same fix as I9 for the business failure panels)."
@@ -1328,8 +1347,8 @@
       "type": "prometheus",
       "uid": "esq-prometheus"
      },
-     "expr": "1000 * (sum by (application, bus_id) (rate(messaging_send_duration_seconds_sum{application=~\"$application\"}[5m])) / sum by (application, bus_id) (rate(messaging_send_duration_seconds_count{application=~\"$application\"}[5m])))",
-     "legendFormat": "avg {{application}} -> {{bus_id}}"
+     "expr": "1000 * (sum by (application, bus_id) (rate(messaging_send_duration_seconds_sum{service=~\"$service\"}[5m])) / sum by (application, bus_id) (rate(messaging_send_duration_seconds_count{service=~\"$service\"}[5m])))",
+     "legendFormat": "avg {{service}} -> {{bus_id}}"
     },
     {
      "refId": "B",
@@ -1337,8 +1356,8 @@
       "type": "prometheus",
       "uid": "esq-prometheus"
      },
-     "expr": "1000 * histogram_quantile(0.95, sum by (le, application, bus_id) (rate(messaging_send_duration_seconds_bucket{application=~\"$application\"}[5m])))",
-     "legendFormat": "p95 {{application}} -> {{bus_id}}",
+     "expr": "1000 * histogram_quantile(0.95, sum by (le, service, bus_id) (rate(messaging_send_duration_seconds_bucket{service=~\"$service\"}[5m])))",
+     "legendFormat": "p95 {{service}} -> {{bus_id}}",
      "exemplar": true
     }
    ],
@@ -1375,8 +1394,8 @@
       "type": "prometheus",
       "uid": "esq-prometheus"
      },
-     "expr": "messaging_feed_depth{application=~\"$application\"}",
-     "legendFormat": "{{application}} {{bus_id}}"
+     "expr": "messaging_feed_depth{service=~\"$service\"}",
+     "legendFormat": "{{service}} {{bus_id}}"
     }
    ]
   },
@@ -1411,8 +1430,8 @@
       "type": "prometheus",
       "uid": "esq-prometheus"
      },
-     "expr": "sum by (application, bus_id)(messaging_retry_held{application=~\"$application\"})",
-     "legendFormat": "held {{application}} {{bus_id}}"
+     "expr": "sum by (service, bus_id)(messaging_retry_held{service=~\"$service\"})",
+     "legendFormat": "held {{service}} {{bus_id}}"
     },
     {
      "refId": "B",
@@ -1420,8 +1439,8 @@
       "type": "prometheus",
       "uid": "esq-prometheus"
      },
-     "expr": "(sum by (application, bus_id)(increase(messaging_retry_dropped_total{application=~\"$application\"}[5m]))) or vector(0)",
-     "legendFormat": "dropped/5m {{application}} {{bus_id}}"
+     "expr": "(sum by (service, bus_id)(increase(messaging_retry_dropped_total{service=~\"$service\"}[5m]))) or vector(0)",
+     "legendFormat": "dropped/5m {{service}} {{bus_id}}"
     }
    ],
    "description": "The send-retry sublayer. FLAT AT ZERO is the healthy state -- these only move when the transport is failing sends: held = messages parked awaiting re-dispatch, dropped = given up after max attempts. Both are COUNTS, so they share an axis honestly; the backoff duration is milliseconds and lives on its own panel to the right."
@@ -1457,8 +1476,8 @@
       "type": "prometheus",
       "uid": "esq-prometheus"
      },
-     "expr": "1000 * (sum by (application, bus_id) (rate(messaging_retry_backoff_sum{application=~\"$application\"}[5m])) / sum by (application, bus_id) (rate(messaging_retry_backoff_count{application=~\"$application\"}[5m])))",
-     "legendFormat": "{{application}} {{bus_id}}"
+     "expr": "1000 * (sum by (application, bus_id) (rate(messaging_retry_backoff_sum{service=~\"$service\"}[5m])) / sum by (application, bus_id) (rate(messaging_retry_backoff_count{service=~\"$service\"}[5m])))",
+     "legendFormat": "{{service}} {{bus_id}}"
     }
    ],
    "description": "The backoff ladder step being waited out. A GAP here is the healthy state -- no retries, nothing to average. It was previously drawn on the same axis as the held/dropped COUNTS, which put milliseconds and message counts on one scale."
@@ -2150,7 +2169,7 @@
       "type": "prometheus",
       "uid": "esq-prometheus"
      },
-     "expr": "(sum by (op, outcome) (rate(esq_biz_entity_ops_total{application=~\"$application\"}[5m]))) or label_replace(vector(0), \"outcome\", \"error\", \"\", \"\")",
+     "expr": "(sum by (op, outcome) (rate(esq_biz_entity_ops_total{service=~\"$service\"}[5m]))) or label_replace(vector(0), \"outcome\", \"error\", \"\", \"\")",
      "legendFormat": "{{op}} {{outcome}}"
     }
    ],
@@ -2187,7 +2206,7 @@
       "type": "prometheus",
       "uid": "esq-prometheus"
      },
-     "expr": "sum(esq_biz_move_queue_depth{application=~\"$application\"})",
+     "expr": "sum(esq_biz_move_queue_depth{service=~\"$service\"})",
      "legendFormat": "pending"
     }
    ],
@@ -2224,7 +2243,7 @@
       "type": "prometheus",
       "uid": "esq-prometheus"
      },
-     "expr": "sum(rate(esq_biz_move_processed_total{application=~\"$application\"}[5m]))",
+     "expr": "sum(rate(esq_biz_move_processed_total{service=~\"$service\"}[5m]))",
      "legendFormat": "processed/s"
     },
     {
@@ -2233,7 +2252,7 @@
       "type": "prometheus",
       "uid": "esq-prometheus"
      },
-     "expr": "(sum(rate(esq_biz_move_failed_total{application=~\"$application\"}[5m]))) or vector(0)",
+     "expr": "(sum(rate(esq_biz_move_failed_total{service=~\"$service\"}[5m]))) or vector(0)",
      "legendFormat": "FAILED/s"
     }
    ],
@@ -2270,7 +2289,7 @@
       "type": "prometheus",
       "uid": "esq-prometheus"
      },
-     "expr": "sum by (kind) (rate(esq_biz_dict_lookup_total{application=~\"$application\"}[5m]))",
+     "expr": "sum by (kind) (rate(esq_biz_dict_lookup_total{service=~\"$service\"}[5m]))",
      "legendFormat": "kind {{kind}}"
     }
    ],
@@ -2317,7 +2336,7 @@
       "type": "prometheus",
       "uid": "esq-prometheus"
      },
-     "expr": "(sum by (type, outcome) (rate(esq_biz_acct_tx_total{application=~\"$application\"}[5m]))) or label_replace(vector(0), \"outcome\", \"error\", \"\", \"\")",
+     "expr": "(sum by (type, outcome) (rate(esq_biz_acct_tx_total{service=~\"$service\"}[5m]))) or label_replace(vector(0), \"outcome\", \"error\", \"\", \"\")",
      "legendFormat": "{{type}} {{outcome}}"
     }
    ],
@@ -2354,7 +2373,7 @@
       "type": "prometheus",
       "uid": "esq-prometheus"
      },
-     "expr": "1000 * (sum by (type) (rate(esq_biz_acct_tx_duration_seconds_sum{application=~\"$application\"}[5m])) / sum by (type) (rate(esq_biz_acct_tx_duration_seconds_count{application=~\"$application\"}[5m])))",
+     "expr": "1000 * (sum by (type) (rate(esq_biz_acct_tx_duration_seconds_sum{service=~\"$service\"}[5m])) / sum by (type) (rate(esq_biz_acct_tx_duration_seconds_count{service=~\"$service\"}[5m])))",
      "legendFormat": "{{type}}"
     }
    ],
@@ -2391,7 +2410,7 @@
       "type": "prometheus",
       "uid": "esq-prometheus"
      },
-     "expr": "sum(rate(esq_biz_acct_fx_apply_total{application=~\"$application\"}[5m]))",
+     "expr": "sum(rate(esq_biz_acct_fx_apply_total{service=~\"$service\"}[5m]))",
      "legendFormat": "fx applied/s"
     },
     {
@@ -2400,7 +2419,7 @@
       "type": "prometheus",
       "uid": "esq-prometheus"
      },
-     "expr": "sum by (purge) (rate(esq_biz_acct_close_total{application=~\"$application\"}[5m]))",
+     "expr": "sum by (purge) (rate(esq_biz_acct_close_total{service=~\"$service\"}[5m]))",
      "legendFormat": "closed ({{purge}})"
     }
    ],
@@ -2415,6 +2434,80 @@
     "x": 0,
     "y": 173
    }
+  },
+  {
+   "type": "timeseries",
+   "title": "Access profile reads + saves (by op + outcome)",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "esq-prometheus"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 6,
+    "x": 0,
+    "y": 182
+   },
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+      "drawStyle": "line",
+      "fillOpacity": 10
+     },
+     "unit": "ops",
+     "min": 0
+    },
+    "overrides": []
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(sum by (op, outcome) (rate(esq_biz_key_ops_total{service=~\"$service\"}[5m]))) or label_replace(vector(0), \"outcome\", \"error\", \"\", \"\")",
+     "legendFormat": "{{op}} {{outcome}}"
+    }
+   ],
+   "description": "What keySmith actually did. A read is the sign-in handshake, so this line is the closest thing to a login rate the fleet emits; a save is a permission or profile change, which is the rarer and more consequential one. The error line is a save that threw -- the caller saw a 4xx/5xx, and this says which operation it was."
+  },
+  {
+   "type": "timeseries",
+   "title": "Identity commands asked for (by command)",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "esq-prometheus"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 6,
+    "x": 6,
+    "y": 182
+   },
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+      "drawStyle": "line",
+      "fillOpacity": 10
+     },
+     "unit": "ops",
+     "min": 0
+    },
+    "overrides": []
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "sum by (op) (rate(esq_biz_key_identity_total{service=~\"$service\"}[5m]))",
+     "legendFormat": "{{op}}"
+    }
+   ],
+   "description": "What keySmith ASKED the identity provider to do. Read it against KeyCloak identity sync above, which is what was DONE: the two should track each other, and a gap between them is a request that never landed. Nothing else compares the two sides."
   },
   {
    "type": "timeseries",
@@ -2447,7 +2540,7 @@
       "type": "prometheus",
       "uid": "esq-prometheus"
      },
-     "expr": "(sum by (op, outcome) (rate(esq_biz_kc_sync_total{application=~\"$application\"}[5m]))) or label_replace(vector(0), \"outcome\", \"error\", \"\", \"\")",
+     "expr": "(sum by (op, outcome) (rate(esq_biz_kc_sync_total{service=~\"$service\"}[5m]))) or label_replace(vector(0), \"outcome\", \"error\", \"\", \"\")",
      "legendFormat": "{{op}} {{outcome}}"
     }
    ],
@@ -2484,7 +2577,7 @@
       "type": "prometheus",
       "uid": "esq-prometheus"
      },
-     "expr": "1000 * (sum(rate(esq_biz_kc_sync_duration_seconds_sum{application=~\"$application\"}[5m])) / sum(rate(esq_biz_kc_sync_duration_seconds_count{application=~\"$application\"}[5m])))",
+     "expr": "1000 * (sum(rate(esq_biz_kc_sync_duration_seconds_sum{service=~\"$service\"}[5m])) / sum(rate(esq_biz_kc_sync_duration_seconds_count{service=~\"$service\"}[5m])))",
      "legendFormat": "kc sync"
     }
    ],
@@ -2605,7 +2698,7 @@
       "type": "prometheus",
       "uid": "esq-prometheus"
      },
-     "expr": "(sum by (outcome) (rate(esq_biz_tree_handler_dispatch_total{application=~\"$application\"}[5m]))) or label_replace(vector(0), \"outcome\", \"failed\", \"\", \"\")",
+     "expr": "(sum by (outcome) (rate(esq_biz_tree_handler_dispatch_total{service=~\"$service\"}[5m]))) or label_replace(vector(0), \"outcome\", \"failed\", \"\", \"\")",
      "legendFormat": "{{outcome}}"
     },
     {
@@ -2614,7 +2707,7 @@
       "type": "prometheus",
       "uid": "esq-prometheus"
      },
-     "expr": "(sum by (outcome) (rate(esq_biz_tree_rebuild_total{application=~\"$application\"}[5m]))) or label_replace(vector(0), \"outcome\", \"error\", \"\", \"\")",
+     "expr": "(sum by (outcome) (rate(esq_biz_tree_rebuild_total{service=~\"$service\"}[5m]))) or label_replace(vector(0), \"outcome\", \"error\", \"\", \"\")",
      "legendFormat": "rebuild ({{outcome}})"
     }
    ],
@@ -2651,7 +2744,7 @@
       "type": "prometheus",
       "uid": "esq-prometheus"
      },
-     "expr": "(sum by (op, outcome) (rate(esq_biz_keep_write_total{application=~\"$application\"}[5m]))) or label_replace(vector(0), \"outcome\", \"error\", \"\", \"\")",
+     "expr": "(sum by (op, outcome) (rate(esq_biz_keep_write_total{service=~\"$service\"}[5m]))) or label_replace(vector(0), \"outcome\", \"error\", \"\", \"\")",
      "legendFormat": "{{op}} {{outcome}}"
     }
    ],
@@ -2688,7 +2781,7 @@
       "type": "prometheus",
       "uid": "esq-prometheus"
      },
-     "expr": "(sum by (cmd, result) (rate(esq_biz_perm_check_total{application=~\"$application\"}[5m]))) or label_replace(vector(0), \"result\", \"deny\", \"\", \"\")",
+     "expr": "(sum by (cmd, result) (rate(esq_biz_perm_check_total{service=~\"$service\"}[5m]))) or label_replace(vector(0), \"result\", \"deny\", \"\", \"\")",
      "legendFormat": "{{cmd}} {{result}}"
     }
    ],
@@ -2735,7 +2828,7 @@
       "type": "prometheus",
       "uid": "esq-prometheus"
      },
-     "expr": "sum by (name) (resilience4j_circuitbreaker_state{application=~\"$application\", state=\"open\"})",
+     "expr": "sum by (name) (resilience4j_circuitbreaker_state{service=~\"$service\", state=\"open\"})",
      "legendFormat": "{{name}} OPEN"
     },
     {
@@ -2744,7 +2837,7 @@
       "type": "prometheus",
       "uid": "esq-prometheus"
      },
-     "expr": "sum by (name) (resilience4j_circuitbreaker_state{application=~\"$application\", state=\"half_open\"})",
+     "expr": "sum by (name) (resilience4j_circuitbreaker_state{service=~\"$service\", state=\"half_open\"})",
      "legendFormat": "{{name}} half-open"
     }
    ],
@@ -2781,7 +2874,7 @@
       "type": "prometheus",
       "uid": "esq-prometheus"
      },
-     "expr": "max by (name) (resilience4j_circuitbreaker_slow_call_rate{application=~\"$application\"})",
+     "expr": "max by (name) (resilience4j_circuitbreaker_slow_call_rate{service=~\"$service\"})",
      "legendFormat": "{{name}}"
     }
    ],
@@ -2818,7 +2911,7 @@
       "type": "prometheus",
       "uid": "esq-prometheus"
      },
-     "expr": "max by (name) (resilience4j_circuitbreaker_failure_rate{application=~\"$application\"})",
+     "expr": "max by (name) (resilience4j_circuitbreaker_failure_rate{service=~\"$service\"})",
      "legendFormat": "{{name}}"
     }
    ],
@@ -2855,7 +2948,7 @@
       "type": "prometheus",
       "uid": "esq-prometheus"
      },
-     "expr": "sum by (name, kind) (rate(resilience4j_circuitbreaker_calls_seconds_count{application=~\"$application\"}[1m]))",
+     "expr": "sum by (name, kind) (rate(resilience4j_circuitbreaker_calls_seconds_count{service=~\"$service\"}[1m]))",
      "legendFormat": "{{name}} {{kind}}"
     }
    ],
@@ -2892,7 +2985,7 @@
       "type": "prometheus",
       "uid": "esq-prometheus"
      },
-     "expr": "((sum by (name) (rate(resilience4j_circuitbreaker_not_permitted_calls_total{application=~\"$application\"}[1m]))) or vector(0))",
+     "expr": "((sum by (name) (rate(resilience4j_circuitbreaker_not_permitted_calls_total{service=~\"$service\"}[1m]))) or vector(0))",
      "legendFormat": "{{name}} refused"
     }
    ],
@@ -2929,7 +3022,7 @@
       "type": "prometheus",
       "uid": "esq-prometheus"
      },
-     "expr": "((sum by (name, kind) (rate(resilience4j_timelimiter_calls_total{application=~\"$application\"}[1m]))) or vector(0))",
+     "expr": "((sum by (name, kind) (rate(resilience4j_timelimiter_calls_total{service=~\"$service\"}[1m]))) or vector(0))",
      "legendFormat": "{{name}} {{kind}}"
     }
    ],
@@ -2976,7 +3069,7 @@
       "type": "prometheus",
       "uid": "esq-prometheus"
      },
-     "expr": "sum((process_cpu_usage{application=~\"$application\"} * on(instance) group_left system_cpu_count{application=~\"$application\"}))",
+     "expr": "sum((process_cpu_usage{service=~\"$service\"} * on(instance) group_left system_cpu_count{service=~\"$service\"}))",
      "legendFormat": "cores in use"
     }
    ],
@@ -3013,7 +3106,7 @@
       "type": "prometheus",
       "uid": "esq-prometheus"
      },
-     "expr": "(process_cpu_usage{application=~\"$application\"} * on(instance) group_left system_cpu_count{application=~\"$application\"})",
+     "expr": "(process_cpu_usage{service=~\"$service\"} * on(instance) group_left system_cpu_count{service=~\"$service\"})",
      "legendFormat": "{{application}} {{instance}}"
     }
    ],

@@ -48,7 +48,7 @@ rem :tag image doesn't exist in the local Docker daemon, alias :latest to it.
 rem Lets the kubelet pull the image when the yaml references a stamp that
 rem only exists as :latest (typical for first-time install after a clean
 rem `docker compose build` with no prior k8s-rebuild stamping).
-for %%s in (gateway biztree mesnie pacman backend) do (
+for %%s in (gateward mesnie pacman aukeep backend) do (
   call :ensure_tag %%s
 )
 
@@ -84,6 +84,9 @@ rem No biztree here: gateWard holds the tree cache in the gate's own process, an
 rem other KC-dependent services below (it needs KeyCloak for the JWKS its security chain fetches).
 echo --- Installing pacman...
 call helm upgrade --install esquire-pacman    charts\esquire-pacman    -f values\pacman.yaml    || exit /b 1
+rem auKeep drains the audit bus. It stays its OWN workload on the compact profile: what compact composes is
+rem the request path, and the audit sink is not on it.
+call helm upgrade --install esquire-aukeep    charts\esquire-aukeep    -f values\aukeep.yaml    || exit /b 1
 
 echo Waiting for keycloak...
 kubectl rollout status statefulset/esquire-infra-kc-keycloak -n default --timeout=180s

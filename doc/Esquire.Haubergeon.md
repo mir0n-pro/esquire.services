@@ -7,7 +7,7 @@
   </tr>
 </table>
 
-# ![Alt text](media/hauberk.svg) Esquire Haubergeon 
+# ![Alt text](logo/hauberk.svg) Esquire Haubergeon 
 
 
 **Harness for Gatling Engine.** The Gatling-based test harness for the

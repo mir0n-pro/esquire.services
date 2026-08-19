@@ -101,7 +101,7 @@ JOB_ANY = 'job=~"esq-.*"'
 # not.
 #
 # Fully anchored by Loki, and covers both targets' naming (docker `esq-gateway`, k8s `gateway`).
-ESQ_SERVICES = ('container=~"(esq-)?(gateway|biztree|enyman|pacman|keysmith|kcmaster|aukeep|backend|frontend)"')
+ESQ_SERVICES = ('container=~"(esqc?-)?(gateward|mesnie|pacman|aukeep|backend|frontend)"')
 
 
 def logs(title, x, y, w, expr, h=9, desc=None):
@@ -239,7 +239,20 @@ def check_no_clamped_rate_denominator(panels):
                     "by the TRUE rate." % (p.get("title"), expr))
 
 
+# TWO identities, TWO pickers -- the compact profile is why (T3.1/T3.2).
+#
+#   application = which PROCESS. It has a JVM, a connection pool, a CPU and a log stream. On this profile
+#                 `mesnie` is ONE process holding enyMan, keySmith and kcMaster, and `gateward` is ONE holding
+#                 the gateway and the tree cache. There is exactly one heap to draw for each.
+#   service     = which ESQUIRE SERVICE did the work. It is what a business meter, a request on a route, or a
+#                 bus leg belongs to, and it stays enyMan / keySmith / kcMaster / gateway / bizTree however few
+#                 processes they run in.
+#
+# So the MACHINE rows (JVM, pool, CPU, bandwidth, broker, Postgres, KeyCloak, BFF, capacity) filter by
+# $application, and the WORK rows (overview, messaging, latency bands, the business rows, the breakers) filter
+# by $service. On a classic deployment the two are equal and every panel reads exactly as it always did.
 APP = 'application=~"$application"'
+SVC = 'service=~"$service"'
 
 
 def build_panels():
@@ -251,13 +264,13 @@ def build_panels():
     # read as "Esquire services only" (which would contradict the ESQ_SERVICES allow-list the rest of the board uses).
     p.append(stat("All monitored targets (up)", 0, 1, 6, [tgt("sum(up)")]))
     p.append(stat("Total request rate (req/s)", 6, 1, 6,
-                  [tgt("sum(rate(http_server_requests_seconds_count{%s}[1m]))" % APP)], unit="reqps"))
+                  [tgt("sum(rate(http_server_requests_seconds_count{%s}[1m]))" % SVC)], unit="reqps"))
     p.append(ts("HTTP request rate by replica", 12, 1, 12, "reqps",
-                [tgt("sum by (application, instance) (rate(http_server_requests_seconds_count{%s}[1m]))" % APP,
-                     "{{application}} {{instance}}")]))
+                [tgt("sum by (service, instance) (rate(http_server_requests_seconds_count{%s}[1m]))" % SVC,
+                     "{{service}} {{instance}}")]))
     p.append(ts("HTTP p95 latency by replica", 0, 6, 12, "s",
-                [tgt("histogram_quantile(0.95, sum by (le, application, instance) "
-                     "(rate(http_server_requests_seconds_bucket{%s}[5m])))" % APP, "{{application}} {{instance}}",
+                [tgt("histogram_quantile(0.95, sum by (le, service, instance) "
+                     "(rate(http_server_requests_seconds_bucket{%s}[5m])))" % SVC, "{{service}} {{instance}}",
                      exemplar=True)],
                 desc="CLICK A DIAMOND -- this is the metrics -> trace hop, and the most valuable jump on the pane: "
                      "a spike here is where a human NOTICES a problem, and each diamond opens the TRACE THAT "
@@ -381,44 +394,44 @@ def build_panels():
     # ---- Messaging bus (x-rod meters emitted by the engine, O1/T5) ----
     p.append(row("Messaging bus", 103))
     p.append(ts("Bus send rate (msg/s)", 0, 104, 8, "ops",
-                [tgt("sum by (application, bus_id) (rate(messaging_send_total{%s}[1m]))" % APP,
-                     "{{application}} -> {{bus_id}}")]))
+                [tgt("sum by (service, bus_id) (rate(messaging_send_total{%s}[1m]))" % SVC,
+                     "{{service}} -> {{bus_id}}")]))
     p.append(ts("Bus receive rate (msg/s)", 8, 104, 8, "ops",
-                [tgt("sum by (application, bus_id) (rate(messaging_receive_total{%s}[1m]))" % APP,
-                     "{{application}} <- {{bus_id}}")]))
+                [tgt("sum by (service, bus_id) (rate(messaging_receive_total{%s}[1m]))" % SVC,
+                     "{{service}} <- {{bus_id}}")]))
     p.append(ts("Bus error rate (msg/s)", 16, 104, 8, "ops",
-                [tgt(zero_line("sum by (application, bus_id, leg) (rate(messaging_error_total{%s}[5m]))" % APP,
+                [tgt(zero_line("sum by (service, bus_id, leg) (rate(messaging_error_total{%s}[5m]))" % SVC,
                                "leg", "send"),
-                     "{{application}} {{bus_id}} {{leg}}")],
+                     "{{service}} {{bus_id}} {{leg}}")],
                 desc="A healthy bus has NO error series, which reads as 'No data' -- indistinguishable from a "
                      "broken meter. The zero-line draws a flat 0 until a real error lands (I20, same fix as I9 for "
                      "the business failure panels)."))
     p.append(ts("Bus send latency (avg + p95 ms)", 0, 112, 8, "ms",
-                [tgt(avg_ms("messaging_send_duration_seconds_sum{%s}" % APP,
-                            "messaging_send_duration_seconds_count{%s}" % APP, by="application, bus_id"),
-                     "avg {{application}} -> {{bus_id}}"),
-                 tgt("1000 * histogram_quantile(0.95, sum by (le, application, bus_id) "
-                     "(rate(messaging_send_duration_seconds_bucket{%s}[5m])))" % APP,
-                     "p95 {{application}} -> {{bus_id}}", exemplar=True)],
+                [tgt(avg_ms("messaging_send_duration_seconds_sum{%s}" % SVC,
+                            "messaging_send_duration_seconds_count{%s}" % SVC, by="application, bus_id"),
+                     "avg {{service}} -> {{bus_id}}"),
+                 tgt("1000 * histogram_quantile(0.95, sum by (le, service, bus_id) "
+                     "(rate(messaging_send_duration_seconds_bucket{%s}[5m])))" % SVC,
+                     "p95 {{service}} -> {{bus_id}}", exemplar=True)],
                 desc="avg is always available. p95 needs the percentile buckets -- turn on the sub-switch "
                      "esquire.observability.metrics.histograms-enabled (ESQ_METRICS_HISTOGRAMS); with it off the "
                      "p95 series are simply absent and the avg still plots."))
     p.append(ts("Feed depth (tx queue)", 8, 112, 8, "short",
-                [tgt("messaging_feed_depth{%s}" % APP, "{{application}} {{bus_id}}")]))
+                [tgt("messaging_feed_depth{%s}" % SVC, "{{service}} {{bus_id}}")]))
     p.append(ts("Send-retry: held + dropped (counts)", 16, 112, 4, "short",
-                [tgt("sum by (application, bus_id)(messaging_retry_held{%s})" % APP,
-                     "held {{application}} {{bus_id}}"),
-                 tgt("(sum by (application, bus_id)(increase(messaging_retry_dropped_total{%s}[5m]))) or vector(0)"
-                     % APP, "dropped/5m {{application}} {{bus_id}}")],
+                [tgt("sum by (service, bus_id)(messaging_retry_held{%s})" % SVC,
+                     "held {{service}} {{bus_id}}"),
+                 tgt("(sum by (service, bus_id)(increase(messaging_retry_dropped_total{%s}[5m]))) or vector(0)"
+                     % SVC, "dropped/5m {{service}} {{bus_id}}")],
                 minv=0,
                 desc="The send-retry sublayer. FLAT AT ZERO is the healthy state -- these only move when the "
                      "transport is failing sends: held = messages parked awaiting re-dispatch, dropped = given up "
                      "after max attempts. Both are COUNTS, so they share an axis honestly; the backoff duration "
                      "is milliseconds and lives on its own panel to the right."))
     p.append(ts("Send-retry: backoff (avg ms)", 20, 112, 4, "ms",
-                [tgt(avg_ms("messaging_retry_backoff_sum{%s}" % APP,
-                            "messaging_retry_backoff_count{%s}" % APP, by="application, bus_id"),
-                     "{{application}} {{bus_id}}")],
+                [tgt(avg_ms("messaging_retry_backoff_sum{%s}" % SVC,
+                            "messaging_retry_backoff_count{%s}" % SVC, by="application, bus_id"),
+                     "{{service}} {{bus_id}}")],
                 desc="The backoff ladder step being waited out. A GAP here is the healthy state -- no retries, "
                      "nothing to average. It was previously drawn on the same axis as the held/dropped COUNTS, "
                      "which put milliseconds and message counts on one scale."))
@@ -600,7 +613,7 @@ def build_panels():
     # ---- Business: entity operations (enyMan) ----
     p.append(row("Business -- entity operations", 155))
     p.append(ts("Entity operations (ops/s by op + outcome)", 0, 156, 8, "ops",
-                [tgt(zero_line("sum by (op, outcome) (rate(esq_biz_entity_ops_total{%s}[5m]))" % APP,
+                [tgt(zero_line("sum by (op, outcome) (rate(esq_biz_entity_ops_total{%s}[5m]))" % SVC,
                                "outcome", "error"),
                      "{{op}} {{outcome}}")],
                 desc="What enyMan actually DID: creates, deletes and moves, by outcome. No free meter can see "
@@ -611,21 +624,21 @@ def build_panels():
     # A queue DEPTH is a count and processed/failed are rates -- two units. On one axis a depth spike to 1000
     # would flatten the rates into the floor and hide exactly the failure you opened the panel for. Two panels.
     p.append(ts("Move queue -- depth (pending)", 8, 156, 4, "short",
-                [tgt("sum(esq_biz_move_queue_depth{%s})" % APP, "pending")],
+                [tgt("sum(esq_biz_move_queue_depth{%s})" % SVC, "pending")],
                 minv=0,
                 desc="The move backlog. /esq-move answers 202 at submit time and the work happens on the queue "
                      "worker, so a rising depth means the worker is not keeping up -- and nothing on the request "
                      "side would tell you."))
     p.append(ts("Move outcome (per s)", 12, 156, 4, "ops",
-                [tgt("sum(rate(esq_biz_move_processed_total{%s}[5m]))" % APP, "processed/s"),
-                 tgt("(sum(rate(esq_biz_move_failed_total{%s}[5m]))) or vector(0)" % APP, "FAILED/s")],
+                [tgt("sum(rate(esq_biz_move_processed_total{%s}[5m]))" % SVC, "processed/s"),
+                 tgt("(sum(rate(esq_biz_move_failed_total{%s}[5m]))) or vector(0)" % SVC, "FAILED/s")],
                 minv=0,
                 desc="The async half of a move. A move that FAILS on the worker is invisible to the caller (it "
                      "already got its 202) and to every HTTP meter -- this is the only place it shows. FAILED is "
                      "flat at zero on a healthy system; `or vector(0)` keeps it drawing a zero line rather than "
                      "vanishing, because a vanished series is indistinguishable from a broken panel."))
     p.append(ts("Dictionary lookups (by kind)", 16, 156, 8, "ops",
-                [tgt("sum by (kind) (rate(esq_biz_dict_lookup_total{%s}[5m]))" % APP, "kind {{kind}}")],
+                [tgt("sum by (kind) (rate(esq_biz_dict_lookup_total{%s}[5m]))" % SVC, "kind {{kind}}")],
                 desc="Which DICTIONARY is being fetched. Not a duplicate of http.server.requests: that meter is "
                      "tagged by URI template (/esq-dict), and the kind is a query param -- so the free meter can "
                      "tell you the endpoint is busy but never which dictionary."))
@@ -633,21 +646,21 @@ def build_panels():
     # ---- Business: money (pacMan) ----
     p.append(row("Business -- money", 164))
     p.append(ts("Account transactions (tx/s by type + outcome)", 0, 165, 8, "ops",
-                [tgt(zero_line("sum by (type, outcome) (rate(esq_biz_acct_tx_total{%s}[5m]))" % APP,
+                [tgt(zero_line("sum by (type, outcome) (rate(esq_biz_acct_tx_total{%s}[5m]))" % SVC,
                                "outcome", "error"),
                      "{{type}} {{outcome}}")],
                 desc="The money path: deposits, withdrawals, transfers, by outcome. Both processors report here "
                      "-- the transfer processor OVERRIDES the single one and does not call super, so it needed "
                      "its own meter or every transfer would have been silently missing from this panel."))
     p.append(ts("Transaction latency (avg ms by type)", 8, 165, 8, "ms",
-                [tgt(avg_ms("esq_biz_acct_tx_duration_seconds_sum{%s}" % APP,
-                           "esq_biz_acct_tx_duration_seconds_count{%s}" % APP, by="type"), "{{type}}")],
+                [tgt(avg_ms("esq_biz_acct_tx_duration_seconds_sum{%s}" % SVC,
+                           "esq_biz_acct_tx_duration_seconds_count{%s}" % SVC, by="type"), "{{type}}")],
                 desc="How long a transaction takes end to end inside pacMan, by operation. A transfer is two "
                      "legs and a rate lookup, so it is legitimately dearer than a deposit -- the shape to watch "
                      "is a type getting slower against ITSELF, not one type against another."))
     p.append(ts("FX applied + accounts closed", 16, 165, 8, "ops",
-                [tgt("sum(rate(esq_biz_acct_fx_apply_total{%s}[5m]))" % APP, "fx applied/s"),
-                 tgt('sum by (purge) (rate(esq_biz_acct_close_total{%s}[5m]))' % APP, "closed ({{purge}})")],
+                [tgt("sum(rate(esq_biz_acct_fx_apply_total{%s}[5m]))" % SVC, "fx applied/s"),
+                 tgt('sum by (purge) (rate(esq_biz_acct_close_total{%s}[5m]))' % SVC, "closed ({{purge}})")],
                 desc="A conversion rate is only present on the cross-currency leg of a transfer, so a non-null "
                      "convRate IS the FX application. Closures are counted only once the delete has SUCCEEDED "
                      "past the three guards; purge=test-house marks the demo-data path that forces those guards "
@@ -655,8 +668,16 @@ def build_panels():
 
     # ---- Business: identity + token relay (kcMaster, gateway) ----
     p.append(row("Business -- identity + token relay", 173))
+    p.append(ts("Access profile reads + saves (by op + outcome)", 0, 182, 6, "ops",
+                [tgt(zero_line("sum by (op, outcome) (rate(esq_biz_key_ops_total{%s}[5m]))" % SVC,
+                               "outcome", "error"),
+                     "{{op}} {{outcome}}")],
+                desc="What keySmith actually did. A read is the sign-in handshake, so this line is the closest thing to a login rate the fleet emits; a save is a permission or profile change, which is the rarer and more consequential one. The error line is a save that threw -- the caller saw a 4xx/5xx, and this says which operation it was."))
+    p.append(ts("Identity commands asked for (by command)", 6, 182, 6, "ops",
+                [tgt("sum by (op) (rate(esq_biz_key_identity_total{%s}[5m]))" % SVC, "{{op}}")],
+                desc="What keySmith ASKED the identity provider to do. Read it against KeyCloak identity sync above, which is what was DONE: the two should track each other, and a gap between them is a request that never landed. Nothing else compares the two sides."))
     p.append(ts("KeyCloak identity sync (by op + outcome)", 0, 174, 6, "ops",
-                [tgt(zero_line("sum by (op, outcome) (rate(esq_biz_kc_sync_total{%s}[5m]))" % APP,
+                [tgt(zero_line("sum by (op, outcome) (rate(esq_biz_kc_sync_total{%s}[5m]))" % SVC,
                                "outcome", "error"),
                      "{{op}} {{outcome}}")],
                 desc="Whether Esquire and KeyCloak still AGREE about who exists. The bus meters say a sync "
@@ -664,8 +685,8 @@ def build_panels():
                      "non-zero error line means the two systems have DRIFTED -- a user Esquire thinks can log "
                      "in, and KeyCloak does not."))
     p.append(ts("KeyCloak sync latency (avg ms)", 6, 174, 6, "ms",
-                [tgt(avg_ms("esq_biz_kc_sync_duration_seconds_sum{%s}" % APP,
-                           "esq_biz_kc_sync_duration_seconds_count{%s}" % APP), "kc sync")],
+                [tgt(avg_ms("esq_biz_kc_sync_duration_seconds_sum{%s}" % SVC,
+                           "esq_biz_kc_sync_duration_seconds_count{%s}" % SVC), "kc sync")],
                 desc="KeyCloak is a SEPARATE SERVER and nothing else times it. Measured around the whole sync "
                      "rather than inside the admin client, so it is the sync's wall time -- but the KC "
                      "round-trip dominates it (the attribute mapping either side is microseconds against "
@@ -696,10 +717,10 @@ def build_panels():
     # ---- Business: cache, keep + permissions (bizTree, dataKeep, cross-cutting) ----
     p.append(row("Business -- cache, keep + permissions", 182))
     p.append(ts("Tree cache -- broadcast dispatch (by outcome)", 0, 183, 8, "ops",
-                [tgt(zero_line("sum by (outcome) (rate(esq_biz_tree_handler_dispatch_total{%s}[5m]))" % APP,
+                [tgt(zero_line("sum by (outcome) (rate(esq_biz_tree_handler_dispatch_total{%s}[5m]))" % SVC,
                                "outcome", "failed"),
                      "{{outcome}}"),
-                 tgt(zero_line("sum by (outcome) (rate(esq_biz_tree_rebuild_total{%s}[5m]))" % APP,
+                 tgt(zero_line("sum by (outcome) (rate(esq_biz_tree_rebuild_total{%s}[5m]))" % SVC,
                                "outcome", "error"),
                      "rebuild ({{outcome}})")],
                 desc="What the CACHE did with each broadcast -- applied it, found no handler, found no payload, "
@@ -709,7 +730,7 @@ def build_panels():
     # auKeep is absent on OKE (audit = DB triggers, no keep sink) -- drop this panel there. The OKE pass removes
     # `aukeep` from ESQ_SERVICES, which is the signal (T12).
     ("aukeep" in ESQ_SERVICES) and p.append(ts("Audit keep -- DB writes (by op + outcome)", 8, 183, 8, "ops",
-                [tgt(zero_line("sum by (op, outcome) (rate(esq_biz_keep_write_total{%s}[5m]))" % APP,
+                [tgt(zero_line("sum by (op, outcome) (rate(esq_biz_keep_write_total{%s}[5m]))" % SVC,
                                "outcome", "error"),
                      "{{op}} {{outcome}}")],
                 desc="THE DB WRITE at the keep sink -- the one thing the bus meters cannot see. "
@@ -718,7 +739,7 @@ def build_panels():
                      "exactly the failure that was invisible before. These counts must RECONCILE with the bus "
                      "receive count on the Messaging bus row: a divergence is a real finding."))
     p.append(ts("Permission checks (allow vs DENY)", 16, 183, 8, "ops",
-                [tgt(zero_line("sum by (cmd, result) (rate(esq_biz_perm_check_total{%s}[5m]))" % APP,
+                [tgt(zero_line("sum by (cmd, result) (rate(esq_biz_perm_check_total{%s}[5m]))" % SVC,
                                "result", "deny"),
                      "{{cmd}} {{result}}")],
                 desc="The authorization decision itself, counted at the one gate every service goes through. A "
@@ -740,9 +761,9 @@ def build_panels():
     # the panel that tells them apart.
     p.append(row("Resilience -- circuit breakers", 191))
     p.append(ts("Breaker state -- OPEN / half-open (1 = yes)", 0, 192, 8, "short",
-                [tgt('sum by (name) (resilience4j_circuitbreaker_state{%s, state="open"})' % APP,
+                [tgt('sum by (name) (resilience4j_circuitbreaker_state{%s, state="open"})' % SVC,
                      "{{name}} OPEN"),
-                 tgt('sum by (name) (resilience4j_circuitbreaker_state{%s, state="half_open"})' % APP,
+                 tgt('sum by (name) (resilience4j_circuitbreaker_state{%s, state="half_open"})' % SVC,
                      "{{name}} half-open")],
                 desc="Flat at zero is the healthy shape. A line stepping to 1 is a breaker that has STOPPED "
                      "calling its backend -- every request on that route now fails fast with a 503 without ever "
@@ -750,7 +771,7 @@ def build_panels():
                      "through to decide whether to close again."))
     p.append(ts("Slow-call rate (%) -- the threshold that OPENS the breaker on a healthy backend", 8, 192, 8,
                 "percent",
-                [tgt('max by (name) (resilience4j_circuitbreaker_slow_call_rate{%s})' % APP, "{{name}}")],
+                [tgt('max by (name) (resilience4j_circuitbreaker_slow_call_rate{%s})' % SVC, "{{name}}")],
                 minv=-1,
                 desc="THE number to watch under load, and it carries a trap: Resilience4j reports -1, NOT 0, "
                      "while the breaker has seen fewer than minimum-calls -- it means NO VERDICT YET, not "
@@ -760,20 +781,20 @@ def build_panels():
                      "that is working perfectly and merely slow."))
     p.append(ts("Failure rate (%) -- the threshold that opens on a backend that is actually failing", 16, 192, 8,
                 "percent",
-                [tgt('max by (name) (resilience4j_circuitbreaker_failure_rate{%s})' % APP, "{{name}}")],
+                [tgt('max by (name) (resilience4j_circuitbreaker_failure_rate{%s})' % SVC, "{{name}}")],
                 minv=-1,
                 desc="Same -1 = not-enough-calls convention as the slow-call rate. This one rises only on real "
                      "errors, so a breaker opening HERE is the breaker doing its job. A breaker opening on the "
                      "slow-call rate while this stays flat is the failure mode T10 exists to prevent."))
     p.append(ts("Calls through the breaker (by outcome)", 0, 200, 8, "ops",
-                [tgt('sum by (name, kind) (rate(resilience4j_circuitbreaker_calls_seconds_count{%s}[1m]))' % APP,
+                [tgt('sum by (name, kind) (rate(resilience4j_circuitbreaker_calls_seconds_count{%s}[1m]))' % SVC,
                      "{{name}} {{kind}}")],
                 desc="What the breaker actually saw: successful / failed / ignored. Read together with the rate "
                      "panels above -- these are the calls the rates are computed FROM, so a rate that looks "
                      "alarming on a handful of calls is not yet a signal."))
     p.append(ts("Calls REFUSED by the breaker (the 503s the breaker itself caused)", 8, 200, 8, "ops",
                 [tgt(safe('sum by (name) '
-                          '(rate(resilience4j_circuitbreaker_not_permitted_calls_total{%s}[1m]))' % APP),
+                          '(rate(resilience4j_circuitbreaker_not_permitted_calls_total{%s}[1m]))' % SVC),
                      "{{name}} refused")],
                 desc="The smoking gun, and the reason this row was built. Every call counted here NEVER REACHED "
                      "the backend -- the breaker rejected it at the gateway. If a load run collapses while this "
@@ -781,7 +802,7 @@ def build_panels():
                      "the breaker rather than to chase a backend that was never even called. Guarded with "
                      "or vector(0) so it reads a flat zero instead of vanishing when nothing is refused."))
     p.append(ts("Per-route deadline -- TimeLimiter outcomes", 16, 200, 8, "ops",
-                [tgt(safe('sum by (name, kind) (rate(resilience4j_timelimiter_calls_total{%s}[1m]))' % APP),
+                [tgt(safe('sum by (name, kind) (rate(resilience4j_timelimiter_calls_total{%s}[1m]))' % SVC),
                      "{{name}} {{kind}}")],
                 desc="The REAL per-route deadline is the breaker's TimeLimiter, not the Netty response-timeout. "
                      "A rising 'timeout' line means calls are being cancelled at the deadline -- those count as "
@@ -808,7 +829,7 @@ def build_panels():
     # below, which reads system_cpu_count directly. Measured live 2026-07-15: 14 = 14 = 14 (process_cpu_usage,
     # the join, and system_cpu_count all carry the same instances), so the two are co-present in practice and a
     # gap here means a scrape gap on that replica, not a wrong number.
-    CORES = "(process_cpu_usage{%s} * on(instance) group_left system_cpu_count{%s})" % (APP, APP)
+    CORES = "(process_cpu_usage{%s} * on(instance) group_left system_cpu_count{%s})" % (SVC, SVC)
     p.append(row("Capacity -- cores in use (are we using the machine?)", 208))
     p.append(ts("Cores in use -- TOTAL across all services", 0, 209, 12, "short",
                 [tgt("sum(%s)" % CORES, "cores in use")],
@@ -858,6 +879,20 @@ def build_dashboard():
             # services the $application panels filter on. The Node BFF has no jvm_* and stays out, matching its
             # own panels that hardcode application="esq-backend".
             "query": "label_values(jvm_memory_used_bytes, application)", "refresh": 2,
+            "includeAll": True, "multi": True, "allValue": ".*",
+            "current": {"text": "All", "value": "$__all"}, "sort": 1,
+        }, {
+            "name": "service", "label": "Esquire service", "type": "query", "datasource": DS,
+            # The WORK picker, and it reads the BARE label rather than one metric's. Every candidate metric
+            # leaves someone out: jvm_memory_used_bytes only ever names PROCESSES (one heap each), so it would
+            # list `mesnie` and never `keysmith`; http_server_requests names only the services with a REST door,
+            # so kcMaster -- reached over the bus alone -- would never appear. The bare label is the union of
+            # everything that has reported.
+            #
+            # KNOWN GAP, and it is not this picker's doing: kcMaster's only meters are esq.biz.kc.sync.*, which
+            # Micrometer materialises on FIRST USE. Until an identity operation runs, kcMaster has no series at
+            # all and cannot be listed by any query. It appears as soon as one does.
+            "query": "label_values(service)", "refresh": 2,
             "includeAll": True, "multi": True, "allValue": ".*",
             "current": {"text": "All", "value": "$__all"}, "sort": 1,
         }]},
@@ -962,27 +997,22 @@ def build_logging_dashboard():
 
 
 def main():
-    global ESQ_SERVICES
     here = os.path.dirname(os.path.abspath(__file__))
-    svc_root = os.path.abspath(os.path.join(here, "..", "..", ".."))   # compose/o11y/grafana -> services
-    compose_dir = os.path.join(svc_root, "compose", "o11y", "grafana", "provisioning", "dashboards")
-    k8s_dir = os.path.join(svc_root, "k8s", "charts", "infra", "grafana", "dashboards")
-    oke_dir = os.path.join(svc_root, "k8s-oci", "grafana")
+    svc_root = os.path.abspath(os.path.join(here, "..", "..", ".."))   # compose-compact/o11y/grafana -> services
+    compose_dir = os.path.join(svc_root, "compose-compact", "o11y", "grafana", "provisioning", "dashboards")
+    k8s_dir = os.path.join(svc_root, "k8s-compact", "charts", "infra", "grafana", "dashboards")
 
-    # docker + k8s draw the full fleet; OKE has NO auKeep (audit = DB triggers), so its boards drop auKeep from
-    # the service set -- which also skips the "Audit keep -- DB writes" panel (guarded on `"aukeep" in
-    # ESQ_SERVICES`). Nothing else forks: the boards aggregate by application, so BFF x1-vs-x2 does not matter here.
-    services_full = ESQ_SERVICES
-    services_oke = ESQ_SERVICES.replace("aukeep|", "")
-    for target_dir, svcs in ((compose_dir, services_full), (k8s_dir, services_full), (oke_dir, services_oke)):
-        ESQ_SERVICES = svcs
+    # This is the COMPACT generator: it writes ONLY into the compact trees. The classic generator is its own file
+    # under compose/o11y/grafana and owns the classic boards; neither may write the other's artifact. OKE is not a
+    # target yet -- the compact k8s-oci folder is T4.
+    for target_dir in (compose_dir, k8s_dir):
         os.makedirs(target_dir, exist_ok=True)
         for name, builder in (("esquire-services", build_dashboard),
                               ("esquire-logging", build_logging_dashboard)):
             path = os.path.join(target_dir, "%s.json" % name)
             with open(path, "w") as f:
                 json.dump(builder(), f, indent=1)
-            print("wrote", path, "(OKE -- no auKeep)" if svcs is services_oke else "")
+            print("wrote", path)
 
 
 if __name__ == "__main__":

@@ -33,7 +33,7 @@ data:
           # enyMan / keySmith / the identity work, and pacMan for itself. The audit trail is in-process, so
           # there is no auKeep pod to scrape.
           - source_labels: [__meta_kubernetes_pod_label_app]
-            regex: "esquire-(gateward|mesnie|pacman)-.*"
+            regex: "esquire-(gateward|mesnie|pacman|aukeep)-.*"
             action: keep
           # scrape the pod IP on the SEPARATE management port 8090 (F0 A6) -- actuator (incl. /actuator/prometheus)
           # lives there now, NOT on the public main port, so the ingress never exposes it.

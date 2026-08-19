@@ -655,6 +655,14 @@ def build_panels():
 
     # ---- Business: identity + token relay (kcMaster, gateway) ----
     p.append(row("Business -- identity + token relay", 173))
+    p.append(ts("Access profile reads + saves (by op + outcome)", 0, 182, 6, "ops",
+                [tgt(zero_line("sum by (op, outcome) (rate(esq_biz_key_ops_total{%s}[5m]))" % APP,
+                               "outcome", "error"),
+                     "{{op}} {{outcome}}")],
+                desc="What keySmith actually did. A read is the sign-in handshake, so this line is the closest thing to a login rate the fleet emits; a save is a permission or profile change, which is the rarer and more consequential one. The error line is a save that threw -- the caller saw a 4xx/5xx, and this says which operation it was."))
+    p.append(ts("Identity commands asked for (by command)", 6, 182, 6, "ops",
+                [tgt("sum by (op) (rate(esq_biz_key_identity_total{%s}[5m]))" % APP, "{{op}}")],
+                desc="What keySmith ASKED the identity provider to do. Read it against KeyCloak identity sync above, which is what was DONE: the two should track each other, and a gap between them is a request that never landed. Nothing else compares the two sides."))
     p.append(ts("KeyCloak identity sync (by op + outcome)", 0, 174, 6, "ops",
                 [tgt(zero_line("sum by (op, outcome) (rate(esq_biz_kc_sync_total{%s}[5m]))" % APP,
                                "outcome", "error"),

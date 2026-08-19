@@ -841,12 +841,24 @@ def card(name, r):
 # thing twice and leaving nothing to say "this is a database".
 # ---------------------------------------------------------------------------------------------------------------
 ICON = {n: "img/icons/esq/%s.svg" % n for n in
-        ("gateway", "pacman", "biztree", "enyman", "keysmith",
-         "kcmaster", "aukeep", "activemq", "postgres", "keycloak")}
+        ("pacman", "activemq", "postgres")}
+ICON["enyman"] = "img/icons/esq/enyman.svg?v=2"
+ICON["keysmith"] = "img/icons/esq/keysmith.svg?v=2"
+ICON["kcmaster"] = "img/icons/esq/kcmaster.svg?v=2"
+ICON["keycloak"] = "img/icons/esq/keycloak.svg?v=2"
+# A drawing that CHANGES keeps its filename and carries `?v=N`. The canvas fetches its icons from script at
+# runtime, so a browser holding the old drawing under the old URL keeps showing it through any refresh --
+# the query makes the URL new without making the FILE new. Bump N whenever the drawing changes.
+ICON["biztree"] = "img/icons/esq/biztree.svg?v=2"
+ICON["gateway"] = "img/icons/esq/gateway.svg?v=3"
+# A drawing that CHANGES keeps its filename and carries `?v=N`. The canvas fetches its icons from script at
+# runtime, so a browser holding the old drawing under the old URL keeps showing it through any refresh --
+# the query makes the URL new without making the FILE new. Bump N whenever the drawing changes.
+ICON["aukeep"] = "img/icons/esq/aukeep.svg?v=2"
 # The FILE is `explorer.svg`, not `backend.svg`, deliberately: backend.svg previously held the Node.js logo, and a
 # browser that had cached that URL kept serving it forever even though the file on disk had changed. A new path is
 # the only cache-bust that always works.
-ICON["backend"] = "img/icons/esq/explorer.svg"
+ICON["backend"] = "img/icons/esq/explorer.svg?v=3"
 
 
 def icon(name):

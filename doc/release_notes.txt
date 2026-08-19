@@ -1,6 +1,27 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v1.2.13-2608.1823  v1.2.13 -- observability for the composed services
+    :Feature:     keySmith reports its own work -- its reads and saves by outcome, and what it asks the
+                  identity provider to do
+    :Feature:     the compact stacks have their own monitoring boards and their own picture of what runs, with
+                  a composed service drawn as the services it holds
+    :Feature:     Mesnie and gateWard have their own drawn marks, and the marks of the gate, the tree cache,
+                  the audit writer, the entity manager and the message broker are re-drawn
+    :Config:      the audit writer is deployed on the compact stacks again, and the audit trail travels the
+                  message bus there as it does on the classic ones
+    :Doc:         doc\Esquire.ObservabilityStack.md
+                  doc\Esquire.ObservabilityStack.Inventory.csv
+                  doc\Esquire.ObservabilityStack.Inventory.Compact.csv
+    Components:   common,
+                  keySmith,
+                  mesnie,
+                  gateWard,
+                  compose,
+                  compose-compact,
+                  k8s,
+                  k8s-compact
+
 v1.2.13-2608.1521  v1.2.13 -- gateWard
     :Feature:     gateWard: one service that runs the gate and the tree cache together in a single process,
                   in place of the two separate services

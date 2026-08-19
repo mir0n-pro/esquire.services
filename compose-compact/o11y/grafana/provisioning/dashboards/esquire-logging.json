@@ -26,7 +26,7 @@
     },
     "query": {
      "label": "container",
-     "stream": "{job=~\"esq-.*\", container=~\"(esq-)?(gateway|biztree|enyman|pacman|keysmith|kcmaster|aukeep|backend|frontend)\"}",
+     "stream": "{job=~\"esq-.*\", container=~\"(esqc?-)?(gateward|mesnie|pacman|aukeep|backend|frontend)\"}",
      "type": 1
     },
     "refresh": 2,
@@ -93,7 +93,7 @@
       "type": "loki",
       "uid": "esq-loki"
      },
-     "expr": "sum by (detected_level) (rate({job=~\"esq-.*\", container=~\"$container\", container=~\"(esq-)?(gateway|biztree|enyman|pacman|keysmith|kcmaster|aukeep|backend|frontend)\"} | correlationId =~ \"$correlationId\" [1m]))",
+     "expr": "sum by (detected_level) (rate({job=~\"esq-.*\", container=~\"$container\", container=~\"(esqc?-)?(gateward|mesnie|pacman|aukeep|backend|frontend)\"} | correlationId =~ \"$correlationId\" [1m]))",
      "legendFormat": "{{detected_level}}"
     }
    ],
@@ -130,7 +130,7 @@
       "type": "loki",
       "uid": "esq-loki"
      },
-     "expr": "sum by (container) (rate({job=~\"esq-.*\", container=~\"$container\", container=~\"(esq-)?(gateway|biztree|enyman|pacman|keysmith|kcmaster|aukeep|backend|frontend)\"} | correlationId =~ \"$correlationId\" [1m]))",
+     "expr": "sum by (container) (rate({job=~\"esq-.*\", container=~\"$container\", container=~\"(esqc?-)?(gateward|mesnie|pacman|aukeep|backend|frontend)\"} | correlationId =~ \"$correlationId\" [1m]))",
      "legendFormat": "{{container}}"
     }
    ],
@@ -173,7 +173,7 @@
       "type": "loki",
       "uid": "esq-loki"
      },
-     "expr": "{job=~\"esq-.*\", container=~\"$container\", container=~\"(esq-)?(gateway|biztree|enyman|pacman|keysmith|kcmaster|aukeep|backend|frontend)\"} | detected_level =~ \"warn|error\" | correlationId =~ \"$correlationId\"",
+     "expr": "{job=~\"esq-.*\", container=~\"$container\", container=~\"(esqc?-)?(gateward|mesnie|pacman|aukeep|backend|frontend)\"} | detected_level =~ \"warn|error\" | correlationId =~ \"$correlationId\"",
      "queryType": "range"
     }
    ],
@@ -216,7 +216,7 @@
       "type": "loki",
       "uid": "esq-loki"
      },
-     "expr": "{job=~\"esq-.*\", container=~\"$container\", container=~\"(esq-)?(gateway|biztree|enyman|pacman|keysmith|kcmaster|aukeep|backend|frontend)\"} | correlationId =~ \"$correlationId\"",
+     "expr": "{job=~\"esq-.*\", container=~\"$container\", container=~\"(esqc?-)?(gateward|mesnie|pacman|aukeep|backend|frontend)\"} | correlationId =~ \"$correlationId\"",
      "queryType": "range"
     }
    ],
