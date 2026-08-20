@@ -30,7 +30,7 @@ keycloak:
 # api.esquire.localhost ingress -- skip the public hop). On this topology the gate is gateWard, which also
 # holds the tree cache, so a tree read the BFF proxies is answered without a further hop.
 gateway:
-  url: http://esquire-gateward-gateward:8080
+  url: http://esquire-gateward:8080
 
 # Browser-visible base URL the BFF uses for redirect_uri / post-login Location.
 # Matches the ingress host for esquire.local stack.
@@ -81,3 +81,9 @@ observability:
 tracing:
   otlpEndpoint: http://esquire-infra-otel-collector:4318/v1/traces
   samplingRatio: "1.0"
+
+# HA scheduling (pre-HA default: no spread). The OKE overlay turns this on so the x2 replicas land
+# on distinct app-tier nodes -- with a shared Redis session store either pod serves any user, so the
+# only thing left to guarantee is that one node cannot take both. Local (single node) leaves it off.
+topologySpread:
+  enabled: false

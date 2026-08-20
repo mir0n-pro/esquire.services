@@ -30,14 +30,8 @@ set LOKI_URL=http://localhost:13100
 set TEMPO_URL=http://localhost:13200
 set GRAFANA_URL=http://localhost:13009
 set LOKI_JOB=esq-k8s
-set SERVICES=gateward,mesnie,pacman,aukeep
-rem The trace nodes are PROCESSES (the collector rewrites service.name to <app>.<instance>), so this
-rem profile has a gateward node where classic has gateway and biztree, and a mesnie node where it has three.
-set TRACE_NODES=gateward,esq-backend
-set TRACE_NODES_CONDITIONAL=mesnie,pacman,aukeep
-rem LOG_SERVICES = the Loki `service_name` label, which on k8s is the FULL workload name
-rem (esquire-<svc>-<svc>), NOT the short meter name. Mirrors o11y-verify.bat.
-set LOG_SERVICES=esquire-gateward-gateward,esquire-mesnie-mesnie,esquire-pacman-pacman,esquire-aukeep-aukeep,esquire-backend-backend
+rem The compact fleet is declared ONCE for every environment -- see the shared file.
+call ..\test\o11y\fleet-compact-k8s.bat
 
 rem Credentials from the e2e's .env -- ONE place for the sandbox login, never a literal in a script.
 if exist "..\..\explorer\e2e-test\.env" (

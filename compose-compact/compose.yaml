@@ -72,6 +72,10 @@ services:
       # No store limit exists: with no store there is nothing to bound. This is the spool that memoryUsage
       # (70% of heap) overflows into -- the only disk an in-memory bus can touch.
       ESQ_AMQ_TEMP_LIMIT: 512mb
+      # Which destinations the broker DECLARES at start. Compact drains the entity topic and the audit
+      # queue and nothing else -- kcMaster runs inside Mesnie, so the identity request/reply pair is never
+      # consumed here, and a declared destination with no consumer reads as TROUBLE on the board.
+      ESQ_AMQ_DESTINATIONS: "topic:esquire.entity.broadcast queue:esquire.rod.audit"
     volumes:
       - ./data/activemq:/var/opt/activemq/data
     healthcheck:

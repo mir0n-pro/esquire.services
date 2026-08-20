@@ -38,9 +38,9 @@ if not "%CTX%"=="docker-desktop" (
 )
 
 echo --- Installing the LOG viewing stack only (loki + alloy + grafana)...
-call helm upgrade --install esquire-infra-loki    charts\infra\loki    || exit /b 1
-call helm upgrade --install esquire-infra-alloy   charts\infra\alloy   || exit /b 1
-call helm upgrade --install esquire-infra-grafana charts\infra\grafana || exit /b 1
+call helm upgrade --install esquire-infra-loki    charts\infra\loki    --force-conflicts || exit /b 1
+call helm upgrade --install esquire-infra-alloy   charts\infra\alloy   --force-conflicts || exit /b 1
+call helm upgrade --install esquire-infra-grafana charts\infra\grafana --force-conflicts || exit /b 1
 
 echo --- Removing the tracing/metrics side (it must not run, or this is not an isolation)...
 call helm uninstall esquire-infra-tempo             2>nul
@@ -50,15 +50,15 @@ call helm uninstall esquire-infra-postgres-exporter 2>nul
 
 echo --- App services: tracing/metrics OFF, ONLY pro.mir0n at INFO...
 for %%s in (gateway enyman biztree pacman keysmith kcmaster aukeep) do (
-  call helm upgrade esquire-%%s charts\esquire-%%s --reset-then-reuse-values --set observability.enabled=false --set observability.metricsHistograms=false --set logging.levelMir0n=INFO --set logging.levelDevelop=OFF --set logging.levelMsg=OFF --set logging.levelAmq=OFF --set logging.levelJms=OFF
+  call helm upgrade esquire-%%s charts\esquire-%%s --reset-then-reuse-values --set observability.enabled=false --set observability.metricsHistograms=false --set logging.levelMir0n=INFO --set logging.levelDevelop=OFF --set logging.levelMsg=OFF --set logging.levelAmq=OFF --set logging.levelJms=OFF --force-conflicts
   call kubectl rollout restart statefulset esquire-%%s-%%s
 )
 rem The BFF has no root-level knob (pino, its own default) -- it is a CONSTANT in both arms, so it cancels.
-call helm upgrade esquire-backend charts\esquire-backend --reset-then-reuse-values --set observability.enabled=false
+call helm upgrade esquire-backend charts\esquire-backend --reset-then-reuse-values --set observability.enabled=false --force-conflicts
 call kubectl rollout restart statefulset esquire-backend-backend
 
 echo --- keycloak / activemq: metrics OFF (no JMX exporter agent)...
-call helm upgrade esquire-infra-kc charts\infra\keycloak -f values\keycloak.yaml --reset-then-reuse-values --set observability.enabled=false
+call helm upgrade esquire-infra-kc charts\infra\keycloak -f values\keycloak.yaml --reset-then-reuse-values --set observability.enabled=false --force-conflicts
 call kubectl rollout restart statefulset esquire-infra-kc-keycloak
 
 echo.

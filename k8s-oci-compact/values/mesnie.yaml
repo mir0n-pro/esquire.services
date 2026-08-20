@@ -1,0 +1,82 @@
+# Prod (OKE super-compact) overrides for k8s-compact/charts/esquire-mesnie
+# Mesnie is the household -- the WRITE side. It answers every enyMan and keySmith endpoint and
+# serves the identity work in process, so this ONE overlay carries what the classic OKE deploy
+# spread over values/enyman.yaml, values/keysmith.yaml and values/kcmaster.yaml.
+image:
+  repository: ghcr.io/mir0n-pro/esquire.mesnie
+  # tag injected by oke-up.bat (--set image.tag=%image_tag%) -- single release tag for the whole stack.
+  pullPolicy: Always
+
+springProfilesActive: console,dev-postgres
+
+# actuator/management probe port (F0 A6); set here to keep the OKE overlay in sync with the chart default (RF3)
+service:
+  managementPort: 8090
+
+db:
+  vendor: dev-postgres
+  host: esquire-infra-postgres
+  port: 5432
+  name: esq2025
+  username: esq2025
+
+# KeyCloak, reached in process through the identity gateway -- no kc bus, no kcMaster workload.
+# adminClientSecret is passed via --set at install (oke-up.bat), never a chart default.
+keycloak:
+  baseUrl: http://esquire-infra-kc-keycloak:8080/kc-auth
+  realm: esquire
+  adminClientId: esq-kcMaster
+
+logging:
+  levelRoot: ERROR
+  levelSf: WARN
+  levelMir0n: ERROR
+  levelDevelop: "OFF"
+  levelMsg: "OFF"
+
+nodeSelector:
+  tier: app
+
+# v1.2.10 HA (OKE Always-Free): x2 replicas, best-effort spread across the 3 app-tier nodes.
+# The StatefulSet ordinal gives each pod a distinct instanceNo (0/1) -> distinct entity-id digit
+# and distinct rod-id. Cap=10.
+replicaCount: 2
+topologySpread:
+  enabled: true
+
+# One process instead of three, so it takes the three workloads' room rather than a third of it.
+# Sized for the 1 OCPU / 6 GB app nodes (~4.75 GiB alloc).
+resources:
+  requests:
+    # 150m, not 250m. A request is a SCHEDULING FLOOR, not a ceiling -- and measured idle on OKE this
+    # process uses 3-5m. At 250m the app tier reserved 1150m of its 2520m while using ~20m, and a second
+    # BFF (100m) could not be placed. The limit below is untouched, so nothing about its ceiling changes.
+    cpu: 150m
+    memory: 768Mi
+  limits:
+    cpu: "1"
+    memory: 1280Mi
+
+# R1-R5 resilience budget promoted from the local-k8s overlay (pools fit Postgres
+# max_connections=200 across the x2 fleet).
+resilience:
+  tomcatMaxThreads: "25"          # R2
+  tomcatAcceptCount: "50"         # R2
+  dbPoolMax: "10"                 # R3
+  dbPoolMinIdle: "2"              # R3
+  dbConnectTimeoutMs: "5000"      # R3 fail-fast on pool acquire
+  dbSocketTimeoutSeconds: "35"    # R5
+  dbTcpKeepAlive: "true"          # R5
+
+# producer send-retry (block mode) on the entity broadcast bus.
+entity:
+  sendRetry: "true"
+
+# SUPER-COMPACT = the compact composition with audit on option (a), DB triggers: the app producer
+# stays OFF, no auKeep process exists and no audit bus carries traffic. The audit stack leaves the
+# application entirely -- zero code, one environment variable. The DB-side trigger DDL
+# (db.seed/<vendor>/triggers/all.sql) must be applied to the OKE postgres for (a) to write.
+# Point the audit ref at the explicit audit-off DISABLED bus (XRodDisabled no-op), which the compact
+# topology chart defines: v1.2.9 fail-fasts on a blank or undefined audit bus-id.
+audit:
+  busId: audit-off

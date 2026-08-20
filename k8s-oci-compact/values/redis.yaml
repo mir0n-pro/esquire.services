@@ -1,0 +1,25 @@
+# Prod (OKE super-compact) overrides for k8s-compact/charts/infra/redis
+# The BFF shared session store. It is what lets the BFF run TWO replicas here: express-session ->
+# connect-redis, so a login on one pod is visible to the other. The audit-(d) stream sink is NOT in
+# play on this profile -- audit is option (a), DB triggers -- so this Redis has exactly one job.
+image:
+  # cri-o on the OKE nodes runs short-name-mode=enforcing and rejects an unqualified image name.
+  repository: docker.io/redis
+  pullPolicy: Always
+
+# Beside postgres, activemq and keycloak: it is a data store, and the infra node is where the room is
+# (the app tier reserves nearly all its CPU while using ~5%). This also keeps it off the nodes whose
+# scheduling budget the request path needs.
+nodeSelector:
+  tier: infra
+
+# Small, but NOT unset. An unsized pod schedules BestEffort and is the first evicted under memory
+# pressure -- and evicting the session store drops every logged-in user at once. maxmemory is 384mb
+# in the chart's own args, so the limit sits just above it.
+resources:
+  requests:
+    cpu: 50m
+    memory: 192Mi
+  limits:
+    cpu: 250m
+    memory: 448Mi

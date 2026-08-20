@@ -92,10 +92,10 @@ WARNS = []
 METERS_EXPECTED = [        # present whenever o11y is on and the fleet has served ANY traffic
     "esq_gw_outer_seconds", "esq_gw_inner_seconds", "esq_srv_outer_seconds", "esq_srv_inner_seconds",
     "messaging_send_total", "messaging_receive_total", "messaging_send_duration_seconds",
-    "esq_biz_perm_check_total", "esq_biz_entity_ops_total", "esq_biz_tree_handler_dispatch_total",
+    "esq_biz_perm_check_total", "esq_biz_tree_handler_dispatch_total",
     "esq_biz_key_ops_total",                      # keySmith's own throughput -- the sign-in handshake reads an
                                                   # access profile, so any authenticated traffic fires it
-    "esq_biz_kc_sync_total", "esq_biz_kc_sync_duration_seconds", "esq_biz_keep_write_total",
+    "esq_biz_keep_write_total",
     "esq_biz_keep_write_duration_seconds",        # I48: twin of keep_write_total (EXPECTED), was drifting
     "http_server_requests_seconds", "esq_bff_inbound_duration_seconds",
     "esq_bff_outbound_duration_seconds",          # I48: the BFF->gw hop (I42/L8+L9). Present after any /api
@@ -106,6 +106,11 @@ METERS_CONDITIONAL = [     # legitimately EMPTY until the condition happens -- W
     "esq_biz_move_failed_total", "esq_biz_acct_tx_total", "esq_biz_acct_close_total",
     "esq_biz_acct_tx_duration_seconds",           # I48: twin of acct_tx_total (CONDITIONAL), was drifting
     "esq_biz_acct_fx_apply_total", "esq_biz_dict_lookup_total", "esq_biz_tree_rebuild_total",
+    "esq_biz_entity_ops_total",                   # a counter of CREATE and DELETE. Reads and saves never touch
+                                                  # it, and the driver does neither -- so empty is correct until
+                                                  # an e2e (or a create) has run. It reports PROVEN when it has.
+    "esq_biz_kc_sync_total",                      # kcMaster's push to the identity provider: it fires when an
+    "esq_biz_kc_sync_duration_seconds",           # identity is created or changed, not on ordinary traffic.
     "esq_biz_key_identity_total",                 # only when a save actually asks the identity provider for
                                                   # something -- a read-only run never fires it
     "esq_biz_move_processed_total", "esq_biz_gw_tokenrelay_total", "esq_biz_gw_tokenrelay_acquire_total",
@@ -176,6 +181,11 @@ if _NODES_COND:
 # sets EXCLUDE_METERS / EXCLUDE_TRACE_NODES so the same shared script validates the OKE fleet honestly.
 _EXCL_M = set(s.strip() for s in os.environ.get("EXCLUDE_METERS", "").split(",") if s.strip())
 _EXCL_T = set(s.strip() for s in os.environ.get("EXCLUDE_TRACE_NODES", "").split(",") if s.strip())
+# The same idea for the PANEL DEPENDENCIES: a composition that does not use a whole family of destinations has no
+# metrics for them, and demanding them is a permanent false FAIL. Super-compact declares one topic and no queue
+# at all, so every activemq_queue_* series is legitimately absent. An entry matches a metric name exactly or as
+# a PREFIX, which is what lets one entry cover a family.
+_EXCL_D = tuple(s.strip() for s in os.environ.get("EXCLUDE_DEPS", "").split(",") if s.strip())
 if _EXCL_M:
     METERS_EXPECTED = [m for m in METERS_EXPECTED if m not in _EXCL_M]
     METERS_CONDITIONAL = [m for m in METERS_CONDITIONAL if m not in _EXCL_M]
@@ -585,6 +595,8 @@ def check_dependencies():
         return
     # DERIVED from traffic, not scraped from a target -> empty is legitimate on an idle stack. WARN, never FAIL.
     traffic_derived = ("traces_",)
+    if _EXCL_D:
+        wanted = set(n for n in wanted if not n.startswith(_EXCL_D))
     missing = sorted(n for n in wanted if series_count(n) == 0)
     for n in missing:
         if n.startswith(traffic_derived):

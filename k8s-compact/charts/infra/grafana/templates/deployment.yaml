@@ -19,7 +19,7 @@ spec:
         # rolled the pod on a datasource change. See I5. (checksum/dashboards below is correct as-is: it reads
         # the dashboards/*.json data files, which are NOT under templates/.)
         checksum/datasource: {{ include (print $.Template.BasePath "/configmap-datasource.yaml") . | sha256sum }}
-        checksum/dashboards: {{ printf "%s%s%s" (.Files.Get "dashboards/esquire-services.json") (.Files.Get "dashboards/esquire-logging.json") (.Files.Get "dashboards/esquire-topology.json") | sha256sum }}
+        checksum/dashboards: {{ printf "%s%s%s%s" (.Files.Get "dashboards/esquire-services.json") (.Files.Get "dashboards/esquire-logging.json") (.Files.Get "dashboards/esquire-topology.json") (.Values.dashboardTopology | default "") | sha256sum }}
     spec:
       {{- with .Values.nodeSelector }}
       nodeSelector:

@@ -54,21 +54,33 @@ for %%s in (gateward mesnie pacman aukeep backend) do (
 
 rem === Shared messaging-bus topology (the one ConfigMap every service mounts at /etc/esquire/topology.yml) ===
 echo --- Installing topology...
-call helm upgrade --install esquire-topology  charts\esquire-topology || exit /b 1
+rem === DROP THE OTHER PROFILE FIRST ===
+rem The two stacks are MUTUALLY EXCLUSIVE: gateWard and Mesnie answer the same ingress hosts the gateway and the identity trio do,
+rem so a machine that ran the other one keeps serving from BOTH shapes at once -- and helm never notices,
+rem because they are different releases. k8s-down.bat drops them, but nothing forces anyone to run it
+rem before a bring-up. "not found" is the normal case here and is ignored.
+echo --- Dropping the CLASSIC releases (mutually exclusive with this stack)...
+call helm uninstall esquire-gateway 2>nul
+call helm uninstall esquire-biztree 2>nul
+call helm uninstall esquire-enyman 2>nul
+call helm uninstall esquire-keysmith 2>nul
+call helm uninstall esquire-kcmaster 2>nul
+
+call helm upgrade --install esquire-topology  charts\esquire-topology --force-conflicts || exit /b 1
 
 rem === Infra ===
 echo --- Installing postgres...
-call helm upgrade --install esquire-infra     charts\infra\postgres  -f values\postgres.yaml || exit /b 1
+call helm upgrade --install esquire-infra     charts\infra\postgres  -f values\postgres.yaml --force-conflicts || exit /b 1
 echo --- Installing activemq...
-call helm upgrade --install esquire-infra-amq charts\infra\activemq  -f values\activemq.yaml || exit /b 1
+call helm upgrade --install esquire-infra-amq charts\infra\activemq  -f values\activemq.yaml --force-conflicts || exit /b 1
 rem kafka + redis back the audit (ck)/(d)/(dk) sinks -- the topology defines them so any sink is selectable
 rem on local/dev k8s. (OKE ships neither: it audits via DB triggers.)
 echo --- Installing kafka...
-call helm upgrade --install esquire-infra-kafka charts\infra\kafka || exit /b 1
+call helm upgrade --install esquire-infra-kafka charts\infra\kafka --force-conflicts || exit /b 1
 echo --- Installing redis...
-call helm upgrade --install esquire-infra-redis charts\infra\redis || exit /b 1
+call helm upgrade --install esquire-infra-redis charts\infra\redis --force-conflicts || exit /b 1
 echo --- Installing keycloak...
-call helm upgrade --install esquire-infra-kc  charts\infra\keycloak  -f values\keycloak.yaml || exit /b 1
+call helm upgrade --install esquire-infra-kc  charts\infra\keycloak  -f values\keycloak.yaml --force-conflicts || exit /b 1
 
 echo Waiting for postgres...
 kubectl rollout status statefulset/esquire-infra-postgres -n default --timeout=120s
@@ -83,10 +95,10 @@ rem === Services (depend on postgres + amq) ===
 rem No biztree here: gateWard holds the tree cache in the gate's own process, and it is installed with the
 rem other KC-dependent services below (it needs KeyCloak for the JWKS its security chain fetches).
 echo --- Installing pacman...
-call helm upgrade --install esquire-pacman    charts\esquire-pacman    -f values\pacman.yaml    || exit /b 1
+call helm upgrade --install esquire-pacman    charts\esquire-pacman    -f values\pacman.yaml    --force-conflicts || exit /b 1
 rem auKeep drains the audit bus. It stays its OWN workload on the compact profile: what compact composes is
 rem the request path, and the audit sink is not on it.
-call helm upgrade --install esquire-aukeep    charts\esquire-aukeep    -f values\aukeep.yaml    || exit /b 1
+call helm upgrade --install esquire-aukeep    charts\esquire-aukeep    -f values\aukeep.yaml    --force-conflicts || exit /b 1
 
 echo Waiting for keycloak...
 kubectl rollout status statefulset/esquire-infra-kc-keycloak -n default --timeout=180s
@@ -94,25 +106,25 @@ kubectl rollout status statefulset/esquire-infra-kc-keycloak -n default --timeou
 rem === KC-dependent ===
 rem Mesnie carries the KeyCloak admin credential: the identity gateway drives the admin API in-process,
 rem so the secret belongs to this process rather than to a separate kcMaster.
-call helm upgrade --install esquire-mesnie    charts\esquire-mesnie    -f values\mesnie.yaml ^
+call helm upgrade --install esquire-mesnie    charts\esquire-mesnie    -f values\mesnie.yaml --force-conflicts ^
   --set keycloak.adminClientSecret=MHgq0Nu69u2uJ2johaK1wxQLMdakELXN || exit /b 1
 
 rem gateWard: the gate AND the tree cache in one process. Dev exchange-client secret passed via --set
 rem (matches realm import), as the gateway's was.
 echo --- Installing gateward...
-call helm upgrade --install esquire-gateward  charts\esquire-gateward  -f values\gateward.yaml ^
+call helm upgrade --install esquire-gateward  charts\esquire-gateward  -f values\gateward.yaml --force-conflicts ^
   --set tokenRelay.phantom.exchangeClientSecret=esq-gw-exchange-dev-secret-rotate-in-prod || exit /b 1
 
 rem A longer wait than the gateway's 60s on purpose: this pod reports ready only once the tree cache has
 rem loaded from the database (the readiness group carries cacheReadiness), so the wait covers a whole
 rem cache load, not just a Netty bind.
 echo Waiting for gateward...
-kubectl rollout status statefulset/esquire-gateward-gateward -n default --timeout=180s
+kubectl rollout status statefulset/esquire-gateward -n default --timeout=180s
 
 rem === Backend / BFF ===
 rem Secrets passed via --set (same dev literals as compose.yaml + realm import).
 echo --- Installing backend ^(BFF^)...
-call helm upgrade --install esquire-backend   charts\esquire-backend   -f values\backend.yaml ^
+call helm upgrade --install esquire-backend   charts\esquire-backend   -f values\backend.yaml --force-conflicts ^
   --set keycloak.clientSecret=esq-angular-bff-dev-secret-rotate-in-prod ^
   --set session.secret=esq-bff-dev-session-secret-rotate-in-prod || exit /b 1
 

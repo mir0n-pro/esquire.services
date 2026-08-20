@@ -8,28 +8,40 @@
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: {{ .Release.Name }}-backend
+  name: {{ .Release.Name }}
   labels:
-    app: {{ .Release.Name }}-backend
+    app: {{ .Release.Name }}
 spec:
   # Replicas > 1 REQUIRE a shared session store: set redis.url (-> REDIS_URL) so the BFF keeps
   # sessions in redis (connect-redis). Without it the BFF uses express-session's in-memory
   # MemoryStore and round-robin splits logins -- keep replicas: 1 (OKE today). StatefulSet here
   # is for fleet-uniform naming.
-  serviceName: {{ .Release.Name }}-backend-hl
+  serviceName: {{ .Release.Name }}-hl
   replicas: {{ $replicas }}
   podManagementPolicy: Parallel
   selector:
     matchLabels:
-      app: {{ .Release.Name }}-backend
+      app: {{ .Release.Name }}
   template:
     metadata:
       labels:
-        app: {{ .Release.Name }}-backend
+        app: {{ .Release.Name }}
     spec:
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if .Values.topologySpread.enabled }}
+      # HA: best-effort spread of the replicas across distinct nodes (soft -- a node
+      # loss still schedules). Off by default (pre-HA / single-node local); the OKE
+      # overlay turns it on so the x2 replicas land on different app-tier nodes.
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: {{ .Release.Name }}
       {{- end }}
       containers:
         - name: backend
@@ -43,9 +55,9 @@ spec:
             - containerPort: {{ .Values.service.port }}
           envFrom:
             - configMapRef:
-                name: {{ .Release.Name }}-backend-config
+                name: {{ .Release.Name }}-config
             - secretRef:
-                name: {{ .Release.Name }}-backend-secret
+                name: {{ .Release.Name }}-secret
           env:
             - name: POD_NAME
               valueFrom:
@@ -81,5 +93,5 @@ spec:
       volumes:
         - name: spa-config
           configMap:
-            name: {{ .Release.Name }}-backend-spaconfig
+            name: {{ .Release.Name }}-spaconfig
       {{- end }}

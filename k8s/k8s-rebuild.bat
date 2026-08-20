@@ -47,7 +47,7 @@ if not "%CTX%"=="docker-desktop" (
 rem === Shared topology ConfigMap must exist BEFORE any service helm-upgrade (the new deployments mount it;
 rem     a missing ConfigMap would fail the pod + time out the rollout). Idempotent; k8s-up installs it too. ===
 echo --- ensuring topology ConfigMap...
-call helm upgrade --install esquire-topology charts\esquire-topology || exit /b 1
+call helm upgrade --install esquire-topology charts\esquire-topology --force-conflicts || exit /b 1
 
 set TARGET=%1
 if "%TARGET%"=="" set TARGET=all
@@ -124,7 +124,7 @@ if errorlevel 1 (
   echo [skip] esquire-infra-amq not deployed -- yaml stamped %TS%; next k8s-up will deploy it.
 ) else (
   echo [helm] upgrading esquire-infra-amq to tag %TS%...
-  call helm upgrade esquire-infra-amq charts\infra\activemq -f values\activemq.yaml --reset-then-reuse-values --set image.tag=%TS%
+  call helm upgrade esquire-infra-amq charts\infra\activemq -f values\activemq.yaml --reset-then-reuse-values --set image.tag=%TS% --force-conflicts
   if errorlevel 1 ( echo helm upgrade failed for esquire-infra-amq & exit /b 1 )
   kubectl rollout status statefulset/esquire-infra-amq-activemq --timeout=180s
 )
@@ -176,7 +176,7 @@ if errorlevel 1 (
   goto end
 )
 echo [helm] upgrading esquire-backend to tag %TS%...
-call helm upgrade esquire-backend charts\esquire-backend --reset-then-reuse-values --set image.tag=%TS%
+call helm upgrade esquire-backend charts\esquire-backend --reset-then-reuse-values --set image.tag=%TS% --force-conflicts
 if errorlevel 1 ( echo helm upgrade failed & exit /b 1 )
 kubectl rollout status statefulset/esquire-backend-backend --timeout=180s
 goto end
@@ -218,7 +218,7 @@ rem (nothing to --reset-then-reuse yet). kcMaster's admin secret matches the rea
 rem same dev value k8s-up.bat / compose use.
 set "SECRETS="
 if /i "%SVC%"=="kcmaster" set "SECRETS=--set keycloak.adminClientSecret=MHgq0Nu69u2uJ2johaK1wxQLMdakELXN"
-call helm upgrade esquire-%SVC% charts\esquire-%SVC% --reset-then-reuse-values --set image.tag=%TS% %SECRETS%
+call helm upgrade esquire-%SVC% charts\esquire-%SVC% --reset-then-reuse-values --set image.tag=%TS% %SECRETS% --force-conflicts
 if errorlevel 1 ( echo helm upgrade failed for esquire-%SVC% & exit /b 1 )
 kubectl rollout status statefulset/esquire-%SVC%-%SVC% --timeout=180s
 exit /b 0

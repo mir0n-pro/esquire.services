@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 # ===========================================================================
-# Esquire services -- build + push the app images to GHCR for OKE (phase 3).
+# Esquire services -- build + push the SUPER-COMPACT app images to GHCR for OKE.
 #
-# Mirrors k8s-oci/ghcr-push.bat (+ the mvn pass of oke-rebuild.bat) but for a
+# SEVEN images, not ten (mir0n, 2026-08-19): OKE runs super-compact and nothing else.
+#
+# Mirrors k8s-oci-compact/ghcr-push.bat (+ the mvn pass of oke-rebuild.bat) but for a
 # GitHub-HOSTED Linux runner. Builds MULTI-ARCH (linux/amd64,linux/arm64) because
 # OKE runs on Ampere A1.Flex (arm64) nodes; amd64 is kept so the same tags pull
 # on an x86 box too.
@@ -54,13 +56,12 @@ bx() {  # image  context  dockerfile
     -f "$3" "$2"
 }
 
-# 6 Spring services -- context = the service dir; its Dockerfile COPYs target/*.jar
-bx esquire.biztree  "${SERVICES}/bizTree"  "${SERVICES}/bizTree/Dockerfile"
-bx esquire.enyman   "${SERVICES}/enyMan"   "${SERVICES}/enyMan/Dockerfile"
+# 3 Spring services -- context = the service dir; its Dockerfile COPYs its own named jar.
+# Three, not six: Mesnie is the one image for enyMan, keySmith and the identity work, and
+# gateWard is the one image for the gate and the bizTree cache.
+bx esquire.mesnie   "${SERVICES}/mesnie"   "${SERVICES}/mesnie/Dockerfile"
 bx esquire.pacman   "${SERVICES}/pacMan"   "${SERVICES}/pacMan/Dockerfile"
-bx esquire.keysmith "${SERVICES}/keySmith" "${SERVICES}/keySmith/Dockerfile"
-bx esquire.kcmaster "${SERVICES}/kcMaster" "${SERVICES}/kcMaster/Dockerfile"
-bx esquire.gateway  "${SERVICES}/gateway"  "${SERVICES}/gateway/Dockerfile"
+bx esquire.gateward "${SERVICES}/gateWard" "${SERVICES}/gateWard/Dockerfile"
 
 # backend / BFF -- multi-stage; context = explorer/ so it reaches backend/ + frontend/
 bx esquire.backend  "${WS}/explorer"       "${WS}/explorer/backend/Dockerfile"

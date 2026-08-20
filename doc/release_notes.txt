@@ -1,6 +1,19 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v1.2.13-2608.2017  v1.2.13 -- the composed services on the cloud
+    :Feature:     the cloud runs the composed setup: four programs instead of eight, with the change history
+                  written by the database itself
+    :Feature:     the automated cloud deploy ships that setup -- seven images instead of ten
+    :Doc:         the component model drawing is updated
+    Components:   .github (CI/CD),
+                  activemq,
+                  compose-compact,
+                  k8s,
+                  k8s-compact,
+                  k8s-oci-compact,
+                  o11y
+
 v1.2.13-2608.1823  v1.2.13 -- observability for the composed services
     :Feature:     keySmith reports its own work -- its reads and saves by outcome, and what it asks the
                   identity provider to do

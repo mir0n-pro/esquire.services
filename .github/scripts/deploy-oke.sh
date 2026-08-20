@@ -1,16 +1,21 @@
 #!/usr/bin/env bash
 # ===========================================================================
-# Esquire services -- deploy the stack to OKE (phase 3).
+# Esquire services -- deploy the SUPER-COMPACT stack to OKE.
 #
-# Bash mirror of k8s-oci/oke-up.bat (the proven manual flow) for a GitHub-HOSTED
+# OKE runs super-compact and nothing else (mir0n, 2026-08-19): four application processes --
+# Mesnie (enyMan + keySmith + the identity work), gateWard (the gate + the bizTree cache),
+# pacMan and the BFF -- so 8 application pods where classic ran 13. The k8s-oci folder stays
+# in place as the classic record; it is no longer maintained.
+#
+# Bash mirror of k8s-oci-compact/oke-up.bat (the proven manual flow) for a GitHub-HOSTED
 # Linux runner: `helm upgrade --install` each chart with the OKE values overlay,
 # the freshly-pushed GHCR image tag, and the prod secrets from the Environment.
 #
 # Reuses (single source of deploy logic, like phase 2):
-#   k8s/charts/*           -- the same charts as local (image repo/tag/policy overridable)
-#   k8s-oci/values/*.yaml  -- the OKE overlays (GHCR repo, pullPolicy Always,
-#                             audit.enabled=false -> option (a) DB triggers)
-#   k8s-oci/cluster/ingress.yaml
+#   k8s-compact/charts/*          -- the same charts as local compact (image repo/tag/policy overridable)
+#   k8s-oci-compact/values/*.yaml -- the OKE overlays (GHCR repo, pullPolicy Always, audit-off)
+#   k8s-oci-compact/esquire-topology.yml
+#   k8s-oci-compact/cluster/ingress.yaml
 #
 # Topology note: OKE runs with audit OFF (free-tier demo). The app producers stay
 # OFF (the OKE values point the audit ref at audit-off), so there is NO auKeep pod
@@ -42,9 +47,9 @@ BFF_SESSION_SECRET="${BFF_SESSION_SECRET:-esq-bff-session-secret}"
 KCMASTER_ADMIN_SECRET="${KCMASTER_ADMIN_SECRET:-MHgq0Nu69u2uJ2johaK1wxQLMdakELXN}"
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-CHARTS="$(cd "${HERE}/../../k8s/charts" && pwd)"
-OCIVALS="$(cd "${HERE}/../../k8s-oci/values" && pwd)"
-INGRESS="${HERE}/../../k8s-oci/cluster/ingress.yaml"
+CHARTS="$(cd "${HERE}/../../k8s-compact/charts" && pwd)"
+OCIVALS="$(cd "${HERE}/../../k8s-oci-compact/values" && pwd)"
+INGRESS="${HERE}/../../k8s-oci-compact/cluster/ingress.yaml"
 
 # --- Context safety guard: never deploy to a local cluster ---
 CTX="$(kubectl config current-context)"
@@ -54,6 +59,16 @@ case "${CTX}" in
     exit 1 ;;
 esac
 echo "=== deploying to context: ${CTX}   image tag: ${IMAGE_TAG} ==="
+
+# --- Drop the shape this one replaces. One cluster, one shape: a classic release left running is how
+#     a cluster ends up serving from two shapes at once, and the Always-Free tier has no room for both.
+#     "not found" is the normal case on a cluster already running super-compact. ---
+for rel in esquire-gateway esquire-biztree esquire-enyman esquire-keysmith esquire-kcmaster esquire-aukeep; do
+  if helm status "${rel}" >/dev/null 2>&1; then
+    echo "--- removing classic release ${rel}"
+    helm uninstall "${rel}" || true
+  fi
+done
 
 # --- Infra (postgres / activemq / keycloak). All three are built + pushed per release by oke-build-push.sh
 #     (postgres bakes the db.seed schema; keycloak bakes the esquire theme + realm import; activemq bakes
@@ -73,7 +88,10 @@ infra() {  # release  chart  [helm args...]
     echo "--- infra: ${rel} left running (DEPLOY_INFRA=false -- not re-rolled, keeps the app buses up)"
   else
     echo "--- infra: ${rel} (install/upgrade)"
-    helm upgrade --install "${rel}" "${chart}" "$@"
+# --force-conflicts on every upgrade: helm 4 applies SERVER-SIDE, and anything that scales OUTSIDE helm
+# (the perf matrix does, per cell and again in its restore) takes ownership of .spec.replicas -- an upgrade
+# that then sets replicas from the values overlay is REFUSED. That is how OKE deploys failed on 2026-08-19.
+    helm upgrade --install "${rel}" "${chart}" "$@" --force-conflicts
   fi
 }
 
@@ -91,52 +109,49 @@ infra esquire-infra-kc "${CHARTS}/infra/keycloak" \
   --set image.tag="${IMAGE_TAG}" \
   --set keycloak.adminPassword="${MIR0N_PWD}" --wait --timeout 6m
 
+# --- Redis: the BFF shared session store, pinned to the infra node. It is what lets the BFF run TWO
+#     replicas here -- without a shared store the in-memory one would round-robin-split logins. Not an
+#     audit sink on this profile: audit is option (a). Treated as infra, so a routine app deploy does
+#     not re-roll it and drop every session. ---
+infra esquire-infra-redis "${CHARTS}/infra/redis" \
+  -f "${OCIVALS}/redis.yaml" --wait --timeout 3m
+
 # --- Shared messaging-bus topology (the one ConfigMap every service mounts at
 #     /etc/esquire/topology.yml). Must exist BEFORE the services -- their pods mount
-#     it as a volume and won't start without it. OKE feeds its own audit-free cloud
-#     topology (k8s-oci/esquire-topology.yml: entity + KC buses only -- OKE audits via
-#     DB triggers, no audit bus / no auKeep) into the chart via --set-file. ---
+#     it as a volume and won't start without it. OKE feeds its own topology
+#     (k8s-oci-compact/esquire-topology.yml) into the chart via --set-file: TWO buses, because
+#     super-compact references exactly two -- esquire.entity, and audit-off for the audit ref.
+#     No esquire.kc (Mesnie serves identity in process) and no audit-c/ck/d/dk (no auKeep). ---
 echo "--- topology"
-helm upgrade --install esquire-topology "${CHARTS}/esquire-topology" \
-  --set-file topologyContent="${HERE}/../../k8s-oci/esquire-topology.yml" --wait --timeout 2m
+helm upgrade --install esquire-topology "${CHARTS}/esquire-topology" --force-conflicts \
+  --set-file topologyContent="${HERE}/../../k8s-oci-compact/esquire-topology.yml" --wait --timeout 2m
 
 # --- Services (new release tag) ---
-echo "--- biztree"
-helm upgrade --install esquire-biztree "${CHARTS}/esquire-biztree" \
-  -f "${OCIVALS}/biztree.yaml" \
-  --set image.tag="${IMAGE_TAG}" --set db.password="${MIR0N_PWD}" --wait --timeout 5m
-
-echo "--- enyman"
-helm upgrade --install esquire-enyman "${CHARTS}/esquire-enyman" \
-  -f "${OCIVALS}/enyman.yaml" \
-  --set image.tag="${IMAGE_TAG}" --set db.password="${MIR0N_PWD}" --wait --timeout 5m
+# No biztree and no enyman/keysmith/kcmaster: gateWard answers the tree routes from its own cache,
+# and Mesnie answers for enyMan, keySmith and the identity work in one workload.
+echo "--- mesnie"
+helm upgrade --install esquire-mesnie "${CHARTS}/esquire-mesnie" --force-conflicts \
+  -f "${OCIVALS}/mesnie.yaml" \
+  --set image.tag="${IMAGE_TAG}" --set db.password="${MIR0N_PWD}" \
+  --set keycloak.adminClientSecret="${KCMASTER_ADMIN_SECRET}" --wait --timeout 5m
 
 echo "--- pacman"
-helm upgrade --install esquire-pacman "${CHARTS}/esquire-pacman" \
+helm upgrade --install esquire-pacman "${CHARTS}/esquire-pacman" --force-conflicts \
   -f "${OCIVALS}/pacman.yaml" \
   --set image.tag="${IMAGE_TAG}" --set db.password="${MIR0N_PWD}" --wait --timeout 5m
 
-echo "--- keysmith"
-helm upgrade --install esquire-keysmith "${CHARTS}/esquire-keysmith" \
-  -f "${OCIVALS}/keysmith.yaml" \
-  --set image.tag="${IMAGE_TAG}" --set db.password="${MIR0N_PWD}" --wait --timeout 5m
-
-# --- KC-dependent ---
-echo "--- kcmaster"
-helm upgrade --install esquire-kcmaster "${CHARTS}/esquire-kcmaster" \
-  -f "${OCIVALS}/kcmaster.yaml" \
-  --set image.tag="${IMAGE_TAG}" \
-  --set keycloak.adminClientSecret="${KCMASTER_ADMIN_SECRET}" --wait --timeout 5m
-
-echo "--- gateway"
-helm upgrade --install esquire-gateway "${CHARTS}/esquire-gateway" \
-  -f "${OCIVALS}/gateway.yaml" \
-  --set image.tag="${IMAGE_TAG}" \
-  --set tokenRelay.phantom.exchangeClientSecret="${GW_EXCHANGE_SECRET}" --wait --timeout 5m
+# --- The gate. gateWard loads the whole tree from postgres before it reports ready, so it takes a
+#     longer timeout than the standalone gateway did: its readiness gate is the defence against a
+#     cold cache answering. ---
+echo "--- gateward"
+helm upgrade --install esquire-gateward "${CHARTS}/esquire-gateward" --force-conflicts \
+  -f "${OCIVALS}/gateward.yaml" \
+  --set image.tag="${IMAGE_TAG}" --set db.password="${MIR0N_PWD}" \
+  --set tokenRelay.phantom.exchangeClientSecret="${GW_EXCHANGE_SECRET}" --wait --timeout 6m
 
 # --- Backend / BFF (serves SPA on /, owns /auth/* + /api/*) ---
 echo "--- backend (BFF)"
-helm upgrade --install esquire-backend "${CHARTS}/esquire-backend" \
+helm upgrade --install esquire-backend "${CHARTS}/esquire-backend" --force-conflicts \
   -f "${OCIVALS}/backend.yaml" \
   --set image.tag="${IMAGE_TAG}" \
   --set keycloak.clientSecret="${BFF_KC_SECRET}" \

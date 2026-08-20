@@ -29,15 +29,15 @@ keycloak:
   clientId: esq-angular
 
 backends:
-  biztreeHost: esquire-biztree-biztree
+  biztreeHost: esquire-biztree
   biztreePort: 3002
   # Mesnie answers for enyMan and keySmith in ONE workload, so both routes point at it on one port.
   # The gateway's own configuration is untouched -- only the value of the host it is pointed at.
-  enymanHost: esquire-mesnie-mesnie
+  enymanHost: esquire-mesnie
   enymanPort: 3003
-  pacmanHost: esquire-pacman-pacman
+  pacmanHost: esquire-pacman
   pacmanPort: 3003
-  keysmithHost: esquire-mesnie-mesnie
+  keysmithHost: esquire-mesnie
   keysmithPort: 3003
 
 cors:

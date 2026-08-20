@@ -41,6 +41,12 @@ spec:
             # The spool memoryUsage (70% of heap) overflows into -- the only disk an in-memory bus can touch.
             - name: ESQ_AMQ_TEMP_LIMIT
               value: {{ .Values.storage.tempLimit | quote }}
+            {{- if .Values.destinations }}
+            # Which destinations this composition actually uses -- see values.yaml. Unset leaves the image's
+            # baked-in classic set, so the classic stacks need no value at all.
+            - name: ESQ_AMQ_DESTINATIONS
+              value: {{ .Values.destinations | quote }}
+            {{- end }}
           ports:
             - containerPort: 61616
             - containerPort: 8161

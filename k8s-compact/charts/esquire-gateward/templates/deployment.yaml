@@ -8,20 +8,20 @@
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: {{ .Release.Name }}-gateward
+  name: {{ .Release.Name }}
   labels:
-    app: {{ .Release.Name }}-gateward
+    app: {{ .Release.Name }}
 spec:
-  serviceName: {{ .Release.Name }}-gateward-hl
+  serviceName: {{ .Release.Name }}-hl
   replicas: {{ $replicas }}
   podManagementPolicy: Parallel
   selector:
     matchLabels:
-      app: {{ .Release.Name }}-gateward
+      app: {{ .Release.Name }}
   template:
     metadata:
       labels:
-        app: {{ .Release.Name }}-gateward
+        app: {{ .Release.Name }}
     spec:
       {{- with .Values.nodeSelector }}
       nodeSelector:
@@ -37,7 +37,7 @@ spec:
           whenUnsatisfiable: ScheduleAnyway
           labelSelector:
             matchLabels:
-              app: {{ .Release.Name }}-gateward
+              app: {{ .Release.Name }}
       {{- end }}
       containers:
         - name: gateward
@@ -57,14 +57,14 @@ spec:
             - containerPort: {{ .Values.service.port }}
           envFrom:
             - configMapRef:
-                name: {{ .Release.Name }}-gateward-config
+                name: {{ .Release.Name }}-config
           env:
             # The ward loads its cache from the database, so this process needs the password the standalone
             # bizTree needed. The gate alone never did.
             - name: DB_BIZTREE_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: {{ .Release.Name }}-gateward-secret
+                  name: {{ .Release.Name }}-secret
                   key: db-password
             # Downward API -- POD_NAME is the host identity EsqUtils.instanceHost() reads; instanceNo()
             # parses its trailing StatefulSet ordinal ("gateward-0" -> 0) so each pod owns a distinct rod-id.
@@ -76,7 +76,7 @@ spec:
             - name: ESQ_GW_EXCHANGE_CLIENT_SECRET
               valueFrom:
                 secretKeyRef:
-                  name: {{ .Release.Name }}-gateward-secret
+                  name: {{ .Release.Name }}-secret
                   key: exchange-client-secret
           {{- end }}
           # The three probes address the health GROUPS, not the aggregate: readiness may depool the pod, but only

@@ -516,6 +516,53 @@ K8S_LEFT = {"pacman": 460, "mesnie": 460,
             "gateward": 730, "keycloak": 730, "collector": 730,
             "backend": 1000}
 
+# OKE (super-compact) COLUMNS -- mir0n's arrangement. auKeep and the audit lane are gone, so the picture is
+# five columns instead of the compact six, and the one surviving lane moves from the far left to BETWEEN the
+# services and the gate -- which is where the messages actually travel:
+#
+#     Esq2025 | pacMan / Mesnie | msgBus + AMQ | gateWard / KEYCLOAK | Explorer
+#
+# Spacing is the picture's own unit (34) throughout, and a stack is 236 wide (W 140 + PEEK_X 96):
+#   postgres 30 ends 170 | services 204 end 440 | lane 474 ends 520 | gate 554 ends 790 | Explorer 824 ends 1060
+# The broker sits centred UNDER the lane: 474 + SPINE_W/2 - W/2 = 427. The Collector cannot follow the gate's
+# column here -- it shares the broker's row and AMQ now ends at 567, so it sits one unit clear at 601.
+# Tops do not move -- only the columns do.
+# Esq2025 sits BETWEEN pacMan and Mesnie vertically, measured from the LAST card of the one above: pacMan 1 ends
+# at 130, Mesnie 0 starts at 332, so the midpoint is 231 and an 80-tall card starts at 191. Horizontally it sits
+# on the legend's TROUBLE column (the legend starts at 30 and its second swatch at +66, so 96). The store is the
+# thing both services write to.
+OKE_LEFT = {"postgres": 96,
+            "pacman": 204, "mesnie": 204,
+            "activemq": 473,
+            "gateward": 647, "keycloak": 647, "collector": 647,
+            "backend": 917}
+OKE_TOP = {"postgres": 191}
+# The lane clears the services' front card (which ends at 440) by 80, not by the bare 34 -- the taps need room to
+# read as taps. AMQ follows it, centred: 520 + SPINE_W/2 - W/2 = 473. The Collector clears AMQ (ends 613) by 34 at
+# 647, and the gate column lines up ON the Collector. The Explorer then clears the gateWard STACK (ends 883).
+OKE_BUS_LEFT = {"esquire.entity": 520}
+# pacMan and Mesnie sit to the LEFT of the lane now, so their stacks must open AWAY from it: instance 1 behind
+# and to the LEFT of instance 0, the same mirror auKeep uses on the other boards. Unmirrored, the strip a card
+# behind keeps for its name and numbers would run straight into the lane its own arrows cross.
+OKE_MIRROR = {"pacman", "mesnie"}
+# Mesnie now ends at 510 in the left column, so the legend drops below it rather than sitting across it.
+OKE_LEGEND_TOP = 560
+# The store sits to the LEFT of everything that writes to it, so EVERY line into it lands on its RIGHT border --
+# pacMan's, Mesnie's and gateWard's alike, which is what makes the three read as one bundle arriving at one door.
+# The service ends stay on pacMan's BOTTOM and Mesnie's TOP: those two stacks are mirrored, so the cards behind
+# sit against their left borders and a line leaving there would run straight across a card of its own stack.
+OKE_PINNED_EDGE = {
+    ("pacman", "postgres"):   {"x": 0, "y": -1},   # leave pacMan's BOTTOM  (canvas y is UP)
+    ("postgres", "pacman"):   {"x": 1, "y": 0},    # land on Esq2025's RIGHT
+    ("mesnie", "postgres"):   {"x": 0, "y": 1},    # leave Mesnie's TOP
+    ("postgres", "mesnie"):   {"x": 1, "y": 0},    # land on Esq2025's RIGHT
+    ("gateward", "postgres"): {"x": -1, "y": 0},   # leave gateWard's LEFT
+    ("postgres", "gateward"): {"x": 1, "y": 0},    # land on Esq2025's RIGHT
+}
+# pacMan's tap takes the same point on its edge that the Explorer's line takes on KeyCloak's right border, so the
+# two read alike across the board. (The anchor's y is UP: positive sits above the middle.)
+OKE_EDGE_BIAS = {("pacman", "bus:esquire.entity"): 0.4}
+
 # k8s-only FLOW overrides -- what REDUNDANCY changes about the arrows, which the single-instance picture cannot
 # show. Mesnie is already `both` on the entity lane at x1 (enyMan publishes and listens for its peers'), so this
 # profile has nothing left to override -- the map stays, empty, because the next composed service may need it.
@@ -560,6 +607,10 @@ INNER_EDGE = "rgba(255, 255, 255, 0.55)"
 #   * "instances read 0,1 left to right"         -- given up on auKeep alone, where they read 1,0. Harmless: every
 #                                                   card is LABELLED with its own instance number.
 MIRROR = {"aukeep"}   # all of auKeep's wiring leaves right and below, so its stack opens away from its own lines
+
+# Where the legend block starts. It lives in the LEFT column, under the store, and the column's contents differ
+# per shape -- on OKE the services moved into it, so the legend goes below them instead of beside them.
+LEGEND_TOP = 420
 
 
 def cards(name):
@@ -1044,12 +1095,12 @@ def inner_blocks(name):
                        "color": {"fixed": "#FFFFFF"}, "size": 11,
                        "text": {"fixed": "", "mode": "fixed"}},
             "constraint": {"horizontal": "left", "vertical": "top"},
-            "placement": {"left": c["left"] + (W - INNER_W) / 2.0,
+            "placement": {"left": card_left(name, 0) + (W - INNER_W) / 2.0,
                           "top": first_top + i * (box_h + INNER_GAP),
                           "width": INNER_W, "height": box_h, "rotation": 0},
             "connections": [],
         })
-        block_left = c["left"] + (W - INNER_W) / 2.0
+        block_left = card_left(name, 0) + (W - INNER_W) / 2.0
         block_top = first_top + i * (box_h + INNER_GAP)
         mark = INNER_ICON.get(label)
         icon_w = min(box_h - 6, 22)
@@ -1139,7 +1190,7 @@ def legend():
     is the state a monitoring screen exists for -- the component is UP and in TROUBLE, which is precisely the
     condition a plain up/down board reports as "fine".
     """
-    L, T = 30, 420
+    L, T = 30, LEGEND_TOP
     out = []
 
     def txt(text, left, top, width, color, size=11, bold=False):
@@ -1392,6 +1443,8 @@ def canvas():
             # The other end of a bus tap is the LANE, at the card's own height (the tap is horizontal), so its
             # vertical offset is ZERO -- it heads straight sideways, neither up nor down.
             item = {"kind": "bus", "comp": name, "bus": b, "flow": flow, "side": side,
+                    # so EDGE_BIAS can nudge ONE tap along its edge -- keyed (component, "bus:<id>")
+                    "other": "bus:" + b["id"],
                     "ox": b["left"] + SPINE_W / 2.0,
                     "oy": elem_top(name, side) + CH(name) / 2.0}
             ends.setdefault(key, []).append(item)
@@ -1440,7 +1493,7 @@ def canvas():
                 item["anchor"] = {"x": 1 if side == "R" else -1, "y": -pos}
             else:
                 item["anchor"] = {"x": pos, "y": 1 if side == "T" else -1}
-            other = item.get("pair", {}).get("dst") if item.get("role") == "src" else                     item.get("pair", {}).get("src") if item.get("role") == "dst" else None
+            other = item.get("pair", {}).get("dst") if item.get("role") == "src" else                     item.get("pair", {}).get("src") if item.get("role") == "dst" else item.get("other")
             bias = EDGE_BIAS.get((comp_name, other))
             if bias is not None:
                 if vertical:
@@ -1672,32 +1725,63 @@ def main():
     docker runs one of everything; local k8s runs the app tier x2, and a board that draws the same single box for
     both is telling one of them a lie. The difference is the replica map -- nothing else forks.
 
-    OKE is NOT here yet: the compact k8s-oci folder is T4. When it exists it becomes a third target in this loop.
+    OKE is a THIRD board (T4), and it draws SUPER-COMPACT -- the compact composition with audit on option (a),
+    DB triggers. The generator header's own rule applies: if the ARCHITECTURE changes, the picture changes.
+    The OKE deltas against local-k8s compact:
+      * NO auKeep and NO audit lane -- OKE audits in the DATABASE; the audit-off bus is a disabled no-op
+        (k8s-oci-compact/esquire-topology.yml), so there is no audit medium to draw and no drain to draw it to.
+        ONE lane is left, the entity broadcast, and it moves from the far left to BETWEEN the services and
+        the gate, with the broker centred under it -- see OKE_LEFT for the columns.
+      * BFF x2 -- the OKE super-compact BFF has redis for a shared session store, so it is a pair like the rest.
+    Everything else is the local-k8s compact board. The columns are laid out for this shape (OKE_LEFT), not
+    inherited from the compact board -- with auKeep and the audit lane gone there is no empty slot left behind.
     """
-    global CARDS, LAYERS, VISIBLE, BUSES, ARROWS
+    global CARDS, LAYERS, VISIBLE, BUSES, ARROWS, MIRROR, LEGEND_TOP
     here = os.path.dirname(os.path.abspath(__file__))
     root = os.path.abspath(os.path.join(here, "..", "..", ".."))
     base = {n: C[n]["left"] for n in C}          # the docker x-coordinates, to restore between targets
     layers0 = [list(layer) for layer in LAYERS]
     buses0 = [dict(b) for b in BUSES]
     arrows0 = list(ARROWS)
-    for path, model, lefts in (
+    # OKE runs SUPER-COMPACT: the app tier x2, and the BFF x2 as well (redis gives it a shared session store).
+    # auKeep is dropped below, so it is not listed.
+    OKE_CARDS = {n: 2 for n in ("pacman", "mesnie", "gateward", "backend")}
+    # (drop_comp, drop_bus, bus_left) per target. OKE: drop auKeep and the audit lane, and slide the surviving
+    # entity lane into the vacated slot (300), which puts it over the broker instead of beside it.
+    mirror0, legend0 = set(MIRROR), LEGEND_TOP
+    tops0 = {n: C[n]["top"] for n in C}          # the docker y-coordinates, to restore between targets
+    pinned0, bias0 = dict(PINNED_EDGE), dict(EDGE_BIAS)
+    for path, model, lefts, drop_comp, drop_bus, bus_left, mirror, legend_top, tops, pinned, bias in (
             (os.path.join(root, "compose-compact", "o11y", "grafana", "provisioning", "dashboards",
-                          "esquire-topology.json"), {}, {}),
+                          "esquire-topology.json"), {}, {}, set(), set(), {}, mirror0, legend0, {}, {}, {}),
             (os.path.join(root, "k8s-compact", "charts", "infra", "grafana", "dashboards",
-                          "esquire-topology.json"), K8S_CARDS, K8S_LEFT)):
+                          "esquire-topology.json"), K8S_CARDS, K8S_LEFT, set(), set(), {}, mirror0, legend0,
+                          {}, {}, {}),
+            (os.path.join(root, "k8s-oci-compact", "grafana", "esquire-topology.json"),
+                          OKE_CARDS, OKE_LEFT, {"aukeep"}, {"audit-c"}, OKE_BUS_LEFT,
+                          OKE_MIRROR, OKE_LEGEND_TOP, OKE_TOP, OKE_PINNED_EDGE, OKE_EDGE_BIAS)):
+        MIRROR = mirror
+        LEGEND_TOP = legend_top
+        PINNED_EDGE.clear(); PINNED_EDGE.update(pinned0); PINNED_EDGE.update(pinned)
+        EDGE_BIAS.clear();   EDGE_BIAS.update(bias0);     EDGE_BIAS.update(bias)
         CARDS = model
-        LAYERS = [list(layer) for layer in layers0]
+        LAYERS = [[n for n in layer if n not in drop_comp] for layer in layers0]
         VISIBLE = [n for layer in LAYERS[:LAYERS_ON] for n in layer]
-        BUSES = [dict(b) for b in buses0]
-        ARROWS = list(arrows0)
+        BUSES = [dict(b) for b in buses0 if b["id"] not in drop_bus]
+        for b in BUSES:
+            if b["id"] in bus_left:
+                b["left"] = bus_left[b["id"]]
+        ARROWS = [a for a in arrows0 if not (set(a) & drop_comp)]
         for n in C:
             C[n]["left"] = lefts.get(n, base[n])
+            C[n]["top"] = tops.get(n, tops0[n])
         os.makedirs(os.path.dirname(path), exist_ok=True)
         with open(path, "w") as f:
             json.dump(build(), f, indent=1)
-        print("wrote", path, "(%s)" % ("k8s compact -- x2, one card per instance" if model
-                                       else "docker compact -- single instance"))
+        tag = ("OKE super-compact -- x2, no auKeep, the lane between the services and the gate" if drop_comp
+               else "k8s compact -- x2, one card per instance" if model
+               else "docker compact -- single instance")
+        print("wrote", path, "(%s)" % tag)
 
 
 if __name__ == "__main__":

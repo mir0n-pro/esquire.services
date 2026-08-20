@@ -27,6 +27,14 @@ call helm uninstall esquire-pacman
 call helm uninstall esquire-enyman
 call helm uninstall esquire-biztree
 
+rem The COMPACT pair this classic stack replaces. Uninstalled too, and deliberately: a machine that ran
+rem compact before still holds them, and gateWard/Mesnie answer the SAME ingress hosts as the gateway and
+rem the identity trio -- so leaving them behind is how a cluster ends up serving from two shapes at once.
+rem "not found" here is the normal case and is ignored. (Compact k8s-down.bat drops the classic releases
+rem for the same reason, in the other direction.)
+call helm uninstall esquire-gateward
+call helm uninstall esquire-mesnie
+
 call helm uninstall esquire-infra-kc
 call helm uninstall esquire-infra-amq
 call helm uninstall esquire-infra

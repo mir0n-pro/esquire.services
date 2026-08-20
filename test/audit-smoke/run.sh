@@ -16,7 +16,7 @@
 # and every sink option is a cell here exactly as on classic. Two producers where classic has three, and
 # the gate is called gateward:
 #   DPREFIX=esqc- DCOMPOSE_DIR=compose-compact DPRODUCERS="mesnie pacman" DGATE=esqc-gateward ./run.sh docker-pg
-#   K8S_DIR=k8s-compact PRODUCERS="mesnie pacman" PRODUCER_WORKLOADS="statefulset/esquire-mesnie-mesnie statefulset/esquire-pacman-pacman" ./run.sh k8s c
+#   K8S_DIR=k8s-compact PRODUCERS="mesnie pacman" PRODUCER_WORKLOADS="statefulset/esquire-mesnie statefulset/esquire-pacman" ./run.sh k8s c
 #   ./run.sh k8s-compact          local-k8s COMPACT cells (Mesnie composes the producers; auKeep is its own)
 #   ./run.sh k8s-compact b-ded-pg a single compact cell (b-ded-pg | a | c)
 #
@@ -351,7 +351,7 @@ K8S_DIR="${K8S_DIR:-k8s}"
 # compact run files its rows under "k8s" and the results file cannot be told from a classic one.
 K8SLBL="${K8SLBL:-k8s}"
 PRODUCERS="${PRODUCERS:-enyman pacman keysmith}"
-PRODUCER_WORKLOADS="${PRODUCER_WORKLOADS:-statefulset/esquire-enyman-enyman statefulset/esquire-pacman-pacman statefulset/esquire-keysmith-keysmith}"
+PRODUCER_WORKLOADS="${PRODUCER_WORKLOADS:-statefulset/esquire-enyman-enyman statefulset/esquire-pacman statefulset/esquire-keysmith-keysmith}"
 DPREFIX="${DPREFIX:-esq-}"
 DCOMPOSE_DIR="${DCOMPOSE_DIR:-compose}"
 DPRODUCERS="${DPRODUCERS:-enyman pacman keysmith}"
@@ -371,8 +371,8 @@ restart_k8s_producers() {
   for w in $PRODUCER_WORKLOADS; do kubectl rollout status "$w" --timeout=180s >/dev/null 2>&1; done
   sleep 10; }   # producers reconnect to the bus + (c/ck) re-subscribe
 restart_k8s_aukeep() {
-  kubectl rollout restart statefulset/esquire-aukeep-aukeep >/dev/null 2>&1
-  kubectl rollout status statefulset/esquire-aukeep-aukeep --timeout=180s >/dev/null 2>&1; sleep 5; }
+  kubectl rollout restart statefulset/esquire-aukeep >/dev/null 2>&1
+  kubectl rollout status statefulset/esquire-aukeep --timeout=180s >/dev/null 2>&1; sleep 5; }
 
 k8s_infra_ensure() {   # install the audit sinks + all-sinks topology the running cluster predates
   ( cd "${SVCS}/${K8S_DIR}"
@@ -389,7 +389,7 @@ k8s_infra_ensure() {   # install the audit sinks + all-sinks topology the runnin
   # fresh restart also mounts the full topology. Without this the c/ck/d/dk cells race and fail.
   local i n=0
   for i in $(seq 1 36); do
-    n=$(kubectl exec statefulset/esquire-biztree-biztree -- sh -c "grep -c 'audit-dk' /etc/esquire/topology.yml" 2>/dev/null | tr -d '\r')
+    n=$(kubectl exec statefulset/esquire-biztree -- sh -c "grep -c 'audit-dk' /etc/esquire/topology.yml" 2>/dev/null | tr -d '\r')
     [ "${n:-0}" -gt 0 ] && break
     sleep 5
   done
@@ -421,7 +421,7 @@ cell_k8s() {
     return
   fi
   if [ -n "$stream" ]; then
-    kubectl scale deployment/esquire-aukeep-aukeep --replicas=0 >/dev/null 2>&1; sleep 4
+    kubectl scale deployment/esquire-aukeep --replicas=0 >/dev/null 2>&1; sleep 4
     helm_set_producers "$busid"; restart_k8s_producers
     local spre; spre="$($streamfn)"; pre="$(k8s_pg_counts)"
     run_smoke_k8s; sleep 6
@@ -430,7 +430,7 @@ cell_k8s() {
     if   [ "$sd" -gt 0 ] && [ "$ld" = "0,0,0,0,0" ]; then res="PASS ${stream}Δ=${sd}; *_log flat"
     elif [ "$sd" -gt 0 ]; then res="PASS ${stream}Δ=${sd}; *_log Δ=${ld}"
     else res="FAIL ${stream}Δ=${sd}"; fi
-    kubectl scale deployment/esquire-aukeep-aukeep --replicas=1 >/dev/null 2>&1; restart_k8s_aukeep
+    kubectl scale deployment/esquire-aukeep --replicas=1 >/dev/null 2>&1; restart_k8s_aukeep
   else
     helm_set_producers "$busid"; [ -n "$akbus" ] && helm_set_aukeep "$akbus"
     restart_k8s_producers; [ -n "$akbus" ] && restart_k8s_aukeep
@@ -487,7 +487,7 @@ main() {
       K8S_DIR="k8s-compact"
       K8SLBL="k8s-compact"
       PRODUCERS="mesnie pacman"
-      PRODUCER_WORKLOADS="statefulset/esquire-mesnie-mesnie statefulset/esquire-pacman-pacman"
+      PRODUCER_WORKLOADS="statefulset/esquire-mesnie statefulset/esquire-pacman"
       k8s_infra_ensure
       local cells=("$@"); [ ${#cells[@]} -eq 0 ] && cells=(a b-ded-pg c)
       for c in "${cells[@]}"; do cell_k8s "$c"; done

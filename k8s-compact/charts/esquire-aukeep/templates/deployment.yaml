@@ -8,21 +8,21 @@
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: {{ .Release.Name }}-aukeep
+  name: {{ .Release.Name }}
   labels:
-    app: {{ .Release.Name }}-aukeep
+    app: {{ .Release.Name }}
 spec:
   # auKeep is a competing-consumer on a queue -- replicas spread the audit drain.
-  serviceName: {{ .Release.Name }}-aukeep-hl
+  serviceName: {{ .Release.Name }}-hl
   replicas: {{ $replicas }}
   podManagementPolicy: Parallel
   selector:
     matchLabels:
-      app: {{ .Release.Name }}-aukeep
+      app: {{ .Release.Name }}
   template:
     metadata:
       labels:
-        app: {{ .Release.Name }}-aukeep
+        app: {{ .Release.Name }}
     spec:
       {{- with .Values.nodeSelector }}
       nodeSelector:
@@ -43,12 +43,12 @@ spec:
             - containerPort: {{ .Values.service.port }}
           envFrom:
             - configMapRef:
-                name: {{ .Release.Name }}-aukeep-config
+                name: {{ .Release.Name }}-config
           env:
             - name: DB_DATAKEEP_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: {{ .Release.Name }}-aukeep-secret
+                  name: {{ .Release.Name }}-secret
                   key: db-password
             - name: POD_NAME
               valueFrom:

@@ -34,16 +34,16 @@ if not "%CTX%"=="docker-desktop" (
 
 echo --- App services: tracing/metrics OFF, ALL LOGGERS OFF...
 for %%s in (gateway enyman biztree pacman keysmith kcmaster aukeep) do (
-  call helm upgrade esquire-%%s charts\esquire-%%s --reset-then-reuse-values --set observability.enabled=false --set observability.metricsHistograms=false --set logging.levelMir0n=OFF --set logging.levelDevelop=OFF --set logging.levelMsg=OFF --set logging.levelAmq=OFF --set logging.levelJms=OFF
+  call helm upgrade esquire-%%s charts\esquire-%%s --reset-then-reuse-values --set observability.enabled=false --set observability.metricsHistograms=false --set logging.levelMir0n=OFF --set logging.levelDevelop=OFF --set logging.levelMsg=OFF --set logging.levelAmq=OFF --set logging.levelJms=OFF --force-conflicts
   call kubectl rollout restart statefulset esquire-%%s-%%s
 )
-call helm upgrade esquire-backend charts\esquire-backend --reset-then-reuse-values --set observability.enabled=false
+call helm upgrade esquire-backend charts\esquire-backend --reset-then-reuse-values --set observability.enabled=false --force-conflicts
 call kubectl rollout restart statefulset esquire-backend-backend
 
 echo --- keycloak / activemq: metrics OFF...
-call helm upgrade esquire-infra-kc charts\infra\keycloak -f values\keycloak.yaml --reset-then-reuse-values --set observability.enabled=false
+call helm upgrade esquire-infra-kc charts\infra\keycloak -f values\keycloak.yaml --reset-then-reuse-values --set observability.enabled=false --force-conflicts
 call kubectl rollout restart statefulset esquire-infra-kc-keycloak
-call helm upgrade esquire-infra-amq charts\infra\activemq -f values\activemq.yaml --reset-then-reuse-values --set observability.enabled=false
+call helm upgrade esquire-infra-amq charts\infra\activemq -f values\activemq.yaml --reset-then-reuse-values --set observability.enabled=false --force-conflicts
 call kubectl rollout restart statefulset esquire-infra-amq-activemq
 
 echo --- Uninstalling every viewing component (nothing may tail or scrape in the baseline)...

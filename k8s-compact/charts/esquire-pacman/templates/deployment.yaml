@@ -8,20 +8,20 @@
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: {{ .Release.Name }}-pacman
+  name: {{ .Release.Name }}
   labels:
-    app: {{ .Release.Name }}-pacman
+    app: {{ .Release.Name }}
 spec:
-  serviceName: {{ .Release.Name }}-pacman-hl
+  serviceName: {{ .Release.Name }}-hl
   replicas: {{ $replicas }}
   podManagementPolicy: Parallel
   selector:
     matchLabels:
-      app: {{ .Release.Name }}-pacman
+      app: {{ .Release.Name }}
   template:
     metadata:
       labels:
-        app: {{ .Release.Name }}-pacman
+        app: {{ .Release.Name }}
     spec:
       {{- with .Values.nodeSelector }}
       nodeSelector:
@@ -37,7 +37,7 @@ spec:
           whenUnsatisfiable: ScheduleAnyway
           labelSelector:
             matchLabels:
-              app: {{ .Release.Name }}-pacman
+              app: {{ .Release.Name }}
       {{- end }}
       containers:
         - name: pacman
@@ -52,12 +52,12 @@ spec:
             - containerPort: {{ .Values.service.port }}
           envFrom:
             - configMapRef:
-                name: {{ .Release.Name }}-pacman-config
+                name: {{ .Release.Name }}-config
           env:
             - name: DB_PACMAN_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: {{ .Release.Name }}-pacman-secret
+                  name: {{ .Release.Name }}-secret
                   key: db-password
             - name: POD_NAME
               valueFrom:

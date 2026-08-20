@@ -26,15 +26,7 @@ rem Grafana on the same 1xxxx band as the others (o11y-forward.bat): *.localhost
 rem python's getaddrinfo, so the live datasource check needs a real localhost port.
 set GRAFANA_URL=http://localhost:13009
 set LOKI_JOB=esq-k8s
-set SERVICES=gateward,mesnie,pacman,aukeep
-rem The trace nodes are PROCESSES too (the collector rewrites service.name to <app>.<instance>), so this
-rem profile has a gateward node where classic has gateway and biztree, and a mesnie node where it has three.
-set TRACE_NODES=gateward,esq-backend
-set TRACE_NODES_CONDITIONAL=mesnie,pacman,aukeep
-rem LOG_SERVICES = the Loki `service_name` label, which on k8s is the FULL workload name
-rem (esquire-<svc>-<svc>), NOT the short meter name. Without this the log-stream sweep looks for
-rem a stream that does not exist and FAILs every service (the logs ARE shipped). Mirrors the OKE
-rem launcher (oke-o11y-verify.bat). Mesnie is ONE workload for enyMan, keySmith and the identity work.
-set LOG_SERVICES=esquire-gateward-gateward,esquire-mesnie-mesnie,esquire-pacman-pacman,esquire-aukeep-aukeep,esquire-backend-backend
+rem The compact fleet is declared ONCE for every environment -- see the shared file.
+call ..\test\o11y\fleet-compact-k8s.bat
 python ..\test\o11y\o11y-verify.py
 endlocal

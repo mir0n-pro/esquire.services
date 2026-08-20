@@ -5,7 +5,7 @@
 # them to the Oracle OKE cluster and validates the release (e2e + load) against the public
 # domain https://esquire.mir0n.pro.
 #
-# This mirrors the proven manual flow (k8s-oci/oke-login -> ghcr-push -> oke-up) but on a
+# This mirrors the proven manual flow (k8s-oci-compact/oke-login -> ghcr-push -> oke-up) but on a
 # hosted Linux runner, reusing two thin scripts as the single source of logic:
 #   .github/scripts/oke-build-push.sh   (mvn + multi-arch buildx push to GHCR)
 #   .github/scripts/deploy-oke.sh       (helm upgrade --install per chart, OKE values)
@@ -21,7 +21,7 @@
 #   var     OKE_CLUSTER_OCID      the OKE cluster OCID
 #   secret  MIR0N_PWD             postgres + Keycloak admin password
 #   secret  BFF_KC_SECRET         (optional) esq-angular BFF client secret
-#   secret  GW_EXCHANGE_SECRET    (optional) gateway phantom-relay exchange secret
+#   secret  GW_EXCHANGE_SECRET    (optional) gateWard phantom-relay exchange secret
 #   secret  BFF_SESSION_SECRET    (optional) BFF session-cookie HMAC secret
 # GHCR push authenticates with the GHCR_TOKEN PAT secret (a GitHub PAT with write:packages) --
 # the same identity (mir0n-pro) that created the existing packages via the manual push flow, so it
@@ -122,7 +122,7 @@ jobs:
           username: mir0n-pro
           password: ${{ secrets.GHCR_TOKEN }}
 
-      - name: Build + push the 8 app images (multi-arch)
+      - name: Build + push the 7 super-compact images (multi-arch)
         shell: bash
         env:
           IMAGE_TAG: ${{ steps.stamp.outputs.tag }}
@@ -207,12 +207,12 @@ jobs:
         working-directory: e2e-test
         env:
           BASE_URL: https://esquire.mir0n.pro
-          # 20-token-relay talks to the gateway + KeyCloak DIRECTLY (not through the BFF), so it needs the
-          # public OKE gateway host and KC path; without them it falls back to localhost and ECONNREFUSEs.
+          # 20-token-relay talks to the gate + KeyCloak DIRECTLY (not through the BFF), so it needs the
+          # public OKE gate host and KC path; without them it falls back to localhost and ECONNREFUSEs.
           GATEWAY_URL: https://api.esquire.mir0n.pro
           KC_URL: https://esquire.mir0n.pro/kc-auth
-          # Token Relay is DISABLED on the internet-facing OKE gateway (empty allowlists -- see
-          # k8s-oci/values/gateway.yaml, mir0n 2026-07-20). This flag makes 20-token-relay's two specs
+          # Token Relay is DISABLED on the internet-facing OKE gate (empty allowlists -- see
+          # k8s-oci-compact/values/gateward.yaml, mir0n 2026-07-20). This flag makes 20-token-relay's two specs
           # skip on OKE only; docker / local k8s leave it unset and keep running them.
           RELAY_DISABLED: "true"
         run: |

@@ -1,0 +1,17 @@
+# Prod (OKE super-compact) overrides for k8s-compact/charts/infra/activemq
+image:
+  repository: ghcr.io/mir0n-pro/esquire-activemq
+  # tag injected by oke-up.bat (--set image.tag=%image_tag%) -- single release tag for the whole stack.
+  pullPolicy: Always
+
+storage:
+  storageClass: oci-bv
+  size: 20Gi
+
+nodeSelector:
+  tier: infra
+
+# Super-compact consumes ONE destination. kcMaster runs inside Mesnie, so the identity request/reply pair is
+# never drained, and audit is written by database triggers, so the audit queue is never drained either --
+# declaring them would leave three permanently consumer-less queues, which the board reports as trouble.
+destinations: "topic:esquire.entity.broadcast"

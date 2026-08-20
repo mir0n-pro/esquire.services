@@ -29,3 +29,13 @@ storage:
   # No storeLimit exists: with no message store there is nothing to bound. This is the spool that memoryUsage
   # (70% of heap) overflows into -- the only disk an in-memory bus can touch. Keep it well under `size` above.
   tempLimit: 512mb
+
+# Which destinations the broker DECLARES at start, so their depth and consumer-count meters exist at zero
+# traffic. Empty = the activemq.xml default, which is the classic set (entity topic, the identity request/reply
+# pair, the audit queue). A composition that does not CONSUME one of those must not declare it: an undrained
+# destination is reported as trouble, correctly, and saying it here is how the broker learns which composition
+# it is serving. Space-separated "<topic|queue>:<physicalName>".
+#   classic        : leave empty
+#   compact        : topic:esquire.entity.broadcast queue:esquire.rod.audit   (kcMaster is inside Mesnie)
+#   super-compact  : topic:esquire.entity.broadcast                           (audit is in the database)
+destinations: ""

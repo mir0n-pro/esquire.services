@@ -4,13 +4,13 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ .Release.Name }}-aukeep-hl
+  name: {{ .Release.Name }}-hl
   labels:
-    app: {{ .Release.Name }}-aukeep
+    app: {{ .Release.Name }}
 spec:
   clusterIP: None
   selector:
-    app: {{ .Release.Name }}-aukeep
+    app: {{ .Release.Name }}
   ports:
     - port: {{ .Values.service.port }}
       targetPort: {{ .Values.service.port }}

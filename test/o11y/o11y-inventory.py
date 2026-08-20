@@ -69,13 +69,22 @@ EXP = os.path.join(ROOT, "explorer")
 # enyMan, keySmith and kcMaster emit and gateWard what the gateway and bizTree emit. So the profile decides
 # three inputs -- which stack folder is read, which launcher declares the fleet, and which sheet is written --
 # and nothing else forks. Each sheet is the inventory OF ITS OWN DEPLOYMENT, kept as separate as the folders are.
+#
+# THREE profiles now. Super-compact is the compact CODE on the compact panels -- the same meters, emitted by the
+# same two composed services -- so it reads the compact stack folder. What it does NOT share is the FLEET: it
+# runs on OKE without auKeep, and its launcher declares that fleet in a file of its own. A profile may therefore
+# name a `fleet` file, and when it does that file is the authority on who is deployed.
 PROFILES = {
     "classic": {"compose": "compose",         "out": "Esquire.ObservabilityStack.Inventory.csv"},
     "compact": {"compose": "compose-compact", "out": "Esquire.ObservabilityStack.Inventory.Compact.csv"},
+    "supercompact": {"compose": "compose-compact",
+                     "fleet": os.path.join("test", "o11y", "fleet-supercompact-k8s.bat"),
+                     "out": "Esquire.ObservabilityStack.Inventory.SuperCompact.csv"},
 }
 PROFILE = "classic"
 COMPOSE_DIR = os.path.join(SVC, "compose")
 O11Y = os.path.join(COMPOSE_DIR, "o11y")
+FLEET_FILE = None
 
 # The sheet is a DOC -- it lives with the observability doc it belongs to, not beside this script.
 DEFAULT_OUT = os.path.join(SVC, "doc", "Esquire.ObservabilityStack.Inventory.csv")
@@ -83,11 +92,13 @@ DEFAULT_OUT = os.path.join(SVC, "doc", "Esquire.ObservabilityStack.Inventory.csv
 
 def use_profile(name):
     """Point the scan at one deployment: its stack folder, its launcher, its sheet."""
-    global PROFILE, COMPOSE_DIR, O11Y, DEFAULT_OUT
+    global PROFILE, COMPOSE_DIR, O11Y, DEFAULT_OUT, FLEET_FILE
     PROFILE = name
     COMPOSE_DIR = os.path.join(SVC, PROFILES[name]["compose"])
     O11Y = os.path.join(COMPOSE_DIR, "o11y")
     DEFAULT_OUT = os.path.join(SVC, "doc", PROFILES[name]["out"])
+    fleet = PROFILES[name].get("fleet")
+    FLEET_FILE = os.path.join(SVC, fleet) if fleet else None
 
 # ---------------------------------------------------------------------------------------------------------------
 # The ONLY hand-written part: what each asset MEANS (description) and what it is FOR (use).
@@ -608,12 +619,32 @@ def collect_dependencies():
         for panel in board.get("panels", []):
             for target in panel.get("targets", []):
                 for name in re.findall(r"\b([a-z][a-z0-9_]{3,})\b", target.get("expr", "")):
-                    if not name.startswith(DEP_PREFIXES):
+                    if not name.startswith(DEP_PREFIXES) or name.startswith(_EXCL_DEPS):
                         continue
                     family = next(f for f in DEP_PREFIXES if name.startswith(f))
                     source, _ = DEP_FAMILIES[family]
                     ret.setdefault(name, {"kind": "dep-metric", "where": source, "family": family})
                     ret[name].setdefault("panels", set()).add(panel.get("title", "?"))
+    return ret
+
+
+# A dep family the deployment genuinely lacks -- super-compact declares one topic and no queue, so every
+# activemq_queue_* metric is absent BY DESIGN. Same knob the o11y-verify launcher sets, read the same way.
+_EXCL_DEPS = tuple(s.strip() for s in os.environ.get("EXCLUDE_DEPS", "").split(",") if s.strip())
+
+
+def _stream_name(svc):
+    """The Loki `service_name` label for a module, as THIS deployment labels it.
+
+    The label is not always the module name: on k8s it is the workload (`esquire-mesnie`), on docker the bare
+    module. The launcher already declares the real names in LOG_SERVICES, so they are read from there rather than
+    guessed -- guessing is why the BFF read as unproven while its stream was being swept successfully.
+    """
+    ret = svc
+    for name in (n.strip() for n in os.environ.get("LOG_SERVICES", "").split(",") if n.strip()):
+        if name == svc or name.endswith("-" + svc):
+            ret = name
+            break
     return ret
 
 
@@ -628,8 +659,14 @@ def verified_services():
     sweep started verifying them.
     """
     ret = set()
+    # A profile with a fleet file of its own is the authority: super-compact deploys neither auKeep nor the six
+    # services the composed pair absorbed, and the compose launcher next door still lists the classic eight.
+    if FLEET_FILE and os.path.isfile(FLEET_FILE):
+        match = re.search(r"(?im)^\s*set\s+SERVICES\s*=\s*(.+)$", _read(FLEET_FILE))
+        if match:
+            ret = {s.strip().lower() for s in match.group(1).split(",") if s.strip()}
     bat = os.path.join(COMPOSE_DIR, "o11y-verify.bat")
-    if os.path.isfile(bat):
+    if not ret and os.path.isfile(bat):
         match = re.search(r"(?im)^\s*set\s+SERVICES\s*=\s*(.+)$", _read(bat))
         if match:
             ret = {s.strip().lower() for s in match.group(1).split(",") if s.strip()}
@@ -726,7 +763,7 @@ def probe_live(rows):
         found = False
         try:
             if kind == "log-stream":
-                q = '{job="%s", service_name="%s"}' % (LOKI_JOB, signal.replace("log.stdout.", ""))
+                q = '{job="%s", service_name="%s"}' % (LOKI_JOB, _stream_name(signal.replace("log.stdout.", "")))
                 url = (LOKI_URL + "/loki/api/v1/query_range?limit=1&start=%d&end=%d&query=" % (start, end)
                        + urllib.parse.quote(q))
                 found = bool(_http_json(url)["data"]["result"])

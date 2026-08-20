@@ -8,10 +8,16 @@
 
     1. brokerName          : "esquire", not the stock "localhost". The broker name is the first key of every
                              JMX MBean object name, so the JMX exporter rules and any Jolokia selector key on it.
-    2. destinations        : the four destinations the bus uses are DECLARED, so they exist at broker start
+    2. destinations        : the destinations the bus uses are DECLARED, so they exist at broker start
                              instead of being auto-created on first message. A queue-depth gauge that only
                              appears after the first message is a trap: a dashboard cannot tell "empty" apart
                              from "not there yet".
+                             The four below are the CLASSIC set and the default. Which destinations a
+                             composition actually consumes differs: compact runs kcMaster inside Mesnie, and
+                             super-compact audits in the database, so a target that uses fewer names them in
+                             ESQ_AMQ_DESTINATIONS and the entrypoint rewrites this block. Declaring one that
+                             nothing drains leaves a consumer-less destination, which the board reports as
+                             trouble, correctly.
     3. transportConnectors : OpenWire only. The stock file also opens AMQP, STOMP, MQTT and WS; nothing in
                              Esquire speaks any of them. The DOS-protection parameters on the OpenWire connector
                              are the stock ones, kept verbatim.

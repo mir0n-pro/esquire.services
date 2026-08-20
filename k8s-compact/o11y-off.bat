@@ -7,18 +7,18 @@ setlocal
 cd /d "%~dp0"
 echo --- Disabling tracing on the app services...
 for %%s in (gateward mesnie pacman aukeep) do (
-  call helm upgrade esquire-%%s charts\esquire-%%s --reset-then-reuse-values --set observability.enabled=false --set observability.metricsHistograms=false
-  call kubectl rollout restart statefulset esquire-%%s-%%s
+  call helm upgrade esquire-%%s charts\esquire-%%s --reset-then-reuse-values --set observability.enabled=false --set observability.metricsHistograms=false --force-conflicts
+  call kubectl rollout restart statefulset esquire-%%s
 )
 rem The BFF (Node) is out of the loop: no histogram sub-switch, so its chart never reads
 rem observability.metricsHistograms. It takes observability.enabled ONLY (mirror of o11y-on.bat).
-call helm upgrade esquire-backend charts\esquire-backend --reset-then-reuse-values --set observability.enabled=false
-call kubectl rollout restart statefulset esquire-backend-backend
+call helm upgrade esquire-backend charts\esquire-backend --reset-then-reuse-values --set observability.enabled=false --force-conflicts
+call kubectl rollout restart statefulset esquire-backend
 echo --- Disabling metrics on keycloak...
-call helm upgrade esquire-infra-kc charts\infra\keycloak -f values\keycloak.yaml --reset-then-reuse-values --set observability.enabled=false
+call helm upgrade esquire-infra-kc charts\infra\keycloak -f values\keycloak.yaml --reset-then-reuse-values --set observability.enabled=false --force-conflicts
 call kubectl rollout restart statefulset esquire-infra-kc-keycloak
 echo --- Disabling metrics on activemq (the JMX exporter agent is no longer loaded)...
-call helm upgrade esquire-infra-amq charts\infra\activemq -f values\activemq.yaml --reset-then-reuse-values --set observability.enabled=false
+call helm upgrade esquire-infra-amq charts\infra\activemq -f values\activemq.yaml --reset-then-reuse-values --set observability.enabled=false --force-conflicts
 call kubectl rollout restart statefulset esquire-infra-amq-activemq
 call helm uninstall esquire-infra-grafana
 call helm uninstall esquire-infra-postgres-exporter

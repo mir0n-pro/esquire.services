@@ -36,11 +36,11 @@ keycloak:
 # process, so the route that pointed at bizTree is not in the table at all.
 backends:
   # Mesnie answers for enyMan and keySmith in ONE workload, so both routes point at it on one port.
-  enymanHost: esquire-mesnie-mesnie
+  enymanHost: esquire-mesnie
   enymanPort: 3003
-  pacmanHost: esquire-pacman-pacman
+  pacmanHost: esquire-pacman
   pacmanPort: 3003
-  keysmithHost: esquire-mesnie-mesnie
+  keysmithHost: esquire-mesnie
   keysmithPort: 3003
 
 cors:

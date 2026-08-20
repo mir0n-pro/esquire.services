@@ -7,7 +7,7 @@ metadata:
 data:
   prometheus.yml: |
     # Pod discovery: each Java service pod (both StatefulSet replicas) is scraped directly on its own IP, so
-    # both replicas appear as separate targets -- instance = the pod name (esquire-mesnie-mesnie-0 / -1). The
+    # both replicas appear as separate targets -- instance = the pod name (esquire-mesnie-0 / -1). The
     # metric already carries application=<service> (Micrometer common tag); instance separates the x2. The
     # /actuator/prometheus endpoint exists only when observability is enabled. Separate jobs below scrape the
     # BFF (esq-backend, Node/prom-client :3000), KeyCloak (Quarkus mgmt :9000/kc-auth/metrics), and Postgres
@@ -33,7 +33,10 @@ data:
           # enyMan / keySmith / the identity work, and pacMan for itself. The audit trail is in-process, so
           # there is no auKeep pod to scrape.
           - source_labels: [__meta_kubernetes_pod_label_app]
-            regex: "esquire-(gateward|mesnie|pacman|aukeep)-.*"
+            # The pod label is app={{ "{{" }} .Release.Name {{ "}}" }}, and the release is named differently on the two
+            # targets: "esquire-mesnie" on OKE, "esquire-mesnie-mesnie" on the local cluster. The suffix is
+            # therefore OPTIONAL -- anchored, a bare "-.*" misses the first and a bare name misses the second.
+            regex: "esquire-(gateward|mesnie|pacman|aukeep)(-.*)?"
             action: keep
           # scrape the pod IP on the SEPARATE management port 8090 (F0 A6) -- actuator (incl. /actuator/prometheus)
           # lives there now, NOT on the public main port, so the ingress never exposes it.
@@ -79,7 +82,7 @@ data:
               names: [{{ .Release.Namespace }}]
         relabel_configs:
           - source_labels: [__meta_kubernetes_pod_label_app]
-            regex: "esquire-backend-backend"
+            regex: "esquire-backend"
             action: keep
           - source_labels: [__meta_kubernetes_pod_ip, __meta_kubernetes_pod_container_port_number]
             separator: ":"

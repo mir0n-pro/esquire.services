@@ -8,20 +8,20 @@
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: {{ .Release.Name }}-mesnie
+  name: {{ .Release.Name }}
   labels:
-    app: {{ .Release.Name }}-mesnie
+    app: {{ .Release.Name }}
 spec:
-  serviceName: {{ .Release.Name }}-mesnie-hl
+  serviceName: {{ .Release.Name }}-hl
   replicas: {{ $replicas }}
   podManagementPolicy: Parallel
   selector:
     matchLabels:
-      app: {{ .Release.Name }}-mesnie
+      app: {{ .Release.Name }}
   template:
     metadata:
       labels:
-        app: {{ .Release.Name }}-mesnie
+        app: {{ .Release.Name }}
     spec:
       {{- with .Values.nodeSelector }}
       nodeSelector:
@@ -37,7 +37,7 @@ spec:
           whenUnsatisfiable: ScheduleAnyway
           labelSelector:
             matchLabels:
-              app: {{ .Release.Name }}-mesnie
+              app: {{ .Release.Name }}
       {{- end }}
       containers:
         - name: mesnie
@@ -52,19 +52,19 @@ spec:
             - containerPort: {{ .Values.service.port }}
           envFrom:
             - configMapRef:
-                name: {{ .Release.Name }}-mesnie-config
+                name: {{ .Release.Name }}-config
           env:
             - name: DB_MESNIE_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: {{ .Release.Name }}-mesnie-secret
+                  name: {{ .Release.Name }}-secret
                   key: db-password
             # The identity gateway drives the KeyCloak admin API itself -- kcMaster is not a
             # separate service here, so its admin credential belongs to this process.
             - name: KC_ADMIN_CLIENT_SECRET
               valueFrom:
                 secretKeyRef:
-                  name: {{ .Release.Name }}-mesnie-secret
+                  name: {{ .Release.Name }}-secret
                   key: kc-admin-client-secret
             # Downward API -- POD_NAME is the host identity EsqUtils.instanceHost() reads when
             # HOSTNAME is suppressed; EsqUtils.instanceNo() parses its trailing StatefulSet ordinal

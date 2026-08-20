@@ -55,21 +55,30 @@ call :ensure_tag aukeep
 
 rem === Shared messaging-bus topology (the one ConfigMap every service mounts at /etc/esquire/topology.yml) ===
 echo --- Installing topology...
-call helm upgrade --install esquire-topology  charts\esquire-topology || exit /b 1
+rem === DROP THE OTHER PROFILE FIRST ===
+rem The two stacks are MUTUALLY EXCLUSIVE: the gateway and the identity trio answer the same ingress hosts gateWard and Mesnie do,
+rem so a machine that ran the other one keeps serving from BOTH shapes at once -- and helm never notices,
+rem because they are different releases. k8s-down.bat drops them, but nothing forces anyone to run it
+rem before a bring-up. "not found" is the normal case here and is ignored.
+echo --- Dropping the COMPACT releases (mutually exclusive with this stack)...
+call helm uninstall esquire-gateward 2>nul
+call helm uninstall esquire-mesnie 2>nul
+
+call helm upgrade --install esquire-topology  charts\esquire-topology --force-conflicts || exit /b 1
 
 rem === Infra ===
 echo --- Installing postgres...
-call helm upgrade --install esquire-infra     charts\infra\postgres  -f values\postgres.yaml || exit /b 1
+call helm upgrade --install esquire-infra     charts\infra\postgres  -f values\postgres.yaml --force-conflicts || exit /b 1
 echo --- Installing activemq...
-call helm upgrade --install esquire-infra-amq charts\infra\activemq  -f values\activemq.yaml || exit /b 1
+call helm upgrade --install esquire-infra-amq charts\infra\activemq  -f values\activemq.yaml --force-conflicts || exit /b 1
 rem kafka + redis back the audit (ck)/(d)/(dk) sinks -- the topology defines them so any sink is selectable
 rem on local/dev k8s. (OKE ships neither: it audits via DB triggers.)
 echo --- Installing kafka...
-call helm upgrade --install esquire-infra-kafka charts\infra\kafka || exit /b 1
+call helm upgrade --install esquire-infra-kafka charts\infra\kafka --force-conflicts || exit /b 1
 echo --- Installing redis...
-call helm upgrade --install esquire-infra-redis charts\infra\redis || exit /b 1
+call helm upgrade --install esquire-infra-redis charts\infra\redis --force-conflicts || exit /b 1
 echo --- Installing keycloak...
-call helm upgrade --install esquire-infra-kc  charts\infra\keycloak  -f values\keycloak.yaml || exit /b 1
+call helm upgrade --install esquire-infra-kc  charts\infra\keycloak  -f values\keycloak.yaml --force-conflicts || exit /b 1
 
 echo Waiting for postgres...
 kubectl rollout status statefulset/esquire-infra-postgres -n default --timeout=120s
@@ -82,27 +91,27 @@ kubectl rollout status deployment/esquire-infra-redis -n default --timeout=60s
 
 rem === Services (depend on postgres + amq) ===
 echo --- Installing biztree...
-call helm upgrade --install esquire-biztree   charts\esquire-biztree   -f values\biztree.yaml   || exit /b 1
+call helm upgrade --install esquire-biztree   charts\esquire-biztree   -f values\biztree.yaml   --force-conflicts || exit /b 1
 echo --- Installing enyman...
-call helm upgrade --install esquire-enyman    charts\esquire-enyman    -f values\enyman.yaml    || exit /b 1
+call helm upgrade --install esquire-enyman    charts\esquire-enyman    -f values\enyman.yaml    --force-conflicts || exit /b 1
 echo --- Installing pacman...
-call helm upgrade --install esquire-pacman    charts\esquire-pacman    -f values\pacman.yaml    || exit /b 1
+call helm upgrade --install esquire-pacman    charts\esquire-pacman    -f values\pacman.yaml    --force-conflicts || exit /b 1
 echo --- Installing keysmith...
-call helm upgrade --install esquire-keysmith  charts\esquire-keysmith  -f values\keysmith.yaml  || exit /b 1
+call helm upgrade --install esquire-keysmith  charts\esquire-keysmith  -f values\keysmith.yaml  --force-conflicts || exit /b 1
 echo --- Installing aukeep ^(audit consumer, option c default^)...
-call helm upgrade --install esquire-aukeep    charts\esquire-aukeep    -f values\aukeep.yaml    || exit /b 1
+call helm upgrade --install esquire-aukeep    charts\esquire-aukeep    -f values\aukeep.yaml    --force-conflicts || exit /b 1
 
 echo Waiting for keycloak...
 kubectl rollout status statefulset/esquire-infra-kc-keycloak -n default --timeout=180s
 
 rem === KC-dependent ===
 echo --- Installing kcmaster...
-call helm upgrade --install esquire-kcmaster  charts\esquire-kcmaster  -f values\kcmaster.yaml ^
+call helm upgrade --install esquire-kcmaster  charts\esquire-kcmaster  -f values\kcmaster.yaml --force-conflicts ^
   --set keycloak.adminClientSecret=MHgq0Nu69u2uJ2johaK1wxQLMdakELXN || exit /b 1
 
 rem Gateway: dev exchange-client secret passed via --set (matches realm import).
 echo --- Installing gateway...
-call helm upgrade --install esquire-gateway   charts\esquire-gateway   -f values\gateway.yaml ^
+call helm upgrade --install esquire-gateway   charts\esquire-gateway   -f values\gateway.yaml --force-conflicts ^
   --set tokenRelay.phantom.exchangeClientSecret=esq-gw-exchange-dev-secret-rotate-in-prod || exit /b 1
 
 echo Waiting for gateway...
@@ -111,7 +120,7 @@ kubectl rollout status statefulset/esquire-gateway-gateway -n default --timeout=
 rem === Backend / BFF ===
 rem Secrets passed via --set (same dev literals as compose.yaml + realm import).
 echo --- Installing backend ^(BFF^)...
-call helm upgrade --install esquire-backend   charts\esquire-backend   -f values\backend.yaml ^
+call helm upgrade --install esquire-backend   charts\esquire-backend   -f values\backend.yaml --force-conflicts ^
   --set keycloak.clientSecret=esq-angular-bff-dev-secret-rotate-in-prod ^
   --set session.secret=esq-bff-dev-session-secret-rotate-in-prod || exit /b 1
 

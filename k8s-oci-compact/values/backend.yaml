@@ -1,0 +1,88 @@
+# Prod (OKE super-compact) overrides for k8s-compact/charts/esquire-backend
+# Single deployable that serves the baked Angular SPA on / and handles
+# /auth/* (OIDC code+PKCE) and /api/* (server-to-server proxy to gateway).
+image:
+  repository: ghcr.io/mir0n-pro/esquire.backend
+  # tag injected by oke-up.bat (--set image.tag=%image_tag%) -- single release tag for the whole stack.
+  pullPolicy: Always
+
+service:
+  type: ClusterIP            # behind ingress-nginx; no public LB
+  port: 3000                 # container port (BFF listens on 3000 inside)
+  lbPort: 3000               # unused when type=ClusterIP, kept for chart compatibility
+
+# OIDC / Keycloak.
+# issuer must be reachable both from the BFF pod (server-to-server discovery
+# + token exchange) AND from the browser (authorize/end_session redirects).
+# We use the public host so the iss claim and the browser-side redirect URL
+# resolve to the same KC. The BFF pod reaches the same URL via cluster DNS
+# resolution of esquire.mir0n.pro -> ingress-nginx -> KC, which works because
+# OKE pods have DNS access to the public host (egress allowed by default VCN).
+keycloak:
+  issuer: https://esquire.mir0n.pro/kc-auth/realms/esquire
+  clientId: esq-angular
+  # clientSecret comes from a Secret (set via --set keycloak.clientSecret=... at install).
+
+# Browser-visible base URL the BFF uses for redirect_uri / post-login Location.
+publicBaseUrl: https://esquire.mir0n.pro
+
+# Origins the BFF accepts on /auth/* requests (besides publicBaseUrl).
+# Production accepts only the canonical https host -- no localhost / no
+# host.docker.internal in prod.
+allowedOrigins: ""
+
+session:
+  # secret comes from a Secret (set via --set session.secret=... at install).
+  cookieMaxAgeMs: 43200000   # 12h
+
+cache:
+  ttlMs: 3600000             # 1h
+  maxEntries: 64
+
+nodeEnv: production
+
+nodeSelector:
+  tier: app
+
+# TWO replicas. Super-compact freed the room the single-replica rule was written under: with a Redis
+# session store in the cluster the BFF is no longer bound to MemoryStore, so logins are visible across
+# both pods and the OKE BFF is redundant for the first time.
+replicaCount: 2
+
+# Shared session store across the replicas -- the in-cluster infra redis -- so a login on one pod is
+# visible to the other (express-session -> connect-redis). Without this, two replicas would round-robin
+# split logins and half of every user's requests would look logged-out.
+redis:
+  url: redis://esquire-infra-redis:6379
+
+# Best-effort spread across distinct app-tier nodes, as Mesnie, gateWard and pacMan carry. Without it
+# the two replicas landed on different nodes by luck of least-allocated scoring; this makes it the
+# scheduler's intent rather than an accident, so one node cannot take both. Soft (ScheduleAnyway), so
+# a node loss still schedules.
+topologySpread:
+  enabled: true
+
+# It joins the memory budget so one of the app pods can't overrun a node.
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: 500m
+    memory: 384Mi
+
+# R1 budget promoted from the local-k8s overlay -- bound a hung request and a hung /api
+# upstream call just above the gateway/service timeout ladder (clean 504, not a hung
+# socket). spa.httpTimeoutMs mounts config.json over the baked one so the browser bounds
+# a hung request too (defense-in-depth).
+resilience:
+  requestTimeoutMs: "35000"       # R1 whole-request deadline
+  proxyTimeoutMs: "32000"         # R1 /api upstream-proxy deadline
+spa:
+  httpTimeoutMs: "40000"
+
+# NO gateway block here on purpose. The gate on this profile is gateWard, and
+# k8s-compact/charts/esquire-backend already points at esquire-gateward:8080.
+# Naming the classic gateway service here would proxy /api/* at a workload that
+# does not exist on a super-compact stack.
+

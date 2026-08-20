@@ -1,0 +1,67 @@
+# Prod (OKE super-compact) overrides for k8s-compact/charts/esquire-pacman
+image:
+  repository: ghcr.io/mir0n-pro/esquire.pacman
+  # tag injected by oke-up.bat (--set image.tag=%image_tag%) -- single release tag for the whole stack.
+  pullPolicy: Always
+
+springProfilesActive: console,dev-postgres
+
+# actuator/management probe port (F0 A6); set here to keep the OKE overlay in sync with the chart default (RF3)
+service:
+  managementPort: 8090
+
+db:
+  vendor: dev-postgres
+  host: esquire-infra-postgres
+  port: 5432
+  name: esq2025
+  username: esq2025
+
+logging:
+  levelRoot: ERROR
+  levelSf: WARN
+  levelMir0n: ERROR
+  levelDevelop: "OFF"
+  levelMsg: "OFF"
+
+nodeSelector:
+  tier: app
+
+# v1.2.10 HA (OKE Always-Free): x2 replicas, best-effort spread across the 3 app-tier nodes.
+replicaCount: 2
+topologySpread:
+  enabled: true
+
+# Memory-bounded for the 1 OCPU / 6 GB app nodes (~4.75 GiB alloc; ~4-5 pods/node). CPU
+# request trimmed from the local 250m so the x2 fleet fits the ~2.5 vCPU app tier.
+resources:
+  requests:
+    cpu: 100m
+    memory: 512Mi
+  limits:
+    cpu: 750m
+    memory: 768Mi
+
+# R1-R5 resilience budget promoted from the local-k8s overlay (pools fit Postgres
+# max_connections=200 across the x2 fleet).
+resilience:
+  tomcatMaxThreads: "25"          # R2
+  tomcatAcceptCount: "50"         # R2
+  dbPoolMax: "10"                 # R3
+  dbPoolMinIdle: "2"              # R3
+  dbConnectTimeoutMs: "5000"      # R3 fail-fast on pool acquire
+  dbSocketTimeoutSeconds: "35"    # R5
+  dbTcpKeepAlive: "true"          # R5
+
+# producer send-retry (block mode) on the entity broadcast bus.
+entity:
+  sendRetry: "true"
+
+# SUPER-COMPACT = the compact composition with audit on option (a), DB triggers: the app producer
+# stays OFF, no auKeep process exists and no audit bus carries traffic. The audit stack leaves the
+# application entirely -- zero code, one environment variable. The DB-side trigger DDL
+# (db.seed/<vendor>/triggers/all.sql) must be applied to the OKE postgres for (a) to write.
+# Point the audit ref at the explicit audit-off DISABLED bus (XRodDisabled no-op), which the compact
+# topology chart defines: v1.2.9 fail-fasts on a blank or undefined audit bus-id.
+audit:
+  busId: audit-off
