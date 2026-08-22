@@ -107,11 +107,11 @@ Every box tells you three separate things, and it is worth knowing which is whic
 
 ### Replica stacks and the idle twin (k8s only)
 
-On local Kubernetes the seven Java services and the Explorer run **two copies each**, so a component is drawn as a **stack of cards** -- "enyMan 0" in front, "enyMan 1" peeking out behind -- each with its **own** health colour and its **own** three numbers. Infra (Postgres, ActiveMQ, KeyCloak) runs a single copy and stays a single card -- which is itself worth seeing: the board then *shows* what is redundant and what is a single point of failure.
+On local Kubernetes the Explorer and every Java program run **two copies each** -- seven programs in the classic shape, four in the compact one, so a component is drawn as a **stack of cards** -- "enyMan 0" in front, "enyMan 1" peeking out behind -- each with its **own** health colour and its **own** three numbers. Infra (Postgres, ActiveMQ, KeyCloak) runs a single copy and stays a single card -- which is itself worth seeing: the board then *shows* what is redundant and what is a single point of failure.
 
 The two copies are **active-active** -- both serve, neither is a spare. So if one card sits at `0.0 req/s` while its twin is busy, that is **half the capacity missing**, not a spare resting -- and the board turns that card **amber** (the "idle twin" warning). It only fires when it is really true (the twin doing real work for 15 minutes while this one does nothing), so it is a finding, not noise.
 
-**So enyMan-1 amber while the rest are green** usually means exactly this, or a brief alarm still inside the board's time window from a recent restart -- not a dead service. Check the card's numbers and its detail before treating it as a fault.
+**So one card amber while its twin and the rest are green** usually means exactly this, or a brief alarm still inside the board's time window from a recent restart -- not a dead service. Check the card's numbers and its detail before treating it as a fault.
 
 ### Two special boxes
 
@@ -125,6 +125,22 @@ The two copies are **active-active** -- both serve, neither is a spare. So if on
 ![The top of the Services dashboard: the Overview group (services up, request rate, rate and p95 by replica) open above the JVM group, with the lower groups collapsed to their headers and panel counts.](media/services-screenshot.png)
 
 The dashboard is grouped into collapsible rows. The top rows are **how the system runs** (the RED view: rate, errors, duration, plus infrastructure); the **Business** rows near the bottom are **what it does** (domain activity); the last rows are **resilience** and **capacity**. Below, per group: what each panel is and how to read it.
+
+### The two pickers -- `application` and `service`
+
+At the top of the dashboard sit two pickers, and knowing which one a row obeys saves a lot of confusion:
+
+- **`application` is the PROCESS** -- `mesnie`, `gateward`, `pacman`, `aukeep`. The **machine rows** follow it:
+  JVM, connection pool, CPU, bandwidth, broker, Postgres, KeyCloak, the browser tier, capacity.
+- **`service` is the ESQUIRE SERVICE that did the work** -- `enyman`, `keysmith`, `kcmaster`, `gateway`,
+  `biztree`. The **work rows** follow it: the overview, messaging, the latency bands, the business rows and
+  the breakers.
+
+On the classic stack the two are the same word, so every row reads as it always has. On the **compact** stack
+they part: one JVM, one pool and one CPU belong to `mesnie`, while the entity operations inside it are
+`enyman` and the identity syncs `kcmaster`. So a compact deployment still tells the five services apart on
+the work rows, and stops pretending three of them have their own heap. The mechanism, and what is
+deliberately not split, is in [`Esquire.ObservabilityStack.md`](Esquire.ObservabilityStack.md) Part 4.
 
 ### Overview -- the first glance
 

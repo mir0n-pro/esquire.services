@@ -1,4 +1,4 @@
-FROM quay.io/keycloak/keycloak:26.4.7
+FROM quay.io/keycloak/keycloak:26.6.0
 
 # Copy custom theme into the image
 COPY themes/esquire-explorer /opt/keycloak/themes/esquire-explorer

@@ -103,6 +103,30 @@ compose-rebuild.bat <target>
 
 ---
 
+## The compact stack (the same framework in fewer programs)
+
+Everything above brings up the **classic** shape: every service in its own container. The **compact** shape
+runs the same code and the same configuration with services grouped into fewer programs — **mesnie** holds
+enyMan, keySmith and kcMaster; **gateWard** holds the gateway and the entity-tree cache. pacMan, auKeep and
+the browser tier stay as they are. Nothing is removed: the same URLs, the same seeded data, the same sign-in.
+
+It lives in `services\compose-compact\` and uses the same script names:
+
+```
+compose-rebuild.bat                build every image, then recreate the containers
+compose-rebuild.bat <target>       <target> = mesnie | gateward | pacman | aukeep | backend | frontend
+docker-compose-up.bat              start what is already built
+docker-compose-down.bat            stop + remove the containers
+o11y-on.bat / o11y-off.bat         the single pane, same as classic
+```
+
+> **Run one stack at a time.** Both use the same host ports — 4200, 8081, 8161, 5433, 3009 — so the second
+> one to start fails to bind. Bring the other down first (`docker-compose-down.bat` in its own folder). The
+> two keep separate containers and separate data: compact names its containers `esqc-*` and keeps its own
+> `data\` and `logs\`, so switching shapes does not disturb the other stack's database or realm.
+
+---
+
 ## Stop / reset
 
 ```

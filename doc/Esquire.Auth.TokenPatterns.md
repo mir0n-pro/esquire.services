@@ -102,22 +102,88 @@ JWKS is shared signature-validation infrastructure used by every microservice on
 
 ## What we use with Keycloak
 
-The generic options above assume an IAS that cleanly implements the relevant standards. Stock Keycloak 26.4.7 doesn't, in two specific ways:
+The generic options above assume an IAS that cleanly implements the relevant standards. Stock Keycloak 26.6.0 doesn't, in two specific ways:
 
 - **No JWE on `/token`.** KC's `DefaultTokenManager` has no encryption branch on `/token` for any standard grant; the relevant client attribute (`access.token.encrypted.response.alg=RSA-OAEP`) is silently ignored. JWE on the wire is therefore unavailable until KC ships it or the platform swaps to an IAS that does (Auth0, Okta, ForgeRock, Ping all do). The "ideal" single-token option is out.
-- **RFC 8693 token-exchange doesn't interoperate cleanly with KC's admin fine-grained permissions.** In plain terms: on KC 26.4.7 the gateway can't ask the exchange to mint a token *for a specific downstream (audience) client*, so that client's claim mappers never run on the exchanged token -- which is exactly the cleanest Phantom Token form. The mechanics (and why the raw "v1 / v2" error is cryptic):
+- **RFC 8693 token-exchange cannot mint for an audience client.** The gateway can't ask the exchange to mint a token *for a specific downstream (audience) client*, so that client's claim mappers never run on the exchanged token -- which is exactly the cleanest Phantom Token form. Token exchange is not an admin permission under FGAP:v2 and will not become one, so the permission that would allow it cannot be granted. The mechanics:
 
-![The v1/v2 clash: token-exchange (RFC 8693) ships as v1 on KC 26.4.7 while the realm's admin fine-grained permissions run v2; a v1 exchange with audience=client hits the v2 permissions model on a code path that was never implemented, throwing UnsupportedOperationException "Not supported in V2", so the exchanged token is not minted for the audience client and its claim mappers never run. A second, independent blocker: the source client has lightweight.access.token=true, so the stripped payload is carried through the exchange unchanged. Resolved by token-exchange v2 (not in 26.4.7) or a per-target lightweight switch.](media/token-exchange-v1v2.svg)
+![Why the exchange cannot mint for an audience client: token-exchange (RFC 8693) runs as v1 while the realm's admin fine-grained permissions run v2. Token exchange is not an admin permission under FGAP:v2, so the permission that would let esq-gw-exchange mint for a downstream audience client cannot be granted -- the request is refused and that client's claim mappers never run. The mappers are duplicated onto the requesting client instead. The route out is token-exchange v2.](media/token-exchange-v1v2.svg)
 
-The platform builds all four -- **BFF + JWT + Vanilla Token Relay + Phantom Token Relay** -- and applies a workaround for the Phantom Token Relay gap. **BFF and plain JWT are the RECOMMENDED production paths.** Vanilla and Phantom Token Relay are the lab / exploration patterns of the JWE detour, and they are **NOT armed on the public OKE API** -- their gateway allowlists (`vanilla.clients` / `phantom.clients` in `k8s-oci/values/gateway.yaml`) are empty there, so the gateway never brokers or caches a relay token. Re-arm only for a deliberate load-test window, never as standing config.
+> **Why the audience form is unavailable.** Token exchange runs as v1, a deprecated preview that requires
+> FGAP:v1. **FGAP:v2 does not carry token-exchange permissions and will not** -- Keycloak's position is that
+> token exchange is conceptually not an admin permission. The permission that would let the gateway mint for a
+> downstream client therefore cannot be granted: enabling fine-grained permissions on that client answers
+> `501 Feature not enabled`, and the exchange itself refuses with `403 client not allowed to exchange to
+> audience`.
+>
+> **The route forward is token-exchange v2**, not keeping v1 alive. The v1-capabilities-missing-from-v2 gap is
+> tracked in [#43151](https://github.com/keycloak/keycloak/issues/43151) and
+> [#39686](https://github.com/keycloak/keycloak/issues/39686) -- both worth watching, and both a reasonable
+> place to contribute this deployment's use case as a data point.
 
-### Phantom Token Relay -- deployed workaround
+The platform builds all four -- **BFF + JWT + Vanilla Token Relay + Phantom Token Relay** -- and duplicates the claim mappers on the exchange client to work around the audience gap. **BFF and plain JWT are the RECOMMENDED production paths.** Vanilla and Phantom Token Relay are the lab / exploration patterns of the JWE detour, and they are **NOT armed on the public OKE API** -- their gateway allowlists (`vanilla.clients` / `phantom.clients` in `k8s-oci/values/gateway.yaml`) are empty there, so the gateway never brokers or caches a relay token. Re-arm only for a deliberate load-test window, never as standing config.
 
-The clean theoretical design is "client carries a stripped JWT; gateway exchanges it for a full claim-rich JWT minted for the audience client." KC 26.4.7 blocks both halves of that. Deployed today:
+### Phantom Token Relay -- what it delivers
 
-- `client.use.lightweight.access.token.enabled=false` on the phantom clients -- the source bearer therefore is *not* actually stripped right now and carries the same claims as a plain JWT. The "claim-hidden at client" property of Phantom Token Relay is the named goal but **not currently realized** in production.
-- Claim mappers (`esq_uid`, `esq_rootpath`, `realm_access.roles`) duplicated on the `esq-gw-exchange` requesting client, so the exchanged token (which KC issues *for the requesting client* when v1 exchange runs without `audience=`) carries the principal's claims. Downstream services validate as for plain JWT.
-- The token-exchange code path itself is correct, tested end-to-end, and live. The source-token stripping property comes off the workaround list when KC ships token-exchange v2 (cleanly interoperable with v2 admin permissions) or a per-target lightweight switch.
+Verified 2026-08-20 on the docker stack, brought up from scratch with the realm imported
+from `keycloak/import/esquire.json`. The client is `esq-hauberk-M`, the exchange client `esq-gw-exchange`.
+
+**The pattern delivers what it promises.**
+
+| checked | result |
+|---|---|
+| the client's bearer carries no readable claims | `esq_uid`, `esq_rootpath` and `realm_access` absent -- 9 claims, against 11 in a full token |
+| `/userinfo` cannot be pumped for them | returns `sub` alone |
+| the request still reaches a protected route | stripped bearer -> gateway -> HTTP 200 with data |
+| services receive the claims | the exchanged token carries `esq_uid`, `esq_rootpath` and the role set |
+
+**The `/userinfo` result is the one that matters.** Lightweight Access Tokens are rejected above because
+`/userinfo` accepts the bearer and hands back the claims that were supposed to be hidden. Phantom Token Relay
+does not inherit that: the endpoint is scope-driven and stays stripped, so a holder of the wire token learns
+nothing from it and nothing from Keycloak.
+
+`client.use.lightweight.access.token.enabled` is **true** on the phantom clients, so claim-hidden at the
+client is a property the pattern actually carries.
+
+### Why the claim mappers are duplicated on the exchange client
+
+The exchange cannot mint **for a downstream (audience) client**, so that client's own mappers never run. The
+claim mappers (`esq_uid`, `esq_rootpath`, `realm_access.roles`) are therefore **duplicated on the
+`esq-gw-exchange` requesting client**, and the exchange runs without `audience=`; Keycloak mints for the
+requesting client and the duplicated mappers put the principal's claims on the exchanged token. Downstream
+services validate it as they do a plain JWT.
+
+An `audience=` exchange is refused:
+
+```
+403  error="access_denied"  "Client not allowed to exchange"
+     TOKEN_EXCHANGE_ERROR  reason="client not allowed to exchange to audience"
+```
+
+The permission that would allow it cannot be granted: enabling fine-grained permissions on the audience
+client answers **`501 Feature not enabled`**. That is the documented position made concrete -- token exchange
+is not an admin permission in FGAP:v2 and will not become one, so the audience form has no route on this
+platform. **The mapper duplication is structural, not a temporary patch**, until the gateway moves to
+token-exchange v2.
+
+The exchange runs on **v1**, which Keycloak reports at boot as
+`Preview features enabled: token-exchange:v1` and `Deprecated features enabled: token-exchange:v1`.
+
+### Can Phantom Token Relay stand in for JWE?
+
+**For the claim-hiding half, yes.** JWE would have carried claim-hidden and locally-validated in one token;
+Phantom Token Relay partitions those two across the client/gateway seam and, as verified above, delivers
+both -- the client sees nothing, services validate locally against JWKS.
+
+What it costs:
+
+- **~6 ms per request on a cache HIT** against ~1 ms for plain JWT, plus ~11-16 ms on MISS
+- **a stateful per-`jti` cache** at the gateway -- the one stateful hop in the design
+- **a deprecated foundation** -- v1 exchange, and the audience form permanently unavailable
+
+So it is a working demonstration of the pattern and a genuine claim-hiding option, not a reason to move BFF
+or plain JWT off the recommended path. The JWE design reopens on the conditions listed at the end of this
+document, none of which this upgrade changes.
 
 ## Implementation -- the four patterns
 
@@ -241,7 +307,7 @@ Business claims (`esq_uid`, `esq_rootpath`, `realm_access.roles`) are configured
 
 So a stripped token tells the holder: "you're authenticated, here's a token id, this is the client and KC realm, here's when it expires" -- nothing about the principal's Esquire-side identity, permission scope, or roles. The decoder learns operational metadata, not business identity. Payload size is ~150 bytes vs ~400 bytes for a full token.
 
-**Current deployment state:** `client.use.lightweight.access.token.enabled=false` on the Phantom Token Relay clients because KC v1 token-exchange propagated stripping to the exchanged token too (leaving the backend with no claims). The exchange flow itself is correct and tested; flipping lightweight back on cleanly needs KC token-exchange v2 (not in 26.4.7) or per-audience mappers. Known KC-version limitation.
+**Current deployment state:** `client.use.lightweight.access.token.enabled=true` on the Phantom Token Relay clients, so the wire token really is stripped. The exchanged token carries the principal's claims because the mappers are duplicated on the `esq-gw-exchange` requesting client -- see [Why the claim mappers are duplicated on the exchange client](#why-the-claim-mappers-are-duplicated-on-the-exchange-client).
 
 ## Measured performance
 
@@ -261,6 +327,34 @@ per pattern (gw_self band, ms; only the varying column shown):
 
 MISS happens once per `client_id` (Vanilla Token Relay) or once per `jti` (Phantom Token Relay) per JWT TTL (~5 min); every other request in the same window is HIT. Logon handshake -- the one-time KC `/token` call the client itself runs to acquire the bearer it presents -- is ~9 ms on the wire to KC and amortized across the JWT's full lifetime.
 
+### What stripping costs
+
+Measured 2026-08-20 on docker: the same client and the same code path, with the attribute set each way, 40
+samples per column and two interleaved rounds so drift between rounds cancels.
+
+**Nothing measurable.** Every timing column -- handshake, request at HIT, the exchange on MISS -- swapped
+which side was faster between the two rounds, which is this rig's noise rather than a difference in the
+pattern. End-to-end timing on one box cannot resolve about a millisecond; the `gw_self` band above is the
+instrument for that, and this measurement exists only to show nothing large is hiding.
+
+What is deterministic is the token: **806 bytes and 9 claims** stripped, against 857 bytes and 11 claims
+unstripped. And there is no code difference at all -- stripping is a single realm attribute.
+
+### And against plain JWT
+
+Same method, plain JWT measured through the same gateway with the `esq-hauberk` client:
+
+| | plain JWT | Phantom Token Relay |
+|---|---|---|
+| handshake p50 | 6.4 ms | 4.8-5.4 ms |
+| request min | 7.7 ms | 8.3 ms |
+| request p25 | 9.2 ms | 9.6 ms |
+
+Under a millisecond apart at cache HIT, on a rig whose own spread is 8-34 ms. The costs that are real and do
+not go away: **one exchange per `jti` per token TTL** on MISS, **~1 KB of gateway cache per active `jti`** --
+the single stateful hop in the design -- the duplicated mappers, and a deprecated v1 exchange. That is the
+price of claim-hiding, and it is why BFF and plain JWT remain the recommended production paths.
+
 ## Decision matrix (which pattern, when)
 
 | Property needed | BFF | JWT | Vanilla Token Relay | Phantom Token Relay |
@@ -276,6 +370,41 @@ MISS happens once per `client_id` (Vanilla Token Relay) or once per `jti` (Phant
 
 The four patterns coexist in one realm. Each client opts in via its KC config: Vanilla Token Relay clients via gateway env allowlist; Phantom Token Relay clients via both gateway env allowlist and KC token-exchange permission grant.
 
+### Why neither Phantom Token Relay nor JWE belongs on the BFF path
+
+The patterns partition at different seams, so stacking them pays twice for one property.
+
+**Phantom Token Relay on the BFF -- no.** The browser holds no token at all, only an opaque session cookie,
+so claim-hiding is already delivered by ABSENCE rather than by stripping: nothing to decode, nothing to replay,
+no `/userinfo` question to ask. Applying it to the BFF-to-gateway hop is worse than pointless:
+
+- the holder there is the BFF itself -- our own tier, inside the cluster, already trusted with the session.
+  Hiding claims from it protects against nothing.
+- it breaks a real dependency: the BFF reads `preferred_username` and `realm_access.roles` to answer
+  `/auth/me`. A stripped token takes those away, so the BFF must fetch them back -- reintroducing exactly the
+  per-request claims lookup that disqualified Lightweight Access Tokens + Userinfo.
+- it adds the exchange, the per-`jti` cache and the duplicated mappers to a path that gains nothing from them.
+
+**JWE on the BFF -- one sliver, not a reason.** Same logic: JWE hides the payload from the holder, and the
+holder is the BFF, which must decrypt anyway to serve `/auth/me` -- so it holds the key and the claims are
+hidden from nobody who matters.
+
+The one genuine angle is tokens AT REST: at x2 the BFF replicas share a Redis session store that holds full
+JWTs, and JWE would make those opaque to anyone able to read it. It does not survive scrutiny as a reason:
+
+- it hides the CLAIMS, not the CAPABILITY -- a stolen JWE is still a valid bearer, so the reader can still
+  impersonate; they merely cannot read whom they are impersonating.
+- the BFF holds the decryption key, so Redis access plus BFF access is a full read regardless.
+- Redis is in-cluster and unexposed; an attacker who can read it has already crossed the boundary this design
+  defends.
+
+If token-at-rest exposure ever becomes the actual concern, the proportionate answer is encrypting the SESSION
+STORE or shortening TTLs -- not changing the token format the whole platform validates.
+
+**Where JWE would earn its keep is the other path:** the non-browser, service-to-service clients that today
+need Phantom Token Relay. That is the one carrying the exchange, the cache and the deprecated v1 -- and the
+only place a single self-contained claim-hidden token removes machinery instead of adding it.
+
 ## When JWE reopens
 
 Reopen this design only when one of:
@@ -284,9 +413,101 @@ Reopen this design only when one of:
 2. **An alternative IAS enters the deployment story.** Auth0, Okta, ForgeRock, and Ping all emit JWE on the standard token endpoint natively; the gateway-side decoder we keep in tree (`JweAwareJwtDecoder` + `/jwe-jwks` exposure) is the standard consumer-side pattern and would work without code changes -- just swap the issuer URL and adjust realm / issuer claim configuration.
 3. **A new threat model demands claim-hidden + local-validation together in a single token format** -- which none of BFF, Vanilla Token Relay, or Phantom Token Relay can satisfy without partitioning across tiers. (Only JWE achieves both properties in one token.)
 
+### What JWE would buy, stated as what it removes
+
+JWE carries both properties in ONE token, so the whole partition apparatus stops being necessary. Against the
+Phantom Token Relay deployed today:
+
+| Phantom Token Relay needs | JWE needs |
+|---|---|
+| RFC 8693 token-exchange at the gateway | -- |
+| a per-`jti` gateway cache -- the single stateful hop | -- |
+| the `esq-gw-exchange` client and its secret | -- |
+| claim mappers duplicated onto that client | -- |
+| a gateway allowlist, armed per client | -- |
+| v1 exchange, deprecated preview, FGAP:v1 | -- |
+| one exchange per `jti` per token TTL on MISS | -- |
+
+The gateway also stops being a REQUIRED participant. A phantom token is useful only to a gateway holding the
+exchange grant; a JWE is useful to any resource server holding the decryption key, so token portability comes
+back without a broker in the path.
+
+**What it costs instead, and this is the half worth planning for:**
+
+- **Key distribution becomes the problem.** Signature validation needs only the public JWKS; decryption needs
+  the private key at EVERY resource server. The operational question moves from "one gateway holds an exchange
+  secret" to "every service holds a decryption key", with the rotation story that implies.
+- **A decrypt per request** at each service -- CPU, but local, with no network hop.
+- **Claim-hiding is against the CLIENT only.** Every service still sees every claim, exactly as with Phantom
+  Token Relay. JWE hides the payload from the holder, not from the fleet.
+
+**The consumer half is already built.** `JweAwareJwtDecoder` and the `/jwe-jwks` exposure are in tree and are
+the standard consumer-side pattern, so the work that reopening implies is issuer configuration and key
+handling -- not a new pattern in the services.
+
+So the blocker is the IAS, not this codebase. The experiment that would settle it is pointing the existing
+decoder at an IAS that emits JWE natively:
+
 | IAS | JWE access-token capability |
 |---|---|
 | **Auth0**            | Specific APIs can be configured to encrypt access tokens using JWE Compact Serialization. Available for all supported grant types. JWKS-based key exchange. |
 | **Okta**             | OIDC token JWE encryption is a configurable feature on Custom Authorization Servers; algorithms selected per CAS. |
 | **ForgeRock / Ping** | Both support encrypted access tokens per OIDC profile / OAuth2 enterprise extensions. |
 
+## Conclusion -- what we use on each line, and what we still want
+
+**Phantom Token Relay is not applied generically -- on either line.** It is a conditional, per-client option
+on the direct API line, and it is never used on the BFF line. Plain JWT and BFF remain the platform's answers.
+
+Two connection lines reach Esquire, and they take different answers. Stating them separately is the whole
+point: a single "which token pattern do we use" answer would be wrong on one of them.
+
+### The BFF line (browser -> BFF -> gateway)
+
+**Plain BFF. Phantom Token Relay is not used here, and JWE would add nothing.**
+
+The browser holds an opaque session cookie and no token at all, so claim-hiding is delivered by ABSENCE --
+stronger than stripping, and free. Phantom Token Relay on this line would hide claims from our own BFF, which
+reads `preferred_username` and `realm_access.roles` to answer `/auth/me`, forcing a per-request claims lookup
+back into the design. JWE on this line encrypts a token whose holder already holds the key.
+
+This line is settled. Nothing pending on it.
+
+### The direct API line (service-to-service client -> gateway)
+
+**Plain JWT by default. Phantom Token Relay when claim-hiding at the client is actually required -- which is
+a deliberate opt-in, not the general case.**
+
+Phantom Token Relay is verified: the wire token really is stripped, `/userinfo` cannot be pumped for what was
+removed, and services still validate locally. It is a working, standards-based claim-hiding option, and it
+costs nothing measurable against the workaround it replaces.
+
+It is NOT the generally accepted solution on this line, for four reasons that survive the upgrade:
+
+1. **Plain JWT already answers the common case** -- no exchange, no cache, no state, nothing to arm.
+2. **It introduces the only stateful hop in the design** -- a per-`jti` cache at the gateway, ~1 KB per active
+   token, plus one exchange per `jti` per TTL.
+3. **The mapper duplication is structural**, not temporary: the audience form of the exchange cannot be
+   granted (`501 Feature not enabled`), so the claims must be duplicated onto the requesting client.
+4. **It stands on a deprecated foundation** -- v1 token exchange, preview, FGAP:v1-bound, with v2 as the
+   stated route forward.
+
+So: armed per client, for a client that genuinely must not read its own claims. Allowlists stay empty
+otherwise, and empty on the public API by design.
+
+### Is JWE still what we want?
+
+**Yes -- and only for the direct API line.** That refinement is the result of this work.
+
+On the BFF line JWE is redundant; the pattern already achieves the outcome. On the direct API line JWE remains
+the only single-token answer that carries claim-hidden AND locally-validated together, and it would delete the
+exchange, the cache, the exchange client, the duplicated mappers, the allowlist and the deprecated v1 -- it
+REMOVES machinery rather than adding it. That is why it stays the goal.
+
+What changed is the price, now that it is understood: key distribution moves to every resource server, and
+claim-hiding remains a property against the CLIENT only -- the fleet sees everything either way.
+
+And the blocker is not this codebase. The consumer half (`JweAwareJwtDecoder`, `/jwe-jwks`) is in tree; stock
+Keycloak still has no encryption branch on `/token`. JWE reopens when an IAS that emits it enters the
+deployment story -- which is the single experiment worth running, and the reason all four patterns stay in
+code until it is.

@@ -741,6 +741,28 @@ spread + backend HA make the deployment actually highly available.
 
 ---
 
+## 8a. Redundancy in the compact shape
+
+The compact shape groups services into fewer programs -- **Mesnie** carries enyMan, keySmith and kcMaster,
+**gateWard** the gateway and the tree cache. Redundancy is unchanged in kind: every program still runs N
+replicas, and every collaboration still survives losing one of them.
+
+What changes is the arithmetic. On OKE, classic is **13 pods** -- six services at x2 plus the BFF at 1 --
+and compact is **7**: Mesnie x2, gateWard x2, pacMan x2 and the BFF. The BFF stays a single replica in both,
+for the reason in section 7: no Redis on OKE, so the in-memory session store cannot be split. Infrastructure
+is untouched at three (Postgres, ActiveMQ, KeyCloak).
+
+Two consequences worth stating plainly:
+
+- **The failure unit is the program, not the service.** Losing one Mesnie replica takes the entity manager,
+  the credential service and the KeyCloak agent with it -- and its twin carries all three, exactly as the
+  three separate twins would have. Availability is the same; the blast radius per pod is larger.
+- **Fewer replicas of fewer things is still spread.** The rules in 3.2 and 3.3 apply unchanged: the copies
+  must sit on different nodes and availability domains, with disruption budgets, or this is redundancy
+  rather than high availability.
+
+---
+
 ## 9. What Esquire can provide -- the bottom line
 
 - **The application tier: full horizontal HA.** Any pod serves any request; sessions are shared; the fleet

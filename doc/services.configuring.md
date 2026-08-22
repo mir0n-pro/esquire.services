@@ -20,6 +20,8 @@ table.
   applies.
 - **Where to set it:** docker — the service's `environment:` block in `compose/compose.yaml`;
   k8s — the chart `values.yaml` / the rendered ConfigMap (`k8s/charts/esquire-<svc>/`).
+  The **compact** shape reads the same knobs from its own copies: `compose-compact/compose.yaml` and
+  `k8s-compact/charts/esquire-<program>/`.
 - **Relaxed binding:** an env var maps to a dotted property by upper-casing and replacing `.`/`-`
   with `_`. So `biztree.queue.bulk-threshold` is set by `BIZTREE_QUEUE_BULK_THRESHOLD`.
 - **DB vendor profiles:** the data services pick a Spring profile from `DB_<SVC>_VENDOR`
@@ -31,6 +33,24 @@ table.
   **`MessagingBus`** facade for a bus's **x-rod**, built from the `role` it declares on that bus. A
   cross-service **bus catalog** (the "topology") defines every bus ONCE in an external file, imported
   by every service (see [Shared parameters](#shared-parameters-most-services)).
+
+### The compact shape reads the same configuration
+
+Grouping services into fewer programs changes **which** services run in a program, not **how** they are
+configured. Every knob in this document keeps its name and its default. Three things are worth knowing when
+reading a compact deployment:
+
+- **A program carries the env of every service inside it.** `mesnie` sets the enyMan, keySmith and kcMaster
+  variables together (`ENYMAN_*`, `KEYSMITH_*`, `KCMASTER_*`); `gateward` sets the gateway and bizTree ones
+  (`GW_*`, `BIZTREE_*`). A service knob keeps the service prefix. Only what belongs to the program itself
+  takes the program name: its port and its datasource — `MESNIE_PORT`, `DB_MESNIE_*`, `GATEWARD_*`.
+- **The KeyCloak request/response bus is defined but unused.** `esquire.kc` stays in the compact catalog,
+  and no participant references it: identity work is served inside `mesnie` through the identity gateway
+  rather than over the bus. There is no leg to configure and none to watch.
+- **The cloud profile trims the catalog to two buses.** `k8s-oci-compact` defines `esquire.entity` and
+  `audit-off` only, because those are the two its services reference. `audit-off` is a DEFINED bus that means
+  "no audit bus": a blank or missing `AUDIT_BUS_ID` fails fast at startup, so switching audit off has to be
+  said explicitly. There the audit trail is written by database triggers instead.
 
 ---
 

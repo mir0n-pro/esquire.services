@@ -84,6 +84,25 @@ untouched until v1.2 stable.
   FAILS on a missing image. (Postgres is pulled by Testcontainers.)
 - **No secrets, no runner, no deploy** -- a broken reactor never reaches a deploy.
 
+### 4.1a Which deployment shape a deploy job brings up
+
+Esquire ships two shapes, and the deploy scripts **do not choose one** -- they deploy the shape the machine
+is already running, so a dev box left on compact keeps being proven on compact.
+
+- `deploy-compose.cmd` reads the running containers: a compose project `esq-compact` present means compact,
+  otherwise classic.
+- `deploy-local.cmd` reads the installed helm releases: `esquire-mesnie` present means compact,
+  `esquire-enyman` means classic.
+
+Nothing running falls back to **classic**, the default shape -- and classic also wins if both are somehow
+installed. Guessing between two half-installed shapes is how a cluster ends up in a mixed state; one
+deterministic answer is worth more than a clever one.
+
+The job then **removes the other shape** before bringing its own up. This is not tidiness: both shapes share
+one bus and one database, so leaving Mesnie and enyMan/keySmith/kcMaster subscribed to the entity broadcast
+at the same time gives two sets of consumers for one event, with nothing failing to announce it. On compose
+the other stack must go for a simpler reason as well -- both bind the same host ports.
+
 ### 4.2 Local deploy (self-hosted, dev box) -- `deploy-local.yml`
 - **On:** `push` to `pending-**` **only** (never `pull_request` -- see security note).
 - **Runner:** `runs-on: [self-hosted, windows]` -- a runner registered on the Windows dev box (the

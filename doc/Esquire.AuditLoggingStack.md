@@ -573,6 +573,13 @@ SQL spec artifacts** (`META-INF/audit/{dialect}.xml`, shipped or omitted at pack
 (ActiveMQ + auKeep, or Redis, or Kafka — plus the matching `tp-*` module on the deployable). Full recipe per
 option + the env reference: [services.configuring.md](services.configuring.md).
 
+**The deployment shape does not change the audit design, and one shape uses it to remove a program.** In the
+classic and compact shapes the audit bus runs as configured and **auKeep** consumes it in its own program --
+compact composes the REQUEST path, and the audit sink is not on it. The cloud profile takes option (a),
+**database triggers**, so there is no bus leg to drain and no consumer to run: it sets `AUDIT_BUS_ID` to
+`audit-off`, a bus DEFINED in the catalog as "no audit bus". Setting it blank or leaving it out is not the
+same thing -- that fails fast at startup, deliberately, so audit is never off by accident.
+
 **Deploy defaults — the code baseline is (0), each deployment configures its own topology:**
 
 - **Code default `application.yml`:** `AUDIT_BUS_ID=audit-b` (in-process); a deployment that names no

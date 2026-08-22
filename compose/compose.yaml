@@ -193,7 +193,7 @@ services:
     build:
       context: ../keycloak
       dockerfile: Dockerfile.keycloak
-    image: esquire-keycloak:26.4.7
+    image: esquire-keycloak:26.6.0
     # Run as root inside the container -- compose-only workaround for
     # Windows + Docker Desktop bind-mount permissions: KC's default uid 1000
     # can't write to ./data/keycloak when it comes back as root-owned after
@@ -229,7 +229,7 @@ services:
       - ./data/keycloak:/opt/keycloak/data
       - ../keycloak/import/esquire.json:/opt/keycloak/data/import/realm.json
     healthcheck:
-      # KC 26.4.7 management interface on :9000 returns 404 for /health/ready; TCP probe on :8080 sidesteps it.
+      # The KC management interface on :9000 returns 404 for /health/ready; TCP probe on :8080 sidesteps it.
       test: ["CMD-SHELL", "bash -c '</dev/tcp/127.0.0.1/8080' 2>/dev/null"]
       interval: 10s
       timeout: 5s

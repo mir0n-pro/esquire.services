@@ -1,6 +1,32 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v1.2.13-2608.2119  v1.2.13 -- KeyCloak 26.6.0, and the sprint documentation
+    :Config:      the identity server is built on KeyCloak 26.6.0 for the docker stacks
+    :Config:      the load-test client that must not read its own token is handed the stripped one again
+    :Doc:         doc\Esquire.Vision.md
+                  doc\Esquire.Auth.TokenPatterns.md
+                  doc\Esquire.TestingStack.md
+                  doc\install\Docker.md
+                  doc\install\LocalK8s.md 
+                  doc\services.configuring.md
+                  doc\Esquire.DevSetup.md
+                  doc\Esquire.DevProcess.md
+                  doc\Esquire.GitHubActions.md
+                  doc\Esquire.GrafanaGuide.md
+                  doc\Esquire.HighAvailability.md
+                  doc\Esquire.BizTree.md
+                  doc\Esquire.Auth.md
+                  doc\Esquire.Auth.keySmithRoutine.md
+                  doc\Esquire.Messaging.md
+                  doc\Esquire.AuditLoggingStack.md
+                  doc\Esquire.ObservabilityStack.md
+                  doc\model\ComponentModel.vsdx
+    Components:   compose,
+                  compose-compact,
+                  keycloak,
+                  doc
+
 v1.2.13-2608.2017  v1.2.13 -- the composed services on the cloud
     :Feature:     the cloud runs the composed setup: four programs instead of eight, with the change history
                   written by the database itself

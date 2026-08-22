@@ -219,6 +219,81 @@ Disruptor.
 
 ---
 
+### CD-14 -- Authorization refusals as audit events, not only as error-log lines
+
+**Priority: good to have.** Not a gap and not a missing capability -- **the information is already
+recorded and already recoverable today**, by scanning the error log. What CD-14 buys is convenience and
+queryability, not a fact that is otherwise lost. A workaround exists, it works, and nothing is blocked on
+this. Schedule it when there is room, not ahead of anything.
+
+**Two things get called "audit" here and only one of them is ours.**
+
+**Not ours: the logon handshake.** Failed passwords, lockouts, MFA, session start and end. Esquire holds no
+credential and never authenticates anyone, so recording those would duplicate what the identity provider
+already owns -- in a shape that changes with whichever provider is deployed. KeyCloak keeps its own admin
+and user event log, and that is where it belongs. **Deployment tooling that follows the IAM implementation
+in place, not a framework feature.**
+
+**Ours: the authorization refusal.** No identity provider can know that a request for a given node was
+refused because the node sat outside the caller's subtree. Only Esquire knows that.
+
+**Why it is worth more here than in most systems.** Visibility failures answer **404** -- so the server
+distinguishes *"does not exist"* from *"exists, but not yours"* while the client deliberately cannot. **The
+audit record is the only place that distinction survives.** Repeated concealed 404s from one principal
+walking an id space is what probing looks like, and nothing downstream can reconstruct it from the
+responses, because the responses were built to be indistinguishable.
+
+**Where it stands: available as an error log, and only as a log scan.** Every refusal already reaches
+`GenericExceptionHandler.handleGenericRuntimeException`, which logs class, method, URI and message for each
+`GenericRuntimeException` -- so `ResourceNotFoundException` and `PermissionDeniedException` are both there.
+Nothing queryable, no event, no retention beyond whatever the log shipper does.
+
+**The shape of the fuller answer.** Everything needed exists except the last hop:
+
+1. **An error-handler routine that posts the event to the bus.** `GenericExceptionHandler` is already the
+   single funnel every refusal passes through -- one publish call there covers every service, with no
+   per-endpoint work and nothing for a future endpoint to forget. It must be fail-open and off the response
+   path: an audit publish that can throw, or that can slow a refusal, is worse than no audit -- the same rule
+   as the meter path in CD-6.
+2. **Carried on the `audit-x` topology.** The audit bus, the `auKeep` consumer, `AUDIT_BUS_ID` selection and
+   topology-by-configuration are all in place already -- see
+   [Esquire.AuditLoggingStack.md](Esquire.AuditLoggingStack.md). This is a new event kind on an existing bus,
+   not new infrastructure, and it inherits the same off-by-default posture: a deploy with no audit config
+   imposes no audit.
+3. **An extra table on the keep side.** Principal (`esq_uid`), their `esq_rootpath` at the time, requested
+   kind and id, the guard that refused (**visibility / permission / domain constraint** -- the three-way
+   split), resulting status, timestamp, correlation and request id.
+
+**Not available under (a) DB triggers -- and that is not a blocker.** Two reasons, and the second is the
+interesting one:
+
+- Under **(a)** the app-side producers are off by design; triggers are database setup and the services stay
+  out of it. So nothing in `GenericExceptionHandler` is running to publish from.
+- More fundamentally: **a trigger fires on a row change, and a refusal changes no row.** There is nothing
+  for a trigger to observe -- a refusal is defined by nothing happening. No configuration of (a) can reach
+  it, now or later.
+
+That is consistent with where the seam already sits: the `IAuditLogger` strategies are **0 / b / c / d**,
+and (a) was never behind the app-side seam at all. **CD-14 lands on the seam, so it inherits the seam's
+coverage exactly** -- no special case, no new asymmetry.
+
+Practically it costs nothing. (a) is the **OKE demo** choice, taken for an always-on zero-extra-pod way to
+watch user activity on the Always-Free tier; a deployment that actually wants authorization audit is
+configuring b/c/d regardless. Worth stating in the docs so nobody wires (a) expecting refusals to appear in
+it.
+
+**The one thing to decide before building it.** Storing the refused id is exactly what makes the record
+useful *and* exactly what the 404 was concealing -- so the audit store inherits a confidentiality
+requirement the API deliberately sheds. Worth settling who may read that table before there is one; it is
+plausibly narrower than who may read the rest of the audit log.
+
+**Whether this belongs in the framework at all is genuinely open** -- a refusal in Esquire is not a
+near-miss, since there is no escape hatch to widen, so it records an attempt rather than an avoided breach.
+That argues for an adopter's monitoring concern. The argument the other way is that only the framework is
+positioned to record it. Recorded here so the choice is made deliberately.
+
+---
+
 ## Dependency / upgrade debt -- the time-bomb sweep
 
 These items **work today and fail on a future upgrade** -- silent, and only visible if you go looking. They are

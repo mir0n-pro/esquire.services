@@ -52,6 +52,12 @@ bizTree exposes two contracts, and nothing else:
 The cache's internal structure -- the Taijitu below -- is invisible to callers.
 They see the same API whichever director implementation is active.
 
+**Where it runs is also invisible.** In the classic shape bizTree is its own program and the five read
+routes arrive over the network. In the compact shape the same code runs inside **gateWard**, next to the
+gateway that received the request, so a tree read is answered without a second hop. The contracts above, the
+H2 storage layer, the night-watch and the event sink are unchanged -- the cache does not know which shape it
+is in.
+
 
 ## Structure: two monads behind one director
 

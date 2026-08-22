@@ -35,6 +35,20 @@ cloud today; the local docker stack also runs Kafka and Redis.
 
 ---
 
+### The same buses in the compact shape
+
+Grouping services into fewer programs does not change the catalog: the buses, the destinations and the roles
+are the same file, read the same way. What changes is who is on which side of a leg.
+
+- The **Entity Broadcast** bus keeps every participant. In compact, Mesnie publishes it (enyMan inside it)
+  and gateWard consumes it (the tree cache inside it).
+- The **IAM Request/Response** bus is defined and **carries nothing**: the requester and the server -- enyMan,
+  keySmith and kcMaster -- sit in the same program, so identity commands are a call through the identity
+  gateway instead of a queue round trip. The bus stays in the catalog because the catalog describes the
+  framework, not one deployment.
+- The **Audit** bus is unchanged, and auKeep remains its own program. In the cloud profile the audit trail is
+  written by database triggers instead, and the audit bus id is set to the DEFINED `audit-off`.
+
 ## Entity Broadcast Bus
 
 **enyMan** (organizations and users) and **pacMan** (accounts) publish an **entity-update (`UE`)** event on

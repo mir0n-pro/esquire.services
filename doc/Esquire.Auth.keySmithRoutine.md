@@ -18,6 +18,11 @@ for the three credential lifecycle operations: reset password, TOTP, and connect
 
 ---
 
+> **The routines are the same in both deployment shapes.** Where a step below says keySmith posts a command
+> and kcMaster performs it, that travels the IAM request/response bus in the classic shape and is a call
+> inside one program in the compact shape, where both sit in Mesnie. The commands, the order and the replies
+> are identical; only the distance changes.
+
 ## 1. Reset Password
 
 ### DB flag: `au_force_change_flg` — values: `Y` | `N`

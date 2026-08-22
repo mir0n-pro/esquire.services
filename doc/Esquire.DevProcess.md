@@ -80,6 +80,8 @@ Every intermediate phase runs the SAME full cycle — not only at sprint end:
 6. **GHA deploys** — the push triggers GitHub Actions: CI, then deploy to docker + local
    Docker-Desktop k8s (self-hosted runner on `pending-**` push).
 7. **Run e2e & smokes** — on docker AND local k8s; confirm the change is in place on both targets.
+   The deploy jobs bring up whichever **deployment shape** the machine already runs (classic or compact) and
+   remove the other; a change that touches the request path is worth proving on both shapes before release.
 
 The **git boundary is the maintainer's**: steps 1–4 (develop, test, verify, prepare docs) are the
 working phase; steps 5–7 are maintainer-gated.

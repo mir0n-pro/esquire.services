@@ -47,7 +47,7 @@ The Esquire framework spans Java microservices, a Node.js BFF, an Angular SPA + 
 | Module | `@Test` methods | Notes |
 |---|---|---|
 | mir0n-utils | 43 | base utilities split out of `common` — identity / string / numeric helpers, the worker pool and bounded-queue rig, and the expiring hand-off cache (`ExpiringCacheTest`, `ExpiringCacheStoreIfGreaterTest`, including a 16-thread race on one key) |
-| common | 202 | core framework: entity / field utils, roles storage, access profile, validators, Taijitu cache rigs, request-context guard, worker-pool |
+| common | 206 | core framework: entity / field utils, roles storage, access profile, validators, Taijitu cache rigs, request-context guard, worker-pool |
 | messaging | 116 | the messaging-bus + x-rod substrate (the old `XRodManager` dissolved into the facade): catalog / codec / transport, the facade (`MessagingBusTest`, `MessagingBusCatalogTest`, `RodEventCodecTest`, `XRodTest`), bus health (`BusHealthIndicatorTest`, `TransportHealthIndicatorTest`, `TransportHealthTest`, `AliveSessionTest`), role + config-bind validation (`XRodRoleSupportTest`, `XRodValidateTest`, `BusRefBindTest`, `XRodParamsTest`), broker-down resilience (`XRodBrokerDownTest`) |
 | audit | 22 | the audit rules on the generic keep engine: `AuditSqlTest`, `AuditKeepDirectorTest`, `AuditBusBridgeTest`, `AuditKindsTest` |
 | dataKeep | 3 | the generic keep-engine SQL / applier units |
@@ -61,7 +61,9 @@ The Esquire framework spans Java microservices, a Node.js BFF, an Angular SPA + 
 | tp-activemq | 2 | transport-provider unit checks |
 | tp-redis | 2 | transport-provider unit checks |
 | tp-kafka | 2 | transport-provider unit checks |
-| **total** | **664** | across **104** classes |
+| mesnie | 5 | the composed write program: the composition itself and the identity gateway it hands to keySmith and enyMan |
+| gateWard | 8 | the composed read program: the tree routes answered locally, and the gateway wiring around them |
+| **total** | **681** | across **107** classes |
 
 **Coverage tooling — JaCoCo.** Line / branch coverage of this Java tier is measured with **JaCoCo** (0.8.13, wired in the parent `pom.xml`: `prepare-agent` + `report`). It counts whatever runs in the forked test JVM — the unit tests **and** the in-JVM Testcontainers / `@SpringBootTest` integration tests; e2e and hauberk drive a separately deployed stack, so they fall outside its reach. Reports are written to `services/test/JaCoCo/<artifactId>` (deliberately outside module `target/`, so `mvn clean` keeps them). Run via `build-with-JaCoCo.bat` (`mvn clean test`) and browse `test/JaCoCo/framed.html`. Coverage is a signal, not a build gate; mutation testing (PIT) is not used.
 
@@ -79,7 +81,7 @@ The Esquire framework spans Java microservices, a Node.js BFF, an Angular SPA + 
 
 **Pattern:** Each Simulation extends `HauberkSimulation` (abstract base — pulls up lazy KC token, instrumented `httpProtocol`, perf-matrix flush). Reusable `ChainBuilder` atoms compose into `ScenarioBuilder` flows. `@SimulationInfo("...")` annotation supplies the catalog description; presence enforced by `SimulationCatalogContractTest` (JUnit 5).
 
-**Coverage:** 23 Simulations + 32 reusable Chains + 3 JUnit catalog-contract tests. `@SimulationInfo` descriptions are held under a 90-char `hauberk list` cap enforced by `SimulationCatalogContractTest`.
+**Coverage:** 22 Simulations + 32 reusable Chains + 3 JUnit catalog-contract tests. `@SimulationInfo` descriptions are held under a 90-char `hauberk list` cap enforced by `SimulationCatalogContractTest`.
 
 **Esquire-org standard:** Gatling is the chosen framework for all integration / stress / load / race-repro testing across the project (see *Why this many frameworks* below for the rationale). See [Esquire.Haubergeon.md](Esquire.Haubergeon.md) for the harness reference — build / run / catalog / vocabulary.
 
@@ -103,6 +105,23 @@ Sits right beside the Haubergeon harness above — **same running stack, differe
 
 ---
 
+## The shapes a running-stack suite runs on
+
+Everything that drives a *running* stack -- the integration matrices above, the Playwright end-to-end suite,
+and the Haubergeon harness -- is written against the framework's contracts, not against a process layout. So
+the same suite runs unchanged on every deployment shape, and that is exactly what makes it the proof that a
+shape is sound:
+
+| shape | where | what it proves |
+|---|---|---|
+| classic | `compose\`, `k8s\` | the default: a program per service |
+| compact | `compose-compact\`, `k8s-compact\` | grouping services changes nothing a caller can observe |
+| cloud compact | `k8s-oci-compact\` | the same, with the audit trail written by database triggers |
+
+A suite that needed editing to pass on a second shape would be reporting a difference the framework promises
+is not there. The scripts take the target as configuration -- the stack folder and the entry URL -- and
+nothing in the assertions moves.
+
 ## Node.js (BFF) — Vitest + Supertest
 
 **Used in:** `explorer/backend/` (the BFF tier).
@@ -117,11 +136,11 @@ Sits right beside the Haubergeon harness above — **same running stack, differe
 
 | File | Specs | What it covers |
 |---|---|---|
-| `test/config.test.ts` | 6 | default fallback values; `ALLOWED_ORIGINS` parse + dedupe with `publicBaseUrl` first; blank entries skipped; numeric env parsing; `NODE_ENV=production` |
-| `test/util/trace.test.ts` | 5 | UUID generation when `X-Request-ID` absent; preserves client-supplied id; `X-Correlation-ID` propagated only when client sets it; first-of-array headers; empty string treated as absent |
+| `test/config.test.ts` | 8 | default fallback values; `ALLOWED_ORIGINS` parse + dedupe with `publicBaseUrl` first; blank entries skipped; numeric env parsing; `NODE_ENV=production` |
+| `test/util/trace.test.ts` | 14 | UUID generation when `X-Request-ID` absent; preserves client-supplied id; `X-Correlation-ID` propagated only when client sets it; first-of-array headers; empty string treated as absent |
 | `test/proxy/cache.test.ts` | 10 | `keyForRequest` shape for `/esq-kinds` + `/esq-dict` (incl. array-shaped kind); null for missing kind / non-dictionary paths; HIT/MISS round-trip; distinct keys per kind (no cross-pollination); size accounting; LRU eviction past `maxEntries`; TTL eviction past `ttlMs` |
 | `test/auth/tokens.test.ts` | 12 | `NoSessionError` on missing tokens; returns current `access_token` when fresh; refresh within the 30s leeway window; refresh after expiry; `NoSessionError` when expiring without a `refresh_token`; `RefreshFailedError` wraps upstream KC failures; `RefreshFailedError` when the refresh response omits `access_token`; old `refresh_token` preserved when the response omits a new one; the session-expiry additions (`refreshExpiresAt` derived from `refresh_expires_in`) |
-| **total** | **33** | |
+| **total** | **47** | across 5 files |
 
 ---
 

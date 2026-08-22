@@ -197,7 +197,7 @@ services:
     build:
       context: ../keycloak
       dockerfile: Dockerfile.keycloak
-    image: esquire-keycloak:26.4.7
+    image: esquire-keycloak:26.6.0
     # Run as root inside the container -- compose-only workaround for
     # Windows + Docker Desktop bind-mount permissions: KC's default uid 1000
     # can't write to ./data/keycloak when it comes back as root-owned after

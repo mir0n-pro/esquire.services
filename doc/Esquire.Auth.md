@@ -80,13 +80,17 @@ gateway**, so the entity mutation and the KeyCloak sync never block each other:
   never touches KeyCloak directly.
 - **The identity gateway** (`IIdentityGateway`) is what a caller holds instead of the provider. keySmith and
   enyMan hand it the command and return; how far the work then travels is the gateway's business, and the
-  caller is told nothing about it. The gateway each service is given puts the command on the IAM bus.
+  caller is told nothing about it. In the classic shape the gateway each service is given puts the command on
+  the IAM bus. In the **compact** shape keySmith, enyMan and kcMaster share one program, and the gateway they
+  are given calls the KeyCloak agent directly: the same command, the same single writer, no queue round trip.
+  Neither caller can tell which gateway it holds -- that is what the seam is for.
 - **kcMaster** is the **only** service that writes to KeyCloak. It consumes the request, performs the create /
   update / delete / update-path against KC, and replies. Because it is the single writer, KeyCloak state has one
   authority.
 - **KeyCloak** is the identification host (below).
 
-> **Everything here runs redundant.** keySmith, enyMan, and kcMaster each run at **N replicas**, and that is what
+> **Everything here runs redundant.** keySmith, enyMan, and kcMaster each run at **N replicas** (in the
+> compact shape, N replicas of the one program that holds all three), and that is what
 > gives these flows their shape: a request (`URQ`) is competing-consumed by **one** kcMaster and its reply routes
 > back to the **originating** instance by rod-id, while the entity-broadcast **topic** fans out to **every** kcMaster
 > replica (each holding its own path buffer). The sequence diagrams below draw the services as stacked replicas,

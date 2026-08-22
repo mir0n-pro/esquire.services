@@ -40,6 +40,13 @@ with the backing infrastructure they depend on. (Larger, in the front-door `READ
 | `kcMaster`  | owns KeyCloak synchronization (the SERVER on the KeyCloak request/response bus) |
 | `auKeep`    | the audit keeper — consumes the audit bus and writes the `*_log` tables |
 
+**Seven services, not always seven programs.** The table lists the *services*; how many *programs* carry
+them is a deployment choice. In the **compact** shape `enyMan`, `keySmith` and `kcMaster` run inside one
+program named **mesnie**, and `gateway` with `bizTree` inside **gateWard** — same code, same configuration,
+same routes and the same bus legs. The compact component model is drawn at the end of the front-door
+`README.md`; why the framework can do this, and where the boundary sits, is in
+[`Esquire.Vision.md`](Esquire.Vision.md) section 8.
+
 Behind the services are the **shared libraries**, layered base-first —
 `mir0n-utils` &larr; `messaging` &larr; `common` — plus `dataKeep` (the generic keep engine) and
 the companions `audit` (audit wiring) and the transport drivers `tp-activemq` / `tp-redis` /
@@ -179,7 +186,8 @@ The working copy ("dev tree") is a set of SIBLING repos under one folder:
 
 ```
 C:\MyProjects\esquire\
-  services\        (this repo — the seven services + shared libs + compose + k8s)
+  services\        (this repo — the seven services + shared libs; compose\ and k8s\ run the classic
+                   shape, compose-compact\ and k8s-compact\ the compact one)
   explorer\        (Angular SPA "Explorer", the Node BFF, the e2e suite, the hauberk load harness)
   db.seed\         (the database schema + seed data — Postgres and Oracle branches)
   esquire.ui.lib\  (the reusable Angular UI library the Explorer consumes)
