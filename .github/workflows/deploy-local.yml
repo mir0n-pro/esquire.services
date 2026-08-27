@@ -1,7 +1,8 @@
 # Esquire services -- deploy to the LOCAL targets (phase 2): docker-compose AND Docker Desktop k8s.
 # On an intermediate commit (push to a pending-** branch), a SELF-HOSTED runner on the dev box builds
-# the full stack and brings it up on BOTH local targets, so a green pipeline proves both environments
-# come up on the pending code. Full stack = the 6 Java services + the explorer backend/BFF (plus the
+# the full stack and brings it up on BOTH local targets and runs the e2e suite against each, so a green
+# pipeline proves both environments come up on the pending code AND still behave -- the two Token Relay
+# specs included, which no other pipeline runs. Full stack = the 6 Java services + the explorer backend/BFF (plus the
 # explorer frontend container on docker-compose), so the explorer repo is checked out alongside this one.
 #
 # SECURITY (public repo + self-hosted runner): triggers ONLY on push to our own pending-** branches,
@@ -35,47 +36,68 @@ jobs:
         with:
           path: services
 
-      # explorer (backend/BFF image): use the same-named sprint branch WHEN the sprint touches explorer
-      # (both repos' work deploys in lockstep), otherwise fall back to develop -- a sprint that does not
-      # touch explorer has no pending-vX branch there, and must not hard-fail the deploy.
-      - name: Checkout explorer (sprint branch if present)
-        id: explorer-sprint
-        continue-on-error: true
+      # explorer (backend/BFF image) and db.seed (the postgres-image build input, NOT a deployed service)
+      # both live in sibling repos. A sprint that touches them has a same-named pending branch; a sprint that
+      # does not has none, and must still deploy. The ref is RESOLVED first -- ls-remote asks which branch is
+      # there -- so each repo is checked out once, at a ref known to exist. Checking out a guess and letting
+      # it fail painted two red Error lines and a 12-second retry into every otherwise green run.
+      #
+      # Both spellings are tried because the branch is named pending-1.2.13 here and may be pending-v1.2.13
+      # there; develop is the answer when neither exists.
+      - name: Resolve the explorer / db.seed refs
+        id: refs
+        shell: bash
+        run: |
+          ref="${{ github.ref_name }}"
+          case "$ref" in
+            pending-v*) alt="pending-${ref#pending-v}" ;;
+            pending-*)  alt="pending-v${ref#pending-}" ;;
+            *)          alt="$ref" ;;
+          esac
+
+          pick() {
+            got=""
+            for cand in "$ref" "$alt"; do
+              if [ -z "$got" ] && git ls-remote --heads --exit-code "https://github.com/$1" "refs/heads/$cand" >/dev/null 2>&1; then
+                got="$cand"
+              fi
+            done
+            if [ -z "$got" ]; then
+              got="develop"
+            fi
+            echo "$got"
+          }
+
+          explorer="$(pick mir0n-pro/esquire.explorer)"
+          dbseed="$(pick mir0n-pro/esquire.db.seed)"
+          echo "explorer=$explorer" >> "$GITHUB_OUTPUT"
+          echo "dbseed=$dbseed"     >> "$GITHUB_OUTPUT"
+          echo "explorer -> $explorer"
+          echo "db.seed  -> $dbseed"
+
+      - name: Checkout explorer
         uses: actions/checkout@v5
         with:
           repository: mir0n-pro/esquire.explorer
-          ref: ${{ github.ref_name }}
+          ref: ${{ steps.refs.outputs.explorer }}
           path: explorer
 
-      - name: Checkout explorer (fall back to develop when no sprint branch)
-        if: steps.explorer-sprint.outcome == 'failure'
-        uses: actions/checkout@v5
-        with:
-          repository: mir0n-pro/esquire.explorer
-          ref: develop
-          path: explorer
-
-      # db.seed is the postgres-image build input, NOT a deployed service -- so it does NOT require a
-      # same-named sprint branch every sprint. Use the sprint branch WHEN db.seed has sprint schema work
-      # (the postgres image must then carry the schema matching the pending code, e.g. v1.2.8's
-      # ORG_SYSTEM_FLG lived on pending-v1.2.8, not develop); otherwise fall back to develop. The Dockerfile
-      # COPYs db.seed/postgres/* from the workspace root, so db.seed sits beside services/ + explorer/.
-      - name: Checkout db.seed (sprint branch if present)
-        id: dbseed-sprint
-        continue-on-error: true
+      - name: Checkout db.seed
         uses: actions/checkout@v5
         with:
           repository: mir0n-pro/esquire.db.seed
-          ref: ${{ github.ref_name }}
+          ref: ${{ steps.refs.outputs.dbseed }}
           path: db.seed
 
-      - name: Checkout db.seed (fall back to develop when no sprint branch)
-        if: steps.dbseed-sprint.outcome == 'failure'
-        uses: actions/checkout@v5
-        with:
-          repository: mir0n-pro/esquire.db.seed
-          ref: develop
-          path: db.seed
+      # Say what was actually checked out. A deploy that silently substitutes develop is the failure this guards.
+      - name: Report the refs used
+        shell: bash
+        run: |
+          for d in explorer db.seed; do
+            cd "$d"
+            echo "$d built from: $(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo detached) @ $(git rev-parse --short HEAD)"
+            cd ..
+          done
 
       - name: Build + bring up the full stack on Docker Desktop k8s
         shell: cmd
@@ -84,3 +106,17 @@ jobs:
       - name: Build + bring up the docker-compose stack
         shell: cmd
         run: services\.github\scripts\deploy-compose.cmd
+
+      # --- e2e on BOTH local targets -------------------------------------------------------------
+      # Both bring-ups run first and always complete: a failing test gates the commit, it never leaves
+      # one of the two stacks undeployed.
+
+      - name: e2e -- Playwright vs Docker Desktop k8s
+        shell: cmd
+        working-directory: explorer\e2e-test
+        run: e2e-k8s.bat
+
+      - name: e2e -- Playwright vs docker-compose
+        shell: cmd
+        working-directory: explorer\e2e-test
+        run: e2e-test.bat

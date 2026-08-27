@@ -29,13 +29,16 @@ data:
               names: [{{ .Release.Namespace }}]
         relabel_configs:
           # keep only the Java service pods (app label esquire-<svc>-<svc>); infra + the Node BFF drop out.
-          # Three of them on this topology: gateWard answers for the gate and the tree cache, Mesnie for
-          # enyMan / keySmith / the identity work, and pacMan for itself. The audit trail is in-process, so
-          # there is no auKeep pod to scrape.
+          # gateWard answers for the gate and the tree cache, Mesnie for enyMan / keySmith / the identity work,
+          # pacMan for itself, and auKeep applies the audit *_log.
+          #
+          # This chart is shared with OKE super-compact, which audits by DB triggers and runs no auKeep pod --
+          # the fourth name is what lets ONE regex serve both: there it simply matches nothing.
           - source_labels: [__meta_kubernetes_pod_label_app]
-            # The pod label is app={{ "{{" }} .Release.Name {{ "}}" }}, and the release is named differently on the two
-            # targets: "esquire-mesnie" on OKE, "esquire-mesnie-mesnie" on the local cluster. The suffix is
-            # therefore OPTIONAL -- anchored, a bare "-.*" misses the first and a bare name misses the second.
+            # The pod label is app={{ "{{" }} .Release.Name {{ "}}" }}. The COMPACT charts stamp the bare release
+            # name on both targets -- esquire-mesnie on OKE and on the local cluster alike -- so the optional
+            # suffix group matches nothing here. It is kept because the CLASSIC charts append the service
+            # (app: {{ "{{" }} .Release.Name {{ "}}" }}-enyman), and one regex that serves both costs nothing.
             regex: "esquire-(gateward|mesnie|pacman|aukeep)(-.*)?"
             action: keep
           # scrape the pod IP on the SEPARATE management port 8090 (F0 A6) -- actuator (incl. /actuator/prometheus)

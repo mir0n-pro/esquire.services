@@ -2,10 +2,10 @@
 #
 # The cross-service bus catalog, defined ONCE and loaded by every service via
 #   spring.config.import: file:${ESQUIRE_TOPOLOGY_FILE:/etc/esquire/topology.yml}
-# (bind-mounted from compose/topology/ into each container at /etc/esquire/topology.yml).
+# (bind-mounted from compose-compact/topology/ into each container at /etc/esquire/topology.yml).
 #
 # This file is PER ENVIRONMENT and is written with CONCRETE values (no ${} placeholders) -- the docker-network
-# hostnames (activemq / kafka / redis). Per-service knobs (pool sizes, rod-class deltas, the role) and the audit
+# hostname (activemq). Per-service knobs (pool sizes, rod-class deltas, the role) and the audit
 # in-process (b) datasource live at the SERVICE level (each service application.yml), NOT here. A bus defined here but
 # not referenced by a service is inert (a pod is built only when a service producer()/consumer()s a bus key).
 esquire:
@@ -92,64 +92,6 @@ esquire:
                 # the loss is semantically real, and it is accepted -- dev/demo, and the MessagingBus design lists
                 # at-least-once durability as a FUTURE option, not a guarantee.
                 persistent: false
-    # --- audit (ck): Kafka -> auKeep consumer writes the *_log ---
-    - bus-id: audit-ck
-      slots:
-        - slot-id: audit
-          x-rod:
-            rod-class: XRod
-            receiver-pool:
-              size: 4
-              mode: platform
-            feed-capacity: 4096
-            publisher-pool:
-              size: 0
-              mode: platform
-            concurrency: 1
-            transport:
-              provider: kafka
-              endpoint: kafka:9092
-              destination: esquire.rod.audit
-              params:
-                group-id: esquire-xxrod-audit
-    # --- audit (d): Redis stream IS the append-only log (producer-only, no auKeep consumer) ---
-    - bus-id: audit-d
-      slots:
-        - slot-id: audit
-          x-rod:
-            rod-class: XRod
-            receiver-pool:
-              size: 4
-              mode: platform
-            feed-capacity: 4096
-            publisher-pool:
-              size: 0
-              mode: platform
-            transport:
-              provider: redis
-              endpoint: redis://redis:6379
-              destination: esquire.rod.audit
-              params:
-                max-len: 0
-    # --- audit (dk): Kafka topic IS the append-only log (producer-only, no auKeep consumer) ---
-    - bus-id: audit-dk
-      slots:
-        - slot-id: audit
-          x-rod:
-            rod-class: XRod
-            receiver-pool:
-              size: 4
-              mode: platform
-            feed-capacity: 4096
-            publisher-pool:
-              size: 0
-              mode: platform
-            transport:
-              provider: kafka
-              endpoint: kafka:9092
-              destination: esquire.rod.audit
-              params:
-                group-id: esquire-xxrod-audit-dk
     # --- audit (off): the explicit DISABLED bus. A service points its audit ref at audit-off to run with NO
     #     bus audit (e.g. when DB triggers carry the audit instead). XRodDisabled is a true no-op; this is the
     #     #17 "disable only when explicitly defined" -- a blank/undefined bus-id (correctly) fails fast instead. ---

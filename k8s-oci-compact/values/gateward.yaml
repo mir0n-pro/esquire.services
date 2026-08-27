@@ -54,8 +54,10 @@ cors:
 # live on the public API put a full-admin token one warm cache away -- audit F0 finding A1.)
 # Re-arm only for a deliberate load-test window, never as a standing config.
 # exchangeClientSecret is passed via --set at install (oke-up.bat).
+keycloakExchange:
+  baseUrl: https://esquire.mir0n.pro/kc-auth
+
 tokenRelay:
-  tokenUri: https://esquire.mir0n.pro/kc-auth/realms/esquire/protocol/openid-connect/token
   vanilla:
     clients: ""
   phantom:

@@ -11,6 +11,7 @@
  *                   (EsqRodObserver, carrying both the OTel Tracer and the Micrometer registry) covers both, is
  *                   held once in RodObserverHolder, and is registered by one bean. The interfaces stay separate
  *                   (concern separation); only the object / holder / registrar / umbrella switch are unified.
+ * 08/26/2026 mir0n  registerTransportUp forwarded to the meters, and to IRodMeters.NOOP when unobserved
  */
 package pro.mir0n.esquire.messaging.o11y;
 
@@ -69,6 +70,9 @@ public interface IRodObserver extends IRodTracer, IRodMeters {
             @Override public void registerRetryHeld(String busId, String slotId, java.util.function.IntSupplier held) {
                 meters.registerRetryHeld(busId, slotId, held);
             }
+            @Override public void registerTransportUp(String busId, java.util.function.IntSupplier up) {
+                meters.registerTransportUp(busId, up);
+            }
         };
     }
 
@@ -117,6 +121,9 @@ public interface IRodObserver extends IRodTracer, IRodMeters {
         }
         @Override public void registerRetryHeld(String busId, String slotId, java.util.function.IntSupplier held) {
             IRodMeters.NOOP.registerRetryHeld(busId, slotId, held);
+        }
+        @Override public void registerTransportUp(String busId, java.util.function.IntSupplier up) {
+            IRodMeters.NOOP.registerTransportUp(busId, up);
         }
     };
 }

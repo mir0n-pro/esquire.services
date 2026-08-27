@@ -48,6 +48,9 @@
  *                   full feed instead of discarding the event
  * 07/15/2026 mir0n  v1.2.11 T11 -- runEngine() calls RodObserverHolder.noteFeedDepthAgainstNoop() when the
  *                   observer is still NOOP at feed-depth registration, arming the ordering tripwire (I11)
+ * 08/26/2026 mir0n  implements IQueueRig.IErrorListener and registers itself on the feed, so whatever the send
+ *                   worker throws is recorded as TX-ERR plus the error meter; encode THROWS instead of
+ *                   returning null, which was the one send failure that left no record
  */
 package pro.mir0n.esquire.messaging.xrod.impl;
 
@@ -65,6 +68,7 @@ import pro.mir0n.esquire.messaging.transport.TransportHealth;
 import pro.mir0n.esquire.messaging.xrod.RodPublisher;
 import pro.mir0n.esquire.messaging.xrod.impl.sublayer.SessionSublayerFactory;
 import pro.mir0n.utils.concurrent.BoundedQueueRig;
+import pro.mir0n.utils.concurrent.IQueueRig;
 import pro.mir0n.utils.concurrent.WorkerPool;
 
 import java.util.List;
@@ -86,7 +90,7 @@ import java.util.function.Consumer;
  * then RUNs them via {@link #runEngine}. {@link #configure} reads the leg identity and the engine knobs;
  * subclasses override it to read their own params (calling {@code super} first).
  */
-public abstract class AXRod implements IXRod {
+public abstract class AXRod implements IXRod, IQueueRig.IErrorListener<RodEvent> {
 
     protected static final int DEFAULT_FEED_CAPACITY = 4096;
     protected static final int DEFAULT_POOL_SIZE     = 4;
@@ -195,6 +199,7 @@ public abstract class AXRod implements IXRod {
         this.publisher = (outbound instanceof RodPublisher rp) ? rp : null;
         if (outbound != null) {
             this.feed = new BoundedQueueRig<>(this::send);
+            feed.setErrorListener(this);
             feed.init(name, devLog, feedCapacity);   // allocate; do NOT pump until runEngine()
             feed.setPutAwaitMs(feedAwaitMs);         // <= 0 -> hold the producer rather than discard the event
         }
@@ -335,16 +340,15 @@ public abstract class AXRod implements IXRod {
 
     /** Encode the event to the transport's concrete send unit ONCE; null on an (unexpected) encode failure (logged
      *  -- there is nothing to dispatch). */
+    /** The catch un-checks encode -- the rig worker signature cannot throw checked. It does NOT swallow:
+     *  swallowing dropped the event with only a warn, which is the one send failure that left no record. */
     private Object encode(RodEvent ev) {
         Object ret;
         try {
             ret = publisher.encode(ev);
         } catch (Exception ex) {
-            ret = null;
-            if (devLog != null && devLog.isWarnEnabled()) {
-                devLog.warn("x-rod[{}]: encode failed -- dropping -- kind={}, entityId={}: {}",
-                        name, ev.kind(), ev.entityId(), ex.toString());
-            }
+            throw new IllegalStateException("x-rod[" + name + "]: encode failed, kind=" + ev.kind()
+                    + ", entityId=" + ev.entityId(), ex);
         }
         return ret;
     }
@@ -381,8 +385,7 @@ public abstract class AXRod implements IXRod {
             outbound.accept(ev);
             onSendSuccess(ev);
         } catch (RuntimeException ex) {
-            onSendError(ev, null, ex);
-            throw ex;
+            onSendError(ev, null, ex);   // recorded here; rethrowing would count it again at the rig
         }
     }
 
@@ -472,11 +475,24 @@ public abstract class AXRod implements IXRod {
 
     /** A send THREW: log the TX-ERR msg-audit (with the cause), then let EVERY sublayer react (alive marks failed,
      *  send-retry decides) -- the non-null return is the encoded unit to re-dispatch (send-retry's); null = stop. */
-    protected Object onSendError(RodEvent ev, Object msg, Throwable error) {
+    /** Whatever the send worker threw and did not handle itself -- an encode failure, anything unforeseen.
+     *  A dispatch failure never arrives here: sendOut ends its own retry loop. */
+    @Override
+    public RodEvent onError(Throwable error, RodEvent ev) {
+        recordSendFailure(ev, error);
+        return ev;
+    }
+
+    /** The record half of a send failure -- onError and onSendError both write it the same way. */
+    private void recordSendFailure(RodEvent ev, Throwable error) {
         msgAudit.err(ev, error);
         if (!ev.isSession()) {
             RodObserverHolder.meters().error(meterBusId(), meterSlotId(), ev.msgType(), "send");   // (O1/T5)
         }
+    }
+
+    protected Object onSendError(RodEvent ev, Object msg, Throwable error) {
+        recordSendFailure(ev, error);
         Object result = null;
         for (ISessionSublayer sublayer : sendSublayers) {
             Object r = sublayer.onSendError(ev, msg, error);

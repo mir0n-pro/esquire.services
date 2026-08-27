@@ -1,11 +1,30 @@
 | ![Alt text](../favicon.ico) | Esquire Frameworks(tm) 2.0 |
 |----------------------------|---------------------------|
 
-# k8s-oci — Oracle Kubernetes Engine deployment
+# k8s-oci — Oracle Kubernetes Engine: cluster setup, and the classic record
 
-All scripts, manifests, and value overrides required to deploy Esquire to
-Oracle OKE at `https://esquire.mir0n.pro`. The local Docker Desktop K8s setup
-in `../k8s/` is left untouched.
+**Two halves, and they have different lives.**
+
+**The cluster.** `create-basic-cluster.bat`, `create-nodepool.bat`,
+`add-oke-security-rules.bat`, `oke-bootstrap.bat`, `policy-statements.json`,
+`oke-login.bat` and `publish.bat` are the tree's only copy of the OCI account
+and cluster work. Every cloud deployment starts here.
+
+**The application overlay.** The `values/*.yaml`, `esquire-topology.yml`,
+`oke-up.bat` / `oke-rebuild.bat` / `oke-down.bat`, the o11y launchers and the
+grafana assets here deploy the **classic** eight-program shape, and they are
+kept as its record. The cloud runs **super-compact** — Mesnie, gateWard,
+pacMan and the BFF — deployed from `../k8s-compact/charts` with the overlays in
+`../k8s-oci-compact/values`, by hand through `../k8s-oci-compact/oke-up.bat` or
+by the `deploy-oke` workflow. Read the cloud's settings there.
+
+**The overlay half is FROZEN.** It is the record of the classic shape as it ran
+on OKE, kept for reference. Fixes belong to the compact line
+(`../k8s-compact`, `../k8s-oci-compact`); this half stays as it is. The cluster
+half above is live.
+
+The site is `https://esquire.mir0n.pro`. The local Docker Desktop K8s setup in
+`../k8s/` is the classic shape's live home.
 
 See `../doc/TodoCloud.md` for full plan and `../doc/WhereToGo.md` for
 architectural rationale.

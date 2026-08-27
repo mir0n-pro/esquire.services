@@ -42,5 +42,9 @@ if not defined GRAFANA_URL set GRAFANA_URL=http://localhost:13009
 set LOKI_JOB=esq-k8s
 rem The super-compact fleet is declared ONCE for every environment -- see the shared file.
 call ..\test\o11y\fleet-supercompact-k8s.bat
+rem BOARDS = the dashboards THIS environment provisions. The dependency and band checks read the
+rem PANELS as the declaration of what must exist, so they have to read the boards that are actually
+rem deployed here -- not another topology's. Path is relative to services/.
+set BOARDS=k8s-oci-compact\grafana
 python ..\test\o11y\o11y-verify.py
 endlocal

@@ -24,6 +24,10 @@
  * 08/11/2026 mir0n  v1.2.12 -- createUser consumes a ParkedPath from the shared ExpiringCache and applies
  *                   its path
  * 08/12/2026 mir0n  v1.2.13 -- @Service dropped -- built by KcIdentityGateway; KcSyncRequest -> AuthSyncRequest
+ * 08/26/2026 mir0n  updateAccess reads the user existing required actions and holds each one both ways via
+ *                   holdAction: UPDATE_PASSWORD follows forcePasswordChange, CONFIGURE_TOTP is set on
+ *                   request and removed on removeTotp, and the write happens only when something changed.
+ *                   deleteUser checks and closes the JAX-RS Response, so a refused delete is not SUCCESS
  */
 
 package pro.mir0n.esquire.kcMaster.service.impl;
@@ -43,7 +47,7 @@ import org.keycloak.representations.idm.UserRepresentation;
 import org.slf4j.LoggerFactory;
 import pro.mir0n.esquire.kcMaster.messaging.ParkedPath;
 import pro.mir0n.utils.concurrent.ExpiringCache;
-import pro.mir0n.esquire.kcMaster.config.KeycloakConfig;
+import pro.mir0n.esquire.backend.identity.KcConnectionSettings;
 import pro.mir0n.esquire.kcMaster.service.IKcIdentityService;
 
 import pro.mir0n.esquire.common.EsqConstants;
@@ -60,7 +64,7 @@ public class KcIdentityService implements IKcIdentityService {
     private static final org.slf4j.Logger devLog = LoggerFactory.getLogger("develop." + KcIdentityService.class.getName());
 
     private final Keycloak keycloak;
-    private final KeycloakConfig keycloakConfig;
+    private final KcConnectionSettings kcConnection;
     /** Race-8c park, filled by EntityBusAdapter off the topic; drained here once the user exists. */
     private final ExpiringCache<String, ParkedPath> pathBuffer;
 
@@ -81,7 +85,7 @@ public class KcIdentityService implements IKcIdentityService {
         log.info("KC | CREATE | username={} | state=STARTED", loginId);
         devLog.debug("Creating user in Keycloak: username={}, email={}", loginId, email);
 
-        RealmResource realmResource = keycloak.realm(keycloakConfig.getRealm());
+        RealmResource realmResource = keycloak.realm(kcConnection.getRealm());
         UsersResource usersResource = realmResource.users();
 
         UserRepresentation user = new UserRepresentation();
@@ -106,24 +110,24 @@ public class KcIdentityService implements IKcIdentityService {
             user.setAttributes(attributes);
         }
 
+        String kcId;
         Response response = usersResource.create(user);
-        if (response.getStatus() != 201) {
-            String errorMsg = "Failed to create user in Keycloak: " + response.getStatusInfo();
+        try {
+            if (response.getStatus() != 201) {
+                throw new RuntimeException("Failed to create user in Keycloak: " + response.getStatusInfo());
+            }
+            kcId = extractUserIdFromResponse(response);
+        } finally {
             response.close();
-            throw new RuntimeException(errorMsg);
         }
-
-        String kcId = extractUserIdFromResponse(response);
 
         if (password != null && !password.isEmpty()) {
             setUserPassword(usersResource, kcId, password, !forcePasswordChange);
         }
 
-        if (realmRoles != null && !realmRoles.isEmpty()) {
-            assignRealmRoles(realmResource, kcId, realmRoles);
+        if (realmRoles != null) {
+            updateRealmRoles(realmResource, kcId, realmRoles);
         }
-
-        response.close();
 
         // Race-8c flush: if enyMan's move-cascade EVENT_UPDATE_PATH for this entity
         // arrived on the topic before the user existed, KcEntityBroadcastConsumer
@@ -170,8 +174,6 @@ public class KcIdentityService implements IKcIdentityService {
             String loginId,
             String newLoginId,
             String email,
-            String password,
-            Boolean enabled,
             Boolean forcePasswordChange,
             Boolean requireTotp,
             Boolean removeTotp,
@@ -183,7 +185,7 @@ public class KcIdentityService implements IKcIdentityService {
         log.info("KC | UPDATE | username={} | state=STARTED", loginId);
         devLog.debug("Updating user auth state in Keycloak: username={}", loginId);
 
-        RealmResource realmResource = keycloak.realm(keycloakConfig.getRealm());
+        RealmResource realmResource = keycloak.realm(kcConnection.getRealm());
         UsersResource usersResource = realmResource.users();
 
         List<UserRepresentation> users = usersResource.search(loginId, true);
@@ -205,13 +207,20 @@ public class KcIdentityService implements IKcIdentityService {
         }
 
         List<String> requiredActions = new ArrayList<>();
-        if (Boolean.TRUE.equals(forcePasswordChange)) {
-            requiredActions.add("UPDATE_PASSWORD");
+        if (user.getRequiredActions() != null) {
+            requiredActions.addAll(user.getRequiredActions());
+        }
+        boolean actionsChanged = false;
+        if (forcePasswordChange != null) {
+            actionsChanged = holdAction(requiredActions, "UPDATE_PASSWORD", forcePasswordChange);
         }
         if (Boolean.TRUE.equals(requireTotp)) {
-            requiredActions.add("CONFIGURE_TOTP");
+            actionsChanged = holdAction(requiredActions, "CONFIGURE_TOTP", true) || actionsChanged;
         }
-        if (!requiredActions.isEmpty()) {
+        if (Boolean.TRUE.equals(removeTotp)) {
+            actionsChanged = holdAction(requiredActions, "CONFIGURE_TOTP", false) || actionsChanged;
+        }
+        if (actionsChanged) {
             user.setRequiredActions(requiredActions);
             changed = true;
         }
@@ -261,7 +270,7 @@ public class KcIdentityService implements IKcIdentityService {
         log.info("KC | DELETE | username={} | state=STARTED", loginId);
         devLog.debug("Deleting user from Keycloak: username={}", loginId);
 
-        RealmResource realmResource = keycloak.realm(keycloakConfig.getRealm());
+        RealmResource realmResource = keycloak.realm(kcConnection.getRealm());
         UsersResource usersResource = realmResource.users();
 
         List<UserRepresentation> users = usersResource.search(loginId, true);
@@ -270,7 +279,15 @@ public class KcIdentityService implements IKcIdentityService {
         }
 
         String kcId = users.get(0).getId();
-        usersResource.delete(kcId);
+        //xxx: delete() hands back a Response and throws nothing -- an unchecked one reads as SUCCESS.
+        Response response = usersResource.delete(kcId);
+        try {
+            if (response.getStatusInfo().getFamily() != Response.Status.Family.SUCCESSFUL) {
+                throw new RuntimeException("Failed to delete user in Keycloak: " + response.getStatusInfo());
+            }
+        } finally {
+            response.close();
+        }
 
         log.info("KC | DELETE | username={} | state=SUCCESS", loginId);
         devLog.debug("User deleted: {}", kcId);
@@ -281,7 +298,7 @@ public class KcIdentityService implements IKcIdentityService {
     public void updateEntityPath(String entityId, String newPath, String correlationId, String requestId) {
         log.info("KC | MOVE | entityId={} | state=STARTED", entityId);
 
-        RealmResource realmResource = keycloak.realm(keycloakConfig.getRealm());
+        RealmResource realmResource = keycloak.realm(kcConnection.getRealm());
         UsersResource usersResource = realmResource.users();
 
         List<UserRepresentation> users = usersResource.searchByAttributes(
@@ -330,6 +347,19 @@ public class KcIdentityService implements IKcIdentityService {
         credential.setTemporary(!permanent);
         usersResource.get(kcId).resetPassword(credential);
         devLog.debug("Password set for user: {}", kcId);
+    }
+
+    private static boolean holdAction(List<String> actions, String action, boolean wanted) {
+        boolean ret = false;
+        boolean present = actions.contains(action);
+        if (wanted && !present) {
+            actions.add(action);
+            ret = true;
+        } else if (!wanted && present) {
+            actions.remove(action);
+            ret = true;
+        }
+        return ret;
     }
 
     private void assignRealmRoles(RealmResource realmResource, String kcId, List<String> roleNames) {

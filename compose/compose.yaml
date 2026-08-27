@@ -193,6 +193,12 @@ services:
     build:
       context: ../keycloak
       dockerfile: Dockerfile.keycloak
+      args:
+        # Docker runs AHEAD of k8s and the cloud on purpose. The Dockerfile's pin is 26.4.7, which is what
+        # those targets build; this override is where the difference is decided. Every docker-side file that
+        # builds this image carries it -- both stacks and services/keycloak/compose.yaml -- so the tag always
+        # names what is inside it.
+        BASE: quay.io/keycloak/keycloak:26.6.0
     image: esquire-keycloak:26.6.0
     # Run as root inside the container -- compose-only workaround for
     # Windows + Docker Desktop bind-mount permissions: KC's default uid 1000
@@ -241,7 +247,7 @@ services:
   biztree:
     container_name: esq-biztree
     build:
-      context: .
+      context: ../bizTree
     image: esquire.biztree
     ports:
       - "3002:3002"
@@ -328,7 +334,7 @@ services:
   enyman:
     container_name: esq-enyman
     build:
-      context: .
+      context: ../enyMan
     image: esquire.enyman
     ports:
       - "3003:3003"
@@ -422,7 +428,7 @@ services:
   pacman:
     container_name: esq-pacman
     build:
-      context: .
+      context: ../pacMan
     image: esquire.pacman
     ports:
       - "3004:3004"
@@ -498,7 +504,7 @@ services:
   aukeep:
     container_name: esq-aukeep
     build:
-      context: .
+      context: ../auKeep
     image: esquire.aukeep
     ports:
       - "3007:3007"
@@ -559,7 +565,7 @@ services:
   keysmith:
     container_name: esq-keysmith
     build:
-      context: .
+      context: ../keySmith
     image: esquire.keysmith
     ports:
       - "3005:3005"
@@ -640,7 +646,7 @@ services:
   kcmaster:
     container_name: esq-kcmaster
     build:
-      context: .
+      context: ../kcMaster
     image: esquire.kcmaster
     ports:
       - "3006:3006"
@@ -696,7 +702,7 @@ services:
       - KC_BASE_URL=http://keycloak:8080/kc-auth
       - KC_REALM=esquire
       - KC_ADMIN_CLIENT_ID=esq-kcMaster
-      - KC_ADMIN_CLIENT_SECRET=MHgq0Nu69u2uJ2johaK1wxQLMdakELXN
+      - KC_ADMIN_CLIENT_SECRET=${KCMASTER_ADMIN_SECRET:-MHgq0Nu69u2uJ2johaK1wxQLMdakELXN}
     command: ["java", "-jar", "app.jar"]
     depends_on:
       keycloak:
@@ -712,7 +718,7 @@ services:
   gateway:
     container_name: esq-gateway
     build:
-      context: .
+      context: ../gateway
     image: esquire.gateway
     ports:
       - "7070:7070"
@@ -776,7 +782,7 @@ services:
       # Use host.docker.internal:8081 (same URL as clients see) so KC token-exchange
       # iss validation matches between subject_token and gateway's call. Gateway
       # gets extra_hosts mapping below to resolve host.docker.internal.
-      - ESQ_GW_TOKEN_URI=http://host.docker.internal:8081/kc-auth/realms/esquire/protocol/openid-connect/token
+      - KC_EXCHANGE_BASE_URL=http://host.docker.internal:8081/kc-auth
       - ESQ_GW_VANILLA_CLIENTS=esq-hauberk-S
       # Phantom Token Relay -- esq-hauberk-M presents a stripped JWT;
       # gateway exchanges it for a full JWT via RFC 8693 using the

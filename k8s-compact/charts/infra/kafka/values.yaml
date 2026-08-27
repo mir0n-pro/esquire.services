@@ -1,5 +1,0 @@
-# Kafka broker for the audit-(ck)/(dk) sinks (local/dev k8s only; not deployed on OKE).
-image:
-  repository: apache/kafka
-  tag: "3.9.0"
-  pullPolicy: IfNotPresent

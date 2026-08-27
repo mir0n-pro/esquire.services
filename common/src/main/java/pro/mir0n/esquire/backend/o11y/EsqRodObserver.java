@@ -35,6 +35,7 @@
  * 07/17/2026 mir0n  note at the switch: no producer->consumer span LINKS by design -- fan-out is drawn
  *                   consumer-side via the carried traceparent (I36); alive-trace opt-in key under
  *                   esquire.observability.tracing.*.
+ * 08/26/2026 mir0n  registerTransportUp registers messaging.transport.up as an EsqGauge, tagged bus-id
  */
 package pro.mir0n.esquire.backend.o11y;
 
@@ -277,5 +278,10 @@ public final class EsqRodObserver implements IRodObserver {
     @Override
     public void registerRetryHeld(String busId, String slotId, IntSupplier held) {
         EsqGauge.register(registry, "messaging.retry.held", held, "bus-id", nz(busId), "slot", nz(slotId));
+    }
+
+    @Override
+    public void registerTransportUp(String busId, IntSupplier up) {
+        EsqGauge.register(registry, "messaging.transport.up", up, "bus-id", nz(busId));
     }
 }

@@ -12,7 +12,7 @@ metadata:
 # keycloak, esquire) are wrapped in an SVG that embeds them -- our logo, unchanged, not a "close enough" stand-in.
 # That is why they are large; the whole set is ~360 KB, well inside the 1 MB ConfigMap limit.
 #
-# Generated from compose/o11y/grafana/icons/ -- ONE source for both targets, like the dashboards.
+# Generated from compose-compact/o11y/grafana/icons/ -- ONE source for both targets, like the dashboards.
 data:
 {{- range $path, $bytes := .Files.Glob "icons/*.svg" }}
   {{ base $path }}: |

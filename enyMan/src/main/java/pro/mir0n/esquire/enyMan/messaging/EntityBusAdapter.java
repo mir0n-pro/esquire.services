@@ -107,7 +107,7 @@ public class EntityBusAdapter {
      *
      * <p>Narrowing is at the BROKER via a subscription selector ({@link IXRod#setWorker(String,
      * java.util.function.Consumer)}): only enyMan creates entities, so every CREATE on the entity bus is an
-     * enyMan create -- the selector needs only the op ({@code EventType = 'C'}). Own-exclusion is the transport's
+     * enyMan create -- the selector needs only the op ({@code EventType = 'I'}). Own-exclusion is the transport's
      * {@code noLocal} on the entity slot: publisher and consumer share one connection, so the broker drops THIS
      * instance's OWN publications -- only a PEER instance's creates arrive (own creates ride the local
      * {@code submitReconcileIfInMove} path).

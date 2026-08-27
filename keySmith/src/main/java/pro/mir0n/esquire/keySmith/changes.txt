@@ -1,5 +1,11 @@
 Esquire keySmith Microservice
 
+08/26/2026 mir0n  v1.2.13 -- develop logging
+controller.KeySmithController
+  - the develop log lines pass the value itself instead of String.valueOf
+resources/logback-spring.xml
+  - the develop pattern drops the "develop." prefix from the logger name
+
 08/17/2026 mir0n  v1.2.13 -- observability for the composed services
 service.impl.KeySmithService
   - business meters added: meterKeyOp() records esq.biz.key.ops.total (op=read|save, outcome=ok|error) in a

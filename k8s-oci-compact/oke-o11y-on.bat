@@ -79,14 +79,33 @@ echo --- Installing the LOG viewing stack only (loki + alloy + grafana)...
 rem docker.io/ prefix: OKE nodes run cri-o with short-name-mode=enforcing, which rejects an
 rem unqualified image ("grafana/alloy returns ambiguous list"). The shared charts use short
 rem names (fine on Docker Desktop, which defaults to docker.io); OKE needs them fully qualified.
-call helm upgrade --install esquire-infra-loki    %CH%\infra\loki    --set image.repository=docker.io/grafana/loki    --set nodeSelector.tier=o11y || exit /b 1 --force-conflicts
-call helm upgrade --install esquire-infra-alloy   %CH%\infra\alloy   --set image.repository=docker.io/grafana/alloy   --set nodeSelector.tier=o11y || exit /b 1 --force-conflicts
-call helm upgrade --install esquire-infra-grafana %CH%\infra\grafana --set image.repository=docker.io/grafana/grafana --set nodeSelector.tier=o11y --set-file dashboardTopology=grafana/esquire-topology.json || exit /b 1 --force-conflicts
+call helm upgrade --install esquire-infra-loki    %CH%\infra\loki    --set image.repository=docker.io/grafana/loki    --set nodeSelector.tier=o11y --force-conflicts || exit /b 1
+call helm upgrade --install esquire-infra-alloy   %CH%\infra\alloy   --set image.repository=docker.io/grafana/alloy   --set nodeSelector.tier=o11y --force-conflicts || exit /b 1
+call helm upgrade --install esquire-infra-grafana %CH%\infra\grafana --set image.repository=docker.io/grafana/grafana --set nodeSelector.tier=o11y --set ingress.enabled=false --set-file dashboardTopology=grafana/esquire-topology.json --set-file dashboardServices=grafana/esquire-services.json --set-file dashboardLogging=grafana/esquire-logging.json --force-conflicts || exit /b 1
 echo --- Removing the tracing/metrics side (must not run -- LOG is logging alone)...
 call helm uninstall esquire-infra-tempo             2>nul
 call helm uninstall esquire-infra-otel-collector    2>nul
 call helm uninstall esquire-infra-prometheus        2>nul
 call helm uninstall esquire-infra-postgres-exporter 2>nul
+rem INFRA FIRST, APPS AFTER -- as :model_full and :model_off already do. A broker roll INTERRUPTS every app
+rem pod's messagingBus: the transport goes DOWN and the failover: wrapper brings it back by itself, about 20s
+rem on local k8s. So the cost is a bus WINDOW, not a dead bus. Infra first puts that window beside the app
+rem restart below rather than after it, and costs no extra restart.
+rem SKIP_INFRA_ROLL (set by oke-perf-matrix): skip the kc/amq METRIC rolls. Rolling the broker costs a bus
+rem window -- about 20s while the failover: transport reconnects -- which is harmless in an ordinary toggle but
+rem lands INSIDE a toggle-in-place measurement and reads as app cost. Infra metrics are the broker's/kc's OWN,
+rem not app o11y cost, so skipping them is measurement-neutral.
+if not defined SKIP_INFRA_ROLL (
+  echo --- keycloak / activemq: metrics OFF ^(no JMX exporter agent^)...
+  call helm upgrade esquire-infra-kc %CH%\infra\keycloak -f values\keycloak.yaml --reset-then-reuse-values --set observability.enabled=false --force-conflicts
+  call kubectl rollout restart statefulset esquire-infra-kc-keycloak
+  rem THE BROKER TOO. FULL arms its in-JVM JMX exporter agent, and this model never disarmed it -- so a
+  rem FULL -> LOG transition priced 'the log pillar alone' with the agent still loaded and :9404 live, while
+  rem the echo below said tracing/metrics were off. :model_full and :model_off both roll it; only LOG did not.
+  call helm upgrade esquire-infra-amq %CH%\infra\activemq -f values\activemq.yaml --reset-then-reuse-values --set observability.enabled=false --force-conflicts
+  call kubectl rollout restart statefulset esquire-infra-amq-activemq
+)
+
 echo --- App services ^(gateWard, Mesnie, pacMan^): tracing/metrics OFF, ONLY pro.mir0n at INFO...
 for %%s in (gateward mesnie pacman) do (
   call helm upgrade esquire-%%s %CH%\esquire-%%s --reset-then-reuse-values --set observability.enabled=false --set observability.metricsHistograms=false --set logging.levelMir0n=INFO --set logging.levelDevelop=OFF --set logging.levelMsg=OFF --set logging.levelAmq=OFF --set logging.levelJms=OFF %ESQ_REPS% --force-conflicts
@@ -95,15 +114,6 @@ for %%s in (gateward mesnie pacman) do (
 rem BFF has no pro.mir0n knob (pino, its own default) -- a CONSTANT in every model, so it cancels.
 call helm upgrade esquire-backend %CH%\esquire-backend --reset-then-reuse-values --set observability.enabled=false --force-conflicts
 call kubectl rollout restart statefulset esquire-backend
-rem SKIP_INFRA_ROLL (set by oke-perf-matrix): skip the kc/amq METRIC rolls. Rolling the broker drops
-rem the app pods' messagingBus connection, which does NOT self-heal (needs a pod restart) -- so a
-rem toggle-in-place matrix must never roll it. Infra metrics are the broker's/kc's OWN, not app o11y
-rem cost, so skipping them is measurement-neutral.
-if not defined SKIP_INFRA_ROLL (
-  echo --- keycloak: metrics OFF ^(no JMX exporter agent^)...
-  call helm upgrade esquire-infra-kc %CH%\infra\keycloak -f values\keycloak.yaml --reset-then-reuse-values --set observability.enabled=false --force-conflicts
-  call kubectl rollout restart statefulset esquire-infra-kc-keycloak
-)
 echo.
 echo LOG on: pro.mir0n INFO, tracing/metrics OFF, loki+alloy+grafana up (OKE).
 echo Reach Grafana: kubectl port-forward svc/esquire-infra-grafana 3009:3000 -n default   (admin/admin)
@@ -119,22 +129,19 @@ call kubectl label nodes -l "!tier" tier=o11y --overwrite 2>nul
 echo --- Installing the FULL viewing stack (logs + traces + metrics)...
 rem docker.io/ prefix for OKE cri-o short-name enforcing (see the LOG block). postgres-exporter
 rem is already fully qualified (quay.io/...), so it is left as-is.
-call helm upgrade --install esquire-infra-loki              %CH%\infra\loki              --set image.repository=docker.io/grafana/loki                       --set nodeSelector.tier=o11y || exit /b 1 --force-conflicts
-call helm upgrade --install esquire-infra-alloy             %CH%\infra\alloy             --set image.repository=docker.io/grafana/alloy                      --set nodeSelector.tier=o11y || exit /b 1 --force-conflicts
-call helm upgrade --install esquire-infra-tempo             %CH%\infra\tempo             --set image.repository=docker.io/grafana/tempo                      --set nodeSelector.tier=o11y || exit /b 1 --force-conflicts
-call helm upgrade --install esquire-infra-otel-collector    %CH%\infra\otel-collector    --set image.repository=docker.io/otel/opentelemetry-collector-contrib --set nodeSelector.tier=o11y || exit /b 1 --force-conflicts
-call helm upgrade --install esquire-infra-prometheus        %CH%\infra\prometheus        --set image.repository=docker.io/prom/prometheus                    --set nodeSelector.tier=o11y || exit /b 1 --force-conflicts
-call helm upgrade --install esquire-infra-postgres-exporter %CH%\infra\postgres-exporter --set nodeSelector.tier=o11y || exit /b 1 --force-conflicts
-call helm upgrade --install esquire-infra-grafana           %CH%\infra\grafana           --set image.repository=docker.io/grafana/grafana                    --set nodeSelector.tier=o11y --set-file dashboardTopology=grafana/esquire-topology.json || exit /b 1 --force-conflicts
-echo --- App services ^(gateWard, Mesnie, pacMan^): tracing/metrics ON, ONLY pro.mir0n at INFO...
-for %%s in (gateward mesnie pacman) do (
-  call helm upgrade esquire-%%s %CH%\esquire-%%s --reset-then-reuse-values --set observability.enabled=true --set observability.metricsHistograms=true --set logging.levelMir0n=INFO --set logging.levelDevelop=OFF --set logging.levelMsg=OFF --set logging.levelAmq=OFF --set logging.levelJms=OFF %ESQ_REPS% --force-conflicts
-  call kubectl rollout restart statefulset esquire-%%s
-)
-call helm upgrade esquire-backend %CH%\esquire-backend --reset-then-reuse-values --set observability.enabled=true --force-conflicts
-call kubectl rollout restart statefulset esquire-backend
-rem SKIP_INFRA_ROLL (see the LOG block): the matrix suppresses the kc/amq metric rolls so the broker
-rem is never bounced under running app pods (messagingBus does not self-heal a broker bounce).
+call helm upgrade --install esquire-infra-loki              %CH%\infra\loki              --set image.repository=docker.io/grafana/loki                       --set nodeSelector.tier=o11y --force-conflicts || exit /b 1
+call helm upgrade --install esquire-infra-alloy             %CH%\infra\alloy             --set image.repository=docker.io/grafana/alloy                      --set nodeSelector.tier=o11y --force-conflicts || exit /b 1
+call helm upgrade --install esquire-infra-tempo             %CH%\infra\tempo             --set image.repository=docker.io/grafana/tempo                      --set nodeSelector.tier=o11y --force-conflicts || exit /b 1
+call helm upgrade --install esquire-infra-otel-collector    %CH%\infra\otel-collector    --set image.repository=docker.io/otel/opentelemetry-collector-contrib --set nodeSelector.tier=o11y --force-conflicts || exit /b 1
+call helm upgrade --install esquire-infra-prometheus        %CH%\infra\prometheus        --set image.repository=docker.io/prom/prometheus                    --set nodeSelector.tier=o11y --force-conflicts || exit /b 1
+call helm upgrade --install esquire-infra-postgres-exporter %CH%\infra\postgres-exporter --set nodeSelector.tier=o11y --force-conflicts || exit /b 1
+call helm upgrade --install esquire-infra-grafana           %CH%\infra\grafana           --set image.repository=docker.io/grafana/grafana                    --set nodeSelector.tier=o11y --set ingress.enabled=false --set-file dashboardTopology=grafana/esquire-topology.json --set-file dashboardServices=grafana/esquire-services.json --set-file dashboardLogging=grafana/esquire-logging.json --force-conflicts || exit /b 1
+rem INFRA FIRST, APPS AFTER -- the order stated just below. A broker roll INTERRUPTS every app pod's
+rem messagingBus: the transport goes DOWN and the failover: wrapper reconnects it on its own, about 20s on
+rem local k8s. The cost is a bus WINDOW, not a dead bus. Rolling the broker first puts that window beside the
+rem app restart below rather than after it, and costs no extra restarts.
+rem SKIP_INFRA_ROLL (see the LOG block): the matrix suppresses the kc/amq metric rolls so a broker bounce --
+rem and the ~20s bus window while the failover: transport reconnects -- never lands inside a measurement.
 if not defined SKIP_INFRA_ROLL (
   echo --- keycloak / activemq: metrics ON ^(JMX exporter agent^)...
   call helm upgrade esquire-infra-kc  %CH%\infra\keycloak -f values\keycloak.yaml --reset-then-reuse-values --set observability.enabled=true --force-conflicts
@@ -142,6 +149,13 @@ if not defined SKIP_INFRA_ROLL (
   call helm upgrade esquire-infra-amq %CH%\infra\activemq -f values\activemq.yaml --reset-then-reuse-values --set observability.enabled=true --force-conflicts
   call kubectl rollout restart statefulset esquire-infra-amq-activemq
 )
+echo --- App services ^(gateWard, Mesnie, pacMan^): tracing/metrics ON, ONLY pro.mir0n at INFO...
+for %%s in (gateward mesnie pacman) do (
+  call helm upgrade esquire-%%s %CH%\esquire-%%s --reset-then-reuse-values --set observability.enabled=true --set observability.metricsHistograms=true --set logging.levelMir0n=INFO --set logging.levelDevelop=OFF --set logging.levelMsg=OFF --set logging.levelAmq=OFF --set logging.levelJms=OFF %ESQ_REPS% --force-conflicts
+  call kubectl rollout restart statefulset esquire-%%s
+)
+call helm upgrade esquire-backend %CH%\esquire-backend --reset-then-reuse-values --set observability.enabled=true --force-conflicts
+call kubectl rollout restart statefulset esquire-backend
 echo.
 echo FULL on: pro.mir0n INFO + tracing + metrics + the full viewing stack (OKE).
 echo Reach Grafana: kubectl port-forward svc/esquire-infra-grafana 3009:3000 -n default   (admin/admin)
@@ -151,6 +165,17 @@ rem ---------------------------------------------------------------------------
 :model_off
 set CH=..\k8s-compact\charts
 echo === oke-o11y-on OFF  (context=%CTX%) ===
+rem INFRA FIRST, APPS AFTER -- the rule stated just below. A broker roll INTERRUPTS every app pod's
+rem messagingBus; the failover: wrapper reconnects it by itself, about 20s on local k8s. A window, not a dead
+rem bus. Rolling the broker first puts that window beside the app restart, and costs no extra restarts.
+rem SKIP_INFRA_ROLL (see the LOG block): the matrix suppresses the kc/amq metric rolls so a broker bounce --
+rem and the ~20s bus window while the failover: transport reconnects -- never lands inside a measurement.
+if not defined SKIP_INFRA_ROLL (
+  call helm upgrade esquire-infra-kc  %CH%\infra\keycloak -f values\keycloak.yaml --reset-then-reuse-values --set observability.enabled=false --force-conflicts
+  call kubectl rollout restart statefulset esquire-infra-kc-keycloak
+  call helm upgrade esquire-infra-amq %CH%\infra\activemq -f values\activemq.yaml --reset-then-reuse-values --set observability.enabled=false --force-conflicts
+  call kubectl rollout restart statefulset esquire-infra-amq-activemq
+)
 echo --- App services ^(gateWard, Mesnie, pacMan^): tracing/metrics OFF, pro.mir0n OFF...
 for %%s in (gateward mesnie pacman) do (
   call helm upgrade esquire-%%s %CH%\esquire-%%s --reset-then-reuse-values --set observability.enabled=false --set observability.metricsHistograms=false --set logging.levelMir0n=OFF --set logging.levelDevelop=OFF --set logging.levelMsg=OFF --set logging.levelAmq=OFF --set logging.levelJms=OFF %ESQ_REPS% --force-conflicts
@@ -158,14 +183,6 @@ for %%s in (gateward mesnie pacman) do (
 )
 call helm upgrade esquire-backend %CH%\esquire-backend --reset-then-reuse-values --set observability.enabled=false --force-conflicts
 call kubectl rollout restart statefulset esquire-backend
-rem SKIP_INFRA_ROLL (see the LOG block): the matrix suppresses the kc/amq metric rolls so the broker
-rem is never bounced under running app pods (messagingBus does not self-heal a broker bounce).
-if not defined SKIP_INFRA_ROLL (
-  call helm upgrade esquire-infra-kc  %CH%\infra\keycloak -f values\keycloak.yaml --reset-then-reuse-values --set observability.enabled=false --force-conflicts
-  call kubectl rollout restart statefulset esquire-infra-kc-keycloak
-  call helm upgrade esquire-infra-amq %CH%\infra\activemq -f values\activemq.yaml --reset-then-reuse-values --set observability.enabled=false --force-conflicts
-  call kubectl rollout restart statefulset esquire-infra-amq-activemq
-)
 echo --- Removing the viewing stack (back to OKE defaults)...
 call helm uninstall esquire-infra-grafana           2>nul
 call helm uninstall esquire-infra-postgres-exporter 2>nul

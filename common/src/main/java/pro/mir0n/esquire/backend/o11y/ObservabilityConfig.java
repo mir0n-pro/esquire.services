@@ -269,14 +269,14 @@ public class ObservabilityConfig {
     }
 
     // Publish latency-histogram buckets so a Prometheus histogram_quantile (p95/p99) has _bucket series to read --
-    // by default a Boot timer emits only _count / _sum, and the quantile comes back empty (O1/T5 part B). Two tiers:
-    //   - http.server.requests: ALWAYS on -- the REST p95 dashboard panel depends on it (T4), and its cardinality
-    //     is bounded (uri / method / status).
-    //   - the extra latency timers (the Hikari borrow/acquire timers, the bus send-duration, and the four request
-    //     timing bands esq.gw.*/esq.srv.*): buckets are added ONLY when esquire.observability.metrics.histograms-
-    //     enabled=true, because each is tagged (bus-id / slot / msgType, or the band label) and the le buckets
-    //     multiply that cardinality. Off by default = the timers still emit count/sum/max (avg is queryable); on =
-    //     full percentiles.
+    // by default a Boot timer emits only _count / _sum, and the quantile comes back empty (O1/T5 part B).
+    //
+    // ONE switch governs every bucket in the fleet: esquire.observability.metrics.histograms-enabled. It covers
+    // http.server.requests, the Hikari borrow/acquire timers, the bus send-duration, the four request timing
+    // bands esq.gw.*/esq.srv.*, and every esq.biz.* timer by prefix. Off (the default) the timers still emit
+    // count/sum/max, so an average is queryable and the p95 panels are dark; on = full percentiles everywhere.
+    // The `le` buckets multiply an already-tagged series (bus-id / slot / msgType, or the band label), which is
+    // what makes this worth a switch -- see the filter body for what one always-on exception cost.
     @Bean
     @ConditionalOnProperty(name = "esquire.observability.metrics.enabled", havingValue = "true", matchIfMissing = true)
     public MeterFilter esqLatencyHistograms(

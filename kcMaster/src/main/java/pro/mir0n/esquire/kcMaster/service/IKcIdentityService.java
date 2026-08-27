@@ -8,6 +8,8 @@
  *  History:
  * 03/20/2026 mir0n  ported from keySmith IKeycloakIdentityService
  * 04/06/2026 mir0n  updateEntityPath() added
+ * 08/26/2026 mir0n  updateAccess drops the password and enabled parameters; forcePasswordChange becomes a
+ *                   Boolean and removeTotp joins it, so each required action can be withdrawn as well as set
  */
 
 package pro.mir0n.esquire.kcMaster.service;
@@ -34,8 +36,6 @@ public interface IKcIdentityService {
             String loginId,
             String newLoginId,
             String email,
-            String password,
-            Boolean enabled,
             Boolean forcePasswordChange,
             Boolean requireTotp,
             Boolean removeTotp,

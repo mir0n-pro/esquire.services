@@ -1,6 +1,0 @@
-apiVersion: v2
-name: esquire-gateway
-description: gateway — Spring Cloud Gateway facade
-type: application
-version: 0.1.0
-appVersion: "1.2.6"

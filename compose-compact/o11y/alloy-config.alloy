@@ -20,8 +20,9 @@ discovery.relabel "esq" {
 	}
 	// Drop the observability stack's OWN containers: they are named esqc-* too, so the keep above lets them in,
 	// and shipping the log pipeline's output back into itself is a feedback loop (Loki logs each push -> Alloy
-	// tails it -> pushes it -> Loki logs that push). Infra logs we DO want (postgres/keycloak/activemq) are not
-	// esqc-* named and were never in scope here. The VIEWER IS NOT THE SYSTEM.
+// Infra logs we DO want (postgres/keycloak/activemq) are kept by the rule above like any other container;
+// what excludes the viewer is the DROP LIST below, which names its containers explicitly -- not the keep
+// rule missing them. THE VIEWER IS NOT THE SYSTEM.
 	rule {
 		source_labels = ["__meta_docker_container_name"]
 		regex         = "/esqc-(loki|grafana|tempo|prometheus|alloy|otel-collector|postgres-exporter)"

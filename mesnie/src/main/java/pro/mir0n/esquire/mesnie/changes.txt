@@ -1,5 +1,11 @@
 Esquire Mesnie Microservice
 
+08/26/2026 mir0n  v1.2.13 -- configuration and develop logging
+resources/application.yml
+  - the admin connect / read timeouts take KC_ADMIN_CONNECT_TIMEOUT_MS and KC_ADMIN_READ_TIMEOUT_MS
+resources/logback-spring.xml
+  - the develop pattern drops the "develop." prefix from the logger name
+
 08/17/2026 mir0n  v1.2.13 -- observability for the composed services
 MesnieMeterOwner  (new)
   - created: which of the three the household's meters belong to, read off the meter id: its name, the route

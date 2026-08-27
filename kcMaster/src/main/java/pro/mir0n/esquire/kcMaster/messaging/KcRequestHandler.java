@@ -19,6 +19,8 @@
  *                   KC request/response hop IS traced (PRODUCER/CONSUMER via AXRod), not a waterfall gap (I51).
  * 08/12/2026 mir0n  v1.2.13 -- KcSyncRequest -> AuthSyncRequest (moved to common backend.identity); @Component dropped --
  *                   the handler is built by KcIdentityGateway
+ * 08/26/2026 mir0n  the updateAccess call drops the password and enabled arguments, neither of which the
+ *                   messaging path manages
  */
 
 package pro.mir0n.esquire.kcMaster.messaging;
@@ -117,8 +119,6 @@ public class KcRequestHandler {
                 req.getLoginId(),
                 req.getNewLoginId(),
                 req.getEmail(),
-                null,   // password — not managed via messaging
-                null,   // enabled — not managed here
                 "Y".equals(req.getPwdChangeForced()),
                 requireTotp,
                 removeTotp,

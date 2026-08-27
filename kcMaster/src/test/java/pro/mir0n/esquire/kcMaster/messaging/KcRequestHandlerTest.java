@@ -152,10 +152,8 @@ class KcRequestHandlerTest {
         handler.handle(BusConstants.EVENT_UPDATE, buildUpdateReq(null, null), "cid1", "rid1");
 
         verify(kcIdentityService).updateUserAuthState(
-                eq("alice@example.com"),
-                any(), any(), any(), any(), any(), any(), any(), any(), any(),
-                eq("cid1"), eq("rid1")
-        );
+                eq("alice@example.com"), any(), any(), any(), any(),
+                any(), any(), any(), eq("cid1"), eq("rid1"));
     }
 
     @Test
@@ -164,11 +162,8 @@ class KcRequestHandlerTest {
         handler.handle(BusConstants.EVENT_UPDATE, buildUpdateReq("g", null), "cid1", "rid1");
 
         verify(kcIdentityService).updateUserAuthState(
-                anyString(), any(), any(), any(), any(), any(),
-                eq(Boolean.TRUE),
-                isNull(),
-                any(), any(), anyString(), anyString()
-        );
+                anyString(), any(), any(), any(), eq(Boolean.TRUE),
+                isNull(), any(), any(), anyString(), anyString());
     }
 
     @Test
@@ -177,11 +172,8 @@ class KcRequestHandlerTest {
         handler.handle(BusConstants.EVENT_UPDATE, buildUpdateReq("n", null), "cid1", "rid1");
 
         verify(kcIdentityService).updateUserAuthState(
-                anyString(), any(), any(), any(), any(), any(),
-                isNull(),
-                eq(Boolean.TRUE),
-                any(), any(), anyString(), anyString()
-        );
+                anyString(), any(), any(), any(), isNull(),
+                eq(Boolean.TRUE), any(), any(), anyString(), anyString());
     }
 
     @Test
@@ -190,11 +182,8 @@ class KcRequestHandlerTest {
         handler.handle(BusConstants.EVENT_UPDATE, buildUpdateReq(null, null), "cid1", "rid1");
 
         verify(kcIdentityService).updateUserAuthState(
-                anyString(), any(), any(), any(), any(), any(),
-                isNull(),
-                isNull(),
-                any(), any(), anyString(), anyString()
-        );
+                anyString(), any(), any(), any(), isNull(),
+                isNull(), any(), any(), anyString(), anyString());
     }
 
     @Test
@@ -203,10 +192,8 @@ class KcRequestHandlerTest {
         handler.handle(BusConstants.EVENT_UPDATE, buildUpdateReq(null, "Y"), "cid1", "rid1");
 
         verify(kcIdentityService).updateUserAuthState(
-                anyString(), any(), any(), any(), any(),
-                eq(Boolean.TRUE),
-                any(), any(), any(), any(), anyString(), anyString()
-        );
+                anyString(), any(), any(), eq(Boolean.TRUE), any(),
+                any(), any(), any(), anyString(), anyString());
     }
 
     @Test
@@ -215,10 +202,8 @@ class KcRequestHandlerTest {
         handler.handle(BusConstants.EVENT_UPDATE, buildUpdateReq(null, "N"), "cid1", "rid1");
 
         verify(kcIdentityService).updateUserAuthState(
-                anyString(), any(), any(), any(), any(),
-                eq(false),
-                any(), any(), any(), any(), anyString(), anyString()
-        );
+                anyString(), any(), any(), eq(false), any(),
+                any(), any(), any(), anyString(), anyString());
     }
 
     // --- DELETE dispatch ---

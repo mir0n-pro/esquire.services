@@ -135,6 +135,12 @@ The command path is authoritative; the broadcast is belt-and-suspenders so a rel
 are not interchangeable: a **request** reaches one replica, a **broadcast** reaches every replica, which is
 exactly why the safety-net is the broadcast and not a second request.
 
+**The role mapping is set, not merged.** `esq2025` owns it whole: after a sync, the realm roles of an
+Esquire-managed identity are exactly the roles Esquire assigned -- the update empties the mapping and fills it
+from the access profile. That is what "the database is the source of truth" means for roles: read the mapping
+in KeyCloak and you are reading Esquire's answer, with nothing else mixed in, and two users with the same
+profile hold the same mapping whatever either of them has been through.
+
 `esq_uid` is written once, at create, and never changes — identity is stable. `esq_rootpath` is the one attribute
 re-issued on a move, so the token's visibility root always matches the tree.
 
@@ -216,7 +222,7 @@ fought:
   before the user's KeyCloak identity has been created. The authoritative URQ then finds no user and **silently
   skips** — the new path would be lost.
 - **The safety-net.** The same move is also broadcast on the entity-broadcast topic; kcMaster's topic worker parks
-  the new path in a per-pod **expiring path buffer** (an `ExpiringCache`, bean in `KeycloakConfig`). The next keySmith `CREATE` URQ for that user **flushes the buffer**
+  the new path in a per-pod **expiring path buffer** (an `ExpiringCache` the identity gateway builds and owns). The next keySmith `CREATE` URQ for that user **flushes the buffer**
   and applies the post-move path — so the relocation is never lost. When the user already exists, the URQ owns the
   update and the topic side stays passive (no double write).
 - **The buffer keeps the newest path, not the last one to arrive.** A path is parked with the change number of
@@ -235,6 +241,28 @@ is unchanged (the pluggable-IAM property; see [`Esquire.Vision.md`](Esquire.Visi
 
 Which token shape reaches the services from the edge — a browser cookie, a plain JWT, or a relayed one — is the
 gateway's concern, covered in [`Esquire.Auth.TokenPatterns.md`](Esquire.Auth.TokenPatterns.md).
+
+### When a sync fails
+
+kcMaster answers every identity request: **URS** on success, **URR** on failure, carrying the error and the
+request it was given. The requester records the answer, and kcMaster counts the outcome
+(`esq.biz.kc.sync.total{outcome}`) and times it (`esq.biz.kc.sync.duration`), so a failed sync shows on the
+board and in the log with its request and correlation ids.
+
+Two stores can then disagree: `esq2025` holds the user, KeyCloak does not know it yet -- or knows an older
+path. **`hauberk kc-reconcile`** is the repair path. It reads the truth from esq2025 over JDBC and the mirror
+from KeyCloak over the REST admin API, talking to both directly rather than through the services, so it works
+while they are down. It reports three kinds of drift and exits 1 when it finds any:
+
+| drift | meaning | `--repair` |
+|---|---|---|
+| `STALE_PATH` | the KC `esq_rootpath` differs from the DB `ep_path` | fixed in place |
+| `MISSING_IN_KC` | a connected Esquire user with no KeyCloak account | reported -- creating the account needs the credential and activation work that is kcMaster's |
+| `ORPHAN_IN_KC` | a KeyCloak user whose `esq_uid` is not a connected Esquire user | reported -- deletion is destructive |
+
+Tracking an answer back to the request that asked for it -- a reply timeout, a pending-request map,
+replier-down detection -- is the messaging bus's continuing work, items 9 and 6 in
+[`Esquire.MessagingBus.ContinuingDev.md`](Esquire.MessagingBus.ContinuingDev.md).
 
 ---
 
@@ -386,6 +414,27 @@ loaded from the seed. Role **exceptions** — a per-node override of a role's de
 
 Together with Dimension 1: the role decides *whether* an operation is allowed and *what tools* appear; the path
 decides *which entities* it can touch. A `DENY` at the gate, or an out-of-subtree target, stops the write.
+
+### 5.2a One administrative role per user
+
+A user holds **at most one admin role**. That is the model, not a convention: the gate resolves the caller's
+permission matrix by finding the admin role among the token's roles and reading its per-kind record, so one
+role means one matrix and one answer. A user may hold tool roles (TREE) alongside it -- those govern what the
+Explorer shows, not what a command may do.
+
+The rule is enforced twice on the way in. The **UI refuses to offer it**: `esquire.ui.lib`'s tab-list
+component will not add a second element of the admin role kind (980), so the Explorer -- and any application
+built on the library -- cannot produce the case. Behind it the **server refuses to store it**: the roles
+validator rejects a save that would leave a user with more than one administrative role. A user with two can
+therefore only be made by a hand-built request, which is the same door every other trusted-parameter case goes
+through.
+
+There is **no database constraint** behind the rule, and that is deliberate. The user-to-role relation is
+what changes next: `Esquire.Vision.md` names **hierarchical roles** as a backbone idea -- authority is
+positional, a function of where you sit in the tree -- and today only the visibility half of that is built.
+When a role becomes something a user holds **per branch** rather than once for the whole tree
+(`Esquire.ContinuingDev.md` CD-19), a constraint written against today's shape would be written against the
+shape that is going away.
 
 ### 5.3 Acting on yourself — the `personal` flag
 

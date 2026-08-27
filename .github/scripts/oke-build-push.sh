@@ -81,5 +81,5 @@ bx esquire-keycloak "${SERVICES}/keycloak" "${SERVICES}/keycloak/Dockerfile.keyc
 # now ships with the release tag automatically, same as keycloak/postgres.
 bx esquire-activemq "${SERVICES}/activemq" "${SERVICES}/activemq/Dockerfile"
 
-echo "=== pushed 10 images to ${REG} at ${IMAGE_TAG} ==="
-echo "    (6 Spring services + backend/BFF + postgres + keycloak + activemq)"
+echo "=== pushed 7 images to ${REG} at ${IMAGE_TAG} ==="
+echo "    (3 Spring services + backend/BFF + postgres + keycloak + activemq)"

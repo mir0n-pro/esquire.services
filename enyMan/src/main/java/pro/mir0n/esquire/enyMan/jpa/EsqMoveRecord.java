@@ -8,6 +8,8 @@
  *  History:
  * 08/11/2026 mir0n  v1.2.12 -- changeNo component added: the PATH row's number, the only number a
  *                   descendant's move can carry
+ * 08/26/2026 mir0n  changeNo split in two: pathChangeNo (EP_CHANGE_NO) and entityChangeNo, read back from the
+ *                   same row after the move raised them
  */
 package pro.mir0n.esquire.enyMan.jpa;
 
@@ -26,8 +28,6 @@ public class EsqMoveRecord {
     private String id;
     private Integer kind;
     private String path;
-    /** The PATH change number ({@code EP_CHANGE_NO}), read back after the move raised it. Its own counter,
-     *  separate from the entity row's: a move rewrites every descendant path row while leaving those
-     *  descendants' entity rows untouched, so this is the only number a descendant's move can carry. */
-    private Long changeNo;
+    private Long pathChangeNo;
+    private Long entityChangeNo;
 }

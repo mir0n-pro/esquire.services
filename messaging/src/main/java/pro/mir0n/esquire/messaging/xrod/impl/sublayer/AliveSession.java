@@ -126,7 +126,7 @@ public class AliveSession implements ISessionSublayer {
     }
 
     /** The keep-alive this leg emits when idle: an unsolicited HeartBeat. {@link AliveSessionRR} overrides it
-     *  (a TestRequest for an R&R CLIENT). */
+     *  -- a TestRequest for an R&R CLIENT, and nothing at all for a SERVER. A null means no keep-alive. */
     protected RodEvent keepAliveEvent() {
         return RodEvent.heartbeat(newCorrelationId(), null, null);
     }

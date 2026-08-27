@@ -88,6 +88,40 @@ Vanilla Token Relay and Phantom Token Relay are both **Token Relay** patterns. T
 
 The two share workflow, cache shape, and downstream behaviour; they differ in four points -- edge credential extraction, cache key derivation, KC grant form, and which client opt-in env they consult. Per-pattern details follow below.
 
+## The seam a new pattern arrives on -- and what tests it
+
+A pattern is not built into the gateway; it is an `ITokenRelayVariant` the gate is handed. The variant reads the
+inbound request and answers one of three things -- `Pass` (not mine), `Reject` (mine, and refused), `Relay`
+(mine: here is the cache key and the token request to make). Everything after that is shared: `TokenRelayFilter`
+carries the decision out, `TokenRelayCache` keys the result, and `ITokenRelayClient` makes the call. So another
+pattern -- another grant, or another identity service -- is one new variant and one line where the variants are
+assembled, in `gateway/.../config/SecurityConfig.java`.
+
+**Where it is configured.** The gate's own identity connection is `keycloak.exchange` -- endpoint, realm,
+credentials and the two timeouts, the same six keys kcMaster configures its admin client with (see
+`services.configuring.md`, "KeyCloak connection"). Pointing the gate at a different service is that block; the
+variant's allowlist stays with the variant. A variant that is allowlisted while that block is not set stops the
+gate at start-up rather than refusing its callers one request at a time -- so a half-finished experiment says so
+in the first line of the log.
+
+**What tests it.**
+
+| level | where | what it proves |
+|---|---|---|
+| the gate refuses to start half-able | `TokenRelayWiringGuardTest` | an allowlist with no endpoint, no realm or no exchange client stops the gate at start-up; an empty allowlist is the off switch and starts fine |
+| the rules every variant keeps | `TokenRelayVariantContractTest` | an anonymous request is passed, an unhandled scheme is passed, and a caller outside the allowlist is never relayed -- run over every variant there is |
+| what one variant decides | `VanillaTokenRelayTest`, `PhantomTokenRelayTest` | the edge credential it accepts, the cache key it chooses, the grant form it builds, and what it refuses |
+| what the gate does with the decision | `TokenRelayFilterTest` | first decision wins, a refusal is 401 with the chain never run, a relay hands the chain the brokered Bearer and not the caller's own credential |
+| what a hit saves | `TokenRelayCacheTest` | miss then hit, expiry re-acquires, keys stay apart |
+| end to end, on a running stack | `e2e-test/tests/20-token-relay.spec.ts` | the whole path, calling the gate DIRECTLY -- through the BFF proxy the relay is never reached |
+
+A new variant added to `TokenRelayVariantContractTest.variants()` gets the first row for free.
+
+The e2e spec takes its gate, its identity endpoint and both client credentials from the environment
+(`GATEWAY_URL`, `KC_URL`, `KC_REALM`, `RELAY_VANILLA_CLIENT` / `_SECRET`, `RELAY_PHANTOM_CLIENT` / `_SECRET`),
+so the same two tests run against another service without an edit. `RELAY_DISABLED=true` skips them, which is
+what the cloud run does -- the internet-facing gate ships empty allowlists by design.
+
 ## Caches in play
 
 "KC off the hot path" is bought with caching, not by being stateless. Three caches participate; none are per-request:
@@ -121,7 +155,7 @@ The generic options above assume an IAS that cleanly implements the relevant sta
 > [#39686](https://github.com/keycloak/keycloak/issues/39686) -- both worth watching, and both a reasonable
 > place to contribute this deployment's use case as a data point.
 
-The platform builds all four -- **BFF + JWT + Vanilla Token Relay + Phantom Token Relay** -- and duplicates the claim mappers on the exchange client to work around the audience gap. **BFF and plain JWT are the RECOMMENDED production paths.** Vanilla and Phantom Token Relay are the lab / exploration patterns of the JWE detour, and they are **NOT armed on the public OKE API** -- their gateway allowlists (`vanilla.clients` / `phantom.clients` in `k8s-oci/values/gateway.yaml`) are empty there, so the gateway never brokers or caches a relay token. Re-arm only for a deliberate load-test window, never as standing config.
+The platform builds all four -- **BFF + JWT + Vanilla Token Relay + Phantom Token Relay** -- and duplicates the claim mappers on the exchange client to work around the audience gap. **BFF and plain JWT are the RECOMMENDED production paths.** Vanilla and Phantom Token Relay are the lab / exploration patterns of the JWE detour, and they are **NOT armed on the public OKE API** -- their gateway allowlists (`vanilla.clients` / `phantom.clients` in `k8s-oci-compact/values/gateward.yaml`) are empty there, so the gateway never brokers or caches a relay token. Re-arm only for a deliberate load-test window, never as standing config.
 
 ### Phantom Token Relay -- what it delivers
 

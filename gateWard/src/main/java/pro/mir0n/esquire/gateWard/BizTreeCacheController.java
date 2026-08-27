@@ -11,6 +11,7 @@
  *                   cache-read scheduler so no blocking JDBC lands on an event-loop thread, and each carrying
  *                   the caller's rootPath / uid across that thread hop. scoped() also takes the two timing
  *                   stamps (out from the gate, in the ward) for TreeRouteTimingFilter
+ * 08/26/2026 mir0n  each tree read is wrapped in its own EsqTraceMark span -- read tree, read subtree, read path
  */
 
 package pro.mir0n.esquire.gateWard;
@@ -29,6 +30,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ServerWebExchange;
 import pro.mir0n.esquire.backend.dto.EsqTreeNode;
+import pro.mir0n.esquire.backend.o11y.EsqTraceMark;
 import pro.mir0n.esquire.backend.service.EsqContextHolder;
 import pro.mir0n.esquire.backend.service.EsqRequestContext;
 import pro.mir0n.esquire.bizTree.access.IBizTreeDirector;
@@ -87,7 +89,7 @@ public class BizTreeCacheController {
             @RequestHeader(name = EsqConstants.X_CORRELATION_ID, required = false) String correlationId,
             ServerWebExchange exchange) {
         return onCache(exchange, context(jwt, requestId, correlationId),
-                () -> director.esquire(id, skip, take), "esquire", id);
+                () -> director.esquire(id, skip, take), "esquire", id, OBS_TREE, "read tree");
     }
 
     @GetMapping("/esq-tree")
@@ -98,7 +100,7 @@ public class BizTreeCacheController {
             @RequestHeader(name = EsqConstants.X_CORRELATION_ID, required = false) String correlationId,
             ServerWebExchange exchange) {
         return onCache(exchange, context(jwt, requestId, correlationId),
-                () -> director.esquireSubtree(id), "esquireSubtree", id);
+                () -> director.esquireSubtree(id), "esquireSubtree", id, OBS_SUBTREE, "read subtree");
     }
 
     @GetMapping("/esq-path")
@@ -109,7 +111,7 @@ public class BizTreeCacheController {
             @RequestHeader(name = EsqConstants.X_CORRELATION_ID, required = false) String correlationId,
             ServerWebExchange exchange) {
         return onCache(exchange, context(jwt, requestId, correlationId),
-                () -> director.esquirePath(id), "esquirePath", id);
+                () -> director.esquirePath(id), "esquirePath", id, OBS_PATH, "read path");
     }
 
     @GetMapping("/esq-enode")
@@ -139,6 +141,11 @@ public class BizTreeCacheController {
         return Mono.just(ResponseEntity.status(HttpStatus.ACCEPTED).build());
     }
 
+    private static final String OBS_TREE    = "esq.svc.tree";
+    private static final String OBS_SUBTREE = "esq.svc.subtree";
+    private static final String OBS_PATH    = "esq.svc.path";
+    private static final String OBS_NODE    = "esq.svc.node";
+
     /** The caller, taken from the verified token on the request side while the JWT is still in hand. */
     private EsqRequestContext context(Jwt jwt, String requestId, String correlationId) {
         String uid      = (jwt != null) ? jwt.getClaimAsString(EsqConstants.JWT_CLAIM_ENTITY_ID) : null;
@@ -151,12 +158,13 @@ public class BizTreeCacheController {
 
     /** One shape for the three list reads: scope it, run it on the cache scheduler, answer 200. */
     private <T> Mono<ResponseEntity<List<T>>> onCache(ServerWebExchange exchange, EsqRequestContext ctx,
-                                                      Callable<List<T>> call, String what, String id) {
+                                                      Callable<List<T>> call, String what, String id,
+                                                      String obsName, String obsLabel) {
         // OUT FROM THE GATE -- the instant the work leaves the gate for the ward. On a proxied route this is
         // where the downstream call starts and InnerTimerFilter takes it; here the hop is a thread, not a wire.
         long outFromGate = System.currentTimeMillis();
 
-        Mono<List<T>> read = Mono.fromCallable(() -> scoped(exchange, outFromGate, ctx, call))
+        Mono<List<T>> read = Mono.fromCallable(() -> scoped(exchange, outFromGate, ctx, call, obsName, obsLabel))
                 .subscribeOn(cacheRead);
 
         // Only build the debug step when someone is reading it. The consumer captures what/id, so it is a new
@@ -176,7 +184,8 @@ public class BizTreeCacheController {
         long outFromGate = System.currentTimeMillis();
 
         Callable<EsqTreeNode> call = () -> director.esquireEntityNode(kind, id, name);
-        Mono<EsqTreeNode> read = Mono.fromCallable(() -> scoped(exchange, outFromGate, ctx, call))
+        Mono<EsqTreeNode> read = Mono.fromCallable(
+                        () -> scoped(exchange, outFromGate, ctx, call, OBS_NODE, "read node"))
                 .subscribeOn(cacheRead);
 
         if (devLog.isDebugEnabled()) {
@@ -196,27 +205,16 @@ public class BizTreeCacheController {
      * thread, which is the whole point -- and those threads are pooled and reused, so the clear in the finally
      * is what keeps one caller's scope from leaking into the next request.
      *
-     * <p><b>It is also where BOTH timing points are closed</b>, and they are closed here rather than further
-     * down the chain for a reason that cost a build to find. A {@code doFinally} on the returned Mono looks
-     * like the natural place for the gate window, but Reactor runs it AFTER the terminal signal has gone
-     * downstream -- and the response write, and the filter's own {@code then()}, both happen inside that
-     * propagation. The stamp would land after the request had already been reported. This method, by contrast,
-     * runs entirely on the cache-read thread and returns before the value is emitted at all, so a value set
-     * here is always in place. It also means the empty answer ({@code /esq-enode} finding nothing) and a
-     * failed read are stamped too, because a finally does not care which way the call ended.
-     *
-     * <p>The gate window therefore ends when the ward is done rather than when the event loop picks the answer
-     * back up. The hand-back it leaves out is a scheduler signal, not work.
      */
-    private <T> T scoped(ServerWebExchange exchange, long outFromGate, EsqRequestContext ctx, Callable<T> call)
-            throws Exception {
+    private <T> T scoped(ServerWebExchange exchange, long outFromGate, EsqRequestContext ctx, Callable<T> call,
+                         String obsName, String obsLabel) throws Exception {
         T ret;
         // IN THE WARD -- the work begins. Nothing before this line ran on this thread.
         long inTheWard = System.currentTimeMillis();
 
         EsqContextHolder.set(ctx);
         try {
-            ret = call.call();
+            ret = EsqTraceMark.aroundChecked(obsName, obsLabel, call::call);
         } finally {
             EsqContextHolder.clear();
             TreeRouteTimingFilter.wardOuter(exchange, inTheWard);

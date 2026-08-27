@@ -8,7 +8,7 @@ rem      Grafana + Prometheus -- the "o11y" compose profile), and
 rem   2. recreate the app services with observability ON (ESQ_OBSERVABILITY_ENABLED=true).
 rem The base stack keeps running; only the app services are recreated. Opt-in --
 rem the everyday stack default is observability OFF. Mirror of compose\o11y-on.bat,
-rem over the FOUR compact processes: gateward, mesnie, pacman and the BFF.
+rem over the four Java processes -- gateward, mesnie, pacman, aukeep -- and the BFF.
 rem
 rem   Grafana: http://localhost:3009  (admin/admin) -> Explore
 rem ===========================================================================

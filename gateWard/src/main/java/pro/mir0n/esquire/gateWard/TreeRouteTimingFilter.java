@@ -10,13 +10,16 @@
  *                   InnerTimerFilter and ResponseTraceFilter are GlobalFilters and do not run on a locally
  *                   handled path, so the gw-outer / gw-inner / srv-outer stamps, the capture headers and the
  *                   OUTGOING line are recorded here instead
+ * 08/26/2026 mir0n  the meter registry is taken only when the metrics switch is on; the trace ids reach MDC
  */
 
 package pro.mir0n.esquire.gateWard;
 
 import io.micrometer.core.instrument.MeterRegistry;
 import lombok.extern.slf4j.Slf4j;
+import org.slf4j.MDC;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpHeaders;
@@ -79,8 +82,12 @@ public class TreeRouteTimingFilter implements WebFilter {
     // the same way the gateway's own two timing filters do it.
     private final MeterRegistry registry;
 
-    public TreeRouteTimingFilter(ObjectProvider<MeterRegistry> registryProvider) {
-        this.registry = registryProvider.getIfAvailable();
+    public TreeRouteTimingFilter(ObjectProvider<MeterRegistry> registryProvider,
+                                     @Value("${esquire.observability.metrics.enabled:false}") boolean metricsOn) {
+        // The SWITCH decides, not the presence of a bean. A MeterRegistry is NOT absent when the umbrella is
+        // off: with the Prometheus export backed off, Boot's SimpleMetricsExportAutoConfiguration supplies a
+        // SimpleMeterRegistry, so reading the bean answered "observability is on" in every posture.
+        this.registry = metricsOn ? registryProvider.getIfAvailable() : null;
     }
 
     /** The gate-to-ward window: called by the controller when the cache read has finished. */
@@ -216,22 +223,32 @@ public class TreeRouteTimingFilter implements WebFilter {
             }
 
             HttpHeaders requestHeaders = exchange.getRequest().getHeaders();
-            // The client's own X-Correlation-ID if it sent one, else the id RequestTraceFilter settled and
-            // parked on the exchange -- which is what its INCOMING line for this same request already carries.
-            String correlationId = requestHeaders.getFirst(EsqConstants.X_CORRELATION_ID);
+
+            String correlationId = exchange.getAttribute(EsqConstants.ESQ_CORRELATION_ID);
             if (correlationId == null) {
-                correlationId = exchange.getAttribute(EsqConstants.ESQ_CORRELATION_ID);
+                correlationId = requestHeaders.getFirst(EsqConstants.X_CORRELATION_ID);
             }
-            log.info("OUTGOING: correlationId={}, requestId={}, {} {}, status={}, srvInnerTime={}, srvOuterTime={}, gwInnerTime={}, gwOuterTime={}ms",
-                    correlationId,
-                    requestHeaders.getFirst(EsqConstants.X_REQUEST_ID),
-                    exchange.getRequest().getMethod(),
-                    exchange.getRequest().getURI(),
-                    exchange.getResponse().getStatusCode() == null ? null : exchange.getResponse().getStatusCode().value(),
-                    srvOuter == null ? null : "0ms",
-                    srvOuter == null ? null : srvOuter + "ms",
-                    gwInner  == null ? null : gwInner + "ms",
-                    gwOuter);
+            String requestId = requestHeaders.getFirst(EsqConstants.X_REQUEST_ID);
+
+            MDC.put(EsqConstants.PD_CORRELATION_ID, correlationId);
+            if (requestId != null) {
+                MDC.put(EsqConstants.PD_REQUEST_ID, requestId);
+            }
+            try {
+                log.info("OUTGOING: correlationId={}, requestId={}, {} {}, status={}, srvInnerTime={}, srvOuterTime={}, gwInnerTime={}, gwOuterTime={}ms",
+                        correlationId,
+                        requestId,
+                        exchange.getRequest().getMethod(),
+                        exchange.getRequest().getURI(),
+                        exchange.getResponse().getStatusCode() == null ? null : exchange.getResponse().getStatusCode().value(),
+                        srvOuter == null ? null : "0ms",
+                        srvOuter == null ? null : srvOuter + "ms",
+                        gwInner  == null ? null : gwInner + "ms",
+                        gwOuter);
+            } finally {
+                MDC.remove(EsqConstants.PD_CORRELATION_ID);
+                MDC.remove(EsqConstants.PD_REQUEST_ID);
+            }
         }
     }
 }

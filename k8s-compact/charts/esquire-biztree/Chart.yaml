@@ -1,6 +1,0 @@
-apiVersion: v2
-name: esquire-biztree
-description: bizTree — in-memory entity tree service
-type: application
-version: 0.1.0
-appVersion: "1.2.6"

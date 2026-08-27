@@ -46,6 +46,20 @@ kubectl rollout status deployment/esquire-infra-prometheus -n default --timeout=
 echo Waiting for grafana...
 kubectl rollout status deployment/esquire-infra-grafana -n default --timeout=150s
 
+rem INFRA FIRST, APPS AFTER. A broker roll drops every app pod's messagingBus connection and that does NOT
+rem self-heal, so with the apps restarted first the bounce lands on pods that have ALREADY rolled and nothing
+rem restarts them again -- an ordinary toggle then leaves the entity bus dead until someone kicks them by
+rem hand. Rolling the broker first costs no extra restarts: the app restart below is the one that reconnects.
+rem The OKE scripts and both docker twins already do it this way; these four were the last holdouts.
+echo --- Enabling metrics on keycloak (KC_METRICS_ENABLED via the umbrella)...
+call helm upgrade esquire-infra-kc charts\infra\keycloak -f values\keycloak.yaml --reset-then-reuse-values --set observability.enabled=true --force-conflicts
+call kubectl rollout restart statefulset esquire-infra-kc-keycloak
+
+echo --- Enabling metrics on activemq (the JMX exporter agent on :9404 via the umbrella)...
+call helm upgrade esquire-infra-amq charts\infra\activemq -f values\activemq.yaml --reset-then-reuse-values --set observability.enabled=true --force-conflicts
+call kubectl rollout restart statefulset esquire-infra-amq-activemq
+kubectl rollout status statefulset/esquire-infra-amq-activemq -n default --timeout=150s
+
 echo --- Enabling observability on the app services (mirrors docker ESQ_OBSERVABILITY_ENABLED=true)...
 for %%s in (gateward mesnie pacman aukeep) do (
   echo   esquire-%%s observability ON
@@ -61,15 +75,6 @@ rem buckets), so its chart never reads observability.metricsHistograms. It takes
 echo   esquire-backend observability ON
 call helm upgrade esquire-backend charts\esquire-backend --reset-then-reuse-values --set observability.enabled=true --force-conflicts
 call kubectl rollout restart statefulset esquire-backend
-
-echo --- Enabling metrics on keycloak (KC_METRICS_ENABLED via the umbrella)...
-call helm upgrade esquire-infra-kc charts\infra\keycloak -f values\keycloak.yaml --reset-then-reuse-values --set observability.enabled=true --force-conflicts
-call kubectl rollout restart statefulset esquire-infra-kc-keycloak
-
-echo --- Enabling metrics on activemq (the JMX exporter agent on :9404 via the umbrella)...
-call helm upgrade esquire-infra-amq charts\infra\activemq -f values\activemq.yaml --reset-then-reuse-values --set observability.enabled=true --force-conflicts
-call kubectl rollout restart statefulset esquire-infra-amq-activemq
-kubectl rollout status statefulset/esquire-infra-amq-activemq -n default --timeout=150s
 
 echo.
 echo o11y stack up (logs + traces + metrics). Grafana: http://grafana.localhost  (admin/admin)

@@ -54,7 +54,7 @@ class BizTreeCacheLoaderTest {
     void setUp() {
         BizTreeCacheSql templates = new BizTreeCacheSql(
                 new BizTreeCacheSql.Ddl("", "", ""),
-                new BizTreeCacheSql.Repo("", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""),
+                new BizTreeCacheSql.Repo("", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""),
                 new BizTreeCacheSql.Loader("INSERT", "UPDATE", "SELECT")
         );
         CacheSqlSet sql = CacheSqlSet.forTable(templates, "ESQ_TREE");

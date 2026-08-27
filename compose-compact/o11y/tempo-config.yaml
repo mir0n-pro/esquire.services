@@ -1,5 +1,5 @@
 # Grafana Tempo -- the trace store (the T of LGTM). Single-binary, local filesystem storage (dev). Receives
-# spans from the OTel Collector over OTLP/gRPC; Grafana queries it over its HTTP API on :3200. 7-day retention
+# spans from the OTel Collector over OTLP/gRPC; Grafana queries it over its HTTP API on :3200. 6-hour retention
 # mirrors the Loki log retention so a trace and its log lines age out together.
 stream_over_http_enabled: true
 server:

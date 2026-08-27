@@ -11,6 +11,9 @@
  *                   kcmaster.path-buffer.*; serve(RodEvent) routes by msgType -- a request to the handler, a
  *                   broadcast to the park; postRequest / postMessage queue onto a BoundedQueueRig (one worker,
  *                   FIFO); start()/stop() drive the park pruner and the queue gate
+ * 08/26/2026 mir0n  builds the Keycloak admin client itself from KcConnectionSettings -- its own JAX-RS Client
+ *                   with JacksonProvider and connect / read timeouts -- and implements
+ *                   IQueueRig.IErrorListener so a worker throw is recorded rather than lost
  */
 package pro.mir0n.esquire.kcMaster.identity;
 
@@ -18,6 +21,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.keycloak.OAuth2Constants;
 import org.keycloak.admin.client.Keycloak;
+import org.keycloak.admin.client.JacksonProvider;
 import org.keycloak.admin.client.KeycloakBuilder;
 import org.keycloak.admin.client.resource.RealmResource;
 import org.keycloak.admin.client.resource.UsersResource;
@@ -25,11 +29,13 @@ import org.keycloak.representations.idm.UserRepresentation;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.core.env.Environment;
+import jakarta.ws.rs.client.Client;
+import jakarta.ws.rs.client.ClientBuilder;
 import pro.mir0n.esquire.backend.identity.IIdentityGateway;
 import pro.mir0n.esquire.backend.identity.AuthSyncRequest;
+import pro.mir0n.esquire.backend.identity.KcConnectionSettings;
 import pro.mir0n.esquire.backend.service.EsqContextHolder;
 import pro.mir0n.esquire.common.EsqConstants;
-import pro.mir0n.esquire.kcMaster.config.KeycloakConfig;
 import pro.mir0n.esquire.kcMaster.messaging.KcRequestHandler;
 import pro.mir0n.esquire.kcMaster.messaging.ParkedPath;
 import pro.mir0n.esquire.kcMaster.service.impl.KcIdentityService;
@@ -42,6 +48,7 @@ import pro.mir0n.utils.concurrent.IQueueRig;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 /**
@@ -70,20 +77,18 @@ import java.util.function.Consumer;
  * process it still can, because copy A can be creating the user while copy B handles the move.
  */
 @Slf4j
-public class KcIdentityGateway implements IIdentityGateway, IQueueRig.IQueueWorker<RodEvent> {
+public class KcIdentityGateway implements IIdentityGateway, IQueueRig.IQueueWorker<RodEvent>,
+                                          IQueueRig.IErrorListener<RodEvent> {
 
     private static final Logger devLog = LoggerFactory.getLogger("develop." + KcIdentityGateway.class.getName());
 
-    private static final String PROP_BASE_URL       = "keycloak.admin.base-url";
-    private static final String PROP_REALM          = "keycloak.admin.realm";
-    private static final String PROP_CLIENT_ID      = "keycloak.admin.client-id";
-    private static final String PROP_CLIENT_SECRET  = "keycloak.admin.client-secret";
+    private static final String PROP_KC_PREFIX      = "keycloak.admin";
     private static final String PROP_PARK_TTL       = "kcmaster.path-buffer.ttl-ms";
     private static final String PROP_PARK_PRUNE     = "kcmaster.path-buffer.prune-interval-ms";
     private static final String PROP_QUEUE_CAPACITY = "kcmaster.identity-queue.capacity";
 
-    private final KeycloakConfig keycloakConfig;
     private final Keycloak keycloak;
+    private final KcConnectionSettings kcConnection;
     /** The race-8c park, shared with KcIdentityService.createUser, which drains it. */
     private final ExpiringCache<String, ParkedPath> pathBuffer;
     private final KcRequestHandler handler;
@@ -99,11 +104,7 @@ public class KcIdentityGateway implements IIdentityGateway, IQueueRig.IQueueWork
      * outside kcMaster should have to know what is in it.
      */
     public KcIdentityGateway(Environment env) {
-        this.keycloakConfig = new KeycloakConfig();
-        keycloakConfig.setBaseUrl(env.getProperty(PROP_BASE_URL));
-        keycloakConfig.setRealm(env.getProperty(PROP_REALM));
-        keycloakConfig.setClientId(env.getProperty(PROP_CLIENT_ID));
-        keycloakConfig.setClientSecret(env.getProperty(PROP_CLIENT_SECRET));
+        this.kcConnection = KcConnectionSettings.from(env, PROP_KC_PREFIX);
 
         // I39 (COVERED, 2026-07-16): the KC-admin client is left UN-instrumented at the wire ON PURPOSE.
         //
@@ -123,11 +124,12 @@ public class KcIdentityGateway implements IIdentityGateway, IQueueRig.IQueueWork
         //
         // Do NOT re-file this as "the KC calls are untraced / unmeasured". The duration is accounted for.
         this.keycloak = KeycloakBuilder.builder()
-                .serverUrl(keycloakConfig.getBaseUrl())
-                .realm(keycloakConfig.getRealm())
-                .clientId(keycloakConfig.getClientId())
-                .clientSecret(keycloakConfig.getClientSecret())
+                .serverUrl(kcConnection.getBaseUrl())
+                .realm(kcConnection.getRealm())
+                .clientId(kcConnection.getClientId())
+                .clientSecret(kcConnection.getClientSecret())
                 .grantType(OAuth2Constants.CLIENT_CREDENTIALS)
+                .resteasyClient(buildAdminHttpClient(kcConnection))
                 .build();
 
         long ttlMs   = env.getProperty(PROP_PARK_TTL, Long.class, 10000L);
@@ -135,14 +137,31 @@ public class KcIdentityGateway implements IIdentityGateway, IQueueRig.IQueueWork
         this.pathBuffer = new ExpiringCache<>(
                 LoggerFactory.getLogger("develop.kcmaster.path-buffer"), ttlMs, pruneMs);
 
-        this.handler  = new KcRequestHandler(new KcIdentityService(keycloak, keycloakConfig, pathBuffer));
+        this.handler  = new KcRequestHandler(new KcIdentityService(keycloak, kcConnection, pathBuffer));
         this.capacity = env.getProperty(PROP_QUEUE_CAPACITY, Integer.class, 4096);
 
         // A component whose behaviour is switched by config must say what config it got: with the park
         // disabled (ttl <= 0) there is otherwise no way to confirm the knob reached the gateway at all.
-        log.info("KC | GATEWAY | realm={} parkTtlMs={} parkPruneMs={} queueCapacity={}{}",
-                keycloakConfig.getRealm(), ttlMs, pruneMs, capacity,
-                ttlMs <= 0 ? "  (PARK DISABLED -- every consume returns null)" : "");
+        String parkNote = "";
+        if (ttlMs <= 0) {
+            parkNote = "  (PARK DISABLED -- every consume returns null)";
+        }
+        log.info("KC | GATEWAY | realm={} connectTimeoutMs={} readTimeoutMs={} parkTtlMs={} parkPruneMs={} queueCapacity={}{}",
+                kcConnection.getRealm(), kcConnection.getConnectTimeoutMs(), kcConnection.getReadTimeoutMs(),
+                ttlMs, pruneMs, capacity, parkNote);
+    }
+
+    /**
+     * The admin client, with the configured deadlines actually on it.
+     *
+     */
+    private static Client buildAdminHttpClient(KcConnectionSettings connection) {
+        Client ret = ClientBuilder.newBuilder()
+                .connectTimeout(connection.getConnectTimeoutMs(), TimeUnit.MILLISECONDS)
+                .readTimeout(connection.getReadTimeoutMs(), TimeUnit.MILLISECONDS)
+                .register(JacksonProvider.class)
+                .build();
+        return ret;
     }
 
     /** Starts the park pruner and opens the queue's processing gate. */
@@ -150,18 +169,20 @@ public class KcIdentityGateway implements IIdentityGateway, IQueueRig.IQueueWork
     public void start() {
         pathBuffer.start();
         rig.init("mesnie.kc-identity", devLog, capacity);
+        rig.setErrorListener(this);
         rig.start();
         rig.setProcessing(true);
         log.info("KC | GATEWAY | in-process identity gateway started");
     }
 
-    /** Closes the gate, drops what is still queued, and stops the park pruner. */
+    /** Closes the gate, drops what is still queued, stops the park pruner and closes the admin client. */
     @Override
     public void stop() {
         rig.setProcessing(false);
         int left = rig.size();
         rig.shutdown();
         pathBuffer.stop();
+        keycloak.close();
         log.info("KC | GATEWAY | in-process identity gateway stopped (dropped={})", left);
     }
 
@@ -216,6 +237,9 @@ public class KcIdentityGateway implements IIdentityGateway, IQueueRig.IQueueWork
      * <p>The thread is the caller's. kcMaster serves on the bus worker pool, which is what keeps its syncs as
      * concurrent as they have always been; a composed process serves on the rig's single worker, which is what
      * gives it the ordering it cannot get any other way.
+     *
+     * <p>It does not catch: a failure propagates to whoever ran it, and the rig's error listener answers the
+     * REJECT. Only the context is finalized here.
      */
     public void serve(RodEvent event) {
         EsqContextHolder.applyMessage(event.requestId(), event.correlationId());
@@ -229,15 +253,24 @@ public class KcIdentityGateway implements IIdentityGateway, IQueueRig.IQueueWork
                 log.info("KC | URS | {} | {} | {} | {}", event.opCode(), event.kind(), event.entityId(), event.requestId());
                 answer(event, BusConstants.MSG_TYPE_RESPONSE, Map.of());
             }
-        } catch (Exception ex) {
-            log.error("kcMaster: identity request failed: entityId={}, command={}, error={}",
-                    event.entityId(), event.opCode(), ex.getMessage());
-            devLog.error("kcMaster: identity request failed: entityId={}, command={}, requestId={}, correlationId={}, error={}",
-                    event.entityId(), event.opCode(), event.requestId(), event.correlationId(), ex.getMessage(), ex);
-            answer(event, BusConstants.MSG_TYPE_REJECT, failureBody(ex, event.body()));
         } finally {
             EsqContextHolder.clear();
         }
+    }
+
+    @Override
+    public RodEvent onError(Throwable error, RodEvent event) {
+        EsqContextHolder.applyMessage(event.requestId(), event.correlationId());
+        try {
+            log.error("kcMaster: identity request failed: entityId={}, command={}, error={}",
+                    event.entityId(), event.opCode(), error.getMessage());
+            devLog.error("kcMaster: identity request failed: entityId={}, command={}, requestId={}, correlationId={}, error={}",
+                    event.entityId(), event.opCode(), event.requestId(), event.correlationId(), error.getMessage(), error);
+            answer(event, BusConstants.MSG_TYPE_REJECT, failureBody(error, event.body()));
+        } finally {
+            EsqContextHolder.clear();
+        }
+        return event;
     }
 
     /**
@@ -284,7 +317,7 @@ public class KcIdentityGateway implements IIdentityGateway, IQueueRig.IQueueWork
         }
     }
 
-    private Map<String, Object> failureBody(Exception ex, Map<String, Object> requestBody) {
+    private Map<String, Object> failureBody(Throwable ex, Map<String, Object> requestBody) {
         Map<String, Object> error = new LinkedHashMap<>();
         error.put("type",   "about:blank");
         error.put("title",  "KC_SYNC_ERROR");
@@ -301,7 +334,7 @@ public class KcIdentityGateway implements IIdentityGateway, IQueueRig.IQueueWork
     private boolean kcUserExists(String entityId) {
         boolean ret = false;
         if (entityId != null) {
-            RealmResource realm = keycloak.realm(keycloakConfig.getRealm());
+            RealmResource realm = keycloak.realm(kcConnection.getRealm());
             UsersResource users = realm.users();
             List<UserRepresentation> found = users.searchByAttributes(
                     EsqConstants.JWT_CLAIM_ENTITY_ID + ":" + entityId, true);

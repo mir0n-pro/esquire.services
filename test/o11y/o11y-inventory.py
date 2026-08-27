@@ -76,14 +76,24 @@ EXP = os.path.join(ROOT, "explorer")
 # name a `fleet` file, and when it does that file is the authority on who is deployed.
 PROFILES = {
     "classic": {"compose": "compose",         "out": "Esquire.ObservabilityStack.Inventory.csv"},
-    "compact": {"compose": "compose-compact", "out": "Esquire.ObservabilityStack.Inventory.Compact.csv"},
+    # The fleet file is REQUIRED, not optional: compose-compact/o11y-verify.bat has no `set SERVICES=` line --
+    # it delegates to fleet-compact.bat. Without this entry verified_services() found nothing there, fell back
+    # to the BFF alone, and that non-empty set then EXCLUDED every Java module: the compact sheet listed one
+    # log asset and read as complete. (cold read, 2026-08-25)
+    "compact": {"compose": "compose-compact",
+                "fleet": os.path.join("test", "o11y", "fleet-compact.bat"),
+                "out": "Esquire.ObservabilityStack.Inventory.Compact.csv"},
+    # boards: super-compact deploys the auKeep-less fork, so the sheet must read the board that target
+    # actually serves -- not compose-compact's. Its own one-click already points VERIFY at this folder.
     "supercompact": {"compose": "compose-compact",
                      "fleet": os.path.join("test", "o11y", "fleet-supercompact-k8s.bat"),
+                     "boards": os.path.join("k8s-oci-compact", "grafana"),
                      "out": "Esquire.ObservabilityStack.Inventory.SuperCompact.csv"},
 }
 PROFILE = "classic"
 COMPOSE_DIR = os.path.join(SVC, "compose")
 O11Y = os.path.join(COMPOSE_DIR, "o11y")
+BOARDS = os.path.join(O11Y, "grafana", "provisioning", "dashboards")
 FLEET_FILE = None
 
 # The sheet is a DOC -- it lives with the observability doc it belongs to, not beside this script.
@@ -92,13 +102,17 @@ DEFAULT_OUT = os.path.join(SVC, "doc", "Esquire.ObservabilityStack.Inventory.csv
 
 def use_profile(name):
     """Point the scan at one deployment: its stack folder, its launcher, its sheet."""
-    global PROFILE, COMPOSE_DIR, O11Y, DEFAULT_OUT, FLEET_FILE
+    global PROFILE, COMPOSE_DIR, O11Y, DEFAULT_OUT, FLEET_FILE, BOARDS
     PROFILE = name
     COMPOSE_DIR = os.path.join(SVC, PROFILES[name]["compose"])
     O11Y = os.path.join(COMPOSE_DIR, "o11y")
     DEFAULT_OUT = os.path.join(SVC, "doc", PROFILES[name]["out"])
     fleet = PROFILES[name].get("fleet")
     FLEET_FILE = os.path.join(SVC, fleet) if fleet else None
+    # A profile whose target serves a DIFFERENT board says so; otherwise the stack's own provisioning dir.
+    boards = PROFILES[name].get("boards")
+    BOARDS = (os.path.join(SVC, boards) if boards
+              else os.path.join(O11Y, "grafana", "provisioning", "dashboards"))
 
 # ---------------------------------------------------------------------------------------------------------------
 # The ONLY hand-written part: what each asset MEANS (description) and what it is FOR (use).
@@ -136,7 +150,15 @@ DESC = {
         "Pending entries in the enyMan move queue (GAUGE).",
         "Backpressure -- a rising depth means the worker is falling behind."),
     "esq.biz.move.processed.total": ("Moves processed.", "Move throughput."),
+    # The transport state behind /actuator/health, published as a metric so a dead bus is visible where
+    # everything else is looked at -- Prometheus, the boards, an alert.
+    "messaging.transport.up": ("Bus transport state per bus-id: 1 UP, 0 DOWN, -1 not yet established.",
+                               "The ONLY signal that a service lost the broker while the broker stayed up."),
     "esq.biz.move.failed.total": ("Moves failed.", "Conditional -- flat 0 on a healthy system."),
+    # The queue REFUSED the command -- it was full, or stopped during shutdown. Distinct from failed: nothing
+    # was attempted, the caller got 503, and no entity moved. Tagged by kind and by reason (full|stopped).
+    "esq.biz.move.refused.total": ("Move commands the queue would not take (full, or stopped at shutdown).",
+                                   "Conditional -- flat 0 on a healthy system; a spike means the move queue is at capacity."),
     "esq.biz.acct.tx.total": ("Account transactions by type + outcome.", "pacMan domain throughput."),
     "esq.biz.acct.tx.duration": ("Account transaction latency by type.", "Drawn on 'Transaction latency'."),
     "esq.biz.acct.close.total": ("Accounts closed.", "Conditional domain event."),
@@ -217,11 +239,17 @@ DESC = {
     "esq.svc.acct.tx": ("Span around the pacMan acct transaction processor (EsqTraceMark).",
                         "Domain-op visibility in a trace."),
     # bizTree reads
-    "esq.svc.tree": ("@EsqTraced on the bizTree tree read (controller + service).",
+    # The four tree reads are marked wherever they are SERVED: by bizTree standing alone, and by the gate's
+    # own cache controller when the two run as one process. The mark is the same name either way, so the
+    # asset does not change when the topology does.
+    "esq.svc.tree": ("The tree read -- bizTree's controller and service, and the gate cache on compact.",
                      "The single most-called read: the whole entity tree. Span + esq_svc_tree_seconds timer."),
-    "esq.svc.node": ("@EsqTraced on the bizTree single-node read.", "Span + timer for one entity node."),
-    "esq.svc.subtree": ("@EsqTraced on the bizTree subtree read.", "Span + timer for a subtree slice."),
-    "esq.svc.path": ("@EsqTraced on the bizTree path read.", "Span + timer for an entity path resolve."),
+    "esq.svc.node": ("The single-node read -- bizTree, and the gate cache on compact.",
+                     "Span + timer for one entity node."),
+    "esq.svc.subtree": ("The subtree read -- bizTree, and the gate cache on compact.",
+                        "Span + timer for a subtree slice."),
+    "esq.svc.path": ("The path read -- bizTree, and the gate cache on compact.",
+                     "Span + timer for an entity path resolve."),
     # enyMan entity ops
     "esq.svc.read": ("@EsqTraced on the enyMan entity read.", "Span + timer for a single entity read."),
     "esq.svc.save": ("@EsqTraced on the enyMan entity save.", "Span + timer for the write path."),
@@ -511,8 +539,11 @@ def names_in_java(source):
             span = _arg_span(body, match.end() - 1)
             for name in NAME_SHAPE.findall(span):
                 ret.setdefault(name, kind)
-    # The async-continuation span names itself from a constant, not at a call site.
-    for name in re.findall(r'OBS_NAME\s*=\s*"([a-z][a-z0-9._]+)"', body):
+    # A span whose name is a CONSTANT, not a literal at the call site. Two shapes use this: the
+    # async-continuation span (OBS_NAME) and the gate cache reads, which pass their name into
+    # EsqTraceMark through a parameter -- an indirection no call-site scan can follow, and while it
+    # went unread the sheet credited those four reads to a process the compact stack does not run.
+    for name in re.findall(r'OBS_[A-Z_]*\s*=\s*"([a-z][a-z0-9._]+)"', body):
         ret.setdefault(name, "span")
     return ret
 
@@ -614,12 +645,12 @@ def collect_dependencies():
     (see DEP_FAMILIES) because parsing PromQL by identifier also picks up labels and functions.
     """
     ret = {}
-    for path in glob.glob(os.path.join(O11Y, "grafana", "provisioning", "dashboards", "*.json")):
+    for path in glob.glob(os.path.join(BOARDS, "*.json")):
         board = json.loads(_read(path))
         for panel in board.get("panels", []):
             for target in panel.get("targets", []):
                 for name in re.findall(r"\b([a-z][a-z0-9_]{3,})\b", target.get("expr", "")):
-                    if not name.startswith(DEP_PREFIXES) or name.startswith(_EXCL_DEPS):
+                    if not name.startswith(DEP_PREFIXES) or name.startswith(_excl("EXCLUDE_DEPS")):
                         continue
                     family = next(f for f in DEP_PREFIXES if name.startswith(f))
                     source, _ = DEP_FAMILIES[family]
@@ -628,9 +659,24 @@ def collect_dependencies():
     return ret
 
 
+def _excl(name):
+    """An EXCLUDE_* list: the environment first, then the PROFILE'S OWN FLEET FILE.
+
+    The launcher sets these before calling, so an env value wins. But a direct
+    `o11y-inventory.py --profile supercompact` has no launcher, and reading only the environment made the
+    sheet assert eight assets that fleet declares impossible -- keep-write meters and activemq_queue_* on a
+    profile with no auKeep and no queue. Step 2 reported 0 FAIL while step 3 printed eight NOT PROVEN, from
+    one click. The fleet file is the authority for its own fleet; SERVICES was already read from it.
+    """
+    raw = os.environ.get(name, "")
+    if not raw and FLEET_FILE and os.path.isfile(FLEET_FILE):
+        match = re.search(r"(?im)^\s*set\s+%s\s*=\s*(.+)$" % name, _read(FLEET_FILE))
+        raw = match.group(1) if match else ""
+    return tuple(x.strip() for x in raw.split(",") if x.strip())
+
+
 # A dep family the deployment genuinely lacks -- super-compact declares one topic and no queue, so every
 # activemq_queue_* metric is absent BY DESIGN. Same knob the o11y-verify launcher sets, read the same way.
-_EXCL_DEPS = tuple(s.strip() for s in os.environ.get("EXCLUDE_DEPS", "").split(",") if s.strip())
 
 
 def _stream_name(svc):
@@ -700,8 +746,8 @@ def declared_lists():
     # Topology exclusion (T12): a fleet that legitimately lacks a component (OKE has NO auKeep -- audit = DB
     # triggers) drops its assets, so the inventory is "whole" for THAT fleet instead of forever short the keep-write
     # meters + auKeep trace node. Same EXCLUDE_METERS / EXCLUDE_TRACE_NODES the o11y-verify launcher sets.
-    excl_m = set(s.strip() for s in os.environ.get("EXCLUDE_METERS", "").split(",") if s.strip())
-    excl_t = set(s.strip() for s in os.environ.get("EXCLUDE_TRACE_NODES", "").split(",") if s.strip())
+    excl_m = set(_excl("EXCLUDE_METERS"))
+    excl_t = set(_excl("EXCLUDE_TRACE_NODES"))
     for k in ("METERS_EXPECTED", "METERS_CONDITIONAL", "GAUGES"):
         ret[k] -= excl_m
     for k in ("TRACE_NODES_EXPECTED", "TRACE_NODES_CONDITIONAL"):
@@ -727,7 +773,7 @@ def test_references(signals):
 def dashboard_usage(signals):
     """Which panels actually QUERY each signal -- read from the generated JSON, not from a list of intentions."""
     ret = collections.defaultdict(set)
-    for path in glob.glob(os.path.join(O11Y, "grafana", "provisioning", "dashboards", "*.json")):
+    for path in glob.glob(os.path.join(BOARDS, "*.json")):
         board = json.loads(_read(path))
         for panel in board.get("panels", []):
             for target in panel.get("targets", []):
@@ -806,6 +852,46 @@ def asset_gaps(declared_in, description):
     return ret
 
 
+# WHO CARRIES WHOM. A module name in emitted_by is not a process: on compact the code of enyMan, keySmith and
+# kcMaster runs inside Mesnie, and the code of gateway and bizTree inside gateWard. Reading emitted_by against
+# the fleet without this map calls enyMan "not deployed" on a stack that runs every line of it.
+COMPOSED = {
+    "mesnie":   ("enyman", "keysmith", "kcmaster"),
+    "gateward": ("gateway", "biztree"),
+}
+
+
+def _deployable(module):
+    """A module that can be a process of its own -- it carries an application.yml. common, messaging and
+    dataKeep do not: they are LIBRARIES, linked into whatever runs, so they are never absent from a fleet."""
+    return os.path.isfile(os.path.join(SVC, module, "src", "main", "resources", "application.yml"))
+
+
+def carried_here(emitted_by, fleet):
+    """Is at least one carrier of this signal actually running on this profile?
+
+    True when the fleet is unknown, when a carrier is in it, when a carrier is composed into something in it,
+    or when a carrier is a library. Only a DEPLOYABLE module that is neither deployed nor composed makes this
+    False -- which is the one case worth telling a reader about, because no amount of traffic will help.
+    """
+    ret = False
+    carriers = [x.strip() for x in str(emitted_by).split(";") if x.strip()]
+    if not fleet or not carriers:
+        ret = True
+    else:
+        for carrier in carriers:
+            name = carrier.lower()
+            inside = False
+            for host, parts in COMPOSED.items():
+                if host in fleet and name in parts:
+                    inside = True
+                    break
+            if name in fleet or inside or not _deployable(carrier):
+                ret = True
+                break
+    return ret
+
+
 def build_rows():
     signals = collect_signals()
     declared = declared_lists()
@@ -816,9 +902,17 @@ def build_rows():
     tests = test_references(signals)
     drawn = dashboard_usage(signals)
 
+    # A component this fleet does not deploy has no assets to inventory. EXCLUDE_METERS names them in the
+    # PROMETHEUS spelling (esq_biz_keep_write_total) while a signal here is the METER name
+    # (esq.biz.keep.write), so both go through _stem -- the one form the two notations agree on. Comparing the
+    # raw spellings matched nothing, and the sheet asserted keep meters on a profile that runs no auKeep.
+    excluded = set(_stem(x) for x in _excl("EXCLUDE_METERS"))
+
     ret = []
     for name in sorted(signals):
         if any(name.startswith(x) or name == x for x in NOT_ASSETS):
+            continue
+        if _stem(name) in excluded:
             continue
         lists = stems.get(_stem(name), [])
         description, use = DESC.get(name, ("** UNDOCUMENTED **", "** UNKNOWN **"))
@@ -920,6 +1014,11 @@ SELFTEST_CASES = [
      'EsqGauge.register(registry, "messaging.feed.depth", depth, "bus-id", nz(busId));',
      {"messaging.feed.depth"}, set()),
 
+    ("a per-route OBS_* constant passed to EsqTraceMark as a PARAMETER -- the gate cache reads",
+     'private static final String OBS_NODE = \"esq.svc.node\";\n'
+     'ret = EsqTraceMark.aroundChecked(obsName, obsLabel, call::call);\n',
+     {"esq.svc.node"}, set()),
+
     ("EsqTraceMark + the OBS_NAME constant -- marks are CROSS-PILLAR, each is a span AND a timer",
      'private static final String OBS_NAME = "esq.async";\n'
      'EsqTraceMark.around("esq.keep.apply", label, () -> write(e));',
@@ -945,6 +1044,17 @@ def selftest():
     entries = set(re.findall(r'"([^"]+)"', re.sub(r"#[^\n]*", "", probe)))
     if entries != {"esq_real_total"}:
         problems.append("declared-list parser reads comment prose as entries: got %s" % sorted(entries))
+
+    # A carrier is not a process. Reading emitted_by against the fleet without the composition map called
+    # enyMan absent on a stack running every line of it -- and a WRONG reason is worse than a vague one,
+    # because it sends the reader to fix the wrong thing.
+    five = {"mesnie", "gateward", "pacman", "aukeep", "backend"}
+    for emitted, want in (("bizTree", True), ("enyMan", True), ("common", True), ("messaging", True),
+                          ("bizTree; gateWard", True), ("pacMan", True), ("BFF", True)):
+        if carried_here(emitted, five) != want:
+            problems.append("carried_here(%r) on the compact fleet should be %s" % (emitted, want))
+    if carried_here("auKeep", {"mesnie", "gateward", "pacman", "backend"}):
+        problems.append("carried_here() calls auKeep present on a fleet that does not run it")
 
     # Micrometer appends the unit, prom-client does not -- both spellings must reduce to one stem, or the two
     # fleets can never be compared (I48/d).
@@ -1014,8 +1124,15 @@ def main():
         print("Running %d o11y inventory items" % len(rows))
         print()
         tally = collections.Counter()
+        # WHY a signal is unproven decides what to do about it, and the two reasons want opposite answers: an
+        # UNDRIVEN asset needs one more call, while one whose only carrier is not deployed here needs a fleet
+        # exclusion or nothing at all. Printed as one sentence they were indistinguishable, and the driver was
+        # built to chase assets that no amount of traffic could ever light. emitted_by names the carriers; the
+        # fleet names who runs. If they do not intersect, say THAT.
+        fleet = verified_services()
         for i, row in enumerate(rows, 1):
             signal, kind, proven = row[0], row[1], row[8]
+            deployed = carried_here(str(row[4]), fleet)
             if proven == "YES":
                 tally["passed"] += 1
                 print("ok %d %s > %s (PASSED)" % (i, signal, kind))
@@ -1028,7 +1145,11 @@ def main():
                 print("ok %d %s > %s # SKIP no stack reachable" % (i, signal, kind))
             else:
                 tally["not proven"] += 1
-                print("not ok %d %s > %s (NOT PROVEN -- its op was never driven)" % (i, signal, kind))
+                if deployed:
+                    print("not ok %d %s > %s (NOT PROVEN -- its op was never driven)" % (i, signal, kind))
+                else:
+                    print("not ok %d %s > %s (NOT PROVEN -- no carrier of it is deployed here: %s)"
+                          % (i, signal, kind, row[4]))
         print()
         for key in ("not proven", "skipped"):
             if tally[key]:

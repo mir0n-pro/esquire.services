@@ -41,10 +41,24 @@ set -euo pipefail
 
 IMAGE_TAG="${IMAGE_TAG:?IMAGE_TAG not set}"
 MIR0N_PWD="${MIR0N_PWD:?MIR0N_PWD not set}"
+
+note_fallback() {   # $1 = name, $2 = value, $3 = published default
+  if [ "$2" = "$3" ]; then
+    echo "[!] $1 is not configured -- using the PUBLISHED development value"
+  else
+    echo "[ok] $1 taken from the environment"
+  fi
+}
+
 BFF_KC_SECRET="${BFF_KC_SECRET:-esq-angular-bff-dev-secret-rotate-in-prod}"
 GW_EXCHANGE_SECRET="${GW_EXCHANGE_SECRET:-esq-gw-exchange-dev-secret-rotate-in-prod}"
 BFF_SESSION_SECRET="${BFF_SESSION_SECRET:-esq-bff-session-secret}"
 KCMASTER_ADMIN_SECRET="${KCMASTER_ADMIN_SECRET:-MHgq0Nu69u2uJ2johaK1wxQLMdakELXN}"
+
+note_fallback BFF_KC_SECRET         "$BFF_KC_SECRET"         "esq-angular-bff-dev-secret-rotate-in-prod"
+note_fallback GW_EXCHANGE_SECRET    "$GW_EXCHANGE_SECRET"    "esq-gw-exchange-dev-secret-rotate-in-prod"
+note_fallback BFF_SESSION_SECRET    "$BFF_SESSION_SECRET"    "esq-bff-session-secret"
+note_fallback KCMASTER_ADMIN_SECRET "$KCMASTER_ADMIN_SECRET" "MHgq0Nu69u2uJ2johaK1wxQLMdakELXN"
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CHARTS="$(cd "${HERE}/../../k8s-compact/charts" && pwd)"

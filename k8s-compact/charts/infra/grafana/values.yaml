@@ -7,6 +7,9 @@ admin:
   user: admin
   password: admin
 ingress:
+  # ON for the local targets, where the host resolves to 127.0.0.1 and the board is a click away.
+  # The OKE arms turn it OFF -- there the same rule would be a public door (see the template).
+  enabled: true
   # Browsers resolve *.localhost -> 127.0.0.1 (RFC 6761); ingress-nginx binds localhost:80.
   host: grafana.localhost
 loki:
@@ -42,3 +45,7 @@ persistence:
 # which is the local-k8s COMPACT board. The OKE launcher passes the super-compact board here with
 # --set-file dashboardTopology=grafana/esquire-topology.json -- same chart, the picture its cluster runs.
 dashboardTopology: ""
+# The services and logging boards, overridable the same way -- their container regex names the fleet,
+# and the OKE super-compact fleet has no auKeep. The launcher passes k8s-oci-compact/grafana/*.json.
+dashboardServices: ""
+dashboardLogging: ""

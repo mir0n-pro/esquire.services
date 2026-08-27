@@ -24,6 +24,8 @@
  *                   whole transfer path would have been silently missing from the money panel
  * 07/23/2026 mir0n  v1.2.11 -- credit leg promotes the shared fields map (AMOUNT overwritten with the credit
  *                   amount) and passes it straight through -- per-request map, deliberately not cloned
+ * 08/26/2026 mir0n  the transfer reads BOTH accounts before it moves anything and raises ResourceNotFoundException
+ *                   when either is absent
  */
 
 package pro.mir0n.esquire.pacMan.acct.service;
@@ -37,6 +39,10 @@ import org.slf4j.LoggerFactory;
 import org.springframework.transaction.support.TransactionTemplate;
 import pro.mir0n.esquire.backend.dto.EsqObjectKind;
 import pro.mir0n.esquire.backend.error.InvalidValueException;
+import pro.mir0n.esquire.pacMan.service.IPacManService;
+import pro.mir0n.esquire.common.EsqConstants;
+import pro.mir0n.esquire.backend.jpa.entity.EsqAcctJpa;
+import pro.mir0n.esquire.backend.error.ResourceNotFoundException;
 import pro.mir0n.esquire.backend.service.RequestContextUtils;
 import pro.mir0n.esquire.pacMan.acct.AcctOperation;
 import pro.mir0n.esquire.pacMan.acct.dto.AcctTransactionSingle;
@@ -103,6 +109,24 @@ public class AcctTransactionProcessorTransfer extends AcctTransactionProcessorSi
 
         EsqObjectKind eek = validatePermissions(kind, roles);
         EsqObjectKind eek2 = validatePermissions(kind2, roles);
+
+        EsqAcctJpa srcAcct = entityRepository.detailAcct(id, rootPath);
+        if (srcAcct == null) {
+            throw new ResourceNotFoundException("esquireCommandTransfer", "id", id);
+        }
+        EsqAcctJpa dstAcct = entityRepository.detailAcct(id2, rootPath);
+        if (dstAcct == null) {
+            throw new ResourceNotFoundException("esquireCommandTransfer", "id2", id2);
+        }
+
+        assertKindMatches("esquireCommandTransfer", kind, srcAcct.getKind(), id);
+        assertKindMatches("esquireCommandTransfer", kind2, dstAcct.getKind(), id2);
+        if (!EsqConstants.FLAG_OPEN.equals(srcAcct.getStatus())) {
+            throw new InvalidValueException("Account is not open", IPacManService.FIELD_STATUS, "Status", "1");
+        }
+        if (!EsqConstants.FLAG_OPEN.equals(dstAcct.getStatus())) {
+            throw new InvalidValueException("Target account is not open", AcctTransactionSingle.FIELD_ID2, "id2", "1");
+        }
         String correlationId = RequestContextUtils.getCorrelationId();
         String requestId = RequestContextUtils.getRequestId();
         String pkTx = generateTransId();
@@ -113,12 +137,10 @@ public class AcctTransactionProcessorTransfer extends AcctTransactionProcessorSi
         AcctTransactionSingle ret = _esquireCommandAcct(eek, id, oper, fields, skipValidation, rootPath, uid, correlationId, requestId, rate, null, null, pkTx, id2);
 
         String sourceCcy = ret.getCcy();
-        double creditAmount = Math.abs(amount) * rate;
-        // Promote the shared fields map from the debit leg to the credit leg: overwrite AMOUNT with the credit
-        // amount and pass the same map straight through. Deliberately NOT cloned -- the map is per-request and not
-        // read again after the transfer, so a copy would only cost time + memory for no gain.
+        double debited = Math.abs(ret.getAmount());
+        double creditAmount = roundAmount(debited * rate);
         fields.put(AcctTransactionSingle.FIELD_AMOUNT, creditAmount);
-        _esquireCommandAcct(eek2, id2, oper, fields, true, rootPath, uid, correlationId, requestId, rate, Math.abs(amount), sourceCcy, pkTx, id);
+        _esquireCommandAcct(eek2, id2, oper, fields, true, rootPath, uid, correlationId, requestId, rate, debited, sourceCcy, pkTx, id);
         return ret;
     }
 }

@@ -64,21 +64,26 @@ echo --- Dropping the COMPACT releases (mutually exclusive with this stack)...
 call helm uninstall esquire-gateward 2>nul
 call helm uninstall esquire-mesnie 2>nul
 
-call helm upgrade --install esquire-topology  charts\esquire-topology --force-conflicts || exit /b 1
+rem Every install below carries --reset-then-reuse-values: a bring-up must NOT silently disarm what an
+rem operator switched on. Without it the release falls back to the chart default, so a stack that had
+rem observability armed comes back with its services dark -- the boards red while the fleet is healthy.
+rem The flag keeps the previous release OWN values and still lets this command -f / --set win, so an
+rem image tag or a config change still lands.
+call helm upgrade --install esquire-topology  charts\esquire-topology --reset-then-reuse-values --force-conflicts || exit /b 1
 
 rem === Infra ===
 echo --- Installing postgres...
-call helm upgrade --install esquire-infra     charts\infra\postgres  -f values\postgres.yaml --force-conflicts || exit /b 1
+call helm upgrade --install esquire-infra     charts\infra\postgres  -f values\postgres.yaml --reset-then-reuse-values --force-conflicts || exit /b 1
 echo --- Installing activemq...
-call helm upgrade --install esquire-infra-amq charts\infra\activemq  -f values\activemq.yaml --force-conflicts || exit /b 1
+call helm upgrade --install esquire-infra-amq charts\infra\activemq  -f values\activemq.yaml --reset-then-reuse-values --force-conflicts || exit /b 1
 rem kafka + redis back the audit (ck)/(d)/(dk) sinks -- the topology defines them so any sink is selectable
 rem on local/dev k8s. (OKE ships neither: it audits via DB triggers.)
 echo --- Installing kafka...
-call helm upgrade --install esquire-infra-kafka charts\infra\kafka --force-conflicts || exit /b 1
+call helm upgrade --install esquire-infra-kafka charts\infra\kafka --reset-then-reuse-values --force-conflicts || exit /b 1
 echo --- Installing redis...
-call helm upgrade --install esquire-infra-redis charts\infra\redis --force-conflicts || exit /b 1
+call helm upgrade --install esquire-infra-redis charts\infra\redis --reset-then-reuse-values --force-conflicts || exit /b 1
 echo --- Installing keycloak...
-call helm upgrade --install esquire-infra-kc  charts\infra\keycloak  -f values\keycloak.yaml --force-conflicts || exit /b 1
+call helm upgrade --install esquire-infra-kc  charts\infra\keycloak  -f values\keycloak.yaml --reset-then-reuse-values --force-conflicts || exit /b 1
 
 echo Waiting for postgres...
 kubectl rollout status statefulset/esquire-infra-postgres -n default --timeout=120s
@@ -91,28 +96,51 @@ kubectl rollout status deployment/esquire-infra-redis -n default --timeout=60s
 
 rem === Services (depend on postgres + amq) ===
 echo --- Installing biztree...
-call helm upgrade --install esquire-biztree   charts\esquire-biztree   -f values\biztree.yaml   --force-conflicts || exit /b 1
+call helm upgrade --install esquire-biztree   charts\esquire-biztree   -f values\biztree.yaml   --reset-then-reuse-values --force-conflicts || exit /b 1
 echo --- Installing enyman...
-call helm upgrade --install esquire-enyman    charts\esquire-enyman    -f values\enyman.yaml    --force-conflicts || exit /b 1
+call helm upgrade --install esquire-enyman    charts\esquire-enyman    -f values\enyman.yaml    --reset-then-reuse-values --force-conflicts || exit /b 1
 echo --- Installing pacman...
-call helm upgrade --install esquire-pacman    charts\esquire-pacman    -f values\pacman.yaml    --force-conflicts || exit /b 1
+call helm upgrade --install esquire-pacman    charts\esquire-pacman    -f values\pacman.yaml    --reset-then-reuse-values --force-conflicts || exit /b 1
 echo --- Installing keysmith...
-call helm upgrade --install esquire-keysmith  charts\esquire-keysmith  -f values\keysmith.yaml  --force-conflicts || exit /b 1
+call helm upgrade --install esquire-keysmith  charts\esquire-keysmith  -f values\keysmith.yaml  --reset-then-reuse-values --force-conflicts || exit /b 1
 echo --- Installing aukeep ^(audit consumer, option c default^)...
-call helm upgrade --install esquire-aukeep    charts\esquire-aukeep    -f values\aukeep.yaml    --force-conflicts || exit /b 1
+call helm upgrade --install esquire-aukeep    charts\esquire-aukeep    -f values\aukeep.yaml    --reset-then-reuse-values --force-conflicts || exit /b 1
 
 echo Waiting for keycloak...
 kubectl rollout status statefulset/esquire-infra-kc-keycloak -n default --timeout=180s
 
+rem === Secrets, taken from the machine ===
+rem Set each once (setx <NAME> <value>) and every path uses it -- these scripts, the compose stacks, the OKE
+rem scripts and the deploy workflow. Unset, the variable contributes no --set and the release keeps the value
+rem it already holds; the lines below say where to get the real one. The three KeyCloak ones live on their clients in the realm; the
+rem session secret is any random value, it only signs the BFF's own cookie. The realm import
+rem (keycloak\import\esquire.json) is the demonstration seed those client secrets come from.
+rem A MISSING SECRET MUST NOT OVERWRITE A GOOD ONE. --set beats --reset-then-reuse-values, so a placeholder
+rem passed here REPLACES the value the previous install stored, and the release comes back holding a secret
+rem that cannot work -- the browser answering unauthorized_client while the deploy itself reported success.
+rem An unset variable therefore contributes NO --set at all, and what the release already holds stands.
+set "SET_KCMASTER_ADMIN="
+set "SET_GW_EXCHANGE="
+set "SET_BFF_KC="
+set "SET_BFF_SESSION="
+if not "%KCMASTER_ADMIN_SECRET%"=="" set "SET_KCMASTER_ADMIN=--set keycloak.adminClientSecret=%KCMASTER_ADMIN_SECRET%"
+if not "%GW_EXCHANGE_SECRET%"=="" set "SET_GW_EXCHANGE=--set tokenRelay.phantom.exchangeClientSecret=%GW_EXCHANGE_SECRET%"
+if not "%BFF_KC_SECRET%"=="" set "SET_BFF_KC=--set keycloak.clientSecret=%BFF_KC_SECRET%"
+if not "%BFF_SESSION_SECRET%"=="" set "SET_BFF_SESSION=--set session.secret=%BFF_SESSION_SECRET%"
+if "%KCMASTER_ADMIN_SECRET%"=="" echo [!] KCMASTER_ADMIN_SECRET is not set -- the release keeps what it holds; on a FIRST install the identity sync will FAIL. KeyCloak: realm esquire -^> clients -^> esq-kcMaster -^> Credentials.
+if "%BFF_KC_SECRET%"=="" echo [!] BFF_KC_SECRET is not set -- the release keeps what it holds; on a FIRST install the browser login will FAIL. KeyCloak: realm esquire -^> clients -^> esq-angular -^> Credentials.
+if "%GW_EXCHANGE_SECRET%"=="" echo [!] GW_EXCHANGE_SECRET is not set -- the release keeps what it holds; on a FIRST install the phantom token relay will FAIL. KeyCloak: realm esquire -^> clients -^> esq-gw-exchange -^> Credentials.
+if "%BFF_SESSION_SECRET%"=="" echo [!] BFF_SESSION_SECRET is not set -- the release keeps what it holds. Set any random string.
+
 rem === KC-dependent ===
 echo --- Installing kcmaster...
-call helm upgrade --install esquire-kcmaster  charts\esquire-kcmaster  -f values\kcmaster.yaml --force-conflicts ^
-  --set keycloak.adminClientSecret=MHgq0Nu69u2uJ2johaK1wxQLMdakELXN || exit /b 1
+call helm upgrade --install esquire-kcmaster  charts\esquire-kcmaster  -f values\kcmaster.yaml --reset-then-reuse-values --force-conflicts ^
+  %SET_KCMASTER_ADMIN% || exit /b 1
 
 rem Gateway: dev exchange-client secret passed via --set (matches realm import).
 echo --- Installing gateway...
-call helm upgrade --install esquire-gateway   charts\esquire-gateway   -f values\gateway.yaml --force-conflicts ^
-  --set tokenRelay.phantom.exchangeClientSecret=esq-gw-exchange-dev-secret-rotate-in-prod || exit /b 1
+call helm upgrade --install esquire-gateway   charts\esquire-gateway   -f values\gateway.yaml --reset-then-reuse-values --force-conflicts ^
+  %SET_GW_EXCHANGE% || exit /b 1
 
 echo Waiting for gateway...
 kubectl rollout status statefulset/esquire-gateway-gateway -n default --timeout=60s
@@ -120,9 +148,8 @@ kubectl rollout status statefulset/esquire-gateway-gateway -n default --timeout=
 rem === Backend / BFF ===
 rem Secrets passed via --set (same dev literals as compose.yaml + realm import).
 echo --- Installing backend ^(BFF^)...
-call helm upgrade --install esquire-backend   charts\esquire-backend   -f values\backend.yaml --force-conflicts ^
-  --set keycloak.clientSecret=esq-angular-bff-dev-secret-rotate-in-prod ^
-  --set session.secret=esq-bff-dev-session-secret-rotate-in-prod || exit /b 1
+call helm upgrade --install esquire-backend   charts\esquire-backend   -f values\backend.yaml --reset-then-reuse-values --force-conflicts ^
+  %SET_BFF_KC% %SET_BFF_SESSION% || exit /b 1
 
 rem === Public ingress (applied AFTER backend is ready -- mirror of oke-up.bat) ===
 echo --- Applying public ingress ^(cluster\ingress.yaml^)...

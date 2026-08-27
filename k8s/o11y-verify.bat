@@ -32,5 +32,9 @@ rem (esquire-<svc>-<svc>), NOT the short meter name. Without this the log-stream
 rem a stream that does not exist and FAILs every service (the logs ARE shipped). Mirrors the OKE
 rem launcher (oke-o11y-verify.bat); k8s keeps aukeep (OKE has none).
 set LOG_SERVICES=esquire-gateway-gateway,esquire-biztree-biztree,esquire-enyman-enyman,esquire-pacman-pacman,esquire-keysmith-keysmith,esquire-kcmaster-kcmaster,esquire-aukeep-aukeep,esquire-backend-backend
+rem BOARDS = the dashboards THIS environment provisions. The dependency and band checks read the
+rem PANELS as the declaration of what must exist, so they have to read the boards that are actually
+rem deployed here -- not another topology's. Path is relative to services/.
+set BOARDS=k8s\charts\infra\grafana\dashboards
 python ..\test\o11y\o11y-verify.py
 endlocal

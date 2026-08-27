@@ -351,7 +351,14 @@ K8S_DIR="${K8S_DIR:-k8s}"
 # compact run files its rows under "k8s" and the results file cannot be told from a classic one.
 K8SLBL="${K8SLBL:-k8s}"
 PRODUCERS="${PRODUCERS:-enyman pacman keysmith}"
-PRODUCER_WORKLOADS="${PRODUCER_WORKLOADS:-statefulset/esquire-enyman-enyman statefulset/esquire-pacman statefulset/esquire-keysmith-keysmith}"
+# WORKLOAD NAMES DIFFER BY PROFILE. The classic charts name a workload <release>-<chart>
+# (esquire-aukeep-aukeep), the compact ones name it <release> (esquire-aukeep). A name that does not exist
+# makes `kubectl rollout restart` answer NotFound, and this driver used to silence that -- so the ck cell
+# switched auKeep's bus in the ConfigMap, never restarted the pod, and measured a consumer still bound to
+# the old bus. It read as a FAIL of the Kafka path. Found 2026-08-22 by the cold rebuild.
+PRODUCER_WORKLOADS="${PRODUCER_WORKLOADS:-statefulset/esquire-enyman-enyman statefulset/esquire-pacman-pacman statefulset/esquire-keysmith-keysmith}"
+AUKEEP_WORKLOAD="${AUKEEP_WORKLOAD:-statefulset/esquire-aukeep-aukeep}"
+BIZTREE_WORKLOAD="${BIZTREE_WORKLOAD:-statefulset/esquire-biztree-biztree}"
 DPREFIX="${DPREFIX:-esq-}"
 DCOMPOSE_DIR="${DCOMPOSE_DIR:-compose}"
 DPRODUCERS="${DPRODUCERS:-enyman pacman keysmith}"
@@ -371,10 +378,21 @@ restart_k8s_producers() {
   for w in $PRODUCER_WORKLOADS; do kubectl rollout status "$w" --timeout=180s >/dev/null 2>&1; done
   sleep 10; }   # producers reconnect to the bus + (c/ck) re-subscribe
 restart_k8s_aukeep() {
-  kubectl rollout restart statefulset/esquire-aukeep >/dev/null 2>&1
-  kubectl rollout status statefulset/esquire-aukeep --timeout=180s >/dev/null 2>&1; sleep 5; }
+  if ! kubectl rollout restart "$AUKEEP_WORKLOAD" >/dev/null; then
+    echo "    [!] audit consumer workload '$AUKEEP_WORKLOAD' not found -- the cell measures the OLD bus"
+    return 1
+  fi
+  kubectl rollout status "$AUKEEP_WORKLOAD" --timeout=180s >/dev/null 2>&1; sleep 5; }
 
 k8s_infra_ensure() {   # install the audit sinks + all-sinks topology the running cluster predates
+  if [ "${K8S_DIR}" = "k8s-compact" ]; then
+    # The compact profile audits over a (triggers), b (in-process keep) and c (AMQ -> auKeep). It ships no
+    # kafka and its catalog declares no ck/d/dk leg, so the catalog is the only thing to ensure -- and the
+    # audit-dk propagation guard below would wait out its full budget on a leg that cannot appear.
+    ( cd "${SVCS}/${K8S_DIR}"
+      helm upgrade --install esquire-topology charts/esquire-topology >/dev/null 2>&1 )
+    echo "    [infra] topology ensured (compact: audit a / b / c)"
+  else
   ( cd "${SVCS}/${K8S_DIR}"
     helm upgrade --install esquire-topology    charts/esquire-topology >/dev/null 2>&1
     helm upgrade --install esquire-infra-kafka  charts/infra/kafka >/dev/null 2>&1
@@ -389,11 +407,12 @@ k8s_infra_ensure() {   # install the audit sinks + all-sinks topology the runnin
   # fresh restart also mounts the full topology. Without this the c/ck/d/dk cells race and fail.
   local i n=0
   for i in $(seq 1 36); do
-    n=$(kubectl exec statefulset/esquire-biztree -- sh -c "grep -c 'audit-dk' /etc/esquire/topology.yml" 2>/dev/null | tr -d '\r')
+    n=$(kubectl exec "$BIZTREE_WORKLOAD" -- sh -c "grep -c 'audit-dk' /etc/esquire/topology.yml" 2>/dev/null | tr -d '\r')
     [ "${n:-0}" -gt 0 ] && break
     sleep 5
   done
-  echo "    [infra] topology(all-sinks)+kafka+redis ensured (audit-dk in mount: ${n:-0})"; }
+  echo "    [infra] topology(all-sinks)+kafka+redis ensured (audit-dk in mount: ${n:-0})"
+  fi; }
 
 cell_k8s() {
   local cell="$1"
@@ -421,7 +440,7 @@ cell_k8s() {
     return
   fi
   if [ -n "$stream" ]; then
-    kubectl scale deployment/esquire-aukeep --replicas=0 >/dev/null 2>&1; sleep 4
+    kubectl scale "$AUKEEP_WORKLOAD" --replicas=0 >/dev/null; sleep 4
     helm_set_producers "$busid"; restart_k8s_producers
     local spre; spre="$($streamfn)"; pre="$(k8s_pg_counts)"
     run_smoke_k8s; sleep 6
@@ -430,7 +449,7 @@ cell_k8s() {
     if   [ "$sd" -gt 0 ] && [ "$ld" = "0,0,0,0,0" ]; then res="PASS ${stream}Δ=${sd}; *_log flat"
     elif [ "$sd" -gt 0 ]; then res="PASS ${stream}Δ=${sd}; *_log Δ=${ld}"
     else res="FAIL ${stream}Δ=${sd}"; fi
-    kubectl scale deployment/esquire-aukeep --replicas=1 >/dev/null 2>&1; restart_k8s_aukeep
+    kubectl scale "$AUKEEP_WORKLOAD" --replicas=1 >/dev/null; restart_k8s_aukeep
   else
     helm_set_producers "$busid"; [ -n "$akbus" ] && helm_set_aukeep "$akbus"
     restart_k8s_producers; [ -n "$akbus" ] && restart_k8s_aukeep
@@ -488,6 +507,8 @@ main() {
       K8SLBL="k8s-compact"
       PRODUCERS="mesnie pacman"
       PRODUCER_WORKLOADS="statefulset/esquire-mesnie statefulset/esquire-pacman"
+      AUKEEP_WORKLOAD="statefulset/esquire-aukeep"
+      BIZTREE_WORKLOAD="statefulset/esquire-gateward"
       k8s_infra_ensure
       local cells=("$@"); [ ${#cells[@]} -eq 0 ] && cells=(a b-ded-pg c)
       for c in "${cells[@]}"; do cell_k8s "$c"; done

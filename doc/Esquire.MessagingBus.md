@@ -321,8 +321,11 @@ alive marks (and fail-fast) fire BEFORE send-retry's blocking hold. Two sublayer
   [Health](#health)). `beforeSend` resets the cadence gate, `onSendSuccess` marks the producer leg alive,
   `onSendError` flips it DOWN on fail-fast; `tick` PUTs an unsolicited `HeartBeat` on the feed when the leg is
   idle; `health` is the producer-leg timestamp age. **`AliveSessionRR`** specialises it by R&R role: a CLIENT
-  keep-alive is a `TestRequest` (its rod-id rides so the SERVER's reply routes back), a SERVER's is the base
-  `HeartBeat`; `onReceiveSessn` on a SERVER echoes an arriving `TestRequest` back as a `HeartBeat`.
+  keep-alive is a `TestRequest` (its rod-id rides so the SERVER's reply routes back), and a SERVER emits NONE --
+  routing on the response node is echoed from the request, and a SERVER sitting idle has no request to echo, so
+  an unaddressed HeartBeat would match no consumer selector and stay in the queue. A SERVER answers instead:
+  `onReceiveSessn` echoes an arriving `TestRequest` back as a `HeartBeat`, carrying the requester correlation
+  and rod-id. The CLIENT drives the liveness.
 - **`SendRetrySublayer`** (opt-in, `send-retry: true`) — the one producer messaging-path resilience pattern.
   On a dispatch failure `onSendError` records the message (keyed by its stable `ApplMsgID`) and HOLDS the feed
   worker across a backoff ladder (a monitor wait released by `tick`, NOT a sleep), then hands back the SAME
@@ -481,7 +484,7 @@ received event's `rodId()` to the leg's own `rodId()`). R&R never takes this pat
 different nodes (request vs response), so it keeps two connections and never sets `noLocal`.
 
 A receive leg can also carry a broker-side **subscription selector**: `setWorker(subscription, worker)` narrows
-what the leg consumes to the caller's predicate (e.g. `EventType = 'C'`) -- the own-exclusion stays the
+what the leg consumes to the caller's predicate (e.g. `EventType = 'I'`) -- the own-exclusion stays the
 transport's `noLocal`, NOT folded into the subscription. It is a plain selector (not a durable subscription),
 and the consumer is re-opened only when the selector changes. Only the single-node broadcast `XRod` applies it;
 an R&R rod (which already selects by rod-id / slot-id) warns and ignores it.
@@ -679,7 +682,7 @@ record RodEvent(
 ) { enum Op { CREATE, UPDATE, DELETE, UPDATE_PATH } }
 ```
 
-`op` maps to the wire `EventType` code via `opCode()` (`C` / `U` / `D` / `X`).
+`op` maps to the wire `EventType` code via `opCode()` (`I` / `U` / `D` / `X`) -- the same letters the `*_log` action column carries (`X` never reaches it).
 
 The tail is filled in `AXRod` on the send path: `traceparent` from the outbound tracer, then `applMsgId` —
 a UUID, set only when the event does not already carry one, so every re-send of a held event keeps the same
@@ -701,7 +704,7 @@ wire constants — the non-wire application constants live in `common.EsqConstan
 | `RodID` | `50004` | event, else leg | originating instance id; the R&R reply selector |
 | `MsgType` | `35` | event | the message type (the application's vocabulary) |
 | `MessageEncoding` | `347` | fixed `JSON` | body encoding |
-| `EventType` | `50005` | `op` | `C` / `U` / `D` / `X` |
+| `EventType` | `50005` | `op` | `I` / `U` / `D` / `X` |
 | `EntityKind` | `50006` | event | the change's kind (routing) |
 | `EntityID` | `50007` | event | the changed entity id |
 | `SubID` | `50011` | event | sub-row discriminator (else null) |

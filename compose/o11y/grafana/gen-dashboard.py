@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 # Esquire frameworks (tm) -- Grafana dashboard generator (v1.2.11 observability).
 #
-# Single source of truth for the "Esquire Services" Grafana dashboard. Emits the SAME dashboard JSON to both
-# deploy targets so they never drift:
+# THE CLASSIC generator: single source of truth for the "Esquire Services" board on the classic profile.
+# Emits the SAME JSON to all THREE classic targets so they never drift:
 #   * docker : compose/o11y/grafana/provisioning/dashboards/esquire-services.json
 #   * k8s    : k8s/charts/infra/grafana/dashboards/esquire-services.json
+#   * OKE    : k8s-oci/grafana/esquire-services.json  (the auKeep-less fork)
+# The compact generator is its own file under compose-compact/o11y/grafana; neither writes the other's tree.
 # Run with no arguments (python gen-dashboard.py) after changing a panel; commit the .py AND both .json.
 #
 # Rows -- HOW THE SYSTEM RUNS:
@@ -182,8 +184,21 @@ def avg_s(sum_metric, count_metric, by=None, extra="", window="5m"):
 
 
 def avg_ms(sum_metric, count_metric, by=None, extra="", window="5m"):
-    """Average latency in MILLISECONDS -- avg_s() scaled to ms. Use on any 'ms' latency panel."""
+    """Average latency in MILLISECONDS -- avg_s() scaled to ms. Use on a TIMER, whose Prometheus name ends
+    _seconds_sum. On a summary that already records ms this multiplies by 1000 and is wrong by that much;
+    use avg_raw(). check_avg_scales_only_seconds() enforces the distinction."""
     return "1000 * %s" % avg_s(sum_metric, count_metric, by=by, extra=extra, window=window)
+
+
+def avg_raw(sum_metric, count_metric, by=None, extra="", window="5m"):
+    """Average of a DistributionSummary in WHATEVER unit it recorded -- rate(sum)/rate(count), no scaling.
+
+    A Micrometer Timer carries a base unit, so its Prometheus name says _seconds and avg_ms() can scale it.
+    A plain summary carries none: `messaging.retry.backoff` records raw milliseconds and is exposed as
+    messaging_retry_backoff_sum, with nothing in the name to say so. Scaling that as if it were seconds
+    renders a 500 ms ladder step as 500,000 ms, and the panel is read during a broker outage -- exactly when
+    a wrong order of magnitude misleads whoever is diagnosing it. Set the panel unit to match the meter."""
+    return avg_s(sum_metric, count_metric, by=by, extra=extra, window=window)
 
 
 def ratio(numerator, denominator, scale=""):
@@ -197,48 +212,377 @@ def ratio(numerator, denominator, scale=""):
     return "%s(%s) / (%s)" % (scale, numerator, denominator)
 
 
-def check_no_naked_subtraction(panels):
-    """Refuse to emit a naked series subtraction -- the guard that keeps the trap removed, not just fixed once.
+def _balanced(expr, i):
+    """The parenthesised group starting at expr[i] == '(', both parentheses included."""
+    depth = 0
+    j = i
+    while j < len(expr):
+        if expr[j] == "(":
+            depth += 1
+        elif expr[j] == ")":
+            depth -= 1
+            if depth == 0:
+                return expr[i:j + 1]
+        j += 1
+    return expr[i:]
 
-    A subtraction whose SUBTRAHEND is a series (one that can be empty) must be matched by an `or vector(0)` guard,
-    which is what band()/safe() produce. This matches the subtrahend in every form it takes -- `) - (`, but also
-    `) - rate(`, `) - sum(`, `) - histogram_quantile(` -- not only the parenthesised case, so a hand-written minus
-    in any shape fails HERE, at generation time, naming itself. A bare scalar subtraction (`x - 1`) is not a
-    series and does not match.
+
+def _scan(expr):
+    """Walk expr once, yielding (index, char, depth) outside quotes. One place knows about strings."""
+    in_str = None
+    depth = 0
+    for i, ch in enumerate(expr):
+        if in_str:
+            if ch == in_str:
+                in_str = None
+            continue
+        if ch in "\"'`":
+            in_str = ch
+            continue
+        if ch == "(":
+            depth += 1
+        elif ch == ")":
+            depth -= 1
+        yield i, ch, depth
+
+
+def _binary_addsub_positions(expr):
+    """Every index holding a BINARY + or -: arithmetic, not a sign, not a hyphen in a label value.
+
+    BOTH operators matter. PromQL vector arithmetic matches series, so an EMPTY operand empties the whole
+    result on either side of a + or a -. `a - ((b) or vector(0)) + (c)` is `(a - b) + c`: guarding b and
+    leaving c bare still deletes the panel.
+
+    A minus is binary when the previous non-space character can END a term. `offset -5m` and `[5m:1m]`
+    therefore do not count -- `offset` ends in a letter but the minus there follows a keyword, so the
+    keyword is excluded explicitly.
+    """
+    ret = []
+    prev = ""
+    prev_word = ""
+    word = ""
+    for i, ch, _ in _scan(expr):
+        if ch.isalnum() or ch == "_":
+            word += ch
+        elif not ch.isspace():
+            if word:
+                prev_word = word
+            word = ""
+        elif word:
+            prev_word = word
+            word = ""
+        if ch in "+-" and prev and (prev.isalnum() or prev in ")}]_\"") and prev_word != "offset":
+            ret.append(i)
+        if not ch.isspace():
+            prev = ch
+    return ret
+
+
+def _additive_term(expr, start):
+    """The text of one additive term beginning at expr[start]: up to the next same-depth + or -, the end of the
+    enclosing group, or a same-depth COMMA -- a comma ends an argument, and a term that ran past one used to
+    swallow the `, 1` of a clamp and then fail to recognise the operand it had just mangled."""
+    base = None
+    end = len(expr)
+    for i, ch, depth in _scan(expr[start:]):
+        if base is None:
+            base = depth
+        if i > 0 and depth == base and ch in "+-":
+            prev = expr[start:start + i].rstrip()
+            if prev and (prev[-1].isalnum() or prev[-1] in ")}]_\""):
+                end = start + i
+                break
+        if depth == base and ch == ",":
+            end = start + i
+            break
+        if depth < base:
+            end = start + i
+            break
+    return expr[start:end].strip()
+
+
+def _is_number(text):
+    try:
+        float(text)
+        return True
+    except ValueError:
+        return False
+
+
+def _guarded_spans(expr):
+    """Every parenthesised group that is immediately followed by `or vector(0)`.
+
+    Such a group yields a value whatever happens inside it, so an empty operand nested within one can never
+    reach the panel. Without this the guard flagged a correct shipped canvas: a ratio whose denominator is a
+    bare `a + b` is genuinely fragile on its own, and harmless once the whole comparison is `(...) or vector(0)`.
+    """
+    ret = []
+    opens = []
+    for i, ch, _ in _scan(expr):
+        if ch == "(":
+            opens.append(i)
+        elif ch == ")" and opens:
+            start = opens.pop()
+            if expr[i + 1:].lstrip().startswith("or vector(0)"):
+                ret.append((start, i))
+    return ret
+
+
+def _absorbed(spans, i):
+    """Is this operator inside a group whose emptiness is already caught?"""
+    ret = False
+    for start, end in spans:
+        if start < i < end:
+            ret = True
+            break
+    return ret
+
+
+def _top_addsub_positions(expr):
+    """The binary + and - at the OUTERMOST depth of expr only.
+
+    _nonempty asks whether the terms of THIS expression are each safe; a nested operator belongs to a
+    sub-expression and splitting on it tears an inner ratio into fragments that are unguarded on their own.
+    """
+    ret = []
+    inner = set(_binary_addsub_positions(expr))
+    depths = []
+    for i, ch, depth in _scan(expr):
+        depths.append((i, depth))
+    # The outermost level is the SHALLOWEST depth reached, not the first character's -- `(a) + (b)` opens on a
+    # parenthesis, so reading the baseline off character zero puts the top-level + one level too deep and the
+    # split finds nothing.
+    base = min(d for _, d in depths) if depths else 0
+    for i, depth in depths:
+        if i in inner and depth == base:
+            ret.append(i)
+    return ret
+
+
+def _nonempty_term(term):
+    """Can this ONE additive term never be an empty vector?
+
+    Only `or vector(0)` makes a value out of nothing. clamp_max/clamp_min PRESERVE emptiness -- clamp_max of an
+    empty vector is still empty -- so a clamped subtrahend is safe exactly when what it clamps is safe, which
+    makes the rule recursive rather than a shape match.
+    """
+    ret = False
+    term = term.strip()
+    if _is_number(term):
+        ret = True                                             # a constant cannot be empty
+    elif term.rstrip().endswith("or vector(0)"):
+        ret = True                                             # guarded, parenthesised or not
+    elif term.startswith("(") and _balanced(term, 0) == term:
+        inner = term[1:-1].strip()
+        ret = inner.rstrip().endswith("or vector(0)") or _nonempty(inner)
+    else:
+        for fn in ("clamp_max(", "clamp_min("):
+            if term.startswith(fn) and _balanced(term, len(fn) - 1) == term[len(fn) - 1:]:
+                ret = _nonempty(_top_args(_balanced(term, len(fn) - 1))[0])
+    return ret
+
+
+def _nonempty(expr):
+    """Can this whole expression never be empty? Every additive term must hold on its own -- an empty operand
+    empties the sum, so one bare term is enough to lose the lot."""
+    expr = expr.strip()
+    ret = _nonempty_term(expr)
+    if not ret:
+        cuts = _top_addsub_positions(expr)
+        if cuts:
+            ret = True
+            start = 0
+            for i in cuts + [len(expr)]:
+                if not _nonempty_term(expr[start:i].strip().lstrip("+-").strip()):
+                    ret = False
+                    break
+                start = i
+    return ret
+
+def check_no_naked_subtraction(panels):
+    """Refuse a subtraction whose SUBTRAHEND can be empty -- build-enforced.
+
+    An empty vector deletes the whole expression it is subtracted from, so a band drawn from a metric that is
+    legitimately absent does not read low -- it VANISHES. band() emits ((minuend) - ((subtrahend) or vector(0)));
+    the topology canvas writes (2 - clamp_max(<guarded sum>, 1)). Both are safe and the rule accepts both,
+    because what matters is not the shape but whether the subtrahend can come back empty.
+
+    BOTH operators matter. PromQL matches series on `+` as well, so `a - ((b) or vector(0)) + (c)` still dies
+    with c: + and - are equal precedence and left-associative, and the subtrahend is the whole additive term.
+
+    Four cold reads found this guard wanting, each time because it pattern-matched where it needed to parse:
+    it counted `or vector(0)` globally, then required spaces around the minus, then stopped at the first group,
+    then recognised only one of the two safe idioms and refused a correct board.
     """
     for p in panels:
         for t in p.get("targets", []):
             expr = t.get("expr", "")
-            subtractions = len(re.findall(r"\)\s*-\s*(?:\(|rate\(|sum[\s(]|histogram_quantile\()", expr))
-            guards = expr.count("or vector(0)")
-            if subtractions > guards:
-                raise SystemExit(
-                    "naked series subtraction in panel %r:\n  %s\n"
-                    "A PromQL subtraction against an EMPTY vector yields EMPTY and deletes the band.\n"
-                    "Use band(a, b) / safe(x) instead of hand-writing '-' between series."
-                    % (p.get("title"), expr))
+            spans = _guarded_spans(expr)
+            for i in _binary_addsub_positions(expr):
+                term = _additive_term(expr, i + 1)
+                if term and not _absorbed(spans, i) and not _nonempty_term(term):
+                    raise SystemExit(
+                        "naked subtraction in panel %r:\n  %s\n"
+                        "  subtrahend: %s\n"
+                        "The subtrahend must be unable to come back EMPTY -- ((x) or vector(0)), or a clamp of\n"
+                        "one -- because an empty vector deletes the band SILENTLY rather than drawing it low."
+                        % (p.get("title"), expr, term))
+
+
+def check_avg_scales_only_seconds(panels):
+    """Refuse a x1000 applied to a metric that is not a timer -- the unit-scale lie, build-enforced.
+
+    avg_ms() means "this metric is in seconds, draw it in ms", and Micrometer says so in the NAME: a Timer
+    is *_seconds_sum, a plain DistributionSummary is *_sum with no unit. Scaling the latter draws it a
+    thousand times too large, and reading the query does not catch it because the mistake is in a name that
+    is NOT there. Use avg_raw() for a summary.
+
+    Only the SCALED OPERAND is inspected, not the whole expression: a band may legitimately combine an
+    avg_ms() timer with an avg_raw() summary, and condemning the second because the first is scaled is a
+    false positive -- which costs as much as a hole, because a guard that refuses correct work gets
+    weakened. The scale also needs a left boundary, or `21000` matches.
+    """
+    for p in panels:
+        for t in p.get("targets", []):
+            expr = t.get("expr", "")
+            operands = []
+            for m in re.finditer(r"(?<![\d.\w])(?:1000|1e3)\s*\*\s*", expr):
+                rest = expr[m.end():]
+                operands.append(_balanced(rest, 0) if rest.startswith("(") else _additive_term(rest, 0))
+            for m in re.finditer(r"\*\s*(?:1000|1e3)(?![\d.\w])", expr):
+                head = expr[:m.start()].rstrip()
+                if head.endswith(")"):
+                    depth = 0
+                    for k in range(len(head) - 1, -1, -1):
+                        if head[k] == ")":
+                            depth += 1
+                        elif head[k] == "(":
+                            depth -= 1
+                            if depth == 0:
+                                operands.append(head[k:])
+                                break
+                else:
+                    operands.append(head)
+            for operand in operands:
+                for name in re.findall(r"(?:rate|irate|increase)\(\s*([A-Za-z_:][A-Za-z0-9_:]*)", operand):
+                    if name.endswith("_sum") and not name.endswith("_seconds_sum"):
+                        raise SystemExit(
+                            "avg_ms() on a non-timer in panel %r:\n  %s\n"
+                            "%s has no unit in its name, so it is NOT seconds -- scaling it draws the value a\n"
+                            "thousand times too large. Use avg_raw()." % (p.get("title"), expr, name))
+
+
+def _top_args(call):
+    """The top-level arguments of a call like clamp_min(a, b) -- `call` starts at its '('."""
+    inner = call[1:-1]
+    args = []
+    start = 0
+    for i, ch, depth in _scan(inner):
+        if ch == "," and depth == 0:
+            args.append(inner[start:i].strip())
+            start = i + 1
+    args.append(inner[start:].strip())
+    return args
 
 
 def check_no_clamped_rate_denominator(panels):
-    """Refuse a division whose denominator CLAMPS a rate() -- the clamp_min(rate(count), 1) lie, build-enforced.
+    """Refuse a DENOMINATOR that floors its divisor -- the plausible-lie trap, build-enforced.
 
-    clamp_min(rate(x), N) divides by N whenever the true rate is below N/s, so it renders a real 130 ms average
-    as 0.3 ms (or a 99% hit rate as 42%) SILENTLY -- and it looks plausible, so reading the query never catches
-    it. avg_s() / avg_ms() / ratio() divide by the TRUE rate on purpose (a gap when idle is the honest reading).
-    A panel that reintroduces a clamped rate denominator -- in any of the shapes the generators produce -- fails
-    HERE. This is the guard that makes "fixed in 9 queries" into "cannot come back".
+    clamp_min(x, N) divides by N whenever the true value is below N, rendering a real 130 ms average as
+    0.3 ms SILENTLY -- and it looks plausible, so reading the query never catches it. avg_s() / avg_ms() /
+    ratio() divide by the TRUE rate on purpose: a gap when idle is the honest reading.
+
+    The FLOOR is the last top-level argument, so `max(topk(5, x))` -- a comma and a digit, but not a floor
+    -- passes, and `clamp_min(band, 0)` (flooring a band, not a divisor) stays legal. Leading parentheses
+    after the / are stripped, because one pair used to defeat the whole check.
     """
     for p in panels:
         for t in p.get("targets", []):
             expr = t.get("expr", "")
-            if re.search(r"clamp_min\(\s*(?:sum(?:\s+by\s*\([^)]*\))?\s*\()?\s*rate\(", expr):
+            for m in re.finditer(r"/\s*", expr):
+                rest = expr[m.end():].lstrip()
+                while rest.startswith("(("):
+                    rest = rest[1:].lstrip()
+                if rest.startswith("("):
+                    inner = _balanced(rest, 0)[1:-1].strip()
+                    if inner.startswith(("clamp_min(", "max(", "min(")):
+                        rest = inner
+                for fn in ("clamp_min(", "max(", "min("):
+                    if rest.startswith(fn):
+                        args = _top_args(_balanced(rest, len(fn) - 1))
+                        floor = args[-1] if len(args) > 1 else ""
+                        mm = re.match(r"^vector\(\s*([0-9.]+)\s*\)$|^([0-9.]+)$", floor)
+                        if mm and float(mm.group(1) or mm.group(2)) > 0:
+                            raise SystemExit(
+                                "floored denominator in panel %r:\n  %s\n"
+                                "Flooring the divisor divides by that floor whenever the true value is below\n"
+                                "it, rendering a real average as a fraction of itself. Divide by the TRUE rate."
+                                % (p.get("title"), expr))
+                if re.match(r"\(?[^/]*?>\s*0\s+or\s+vector\(\s*[1-9]", rest):
+                    raise SystemExit(
+                        "floored denominator in panel %r:\n  %s\n"
+                        "`> 0 or vector(1)` is the same divide-by-one lie in another idiom."
+                        % (p.get("title"), expr))
+
+
+def check_no_panel_overlap(panels):
+    """Refuse two TOP-LEVEL panels whose grid rectangles intersect -- build-enforced.
+
+    check_rows_do_not_share_y compares one panel's y against another's. That catches a panel placed AT a row
+    header's y and nothing else: it has no idea that a panel of height h occupies y .. y+h-1. So a canvas
+    declared h=27 at y=1 ran straight under the row header at y=25 and the three panels below it, on all five
+    topology boards, and no guard could see it. Grafana resolves an overlap by pushing panels down, so the board
+    still renders -- just not the layout the generator declared, which is the whole point of generating it.
+
+    Only TOP-LEVEL panels are compared. A panel nested inside a collapsed row carries coordinates relative to
+    that row, so mixing the two levels would invent overlaps that do not exist.
+    """
+    placed = []
+    for p in panels:
+        if p.get("type") == "row":
+            continue
+        g = p.get("gridPos") or {}
+        x, y = g.get("x", 0), g.get("y", 0)
+        w, h = g.get("w", 0), g.get("h", 0)
+        for (px, py, pw, ph, title) in placed:
+            if x < px + pw and px < x + w and y < py + ph and py < y + h:
                 raise SystemExit(
-                    "clamped rate() denominator in panel %r:\n  %s\n"
-                    "clamp_min(rate(count), N) divides by N below N events/second and renders a real average as a\n"
-                    "fraction of it -- silently, and it looks plausible. Use avg_s()/avg_ms()/ratio(), which divide\n"
-                    "by the TRUE rate." % (p.get("title"), expr))
+                    "panel overlap: %r (x=%d y=%d w=%d h=%d) intersects %r (x=%d y=%d w=%d h=%d).\n"
+                    "A panel occupies y .. y+h-1; check the HEIGHT, not just the y. Grafana would push one of\n"
+                    "them down, so the board renders -- but not the layout this generator declares."
+                    % (p.get("title"), x, y, w, h, title, px, py, pw, ph))
+        placed.append((x, y, w, h, p.get("title")))
 
 
+def check_rows_do_not_share_y(panels):
+    """Refuse two panels -- of ANY kind -- placed at the same y when one of them is a ROW header.
+
+    Grafana sorts by (y, x) and then assigns row membership by POSITION IN THAT SORTED ARRAY. A panel
+    sharing a row header's y lands on whichever side of it the sort happens to put it, so a panel declared
+    under one row renders inside the NEXT one and collapsing the wrong row hides it. TWO ROW HEADERS at one
+    y is the same ambiguity in its purest form -- both have x=0, so which owns the panels below is decided
+    by list order alone.
+    """
+    seen = {}
+    for p in panels:
+        y = p.get("gridPos", {}).get("y")
+        is_row = p.get("type") == "row"
+        if y in seen and (is_row or seen[y][1]):
+            raise SystemExit(
+                "panel %r and %r both sit at y=%s, and one is a ROW header.\n"
+                "Grafana sorts by (y, x) and assigns row membership by the sorted position, so this\n"
+                "renders in the wrong row. Give the row its own y." % (p.get("title"), seen[y][0], y))
+        if y not in seen or is_row:
+            seen[y] = (p.get("title"), is_row)
+
+
+# allValue is `.+`, never `.*`. In Prometheus a matcher that matches the EMPTY STRING also selects series that
+# do not carry the label at all -- and KeyCloak and the broker carry neither `application` nor `service`,
+# because Esquire stamps those on its own registries only. With `.*` the landing state of the board (both
+# pickers on All) drew KeyCloak's requests, heap, threads and CPU onto panels declared Esquire-only, each with
+# a blank legend token, and summed its cores into "Cores in use -- TOTAL". Picking any explicit value hid it
+# again, which is why it survived every manual look. (cold read, 2026-08-25)
+#
 APP = 'application=~"$application"'
 
 
@@ -360,9 +704,14 @@ def build_panels():
                 [tgt('rate(pg_stat_database_xact_commit{datname="esq2025"}[1m])', "commit"),
                  tgt('rate(pg_stat_database_xact_rollback{datname="esq2025"}[1m])', "rollback")]))
     p.append(ts("Postgres cache hit ratio", 0, 78, 12, "percentunit",
+                # safe() on the READ term: an empty blks_read empties the whole DENOMINATOR and the panel
+                # vanishes rather than reading 100%. Guarded, it reads 1.0 -- no reads means every block
+                # was a hit, which is the truth. Caught by check_no_naked_subtraction once it learned that
+                # a + is as fatal as a - (cold read, 2026-08-25).
                 [tgt(ratio('rate(pg_stat_database_blks_hit{datname="esq2025"}[5m])',
                            'rate(pg_stat_database_blks_hit{datname="esq2025"}[5m]) + '
-                           'rate(pg_stat_database_blks_read{datname="esq2025"}[5m])'), "hit ratio")]))
+                           '((rate(pg_stat_database_blks_read{datname="esq2025"}[5m])) or vector(0))'),
+                     "hit ratio")]))
     p.append(ts("Postgres database size", 12, 78, 12, "bytes",
                 [tgt('pg_database_size_bytes{datname="esq2025"}', "{{datname}}")]))
     # ---- KeyCloak (Quarkus mgmt :9000/kc-auth/metrics) ----
@@ -376,8 +725,14 @@ def build_panels():
                 [tgt('agroal_active_count{job="keycloak"}', "active"),
                  tgt('agroal_available_count{job="keycloak"}', "available")]))
     p.append(ts("KeyCloak JVM memory (heap / non-heap)", 12, 95, 12, "bytes",
-                [tgt('base_memory_usedHeap_bytes{job="keycloak"}', "heap used"),
-                 tgt('base_memory_usedNonHeap_bytes{job="keycloak"}', "non-heap used")]))
+                [tgt('sum(jvm_memory_used_bytes{job="keycloak", area="heap"})', "heap used"),
+                 tgt('sum(jvm_memory_used_bytes{job="keycloak", area="nonheap"})', "non-heap used")],
+                desc="MICROMETER names, not MicroProfile. This KeyCloak is Quarkus-based and publishes "
+                     "jvm_memory_used_bytes; the base_memory_used*Heap_bytes namespace does not exist on "
+                     "it, so this panel drew NOTHING at all until 2026-08-25. It went unnoticed because "
+                     "base_ is outside check_dependencies' family tuple, so the sweep reported every "
+                     "dependency present while the panel was dead -- while the agroal panel beside it, a "
+                     "Micrometer name that IS in the tuple, worked and made the row look healthy."))
     # ---- Messaging bus (x-rod meters emitted by the engine, O1/T5) ----
     p.append(row("Messaging bus", 103))
     p.append(ts("Bus send rate (msg/s)", 0, 104, 8, "ops",
@@ -416,8 +771,8 @@ def build_panels():
                      "after max attempts. Both are COUNTS, so they share an axis honestly; the backoff duration "
                      "is milliseconds and lives on its own panel to the right."))
     p.append(ts("Send-retry: backoff (avg ms)", 20, 112, 4, "ms",
-                [tgt(avg_ms("messaging_retry_backoff_sum{%s}" % APP,
-                            "messaging_retry_backoff_count{%s}" % APP, by="application, bus_id"),
+                [tgt(avg_raw("messaging_retry_backoff_sum{%s}" % APP,
+                             "messaging_retry_backoff_count{%s}" % APP, by="application, bus_id"),
                      "{{application}} {{bus_id}}")],
                 desc="The backoff ladder step being waited out. A GAP here is the healthy state -- no retries, "
                      "nothing to average. It was previously drawn on the same axis as the held/dropped COUNTS, "
@@ -702,8 +1057,8 @@ def build_panels():
                      "those lines simply do not exist on a healthy system."))
 
     # ---- Business: cache, keep + permissions (bizTree, dataKeep, cross-cutting) ----
-    p.append(row("Business -- cache, keep + permissions", 182))
-    p.append(ts("Tree cache -- broadcast dispatch (by outcome)", 0, 183, 8, "ops",
+    p.append(row("Business -- cache, keep + permissions", 190))
+    p.append(ts("Tree cache -- broadcast dispatch (by outcome)", 0, 191, 8, "ops",
                 [tgt(zero_line("sum by (outcome) (rate(esq_biz_tree_handler_dispatch_total{%s}[5m]))" % APP,
                                "outcome", "failed"),
                      "{{outcome}}"),
@@ -716,7 +1071,7 @@ def build_panels():
                      "message as received. Rebuilds should be RARE -- a rising rebuild rate is itself a finding."))
     # auKeep is absent on OKE (audit = DB triggers, no keep sink) -- drop this panel there. The OKE pass removes
     # `aukeep` from ESQ_SERVICES, which is the signal (T12).
-    ("aukeep" in ESQ_SERVICES) and p.append(ts("Audit keep -- DB writes (by op + outcome)", 8, 183, 8, "ops",
+    ("aukeep" in ESQ_SERVICES) and p.append(ts("Audit keep -- DB writes (by op + outcome)", 8, 191, 8, "ops",
                 [tgt(zero_line("sum by (op, outcome) (rate(esq_biz_keep_write_total{%s}[5m]))" % APP,
                                "outcome", "error"),
                      "{{op}} {{outcome}}")],
@@ -725,7 +1080,7 @@ def build_panels():
                      "actually WRITTEN. An audit event that lands on the bus and then fails to persist is "
                      "exactly the failure that was invisible before. These counts must RECONCILE with the bus "
                      "receive count on the Messaging bus row: a divergence is a real finding."))
-    p.append(ts("Permission checks (allow vs DENY)", 16, 183, 8, "ops",
+    p.append(ts("Permission checks (allow vs DENY)", 16, 191, 8, "ops",
                 [tgt(zero_line("sum by (cmd, result) (rate(esq_biz_perm_check_total{%s}[5m]))" % APP,
                                "result", "deny"),
                      "{{cmd}} {{result}}")],
@@ -746,8 +1101,8 @@ def build_panels():
     # one makes things worse: a breaker that opens on a backend that is merely SLOW converts a degradation into
     # an outage, and the retry ladder then hands the struggling backend 3x the load. "Calls REFUSED" below is
     # the panel that tells them apart.
-    p.append(row("Resilience -- circuit breakers", 191))
-    p.append(ts("Breaker state -- OPEN / half-open (1 = yes)", 0, 192, 8, "short",
+    p.append(row("Resilience -- circuit breakers", 199))
+    p.append(ts("Breaker state -- OPEN / half-open (1 = yes)", 0, 200, 8, "short",
                 [tgt('sum by (name) (resilience4j_circuitbreaker_state{%s, state="open"})' % APP,
                      "{{name}} OPEN"),
                  tgt('sum by (name) (resilience4j_circuitbreaker_state{%s, state="half_open"})' % APP,
@@ -756,7 +1111,7 @@ def build_panels():
                      "calling its backend -- every request on that route now fails fast with a 503 without ever "
                      "reaching the service. Half-open is the probe state: the breaker is letting a few calls "
                      "through to decide whether to close again."))
-    p.append(ts("Slow-call rate (%) -- the threshold that OPENS the breaker on a healthy backend", 8, 192, 8,
+    p.append(ts("Slow-call rate (%) -- the threshold that OPENS the breaker on a healthy backend", 8, 200, 8,
                 "percent",
                 [tgt('max by (name) (resilience4j_circuitbreaker_slow_call_rate{%s})' % APP, "{{name}}")],
                 minv=-1,
@@ -766,20 +1121,20 @@ def build_panels():
                      "'healthy' over 'no data'. A call counts as slow past slow-call-seconds even when it "
                      "SUCCEEDS, so this rate -- not the failure rate -- is what opens a breaker on a backend "
                      "that is working perfectly and merely slow."))
-    p.append(ts("Failure rate (%) -- the threshold that opens on a backend that is actually failing", 16, 192, 8,
+    p.append(ts("Failure rate (%) -- the threshold that opens on a backend that is actually failing", 16, 200, 8,
                 "percent",
                 [tgt('max by (name) (resilience4j_circuitbreaker_failure_rate{%s})' % APP, "{{name}}")],
                 minv=-1,
                 desc="Same -1 = not-enough-calls convention as the slow-call rate. This one rises only on real "
                      "errors, so a breaker opening HERE is the breaker doing its job. A breaker opening on the "
                      "slow-call rate while this stays flat is the failure mode T10 exists to prevent."))
-    p.append(ts("Calls through the breaker (by outcome)", 0, 200, 8, "ops",
+    p.append(ts("Calls through the breaker (by outcome)", 0, 208, 8, "ops",
                 [tgt('sum by (name, kind) (rate(resilience4j_circuitbreaker_calls_seconds_count{%s}[1m]))' % APP,
                      "{{name}} {{kind}}")],
                 desc="What the breaker actually saw: successful / failed / ignored. Read together with the rate "
                      "panels above -- these are the calls the rates are computed FROM, so a rate that looks "
                      "alarming on a handful of calls is not yet a signal."))
-    p.append(ts("Calls REFUSED by the breaker (the 503s the breaker itself caused)", 8, 200, 8, "ops",
+    p.append(ts("Calls REFUSED by the breaker (the 503s the breaker itself caused)", 8, 208, 8, "ops",
                 [tgt(safe('sum by (name) '
                           '(rate(resilience4j_circuitbreaker_not_permitted_calls_total{%s}[1m]))' % APP),
                      "{{name}} refused")],
@@ -788,7 +1143,7 @@ def build_panels():
                      "line is up, the collapse is the BREAKER's doing, not the service's, and the fix is to tune "
                      "the breaker rather than to chase a backend that was never even called. Guarded with "
                      "or vector(0) so it reads a flat zero instead of vanishing when nothing is refused."))
-    p.append(ts("Per-route deadline -- TimeLimiter outcomes", 16, 200, 8, "ops",
+    p.append(ts("Per-route deadline -- TimeLimiter outcomes", 16, 208, 8, "ops",
                 [tgt(safe('sum by (name, kind) (rate(resilience4j_timelimiter_calls_total{%s}[1m]))' % APP),
                      "{{name}} {{kind}}")],
                 desc="The REAL per-route deadline is the breaker's TimeLimiter, not the Netty response-timeout. "
@@ -817,26 +1172,26 @@ def build_panels():
     # the join, and system_cpu_count all carry the same instances), so the two are co-present in practice and a
     # gap here means a scrape gap on that replica, not a wrong number.
     CORES = "(process_cpu_usage{%s} * on(instance) group_left system_cpu_count{%s})" % (APP, APP)
-    p.append(row("Capacity -- cores in use (are we using the machine?)", 208))
-    p.append(ts("Cores in use -- TOTAL across all services", 0, 209, 12, "short",
+    p.append(row("Capacity -- cores in use (are we using the machine?)", 216))
+    p.append(ts("Cores in use -- TOTAL across all services", 0, 217, 12, "short",
                 [tgt("sum(%s)" % CORES, "cores in use")],
                 desc="The headline number: how many CPU cores the Esquire services are actually burning, right "
                      "now, added up. Compare it against the host's core count. If this plateaus well BELOW the "
                      "machine while latency climbs, CPU is not the limit and tuning the CPU budget will not help "
                      "-- look at a pool, a lock, or a serialized path instead."))
-    p.append(ts("Cores in use by replica", 12, 209, 12, "short",
+    p.append(ts("Cores in use by replica", 12, 217, 12, "short",
                 [tgt(CORES, "{{application}} {{instance}}")],
                 desc="Cores, per replica -- process_cpu_usage re-expressed in the one unit that means the same "
                      "thing on docker and on k8s. A replica pinned flat against its ceiling is CPU-bound; the "
                      "next panel says what that ceiling is."))
-    p.append(ts("Effective CPUs the JVM sized itself for", 0, 217, 12, "short",
+    p.append(ts("Effective CPUs the JVM sized itself for", 0, 225, 12, "short",
                 [tgt("system_cpu_count{%s}" % APP, "{{application}} {{instance}}")],
                 desc="What each JVM believes it is running on -- Runtime.availableProcessors(), which on a "
                      "container is the CGROUP QUOTA, not the host's core count. This is the panel that catches "
                      "the trap: under the local-k8s R4 budget it reads 1 on every replica while the host has 24 "
                      "cores sitting idle, and the JVM has already sized its GC, ForkJoin and event-loop threads "
                      "for that 1. A number here that surprises you is a capacity bug, not a display quirk."))
-    p.append(ts("Host CPU -- the whole machine", 12, 217, 12, "percentunit",
+    p.append(ts("Host CPU -- the whole machine", 12, 225, 12, "percentunit",
                 [tgt("max(system_cpu_usage{%s})" % APP, "host"),
                  tgt("avg(system_cpu_usage{%s})" % APP, "host (avg of reporters)")],
                 desc="Whole-machine CPU load. Read it WITH 'Cores in use': the load generator and the "
@@ -847,8 +1202,11 @@ def build_panels():
 
 def build_dashboard():
     panels = build_panels()
-    check_no_naked_subtraction(panels)   # refuse to emit a band that an empty vector could delete
+    check_no_naked_subtraction(panels)
+    check_rows_do_not_share_y(panels)   # refuse a panel that shares a row header's y
+    check_no_panel_overlap(panels)   # refuse two panels whose RECTANGLES intersect
     check_no_clamped_rate_denominator(panels)   # refuse a clamp_min(rate(count),1) denominator -- the plausible-lie trap
+    check_avg_scales_only_seconds(panels)   # refuse a x1000 on a metric whose name does not say _seconds
     return {
         "uid": "esq-services",
         "title": "Esquire Services -- REST / JVM / Pool / CPU / BFF / DB / KC / Bus / Latency / Bandwidth / Biz",
@@ -866,7 +1224,7 @@ def build_dashboard():
             # services the $application panels filter on. The Node BFF has no jvm_* and stays out, matching its
             # own panels that hardcode application="esq-backend".
             "query": "label_values(jvm_memory_used_bytes, application)", "refresh": 2,
-            "includeAll": True, "multi": True, "allValue": ".*",
+            "includeAll": True, "multi": True, "allValue": ".+",   # .+ NOT .* -- see the note at the picker definitions
             "current": {"text": "All", "value": "$__all"}, "sort": 1,
         }]},
         "panels": panels,
@@ -935,11 +1293,12 @@ def build_logging_dashboard():
                   h=12,
                   desc="The full stream for the selected services. Paste a correlationId into the variable at the "
                        "top and this becomes the complete story of ONE request across every service it touched -- "
-                       "which is the question the whole correlation-id design exists to answer. NOTE what Loki "
-                       "actually HAS: the services' per-request INFO/DEBUG goes to the develop/msg FILES (the "
-                       "3-tier logging design, additivity=false), so what reaches Loki is the console tier -- "
-                       "errors, warnings and startup. A healthy request leaves no service log line here, and "
-                       "that is by design, not a gap."))
+                       "which is the question the whole correlation-id design exists to answer. WHAT LOKI HOLDS "
+                       "DIFFERS BY TARGET, because the 3-tier design routes on the Spring profile. On docker no "
+                       "profile is set, so develop and msg go to rolling FILES and Loki holds the console tier "
+                       "alone -- errors, warnings, startup -- and a healthy request leaves no line here. On k8s "
+                       "and OKE the pods run SPRING_PROFILES_ACTIVE=console, so develop and msg go to stdout too "
+                       "and Alloy ships all three tiers: there a healthy request DOES leave its per-request trail."))
     return {
         "uid": "esq-logging",
         "title": "Esquire Logging -- volume / errors / one request end-to-end",
@@ -955,7 +1314,7 @@ def build_logging_dashboard():
                 # Loki as if they were part of the system being observed.
                 "name": "container", "label": "Service", "type": "query", "datasource": DS_LOKI,
                 "query": {"label": "container", "stream": "{%s, %s}" % (JOB_ANY, ESQ_SERVICES), "type": 1},
-                "refresh": 2, "includeAll": True, "multi": True, "allValue": ".*",
+                "refresh": 2, "includeAll": True, "multi": True, "allValue": ".+",   # .+ NOT .* -- see the note at the picker definitions
                 "current": {"text": "All", "value": "$__all"}, "sort": 1,
             },
             {

@@ -53,24 +53,34 @@ rem esq-angular client secret. Defaults to the realm-import value (same one
 rem compose.yaml and k8s-up.bat already use as a literal). Override the env
 rem var when you rotate the client secret in the production KC admin UI:
 rem   set bff_kc_secret=^<rotated-value^>
-if "%bff_kc_secret%"=="" set "bff_kc_secret=esq-angular-bff-dev-secret-rotate-in-prod"
+if "%bff_kc_secret%"=="" set "bff_kc_secret=OBTAIN-FROM-KEYCLOAK"
+if "%bff_kc_secret%"=="OBTAIN-FROM-KEYCLOAK" echo [!] BFF_KC_SECRET is not set -- the browser login will FAIL. KeyCloak: realm esquire -^> clients -^> esq-angular -^> Credentials.
 
 rem Phantom Token Relay -- esq-gw-exchange (confidential) client secret used by the
 rem gate to authenticate to KC /token for RFC 8693 exchange. Both relay allowlists
 rem are EMPTY on OKE (values\gateward.yaml), so this is set but dormant.
-if "%gw_exchange_secret%"=="" set "gw_exchange_secret=esq-gw-exchange-dev-secret-rotate-in-prod"
+if "%gw_exchange_secret%"=="" set "gw_exchange_secret=OBTAIN-FROM-KEYCLOAK"
+if "%gw_exchange_secret%"=="OBTAIN-FROM-KEYCLOAK" echo [!] GW_EXCHANGE_SECRET is not set -- the phantom token relay will FAIL. KeyCloak: realm esquire -^> clients -^> esq-gw-exchange -^> Credentials.
 
 rem BFF session-cookie HMAC secret. Lower-risk than the KC client secret:
 rem leak alone does not grant access (session IDs are server-side random,
-rem session data is in MemoryStore not in the cookie). SAME default as the GHA
-rem path (deploy-oke.sh) so switching deploy paths does not invalidate sessions;
-rem override the env var to rotate it (or to keep sessions alive across an upgrade).
-if "%bff_session_secret%"=="" set "bff_session_secret=esq-bff-session-secret"
+rem session data is in MemoryStore not in the cookie).
+rem
+rem THE TWO DEPLOY PATHS FALL BACK TO DIFFERENT VALUES, on purpose and with different
+rem jobs: this one substitutes a sentinel that cannot work and says so, because a person
+rem is watching; deploy-oke.sh substitutes the published development value, because the
+rem pipeline has to bring the demonstration up with nothing configured. Set
+rem BFF_SESSION_SECRET on BOTH to the same value if you switch paths and want sessions
+rem to survive -- unset, the signing key changes with the path and every session is
+rem invalidated.
+if "%bff_session_secret%"=="" set "bff_session_secret=GENERATE-A-RANDOM-VALUE"
+if "%bff_session_secret%"=="GENERATE-A-RANDOM-VALUE" echo [!] BFF_SESSION_SECRET is not set -- sessions are signed with a known value. Set any random string.
 
 rem esq-kcMaster KC admin service-account client secret (client_credentials -> KC admin
 rem REST API). Mesnie carries the identity work in process, so it is Mesnie that takes
 rem this now -- the same secret, handed to one workload instead of a kcMaster of its own.
-if "%kcmaster_admin_secret%"=="" set "kcmaster_admin_secret=MHgq0Nu69u2uJ2johaK1wxQLMdakELXN"
+if "%kcmaster_admin_secret%"=="" set "kcmaster_admin_secret=OBTAIN-FROM-KEYCLOAK"
+if "%kcmaster_admin_secret%"=="OBTAIN-FROM-KEYCLOAK" echo [!] KCMASTER_ADMIN_SECRET is not set -- the identity sync will FAIL to authenticate. Get the value from KeyCloak: realm esquire -^> clients -^> esq-kcMaster -^> Credentials.
 
 set PG_PW=%mir0n_pwd%
 set KC_PW=%mir0n_pwd%
@@ -94,6 +104,18 @@ rem auKeep belongs to the 5-process compact profile, not to this one: audit here
 call helm uninstall esquire-aukeep   2>nul
 
 rem === Infra ===
+rem INSTALL when absent, do NOT re-roll on a routine deploy -- the same guard deploy-oke.sh carries, and for
+rem the same reason it states: all three images are rebuilt and pushed per release, so passing IMAGE_TAG
+rem changes their spec EVERY run and helm re-rolls them. RE-ROLLING THE BROKER IS WHAT BREAKS DEPLOYS -- a
+rem bounce drops every app pod's messaging bus and the services do NOT self-heal, so a mid-deploy roll leaves
+rem the not-yet-rolled services wedged at readiness 503 and stalls their StatefulSet rollouts.
+rem
+rem Set DEPLOY_INFRA=true ONLY when a postgres / activemq / keycloak IMAGE itself changed (schema, realm,
+rem broker config) -- and expect to kick the app pods afterwards (see the OKE runbook).
+if not defined DEPLOY_INFRA set "DEPLOY_INFRA=false"
+
+call :need_infra esquire-infra
+if not defined NEED_INFRA goto skip_postgres
 echo --- Installing postgres...
 rem --force-conflicts: helm 4 applies SERVER-SIDE, and anything that scales OUTSIDE helm (the perf
 rem matrix does) owns .spec.replicas -- an upgrade that then sets replicas is REFUSED. Seen on OKE 08-19.
@@ -101,17 +123,24 @@ call helm upgrade --install esquire-infra %CHARTS%\infra\postgres --force-confli
   -f values\postgres.yaml ^
   --set image.tag=%IMAGE_TAG% ^
   --set db.password=%PG_PW% || exit /b 1
+:skip_postgres
 
+call :need_infra esquire-infra-amq
+if not defined NEED_INFRA goto skip_activemq
 echo --- Installing activemq...
 call helm upgrade --install esquire-infra-amq %CHARTS%\infra\activemq --force-conflicts ^
   -f values\activemq.yaml ^
   --set image.tag=%IMAGE_TAG% || exit /b 1
+:skip_activemq
 
+call :need_infra esquire-infra-kc
+if not defined NEED_INFRA goto skip_keycloak
 echo --- Installing keycloak...
 call helm upgrade --install esquire-infra-kc %CHARTS%\infra\keycloak --force-conflicts ^
   -f values\keycloak.yaml ^
   --set image.tag=%IMAGE_TAG% ^
   --set keycloak.adminPassword=%KC_PW% || exit /b 1
+:skip_keycloak
 
 rem The BFF session store, pinned to the infra node (values\redis.yaml). It is what lets the BFF run
 rem TWO replicas here: without a shared store the in-memory one would round-robin-split logins.
@@ -211,3 +240,18 @@ echo --- Ingress:
 kubectl get ingress -A
 echo.
 echo Open https://esquire.mir0n.pro
+
+rem End the main flow HERE. Without it a successful run walks straight into :need_infra below and
+rem runs the subroutine with no argument.
+goto :eof
+
+:need_infra
+rem %1 = helm release. Sets NEED_INFRA when it must be installed: either it is absent (first deploy) or
+rem DEPLOY_INFRA=true was asked for. Otherwise it is left running, and says so.
+set "NEED_INFRA=1"
+if /i "%DEPLOY_INFRA%"=="true" exit /b 0
+helm status %~1 >nul 2>&1
+if errorlevel 1 exit /b 0
+set "NEED_INFRA="
+echo --- infra: %~1 left running (DEPLOY_INFRA=false -- not re-rolled, keeps the app buses up)
+exit /b 0

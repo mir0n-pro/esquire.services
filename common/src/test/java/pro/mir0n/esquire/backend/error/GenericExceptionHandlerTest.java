@@ -47,6 +47,17 @@ class GenericExceptionHandlerTest {
     }
 
     @Test
+    @DisplayName("CommandNotAcceptedException -> returns 503 SERVICE_UNAVAILABLE")
+    void commandNotAcceptedException_returns503() {
+        CommandNotAcceptedException ex = new CommandNotAcceptedException("move");
+
+        ResponseEntity<ProblemDetail> ret =
+                GenericExceptionHandler.handleGenericRuntimeException(ex, request);
+
+        assertThat(ret.getStatusCode()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
+    }
+
+    @Test
     @DisplayName("PermissionDeniedException → returns 403 FORBIDDEN")
     void permissionDeniedException_returns403() {
         PermissionDeniedException ex = new PermissionDeniedException("User", "update");

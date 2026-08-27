@@ -71,7 +71,7 @@ An **exemplar** is a single real request pinned onto a metric. On a latency pane
 
 ![The Esquire Topology board on the two-replica stack -- every component as a stack of health-coloured cards, the three bus lanes down the middle, the database and broker below, and the HEALTH / LINES / REDUNDANCY legend bottom-left.](media/topology-screenshot.png)
 
-The board is deliberately the **same drawing** as the component model in the docs (`doc/model/ComponentModel.svg`), with the numbers switched on -- so it reads as the documented system, not a second, differently-arranged map. Left to right: the audit sink and the database, then the three bus lanes, then the services, then the gateway and identity, then the Explorer (BFF).
+The board is deliberately the **same drawing** as the component model in the docs (`doc/media/ComponentModel.png`), with the numbers switched on -- so it reads as the documented system, not a second, differently-arranged map. Left to right: the audit sink and the database, then the three bus lanes, then the services, then the gateway and identity, then the Explorer (BFF).
 
 ### A component box -- three things at once
 

@@ -102,7 +102,11 @@ spec:
             timeoutSeconds: 5
             failureThreshold: 30
           readinessProbe:
-            tcpSocket:
+            # The REALM, not the port. Quarkus binds 8080 before --import-realm has created the realm, so a
+            # tcpSocket check reports Ready while a token request would still fail -- and the up script gates
+            # on Ready. This endpoint answers 200 only once the realm is actually being served.
+            httpGet:
+              path: {{ .Values.keycloak.httpRelativePath }}/realms/{{ .Values.keycloak.realm }}/.well-known/openid-configuration
               port: 8080
             periodSeconds: 10
             timeoutSeconds: 5

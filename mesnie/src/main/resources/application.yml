@@ -67,8 +67,8 @@ keycloak:
     realm: ${KC_REALM:esquire}
     client-id: ${KC_ADMIN_CLIENT_ID:admin-cli}
     client-secret: ${KC_ADMIN_CLIENT_SECRET:}
-    connect-timeout-ms: 5000
-    read-timeout-ms: 10000
+    connect-timeout-ms: ${KC_ADMIN_CONNECT_TIMEOUT_MS:5000}
+    read-timeout-ms:    ${KC_ADMIN_READ_TIMEOUT_MS:10000}
 kcmaster:
   path-buffer:
     ttl-ms:            ${KCMASTER_PATH_BUFFER_TTL_MS:10000}

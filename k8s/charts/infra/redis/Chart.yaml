@@ -1,6 +1,6 @@
 apiVersion: v2
 name: esquire-redis
-description: Redis (audit option (d) Redis-Stream sink) for local/dev k8s — single ephemeral node.
+description: Redis (audit option (d) Redis-Stream sink) for local/dev k8s -- single ephemeral node.
 type: application
 version: 0.1.0
 appVersion: "8"

@@ -25,6 +25,9 @@
  * 08/11/2026 mir0n  v1.2.12 -- changeNo component added to the identity group and to the producer
  *                   constructor as a normal argument; the record is documented as identity / header /
  *                   payload / engine-stamped tail
+ * 08/26/2026 mir0n  Op gains UNKNOWN: opOf falls back to it instead of DELETE, and opCode() answers null for it
+ * 08/27/2026 mir0n  v1.2.13 -- dbAction() added: the action code the keep writes, null for UPDATE_PATH
+ *                   and UNKNOWN, which no *_log table holds
  */
 package pro.mir0n.esquire.messaging;
 
@@ -124,36 +127,45 @@ public record RodEvent(
 
     // CREATE / UPDATE / DELETE are the change operations; UPDATE_PATH ("X", a move / re-path) rides only the
     // entity-broadcast bus -- a one-way sink may coalesce a move into a plain UPDATE and never emit UPDATE_PATH.
-    public enum Op { CREATE, UPDATE, DELETE, UPDATE_PATH }
+
+    public enum Op { CREATE, UPDATE, DELETE, UPDATE_PATH, UNKNOWN }
 
     /** The wire event-type code for this op (the {@code BusConstants.EVENT_*} value). The canonical
      *  op&lt;-&gt;code mapping lives here on the event so every bus shares it. A session (admin) event carries no
      *  CRUD op -- {@code op} is null and this returns null (the codec omits {@code EventType} for it). */
     public String opCode() {
-        String ret;
-        if (op == null) {
-            ret = null;
-        } else {
+        String ret = null;
+        if (op != null) {
             switch (op) {
                 case CREATE      -> ret = BusConstants.EVENT_CREATE;
                 case UPDATE      -> ret = BusConstants.EVENT_UPDATE;
                 case UPDATE_PATH -> ret = BusConstants.EVENT_UPDATE_PATH;
-                default          -> ret = BusConstants.EVENT_DELETE;
+                case DELETE      -> ret = BusConstants.EVENT_DELETE;
+            }
+        }
+        return ret;
+    }
+    public String dbAction() {
+        String ret = null;
+        if (op != null) {
+            switch (op) {
+                case CREATE -> ret = BusConstants.EVENT_CREATE;
+                case UPDATE -> ret = BusConstants.EVENT_UPDATE;
+                case DELETE -> ret = BusConstants.EVENT_DELETE;
             }
         }
         return ret;
     }
 
-    /** Code -&gt; Op, the inverse of {@link #opCode()}; an unknown code falls back to DELETE. */
     public static Op opFromCode(String code) {
-        Op ret;
+        Op ret = Op.UNKNOWN;
         if (BusConstants.EVENT_CREATE.equals(code)) {
             ret = Op.CREATE;
         } else if (BusConstants.EVENT_UPDATE.equals(code)) {
             ret = Op.UPDATE;
         } else if (BusConstants.EVENT_UPDATE_PATH.equals(code)) {
             ret = Op.UPDATE_PATH;
-        } else {
+        } else if (BusConstants.EVENT_DELETE.equals(code)) {
             ret = Op.DELETE;
         }
         return ret;

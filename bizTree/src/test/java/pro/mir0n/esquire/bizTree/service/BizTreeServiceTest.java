@@ -179,7 +179,7 @@ class BizTreeServiceTest {
     @Test
     @DisplayName("esquirePath: rootPath has 1 element → full node path returned")
     void esquirePath_singleElementRootPath_returnsFullPath() {
-        when(repo.findPath("5")).thenReturn("1.2.3.4");
+        when(repo.findPathScoped("5", "1")).thenReturn("1.2.3.4");
 
         List<String> result = service.esquirePath("5", "1");
 
@@ -191,7 +191,7 @@ class BizTreeServiceTest {
     @Test
     @DisplayName("esquirePath: rootPath larger than node path → empty list")
     void esquirePath_rootPathLargerThanNodePath_returnsEmpty() {
-        when(repo.findPath("5")).thenReturn("1.2");
+        when(repo.findPathScoped("5", "1.2.3")).thenReturn("1.2");
 
         List<String> result = service.esquirePath("5", "1.2.3");
 
@@ -203,7 +203,7 @@ class BizTreeServiceTest {
     @Test
     @DisplayName("esquirePath: rootPath shorter than node path → trimmed user-visible slice")
     void esquirePath_subPathExtracted() {
-        when(repo.findPath("5")).thenReturn("1.2.3.4");
+        when(repo.findPathScoped("5", "1.2")).thenReturn("1.2.3.4");
 
         List<String> result = service.esquirePath("5", "1.2");
 
@@ -215,11 +215,26 @@ class BizTreeServiceTest {
     @Test
     @DisplayName("esquirePath: findPath returns null → empty list")
     void esquirePath_nullNodePath_returnsEmpty() {
-        when(repo.findPath("5")).thenReturn(null);
+        when(repo.findPathScoped("5", "1.2")).thenReturn(null);
 
         List<String> result = service.esquirePath("5", "1.2");
 
         assertThat(result).isEmpty();
+    }
+
+    // ---- esquirePath: a node outside the caller's subtree ----
+
+    @Test
+    @DisplayName("esquirePath: outside the caller's subtree -> empty, because the READ is scoped")
+    void esquirePath_outsideSubtree_returnsEmpty() {
+        // The trim is a length trim, so a foreign path of the same depth would come back well-formed.
+        // What keeps it out is the predicate on the read: no row, no path.
+        when(repo.findPathScoped("10", "1.14.")).thenReturn(null);
+
+        List<String> result = service.esquirePath("10", "1.14.");
+
+        assertThat(result).isEmpty();
+        verify(repo, never()).findPath(anyString());
     }
 
     // ---- esquireSubtree: happy path ----

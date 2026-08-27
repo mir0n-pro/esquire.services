@@ -42,9 +42,9 @@ class XRodSubscriptionSelectorTest {
         assertThat(CapturingTransportProvider.openConsumerCount.get()).isZero();         // never a separate-connection open
         assertThat(CapturingTransportProvider.lastConsume.selector()).isNull();          // base selector (broadcast = null)
 
-        rod.setWorker("EventType = 'C'", e -> { });            // selector changes -> re-open
+        rod.setWorker("EventType = 'I'", e -> { });            // selector changes -> re-open
         assertThat(CapturingTransportProvider.openConsumerOnCount.get()).isEqualTo(2);
-        assertThat(CapturingTransportProvider.lastConsume.selector()).isEqualTo("EventType = 'C'");  // the caller's predicate ALONE
+        assertThat(CapturingTransportProvider.lastConsume.selector()).isEqualTo("EventType = 'I'");  // the caller's predicate ALONE
         rod.shutdown();
     }
 

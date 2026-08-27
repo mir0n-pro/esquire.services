@@ -45,6 +45,7 @@ class AliveSessionTest {
 
         @Override public void init(String name, Logger devLogger, int capacity) { }
         @Override public void setErrorListener(IQueueRig.IErrorListener listener) { }
+        @Override public void setSuccessListener(IQueueRig.ISuccessListener listener) { }
         @Override public void setProcessing(boolean enabled) { }
         @Override public void start() { }
         @Override public void shutdown() { }
@@ -143,7 +144,7 @@ class AliveSessionTest {
     }
 
     @Test
-    void rrServer_keepAliveIsAnUnsolicitedHeartbeat() {
+    void rrServer_emitsNoUnsolicitedKeepAlive() {
         AtomicLong clock = new AtomicLong(0);
         List<RodEvent> emitted = new ArrayList<>();
         AliveSessionRR s = new AliveSessionRR(new CaptureRig(emitted), Role.SERVER, 1000L, 3000L, true, true,
@@ -151,10 +152,11 @@ class AliveSessionTest {
         s.start();
 
         clock.set(1000);
-        s.tick();   // idle a full interval -> emit the keep-alive
+        s.tick();   // idle a full interval
 
-        assertThat(emitted).hasSize(1);
-        assertThat(emitted.get(0).msgType()).isEqualTo(BusConstants.MSG_TYPE_HEARTBEAT);   // SERVER -> HeartBeat
+        // Routing on an R&R response node is ECHOED from the request. A SERVER has no request to echo when it
+        // is idle, so it sends nothing: an unroutable HeartBeat would sit in the queue for ever.
+        assertThat(emitted).isEmpty();
     }
 
     @Test

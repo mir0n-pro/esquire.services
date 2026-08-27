@@ -23,6 +23,8 @@
  *                   response headers are untouched -- the timers are a second, independent consumer of the numbers
  * 07/23/2026 mir0n  v1.2.11 -- the INCOMING log line is emitted AFTER MDC is populated, so it carries the
  *                   correlationId / requestId fields like every other line in the request
+ * 08/26/2026 mir0n  the meter registry is taken only when esquire.observability.metrics.enabled is true, so a
+ *                   registry present for other reasons no longer turns request metering on
  */
 
 package pro.mir0n.esquire.backend.service;
@@ -36,6 +38,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
@@ -68,9 +71,10 @@ public class MdcFilter extends OncePerRequestFilter {
     // Non-null only when observability is on (the MeterRegistry bean exists). Resolved once at construction.
     private final MeterRegistry registry;
 
-    public MdcFilter(RequestPerformance performance, ObjectProvider<MeterRegistry> registryProvider) {
+    public MdcFilter(RequestPerformance performance, ObjectProvider<MeterRegistry> registryProvider,
+                     @Value("${esquire.observability.metrics.enabled:false}") boolean metricsOn) {
         this.performance = performance;
-        this.registry = registryProvider.getIfAvailable();
+        this.registry = metricsOn ? registryProvider.getIfAvailable() : null;
     }
 
     // The matched handler pattern (e.g. /api/{...}) -- a bounded tag; populated only after doFilter, so read in the
@@ -89,7 +93,9 @@ public class MdcFilter extends OncePerRequestFilter {
             return;
         }
 
-        devLog.debug("MDC , headers: {}", headerNames(givenRequest.getHeaderNames()));
+        if (devLog.isDebugEnabled()) {
+            devLog.debug("MDC , headers: {}", headerNames(givenRequest.getHeaderNames()));
+        }
 
         long startTime = System.currentTimeMillis();
         performance.setMetricsCaptured("true".equalsIgnoreCase( givenRequest.getHeader(EsqConstants.ESQ_CAPTURE_METRICS)));

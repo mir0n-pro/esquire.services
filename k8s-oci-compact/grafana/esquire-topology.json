@@ -35,7 +35,7 @@
     "uid": "esq-prometheus"
    },
    "gridPos": {
-    "h": 27,
+    "h": 24,
     "w": 24,
     "x": 0,
     "y": 1
@@ -88,7 +88,7 @@
       "type": "prometheus",
       "uid": "esq-prometheus"
      },
-     "expr": "(100 * sum(pg_stat_database_blks_hit) / (sum(pg_stat_database_blks_hit) + sum(pg_stat_database_blks_read))) or vector(0)",
+     "expr": "(100 * sum(rate(pg_stat_database_blks_hit[5m])) / (sum(rate(pg_stat_database_blks_hit[5m])) + sum(rate(pg_stat_database_blks_read[5m])))) or vector(0)",
      "legendFormat": "postgres cache",
      "instant": true
     },
@@ -398,7 +398,7 @@
       "type": "prometheus",
       "uid": "esq-prometheus"
      },
-     "expr": "(clamp_max((count(process_uptime_seconds{job=\"esquire-services\", application=\"gateward\", instance=~\".*-0$\"})) or vector(0), 1)) * (2 - clamp_max(((((max(process_cpu_usage{job=\"esquire-services\", application=\"gateward\", instance=~\".*-0$\"}) > bool 0.8)) or vector(0)) + (((100 * sum(jvm_memory_used_bytes{application=\"gateward\", instance=~\".*-0$\", area=\"heap\"}) / sum(jvm_memory_max_bytes{application=\"gateward\", instance=~\".*-0$\", area=\"heap\"}) > bool 85)) or vector(0)) + (((((sum(rate(http_server_requests_seconds_count{application=\"gateward\"}[15m])) or vector(0)) - (sum(rate(http_server_requests_seconds_count{application=\"gateward\", instance=~\".*-0$\"}[15m])) or vector(0)) > bool 0.01) * ((sum(rate(http_server_requests_seconds_count{application=\"gateward\", instance=~\".*-0$\"}[15m])) or vector(0)) == bool 0))) or vector(0))), 1))",
+     "expr": "(clamp_max((count(process_uptime_seconds{job=\"esquire-services\", application=\"gateward\", instance=~\".*-0$\"})) or vector(0), 1)) * (2 - clamp_max(((((max(process_cpu_usage{job=\"esquire-services\", application=\"gateward\", instance=~\".*-0$\"}) > bool 0.8)) or vector(0)) + (((100 * sum(jvm_memory_used_bytes{application=\"gateward\", instance=~\".*-0$\", area=\"heap\"}) / sum(jvm_memory_max_bytes{application=\"gateward\", instance=~\".*-0$\", area=\"heap\"}) > bool 85)) or vector(0)) + (((100 * sum(hikaricp_connections_active{application=\"gateward\", instance=~\".*-0$\"}) / sum(hikaricp_connections_max{application=\"gateward\", instance=~\".*-0$\"}) > bool 90)) or vector(0)) + (((((sum(rate(http_server_requests_seconds_count{application=\"gateward\"}[15m])) or vector(0)) - (sum(rate(http_server_requests_seconds_count{application=\"gateward\", instance=~\".*-0$\"}[15m])) or vector(0)) > bool 0.01) * ((sum(rate(http_server_requests_seconds_count{application=\"gateward\", instance=~\".*-0$\"}[15m])) or vector(0)) == bool 0))) or vector(0))), 1))",
      "legendFormat": "gateward 0",
      "instant": true
     },
@@ -448,7 +448,7 @@
       "type": "prometheus",
       "uid": "esq-prometheus"
      },
-     "expr": "(clamp_max((count(process_uptime_seconds{job=\"esquire-services\", application=\"gateward\", instance=~\".*-1$\"})) or vector(0), 1)) * (2 - clamp_max(((((max(process_cpu_usage{job=\"esquire-services\", application=\"gateward\", instance=~\".*-1$\"}) > bool 0.8)) or vector(0)) + (((100 * sum(jvm_memory_used_bytes{application=\"gateward\", instance=~\".*-1$\", area=\"heap\"}) / sum(jvm_memory_max_bytes{application=\"gateward\", instance=~\".*-1$\", area=\"heap\"}) > bool 85)) or vector(0)) + (((((sum(rate(http_server_requests_seconds_count{application=\"gateward\"}[15m])) or vector(0)) - (sum(rate(http_server_requests_seconds_count{application=\"gateward\", instance=~\".*-1$\"}[15m])) or vector(0)) > bool 0.01) * ((sum(rate(http_server_requests_seconds_count{application=\"gateward\", instance=~\".*-1$\"}[15m])) or vector(0)) == bool 0))) or vector(0))), 1))",
+     "expr": "(clamp_max((count(process_uptime_seconds{job=\"esquire-services\", application=\"gateward\", instance=~\".*-1$\"})) or vector(0), 1)) * (2 - clamp_max(((((max(process_cpu_usage{job=\"esquire-services\", application=\"gateward\", instance=~\".*-1$\"}) > bool 0.8)) or vector(0)) + (((100 * sum(jvm_memory_used_bytes{application=\"gateward\", instance=~\".*-1$\", area=\"heap\"}) / sum(jvm_memory_max_bytes{application=\"gateward\", instance=~\".*-1$\", area=\"heap\"}) > bool 85)) or vector(0)) + (((100 * sum(hikaricp_connections_active{application=\"gateward\", instance=~\".*-1$\"}) / sum(hikaricp_connections_max{application=\"gateward\", instance=~\".*-1$\"}) > bool 90)) or vector(0)) + (((((sum(rate(http_server_requests_seconds_count{application=\"gateward\"}[15m])) or vector(0)) - (sum(rate(http_server_requests_seconds_count{application=\"gateward\", instance=~\".*-1$\"}[15m])) or vector(0)) > bool 0.01) * ((sum(rate(http_server_requests_seconds_count{application=\"gateward\", instance=~\".*-1$\"}[15m])) or vector(0)) == bool 0))) or vector(0))), 1))",
      "legendFormat": "gateward 1",
      "instant": true
     },

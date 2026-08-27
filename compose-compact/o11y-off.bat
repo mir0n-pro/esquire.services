@@ -3,8 +3,8 @@ setlocal
 cd /d "%~dp0"
 rem ===========================================================================
 rem o11y-off.bat -- disable observability on the COMPACT docker compose stack and
-rem remove the viewing stack. Mirror of compose\o11y-off.bat, over the FOUR
-rem compact processes: gateward, mesnie, pacman and the BFF.
+rem remove the viewing stack. Mirror of compose\o11y-off.bat, over the four Java
+rem processes -- gateward, mesnie, pacman, aukeep -- and the BFF.
 rem ===========================================================================
 set ESQ_OBSERVABILITY_ENABLED=false
 set ESQ_METRICS_HISTOGRAMS=false

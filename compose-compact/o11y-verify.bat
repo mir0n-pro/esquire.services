@@ -23,5 +23,9 @@ set GRAFANA_URL=http://localhost:3009
 set LOKI_JOB=esq-docker
 rem The compact fleet is declared ONCE for every environment -- see the shared file.
 call ..\test\o11y\fleet-compact.bat
+rem BOARDS = the dashboards THIS environment provisions. The dependency and band checks read the
+rem PANELS as the declaration of what must exist, so they have to read the boards that are actually
+rem deployed here -- not another topology's. Path is relative to services/.
+set BOARDS=compose-compact\o11y\grafana\provisioning\dashboards
 python ..\test\o11y\o11y-verify.py
 endlocal

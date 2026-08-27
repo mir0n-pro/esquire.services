@@ -74,15 +74,27 @@ echo Valid: all ^| backend ^| mesnie ^| gateward ^| pacman ^| postgres ^| keyclo
 exit /b 1
 
 :target_all
+rem Every push runs in a CALLed subroutine, and `exit /b 1` inside one returns to the line after the call --
+rem it does not end this script. So each call is followed by its own errorlevel check: without them a failed
+rem build carried on to the next, and the closing `echo Done.` reset errorlevel to 0, so a run that pushed
+rem nothing exited SUCCESSFULLY. GHCR was then missing that image at the release tag while the operator had
+rem been told all seven landed, and the failure surfaced on the cluster as ImagePullBackOff instead.
 rem === Spring services (context = service dir; Dockerfile copies target\*.jar) ===
 call :pushSpring mesnie    mesnie
+if errorlevel 1 exit /b 1
 call :pushSpring pacman    pacMan
+if errorlevel 1 exit /b 1
 call :pushSpring gateward  gateWard
+if errorlevel 1 exit /b 1
 
 call :pushBackend
+if errorlevel 1 exit /b 1
 call :pushPostgres
+if errorlevel 1 exit /b 1
 call :pushKeycloak
+if errorlevel 1 exit /b 1
 call :pushActivemq
+if errorlevel 1 exit /b 1
 
 echo.
 echo Done. All 7 images pushed to %REGISTRY% as %TAG% for platforms: %PLATFORMS%
@@ -101,18 +113,22 @@ goto :done
 
 :target_backend
 call :pushBackend
+if errorlevel 1 exit /b 1
 goto :done
 
 :target_postgres
 call :pushPostgres
+if errorlevel 1 exit /b 1
 goto :done
 
 :target_keycloak
 call :pushKeycloak
+if errorlevel 1 exit /b 1
 goto :done
 
 :target_activemq
 call :pushActivemq
+if errorlevel 1 exit /b 1
 goto :done
 
 :done

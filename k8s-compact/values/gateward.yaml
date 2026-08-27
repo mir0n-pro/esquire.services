@@ -4,12 +4,14 @@
 # ingress-nginx on api.esquire.localhost). Only image.tag is restamped per rebuild here --
 # k8s-rebuild.bat patches it.
 image:
-  tag: "v1.2.13-2608.1712"
+  tag: "v1.2.13-2608.2523"
 
 # Token Relay -- in-cluster KC endpoint (HTTP, no TLS); same allowlists as OKE.
 # exchangeClientSecret comes via --set at install (k8s-up.bat).
+keycloakExchange:
+  baseUrl: http://esquire-infra-kc-keycloak:8080/kc-auth
+
 tokenRelay:
-  tokenUri: http://esquire-infra-kc-keycloak:8080/kc-auth/realms/esquire/protocol/openid-connect/token
   vanilla:
     clients: esq-hauberk-S
   phantom:

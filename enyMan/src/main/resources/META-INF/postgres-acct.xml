@@ -53,4 +53,11 @@
         </query>
     </named-native-query>
 
+    <!-- One global id space: the row is in exactly one of the three tables, the others answer null. -->
+    <named-native-query name="EsqAcctJpa.entityChangeNoFor">
+        <query>
+ SELECT COALESCE(o.org_change_no, u.usr_change_no, a.acc_change_no) FROM esq_entity_path ep LEFT JOIN esq_org o ON o.org_pk = ep.ep_pk LEFT JOIN esq_user u ON u.usr_pk = ep.ep_pk LEFT JOIN esq_account a ON a.acc_pk = ep.ep_pk WHERE ep.ep_pk = CAST(:id AS bigint)
+        </query>
+    </named-native-query>
+
 </entity-mappings>

@@ -40,8 +40,8 @@ public final class RodTransportAdapter {
 
     /**
      * Producer side: open the transport publisher once and return the closeable {@link RodEvent} dispatcher to
-     * wire as an XRod transmit-leg outbound. Each event is encoded to the property-bag envelope (key = entityId
-     * so a partitioning transport keeps per-key order); the msg-type rides the event ({@code e.msgType()}).
+     * wire as an XRod transmit-leg outbound. Each event is encoded to the property-bag envelope (key = entityId);
+     * the msg-type rides the event ({@code e.msgType()}).
      * The returned {@link RodPublisher}'s {@code close()} releases the transport publisher's broker connection.
      */
     public static RodPublisher publisher(ITransportProvider provider, String destination, PublishSettings s) {
@@ -87,8 +87,7 @@ public final class RodTransportAdapter {
         };
     }
 
-    /** The wire codec applied ONCE: encode a {@link RodEvent} onto the neutral property-bag envelope (key = entityId
-     *  so a partitioning transport keeps per-key order). */
+    /** The wire codec applied ONCE: encode a {@link RodEvent} onto the neutral property-bag envelope. */
     private static TransportMessage toMessage(RodEvent e, ObjectMapper om, BusIdentity id) {
         return new TransportMessage(RodEventCodec.toProps(e, om, id), e.entityId());
     }

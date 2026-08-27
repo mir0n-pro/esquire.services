@@ -83,6 +83,18 @@ Every intermediate phase runs the SAME full cycle — not only at sprint end:
    The deploy jobs bring up whichever **deployment shape** the machine already runs (classic or compact) and
    remove the other; a change that touches the request path is worth proving on both shapes before release.
 
+**Once per sprint, per target, per profile: build it from nothing.** A stack that is merely *up* hides a
+whole class of defect -- a chart value that only a fresh install reads, an image the daemon still has under
+an old tag, a seed that never replays. Five such defects survived days of work in v1.2.13 because every
+check ran against a stack that had been up for a week. The routine is `k8s-down` (or `docker-compose-down`),
+then the rebuild, then up, then the four running-stack suites -- and it belongs in the sprint, not in the
+release, so what it finds can still be fixed calmly.
+
+**Re-arm observability after a deploy, on the local targets.** A deploy installs the shipped defaults, where
+observability is off, so the boards go red on docker and local k8s while the stacks are healthy and serving.
+Nothing is wrong: run `o11y-on` (compose) or `o11y-full-on` (k8s) again if the boards are wanted, then drive
+traffic before reading them.
+
 The **git boundary is the maintainer's**: steps 1–4 (develop, test, verify, prepare docs) are the
 working phase; steps 5–7 are maintainer-gated.
 
@@ -143,10 +155,71 @@ schedule. The pool of candidate targets is [Esquire.ContinuingDev.md](Esquire.Co
 
 ---
 
+## 7a. Pinning the infrastructure images
+
+Three images are Esquire's own, built on an upstream one: **postgres** (the database seed), **keycloak** (the
+realm import and the login theme) and **activemq** (the broker configuration and the metrics exporter). Each
+declares its **pin** at the top of its Dockerfile, and the build stamps both values onto the image as labels,
+so what an image is travels with the artifact rather than being written down beside it:
+
+```dockerfile
+ARG BASE=quay.io/keycloak/keycloak:26.4.7   # the upstream image, never a literal in FROM
+ARG PIN=v1.2.13-2608.2320                   # the release in which Esquire's content here last changed
+FROM ${BASE}
+```
+
+**`BASE` is an input, not a constant.** A target that wants a different upstream passes `--build-arg` and says
+so where the choice is made: docker runs KeyCloak 26.6.0 while k8s and the cloud stay on 26.4.7. Every
+docker-side file that BUILDS the image carries that `args:` block -- the two stack compose files and
+`services/keycloak/compose.yaml` -- so whichever one is used, the tag names what is inside it. Without this,
+a base moves the moment somebody edits a `FROM`, and the next release build carries it everywhere with
+nothing recorded.
+
+**`PIN` is edited by hand, and only when that image's Esquire content changes.** It is the tag: the builders
+read it back off the image and tag from it, so nothing is typed twice. An image that gained nothing this
+release keeps the tag it had — a release cannot replace infrastructure it did not touch, and a rebuild that
+changed nothing rolls nothing.
+
+**The rule that keeps the pin honest:** if the pin already names a **different** image, the content changed and
+nobody moved the pin, and the build refuses. A pin that can mean two images is worth less than no pin.
+
+**At sprint finalization**, for each of the three: if its content changed during the sprint, move `ARG PIN` to
+the release stamp, rebuild, and let the values be re-pinned. If it did not change, leave it — that is the point.
+The postgres pin and the seed's `DB_VERSION` move together, since the seed is what that image carries.
+
+The cloud is the one exception to the tag, on purpose: `oke-up.bat` sets a **single release tag for the whole
+stack**, infrastructure included, so every image in a deployment is named by one release. The labels still say
+what is inside each of them.
+
+
+---
+
+## 7b. What each pipeline builds from
+
+Esquire is three repositories -- `services`, `explorer`, `db.seed` -- and a deployment is built from all
+three. Which branch of the other two a pipeline reads is decided by **when that pipeline runs**, and the two
+answers differ on purpose.
+
+| pipeline | runs when | reads explorer + db.seed from |
+|---|---|---|
+| **CI** (`ci.yml`) | every push | this repository only -- the reactor build and the unit tests |
+| **local deploy** (`deploy-local.yml`) | a push to `pending-**` | the **sprint branch** when it exists, falling back to `develop` |
+| **cloud deploy** (`deploy-oke.yml`) | a `pending-*` PR **merged** into `develop` | **`develop`** |
+
+**The local pipeline validates the sprint while it is still in flight**, so it has to read the sprint's own
+work in the other repositories -- an e2e spec added during a sprint lives in `explorer` and is not on
+`develop` yet. **The cloud pipeline runs after the merge**, at the moment `develop` IS the release, so
+`develop` is what it reads. Neither is a fallback for the other.
+
+What holds the two together is that **the three repositories are promoted together**: a services release that
+needs a seed or an explorer change reaches `develop` alongside it. That is the condition the cloud pipeline's
+choice rests on -- part of the release, not an assumption about it.
+
 ## 8. Sprint finalization
 
 At sprint end, beyond the per-commit code-change docs:
 
+- Move the **infrastructure pins** that need moving (§7a) — one check per Esquire-built infra image.
 - Settle the **deferred design-doc placement** — interim `doc/<sprint>.tasks` notes and any saga docs
   land in their proper, visible home now that the final structure is known.
 - Refresh the **README(s)**, the landing page, and other release-facing material. The per-version README

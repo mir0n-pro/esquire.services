@@ -1,5 +1,11 @@
 Esquire auKeep service
 
+08/26/2026 mir0n  v1.2.13 -- a disabled audit bus that names itself
+messaging.AuditConsumerConfig
+  - a disabled audit bus names the property that disabled it (AUDIT_BUS_ID) in the refusal
+resources/logback-spring.xml
+  - the develop pattern drops the "develop." prefix from the logger name
+
 07/23/2026 mir0n  v1.2.11 -- homework: fix/resolve issues found in the fresh-mind audit
 resources/application.yml
   - actuator moved to a separate internal-only management port 8090 (MANAGEMENT_SERVER_PORT), off the public

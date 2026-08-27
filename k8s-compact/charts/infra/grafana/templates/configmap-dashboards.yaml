@@ -19,12 +19,14 @@ data:
           path: /etc/grafana/provisioning/dashboards
           foldersFromFilesStructure: false
   # The "Esquire Services" dashboard (REST / JVM / pool / CPU / bus / broker / biz), same as the docker stack.
+  # Overridable per SHAPE, like the topology board below: the OKE super-compact launcher passes its own copy,
+  # whose fleet has no auKeep. Empty = the chart's own file, which is the local-k8s compact fleet.
   esquire-services.json: |-
-{{ .Files.Get "dashboards/esquire-services.json" | indent 4 }}
+{{ (.Values.dashboardServices | default (.Files.Get "dashboards/esquire-services.json")) | indent 4 }}
   # The "Esquire Logging" dashboard (T9-B): volume by level/service, the error stream, and -- the point of it --
   # a correlationId box that narrows every panel to ONE request across every service it touched.
   esquire-logging.json: |-
-{{ .Files.Get "dashboards/esquire-logging.json" | indent 4 }}
+{{ (.Values.dashboardLogging | default (.Files.Get "dashboards/esquire-logging.json")) | indent 4 }}
   # The "Esquire Topology" board (T9-C): the system as a picture -- every component, the bus lanes, live vitals.
   # Emitted by compose-compact/o11y/grafana/gen-topology.py, which writes one board per SHAPE. The chart file is
   # the local-k8s compact board; a caller that runs a different shape passes its own with

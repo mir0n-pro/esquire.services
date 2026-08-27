@@ -5,7 +5,7 @@ metadata:
   labels:
     app: {{ .Release.Name }}
 data:
-  # Mirror of compose/o11y/loki-config.yaml -- single binary, filesystem, 7-day retention,
+  # Mirror of compose-compact/o11y/loki-config.yaml -- single binary, filesystem, 6-hour retention,
   # structured metadata on (correlationId / requestId ride as queryable metadata, not labels).
   loki-config.yaml: |
     auth_enabled: false

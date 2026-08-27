@@ -22,6 +22,7 @@
  * 06/23/2026 mir0n  BUS_KEY_AUDIT/KC/ENTITY, TEXT_* (id/kind/parentId/path/name/desc/status/deleted/ccy),
  *                   FLAG_OPEN, CCY_DEFAULT moved here from common.EsqMsgConstants (the non-wire app constants)
  * 07/08/2026 mir0n  TRACEPARENT ("traceparent") added: the W3C Trace Context header name
+ * 08/26/2026 mir0n  TEXT_PATH_CHANGE_NO added -- the path change number carried in a broadcast body
  */
 package pro.mir0n.esquire.common;
 
@@ -93,6 +94,7 @@ public class EsqConstants {
     public static final String TEXT_STATUS    = "status";
     public static final String TEXT_DELETED   = "deleted";
     public static final String TEXT_CCY       = "ccy";
+    public static final String TEXT_PATH_CHANGE_NO = "pathChangeNo";
 
     // --- Default field values ---
     public static final String FLAG_OPEN      = "O";

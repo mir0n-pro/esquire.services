@@ -5,7 +5,7 @@ metadata:
   labels:
     app: {{ .Release.Name }}
 data:
-  # k8s variant of compose/o11y/alloy-config.alloy: discover pods via the API (not the docker
+  # k8s variant of compose-compact/o11y/alloy-config.alloy: discover pods via the API (not the docker
   # socket), keep the default namespace, tail their logs, promote correlationId / requestId to
   # structured metadata, and push to Loki. No service change -- emit side is already ECS JSON.
   config.alloy: |

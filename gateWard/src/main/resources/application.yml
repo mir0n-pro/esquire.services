@@ -1,3 +1,17 @@
+# The gate's own KeyCloak connection, in the shape every Esquire service configures one: endpoint, realm,
+# credentials, and the two deadlines. kcMaster configures its admin client the same way under
+# `keycloak.admin`, with its own credentials. The token endpoint is built from base-url + realm, so a
+# deployment that reaches KeyCloak on a different host than the browser login does says so here and
+# nowhere else.
+keycloak:
+  exchange:
+    base-url:           ${KC_EXCHANGE_BASE_URL:}
+    realm:              ${KEYCLOAK_REALM:esquire}
+    client-id:          ${ESQ_GW_EXCHANGE_CLIENT_ID:}
+    client-secret:      ${ESQ_GW_EXCHANGE_CLIENT_SECRET:}
+    connect-timeout-ms: ${KC_EXCHANGE_CONNECT_TIMEOUT_MS:5000}
+    read-timeout-ms:    ${KC_EXCHANGE_READ_TIMEOUT_MS:10000}
+
 esq:
   jwe:
     # When set, JweAwareJwtDecoder is wired and JwksController serves the public
@@ -9,21 +23,20 @@ esq:
     token-relay:
       # Token Relay umbrella -- the gateway brokers/exchanges JWTs on behalf
       # of inbound clients and forwards a full JWT downstream. Two variants
-      # share the same KC /token endpoint:
+      # share one KeyCloak connection, configured under `keycloak.exchange`:
       #   - Vanilla Token Relay: client sends HTTP Basic; gateway runs
       #     client_credentials grant using the client's own credentials,
       #     caches per client_id.
       #   - Phantom Token Relay: client sends a stripped Bearer JWT; gateway
       #     runs RFC 8693 token-exchange authenticated as the dedicated
       #     esq-gw-exchange confidential client, caches per jti.
-      # Both variants are dormant when their `clients` allowlist is empty.
-      token-uri: ${ESQ_GW_TOKEN_URI:}
+      # The lists below say WHOSE requests are relayed, matched on the caller's
+      # client id -- everyone else passes through on the plain JWT path. Both
+      # variants are dormant when their `clients` allowlist is empty.
       vanilla:
         clients: ${ESQ_GW_VANILLA_CLIENTS:}
       phantom:
-        clients:                ${ESQ_GW_PHANTOM_CLIENTS:}
-        exchange-client-id:     ${ESQ_GW_EXCHANGE_CLIENT_ID:}
-        exchange-client-secret: ${ESQ_GW_EXCHANGE_CLIENT_SECRET:}
+        clients: ${ESQ_GW_PHANTOM_CLIENTS:}
     # Resilience knobs (gateway -> backend). All env-overridable; ResilienceConfig
     # reads the circuit-breaker block to build the Resilience4j CircuitBreaker +
     # TimeLimiter, and the Retry filters below reference the retry block. The
@@ -123,7 +136,8 @@ esquire:
       role: CLIENT
       x-rod:
         receiver-pool:
-          size: ${ENTITY_BROADCAST_POOL_SIZE:4}
+          # 1 on purpose: this pool is the only place the published order can be lost.
+          size: ${ENTITY_BROADCAST_POOL_SIZE:1}
           mode: ${ENTITY_BROADCAST_POOL_MODE:platform}   # platform | virtual | virtual-per-task
         concurrency: ${ENTITY_BROADCAST_CONCURRENCY:1}
 server:
@@ -176,9 +190,13 @@ spring:
        #      allowedOrigins: ${CORS_ALLOWED_ORIGINS:http://localhost:4200}
        #      allowedHeaders: "*"
        #      allowedMethods: "*"
+       # THE DEFAULTS ARE THE COMPACT SHAPE. They were inherited from the classic gateway and still named
+       # biztree / enyman -- processes this profile does not run -- so a gateWard started without its env
+       # routed at hosts that are not there. Every deployment (compose, both k8s charts, OKE) sets these three
+       # explicitly, so nothing was broken; a default is simply what runs when someone starts it outside those.
        routes:
         - id: keysmith-route
-          uri: http://${KEYSMITH_HOST:biztree}:${KEYSMITH_PORT:3002}
+          uri: http://${KEYSMITH_HOST:mesnie}:${KEYSMITH_PORT:3003}
           predicates:
             - Path=/esq-key
           metadata:
@@ -216,7 +234,7 @@ spring:
         # /esq-sweep from the cache in this process (BizTreeCacheController). Routing them to a
         # backend would proxy the gate to itself.
         - id: pacman-route
-          uri: http://${PACMAN_HOST:enyman}:${PACMAN_PORT:3003}
+          uri: http://${PACMAN_HOST:pacman}:${PACMAN_PORT:3004}
           predicates:
             - Path=/esq-cmd
             - EntityKind=isAcct
@@ -248,7 +266,7 @@ spring:
             - RewritePath=/(?<segment>.*), /$\{segment}
             - TokenRelay=
         - id: enyman-route
-          uri: http://${ENYMAN_HOST:enyman}:${ENYMAN_PORT:3003}
+          uri: http://${ENYMAN_HOST:mesnie}:${ENYMAN_PORT:3003}
           predicates:
             - Path=/esq-cmd,/esq-dict,/esq-kinds
           metadata:
@@ -279,7 +297,7 @@ spring:
             - RewritePath=/(?<segment>.*), /$\{segment}
             - TokenRelay=
         - id: pacman-save-route
-          uri: http://${PACMAN_HOST:enyman}:${PACMAN_PORT:3003}
+          uri: http://${PACMAN_HOST:pacman}:${PACMAN_PORT:3004}
           predicates:
             - Path=/esq-cmd-save
             - Method=POST
@@ -310,7 +328,7 @@ spring:
             - RewritePath=/(?<segment>.*), /$\{segment}
             - TokenRelay=
         - id: enyman-save-route
-          uri: http://${ENYMAN_HOST:enyman}:${ENYMAN_PORT:3003}
+          uri: http://${ENYMAN_HOST:mesnie}:${ENYMAN_PORT:3003}
           predicates:
             - Path=/esq-cmd-save
             - Method=POST
@@ -340,7 +358,7 @@ spring:
             - RewritePath=/(?<segment>.*), /$\{segment}
             - TokenRelay=
         - id: keysmith-save-route
-          uri: http://${KEYSMITH_HOST:biztree}:${KEYSMITH_PORT:3002}
+          uri: http://${KEYSMITH_HOST:mesnie}:${KEYSMITH_PORT:3003}
           predicates:
             - Path=/esq-key-save
             - Method=POST
@@ -370,7 +388,7 @@ spring:
             - RewritePath=/(?<segment>.*), /$\{segment}
             - TokenRelay=
         - id: enyman-new-route
-          uri: http://${ENYMAN_HOST:enyman}:${ENYMAN_PORT:3003}
+          uri: http://${ENYMAN_HOST:mesnie}:${ENYMAN_PORT:3003}
           predicates:
             - Path=/esq-cmd-new
             - Method=POST
@@ -400,7 +418,7 @@ spring:
             - RewritePath=/(?<segment>.*), /$\{segment}
             - TokenRelay=
         - id: pacman-del-route
-          uri: http://${PACMAN_HOST:enyman}:${PACMAN_PORT:3003}
+          uri: http://${PACMAN_HOST:pacman}:${PACMAN_PORT:3004}
           predicates:
             - Path=/esq-cmd-del
             - Method=POST
@@ -431,7 +449,7 @@ spring:
             - RewritePath=/(?<segment>.*), /$\{segment}
             - TokenRelay=
         - id: enyman-del-route
-          uri: http://${ENYMAN_HOST:enyman}:${ENYMAN_PORT:3003}
+          uri: http://${ENYMAN_HOST:mesnie}:${ENYMAN_PORT:3003}
           predicates:
             - Path=/esq-cmd-del
             - Method=POST
@@ -461,7 +479,7 @@ spring:
             - RewritePath=/(?<segment>.*), /$\{segment}
             - TokenRelay=
         - id: pacman-acct-route
-          uri: http://${PACMAN_HOST:enyman}:${PACMAN_PORT:3003}
+          uri: http://${PACMAN_HOST:pacman}:${PACMAN_PORT:3004}
           predicates:
             - Path=/esq-acct
             - Method=POST
@@ -492,7 +510,7 @@ spring:
             - RewritePath=/(?<segment>.*), /$\{segment}
             - TokenRelay=
         - id: enyman-move-route
-          uri: http://${ENYMAN_HOST:enyman}:${ENYMAN_PORT:3003}
+          uri: http://${ENYMAN_HOST:mesnie}:${ENYMAN_PORT:3003}
           predicates:
             - Path=/esq-move
             - Method=POST
@@ -522,7 +540,7 @@ spring:
             - RewritePath=/(?<segment>.*), /$\{segment}
             - TokenRelay=
         - id: enyman-tree-route
-          uri: http://${ENYMAN_HOST:enyman}:${ENYMAN_PORT:3003}
+          uri: http://${ENYMAN_HOST:mesnie}:${ENYMAN_PORT:3003}
           predicates:
             - Path=/esq-cmd-tree
             - Method=GET
@@ -556,8 +574,11 @@ spring:
 #   exclude: org.springframework.boot.autoconfigure.security.reactive.ReactiveSecurityAutoConfiguration
   security:
     cors:
-      allowed-origins:
-        - "${CORS_ALLOWED_ORIGINS:http://localhost:4200}"
+      # A scalar, not a one-element sequence: Boot splits a delimited string into a List<String> by its own
+      # documented conversion, so several origins arrive as several origins. Written this way because the
+      # sequence form reads as though the whole comma-joined value were ONE origin -- it is not, but it costs
+      # a reader an experiment to be sure.
+      allowed-origins: "${CORS_ALLOWED_ORIGINS:http://localhost:4200}"
       allowed-methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
       allowed-headers: ["Authorization", "Content-Type", "X-Request-ID", "X-Correlation-ID", "X-Capture-Metrics"]
       allow-credentials: true

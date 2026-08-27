@@ -64,6 +64,10 @@ echo.
 echo === STEP 2/3 -- VERIFY (assert what appeared) ===
 echo --- waiting for the scrape...
 python -c "import time; time.sleep(20)"
+rem BOARDS = the dashboards THIS environment provisions. The dependency and band checks read the
+rem PANELS as the declaration of what must exist, so they have to read the boards that are actually
+rem deployed here -- not another topology's. Path is relative to services/.
+set BOARDS=k8s-oci-compact\grafana
 python ..\test\o11y\o11y-verify.py
 set RC=%ERRORLEVEL%
 

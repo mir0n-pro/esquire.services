@@ -22,7 +22,7 @@ rem   3. mvn -pl <DIR> -am package                          (Spring services onl
 rem   4. docker buildx build --platform amd64+arm64
 rem        -t ghcr.io/mir0n-pro/esquire.<svc>:STAMP --push
 rem   5. patch values\<svc>.yaml :  tag: "STAMP"
-rem   6. helm upgrade esquire-<svc> ..\k8s-compact\charts\esquire-<svc>
+rem   6. helm upgrade esquire-<svc> ..\k8s-compact\charts\esquire-<svc> -f values\<svc>.yaml
 rem        --reset-then-reuse-values --set image.tag=STAMP
 rem   7. kubectl rollout status statefulset/esquire-<svc>-<svc> --timeout=5m
 rem   8. echo STAMP for paste into release_notes.txt
@@ -173,13 +173,21 @@ if errorlevel 1 (
 echo --- [helm] upgrading esquire-%SVC% to %STAMP%...
 rem --force-conflicts: helm 4 applies SERVER-SIDE, and anything that scales OUTSIDE helm (the perf
 rem matrix does) owns .spec.replicas -- an upgrade that then sets replicas is REFUSED. Seen on OKE 08-19.
-helm upgrade esquire-%SVC% ..\k8s-compact\charts\esquire-%SVC% --reset-then-reuse-values --set image.tag=%STAMP% --force-conflicts
+rem -f values\%SVC%.yaml, exactly as oke-up.bat does: step 5 above rewrote that file, so a rebuild that does
+rem not pass it ships the new IMAGE with the OLD ConfigMap -- the rollout goes green and the pod keeps the
+rem previous configuration. The local twin (k8s-compact\k8s-rebuild.bat) was corrected for this; the
+rem correction had not reached the cloud path, which is the one its own header recommends for a
+rem one-component change.
+helm upgrade esquire-%SVC% ..\k8s-compact\charts\esquire-%SVC% -f values\%SVC%.yaml --reset-then-reuse-values --set image.tag=%STAMP% --force-conflicts
 if errorlevel 1 goto fail
 
 rem StatefulSet, not Deployment: every chart in both profiles builds a StatefulSet, because the
 rem ordinal is what gives each pod its instanceNo and its rod-id.
-echo --- [rollout] waiting for statefulset/esquire-%SVC%-%SVC% (timeout 5m)...
-kubectl rollout status statefulset/esquire-%SVC%-%SVC% --timeout=5m
+rem The compact charts name the workload after the RELEASE alone (esquire-mesnie); the chart suffix
+rem (esquire-mesnie-mesnie) is the CLASSIC naming, and waiting on it watches a workload that does not
+rem exist -- the rebuild then reports NotFound over a roll that was fine.
+echo --- [rollout] waiting for statefulset/esquire-%SVC% (timeout 5m)...
+kubectl rollout status statefulset/esquire-%SVC% --timeout=5m
 if errorlevel 1 goto fail
 
 echo.

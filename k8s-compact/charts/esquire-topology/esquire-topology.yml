@@ -2,11 +2,9 @@
 #
 # Delivered as the ConfigMap "esquire-topology" and mounted at /etc/esquire/topology.yml in every service pod;
 # each service loads it via spring.config.import (REQUIRED). Per-environment, CONCRETE values (no ${}) -- here the
-# in-cluster Service DNS names. ALL audit sinks are defined (parity with the docker topology), so any can be
-# selected via AUDIT_BUS_ID. The default-installed broker is ActiveMQ -> audit-c works out of the box;
-# the kafka / redis sinks (ck / d / dk) are defined but their brokers are NOT part of the default local-k8s infra
-# -- a sink stays inert until referenced, and selecting one needs its broker deployed. Per-service knobs + the
-# in-process audit (b) datasource stay at the service level. (OKE uses k8s-oci/esquire-topology.yml -- audit off.)
+# in-cluster Service DNS names. The audit sinks this profile offers are a (DB triggers), b (in-process keep)
+# and c (AMQ -> auKeep), selected via AUDIT_BUS_ID; the installed broker is ActiveMQ, so audit-c works out of
+# the box. Per-service knobs + the in-process audit (b) datasource stay at the service level. (OKE uses k8s-oci/esquire-topology.yml -- audit off.)
 esquire:
   messaging-bus:
     # --- entity broadcast (topic) ---
@@ -87,64 +85,6 @@ esquire:
                 # the loss is semantically real, and it is accepted -- dev/demo, and the MessagingBus design lists
                 # at-least-once durability as a FUTURE option, not a guarantee.
                 persistent: false
-    # --- audit (ck): Kafka -> auKeep consumer writes the *_log (Kafka broker not in the default infra) ---
-    - bus-id: audit-ck
-      slots:
-        - slot-id: audit
-          x-rod:
-            rod-class: XRod
-            receiver-pool:
-              size: 4
-              mode: platform
-            feed-capacity: 4096
-            publisher-pool:
-              size: 0
-              mode: platform
-            concurrency: 1
-            transport:
-              provider: kafka
-              endpoint: esquire-infra-kafka:9092
-              destination: esquire.rod.audit
-              params:
-                group-id: esquire-audit
-    # --- audit (d): Redis stream IS the append-only log (producer-only; Redis broker not in the default infra) ---
-    - bus-id: audit-d
-      slots:
-        - slot-id: audit
-          x-rod:
-            rod-class: XRod
-            receiver-pool:
-              size: 4
-              mode: platform
-            feed-capacity: 4096
-            publisher-pool:
-              size: 0
-              mode: platform
-            transport:
-              provider: redis
-              endpoint: redis://esquire-infra-redis:6379
-              destination: esquire.rod.audit
-              params:
-                max-len: 0
-    # --- audit (dk): Kafka topic IS the append-only log (producer-only; Kafka broker not in the default infra) ---
-    - bus-id: audit-dk
-      slots:
-        - slot-id: audit
-          x-rod:
-            rod-class: XRod
-            receiver-pool:
-              size: 4
-              mode: platform
-            feed-capacity: 4096
-            publisher-pool:
-              size: 0
-              mode: platform
-            transport:
-              provider: kafka
-              endpoint: esquire-infra-kafka:9092
-              destination: esquire.rod.audit
-              params:
-                group-id: esquire-audit-dk
     # --- audit (off): the explicit DISABLED bus. A service points its audit ref at audit-off to run with NO
     #     bus audit (e.g. when DB triggers carry the audit instead). XRodDisabled is a true no-op; this is the
     #     #17 "disable only when explicitly defined" -- a blank/undefined bus-id (correctly) fails fast instead. ---

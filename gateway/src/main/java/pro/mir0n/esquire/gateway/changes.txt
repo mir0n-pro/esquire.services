@@ -1,5 +1,18 @@
 Esquire Gateway Microservice
 
+08/26/2026 mir0n  v1.2.13 -- the decoder validators, and metrics that ask first
+config.SecurityConfig
+  - the JWT decoder carries the default validators through DelegatingOAuth2TokenValidator, and the
+    JWE-aware decoder and token-relay wiring leave this class
+filters.InnerTimerFilter
+  - runs at @Order(1), and the meter registry is taken only when the metrics switch is on
+filters.ResponseTraceFilter
+  - the meter registry is taken only when the metrics switch is on; the trace ids reach MDC
+resources/application.yml
+  - the keycloak.exchange block: base-url, realm, client-id, client-secret
+resources/logback-spring.xml
+  - the develop pattern drops the "develop." prefix from the logger name
+
 08/15/2026 mir0n  v1.2.13 -- gateWard
 GatewayConfig  (new)
   - created: the gateway's @ComponentScan and @ConfigurationPropertiesScan, the one place its packages are

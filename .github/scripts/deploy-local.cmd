@@ -71,8 +71,6 @@ echo --- [deploy-local] removing classic-only releases...
 call :drop esquire-enyman
 call :drop esquire-keysmith
 call :drop esquire-kcmaster
-call :drop esquire-aukeep
-rem gateWard replaces the gateway + bizTree pair, so those two belong to the classic shape now.
 call :drop esquire-gateway
 call :drop esquire-biztree
 echo === [deploy-local] build + stamp all images (COMPACT) ===

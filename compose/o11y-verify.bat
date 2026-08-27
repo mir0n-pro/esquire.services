@@ -19,5 +19,9 @@ set TEMPO_URL=http://localhost:3200
 set GRAFANA_URL=http://localhost:3009
 set LOKI_JOB=esq-docker
 set SERVICES=gateway,biztree,enyman,pacman,keysmith,kcmaster,aukeep
+rem BOARDS = the dashboards THIS environment provisions. The dependency and band checks read the
+rem PANELS as the declaration of what must exist, so they have to read the boards that are actually
+rem deployed here -- not another topology's. Path is relative to services/.
+set BOARDS=compose\o11y\grafana\provisioning\dashboards
 python ..\test\o11y\o11y-verify.py
 endlocal

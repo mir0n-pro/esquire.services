@@ -23,6 +23,9 @@
  *                   against the node's stored path number, every other event against its entity number;
  *                   unknown or unseen applies unguarded, and the applied number is stamped back. Takes
  *                   IBizTreeCacheRepository for those reads
+ * 08/26/2026 mir0n  dispatch reads pathChangeNo from the body: an X is guarded on the PATH number and stamps BOTH
+ *                   columns, every other event on the entity number; the stamp follows the handler, and the
+ *                   dispatch outcome starts at error so only a completed apply counts as handled
  */
 package pro.mir0n.esquire.bizTree.access;
 
@@ -33,6 +36,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import pro.mir0n.esquire.backend.dto.EsqObjectKind;
 import pro.mir0n.esquire.backend.storage.EsqObjectKindStorage;
+import pro.mir0n.esquire.common.EsqConstants;
 import pro.mir0n.esquire.bizTree.cache.IBizTreeCacheRepository;
 import pro.mir0n.esquire.bizTree.messaging.IBizTreeEventHandler;
 import pro.mir0n.esquire.bizTree.messaging.handler.CreateAcctHandler;
@@ -101,12 +105,9 @@ public final class MessageHandlerHub {
     /**
      * Dispatch, guarding on the change number (v1.2.12).
      *
-     * <p>WHICH number is compared follows the event type, and this is the one place that has to know it:
-     * a PATH event (X) carries the PATH row's number and is compared against the node's stored path
-     * number; every other event carries the ENTITY row's number and is compared against the stored entity
-     * number. The two are separate per-entity counters and are never comparable with each other -- see
-     * {@code BusConstants.FIELD_CHANGE_NO}, which spells the exception out. Compare across them and a
-     * moved subtree silently stays half-repathed.
+     * <p>The {@code changeNo} header is the ENTITY row's number on every event type; a PATH event (X)
+     * carries the PATH row's number too, in the body under {@code pathChangeNo}. Both are stamped. The
+     * two are separate per-entity counters and are never comparable -- see {@code BusConstants.FIELD_CHANGE_NO}.
      *
      * <p>A null {@code changeNo} means the producer sent none: apply unguarded, because "unknown" must
      * never be read as "old". Same for a node the cache has never seen.
@@ -115,13 +116,7 @@ public final class MessageHandlerHub {
      * in one cache transaction.
      */
     public void dispatch(String eventType, String entityId, int entityKind, JsonNode textNode, Long changeNo) {
-        // esq.biz.tree.handler.dispatch.total (O1/T8 phase C): what the CACHE did with a broadcast, which the bus
-        // meters cannot know. messaging.receive.total says the message arrived; this says whether it was applied,
-        // skipped for want of a handler, skipped for want of a payload, or FAILED. The failure case matters most:
-        // the catch below swallows the exception, so a handler that blows up leaves the cache silently stale --
-        // the broadcast counts as received, and nothing else anywhere says the tree did not change.
-        // Tags bounded: event is the BusConstants event set, kind the EsqObjectKind code, outcome one of four.
-        String outcome = "handled";
+        String outcome = "error";
         try {
             EsqObjectKind eek = EsqObjectKindStorage.getInstance().get(entityKind);
             int kindBits = 0;
@@ -143,23 +138,32 @@ public final class MessageHandlerHub {
                 return;
             }
             boolean isPath = BusConstants.EVENT_UPDATE_PATH.equals(eventType);
-            Long entityPk = parseEntityPk(entityId);
-            if (changeNo != null && entityPk != null && isStale(entityPk, isPath, changeNo)) {
+            Long entityPk     = parseEntityPk(entityId);
+            Long pathChangeNo = parsePathChangeNo(textNode);
+            Long guardNo      = changeNo;
+            if (isPath) {
+                //xxx: PATH number only -- a descendant's X carries the entity number its row already
+                //     holds, so guarding on that reads equal and skips the whole message
+                guardNo = pathChangeNo;
+            }
+            if (guardNo != null && entityPk != null && isStale(entityPk, isPath, guardNo)) {
                 outcome = "stale";
-                devLog.debug("MessageHandlerHub: SKIP stale eventType={} entityKind={} entityId={} changeNo={}",
-                        eventType, entityKind, entityId, changeNo);
+                devLog.debug("MessageHandlerHub: SKIP stale eventType={} entityKind={} entityId={} guardNo={}",
+                        eventType, entityKind, entityId, guardNo);
                 return;
             }
             try {
                 handler.handle(entityId, entityKind, textNode);
-                if (changeNo != null && entityPk != null) {
+                if (entityPk != null) {
                     // Stamp AFTER the handler: a CREATE has no row to stamp until its handler made one.
-                    if (isPath) {
-                        cacheRepository.stampPathChangeNo(entityPk, changeNo);
-                    } else {
+                    if (changeNo != null) {
                         cacheRepository.stampEntityChangeNo(entityPk, changeNo);
                     }
+                    if (pathChangeNo != null) {
+                        cacheRepository.stampPathChangeNo(entityPk, pathChangeNo);
+                    }
                 }
+                outcome = "handled";
             } catch (Exception ex) {
                 outcome = "failed";
                 log.error("MessageHandlerHub: handler failed eventType={} kind={} entityId={}: {}",
@@ -181,6 +185,23 @@ public final class MessageHandlerHub {
         if (stored != null) {
             Long current = isPath ? stored[1] : stored[0];
             ret = current != null && changeNo <= current;
+        }
+        return ret;
+    }
+
+    private static Long parsePathChangeNo(JsonNode textNode) {
+        Long ret = null;
+        if (textNode != null && textNode.hasNonNull(EsqConstants.TEXT_PATH_CHANGE_NO)) {
+            JsonNode node = textNode.get(EsqConstants.TEXT_PATH_CHANGE_NO);
+            if (node.isNumber()) {
+                ret = node.asLong();
+            } else {
+                try {
+                    ret = Long.valueOf(node.asText());
+                } catch (NumberFormatException ignored) {
+                    ret = null;
+                }
+            }
         }
         return ret;
     }

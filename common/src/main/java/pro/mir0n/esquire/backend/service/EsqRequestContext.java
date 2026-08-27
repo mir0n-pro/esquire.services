@@ -22,7 +22,7 @@ package pro.mir0n.esquire.backend.service;
  *   uid / rootPath            — caller identity and scope (origin: JWT claims).
  *
  * All four share one origin class: the inbound user request. They are captured once (on the
- * request thread, in JwtAuthenticationFilter) and re-established on worker threads that process
+ * request thread, in JwtClaimsExtractionFilter) and re-established on worker threads that process
  * a queued request, so services and the audit pod read them uniformly via EsqContextHolder
  * regardless of which thread they run on.
  */

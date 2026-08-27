@@ -33,7 +33,7 @@
     <!-- develop.* stdout (used when 'console' profile is active; for K8s) -->
     <appender name="DEVELOP_CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
         <encoder>
-            <pattern>%d{yyyy-MM-dd HH:mm:ss, UTC} %-5level develop.%logger - %msg%n</pattern>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss, UTC} %-5level %logger - %msg%n</pattern>
         </encoder>
     </appender>
 

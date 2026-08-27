@@ -24,6 +24,7 @@
  *                   broker-free property bag (a stable ApplMsgID minted ONCE, absent-only), dispatch() builds the
  *                   stream record + XADDs THROWING on a failure (+ SendingTime per physical send), accept() the
  *                   best-effort path, health() / close() on the handle
+ * 08/26/2026 mir0n  the connection health seeds UNKNOWN, not UP -- nothing has proved the connection at open
  */
 package pro.mir0n.esquire.tp.redis;
 
@@ -98,8 +99,7 @@ public final class TransportProvider implements ITransportProvider {
 
         // close() disposes the Lettuce connection factory built above (a DisposableBean).
         AutoCloseable closer = (redis.getConnectionFactory() instanceof DisposableBean db) ? db::destroy : () -> { };
-        // health is XADD send-outcome (producer-only stream): a failed XADD -> DOWN, a good one -> UP.
-        AtomicReference<TransportHealth> conn = new AtomicReference<>(TransportHealth.UP);
+        AtomicReference<TransportHealth> conn = new AtomicReference<>(TransportHealth.UNKNOWN);
         return new RedisPublisher(redis, destination, maxLen, closer, conn);
     }
 

@@ -78,6 +78,22 @@ connectors:
     store:
       ttl: 10s
       max_items: 10000
+    # NAME THE PEER, or the edge is drawn as a node called `unknown`.
+    #
+    # When a CLIENT span has no SERVER span to pair with -- we called something that reports no spans of its own
+    # -- the connector emits a VIRTUAL NODE and names it from the first of these attributes the span carries.
+    # Carrying none, it falls back to the literal string "unknown", and every unnamed peer of every caller ends
+    # up sharing that one label: the board's edge panel then draws `-> unknown` and two different dependencies
+    # of the same service become one line. Listing the attributes our spans actually carry means a peer that
+    # CAN be named is named. (`user`, the other virtual node, is the connector's name for an external caller
+    # arriving at a root SERVER span -- that one is correct and stays.)
+    virtual_node_peer_attributes:
+      - peer.service
+      - db.system
+      - server.address
+      - net.peer.name
+      - spring.cloud.gateway.route.uri
+      - http.uri
     latency_histogram_buckets: [10ms, 50ms, 100ms, 250ms, 500ms, 1s, 5s]
     metrics_flush_interval: 15s
 

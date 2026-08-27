@@ -63,7 +63,7 @@ deliberately does NOT support changing a broker subscription at runtime. The con
 the bus owner makes while the rod is still paused, before the bus is started. It is stated at the switch in code
 (`XRod.setWorker(String,...)`: "You need setWorker() before start(). The x-rod does not support changing the
 subscription on the fly."), and every caller obeys it -- the one place that uses the subscription variant
-(enyMan's `EntityBusAdapter.onPeerCreate`, the peer-CREATE `EventType='C'` selector) wires it during init, before
+(enyMan's `EntityBusAdapter.onPeerCreate`, the peer-CREATE `EventType='I'` selector) wires it during init, before
 `MessagingBus.start()`; all other consumers use the plain `setWorker(worker)`, also before start. So the
 "called after start" case does not arise in Esquire; there is no live subscription-swap path.
 

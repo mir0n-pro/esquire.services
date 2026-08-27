@@ -1,5 +1,21 @@
 mir0n java common frameworks -- pro.mir0n.utils
 
+08/26/2026 mir0n  v1.2.13 -- the queue-rig outcome seam, and the night-watch reaction
+concurrent.IQueueRig
+  - outcome seam made symmetric: ISuccessListener + setSuccessListener; single-item only (a bulk worker
+    returns what it did not handle). NOOP on both listener contracts
+concurrent.BoundedQueueRig
+  - the outcome seam made symmetric: an ISuccessListener fired per handled item (setSuccessListener, NOOP
+    default); setErrorListener(null) restores the LOGGING default, not NOOP
+taijitu.AMonadY
+  - implements IQueueRig.IListErrorListener and registers itself on the rig; inFlightCommand carries the
+    command the worker is running so onError notifies its gate. RESULT_TIMEDOUT / RESULT_INTERRUPTED
+    replace the two literals resultCommand writes
+taijitu.ATaijituRig
+  - the sweep splits a non-digest three ways: TIMEDOUT promotes the freshly loaded shadow, FAILED and
+    INTERRUPTED report and leave both legs, and shuttingDown (set by shutdown()) stops any promotion once
+    the process is going down. notADigest / unusable replace checksumFailed
+
 08/11/2026 mir0n  v1.2.12 -- entity change number
 concurrent.ExpiringCache  (new)
   - generic hand-off cache whose entries expire by age -- a ConcurrentHashMap with a timestamp per entry,

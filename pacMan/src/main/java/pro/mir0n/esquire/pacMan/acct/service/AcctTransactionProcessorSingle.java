@@ -32,6 +32,8 @@
  * 08/11/2026 mir0n  v1.2.12 -- the account's change number is raised before the insert, so the ledger line
  *                   and the balance update carry the same value and the transaction row points at the
  *                   account history record it causes
+ * 08/26/2026 mir0n  assertKindMatches refuses an operation whose request kind differs from the account row kind;
+ *                   entityRepository made protected for the transfer processor
  */
 
 package pro.mir0n.esquire.pacMan.acct.service;
@@ -71,8 +73,7 @@ public class AcctTransactionProcessorSingle implements IAcctTransactionProcessor
 
     private static final org.slf4j.Logger devLog = LoggerFactory.getLogger("develop." + AcctTransactionProcessorSingle.class.getName());
 
-
-    private EsqAcctRepository entityRepository;
+    protected EsqAcctRepository entityRepository;
     private EsqAcctTransactionRepository transactionRepository;
     private TransactionTemplate transactionTemplate;
     private EntityManager em;
@@ -119,6 +120,15 @@ public class AcctTransactionProcessorSingle implements IAcctTransactionProcessor
         return (oper != null) ? oper.name() : "unknown";
     }
 
+    protected static void assertKindMatches(String op, int givenKind, Integer actualKind, String id) {
+        if (actualKind == null || givenKind != actualKind.intValue()) {
+            log.warn("{}: kind mismatch -- request says kind={}, account {} is kind={}; refused",
+                    op, givenKind, id, actualKind);
+            devLog.warn("{}: kind mismatch -- request kind={}, actual kind={}, id={}, uid={}, requestId={}",
+                    op, givenKind, actualKind, id, RequestContextUtils.getUid(), RequestContextUtils.getRequestId());
+            throw new ResourceNotFoundException(op, "kind", String.valueOf(givenKind));
+        }
+    }
     protected EsqObjectKind validatePermissions(int kind, List<String> roles) {
         EsqObjectKind eek = EsqObjectKindStorage.getInstance().get(kind);
         int k = eek.getId();
@@ -183,7 +193,7 @@ public class AcctTransactionProcessorSingle implements IAcctTransactionProcessor
                                                       String pkTx, String counterpartId) {
         Object rawAmount = fields.get(AcctTransactionSingle.FIELD_AMOUNT);
         double amount = rawAmount instanceof Number ? ((Number) rawAmount).doubleValue() : Double.parseDouble(rawAmount.toString());
-        amount = round3(amount);   // 3dp (NUMERIC(16,3)) -- clip double FP dust before any check or store
+        amount = roundAmount(amount);   // 2dp, the scale the dictionary declares -- clip FP dust before any check or store
         if (!skipValidation) {
             switch (oper.effect) {
                 case AcctOperation.AmountEffect.NEGATIVE:
@@ -212,14 +222,15 @@ public class AcctTransactionProcessorSingle implements IAcctTransactionProcessor
         if (!skipValidation && !EsqConstants.FLAG_OPEN.equals(acct.getStatus())) {
             throw new InvalidValueException("Account is not open", IPacManService.FIELD_STATUS, "Status", "1");
         }
+        double prevBalance = acct.getBalance() != null ? acct.getBalance() : 0.0;
+
         if (!skipValidation && "N".equals(acct.getNegativeAllowed())) {
-            if (acct.getBalance() + amount < 0) {
-                throw new InvalidValueException("Insufficient balance",AcctTransactionSingle.FIELD_AMOUNT, "Amount", "1");
+            if (amount < 0 && prevBalance + amount < 0) {
+                throw new InvalidValueException("Insufficient balance", AcctTransactionSingle.FIELD_AMOUNT, "Amount", "1");
             }
         }
 
-        double prevBalance = acct.getBalance() != null ? acct.getBalance() : 0.0;
-        double newBalance  = round3(prevBalance + amount);   // 3dp -- clip the addition's FP dust before store
+        double newBalance  = roundAmount(prevBalance + amount);   // clip the addition's FP dust before store
 
         Map<String, Object> validated = fields;
         if (!skipValidation) {
@@ -270,14 +281,10 @@ public class AcctTransactionProcessorSingle implements IAcctTransactionProcessor
         return ret;
     }
 
-    /** Round a money value to 3 decimals (the NUMERIC(16,3) scale), half away from zero, so the double
-     *  arithmetic's binary-floating-point dust never reaches the ledger amount or the stored balance. Rounds the
-     *  MAGNITUDE and reapplies the sign, so round3(-x) == -round3(x): a transfer's debit (signed) and credit (abs)
-     *  legs stay balanced even for an amount sitting exactly on a 3rd-decimal tie. */
-    private static double round3(double amt) {
+    static double roundAmount(double amt) {
         double a = amt < 0 ? -amt : amt;
-        long l = (long) Math.floor(a * 1000 + 0.5);
-        double ret = (double) l / 1000;
+        long l = (long) Math.floor(a * 100 + 0.5);
+        double ret = (double) l / 100;
         return amt < 0 ? -ret : ret;
     }
 }

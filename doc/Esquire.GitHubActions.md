@@ -152,8 +152,8 @@ the other stack must go for a simpler reason as well -- both bind the same host 
   simply lands on `develop`, after which `workflow_dispatch` can dry-run the chain before the next real
   merge. (`develop` is the repo's default branch, so once landed the **Run workflow** button is available.)
 - **Runner:** **GitHub-hosted with OCI credentials** (mirrors today's manual flow:
-  `k8s-oci/oke-login.bat` fetches the kubeconfig via the OCI CLI, then `helm upgrade` per
-  `k8s-oci/oke-up.bat`).
+  `k8s-oci-compact/oke-login.bat` fetches the kubeconfig via the OCI CLI, then `helm upgrade` per
+  `k8s-oci-compact/oke-up.bat`).
 - **Steps (3 jobs):** **build-push** -- checkout services (the merge commit) + explorer (`develop`) +
   db.seed (`develop`) as siblings -> `setup-java` **24** -> compute the image tag (Micro read from
   `release_notes.txt` + a UTC datetime stamp) -> `mvn -B package -DskipTests` (CI already ran full verify
@@ -162,7 +162,7 @@ the other stack must go for a simpler reason as well -- both bind the same host 
   `mir0n-pro` identity that created the packages via the manual push). **deploy** (behind the Environment
   gate) -- configure the OCI CLI from the Environment secrets -> fetch the OKE kubeconfig
   (`oci ce cluster create-kubeconfig`) -> `deploy-oke.sh` = `helm upgrade --install` each chart with the
-  GHCR tag + the `k8s-oci/values` overlay (audit option **(a)** DB triggers -- no auKeep on OKE).
+  GHCR tag + the `k8s-oci-compact/values` overlay (audit option **(a)** DB triggers -- no auKeep on OKE).
   **validate** -- e2e + load (below).
 - **Validate = the e2e + load chain** (the part deliberately kept OUT of the local scope, see 4.2a):
   after the rollout, run the explorer **e2e** (Playwright, `BASE_URL=https://esquire.mir0n.pro`) and the
@@ -287,7 +287,7 @@ jobs:
 ```
 
 Notes:
-- This mirrors the existing split: `k8s/*.bat` / `k8s-oci/*.bat` / `compose/*.bat` are the **manual**
+- This mirrors the existing split: `k8s/*.bat` / `k8s-oci-compact/*.bat` / `compose/*.bat` are the **manual**
   scripts; the `.github/scripts/*` entries are the **automated** wrappers that reuse those same `.bat`
   scripts (the single source of deploy logic).
 - Keeping the logic in scripts (not inline YAML) makes the steps runnable / debuggable outside GHA
@@ -316,7 +316,7 @@ local git repository. The pipeline reinforces the separation instead of eroding 
 - The self-hosted runner is installed with its own work folder, isolated from both other spaces.
 - Deploy artifacts (images, helm releases) are produced from the runner's checkout, never from
   `C:\MyProjects\...` or `C:\mir0n-git\...`.
-- Local `k8s/*.bat` / `k8s-oci/*.bat` remain the **manual** path from the dev tree; the GHA jobs are
+- Local `k8s/*.bat` / `k8s-oci-compact/*.bat` remain the **manual** path from the dev tree; the GHA jobs are
   a **parallel, separated** path from the remote. They do not share state.
 
 **Deploy-time debugging vs commit.** Deployment is also a correction phase: while deploying we may
@@ -343,7 +343,7 @@ deploy-time experiments. Implications for GHA:
    `oke-login` + `helm upgrade` flow; images from GHCR. (A self-hosted runner on OKE stays a future
    option if we want to stop exporting OCI creds.)
 
-Both were read off what the project does today (`k8s/*.bat` -> docker-desktop; `k8s-oci/*.bat` ->
+Both were read off what the project does today (`k8s/*.bat` -> docker-desktop; `k8s-oci-compact/*.bat` ->
 GHCR + OCI CLI + helm), so the workflows match the existing manual steps rather than introducing a
 new toolchain.
 

@@ -97,23 +97,25 @@ rem === Infra image: esquire-postgres:17 (k8s-only). docker compose no longer bu
 rem     container was removed from compose (docker uses the external host pg18); the dockerized Postgres
 rem     is exclusively the k8s esquire-infra-postgres StatefulSet. Build it here so the image stays
 rem     available for k8s-up. Context = repo root (../..) so the Dockerfile can COPY db.seed + initdb. ===
-echo [docker] building infra image esquire-postgres:17 (db.seed schema)...
-docker build %NOCACHE% -f ..\postgres\Dockerfile -t esquire-postgres:17 ..\..
+call :read_pin ..\postgres\Dockerfile postgres
+if errorlevel 1 exit /b 1
+call :pin_have esquire-postgres
+if "!PIN_HAVE!"=="1" goto pg_pinned
+echo [docker] building infra image esquire-postgres (db.seed schema)...
+docker build %NOCACHE% -f ..\postgres\Dockerfile -t esquire-postgres:17 -t esquire-postgres:!TS! ..\..
 if errorlevel 1 ( echo postgres image build failed & exit /b 1 )
+:pg_pinned
 rem STAMPED AND DELIVERED, like the broker below. Building :17 alone changed NOTHING: values\postgres.yaml
 rem carried a tag from an earlier stamp, so the chart kept pulling that older image and the SEED BAKED INTO
 rem IT came with it. The failure is silent until a FRESH init replays the old schema -- a v1.2.12 column was
 rem missing and the tree cache could not load, on a rebuild that had reported success.
-docker image inspect esquire-postgres:17-%BASE_TS% >nul 2>&1
-if errorlevel 1 ( set "TS=17-%BASE_TS%" ) else ( set "TS=17-%BASE_TS%%MM%" )
-docker tag esquire-postgres:17 esquire-postgres:%TS%
 call :patch_yaml postgres
 helm status esquire-infra >nul 2>&1
 if errorlevel 1 (
   echo [skip] esquire-infra not deployed -- yaml stamped %TS%; next k8s-up will deploy it.
 ) else (
   echo [helm] upgrading esquire-infra to tag %TS%...
-  call helm upgrade esquire-infra charts\infra\postgres -f values\postgres.yaml --reset-then-reuse-values --set image.tag=%TS% --force-conflicts
+  call helm upgrade esquire-infra charts\infra\postgres -f values\postgres.yaml --reset-then-reuse-values --set image.tag=!TS! --force-conflicts
   if errorlevel 1 ( echo helm upgrade failed for esquire-infra & exit /b 1 )
   kubectl rollout status statefulset/esquire-infra-postgres --timeout=180s
 )
@@ -125,21 +127,50 @@ rem     quietly kept running the old image.
 rem     Stamped like the service images for the same reason they are: the chart's FIXED :6.1.4 tag hits the
 rem     kubelet digest cache, so after a rebuild the kubelet keeps serving the OLD 6.1.4 it already resolved.
 rem     A stale broker is silent -- the pod is Running, and only the missing scrape target gives it away. ===
+call :read_pin ..\activemq\Dockerfile activemq
+if errorlevel 1 exit /b 1
+call :pin_have esquire-activemq
+if "!PIN_HAVE!"=="1" goto amq_pinned
 echo [docker] building infra image esquire-activemq (broker config + JMX exporter agent)...
-docker build %NOCACHE% -t esquire-activemq:6.1.4 ..\activemq
+docker build %NOCACHE% -t esquire-activemq:6.1.4 -t esquire-activemq:!TS! ..\activemq
 if errorlevel 1 ( echo activemq image build failed & exit /b 1 )
-docker image inspect esquire-activemq:%BASE_TS% >nul 2>&1
-if errorlevel 1 ( set "TS=%BASE_TS%" ) else ( set "TS=%BASE_TS%%MM%" )
-docker tag esquire-activemq:6.1.4 esquire-activemq:%TS%
+:amq_pinned
 call :patch_yaml activemq
 helm status esquire-infra-amq >nul 2>&1
 if errorlevel 1 (
   echo [skip] esquire-infra-amq not deployed -- yaml stamped %TS%; next k8s-up will deploy it.
 ) else (
   echo [helm] upgrading esquire-infra-amq to tag %TS%...
-  call helm upgrade esquire-infra-amq charts\infra\activemq -f values\activemq.yaml --reset-then-reuse-values --set image.tag=%TS% --force-conflicts
+  call helm upgrade esquire-infra-amq charts\infra\activemq -f values\activemq.yaml --reset-then-reuse-values --set image.tag=!TS! --force-conflicts
   if errorlevel 1 ( echo helm upgrade failed for esquire-infra-amq & exit /b 1 )
   kubectl rollout status statefulset/esquire-infra-amq-activemq --timeout=180s
+)
+
+rem === Infra image: esquire-keycloak (the esquire theme + the realm import). Built HERE because NOTHING in
+rem     the tree did: values\keycloak.yaml pinned a tag that existed only in one machine's docker cache, from
+rem     a July build, while the Dockerfile had since moved on. A clean machine could not bring k8s up at all.
+rem     BASE comes from the Dockerfile PIN (26.4.7); docker overrides it to 26.6.0 in its own compose file,
+rem     and that override is the only place the two lines differ.
+rem     Tagged with the release stamp for the same reason postgres and the broker are: a fixed tag hits the
+rem     kubelet digest cache and the pod keeps the image it already resolved. What the image IS stays
+rem     readable off its own labels, whatever the tag says. ===
+call :read_pin ..\keycloak\Dockerfile.keycloak keycloak
+if errorlevel 1 exit /b 1
+call :pin_have esquire-keycloak
+if "!PIN_HAVE!"=="1" goto kc_pinned
+echo [docker] building infra image esquire-keycloak (theme + realm import)...
+docker build %NOCACHE% -f ..\keycloak\Dockerfile.keycloak -t esquire-keycloak:!TS! ..\keycloak
+if errorlevel 1 ( echo keycloak image build failed & exit /b 1 )
+:kc_pinned
+call :patch_yaml keycloak
+helm status esquire-infra-kc >nul 2>&1
+if errorlevel 1 (
+  echo [skip] esquire-infra-kc not deployed -- yaml stamped !TS!; next k8s-up will deploy it.
+) else (
+  echo [helm] upgrading esquire-infra-kc to tag !TS!...
+  call helm upgrade esquire-infra-kc charts\infra\keycloak -f values\keycloak.yaml --reset-then-reuse-values --set image.tag=!TS! --force-conflicts
+  if errorlevel 1 ( echo helm upgrade failed for esquire-infra-kc & exit /b 1 )
+  kubectl rollout status statefulset/esquire-infra-kc-keycloak --timeout=240s
 )
 
 set "SVC=gateward"&set "DIR=gateWard"
@@ -180,7 +211,10 @@ if errorlevel 1 (
   goto end
 )
 echo [helm] upgrading esquire-backend to tag %TS%...
-call helm upgrade esquire-backend charts\esquire-backend --reset-then-reuse-values --set image.tag=%TS% --force-conflicts
+rem -f values\backend.yaml, the same reason the Spring path above passes it: :patch_yaml backend rewrote that
+rem file seven lines up, and without the flag the new image ships with the previous ConfigMap. k8s-up.bat has
+rem always passed it, so a full bring-up repaired the drift and only a single-component rebuild carried it.
+call helm upgrade esquire-backend charts\esquire-backend -f values\backend.yaml --reset-then-reuse-values --set image.tag=%TS% --force-conflicts
 if errorlevel 1 ( echo helm upgrade failed & exit /b 1 )
 kubectl rollout status statefulset/esquire-backend --timeout=180s
 goto end
@@ -221,9 +255,15 @@ echo [helm] upgrading esquire-%SVC% to tag %TS%...
 rem Required secrets that are NOT reusable on the first upgrade after they became helm-required
 rem same dev value k8s-up.bat / compose use.
 set "SECRETS="
-call helm upgrade esquire-%SVC% charts\esquire-%SVC% --reset-then-reuse-values --set image.tag=%TS% %SECRETS% --force-conflicts
+rem -f values\%SVC%.yaml, exactly as the infra upgrades above do: a rebuild must carry the CONFIG that
+rem changed with it, not only the image. Without it a values edit sat on disk while the release kept the
+rem old ConfigMap, and the deployment looked correct while behaving like the previous one.
+call helm upgrade esquire-%SVC% charts\esquire-%SVC% -f values\%SVC%.yaml --reset-then-reuse-values --set image.tag=%TS% %SECRETS% --force-conflicts
 if errorlevel 1 ( echo helm upgrade failed for esquire-%SVC% & exit /b 1 )
-kubectl rollout status statefulset/esquire-%SVC%-%SVC% --timeout=180s
+rem The compact charts name the workload after the RELEASE alone (esquire-mesnie); only the classic ones
+rem carry the chart suffix (esquire-mesnie-mesnie). Watching the classic name here waited on a
+rem statefulset that does not exist, and the rebuild reported NotFound over a roll that was fine.
+kubectl rollout status statefulset/esquire-%SVC% --timeout=180s
 exit /b 0
 
 :resolve_tag
@@ -233,6 +273,29 @@ rem   Output:  TS = %BASE_TS%       (first build of the hour for this service)
 rem            TS = %BASE_TS%%MM%   (kubelet may have cached %BASE_TS% -- need fresh)
 docker image inspect esquire.%IMG%:%BASE_TS% >nul 2>&1
 if errorlevel 1 ( set "TS=%BASE_TS%" ) else ( set "TS=%BASE_TS%%MM%" )
+exit /b 0
+
+:read_pin
+rem Subroutine: read an infra image's PIN out of its Dockerfile.  %1 = dockerfile  %2 = label
+rem
+rem The pin is the release stamp of the release in which this image's Esquire content last changed. It is
+rem declared where the image is defined, edited BY HAND, and it IS the tag -- so an image that gained
+rem nothing keeps the tag it had, and a release cannot replace infrastructure it did not touch.
+set "TS="
+for /f "tokens=2 delims==" %%v in ('findstr /b /c:"ARG PIN=" %1') do set "TS=%%v"
+if "!TS!"=="" ( echo [pin] ERROR %2: %1 declares no ARG PIN & exit /b 1 )
+echo [pin]    %2: pin=!TS!
+exit /b 0
+
+:pin_have
+rem Subroutine: is this pin already built?  %1 = image name  ->  PIN_HAVE=1 when the tag is here.
+rem
+rem That IS the rule: a pin names one image, so if the tag exists there is nothing to build and nothing to
+rem re-tag. Bump ARG PIN when the content changes and the next run builds it; leave it and the next run is a
+rem no-op -- which also spares a slow KeyCloak build on every rebuild that changes nothing.
+set "PIN_HAVE=0"
+docker image inspect %1:!TS! >nul 2>&1
+if not errorlevel 1 ( set "PIN_HAVE=1" & echo [pin]    %1:!TS! already built -- nothing to do )
 exit /b 0
 
 :patch_yaml

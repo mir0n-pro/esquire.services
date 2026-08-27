@@ -15,6 +15,8 @@
  * 08/15/2026 mir0n  v1.2.13 -- register() now registers into BOTH health registries: the blocking
  *                   HealthContributorRegistry as before, and the ReactiveHealthContributorRegistry via
  *                   ReactiveHealthContributor.adapt() in registerReactive(), which a WebFlux service reads
+ * 08/26/2026 mir0n  registerTransportGauges publishes each bus transport state as messaging.transport.up
+ *                   (1 connected, 0 not), so the state reaches Prometheus and not only /actuator/health
  */
 package pro.mir0n.esquire.messaging;
 
@@ -25,6 +27,7 @@ import org.springframework.boot.actuate.health.HealthIndicator;
 import org.springframework.boot.actuate.health.ReactiveHealthContributor;
 import org.springframework.boot.actuate.health.ReactiveHealthContributorRegistry;
 import org.springframework.context.ApplicationContext;
+import pro.mir0n.esquire.messaging.o11y.RodObserverHolder;
 import pro.mir0n.esquire.messaging.transport.TransportHealth;
 
 import java.util.Map;
@@ -81,6 +84,26 @@ public class BusHealthIndicator implements HealthIndicator {
         }
 
         registerReactive(ctx, indicator);
+        registerTransportGauges(bus);
+    }
+
+    private static void registerTransportGauges(MessagingBus bus) {
+        Map<String, TransportHealth> buses = bus.health();
+        for (Map.Entry<String, TransportHealth> entry : buses.entrySet()) {
+            String busKey = entry.getKey();
+            RodObserverHolder.meters().registerTransportUp(busKey, () -> up(bus, busKey));
+        }
+    }
+
+    private static int up(MessagingBus bus, String busKey) {
+        int ret = -1;
+        TransportHealth health = bus.health().get(busKey);
+        if (health == TransportHealth.UP) {
+            ret = 1;
+        } else if (health == TransportHealth.DOWN) {
+            ret = 0;
+        }
+        return ret;
     }
 
     /**

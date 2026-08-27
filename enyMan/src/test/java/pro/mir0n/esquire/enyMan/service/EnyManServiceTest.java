@@ -16,6 +16,7 @@ import pro.mir0n.esquire.backend.dto.EsqEntityLayer;
 import pro.mir0n.esquire.backend.dto.EsqObjectKind;
 import pro.mir0n.esquire.backend.error.DeleteRestrictedException;
 import pro.mir0n.esquire.backend.error.MissingRequestIdException;
+import pro.mir0n.esquire.backend.error.CommandNotAcceptedException;
 import pro.mir0n.esquire.backend.error.PermissionDeniedException;
 import pro.mir0n.esquire.backend.error.ResourceNotFoundException;
 import pro.mir0n.esquire.backend.jpa.access.EsqPermissionJpa;
@@ -413,6 +414,7 @@ class EnyManServiceTest {
         ctx("1.2.3");
         EsqUsrJpa usr = new EsqUsrJpa();
         usr.setId("100");
+        usr.setKind(32);
         usr.setConnectFlg("Y");
 
         when(transactionTemplate.execute(any())).thenAnswer(inv -> {
@@ -473,6 +475,7 @@ class EnyManServiceTest {
         ctx("1.");
         pro.mir0n.esquire.backend.jpa.entity.EsqOrgJpa org = new pro.mir0n.esquire.backend.jpa.entity.EsqOrgJpa();
         org.setId("100");
+        org.setKind(20);
 
         when(transactionTemplate.execute(any())).thenAnswer(inv -> {
             inv.<org.springframework.transaction.support.TransactionCallback<?>>getArgument(0).doInTransaction(null);
@@ -575,6 +578,7 @@ class EnyManServiceTest {
         destOrg.setId("200");
         destOrg.setKind(20);
         when(orgRepo.detailOrg("200", "1.")).thenReturn(destOrg);
+        when(moveQueue.submitMove(any())).thenReturn(true);
 
         service.esquireCommandMove(20, "100", "200", List.of(ROLE_ADMIN));
 
@@ -587,6 +591,21 @@ class EnyManServiceTest {
         assertThat(item.rootPath()).isEqualTo("1.");
         assertThat(item.uid()).isEqualTo("99");
         assertThat(item.roles()).containsExactly(ROLE_ADMIN);
+    }
+
+    @Test
+    @DisplayName("esquireCommandMove: the queue refuses the command -> 503, not a 202 that promises nothing")
+    void esquireCommandMove_queueRefuses_throws() {
+        ctx("1.");
+        EsqOrgJpa destOrg = new EsqOrgJpa();
+        destOrg.setId("200");
+        destOrg.setKind(20);
+        when(orgRepo.detailOrg("200", "1.")).thenReturn(destOrg);
+        when(moveQueue.submitMove(any())).thenReturn(false);
+
+        assertThatThrownBy(() ->
+            service.esquireCommandMove(20, "100", "200", List.of(ROLE_ADMIN))
+        ).isInstanceOf(CommandNotAcceptedException.class);
     }
 
     @Test
@@ -608,6 +627,7 @@ class EnyManServiceTest {
         ctx("1.");
         EsqUsrJpa usr = new EsqUsrJpa();
         usr.setId("200");
+        usr.setKind(32);
         usr.setConnectFlg("N");
 
         when(transactionTemplate.execute(any())).thenAnswer(inv -> {

@@ -14,6 +14,7 @@
  *                   Taijitu builds one per table, e.g. ESQ_TREE_YANG / ESQ_TREE_YIN).
  * 05/23/2026 mir0n  forTable: substitute the {table} token into and carry the new clearAll + checksum SQL.
  * 08/11/2026 mir0n  v1.2.12 -- the three change-number statements added to the per-table substitution set
+ * 08/26/2026 mir0n  forSet carries findPathScoped through the per-table substitution
  */
 package pro.mir0n.esquire.bizTree.cache;
 
@@ -36,6 +37,7 @@ public record CacheSqlSet(
         String findRoot,
         String findNodes,
         String findPath,
+        String findPathScoped,
         String findByEntityId,
         String findByNameKind,
         String findSubtree,
@@ -73,6 +75,7 @@ public record CacheSqlSet(
                 cols + sub(t.repo.findRoot(),       table),
                 cols + sub(t.repo.findNodes(),      table),
                 sub(t.repo.findPath(),  table) + one,
+                sub(t.repo.findPathScoped(), table) + one,
                 cols + sub(t.repo.findByEntityId(), table) + one,
                 cols + sub(t.repo.findByNameKind(), table) + one,
                 cols + sub(t.repo.findSubtree(),    table),

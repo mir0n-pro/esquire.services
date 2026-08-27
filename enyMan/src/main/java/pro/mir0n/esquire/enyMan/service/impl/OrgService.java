@@ -44,6 +44,8 @@
  * 08/11/2026 mir0n  v1.2.12 -- the org row's change number is raised before every update and passed to the
  *                   statement; delete bumps once and returns the number, which the delete event and the
  *                   audit record share
+ * 08/26/2026 mir0n  saveOrg / deleteOrg / moveOrg take the kind; moveOrg reads the moved paths AFTER the parent
+ *                   write, so the broadcast carries the raised entity number rather than the previous one
  */
 
 package pro.mir0n.esquire.enyMan.service.impl;
@@ -150,7 +152,7 @@ public class OrgService  extends AEnyManService {
             //      @Modifying queries clears the context after each native update, so nothing
             //      remains to flush at commit.
             em.setFlushMode(FlushModeType.COMMIT);
-            saveOrg(id, fields, rootPath, uid, correlationId, requestId, updated, custom);
+            saveOrg(kind, id, fields, rootPath, uid, correlationId, requestId, updated, custom);
             EsqOrgJpa savedOrg = (EsqOrgJpa) updated[0];
             audit.post(RodEvent.Op.UPDATE, savedOrg.getKind(), savedOrg.getId(), null, savedOrg);
             return null;
@@ -199,7 +201,7 @@ public class OrgService  extends AEnyManService {
         devLog.debug("srvc: esquireCommandDelete(org): kind:{}, id:{}, cmd:{}, rootPath:{}", kind, id, cmd, rootPath);
         return transactionTemplate.execute(status -> {
             em.setFlushMode(FlushModeType.COMMIT);
-            EsqOrgJpa deleted = deleteOrg(id, rootPath);
+            EsqOrgJpa deleted = deleteOrg(kind, id, rootPath);
             // ONE bump for this delete, on the row object itself. Everything that reports the delete then reads
             // the same value off the same object -- the returned number for the broadcast, the source for the
             // audit event. The delete record gets the number AFTER the last live state, exactly what the
@@ -219,30 +221,35 @@ public class OrgService  extends AEnyManService {
         devLog.debug("srvc: esquireCommandMove(org): kind:{}, id:{}, distId:{}, rootPath:{}, uid:{}", kind, id, distId, rootPath, uid);
         List<EsqMoveRecord> records = transactionTemplate.execute(status -> {
             em.setFlushMode(FlushModeType.COMMIT);
-            return moveOrg(id, distId, rootPath, uid, correlationId, requestId);
+            return moveOrg(kind, id, distId, rootPath, uid, correlationId, requestId);
         });
         return records != null ? records : List.of();
     }
 
-    private List<EsqMoveRecord> moveOrg(String id, String distId, String rootPath, String uid, String correlationId, String requestId) {
+    private List<EsqMoveRecord> moveOrg(int kind, String id, String distId, String rootPath, String uid, String correlationId, String requestId) {
         List<EsqMoveRecord> rows = null;
         orgRepository.lockEntityPathRoot();
         EsqOrgJpa org = orgRepository.detailOrgForUpdate(id, rootPath);
         if (org == null) {
             throw new ResourceNotFoundException("moveOrg", "id", id);
         }
+        EnyManService.assertKindMatches("moveOrg", kind, org.getKind(), id);
         if (distId.equals(org.getParentId())) {
             rows = List.of();
         } else {
             String currentPath = orgRepository.orgPath(id, rootPath);
             String destPath    = orgRepository.orgPath(distId, rootPath);
+            if (destPath == null) {
+                throw new ResourceNotFoundException("moveOrg", "dist_id", distId);
+            }
             if (destPath.startsWith(currentPath)) {
                 throw new PermissionDeniedException("org", "cannot move org into its own subtree");
             }
             String newEntityPath = destPath + id + ".";
             orgRepository.moveOrgPaths(currentPath, newEntityPath);
-            rows = orgRepository.listMovedPaths(newEntityPath);
             orgRepository.moveOrgParent(id, distId, org.bumpChangeNo(), uid, correlationId, requestId);
+            //xxx: read AFTER the parent write -- the row carries the number that write just raised
+            rows = orgRepository.listMovedPaths(newEntityPath);
             // x-Rod audit: move is one parent-ref UPDATE (org_org_pk); path rewrites are not audited.
             org.setParentId(distId);
             audit.post(RodEvent.Op.UPDATE, org.getKind(), org.getId(), null, org);
@@ -303,24 +310,26 @@ public class OrgService  extends AEnyManService {
 
     /** Deletes the org and returns the row as it was read for the delete -- the caller posts the audit event
      *  from it, which is the only place its change number is still available. */
-    private EsqOrgJpa deleteOrg(String id, String rootPath) {
+    private EsqOrgJpa deleteOrg(int kind, String id, String rootPath) {
         EsqOrgJpa org = orgRepository.detailOrgForUpdate(id, rootPath);
         if (org == null) {
             throw new ResourceNotFoundException("deleteOrg", "id", id);
         }
+        EnyManService.assertKindMatches("deleteOrg", kind, org.getKind(), id);
         ValidatorFactory.getInstance().validateDelete(org);
         orgRepository.deleteOrg(id);
         orgRepository.deleteEntityPath(id);
         return org;
     }
 
-    private void saveOrg(String id, Map<String, Object> fields, String rootPath,
+    private void saveOrg(int kind, String id, Map<String, Object> fields, String rootPath,
                          String uid, String correlationId, String requestId,
                          EsqEntityJpa[] updated, List<EsqNameValueJpa>[] custom) {
         EsqOrgJpa org = orgRepository.detailOrgForUpdate(id, rootPath);
         if (org == null) {
             throw new ResourceNotFoundException("saveOrg", "id", id);
         }
+        EnyManService.assertKindMatches("saveOrg", kind, org.getKind(), id);
         List<EsqNameValueJpa> cstm = orgRepository.customOrg(id);
         if (EntityFieldUtils.applyFields(org, fields, false, 0, null)) {
             orgRepository.updateOrg(id, org.getName(), org.getDesc(), org.getFullName(),

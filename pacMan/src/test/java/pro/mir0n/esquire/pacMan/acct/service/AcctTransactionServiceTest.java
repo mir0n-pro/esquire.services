@@ -195,11 +195,28 @@ class AcctTransactionServiceTest {
         ).isInstanceOf(InvalidValueException.class);
     }
 
-    // ---- insufficient balance, negativeAllowed=N → InvalidValueException ----
+    // ---- negativeAllowed=N: a WITHDRAWAL may not leave the balance negative; a DEPOSIT always may ----
 
     @Test
-    @DisplayName("esquireCommandAcct: balance+amount < 0 and negativeAllowed=N → InvalidValueException")
-    void esquireCommandAcct_insufficientBalance_throwsInvalidValueException() {
+    @DisplayName("esquireCommandAcct: withdrawal past zero and negativeAllowed=N → InvalidValueException")
+    void esquireCommandAcct_withdrawalPastZero_throwsInvalidValueException() {
+        when(transactionTemplate.execute(any())).thenAnswer(inv -> {
+            inv.<org.springframework.transaction.support.TransactionCallback<?>>getArgument(0).doInTransaction(null);
+            return null;
+        });
+        EsqAcctJpa acct = new EsqAcctJpa();
+        acct.setId("10"); acct.setKind(50); acct.setBalance(30.0); acct.setNegativeAllowed("N"); acct.setStatus("O");
+        when(entityRepository.detailAcctForUpdate("10", 50, "1.2.3")).thenReturn(acct);
+
+        assertThatThrownBy(() ->
+            service.esquireCommandAcct(50, "10", AcctOperation.Code.WITHDRAWAL,
+                    Map.of("amount", -50.0), "1.2.3", "99", List.of(ROLE_ADMIN))
+        ).isInstanceOf(InvalidValueException.class);
+    }
+
+    @Test
+    @DisplayName("esquireCommandAcct: deposit into a negative balance with negativeAllowed=N → posts (repayment in parts)")
+    void esquireCommandAcct_depositIntoNegativeBalance_postsSuccessfully() {
         when(transactionTemplate.execute(any())).thenAnswer(inv -> {
             inv.<org.springframework.transaction.support.TransactionCallback<?>>getArgument(0).doInTransaction(null);
             return null;
@@ -208,10 +225,16 @@ class AcctTransactionServiceTest {
         acct.setId("10"); acct.setKind(50); acct.setBalance(-900.0); acct.setNegativeAllowed("N"); acct.setStatus("O");
         when(entityRepository.detailAcctForUpdate("10", 50, "1.2.3")).thenReturn(acct);
 
-        assertThatThrownBy(() ->
-            service.esquireCommandAcct(50, "10", AcctOperation.Code.DEPOSIT,
-                    Map.of("amount", 50.0), "1.2.3", "99", List.of(ROLE_ADMIN))
-        ).isInstanceOf(InvalidValueException.class);
+        Map<String, Object> fields = new HashMap<>();
+        fields.put("amount", 50.0);
+        fields.put("refCode", "cc");
+        fields.put("refCode2", "REF-001");
+
+        AcctTransactionSingle ret = service.esquireCommandAcct(50, "10", AcctOperation.Code.DEPOSIT, fields,
+                "1.2.3", "99", List.of(ROLE_ADMIN));
+
+        org.assertj.core.api.Assertions.assertThat(ret).isNotNull();
+        verify(entityRepository).updateAcctBalance(eq("10"), eq(-850.0), any(), any(), any(), any());
     }
 
     // ---- invalid refCode value → InvalidValueException ----

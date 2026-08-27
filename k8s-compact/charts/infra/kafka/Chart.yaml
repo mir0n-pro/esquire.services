@@ -1,6 +1,0 @@
-apiVersion: v2
-name: esquire-kafka
-description: Kafka single-node KRaft broker (audit options (ck)/(dk) sinks) for local/dev k8s — ephemeral.
-type: application
-version: 0.1.0
-appVersion: "3.9.0"

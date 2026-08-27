@@ -13,11 +13,15 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import pro.mir0n.esquire.backend.dto.EsqObjectKind;
+import pro.mir0n.esquire.backend.o11y.EsqBizMeters;
 import pro.mir0n.esquire.backend.storage.EsqObjectKindStorage;
 import pro.mir0n.esquire.bizTree.cache.IBizTreeCacheRepository;
 import pro.mir0n.esquire.messaging.BusConstants;
 
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -28,6 +32,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * Race cases for the v1.2.12 freshness guard in {@link MessageHandlerHub#dispatch}.
@@ -74,16 +79,22 @@ class MessageHandlerHubGuardTest {
         return MAPPER.valueToTree(Map.of("name", "ACME", "desc", "d"));
     }
 
-    private JsonNode pathBody() {
-        return MAPPER.valueToTree(Map.of("path", "1.9.777."));
+    private JsonNode pathBody(Long pathChangeNo) {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("path", "1.9.777.");
+        if (pathChangeNo != null) {
+            body.put("pathChangeNo", pathChangeNo);
+        }
+        return MAPPER.valueToTree(body);
     }
 
     private void update(Long changeNo) {
         hub.dispatch(BusConstants.EVENT_UPDATE, ENTITY_ID, ORG_KIND, updateBody(), changeNo);
     }
 
-    private void path(Long changeNo) {
-        hub.dispatch(BusConstants.EVENT_UPDATE_PATH, ENTITY_ID, ORG_KIND, pathBody(), changeNo);
+    /** An X as a move publishes it: the ENTITY number in the header, the PATH number in the body. */
+    private void path(Long entityChangeNo, Long pathChangeNo) {
+        hub.dispatch(BusConstants.EVENT_UPDATE_PATH, ENTITY_ID, ORG_KIND, pathBody(pathChangeNo), entityChangeNo);
     }
 
     private void verifyEntityApplied() {
@@ -102,6 +113,7 @@ class MessageHandlerHubGuardTest {
     private void verifyPathSkipped() {
         verify(repo, never()).moveOrgNode(anyLong(), anyString());
         verify(repo, never()).stampPathChangeNo(anyLong(), any());
+        verify(repo, never()).stampEntityChangeNo(anyLong(), any());
     }
 
     // =====================================================================
@@ -150,10 +162,10 @@ class MessageHandlerHubGuardTest {
         // sends path number 3. Comparing 3 against the ENTITY number 7 would skip it and leave this node
         // on its old path -- a subtree half-repathed, healed only by the night-watch.
         cached(7L, 2L);
-        path(3L);
+        path(7L, 3L);
         verifyPathApplied();
         verify(repo).stampPathChangeNo(ENTITY_PK, 3L);
-        verify(repo, never()).stampEntityChangeNo(anyLong(), any());
+        verify(repo).stampEntityChangeNo(ENTITY_PK, 7L);
     }
 
     @Test
@@ -171,7 +183,7 @@ class MessageHandlerHubGuardTest {
     @DisplayName("R6 path redelivery: the same path number twice is applied once")
     void pathRedelivery_isSkipped() {
         cached(7L, 3L);
-        path(3L);
+        path(7L, 3L);
         verifyPathSkipped();
     }
 
@@ -179,8 +191,49 @@ class MessageHandlerHubGuardTest {
     @DisplayName("R7 path out-of-order: an older path number is skipped")
     void pathOutOfOrder_isSkipped() {
         cached(7L, 4L);
-        path(3L);
+        path(7L, 3L);
         verifyPathSkipped();
+    }
+
+    // =====================================================================
+    // N3 -- an X carries BOTH numbers: the path number guards, the entity number rides
+    // =====================================================================
+
+    @Test
+    @DisplayName("N3a the MOVED entity: its X stamps the raised entity number and the new path number")
+    void movedEntity_stampsBothNumbers() {
+        cached(7L, 2L);
+        path(8L, 3L);
+        verifyPathApplied();
+        verify(repo).stampEntityChangeNo(ENTITY_PK, 8L);
+        verify(repo).stampPathChangeNo(ENTITY_PK, 3L);
+    }
+
+    @Test
+    @DisplayName("N3b a DESCENDANT: its entity number is unchanged, and that must not read as stale")
+    void descendant_isNotJudgedByItsUnchangedEntityNumber() {
+        cached(7L, 2L);
+        path(7L, 3L);
+        verifyPathApplied();
+    }
+
+    @Test
+    @DisplayName("N3c mixed freshness: a stale path number skips the message, entity number and all")
+    void staleePath_stampsNeitherNumber() {
+        // the entity number looks fresher, but one message is one decision: skipped stamps nothing
+        cached(7L, 3L);
+        path(9L, 3L);
+        verifyPathSkipped();
+    }
+
+    @Test
+    @DisplayName("N3d an X with no path number in the body: applied unguarded, entity number stamped")
+    void pathEventWithoutPathNumber_appliesUnguarded() {
+        cached(7L, 4L);
+        path(8L, null);
+        verifyPathApplied();
+        verify(repo).stampEntityChangeNo(ENTITY_PK, 8L);
+        verify(repo, never()).stampPathChangeNo(anyLong(), any());
     }
 
     // =====================================================================
@@ -236,8 +289,36 @@ class MessageHandlerHubGuardTest {
         // and corrupt every later comparison.
         cached(6L, 6L);
         update(5L);
-        path(5L);
+        path(6L, 5L);
         verify(repo, never()).stampEntityChangeNo(anyLong(), any());
         verify(repo, never()).stampPathChangeNo(anyLong(), any());
+    }
+
+    // =====================================================================
+    // R13 -- the meter must not report success for a dispatch that threw
+    // =====================================================================
+
+    @Test
+    @DisplayName("R13 the cache read throws -> the dispatch meter says error, not handled")
+    void cacheReadThrows_meterSaysError() {
+        // isStale() reads the cache DB from OUTSIDE the inner try, so an H2 failure there escapes dispatch.
+        // The outcome starts at "error" for exactly this: the meter is the only thing that says the tree did
+        // not change.
+        MeterRegistry registry = new SimpleMeterRegistry();
+        EsqBizMeters.setRegistry(registry);
+        when(repo.findChangeNumbers(ENTITY_PK)).thenThrow(new IllegalStateException("cache is closed"));
+
+        try {
+            update(7L);
+        } catch (RuntimeException expected) {
+            // the throw is the point -- dispatch does not swallow it
+        }
+
+        assertThat(registry.counter("esq.biz.tree.handler.dispatch.total",
+                "event", BusConstants.EVENT_UPDATE, "kind", String.valueOf(ORG_KIND), "outcome", "error")
+                .count()).isEqualTo(1.0);
+        assertThat(registry.counter("esq.biz.tree.handler.dispatch.total",
+                "event", BusConstants.EVENT_UPDATE, "kind", String.valueOf(ORG_KIND), "outcome", "handled")
+                .count()).isZero();
     }
 }

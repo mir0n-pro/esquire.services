@@ -145,6 +145,47 @@ def pick_entity(tree_json):
     return None, None
 
 
+def acct_kinds(kinds_json):
+    """The kind codes flagged acct in /esq-kinds -- asked, never hardcoded: the seed may renumber them."""
+    ret = set()
+    try:
+        for k in json.loads(kinds_json):
+            if k.get("acct") and k.get("id") is not None:
+                ret.add(int(k["id"]))
+    except Exception:
+        pass
+    return ret
+
+
+def find_account(kinds, budget=24):
+    """An account node, breadth-first from the root. Accounts hang several levels down, so the top-level
+    pick_entity never reaches one -- which is why esq.svc.acct.save had never fired while its read and
+    delete siblings both had. Bounded: this is a driver, not a crawler."""
+    ret = (None, None)
+    queue = ["1"]
+    seen = set()
+    while queue and budget > 0 and ret[0] is None:
+        nid = queue.pop(0)
+        budget -= 1
+        status, text = _call("GET", BASE + "/api/esq-tree?id=" + nid)
+        try:
+            nodes = json.loads(text)
+        except Exception:
+            nodes = []
+        if not isinstance(nodes, list):
+            nodes = []
+        for n in nodes:
+            i = str(n.get("id", ""))
+            if not i or i in seen:
+                continue
+            seen.add(i)
+            if n.get("kind") in kinds and "~" not in i:
+                ret = (i, int(n["kind"]))
+                break
+            queue.append(i)
+    return ret
+
+
 def main():
     if not USER or not PASS:
         raise SystemExit("ESQ_USER / ESQ_PASS not set -- the launcher supplies them (never hardcode a credential)")
@@ -154,7 +195,8 @@ def main():
 
     # ---- reads: tree / subtree / path / node / dict / kinds -------------------------------------------------
     status, tree = api("GET", "/esq-tree?id=1", label="GET /esq-tree      -> esq.svc.tree|subtree")
-    api("GET", "/esq-kinds", label="GET /esq-kinds     -> esq.biz.dict/kinds + the BFF cache")
+    status, kinds = api("GET", "/esq-kinds",
+                        label="GET /esq-kinds     -> esq.biz.dict/kinds + the BFF cache")
     api("GET", "/esq-dict?kind=1000", label="GET /esq-dict       -> esq.biz.dict.lookup")
 
     entity_id, kind = pick_entity(tree)
@@ -177,6 +219,23 @@ def main():
             pass
         api("POST", "/esq-cmd-save?kind=%d&id=%s&cmd=save" % (kind, entity_id), json.dumps(fields),
             label="POST /esq-cmd-save  -> esq.svc.save (the UPDATE path)")
+
+    # ---- write: the ACCOUNT re-save. A different service from the entity save above -- pacMan, not enyMan --
+    # and a different asset: esq.svc.acct.save. Its read and delete siblings fire on the ordinary tree walk,
+    # so this one call is all that stood between the asset and a proven verdict.
+    acct_id, acct_kind = find_account(acct_kinds(kinds))
+    if acct_id is None:
+        SKIPPED.append("no account node within reach of the tree walk -- esq.svc.acct.save not driven")
+    else:
+        status, acct = _call("GET", BASE + "/api/esq-enode?id=%s&kind=%d" % (acct_id, acct_kind))
+        acct_fields = {}
+        try:
+            a = json.loads(acct)
+            acct_fields = {k: v for k, v in a.items() if k in ("name", "desc", "fullName")}
+        except Exception:
+            pass
+        api("POST", "/esq-cmd-save?kind=%d&id=%s&cmd=save" % (acct_kind, acct_id), json.dumps(acct_fields),
+            label="POST /esq-cmd-save  -> esq.svc.acct.save (the ACCOUNT write path)")
 
     # ---- keys: the permission surface (esq.svc.key.read). `id` is a USER id and is OPTIONAL -- omitted, so the
     # caller reads its OWN access profile. Passing an ENTITY id here 400s at the edge, which means keySmith is

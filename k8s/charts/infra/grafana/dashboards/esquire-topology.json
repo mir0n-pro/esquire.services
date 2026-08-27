@@ -35,7 +35,7 @@
     "uid": "esq-prometheus"
    },
    "gridPos": {
-    "h": 27,
+    "h": 24,
     "w": 24,
     "x": 0,
     "y": 1
@@ -88,7 +88,7 @@
       "type": "prometheus",
       "uid": "esq-prometheus"
      },
-     "expr": "(100 * sum(pg_stat_database_blks_hit) / (sum(pg_stat_database_blks_hit) + sum(pg_stat_database_blks_read))) or vector(0)",
+     "expr": "(100 * sum(rate(pg_stat_database_blks_hit[5m])) / (sum(rate(pg_stat_database_blks_hit[5m])) + sum(rate(pg_stat_database_blks_read[5m])))) or vector(0)",
      "legendFormat": "postgres cache",
      "instant": true
     },

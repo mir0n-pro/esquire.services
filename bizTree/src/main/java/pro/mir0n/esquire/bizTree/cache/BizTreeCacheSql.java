@@ -13,6 +13,7 @@
  * 05/23/2026 mir0n  Repo record: added clearAll + checksum fields (night-watch TRUNCATE + MD5 digest).
  * 08/11/2026 mir0n  v1.2.12 -- findChangeNumbers, stampEntityChangeNo and stampPathChangeNo added to the
  *                   SQL set
+ * 08/26/2026 mir0n  findPathScoped added to the repo SQL record
  */
 package pro.mir0n.esquire.bizTree.cache;
 
@@ -34,6 +35,7 @@ public class BizTreeCacheSql {
             String findRoot,
             String findNodes,
             String findPath,
+            String findPathScoped,
             String findByEntityId,
             String findByNameKind,
             String updateNode,

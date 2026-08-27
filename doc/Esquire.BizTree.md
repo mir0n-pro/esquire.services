@@ -184,12 +184,19 @@ full sweep).
 1. LOAD the shadow (yin) fresh from esq2025 into its own table.
    Shadow LOAD FAILED -> abandon this sweep; retry next round.
 2. Submit CHECKSUM to BOTH legs; collect each digest within sweep.timeout-ms.
-3. A FAILED (timed-out / cancelled) digest is inconclusive -> abandon, retry next round.
+3. A leg with no digest leaves nothing to compare. TIMEDOUT (too slow to measure)
+   -> promote the shadow loaded in step 1, whatever the configured mismatch mode.
+   FAILED (the query threw) or INTERRUPTED (going down) -> keep serving, retry next round.
 4. Compare the two digests:
      MATCH    -> serving monad is healthy; nothing to do.
      MISMATCH -> react per the configured mode (below).
 5. Clear the shadow back to idle (always).
 ```
+
+The shadow is loaded fresh on every sweep whether that sweep ends in a promotion
+or not, so a promotion costs nothing and loses nothing. That is what the digests
+are compared for: not to decide the swap, but to raise the alarm when the two
+legs disagree.
 
 On mismatch the reaction is configurable (`biztree.taijitu.on-mismatch`):
 
@@ -250,6 +257,16 @@ Architectural rules, not knobs:
   trusted.
 - **DB is the source of truth.** Monads hold in-memory H2 tables only; restart
   always rebuilds from `esq2025`.
+- **A node's change number can lag the row's, never lead it.** The cache stamps
+  the number an event carried, and an event is published after the write that
+  raised it, so the cached number is always the database's or older. That is why
+  a lagging number is safe: every event that arrives carries a higher number than
+  the node holds, so nothing real is ever refused as stale. A lag closes two
+  ways -- the night-watch sweep sees the shadow's fresher number, mismatches and
+  promotes it, and the next genuine update of that entity carries a higher number
+  still, which the node applies and stamps. A write the design chooses not to
+  broadcast -- an account balance moving on a deposit or a withdrawal -- leaves
+  exactly such a lag, and is settled by whichever of the two arrives first.
 - **Broadcast subscription is non-durable.** bizTree joins the entity-broadcast bus
   through the x-rod broadcast consumer (an `XRod` on the `esquire.entity` topic) with a
   non-durable subscription: events missed during downtime are not retained by the broker,
@@ -329,8 +346,22 @@ seam:
   try-with-resources releases both on every path (including a cancel mid-query).
 
 The sweep's per-leg `timeout-ms` arms this: if a digest doesn't arrive in time
-the director cancels the query, the leg comes back `FAILED`, and the sweep is
-abandoned as inconclusive (a `FAILED` leg is not evidence of drift).
+the director cancels the query and the leg comes back `FAILED`. When even the
+cancel produces no answer the waiter writes `TIMEDOUT` itself, and `INTERRUPTED`
+if the waiting thread was interrupted. All three are screened out of the
+comparison the same way -- two legs carrying the same non-digest must never
+compare EQUAL and be reported as a match nobody measured -- but what follows
+depends on which one it is:
+
+- `TIMEDOUT` -- the data is there, only the measurement was too slow. The shadow
+  carries what the source of truth held at load time plus every event since, so
+  the sweep promotes it rather than go on serving a leg it could not check. This
+  promotion is not gated by `on-mismatch`: it answers a missing measurement, not
+  drift.
+- `FAILED` -- the leg's own query threw, so there is no storage to trust on
+  either side. The sweep reports it and leaves both legs where they are.
+- `INTERRUPTED`, and any result once shutdown has begun -- the process is going
+  down, and service does not move on the way out.
 
 
 ### The two-flag load sequence
@@ -463,7 +494,11 @@ by the `{table}` token so multiple monad tables coexist in one H2 instance witho
   no tree seed script -- the tree is derived from the live entity data on every load.
 - **Live updates.** The cache stays current by consuming the entity-broadcast bus:
   CREATE / UPDATE / DELETE / MOVE events from enyMan and pacMan are applied directly to the table
-  (insert / CASE-based update / delete / re-path).
+  (insert / CASE-based update / delete / re-path). The path from the broker to the table is ordered
+  at every step: one topic consumer (`concurrency: 1`), one receive thread
+  (`ENTITY_BROADCAST_POOL_SIZE=1`), and one monad worker draining the queue. A change number on each
+  event still refuses anything that is not newer than what the node already holds, which covers a
+  broker redelivery.
 - **Reconciliation.** The night-watch sweep (above) reloads a shadow table from `esq2025`,
   checksums both legs, and self-heals any drift -- so an event missed while the service was down is
   recovered automatically.

@@ -1,6 +1,14 @@
 #!/usr/bin/env python3
 # Esquire frameworks (tm) -- Grafana TOPOLOGY dashboard generator (v1.2.11 observability, T9-C).
 #
+# THE COMPACT topology generator: single source of truth for the "Esquire Topology" board on the compact
+# profile. Emits the SAME JSON to all THREE compact targets so they never drift:
+#   * docker : compose-compact/o11y/grafana/provisioning/dashboards/esquire-topology.json
+#   * k8s    : k8s-compact/charts/infra/grafana/dashboards/esquire-topology.json
+#   * OKE    : k8s-oci-compact/grafana/esquire-topology.json  (the auKeep-less fork)
+# The classic generator is its own file under compose/o11y/grafana; neither writes the other's tree.
+# Run with no arguments (python gen-topology.py) after changing a panel; commit the .py AND all three .json.
+#
 # ===============================================================================================================
 #  THE PICTURE IS LOCKED  (mir0n, 2026-07-12).
 #
@@ -10,7 +18,7 @@
 #    * ELEVEN COMPONENTS. Redis, Kafka and the browser came OFF. Redis/Kafka are the ALTERNATE audit sinks and sit
 #      idle on this deployment; the frontend is not tracked. A permanently-idle box on a LIVE board teaches the
 #      reader to ignore idle boxes -- the one habit a topology view must never build. They remain in
-#      doc/model/ComponentModel.svg, which is where an unwired alternate belongs.
+#      doc/media/ComponentModel.Compact.png, which is where an unwired alternate belongs.
 #    * THE OBSERVABILITY STACK IS NOT ON IT. The viewer is not the system.
 #    * THREE VERTICAL BUS LANES, not one bar and not a mesh. A mesh would assert the very coupling the bus exists
 #      to remove; one bar would hide the only thing the picture is FOR -- which services share a medium and which
@@ -75,6 +83,7 @@
 # The OBSERVABILITY STACK is deliberately NOT on this board (mir0n): the viewer is not the system.
 # ---------------------------------------------------------------------------------------------------------------
 
+import re
 import json
 import os
 
@@ -304,7 +313,7 @@ REQ = 'sum(rate(http_server_requests_seconds_count{%s}[5m]))'
 SERVICES_D = "/d/esq-services/?var-application=%s"
 
 # ---------------------------------------------------------------------------------------------------------------
-# LAYOUT: this board is deliberately THE SAME PICTURE as doc/model/ComponentModel.svg -- the component model that
+# LAYOUT: this board is deliberately THE SAME PICTURE as doc/media/ComponentModel.Compact.png -- the component model that
 # already ships in the docs. Not a second, differently-arranged drawing of the same system.
 #
 # That matters more than it sounds. A monitoring board and an architecture diagram that disagree about WHERE
@@ -356,8 +365,11 @@ comp("postgres", "Esq2025",
                       '< bool 90) and (sum(rate(pg_stat_database_blks_read[5m])) > 0))'),
      lambda r: [('sum(pg_stat_database_numbackends)', "short", "conns"),
                 ('sum(rate(pg_stat_database_xact_commit[5m]))', "ops", "tx/s"),
-                ('100 * sum(pg_stat_database_blks_hit) / (sum(pg_stat_database_blks_hit) + '
-                 'sum(pg_stat_database_blks_read))', "percent", "cache")],
+                # LIVE, like the WARN term above it: a cumulative ratio barely moves after a few hours, so
+                # the card read a flat ~99% while the amber warning beside it tripped on the real collapse.
+                ('100 * sum(rate(pg_stat_database_blks_hit[5m])) / '
+                 '(sum(rate(pg_stat_database_blks_hit[5m])) + sum(rate(pg_stat_database_blks_read[5m])))',
+                 "percent", "cache")],
      "/d/esq-services/", 30, 250)
 
 # ---- RIGHT of the buses: the services, in the component model's order ----
@@ -426,6 +438,12 @@ comp("gateward", "gateWard",
      lambda r: health('count(process_uptime_seconds{%s})' % SSEL("gateward", r),
                       w_cpu(SSEL("gateward", r)),
                       w_heap(ASEL("gateward", r)),
+                      # w_pool BELONGS HERE. The card was written from the classic GATEWAY's term list -- a
+                      # process with no DB -- but gateWard composes the gate AND the tree cache, so it runs two
+                      # Hikari pools (spring.datasource and biztree-h2-cache). Pool saturation painted nothing,
+                      # on the process whose own timing filter names H2 pool saturation as what the in-cluster
+                      # band moves on first. mesnie kept it (it goes through _svc); this card did not.
+                      w_pool(ASEL("gateward", r)),
                       *w_idle("http_server_requests_seconds_count", "gateward", r)),
      lambda r: [(REQ % ASEL("gateward", r), "reqps", "req/s"),
                 (CPU % SSEL("gateward", r), "percent", "cpu"),
@@ -471,7 +489,7 @@ comp("backend", "Explorer",
 # The Collector is the ONE piece that earns a box (I31, mir0n 2026-07-14 -- it was a detail-row panel before). It
 # is the hub EVERY trace in the fleet passes through, and if it starts DROPPING spans then traces go quietly
 # missing and NOTHING else on any dashboard would say so. So it is drawn as a component -- health (up, and not
-# refusing) + accepted / queue / refused. It is deliberately the one box ComponentModel.svg does NOT carry: it is
+# refusing) + accepted / queue / refused. It is deliberately the one box ComponentModel.Compact.png does NOT carry: it is
 # about the integrity of OUR DATA, not the health of the tool. No arrows -- a health indicator, not a data-flow
 # node -- and no esq icon, which is itself the tell that this box is the exception, not a system component.
 comp("collector", "COLLECTOR",
@@ -673,7 +691,7 @@ def ordinal(name, r):
 #  It belongs on the board. That discrepancy is exactly why the board reads the config and not the metrics.)
 # ---------------------------------------------------------------------------------------------------------------
 # Lanes, left to right: Audit -- IAM Request-Response -- Entity Broadcast.
-# THE SAME ORDER AS doc/model/ComponentModel.svg, and it must stay that way: a monitoring board and an
+# THE SAME ORDER AS doc/media/ComponentModel.Compact.png, and it must stay that way: a monitoring board and an
 # architecture diagram that disagree about WHERE things are make the reader hold two maps at once, and
 # a reader who spots the difference has no way to know which picture to trust. They carry the model's
 # own names and colours for the same reason.
@@ -708,7 +726,8 @@ SPINE_TOP, SPINE_H, SPINE_W = 25, 500, 46
 # Every edge below is READ OUT OF THE CONFIG, not remembered. A false edge on an architecture diagram is worse
 # than a missing one: it sends the next reader looking for a coupling that does not exist.
 #
-#   gateway routes  : gateway/application.yml `routes[].uri` -> keySmith, bizTree, pacMan, enyMan. FOUR services.
+#   gate routes     : gateWard/src/main/resources/application.yml `routes[].uri`. This profile runs NO gateway
+#                     process -- gateWard is the gate, and it proxies to Mesnie (keySmith + enyMan) and pacMan.
 #                     NOT kcMaster -- there is no route to it. kcMaster is reached ONLY over the bus, which is
 #                     exactly the kind of fact this picture exists to make obvious. (This file drew that arrow
 #                     once; it was invented.)
@@ -774,7 +793,7 @@ PINNED_EDGE = {
 }
 
 # Line colours. The lanes carry their own (the bus colours, from the component model); these two are
-# for the point-to-point calls -- RED for the database, as ComponentModel.svg draws it, grey for REST.
+# for the point-to-point calls -- RED for the database, as ComponentModel.Compact.png draws it, grey for REST.
 DB_RED = "#C0392B"
 # BLACK, not grey (mir0n). REST is the busiest kind of line on the board and grey made it the FAINTEST -- the
 # reader had to hunt for the one coupling that carries every request. Black is the ink of the drawing; the bus
@@ -917,7 +936,7 @@ def card(name, r):
 
 # ---------------------------------------------------------------------------------------------------------------
 # AN ICON PER COMPONENT, top-left of its FRONT card (mir0n) -- and they are OURS: doc/logo/*, the same set the
-# README's Component Model legend and ComponentModel.svg use. Generic icons from someone else's pack would have
+# README's Component Model legend and ComponentModel.Compact.png use. Generic icons from someone else's pack would have
 # made this board a THIRD picture of the same system, with a third visual vocabulary to learn.
 #
 # ONE icon per component, never one per card (mir0n): the icon says WHAT this is, and the second instance of a
@@ -1156,7 +1175,7 @@ def bus_spine(b):
 
 
 def bus_label(b):
-    """The lane's name, ROTATED and running up the lane -- exactly as doc/model/ComponentModel.svg draws it.
+    """The lane's name, ROTATED and running up the lane -- exactly as doc/media/ComponentModel.Compact.png draws it.
 
     Rotation, not a horizontal caption: the lane is 46px wide and 500px tall, so horizontal text simply does not
     fit, and a caption parked above or below it detaches the name from the thing it names. The model already
@@ -1571,7 +1590,10 @@ def canvas():
         "type": "canvas",
         "title": "The system -- every component, live",
         "datasource": DS,
-        "gridPos": {"h": 27, "w": 24, "x": 0, "y": 1},
+        # h=24, NOT 27: the canvas occupies y .. y+h-1, so at 27 it ran from y=1 to y=27 -- under the row
+        # header at y=25 and the three bus panels at y=26. The drawing needs 676px and 24 rows give ~950,
+        # so nothing is clipped; check_no_panel_overlap refuses the taller form now.
+        "gridPos": {"h": 24, "w": 24, "x": 0, "y": 1},
         "description": (
             "Every component of the system, live. Each box carries a LIVE NUMBER, not just a colour -- a traffic "
             "light tells you a thing is RUNNING, not that it has stopped doing any WORK, which is the failure "
@@ -1644,10 +1666,20 @@ def ts(title, x, y, w, unit, tl, h=8, desc=None, ds=None):
     return p
 
 
+
+def flat_panels(panels):
+    """Every panel, including the ones nested inside collapsed rows."""
+    ret = []
+    for p in panels or []:
+        ret.append(p)
+        ret.extend(flat_panels(p.get("panels")))
+    return ret
+
+
 def build():
     """THE DRAWN TOPOLOGY -- the picture. This is the dashboard called "Esquire Topology".
 
-    It is the same arrangement as doc/model/ComponentModel.svg: three VERTICAL bus lanes (Audit / IAM
+    It is the same arrangement as doc/media/ComponentModel.Compact.png: three VERTICAL bus lanes (Audit / IAM
     Request-Response / Entity Broadcast, in that order), auKeep and the stores to their LEFT, the services to
     their RIGHT, the gateway / Explorer / browser beyond them, and the broker beneath the lanes. The board and the
     document are ONE picture, with the numbers switched on.
@@ -1700,6 +1732,16 @@ def build():
                      "the picture above. Both ends are alive and the CALL BETWEEN THEM has stopped -- and no "
                      "per-component health check anywhere would ever tell you that."))
 
+    # The four silent classes, checked before anything is written. flat() is needed because the topology board
+    # nests its timeseries inside collapsed rows, and a guard that only saw the top level would pass a board
+    # whose defects all live one level down.
+    checked = flat_panels(p)
+    check_no_naked_subtraction(checked)
+    check_rows_do_not_share_y(checked)
+    check_no_panel_overlap(checked)   # refuse two panels whose RECTANGLES intersect
+    check_no_clamped_rate_denominator(checked)
+    check_avg_scales_only_seconds(checked)
+
     return {
         "uid": "esq-topology",
         "title": "Esquire Topology -- the system, live",
@@ -1714,6 +1756,385 @@ def build():
         "time": {"from": "now-1h", "to": "now"},
         "panels": p,
     }
+
+
+# ---------------------------------------------------------------------------------------------------------
+# BUILD-TIME GUARDS -- the same set the dashboard generator carries, and for the same reason: these four
+# defects are all SILENT. An empty operand deletes a band instead of drawing it low, a x1000 on a summary
+# draws a plausible number that is a thousand times wrong, a floored divisor renders a real average as a
+# fraction of itself, and a panel sharing a row header's y renders inside the wrong row. None of them looks
+# wrong on the board, so none is caught by looking.
+#
+# The canvas cells rest on an invariant worth stating, because nothing else states it: every operand of a
+# `((x) or vector(0))` sum is a full sum()/max()/min() WITHOUT `by`, so it carries no labels. `or vector(0)`
+# yields a label-less series and `+` matches on identical label sets -- a labelled operand beside an empty
+# one would match nothing and blank the cell.
+# ---------------------------------------------------------------------------------------------------------
+
+
+def _balanced(expr, i):
+    """The parenthesised group starting at expr[i] == '(', both parentheses included."""
+    depth = 0
+    j = i
+    while j < len(expr):
+        if expr[j] == "(":
+            depth += 1
+        elif expr[j] == ")":
+            depth -= 1
+            if depth == 0:
+                return expr[i:j + 1]
+        j += 1
+    return expr[i:]
+
+
+def _scan(expr):
+    """Walk expr once, yielding (index, char, depth) outside quotes. One place knows about strings."""
+    in_str = None
+    depth = 0
+    for i, ch in enumerate(expr):
+        if in_str:
+            if ch == in_str:
+                in_str = None
+            continue
+        if ch in "\"'`":
+            in_str = ch
+            continue
+        if ch == "(":
+            depth += 1
+        elif ch == ")":
+            depth -= 1
+        yield i, ch, depth
+
+
+def _binary_addsub_positions(expr):
+    """Every index holding a BINARY + or -: arithmetic, not a sign, not a hyphen in a label value.
+
+    BOTH operators matter. PromQL vector arithmetic matches series, so an EMPTY operand empties the whole
+    result on either side of a + or a -. `a - ((b) or vector(0)) + (c)` is `(a - b) + c`: guarding b and
+    leaving c bare still deletes the panel.
+
+    A minus is binary when the previous non-space character can END a term. `offset -5m` and `[5m:1m]`
+    therefore do not count -- `offset` ends in a letter but the minus there follows a keyword, so the
+    keyword is excluded explicitly.
+    """
+    ret = []
+    prev = ""
+    prev_word = ""
+    word = ""
+    for i, ch, _ in _scan(expr):
+        if ch.isalnum() or ch == "_":
+            word += ch
+        elif not ch.isspace():
+            if word:
+                prev_word = word
+            word = ""
+        elif word:
+            prev_word = word
+            word = ""
+        if ch in "+-" and prev and (prev.isalnum() or prev in ")}]_\"") and prev_word != "offset":
+            ret.append(i)
+        if not ch.isspace():
+            prev = ch
+    return ret
+
+
+def _is_number(text):
+    try:
+        float(text)
+        return True
+    except ValueError:
+        return False
+
+
+def _top_args(call):
+    """The top-level arguments of a call like clamp_min(a, b) -- `call` starts at its '('."""
+    inner = call[1:-1]
+    args = []
+    start = 0
+    for i, ch, depth in _scan(inner):
+        if ch == "," and depth == 0:
+            args.append(inner[start:i].strip())
+            start = i + 1
+    args.append(inner[start:].strip())
+    return args
+
+
+def _guarded_spans(expr):
+    """Every parenthesised group that is immediately followed by `or vector(0)`.
+
+    Such a group yields a value whatever happens inside it, so an empty operand nested within one can never
+    reach the panel. Without this the guard flagged a correct shipped canvas: a ratio whose denominator is a
+    bare `a + b` is genuinely fragile on its own, and harmless once the whole comparison is `(...) or vector(0)`.
+    """
+    ret = []
+    opens = []
+    for i, ch, _ in _scan(expr):
+        if ch == "(":
+            opens.append(i)
+        elif ch == ")" and opens:
+            start = opens.pop()
+            if expr[i + 1:].lstrip().startswith("or vector(0)"):
+                ret.append((start, i))
+    return ret
+
+
+def _absorbed(spans, i):
+    """Is this operator inside a group whose emptiness is already caught?"""
+    ret = False
+    for start, end in spans:
+        if start < i < end:
+            ret = True
+            break
+    return ret
+
+
+def _top_addsub_positions(expr):
+    """The binary + and - at the OUTERMOST depth of expr only.
+
+    _nonempty asks whether the terms of THIS expression are each safe; a nested operator belongs to a
+    sub-expression and splitting on it tears an inner ratio into fragments that are unguarded on their own.
+    """
+    ret = []
+    inner = set(_binary_addsub_positions(expr))
+    depths = []
+    for i, ch, depth in _scan(expr):
+        depths.append((i, depth))
+    # The outermost level is the SHALLOWEST depth reached, not the first character's -- `(a) + (b)` opens on a
+    # parenthesis, so reading the baseline off character zero puts the top-level + one level too deep and the
+    # split finds nothing.
+    base = min(d for _, d in depths) if depths else 0
+    for i, depth in depths:
+        if i in inner and depth == base:
+            ret.append(i)
+    return ret
+
+
+def _nonempty_term(term):
+    """Can this ONE additive term never be an empty vector?
+
+    Only `or vector(0)` makes a value out of nothing. clamp_max/clamp_min PRESERVE emptiness -- clamp_max of an
+    empty vector is still empty -- so a clamped subtrahend is safe exactly when what it clamps is safe, which
+    makes the rule recursive rather than a shape match.
+    """
+    ret = False
+    term = term.strip()
+    if _is_number(term):
+        ret = True                                             # a constant cannot be empty
+    elif term.rstrip().endswith("or vector(0)"):
+        ret = True                                             # guarded, parenthesised or not
+    elif term.startswith("(") and _balanced(term, 0) == term:
+        inner = term[1:-1].strip()
+        ret = inner.rstrip().endswith("or vector(0)") or _nonempty(inner)
+    else:
+        for fn in ("clamp_max(", "clamp_min("):
+            if term.startswith(fn) and _balanced(term, len(fn) - 1) == term[len(fn) - 1:]:
+                ret = _nonempty(_top_args(_balanced(term, len(fn) - 1))[0])
+    return ret
+
+
+def _nonempty(expr):
+    """Can this whole expression never be empty? Every additive term must hold on its own -- an empty operand
+    empties the sum, so one bare term is enough to lose the lot."""
+    expr = expr.strip()
+    ret = _nonempty_term(expr)
+    if not ret:
+        cuts = _top_addsub_positions(expr)
+        if cuts:
+            ret = True
+            start = 0
+            for i in cuts + [len(expr)]:
+                if not _nonempty_term(expr[start:i].strip().lstrip("+-").strip()):
+                    ret = False
+                    break
+                start = i
+    return ret
+
+
+def _additive_term(expr, start):
+    """The text of one additive term beginning at expr[start]: up to the next same-depth + or -, the end of the
+    enclosing group, or a same-depth COMMA -- a comma ends an argument, and a term that ran past one used to
+    swallow the `, 1` of a clamp and then fail to recognise the operand it had just mangled."""
+    base = None
+    end = len(expr)
+    for i, ch, depth in _scan(expr[start:]):
+        if base is None:
+            base = depth
+        if i > 0 and depth == base and ch in "+-":
+            prev = expr[start:start + i].rstrip()
+            if prev and (prev[-1].isalnum() or prev[-1] in ")}]_\""):
+                end = start + i
+                break
+        if depth == base and ch == ",":
+            end = start + i
+            break
+        if depth < base:
+            end = start + i
+            break
+    return expr[start:end].strip()
+
+
+def check_no_naked_subtraction(panels):
+    """Refuse a subtraction whose SUBTRAHEND can be empty -- build-enforced.
+
+    An empty vector deletes the whole expression it is subtracted from, so a band drawn from a metric that is
+    legitimately absent does not read low -- it VANISHES. band() emits ((minuend) - ((subtrahend) or vector(0)));
+    the topology canvas writes (2 - clamp_max(<guarded sum>, 1)). Both are safe and the rule accepts both,
+    because what matters is not the shape but whether the subtrahend can come back empty.
+
+    BOTH operators matter. PromQL matches series on `+` as well, so `a - ((b) or vector(0)) + (c)` still dies
+    with c: + and - are equal precedence and left-associative, and the subtrahend is the whole additive term.
+
+    Four cold reads found this guard wanting, each time because it pattern-matched where it needed to parse:
+    it counted `or vector(0)` globally, then required spaces around the minus, then stopped at the first group,
+    then recognised only one of the two safe idioms and refused a correct board.
+    """
+    for p in panels:
+        for t in p.get("targets", []):
+            expr = t.get("expr", "")
+            spans = _guarded_spans(expr)
+            for i in _binary_addsub_positions(expr):
+                term = _additive_term(expr, i + 1)
+                if term and not _absorbed(spans, i) and not _nonempty_term(term):
+                    raise SystemExit(
+                        "naked subtraction in panel %r:\n  %s\n"
+                        "  subtrahend: %s\n"
+                        "The subtrahend must be unable to come back EMPTY -- ((x) or vector(0)), or a clamp of\n"
+                        "one -- because an empty vector deletes the band SILENTLY rather than drawing it low."
+                        % (p.get("title"), expr, term))
+
+
+def check_avg_scales_only_seconds(panels):
+    """Refuse a x1000 applied to a metric that is not a timer -- the unit-scale lie, build-enforced.
+
+    avg_ms() means "this metric is in seconds, draw it in ms", and Micrometer says so in the NAME: a Timer
+    is *_seconds_sum, a plain DistributionSummary is *_sum with no unit. Scaling the latter draws it a
+    thousand times too large, and reading the query does not catch it because the mistake is in a name that
+    is NOT there. Use avg_raw() for a summary.
+
+    Only the SCALED OPERAND is inspected, not the whole expression: a band may legitimately combine an
+    avg_ms() timer with an avg_raw() summary, and condemning the second because the first is scaled is a
+    false positive -- which costs as much as a hole, because a guard that refuses correct work gets
+    weakened. The scale also needs a left boundary, or `21000` matches.
+    """
+    for p in panels:
+        for t in p.get("targets", []):
+            expr = t.get("expr", "")
+            operands = []
+            for m in re.finditer(r"(?<![\d.\w])(?:1000|1e3)\s*\*\s*", expr):
+                rest = expr[m.end():]
+                operands.append(_balanced(rest, 0) if rest.startswith("(") else _additive_term(rest, 0))
+            for m in re.finditer(r"\*\s*(?:1000|1e3)(?![\d.\w])", expr):
+                head = expr[:m.start()].rstrip()
+                if head.endswith(")"):
+                    depth = 0
+                    for k in range(len(head) - 1, -1, -1):
+                        if head[k] == ")":
+                            depth += 1
+                        elif head[k] == "(":
+                            depth -= 1
+                            if depth == 0:
+                                operands.append(head[k:])
+                                break
+                else:
+                    operands.append(head)
+            for operand in operands:
+                for name in re.findall(r"(?:rate|irate|increase)\(\s*([A-Za-z_:][A-Za-z0-9_:]*)", operand):
+                    if name.endswith("_sum") and not name.endswith("_seconds_sum"):
+                        raise SystemExit(
+                            "avg_ms() on a non-timer in panel %r:\n  %s\n"
+                            "%s has no unit in its name, so it is NOT seconds -- scaling it draws the value a\n"
+                            "thousand times too large. Use avg_raw()." % (p.get("title"), expr, name))
+
+
+def check_no_clamped_rate_denominator(panels):
+    """Refuse a DENOMINATOR that floors its divisor -- the plausible-lie trap, build-enforced.
+
+    clamp_min(x, N) divides by N whenever the true value is below N, rendering a real 130 ms average as
+    0.3 ms SILENTLY -- and it looks plausible, so reading the query never catches it. avg_s() / avg_ms() /
+    ratio() divide by the TRUE rate on purpose: a gap when idle is the honest reading.
+
+    The FLOOR is the last top-level argument, so `max(topk(5, x))` -- a comma and a digit, but not a floor
+    -- passes, and `clamp_min(band, 0)` (flooring a band, not a divisor) stays legal. Leading parentheses
+    after the / are stripped, because one pair used to defeat the whole check.
+    """
+    for p in panels:
+        for t in p.get("targets", []):
+            expr = t.get("expr", "")
+            for m in re.finditer(r"/\s*", expr):
+                rest = expr[m.end():].lstrip()
+                while rest.startswith("(("):
+                    rest = rest[1:].lstrip()
+                if rest.startswith("("):
+                    inner = _balanced(rest, 0)[1:-1].strip()
+                    if inner.startswith(("clamp_min(", "max(", "min(")):
+                        rest = inner
+                for fn in ("clamp_min(", "max(", "min("):
+                    if rest.startswith(fn):
+                        args = _top_args(_balanced(rest, len(fn) - 1))
+                        floor = args[-1] if len(args) > 1 else ""
+                        mm = re.match(r"^vector\(\s*([0-9.]+)\s*\)$|^([0-9.]+)$", floor)
+                        if mm and float(mm.group(1) or mm.group(2)) > 0:
+                            raise SystemExit(
+                                "floored denominator in panel %r:\n  %s\n"
+                                "Flooring the divisor divides by that floor whenever the true value is below\n"
+                                "it, rendering a real average as a fraction of itself. Divide by the TRUE rate."
+                                % (p.get("title"), expr))
+                if re.match(r"\(?[^/]*?>\s*0\s+or\s+vector\(\s*[1-9]", rest):
+                    raise SystemExit(
+                        "floored denominator in panel %r:\n  %s\n"
+                        "`> 0 or vector(1)` is the same divide-by-one lie in another idiom."
+                        % (p.get("title"), expr))
+
+
+def check_no_panel_overlap(panels):
+    """Refuse two TOP-LEVEL panels whose grid rectangles intersect -- build-enforced.
+
+    check_rows_do_not_share_y compares one panel's y against another's. That catches a panel placed AT a row
+    header's y and nothing else: it has no idea that a panel of height h occupies y .. y+h-1. So a canvas
+    declared h=27 at y=1 ran straight under the row header at y=25 and the three panels below it, on all five
+    topology boards, and no guard could see it. Grafana resolves an overlap by pushing panels down, so the board
+    still renders -- just not the layout the generator declared, which is the whole point of generating it.
+
+    Only TOP-LEVEL panels are compared. A panel nested inside a collapsed row carries coordinates relative to
+    that row, so mixing the two levels would invent overlaps that do not exist.
+    """
+    placed = []
+    for p in panels:
+        if p.get("type") == "row":
+            continue
+        g = p.get("gridPos") or {}
+        x, y = g.get("x", 0), g.get("y", 0)
+        w, h = g.get("w", 0), g.get("h", 0)
+        for (px, py, pw, ph, title) in placed:
+            if x < px + pw and px < x + w and y < py + ph and py < y + h:
+                raise SystemExit(
+                    "panel overlap: %r (x=%d y=%d w=%d h=%d) intersects %r (x=%d y=%d w=%d h=%d).\n"
+                    "A panel occupies y .. y+h-1; check the HEIGHT, not just the y. Grafana would push one of\n"
+                    "them down, so the board renders -- but not the layout this generator declares."
+                    % (p.get("title"), x, y, w, h, title, px, py, pw, ph))
+        placed.append((x, y, w, h, p.get("title")))
+
+
+def check_rows_do_not_share_y(panels):
+    """Refuse two panels -- of ANY kind -- placed at the same y when one of them is a ROW header.
+
+    Grafana sorts by (y, x) and then assigns row membership by POSITION IN THAT SORTED ARRAY. A panel
+    sharing a row header's y lands on whichever side of it the sort happens to put it, so a panel declared
+    under one row renders inside the NEXT one and collapsing the wrong row hides it. TWO ROW HEADERS at one
+    y is the same ambiguity in its purest form -- both have x=0, so which owns the panels below is decided
+    by list order alone.
+    """
+    seen = {}
+    for p in panels:
+        y = p.get("gridPos", {}).get("y")
+        is_row = p.get("type") == "row"
+        if y in seen and (is_row or seen[y][1]):
+            raise SystemExit(
+                "panel %r and %r both sit at y=%s, and one is a ROW header.\n"
+                "Grafana sorts by (y, x) and assigns row membership by the sorted position, so this\n"
+                "renders in the wrong row. Give the row its own y." % (p.get("title"), seen[y][0], y))
+        if y not in seen or is_row:
+            seen[y] = (p.get("title"), is_row)
 
 
 def main():

@@ -53,7 +53,11 @@ spec:
             {{- end }}
           readinessProbe:
             exec:
-              command: ["pg_isready", "-U", "esq2025", "-d", "esq2025"]
+              # -h forces TCP. Without it pg_isready uses the unix socket, and the official entrypoint runs
+              # initdb AND the seed on that socket while deliberately not listening on TCP -- so a socket check
+              # reports "accepting connections" in the middle of seeding, and every service that gates on Ready
+              # starts against a half-built database.
+              command: ["pg_isready", "-h", "127.0.0.1", "-U", "esq2025", "-d", "esq2025"]
             initialDelaySeconds: 10
             periodSeconds: 10
             timeoutSeconds: 5

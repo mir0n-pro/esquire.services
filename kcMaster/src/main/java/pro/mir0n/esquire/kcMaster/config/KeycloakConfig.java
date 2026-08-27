@@ -16,39 +16,19 @@
  *                   logs its effective ttl and prune interval at startup
  * 08/12/2026 mir0n  v1.2.13 -- the keycloak() and kcPathBuffer() beans removed: KcIdentityGateway builds the admin client
  *                   and the path park itself; the I39 note moved with the client
+ * 08/26/2026 mir0n  reduced to the kc-async task executor bean; the Keycloak admin client and its settings move
+ *                   to KcIdentityGateway, built from the shared KcConnectionSettings
  */
 
 package pro.mir0n.esquire.kcMaster.config;
 
-import lombok.Getter;
-import lombok.extern.slf4j.Slf4j;
-import lombok.Setter;
-import org.keycloak.OAuth2Constants;
-import org.keycloak.admin.client.Keycloak;
-import org.keycloak.admin.client.KeycloakBuilder;
-import org.springframework.boot.context.properties.ConfigurationProperties;
-import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
-import pro.mir0n.esquire.kcMaster.messaging.ParkedPath;
-import pro.mir0n.utils.concurrent.ExpiringCache;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.task.AsyncTaskExecutor;
 import org.springframework.core.task.SimpleAsyncTaskExecutor;
 
-@Slf4j
-@Getter
-@Setter
 @Configuration
-@ConfigurationProperties(prefix = "keycloak.admin")
 public class KeycloakConfig {
-
-    private String baseUrl;
-    private String realm;
-    private String clientId;
-    private String clientSecret;
-    private int connectTimeoutMs;
-    private int readTimeoutMs;
 
     @Bean
     public AsyncTaskExecutor taskExecutor() {

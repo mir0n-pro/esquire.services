@@ -90,6 +90,137 @@ class BoundedQueueRigTest {
         rig.shutdown();
     }
 
+    @Test
+    @DisplayName("a processed item is routed to the success listener; a throwing one is not")
+    void workerSuccess_routedToListener() throws Exception {
+        List<String>   succeeded = new CopyOnWriteArrayList<>();
+        List<String>   errored   = new CopyOnWriteArrayList<>();
+        CountDownLatch latch     = new CountDownLatch(2);   // ok1, ok2
+
+        BoundedQueueRig<String> rig = rig(item -> {
+            if ("boom".equals(item)) throw new RuntimeException("boom");
+            latch.countDown();
+        });
+        rig.setSuccessListener((IQueueRig.ISuccessListener<String>) succeeded::add);
+        rig.setErrorListener((IQueueRig.IErrorListener<String>) (t, item) -> { errored.add(item); return null; });
+        rig.setProcessing(true);
+        rig.start();
+
+        rig.put("ok1"); rig.put("boom"); rig.put("ok2");
+
+        assertThat(latch.await(2, TimeUnit.SECONDS)).isTrue();
+        Thread.sleep(100);
+        assertThat(succeeded).containsExactly("ok1", "ok2");   // the outcome halves do not overlap
+        assertThat(errored).containsExactly("boom");
+        rig.shutdown();
+    }
+
+    @Test
+    @DisplayName("no success listener set: the worker path stays a null check, nothing throws")
+    void noSuccessListener_isTheDefault() throws Exception {
+        CountDownLatch latch = new CountDownLatch(2);
+        BoundedQueueRig<String> rig = rig(item -> latch.countDown());
+        rig.setProcessing(true);
+        rig.start();
+        rig.put("a"); rig.put("b");
+        assertThat(latch.await(2, TimeUnit.SECONDS)).isTrue();
+        rig.shutdown();
+    }
+
+    @Test
+    @DisplayName("a success listener that throws does not take the worker down -- the item WAS processed")
+    void successListenerThrows_workerKeepsRunning() throws Exception {
+        List<String>   applied = new CopyOnWriteArrayList<>();
+        CountDownLatch latch   = new CountDownLatch(3);
+
+        BoundedQueueRig<String> rig = rig(item -> { applied.add(item); latch.countDown(); });
+        rig.setSuccessListener((IQueueRig.ISuccessListener<String>) item -> {
+            throw new RuntimeException("listener boom");
+        });
+        rig.setProcessing(true);
+        rig.start();
+
+        rig.put("a"); rig.put("b"); rig.put("c");
+
+        assertThat(latch.await(2, TimeUnit.SECONDS)).isTrue();
+        assertThat(applied).containsExactly("a", "b", "c");
+        rig.shutdown();
+    }
+
+    @Test
+    @DisplayName("clearing the success listener restores the dummy -- the field is never null")
+    void clearingSuccessListener_restoresTheDummy() throws Exception {
+        CountDownLatch latch = new CountDownLatch(2);
+        BoundedQueueRig<String> rig = rig(item -> latch.countDown());
+        rig.setSuccessListener((IQueueRig.ISuccessListener<String>) item -> { });
+        rig.setSuccessListener(null);          // would leave a null behind if the setter did not guard
+        rig.setProcessing(true);
+        rig.start();
+        rig.put("a"); rig.put("b");
+        assertThat(latch.await(2, TimeUnit.SECONDS)).isTrue();   // the worker still drains, no NPE
+        rig.shutdown();
+    }
+
+    @Test
+    @DisplayName("bulk: success fires per item the worker HANDLED -- the remainder it handed back is not counted")
+    void bulkSuccess_firesPerHandledItem() throws Exception {
+        List<String> succeeded = new CopyOnWriteArrayList<>();
+        CountDownLatch latch   = new CountDownLatch(1);
+
+        // Handed 4, hands 2 back: only the first two were processed IN THIS PASS. The rig re-queues the
+        // remainder and would drain it again -- which is right, and is why this worker closes the gate on its
+        // way out: the assertion is about ONE pass, not about the rig eventually finishing the work.
+        BoundedQueueRig<String>[] self = new BoundedQueueRig[1];
+        IQueueRig.IQueueListWorker<String> worker = new IQueueRig.IQueueListWorker<String>() {
+            @Override public void process(String item) { }
+            @Override public List<String> process(ArrayList<String> items, IQueueRig.ISignaler s) {
+                self[0].setProcessing(false);
+                latch.countDown();
+                return new ArrayList<>(items.subList(2, items.size()));
+            }
+        };
+        BoundedQueueRig<String> rig = listRig(worker, 64);
+        self[0] = rig;
+        rig.setBulkThreshold(2);
+        rig.setSuccessListener((IQueueRig.ISuccessListener<String>) succeeded::add);
+        rig.setProcessing(false);
+        rig.start();
+        rig.put("a"); rig.put("b"); rig.put("c"); rig.put("d");
+        rig.setProcessing(true);
+
+        assertThat(latch.await(2, TimeUnit.SECONDS)).isTrue();
+        Thread.sleep(150);
+        assertThat(succeeded).containsExactly("a", "b");   // c and d were handed back, not processed
+        rig.shutdown();
+    }
+
+    @Test
+    @DisplayName("bulk: a throwing list worker fires NO success -- the outcome halves stay disjoint")
+    void bulkThrow_firesNoSuccess() throws Exception {
+        List<String> succeeded = new CopyOnWriteArrayList<>();
+        CountDownLatch latch   = new CountDownLatch(1);
+
+        IQueueRig.IQueueListWorker<String> worker = new IQueueRig.IQueueListWorker<String>() {
+            @Override public void process(String item) { }
+            @Override public List<String> process(ArrayList<String> items, IQueueRig.ISignaler s) {
+                latch.countDown();
+                throw new RuntimeException("bulk boom");
+            }
+        };
+        BoundedQueueRig<String> rig = listRig(worker, 64);
+        rig.setBulkThreshold(2);
+        rig.setSuccessListener((IQueueRig.ISuccessListener<String>) succeeded::add);
+        rig.setProcessing(false);
+        rig.start();
+        rig.put("a"); rig.put("b"); rig.put("c");
+        rig.setProcessing(true);
+
+        assertThat(latch.await(2, TimeUnit.SECONDS)).isTrue();
+        Thread.sleep(150);
+        assertThat(succeeded).isEmpty();
+        rig.shutdown();
+    }
+
     /* ====================================================================
      * Bulk path -- IQueueListWorker
      * ==================================================================== */

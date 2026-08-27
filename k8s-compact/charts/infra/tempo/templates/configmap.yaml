@@ -5,7 +5,7 @@ metadata:
   labels:
     app: {{ .Release.Name }}
 data:
-  # Mirror of compose/o11y/tempo-config.yaml -- single binary, filesystem, OTLP receivers, 7-day retention.
+  # Mirror of compose-compact/o11y/tempo-config.yaml -- single binary, filesystem, OTLP receivers, 6-hour retention.
   tempo-config.yaml: |
     stream_over_http_enabled: true
     server:

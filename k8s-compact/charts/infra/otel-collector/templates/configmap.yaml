@@ -5,7 +5,7 @@ metadata:
   labels:
     app: {{ .Release.Name }}
 data:
-  # Mirror of compose/o11y/otel-collector-config.yaml -- OTLP in (services), OTLP out (Tempo).
+  # Mirror of compose-compact/o11y/otel-collector-config.yaml -- OTLP in (services), OTLP out (Tempo).
   config.yaml: |
     receivers:
       otlp:
@@ -76,6 +76,19 @@ data:
         store:
           ttl: 10s
           max_items: 10000
+        # NAME THE PEER, or the edge is drawn as a node called `unknown`. A CLIENT span with no SERVER span to
+        # pair with -- we called something that reports no spans of its own -- becomes a VIRTUAL NODE, named from
+        # the first of these attributes the span carries. Carrying none it falls back to the literal "unknown",
+        # and every unnamed peer of every caller shares that one label, so two dependencies of one service merge
+        # into a single line on the topology board. (`user` is the connector's name for an external caller
+        # arriving at a root SERVER span; that virtual node is correct and stays.)
+        virtual_node_peer_attributes:
+          - peer.service
+          - db.system
+          - server.address
+          - net.peer.name
+          - spring.cloud.gateway.route.uri
+          - http.uri
         latency_histogram_buckets: [10ms, 50ms, 100ms, 250ms, 500ms, 1s, 5s]
         metrics_flush_interval: 15s
 

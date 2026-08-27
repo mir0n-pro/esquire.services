@@ -7,9 +7,10 @@ rem run) by the local k8s-compact and OKE compact launchers: no setlocal here.
 rem ===========================================================================
 call "%~dp0fleet-compact.bat"
 
-rem LOG_SERVICES = the Loki `service_name` label, which on k8s is the FULL workload
-rem name (esquire-<svc>-<svc>), NOT the short meter name. Without it the log-stream
-rem sweep looks for streams that do not exist and FAILs every service while the logs
-rem are being shipped perfectly well. Mesnie is ONE workload for enyMan, keySmith
-rem and the identity work.
+rem LOG_SERVICES = the Loki `service_name` label, which on k8s is the WORKLOAD name,
+rem not the short meter name. On the compact charts that is the bare release name
+rem (esquire-mesnie); the classic charts append the service (esquire-enyman-enyman).
+rem Without this the log-stream sweep looks for streams that do not exist and FAILs
+rem every service while the logs are being shipped perfectly well. Mesnie is ONE
+rem workload for enyMan, keySmith and the identity work.
 set LOG_SERVICES=esquire-gateward,esquire-mesnie,esquire-pacman,esquire-aukeep,esquire-backend

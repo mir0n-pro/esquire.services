@@ -1,5 +1,29 @@
 Esquire kcMaster Microservice
 
+08/26/2026 mir0n  v1.2.13 -- credential state held both ways, and the admin client moved
+config.KeycloakConfig
+  - reduced to the kc-async task executor bean; the Keycloak admin client and its settings move to
+    KcIdentityGateway, built from the shared KcConnectionSettings
+identity.KcIdentityGateway
+  - builds the Keycloak admin client itself from KcConnectionSettings -- its own JAX-RS Client with
+    JacksonProvider and connect / read timeouts -- and implements IQueueRig.IErrorListener so a worker
+    throw is recorded rather than lost
+messaging.KcRequestHandler
+  - the updateAccess call drops the password and enabled arguments, neither of which the messaging path
+    manages
+service.IKcIdentityService
+  - updateAccess drops the password and enabled parameters; forcePasswordChange becomes a Boolean and
+    removeTotp joins it, so each required action can be withdrawn as well as set
+service.impl.KcIdentityService
+  - updateAccess reads the user existing required actions and holds each one both ways via holdAction:
+    UPDATE_PASSWORD follows forcePasswordChange, CONFIGURE_TOTP is set on request and removed on
+    removeTotp, and the write happens only when something changed
+  - deleteUser checks and closes the JAX-RS Response, so a refused delete is not reported SUCCESS
+resources/application.yml
+  - the admin connect / read timeouts take KC_ADMIN_CONNECT_TIMEOUT_MS and KC_ADMIN_READ_TIMEOUT_MS
+resources/logback-spring.xml
+  - the develop pattern drops the "develop." prefix from the logger name
+
 08/12/2026 mir0n  v1.2.13 -- Mesnie
 KcMasterApplication
   - the package list moved to KcMasterConfig (@Import)

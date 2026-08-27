@@ -1,5 +1,5 @@
 # Loki -- single-binary, filesystem store (dev/docker). T1 logging-visualize backend.
-# Minimal config: one process, local disk, 7-day retention, structured-metadata enabled
+# Minimal config: one process, local disk, 6-hour retention, structured-metadata enabled
 # (so correlationId / requestId ride as queryable metadata, NOT as high-cardinality labels).
 auth_enabled: false
 

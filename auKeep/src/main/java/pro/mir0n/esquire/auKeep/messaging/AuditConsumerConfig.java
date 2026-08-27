@@ -21,6 +21,7 @@
  * 07/15/2026 mir0n  v1.2.11 T11 -- wraps the keep applier so the audit consumer stamps MDC via
  *                   EsqContextHolder.applyMessage(event) before applying and clears in a finally, correlating its
  *                   log lines to the audited message (I10)
+ * 08/26/2026 mir0n  a disabled audit bus names the property that disabled it (AUDIT_BUS_ID) in the refusal
  */
 package pro.mir0n.esquire.auKeep.messaging;
 
@@ -54,6 +55,8 @@ public class AuditConsumerConfig {
     /** The keep's *_log datasource group (configured the same way a producer's in-process leg is). */
     private static final String KEEP_DATASOURCE = "esquire.keep.datasource";
 
+    private static final String AUDIT_BUS_ID = "esquire.audit-bus.messaging-bus.bus-id";
+
     private final Environment env;
     // The Micrometer registry (present only when observability is enabled) -- handed to the keep pool so its
     // hikaricp_* meters report; the keep pool is an OWN HikariDataSource, invisible to Boot's auto-instrumentation.
@@ -69,46 +72,48 @@ public class AuditConsumerConfig {
     /**
      * Open the audit consumer: take the audit rod the facade built (audit-bus ref, role CLIENT) and set the
      * generic keep applier (the audit director's kinds + SQL, applied to the keep datasource group) as its
-     * receive worker. If the audit bus is explicitly disabled (XRodDisabled, e.g. audit-off) the consumer stays
-     * idle; a missing keep datasource also leaves it idle.
+     * receive worker.
      */
     @Bean
     public IXRod auditConsumer() {
-        IXRod rod = MessagingBus.getInstance().getXRod(EsqConstants.BUS_KEY_AUDIT);
-        if (!rod.isEnabled()) {
-            devLog.info("auKeep: audit bus is disabled (XRodDisabled) -- audit consumer idle");
-        } else {
-            KeepDataSourceParams ds = Binder.get(env)
-                    .bind(KEEP_DATASOURCE, Bindable.of(KeepDataSourceParams.class)).orElse(null);
-            if (ds == null || ds.url() == null || ds.url().isBlank()) {
-                devLog.info("auKeep: no {} configured -- no audit consumer started", KEEP_DATASOURCE);
-            } else {
-                IKeepDirector dir = new AuditKeepDirector();
-                this.keepApplier = new KeepApplier(ds, new KeepSqlStore(dir.sqlGroup()), dir.kinds(), devLog,
-                        meterRegistry.getIfAvailable());
-                // The generic keep applier logs the apply (develop channel) but does not establish a context, and
-                // its item IS a RodEvent -- so applyMessage (not set) is the right tool. Wrapped HERE (auKeep, above
-                // common) so the keep engine in dataKeep never learns the MDC key vocabulary.
-                final Consumer<RodEvent> keepWorker = keepApplier.applier();
-                rod.setWorker(e -> {
-                    EsqContextHolder.applyMessage(e);
-                    try {
-                        keepWorker.accept(e);
-                    } finally {
-                        EsqContextHolder.clear();
-                    }
-                });
-                devLog.info("auKeep: audit consumer applying to keep datasource (kinds={})", dir.kinds().size());
-            }
+        IXRod ret = MessagingBus.getInstance().getXRod(EsqConstants.BUS_KEY_AUDIT);
+        if (!ret.isEnabled()) {
+            throw new IllegalStateException("auKeep: the audit bus is disabled (XRodDisabled, AUDIT_BUS_ID="
+                    + env.getProperty(AUDIT_BUS_ID) + ") -- auKeep keeps the audit and does nothing else."
+                    + " Point it at the durable audit bus, or do not deploy auKeep.");
         }
-        return rod;
+        KeepDataSourceParams ds = Binder.get(env)
+                .bind(KEEP_DATASOURCE, Bindable.of(KeepDataSourceParams.class)).orElse(null);
+        if (ds == null || ds.url() == null || ds.url().isBlank()) {
+            throw new IllegalStateException("auKeep: no " + KEEP_DATASOURCE + " configured (active profiles: "
+                    + String.join(",", env.getActiveProfiles()) + ") -- refusing to start. The group is declared"
+                    + " per DB_DATAKEEP_VENDOR profile, so a vendor name that is not one of those leaves the"
+                    + " consumer with no worker, dropping every audit record it takes off the queue.");
+        }
+        IKeepDirector dir = new AuditKeepDirector();
+        this.keepApplier = new KeepApplier(ds, new KeepSqlStore(dir.sqlGroup()), dir.kinds(), devLog,
+                meterRegistry.getIfAvailable());
+        // The generic keep applier logs the apply (develop channel) but does not establish a context, and its
+        // item IS a RodEvent -- so applyMessage (not set) is the right tool. Wrapped HERE (auKeep, above common)
+        // so the keep engine in dataKeep never learns the MDC key vocabulary.
+        final Consumer<RodEvent> keepWorker = keepApplier.applier();
+        ret.setWorker(e -> {
+            EsqContextHolder.applyMessage(e);
+            try {
+                keepWorker.accept(e);
+            } finally {
+                EsqContextHolder.clear();
+            }
+        });
+        devLog.info("auKeep: audit consumer applying to keep datasource (kinds={})", dir.kinds().size());
+        return ret;
     }
 
     /** The keep datasource health source -- the lifecycle registrar registers it as the "keepDatasource" health
-     *  contributor (auKeep's consumer rod carries the BROKER health; this is the separate DB-side health). UP
-     *  when no keep is active (nothing to be down). */
+     *  contributor (auKeep's consumer rod carries the BROKER health; this is the separate DB-side health). 
+     */
     public Supplier<TransportHealth> keepHealth() {
-        return keepApplier != null ? keepApplier::health : () -> TransportHealth.UP;
+        return keepApplier::health;
     }
 
     @PreDestroy

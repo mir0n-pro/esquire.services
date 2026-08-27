@@ -67,7 +67,7 @@ public interface IXRod {
     void setWorker(Consumer<RodEvent> worker);
 
     /** Set the receive worker AND a SUBSCRIPTION selector on the receive leg: a broker-side message selector that
-     *  narrows what this leg consumes (e.g. {@code "EventType = 'C'"}). The {@code subscription} is the caller's
+     *  narrows what this leg consumes (e.g. {@code "EventType = 'I'"}). The {@code subscription} is the caller's
      *  predicate ALONE -- own-exclusion is NOT part of it: a rod that runs both legs on ONE shared connection lets
      *  the broker's {@code noLocal} (a transport param) drop the connection's own publications. Not a DURABLE
      *  subscription -- a plain selector, and the receive consumer is re-opened only when the selector CHANGES. Only

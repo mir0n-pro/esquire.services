@@ -27,6 +27,7 @@
  *                   no ordering left in the condition for a later edit to break
  * 07/17/2026 mir0n  the request-thread test is extracted to isRequestThread() and made the FIRST && operand, so
  *                   the @RequestScope bean is read only on a request thread (no exception-as-detector).
+ * 08/26/2026 mir0n  observabilityOn requires esquire.observability.metrics.enabled as well as a registry
  */
 package pro.mir0n.esquire.backend.service;
 
@@ -35,6 +36,7 @@ import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.web.context.request.RequestContextHolder;
 
@@ -66,9 +68,10 @@ public class PerformanceAspect {
     // True when the observability umbrella is on -- the MeterRegistry bean exists only then. Resolved once.
     private final boolean observabilityOn;
 
-    public PerformanceAspect(RequestPerformance performance, ObjectProvider<MeterRegistry> registryProvider) {
+    public PerformanceAspect(RequestPerformance performance, ObjectProvider<MeterRegistry> registryProvider,
+                             @Value("${esquire.observability.metrics.enabled:false}") boolean metricsOn) {
         this.performance = performance;
-        this.observabilityOn = registryProvider.getIfAvailable() != null;
+        this.observabilityOn = metricsOn && registryProvider.getIfAvailable() != null;
     }
 
     @Around("execution(* pro.mir0n.esquire..jpa.*.*(..))")

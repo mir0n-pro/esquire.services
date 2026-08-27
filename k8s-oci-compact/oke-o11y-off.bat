@@ -24,17 +24,13 @@ if "%CTX%"=="docker-desktop" (
 )
 set CH=..\k8s-compact\charts
 echo === oke-o11y-off  (context=%CTX%) ===
-echo --- Disabling tracing/metrics on the app services ^(gateWard, Mesnie, pacMan^)...
-for %%s in (gateward mesnie pacman) do (
-  call helm upgrade esquire-%%s %CH%\esquire-%%s --reset-then-reuse-values --set observability.enabled=false --set observability.metricsHistograms=false --force-conflicts
-  call kubectl rollout restart statefulset esquire-%%s
-)
-rem The BFF takes observability.enabled ONLY (no histogram sub-switch; pino default logging).
-call helm upgrade esquire-backend %CH%\esquire-backend --reset-then-reuse-values --set observability.enabled=false --force-conflicts
-call kubectl rollout restart statefulset esquire-backend
-rem SKIP_INFRA_ROLL (set by oke-perf-matrix): skip the kc/amq metric rolls. Rolling the broker drops
-rem the app pods' messagingBus connection, which does NOT self-heal (needs a pod restart) -- so a
-rem toggle-in-place matrix must never roll it. Infra metrics are the broker's/kc's OWN, not app cost.
+rem INFRA FIRST, APPS AFTER -- the order stated just below. A broker roll INTERRUPTS every app pod's
+rem messagingBus: the transport goes DOWN and the failover: wrapper reconnects it on its own, about 20s on
+rem local k8s. The cost is a bus WINDOW, not a dead bus. Rolling the broker first puts that window beside the
+rem app restart below rather than after it, and costs no extra restarts.
+rem SKIP_INFRA_ROLL (set by oke-perf-matrix): skip the kc/amq metric rolls. Rolling the broker costs a bus
+rem window -- about 20s while the failover: transport reconnects -- which lands INSIDE a toggle-in-place
+rem measurement and reads as app cost. Infra metrics are the broker's/kc's OWN, not app cost.
 if not defined SKIP_INFRA_ROLL (
   echo --- Disabling metrics on keycloak...
   call helm upgrade esquire-infra-kc  %CH%\infra\keycloak -f values\keycloak.yaml --reset-then-reuse-values --set observability.enabled=false --force-conflicts
@@ -43,6 +39,14 @@ if not defined SKIP_INFRA_ROLL (
   call helm upgrade esquire-infra-amq %CH%\infra\activemq -f values\activemq.yaml --reset-then-reuse-values --set observability.enabled=false --force-conflicts
   call kubectl rollout restart statefulset esquire-infra-amq-activemq
 )
+echo --- Disabling tracing/metrics on the app services ^(gateWard, Mesnie, pacMan^)...
+for %%s in (gateward mesnie pacman) do (
+  call helm upgrade esquire-%%s %CH%\esquire-%%s --reset-then-reuse-values --set observability.enabled=false --set observability.metricsHistograms=false --force-conflicts
+  call kubectl rollout restart statefulset esquire-%%s
+)
+rem The BFF takes observability.enabled ONLY (no histogram sub-switch; pino default logging).
+call helm upgrade esquire-backend %CH%\esquire-backend --reset-then-reuse-values --set observability.enabled=false --force-conflicts
+call kubectl rollout restart statefulset esquire-backend
 echo --- Removing the viewing stack...
 call helm uninstall esquire-infra-grafana           2>nul
 call helm uninstall esquire-infra-postgres-exporter 2>nul

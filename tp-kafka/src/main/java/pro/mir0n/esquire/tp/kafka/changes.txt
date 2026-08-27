@@ -1,5 +1,9 @@
 Esquire Kafka transport provider classes
 
+08/26/2026 mir0n  v1.2.13 -- the connection health seed
+tp.kafka.TransportProvider
+  - the connection health seeds UNKNOWN, not UP -- nothing has proved the connection at open
+
 06/24/2026 mir0n  session messages routed to a separate <destination>.admin topic
 tp.kafka.TransportProvider
   - openPublisher: a session (alive) message -- HeartBeat / TestRequest, via RodEvent.isSession(MsgType) -- is

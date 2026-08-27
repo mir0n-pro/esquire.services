@@ -27,7 +27,7 @@
     "refresh": 2,
     "includeAll": true,
     "multi": true,
-    "allValue": ".*",
+    "allValue": ".+",
     "current": {
      "text": "All",
      "value": "$__all"
@@ -46,7 +46,7 @@
     "refresh": 2,
     "includeAll": true,
     "multi": true,
-    "allValue": ".*",
+    "allValue": ".+",
     "current": {
      "text": "All",
      "value": "$__all"
@@ -984,7 +984,7 @@
       "type": "prometheus",
       "uid": "esq-prometheus"
      },
-     "expr": "(rate(pg_stat_database_blks_hit{datname=\"esq2025\"}[5m])) / (rate(pg_stat_database_blks_hit{datname=\"esq2025\"}[5m]) + rate(pg_stat_database_blks_read{datname=\"esq2025\"}[5m]))",
+     "expr": "(rate(pg_stat_database_blks_hit{datname=\"esq2025\"}[5m])) / (rate(pg_stat_database_blks_hit{datname=\"esq2025\"}[5m]) + ((rate(pg_stat_database_blks_read{datname=\"esq2025\"}[5m])) or vector(0)))",
      "legendFormat": "hit ratio"
     }
    ]
@@ -1183,7 +1183,7 @@
       "type": "prometheus",
       "uid": "esq-prometheus"
      },
-     "expr": "base_memory_usedHeap_bytes{job=\"keycloak\"}",
+     "expr": "sum(jvm_memory_used_bytes{job=\"keycloak\", area=\"heap\"})",
      "legendFormat": "heap used"
     },
     {
@@ -1192,10 +1192,11 @@
       "type": "prometheus",
       "uid": "esq-prometheus"
      },
-     "expr": "base_memory_usedNonHeap_bytes{job=\"keycloak\"}",
+     "expr": "sum(jvm_memory_used_bytes{job=\"keycloak\", area=\"nonheap\"})",
      "legendFormat": "non-heap used"
     }
-   ]
+   ],
+   "description": "MICROMETER names, not MicroProfile. This KeyCloak is Quarkus-based and publishes jvm_memory_used_bytes; the base_memory_used*Heap_bytes namespace does not exist on it, so this panel drew NOTHING at all until 2026-08-25. It went unnoticed because base_ is outside check_dependencies' family tuple, so the sweep reported every dependency present while the panel was dead -- while the agroal panel beside it, a Micrometer name that IS in the tuple, worked and made the row look healthy."
   },
   {
    "type": "row",
@@ -1347,7 +1348,7 @@
       "type": "prometheus",
       "uid": "esq-prometheus"
      },
-     "expr": "1000 * (sum by (application, bus_id) (rate(messaging_send_duration_seconds_sum{service=~\"$service\"}[5m])) / sum by (application, bus_id) (rate(messaging_send_duration_seconds_count{service=~\"$service\"}[5m])))",
+     "expr": "1000 * (sum by (service, bus_id) (rate(messaging_send_duration_seconds_sum{service=~\"$service\"}[5m])) / sum by (service, bus_id) (rate(messaging_send_duration_seconds_count{service=~\"$service\"}[5m])))",
      "legendFormat": "avg {{service}} -> {{bus_id}}"
     },
     {
@@ -1476,7 +1477,7 @@
       "type": "prometheus",
       "uid": "esq-prometheus"
      },
-     "expr": "1000 * (sum by (application, bus_id) (rate(messaging_retry_backoff_sum{service=~\"$service\"}[5m])) / sum by (application, bus_id) (rate(messaging_retry_backoff_count{service=~\"$service\"}[5m])))",
+     "expr": "(sum by (service, bus_id) (rate(messaging_retry_backoff_sum{service=~\"$service\"}[5m])) / sum by (service, bus_id) (rate(messaging_retry_backoff_count{service=~\"$service\"}[5m])))",
      "legendFormat": "{{service}} {{bus_id}}"
     }
    ],
@@ -2664,7 +2665,7 @@
     "h": 1,
     "w": 24,
     "x": 0,
-    "y": 182
+    "y": 190
    }
   },
   {
@@ -2678,7 +2679,7 @@
     "h": 8,
     "w": 8,
     "x": 0,
-    "y": 183
+    "y": 191
    },
    "fieldConfig": {
     "defaults": {
@@ -2724,7 +2725,7 @@
     "h": 8,
     "w": 8,
     "x": 8,
-    "y": 183
+    "y": 191
    },
    "fieldConfig": {
     "defaults": {
@@ -2761,7 +2762,7 @@
     "h": 8,
     "w": 8,
     "x": 16,
-    "y": 183
+    "y": 191
    },
    "fieldConfig": {
     "defaults": {
@@ -2794,7 +2795,7 @@
     "h": 1,
     "w": 24,
     "x": 0,
-    "y": 191
+    "y": 199
    }
   },
   {
@@ -2808,7 +2809,7 @@
     "h": 8,
     "w": 8,
     "x": 0,
-    "y": 192
+    "y": 200
    },
    "fieldConfig": {
     "defaults": {
@@ -2854,7 +2855,7 @@
     "h": 8,
     "w": 8,
     "x": 8,
-    "y": 192
+    "y": 200
    },
    "fieldConfig": {
     "defaults": {
@@ -2891,7 +2892,7 @@
     "h": 8,
     "w": 8,
     "x": 16,
-    "y": 192
+    "y": 200
    },
    "fieldConfig": {
     "defaults": {
@@ -2928,7 +2929,7 @@
     "h": 8,
     "w": 8,
     "x": 0,
-    "y": 200
+    "y": 208
    },
    "fieldConfig": {
     "defaults": {
@@ -2965,7 +2966,7 @@
     "h": 8,
     "w": 8,
     "x": 8,
-    "y": 200
+    "y": 208
    },
    "fieldConfig": {
     "defaults": {
@@ -3002,7 +3003,7 @@
     "h": 8,
     "w": 8,
     "x": 16,
-    "y": 200
+    "y": 208
    },
    "fieldConfig": {
     "defaults": {
@@ -3035,7 +3036,7 @@
     "h": 1,
     "w": 24,
     "x": 0,
-    "y": 208
+    "y": 216
    }
   },
   {
@@ -3049,7 +3050,7 @@
     "h": 8,
     "w": 12,
     "x": 0,
-    "y": 209
+    "y": 217
    },
    "fieldConfig": {
     "defaults": {
@@ -3069,7 +3070,7 @@
       "type": "prometheus",
       "uid": "esq-prometheus"
      },
-     "expr": "sum((process_cpu_usage{service=~\"$service\"} * on(instance) group_left system_cpu_count{service=~\"$service\"}))",
+     "expr": "sum((process_cpu_usage{application=~\"$application\"} * on(instance) group_left system_cpu_count{application=~\"$application\"}))",
      "legendFormat": "cores in use"
     }
    ],
@@ -3086,7 +3087,7 @@
     "h": 8,
     "w": 12,
     "x": 12,
-    "y": 209
+    "y": 217
    },
    "fieldConfig": {
     "defaults": {
@@ -3106,7 +3107,7 @@
       "type": "prometheus",
       "uid": "esq-prometheus"
      },
-     "expr": "(process_cpu_usage{service=~\"$service\"} * on(instance) group_left system_cpu_count{service=~\"$service\"})",
+     "expr": "(process_cpu_usage{application=~\"$application\"} * on(instance) group_left system_cpu_count{application=~\"$application\"})",
      "legendFormat": "{{application}} {{instance}}"
     }
    ],
@@ -3123,7 +3124,7 @@
     "h": 8,
     "w": 12,
     "x": 0,
-    "y": 217
+    "y": 225
    },
    "fieldConfig": {
     "defaults": {
@@ -3160,7 +3161,7 @@
     "h": 8,
     "w": 12,
     "x": 12,
-    "y": 217
+    "y": 225
    },
    "fieldConfig": {
     "defaults": {

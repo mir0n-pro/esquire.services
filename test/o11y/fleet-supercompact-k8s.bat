@@ -18,8 +18,10 @@ rem and biztree, and a mesnie node where it has three.
 set TRACE_NODES=gateward,esq-backend
 set TRACE_NODES_CONDITIONAL=mesnie,pacman
 
-rem LOG_SERVICES = the Loki `service_name` label, which on k8s is the FULL workload
-rem name (esquire-<svc>-<svc>), NOT the short meter name. Without it the log-stream
+rem LOG_SERVICES = the Loki `service_name` label, which on k8s is the WORKLOAD name,
+rem not the short meter name. The COMPACT charts stamp the bare release name
+rem (esquire-mesnie) on OKE as on the local cluster; only the CLASSIC charts append
+rem the service (esquire-enyman-enyman). Without it the log-stream
 rem sweep looks for streams that do not exist and FAILs every service while the logs
 rem are being shipped perfectly well.
 set LOG_SERVICES=esquire-gateward,esquire-mesnie,esquire-pacman,esquire-backend

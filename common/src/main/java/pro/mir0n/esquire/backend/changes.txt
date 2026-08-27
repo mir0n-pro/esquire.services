@@ -1,5 +1,19 @@
 Esquire Backend common microservice classes
 
+08/26/2026 mir0n  v1.2.13 -- a refusal that says so, and metrics that ask first
+error.GenericExceptionHandler
+  - CommandNotAcceptedException answers 503 Service Unavailable
+o11y.EsqRodObserver
+  - registerTransportUp registers messaging.transport.up as an EsqGauge, tagged bus-id
+security.SecurityConfiguration
+  - an authentication entry point answers a ProblemDetail JSON instead of an empty 401; the filter is
+    JwtClaimsExtractionFilter, and /esq-kinds joins the permitAll list
+service.MdcFilter
+  - the meter registry is taken only when esquire.observability.metrics.enabled is true, so a registry
+    present for other reasons no longer turns request metering on
+service.PerformanceAspect
+  - observabilityOn requires esquire.observability.metrics.enabled as well as a registry
+
 08/17/2026 mir0n  v1.2.13 -- observability for the composed services
 o11y.IMeterOwner  (new)
   - created: a composed service names the Esquire service behind each meter, so enyMan, keySmith and kcMaster
