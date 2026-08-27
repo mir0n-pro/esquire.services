@@ -69,6 +69,7 @@ logging:
   levelSf: WARN
   levelMir0n: ERROR
   levelDevelop: "OFF"
+  levelMsg: "OFF"
 
 nodeSelector:
   tier: app

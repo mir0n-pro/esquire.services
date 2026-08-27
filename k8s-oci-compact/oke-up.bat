@@ -53,14 +53,22 @@ rem esq-angular client secret. Defaults to the realm-import value (same one
 rem compose.yaml and k8s-up.bat already use as a literal). Override the env
 rem var when you rotate the client secret in the production KC admin UI:
 rem   set bff_kc_secret=^<rotated-value^>
-if "%bff_kc_secret%"=="" set "bff_kc_secret=OBTAIN-FROM-KEYCLOAK"
-if "%bff_kc_secret%"=="OBTAIN-FROM-KEYCLOAK" echo [!] BFF_KC_SECRET is not set -- the browser login will FAIL. KeyCloak: realm esquire -^> clients -^> esq-angular -^> Credentials.
+rem A MISSING SECRET MUST NOT OVERWRITE A GOOD ONE. --set beats --reset-then-reuse-values, so a sentinel
+rem passed here REPLACES the value the previous install stored and the release comes back holding a
+rem credential that cannot authenticate, while the deploy reports success. An unset variable therefore
+rem contributes NO --set at all and what the release already holds stands.
+set "SET_BFF_KC="
+set "SET_GW_EXCHANGE="
+set "SET_BFF_SESSION="
+set "SET_KCMASTER_ADMIN="
+if not "%bff_kc_secret%"=="" set "SET_BFF_KC=--set keycloak.clientSecret=%bff_kc_secret%"
+if "%bff_kc_secret%"=="" echo [!] BFF_KC_SECRET is not set -- the release keeps what it holds; on a FIRST install the browser login will FAIL. KeyCloak: realm esquire -^> clients -^> esq-angular -^> Credentials.
 
 rem Phantom Token Relay -- esq-gw-exchange (confidential) client secret used by the
 rem gate to authenticate to KC /token for RFC 8693 exchange. Both relay allowlists
 rem are EMPTY on OKE (values\gateward.yaml), so this is set but dormant.
-if "%gw_exchange_secret%"=="" set "gw_exchange_secret=OBTAIN-FROM-KEYCLOAK"
-if "%gw_exchange_secret%"=="OBTAIN-FROM-KEYCLOAK" echo [!] GW_EXCHANGE_SECRET is not set -- the phantom token relay will FAIL. KeyCloak: realm esquire -^> clients -^> esq-gw-exchange -^> Credentials.
+if not "%gw_exchange_secret%"=="" set "SET_GW_EXCHANGE=--set tokenRelay.phantom.exchangeClientSecret=%gw_exchange_secret%"
+if "%gw_exchange_secret%"=="" echo [!] GW_EXCHANGE_SECRET is not set -- the release keeps what it holds; on a FIRST install the phantom token relay will FAIL. KeyCloak: realm esquire -^> clients -^> esq-gw-exchange -^> Credentials.
 
 rem BFF session-cookie HMAC secret. Lower-risk than the KC client secret:
 rem leak alone does not grant access (session IDs are server-side random,
@@ -73,14 +81,14 @@ rem pipeline has to bring the demonstration up with nothing configured. Set
 rem BFF_SESSION_SECRET on BOTH to the same value if you switch paths and want sessions
 rem to survive -- unset, the signing key changes with the path and every session is
 rem invalidated.
-if "%bff_session_secret%"=="" set "bff_session_secret=GENERATE-A-RANDOM-VALUE"
-if "%bff_session_secret%"=="GENERATE-A-RANDOM-VALUE" echo [!] BFF_SESSION_SECRET is not set -- sessions are signed with a known value. Set any random string.
+if not "%bff_session_secret%"=="" set "SET_BFF_SESSION=--set session.secret=%bff_session_secret%"
+if "%bff_session_secret%"=="" echo [!] BFF_SESSION_SECRET is not set -- the release keeps what it holds; on a FIRST install sessions are signed with a known value. Set any random string.
 
 rem esq-kcMaster KC admin service-account client secret (client_credentials -> KC admin
 rem REST API). Mesnie carries the identity work in process, so it is Mesnie that takes
 rem this now -- the same secret, handed to one workload instead of a kcMaster of its own.
-if "%kcmaster_admin_secret%"=="" set "kcmaster_admin_secret=OBTAIN-FROM-KEYCLOAK"
-if "%kcmaster_admin_secret%"=="OBTAIN-FROM-KEYCLOAK" echo [!] KCMASTER_ADMIN_SECRET is not set -- the identity sync will FAIL to authenticate. Get the value from KeyCloak: realm esquire -^> clients -^> esq-kcMaster -^> Credentials.
+if not "%kcmaster_admin_secret%"=="" set "SET_KCMASTER_ADMIN=--set keycloak.adminClientSecret=%kcmaster_admin_secret%"
+if "%kcmaster_admin_secret%"=="" echo [!] KCMASTER_ADMIN_SECRET is not set -- the release keeps what it holds; on a FIRST install the identity sync will FAIL to authenticate. Get the value from KeyCloak: realm esquire -^> clients -^> esq-kcMaster -^> Credentials.
 
 set PG_PW=%mir0n_pwd%
 set KC_PW=%mir0n_pwd%
@@ -176,7 +184,7 @@ call helm upgrade --install esquire-mesnie %CHARTS%\esquire-mesnie --force-confl
   -f values\mesnie.yaml ^
   --set image.tag=%IMAGE_TAG% ^
   --set db.password=%PG_PW% ^
-  --set keycloak.adminClientSecret=%kcmaster_admin_secret% || exit /b 1
+  %SET_KCMASTER_ADMIN% || exit /b 1
 
 echo --- Installing pacman...
 call helm upgrade --install esquire-pacman %CHARTS%\esquire-pacman --force-conflicts ^
@@ -195,7 +203,7 @@ call helm upgrade --install esquire-gateward %CHARTS%\esquire-gateward --force-c
   -f values\gateward.yaml ^
   --set image.tag=%IMAGE_TAG% ^
   --set db.password=%PG_PW% ^
-  --set tokenRelay.phantom.exchangeClientSecret=%gw_exchange_secret% || exit /b 1
+  %SET_GW_EXCHANGE% || exit /b 1
 
 echo Waiting for gateward...
 kubectl rollout status statefulset/esquire-gateward -n default --timeout=180s
@@ -208,8 +216,7 @@ echo --- Installing backend (BFF)...
 call helm upgrade --install esquire-backend %CHARTS%\esquire-backend --force-conflicts ^
   -f values\backend.yaml ^
   --set image.tag=%IMAGE_TAG% ^
-  --set keycloak.clientSecret=%bff_kc_secret% ^
-  --set session.secret=%bff_session_secret% || exit /b 1
+  %SET_BFF_KC% %SET_BFF_SESSION% || exit /b 1
 
 echo Waiting for backend...
 kubectl rollout status statefulset/esquire-backend -n default --timeout=120s

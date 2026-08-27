@@ -39,13 +39,17 @@ if not defined SKIP_INFRA_ROLL (
   call helm upgrade esquire-infra-amq %CH%\infra\activemq -f values\activemq.yaml --reset-then-reuse-values --set observability.enabled=false --force-conflicts
   call kubectl rollout restart statefulset esquire-infra-amq-activemq
 )
+rem THE OVERLAY MUST BE RE-APPLIED, not just the observability switch. --reset-then-reuse-values keeps
+rem what the release stored, and oke-o11y-on set logging.levelMir0n=INFO there. Without -f values\<svc>.yaml
+rem the level stays INFO after a disarm: the fleet keeps logging at INFO to stdout with no Loki to read it,
+rem and the ERROR default in the overlay is never reasserted. The infra lines above already pass -f.
 echo --- Disabling tracing/metrics on the app services ^(gateWard, Mesnie, pacMan^)...
 for %%s in (gateward mesnie pacman) do (
-  call helm upgrade esquire-%%s %CH%\esquire-%%s --reset-then-reuse-values --set observability.enabled=false --set observability.metricsHistograms=false --force-conflicts
+  call helm upgrade esquire-%%s %CH%\esquire-%%s -f values\%%s.yaml --reset-then-reuse-values --set observability.enabled=false --set observability.metricsHistograms=false --force-conflicts
   call kubectl rollout restart statefulset esquire-%%s
 )
 rem The BFF takes observability.enabled ONLY (no histogram sub-switch; pino default logging).
-call helm upgrade esquire-backend %CH%\esquire-backend --reset-then-reuse-values --set observability.enabled=false --force-conflicts
+call helm upgrade esquire-backend %CH%\esquire-backend -f values\backend.yaml --reset-then-reuse-values --set observability.enabled=false --force-conflicts
 call kubectl rollout restart statefulset esquire-backend
 echo --- Removing the viewing stack...
 call helm uninstall esquire-infra-grafana           2>nul

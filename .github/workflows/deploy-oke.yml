@@ -74,6 +74,8 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       image_tag: ${{ steps.stamp.outputs.tag }}
+      explorer_ref: ${{ steps.refs.outputs.explorer }}
+      dbseed_ref: ${{ steps.refs.outputs.dbseed }}
     steps:
       - name: Checkout services
         uses: actions/checkout@v5
@@ -82,18 +84,53 @@ jobs:
           ref: ${{ github.event.pull_request.merge_commit_sha || github.ref }}
           path: services
 
+      # The sibling repos carry a same-named sprint branch when the sprint touches them, and none when it
+      # does not. Resolve each ref BEFORE checking it out -- ls-remote asks which branch is actually there --
+      # so a workflow_dispatch against pending-* picks the sprint work up, while a merged PR (whose ref_name
+      # is the PR merge ref, not a branch name) matches nothing and lands on develop, which is correct: by
+      # then both repos have merged in lockstep.
+      - name: Resolve the explorer / db.seed refs
+        id: refs
+        run: |
+          ref="${{ github.ref_name }}"
+          case "$ref" in
+            pending-v*) alt="pending-${ref#pending-v}" ;;
+            pending-*)  alt="pending-v${ref#pending-}" ;;
+            *)          alt="$ref" ;;
+          esac
+
+          pick() {
+            got=""
+            for cand in "$ref" "$alt"; do
+              if [ -z "$got" ] && git ls-remote --heads --exit-code "https://github.com/$1" "refs/heads/$cand" >/dev/null 2>&1; then
+                got="$cand"
+              fi
+            done
+            if [ -z "$got" ]; then
+              got="develop"
+            fi
+            echo "$got"
+          }
+
+          explorer="$(pick mir0n-pro/esquire.explorer)"
+          dbseed="$(pick mir0n-pro/esquire.db.seed)"
+          echo "explorer=$explorer" >> "$GITHUB_OUTPUT"
+          echo "dbseed=$dbseed"     >> "$GITHUB_OUTPUT"
+          echo "explorer -> $explorer"
+          echo "db.seed  -> $dbseed"
+
       - name: Checkout explorer (backend / BFF image + e2e + load)
         uses: actions/checkout@v5
         with:
           repository: mir0n-pro/esquire.explorer
-          ref: develop
+          ref: ${{ steps.refs.outputs.explorer }}
           path: explorer
 
       - name: Checkout db.seed (postgres image build input)
         uses: actions/checkout@v5
         with:
           repository: mir0n-pro/esquire.db.seed
-          ref: develop
+          ref: ${{ steps.refs.outputs.dbseed }}
           path: db.seed
 
       - name: Set up JDK 24
@@ -193,14 +230,14 @@ jobs:
 
   # -------------------------------------------------------------------------
   validate:
-    needs: deploy
+    needs: [deploy, build-push]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout explorer (e2e + hauberk)
         uses: actions/checkout@v5
         with:
           repository: mir0n-pro/esquire.explorer
-          ref: develop
+          ref: ${{ needs.build-push.outputs.explorer_ref }}
 
       - name: Set up Node 22
         uses: actions/setup-node@v4

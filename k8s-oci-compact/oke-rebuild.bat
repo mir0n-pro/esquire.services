@@ -2,6 +2,17 @@
 setlocal enabledelayedexpansion
 cd /d "%~dp0"
 
+rem === Context safety guard ===
+rem This script BUILDS, PUSHES and helm-upgrades a release -- it deploys. Every other cluster-touching
+rem oke-* script refuses docker-desktop; this one did not, so a local context would have taken a GHCR
+rem image roll onto Docker Desktop while the output still read like an OKE deploy.
+for /f "delims=" %%i in ('kubectl config current-context') do set CTX=%%i
+if "%CTX%"=="docker-desktop" (
+  echo ERROR: kubectl context is "docker-desktop" -- this is oke-rebuild.bat ^(production^).
+  echo Refusing to run. Switch context with: kubectl config use-context context-czhlwnp27sq
+  exit /b 1
+)
+
 rem ===========================================================================
 rem oke-rebuild.bat -- rebuild + push + redeploy a single SUPER-COMPACT component
 rem                    on OKE, auto-stamping the image tag per Esquire's rule:

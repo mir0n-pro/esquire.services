@@ -1,6 +1,10 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v1.2.13-2608.2718  v1.2.13 -- Refresh the cloud: the sprint carried to OKE
+    :Doc:         doc\Esquire.GitHubActions.md
+    Components:  k8s-oci-compact,
+
 v1.2.13-2608.2620  v1.2.13 -- Hardening: the solution read back, and the issues it raised
     - the tree cache is fed in the order the events were published
     - a move tells the cache both of the numbers it changed, and every save of an entity is announced

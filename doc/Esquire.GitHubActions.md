@@ -173,7 +173,7 @@ the other stack must go for a simpler reason as well -- both bind the same host 
 - **Environment gate:** the `deploy` job pins the **`oke-production`** Environment with a required
   reviewer -- a manual approval before the deploy step, where automation bites hardest. The Environment
   holds the OCI api-key secrets (`OCI_CLI_USER` / `OCI_CLI_TENANCY` / `OCI_CLI_FINGERPRINT` /
-  `OCI_CLI_KEY_CONTENT`), `MIR0N_PWD` (postgres + Keycloak admin), the optional app secrets
+  `OCI_CLI_KEY_CONTENT`), `MIR0N_PWD` (postgres + Keycloak admin), the app secrets
   (`BFF_KC_SECRET` / `GW_EXCHANGE_SECRET` / `BFF_SESSION_SECRET`), and the `OKE_CLUSTER_OCID` /
   `OKE_REGION` (default `ca-toronto-1`) variables; nothing can use them until the deploy is approved. The
   GHCR push runs in the ungated `build-push` job and authenticates with the `GHCR_TOKEN` PAT.
@@ -230,8 +230,10 @@ refs.
 - **OKE deploy:** the OCI api-key set in the `oke-production` Environment (`OCI_CLI_USER` /
   `OCI_CLI_TENANCY` / `OCI_CLI_FINGERPRINT` / `OCI_CLI_KEY_CONTENT` + the `OKE_CLUSTER_OCID` / `OKE_REGION`
   vars); the kubeconfig is fetched at run time via `oci ce cluster create-kubeconfig`, not stored. Plus
-  `MIR0N_PWD` and the optional app secrets (`BFF_KC_SECRET` / `GW_EXCHANGE_SECRET` / `BFF_SESSION_SECRET`).
-- **Local deploy:** none -- the self-hosted runner already has the local kube context + docker.
+  `MIR0N_PWD` and the app secrets (`BFF_KC_SECRET` / `GW_EXCHANGE_SECRET` / `BFF_SESSION_SECRET`).
+- **Local deploy:** no GitHub secrets -- the runner uses the local kube context + docker. The four app
+  secrets come from the BOX instead (see the prerequisites below); without them a first install brings
+  the BFF up with no client secret and the browser login answers `unauthorized_client`.
 
 ---
 
@@ -358,6 +360,17 @@ new toolchain.
 - `kubectl`, `helm`, **JDK 24**, **Maven**, PowerShell (built in).
 - MetalLB + ingress-nginx installed once: `k8s\addMetalLB.bat`, `k8s\addIngressNginx.bat`
   (they survive `k8s-down`; `k8s-up.bat` only warns if missing).
+- **Git for Windows**, with `C:\Program Files\Git\bin` on the PATH ahead of
+  `C:\Windows\System32`. The `shell: bash` steps resolve `bash` from the PATH, and with WSL
+  installed the `bash.exe` in System32 wins. WSL's bash cannot take the Windows path of the temp script the
+  runner writes -- it eats the backslashes and the job dies on its first shell step.
+- **The app secrets set on the box** (`setx`): `KCMASTER_ADMIN_SECRET`, `BFF_KC_SECRET`,
+  `GW_EXCHANGE_SECRET`, `BFF_SESSION_SECRET`. `k8s-up.bat` passes each to helm only when it is set, so a
+  deploy without one keeps the value the release already holds -- but a FIRST install then has none. The
+  three client secrets live on their clients in the realm (`esq-kcMaster`, `esq-angular`,
+  `esq-gw-exchange`); the session secret is any random string, it only signs the BFF's cookie.
+- A runner started from a shell predating any of these carries the OLD environment: restart it after
+  setting them.
 
 **Register the runner** (GitHub -> the `esquire.services` repo -> Settings -> Actions -> Runners ->
 New self-hosted runner -> Windows x64). Install it **outside** the dev tree and the git mirror, e.g.:
