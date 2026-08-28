@@ -19,15 +19,15 @@ The Esquire framework spans Java microservices, a Node.js BFF, an Angular SPA + 
       <td width="8%"><img src="logo/junit.svg" alt="Alt text" height="24"></td>
       <td>Java unit + service</td><td><b>JUnit 5</b> + <b>Mockito</b> + <b>AssertJ</b></td>
       <td><code>services/*</code></td>
-      <td><b>664</b> <code>@Test</code> methods across <b>104</b> classes</td>
+      <td><b>780</b> <code>@Test</code> methods across <b>122</b> classes</td>
   </tr>
-  <tr><td><img src="logo/jacoco.png" alt="Alt text" height="24"></td><td>Java code coverage (a test of the tests)</td><td><b>JaCoCo</b></td><td><code>services/*</code> &rarr; <code>test/JaCoCo</code></td><td><b>16</b> per-module line / branch reports (unit + in-JVM ITs)</td></tr>
-  <tr><td><img src="logo/hauberk.svg" alt="Alt text" height="24"> <img src="logo/gatling.svg" alt="Alt text" height="24"></td><td>Running-stack load / stress / race-repro</td><td><b>Haubergeon</b> (on <b>Gatling 3.13</b> Java DSL)</td><td><code>explorer/hauberk</code></td><td><b>23</b> self-validating Simulations (smoke / load / super / race-repro / message-loss / HA) + 3 JUnit catalog tests</td></tr>
+  <tr><td><img src="logo/jacoco.png" alt="Alt text" height="24"></td><td>Java code coverage (a test of the tests)</td><td><b>JaCoCo</b></td><td><code>services/*</code> &rarr; <code>test/JaCoCo</code></td><td><b>18</b> per-module line / branch reports (unit + in-JVM ITs)</td></tr>
+  <tr><td><img src="logo/hauberk.svg" alt="Alt text" height="24"> <img src="logo/gatling.svg" alt="Alt text" height="24"></td><td>Running-stack load / stress / race-repro</td><td><b>Haubergeon</b> (on <b>Gatling 3.13</b> Java DSL)</td><td><code>explorer/hauberk</code></td><td><b>22</b> self-validating Simulations (smoke / load / super / race-repro / message-loss / HA) + 3 JUnit catalog tests</td></tr>
   <tr><td><img src="logo/hauberk.svg" alt="Alt text" height="24"> <img src="logo/gatling.svg" alt="Alt text" height="24"></td><td>Running-stack integration matrices</td><td><b>Bash</b> driver + <code>psql</code> / <code>sqlplus</code> / <code>kubectl</code> (drives the <b>hauberk</b> <code>EntitySmoke</code> workload)</td><td><code>services/test</code></td><td><b>~27-cell</b> audit matrix (audit sink x primary DB x environment) + a <b>bus health</b> readiness/liveness chaos smoke</td></tr>
   <tr><td><img src="logo/vitest.svg" alt="Alt text" height="24"></td><td>Node.js (BFF)</td><td><b>Vitest</b> + <b>Supertest</b></td><td><code>explorer/backend</code></td><td><b>47</b> specs across <b>5</b> files (config / cache / trace / tokens / W3C trace-id conformance)</td></tr>
   <tr><td><img src="logo/karma.svg" alt="Alt text" height="24"> <img src="logo/jasmine.svg" alt="Alt text" height="24"></td><td>Angular SPA</td><td><b>Karma</b> + <b>Jasmine</b> (<code>ng test</code>)</td><td><code>explorer/frontend</code></td><td><b>25</b> <code>it()</code> specs in <b>4</b> files</td></tr>
   <tr><td><img src="logo/karma.svg" alt="Alt text" height="24"> <img src="logo/jasmine.svg" alt="Alt text" height="24"></td><td>Angular UI library</td><td><b>Karma</b> + <b>Jasmine</b> (<code>ng test</code>)</td><td><code>esquire.ui.lib</code></td><td><b>146</b> <code>it()</code> specs in <b>23</b> files</td></tr>
-  <tr><td><img src="logo/playwrite.svg" alt="Alt text" height="24"></td><td>Browser end-to-end</td><td><b>Playwright</b></td><td><code>explorer/e2e-test</code></td><td><b>45</b> <code>test()</code> cases in <b>17</b> <code>.spec.ts</code> files</td></tr>
+  <tr><td><img src="logo/playwrite.svg" alt="Alt text" height="24"></td><td>Browser end-to-end</td><td><b>Playwright</b></td><td><code>explorer/e2e-test</code></td><td><b>46</b> <code>test()</code> cases in <b>18</b> <code>.spec.ts</code> files</td></tr>
 </table>
 
 ---
@@ -46,24 +46,24 @@ The Esquire framework spans Java microservices, a Node.js BFF, an Angular SPA + 
 
 | Module | `@Test` methods | Notes |
 |---|---|---|
-| mir0n-utils | 43 | base utilities split out of `common` — identity / string / numeric helpers, the worker pool and bounded-queue rig, and the expiring hand-off cache (`ExpiringCacheTest`, `ExpiringCacheStoreIfGreaterTest`, including a 16-thread race on one key) |
-| common | 206 | core framework: entity / field utils, roles storage, access profile, validators, Taijitu cache rigs, request-context guard, worker-pool |
-| messaging | 116 | the messaging-bus + x-rod substrate (the old `XRodManager` dissolved into the facade): catalog / codec / transport, the facade (`MessagingBusTest`, `MessagingBusCatalogTest`, `RodEventCodecTest`, `XRodTest`), bus health (`BusHealthIndicatorTest`, `TransportHealthIndicatorTest`, `TransportHealthTest`, `AliveSessionTest`), role + config-bind validation (`XRodRoleSupportTest`, `XRodValidateTest`, `BusRefBindTest`, `XRodParamsTest`), broker-down resilience (`XRodBrokerDownTest`) |
+| mir0n-utils | 60 | base utilities split out of `common` — identity / string / numeric helpers, the worker pool and bounded-queue rig, and the expiring hand-off cache (`ExpiringCacheTest`, `ExpiringCacheStoreIfGreaterTest`, including a 16-thread race on one key) |
+| common | 217 | core framework: entity / field utils, roles storage, access profile, validators, Taijitu cache rigs, request-context guard, worker-pool |
+| messaging | 122 | the messaging-bus + x-rod substrate (the old `XRodManager` dissolved into the facade): catalog / codec / transport, the facade (`MessagingBusTest`, `MessagingBusCatalogTest`, `RodEventCodecTest`, `XRodTest`), bus health (`BusHealthIndicatorTest`, `TransportHealthIndicatorTest`, `TransportHealthTest`, `AliveSessionTest`), role + config-bind validation (`XRodRoleSupportTest`, `XRodValidateTest`, `BusRefBindTest`, `XRodParamsTest`), broker-down resilience (`XRodBrokerDownTest`) |
 | audit | 22 | the audit rules on the generic keep engine: `AuditSqlTest`, `AuditKeepDirectorTest`, `AuditBusBridgeTest`, `AuditKindsTest` |
 | dataKeep | 3 | the generic keep-engine SQL / applier units |
-| bizTree | 58 | includes the receiver-side freshness guard (`MessageHandlerHubGuardTest`) and the cache-statement arity check (`InsertNodeArityTest`) |
-| enyMan | 71 | — |
-| pacMan | 50 | includes the ledger-statement dialect guard (`AcctTransactionSqlTest`) |
+| bizTree | 67 | includes the receiver-side freshness guard (`MessageHandlerHubGuardTest`) and the cache-statement arity check (`InsertNodeArityTest`) |
+| enyMan | 79 | — |
+| pacMan | 55 | includes the ledger-statement dialect guard (`AcctTransactionSqlTest`) |
 | keySmith | 24 | — |
-| kcMaster | 31 | includes the parked-path ordering rules (`ParkedPathTest`) |
-| gateway | 35 | gateway typically light on JUnit; reactive WebFlux code is harder to mock-test cleanly |
-| auKeep | 3 | the audit-bus consumer integration test (real Postgres + ActiveMQ via Testcontainers) |
+| kcMaster | 41 | includes the parked-path ordering rules (`ParkedPathTest`) |
+| gateway | 70 | gateway typically light on JUnit; reactive WebFlux code is harder to mock-test cleanly |
+| auKeep | 1 | the audit-bus consumer integration test (real Postgres + ActiveMQ via Testcontainers) |
 | tp-activemq | 2 | transport-provider unit checks |
 | tp-redis | 2 | transport-provider unit checks |
 | tp-kafka | 2 | transport-provider unit checks |
 | mesnie | 5 | the composed write program: the composition itself and the identity gateway it hands to keySmith and enyMan |
 | gateWard | 8 | the composed read program: the tree routes answered locally, and the gateway wiring around them |
-| **total** | **681** | across **107** classes |
+| **total** | **780** | across **122** classes |
 
 **Coverage tooling — JaCoCo.** Line / branch coverage of this Java tier is measured with **JaCoCo** (0.8.13, wired in the parent `pom.xml`: `prepare-agent` + `report`). It counts whatever runs in the forked test JVM — the unit tests **and** the in-JVM Testcontainers / `@SpringBootTest` integration tests; e2e and hauberk drive a separately deployed stack, so they fall outside its reach. Reports are written to `services/test/JaCoCo/<artifactId>` (deliberately outside module `target/`, so `mvn clean` keeps them). Run via `build-with-JaCoCo.bat` (`mvn clean test`) and browse `test/JaCoCo/framed.html`. Coverage is a signal, not a build gate; mutation testing (PIT) is not used.
 

@@ -250,6 +250,44 @@ At sprint end, beyond the per-commit code-change docs:
 
 ---
 
+## 8a. The release touch-list -- what gets edited every time
+
+Every one of these has been missed at least once. They are listed together because nothing in the build
+points at them: no test fails, no pipeline turns red, and a stale one is only found by reading it.
+
+**At SPRINT START (not at release):**
+
+| Place | Care |
+|---|---|
+| `services/pom.xml` | the Micro version. Bumped here so the build tag and the image tag do not lag. |
+| `explorer/frontend` package version | frontend only. |
+| `db.seed` `DB_VERSION` | BOTH vendors, and only when the sprint has schema work. |
+
+**At RELEASE (finalization):**
+
+| Place | Care |
+|---|---|
+| `services/README.md` | the top callout carries the CURRENT sprint only -- the previous sprint's note is REMOVED, not collapsed. It says what the sprint delivered, so re-read it: it was written when the sprint opened and usually describes only half of what shipped. |
+| `services/Releases.md` | the new version added in FULL, with NO "More Details" link (its release branch is not archived yet); the previously-newest collapsed to one paragraph PLUS its `release/vX.Y.Z` link; a milestone-report placeholder row for every repo that had work -- a deliberately dead link that resolves when the report lands. |
+| `explorer/README.md` | same roll-down in its own shape: `## vX -- complete (date)` in full, the prior one collapsed to a sentence plus its link. |
+| `explorer/frontend/src/index.html` | the JSON-LD `softwareVersion`. It names the RELEASED version -- what a visitor can actually get -- so it is set to the version being tagged. Nothing points at it: it read four releases behind for months. |
+| `doc/v1.2.x.Planning.md` | the roadmap row gets its DATE and what actually shipped. The forecast is usually wrong -- v1.2.13 was planned as "fresh-mind hardening" and shipped as compact topology and hardening. Delivered rows carry a date; do not leave a `*planned*` placeholder row in a table that records deliveries. |
+| `doc/v1.2.x.Goal.md` | only when the sprint changed what Esquire IS. A sprint that adds a deployment shape or a stack part changes statements written as absolutes elsewhere in the file; find them, do not only add. |
+| `doc/Esquire.ContinuingDev.md` | CD items the sprint discharged move to `## Completed` as heading-only stubs. The numbering is a stable reference and a number is never reused, so an item is never deleted outright. Check the whole file: an item that shipped often still reads as a proposal. |
+| `db.seed/README.md` | the same roll-down, in its own `## vX -- complete (date)` shape. Touched even in a sprint with no schema work -- the section says what the sprint meant for the seed, which may be "nothing". |
+| `esquire.ui.lib/README.md` | the same, if the library moved. Easy to forget: it is the repo that changes least. |
+| `db.seed` / `ui.lib` `doc/release_notes.txt` | each repo keeps its own; a commit spanning repos is documented in EVERY repo it touched, not only the one edited last. |
+| `explorer/frontend/public/landing/*.html` | the six landing tabs -- what-is-it, who-needs-it, why-it-matters, vs-competition, architecture, vision. A sprint that changes what the framework IS makes a claim on these pages stale or overstated. |
+| `explorer/frontend/public/img/ComponentModel*.png` | the component-model drawings, one per shape. A sprint that adds, removes or composes a service leaves them wrong, and nothing checks a picture. |
+| `explorer/frontend/public/img/og-banner.png` | the social banner, plus its `?v=` cache-buster in `index.html` -- a changed banner served under an unchanged query string is not seen. |
+| `<repo>/doc/reports/report_vX.Y.Z.md` | the milestone report -- GENERATED, not written: run `git_gen_rep [from [till]]` from the repo (`git-utilities/git-gen-rep`), which builds it from that repo's `release_notes.txt` and its `changes.txt` files over the given tag range. Run it AFTER the tag, in every repo that had work -- it is what the `Releases.md` placeholder links resolve to. What it produces is only as good as the entries made per commit, which is why those are written when each change lands. |
+| `doc/Esquire.TestingStack.md` | recount every figure against reality. They live in TWO places -- the summary row and the per-module table -- and updating one leaves the file contradicting itself. Count with the tools, not with grep: `playwright test --list` and `hauberk.cmd list` are authoritative, because tests declared through an alias and abstract simulation bases are invisible to a pattern. |
+
+**None of this gets its own `release_notes` entry.** The finalization refresh IS the release-facing
+documentation; per-commit entries record the sprint's CODE changes, made when each landed (see 8).
+
+---
+
 ## 9. Why this instead of ADRs
 
 A formal ADR is an isolated, after-the-fact record of one decision. Esquire's pipeline records the

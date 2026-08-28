@@ -43,16 +43,15 @@ check.
 
 ---
 > 
-> **v1.2.13 — in progress.** The framework grows by **continuous development** — sprints against a target,
+> **v1.2.13 — complete.** The framework grows by **continuous development** — sprints against a target,
 > rather than one long sequential line. This one separates **what the framework is** from **how many
 > programs it runs as**. The same code, the same settings, run as eight separate programs, as five, or as
 > four — you choose the shape that fits where you are running it, and nothing about the framework changes.
 > A small deployment stops paying for a large one.
 > 
-> **v1.2.12 — complete.** Every record has a **change number**: a count that goes up by one each time the
-> record is written. Small in itself, it settles two things that were left open — a record's history reads
-> back in the order the changes really happened, and a message that arrives twice, or late and out of turn,
-> is recognised and skipped.
+> It then read the whole thing back, item by item, and fixed what that found: events reaching the tree
+> cache in the order they were published, a refused command answering as refused, a credential request
+> that can be taken back, and a deploy that no longer replaces a working secret with one that cannot work.
 > 
 > What comes next is chosen from the
 > [continuing-development backlog](doc/Esquire.ContinuingDev.md) — several sprints can run in parallel, each
