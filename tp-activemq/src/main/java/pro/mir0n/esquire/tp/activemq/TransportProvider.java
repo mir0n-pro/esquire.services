@@ -39,6 +39,7 @@
  *                   setExplicitQosEnabled(true) + setDeliveryPersistent(...) -- without explicit QoS the delivery
  *                   mode is silently ignored. Excluded from withParams (a setter, not a broker-URI option); the
  *                   publisher-opened devLog line now carries persistent=
+ * 08/26/2026 mir0n  the connection health seeds UNKNOWN, not UP -- nothing has proved the connection at open
  */
 package pro.mir0n.esquire.tp.activemq;
 
@@ -107,7 +108,8 @@ public final class TransportProvider implements ITransportProvider {
         if (s.poolSize() > 0) {
             amq.setUseAsyncSend(true);
         }
-        AtomicReference<TransportHealth> conn = new AtomicReference<>(TransportHealth.UP);
+
+        AtomicReference<TransportHealth> conn = new AtomicReference<>(TransportHealth.UNKNOWN);
         amq.setTransportListener(stateListener(conn, "publisher " + destination));
         CachingConnectionFactory ccf = new CachingConnectionFactory(amq);
         if (s.poolSize() > 0) {
@@ -133,7 +135,8 @@ public final class TransportProvider implements ITransportProvider {
     public TransportConsumer openConsumer(String destination, ConsumeSettings s, Consumer<TransportMessage> handler) {
         String brokerUrl = withParams(s.endpoint(), s.params());
         ActiveMQConnectionFactory amq = new ActiveMQConnectionFactory(brokerUrl);
-        AtomicReference<TransportHealth> conn = new AtomicReference<>(TransportHealth.UP);
+
+        AtomicReference<TransportHealth> conn = new AtomicReference<>(TransportHealth.UNKNOWN);
         amq.setTransportListener(stateListener(conn, "consumer " + destination));
         // a SEPARATE-connection consumer: the broker's noLocal cannot see another connection's publications, so it
         // is NOT applied here -- the x-rod does own-exclusion in code for the two-connection case.

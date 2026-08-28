@@ -1,0 +1,131 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ .Release.Name }}-keycloak
+  labels:
+    app: {{ .Release.Name }}-keycloak
+spec:
+  serviceName: {{ .Release.Name }}-keycloak
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ .Release.Name }}-keycloak
+  template:
+    metadata:
+      labels:
+        app: {{ .Release.Name }}-keycloak
+    spec:
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        fsGroup: 1000
+      containers:
+        - name: keycloak
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          args: ["{{ .Values.keycloak.mode }}", "--import-realm"]
+          ports:
+            - containerPort: 8080
+            - containerPort: 9000    # health endpoint
+          env:
+            - name: KC_BOOTSTRAP_ADMIN_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-keycloak-secret
+                  key: admin-username
+            - name: KC_BOOTSTRAP_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-keycloak-secret
+                  key: admin-password
+            - name: KC_HOSTNAME
+              value: {{ .Values.keycloak.hostname | quote }}
+            - name: KC_HOSTNAME_STRICT
+              value: "false"
+            - name: KC_HOSTNAME_STRICT_BACKCHANNEL
+              value: "false"
+            # Resolve back-channel URLs (token / jwks / userinfo) from the
+            # incoming request rather than the fixed front-channel hostname, so
+            # an in-cluster caller discovering KC by its service name gets the
+            # reachable service URL for those endpoints while the browser-facing
+            # endpoints (authorize / logout) and the token issuer stay on the
+            # public hostname. The BFF relies on this to reach KC server-to-server
+            # without resolving the public esquire.localhost (loopback in a pod).
+            - name: KC_HOSTNAME_BACKCHANNEL_DYNAMIC
+              value: "true"
+            - name: KC_HOSTNAME_STRICT_HTTPS
+              value: "false"
+            - name: KC_HEALTH_ENABLED
+              value: "true"
+            # Prometheus metrics on the management interface (:9000); honors KC_HTTP_RELATIVE_PATH
+            # so they are scraped at :9000/kc-auth/metrics (the "keycloak" job). Gated by the observability
+            # umbrella -- off by default; o11y-on flips .Values.observability.enabled and rolls the StatefulSet.
+            - name: KC_METRICS_ENABLED
+              value: {{ .Values.observability.enabled | quote }}
+            - name: KC_HTTP_ENABLED
+              value: "true"
+            # Phantom Token Relay: enable RFC 8693 token-exchange and
+            # the fine-grained admin permissions needed to grant the
+            # esq-gw-exchange client permission to exchange tokens for
+            # esq-hauberk-M (preview features in KC 26.4).
+            #
+            # Pin both to V1: the realm-import permission structure uses the
+            # V1 client-permissions API. Without explicit :v1, KC 26.4 picks
+            # V1 token-exchange but V2 admin-fine-grained-authz, and the V1
+            # token-exchange provider crashes when it tries to call the V2
+            # ClientPermissions.canExchangeTo (UnsupportedOperationException
+            # "Not supported in V2"). start-dev tolerates the mismatch;
+            # production start mode does not.
+            - name: KC_FEATURES
+              value: "token-exchange:v1,admin-fine-grained-authz:v1"
+            - name: KC_PROXY_HEADERS
+              value: xforwarded
+            {{- with .Values.keycloak.httpRelativePath }}
+            - name: KC_HTTP_RELATIVE_PATH
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with .Values.keycloak.proxy }}
+            - name: KC_PROXY
+              value: {{ . | quote }}
+            {{- end }}
+          startupProbe:
+            tcpSocket:
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 30
+          readinessProbe:
+            # The REALM, not the port. Quarkus binds 8080 before --import-realm has created the realm, so a
+            # tcpSocket check reports Ready while a token request would still fail -- and the up script gates
+            # on Ready. This endpoint answers 200 only once the realm is actually being served.
+            httpGet:
+              path: {{ .Values.keycloak.httpRelativePath }}/realms/{{ .Values.keycloak.realm }}/.well-known/openid-configuration
+              port: 8080
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            tcpSocket:
+              port: 8080
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 3
+          volumeMounts:
+            - name: keycloak-data
+              mountPath: /opt/keycloak/data/h2
+  volumeClaimTemplates:
+    - metadata:
+        name: keycloak-data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        storageClassName: {{ .Values.storage.storageClass }}
+        resources:
+          requests:
+            storage: {{ .Values.storage.size }}

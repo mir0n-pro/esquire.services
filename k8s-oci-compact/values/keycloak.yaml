@@ -1,0 +1,35 @@
+# Prod (OKE super-compact) overrides for k8s-compact/charts/infra/keycloak
+image:
+  repository: ghcr.io/mir0n-pro/esquire-keycloak
+  # tag injected by oke-up.bat (--set image.tag=%image_tag%) -- single release tag for the whole stack.
+  # KC is rebuilt each release the baked realm/theme changes (v1.2.10: esquire-explorer login Cancel link).
+  pullPolicy: Always
+
+service:
+  type: ClusterIP            # ingress-nginx fronts KC; saves OCI LB quota
+
+keycloak:
+  mode: start                # production mode (was start-dev locally)
+  # Full URL (scheme+host+path) -- REQUIRED because the chart sets
+  # KC_HOSTNAME_BACKCHANNEL_DYNAMIC=true, and KC 26.4 rejects backchannel-dynamic
+  # unless hostname is a full URL. Path /kc-auth matches httpRelativePath below.
+  hostname: https://esquire.mir0n.pro/kc-auth
+  realm: esquire
+  adminUsername: admin
+  # adminPassword passed via --set
+  clientId: esq-angular
+  # v1.2.3: KC's own paths move to /kc-auth/* so the BFF can reserve /auth/*
+  # for its own login/callback/logout/me endpoints on the same host.
+  # Browser hits /kc-auth/realms/esquire/... only during the KC login redirect;
+  # the BFF reaches KC server-to-server through the same public hostname
+  # (see keycloak.issuer in values/backend.yaml) so the iss claim matches the
+  # browser-visible URL.
+  httpRelativePath: /kc-auth
+  proxy: edge                # KC trusts X-Forwarded-* from ingress
+
+storage:
+  storageClass: oci-bv
+  size: 10Gi
+
+nodeSelector:
+  tier: infra

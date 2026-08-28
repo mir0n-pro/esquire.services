@@ -21,6 +21,7 @@
  *                   H2 cache surface of the request-path cap); 0 = uncapped (pre-HA default) (R6)
  * 08/11/2026 mir0n  v1.2.12 -- the three change-number statements resolved from the properties into the SQL
  *                   set
+ * 08/26/2026 mir0n  reads biztree.cache.sql.repo.find-path-scoped into the SQL set
  */
 package pro.mir0n.esquire.bizTree.h2;
 
@@ -87,6 +88,7 @@ public class BizTreeH2Config {
                         env.getRequiredProperty("biztree.cache.sql.repo.find-root"),
                         env.getRequiredProperty("biztree.cache.sql.repo.find-nodes"),
                         env.getRequiredProperty("biztree.cache.sql.repo.find-path"),
+                        env.getRequiredProperty("biztree.cache.sql.repo.find-path-scoped"),
                         env.getRequiredProperty("biztree.cache.sql.repo.find-by-entity-id"),
                         env.getRequiredProperty("biztree.cache.sql.repo.find-by-name-kind"),
                         env.getRequiredProperty("biztree.cache.sql.repo.update-node"),

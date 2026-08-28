@@ -1,0 +1,75 @@
+// Grafana Alloy -- the log shipper for T1 (logging visualize, docker).
+// Tails the stdout of every esqc-* compose container (ECS JSON), promotes correlationId /
+// requestId to structured metadata, and pushes to Loki. No service change -- the emit side
+// (console: ecs, INCOMING/OUTGOING, MDC ids) is already in place.
+
+// 1. Discover running docker containers via the Docker Engine socket.
+discovery.docker "esq" {
+	host             = "unix:///var/run/docker.sock"
+	refresh_interval = "10s"
+}
+
+// 2. Keep only the esqc-* containers; label each by container name + compose service.
+discovery.relabel "esq" {
+	targets = discovery.docker.esq.targets
+
+	rule {
+		source_labels = ["__meta_docker_container_name"]
+		regex         = "/esqc-.*"
+		action        = "keep"
+	}
+	// Drop the observability stack's OWN containers: they are named esqc-* too, so the keep above lets them in,
+	// and shipping the log pipeline's output back into itself is a feedback loop (Loki logs each push -> Alloy
+// Infra logs we DO want (postgres/keycloak/activemq) are kept by the rule above like any other container;
+// what excludes the viewer is the DROP LIST below, which names its containers explicitly -- not the keep
+// rule missing them. THE VIEWER IS NOT THE SYSTEM.
+	rule {
+		source_labels = ["__meta_docker_container_name"]
+		regex         = "/esqc-(loki|grafana|tempo|prometheus|alloy|otel-collector|postgres-exporter)"
+		action        = "drop"
+	}
+	rule {
+		source_labels = ["__meta_docker_container_name"]
+		regex         = "/(esqc-.*)"
+		target_label  = "container"
+	}
+	rule {
+		source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
+		target_label  = "service"
+	}
+}
+
+// 3. Read the container logs and forward into the processing pipeline.
+loki.source.docker "esq" {
+	host       = "unix:///var/run/docker.sock"
+	targets    = discovery.relabel.esq.output
+	labels     = { job = "esq-docker" }
+	forward_to = [loki.process.esq.receiver]
+}
+
+// 4. Parse the ECS JSON line; attach correlationId / requestId as structured metadata
+//    (queryable, low-cost) rather than labels (which would explode cardinality).
+loki.process "esq" {
+	stage.json {
+		expressions = {
+			correlationId = "correlationId",
+			requestId     = "requestId",
+		}
+	}
+
+	stage.structured_metadata {
+		values = {
+			correlationId = "",
+			requestId     = "",
+		}
+	}
+
+	forward_to = [loki.write.default.receiver]
+}
+
+// 5. Ship to Loki.
+loki.write "default" {
+	endpoint {
+		url = "http://loki:3100/loki/api/v1/push"
+	}
+}

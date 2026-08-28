@@ -35,6 +35,20 @@ cloud today; the local docker stack also runs Kafka and Redis.
 
 ---
 
+### The same buses in the compact shape
+
+Grouping services into fewer programs does not change the catalog: the buses, the destinations and the roles
+are the same file, read the same way. What changes is who is on which side of a leg.
+
+- The **Entity Broadcast** bus keeps every participant. In compact, Mesnie publishes it (enyMan inside it)
+  and gateWard consumes it (the tree cache inside it).
+- The **IAM Request/Response** bus is defined and **carries nothing**: the requester and the server -- enyMan,
+  keySmith and kcMaster -- sit in the same program, so identity commands are a call through the identity
+  gateway instead of a queue round trip. The bus stays in the catalog because the catalog describes the
+  framework, not one deployment.
+- The **Audit** bus is unchanged, and auKeep remains its own program. In the cloud profile the audit trail is
+  written by database triggers instead, and the audit bus id is set to the DEFINED `audit-off`.
+
 ## Entity Broadcast Bus
 
 **enyMan** (organizations and users) and **pacMan** (accounts) publish an **entity-update (`UE`)** event on
@@ -46,7 +60,8 @@ subscribe; more consumers can be added without touching the publishers.
 - **kcMaster** watches for moves, so a relocated entity's Keycloak path stays in sync.
 
 The event carries raw entity field values only (id, kind, name, path, status, …); each consumer interprets
-them, and a field absent from a message is a no-op. The `UE` wire format is in
+them, and a field absent from a message is a no-op. Nothing acknowledges an applied event; the tree
+converges through the night-watch instead (see **Delivery** below). The `UE` wire format is in
 [Esquire.MessagingBus.MessageStructure.md](Esquire.MessagingBus.MessageStructure.md).
 
 ---
@@ -87,6 +102,44 @@ variable (`AUDIT_BUS_ID`); the framework default is **off** — a fresh deploy a
 Audit is a thin layer on a generic "keep" engine (`esquire-dataKeep`) that applies incoming changes to a
 database; **auKeep** is the standalone consumer service for the bus sinks. The full audit model, the `*_log`
 schema, and the delivery analysis are in [Esquire.AuditLoggingStack.md](Esquire.AuditLoggingStack.md).
+
+---
+
+## Delivery — what the bus holds, and what it does not
+
+**A fan-out has no acknowledgement, by nature.** One publisher announces a fact to whoever subscribes; each
+consumer does something different with it, at its own pace, and some of them are not running. There is no
+single outcome to acknowledge, and asking for one would turn a broadcast into as many request/responses as
+there are subscribers -- coupling the publisher to every consumer's success, which is the opposite of why a
+broadcast exists. The publisher's job ends when the event is announced.
+
+**And when an answer IS wanted, the bus already has the shape for it: R&R.** A request names one
+replier and gets a `URS` / `URR` back, routed to the instance that asked by its rod-id. That is the
+choice being made at the catalog: a broadcast is chosen precisely when the publisher does not wait, and
+a request/response when it does. Neither one is the other missing a feature.
+
+So Esquire's bus is **fire-and-forget at the application layer**. A publisher hands an event to its rod and
+returns; a consumer applies it. **No acknowledgement lives in Esquire** — there is no `acknowledge()`, no
+`CLIENT_ACKNOWLEDGE`, no transacted listener anywhere in the tree, and no consumer can withhold one.
+
+Whether a message counts as delivered is the **transport provider's** business. On ActiveMQ the JMS container
+acks when its listener returns, and that listener returns as soon as the rod's receive pool accepts the
+event — so from the broker's side the message is done before the consumer's work is. That is a deliberate
+line: the bus carries events, the vendor half decides delivery semantics, and a service is never written
+against one broker's guarantees.
+
+Each bus answers loss in its own way, and each answer is a property of the design rather than of the wire:
+
+- **Entity broadcast** — the topic subscription is non-durable, so a consumer that is disconnected does not
+  receive what was published in the gap. The **Taijitu night-watch** anti-entropy compares the cache against
+  the database and heals it, which is the no-event-loss mechanism here. A consumer therefore needs no ack:
+  the tree converges whether an event arrived, failed to apply, or never came.
+- **Audit** — the event is posted after the business commit, so every bus sink is best-effort by
+  construction; **(a) DB triggers** is the never-lose choice, inside the transaction. Making the broker sink
+  **(c)** zero-loss is transport-provider work, not a setting — see
+  [Esquire.AuditLoggingStack.md](Esquire.AuditLoggingStack.md).
+- **IAM request/response** — the answer travels back to the instance that asked, by rod-id, and is recorded
+  there. A reply that never comes surfaces as the caller's own request timeout.
 
 ---
 
@@ -143,11 +196,6 @@ additionally reports its keep `*_log` database (the apply side). Wiring: [Esquir
   uses; a named bus the catalog does not define (or a typo'd key) fails fast at boot, not silently. To run
   *without* a bus, point it at an explicit `XRodDisabled` leg (e.g. the catalog's `audit-off` bus) — disabling
   is always deliberate, never an accident.
-
-- **Delivery is best-effort per transport; the bus adds no replay or de-duplication.** Idempotency where it
-  matters (the audit `*_log`) rests on a unique key in the database, not on the bus. A consumer that is down
-  misses broadcasts while it is gone — bizTree's recoverable cache reconciles that on its own (its periodic
-  night-watch rebuild), but the bus itself does not redeliver.
 
 - **The fleet size is fixed -- nothing autoscales.** Each service runs a set number of copies; no copies are
   added or removed automatically as load changes. At the scale this runs today the traffic is small and steady,

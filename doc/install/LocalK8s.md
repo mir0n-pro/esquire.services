@@ -117,6 +117,29 @@ k8s-rebuild.bat <target>
 
 ---
 
+## The compact stack (the same framework in fewer programs)
+
+Everything above deploys the **classic** shape: every service its own StatefulSet. The **compact** shape runs
+the same code and the same configuration with services grouped into fewer programs — **mesnie** holds enyMan,
+keySmith and kcMaster; **gateWard** holds the gateway and the entity-tree cache. pacMan, auKeep and the
+browser tier stay as they are, still at x2. The Explorer, the demo data and the entry points are identical.
+
+It lives in `services\k8s-compact\` and uses the same script names:
+
+```
+k8s-rebuild.bat                rebuild every image and stamp fresh tags
+k8s-rebuild.bat <target>       <target> = mesnie | gateward | pacman | aukeep | backend
+k8s-up.bat                     deploy the releases
+k8s-down.bat                   uninstall them
+o11y-on.bat / o11y-off.bat     the single pane, same as classic
+```
+
+> **One shape at a time.** Both deploy into the same cluster under the same names and the same ingress hosts,
+> so run `k8s-down.bat` in the other folder before bringing this one up. The context guard applies here too:
+> never run a `k8s-*.bat` unless the context is `docker-desktop`.
+
+---
+
 ## Stop / reset
 
 ```

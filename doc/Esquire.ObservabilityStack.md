@@ -26,7 +26,9 @@ To feed that stack -- and to *extend* it -- every Esquire service is built on th
 the ECS fields -- is in [`Esquire.ObservabilityStack.Logging.md`](Esquire.ObservabilityStack.Logging.md). Every
 signal Esquire collects is catalogued in
 [`Esquire.ObservabilityStack.Inventory.csv`](Esquire.ObservabilityStack.Inventory.csv) (walked in Part 3). How to
-read the panes is the [Grafana Guide](Esquire.GrafanaGuide.md).
+read the panes is the [Grafana Guide](Esquire.GrafanaGuide.md). Esquire also ships in a **compact** deployment,
+where several services run in one process; what that changes about watching it -- and what it deliberately does
+not -- is **Part 4**.
 
 ## Part 1 -- The Observability Stack
 
@@ -65,7 +67,7 @@ The log collector. Discovers the pods on the cluster, tails each container's std
 <table style="width: 100%; table-layout: fixed;">
   <tr>
     <td style="width: auto; white-space: nowrap;"><b>Grafana Loki</b></td>
-    <td style="width: 100%;"><img src="./media/loki_icon.svg" alt="Loki logo" valign="middle" height="24"></td>
+    <td style="width: 100%;"><img src="./logo/loki_icon.svg" alt="Loki logo" valign="middle" height="24"></td>
   </tr>
 </table>
 
@@ -95,7 +97,7 @@ A separate routing hub for traces -- its OWN service, NOT part of any app. It re
 <table style="width: 100%; table-layout: fixed;">
   <tr>
     <td style="width: auto; white-space: nowrap;"><b>Grafana Tempo</b></td>
-    <td style="width: 100%;"><img src="./media/tempo_logo.png" alt="Tempo logo" valign="middle" height="24"></td>
+    <td style="width: 100%;"><img src="./logo/tempo_logo.svg" alt="Tempo logo" valign="middle" height="24"></td>
   </tr>
 </table>
 
@@ -110,7 +112,7 @@ The trace store; keeps each request's spans under its `traceId` -- which equals 
 <table style="width: 100%; table-layout: fixed;">
   <tr>
     <td style="width: auto; white-space: nowrap;"><b>Prometheus</b></td>
-    <td style="width: 100%;"><img src="./media/prometheus_logo.svg" alt="Prometheus logo" valign="middle" height="24"></td>
+    <td style="width: 100%;"><img src="./logo/prometheus_logo.svg" alt="Prometheus logo" valign="middle" height="24"></td>
   </tr>
 </table>
 
@@ -131,7 +133,7 @@ The metrics store; **pull-based**. "Scrape" means Prometheus makes a plain HTTP 
 <table style="width: 100%; table-layout: fixed;">
     <tr>
     <td style="width: auto; white-space: nowrap;"><b>Postgres Exporter</b></td>
-    <td style="width: 8%;"><img src="./media/prometheus_logo.svg" alt="Prometheus logo" valign="middle" height="24"></td>
+    <td style="width: 8%;"><img src="./logo/prometheus_logo.svg" alt="Prometheus logo" valign="middle" height="24"></td>
     <td style="width: 100%;"><img src="./logo/postgres.svg" alt="Postgres logo" valign="middle" height="24"></td>
   </tr>
 </table>
@@ -147,7 +149,7 @@ A SEPARATE service (Postgres cannot expose Prometheus metrics itself, and you ca
 <table style="width: 100%; table-layout: fixed;">
   <tr>
     <td style="width: auto; white-space: nowrap;"><b>Grafana</b></td>
-    <td style="width: 100%;"><img src="./media/grafana_icon.svg" alt="Grafana logo" valign="middle" height="24"></td>
+    <td style="width: 100%;"><img src="./logo/grafana_icon.svg" alt="Grafana logo" valign="middle" height="24"></td>
   </tr>
 </table>
 
@@ -163,9 +165,9 @@ The one screen; dashboards for all three -- logs, traces, metrics -- and the cro
 
 ### Backend choice -- no lock-in
 
-The component model above is the stack Esquire **ships**: Alloy → Loki for logs, the OpenTelemetry Collector → Tempo for traces, Prometheus for metrics, all read through one Grafana. It is a deliberate default, not the only choice -- and replacing any part of it is a configuration change, not a code change, because the emit side is open on both formats:
+The component model above is the stack Esquire **ships**: Alloy -> Loki for logs, the OpenTelemetry Collector -> Tempo for traces, Prometheus for metrics, all read through one Grafana. It is a deliberate default, not the only choice -- and replacing any part of it is a configuration change, not a code change, because the emit side is open on both formats:
 
-- **Logs are ECS JSON** (Elastic Common Schema) written to stdout. Anything that reads ECS reads Esquire's logs unchanged -- the full Elastic stack (Elasticsearch + a shipper such as Logstash/Filebeat + Kibana), or a cloud provider's own log service (AWS CloudWatch Logs / Insights, Google Cloud Logging, Azure Monitor) that recognizes JSON/ECS and filters on `correlationId` directly. Alloy → Loki is simply the default we ship.
+- **Logs are ECS JSON** (Elastic Common Schema) written to stdout. Anything that reads ECS reads Esquire's logs unchanged -- the full Elastic stack (Elasticsearch + a shipper such as Logstash/Filebeat + Kibana), or a cloud provider's own log service (AWS CloudWatch Logs / Insights, Google Cloud Logging, Azure Monitor) that recognizes JSON/ECS and filters on `correlationId` directly. Alloy -> Loki is simply the default we ship.
 - **Traces are OTLP** -- the vendor-neutral OpenTelemetry wire -- sent to the Collector. The Collector is the single swap point: aim its exporter at any OTLP backend (Tempo, shipped; or Jaeger, Zipkin) and not one service changes.
 - **Metrics are Prometheus** exposition, scraped by any Prometheus-compatible tool.
 
@@ -192,17 +194,17 @@ Esquire uses two identifiers: one that follows activity *inside* the service net
 |  **Name**            | **Purpose**                                          | **Details**                                                                                                               |
 |----------------------|------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------|
 | *Esq-Correlation-ID* | *Header.* <br>The internal engine for log linking    | Circulates only internally within Esquire networks. It may appear in error reports.                                       |
-| *X-Correlation-ID*   | *Header.* <br>Standard compatibility header          | Optional: It explicitly defines *Esq-Correlation-ID* from the client’s side. It’s echoed back to the client.              |
-| *X-Request-ID*       | *Header.* <br>The client's original reference ID.    | Its use is highly recommended for clients' Apps. It’s tracking in every processing chain. It’s echoed back to the client. |
+| *X-Correlation-ID*   | *Header.* <br>Standard compatibility header          | Optional: It explicitly defines *Esq-Correlation-ID* from the client's side. It's echoed back to the client.              |
+| *X-Request-ID*       | *Header.* <br>The client's original reference ID.    | Its use is highly recommended for clients' Apps. It's tracking in every processing chain. It's echoed back to the client. |
 | *traceId*            | *Error Problem Detail.* <br>**THE KEY of the whole stack** -- the one id a request's trace, its log lines, and its metrics all share. | In Esquire it equals *Esq-Correlation-ID*, so a single value follows one request across every service and every pillar -- which is what makes a log jump to its trace, and a trace to its metrics.                                                                               |
 
 #### The Trace: one id, end to end
 
-Beyond the header identity, Esquire emits an actual distributed trace. Every service records OpenTelemetry spans and exports them over OTLP to a collector, which forwards them to a trace store (Tempo) viewed in Grafana. The defining rule is **traceId == Correlation ID**: the Gateway settles the Correlation ID at the edge and seeds the trace with it, so a request's spans, its log lines, and its error report all carry the same id — one search finds the whole story across services.
+Beyond the header identity, Esquire emits an actual distributed trace. Every service records OpenTelemetry spans and exports them over OTLP to a collector, which forwards them to a trace store (Tempo) viewed in Grafana. The defining rule is **traceId == Correlation ID**: the Gateway settles the Correlation ID at the edge and seeds the trace with it, so a request's spans, its log lines, and its error report all carry the same id -- one search finds the whole story across services.
 
-The Gateway is the root of the trace. From there the id flows to every downstream service and, crucially, **across the messaging bus**: a bus hop is recorded as a *producer* span on the sender and a *consumer* span on the receiver, so a message's journey — an entity broadcast fanning out to every replica, an audit write, a KeyCloak sync — reads as one connected trace rather than disjoint fragments.
+The Gateway is the root of the trace. From there the id flows to every downstream service and, crucially, **across the messaging bus**: a bus hop is recorded as a *producer* span on the sender and a *consumer* span on the receiver, so a message's journey -- an entity broadcast fanning out to every replica, an audit write, a KeyCloak sync -- reads as one connected trace rather than disjoint fragments.
 
-Which instance did the work is visible per span: in the trace view each span is badged by the service **instance** (its rod-id, `<app>.<instance>`), so the two replicas of a service are told apart — while logs and metrics keep the plain, logical service name for aggregation.
+Which instance did the work is visible per span: in the trace view each span is badged by the service **instance** (its rod-id, `<app>.<instance>`), so the two replicas of a service are told apart -- while logs and metrics keep the plain, logical service name for aggregation.
 
 Services opt individual operations into the trace with a single mark (an `@EsqTraced` annotation or an `EsqTraceMark` call), which shows up as its own span nested in the request: the service transaction, the cache apply, the account posting, the KeyCloak call.
 
@@ -210,11 +212,11 @@ Services opt individual operations into the trace with a single mark (an `@EsqTr
 
 The messaging bus is a self-contained sub-framework of Esquire -- it runs on its own, and carries its own observability. Two parts of it reach the trace: every message hop is already recorded as a *producer* / *consumer* span pair (above), and a bus can run a **keep-alive** that stops an idle connection going stale and notices an outage sooner. That keep-alive matters most on a **request/reply (R&R) bus**, where *both* legs have to stay up -- the request going out and the reply coming back -- so its health is worth tracing directly, which is why it appears here in the tracing pillar.
 
-A request/reply (R&R) bus runs a FIX-style liveness protocol: the client periodically sends a **TestRequest** and the server answers with a **HeartBeat**. When enabled, this whole round-trip is traced — `TestRequest → receive → HeartBeat → receive`, one four-span trace — so the health of an R&R bus is observable end to end: a complete round-trip means the bus is healthy in both directions; a truncated one shows exactly where it broke. It is a deliberate, separate opt-in from request tracing, because heartbeats fire on a steady cadence.
+A request/reply (R&R) bus runs a FIX-style liveness protocol: the client periodically sends a **TestRequest** and the server answers with a **HeartBeat**. When enabled, this whole round-trip is traced -- `TestRequest -> receive -> HeartBeat -> receive`, one four-span trace -- so the health of an R&R bus is observable end to end: a complete round-trip means the bus is healthy in both directions; a truncated one shows exactly where it broke. It is a deliberate, separate opt-in from request tracing, because heartbeats fire on a steady cadence.
 
 #### Notes
 
--   **Off by default.** Distributed tracing is opt-in per environment (it costs nothing when off). The R&R liveness round-trip is a further opt-in on top — enabled on the local docker stack, off on Kubernetes, and off by default.
+-   **Off by default.** Distributed tracing is opt-in per environment (it costs nothing when off). The R&R liveness round-trip is a further opt-in on top -- enabled on the local docker stack, off on Kubernetes, and off by default.
 -   **One id everywhere.** Because traceId equals the Correlation ID, a trace, its logs, and its error report are joined by a single value; a Correlation ID a client supplies (via *X-Correlation-ID*) becomes the trace id.
 -   **Noise kept out.** Health-probe / actuator paths open no span, and framework-internal spans (the security filter chain) are suppressed, so a trace shows the request's real work.
 -   **The trace view is per-instance.** The trace store labels a span by the emitting replica, while logs and metrics keep the plain logical service name for aggregation -- so correlating a per-instance span to a by-name metric means matching on the logical service name, not the rod-id.
@@ -281,7 +283,7 @@ Esquire captures four distinct but related metrics for every request, organized 
 -   **Service Outer Time (`Esq-Srv-Outer-Time`)**: from receive-by-service to send-to-gateway. The service's measurement of its own full processing.
 -   **Service Inner Time (`Esq-Srv-Inner-Time`)**: umbrella of all inner-aspect costs at the service tier -- today equals JPA / DB query time; reserves the slot for future specifics like JMS publish wait, cache lookup, or external API calls via the extensible naming pattern `Esq-Srv-Inner-{X}-Time` (e.g., `Esq-Srv-Inner-DB-Time`, `Esq-Srv-Inner-JMS-Time`). The umbrella metric is always present; sub-aspects are added alongside it as the system grows.
 
-#### Where each timer is measured (and why outer ≠ inner)
+#### Where each timer is measured (and why outer != inner)
 
 The four headers come from two pairs of filters at two tiers. Each timer answers a slightly different question:
 ![Timing](media/timing.svg)
@@ -297,7 +299,7 @@ The derived bands (`net`, `gw_self`, `in_cluster`, `srv_self`, `srv_inner`) are 
 To avoid leaking internal timing data and saving on overhead, the four timer headers are optional.
 
 -   **The Trigger**: The Gateway only adds these headers if the client sends the *X-Capture-Metrics* header.
--   **The Master Switch**: the gateway configuration *esquire.gateway.service-metrics.enabled* allows enabling the gathering of service performance metrics globally across all backend services if needed. For normal traffic, the flag must be off to avoid the memory overhead of buffering the response body.
+-   **The Master Switch**: the gateway configuration *esquire.gateway.service-metrics.enabled* allows enabling the gathering of service performance metrics globally across all backend services if needed. For normal traffic, the flag must be off to avoid the memory overhead of buffering the response body. It works by adding *Esq-Capture-Metrics* to every forwarded request, and that header carries a second effect: an error answered as problem+json includes a *stackTrace* property holding the root cause's full Java trace, at the gateway tier as well as in the services. The docker sandbox turns it on; k8s and OKE keep the default.
 -   **Log Visibility**: Regardless of headers, the *OUTGOING* log always provides a total performance snapshot at the gateway tier. When the Master Switch is on, logs include all four metric values plus the per-URL derived bands.
 -   **Response Visibility**: When an end-client app passes the trigger header, the four metric headers are injected directly into the response (`X-Response-Time`, `Esq-Gw-Inner-Time`, `Esq-Srv-Outer-Time`, `Esq-Srv-Inner-Time`). The service-tier headers (`Esq-Srv-*`) depend on the Master Switch state on the service side; the gateway-tier headers (`X-Response-Time`, `Esq-Gw-Inner-Time`) are always emitted under trigger.
 -   **Error Report**: When an error has happened on the Gateway side, the Gateway reports the error with request timing using *processingTime Problem Detail* attribute, even in the case when the end-client did not trigger the performance metrics.
@@ -307,13 +309,14 @@ To avoid leaking internal timing data and saving on overhead, the four timer hea
 |  **Name**                                          | **Purpose**                                                                          | **Details**                                                                |
 |----------------------------------------------------|--------------------------------------------------------------------------------------|----------------------------------------------------------------------------|
 | *X-Capture-Metrics*                                | *Header.* <br>The end-client Trigger.                                                | Allows sending performance metrics in response headers,                    |
-| *X-Response-Time*                                  | *Header.* <br>Gateway outer time -- full envelope.                                   | Always in the response headers when “triggered”.                           |
-| *Esq-Gw-Inner-Time*                                | *Header.* <br>Gateway inner time -- downstream call only.                            | In the response headers, when “triggered”.                                 |
-| *Esq-Srv-Outer-Time*                               | *Header.* <br>Service outer time -- full service processing.                         | In the response headers, when “triggered” and “Master Switch” are on.      |
-| *Esq-Srv-Inner-Time*                               | *Header.* <br>Service inner umbrella -- today equals JPA, future may decompose.      | In the response headers, when “triggered” and “Master Switch” are on.      |
+| *Esq-Capture-Metrics*                              | *Header.* <br>The gate's instruction to the services.                                | Added to every forwarded request when the Master Switch is on; turns on the service-tier timing and the *stackTrace* property. |
+| *X-Response-Time*                                  | *Header.* <br>Gateway outer time -- full envelope.                                   | Always in the response headers when "triggered".                           |
+| *Esq-Gw-Inner-Time*                                | *Header.* <br>Gateway inner time -- downstream call only.                            | In the response headers, when "triggered".                                 |
+| *Esq-Srv-Outer-Time*                               | *Header.* <br>Service outer time -- full service processing.                         | In the response headers, when "triggered" and "Master Switch" are on.      |
+| *Esq-Srv-Inner-Time*                               | *Header.* <br>Service inner umbrella -- today equals JPA, future may decompose.      | In the response headers, when "triggered" and "Master Switch" are on.      |
 | *Esq-Srv-Inner-{X}-Time*                           | *Header.* <br>Optional inner-aspect decomposition (e.g., -DB-, -JMS-, -Cache-).      | Added alongside the umbrella `Esq-Srv-Inner-Time`, not in place of it.     |
-| *esquire. gateway.<br>service-metrics<br>.enabled* | *Gateway configuration.*<br>The “Master Switch”.                                     | Disabled by default                                                        |
-| *processingTime*                                   | *Error Problem Detail.* <br>Request processing time                                  | Same value as for *X-Response-Time*, does not require to be “triggered.*”* |
+| *esquire. gateway.<br>service-metrics<br>.enabled* | *Gateway configuration.*<br>The "Master Switch".                                     | Disabled by default                                                        |
+| *processingTime*                                   | *Error Problem Detail.* <br>Request processing time                                  | Same value as for *X-Response-Time*, does not require to be "triggered.*"* |
 
 ### 4. Error Report (The RFC 7807/9457)
 
@@ -352,7 +355,7 @@ Here is a breakdown of the error handling essentials that were established:
 | *requestId*      | string                                                                        | Esquire extension: End-client request ID                                                                                                                                                                                                |
 | *correlationId*  | string                                                                        | Esquire extension: Server internal correlation ID, value of *Esq-Correlation-ID*                                                                                                                                                        |
 | *processingTime* | string                                                                        | Esquire extension: Only for Gateway errors: Total time the system spent on the request before the error occurred.                                                                                                                       |
-| *stackTrace*     | string                                                                        | Esquire extension: Root cause stack trace. Conditional: Only included when the “Master Switch” is true to maintain security. It is the same “switch” used to control the visibility of internal metrics. It is set to false by default. |
+| *stackTrace*     | string                                                                        | Esquire extension: Root cause stack trace. Conditional: Only included when the "Master Switch" is true to maintain security. It is the same "switch" used to control the visibility of internal metrics. It is set to false by default. |
 
 #### Esquire Explorer Error Report
 
@@ -362,11 +365,12 @@ Here is a breakdown of the error handling essentials that were established:
 
 ### The asset inventory
 
-Every signal Esquire collects is catalogued -- one row per asset, with what emits it, what it is for, and whether it is drawn on a dashboard -- in [`Esquire.ObservabilityStack.Inventory.csv`](Esquire.ObservabilityStack.Inventory.csv), regenerated by `test/o11y/o11y-inventory.py`. **126 assets available in all:**
+Every signal Esquire collects is catalogued -- one row per asset, with what emits it, what it is for, and whether it is drawn on a dashboard -- regenerated by `test/o11y/o11y-inventory.py`. **One sheet per deployment**, because a deployment decides who carries the signals:
 
-- **100 metrics** -- 18 counters, 9 timers, 3 gauges, 2 histograms, 1 summary, 7 scrape jobs, and 60 dependency metrics (JVM / DB / broker / Keycloak / BFF);
-- **18 traced operations** (named spans -- each is both a span and a metric);
-- **8 log streams** -- one per service.
+- [`Esquire.ObservabilityStack.Inventory.csv`](Esquire.ObservabilityStack.Inventory.csv) -- the classic stack. **128 assets:** 102 metrics (20 counters, 9 timers, 3 gauges, 2 histograms, 1 summary, 7 scrape jobs, 60 dependency metrics from the JVM / DB / broker / Keycloak / BFF), 18 traced operations (named spans -- each is both a span and a metric), and **8 log streams**.
+- [`Esquire.ObservabilityStack.Inventory.Compact.csv`](Esquire.ObservabilityStack.Inventory.Compact.csv) -- the compact stack. **125 assets:** the same metrics and the same traced operations, and **5 log streams**.
+
+The metrics are identical because the code is identical. What differs is the log pillar: a stdout stream belongs to a PROCESS, and the compact stack runs five of them.
 
 Consult it before adding a signal: the odds are the one you want already exists.
 
@@ -429,6 +433,77 @@ The one thing people get backwards: **counters are cheap, histograms are expensi
 The framework's continuing-dev backlog -- including the business-statistics (business-meter) collection decision
 record -- lives in [Esquire.ContinuingDev.md](Esquire.ContinuingDev.md).
 
+## Part 4 -- Watching a compact deployment
+
+Esquire ships in two deployment shapes. The **classic** one runs a process per service. The **compact** one
+composes them: **Mesnie** runs enyMan, keySmith and kcMaster in one process, and **gateWard** runs the gateway
+and the tree cache in one. pacMan, auKeep and the browser tier stay as they are -- what compact composes is the
+REQUEST path, and the audit sink is not on it.
+
+That changes nothing about WHAT is collected. It changes WHO carries it, and this section is the whole of the
+difference.
+
+### Two identities on every meter
+
+A meter carries two tags, because a reader asks two different questions:
+
+| tag | answers | example |
+|---|---|---|
+| `application` | which **process** emitted it | `mesnie`, `gateward`, `pacman`, `aukeep` |
+| `service` | which **Esquire service** did the work | `enyman`, `keysmith`, `kcmaster`, `gateway`, `biztree` |
+
+On the classic stack the two are equal, and every board reads exactly as it always did. On the compact stack
+they part company: one JVM, one connection pool and one CPU belong to `mesnie`, while the entity operations
+inside it belong to `enyman` and the identity syncs to `kcmaster`.
+
+So the *Esquire Services* dashboard has two pickers. **The machine rows** -- JVM, pool, CPU, bandwidth, broker,
+Postgres, KeyCloak, the browser tier, capacity -- filter by `application`. **The work rows** -- the overview,
+messaging, the latency bands, the business rows, the breakers -- filter by `service`.
+
+**A meter's tags are fixed when the meter is CREATED, not when it is recorded.** That is why the service is
+worked out from the meter itself -- its name, the route it was served on, or the bus it travelled -- and never
+from the calling thread: a per-request value would freeze whichever service touched the meter first. A service
+running alone contributes no owner at all, and then `service` is simply the process name.
+
+**What is deliberately NOT split:** anything there is only one of. The JVM, the connection pool, the Netty edge
+server and the permission checks the composed services share all stay with the process. Splitting them would be
+an invention, not a measurement.
+
+### The log pillar follows the process
+
+A stdout stream belongs to a process, so the compact stack has five where the classic one has eight: `mesnie`
+carries what enyMan, keySmith and kcMaster write, and `gateward` what the gateway and the tree cache write. The
+line itself is unchanged -- same ECS JSON, same `correlationId`, so the log <-> trace hop works the same way.
+
+The same is true of a **trace node**: the Collector rewrites `service.name` to `<process>.<instance>`, so a
+compact trace shows a `gateward` node where a classic one shows `gateway` and `biztree`.
+
+### The compact stack has its own everything
+
+The compact deployment is isolated in full, and its observability follows that rule:
+
+| | classic | compact |
+|---|---|---|
+| stack folders | `compose/`, `k8s/`, `k8s-oci/` | `compose-compact/`, `k8s-compact/`, `k8s-oci-compact/` |
+| Grafana boards | generated into the classic folders | generated into the compact folders, by the compact copy of the generator |
+| asset inventory | `Esquire.ObservabilityStack.Inventory.csv` | `Esquire.ObservabilityStack.Inventory.Compact.csv` |
+| launchers | in `compose/` and `k8s/`: the arms (`o11y-on/off`, `o11y-log-on/off`), `o11y-verify` and the one-click `o11y-test` | the same set in `compose-compact/` and `k8s-compact/` |
+
+Each launcher declares its own fleet -- the processes to check and the trace nodes to expect -- and the shared
+`o11y-verify.py` / `o11y-inventory.py` read that declaration rather than assuming a shape. `o11y-inventory.py
+--profile compact` writes the compact sheet.
+
+### The topology board draws what it composes
+
+The compact topology view is the same picture with the composed services drawn as what they hold: **Mesnie**
+carries small blocks naming enyMan, keySmith and kcMaster, and **gateWard** blocks naming the gateway and
+bizTree, each wearing that service's own icon. **No line touches an inner block** -- every arrow lands on the
+card, because that is what the architecture says: nothing connects to enyMan any more, it connects to Mesnie.
+
+There are **two bus lanes**, not three. The identity request-response bus is gone: kcMaster runs inside Mesnie,
+so an identity command is a method call onto an in-memory queue and never reaches the wire. What remains is the
+entity broadcast and the audit broadcast.
+
 ## Appendix -- the panes (screenshots)
 
 The stack above is best seen live. These are the three views that matter; how to read them is the [Grafana Guide](Esquire.GrafanaGuide.md).
@@ -453,4 +528,4 @@ The stack above is best seen live. These are the three views that matter; how to
 
 **Topology board -- the production-support front door.** The live service graph: every component and every connection between them (including the bus hops), built from the OTel Collector's servicegraph metrics. This is the **main monitor for production support** -- one screen that shows the whole system at a glance, so an on-call engineer sees what is up, what is degraded, and where a failure is spreading, without opening a single service. Paired with the **health alarms** -- a service gone dark, a dropped message, a tripped safety switch, a database with no spare connections -- it is also the alerting front door: open it first to spot the red, then drill into the Services or Logging dashboard for the detail. In steady state it is the one screen worth leaving up on the wall.
 
-![The topology board on the two-replica (HA) stack: every component as a stack of health-coloured cards with its own live numbers, the three bus lanes down the middle, database and broker below, the COLLECTOR ellipse, and the HEALTH / LINES / REDUNDANCY legend. The board doing its job -- enyMan-1 sits amber (an idle-twin / recent-restart warning) while every other card is green, so a reader sees at a glance which one replica to look at.](media/topology-screenshot.png)
+![The topology board on the two-replica (HA) stack: every component as a stack of health-coloured cards with its own live numbers, the three bus lanes down the middle, database and broker below, the COLLECTOR ellipse, and the HEALTH / LINES / REDUNDANCY legend. Every card green: the whole fleet healthy, each replica carrying its own request rate, CPU and memory, so one frame answers whether anything needs attention at all.](media/topology-screenshot.png)

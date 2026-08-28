@@ -18,6 +18,27 @@ for the three credential lifecycle operations: reset password, TOTP, and connect
 
 ---
 
+> **The routines are the same in both deployment shapes.** Where a step below says keySmith posts a command
+> and kcMaster performs it, that travels the IAM request/response bus in the classic shape and is a call
+> inside one program in the compact shape, where both sit in Mesnie. The commands, the order and the replies
+> are identical; only the distance changes.
+
+## What the flags drive in KeyCloak
+
+Esquire never changes a password and never configures TOTP. It records the **request** -- `au_force_change_flg`,
+`au_tfa_method` -- and keySmith syncs it to KeyCloak as a **required action**, which KeyCloak puts in front of
+the user at the next login and clears once the user has done it.
+
+`esq2025` owns those two actions the way it owns the realm role mapping, so **the flag is the answer in both
+directions**: raised, KeyCloak asks; lowered, KeyCloak stops asking. A user who was forced and then let off is
+not left facing a screen the database no longer asks for. Any other required action on the KeyCloak user --
+one the realm set for its own reasons -- is left where it is.
+
+The flags clear themselves on the user's own next handshake, so the withdrawing case is the short window before
+that login: raised, then lowered, with the user not yet through the door.
+
+---
+
 ## 1. Reset Password
 
 ### DB flag: `au_force_change_flg` — values: `Y` | `N`
@@ -26,7 +47,7 @@ for the three credential lifecycle operations: reset password, TOTP, and connect
 |------|-------|--------|
 | 1 | Admin UI | Sends `POST /esq-key-save` with `{ pwdChangeForced: "Y" }` |
 | 2 | keySmith | Writes `au_force_change_flg = 'Y'` to DB via `updateAccess` |
-| 3 | keySmith | Syncs to KC: `forcePasswordChange = true` → KC adds `UPDATE_PASSWORD` required action |
+| 3 | keySmith | Syncs to KC: `forcePasswordChange = true` → KC adds `UPDATE_PASSWORD` required action. Set back to `'N'` before the user logs in and the same sync takes the action off again |
 | 4 | User | Logs in to KC; KC intercepts and forces new password entry |
 | 5 | KC | Clears `UPDATE_PASSWORD` required action after user completes the change |
 | 6 | User UI | Calls `GET /esq-key` (no `id` — self-read) |
@@ -71,7 +92,7 @@ for the three credential lifecycle operations: reset password, TOTP, and connect
 | 1 | User UI | Sends `POST /esq-key-save` with `{ tfaMethod: "N" }` |
 | 2 | keySmith | `applyFields` validates; value differs from current → stores `"n"` (lowercase = pending) |
 | 3 | keySmith | Writes `au_tfa_method = 'n'` to DB |
-| 4 | keySmith | Syncs to KC: `removeTotp = true` → KC deletes all `otp`-type credentials for the user |
+| 4 | keySmith | Syncs to KC: `removeTotp = true` → KC deletes all `otp`-type credentials for the user, and drops a still-pending `CONFIGURE_TOTP` -- a TOTP that was requested but never set up has no credential to delete, only a request to withdraw |
 | 5 | User | Re-logs in (no TOTP prompt — credential removed) |
 | 6 | User UI | Calls `GET /esq-key` (no `id` — self-read) |
 | 7 | keySmith | Detects `au_tfa_method = 'n'` on self-read → confirms to `'N'` via `confirmPendingFlags` |

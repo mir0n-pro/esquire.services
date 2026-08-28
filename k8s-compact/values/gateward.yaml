@@ -1,0 +1,48 @@
+# Local k8s overlay for charts/esquire-gateward
+# Chart defaults already match local dev needs (esquire.gateward image, IfNotPresent pull, the three
+# profiles, DEBUG logging, in-cluster postgres / activemq / keycloak hostnames, ClusterIP behind
+# ingress-nginx on api.esquire.localhost). Only image.tag is restamped per rebuild here --
+# k8s-rebuild.bat patches it.
+image:
+  tag: "v1.2.13-2608.2523"
+
+# Token Relay -- in-cluster KC endpoint (HTTP, no TLS); same allowlists as OKE.
+# exchangeClientSecret comes via --set at install (k8s-up.bat).
+keycloakExchange:
+  baseUrl: http://esquire-infra-kc-keycloak:8080/kc-auth
+
+tokenRelay:
+  vanilla:
+    clients: esq-hauberk-S
+  phantom:
+    clients: esq-hauberk-M
+
+# v1.2.10 redundancy: run 2 replicas (StatefulSet ordinal identity).
+# TWO replicas means TWO caches, each loading the whole tree from the database at start and each kept in
+# step by its own entity-bus consumer. A request is served by whichever pod it lands on, so the readiness
+# gate is the whole defence against answering from a cold one.
+replicaCount: 2
+
+# Local-k8s budget. This one workload carries BOTH sides, so it takes the gate's outbound pool and the
+# ward's (small) database pool together:
+#   - gwPoolMaxConnections 64 -- the edge fans out to the x2 backend fleet under load (was the gateway's)
+#   - dbPoolMax 5            -- most reads are served from the in-JVM H2 cache, so the POSTGRES pool is
+#                               the smallest of the fleet; it carries the start-up load and the sweep
+# There is no tomcat block: this process is WebFlux, and the ESQ_TOMCAT_* knobs the standalone bizTree
+# overlay carries would reach nothing here.
+resilience:
+  gwPoolMaxConnections: "64"      # R1
+  dbPoolMax: "5"                  # R3 (smaller -- cache-served reads)
+  dbPoolMinIdle: "2"              # R3
+  dbConnectTimeoutMs: "5000"      # R3 fail-fast on pool acquire
+  dbSocketTimeoutSeconds: "35"    # R5
+  dbTcpKeepAlive: "true"          # R5
+
+# One process instead of two, so it gets the two workloads' room rather than half of it.
+resources:
+  requests:
+    cpu: 400m
+    memory: 768Mi
+  limits:
+    cpu: "1500m"
+    memory: 1280Mi

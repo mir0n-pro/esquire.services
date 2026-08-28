@@ -15,84 +15,68 @@
  *                   EsqContextHolder.applyMessage(event) and clears in a finally (I10)
  * 08/11/2026 mir0n  v1.2.12 -- the RodEvent constructor call carries a null change number: a KeyCloak
  *                   request leg reports none
+ * 08/12/2026 mir0n  v1.2.13 -- implements IIdentityGateway: postRequest(RodEvent) transmits, postMessage is skipped,
+ *                   start()/stop() take the kc leg (was the constructor)
  */
 package pro.mir0n.esquire.keySmith.messaging;
 
 import lombok.extern.slf4j.Slf4j;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.stereotype.Component;
-import pro.mir0n.esquire.backend.jpa.access.EsqAccessProfileJpa;
+import pro.mir0n.esquire.backend.identity.IIdentityGateway;
 import pro.mir0n.esquire.backend.service.EsqContextHolder;
-import pro.mir0n.esquire.backend.jpa.access.EsqRoleJpa;
 import pro.mir0n.esquire.common.EsqConstants;
-import pro.mir0n.esquire.messaging.BusConstants;
 import pro.mir0n.esquire.messaging.MessagingBus;
 import pro.mir0n.esquire.messaging.IXRod;
 import pro.mir0n.esquire.messaging.RodEvent;
 
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
+import java.util.function.Consumer;
 
 /**
- * The keySmith end of the kc bus (CLIENT role): one rod, both legs. {@link #publish} transmits a URQ to kcMaster
- * after the DB transaction commits; {@link #onResponse} receives the URS/URR reply for THIS keySmith instance
- * (the rod-id selector isolates it).
+ * The keySmith end of the kc bus (CLIENT role): one rod, both legs, and keySmith's identity gateway when the
+ * provider is another service. {@link #post} transmits the URQ to kcMaster after the DB transaction commits;
+ * {@link #onResponse} receives the URS/URR reply for THIS keySmith instance (the rod-id selector isolates it).
+ *
+ * <p>The process wires it as the {@link IIdentityGateway}, so nothing in keySmith's service layer knows a bus
+ * is involved. The event it is handed is the event that goes on the wire -- there is nothing to translate.
  */
 @Slf4j
-@Component
-public class KcBusAdapter {
+public class KcBusAdapter implements IIdentityGateway {
 
-    private static final Logger devLog = LoggerFactory.getLogger("develop." + KcBusAdapter.class.getName());
+    private IXRod rod;
+    private volatile Consumer<RodEvent> resultHandler;
 
-    private final IXRod rod;
-
-    public KcBusAdapter() {
-        // kc CLIENT: transmit URQ requests + receive URS/URR responses (rod-id selector), on one rod.
+    /** Takes the kc leg: transmit URQ requests + receive URS/URR responses (rod-id selector), on one rod. */
+    @Override
+    public void start() {
         this.rod = MessagingBus.getInstance().getXRod(EsqConstants.BUS_KEY_KC);
         this.rod.setWorker(this::onResponse);   // role-support: throws if the rod has no receive leg
         this.rod.transmit(null);                // role-support: probe -- throws if the rod has no transmit leg
     }
 
-    /**
-     * Publishes a URQ to kcMaster after the DB transaction has committed.
-     * Mirrors the three-branch logic previously in KeySmithService.syncToKeycloak().
-     *
-     * @param loginId        login id before the update (used for UPDATE/DELETE)
-     * @param oldConnectFlg  connectFlg before the update
-     * @param jpa            updated access profile
-     * @param roles          assigned roles after update
-     * @param correlationId  request correlation id
-     * @param requestId      request trace id
-     */
-    public void publish(String loginId, String oldConnectFlg, EsqAccessProfileJpa jpa,
-                        List<EsqRoleJpa> roles, String correlationId, String requestId) {
-        String command;
-        if ("Y".equals(oldConnectFlg) && "N".equals(jpa.getConnectFlg())) {
-            command = BusConstants.EVENT_DELETE;
-        } else if ("N".equals(oldConnectFlg) && "Y".equals(jpa.getConnectFlg())) {
-            command = BusConstants.EVENT_CREATE;
-        } else {
-            command = BusConstants.EVENT_UPDATE;
-        }
+    /** Nothing to close: the rod belongs to the messaging bus, which closes it at context close. */
+    @Override
+    public void stop() {
+    }
 
+    /** Skipped: on the bus, kcMaster subscribes to the entity broadcasts itself. */
+    @Override
+    public void postMessage(RodEvent event) {
+    }
+
+    @Override
+    public void setResultHandler(Consumer<RodEvent> handler) {
+        this.resultHandler = handler;
+    }
+
+    /** Transmits the URQ to kcMaster. The caller's transaction has already committed. */
+    @Override
+    public void postRequest(RodEvent event) {
         try {
-            Map<String, Object> body = buildBody(command, loginId, jpa, roles);
-            String entityId = String.valueOf(jpa.getId());
-            // guarantee a non-null tracking id (the former testReqId; it rides as the requestId on the wire).
-            String reqId = (requestId != null && !requestId.isBlank()) ? requestId : UUID.randomUUID().toString();
-
-            RodEvent e = new RodEvent(RodEvent.opFromCode(command), EsqConstants.KIND_ACCESS_PROFILE, entityId, null,
-                    null, System.currentTimeMillis(), correlationId, reqId, null, null,
-                    BusConstants.MSG_TYPE_REQUEST, body);
-            rod.transmit(e);
-            log.info("KC | URQ | {} | {} | {} | {}", command, EsqConstants.KIND_ACCESS_PROFILE, entityId, reqId);
+            rod.transmit(event);
+            log.info("KC | URQ | {} | {} | {} | {}", event.opCode(), event.kind(), event.entityId(), event.requestId());
         } catch (Exception e) {
             // DB already committed -- message failure logged for reconciliation
-            log.error("keySmith: failed to publish URQ: loginId={}, command={}, error={}", loginId, command, e.getMessage());
-            devLog.error("keySmith: failed to publish URQ: loginId={}, command={}, requestId={}, correlationId={}, error={}", loginId, command, requestId, correlationId, e.getMessage(), e);
+            log.error("keySmith: failed to publish URQ: entityId={}, command={}, requestId={}, error={}",
+                    event.entityId(), event.opCode(), event.requestId(), e.getMessage());
         }
     }
 
@@ -102,49 +86,13 @@ public class KcBusAdapter {
         try {
             // msgType is the authoritative URS/URR tag (no need to inspect the body).
             log.info("KC | {} | {} | {} | {} | {}", e.msgType(), e.opCode(), e.kind(), e.entityId(), e.requestId());
+            Consumer<RodEvent> handler = this.resultHandler;
+            if (handler != null) {
+                handler.accept(e);
+            }
             // todo: correlate by requestId; update sync status / reconciliation record
         } finally {
             EsqContextHolder.clear();
         }
-    }
-
-    private Map<String, Object> buildBody(String command, String loginId, EsqAccessProfileJpa jpa, List<EsqRoleJpa> roles) {
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("id",   String.valueOf(jpa.getId()));
-        body.put("kind", EsqConstants.KIND_ACCESS_PROFILE);
-
-        switch (command) {
-            case BusConstants.EVENT_DELETE -> {
-                body.put("loginId", loginId);
-            }
-            case BusConstants.EVENT_CREATE -> {
-                body.put("loginId",         jpa.getLoginId());
-                body.put("email",           jpa.getEmail());
-                body.put("pwdChangeForced", jpa.getPwdChangeForced());
-                body.put("tfaMethod",       jpa.getTfaMethod());
-                body.put("connectFlg",      jpa.getConnectFlg());
-                body.put("path",            jpa.getPath());
-                body.put("roles",           roleNames(roles));
-            }
-            case BusConstants.EVENT_UPDATE -> {
-                body.put("loginId",         loginId);
-                if (jpa.getLoginId() != null && !jpa.getLoginId().equals(loginId)) {
-                    body.put("newLoginId",  jpa.getLoginId());
-                }
-                body.put("email",           jpa.getEmail());
-                body.put("pwdChangeForced", jpa.getPwdChangeForced());
-                body.put("tfaMethod",       jpa.getTfaMethod());
-                body.put("connectFlg",      jpa.getConnectFlg());
-                body.put("roles",           roleNames(roles));
-            }
-        }
-
-        return body;
-    }
-
-    private List<String> roleNames(List<EsqRoleJpa> roles) {
-        return roles != null
-                ? roles.stream().map(EsqRoleJpa::getName).toList()
-                : List.of();
     }
 }

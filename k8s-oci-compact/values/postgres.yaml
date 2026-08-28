@@ -1,0 +1,29 @@
+# Prod (OKE super-compact) overrides for k8s-compact/charts/infra/postgres
+image:
+  repository: ghcr.io/mir0n-pro/esquire-postgres
+  # tag injected by oke-up.bat (--set image.tag=%image_tag%) -- single release tag for the whole stack.
+  pullPolicy: Always
+
+# Pinned explicitly for prod (matches the chart default) rather than inherited, so a future
+# local-driven change to the chart default cannot silently move OKE. A rolling restart briefly
+# overlaps old+new pods (~140 connections); 200 absorbs that with headroom. Ceiling only -- real
+# memory is driven by the connections actually open, so this is safe on the small ARM nodes.
+maxConnections: 200
+
+storage:
+  storageClass: oci-bv     # OCI Block Volume CSI driver
+  size: 50Gi               # block volumes are billed; 50Gi is well within free 200Gi
+
+# OCI Block Volume is ext4-formatted with a lost+found directory at the root.
+# Postgres initdb refuses to use a non-empty mount point. Point PGDATA at a
+# subdirectory of the mount instead. Local k8s has no lost+found, so this is
+# unset there (template gates on truthy value).
+pgdata: /var/lib/postgresql/data/pgdata
+
+# db.password is passed via --set at install time
+db:
+  name: esq2025
+  username: esq2025
+
+nodeSelector:
+  tier: infra

@@ -1,0 +1,6 @@
+apiVersion: v2
+name: esquire-otel-collector
+description: OpenTelemetry Collector OTLP ingest hub (T2 tracing) for local/dev k8s -- forwards spans to Tempo.
+type: application
+version: 0.1.0
+appVersion: "0.119.0"

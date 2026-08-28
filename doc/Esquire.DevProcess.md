@@ -80,6 +80,20 @@ Every intermediate phase runs the SAME full cycle — not only at sprint end:
 6. **GHA deploys** — the push triggers GitHub Actions: CI, then deploy to docker + local
    Docker-Desktop k8s (self-hosted runner on `pending-**` push).
 7. **Run e2e & smokes** — on docker AND local k8s; confirm the change is in place on both targets.
+   The deploy jobs bring up whichever **deployment shape** the machine already runs (classic or compact) and
+   remove the other; a change that touches the request path is worth proving on both shapes before release.
+
+**Once per sprint, per target, per profile: build it from nothing.** A stack that is merely *up* hides a
+whole class of defect -- a chart value that only a fresh install reads, an image the daemon still has under
+an old tag, a seed that never replays. Five such defects survived days of work in v1.2.13 because every
+check ran against a stack that had been up for a week. The routine is `k8s-down` (or `docker-compose-down`),
+then the rebuild, then up, then the four running-stack suites -- and it belongs in the sprint, not in the
+release, so what it finds can still be fixed calmly.
+
+**Re-arm observability after a deploy, on the local targets.** A deploy installs the shipped defaults, where
+observability is off, so the boards go red on docker and local k8s while the stacks are healthy and serving.
+Nothing is wrong: run `o11y-on` (compose) or `o11y-full-on` (k8s) again if the boards are wanted, then drive
+traffic before reading them.
 
 The **git boundary is the maintainer's**: steps 1–4 (develop, test, verify, prepare docs) are the
 working phase; steps 5–7 are maintainer-gated.
@@ -141,10 +155,71 @@ schedule. The pool of candidate targets is [Esquire.ContinuingDev.md](Esquire.Co
 
 ---
 
+## 7a. Pinning the infrastructure images
+
+Three images are Esquire's own, built on an upstream one: **postgres** (the database seed), **keycloak** (the
+realm import and the login theme) and **activemq** (the broker configuration and the metrics exporter). Each
+declares its **pin** at the top of its Dockerfile, and the build stamps both values onto the image as labels,
+so what an image is travels with the artifact rather than being written down beside it:
+
+```dockerfile
+ARG BASE=quay.io/keycloak/keycloak:26.4.7   # the upstream image, never a literal in FROM
+ARG PIN=v1.2.13-2608.2320                   # the release in which Esquire's content here last changed
+FROM ${BASE}
+```
+
+**`BASE` is an input, not a constant.** A target that wants a different upstream passes `--build-arg` and says
+so where the choice is made: docker runs KeyCloak 26.6.0 while k8s and the cloud stay on 26.4.7. Every
+docker-side file that BUILDS the image carries that `args:` block -- the two stack compose files and
+`services/keycloak/compose.yaml` -- so whichever one is used, the tag names what is inside it. Without this,
+a base moves the moment somebody edits a `FROM`, and the next release build carries it everywhere with
+nothing recorded.
+
+**`PIN` is edited by hand, and only when that image's Esquire content changes.** It is the tag: the builders
+read it back off the image and tag from it, so nothing is typed twice. An image that gained nothing this
+release keeps the tag it had — a release cannot replace infrastructure it did not touch, and a rebuild that
+changed nothing rolls nothing.
+
+**The rule that keeps the pin honest:** if the pin already names a **different** image, the content changed and
+nobody moved the pin, and the build refuses. A pin that can mean two images is worth less than no pin.
+
+**At sprint finalization**, for each of the three: if its content changed during the sprint, move `ARG PIN` to
+the release stamp, rebuild, and let the values be re-pinned. If it did not change, leave it — that is the point.
+The postgres pin and the seed's `DB_VERSION` move together, since the seed is what that image carries.
+
+The cloud is the one exception to the tag, on purpose: `oke-up.bat` sets a **single release tag for the whole
+stack**, infrastructure included, so every image in a deployment is named by one release. The labels still say
+what is inside each of them.
+
+
+---
+
+## 7b. What each pipeline builds from
+
+Esquire is three repositories -- `services`, `explorer`, `db.seed` -- and a deployment is built from all
+three. Which branch of the other two a pipeline reads is decided by **when that pipeline runs**, and the two
+answers differ on purpose.
+
+| pipeline | runs when | reads explorer + db.seed from |
+|---|---|---|
+| **CI** (`ci.yml`) | every push | this repository only -- the reactor build and the unit tests |
+| **local deploy** (`deploy-local.yml`) | a push to `pending-**` | the **sprint branch** when it exists, falling back to `develop` |
+| **cloud deploy** (`deploy-oke.yml`) | a `pending-*` PR **merged** into `develop` | **`develop`** |
+
+**The local pipeline validates the sprint while it is still in flight**, so it has to read the sprint's own
+work in the other repositories -- an e2e spec added during a sprint lives in `explorer` and is not on
+`develop` yet. **The cloud pipeline runs after the merge**, at the moment `develop` IS the release, so
+`develop` is what it reads. Neither is a fallback for the other.
+
+What holds the two together is that **the three repositories are promoted together**: a services release that
+needs a seed or an explorer change reaches `develop` alongside it. That is the condition the cloud pipeline's
+choice rests on -- part of the release, not an assumption about it.
+
 ## 8. Sprint finalization
 
 At sprint end, beyond the per-commit code-change docs:
 
+- Move the **infrastructure pins** that need moving (§7a) — one check per Esquire-built infra image.
 - Settle the **deferred design-doc placement** — interim `doc/<sprint>.tasks` notes and any saga docs
   land in their proper, visible home now that the final structure is known.
 - Refresh the **README(s)**, the landing page, and other release-facing material. The per-version README
@@ -172,6 +247,44 @@ At sprint end, beyond the per-commit code-change docs:
   `pending → PR → develop → tag → archive release/ → new pending` (the maintainer's git step). Each
   sprint runs this flow on **its own pending line** off `develop`; in continuous-development mode more
   than one such line can be open at once, each finalizing independently.
+
+---
+
+## 8a. The release touch-list -- what gets edited every time
+
+Every one of these has been missed at least once. They are listed together because nothing in the build
+points at them: no test fails, no pipeline turns red, and a stale one is only found by reading it.
+
+**At SPRINT START (not at release):**
+
+| Place | Care |
+|---|---|
+| `services/pom.xml` | the Micro version. Bumped here so the build tag and the image tag do not lag. |
+| `explorer/frontend` package version | frontend only. |
+| `db.seed` `DB_VERSION` | BOTH vendors, and only when the sprint has schema work. |
+
+**At RELEASE (finalization):**
+
+| Place | Care |
+|---|---|
+| `services/README.md` | the top callout carries the CURRENT sprint only -- the previous sprint's note is REMOVED, not collapsed. It says what the sprint delivered, so re-read it: it was written when the sprint opened and usually describes only half of what shipped. |
+| `services/Releases.md` | the new version added in FULL, with NO "More Details" link (its release branch is not archived yet); the previously-newest collapsed to one paragraph PLUS its `release/vX.Y.Z` link; a milestone-report placeholder row for every repo that had work -- a deliberately dead link that resolves when the report lands. |
+| `explorer/README.md` | same roll-down in its own shape: `## vX -- complete (date)` in full, the prior one collapsed to a sentence plus its link. |
+| `explorer/frontend/src/index.html` | the JSON-LD `softwareVersion`. It names the RELEASED version -- what a visitor can actually get -- so it is set to the version being tagged. Nothing points at it: it read four releases behind for months. |
+| `doc/v1.2.x.Planning.md` | the roadmap row gets its DATE and what actually shipped. The forecast is usually wrong -- v1.2.13 was planned as "fresh-mind hardening" and shipped as compact topology and hardening. Delivered rows carry a date; do not leave a `*planned*` placeholder row in a table that records deliveries. |
+| `doc/v1.2.x.Goal.md` | only when the sprint changed what Esquire IS. A sprint that adds a deployment shape or a stack part changes statements written as absolutes elsewhere in the file; find them, do not only add. |
+| `doc/Esquire.ContinuingDev.md` | CD items the sprint discharged move to `## Completed` as heading-only stubs. The numbering is a stable reference and a number is never reused, so an item is never deleted outright. Check the whole file: an item that shipped often still reads as a proposal. |
+| `db.seed/README.md` | the same roll-down, in its own `## vX -- complete (date)` shape. Touched even in a sprint with no schema work -- the section says what the sprint meant for the seed, which may be "nothing". |
+| `esquire.ui.lib/README.md` | the same, if the library moved. Easy to forget: it is the repo that changes least. |
+| `db.seed` / `ui.lib` `doc/release_notes.txt` | each repo keeps its own; a commit spanning repos is documented in EVERY repo it touched, not only the one edited last. |
+| `explorer/frontend/public/landing/*.html` | the six landing tabs -- what-is-it, who-needs-it, why-it-matters, vs-competition, architecture, vision. A sprint that changes what the framework IS makes a claim on these pages stale or overstated. |
+| `explorer/frontend/public/img/ComponentModel*.png` | the component-model drawings, one per shape. A sprint that adds, removes or composes a service leaves them wrong, and nothing checks a picture. |
+| `explorer/frontend/public/img/og-banner.png` | the social banner, plus its `?v=` cache-buster in `index.html` -- a changed banner served under an unchanged query string is not seen. |
+| `<repo>/doc/reports/report_vX.Y.Z.md` | the milestone report -- GENERATED, not written: run `git_gen_rep [from [till]]` from the repo (`git-utilities/git-gen-rep`), which builds it from that repo's `release_notes.txt` and its `changes.txt` files over the given tag range. Run it AFTER the tag, in every repo that had work -- it is what the `Releases.md` placeholder links resolve to. What it produces is only as good as the entries made per commit, which is why those are written when each change lands. |
+| `doc/Esquire.TestingStack.md` | recount every figure against reality. They live in TWO places -- the summary row and the per-module table -- and updating one leaves the file contradicting itself. Count with the tools, not with grep: `playwright test --list` and `hauberk.cmd list` are authoritative, because tests declared through an alias and abstract simulation bases are invisible to a pattern. |
+
+**None of this gets its own `release_notes` entry.** The finalization refresh IS the release-facing
+documentation; per-commit entries record the sprint's CODE changes, made when each landed (see 8).
 
 ---
 

@@ -1,0 +1,62 @@
+# Esquire frameworks (tm) -- Prometheus alerting rules (framework health) -- LOCAL K8S
+#
+# I55: the FRAMEWORK ships alert RULES for its OWN intrinsic health signals -- unambiguous "this happened at all"
+# conditions, never tunable thresholds. Included verbatim into the prometheus configmap via `.Files.Get` (so the
+# Prometheus `{{ ... }}` annotation templating is NOT mangled by Helm's own templating).
+#
+# THE OPERATOR SLOT (deployment-specific -- wired at deploy, NOT shipped):
+#   (1) ROUTING -- add an `alerting:` block + an Alertmanager contact point (Slack / PagerDuty / email).
+#   (2) SLO / ERROR-BUDGET (I57). The SLIs all ship -- latency histograms for p95/p99 (esq_gw_outer_seconds,
+#       http_server_requests_seconds, esq_bff_inbound_duration_seconds; ESQ_METRICS_HISTOGRAMS for _bucket
+#       series), error rate (messaging_error_total, HTTP 5xx), availability (up). The SLO DEFINITION -- a target
+#       (99.9%? p99 < X ms?) + error budget + burn-rate -- is NOT shipped: it encodes YOUR tolerance, and a
+#       placeholder would alert you against a budget you never chose. Define SLOs on these SLIs (Sloth / Pyrra /
+#       hand-written) when you know your budget. The SLI foundation is done; the target is yours.
+#
+# TWIN: compose-compact/o11y/rules.yml is the docker copy -- keep the two IN SYNC, like prometheus.yml itself.
+groups:
+  - name: esquire-framework-health
+    rules:
+      # A scrape target vanished -- a service (or its metrics endpoint) is gone. Not a threshold: up is 0 or 1.
+      - alert: EsqServiceDown
+        expr: up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Esquire target {{ $labels.job }} / {{ $labels.instance }} is DOWN"
+          description: "No successful scrape for 1m."
+      # A send-retry hit max-attempts and DROPPED the message -- data loss. Any drop at all is the alert.
+      #
+      # INERT ON EVERY SHIPPED SHAPE, BY DESIGN -- and kept for the shape that is not shipped. Every service
+      # runs send-retry-max-attempts=0 (BLOCK: retry until it goes through) and feed-await-ms=0 (a full feed
+      # holds the producer instead of discarding), so nothing drops and this counter never moves. It is the
+      # alert that must already exist the day someone sets a cap > 0 and switches that leg to drop-after-N;
+      # deleting it would ship that config change with no coverage. o11y-verify.py carries the same fact in
+      # CONFIG_UNREACHABLE, which is why a 0-series reading here is reported as n/a rather than as a gap.
+      - alert: EsqBusRetryDropped
+        expr: increase(messaging_retry_dropped_total[5m]) > 0
+        for: 0m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Bus DROPPED a message (data loss) on {{ $labels.bus_id }}"
+          description: "send-retry reached max-attempts and dropped -- a message was lost."
+      # A circuit breaker tripped -- a downstream route is failing fast. The metric is 1 for the current state.
+      - alert: EsqCircuitBreakerOpen
+        expr: resilience4j_circuitbreaker_state{state="open"} == 1
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Circuit breaker {{ $labels.name }} is OPEN"
+          description: "The breaker has tripped; the route is fast-failing until it half-opens."
+      # Threads are blocked waiting for a DB connection -- the pool is saturated. Sustained (2m), not a spike.
+      - alert: EsqDbPoolStarved
+        expr: hikaricp_connections_pending > 0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "DB pool {{ $labels.pool }} has threads WAITING for a connection"
+          description: "Sustained pending connections -- the pool is at capacity."

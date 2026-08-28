@@ -74,7 +74,7 @@ class NoLocalIntegrationTest {
 
     private static TransportMessage msg() {
         return new TransportMessage(
-                Map.of(BusConstants.FIELD_ROD_ID, "test.0", BusConstants.FIELD_EVENT_TYPE, "C"), "e1");
+                Map.of(BusConstants.FIELD_ROD_ID, "test.0", BusConstants.FIELD_EVENT_TYPE, BusConstants.EVENT_CREATE), "e1");
     }
 
     @Test

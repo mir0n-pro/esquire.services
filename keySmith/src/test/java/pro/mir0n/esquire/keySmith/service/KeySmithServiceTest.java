@@ -25,7 +25,8 @@ import pro.mir0n.esquire.backend.validator.ValidatorFactory;
 import pro.mir0n.esquire.backend.service.EsqContextHolder;
 import pro.mir0n.esquire.backend.service.EsqRequestContext;
 import pro.mir0n.esquire.keySmith.jpa.EsqAccessProfileRepository;
-import pro.mir0n.esquire.keySmith.messaging.KcBusAdapter;
+import pro.mir0n.esquire.backend.identity.IIdentityGateway;
+import pro.mir0n.esquire.messaging.BusConstants;
 import pro.mir0n.esquire.keySmith.service.impl.KeySmithService;
 import pro.mir0n.esquire.messaging.RodEvent;
 
@@ -49,7 +50,7 @@ class KeySmithServiceTest {
     private EntityManager em;
 
     @Mock
-    private KcBusAdapter kcSyncPublisher;
+    private IIdentityGateway identityGateway;
 
     @Mock
     private pro.mir0n.esquire.audit.AuditBusBridge audit;
@@ -64,7 +65,7 @@ class KeySmithServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new KeySmithService(accessProfileRepository, transactionTemplate, em, kcSyncPublisher, audit);
+        service = new KeySmithService(accessProfileRepository, transactionTemplate, em, identityGateway, audit);
         // Default context for the majority of tests (rootPath "/root", uid "uid-1");
         // the three "1.2.3" / "uid-99" tests override it.
         ctx("/root", "uid-1");
@@ -267,7 +268,7 @@ class KeySmithServiceTest {
     // =========================================================
 
     @Test
-    @DisplayName("kcSync: Y→N → publish called with oldConnectFlg=Y and updated jpa connectFlg=N")
+    @DisplayName("kcSync: Y→N → post called with the DELETE command and connectFlg=N")
     void esquireKeySave_connectFlg_YtoN_publishesDelete() {
         executeTransactionInline();
         EsqAccessProfileJpa jpa = jpaWith("Y", "N", "user1");
@@ -279,11 +280,12 @@ class KeySmithServiceTest {
             service.esquireKeySave("target-1", Map.of("connectFlg", "N"), List.of("ADMIN"));
         }
 
-        verify(kcSyncPublisher).publish(eq("user1"), eq("Y"), argThat(j -> "N".equals(j.getConnectFlg())), any(), any(), any());
+        verify(identityGateway).postRequest(argThat(e -> BusConstants.EVENT_DELETE.equals(e.opCode())
+                && "user1".equals(e.body().get("loginId"))));
     }
 
     @Test
-    @DisplayName("kcSync: N→Y → publish called with oldConnectFlg=N and updated jpa connectFlg=Y")
+    @DisplayName("kcSync: N→Y → post called with the CREATE command and connectFlg=Y")
     void esquireKeySave_connectFlg_NtoY_publishesCreate() {
         executeTransactionInline();
         EsqAccessProfileJpa jpa = jpaWith("N", "N", "user2");
@@ -295,11 +297,12 @@ class KeySmithServiceTest {
             service.esquireKeySave("target-1", Map.of("connectFlg", "Y"), List.of("ADMIN"));
         }
 
-        verify(kcSyncPublisher).publish(eq("user2"), eq("N"), argThat(j -> "Y".equals(j.getConnectFlg())), any(), any(), any());
+        verify(identityGateway).postRequest(argThat(e -> BusConstants.EVENT_CREATE.equals(e.opCode())
+                && "user2".equals(e.body().get("loginId")) && "Y".equals(e.body().get("connectFlg"))));
     }
 
     @Test
-    @DisplayName("kcSync: Y→Y (no change) → publish called with oldConnectFlg=Y and jpa connectFlg=Y")
+    @DisplayName("kcSync: Y→Y (no change) → post called with the UPDATE command and connectFlg=Y")
     void esquireKeySave_connectFlg_noChange_publishesUpdate() {
         executeTransactionInline();
         EsqAccessProfileJpa jpa = jpaWith("Y", "N", "user3");
@@ -308,7 +311,8 @@ class KeySmithServiceTest {
 
         service.esquireKeySave("uid-1", Map.of(), null);
 
-        verify(kcSyncPublisher).publish(any(), eq("Y"), argThat(j -> "Y".equals(j.getConnectFlg())), any(), any(), any());
+        verify(identityGateway).postRequest(argThat(e -> BusConstants.EVENT_UPDATE.equals(e.opCode())
+                && "Y".equals(e.body().get("connectFlg"))));
     }
 
     @Test

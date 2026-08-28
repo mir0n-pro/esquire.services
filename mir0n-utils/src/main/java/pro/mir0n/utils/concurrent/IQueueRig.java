@@ -15,6 +15,8 @@
  * 06/02/2026 mir0n  bulk processing added: IQueueListWorker (process(ArrayList, ISignaler) returning the
  *                   unprocessed remainder), ISignaler (isRunning / isProcessing / shouldContinue), and
  *                   IListErrorListener; put(Collection) + setBulkThreshold(int) default methods
+ * 08/26/2026 mir0n  outcome seam made symmetric: ISuccessListener + setSuccessListener; single-item only
+ *                   (a bulk worker returns what it did not handle). NOOP on both listener contracts
  */
 
 package pro.mir0n.utils.concurrent;
@@ -32,6 +34,18 @@ public interface IQueueRig <E>
     }
     interface IErrorListener <E> {
         E onError (Throwable error, E element);
+
+        /** Does nothing and keeps the element. NOT the rig's default -- silence has to be asked for. */
+        IErrorListener NOOP = (error, element) -> element;
+    }
+
+    /** One item processed without throwing. No list counterpart: a bulk worker returns the items it did
+     *  NOT handle, so the rig fires this per handled item. */
+    interface ISuccessListener <E> {
+        void onSuccess (E element);
+
+        /** The rig's default; it also compares against this to skip the bulk path when nobody listens. */
+        ISuccessListener NOOP = element -> { };
     }
 
     /** A worker that can ALSO process a bulk of items in one call (e.g. one DB transaction).
@@ -74,6 +88,7 @@ public interface IQueueRig <E>
 
     void init(String name, Logger devLogger, int capacity);
     void setErrorListener (IErrorListener listener);
+    void setSuccessListener (ISuccessListener listener);
 
     /** Processing gate. When false the worker leaves the queue UNTOUCHED -- no items are
      *  dequeued; producers may still put(). When true the worker drains the queue in FIFO

@@ -1,5 +1,38 @@
 Esquire messaging framework classes
 
+08/27/2026 mir0n  v1.2.13 -- one alphabet for the create op
+BusConstants
+  - EVENT_CREATE is "I" -- the wire event code and the *_log action column carry the same letters
+RodEvent
+  - dbAction() -- the action code the keep writes; null for UPDATE_PATH and UNKNOWN, which no *_log holds
+
+08/26/2026 mir0n  v1.2.13 -- the transport-state gauge, and failures that leave a record
+BusHealthIndicator
+  - registerTransportGauges publishes each bus transport state as messaging.transport.up (1 connected,
+    0 not), so the state reaches Prometheus and not only /actuator/health
+o11y.IRodMeters
+  - registerTransportUp(busId, IntSupplier) added -- the transport-state gauge, registered once per bus;
+    NOOP implementation alongside
+o11y.IRodObserver
+  - registerTransportUp forwarded to the meters, and to IRodMeters.NOOP when unobserved
+RodEvent
+  - Op gains UNKNOWN: opOf falls back to it instead of DELETE, and opCode() answers null for it
+xrod.impl.AXRod
+  - implements IQueueRig.IErrorListener and registers itself on the feed, so whatever the send worker
+    throws is recorded as TX-ERR plus the error meter; encode THROWS instead of returning null, which was
+    the one send failure that left no record
+xrod.impl.sublayer.AliveSessionRR
+  - an R&R SERVER emits no unsolicited keep-alive -- keepAliveEvent returns null for that role
+xrod.impl.sublayer.SendRetrySublayer
+  - parseBackoff takes the BusIdentity and REFUSES the leg on a step that does not parse, naming it; a
+    blank spec still yields the single 1s step
+
+08/15/2026 mir0n  v1.2.13 -- gateWard
+BusHealthIndicator
+  - register() now registers into BOTH health registries: the blocking HealthContributorRegistry as before,
+    and the ReactiveHealthContributorRegistry via ReactiveHealthContributor.adapt() in registerReactive(),
+    which a WebFlux service reads
+
 08/11/2026 mir0n  v1.2.12 -- entity change number
 BusConstants
   - FIELD_CHANGE_NO added (ChangeNo, FIX 50015), the per-row change number supplied by the producer; the

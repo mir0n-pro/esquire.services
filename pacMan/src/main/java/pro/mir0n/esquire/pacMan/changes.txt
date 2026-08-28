@@ -1,5 +1,19 @@
 Esquire pacMan Microservice
 
+08/26/2026 mir0n  v1.2.13 -- the kind checked, both accounts read, every save broadcast
+acct.service.AcctTransactionProcessorSingle
+  - assertKindMatches refuses an operation whose request kind differs from the account row kind;
+    entityRepository made protected for the transfer processor
+acct.service.AcctTransactionProcessorTransfer
+  - the transfer reads BOTH accounts before it moves anything and raises ResourceNotFoundException when
+    either is absent
+controller.PacManController
+  - the develop log lines pass the value itself instead of String.valueOf
+service.impl.PacManService
+  - every esquireCommandSave publishes an UPDATE -- isBroadcastableUpdate removed
+resources/logback-spring.xml
+  - the develop pattern drops the "develop." prefix from the logger name
+
 08/11/2026 mir0n  v1.2.12 -- entity change number
 acct.jpa.EsqAcctTransactionJpa
   - accChangeNo field added: the ACCOUNT change number the transaction produced, nullable

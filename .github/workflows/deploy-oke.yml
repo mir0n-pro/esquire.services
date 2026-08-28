@@ -5,7 +5,7 @@
 # them to the Oracle OKE cluster and validates the release (e2e + load) against the public
 # domain https://esquire.mir0n.pro.
 #
-# This mirrors the proven manual flow (k8s-oci/oke-login -> ghcr-push -> oke-up) but on a
+# This mirrors the proven manual flow (k8s-oci-compact/oke-login -> ghcr-push -> oke-up) but on a
 # hosted Linux runner, reusing two thin scripts as the single source of logic:
 #   .github/scripts/oke-build-push.sh   (mvn + multi-arch buildx push to GHCR)
 #   .github/scripts/deploy-oke.sh       (helm upgrade --install per chart, OKE values)
@@ -21,8 +21,11 @@
 #   var     OKE_CLUSTER_OCID      the OKE cluster OCID
 #   secret  MIR0N_PWD             postgres + Keycloak admin password
 #   secret  BFF_KC_SECRET         (optional) esq-angular BFF client secret
-#   secret  GW_EXCHANGE_SECRET    (optional) gateway phantom-relay exchange secret
+#   secret  GW_EXCHANGE_SECRET    (optional) gateWard phantom-relay exchange secret
 #   secret  BFF_SESSION_SECRET    (optional) BFF session-cookie HMAC secret
+#   secret  KCMASTER_ADMIN_SECRET (optional) esq-kcMaster KC admin service-account client secret --
+#                                 also handed to the e2e job as KC_ADMIN_SECRET, which 21-credential-
+#                                 state-sync needs to read required actions off the KC admin api
 # GHCR push authenticates with the GHCR_TOKEN PAT secret (a GitHub PAT with write:packages) --
 # the same identity (mir0n-pro) that created the existing packages via the manual push flow, so it
 # already has write access to them. Add GHCR_TOKEN as a repository Actions secret.
@@ -71,6 +74,8 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       image_tag: ${{ steps.stamp.outputs.tag }}
+      explorer_ref: ${{ steps.refs.outputs.explorer }}
+      dbseed_ref: ${{ steps.refs.outputs.dbseed }}
     steps:
       - name: Checkout services
         uses: actions/checkout@v5
@@ -79,18 +84,53 @@ jobs:
           ref: ${{ github.event.pull_request.merge_commit_sha || github.ref }}
           path: services
 
+      # The sibling repos carry a same-named sprint branch when the sprint touches them, and none when it
+      # does not. Resolve each ref BEFORE checking it out -- ls-remote asks which branch is actually there --
+      # so a workflow_dispatch against pending-* picks the sprint work up, while a merged PR (whose ref_name
+      # is the PR merge ref, not a branch name) matches nothing and lands on develop, which is correct: by
+      # then both repos have merged in lockstep.
+      - name: Resolve the explorer / db.seed refs
+        id: refs
+        run: |
+          ref="${{ github.ref_name }}"
+          case "$ref" in
+            pending-v*) alt="pending-${ref#pending-v}" ;;
+            pending-*)  alt="pending-v${ref#pending-}" ;;
+            *)          alt="$ref" ;;
+          esac
+
+          pick() {
+            got=""
+            for cand in "$ref" "$alt"; do
+              if [ -z "$got" ] && git ls-remote --heads --exit-code "https://github.com/$1" "refs/heads/$cand" >/dev/null 2>&1; then
+                got="$cand"
+              fi
+            done
+            if [ -z "$got" ]; then
+              got="develop"
+            fi
+            echo "$got"
+          }
+
+          explorer="$(pick mir0n-pro/esquire.explorer)"
+          dbseed="$(pick mir0n-pro/esquire.db.seed)"
+          echo "explorer=$explorer" >> "$GITHUB_OUTPUT"
+          echo "dbseed=$dbseed"     >> "$GITHUB_OUTPUT"
+          echo "explorer -> $explorer"
+          echo "db.seed  -> $dbseed"
+
       - name: Checkout explorer (backend / BFF image + e2e + load)
         uses: actions/checkout@v5
         with:
           repository: mir0n-pro/esquire.explorer
-          ref: develop
+          ref: ${{ steps.refs.outputs.explorer }}
           path: explorer
 
       - name: Checkout db.seed (postgres image build input)
         uses: actions/checkout@v5
         with:
           repository: mir0n-pro/esquire.db.seed
-          ref: develop
+          ref: ${{ steps.refs.outputs.dbseed }}
           path: db.seed
 
       - name: Set up JDK 24
@@ -122,7 +162,7 @@ jobs:
           username: mir0n-pro
           password: ${{ secrets.GHCR_TOKEN }}
 
-      - name: Build + push the 8 app images (multi-arch)
+      - name: Build + push the 7 super-compact images (multi-arch)
         shell: bash
         env:
           IMAGE_TAG: ${{ steps.stamp.outputs.tag }}
@@ -185,18 +225,19 @@ jobs:
           BFF_KC_SECRET: ${{ secrets.BFF_KC_SECRET }}
           GW_EXCHANGE_SECRET: ${{ secrets.GW_EXCHANGE_SECRET }}
           BFF_SESSION_SECRET: ${{ secrets.BFF_SESSION_SECRET }}
+          KCMASTER_ADMIN_SECRET: ${{ secrets.KCMASTER_ADMIN_SECRET }}
         run: bash services/.github/scripts/deploy-oke.sh
 
   # -------------------------------------------------------------------------
   validate:
-    needs: deploy
+    needs: [deploy, build-push]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout explorer (e2e + hauberk)
         uses: actions/checkout@v5
         with:
           repository: mir0n-pro/esquire.explorer
-          ref: develop
+          ref: ${{ needs.build-push.outputs.explorer_ref }}
 
       - name: Set up Node 22
         uses: actions/setup-node@v4
@@ -207,14 +248,19 @@ jobs:
         working-directory: e2e-test
         env:
           BASE_URL: https://esquire.mir0n.pro
-          # 20-token-relay talks to the gateway + KeyCloak DIRECTLY (not through the BFF), so it needs the
-          # public OKE gateway host and KC path; without them it falls back to localhost and ECONNREFUSEs.
+          # 20-token-relay talks to the gate + KeyCloak DIRECTLY (not through the BFF), so it needs the
+          # public OKE gate host and KC path; without them it falls back to localhost and ECONNREFUSEs.
           GATEWAY_URL: https://api.esquire.mir0n.pro
           KC_URL: https://esquire.mir0n.pro/kc-auth
-          # Token Relay is DISABLED on the internet-facing OKE gateway (empty allowlists -- see
-          # k8s-oci/values/gateway.yaml, mir0n 2026-07-20). This flag makes 20-token-relay's two specs
+          # Token Relay is DISABLED on the internet-facing OKE gate (empty allowlists -- see
+          # k8s-oci-compact/values/gateward.yaml, mir0n 2026-07-20). This flag makes 20-token-relay's two specs
           # skip on OKE only; docker / local k8s leave it unset and keep running them.
           RELAY_DISABLED: "true"
+          # 21-credential-state-sync reads the user's required actions through KeyCloak's ADMIN api -- that is
+          # where a forced password change and a TOTP request actually land. It authenticates as esq-kcMaster,
+          # the same service account kcMaster itself uses; the local targets fall back to the committed demo
+          # secret, and here it has to be the real one or the spec fails rather than skips.
+          KC_ADMIN_SECRET: ${{ secrets.KCMASTER_ADMIN_SECRET }}
         run: |
           npm ci || npm install
           npx playwright install --with-deps chromium

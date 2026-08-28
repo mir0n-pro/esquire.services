@@ -29,6 +29,8 @@
  *                   cost lands on one request per key rotation (ReactiveRemoteJWKSource caches).
  * 07/23/2026 mir0n  v1.2.11 -- the "/esq*" authorization is a SINGLE hasRole("TREE") rule (implies authenticated
  *                   AND the TREE realm role); comment on why there must be exactly one /esq* rule (first-match-wins)
+ * 08/26/2026 mir0n  the JWT decoder carries the default validators through DelegatingOAuth2TokenValidator, and the
+ *                   JWE-aware decoder and token-relay wiring leave this class
  */
 package pro.mir0n.esquire.gateway.config;
 
@@ -46,7 +48,10 @@ import org.springframework.security.config.annotation.web.reactive.EnableWebFlux
 import org.springframework.security.config.web.server.SecurityWebFiltersOrder;
 import org.springframework.security.config.web.server.ServerHttpSecurity;
 import org.springframework.security.converter.RsaKeyConverters;
+import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
+import org.springframework.security.oauth2.core.OAuth2TokenValidator;
 import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.jwt.JwtValidators;
 import org.springframework.security.oauth2.jwt.NimbusReactiveJwtDecoder;
 import org.springframework.security.oauth2.jwt.ReactiveJwtDecoder;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
@@ -55,15 +60,21 @@ import org.springframework.security.web.server.SecurityWebFilterChain;
 import org.springframework.security.web.server.context.NoOpServerSecurityContextRepository;
 import org.springframework.web.reactive.function.client.WebClient;
 import pro.mir0n.esquire.common.EsqConstants;
-import pro.mir0n.esquire.gateway.security.JweAwareJwtDecoder;
-import pro.mir0n.esquire.gateway.security.tokenrelay.ITokenRelayClient;
-import pro.mir0n.esquire.gateway.security.tokenrelay.ITokenRelayVariant;
-import pro.mir0n.esquire.gateway.security.tokenrelay.PhantomTokenRelay;
-import pro.mir0n.esquire.gateway.security.tokenrelay.TokenRelayCache;
-import pro.mir0n.esquire.gateway.security.tokenrelay.TokenRelayFilter;
-import pro.mir0n.esquire.gateway.security.tokenrelay.VanillaTokenRelay;
-import pro.mir0n.esquire.gateway.security.tokenrelay.WebClientTokenRelayClient;
+import pro.mir0n.esquire.gateway.lab.JweAwareJwtDecoder;
+import pro.mir0n.esquire.gateway.security.EsqClaimsValidator;
+import pro.mir0n.esquire.gateway.lab.tokenrelay.ITokenRelayClient;
+import pro.mir0n.esquire.gateway.lab.tokenrelay.ITokenRelayVariant;
+import pro.mir0n.esquire.gateway.lab.tokenrelay.PhantomTokenRelay;
+import pro.mir0n.esquire.gateway.lab.tokenrelay.TokenRelayCache;
+import pro.mir0n.esquire.gateway.lab.tokenrelay.TokenRelayFilter;
+import pro.mir0n.esquire.gateway.lab.tokenrelay.VanillaTokenRelay;
+import pro.mir0n.esquire.gateway.lab.tokenrelay.WebClientTokenRelayClient;
+import pro.mir0n.esquire.backend.identity.KcConnectionSettings;
 import reactor.core.publisher.Mono;
+import reactor.netty.http.client.HttpClient;
+import io.netty.channel.ChannelOption;
+import org.springframework.core.env.Environment;
+import org.springframework.http.client.reactive.ReactorClientHttpConnector;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.reactive.CorsConfigurationSource;
 import org.springframework.web.cors.reactive.UrlBasedCorsConfigurationSource;
@@ -71,6 +82,7 @@ import org.springframework.web.cors.reactive.UrlBasedCorsConfigurationSource;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.security.interfaces.RSAPrivateKey;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -81,7 +93,10 @@ import java.util.Set;
 @EnableWebFluxSecurity
 public class SecurityConfig {
 
+    private static final Logger log    = LoggerFactory.getLogger(SecurityConfig.class);
     private static final Logger devLog = LoggerFactory.getLogger("develop." + SecurityConfig.class.getName());
+
+    private static final String PROP_KC_PREFIX = "keycloak.exchange";
 
     @Value("${esq.jwe.private-key-path:}")
     private String jwePrivateKeyPath;
@@ -89,8 +104,6 @@ public class SecurityConfig {
     @Value("${spring.security.oauth2.resourceserver.jwt.jwk-set-uri}")
     private String jwkSetUri;
 
-    @Value("${esq.gateway.token-relay.token-uri:}")
-    private String tokenRelayTokenUri;
 
     @Value("${esq.gateway.token-relay.vanilla.clients:}")
     private List<String> vanillaClients;
@@ -98,11 +111,11 @@ public class SecurityConfig {
     @Value("${esq.gateway.token-relay.phantom.clients:}")
     private List<String> phantomClients;
 
-    @Value("${esq.gateway.token-relay.phantom.exchange-client-id:}")
-    private String phantomExchangeClientId;
+    private final KcConnectionSettings kcExchange;
 
-    @Value("${esq.gateway.token-relay.phantom.exchange-client-secret:}")
-    private String phantomExchangeClientSecret;
+    public SecurityConfig(Environment env) {
+        this.kcExchange = KcConnectionSettings.from(env, PROP_KC_PREFIX);
+    }
 
     /**
      * JWT decoder bean. Two layers (innermost first):
@@ -119,26 +132,16 @@ public class SecurityConfig {
      */
     @Bean
     public ReactiveJwtDecoder jwtDecoder() {
-        // I42/L3 (ACCEPTED, 2026-07-16): the JWKS fetch to KC is left UN-instrumented on purpose -- no span, no
-        // timer. The question I42 asks is whether every step of a REST collaboration can have its DURATION
-        // accounted for, and this step's cannot: it has no meter, and its time falls inside the gateway's own
-        // gw.outer-minus-gw.inner window. That is accepted because of FREQUENCY, not because it is measured.
-        // ReactiveRemoteJWKSource caches the JWK set (AtomicReference<Mono<JWKSet>>) and re-fetches ONLY when a
-        // kid is missing from the cache -- i.e. at first use and at key rotation. So the cost lands on ONE request
-        // per pod lifetime / per rotation, not on the hot path. Contrast L2, the Token Relay /token call, which
-        // EVERY cache-missing request pays and which therefore does carry its own drawn meter
-        // (esq.biz.gw.tokenrelay.duration by outcome).
-        // If this ever needs instrumenting, the seam already exists -- withJwkSetUri(uri).webClient(wc) accepts a
-        // WebClient, so handing it an observation-instrumented one (the autoconfigured WebClient.Builder bean,
-        // NOT the static WebClient.builder()) gives it a CLIENT span + http.client.requests timer with no new
-        // machinery. Deliberately not done: it would buy visibility into an event that hits one request per
-        // rotation. The same note sits on the JWE path -- see JweAwareJwtDecoder's ctor.
-        ReactiveJwtDecoder ret = NimbusReactiveJwtDecoder.withJwkSetUri(jwkSetUri).build();
+        OAuth2TokenValidator<Jwt> tokenValidator = new DelegatingOAuth2TokenValidator<>(
+                JwtValidators.createDefault(), new EsqClaimsValidator());
+        NimbusReactiveJwtDecoder jwsDecoder = NimbusReactiveJwtDecoder.withJwkSetUri(jwkSetUri).build();
+        jwsDecoder.setJwtValidator(tokenValidator);
+        ReactiveJwtDecoder ret = jwsDecoder;
         if (jwePrivateKeyPath != null && !jwePrivateKeyPath.isBlank()) {
             try (FileInputStream fis = new FileInputStream(jwePrivateKeyPath)) {
                 RSAPrivateKey privateKey = RsaKeyConverters.pkcs8().convert(fis);
                 devLog.debug("jwtDecoder: JWE-aware decoder configured -- key loaded from [{}]", jwePrivateKeyPath);
-                ret = new JweAwareJwtDecoder(privateKey, jwkSetUri);
+                ret = new JweAwareJwtDecoder(privateKey, jwkSetUri, tokenValidator);
             } catch (FileNotFoundException ex) {
                 devLog.debug("jwtDecoder: key file absent at [{}] -- JWE disabled, using plain JWS decoder", jwePrivateKeyPath);
             } catch (Exception ex) {
@@ -156,48 +159,80 @@ public class SecurityConfig {
      * azp check. Constructed inline by springSecurityFilterChain so it only
      * runs in the security filter chain.
      *
-     * The filter iterates configured variants (Vanilla first, Phantom second)
-     * and branches on whichever returns a non-Pass action. Both variants
-     * share one TokenRelayCache and one WebClientTokenRelayClient. Adding a
-     * future variant is one new {@link ITokenRelayVariant} implementation
-     * plus one line in this method.
      */
+    /**
+     * A gate that was told to relay must be able to. Refuses to start otherwise.
+     */
+    static void assertRelayWiring(Set<String> vanillaClients, Set<String> phantomClients, KcConnectionSettings kc) {
+        boolean anyAllowlisted = !vanillaClients.isEmpty() || !phantomClients.isEmpty();
+        if (anyAllowlisted && !kc.isConfigured()) {
+            log.error("TOKEN RELAY | vanilla={} phantom={} are allowlisted, but keycloak.exchange has no"
+                    + " base-url/realm -- there is nowhere to broker a token", vanillaClients, phantomClients);
+            throw new IllegalStateException("Token Relay: clients are allowlisted (vanilla=" + vanillaClients
+                    + ", phantom=" + phantomClients + ") but keycloak.exchange.base-url / .realm is not set");
+        }
+        if (!phantomClients.isEmpty() && (kc.getClientId() == null || kc.getClientId().isBlank())) {
+            log.error("TOKEN RELAY | phantom clients {} are allowlisted, but keycloak.exchange.client-id is not"
+                    + " set -- there is no client to run the token-exchange as", phantomClients);
+            throw new IllegalStateException("Token Relay: phantom clients are allowlisted (" + phantomClients
+                    + ") but keycloak.exchange.client-id is not set");
+        }
+    }
+
     private TokenRelayFilter buildTokenRelayFilter() {
         Set<String> vanillaAllowlist = parseAllowlist(vanillaClients);
         Set<String> phantomAllowlist = parseAllowlist(phantomClients);
+        assertRelayWiring(vanillaAllowlist, phantomAllowlist, kcExchange);
 
         List<ITokenRelayVariant> variants = new ArrayList<>();
-        // Vanilla MUST run before Phantom: Vanilla rejects Bearer-with-azp-in-vanilla
-        // allowlist; if Phantom ran first that same Bearer would Pass (azp not in
-        // phantom allowlist) and Vanilla would still reject -- correct either way --
-        // but ordering Vanilla first keeps the reject decision visible at the top of
-        // the variant chain.
         if (!vanillaAllowlist.isEmpty()) {
             variants.add(new VanillaTokenRelay(vanillaAllowlist));
             devLog.debug("buildTokenRelayFilter: Vanilla variant enabled, clients={}", vanillaAllowlist);
         }
-        if (!phantomAllowlist.isEmpty()
-                && phantomExchangeClientId != null && !phantomExchangeClientId.isBlank()) {
-            variants.add(new PhantomTokenRelay(phantomAllowlist, phantomExchangeClientId,
-                    phantomExchangeClientSecret == null ? "" : phantomExchangeClientSecret));
+        if (!phantomAllowlist.isEmpty()) {
+            variants.add(new PhantomTokenRelay(phantomAllowlist, kcExchange.getClientId(),
+                    kcExchange.getClientSecret()));
             devLog.debug("buildTokenRelayFilter: Phantom variant enabled, clients={}, exchange-client=[{}]",
-                    phantomAllowlist, phantomExchangeClientId);
+                    phantomAllowlist, kcExchange.getClientId());
+        }
+
+        if (variants.isEmpty()) {
+            log.info("TOKEN RELAY | off -- no client is allowlisted");
+        } else {
+            log.info("TOKEN RELAY | vanilla={} phantom={} | tokenUri={} connectTimeoutMs={} readTimeoutMs={}",
+                    vanillaAllowlist, phantomAllowlist, kcExchange.tokenUri(),
+                    kcExchange.getConnectTimeoutMs(), kcExchange.getReadTimeoutMs());
         }
 
         // Both variants funnel through one shared KC client at one shared token-uri.
         ITokenRelayClient kcClient;
-        if (tokenRelayTokenUri != null && !tokenRelayTokenUri.isBlank() && !variants.isEmpty()) {
-            kcClient = new WebClientTokenRelayClient(WebClient.builder().build(), tokenRelayTokenUri);
-            devLog.debug("buildTokenRelayFilter: KC client enabled, token-uri=[{}]", tokenRelayTokenUri);
+        if (kcExchange.isConfigured() && !variants.isEmpty()) {
+            kcClient = new WebClientTokenRelayClient(buildKcWebClient(), kcExchange.tokenUri());
+            devLog.debug("buildTokenRelayFilter: KC client enabled, token-uri=[{}], connectTimeoutMs={}, readTimeoutMs={}",
+                    kcExchange.tokenUri(), kcExchange.getConnectTimeoutMs(), kcExchange.getReadTimeoutMs());
         } else {
             kcClient = req -> Mono.error(new IllegalStateException(
-                    "Token Relay not configured -- token-uri unset or no variants enabled"));
-            devLog.debug("buildTokenRelayFilter: KC client disabled (token-uri-set={}, variants={})",
-                    tokenRelayTokenUri != null && !tokenRelayTokenUri.isBlank(), variants.size());
+                    "Token Relay not configured -- keycloak.exchange unset or no variants enabled"));
+            devLog.debug("buildTokenRelayFilter: KC client disabled (kc-configured={}, variants={})",
+                    kcExchange.isConfigured(), variants.size());
         }
 
         TokenRelayCache cache = new TokenRelayCache(kcClient);
         return new TokenRelayFilter(variants, cache, -100);
+    }
+
+    /**
+     * The relay's http client, with the deadlines from the shared KeyCloak block on it.
+     *
+     */
+    private WebClient buildKcWebClient() {
+        HttpClient httpClient = HttpClient.create()
+                .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, kcExchange.getConnectTimeoutMs())
+                .responseTimeout(Duration.ofMillis(kcExchange.getReadTimeoutMs()));
+        WebClient ret = WebClient.builder()
+                .clientConnector(new ReactorClientHttpConnector(httpClient))
+                .build();
+        return ret;
     }
 
     private Set<String> parseAllowlist(List<String> raw) {
@@ -269,15 +304,7 @@ public class SecurityConfig {
                 .addFilterBefore(tokenRelayFilter, SecurityWebFiltersOrder.AUTHENTICATION)
                 .authorizeExchange(exchanges -> exchanges
                     .pathMatchers(HttpMethod.OPTIONS,"/**").permitAll()
-                    // hasRole("TREE") implies authenticated (an anonymous request carries no ROLE_TREE), so this
-                    // single rule enforces BOTH: a valid realm JWT AND the TREE realm role. authorizeExchange is
-                    // first-match-wins -- an earlier ".authenticated()" on the same "/esq*" pattern would shadow
-                    // this and skip the role check, so there must be exactly ONE "/esq*" rule and it must be the
-                    // role one. It works only because the JWT converter is wired to KeycloakRoleConverter (see
-                    // oauth2ResourceServer below), which maps realm_access.roles -> ROLE_<role>; Spring's default
-                    // converter emits SCOPE_* only, which is why "hasRole did not work" before and it had been
-                    // left as bare authenticated().
-                    .pathMatchers("/esq-kinds").permitAll() // public dictionary endpoint
+                    .pathMatchers("/esq-kinds").permitAll()
                     .pathMatchers("/esq*").hasRole("TREE")  // authenticated + TREE realm role
                     .anyExchange().permitAll()
                 )

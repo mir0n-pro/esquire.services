@@ -1,0 +1,6 @@
+apiVersion: v2
+name: esquire-grafana
+description: Grafana single-pane UI (T1 logging visualize) for local/dev k8s -- Loki datasource, ingress at grafana.localhost.
+type: application
+version: 0.1.0
+appVersion: "11.5.2"

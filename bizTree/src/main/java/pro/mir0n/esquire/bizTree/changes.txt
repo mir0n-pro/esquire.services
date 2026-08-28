@@ -1,5 +1,53 @@
 Esquire BizTree Microservice
 
+08/26/2026 mir0n  v1.2.13 -- the path lookup scoped, and the two change numbers
+access.MessageHandlerHub
+  - dispatch reads pathChangeNo from the body: an X is guarded on the PATH number and stamps BOTH columns,
+    every other event on the entity number; the stamp follows the handler, and the dispatch outcome starts
+    at error so only a completed apply counts as handled
+cache.BizTreeCacheSql
+  - findPathScoped added to the repo SQL record
+cache.CacheSqlSet
+  - forSet carries findPathScoped through the per-table substitution
+cache.IBizTreeCacheRepository
+  - findPathScoped(id, rootPath) added -- the path lookup bounded by the caller root path
+cache.impl.BizTreeCacheRepository
+  - findPathScoped implemented: the path is returned only when the row sits under rootPath
+controller.BizTreeController
+  - the develop log lines pass the value itself instead of String.valueOf, so nothing is formatted when the
+    level is off
+h2.BizTreeH2Config
+  - reads biztree.cache.sql.repo.find-path-scoped into the SQL set
+service.impl.BizTreeService
+  - esquirePath resolves through findPathScoped(id, rootPath) -- a path outside the caller root path no
+    longer answers
+resources/META-INF/h2-cache-sql.properties
+  - find-path-scoped added: the path of a row read only when its entity path is under the given prefix
+resources/application.yml
+  - the entity-broadcast receiver pool defaults to 1
+resources/logback-spring.xml
+  - the develop pattern drops the "develop." prefix from the logger name
+
+08/15/2026 mir0n  v1.2.13 -- gateWard
+BizTreeCacheConfig  (new)
+  - created: the CACHE half of bizTree as a set of beans -- the one place its packages are named. Excludes
+    BizTreeApplication; leaves the web layer (bizTree.controller) and the servlet security (backend.security)
+    to the standalone process
+BizTreeApplication
+  - @SpringBootApplication(scanBasePackages) split into @SpringBootConfiguration + @EnableAutoConfiguration +
+    @Import(BizTreeCacheConfig) + a @ComponentScan naming only the PROCESS packages (bizTree.controller,
+    backend.security, backend.exception, backend.service); @EntityScan / @EnableJpaRepositories moved to
+    BizTreeCacheConfig
+pom.xml
+  - maven-jar-plugin classes-jar execution attaches a plain classes jar (classifier "classes"), excluding
+    application.yml and logback-spring.xml
+Dockerfile
+  - COPY target/esquire-biz-tree.jar app.jar
+Dockerfile.win
+  - COPY target/esquire-biz-tree.jar app.jar
+Dockerfile.lx
+  - COPY --from=builder /build/bizTree/target/esquire-biz-tree.jar app.jar
+
 08/11/2026 mir0n  v1.2.12 -- entity change number
 access.IBizTreeDirector
   - onRodEvent passes e.changeNo() to onEntityBroadcast, whose signature gains the parameter

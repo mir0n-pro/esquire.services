@@ -1,0 +1,16 @@
+# auKeep has no HTTP entrypoint service (queue consumer); the headless service only
+# governs StatefulSet pod identity (the trailing ordinal -> instanceNo / rod-id).
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-hl
+  labels:
+    app: {{ .Release.Name }}
+spec:
+  clusterIP: None
+  selector:
+    app: {{ .Release.Name }}
+  ports:
+    - port: {{ .Values.service.port }}
+      targetPort: {{ .Values.service.port }}

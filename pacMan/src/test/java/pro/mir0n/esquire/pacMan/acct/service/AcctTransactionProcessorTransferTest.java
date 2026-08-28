@@ -40,6 +40,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyDouble;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -212,8 +213,10 @@ class AcctTransactionProcessorTransferTest {
         EsqAcctJpa source = new EsqAcctJpa();
         source.setId("10"); source.setKind(50); source.setBalance(500.0); source.setNegativeAllowed("N"); source.setStatus("O"); source.setCcy("USD");
         EsqAcctJpa target = new EsqAcctJpa();
-        target.setId("20"); target.setKind(50); target.setBalance(100.0); target.setNegativeAllowed("N"); target.setStatus("C");
+        target.setId("20"); target.setKind(50); target.setBalance(100.0); target.setNegativeAllowed("N"); target.setStatus("O");
+        when(entityRepository.detailAcct("10", "1.2.3")).thenReturn(source);
         when(entityRepository.detailAcctForUpdate("10", 50, "1.2.3")).thenReturn(source);
+        when(entityRepository.detailAcct("20", "1.2.3")).thenReturn(target);
         when(entityRepository.detailAcctForUpdate("20", 50, "1.2.3")).thenReturn(target);
 
         Map<String, Object> fields = new HashMap<>();
@@ -243,12 +246,14 @@ class AcctTransactionProcessorTransferTest {
         EsqAcctJpa source = new EsqAcctJpa();
         source.setId("10"); source.setKind(50); source.setBalance(500.0); source.setNegativeAllowed("N"); source.setStatus("O"); source.setCcy("USD");
         EsqAcctJpa target = new EsqAcctJpa();
-        target.setId("20"); target.setKind(50); target.setBalance(100.0); target.setNegativeAllowed("N"); target.setStatus("C");
+        target.setId("20"); target.setKind(50); target.setBalance(100.0); target.setNegativeAllowed("N"); target.setStatus("O");
+        when(entityRepository.detailAcct("10", "1.2.3")).thenReturn(source);
         when(entityRepository.detailAcctForUpdate("10", 50, "1.2.3")).thenReturn(source);
+        when(entityRepository.detailAcct("20", "1.2.3")).thenReturn(target);
         when(entityRepository.detailAcctForUpdate("20", 50, "1.2.3")).thenReturn(target);
 
         Map<String, Object> fields = new HashMap<>();
-        fields.put("amount", -100.0005);   // exactly on a 3rd-decimal tie
+        fields.put("amount", -100.005);   // exactly on a 2nd-decimal tie -- the scale the ledger keeps
         fields.put("id2", "20");
         fields.put("kind2", 50);
         fields.put("rate", 1.0);           // same currency: the legs must be equal and opposite
@@ -264,7 +269,7 @@ class AcctTransactionProcessorTransferTest {
         // symmetric round3(-x) == -round3(x): both legs are 100.001. Under the old half-up round3 the debit was
         // 100.000 and the credit 100.001 -> off by 0.001 (RD1).
         assertThat(debited).isCloseTo(credited, within(1e-9));
-        assertThat(debited).isCloseTo(100.001, within(1e-9));
+        assertThat(debited).isCloseTo(100.01, within(1e-9));   // half away from zero, at 2dp
     }
 
     // ---- T9: each leg carries ITS OWN account's change number ----
@@ -285,10 +290,11 @@ class AcctTransactionProcessorTransferTest {
         source.setStatus("O"); source.setCcy("USD");
         source.setChangeNo(7L);           // -> the source leg must carry 8
         EsqAcctJpa target = new EsqAcctJpa();
-        target.setId("20"); target.setKind(50); target.setBalance(100.0); target.setNegativeAllowed("N");
-        target.setStatus("C");
+        target.setId("20"); target.setKind(50); target.setBalance(100.0); target.setNegativeAllowed("N"); target.setStatus("O");
         target.setChangeNo(3L);           // -> the target leg must carry 4, from a DIFFERENT counter
+        when(entityRepository.detailAcct("10", "1.2.3")).thenReturn(source);
         when(entityRepository.detailAcctForUpdate("10", 50, "1.2.3")).thenReturn(source);
+        when(entityRepository.detailAcct("20", "1.2.3")).thenReturn(target);
         when(entityRepository.detailAcctForUpdate("20", 50, "1.2.3")).thenReturn(target);
 
         Map<String, Object> fields = new HashMap<>();
@@ -324,9 +330,10 @@ class AcctTransactionProcessorTransferTest {
         source.setId("10"); source.setKind(50); source.setBalance(500.0); source.setNegativeAllowed("N");
         source.setStatus("O"); source.setCcy("USD");           // changeNo left null on purpose
         EsqAcctJpa target = new EsqAcctJpa();
-        target.setId("20"); target.setKind(50); target.setBalance(100.0); target.setNegativeAllowed("N");
-        target.setStatus("C");
+        target.setId("20"); target.setKind(50); target.setBalance(100.0); target.setNegativeAllowed("N"); target.setStatus("O");
+        when(entityRepository.detailAcct("10", "1.2.3")).thenReturn(source);
         when(entityRepository.detailAcctForUpdate("10", 50, "1.2.3")).thenReturn(source);
+        when(entityRepository.detailAcct("20", "1.2.3")).thenReturn(target);
         when(entityRepository.detailAcctForUpdate("20", 50, "1.2.3")).thenReturn(target);
 
         Map<String, Object> fields = new HashMap<>();
@@ -339,5 +346,133 @@ class AcctTransactionProcessorTransferTest {
 
         verify(entityRepository).updateAcctBalance(eq("10"), anyDouble(), eq(1L), any(), any(), any());
         verify(entityRepository).updateAcctBalance(eq("20"), anyDouble(), eq(1L), any(), any(), any());
+    }
+
+    // ---- P1 (round 3): the kind the caller names must be the kind of the row it points at ----
+
+    @Test
+    @DisplayName("transfer: kind2 is not the target's kind -> refused BEFORE the debit, nothing posted")
+    void transfer_kind2MismatchesTheRow_refusedBeforeTheDebit() {
+        // validatePermissions is asked about the kind the CALLER named and answers completely for it -- so a
+        // caller holding ACCT on 50 passes the gate while the money would reach a kind-52 account the gate was
+        // never asked about. The credit leg's own read carries the kind, so this used to be discovered there:
+        // after the debit had committed.
+        EsqAcctJpa source = new EsqAcctJpa();
+        source.setId("10"); source.setKind(50); source.setBalance(500.0); source.setNegativeAllowed("N");
+        source.setStatus("O"); source.setCcy("USD");
+        when(entityRepository.detailAcct("10", "1.2.3")).thenReturn(source);
+
+        EsqAcctJpa target = new EsqAcctJpa();
+        target.setId("20"); target.setKind(52); target.setBalance(0.0); target.setNegativeAllowed("N");
+        target.setStatus("O"); target.setCcy("USD");
+        when(entityRepository.detailAcct("20", "1.2.3")).thenReturn(target);
+
+        Map<String, Object> fields = new HashMap<>();
+        fields.put("amount", -100.0);
+        fields.put("id2", "20");
+        fields.put("kind2", 50);          // the row is 52
+        fields.put("rate", 1.0);
+
+        assertThatThrownBy(() ->
+            service.esquireCommandAcct(50, "10", AcctOperation.Code.TRANSFER, fields, true, "1.2.3", "99", List.of(ROLE_ADMIN))
+        ).isInstanceOf(ResourceNotFoundException.class);
+
+        // neither leg posted: no balance written, and the debit leg was never even entered
+        verify(entityRepository, never()).updateAcctBalance(any(), anyDouble(), any(), any(), any(), any());
+        verify(entityRepository, never()).detailAcctForUpdate(any(), anyInt(), any());
+    }
+
+    // ---- P1b: what happens to the debit when the CREDIT leg's account cannot be read ----
+
+    @Test
+    @DisplayName("transfer: target not readable -> refused BEFORE the debit, source untouched")
+    void transfer_targetMissing_refusedBeforeTheDebit() {
+        // no transaction stub: the pre-check refuses before one is opened
+        EsqAcctJpa source = new EsqAcctJpa();
+        source.setId("10"); source.setKind(50); source.setBalance(500.0); source.setNegativeAllowed("N");
+        source.setStatus("O"); source.setCcy("USD");
+        source.setStatus("O");
+        when(entityRepository.detailAcct("10", "1.2.3")).thenReturn(source);
+        when(entityRepository.detailAcct("10", "1.2.3")).thenReturn(source);
+        // the target: an id that names no account the caller can read -- absent, deleted, or outside rootPath
+        when(entityRepository.detailAcct("999999999", "1.2.3")).thenReturn(null);
+
+        Map<String, Object> fields = new HashMap<>();
+        fields.put("amount", -100.0);
+        fields.put("id2", "999999999");
+        fields.put("kind2", 50);
+        fields.put("rate", 1.0);
+
+        assertThatThrownBy(() ->
+            service.esquireCommandAcct(50, "10", AcctOperation.Code.TRANSFER, fields, true, "1.2.3", "99", List.of(ROLE_ADMIN))
+        ).isInstanceOf(ResourceNotFoundException.class);
+
+        // The point of the pre-check: the refusal comes before any money moves.
+        verify(entityRepository, never()).updateAcctBalance(eq("10"), anyDouble(), any(), any(), any(), any());
+        verify(entityRepository, never()).detailAcctForUpdate(eq("10"), anyInt(), any());
+    }
+
+    @Test
+    @DisplayName("transfer: target not open -> refused before the debit, source untouched")
+    void transfer_targetClosed_refusedBeforeTheDebit() {
+        EsqAcctJpa source = new EsqAcctJpa();
+        source.setId("10"); source.setKind(50); source.setBalance(500.0); source.setNegativeAllowed("N");
+        source.setStatus("O"); source.setCcy("USD");
+        EsqAcctJpa target = new EsqAcctJpa();
+        target.setId("20"); target.setKind(50); target.setBalance(100.0); target.setStatus("C");
+        when(entityRepository.detailAcct("10", "1.2.3")).thenReturn(source);
+        when(entityRepository.detailAcct("20", "1.2.3")).thenReturn(target);
+
+        Map<String, Object> fields = new HashMap<>();
+        fields.put("amount", -100.0);
+        fields.put("id2", "20");
+        fields.put("kind2", 50);
+        fields.put("rate", 1.0);
+
+        assertThatThrownBy(() ->
+            service.esquireCommandAcct(50, "10", AcctOperation.Code.TRANSFER, fields, true, "1.2.3", "99", List.of(ROLE_ADMIN))
+        ).isInstanceOf(InvalidValueException.class);
+
+        verify(entityRepository, never()).updateAcctBalance(eq("10"), anyDouble(), any(), any(), any(), any());
+    }
+
+    // ---- P3: the credit must follow the amount that was DEBITED, not the amount the request asked for ----
+
+    @Test
+    @DisplayName("transfer: a request with more decimals than the ledger keeps creates no money across the legs")
+    void transfer_extraDecimals_legsStayBalancedAtTheRate() {
+        when(transactionTemplate.execute(any())).thenAnswer(inv -> {
+            inv.<org.springframework.transaction.support.TransactionCallback<?>>getArgument(0).doInTransaction(null);
+            return null;
+        });
+        EsqAcctJpa source = new EsqAcctJpa();
+        source.setId("10"); source.setKind(50); source.setBalance(500.0); source.setNegativeAllowed("Y");
+        source.setStatus("O"); source.setCcy("USD");
+        EsqAcctJpa target = new EsqAcctJpa();
+        target.setId("20"); target.setKind(50); target.setBalance(0.0); target.setNegativeAllowed("N");
+        target.setStatus("O"); target.setCcy("EUR");
+        when(entityRepository.detailAcct("10", "1.2.3")).thenReturn(source);
+        when(entityRepository.detailAcct("20", "1.2.3")).thenReturn(target);
+        when(entityRepository.detailAcctForUpdate("10", 50, "1.2.3")).thenReturn(source);
+        when(entityRepository.detailAcctForUpdate("20", 50, "1.2.3")).thenReturn(target);
+
+        Map<String, Object> fields = new HashMap<>();
+        fields.put("amount", -100.004);    // a decimal the ledger does not keep
+        fields.put("id2", "20");
+        fields.put("kind2", 50);
+        fields.put("rate", 1000.0);        // a large rate makes the discarded decimal visible
+
+        service.esquireCommandAcct(50, "10", AcctOperation.Code.TRANSFER, fields, true, "1.2.3", "99", List.of(ROLE_ADMIN));
+
+        ArgumentCaptor<Double> src = ArgumentCaptor.forClass(Double.class);
+        ArgumentCaptor<Double> tgt = ArgumentCaptor.forClass(Double.class);
+        verify(entityRepository).updateAcctBalance(eq("10"), src.capture(), any(), any(), any(), any());
+        verify(entityRepository).updateAcctBalance(eq("20"), tgt.capture(), any(), any(), any(), any());
+        double debited  = 500.0 - src.getValue();
+        double credited = tgt.getValue();
+
+        // the debit rounds to 100.00, so the credit is 100.00 * 1000 -- not 100.004 * 1000
+        assertThat(debited).isCloseTo(100.00, within(1e-9));
+        assertThat(credited).isCloseTo(debited * 1000.0, within(1e-9));
     }
 }

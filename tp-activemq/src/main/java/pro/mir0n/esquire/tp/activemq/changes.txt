@@ -1,5 +1,9 @@
 Esquire ActiveMQ transport provider classes
 
+08/26/2026 mir0n  v1.2.13 -- the connection health seed
+tp.activemq.TransportProvider
+  - the connection health seeds UNKNOWN, not UP -- nothing has proved the connection at open
+
 07/12/2026 mir0n  v1.2.11 -- JMS delivery mode as a declared bus param (O1/T9)
 tp.activemq.TransportProvider
   - PARAM_PERSISTENT ("persistent") added: the JMS delivery mode read from transport.params.persistent (absent =

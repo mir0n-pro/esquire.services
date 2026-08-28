@@ -5,28 +5,37 @@
 
 <img src="./helm.svg" alt="Rod logo" align="left" width="256" height="256">
 
-***Tree-shaped authorization. Write business logic only. The server defines the UI.***
+***Every framework promises "you write only business logic". Esquire is the one where nothing else is left to
+write.***
 
-Esquire is a **business entity framework** — the structural backbone for any backoffice system. It
-organizes people, organizations, and resources in a single tree, and runs your business operations against it.
+Esquire is a **business entity framework** — the structural backbone for any backoffice system. It organizes
+people, organizations, and resources in a single tree, and runs your business operations against it.
 
-Authorization comes from the tree itself, in two dimensions at once: **role-based rules** for what a user
-may *do*, and **tree-based scope** for what a user may *see*. A user's position resolves both — no permission
-filter written by hand.
+What you write is the domain: place an entity on the tree and describe what it *means* — its fields, its rules,
+its commands. Storage, identity and sign-in, permissions, the messaging between services, the audit trail,
+metrics, logs and traces are in the framework already, and already wired to each other. **Three things make that
+possible.**
 
-And you write **only business logic.** Place an entity on the tree and describe what it *means* — its fields,
-its rules, its commands — and the browser **renders that description at runtime**, with no field layout coded
-in the frontend. How the entity is stored, synchronized across services, secured, and audited is **inherited,
-not coded** — persistence, messaging, identity, and deployment are the framework's job, not yours.
+**Tree-shaped authorization.** Authorization comes from the tree itself, in two dimensions at once: **role-based
+rules** for what a user may *do*, and **tree-based scope** for what a user may *see*. A user's position resolves
+both, on every read and every write — so there is no permission filter to write by hand, and none to forget.
 
-To show it all works together, Esquire ships a complete backoffice — onboarding, profile maintenance,
-permissions, and a working accounting domain. Accounting is the deliberately familiar example, so the
-framework speaks for itself; any other hierarchy sits on the same backbone.
+**The server defines the UI.** Describe what an entity *means* — its fields, its rules, its commands — and the
+server serves that description. The **administration UI** that ships with Esquire **renders it at runtime**, so
+a new field is a change to the description and not to the frontend code. That same UI is the worked example of
+using the REST API: any end-user app you write yourself reads the same descriptions the same way.
 
-Esquire takes the **widely used stack** (a relational database, Spring Boot, Node.js with Angular,
-Grafana/Prometheus) and drives it **to the end of what the stack can do**: ordinary parts taken as far as
-they go — a hybrid REST-and-event engine, vendor-neutral messaging, high availability that shrugs off losing
-a machine, and full, switch-on-anywhere observability. **Released by pipeline and live in production,**
+**Open, portable architecture.** The parts are the **widely used stack** — a relational database, Spring Boot,
+Node.js with Angular, Grafana/Prometheus — and none of them is a commitment: the database dialect and the
+message broker are settings. The same code and the same settings run as eight programs, as five, or as four, on
+a laptop, on Kubernetes, or in the cloud. The shape is a deployment choice, and nothing about the framework
+changes with it.
+
+That is the claim, and it is checkable. Esquire ships a complete administrative backoffice — onboarding, profile
+maintenance, permissions, and a working accounting domain. Accounting is the deliberately familiar example, so
+the framework speaks for itself; any other hierarchy sits on the same backbone. The stack is driven **to the end
+of what it can do**: a hybrid REST-and-event engine, vendor-neutral messaging, high availability that shrugs off
+losing a machine, and full, switch-on-anywhere observability. **Released by pipeline and live in production,**
 everything the framework promises, it does — in a running deployment, on three targets, open for anyone to
 check.
 
@@ -34,11 +43,15 @@ check.
 
 ---
 > 
-> **v1.2.12 — complete.** The build-out is finished; the framework now grows by **continuous
-> development** — sprints against a target, rather than one long sequential line. The first of them gives
-> every record a **change number**: a count that goes up by one each time the record is written. Small in
-> itself, it settles two things that were left open — a record's history reads back in the order the changes
-> really happened, and a message that arrives twice, or late and out of turn, is recognised and skipped.
+> **v1.2.13 — complete.** The framework grows by **continuous development** — sprints against a target,
+> rather than one long sequential line. This one separates **what the framework is** from **how many
+> programs it runs as**. The same code, the same settings, run as eight separate programs, as five, or as
+> four — you choose the shape that fits where you are running it, and nothing about the framework changes.
+> A small deployment stops paying for a large one.
+> 
+> It then read the whole thing back, item by item, and fixed what that found: events reaching the tree
+> cache in the order they were published, a refused command answering as refused, a credential request
+> that can be taken back, and a deploy that no longer replaces a working secret with one that cannot work.
 > 
 > What comes next is chosen from the
 > [continuing-development backlog](doc/Esquire.ContinuingDev.md) — several sprints can run in parallel, each
@@ -158,7 +171,7 @@ run as a single instance here; each is a third-party platform that brings its **
       <tr></tr>
       <tr>
         <td style="width: auto; white-space: nowrap;"><b>Messaging Bus</b></td>
-        <td style="width: 8%;"><img src="./doc/logo/activemq.png" alt="ActiveMQ logo" valign="middle" height="24"></td>
+        <td style="width: 8%;"><img src="./doc/logo/activemq.svg" alt="ActiveMQ logo" valign="middle" height="24"></td>
         <td style="width: 8%;"><img src="./doc/logo/redis.svg" alt="Redis logo" valign="middle" height="24"></td>
         <td style="width: 100%;"><img src="./doc/logo/kafka.svg" alt="Kafka logo" valign="middle" height="24"></td>
       </tr>
@@ -194,7 +207,7 @@ run as a single instance here; each is a third-party platform that brings its **
         <td style="width: 8%;"><img src="./doc/logo/java.svg" alt="Java logo" valign="middle" height="24"></td>
         <td style="width: 8%;"><img src="./doc/logo/spring-boot.svg" alt="Spring Boot logo" valign="middle"  height="24"></td>
         <td style="width: 8%;"><img src="./doc/logo/h2.svg" alt="H2 logo" valign="middle" height="24"></td>
-        <td style="width: 100%;"><img src="./doc/logo/bizTree.png" alt="bizTree logo" valign="middle" height="24"></td>
+        <td style="width: 100%;"><img src="./doc/logo/bizTree.svg" alt="bizTree logo" valign="middle" height="24"></td>
       </tr>
     </table>
     The entity tree service; maintains an H2 database in-memory cache of the business entity
@@ -210,7 +223,7 @@ run as a single instance here; each is a third-party platform that brings its **
         <td style="width: auto; white-space: nowrap;"><b>enyMan</b></td>
         <td style="width: 8%;"><img src="./doc/logo/java.svg" alt="Java logo" valign="middle" height="24"></td>
         <td style="width: 8%;"><img src="./doc/logo/spring-boot.svg" alt="Spring Boot logo" valign="middle" height="24"></td>
-        <td style="width: 100%;"><img src="./doc/logo/enyMan.3.png" alt="enyMan logo" valign="middle" height="28"></td>
+        <td style="width: 100%;"><img src="./doc/logo/enyMan.svg" alt="enyMan logo" valign="middle" height="28"></td>
       </tr>
     </table>
     Entity Manager; manages organizations and users; handles create, update, delete,
@@ -226,7 +239,7 @@ run as a single instance here; each is a third-party platform that brings its **
         <td style="width: auto; white-space: nowrap;"><b>keySmith</b></td>
         <td style="width: 8%;"><img src="./doc/logo/java.svg" alt="Java logo" valign="middle" height="24"></td>
         <td style="width: 8%;"><img src="./doc/logo/spring-boot.svg" alt="Spring Boot logo" valign="middle" height="24"></td>
-        <td style="width: 100%;"><img src="./doc/logo/keySmith.3.png" alt="keySmith logo" valign="middle" height="40"></td>
+        <td style="width: 100%;"><img src="./doc/logo/keySmith.svg" alt="keySmith logo" valign="middle" height="40"></td>
       </tr>
     </table>
     Authentication and access profile service; manages IAS integration and
@@ -240,7 +253,7 @@ run as a single instance here; each is a third-party platform that brings its **
         <td style="width: auto; white-space: nowrap;"><b>kcMaster</b></td>
         <td style="width: 8%;"><img src="./doc/logo/java.svg" alt="Java logo" valign="middle" height="24"></td>
         <td style="width: 8%;"><img src="./doc/logo/spring-boot.svg" alt="Spring Boot logo" valign="middle" height="24"></td>
-        <td style="width: 100%;"><img src="./doc/logo/kcMaster.png" alt="kcMaster logo" valign="middle" height="24"></td>
+        <td style="width: 100%;"><img src="./doc/logo/kcMaster.svg" alt="kcMaster logo" valign="middle" height="24"></td>
       </tr>
     </table>
     Keycloak IAS sync coordinator; the only service that writes to Keycloak directly;
@@ -295,7 +308,7 @@ run as a single instance here; each is a third-party platform that brings its **
     <table style="width: 100%; table-layout: fixed;">
       <tr>
         <td style="width: auto; white-space: nowrap;"><b>Keycloak</b></td>
-        <td style="width: 100%;"><img src="./doc/logo/keycloak.png" alt="Keycloak logo" valign="middle" height="24"></td>
+        <td style="width: 100%;"><img src="./doc/logo/keycloak.svg" alt="Keycloak logo" valign="middle" height="24"></td>
       </tr>
     </table>
     External IAM; issues JWT access tokens; manages user identities, realm
@@ -307,7 +320,7 @@ run as a single instance here; each is a third-party platform that brings its **
       <tr></tr>
       <tr>
         <td style="width: auto; white-space: nowrap;"><b>Esquire Explorer Backend</b></td>
-        <td style="width: 100%;"><img src="./doc/logo/node.js.png" alt="Node.js logo" valign="middle" height="24"></td>
+        <td style="width: 100%;"><img src="./doc/logo/node.js.svg" alt="Node.js logo" valign="middle" height="24"></td>
       </tr>
     </table>
     Node.js BFF tier — Backend-for-Frontend; the <br>administrative GUI entry point</b>
@@ -338,9 +351,9 @@ run as a single instance here; each is a third-party platform that brings its **
       <tr></tr>
       <tr>
         <td style="width: auto; white-space: nowrap;"><b>Esquire Explorer Frontend</b></td>
-        <td style="width: 8%;"><img src="./doc/logo/node.js.png" alt="Node.js logo" valign="middle" height="24"></td>
-        <td style="width: 8%;"><img src="./doc/logo/angular.png" alt="Angular logo" valign="middle" height="24"></td>
-        <td style="width: 100%;"><img src="./doc/logo/esquire.png" alt="Esquire logo" valign="middle" height="24"></td>
+        <td style="width: 8%;"><img src="./doc/logo/node.js.svg" alt="Node.js logo" valign="middle" height="24"></td>
+        <td style="width: 8%;"><img src="./doc/logo/angular.svg" alt="Angular logo" valign="middle" height="24"></td>
+        <td style="width: 100%;"><img src="./doc/logo/esquire.svg" alt="Esquire logo" valign="middle" height="24"></td>
       </tr>
     </table>
     Angular SPA — the user-facing tree explorer and operations UI; consumes the <code>@mir0n-pro/esquire.ui</code> library;
@@ -371,7 +384,7 @@ run as a single instance here; each is a third-party platform that brings its **
 **Observability Stack**
 
 Every piece below is open-source, and any of it can be swapped out — no lock-in, the same rule as the rest of the platform.
-<img src="doc/media/o11yStack.png" alt="Observability Stack" width="790">
+<img src="doc/media/o11yStack.png" alt="Observability Stack" width="600">
 
 <table style="width: 100%; table-layout: fixed;">
   <tr></tr>
@@ -380,7 +393,7 @@ Every piece below is open-source, and any of it can be swapped out — no lock-i
         <tr></tr>
         <tr>
         <td style="width: auto; white-space: nowrap;"><b>Postgres Exporter</b></td>
-        <td style="width: 8%;"><img src="doc/media/prometheus_logo.svg" alt="Prometheus logo" valign="middle" height="24"></td>
+        <td style="width: 8%;"><img src="doc/logo/prometheus_logo.svg" alt="Prometheus logo" valign="middle" height="24"></td>
         <td style="width: 100%;"><img src="doc/logo/postgres.svg" alt="Postgres logo" valign="middle" height="24"></td>
       </tr>
     </table>
@@ -391,7 +404,7 @@ Every piece below is open-source, and any of it can be swapped out — no lock-i
     <table style="width: 100%; table-layout: fixed;">
       <tr>
         <td style="width: auto; white-space: nowrap;"><b>Prometheus</b></td>
-        <td style="width: 100%;"><img src="doc/media/prometheus_logo.svg" alt="Prometheus logo" valign="middle" height="24"></td>
+        <td style="width: 100%;"><img src="doc/logo/prometheus_logo.svg" alt="Prometheus logo" valign="middle" height="24"></td>
       </tr>
     </table>
     The metrics store — collects the numbers (rates, timings, counts) from every service and keeps their history.
@@ -412,7 +425,7 @@ Every piece below is open-source, and any of it can be swapped out — no lock-i
     <table style="width: 100%; table-layout: fixed;">
       <tr>
         <td style="width: auto; white-space: nowrap;"><b>Grafana Tempo</b></td>
-        <td style="width: 100%;"><img src="doc/media/tempo_logo.png" alt="Tempo logo" valign="middle" height="24"></td>
+        <td style="width: 100%;"><img src="doc/logo/tempo_logo.svg" alt="Tempo logo" valign="middle" height="24"></td>
       </tr>
     </table>
     The trace store — keeps each request's end-to-end trace, found by the same id as its logs.
@@ -433,7 +446,7 @@ Every piece below is open-source, and any of it can be swapped out — no lock-i
     <table style="width: 100%; table-layout: fixed;">
       <tr>
         <td style="width: auto; white-space: nowrap;"><b>Grafana Loki</b></td>
-        <td style="width: 100%;"><img src="doc/media/loki_icon.svg" alt="Loki logo" valign="middle" height="24"></td>
+        <td style="width: 100%;"><img src="doc/logo/loki_icon.svg" alt="Loki logo" valign="middle" height="24"></td>
       </tr>
     </table>
     The log store — keeps all the logs, searchable, and serves them to the dashboard.
@@ -444,7 +457,7 @@ Every piece below is open-source, and any of it can be swapped out — no lock-i
       <tr></tr>
       <tr>
         <td style="width: auto; white-space: nowrap;"><b>Grafana</b></td>
-        <td style="width: 100%;"><img src="doc/media/grafana_icon.svg" alt="Grafana logo" valign="middle" height="24"></td>
+        <td style="width: 100%;"><img src="doc/logo/grafana_icon.svg" alt="Grafana logo" valign="middle" height="24"></td>
       </tr>
     </table>
     The one screen — dashboards for logs, traces, and numbers together; because everything shares one id, a log line, its trace, and its numbers are one click apart.</td></tr>
@@ -452,4 +465,70 @@ Every piece below is open-source, and any of it can be swapped out — no lock-i
 </table>
 
 For how the pieces connect — the protocols, the ports, and the full detail — see the [Observability Stack](doc/Esquire.ObservabilityStack.md) design doc.
+
+**Compact topology**
+
+The same framework in fewer programs. Services that always run together are placed in one program — nothing
+is removed, nothing is rewritten, and every path, message and screen behaves exactly as before. The model at
+the top of this page stays the default; this is the second shape, and which one to run is chosen per
+installation. Eight programs become five, or four in the cloud, where the audit trail is written by the
+database itself and the program that drains it is not needed. A small deployment stops paying for a large
+one.
+
+Two programs carry the change, and both hold framework parts only. **pacMan**, the accounting service, is
+never a candidate: it is the business domain built *on* the framework, not a part *of* it. A domain grows
+and changes at its own pace, and tying it to the backbone would take that freedom away — so it stays its own
+program in every shape, exactly as any domain you build on Esquire would. The audit keeper stays on its own
+for a different reason: in the cloud shape it is not there at all, because the database writes the audit
+trail itself. The browser tier is its own program as always.
+
+Measured, not assumed: on the cloud deployment the same load rig turns **27% more work** with the watching
+switched off and **42% more** with metrics, logs and traces fully on, the whole application uses **1.5 GiB**
+of memory, and it runs on **7 pods instead of 13**. Every running-stack test suite passes on both shapes,
+unchanged.
+
+The cost is worth saying plainly: services that share a program restart together, scale together, and one
+crash takes all of them down at once. The work itself does not change — the same requests and the same
+messages, carried by fewer machines. It is a deployment choice, and it can be reversed.
+
+<img src="doc/media/ComponentModel.Compact.png" alt="Esquire component model, compact shape" width="650">
+
+<table style="width: 100%; table-layout: fixed;">
+  <tr></tr>
+  <tr><td style="width: 100%;">
+    <table style="width: 100%; table-layout: fixed;">
+      <tr></tr>
+      <tr>
+        <td style="width: auto; white-space: nowrap;"><b>Mesnie</b></td>
+        <td style="width: 8%;"><img src="./doc/logo/java.svg" alt="Java logo" valign="middle" height="24"></td>
+        <td style="width: 8%;"><img src="./doc/logo/spring-boot.svg" alt="Spring Boot logo" valign="middle" height="24"></td>
+        <td style="width: 8%;"><img src="./doc/logo/mesnie.svg" alt="Mesnie logo" valign="middle" height="28"></td>
+        <td style="width: 8%;"><img src="./doc/logo/enyMan.svg" alt="enyMan logo" valign="middle" height="28"></td>
+        <td style="width: 8%;"><img src="./doc/logo/keySmith.svg" alt="keySmith logo" valign="middle" height="28"></td>
+        <td style="width: 100%;"><img src="./doc/logo/kcMaster.svg" alt="kcMaster logo" valign="middle" height="28"></td>
+      </tr>
+    </table>
+    The write side in one program: the entity manager, the identity service and the Keycloak agent.
+       Identity work that used to travel over the message bus is a call inside the program, so a whole round
+       trip disappears while the commands and the events on the outside stay the same.
+  </td></tr>
+
+  <tr><td style="width: 100%;">
+    <table style="width: 100%; table-layout: fixed;">
+      <tr></tr>
+      <tr>
+        <td style="width: auto; white-space: nowrap;"><b>gateWard</b></td>
+        <td style="width: 8%;"><img src="./doc/logo/java.svg" alt="Java logo" valign="middle" height="24"></td>
+        <td style="width: 8%;"><img src="./doc/logo/spring-boot.svg" alt="Spring Boot logo" valign="middle" height="24"></td>
+        <td style="width: 8%;"><img src="./doc/logo/gateward.svg" alt="gateWard logo" valign="middle" height="28"></td>
+        <td style="width: 8%;"><img src="./doc/logo/gateway.svg" alt="Gateway logo" valign="middle" height="28"></td>
+        <td style="width: 8%;"><img src="./doc/logo/bizTree.svg" alt="bizTree logo" valign="middle" height="28"></td>
+        <td style="width: 100%;"><img src="./doc/logo/h2.svg" alt="H2 logo" valign="middle" height="24"></td>
+      </tr>
+    </table>
+    The read side in one program: the API router together with the business-tree cache and the in-memory H2
+       database that holds it. A tree read is answered in the program that received it, so the request never
+       leaves the machine to be served.
+  </td></tr>
+</table>
 

@@ -1,0 +1,753 @@
+# The gate's own KeyCloak connection, in the shape every Esquire service configures one: endpoint, realm,
+# credentials, and the two deadlines. kcMaster configures its admin client the same way under
+# `keycloak.admin`, with its own credentials. The token endpoint is built from base-url + realm, so a
+# deployment that reaches KeyCloak on a different host than the browser login does says so here and
+# nowhere else.
+keycloak:
+  exchange:
+    base-url:           ${KC_EXCHANGE_BASE_URL:}
+    realm:              ${KEYCLOAK_REALM:esquire}
+    client-id:          ${ESQ_GW_EXCHANGE_CLIENT_ID:}
+    client-secret:      ${ESQ_GW_EXCHANGE_CLIENT_SECRET:}
+    connect-timeout-ms: ${KC_EXCHANGE_CONNECT_TIMEOUT_MS:5000}
+    read-timeout-ms:    ${KC_EXCHANGE_READ_TIMEOUT_MS:10000}
+
+esq:
+  jwe:
+    # When set, JweAwareJwtDecoder is wired and JwksController serves the public
+    # key at GET /jwe-jwks so KC can fetch it to encrypt access tokens. Blank or
+    # missing -> plain JWS decoder (v1.2.3 baseline). Compose mounts the keypair
+    # via volume; ESQ_JWE_PRIVATE_KEY_PATH points at the in-container path.
+    private-key-path: ${ESQ_JWE_PRIVATE_KEY_PATH:}
+  gateway:
+    token-relay:
+      # Token Relay umbrella -- the gateway brokers/exchanges JWTs on behalf
+      # of inbound clients and forwards a full JWT downstream. Two variants
+      # share one KeyCloak connection, configured under `keycloak.exchange`:
+      #   - Vanilla Token Relay: client sends HTTP Basic; gateway runs
+      #     client_credentials grant using the client's own credentials,
+      #     caches per client_id.
+      #   - Phantom Token Relay: client sends a stripped Bearer JWT; gateway
+      #     runs RFC 8693 token-exchange authenticated as the dedicated
+      #     esq-gw-exchange confidential client, caches per jti.
+      # The lists below say WHOSE requests are relayed, matched on the caller's
+      # client id -- everyone else passes through on the plain JWT path. Both
+      # variants are dormant when their `clients` allowlist is empty.
+      vanilla:
+        clients: ${ESQ_GW_VANILLA_CLIENTS:}
+      phantom:
+        clients: ${ESQ_GW_PHANTOM_CLIENTS:}
+    # Resilience knobs (gateway -> backend). All env-overridable; ResilienceConfig
+    # reads the circuit-breaker block to build the Resilience4j CircuitBreaker +
+    # TimeLimiter, and the Retry filters below reference the retry block. The
+    # per-route timeout is the CircuitBreaker's TimeLimiter (NOT the Netty
+    # response-timeout, which is a generous backstop above it) -- a backend call
+    # exceeding the limit, or a tripped/open breaker, surfaces as an error that
+    # GatewayErrorWebExceptionHandler renders as a 503/504 ProblemDetail.
+    resilience:
+      circuit-breaker:
+        timeout-seconds:        ${GW_CB_TIMEOUT_S:10}      # default per-route call deadline
+        slow-timeout-seconds:   ${GW_CB_SLOW_TIMEOUT_S:30} # move / acct / create routes
+        # COUNT_BASED = the last N calls; TIME_BASED = the last N seconds. TIME_BASED because a count
+        # window never forgets on a QUIET route: /esq-enode's "last 20 calls" can span minutes, so a
+        # verdict formed in one burst was still being enforced in the next run. sliding-window is the
+        # size -- calls when COUNT_BASED, SECONDS when TIME_BASED.
+        sliding-window-type:    ${GW_CB_WINDOW_TYPE:TIME_BASED}
+        sliding-window:         ${GW_CB_WINDOW:30}
+        minimum-calls:          ${GW_CB_MIN_CALLS:10}
+        failure-rate:           ${GW_CB_FAILURE_RATE:50}
+        slow-call-rate:         ${GW_CB_SLOW_RATE:100}
+        slow-call-seconds:      ${GW_CB_SLOW_DURATION_S:8}
+        open-wait-seconds:      ${GW_CB_OPEN_WAIT_S:10}
+        # The HALF_OPEN probe window: the breaker permits this many calls and refuses the rest. At the
+        # old value of 5 a start-up burst of ~70 got 5 probes and ~65 x 503 -- recovery WAS the outage.
+        half-open-calls:        ${GW_CB_HALFOPEN_CALLS:20}
+      # The cap on CONCURRENT in-flight calls per BREAKER. Spring Cloud adds one whether or not you ask;
+      # left unnamed it ran at the library default of 25 and REJECTED the 26th caller -- and the breaker
+      # counted that rejection as a backend failure, so a burst on a healthy route opened the breaker (T10).
+      #
+      # It is a BACKSTOP, never the primary limiter: concurrency is really bounded by the httpclient pool
+      # above, which QUEUES. So it is DERIVED from that pool rather than fixed -- max-connections x
+      # queue-per-connection. A fixed number silently becomes the primary limiter as soon as demand grows
+      # past it, and then sheds work the system could have served. A hand-picked 100 did exactly that: a
+      # breaker fronts SEVERAL routes (enyman-cb = /esq-cmd + -save + -del + -tree), so their concurrency
+      # ADDS UP (64+32+32 = 128 > 100) -- and whether it shed at all depended on the REPLICA COUNT.
+      #
+      # max-concurrent-calls: 0 = derive (16 x pool). Set a positive number only to override deliberately.
+      bulkhead:
+        max-concurrent-calls:   ${GW_BULKHEAD_MAX_CONCURRENT:0}
+        queue-per-connection:   ${GW_BULKHEAD_QUEUE_PER_CONN:16}
+        max-wait-ms:            ${GW_BULKHEAD_MAX_WAIT_MS:0}   # 0 = shed at once; never block the event loop
+      retry:
+        # Retry is configured PER ROUTE (per command), not by a shared method gate
+        # -- the read/write split in Esquire is per command, and HTTP method is the
+        # wrong axis (e.g. /esq-sweep is an idempotent POST). Each route below
+        # carries its own Retry filter; only the attempt COUNT is shared here:
+        #   - READ routes  retry on connect-failure + timeout (idempotent), GET.
+        #   - WRITE routes retry on connect-failure ONLY -- exceptions:[ConnectException]
+        #     with an empty series, so a response-timeout / 5xx / reset never resends
+        #     a non-idempotent POST (the request provably never landed on a connect
+        #     failure; anything later may have already committed).
+        # To turn a route's retry off entirely, OMIT its Retry filter (SCG rejects
+        # retries=0, so an absent filter is the true per-route off-switch).
+        read:
+          attempts:  ${GW_RETRY_READ:3}
+        write:
+          attempts: ${GW_RETRY_WRITE:1}
+esquire:
+  # Observability umbrella (v1.2.11 O1/O2) via common.ObservabilityConfig: ONE master switch gates BOTH
+  # tracing and metrics -- a service never has one without the other. Off by default = zero cost; the
+  # collector endpoint + sampling ratio are set per environment (compose / k8s).
+  observability:
+    enabled: ${ESQ_OBSERVABILITY_ENABLED:false}
+    tracing:
+      # the TRACING pillar on/off (I41). Defaults to the master; set OFF (ESQ_TRACING_ENABLED=false) to run
+      # metrics-only -- service-mesh coexistence (a mesh already traces the wire, so avoid double-tracing).
+      enabled: ${ESQ_TRACING_ENABLED:${ESQ_OBSERVABILITY_ENABLED:false}}
+      otlp-endpoint: ${ESQ_OTLP_ENDPOINT:http://localhost:4318/v1/traces}
+      sampling-ratio: ${ESQ_TRACING_SAMPLING_RATIO:1.0}
+      marks-enabled: ${ESQ_TRACING_MARKS_ENABLED:true}
+      excluded-paths: ${ESQ_TRACING_EXCLUDED_PATHS:/actuator}
+      # opt-in RR liveness round-trip trace (TestRequest -> HeartBeat); off by default (heartbeats are frequent)
+      msg-bus-alive-trace: ${ESQ_MSG_BUS_ALIVE_TRACE:false}
+    metrics:
+      # the METRICS pillar on/off (symmetry with tracing.enabled). Defaults to the master; OFF = traces-only.
+      enabled: ${ESQ_METRICS_ENABLED:${ESQ_OBSERVABILITY_ENABLED:false}}
+      # percentile buckets on the extra latency timers (O1/T5-B). THE EXPENSIVE ONE (~+73% series), so opt-in;
+      # off still leaves count/sum/max, so the avg panels stay populated. TWO things go dark with it OFF and
+      # nothing else turns them on: the p95/p99 panels (they read the _bucket series) AND the metric->trace
+      # exemplars (a trace id hangs off a bucket sample -- no buckets, no carrier, the metrics->trace hop is
+      # inert). o11y-on sets it (ESQ_METRICS_HISTOGRAMS=true); a bare ESQ_OBSERVABILITY_ENABLED=true leaves both dark.
+      histograms-enabled: ${ESQ_METRICS_HISTOGRAMS:false}
+      # HTTP byte counters (O1/T5-C). Cheap, so ON by default. ONE knob for BOTH embedded servers: Esquire
+      # turns on Tomcat's MBean registry (servlet services) or Reactor Netty's metrics (the gateway) as needed.
+      bandwidth-enabled: ${ESQ_METRICS_BANDWIDTH:true}
+      # Business meters (O1/T8): the esq.biz.* domain tier -- what a service DOES, not how it runs. ON by
+      # default: measured at 1.25% of the series and a few tens of ns per call, against work that is orders of
+      # magnitude dearer. Off drops every esq.biz.* call site to a null check -- the lever for a hot-path run.
+      business-enabled: ${ESQ_METRICS_BUSINESS:true}
+  gateway:
+    service-metrics:
+      enabled: ${GW_SERVICE_METRICS_ENABLED:false} # Control whether to collect metrics for the gateway on backend services
+  entity-bus:
+    messaging-bus:
+      bus-id: ${ENTITY_BUS_ID:esquire.entity}
+      slot-id: ${ENTITY_SLOT_ID:entity}
+      role: CLIENT
+      x-rod:
+        receiver-pool:
+          # 1 on purpose: this pool is the only place the published order can be lost.
+          size: ${ENTITY_BROADCAST_POOL_SIZE:1}
+          mode: ${ENTITY_BROADCAST_POOL_MODE:platform}   # platform | virtual | virtual-per-task
+        concurrency: ${ENTITY_BROADCAST_CONCURRENCY:1}
+server:
+  port: ${GATEWARD_PORT:8080} 
+spring:
+  # the cache half: which database dialect fills it, and which engine holds it
+  profiles:
+    active: ${DB_BIZTREE_VENDOR:dev-postgres},${BIZTREE_CACHE_VENDOR:cache-h2}
+  jpa:
+    hibernate:
+      ddl-auto: none
+    show-sql: false
+  transaction:
+    default-timeout: ${ESQ_TX_TIMEOUT_S:-1}
+  config:
+    import: "${TOPOLOGY_IMPORT:optional:file:/etc/esquire/topology.yml}"
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+    time-zone: UTC
+  webflux:
+    problemdetails:
+      enabled: true
+  application:
+    # lowercase on purpose: the messaging-bus catalog binds this name as a CONFIG PROPERTY prefix
+    # (<name>.messaging-bus), and Spring rejects a property name that is not kebab-case -- a capital
+    # letter here stops the process at boot. The capital W stays everywhere it is a value, not a key.
+    name: "gateward"
+  cloud:
+    gateway:
+       # Netty client timeouts -- connect fails fast if a pod is unreachable;
+       # response-timeout is a generous BACKSTOP above the per-route CircuitBreaker
+       # TimeLimiter (which is the real per-route deadline). Keep it > slow-timeout.
+       httpclient:
+         connect-timeout: ${GW_CONNECT_TIMEOUT_MS:2000}
+         response-timeout: ${GW_RESPONSE_TIMEOUT:35s}
+         # Backend connection pool. Pre-HA defaults ~ ReactorNetty (max-connections floor 16,
+         # acquire-timeout 45s); HA raises max-connections in the local-k8s chart (R1).
+         pool:
+           max-connections: ${GW_POOL_MAX_CONNECTIONS:16}
+           acquire-timeout: ${GW_POOL_ACQUIRE_TIMEOUT_MS:45000}
+       #default-filters:
+       #  - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_FIRST #RETAIN_UNIQUE
+       # globalcors DISABLED — conflicts with custom SecurityWebFilterChain CORS
+       # Spring Security handles CORS via spring.security.cors (see SecurityConfig.java)
+       #globalcors:
+       #  add-to-simple-url-handler-mapping: true
+       #  cors-configurations:
+       #    '[/**]':
+       #      allowedOrigins: ${CORS_ALLOWED_ORIGINS:http://localhost:4200}
+       #      allowedHeaders: "*"
+       #      allowedMethods: "*"
+       # THE DEFAULTS ARE THE COMPACT SHAPE. They were inherited from the classic gateway and still named
+       # biztree / enyman -- processes this profile does not run -- so a gateWard started without its env
+       # routed at hosts that are not there. Every deployment (compose, both k8s charts, OKE) sets these three
+       # explicitly, so nothing was broken; a default is simply what runs when someone starts it outside those.
+       routes:
+        - id: keysmith-route
+          uri: http://${KEYSMITH_HOST:mesnie}:${KEYSMITH_PORT:3003}
+          predicates:
+            - Path=/esq-key
+          metadata:
+              allowedMethods:
+                - GET
+                - POST
+          filters:
+            # CircuitBreaker OUTER, Retry INNER: Retry re-runs the downstream call
+            # (lands on a healthy pod via kube-proxy); when the breaker trips or opens
+            # the error propagates to GatewayErrorWebExceptionHandler, which renders the
+            # 503/504 ProblemDetail (no fallbackUri -- reuses the gateway error path).
+            - name: CircuitBreaker
+              args:
+                name: keysmith-cb
+            - name: Retry
+              args:
+                # READ: idempotent -- retry on connect-failure + timeout, NOT on 5xx
+                # (a 5xx is usually a real error; the breaker handles overload).
+                retries: ${esq.gateway.resilience.retry.read.attempts}
+                methods: GET
+                series: []
+                exceptions:
+                  - java.net.ConnectException
+                  - java.util.concurrent.TimeoutException
+                backoff:
+                  firstBackoff: 50ms
+                  maxBackoff: 500ms
+                  factor: 2
+                  basedOnPreviousValue: false
+             #RETAIN_UNIQUE
+            - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_FIRST
+            - RewritePath=/(?<segment>.*), /$\{segment}
+            - TokenRelay=
+        # biztree-route is NOT here: gateWard answers /esq, /esq-path, /esq-enode, /esq-tree and
+        # /esq-sweep from the cache in this process (BizTreeCacheController). Routing them to a
+        # backend would proxy the gate to itself.
+        - id: pacman-route
+          uri: http://${PACMAN_HOST:pacman}:${PACMAN_PORT:3004}
+          predicates:
+            - Path=/esq-cmd
+            - EntityKind=isAcct
+          metadata:
+            allowedMethods:
+              - GET
+              - POST
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: pacman-cb
+            - name: Retry
+              args:
+                # READ: idempotent -- retry on connect-failure + timeout, NOT on 5xx
+                # (a 5xx is usually a real error; the breaker handles overload).
+                retries: ${esq.gateway.resilience.retry.read.attempts}
+                methods: GET
+                series: []
+                exceptions:
+                  - java.net.ConnectException
+                  - java.util.concurrent.TimeoutException
+                backoff:
+                  firstBackoff: 50ms
+                  maxBackoff: 500ms
+                  factor: 2
+                  basedOnPreviousValue: false
+            #RETAIN_UNIQUE
+            - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_FIRST
+            - RewritePath=/(?<segment>.*), /$\{segment}
+            - TokenRelay=
+        - id: enyman-route
+          uri: http://${ENYMAN_HOST:mesnie}:${ENYMAN_PORT:3003}
+          predicates:
+            - Path=/esq-cmd,/esq-dict,/esq-kinds
+          metadata:
+            allowedMethods:
+              - GET
+              - POST
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: enyman-cb
+            - name: Retry
+              args:
+                # READ: idempotent -- retry on connect-failure + timeout, NOT on 5xx
+                # (a 5xx is usually a real error; the breaker handles overload).
+                retries: ${esq.gateway.resilience.retry.read.attempts}
+                methods: GET
+                series: []
+                exceptions:
+                  - java.net.ConnectException
+                  - java.util.concurrent.TimeoutException
+                backoff:
+                  firstBackoff: 50ms
+                  maxBackoff: 500ms
+                  factor: 2
+                  basedOnPreviousValue: false
+            #RETAIN_UNIQUE
+            - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_FIRST
+            - RewritePath=/(?<segment>.*), /$\{segment}
+            - TokenRelay=
+        - id: pacman-save-route
+          uri: http://${PACMAN_HOST:pacman}:${PACMAN_PORT:3004}
+          predicates:
+            - Path=/esq-cmd-save
+            - Method=POST
+            - EntityKind=isAcct
+          metadata:
+            allowedMethods:
+              - POST
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: pacman-cb
+            - name: Retry
+              args:
+                # WRITE: non-idempotent -- retry on connect-failure ONLY (request
+                # provably never landed). Empty series + ConnectException-only means
+                # a response-timeout / 5xx / reset never resends the POST.
+                retries: ${esq.gateway.resilience.retry.write.attempts}
+                methods: POST
+                series: []
+                exceptions:
+                  - java.net.ConnectException
+                backoff:
+                  firstBackoff: 50ms
+                  maxBackoff: 200ms
+                  factor: 2
+                  basedOnPreviousValue: false
+            - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_FIRST
+            - RewritePath=/(?<segment>.*), /$\{segment}
+            - TokenRelay=
+        - id: enyman-save-route
+          uri: http://${ENYMAN_HOST:mesnie}:${ENYMAN_PORT:3003}
+          predicates:
+            - Path=/esq-cmd-save
+            - Method=POST
+          metadata:
+            allowedMethods:
+              - POST
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: enyman-cb
+            - name: Retry
+              args:
+                # WRITE: non-idempotent -- retry on connect-failure ONLY (request
+                # provably never landed). Empty series + ConnectException-only means
+                # a response-timeout / 5xx / reset never resends the POST.
+                retries: ${esq.gateway.resilience.retry.write.attempts}
+                methods: POST
+                series: []
+                exceptions:
+                  - java.net.ConnectException
+                backoff:
+                  firstBackoff: 50ms
+                  maxBackoff: 200ms
+                  factor: 2
+                  basedOnPreviousValue: false
+            - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_FIRST
+            - RewritePath=/(?<segment>.*), /$\{segment}
+            - TokenRelay=
+        - id: keysmith-save-route
+          uri: http://${KEYSMITH_HOST:mesnie}:${KEYSMITH_PORT:3003}
+          predicates:
+            - Path=/esq-key-save
+            - Method=POST
+          metadata:
+            allowedMethods:
+              - POST
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: keysmith-cb
+            - name: Retry
+              args:
+                # WRITE: non-idempotent -- retry on connect-failure ONLY (request
+                # provably never landed). Empty series + ConnectException-only means
+                # a response-timeout / 5xx / reset never resends the POST.
+                retries: ${esq.gateway.resilience.retry.write.attempts}
+                methods: POST
+                series: []
+                exceptions:
+                  - java.net.ConnectException
+                backoff:
+                  firstBackoff: 50ms
+                  maxBackoff: 200ms
+                  factor: 2
+                  basedOnPreviousValue: false
+            - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_FIRST
+            - RewritePath=/(?<segment>.*), /$\{segment}
+            - TokenRelay=
+        - id: enyman-new-route
+          uri: http://${ENYMAN_HOST:mesnie}:${ENYMAN_PORT:3003}
+          predicates:
+            - Path=/esq-cmd-new
+            - Method=POST
+          metadata:
+            allowedMethods:
+              - POST
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: enyman-new-cb
+            - name: Retry
+              args:
+                # WRITE: non-idempotent -- retry on connect-failure ONLY (request
+                # provably never landed). Empty series + ConnectException-only means
+                # a response-timeout / 5xx / reset never resends the POST.
+                retries: ${esq.gateway.resilience.retry.write.attempts}
+                methods: POST
+                series: []
+                exceptions:
+                  - java.net.ConnectException
+                backoff:
+                  firstBackoff: 50ms
+                  maxBackoff: 200ms
+                  factor: 2
+                  basedOnPreviousValue: false
+            - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_FIRST
+            - RewritePath=/(?<segment>.*), /$\{segment}
+            - TokenRelay=
+        - id: pacman-del-route
+          uri: http://${PACMAN_HOST:pacman}:${PACMAN_PORT:3004}
+          predicates:
+            - Path=/esq-cmd-del
+            - Method=POST
+            - EntityKind=isAcct
+          metadata:
+            allowedMethods:
+              - POST
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: pacman-cb
+            - name: Retry
+              args:
+                # WRITE: non-idempotent -- retry on connect-failure ONLY (request
+                # provably never landed). Empty series + ConnectException-only means
+                # a response-timeout / 5xx / reset never resends the POST.
+                retries: ${esq.gateway.resilience.retry.write.attempts}
+                methods: POST
+                series: []
+                exceptions:
+                  - java.net.ConnectException
+                backoff:
+                  firstBackoff: 50ms
+                  maxBackoff: 200ms
+                  factor: 2
+                  basedOnPreviousValue: false
+            - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_FIRST
+            - RewritePath=/(?<segment>.*), /$\{segment}
+            - TokenRelay=
+        - id: enyman-del-route
+          uri: http://${ENYMAN_HOST:mesnie}:${ENYMAN_PORT:3003}
+          predicates:
+            - Path=/esq-cmd-del
+            - Method=POST
+          metadata:
+            allowedMethods:
+              - POST
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: enyman-cb
+            - name: Retry
+              args:
+                # WRITE: non-idempotent -- retry on connect-failure ONLY (request
+                # provably never landed). Empty series + ConnectException-only means
+                # a response-timeout / 5xx / reset never resends the POST.
+                retries: ${esq.gateway.resilience.retry.write.attempts}
+                methods: POST
+                series: []
+                exceptions:
+                  - java.net.ConnectException
+                backoff:
+                  firstBackoff: 50ms
+                  maxBackoff: 200ms
+                  factor: 2
+                  basedOnPreviousValue: false
+            - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_FIRST
+            - RewritePath=/(?<segment>.*), /$\{segment}
+            - TokenRelay=
+        - id: pacman-acct-route
+          uri: http://${PACMAN_HOST:pacman}:${PACMAN_PORT:3004}
+          predicates:
+            - Path=/esq-acct
+            - Method=POST
+            - EntityKind=isAcct
+          metadata:
+            allowedMethods:
+              - POST
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: pacman-acct-cb
+            - name: Retry
+              args:
+                # WRITE: non-idempotent -- retry on connect-failure ONLY (request
+                # provably never landed). Empty series + ConnectException-only means
+                # a response-timeout / 5xx / reset never resends the POST.
+                retries: ${esq.gateway.resilience.retry.write.attempts}
+                methods: POST
+                series: []
+                exceptions:
+                  - java.net.ConnectException
+                backoff:
+                  firstBackoff: 50ms
+                  maxBackoff: 200ms
+                  factor: 2
+                  basedOnPreviousValue: false
+            - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_FIRST
+            - RewritePath=/(?<segment>.*), /$\{segment}
+            - TokenRelay=
+        - id: enyman-move-route
+          uri: http://${ENYMAN_HOST:mesnie}:${ENYMAN_PORT:3003}
+          predicates:
+            - Path=/esq-move
+            - Method=POST
+          metadata:
+            allowedMethods:
+              - POST
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: enyman-move-cb
+            - name: Retry
+              args:
+                # WRITE: non-idempotent -- retry on connect-failure ONLY (request
+                # provably never landed). Empty series + ConnectException-only means
+                # a response-timeout / 5xx / reset never resends the POST.
+                retries: ${esq.gateway.resilience.retry.write.attempts}
+                methods: POST
+                series: []
+                exceptions:
+                  - java.net.ConnectException
+                backoff:
+                  firstBackoff: 50ms
+                  maxBackoff: 200ms
+                  factor: 2
+                  basedOnPreviousValue: false
+            - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_FIRST
+            - RewritePath=/(?<segment>.*), /$\{segment}
+            - TokenRelay=
+        - id: enyman-tree-route
+          uri: http://${ENYMAN_HOST:mesnie}:${ENYMAN_PORT:3003}
+          predicates:
+            - Path=/esq-cmd-tree
+            - Method=GET
+          metadata:
+            allowedMethods:
+              - GET
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: enyman-cb
+            - name: Retry
+              args:
+                # READ: idempotent -- retry on connect-failure + timeout, NOT on 5xx
+                # (a 5xx is usually a real error; the breaker handles overload).
+                retries: ${esq.gateway.resilience.retry.read.attempts}
+                methods: GET
+                series: []
+                exceptions:
+                  - java.net.ConnectException
+                  - java.util.concurrent.TimeoutException
+                backoff:
+                  firstBackoff: 50ms
+                  maxBackoff: 500ms
+                  factor: 2
+                  basedOnPreviousValue: false
+            - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_FIRST
+            - RewritePath=/(?<segment>.*), /$\{segment}
+            - TokenRelay=
+
+#  autoconfigure:
+#   exclude: org.springframework.boot.autoconfigure.security.reactive.ReactiveSecurityAutoConfiguration
+  security:
+    cors:
+      # A scalar, not a one-element sequence: Boot splits a delimited string into a List<String> by its own
+      # documented conversion, so several origins arrive as several origins. Written this way because the
+      # sequence form reads as though the whole comma-joined value were ONE origin -- it is not, but it costs
+      # a reader an experiment to be sure.
+      allowed-origins: "${CORS_ALLOWED_ORIGINS:http://localhost:4200}"
+      allowed-methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+      allowed-headers: ["Authorization", "Content-Type", "X-Request-ID", "X-Correlation-ID", "X-Capture-Metrics"]
+      allow-credentials: true
+      max-age: 3600
+      exposed-headers: ["X-Request-ID", "X-Correlation-ID", "X-Response-Time", "Esq-Gw-Inner-Time", "Esq-Srv-Outer-Time", "Esq-Srv-Inner-Time"]
+    oauth2:
+      client:
+        registration:
+          keycloak:
+            client-id: ${KEYCLOAK_CLIENT_ID:esq-angular}
+            authorization-grant-type: authorization_code
+            scope: openid
+            redirect-uri: "{baseUrl}/login/oauth2/code/{registrationId}"
+        provider:
+          keycloak:
+            enable-cors: true
+            authorization-uri: http://${KEYCLOAK_HOST:keycloak}:${KEYCLOAK_PORT:8080}${KEYCLOAK_PATH:}/realms/${KEYCLOAK_REALM:esquire}/protocol/openid-connect/auth
+            token-uri: http://${KEYCLOAK_HOST:keycloak}:${KEYCLOAK_PORT:8080}${KEYCLOAK_PATH:}/realms/${KEYCLOAK_REALM:esquire}/protocol/openid-connect/token
+            jwk-set-uri: http://${KEYCLOAK_HOST:keycloak}:${KEYCLOAK_PORT:8080}${KEYCLOAK_PATH:}/realms/${KEYCLOAK_REALM:esquire}/protocol/openid-connect/certs
+            user-info-uri: http://${KEYCLOAK_HOST:keycloak}:${KEYCLOAK_PORT:8080}${KEYCLOAK_PATH:}/realms/${KEYCLOAK_REALM:esquire}/protocol/openid-connect/userinfo
+      resourceserver:
+        jwt:
+          jwk-set-uri: http://${KEYCLOAK_HOST:keycloak}:${KEYCLOAK_PORT:8080}${KEYCLOAK_PATH:}/realms/${KEYCLOAK_REALM:esquire}/protocol/openid-connect/certs
+info:
+  app:
+    name: "gateWard"
+    description: "Esquire gate with the bizTree cache in process"
+    version: "1.0.0"
+
+logging:
+  level:
+    root: ${LOG_LEVEL_ROOT:ERROR}
+    org:
+      springframework: ${LOG_LEVEL_SF:ERROR}
+      # The ward holds a bus consumer, so the broker tiers are tunable here as they are in every service that
+      # speaks to it. logback-spring.xml reads these as Spring properties: an env var with no mapping here
+      # reaches nothing, and the appender quietly runs on its own default instead.
+      springframework.jms: ${LOG_LEVEL_JMS:ERROR}
+      apache:
+        activemq: ${LOG_LEVEL_AMQ:ERROR}
+    pro:
+      mir0n: ${LOG_LEVEL_MIR0N:ERROR}
+    develop: ${LOG_LEVEL_DEVELOP:DEBUG}
+    msg: ${LOG_LEVEL_MSG:INFO}
+  develop:
+    log-path: ${DEVELOP_LOG_PATH:logs/gateWard-develop.log}
+  msg:
+    log-path: ${MSG_LOG_PATH:logs/gateWard-msg.log}
+management:
+  # Actuator listens on a SEPARATE, internal-only port (8090), NOT the public server.port -- Prometheus and the
+  # k8s probes hit 8090 in-cluster while the ingress exposes only the main port, so /actuator is unreachable from
+  # the internet (audit F0 A6; mir0n 2026-07-20). Override with MANAGEMENT_SERVER_PORT.
+  server:
+    port: ${MANAGEMENT_SERVER_PORT:8090}
+  # The Micrometer-Tracing bridge and Prometheus metrics export are gated PER PILLAR: management.tracing.enabled
+  # follows esquire.observability.tracing.enabled (the span bridge), management.prometheus.metrics.export.enabled
+  # follows esquire.observability.metrics.enabled (the Prometheus registry+scrape). Each sub-switch defaults to
+  # the master esquire.observability.enabled. The OTel exporter + sampler + meter registry are declared explicitly
+  # by common.ObservabilityConfig. Set ESQ_TRACING_ENABLED=false to run metrics-only (service-mesh coexistence).
+  tracing:
+    enabled: ${ESQ_TRACING_ENABLED:${ESQ_OBSERVABILITY_ENABLED:false}}
+  prometheus:
+    metrics:
+      export:
+        enabled: ${ESQ_METRICS_ENABLED:${ESQ_OBSERVABILITY_ENABLED:false}}
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  health:
+    redis:
+      enabled: false
+  endpoint:
+    health:
+      probes:
+        enabled: true               # expose the liveness + readiness health groups
+      validate-group-membership: false
+      group:
+        # bus health depools the pod (READINESS), never liveness -- a broker outage must not let liveness kill it.
+        readiness:
+          include: readinessState, cacheReadiness, messagingBus
+
+
+      show-details: always        
+
+biztree:
+  # cache director + monad/taijitu knobs (read by @Value; surfaced here for env visibility -- defaults
+  # match the @Value fallbacks, so behaviour is unchanged when the env var is unset).
+  director: ${BIZTREE_DIRECTOR:legacy}
+  # The startup cache load (whole org/usr/acct read) opts OUT of the request-path cap: 0 = uncapped (pre-HA
+  # default). Set a positive value only to put a safety ceiling on a full-tree load.
+  cache-load:
+    tx-timeout-s: ${BIZTREE_CACHE_LOAD_TX_TIMEOUT_S:0}
+  monad:
+    queue:
+      capacity: ${BIZTREE_MONAD_QUEUE_CAPACITY:4096}
+  queue:
+    bulk-threshold: ${BIZTREE_QUEUE_BULK_THRESHOLD:10}
+  taijitu:
+    on-mismatch: ${BIZTREE_TAIJITU_ON_MISMATCH:LOG}
+    sweep:
+      interval-ms: ${BIZTREE_TAIJITU_SWEEP_INTERVAL_MS:10000}
+      timeout-ms: ${BIZTREE_TAIJITU_SWEEP_TIMEOUT_MS:10000}
+  h2:
+    url: ${BIZTREE_H2_URL:jdbc:h2:mem:biztree;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE}
+    # per-statement cap on the in-memory cache (seconds): 0 = uncapped (pre-HA default). The H2 cache surface
+    # of the request-path cap; the cache replies fast, so this only guards a pathological cache statement.
+    query-timeout-s: ${BIZTREE_H2_QUERY_TIMEOUT_S:0}
+    pool:
+      pool-name:            biztree-h2-cache
+      maximum-pool-size:    ${BIZTREE_H2_POOL_MAX:10}
+      minimum-idle:         ${BIZTREE_H2_POOL_MIN_IDLE:10}
+      connection-timeout:   ${BIZTREE_H2_POOL_CONN_TIMEOUT:5000}
+      max-lifetime:         ${BIZTREE_H2_POOL_MAX_LIFETIME:1800000}
+      idle-timeout:         ${BIZTREE_H2_POOL_IDLE_TIMEOUT:600000}
+# Bus TOPOLOGY (which buses exist + their transport) is the shared esquire-topology.yml imported above.
+# Here: this service's bus REF + per-service knob OVERRIDE (entity consumer).
+
+---
+# Development Oracle
+spring:
+  config:
+    activate:
+      on-profile: dev-oracle
+  datasource:
+    url: jdbc:oracle:thin:@//${DB_BIZTREE_HOST:localhost}:${DB_BIZTREE_PORT:1521}/${DB_BIZTREE_NAME:MIR0N}
+    driverClassName: oracle.jdbc.OracleDriver
+    username: ${DB_BIZTREE_USERNAME:esq2025}
+    password: ${DB_BIZTREE_PASSWORD:q}
+    hikari:
+      # pool sizing + connect-timeout: pre-HA defaults = current values; HA values (smaller pool, fast
+      # connect-timeout) set per service in the local-k8s chart (R3/R5).
+      maximum-pool-size: ${ESQ_DB_POOL_MAX:20}
+      minimum-idle: ${ESQ_DB_POOL_MIN_IDLE:20}
+      connection-timeout: ${ESQ_DB_CONNECT_TIMEOUT_MS:30000}
+      max-lifetime: 1800000
+      idle-timeout: 600000
+  jpa:
+    mapping-resources:
+      - META-INF/oracle-entity.xml
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.OracleDialect
+---
+# Development Postgres
+spring:
+  config:
+    activate:
+      on-profile: dev-postgres
+  datasource:
+    url: jdbc:postgresql://${DB_BIZTREE_HOST:localhost}:${DB_BIZTREE_PORT:5432}/${DB_BIZTREE_NAME:esq2025}
+    username: ${DB_BIZTREE_USERNAME:esq2025}
+    password: ${DB_BIZTREE_PASSWORD:q}
+    hikari:
+      # pool sizing + connect-timeout: pre-HA defaults = current values; HA values (smaller pool, fast
+      # connect-timeout) set per service in the local-k8s chart (R3/R5).
+      maximum-pool-size: ${ESQ_DB_POOL_MAX:20}
+      minimum-idle: ${ESQ_DB_POOL_MIN_IDLE:20}
+      connection-timeout: ${ESQ_DB_CONNECT_TIMEOUT_MS:30000}
+      max-lifetime: 1800000
+      idle-timeout: 600000
+      # pgjdbc socketTimeout (s) + tcpKeepAlive: pre-HA defaults = off (0 / false). HA (local-k8s chart)
+      # makes a vanished DB fail fast on a half-open socket instead of hanging a worker (R1/R5).
+      data-source-properties:
+        socketTimeout: ${ESQ_DB_SOCKET_TIMEOUT_S:0}
+        tcpKeepAlive: ${ESQ_DB_TCP_KEEPALIVE:false}
+  jpa:
+    mapping-resources:
+      - META-INF/postgres-entity.xml
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect

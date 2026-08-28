@@ -40,7 +40,7 @@ class PacManControllerTest {
     }
 
     // uid / rootPath are no longer extracted in the controller -- they ride the unified per-request
-    // context (JwtAuthenticationFilter). The controller now reads only roles from realm_access.
+    // context (JwtClaimsExtractionFilter). The controller now reads only roles from realm_access.
 
     // ---- esquireCommand ----
 

@@ -1,0 +1,13 @@
+# Redis. Two jobs, depending on who points at it: the broker behind the audit-(d) Redis-Stream
+# sink, and the BFF shared session store that lets the BFF run more than one replica.
+image:
+  repository: redis
+  tag: "8"
+  pullPolicy: IfNotPresent
+
+# Placement and size. Both empty by default, so local k8s schedules it the way it always has.
+# The OKE overlay pins it to the infra node beside postgres and activemq, and gives it requests --
+# a session store that schedules BestEffort is the first thing evicted under memory pressure, and
+# evicting it drops every login at once.
+nodeSelector: {}
+resources: {}

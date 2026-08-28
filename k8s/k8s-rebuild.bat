@@ -47,7 +47,7 @@ if not "%CTX%"=="docker-desktop" (
 rem === Shared topology ConfigMap must exist BEFORE any service helm-upgrade (the new deployments mount it;
 rem     a missing ConfigMap would fail the pod + time out the rollout). Idempotent; k8s-up installs it too. ===
 echo --- ensuring topology ConfigMap...
-call helm upgrade --install esquire-topology charts\esquire-topology || exit /b 1
+call helm upgrade --install esquire-topology charts\esquire-topology --force-conflicts || exit /b 1
 
 set TARGET=%1
 if "%TARGET%"=="" set TARGET=all
@@ -104,6 +104,25 @@ rem     available for k8s-up. Context = repo root (../..) so the Dockerfile can 
 echo [docker] building infra image esquire-postgres:17 (db.seed schema)...
 docker build %NOCACHE% -f ..\postgres\Dockerfile -t esquire-postgres:17 ..\..
 if errorlevel 1 ( echo postgres image build failed & exit /b 1 )
+rem STAMPED AND DELIVERED, like the broker below. Building :17 alone changes NOTHING: values\postgres.yaml
+rem carries a tag from an earlier stamp, so the chart keeps pulling that older image and the SEED BAKED INTO
+rem IT comes with it. The failure is silent until a FRESH init replays the old schema -- a v1.2.12 column was
+rem missing and the tree cache could not load, on a rebuild that had reported success. (Same block as
+rem ..\k8s-compact\k8s-rebuild.bat; classic was left without it.)
+docker image inspect esquire-postgres:17-%BASE_TS% >nul 2>&1
+if errorlevel 1 ( set "TS=17-%BASE_TS%" ) else ( set "TS=17-%BASE_TS%%MM%" )
+docker tag esquire-postgres:17 esquire-postgres:%TS%
+call :patch_yaml postgres
+helm status esquire-infra >nul 2>&1
+if errorlevel 1 (
+  echo [skip] esquire-infra not deployed -- yaml stamped %TS%; next k8s-up will deploy it.
+) else (
+  echo [helm] upgrading esquire-infra to tag %TS%...
+  call helm upgrade esquire-infra charts\infra\postgres -f values\postgres.yaml --reset-then-reuse-values --set image.tag=%TS% --force-conflicts
+  if errorlevel 1 ( echo helm upgrade failed for esquire-infra & exit /b 1 )
+  kubectl rollout status statefulset/esquire-infra-postgres --timeout=180s
+)
+
 
 rem === Infra image: esquire-activemq (the broker config + the JMX exporter agent). Built HERE because
 rem     NOTHING else did: compose only ever built it implicitly on a first `up`, and `docker compose up -d`
@@ -119,12 +138,26 @@ docker image inspect esquire-activemq:%BASE_TS% >nul 2>&1
 if errorlevel 1 ( set "TS=%BASE_TS%" ) else ( set "TS=%BASE_TS%%MM%" )
 docker tag esquire-activemq:6.1.4 esquire-activemq:%TS%
 call :patch_yaml activemq
+
+rem === Infra image: esquire-keycloak (the esquire theme + the realm import). Built HERE because NOTHING in
+rem     this tree did: values\keycloak.yaml named a STAMPED tag that only ever existed in one machine's docker
+rem     cache -- patched by hand once, in July -- so a clean machine could not bring this stack up at all. The
+rem     compact tree hit exactly this and says so at its own keycloak build.
+rem     Same shape as postgres and activemq above: build at the chart's fixed tag, then stamp, because that
+rem     fixed tag hits the kubelet digest cache and the pod keeps the image it already resolved. ===
+echo [docker] building infra image esquire-keycloak (theme + realm import)...
+docker build %NOCACHE% -f ..\keycloak\Dockerfile.keycloak -t esquire-keycloak:26.4.7 ..\keycloak
+if errorlevel 1 ( echo keycloak image build failed & exit /b 1 )
+docker image inspect esquire-keycloak:%BASE_TS% >nul 2>&1
+if errorlevel 1 ( set "TS=%BASE_TS%" ) else ( set "TS=%BASE_TS%%MM%" )
+docker tag esquire-keycloak:26.4.7 esquire-keycloak:%TS%
+call :patch_yaml keycloak
 helm status esquire-infra-amq >nul 2>&1
 if errorlevel 1 (
   echo [skip] esquire-infra-amq not deployed -- yaml stamped %TS%; next k8s-up will deploy it.
 ) else (
   echo [helm] upgrading esquire-infra-amq to tag %TS%...
-  call helm upgrade esquire-infra-amq charts\infra\activemq -f values\activemq.yaml --reset-then-reuse-values --set image.tag=%TS%
+  call helm upgrade esquire-infra-amq charts\infra\activemq -f values\activemq.yaml --reset-then-reuse-values --set image.tag=%TS% --force-conflicts
   if errorlevel 1 ( echo helm upgrade failed for esquire-infra-amq & exit /b 1 )
   kubectl rollout status statefulset/esquire-infra-amq-activemq --timeout=180s
 )
@@ -176,7 +209,7 @@ if errorlevel 1 (
   goto end
 )
 echo [helm] upgrading esquire-backend to tag %TS%...
-call helm upgrade esquire-backend charts\esquire-backend --reset-then-reuse-values --set image.tag=%TS%
+call helm upgrade esquire-backend charts\esquire-backend --reset-then-reuse-values --set image.tag=%TS% --force-conflicts
 if errorlevel 1 ( echo helm upgrade failed & exit /b 1 )
 kubectl rollout status statefulset/esquire-backend-backend --timeout=180s
 goto end
@@ -215,10 +248,19 @@ if errorlevel 1 (
 echo [helm] upgrading esquire-%SVC% to tag %TS%...
 rem Required secrets that are NOT reusable on the first upgrade after they became helm-required
 rem (nothing to --reset-then-reuse yet). kcMaster's admin secret matches the realm-import literal,
-rem same dev value k8s-up.bat / compose use.
+rem === esq-kcMaster admin client secret ===
+rem Taken from the machine (set it once: setx KCMASTER_ADMIN_SECRET <value>), and only when it is not
+rem set does the placeholder below apply, which cannot authenticate -- the same shape ..\k8s-oci\oke-up.bat already uses, so
+rem one variable now covers docker, both local profiles, both OKE scripts and the deploy workflow. The
+rem realm import (keycloak\import\esquire.json) is DATA, not a script: it stays a literal and is the
+rem authority the others must match on a rotation.
+if "%KCMASTER_ADMIN_SECRET%"=="" set "KCMASTER_ADMIN_SECRET=OBTAIN-FROM-KEYCLOAK"
+if "%KCMASTER_ADMIN_SECRET%"=="OBTAIN-FROM-KEYCLOAK" echo [!] KCMASTER_ADMIN_SECRET is not set -- the identity sync will FAIL to authenticate. Get the value from KeyCloak: realm esquire -^> clients -^> esq-kcMaster -^> Credentials, then: setx KCMASTER_ADMIN_SECRET ^<value^>
+
+rem The same variable k8s-up.bat and compose read.
 set "SECRETS="
-if /i "%SVC%"=="kcmaster" set "SECRETS=--set keycloak.adminClientSecret=MHgq0Nu69u2uJ2johaK1wxQLMdakELXN"
-call helm upgrade esquire-%SVC% charts\esquire-%SVC% --reset-then-reuse-values --set image.tag=%TS% %SECRETS%
+if /i "%SVC%"=="kcmaster" set "SECRETS=--set keycloak.adminClientSecret=%KCMASTER_ADMIN_SECRET%"
+call helm upgrade esquire-%SVC% charts\esquire-%SVC% --reset-then-reuse-values --set image.tag=%TS% %SECRETS% --force-conflicts
 if errorlevel 1 ( echo helm upgrade failed for esquire-%SVC% & exit /b 1 )
 kubectl rollout status statefulset/esquire-%SVC%-%SVC% --timeout=180s
 exit /b 0

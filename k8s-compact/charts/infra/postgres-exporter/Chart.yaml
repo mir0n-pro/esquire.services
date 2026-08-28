@@ -1,0 +1,6 @@
+apiVersion: v2
+name: postgres-exporter
+description: Prometheus exporter for the Esquire Postgres StatefulSet (v1.2.11 O1 observability; local/dev k8s only).
+type: application
+version: 0.1.0
+appVersion: "0.16.0"

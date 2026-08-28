@@ -15,57 +15,67 @@
  *                   EsqContextHolder.applyMessage(event) and clears in a finally (I10)
  * 08/11/2026 mir0n  v1.2.12 -- the RodEvent constructor call carries a null change number: a KeyCloak
  *                   request leg reports none
+ * 08/12/2026 mir0n  v1.2.13 -- implements IIdentityGateway: postRequest(RodEvent) transmits, postMessage is skipped,
+ *                   start()/stop() take the kc leg (was the constructor)
  */
 package pro.mir0n.esquire.enyMan.messaging;
 
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Component;
+import pro.mir0n.esquire.backend.identity.IIdentityGateway;
 import pro.mir0n.esquire.backend.service.EsqContextHolder;
 import pro.mir0n.esquire.common.EsqConstants;
-import pro.mir0n.esquire.messaging.BusConstants;
 import pro.mir0n.esquire.messaging.MessagingBus;
 import pro.mir0n.esquire.messaging.IXRod;
 import pro.mir0n.esquire.messaging.RodEvent;
 
-import java.util.LinkedHashMap;
-import java.util.Map;
-import java.util.UUID;
+import java.util.function.Consumer;
 
 /**
- * The enyMan end of the kc bus (CLIENT role): one rod, both legs. {@link #publishPathUpdate} transmits an
- * EVENT_UPDATE_PATH URQ to kcMaster after a USR entity move (fire-and-forget; the tx already committed);
- * {@link #onResponse} receives the URS/URR reply for THIS enyMan instance (the rod-id selector isolates it).
+ * The enyMan end of the kc bus (CLIENT role): one rod, both legs, and enyMan's identity gateway when the
+ * provider is another service. {@link #post} transmits the move as an EVENT_UPDATE_PATH URQ to kcMaster after
+ * a USR entity move (nothing comes back; the tx already committed); {@link #onResponse} receives the URS/URR
+ * reply for THIS enyMan instance (the rod-id selector isolates it).
+ *
+ * <p>The process wires it as the {@link IIdentityGateway}, so the move queue knows only that it posted.
  */
 @Slf4j
-@Component
-public class KcBusAdapter {
+public class KcBusAdapter implements IIdentityGateway {
 
-    private final IXRod rod;
+    private IXRod rod;
+    private volatile Consumer<RodEvent> resultHandler;
 
-    public KcBusAdapter() {
-        // kc CLIENT: transmit UPDATE_PATH requests + receive URS/URR responses (rod-id selector), on one rod.
+    /** Takes the kc leg: transmit URQ requests + receive URS/URR responses (rod-id selector), on one rod. */
+    @Override
+    public void start() {
         this.rod = MessagingBus.getInstance().getXRod(EsqConstants.BUS_KEY_KC);
         this.rod.setWorker(this::onResponse);   // role-support: throws if the rod has no receive leg
         this.rod.transmit(null);                // role-support: probe -- throws if the rod has no transmit leg
     }
 
-    public void publishPathUpdate(String entityId, int entityKind, String newPath,
-                                  String requestId, String correlationId) {
-        // guarantee a non-null tracking id (the former testReqId; it rides as the requestId on the wire).
-        String reqId = (requestId != null && !requestId.isBlank()) ? requestId : UUID.randomUUID().toString();
+    /** Nothing to close: the rod belongs to the messaging bus, which closes it at context close. */
+    @Override
+    public void stop() {
+    }
+
+    /** Skipped: on the bus, kcMaster subscribes to the entity broadcasts itself. */
+    @Override
+    public void postMessage(RodEvent event) {
+    }
+
+    @Override
+    public void setResultHandler(Consumer<RodEvent> handler) {
+        this.resultHandler = handler;
+    }
+
+    @Override
+    public void postRequest(RodEvent event) {
         try {
-            Map<String, Object> body = new LinkedHashMap<>();
-            body.put("id",   entityId);
-            body.put("kind", entityKind);
-            body.put("path", newPath);
-            RodEvent e = new RodEvent(RodEvent.Op.UPDATE_PATH, entityKind, entityId, null, null,
-                    System.currentTimeMillis(), correlationId, reqId, null, null, BusConstants.MSG_TYPE_REQUEST,
-                    body);
-            rod.transmit(e);
-            log.info("KC | URQ | {} | {} | {} | {}", BusConstants.EVENT_UPDATE_PATH, entityKind, entityId, reqId);
+            rod.transmit(event);
+            log.info("KC | URQ | {} | {} | {} | {}", event.opCode(), event.kind(), event.entityId(), event.requestId());
         } catch (Exception ex) {
             // fire-and-forget: the move tx already committed, so a publish failure is logged for reconciliation.
-            log.error("enyMan: failed to publish URQ: entityId={}, requestId={}, error={}", entityId, reqId, ex.getMessage());
+            log.error("enyMan: failed to publish URQ: entityId={}, requestId={}, error={}",
+                    event.entityId(), event.requestId(), ex.getMessage());
         }
     }
 
@@ -75,6 +85,10 @@ public class KcBusAdapter {
         try {
             // msgType is the authoritative URS/URR tag (no need to inspect the body).
             log.info("KC | {} | {} | {} | {} | {}", e.msgType(), e.opCode(), e.kind(), e.entityId(), e.requestId());
+            Consumer<RodEvent> handler = this.resultHandler;
+            if (handler != null) {
+                handler.accept(e);
+            }
             // todo: correlate by requestId; update sync status / reconciliation record
         } finally {
             EsqContextHolder.clear();

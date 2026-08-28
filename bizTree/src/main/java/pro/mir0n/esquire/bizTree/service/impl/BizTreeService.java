@@ -22,6 +22,8 @@
  *                   (recursive subtree from biztree H2 cache; via IBizTreeCacheRepository.findSubtree)
  * 07/08/2026 mir0n  @EsqTraced on esquire / esquireEntityNode / esquirePath / esquireSubtree
  *                   (esq.svc.tree / node / path / subtree)
+ * 08/26/2026 mir0n  esquirePath resolves through findPathScoped(id, rootPath) -- a path outside the caller root
+ *                   path no longer answers
  */
 
 package pro.mir0n.esquire.bizTree.service.impl;
@@ -110,7 +112,7 @@ public class BizTreeService  implements IBizTreeService {
         String requestId = RequestContextUtils.getRequestId();
         devLog.debug("srvc: esquirePath: id:{}, rootPath:{}",  id, rootPath);
 
-        String ret = treeNodeRepository.findPath(id);
+        String ret = treeNodeRepository.findPathScoped(id, rootPath);
         List<String> rpath = EsqTreeNodeMapper.pathArray(rootPath);
 
         List<String> path =  EsqTreeNodeMapper.pathArray(ret);

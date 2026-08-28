@@ -84,6 +84,25 @@ untouched until v1.2 stable.
   FAILS on a missing image. (Postgres is pulled by Testcontainers.)
 - **No secrets, no runner, no deploy** -- a broken reactor never reaches a deploy.
 
+### 4.1a Which deployment shape a deploy job brings up
+
+Esquire ships two shapes, and the deploy scripts **do not choose one** -- they deploy the shape the machine
+is already running, so a dev box left on compact keeps being proven on compact.
+
+- `deploy-compose.cmd` reads the running containers: a compose project `esq-compact` present means compact,
+  otherwise classic.
+- `deploy-local.cmd` reads the installed helm releases: `esquire-mesnie` present means compact,
+  `esquire-enyman` means classic.
+
+Nothing running falls back to **classic**, the default shape -- and classic also wins if both are somehow
+installed. Guessing between two half-installed shapes is how a cluster ends up in a mixed state; one
+deterministic answer is worth more than a clever one.
+
+The job then **removes the other shape** before bringing its own up. This is not tidiness: both shapes share
+one bus and one database, so leaving Mesnie and enyMan/keySmith/kcMaster subscribed to the entity broadcast
+at the same time gives two sets of consumers for one event, with nothing failing to announce it. On compose
+the other stack must go for a simpler reason as well -- both bind the same host ports.
+
 ### 4.2 Local deploy (self-hosted, dev box) -- `deploy-local.yml`
 - **On:** `push` to `pending-**` **only** (never `pull_request` -- see security note).
 - **Runner:** `runs-on: [self-hosted, windows]` -- a runner registered on the Windows dev box (the
@@ -133,8 +152,8 @@ untouched until v1.2 stable.
   simply lands on `develop`, after which `workflow_dispatch` can dry-run the chain before the next real
   merge. (`develop` is the repo's default branch, so once landed the **Run workflow** button is available.)
 - **Runner:** **GitHub-hosted with OCI credentials** (mirrors today's manual flow:
-  `k8s-oci/oke-login.bat` fetches the kubeconfig via the OCI CLI, then `helm upgrade` per
-  `k8s-oci/oke-up.bat`).
+  `k8s-oci-compact/oke-login.bat` fetches the kubeconfig via the OCI CLI, then `helm upgrade` per
+  `k8s-oci-compact/oke-up.bat`).
 - **Steps (3 jobs):** **build-push** -- checkout services (the merge commit) + explorer (`develop`) +
   db.seed (`develop`) as siblings -> `setup-java` **24** -> compute the image tag (Micro read from
   `release_notes.txt` + a UTC datetime stamp) -> `mvn -B package -DskipTests` (CI already ran full verify
@@ -143,7 +162,7 @@ untouched until v1.2 stable.
   `mir0n-pro` identity that created the packages via the manual push). **deploy** (behind the Environment
   gate) -- configure the OCI CLI from the Environment secrets -> fetch the OKE kubeconfig
   (`oci ce cluster create-kubeconfig`) -> `deploy-oke.sh` = `helm upgrade --install` each chart with the
-  GHCR tag + the `k8s-oci/values` overlay (audit option **(a)** DB triggers -- no auKeep on OKE).
+  GHCR tag + the `k8s-oci-compact/values` overlay (audit option **(a)** DB triggers -- no auKeep on OKE).
   **validate** -- e2e + load (below).
 - **Validate = the e2e + load chain** (the part deliberately kept OUT of the local scope, see 4.2a):
   after the rollout, run the explorer **e2e** (Playwright, `BASE_URL=https://esquire.mir0n.pro`) and the
@@ -154,7 +173,7 @@ untouched until v1.2 stable.
 - **Environment gate:** the `deploy` job pins the **`oke-production`** Environment with a required
   reviewer -- a manual approval before the deploy step, where automation bites hardest. The Environment
   holds the OCI api-key secrets (`OCI_CLI_USER` / `OCI_CLI_TENANCY` / `OCI_CLI_FINGERPRINT` /
-  `OCI_CLI_KEY_CONTENT`), `MIR0N_PWD` (postgres + Keycloak admin), the optional app secrets
+  `OCI_CLI_KEY_CONTENT`), `MIR0N_PWD` (postgres + Keycloak admin), the app secrets
   (`BFF_KC_SECRET` / `GW_EXCHANGE_SECRET` / `BFF_SESSION_SECRET`), and the `OKE_CLUSTER_OCID` /
   `OKE_REGION` (default `ca-toronto-1`) variables; nothing can use them until the deploy is approved. The
   GHCR push runs in the ungated `build-push` job and authenticates with the `GHCR_TOKEN` PAT.
@@ -211,8 +230,10 @@ refs.
 - **OKE deploy:** the OCI api-key set in the `oke-production` Environment (`OCI_CLI_USER` /
   `OCI_CLI_TENANCY` / `OCI_CLI_FINGERPRINT` / `OCI_CLI_KEY_CONTENT` + the `OKE_CLUSTER_OCID` / `OKE_REGION`
   vars); the kubeconfig is fetched at run time via `oci ce cluster create-kubeconfig`, not stored. Plus
-  `MIR0N_PWD` and the optional app secrets (`BFF_KC_SECRET` / `GW_EXCHANGE_SECRET` / `BFF_SESSION_SECRET`).
-- **Local deploy:** none -- the self-hosted runner already has the local kube context + docker.
+  `MIR0N_PWD` and the app secrets (`BFF_KC_SECRET` / `GW_EXCHANGE_SECRET` / `BFF_SESSION_SECRET`).
+- **Local deploy:** no GitHub secrets -- the runner uses the local kube context + docker. The four app
+  secrets come from the BOX instead (see the prerequisites below); without them a first install brings
+  the BFF up with no client secret and the browser login answers `unauthorized_client`.
 
 ---
 
@@ -268,7 +289,7 @@ jobs:
 ```
 
 Notes:
-- This mirrors the existing split: `k8s/*.bat` / `k8s-oci/*.bat` / `compose/*.bat` are the **manual**
+- This mirrors the existing split: `k8s/*.bat` / `k8s-oci-compact/*.bat` / `compose/*.bat` are the **manual**
   scripts; the `.github/scripts/*` entries are the **automated** wrappers that reuse those same `.bat`
   scripts (the single source of deploy logic).
 - Keeping the logic in scripts (not inline YAML) makes the steps runnable / debuggable outside GHA
@@ -297,7 +318,7 @@ local git repository. The pipeline reinforces the separation instead of eroding 
 - The self-hosted runner is installed with its own work folder, isolated from both other spaces.
 - Deploy artifacts (images, helm releases) are produced from the runner's checkout, never from
   `C:\MyProjects\...` or `C:\mir0n-git\...`.
-- Local `k8s/*.bat` / `k8s-oci/*.bat` remain the **manual** path from the dev tree; the GHA jobs are
+- Local `k8s/*.bat` / `k8s-oci-compact/*.bat` remain the **manual** path from the dev tree; the GHA jobs are
   a **parallel, separated** path from the remote. They do not share state.
 
 **Deploy-time debugging vs commit.** Deployment is also a correction phase: while deploying we may
@@ -324,7 +345,7 @@ deploy-time experiments. Implications for GHA:
    `oke-login` + `helm upgrade` flow; images from GHCR. (A self-hosted runner on OKE stays a future
    option if we want to stop exporting OCI creds.)
 
-Both were read off what the project does today (`k8s/*.bat` -> docker-desktop; `k8s-oci/*.bat` ->
+Both were read off what the project does today (`k8s/*.bat` -> docker-desktop; `k8s-oci-compact/*.bat` ->
 GHCR + OCI CLI + helm), so the workflows match the existing manual steps rather than introducing a
 new toolchain.
 
@@ -339,6 +360,17 @@ new toolchain.
 - `kubectl`, `helm`, **JDK 24**, **Maven**, PowerShell (built in).
 - MetalLB + ingress-nginx installed once: `k8s\addMetalLB.bat`, `k8s\addIngressNginx.bat`
   (they survive `k8s-down`; `k8s-up.bat` only warns if missing).
+- **Git for Windows**, with `C:\Program Files\Git\bin` on the PATH ahead of
+  `C:\Windows\System32`. The `shell: bash` steps resolve `bash` from the PATH, and with WSL
+  installed the `bash.exe` in System32 wins. WSL's bash cannot take the Windows path of the temp script the
+  runner writes -- it eats the backslashes and the job dies on its first shell step.
+- **The app secrets set on the box** (`setx`): `KCMASTER_ADMIN_SECRET`, `BFF_KC_SECRET`,
+  `GW_EXCHANGE_SECRET`, `BFF_SESSION_SECRET`. `k8s-up.bat` passes each to helm only when it is set, so a
+  deploy without one keeps the value the release already holds -- but a FIRST install then has none. The
+  three client secrets live on their clients in the realm (`esq-kcMaster`, `esq-angular`,
+  `esq-gw-exchange`); the session secret is any random string, it only signs the BFF's cookie.
+- A runner started from a shell predating any of these carries the OLD environment: restart it after
+  setting them.
 
 **Register the runner** (GitHub -> the `esquire.services` repo -> Settings -> Actions -> Runners ->
 New self-hosted runner -> Windows x64). Install it **outside** the dev tree and the git mirror, e.g.:

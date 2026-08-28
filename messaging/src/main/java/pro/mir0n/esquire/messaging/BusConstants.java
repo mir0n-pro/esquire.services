@@ -104,7 +104,7 @@ public class BusConstants {
     public static final String PARAM_NO_LOCAL          = "noLocal";
 
     // --- EventType vocabulary ---
-    public static final String EVENT_CREATE            = "C";
+    public static final String EVENT_CREATE            = "I";
     public static final String EVENT_UPDATE            = "U";
     public static final String EVENT_DELETE            = "D";
     public static final String EVENT_UPDATE_PATH       = "X";

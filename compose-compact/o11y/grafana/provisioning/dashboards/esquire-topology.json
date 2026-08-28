@@ -1,0 +1,4776 @@
+{
+ "uid": "esq-topology",
+ "title": "Esquire Topology -- the system, live",
+ "editable": false,
+ "tags": [
+  "esquire",
+  "o11y",
+  "topology"
+ ],
+ "timezone": "",
+ "schemaVersion": 39,
+ "version": 1,
+ "refresh": "30s",
+ "time": {
+  "from": "now-1h",
+  "to": "now"
+ },
+ "panels": [
+  {
+   "type": "row",
+   "title": "The system",
+   "gridPos": {
+    "h": 1,
+    "w": 24,
+    "x": 0,
+    "y": 0
+   },
+   "collapsed": false
+  },
+  {
+   "type": "canvas",
+   "title": "The system -- every component, live",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "esq-prometheus"
+   },
+   "gridPos": {
+    "h": 24,
+    "w": 24,
+    "x": 0,
+    "y": 1
+   },
+   "description": "Every component of the system, live. Each box carries a LIVE NUMBER, not just a colour -- a traffic light tells you a thing is RUNNING, not that it has stopped doing any WORK, which is the failure that actually happens. CLICK A BOX for its detail. GREEN = reporting, RED = down, GREY = no data (which here almost always means observability is OFF -- ESQ_OBSERVABILITY_ENABLED, off by default -- not that the component is broken). THE SHAPE IS AN ASSERTION ABOUT THE ARCHITECTURE. An ARROW is a point-to-point call (REST / DB): something called and WAITED for an answer. A DROP onto a BAR is the async bus -- a shared medium, where a service publishes to a destination and walks away, and who is listening is not its business. THERE ARE TWO BARS, not one, because there are TWO BUSES -- and which services share a medium (and which never meet) is the whole thing this picture is for: auKeep hears everyone and answers no one; gateWard is on the entity lane alone. The IAM request-response bus is GONE: kcMaster runs inside Mesnie, so identity is a method call, not a message. The observability stack is deliberately NOT on this board: the viewer is not the system, and six boxes of tooling watching the tooling would drown the question this board exists to answer.",
+   "targets": [
+    {
+     "refId": "h0",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(clamp_max((max(pg_up)) or vector(0), 1)) * (2 - clamp_max(((((100 * sum(pg_stat_database_numbackends) / max(pg_settings_max_connections) > bool 80)) or vector(0)) + ((((100 * sum(rate(pg_stat_database_blks_hit[5m])) / (sum(rate(pg_stat_database_blks_hit[5m])) + sum(rate(pg_stat_database_blks_read[5m]))) < bool 90) and (sum(rate(pg_stat_database_blks_read[5m])) > 0))) or vector(0))), 1))",
+     "legendFormat": "postgres",
+     "instant": true
+    },
+    {
+     "refId": "a0",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(vector(0)) or vector(0)",
+     "legendFormat": "postgres alarm",
+     "instant": true
+    },
+    {
+     "refId": "v0_0",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(sum(pg_stat_database_numbackends)) or vector(0)",
+     "legendFormat": "postgres conns",
+     "instant": true
+    },
+    {
+     "refId": "v0_1",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(sum(rate(pg_stat_database_xact_commit[5m]))) or vector(0)",
+     "legendFormat": "postgres tx/s",
+     "instant": true
+    },
+    {
+     "refId": "v0_2",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(100 * sum(rate(pg_stat_database_blks_hit[5m])) / (sum(rate(pg_stat_database_blks_hit[5m])) + sum(rate(pg_stat_database_blks_read[5m])))) or vector(0)",
+     "legendFormat": "postgres cache",
+     "instant": true
+    },
+    {
+     "refId": "h1",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(clamp_max((count(process_uptime_seconds{job=\"esquire-services\", application=\"aukeep\"})) or vector(0), 1)) * (2 - clamp_max(((((max(process_cpu_usage{job=\"esquire-services\", application=\"aukeep\"}) > bool 0.8)) or vector(0)) + (((100 * sum(jvm_memory_used_bytes{application=\"aukeep\", area=\"heap\"}) / sum(jvm_memory_max_bytes{application=\"aukeep\", area=\"heap\"}) > bool 85)) or vector(0)) + (((100 * sum(hikaricp_connections_active{application=\"aukeep\"}) / sum(hikaricp_connections_max{application=\"aukeep\"}) > bool 90)) or vector(0))), 1))",
+     "legendFormat": "aukeep",
+     "instant": true
+    },
+    {
+     "refId": "a1",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(clamp_max(((((sum(increase(logback_events_total{application=\"aukeep\", level=\"error\"}[1m])) > bool 0)) or vector(0)) + ((((sum(increase(messaging_error_total{application=\"aukeep\"}[1m])) or vector(0)) > bool 0)) or vector(0))), 1)) or vector(0)",
+     "legendFormat": "aukeep alarm",
+     "instant": true
+    },
+    {
+     "refId": "v1_0",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(sum(rate(messaging_receive_total{application=\"aukeep\"}[5m]))) or vector(0)",
+     "legendFormat": "aukeep msg/s",
+     "instant": true
+    },
+    {
+     "refId": "v1_1",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(avg(process_cpu_usage{job=\"esquire-services\", application=\"aukeep\"}) * 100) or vector(0)",
+     "legendFormat": "aukeep cpu",
+     "instant": true
+    },
+    {
+     "refId": "v1_2",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(sum(jvm_memory_used_bytes{application=\"aukeep\", area=\"heap\"})) or vector(0)",
+     "legendFormat": "aukeep heap",
+     "instant": true
+    },
+    {
+     "refId": "h2",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(clamp_max((max(activemq_broker_uptime_millis)) or vector(0), 1)) * (2 - clamp_max(((((max(activemq_broker_memory_percent_usage) > bool 70)) or vector(0)) + (((max(activemq_queue_depth) > bool 100)) or vector(0)) + (((min(activemq_queue_consumer_count) < bool 1)) or vector(0))), 1))",
+     "legendFormat": "activemq",
+     "instant": true
+    },
+    {
+     "refId": "a2",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(vector(0)) or vector(0)",
+     "legendFormat": "activemq alarm",
+     "instant": true
+    },
+    {
+     "refId": "v2_0",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(max(activemq_broker_total_message_count)) or vector(0)",
+     "legendFormat": "activemq held",
+     "instant": true
+    },
+    {
+     "refId": "v2_1",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(max(activemq_broker_current_connections_count)) or vector(0)",
+     "legendFormat": "activemq conns",
+     "instant": true
+    },
+    {
+     "refId": "v2_2",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(max(activemq_broker_memory_percent_usage)) or vector(0)",
+     "legendFormat": "activemq memory",
+     "instant": true
+    },
+    {
+     "refId": "h3",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(clamp_max((max(up{job=\"otel-collector\"})) or vector(0), 1)) * (2 - clamp_max(((((sum(rate(otelcol_receiver_refused_spans_total[1m])) > bool 0)) or vector(0))), 1))",
+     "legendFormat": "collector",
+     "instant": true
+    },
+    {
+     "refId": "a3",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(vector(0)) or vector(0)",
+     "legendFormat": "collector alarm",
+     "instant": true
+    },
+    {
+     "refId": "v3_0",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(sum(rate(otelcol_receiver_accepted_spans_total[5m]))) or vector(0)",
+     "legendFormat": "collector spans/s",
+     "instant": true
+    },
+    {
+     "refId": "v3_1",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(sum(otelcol_exporter_queue_size)) or vector(0)",
+     "legendFormat": "collector queue",
+     "instant": true
+    },
+    {
+     "refId": "v3_2",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(sum(increase(otelcol_receiver_refused_spans_total[1m]))) or vector(0)",
+     "legendFormat": "collector refused",
+     "instant": true
+    },
+    {
+     "refId": "h4",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(clamp_max((count(process_uptime_seconds{job=\"esquire-services\", application=\"pacman\"})) or vector(0), 1)) * (2 - clamp_max(((((max(process_cpu_usage{job=\"esquire-services\", application=\"pacman\"}) > bool 0.8)) or vector(0)) + (((100 * sum(jvm_memory_used_bytes{application=\"pacman\", area=\"heap\"}) / sum(jvm_memory_max_bytes{application=\"pacman\", area=\"heap\"}) > bool 85)) or vector(0)) + (((100 * sum(hikaricp_connections_active{application=\"pacman\"}) / sum(hikaricp_connections_max{application=\"pacman\"}) > bool 90)) or vector(0))), 1))",
+     "legendFormat": "pacman",
+     "instant": true
+    },
+    {
+     "refId": "a4",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(clamp_max(((((sum(increase(http_server_requests_seconds_count{application=\"pacman\", status=~\"5..\"}[1m])) > bool 0)) or vector(0)) + (((sum(increase(logback_events_total{application=\"pacman\", level=\"error\"}[1m])) > bool 0)) or vector(0)) + ((((sum(increase(messaging_error_total{application=\"pacman\"}[1m])) or vector(0)) > bool 0)) or vector(0))), 1)) or vector(0)",
+     "legendFormat": "pacman alarm",
+     "instant": true
+    },
+    {
+     "refId": "v4_0",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(sum(rate(http_server_requests_seconds_count{application=\"pacman\"}[5m]))) or vector(0)",
+     "legendFormat": "pacman req/s",
+     "instant": true
+    },
+    {
+     "refId": "v4_1",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(avg(process_cpu_usage{job=\"esquire-services\", application=\"pacman\"}) * 100) or vector(0)",
+     "legendFormat": "pacman cpu",
+     "instant": true
+    },
+    {
+     "refId": "v4_2",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(sum(jvm_memory_used_bytes{application=\"pacman\", area=\"heap\"})) or vector(0)",
+     "legendFormat": "pacman heap",
+     "instant": true
+    },
+    {
+     "refId": "h5",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(clamp_max((count(process_uptime_seconds{job=\"esquire-services\", application=\"mesnie\"})) or vector(0), 1)) * (2 - clamp_max(((((max(process_cpu_usage{job=\"esquire-services\", application=\"mesnie\"}) > bool 0.8)) or vector(0)) + (((100 * sum(jvm_memory_used_bytes{application=\"mesnie\", area=\"heap\"}) / sum(jvm_memory_max_bytes{application=\"mesnie\", area=\"heap\"}) > bool 85)) or vector(0)) + (((100 * sum(hikaricp_connections_active{application=\"mesnie\"}) / sum(hikaricp_connections_max{application=\"mesnie\"}) > bool 90)) or vector(0))), 1))",
+     "legendFormat": "mesnie",
+     "instant": true
+    },
+    {
+     "refId": "a5",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(clamp_max(((((sum(increase(http_server_requests_seconds_count{application=\"mesnie\", status=~\"5..\"}[1m])) > bool 0)) or vector(0)) + (((sum(increase(logback_events_total{application=\"mesnie\", level=\"error\"}[1m])) > bool 0)) or vector(0)) + ((((sum(increase(messaging_error_total{application=\"mesnie\"}[1m])) or vector(0)) > bool 0)) or vector(0)) + ((((sum(increase(esq_biz_move_failed_total{application=\"mesnie\"}[1m])) or vector(0)) > bool 0)) or vector(0))), 1)) or vector(0)",
+     "legendFormat": "mesnie alarm",
+     "instant": true
+    },
+    {
+     "refId": "v5_0",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(sum(rate(http_server_requests_seconds_count{application=\"mesnie\"}[5m]))) or vector(0)",
+     "legendFormat": "mesnie req/s",
+     "instant": true
+    },
+    {
+     "refId": "v5_1",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(avg(process_cpu_usage{job=\"esquire-services\", application=\"mesnie\"}) * 100) or vector(0)",
+     "legendFormat": "mesnie cpu",
+     "instant": true
+    },
+    {
+     "refId": "v5_2",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(sum(jvm_memory_used_bytes{application=\"mesnie\", area=\"heap\"})) or vector(0)",
+     "legendFormat": "mesnie heap",
+     "instant": true
+    },
+    {
+     "refId": "h6",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(clamp_max((count(process_uptime_seconds{job=\"esquire-services\", application=\"gateward\"})) or vector(0), 1)) * (2 - clamp_max(((((max(process_cpu_usage{job=\"esquire-services\", application=\"gateward\"}) > bool 0.8)) or vector(0)) + (((100 * sum(jvm_memory_used_bytes{application=\"gateward\", area=\"heap\"}) / sum(jvm_memory_max_bytes{application=\"gateward\", area=\"heap\"}) > bool 85)) or vector(0)) + (((100 * sum(hikaricp_connections_active{application=\"gateward\"}) / sum(hikaricp_connections_max{application=\"gateward\"}) > bool 90)) or vector(0))), 1))",
+     "legendFormat": "gateward",
+     "instant": true
+    },
+    {
+     "refId": "a6",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(clamp_max(((((sum(increase(http_server_requests_seconds_count{application=\"gateward\", status=~\"5..\"}[1m])) > bool 0)) or vector(0)) + (((sum(increase(logback_events_total{application=\"gateward\", level=\"error\"}[1m])) > bool 0)) or vector(0)) + ((((sum(increase(messaging_error_total{application=\"gateward\"}[1m])) or vector(0)) > bool 0)) or vector(0)) + (((max(resilience4j_circuitbreaker_state{job=\"esquire-services\", application=\"gateward\", state=\"open\"}) > bool 0)) or vector(0))), 1)) or vector(0)",
+     "legendFormat": "gateward alarm",
+     "instant": true
+    },
+    {
+     "refId": "v6_0",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(sum(rate(http_server_requests_seconds_count{application=\"gateward\"}[5m]))) or vector(0)",
+     "legendFormat": "gateward req/s",
+     "instant": true
+    },
+    {
+     "refId": "v6_1",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(avg(process_cpu_usage{job=\"esquire-services\", application=\"gateward\"}) * 100) or vector(0)",
+     "legendFormat": "gateward cpu",
+     "instant": true
+    },
+    {
+     "refId": "v6_2",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(sum(rate(reactor_netty_http_server_data_sent_bytes_sum{uri!=\"/actuator\"}[5m]))) or vector(0)",
+     "legendFormat": "gateward net out",
+     "instant": true
+    },
+    {
+     "refId": "h7",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(clamp_max((max(up{job=\"keycloak\"})) or vector(0), 1)) * (2 - clamp_max(((((max(process_cpu_usage{job=\"keycloak\"}) > bool 0.8)) or vector(0)) + (((100 * sum(jvm_memory_used_bytes{job=\"keycloak\", area=\"heap\"}) / sum(jvm_memory_max_bytes{job=\"keycloak\", area=\"heap\"}) > bool 85)) or vector(0))), 1))",
+     "legendFormat": "keycloak",
+     "instant": true
+    },
+    {
+     "refId": "a7",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(vector(0)) or vector(0)",
+     "legendFormat": "keycloak alarm",
+     "instant": true
+    },
+    {
+     "refId": "v7_0",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(sum(rate(http_server_requests_seconds_count{job=\"keycloak\"}[5m]))) or vector(0)",
+     "legendFormat": "keycloak req/s",
+     "instant": true
+    },
+    {
+     "refId": "v7_1",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(avg(process_cpu_usage{job=\"keycloak\"}) * 100) or vector(0)",
+     "legendFormat": "keycloak cpu",
+     "instant": true
+    },
+    {
+     "refId": "v7_2",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(sum(jvm_memory_used_bytes{job=\"keycloak\", area=\"heap\"})) or vector(0)",
+     "legendFormat": "keycloak heap",
+     "instant": true
+    },
+    {
+     "refId": "h8",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(clamp_max((max(up{job=\"esquire-bff\"})) or vector(0), 1)) * (2 - clamp_max(((((sum(rate(process_cpu_seconds_total{job=\"esquire-bff\"}[5m])) * 100 > bool 80)) or vector(0))), 1))",
+     "legendFormat": "backend",
+     "instant": true
+    },
+    {
+     "refId": "a8",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(vector(0)) or vector(0)",
+     "legendFormat": "backend alarm",
+     "instant": true
+    },
+    {
+     "refId": "v8_0",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(sum(rate(esq_bff_inbound_duration_seconds_count[5m]))) or vector(0)",
+     "legendFormat": "backend req/s",
+     "instant": true
+    },
+    {
+     "refId": "v8_1",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(sum(rate(process_cpu_seconds_total{job=\"esquire-bff\"}[5m])) * 100) or vector(0)",
+     "legendFormat": "backend cpu",
+     "instant": true
+    },
+    {
+     "refId": "v8_2",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(sum(process_resident_memory_bytes{job=\"esquire-bff\"})) or vector(0)",
+     "legendFormat": "backend rss",
+     "instant": true
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "color": {
+      "mode": "thresholds"
+     },
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "red",
+        "value": null
+       },
+       {
+        "color": "orange",
+        "value": 1
+       },
+       {
+        "color": "green",
+        "value": 2
+       }
+      ]
+     },
+     "decimals": 2,
+     "mappings": []
+    },
+    "overrides": [
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "postgres conns"
+      },
+      "properties": [
+       {
+        "id": "unit",
+        "value": "short"
+       },
+       {
+        "id": "decimals",
+        "value": 0
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "postgres tx/s"
+      },
+      "properties": [
+       {
+        "id": "unit",
+        "value": "ops"
+       },
+       {
+        "id": "decimals",
+        "value": 1
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "postgres cache"
+      },
+      "properties": [
+       {
+        "id": "unit",
+        "value": "percent"
+       },
+       {
+        "id": "decimals",
+        "value": 1
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "aukeep msg/s"
+      },
+      "properties": [
+       {
+        "id": "unit",
+        "value": "ops"
+       },
+       {
+        "id": "decimals",
+        "value": 1
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "aukeep cpu"
+      },
+      "properties": [
+       {
+        "id": "unit",
+        "value": "percent"
+       },
+       {
+        "id": "decimals",
+        "value": 1
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "aukeep heap"
+      },
+      "properties": [
+       {
+        "id": "unit",
+        "value": "bytes"
+       },
+       {
+        "id": "decimals",
+        "value": 0
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "activemq held"
+      },
+      "properties": [
+       {
+        "id": "unit",
+        "value": "short"
+       },
+       {
+        "id": "decimals",
+        "value": 0
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "activemq conns"
+      },
+      "properties": [
+       {
+        "id": "unit",
+        "value": "short"
+       },
+       {
+        "id": "decimals",
+        "value": 0
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "activemq memory"
+      },
+      "properties": [
+       {
+        "id": "unit",
+        "value": "percent"
+       },
+       {
+        "id": "decimals",
+        "value": 1
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "collector spans/s"
+      },
+      "properties": [
+       {
+        "id": "unit",
+        "value": "ops"
+       },
+       {
+        "id": "decimals",
+        "value": 1
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "collector queue"
+      },
+      "properties": [
+       {
+        "id": "unit",
+        "value": "short"
+       },
+       {
+        "id": "decimals",
+        "value": 0
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "collector refused"
+      },
+      "properties": [
+       {
+        "id": "unit",
+        "value": "short"
+       },
+       {
+        "id": "decimals",
+        "value": 0
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "pacman req/s"
+      },
+      "properties": [
+       {
+        "id": "unit",
+        "value": "reqps"
+       },
+       {
+        "id": "decimals",
+        "value": 1
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "pacman cpu"
+      },
+      "properties": [
+       {
+        "id": "unit",
+        "value": "percent"
+       },
+       {
+        "id": "decimals",
+        "value": 1
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "pacman heap"
+      },
+      "properties": [
+       {
+        "id": "unit",
+        "value": "bytes"
+       },
+       {
+        "id": "decimals",
+        "value": 0
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "mesnie req/s"
+      },
+      "properties": [
+       {
+        "id": "unit",
+        "value": "reqps"
+       },
+       {
+        "id": "decimals",
+        "value": 1
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "mesnie cpu"
+      },
+      "properties": [
+       {
+        "id": "unit",
+        "value": "percent"
+       },
+       {
+        "id": "decimals",
+        "value": 1
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "mesnie heap"
+      },
+      "properties": [
+       {
+        "id": "unit",
+        "value": "bytes"
+       },
+       {
+        "id": "decimals",
+        "value": 0
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "gateward req/s"
+      },
+      "properties": [
+       {
+        "id": "unit",
+        "value": "reqps"
+       },
+       {
+        "id": "decimals",
+        "value": 1
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "gateward cpu"
+      },
+      "properties": [
+       {
+        "id": "unit",
+        "value": "percent"
+       },
+       {
+        "id": "decimals",
+        "value": 1
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "gateward net out"
+      },
+      "properties": [
+       {
+        "id": "unit",
+        "value": "Bps"
+       },
+       {
+        "id": "decimals",
+        "value": 1
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "keycloak req/s"
+      },
+      "properties": [
+       {
+        "id": "unit",
+        "value": "reqps"
+       },
+       {
+        "id": "decimals",
+        "value": 1
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "keycloak cpu"
+      },
+      "properties": [
+       {
+        "id": "unit",
+        "value": "percent"
+       },
+       {
+        "id": "decimals",
+        "value": 1
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "keycloak heap"
+      },
+      "properties": [
+       {
+        "id": "unit",
+        "value": "bytes"
+       },
+       {
+        "id": "decimals",
+        "value": 0
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "backend req/s"
+      },
+      "properties": [
+       {
+        "id": "unit",
+        "value": "reqps"
+       },
+       {
+        "id": "decimals",
+        "value": 1
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "backend cpu"
+      },
+      "properties": [
+       {
+        "id": "unit",
+        "value": "percent"
+       },
+       {
+        "id": "decimals",
+        "value": 1
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "backend rss"
+      },
+      "properties": [
+       {
+        "id": "unit",
+        "value": "bytes"
+       },
+       {
+        "id": "decimals",
+        "value": 0
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "postgres alarm"
+      },
+      "properties": [
+       {
+        "id": "thresholds",
+        "value": {
+         "mode": "absolute",
+         "steps": [
+          {
+           "color": "#FFFFFF",
+           "value": null
+          },
+          {
+           "color": "#FF2D95",
+           "value": 1
+          }
+         ]
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "aukeep alarm"
+      },
+      "properties": [
+       {
+        "id": "thresholds",
+        "value": {
+         "mode": "absolute",
+         "steps": [
+          {
+           "color": "#FFFFFF",
+           "value": null
+          },
+          {
+           "color": "#FF2D95",
+           "value": 1
+          }
+         ]
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "activemq alarm"
+      },
+      "properties": [
+       {
+        "id": "thresholds",
+        "value": {
+         "mode": "absolute",
+         "steps": [
+          {
+           "color": "#FFFFFF",
+           "value": null
+          },
+          {
+           "color": "#FF2D95",
+           "value": 1
+          }
+         ]
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "collector alarm"
+      },
+      "properties": [
+       {
+        "id": "thresholds",
+        "value": {
+         "mode": "absolute",
+         "steps": [
+          {
+           "color": "#FFFFFF",
+           "value": null
+          },
+          {
+           "color": "#FF2D95",
+           "value": 1
+          }
+         ]
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "pacman alarm"
+      },
+      "properties": [
+       {
+        "id": "thresholds",
+        "value": {
+         "mode": "absolute",
+         "steps": [
+          {
+           "color": "#FFFFFF",
+           "value": null
+          },
+          {
+           "color": "#FF2D95",
+           "value": 1
+          }
+         ]
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "mesnie alarm"
+      },
+      "properties": [
+       {
+        "id": "thresholds",
+        "value": {
+         "mode": "absolute",
+         "steps": [
+          {
+           "color": "#FFFFFF",
+           "value": null
+          },
+          {
+           "color": "#FF2D95",
+           "value": 1
+          }
+         ]
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "gateward alarm"
+      },
+      "properties": [
+       {
+        "id": "thresholds",
+        "value": {
+         "mode": "absolute",
+         "steps": [
+          {
+           "color": "#FFFFFF",
+           "value": null
+          },
+          {
+           "color": "#FF2D95",
+           "value": 1
+          }
+         ]
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "keycloak alarm"
+      },
+      "properties": [
+       {
+        "id": "thresholds",
+        "value": {
+         "mode": "absolute",
+         "steps": [
+          {
+           "color": "#FFFFFF",
+           "value": null
+          },
+          {
+           "color": "#FF2D95",
+           "value": 1
+          }
+         ]
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "backend alarm"
+      },
+      "properties": [
+       {
+        "id": "thresholds",
+        "value": {
+         "mode": "absolute",
+         "steps": [
+          {
+           "color": "#FFFFFF",
+           "value": null
+          },
+          {
+           "color": "#FF2D95",
+           "value": 1
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   },
+   "options": {
+    "inlineEditing": false,
+    "showAdvancedTypes": true,
+    "panZoom": false,
+    "infinitePan": false,
+    "root": {
+     "name": "Esquire",
+     "type": "frame",
+     "elements": [
+      {
+       "name": "postgres",
+       "type": "rectangle",
+       "background": {
+        "color": {
+         "field": "postgres",
+         "fixed": "#D9D9D9"
+        }
+       },
+       "border": {
+        "color": {
+         "field": "postgres alarm"
+        },
+        "width": 3
+       },
+       "config": {
+        "align": "center",
+        "valign": "top",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 12,
+        "text": {
+         "fixed": "Esq2025",
+         "mode": "fixed"
+        },
+        "links": [
+         {
+          "title": "details",
+          "url": "/d/esq-services/",
+          "targetBlank": false
+         }
+        ]
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 30,
+        "top": 250,
+        "width": 140,
+        "height": 80,
+        "rotation": 0
+       },
+       "links": [
+        {
+         "title": "details for postgres",
+         "url": "/d/esq-services/",
+         "targetBlank": false
+        }
+       ],
+       "connections": []
+      },
+      {
+       "name": "aukeep",
+       "type": "rectangle",
+       "background": {
+        "color": {
+         "field": "aukeep",
+         "fixed": "#D9D9D9"
+        }
+       },
+       "border": {
+        "color": {
+         "field": "aukeep alarm"
+        },
+        "width": 3
+       },
+       "config": {
+        "align": "center",
+        "valign": "top",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 12,
+        "text": {
+         "fixed": "auKeep",
+         "mode": "fixed"
+        },
+        "links": [
+         {
+          "title": "details",
+          "url": "/d/esq-services/?var-application=aukeep",
+          "targetBlank": false
+         }
+        ]
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 30,
+        "top": 40,
+        "width": 140,
+        "height": 80,
+        "rotation": 0
+       },
+       "links": [
+        {
+         "title": "details for aukeep",
+         "url": "/d/esq-services/?var-application=aukeep",
+         "targetBlank": false
+        }
+       ],
+       "connections": [
+        {
+         "targetName": "bus:audit-c",
+         "path": "straight",
+         "source": {
+          "x": 1,
+          "y": -0.0
+         },
+         "target": {
+          "x": -1,
+          "y": 0.78
+         },
+         "color": {
+          "fixed": "#8FA8C8"
+         },
+         "size": {
+          "fixed": 2
+         },
+         "direction": "reverse"
+        },
+        {
+         "targetName": "postgres",
+         "path": "angled",
+         "source": {
+          "x": 0.0,
+          "y": -1
+         },
+         "target": {
+          "x": 0.0,
+          "y": 1
+         },
+         "color": {
+          "fixed": "#C0392B"
+         },
+         "size": {
+          "fixed": 1.25
+         },
+         "direction": "forward"
+        }
+       ]
+      },
+      {
+       "name": "activemq",
+       "type": "rectangle",
+       "background": {
+        "color": {
+         "field": "activemq",
+         "fixed": "#D9D9D9"
+        }
+       },
+       "border": {
+        "color": {
+         "field": "activemq alarm"
+        },
+        "width": 3
+       },
+       "config": {
+        "align": "center",
+        "valign": "top",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 12,
+        "text": {
+         "fixed": "ActiveMQ",
+         "mode": "fixed"
+        },
+        "links": [
+         {
+          "title": "details",
+          "url": "/d/esq-services/",
+          "targetBlank": false
+         }
+        ]
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 293,
+        "top": 596,
+        "width": 140,
+        "height": 80,
+        "rotation": 0
+       },
+       "links": [
+        {
+         "title": "details for activemq",
+         "url": "/d/esq-services/",
+         "targetBlank": false
+        }
+       ],
+       "connections": [
+        {
+         "targetName": "bus:audit-c",
+         "path": "straight",
+         "source": {
+          "x": -0.4,
+          "y": 1
+         },
+         "target": {
+          "x": 0,
+          "y": -1
+         },
+         "color": {
+          "fixed": "#8FA8C8"
+         },
+         "size": {
+          "fixed": 2
+         },
+         "direction": "none"
+        },
+        {
+         "targetName": "bus:esquire.entity",
+         "path": "straight",
+         "source": {
+          "x": 0.4,
+          "y": 1
+         },
+         "target": {
+          "x": 0,
+          "y": -1
+         },
+         "color": {
+          "fixed": "#9DC08B"
+         },
+         "size": {
+          "fixed": 2
+         },
+         "direction": "none"
+        }
+       ]
+      },
+      {
+       "name": "collector",
+       "type": "ellipse",
+       "background": {
+        "color": {
+         "field": "collector",
+         "fixed": "#D9D9D9"
+        }
+       },
+       "border": {
+        "color": {
+         "field": "collector alarm"
+        },
+        "width": 3
+       },
+       "config": {
+        "align": "center",
+        "valign": "top",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 12,
+        "text": {
+         "fixed": "COLLECTOR",
+         "mode": "fixed"
+        },
+        "links": [
+         {
+          "title": "details",
+          "url": "/d/esq-services/",
+          "targetBlank": false
+         }
+        ]
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 714,
+        "top": 596,
+        "width": 140,
+        "height": 80,
+        "rotation": 0
+       },
+       "links": [
+        {
+         "title": "details for collector",
+         "url": "/d/esq-services/",
+         "targetBlank": false
+        }
+       ],
+       "connections": []
+      },
+      {
+       "name": "pacman",
+       "type": "rectangle",
+       "background": {
+        "color": {
+         "field": "pacman",
+         "fixed": "#D9D9D9"
+        }
+       },
+       "border": {
+        "color": {
+         "field": "pacman alarm"
+        },
+        "width": 3
+       },
+       "config": {
+        "align": "center",
+        "valign": "top",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 12,
+        "text": {
+         "fixed": "pacMan",
+         "mode": "fixed"
+        },
+        "links": [
+         {
+          "title": "details",
+          "url": "/d/esq-services/?var-application=pacman",
+          "targetBlank": false
+         }
+        ]
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 500,
+        "top": 30,
+        "width": 140,
+        "height": 80,
+        "rotation": 0
+       },
+       "links": [
+        {
+         "title": "details for pacman",
+         "url": "/d/esq-services/?var-application=pacman",
+         "targetBlank": false
+        }
+       ],
+       "connections": [
+        {
+         "targetName": "bus:audit-c",
+         "path": "straight",
+         "source": {
+          "x": -1,
+          "y": 0.66
+         },
+         "target": {
+          "x": 1,
+          "y": 0.9256
+         },
+         "color": {
+          "fixed": "#8FA8C8"
+         },
+         "size": {
+          "fixed": 2
+         },
+         "direction": "forward"
+        },
+        {
+         "targetName": "bus:esquire.entity",
+         "path": "straight",
+         "source": {
+          "x": -1,
+          "y": -0.0
+         },
+         "target": {
+          "x": 1,
+          "y": 0.82
+         },
+         "color": {
+          "fixed": "#9DC08B"
+         },
+         "size": {
+          "fixed": 2
+         },
+         "direction": "forward"
+        },
+        {
+         "targetName": "postgres",
+         "path": "angled",
+         "source": {
+          "x": -1,
+          "y": -0.66
+         },
+         "target": {
+          "x": 1,
+          "y": 0.66
+         },
+         "color": {
+          "fixed": "#C0392B"
+         },
+         "size": {
+          "fixed": 1.25
+         },
+         "direction": "forward"
+        }
+       ]
+      },
+      {
+       "name": "mesnie",
+       "type": "rectangle",
+       "background": {
+        "color": {
+         "field": "mesnie",
+         "fixed": "#D9D9D9"
+        }
+       },
+       "border": {
+        "color": {
+         "field": "mesnie alarm"
+        },
+        "width": 3
+       },
+       "config": {
+        "align": "center",
+        "valign": "top",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 12,
+        "text": {
+         "fixed": "Mesnie",
+         "mode": "fixed"
+        },
+        "links": [
+         {
+          "title": "details",
+          "url": "/d/esq-services/?var-application=mesnie",
+          "targetBlank": false
+         }
+        ]
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 500,
+        "top": 332,
+        "width": 140,
+        "height": 178,
+        "rotation": 0
+       },
+       "links": [
+        {
+         "title": "details for mesnie",
+         "url": "/d/esq-services/?var-application=mesnie",
+         "targetBlank": false
+        }
+       ],
+       "connections": [
+        {
+         "targetName": "bus:audit-c",
+         "path": "straight",
+         "source": {
+          "x": -1,
+          "y": -0.0
+         },
+         "target": {
+          "x": 1,
+          "y": -0.584
+         },
+         "color": {
+          "fixed": "#8FA8C8"
+         },
+         "size": {
+          "fixed": 2
+         },
+         "direction": "forward"
+        },
+        {
+         "targetName": "bus:esquire.entity",
+         "path": "straight",
+         "source": {
+          "x": -1,
+          "y": -0.66
+         },
+         "target": {
+          "x": 1,
+          "y": -0.81896
+         },
+         "color": {
+          "fixed": "#9DC08B"
+         },
+         "size": {
+          "fixed": 2
+         },
+         "direction": "both"
+        },
+        {
+         "targetName": "postgres",
+         "path": "angled",
+         "source": {
+          "x": -1,
+          "y": 0.66
+         },
+         "target": {
+          "x": 1,
+          "y": -0.66
+         },
+         "color": {
+          "fixed": "#C0392B"
+         },
+         "size": {
+          "fixed": 1.25
+         },
+         "direction": "forward"
+        },
+        {
+         "targetName": "keycloak",
+         "path": "angled",
+         "source": {
+          "x": 1,
+          "y": -0.550561797752809
+         },
+         "target": {
+          "x": -1,
+          "y": 0.0
+         },
+         "color": {
+          "fixed": "#000000"
+         },
+         "size": {
+          "fixed": 1.25
+         },
+         "direction": "forward"
+        }
+       ]
+      },
+      {
+       "name": "gateward",
+       "type": "rectangle",
+       "background": {
+        "color": {
+         "field": "gateward",
+         "fixed": "#D9D9D9"
+        }
+       },
+       "border": {
+        "color": {
+         "field": "gateward alarm"
+        },
+        "width": 3
+       },
+       "config": {
+        "align": "center",
+        "valign": "top",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 12,
+        "text": {
+         "fixed": "gateWard",
+         "mode": "fixed"
+        },
+        "links": [
+         {
+          "title": "details",
+          "url": "/d/esq-services/?var-application=gateward",
+          "targetBlank": false
+         }
+        ]
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 714,
+        "top": 180,
+        "width": 140,
+        "height": 150,
+        "rotation": 0
+       },
+       "links": [
+        {
+         "title": "details for gateward",
+         "url": "/d/esq-services/?var-application=gateward",
+         "targetBlank": false
+        }
+       ],
+       "connections": [
+        {
+         "targetName": "bus:esquire.entity",
+         "path": "straight",
+         "source": {
+          "x": -1,
+          "y": 0.22000000000000003
+         },
+         "target": {
+          "x": 1,
+          "y": 0.146
+         },
+         "color": {
+          "fixed": "#9DC08B"
+         },
+         "size": {
+          "fixed": 2
+         },
+         "direction": "reverse"
+        },
+        {
+         "targetName": "mesnie",
+         "path": "angled",
+         "source": {
+          "x": -1,
+          "y": -0.66
+         },
+         "target": {
+          "x": 1,
+          "y": 0.66
+         },
+         "color": {
+          "fixed": "#000000"
+         },
+         "size": {
+          "fixed": 1.25
+         },
+         "direction": "forward"
+        },
+        {
+         "targetName": "pacman",
+         "path": "angled",
+         "source": {
+          "x": -1,
+          "y": 0.66
+         },
+         "target": {
+          "x": 1,
+          "y": -0.0
+         },
+         "color": {
+          "fixed": "#000000"
+         },
+         "size": {
+          "fixed": 1.25
+         },
+         "direction": "forward"
+        },
+        {
+         "targetName": "keycloak",
+         "path": "angled",
+         "source": {
+          "x": 0.0,
+          "y": -1
+         },
+         "target": {
+          "x": 0.0,
+          "y": 1
+         },
+         "color": {
+          "fixed": "#000000"
+         },
+         "size": {
+          "fixed": 1.25
+         },
+         "direction": "forward"
+        },
+        {
+         "targetName": "postgres",
+         "path": "angled",
+         "source": {
+          "x": -1,
+          "y": -0.21999999999999997
+         },
+         "target": {
+          "x": 1,
+          "y": -0.0
+         },
+         "color": {
+          "fixed": "#C0392B"
+         },
+         "size": {
+          "fixed": 1.25
+         },
+         "direction": "forward"
+        }
+       ]
+      },
+      {
+       "name": "keycloak",
+       "type": "rectangle",
+       "background": {
+        "color": {
+         "field": "keycloak",
+         "fixed": "#D9D9D9"
+        }
+       },
+       "border": {
+        "color": {
+         "field": "keycloak alarm"
+        },
+        "width": 3
+       },
+       "config": {
+        "align": "center",
+        "valign": "top",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 12,
+        "text": {
+         "fixed": "KEYCLOAK",
+         "mode": "fixed"
+        },
+        "links": [
+         {
+          "title": "details",
+          "url": "/d/esq-services/",
+          "targetBlank": false
+         }
+        ]
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 714,
+        "top": 430,
+        "width": 140,
+        "height": 80,
+        "rotation": 0
+       },
+       "links": [
+        {
+         "title": "details for keycloak",
+         "url": "/d/esq-services/",
+         "targetBlank": false
+        }
+       ],
+       "connections": []
+      },
+      {
+       "name": "backend",
+       "type": "rectangle",
+       "background": {
+        "color": {
+         "field": "backend",
+         "fixed": "#D9D9D9"
+        }
+       },
+       "border": {
+        "color": {
+         "field": "backend alarm"
+        },
+        "width": 3
+       },
+       "config": {
+        "align": "center",
+        "valign": "top",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 12,
+        "text": {
+         "fixed": "Explorer",
+         "mode": "fixed"
+        },
+        "links": [
+         {
+          "title": "details",
+          "url": "/d/esq-services/",
+          "targetBlank": false
+         }
+        ]
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 928,
+        "top": 180,
+        "width": 140,
+        "height": 80,
+        "rotation": 0
+       },
+       "links": [
+        {
+         "title": "details for backend",
+         "url": "/d/esq-services/",
+         "targetBlank": false
+        }
+       ],
+       "connections": [
+        {
+         "targetName": "gateward",
+         "path": "angled",
+         "source": {
+          "x": -1,
+          "y": 0.0
+         },
+         "target": {
+          "x": 1,
+          "y": 0.4666666666666667
+         },
+         "color": {
+          "fixed": "#000000"
+         },
+         "size": {
+          "fixed": 1.25
+         },
+         "direction": "forward"
+        },
+        {
+         "targetName": "keycloak",
+         "path": "angled",
+         "source": {
+          "x": 0.0,
+          "y": -1
+         },
+         "target": {
+          "x": 1,
+          "y": 0.4
+         },
+         "color": {
+          "fixed": "#000000"
+         },
+         "size": {
+          "fixed": 1.25
+         },
+         "direction": "forward"
+        }
+       ]
+      },
+      {
+       "name": "postgres icon",
+       "type": "icon",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "path": {
+         "fixed": "img/icons/esq/postgres.svg",
+         "mode": "fixed"
+        },
+        "fill": {
+         "fixed": "transparent"
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 35,
+        "top": 254,
+        "width": 28,
+        "height": 28,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "postgres conns",
+       "type": "metric-value",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 12,
+        "text": {
+         "field": "postgres conns",
+         "mode": "field",
+         "fixed": ""
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 30,
+        "top": 272,
+        "width": 140,
+        "height": 19,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "postgres tx/s",
+       "type": "metric-value",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 12,
+        "text": {
+         "field": "postgres tx/s",
+         "mode": "field",
+         "fixed": ""
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 30,
+        "top": 291,
+        "width": 140,
+        "height": 19,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "postgres cache",
+       "type": "metric-value",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 12,
+        "text": {
+         "field": "postgres cache",
+         "mode": "field",
+         "fixed": ""
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 30,
+        "top": 310,
+        "width": 140,
+        "height": 19,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "aukeep icon",
+       "type": "icon",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "path": {
+         "fixed": "img/icons/esq/aukeep.svg?v=2",
+         "mode": "fixed"
+        },
+        "fill": {
+         "fixed": "transparent"
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 35,
+        "top": 44,
+        "width": 28,
+        "height": 28,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "aukeep msg/s",
+       "type": "metric-value",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 12,
+        "text": {
+         "field": "aukeep msg/s",
+         "mode": "field",
+         "fixed": ""
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 30,
+        "top": 62,
+        "width": 140,
+        "height": 19,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "aukeep cpu",
+       "type": "metric-value",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 12,
+        "text": {
+         "field": "aukeep cpu",
+         "mode": "field",
+         "fixed": ""
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 30,
+        "top": 81,
+        "width": 140,
+        "height": 19,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "aukeep heap",
+       "type": "metric-value",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 12,
+        "text": {
+         "field": "aukeep heap",
+         "mode": "field",
+         "fixed": ""
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 30,
+        "top": 100,
+        "width": 140,
+        "height": 19,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "activemq icon",
+       "type": "icon",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "path": {
+         "fixed": "img/icons/esq/activemq.svg",
+         "mode": "fixed"
+        },
+        "fill": {
+         "fixed": "transparent"
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 298,
+        "top": 600,
+        "width": 28,
+        "height": 28,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "activemq held",
+       "type": "metric-value",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 12,
+        "text": {
+         "field": "activemq held",
+         "mode": "field",
+         "fixed": ""
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 293,
+        "top": 618,
+        "width": 140,
+        "height": 19,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "activemq conns",
+       "type": "metric-value",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 12,
+        "text": {
+         "field": "activemq conns",
+         "mode": "field",
+         "fixed": ""
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 293,
+        "top": 637,
+        "width": 140,
+        "height": 19,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "activemq memory",
+       "type": "metric-value",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 12,
+        "text": {
+         "field": "activemq memory",
+         "mode": "field",
+         "fixed": ""
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 293,
+        "top": 656,
+        "width": 140,
+        "height": 19,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "collector spans/s",
+       "type": "metric-value",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 12,
+        "text": {
+         "field": "collector spans/s",
+         "mode": "field",
+         "fixed": ""
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 714,
+        "top": 618,
+        "width": 140,
+        "height": 19,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "collector queue",
+       "type": "metric-value",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 12,
+        "text": {
+         "field": "collector queue",
+         "mode": "field",
+         "fixed": ""
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 714,
+        "top": 637,
+        "width": 140,
+        "height": 19,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "collector refused",
+       "type": "metric-value",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 12,
+        "text": {
+         "field": "collector refused",
+         "mode": "field",
+         "fixed": ""
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 714,
+        "top": 656,
+        "width": 140,
+        "height": 19,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "pacman icon",
+       "type": "icon",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "path": {
+         "fixed": "img/icons/esq/pacman.svg",
+         "mode": "fixed"
+        },
+        "fill": {
+         "fixed": "transparent"
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 505,
+        "top": 34,
+        "width": 28,
+        "height": 28,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "pacman req/s",
+       "type": "metric-value",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 12,
+        "text": {
+         "field": "pacman req/s",
+         "mode": "field",
+         "fixed": ""
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 500,
+        "top": 52,
+        "width": 140,
+        "height": 19,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "pacman cpu",
+       "type": "metric-value",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 12,
+        "text": {
+         "field": "pacman cpu",
+         "mode": "field",
+         "fixed": ""
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 500,
+        "top": 71,
+        "width": 140,
+        "height": 19,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "pacman heap",
+       "type": "metric-value",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 12,
+        "text": {
+         "field": "pacman heap",
+         "mode": "field",
+         "fixed": ""
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 500,
+        "top": 90,
+        "width": 140,
+        "height": 19,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "mesnie icon",
+       "type": "icon",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "path": {
+         "fixed": "img/icons/esq/mesnie.svg?v=3",
+         "mode": "fixed"
+        },
+        "fill": {
+         "fixed": "transparent"
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 505,
+        "top": 336,
+        "width": 28,
+        "height": 28,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "mesnie req/s",
+       "type": "metric-value",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 12,
+        "text": {
+         "field": "mesnie req/s",
+         "mode": "field",
+         "fixed": ""
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 500,
+        "top": 357,
+        "width": 140,
+        "height": 19,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "mesnie cpu",
+       "type": "metric-value",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 12,
+        "text": {
+         "field": "mesnie cpu",
+         "mode": "field",
+         "fixed": ""
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 500,
+        "top": 376,
+        "width": 140,
+        "height": 19,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "mesnie heap",
+       "type": "metric-value",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 12,
+        "text": {
+         "field": "mesnie heap",
+         "mode": "field",
+         "fixed": ""
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 500,
+        "top": 395,
+        "width": 140,
+        "height": 19,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "mesnie inner enyMan",
+       "type": "rectangle",
+       "background": {
+        "color": {
+         "fixed": "rgba(0, 0, 0, 0.28)"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "rgba(255, 255, 255, 0.55)"
+        },
+        "width": 1
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 11,
+        "text": {
+         "fixed": "",
+         "mode": "fixed"
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 512.0,
+        "top": 420,
+        "width": 116,
+        "height": 22,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "mesnie inner enyMan icon",
+       "type": "icon",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "path": {
+         "fixed": "img/icons/esq/enyman.svg?v=2",
+         "mode": "fixed"
+        },
+        "fill": {
+         "fixed": "transparent"
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 516.0,
+        "top": 423.0,
+        "width": 16,
+        "height": 16,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "mesnie inner enyMan label",
+       "type": "text",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 11,
+        "text": {
+         "fixed": "enyMan",
+         "mode": "fixed"
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 534.0,
+        "top": 420,
+        "width": 90,
+        "height": 22,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "mesnie inner keySmith",
+       "type": "rectangle",
+       "background": {
+        "color": {
+         "fixed": "rgba(0, 0, 0, 0.28)"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "rgba(255, 255, 255, 0.55)"
+        },
+        "width": 1
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 11,
+        "text": {
+         "fixed": "",
+         "mode": "fixed"
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 512.0,
+        "top": 448,
+        "width": 116,
+        "height": 22,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "mesnie inner keySmith icon",
+       "type": "icon",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "path": {
+         "fixed": "img/icons/esq/keysmith.svg?v=2",
+         "mode": "fixed"
+        },
+        "fill": {
+         "fixed": "transparent"
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 516.0,
+        "top": 451.0,
+        "width": 16,
+        "height": 16,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "mesnie inner keySmith label",
+       "type": "text",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 11,
+        "text": {
+         "fixed": "keySmith",
+         "mode": "fixed"
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 534.0,
+        "top": 448,
+        "width": 90,
+        "height": 22,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "mesnie inner kcMaster",
+       "type": "rectangle",
+       "background": {
+        "color": {
+         "fixed": "rgba(0, 0, 0, 0.28)"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "rgba(255, 255, 255, 0.55)"
+        },
+        "width": 1
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 11,
+        "text": {
+         "fixed": "",
+         "mode": "fixed"
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 512.0,
+        "top": 476,
+        "width": 116,
+        "height": 22,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "mesnie inner kcMaster icon",
+       "type": "icon",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "path": {
+         "fixed": "img/icons/esq/kcmaster.svg?v=2",
+         "mode": "fixed"
+        },
+        "fill": {
+         "fixed": "transparent"
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 516.0,
+        "top": 479.0,
+        "width": 16,
+        "height": 16,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "mesnie inner kcMaster label",
+       "type": "text",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 11,
+        "text": {
+         "fixed": "kcMaster",
+         "mode": "fixed"
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 534.0,
+        "top": 476,
+        "width": 90,
+        "height": 22,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "gateward icon",
+       "type": "icon",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "path": {
+         "fixed": "img/icons/esq/gateward.svg?v=3",
+         "mode": "fixed"
+        },
+        "fill": {
+         "fixed": "transparent"
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 719,
+        "top": 184,
+        "width": 28,
+        "height": 28,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "gateward req/s",
+       "type": "metric-value",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 12,
+        "text": {
+         "field": "gateward req/s",
+         "mode": "field",
+         "fixed": ""
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 714,
+        "top": 205,
+        "width": 140,
+        "height": 19,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "gateward cpu",
+       "type": "metric-value",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 12,
+        "text": {
+         "field": "gateward cpu",
+         "mode": "field",
+         "fixed": ""
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 714,
+        "top": 224,
+        "width": 140,
+        "height": 19,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "gateward net out",
+       "type": "metric-value",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 12,
+        "text": {
+         "field": "gateward net out",
+         "mode": "field",
+         "fixed": ""
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 714,
+        "top": 243,
+        "width": 140,
+        "height": 19,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "gateward inner gateway",
+       "type": "rectangle",
+       "background": {
+        "color": {
+         "fixed": "rgba(0, 0, 0, 0.28)"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "rgba(255, 255, 255, 0.55)"
+        },
+        "width": 1
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 11,
+        "text": {
+         "fixed": "",
+         "mode": "fixed"
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 726.0,
+        "top": 268,
+        "width": 116,
+        "height": 22,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "gateward inner gateway icon",
+       "type": "icon",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "path": {
+         "fixed": "img/icons/esq/gateway.svg?v=3",
+         "mode": "fixed"
+        },
+        "fill": {
+         "fixed": "transparent"
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 730.0,
+        "top": 271.0,
+        "width": 16,
+        "height": 16,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "gateward inner gateway label",
+       "type": "text",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 11,
+        "text": {
+         "fixed": "gateway",
+         "mode": "fixed"
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 748.0,
+        "top": 268,
+        "width": 90,
+        "height": 22,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "gateward inner bizTree",
+       "type": "rectangle",
+       "background": {
+        "color": {
+         "fixed": "rgba(0, 0, 0, 0.28)"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "rgba(255, 255, 255, 0.55)"
+        },
+        "width": 1
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 11,
+        "text": {
+         "fixed": "",
+         "mode": "fixed"
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 726.0,
+        "top": 296,
+        "width": 116,
+        "height": 22,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "gateward inner bizTree icon",
+       "type": "icon",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "path": {
+         "fixed": "img/icons/esq/biztree.svg?v=2",
+         "mode": "fixed"
+        },
+        "fill": {
+         "fixed": "transparent"
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 730.0,
+        "top": 299.0,
+        "width": 16,
+        "height": 16,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "gateward inner bizTree label",
+       "type": "text",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 11,
+        "text": {
+         "fixed": "bizTree",
+         "mode": "fixed"
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 748.0,
+        "top": 296,
+        "width": 90,
+        "height": 22,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "keycloak icon",
+       "type": "icon",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "path": {
+         "fixed": "img/icons/esq/keycloak.svg?v=2",
+         "mode": "fixed"
+        },
+        "fill": {
+         "fixed": "transparent"
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 719,
+        "top": 434,
+        "width": 28,
+        "height": 28,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "keycloak req/s",
+       "type": "metric-value",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 12,
+        "text": {
+         "field": "keycloak req/s",
+         "mode": "field",
+         "fixed": ""
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 714,
+        "top": 452,
+        "width": 140,
+        "height": 19,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "keycloak cpu",
+       "type": "metric-value",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 12,
+        "text": {
+         "field": "keycloak cpu",
+         "mode": "field",
+         "fixed": ""
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 714,
+        "top": 471,
+        "width": 140,
+        "height": 19,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "keycloak heap",
+       "type": "metric-value",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 12,
+        "text": {
+         "field": "keycloak heap",
+         "mode": "field",
+         "fixed": ""
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 714,
+        "top": 490,
+        "width": 140,
+        "height": 19,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "backend icon",
+       "type": "icon",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "path": {
+         "fixed": "img/icons/esq/explorer.svg?v=3",
+         "mode": "fixed"
+        },
+        "fill": {
+         "fixed": "transparent"
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 933,
+        "top": 184,
+        "width": 28,
+        "height": 28,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "backend req/s",
+       "type": "metric-value",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 12,
+        "text": {
+         "field": "backend req/s",
+         "mode": "field",
+         "fixed": ""
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 928,
+        "top": 202,
+        "width": 140,
+        "height": 19,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "backend cpu",
+       "type": "metric-value",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 12,
+        "text": {
+         "field": "backend cpu",
+         "mode": "field",
+         "fixed": ""
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 928,
+        "top": 221,
+        "width": 140,
+        "height": 19,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "backend rss",
+       "type": "metric-value",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 12,
+        "text": {
+         "field": "backend rss",
+         "mode": "field",
+         "fixed": ""
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 928,
+        "top": 240,
+        "width": 140,
+        "height": 19,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "bus:audit-c",
+       "type": "rectangle",
+       "background": {
+        "color": {
+         "fixed": "#8FA8C8"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 10,
+        "text": {
+         "fixed": "",
+         "mode": "fixed"
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 300,
+        "top": 25,
+        "width": 46,
+        "height": 500,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "buslabel:audit-c",
+       "type": "text",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 12,
+        "text": {
+         "fixed": "Audit Broadcast Bus    (audit-c)",
+         "mode": "fixed"
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 193.0,
+        "top": 264.0,
+        "width": 260,
+        "height": 22,
+        "rotation": -90
+       },
+       "connections": []
+      },
+      {
+       "name": "bus:esquire.entity",
+       "type": "rectangle",
+       "background": {
+        "color": {
+         "fixed": "#9DC08B"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 10,
+        "text": {
+         "fixed": "",
+         "mode": "fixed"
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 380,
+        "top": 25,
+        "width": 46,
+        "height": 500,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "buslabel:esquire.entity",
+       "type": "text",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 12,
+        "text": {
+         "fixed": "Entity Broadcast Bus    (esquire.entity)",
+         "mode": "fixed"
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 273.0,
+        "top": 264.0,
+        "width": 260,
+        "height": 22,
+        "rotation": -90
+       },
+       "connections": []
+      },
+      {
+       "name": "legend:HEALTH:420",
+       "type": "text",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "left",
+        "valign": "middle",
+        "color": {
+         "fixed": "#B0B0B0"
+        },
+        "size": 11,
+        "text": {
+         "fixed": "HEALTH",
+         "mode": "fixed"
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 30,
+        "top": 420,
+        "width": 80,
+        "height": 18,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "legend:sw:OK",
+       "type": "rectangle",
+       "background": {
+        "color": {
+         "fixed": "#37872D"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 10,
+        "text": {
+         "fixed": "OK",
+         "mode": "fixed"
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 30,
+        "top": 440,
+        "width": 62,
+        "height": 18,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "legend:sw:TROUBLE",
+       "type": "rectangle",
+       "background": {
+        "color": {
+         "fixed": "#E0752D"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 10,
+        "text": {
+         "fixed": "TROUBLE",
+         "mode": "fixed"
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 96,
+        "top": 440,
+        "width": 62,
+        "height": 18,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "legend:sw:DOWN",
+       "type": "rectangle",
+       "background": {
+        "color": {
+         "fixed": "#C4162A"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 10,
+        "text": {
+         "fixed": "DOWN",
+         "mode": "fixed"
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 162,
+        "top": 440,
+        "width": 62,
+        "height": 18,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "legend:LINES:468",
+       "type": "text",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "left",
+        "valign": "middle",
+        "color": {
+         "fixed": "#B0B0B0"
+        },
+        "size": 11,
+        "text": {
+         "fixed": "LINES",
+         "mode": "fixed"
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 30,
+        "top": 468,
+        "width": 80,
+        "height": 18,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "legend:--  bus   (p:488",
+       "type": "text",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "left",
+        "valign": "middle",
+        "color": {
+         "fixed": "#9DC08B"
+        },
+        "size": 11,
+        "text": {
+         "fixed": "--  bus   (publish / consume)",
+         "mode": "fixed"
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 30,
+        "top": 488,
+        "width": 230,
+        "height": 18,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "legend:--  database:506",
+       "type": "text",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "left",
+        "valign": "middle",
+        "color": {
+         "fixed": "#C0392B"
+        },
+        "size": 11,
+        "text": {
+         "fixed": "--  database",
+         "mode": "fixed"
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 30,
+        "top": 506,
+        "width": 230,
+        "height": 18,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "legend:--  REST/HTT:524",
+       "type": "text",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "left",
+        "valign": "middle",
+        "color": {
+         "fixed": "#000000"
+        },
+        "size": 11,
+        "text": {
+         "fixed": "--  REST/HTTP",
+         "mode": "fixed"
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 30,
+        "top": 524,
+        "width": 230,
+        "height": 18,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "hubcap:0",
+       "type": "text",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "left",
+        "valign": "middle",
+        "color": {
+         "fixed": "#B0B0B0"
+        },
+        "size": 11,
+        "text": {
+         "fixed": "the telemetry hub: not a service, not infra.",
+         "mode": "fixed"
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 868,
+        "top": 612.0,
+        "width": 330,
+        "height": 16,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "hubcap:1",
+       "type": "text",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "left",
+        "valign": "middle",
+        "color": {
+         "fixed": "#B0B0B0"
+        },
+        "size": 11,
+        "text": {
+         "fixed": "every trace passes through it to be stored --",
+         "mode": "fixed"
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 868,
+        "top": 628.0,
+        "width": 330,
+        "height": 16,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "hubcap:2",
+       "type": "text",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "left",
+        "valign": "middle",
+        "color": {
+         "fixed": "#B0B0B0"
+        },
+        "size": 11,
+        "text": {
+         "fixed": "if it stops, traces are lost with no warning.",
+         "mode": "fixed"
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 868,
+        "top": 644.0,
+        "width": 330,
+        "height": 16,
+        "rotation": 0
+       },
+       "connections": []
+      }
+     ],
+     "background": {
+      "color": {
+       "fixed": "transparent"
+      }
+     },
+     "border": {
+      "color": {
+       "fixed": "transparent"
+      }
+     },
+     "constraint": {
+      "horizontal": "left",
+      "vertical": "top"
+     },
+     "placement": {
+      "left": 0,
+      "top": 0,
+      "width": 100,
+      "height": 100
+     }
+    }
+   }
+  },
+  {
+   "type": "row",
+   "title": "The bus -- both ends of every hop",
+   "gridPos": {
+    "h": 1,
+    "w": 24,
+    "x": 0,
+    "y": 25
+   },
+   "collapsed": false
+  },
+  {
+   "type": "timeseries",
+   "title": "Traffic per BUS (msg/s)",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "esq-prometheus"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 0,
+    "y": 26
+   },
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+      "drawStyle": "line",
+      "fillOpacity": 10
+     },
+     "unit": "ops",
+     "min": 0
+    },
+    "overrides": []
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "sum by (bus_id) (rate(messaging_send_total[1m]))",
+     "legendFormat": "sent -> {{bus_id}}"
+    },
+    {
+     "refId": "B",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "sum by (bus_id) (rate(messaging_receive_total[1m]))",
+     "legendFormat": "recv <- {{bus_id}}"
+    }
+   ],
+   "description": "The two lanes above, as traffic. audit-c and esquire.entity are SEPARATE MEDIA with different participants -- which is what the two lanes in the picture say, and what a single bar (or a mesh of arrows) would hide. There is no esquire.kc lane on this profile: identity is served inside Mesnie, so it never reaches the wire."
+  },
+  {
+   "type": "timeseries",
+   "title": "Queue depth per destination  (what the BROKER holds)",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "esq-prometheus"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 8,
+    "y": 26
+   },
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+      "drawStyle": "line",
+      "fillOpacity": 10
+     },
+     "unit": "short",
+     "min": 0
+    },
+    "overrides": []
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "activemq_queue_depth",
+     "legendFormat": "{{destination}}"
+    }
+   ],
+   "description": "Flat at zero is healthy. Climbing = consumers gone, wedged, or slower than the producers -- and unlike any service-side meter, this STAYS TRUE WHEN THE CONSUMER IS DEAD."
+  },
+  {
+   "type": "timeseries",
+   "title": "Consumers per destination  (the broker's view)",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "esq-prometheus"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 16,
+    "y": 26
+   },
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+      "drawStyle": "line",
+      "fillOpacity": 10
+     },
+     "unit": "short",
+     "min": 0
+    },
+    "overrides": []
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "activemq_queue_consumer_count",
+     "legendFormat": "{{destination}}"
+    },
+    {
+     "refId": "B",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "activemq_topic_consumer_count",
+     "legendFormat": "{{destination}}"
+    }
+   ],
+   "description": "A destination whose consumer count drops to ZERO while its box stays GREEN in the picture: the process is alive and has STOPPED LISTENING. Only the broker can see that."
+  },
+  {
+   "type": "row",
+   "title": "Live request flow -- discovered from real traces",
+   "gridPos": {
+    "h": 1,
+    "w": 24,
+    "x": 0,
+    "y": 34
+   },
+   "collapsed": false
+  },
+  {
+   "type": "nodeGraph",
+   "title": "Service graph -- who ACTUALLY calls whom",
+   "datasource": {
+    "type": "tempo",
+    "uid": "esq-tempo"
+   },
+   "gridPos": {
+    "h": 12,
+    "w": 12,
+    "x": 0,
+    "y": 35
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "tempo",
+      "uid": "esq-tempo"
+     },
+     "queryType": "serviceMap"
+    }
+   ],
+   "description": "The picture above is the architecture as DESIGNED -- always-on, every component, even at zero traffic. THIS is the architecture as it is actually RUNNING, derived by the Collector's servicegraph connector from real spans: it stays true when the code changes and a hand-laid picture would quietly go stale. It includes the R&R BUS HOPS, because those are real PRODUCER/CONSUMER spans. It shows only what TRAFFIC has touched -- a component nobody called is simply ABSENT, which is exactly why the drawn board exists alongside it. Empty at rest is CORRECT."
+  },
+  {
+   "type": "timeseries",
+   "title": "Edge throughput -- caller -> callee (req/s)",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "esq-prometheus"
+   },
+   "gridPos": {
+    "h": 12,
+    "w": 12,
+    "x": 12,
+    "y": 35
+   },
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+      "drawStyle": "line",
+      "fillOpacity": 10
+     },
+     "unit": "reqps",
+     "min": 0
+    },
+    "overrides": []
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "sum by (client, server) (rate(traces_service_graph_request_total[5m]))",
+     "legendFormat": "{{client}} -> {{server}}"
+    }
+   ],
+   "description": "THE INTERESTING FAILURE: an edge that VANISHES here while both of its boxes stay GREEN in the picture above. Both ends are alive and the CALL BETWEEN THEM has stopped -- and no per-component health check anywhere would ever tell you that."
+  }
+ ]
+}

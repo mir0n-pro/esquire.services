@@ -63,7 +63,7 @@ class PerformanceAspectTest {
         RequestPerformance performance = mock(RequestPerformance.class);
         when(performance.isMetricsCaptured())
                 .thenThrow(new ScopeNotActiveException("requestPerformance", "request", null));
-        PerformanceAspect aspect = new PerformanceAspect(performance, providerOf(new SimpleMeterRegistry()));
+        PerformanceAspect aspect = new PerformanceAspect(performance, providerOf(new SimpleMeterRegistry()), true);
 
         ProceedingJoinPoint joinPoint = proceedingTo("rows");
 
@@ -78,7 +78,7 @@ class PerformanceAspectTest {
         // reach the @RequestScope bean and rely on the throw to find out where it is running. No exception as
         // control flow -- so there is no ordering left in the condition for a future edit to break.
         RequestPerformance performance = mock(RequestPerformance.class);
-        PerformanceAspect aspect = new PerformanceAspect(performance, providerOf(new SimpleMeterRegistry()));
+        PerformanceAspect aspect = new PerformanceAspect(performance, providerOf(new SimpleMeterRegistry()), true);
 
         assertThat(aspect.trackJpaTime(proceedingTo("rows"))).isEqualTo("rows");
 
@@ -92,7 +92,7 @@ class PerformanceAspectTest {
         onARequestThread();
         RequestPerformance performance = mock(RequestPerformance.class);
         when(performance.isMetricsCaptured()).thenReturn(false);
-        PerformanceAspect aspect = new PerformanceAspect(performance, providerOf(new SimpleMeterRegistry()));
+        PerformanceAspect aspect = new PerformanceAspect(performance, providerOf(new SimpleMeterRegistry()), true);
 
         assertThat(aspect.trackJpaTime(proceedingTo("rows"))).isEqualTo("rows");
 
@@ -105,7 +105,9 @@ class PerformanceAspectTest {
         onARequestThread();
         RequestPerformance performance = mock(RequestPerformance.class);
         when(performance.isMetricsCaptured()).thenReturn(true);
-        PerformanceAspect aspect = new PerformanceAspect(performance, providerOf(null));   // no registry = off
+        // The real OFF state: Boot still supplies a SimpleMeterRegistry once the Prometheus export backs off,
+        // so the registry is PRESENT and the SWITCH is what says off.
+        PerformanceAspect aspect = new PerformanceAspect(performance, providerOf(new SimpleMeterRegistry()), false);
 
         assertThat(aspect.trackJpaTime(proceedingTo("rows"))).isEqualTo("rows");
 
@@ -118,7 +120,9 @@ class PerformanceAspectTest {
         onARequestThread();
         RequestPerformance performance = mock(RequestPerformance.class);
         when(performance.isMetricsCaptured()).thenReturn(false);
-        PerformanceAspect aspect = new PerformanceAspect(performance, providerOf(null));
+        // The real OFF state: Boot still supplies a SimpleMeterRegistry once the Prometheus export backs off,
+        // so the registry is PRESENT and the SWITCH is what says off.
+        PerformanceAspect aspect = new PerformanceAspect(performance, providerOf(new SimpleMeterRegistry()), false);
 
         assertThat(aspect.trackJpaTime(proceedingTo("rows"))).isEqualTo("rows");
 

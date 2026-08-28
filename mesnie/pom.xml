@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>pro.mir0n.esquire</groupId>
+        <artifactId>esquire-parent</artifactId>
+        <version>1.2.0</version>
+        <relativePath>../pom.xml</relativePath>
+    </parent>
+
+    <artifactId>esquire-mesnie</artifactId>
+    <version>${mesnie.version}</version>
+
+    <url/>
+
+    <name>Mesnie</name>
+    <description>Esquire Mesnie (the household: enyMan + keySmith) Microservice</description>
+
+    <dependencies>
+        <!-- The composed services, as CODE: the plain classes jars each attaches beside its executable one.
+             Their own poms carry the rest (common, messaging, audit, the transport providers and every
+             Spring starter), so Mesnie declares no starter of its own and cannot drift from them. -->
+        <dependency>
+            <groupId>pro.mir0n.esquire</groupId>
+            <artifactId>esquire-eny-man</artifactId>
+            <version>${enyMan.version}</version>
+            <classifier>classes</classifier>
+        </dependency>
+        <dependency>
+            <groupId>pro.mir0n.esquire</groupId>
+            <artifactId>esquire-key-smith</artifactId>
+            <version>${keySmith.version}</version>
+            <classifier>classes</classifier>
+        </dependency>
+        <!-- kcMaster comes in as CODE only, for the identity gateway: Mesnie declares the KeyCloak client, the
+             path park, the identity service and the gateway itself, and takes nothing else. kcMaster's bus
+             consumer and its entity-topic worker stay out (reaching KeyCloak is a method call here). The
+             KeyCloak admin client rides in with this dependency. -->
+        <dependency>
+            <groupId>pro.mir0n.esquire</groupId>
+            <artifactId>esquire-kc-master</artifactId>
+            <version>${kcMaster.version}</version>
+            <classifier>classes</classifier>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <finalName>${project.artifactId}</finalName>
+        <plugins>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+            </plugin>
+        </plugins>
+    </build>
+
+</project>

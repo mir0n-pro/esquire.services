@@ -8,6 +8,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import pro.mir0n.esquire.common.EsqConstants;
+import pro.mir0n.esquire.backend.identity.AuthSyncRequest;
 import pro.mir0n.esquire.messaging.BusConstants;
 import pro.mir0n.esquire.kcMaster.service.IKcIdentityService;
 
@@ -38,8 +39,8 @@ class KcRequestHandlerTest {
 
     // --- helpers ---
 
-    private KcSyncRequest buildCreateReq() {
-        KcSyncRequest req = new KcSyncRequest();
+    private AuthSyncRequest buildCreateReq() {
+        AuthSyncRequest req = new AuthSyncRequest();
         req.setId("uid-001");
         req.setKind(998);
         req.setLoginId("alice@example.com");
@@ -49,8 +50,8 @@ class KcRequestHandlerTest {
         return req;
     }
 
-    private KcSyncRequest buildUpdateReq(String tfaMethod, String pwdChangeForced) {
-        KcSyncRequest req = new KcSyncRequest();
+    private AuthSyncRequest buildUpdateReq(String tfaMethod, String pwdChangeForced) {
+        AuthSyncRequest req = new AuthSyncRequest();
         req.setId("uid-001");
         req.setKind(998);
         req.setLoginId("alice@example.com");
@@ -61,8 +62,8 @@ class KcRequestHandlerTest {
         return req;
     }
 
-    private KcSyncRequest buildDeleteReq() {
-        KcSyncRequest req = new KcSyncRequest();
+    private AuthSyncRequest buildDeleteReq() {
+        AuthSyncRequest req = new AuthSyncRequest();
         req.setId("uid-001");
         req.setKind(998);
         req.setLoginId("alice@example.com");
@@ -128,7 +129,7 @@ class KcRequestHandlerTest {
     @Test
     @DisplayName("CREATE: null roles in request yields empty list")
     void create_nullRolesYieldsEmptyList() {
-        KcSyncRequest req = buildCreateReq();
+        AuthSyncRequest req = buildCreateReq();
         req.setRoles(null);
 
         handler.handle(BusConstants.EVENT_CREATE, req, "cid1", "rid1");
@@ -151,10 +152,8 @@ class KcRequestHandlerTest {
         handler.handle(BusConstants.EVENT_UPDATE, buildUpdateReq(null, null), "cid1", "rid1");
 
         verify(kcIdentityService).updateUserAuthState(
-                eq("alice@example.com"),
-                any(), any(), any(), any(), any(), any(), any(), any(), any(),
-                eq("cid1"), eq("rid1")
-        );
+                eq("alice@example.com"), any(), any(), any(), any(),
+                any(), any(), any(), eq("cid1"), eq("rid1"));
     }
 
     @Test
@@ -163,11 +162,8 @@ class KcRequestHandlerTest {
         handler.handle(BusConstants.EVENT_UPDATE, buildUpdateReq("g", null), "cid1", "rid1");
 
         verify(kcIdentityService).updateUserAuthState(
-                anyString(), any(), any(), any(), any(), any(),
-                eq(Boolean.TRUE),
-                isNull(),
-                any(), any(), anyString(), anyString()
-        );
+                anyString(), any(), any(), any(), eq(Boolean.TRUE),
+                isNull(), any(), any(), anyString(), anyString());
     }
 
     @Test
@@ -176,11 +172,8 @@ class KcRequestHandlerTest {
         handler.handle(BusConstants.EVENT_UPDATE, buildUpdateReq("n", null), "cid1", "rid1");
 
         verify(kcIdentityService).updateUserAuthState(
-                anyString(), any(), any(), any(), any(), any(),
-                isNull(),
-                eq(Boolean.TRUE),
-                any(), any(), anyString(), anyString()
-        );
+                anyString(), any(), any(), any(), isNull(),
+                eq(Boolean.TRUE), any(), any(), anyString(), anyString());
     }
 
     @Test
@@ -189,11 +182,8 @@ class KcRequestHandlerTest {
         handler.handle(BusConstants.EVENT_UPDATE, buildUpdateReq(null, null), "cid1", "rid1");
 
         verify(kcIdentityService).updateUserAuthState(
-                anyString(), any(), any(), any(), any(), any(),
-                isNull(),
-                isNull(),
-                any(), any(), anyString(), anyString()
-        );
+                anyString(), any(), any(), any(), isNull(),
+                isNull(), any(), any(), anyString(), anyString());
     }
 
     @Test
@@ -202,10 +192,8 @@ class KcRequestHandlerTest {
         handler.handle(BusConstants.EVENT_UPDATE, buildUpdateReq(null, "Y"), "cid1", "rid1");
 
         verify(kcIdentityService).updateUserAuthState(
-                anyString(), any(), any(), any(), any(),
-                eq(Boolean.TRUE),
-                any(), any(), any(), any(), anyString(), anyString()
-        );
+                anyString(), any(), any(), eq(Boolean.TRUE), any(),
+                any(), any(), any(), anyString(), anyString());
     }
 
     @Test
@@ -214,10 +202,8 @@ class KcRequestHandlerTest {
         handler.handle(BusConstants.EVENT_UPDATE, buildUpdateReq(null, "N"), "cid1", "rid1");
 
         verify(kcIdentityService).updateUserAuthState(
-                anyString(), any(), any(), any(), any(),
-                eq(false),
-                any(), any(), any(), any(), anyString(), anyString()
-        );
+                anyString(), any(), any(), eq(false), any(),
+                any(), any(), any(), anyString(), anyString());
     }
 
     // --- DELETE dispatch ---
@@ -236,7 +222,7 @@ class KcRequestHandlerTest {
     @Test
     @DisplayName("UPDATE_PATH: delegates to updateEntityPath with id and path")
     void updatePath_delegatesWithIdAndPath() {
-        KcSyncRequest req = new KcSyncRequest();
+        AuthSyncRequest req = new AuthSyncRequest();
         req.setId("uid-001");
         req.setKind(20);
         req.setPath("1.500.999.uid-001.");

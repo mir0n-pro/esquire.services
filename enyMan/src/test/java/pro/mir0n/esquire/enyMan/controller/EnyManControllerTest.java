@@ -48,7 +48,7 @@ class EnyManControllerTest {
     }
 
     // uid / rootPath are no longer extracted in the controller -- they ride the unified per-request
-    // context captured upstream (JwtAuthenticationFilter). The controller now extracts only roles
+    // context captured upstream (JwtClaimsExtractionFilter). The controller now extracts only roles
     // from realm_access and delegates without uid/rootPath.
 
     // ---- esquireDictionary ----

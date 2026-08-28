@@ -1,0 +1,95 @@
+# Esquire frameworks (tm) -- messaging-bus TOPOLOGY (local / dev k8s environment)
+#
+# Delivered as the ConfigMap "esquire-topology" and mounted at /etc/esquire/topology.yml in every service pod;
+# each service loads it via spring.config.import (REQUIRED). Per-environment, CONCRETE values (no ${}) -- here the
+# in-cluster Service DNS names. The audit sinks this profile offers are a (DB triggers), b (in-process keep)
+# and c (AMQ -> auKeep), selected via AUDIT_BUS_ID; the installed broker is ActiveMQ, so audit-c works out of
+# the box. Per-service knobs + the in-process audit (b) datasource stay at the service level. (OKE uses k8s-oci/esquire-topology.yml -- audit off.)
+esquire:
+  messaging-bus:
+    # --- entity broadcast (topic) ---
+    - bus-id: esquire.entity
+      slots:
+        - slot-id: entity
+          x-rod:
+            receiver-pool:
+              size: 4
+              mode: platform
+            concurrency: 1
+            publisher-pool:
+              size: 0
+              mode: platform
+            transport:
+              provider: activemq
+              endpoint: failover:(tcp://esquire-infra-amq-activemq:61616)?timeout=3000
+              destination: esquire.entity.broadcast
+              params:
+                pubSubDomain: true
+                # enyMan runs both legs (publish + listen) on ONE shared connection, so the broker drops its OWN
+                # publications -- the moving instance reconciles only a PEER instance's create-during-move. Inert
+                # for pure consumers (bizTree / kcMaster publish nothing) and publish-only producers (no consumer).
+                noLocal: true
+                # MUST agree with the broker (activemq.xml: persistent="false"). See the KeyCloak bus below.
+                persistent: false
+    # --- KeyCloak request/response (R&R, two nodes) ---
+    - bus-id: esquire.kc
+      slots:
+        - slot-id: kc
+          x-rod:
+            rod-class: XRodRR
+            receiver-pool:
+              size: 4
+              mode: platform
+            concurrency: 1
+            publisher-pool:
+              size: 0
+              mode: platform
+            transport:
+              provider: activemq
+              endpoint: failover:(tcp://esquire-infra-amq-activemq:61616)?timeout=3000
+              request-node: request
+              response-node: response
+              params:
+                # MUST agree with the broker's own persistent setting (activemq.xml: persistent="false").
+                # JMS makes a PERSISTENT send SYNCHRONOUS -- the producer blocks for a broker ack on every
+                # message -- even when the broker persists nothing, so against our in-memory broker the flag
+                # costs a round-trip per send and buys nothing.
+                persistent: false
+              nodes:
+                - node-id: request
+                  destination: esquire.kc.request
+                - node-id: response
+                  destination: esquire.kc.response
+    # --- audit (c): ActiveMQ -> auKeep consumer writes the *_log ---
+    - bus-id: audit-c
+      slots:
+        - slot-id: audit
+          x-rod:
+            rod-class: XRod
+            receiver-pool:
+              size: 4
+              mode: platform
+            feed-capacity: 4096
+            publisher-pool:
+              size: 0
+              mode: platform
+            concurrency: 1
+            transport:
+              provider: activemq
+              endpoint: failover:(tcp://esquire-infra-amq-activemq:61616)?timeout=3000
+              destination: esquire.rod.audit
+              params:
+                jms.useAsyncSend: true
+                # MUST agree with the broker (activemq.xml: persistent="false"). NOTE what this accepts: a broker
+                # restart drops any audit backlog auKeep has not yet drained. That is the one destination where
+                # the loss is semantically real, and it is accepted -- dev/demo, and the MessagingBus design lists
+                # at-least-once durability as a FUTURE option, not a guarantee.
+                persistent: false
+    # --- audit (off): the explicit DISABLED bus. A service points its audit ref at audit-off to run with NO
+    #     bus audit (e.g. when DB triggers carry the audit instead). XRodDisabled is a true no-op; this is the
+    #     #17 "disable only when explicitly defined" -- a blank/undefined bus-id (correctly) fails fast instead. ---
+    - bus-id: audit-off
+      slots:
+        - slot-id: audit
+          x-rod:
+            rod-class: XRodDisabled

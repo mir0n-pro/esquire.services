@@ -1,0 +1,6 @@
+apiVersion: v2
+name: esquire-gateward
+description: gateWard — the gate (Spring Cloud Gateway) with the bizTree cache in one process
+type: application
+version: 0.1.0
+appVersion: "1.2.13"

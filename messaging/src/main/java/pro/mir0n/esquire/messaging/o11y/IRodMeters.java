@@ -11,6 +11,8 @@
  *                   imports no Micrometer (or anything above itself); the Micrometer-backed implementation is the
  *                   host application's, handed in via RodObserverHolder as part of the ONE bus observer. Counters
  *                   ride the observability umbrella; the host decides what is a costly histogram. NOOP = zero cost.
+ * 08/26/2026 mir0n  registerTransportUp(busId, IntSupplier) added -- the transport-state gauge, registered once
+ *                   per bus; NOOP implementation alongside
  */
 package pro.mir0n.esquire.messaging.o11y;
 
@@ -56,6 +58,14 @@ public interface IRodMeters {
      *  hold depth), called ONCE when the sublayer is built. Tags: bus-id / slot. */
     void registerRetryHeld(String busId, String slotId, IntSupplier held);
 
+    /** Register {@code messaging.transport.up} as a gauge over {@code up} (1 when the bus's transport is
+     *  connected, 0 when it is not), called ONCE per bus when the health indicator is registered. Tag: bus-id.
+     *  <p>
+     *  The connection state was known only to {@code /actuator/health}, which nothing scrapes -- so a service
+     *  whose bus had dropped while the BROKER stayed up was invisible to Prometheus, to the boards and to
+     *  o11y-verify alike. It is the one state the messaging layer knows and never published. */
+    void registerTransportUp(String busId, IntSupplier up);
+
     /** No-op meters -- the engine's default when the host has registered no observer (observability off). */
     IRodMeters NOOP = new IRodMeters() {
         @Override public void sent(String busId, String slotId, String msgType) {
@@ -73,6 +83,8 @@ public interface IRodMeters {
         @Override public void registerFeedDepth(String busId, String slotId, IntSupplier depth) {
         }
         @Override public void registerRetryHeld(String busId, String slotId, IntSupplier held) {
+        }
+        @Override public void registerTransportUp(String busId, IntSupplier up) {
         }
     };
 }

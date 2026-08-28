@@ -1,0 +1,89 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}
+  labels:
+    app: {{ .Release.Name }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Release.Name }}
+      annotations:
+        # Must use `include` (renders the template): .Files.Get on a path under templates/ returns "" -- Helm
+        # excludes templates/ from .Files -- so the old form hashed the empty string to a CONSTANT and never
+        # rolled the pod on a datasource change. See I5. (checksum/dashboards below is correct as-is: it reads
+        # the dashboards/*.json data files, which are NOT under templates/.)
+        checksum/datasource: {{ include (print $.Template.BasePath "/configmap-datasource.yaml") . | sha256sum }}
+        checksum/dashboards: {{ printf "%s%s%s%s" (.Files.Get "dashboards/esquire-services.json") (.Files.Get "dashboards/esquire-logging.json") (.Files.Get "dashboards/esquire-topology.json") (.Values.dashboardTopology | default "") | sha256sum }}
+    spec:
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        # grafana image default uid 472; fsGroup so the ephemeral /var/lib/grafana is writable.
+        runAsUser: 472
+        runAsGroup: 472
+        fsGroup: 472
+      containers:
+        - name: grafana
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          env:
+            - name: GF_SECURITY_ADMIN_USER
+              value: "{{ .Values.admin.user }}"
+            - name: GF_SECURITY_ADMIN_PASSWORD
+              value: "{{ .Values.admin.password }}"
+            - name: GF_AUTH_ANONYMOUS_ENABLED
+              value: "true"
+            - name: GF_AUTH_ANONYMOUS_ORG_ROLE
+              value: "Admin"
+            - name: GF_USERS_DEFAULT_THEME
+              value: "light"
+            - name: GF_ANALYTICS_REPORTING_ENABLED
+              value: "false"
+          ports:
+            - containerPort: 3000
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: 3000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 12
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: datasources
+              mountPath: /etc/grafana/provisioning/datasources
+            - name: dashboards
+              mountPath: /etc/grafana/provisioning/dashboards
+            # OUR component logos, served from Grafana's own public tree (the topology canvas references them as
+            # img/icons/esq/<name>.svg). Same set as docker, from the same source.
+            - name: icons
+              mountPath: /usr/share/grafana/public/img/icons/esq
+            - name: data
+              mountPath: /var/lib/grafana
+      volumes:
+        - name: datasources
+          configMap:
+            name: {{ .Release.Name }}-datasources
+        - name: dashboards
+          configMap:
+            name: {{ .Release.Name }}-dashboards
+        - name: icons
+          configMap:
+            name: {{ .Release.Name }}-icons
+        - name: data
+          {{- if .Values.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ .Release.Name }}-data
+          {{- else }}
+          emptyDir: {}
+          {{- end }}

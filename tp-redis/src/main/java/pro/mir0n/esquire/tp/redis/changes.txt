@@ -1,5 +1,9 @@
 Esquire Redis transport provider classes
 
+08/26/2026 mir0n  v1.2.13 -- the connection health seed
+tp.redis.TransportProvider
+  - the connection health seeds UNKNOWN, not UP -- nothing has proved the connection at open
+
 06/30/2026 mir0n  v1.2.10 -- publisher send-retry seam (encode-once / throwing dispatch)
 tp.redis.TransportProvider
   - RedisPublisher (extracted class) implements the send-retry seam: encode() prepares the broker-free property

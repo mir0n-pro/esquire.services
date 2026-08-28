@@ -1,5 +1,48 @@
 Esquire Backend common microservice classes
 
+08/26/2026 mir0n  v1.2.13 -- a refusal that says so, and metrics that ask first
+error.GenericExceptionHandler
+  - CommandNotAcceptedException answers 503 Service Unavailable
+o11y.EsqRodObserver
+  - registerTransportUp registers messaging.transport.up as an EsqGauge, tagged bus-id
+security.SecurityConfiguration
+  - an authentication entry point answers a ProblemDetail JSON instead of an empty 401; the filter is
+    JwtClaimsExtractionFilter, and /esq-kinds joins the permitAll list
+service.MdcFilter
+  - the meter registry is taken only when esquire.observability.metrics.enabled is true, so a registry
+    present for other reasons no longer turns request metering on
+service.PerformanceAspect
+  - observabilityOn requires esquire.observability.metrics.enabled as well as a registry
+
+08/17/2026 mir0n  v1.2.13 -- observability for the composed services
+o11y.IMeterOwner  (new)
+  - created: a composed service names the Esquire service behind each meter, so enyMan, keySmith and kcMaster
+    keep their metric identity inside one process
+o11y.EsqServiceTagFilter  (new)
+  - created: stamps service=<esquire service> beside application=<process>, from the IMeterOwner the running
+    service contributes; no owner means service==application
+o11y.ObservabilityConfig
+  - esqServiceTag() @Bean added (metrics.enabled): an EsqServiceTagFilter stamping service=<esquire service>
+    beside application=<process>, taking the running service's IMeterOwner through ObjectProvider. No owner ->
+    service == application, which is what every classic service reports. The owner is asked with the meter ID
+    and nothing else: a MeterFilter runs at REGISTRATION, so a per-request value would freeze whichever service
+    touched the meter first
+
+08/15/2026 mir0n  v1.2.13 -- gateWard
+error.GenericExceptionHandler
+  - ResourceNotFoundException gets its own branch: 404 NOT_FOUND, title "Not Found" (was the 400 BAD_REQUEST
+    branch it shared with InvalidValueException)
+
+08/12/2026 mir0n  v1.2.13 -- Mesnie
+identity.IIdentityGateway  (new)
+  - created: the way into an identity provider -- start / stop, postRequest(RodEvent), postMessage(RodEvent)
+    for PATH broadcasts and setResultHandler(Consumer<RodEvent>); the implementation is named in each
+    process's wiring
+identity.AuthSyncRequest  (new)
+  - created: moved from kcMaster.messaging.KcSyncRequest and renamed. The body of an identity command
+    (id, kind, loginId, newLoginId, email, pwdChangeForced, tfaMethod, connectFlg, path, roles) plus toMap(),
+    which writes the RodEvent body in declaration order and omits what was not set
+
 08/11/2026 mir0n  v1.2.12 -- entity change number
 dto.EsqEntity
   - changeNo field added, carried from the JPA row; @JsonIgnore + @Schema(hidden) keep it out of the REST

@@ -40,6 +40,12 @@ Together, these three concepts form the Esquire backbone. Any structured domain 
 tree inherits visibility scoping, positional authority, and entity-driven behavior without any
 additional rules being written. The framework resolves them from the structure.
 
+Every framework promises that you write only business logic. The promise is kept when the parts that promise
+covers are actually in the box and already joined to each other: storage, identity and sign-in, permissions,
+the messaging between services, the audit trail, metrics, logs and traces. Esquire holds those, wired
+together and running, which is what leaves the domain as the only thing to write. What it does NOT hold is
+stated as plainly, in "What Esquire does not do" below.
+
 **The Biz Explorer is the first tool built on this idea.** The accounting operations are the
 first domain it demonstrates. Neither is the point. They are evidence that the model works
 end to end, from database to browser, under real operational conditions.
@@ -218,6 +224,15 @@ So the honest form of the claim is not "nobody does authorization" — plenty do
 their own dimension. It is that **a hierarchy is a structure here rather than a facility**, and
 one forgotten hand-written filter is a data leak nobody notices.
 
+A survey of eight codebases that all scope authorization by hierarchy sharpens that into the property worth
+comparing on. Six of the eight scope by hierarchy in some form, so having a tree is not the difference. In
+half of them the scope is **opt-in** — a filter fragment added per query, a checker called before the work, a
+session wrapper opened around the call — and the opt-in is invisible to review, to the build and to static
+analysis, because **a query missing the filter looks exactly like a correct query**. The three that make it
+structural give the same reason independently: one enforcement point instead of one per method, which an
+oversight in a future endpoint cannot skip. That is the line to hold: not that Esquire has tree-shaped
+authorization, but that here the scope cannot be left out.
+
 ### 2. The server defines the UI
 
 Field layouts, control types, validation rules, and available commands are delivered at
@@ -320,6 +335,58 @@ the system is unchanged. This is a deployment decision, not an architectural one
 Esquire is a working, connected system from database to browser. Many routes are open from here —
 new database targets, new transports, new IAM providers, new entity domains — without any dramatic
 change to the core architecture.
+
+---
+
+### 8. One framework, more than one shape
+
+A service in Esquire is a logical boundary, not a fixed program. The same code and the same configuration
+run as **eight processes** in the classic shape, as **five** in the compact one, and as **four** in the cloud
+profile where the audit trail is carried by database triggers instead of a drain process. Nothing about the
+framework changes between them; only how many programs carry it.
+
+That is possible because the framework aggregates services in two ways, and a Spring Boot application can
+host both at once.
+
+**Aggregation by MVC.** A REST-facing service is a package root with its controllers, entities, repositories
+and beans. The host application imports that configuration — component scan, entity scan, repositories — and
+the service keeps its own paths and its own handlers inside the shared process. A caller cannot tell the
+difference: the route answers the same way it did across the network.
+
+**Aggregation by events.** A service with no REST surface is smaller still — a set of bus listeners and the
+beans behind them. It joins a host application as plain Java, with no web layer to merge, and keeps
+listening on the same bus legs it listened to before.
+
+The sprint that introduced this shape has one worked example of each:
+
+- **Mesnie** is the write side: two REST services and one event-driven service in a single process. The
+  identity work that used to travel as a request/response pair over the bus is served in-process behind the
+  `IIdentityGateway` seam, so a hop disappears without a contract changing.
+- **gateWard** is the read side: the gateway and the business-tree cache together, so the five tree routes
+  are answered in the process that received them.
+
+**The boundary is a rule, not a preference.** The framework aggregates *framework* services. Domain logic
+stays outside: the accounting service is its own process in every shape, because a domain grows and changes
+at its own pace and must not be welded to the backbone that carries it. The same rule keeps the browser tier
+separate. Aggregation is a way to spend fewer machines on the framework, never a way to blur what belongs to
+whom.
+
+**What it is worth, measured.** On the cloud deployment the same load rig turns **27% more work** with
+observability off and **42% more** with it fully on, the whole application uses **1.5 GiB** of memory under
+load at one replica each, and the fleet is **7 pods instead of 13**. The four running-stack suites pass on
+every shape without a change to any of them -- which is the real result, since a suite that needed editing
+would be reporting a difference the framework promises is not there.
+
+**And the cost, in the same breath.** Services that share a program share its lifecycle: they restart
+together, they scale together, and one crash takes all of them down at once. What does not change is the
+work — the same requests, the same messages, the same load, carried by fewer machines rather than by less
+code — nor the difficulty of reasoning about the framework, which still has the same seven services in it.
+Grouping buys machines. It does not buy simplicity, and it costs independence.
+
+The shape is therefore a deployment decision, taken per target and reversible. A single-machine installation
+stops paying for a fleet, a cloud deployment keeps the separations it needs, and the code, the settings and
+the behaviour are the same in both. Portability of this kind is not the reason the framework exists — it is
+what falls out of drawing the boundaries logically in the first place.
 
 ---
 

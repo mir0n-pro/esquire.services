@@ -17,6 +17,7 @@
  *                   reply from a nested producer span (asRoot=false)
  * 07/23/2026 mir0n  v1.2.11 -- comment: the SERVER HeartBeat reply uses a BLOCKING put -- a reply can be needed
  *                   while the leg is busy, and dropping it would cause a false SERVER-DOWN at the client
+ * 08/26/2026 mir0n  an R&R SERVER emits no unsolicited keep-alive -- keepAliveEvent returns null for that role
  */
 package pro.mir0n.esquire.messaging.xrod.impl.sublayer;
 
@@ -63,8 +64,7 @@ public final class AliveSessionRR extends AliveSession {
     }
 
     /** R&R keep-alive by role: a CLIENT probes its SERVER with a TestRequest (its own rod-id rides, so the SERVER's
-     *  HeartBeat reply routes back via the RodID selector); a SERVER keeps its response leg alive with an
-     *  unsolicited HeartBeat (the base keep-alive). */
+     *  HeartBeat reply routes back via the RodID selector); a SERVER emits none -- null, no keep-alive. */
     @Override
     protected RodEvent keepAliveEvent() {
         RodEvent ret;
@@ -82,7 +82,8 @@ public final class AliveSessionRR extends AliveSession {
                 ret = RodEvent.testRequest(newCorrelationId(), identity.rodId());
             }
         } else {
-            ret = super.keepAliveEvent();   // SERVER -> an unsolicited HeartBeat
+            //xxx: routing is ECHOED from the request, and a SERVER idle has no request to echo.
+            ret = null;
         }
         return ret;
     }

@@ -1,0 +1,17 @@
+# Local k8s overlay for charts/infra/postgres
+# Image tag stamped per rebuild (mirrors backend/gateway/keycloak overlays);
+# fresh stamp forces kubelet to pick up the new image after a docker rebuild
+# (avoids the IfNotPresent + cached digest trap on infra images).
+image:
+  tag: "v1.2.13-2608.2320"
+
+# R4 local-k8s resource budget. The single shared DB backs every service's pool, so it
+# gets a generous floor; CPU is left burstable (request only) so a busy moment is not
+# throttled. (Chart default maxConnections is already 200 -- absorbs the rolling-restart
+# pool surge.)
+resources:
+  requests:
+    cpu: 500m
+    memory: 1Gi
+  limits:
+    memory: 1Gi

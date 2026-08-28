@@ -95,6 +95,8 @@ class RodObserverHolderTest {
             }
             @Override public void registerRetryHeld(String busId, String slotId, java.util.function.IntSupplier held) {
             }
+            @Override public void registerTransportUp(String busId, java.util.function.IntSupplier up) {
+            }
         };
         try {
             RodObserverHolder.setObserver(IRodObserver.of(stubTracer, stubMeters));
@@ -169,5 +171,6 @@ class RodObserverHolderTest {
         @Override public void retryDropped(String b, String m) { }
         @Override public void registerFeedDepth(String b, String s, java.util.function.IntSupplier d) { }
         @Override public void registerRetryHeld(String b, String s, java.util.function.IntSupplier h) { }
+        @Override public void registerTransportUp(String b, java.util.function.IntSupplier u) { }
     }
 }

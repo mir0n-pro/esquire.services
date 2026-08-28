@@ -25,6 +25,7 @@ interpreted on the client side.
 - [Where it lives and how it reaches the browser](#where-it-lives-and-how-it-reaches-the-browser)
 - [Structure](#structure) -- dictionary, layers, fields
 - [What a field can say](#what-a-field-can-say) -- every field element, and the field types
+- [A read-only field the server itself fills -- the one exception](#a-read-only-field-the-server-itself-fills----the-one-exception) -- why a derived value (a user's name) is written into a field the caller cannot edit, and what that costs
 - [Standard fields and custom fields](#standard-fields-and-custom-fields)
 - [Kinds -- the key of the dictionary](#kinds----the-key-of-the-dictionary)
 - [How a (sub)entity is identified](#how-a-subentity-is-identified) -- what names a row in the database and in the object, the change number, and what has none
@@ -212,6 +213,31 @@ Three levels: **dictionary -> layers -> fields**.
 | `tab-iknf-table` | A table filling a tab, such as the permission grid on an access profile |
 
 ---
+
+## A read-only field the server itself fills -- the one exception
+
+`readwrite = 1` says the field is read-only **to the caller**. A few fields are still written -- by the
+service, from a value it derived -- and the write path names them explicitly: `applyFields(..., writables)`
+lets exactly those through, and skips the validator for them, because the value did not come from the request.
+
+A user's `name` is the case that exists today. It is not typed: the person sub-entity carries first, middle
+and last, each validated by its own layer, and the service concatenates them and writes the result into
+`name`. The field is shown from where it is read rather than from where it is written, which is what keeps
+the entity flat -- the alternative is a database view per entity and a dictionary that has to describe it.
+
+Two consequences worth knowing, both deliberate:
+
+- **the derived value is validated by its parts**, not by the field's own `minmax` / `validation`, because the
+  validator is what the exception skips;
+- **the caller's own record is the caller's** -- a user may change their name, their login and their email on
+  themselves, so the `personal` rule is not what guards this field.
+
+**Adding another one.** The exception is named in the service, not in the dictionary -- `applyFields` takes the
+set, and the dictionary keeps saying `readwrite = 1`, which is what the browser needs to know. Whoever adds a
+second one owns the same contract the first one keeps: **the service must be the source of that key**, and the
+value it writes has to be built from parts the dictionary already validates. The exception buys flatness -- no
+view, no second dictionary to describe it -- and it pays for that by moving the validation one level down, to
+the fields the value is derived from.
 
 ## Standard fields and custom fields
 

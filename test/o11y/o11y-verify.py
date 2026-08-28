@@ -54,10 +54,18 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-# This file lives at services/test/o11y/. The grafana boards it reads STAY with the compose stack, so anchor to
-# them explicitly rather than beside this script: services/test/o11y -> ../.. = services -> compose/o11y.
+# This file lives at services/test/o11y/. The grafana boards it reads stay with the environment that provisions
+# them, so the LAUNCHER names its own: services/test/o11y -> ../.. = services, and BOARDS is relative to that.
+#
+# The dependency and band checks read the PANELS as the declaration of what must exist, so they have to read the
+# boards actually deployed on the target. This used to be hardcoded to compose/o11y, which meant every compact
+# run validated the CLASSIC board against a compact Grafana. It gave no wrong verdict while the two board sets
+# extracted the same set -- the dependency families are infra metrics, which do not change when services are
+# composed into fewer processes, and the bands panel was identical -- but it was a blind spot waiting on the
+# first divergence. The default keeps a bare run working on classic docker; every launcher sets its own.
 _SVC = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
-O11Y = os.path.join(_SVC, "compose", "o11y")
+_BOARDS_REL = os.environ.get("BOARDS", os.path.join("compose", "o11y", "grafana", "provisioning", "dashboards"))
+BOARDS = _BOARDS_REL if os.path.isabs(_BOARDS_REL) else os.path.join(_SVC, _BOARDS_REL)
 
 ENV = os.environ.get("ENVNAME", "?")
 PROM = os.environ.get("PROM_URL", "").rstrip("/")
@@ -92,8 +100,10 @@ WARNS = []
 METERS_EXPECTED = [        # present whenever o11y is on and the fleet has served ANY traffic
     "esq_gw_outer_seconds", "esq_gw_inner_seconds", "esq_srv_outer_seconds", "esq_srv_inner_seconds",
     "messaging_send_total", "messaging_receive_total", "messaging_send_duration_seconds",
-    "esq_biz_perm_check_total", "esq_biz_entity_ops_total", "esq_biz_tree_handler_dispatch_total",
-    "esq_biz_kc_sync_total", "esq_biz_kc_sync_duration_seconds", "esq_biz_keep_write_total",
+    "esq_biz_perm_check_total", "esq_biz_tree_handler_dispatch_total",
+    "esq_biz_key_ops_total",                      # keySmith's own throughput -- the sign-in handshake reads an
+                                                  # access profile, so any authenticated traffic fires it
+    "esq_biz_keep_write_total",
     "esq_biz_keep_write_duration_seconds",        # I48: twin of keep_write_total (EXPECTED), was drifting
     "http_server_requests_seconds", "esq_bff_inbound_duration_seconds",
     "esq_bff_outbound_duration_seconds",          # I48: the BFF->gw hop (I42/L8+L9). Present after any /api
@@ -102,8 +112,18 @@ METERS_EXPECTED = [        # present whenever o11y is on and the fleet has serve
 ]
 METERS_CONDITIONAL = [     # legitimately EMPTY until the condition happens -- WARN, never FAIL
     "esq_biz_move_failed_total", "esq_biz_acct_tx_total", "esq_biz_acct_close_total",
+    "esq_biz_move_refused_total",                 # the move queue would not take the command (full, or
+                                                  # stopped during shutdown). The caller gets 503 and
+                                                  # nothing was written -- so empty is the healthy case.
     "esq_biz_acct_tx_duration_seconds",           # I48: twin of acct_tx_total (CONDITIONAL), was drifting
     "esq_biz_acct_fx_apply_total", "esq_biz_dict_lookup_total", "esq_biz_tree_rebuild_total",
+    "esq_biz_entity_ops_total",                   # a counter of CREATE and DELETE. Reads and saves never touch
+                                                  # it, and the driver does neither -- so empty is correct until
+                                                  # an e2e (or a create) has run. It reports PROVEN when it has.
+    "esq_biz_kc_sync_total",                      # kcMaster's push to the identity provider: it fires when an
+    "esq_biz_kc_sync_duration_seconds",           # identity is created or changed, not on ordinary traffic.
+    "esq_biz_key_identity_total",                 # only when a save actually asks the identity provider for
+                                                  # something -- a read-only run never fires it
     "esq_biz_move_processed_total", "esq_biz_gw_tokenrelay_total", "esq_biz_gw_tokenrelay_acquire_total",
     "esq_biz_gw_tokenrelay_duration_seconds",
     "messaging_error_total", "messaging_retry_backoff", "messaging_retry_dropped_total",
@@ -140,8 +160,24 @@ CONFIG_UNREACHABLE = {
     # DESIGN here -- reporting it as "never driven" would be a permanent false alarm.
     "messaging_retry_dropped_total": "send-retry-max-attempts>0 (drop-after-N)",
 }
+# A service that is SILENT ON STDOUT by design. Its absence from Loki is not a broken pipeline, and calling
+# it a FAIL is worse than saying nothing: the check then passes only when that service happened to restart
+# inside the query window, so it reported PASS in the morning and FAIL in the evening with nothing about
+# logging having changed. Same rule as CONFIG_UNREACHABLE above -- say WHICH config makes it quiet, once, or
+# the next reader re-opens the investigation.
+QUIET_STDOUT = {
+    # develop + msg go to FILES (DEVELOP_LOG_PATH / MSG_LOG_PATH) and root/spring sit at ERROR, so auKeep
+    # emits startup lines and then nothing. It applies the audit rows without narrating them, which is right:
+    # its output is the *_log TABLES, and the audit smoke is what proves those.
+    "aukeep": "develop+msg go to files; root=ERROR -- stdout carries startup only",
+}
+
 GAUGES = [                 # MUST report a real number when o11y is on (the wiring; a NaN/absent gauge is a bug)
     "messaging_feed_depth", "messaging_retry_held", "esq_biz_move_queue_depth",
+    # 1 when a bus's transport is connected, 0 when it is not. The one state the messaging layer knew and
+    # never published: it reached /actuator/health, which nothing scrapes, so a dead bus under a LIVE
+    # broker was invisible here (O68).
+    "messaging_transport_up",
 ]
 
 # ---- the trace NODES (Tempo). Every participant in the distributed trace must appear as a span emitter once
@@ -156,11 +192,27 @@ TRACE_NODES_CONDITIONAL = [  # traced only on their own op (a KC sync, a permiss
     "enyman", "pacman", "keysmith", "kcmaster", "aukeep",
 ]
 
+# A topology-specific REPLACEMENT (v1.2.13): a trace node is a PROCESS -- the collector rewrites service.name to
+# <app>.<instance> -- so a profile that composes services into fewer processes has different nodes, not fewer.
+# On compact there is no gateway node and no bizTree node; there is a gateward node that is both. The launcher
+# states its own fleet, the same way SERVICES already does for the metric side.
+_NODES = [s.strip() for s in os.environ.get("TRACE_NODES", "").split(",") if s.strip()]
+_NODES_COND = [s.strip() for s in os.environ.get("TRACE_NODES_CONDITIONAL", "").split(",") if s.strip()]
+if _NODES:
+    TRACE_NODES_EXPECTED = _NODES
+if _NODES_COND:
+    TRACE_NODES_CONDITIONAL = _NODES_COND
+
 # A topology-specific exclusion (T12): OKE has NO auKeep (audit = DB triggers), so its keep-write meters never
 # exist and its auKeep trace node never emits -- asserting them there is a permanent false FAIL. The OKE launcher
 # sets EXCLUDE_METERS / EXCLUDE_TRACE_NODES so the same shared script validates the OKE fleet honestly.
 _EXCL_M = set(s.strip() for s in os.environ.get("EXCLUDE_METERS", "").split(",") if s.strip())
 _EXCL_T = set(s.strip() for s in os.environ.get("EXCLUDE_TRACE_NODES", "").split(",") if s.strip())
+# The same idea for the PANEL DEPENDENCIES: a composition that does not use a whole family of destinations has no
+# metrics for them, and demanding them is a permanent false FAIL. Super-compact declares one topic and no queue
+# at all, so every activemq_queue_* series is legitimately absent. An entry matches a metric name exactly or as
+# a PREFIX, which is what lets one entry cover a family.
+_EXCL_D = tuple(s.strip() for s in os.environ.get("EXCLUDE_DEPS", "").split(",") if s.strip())
 if _EXCL_M:
     METERS_EXPECTED = [m for m in METERS_EXPECTED if m not in _EXCL_M]
     METERS_CONDITIONAL = [m for m in METERS_CONDITIONAL if m not in _EXCL_M]
@@ -210,6 +262,15 @@ def tempo_span_count(trace_id):
         for ss in b.get("scopeSpans", []):
             n += len(ss.get("spans", []))
     return n
+
+
+def full_trace_id(trace_id):
+    # Tempo's /api/search renders a trace id as a hex NUMBER, so its LEADING ZEROS are gone: the same trace that
+    # /api/traces/{id} and a log line's correlationId both spell with 32 hex characters comes back from search as
+    # 31 or 30. Measured on docker-compact: 33 of 200 search results were short. An exact match of a search id
+    # against a correlationId therefore fails for ~1 trace in 6, silently and for a reason nothing in the output
+    # points at. Pad it back to the canonical 32 before it is used for anything.
+    return trace_id.rjust(32, "0") if len(trace_id) < 32 else trace_id
 
 
 def loki_has_correlation_id(trace_id):
@@ -284,9 +345,20 @@ def check_scrape():
     # empty a topology panel just draws nothing and no other check notices.
     for job in ("esquire-services", "esquire-bff", "keycloak", "postgres", "activemq", "otel-collector",
                 "otel-servicegraph"):
+        # EVERY target, not any. `up` is 1/0 per target, so sum(up) is the count of HEALTHY ones -- comparing it
+        # against nothing made "3 of 4 up" a PASS from the check whose heading promises the opposite. On the x2
+        # shapes that job IS the app fleet, so one replica scraping dark passed silently.
         r = promq('sum(up{job="%s"})' % job)
         n = int(float(r[0]["value"][1])) if r else 0
-        (ok if n > 0 else fail)("scrape job %-18s %d target(s) up" % (job, n))
+        rt = promq('count(up{job="%s"})' % job)
+        total = int(float(rt[0]["value"][1])) if rt else 0
+        if total and n == total:
+            ok("scrape job %-18s %d/%d target(s) up" % (job, n, total))
+        elif total:
+            fail("scrape job %-18s only %d of %d target(s) up -- %d scraping dark"
+                 % (job, n, total, total - n))
+        else:
+            fail("scrape job %-18s no targets at all" % job)
     for svc in SERVICES:
         present = len(promq('group by (application) ({application="%s"})' % svc)) > 0
         (ok if present else fail)("service reporting metrics: application=%s" % svc)
@@ -345,7 +417,11 @@ CARD_LIMIT = 64
 def check_cardinality():
     head("METRICS -- label cardinality is BOUNDED (no id leaked into a tag) [I21]")
     bases = sorted(set(_base(m) for m in (METERS_EXPECTED + METERS_CONDITIONAL + GAUGES)
-                       if m.startswith(("esq_biz", "esq_gw", "esq_srv", "messaging"))))
+                       # esq_svc_* / esq_async / esq_keep_apply were OUTSIDE this list -- 19 declared meters
+                       # the sweep never examined, and the ones with neither the runtime cap nor this check
+                       # behind them. Note esq_srv is the band timer; esq_svc is a different family.
+                       if m.startswith(("esq_biz", "esq_gw", "esq_srv", "esq_svc", "esq_async",
+                                        "esq_keep", "messaging"))))
     for b in bases:
         # enum shape: distinct series with the histogram le buckets and the per-replica labels collapsed away
         r = promq('count(count without (le, instance, pod, job) ({__name__=~"%s.*"}))' % b)
@@ -362,6 +438,110 @@ def check_cardinality():
               "histograms-enabled=true)" % tot[0]["value"][1])
 
 
+# A DEAD PIPELINE LOOKS EXACTLY LIKE A QUIET ONE, unless you have something to compare against. Every check
+# below this line used to read stored history over a wide window -- the log-stream sweep asks Loki for SIX
+# HOURS -- so with the shipper stopped and fresh traffic driven, all five streams still answered and the log
+# section reported green. Proven by stopping Alloy and driving three times: 5 PASS, 0 FAIL (O65).
+#
+# The fix is not a shorter window. A short window FAILS an idle stack, which is worse: a check that cries wolf
+# gets switched off. The fix is a SECOND SIGNAL. Prometheus is scraped independently of Loki and Tempo, so it
+# knows whether requests happened. If requests happened and the pipeline's newest data predates them, the
+# pipeline is stale -- and on an idle stack there is nothing to compare, so nothing is claimed.
+TRAFFIC_WINDOW_S = 600         # 'recently' for the request counter
+STALE_AFTER_S = 300            # newest datum older than this, WITH traffic, means the pipeline is not moving
+
+
+def recent_requests():
+    """How many HTTP requests the fleet served in the traffic window, per Prometheus (never per Loki/Tempo)."""
+    ret = 0.0
+    try:
+        rows = promq('sum(increase(http_server_requests_seconds_count[%ds]))' % TRAFFIC_WINDOW_S)
+        if rows:
+            ret = float(rows[0]["value"][1])
+    except Exception:
+        ret = 0.0
+    return ret
+
+
+def newest_log_age_s():
+    """Seconds since the newest line ANY service shipped to Loki. None when Loki cannot be asked."""
+    ret = None
+    end = int(time.time() * 1e9)
+    start = end - 6 * 3600 * int(1e9)
+    sel = ('job="%s"' % LOKI_JOB) if LOKI_JOB else 'service_name=~".+"'
+    url = (LOKI + "/loki/api/v1/query_range?limit=1&direction=backward&start=%d&end=%d&query=" % (start, end)
+           + urllib.parse.quote("{%s}" % sel))
+    try:
+        for stream in _get(url)["data"]["result"]:
+            for value in stream.get("values", []):
+                age = time.time() - (int(value[0]) / 1e9)
+                if ret is None or age < ret:
+                    ret = age
+    except Exception:
+        ret = None
+    return ret
+
+
+def trace_pipeline_moving():
+    """Are spans FLOWING service -> collector -> Tempo? Returns (accepted_rate, sent_rate) or (None, None).
+
+    NOT measured from Tempo search. `/api/search` does not reliably return the NEWEST traces: polled on a
+    healthy stack every 20-60s it reported ages of 20, 40, 60, 182, 747, 918 and then 241 seconds -- it
+    answers with some traces, not the latest ones. A freshness check built on it FAILS a working system,
+    which is worse than the hole it was meant to close.
+
+    The collector is SCRAPED, so its own counters ride the independent metrics path: accepted proves the
+    services are still exporting, sent proves the hub is still delivering to Tempo. Both absent means the
+    collector is not there at all, which is the case that started this.
+    """
+    ret = (None, None)
+    try:
+        acc = promq("sum(rate(otelcol_receiver_accepted_spans_total[5m]))")
+        snt = promq("sum(rate(otelcol_exporter_sent_spans_total[5m]))")
+        if acc and snt:
+            ret = (float(acc[0]["value"][1]), float(snt[0]["value"][1]))
+    except Exception:
+        ret = (None, None)
+    return ret
+
+
+def check_pipeline_freshness():
+    """Is each pillar still MOVING -- not merely holding history? The check a dead shipper must not survive."""
+    print("\n=== PIPELINE FRESHNESS -- each pillar is still MOVING, not just holding history [O65/O66] ===")
+    served = recent_requests()
+    if served <= 0:
+        warn("no requests in the last %dm -- nothing to compare the pillars against, freshness unproven"
+             % (TRAFFIC_WINDOW_S // 60))
+    else:
+        ok("fleet served %.0f request(s) in the last %dm -- the pillars must show for it"
+           % (served, TRAFFIC_WINDOW_S // 60))
+        # LOG -- Loki's query_range with direction=backward DOES answer with the newest line, reliably.
+        age = newest_log_age_s()
+        if age is None:
+            fail("LOG  (Alloy -> Loki): cannot read the newest line at all -- Loki is unreachable")
+        elif age > STALE_AFTER_S:
+            fail("LOG  (Alloy -> Loki): newest line is %.0fm old while the fleet served %.0f request(s) in the "
+                 "last %dm -- the pipeline is NOT MOVING (is the log shipper up?). What is stored is history, "
+                 "not proof." % (age / 60.0, served, TRAFFIC_WINDOW_S // 60))
+        else:
+            ok("LOG  (Alloy -> Loki): newest line %.0fs old -- moving" % age)
+
+        # TRACE -- read off the collector's scraped counters, not off Tempo search. See trace_pipeline_moving.
+        accepted, sent = trace_pipeline_moving()
+        if accepted is None:
+            fail("TRACE (svc -> collector -> Tempo): the collector's span counters are absent -- it is not "
+                 "scrapeable, so nothing can be said to be flowing. Is the collector up?")
+        elif accepted <= 0:
+            fail("TRACE (svc -> collector -> Tempo): the collector accepted NO spans in the last 5m while the "
+                 "fleet served %.0f request(s) -- the services have stopped exporting." % served)
+        elif sent <= 0:
+            fail("TRACE (svc -> collector -> Tempo): the collector is accepting %.2f span/s but delivering NONE "
+                 "to Tempo -- the hub is holding them." % accepted)
+        else:
+            ok("TRACE (svc -> collector -> Tempo): %.2f span/s in, %.2f span/s on to Tempo -- moving"
+               % (accepted, sent))
+
+
 def check_tracing():
     head("TRACING -- collector accepting (not refusing) + the metric->trace exemplar hop")
     acc = promq("sum(otelcol_receiver_accepted_spans_total)")
@@ -369,7 +549,17 @@ def check_tracing():
     accepted = float(acc[0]["value"][1]) if acc else 0
     refused = float(ref[0]["value"][1]) if ref else 0
     (ok if accepted > 0 else warn)("collector accepted spans: %d (0 = no traces flowed since start)" % accepted)
-    (ok if refused == 0 else fail)("collector refused spans: %d (any > 0 = the hub is DROPPING traces)" % refused)
+    # ABSENT IS NOT A HEALTHY ZERO. With the collector stopped the series is gone, `ref` is empty, refused
+    # reads 0 and this printed PASS for a hub that was not running (O66). Ask whether the collector is
+    # SCRAPEABLE before reading its counters as good news.
+    live = promq('up{job="otel-collector"}')
+    collector_up = bool(live) and float(live[0]["value"][1]) == 1
+    if not collector_up:
+        fail("collector is NOT scrapeable -- its span counters cannot be read, so neither accepted nor "
+             "refused says anything. A missing metric is not a zero.")
+    else:
+        (ok if refused == 0 else fail)(
+            "collector refused spans: %d (any > 0 = the hub is DROPPING traces)" % refused)
     # every declared trace NODE must be emitting spans into Tempo. A node whose tracing went off still scrapes
     # metrics (check_scrape stays green), so this Tempo sweep is the ONLY place that catch is made -- including
     # the BFF's outbound KeyCloak hop as its own node (I27).
@@ -434,9 +624,19 @@ def check_chain():
         # pass re-fetches -- newer traces AND newer logs both settle -- so a hit only needs ONE aligned pair.
         seeds = []
         hit = None
+        # Seed from the GATE process, whatever this topology calls it -- "gateway" on classic, "gateward" on
+        # compact (the launcher sets TRACE_NODES). Hardcoding "gateway.*" matched nothing on compact and fell
+        # through to the `{ }` fallback, which seeded from whichever 20 traces were most recent -- all BFF ones,
+        # as it turned out. The fallback then made a wrong selector look like a working one.
+        gate = TRACE_NODES_EXPECTED[0]
         for _attempt in range(5):
-            seeds = tempo_traces('{ resource.service.name =~ "gateway.*" }') or tempo_traces("{ }")
-            hit = next((t["traceID"] for t in seeds if loki_has_correlation_id(t["traceID"])), None)
+            # NO `or tempo_traces("{ }")` fallback here. That was the half that MASKED a wrong selector:
+            # the seed then came from whichever traces were most recent, so a launcher naming a gate node
+            # that does not exist still reported a green join. Parameterising the selector fixed the wrong
+            # half; this is the masking half. If the gate emitted no traces, the check must say so.
+            found = tempo_traces('{ resource.service.name =~ "%s.*" }' % gate)
+            seeds = [full_trace_id(t["traceID"]) for t in found]
+            hit = next((tid for tid in seeds if loki_has_correlation_id(tid)), None)
             if hit or not seeds:
                 break
             time.sleep(3)
@@ -446,8 +646,18 @@ def check_chain():
             ok("log<->trace: trace id %s... is carried by a Loki log line's correlationId -- logs and traces "
                "share the id" % hit[:16])
         else:
-            fail("log<->trace: none of %d gateway trace id(s) appear as a Loki correlationId after retries -- logs "
-                 "and traces are NOT sharing the id (the join is broken, not a flush lag)" % len(seeds))
+            # NAME THE RIGHT CAUSE. This used to assert "the join is broken, not a flush lag" -- the one
+            # explanation that was false when Alloy was down and the only one it ruled out was true (O67).
+            # A join can only be judged when logs are ARRIVING; if they are not, say that instead.
+            log_age = newest_log_age_s()
+            if log_age is None or log_age > STALE_AFTER_S:
+                fail("log<->trace: cannot be judged -- Loki has no line newer than %s, so there is nothing "
+                     "for a trace id to match. Fix the LOG pipeline first; the join is unproven, not broken."
+                     % ("anything" if log_age is None else "%.0fm" % (log_age / 60.0)))
+            else:
+                fail("log<->trace: none of %d %s trace id(s) appear as a Loki correlationId after retries, "
+                     "and logs ARE arriving (newest %.0fs old) -- so the two do not share the id: the join "
+                     "is broken." % (len(seeds), gate, log_age))
     # metric -> trace (the exemplar leg): gated on histograms. When on, an exemplar's trace_id MUST resolve in
     # Tempo -- this is the exact hop that was DEAD on k8s for a sprint (T9-D) with nothing to catch it.
     if not PROM:
@@ -549,7 +759,7 @@ def check_dependencies():
     families = ("pg_", "activemq_", "keycloak_", "agroal_", "otelcol_", "traces_", "jvm_", "hikaricp_",
                 "tomcat_", "reactor_netty_", "resilience4j_", "logback_", "system_", "process_", "nodejs_",
                 "http_server_requests")
-    boards = os.path.join(O11Y, "grafana", "provisioning", "dashboards")
+    boards = BOARDS
     if not os.path.isdir(boards):
         warn("dashboards not found at %s -- skipping the dependency checks" % boards)
         return
@@ -570,6 +780,8 @@ def check_dependencies():
         return
     # DERIVED from traffic, not scraped from a target -> empty is legitimate on an idle stack. WARN, never FAIL.
     traffic_derived = ("traces_",)
+    if _EXCL_D:
+        wanted = set(n for n in wanted if not n.startswith(_EXCL_D))
     missing = sorted(n for n in wanted if series_count(n) == 0)
     for n in missing:
         if n.startswith(traffic_derived):
@@ -579,13 +791,19 @@ def check_dependencies():
         else:
             fail("panel dependency has NO series: %s (renamed by an exporter upgrade? target down?)" % n)
     hard = [n for n in missing if not n.startswith(traffic_derived)]
-    ok("panel dependencies present: %d of %d" % (len(wanted) - len(hard), len(wanted)))
+    # The denominator must exclude what the numerator excludes. Counting hard misses against the FULL set
+    # let a traffic-derived absence be silently re-counted as present -- "60 of 60" printed two lines under
+    # a WARN saying one had no series.
+    counted = len(wanted) - (len(missing) - len(hard))
+    ok("panel dependencies present: %d of %d%s"
+       % (counted - len(hard), counted,
+          "" if len(missing) == len(hard) else " (%d traffic-derived not counted)" % (len(missing) - len(hard))))
 
 
 def _panel_targets(title_prefix):
     """(legend, expr) of every target on the first panel whose title starts with title_prefix."""
     ret = []
-    boards = os.path.join(O11Y, "grafana", "provisioning", "dashboards")
+    boards = BOARDS
     for path in glob.glob(os.path.join(boards, "*.json")):
         try:
             board = json.load(io.open(path, encoding="utf-8"))
@@ -687,7 +905,12 @@ def check_logging():
             url = (LOKI + "/loki/api/v1/query_range?limit=1&start=%d&end=%d&query=" % (start, end) +
                    urllib.parse.quote(q))
             res = _get(url)["data"]["result"]
-            (ok if res else fail)("Loki has the log STREAM of %s" % svc)
+            if res:
+                ok("Loki has the log STREAM of %s" % svc)
+            elif svc in QUIET_STDOUT:
+                warn("Loki has no stream for %-12s -- n/a, quiet by design (%s)" % (svc, QUIET_STDOUT[svc]))
+            else:
+                fail("Loki has the log STREAM of %s" % svc)
         except Exception as e:
             warn("Loki query for %s failed: %s" % (svc, e))
     # a request id (correlationId) must be findable -- the log<->trace join key
@@ -701,17 +924,93 @@ def check_logging():
         warn("Loki correlationId query failed: %s" % e)
 
 
+# ENVNAME is a LABEL the launcher asserts, and it is printed on the banner AND on the SUMMARY line -- the line
+# that gets read and pasted. Nothing used to compare it with the stack that actually answered, so a sweep could
+# verify one system while naming the other, and be believed. That is not hypothetical: the docker o11y stack
+# PUBLISHES tempo :3200 / prometheus :9090 / loki :3100 on the host, which is why the k8s forwards live on the
+# 1xxxx band (o11y-forward.bat). Point a k8s run at :9090 and docker answers every query, cleanly, under the
+# k8s heading.
+#
+# The stack that answered can be READ instead of trusted: Prometheus labels each target with an instance, and
+# the two shapes are not alike. A kubernetes target is a POD -- esquire-aukeep-0 -- ending in its ordinal. A
+# docker target is a compose service and its port -- aukeep:8090. Neither can be mistaken for the other.
+ENV_FAMILY = {"docker": "docker", "docker-compact": "docker", "k8s": "k8s", "oke": "k8s"}
+
+
+def instance_family(instance):
+    """'k8s', 'docker' or None for ONE app target's instance label.
+
+    Read against SERVICES, not against a name shape. On docker the instance host IS the compose service --
+    exactly `aukeep`. On kubernetes it is the pod -- `esquire-aukeep-0` -- which contains the service name but
+    never equals it. A first cut tested for a trailing `-<ordinal>` instead and would have called every k8s
+    DEPLOYMENT pod (esquire-infra-otel-collector-f996d55f-nw4dv) a docker target; at x1 replicas that flips the
+    majority and FAILS a correct k8s run. A guard that refuses correct work is worse than no guard.
+    """
+    ret = None
+    head = (instance or "").strip().split(":")[0]
+    if head:
+        for service in SERVICES:
+            if head == service:
+                ret = "docker"
+                break
+            if service and service in head:
+                ret = "k8s"
+                break
+    return ret
+
+
+def answered_family():
+    """Which KIND of stack answered, by majority of the APP targets. None when it cannot tell.
+
+    Only the esquire-services job is read: those are the processes SERVICES names, so both spellings are
+    known there. The infra targets are named by whatever chart or compose file owns them and prove nothing.
+    """
+    ret = None
+    counts = {}
+    try:
+        rows = promq('up{job="esquire-services"}')
+    except Exception:
+        rows = []
+    for row in rows:
+        family = instance_family(row.get("metric", {}).get("instance"))
+        if family:
+            counts[family] = counts.get(family, 0) + 1
+    if counts:
+        best = sorted(counts.items(), key=lambda kv: -kv[1])[0]
+        if best[1] > sum(counts.values()) / 2.0:
+            ret = best[0]
+    return ret
+
+
+def check_env():
+    """Refuse to report on a stack that is not the one named. FIRST check, before 800 lines of output."""
+    expected = ENV_FAMILY.get(ENV)
+    answered = answered_family()
+    if expected is None:
+        warn("env %r is not a known environment name -- cannot check which stack answered" % ENV)
+    elif answered is None:
+        warn("cannot tell which stack answered (no recognisable target names) -- env=%s unverified" % ENV)
+    elif answered != expected:
+        fail("WRONG STACK: env says %s (a %s stack) but %s answered with %s targets -- every result below "
+             "describes the OTHER system. On k8s the forwards live on the 1xxxx band; check PROM_URL."
+             % (ENV, expected, PROM, answered))
+    else:
+        ok("env %-14s confirmed: the targets that answered are %s-shaped" % (ENV, answered))
+
+
 def main():
     print("Esquire o11y-verify  [env=%s]  Prometheus=%s" % (ENV, PROM or "<unset>"))
     if not PROM:
         print("PROM_URL is not set -- nothing to check. Run me through a launcher.")
         sys.exit(2)
+    check_env()
     check_scrape()
     check_meters()
     check_gauges()
     check_dependencies()
     check_bands()
     check_cardinality()
+    check_pipeline_freshness()
     check_tracing()
     check_chain()
     check_datasources()

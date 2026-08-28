@@ -1,6 +1,193 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v1.2.13-2608.2722  v1.2.13 -- Finalization
+    :Doc:         doc\Esquire.TestingStack.md
+                  doc\Esquire.ContinuingDev.md
+                  doc\Esquire.DevProcess.md
+                  doc\v1.2.x.Goal
+                  doc\v1.2.x.Planning
+
+v1.2.13-2608.2718  v1.2.13 -- Refresh the cloud: the sprint carried to OKE
+    :Doc:         doc\Esquire.GitHubActions.md
+    Components:  k8s-oci-compact,
+
+v1.2.13-2608.2620  v1.2.13 -- Hardening: the solution read back, and the issues it raised
+    - the tree cache is fed in the order the events were published
+    - a move tells the cache both of the numbers it changed, and every save of an entity is announced
+    - a path is resolved only inside the caller own part of the tree
+    - asking for a password change, or for two-factor, can be taken back again
+    - a deletion the identity server refuses is no longer reported as done
+    - a message that cannot be encoded leaves a record instead of vanishing
+    - a queue tells its owner about both outcomes, what it handled and what it failed
+    - a retry ladder that cannot be read refuses the connection instead of inventing one
+    - a connection reports that it is unproven until something proves it, and that state now reaches the boards
+    - request timing is measured only when monitoring is switched on
+    - a refused command answers as refused, not as accepted
+    - an event the system does not recognise is no longer treated as a deletion
+    - money moves only when both accounts are there, and only for the kind of account named
+    - the deployment scripts report the failures they used to pass over
+    - an image records which upstream it was built from
+    :Doc:         doc\Esquire.BizTree.md
+                  doc\Esquire.Messaging.md
+                  doc\Esquire.MessagingBus.md
+                  doc\Esquire.MessagingBus.Guides.md
+                  doc\Esquire.MessagingBus.ContinuingDev.md
+                  doc\Esquire.ContinuingDev.md
+                  doc\Esquire.Auth.md
+                  doc\Esquire.Auth.keySmithRoutine.md
+                  doc\Esquire.Auth.TokenPatterns.md
+                  doc\Esquire.AuditLoggingStack.md
+                  doc\Esquire.ObservabilityStack.md
+                  doc\Esquire.ObservabilityStack.Logging.md
+                  doc\Esquire.ObservabilityStack.Inventory.csv
+                  doc\Esquire.ObservabilityStack.Inventory.Compact.csv
+                  doc\Esquire.ObservabilityStack.Inventory.SuperCompact.csv
+                  doc\Esquire.GrafanaGuide.md
+                  doc\Esquire.GitHubActions.md
+                  doc\Esquire.DevProcess.md
+                  doc\Esquire.DevSetup.md
+                  doc\EntityDictionary.md
+                  doc\services.configuring.md
+    Components:   common,
+                  messaging,
+                  mir0n-utils,
+                  tp-activemq,
+                  tp-kafka,
+                  tp-redis,
+                  bizTree,
+                  enyMan,
+                  pacMan,
+                  kcMaster,
+                  keySmith,
+                  auKeep,
+                  dataKeep,
+                  gateway,
+                  gateWard,
+                  mesnie,
+                  compose,
+                  compose-compact,
+                  k8s,
+                  k8s-compact,
+                  k8s-oci-compact,
+                  keycloak,
+                  postgres,
+v1.2.13-2608.2119  v1.2.13 -- KeyCloak 26.6.0, and the sprint documentation
+    :Config:      the identity server is built on KeyCloak 26.6.0 for the docker stacks
+    :Config:      the load-test client that must not read its own token is handed the stripped one again
+    :Doc:         doc\Esquire.Vision.md
+                  doc\Esquire.Auth.TokenPatterns.md
+                  doc\Esquire.TestingStack.md
+                  doc\install\Docker.md
+                  doc\install\LocalK8s.md 
+                  doc\services.configuring.md
+                  doc\Esquire.DevSetup.md
+                  doc\Esquire.DevProcess.md
+                  doc\Esquire.GitHubActions.md
+                  doc\Esquire.GrafanaGuide.md
+                  doc\Esquire.HighAvailability.md
+                  doc\Esquire.BizTree.md
+                  doc\Esquire.Auth.md
+                  doc\Esquire.Auth.keySmithRoutine.md
+                  doc\Esquire.Messaging.md
+                  doc\Esquire.AuditLoggingStack.md
+                  doc\Esquire.ObservabilityStack.md
+                  doc\model\ComponentModel.vsdx
+    Components:   compose,
+                  compose-compact,
+                  keycloak,
+                  doc
+
+v1.2.13-2608.2017  v1.2.13 -- the composed services on the cloud
+    :Feature:     the cloud runs the composed setup: four programs instead of eight, with the change history
+                  written by the database itself
+    :Feature:     the automated cloud deploy ships that setup -- seven images instead of ten
+    :Doc:         the component model drawing is updated
+    Components:   .github (CI/CD),
+                  activemq,
+                  compose-compact,
+                  k8s,
+                  k8s-compact,
+                  k8s-oci-compact,
+                  o11y
+
+v1.2.13-2608.1823  v1.2.13 -- observability for the composed services
+    :Feature:     keySmith reports its own work -- its reads and saves by outcome, and what it asks the
+                  identity provider to do
+    :Feature:     the compact stacks have their own monitoring boards and their own picture of what runs, with
+                  a composed service drawn as the services it holds
+    :Feature:     Mesnie and gateWard have their own drawn marks, and the marks of the gate, the tree cache,
+                  the audit writer, the entity manager and the message broker are re-drawn
+    :Config:      the audit writer is deployed on the compact stacks again, and the audit trail travels the
+                  message bus there as it does on the classic ones
+    :Doc:         doc\Esquire.ObservabilityStack.md
+                  doc\Esquire.ObservabilityStack.Inventory.csv
+                  doc\Esquire.ObservabilityStack.Inventory.Compact.csv
+    Components:   common,
+                  keySmith,
+                  mesnie,
+                  gateWard,
+                  compose,
+                  compose-compact,
+                  k8s,
+                  k8s-compact
+
+v1.2.13-2608.1521  v1.2.13 -- gateWard
+    :Feature:     gateWard: one service that runs the gate and the tree cache together in a single process,
+                  in place of the two separate services
+    :Feature:     a request for the tree is answered inside the gate from its own copy, with no call out to
+                  another service
+    :Fix:         asking for something that is not there is answered "not found" instead of "bad request",
+                  in every service
+    :Fix:         the gate reports itself unavailable while the message broker is down, so it stops being
+                  sent work
+    Components:   common,
+                  messaging,
+                  bizTree,
+                  gateway,
+                  gateWard,
+                  compose-compact,
+                  k8s-compact
+
+v1.2.13-2608.1321  v1.2.13 -- Mesnie CI/CD
+    :Config:      the automatic local build-and-deploy now deploys whichever of the two stacks the machine is
+                  already running, and shuts the other one down before it starts. The two answer on the same
+                  addresses, so with the other one still up the deploy stopped part way and nothing said why
+    :Fix:         taking the compact stack down on kubernetes now removes Mesnie as well, so the two stacks
+                  cannot end up running side by side
+    Components:   .github (CI/CD),
+                  k8s-compact
+
+v1.2.13-2608.1316  v1.2.13 -- Mesnie
+    :Feature:     Mesnie: one service that runs the entity, sign-in and identity work together in a single
+                  process, in place of the three separate services
+    :Feature:     a service asks for identity work through one way in, and what answers it -- another service
+                  over the message bus, or the same process -- is decided where the service is wired
+    :Feature:     a compact stack that runs Mesnie, the gate, the tree cache, the money service and the
+                  browser tier, with its own docker and local-kubernetes folders kept apart from the classic
+                  ones
+    :Feature:     a moved entity's new position is announced to every copy of a process, so whichever copy
+                  later creates that sign-in identity still gives it the position it ended up at
+    :Refactoring: the identity work has one home: the message-bus ends of kcMaster now only carry messages in
+                  and answers out
+    :Refactoring: the sign-in request that travels to the identity provider is one shared class, filled by the
+                  caller and read by the provider
+    :Config:      the audit trail on the compact stack is written by the service itself, so no separate audit
+                  writer is deployed
+    :Config:      the compact stack's deploy scripts build and run it from its own folder alone -- what each
+                  image is built from, what is watched, and which services are started are all named there,
+                  so building or starting either stack never reaches into the other
+    :Doc:         doc\Esquire.Auth.md
+                  doc\Esquire.ContinuingDev.md
+                  doc\Esquire.MessagingBus.ContinuingDev.md
+    Components:   common,
+                  enyMan,
+                  keySmith,
+                  kcMaster,
+                  mesnie,
+                  compose-compact,
+                  k8s-compact
+
 v1.2.12-2608.1114  v1.2.12 -- Entity change number
     :Feature:     every office, user, account, sign-in record, personal-details record, address and custom
                   parameter row carries a change number that goes up by one each time the row is written

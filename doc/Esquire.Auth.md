@@ -70,20 +70,27 @@ services never need the KC user UUID to address a principal.
 
 ## 3. The collaboration — keySmith / kcMaster / KeyCloak
 
-Esquire never writes to KeyCloak from the business path. Identity changes are a **command over the IAM bus**, so
-the entity mutation and the KeyCloak sync never block each other:
+Esquire never writes to KeyCloak from the business path. Identity changes are **queued work handed to a
+gateway**, so the entity mutation and the KeyCloak sync never block each other:
 
 ![The esq2025 to KeyCloak sync collaboration: keySmith (access profile) and enyMan (entity + move) publish onto two channels -- the authoritative IAM request bus (URQ) and the entity-broadcast topic (the race-8c safety-net); kcMaster consumes both and is the only writer to KeyCloak.](img/auth-collaboration.svg)
 
 - **keySmith** owns the credential side of a user: it writes the `esq_usr` access columns (connection flag,
-  force-password-change, TOTP method) and **publishes** the matching identity command to the IAM bus. It never
-  touches KeyCloak directly.
+  force-password-change, TOTP method) and **posts** the matching identity command to the identity gateway. It
+  never touches KeyCloak directly.
+- **The identity gateway** (`IIdentityGateway`) is what a caller holds instead of the provider. keySmith and
+  enyMan hand it the command and return; how far the work then travels is the gateway's business, and the
+  caller is told nothing about it. In the classic shape the gateway each service is given puts the command on
+  the IAM bus. In the **compact** shape keySmith, enyMan and kcMaster share one program, and the gateway they
+  are given calls the KeyCloak agent directly: the same command, the same single writer, no queue round trip.
+  Neither caller can tell which gateway it holds -- that is what the seam is for.
 - **kcMaster** is the **only** service that writes to KeyCloak. It consumes the request, performs the create /
   update / delete / update-path against KC, and replies. Because it is the single writer, KeyCloak state has one
   authority.
 - **KeyCloak** is the identification host (below).
 
-> **Everything here runs redundant.** keySmith, enyMan, and kcMaster each run at **N replicas**, and that is what
+> **Everything here runs redundant.** keySmith, enyMan, and kcMaster each run at **N replicas** (in the
+> compact shape, N replicas of the one program that holds all three), and that is what
 > gives these flows their shape: a request (`URQ`) is competing-consumed by **one** kcMaster and its reply routes
 > back to the **originating** instance by rod-id, while the entity-broadcast **topic** fans out to **every** kcMaster
 > replica (each holding its own path buffer). The sequence diagrams below draw the services as stacked replicas,
@@ -108,17 +115,31 @@ The two stores hold two views of the same user, and **`esq2025` is the source of
 - **KeyCloak** mirrors only the auth-relevant slice — the login credential, the two claims, and the roles — so it
   can authenticate and stamp a token.
 
-Every change flows one way, **DB → KeyCloak, always through kcMaster** (the single writer), by two paths:
+Every change flows one way, **DB → KeyCloak, always through kcMaster** (the single writer), by two paths. The
+gateway has an arm for each, and a caller picks the arm by what it has in hand — a command it is asking for, or
+a move it merely heard about:
 
-1. **The command path (authoritative).** When a user is created / updated / deleted, or a credential state changes
-   (activation, password reset, TOTP), keySmith — or enyMan for a **move** — publishes a request (`URQ`) on the KC
-   request/response bus. kcMaster applies it to KeyCloak: create / update / delete the user, set the **roles**
-   (`req.getRoles()`), write the **claim** attributes (`esq_uid`, `esq_rootpath`), or update the path
-   (`EVENT_UPDATE_PATH`, which re-stamps `esq_rootpath` when a user is moved).
-2. **The broadcast safety-net.** kcMaster also consumes the entity-broadcast topic. If a moved user's new path
-   arrives before KeyCloak has that user (the race a create-during-move opens), kcMaster parks it in a small
-   path buffer (a per-pod expiring cache) and the pending create flushes the post-move path. The command path is
-   authoritative; the broadcast is belt-and-suspenders so a relocation is never lost.
+1. **The command path (authoritative)** — `postRequest`. When a user is created / updated / deleted, or a
+   credential state changes (activation, password reset, TOTP), keySmith — or enyMan for a **move** — posts a
+   request. It travels as a `URQ` on the KC request/response bus, and kcMaster applies it to KeyCloak: create /
+   update / delete the user, set the **roles** (`req.getRoles()`), write the **claim** attributes (`esq_uid`,
+   `esq_rootpath`), or update the path (`EVENT_UPDATE_PATH`, which re-stamps `esq_rootpath` when a user is
+   moved). A request that finds no KeyCloak user is skipped — path 2 is what catches that case.
+2. **The broadcast safety-net** — `postMessage`. kcMaster consumes the entity-broadcast topic. If a moved user's
+   new path arrives before KeyCloak has that user (the race a create-during-move opens), kcMaster parks it in a
+   small path buffer (a per-pod expiring cache) and the pending create flushes the post-move path. enyMan relays
+   the moves — the ones it receives and the ones it makes — to its gateway: a path broadcast is the whole of what
+   this arm takes, and a gateway whose provider subscribes to the topic itself skips them.
+
+The command path is authoritative; the broadcast is belt-and-suspenders so a relocation is never lost. The two
+are not interchangeable: a **request** reaches one replica, a **broadcast** reaches every replica, which is
+exactly why the safety-net is the broadcast and not a second request.
+
+**The role mapping is set, not merged.** `esq2025` owns it whole: after a sync, the realm roles of an
+Esquire-managed identity are exactly the roles Esquire assigned -- the update empties the mapping and fills it
+from the access profile. That is what "the database is the source of truth" means for roles: read the mapping
+in KeyCloak and you are reading Esquire's answer, with nothing else mixed in, and two users with the same
+profile hold the same mapping whatever either of them has been through.
 
 `esq_uid` is written once, at create, and never changes — identity is stable. `esq_rootpath` is the one attribute
 re-issued on a move, so the token's visibility root always matches the tree.
@@ -132,7 +153,7 @@ log in second:
    **exists in the tree** — it has an id, a kind, a position, and can be seen and managed — but has **no way to log
    in**: the connection flag is `N`, and **no KeyCloak identity exists** yet.
 2. **Activate the access profile (keySmith).** A separate operation flips the connection flag `N → Y`. keySmith
-   writes the access columns and publishes the identity command; kcMaster creates the KeyCloak user with the
+   writes the access columns and posts the identity command; kcMaster creates the KeyCloak user with the
    user's **roles + claims**, a **temporary password `"changeit"`**, and a force-password-change action. Only now
    can the user log in — and on first login KeyCloak makes them replace `"changeit"` with a real password.
 
@@ -195,13 +216,13 @@ fought:
 
 ![Move rootpath sync with the create-while-move safety-net: enyMan updates ep_path in esq2025 and publishes an authoritative EVENT_UPDATE_PATH URQ that kcMaster applies to KeyCloak when the user exists; the same move is also broadcast on the entity topic, and when the KeyCloak identity does not exist yet kcMaster parks the new path in a per-pod expiring path buffer, keeping the newest path by change number, which the next keySmith CREATE URQ flushes, so the relocation is never lost.](img/auth-move.svg)
 
-- **Authoritative path.** enyMan publishes an `EVENT_UPDATE_PATH` URQ; kcMaster re-stamps `esq_rootpath` on the KC
-  user — *if that user exists*.
+- **Authoritative path.** enyMan posts an `EVENT_UPDATE_PATH` request and its gateway transmits it as a URQ;
+  kcMaster re-stamps `esq_rootpath` on the KC user — *if that user exists*.
 - **The race.** A user can be **created while it is being moved**: the move's `UPDATE_PATH` can reach kcMaster
   before the user's KeyCloak identity has been created. The authoritative URQ then finds no user and **silently
   skips** — the new path would be lost.
 - **The safety-net.** The same move is also broadcast on the entity-broadcast topic; kcMaster's topic worker parks
-  the new path in a per-pod **expiring path buffer** (an `ExpiringCache`, bean in `KeycloakConfig`). The next keySmith `CREATE` URQ for that user **flushes the buffer**
+  the new path in a per-pod **expiring path buffer** (an `ExpiringCache` the identity gateway builds and owns). The next keySmith `CREATE` URQ for that user **flushes the buffer**
   and applies the post-move path — so the relocation is never lost. When the user already exists, the URQ owns the
   update and the topic side stays passive (no double write).
 - **The buffer keeps the newest path, not the last one to arrive.** A path is parked with the change number of
@@ -220,6 +241,28 @@ is unchanged (the pluggable-IAM property; see [`Esquire.Vision.md`](Esquire.Visi
 
 Which token shape reaches the services from the edge — a browser cookie, a plain JWT, or a relayed one — is the
 gateway's concern, covered in [`Esquire.Auth.TokenPatterns.md`](Esquire.Auth.TokenPatterns.md).
+
+### When a sync fails
+
+kcMaster answers every identity request: **URS** on success, **URR** on failure, carrying the error and the
+request it was given. The requester records the answer, and kcMaster counts the outcome
+(`esq.biz.kc.sync.total{outcome}`) and times it (`esq.biz.kc.sync.duration`), so a failed sync shows on the
+board and in the log with its request and correlation ids.
+
+Two stores can then disagree: `esq2025` holds the user, KeyCloak does not know it yet -- or knows an older
+path. **`hauberk kc-reconcile`** is the repair path. It reads the truth from esq2025 over JDBC and the mirror
+from KeyCloak over the REST admin API, talking to both directly rather than through the services, so it works
+while they are down. It reports three kinds of drift and exits 1 when it finds any:
+
+| drift | meaning | `--repair` |
+|---|---|---|
+| `STALE_PATH` | the KC `esq_rootpath` differs from the DB `ep_path` | fixed in place |
+| `MISSING_IN_KC` | a connected Esquire user with no KeyCloak account | reported -- creating the account needs the credential and activation work that is kcMaster's |
+| `ORPHAN_IN_KC` | a KeyCloak user whose `esq_uid` is not a connected Esquire user | reported -- deletion is destructive |
+
+Tracking an answer back to the request that asked for it -- a reply timeout, a pending-request map,
+replier-down detection -- is the messaging bus's continuing work, items 9 and 6 in
+[`Esquire.MessagingBus.ContinuingDev.md`](Esquire.MessagingBus.ContinuingDev.md).
 
 ---
 
@@ -371,6 +414,27 @@ loaded from the seed. Role **exceptions** — a per-node override of a role's de
 
 Together with Dimension 1: the role decides *whether* an operation is allowed and *what tools* appear; the path
 decides *which entities* it can touch. A `DENY` at the gate, or an out-of-subtree target, stops the write.
+
+### 5.2a One administrative role per user
+
+A user holds **at most one admin role**. That is the model, not a convention: the gate resolves the caller's
+permission matrix by finding the admin role among the token's roles and reading its per-kind record, so one
+role means one matrix and one answer. A user may hold tool roles (TREE) alongside it -- those govern what the
+Explorer shows, not what a command may do.
+
+The rule is enforced twice on the way in. The **UI refuses to offer it**: `esquire.ui.lib`'s tab-list
+component will not add a second element of the admin role kind (980), so the Explorer -- and any application
+built on the library -- cannot produce the case. Behind it the **server refuses to store it**: the roles
+validator rejects a save that would leave a user with more than one administrative role. A user with two can
+therefore only be made by a hand-built request, which is the same door every other trusted-parameter case goes
+through.
+
+There is **no database constraint** behind the rule, and that is deliberate. The user-to-role relation is
+what changes next: `Esquire.Vision.md` names **hierarchical roles** as a backbone idea -- authority is
+positional, a function of where you sit in the tree -- and today only the visibility half of that is built.
+When a role becomes something a user holds **per branch** rather than once for the whole tree
+(`Esquire.ContinuingDev.md` CD-19), a constraint written against today's shape would be written against the
+shape that is going away.
 
 ### 5.3 Acting on yourself — the `personal` flag
 

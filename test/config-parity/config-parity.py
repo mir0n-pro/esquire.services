@@ -42,26 +42,80 @@ import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))              # .../services/test/config-parity
 SVC = os.path.abspath(os.path.join(HERE, "..", ".."))          # .../services
-CHARTS = os.path.join(SVC, "k8s", "charts")
-LOCAL_VALUES = os.path.join(SVC, "k8s", "values")
-OKE_VALUES = os.path.join(SVC, "k8s-oci", "values")
-
-# service short name -> chart directory. Only the services deployed on BOTH targets.
-BOTH = {
-    "gateway":  "esquire-gateway",
-    "biztree":  "esquire-biztree",
-    "enyman":   "esquire-enyman",
-    "pacman":   "esquire-pacman",
-    "keysmith": "esquire-keysmith",
-    "kcmaster": "esquire-kcmaster",
-    "backend":  "esquire-backend",
+# --- the two deployment profiles -------------------------------------------------------------
+# CLASSIC: seven application processes, local k8s (k8s/) vs OKE (k8s-oci/).
+# COMPACT: four, local k8s-compact/ vs OKE k8s-oci-compact/ -- Mesnie carries enyMan, keySmith and
+# the identity work; gateWard carries the gate and the tree cache.
+#
+# Only the paths and the service list differ; every check below is the same for both.
+PROFILES = {
+    "classic": {
+        "charts":       os.path.join(SVC, "k8s", "charts"),
+        "local_values": os.path.join(SVC, "k8s", "values"),
+        "oke_values":   os.path.join(SVC, "k8s-oci", "values"),
+        # service short name -> chart directory. Only the services deployed on BOTH targets.
+        "both": {
+            "gateway":  "esquire-gateway",
+            "biztree":  "esquire-biztree",
+            "enyman":   "esquire-enyman",
+            "pacman":   "esquire-pacman",
+            "keysmith": "esquire-keysmith",
+            "kcmaster": "esquire-kcmaster",
+            "backend":  "esquire-backend",
+        },
+        # Deployed on LOCAL k8s only -- no OKE overlay by design (OKE audit = DB triggers, no auKeep
+        # pod). Reported so the asymmetry is explicit; never a failure.
+        "local_only": {
+            "aukeep": "esquire-aukeep",
+        },
+        # Intended local-vs-OKE differences that must NOT count as drift (the config-var-consistency
+        # "expected differences" list). Key by (service, CONFIG_KEY) -> the reason. Anything NOT listed
+        # here that comes up empty-on-one-side or key-missing is a genuine miss and fails the run.
+        "expected": {
+            ("gateway", "ESQ_GW_VANILLA_CLIENTS"): "Token Relay disabled on OKE by design (empty allowlist, audit A1)",
+            ("gateway", "ESQ_GW_PHANTOM_CLIENTS"): "Token Relay disabled on OKE by design (empty allowlist, audit A1)",
+            ("backend", "REDIS_URL"): "OKE BFF is a SINGLE replica (no shared-session store) -> no Redis on OKE (overlay note)",
+            ("backend", "ALLOWED_ORIGINS"): "OKE BFF is same-origin (SPA served by the BFF); cross-origin allowlist empty by design",
+        },
+    },
+    "compact": {
+        "charts":       os.path.join(SVC, "k8s-compact", "charts"),
+        "local_values": os.path.join(SVC, "k8s-compact", "values"),
+        "oke_values":   os.path.join(SVC, "k8s-oci-compact", "values"),
+        "both": {
+            "gateward": "esquire-gateward",
+            "mesnie":   "esquire-mesnie",
+            "pacman":   "esquire-pacman",
+            "backend":  "esquire-backend",
+        },
+        # Local compact runs the 5-process shape with the audit BUS drained by auKeep; OKE runs
+        # SUPER-COMPACT, audit option (a) DB triggers, so auKeep has no OKE overlay. Same asymmetry
+        # the classic profile has, for the same reason.
+        "local_only": {
+            "aukeep": "esquire-aukeep",
+        },
+        "expected": {
+            ("gateward", "ESQ_GW_VANILLA_CLIENTS"): "Token Relay disabled on OKE by design (empty allowlist, audit A1)",
+            ("gateward", "ESQ_GW_PHANTOM_CLIENTS"): "Token Relay disabled on OKE by design (empty allowlist, audit A1)",
+            ("backend", "REDIS_URL"): "OKE BFF is a SINGLE replica (no shared-session store) -> no Redis on OKE (overlay note)",
+            ("backend", "ALLOWED_ORIGINS"): "OKE BFF is same-origin (SPA served by the BFF); cross-origin allowlist empty by design",
+        },
+    },
 }
 
-# Deployed on LOCAL k8s only -- no OKE overlay by design (OKE audit = DB triggers, no auKeep pod).
-# Reported so the asymmetry is explicit; never a failure.
-LOCAL_ONLY = {
-    "aukeep": "esquire-aukeep",
-}
+PROFILE = "classic"
+if "--profile" in sys.argv:
+    PROFILE = sys.argv[sys.argv.index("--profile") + 1]
+if PROFILE not in PROFILES:
+    sys.stderr.write("unknown profile %r -- use one of: %s" % (PROFILE, ", ".join(sorted(PROFILES))) + chr(10))
+    sys.exit(2)
+
+CHARTS = PROFILES[PROFILE]["charts"]
+LOCAL_VALUES = PROFILES[PROFILE]["local_values"]
+OKE_VALUES = PROFILES[PROFILE]["oke_values"]
+BOTH = PROFILES[PROFILE]["both"]
+LOCAL_ONLY = PROFILES[PROFILE]["local_only"]
+EXPECTED = PROFILES[PROFILE]["expected"]
 
 # Harmless placeholder values so `helm template` does not fail on a required secret / tag. A path a chart
 # never reads is simply ignored by the template -- passing a superset is safe.
@@ -74,16 +128,6 @@ STUBS = [
     "tokenRelay.phantom.exchangeClientSecret=x",
     "session.secret=x",
 ]
-
-# Intended local-vs-OKE differences that must NOT count as drift (the config-var-consistency "expected
-# differences" list). Key by (service, CONFIG_KEY) -> the reason. Anything NOT listed here that comes up
-# empty-on-one-side or key-missing is a genuine miss and fails the run.
-EXPECTED = {
-    ("gateway", "ESQ_GW_VANILLA_CLIENTS"): "Token Relay disabled on OKE by design (empty allowlist, audit A1)",
-    ("gateway", "ESQ_GW_PHANTOM_CLIENTS"): "Token Relay disabled on OKE by design (empty allowlist, audit A1)",
-    ("backend", "REDIS_URL"): "OKE BFF is a SINGLE replica (no shared-session store) -> no Redis on OKE (overlay note)",
-    ("backend", "ALLOWED_ORIGINS"): "OKE BFF is same-origin (SPA served by the BFF); cross-origin allowlist empty by design",
-}
 
 
 def render_configmap(chart_dir, values_file):
@@ -181,6 +225,7 @@ def check_service(name, chart):
 def main():
     print("=" * 78)
     print("Local-k8s <-> OKE config parity  (ConfigMap env-var set, rendered from charts)")
+    print("profile: %s  --  %s" % (PROFILE, ", ".join(sorted(BOTH))))
     print("=" * 78)
     total_fail = 0
     for name, chart in BOTH.items():

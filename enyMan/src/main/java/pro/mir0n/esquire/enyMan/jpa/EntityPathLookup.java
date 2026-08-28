@@ -14,6 +14,8 @@
  * 08/11/2026 mir0n  v1.2.12 -- updatePath raises ep_change_no inline (the path table is written under one
  *                   global lock, not read for update per row); pathChangeNoFor() reads the raised number
  *                   back
+ * 08/26/2026 mir0n  entityChangeNoFor(id) added -- the entity change number for the header of a reissued path
+ *                   broadcast
  */
 
 package pro.mir0n.esquire.enyMan.jpa;
@@ -43,4 +45,8 @@ public interface EntityPathLookup extends JpaRepository<EsqAcctJpa, String> {
     /** The path change number as it stands now -- read after {@link #updatePath} raised it. */
     @NativeQuery
     Long pathChangeNoFor(@Param("id") String id);
+
+    /** The entity row's change number, for the header of a reissued path broadcast. */
+    @NativeQuery
+    Long entityChangeNoFor(@Param("id") String id);
 }

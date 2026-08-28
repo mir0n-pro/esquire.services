@@ -16,6 +16,7 @@
  *                   HealthContributorRegistry programmatically at ApplicationReadyEvent (no @Bean) -> /actuator/health
  * 06/23/2026 mir0n  EsqMsgConstants app constants -> common.EsqConstants (references repointed)
  * 07/08/2026 mir0n  @Import(TracingConfig.class): the common distributed-tracing wiring (v1.2.11 O2)
+ * 08/12/2026 mir0n  v1.2.13 -- the package list moved to KcMasterConfig (@Import)
  */
 
 package pro.mir0n.esquire.kcMaster;
@@ -23,7 +24,8 @@ package pro.mir0n.esquire.kcMaster;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.SpringApplication;
-import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.boot.SpringBootConfiguration;
+import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.context.event.ApplicationEnvironmentPreparedEvent;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.boot.context.event.ApplicationStartingEvent;
@@ -39,12 +41,13 @@ import pro.mir0n.esquire.common.EsqConstants;
 import pro.mir0n.esquire.messaging.BusHealthIndicator;
 import pro.mir0n.esquire.messaging.MessagingBus;
 
+// @SpringBootConfiguration + @EnableAutoConfiguration is @SpringBootApplication without its implicit
+// @ComponentScan: the scan comes from KcMasterConfig, which is the one place kcMaster's packages are named.
 @Slf4j
 @EnableAsync
-@SpringBootApplication(scanBasePackages = {
-        "pro.mir0n.esquire.kcMaster"
-})
-@Import(ObservabilityConfig.class)
+@SpringBootConfiguration
+@EnableAutoConfiguration
+@Import({ObservabilityConfig.class, KcMasterConfig.class})
 public class KcMasterApplication {
 
     private static final org.slf4j.Logger devLog = LoggerFactory.getLogger("develop." + KcMasterApplication.class.getName());

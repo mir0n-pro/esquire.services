@@ -6,8 +6,13 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.keycloak.admin.client.Keycloak;
 import org.keycloak.admin.client.resource.RealmResource;
+import org.keycloak.admin.client.resource.RoleMappingResource;
+import org.keycloak.admin.client.resource.RoleScopeResource;
+import org.keycloak.admin.client.resource.RolesResource;
 import org.keycloak.admin.client.resource.UserResource;
 import org.keycloak.admin.client.resource.UsersResource;
+import jakarta.ws.rs.core.Response;
+import org.keycloak.representations.idm.RoleRepresentation;
 import org.keycloak.representations.idm.UserRepresentation;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
@@ -15,7 +20,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import pro.mir0n.esquire.common.EsqConstants;
 import pro.mir0n.esquire.kcMaster.messaging.ParkedPath;
 import pro.mir0n.utils.concurrent.ExpiringCache;
-import pro.mir0n.esquire.kcMaster.config.KeycloakConfig;
+import pro.mir0n.esquire.backend.identity.KcConnectionSettings;
 import pro.mir0n.esquire.kcMaster.service.impl.KcIdentityService;
 
 import java.util.Collections;
@@ -24,7 +29,9 @@ import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -34,19 +41,24 @@ import static org.mockito.Mockito.when;
 class KcIdentityServiceTest {
 
     @Mock private Keycloak keycloak;
-    @Mock private KeycloakConfig kcConfig;
+    /** A value, not a collaborator -- built rather than mocked. */
+    private final KcConnectionSettings kcConnection =
+            new KcConnectionSettings("http://keycloak:8080/kc-auth", "esquire",
+                    "esq-kcMaster", "secret", 5000, 10000);
     @SuppressWarnings("unchecked")
     @Mock private ExpiringCache<String, ParkedPath> pathBuffer;
     @Mock private RealmResource realmResource;
     @Mock private UsersResource usersResource;
     @Mock private UserResource userResource;
+    @Mock private RolesResource rolesResource;
+    @Mock private RoleMappingResource roleMappingResource;
+    @Mock private RoleScopeResource realmLevel;
 
     private KcIdentityService service;
 
     @BeforeEach
     void setUp() {
-        service = new KcIdentityService(keycloak, kcConfig, pathBuffer);
-        when(kcConfig.getRealm()).thenReturn("esquire");
+        service = new KcIdentityService(keycloak, kcConnection, pathBuffer);
         when(keycloak.realm("esquire")).thenReturn(realmResource);
         when(realmResource.users()).thenReturn(usersResource);
     }
@@ -138,10 +150,8 @@ class KcIdentityServiceTest {
         stubLoginSearch("alice", rep);
 
         service.updateUserAuthState(
-                "alice", null, "alice@example.com",  // same email
-                null, null, false, null, null,
-                null, null, "cid", "rid"
-        );
+                "alice", null, "alice@example.com", false, null,
+                null, null, null, "cid", "rid");
 
         verify(userResource, never()).update(any());
     }
@@ -153,10 +163,8 @@ class KcIdentityServiceTest {
         stubLoginSearch("alice", rep);
 
         service.updateUserAuthState(
-                "alice", null, "newalice@example.com",
-                null, null, false, null, null,
-                null, null, "cid", "rid"
-        );
+                "alice", null, "newalice@example.com", false, null,
+                null, null, null, "cid", "rid");
 
         verify(userResource).update(any());
     }
@@ -168,10 +176,8 @@ class KcIdentityServiceTest {
         stubLoginSearch("alice", rep);
 
         service.updateUserAuthState(
-                "alice", null, "alice@example.com",
-                null, null, false, null, null,
-                null, null, "cid", "rid"
-        );
+                "alice", null, "alice@example.com", false, null,
+                null, null, null, "cid", "rid");
 
         verify(userResource, never()).update(any());
     }
@@ -183,10 +189,8 @@ class KcIdentityServiceTest {
         stubLoginSearch("alice", rep);
 
         service.updateUserAuthState(
-                "alice", null, null,
-                null, null, true, null, null,
-                null, null, "cid", "rid"
-        );
+                "alice", null, null, true, null,
+                null, null, null, "cid", "rid");
 
         verify(userResource).update(any());
     }
@@ -198,10 +202,8 @@ class KcIdentityServiceTest {
         stubLoginSearch("alice", rep);
 
         service.updateUserAuthState(
-                "alice", null, null,
-                null, null, false, Boolean.TRUE, null,
-                null, null, "cid", "rid"
-        );
+                "alice", null, null, false, Boolean.TRUE,
+                null, null, null, "cid", "rid");
 
         verify(userResource).update(any());
     }
@@ -213,10 +215,8 @@ class KcIdentityServiceTest {
         stubLoginSearch("alice", rep);
 
         service.updateUserAuthState(
-                "alice", "alice2", null,
-                null, null, false, null, null,
-                null, null, "cid", "rid"
-        );
+                "alice", "alice2", null, false, null,
+                null, null, null, "cid", "rid");
 
         verify(userResource).update(any());
     }
@@ -229,10 +229,8 @@ class KcIdentityServiceTest {
 
         Map<String, List<String>> attrs = Map.of("custom-attr", List.of("val"));
         service.updateUserAuthState(
-                "alice", null, null,
-                null, null, false, null, null,
-                null, attrs, "cid", "rid"
-        );
+                "alice", null, null, false, null,
+                null, null, attrs, "cid", "rid");
 
         verify(userResource).update(any());
     }
@@ -256,6 +254,128 @@ class KcIdentityServiceTest {
         rep.setUsername(username);
         rep.setEmail(email);
         return rep;
+    }
+
+    // -------------------------------------------------------------------------
+    // the realm role mapping -- SET, not merged
+    // -------------------------------------------------------------------------
+
+    @Test
+    @DisplayName("realm roles: a role Esquire did not name is removed -- KeyCloak's own default included")
+    void realmRoles_roleNotNamedByEsquire_isRemoved() {
+        UserRepresentation rep = userRepForUpdate("alice", "alice@example.com");
+        stubLoginSearch("alice", rep);
+        stubRoleMapping(role("default-roles-esquire"), role("SUPPORT"));
+
+        service.updateUserAuthState(
+                "alice", null, null, null, null,
+                null, List.of("SUPPORT"), null, "cid", "rid");
+
+        ArgumentCaptor<List<RoleRepresentation>> removed = ArgumentCaptor.forClass(List.class);
+        verify(realmLevel).remove(removed.capture());
+        assertThat(removed.getValue()).extracting(RoleRepresentation::getName)
+                .containsExactly("default-roles-esquire");
+        verify(realmLevel, never()).add(any());
+    }
+
+    @Test
+    @DisplayName("realm roles: a role Esquire names and the user lacks is added")
+    void realmRoles_roleEsquireNames_isAdded() {
+        UserRepresentation rep = userRepForUpdate("alice", "alice@example.com");
+        stubLoginSearch("alice", rep);
+        stubRoleMapping(role("SUPPORT"));
+        when(realmResource.roles()).thenReturn(rolesResource);
+        when(rolesResource.list()).thenReturn(List.of(role("SUPPORT"), role("MANAGER")));
+
+        service.updateUserAuthState(
+                "alice", null, null, null, null,
+                null, List.of("SUPPORT", "MANAGER"), null, "cid", "rid");
+
+        ArgumentCaptor<List<RoleRepresentation>> added = ArgumentCaptor.forClass(List.class);
+        verify(realmLevel).add(added.capture());
+        assertThat(added.getValue()).extracting(RoleRepresentation::getName).containsExactly("MANAGER");
+        verify(realmLevel, never()).remove(any());
+    }
+
+    @Test
+    @DisplayName("realm roles: the mapping already matches -- KeyCloak is not touched")
+    void realmRoles_unchanged_touchesNothing() {
+        UserRepresentation rep = userRepForUpdate("alice", "alice@example.com");
+        stubLoginSearch("alice", rep);
+        stubRoleMapping(role("SUPPORT"));
+
+        service.updateUserAuthState(
+                "alice", null, null, null, null,
+                null, List.of("SUPPORT"), null, "cid", "rid");
+
+        verify(realmLevel, never()).add(any());
+        verify(realmLevel, never()).remove(any());
+    }
+
+    @Test
+    @DisplayName("realm roles: an empty Esquire set empties the mapping")
+    void realmRoles_emptySet_emptiesTheMapping() {
+        UserRepresentation rep = userRepForUpdate("alice", "alice@example.com");
+        stubLoginSearch("alice", rep);
+        stubRoleMapping(role("default-roles-esquire"), role("SUPPORT"));
+
+        service.updateUserAuthState(
+                "alice", null, null, null, null,
+                null, Collections.emptyList(), null, "cid", "rid");
+
+        ArgumentCaptor<List<RoleRepresentation>> removed = ArgumentCaptor.forClass(List.class);
+        verify(realmLevel).remove(removed.capture());
+        assertThat(removed.getValue()).extracting(RoleRepresentation::getName)
+                .containsExactlyInAnyOrder("default-roles-esquire", "SUPPORT");
+    }
+
+    // -------------------------------------------------------------------------
+    // createUser -- the create response is a resource, not a value
+    // -------------------------------------------------------------------------
+
+    @Test
+    @DisplayName("createUser: the create response is closed even when a later step throws")
+    void createUser_laterStepThrows_stillClosesTheResponse() {
+        Response created = mock(Response.class);
+        when(created.getStatus()).thenReturn(201);
+        when(created.getHeaderString("Location")).thenReturn("http://kc/admin/realms/esquire/users/u-1");
+        when(usersResource.create(any())).thenReturn(created);
+        // The role sync is the first thing to touch KeyCloak after the create -- let it fail there.
+        when(usersResource.get("u-1")).thenThrow(new RuntimeException("KeyCloak is not answering"));
+
+        assertThatThrownBy(() ->
+                service.createUser("alice", "alice@example.com", null, true, false, false,
+                        List.of("SUPPORT"), null, "cid", "rid"))
+                .isInstanceOf(RuntimeException.class);
+
+        verify(created).close();
+    }
+
+    @Test
+    @DisplayName("createUser: a create that does not answer 201 closes the response too")
+    void createUser_createRefused_closesTheResponse() {
+        Response refused = mock(Response.class);
+        when(refused.getStatus()).thenReturn(409);
+        when(usersResource.create(any())).thenReturn(refused);
+
+        assertThatThrownBy(() ->
+                service.createUser("alice", "alice@example.com", null, true, false, false,
+                        null, null, "cid", "rid"))
+                .isInstanceOf(RuntimeException.class);
+
+        verify(refused).close();
+    }
+
+    private static RoleRepresentation role(String name) {
+        RoleRepresentation ret = new RoleRepresentation();
+        ret.setName(name);
+        return ret;
+    }
+
+    private void stubRoleMapping(RoleRepresentation... current) {
+        when(userResource.roles()).thenReturn(roleMappingResource);
+        when(roleMappingResource.realmLevel()).thenReturn(realmLevel);
+        when(realmLevel.listAll()).thenReturn(List.of(current));
     }
 
     private void stubByAttributeSearch(String entityId, UserRepresentation rep) {

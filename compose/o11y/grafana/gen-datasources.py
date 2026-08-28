@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 # Esquire frameworks (tm) -- Grafana DATASOURCE generator (v1.2.11 observability, T9-B).
 #
-# Single source of truth for the three datasources, emitted to BOTH deploy targets so they cannot drift:
+# THE CLASSIC generator: single source of truth for the three datasources on the classic profile, emitted to
+# BOTH classic deploy targets so they cannot drift:
 #   * docker : compose/o11y/grafana/provisioning/datasources/{loki,tempo,prometheus}.yaml
 #   * k8s    : k8s/charts/infra/grafana/templates/configmap-datasource.yaml   (helm template)
+# The compact generator is its own file under compose-compact/o11y/grafana; neither writes the other's tree.
 # Run with no arguments (python gen-datasources.py) after changing a datasource; commit the .py AND both outputs.
 #
 # WHY THIS FILE EXISTS. The two targets were hand-maintained copies and had already drifted: compose declared a

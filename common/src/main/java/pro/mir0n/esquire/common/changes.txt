@@ -1,5 +1,19 @@
 Esquire Common microservice classes
 
+08/27/2026 mir0n  v1.2.13 -- one writer for the error body
+error.ProblemDetailWriter
+  - added: the one place a ProblemDetail reaches a servlet response -- a mapper carrying JavaTimeModule
+    and ISO dates, and the body serialized to bytes BEFORE the status, the content type and the write, so
+    a value with no serializer can no longer leave a half-body on a response already committed
+security.SecurityConfiguration
+  - unauthenticated() hands the problem to ProblemDetailWriter; the class keeps no ObjectMapper
+security.JwtClaimsExtractionFilter
+  - sendErrorResponse() hands the problem to ProblemDetailWriter; the per-call ObjectMapper is gone
+
+08/26/2026 mir0n  v1.2.13 -- the path change number on the wire
+EsqConstants
+  - TEXT_PATH_CHANGE_NO added -- the path change number carried in a broadcast body
+
 07/26/2026 mir0n  v1.2.11 -- Paper Client Account kind label correction
 esq-object-kinds.xml
   - the paper-client-account shortcut kind <title> "Paper Client" -> "Paper Client Account";

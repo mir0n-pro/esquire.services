@@ -1,0 +1,41 @@
+image:
+  repository: esquire-activemq
+  tag: "6.1.4"
+  pullPolicy: IfNotPresent
+
+service:
+  openwire: 61616    # JMS/OpenWire broker port
+  console: 8161      # ActiveMQ web console
+  metrics: 9404      # Prometheus JMX exporter (only listening when observability is enabled)
+
+# Observability umbrella -- gates the JMX exporter agent inside the broker JVM (the :9404 /metrics surface).
+# The agent jar is baked into the image but the entrypoint only passes -javaagent when this is true, so OFF
+# costs nothing. Off by default; o11y-on.bat flips it true and rolls the StatefulSet.
+observability:
+  enabled: false
+
+storage:
+  storageClass: standard
+  size: 5Gi
+  # The volume is mounted here AND the broker is pointed here (ESQ_AMQ_DATA_DIR). The two must agree, or the PVC
+  # silently sits empty -- the broker's own default data dir is the pod's ephemeral layer, which is exactly how
+  # this went unnoticed before v1.2.11.
+  #
+  # NOTE what the volume is for now: the broker is NON-PERSISTENT (no message store, nothing survives a restart,
+  # by design), so this carries only the temp spool and the broker log. It is not a durability store. It is kept
+  # because a StatefulSet's volumeClaimTemplates are IMMUTABLE -- removing it would make `helm upgrade` fail and
+  # force a StatefulSet delete/recreate.
+  mountPath: /var/opt/activemq/data
+  # No storeLimit exists: with no message store there is nothing to bound. This is the spool that memoryUsage
+  # (70% of heap) overflows into -- the only disk an in-memory bus can touch. Keep it well under `size` above.
+  tempLimit: 512mb
+
+# Which destinations the broker DECLARES at start, so their depth and consumer-count meters exist at zero
+# traffic. Empty = the activemq.xml default, which is the classic set (entity topic, the identity request/reply
+# pair, the audit queue). A composition that does not CONSUME one of those must not declare it: an undrained
+# destination is reported as trouble, correctly, and saying it here is how the broker learns which composition
+# it is serving. Space-separated "<topic|queue>:<physicalName>".
+#   classic        : leave empty
+#   compact        : topic:esquire.entity.broadcast queue:esquire.rod.audit   (kcMaster is inside Mesnie)
+#   super-compact  : topic:esquire.entity.broadcast                           (audit is in the database)
+destinations: ""

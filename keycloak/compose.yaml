@@ -4,7 +4,12 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.keycloak
-    image: esquire-keycloak:26.4.7
+      args:
+        # The SAME override the two stack compose files pass. Without it this file builds the
+        # Dockerfile default (26.4.7) and tags it 26.6.0, so a `cd keycloak && docker compose build`
+        # replaces the image both stacks run with an older KeyCloak under the newer label.
+        BASE: quay.io/keycloak/keycloak:26.6.0
+    image: esquire-keycloak:26.6.0
     command: start-dev --import-realm
     ports:
       - "8080:8080"

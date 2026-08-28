@@ -14,6 +14,9 @@
  * 03/21/2026 mir0n  devLog added; log.warn on exception→dual error (log.error+devLog.error); unused imports removed
  * 03/26/2026 mir0n  handleEmailExists(): EmailExistsException → 409 CONFLICT RFC 9457 response
  * 03/28/2026 mir0n  DeleteRestrictedException added to 409 handler alongside EmailExistsException
+ * 08/15/2026 mir0n  v1.2.13 -- ResourceNotFoundException gets its own branch: 404 NOT_FOUND, title "Not Found"
+ *                   (was the 400 BAD_REQUEST branch it shared with InvalidValueException)
+ * 08/26/2026 mir0n  CommandNotAcceptedException answers 503 Service Unavailable
  */
 
 package pro.mir0n.esquire.backend.error;
@@ -43,8 +46,29 @@ public class GenericExceptionHandler{
                     ex
             );
             response = ResponseEntity.status(HttpStatus.CONFLICT).body(problem);
+        } else if (ex instanceof CommandNotAcceptedException) {
+            ProblemDetail problem = ProblemDetailMill.createProblemDetail(
+                    request,
+                    HttpStatus.SERVICE_UNAVAILABLE,
+                    "Service Unavailable",
+                    null,
+                    ex
+            );
+            response = ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(problem);
+        } else if (ex instanceof ResourceNotFoundException) {
+            // The status the exception has always declared with @ResponseStatus(NOT_FOUND). An @ExceptionHandler
+            // is resolved ahead of @ResponseStatus, so that annotation never reached the wire and the asked-for
+            // thing being absent was answered as if the request were malformed.
+            ProblemDetail problem = ProblemDetailMill.createProblemDetail(
+                    request,
+                    HttpStatus.NOT_FOUND,
+                    "Not Found",
+                    null,
+                    ex
+            );
+            response = ResponseEntity.status(HttpStatus.NOT_FOUND).body(problem);
         } else {
-            //InvalidValueException, ResourceNotFoundException
+            //InvalidValueException
             ProblemDetail problem = ProblemDetailMill.createProblemDetail(
                     request,
                     HttpStatus.BAD_REQUEST,

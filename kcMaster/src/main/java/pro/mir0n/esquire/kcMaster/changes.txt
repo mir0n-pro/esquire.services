@@ -1,5 +1,62 @@
 Esquire kcMaster Microservice
 
+08/26/2026 mir0n  v1.2.13 -- credential state held both ways, and the admin client moved
+config.KeycloakConfig
+  - reduced to the kc-async task executor bean; the Keycloak admin client and its settings move to
+    KcIdentityGateway, built from the shared KcConnectionSettings
+identity.KcIdentityGateway
+  - builds the Keycloak admin client itself from KcConnectionSettings -- its own JAX-RS Client with
+    JacksonProvider and connect / read timeouts -- and implements IQueueRig.IErrorListener so a worker
+    throw is recorded rather than lost
+messaging.KcRequestHandler
+  - the updateAccess call drops the password and enabled arguments, neither of which the messaging path
+    manages
+service.IKcIdentityService
+  - updateAccess drops the password and enabled parameters; forcePasswordChange becomes a Boolean and
+    removeTotp joins it, so each required action can be withdrawn as well as set
+service.impl.KcIdentityService
+  - updateAccess reads the user existing required actions and holds each one both ways via holdAction:
+    UPDATE_PASSWORD follows forcePasswordChange, CONFIGURE_TOTP is set on request and removed on
+    removeTotp, and the write happens only when something changed
+  - deleteUser checks and closes the JAX-RS Response, so a refused delete is not reported SUCCESS
+resources/application.yml
+  - the admin connect / read timeouts take KC_ADMIN_CONNECT_TIMEOUT_MS and KC_ADMIN_READ_TIMEOUT_MS
+resources/logback-spring.xml
+  - the develop pattern drops the "develop." prefix from the logger name
+
+08/12/2026 mir0n  v1.2.13 -- Mesnie
+KcMasterApplication
+  - the package list moved to KcMasterConfig (@Import)
+KcMasterConfig  (new)
+  - created: kcMaster's @ComponentScan, the one place its packages are named; excludes KcMasterApplication;
+    declares @Bean KcIdentityGateway identityGateway(Environment) with initMethod start / destroyMethod stop
+identity.KcIdentityGateway  (new)
+  - created: THE identity workflow and the only copy of it. Builds its own KeyCloak admin client, path park,
+    KcIdentityService and KcRequestHandler from keycloak.admin.* and kcmaster.path-buffer.*; serve(RodEvent)
+    routes by msgType -- a request to the handler, a broadcast to the park; postRequest / postMessage queue
+    onto a BoundedQueueRig (one worker, FIFO); start()/stop() drive the park pruner and the queue gate
+config.KeycloakConfig
+  - the keycloak() and kcPathBuffer() beans removed: KcIdentityGateway builds the admin client and the path
+    park itself; the I39 note moved with the client
+messaging.EntityBusAdapter
+  - transport only: the receive worker is KcIdentityGateway.serve; the park decision, the KC user lookup and
+    the path extraction moved to the gateway
+messaging.KcBusAdapter
+  - transport only: the receive worker is KcIdentityGateway.serve and the gateway's answers transmit back on
+    the rod; the dispatch and the URS/URR building moved to the gateway
+messaging.KcRequestHandler
+  - KcSyncRequest -> AuthSyncRequest (moved to common backend.identity); @Component dropped -- the handler is
+    built by KcIdentityGateway
+messaging.KcSyncRequest
+  - moved to common backend.identity as AuthSyncRequest
+service.impl.KcIdentityService
+  - @Service dropped -- built by KcIdentityGateway; KcSyncRequest -> AuthSyncRequest
+pom.xml
+  - maven-jar-plugin execution attaches a plain classes jar (classifier "classes"), excluding application.yml
+    and logback-spring.xml
+Dockerfile, Dockerfile.win, Dockerfile.lx
+  - COPY names esquire-kc-master.jar instead of target/*.jar
+
 08/11/2026 mir0n  v1.2.12 -- entity change number
 messaging.ParkedPath  (new)
   - a moved entity's new path parked with the PATH change number that produced it, so the race-8c buffer

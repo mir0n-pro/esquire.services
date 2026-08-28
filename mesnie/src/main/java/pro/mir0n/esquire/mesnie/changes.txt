@@ -1,0 +1,36 @@
+Esquire Mesnie Microservice
+
+08/26/2026 mir0n  v1.2.13 -- configuration and develop logging
+resources/application.yml
+  - the admin connect / read timeouts take KC_ADMIN_CONNECT_TIMEOUT_MS and KC_ADMIN_READ_TIMEOUT_MS
+resources/logback-spring.xml
+  - the develop pattern drops the "develop." prefix from the logger name
+
+08/17/2026 mir0n  v1.2.13 -- observability for the composed services
+MesnieMeterOwner  (new)
+  - created: which of the three the household's meters belong to, read off the meter id: its name, the route
+    it was served on, or the bus it travelled
+MesnieApplication
+  - @Bean IMeterOwner meterOwner(entityBusId) declared here: a MesnieMeterOwner, handed the entity bus id from
+    the property the bus itself reads
+
+08/12/2026 mir0n  v1.2.13 -- Mesnie
+MesnieApplication  (new)
+  - created: enyMan and keySmith in ONE process, each imported as its own @Configuration, with kcMaster's
+    identity work served in that same process. Declares what a PROCESS owns -- the roles repository, one
+    AuditBusBridge, one IIdentityGateway (KcIdentityGateway, named and handed the Environment), the startup
+    storages and one MessagingBusLifecycleRegistrar over the entity and audit buses. No kc rod is built.
+application.yml  (new)
+  - created: the union of enyMan's and keySmith's settings under spring.application.name mesnie -- DB_MESNIE_*
+    datasource, the seven mapping resources per dialect, the enyman.move-queue block bound by its literal
+    prefix, keycloak.admin.* and kcmaster.path-buffer.* read by the identity gateway, and bus refs for entity
+    and audit only
+logback-spring.xml  (new)
+  - created: the develop and msg channels writing logs/mesnie-develop.log and logs/mesnie-msg.log
+pom.xml  (new)
+  - created: depends on the enyMan, keySmith and kcMaster plain classes jars (classifier "classes");
+    spring-boot-maven-plugin builds esquire-mesnie.jar
+Dockerfile  (new)
+  - created: COPY target/esquire-mesnie.jar app.jar
+compose.yaml  (new)
+  - created: builds the esquire.mesnie image from this module

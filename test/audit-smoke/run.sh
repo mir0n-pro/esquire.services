@@ -10,6 +10,18 @@
 #   ./run.sh docker-pg c          a single cell (b-ded-pg|b-ded-ora|c|c-ora|ck|ck-ora|d|dk|a)
 #   ./run.sh docker-ora           Oracle-primary docker cells   (needs Oracle up: esq2025/q @ //host:1521/MIR0N)
 #   ./run.sh k8s                  local-k8s cells
+#
+# COMPACT (Mesnie + gateWard) -- every target is an env override, so the same script drives it. What
+# compact composes is the REQUEST path; the audit sink is not on it, so auKeep runs as its own workload
+# and every sink option is a cell here exactly as on classic. Two producers where classic has three, and
+# the gate is called gateward:
+#   DPREFIX=esqc- DCOMPOSE_DIR=compose-compact DPRODUCERS="mesnie pacman" DGATE=esqc-gateward ./run.sh docker-pg
+#   K8S_DIR=k8s-compact PRODUCERS="mesnie pacman" PRODUCER_WORKLOADS="statefulset/esquire-mesnie statefulset/esquire-pacman" ./run.sh k8s c
+#   ./run.sh k8s-compact          local-k8s COMPACT cells (Mesnie composes the producers; auKeep is its own)
+#   ./run.sh k8s-compact b-ded-pg a single compact cell (b-ded-pg | a | c)
+#
+# DGATE matters: the gate is restarted after every recreate so it drops the producers' old container IPs.
+# Naming one that does not exist restarts nothing and says so to no one.
 # Prereqs: docker stack up (compose), hauberk.jar built, sqlplus(host)+psql(docker exec).
 # =============================================================================
 set -uo pipefail
@@ -27,7 +39,7 @@ ORA="esq2025/q@//localhost:1521/MIR0N"
 # database the services never write to, so every docker-pg cell reported whatever that stale database
 # happened to hold. All docker-pg DB access now goes through the container; k8s keeps using its
 # in-cluster postgres (k8s_pg_* via kubectl exec, further below).
-hpg() { docker exec -i esq-postgres psql -U esq2025 -d esq2025 "$@"; }
+hpg() { docker exec -i ${DPREFIX}postgres psql -U esq2025 -d esq2025 "$@"; }
 
 # ---- audit option (a): DB triggers. The base seed is trigger-FREE; the (a) cell applies the trigger
 # overlay, runs, validates, then DROPS it so the next (bus/in-process) cell is trigger-free again
@@ -68,22 +80,52 @@ SELECT (SELECT count(*) FROM ESQ_ORG_LOG)||','||(SELECT count(*) FROM ESQ_USER_L
 exit
 SQL
 }
-redis_len() { docker exec esq-redis redis-cli XLEN esquire.rod.audit 2>/dev/null | tr -d '\r'; }
-kafka_off() { MSYS_NO_PATHCONV=1 docker exec esq-kafka /opt/kafka/bin/kafka-get-offsets.sh --bootstrap-server localhost:9092 --topic esquire.rod.audit 2>/dev/null | awk -F: '{s+=$3} END{print s+0}'; }
+redis_len() { docker exec ${DPREFIX}redis redis-cli XLEN esquire.rod.audit 2>/dev/null | tr -d '\r'; }
+kafka_off() { MSYS_NO_PATHCONV=1 docker exec ${DPREFIX}kafka /opt/kafka/bin/kafka-get-offsets.sh --bootstrap-server localhost:9092 --topic esquire.rod.audit 2>/dev/null | awk -F: '{s+=$3} END{print s+0}'; }
 
 run_smoke() { # runs one EntitySmoke against gw :7070
   ( cd "${HBK}" && java --add-opens=java.base/java.lang=ALL-UNNAMED --add-opens=java.base/java.util=ALL-UNNAMED \
       --add-opens=java.base/sun.nio.ch=ALL-UNNAMED -jar target/hauberk.jar run entity-smoke >/dev/null 2>&1 )
 }
 
+# What a recreate would otherwise THROW AWAY. `docker compose up --force-recreate` rebuilds a container from
+# the compose file plus whatever is exported HERE, and this script exports only the cell's audit variables --
+# so every other opt-in falls back to its compose default. Observability is opt-in and defaults to OFF, which
+# means running this smoke used to turn the whole stack's observability off silently, and a later o11y-verify
+# then failed on meters that were never emitted. Read the flags off a running producer and put them back.
+keep_o11y_env() {
+  local c="${DPREFIX}$(echo "$DPRODUCERS" | awk '{print $1}')"
+  local v
+  for v in ESQ_OBSERVABILITY_ENABLED ESQ_METRICS_HISTOGRAMS ESQ_TRACING_ENABLED ESQ_METRICS_ENABLED; do
+    if [ -z "${!v-}" ]; then
+      local cur
+      cur="$(docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' "$c" 2>/dev/null | grep "^$v=" | cut -d= -f2-)"
+      [ -n "$cur" ] && export "$v=$cur"
+    fi
+  done
+}
+
 recreate_docker() { # recreate producers (+aukeep unless $1=no-aukeep) with the current exported env
-  local extra="aukeep"; [ "${1:-}" = "no-aukeep" ] && extra=""
-  ( cd "${SVCS}/compose" && docker compose up -d --force-recreate --no-deps enyman pacman keysmith ${extra} >/dev/null 2>&1 )
-  # The gateway caches routes by container IP; a force-recreate gives producers NEW IPs, so the gateway
-  # must be restarted or the smoke's calls hit dead IPs (503) and audit nothing.
-  docker restart esq-gateway >/dev/null 2>&1
-  # poll the gateway until it answers HTTP (any code, even 401) -> routes are live
-  local i code
+  local extra="$DAUKEEP"; [ "${1:-}" = "no-aukeep" ] && extra=""
+  keep_o11y_env
+  ( cd "${SVCS}/${DCOMPOSE_DIR}" && docker compose up -d --force-recreate --no-deps ${DPRODUCERS} ${extra} >/dev/null 2>&1 )
+  # Wait for every recreated container to finish BOOTING before the gate is told about it. The gate's
+  # own answer is not proof: on compact it serves the probe route from its own cache and replies in two
+  # seconds while Mesnie is still starting -- the smoke then runs against a producer that is not there
+  # and audits nothing.
+  local c i up
+  for c in ${DPRODUCERS} ${extra}; do
+    for i in $(seq 1 60); do
+      up="$(docker logs ${DPREFIX}${c} 2>&1 | grep -c "Started .*Application in")"
+      [ "$up" -gt 0 ] && break
+      sleep 2
+    done
+  done
+  # The gate caches routes by container IP; a force-recreate gives producers NEW IPs, so the gate must
+  # be restarted or the smoke's calls hit dead IPs (503) and audit nothing.
+  docker restart ${DGATE} >/dev/null 2>&1
+  # poll the gate until it answers HTTP (any code, even 401) -> routes are live
+  local code
   for i in $(seq 1 40); do
     code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 3 "http://localhost:7070/esq-enode?kind=20&name=probe" 2>/dev/null)"
     [ -n "$code" ] && [ "$code" != "000" ] && [ "$code" != "502" ] && [ "$code" != "503" ] && break
@@ -126,9 +168,9 @@ cell_docker_pg() {
     pg_dedup_drop                                      # triggers need the dedup index absent
     pg_trig_apply
     echo "    [trig] applied ($(pg_trig_count) ESQ triggers); dedup index dropped; audit msg OFF"
-    pre="$(pg_counts esq-postgres)"
+    pre="$(pg_counts ${DPREFIX}postgres)"
     recreate_docker; run_smoke; sleep 8
-    post="$(pg_counts esq-postgres)"
+    post="$(pg_counts ${DPREFIX}postgres)"
     res="$(grew "$pre" "$post" "$idx")"
     pg_trig_drop                                       # isolation: leave the DB trigger-free for the next cell
     echo "    pre=$pre post=$post -> $res (triggers dropped; now $(pg_trig_count))"
@@ -136,29 +178,29 @@ cell_docker_pg() {
     return
   fi
   if [ -n "$stream" ]; then
-    docker stop esq-aukeep >/dev/null 2>&1            # producer-only sink: no consumer should drain it into *_log
-    local spre; spre="$($streamfn)"; pre="$(pg_counts esq-postgres)"
+    [ -n "$DAUKEEP" ] && docker stop ${DPREFIX}aukeep >/dev/null 2>&1            # producer-only sink: no consumer should drain it into *_log
+    local spre; spre="$($streamfn)"; pre="$(pg_counts ${DPREFIX}postgres)"
     recreate_docker no-aukeep; run_smoke; sleep 6
-    local spost; spost="$($streamfn)"; post="$(pg_counts esq-postgres)"
+    local spost; spost="$($streamfn)"; post="$(pg_counts ${DPREFIX}postgres)"
     local sd=$(( ${spost:-0} - ${spre:-0} )); local lg ld; lg="$(grew "$pre" "$post" "")"; ld="${lg#* }"
     if   [ "$sd" -gt 0 ] && [ "$ld" = "0,0,0,0,0" ]; then res="PASS ${stream}Δ=${sd}; *_log flat"
     elif [ "$sd" -gt 0 ]; then res="PASS ${stream}Δ=${sd}; *_log Δ=${ld}"
     else res="FAIL ${stream}Δ=${sd}"; fi
-    docker start esq-aukeep >/dev/null 2>&1
+    [ -n "$DAUKEEP" ] && docker start ${DPREFIX}aukeep >/dev/null 2>&1
   else
     if [ -n "$warm" ]; then
       # Kafka consumer-group COLD START (mirrors cell_k8s): warm auKeep's kafka consumer with a throwaway
       # smoke + poll until *_log first grows (group joined + draining), THEN measure -- so the fixed sleep
       # below doesn't snapshot before the first-join rebalance delivers anything (earliest => not lost).
       recreate_docker
-      local w0 wi; w0="$(pg_counts esq-postgres)"; run_smoke
-      for wi in $(seq 1 20); do sleep 3; [ "$(pg_counts esq-postgres)" != "$w0" ] && break; done
+      local w0 wi; w0="$(pg_counts ${DPREFIX}postgres)"; run_smoke
+      for wi in $(seq 1 20); do sleep 3; [ "$(pg_counts ${DPREFIX}postgres)" != "$w0" ] && break; done
       echo "    [warm] kafka consumer group warmed (drained after ~$((wi*3))s)"
-      pre="$(pg_counts esq-postgres)"; run_smoke; sleep 8; post="$(pg_counts esq-postgres)"
+      pre="$(pg_counts ${DPREFIX}postgres)"; run_smoke; sleep 8; post="$(pg_counts ${DPREFIX}postgres)"
     else
-      pre="$(pg_counts esq-postgres)"
+      pre="$(pg_counts ${DPREFIX}postgres)"
       recreate_docker; run_smoke; sleep 8
-      post="$(pg_counts esq-postgres)"
+      post="$(pg_counts ${DPREFIX}postgres)"
     fi
     res="$(grew "$pre" "$post" "$idx")"
   fi
@@ -202,9 +244,10 @@ unset_oracle_primary() { for s in ENYMAN PACMAN KEYSMITH BIZTREE; do
   unset DB_${s}_VENDOR DB_${s}_HOST DB_${s}_PORT DB_${s}_NAME; done; }
 
 recreate_full() { # biztree + producers (+aukeep) -- oracle-primary needs biztree re-pointed too
-  local extra="aukeep"; [ "${1:-}" = "no-aukeep" ] && extra=""
+  local extra="$DAUKEEP"; [ "${1:-}" = "no-aukeep" ] && extra=""
+  keep_o11y_env
   ( cd "${SVCS}/compose" && docker compose up -d --force-recreate --no-deps biztree enyman pacman keysmith ${extra} >/dev/null 2>&1 )
-  docker restart esq-gateway >/dev/null 2>&1
+  docker restart ${DPREFIX}gateway >/dev/null 2>&1
   local i code
   for i in $(seq 1 45); do
     code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 3 "http://localhost:7070/esq-enode?kind=20&name=probe" 2>/dev/null)"
@@ -234,7 +277,7 @@ cell_docker_ora() {
   esac
   echo ">>> docker-ora / $cell : $desc"
   local pre post res
-  cnt() { [ "$db" = "ora" ] && ora_counts || pg_counts esq-postgres; }
+  cnt() { [ "$db" = "ora" ] && ora_counts || pg_counts ${DPREFIX}postgres; }
   # warm-up smoke after a primary switch: Oracle has no "hauberk-office-smoke" yet, so the first run
   # creates+caches it; the MEASURED run then exercises the full create/param/move/delete lifecycle.
   if [ -n "$trig" ]; then
@@ -252,13 +295,13 @@ cell_docker_ora() {
     return
   fi
   if [ -n "$stream" ]; then
-    docker stop esq-aukeep >/dev/null 2>&1
+    [ -n "$DAUKEEP" ] && docker stop ${DPREFIX}aukeep >/dev/null 2>&1
     recreate_full no-aukeep; run_smoke; sleep 4
     local spre; spre="$($streamfn)"
     run_smoke; sleep 6
     local spost; spost="$($streamfn)"; local sd=$(( ${spost:-0} - ${spre:-0} ))
     [ "$sd" -gt 0 ] && res="PASS ${stream}Δ=${sd}" || res="FAIL ${stream}Δ=${sd}"
-    docker start esq-aukeep >/dev/null 2>&1
+    [ -n "$DAUKEEP" ] && docker start ${DPREFIX}aukeep >/dev/null 2>&1
   else
     recreate_full; run_smoke; sleep 4
     pre="$(cnt)"
@@ -300,23 +343,57 @@ run_smoke_k8s() { ( cd "${HBK}" && java -Dhauberk.config=hauberk-k8s.properties 
 # daemon may not have (ImagePullBackOff). --reuse-values keeps the running tag + every other deployed
 # value and overrides ONLY the audit knob (busId).
 # --set-string: a whitespace busId (option a) survives helm parsing.
-helm_set_producers() { local svc; for svc in enyman pacman keysmith; do
-  ( cd "${SVCS}/k8s" && helm upgrade --install esquire-$svc charts/esquire-$svc --reuse-values \
+# WHICH releases/containers produce audit, and where the charts live. The compact stack composes
+# the three Spring producers into Mesnie, so it has two where classic has three. Overridable so the
+# same run drives either stack.
+K8S_DIR="${K8S_DIR:-k8s}"
+# What the run is CALLED in the record. The cells are the same code either way, so without this a
+# compact run files its rows under "k8s" and the results file cannot be told from a classic one.
+K8SLBL="${K8SLBL:-k8s}"
+PRODUCERS="${PRODUCERS:-enyman pacman keysmith}"
+# WORKLOAD NAMES DIFFER BY PROFILE. The classic charts name a workload <release>-<chart>
+# (esquire-aukeep-aukeep), the compact ones name it <release> (esquire-aukeep). A name that does not exist
+# makes `kubectl rollout restart` answer NotFound, and this driver used to silence that -- so the ck cell
+# switched auKeep's bus in the ConfigMap, never restarted the pod, and measured a consumer still bound to
+# the old bus. It read as a FAIL of the Kafka path. Found 2026-08-22 by the cold rebuild.
+PRODUCER_WORKLOADS="${PRODUCER_WORKLOADS:-statefulset/esquire-enyman-enyman statefulset/esquire-pacman-pacman statefulset/esquire-keysmith-keysmith}"
+AUKEEP_WORKLOAD="${AUKEEP_WORKLOAD:-statefulset/esquire-aukeep-aukeep}"
+BIZTREE_WORKLOAD="${BIZTREE_WORKLOAD:-statefulset/esquire-biztree-biztree}"
+DPREFIX="${DPREFIX:-esq-}"
+DCOMPOSE_DIR="${DCOMPOSE_DIR:-compose}"
+DPRODUCERS="${DPRODUCERS:-enyman pacman keysmith}"
+# The audit CONSUMER. Empty = there is none (compact drops auKeep).
+DAUKEEP="${DAUKEEP:-aukeep}"
+# The GATE in front of the producers -- `gateway` on classic, `gateward` on compact. It is restarted
+# after every recreate (see recreate_docker); naming one that does not exist restarts nothing, silently.
+DGATE="${DGATE:-${DPREFIX}gateway}"
+helm_set_producers() { local svc; for svc in $PRODUCERS; do
+  ( cd "${SVCS}/${K8S_DIR}" && helm upgrade --install esquire-$svc charts/esquire-$svc --reuse-values \
       --set-string audit.busId="$1" --wait --timeout 180s >/dev/null 2>&1 ); done; }
-helm_set_aukeep() { ( cd "${SVCS}/k8s" && helm upgrade --install esquire-aukeep charts/esquire-aukeep --reuse-values \
+helm_set_aukeep() { ( cd "${SVCS}/${K8S_DIR}" && helm upgrade --install esquire-aukeep charts/esquire-aukeep --reuse-values \
       --set-string audit.busId="$1" --wait --timeout 180s >/dev/null 2>&1 ); }
 restart_k8s_producers() {
-  kubectl rollout restart statefulset/esquire-enyman-enyman deployment/esquire-pacman-pacman deployment/esquire-keysmith-keysmith >/dev/null 2>&1
-  kubectl rollout status statefulset/esquire-enyman-enyman --timeout=180s >/dev/null 2>&1
-  kubectl rollout status deployment/esquire-pacman-pacman  --timeout=180s >/dev/null 2>&1
-  kubectl rollout status deployment/esquire-keysmith-keysmith --timeout=180s >/dev/null 2>&1
+  local w
+  kubectl rollout restart $PRODUCER_WORKLOADS >/dev/null 2>&1
+  for w in $PRODUCER_WORKLOADS; do kubectl rollout status "$w" --timeout=180s >/dev/null 2>&1; done
   sleep 10; }   # producers reconnect to the bus + (c/ck) re-subscribe
 restart_k8s_aukeep() {
-  kubectl rollout restart deployment/esquire-aukeep-aukeep >/dev/null 2>&1
-  kubectl rollout status deployment/esquire-aukeep-aukeep --timeout=180s >/dev/null 2>&1; sleep 5; }
+  if ! kubectl rollout restart "$AUKEEP_WORKLOAD" >/dev/null; then
+    echo "    [!] audit consumer workload '$AUKEEP_WORKLOAD' not found -- the cell measures the OLD bus"
+    return 1
+  fi
+  kubectl rollout status "$AUKEEP_WORKLOAD" --timeout=180s >/dev/null 2>&1; sleep 5; }
 
 k8s_infra_ensure() {   # install the audit sinks + all-sinks topology the running cluster predates
-  ( cd "${SVCS}/k8s"
+  if [ "${K8S_DIR}" = "k8s-compact" ]; then
+    # The compact profile audits over a (triggers), b (in-process keep) and c (AMQ -> auKeep). It ships no
+    # kafka and its catalog declares no ck/d/dk leg, so the catalog is the only thing to ensure -- and the
+    # audit-dk propagation guard below would wait out its full budget on a leg that cannot appear.
+    ( cd "${SVCS}/${K8S_DIR}"
+      helm upgrade --install esquire-topology charts/esquire-topology >/dev/null 2>&1 )
+    echo "    [infra] topology ensured (compact: audit a / b / c)"
+  else
+  ( cd "${SVCS}/${K8S_DIR}"
     helm upgrade --install esquire-topology    charts/esquire-topology >/dev/null 2>&1
     helm upgrade --install esquire-infra-kafka  charts/infra/kafka >/dev/null 2>&1
     helm upgrade --install esquire-infra-redis  charts/infra/redis >/dev/null 2>&1
@@ -330,11 +407,12 @@ k8s_infra_ensure() {   # install the audit sinks + all-sinks topology the runnin
   # fresh restart also mounts the full topology. Without this the c/ck/d/dk cells race and fail.
   local i n=0
   for i in $(seq 1 36); do
-    n=$(kubectl exec deployment/esquire-biztree-biztree -- sh -c "grep -c 'audit-dk' /etc/esquire/topology.yml" 2>/dev/null | tr -d '\r')
+    n=$(kubectl exec "$BIZTREE_WORKLOAD" -- sh -c "grep -c 'audit-dk' /etc/esquire/topology.yml" 2>/dev/null | tr -d '\r')
     [ "${n:-0}" -gt 0 ] && break
     sleep 5
   done
-  echo "    [infra] topology(all-sinks)+kafka+redis ensured (audit-dk in mount: ${n:-0})"; }
+  echo "    [infra] topology(all-sinks)+kafka+redis ensured (audit-dk in mount: ${n:-0})"
+  fi; }
 
 cell_k8s() {
   local cell="$1"
@@ -348,7 +426,7 @@ cell_k8s() {
     dk)        busid="audit-dk"; stream="kafka"; streamfn="k8s_kafka_off"; desc="Kafka stream (producer-only)";;
     *) echo "unknown k8s cell: $cell"; return 1;;
   esac
-  echo ">>> k8s / $cell : $desc"
+  echo ">>> ${K8SLBL} / $cell : $desc"
   local pre post res
   if [ -n "$trig" ]; then
     k8s_dedup_drop                                     # triggers need the dedup index absent
@@ -358,11 +436,11 @@ cell_k8s() {
     res="$(grew "$pre" "$post" "$idx")"
     k8s_trig_drop
     echo "    pre=$pre post=$post -> $res (triggers dropped; now $(k8s_trig_count))"
-    row "k8s" "$cell ($desc)" "${res%% *}" "$res ; pg pre=$pre post=$post ; triggers applied+dropped"
+    row "${K8SLBL}" "$cell ($desc)" "${res%% *}" "$res ; pg pre=$pre post=$post ; triggers applied+dropped"
     return
   fi
   if [ -n "$stream" ]; then
-    kubectl scale deployment/esquire-aukeep-aukeep --replicas=0 >/dev/null 2>&1; sleep 4
+    kubectl scale "$AUKEEP_WORKLOAD" --replicas=0 >/dev/null; sleep 4
     helm_set_producers "$busid"; restart_k8s_producers
     local spre; spre="$($streamfn)"; pre="$(k8s_pg_counts)"
     run_smoke_k8s; sleep 6
@@ -371,7 +449,7 @@ cell_k8s() {
     if   [ "$sd" -gt 0 ] && [ "$ld" = "0,0,0,0,0" ]; then res="PASS ${stream}Δ=${sd}; *_log flat"
     elif [ "$sd" -gt 0 ]; then res="PASS ${stream}Δ=${sd}; *_log Δ=${ld}"
     else res="FAIL ${stream}Δ=${sd}"; fi
-    kubectl scale deployment/esquire-aukeep-aukeep --replicas=1 >/dev/null 2>&1; restart_k8s_aukeep
+    kubectl scale "$AUKEEP_WORKLOAD" --replicas=1 >/dev/null; restart_k8s_aukeep
   else
     helm_set_producers "$busid"; [ -n "$akbus" ] && helm_set_aukeep "$akbus"
     restart_k8s_producers; [ -n "$akbus" ] && restart_k8s_aukeep
@@ -390,7 +468,7 @@ cell_k8s() {
     res="$(grew "$pre" "$post" "$idx")"
   fi
   echo "    pre=${pre:-_} post=${post:-_} -> $res"
-  row "k8s" "$cell ($desc)" "${res%% *}" "$res ; pg pre=${pre:-_} post=${post:-_}"
+  row "${K8SLBL}" "$cell ($desc)" "${res%% *}" "$res ; pg pre=${pre:-_} post=${post:-_}"
 }
 
 main() {
@@ -422,6 +500,20 @@ main() {
       for c in "${cells[@]}"; do cell_k8s "$c"; done
       # restore default: bus (c) producers + auKeep
       helm_set_producers audit-c; helm_set_aukeep audit-c; restart_k8s_producers; restart_k8s_aukeep ;;
+    k8s-compact)
+      # Mesnie composes the three Spring producers. auKeep is NOT composed -- what compact composes is the
+      # request path, and the audit sink is not on it -- so the bus sink (c) is a cell here like anywhere else.
+      K8S_DIR="k8s-compact"
+      K8SLBL="k8s-compact"
+      PRODUCERS="mesnie pacman"
+      PRODUCER_WORKLOADS="statefulset/esquire-mesnie statefulset/esquire-pacman"
+      AUKEEP_WORKLOAD="statefulset/esquire-aukeep"
+      BIZTREE_WORKLOAD="statefulset/esquire-gateward"
+      k8s_infra_ensure
+      local cells=("$@"); [ ${#cells[@]} -eq 0 ] && cells=(a b-ded-pg c)
+      for c in "${cells[@]}"; do cell_k8s "$c"; done
+      # restore the compact default: the in-process keep, which is what this stack runs
+      helm_set_producers audit-b; restart_k8s_producers ;;
     *) echo "env '$env' not wired in this build yet"; exit 2;;
   esac
   echo "=== results -> ${RESULTS} ==="; cat "${RESULTS}"

@@ -415,7 +415,7 @@ VALUES (CAST(:id AS bigint), :kind, CAST(:adPk AS bigint), CAST(:bizAdPk AS bigi
          another account. -->
     <named-native-query name="EsqUsrJpa.listMovedPaths" result-set-mapping="EsqEntityPathRaw">
         <query>
- SELECT ep_pk, ep_et_pk, ep_path, ep_change_no FROM esq_entity_path WHERE ep_path = :newPath ORDER BY ep_et_pk
+ SELECT ep.ep_pk, ep.ep_et_pk, ep.ep_path, ep.ep_change_no, COALESCE(o.org_change_no, u.usr_change_no, a.acc_change_no) AS entity_change_no FROM esq_entity_path ep LEFT JOIN esq_org o ON o.org_pk = ep.ep_pk LEFT JOIN esq_user u ON u.usr_pk = ep.ep_pk LEFT JOIN esq_account a ON a.acc_pk = ep.ep_pk WHERE ep.ep_path = :newPath ORDER BY ep.ep_et_pk
         </query>
     </named-native-query>
 
@@ -432,7 +432,7 @@ VALUES (CAST(:id AS bigint), :kind, CAST(:adPk AS bigint), CAST(:bizAdPk AS bigi
          supporting index. Not needed at the current scale (the result set is one moved subtree). -->
     <named-native-query name="EsqOrgJpa.listMovedPaths" result-set-mapping="EsqEntityPathRaw">
         <query>
- SELECT ep_pk, ep_et_pk, ep_path, ep_change_no FROM esq_entity_path WHERE ep_path LIKE :newPath || '%' ORDER BY ep_et_pk, ep_path
+ SELECT ep.ep_pk, ep.ep_et_pk, ep.ep_path, ep.ep_change_no, COALESCE(o.org_change_no, u.usr_change_no, a.acc_change_no) AS entity_change_no FROM esq_entity_path ep LEFT JOIN esq_org o ON o.org_pk = ep.ep_pk LEFT JOIN esq_user u ON u.usr_pk = ep.ep_pk LEFT JOIN esq_account a ON a.acc_pk = ep.ep_pk WHERE ep.ep_path LIKE :newPath || '%' ORDER BY ep.ep_et_pk, ep.ep_path
         </query>
     </named-native-query>
 
@@ -474,7 +474,7 @@ VALUES (CAST(:id AS bigint), :kind, CAST(:adPk AS bigint), CAST(:bizAdPk AS bigi
 
     <named-native-query name="EsqUsrJpa.listAdminMovedPath" result-set-mapping="EsqEntityPathRaw">
         <query>
- SELECT ep_pk, ep_et_pk, ep_path, ep_change_no FROM esq_entity_path WHERE ep_pk = CAST(:id AS bigint)
+ SELECT ep.ep_pk, ep.ep_et_pk, ep.ep_path, ep.ep_change_no, COALESCE(o.org_change_no, u.usr_change_no, a.acc_change_no) AS entity_change_no FROM esq_entity_path ep LEFT JOIN esq_org o ON o.org_pk = ep.ep_pk LEFT JOIN esq_user u ON u.usr_pk = ep.ep_pk LEFT JOIN esq_account a ON a.acc_pk = ep.ep_pk WHERE ep.ep_pk = CAST(:id AS bigint)
         </query>
     </named-native-query>
 
@@ -578,7 +578,8 @@ VALUES (CAST(:id AS bigint), :kind, CAST(:adPk AS bigint), CAST(:bizAdPk AS bigi
             <field-result name="id" column="ep_pk"/>
             <field-result name="kind" column="ep_et_pk"/>
             <field-result name="path" column="ep_path"/>
-            <field-result name="changeNo" column="ep_change_no"/>
+            <field-result name="pathChangeNo" column="ep_change_no"/>
+            <field-result name="entityChangeNo" column="entity_change_no"/>
         </entity-result>
     </sql-result-set-mapping>
 

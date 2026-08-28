@@ -26,6 +26,8 @@
  * 07/08/2026 mir0n  @EsqTraced on the four GET reads (esq.svc.tree / node / subtree / path) -- marked
  *                   here, at the REST entry point, so a cache-served read is traced whichever director
  *                   is wired; POST /esq-sweep is not marked
+ * 08/26/2026 mir0n  the develop log lines pass the value itself instead of String.valueOf, so nothing is
+ *                   formatted when the level is off
  */
 
 package pro.mir0n.esquire.bizTree.controller;
@@ -115,7 +117,7 @@ public class BizTreeController {
        ,@AuthenticationPrincipal Claims claims
     ) {
         List<EsqTreeNode> nodes = director.esquire(id, skip == null ? 0 : skip, take == null? 0 : take);
-        devLog.debug("esquire: id:{}, result:{}", id, String.valueOf(nodes));
+        devLog.debug("esquire: id:{}, result:{}", id, nodes);
         return ResponseEntity.status(HttpStatus.OK).body(nodes);
     }
 
@@ -131,7 +133,7 @@ public class BizTreeController {
             ,@AuthenticationPrincipal Claims claims
     ) {
         EsqTreeNode node = director.esquireEntityNode(kind, id, name);
-        devLog.debug("esquireEntityNode: kind:{}, id:{}, name:{}, result:{}", kind, id, name, String.valueOf(node));
+        devLog.debug("esquireEntityNode: kind:{}, id:{}, name:{}, result:{}", kind, id, name, node);
         return ResponseEntity.status(HttpStatus.OK).body(node);
     }
 
@@ -162,7 +164,7 @@ public class BizTreeController {
         @AuthenticationPrincipal Claims claims
     ) {
         List<String> path = director.esquirePath(id);
-        devLog.debug("esquirePath: id:{}, result:{}", id, String.valueOf(path));
+        devLog.debug("esquirePath: id:{}, result:{}", id, path);
         return ResponseEntity.status(HttpStatus.OK).body(path);
     }
 

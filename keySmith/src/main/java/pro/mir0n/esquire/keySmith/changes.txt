@@ -1,5 +1,38 @@
 Esquire keySmith Microservice
 
+08/26/2026 mir0n  v1.2.13 -- develop logging
+controller.KeySmithController
+  - the develop log lines pass the value itself instead of String.valueOf
+resources/logback-spring.xml
+  - the develop pattern drops the "develop." prefix from the logger name
+
+08/17/2026 mir0n  v1.2.13 -- observability for the composed services
+service.impl.KeySmithService
+  - business meters added: meterKeyOp() records esq.biz.key.ops.total (op=read|save, outcome=ok|error) in a
+    finally around each of the two operations, and esq.biz.key.identity.total (op=<command>) is counted after
+    the identity request is posted. esquireKeySave() body extracted to saveAndSync(), so the meter wraps it with
+    one exit. Both meter names are spelled at the call: the o11y inventory scan reads the tree for the literal,
+    so a name held in a constant never reaches the sheet
+
+08/12/2026 mir0n  v1.2.13 -- Mesnie
+KeySmithApplication
+  - the package list moved to KeySmithConfig (@Import); @Bean IIdentityGateway identityGateway() declared here
+    with initMethod start / destroyMethod stop -- one gateway per PROCESS
+KeySmithConfig  (new)
+  - created: keySmith's @ComponentScan / @EntityScan / @EnableJpaRepositories, the one place its packages are
+    named; excludes KeySmithApplication and AuditConfig from the scan
+messaging.KcBusAdapter
+  - implements IIdentityGateway: postRequest(RodEvent) transmits, postMessage is skipped, start()/stop() take
+    the kc leg (was the constructor)
+service.impl.KeySmithService
+  - field KcBusAdapter -> IIdentityGateway; identityCommand() picks C/U/D from the connect flag and
+    identityEvent() builds the AuthSyncRequest + RodEvent posted to it
+pom.xml
+  - maven-jar-plugin execution attaches a plain classes jar (classifier "classes"), excluding application.yml
+    and logback-spring.xml
+Dockerfile, Dockerfile.win, Dockerfile.lx
+  - COPY names esquire-key-smith.jar instead of target/*.jar
+
 08/11/2026 mir0n  v1.2.12 -- entity change number
 jpa.EsqAccessProfileRepository
   - updateAccess takes a changeNo @Param

@@ -1,5 +1,10 @@
 Esquire dataKeep library
 
+08/26/2026 mir0n  v1.2.13 -- an event the keep cannot record
+keep.RodEventDbWriter
+  - an op the action mapping does not cover is ignored with a named warning and counted outcome=ignored,
+    instead of falling through to a delete; action() answers null for it
+
 08/11/2026 mir0n  v1.2.12 -- entity change number
 keep.RodEventDbWriter
   - PARAM_CHANGE_NO added and bound from the event in the header parameter map

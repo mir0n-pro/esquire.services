@@ -1,0 +1,82 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-config
+  labels:
+    app: {{ .Release.Name }}
+data:
+  # k8s variant of compose-compact/o11y/alloy-config.alloy: discover pods via the API (not the docker
+  # socket), keep the default namespace, tail their logs, promote correlationId / requestId to
+  # structured metadata, and push to Loki. No service change -- emit side is already ECS JSON.
+  config.alloy: |
+    discovery.kubernetes "pods" {
+      role = "pod"
+    }
+
+    discovery.relabel "esq" {
+      targets = discovery.kubernetes.pods.targets
+
+      rule {
+        source_labels = ["__meta_kubernetes_namespace"]
+        regex         = "default"
+        action        = "keep"
+      }
+      // Drop the observability stack's OWN pods: they live in the default namespace too, so the keep above lets
+      // them in, and shipping the log pipeline's output back into itself is a feedback loop. Matched by CONTAINER
+      // name so the infra we DO want (postgres/keycloak/activemq, different container names) is untouched. The
+      // VIEWER IS NOT THE SYSTEM.
+      rule {
+        source_labels = ["__meta_kubernetes_pod_container_name"]
+        regex         = "(loki|grafana|tempo|prometheus|alloy|otel-collector|postgres-exporter)"
+        action        = "drop"
+      }
+      rule {
+        source_labels = ["__meta_kubernetes_namespace"]
+        target_label  = "namespace"
+      }
+      rule {
+        source_labels = ["__meta_kubernetes_pod_name"]
+        target_label  = "pod"
+      }
+      rule {
+        source_labels = ["__meta_kubernetes_pod_container_name"]
+        target_label  = "container"
+      }
+      rule {
+        source_labels = ["__meta_kubernetes_pod_label_app"]
+        target_label  = "app"
+      }
+      rule {
+        target_label = "job"
+        replacement  = "esq-k8s"
+      }
+    }
+
+    loki.source.kubernetes "pods" {
+      targets    = discovery.relabel.esq.output
+      forward_to = [loki.process.esq.receiver]
+    }
+
+    loki.process "esq" {
+      stage.json {
+        expressions = {
+          correlationId = "correlationId",
+          requestId     = "requestId",
+        }
+      }
+
+      stage.structured_metadata {
+        values = {
+          correlationId = "",
+          requestId     = "",
+        }
+      }
+
+      forward_to = [loki.write.default.receiver]
+    }
+
+    loki.write "default" {
+      endpoint {
+        url = "{{ .Values.loki.endpoint }}"
+      }
+    }

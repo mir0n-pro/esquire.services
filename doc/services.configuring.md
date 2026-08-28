@@ -20,6 +20,8 @@ table.
   applies.
 - **Where to set it:** docker — the service's `environment:` block in `compose/compose.yaml`;
   k8s — the chart `values.yaml` / the rendered ConfigMap (`k8s/charts/esquire-<svc>/`).
+  The **compact** shape reads the same knobs from its own copies: `compose-compact/compose.yaml` and
+  `k8s-compact/charts/esquire-<program>/`.
 - **Relaxed binding:** an env var maps to a dotted property by upper-casing and replacing `.`/`-`
   with `_`. So `biztree.queue.bulk-threshold` is set by `BIZTREE_QUEUE_BULK_THRESHOLD`.
 - **DB vendor profiles:** the data services pick a Spring profile from `DB_<SVC>_VENDOR`
@@ -31,6 +33,24 @@ table.
   **`MessagingBus`** facade for a bus's **x-rod**, built from the `role` it declares on that bus. A
   cross-service **bus catalog** (the "topology") defines every bus ONCE in an external file, imported
   by every service (see [Shared parameters](#shared-parameters-most-services)).
+
+### The compact shape reads the same configuration
+
+Grouping services into fewer programs changes **which** services run in a program, not **how** they are
+configured. Every knob in this document keeps its name and its default. Three things are worth knowing when
+reading a compact deployment:
+
+- **A program carries the env of every service inside it.** `mesnie` sets the enyMan, keySmith and kcMaster
+  variables together (`ENYMAN_*`, `KEYSMITH_*`, `KCMASTER_*`); `gateward` sets the gateway and bizTree ones
+  (`GW_*`, `BIZTREE_*`). A service knob keeps the service prefix. Only what belongs to the program itself
+  takes the program name: its port and its datasource — `MESNIE_PORT`, `DB_MESNIE_*`, `GATEWARD_*`.
+- **The KeyCloak request/response bus is defined but unused.** `esquire.kc` stays in the compact catalog,
+  and no participant references it: identity work is served inside `mesnie` through the identity gateway
+  rather than over the bus. There is no leg to configure and none to watch.
+- **The cloud profile trims the catalog to two buses.** `k8s-oci-compact` defines `esquire.entity` and
+  `audit-off` only, because those are the two its services reference. `audit-off` is a DEFINED bus that means
+  "no audit bus": a blank or missing `AUDIT_BUS_ID` fails fast at startup, so switching audit off has to be
+  said explicitly. There the audit trail is written by database triggers instead.
 
 ---
 
@@ -60,7 +80,8 @@ env-overridable -- see [Resilience budget](#resilience-budget-timeouts-pool--thr
 
 The request-path timeout cap, the pool/thread sizing, and the fail-fast DB properties. **Every default
 here is the no-redundancy setting** -- the value the stack ran before HA work. The tuned budget is set
-per service in BOTH the local-k8s (`k8s/values/*.yaml`) AND OKE (`k8s-oci/values/*.yaml`) chart overlays;
+per service in BOTH the local-k8s (`k8s/values/*.yaml`, `k8s-compact/values/*.yaml`) AND OKE
+(`k8s-oci-compact/values/*.yaml`) chart overlays;
 a bare install with no overlay inherits the pre-HA defaults below. Applies to the data services (enyMan,
 pacMan, keySmith, bizTree; the keep cap also to auKeep).
 
@@ -363,6 +384,71 @@ each container a `hostname: <app>-N`).
 Used to keep minted entity ids unique across redundant enyMan instances; an instance number
 outside `0..9` fails fast at first mint.
 
+### KeyCloak connections
+
+**Three clients talk to KeyCloak, and they are configured in two shapes.** kcMaster holds the admin client that
+creates and updates users, the gateway holds the token-relay client that exchanges tokens at the edge, and the
+explorer BFF holds the OIDC client that logs a browser in. Two of them BUILD their endpoints; the third
+DISCOVERS them, and that is what decides how each is configured.
+
+| client | what it talks to | configured by | shape |
+|---|---|---|---|
+| kcMaster / Mesnie admin client | the KeyCloak **admin REST API** | `keycloak.admin.*` | builds its endpoints |
+| gateway / gateWard relay client | the realm's **token** endpoint | `keycloak.exchange.*` | builds its endpoints |
+| explorer BFF login client | the realm's **OIDC** endpoints | `KC_ISSUER`, `KC_ISSUER_INTERNAL`, `KC_CLIENT_ID`, `KC_CLIENT_SECRET` (see [backend (BFF)](#backend-bff)) | discovers them |
+
+**Why the BFF takes one url where the other two take six keys.** OIDC names the *issuer* as the configuration
+root: a client hands it to the library, the library reads `/.well-known/openid-configuration`, and the
+authorization, token, jwks, userinfo and end-session endpoints come back from the server. One input is all
+discovery can take. The other two cannot use it -- the admin REST API is not described in that document, and
+the relay assembles the token path itself -- and something that assembles a path needs the pieces a path is
+assembled from.
+
+Both shapes already answer the same deployment question, each in its own idiom: *the KeyCloak the browser sees
+is not the KeyCloak the cluster sees.* The BFF answers it with `KC_ISSUER_INTERNAL` beside `KC_ISSUER`; the
+gate answers it with a `base-url` of its own, independent of the login host.
+
+**The two that build their endpoints share one shape**, and it is the shape below: the same six keys under
+their own prefix, read by one class, so an endpoint, a credential or a deadline is set the same way wherever it
+is set. The clients themselves cannot be shared -- one is the KeyCloak admin client, the other a reactive
+`WebClient`.
+
+| key | `keycloak.admin` (kcMaster, Mesnie) | `keycloak.exchange` (gateway, gateWard) |
+|---|---|---|
+| `base-url` | `KC_BASE_URL` | `KC_EXCHANGE_BASE_URL` |
+| `realm` | `KC_REALM` | `KEYCLOAK_REALM` |
+| `client-id` | `KC_ADMIN_CLIENT_ID` | `ESQ_GW_EXCHANGE_CLIENT_ID` |
+| `client-secret` | `KC_ADMIN_CLIENT_SECRET` | `ESQ_GW_EXCHANGE_CLIENT_SECRET` |
+| `connect-timeout-ms` | `KC_ADMIN_CONNECT_TIMEOUT_MS` (`5000`) | `KC_EXCHANGE_CONNECT_TIMEOUT_MS` (`5000`) |
+| `read-timeout-ms` | `KC_ADMIN_READ_TIMEOUT_MS` (`10000`) | `KC_EXCHANGE_READ_TIMEOUT_MS` (`10000`) |
+
+The credentials differ by design -- kcMaster authenticates as its own admin client, the gateway as the
+exchange client -- and so may the endpoint. `base-url` belongs to the connection, so a deployment that reaches
+KeyCloak on a different host than the browser login does says so once, in the block that needs it. Docker and
+the cloud both do exactly that.
+
+The token endpoint is never configured whole: it is `base-url` + `/realms/<realm>/protocol/openid-connect/token`.
+
+**The two deadlines are load-bearing.** A KeyCloak that accepts the connection and then answers nothing is what
+they are for. Without them an admin call never returns, and kcMaster's identity queue -- drained by a single
+worker -- stops for the life of the process; at the gate a relayed request stays pending, ahead of the route
+where the circuit breaker's time limiter would have caught it.
+
+**The BFF's deadline is its library's.** The two blocks above name theirs; the BFF takes openid-client's
+built-in 3500 ms for its calls to KeyCloak. `BFF_REQUEST_TIMEOUT_MS` and `BFF_PROXY_TIMEOUT_MS` are a different
+pair -- they bound an inbound request and the proxy hop, not the identity call.
+
+**The gate fails closed on a half-set relay.** An allowlist is the deployment saying those clients get relayed,
+so if `keycloak.exchange` has no `base-url` / `realm` -- or a phantom allowlist has no `client-id` -- the gate
+refuses to start and names what is missing. It does not come up and answer 401 to exactly the callers that were
+meant to work. An EMPTY allowlist is not a misconfiguration: it is how the relay is turned off, and the cloud
+gate runs that way on purpose. What it is armed with is on the console tier at start-up:
+
+```
+TOKEN RELAY | vanilla=[esq-hauberk-S] phantom=[esq-hauberk-M] | tokenUri=... connectTimeoutMs=5000 readTimeoutMs=10000
+TOKEN RELAY | off -- no client is allowlisted
+```
+
 ---
 
 ## gateway
@@ -380,21 +466,52 @@ and the route table (see [Gateway routes](#gateway-routes)).
 | `KEYCLOAK_REALM` | `esquire` | Realm used in all KC endpoint URIs. |
 | `KEYCLOAK_CLIENT_ID` | `esq-angular` | OAuth2 client registration id (authorization_code login). |
 | `CORS_ALLOWED_ORIGINS` | `http://localhost:4200` | Allowed CORS origin (Spring Security CORS; globalcors is disabled). |
-| `GW_SERVICE_METRICS_ENABLED` | `false` | Collect downstream per-service timing metrics. |
+| `KC_EXCHANGE_BASE_URL` | *(empty)* | KeyCloak base url the token relay exchanges against; see [KeyCloak connections](#keycloak-connections). Empty = the relay is off. |
+| `GW_SERVICE_METRICS_ENABLED` | `false` | Per-request timing capture in the services behind the gate -- and the stack trace in the error body. See [Request timing capture](#request-timing-capture); it is not the observability switch. |
 | `SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI` | *(derived)* | Resource-server JWKS URI. k8s sets it directly to bypass the empty-`KEYCLOAK_PATH` placeholder gotcha. |
 | `jwt.secret` | *(required, no default)* | Symmetric JWT secret used by the gateway filters; must be provided. |
+
+### Request timing capture
+
+`GW_SERVICE_METRICS_ENABLED` makes the gate add `Esq-Capture-Metrics: true` to every request it forwards.
+Each service reads that header and does two things with it.
+
+- **It records the request timing.** `MdcFilter` fills `RequestPerformance`, the four-layer bands reach the
+  OUTGOING log, and `Esq-Srv-Outer-Time` / `Esq-Srv-Inner-Time` come back to a client that also sends the
+  `X-Capture-Metrics` trigger. This is what hauberk's `PerformanceMatrix` reads as `sO` / `sI`, and the
+  `srv_self` / `srv_inner` bands are computed from them.
+- **It puts the Java stack trace in the error body.** An error answered as RFC 9457 problem+json carries a
+  `stackTrace` property holding the root cause's full trace. The gate's own errors do the same from the same
+  flag, so a 503 for a service that is down returns the routing failure's trace.
+
+The header is read per request and the gate does not remove one that arrives from the client, so a caller
+may send `Esq-Capture-Metrics: true` itself and get both effects for its own request whatever the flag says.
+
+**Where it is set.** `true` in `compose/compose.yaml` and `compose-compact/compose.yaml`. The docker stack is
+the development sandbox, and it is the target hauberk measures with a full four-layer breakdown. No k8s or
+OKE chart sets it, so the `false` default holds there and a matrix run against those targets reads the
+gateway-tier bands -- `net` and `gw_self` -- alone.
+
+**It is not the observability switch.** `ESQ_OBSERVABILITY_ENABLED` and the `ESQ_METRICS_*` family are what
+the o11y class arms (`o11y-on`, `o11y-log-on`, `o11y-off`) move: Micrometer meters, histogram buckets and
+OTel spans, described under [Observability (metrics & tracing)](#observability-metrics--tracing).
+`GW_SERVICE_METRICS_ENABLED` is separate -- no meter and no span, one header and the per-request bands it
+enables.
 
 ### Token Relay (gateway brokers/exchanges JWTs downstream)
 
 Both variants are dormant when their `clients` allowlist is empty.
 
+Both variants reach KeyCloak through the gate's own connection under `keycloak.exchange` (see
+[KeyCloak connections](#keycloak-connections)), which is where the endpoint, the exchange credentials and the
+deadlines live. What
+belongs to the relay itself is the two allowlists -- they say WHOSE requests are relayed, matched on the
+caller's client id; every other caller passes through on the plain JWT path.
+
 | Env var | Default | Description |
 |---|---|---|
-| `ESQ_GW_TOKEN_URI` | *(empty)* | KC `/token` endpoint shared by both relay variants. |
 | `ESQ_GW_VANILLA_CLIENTS` | *(empty)* | Allowlist for **Vanilla Token Relay** (client sends HTTP Basic; gateway runs client_credentials, caches per client_id). |
 | `ESQ_GW_PHANTOM_CLIENTS` | *(empty)* | Allowlist for **Phantom Token Relay** (client sends a stripped Bearer; gateway runs RFC 8693 token-exchange, caches per jti). |
-| `ESQ_GW_EXCHANGE_CLIENT_ID` | *(empty)* | Confidential client id (`esq-gw-exchange`) authenticating the phantom token-exchange. |
-| `ESQ_GW_EXCHANGE_CLIENT_SECRET` | *(empty)* | Secret for the exchange client. |
 
 ### JWE (optional access-token encryption)
 
@@ -518,6 +635,8 @@ talks to KC over the admin REST API.
 | `KC_REALM` | `esquire` | Realm kcMaster manages. |
 | `KC_ADMIN_CLIENT_ID` | `admin-cli` | Admin client id. Deployments use the confidential service-account client `esq-kcMaster`. |
 | `KC_ADMIN_CLIENT_SECRET` | *(empty)* | Secret for a confidential admin client. |
+| `KC_ADMIN_CONNECT_TIMEOUT_MS` | `5000` | Admin-client connect deadline; see [KeyCloak connections](#keycloak-connections). |
+| `KC_ADMIN_READ_TIMEOUT_MS` | `10000` | Admin-client read deadline: how long one KeyCloak call may take before it fails. |
 | `KC_BUS_ID` | `esquire.kc` | KC request/response bus-id (R&R SERVER; serves enyMan + keySmith). |
 | `KC_SLOT_ID` | `kc` | KC slot-id (SERVER consume filters `SlotID = '<slot-id>'`). |
 | `KC_SEND_RETRY` | `false` | Producer [send-retry](#messaging-bus-the-x-rod--topology-import) on the KC response leg; ON in docker, local-k8s, AND OKE. Ladder `KC_SEND_RETRY_BACKOFF_SEC` (`1,2,5,5`) + cap `KC_SEND_RETRY_MAX_ATTEMPTS` (`0` = block). |
@@ -526,7 +645,8 @@ talks to KC over the admin REST API.
 | `KCMASTER_PATH_BUFFER_TTL_MS` | `60000` code / `10000` deployed | Race-8c path-buffer TTL. Buffered topic-side paths older than this are not applied. **Test:** `-1` disables recovery (reproduces the race). |
 | `KCMASTER_PATH_BUFFER_PRUNE_MS` | `30000` | Interval of the scheduled buffer prune. |
 
-KC admin client timeouts are fixed in the yml: `connect-timeout-ms=5000`, `read-timeout-ms=10000`.
+The four `KC_*` connection keys plus the two deadlines are the block described under
+[KeyCloak connections](#keycloak-connections), read here from the `keycloak.admin` prefix.
 
 ---
 
@@ -543,13 +663,14 @@ DB read at cache load), messaging bus, logging.
 | `BIZTREE_CACHE_VENDOR` | `cache-h2` | Cache backend profile (H2 in-memory). |
 | `ENTITY_BUS_ID` | `esquire.entity` | Entity-broadcast bus-id (CLIENT consumer; updates the cache). |
 | `ENTITY_SLOT_ID` | `entity` | Entity slot-id. |
+| `ENTITY_BROADCAST_POOL_SIZE` | `1` | Threads carrying a received event from the topic consumer to the monad queue. **1 on purpose:** the cache is fed in the order the events were published, and this pool is the only place that order can be lost. Under the taijitu director it applies nothing -- the apply is the monad worker, behind a single queue -- so more threads buy nothing here. |
 | `BIZTREE_DIRECTOR` | `legacy` code / `taijitu` deployed | Cache director: `legacy` (single cache) or `taijitu` (two-monad night-watch). |
 | `BIZTREE_CACHE_TABLE` | `ESQ_TREE` | Base cache table name; taijitu suffixes it per monad (`ESQ_TREE_MONAD` / `ESQ_TREE_DANOM`). |
 | `BIZTREE_MONAD_QUEUE_CAPACITY` | `4096` | Per-monad event queue depth (back-pressure boundary). |
 | `BIZTREE_QUEUE_BULK_THRESHOLD` | `10` | Backlog size above which the monad worker batches events into ONE cache transaction (the throughput win). Set very high to force one-by-one (A/B). |
 | `BIZTREE_TAIJITU_ON_MISMATCH` | `LOG` code / `SWAP` deployed | Night-watch reaction when the two monads' checksums disagree: `LOG` \| `SWAP` \| `TERMINATE`. |
 | `BIZTREE_TAIJITU_SWEEP_INTERVAL_MS` | `10000` code / `600000` deployed | Interval between night-watch sweeps. |
-| `BIZTREE_TAIJITU_SWEEP_TIMEOUT_MS` | `10000` | Per-leg CHECKSUM deadline; a slower leg is cancelled (the sweep is inconclusive, not fatal). |
+| `BIZTREE_TAIJITU_SWEEP_TIMEOUT_MS` | `10000` | Per-leg CHECKSUM deadline. A cancelled leg answers `FAILED` and the sweep reports and leaves both legs alone; a leg that answers nothing at all (`TIMEDOUT`) promotes the freshly loaded shadow, since the data is there and only the measurement was too slow. Neither is fatal, and neither moves anything once shutdown has begun. |
 | `BIZTREE_CACHE_LOAD_TX_TIMEOUT_S` | `0` | Startup full-tree cache load transaction cap (seconds); `0` = uncapped (pre-HA). The whole-tree read opts OUT of the request-path cap ([`ESQ_TX_TIMEOUT_S`](#resilience-budget-timeouts-pool--thread-sizing)) -- set a positive value only to put a safety ceiling on a full-tree load. |
 
 ### H2 cache datasource / pool

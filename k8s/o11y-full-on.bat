@@ -38,28 +38,33 @@ if not "%CTX%"=="docker-desktop" (
 )
 
 echo --- Installing the FULL viewing stack (logs + traces + metrics)...
-call helm upgrade --install esquire-infra-loki              charts\infra\loki              || exit /b 1
-call helm upgrade --install esquire-infra-alloy             charts\infra\alloy             || exit /b 1
-call helm upgrade --install esquire-infra-tempo             charts\infra\tempo             || exit /b 1
-call helm upgrade --install esquire-infra-otel-collector    charts\infra\otel-collector    || exit /b 1
-call helm upgrade --install esquire-infra-prometheus        charts\infra\prometheus        || exit /b 1
-call helm upgrade --install esquire-infra-postgres-exporter charts\infra\postgres-exporter || exit /b 1
-call helm upgrade --install esquire-infra-grafana           charts\infra\grafana           || exit /b 1
+call helm upgrade --install esquire-infra-loki              charts\infra\loki              --force-conflicts || exit /b 1
+call helm upgrade --install esquire-infra-alloy             charts\infra\alloy             --force-conflicts || exit /b 1
+call helm upgrade --install esquire-infra-tempo             charts\infra\tempo             --force-conflicts || exit /b 1
+call helm upgrade --install esquire-infra-otel-collector    charts\infra\otel-collector    --force-conflicts || exit /b 1
+call helm upgrade --install esquire-infra-prometheus        charts\infra\prometheus        --force-conflicts || exit /b 1
+call helm upgrade --install esquire-infra-postgres-exporter charts\infra\postgres-exporter --force-conflicts || exit /b 1
+call helm upgrade --install esquire-infra-grafana           charts\infra\grafana           --force-conflicts || exit /b 1
+
+rem INFRA FIRST, APPS AFTER. A broker roll drops every app pod's messagingBus connection and that does NOT
+rem self-heal, so with the apps restarted first the bounce lands on pods that have ALREADY rolled and nothing
+rem restarts them again -- an ordinary toggle then leaves the entity bus dead until someone kicks them by
+rem hand. Rolling the broker first costs no extra restarts: the app restart below is the one that reconnects.
+rem The OKE scripts and both docker twins already do it this way; these four were the last holdouts.
+echo --- keycloak / activemq: metrics ON (JMX exporter agent)...
+call helm upgrade esquire-infra-kc  charts\infra\keycloak -f values\keycloak.yaml --reset-then-reuse-values --set observability.enabled=true --force-conflicts
+call kubectl rollout restart statefulset esquire-infra-kc-keycloak
+call helm upgrade esquire-infra-amq charts\infra\activemq -f values\activemq.yaml --reset-then-reuse-values --set observability.enabled=true --force-conflicts
+call kubectl rollout restart statefulset esquire-infra-amq-activemq
 
 echo --- App services: tracing/metrics ON, ONLY pro.mir0n at INFO...
 for %%s in (gateway enyman biztree pacman keysmith kcmaster aukeep) do (
-  call helm upgrade esquire-%%s charts\esquire-%%s --reset-then-reuse-values --set observability.enabled=true --set observability.metricsHistograms=true --set logging.levelMir0n=INFO --set logging.levelDevelop=OFF --set logging.levelMsg=OFF --set logging.levelAmq=OFF --set logging.levelJms=OFF
+  call helm upgrade esquire-%%s charts\esquire-%%s --reset-then-reuse-values --set observability.enabled=true --set observability.metricsHistograms=true --set logging.levelMir0n=INFO --set logging.levelDevelop=OFF --set logging.levelMsg=OFF --set logging.levelAmq=OFF --set logging.levelJms=OFF --force-conflicts
   call kubectl rollout restart statefulset esquire-%%s-%%s
 )
 rem The BFF has no pro.mir0n knob (pino, its own default) -- a CONSTANT in every arm, so it cancels.
-call helm upgrade esquire-backend charts\esquire-backend --reset-then-reuse-values --set observability.enabled=true
+call helm upgrade esquire-backend charts\esquire-backend --reset-then-reuse-values --set observability.enabled=true --force-conflicts
 call kubectl rollout restart statefulset esquire-backend-backend
-
-echo --- keycloak / activemq: metrics ON (JMX exporter agent)...
-call helm upgrade esquire-infra-kc  charts\infra\keycloak -f values\keycloak.yaml --reset-then-reuse-values --set observability.enabled=true
-call kubectl rollout restart statefulset esquire-infra-kc-keycloak
-call helm upgrade esquire-infra-amq charts\infra\activemq -f values\activemq.yaml --reset-then-reuse-values --set observability.enabled=true
-call kubectl rollout restart statefulset esquire-infra-amq-activemq
 
 echo.
 echo IN-FULL: logging (pro.mir0n INFO) + tracing + metrics + the full viewing stack (local k8s).

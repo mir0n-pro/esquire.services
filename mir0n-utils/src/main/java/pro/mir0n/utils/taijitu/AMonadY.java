@@ -35,6 +35,9 @@
  *                   loops _processItem
  * 06/15/2026 mir0n  CMD QueueItem construction updated to the body-map QueueItem ctor (the raw messageEncoding
  *                   + text args dropped; command items pass body=null).
+ * 08/26/2026 mir0n  implements IQueueRig.IListErrorListener and registers itself on the rig; inFlightCommand
+ *                   carries the command the worker is running so onError notifies its gate. RESULT_TIMEDOUT /
+ *                   RESULT_INTERRUPTED replace the two literals resultCommand writes
  */
 package pro.mir0n.utils.taijitu;
 
@@ -63,7 +66,7 @@ import java.util.List;
  *
  * Subclasses add the actual cache access (and any domain reads): see bizTree MonadY.
  */
-public abstract class AMonadY implements IMonad {
+public abstract class AMonadY implements IMonad, IQueueRig.IListErrorListener<QueueItem> {
 
     // instance loggers bound to the concrete subclass (getClass()), so log lines show e.g. MonadY
     protected final Logger log    = LoggerFactory.getLogger(getClass());
@@ -72,9 +75,14 @@ public abstract class AMonadY implements IMonad {
     /** After cancelling a timed-out command, wait this long for the worker to report the failure. */
     private static final long CANCEL_GRACE_MS = 1000L;
 
+    public static final String RESULT_TIMEDOUT    = "TIMEDOUT";
+    public static final String RESULT_INTERRUPTED = "INTERRUPTED";
+
     private final String               name;          // monad INSTANCE id (e.g. "monad") -- never the role
     private final int                  queueCapacity;
     private final IQueueRig<QueueItem> rig;            // queue + worker thread machinery (the Rig)
+    // The command the worker is running, so onError knows which result to notify. Null between commands.
+    private volatile QueueItem inFlightCommand;
 
     private volatile boolean     queueEnabled = false;
     private volatile MonadStatus status       = MonadStatus.IDLE;
@@ -142,6 +150,7 @@ public abstract class AMonadY implements IMonad {
         }
         started = true;
         rig.init(name, devLog, queueCapacity);
+        rig.setErrorListener(this);
         // We do NOT override the rig's error listener: any uncaught worker fault (a message
         // that throws, a CHECKSUM fault) is traced there and does NOT change monad status.
         // Only a failed LOAD flips status -- handled (and caught) in handleCommand below.
@@ -257,10 +266,10 @@ public abstract class AMonadY implements IMonad {
             // xxx: we doCommand from the director thread,
             // within non-interactable routines: like bootstrap,
             // well we can report about; this max that we can do
-            result = "INTERRUPTED";
+            result = RESULT_INTERRUPTED;
             //Thread.currentThread().interrupt();
         }
-        return result == null ? "TIMEDOUT" : result; //TBD: FAILED?
+        return result == null ? RESULT_TIMEDOUT : result; //TBD: FAILED?
     }
 
 
@@ -291,6 +300,35 @@ public abstract class AMonadY implements IMonad {
         @Override
         public List<QueueItem> process(ArrayList<QueueItem> items, IQueueRig.ISignaler signaler) {
             return processBatch(items, signaler);
+        }
+    }
+
+    @Override
+    public QueueItem onError(Throwable error, QueueItem item) {
+        failed(error);
+        return item;
+    }
+
+    @Override
+    public List<QueueItem> onError(Throwable error, ArrayList<QueueItem> items) {
+        failed(error);
+        return null;
+    }
+
+    private void failed(Throwable error) {
+        QueueItem command = inFlightCommand;
+        inFlightCommand = null;
+        if (command == null) {
+            devLog.error("monad[{}]: worker failed", name, error);
+        } else if (MonadCmd.LOAD == command.entityId()) {
+            setStatusInternal(MonadStatus.FAILED);
+            devLog.error("monad[{}]: LOAD -- failed", name, error);
+            commandGate.onResult(MonadCmd.LOAD, MonadStatus.FAILED, null);   // director clears the queue
+        } else {
+            devLog.error("monad[{}]: CLEAR -- failed", name, error);   // best-effort wipe; we end IDLE regardless
+            setStatusInternal(MonadStatus.IDLE);
+            log.info("monad[{}]: CLEAR -- idle", name);
+            commandGate.onResult(MonadCmd.CLEAR, MonadStatus.IDLE, null);
         }
     }
 
@@ -333,28 +371,21 @@ public abstract class AMonadY implements IMonad {
         if (MonadCmd.LOAD == item.entityId()) {
             setStatusInternal(MonadStatus.LOADING);
             log.info("monad[{}]: LOAD -- loading", name);
-            try {
-                commandGate.onStarted(item.entityId(), null);   // director enables processing
-                _processItem(item);
-                setStatusInternal(MonadStatus.LOADED);
-                log.info("monad[{}]: LOAD -- loaded", name);
-                commandGate.onResult(MonadCmd.LOAD, MonadStatus.LOADED, null);   // director enables processing
-            } catch (Throwable e) {
-                setStatusInternal(MonadStatus.FAILED);
-                devLog.error("monad[{}]: LOAD -- failed", name, e);   // errors -> develop only (route to console via appender if wanted)
-                commandGate.onResult(MonadCmd.LOAD, MonadStatus.FAILED, null);   // director clears the queue
-            }
-        } else if (MonadCmd.CLEAR == item.entityId()) {
+            inFlightCommand = item;
             commandGate.onStarted(item.entityId(), null);   // director enables processing
-            try {
-                _processItem(item);
-            } catch (Throwable e) {
-                devLog.error("monad[{}]: CLEAR -- failed", name, e);   // best-effort wipe; we end IDLE regardless
-            } finally {
-                setStatusInternal(MonadStatus.IDLE);                   // CLEAR ALWAYS ends IDLE
-                log.info("monad[{}]: CLEAR -- idle", name);
-                commandGate.onResult(MonadCmd.CLEAR, MonadStatus.IDLE, null);   // always notify -> doCommand never hangs
-            }
+            _processItem(item);                             // throws -> onError notifies FAILED
+            setStatusInternal(MonadStatus.LOADED);
+            log.info("monad[{}]: LOAD -- loaded", name);
+            commandGate.onResult(MonadCmd.LOAD, MonadStatus.LOADED, null);   // director enables processing
+            inFlightCommand = null;
+        } else if (MonadCmd.CLEAR == item.entityId()) {
+            inFlightCommand = item;
+            commandGate.onStarted(item.entityId(), null);   // director enables processing
+            _processItem(item);                             // throws -> onError still ends IDLE + notifies
+            setStatusInternal(MonadStatus.IDLE);            // CLEAR ALWAYS ends IDLE
+            log.info("monad[{}]: CLEAR -- idle", name);
+            commandGate.onResult(MonadCmd.CLEAR, MonadStatus.IDLE, null);
+            inFlightCommand = null;
         } else {
             devLog.debug("monad[{}]: unknown command '{}' -- ignored", name, item.entityId());
         }

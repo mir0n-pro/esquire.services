@@ -57,6 +57,8 @@
  * 08/11/2026 mir0n  v1.2.12 -- the user, person, address and custom-parameter rows raise their change
  *                   numbers before their updates; delete bumps once and returns the number, which the
  *                   delete event and the audit record share
+ * 08/26/2026 mir0n  saveUsr / deleteUsr / moveUsr take the kind; moveUsr reads the moved paths AFTER the parent
+ *                   write; a person-driven rename puts the derived name into the broadcast fields
  */
 
 package pro.mir0n.esquire.enyMan.service.impl;
@@ -206,7 +208,7 @@ public class UsrService  extends AEnyManService {
             //      @Modifying queries clears the context after each native update, so nothing
             //      remains to flush at commit.
             em.setFlushMode(FlushModeType.COMMIT);
-            saveUsr(id, fields, rootPath, uid, correlationId, requestId, updated, custom, children, person, address, address2);
+            saveUsr(kind, id, fields, rootPath, uid, correlationId, requestId, updated, custom, children, person, address, address2);
             return null;
         }); // ← transaction commits here
 
@@ -251,7 +253,7 @@ public class UsrService  extends AEnyManService {
         devLog.debug("srvc: esquireCommandDelete(usr): kind:{}, id:{}, cmd:{}, rootPath:{}", kind, id, cmd, rootPath);
         return transactionTemplate.execute(status -> {
             em.setFlushMode(FlushModeType.COMMIT);
-            EsqUsrJpa deleted = deleteUsr(id, rootPath);
+            EsqUsrJpa deleted = deleteUsr(kind, id, rootPath);
             // ONE bump for this delete -- see OrgService.esquireCommandDelete for the reasoning.
             Long cn = deleted.bumpChangeNo();
             // x-Rod audit: one DELETE event for the user (id + kind); cascaded person/address/params
@@ -271,37 +273,45 @@ public class UsrService  extends AEnyManService {
         devLog.debug("srvc: esquireCommandMove(usr): kind:{}, id:{}, distId:{}, rootPath:{}, uid:{}", kind, id, distId, rootPath, uid);
         List<EsqMoveRecord> records = transactionTemplate.execute(status -> {
             em.setFlushMode(FlushModeType.COMMIT);
-            return moveUsr(id, distId, rootPath, uid, correlationId, requestId);
+            return moveUsr(kind, id, distId, rootPath, uid, correlationId, requestId);
         });
         return records != null ? records : List.of();
     }
 
-    private List<EsqMoveRecord> moveUsr(String id, String distId, String rootPath, String uid, String correlationId, String requestId) {
+    private List<EsqMoveRecord> moveUsr(int kind, String id, String distId, String rootPath, String uid, String correlationId, String requestId) {
         List<EsqMoveRecord> rows = null;
         usrRepository.lockEntityPathRoot();
         EsqUsrJpa usr = usrRepository.detailUsrForUpdate(id, rootPath);
         if (usr == null) {
             throw new ResourceNotFoundException("moveUsr", "id", id);
         }
+        EnyManService.assertKindMatches("moveUsr", kind, usr.getKind(), id);
         if (distId.equals(usr.getParentId())) {
             rows = List.of();
         } else {
             EsqObjectKind eek = EsqObjectKindStorage.getInstance().get(usr.getKind());
             String destPath    = usrRepository.usrPath(distId, rootPath);
+            if (destPath == null) {
+                throw new ResourceNotFoundException("moveUsr", "dist_id", distId);
+            }
+            String newPath = null;
             if (eek.isPathParentOnly()) {
                 // Admin users own no entities — ep_path has only one row (no ACCT cascade).
                 // Multiple admins under the same org share the same ep_path value, so update and query by pk.
                 usrRepository.moveAdminPath(id, destPath);
-                rows = usrRepository.listAdminMovedPath(id);
             } else {
                 // Regular user: ep_path = dest org path + user PK.
                 // Equality update covers the user row and all their ACCT rows (same ep_path value).
                 String currentPath = usrRepository.usrPath(id, rootPath);
-                String newPath     = destPath + id + ".";
+                newPath = destPath + id + ".";
                 usrRepository.moveUsrPaths(currentPath, newPath);
-                rows = usrRepository.listMovedPaths(newPath);
             }
             usrRepository.moveUsrParent(id, distId, usr.bumpChangeNo(), uid, correlationId, requestId);
+            if (eek.isPathParentOnly()) {
+                rows = usrRepository.listAdminMovedPath(id);
+            } else {
+                rows = usrRepository.listMovedPaths(newPath);
+            }
             // x-Rod audit: move is one parent-ref UPDATE (usr_org_pk); path rewrites are not audited.
             usr.setParentId(distId);
             audit.post(RodEvent.Op.UPDATE, usr.getKind(), usr.getId(), null, usr);
@@ -483,11 +493,12 @@ public class UsrService  extends AEnyManService {
         }
     }
 
-    private EsqUsrJpa deleteUsr(String id, String rootPath) {
+    private EsqUsrJpa deleteUsr(int kind, String id, String rootPath) {
         EsqUsrJpa usr = usrRepository.detailUsrForUpdate(id, rootPath);
         if (usr == null) {
             throw new ResourceNotFoundException("deleteUsr", "id", id);
         }
+        EnyManService.assertKindMatches("deleteUsr", kind, usr.getKind(), id);
         if ("Y".equals(usr.getConnectFlg())) {
             throw new DeleteRestrictedException("user", "active auth connection — disable login before deleting");
         }
@@ -527,7 +538,7 @@ public class UsrService  extends AEnyManService {
     }
 
     private static final Set<String> USR_WRITABLE = Set.of("name"); //, xxx overwrite readonly field 'name'
-    private void saveUsr(String id,
+    private void saveUsr(int kind, String id,
                          Map<String, Object> fields,
                          String rootPath,
                          String uid, String correlationId,
@@ -542,6 +553,7 @@ public class UsrService  extends AEnyManService {
         if (usr == null) {
             throw new ResourceNotFoundException("saveUsr", "id", id);
         }
+        EnyManService.assertKindMatches("saveUsr", kind, usr.getKind(), id);
         List<EsqNameValueJpa> cstm = usrRepository.customUsr(id);
         EsqPersonJpa prsn = usrRepository.person(id, EsqConstants.KIND_PERSON_PRIMARY);
         Map<String, Object> mprsn = (Map<String, Object>) fields.get(EsqConstants.SUBENTITY_PERSON);
@@ -553,9 +565,8 @@ public class UsrService  extends AEnyManService {
 //devLog.debug("person layer {}",kfl.getLayer());
         if (EntityFieldUtils.applyFields(prsn, mprsn, personal, kfl.getLayer(), null)) {
 
-            // Derive user name from person (First [Middle] Last) and inject into fields.
-            // This ensures EnyManService.isBroadcastableUpdate() detects the name change
-            // even when the caller did not provide "name" directly in the request.
+            //xxx: the broadcast body reads "name" from fields, and a person-driven rename never puts
+            //     it there -- derive it here (First [Middle] Last) or the rename never reaches bizTree
             fields.put("name", prsn.getName());
 
             usrRepository.updatePerson(id,

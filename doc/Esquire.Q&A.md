@@ -17,6 +17,10 @@
 
 ## Contents
 
+**Start with [verify once, at the boundary](#the-principle-behind-many-of-these-answers-verify-once-at-the-boundary)** -- one decision that answers a whole class of "why is this not checked here?".
+
+**And [a bad configuration stops; a bad message is recorded](#a-bad-configuration-stops-a-bad-message-is-recorded)** -- one rule that decides what a failure does.
+
 Design questions grouped by context. Each group collects the "this *sounds like* a defect -- here is why it is a deliberate choice (or a non-issue in the actual usage model)" entries for one area of the framework.
 
 1. [Entity model and lifecycle](#entity-model-and-lifecycle) -- How entities are edited, identified, and deleted -- and why the usual version-column / cascade prescriptions do not apply.
@@ -28,9 +32,73 @@ Design questions grouped by context. Each group collects the "this *sounds like*
 7. [Database schema and migrations](#database-schema-and-migrations) -- The seed-plus-idempotent-forward-patch model, and why no migration tool is imposed on adopters.
 8. [Frontend and UI](#frontend-and-ui) -- The UI library's deliberately fixed look, and the Explorer's status as a reference example rather than a product.
 9. [Testing and QA](#testing-and-qa) -- Why shared types + shared constants + e2e are the effective contract at this scale.
+10. [Deployment shapes and naming](#deployment-shapes-and-naming) -- Why the same service answers to two workload names across the classic and compact shapes, and what has to know about it.
 
 ---
 
+## The principle behind many of these answers: verify once, at the boundary
+
+*Read this first if an answer below looks like a missing check.*
+
+**A boundary is where a thing is checked. Inside it, the check is not repeated.** That is one decision, applied
+in four places, and most of the "why is this not validated here?" questions in this file are the same question
+about one of them.
+
+| the boundary | what it checks | what is trusted inside it |
+|---|---|---|
+| the gate | the token's signature, its claims, the realm role | a service reads `esq_uid` / `esq_rootpath` from the payload without re-verifying the signature |
+| the channel | whether it guarantees delivery | a leg that is not durable accepts loss; a consumer is not given retry / park / DLQ machinery to compensate |
+| the fan-out | nothing -- a broadcast has no acknowledgement by nature | a lost broadcast is a bounded window, healed by the night-watch, and the requirement is that it be COUNTED |
+| the value | caller input, at the validator | a value the service itself produced is written as given -- validation is for what comes in from outside |
+
+**Why once and not everywhere.** A second check costs what the first one cost, and it can disagree with it --
+and a disagreement between two authorities is worse than one authority. Re-verifying a signature at every
+service does not make the tree safer; it makes two places that can answer differently about the same token.
+Running a generated value through rules written for caller input does not make it safer; it subjects a derived
+name to a `personal` gate that was never about it.
+
+**What it costs, said plainly.** Each of these reads as a missing check when the code is read from inside one
+file. A signature never verified. A message that can be dropped. A value written without validation. From that
+distance they are indistinguishable from an oversight, and they will be re-raised by every fresh reader --
+three cold-pass audits have now raised all four. That is the cost of distributed computing: you cannot have
+both one authoritative check and a check in every process, and choosing the first means living with code that
+looks incomplete where it is merely downstream of the place that decides.
+
+**So the answer to "X is not re-checked here" is to name the boundary that already checked it.** If no boundary
+did, it is a defect. If one did, the absence is the design.
+
+---
+## A bad configuration stops; a bad message is recorded
+
+*The second rule a fresh reader keeps re-deriving: what should a failure DO?*
+
+Two kinds of wrong reach a running service, and they get opposite treatment:
+
+| | what it is | what happens |
+|---|---|---|
+| **configuration** | the service was told to run in a way that cannot work | **fail fast** -- refuse to start, and name the setting |
+| **message flow** | this one item could not be processed | **log it, count it, skip it** -- and keep going |
+
+**A bad configuration stops** because it is wrong for every message, not one, and it is wrong before any traffic
+arrives. Coming up anyway means running a service that cannot do its job while reporting that it can. Two
+examples: auKeep has no second job, so with the audit bus disabled or the keep datasource absent it refuses to
+start and the records stay on the durable queue until someone fixes it; a `retry-backoff` ladder that does not
+parse throws rather than quietly degrading a live leg's retry policy to a one-second step. A ladder known to be
+malformed is not something to retry on.
+
+**A bad item is logged, counted and skipped, and the worker keeps going** because the next item is very likely
+fine, and stopping the leg turns one bad message into an outage. What the rule demands instead is that it be
+WRITTEN DOWN -- the log line and the counter -- so a silent drop never passes for a success. The failure that is
+neither recorded nor thrown is the one this rule exists to forbid.
+
+**SKIP means skip the whole item, not part of it.** Half-applying is worse than not applying: a clean absence is
+visible to the next reader and repairable by the next sweep, while a half-written row looks finished. So a
+handler that cannot place a node writes none of it, rather than writing what it can.
+
+**So "why does this not fail?" and "why does this fail so hard?" have the same answer:** name which of the two
+it is. A setting cannot be worked around; a message can be skipped.
+
+---
 ## Entity model and lifecycle
 
 *How entities are edited, identified, and deleted -- and why the usual version-column / cascade prescriptions do not apply.*
@@ -161,35 +229,37 @@ and only ever extends the window, never cuts it short.
 
 ---
 
-**Q2. The entity-broadcast bus sets `concurrency: 1` (one in-order consumer) but then applies events on a 4-thread
-`receiver-pool` -- so in-order delivery is immediately re-parallelized, and two events for the SAME entity can be
-applied out of order in bizTree's cache. Isn't `concurrency: 1` pointless, and the ordering a bug?**
+**Q2. The entity-broadcast bus sets `concurrency: 1` (one in-order consumer). What keeps that order all the way
+into bizTree's cache, and what happens if two events for the SAME entity arrive close together?**
 
-A. No -- it is a deliberate split of two DIFFERENT concerns, and same-entity apply-order is a bounded non-issue.
+A. The order is kept by design at every step, and the change number guards whatever the order cannot cover.
 
 1. **`concurrency: 1` is REQUIRED by the topic, not a preference.** The entity broadcast is `pubSubDomain: true`
    (a topic), and the consumer is a `DefaultMessageListenerContainer` with `concurrentConsumers = concurrency`. On
    a topic, `concurrentConsumers > 1` makes EACH consumer session receive its own copy of every message -> the
    same event is applied N times (duplicate processing) -- Spring warns against it. So one consumer is mandatory
-   for correctness; it is NOT an apply-ordering guarantee. `receiver-pool.size` is then the APPLY parallelism --
-   how many events bizTree applies at once -- which RECLAIMS the throughput a single topic consumer would
-   otherwise serialize away. One in-order consumer (no duplicates) feeding a parallel apply pool is the correct
-   topic pattern, not a self-defeating one.
+   for correctness, and it also delivers in order.
 
-2. **An out-of-order apply is refused, not tolerated.** Every event carries the change number of the row it
+2. **The receive pool is 1 for the cache, so nothing re-parallelizes that order.** `ENTITY_BROADCAST_POOL_SIZE`
+   is `1` in bizTree and gateWard: one thread carries each event from the consumer to the monad queue. More
+   threads there would race each other to reach the queue, which is the only place the delivery order could be
+   lost by our own hand. Keeping it at 1 costs nothing, because under the Taijitu director the pool applies
+   nothing: `ATaijituRig.onEntityBroadcast` builds a `QueueItem` and offers it to both legs, and each leg's single
+   worker does the apply through `_processItem`. Everything downstream of the pool is serial already.
+
+3. **An out-of-order apply is refused, not tolerated.** Every event carries the change number of the row it
    describes, and the cache keeps the last number it applied per node. `MessageHandlerHub.dispatch` compares them
-   and skips anything that is not newer, then stamps the number it just applied. So a late or repeated event
-   cannot overwrite a newer one, whichever worker picks it up.
+   and skips anything that is not newer, then stamps the number it just applied. So a late or repeated event --
+   a broker redelivery, say -- cannot overwrite a newer one.
 
-3. **The usage model makes the case rare, and the night-watch is the backstop.** Esquire's model is one
+4. **The usage model makes the case rare, and the night-watch is the backstop.** Esquire's model is one
    modification per entity at a time, at human pace (see the optimistic-locking entry above), so two events for
-   the SAME entity racing in the pool is not what it produces. And bizTree is a recoverable Taijitu cache: the
+   the SAME entity arriving together is not what it produces. And bizTree is a recoverable Taijitu cache: the
    night-watch sweep reconciles it against the DB (the source of truth) and heals any drift.
 
-So `concurrency: 1` + a parallel apply pool is intended: in-order delivery for correctness on a topic, parallel
-apply for throughput, and the change number for same-entity order — which is why per-key affinity in the pool is
-not needed.
-
+So the chain is ordered end to end -- one topic consumer, one receive thread, one apply worker -- with the change
+number covering redelivery and the night watch covering the rest. That is why per-key affinity in the pool is not
+needed.
 ---
 
 **Q3. In bizTree's cache-apply path, `MessageHandlerHub.dispatch` catches a handler exception, logs it, and
@@ -494,6 +564,137 @@ behind the perimeter); the strict origin list lives where it matters, at the gat
 
 ---
 
+**Q5. Assigning a user to a role sends the role NAME from the request body: keySmith writes the membership row
+from the role `id` and the bus event carries the `name`, which kcMaster matches against the realm role list. So one
+request could name one role for `esq2025` and another for KeyCloak. Why is the name not resolved from the id?**
+
+A. Because roles are **static configuration**, not runtime data, and the tool that will own them is not built yet.
+
+1. **What the operation is.** There is no editing of a role here. The role catalogue is defined at deployment and
+   is the same on both sides by construction; the only runtime operation is **assigning a user to a role**. The
+   fields in the request are the triple the browser just read back -- `id`, `kind`, `name` -- and the client sends
+   them unchanged.
+
+2. **What is trusted, and by whom.** The caller must already pass the `AdminCmd.AUTH` gate for the target's kind,
+   so this is an administrator acting on someone else's assignment; `personal` is refused outright, so it cannot
+   be done to oneself. The ceiling is the realm role set -- `realm-management` roles are CLIENT roles and are not
+   in `realmResource.roles().list()`, so the assignment cannot reach realm administration.
+
+3. **Where the resolve belongs.** In **Marshal**, the reference administration tool, when it ships: the assignment names a role by
+   **id**, the server looks the row up, and `name` and `kind` come from the resolved row rather than the request.
+   That is one line of intent, and it also lets the "no more than one administrative role" rule count a `kind`
+   the server owns. Doing it before the tool exists would harden the path the tool is going to replace.
+
+So the trust here is the same trust the AUTH gate already grants, and the correction is written into the future
+tool's requirement rather than bolted onto the current path.
+
+---
+
+**Q6. The Grafana boards have no login -- the chart sets anonymous access with the Admin role, and the
+administrator credentials are `admin` / `admin`. Isn't that a hole?**
+
+A. Three things are being asked at once, and they have different answers.
+
+1. **The boards being unauthenticated is deliberate, on the local targets.** Docker publishes Grafana on
+   `localhost:3009` and local k8s serves it at `grafana.localhost`, a name RFC 6761 resolves to 127.0.0.1 --
+   so the isolation is the port, not a password, and a login prompt on a developer's own machine buys
+   nothing. Grafana's authentication is Grafana's own concern: an adopter running these boards for real
+   configures it there, exactly as they would for any Grafana.
+
+2. **The `admin` / `admin` credentials are a chart VALUE, not a constant.** They live in the grafana chart's
+   `values.yaml` as `admin.user` / `admin.password` and reach the container as `GF_SECURITY_ADMIN_USER` /
+   `GF_SECURITY_ADMIN_PASSWORD`, so an adopter replaces them the ordinary Helm way -- a values overlay, a
+   `--set`, or a secret reference -- with no chart change and no code change. Esquire ships the well-known
+   development pair on purpose: a generated password on a developer's own board is one more thing to look up
+   for a stack that is meant to come up in one command. It is the same class of decision as the demonstration
+   database password, and the same rule applies -- **replace it wherever the board is not on your own
+   machine**. Note also what the credentials do NOT gate today: with anonymous access at Admin, the login is
+   not the way in, so changing the password without turning anonymous access off changes nothing.
+
+3. **The door is what needed closing, not the password.** ingress-nginx routes on the **Host header**, so an
+   Ingress rule for `grafana.localhost` on a cloud cluster is reachable from anywhere with a one-line curl,
+   whatever the name resolves to publicly. The chart used to render that rule unconditionally. It is now
+   gated in the **compact** chart -- `ingress.enabled`, default `true`, so local k8s is unchanged -- and the
+   compact OKE arm passes `--set ingress.enabled=false`. The cloud runs compact and nothing else, so that is
+   the whole of the cloud exposure; the classic chart is left alone, and on local k8s its host resolves to
+   127.0.0.1 anyway. On the cloud the boards are reached the way the arm script always said they were:
+   `kubectl port-forward svc/esquire-infra-grafana 3009:3000` (`oke-grafana-forward.bat`), which is also why
+   observability there is transient rather than standing.
+
+So the anonymous board stays, because on a machine only its owner can reach it the password is theatre; the
+public route is gone, because on a cloud target the port isolation the first answer relies on does not exist.
+
+---
+
+**Q7. The repository is public and it carries working credentials -- the `esq-kcMaster` client secret sits in
+`keycloak/import/esquire.json`, and `deploy-oke.sh` falls back to the same literal for the OKE deployment. Isn't
+a published secret for a realm-admin service account a hole?**
+
+A. It is a published DEVELOPMENT credential, and that is the deliberate posture of this deployment.
+
+1. **What esquire.mir0n.pro is.** A demonstration of the framework, running demonstration data -- the seeded
+   Test-House tree, no real people and no real money. It exists to be looked at. The credentials that bring it
+   up are part of what is being shown, the same way the realm import, the seed and the `changeit` first password
+   are (section 5 Q2).
+
+2. **Every one of them is an override, not a constant.** `deploy-oke.sh` reads `MIR0N_PWD`, `BFF_KC_SECRET`,
+   `GW_EXCHANGE_SECRET`, `BFF_SESSION_SECRET` and `KCMASTER_ADMIN_SECRET` from the environment, and the deploy
+   workflow passes all five from the GitHub Environment. Set one there and the literal is not used. An adopter
+   deploying this for real sets all five, and replaces the client secret in their own realm import -- which is
+   theirs to write, not ours.
+
+   For the kcMaster client the plumbing is one variable, `KCMASTER_ADMIN_SECRET`, read by every path: the two
+   local bring-ups, the local rebuild, both OKE scripts, the compose stacks and the deploy workflow. The
+   **scripts carry no value** -- with the variable unset they fall back to `OBTAIN-FROM-KEYCLOAK`, which cannot
+   authenticate, and each says so on the console with where to fetch the real one. The **compose stacks keep the
+   seed value as their default**, so a fresh clone still comes up in one command against the realm that seed
+   creates. The realm import is where that value lives, and it is a demonstration seed, not a production
+   credential.
+
+3. **What the fallback means, stated plainly.** `${VAR:-default}` treats an EMPTY value as unset, and an unset
+   GitHub secret expands to empty -- so a secret that is not configured falls back to the published literal
+   silently. That is acceptable for a demonstration whose credentials are published anyway; it is the first
+   thing to change for a deployment where they are not. Make the fallbacks fail-closed (`${VAR:?}`, the way
+   `MIR0N_PWD` already is) and a missing secret stops the deploy instead of quietly using a known one.
+
+4. **Rotation has two sides.** The Keycloak image bakes `import/esquire.json`, so changing a running realm's
+   client secret fixes the live realm, and changing the file fixes the next fresh init. Doing one without the
+   other means a re-init restores the old value.
+
+So: published on purpose for a demonstration, overridable everywhere it matters, and the one thing that would
+bite a real deployment -- an empty secret silently falling back -- is named here rather than left to be found.
+
+---
+
+**Q8. keySmith answers 200 as soon as the row is committed, and the KeyCloak side is pushed afterwards over a
+queue that can refuse or be shut down. So the database can say a user is connected while KeyCloak has no such
+user, and the caller was told everything succeeded. Where is that caught?**
+
+A. The 200 is for the WRITE, and the write did happen -- it is committed before the identity request is posted.
+The response was never a delivery receipt for the identity provider: that leg is asynchronous by design, so
+nothing about it can be reported in the answer to the request that triggered it.
+
+**The drift is detected by a pair of meters, not by the response.** `esq.biz.key.identity.total` counts what
+keySmith ASKED the identity provider to do; `esq.biz.kc.sync.total{op,outcome}` counts what kcMaster actually
+DID. **A gap between the two is a sync that never landed** -- the comment at the call site in
+`KeySmithService.saveAndSync` says exactly that.
+
+That is also why the ask is counted unconditionally, including when the queue refuses it. It reads like a bug
+-- counting a request that was dropped -- and it is the opposite: if a refused put skipped the counter, asked
+and done would agree and the loss would vanish from the gap. The counter is not claiming delivery; it is
+recording intent, so that the absence of the matching outcome is visible.
+
+**The repair is a tool, not an automatic correction.** `hauberk kc-reconcile [--repair]`
+(`reconcile.KcRecover`) detects drift between the entity tree and KeyCloak and optionally repairs it. That is
+the deliberate posture stated in `Esquire.ContinuingDev.md` CD-13: detect, repair with a tool, and do not build
+a guard ahead of a real need.
+
+So all three are present -- a truthful response, a detector, and a repair -- and what is deliberately absent is
+automatic correlation of a request with its outcome (`KcBusAdapter.onResponse` carries the `// todo`). Making
+the caller wait for the identity provider would put an external system inside the request's transaction
+boundary, which is what the asynchronous design exists to avoid.
+
+---
 ## Accounting (the pacMan demonstration domain)
 
 *What the demonstration accounting service deliberately simplifies, and where the line to a production ledger is.*
@@ -534,22 +735,34 @@ A. Two legs is the deliberate design -- linked only by a shared transfer id (`pk
 here, not an oversight. (Accounting is Esquire's demonstration domain; this boundary is stated plainly rather than
 hidden.)
 
-1. **The two legs are asymmetric, which removes the "credit fails" case.** The FIRST leg is always the WITHDRAWAL
-   (negative). It is fully validated: is the account open, is there enough balance, is the amount sign correct. If
-   the money cannot be taken, the transfer stops right there and nothing has moved. The SECOND leg is the DEPOSIT,
-   and it runs WITHOUT those checks (`skipValidation=true`) on purpose, because a deposit can ALWAYS be applied:
-   Esquire never deletes accounts, so the target still exists, and adding money to it is always valid -- even in the
-   unlikely case the target was closed or locked in the tiny gap between the two legs. So once the debit succeeds,
-   the credit does not fail on account state. (This is also why the credit leg's fixed `skipValidation` is intended,
-   not a gap.)
+1. **Both accounts are checked BEFORE either leg runs.** The transfer reads the source and the target first --
+   a plain read scoped by the caller's path, no `FOR UPDATE`, no lock held -- and refuses unless both exist,
+   are visible to the caller, and are **open**. Two extra round trips, and they are what makes the rest of this
+   answer true: the credit leg has somewhere to land before any money moves.
 
-2. **One big transaction would invite DEADLOCKS.** Making a transfer all-or-nothing means locking BOTH accounts
+2. **The two legs are then asymmetric, which removes the "credit fails" case.** The FIRST leg is the WITHDRAWAL
+   (negative), fully validated: is the account open, is there enough balance, is the amount sign correct. If the
+   money cannot be taken, the transfer stops there and nothing has moved. The SECOND leg is the DEPOSIT, and it
+   runs WITHOUT those checks (`skipValidation=true`) on purpose -- the account state it would re-check was
+   already established by the pre-read, and adding money to an open account it just saw is always valid. So once
+   the debit succeeds, the credit does not fail on account state.
+
+3. **One big transaction would invite DEADLOCKS.** Making a transfer all-or-nothing means locking BOTH accounts
    inside a single database transaction. Two transfers running at the same time in opposite directions (A to B and
    B to A) would each hold one account and wait for the other -- a classic deadlock (two workers each stuck waiting
    for a row the other holds). The two-leg design locks ONE account at a time, so that cross-account deadlock cannot
    arise. Trading a sub-second, infrastructure-only failure window for freedom from deadlocks is the deliberate call.
 
-3. **The residual, stated plainly.** The only failure left is the process dying in the sub-second gap AFTER the
+4. **The shape has a name: this is a saga.** Replacing one transaction that spans several resources with a
+   SEQUENCE of local transactions, each committing on its own, is the saga pattern -- the standard answer to a
+   distributed transaction, and the reason a two-phase commit is not needed here. Esquire's is the minimal
+   form: no orchestrator, no compensating transaction. It can be minimal because the pre-read (point 1) moves
+   every foreseeable failure BEFORE the first commit -- a target that does not exist, is invisible or is not
+   open cannot be discovered late -- so there is nothing left for a compensating leg to undo except the one
+   case below, which no compensation could catch either. A domain with more steps, or steps that can fail on
+   their own terms, is where an orchestrator and compensating actions start to earn their keep.
+
+5. **The residual, stated plainly.** The only failure left is the process dying in the sub-second gap AFTER the
    debit commits and BEFORE the credit commits -- a pod crash, not an application error. Then the source is debited
    with no matching credit. Both legs carry the same `pkTx`, so such a pair is identifiable. This window is accepted
    as-is: it is rare and infrastructure-only, and closing it with one atomic transaction would cost the deadlock
@@ -574,13 +787,14 @@ as the demonstration needs. The deliberate simplifications, each stated plainly:
   infrastructure to recommend and verify a rate -- which is not a goal of the framework. In the demonstration the
   operator supplies a sensible rate.
 
-- **Money is carried as `double`, rounded to the stored scale on every write.** Amounts and balances are plain
-  `double`, which cannot represent every decimal value exactly, so raw arithmetic can leave a tiny
-  binary-floating-point "dust." The write path ROUNDS the amount AND the new balance to 3 decimal places
-  (`NUMERIC(16,3)`, the stored scale) before saving -- so the ledger and the balance are EXACT at that scale, and
-  because every write rounds, the dust is discarded each time and never accumulates. At a fixed decimal scale this
-  round-on-write approach is correct and sufficient -- `BigDecimal` (or scaled integers) is NOT needed. (The
-  `NUMERIC(16,3)` 3-decimal scale is intentional.)
+- **Money is carried as `double`, rounded on every write.** Amounts and balances are plain `double`, which
+  cannot represent every decimal value exactly, so raw arithmetic can leave a tiny binary-floating-point
+  "dust." The write path rounds the amount AND the new balance to the scale the entity dictionary declares for
+  amount fields before saving, so the ledger and the balance are exact at that scale; because every write
+  rounds, the dust is discarded each time and never accumulates. At a fixed decimal scale this round-on-write
+  approach is correct and sufficient -- `BigDecimal` (or scaled integers) is not needed. A transfer's credit is
+  computed from the amount that was DEBITED, already rounded, so the two legs cannot disagree by a discarded
+  decimal multiplied by the rate.
 
 ---
 
@@ -700,3 +914,37 @@ disproportionate here.
 
 So the effective contract is the shared `common` types + `EsqConstants` + the e2e client; a contract-test framework
 is a scale-dependent add, not a gap.
+
+---
+
+## Deployment shapes and naming
+
+*Why the same service answers to two different workload names, and what has to know about it.*
+
+**Q1. On the classic profile a workload is `esquire-aukeep-aukeep`; on compact the same service is
+`esquire-aukeep`. Why two namings, and is that not asking for trouble?**
+
+A. It falls out of the charts, and it is stable -- what needs care is anything that addresses a workload BY NAME.
+
+1. **Where it comes from.** The classic charts name the workload `{{ .Release.Name }}-<chart>`; the compact
+   charts name it `{{ .Release.Name }}`. Both are ordinary Helm idiom. The compact charts are a separate copy
+   by design -- the two shapes are installed from different folders and never share a release -- so on compact
+   the release name already IS the program, and the suffix would only repeat it.
+
+2. **Nothing inside the application depends on the name.** Services find each other by SERVICE DNS, the rod-id
+   comes from the StatefulSet ordinal, and the charts carry their own labels. The asymmetry is visible only to
+   something outside the cluster that types a workload name.
+
+3. **So the rule is: a script that names a workload must branch on the profile.** The places that already do:
+   `test/audit-smoke/run.sh` (`AUKEEP_WORKLOAD` / `BIZTREE_WORKLOAD` / `PRODUCER_WORKLOADS`, with the compact
+   branch overriding), `perf-matrix.ps1` (`Wl()`, the one place that knows which), and both rebuild scripts
+   (`kubectl rollout status statefulset/esquire-<svc>` on compact).
+
+4. **What it looks like when it is missed** -- and it has been missed four times, which is why it is written
+   here rather than in a review: `kubectl` answers `NotFound` for a workload that does not exist, and the thing
+   the script was waiting for is not waited for at all. A rebuild returns before the new pods are Ready and
+   reports an error that is not the one that happened; an audit smoke restarts nothing and then measures a
+   consumer still bound to the previous bus, reporting a green cell for a path it never tested.
+
+The names are not going to converge -- renaming a workload is a StatefulSet replace, not an update -- so the
+cost is paid once, in the handful of scripts that address one by name.

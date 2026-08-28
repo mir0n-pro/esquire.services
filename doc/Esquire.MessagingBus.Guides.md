@@ -131,10 +131,14 @@ all per-leg `x-rod` knobs -- `services.configuring.md` has the full list; here i
 | `publisher-pool.size` | 0 | `0` = send on the single feed worker; `>0` = a parallel async publish pool | raise only if one slow destination is starving others on the single feed |
 | `send-retry-backoff-sec` | 1,2,5,5 (seconds) | the wait ladder between resend attempts while the broker is down | lengthen for a flaky broker; the last step repeats |
 
-Two rules worth keeping in your head:
+Three rules worth keeping in your head:
 
 1. **The apply pool is capped by the database, not the CPU.** A `receiver-pool.size` bigger than the keep's DB
    connection pool just makes appliers wait on a connection -- size the two together.
 2. **Virtual threads are not a free speed-up here.** These pools are small and database-bound, so `platform` is
    the right default. Virtual threads only help a leg that would otherwise hold MANY blocked threads at once
    (the full reasoning is in `Esquire.HighAvailability.md` section 5.5).
+3. **A leg that feeds an ordered consumer runs `size: 1`.** bizTree and gateWard set it to `1` on the entity
+   broadcast: the cache is fed in the order the events were published, and this pool is the only place that
+   order could be lost. It costs nothing there -- the apply happens on the monad worker behind a single
+   queue, so extra pool threads have nothing to apply in parallel.

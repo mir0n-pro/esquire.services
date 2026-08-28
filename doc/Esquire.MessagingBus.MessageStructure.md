@@ -78,7 +78,7 @@ Esquire Entity Broadcast Message : UE
 | `SlotID` | `50003` | String | yes      | `entity` | bus slot (leg) id; stable channel name shared by all producers and consumers of this slot               |
 | `RodID` | `50004` | String | yes      | `enyman` | originating instance id (reply-routing selector)                                                        |
 | `MsgType` | `35` | String | yes      | `UE` | FIX-style message type: Esquire Entity                                                                  |
-| `EventType` | `50005` | String | yes      | `U` | event type (C,D,U,X) X: reserved for only path update                                                   |
+| `EventType` | `50005` | String | yes      | `U` | event type (I,D,U,X) X: reserved for only path update                                                   |
 | `EntityKind` | `50006` | Int | yes      | `34` | entity kind code                                                                                        |
 | `EntityID` | `50007` | String | yes      | `1234` | entity identifier                                                                                       |
 | `ChangeNo` | `50015` | Long | yes      | `7` | which version of the row this event carries. **C / D / U carry the ENTITY row's number; X carries the PATH row's number** — see the note below the table |
@@ -183,7 +183,7 @@ consumer (auKeep) or the sink stream to apply with no request context.
 | `SlotID`             | `50003` | String | yes      | `audit`                                 | bus slot (leg) id                                                          |
 | `RodID`              | `50004` | String | yes      | `enyman`                                | originating instance id                                                    |
 | `MsgType`            |    `35` | String | yes      | `UA`                                    | FIX-style message type: Esquire Audit                                      |
-| `EventType`          | `50005` | String | yes      | `U`                                     | the committed op (C / U / D); a move is coalesced into U — audit never emits X |
+| `EventType`          | `50005` | String | yes      | `U`                                     | the committed op (I / U / D); a move is coalesced into U — audit never emits X |
 | `EntityKind`         | `50006` | Int | yes      | `36`                                    | the (sub)asset kind; routes the event to its `*_log` table                 |
 | `EntityID`           | `50007` | String | yes      | `8`                                     | the owning entity id (usr_pk / org_pk / acct)                              |
 | `SubID`              | `50011` | String | no       | `12`                                    | sub-row discriminator (ad_pk / par_name) when `(EntityID, EntityKind)` is not unique; else null |

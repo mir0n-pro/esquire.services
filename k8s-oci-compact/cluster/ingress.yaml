@@ -1,0 +1,70 @@
+# v1.2.4 ingress: two public hosts, one cert (SAN-extended). SUPER-COMPACT: the gate is
+# gateWard, which answers the tree routes from its own cache as well as guarding the rest.
+#
+#   esquire.mir0n.pro       -- BFF tier (browser users).
+#     /kc-auth  -> esquire-infra-kc-keycloak:8080  (KC's own authorize / token / jwks)
+#     /         -> esquire-backend:3000    (BFF: SPA + /auth/* + /api/*)
+#
+#   api.esquire.mir0n.pro   -- direct gate access (server-to-server JWT, hauberk).
+#     /         -> esquire-gateward:8080   (the gate: JWT validation only)
+#
+# Why two hosts on one Ingress:
+#   - cert-manager re-issues a single esquire-tls Secret with both hosts in the
+#     SAN list, so we don't pay for two LetsEncrypt orders / two A records' worth
+#     of cert renewal.
+#   - The BFF security boundary (browser sees only cookies) and the API security
+#     boundary (server callers carry a JWT) are kept clean by host -- not by path
+#     or header sniffing.
+#   - api.esquire.mir0n.pro is just an alias for the gate; the in-cluster
+#     BFF -> gate hop continues to use the ClusterIP service (no extra
+#     latency, no public round-trip).
+#
+# DNS: A record api.esquire.mir0n.pro -> same OCI LB IP as esquire.mir0n.pro.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: esquire-public
+  namespace: default
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/proxy-body-size: 16m
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - esquire.mir0n.pro
+        - api.esquire.mir0n.pro
+      secretName: esquire-tls
+  rules:
+    # --- BFF tier ----------------------------------------------------------
+    - host: esquire.mir0n.pro
+      http:
+        paths:
+          # Keycloak's own paths -- /kc-auth/realms/.../protocol/openid-connect/auth etc.
+          # Only the browser hits these (during the KC login redirect dance).
+          - path: /kc-auth
+            pathType: Prefix
+            backend:
+              service:
+                name: esquire-infra-kc-keycloak
+                port:
+                  number: 8080
+          # Everything else -> BFF.
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: esquire-backend
+                port:
+                  number: 3000
+    # --- gateWard (direct, JWT-only) ---------------------------------------
+    - host: api.esquire.mir0n.pro
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: esquire-gateward
+                port:
+                  number: 8080

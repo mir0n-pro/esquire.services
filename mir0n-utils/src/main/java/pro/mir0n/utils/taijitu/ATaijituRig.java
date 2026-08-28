@@ -21,6 +21,10 @@
  * 06/15/2026 mir0n  pass(...) event-intake signature changed: the raw (messageEncoding, text) pair replaced
  *                   by a single already-parsed body Map<String,Object>, forwarded into the body-map QueueItem.
  * 08/11/2026 mir0n  v1.2.12 -- onEntityBroadcast takes the change number and puts it on the QueueItem
+ * 08/26/2026 mir0n  the sweep splits a non-digest three ways: TIMEDOUT promotes the freshly loaded shadow,
+ *                   FAILED and INTERRUPTED report and leave both legs, and shuttingDown (set by shutdown())
+ *                   stops any promotion once the process is going down. notADigest / unusable replace
+ *                   checksumFailed
  */
 package pro.mir0n.utils.taijitu;
 
@@ -58,6 +62,8 @@ public abstract class ATaijituRig extends ATaijituRigY {
     protected volatile long sweepTimeoutMs = 10_000L;
     /** Guard: one sweep at a time (scheduled or REST-forced). */
     private final AtomicBoolean sweeping = new AtomicBoolean(false);
+    /** Set by shutdown(); the sweep never moves service to another leg while the process is going down. */
+    volatile boolean shuttingDown = false;
     /** What to do when the two monads' checksums disagree (configurable). */
     protected volatile MismatchAction onMismatch = MismatchAction.LOG;
 
@@ -108,6 +114,7 @@ public abstract class ATaijituRig extends ATaijituRigY {
 
     @Override
     public void shutdown() {
+        shuttingDown = true;
         nightWatchExec.shutdownNow();
         super.shutdown();
         yin().shutdown();
@@ -152,8 +159,9 @@ public abstract class ATaijituRig extends ATaijituRigY {
 
     /**
      * The synchronous night-watch sweep: load the shadow fresh, CHECKSUM both legs (posted to both,
-     * collected within one deadline), and react to drift per onMismatch; the shadow is cleared back
-     * to idle after. Guarded so only one runs at a time. Run via {@link #sweepGuarded()} by the
+     * collected within one deadline), and react to drift per onMismatch; a leg that only TIMED OUT
+     * promotes the shadow outright. The shadow is cleared back to idle after. Guarded so only one runs
+     * at a time. Run via {@link #sweepGuarded()} by the
      * scheduler and the async REST trigger ({@link #sweepAsync()}); also called directly by tests.
      * NOT on the director interface -- external callers trigger via {@link #sweepAsync()}.
      */
@@ -176,9 +184,16 @@ public abstract class ATaijituRig extends ATaijituRigY {
                 shadow.submitCommand(MonadCmd.CHECKSUM, false);                          // post; the worker runs it and signals the gate
                 String brightDigest = bright.resultCommand(sweepTimeoutMs); // how it works; internal threads will collect the result in parallel
                 String shadowDigest = shadow.resultCommand(sweepTimeoutMs);   //here we just wait for the result from each thead; noe needs to have double legged structure
-                if (checksumFailed(brightDigest) || checksumFailed(shadowDigest)) {
-                    log.error("{}: sweep -- checksum FAILED (bright={}, shadow={}) -- inconclusive, retry next sweep",
-                            getClass().getSimpleName(), brightDigest, shadowDigest);
+                if (notADigest(brightDigest) || notADigest(shadowDigest)) {
+                    //xxx: a TIMEDOUT still promotes -- the data is there, only the measurement was too slow.
+                    if (!unusable(brightDigest) && !unusable(shadowDigest) && !shuttingDown) {
+                        log.error("{}: sweep -- checksum TIMEDOUT (bright={}, shadow={}) -- SWAP to the loaded shadow",
+                                getClass().getSimpleName(), brightDigest, shadowDigest);
+                        swapYinYang();
+                    } else {
+                        log.error("{}: sweep -- checksum not comparable (bright={}, shadow={}) -- keep serving, retry next sweep",
+                                getClass().getSimpleName(), brightDigest, shadowDigest);
+                    }
                 } else if (brightDigest.equals(shadowDigest)) {
                     log.info("{}: sweep -- checksums match ({})", getClass().getSimpleName(), brightDigest);
                 } else {
@@ -208,12 +223,14 @@ public abstract class ATaijituRig extends ATaijituRigY {
         }
     }
 
-    /**
-     * A timed-out checksum is cancelled and reported as FAILED, so FAILED is the only inconclusive
-     * outcome to screen out before comparing -- a FAILED leg is not evidence of drift, so the sweep
-     * abandons (never a match, never a reaction) and retries next tick.
-     */
-    private static boolean checksumFailed(String checksumResult) {
-        return checksumResult == null || MonadStatus.FAILED.name().equals(checksumResult);
+    private static boolean notADigest(String checksumResult) {
+        return unusable(checksumResult) || AMonadY.RESULT_TIMEDOUT.equals(checksumResult);
+    }
+
+    //xxx: forbids ANY reaction: FAILED = the leg's own query threw, INTERRUPTED = the process is going down.
+    private static boolean unusable(String checksumResult) {
+        return checksumResult == null
+                || MonadStatus.FAILED.name().equals(checksumResult)
+                || AMonadY.RESULT_INTERRUPTED.equals(checksumResult);
     }
 }

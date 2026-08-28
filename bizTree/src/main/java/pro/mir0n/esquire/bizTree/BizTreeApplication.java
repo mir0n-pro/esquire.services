@@ -17,6 +17,10 @@
  *                   HealthContributorRegistry programmatically at ApplicationReadyEvent (no @Bean) -> /actuator/health
  * 06/23/2026 mir0n  EsqMsgConstants app constants -> common.EsqConstants (references repointed)
  * 07/08/2026 mir0n  @Import(TracingConfig.class): the common distributed-tracing wiring (v1.2.11 O2)
+ * 08/14/2026 mir0n  v1.2.13 -- @SpringBootApplication(scanBasePackages) split into @SpringBootConfiguration +
+ *                   @EnableAutoConfiguration + @Import(BizTreeCacheConfig) + a @ComponentScan naming only the
+ *                   PROCESS packages (bizTree.controller, backend.security, backend.exception,
+ *                   backend.service); @EntityScan / @EnableJpaRepositories moved to BizTreeCacheConfig
  */
 
 package pro.mir0n.esquire.bizTree;
@@ -24,8 +28,8 @@ package pro.mir0n.esquire.bizTree;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.SpringApplication;
-import org.springframework.boot.autoconfigure.SpringBootApplication;
-import org.springframework.boot.autoconfigure.domain.EntityScan;
+import org.springframework.boot.SpringBootConfiguration;
+import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.context.event.ApplicationEnvironmentPreparedEvent;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.boot.context.event.ApplicationStartingEvent;
@@ -33,8 +37,8 @@ import org.springframework.context.ApplicationEvent;
 import org.springframework.context.ApplicationListener;
 import org.springframework.context.event.ContextClosedEvent;
 import org.springframework.core.Ordered;
+import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Import;
-import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 import pro.mir0n.esquire.backend.o11y.ObservabilityConfig;
 import pro.mir0n.esquire.backend.storage.EsqObjectKindStorage;
 import pro.mir0n.esquire.common.EsqConstants;
@@ -42,15 +46,15 @@ import pro.mir0n.esquire.messaging.BusHealthIndicator;
 import pro.mir0n.esquire.messaging.MessagingBus;
 
 @Slf4j
-@SpringBootApplication(scanBasePackages = {
-        "pro.mir0n.esquire.bizTree",
-        "pro.mir0n.esquire.backend.service",
+@SpringBootConfiguration
+@EnableAutoConfiguration
+@Import({ObservabilityConfig.class, BizTreeCacheConfig.class})
+@ComponentScan(basePackages = {
+        "pro.mir0n.esquire.bizTree.controller",
         "pro.mir0n.esquire.backend.security",
-        "pro.mir0n.esquire.backend.exception"
+        "pro.mir0n.esquire.backend.exception",
+        "pro.mir0n.esquire.backend.service"
 })
-@Import(ObservabilityConfig.class)
-@EntityScan(basePackages = "pro.mir0n.esquire.backend.jpa")
-@EnableJpaRepositories(basePackages = "pro.mir0n.esquire.bizTree.jpa")
 
 public class BizTreeApplication {
 

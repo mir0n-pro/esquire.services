@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-icons
+  labels:
+    app: {{ .Release.Name }}
+# OUR OWN component logos (doc/logo/*, the same set the README's Component Model legend and ComponentModel.svg
+# use), mounted into Grafana's public tree so the topology canvas can reference them as img/icons/esq/<name>.svg.
+# Generic icons from someone else's pack would have made the board a THIRD picture of the same system.
+#
+# The canvas icon element loads SVG ONLY, so the PNG logos (bizTree, enyMan, keySmith, kcMaster, activemq,
+# keycloak, esquire) are wrapped in an SVG that embeds them -- our logo, unchanged, not a "close enough" stand-in.
+# That is why they are large; the whole set is ~360 KB, well inside the 1 MB ConfigMap limit.
+#
+# Generated from compose-compact/o11y/grafana/icons/ -- ONE source for both targets, like the dashboards.
+data:
+{{- range $path, $bytes := .Files.Glob "icons/*.svg" }}
+  {{ base $path }}: |
+{{ $.Files.Get $path | indent 4 }}
+{{- end }}

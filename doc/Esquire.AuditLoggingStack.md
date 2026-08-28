@@ -523,7 +523,15 @@ index exists on the bus path but nowhere else.
   exist over (b). Ack **after** the `*_log` write (CLIENT_ACKNOWLEDGE / transacted listener / Kafka
   ack-after-process): a crash between write and ack now **redelivers** instead of losing → at-least-once →
   and the dedup index makes the re-write idempotent → effective exactly-once. The index is the cheap (one
-  DDL) prerequisite paid up-front so hardening is a config flip, not a migration.
+  DDL) prerequisite, paid up-front, and it is the only part of the hardening that is already in place.
+  **The rest is transport work, not a setting.** Esquire holds no acknowledgement of its own — there is no
+  `acknowledge()` anywhere in the tree; the acking is the JMS container's, inside the transport provider. And
+  the provider's listener hands the event to the rod's receive pool and returns, so it is already "done" from
+  the container's point of view before the `*_log` write is attempted. Hardening (c) therefore means changing
+  the PROVIDER: apply on the delivery thread so the ack follows the write (the audit leg trades its receive
+  concurrency for it), or carry the acknowledgement back to the worker (which changes the transport
+  contract). Both are vendor-half work; neither is reachable by flipping an acknowledge mode, and neither
+  belongs to auKeep, which only writes the row it is handed.
 - **(d) trades the zero-loss door for the fastest request path** — `XADD` has no ack protocol, nothing to
   harden. To make (d) zero-loss you bolt a consumer group on top and dedup on the **stream entry ID**
   (unique/stable — actually simpler than dedup on the bus).
@@ -573,6 +581,13 @@ SQL spec artifacts** (`META-INF/audit/{dialect}.xml`, shipped or omitted at pack
 (ActiveMQ + auKeep, or Redis, or Kafka — plus the matching `tp-*` module on the deployable). Full recipe per
 option + the env reference: [services.configuring.md](services.configuring.md).
 
+**The deployment shape does not change the audit design, and one shape uses it to remove a program.** In the
+classic and compact shapes the audit bus runs as configured and **auKeep** consumes it in its own program --
+compact composes the REQUEST path, and the audit sink is not on it. The cloud profile takes option (a),
+**database triggers**, so there is no bus leg to drain and no consumer to run: it sets `AUDIT_BUS_ID` to
+`audit-off`, a bus DEFINED in the catalog as "no audit bus". Setting it blank or leaving it out is not the
+same thing -- that fails fast at startup, deliberately, so audit is never off by accident.
+
 **Deploy defaults — the code baseline is (0), each deployment configures its own topology:**
 
 - **Code default `application.yml`:** `AUDIT_BUS_ID=audit-b` (in-process); a deployment that names no
@@ -585,7 +600,7 @@ option + the env reference: [services.configuring.md](services.configuring.md).
   (the `esquire-topology` chart, installed first by `k8s-up`/`k8s-rebuild`). (c) reuses the ActiveMQ already
   in the stack — **no Redis/Kafka deployed by default**. Both dev environments are identical (GHA-script
   consistency).
-- **OKE → (a) DB triggers.** The producer overlays (`k8s-oci/values/*`) leave the audit bus unconfigured
+- **OKE → (a) DB triggers.** The producer overlays (`k8s-oci-compact/values/*`) leave the audit bus unconfigured
   (app audit OFF); the audit comes from **DB triggers** (`db.seed/<vendor>/triggers/all.sql` applied to the
   OKE postgres) — always-on user-activity monitoring with **no auKeep pod / no extra broker load** on the
   Always-Free tier.

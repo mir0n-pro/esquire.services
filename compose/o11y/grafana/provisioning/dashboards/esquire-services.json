@@ -27,7 +27,7 @@
     "refresh": 2,
     "includeAll": true,
     "multi": true,
-    "allValue": ".*",
+    "allValue": ".+",
     "current": {
      "text": "All",
      "value": "$__all"
@@ -965,7 +965,7 @@
       "type": "prometheus",
       "uid": "esq-prometheus"
      },
-     "expr": "(rate(pg_stat_database_blks_hit{datname=\"esq2025\"}[5m])) / (rate(pg_stat_database_blks_hit{datname=\"esq2025\"}[5m]) + rate(pg_stat_database_blks_read{datname=\"esq2025\"}[5m]))",
+     "expr": "(rate(pg_stat_database_blks_hit{datname=\"esq2025\"}[5m])) / (rate(pg_stat_database_blks_hit{datname=\"esq2025\"}[5m]) + ((rate(pg_stat_database_blks_read{datname=\"esq2025\"}[5m])) or vector(0)))",
      "legendFormat": "hit ratio"
     }
    ]
@@ -1164,7 +1164,7 @@
       "type": "prometheus",
       "uid": "esq-prometheus"
      },
-     "expr": "base_memory_usedHeap_bytes{job=\"keycloak\"}",
+     "expr": "sum(jvm_memory_used_bytes{job=\"keycloak\", area=\"heap\"})",
      "legendFormat": "heap used"
     },
     {
@@ -1173,10 +1173,11 @@
       "type": "prometheus",
       "uid": "esq-prometheus"
      },
-     "expr": "base_memory_usedNonHeap_bytes{job=\"keycloak\"}",
+     "expr": "sum(jvm_memory_used_bytes{job=\"keycloak\", area=\"nonheap\"})",
      "legendFormat": "non-heap used"
     }
-   ]
+   ],
+   "description": "MICROMETER names, not MicroProfile. This KeyCloak is Quarkus-based and publishes jvm_memory_used_bytes; the base_memory_used*Heap_bytes namespace does not exist on it, so this panel drew NOTHING at all until 2026-08-25. It went unnoticed because base_ is outside check_dependencies' family tuple, so the sweep reported every dependency present while the panel was dead -- while the agroal panel beside it, a Micrometer name that IS in the tuple, worked and made the row look healthy."
   },
   {
    "type": "row",
@@ -1457,7 +1458,7 @@
       "type": "prometheus",
       "uid": "esq-prometheus"
      },
-     "expr": "1000 * (sum by (application, bus_id) (rate(messaging_retry_backoff_sum{application=~\"$application\"}[5m])) / sum by (application, bus_id) (rate(messaging_retry_backoff_count{application=~\"$application\"}[5m])))",
+     "expr": "(sum by (application, bus_id) (rate(messaging_retry_backoff_sum{application=~\"$application\"}[5m])) / sum by (application, bus_id) (rate(messaging_retry_backoff_count{application=~\"$application\"}[5m])))",
      "legendFormat": "{{application}} {{bus_id}}"
     }
    ],
@@ -2418,6 +2419,80 @@
   },
   {
    "type": "timeseries",
+   "title": "Access profile reads + saves (by op + outcome)",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "esq-prometheus"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 6,
+    "x": 0,
+    "y": 182
+   },
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+      "drawStyle": "line",
+      "fillOpacity": 10
+     },
+     "unit": "ops",
+     "min": 0
+    },
+    "overrides": []
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "(sum by (op, outcome) (rate(esq_biz_key_ops_total{application=~\"$application\"}[5m]))) or label_replace(vector(0), \"outcome\", \"error\", \"\", \"\")",
+     "legendFormat": "{{op}} {{outcome}}"
+    }
+   ],
+   "description": "What keySmith actually did. A read is the sign-in handshake, so this line is the closest thing to a login rate the fleet emits; a save is a permission or profile change, which is the rarer and more consequential one. The error line is a save that threw -- the caller saw a 4xx/5xx, and this says which operation it was."
+  },
+  {
+   "type": "timeseries",
+   "title": "Identity commands asked for (by command)",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "esq-prometheus"
+   },
+   "gridPos": {
+    "h": 8,
+    "w": 6,
+    "x": 6,
+    "y": 182
+   },
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+      "drawStyle": "line",
+      "fillOpacity": 10
+     },
+     "unit": "ops",
+     "min": 0
+    },
+    "overrides": []
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "esq-prometheus"
+     },
+     "expr": "sum by (op) (rate(esq_biz_key_identity_total{application=~\"$application\"}[5m]))",
+     "legendFormat": "{{op}}"
+    }
+   ],
+   "description": "What keySmith ASKED the identity provider to do. Read it against KeyCloak identity sync above, which is what was DONE: the two should track each other, and a gap between them is a request that never landed. Nothing else compares the two sides."
+  },
+  {
+   "type": "timeseries",
    "title": "KeyCloak identity sync (by op + outcome)",
    "datasource": {
     "type": "prometheus",
@@ -2571,7 +2646,7 @@
     "h": 1,
     "w": 24,
     "x": 0,
-    "y": 182
+    "y": 190
    }
   },
   {
@@ -2585,7 +2660,7 @@
     "h": 8,
     "w": 8,
     "x": 0,
-    "y": 183
+    "y": 191
    },
    "fieldConfig": {
     "defaults": {
@@ -2631,7 +2706,7 @@
     "h": 8,
     "w": 8,
     "x": 8,
-    "y": 183
+    "y": 191
    },
    "fieldConfig": {
     "defaults": {
@@ -2668,7 +2743,7 @@
     "h": 8,
     "w": 8,
     "x": 16,
-    "y": 183
+    "y": 191
    },
    "fieldConfig": {
     "defaults": {
@@ -2701,7 +2776,7 @@
     "h": 1,
     "w": 24,
     "x": 0,
-    "y": 191
+    "y": 199
    }
   },
   {
@@ -2715,7 +2790,7 @@
     "h": 8,
     "w": 8,
     "x": 0,
-    "y": 192
+    "y": 200
    },
    "fieldConfig": {
     "defaults": {
@@ -2761,7 +2836,7 @@
     "h": 8,
     "w": 8,
     "x": 8,
-    "y": 192
+    "y": 200
    },
    "fieldConfig": {
     "defaults": {
@@ -2798,7 +2873,7 @@
     "h": 8,
     "w": 8,
     "x": 16,
-    "y": 192
+    "y": 200
    },
    "fieldConfig": {
     "defaults": {
@@ -2835,7 +2910,7 @@
     "h": 8,
     "w": 8,
     "x": 0,
-    "y": 200
+    "y": 208
    },
    "fieldConfig": {
     "defaults": {
@@ -2872,7 +2947,7 @@
     "h": 8,
     "w": 8,
     "x": 8,
-    "y": 200
+    "y": 208
    },
    "fieldConfig": {
     "defaults": {
@@ -2909,7 +2984,7 @@
     "h": 8,
     "w": 8,
     "x": 16,
-    "y": 200
+    "y": 208
    },
    "fieldConfig": {
     "defaults": {
@@ -2942,7 +3017,7 @@
     "h": 1,
     "w": 24,
     "x": 0,
-    "y": 208
+    "y": 216
    }
   },
   {
@@ -2956,7 +3031,7 @@
     "h": 8,
     "w": 12,
     "x": 0,
-    "y": 209
+    "y": 217
    },
    "fieldConfig": {
     "defaults": {
@@ -2993,7 +3068,7 @@
     "h": 8,
     "w": 12,
     "x": 12,
-    "y": 209
+    "y": 217
    },
    "fieldConfig": {
     "defaults": {
@@ -3030,7 +3105,7 @@
     "h": 8,
     "w": 12,
     "x": 0,
-    "y": 217
+    "y": 225
    },
    "fieldConfig": {
     "defaults": {
@@ -3067,7 +3142,7 @@
     "h": 8,
     "w": 12,
     "x": 12,
-    "y": 217
+    "y": 225
    },
    "fieldConfig": {
     "defaults": {

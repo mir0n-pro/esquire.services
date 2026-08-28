@@ -16,11 +16,13 @@
  *                   recorded. Recording is INDEPENDENT of the X-Capture-Metrics header instrument -- the header
  *                   is still written only when the caller asks, the timer always. esq.gw.outer minus esq.gw.inner
  *                   is the gateway's own overhead band
+ * 08/26/2026 mir0n  runs at @Order(1), and the meter registry is taken only when the metrics switch is on
  */
 package pro.mir0n.esquire.gateway.filters;
 
 import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
 import org.springframework.cloud.gateway.route.Route;
@@ -52,7 +54,8 @@ import java.util.concurrent.TimeUnit;
  *   Esq-Srv-Inner-Time                      = umbrella of all service-inner cost
  *                                              (today: JPA queries)
  */
-@Order(0)
+
+@Order(1)
 @Component
 public class InnerTimerFilter implements GlobalFilter {
 
@@ -60,8 +63,9 @@ public class InnerTimerFilter implements GlobalFilter {
     // of the X-Capture-Metrics header instrument. Resolved once at construction.
     private final MeterRegistry registry;
 
-    public InnerTimerFilter(ObjectProvider<MeterRegistry> registryProvider) {
-        this.registry = registryProvider.getIfAvailable();
+    public InnerTimerFilter(ObjectProvider<MeterRegistry> registryProvider,
+                                @Value("${esquire.observability.metrics.enabled:false}") boolean metricsOn) {
+        this.registry = metricsOn ? registryProvider.getIfAvailable() : null;
     }
 
     @Override
@@ -74,13 +78,19 @@ public class InnerTimerFilter implements GlobalFilter {
             if (registry != null) {
                 registry.timer("esq.gw.inner", "route", routeId(exchange)).record(duration, TimeUnit.MILLISECONDS);
             }
-            HttpHeaders requestHeaders = exchange.getRequest().getHeaders();
             HttpHeaders responseHeaders = exchange.getResponse().getHeaders();
-            if (requestHeaders.containsKey(EsqConstants.X_CAPTURE_METRICS)
+            if (captureWanted(exchange)
             && !responseHeaders.containsKey(EsqConstants.ESQ_GW_INNER_TIME)) {
                 responseHeaders.add(EsqConstants.ESQ_GW_INNER_TIME, duration + "ms");
             }
         }));
+    }
+
+    /** The load-test instrument: the client asked, and the master switch is on. Same gate gateWard uses. */
+    private static boolean captureWanted(ServerWebExchange exchange) {
+        boolean ret = exchange.getRequest().getHeaders().containsKey(EsqConstants.X_CAPTURE_METRICS)
+                   && Boolean.TRUE.equals(exchange.getAttribute(EsqConstants.ESQ_CAPTURE_METRICS));
+        return ret;
     }
 
     // The matched route id -- a bounded tag (never the raw URI, which carries entity ids).

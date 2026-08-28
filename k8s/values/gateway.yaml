@@ -6,12 +6,14 @@
 #
 # image.tag is restamped per rebuild here -- k8s-rebuild.bat patches it.
 image:
-  tag: "v1.2.11-2607.2316"
+  tag: "v1.2.13-2608.2317"
 
 # Token Relay -- in-cluster KC endpoint (HTTP, no TLS); same allowlists as
 # OKE. exchangeClientSecret comes via --set at install (k8s-up.bat).
+keycloakExchange:
+  baseUrl: http://esquire-infra-kc-keycloak:8080/kc-auth
+
 tokenRelay:
-  tokenUri: http://esquire-infra-kc-keycloak:8080/kc-auth/realms/esquire/protocol/openid-connect/token
   vanilla:
     clients: esq-hauberk-S
   phantom:

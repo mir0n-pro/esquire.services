@@ -48,6 +48,12 @@
  * 08/11/2026 mir0n  v1.2.12 -- the move broadcast carries the PATH change number: taken from the move
  *                   record, and read back with pathChangeNoFor after a reconcile repair so the reissue is
  *                   not skipped by the receiver's guard
+ * 08/12/2026 mir0n  v1.2.13 -- field/ctor param KcBusAdapter -> IIdentityGateway; publishKcMoveRequest builds an
+ *                   AuthSyncRequest + RodEvent and calls postRequest, carrying the PATH change number
+ * 08/26/2026 mir0n  implements ISuccessListener and IErrorListener and registers both on the rig, so a move
+ *                   outcome is counted on either side; submitMove answers false when the queue refuses
+ *                   the item. The move broadcast carries pathChangeNo in the body and the entity number
+ *                   in the header, and the reconcile reissue reads both back
  */
 
 package pro.mir0n.esquire.enyMan.queue;
@@ -70,6 +76,7 @@ import pro.mir0n.esquire.backend.storage.EsqObjectKindStorage;
 import pro.mir0n.esquire.common.EsqConstants;
 import pro.mir0n.esquire.common.QueryTimeouts;
 import pro.mir0n.esquire.messaging.BusConstants;
+import pro.mir0n.esquire.messaging.RodEvent;
 import pro.mir0n.esquire.audit.AuditBusBridge;
 import pro.mir0n.esquire.enyMan.jpa.EntityPathLookup;
 import pro.mir0n.esquire.enyMan.jpa.EsqEntityDictionaryRepository;
@@ -77,7 +84,8 @@ import pro.mir0n.esquire.enyMan.jpa.EsqMoveRecord;
 import pro.mir0n.esquire.enyMan.jpa.EsqOrgRepository;
 import pro.mir0n.esquire.enyMan.jpa.EsqUsrRepository;
 import pro.mir0n.esquire.enyMan.messaging.EntityBusAdapter;
-import pro.mir0n.esquire.enyMan.messaging.KcBusAdapter;
+import pro.mir0n.esquire.backend.identity.IIdentityGateway;
+import pro.mir0n.esquire.backend.identity.AuthSyncRequest;
 import pro.mir0n.esquire.enyMan.service.IEnyManService;
 import pro.mir0n.esquire.enyMan.service.impl.OrgService;
 import pro.mir0n.esquire.enyMan.service.impl.UsrService;
@@ -87,11 +95,14 @@ import pro.mir0n.utils.concurrent.IQueueRig;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 
 @Slf4j
 @Component
-public class MoveQueueManager implements IQueueRig.IQueueWorker<MoveQueueItem> {
+public class MoveQueueManager implements IQueueRig.IQueueWorker<MoveQueueItem>,
+                                         IQueueRig.ISuccessListener<MoveQueueItem>,
+                                         IQueueRig.IErrorListener<MoveQueueItem> {
 
     private static final org.slf4j.Logger devLog = LoggerFactory.getLogger("develop." + MoveQueueManager.class.getName());
 
@@ -109,7 +120,7 @@ public class MoveQueueManager implements IQueueRig.IQueueWorker<MoveQueueItem> {
     private final IEnyManService orgService;
     private final IEnyManService usrService;
     private final EntityBusAdapter broadcastPublisher;
-    private final KcBusAdapter kcRequestPublisher;
+    private final IIdentityGateway identityGateway;
     private final EntityPathLookup pathLookup;
 
     private final int capacity;
@@ -120,7 +131,7 @@ public class MoveQueueManager implements IQueueRig.IQueueWorker<MoveQueueItem> {
                             TransactionTemplate transactionTemplate,
                             EntityManager em,
                             EntityBusAdapter broadcastPublisher,
-                            KcBusAdapter kcRequestPublisher,
+                            IIdentityGateway identityGateway,
                             EntityPathLookup pathLookup,
                             AuditBusBridge audit,
                             @Value("${enyman.move-queue.capacity:1024}") int capacity,
@@ -136,7 +147,7 @@ public class MoveQueueManager implements IQueueRig.IQueueWorker<MoveQueueItem> {
         this.orgService = new OrgService(entityDictionaryRepository, orgRepository, moveTx, em, audit);
         this.usrService = new UsrService(entityDictionaryRepository, usrRepository, moveTx, em, audit);
         this.broadcastPublisher = broadcastPublisher;
-        this.kcRequestPublisher = kcRequestPublisher;
+        this.identityGateway = identityGateway;
         this.pathLookup = pathLookup;
         this.capacity = capacity;
         this.graceNanos = inMoveGraceMs * 1_000_000L;
@@ -146,6 +157,8 @@ public class MoveQueueManager implements IQueueRig.IQueueWorker<MoveQueueItem> {
     @PostConstruct
     public void start() {
         rig.init("enyman.move-queue", devLog, capacity);
+        rig.setSuccessListener(this);
+        rig.setErrorListener(this);
         rig.start();
         rig.setProcessing(true);
         // Bind the entity-bus receive leg now the rig is live: a peer instance's CREATE -> reconcile intake.
@@ -184,16 +197,23 @@ public class MoveQueueManager implements IQueueRig.IQueueWorker<MoveQueueItem> {
     /** Enqueue a move command. Increments the counter on the handler thread BEFORE put,
      *  so a CREATE that runs the instant after this call already sees inMove() == true.
      *  Uses non-blocking tryPut: if the queue is full the counter is rolled back so a
-     *  capacity-exhaustion scenario does not leave inMove() stuck true forever. */
-    public void submitMove(MoveCommandItem item) {
+     *  capacity-exhaustion scenario does not leave inMove() stuck true forever.
+     */
+    public boolean submitMove(MoveCommandItem item) {
+        boolean ret = true;
         counter.incrementAndGet();
         if (!rig.tryPut(item)) {
             counter.decrementAndGet();
-            log.error("submitMove: move queue is FULL (size={}, capacity={}) -- DROPPED kind={}, id={}, distId={}",
-                    rig.size(), capacity, item.kind(), item.id(), item.distId());
-            devLog.error("submitMove: move queue is FULL (size={}, capacity={}) -- DROPPED {}",
-                    rig.size(), capacity, item);
+
+            String reason = (rig.size() >= capacity) ? "full" : "stopped";
+            log.error("submitMove: move queue {} (size={}, capacity={}) -- REFUSED kind={}, id={}, distId={}",
+                    reason, rig.size(), capacity, item.kind(), item.id(), item.distId());
+            devLog.error("submitMove: move queue {} (size={}, capacity={}) -- REFUSED {}",
+                    reason, rig.size(), capacity, item);
+            EsqBizMeters.count("esq.biz.move.refused.total", "kind", String.valueOf(item.kind()), "reason", reason);
+            ret = false;
         }
+        return ret;
     }
 
     /** Enqueue a post-publish reconciliation task for a CREATE that fired during a move.
@@ -233,11 +253,6 @@ public class MoveQueueManager implements IQueueRig.IQueueWorker<MoveQueueItem> {
         // the worker thread; a reconcile item carries its OWN create's cid/rid and stamps them itself.
         EsqContextHolder.set(new EsqRequestContext(
                 item.correlationId(), item.requestId(), item.uid(), item.rootPath()));
-
-        // esq.biz.move.processed / failed (O1/T8 phase B): the move's REAL outcome, which nothing on the request
-        // side can see -- /esq-move answers 202 Accepted at submit time and the work happens here, off-request.
-        // A flag, not a catch: the exception flow above is left exactly as it was.
-        boolean moved = false;
         try {
             // Continue the request's trace on this worker thread (the "move entity" span was captured at submit):
             // the move + its broadcasts nest under it, so the async move shows in the request's trace (O2/T3).
@@ -257,7 +272,6 @@ public class MoveQueueManager implements IQueueRig.IQueueWorker<MoveQueueItem> {
                     publishKcMoveRequest(r, item.requestId(), item.correlationId());
                 }
             });
-            moved = true;
         } finally {
             EsqContextHolder.clear();     // do not leak this move's identity onto the next item
             if (counter.decrementAndGet() == 0) {   // ALWAYS decrement, even if the move threw
@@ -266,9 +280,33 @@ public class MoveQueueManager implements IQueueRig.IQueueWorker<MoveQueueItem> {
                 lastMoveDoneNanos = System.nanoTime();
                 everMoved = true;
             }
-            EsqBizMeters.count(moved ? "esq.biz.move.processed.total" : "esq.biz.move.failed.total",
-                    "kind", String.valueOf(item.kind()));
         }
+    }
+
+    @Override
+    public void onSuccess(MoveQueueItem item) {
+        String kind = moveKind(item);
+        if (kind != null) {
+            EsqBizMeters.count("esq.biz.move.processed.total", "kind", kind);
+        }
+    }
+
+    @Override
+    public MoveQueueItem onError(Throwable error, MoveQueueItem item) {
+        String kind = moveKind(item);
+        if (kind != null) {
+            EsqBizMeters.count("esq.biz.move.failed.total", "kind", kind);
+        }
+        devLog.error("move-queue: item failed: {}", item, error);
+        return item;
+    }
+
+    private String moveKind(MoveQueueItem item) {
+        String ret = null;
+        if (item instanceof MoveCommandItem move) {
+            ret = String.valueOf(move.kind());
+        }
+        return ret;
     }
 
     private void processReconcile(CreateReconcileItem item) {
@@ -299,7 +337,8 @@ public class MoveQueueManager implements IQueueRig.IQueueWorker<MoveQueueItem> {
             // updatePath raised ep_change_no inline (the path table is not read for update per row), so the
             // new number is read back here -- the reissued broadcast has to carry it or bizTree's path guard
             // would compare this repair against a stale number and skip it.
-            Long pathChangeNo = pathLookup.pathChangeNoFor(item.entityId());
+            Long pathChangeNo   = pathLookup.pathChangeNoFor(item.entityId());
+            Long entityChangeNo = pathLookup.entityChangeNoFor(item.entityId());
             devLog.info("processReconcile: drift fixed entityId={}, was={}, now={}, rows={}, pathChangeNo={}",
                     item.entityId(), item.pathAtPublish(), expectedPath, rows, pathChangeNo);
 
@@ -307,9 +346,10 @@ public class MoveQueueManager implements IQueueRig.IQueueWorker<MoveQueueItem> {
             text.put(EsqConstants.TEXT_ID,   item.entityId());
             text.put(EsqConstants.TEXT_KIND, item.kind());
             text.put(EsqConstants.TEXT_PATH, expectedPath);
+            text.put(EsqConstants.TEXT_PATH_CHANGE_NO, pathChangeNo);
             try {
                 broadcastPublisher.publish(item.kind(), item.entityId(), BusConstants.EVENT_UPDATE_PATH,
-                        rid, cid, text, pathChangeNo);
+                        rid, cid, text, entityChangeNo);
             } catch (Exception e) {
                 log.error("processReconcile: broadcast failed for kind={}, id={}: {}",
                         item.kind(), item.entityId(), e.getMessage());
@@ -328,9 +368,10 @@ public class MoveQueueManager implements IQueueRig.IQueueWorker<MoveQueueItem> {
         text.put(EsqConstants.TEXT_ID,   record.getId());
         text.put(EsqConstants.TEXT_KIND, record.getKind());
         text.put(EsqConstants.TEXT_PATH, record.getPath());
+        text.put(EsqConstants.TEXT_PATH_CHANGE_NO, record.getPathChangeNo());
         try {
             broadcastPublisher.publish(record.getKind(), record.getId(), BusConstants.EVENT_UPDATE_PATH,
-                    requestId, correlationId, text, record.getChangeNo());
+                    requestId, correlationId, text, record.getEntityChangeNo());
         } catch (Exception e) {
             log.error("publishMoveEvent: broadcast failed for kind={}, id={}: {}",
                     record.getKind(), record.getId(), e.getMessage());
@@ -339,13 +380,22 @@ public class MoveQueueManager implements IQueueRig.IQueueWorker<MoveQueueItem> {
         }
     }
 
-    // KC URQ (EVENT_UPDATE_PATH) only for USR entities -- only USRs have a KC identity.
+    // The moved path goes to the identity provider only for USR entities -- only USRs have an identity there.
     private void publishKcMoveRequest(EsqMoveRecord record, String requestId, String correlationId) {
         EsqObjectKind eek = EsqObjectKindStorage.getInstance().get(record.getKind());
         if (eek.isUsr()) {
             try {
-                kcRequestPublisher.publishPathUpdate(record.getId(), record.getKind(), record.getPath(),
-                        requestId, correlationId);
+                AuthSyncRequest req = new AuthSyncRequest();
+                req.setId(record.getId());
+                req.setKind(record.getKind());
+                req.setPath(record.getPath());
+                // guarantee a non-null tracking id (the former testReqId; it rides as the requestId on the wire).
+                String reqId = (requestId != null && !requestId.isBlank()) ? requestId : UUID.randomUUID().toString();
+                // The PATH change number rides along, on both legs: a gateway that has to hold the path keeps
+                // the newest move rather than the last to arrive. It is the ep_change_no the move just raised.
+                identityGateway.postRequest(new RodEvent(RodEvent.Op.UPDATE_PATH, record.getKind(), record.getId(), null,
+                        record.getPathChangeNo(), System.currentTimeMillis(), correlationId, reqId, null, null,
+                        BusConstants.MSG_TYPE_REQUEST, req.toMap()));
             } catch (Exception e) {
                 log.error("publishKcMoveRequest: failed for id={}: {}", record.getId(), e.getMessage());
                 devLog.error("publishKcMoveRequest: failed for id={}: {}", record.getId(), e.getMessage(), e);

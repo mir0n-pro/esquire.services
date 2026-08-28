@@ -26,6 +26,7 @@
  *                   moved to enyMan
  * 06/04/2026 mir0n  rootPath / uid no longer extracted from claims; delegates without them (roles
  *                   still extracted); uid / rootPath ride the unified request context
+ * 08/26/2026 mir0n  the develop log lines pass the value itself instead of String.valueOf
  */
 
 package pro.mir0n.esquire.pacMan.controller;
@@ -117,7 +118,7 @@ public class PacManController {
         List<String> roles = realmAccess != null ? (List<String>) realmAccess.get(EsqConstants.JWT_CLAIM_REALM_ACCESS_ROLES) : null;
 
         EsqEntity ret = iPacManService.esquireCommandSave(kind, id, cmd, fields, roles);
-        devLog.debug("esquireCommandSave: kind:{}, id:{}, cmd:{}, result:{}", kind, id, cmd, String.valueOf(ret));
+        devLog.debug("esquireCommandSave: kind:{}, id:{}, cmd:{}, result:{}", kind, id, cmd, ret);
         return ResponseEntity.status(HttpStatus.OK).body(ret);
     }
 
@@ -161,7 +162,7 @@ public class PacManController {
         List<String> roles = realmAccess != null ? (List<String>) realmAccess.get(EsqConstants.JWT_CLAIM_REALM_ACCESS_ROLES) : null;
 
         AcctTransactionSingle ret = acctTransactionService.esquireCommandAcct(kind, id, cmd, fields, roles);
-        devLog.debug("esquireCommandAcct: kind:{}, id:{}, cmd:{}, result:{}", kind, id, cmd, String.valueOf(ret));
+        devLog.debug("esquireCommandAcct: kind:{}, id:{}, cmd:{}, result:{}", kind, id, cmd, ret);
         return ResponseEntity.status(HttpStatus.OK).body(ret);
     }
 
@@ -176,7 +177,7 @@ public class PacManController {
            @AuthenticationPrincipal Claims claims
     ) {
         EsqEntity entity = iPacManService.esquireCommand(kind, id, cmd);
-        devLog.debug("esquireCommand: kind:{}, id:{}, cmd:{}, result:{}", kind, id, cmd, String.valueOf(entity));
+        devLog.debug("esquireCommand: kind:{}, id:{}, cmd:{}, result:{}", kind, id, cmd, entity);
         return ResponseEntity.status(HttpStatus.OK).body(entity);
     }
 

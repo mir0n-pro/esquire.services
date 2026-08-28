@@ -79,6 +79,9 @@
  * 08/11/2026 mir0n  v1.2.12 -- esquireCommandDelete returns the number the delete raised and
  *                   publishDeleteEvent carries it; the entity broadcast carries the change number on
  *                   create, save and move
+ * 08/26/2026 mir0n  every esquireCommandSave publishes an UPDATE -- isBroadcastableUpdate is gone, so the field
+ *                   list that raises the change number and the one that broadcasts can no longer differ;
+ *                   a refused move raises CommandNotAcceptedException
  */
 
 package pro.mir0n.esquire.enyMan.service.impl;
@@ -93,6 +96,7 @@ import lombok.extern.slf4j.Slf4j;
 import pro.mir0n.esquire.backend.dto.*;
 import pro.mir0n.esquire.backend.dto.access.EsqPermission;
 import pro.mir0n.esquire.backend.jpa.entity.EsqOrgJpa;
+import pro.mir0n.esquire.backend.error.CommandNotAcceptedException;
 import pro.mir0n.esquire.backend.error.PermissionDeniedException;
 import pro.mir0n.esquire.backend.storage.EsqObjectKindStorage;
 import pro.mir0n.esquire.backend.storage.EsqRolesStorage;
@@ -199,9 +203,7 @@ public class EnyManService  extends AEnyManService {
         if (eek.isOrg()) {
             if (permitted) {
                 ret = orgService.esquireCommandSave(k, id, cmd, fields, roles);
-                if (isBroadcastableUpdate(fields)) {
-                    publishEntityEvent(ret, k, BusConstants.EVENT_UPDATE, requestId, correlationId, fields);
-                }
+                publishEntityEvent(ret, k, BusConstants.EVENT_UPDATE, requestId, correlationId, fields);
             }
         } else if (eek.isUsr()) {
             if (id != null && id.equals(uid)) {
@@ -209,9 +211,7 @@ public class EnyManService  extends AEnyManService {
             }
             if (permitted) {
                 ret = usrService.esquireCommandSave(k, id, cmd, fields, roles);
-                if (isBroadcastableUpdate(fields)) {
-                    publishEntityEvent(ret, k, BusConstants.EVENT_UPDATE, requestId, correlationId, fields);
-                }
+                publishEntityEvent(ret, k, BusConstants.EVENT_UPDATE, requestId, correlationId, fields);
             }
         }
         if (ret == null && !permitted) {
@@ -396,7 +396,11 @@ public class EnyManService  extends AEnyManService {
             // Capture the trace HERE (inside the traced "move entity", span current) so the async move worker can
             // continue this request's trace when it later emits the move broadcasts (O2/T3). null when tracing off.
             String traceparent = EsqAsyncTrace.capture(correlationId);
-            moveQueue.submitMove(new MoveCommandItem(k, id, distId, rootPath, uid, roles, requestId, correlationId, traceparent));
+            boolean accepted = moveQueue.submitMove(
+                    new MoveCommandItem(k, id, distId, rootPath, uid, roles, requestId, correlationId, traceparent));
+            if (!accepted) {
+                throw new CommandNotAcceptedException("move");
+            }
             devLog.debug("esquireCommandMove: submitted to move queue (kind={}, id={}, distId={}, queueSize={})",
                     k, id, distId, moveQueue.queueSize());
             outcome = OUTCOME_OK;
@@ -408,20 +412,6 @@ public class EnyManService  extends AEnyManService {
         }
         return null;
     }
-
-    // Broadcast UPDATE only when fields that affect the entity's public identity or status change.
-    // name / desc / deleted (usr_deleted_flg) are the current scope.
-    // Note: for USR, "name" is not in the original request — UsrService.saveUsr() injects it
-    // into the fields map when person (firstName/middleName/lastName) is updated, so this
-    // check correctly fires for person-driven name changes too.
-    private boolean isBroadcastableUpdate(Map<String, Object> fields) {
-        return fields != null && (fields.containsKey(EsqConstants.TEXT_NAME) || fields.containsKey(EsqConstants.TEXT_DESC)
-                               || fields.containsKey(EsqConstants.TEXT_DELETED));
-    }
-
-    // publishMoveEvent and publishKcMoveRequest moved into MoveQueueManager (v1.2.6 Goal 3):
-    // only the move-queue worker thread emits move broadcasts now, since the /esq-move
-    // request thread returns 202 Accepted at submit time without running the move itself.
 
     private void publishDeleteEvent(String id, int entityKind, String eventType,
                                     String requestId, String correlationId, Long changeNo) {
@@ -474,6 +464,16 @@ public class EnyManService  extends AEnyManService {
         }
         devLog.debug("esquireCommandTree: kind:{}, id:{}, rootPath:{}, rows:{}", kind, id, rootPath, ret.size());
         return ret;
+    }
+
+    static void assertKindMatches(String op, int givenKind, Integer actualKind, String id) {
+        if (actualKind == null || givenKind != actualKind.intValue()) {
+            log.warn("{}: kind mismatch -- request says kind={}, entity {} is kind={}; refused",
+                    op, givenKind, id, actualKind);
+            devLog.warn("{}: kind mismatch -- request kind={}, actual kind={}, id={}, uid={}, requestId={}",
+                    op, givenKind, actualKind, id, RequestContextUtils.getUid(), RequestContextUtils.getRequestId());
+            throw new ResourceNotFoundException(op, "kind", String.valueOf(givenKind));
+        }
     }
 
     private void publishEntityEvent(EsqEntity entity, int entityKind, String eventType,

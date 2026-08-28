@@ -1781,7 +1781,7 @@
         "use.refresh.tokens": "false",
         "client_credentials.use_refresh_token": "false",
         "display.on.consent.screen": "false",
-        "client.use.lightweight.access.token.enabled": "false"
+        "client.use.lightweight.access.token.enabled": "true"
       },
       "authenticationFlowBindingOverrides": {},
       "fullScopeAllowed": false,

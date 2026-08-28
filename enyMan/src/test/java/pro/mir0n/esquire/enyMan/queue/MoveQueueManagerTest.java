@@ -24,9 +24,13 @@ import pro.mir0n.esquire.enyMan.jpa.EsqEntityDictionaryRepository;
 import pro.mir0n.esquire.enyMan.jpa.EsqOrgRepository;
 import pro.mir0n.esquire.enyMan.jpa.EsqUsrRepository;
 import pro.mir0n.esquire.enyMan.messaging.EntityBusAdapter;
-import pro.mir0n.esquire.enyMan.messaging.KcBusAdapter;
+import pro.mir0n.esquire.backend.identity.IIdentityGateway;
 
 import java.util.Map;
+
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import pro.mir0n.esquire.backend.o11y.EsqBizMeters;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -62,7 +66,7 @@ class MoveQueueManagerTest {
     @Mock private TransactionTemplate txTemplate;
     @Mock private EntityManager em;
     @Mock private EntityBusAdapter publisher;
-    @Mock private KcBusAdapter kcPublisher;
+    @Mock private IIdentityGateway identityGateway;
     @Mock private EntityPathLookup pathLookup;
 
     private MoveQueueManager manager;
@@ -81,7 +85,7 @@ class MoveQueueManagerTest {
     @BeforeEach
     void setUp() {
         manager = new MoveQueueManager(dictRepo, orgRepo, usrRepo, txTemplate, em,
-                publisher, kcPublisher, pathLookup, new AuditBusBridge(noopRod()), 16, 0, 0);
+                publisher, identityGateway, pathLookup, new AuditBusBridge(noopRod()), 16, 0, 0);
         // Do not call manager.start() -- we want to invoke process() directly without
         // racing the daemon worker thread. The rig is constructed but unstarted.
     }
@@ -107,8 +111,11 @@ class MoveQueueManagerTest {
         // back so inMove() stays false. This is the regression test for the bug we discovered
         // mid-Goal-3 where 16k queued items left inMove() stuck true forever.
         assertThat(manager.inMove()).isFalse();
-        manager.submitMove(new MoveCommandItem(20, "100", "200", "1.", "99",
+        boolean accepted = manager.submitMove(new MoveCommandItem(20, "100", "200", "1.", "99",
                 java.util.List.of("ROLE_ADMIN"), "rid-1", "cid-1", null));
+        assertThat(accepted)
+                .as("a refusal must be REPORTED -- the caller answers 503 instead of a 202 that promises nothing")
+                .isFalse();
         assertThat(manager.inMove())
                 .as("counter must be rolled back when tryPut returns false")
                 .isFalse();
@@ -145,7 +152,7 @@ class MoveQueueManagerTest {
         // A manager with a 500ms grace: after a move drains, inMove() must stay true within the window so a
         // CREATE landing just behind the move is still caught (the grace=0 manager reads false at this same point).
         MoveQueueManager graced = new MoveQueueManager(dictRepo, orgRepo, usrRepo, txTemplate, em,
-                publisher, kcPublisher, pathLookup, new AuditBusBridge(noopRod()), 16, 0, 500);
+                publisher, identityGateway, pathLookup, new AuditBusBridge(noopRod()), 16, 0, 500);
         graced.start();
         try {
             assertThat(graced.inMove()).as("nothing moved yet -> grace not open").isFalse();
@@ -190,8 +197,10 @@ class MoveQueueManagerTest {
         // CREATE was published with "1.5.7." but the parent has since moved to "1.9.200.7."
         when(pathLookup.pathFor("parent-7")).thenReturn("1.9.200.7.");
         when(pathLookup.updatePath(eq("acct-42"), eq("1.9.200.7."))).thenReturn(1);
-        // updatePath raises ep_change_no inline, so the worker reads it back and the reissue carries it.
+        // updatePath raises ep_change_no inline, so the worker reads it back and the reissue carries it
+        // in the body; the header carries the entity row's own number.
         when(pathLookup.pathChangeNoFor("acct-42")).thenReturn(5L);
+        when(pathLookup.entityChangeNoFor("acct-42")).thenReturn(12L);
 
         // The item carries the originating create's cid/rid; the worker stamps them itself and the
         // reissued broadcast is published under them (no leftover-MDC dependency).
@@ -203,11 +212,12 @@ class MoveQueueManagerTest {
         ArgumentCaptor<Map<String, Object>> textCapt =
                 org.mockito.ArgumentCaptor.forClass(Map.class);
         verify(publisher).publish(eq(50), eq("acct-42"), eq(BusConstants.EVENT_UPDATE_PATH),
-                eq("create-rid"), eq("create-cid"), textCapt.capture(), eq(5L));
+                eq("create-rid"), eq("create-cid"), textCapt.capture(), eq(12L));
         Map<String, Object> text = textCapt.getValue();
         assertThat(text).containsEntry(EsqConstants.TEXT_ID, "acct-42")
                         .containsEntry(EsqConstants.TEXT_KIND, 50)
-                        .containsEntry(EsqConstants.TEXT_PATH, "1.9.200.7.");
+                        .containsEntry(EsqConstants.TEXT_PATH, "1.9.200.7.")
+                        .containsEntry(EsqConstants.TEXT_PATH_CHANGE_NO, 5L);
     }
 
     @Test
@@ -223,13 +233,14 @@ class MoveQueueManagerTest {
         when(pathLookup.pathFor("parent-7")).thenReturn("1.9.200.7.");
         when(pathLookup.updatePath(eq("acct-42"), eq("1.9.200.7."))).thenReturn(1);
         when(pathLookup.pathChangeNoFor("acct-42")).thenReturn(5L);
+        when(pathLookup.entityChangeNoFor("acct-42")).thenReturn(12L);
 
         CreateReconcileItem item = new CreateReconcileItem("acct-42", 50, "parent-7", "1.5.7.",
                 "create-cid", "create-rid");
         manager.process(item);
 
         verify(publisher).publish(eq(50), eq("acct-42"), eq(BusConstants.EVENT_UPDATE_PATH),
-                eq("create-rid"), eq("create-cid"), any(), eq(5L));
+                eq("create-rid"), eq("create-cid"), any(), eq(12L));
         assertThat(MDC.get(EsqConstants.PD_CORRELATION_ID)).isNull();
         assertThat(MDC.get(EsqConstants.PD_REQUEST_ID)).isNull();
     }
@@ -246,4 +257,53 @@ class MoveQueueManagerTest {
         verify(pathLookup, never()).updatePath(anyString(), anyString());
         verify(publisher, never()).publish(anyInt(), anyString(), anyString(), any(), any(), any(), any());
     }
+
+    // ---- the rig's outcome seam: onSuccess / onError pick the meter, not a flag in the worker ----
+
+    @Test
+    @DisplayName("onSuccess counts a move PROCESSED; onError counts it FAILED -- and never both")
+    void outcomeListeners_countTheRightMeter() {
+        MeterRegistry registry = new SimpleMeterRegistry();
+        EsqBizMeters.setRegistry(registry);
+        MoveCommandItem item = new MoveCommandItem(20, "100", "200", "1.", "99",
+                java.util.List.of("ROLE_ADMIN"), "rid-1", "cid-1", null);
+
+        manager.onSuccess(item);
+
+        assertThat(registry.counter("esq.biz.move.processed.total", "kind", "20").count()).isEqualTo(1.0);
+        assertThat(registry.counter("esq.biz.move.failed.total", "kind", "20").count()).isZero();
+
+        manager.onError(new IllegalStateException("move blew up"), item);
+
+        assertThat(registry.counter("esq.biz.move.failed.total", "kind", "20").count()).isEqualTo(1.0);
+        assertThat(registry.counter("esq.biz.move.processed.total", "kind", "20").count())
+                .as("a failure must not also count as processed")
+                .isEqualTo(1.0);
+    }
+
+    @Test
+    @DisplayName("a RECONCILE shares the rig and is not a move outcome -- neither meter moves")
+    void reconcileItem_countsNoMoveOutcome() {
+        MeterRegistry registry = new SimpleMeterRegistry();
+        EsqBizMeters.setRegistry(registry);
+        CreateReconcileItem item = new CreateReconcileItem("acct-42", 50, "parent-7", "1.5.7.",
+                "create-cid", "create-rid");
+
+        manager.onSuccess(item);
+        manager.onError(new IllegalStateException("reconcile blew up"), item);
+
+        assertThat(registry.find("esq.biz.move.processed.total").counter()).isNull();
+        assertThat(registry.find("esq.biz.move.failed.total").counter()).isNull();
+    }
+
+    @Test
+    @DisplayName("onError hands the item back -- the rig contract, so a listener cannot silently swallow it")
+    void onError_returnsTheItem() {
+        EsqBizMeters.setRegistry(new SimpleMeterRegistry());
+        MoveCommandItem item = new MoveCommandItem(20, "100", "200", "1.", "99",
+                java.util.List.of("ROLE_ADMIN"), "rid-1", "cid-1", null);
+
+        assertThat(manager.onError(new IllegalStateException("boom"), item)).isSameAs(item);
+    }
+
 }

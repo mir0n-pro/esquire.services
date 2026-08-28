@@ -29,6 +29,6 @@ WORKDIR /app
 RUN useradd -ms /bin/bash springuser
 USER springuser
 
-COPY --from=builder /build/gateway/target/*.jar app.jar
+COPY --from=builder /build/gateway/target/esquire-gateway.jar app.jar
 
 #ENTRYPOINT ["java", "-jar", "app.jar"]

@@ -29,8 +29,8 @@ Every service uses three distinct logging tiers. Each tier has a dedicated desti
 
 | Tier | Logger instance | Logback logger name | Destination | Purpose |
 |---|---|---|---|---|
-| Console | `log` (Lombok `@Slf4j`) | class path | stdout (ECS structured) | Observability — what ops watches |
-| Develop | `devLog` | `develop.<classname>` | rolling file (7 days) | Debug trace — internal detail |
+| Console | `log` (Lombok `@Slf4j`) | class path | stdout (ECS structured) | Observability -- what ops watches |
+| Develop | `devLog` | `develop.<classname>` | rolling file (7 days) | Debug trace -- internal detail |
 | Msg audit | `msgLog` | `msg.<bus-id>.<slot-id>` | rolling file (30 days) | Bus traffic audit (emitted on the x-rod legs) |
 
 ---
@@ -38,47 +38,47 @@ Every service uses three distinct logging tiers. Each tier has a dedicated desti
 ## Logger Declarations
 
 ```java
-// Provided by @Slf4j — no declaration needed:
+// Provided by @Slf4j -- no declaration needed:
 // private static final Logger log = LoggerFactory.getLogger(ClassName.class);
 
-// Develop logger — add when the class has devLog.debug / devLog.error calls:
+// Develop logger -- add when the class has devLog.debug / devLog.error calls:
 private static final org.slf4j.Logger devLog =
         LoggerFactory.getLogger("develop." + ClassName.class.getName());
 ```
 
 The msg-audit logger is no longer declared per class. The x-rod resolves it per leg as
-`msg.<bus-id>.<slot-id>` from the leg's `BusIdentity`, and the framework — not business code — writes
+`msg.<bus-id>.<slot-id>` from the leg's `BusIdentity`, and the framework -- not business code -- writes
 to it on every message crossing a leg. Service-layer classes (business logic, KC API calls, etc.) never
 use `msgLog`.
 
 ---
 
-## Console — What Goes There
+## Console -- What Goes There
 
 Only events that operations uses to observe the system in production:
 
-- **HTTP traffic** — `INCOMING` / `OUTGOING` per request with method, URI, status, timing
-- **KC operation state** — `KC | CREATE/UPDATE/DELETE | state=STARTED/SUCCESS`
-- **JMS traffic echo** — compact single-line per message (see Msg Audit Pattern below)
-- **Error summaries** — short message + context fields (no stacktrace — see Error Pattern)
-- **Startup confirmations** — storage/cache loaded successfully
+- **HTTP traffic** -- `INCOMING` / `OUTGOING` per request with method, URI, status, timing
+- **KC operation state** -- `KC | CREATE/UPDATE/DELETE | state=STARTED/SUCCESS`
+- **JMS traffic echo** -- compact single-line per message (see Msg Audit Pattern below)
+- **Error summaries** -- short message + context fields (no stacktrace -- see Error Pattern)
+- **Startup confirmations** -- storage/cache loaded successfully
 
 Everything else belongs in `devLog`.
 
 ---
 
-## Develop Logger — What Goes There
+## Develop Logger -- What Goes There
 
-- All `devLog.debug(...)` — internal processing steps, verbose state
-- All `devLog.error(...)` — full stacktraces (the stacktrace twin of every `log.error`)
+- All `devLog.debug(...)` -- internal processing steps, verbose state
+- All `devLog.error(...)` -- full stacktraces (the stacktrace twin of every `log.error`)
 - Non-exception warnings demoted from `log.warn`
 
 ---
 
-## Msg Audit Logger — The x-rod Legs
+## Msg Audit Logger -- The x-rod Legs
 
 Every message that crosses an x-rod leg is logged once, by the framework, on that leg's
-`msg.<bus-id>.<slot-id>` logger — the transmit leg logs `TX`, the receive leg logs `RX`. Business code
+`msg.<bus-id>.<slot-id>` logger -- the transmit leg logs `TX`, the receive leg logs `RX`. Business code
 writes nothing here.
 
 ### Line format (every bus)
@@ -88,12 +88,12 @@ writes nothing here.
 ```
 
 `msgType` is the per-message type (`UE` / `URQ` / `URS` / `URR` / `UA`); `op` is the event-type code
-(`C`/`U`/`D`/`X`). One round-trip therefore reads end-to-end across the per-service msg files — e.g. a
+(`C`/`U`/`D`/`X`). One round-trip therefore reads end-to-end across the per-service msg files -- e.g. a
 user move shows enyMan `TX|URQ` + `RX|URS` and kcMaster `RX|URQ` + `TX|URS`, plus the broadcast `TX/RX|UE`
 and the audit `TX|UA`.
 
 The `msg` logback logger is `additivity=false`, so the msg-audit trail goes ONLY to the per-service msg
-file, never to stdout. Production may set the msg level OFF — it is lossless, as every endpoint also
+file, never to stdout. Production may set the msg level OFF -- it is lossless, as every endpoint also
 app-logs its operation on the console tier (e.g. the `KC | CREATE | state=...` lines, which are NOT
 `msgLog`).
 
@@ -101,28 +101,28 @@ app-logs its operation on the console tier (e.g. the `KC | CREATE | state=...` l
 
 ## Error Pattern
 
-Every error is logged twice — short on console, full on develop:
+Every error is logged twice -- short on console, full on develop:
 
 ```java
-// Console — message + context, NO exception object
+// Console -- message + context, NO exception object
 log.error("service: what failed: field={}, requestId={}, correlationId={}", value, requestId, correlationId);
 
-// Develop — identical message + exception as last arg (triggers stacktrace)
+// Develop -- identical message + exception as last arg (triggers stacktrace)
 devLog.error("service: what failed: field={}, requestId={}, correlationId={}", value, requestId, correlationId, e);
 ```
 
 Rules:
 - Console error message must include `requestId` and `correlationId` where they are in scope
-- Never pass the exception as the last arg to `log.error` — Slf4j treats a trailing `Throwable` as the stacktrace trigger, which would print the stack on console
-- `log.warn` on a caught exception → promote to dual `log.error` / `devLog.error`
-- `log.warn` not on an exception (unexpected value, protocol mismatch) → `devLog.debug`
+- Never pass the exception as the last arg to `log.error` -- Slf4j treats a trailing `Throwable` as the stacktrace trigger, which would print the stack on console
+- `log.warn` on a caught exception -> promote to dual `log.error` / `devLog.error`
+- `log.warn` not on an exception (unexpected value, protocol mismatch) -> `devLog.debug`
 - No `log.warn` calls anywhere
 
 ---
 
 ## Debug Rule
 
-All internal trace / verbose detail uses `devLog.debug`. No `log.debug` calls anywhere — they would reach the console if root level is set to DEBUG.
+All internal trace / verbose detail uses `devLog.debug`. No `log.debug` calls anywhere -- they would reach the console if root level is set to DEBUG.
 
 ```java
 // Wrong:
@@ -137,7 +137,7 @@ devLog.debug("processing entity id={}", id);
 ## MDC in Bus Consumers
 
 HTTP services get `requestId` and `correlationId` in MDC automatically from `MdcFilter`. The x-rod
-receive worker runs off an HTTP thread — it gets nothing unless explicitly set.
+receive worker runs off an HTTP thread -- it gets nothing unless explicitly set.
 
 Every consumer's receive worker takes a decoded `RodEvent`; it must populate MDC from the event and
 clear it in `finally`:
@@ -178,7 +178,7 @@ if (givenRequest.getRequestURI().startsWith("/actuator")) {
 
 ---
 
-## Test Configuration — logback-test.xml
+## Test Configuration -- logback-test.xml
 
 Each service with tests has `src/test/resources/logback-test.xml`. Without it, tests either inherit the production logback config (creating rolling log files during test runs) or fall back to Logback's default output.
 
@@ -196,13 +196,13 @@ Each service with tests has `src/test/resources/logback-test.xml`. Without it, t
 </configuration>
 ```
 
-WARN level keeps test output clean — only genuine warnings and errors surface. Raise to `INFO` temporarily when debugging a specific test.
+WARN level keeps test output clean -- only genuine warnings and errors surface. Raise to `INFO` temporarily when debugging a specific test.
 
 ---
 
 ## Configuration
 
-### application.yml — standard logging section
+### application.yml -- standard logging section
 
 ```yaml
 logging:
@@ -223,7 +223,7 @@ logging:
     log-path: ${MSG_LOG_PATH:logs/<service>-msg.log}
 ```
 
-Gateway has no JMS and no msg tier — omit `springframework.jms`, `apache.activemq`, `msg` level, and `msg.log-path`.
+Gateway has no JMS and no msg tier -- omit `springframework.jms`, `apache.activemq`, `msg` level, and `msg.log-path`.
 
 ### Environment variables per service (compose.yaml)
 
@@ -237,13 +237,15 @@ Gateway has no JMS and no msg tier — omit `springframework.jms`, `apache.activ
 | `DEVELOP_LOG_PATH` | `logs/<svc>-develop.log` | Develop rolling file path |
 | `MSG_LOG_PATH` | `logs/<svc>-msg.log` | Msg audit rolling file path |
 
-### logback-spring.xml — appenders
+### logback-spring.xml -- appenders
 
 | Appender | Logger binding | Retention |
 |---|---|---|
-| `CONSOLE` | root | — |
+| `CONSOLE` | root | -- |
 | `DEVELOP_FILE` | `<logger name="develop">` additivity=false | 7 days |
 | `MSG_FILE` | `<logger name="msg">` additivity=false | 30 days |
+| `DEVELOP_CONSOLE` | the same `develop` logger under the `console` profile | -- |
+| `MSG_CONSOLE` | the same `msg` logger under the `console` profile | -- |
 
 The `develop` and `msg` parent loggers catch all `develop.*` and `msg.*` child loggers respectively.
 
@@ -253,3 +255,26 @@ The `develop` and `msg` parent loggers catch all `develop.*` and `msg.*` child l
 request narrative. There is **nothing wrong with also routing them to the console** (add the `CONSOLE` appender,
 or set `additivity=true`) when you want that detail aggregated and searched alongside the rest. It is a routing
 choice, not a rule -- the sink never changes that a log is observability data (see the top).
+
+### They go to the console AS DEBUG LOGS
+
+Under the `console` profile -- which every k8s and cloud target sets -- `develop` and `msg` bind to their own
+ConsoleAppender with a plain pattern:
+
+```
+%d{yyyy-MM-dd HH:mm:ss, UTC} %-5level %logger - %msg%n
+```
+
+That is deliberate. A debug log is read as a debug log -- a person following one process's stream -- so it is
+written to be read, not to be indexed. The root tier is the structured one: it writes ECS JSON, and that is
+what carries `correlationId` and `requestId` as fields.
+
+**What follows from it.** Alloy ships both, and Grafana shows both -- `{job="esq-k8s"} |= "develop."` returns
+the lines with their pod, container and app labels. What the plain lines do not get is the JOIN: no
+`correlationId` metadata, no trace->logs link, and `detected_level: unknown`. The msg tier carries the
+correlation id as the last field of its message text, so a free-text match on the id finds those lines; the
+develop pattern carries no id at all.
+
+So the tiers are a switch, not a feed to be parsed: turn them up when you want the detail (local k8s runs
+`levelDevelop: DEBUG`), and off when you do not -- the cloud values set `levelDevelop: "OFF"` and
+`levelMsg: "OFF"` on every service.

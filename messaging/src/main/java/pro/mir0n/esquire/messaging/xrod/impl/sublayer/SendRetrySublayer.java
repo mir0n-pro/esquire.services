@@ -23,6 +23,8 @@
  * 07/11/2026 mir0n  v1.2.11 -- retry meters over o11y.RodObserverHolder.meters(): start() registers the held-count
  *                   gauge (registerRetryHeld(.., this::heldCount)), a hold reports retryBackoff(busId, backoffMs)
  *                   and drop() reports retryDropped(busId, slotId); start() added as an ISessionSublayer override
+ * 08/26/2026 mir0n  parseBackoff takes the BusIdentity and REFUSES the leg on a step that does not parse, naming
+ *                   it; a blank spec still yields the single 1s step
  */
 package pro.mir0n.esquire.messaging.xrod.impl.sublayer;
 
@@ -101,7 +103,7 @@ public final class SendRetrySublayer implements ISessionSublayer {
     /** Package-private test seam: an injectable clock makes the backoff ladder deterministic (a unit test advances
      *  logical time and calls {@link #tick} without sleeping). */
     SendRetrySublayer(String backoffSpec, int maxAttempts, BusIdentity identity, LongSupplier clock) {
-        this.backoffMs   = parseBackoff(backoffSpec);
+        this.backoffMs   = parseBackoff(backoffSpec, identity);
         this.maxAttempts = Math.max(0, maxAttempts);
         this.identity     = identity;
         this.msgAudit     = new MsgAudit(identity);
@@ -244,15 +246,25 @@ public final class SendRetrySublayer implements ISessionSublayer {
     }
 
     /** Parse a backoff ladder spec -- a comma-separated list of SECONDS (fractions allowed, e.g. "1,2,5,5.5") --
-     *  into a millisecond ladder. Blank / unparsable yields a single 1s step. */
-    private static long[] parseBackoff(String spec) {
+     *  into a millisecond ladder. Blank yields a single 1s step; a step that does not parse refuses the leg, and
+     *  names it -- the ladder is wrong for every send this leg will ever make, and it is wrong before any traffic
+     *  arrives. This runs at ApplicationEnvironmentPreparedEvent, so it is the only line the operator gets. */
+    private static long[] parseBackoff(String spec, BusIdentity identity) {
         long[] ret;
         List<Long> steps = new ArrayList<>();
         if (spec != null && !spec.isBlank()) {
             for (String part : spec.split(",")) {
                 String t = part.trim();
                 if (!t.isEmpty()) {
-                    steps.add((long) (Double.parseDouble(t) * 1000.0));
+                    try {
+                        steps.add((long) (Double.parseDouble(t) * 1000.0));
+                    } catch (NumberFormatException ex) {
+                        throw new IllegalStateException("send-retry bus-id="
+                                + (identity != null ? identity.busId() : null) + " slot-id="
+                                + (identity != null ? identity.slotId() : null)
+                                + ": retry-backoff step '" + t + "' is not a number (spec='" + spec
+                                + "') -- a ladder in SECONDS, e.g. '1,2,5,5'", ex);
+                    }
                 }
             }
         }

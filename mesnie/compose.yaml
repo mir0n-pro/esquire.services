@@ -1,0 +1,24 @@
+services:
+  mesnie:
+    build:
+      context: .
+    image: esquire.mesnie
+    ports:
+      - "3003:3003"
+    environment:
+      - MESNIE_PORT=3003
+      - LOG_LEVEL_ROOT=ERROR
+      - LOG_LEVEL_SF=ERROR
+      - LOG_LEVEL_MIR0N=DEBUG
+      - DB_MESNIE_VENDOR=dev-postgres
+      - DB_MESNIE_PORT=5432
+      - DB_MESNIE_HOST=host.docker.internal
+      - DB_MESNIE_USERNAME=esq2025
+      - DB_MESNIE_PASSWORD=q
+    command: ["java", "-jar", "app.jar"]
+    networks:
+      - esquirenet
+
+networks:
+  esquirenet:
+    driver: bridge

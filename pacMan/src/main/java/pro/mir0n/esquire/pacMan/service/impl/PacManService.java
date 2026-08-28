@@ -64,6 +64,7 @@
  * 08/11/2026 mir0n  v1.2.12 -- the account row raises its change number before every update, the entity
  *                   broadcast carries it on create, save and delete, and esquireCommandDelete returns the
  *                   number the delete raised
+ * 08/26/2026 mir0n  every esquireCommandSave publishes an UPDATE -- isBroadcastableUpdate removed
  */
 
 package pro.mir0n.esquire.pacMan.service.impl;
@@ -189,9 +190,7 @@ public class PacManService  implements IPacManService {
         }); // ← transaction commits here
 
         EsqEntity ret = EsqEntityFactory.getInstance().createEntity(updated[0], null, null);
-        if (isBroadcastableUpdate(fields)) {
-            publishEntityEvent(ret, k, BusConstants.EVENT_UPDATE, requestId, correlationId, fields);
-        }
+        publishEntityEvent(ret, k, BusConstants.EVENT_UPDATE, requestId, correlationId, fields);
         devLog.debug("srvc: esquireCommandSave(2): entity:{}", ret);
         return ret;
     }
@@ -208,13 +207,6 @@ public class PacManService  implements IPacManService {
             log.error("publishDeleteEvent: broadcast failed for kind={}, id={}: {}", entityKind, id, e.getMessage());
             devLog.error("publishDeleteEvent: broadcast failed for kind={}, id={}, requestId={}, correlationId={}: {}", entityKind, id, requestId, correlationId, e.getMessage(), e);
         }
-    }
-
-    // Broadcast UPDATE only when fields that affect the account's public identity or status change.
-    // name / desc / status (acc_status) are the current scope.
-    private boolean isBroadcastableUpdate(Map<String, Object> fields) {
-        return fields != null && (fields.containsKey(EsqConstants.TEXT_NAME) || fields.containsKey(EsqConstants.TEXT_DESC)
-                               || fields.containsKey(EsqConstants.TEXT_STATUS));
     }
 
     // Runs synchronously on the request thread — publish failure is absorbed (log.warn),

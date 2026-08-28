@@ -40,6 +40,13 @@ with the backing infrastructure they depend on. (Larger, in the front-door `READ
 | `kcMaster`  | owns KeyCloak synchronization (the SERVER on the KeyCloak request/response bus) |
 | `auKeep`    | the audit keeper — consumes the audit bus and writes the `*_log` tables |
 
+**Seven services, not always seven programs.** The table lists the *services*; how many *programs* carry
+them is a deployment choice. In the **compact** shape `enyMan`, `keySmith` and `kcMaster` run inside one
+program named **mesnie**, and `gateway` with `bizTree` inside **gateWard** — same code, same configuration,
+same routes and the same bus legs. The compact component model is drawn at the end of the front-door
+`README.md`; why the framework can do this, and where the boundary sits, is in
+[`Esquire.Vision.md`](Esquire.Vision.md) section 8.
+
 Behind the services are the **shared libraries**, layered base-first —
 `mir0n-utils` &larr; `messaging` &larr; `common` — plus `dataKeep` (the generic keep engine) and
 the companions `audit` (audit wiring) and the transport drivers `tp-activemq` / `tp-redis` /
@@ -179,7 +186,8 @@ The working copy ("dev tree") is a set of SIBLING repos under one folder:
 
 ```
 C:\MyProjects\esquire\
-  services\        (this repo — the seven services + shared libs + compose + k8s)
+  services\        (this repo — the seven services + shared libs; compose\ and k8s\ run the classic
+                   shape, compose-compact\ and k8s-compact\ the compact one)
   explorer\        (Angular SPA "Explorer", the Node BFF, the e2e suite, the hauberk load harness)
   db.seed\         (the database schema + seed data — Postgres and Oracle branches)
   esquire.ui.lib\  (the reusable Angular UI library the Explorer consumes)
@@ -286,30 +294,38 @@ Host file prerequisite: map `esquire.localhost` (and `api.esquire.localhost`) to
 ## 7. Run — the cloud (OKE)
 
 The live public deployment runs on **Oracle Kubernetes Engine (OKE)** at
-`https://esquire.mir0n.pro`. It uses the SAME charts and images as local k8s, with a per-chart
-values overlay under `services/k8s-oci/values/`. Everything for it lives in `services/k8s-oci/`
-(its own `README.md` is the full runbook; this is the orientation).
+`https://esquire.mir0n.pro`, in the **super-compact** shape: four application programs -- Mesnie
+(enyMan + keySmith + the identity work), gateWard (the gate + the bizTree cache), pacMan and the BFF.
+It uses the SAME charts and images as local compact (`services/k8s-compact/charts/`), with a per-chart
+values overlay under `services/k8s-oci-compact/values/`. The one-time cluster and OCI account work
+lives in `services/k8s-oci/`, whose `README.md` is that runbook; the classic values overlay beside it
+is the classic shape's record.
 
 **Shape.** The Oracle Always-Free envelope: four A1.Flex ARM nodes (one `tier=infra` + three
-`tier=app`, 1 OCPU / 6 GB each). The deploy is HA — each service runs x2, spread across the three
-app nodes — for a 16-pod stack: 6 services x2 + the BFF + 3 infra pods. `auKeep` is NOT deployed
+`tier=app`, 1 OCPU / 6 GB each). The deploy is HA — each of the four programs runs x2, spread across
+the three app nodes — 8 application pods, beside postgres, ActiveMQ, Keycloak and Redis. Redis is the
+BFF's shared session store, so a login on one replica is visible to the other. `auKeep` is NOT deployed
 here: OKE takes audit option (a), DB triggers, so its audit ref points at `audit-off` (section 1.3).
 
 **Prerequisites** (beyond section 2): an OCI account with an OKE cluster; the **OCI CLI** configured
 (`oci setup config`); a GHCR token with `write:packages`; Docker `buildx` (for multi-arch images);
 and the `esquire.mir0n.pro` DNS A record pointed at the OCI load-balancer IP.
 
-**Deploy flow** (from `services/k8s-oci/`; full detail in that README):
+**Deploy flow** — the one-time cluster steps from `services/k8s-oci/` (full detail in that README),
+the deploy itself from `services/k8s-oci-compact/`:
 
 ```
-ghcr-push.bat                 # build + push all images multi-arch (amd64 + arm64) to GHCR
-oke-login.bat                 # fetch kubeconfig, switch kubectl context to OKE
-oke-bootstrap.bat             # ONE-TIME: ingress-nginx (creates the public LB) + cert-manager +
-                              #   Let's Encrypt issuer; prints the LB IP for the DNS A record
-cluster\node-labels.bat       # ONE-TIME: label nodes tier=infra / tier=app
-oke-up.bat <pgPw> <kcPw>      # deploy the stack with prod values (secrets passed in, never baked)
-show.them.all.bat             # verify: 16 pods Ready, TLS cert bound, replicas on different nodes
-oke-down.bat                  # uninstall (cluster + LB + PVCs stay; re-install is fast)
+k8s-oci\create-basic-cluster.bat        # ONE-TIME: the OKE cluster
+k8s-oci\create-nodepool.bat             # ONE-TIME: the A1.Flex node pool
+k8s-oci\add-oke-security-rules.bat      # ONE-TIME: the security rules
+k8s-oci\oke-bootstrap.bat               # ONE-TIME: ingress-nginx (creates the public LB) + cert-manager
+                                        #   + Let's Encrypt issuer; prints the LB IP for the DNS A record
+k8s-oci\cluster\node-labels.bat         # ONE-TIME: label nodes tier=infra / tier=app
+k8s-oci-compact\ghcr-push.bat           # build + push the images multi-arch (amd64 + arm64) to GHCR
+k8s-oci-compact\oke-login.bat           # fetch kubeconfig, switch kubectl context to OKE
+k8s-oci-compact\oke-up.bat              # deploy with prod values (password from %mir0n_pwd%, never baked)
+k8s-oci-compact\show.them.all.bat       # verify: pods Ready, TLS cert bound, replicas on different nodes
+k8s-oci-compact\oke-down.bat            # uninstall (cluster + LB + PVCs stay; re-install is fast)
 ```
 
 Ingress is a single A record + path routing: `/` -> frontend, `/api/` -> gateway,
@@ -344,7 +360,7 @@ app services with observability enabled; turning it off tears the viewing stack 
   / `o11y-off.bat` (and `o11y-log-on.bat` / `o11y-log-off.bat`); `o11y-forward.bat` /
   `o11y-forward-stop.bat` to reach the pane; `o11y-verify.bat`, `o11y-test.bat`. Grafana at
   `http://grafana.localhost` (admin/admin).
-- **cloud (OKE)** (from `services/k8s-oci/`, kube-context on OKE): `oke-o11y-on.bat` /
+- **cloud (OKE)** (from `services/k8s-oci-compact/`, kube-context on OKE): `oke-o11y-on.bat` /
   `oke-o11y-off.bat`; reach Grafana via `oke-grafana-forward.bat`; `oke-o11y-verify.bat`,
   `oke-o11y-test.bat`. Here it is **strictly transient** — the Always-Free tier has no room to host
   it always-on, so the pattern is enable &rarr; verify &rarr; take it back down (section 7).

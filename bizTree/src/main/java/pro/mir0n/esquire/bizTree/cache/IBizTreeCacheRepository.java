@@ -23,6 +23,7 @@
  * 08/11/2026 mir0n  v1.2.12 -- findChangeNumbers() returns the node's [entityChangeNo, pathChangeNo] (null
  *                   when the entity is not cached); stampEntityChangeNo() and stampPathChangeNo() write an
  *                   applied number onto every row of the entity
+ * 08/26/2026 mir0n  findPathScoped(id, rootPath) added -- the path lookup bounded by the caller root path
  */
 package pro.mir0n.esquire.bizTree.cache;
 
@@ -45,6 +46,8 @@ public interface IBizTreeCacheRepository {
     List<EsqTreeNodeJpa> findNodes(String id, int rootLevel, String rootPath);
 
     String findPath(String id);
+
+    String findPathScoped(String id, String rootPath);
 
     EsqTreeNodeJpa findByEntityId(String id, int rootLevel, String rootPath);
 

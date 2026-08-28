@@ -22,6 +22,8 @@
  *                   from awaitTimeoutMs (which now only paces the worker's missed-signal re-check). <= 0 = NO
  *                   TIMEOUT: put() awaits notFull without a deadline and never discards; shutdown() / clear()
  *                   already signal notFull, so a parked producer still wakes. Default unchanged (10s, drops)
+ * 08/26/2026 mir0n  the outcome seam made symmetric: an ISuccessListener fired per handled item
+ *                   (setSuccessListener, NOOP default); setErrorListener(null) restores the LOGGING default, not NOOP
  */
 package pro.mir0n.utils.concurrent;
 
@@ -66,6 +68,9 @@ public class BoundedQueueRig<E> implements IQueueRig<E> {
     private final ArrayDeque<E>   deque = new ArrayDeque<>();
     private final AtomicInteger   count = new AtomicInteger(0);   // lock-free snapshot for size()
     private IErrorListener<E>      errorListener = new LoggingErrorListener();
+    // NOOP, never a logger: a line per processed item is the cost a rig exists to avoid.
+    @SuppressWarnings("unchecked")
+    private ISuccessListener<E>    successListener = ISuccessListener.NOOP;
 
     private final ReentrantLock lock      = new ReentrantLock();
     private final Condition     notFull   = lock.newCondition();   // signalled when space frees
@@ -137,8 +142,15 @@ public class BoundedQueueRig<E> implements IQueueRig<E> {
 
     @Override
     @SuppressWarnings("unchecked")
+    public void setSuccessListener(ISuccessListener listener) {
+        this.successListener = (listener != null) ? listener : ISuccessListener.NOOP;
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
     public void setErrorListener(IErrorListener listener) {
-        this.errorListener = listener;
+        // null restores the LOGGING default, not the NOOP.
+        this.errorListener = (listener != null) ? listener : new LoggingErrorListener();
     }
 
     @Override
@@ -307,12 +319,9 @@ public class BoundedQueueRig<E> implements IQueueRig<E> {
     private void processSingle(E item) {
         try {
             worker.process(item);
+            fireSuccess(item);
         } catch (Throwable t) {
-            if (errorListener != null) {
-                errorListener.onError(t, item);
-            } else if (devLog != null) {
-                devLog.error("queue-rig[{}]: worker error on {}", name, item, t);
-            }
+            errorListener.onError(t, item);
         }
     }
 
@@ -345,6 +354,7 @@ public class BoundedQueueRig<E> implements IQueueRig<E> {
                 continue;     // re-run the worker on the continuation the listener handed back
             }
             // Clean return: the remainder is what the signaler made the worker skip -- re-queue it.
+            fireBulkSuccess(work, remaining);
             if (remaining != null && !remaining.isEmpty()) {
                 requeueFront(remaining);
             }
@@ -366,6 +376,34 @@ public class BoundedQueueRig<E> implements IQueueRig<E> {
             }
         } finally {
             lock.unlock();
+        }
+    }
+
+    private void fireSuccess(E item) {
+        try {
+            successListener.onSuccess(item);
+        } catch (Throwable t) {
+            if (devLog != null) {
+                devLog.error("queue-rig[{}]: success listener failed on {}", name, item, t);
+            }
+        }
+    }
+
+    /** Handed minus handed-back. Identity-based: equal-but-distinct items each report once. */
+    private void fireBulkSuccess(ArrayList<E> handed, List<E> remaining) {
+        if (successListener != ISuccessListener.NOOP) {
+            java.util.IdentityHashMap<E, Boolean> skipped = new java.util.IdentityHashMap<>();
+            if (remaining != null) {
+                for (int i = 0; i < remaining.size(); i++) {
+                    skipped.put(remaining.get(i), Boolean.TRUE);
+                }
+            }
+            for (int i = 0; i < handed.size(); i++) {
+                E item = handed.get(i);
+                if (!skipped.containsKey(item)) {
+                    fireSuccess(item);
+                }
+            }
         }
     }
 

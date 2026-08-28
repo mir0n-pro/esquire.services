@@ -1,0 +1,97 @@
+{{- $replicas := int (.Values.replicaCount | default 1) -}}
+{{- if gt $replicas 10 -}}
+{{- fail (printf "esquire-backend: replicaCount=%d exceeds the cap of 10. The per-instance number is a single decimal digit (0-9) -- the fleet naming rule (pod ordinal -> rod-id <app>.<instanceNo>) caps replicas at 10." $replicas) -}}
+{{- end -}}
+{{- if lt $replicas 1 -}}
+{{- fail (printf "esquire-backend: replicaCount=%d must be >= 1" $replicas) -}}
+{{- end }}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ .Release.Name }}
+  labels:
+    app: {{ .Release.Name }}
+spec:
+  # Replicas > 1 REQUIRE a shared session store: set redis.url (-> REDIS_URL) so the BFF keeps
+  # sessions in redis (connect-redis). Without it the BFF uses express-session's in-memory
+  # MemoryStore and round-robin splits logins -- keep replicas: 1 (OKE today). StatefulSet here
+  # is for fleet-uniform naming.
+  serviceName: {{ .Release.Name }}-hl
+  replicas: {{ $replicas }}
+  podManagementPolicy: Parallel
+  selector:
+    matchLabels:
+      app: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Release.Name }}
+    spec:
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if .Values.topologySpread.enabled }}
+      # HA: best-effort spread of the replicas across distinct nodes (soft -- a node
+      # loss still schedules). Off by default (pre-HA / single-node local); the OKE
+      # overlay turns it on so the x2 replicas land on different app-tier nodes.
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: {{ .Release.Name }}
+      {{- end }}
+      containers:
+        - name: backend
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          ports:
+            - containerPort: {{ .Values.service.port }}
+          envFrom:
+            - configMapRef:
+                name: {{ .Release.Name }}-config
+            - secretRef:
+                name: {{ .Release.Name }}-secret
+          env:
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: {{ .Values.service.port }}
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 6
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: {{ .Values.service.port }}
+            initialDelaySeconds: 20
+            periodSeconds: 15
+            timeoutSeconds: 3
+            failureThreshold: 5
+          {{- if .Values.spa.httpTimeoutMs }}
+          # R1 SPA runtime config: mount config.json over the baked one so the browser
+          # honors httpTimeoutMs. Absent (no spa.httpTimeoutMs) -> the image's baked
+          # config.json (httpTimeoutMs 0, pre-HA) is served untouched.
+          volumeMounts:
+            - name: spa-config
+              mountPath: /app/public/assets/config.json
+              subPath: config.json
+              readOnly: true
+          {{- end }}
+      {{- if .Values.spa.httpTimeoutMs }}
+      volumes:
+        - name: spa-config
+          configMap:
+            name: {{ .Release.Name }}-spaconfig
+      {{- end }}

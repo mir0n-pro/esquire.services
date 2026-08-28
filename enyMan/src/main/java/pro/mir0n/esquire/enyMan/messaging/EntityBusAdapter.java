@@ -19,11 +19,14 @@
  *                   (the path-fix reissue stays correlated to the create it repairs, no leftover-worker-MDC reliance)
  * 08/11/2026 mir0n  v1.2.12 -- publish() takes the change number onto the event header and prints it on the
  *                   UE line; the parameter doc states which counter each event type carries
+ * 08/12/2026 mir0n  v1.2.13 -- IIdentityGateway injected; publish() and the receive worker hand a PATH broadcast to
+ *                   postMessage, which is all that arm takes; one worker over subscription EventType IN ('C','X')
  */
 package pro.mir0n.esquire.enyMan.messaging;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
+import pro.mir0n.esquire.backend.identity.IIdentityGateway;
 import pro.mir0n.esquire.common.EsqConstants;
 import pro.mir0n.esquire.enyMan.queue.CreateReconcileItem;
 import pro.mir0n.esquire.messaging.BusConstants;
@@ -52,7 +55,15 @@ public class EntityBusAdapter {
 
     private final IXRod rod;
 
-    public EntityBusAdapter() {
+    /** The move queue's reconcile intake, pushed in by the queue once it is live. */
+    private volatile Consumer<CreateReconcileItem> createSink;
+    /** The way to the identity provider. Every broadcast goes to it as it stands -- the ones that arrive and
+     *  the ones this process makes -- and the gateway decides what it is worth. Injected, not pushed in: unlike
+     *  the move queue, nothing the gateway holds points back here, so there is no cycle to break. */
+    private final IIdentityGateway identityGateway;
+
+    public EntityBusAdapter(IIdentityGateway identityGateway) {
+        this.identityGateway = identityGateway;
         // One entity rod, both legs on one shared connection. Probe the transmit leg now (throws if absent).
         this.rod = MessagingBus.getInstance().getXRod(EsqConstants.BUS_KEY_ENTITY);
         this.rod.transmit(null);   // role-support: probe -- throws if the rod has no transmit leg
@@ -81,6 +92,12 @@ public class EntityBusAdapter {
                 BusConstants.MSG_TYPE_ENTITY_BROADCASTS, text != null ? text : Map.of());
         rod.transmit(e);
         log.info("ENTITY | UE | {} | {} | {} | {} | cn={}", eventType, entityKind, entityId, correlationId, changeNo);
+        // A move goes on to the gateway, which is the whole of what that arm takes. The relay carries the moves
+        // this process MAKES as well as the ones it receives: the transport's noLocal drops our own publications
+        // on the way back, so a gateway inside this process would otherwise never learn of our own move.
+        if (e.op() == RodEvent.Op.UPDATE_PATH) {
+            identityGateway.postMessage(e);
+        }
     }
 
     /**
@@ -90,15 +107,38 @@ public class EntityBusAdapter {
      *
      * <p>Narrowing is at the BROKER via a subscription selector ({@link IXRod#setWorker(String,
      * java.util.function.Consumer)}): only enyMan creates entities, so every CREATE on the entity bus is an
-     * enyMan create -- the selector needs only the op ({@code EventType = 'C'}). Own-exclusion is the transport's
+     * enyMan create -- the selector needs only the op ({@code EventType = 'I'}). Own-exclusion is the transport's
      * {@code noLocal} on the entity slot: publisher and consumer share one connection, so the broker drops THIS
      * instance's OWN publications -- only a PEER instance's creates arrive (own creates ride the local
      * {@code submitReconcileIfInMove} path).
      */
     public void onPeerCreate(Consumer<CreateReconcileItem> sink) {
-        String subscription = BusConstants.FIELD_EVENT_TYPE + " = '" + BusConstants.EVENT_CREATE + "'";
-        rod.setWorker(subscription, e -> forwardPeerCreate(e, sink));
-        log.info("ENTITY-RX wired: rodId={}, subscription=[{}] (peer CREATEs -> move queue)", rod.rodId(), subscription);
+        this.createSink = sink;
+        wire();
+    }
+
+    /** (Re)bind the receive leg with the union of what the registered sinks need. */
+    private void wire() {
+        String subscription = BusConstants.FIELD_EVENT_TYPE + " IN ('" + BusConstants.EVENT_CREATE + "','"
+                + BusConstants.EVENT_UPDATE_PATH + "')";
+        rod.setWorker(subscription, this::onPeerEvent);
+        // Each sink registers itself, so this runs once per registration -- all of it before the bus starts
+        // delivering. The line says what is bound now, not merely that something was.
+        log.info("ENTITY-RX wired: rodId={}, subscription=[{}] (peer CREATEs -> move queue: {})",
+                rod.rodId(), subscription, createSink != null ? "yes" : "no");
+    }
+
+    /** One received broadcast: a peer CREATE feeds the reconcile intake, a peer MOVE goes on to the gateway. */
+    private void onPeerEvent(RodEvent e) {
+        Consumer<CreateReconcileItem> creates = this.createSink;
+        if (e != null) {
+            if (creates != null && e.op() == RodEvent.Op.CREATE) {
+                forwardPeerCreate(e, creates);
+            }
+            if (e.op() == RodEvent.Op.UPDATE_PATH) {
+                identityGateway.postMessage(e);
+            }
+        }
     }
 
     // Each delivered event is already narrowed by the broker selector (CREATE op) and the transport noLocal (not

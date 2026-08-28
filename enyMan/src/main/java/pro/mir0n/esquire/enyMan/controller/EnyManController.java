@@ -30,6 +30,8 @@
  * 07/11/2026 mir0n  v1.2.11 O1/T8 -- esquireDictionary() counts esq.biz.dict.lookup.total (tag kind). Not a
  *                   duplicate of http.server.requests: that is tagged by URI TEMPLATE (/esq-dict) and the kind is
  *                   a query param, so the free meter can say the endpoint is busy but never WHICH dictionary
+ * 08/26/2026 mir0n  the develop log lines pass the value itself instead of String.valueOf; the move endpoint
+ *                   documents 503 as a response code
  */
 
 package pro.mir0n.esquire.enyMan.controller;
@@ -120,7 +122,6 @@ public class EnyManController {
         // is tagged by the URI TEMPLATE (/esq-dict), so it cannot tell WHICH dictionary was fetched -- kind is a
         // query param. The kind code is a small fixed set, so the tag stays bounded.
         EsqBizMeters.count("esq.biz.dict.lookup.total", "kind", String.valueOf(kind));
-        devLog.debug("esquireDictionary: kind:{}, result:{}, claims:{}", kind, String.valueOf(layers), String.valueOf(claims));
         return ResponseEntity.status(HttpStatus.OK).body(layers);
     }
 
@@ -135,7 +136,7 @@ public class EnyManController {
            @AuthenticationPrincipal Claims claims
     ) {
         EsqEntity entity = iEnyManService.esquireCommand(kind, id, cmd);
-        devLog.debug("esquireCommand: kind:{}, id:{}, cmd:{}, result:{}", kind, id, cmd, String.valueOf(entity));
+        devLog.debug("esquireCommand: kind:{}, id:{}, cmd:{}, result:{}", kind, id, cmd, entity);
         return ResponseEntity.status(HttpStatus.OK).body(entity);
     }
 
@@ -154,7 +155,7 @@ public class EnyManController {
         List<String> roles = realmAccess != null ? (List<String>) realmAccess.get(EsqConstants.JWT_CLAIM_REALM_ACCESS_ROLES) : null;
 
         EsqEntity ret = iEnyManService.esquireCommandSave(kind, id, cmd, fields, roles);
-        devLog.debug("esquireCommandSave: kind:{}, id:{}, cmd:{}, result:{}", kind, id, cmd, String.valueOf(ret));
+        devLog.debug("esquireCommandSave: kind:{}, id:{}, cmd:{}, result:{}", kind, id, cmd, ret);
         return ResponseEntity.status(HttpStatus.OK).body(ret);
     }
 
@@ -173,7 +174,7 @@ public class EnyManController {
         List<String> roles = realmAccess != null ? (List<String>) realmAccess.get(EsqConstants.JWT_CLAIM_REALM_ACCESS_ROLES) : null;
 
         EsqEntity ret = iEnyManService.esquireCommandNew(kind, parentId, cmd, fields, roles);
-        devLog.debug("esquireCommandNew: kind:{}, parentId:{}, cmd:{}, result:{}", kind, parentId, cmd, String.valueOf(ret));
+        devLog.debug("esquireCommandNew: kind:{}, parentId:{}, cmd:{}, result:{}", kind, parentId, cmd, ret);
         return ResponseEntity.status(HttpStatus.OK).body(ret);
     }
 
@@ -208,6 +209,13 @@ public class EnyManController {
                     description = "Move command accepted onto the queue; processing happens asynchronously."
             ),
             @ApiResponse(
+                    responseCode = "503",
+                    description = "The queue could not take the command -- nothing was written, so the caller may ask again.",
+                    content = @Content(
+                            schema = @Schema(implementation = ProblemDetail.class)
+                    )
+            ),
+            @ApiResponse(
                     responseCode = "500",
                     description = "HTTP Status Internal Server Error",
                     content = @Content(
@@ -240,7 +248,7 @@ public class EnyManController {
         //String uid = claims.get(EsqConstants.JWT_CLAIM_ENTITY_ID, String.class);
 
         List<EsqObjectKind> ret  = EsqObjectKindStorage.getInstance().getAll();
-        devLog.debug("esquireKinds: result:{}",String.valueOf(ret));
+        devLog.debug("esquireKinds: result:{}",ret);
         return ResponseEntity.status(HttpStatus.OK).body(ret);
     }
 

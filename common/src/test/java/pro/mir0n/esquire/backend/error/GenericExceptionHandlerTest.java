@@ -36,14 +36,25 @@ class GenericExceptionHandlerTest {
     }
 
     @Test
-    @DisplayName("ResourceNotFoundException → returns 400 BAD_REQUEST")
-    void resourceNotFoundException_returns400() {
+    @DisplayName("ResourceNotFoundException → returns 404 NOT_FOUND")
+    void resourceNotFoundException_returns404() {
         ResourceNotFoundException ex = new ResourceNotFoundException("User", "id", "99");
 
         ResponseEntity<ProblemDetail> ret =
                 GenericExceptionHandler.handleGenericRuntimeException(ex, request);
 
-        assertThat(ret.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(ret.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("CommandNotAcceptedException -> returns 503 SERVICE_UNAVAILABLE")
+    void commandNotAcceptedException_returns503() {
+        CommandNotAcceptedException ex = new CommandNotAcceptedException("move");
+
+        ResponseEntity<ProblemDetail> ret =
+                GenericExceptionHandler.handleGenericRuntimeException(ex, request);
+
+        assertThat(ret.getStatusCode()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
     }
 
     @Test

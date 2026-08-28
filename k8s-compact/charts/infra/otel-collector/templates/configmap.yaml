@@ -1,0 +1,139 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-config
+  labels:
+    app: {{ .Release.Name }}
+data:
+  # Mirror of compose-compact/o11y/otel-collector-config.yaml -- OTLP in (services), OTLP out (Tempo).
+  config.yaml: |
+    receivers:
+      otlp:
+        protocols:
+          http:
+            endpoint: 0.0.0.0:4318
+          grpc:
+            endpoint: 0.0.0.0:4317
+    processors:
+      batch: {}
+      # Trace-only display choice (v1.2.11 O2/T3): Grafana's trace waterfall badges every span by the
+      # resource service.name and cannot badge by service.instance.id, so the x2 replicas are otherwise
+      # indistinguishable. In the TRACES pipeline only, overwrite service.name with service.instance.id
+      # (the rod-id <app>.<instanceNo>) so a span shows which replica emitted it. Logs (Alloy -> Loki) and
+      # future metrics do not pass through this collector, so their logical service.name is untouched.
+      # O1 METRICS CAVEAT (observe when metrics land): metrics will carry the LOGICAL service.name while
+      # traces carry the INSTANCE id here, so trace<->metric correlation keyed on service.name will not line
+      # up. Revisit this trade-off (per-signal service.name, or exemplars keyed on trace id) at O1.
+      transform/instance-as-service:
+        error_mode: ignore
+        trace_statements:
+          - context: resource
+            statements:
+              # Keep the LOGICAL service name before it is overwritten below. Metrics carry application=<service>
+              # (the Micrometer common tag) while the span's service.name becomes the rod-id (enyman.0), so without
+              # this the two signals have no shared key and the trace -> metrics hop has nothing to join on.
+              # T9-B uses esq.app for exactly that (Grafana: tracesToMetricsV2 -> application="${__span.tags[esq.app]}").
+              - set(attributes["esq.app"], attributes["service.name"]) where attributes["service.name"] != nil
+              - set(attributes["service.name"], attributes["service.instance.id"]) where attributes["service.instance.id"] != nil
+      # BACKSTOP ONLY (v1.2.11 O2). Health-probe traces are no longer produced: the services refuse the
+      # request observation for esquire.observability.tracing.excluded-paths (/actuator) and the BFF opens no span off
+      # its traced paths, so nothing arrives here to drop. This rule stays as a second line of defence
+      # for a deployment that leaves excluded-paths empty.
+      #
+      # CAVEAT -- know what invert_match does before trusting it: a trace is sampled when ANY span
+      # satisfies the (inverted) rule, so a single span WITHOUT an http.url attribute rescues the whole
+      # trace. While Spring Security's observations were on, its 4 attribute-less child spans did
+      # exactly that and this rule silently dropped nothing on the Java services (it only ever worked
+      # on the BFF's single-span /healthz). With those observations off a health trace is one span.
+      tail_sampling:
+        decision_wait: 5s
+        policies:
+          - name: drop-health
+            type: string_attribute
+            string_attribute:
+              key: http.url
+              values:
+                - /actuator/health.*
+                - /healthz
+                - /readyz
+              enabled_regex_matching: true
+              invert_match: true
+          # I38 (deferred to T12/D5): drop-health is the ONLY policy today because the HEAD sampler keeps everything
+          # (ESQ_TRACING_SAMPLING_RATIO=1.0), so every non-health trace reaches here and is kept -- no error is ever
+          # dropped. When a production sampling ratio is chosen to control cost at scale, ADD A keep-error policy HERE
+          # (keep status_code=ERROR / http 5xx, sample the rest). Do it on the TAIL, NOT by lowering the head ratio: a
+          # lower head ratio drops error traces at the source, before this processor can see (and keep) them.
+    # The service graph (T9-C). The connector pairs each CLIENT span with the SERVER span it called and emits an
+    # EDGE metric per caller->callee pair. That is what makes the topology view LIVE rather than hand-drawn: it
+    # discovers the real request flow -- including the R&R bus hops (T3), because those are real PRODUCER/CONSUMER
+    # spans -- and keeps discovering it when the architecture changes.
+    connectors:
+      servicegraph:
+        # The store holds a CLIENT span until its SERVER counterpart arrives; an edge is emitted only once both
+        # are seen. Too short a TTL and slow calls silently never become edges -- the graph would then quietly
+        # under-report the exact hops that are in trouble, the worst possible failure for a topology view. The bus
+        # hops (enqueue -> consume) are the slow ones, so this is generous on purpose.
+        store:
+          ttl: 10s
+          max_items: 10000
+        # NAME THE PEER, or the edge is drawn as a node called `unknown`. A CLIENT span with no SERVER span to
+        # pair with -- we called something that reports no spans of its own -- becomes a VIRTUAL NODE, named from
+        # the first of these attributes the span carries. Carrying none it falls back to the literal "unknown",
+        # and every unnamed peer of every caller shares that one label, so two dependencies of one service merge
+        # into a single line on the topology board. (`user` is the connector's name for an external caller
+        # arriving at a root SERVER span; that virtual node is correct and stays.)
+        virtual_node_peer_attributes:
+          - peer.service
+          - db.system
+          - server.address
+          - net.peer.name
+          - spring.cloud.gateway.route.uri
+          - http.uri
+        latency_histogram_buckets: [10ms, 50ms, 100ms, 250ms, 500ms, 1s, 5s]
+        metrics_flush_interval: 15s
+
+    exporters:
+      otlp/tempo:
+        endpoint: {{ .Values.tempo.endpoint }}
+        tls:
+          insecure: true
+      # Scraped by the otel-servicegraph job.
+      prometheus:
+        endpoint: 0.0.0.0:8889
+        namespace: ""
+        send_timestamps: true
+
+    service:
+      # The collector's OWN telemetry. Until now the hub every trace in the fleet passes through was the one
+      # component reporting nothing about itself: if it started DROPPING spans, the only symptom would have been
+      # traces quietly going missing, with no metric anywhere to say so.
+      telemetry:
+        metrics:
+          readers:
+            - pull:
+                exporter:
+                  prometheus:
+                    host: 0.0.0.0
+                    port: 8888
+
+      pipelines:
+        traces:
+          receivers: [otlp]
+          processors: [transform/instance-as-service, tail_sampling, batch]
+          exporters: [otlp/tempo]
+
+        # RAW SPANS -- deliberately NOT through transform/instance-as-service.
+        # THE TRAP (do not re-wire this through the other pipeline): that processor overwrites service.name with
+        # the per-instance rod-id (enyman.0) so the trace WATERFALL can badge which replica emitted a span. Feed
+        # the servicegraph connector from it and every REPLICA becomes its own node -- the topology view would
+        # then show `enyman-0` and `enyman-1` as two unrelated services, and the map built to show the
+        # ARCHITECTURE would instead show the deployment. On k8s, where every service runs x2, this is not a
+        # subtle degradation: it DOUBLES the graph. Branching before the transform keeps the nodes per-SERVICE.
+        traces/servicegraph:
+          receivers: [otlp]
+          processors: [batch]
+          exporters: [servicegraph]
+
+        metrics/servicegraph:
+          receivers: [servicegraph]
+          exporters: [prometheus]

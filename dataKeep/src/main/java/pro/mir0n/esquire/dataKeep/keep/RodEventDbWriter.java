@@ -23,6 +23,8 @@
  *                   audit event ARRIVED, only this says whether the row was WRITTEN. The op tag is null-safe --
  *                   these read from a finally, and a meter that throws there would REPLACE the real exception
  * 08/11/2026 mir0n  v1.2.12 -- PARAM_CHANGE_NO added and bound from the event in the header parameter map
+ * 08/26/2026 mir0n  an op the action mapping does not cover is ignored with a named warning and counted
+ *                   outcome=ignored, instead of falling through to a delete; action() answers null for it
  */
 package pro.mir0n.esquire.dataKeep.keep;
 
@@ -44,6 +46,7 @@ import java.util.Map;
  *  dialect-keyed {@link KeepSqlStore} statement, via {@link NamedParameterJdbcTemplate}. */
 public class RodEventDbWriter {
 
+    private static final Logger log    = LoggerFactory.getLogger(RodEventDbWriter.class);
     private static final Logger devLog = LoggerFactory.getLogger("develop." + RodEventDbWriter.class.getName());
 
     private final NamedParameterJdbcTemplate jdbc;
@@ -61,11 +64,6 @@ public class RodEventDbWriter {
     public static final String PARAM_UID       = "uid";
     public static final String PARAM_ACTION_TS = "actionTs";
     public static final String PARAM_CHANGE_NO = "changeNo";
-
-    // action column codes (Insert / Update / Delete).
-    public static final String ACTION_INSERT = "I";
-    public static final String ACTION_UPDATE = "U";
-    public static final String ACTION_DELETE = "D";
 
     public RodEventDbWriter(DataSource dataSource, String dialect, KeepSqlStore sql, Integer queryTimeoutSeconds) {
         this.jdbc    = new NamedParameterJdbcTemplate(dataSource);
@@ -86,17 +84,22 @@ public class RodEventDbWriter {
 
     /** Write one row for the event: uniform header (identity) + the event body, straight to the keyed SQL. */
     public void applyEvent(String sqlKey, RodEvent e) {
-        // esq.biz.keep.write.total / .duration (O1/T8 phase C) -- THE DB WRITE at the keep sink, which is the one
-        // thing the bus meters cannot see. messaging.receive.total says the audit event ARRIVED; it says nothing
-        // about whether the row was actually WRITTEN, how long the write took, or whether it blew up. An audit
-        // event that lands on the bus and then fails to persist is exactly the failure that is invisible today.
-        // Tags: op is the RodEvent op (a small enum), outcome is ok | error. sqlKey is NOT a tag -- it is the
-        // per-table key and would grow the series with the schema.
+
+        final String op = (e == null) ? null : e.dbAction();
+
+        if (op == null) {
+            String reason = (e == null || e.op() == null) ? "NONE" : e.op().name();
+            log.warn("keep-db: IGNORED an event the keep cannot record (op={}) -- key={}, entityId={}, kind={}",
+                    reason, sqlKey, e == null ? null : e.entityId(), e == null ? null : e.kind());
+            EsqBizMeters.count("esq.biz.keep.write.total", "op", reason, "outcome", "ignored");
+            return;
+        }
+
         String outcome = "error";
         long startedAt = System.nanoTime();
         try {
             EsqTraceMark.around("esq.keep.apply", "keep audit log", () -> {
-                Map<String, Object> params = header(e);
+                Map<String, Object> params = header(e, op);
                 if (e.body() != null) {
                     params.putAll(e.body());   // field names -> the SQL's data params (a DELETE body is empty)
                 }
@@ -105,16 +108,16 @@ public class RodEventDbWriter {
             });
             outcome = "ok";
         } finally {
-            String op = (e != null && e.op() != null) ? e.op().name() : "unknown";   // never throw from a meter
-            EsqBizMeters.count("esq.biz.keep.write.total", "op", op, "outcome", outcome);
-            EsqBizMeters.time("esq.biz.keep.write.duration", System.nanoTime() - startedAt, "op", op);
+            //xxx: op is safe here
+            EsqBizMeters.count("esq.biz.keep.write.total", "op", e.op().name() , "outcome", outcome);
+            EsqBizMeters.time("esq.biz.keep.write.duration", System.nanoTime() - startedAt, "op", e.op().name());
         }
     }
 
     /** Uniform identity + header params, by the standardized names the SQL uses for every table. */
-    private static Map<String, Object> header(RodEvent e) {
+    private static Map<String, Object> header(RodEvent e, String op) {
         Map<String, Object> p = new HashMap<>();
-        p.put(PARAM_ACTION,    action(e.op()));
+        p.put(PARAM_ACTION,    op);
         p.put(PARAM_ENTITY_ID, e.entityId());
         p.put(PARAM_KIND,      e.kind());
         p.put(PARAM_SUB_ID,    e.subId());
@@ -124,16 +127,6 @@ public class RodEventDbWriter {
         p.put(PARAM_ACTION_TS, Timestamp.from(Instant.ofEpochMilli(e.actionTime())));
         p.put(PARAM_CHANGE_NO, e.changeNo());
         return p;
-    }
-
-    private static String action(RodEvent.Op op) {
-        String ret;
-        switch (op) {
-            case CREATE -> ret = ACTION_INSERT;
-            case UPDATE -> ret = ACTION_UPDATE;
-            default     -> ret = ACTION_DELETE;
-        }
-        return ret;
     }
 
     /**

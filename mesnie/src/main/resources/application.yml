@@ -1,0 +1,287 @@
+spring:
+  profiles:
+    active: ${DB_MESNIE_VENDOR:dev-postgres}
+  application:
+    name: mesnie
+  # v1.2.10 VT: run each REST request on a virtual thread (Tomcat); opt-in, default OFF (pre-HA). See HA doc 5.5.
+  threads:
+    virtual:
+      enabled: ${ESQ_VIRTUAL_THREADS:false}
+  jpa:
+    hibernate:
+      ddl-auto: none
+    show-sql: false
+  mvc:
+    problemdetails:
+      enabled: true
+  # Request-path query/transaction cap (seconds): -1 = no cap (pre-HA default; behaviour unchanged when unset).
+  # Set ESQ_TX_TIMEOUT_S (e.g. 8) to bound the common request path so a stuck query frees its worker + connection
+  # instead of hanging. The move transaction opts out via enyman.move-queue.tx-timeout-s below.
+  transaction:
+    default-timeout: ${ESQ_TX_TIMEOUT_S:-1}
+  config:
+    import: "${TOPOLOGY_IMPORT:optional:file:/etc/esquire/topology.yml}"
+# enyMan's OWN namespace, kept as it is: MoveQueueManager binds these by the literal "enyman." prefix, and the
+# composed code is not edited to suit the process that runs it.
+enyman:
+  move-queue:
+    capacity: ${ENYMAN_MOVE_QUEUE_CAPACITY:16384}
+    validate-create-during-move: ${ENYMAN_VALIDATE_CREATE_DURING_MOVE:true}
+    # The move transaction opts OUT of the request-path cap: 0 = uncapped (pre-HA default). Set a positive
+    # value only to put a safety ceiling on a move (path-table lock + subtree rewrite can legitimately run long).
+    tx-timeout-s: ${ENYMAN_MOVE_TX_TIMEOUT_S:0}
+    # "Elastic end of move": how long inMove() stays true AFTER the last move drains, so a CREATE that raced a
+    # move but reaches its inMove() check just after the move finished is still caught (gets a reconcile) instead
+    # of stranding a stale path. 0 disables the grace (inMove() = a move is queued/in flight only).
+    in-move-grace-ms: ${ENYMAN_MOVE_QUEUE_IN_MOVE_GRACE_MS:200}
+mesnie:
+  # this PROCESS's OWN overlay of the global esquire.messaging-bus catalog (the catalog binds
+  # <spring.application.name>.messaging-bus): its in-process audit-b leg, whose datasource is process-specific.
+  # One household, one keep -- enyMan's and keySmith's legs were the same leg with a different DB env prefix.
+  messaging-bus:
+    - bus-id: audit-b
+      slots:
+        - slot-id: audit
+          x-rod:
+            rod-class: pro.mir0n.esquire.dataKeep.keep.XRodInProcessKeep
+            director: pro.mir0n.esquire.audit.AuditKeepDirector
+            receiver-pool:
+              size: ${AUDIT_POOL_SIZE:4}
+              mode: ${AUDIT_POOL_MODE:platform}   # platform | virtual | virtual-per-task
+            feed-capacity: ${AUDIT_FEED_CAPACITY:4096}
+            datasource:
+              # the keep's OWN dedicated *_log pool, from the url/hikari below.
+              url: ${DB_DATAKEEP_URL:jdbc:postgresql://${DB_MESNIE_HOST:localhost}:${DB_MESNIE_PORT:5432}/${DB_MESNIE_NAME:esq2025}}
+              username: ${DB_DATAKEEP_USERNAME:${DB_MESNIE_USERNAME:esq2025}}
+              password: ${DB_DATAKEEP_PASSWORD:${DB_MESNIE_PASSWORD:q}}
+              # per-apply statement cap (seconds): 0 = uncapped (pre-HA default). The keep surface of the cap.
+              query-timeout-seconds: ${ESQ_KEEP_QUERY_TIMEOUT_S:0}
+              hikari:
+                maximum-pool-size: ${DB_DATAKEEP_POOL_SIZE:2}
+# kcMaster's OWN namespaces, kept as they are: KeycloakConfig binds "keycloak.admin." and the path park binds
+# "kcmaster.path-buffer." by their literal prefixes, and the composed code is not edited to suit the process
+# that runs it.
+keycloak:
+  admin:
+    base-url: ${KC_BASE_URL:http://localhost:8080}
+    realm: ${KC_REALM:esquire}
+    client-id: ${KC_ADMIN_CLIENT_ID:admin-cli}
+    client-secret: ${KC_ADMIN_CLIENT_SECRET:}
+    connect-timeout-ms: ${KC_ADMIN_CONNECT_TIMEOUT_MS:5000}
+    read-timeout-ms:    ${KC_ADMIN_READ_TIMEOUT_MS:10000}
+kcmaster:
+  path-buffer:
+    ttl-ms:            ${KCMASTER_PATH_BUFFER_TTL_MS:10000}
+    prune-interval-ms: ${KCMASTER_PATH_BUFFER_PRUNE_MS:30000}
+# Bus REFS: which slot this service joins on the shared buses. The UNION of the two composed services:
+# entity (enyMan) and audit (both -- one leg now). KeyCloak is served in this process, so there is no kc ref.
+esquire:
+  # Observability umbrella (v1.2.11 O1/O2) via common.ObservabilityConfig: ONE master switch gates BOTH
+  # tracing and metrics -- a service never has one without the other. Off by default = zero cost; the
+  # collector endpoint + sampling ratio are set per environment (compose / k8s).
+  observability:
+    enabled: ${ESQ_OBSERVABILITY_ENABLED:false}
+    tracing:
+      # the TRACING pillar on/off (I41). Defaults to the master; set OFF (ESQ_TRACING_ENABLED=false) to run
+      # metrics-only -- service-mesh coexistence (a mesh already traces the wire, so avoid double-tracing).
+      enabled: ${ESQ_TRACING_ENABLED:${ESQ_OBSERVABILITY_ENABLED:false}}
+      otlp-endpoint: ${ESQ_OTLP_ENDPOINT:http://localhost:4318/v1/traces}
+      sampling-ratio: ${ESQ_TRACING_SAMPLING_RATIO:1.0}
+      marks-enabled: ${ESQ_TRACING_MARKS_ENABLED:true}
+      excluded-paths: ${ESQ_TRACING_EXCLUDED_PATHS:/actuator}
+      # opt-in RR liveness round-trip trace (TestRequest -> HeartBeat); off by default (heartbeats are frequent)
+      msg-bus-alive-trace: ${ESQ_MSG_BUS_ALIVE_TRACE:false}
+    metrics:
+      # the METRICS pillar on/off (symmetry with tracing.enabled). Defaults to the master; OFF = traces-only.
+      enabled: ${ESQ_METRICS_ENABLED:${ESQ_OBSERVABILITY_ENABLED:false}}
+      # percentile buckets on the extra latency timers (O1/T5-B). THE EXPENSIVE ONE (~+73% series), so opt-in;
+      # off still leaves count/sum/max, so the avg panels stay populated. TWO things go dark with it OFF and
+      # nothing else turns them on: the p95/p99 panels (they read the _bucket series) AND the metric->trace
+      # exemplars (a trace id hangs off a bucket sample -- no buckets, no carrier, the metrics->trace hop is
+      # inert). o11y-on sets it (ESQ_METRICS_HISTOGRAMS=true); a bare ESQ_OBSERVABILITY_ENABLED=true leaves both dark.
+      histograms-enabled: ${ESQ_METRICS_HISTOGRAMS:false}
+      # HTTP byte counters (O1/T5-C). Cheap, so ON by default. ONE knob for BOTH embedded servers: Esquire
+      # turns on Tomcat's MBean registry (servlet services) or Reactor Netty's metrics (the gateway) as needed.
+      bandwidth-enabled: ${ESQ_METRICS_BANDWIDTH:true}
+      # Business meters (O1/T8): the esq.biz.* domain tier -- what a service DOES, not how it runs. ON by
+      # default: measured at 1.25% of the series and a few tens of ns per call, against work that is orders of
+      # magnitude dearer. Off drops every esq.biz.* call site to a null check -- the lever for a hot-path run.
+      business-enabled: ${ESQ_METRICS_BUSINESS:true}
+  audit-bus:
+    messaging-bus:
+      bus-id: ${AUDIT_BUS_ID:audit-b}
+      slot-id: ${AUDIT_SLOT_ID:audit}
+      role: SERVER   # the service is the audit SERVER: it broadcasts its log events (in-process keep applies them)
+  # v1.2.10 Goal-4: the household both PUBLISHES entity broadcasts and LISTENS for its peers' (CLIENT role -> the
+  # rod runs a receive leg; because the transport supports both legs on one connection it ALSO opens a producer leg
+  # on that same connection, so it publishes through it too). The shared connection lets the broker's noLocal
+  # (set on the entity slot transport) drop its OWN publications, so the MOVING instance reconciles only a
+  # CREATE a DIFFERENT instance made during the move (the cross-instance race-8b gap the per-instance inMove()
+  # left open). EntityBusAdapter transmits; EntityRxBusAdapter sets the worker that forwards peer CREATEs.
+  entity-bus:
+    messaging-bus:
+      bus-id: ${ENTITY_BUS_ID:esquire.entity}
+      slot-id: ${ENTITY_SLOT_ID:entity}
+      role: CLIENT
+      x-rod:
+        receiver-pool:
+          size: ${ENTITY_RX_POOL_SIZE:2}
+          mode: ${ENTITY_BROADCAST_POOL_MODE:platform}   # platform | virtual | virtual-per-task
+        concurrency: ${ENTITY_RX_CONCURRENCY:1}
+        publisher-pool:
+          size: ${ENTITY_BROADCAST_PUBLISHER_POOL_SIZE:0}
+          mode: ${ENTITY_BROADCAST_PUBLISHER_POOL_MODE:platform}
+        # A full feed must HOLD the producer, never DROP an entity broadcast: 0 = wait forever. The default
+        # (10000ms) DROPS the item once the feed has been full that long -- and an entity/move broadcast lost that
+        # way is silent, and the night-watch cannot always heal it. Matches the KC leg (F0 B4); this is what makes
+        # the send-retry "back-pressures rather than dropping" below actually TRUE.
+        feed-await-ms: ${ENTITY_BROADCAST_FEED_AWAIT_MS:0}
+        # producer send-retry sublayer (opt-in, default OFF here; turned ON for the entity broadcast bus in docker
+        # compose + the local-k8s AND OKE overlays). Block mode (max-attempts 0): on a broker-down send, retry over
+        # the backoff ladder (seconds) until it goes through; the bounded feed then back-pressures rather than
+        # dropping an entity broadcast (feed-await-ms:0 above). A cap > 0 switches to drop-after-N.
+        send-retry: ${ENTITY_BROADCAST_SEND_RETRY:false}
+        send-retry-backoff-sec: ${ENTITY_BROADCAST_SEND_RETRY_BACKOFF_SEC:1,2,5,5}
+        send-retry-max-attempts: ${ENTITY_BROADCAST_SEND_RETRY_MAX_ATTEMPTS:0}
+logging:
+  level:
+    root: ${LOG_LEVEL_ROOT:ERROR}
+    org:
+      springframework: ${LOG_LEVEL_SF:ERROR}
+      springframework.jms: ${LOG_LEVEL_JMS:INFO}
+      apache:
+        activemq: ${LOG_LEVEL_AMQ:INFO}
+    pro:
+      mir0n: ${LOG_LEVEL_MIR0N:INFO}
+    develop: ${LOG_LEVEL_DEVELOP:DEBUG}
+    msg: ${LOG_LEVEL_MSG:INFO}
+  develop:
+    log-path: ${DEVELOP_LOG_PATH:logs/mesnie-develop.log}
+  msg:
+    log-path: ${MSG_LOG_PATH:logs/mesnie-msg.log}
+management:
+  # Actuator listens on a SEPARATE, internal-only port (8090), NOT the public server.port -- Prometheus and the
+  # k8s probes hit 8090 in-cluster while the ingress exposes only the main port, so /actuator is unreachable from
+  # the internet (audit F0 A6; mir0n 2026-07-20). Override with MANAGEMENT_SERVER_PORT.
+  server:
+    port: ${MANAGEMENT_SERVER_PORT:8090}
+  # The Micrometer-Tracing bridge and Prometheus metrics export are gated PER PILLAR: management.tracing.enabled
+  # follows esquire.observability.tracing.enabled (the span bridge), management.prometheus.metrics.export.enabled
+  # follows esquire.observability.metrics.enabled (the Prometheus registry+scrape). Each sub-switch defaults to
+  # the master esquire.observability.enabled. The OTel exporter + sampler + meter registry are declared explicitly
+  # by common.ObservabilityConfig. Set ESQ_TRACING_ENABLED=false to run metrics-only (service-mesh coexistence).
+  tracing:
+    enabled: ${ESQ_TRACING_ENABLED:${ESQ_OBSERVABILITY_ENABLED:false}}
+  prometheus:
+    metrics:
+      export:
+        enabled: ${ESQ_METRICS_ENABLED:${ESQ_OBSERVABILITY_ENABLED:false}}
+  endpoints:
+    web:
+      exposure:
+        # /actuator/prometheus scraped by the metrics collector; the endpoint bean exists only when the
+        # registry does (observability on), so listing it here is harmless when off.
+        include: health, prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true               # expose the liveness + readiness health groups
+      show-details: always
+      # messagingBus is registered DYNAMICALLY at ApplicationReadyEvent (after the context refresh that
+      # validates group membership), so the startup membership check must be off -- the group resolves it at
+      # request time once it is in the registry.
+      validate-group-membership: false
+      group:
+        # the messaging-bus connection health depools the pod (READINESS), never the liveness probe -- a broker
+        # outage must not let liveness kill the pod. messagingBus is registered programmatically by the lifecycle
+        # registrar at ApplicationReadyEvent. k8s readinessProbe -> /actuator/health/readiness. Here "the service"
+        # is a COMPOSITION: a broker outage depools the whole household at once.
+        readiness:
+          include: readinessState, messagingBus
+
+
+---
+spring:
+  config:
+    activate:
+      on-profile: dev-oracle
+  datasource:
+    url: jdbc:oracle:thin:@//${DB_MESNIE_HOST:localhost}:${DB_MESNIE_PORT:1521}/${DB_MESNIE_NAME:MIR0N}
+    driverClassName: oracle.jdbc.OracleDriver
+    username: ${DB_MESNIE_USERNAME:esq2025}
+    password: ${DB_MESNIE_PASSWORD:q}
+    hikari:
+      # pool sizing + connect-timeout: pre-HA defaults = current values; HA values (smaller pool, fast
+      # connect-timeout) set per service in the local-k8s chart (R3/R5).
+      maximum-pool-size: ${ESQ_DB_POOL_MAX:20}
+      minimum-idle: ${ESQ_DB_POOL_MIN_IDLE:20}
+      connection-timeout: ${ESQ_DB_CONNECT_TIMEOUT_MS:30000}
+      max-lifetime: 1800000
+      idle-timeout: 600000
+  jpa:
+    # the UNION of the two services' mappings: enyMan's six plus keySmith's access profile. The roles mapping is
+    # in both lists and is named ONCE here -- it lives in common, so it is the same file.
+    mapping-resources:
+      - META-INF/oracle-dictionary.xml
+      - META-INF/oracle-entity.xml
+      - META-INF/oracle-custom-field.xml
+      - META-INF/oracle-acct.xml
+      - META-INF/oracle-access-profile.xml
+      - META-INF/oracle-roles.xml
+      - META-INF/audit/oracle-par.xml
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.OracleDialect
+server:
+  port: ${MESNIE_PORT:3000}
+  tomcat:
+    threads:
+      # request worker threads (pre-HA default = Boot's 200). HA bounds the worker pool so a slow
+      # downstream cannot exhaust threads fleet-wide; local-k8s value set in the chart (R2).
+      max: ${ESQ_TOMCAT_MAX_THREADS:200}
+    accept-count: ${ESQ_TOMCAT_ACCEPT_COUNT:100}
+
+---
+spring:
+  config:
+    activate:
+      on-profile: dev-postgres
+  datasource:
+    url: jdbc:postgresql://${DB_MESNIE_HOST:localhost}:${DB_MESNIE_PORT:5432}/${DB_MESNIE_NAME:esq2025}
+    username: ${DB_MESNIE_USERNAME:esq2025}
+    password: ${DB_MESNIE_PASSWORD:q}
+    hikari:
+      # pool sizing + connect-timeout: pre-HA defaults = current values; HA values (smaller pool, fast
+      # connect-timeout) set per service in the local-k8s chart (R3/R5).
+      maximum-pool-size: ${ESQ_DB_POOL_MAX:20}
+      minimum-idle: ${ESQ_DB_POOL_MIN_IDLE:20}
+      connection-timeout: ${ESQ_DB_CONNECT_TIMEOUT_MS:30000}
+      max-lifetime: 1800000
+      idle-timeout: 600000
+      # pgjdbc socketTimeout (s) + tcpKeepAlive: pre-HA defaults = off (0 / false). HA (local-k8s chart)
+      # makes a vanished DB fail fast on a half-open socket instead of hanging a worker (R1/R5).
+      data-source-properties:
+        socketTimeout: ${ESQ_DB_SOCKET_TIMEOUT_S:0}
+        tcpKeepAlive: ${ESQ_DB_TCP_KEEPALIVE:false}
+  jpa:
+    # the UNION of the two services' mappings: enyMan's six plus keySmith's access profile. The roles mapping is
+    # in both lists and is named ONCE here -- it lives in common, so it is the same file.
+    mapping-resources:
+      - META-INF/postgres-dictionary.xml
+      - META-INF/postgres-entity.xml
+      - META-INF/postgres-custom-field.xml
+      - META-INF/postgres-acct.xml
+      - META-INF/postgres-access-profile.xml
+      - META-INF/postgres-roles.xml
+      - META-INF/audit/postgres-par.xml
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+server:
+  port: ${MESNIE_PORT:3000}
+  tomcat:
+    threads:
+      # request worker threads (pre-HA default = Boot's 200). HA bounds the worker pool so a slow
+      # downstream cannot exhaust threads fleet-wide; local-k8s value set in the chart (R2).
+      max: ${ESQ_TOMCAT_MAX_THREADS:200}
+    accept-count: ${ESQ_TOMCAT_ACCEPT_COUNT:100}

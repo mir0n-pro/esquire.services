@@ -10,28 +10,25 @@
  * 04/07/2026 mir0n  EsqObjectKindStorage loaded on startup (required by EntityKindRoutePredicateFactory)
  *                   SpringApplication builder; GatewayApplicationStartingListener added
  * 07/08/2026 mir0n  @Import(TracingConfig.class): the common distributed-tracing wiring (v1.2.11 O2)
+ * 08/14/2026 mir0n  v1.2.13 -- @SpringBootApplication + @ConfigurationPropertiesScan split into
+ *                   @SpringBootConfiguration + @EnableAutoConfiguration + @Import(GatewayConfig), which now
+ *                   carries the component scan and the configuration-properties scan
  */
 package pro.mir0n.esquire.gateway;
 
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.SpringApplication;
-import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.boot.SpringBootConfiguration;
+import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.context.event.ApplicationStartingEvent;
-import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
 import org.springframework.context.ApplicationListener;
 import org.springframework.context.annotation.Import;
 import pro.mir0n.esquire.backend.o11y.ObservabilityConfig;
 import pro.mir0n.esquire.backend.storage.EsqObjectKindStorage;
 
-//TODO: get Roles with permissions from keySmith
-//      use tool id (100 for tree) id instead of role name
-//
-//TODO: have JWT optionally encrypted
-//
-
-@SpringBootApplication
-@ConfigurationPropertiesScan
-@Import(ObservabilityConfig.class)
+@SpringBootConfiguration
+@EnableAutoConfiguration
+@Import({ObservabilityConfig.class, GatewayConfig.class})
 public class GatewayApplication {
 
     private static final org.slf4j.Logger devLog = LoggerFactory.getLogger("develop." + GatewayApplication.class.getName());

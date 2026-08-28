@@ -1,0 +1,53 @@
+# Esquire frameworks (tm) -- messaging-bus TOPOLOGY (OKE, super-compact)
+#
+# Delivered as the ConfigMap "esquire-topology" and mounted at /etc/esquire/topology.yml in every service pod;
+# each service loads it via spring.config.import (REQUIRED). Per-environment, CONCRETE values (no ${}) -- here the
+# in-cluster Service DNS names. Passed to the chart by oke-up.bat as
+# --set-file topologyContent=esquire-topology.yml, which overrides the chart's own file.
+#
+# TWO buses, because this profile references exactly two. Super-compact is the compact composition with audit on
+# option (a), DB triggers: no auKeep process, no audit bus traffic, the audit stack out of the application
+# entirely.
+#
+#   esquire.entity  -- ENTITY_BUS_ID for Mesnie (publisher), gateWard (the tree cache consumer) and pacMan.
+#   audit-off       -- AUDIT_BUS_ID for Mesnie and pacMan. The explicit DISABLED bus.
+#
+# What is NOT here, and why:
+#   esquire.kc                -- no service references it. Mesnie serves the identity work IN PROCESS through
+#                                IIdentityGateway, so there is no request/response hop to carry.
+#   audit-c / ck / d / dk     -- the bus audit sinks, drained by auKeep. This profile has no auKeep and audits in
+#                                the database, so defining them would describe legs nothing can use.
+esquire:
+  messaging-bus:
+    # --- entity broadcast (topic) ---
+    - bus-id: esquire.entity
+      slots:
+        - slot-id: entity
+          x-rod:
+            receiver-pool:
+              size: 4
+              mode: platform
+            concurrency: 1
+            publisher-pool:
+              size: 0
+              mode: platform
+            transport:
+              provider: activemq
+              endpoint: failover:(tcp://esquire-infra-amq-activemq:61616)?timeout=3000
+              destination: esquire.entity.broadcast
+              params:
+                pubSubDomain: true
+                # Mesnie runs both legs (publish + listen) on ONE shared connection, so the broker drops its OWN
+                # publications -- the moving instance reconciles only a PEER instance's create-during-move. Inert
+                # for pure consumers (the gateWard cache publishes nothing).
+                noLocal: true
+                # MUST agree with the broker (activemq.xml: persistent="false").
+                persistent: false
+    # --- audit (off): the explicit DISABLED bus. A service points its audit ref at audit-off to run with NO
+    #     bus audit -- here the DB triggers carry the audit instead. XRodDisabled is a true no-op; this is the
+    #     #17 "disable only when explicitly defined" -- a blank/undefined bus-id (correctly) fails fast instead. ---
+    - bus-id: audit-off
+      slots:
+        - slot-id: audit
+          x-rod:
+            rod-class: XRodDisabled

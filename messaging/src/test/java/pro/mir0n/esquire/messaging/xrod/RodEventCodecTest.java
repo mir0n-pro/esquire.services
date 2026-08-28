@@ -120,6 +120,49 @@ class RodEventCodecTest {
     }
 
     @Test
+    void anEventTypeThisVersionDoesNotKnowDecodesToUnknown() {
+        // A producer one version ahead emits an op we have never heard of. It must NOT be guessed at: the old
+        // reading was "anything unrecognised is a DELETE", so a new op reached an old consumer during a rolling
+        // upgrade and removed the entity.
+        Map<String, Object> p = new LinkedHashMap<>();
+        p.put(BusConstants.FIELD_EVENT_TYPE, "M");
+        p.put(BusConstants.FIELD_ENTITY_KIND, 34);
+        p.put(BusConstants.FIELD_ENTITY_ID, "300");
+
+        RodEvent out = RodEventCodec.fromProps(p, om);
+
+        assertThat(out.op()).isEqualTo(RodEvent.Op.UNKNOWN);
+        assertThat(out.entityId()).isEqualTo("300");
+    }
+
+    @Test
+    void anAbsentEventTypeDecodesToUnknownRatherThanDelete() {
+        Map<String, Object> p = new LinkedHashMap<>();
+        p.put(BusConstants.FIELD_ENTITY_KIND, 34);
+        p.put(BusConstants.FIELD_ENTITY_ID, "300");
+
+        RodEvent out = RodEventCodec.fromProps(p, om);
+
+        assertThat(out.op()).isEqualTo(RodEvent.Op.UNKNOWN);
+    }
+
+    @Test
+    void everyKnownCodeStillDecodesToItsOwnOp() {
+        assertThat(RodEvent.opFromCode(BusConstants.EVENT_CREATE)).isEqualTo(RodEvent.Op.CREATE);
+        assertThat(RodEvent.opFromCode(BusConstants.EVENT_UPDATE)).isEqualTo(RodEvent.Op.UPDATE);
+        assertThat(RodEvent.opFromCode(BusConstants.EVENT_UPDATE_PATH)).isEqualTo(RodEvent.Op.UPDATE_PATH);
+        assertThat(RodEvent.opFromCode(BusConstants.EVENT_DELETE)).isEqualTo(RodEvent.Op.DELETE);
+        assertThat(RodEvent.opFromCode(null)).isEqualTo(RodEvent.Op.UNKNOWN);
+    }
+
+    @Test
+    void unknownIsNeverPutOnTheWire() {
+        RodEvent e = new RodEvent(RodEvent.Op.UNKNOWN, 34, "300", null, null, 0L,
+                null, null, null, null, null, null, null, null, null);
+        assertThat(e.opCode()).isNull();
+    }
+
+    @Test
     void aBadNumericFieldFallsBackInsteadOfDroppingTheWholeEvent() {
         // a malformed kind / actionTime must NOT abort the decode -- the event survives with the field defaulted
         Map<String, Object> p = new LinkedHashMap<>();

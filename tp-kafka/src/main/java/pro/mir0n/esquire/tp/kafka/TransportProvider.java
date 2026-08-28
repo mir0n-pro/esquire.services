@@ -22,6 +22,7 @@
  *                   acked send -> UP, a failed send (callback exception / throw) -> DOWN (best-effort).
  * 06/24/2026 mir0n  session (alive) messages routed to a separate <destination>.admin topic (topicFor); the admin
  *                   topic is created with a short retention via AdminClient (Kafka has no per-message TTL)
+ * 08/26/2026 mir0n  the connection health seeds UNKNOWN, not UP -- nothing has proved the connection at open
  */
 package pro.mir0n.esquire.tp.kafka;
 
@@ -94,9 +95,7 @@ public final class TransportProvider implements ITransportProvider {
         // close() disposes the producer factory (closes its pooled producers); the DefaultKafkaProducerFactory
         // built above is a DisposableBean.
         AutoCloseable closer = (kafka.getProducerFactory() instanceof DisposableBean db) ? db::destroy : () -> { };
-        // Kafka has no clean connection-state callback -- health is send-outcome only (best-effort): a failed
-        // send -> DOWN, an acked send -> UP. (#8's heartbeat gives a true active signal incl. the consumer.)
-        AtomicReference<TransportHealth> conn = new AtomicReference<>(TransportHealth.UP);
+        AtomicReference<TransportHealth> conn = new AtomicReference<>(TransportHealth.UNKNOWN);
         return TransportPublisher.of(msg -> {
             try {
                 String value = om.writeValueAsString(msg.headers());

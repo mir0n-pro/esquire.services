@@ -17,8 +17,7 @@ import java.util.Map;
 /**
  * Transport-neutral message moved by an {@link ITransportProvider}. {@code headers} is the property-bag
  * envelope (identity / routing fields and, when present, the body carried as a Text field per the codec);
- * {@code key} is an optional routing / partition key (e.g. the entity id, so a transport that partitions
- * keeps per-key order). The provider decides how the bag maps onto its wire format.
+ * {@code key} is an optional routing / partition key. The provider decides how the bag maps onto its wire format.
  */
 public final class TransportMessage {
 

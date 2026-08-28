@@ -24,13 +24,16 @@
  *                   ObjectProvider<MeterRegistry>: absent when observability is off, and the timer is then not
  *                   recorded. Recording is INDEPENDENT of the X-Capture-Metrics header instrument -- the header
  *                   is still written only when the caller asks, the timer always
+ * 08/26/2026 mir0n  the meter registry is taken only when the metrics switch is on; the trace ids reach MDC
  */
 package pro.mir0n.esquire.gateway.filters;
 
 import io.micrometer.core.instrument.MeterRegistry;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
 import org.springframework.cloud.gateway.route.Route;
@@ -44,6 +47,8 @@ import reactor.core.publisher.Mono;
 
 import java.util.concurrent.TimeUnit;
 
+// OUTSIDE InnerTimerFilter (1), so this post-phase runs after the timer has written Esq-Gw-Inner-Time: the
+// OUTGOING line reports the real gateway-inner window, and the strip below is the last word on what leaves.
 @Slf4j
 @Order(0)
 @Component
@@ -54,8 +59,12 @@ public class ResponseTraceFilter implements GlobalFilter {
     // Non-null only when observability is on (the MeterRegistry bean exists). Resolved once at construction.
     private final MeterRegistry registry;
 
-    public ResponseTraceFilter(ObjectProvider<MeterRegistry> registryProvider) {
-        this.registry = registryProvider.getIfAvailable();
+    public ResponseTraceFilter(ObjectProvider<MeterRegistry> registryProvider,
+                                   @Value("${esquire.observability.metrics.enabled:false}") boolean metricsOn) {
+        // The SWITCH decides, not the presence of a bean. A MeterRegistry is NOT absent when the umbrella is
+        // off: with the Prometheus export backed off, Boot's SimpleMetricsExportAutoConfiguration supplies a
+        // SimpleMeterRegistry, so reading the bean answered "observability is on" in every posture.
+        this.registry = metricsOn ? registryProvider.getIfAvailable() : null;
     }
 
     // The matched route id -- a bounded tag (never the raw URI, which carries entity ids).
@@ -107,34 +116,60 @@ public class ResponseTraceFilter implements GlobalFilter {
                 responseHeaders.remove(EsqConstants.ESQ_SRV_INNER_TIME);
             }
 
-            String correlationId = requestHeaders.getFirst(EsqConstants.X_CORRELATION_ID);
+            // The SETTLED id, the one RequestTraceFilter put on the exchange and sent downstream -- not the one
+            // the client happened to send. A caller that sends none still gets a correlation id, and reading the
+            // inbound header instead left this line, and the header going back, empty for exactly those callers.
+            String correlationId = exchange.getAttribute(EsqConstants.ESQ_CORRELATION_ID);
+            if (correlationId == null) {
+                correlationId = requestHeaders.getFirst(EsqConstants.X_CORRELATION_ID);
+            }
             if (correlationId != null
             && !responseHeaders.containsKey(EsqConstants.X_CORRELATION_ID)) {
                 responseHeaders.add(EsqConstants.X_CORRELATION_ID, correlationId);
             }
 
-            if (Boolean.TRUE.equals(captureServiceMetrics)) {
-                log.info("OUTGOING: correlationId={}, requestId={}, {} {}, status={}, srvInnerTime={}, srvOuterTime={}, gwInnerTime={}, gwOuterTime={}ms",
+            // Both ids as log FIELDS, not only as message text: the logs-to-trace link and the "one request end
+            // to end" trail key on the FIELD. INCOMING is wrapped the same way; without this the gateway's
+            // closing line is missing from the trail that every service tier is in.
+            MDC.put(EsqConstants.PD_CORRELATION_ID, correlationId);
+            if (requestId != null) {
+                MDC.put(EsqConstants.PD_REQUEST_ID, requestId);
+            }
+            try {
+                logOutgoing(exchange, responseHeaders, correlationId, requestId,
+                        Boolean.TRUE.equals(captureServiceMetrics), duration);
+            } finally {
+                MDC.remove(EsqConstants.PD_CORRELATION_ID);
+                MDC.remove(EsqConstants.PD_REQUEST_ID);
+            }
+        }));
+    }
+
+    /** The gateway's closing line. Carries the metric bands only when the master switch put them there. */
+    private static void logOutgoing(ServerWebExchange exchange, HttpHeaders responseHeaders,
+                                    String correlationId, String requestId,
+                                    boolean captureServiceMetrics, Long duration) {
+        Integer status = exchange.getResponse().getStatusCode() == null
+                ? null : exchange.getResponse().getStatusCode().value();
+        if (captureServiceMetrics) {
+            log.info("OUTGOING: correlationId={}, requestId={}, {} {}, status={}, srvInnerTime={}, srvOuterTime={}, gwInnerTime={}, gwOuterTime={}ms",
                     correlationId,
                     requestId,
                     exchange.getRequest().getMethod(),
                     exchange.getRequest().getURI(),
-                    exchange.getResponse().getStatusCode() == null ? null : exchange.getResponse().getStatusCode().value(),
+                    status,
                     responseHeaders.getFirst(EsqConstants.ESQ_SRV_INNER_TIME),
                     responseHeaders.getFirst(EsqConstants.ESQ_SRV_OUTER_TIME),
                     responseHeaders.getFirst(EsqConstants.ESQ_GW_INNER_TIME),
-                    duration
-                );
-            } else {
-                log.info("OUTGOING: correlationId={}, requestId={}, {} {}, status={}, gwOuterTime={}ms",
+                    duration);
+        } else {
+            log.info("OUTGOING: correlationId={}, requestId={}, {} {}, status={}, gwOuterTime={}ms",
                     correlationId,
                     requestId,
                     exchange.getRequest().getMethod(),
                     exchange.getRequest().getURI(),
-                    exchange.getResponse().getStatusCode() == null ? null : exchange.getResponse().getStatusCode().value(),
-                    duration
-                );
-            }
-        }));
+                    status,
+                    duration);
+        }
     }
 }

@@ -1,0 +1,78 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ .Release.Name }}-activemq
+  labels:
+    app: {{ .Release.Name }}-activemq
+spec:
+  serviceName: {{ .Release.Name }}-activemq
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ .Release.Name }}-activemq
+  template:
+    metadata:
+      labels:
+        app: {{ .Release.Name }}-activemq
+    spec:
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: activemq
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          env:
+            # Loads the Prometheus JMX exporter agent inside the broker JVM and serves /metrics on :9404.
+            # Same umbrella variable every other Esquire component honours; the image's entrypoint is where the
+            # gate lives, so nothing here hand-assembles a -javaagent flag.
+            - name: ESQ_OBSERVABILITY_ENABLED
+              value: {{ .Values.observability.enabled | quote }}
+            # The broker is NON-PERSISTENT: no message store. The data dir still holds the temp spool + the
+            # broker log, and MUST match the volumeMount below -- the broker's own default is the pod's
+            # EPHEMERAL layer, so before this the PVC sat empty and was written to by nothing at all.
+            - name: ESQ_AMQ_DATA_DIR
+              value: {{ .Values.storage.mountPath | quote }}
+            # The spool memoryUsage (70% of heap) overflows into -- the only disk an in-memory bus can touch.
+            - name: ESQ_AMQ_TEMP_LIMIT
+              value: {{ .Values.storage.tempLimit | quote }}
+            {{- if .Values.destinations }}
+            # Which destinations this composition actually uses -- see values.yaml. Unset leaves the image's
+            # baked-in classic set, so the classic stacks need no value at all.
+            - name: ESQ_AMQ_DESTINATIONS
+              value: {{ .Values.destinations | quote }}
+            {{- end }}
+          ports:
+            - containerPort: 61616
+            - containerPort: 8161
+            - containerPort: {{ .Values.service.metrics }}
+          readinessProbe:
+            tcpSocket:
+              port: 61616
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 10
+          livenessProbe:
+            tcpSocket:
+              port: 61616
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            timeoutSeconds: 5
+          volumeMounts:
+            - name: activemq-data
+              mountPath: {{ .Values.storage.mountPath }}
+  volumeClaimTemplates:
+    - metadata:
+        name: activemq-data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        storageClassName: {{ .Values.storage.storageClass }}
+        resources:
+          requests:
+            storage: {{ .Values.storage.size }}

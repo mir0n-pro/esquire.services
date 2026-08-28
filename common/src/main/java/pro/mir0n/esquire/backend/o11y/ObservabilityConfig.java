@@ -61,6 +61,12 @@
  * 07/17/2026 mir0n  note at the switch: the OTLP exporter is wrapped by Boot's default BatchSpanProcessor
  *                   (bounded queue, drops on overflow, never blocks the request thread) -- the o11y path is not
  *                   a request-failure mode (I53).
+ * 08/17/2026 mir0n  v1.2.13 T3.1 -- esqServiceTag() @Bean added (metrics.enabled): an EsqServiceTagFilter
+ *                   stamping service=<esquire service> beside application=<process>, taking the running
+ *                   service's IMeterOwner through ObjectProvider. No owner -> service == application, which is
+ *                   what every classic service reports. The owner is asked with the meter ID and nothing else:
+ *                   a MeterFilter runs at REGISTRATION, so a per-request value would freeze whichever service
+ *                   touched the meter first
  */
 
 package pro.mir0n.esquire.backend.o11y;
@@ -238,6 +244,18 @@ public class ObservabilityConfig {
         return MeterFilter.commonTags(java.util.List.of(Tag.of("application", appName)));
     }
 
+    // The SECOND identity, beside application (T3.1): application = which PROCESS, service = which ESQUIRE
+    // SERVICE. A composed process (Mesnie, gateWard) runs more than one service, and a meter's tags are fixed
+    // when the meter is REGISTERED -- so the answer comes from the meter id (its name, its route, its bus),
+    // never from the calling thread. The running service contributes at most one IMeterOwner; with none, every
+    // meter takes the process name and service == application, which is what every classic service does.
+    @Bean
+    @ConditionalOnProperty(name = "esquire.observability.metrics.enabled", havingValue = "true", matchIfMissing = true)
+    public MeterFilter esqServiceTag(@Value("${spring.application.name:unknown}") String appName,
+                                     org.springframework.beans.factory.ObjectProvider<IMeterOwner> meterOwner) {
+        return new EsqServiceTagFilter(appName, meterOwner.getIfAvailable());
+    }
+
     // I25: cap the distinct VALUES any esq.biz.* / messaging.* tag may take, so an unbounded tag -- an exception
     // message, an entity id, a correlationId reaching a call site (the I6 class) -- can NEVER explode the series
     // count. Past the cap a new value collapses to a sentinel, so the blast radius of the mistake is one extra
@@ -251,14 +269,14 @@ public class ObservabilityConfig {
     }
 
     // Publish latency-histogram buckets so a Prometheus histogram_quantile (p95/p99) has _bucket series to read --
-    // by default a Boot timer emits only _count / _sum, and the quantile comes back empty (O1/T5 part B). Two tiers:
-    //   - http.server.requests: ALWAYS on -- the REST p95 dashboard panel depends on it (T4), and its cardinality
-    //     is bounded (uri / method / status).
-    //   - the extra latency timers (the Hikari borrow/acquire timers, the bus send-duration, and the four request
-    //     timing bands esq.gw.*/esq.srv.*): buckets are added ONLY when esquire.observability.metrics.histograms-
-    //     enabled=true, because each is tagged (bus-id / slot / msgType, or the band label) and the le buckets
-    //     multiply that cardinality. Off by default = the timers still emit count/sum/max (avg is queryable); on =
-    //     full percentiles.
+    // by default a Boot timer emits only _count / _sum, and the quantile comes back empty (O1/T5 part B).
+    //
+    // ONE switch governs every bucket in the fleet: esquire.observability.metrics.histograms-enabled. It covers
+    // http.server.requests, the Hikari borrow/acquire timers, the bus send-duration, the four request timing
+    // bands esq.gw.*/esq.srv.*, and every esq.biz.* timer by prefix. Off (the default) the timers still emit
+    // count/sum/max, so an average is queryable and the p95 panels are dark; on = full percentiles everywhere.
+    // The `le` buckets multiply an already-tagged series (bus-id / slot / msgType, or the band label), which is
+    // what makes this worth a switch -- see the filter body for what one always-on exception cost.
     @Bean
     @ConditionalOnProperty(name = "esquire.observability.metrics.enabled", havingValue = "true", matchIfMissing = true)
     public MeterFilter esqLatencyHistograms(

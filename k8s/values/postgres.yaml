@@ -3,7 +3,7 @@
 # fresh stamp forces kubelet to pick up the new image after a docker rebuild
 # (avoids the IfNotPresent + cached digest trap on infra images).
 image:
-  tag: "17-2606.2111"
+  tag: "17-v1.2.13-2608.2317"
 
 # R4 local-k8s resource budget. The single shared DB backs every service's pool, so it
 # gets a generous floor; CPU is left burstable (request only) so a busy moment is not

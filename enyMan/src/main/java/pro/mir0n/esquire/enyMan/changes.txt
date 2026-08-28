@@ -1,5 +1,64 @@
 Esquire enyMan Microservice
 
+08/26/2026 mir0n  v1.2.13 -- the move carries both change numbers, and every save broadcasts
+controller.EnyManController
+  - the develop log lines pass the value itself instead of String.valueOf; the move endpoint documents 503
+    as a response code
+jpa.EntityPathLookup
+  - entityChangeNoFor(id) added -- the entity change number for the header of a reissued path broadcast
+jpa.EsqMoveRecord
+  - changeNo split in two: pathChangeNo (EP_CHANGE_NO) and entityChangeNo, read back from the same row
+    after the move raised them
+queue.MoveQueueManager
+  - implements ISuccessListener and IErrorListener and registers both on the rig, so a move outcome is
+    counted on either side; submitMove answers false when the queue refuses the item
+  - the move broadcast carries pathChangeNo in the body and the entity number in the header, and the
+    reconcile reissue reads both back
+service.impl.EnyManService
+  - every esquireCommandSave publishes an UPDATE -- isBroadcastableUpdate is gone, so the field list that
+    raises the change number and the one that broadcasts can no longer differ
+  - a refused move raises CommandNotAcceptedException
+service.impl.OrgService
+  - saveOrg / deleteOrg / moveOrg take the kind; moveOrg reads the moved paths AFTER the parent write, so
+    the broadcast carries the raised entity number rather than the previous one
+service.impl.UsrService
+  - saveUsr / deleteUsr / moveUsr take the kind; moveUsr reads the moved paths AFTER the parent write
+  - a person-driven rename puts the derived name into the broadcast fields
+resources/META-INF/postgres-entity.xml
+  - the three move queries return ep_change_no and the entity change number together, joining the row
+    to whichever of esq_org / esq_user / esq_account holds it
+resources/META-INF/oracle-entity.xml
+  - the three move queries return ep_change_no and the entity change number together, joining the row
+    to whichever of esq_org / esq_user / esq_account holds it
+resources/META-INF/postgres-acct.xml
+  - EsqAcctJpa.entityChangeNoFor added -- the entity change number for one id, from whichever table holds it
+resources/META-INF/oracle-acct.xml
+  - EsqAcctJpa.entityChangeNoFor added -- the entity change number for one id, from whichever table holds it
+resources/logback-spring.xml
+  - the develop pattern drops the "develop." prefix from the logger name
+
+08/12/2026 mir0n  v1.2.13 -- Mesnie
+EnyManApplication
+  - the package list moved to EnyManConfig (@Import); @Bean IIdentityGateway identityGateway() declared here
+    with initMethod start / destroyMethod stop -- one gateway per PROCESS
+EnyManConfig  (new)
+  - created: enyMan's @ComponentScan / @EntityScan / @EnableJpaRepositories, the one place its packages are
+    named; excludes EnyManApplication and AuditConfig from the scan
+messaging.EntityBusAdapter
+  - IIdentityGateway injected; publish() and the receive worker hand a PATH broadcast to postMessage, which is
+    all that arm takes; one worker over subscription EventType IN ('C','X')
+messaging.KcBusAdapter
+  - implements IIdentityGateway: postRequest(RodEvent) transmits, postMessage is skipped, start()/stop() take
+    the kc leg (was the constructor)
+queue.MoveQueueManager
+  - field/ctor param KcBusAdapter -> IIdentityGateway; publishKcMoveRequest builds an AuthSyncRequest +
+    RodEvent and calls postRequest, carrying the PATH change number
+pom.xml
+  - maven-jar-plugin execution attaches a plain classes jar (classifier "classes"), excluding application.yml
+    and logback-spring.xml
+Dockerfile, Dockerfile.win, Dockerfile.lx
+  - COPY names esquire-eny-man.jar instead of target/*.jar
+
 08/11/2026 mir0n  v1.2.12 -- entity change number
 jpa.EntityPathLookup
   - updatePath raises ep_change_no inline (the path table is written under one global lock, not read for

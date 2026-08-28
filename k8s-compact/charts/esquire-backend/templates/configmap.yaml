@@ -1,0 +1,41 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-config
+  labels:
+    app: {{ .Release.Name }}
+data:
+  PORT:               {{ .Values.service.port | quote }}
+  NODE_ENV:           {{ .Values.nodeEnv | quote }}
+  KC_ISSUER:          {{ .Values.keycloak.issuer | quote }}
+  KC_ISSUER_INTERNAL: {{ .Values.keycloak.issuerInternal | default .Values.keycloak.issuer | quote }}
+  KC_CLIENT_ID:       {{ .Values.keycloak.clientId | quote }}
+  GATEWAY_URL:        {{ .Values.gateway.url | quote }}
+  PUBLIC_BASE_URL:    {{ .Values.publicBaseUrl | quote }}
+  ALLOWED_ORIGINS:    {{ .Values.allowedOrigins | quote }}
+  SESSION_MAX_AGE_MS: {{ .Values.session.cookieMaxAgeMs | quote }}
+  ESQ_DICT_CACHE_TTL_MS: {{ .Values.cache.ttlMs | quote }}
+  ESQ_DICT_CACHE_MAX:    {{ .Values.cache.maxEntries | quote }}
+  # --- resilience (R1): server request + /api upstream-proxy timeouts (0 = none) ---
+  BFF_REQUEST_TIMEOUT_MS: {{ .Values.resilience.requestTimeoutMs | quote }}
+  BFF_PROXY_TIMEOUT_MS:   {{ .Values.resilience.proxyTimeoutMs | quote }}
+  {{- if .Values.redis.url }}
+  # Shared session store -- when set, the BFF keeps sessions in redis so every
+  # replica reads the same session (required to run more than one replica).
+  # Omitted (no key) when redis.url is empty -> in-memory MemoryStore, 1 replica.
+  REDIS_URL:          {{ .Values.redis.url | quote }}
+  {{- end }}
+  # --- v1.2.11 observability umbrella (opt-in; OFF by default; o11y-on enables it) ---
+  # ESQ_OBSERVABILITY_ENABLED is the SAME umbrella MASTER the Java services take. Under it, two per-pillar
+  # sub-switches (I41), each defaulting to the master so a bare master keeps both on: ESQ_TRACING_ENABLED gates
+  # the BFF tracing (a root span per request, exported over OTLP), ESQ_METRICS_ENABLED gates the BFF metrics
+  # surface (/metrics, T5c). Effective pillar = master AND sub, so ESQ_TRACING_ENABLED=false runs the BFF
+  # metrics-only (service-mesh coexistence -- a mesh already traces the wire), matching the Java fleet. Rendered
+  # UNCONDITIONALLY -- they must NOT sit inside the redis block above, or a redis-less target (OKE, 1 replica)
+  # would never receive them and observability would be silently dead there.
+  # toString+eq "" avoids Helm's default-trap where --set x=false (boolean) would be swallowed as empty.
+  ESQ_OBSERVABILITY_ENABLED:  {{ .Values.observability.enabled | quote }}
+  ESQ_TRACING_ENABLED:        {{ if eq (toString .Values.observability.tracingEnabled) "" }}{{ .Values.observability.enabled | quote }}{{ else }}{{ .Values.observability.tracingEnabled | quote }}{{ end }}
+  ESQ_METRICS_ENABLED:        {{ if eq (toString .Values.observability.metricsEnabled) "" }}{{ .Values.observability.enabled | quote }}{{ else }}{{ .Values.observability.metricsEnabled | quote }}{{ end }}
+  ESQ_OTLP_ENDPOINT:          {{ .Values.tracing.otlpEndpoint | quote }}
+  ESQ_TRACING_SAMPLING_RATIO: {{ .Values.tracing.samplingRatio | quote }}

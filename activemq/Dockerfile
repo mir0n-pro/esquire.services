@@ -1,4 +1,22 @@
-FROM apache/activemq-classic:6.1.4
+# The PIN. Every Esquire-built infra image declares two things here, and both are stamped onto the image as
+# labels so they travel with the artifact rather than sitting beside it:
+# BASE -- the upstream image it is built from. Not a literal in FROM, so a base cannot move on its own: a
+#         target that wants a different one passes --build-arg, and says so where the choice is made.
+# PIN  -- the release stamp of the release in which what ESQUIRE puts inside this image last changed. It is
+#         edited BY HAND, and only then. An image that gained nothing this release keeps the pin it had, so a
+#         release cannot replace infrastructure it did not touch.
+# The builders read the labels back off the image and tag it with the pin, so the tag is derived rather than
+# typed -- and a pin that already names a DIFFERENT image is refused, because that means the content moved and
+# nobody said so. The cloud keeps its single release tag for the whole stack; the labels still say what is
+# inside it.
+ARG BASE=apache/activemq-classic:6.1.4
+ARG PIN=v1.2.13-2608.2320
+
+FROM ${BASE}
+ARG BASE
+ARG PIN
+LABEL pro.mir0n.esquire.base="${BASE}"
+LABEL pro.mir0n.esquire.pin="${PIN}"
 
 # The broker reads ACTIVEMQ_CONF, which is /opt/apache-activemq/conf. NOT /opt/activemq -- that directory also
 # exists in this image but nothing reads it, so a config dropped there is silently ignored and the broker runs

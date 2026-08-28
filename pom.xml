@@ -26,6 +26,8 @@
         <module>pacMan</module>
         <module>keySmith</module>
         <module>kcMaster</module>
+        <module>mesnie</module>
+        <module>gateWard</module>
         <module>dataKeep</module>
         <module>audit</module>
         <module>auKeep</module>
@@ -54,7 +56,7 @@
    The Equire service set is a single Product but it has a set of modules.
    They might have their own versioning
 -->
-        <esquire.version>1.2.12</esquire.version>
+        <esquire.version>1.2.13</esquire.version>
         <utils.version>${esquire.version}</utils.version>
         <common.version>${esquire.version}</common.version>
         <messaging.version>${esquire.version}</messaging.version>
@@ -64,6 +66,8 @@
         <pacMan.version>${esquire.version}</pacMan.version>
         <keySmith.version>${esquire.version}</keySmith.version>
         <kcMaster.version>${esquire.version}</kcMaster.version>
+        <mesnie.version>${esquire.version}</mesnie.version>
+        <gateWard.version>${esquire.version}</gateWard.version>
         <dataKeep.version>${esquire.version}</dataKeep.version>
         <audit.version>${esquire.version}</audit.version>
         <auKeep.version>${esquire.version}</auKeep.version>
@@ -168,7 +172,18 @@
     				<artifactId>maven-resources-plugin</artifactId>
     				<version>3.3.1</version>
     			</plugin>
-			                
+
+                <!-- A Spring Boot service publishes a FAT jar: repackage moves the classes under
+                     BOOT-INF/classes, so no module can compile against it. enyMan, keySmith and
+                     kcMaster therefore attach a SECOND, plain classes jar (classifier "classes") that
+                     the composed services depend on. Version pinned here so every module builds the
+                     same jar plugin. -->
+    			<plugin>
+    				<groupId>org.apache.maven.plugins</groupId>
+    				<artifactId>maven-jar-plugin</artifactId>
+    				<version>3.4.2</version>
+    			</plugin>
+
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-compiler-plugin</artifactId>

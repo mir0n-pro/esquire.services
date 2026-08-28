@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 470" font-family="Calibri, Segoe UI, sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="440" viewBox="0 0 900 440" font-family="Calibri, Segoe UI, sans-serif">
   <defs>
     <marker id="arw" markerUnits="userSpaceOnUse" markerWidth="13" markerHeight="10" refX="11" refY="5" orient="auto">
       <path d="M0,0 L11,5 L0,10 Z" fill="#6ca43d"/>
@@ -9,6 +9,7 @@
     .tht{fill:#1f3864;font-weight:bold;font-size:12px}.trt{fill:#2b2b2b;font-size:12px}
     .box{fill:#5b9bd5;stroke:#41719c;stroke-width:1.5}.boxt{fill:#fff;font-weight:bold;font-size:13px}
     .red{fill:#fde2e2;stroke:#d98b8b;stroke-width:1.5}.redt{fill:#7a2b2b;font-weight:bold;font-size:12.5px}
+    .reds{fill:#7a2b2b;font-size:11px}
     .amber{fill:#fdf3e7;stroke:#e0b483;stroke-width:1.2}.ambt{fill:#5a2d0c;font-size:12px}
     .green{fill:#e2efda;stroke:#6ca43d;stroke-width:1.2}.grnt{fill:#375623;font-size:12px}
     .edge{stroke:#6ca43d;stroke-width:2.2;fill:none;marker-end:url(#arw)}
@@ -17,7 +18,7 @@
     .cap{fill:#404040;font-size:11.5px}
   </style>
 
-  <text class="title" x="20" y="26">Why Phantom stripping is off on KC 26.4.7 -- the v1 / v2 clash</text>
+  <text class="title" x="20" y="26">Why the exchange cannot mint for an audience client -- KC 26.6.0</text>
 
   <!-- feature table -->
   <rect class="th" x="30"  y="42" width="360" height="26"/><text class="tht" x="42" y="60">FEATURE</text>
@@ -25,29 +26,30 @@
   <rect class="th" x="570" y="42" width="300" height="26"/><text class="tht" x="582" y="60">in this deployment</text>
   <rect class="tr" x="30"  y="68" width="360" height="30"/><text class="trt" x="42" y="87">token-exchange (RFC 8693)</text>
   <rect class="tr" x="390" y="68" width="180" height="30"/><text class="trt" x="402" y="87">legacy v1 | reworked v2</text>
-  <rect class="tr" x="570" y="68" width="300" height="30"/><text class="trt" x="582" y="87">KC 26.4.7 ships v1</text>
+  <rect class="tr" x="570" y="68" width="300" height="30"/><text class="trt" x="582" y="87">KC 26.6.0 ships v1</text>
   <rect class="tr" x="30"  y="98" width="360" height="30"/><text class="trt" x="42" y="117">admin fine-grained permissions</text>
   <rect class="tr" x="390" y="98" width="180" height="30"/><text class="trt" x="402" y="117">legacy v1 | current v2</text>
   <rect class="tr" x="570" y="98" width="300" height="30"/><text class="trt" x="582" y="117">realm runs v2</text>
 
-  <!-- failure path -->
+  <!-- the refused path -->
   <rect class="box" x="30"  y="164" width="190" height="48" rx="6"/><text class="boxt" x="125" y="193" text-anchor="middle">v1 token-exchange</text>
-  <path class="edge" d="M220,188 L 336,188"/><text class="et" x="278" y="180" text-anchor="middle">audience=&lt;client&gt;</text>
-  <rect class="box" x="340" y="164" width="200" height="48" rx="6"/><text class="boxt" x="440" y="193" text-anchor="middle">v2 permissions model</text>
-  <path class="edge" d="M540,188 L 606,188"/>
-  <rect class="red" x="610" y="158" width="260" height="60" rx="6"/><text class="redt" x="740" y="184" text-anchor="middle">UnsupportedOperationException</text><text class="redt" x="740" y="202" text-anchor="middle">"Not supported in V2"</text>
+  <path class="edge" d="M220,188 L 326,188"/><text class="et" x="273" y="180" text-anchor="middle">audience=&lt;client&gt;</text>
+  <rect class="box" x="330" y="164" width="200" height="48" rx="6"/><text class="boxt" x="430" y="193" text-anchor="middle">v2 permissions model</text>
+  <path class="edge" d="M530,188 L 596,188"/>
+  <rect class="red" x="600" y="152" width="270" height="72" rx="6"/>
+  <text class="redt" x="735" y="174" text-anchor="middle">403 access_denied</text>
+  <text class="reds" x="735" y="192" text-anchor="middle">"Client not allowed to exchange"</text>
+  <text class="reds" x="735" y="210" text-anchor="middle">event TOKEN_EXCHANGE_ERROR -- "to audience"</text>
 
-  <rect class="amber" x="30" y="240" width="840" height="44" rx="6"/>
-  <text class="ambt" x="44" y="259">The v1 code path is never implemented in the v2 permissions model, so the exchange cannot mint the token FOR the audience</text>
-  <text class="ambt" x="44" y="276">client -- that client's claim mappers (esq_uid, esq_rootpath, roles) never run on the exchanged token.</text>
+  <rect class="amber" x="30" y="242" width="840" height="62" rx="6"/>
+  <text class="ambt" x="44" y="262">Token exchange is not an admin permission under FGAP:v2, and Keycloak's position is that it will not become one. The</text>
+  <text class="ambt" x="44" y="279">permission that would let the exchange mint FOR a downstream client therefore cannot be granted -- switching fine-grained</text>
+  <text class="ambt" x="44" y="296">permissions on for that client answers <tspan font-weight="bold">501 Feature not enabled</tspan>, and the exchange itself refuses with the 403 above.</text>
 
-  <rect class="amber" x="30" y="298" width="840" height="44" rx="6"/>
-  <text class="ambt" x="44" y="317"><tspan font-weight="bold">Second, independent blocker:</tspan> the source client has lightweight.access.token = true, so the stripped (claim-less)</text>
-  <text class="ambt" x="44" y="334">payload is carried through the exchange unchanged -- even the mappers that DO run never refill the claims.</text>
+  <rect class="green" x="30" y="316" width="840" height="46" rx="6"/>
+  <text class="grnt" x="44" y="336"><tspan font-weight="bold">Structural, not temporary:</tspan> the claim mappers (esq_uid, esq_rootpath, roles) are duplicated onto the requesting client,</text>
+  <text class="grnt" x="44" y="353">so the exchanged token carries them. The route forward is token-exchange v2.</text>
 
-  <rect class="green" x="30" y="356" width="840" height="30" rx="6"/>
-  <text class="grnt" x="44" y="375"><tspan font-weight="bold">Resolved by:</tspan> token-exchange v2 (not in KC 26.4.7), or a per-target lightweight switch.</text>
-
-  <text class="cap" x="30" y="410">"v1 / v2" are Keycloak FEATURE generations selected by feature flags, independent of the product version (26.4.7);</text>
-  <text class="cap" x="30" y="426">the "V2" in the exception message refers to the PERMISSIONS model, not to token-exchange.</text>
+  <text class="cap" x="30" y="392">"v1 / v2" are Keycloak FEATURE generations selected by feature flags, independent of the product version (26.6.0);</text>
+  <text class="cap" x="30" y="408">token exchange runs as v1, a deprecated preview that requires FGAP:v1, while the realm's admin permissions run v2.</text>
 </svg>
