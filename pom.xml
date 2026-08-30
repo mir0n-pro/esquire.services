@@ -56,7 +56,7 @@
    The Equire service set is a single Product but it has a set of modules.
    They might have their own versioning
 -->
-        <esquire.version>1.2.13</esquire.version>
+        <esquire.version>1.2.14</esquire.version>
         <utils.version>${esquire.version}</utils.version>
         <common.version>${esquire.version}</common.version>
         <messaging.version>${esquire.version}</messaging.version>

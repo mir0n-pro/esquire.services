@@ -666,6 +666,7 @@ deliverable**; the items below are the backlog it would have caught.
   fails on every scrape, silently, if no panel uses those metrics. The class is general: every exporter is coupled to
   the version of the thing it observes, and nothing checks it -- any Postgres / KeyCloak / ActiveMQ upgrade must
   re-verify its exporter.
+- **The delivery pipeline's actions still target Node 20, and the runner has started forcing them.** GitHub is retiring Node 20 on the Actions runners. `deploy-oke.yml` runs `actions/setup-java@v4`, `docker/login-action@v3`, `docker/setup-buildx-action@v3` and `docker/setup-qemu-action@v3`, all of which declare Node 20 and are now executed on Node 24 with a deprecation warning on every run; `actions/setup-java@v4` carries its own notice that it receives no further updates. `ci.yml` already runs `actions/setup-java@v5`, so the sweep is the rest of `deploy-oke.yml` -- its two `setup-java` steps and the three `docker/*` steps moved together, with `actions/setup-node@v4` and the two `azure/setup-*@v4` steps checked in the same pass. A forced runtime is what this looks like before it becomes a failed run: when the runner stops shimming Node 20, the release pipeline stops and the only path to production goes with it.
 - **Infra images to bump as one set** (all pinned and working; listed so it is one task, not several): Grafana,
   Prometheus, Loki, Tempo, OTel Collector, Alloy, Kafka, KeyCloak, ActiveMQ, Postgres.
 

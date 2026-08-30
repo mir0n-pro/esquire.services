@@ -43,15 +43,17 @@ check.
 
 ---
 > 
-> **v1.2.13 — complete.** The framework grows by **continuous development** — sprints against a target,
-> rather than one long sequential line. This one separates **what the framework is** from **how many
-> programs it runs as**. The same code, the same settings, run as eight separate programs, as five, or as
-> four — you choose the shape that fits where you are running it, and nothing about the framework changes.
-> A small deployment stops paying for a large one.
+> **v1.2.14 — in progress.** The framework grows by **continuous development** — sprints against a target,
+> rather than one long sequential line. This one takes Esquire to **Amazon's cloud**: running it on Amazon's
+> managed Kubernetes, and teaching the messaging layer to speak the message services Amazon already
+> provides — so a deployment there uses what the cloud runs for you, instead of asking you to run a
+> message broker of your own.
 > 
-> It then read the whole thing back, item by item, and fixed what that found: events reaching the tree
-> cache in the order they were published, a refused command answering as refused, a credential request
-> that can be taken back, and a deploy that no longer replaces a working secret with one that cannot work.
+> It also looks at Amazon's own sign-in service and its own monitoring service, and writes down plainly why
+> Esquire does not use them today, and what it would take to.
+> 
+> **Live today is v1.2.13**, on Oracle's cloud at [esquire.mir0n.pro](https://esquire.mir0n.pro) — the same
+> code and the same settings composed into fewer programs, so a small deployment stops paying for a large one.
 > 
 > What comes next is chosen from the
 > [continuing-development backlog](doc/Esquire.ContinuingDev.md) — several sprints can run in parallel, each

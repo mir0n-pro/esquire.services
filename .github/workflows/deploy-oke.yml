@@ -258,8 +258,10 @@ jobs:
           RELAY_DISABLED: "true"
           # 21-credential-state-sync reads the user's required actions through KeyCloak's ADMIN api -- that is
           # where a forced password change and a TOTP request actually land. It authenticates as esq-kcMaster,
-          # the same service account kcMaster itself uses; the local targets fall back to the committed demo
-          # secret, and here it has to be the real one or the spec fails rather than skips.
+          # the same service account kcMaster itself uses. A secret that is not configured arrives here as an
+          # EMPTY string, and the spec falls back to the committed demo secret -- the same fallback
+          # deploy-oke.sh applies, so the deploy and the gate use one value. Set this secret once the
+          # esq-kcMaster client is rotated in KeyCloak, and the deploy job takes it from the same place.
           KC_ADMIN_SECRET: ${{ secrets.KCMASTER_ADMIN_SECRET }}
         run: |
           npm ci || npm install
