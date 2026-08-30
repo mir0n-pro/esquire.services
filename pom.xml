@@ -34,6 +34,8 @@
         <module>tp-activemq</module>
         <module>tp-redis</module>
         <module>tp-kafka</module>
+        <module>tp-sqns</module>
+        <module>tp-kinesis</module>
      </modules>
 
     <properties>
@@ -72,6 +74,7 @@
         <audit.version>${esquire.version}</audit.version>
         <auKeep.version>${esquire.version}</auKeep.version>
         <tp.version>${esquire.version}</tp.version>
+        <aws-sdk.version>2.54.6</aws-sdk.version>
         <!-- war version -->
         <!-- war.version>${esquire.version}</war.version -->
 
@@ -112,6 +115,13 @@
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-dependencies</artifactId>
                 <version>${spring-boot.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            <dependency>
+                <groupId>software.amazon.awssdk</groupId>
+                <artifactId>bom</artifactId>
+                <version>${aws-sdk.version}</version>
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>

@@ -783,6 +783,147 @@ Jackson-parsed by construction. The wire mapper is a bare `new ObjectMapper()` w
 **Raised by:** fresh-mind audit M5 (2026-08-24); the sweep of every rig came after it.
 
 ---
+## 20. Driver-internal telemetry -- what the transport equipment inside a service reports
+
+**What the current build does.** The bus meter set is emitted entirely ABOVE the transport, by `AXRod`:
+`messaging.sent`, `messaging.send.duration`, `messaging.received`, `messaging.error`, `messaging.retry.*`,
+and the registered gauges `messaging.feed.depth`, `messaging.retry.held`, `messaging.transport.up`. Every one
+is tagged `bus-id` / `slot-id` / `msgType`, and the driver contributes nothing to any of them.
+
+That is deliberate, and it is why a bus reads the same whichever driver carries it. It is also the whole of
+what exists: **no driver emits a meter of its own.** Not one of `tp-activemq`, `tp-kafka`, `tp-redis`,
+`tp-sqs`, `tp-sns`, `tp-kinesis` touches `IRodMeters` or `RodObserverHolder`.
+
+**Why it is enough for now.** The bus meters answer the questions the bus is asked: is the leg connected, is
+traffic moving, how long does a send take, is the feed backing up, is anything being retried or dropped. A
+transport fault shows up in them -- as a send that takes longer, an error counted on the leg, or the transport
+gauge going to zero.
+
+**What is missing.** Everything about the equipment the driver itself runs inside the service. Two layers,
+and they are not the same work:
+
+*(a) What the vendor client already measures about itself.* An adapter, not a measurement.
+
+| driver | the in-process client offers | adapter |
+|---|---|---|
+| `tp-sqs` / `tp-sns` / `tp-kinesis` | AWS SDK `MetricPublisher`: API call duration, service call duration, call successful, retry count, backoff delay, signing duration, time to first byte -- tagged by operation | one class to write |
+| `tp-kafka` | the Kafka client metric set (send rate, request latency, consumer lag) | Micrometer `KafkaClientMetrics` exists |
+| `tp-redis` | Lettuce command latency | `MicrometerCommandLatencyRecorder` exists |
+| `tp-activemq` | nothing -- the ActiveMQ client publishes no metric set | would have to be built |
+
+*(b) What only the driver can measure -- its own machinery.* Poll threads alive, empty-poll rate, batch
+actually returned against batch asked for, a queue re-created under a leg, a subscription re-wired, a delete
+that failed after the handler ran. And, on `tp-kinesis`, the one number a drained stream is judged by:
+`GetRecords` returns `millisBehindLatest` on every poll -- how far behind the consumer is, the Kinesis
+equivalent of Kafka consumer lag -- and the driver currently discards it.
+
+**Why this is its own work and not a sprint fix.** These meters are VENDOR-SPECIFIC by nature: each set has
+its own names, its own units and its own idea of what is worth counting, so doing it honestly means learning
+six vendors' metric vocabularies, not writing six adapters. Half-doing it is worse than not doing it -- a
+board where one driver reports its client and five do not invites exactly the wrong comparison. And every
+series added has to land in the observability inventory and on a board, or it becomes the loose end the O set
+took seven runs to close. `AWS_REQUEST_ID` as a tag is unbounded cardinality and must never be one.
+
+**The fuller form.** One decision on what a driver is expected to report REGARDLESS of vendor -- the (b) list
+above is the candidate, because it is the same shape for every transport -- expressed as an addition to
+`IRodMeters` so it stays the bus's vocabulary rather than the vendor's. Vendor-native client metrics (a) ride
+behind an explicit per-driver opt-in, off by default, and are named and inventoried per vendor.
+
+**Raised by:** mir0n, 2026-08-29, reviewing the AWS drivers in v1.2.14 -- "we have to do this for all
+vendors". Held at the level `tp-activemq` sets, which is none, so no driver is ahead of another.
+
+---
+## 21. A pushed receive leg on Kinesis -- enhanced fan-out
+
+**What the current build does.** `tp-kinesis` reads with `GetRecords`, one poll thread per shard.
+`GetRecords` has NO wait parameter: it answers at once whether or not there is anything in the shard, so the
+driver sleeps `poll-millis` between empty reads and that interval IS the delivery latency. The floor is
+200ms, because `GetRecords` is capped at five calls a second per shard -- sleeping less earns
+`ProvisionedThroughputExceededException`, not lower latency.
+
+This is the one place where the AWS transports are not interchangeable. An SQS receive carries
+`waitTimeSeconds` and is held OPEN by AWS, returning the instant a message lands; a Kinesis reader waits in
+its own JVM and nothing can wake it early.
+
+**Why it is enough for now.** Kinesis carries the AUDIT bus, and 200ms to write a `*_log` row matters to
+nobody. The one place it showed at all was a read-after-write: a client that creates an entity and
+immediately asks bizTree for it can lose that race -- which is why the entity broadcast is on SNS, whose
+queue-backed receive returns in milliseconds.
+
+**What is missing.** Kinesis does offer a genuinely PUSHED read, and the driver does not use it:
+`SubscribeToShard` -- enhanced fan-out. HTTP/2, records pushed to the consumer, about 70ms, and a dedicated
+2 MB/s per consumer per shard instead of sharing the shard's read budget.
+
+**Why it is a rewrite and not a switch.** Four things, all visible in the API:
+
+| | |
+|---|---|
+| a different client | `subscribeToShard` exists only on `KinesisAsyncClient`; this driver is built on the sync `KinesisClient` |
+| a different shape | an HTTP/2 event stream driven by a `SubscribeToShardResponseHandler` -- callbacks, not a request/response loop, so it is its own class beside `KinesisConsumer` rather than a branch inside it |
+| a registration lifecycle | `SubscribeToShardRequest` needs a `consumerARN`, which comes from `registerStreamConsumer` and must reach ACTIVE first, and be deregistered on shutdown. Twenty registered consumers per stream is the limit |
+| a subscription that expires | a subscribe runs five minutes, then ends. Re-subscribing means continuing from the last sequence number, so the position this driver deliberately keeps only in memory becomes load-bearing |
+
+It also BILLS per consumer-shard-hour plus per GB retrieved, on top of the stream -- which is why it was not
+taken for a lab whose sibling task is "lowest possible cost".
+
+**The fuller form.** A `KinesisFanOutConsumer` beside the polled one (roughly 200-300 lines, plus the
+registration lifecycle and re-subscribe handling), chosen by a leg param -- `read-mode: poll | fan-out`,
+defaulting to `poll` -- so only a bus that needs the lower latency pays for it. The dependency is already
+there: `aws-lib` ships Netty, so the async client's HTTP/2 needs are covered.
+
+**Raised by:** mir0n, 2026-08-29, reading how the Kinesis receive leg waits -- "where does it sleep?". The
+answer (in our own JVM, not on the server) is what makes this its own item rather than a tuning knob.
+
+---
+## 22. A doc of its own for every transport provider
+
+**What the current build does.** Two of the five drivers carry their own description; three do not.
+
+| driver | its own doc |
+|---|---|
+| `tp-activemq` | none -- only the `#### tp-activemq` subsection of `Esquire.MessagingBus.md` |
+| `tp-kafka` | none -- same |
+| `tp-redis` | none -- same |
+| `tp-sqns` | `tp-sqns/doc/tp-sqns.md` |
+| `tp-kinesis` | `tp-kinesis/doc/tp-kinesis.md` |
+
+The split is historical, not a decision: the AWS pair were written after the rule that vendor specifics belong
+beside the driver, and the three older ones were not moved.
+
+**Why it is enough for now.** Nothing is undocumented. The framework doc carries a subsection per driver, and
+for ActiveMQ, Kafka and Redis those subsections are complete -- publisher, consumer, vendor params, the
+convention keys. A reader looking for how a driver behaves finds it; they just find it in one shared file
+rather than beside the code.
+
+**What is missing, and it is not only tidiness.** A per-driver doc is where a VENDOR'S OWN vocabulary and
+traps get stated, and the framework doc is the wrong place for them because it must stay vendor-neutral. Two
+concrete cases already exist:
+
+- **The word `partition` means different things in Kafka and Kinesis.** Kafka's *partition* is Kinesis's
+  *shard* (the real log resource); Kinesis's *partition key* is Kafka's *key* (the routing input). Carrying
+  the Kafka meaning across leads straight to a wrong `partition-by`. That warning is written in
+  `tp-kinesis/doc/tp-kinesis.md` and in the tp-kinesis subsection of the framework doc -- so it reaches a
+  Kinesis reader, and says nothing to the Kafka reader who is the one holding the other meaning.
+- **Who waits for a message differs per vendor**, and the shape of each driver follows from it: a persistent
+  TCP connection is what lets ActiveMQ and Kafka observe their own connection health, while an HTTPS call per
+  read leaves the AWS drivers with only the outcome of the last call -- which is why their health seeds
+  UNKNOWN. That comparison lives in `tp-kinesis/doc/tp-kinesis.md` for want of anywhere better.
+
+So the facts that are ABOUT a vendor end up filed under whichever driver happened to need them first.
+
+**The fuller form.** `tp-activemq/doc/tp-activemq.md`, `tp-kafka/doc/tp-kafka.md`, `tp-redis/doc/tp-redis.md`,
+each in the shape the two AWS ones already use: what the vendor actually is in bus terms, the traps its
+vocabulary sets, what rides on the wire, configuration, and health. The framework doc then keeps the
+driver-neutral view and stops carrying vendor detail. The cross-vendor comparisons (the `partition`
+vocabulary, the who-waits table) move to wherever both sides can see them rather than sitting in the newest
+driver's file.
+
+**Raised by:** mir0n, 2026-08-29 -- "we had to update tp-kafka.md: do we have one?". We do not, and the
+answer to why is this item. Writing the Kafka doc was deliberately NOT done as part of v1.2.14: that module
+is outside the sprint, and a stub created only to hold one cross-reference would be worse than the
+cross-reference living where it is.
+
+---
 ## Related parked items
 
 - Transport SPI is ActiveMQ-shaped; selector / `key()` / durability differ per driver -- the per-driver selector

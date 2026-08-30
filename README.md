@@ -98,11 +98,11 @@ through the moment it is up. Background, the architecture, and the developer wor
 ## Documentation
 
 ### Architecture & Design
-- [Esquire Messaging Bus — the vendor-agnostic bus subframework](doc/Esquire.MessagingBus.md) *(topology catalog, x-rod frontend, and a pluggable transport-provider SPI: tp-activemq / tp-kafka / tp-redis)* — suite: [how Esquire uses the bus](doc/Esquire.Messaging.md), [message structure](doc/Esquire.MessagingBus.MessageStructure.md), [integration guides](doc/Esquire.MessagingBus.Guides.md), [design Q&A](doc/Esquire.MessagingBus.Q&A.md), [continuing development](doc/Esquire.MessagingBus.ContinuingDev.md)
+- [Esquire Messaging Bus — the vendor-agnostic bus subframework](doc/Esquire.MessagingBus.md) *(topology catalog, x-rod frontend, and a pluggable transport-provider SPI: tp-activemq / tp-kafka / tp-redis / tp-sqns / tp-kinesis)* — suite: [how Esquire uses the bus](doc/Esquire.Messaging.md), [message structure](doc/Esquire.MessagingBus.MessageStructure.md), [integration guides](doc/Esquire.MessagingBus.Guides.md), [design Q&A](doc/Esquire.MessagingBus.Q&A.md), [continuing development](doc/Esquire.MessagingBus.ContinuingDev.md)
 - [Observability Stack](doc/Esquire.ObservabilityStack.md) *(metrics, tracing, and logging as common tooling)* — suite: [logging strategy](doc/Esquire.ObservabilityStack.Logging.md), [Grafana dashboards guide](doc/Esquire.GrafanaGuide.md)
 - [Authentication & Authorization — the tree-shaped security model](doc/Esquire.Auth.md) *(identity claims `esq_uid` / `esq_rootpath`; the keySmith / kcMaster / KeyCloak collaboration; `ep_path` visibility + role-based authority)* — suite: [token patterns](doc/Esquire.Auth.TokenPatterns.md) (BFF / JWT / Vanilla & Phantom Token Relay; JWE parked under stock KC) and [keySmith credential routines](doc/Esquire.Auth.keySmithRoutine.md)
 - [bizTree — Taijitu Recoverable Cache Architecture](doc/Esquire.BizTree.md) *(the Supreme Ultimate Cache: two-monad anti-entropy double-buffer + night-watch sweep)*
-- [Audit Logging Stack](doc/Esquire.AuditLoggingStack.md) *(pluggable audit seam over the generic keep engine; six selectable strategies, ActiveMQ / Kafka / Redis transport, the auKeep consumer service)*
+- [Audit Logging Stack](doc/Esquire.AuditLoggingStack.md) *(pluggable audit seam over the generic keep engine; selectable strategies, ActiveMQ / Kafka / Redis / Amazon Kinesis transport, the auKeep consumer service)*
 - [High Availability](doc/Esquire.HighAvailability.md) *(replica topology, the resilience budget, and how each delivery channel survives duplication)*
 - [Design Q&A](doc/Esquire.Q&A.md) *(cross-cutting design questions and how they were resolved)*
 
@@ -184,7 +184,8 @@ run as a single instance here; each is a third-party platform that brings its **
        <br> - <i>Entity Broadcast Bus</i> — enyMan and pacMan publish entity change events on every mutation;
          bizTree and other interested consumers subscribe
        <br> - <i>Audit Broadcast Bus</i> — optional (off by default); the entity-updating services (enyMan, pacMan, keySmith)
-         publish each committed change event. Transport vendors: ActiveMQ, Kafka, or Redis.
+         publish each committed change event. Transport vendors: ActiveMQ, Kafka, Redis, or the
+         message services Amazon provides.
   </td></tr>
 
   <tr><td style="width: 100%;">

@@ -50,7 +50,8 @@ same routes and the same bus legs. The compact component model is drawn at the e
 Behind the services are the **shared libraries**, layered base-first —
 `mir0n-utils` &larr; `messaging` &larr; `common` — plus `dataKeep` (the generic keep engine) and
 the companions `audit` (audit wiring) and the transport drivers `tp-activemq` / `tp-redis` /
-`tp-kafka` (one per bus provider). Details: `Esquire.MessagingBus.md`, `Esquire.BizTree.md`.
+`tp-kafka` / `tp-sqns` / `tp-kinesis` (one module per bus provider; `tp-sqns` carries two, `sqs` and `sns`).
+Details: `Esquire.MessagingBus.md`, `Esquire.BizTree.md`.
 
 ### 1.2 Browser tier — BFF + SPA (the `explorer` repo)
 
@@ -71,10 +72,11 @@ every service via `spring.config.import`). Three logical buses ship:
 |---|---|---|
 | `esquire.entity` | broadcast (topic) | publishers post entity updates on `esquire.entity.broadcast`; `bizTree` + `kcMaster` consume and apply |
 | `esquire.kc`     | request / response | two nodes `esquire.kc.request` + `esquire.kc.response`; `enyMan` / `keySmith` are the CLIENT, `kcMaster` the SERVER |
-| `audit-*`        | sink | the audit feed — `auKeep` consumes and writes the log. One `audit` slot, several transports: `audit-c` (ActiveMQ, the default), `audit-ck` (Kafka), `audit-d` (Redis stream), `audit-dk` (Kafka topic), and `audit-off` (an explicit no-op when DB triggers carry the audit instead) |
+| `audit-*`        | sink | the audit feed — `auKeep` consumes and writes the log. One `audit` slot, several transports: `audit-c` (ActiveMQ, the default), `audit-ck` (Kafka), `audit-k` (Amazon Kinesis), `audit-d` (Redis stream), `audit-dk` (Kafka topic), and `audit-off` (an explicit no-op when DB triggers carry the audit instead) |
 
-The default transport is an **ActiveMQ** broker; **Kafka** and **Redis** providers also exist and
-are selected per slot in the catalog. Full model (bus / slot / node / role / rod-class / transport):
+The default transport is an **ActiveMQ** broker; **Kafka**, **Redis**, **Amazon SQS**, **Amazon SNS** and
+**Amazon Kinesis** providers also exist and are selected per slot in the catalog. The AWS three run in their
+own sandbox, `services/compose-aws`, against a local AWS stack. Full model (bus / slot / node / role / rod-class / transport):
 `Esquire.MessagingBus.md`.
 
 ### 1.4 Backing infrastructure

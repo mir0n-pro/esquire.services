@@ -1,0 +1,41 @@
+# Grafana Tempo -- the trace store (the T of LGTM). Single-binary, local filesystem storage (dev). Receives
+# spans from the OTel Collector over OTLP/gRPC; Grafana queries it over its HTTP API on :3200. 6-hour retention
+# mirrors the Loki log retention so a trace and its log lines age out together.
+stream_over_http_enabled: true
+server:
+  http_listen_port: 3200
+
+distributor:
+  receivers:
+    otlp:
+      protocols:
+        grpc:
+          endpoint: 0.0.0.0:4317
+        http:
+          endpoint: 0.0.0.0:4318
+
+ingester:
+  # Dev responsiveness: a trace is complete 10s after its last span; blocks cut every 1m. The in-memory
+  # ring lets the single-binary querier find the ingester, so SEARCH covers recent (still-in-ingester)
+  # traces too -- not just trace-by-id from flushed blocks.
+  trace_idle_period: 10s
+  max_block_duration: 1m
+  lifecycler:
+    ring:
+      replication_factor: 1
+      kvstore:
+        store: inmemory
+
+compactor:
+  compaction:
+    block_retention: 6h            # matches Prometheus metrics retention -- one window for all three signals
+
+storage:
+  trace:
+    backend: local
+    # discover freshly flushed blocks reasonably fast (default 5m)
+    blocklist_poll: 30s
+    local:
+      path: /var/tempo/traces
+    wal:
+      path: /var/tempo/wal

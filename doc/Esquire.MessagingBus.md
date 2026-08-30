@@ -411,15 +411,23 @@ always a deliberate, in-catalog declaration — never a quietly-absent one.
 ```java
 interface ITransportProvider {
     TransportPublisher openPublisher(String destination, PublishSettings settings);
-    AutoCloseable      openConsumer(String destination, ConsumeSettings settings,
+    TransportConsumer  openConsumer(String destination, ConsumeSettings settings,
                                     Consumer<TransportMessage> handler);
-    default boolean supportsConsume() { return true; }
+    default TransportConsumer openConsumerOn(TransportPublisher publisher, String destination,
+                                             ConsumeSettings settings, Consumer<TransportMessage> handler);
+    default boolean supportsConsume()   { return true; }
+    default boolean supportsBothLegs()  { return true; }
 }
 ```
 
-Both ends hand back a close handle: `openConsumer` returns an `AutoCloseable` (stop the listener);
-`openPublisher` returns a `TransportPublisher` (a message sink that is also `AutoCloseable`, so closing it
-releases the provider's own broker connection). An x-rod closes both on shutdown.
+Both ends hand back a close handle: `openConsumer` returns a `TransportConsumer` -- created PAUSED, so it is
+subscribed but delivers nothing until `start()` -- and `openPublisher` returns a `TransportPublisher` (a
+message sink that is also `AutoCloseable`, so closing it releases the provider's own broker connection). An
+x-rod closes both on shutdown.
+
+`supportsConsume()` is `false` for a transport with no receive leg; `supportsBothLegs()` is `false` where one
+rod cannot run transmit and receive on the same node. The x-rod checks both BEFORE opening anything, so an
+impossible role fails fast instead of running and never delivering.
 
 `TransportMessage` is transport-neutral: a header property bag plus an optional routing/partition `key`
 (the entity id, so a partitioning transport keeps per-key order). A provider builds its OWN broker client
@@ -451,6 +459,15 @@ bare-lib presence would otherwise wire the app's shared broker. The x-rod owns i
 | `tp-kafka` | `KafkaAutoConfiguration` |
 | `tp-redis` | `RedisAutoConfiguration` + `RedisReactiveAutoConfiguration` |
 
+`tp-sqns` and `tp-kinesis` ship no such filter: the AWS SDK brings no Boot auto-config, so there is nothing
+that could reach for a shared client behind the x-rod's back.
+
+Those two are also **attached at deployment rather than built in**: no service module depends on them, and no
+service image carries a byte of the AWS client. A deployment that wants them mounts the driver jar plus its
+dependency folder and names both on `loader.path`. So the same image runs with or without AWS, and a
+non-AWS deployment carries none of it. The consequence to know: an attached driver may only call framework
+API the SHIPPED image already has, since the image bakes its own `esquire-messaging` jar.
+
 #### Generic vendor parameters
 
 Every `transport.params.*` key reaches the driver verbatim (dotted keys preserved). Each driver applies
@@ -470,6 +487,25 @@ transport:
     jms.clientID: ${rod-id}     # ActiveMQ -> e.g. enyman.0   (client.id: ${rod-id} for Kafka)
 ```
 
+**Where a vendor has more than one place to put a setting.** ActiveMQ parses one broker URI, Kafka takes one
+config map, Lettuce takes one `redis://` URI -- so "hand the whole group over" has a single destination. AWS
+does not work that way: a setting belongs to the SDK client, or to CreateQueue, or to CreateTopic, or to
+Subscribe, or to the stream. The AWS drivers therefore read a **prefix** that names the call, and the key
+after it is the vendor's own name, passed on with no per-key code:
+
+| prefix | goes to | example |
+|---|---|---|
+| `client.` | the SDK client override | `client.apiCallTimeout: 5000` |
+| `queue.` | SQS `CreateQueue` attributes | `queue.VisibilityTimeout: 60` |
+| `topic.` | SNS `CreateTopic` attributes | `topic.DisplayName: esquire` |
+| `subscription.` | SNS `Subscribe` attributes | `subscription.RawMessageDelivery: true` |
+| `stream.` | the Kinesis stream settings | `stream.RetentionPeriodHours: 48` |
+
+A bare key is one the driver owns (`region`, `route-by`, `partition-by`, `iterator-type`, `poll-millis`,
+`limit`, `wait-seconds`, `batch-size`, `noLocal`). A key that is neither is **refused when the leg opens**:
+it has no call to go to, and dropping it in silence is how a leg ends up running without a setting the
+topology says it has.
+
 #### Dual-leg on one connection (broadcast own-exclusion)
 
 A broadcast CLIENT both transmits and receives on the SAME topic, and it can run both legs over ONE broker
@@ -488,6 +524,28 @@ what the leg consumes to the caller's predicate (e.g. `EventType = 'I'`) -- the 
 transport's `noLocal`, NOT folded into the subscription. It is a plain selector (not a durable subscription),
 and the consumer is re-opened only when the selector changes. Only the single-node broadcast `XRod` applies it;
 an R&R rod (which already selects by rod-id / slot-id) warns and ignores it.
+
+#### When the vendor filters nothing
+
+A broker does both of those jobs itself. SNS, SQS and Kinesis do neither: every reader of a queue or a shard
+gets everything on it. So the framework carries the two filters, in `messaging.transport`, and a driver whose
+vendor has no equivalent composes them on the receive side:
+
+```java
+Consumer<TransportMessage> receiver = SelectingReceiver.wrap(handler, settings.selector());
+receiver = OwnExcluding.wrap(receiver, ownRodId, noLocal);
+```
+
+| filter | the question it answers | where it comes from |
+|---|---|---|
+| `OwnExcluding` | did THIS rod publish it? | the topology -- `noLocal: true` -- plus the leg's own rod-id |
+| `SelectingReceiver` | did this consumer ask for it? | the application -- `IXRod.setWorker(subscription, worker)` |
+
+They are **two filters, not one**, because they answer two different questions and every consumer brings its
+own subscription while own-exclusion is the same question for all of them. `SelectingReceiver` reads the same
+selector grammar a broker would (`FIELD = 'v'`, `<>`, `!=`, `IN`, `NOT IN`, joined by `AND`) over the header
+bag, and REFUSES a selector it cannot read when the leg opens -- a filter that silently passes everything is
+worse than one that will not start.
 
 #### `tp-activemq` (queue / topic)
 
@@ -551,6 +609,76 @@ an R&R rod (which already selects by rod-id / slot-id) warns and ignores it.
   connection option; Lettuce's `RedisURI` parses them (database / timeout / …); host / port / password
   come from the endpoint authority.
 
+#### `tp-sqs` (queue)
+
+- **Publisher** -- an `SqsClient` built from `region` (absent = the SDK default chain) with the endpoint
+  overridden only when the topology gives one, which is the LocalStack case. Credentials always come from the
+  SDK default credential chain, so none is ever written into a file. Each send resolves the queue from the
+  message, creates it if it is not there, and sends the header bag as the message BODY: SQS allows at most ten
+  message attributes and the bag carries about twenty.
+- **Consumer** -- a long-poll loop per `concurrency` thread (`wait-seconds`, default 20 = the SQS maximum;
+  `batch-size`, default 10 = the maximum per receive). The **delete is the acknowledgement** and happens only
+  after the handler returned, so a message whose handling threw stays hidden for the visibility timeout and is
+  delivered again -- the only redelivery SQS offers.
+- **Convention key -- `route-by`.** SQS has no message selector, and R&R needs one. So the filter becomes a
+  DESTINATION: the node names the header that splits the queue, a publisher takes the value off the message it
+  is sending, and a consumer takes it off its own identity. `RodID` gives a queue per instance, `SlotID` a
+  queue per slot. The server x-rod already echoes the requester's rod-id onto the reply, so a reply carries the
+  queue it belongs in and no framework change was needed.
+- **A queue that disappears comes back.** Both legs handle `QueueDoesNotExistException`: the consumer clears
+  its cached URL and makes the queue again on the next turn, the publisher evicts and retries the send once.
+
+#### `tp-sns` (topic, with a queue per consumer)
+
+- **SNS delivers into ANOTHER AWS service; it is not a place a message sits.** A subscription names a
+  protocol -- `sqs`, `lambda`, `email`, `http`/`https`, `sms`, `firehose` -- and on publish SNS hands the
+  message to each subscribed endpoint. There is no receive API: nothing an application runs can read from a
+  topic, and a subscription is an address, not a consumer that connects and waits.
+- **So the choice of protocol IS the design.** `sqs` is the one that waits to be pulled, which is what a rod
+  needs, so a consuming leg owns a QUEUE of its own, subscribed to the topic and named from its rod-id -- and
+  every instance gets the whole broadcast instead of instances competing for one copy. The topology declares
+  the topic and nothing else; the driver makes the queues.
+- **Publisher** -- `CreateTopic` (which returns the existing topic for a name already taken), then `Publish`
+  with the bag as the body and the rod-id also as a message attribute.
+- **Consumer** -- the same long-poll loop `tp-sqs` uses, over the leg's own queue, with the two receive
+  filters above in front of the handler.
+- **Wiring a queue onto a topic** takes three things, and all three are set every time a queue is made, so a
+  queue that had to be re-made comes back WIRED rather than merely present: a **queue policy** allowing that
+  topic to write (SNS is a different service and a queue refuses it until told otherwise -- LocalStack lets it
+  through, real AWS does not); **raw message delivery**, so the body stays the header bag; and the **filter
+  policy cleared**, because `Subscribe` applies attributes only when it CREATES a subscription, so a policy an
+  earlier deployment left behind would go on dropping messages nobody asked it to drop.
+- No confirmation token is involved: `http`, `https` and `email` subscriptions need one, an `sqs` subscription
+  does not -- the queue policy takes its place.
+
+#### `tp-kinesis` (stream -- both legs)
+
+- **Publisher** -- `CreateStream` on-demand (no shard count to choose; an idle stream costs nothing to keep),
+  waits for ACTIVE, then one `PutRecord` per event with the header bag as the record data. The stream IS what
+  is read back, so what is written is what is read.
+- **Consumer** -- shard discovery at `start()`, then ONE poll thread per shard running `GetRecords`. A stream
+  keeps nobody's position, so the leg holds its own, in memory. On a restart it begins where `iterator-type`
+  says: `TRIM_HORIZON` re-reads the retained window, `LATEST` takes only what arrives next.
+- **Read `partition` the Kinesis way, not the Kafka way.** The two vendors use the word for different
+  things, and `tp-kafka` is two sections above: Kafka's **partition** is Kinesis's **shard** (the real log
+  resource), while Kinesis's **partition key** is Kafka's **key** (the routing input on a record). A shard
+  owns a contiguous range of a 128-bit hash space and a key is hashed into it, so the mapping is many-to-one:
+  a key buys ORDER within itself, never a channel of its own.
+- **Convention key -- `partition-by`, and its ABSENCE is the important case.** Kinesis keeps order only
+  WITHIN a partition key and gives each shard its own reader, so any key that varies is a decision to give up
+  total order. Absent means **FIFO**: every record under one key, one shard, one ordered sequence. Naming a
+  header is opting IN to spreading, and is only safe where records do not depend on one another -- the audit
+  log is such a case (`partition-by: EntityID` keeps each entity's history ordered and spreads the load); a
+  broadcast that BUILDS something is not, because a parent must be applied before its child.
+- **FIFO is only half the job.** Ordering the wire buys nothing if the far end applies four records at once.
+  Kinesis hands over a whole `GetRecords` batch, so an ordered bus also needs `receiver-pool.size: 1`.
+- **`poll-millis` is the delivery latency.** Every consumer here PULLS -- nothing is pushed into a service --
+  but there are two kinds of pull, and the difference is the whole gap. SQS `ReceiveMessage` takes a wait time
+  and BLOCKS on the server, returning the moment a message arrives: a pull that costs milliseconds. Kinesis
+  `GetRecords` answers at once, empty or not, so the consumer must pace itself and the interval IS the
+  latency. `GetRecords` is capped at five calls a second per shard, so **200ms is the floor** and is the
+  default. Real consequence: a client that writes and immediately reads back can lose that race.
+
 ### Logging
 
 Each message crossing a leg is logged once, by the framework, on that leg's `msg.<bus-id>.<slot-id>`
@@ -588,8 +716,13 @@ session sublayers (the alive keep-alive and the send-retry hold signal, both **O
 - **The transport indicator (always on, the default source).** Each leg reports the connection health its vendor
   client already exposes -- no extra traffic: ActiveMQ a `TransportListener` (`interrupted -> DOWN` /
   `resumed -> UP`) + send outcome; Redis (Lettuce) and Kafka the send outcome + client keepalive / group
-  heartbeat / metadata. A transport that cannot observe its connection answers `UNKNOWN` (benign -- reported,
-  never fails readiness). Surfaced through `RodPublisher.health()` / `TransportConsumer.health()`, folded across
+  heartbeat / metadata; the AWS drivers the outcome of a send or a receive, since an HTTP request/response
+  client has no connection to listen on. A transport that cannot observe its connection answers `UNKNOWN`
+  (benign -- reported, never fails readiness).
+
+  A leg **seeds `UNKNOWN`**, never `UP`. Opening a leg proves that a control-plane call answered -- a topic
+  was created, a queue exists -- not that a message can move, and a leg that claims `UP` before anything has
+  travelled makes `messaging.transport.up` read 1 on a bus that has never carried a message. Surfaced through `RodPublisher.health()` / `TransportConsumer.health()`, folded across
   the transmit + receive legs. The per-vendor settings + the when-to-enable-alive guidance live in
   `services.configuring.md`.
 - **The alive protocol (OPT-IN, `alive: true`, OFF by default)** — the `AliveSession` session sublayer (see
@@ -877,7 +1010,8 @@ A service may also extend the catalog with its OWN leg under its own namespace,
 topology BY ID — a same-id bus/slot replaces, a new one is added). x-rod knobs per leg: `rod-class`, `feed-capacity`,
 `concurrency`, the `receiver-pool` and `publisher-pool` groups (`{ size, mode }`), plus the `transport` group and any
 x-rod-owned sub-block. Vendor knobs ride
-`transport.params.*` and pass through verbatim. This appendix is the generic shape; the concrete catalog a
+`transport.params.*` and pass through verbatim -- with a prefix naming the call for a vendor that has more
+than one place to take a setting (see [Generic vendor parameters](#generic-vendor-parameters)). This appendix is the generic shape; the concrete catalog a
 deployment runs (which buses exist + the env that drives them) is documented with that deployment's bus
 configuration — for Esquire, in `doc/services.configuring.md`.
 
@@ -909,6 +1043,9 @@ esquire:
               params:                    # opaque, verbatim to the driver
                 pubSubDomain: true       # ActiveMQ only: topic vs queue (absent = queue)
                 <vendor-key>: <value>
+                # AWS: a prefix names the call the key belongs to
+                queue.VisibilityTimeout: 60
+                client.apiCallTimeout: 5000
 
     - bus-id: <bus-id>                   # request/response (two nodes)
       slots:

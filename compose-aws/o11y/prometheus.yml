@@ -1,0 +1,80 @@
+# Esquire frameworks (tm) -- Prometheus scrape config (docker environment)
+#
+# Pull model: Prometheus scrapes each Java service's /actuator/prometheus on the docker network. The endpoint
+# exists only when observability is enabled (ESQ_OBSERVABILITY_ENABLED=true -> the ObservabilityConfig meter
+# registry bean); a target that is off or has no endpoint simply reports "down" and is otherwise harmless.
+# Targets are the in-network service name + its own port. Beyond the Java services this also scrapes the BFF
+# (esq-backend, Node/prom-client), KeyCloak (Quarkus mgmt :9000/kc-auth/metrics), and Postgres (via
+# postgres-exporter :9187).
+global:
+  scrape_interval: 15s
+  scrape_timeout: 10s
+
+# Framework-health alert rules (I55). Routing to an Alertmanager is the OPERATOR slot -- add an `alerting:`
+# block here and a contact point when you deploy. See rules.yml for the operator-slot notes.
+rule_files:
+  - rules.yml
+
+scrape_configs:
+  - job_name: esquire-services
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets:
+          # actuator (incl. /actuator/prometheus) on the SEPARATE management port 8090, NOT the public main port
+          # (audit F0 A6) -- the main ports stay client-facing and never serve /actuator.
+          - gateway:8090
+          - biztree:8090
+          - enyman:8090
+          - pacman:8090
+          - keysmith:8090
+          - kcmaster:8090
+          - aukeep:8090
+      # BFF (Node/prom-client, T5c) -- its own /metrics endpoint, not /actuator/prometheus
+  - job_name: esquire-bff
+    metrics_path: /metrics
+    static_configs:
+      - targets: [ backend:3000 ]
+
+  # KeyCloak -- Quarkus management interface on :9000 (KC_METRICS_ENABLED=true). The management interface
+  # honors KC_HTTP_RELATIVE_PATH, so metrics live under /kc-auth/metrics (not bare /metrics).
+  - job_name: keycloak
+    metrics_path: /kc-auth/metrics
+    static_configs:
+      - targets: [ keycloak:9000 ]
+
+  # Postgres -- via postgres-exporter (pg_stat_* -> metrics) on :9187.
+  - job_name: postgres
+    metrics_path: /metrics
+    static_configs:
+      - targets: [ postgres-exporter:9187 ]
+
+  # The SERVICE GRAPH (T9-C). The OTel Collector's servicegraph connector derives caller->callee edges from the
+  # spans flowing through it and exposes them here as traces_service_graph_request_* . This is the ONLY metric
+  # source that knows the SHAPE of the system rather than the state of one component -- and it discovers it from
+  # real traffic, so it stays true when the architecture changes and a hand-drawn map would not.
+  - job_name: otel-servicegraph
+    metrics_path: /metrics
+    static_configs:
+      - targets: [ otel-collector:8889 ]
+
+  # The collector's OWN telemetry (:8888) -- spans accepted / refused, exporter queue. The hub every trace passes
+  # through was reporting nothing about itself: if it started DROPPING spans the only symptom would have been
+  # traces quietly going missing, with no metric anywhere to say so.
+  - job_name: otel-collector
+    metrics_path: /metrics
+    static_configs:
+      - targets: [ otel-collector:8888 ]
+    relabel_configs:
+      - target_label: component
+        replacement: collector
+
+  # NOTE what is deliberately NOT scraped (mir0n, 2026-07-12): Prometheus / Loki / Tempo / Grafana / Alloy all
+  # expose /metrics natively and it would cost nothing to scrape them -- and they are still left alone. The
+  # topology board answers "what is the SYSTEM doing", and six boxes of tooling watching the tooling drowns that
+  # question. The VIEWER IS NOT THE SYSTEM. Scraping them with nothing reading it would just be dead config.
+  # The Collector is the one exception below, and for a reason that is about our DATA, not about the tool.
+
+  # No broker job. The classic stack scrapes its ActiveMQ through a JMX exporter agent inside the broker JVM;
+  # this lab runs no broker of its own -- the transports are Amazon SNS, SQS and Kinesis, whose server-side
+  # view lives in CloudWatch. A job kept here would scrape a host that does not exist and report one target
+  # permanently down, which is how a real outage learns to look normal.
