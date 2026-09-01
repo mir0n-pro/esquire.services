@@ -59,7 +59,21 @@ if "%bff_session_secret%"=="" set "bff_session_secret=esq-bff-session-secret"
 rem esq-kcMaster KC admin service-account client secret (client_credentials -> KC admin REST API). Set the same
 rem way as the BFF / gateway KC secrets: --set at install, defaulting to the realm-import value. Override the env
 rem var if you rotate the esq-kcMaster secret in the production KC admin UI.
-if "%kcmaster_admin_secret%"=="" set "kcmaster_admin_secret=MHgq0Nu69u2uJ2johaK1wxQLMdakELXN"
+rem esq-kcMaster is the ONE published client holding realm-management realm-admin -- every
+rem other service account (esq-rest, esq-hauberk, esq-hauberk-S, esq-hauberk-M) has none. Its
+rem secret is therefore the realm's master key, not one credential among seven.
+rem
+rem NO FALLBACK AND NO SKIP, on any target, deliberately. A default reinstates the published
+rem value; a skip leaves the release running the OLD value after a rotation -- and both report
+rem success. Set it once in the system environment, the way mir0n_pwd already is.
+if "%kcmaster_admin_secret%"=="" (
+    echo [FAIL] KCMASTER_ADMIN_SECRET is not set.
+    echo        esq-kcMaster is the KeyCloak realm-admin service account, and it has no
+    echo        fallback on any target on purpose.
+    echo        KeyCloak: realm esquire -^> clients -^> esq-kcMaster -^> Credentials.
+    exit /b 1
+)
+rem the value is used directly below, on the helm upgrade line
 
 set PG_PW=%mir0n_pwd%
 set KC_PW=%mir0n_pwd%

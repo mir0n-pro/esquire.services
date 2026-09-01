@@ -87,8 +87,21 @@ if "%bff_session_secret%"=="" echo [!] BFF_SESSION_SECRET is not set -- the rele
 rem esq-kcMaster KC admin service-account client secret (client_credentials -> KC admin
 rem REST API). Mesnie carries the identity work in process, so it is Mesnie that takes
 rem this now -- the same secret, handed to one workload instead of a kcMaster of its own.
-if not "%kcmaster_admin_secret%"=="" set "SET_KCMASTER_ADMIN=--set keycloak.adminClientSecret=%kcmaster_admin_secret%"
-if "%kcmaster_admin_secret%"=="" echo [!] KCMASTER_ADMIN_SECRET is not set -- the release keeps what it holds; on a FIRST install the identity sync will FAIL to authenticate. Get the value from KeyCloak: realm esquire -^> clients -^> esq-kcMaster -^> Credentials.
+rem esq-kcMaster is the ONE published client holding realm-management realm-admin -- every
+rem other service account (esq-rest, esq-hauberk, esq-hauberk-S, esq-hauberk-M) has none. Its
+rem secret is therefore the realm's master key, not one credential among seven.
+rem
+rem NO FALLBACK AND NO SKIP, on any target, deliberately. A default reinstates the published
+rem value; a skip leaves the release running the OLD value after a rotation -- and both report
+rem success. Set it once in the system environment, the way mir0n_pwd already is.
+if "%kcmaster_admin_secret%"=="" (
+    echo [FAIL] KCMASTER_ADMIN_SECRET is not set.
+    echo        esq-kcMaster is the KeyCloak realm-admin service account, and it has no
+    echo        fallback on any target on purpose.
+    echo        KeyCloak: realm esquire -^> clients -^> esq-kcMaster -^> Credentials.
+    exit /b 1
+)
+set "SET_KCMASTER_ADMIN=--set keycloak.adminClientSecret=%kcmaster_admin_secret%"
 
 set PG_PW=%mir0n_pwd%
 set KC_PW=%mir0n_pwd%

@@ -101,6 +101,16 @@ jobs:
 
       - name: Build + bring up the full stack on Docker Desktop k8s
         shell: cmd
+        # deploy-local.cmd calls k8s\k8s-up.bat and k8s-compact\k8s-up.bat, and both REFUSE to run
+        # without this: esq-kcMaster is the one published client holding realm-admin, so no deploy
+        # path may fall back to the published value or silently keep an installed one.
+        #
+        # Passed EXPLICITLY rather than left to the runner's environment. A Windows service inherits
+        # its environment when it starts, so a variable added on the machine afterwards is invisible
+        # until the service restarts -- a dependency on machine state that survives no reinstall and
+        # explains nothing when it breaks.
+        env:
+          KCMASTER_ADMIN_SECRET: ${{ secrets.KCMASTER_ADMIN_SECRET }}
         run: services\.github\scripts\deploy-local.cmd
 
       - name: Build + bring up the docker-compose stack
@@ -111,12 +121,22 @@ jobs:
       # Both bring-ups run first and always complete: a failing test gates the commit, it never leaves
       # one of the two stacks undeployed.
 
+      # BOTH e2e steps carry the admin secret because 21-credential-state-sync asserts through the
+      # KeyCloak admin API and no longer defaults to the published value -- it throws without it.
+      #
+      # ONE VALUE SERVES BOTH TARGETS ONLY WHILE THE REALMS AGREE. Local k8s and docker import the
+      # committed realm; the GitHub secret happens to hold that same value today. Rotate esq-kcMaster
+      # anywhere and these two need the LOCAL realm's secret, not the rotated one.
       - name: e2e -- Playwright vs Docker Desktop k8s
         shell: cmd
         working-directory: explorer\e2e-test
+        env:
+          KC_ADMIN_SECRET: ${{ secrets.KCMASTER_ADMIN_SECRET }}
         run: e2e-k8s.bat
 
       - name: e2e -- Playwright vs docker-compose
         shell: cmd
         working-directory: explorer\e2e-test
+        env:
+          KC_ADMIN_SECRET: ${{ secrets.KCMASTER_ADMIN_SECRET }}
         run: e2e-test.bat

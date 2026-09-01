@@ -23,7 +23,11 @@
 #   secret  BFF_KC_SECRET         (optional) esq-angular BFF client secret
 #   secret  GW_EXCHANGE_SECRET    (optional) gateWard phantom-relay exchange secret
 #   secret  BFF_SESSION_SECRET    (optional) BFF session-cookie HMAC secret
-#   secret  KCMASTER_ADMIN_SECRET (optional) esq-kcMaster KC admin service-account client secret --
+#   secret  KCMASTER_ADMIN_SECRET REQUIRED. esq-kcMaster KC admin service-account client secret.
+#                                 It is the one published client holding realm-admin, so the deploy
+#                                 script has NO fallback for it and stops when it is missing or empty.
+#                                 A REPOSITORY secret, not an environment one: validate declares no
+#                                 environment and would receive an environment secret as empty. --
 #                                 also handed to the e2e job as KC_ADMIN_SECRET, which 21-credential-
 #                                 state-sync needs to read required actions off the KC admin api
 # GHCR push authenticates with the GHCR_TOKEN PAT secret (a GitHub PAT with write:packages) --

@@ -1,6 +1,14 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v1.2.14-2609.0119  v1.2.14 -- the KeyCloak admin credential is required
+    :Fix:         every deployment path stops when the KeyCloak admin credential is missing
+    Components:  .github (CI/CD),
+                 k8s,
+                 k8s-compact,
+                 k8s-oci,
+                 k8s-oci-compact
+
 v1.2.14-2609.0113  v1.2.14 -- AWS: the four-process shape runs on Amazon EKS
     :Config:      k8s-aws-compact -- its own deployment tree: the cluster, the deploy and teardown arms, the
                   images it needs, and the browser suite over the public address
