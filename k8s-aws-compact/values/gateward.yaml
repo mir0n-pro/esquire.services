@@ -1,0 +1,114 @@
+# EKS overlay for k8s-aws-compact/charts/esquire-gateward  --  T7, super-compact, x1.
+#
+# gateWard is the gate -- the READ side. It is the security boundary AND the bizTree cache, so this ONE
+# overlay carries what the classic AWS deploy spread over values/gateway.yaml and values/biztree.yaml.
+image:
+  repository: ghcr.io/mir0n-pro/esquire.gateward
+  # tag injected by aws-up.bat -- one release tag for the whole stack.
+  # Always, NOT IfNotPresent. The release tag is vMajor.Minor.Micro-YYMM.DDHH, so it
+  # carries ONE SLOT PER HOUR -- a second build inside the same hour re-pushes the
+  # SAME tag with different content. Under IfNotPresent a node that already pulled
+  # that tag keeps the old image and the roll reports success, which is the silent
+  # half of the :latest digest trap. Always costs one registry check per pod start.
+  pullPolicy: Always
+
+awsDrivers:
+  repository: ghcr.io/mir0n-pro/esquire-tp-aws
+
+# The gate's console profile PLUS the two the cache needs: dev-postgres is the JDBC datasource it loads
+# from, cache-h2 the in-memory store it loads into.
+springProfilesActive: console,dev-postgres,cache-h2
+
+service:
+  type: ClusterIP            # behind ingress-nginx; no public LB of its own
+  port: 8080
+  managementPort: 8090
+  lbPort: 8080               # unused when type=ClusterIP, kept for chart compatibility
+
+db:
+  vendor: dev-postgres
+  host: esquire-infra-postgres
+  port: 5432
+  name: esq2025
+  username: esq2025
+
+keycloak:
+  host: esquire-infra-kc-keycloak
+  port: 8080
+  path: /kc-auth
+  realm: esquire
+  clientId: esq-angular
+
+# Where the OTHER services are. There is no biztreeHost: the five tree routes are answered in this
+# process. Mesnie answers for both enyMan and keySmith, on one host and one port.
+backends:
+  enymanHost: esquire-mesnie
+  enymanPort: 3003
+  pacmanHost: esquire-pacman
+  pacmanPort: 3003
+  keysmithHost: esquire-mesnie
+  keysmithPort: 3003
+
+cors:
+  # The BFF and the gate share ONE public host here -- the gate is reached at /esq-api on it -- so there
+  # is no second origin to allow, unlike OKE where api.esquire.mir0n.pro is its own name.
+  allowedOrigins: https://aws-esquire.mir0n.pro
+
+# Token Relay -- DISABLED, as on OKE. Vanilla / Phantom Token Relay are the not-recommended
+# JWE-workaround LAB patterns; the recommended production paths are BFF + plain JWT. An empty allowlist
+# means the gate never brokers or exchanges a relay token, so the per-client_id / per-jti cache is never
+# populated and cannot be presented.
+keycloakExchange:
+  baseUrl: https://aws-esquire.mir0n.pro/kc-auth
+
+tokenRelay:
+  vanilla:
+    clients: ""
+  phantom:
+    clients: ""
+    exchangeClientId: esq-gw-exchange
+
+logging:
+  levelRoot: ERROR
+  levelSf: WARN
+  levelMir0n: ERROR
+  levelDevelop: "OFF"
+  levelMsg: "OFF"
+
+nodeSelector:
+  tier: app
+
+# x1. ONE cache, loading the whole tree from the database at start and kept in step by its own
+# entity-bus consumer. The readiness gate is what keeps a cold cache from answering.
+replicaCount: 1
+
+resources:
+  requests:
+    cpu: 150m
+    memory: 768Mi
+  limits:
+    cpu: "1"
+    memory: 1280Mi
+
+# This one workload carries BOTH sides, so it takes the gate's outbound pool and the ward's (small)
+# database pool together. There is no tomcat block: this process is WebFlux, and the ESQ_TOMCAT_* knobs
+# the standalone bizTree overlay carries would reach nothing here.
+resilience:
+  gwPoolMaxConnections: "64"
+  dbPoolMax: "5"
+  dbPoolMinIdle: "2"
+  dbConnectTimeoutMs: "5000"
+  dbSocketTimeoutSeconds: "35"
+  dbTcpKeepAlive: "true"
+
+# --- observability: OFF, and there is nothing here to turn it on ------------
+# T7 is the lowest-bill steady state. This folder deploys NO Prometheus, Grafana,
+# Loki, Tempo, Alloy, collector or exporter, the cluster has no o11y node group,
+# and there are no o11y arms beside these scripts. The charts default
+# observability.enabled to "false", so both pillars are off and the chart's
+# otlpEndpoint names a collector that is never deployed -- inert, not broken.
+#
+# Observability on AWS is k8s-aws: the own-stack arms (aws-o11y-on/off/full) and
+# the CloudWatch ones (aws-o11y-cw-on/off), both proved in T5 and T6 on the
+# classic shape. Turning it on HERE would mean a node group, seven components and
+# a different bill -- which is a different question from the one T7 asks.

@@ -1,0 +1,69 @@
+# Esquire frameworks (tm) -- messaging-bus TOPOLOGY (EKS, super-compact, real Amazon SNS)
+#
+# Delivered as the ConfigMap "esquire-topology" and mounted at /etc/esquire/topology.yml in every service
+# pod; each service loads it via spring.config.import (REQUIRED). Passed to the chart by aws-up.bat as
+# --set-file topologyContent=esquire-topology.yml, which overrides the chart's own file.
+#
+# TWO buses, because this profile references exactly two. Super-compact is the compact composition with
+# audit on option (a), DB triggers: no auKeep process, no audit bus traffic, the audit stack out of the
+# application entirely.
+#
+#   esquire.entity  -- ENTITY_BUS_ID for Mesnie (publisher), gateWard (the tree cache consumer) and pacMan.
+#   audit-off       -- AUDIT_BUS_ID for Mesnie and pacMan. The explicit DISABLED bus.
+#
+# What is NOT here, and why:
+#   esquire.kc              -- no service references it. Mesnie serves the identity work IN PROCESS through
+#                              IIdentityGateway, so there is no request/response hop to carry. The sqs
+#                              PROVIDER is therefore unused here; SQS itself still carries every entity
+#                              message, because a queue is what SNS delivers into.
+#   audit-c / ck / d / dk   -- the bus audit sinks, drained by auKeep. This profile has no auKeep and audits
+#                              in the database, so defining them would describe legs nothing can use.
+#   anything on Kinesis     -- no bus names it, so no stream is created. That is the part that shows on the
+#                              bill: a stream is charged per hour whether or not a record is written.
+#
+# THE DESTINATION IS NOT THE ONE THE CLASSIC AWS TOPOLOGY USES. SNS topics and SQS queues live OUTSIDE the
+# cluster and are made by the drivers on first use, so two shapes sharing a destination name would share the
+# topic and, where a rod-id repeats (pacman-0 does), a queue. The two clusters are never up together, but
+# the coupling would be invisible when it mattered. A name of its own costs nothing.
+esquire:
+  messaging-bus:
+    # --- entity broadcast (topic) ---
+    - bus-id: esquire.entity
+      slots:
+        - slot-id: entity
+          x-rod:
+            receiver-pool:
+              size: 4
+              mode: platform
+            # 1 on purpose: this pool is the only place the published order can be lost.
+            concurrency: 1
+            publisher-pool:
+              size: 0
+              mode: platform
+            transport:
+              provider: sns
+              # Real AWS: EMPTY, not absent. XRodRR.validate requires the key to exist -- deleting it fails
+              # the service at boot with "missing required transport.endpoint". Empty lets the SDK build the
+              # endpoint from the region.
+              endpoint: ""
+              destination: esquire.entity.broadcast.compact
+              params:
+                region: us-east-1
+                # SNS delivers into ANOTHER AWS service -- a subscription names a protocol (sqs, lambda,
+                # email, http, sms) and SNS hands the message to that endpoint. There is no receive API, so
+                # sqs is chosen here because a queue is the one endpoint that WAITS to be pulled: each
+                # consuming instance owns a queue subscribed to the topic, named from its rod-id, and every
+                # instance gets the whole broadcast instead of the instances competing for it.
+                route-by: RodID
+                # Mesnie must reconcile a PEER instance's create-during-move, never its own. Over ActiveMQ the
+                # broker drops a shared connection's own publications; here the driver drops what this rod
+                # published, by rod-id, before it reaches the rod.
+                noLocal: true
+    # --- audit (off): the explicit DISABLED bus. A service points its audit ref at audit-off to run with NO
+    #     bus audit -- here the DB triggers carry the audit instead. XRodDisabled is a true no-op; this is the
+    #     #17 "disable only when explicitly defined" -- a blank/undefined bus-id (correctly) fails fast. ---
+    - bus-id: audit-off
+      slots:
+        - slot-id: audit
+          x-rod:
+            rod-class: XRodDisabled

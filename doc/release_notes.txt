@@ -1,6 +1,12 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v1.2.14-2609.0113  v1.2.14 -- AWS: the four-process shape runs on Amazon EKS
+    :Config:      k8s-aws-compact -- its own deployment tree: the cluster, the deploy and teardown arms, the
+                  images it needs, and the browser suite over the public address
+    :Doc:         doc\research\AWS.Pricing.md
+    Components:  k8s-aws-compact
+
 v1.2.14-2609.0100  v1.2.14 -- AWS: Esquire on Amazon EKS, and its observability on the AWS stack
     :Feature:     Esquire runs on Amazon EKS over real Amazon SNS, SQS and Kinesis
     :Feature:     a bus leg can name the broker user and password

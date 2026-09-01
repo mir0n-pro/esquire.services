@@ -1,0 +1,70 @@
+# EKS overlay for k8s-aws-compact/charts/esquire-pacman  --  T7, super-compact, x1.
+image:
+  repository: ghcr.io/mir0n-pro/esquire.pacman
+  # tag injected by aws-up.bat -- one release tag for the whole stack.
+  # Always, NOT IfNotPresent. The release tag is vMajor.Minor.Micro-YYMM.DDHH, so it
+  # carries ONE SLOT PER HOUR -- a second build inside the same hour re-pushes the
+  # SAME tag with different content. Under IfNotPresent a node that already pulled
+  # that tag keeps the old image and the roll reports success, which is the silent
+  # half of the :latest digest trap. Always costs one registry check per pod start.
+  pullPolicy: Always
+
+awsDrivers:
+  repository: ghcr.io/mir0n-pro/esquire-tp-aws
+
+springProfilesActive: console,dev-postgres
+
+service:
+  managementPort: 8090
+
+db:
+  vendor: dev-postgres
+  host: esquire-infra-postgres
+  port: 5432
+  name: esq2025
+  username: esq2025
+
+logging:
+  levelRoot: ERROR
+  levelSf: WARN
+  levelMir0n: ERROR
+  levelDevelop: "OFF"
+  levelMsg: "OFF"
+
+nodeSelector:
+  tier: app
+
+replicaCount: 1
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 512Mi
+  limits:
+    cpu: 750m
+    memory: 768Mi
+
+resilience:
+  tomcatMaxThreads: "25"
+  tomcatAcceptCount: "50"
+  dbPoolMax: "10"
+  dbPoolMinIdle: "2"
+  dbConnectTimeoutMs: "5000"
+  dbSocketTimeoutSeconds: "35"
+  dbTcpKeepAlive: "true"
+
+# Same as Mesnie: audit is option (a), the database triggers. No auKeep, no audit bus traffic.
+audit:
+  busId: audit-off
+
+# --- observability: OFF, and there is nothing here to turn it on ------------
+# T7 is the lowest-bill steady state. This folder deploys NO Prometheus, Grafana,
+# Loki, Tempo, Alloy, collector or exporter, the cluster has no o11y node group,
+# and there are no o11y arms beside these scripts. The charts default
+# observability.enabled to "false", so both pillars are off and the chart's
+# otlpEndpoint names a collector that is never deployed -- inert, not broken.
+#
+# Observability on AWS is k8s-aws: the own-stack arms (aws-o11y-on/off/full) and
+# the CloudWatch ones (aws-o11y-cw-on/off), both proved in T5 and T6 on the
+# classic shape. Turning it on HERE would mean a node group, seven components and
+# a different bill -- which is a different question from the one T7 asks.

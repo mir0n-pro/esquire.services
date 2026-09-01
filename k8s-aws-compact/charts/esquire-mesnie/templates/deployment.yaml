@@ -1,0 +1,131 @@
+{{- $replicas := int (.Values.replicaCount | default 1) -}}
+{{- if gt $replicas 10 -}}
+{{- fail (printf "esquire-mesnie: replicaCount=%d exceeds the cap of 10. v1.2.6 entity-id encoding allocates one decimal digit for the instance number (0-9); higher replica counts would overflow the time portion of generated ids." $replicas) -}}
+{{- end -}}
+{{- if lt $replicas 1 -}}
+{{- fail (printf "esquire-mesnie: replicaCount=%d must be >= 1" $replicas) -}}
+{{- end }}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ .Release.Name }}
+  labels:
+    app: {{ .Release.Name }}
+spec:
+  serviceName: {{ .Release.Name }}-hl
+  replicas: {{ $replicas }}
+  podManagementPolicy: Parallel
+  selector:
+    matchLabels:
+      app: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Release.Name }}
+    spec:
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if .Values.topologySpread.enabled }}
+      # HA: best-effort spread of the replicas across distinct nodes (soft -- a node
+      # loss still schedules). Off by default (pre-HA / single-node local); the OKE
+      # overlay turns it on so the x2 replicas land on different app-tier nodes.
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: {{ .Release.Name }}
+      {{- end }}
+      # --- AWS transports, ATTACHED AT DEPLOYMENT ----------------------------
+      # The service image carries no AWS byte. On docker the lab bind-mounts the
+      # drivers; a pod has no host to mount from, so the carrier image copies them
+      # into an emptyDir the container reads through -Dloader.path. The driver is
+      # still not in the service image, which is the whole point of attaching it.
+      #
+      # ONLY tp-sqns IS ON THE PATH HERE. Super-compact carries one bus -- the
+      # entity broadcast on SNS -- and audit-off. tp-kinesis is in the carrier
+      # image and is deliberately left off loader.path: an unused driver on the
+      # classpath is a stream nobody meant to create, billed by the hour.
+      initContainers:
+        - name: aws-drivers
+          image: "{{ .Values.awsDrivers.repository }}:{{ .Values.awsDrivers.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["sh", "-c", "cp -a /aws/. /aws-drivers/ && ls /aws-drivers"]
+          volumeMounts:
+            - name: aws-drivers
+              mountPath: /aws-drivers
+      containers:
+        - name: mesnie
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          args: ["java", "-Dloader.path=/aws-drivers/lib,/aws-drivers/tp-sqns.jar",
+                 "-cp", "app.jar", "org.springframework.boot.loader.launch.PropertiesLauncher"]
+          ports:
+            - containerPort: {{ .Values.service.port }}
+          envFrom:
+            - configMapRef:
+                name: {{ .Release.Name }}-config
+          env:
+            - name: DB_MESNIE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-secret
+                  key: db-password
+            # The identity gateway drives the KeyCloak admin API itself -- kcMaster is not a
+            # separate service here, so its admin credential belongs to this process.
+            - name: KC_ADMIN_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-secret
+                  key: kc-admin-client-secret
+            # Downward API -- POD_NAME is the host identity EsqUtils.instanceHost() reads when
+            # HOSTNAME is suppressed; EsqUtils.instanceNo() parses its trailing StatefulSet ordinal
+            # so each pod mints ids (and owns a rod-id) in its own slice. A StatefulSet name
+            # ("mesnie-0") yields a distinct ordinal; a Deployment has none, so all pods are 0.
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+          startupProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: {{ .Values.service.managementPort }}   # actuator/management port (F0 A6) -- NOT the public service.port
+            periodSeconds: 10
+            failureThreshold: 30      # up to 300s cold-start budget (JPA init under node contention) before liveness applies
+            timeoutSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness   # readiness group: readinessState + the messaging bus -- a broker outage depools, not kills
+              port: {{ .Values.service.managementPort }}   # actuator/management port (F0 A6) -- NOT the public service.port
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 10
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness    # liveness group: livenessState only -- the bus is NOT here, so a broker outage never kills the pod
+              port: {{ .Values.service.managementPort }}   # actuator/management port (F0 A6) -- NOT the public service.port
+            initialDelaySeconds: 40
+            periodSeconds: 15
+            timeoutSeconds: 5
+          volumeMounts:
+            # the drivers the initContainer copied in -- read through -Dloader.path
+            - name: aws-drivers
+              mountPath: /aws-drivers
+              readOnly: true
+            - name: esquire-topology
+              mountPath: /etc/esquire
+              readOnly: true
+      volumes:
+        - name: aws-drivers
+          emptyDir: {}
+        - name: esquire-topology
+          configMap:
+            name: esquire-topology

@@ -1,0 +1,29 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "EsquireSnsEntityBroadcast",
+      "Effect": "Allow",
+      "Action": [
+        "sns:CreateTopic",
+        "sns:Subscribe",
+        "sns:SetSubscriptionAttributes",
+        "sns:Publish"
+      ],
+      "Resource": "arn:aws:sns:us-east-1:133464368861:esquire-*"
+    },
+    {
+      "Sid": "EsquireSqsBroadcastQueues",
+      "Effect": "Allow",
+      "Action": [
+        "sqs:CreateQueue",
+        "sqs:GetQueueAttributes",
+        "sqs:SetQueueAttributes",
+        "sqs:SendMessage",
+        "sqs:ReceiveMessage",
+        "sqs:DeleteMessage"
+      ],
+      "Resource": "arn:aws:sqs:us-east-1:133464368861:esquire-*"
+    }
+  ]
+}
