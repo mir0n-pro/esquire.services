@@ -46,7 +46,7 @@ cors:
   # api.esquire.mir0n.pro directly through this gate.
   allowedOrigins: https://esquire.mir0n.pro,https://api.esquire.mir0n.pro
 
-# Token Relay -- DISABLED on OKE (mir0n 2026-07-20). Vanilla / Phantom Token Relay are the
+# Token Relay -- DISABLED on OKE (2026-07-20). Vanilla / Phantom Token Relay are the
 # not-recommended JWE-workaround LAB patterns; the recommended production paths are BFF + plain JWT.
 # They are NOT armed on the internet-facing public API: an empty allowlist means the gate never
 # brokers or exchanges a relay token, so the per-client_id / per-jti cache is never populated and

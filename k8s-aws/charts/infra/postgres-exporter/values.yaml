@@ -1,0 +1,28 @@
+# postgres-exporter -- turns the Postgres StatefulSet's pg_stat_* into Prometheus metrics
+# (connections, transactions, cache hit ratio, DB size). Scraped by the "postgres" job on :9187.
+image:
+  repository: quay.io/prometheuscommunity/postgres-exporter
+  # v0.16.0 -> v0.20.1 (v1.2.11 T9-B). PostgreSQL 17 REMOVED the checkpoint columns from pg_stat_bgwriter and
+  # moved them to pg_stat_checkpointer; v0.16.0 still queried the PG16 shape, so its stat_bgwriter collector
+  # failed on EVERY scrape ("column checkpoints_timed does not exist"). No panel used those metrics, so nothing
+  # was lost -- but it emitted an ERROR line every 15s, forever. v0.20.1 scrapes PG17/18 clean and adds the
+  # stat_checkpointer collector.
+  tag: "v0.20.1"
+  pullPolicy: IfNotPresent
+
+# The Postgres StatefulSet this exporter reads. host:port and the database name go into the
+# DATA_SOURCE_URI; the username/password come from the DB's own secret (never inlined here).
+db:
+  host: esquire-infra-postgres
+  port: 5432
+  name: esq2025
+  secretName: esquire-infra-postgres-secret
+  secretUserKey: username
+  secretPasswordKey: password
+
+resources:
+  requests:
+    cpu: 25m
+    memory: 32Mi
+  limits:
+    memory: 64Mi

@@ -1,0 +1,105 @@
+{{- $replicas := int (.Values.replicaCount | default 1) -}}
+{{- if gt $replicas 10 -}}
+{{- fail (printf "esquire-aukeep: replicaCount=%d exceeds the cap of 10. The per-instance number is a single decimal digit (0-9) -- the fleet naming rule (pod ordinal -> rod-id <app>.<instanceNo>) caps replicas at 10." $replicas) -}}
+{{- end -}}
+{{- if lt $replicas 1 -}}
+{{- fail (printf "esquire-aukeep: replicaCount=%d must be >= 1" $replicas) -}}
+{{- end }}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ .Release.Name }}-aukeep
+  labels:
+    app: {{ .Release.Name }}-aukeep
+spec:
+  # auKeep is a competing-consumer on a queue -- replicas spread the audit drain.
+  serviceName: {{ .Release.Name }}-aukeep-hl
+  replicas: {{ $replicas }}
+  podManagementPolicy: Parallel
+  selector:
+    matchLabels:
+      app: {{ .Release.Name }}-aukeep
+  template:
+    metadata:
+      labels:
+        app: {{ .Release.Name }}-aukeep
+    spec:
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      # --- AWS transports, ATTACHED AT DEPLOYMENT ----------------------------
+      # The service image carries no AWS byte (aws-spec A2 asserts it). On docker
+      # the lab bind-mounts the drivers; a pod has no host to mount from, so the
+      # carrier image copies them into an emptyDir the container reads through
+      # -Dloader.path. The driver is still not in the service image, which is the
+      # whole point of attaching it.
+      initContainers:
+        - name: aws-drivers
+          image: "{{ .Values.awsDrivers.repository }}:{{ .Values.awsDrivers.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["sh", "-c", "cp -a /aws/. /aws-drivers/ && ls /aws-drivers"]
+          volumeMounts:
+            - name: aws-drivers
+              mountPath: /aws-drivers
+      containers:
+        - name: aukeep
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          # dataKeep's Dockerfile has no ENTRYPOINT (compose supplies the command); the temurin base
+          # entrypoint execs these args.
+          args: ["java", "-Dloader.path=/aws-drivers/lib,/aws-drivers/tp-sqns.jar,/aws-drivers/lib-kinesis,/aws-drivers/tp-kinesis.jar",
+                 "-cp", "app.jar", "org.springframework.boot.loader.launch.PropertiesLauncher"]
+          ports:
+            - containerPort: {{ .Values.service.port }}
+          envFrom:
+            - configMapRef:
+                name: {{ .Release.Name }}-aukeep-config
+          env:
+            - name: DB_DATAKEEP_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-aukeep-secret
+                  key: db-password
+            - name: ESQ_MQ_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-aukeep-secret
+                  key: mq-password
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: {{ .Values.service.managementPort }}   # actuator/management port (F0 A6) -- NOT the public service.port
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 10
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: {{ .Values.service.managementPort }}   # actuator/management port (F0 A6) -- NOT the public service.port
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            timeoutSeconds: 5
+          volumeMounts:
+            # the drivers the initContainer copied in -- read through -Dloader.path
+            - name: aws-drivers
+              mountPath: /aws-drivers
+              readOnly: true
+            - name: esquire-topology
+              mountPath: /etc/esquire
+              readOnly: true
+      volumes:
+        - name: aws-drivers
+          emptyDir: {}
+        - name: esquire-topology
+          configMap:
+            name: esquire-topology

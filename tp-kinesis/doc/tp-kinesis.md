@@ -230,12 +230,36 @@ Prefixed keys name the AWS call they belong to, and the key after the prefix is 
 | `client.` | the SDK client override | `client.apiCallTimeout: 5000` |
 | `stream.` | the stream settings | `stream.RetentionPeriodHours: 48` |
 
+The `stream.` keys the driver knows:
+
+| key | default | meaning |
+|---|---|---|
+| `stream.Mode` | `PROVISIONED` | capacity mode -- `PROVISIONED` or `ON_DEMAND` |
+| `stream.ShardCount` | `1` | shards to create with, under `PROVISIONED`; ignored for `ON_DEMAND` |
+| `stream.RetentionPeriodHours` | the AWS default | how long records stay readable |
+
 A key that is neither a prefix nor one of the bare params above is **refused when the leg opens**. It has
 nowhere to go, and dropping it in silence is how a leg ends up running without a setting the topology says it
 has.
 
-**The stream is created on demand** -- no shard count to choose, and an idle stream costs nothing to keep. A
-stream that already exists is left as it is.
+### The stream is created PROVISIONED with one shard
+
+A stream that already exists is left exactly as it is, capacity mode included. A new one is created
+**provisioned at a single shard**, and that default is a cost decision as much as a capacity one:
+
+| mode | what AWS charges | 1 stream, us-east-1, per month |
+|---|---|---|
+| `PROVISIONED` | **per SHARD-hour** -- $0.015 -- plus PUT payload units | **$10.95** |
+| `ON_DEMAND` | **per STREAM-hour** -- $0.040 -- plus $0.08/GB in, $0.04/GB out | **$29.20** |
+
+**An idle stream is not free in either mode.** On-demand needs no shard count and grows by itself, but it
+bills every hour it exists whether or not a record moves -- 2.7x the standing rate of a single shard. And
+elasticity is not what this transport is shaped for: absent `partition-by` the stream is FIFO, which is one
+key and therefore one shard however many are provisioned. Naming `stream.Mode: ON_DEMAND` is opting IN to
+growth, and to its hourly cost.
+
+Raise `stream.ShardCount` when `partition-by` is set and the load genuinely needs the throughput -- one
+shard carries 1 MB/s and 1000 records/s.
 
 **The endpoint** is set only for LocalStack. Against real AWS it is left out and the SDK builds the endpoint
 from the region. **Credentials are never in a file:** the SDK default credential chain supplies them

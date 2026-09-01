@@ -1,0 +1,23 @@
+# EKS overlay for charts/infra/grafana  --  T5.
+#
+# NOT PUBLISHED. The chart always renders an ingress, and this cluster has a public
+# load balancer in front of ingress-nginx -- so the host here is deliberately one
+# that resolves nowhere. Grafana ships with admin/admin; putting that on the public
+# internet to save a port-forward is not a trade worth making.
+#
+# Reach it the way OKE does, for as long as you are looking at it:
+#   kubectl port-forward svc/esquire-infra-grafana 3010:3000
+#   http://localhost:3010   (admin/admin)  ->  Explore
+#
+# 3010, and the number is not arbitrary. 3000 is the BFF's port on the docker lab and
+# 3009 is that lab's OWN Grafana -- esqa-grafana publishes 3009->3000. Forward to
+# either and kubectl cannot bind, the forward dies, and localhost serves DOCKER's
+# dashboards instead. Nothing says so; the panels simply describe another system.
+ingress:
+  host: grafana.aws-esquire.invalid
+
+# Kept on the node it lands on, ephemeral. The whole stack is on-demand: it is turned
+# on to look at something and removed afterwards, so a volume outliving it is a volume
+# nobody reads and AWS still bills.
+persistence:
+  enabled: false

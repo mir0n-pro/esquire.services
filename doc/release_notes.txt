@@ -1,6 +1,25 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v1.2.14-2609.0100  v1.2.14 -- AWS: Esquire on Amazon EKS, and its observability on the AWS stack
+    :Feature:     Esquire runs on Amazon EKS over real Amazon SNS, SQS and Kinesis
+    :Feature:     a bus leg can name the broker user and password
+    :Fix:         a created Kinesis stream is provisioned at one shard, not on-demand
+    :Config:      k8s-aws -- the AWS deployment tree: the cluster, the images, the database seed, the deploy
+                  and teardown arms, and the browser suite over the public address
+    :Config:      the observability stack on EKS, on a node of its own that is scaled to zero when it is off
+    :Config:      the same three pillars carried by Amazon CloudWatch, X-Ray and CloudWatch Logs, with arms
+                  of their own
+    :Doc:         doc\research\CloudWatch.for.Esquire.md
+                  doc\research\Cognito.for.Esquire.md
+                  doc\Esquire.ContinuingDev.md
+                  doc\Esquire.MessagingBus.ContinuingDev.md
+                  doc\Esquire.GitHubActions.md
+                  tp-kinesis\doc\tp-kinesis.md
+    Components:  k8s-aws,
+                 tp-activemq,
+                 tp-kinesis,
+
 v1.2.14-2608.2919  v1.2.14 -- AWS: the messaging bus carried by Amazon SNS, SQS and Kinesis
     :Feature:     the bus runs on Amazon SQS, Amazon SNS and Amazon Kinesis, 
     :Config:      compose-aws -- a second docker sandbox running the bus on a local AWS stack, with its own

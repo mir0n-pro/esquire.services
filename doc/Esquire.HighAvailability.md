@@ -348,7 +348,7 @@ route**, on four principles:
 | `/esq-key`, `/esq`, `/esq-path`, `/esq-enode`, `/esq-tree`, `/esq-sweep`*, `/esq-cmd`, `/esq-dict`, `/esq-kinds`, `/esq-cmd-tree` | read (* `/esq-sweep` = idempotent POST) | **ON**, `${GW_RETRY_READ:3}` attempts | connect-fail + timeout |
 | `/esq-cmd-save`, `/esq-key-save`, `/esq-cmd-new`, `/esq-cmd-del`, `/esq-move`, `/esq-acct` | write (non-idempotent) | **connect-fail ONLY**, `${GW_RETRY_WRITE:1}` attempt | `ConnectException` |
 
-**Recommendations applied (mir0n, locked).** Reads do **not** retry on 5xx. `/esq-acct` (the financial post)
+**Recommendations applied (locked).** Reads do **not** retry on 5xx. `/esq-acct` (the financial post)
 keeps the **uniform connect-fail retry** -- a failed connect means it was never sent, so a resend is safe and
 useful on a pod-roll. `/esq-move` is async-202 but the same holds (a failed connect was never queued -> no
 double-move).

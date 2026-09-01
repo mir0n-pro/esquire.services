@@ -1,0 +1,28 @@
+# EKS overlay for charts/infra/keycloak  --  T2, classic topology, x1.
+#
+# KeyCloak stays IN the cluster; only PostgreSQL moved out to RDS. It runs
+# start-dev with an embedded database, so it needs no RDS of its own -- the PVC
+# below is its whole state.
+image:
+  repository: ghcr.io/mir0n-pro/esquire-keycloak
+  # v1.2.13 on purpose: this image is KeyCloak plus the esquire theme and realm.
+  # It carries no Esquire Java, so the v1.2.14 messaging change does not touch it
+  # and there is nothing to rebuild.
+  tag: "v1.2.13-2608.2806"
+  pullPolicy: IfNotPresent
+
+storage:
+  # NOT `standard` (Docker Desktop's name) and NOT `gp2` (EKS ships that class
+  # with the IN-TREE kubernetes.io/aws-ebs provisioner, which 1.34 removed -- it
+  # is selectable and never binds). gp3 is created by storageclass-gp3.yaml on
+  # top of the aws-ebs-csi-driver addon.
+  storageClass: gp3
+  size: 5Gi
+
+keycloak:
+  # T2 serves nothing publicly -- no ingress, no load balancer. Everything reaches
+  # the cluster through kubectl port-forward, so the front-channel base URL is
+  # localhost on the forwarded port. This is the one setting that has to agree
+  # with how the suites actually connect, or every token's issuer is wrong.
+  hostname: https://aws-esquire.mir0n.pro/kc-auth
+  httpRelativePath: /kc-auth

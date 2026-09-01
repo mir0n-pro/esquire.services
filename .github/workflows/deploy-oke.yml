@@ -253,7 +253,7 @@ jobs:
           GATEWAY_URL: https://api.esquire.mir0n.pro
           KC_URL: https://esquire.mir0n.pro/kc-auth
           # Token Relay is DISABLED on the internet-facing OKE gate (empty allowlists -- see
-          # k8s-oci-compact/values/gateward.yaml, mir0n 2026-07-20). This flag makes 20-token-relay's two specs
+          # k8s-oci-compact/values/gateward.yaml, 2026-07-20). This flag makes 20-token-relay's two specs
           # skip on OKE only; docker / local k8s leave it unset and keep running them.
           RELAY_DISABLED: "true"
           # 21-credential-state-sync reads the user's required actions through KeyCloak's ADMIN api -- that is
@@ -269,7 +269,7 @@ jobs:
           npm test
 
       # Load gate -- hauberk against OKE (hauberk-oke.properties).
-      # TODO(mir0n): confirm the sim name + that hauberk-oke.properties is committed,
+      # TODO: confirm the sim name + that hauberk-oke.properties is committed,
       # then drop continue-on-error to make load a hard gate.
       - name: Set up JDK 24 (hauberk)
         uses: actions/setup-java@v4

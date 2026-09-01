@@ -1,0 +1,72 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}
+  labels:
+    app: {{ .Release.Name }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Release.Name }}
+      annotations:
+        # Rolls the pod when the ConfigMap changes. Must use `include` (renders the template): .Files.Get on a
+        # path under templates/ returns "" -- Helm excludes templates/ from .Files -- so the old form hashed the
+        # empty string to a CONSTANT and NEVER rolled. See I5.
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+    spec:
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ .Release.Name }}
+      securityContext:
+        # prometheus image default uid (nobody); fsGroup so the ephemeral TSDB volume is writable.
+        runAsUser: 65534
+        runAsGroup: 65534
+        fsGroup: 65534
+      containers:
+        - name: prometheus
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args:
+            - --config.file=/etc/prometheus/prometheus.yml
+            - --storage.tsdb.retention.time={{ .Values.retention }}
+            # Exemplars are the metrics -> trace hop: the services already ATTACH a trace_id to every histogram
+            # bucket (Boot wires the exemplar SpanContext), but without this feature flag Prometheus parses them
+            # and THROWS THEM AWAY -- silently, with no error anywhere. Off by default upstream.
+            # NOTE the buckets are the carrier: exemplars only exist on histogram buckets, so the hop is inert
+            # until histograms-enabled=true (off by default -- it costs 2.3x the scrape; see the T8 cost table).
+            - --enable-feature=exemplar-storage
+          ports:
+            - containerPort: 9090
+          readinessProbe:
+            httpGet:
+              path: /-/ready
+              port: 9090
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 12
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: config
+              mountPath: /etc/prometheus
+            - name: data
+              mountPath: /prometheus
+      volumes:
+        - name: config
+          configMap:
+            name: {{ .Release.Name }}-config
+        - name: data
+          {{- if .Values.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ .Release.Name }}-data
+          {{- else }}
+          emptyDir: {}
+          {{- end }}

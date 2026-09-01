@@ -1,0 +1,36 @@
+{
+  "ClusterName": "esquire-aws-msk",
+  "KafkaVersion": "3.9.x",
+  "NumberOfBrokerNodes": 2,
+  "BrokerNodeGroupInfo": {
+    "InstanceType": "kafka.t3.small",
+    "ClientSubnets": [
+      "subnet-0ecd3f94815bdba51",
+      "subnet-07408ee0982998031"
+    ],
+    "SecurityGroups": [
+      "sg-0ba4239cd0195ee13"
+    ],
+    "StorageInfo": {
+      "EbsStorageInfo": {
+        "VolumeSize": 1
+      }
+    }
+  },
+  "EncryptionInfo": {
+    "EncryptionInTransit": {
+      "ClientBroker": "TLS_PLAINTEXT",
+      "InCluster": true
+    }
+  },
+  "ClientAuthentication": {
+    "Unauthenticated": {
+      "Enabled": true
+    },
+    "Sasl": {
+      "Scram": {
+        "Enabled": true
+      }
+    }
+  }
+}

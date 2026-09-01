@@ -1,5 +1,12 @@
 Esquire ActiveMQ transport provider classes
 
+09/01/2026 mir0n  v1.2.14 -- the broker credentials as declared bus params
+tp.activemq.TransportProvider
+  - PARAM_USERNAME ("userName") and PARAM_PASSWORD ("password") added: the broker credentials read from
+    transport.params, applied with setUserName/setPassword and BOTH excluded from withParams -- the broker
+    URI is written to the develop log on every open, so a credential carried as a URI option would be
+    written there too
+
 08/26/2026 mir0n  v1.2.13 -- the connection health seed
 tp.activemq.TransportProvider
   - the connection health seeds UNKNOWN, not UP -- nothing has proved the connection at open

@@ -1,0 +1,9 @@
+# The CloudWatch collector as this cluster runs it.
+aws:
+  region: us-east-1
+  namespace: Esquire
+  logGroup: /esquire/emf
+  logRetentionDays: 1
+dimensionRollup: NoDimensionRollup
+nodeSelector:
+  tier: app

@@ -1,5 +1,12 @@
 Esquire Amazon Kinesis transport provider classes
 
+09/01/2026 mir0n  v1.2.14 -- the stream capacity mode as a declared bus param
+tp.kinesis.TransportProvider
+  - stream.Mode and stream.ShardCount added as create-time attributes, read by streamMode() / shardCount()
+    and refused rather than guessed when unknown. A created stream is PROVISIONED at one shard instead of
+    ON_DEMAND: on-demand bills per STREAM-hour whether or not a record moves, provisioned per SHARD-hour.
+    An existing stream is left as it is, capacity mode included
+
 08/29/2026 mir0n  v1.2.14 -- the Amazon Kinesis transport provider
 tp.kinesis.TransportProvider  (new)
   - the Amazon Kinesis ITransportProvider, both legs. An ABSENT partition-by means FIFO -- every record under

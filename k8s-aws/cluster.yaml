@@ -1,0 +1,113 @@
+# =============================================================================
+# Esquire on EKS -- the CLASSIC topology, x1, no HA, no observability.
+#
+# This one file carries the whole cluster shape, including the T2.2 network
+# decisions. eksctl builds the VPC from it, so there is no separate network
+# script to keep in step.
+#
+#   create : eksctl create cluster -f cluster.yaml     (BILLABLE -- see below)
+#   delete : eksctl delete cluster -f cluster.yaml     (does NOT remove the bus
+#            resources -- see aws-down.bat)
+#
+# WHAT THIS COSTS, us-east-1, verified 2026-08-30 from the AWS Price List API:
+#   EKS control plane      $0.10 /cluster-hour
+#   2 x t4g.large          $0.0672/hour each
+#   EBS gp3, 30 GB x 2     ~$0.08 /GB-month
+#   -> about $0.24/hour, roughly $5.70/day with the cluster standing.
+# Teardown is the NORMAL state. Nothing here is meant to stay up overnight.
+# =============================================================================
+apiVersion: eksctl.io/v1alpha5
+kind: ClusterConfig
+
+metadata:
+  name: esquire-aws
+  region: us-east-1
+  # Matches the local kubectl (1.34.1) exactly, so there is no version skew.
+  # In EKS standard support until 2026-12-01.
+  version: "1.34"
+  tags:
+    project: esquire
+    sprint: v1.2.14
+
+# Pinned DELIBERATELY. eksctl warns that a coming release turns Auto Mode on by
+# default, and that managed node groups and managed networking addons will then
+# no longer be created -- which would silently produce a different cluster from
+# the same file. Saying false keeps this config meaning what it says.
+autoModeConfig:
+  enabled: false
+
+# The EBS CSI driver needs a role, and IRSA needs the OIDC provider.
+iam:
+  withOIDC: true
+
+vpc:
+  # NO NAT GATEWAY. It bills per hour AND per GB and can rival the control
+  # plane, for a proving ground whose only outbound need is pulling images.
+  # Nodes therefore sit in PUBLIC subnets and route out through the internet
+  # gateway, which costs nothing per hour. What keeps that acceptable is that
+  # nothing is exposed inbound -- no load balancer, no ingress, the only way in
+  # is the Kubernetes API -- and that the cluster does not stay up.
+  # A deployment holding real data would take private subnets and pay the NAT.
+  #
+  # This is settable only at CREATION; a cluster upgrade does not touch it.
+  nat:
+    gateway: Disable
+  clusterEndpoints:
+    publicAccess: true
+    privateAccess: true
+
+managedNodeGroups:
+  - name: esq-nodes
+    amiFamily: AmazonLinux2023
+    # Graviton (arm64). Our images are built multi-arch linux/amd64,linux/arm64
+    # by .github/scripts/oke-build-push.sh, because OKE already runs Ampere --
+    # so arm64 here is proven, not assumed, and it is the cheapest tier.
+    instanceType: t4g.large
+    desiredCapacity: 2
+    minSize: 2
+    maxSize: 2
+    volumeSize: 30
+    volumeType: gp3
+    # false is the default and it is the point: private nodes would need the
+    # NAT gateway disabled above.
+    privateNetworking: false
+    tags:
+      project: esquire
+      sprint: v1.2.14
+
+  # --- the observability node (T5) -------------------------------------------
+  # o11y rides its OWN node, the way OKE gives it its own tier. The reason is
+  # measured, not stylistic: with the seven components on the two app nodes the
+  # cluster sat at 95% and 99% of CPU REQUESTS, and a rolling update of any of them
+  # could not schedule its replacement -- helm reported a timeout while the OLD pod
+  # kept running the OLD config. That is a deploy that says it failed and changes
+  # nothing, which is worse than one that fails loudly.
+  #
+  # t4g.medium, not large: the seven request about 700m CPU and under 2Gi between
+  # them, so 2 vCPU / 4 GiB fits with room, at half the price of another large.
+  #
+  # It carries tier=o11y, and the o11y charts select on it. Turning observability on
+  # or off then never disturbs an Esquire pod -- which is the property that makes an
+  # on-demand stack safe to turn on while the system is being used.
+  - name: esq-o11y
+    amiFamily: AmazonLinux2023
+    instanceType: t4g.medium
+    desiredCapacity: 1
+    minSize: 0
+    maxSize: 1
+    volumeSize: 20
+    volumeType: gp3
+    privateNetworking: false
+    labels:
+      tier: o11y
+    tags:
+      project: esquire
+      sprint: v1.2.14
+
+# KeyCloak's StatefulSet declares volumeClaimTemplates, so the cluster needs a
+# working StorageClass. EKS 1.34 has no in-tree EBS provisioner -- the addon is
+# what makes a PVC bind at all.
+addons:
+  - name: aws-ebs-csi-driver
+    wellKnownPolicies:
+      ebsCSIController: true

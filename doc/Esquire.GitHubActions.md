@@ -139,7 +139,7 @@ the other stack must go for a simpler reason as well -- both bind the same host 
 ### 4.2a Verify -- NOT in the local scope (lives in the OKE release chain)
 - The local scope (`deploy-local`) is **deploy only**. e2e + load validation against the local stack
   stays a **manual** dev activity via the explorer `.bat` tools (`e2e-test\e2e-k8s.bat`,
-  `hauberk\k8s-smoke.bat`) -- deliberately **not** a GitHub Actions workflow here (mir0n 2026-06-09).
+  `hauberk\k8s-smoke.bat`) -- deliberately **not** a GitHub Actions workflow here (decided 2026-06-09).
 - Automated e2e + load belong to the **OKE release chain** (see 4.3): the release is validated, not
   every intermediate local deploy.
 
@@ -329,11 +329,11 @@ deploy-time experiments. Implications for GHA:
 
 - The deploy jobs run what is **committed** (the confirmed state on the remote), not whatever is
   being debugged locally.
-- Ad-hoc deploy fixes are made and tried in the working / deploy space first; once confirmed, mir0n
-  promotes them into `C:\mir0n-git\...` and commits. The pipeline never auto-commits deploy tweaks
-  back to git.
+- Ad-hoc deploy fixes are made and tried in the working / deploy space first; once confirmed, they are
+  promoted by hand into `C:\mir0n-git\...` and committed. The pipeline never auto-commits deploy
+  tweaks back to git.
 - This is the same discipline as the documentation rule: edits live in the working tree; git
-  receives only the confirmed, commit-ready state under mir0n's control.
+  receives only the confirmed, commit-ready state, promoted by hand.
 
 ---
 

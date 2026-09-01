@@ -648,7 +648,7 @@ the v1.2.10 work, and this is the case its own release path does not survive.
 
 ## 17. Receiver side -- reporting an event the consumer could not apply
 
-**Not a durability item.** A network failure is not handled at the application level (mir0n, 2026-08-24):
+**Not a durability item.** A network failure is not handled at the application level (2026-08-24):
 either the channel guarantees delivery or missed messages are accepted. The compromise between speed and
 durability is planned as **item 13**, and it is a channel decision -- nothing a consumer should be given
 retry, park or DLQ machinery for.
@@ -829,7 +829,7 @@ above is the candidate, because it is the same shape for every transport -- expr
 `IRodMeters` so it stays the bus's vocabulary rather than the vendor's. Vendor-native client metrics (a) ride
 behind an explicit per-driver opt-in, off by default, and are named and inventoried per vendor.
 
-**Raised by:** mir0n, 2026-08-29, reviewing the AWS drivers in v1.2.14 -- "we have to do this for all
+**Raised:** 2026-08-29, reviewing the AWS drivers in v1.2.14 -- "we have to do this for all
 vendors". Held at the level `tp-activemq` sets, which is none, so no driver is ahead of another.
 
 ---
@@ -871,7 +871,7 @@ registration lifecycle and re-subscribe handling), chosen by a leg param -- `rea
 defaulting to `poll` -- so only a bus that needs the lower latency pays for it. The dependency is already
 there: `aws-lib` ships Netty, so the async client's HTTP/2 needs are covered.
 
-**Raised by:** mir0n, 2026-08-29, reading how the Kinesis receive leg waits -- "where does it sleep?". The
+**Raised:** 2026-08-29, reading how the Kinesis receive leg waits -- "where does it sleep?". The
 answer (in our own JVM, not on the server) is what makes this its own item rather than a tuning knob.
 
 ---
@@ -918,12 +918,53 @@ driver-neutral view and stops carrying vendor detail. The cross-vendor compariso
 vocabulary, the who-waits table) move to wherever both sides can see them rather than sitting in the newest
 driver's file.
 
-**Raised by:** mir0n, 2026-08-29 -- "we had to update tp-kafka.md: do we have one?". We do not, and the
+**Raised:** 2026-08-29 -- "we had to update tp-kafka.md: do we have one?". We do not, and the
 answer to why is this item. Writing the Kafka doc was deliberately NOT done as part of v1.2.14: that module
 is outside the sprint, and a stub created only to hold one cross-reference would be worse than the
 cross-reference living where it is.
 
 ---
+## 23. Changing a messaging param on a running service -- SETTLED: a restart, and that is enough
+
+**Decided 2026-08-31:** *"if we even need to change a parameter we should just start/stop service.
+and that is enough; no change on-a-fly we support for messaging configuration - that is endless work : to
+make that properly."* On-the-fly reconfiguration of the bus is a **non-goal**. This item exists so the
+question is not re-opened from scratch, and so the two facts it turned up are written down.
+
+**What we already have, and it is enough.** Every transport param is declared per leg in the topology --
+`persistent` sits on the x-rod's ActiveMQ transport params like any other -- and it is already set per
+environment: `false` on our own broker, which persists nothing, `true` on Amazon MQ, which always has
+storage. Nothing about it is hardcoded. Changing it is an edit and a restart.
+
+**A service CAN override it, at WHOLE-GROUP granularity -- this is the part worth knowing.** A service-level
+ref (`esquire.<key>.messaging-bus.x-rod`) is layered onto the catalog leg by `XRodParams.merge`, and
+`overlayGroups` works per **top-level group**: `transport.params.persistent` flattens to the group
+`transport`, so naming it drops the base's WHOLE `transport` block -- provider, endpoint, destination and
+every other param with it. So a service that wants to change one transport param has to restate the whole
+transport block for that leg. Group-level replacement is the same rule an R&R node already follows, and it
+is deliberate; it just means "override one param from the service" is not a one-liner, and a half-written
+override fails the leg rather than half-applying.
+
+**Why it came up, and what to do instead.** v1.2.14 T3.1 wanted to measure what `persistent` costs on Amazon
+MQ. The flag lives in the shared topology, so an A/B needed a pod roll, and a rolled pod is cold: six
+120-second, 16-VU runs on EKS gave mean response times of 338 -> 200 -> 139 ms across SUCCESSIVE runs with
+nothing changed. The drift between two identical runs was 61 ms against a 13 ms effect.
+
+**The lesson is about the instrument, not the configuration.** A load test cannot measure a setting whose
+change costs the warm state. Measure it directly instead: `k8s-aws/mq-probe` puts both modes in ONE warm
+process on ONE connection inside the VPC, and answered it in thirty seconds -- 0.073 ms against 11.217 ms
+per send. Reaching for live reconfiguration to rescue a load test is solving the wrong problem.
+
+**What building it would have cost, for the record.** Something has to know the topology's schema
+(`esquire.messaging-bus[bus-id] -> slots[slot-id] -> x-rod -> transport -> params`, plus the group-replacement
+rule above). The messaging module knows it; a driver does not -- it receives a flat map and never sees a
+bus-id. So a driver-side re-read means a second config reader with its own parser, watch and fallback rules,
+written again per driver. The framework-side version means re-binding the catalog, detecting change, and a
+per-provider answer to "what do I do with new settings" -- and four of the five providers have no
+delivery-mode concept to change at all. Neither is small, which is exactly the "endless work" the decision
+names.
+---
+
 ## Related parked items
 
 - Transport SPI is ActiveMQ-shaped; selector / `key()` / durability differ per driver -- the per-driver selector

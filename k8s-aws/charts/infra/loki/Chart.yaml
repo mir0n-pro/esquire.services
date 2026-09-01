@@ -1,0 +1,6 @@
+apiVersion: v2
+name: esquire-loki
+description: Loki log store (T1 logging visualize) for local/dev k8s -- single binary, filesystem, ephemeral.
+type: application
+version: 0.1.0
+appVersion: "3.4.2"

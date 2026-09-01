@@ -1,0 +1,51 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-config
+  labels:
+    app: {{ .Release.Name }}
+data:
+  fluent-bit.conf: |
+    [SERVICE]
+        Flush              5
+        Log_Level          info
+        Daemon             off
+        Parsers_File       parsers.conf
+        HTTP_Server        On
+        HTTP_Listen        0.0.0.0
+        HTTP_Port          2020
+
+    [INPUT]
+        Name               tail
+        Tag                esq.*
+        Path               /var/log/containers/esquire-*.log
+        multiline.parser   cri
+        Mem_Buf_Limit      16MB
+        Skip_Long_Lines    On
+        Refresh_Interval   10
+
+    # The services already write ECS-shaped JSON. Merge_Log lifts those fields to the top level so
+    # Logs Insights can query them as fields -- correlationId included -- with no reshaping anywhere in
+    # the fleet. This is the log half of the portability claim: the format was never Loki's.
+    [FILTER]
+        Name               kubernetes
+        Match              esq.*
+        Merge_Log          On
+        Keep_Log           Off
+        K8S-Logging.Parser On
+        K8S-Logging.Exclude On
+
+    [OUTPUT]
+        Name                  cloudwatch_logs
+        Match                 esq.*
+        region                {{ .Values.aws.region }}
+        log_group_name        {{ .Values.aws.logGroup }}
+        log_stream_prefix     eks-
+        auto_create_group     true
+        log_retention_days    {{ .Values.aws.logRetentionDays }}
+  parsers.conf: |
+    [PARSER]
+        Name        json
+        Format      json
+        Time_Key    @timestamp
+        Time_Format %Y-%m-%dT%H:%M:%S.%LZ

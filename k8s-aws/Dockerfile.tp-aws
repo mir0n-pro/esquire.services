@@ -1,0 +1,34 @@
+# =============================================================================
+# esquire-tp-aws -- the AWS transport drivers, as a carrier image.
+#
+# WHY THIS EXISTS. The AWS drivers are ATTACHED AT DEPLOYMENT, never built into
+# a service image: a service image carries no AWS client at all, and aws-spec
+# check A2 asserts exactly that. On docker the lab bind-mounts them from
+# tp-*/target. A pod has no host to mount from, so the same property needs a
+# different delivery: this image carries the jars, an initContainer copies them
+# into an emptyDir, and the service container reads them through -Dloader.path.
+# The driver still is not in the service image, which is the point.
+#
+# It holds four things, laid out the way compose-aws already names them:
+#   /aws/tp-sqns.jar      the sqs + sns provider
+#   /aws/lib/             its AWS SDK dependency tree
+#   /aws/tp-kinesis.jar   the kinesis provider
+#   /aws/lib-kinesis/     its AWS SDK dependency tree
+#
+# BUILD CONTEXT IS services/ -- it reaches into two module targets, so
+# `mvn -DskipTests package` must have run first or the COPYs fail.
+#
+# busybox, because the only thing the initContainer does is `cp`.
+# =============================================================================
+FROM busybox:1.37
+
+WORKDIR /aws
+
+COPY tp-sqns/target/esquire-tp-sqns.jar        /aws/tp-sqns.jar
+COPY tp-sqns/target/aws-lib/                   /aws/lib/
+COPY tp-kinesis/target/esquire-tp-kinesis.jar  /aws/tp-kinesis.jar
+COPY tp-kinesis/target/aws-lib/                /aws/lib-kinesis/
+
+# The initContainer overrides this; it is here so `docker run` on the image
+# does something legible rather than nothing.
+CMD ["sh", "-c", "echo 'esquire-tp-aws: driver carrier image; contents:' && ls -R /aws | head -40"]

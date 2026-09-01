@@ -31,7 +31,7 @@ Here NOTHING logs in the baseline, and exactly ONE thing changes between arms.
 ```
 
 **Every other logger is OFF in every arm** -- `develop`, `msg`, `amq`, `jms` -- so none of them can leak into a
-delta. `levelRoot` is NOT touched and stays at its ERROR default (mir0n).
+delta. `levelRoot` is NOT touched and stays at its ERROR default .
 
 **Why `levelMir0n` and not `levelRoot`:** in `logback-spring.xml` the `pro.mir0n` logger carries its OWN level
 and has NO appender of its own, so its events reach the root's ECS CONSOLE appender by **additivity** -- and an
@@ -39,19 +39,19 @@ ancestor's LEVEL is never re-checked on the way. `levelRoot` therefore gates onl
 **cannot silence the application**. An earlier attempt turned root, reported "logging costs 4.7%", and was void:
 the application logged identically in both arms and cancelled out. See Part II of the 07-14 doc.
 
-Grafana is inside the ONLY-LOGGING arm on purpose (mir0n): it is how a human READS the logs, and a log pillar
+Grafana is inside the ONLY-LOGGING arm on purpose : it is how a human READS the logs, and a log pillar
 nobody can look at is not the thing we ship.
 
 **Required infra only.** kafka is removed from every run (nothing references it -- the audit sink is `audit-c`,
 AMQ -> auKeep). redis is removed at x1, where the BFF falls back to an in-memory session store, and KEPT at x2,
-where two BFF replicas genuinely need a shared session store (mir0n).
+where two BFF replicas genuinely need a shared session store .
 
 ## 1.1 Method
 
 **k8s only. docker is excluded** -- it is uncapped, saturates the host, and its sag scales WITH throughput, so
 the decline eats the delta in one direction. See Part III of the 07-14 doc for the evidence and the decision.
 
-**One run per config, 4-6 loads** (mir0n). The 2-runs-per-config rule of the earlier matrix existed to catch
+**One run per config, 4-6 loads** . The 2-runs-per-config rule of the earlier matrix existed to catch
 FROM-SCRATCH drift (accumulated audit rows, run ordering) -- a problem since fixed, and a different question
 from "is this delta real". Here the **load-to-load spread across the plateau** is the noise estimate, and it is
 0.2-3.7%. Every run is built FROM SCRATCH: cluster torn down, PVCs dropped, Postgres re-seeded, KeyCloak realm

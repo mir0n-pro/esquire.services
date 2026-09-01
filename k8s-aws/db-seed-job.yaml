@@ -1,0 +1,84 @@
+# =============================================================================
+# The db.seed applied to RDS, once.
+#
+# WHY THIS EXISTS AND NOWHERE ELSE DOES. On docker, local k8s and OKE, PostgreSQL
+# is a CONTAINER built from db.seed, and it seeds itself the first time it starts
+# on an empty volume. A managed instance has no image, so the seed stops being
+# automatic and becomes its own step. This is that step.
+#
+# It runs the SAME image the other targets run -- esquire-postgres already carries
+# /db-seed/create and /db-seed/fill -- so the schema applied here is byte-identical
+# to the schema everywhere else. Nothing is re-implemented for AWS.
+#
+# The role esq2025 is created with the SAME password as the RDS master, because
+# the services connect as esq2025 and there is one password in Secrets Manager to
+# hand around. For a proving ground that is the honest trade; a real deployment
+# would give the application role its own credential.
+#
+# Idempotent: the role and database are created only if absent, so a re-run after
+# a partial failure does not fall over on "already exists".
+# =============================================================================
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: esquire-db-seed
+  labels:
+    app: esquire-db-seed
+spec:
+  backoffLimit: 1
+  template:
+    metadata:
+      labels:
+        app: esquire-db-seed
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: seed
+          image: ghcr.io/mir0n-pro/esquire-postgres:v1.2.13-2608.2806
+          envFrom:
+            - secretRef:
+                name: esquire-rds-admin
+          command:
+            - sh
+            - -c
+            - |
+              set -e
+              echo "--- target: $DB_HOST"
+              export PGPASSWORD="$DB_ADMIN_PASSWORD"
+
+              echo "--- role and database"
+              psql -h "$DB_HOST" -U esqadmin -d postgres -v ON_ERROR_STOP=1 -tAc \
+                "SELECT 1 FROM pg_roles WHERE rolname='esq2025'" | grep -q 1 || \
+                psql -h "$DB_HOST" -U esqadmin -d postgres -v ON_ERROR_STOP=1 \
+                  -c "CREATE ROLE esq2025 LOGIN PASSWORD '$DB_ADMIN_PASSWORD'"
+
+              # The database is created by the MASTER and owned by it -- NOT "OWNER esq2025".
+              # RDS's master is not a real superuser, so creating a database owned by
+              # another role needs membership of that role, and postgres refuses with
+              # "must be able to SET ROLE". Ownership is then handed over below, which
+              # needs no membership at all.
+              psql -h "$DB_HOST" -U esqadmin -d postgres -v ON_ERROR_STOP=1 -tAc \
+                "SELECT 1 FROM pg_database WHERE datname='esq2025'" | grep -q 1 || \
+                psql -h "$DB_HOST" -U esqadmin -d postgres -v ON_ERROR_STOP=1 \
+                  -c "CREATE DATABASE esq2025"
+
+              # PostgreSQL 15 took CREATE on the public schema away from everyone but its
+              # owner. Without this the seed fails on the first CREATE TABLE with a
+              # permission error that reads as if the login were wrong.
+              echo "--- schema ownership"
+              psql -h "$DB_HOST" -U esqadmin -d esq2025 -v ON_ERROR_STOP=1 \
+                -c "ALTER SCHEMA public OWNER TO esq2025" \
+                -c "GRANT ALL ON SCHEMA public TO esq2025" \
+                -c "GRANT ALL ON DATABASE esq2025 TO esq2025"
+
+              echo "--- create"
+              cd /db-seed/create
+              PGPASSWORD="$DB_ADMIN_PASSWORD" psql -h "$DB_HOST" -U esq2025 -d esq2025 \
+                -v ON_ERROR_STOP=1 -f all.sql
+
+              echo "--- fill"
+              cd /db-seed/fill
+              PGPASSWORD="$DB_ADMIN_PASSWORD" psql -h "$DB_HOST" -U esq2025 -d esq2025 \
+                -v ON_ERROR_STOP=1 -f all.sql
+
+              echo "--- seeded"

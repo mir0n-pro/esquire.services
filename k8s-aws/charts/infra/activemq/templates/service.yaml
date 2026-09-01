@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-activemq
+  labels:
+    app: {{ .Release.Name }}-activemq
+spec:
+  type: ClusterIP
+  selector:
+    app: {{ .Release.Name }}-activemq
+  ports:
+    - name: openwire
+      port: 61616
+      targetPort: 61616
+    - name: console
+      port: 8161
+      targetPort: 8161

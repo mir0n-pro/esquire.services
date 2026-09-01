@@ -36,6 +36,14 @@
             <artifactId>activemq-broker</artifactId>
             <scope>test</scope>
         </dependency>
+
+        <!-- test only: SimpleAuthenticationPlugin lives in activemq-broker but its principals come from here, so
+             an embedded broker that DEMANDS a user and a password does not start without it. -->
+        <dependency>
+            <groupId>org.apache.activemq</groupId>
+            <artifactId>activemq-jaas</artifactId>
+            <scope>test</scope>
+        </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>

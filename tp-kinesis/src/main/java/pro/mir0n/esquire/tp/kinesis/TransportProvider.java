@@ -11,6 +11,11 @@
  *                   opts in to spreading, which is safe only where records do not depend on one another.
  *                   poll-millis is the delivery latency (GetRecords is capped at five a second per shard, so
  *                   200ms is the floor). The stream is ensured on first use, never when a leg opens.
+ * 09/01/2026 mir0n  v1.2.14 -- stream.Mode and stream.ShardCount added as create-time attributes, read by
+ *                   streamMode() / shardCount() and refused rather than guessed when unknown. A created
+ *                   stream is PROVISIONED at one shard instead of ON_DEMAND: on-demand bills per
+ *                   STREAM-hour whether or not a record moves, provisioned per SHARD-hour. An existing
+ *                   stream is left as it is, capacity mode included
  */
 package pro.mir0n.esquire.tp.kinesis;
 
@@ -112,9 +117,28 @@ public final class TransportProvider implements ITransportProvider {
 
     private static final Set<String> KNOWN_GROUPS = Set.of(GROUP_CLIENT, GROUP_STREAM);
 
-    /** Stream settings are typed calls, not a verbatim attribute map, so these are read by name and any
-     *  other key under {@code stream.} is refused rather than quietly ignored. */
+    /** Stream settings are typed calls or create-time attributes, not a verbatim attribute map, so these are
+     *  read by name and any other key under {@code stream.} is refused rather than quietly ignored. */
     private static final String STREAM_RETENTION_HOURS = "RetentionPeriodHours";
+
+    /**
+     * {@code PROVISIONED} (the default) or {@code ON_DEMAND} -- the stream's CAPACITY MODE, and the one
+     * setting here that carries a standing bill.
+     *
+     * <p>On-demand needs no shard count and grows by itself, but AWS charges it per STREAM-hour whether or
+     * not a record moves; provisioned is charged per SHARD-hour and one shard is the smaller rate. An idle
+     * stream is therefore not free, and the cheaper mode is the right default for a transport whose FIFO
+     * shape already means one shard (see {@link #PARAM_PARTITION_BY}). Naming {@code ON_DEMAND} is opting IN
+     * to elasticity, and to its hourly cost.
+     */
+    private static final String STREAM_MODE = "Mode";
+
+    /** Shards to create with, when the mode is {@code PROVISIONED}. Ignored for {@code ON_DEMAND}, which has
+     *  no shard count to give. */
+    private static final String STREAM_SHARD_COUNT = "ShardCount";
+
+    private static final String MODE_PROVISIONED = "PROVISIONED";
+    private static final String MODE_ON_DEMAND = "ON_DEMAND";
 
     /** SDK client settings are typed too. */
     private static final String CLIENT_API_CALL_TIMEOUT = "apiCallTimeout";
@@ -123,6 +147,7 @@ public final class TransportProvider implements ITransportProvider {
 
     private static final int DEFAULT_POLL_MILLIS = 200;   // the Kinesis cap: 5 GetRecords/s per shard
     private static final int DEFAULT_LIMIT = 500;
+    private static final int DEFAULT_SHARD_COUNT = 1;
 
     /** How long to wait for a newly made stream to become ACTIVE before giving up. */
     private static final long STREAM_READY_TIMEOUT_MS = 30_000L;
@@ -256,22 +281,26 @@ public final class TransportProvider implements ITransportProvider {
         return builder.build();
     }
 
-    /** Make the stream when it is not there, and wait until it can take records. On-demand capacity, so there
-     *  is no shard count to pick: the stream grows and shrinks by itself, and an idle one costs nothing to
-     *  keep. A stream that already exists is left exactly as it is. */
+    /** Make the stream when it is not there, and wait until it can take records. Provisioned at one shard
+     *  unless {@code stream.Mode} says otherwise -- see {@link #STREAM_MODE} for why the cheaper mode is the
+     *  default. A stream that already exists is left exactly as it is, capacity mode included. */
     static void ensureStream(KinesisClient kinesis, String stream, Map<String, String> settings) {
         // ASK before creating. A receive leg calls this on every retry while it waits for a stream to come
         // back, so the common answer -- "it is already there" -- has to be cheap and quiet. Creating first and
         // catching ResourceInUse would work, but it writes a line every time round the loop.
         boolean present = describes(kinesis, stream);
         if (!present) {
+            StreamMode mode = streamMode(settings);
+            int shards = shardCount(settings);
             boolean made = false;
             try {
-                CreateStreamRequest request = CreateStreamRequest.builder()
+                CreateStreamRequest.Builder request = CreateStreamRequest.builder()
                         .streamName(stream)
-                        .streamModeDetails(StreamModeDetails.builder().streamMode(StreamMode.ON_DEMAND).build())
-                        .build();
-                kinesis.createStream(request);
+                        .streamModeDetails(StreamModeDetails.builder().streamMode(mode).build());
+                if (StreamMode.PROVISIONED.equals(mode)) {
+                    request.shardCount(shards);
+                }
+                kinesis.createStream(request.build());
                 made = true;
             } catch (ResourceInUseException already) {
                 // somebody else made it between the ask and the create
@@ -279,10 +308,44 @@ public final class TransportProvider implements ITransportProvider {
             }
             if (made) {
                 awaitActive(kinesis, stream);
-                devLog.info("tp-kinesis: stream created: {}", stream);
+                if (StreamMode.PROVISIONED.equals(mode)) {
+                    devLog.info("tp-kinesis: stream created: {} (PROVISIONED, {} shard(s))", stream, shards);
+                } else {
+                    devLog.info("tp-kinesis: stream created: {} (ON_DEMAND)", stream);
+                }
             }
             applyStreamSettings(kinesis, stream, settings);
         }
+    }
+
+    /** The capacity mode to create with. Refused rather than guessed when the name is not one AWS takes. */
+    static StreamMode streamMode(Map<String, String> settings) {
+        StreamMode ret = StreamMode.PROVISIONED;
+        String named = settings != null ? settings.get(STREAM_MODE) : null;
+        if (named != null) {
+            String wanted = named.trim();
+            if (MODE_ON_DEMAND.equalsIgnoreCase(wanted)) {
+                ret = StreamMode.ON_DEMAND;
+            } else if (!MODE_PROVISIONED.equalsIgnoreCase(wanted)) {
+                throw new IllegalStateException("tp-kinesis: unknown stream." + STREAM_MODE + " '" + named
+                        + "'; expected " + MODE_PROVISIONED + " or " + MODE_ON_DEMAND);
+            }
+        }
+        return ret;
+    }
+
+    /** Shards to create with under {@code PROVISIONED}. */
+    static int shardCount(Map<String, String> settings) {
+        int ret = DEFAULT_SHARD_COUNT;
+        String named = settings != null ? settings.get(STREAM_SHARD_COUNT) : null;
+        if (named != null) {
+            ret = Integer.parseInt(named.trim());
+            if (ret < 1) {
+                throw new IllegalStateException("tp-kinesis: stream." + STREAM_SHARD_COUNT
+                        + " must be 1 or more, not " + ret);
+            }
+        }
+        return ret;
     }
 
     /** Whether the stream is there. A missing one is an ANSWER, not a failure; anything else is a real error
@@ -297,15 +360,18 @@ public final class TransportProvider implements ITransportProvider {
         return ret;
     }
 
-    /** The {@code stream.} group. Kinesis takes these as typed calls of their own, not as attributes on the
+    /** The {@code stream.} group. Kinesis takes these as typed calls of their own, or as attributes on the
      *  create, so each is named here and an unknown one is refused. */
     private static void applyStreamSettings(KinesisClient kinesis, String stream, Map<String, String> settings) {
         if (settings != null) {
             for (Map.Entry<String, String> e : settings.entrySet()) {
-                if (STREAM_RETENTION_HOURS.equals(e.getKey())) {
+                String key = e.getKey();
+                if (STREAM_RETENTION_HOURS.equals(key)) {
                     increaseRetention(kinesis, stream, Integer.parseInt(e.getValue().trim()));
+                } else if (STREAM_MODE.equals(key) || STREAM_SHARD_COUNT.equals(key)) {
+                    // create-time attributes; ensureStream has already read them
                 } else {
-                    throw new IllegalStateException("tp-kinesis: unknown stream param 'stream." + e.getKey()
+                    throw new IllegalStateException("tp-kinesis: unknown stream param 'stream." + key
                             + "'; Kinesis takes stream settings as typed calls, not a verbatim map");
                 }
             }

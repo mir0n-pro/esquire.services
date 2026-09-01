@@ -41,7 +41,7 @@ cors:
 # - esq-hauberk-S is the Vanilla Token Relay client today
 # - esq-hauberk-M is the Phantom Token Relay client today
 # exchangeClientSecret is passed via --set at install (oke-up.bat).
-# DISABLED on OKE (mir0n 2026-07-20). Vanilla / Phantom Token Relay are the not-recommended JWE-workaround LAB
+# DISABLED on OKE (2026-07-20). Vanilla / Phantom Token Relay are the not-recommended JWE-workaround LAB
 # patterns (see doc/keyCloak-gateway.JWE.md); the recommended production paths are BFF + plain JWT. They are NOT
 # armed on the internet-facing public API: an empty allowlist means the gateway never brokers/exchanges a relay
 # token, so the per-client_id / per-jti cache is never populated and cannot be presented. (esq-hauberk-S resolves

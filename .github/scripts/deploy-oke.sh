@@ -2,7 +2,7 @@
 # ===========================================================================
 # Esquire services -- deploy the SUPER-COMPACT stack to OKE.
 #
-# OKE runs super-compact and nothing else (mir0n, 2026-08-19): four application processes --
+# OKE runs super-compact and nothing else (2026-08-19): four application processes --
 # Mesnie (enyMan + keySmith + the identity work), gateWard (the gate + the bizTree cache),
 # pacMan and the BFF -- so 8 application pods where classic ran 13. The k8s-oci folder stays
 # in place as the classic record; it is no longer maintained.
