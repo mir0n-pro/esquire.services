@@ -27,7 +27,7 @@ esquire:
               provider: activemq
               # failover: so a broker restart/bounce SELF-HEALS -- the transport reconnects under the cached
               # connection and send-retry bridges the gap. Same as compose / local-k8s; OKE had drifted to plain
-              # tcp:// (no reconnect), which turned a broker blip into a depooling outage (audit F0 B1). mir0n 07-20.
+              # tcp:// (no reconnect), which turned a broker blip into a depooling outage (audit F0 B1). 07-20.
               endpoint: failover:(tcp://esquire-infra-amq-activemq:61616)?timeout=3000
               destination: esquire.entity.broadcast
               params:

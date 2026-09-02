@@ -1,0 +1,34 @@
+$tenancy = 'ocid1.tenancy.oc1..aaaaaaaauobtkr7pv2rql5xmc5ekwsqeptzrlktplum3itvrnb4iciyst3aa'                                                                                                         
+  $region = 'FRA'
+  $i = 0                                                                                                                                                                                               
+  while ($true) {                                        
+      $i++
+      Write-Host "[$(Get-Date -Format 'HH:mm:ss')] Attempt $i for $region..."
+      oci iam region-subscription create --region-key $region --tenancy-id $tenancy
+      if ($LASTEXITCODE -eq 0) {
+          Write-Host "[$(Get-Date -Format 'HH:mm:ss')] SUCCESS — subscribed to $region"
+          break
+      }
+      Write-Host "[$(Get-Date -Format 'HH:mm:ss')] Failed (exit $LASTEXITCODE), sleeping 30 min..."
+      Start-Sleep -Seconds 1800
+  }
+
+
+  - YYZ — ca-toronto-1                
+  - YUL — ca-montreal-1 
+  
+$tenancy = 'ocid1.tenancy.oc1..aaaaaaaauobtkr7pv2rql5xmc5ekwsqeptzrlktplum3itvrnb4iciyst3aa'                                                                                                         
+  $region = 'YYZ'
+  $i = 0                                                                                                                                                                                               
+  while ($true) {                                        
+      $i++
+      Write-Host "[$(Get-Date -Format 'HH:mm:ss')] Attempt $i for $region..."
+      oci iam region-subscription create --region-key $region --tenancy-id $tenancy
+      if ($LASTEXITCODE -eq 0) {
+          Write-Host "[$(Get-Date -Format 'HH:mm:ss')] SUCCESS — subscribed to $region"
+          break
+      }
+      Write-Host "[$(Get-Date -Format 'HH:mm:ss')] Failed (exit $LASTEXITCODE), sleeping 30 min..."
+      Start-Sleep -Seconds 1800
+  }
+

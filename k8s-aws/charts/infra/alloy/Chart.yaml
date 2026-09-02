@@ -1,0 +1,6 @@
+apiVersion: v2
+name: esquire-alloy
+description: Grafana Alloy log shipper (T1) for local/dev k8s -- reads pod logs via the k8s API, ships to Loki.
+type: application
+version: 0.1.0
+appVersion: "1.7.4"

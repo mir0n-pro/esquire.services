@@ -144,23 +144,63 @@ Until one of those is true, the entry stays as written: the shape is settled, no
 
 ---
 
-### CD-26 -- More than one identity system behind the gateway seam
+### CD-26 -- IAM portability: more than one identity system behind the seams
 
 **Today:** `IIdentityGateway` is the seam a caller holds instead of the identity provider, and the single
-implementation behind it drives KeyCloak. The seam itself shipped; what has not been asked for is a second
+implementation behind it drives KeyCloak. The seam itself shipped; what has not been built is a second
 implementation behind it.
 
-**What it would look like**, once more than one identity system is in the picture: one identity service
-configured to use one implementation or another -- the instance keeping whatever name suits it, with the
-vendor named by configuration rather than by the service; the implementation carried in its own jar and
-attached at deployment; and the composed program choosing the same way, by configuration rather than by
-what it was compiled against.
+**The design, named 2026-08-31: IAM PORTABILITY, and it is TWO seams**, because an identity provider is two
+different things to Esquire and they fail independently:
 
-**Why it is worth naming.** The messaging side already has this shape: the bus reaches its network leg
-through `ITransportProvider`, with ActiveMQ, Kafka and Redis chosen by configuration. Identity now has the
-seam and one driver. A second driver is what turns the portability claim into the same kind of fact -- and
-it is the blocker CD-13 names, that anything built there has to be expressible by whatever identity
-store sits behind the driver.
+| seam | side | what it carries |
+|---|---|---|
+| **JWT at the gateway** | the READ side, every request | whatever the provider issues, validated at the gate. The contract is `esq_uid`, `esq_rootpath`, `realm_access.roles` |
+| **`IIdentityGateway` / `<iam>Master` SPI** | the WRITE side, identity changes | create, update, delete, roles, moved paths -- posted provider-blind, served by whichever master is deployed |
+
+Support a provider on both and Esquire runs on it. That is narrower and more honest than "we support OIDC":
+OIDC signs a user in; it does not let a system manage the directory it signs in against.
+
+**The shape is TWO SERVICES, not one with plugins.** kcMaster is KeyCloak's and only KeyCloak's; cgMaster is
+Cognito's. Nothing intercepts and no process holds both -- the way enyMan and keySmith are two services. Each
+provider drags its own client library (the KeyCloak admin client, the AWS SDK), and Esquire's rule is that a
+deployment carries nothing it does not run. The dependency travels with the implementation, which is the same
+property `tp-sqns` gives the bus, at the level of a service. What generalises is the messaging contract a
+master speaks -- already provider-neutral in `AuthSyncRequest` and in the RESPONSE / REJECT answer.
+
+**A capability a provider lacks is DECLARED, not special-cased.** A master that cannot do something answers
+REJECT with a reason, using a contract that already exists. That is what keeps provider differences out of
+`JwtClaimsExtractionFilter`.
+
+**Cognito is studied in full, with evidence:**
+[doc/research/Cognito.for.Esquire.md](research/Cognito.for.Esquire.md) -- every claim in it tested against a
+running user pool, not read from documentation. The short of it:
+
+- **it works, and the token is solved.** Cognito's ID token natively carries `custom:esq_uid`,
+  `custom:esq_rootpath` and `cognito:groups`, so the BFF injects the id token and the filter reads Cognito's
+  own claim names. **No Lambda** (a pre-token trigger was built and measured, then not taken), and no
+  user-pool tier above **Lite, $0.0055 per monthly active user**.
+- **what it cannot do:** find a user by a custom attribute, force TOTP enrolment per user, or host a themed
+  handshake form -- `set-ui-customization` is CSS against fixed class names, not a template.
+- **the biggest single item is the GUI.** With KeyCloak the work is ONE html theme. Parity on Cognito means
+  owning the challenge state machine -- `NEW_PASSWORD_REQUIRED`, `MFA_SETUP`, `SOFTWARE_TOKEN_MFA`, reset --
+  in the BFF, and one Explorer form per challenge.
+- **estimate: 17-26 days to develop AND deliver**, by Esquire's own cycle.
+
+**JWE is out of the claim.** The gateway's `JweAwareJwtDecoder` works and stays lab code: KeyCloak 26 will not
+emit a JWE on `/token`, and Cognito cannot issue one at all. Two providers examined, zero that can feed it, so
+the claim is **JWT** -- which is what every deployment actually runs.
+
+**SEQUENCING, 2026-08-31: review Okta BEFORE building any of it.** With KeyCloak and Cognito alone, a
+"generic" SPI is really KeyCloak plus one -- the second provider tends to be fitted to the first rather than
+to test the abstraction. A third, read before the code is written, is what shows which parts of the contract
+are genuinely general and which are two vendors agreeing by accident. Okta is the one to read, and the same
+questions apply: what its token carries, what its admin API allows, whether a login can be renamed, and what
+it takes to own the handshake forms.
+
+**Why it is worth naming.** The messaging side already has this shape: the bus reaches its network leg through
+`ITransportProvider`, with ActiveMQ, Kafka, Redis, SNS, SQS and Kinesis chosen by configuration. Identity has
+the seam and one driver. A second driver is what turns the portability claim into the same kind of fact.
 
 ---
 
@@ -183,6 +223,35 @@ The two costliest flows are documented with sequence diagrams:
 **entity-broadcast apply**, **KC request/response**, and the **audit keep** -- a collaboration / sequence diagram
 each showing participants, messages, and ordering guarantees. Deferred because those flows work as-is; this is a
 comprehension / maintenance investment.
+
+---
+
+### CD-27 -- An installation guide for the cloud demo
+
+**Today:** `doc/install/` holds two guides in a settled shape -- Prerequisites, Steps, What to expect, Update one
+service, Stop / reset -- and both stop at the machine in front of you: [Docker.md](install/Docker.md) and
+[LocalK8s.md](install/LocalK8s.md). Standing the demo up on a cloud has no equivalent. What exists is
+[Esquire.DevSetup.md](Esquire.DevSetup.md) section 7, which is written for somebody who already knows the system:
+7.1 for OCI (OKE) and 7.2 for AWS (EKS), each with its shape, prerequisites, deploy flow and safety notes, plus the
+per-target runbooks beside the scripts. That is a reference, not a guide -- it tells a maintainer what the deploy
+does, not a newcomer how to get one running.
+
+**Improvement:** one guide, `doc/install/Cloud.md`, in the same shape as the other two, for standing up the
+**demo** on a cloud. One guide rather than one per vendor: the steps are the same shape everywhere -- get a
+cluster, push the images, install the charts, point a name at the load balancer, register that name with the
+sign-in server, run the browser suite -- and only the vendor commands differ. Today that is OKE and EKS; the
+sprint's own conclusion was that a cloud other than the demo's is brought up temporarily to answer a question, so
+more vendors are expected and the guide should take a third without being rewritten.
+
+**What makes this harder than the other two, and has to be said in it rather than discovered:** a cloud guide
+cannot be self-contained. The reader must bring things the repository cannot ship -- an account with a payment
+method, a registry token, and a DNS name they control -- and both current paths pause mid-way for a record to be
+pointed at a load balancer that does not exist until the cluster does. The existing guides promise "build, start,
+open the browser"; this one has to promise something honestly different, and say what it costs to run.
+
+**Deferred because** it is new front-door material rather than a correction: the deploys work, are scripted end to
+end, and are documented for a maintainer. This is the pass that makes them followable by somebody who has not
+worked on Esquire.
 
 ---
 
@@ -216,7 +285,7 @@ right order -- `AXRod` the feed before the pool, so the transport is still open 
 **What it also settles.** `MessagingBus.close()` says *"in-flight work drains"* in its javadoc; that is true of
 the pool and false of the feed. The contract and the sentence would agree again.
 
-**Raised by:** fresh-mind audit round 4, M3, generalised by mir0n on 2026-08-26 -- the finding is about how a
+**Raised by:** fresh-mind audit round 4, M3, generalised on 2026-08-26 -- the finding is about how a
 QUEUE is shut down, not about a transport, and it is the same question in every queue the system owns.
 
 ---
@@ -258,7 +327,7 @@ move, which is ordinary traffic.
   with the subclass naming the event types that count.
 - The three defaults: burst threshold, quiet window, cooldown.
 
-**Raised by:** mir0n, 2026-08-26 -- and recorded with his own verdict on it: this is a windmill. No move has
+**Raised:** 2026-08-26 -- and recorded with the verdict on it: this is a windmill. No move has
 been shown to leave the cache wrong since the path broadcast started carrying both change numbers, so the item
 defends a class of error that has not been observed. It is written down because it costs the design nothing to
 make the backstop react to what happened rather than to the clock, not because something is known to be broken.
@@ -646,8 +715,8 @@ deliverable**; the items below are the backlog it would have caught.
 ### CD-8 -- The tracked upgrade-debt items
 
 - **`sun.misc.Unsafe` -- every Java service, terminally deprecated, "will be removed."** Two callers, neither ours:
-  OpenTelemetry (`opentelemetry-sdk-trace` → `Unsafe::objectFieldOffset`, all services) and Netty
-  (`netty-common` → `Unsafe::allocateMemory`, gateway). The fix is an OTel / Netty version bump once they migrate off
+  OpenTelemetry (`opentelemetry-sdk-trace` -> `Unsafe::objectFieldOffset`, all services) and Netty
+  (`netty-common` -> `Unsafe::allocateMemory`, gateway). The fix is an OTel / Netty version bump once they migrate off
   Unsafe; the day the JDK removes it, **every service stops booting**. Our own code is clean
   (`-Xlint:deprecation` reports zero deprecated-API use).
 - **JEP 472 restricted native access -- resolved, kept as the pattern.** The gateway launches with
@@ -660,12 +729,13 @@ deliverable**; the items below are the backlog it would have caught.
   `redis/redisinsight:latest`. Pin them, as every other image already is.
 - **The BFF (Node) is a major behind on OpenTelemetry, worse on the exporter.** `@opentelemetry/*` core/sdk 1.30.1
   vs 2.9.0, and `exporter-trace-otlp-http` 0.57.2 vs 0.220.0 -- the component that ships the BFF's spans, where a
-  protocol change breaks the first hop of every trace. Also `express` 4 → 5 and `http-proxy-middleware` 3 → 4 -- and
+  protocol change breaks the first hop of every trace. Also `express` 4 -> 5 and `http-proxy-middleware` 3 -> 4 -- and
   that proxy is the `/api/*` token-relay path, so a silent change there is security-shaped.
 - **Exporter-vs-target coupling (generalised).** A postgres-exporter pinned against a PG shape the DB had moved past
   fails on every scrape, silently, if no panel uses those metrics. The class is general: every exporter is coupled to
   the version of the thing it observes, and nothing checks it -- any Postgres / KeyCloak / ActiveMQ upgrade must
   re-verify its exporter.
+- **The delivery pipeline's actions still target Node 20, and the runner has started forcing them.** GitHub is retiring Node 20 on the Actions runners. `deploy-oke.yml` runs `actions/setup-java@v4`, `docker/login-action@v3`, `docker/setup-buildx-action@v3` and `docker/setup-qemu-action@v3`, all of which declare Node 20 and are now executed on Node 24 with a deprecation warning on every run; `actions/setup-java@v4` carries its own notice that it receives no further updates. `ci.yml` already runs `actions/setup-java@v5`, so the sweep is the rest of `deploy-oke.yml` -- its two `setup-java` steps and the three `docker/*` steps moved together, with `actions/setup-node@v4` and the two `azure/setup-*@v4` steps checked in the same pass. A forced runtime is what this looks like before it becomes a failed run: when the runner stops shimming Node 20, the release pipeline stops and the only path to production goes with it.
 - **Infra images to bump as one set** (all pinned and working; listed so it is one task, not several): Grafana,
   Prometheus, Loki, Tempo, OTel Collector, Alloy, Kafka, KeyCloak, ActiveMQ, Postgres.
 
@@ -712,11 +782,11 @@ share a counter, because they never meant the same thing.
 without a single extra message on the entity broadcast, and a sweep after a transaction has nothing to
 disagree about. The account transaction path stays as quiet as it is now, and stays right.
 
-**Draft shape (mir0n): a virtual kind.** A `biz-account` kind, served by auKeep with only the business
+**Draft shape:**: a virtual kind.** A `biz-account` kind, served by auKeep with only the business
 updates for the account and carrying a `biz-change-no`. An account action bumps that number and only that
 number; `acc_change_no` is left to the entity.
 
-**Full shape (mir0n): a table of its own, one-to-one, the way a user already has one.** The pattern is in
+**Full shape: a table of its own, one-to-one, the way a user already has one.** The pattern is in
 the schema already. `ESQ_USER` holds the user as an entity; `ESQ_AUTH` holds the access profile
 one-to-one beside it -- `AU_USR_PK BIGINT ... 'User primary key, one-to-one FK'` -- with its own
 `AU_CHANGE_NO`, its own service (keySmith), its own `ESQ_AUTH_LOG` and trigger, and no presence in the
@@ -738,20 +808,20 @@ a reading: the balance is clear, the currency and the funded date are not.
 id for `biz-account` and how it meets the kind-validation rule; whether auKeep writes a log of its own or
 tags the existing account log with the kind.
 
-**Raised by:** mir0n, 2026-08-26. A sprint of its own, not a task inside one. Related: **CD-11**, which
+**Raised:** 2026-08-26. A sprint of its own, not a task inside one. Related: **CD-11**, which
 redesigns the same processor around per-account concurrency.
 
 ---
-### CD-11 -- pacMan → pacMaxRay (event-driven account processor)
+### CD-11 -- pacMan -> pacMaxRay (event-driven account processor)
 
 The accounting engine redesigned around per-account concurrency and an open, messaging-first surface:
 
 - **pacMax + xy-/xx-Ray** -- a multithreaded, event-driven account-transaction processor.
 - One **virtual thread per account**, a queue as the entry point to each account; an **LMAX ring (Disruptor)**
-  distributes events from the messaging bus to the account thread (multi-producer → multi-consumer).
+  distributes events from the messaging bus to the account thread (multi-producer -> multi-consumer).
 - An **object DB** as the single place for account-state synchronization; an M2M snapshot schema.
-- Replication thread(s) for account-change events (logs, account, transaction); `xyRay → Kafka (or any fan-out
-  stream) → xxRay → (esq2025, logs, transactions)`.
+- Replication thread(s) for account-change events (logs, account, transaction); `xyRay -> Kafka (or any fan-out
+  stream) -> xxRay -> (esq2025, logs, transactions)`.
 - **Messaging-only access to pacMax**, and a **WebSocket / async-media facade** (open architecture) as its front --
   the BFF gaining a direct REST-messaging route, WebSocket first.
 

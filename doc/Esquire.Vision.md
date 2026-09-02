@@ -315,16 +315,68 @@ stack in the industry. The frontend is Angular with a published npm library. Eve
 is a well-known open-source technology. You are never depending on a proprietary protocol,
 a vendor API, or a hosted service you cannot replace.
 
-Vendor independence is an architectural principle, not a feature. It operates at three layers:
+Vendor independence is an architectural principle, not a feature. It operates at four layers, and
+at each one the same test applies: carrying an open component onto another cloud is deployment, not
+portability. The claim only bites against a **cloud-native** service — the managed one with no
+equivalent elsewhere, which is where lock-in actually lives.
+
+That test has been run on **AWS**, against the AWS-native database, messaging and observability
+described below. It is a method rather than a one-off: a cloud is brought up, the framework is pointed
+at that vendor's own services, the result is measured, and the deployment comes down again. What
+carries from one vendor to the next is the seams, not the vendor.
 
 **Database.** Oracle and Postgres are supported today, with vendor-specific SQL isolated in
 named query XML files so switching does not touch application code. MySQL and other RDBMS
 targets are straightforward additions — the same isolation principle applies.
 
+Postgres and Oracle are ours to run, and run anywhere. The harder case is the **AWS-native**
+database — a managed service with no equivalent elsewhere — and Esquire runs on that too: the
+same Postgres profile ran on **RDS for PostgreSQL** and on **Aurora PostgreSQL** with no change
+to a single line of application code or SQL — a host name and a password, nothing else. All
+three options work, so the choice could be made on measurement instead of preference:
+
+| where Postgres runs | how it compared | cost |
+|---|---|---|
+| **in a pod** — what Esquire ships | same PostgreSQL 17.11, 20% fewer writes per second than RDS | **~$1.60/month** |
+| **RDS for PostgreSQL** | the managed baseline | ~$25/month |
+| **Aurora PostgreSQL** | **46% slower on writes** than the smaller, cheaper RDS, and a PostgreSQL version behind | ~$55/month |
+
+Aurora is built for storage-layer replication, fast failover and read scaling. A single-replica
+demo exercises none of that and pays for all of it, so it is the wrong tool here — not a worse
+product. The point is that the framework did not care which one it was talking to.
+
 **Messaging Bus.** Esquire ships a vendor-agnostic **Messaging Bus** — the broadcast and
 request-response patterns are the contract, and the transport is a deployment choice behind a
-pluggable transport-provider interface. The first transport providers are ActiveMQ, Kafka, and Redis —
-all implemented on the same interface.
+pluggable transport-provider interface. Six transport providers exist on that one interface:
+ActiveMQ, Kafka and Redis, and on AWS **Amazon SNS**, **Amazon SQS** and **Amazon Kinesis**.
+
+The first three are open brokers: Esquire can carry them onto any cloud, which costs the vendor
+nothing to allow. The **AWS-native** three are the harder case — managed services with no
+equivalent elsewhere — and they carry the same three buses the brokers do: the entity broadcast,
+the identity request/response and the audit log, with no change above the seam. They also show what the seam
+is worth: SNS has no receive call at all, so the driver arranges a queue per consuming instance
+underneath, and none of that reaches the application. A service still asks for a bus by name and
+role, exactly as it does against a broker.
+
+**And AWS is never built in.** No service depends on the AWS modules and no service image
+contains a byte of the AWS client. The drivers are ATTACHED at deployment — mounted on docker,
+copied in by an initContainer on Kubernetes — so the images that run on AWS are the same images
+that run everywhere else. A deployment that is not on AWS carries none of it.
+
+**Observability.** The three signals leave Esquire in open formats and nothing downstream is
+assumed: logs as ECS JSON on stdout, traces as OTLP, metrics as a Prometheus page. Esquire ships
+Grafana, Loki, Tempo and Prometheus reading them — a default, not a requirement.
+
+Those are open components, so they follow Esquire onto any cloud unchanged; that much is just
+deployment. The claim worth testing was the opposite one — that Esquire can hand its signals to the
+**AWS-native** services, which is where observability lock-in actually lives. It can: all three
+pillars were moved onto **AWS X-Ray**, **CloudWatch** and **CloudWatch Logs** on a running cluster, and **no service code changed and no image was rebuilt** — the image digests running against
+CloudWatch were the digests that had been running against Prometheus and Tempo. One deployment value
+moved, naming where spans are posted.
+
+So it works both ways: Esquire does not need a cloud's observability, and it can use one. What does
+not travel is the dashboards, because a query language is not a data format — the signals port
+completely, the boards have to be rebuilt.
 
 **Identity and access management.** Keycloak is today's IAM. The architecture was designed
 from the start so that Keycloak is never touched directly by the core services. keySmith

@@ -1,0 +1,118 @@
+# =============================================================================
+# Public access for the BFF and the gateway -- T2.10.
+#
+# Modelled on k8s-oci-compact/cluster/ingress.yaml, with two differences that
+# matter:
+#
+#   1. CLASSIC service names, not compact ones. The gate here is the gateway, not
+#      gateWard, and the helm releases are named for their charts, so the services
+#      are esquire-backend-backend, esquire-gateway-gateway and
+#      esquire-infra-kc-keycloak.
+#
+#   2. NO TLS, and no host rules. OKE serves esquire.mir0n.pro with a
+#      cert-manager certificate; this serves the NLB's own AWS hostname, and no
+#      certificate authority will issue for *.amazonaws.com. So it is plain HTTP
+#      and matches on path alone -- any Host header is accepted.
+#
+# WHY THIS EXISTS. Everything reached the cluster through four kubectl
+# port-forward processes, which die silently and, when the docker lab holds the
+# same ports, send the suites to the wrong system entirely while reporting
+# success. That cost a full round of false verification. Decided 08-31.
+#
+# TO PUT A REAL NAME ON IT: add a CNAME from the chosen host to the NLB DNS name,
+# then set the host here, add a `tls:` block with a cert-manager issuer, and
+# change three settings that MUST agree -- KeyCloak `hostname`, the BFF `issuer`
+# and `publicBaseUrl`. A mismatch there fails sign-in with an error that blames
+# the token rather than the URL.
+# =============================================================================
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: esquire-public
+  namespace: default
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: 16m
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+spec:
+  ingressClassName: nginx
+  # TLS is NOT optional here. The BFF runs with NODE_ENV=production, so its
+  # session cookie is `secure` -- express-session will not set it on a plain HTTP
+  # connection, the callback then finds no pending login, and sign-in fails with a
+  # flat 400. The BFF sets `trust proxy`, so terminating TLS here is enough: it
+  # sees X-Forwarded-Proto https and sets the cookie.
+  #
+  # cert-manager issues this from Let's Encrypt via HTTP-01, which needs the DNS
+  # record to resolve to the load balancer first. Until it does, the Certificate
+  # stays pending -- that is waiting, not failing.
+  tls:
+    - hosts:
+        - aws-esquire.mir0n.pro
+      secretName: esquire-tls
+  rules:
+    - host: aws-esquire.mir0n.pro
+      http:
+        paths:
+          # KeyCloak's own front-channel paths. Only the browser hits these, during
+          # the sign-in redirect. It has to be the SAME public origin as the BFF, or
+          # the issuer in the token will not match where the browser actually went.
+          - path: /kc-auth
+            pathType: Prefix
+            backend:
+              service:
+                name: esquire-infra-kc-keycloak
+                port:
+                  number: 8080
+
+          # Everything else is the BFF: the SPA, /auth/* and the /api/* proxy that
+          # injects the session bearer.
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: esquire-backend-backend
+                port:
+                  number: 3000
+
+---
+# The gateway, for server-to-server callers carrying their own JWT -- hauberk and
+# the like. The browser never uses it: the BFF reaches the gateway in-cluster.
+#
+# IT NEEDS A REWRITE, AND IT IS A SEPARATE INGRESS BECAUSE OF THAT. The gateway
+# serves at the root -- on OKE it has a host of its own -- so a plain `/esq-api`
+# prefix rule hands it `/esq-api/esq-cmd` and it answers 404. The rewrite strips
+# the prefix. `use-regex` changes how EVERY path in an ingress is matched, so it
+# lives here rather than on the rules that already work.
+#
+# THE 404 WAS INVISIBLE. Anything not matched by a rule falls to the BFF, and the
+# BFF answers an unknown path with the SPA index -- 200, 76KB, no token needed. A
+# probe that only checks the status code reads that as a working gateway.
+#
+# No cert-manager annotation here on purpose: the certificate for this host is
+# already issued and held in esquire-tls, and a second Certificate for the same
+# host would only race the first.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: esquire-public-gw
+  namespace: default
+  annotations:
+    nginx.ingress.kubernetes.io/use-regex: "true"
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+    nginx.ingress.kubernetes.io/proxy-body-size: 16m
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - aws-esquire.mir0n.pro
+      secretName: esquire-tls
+  rules:
+    - host: aws-esquire.mir0n.pro
+      http:
+        paths:
+          - path: /esq-api(/|$)(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: esquire-gateway-gateway
+                port:
+                  number: 8080

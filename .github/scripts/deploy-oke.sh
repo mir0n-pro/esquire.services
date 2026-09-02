@@ -2,7 +2,7 @@
 # ===========================================================================
 # Esquire services -- deploy the SUPER-COMPACT stack to OKE.
 #
-# OKE runs super-compact and nothing else (mir0n, 2026-08-19): four application processes --
+# OKE runs super-compact and nothing else (2026-08-19): four application processes --
 # Mesnie (enyMan + keySmith + the identity work), gateWard (the gate + the bizTree cache),
 # pacMan and the BFF -- so 8 application pods where classic ran 13. The k8s-oci folder stays
 # in place as the classic record; it is no longer maintained.
@@ -35,7 +35,8 @@
 #   BFF_KC_SECRET          esq-angular BFF client secret
 #   GW_EXCHANGE_SECRET     gateway phantom-token-relay exchange client secret
 #   BFF_SESSION_SECRET     BFF session-cookie HMAC secret
-#   KCMASTER_ADMIN_SECRET  esq-kcMaster KC admin service-account client secret
+#   KCMASTER_ADMIN_SECRET  esq-kcMaster KC admin service-account client secret -- REQUIRED,
+#                          the only one of the four with no fallback (see why below)
 # ===========================================================================
 set -euo pipefail
 
@@ -53,12 +54,32 @@ note_fallback() {   # $1 = name, $2 = value, $3 = published default
 BFF_KC_SECRET="${BFF_KC_SECRET:-esq-angular-bff-dev-secret-rotate-in-prod}"
 GW_EXCHANGE_SECRET="${GW_EXCHANGE_SECRET:-esq-gw-exchange-dev-secret-rotate-in-prod}"
 BFF_SESSION_SECRET="${BFF_SESSION_SECRET:-esq-bff-session-secret}"
-KCMASTER_ADMIN_SECRET="${KCMASTER_ADMIN_SECRET:-MHgq0Nu69u2uJ2johaK1wxQLMdakELXN}"
+
+# esq-kcMaster HAS NO DEFAULT, and it is the only one of the four that does not.
+#
+# It is the single published client carrying realm-management realm-admin: the other
+# service accounts -- esq-rest, esq-hauberk, esq-hauberk-S, esq-hauberk-M -- hold no
+# realm-management role at all. So its secret is not one credential among seven, it is
+# the realm's master key, and with it anyone can create a user and grant it any role.
+#
+# A DEFAULT HERE MAKES A ROTATION UNDOABLE. Shell ":-" substitutes on an EMPTY value as
+# well as an unset one, so a GitHub secret that is not configured arrives as "" and the
+# published value is reinstated -- on a deploy that then reports success. You would have
+# rotated the client and changed nothing, and the only trace is one line in a run log.
+#
+# ":?" fails on unset AND empty, and set -e stops the script. That is the intent: no
+# deploy at all is better than a deploy that quietly restores the key everyone has.
+: "${KCMASTER_ADMIN_SECRET:?KCMASTER_ADMIN_SECRET is not set.
+    esq-kcMaster is the KeyCloak realm-admin service account. There is deliberately no
+    fallback: a default would silently reinstate the published development secret.
+    Set it as a GitHub Actions REPOSITORY secret -- not an environment secret. The
+    validate job declares no environment, so an environment secret reaches deploy and
+    arrives EMPTY in validate.}"
 
 note_fallback BFF_KC_SECRET         "$BFF_KC_SECRET"         "esq-angular-bff-dev-secret-rotate-in-prod"
 note_fallback GW_EXCHANGE_SECRET    "$GW_EXCHANGE_SECRET"    "esq-gw-exchange-dev-secret-rotate-in-prod"
 note_fallback BFF_SESSION_SECRET    "$BFF_SESSION_SECRET"    "esq-bff-session-secret"
-note_fallback KCMASTER_ADMIN_SECRET "$KCMASTER_ADMIN_SECRET" "MHgq0Nu69u2uJ2johaK1wxQLMdakELXN"
+echo "[ok] KCMASTER_ADMIN_SECRET taken from the environment"
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CHARTS="$(cd "${HERE}/../../k8s-compact/charts" && pwd)"

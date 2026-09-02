@@ -1,0 +1,42 @@
+# The CloudWatch collector -- the AWS-native half of the o11y port (T6).
+#
+# ISOLATION: this chart shares NOTHING with charts/infra/otel-collector. Its own release name, its own
+# ServiceAccount, its own ConfigMap. The two can be installed and removed independently, and neither
+# arm reads the other's values. That is deliberate: the Prometheus/Grafana stack is proven and is not
+# put at risk by work on this one.
+image:
+  repository: otel/opentelemetry-collector-contrib
+  tag: "0.119.0"
+  pullPolicy: IfNotPresent
+
+aws:
+  region: us-east-1
+  # The EMF namespace every Esquire metric lands under.
+  namespace: Esquire
+  # The log group EMF writes through. Retention is set so the group cannot become a silent tail --
+  # CloudWatch Logs default to NEVER EXPIRE, and a group left behind bills at $0.03/GB-month forever.
+  logGroup: /esquire/emf
+  logRetentionDays: 1
+
+# MEASURED, not guessed (T6, 2026-09-01): the naive port publishes 2.27 CloudWatch metrics per
+# Prometheus series -- 877 series became 1,989 metrics -- because dimension_rollup_option defaults to
+# ZeroAndSingleDimensionRollup and adds a rollup per single dimension that nobody asked for. At $0.30
+# per metric-month that default costs $597/month instead of $263. NoDimensionRollup is 1:1.
+dimensionRollup: NoDimensionRollup
+
+scrape:
+  # The services expose actuator (incl. /actuator/prometheus) on a SEPARATE management port, never on
+  # the public one -- same fact the Prometheus chart relies on.
+  managementPort: "8090"
+  interval: 30s
+
+nodeSelector:
+  tier: app
+
+resources:
+  requests:
+    cpu: 200m
+    memory: 256Mi
+  limits:
+    cpu: 1000m
+    memory: 1Gi

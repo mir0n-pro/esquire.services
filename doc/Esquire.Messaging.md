@@ -19,9 +19,10 @@ underneath — the catalog, the x-rod frontend, rod-classes, and the transport-p
 [Esquire.MessagingBus.MessageStructure.md](Esquire.MessagingBus.MessageStructure.md).
 
 A bus is one logical conversation: a set of channels (a topic, a queue, or a stream) grouped to serve a
-single purpose. A service never talks to ActiveMQ / Kafka / Redis directly — it joins a named bus through
-the x-rod frontend, and the broker is a per-deployment choice. ActiveMQ is the transport deployed in the
-cloud today; the local docker stack also runs Kafka and Redis.
+single purpose. A service never talks to a broker directly — it joins a named bus through the x-rod
+frontend, and the broker is a per-deployment choice. ActiveMQ is the transport deployed in the cloud today;
+the local docker stack also runs Kafka and Redis, and a second sandbox runs the bus on Amazon SNS, SQS and
+Kinesis.
 
 ---
 
@@ -182,11 +183,14 @@ additionally reports its keep `*_log` database (the apply side). Wiring: [Esquir
 
 ## Current limitations
 
-- **ActiveMQ is the only transport in the cloud deployment.** The Kafka and Redis providers are implemented
-  and validated on the local docker stack (every audit sink runs there), but the OKE / k8s deployment ships
-  ActiveMQ only — the Kafka / Redis sinks (`audit-ck` / `audit-d` / `audit-dk`) are validated options, not
-  part of the cloud topology. On k8s a bus pointed at an absent broker resolves to a disabled no-op, not a
-  crash.
+- **ActiveMQ is the only transport in the cloud deployment.** The Kafka, Redis and AWS providers are
+  implemented and validated on a local docker stack (every audit sink runs there), but the OKE / k8s
+  deployment ships ActiveMQ only — the other sinks (`audit-ck` / `audit-d` / `audit-dk` / `audit-k`) are
+  validated options, not part of the cloud topology. On k8s a bus pointed at an absent broker resolves to a
+  disabled no-op, not a crash.
+- **The AWS providers run in their own sandbox.** `services/compose-aws` carries the bus on Amazon SNS, SQS
+  and Kinesis against a local AWS stack. They are attached at deployment, so no service image carries the AWS
+  client and a non-AWS deployment has none of it.
 
 - **The stream sinks are producer-only.** `audit-d` (Redis) and `audit-dk` (Kafka) write the log but have
   no consumer back into the `*_log` tables — the stream itself *is* the record. Feeding it onward (e.g. into

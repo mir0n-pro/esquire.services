@@ -1,0 +1,25 @@
+# The CloudWatch log shipper -- the third pillar of the AWS-native port (T6).
+#
+# ISOLATION: shares nothing with charts/infra/alloy. Alloy tails the same files and writes to Loki;
+# this writes to CloudWatch Logs. They can run together or apart, and removing one leaves the other
+# untouched.
+image:
+  repository: amazon/aws-for-fluent-bit
+  tag: "2.32.2"
+  pullPolicy: IfNotPresent
+
+aws:
+  region: us-east-1
+  logGroup: /esquire/services
+  # A group with no retention is the one artifact that keeps billing after everything is switched off,
+  # and it does it silently -- CloudWatch Logs default to NEVER EXPIRE. Retention is set HERE, at
+  # creation, so "off" has no tail to sweep.
+  logRetentionDays: 1
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 300m
+    memory: 256Mi

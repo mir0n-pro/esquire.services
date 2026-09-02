@@ -1,0 +1,6 @@
+apiVersion: v2
+name: esquire-postgres
+description: Postgres database for Esquire -- custom image with seed scripts baked in
+type: application
+version: 0.1.0
+appVersion: "17"

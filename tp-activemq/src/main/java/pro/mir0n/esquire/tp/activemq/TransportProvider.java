@@ -40,6 +40,10 @@
  *                   mode is silently ignored. Excluded from withParams (a setter, not a broker-URI option); the
  *                   publisher-opened devLog line now carries persistent=
  * 08/26/2026 mir0n  the connection health seeds UNKNOWN, not UP -- nothing has proved the connection at open
+ * 09/01/2026 mir0n  v1.2.14 -- PARAM_USERNAME ("userName") and PARAM_PASSWORD ("password") added: the broker
+ *                   credentials read from transport.params, applied with setUserName/setPassword and BOTH
+ *                   excluded from withParams -- the broker URI is written to the develop log on every open,
+ *                   so a credential carried as a URI option would be written there too
  */
 package pro.mir0n.esquire.tp.activemq;
 
@@ -97,6 +101,16 @@ public final class TransportProvider implements ITransportProvider {
      *  broker will see it, instead of hidden in a file they will never open. */
     private static final String PARAM_PERSISTENT = "persistent";
 
+    /** The broker user, carried as a vendor param ({@code transport.params.userName}). Absent = an anonymous
+     *  connection, which is what a broker of our own is set up for; a managed broker (Amazon MQ) always demands
+     *  one. Applied with a setter and excluded from {@link #withParams} -- and here the exclusion is the whole
+     *  point, not a detail: the broker URI is written to the develop log on every open, so a credential appended
+     *  to it would be written there too. */
+    private static final String PARAM_USERNAME = "userName";
+
+    /** The broker password, beside {@link #PARAM_USERNAME} and read only when that one is set. */
+    private static final String PARAM_PASSWORD = "password";
+
     public TransportProvider() {
     }
 
@@ -105,6 +119,7 @@ public final class TransportProvider implements ITransportProvider {
         String brokerUrl = withParams(s.endpoint(), s.params());
         boolean pubSub = Boolean.parseBoolean(s.param(PARAM_PUBSUB_DOMAIN, "false"));
         ActiveMQConnectionFactory amq = new ActiveMQConnectionFactory(brokerUrl);
+        credentials(amq, s.param(PARAM_USERNAME, null), s.param(PARAM_PASSWORD, null));
         if (s.poolSize() > 0) {
             amq.setUseAsyncSend(true);
         }
@@ -135,6 +150,7 @@ public final class TransportProvider implements ITransportProvider {
     public TransportConsumer openConsumer(String destination, ConsumeSettings s, Consumer<TransportMessage> handler) {
         String brokerUrl = withParams(s.endpoint(), s.params());
         ActiveMQConnectionFactory amq = new ActiveMQConnectionFactory(brokerUrl);
+        credentials(amq, s.param(PARAM_USERNAME, null), s.param(PARAM_PASSWORD, null));
 
         AtomicReference<TransportHealth> conn = new AtomicReference<>(TransportHealth.UNKNOWN);
         amq.setTransportListener(stateListener(conn, "consumer " + destination));
@@ -196,6 +212,15 @@ public final class TransportProvider implements ITransportProvider {
         }, conn::get);
     }
 
+    /** Put the broker user on the factory when the leg declares one. The two are read together: a password with
+     *  no user names nobody, so the pair is applied only when the user is there. */
+    private static void credentials(ActiveMQConnectionFactory amq, String user, String password) {
+        if (user != null && !user.isBlank()) {
+            amq.setUserName(user);
+            amq.setPassword(password);
+        }
+    }
+
     /** A connection-state listener that flips {@code conn} to DOWN on a transport interrupt / exception and back
      *  to UP on a resume -- the source for a leg's {@link TransportHealth}. (ActiveMQ's API spells the interrupt
      *  callback {@code transportInterupted}, with one 'r'.) Set on the {@code ActiveMQConnectionFactory}, it
@@ -236,9 +261,10 @@ public final class TransportProvider implements ITransportProvider {
             StringBuilder q = new StringBuilder();
             for (Map.Entry<String, String> e : params.entrySet()) {
                 if (PARAM_PUBSUB_DOMAIN.equals(e.getKey()) || BusConstants.PARAM_NO_LOCAL.equals(e.getKey())
-                        || PARAM_PERSISTENT.equals(e.getKey())) {
-                    continue;   // applied via a setter (setPubSubDomain / setPubSubNoLocal / setDeliveryPersistent),
-                                // not a broker-URI option
+                        || PARAM_PERSISTENT.equals(e.getKey()) || PARAM_USERNAME.equals(e.getKey())
+                        || PARAM_PASSWORD.equals(e.getKey())) {
+                    continue;   // applied via a setter (setPubSubDomain / setPubSubNoLocal /
+                                // setDeliveryPersistent / setUserName / setPassword), not a broker-URI option
                 }
                 q.append(q.length() == 0 ? "" : "&").append(e.getKey()).append('=').append(e.getValue());
             }

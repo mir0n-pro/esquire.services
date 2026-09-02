@@ -1,0 +1,93 @@
+# EKS overlay for k8s-aws-compact/charts/esquire-mesnie  --  T7, super-compact, x1.
+#
+# Mesnie is the household -- the WRITE side. It answers every enyMan and keySmith endpoint and serves the
+# identity work in process, so this ONE overlay carries what the classic AWS deploy spread over
+# values/enyman.yaml, values/keysmith.yaml and values/kcmaster.yaml.
+image:
+  repository: ghcr.io/mir0n-pro/esquire.mesnie
+  # tag injected by aws-up.bat (--set image.tag=%image_tag%) -- one release tag for the whole stack.
+  # Always, NOT IfNotPresent. The release tag is vMajor.Minor.Micro-YYMM.DDHH, so it
+  # carries ONE SLOT PER HOUR -- a second build inside the same hour re-pushes the
+  # SAME tag with different content. Under IfNotPresent a node that already pulled
+  # that tag keeps the old image and the roll reports success, which is the silent
+  # half of the :latest digest trap. Always costs one registry check per pod start.
+  pullPolicy: Always
+
+# The AWS driver carrier. Its tag is injected alongside image.tag and MUST match it: the driver is
+# attached to the messaging framework inside the service image, and a mismatched pair fails at the seam
+# rather than at start-up.
+awsDrivers:
+  repository: ghcr.io/mir0n-pro/esquire-tp-aws
+
+springProfilesActive: console,dev-postgres
+
+service:
+  managementPort: 8090
+
+db:
+  vendor: dev-postgres
+  host: esquire-infra-postgres
+  port: 5432
+  name: esq2025
+  username: esq2025
+
+# KeyCloak, reached in process through the identity gateway -- no kc bus, no kcMaster workload.
+# adminClientSecret is passed via --set at install, never a chart default.
+keycloak:
+  baseUrl: http://esquire-infra-kc-keycloak:8080/kc-auth
+  realm: esquire
+  adminClientId: esq-kcMaster
+
+logging:
+  levelRoot: ERROR
+  levelSf: WARN
+  levelMir0n: ERROR
+  levelDevelop: "OFF"
+  levelMsg: "OFF"
+
+nodeSelector:
+  tier: app
+
+# x1. T7 is the lowest-bill steady state; a second copy answers nothing it is asked. topologySpread is
+# therefore not set -- it exists to keep replicas off one node, and there is one replica.
+replicaCount: 1
+
+resources:
+  requests:
+    cpu: 150m
+    memory: 768Mi
+  limits:
+    cpu: "1"
+    memory: 1280Mi
+
+resilience:
+  tomcatMaxThreads: "25"
+  tomcatAcceptCount: "50"
+  dbPoolMax: "10"
+  dbPoolMinIdle: "2"
+  dbConnectTimeoutMs: "5000"
+  dbSocketTimeoutSeconds: "35"
+  dbTcpKeepAlive: "true"
+
+# producer send-retry (block mode) on the entity broadcast bus.
+entity:
+  sendRetry: "true"
+
+# SUPER-COMPACT = the compact composition with audit on option (a), DB triggers: the app producer stays
+# OFF, no auKeep process exists and no audit bus carries traffic. The audit stack leaves the application
+# entirely -- zero code, one environment variable. The trigger DDL is applied by aws-up.bat, because the
+# postgres image seeds create/ and fill/ on an empty volume but NOT triggers/.
+audit:
+  busId: audit-off
+
+# --- observability: OFF, and there is nothing here to turn it on ------------
+# T7 is the lowest-bill steady state. This folder deploys NO Prometheus, Grafana,
+# Loki, Tempo, Alloy, collector or exporter, the cluster has no o11y node group,
+# and there are no o11y arms beside these scripts. The charts default
+# observability.enabled to "false", so both pillars are off and the chart's
+# otlpEndpoint names a collector that is never deployed -- inert, not broken.
+#
+# Observability on AWS is k8s-aws: the own-stack arms (aws-o11y-on/off/full) and
+# the CloudWatch ones (aws-o11y-cw-on/off), both proved in T5 and T6 on the
+# classic shape. Turning it on HERE would mean a node group, seven components and
+# a different bill -- which is a different question from the one T7 asks.

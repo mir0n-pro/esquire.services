@@ -1,0 +1,5 @@
+# The CloudWatch log shipper as this cluster runs it.
+aws:
+  region: us-east-1
+  logGroup: /esquire/services
+  logRetentionDays: 1

@@ -1,0 +1,155 @@
+image:
+  repository: esquire.enyman
+  tag: latest
+  pullPolicy: IfNotPresent
+
+# HA scheduling (pre-HA defaults: no node pinning, no spread). The OKE overlay sets
+# nodeSelector.tier=app and turns topologySpread on to place the x2 replicas on
+# distinct app-tier nodes; local (single node) leaves both off.
+nodeSelector: {}
+topologySpread:
+  enabled: false
+
+# Hard cap is 10 -- v1.2.6 id encoding allocates one decimal digit for
+# the instance number (EsqUtils.instanceNo, range 0-9). The chart's
+# deployment template fails the release if this value > 10, and
+# values.schema.json enforces the same bound at `helm install/upgrade`.
+replicaCount: 1
+
+springProfilesActive: "console,dev-postgres"
+
+# shared bus topology is delivered by the esquire-topology ConfigMap, mounted at /etc/esquire.
+topologyImport: optional:file:/etc/esquire/topology.yml
+
+# v1.2.10 VT (UNVALIDATED test lever, default OFF -- see HA doc 5.5)
+esqVirtualThreads: "false"        # ESQ_VIRTUAL_THREADS (spring.threads.virtual.enabled, request path)
+
+service:
+  port: 3003
+  managementPort: 8090   # actuator/management port (F0 A6); probes + MANAGEMENT_SERVER_PORT read this
+
+db:
+  vendor: dev-postgres
+  host: esquire-infra-postgres
+  port: 5432
+  name: esq2025
+  username: esq2025
+  password: q
+
+# R1-R5 resilience knobs (timeout ladder / pool sizing / fail-fast DB). Defaults
+# here are the pre-HA "no HA" behavior we ran before HA work (large / disabled), so a
+# plain `helm install` of this chart behaves exactly as before. The tuned local-k8s
+# budget lives in k8s/values/enyman.yaml; OKE keeps these pre-HA defaults.
+resilience:
+  txTimeoutSeconds: "-1"          # R1 spring.transaction.default-timeout (-1 = inherit, no cap)
+  tomcatMaxThreads: "200"         # R2 server.tomcat.threads.max (Boot default)
+  tomcatAcceptCount: "100"        # R2 server.tomcat.accept-count (Boot default)
+  dbPoolMax: "20"                 # R3 Hikari maximum-pool-size
+  dbPoolMinIdle: "20"             # R3 Hikari minimum-idle
+  dbConnectTimeoutMs: "30000"     # R3 Hikari connection-timeout (Hikari default)
+  dbSocketTimeoutSeconds: "0"     # R5 pgjdbc socketTimeout (0 = none)
+  dbTcpKeepAlive: "false"         # R5 pgjdbc tcpKeepAlive
+
+moveQueue:
+  capacity: "16384"
+  validateCreateDuringMove: "true"
+
+# kc-bus ref: enyMan is the CLIENT (posts KC requests, receives responses).
+kc:
+  busId: esquire.kc
+  slotId: kc
+  responsePoolSize: "2"
+  responseConcurrency: "1"
+  publisherPoolSize: "0"
+  # producer send-retry on the KC R&R bus; pre-HA default OFF; BOTH the local-k8s AND the OKE overlay turn it ON (block mode).
+  sendRetry: "false"
+  sendRetryBackoff: "1,2,5,5"
+  sendRetryMaxAttempts: "0"
+  poolMode: "platform"            # KC_POOL_MODE (platform | virtual | virtual-per-task, default platform)
+
+# entity-bus ref: enyMan is a PUBLISHER (broadcasts entity changes).
+entity:
+  busId: esquire.entity
+  slotId: entity
+  broadcastPublisherPoolSize: "0"
+  # producer send-retry on the entity broadcast bus (pre-HA default OFF; the local-k8s AND OKE overlays turn it ON).
+  sendRetry: "false"
+  sendRetryBackoff: "1,2,5,5"
+  sendRetryMaxAttempts: "0"
+  poolMode: "platform"            # ENTITY_BROADCAST_POOL_MODE (platform | virtual | virtual-per-task, default platform)
+
+# audit: default k8s sink = (c) over the bus (ActiveMQ); esquire-aukeep drains it to the *_log tables.
+# Switch to in-process (b) with busId=audit-b (the datasource block below is the *_log datastore).
+audit:
+  busId: audit-c
+  slotId: audit
+  poolSize: "4"
+  feedCapacity: "4096"
+  poolMode: "platform"            # AUDIT_POOL_MODE (platform | virtual | virtual-per-task, default platform)
+  datasource:
+    # the keep's OWN dedicated *_log pool, from the url/hikari below.
+    url: jdbc:postgresql://esquire-infra-postgres:5432/esq2025
+    username: esq2025
+    poolSize: "2"
+
+logging:
+  levelRoot: ERROR
+  levelSf: ERROR
+  levelMir0n: DEBUG
+  levelDevelop: DEBUG
+  levelMsg: DEBUG
+  levelAmq: INFO
+  levelJms: INFO
+  developLogPath: /tmp/enyMan-develop.log
+  msgLogPath: /tmp/enyMan-msg.log
+
+# v1.2.11 O2 distributed tracing (opt-in; the o11y stack + o11y-on.bat enable it). OFF by default.
+observability:
+  # ONE master switch: tracing + metrics together (v1.2.11 O1/O2). Off by default.
+  enabled: "false"
+  # Per-pillar enable (I41). Empty = follow the master `enabled`. Set "false" to run that pillar off:
+  #   tracingEnabled "false" = metrics-only (service-mesh coexistence -- a mesh already traces the wire).
+  tracingEnabled: ""
+  metricsEnabled: ""
+  # Percentile buckets on every latency timer (O1/T5-B). OFF by default -- they cost ~2.3x the
+  # scrape (4,597 -> 10,686 series), paid on every scrape whether or not anyone looks.
+  # NOTE what goes dark WITH them: the exemplar diamonds. The metrics -> trace hop hangs a
+  # trace_id off a BUCKET sample, so with buckets off there is nowhere to attach one -- the hop
+  # is wired but inert. Set true to investigate a percentile or to use that hop.
+  metricsHistograms: "false"
+  # HTTP byte counters (O1/T5-C). Cheap, so ON by default. One knob for BOTH embedded servers.
+  metricsBandwidth: "true"
+  # Business meters (O1/T8): the esq.biz.* domain tier. ON by default; off = every call site a null check.
+  metricsBusiness: "true"
+tracing:
+  otlpEndpoint: http://esquire-infra-otel-collector:4318/v1/traces
+  samplingRatio: "1.0"
+  marksEnabled: "true"
+  # RR liveness heartbeat (TestRequest/HeartBeat) spans -- OFF by default on EVERY target (unified I14):
+  # heartbeats fire every interval, so tracing them floods Tempo; set true per env to debug the RR bus.
+  msgBusAliveTrace: "false"
+  excludedPaths: "/actuator"
+
+# --- AWS transports, attached at deployment (k8s-aws only) -------------------
+# The initContainer in deployment.yaml copies these jars into an emptyDir the
+# service container reads through -Dloader.path. The service image itself
+# carries no AWS byte, which is the property aws-spec check A2 asserts.
+awsDrivers:
+  repository: ghcr.io/mir0n-pro/esquire-tp-aws
+  tag: latest
+
+# --- Amazon MQ broker (T3.1) ---
+# Filled by aws-deploy.bat from AWS itself: the endpoint comes from describe-broker and the
+# password from Secrets Manager, so neither is written down here and neither can go stale.
+# Empty is the normal state -- it means no broker exists, and the ActiveMQ buses in the
+# topology are then unusable, which is exactly right.
+mq:
+  url: ""
+  user: "esquire"
+  password: ""
+
+# --- Amazon MSK (T3.2) ---
+# Filled by aws-deploy.bat from `aws kafka get-bootstrap-brokers`. Empty = no cluster, and the
+# audit-msk bus in the topology is then unusable, which is correct.
+msk:
+  bootstrap: ""

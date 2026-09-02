@@ -1,0 +1,119 @@
+image:
+  repository: esquire.pacman
+  tag: latest
+  pullPolicy: IfNotPresent
+
+# HA scheduling (pre-HA defaults: no node pinning, no spread). The OKE overlay sets
+# nodeSelector.tier=app and turns topologySpread on to place the x2 replicas on
+# distinct app-tier nodes; local (single node) leaves both off.
+nodeSelector: {}
+topologySpread:
+  enabled: false
+
+springProfilesActive: "console,dev-postgres"
+
+# shared bus topology is delivered by the esquire-topology ConfigMap, mounted at /etc/esquire.
+topologyImport: optional:file:/etc/esquire/topology.yml
+
+# v1.2.10 VT (UNVALIDATED test lever, default OFF -- see HA doc 5.5)
+esqVirtualThreads: "false"        # ESQ_VIRTUAL_THREADS (spring.threads.virtual.enabled, request path)
+
+service:
+  port: 3003
+  managementPort: 8090   # actuator/management port (F0 A6); probes + MANAGEMENT_SERVER_PORT read this
+
+db:
+  vendor: dev-postgres
+  host: esquire-infra-postgres
+  port: 5432
+  name: esq2025
+  username: esq2025
+  password: q
+
+# R1-R5 resilience knobs (timeout ladder / pool sizing / fail-fast DB). Defaults
+# here are the pre-HA "no HA" behavior we ran before HA work (large / disabled), so a
+# plain `helm install` of this chart behaves exactly as before. The tuned local-k8s
+# budget lives in k8s/values/pacman.yaml; OKE keeps these pre-HA defaults.
+resilience:
+  txTimeoutSeconds: "-1"          # R1 spring.transaction.default-timeout (-1 = inherit, no cap)
+  tomcatMaxThreads: "200"         # R2 server.tomcat.threads.max (Boot default)
+  tomcatAcceptCount: "100"        # R2 server.tomcat.accept-count (Boot default)
+  dbPoolMax: "20"                 # R3 Hikari maximum-pool-size
+  dbPoolMinIdle: "20"             # R3 Hikari minimum-idle
+  dbConnectTimeoutMs: "30000"     # R3 Hikari connection-timeout (Hikari default)
+  dbSocketTimeoutSeconds: "0"     # R5 pgjdbc socketTimeout (0 = none)
+  dbTcpKeepAlive: "false"         # R5 pgjdbc tcpKeepAlive
+
+# entity-bus ref: pacMan is the PUBLISHER (broadcasts entity changes onto the bus).
+entity:
+  busId: esquire.entity
+  slotId: entity
+  broadcastPublisherPoolSize: "0"
+  # producer send-retry on the entity broadcast bus (pre-HA default OFF; the local-k8s AND OKE overlays turn it ON).
+  sendRetry: "false"
+  sendRetryBackoff: "1,2,5,5"
+  sendRetryMaxAttempts: "0"
+
+# audit: the sink is (c) over the bus (ActiveMQ), drained by esquire-aukeep -- which stays its own workload on
+# this profile too. Switch to in-process (b) with busId=audit-b (the datasource block below is the *_log store).
+audit:
+  busId: audit-c
+  slotId: audit
+  poolSize: "4"
+  feedCapacity: "4096"
+  poolMode: "platform"            # AUDIT_POOL_MODE (platform | virtual | virtual-per-task, default platform)
+  datasource:
+    # the keep's OWN dedicated *_log pool, from the url/hikari below.
+    url: jdbc:postgresql://esquire-infra-postgres:5432/esq2025
+    username: esq2025
+    poolSize: "2"
+
+logging:
+  levelRoot: ERROR
+  levelSf: ERROR
+  levelMir0n: DEBUG
+  levelDevelop: DEBUG
+  levelMsg: DEBUG
+  levelAmq: INFO
+  levelJms: INFO
+  developLogPath: /tmp/pacMan-develop.log
+  msgLogPath: /tmp/pacMan-msg.log
+
+# v1.2.11 O2 distributed tracing (opt-in; the o11y stack + o11y-on.bat enable it). OFF by default.
+observability:
+  # ONE master switch: tracing + metrics together (v1.2.11 O1/O2). Off by default.
+  enabled: "false"
+  # Per-pillar enable (I41). Empty = follow the master `enabled`. Set "false" to run that pillar off:
+  #   tracingEnabled "false" = metrics-only (service-mesh coexistence -- a mesh already traces the wire).
+  tracingEnabled: ""
+  metricsEnabled: ""
+  # Percentile buckets on every latency timer (O1/T5-B). OFF by default -- they cost ~2.3x the
+  # scrape (4,597 -> 10,686 series), paid on every scrape whether or not anyone looks.
+  # NOTE what goes dark WITH them: the exemplar diamonds. The metrics -> trace hop hangs a
+  # trace_id off a BUCKET sample, so with buckets off there is nowhere to attach one -- the hop
+  # is wired but inert. Set true to investigate a percentile or to use that hop.
+  metricsHistograms: "false"
+  # HTTP byte counters (O1/T5-C). Cheap, so ON by default. One knob for BOTH embedded servers.
+  metricsBandwidth: "true"
+  # Business meters (O1/T8): the esq.biz.* domain tier. ON by default; off = every call site a null check.
+  metricsBusiness: "true"
+tracing:
+  otlpEndpoint: http://esquire-infra-otel-collector:4318/v1/traces
+  samplingRatio: "1.0"
+  marksEnabled: "true"
+  # RR liveness heartbeat (TestRequest/HeartBeat) spans -- OFF by default on EVERY target (unified I14):
+  # heartbeats fire every interval, so tracing them floods Tempo; set true per env to debug the RR bus.
+  msgBusAliveTrace: "false"
+  excludedPaths: "/actuator"
+
+# --- AWS transports, attached at deployment (k8s-aws-compact only) -----------
+# The initContainer in deployment.yaml copies these jars into an emptyDir the
+# service container reads through -Dloader.path. The service image itself carries
+# no AWS byte, which is the property aws-spec check A2 asserts.
+#
+# The tag is pinned by the values overlay, not here: the carrier image is built
+# from the tp-* module targets and has to match the messaging framework in the
+# service image it is attached to.
+awsDrivers:
+  repository: ghcr.io/mir0n-pro/esquire-tp-aws
+  tag: latest

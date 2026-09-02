@@ -1,0 +1,12 @@
+# EKS overlay for charts/infra/postgres-exporter  --  T5.
+#
+# The ONLY chart in the observability stack that points at something by name, and
+# the name is wrong by default. The chart assumes the database release is
+# `esquire-infra-postgres`; on EKS the release is `esquire-infra-pg`, so the
+# service is esquire-infra-pg-postgres and the secret follows the same pattern.
+#
+# Left unfixed this does not fail loudly -- the exporter starts, cannot resolve the
+# host, and the database panels are simply empty.
+db:
+  host: esquire-infra-pg-postgres
+  secretName: esquire-infra-pg-postgres-secret

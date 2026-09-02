@@ -1,0 +1,70 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-config
+  labels:
+    app: {{ .Release.Name }}
+data:
+  SPRING_PROFILES_ACTIVE:         {{ .Values.springProfilesActive | default "" | quote }}
+  PACMAN_PORT:                    {{ .Values.service.port | quote }}
+  MANAGEMENT_SERVER_PORT:    {{ .Values.service.managementPort | quote }}
+  TOPOLOGY_IMPORT:        {{ .Values.topologyImport | quote }}
+  # --- datasource (password -> Secret, injected as env in the deployment) ---
+  DB_PACMAN_VENDOR:               {{ .Values.db.vendor | quote }}
+  DB_PACMAN_HOST:                 {{ .Values.db.host | quote }}
+  DB_PACMAN_PORT:                 {{ .Values.db.port | quote }}
+  DB_PACMAN_NAME:                 {{ .Values.db.name | quote }}
+  DB_PACMAN_USERNAME:             {{ .Values.db.username | quote }}
+  # --- resilience (R1-R5): timeout ladder / pool sizing / fail-fast DB ---
+  ESQ_TX_TIMEOUT_S:               {{ .Values.resilience.txTimeoutSeconds | quote }}
+  ESQ_TOMCAT_MAX_THREADS:         {{ .Values.resilience.tomcatMaxThreads | quote }}
+  ESQ_TOMCAT_ACCEPT_COUNT:        {{ .Values.resilience.tomcatAcceptCount | quote }}
+  ESQ_DB_POOL_MAX:                {{ .Values.resilience.dbPoolMax | quote }}
+  ESQ_DB_POOL_MIN_IDLE:           {{ .Values.resilience.dbPoolMinIdle | quote }}
+  ESQ_DB_CONNECT_TIMEOUT_MS:      {{ .Values.resilience.dbConnectTimeoutMs | quote }}
+  ESQ_DB_SOCKET_TIMEOUT_S:        {{ .Values.resilience.dbSocketTimeoutSeconds | quote }}
+  ESQ_DB_TCP_KEEPALIVE:           {{ .Values.resilience.dbTcpKeepAlive | quote }}
+  # --- v1.2.10 VT (UNVALIDATED test lever, default OFF -- see HA doc 5.5) ---
+  ESQ_VIRTUAL_THREADS:            {{ .Values.esqVirtualThreads | quote }}
+  # --- entity-bus ref (PUBLISHER: broadcast entity changes) ---
+  ENTITY_BUS_ID:                  {{ .Values.entity.busId | quote }}
+  ENTITY_SLOT_ID:              {{ .Values.entity.slotId | quote }}
+  ENTITY_BROADCAST_PUBLISHER_POOL_SIZE: {{ .Values.entity.broadcastPublisherPoolSize | quote }}
+  ENTITY_BROADCAST_SEND_RETRY:    {{ .Values.entity.sendRetry | quote }}
+  ENTITY_BROADCAST_SEND_RETRY_BACKOFF_SEC: {{ .Values.entity.sendRetryBackoff | quote }}
+  ENTITY_BROADCAST_SEND_RETRY_MAX_ATTEMPTS: {{ .Values.entity.sendRetryMaxAttempts | quote }}
+  # --- audit-bus ref + in-process (b) knobs ---
+  AUDIT_BUS_ID:           {{ .Values.audit.busId | quote }}
+  AUDIT_SLOT_ID:       {{ .Values.audit.slotId | quote }}
+  AUDIT_POOL_SIZE:        {{ .Values.audit.poolSize | quote }}
+  AUDIT_FEED_CAPACITY:    {{ .Values.audit.feedCapacity | quote }}
+  AUDIT_POOL_MODE:        {{ .Values.audit.poolMode | quote }}
+  DB_DATAKEEP_URL:       {{ .Values.audit.datasource.url | quote }}
+  DB_DATAKEEP_USERNAME:  {{ .Values.audit.datasource.username | quote }}
+  DB_DATAKEEP_POOL_SIZE: {{ .Values.audit.datasource.poolSize | quote }}
+  # DB_DATAKEEP_PASSWORD: chains from DB_PACMAN_PASSWORD (Secret) via application.yml
+  # --- logging ---
+  LOG_LEVEL_ROOT:                 {{ .Values.logging.levelRoot | quote }}
+  LOG_LEVEL_SF:                   {{ .Values.logging.levelSf | quote }}
+  LOG_LEVEL_MIR0N:                {{ .Values.logging.levelMir0n | quote }}
+  LOG_LEVEL_DEVELOP:              {{ .Values.logging.levelDevelop | quote }}
+  LOG_LEVEL_MSG:                  {{ .Values.logging.levelMsg | quote }}
+  LOG_LEVEL_AMQ:                  {{ .Values.logging.levelAmq | quote }}
+  LOG_LEVEL_JMS:                  {{ .Values.logging.levelJms | quote }}
+  DEVELOP_LOG_PATH:               {{ .Values.logging.developLogPath | quote }}
+  MSG_LOG_PATH:                   {{ .Values.logging.msgLogPath | quote }}
+  # --- v1.2.11 O2 distributed tracing (opt-in; OFF by default; o11y-on enables it) ---
+  ESQ_OBSERVABILITY_ENABLED:  {{ .Values.observability.enabled | quote }}
+  # Per-pillar enable (I41): default to the master, override to run one pillar off. tracingEnabled=false ->
+  # metrics-only (service-mesh coexistence). Empty string follows the master; any explicit value (incl. false) wins
+  # -- toString+eq "" avoids Helm's default-trap where --set x=false (boolean) would be swallowed as empty.
+  ESQ_TRACING_ENABLED:        {{ if eq (toString .Values.observability.tracingEnabled) "" }}{{ .Values.observability.enabled | quote }}{{ else }}{{ .Values.observability.tracingEnabled | quote }}{{ end }}
+  ESQ_METRICS_ENABLED:        {{ if eq (toString .Values.observability.metricsEnabled) "" }}{{ .Values.observability.enabled | quote }}{{ else }}{{ .Values.observability.metricsEnabled | quote }}{{ end }}
+  ESQ_METRICS_HISTOGRAMS:     {{ .Values.observability.metricsHistograms | quote }}
+  ESQ_METRICS_BANDWIDTH:      {{ .Values.observability.metricsBandwidth | quote }}
+  ESQ_METRICS_BUSINESS:      {{ .Values.observability.metricsBusiness | quote }}
+  ESQ_OTLP_ENDPOINT:          {{ .Values.tracing.otlpEndpoint | quote }}
+  ESQ_TRACING_SAMPLING_RATIO: {{ .Values.tracing.samplingRatio | quote }}
+  ESQ_TRACING_MARKS_ENABLED:  {{ .Values.tracing.marksEnabled | quote }}
+  ESQ_MSG_BUS_ALIVE_TRACE:    {{ .Values.tracing.msgBusAliveTrace | quote }}
+  ESQ_TRACING_EXCLUDED_PATHS: {{ .Values.tracing.excludedPaths | quote }}

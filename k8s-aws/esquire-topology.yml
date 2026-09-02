@@ -1,0 +1,337 @@
+# Esquire frameworks (tm) -- shared messaging-bus TOPOLOGY (EKS: real SNS / SQS / Kinesis)
+#
+# The cross-service bus catalog, defined ONCE and loaded by every service via
+#   spring.config.import: file:${ESQUIRE_TOPOLOGY_FILE:/etc/esquire/topology.yml}
+# delivered here by the esquire-topology ConfigMap, mounted at /etc/esquire/topology.yml.
+#
+# GENERATED from compose-aws/topology/esquire-topology.yml. Two differences, both deliberate:
+#
+#   1. EVERY AWS ENDPOINT IS EMPTY, NOT ABSENT. The lab points them at LocalStack; against real AWS the
+#      SDK builds the endpoint from the region. The key must still be THERE: XRodRR.validate requires
+#      transport.endpoint != null, so deleting it fails the service at boot with
+#      "missing required transport.endpoint". An empty string is what passes.
+#
+#   2. THE KAFKA AND REDIS BUSES ARE GONE. They exist in the lab to exercise those drivers alongside the
+#      AWS ones -- kafka to test the kafka driver with auKeep, redis not needed at all. This cluster runs
+#      neither broker, so their endpoints named hosts that do not resolve. What remains is exactly what
+#      EKS uses: SNS for the entity broadcast, SQS for the identity request/response, Kinesis for audit.
+#
+# Per-service knobs (pool sizes, rod-class deltas, the role) live at the SERVICE level, NOT here. A bus
+# defined here but not referenced by a service is inert -- a rod is built only when a service asks for it.
+esquire:
+  messaging-bus:
+    # --- entity broadcast (topic): publishers post UE, consumers (bizTree / kcMaster) apply ---
+    - bus-id: esquire.entity
+      slots:
+        - slot-id: entity
+          x-rod:
+            receiver-pool:
+              size: 4
+              mode: platform
+            concurrency: 1
+            publisher-pool:
+              size: 0
+              mode: platform
+            transport:
+              provider: sns
+              # Real AWS: EMPTY, not absent. The validator requires the key to exist; empty lets the SDK build it from the region.
+              endpoint: ""
+              destination: esquire.entity.broadcast
+              params:
+                region: us-east-1
+                # SNS delivers into ANOTHER AWS service -- a subscription names a protocol (sqs, lambda,
+                # email, http, sms) and SNS hands the message to that endpoint. There is no receive API, so
+                # sqs is chosen here because a queue is the one endpoint that WAITS to be pulled: each
+                # consuming instance owns a queue subscribed to the topic, named from its rod-id, and every
+                # instance gets the whole broadcast instead of the instances competing for it.
+                route-by: RodID
+                # enyMan must reconcile a PEER instance's create-during-move, never its own. Over ActiveMQ the
+                # broker drops a shared connection's own publications; here the subscription asks for
+                # everything except what this rod published, and AWS does the drop before delivery.
+                noLocal: true
+    # --- entity broadcast on Amazon Kinesis: the same broadcast, carried by a stream ---
+    #
+    # Kinesis needs NO fan-out arranged at all: every reader of a shard sees every record on it, so each
+    # instance reading the stream gets the whole broadcast. That is the opposite of SQS, where a queue per
+    # consumer had to be made so instances would not compete for the same message.
+    #
+    # It also means Kinesis filters NOTHING on the server. The subscription the consumer asked for and
+    # noLocal are both applied in code by the driver, which is why those two filters live in the messaging
+    # framework and not in a vendor module.
+    #
+    # iterator-type is LATEST here, and TRIM_HORIZON on the audit bus -- deliberately opposite. A missed
+    # audit row is a hole in a record, so audit re-reads and lets the dedup drop the repeats. A REPLAYED
+    # entity event is a cache being told about changes that already happened, so a broadcast takes only
+    # what arrives after it starts.
+    - bus-id: esquire.entity-k
+      slots:
+        - slot-id: entity
+          x-rod:
+            # 1, and it is the second half of FIFO rather than a tuning choice: ordering the wire buys
+            # nothing if the far end applies four records at once. This is only the bus default -- a service
+            # sets its own (bizTree's application.yml already says 1, "this pool is the only place the
+            # published order can be lost"), and that is the value that actually governs.
+            receiver-pool:
+              size: 1
+              mode: platform
+            concurrency: 1
+            publisher-pool:
+              size: 0
+              mode: platform
+            transport:
+              provider: kinesis
+              endpoint: ""
+              destination: esquire.entity.broadcast
+              params:
+                region: us-east-1
+                # BusID: the same value on every message of this bus, so the whole stream is ONE partition
+                # key and one shard, read in the order it was written. Any constant header does this --
+                # SlotID and MsgType are equally constant here -- and BusID is the one that stays constant
+                # even if the bus later carries a second slot or a second message type.
+                partition-by: BusID
+                # NO partition-by: this bus is FIFO. The driver then writes every record under one key, so
+                # the stream is a single ordered sequence -- which is what a broadcast that BUILDS a tree
+                # needs, since a parent must be applied before its child.
+                #
+                # Both narrower keys were tried here and both broke, the same way one level apart:
+                #   EntityID -- an office and the user created inside it are different keys, so they go to
+                #               different shards and are applied concurrently; the child lands before its
+                #               parent and the cache refuses it ("folder not found in cache").
+                #   RodID    -- fixes that within one producer, but enyMan and pacMan are different rod-ids,
+                #               so a pacMan account update can still overtake the enyMan create it depends on.
+                # The audit bus sets EntityID and is right to: those rows depend on nothing.
+                iterator-type: LATEST
+                noLocal: true
+    # --- KeyCloak request/response (R&R, two nodes): enyMan/keySmith CLIENT, kcMaster SERVER ---
+    - bus-id: esquire.kc
+      slots:
+        - slot-id: kc
+          x-rod:
+            rod-class: XRodRR
+            # RR liveness protocol ON (docker): CLIENT (enyMan/keySmith) probes with a TestRequest, SERVER
+            # (kcMaster) echoes a HeartBeat -- the round-trip is observable when msg-bus-alive-trace is on.
+            # Enabled here on docker; OFF on k8s (the k8s topology omits this); OFF by default. Default cadence.
+            alive: true
+            receiver-pool:
+              size: 4
+              mode: platform
+            concurrency: 1
+            publisher-pool:
+              size: 0
+              mode: platform
+            transport:
+              provider: sqs
+              # Real AWS: EMPTY, not absent. The validator requires the key to exist; empty lets the SDK build it from the region.
+              endpoint: ""
+              request-node: request
+              response-node: response
+              # No base params group here on purpose: a node that declares params REPLACES this group whole
+              # (BusTransport.refinedWith), so anything set here would vanish for both nodes below. Every param
+              # the SQS legs need is therefore declared on each node.
+              nodes:
+                - node-id: request
+                  destination: esquire.kc.request
+                  params:
+                    region: us-east-1
+                    # SQS has no message selector. The filter the JMS selector made becomes a QUEUE: the
+                    # destination splits by the value of this header, so every server of the kc slot competes
+                    # on esquire-kc-request-kc, which is what a request queue is meant to do.
+                    route-by: SlotID
+                - node-id: response
+                  destination: esquire.kc.response
+                  params:
+                    region: us-east-1
+                    # The reply carries the REQUESTER's rod-id (the server x-rod echoes the routing header), so
+                    # it lands in that client's own queue -- esquire-kc-response-enyman-0 -- and no client ever
+                    # sees another client's reply.
+                    route-by: RodID
+    # --- audit (c): the audit log on Amazon SNS -> auKeep drains it and writes the *_log ---
+    #
+    # NOTE, and it is the one thing to watch: over ActiveMQ this was a QUEUE, so several auKeep instances
+    # COMPETED and each audit event was written once. On SNS every subscribed queue gets its own copy, so at
+    # auKeep x1 -- what the lab runs -- this is identical, and at x2 each instance would write the same row.
+    - bus-id: audit-c
+      slots:
+        - slot-id: audit
+          x-rod:
+            rod-class: XRod
+            receiver-pool:
+              size: 4
+              mode: platform
+            feed-capacity: 4096
+            publisher-pool:
+              size: 0
+              mode: platform
+            concurrency: 1
+            transport:
+              provider: sns
+              endpoint: ""
+              destination: esquire.rod.audit
+              params:
+                region: us-east-1
+                route-by: RodID
+    - bus-id: audit-k
+      slots:
+        - slot-id: audit
+          x-rod:
+            rod-class: XRod
+            receiver-pool:
+              size: 4
+              mode: platform
+            feed-capacity: 4096
+            publisher-pool:
+              size: 0
+              mode: platform
+            transport:
+              provider: kinesis
+              endpoint: ""
+              destination: esquire.rod.audit
+              params:
+                region: us-east-1
+                # Kinesis keeps order WITHIN a partition key. By entity id, one entity's history stays in
+                # order, which is what an audit trail is read by.
+                partition-by: EntityID
+                # where a receive leg begins when it has no position -- which is every start (see above).
+                iterator-type: TRIM_HORIZON
+    # --- THE SAME THREE BUSES ON ONE AMAZON MQ BROKER (T3.1) ----------------------------------------
+    #
+    # This is the CLASSIC topology, unchanged in shape: the entity broadcast is a topic, the KeyCloak
+    # request/response is two queues, audit is a queue. It is what docker and local k8s have run since
+    # v1.2.8. Only the endpoint moved -- plus the two things a MANAGED broker forces, and neither of them
+    # is a tuning choice:
+    #
+    #   persistent: false   A CHOICE, and measured before it was made. Amazon MQ always has storage, but the
+    #                       flag decides whether a send WAITS for it: JMS makes a PERSISTENT send synchronous,
+    #                       so the producer blocks for a broker ack on every single message. On this broker
+    #                       that is 11.9 ms per send against 0.054 ms -- and it is the STORAGE, not the
+    #                       instance: an mq.m5.large on EFS measured the same 11.9 ms at ten times the price,
+    #                       while the same instance on EBS gave 3.0 ms. EBS needs mq.m5.large or bigger
+    #                       ($210/mo against $19.74), and mq.t3.micro cannot have it at all. So durability
+    #                       here would cost either 11.9 ms or $190 a month, and this is a demo: false.
+    #   userName/password   Amazon MQ always demands a broker user. Both are applied with a setter and are
+    #                       kept OUT of the broker URI, so no log line can carry them.
+    #
+    # The three values come from the environment (a Kubernetes Secret fills the password), and each carries
+    # an empty default so that a service which uses none of these buses still starts: the whole catalog is
+    # bound at boot, so ONE unresolvable placeholder here would stop every service, not just the ones that
+    # named this bus. With an empty URL the failure lands where it belongs -- when the rod is built.
+    #
+    # A bus nobody names is inert, so these sit beside the SNS / SQS / Kinesis ones and cost nothing until a
+    # service's busId points at them.
+    - bus-id: esquire.entity-mq
+      slots:
+        - slot-id: entity
+          x-rod:
+            receiver-pool:
+              size: 4
+              mode: platform
+            concurrency: 1
+            publisher-pool:
+              size: 0
+              mode: platform
+            transport:
+              provider: activemq
+              endpoint: failover:(${ESQ_MQ_URL:})?timeout=3000
+              destination: esquire.entity.broadcast
+              params:
+                pubSubDomain: true
+                persistent: false
+                # enyMan runs both legs on ONE shared connection, so the BROKER drops its own publications --
+                # the moving instance reconciles only a peer instance's create-during-move.
+                noLocal: true
+                userName: ${ESQ_MQ_USER:}
+                password: ${ESQ_MQ_PASSWORD:}
+    - bus-id: esquire.kc-mq
+      slots:
+        - slot-id: kc
+          x-rod:
+            rod-class: XRodRR
+            receiver-pool:
+              size: 4
+              mode: platform
+            concurrency: 1
+            publisher-pool:
+              size: 0
+              mode: platform
+            transport:
+              provider: activemq
+              endpoint: failover:(${ESQ_MQ_URL:})?timeout=3000
+              request-node: request
+              response-node: response
+              params:
+                persistent: false
+                userName: ${ESQ_MQ_USER:}
+                password: ${ESQ_MQ_PASSWORD:}
+              nodes:
+                - node-id: request
+                  destination: esquire.kc.request
+                - node-id: response
+                  destination: esquire.kc.response
+    - bus-id: audit-mq
+      slots:
+        - slot-id: audit
+          x-rod:
+            rod-class: XRod
+            receiver-pool:
+              size: 4
+              mode: platform
+            feed-capacity: 4096
+            publisher-pool:
+              size: 0
+              mode: platform
+            concurrency: 1
+            transport:
+              provider: activemq
+              endpoint: failover:(${ESQ_MQ_URL:})?timeout=3000
+              destination: esquire.rod.audit
+              params:
+                jms.useAsyncSend: true
+                persistent: false
+                userName: ${ESQ_MQ_USER:}
+                password: ${ESQ_MQ_PASSWORD:}
+    # --- audit on Amazon MSK (T3.2): tp-kafka publishes, auKeep drains it into the *_log tables ---
+    #
+    # The same shape docker runs as audit-ck. The bootstrap list is EMPTY by default and filled by
+    # aws-deploy.bat from `aws kafka get-bootstrap-brokers`, for the same reason the RDS endpoint and the
+    # Amazon MQ URL are: a broker list written down here goes stale the first time the cluster is recreated.
+    #
+    # NO security params here: this leg uses the PLAINTEXT port, in-VPC, reachable only from the node group.
+    # TLS is one param away (security.protocol: SSL) and SASL/SCRAM three, because tp-kafka hands every leg
+    # param to the Kafka client verbatim. IAM is the only one that needs a jar on the classpath.
+    - bus-id: audit-msk
+      slots:
+        - slot-id: audit
+          x-rod:
+            rod-class: XRod
+            receiver-pool:
+              size: 4
+              mode: platform
+            feed-capacity: 4096
+            publisher-pool:
+              size: 0
+              mode: platform
+            concurrency: 1
+            transport:
+              provider: kafka
+              endpoint: ${ESQ_MSK_BOOTSTRAP:}
+              destination: esquire.rod.audit
+              params:
+                group-id: esquire-xxrod-audit
+                # NOT durable, said in the terms Kafka has. Kafka writes every record to disk and offers no
+                # way not to, so the knobs are how many copies and for how long: the topic is created with ONE
+                # replica and an hour of retention, and the producer waits for the LEADER only, never for a
+                # replica. Same call the ActiveMQ legs made with persistent: false.
+                #
+                # acks=0 exists and would not wait at all, but tp-kafka's send is already asynchronous and
+                # cannot report a failure (MessagingBus backlog item 15) -- acks=0 would deepen that hole for
+                # a gain of well under a millisecond. So: 1.
+                acks: "1"
+
+    # --- audit (off): the explicit DISABLED bus. A service points its audit ref at audit-off to run with NO
+    #     bus audit (e.g. when DB triggers carry the audit instead). XRodDisabled is a true no-op; this is the
+    #     #17 "disable only when explicitly defined" -- a blank/undefined bus-id (correctly) fails fast instead. ---
+    - bus-id: audit-off
+      slots:
+        - slot-id: audit
+          x-rod:
+            rod-class: XRodDisabled

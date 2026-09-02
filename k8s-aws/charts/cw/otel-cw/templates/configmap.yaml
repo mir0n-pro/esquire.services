@@ -1,0 +1,120 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-config
+  labels:
+    app: {{ .Release.Name }}
+data:
+  # The AWS-native pipeline. Traces in over OTLP exactly as the services already send them; metrics
+  # PULLED from the same /actuator/prometheus page Prometheus reads. Nothing about a service changes to
+  # feed this -- that is the portability claim, and this file is where it is cashed in.
+  config.yaml: |
+    receivers:
+      otlp:
+        protocols:
+          http:
+            endpoint: 0.0.0.0:4318
+          grpc:
+            endpoint: 0.0.0.0:4317
+      # Metrics are a PULL. The services publish a Prometheus page and know nothing about who reads it,
+      # so the CloudWatch side scrapes the very same endpoint the Prometheus chart scrapes -- no second
+      # exposition format, no exporter in the JVM, no service change.
+      prometheus:
+        config:
+          scrape_configs:
+            - job_name: esquire-services
+              scrape_interval: {{ .Values.scrape.interval }}
+              metrics_path: /actuator/prometheus
+              kubernetes_sd_configs:
+                - role: pod
+              relabel_configs:
+                # ONLY the seven Java services. PostgreSQL, KeyCloak, the log shipper and this
+                # collector all carry an esquire-* label and none of them serves actuator on the
+                # management port, so a looser rule logs a scrape failure for each of them every
+                # 30 seconds -- noise that hides a real failure when one happens.
+                - source_labels: [__meta_kubernetes_pod_label_app]
+                  # THE TRAILING -.* IS NOT OPTIONAL. A Prometheus regex is fully anchored, and the
+                  # label reads esquire-enyman-ENYMAN (chart name plus service name), not esquire-enyman.
+                  # Without it this rule matches nothing, the collector keeps ZERO targets, and metrics
+                  # stop completely -- while the pod stays Ready, scrapes cleanly and logs no error at
+                  # all. Silence here looks exactly like health.
+                  regex: esquire-(gateway|keysmith|enyman|pacman|biztree|kcmaster|aukeep)-.*
+                  action: keep
+                # Scrape the pod IP on the SEPARATE management port -- actuator does not live on the
+                # public port, so the ingress never exposes it.
+                - source_labels: [__meta_kubernetes_pod_ip]
+                  regex: (.+)
+                  replacement: "$1:{{ .Values.scrape.managementPort }}"
+                  target_label: __address__
+                - source_labels: [__meta_kubernetes_pod_name]
+                  target_label: instance
+    processors:
+      batch:
+        timeout: 10s
+      # Health probes are not traffic. The services already refuse the observation for /actuator, so
+      # nothing should arrive; this is the same backstop the Prometheus/Grafana collector carries.
+      filter/drop-health:
+        error_mode: ignore
+        traces:
+          span:
+            - 'attributes["http.url"] != nil and IsMatch(attributes["http.url"], ".*/(actuator/health|healthz|readyz).*")'
+    exporters:
+      # X-Ray takes Esquire's trace ids UNCHANGED. Tested 2026-09-01 across the whole range a random
+      # W3C id can land in -- first word 00000001, 40000000, 80000000, ffffffff and the current epoch --
+      # and all five were stored. X-Ray reads those first four bytes as an epoch and RENDERS the id as
+      # 1-<8 hex>-<24 hex>, but it does not enforce the reading and it rewrites nothing: same 128 bits,
+      # two dashes. So no id generator is installed and no shared code is touched.
+      awsxray:
+        region: {{ .Values.aws.region }}
+        index_all_attributes: true
+      awsemf:
+        region: {{ .Values.aws.region }}
+        namespace: {{ .Values.aws.namespace }}
+        log_group_name: {{ .Values.aws.logGroup }}
+        # See values.yaml -- the default rollup silently publishes 2.27x the metrics.
+        dimension_rollup_option: {{ .Values.dimensionRollup }}
+        # OFF, deliberately. Turned on, the exporter promotes every OTel RESOURCE attribute into a
+        # dimension -- k8s.pod.uid, k8s.node.name, server.port, OTelLib and eleven more -- so a single
+        # metric arrives carrying a fifteen-dimension set that changes whenever a pod is rescheduled.
+        # Esquire's own Micrometer labels already say what is needed: application is the PROCESS and
+        # service is the ESQUIRE SERVICE. Nothing about a Kubernetes node belongs in a metric identity.
+        resource_to_telemetry_conversion:
+          enabled: false
+        # A log group is the ONE artifact that keeps billing after everything is switched off, and
+        # CloudWatch Logs default to NEVER EXPIRE. Set it HERE, at creation -- a retention applied
+        # afterwards only covers the next group somebody forgets.
+        log_retention: {{ .Values.aws.logRetentionDays }}
+        # DIMENSIONS ARE THE OPEN ITEM, and the measurements behind that are worth keeping.
+        #
+        # Default rollup (ZeroAndSingleDimensionRollup): 877 Prometheus series became 1,989 CloudWatch
+        # metrics carrying 2-7 dimensions each -- 2.27x, paid at $0.30 per metric-month, from a default
+        # nobody chose.
+        #
+        # NoDimensionRollup alone is NOT a 1:1 copy. It publishes 190 metrics with NO dimensions at
+        # all: jvm_memory_used_bytes arrives as ONE number for the whole fleet, with nothing to say
+        # which service produced it. Confirmed by datapoint, not by listing.
+        #
+        # The cause is in the records themselves: the published dimension set carries
+        # net.host.port and server.port with EMPTY values, and CloudWatch drops a whole dimension set
+        # when any key in it has no value -- which is why a metric with eighteen declared dimensions
+        # registers with none.
+        #
+        # An explicit metric_declarations block ([[service], [service, application]], selector ".*")
+        # was tried here and stopped the export entirely -- the collector stayed healthy and scraped
+        # cleanly while publishing nothing for twelve minutes. So the dimension set is left at the
+        # exporter's own default until it is designed properly, per metric, against the panels that
+        # need it. That design pass is the expensive half of this port, and this is the evidence for
+        # why: it is not a setting to flip.
+    service:
+      telemetry:
+        logs:
+          level: info
+      pipelines:
+        traces:
+          receivers: [otlp]
+          processors: [filter/drop-health, batch]
+          exporters: [awsxray]
+        metrics:
+          receivers: [prometheus]
+          processors: [batch]
+          exporters: [awsemf]

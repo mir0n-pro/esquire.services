@@ -1,0 +1,34 @@
+# EKS overlay for charts/esquire-backend (BFF + SPA in one image) -- T2, x1.
+#
+# v1.2.13 image ON PURPOSE: the BFF is Node and the SPA is Angular. Neither
+# carries the Esquire Java messaging jar, so the v1.2.14 change that forced the
+# service images to be rebuilt does not touch this one, and there is nothing to
+# rebuild for AWS.
+image:
+  repository: ghcr.io/mir0n-pro/esquire.backend
+  tag: "v1.2.13-2608.2806"
+  pullPolicy: IfNotPresent
+
+replicaCount: 1
+
+# T2 serves nothing publicly -- no ingress, no load balancer, nothing inbound but
+# the Kubernetes API. Everything reaches the cluster through kubectl port-forward,
+# so the browser-facing URLs are localhost on the forwarded ports. These MUST agree
+# with how the suites actually connect: the issuer is what every token is stamped
+# with, and a mismatch fails validation with an error that blames the token.
+keycloak:
+  issuer: https://aws-esquire.mir0n.pro/kc-auth/realms/esquire
+  # Server-to-server discovery stays INSIDE the cluster and does not go through
+  # the forward at all -- the in-cluster KeyCloak service, named for the release.
+  issuerInternal: http://esquire-infra-kc-keycloak:8080/kc-auth/realms/esquire
+  clientId: esq-angular
+
+publicBaseUrl: https://aws-esquire.mir0n.pro
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 192Mi
+  limits:
+    cpu: 500m
+    memory: 384Mi

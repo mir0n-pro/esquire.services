@@ -1,5 +1,15 @@
 Esquire messaging framework classes
 
+08/29/2026 mir0n  v1.2.14 -- the two receive filters a transport applies when its vendor applies neither
+OwnExcluding  (new)
+  - the own-exclusion filter -- what a broker does with noLocal, applied in code for a transport whose vendor
+    cannot. Its own filter, never folded into the subscription one: a leg carries whatever subscription its
+    consumer asked for, and this sits in front of any of them
+SelectingReceiver  (new)
+  - the subscription filter -- what a broker does with a message selector, applied in code for a transport
+    whose vendor has none. A general filter over the header bag: any field, = and <> and !=, IN and NOT IN,
+    joined by AND. A selector it cannot read is REFUSED when the leg opens, never treated as take-everything
+
 08/27/2026 mir0n  v1.2.13 -- one alphabet for the create op
 BusConstants
   - EVENT_CREATE is "I" -- the wire event code and the *_log action column carry the same letters

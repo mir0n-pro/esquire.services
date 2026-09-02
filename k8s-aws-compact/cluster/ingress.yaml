@@ -1,0 +1,106 @@
+# =============================================================================
+# Public access for the BFF and the gate -- T7, super-compact.
+#
+# ONE host, not two. OKE gives the gate a name of its own (api.esquire.mir0n.pro)
+# because it is a permanent demo with DNS to spare. This is a proving ground that
+# is brought up to answer a question and taken down, so it takes ONE record --
+# aws-esquire.mir0n.pro -- and reaches the gate at /esq-api on it, exactly as the
+# classic AWS ingress does. That also means aws-e2e-public.bat needs no change:
+# it already builds GATEWAY_URL as <host>/esq-api.
+#
+# SUPER-COMPACT SERVICE NAMES. The gate is gateWard, not the gateway, and the
+# compact charts name their services after the release alone -- esquire-backend
+# and esquire-gateward, not esquire-backend-backend.
+#
+# DNS IS A MANUAL STEP AND IT COMES FIRST. cert-manager solves HTTP-01 through
+# this same ingress, so the record must resolve to the load balancer BEFORE the
+# certificate can issue. Until it does the Certificate stays pending -- that is
+# waiting, not failing. aws-up.bat prints the load balancer hostname and stops
+# there for exactly this reason.
+# =============================================================================
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: esquire-public
+  namespace: default
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/proxy-body-size: 16m
+spec:
+  ingressClassName: nginx
+  # TLS is NOT optional here. The BFF runs with NODE_ENV=production, so its session
+  # cookie is `secure` -- express-session will not set it on a plain HTTP connection,
+  # the callback then finds no pending login, and sign-in fails with a flat 400. The
+  # BFF sets `trust proxy`, so terminating TLS here is enough: it sees
+  # X-Forwarded-Proto https and sets the cookie.
+  tls:
+    - hosts:
+        - aws-esquire.mir0n.pro
+      secretName: esquire-tls
+  rules:
+    - host: aws-esquire.mir0n.pro
+      http:
+        paths:
+          # KeyCloak's own front-channel paths. Only the browser hits these, during the
+          # sign-in redirect. It has to be the SAME public origin as the BFF, or the
+          # issuer in the token will not match where the browser actually went.
+          - path: /kc-auth
+            pathType: Prefix
+            backend:
+              service:
+                name: esquire-infra-kc-keycloak
+                port:
+                  number: 8080
+
+          # Everything else is the BFF: the SPA, /auth/* and the /api/* proxy that
+          # injects the session bearer.
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: esquire-backend
+                port:
+                  number: 3000
+
+---
+# The gate, for server-to-server callers carrying their own JWT -- hauberk and the
+# like. The browser never uses it: the BFF reaches gateWard in-cluster.
+#
+# IT NEEDS A REWRITE, AND IT IS A SEPARATE INGRESS BECAUSE OF THAT. gateWard serves
+# at the root, so a plain `/esq-api` prefix rule would hand it `/esq-api/esq-cmd` and
+# it answers 404. The rewrite strips the prefix. `use-regex` changes how EVERY path in
+# an ingress is matched, so it lives here rather than on the rules that already work.
+#
+# THE 404 WOULD BE INVISIBLE. Anything not matched by a rule falls to the BFF, and the
+# BFF answers an unknown path with the SPA index -- 200, no token needed. A probe that
+# only checks the status code reads that as a working gate.
+#
+# No cert-manager annotation here on purpose: the certificate for this host is issued
+# by the ingress above and held in esquire-tls, and a second Certificate for the same
+# host would only race the first.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: esquire-public-gw
+  namespace: default
+  annotations:
+    nginx.ingress.kubernetes.io/use-regex: "true"
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+    nginx.ingress.kubernetes.io/proxy-body-size: 16m
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - aws-esquire.mir0n.pro
+      secretName: esquire-tls
+  rules:
+    - host: aws-esquire.mir0n.pro
+      http:
+        paths:
+          - path: /esq-api(/|$)(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: esquire-gateward
+                port:
+                  number: 8080

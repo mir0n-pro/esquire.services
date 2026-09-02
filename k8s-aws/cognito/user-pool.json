@@ -1,0 +1,48 @@
+{
+  "PoolName": "esquire-cognito-probe",
+  "UsernameAttributes": [],
+  "Policies": {
+    "PasswordPolicy": {
+      "MinimumLength": 8,
+      "RequireUppercase": true,
+      "RequireLowercase": true,
+      "RequireNumbers": true,
+      "RequireSymbols": false
+    }
+  },
+  "Schema": [
+    {
+      "Name": "email",
+      "AttributeDataType": "String",
+      "Mutable": true,
+      "Required": true
+    },
+    {
+      "Name": "esq_uid",
+      "AttributeDataType": "String",
+      "Mutable": true,
+      "Required": false,
+      "StringAttributeConstraints": {
+        "MinLength": "1",
+        "MaxLength": "64"
+      }
+    },
+    {
+      "Name": "esq_rootpath",
+      "AttributeDataType": "String",
+      "Mutable": true,
+      "Required": false,
+      "StringAttributeConstraints": {
+        "MinLength": "1",
+        "MaxLength": "256"
+      }
+    }
+  ],
+  "AutoVerifiedAttributes": [
+    "email"
+  ],
+  "MfaConfiguration": "OFF",
+  "AdminCreateUserConfig": {
+    "AllowAdminCreateUserOnly": true
+  }
+}

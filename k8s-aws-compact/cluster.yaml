@@ -1,0 +1,141 @@
+# =============================================================================
+# Esquire on EKS -- the SUPER-COMPACT topology, x1, no redundancy anywhere.
+#
+# T7. A DIFFERENT CLUSTER FROM THE CLASSIC ONE, on purpose: the name is
+# esquire-aws-compact, not esquire-aws. The two shapes are never up together --
+# two control planes is $0.20/hour for no answer -- and giving each its own
+# cluster means neither folder's scripts can land on the other's cluster, and
+# k8s-aws is not edited at all.
+#
+# WHAT THIS DEPLOYMENT IS FOR: a sign that Esquire runs on AWS. It is left up while
+# there is something to show, and brought up on request after that -- not torn down
+# between sessions, so the load balancer keeps its address and aws-esquire.mir0n.pro
+# stays pointed at it. esquire.mir0n.pro on OKE remains THE demo; this is a second,
+# smaller one. Every choice below is the cheapest one that runs.
+#
+#   create : eksctl create cluster -f cluster.yaml     (BILLABLE -- see below)
+#   delete : eksctl delete cluster -f cluster.yaml     (does NOT remove the bus
+#            resources -- see aws-down.bat)
+#
+# WHAT THIS COSTS, us-east-1:
+#   EKS control plane      $0.10   /cluster-hour   $73.00/month
+#   1 x t4g.large          $0.0672 /hour           $49.06/month
+#   Network Load Balancer  $0.0225 /hour           $16.43/month
+#   3 x public IPv4        $0.005  /hour each      $10.95/month  (2 on the NLB, 1 on the node)
+#   EBS gp3, 45 GB         $0.08   /GB-month        $3.60/month
+#   -> $0.2096/hour, $5.03/day, about $153/month standing.
+#
+# THE LAST TWO LINES ARE THE ONES THAT GET FORGOTTEN, and they are 18% of the bill.
+# They exist only because the deployment is PUBLIC: no ingress, no load balancer, no
+# addresses. Rates read from the AWS Price List API, not from a pricing page.
+#
+# That is the T7 number, and it is the point of the task: the classic shape in
+# k8s-aws costs more per hour again. TEARDOWN IS NOT THE NORMAL STATE HERE -- that rule
+# governs k8s-aws, which is a proving ground brought up to answer a question.
+# aws-down.bat exists for a deliberate decision to stop paying, not for the end
+# of a working session.
+# =============================================================================
+apiVersion: eksctl.io/v1alpha5
+kind: ClusterConfig
+
+metadata:
+  name: esquire-aws-compact
+  region: us-east-1
+  # Matches the local kubectl exactly, so there is no version skew.
+  version: "1.34"
+  tags:
+    project: esquire
+    sprint: v1.2.14
+
+# Pinned DELIBERATELY. eksctl warns that a coming release turns Auto Mode on by
+# default, and that managed node groups and managed networking addons will then
+# no longer be created -- which would silently produce a different cluster from
+# the same file. Saying false keeps this config meaning what it says.
+autoModeConfig:
+  enabled: false
+
+# The EBS CSI driver needs a role, and IRSA needs the OIDC provider.
+iam:
+  withOIDC: true
+
+vpc:
+  # NO NAT GATEWAY. It bills per hour AND per GB and can rival the control plane,
+  # for a proving ground whose only outbound need is pulling images. The node sits
+  # in a PUBLIC subnet and routes out through the internet gateway, which costs
+  # nothing per hour. Inbound is the load balancer the ingress controller asks
+  # for, and nothing else.
+  #
+  # Settable only at CREATION; a cluster upgrade does not touch it.
+  nat:
+    gateway: Disable
+  clusterEndpoints:
+    publicAccess: true
+    privateAccess: true
+
+# TWO AZs FOR THE VPC, because EKS refuses a control plane with subnets in fewer.
+# The NODE GROUP below then pins itself to ONE of them -- see why there.
+availabilityZones:
+  - us-east-1a
+  - us-east-1b
+
+managedNodeGroups:
+  # ONE node group, and ONE node in it. There is no esq-o11y group: T7 runs with
+  # observability off, so the tier that would carry Prometheus, Loki, Tempo and
+  # Grafana has nothing to hold. Observability on AWS is k8s-aws, which owns those
+  # charts and their arms.
+  #
+  # ONE t4g.large, not two t4g.medium -- the SAME $0.0672/hour either way, and the
+  # single node is the better buy here for three reasons:
+  #
+  #   1. A medium does not fit. Requests at x1 add up to 1480m and 4518Mi -- mesnie
+  #      768Mi, gateWard 768Mi, pacMan 512Mi, the BFF 192Mi, Postgres 1Gi, KeyCloak
+  #      768Mi, plus ingress-nginx, cert-manager and the kube-system daemonsets. A
+  #      t4g.medium allocates about 3.4Gi, so the stack would not schedule at all.
+  #      On a large that is 77% of CPU requests and 63% of memory.
+  #      (KeyCloak sets no requests on any other target; values/keycloak.yaml
+  #      declares them here, because on one shared node a BestEffort pod is counted
+  #      as free by the scheduler and evicted first by the kubelet.)
+  #   2. TWO NODES WOULD SIT IN TWO AZs, and cross-AZ pod traffic is charged at
+  #      $0.01/GB each way. Every entity broadcast, every database round trip and
+  #      every BFF-to-gate hop would pay it about half the time. For a task whose
+  #      deliverable is the bill, that is a real line rather than a rounding error.
+  #   3. There is no redundancy to protect. The application runs one of everything
+  #      on purpose, both PVCs are AZ-bound anyway, and a second node could not
+  #      reschedule a stateful pod from the AZ it is not in.
+  #
+  # A rolling update still works at one node: these are StatefulSets, and a
+  # StatefulSet at one replica terminates the old pod before creating the new one,
+  # so it needs no double room. That is what makes a single node honest here where
+  # it was not on the classic cluster.
+  - name: esq-node
+    amiFamily: AmazonLinux2023
+    # Graviton (arm64). The images are built multi-arch by CI because OKE already
+    # runs Ampere -- so arm64 is proven, not assumed, and it is the cheapest tier.
+    instanceType: t4g.large
+    desiredCapacity: 1
+    minSize: 1
+    maxSize: 1
+    # ONE AZ, and it must be one the VPC declares above. Both PVCs bind here, so
+    # pinning the node is what keeps the volumes and the pod in the same place.
+    availabilityZones:
+      - us-east-1a
+    volumeSize: 20
+    volumeType: gp3
+    # false is the default and it is the point: a private node would need the NAT
+    # gateway disabled above.
+    privateNetworking: false
+    labels:
+      tier: app
+    tags:
+      project: esquire
+      sprint: v1.2.14
+
+# Postgres and KeyCloak declare volumeClaimTemplates, so the cluster needs a
+# working StorageClass. EKS 1.34 has no in-tree EBS provisioner -- the addon is
+# what makes a PVC bind at all. The gp3 class itself comes from
+# storageclass-gp3.yaml: the gp2 class EKS still lists uses the in-tree
+# provisioner 1.34 removed, so a claim against it is accepted and never bound.
+addons:
+  - name: aws-ebs-csi-driver
+    wellKnownPolicies:
+      ebsCSIController: true

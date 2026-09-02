@@ -1,0 +1,30 @@
+# EKS overlay for charts/esquire-aukeep  --  T2, classic topology, x1, no HA.
+#
+# db.host is NOT here: aws-deploy.bat reads the RDS endpoint from AWS and passes
+# it with --set, so no endpoint is stale in a file and no credential is in the
+# tree at all (the password comes from the AWS-managed secret, straight into a
+# Kubernetes Secret).
+image:
+  repository: ghcr.io/mir0n-pro/esquire.aukeep
+  tag: "v1.2.14-2608.3112"
+  pullPolicy: IfNotPresent
+
+awsDrivers:
+  repository: ghcr.io/mir0n-pro/esquire-tp-aws
+  tag: "v1.2.14-2608.3112"
+
+# x1, no HA -- T2 proves the shape, it does not prove redundancy.
+replicaCount: 1
+
+# The audit bus on AWS is KINESIS. audit-k is the stream-backed bus in
+# esquire-topology.yml; the chart default (audit-c) is the broker one.
+audit:
+  busId: audit-k
+
+resources:
+  requests:
+    cpu: 200m
+    memory: 448Mi
+  limits:
+    cpu: "1"
+    memory: 768Mi

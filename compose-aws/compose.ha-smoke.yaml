@@ -1,0 +1,14 @@
+# R6 HA timeout smoke -- override layered ON TOP of compose.yaml to enable the request-path cap (8s) and the
+# flag-gated slow-query test hook on enyMan, so the hauberk ha-timeout-smoke can observe the cap firing.
+#
+#   Enable:  docker compose -f compose.yaml -f compose.ha-smoke.yaml up -d --no-deps --force-recreate enyman
+#   Smoke:   (in explorer/hauberk)  hauberk run ha-timeout-smoke
+#   Revert:  docker compose up -d --no-deps --force-recreate enyman      (back to pre-HA defaults: cap off, hook off)
+#
+# This is a TEST overlay -- it is never part of the normal stack. The defaults stay disabled (pre-HA) in the
+# base compose; only this overlay turns the cap + hook on, and only on enyMan.
+services:
+  enyman:
+    environment:
+      - ESQ_TX_TIMEOUT_S=8
+      - ESQ_TEST_SLOW_QUERY_ENABLED=true

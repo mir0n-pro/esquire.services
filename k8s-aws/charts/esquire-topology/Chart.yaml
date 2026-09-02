@@ -1,0 +1,6 @@
+apiVersion: v2
+name: esquire-topology
+description: The shared Esquire messaging-bus topology, delivered as one ConfigMap mounted into every service pod at /etc/esquire/topology.yml.
+type: application
+version: 0.1.0
+appVersion: "1.2.8"

@@ -1,0 +1,42 @@
+# EKS overlay for charts/infra/postgres  --  T3.4, PostgreSQL in a pod.
+#
+# The THIRD database option, measured against RDS and Aurora: no managed service at
+# all, just the same esquire-postgres image every other target runs, on a PVC.
+#
+# It seeds ITSELF on an empty volume -- the image carries /db-seed and the entrypoint
+# applies it the first time PGDATA is empty -- so there is no seed Job here. That is
+# the whole reason the managed options needed one.
+#
+# db.password is NOT set here. aws-deploy.bat passes the SAME password the services
+# already use, read from AWS at run time, so the switch between databases is a host
+# and nothing else. No credential lives in this tree.
+image:
+  repository: ghcr.io/mir0n-pro/esquire-postgres
+  tag: "v1.2.13-2608.2806"
+  pullPolicy: IfNotPresent
+
+# gp3, because the in-tree AWS EBS CSI class is the only one that binds here: the
+# `gp2` class EKS still lists uses the in-tree provisioner removed in Kubernetes 1.34,
+# so a claim against it is selectable, accepted, and never bound.
+storage:
+  storageClass: gp3
+  size: 20Gi
+
+# Sized against the managed instances it is compared with: RDS db.t4g.small is
+# 2 vCPU / 2 GiB, Aurora db.t4g.medium 2 vCPU / 4 GiB. CPU is request-only so a busy
+# moment is not throttled, which is what both managed options get by default.
+resources:
+  requests:
+    cpu: 500m
+    memory: 2Gi
+  limits:
+    memory: 2Gi
+
+# PGDATA MUST BE A SUBDIRECTORY OF THE MOUNT, and this is where AWS differs from every
+# other target. An EBS volume arrives formatted ext4, and an ext4 filesystem has a
+# lost+found directory at its root -- so the mount point is NOT empty and initdb refuses:
+#   initdb: error: directory /var/lib/postgresql/data exists but is not empty
+#   initdb: detail: It contains a lost+found directory, perhaps due to it being a mount point.
+# The pod then CrashLoopBackOffs on a volume that looks perfectly healthy. The chart
+# already has the knob; it was never needed until now.
+pgdata: /var/lib/postgresql/data/pgdata

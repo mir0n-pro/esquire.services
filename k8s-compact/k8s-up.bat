@@ -121,11 +121,24 @@ set "SET_KCMASTER_ADMIN="
 set "SET_GW_EXCHANGE="
 set "SET_BFF_KC="
 set "SET_BFF_SESSION="
-if not "%KCMASTER_ADMIN_SECRET%"=="" set "SET_KCMASTER_ADMIN=--set keycloak.adminClientSecret=%KCMASTER_ADMIN_SECRET%"
+rem esq-kcMaster is the ONE published client holding realm-management realm-admin -- every
+rem other service account (esq-rest, esq-hauberk, esq-hauberk-S, esq-hauberk-M) has none. Its
+rem secret is therefore the realm's master key, not one credential among seven.
+rem
+rem NO FALLBACK AND NO SKIP, on any target, deliberately. A default reinstates the published
+rem value; a skip leaves the release running the OLD value after a rotation -- and both report
+rem success. Set it once in the system environment, the way mir0n_pwd already is.
+if "%KCMASTER_ADMIN_SECRET%"=="" (
+    echo [FAIL] KCMASTER_ADMIN_SECRET is not set.
+    echo        esq-kcMaster is the KeyCloak realm-admin service account, and it has no
+    echo        fallback on any target on purpose.
+    echo        KeyCloak: realm esquire -^> clients -^> esq-kcMaster -^> Credentials.
+    exit /b 1
+)
+set "SET_KCMASTER_ADMIN=--set keycloak.adminClientSecret=%KCMASTER_ADMIN_SECRET%"
 if not "%GW_EXCHANGE_SECRET%"=="" set "SET_GW_EXCHANGE=--set tokenRelay.phantom.exchangeClientSecret=%GW_EXCHANGE_SECRET%"
 if not "%BFF_KC_SECRET%"=="" set "SET_BFF_KC=--set keycloak.clientSecret=%BFF_KC_SECRET%"
 if not "%BFF_SESSION_SECRET%"=="" set "SET_BFF_SESSION=--set session.secret=%BFF_SESSION_SECRET%"
-if "%KCMASTER_ADMIN_SECRET%"=="" echo [!] KCMASTER_ADMIN_SECRET is not set -- the release keeps what it holds; on a FIRST install the identity sync will FAIL. KeyCloak: realm esquire -^> clients -^> esq-kcMaster -^> Credentials.
 if "%BFF_KC_SECRET%"=="" echo [!] BFF_KC_SECRET is not set -- the release keeps what it holds; on a FIRST install the browser login will FAIL. KeyCloak: realm esquire -^> clients -^> esq-angular -^> Credentials.
 if "%GW_EXCHANGE_SECRET%"=="" echo [!] GW_EXCHANGE_SECRET is not set -- the release keeps what it holds; on a FIRST install the phantom token relay will FAIL. KeyCloak: realm esquire -^> clients -^> esq-gw-exchange -^> Credentials.
 if "%BFF_SESSION_SECRET%"=="" echo [!] BFF_SESSION_SECRET is not set -- the release keeps what it holds. Set any random string.

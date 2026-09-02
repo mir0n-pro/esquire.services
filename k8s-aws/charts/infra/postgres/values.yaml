@@ -1,0 +1,22 @@
+image:
+  repository: esquire-postgres
+  tag: "17"
+  pullPolicy: IfNotPresent
+
+# Postgres server max_connections. The cluster's single shared DB backs every service's Hikari pool
+# (~90 connections steady); a simultaneous rolling restart briefly overlaps old+new pods (~140), so the
+# default 100 is too tight and a starting pod gets "too many clients already". 200 absorbs the surge with
+# headroom (worker demand stays well below).
+maxConnections: 200
+
+service:
+  port: 5432
+
+db:
+  name: esq2025
+  username: esq2025
+  password: q
+
+storage:
+  storageClass: standard    # Docker Desktop default; override with OCI block storage class in prod
+  size: 20Gi

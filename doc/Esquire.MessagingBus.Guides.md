@@ -38,7 +38,7 @@ esquire:
         - slot-id: entity
           x-rod:
             transport:
-              provider: activemq                 # or kafka / redis
+              provider: activemq                 # or kafka / redis / sqs / sns / kinesis
               endpoint: tcp://broker:61616
               destination: esquire.entity.broadcast
               params:
@@ -78,9 +78,10 @@ rod.setWorker(this::onEvent);                    // onEvent(RodEvent) runs once 
 
 At startup the framework BUILDS every bus your service declared a role for (paused), then opens them all at once.
 If a bus is mis-configured it fails at boot with a clear message -- not hours later on the first message. You
-never wrote a JMS / Kafka / Redis line.
+never wrote a JMS / Kafka / Redis / AWS line.
 
-That is it. Swap `provider: activemq` for `kafka` or `redis` and the SAME code runs over a different broker.
+That is it. Swap `provider: activemq` for `kafka`, `redis`, `sqs`, `sns` or `kinesis` and the SAME code runs
+over a different broker. What changes is the leg's `params`, because that is where a vendor's own knobs live.
 
 ---
 
@@ -103,7 +104,8 @@ Step by step:
 
 1. **Delete the raw client wiring.** Drop the `JmsTemplate` / `KafkaTemplate` bean and any `@JmsListener` /
    `@KafkaListener`. The bus's driver module (`tp-activemq` / `tp-kafka` / `tp-redis`) already switches OFF
-   Spring's matching auto-config, so a leftover bean would only fight the bus -- remove it.
+   Spring's matching auto-config, so a leftover bean would only fight the bus -- remove it. The AWS drivers
+   (`tp-sqns` / `tp-kinesis`) need no such filter: the SDK brings no Boot auto-config.
 2. **Describe the destination as a bus** (Step 1 above): the broker URL becomes `transport.endpoint`, the
    queue / topic name becomes `transport.destination`, and any vendor tweak (client id, prefetch, topic-vs-queue)
    becomes a `transport.params.*` entry -- verbatim, no code.

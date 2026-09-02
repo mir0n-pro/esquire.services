@@ -68,7 +68,7 @@ scrape_configs:
       - target_label: component
         replacement: collector
 
-  # NOTE what is deliberately NOT scraped (mir0n, 2026-07-12): Prometheus / Loki / Tempo / Grafana / Alloy all
+  # NOTE what is deliberately NOT scraped (2026-07-12): Prometheus / Loki / Tempo / Grafana / Alloy all
   # expose /metrics natively and it would cost nothing to scrape them -- and they are still left alone. The
   # topology board answers "what is the SYSTEM doing", and six boxes of tooling watching the tooling drowns that
   # question. The VIEWER IS NOT THE SYSTEM. Scraping them with nothing reading it would just be dead config.

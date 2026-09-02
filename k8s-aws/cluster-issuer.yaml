@@ -1,0 +1,45 @@
+# =============================================================================
+# Let's Encrypt issuer for the AWS deployment -- T2.10.
+#
+# HTTP-01, solved through the same ingress-nginx that serves the site: Let's
+# Encrypt fetches a token over plain HTTP on port 80, which is why the ingress
+# must keep answering :80 rather than redirecting everything to https.
+#
+# THE ORDER MATTERS. The DNS record has to exist and resolve to the load balancer
+# BEFORE this can issue anything -- the challenge is a real request from Let's
+# Encrypt to the public hostname. Applied ahead of time it simply waits, and the
+# Certificate sits in "pending" until the name resolves. That is not a failure.
+#
+# The staging issuer is here because the production one rate-limits hard (a few
+# failures per hostname per week). Use staging while the wiring is being proved,
+# then switch the ingress annotation to letsencrypt-prod for a trusted cert.
+# =============================================================================
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-prod
+spec:
+  acme:
+    server: https://acme-v02.api.letsencrypt.org/directory
+    email: mir0n.the.programmer@gmail.com
+    privateKeySecretRef:
+      name: letsencrypt-prod-account-key
+    solvers:
+      - http01:
+          ingress:
+            ingressClassName: nginx
+---
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-staging
+spec:
+  acme:
+    server: https://acme-staging-v02.api.letsencrypt.org/directory
+    email: mir0n.the.programmer@gmail.com
+    privateKeySecretRef:
+      name: letsencrypt-staging-account-key
+    solvers:
+      - http01:
+          ingress:
+            ingressClassName: nginx

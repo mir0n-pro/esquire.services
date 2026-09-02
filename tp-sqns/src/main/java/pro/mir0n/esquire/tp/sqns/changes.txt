@@ -1,0 +1,34 @@
+Esquire Amazon SQS / Amazon SNS transport provider classes
+
+08/29/2026 mir0n  v1.2.14 -- the Amazon SQS and Amazon SNS transport providers
+tp.sqns.SqsSupport  (new)
+  - the pieces the sqs and sns providers share -- the client build (region, the endpoint override LocalStack
+    needs, the SDK default credential chain), the queue-name rules (route-by and the character set SQS allows),
+    the create-or-get queue URL cache, the transport.params prefix groups (client. / queue. / topic. /
+    subscription.) and the gate that REFUSES a param naming no AWS call rather than dropping it
+tp.sqns.SnsSupport  (new)
+  - the SNS pieces -- CreateTopic (create-or-get, topic. attributes), and putting a queue onto a topic: the
+    queue policy that lets the topic write to it, raw message delivery, and the filter policy CLEARED, since
+    Subscribe applies attributes only when it creates a subscription and one left behind goes on dropping
+    messages
+tp.sqns.SqsConsumer  (new)
+  - the long-poll receive leg both providers use -- named poll threads, the delete as the acknowledgement (sent
+    only after the handler returned), and a queue that went away made again on the next turn, then re-wired by
+    the hook the leg supplies
+tp.sqs.TransportProvider  (new)
+  - the Amazon SQS ITransportProvider. route-by turns the filter a JMS selector used to apply into a
+    DESTINATION -- a queue per rod-id or per slot-id; the whole header bag rides as the message body, since SQS
+    allows ten attributes and the bag carries twenty. Nothing is asked of AWS when a leg opens: the queue is
+    made on the first poll
+tp.sns.TransportProvider  (new)
+  - the Amazon SNS ITransportProvider. SNS delivers and holds nothing, so a consuming leg owns an SQS queue
+    subscribed to the topic and named from its rod-id; the subscription selector and noLocal are applied in code
+    by the framework filters. A topic that goes away is resolved again on both legs. Nothing is asked of AWS
+    when a leg opens
+pom.xml  (new)
+  - the tp-sqns module: esquire-messaging provided, the AWS SDK sqs + sns clients, and copy-dependencies into
+    target/aws-lib so a deployment can attach the driver instead of building it into an image
+doc/tp-sqns.md  (new)
+  - the driver's own description: the subscription protocol and why an sqs subscription needs no confirmation
+    token, the wiring when a leg opens, a broadcast end to end, request/response over SQS, the queue and topic
+    names, the two receive filters, what rides on the wire, configuration and health

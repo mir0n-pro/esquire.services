@@ -1,0 +1,79 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-biztree-config
+  labels:
+    app: {{ .Release.Name }}-biztree
+data:
+  SPRING_PROFILES_ACTIVE:             {{ .Values.springProfilesActive | default "" | quote }}
+  BIZTREE_PORT:                       {{ .Values.service.port | quote }}
+  MANAGEMENT_SERVER_PORT:    {{ .Values.service.managementPort | quote }}
+  TOPOLOGY_IMPORT:            {{ .Values.topologyImport | quote }}
+  # --- datasource (password -> Secret, injected as env in the deployment) ---
+  DB_BIZTREE_VENDOR:                  {{ .Values.db.vendor | quote }}
+  DB_BIZTREE_HOST:                    {{ .Values.db.host | quote }}
+  DB_BIZTREE_PORT:                    {{ .Values.db.port | quote }}
+  DB_BIZTREE_NAME:                    {{ .Values.db.name | quote }}
+  DB_BIZTREE_USERNAME:                {{ .Values.db.username | quote }}
+  # --- resilience (R1-R5): timeout ladder / pool sizing / fail-fast DB ---
+  ESQ_TX_TIMEOUT_S:                   {{ .Values.resilience.txTimeoutSeconds | quote }}
+  ESQ_TOMCAT_MAX_THREADS:             {{ .Values.resilience.tomcatMaxThreads | quote }}
+  ESQ_TOMCAT_ACCEPT_COUNT:            {{ .Values.resilience.tomcatAcceptCount | quote }}
+  ESQ_DB_POOL_MAX:                    {{ .Values.resilience.dbPoolMax | quote }}
+  ESQ_DB_POOL_MIN_IDLE:               {{ .Values.resilience.dbPoolMinIdle | quote }}
+  ESQ_DB_CONNECT_TIMEOUT_MS:          {{ .Values.resilience.dbConnectTimeoutMs | quote }}
+  ESQ_DB_SOCKET_TIMEOUT_S:            {{ .Values.resilience.dbSocketTimeoutSeconds | quote }}
+  ESQ_DB_TCP_KEEPALIVE:               {{ .Values.resilience.dbTcpKeepAlive | quote }}
+  # --- v1.2.10 VT (UNVALIDATED test lever, default OFF -- see HA doc 5.5) ---
+  ESQ_VIRTUAL_THREADS:                {{ .Values.esqVirtualThreads | quote }}
+  # --- H2 local cache (Taijitu two-monad store) ---
+  BIZTREE_CACHE_VENDOR:               {{ .Values.h2.vendor | quote }}
+  BIZTREE_H2_URL:                     {{ .Values.h2.url | quote }}
+  BIZTREE_H2_POOL_MAX:                {{ .Values.h2.poolMax | quote }}
+  BIZTREE_H2_POOL_MIN_IDLE:           {{ .Values.h2.poolMinIdle | quote }}
+  BIZTREE_H2_POOL_CONN_TIMEOUT:       {{ .Values.h2.poolConnTimeout | quote }}
+  BIZTREE_H2_POOL_IDLE_TIMEOUT:       {{ .Values.h2.poolIdleTimeout | quote }}
+  BIZTREE_H2_POOL_MAX_LIFETIME:       {{ .Values.h2.poolMaxLifetime | quote }}
+  # --- entity-bus ref (CONSUMER: drains the entity broadcast) ---
+  ENTITY_BUS_ID:                      {{ .Values.entity.busId | quote }}
+  ENTITY_SLOT_ID:                  {{ .Values.entity.slotId | quote }}
+  ENTITY_BROADCAST_POOL_SIZE:         {{ .Values.entity.broadcastPoolSize | quote }}
+  ENTITY_BROADCAST_CONCURRENCY:       {{ .Values.entity.broadcastConcurrency | quote }}
+  ENTITY_BROADCAST_POOL_MODE:         {{ .Values.entity.poolMode | quote }}
+  # --- Taijitu director + night-watch sweep (Java @Value relaxed binding) ---
+  BIZTREE_DIRECTOR:                   {{ .Values.taijitu.director | quote }}
+  BIZTREE_MONAD_QUEUE_CAPACITY:       {{ .Values.taijitu.queueCapacity | quote }}
+  BIZTREE_QUEUE_BULK_THRESHOLD:       {{ .Values.taijitu.bulkThreshold | quote }}
+  BIZTREE_TAIJITU_ON_MISMATCH:        {{ .Values.taijitu.onMismatch | quote }}
+  BIZTREE_TAIJITU_SWEEP_INTERVAL_MS:  {{ .Values.taijitu.sweepIntervalMs | quote }}
+  BIZTREE_TAIJITU_SWEEP_TIMEOUT_MS:   {{ .Values.taijitu.sweepTimeoutMs | quote }}
+  # --- logging ---
+  LOG_LEVEL_ROOT:                     {{ .Values.logging.levelRoot | quote }}
+  LOG_LEVEL_SF:                       {{ .Values.logging.levelSf | quote }}
+  LOG_LEVEL_MIR0N:                    {{ .Values.logging.levelMir0n | quote }}
+  LOG_LEVEL_DEVELOP:                  {{ .Values.logging.levelDevelop | quote }}
+  LOG_LEVEL_MSG:                      {{ .Values.logging.levelMsg | quote }}
+  LOG_LEVEL_AMQ:                      {{ .Values.logging.levelAmq | quote }}
+  LOG_LEVEL_JMS:                      {{ .Values.logging.levelJms | quote }}
+  DEVELOP_LOG_PATH:                   {{ .Values.logging.developLogPath | quote }}
+  MSG_LOG_PATH:                       {{ .Values.logging.msgLogPath | quote }}
+  # --- v1.2.11 O2 distributed tracing (opt-in; OFF by default; o11y-on enables it) ---
+  ESQ_OBSERVABILITY_ENABLED:  {{ .Values.observability.enabled | quote }}
+  # Per-pillar enable (I41): default to the master, override to run one pillar off. tracingEnabled=false ->
+  # metrics-only (service-mesh coexistence). Empty string follows the master; any explicit value (incl. false) wins
+  # -- toString+eq "" avoids Helm's default-trap where --set x=false (boolean) would be swallowed as empty.
+  ESQ_TRACING_ENABLED:        {{ if eq (toString .Values.observability.tracingEnabled) "" }}{{ .Values.observability.enabled | quote }}{{ else }}{{ .Values.observability.tracingEnabled | quote }}{{ end }}
+  ESQ_METRICS_ENABLED:        {{ if eq (toString .Values.observability.metricsEnabled) "" }}{{ .Values.observability.enabled | quote }}{{ else }}{{ .Values.observability.metricsEnabled | quote }}{{ end }}
+  ESQ_METRICS_HISTOGRAMS:     {{ .Values.observability.metricsHistograms | quote }}
+  ESQ_METRICS_BANDWIDTH:      {{ .Values.observability.metricsBandwidth | quote }}
+  ESQ_METRICS_BUSINESS:      {{ .Values.observability.metricsBusiness | quote }}
+  ESQ_OTLP_ENDPOINT:          {{ .Values.tracing.otlpEndpoint | quote }}
+  ESQ_TRACING_SAMPLING_RATIO: {{ .Values.tracing.samplingRatio | quote }}
+  ESQ_TRACING_MARKS_ENABLED:  {{ .Values.tracing.marksEnabled | quote }}
+  ESQ_MSG_BUS_ALIVE_TRACE:    {{ .Values.tracing.msgBusAliveTrace | quote }}
+  ESQ_TRACING_EXCLUDED_PATHS: {{ .Values.tracing.excludedPaths | quote }}
+
+  # --- Amazon MQ broker (T3.1): the host and the user are not secrets; the password rides the Secret ---
+  ESQ_MQ_URL:                 {{ .Values.mq.url | default "" | quote }}
+  ESQ_MQ_USER:                {{ .Values.mq.user | default "" | quote }}
+  ESQ_MSK_BOOTSTRAP:          {{ .Values.msk.bootstrap | default "" | quote }}

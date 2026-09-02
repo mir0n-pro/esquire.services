@@ -1,0 +1,30 @@
+# =============================================================================
+# The StorageClass EKS does not give you.
+#
+# TWO TRAPS THIS ANSWERS, both of which look like "the pod is Pending" and say
+# nothing about why:
+#
+#   1. EKS ships a `gp2` class whose provisioner is `kubernetes.io/aws-ebs` --
+#      the IN-TREE one, which Kubernetes REMOVED in 1.34. It is present, it is
+#      selectable, and it will never bind a volume. The aws-ebs-csi-driver addon
+#      supplies `ebs.csi.aws.com`, but it does NOT create a StorageClass, so a
+#      cluster with the addon still has nothing that works until this exists.
+#
+#   2. The charts default to storageClass `standard`, which is Docker Desktop's
+#      name. It does not exist here at all.
+#
+# Marked default so anything that does not name a class gets a working one.
+# =============================================================================
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: gp3
+  annotations:
+    storageclass.kubernetes.io/is-default-class: "true"
+provisioner: ebs.csi.aws.com
+parameters:
+  type: gp3
+  encrypted: "true"
+volumeBindingMode: WaitForFirstConsumer
+allowVolumeExpansion: true
+reclaimPolicy: Delete

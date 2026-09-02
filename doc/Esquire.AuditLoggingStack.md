@@ -158,9 +158,10 @@ asynchronous / separate store / non-SQL*.
 
 ### c) Distributed Logging — *"auKeep"* (the in-framework decoupled option)
 - **Where:** log tables in the log DB. **Filled by** the **auKeep** consumer — the service's `XRod` producer
-  posts the event to the audit bus (ActiveMQ queue under `audit-c`, Kafka topic under `audit-ck`); the
-  standalone auKeep consumes it and owns the log-DB write. Selected by `AUDIT_BUS_ID=audit-c` (or
-  `audit-ck` for Kafka).
+  posts the event to the audit bus; the standalone auKeep consumes it and owns the log-DB write. The
+  transport is the topology's choice and the shape is the same for all of them: an ActiveMQ queue under
+  `audit-c`, a Kafka topic under `audit-ck`, an Amazon Kinesis stream under `audit-k`. Selected by
+  `AUDIT_BUS_ID`.
 - **+** full decoupling — the entity services carry no JPA or log-DB dependency, they just publish; the
   audit pipeline is its own independently-deployable, scalable concern and can fan out to many sinks;
   the only decoupled option that can be hardened to **zero-loss** (§5).
@@ -178,6 +179,18 @@ asynchronous / separate store / non-SQL*.
 - **+** schema-flexible, very high write throughput, native streaming; cheapest on the request path (§8).
 - **–** new infrastructure (Redis); eventual consistency; ad-hoc *relational* audit queries ("who changed
   entity X, ranges by user") are answered more directly by the SQL `*_log` of (b)/(c).
+
+### k) Amazon Kinesis — option (c) on a managed stream
+- **Where:** log tables in the log DB, exactly as (c). **Filled by** auKeep, which reads the Kinesis stream
+  with `GetRecords` and owns the log-DB write. Selected by `AUDIT_BUS_ID=audit-k`.
+- Kinesis is the **transport** here, not the store: the rows land in `*_log` like every other (c) variant.
+  The stream is partitioned by `EntityID`, so each entity's history stays in order while the load spreads
+  across shards — audit rows depend on nothing else, which is what makes spreading safe here.
+- **+** nothing of ours to run or patch; the stream absorbs bursts the log DB could not take directly.
+- **–** the reader owns its position: Kinesis keeps none, and keeping one properly means the Kinesis Client
+  Library and its DynamoDB lease table — a second service and a second bill. auKeep instead begins where
+  `iterator-type` says (`TRIM_HORIZON` re-reads the retained window), and the dedup key drops the repeats.
+  Delivery is polled, so it carries the poll interval as latency (200ms floor).
 - **Streams, not RedisJSON:** a Stream matches the append-only trail and stays portable to managed
   Redis/Valkey (OCI Cache ships core only, no modules); RedisJSON/RediSearch would lock us to self-hosting
   (explored locally — `research/RedisJSON-local.md`, `research/Redis-on-OCI.md`).
@@ -250,7 +263,7 @@ The audit legs use three of the bus's rod-classes:
 
 Audit picks its sink by **bus-id**, one env var: the audit entry binds `{ bus-id: ${AUDIT_BUS_ID}, slot-id:
 audit }`. `AUDIT_BUS_ID` names which catalog bus the producer (and the auKeep) uses — `audit-b` / `audit-c` /
-`audit-ck` / `audit-d` / `audit-dk`, or unset → the disabled rod-class (option 0). Docker and k8s default to
+`audit-ck` / `audit-d` / `audit-dk` / `audit-k`, or unset → the disabled rod-class (option 0). Docker and k8s default to
 `audit-c`; the code default in `application.yml` is `audit-b`. The in-process (b) leg lives in the service's
 own catalog overlay, because its keep datasource is service-specific. How a catalog is written, unioned and
 loaded is the bus's — see

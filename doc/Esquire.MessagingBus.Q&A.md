@@ -90,7 +90,8 @@ A. It already fails fast for everything that matters, and dry-resolving EVERY sl
 
 2. **A universal dry-resolve is unsafe.** The SHARED topology catalog holds ALL buses, and each slot's rod-class /
    provider class is on the classpath ONLY of the services that USE it -- `XRodInProcessKeep` ships only in
-   dataKeep services; `tp-redis` / `tp-kafka` only where those brokers are used. A service correctly bundles only
+   dataKeep services; `tp-redis` / `tp-kafka` only where those brokers are used, and `tp-sqns` / `tp-kinesis`
+   only where a deployment mounts them. A service correctly bundles only
    its own drivers. Dry-resolving EVERY slot would `Class.forName` a driver / rod the service does not have and
    CRASH at boot for a slot it never touches. The "validate every slot" advice assumes ONE process owns
    every driver; Esquire's per-service classpath does not.

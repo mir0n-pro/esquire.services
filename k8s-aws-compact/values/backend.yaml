@@ -1,0 +1,77 @@
+# EKS overlay for k8s-compact/charts/esquire-backend (BFF + SPA in one image) -- T7, x1.
+#
+# v1.2.13 image ON PURPOSE: the BFF is Node and the SPA is Angular. Neither carries the Esquire Java
+# messaging jar, so the v1.2.14 change that forced the service images to be rebuilt does not touch this
+# one, and there is nothing to rebuild for AWS.
+image:
+  repository: ghcr.io/mir0n-pro/esquire.backend
+  tag: "v1.2.13-2608.2806"
+  pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP            # behind ingress-nginx; no public LB of its own
+  port: 3000
+  lbPort: 3000               # unused when type=ClusterIP, kept for chart compatibility
+
+# OIDC / KeyCloak. The issuer must be reachable BOTH from the BFF pod (server-to-server discovery and
+# token exchange) AND from the browser (authorize / end_session redirects), so it is the public host --
+# the iss claim and the browser-side redirect URL then resolve to the same KeyCloak.
+keycloak:
+  issuer: https://aws-esquire.mir0n.pro/kc-auth/realms/esquire
+  # Server-to-server discovery stays INSIDE the cluster, and here that is not a
+  # preference. The whole stack runs on ONE node, which is also the node the ingress
+  # controller runs on -- so a pod calling the public hostname would leave through the
+  # NLB and come straight back to the instance it left, the hairpin case an NLB does
+  # not reliably support. It hangs rather than refusing, which reads as a slow KeyCloak.
+  # OKE gets away with the public URL because its pods and its load balancer are not
+  # the same machine.
+  issuerInternal: http://esquire-infra-kc-keycloak:8080/kc-auth/realms/esquire
+  clientId: esq-angular
+  # clientSecret passed via --set at install.
+
+publicBaseUrl: https://aws-esquire.mir0n.pro
+
+allowedOrigins: ""
+
+session:
+  # secret passed via --set at install.
+  cookieMaxAgeMs: 43200000   # 12h
+
+cache:
+  ttlMs: 3600000             # 1h
+  maxEntries: 64
+
+nodeEnv: production
+
+nodeSelector:
+  tier: app
+
+# x1, and that is why there is NO redis block here. OKE runs the BFF at x2 and needs a shared session
+# store so a login on one pod is visible to the other; one replica keeps its sessions in MemoryStore and
+# needs no store of its own. Dropping redis drops a pod and a chart from this shape.
+replicaCount: 1
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 192Mi
+  limits:
+    cpu: 500m
+    memory: 384Mi
+
+# R1 budget -- bound a hung request and a hung /api upstream call just above the gateway/service timeout
+# ladder (clean 504, not a hung socket). spa.httpTimeoutMs mounts config.json over the baked one so the
+# browser bounds a hung request too.
+resilience:
+  requestTimeoutMs: "35000"
+  proxyTimeoutMs: "32000"
+spa:
+  httpTimeoutMs: "40000"
+
+# NO gateway block here on purpose. The gate on this profile is gateWard, and
+# k8s-compact/charts/esquire-backend already points at esquire-gateward:8080. Naming the classic gateway
+# service here would proxy /api/* at a workload that does not exist on a super-compact stack.
+
+# IfNotPresent, unlike the three service overlays. This tag is FIXED at v1.2.13 and
+# never moves, so there is nothing to re-pull and Always would only add a registry
+# round trip to every pod start. The moving-tag images are the ones that need Always.

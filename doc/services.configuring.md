@@ -144,16 +144,42 @@ Esquire catalog: which buses exist and the env that drives them. The vocabulary:
     small and DB-pool-capped, so virtual threads buy nothing here -- they pay off only when a pod would otherwise
     exhaust its OS file-handle / thread budget holding many concurrently-blocked waits. See the metal-vs-virtual
     budget in `Esquire.HighAvailability.md` section 5.5.
-- **transport**: provider (`activemq` | `kafka` | `redis`, or a class name) + endpoint + destination +
+- **transport**: provider (`activemq` | `kafka` | `redis` | `sqs` | `sns` | `kinesis`, or a class name) +
+  endpoint + destination +
   `params` (opaque per-vendor knobs, e.g. `jms.useAsyncSend` / `pubSubDomain` for ActiveMQ pub/sub-vs-queue
-  / `noLocal` / `group-id` / `max-len`) + (R&R) `request-node` / `response-node` + a node list. The bus carries
+  / `noLocal` / `group-id` / `max-len` / `region` / `route-by` / `partition-by`) + (R&R) `request-node` /
+  `response-node` + a node list. The bus carries
   no queue-vs-topic notion of its own: that is a JMS concept, set as the ActiveMQ `pubSubDomain` param
   (`true` = topic, absent/`false` = queue) and read only by `tp-activemq`.
   - **noLocal** (`transport.params.noLocal`, default off): for a broadcast `CLIENT` that both publishes and
     listens on ONE topic when the fleet runs many instances. With it on, the x-rod runs both legs over a SINGLE
     broker connection and the broker drops that connection's own publications, so the leg receives only OTHER
     instances' events. Leave it off and the rod keeps two connections and excludes its own in code by rod-id
-    instead -- same result, one extra connection.
+    instead -- same result, one extra connection. A transport with no server-side own-exclusion (SNS, SQS,
+    Kinesis) always takes the in-code path, through the framework's `OwnExcluding` filter.
+  - **AWS param prefixes**: AWS takes its settings through several different calls, so a key names the call
+    it belongs to -- `client.` (the SDK client), `queue.` (SQS CreateQueue), `topic.` (SNS CreateTopic),
+    `subscription.` (SNS Subscribe), `stream.` (the Kinesis stream). Inside a prefix the key is the vendor's
+    own name and passes through verbatim. A key that is neither a prefix nor one the driver owns is REFUSED
+    when the leg opens, rather than dropped in silence.
+  - **route-by** (`sqs` / `sns`): the header whose value splits a destination into one queue per value --
+    `RodID` for a queue per instance, `SlotID` for a queue per slot. SQS has no message selector, so the
+    filter a selector used to apply becomes a destination.
+  - **partition-by** (`kinesis`): the header whose value becomes the record partition key, i.e. how the
+    stream is SHARDED. **Absent means FIFO** -- one key, one shard, one ordered sequence -- and that is the
+    default because Kinesis keeps order only within a partition key. Naming a header opts IN to spreading and
+    is safe only where records do not depend on one another (the audit log uses `EntityID`). An ordered bus
+    also needs `receiver-pool.size: 1`, since ordering the wire buys nothing if the far end applies a batch
+    concurrently.
+  - **iterator-type** / **poll-millis** / **limit** (`kinesis`, receive side): where a leg begins when it has
+    no position (`TRIM_HORIZON` re-reads the retained window, `LATEST` takes only what arrives next), how long
+    it waits after an empty read, and how many records it asks for. `poll-millis` IS the delivery latency,
+    because `GetRecords` answers at once whether or not there is anything, so the consumer paces itself and
+    the interval IS the latency -- unlike an SQS receive, which blocks on the server and returns the moment a
+    message arrives. `GetRecords` is capped at five calls a second per shard, so
+    200ms is the floor and the default.
+  - **wait-seconds** / **batch-size** (`sqs` / `sns`, receive side): the long-poll wait (default 20, the SQS
+    maximum) and messages per receive (default 10, the maximum).
 - **rod-class**: `XRod` (standard transceiver), `XRodRR` (request/response, two-node, role-routed),
   `XRodInProcess` (a generic in-process relay that runs a worker applying events locally instead of sending
   them; `messaging.xrod.impl`), `XRodInProcessKeep` (the in-process KEEP that applies events to a DB via a
@@ -161,10 +187,17 @@ Esquire catalog: which buses exist and the env that drives them. The vocabulary:
   `XRodInfo` (logs instead of sends), `XRodDisabled` (a no-op; selected EXPLICITLY to run without a bus).
 - **role**: `CLIENT` / `SERVER`.
 
-**Transport providers** are pluggable per-vendor modules (`tp-activemq` / `tp-kafka` / `tp-redis`)
-implementing `ITransportProvider`, resolved by name via `TransportProviders`. A deployment carries
-only the modules it uses; each ships an `AutoConfigurationImportFilter` that suppresses Boot's
-matching auto-config so a service stays transport-agnostic.
+**Transport providers** are pluggable per-vendor modules (`tp-activemq` / `tp-kafka` / `tp-redis` /
+`tp-sqns` / `tp-kinesis`) implementing `ITransportProvider`, resolved by name via `TransportProviders`.
+A deployment carries only the modules it uses; `tp-activemq`, `tp-kafka` and `tp-redis` each ship an
+`AutoConfigurationImportFilter` that suppresses Boot's matching auto-config so a service stays
+transport-agnostic.
+
+`tp-sqns` (the `sqs` and `sns` providers) and `tp-kinesis` are **attached at deployment rather than built
+in**: no service module depends on them and no service image carries a byte of the AWS client. A deployment
+that wants them mounts the driver jar plus its dependency folder and names both on `loader.path`, so the same
+image runs with or without AWS. The AWS SDK brings no Boot auto-config, so those two need no import filter.
+Credentials always come from the SDK default credential chain -- never a file, never a param.
 
 The catalog is normally ONE shared external **topology file** loaded by every service (a service may
 instead define `esquire.messaging-bus` INLINE in its own application.yml, or not use the bus at all).
@@ -694,9 +727,9 @@ ref names (`AUDIT_BUS_ID`, default `audit-c`) and applies each decoded event to 
 datasource (`esquire.keep.datasource`) via the **generic keep engine** (`KeepApplier` /
 `RodEventDbWriter` / `KeepSqlStore`, in the `esquire-dataKeep` library). The audit keep director
 (`AuditKeepDirector`, an `IKeepDirector`) only DECLARES the kinds + the SQL group `audit`; the engine
-does the DB apply. It carries all transport-provider modules, so it consumes the ActiveMQ (`audit-c`)
-or Kafka (`audit-ck`) sink as the topology leg dictates; producer-only sinks (`audit-d` / `audit-dk`)
-have no auKeep. Horizontally redundant (competing consumers; no clientId) -- it drains the bus audit
+does the DB apply. It carries the transport-provider modules, so it consumes the ActiveMQ (`audit-c`),
+Kafka (`audit-ck`), SNS or Kinesis (`audit-k`) sink as the topology leg dictates; producer-only sinks
+(`audit-d` / `audit-dk`) have no auKeep. Horizontally redundant (competing consumers; no clientId) -- it drains the bus audit
 sink to the `*_log` tables. It ships the **full** `META-INF/audit/{dialect}.xml` SQL set (it writes
 every kind). The in-process x-rod for producers (audit-(b)) is `XRodInProcess`, the same generic relay
 backed by the same keep engine. See `doc/Esquire.AuditLoggingStack.md` section 4.7.

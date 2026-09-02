@@ -1,0 +1,52 @@
+# EKS overlay for k8s-compact/charts/infra/postgres  --  T7, PostgreSQL in a pod.
+#
+# The database is IN THE CLUSTER here, not the RDS instance T2 proved. T3.4 measured
+# the three -- the pod, RDS and Aurora -- and the pod won on the two grounds that
+# matter for a proving ground: about 16x cheaper than RDS for 20% fewer writes per
+# second, on the same PostgreSQL 17.11.
+#
+# It seeds ITSELF on an empty volume: the image carries /db-seed and the entrypoint
+# applies create/all.sql and fill/all.sql the first time PGDATA is empty. It does NOT
+# apply triggers/all.sql -- see aws-up.bat, which does, because super-compact audits
+# with those triggers and nothing else.
+#
+# db.password is NOT set here. aws-up.bat passes the same password every service uses.
+# No credential lives in this tree.
+image:
+  repository: ghcr.io/mir0n-pro/esquire-postgres
+  # v1.2.13 on purpose: this image is PostgreSQL plus db.seed. It carries no Esquire
+  # Java, so the v1.2.14 messaging change does not touch it and there is nothing to
+  # rebuild for AWS.
+  tag: "v1.2.13-2608.2806"
+  pullPolicy: IfNotPresent
+
+# gp3, because the in-tree AWS EBS CSI class is the only one that binds here: the
+# gp2 class EKS still lists uses the in-tree provisioner removed in Kubernetes 1.34,
+# so a claim against it is selectable, accepted, and never bound.
+storage:
+  storageClass: gp3
+  size: 20Gi
+
+db:
+  name: esq2025
+  username: esq2025
+
+maxConnections: 200
+
+resources:
+  requests:
+    cpu: 300m
+    memory: 1Gi
+  limits:
+    memory: 1536Mi
+
+# PGDATA MUST BE A SUBDIRECTORY OF THE MOUNT, and this is where AWS differs from
+# Docker Desktop. An EBS volume arrives formatted ext4, and an ext4 filesystem has a
+# lost+found directory at its root -- so the mount point is NOT empty and initdb refuses:
+#   initdb: error: directory /var/lib/postgresql/data exists but is not empty
+#   initdb: detail: It contains a lost+found directory, perhaps due to it being a mount point.
+# The pod then CrashLoopBackOffs on a volume that looks perfectly healthy.
+pgdata: /var/lib/postgresql/data/pgdata
+
+nodeSelector:
+  tier: app

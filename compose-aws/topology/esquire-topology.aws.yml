@@ -1,0 +1,127 @@
+# Esquire frameworks (tm) -- messaging-bus TOPOLOGY (all AWS; the LOCAL AWS LAB, on docker)
+#
+# The AWS bus catalog for the local lab: every bus on an AWS service and nothing else, with the endpoints
+# pointed at LocalStack. This is a DOCKER file and it stays one. The EKS deployment is separate and complete
+# in itself -- it gets a topology written for it, not a copy of this one carried across.
+#
+# THE STACK RUNS NO BROKER OF ITS OWN under this catalog. No ActiveMQ, no Kafka, no Redis, and therefore none
+# of the audit options that need one: audit-c and audit-ck (a broker plus an auKeep consumer), audit-d over
+# Redis, audit-dk over Kafka. A bus defined with nothing to reach it would only describe legs that cannot open.
+#
+#   esquire.entity  -- the entity broadcast, on Amazon SNS
+#   esquire.kc      -- the identity request/response, on Amazon SQS
+#   audit-k         -- the audit log, on Amazon Kinesis
+#   audit-off       -- the explicit DISABLED bus, for a deployment that audits with database triggers
+#
+# WHAT IS LIVE. The sandbox moves one bus per task, so esquire-topology.yml beside this file is the one the
+# stack loads and it still carries the buses that have not moved yet. This file becomes that file once T1b
+# has built the sns provider and T1c the kinesis provider.
+#
+# CREDENTIALS. Nothing here holds one. The SDK default credential chain supplies them -- here, dummy values
+# from the container environment, which LocalStack accepts and checks nothing about.
+#
+# A NODE THAT DECLARES params REPLACES the transport's params group whole (BusTransport.refinedWith), so every
+# param an R&R node needs is declared on that node rather than on the transport above it.
+esquire:
+  messaging-bus:
+    # --- entity broadcast: an SNS topic fans out to one SQS queue per consuming instance ---
+    #
+    # SNS carries, SQS holds. SNS pushes each publication to the endpoints subscribed to the topic and keeps
+    # nothing itself, so every consuming instance owns a queue subscribed to that topic -- one shared queue
+    # would make the instances compete for messages instead of all receiving them. route-by names the header
+    # the queue is named from, and on the consume side the value is the rod's own id, so each instance reads
+    # esquire-entity-broadcast-<rod-id> and receives every broadcast.
+    - bus-id: esquire.entity
+      slots:
+        - slot-id: entity
+          x-rod:
+            receiver-pool:
+              size: 4
+              mode: platform
+            concurrency: 1
+            publisher-pool:
+              size: 0
+              mode: platform
+            transport:
+              provider: sns
+              endpoint: http://localstack:4566
+              destination: esquire.entity.broadcast
+              params:
+                region: us-east-1
+                route-by: RodID
+                # The own-exclusion enyMan needs across instances: the moving instance must reconcile a peer
+                # instance's create-during-move, not its own. Over ActiveMQ this is the broker's noLocal on a
+                # shared connection. SNS has no such thing -- every subscribed queue receives the publisher's
+                # own messages back -- so T1b settles which answer carries it: an SNS subscription filter
+                # policy that drops the publisher's own rod-id, or the same drop inside the driver. This line
+                # is what turns it on either way.
+                noLocal: true
+    # --- identity request/response (R&R, two nodes) on Amazon SQS: enyMan/keySmith CLIENT, kcMaster SERVER ---
+    #
+    # SQS has no message selector, so the filter XRodRR used to apply is a QUEUE here: each node declares the
+    # header its destination splits on. Requests land in one queue per slot, which every server of that slot
+    # competes on; a reply lands in the requester's own queue, because the server x-rod echoes the requester's
+    # rod-id onto it.
+    - bus-id: esquire.kc
+      slots:
+        - slot-id: kc
+          x-rod:
+            rod-class: XRodRR
+            # RR liveness protocol ON: the CLIENT probes with a TestRequest and the SERVER echoes a HeartBeat.
+            alive: true
+            receiver-pool:
+              size: 4
+              mode: platform
+            concurrency: 1
+            publisher-pool:
+              size: 0
+              mode: platform
+            transport:
+              provider: sqs
+              endpoint: http://localstack:4566
+              request-node: request
+              response-node: response
+              nodes:
+                - node-id: request
+                  destination: esquire.kc.request
+                  params:
+                    region: us-east-1
+                    route-by: SlotID
+                - node-id: response
+                  destination: esquire.kc.response
+                  params:
+                    region: us-east-1
+                    route-by: RodID
+    # --- audit (k): the Kinesis stream IS the append-only log ---
+    #
+    # The same option the Redis stream serves on docker: producers write records and the stream keeps them.
+    # Produce-only, so there is NO auKeep consumer and no auKeep process -- the audit lives in the stream,
+    # read with GetRecords, not in the database *_log tables. A deployment that wants the rows in the database
+    # instead points AUDIT_BUS_ID at audit-off below and lets the database triggers carry the audit, which is
+    # what OKE does today.
+    - bus-id: audit-k
+      slots:
+        - slot-id: audit
+          x-rod:
+            rod-class: XRod
+            receiver-pool:
+              size: 4
+              mode: platform
+            feed-capacity: 4096
+            publisher-pool:
+              size: 0
+              mode: platform
+            transport:
+              provider: kinesis
+              endpoint: http://localstack:4566
+              destination: esquire.rod.audit
+              params:
+                region: us-east-1
+    # --- audit (off): the explicit DISABLED bus. A service points its audit ref at audit-off to run with NO
+    #     bus audit -- the database triggers carry the audit instead. XRodDisabled is a true no-op; a blank or
+    #     undefined bus-id (correctly) fails fast rather than disabling anything by accident. ---
+    - bus-id: audit-off
+      slots:
+        - slot-id: audit
+          x-rod:
+            rod-class: XRodDisabled

@@ -1,0 +1,44 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}
+  labels:
+    app: {{ .Release.Name }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Release.Name }}
+      annotations:
+        # A ConfigMap change does NOT restart a pod. Without this checksum the config would be updated
+        # and the running collector would keep the old one -- the exact trap that made an armed switch
+        # look applied while the JVMs still had it off (T6, 2026-09-01).
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+    spec:
+      serviceAccountName: {{ .Release.Name }}
+      nodeSelector:
+        tier: {{ .Values.nodeSelector.tier }}
+      containers:
+        - name: otel-cw
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args: ["--config=/conf/config.yaml"]
+          env:
+            - name: AWS_REGION
+              value: {{ .Values.aws.region | quote }}
+          ports:
+            - containerPort: 4318
+            - containerPort: 4317
+          volumeMounts:
+            - name: config
+              mountPath: /conf
+          resources:
+{{ toYaml .Values.resources | indent 12 }}
+      volumes:
+        - name: config
+          configMap:
+            name: {{ .Release.Name }}-config

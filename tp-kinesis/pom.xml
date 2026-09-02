@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>pro.mir0n.esquire</groupId>
+        <artifactId>esquire-parent</artifactId>
+        <version>1.2.0</version>
+        <relativePath>../pom.xml</relativePath>
+    </parent>
+
+    <artifactId>esquire-tp-kinesis</artifactId>
+    <version>${tp.version}</version>
+
+    <name>tp-kinesis</name>
+    <description>Transport provider (tp) -- Amazon Kinesis. Producer-only (the stream IS the log).</description>
+
+    <dependencies>
+        <!-- provided on purpose: the service already carries the messaging framework. Declaring it provided
+             keeps it, and its whole Spring tail, out of the aws-lib folder the deployment attaches below. -->
+        <dependency>
+            <groupId>pro.mir0n.esquire</groupId>
+            <artifactId>esquire-messaging</artifactId>
+            <version>${messaging.version}</version>
+            <scope>provided</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>software.amazon.awssdk</groupId>
+            <artifactId>kinesis</artifactId>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <finalName>${project.artifactId}</finalName>
+        <plugins>
+            <!-- AWS is attached at deployment, never built into a service. No service pom depends on this
+                 module and no service image carries a byte of the AWS client: an AWS deployment mounts
+                 target/aws-lib and adds it to the classpath. -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-dependency-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>aws-lib</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>copy-dependencies</goal>
+                        </goals>
+                        <configuration>
+                            <outputDirectory>${project.build.directory}/aws-lib</outputDirectory>
+                            <includeScope>runtime</includeScope>
+                            <!-- lombok is compile-time tooling, and slf4j-api is already in every service. -->
+                            <excludeArtifactIds>lombok,slf4j-api</excludeArtifactIds>
+                            <overWriteReleases>true</overWriteReleases>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+
+</project>

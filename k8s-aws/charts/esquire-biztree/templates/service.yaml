@@ -1,0 +1,27 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-biztree
+  labels:
+    app: {{ .Release.Name }}-biztree
+spec:
+  type: ClusterIP
+  selector:
+    app: {{ .Release.Name }}-biztree
+  ports:
+    - port: {{ .Values.service.port }}
+      targetPort: {{ .Values.service.port }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-biztree-hl
+  labels:
+    app: {{ .Release.Name }}-biztree
+spec:
+  clusterIP: None
+  selector:
+    app: {{ .Release.Name }}-biztree
+  ports:
+    - port: {{ .Values.service.port }}
+      targetPort: {{ .Values.service.port }}
