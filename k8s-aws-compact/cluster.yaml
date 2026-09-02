@@ -7,11 +7,11 @@
 # cluster means neither folder's scripts can land on the other's cluster, and
 # k8s-aws is not edited at all.
 #
-# WHAT THIS DEPLOYMENT IS FOR: a sign that Esquire runs on AWS. It STANDS -- the
-# cluster is not torn down between sessions, so the load balancer keeps its address
-# and aws-esquire.mir0n.pro is a DNS record written once. esquire.mir0n.pro on OKE
-# remains THE demo; this is a second, smaller one. Every choice below is still the
-# cheapest one that runs, because the bill is now monthly rather than hourly.
+# WHAT THIS DEPLOYMENT IS FOR: a sign that Esquire runs on AWS. It is left up while
+# there is something to show, and brought up on request after that -- not torn down
+# between sessions, so the load balancer keeps its address and aws-esquire.mir0n.pro
+# stays pointed at it. esquire.mir0n.pro on OKE remains THE demo; this is a second,
+# smaller one. Every choice below is the cheapest one that runs.
 #
 #   create : eksctl create cluster -f cluster.yaml     (BILLABLE -- see below)
 #   delete : eksctl delete cluster -f cluster.yaml     (does NOT remove the bus

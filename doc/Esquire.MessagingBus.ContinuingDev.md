@@ -569,6 +569,12 @@ asynchronous and whose `catch` logs and returns. `dispatch` cannot throw, so an 
 serialization failure loses the event AND is reported as a success. On `audit-ck` that means the msg-audit
 records TX for a change the topic never received.
 
+**Demonstrated on real AWS, v1.2.14.** Against Amazon MSK with the cluster's topic auto-create turned off,
+`tp-kafka` creates its `.admin` topic and NOT its log topic -- so **every audit event vanished while the suite
+reported 24/24 and the publisher logged nothing**. That is this item exactly, with a managed broker supplying
+the failure the lab never did: no exception, no log line, no metric, and a green suite. It is the strongest
+argument for closing it, because nothing in the system could tell that anything had been lost.
+
 **What this is.** Not a bug in the bus and not a bug in Kafka: a **driver that does not implement the contract
 the seam defines**. The topology treats `audit-ck` and `audit-dk` as first-class, so the gap is reachable by
 configuration alone.

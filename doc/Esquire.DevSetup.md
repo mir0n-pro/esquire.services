@@ -122,22 +122,24 @@ Full budget and the cloud (OKE) HA deploy: `Esquire.HighAvailability.md`.
 
 ### 1.7 Run targets
 
-Three run targets run the **same images and the same charts** — they differ only in redundancy and
+Four run targets run the **same images and the same charts** — they differ only in redundancy and
 in what each trims for its purpose:
 
 - **docker sandbox** — the fast local stack under `services/compose/` (section 5).
 - **local k8s** — Docker Desktop Kubernetes + ingress-nginx + MetalLB (section 6).
-- **cloud (OKE)** — Oracle Kubernetes Engine, the live public deployment (section 7).
+- **cloud — OCI (OKE)** — Oracle Kubernetes Engine, the live public deployment (section 7.1).
+- **cloud — AWS (EKS)** — Amazon Elastic Kubernetes Service, brought up on request (section 7.2).
 
-| | docker sandbox | local k8s | cloud (OKE) |
-|---|---|---|---|
-| **Instances / service** | 1 | x2 (StatefulSet) | x2, spread across 3 app nodes |
-| **Redundancy** | none | rehearsed — x2 on ONE node | real — x2 across nodes / ADs |
-| **PostgreSQL** | baked-seed container (same image as k8s; host DB / host Oracle optional) | baked-seed container | OCI Postgres — `ALTER`-migrated, never reseeded |
-| **Audit** | bus `audit-c` (ActiveMQ) &rarr; `auKeep` | bus `audit-c` &rarr; `auKeep` | DB triggers — `audit-off`, **no `auKeep` pod** |
-| **BFF** | 1 | redundant-capable (Redis present) | 1 (no HA Redis yet) |
-| **Observability** | on demand (section 8) | on demand (section 8) | on demand, **transient** (section 7/8) |
-| **Purpose** | fast dev / test | correctness rehearsal of the deploy shape | live public demo |
+| | docker sandbox | local k8s | cloud OCI (OKE) | cloud AWS (EKS) |
+|---|---|---|---|---|
+| **Instances / service** | 1 | x2 (StatefulSet) | x2, spread across 3 app nodes | — |
+| **Redundancy** | none | rehearsed — x2 on ONE node | real — x2 across nodes / ADs | — |
+| **PostgreSQL** | baked-seed container (same image as k8s; host DB / host Oracle optional) | baked-seed container | OCI Postgres — `ALTER`-migrated, never reseeded | baked-seed container on a gp3 volume |
+| **Messaging** | ActiveMQ (Kafka / Redis / LocalStack AWS available) | ActiveMQ | ActiveMQ | **Amazon SNS** — no broker of our own |
+| **Audit** | bus `audit-c` (ActiveMQ) &rarr; `auKeep` | bus `audit-c` &rarr; `auKeep` | DB triggers — `audit-off`, **no `auKeep` pod** | DB triggers — `audit-off`, **no `auKeep` pod** |
+| **BFF** | 1 | redundant-capable (Redis present) | 1 (no HA Redis yet) | no Redis |
+| **Observability** | on demand (section 8) | on demand (section 8) | on demand, **transient** (section 7/8) | none in this tree; both arms live in `k8s-aws` |
+| **Purpose** | fast dev / test | correctness rehearsal of the deploy shape | live public demo | proof Esquire runs on AWS |
 
 **Reading the differences — why each target looks the way it does:**
 
@@ -153,6 +155,10 @@ in what each trims for its purpose:
   spare the small node and broker budget it takes audit option (a): **DB triggers** write the log
   directly, so no `auKeep` pod and no extra broker audit traffic are needed. Its audit ref points at
   the explicit `audit-off` no-op bus (section 1.3).
+- **AWS answers one question: does Esquire run on that cloud's own services.** The entity broadcast
+  rides Amazon SNS, the audit is DB triggers, and the database is the same baked-seed Postgres image
+  every other target uses. It carries no observability node group and no broker of its own, because
+  nothing it is asked to answer needs them.
 - **OKE keeps the BFF at a single instance** because the BFF holds the login session in **Redis**,
   and HA of the browser tier IS HA of Redis. OKE has no HA Redis yet, and scaling the BFF against a
   single shared Redis only moves the failure (that Redis is then the SPOF). So the BFF stays at 1
@@ -293,7 +299,23 @@ Host file prerequisite: map `esquire.localhost` (and `api.esquire.localhost`) to
 
 ---
 
-## 7. Run — the cloud (OKE)
+## 7. Run — the clouds
+
+There are **two kinds of cloud target here**, and the distinction is the point.
+
+**One cloud is permanent.** `OCI (OKE)` is THE public demo and has stood since May. It is where the HA
+shape runs, where the release pipeline deploys, and what `esquire.mir0n.pro` answers.
+
+**Every other cloud is temporary.** A second cloud is brought up to answer one question — does Esquire
+run on that vendor's own services — verified, measured, and taken down; afterwards it comes back on
+request. `AWS (EKS)` is the first of those and the one written up below. The method is the same
+whichever vendor is next: the same images and the same charts, with only the deployment folder and the
+vendor's managed services changing underneath.
+
+That shape is deliberate. A permanent second demo would cost a second bill forever to prove something a
+temporary one proves once.
+
+### 7.1 OCI (OKE)
 
 The live public deployment runs on **Oracle Kubernetes Engine (OKE)** at
 `https://esquire.mir0n.pro`, in the **super-compact** shape: four application programs -- Mesnie
@@ -345,6 +367,69 @@ take it back down — the Always-Free tier has no room to host it always-on (sec
 catch a setting applied locally but missed on OKE.
 
 Full HA rationale and the OKE-vs-local comparison: `Esquire.HighAvailability.md`.
+
+### 7.2 AWS (EKS)
+
+A second deployment at `https://aws-esquire.mir0n.pro`, also in the **super-compact** shape. It exists
+to show Esquire runs on AWS; `esquire.mir0n.pro` on OKE remains the demo, and this one is brought up
+on request rather than left running.
+
+**Two trees, and the split matters.** `services/k8s-aws/` runs the CLASSIC seven-program shape;
+`services/k8s-aws-compact/` runs the four-program shape and is the one normally brought up. They use
+**different clusters** (`esquire-aws` and `esquire-aws-compact`), so neither folder's scripts can
+reach the other's, and the two are never up together.
+
+**Shape.** `t4g.large` Graviton nodes carrying Mesnie, gateWard, pacMan, the BFF, Postgres and
+KeyCloak. No `auKeep` — audit is option (a), DB triggers, so the audit ref points at `audit-off`. No
+observability node group; both AWS observability arms live in `services/k8s-aws/`.
+
+**The messaging bus is Amazon SNS**, and only SNS. The identity request/response bus does not exist
+(Mesnie serves identity in process) and the audit bus does not exist (triggers). So of the two AWS
+modules only **`tp-sqns`** is on `loader.path`, and of the two providers it carries only `sns` is named
+by the topology; `tp-kinesis` is in the carrier image and deliberately left off the path. Note that SQS
+still carries every message even so, because SNS has no receive API and a queue is the endpoint it
+delivers into — what this shape drops is the `sqs` PROVIDER and the request/response bus it carried,
+not SQS itself. **No Kinesis stream is created**, which is the
+part that shows on the bill: a stream is charged per hour whether or not a record is written.
+
+**The drivers are ATTACHED at deployment, never built in.** No service image carries an AWS byte. An
+initContainer copies them from a carrier image into an emptyDir the service reads through
+`-Dloader.path`. The images that run here are the images every other target runs.
+
+**Prerequisites** (beyond section 2): an AWS account; the **AWS CLI** configured (`aws configure`);
+`eksctl`; Docker `buildx`; and a CNAME from `aws-esquire.mir0n.pro` to the load balancer the ingress
+controller creates — which does not exist until the cluster is up, so the bring-up stops and prints it.
+
+**Deploy flow**, from `services/k8s-aws-compact/`:
+
+```
+aws-images-push.bat <tag>     build + push the four arm64 images to GHCR
+aws-cluster-up.bat            ONE-TIME per cluster: eksctl + gp3 StorageClass + the bus IAM policy
+                              + ingress-nginx + cert-manager; prints the load balancer, then STOPS
+                              <-- point aws-esquire.mir0n.pro at it, and wait for it to resolve
+aws-up.bat                    deploy the stack (topology, Postgres, KeyCloak, the audit triggers,
+                              the four programs, the public ingress)
+aws-public-origin.ps1         register the public origin on the esq-angular KeyCloak client
+aws-e2e-public.bat            the Playwright suite over the public address, no port-forwarding
+aws-down.bat                  tear it ALL down — see the warning below
+1st.bat                       switch kubectl to this cluster and prove it (local, not committed)
+```
+
+**Why the bring-up stops for DNS.** cert-manager solves the HTTP-01 challenge by answering a real
+request to the public name, so nothing can be issued until the record resolves. Deploying before then
+produces a stack that is up and unreachable, which reads as broken.
+
+**Safety.** `aws-down.bat` takes the cluster down and, with it, the load balancer — so the DNS record
+points at nothing until the next bring-up prints a new one and it is re-pointed. That is the cost of
+the cycle, and it is why the deployment is left up while there is something to show rather than being
+raised and dropped per session. It releases the load balancer BEFORE deleting the cluster (the LB belongs to the ingress-nginx controller
+service, not to the Ingress objects, and left up it stalls the VPC delete), and it deletes the SNS topic
+and SQS queues, which the drivers created on first use and which live OUTSIDE the cluster.
+
+**Observability is OFF here and there is nothing to turn it on.** This folder deploys no Prometheus,
+Grafana, Loki, Tempo, collector or exporter. Observability on AWS is `services/k8s-aws/`, which owns
+both arms — the shipped stack (`aws-o11y-on.bat`) and the AWS-native one (`aws-o11y-cw-on.bat`,
+CloudWatch + X-Ray). See `Esquire.ObservabilityStack.md`.
 
 ---
 

@@ -1,6 +1,20 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v1.2.14-2609.0200  v1.2.14 -- Finalization
+    :Doc:         doc\Esquire.Vision.md
+                  doc\Esquire.DevSetup.md
+                  doc\Esquire.ObservabilityStack.md
+                  doc\Esquire.MessagingBus.md
+                  doc\Esquire.MessagingBus.ContinuingDev.md
+                  doc\Esquire.ContinuingDev.md
+                  doc\Esquire.TestingStack.md
+                  doc\v1.2.x.Planning.md
+                  doc\v1.2.x.Goal.md
+                  doc\research\CloudWatch.for.Esquire.md
+                  doc\research\Cognito.for.Esquire.md
+    Components:   doc
+
 v1.2.14-2609.0119  v1.2.14 -- the KeyCloak admin credential is required
     :Fix:         every deployment path stops when the KeyCloak admin credential is missing
     Components:  .github (CI/CD),

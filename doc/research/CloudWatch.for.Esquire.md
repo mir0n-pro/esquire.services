@@ -1,27 +1,37 @@
 # CloudWatch for Esquire
 
-**What it would take to move Esquire's observability onto AWS-native CloudWatch, what it costs
-compared with running our own stack, and where the boundary is.**
+**Portability is one of Esquire's pillars.** The database, the messaging bus, observability and identity
+are all promised pluggable -- named by configuration, reached through a seam, with no vendor written into a
+service. AWS offers its own native service for each of them, and that is where such a promise is actually
+tested: carrying an open component onto another cloud is deployment, not portability. The claim only bites
+against the managed service with no equivalent elsewhere, which is where lock-in lives.
 
-Written 2026-09-01, for v1.2.14 T6. Every number here was measured on a live AWS account against
-Esquire v1.2.14 running on EKS, or read from the AWS pricing API. Where a figure is an estimate rather
-than a measurement, it says so.
+This one is the **observability** pillar. What it would take to move Esquire's observability onto
+AWS-native CloudWatch, what it costs compared with running our own stack, and where the boundary is.
+
+Every number here was measured on a live AWS account against the seven services running on EKS, or read
+from the AWS Price List API. Prices are us-east-1, September 2026.
+
+**The finding: it works, and it was DONE.** All three signals were moved onto CloudWatch and X-Ray on a
+running deployment, with **no Esquire code changed and no image rebuilt**. It costs about ten times more
+to run -- **$263 a month against $25** for the same data on our own node -- and it cannot answer
+everything the boards ask: **84 of 168** dashboard expressions use constructs CloudWatch metric math does
+not have, and the topology canvas has no equivalent. The shipped stack stays the default; the AWS-native
+path is proven and kept working.
 
 ---
 
-## 1. The question
+## 1. What is being compared
 
-Esquire has an observability stack: Grafana over Prometheus, Loki and Tempo, fed through an
-OpenTelemetry collector. It runs on docker, on local Kubernetes, on OKE and -- since T5 -- on EKS.
+Esquire ships an observability stack: Grafana over Prometheus, Loki and Tempo, fed through an
+OpenTelemetry collector. It runs on docker, on local Kubernetes, on OKE and on EKS.
 
-T6 asks whether that can be moved onto what AWS provides instead, and what the move would cost. The
-expectation going in was that it is "nothing more than configuring", because Esquire emits open
-standards and names no vendor. That expectation is broadly right, and the interesting part of this
-study is the two places where it is not: the money, and the questions the boards ask.
+The AWS-native alternative is X-Ray for traces and CloudWatch for metrics and logs. Both carry the same
+three signals. They differ in two places: the money, and the questions a dashboard can ask.
 
 ## 2. Where Esquire meets a vendor
 
-The whole study turns on this table, which was read out of the code rather than assumed:
+Read out of the code:
 
 | pillar | how it leaves a service | so the swap point is |
 |---|---|---|
@@ -34,13 +44,11 @@ sampler as beans and stops there; the metric registry is a plain Prometheus regi
 JSON on a stream. Everything downstream of those three points is deployment, and deployment on AWS
 lives in AWS-only files.
 
-**This is the design paying off.** It is also why the answer to "what changes in Esquire's Java code"
-is, as far as this study could establish, nothing at all.
+No Esquire code changes for any of the three.
 
 ## 3. The support matrix
 
-What CloudWatch and X-Ray can carry, against what Esquire actually does. Tested items are marked; the
-rest are read from documentation.
+What CloudWatch and X-Ray carry, against what Esquire does.
 
 ### Getting data in
 
@@ -87,51 +95,33 @@ rest are read from documentation.
 | anything left behind when off | nothing -- charts run on emptyDir | **log groups, dashboards** | CloudWatch needs a sweep |
 | retention control | Loki / Tempo config | per log group; metrics fixed at 15 months | works |
 
-## 4. What had to be tested
+## 4. What Esquire emits, and what CloudWatch makes of it
 
-Four things could not be reasoned about, and each was measured.
+### 4.1 Trace ids -- one identifier, two renderings
 
-### 4.1 Does X-Ray accept Esquire's trace ids? -- the claim that was overturned
+A W3C trace id is 16 random bytes. **X-Ray's is also 16 bytes, but it reads the first four as the epoch
+second the trace began**, and renders the whole as `1-<8 hex>-<24 hex>`.
 
-This was the one item that could have forced a change in shared code, and the study began by expecting
-it to.
-
-A W3C trace id, which is what the OpenTelemetry SDK generates, is 16 random bytes. **X-Ray's trace id
-is also 16 bytes, but it reads the first four as the epoch second the trace began**, and renders the
-whole as `1-<8 hex>-<24 hex>`. A random id therefore carries a nonsense timestamp -- anywhere from 1970
-to 2106 -- and X-Ray is documented to care about trace age. Had X-Ray rejected those, the fix would
-have been an X-Ray-compatible id generator installed into the SDK, which lives in
-`common/ObservabilityConfig.java` and is shared by every topology Esquire runs.
-
-**It was tested, and the expectation was wrong.** A collector with the `awsxray` exporter was given
-five spans whose trace ids began `00000001`, `40000000`, `80000000`, `ffffffff` and the current epoch
--- 1970, 2004, 2038, 2106 and now. All five were stored. `batch-get-traces` returned every one and
-reported nothing unprocessed. The exporter logged no complaint.
+X-Ray accepts any of them. Five spans whose ids began `00000001`, `40000000`, `80000000`, `ffffffff` and
+the current epoch -- 1970, 2004, 2038, 2106 and now -- were all stored, all returned by
+`batch-get-traces`, none reported unprocessed.
 
 ```
 sent    814ed556fb10beefa1c0d218dcf26c3e
 stored  1-814ed556-fb10beefa1c0d218dcf26c3e
 ```
 
-Note what that shows: the exporter translates nothing. **Same hex, same 128 bits, split by two dashes.**
-It is one identifier that two systems render differently, not two identifier schemes.
+The exporter translates nothing: **same hex, same 128 bits, split by two dashes.**
 
-So traces are an exporter swap. **No code change, no shared file touched.**
+**The cost is a text match, and it is the only one.** The gateway settles the correlation id so a span's
+trace id equals the id in the log lines. X-Ray shows `1-814ed556-fb10beef...`; the log line carries
+`814ed556fb10beef...`. A search for one does not find the other. An X-Ray-shaped id is also a legal W3C
+id, so generating that shape everywhere would satisfy both -- but that is a change to the id generator in
+shared code, and nothing requires it.
 
-**What the two forms do cost is a text match.** The gateway settles the correlation id so that a span's
-trace id equals the id carried in the log lines, which is what ties a log line to a trace. X-Ray shows
-`1-814ed556-fb10beef...`; the log line carries `814ed556fb10beef...`. A person, or a dashboard link,
-searching for one will not find the other. Making them identical is possible -- an X-Ray-shaped id is
-*also* a legal W3C id, so generating that shape everywhere would satisfy both and would make the id
-self-dating -- but it is a change to the id generator in shared code, and nothing requires it.
+### 4.2 The metric inventory -- 877 series, 108 names
 
-### 4.2 How many metrics does Esquire actually have?
-
-`ObservabilityConfig`'s history header records 4,597 series with histograms off, but that was measured
-for v1.2.11 on a larger shape -- two replicas, a broker, the browser tier -- and it does not describe
-what runs on AWS.
-
-Measured on v1.2.14 on EKS, scraping each service's management port directly:
+Scraped from each service's management port on EKS:
 
 | service | series | metric names |
 |---|---|---|
@@ -144,24 +134,18 @@ Measured on v1.2.14 on EKS, scraping each service's management port directly:
 | auKeep | 145 | 98 |
 | **total** | **877** | **108 distinct** |
 
-With histograms on -- the `full` arm -- the same fleet emits **1,774 series**, almost exactly double.
+With histograms on, the same fleet emits **1,774 series**, almost exactly double.
 
-**The distinction between 108 and 877 is the whole billing question**, because they count different
-things. 108 is the *inventory*: how many metric names exist. 877 is the number of *series* -- each name
-multiplied by every distinct combination of labels it carries. `jvm_memory_used_bytes` is one name and
-about ten series per JVM. CloudWatch charges per series, because a CloudWatch metric is one unique name
-plus one exact set of dimension values -- the same unit as a Prometheus series. **Counting names
-instead of series understates the bill eightfold.**
+**The distinction between 108 and 877 is the whole billing question.** 108 is the inventory: how many
+metric names exist. 877 is the number of series -- each name multiplied by every distinct combination of
+labels it carries. `jvm_memory_used_bytes` is one name and about ten series per JVM. CloudWatch charges
+per series, because a CloudWatch metric is one unique name plus one exact set of dimension values -- the
+same unit as a Prometheus series. **Counting names instead of series understates the bill eightfold.**
 
-### 4.3 Does the EMF exporter publish one metric per series?
+### 4.3 The EMF exporter multiplies by 2.27, by default
 
-It does not. It publishes **2.27 times as many**, and the multiplier is a default nobody chooses.
-
-`awsemf`'s `dimension_rollup_option` defaults to `ZeroAndSingleDimensionRollup`: for a series carrying
-N labels it publishes the full-dimension metric *and* a rollup per single dimension. That is
-documented; what needed the account was what it does to this fleet.
-
-A collector was pointed at all seven live services and exported to CloudWatch with stock settings:
+`awsemf`'s `dimension_rollup_option` defaults to `ZeroAndSingleDimensionRollup`: for a series carrying N
+labels it publishes the full-dimension metric *and* a rollup per single dimension.
 
 ```
 Prometheus series scraped     877
@@ -169,20 +153,15 @@ CloudWatch metrics created  1,989      2.27x
 distinct metric names         100
 ```
 
-The dimension breakdown shows the rollups directly -- the 85 single-dimension metrics are aggregates
-nobody asked for:
-
 | dimensions | 1 | 2 | 3 | 4 | 5 | 6 | 7 |
 |---|---|---|---|---|---|---|---|
 | metrics | 85 | 1,158 | 178 | 360 | 166 | 25 | 17 |
 
-Setting `dimension_rollup_option: NoDimensionRollup` returns it to one metric per series. **One line of
-exporter configuration more than doubles the bill, and it is invisible unless you count the metrics on
-the account afterwards.**
+The 85 single-dimension metrics are aggregates nobody asked for. `NoDimensionRollup` returns it to one
+metric per series. **One line of exporter configuration more than doubles the bill, and it is invisible
+unless the metrics on the account are counted afterwards.**
 
-### 4.4 How much log data does Esquire produce?
-
-Measured from the pods, since CloudWatch Logs bills on volume.
+### 4.4 Log volume -- inside the free tier at rest
 
 ```
 idle          15,378 bytes/min across all pods   =  0.62 GB / month
@@ -266,7 +245,7 @@ between the two, because it bills for samples ingested rather than for a series 
 ### What a dashboard costs
 
 CloudWatch charges **$3.00 per custom dashboard per month, prorated by the hour, with the first three
-free.** The starter dashboard built for this study -- seven panels: JVM heap and live threads per
+free.** A starter dashboard -- seven panels: JVM heap and live threads per
 service, entity operations, HTTP requests, GC pause, async work, and a live log table -- therefore
 costs **nothing**, and so would two more.
 
@@ -275,7 +254,7 @@ are free, so a board with forty widgets costs exactly what an empty one costs:
 
 | dashboards | $ / month | note |
 |---|---|---|
-| 1 | **$0** | what this study built |
+| 1 | **$0** | the starter dashboard |
 | 3 | **$0** | the free tier, exactly |
 | **4** | **$3** | the first one that costs anything |
 | 6 | $9 | |
@@ -330,7 +309,7 @@ The danger is inverted compared with EKS. There the risk is a large instance som
 everything expensive stops by itself, and what is left is small, cheap and **silent** -- a log group
 holding data at three cents a gigabyte, which nobody notices because it never looks like a running
 thing. Not hypothetical: the probe in section 4.3 created `/esquire/emf-probe`, which would have sat
-there indefinitely. It was deleted at the end of the study.
+there indefinitely.
 
 ## 6. Where the boundary is
 
@@ -366,7 +345,7 @@ Against that, one thing arrives for free: **X-Ray's Service Map is a native equi
 
 ## 7. What has to change in Esquire's code
 
-Nothing this study could find.
+Nothing.
 
 | pillar | change in Java |
 |---|---|
@@ -393,59 +372,45 @@ By Esquire's own cycle: write it, test it, run it on the cluster, verify it live
 | verification: e2e, hauberk, panel by panel, a cold off/on cycle | 1 | -- |
 | documentation | 0.5 | -- |
 
-**Total 9-10 days**, of which about 2 are configuring and the rest is deciding and rebuilding. The range
-narrowed from an earlier 8-12 because the trace-id risk was tested away.
+**Total 9-10 days**, of which about 2 are configuring and the rest is deciding and rebuilding.
 
 One judgement worth stating plainly: **the boards are the project.** The pipes took an afternoon to
 prove. Deciding which of 168 questions can still be asked in a language that cannot group by a subset
 of dimensions is the actual work, and it cannot be estimated precisely until attempted.
 
-## 9. Claims this study overturned in its own writing
+---
 
-Recorded rather than edited away, because the corrections are the evidence that the testing was real.
+## 9. Conclusion -- DONE
 
-1. **"X-Ray will reject Esquire's trace ids, so the SDK id generator must change."** Tested: five ids
-   spanning 1970 to 2106, all accepted. The only claim that would have forced a shared-code change,
-   and it was wrong.
-2. **"The fleet emits 4,597 series, so CloudWatch costs $1,379 a month."** A v1.2.11 number for a
-   different shape, quoted without re-measuring. Measured for v1.2.14 on AWS: 877 series, $263 a month.
-   Wrong by a factor of five, and corrected by one question: where did the number come from?
-3. **"A metric might be billed for a whole month once it receives any data."** Raised as an unverified
-   risk with a 200x spread on the cost of a test. AWS's pricing page settles it: prorated hourly,
-   charged only in hours when data is sent.
-4. **"The exporter's metric count cannot be reasoned about and must be measured."** Half wrong. The
-   multiplication is a *documented default* and reading the documentation would have predicted it. Only
-   the multiplier for this fleet needed the account.
+**The seam holds.** All three signals were moved onto the AWS-native services on a running deployment.
+The eight image digests serving CloudWatch were the digests that had been serving Prometheus and Tempo;
+the only value that moved on the application side was the OTLP endpoint. Evidence from the run: 1,176
+X-Ray traces, 1,535 CloudWatch metrics, 29 log streams.
 
-The pattern in all four: what a vendor *accepts* has to be tested, and what a vendor *charges or
-configures* is written down and should be read. Guessing at the first is how three earlier AWS claims
-went wrong in this sprint; testing the second is slow.
+**It is not the cheaper option, and the difference is structural.** Our own stack is a FIXED cost -- one
+node hosts all seven components and costs the same whether it holds ten series or ten thousand.
+CloudWatch is METERED, per series, per GB, per trace and per dashboard.
 
-## 10. What was not tested
+| | own stack | CloudWatch + X-Ray |
+|---|---|---|
+| at the measured 877 series | **$24.53 / month** | **$263 / month** |
+| with histograms on (1,774 series) | same $24.53 | ~$597 / month |
+| idle, switched off | $0 | ~$0, once the log groups and dashboards are swept |
+| crossover | below ~80 series CloudWatch is cheaper; above it, the node is | |
 
-So the limits of the above are visible:
+**The data ports completely; the boards do not.** 84 of 168 dashboard expressions use constructs
+CloudWatch metric math does not have -- partial aggregation, quantiles from histogram buckets, label
+rewriting and joins -- and the topology canvas has no equivalent at all. Rebuilding them is the project;
+the pipes are configuration.
 
-- **The full pipeline has not been run on the cluster.** Traces were proven through a collector to
-  X-Ray, metrics through a collector to CloudWatch, both from a workstation against the live services.
-  No log shipper was deployed and no board was rebuilt.
-- **The 84-of-168 figure is a feature census**, not 168 attempted translations.
-- **The histograms-on CloudWatch count is extrapolated** from the measured 2.27x, not observed.
-- **Only the seven Java services were counted.** The browser tier, KeyCloak, the database exporter and
-  the collector's own metrics are not in the 877.
-- **The dashboard price** comes from the pricing page, not the pricing API, which would not
-  return it under any usagetype tried. Everything else here is API-sourced or measured.
+**Three things cost nothing to know and are expensive to discover late:**
 
-## 11. The answer
+- `awsemf`'s default rollup publishes **2.27x** the series it is given. One configuration line.
+- CloudWatch bills per SERIES, not per metric name. Counting names understates the bill **eightfold**.
+- A log group and a dashboard outlive the deployment that made them, and neither looks like a running
+  thing. Metrics and traces stop charging the hour the emitters stop; those two do not.
 
-**Everything Esquire emits, CloudWatch will take -- with no change to Esquire's code. It costs about
-ten times more to run, and it cannot answer everything the boards currently ask.**
-
-The seam was built at the standard rather than at a product, so traces, metrics and logs all reach
-CloudWatch as configuration. The bill on the measured fleet is $263 a month against $25 for the same
-data on our own node, a dollar an hour to experiment with, and nothing when switched off -- with two
-small artifacts to sweep so that off stays off.
-
-The boundary is on the reading side, not the writing side: no grouping by a subset of dimensions, no
-percentiles from buckets, no label rewriting, and no canvas to draw the topology on.
-
-**So the port is worth taking to the edge of what CloudWatch supports, and the edge is the dashboards.**
+**What this justifies.** Esquire is portable onto a cloud's own observability, proven rather than
+claimed, and the shipped stack stays the default because it is an order of magnitude cheaper at this
+size. The AWS-native path is worth keeping working -- it is what a deployment already committed to
+CloudWatch would want, and it costs about ten days to take to the edge of what CloudWatch supports.

@@ -16,8 +16,10 @@ rem entirely.
 rem
 rem THE BUSES ARE ONE. esquire.entity on real Amazon SNS, and audit-off. There is no
 rem identity request/response bus (Mesnie serves identity in process) and no audit
-rem bus. So of the three drivers only tp-sns is on the classpath -- but SQS still
-rem carries every entity message, because a queue is what SNS delivers into. Kinesis
+rem bus. So of the two AWS modules only tp-sqns is on loader.path, and of the two
+rem providers it carries only sns is named -- but SQS still carries every entity
+rem message, because a queue is what SNS delivers into. What this shape drops is the
+rem sqs PROVIDER and the request/response bus it carried, not SQS itself. Kinesis
 rem carries nothing and NO STREAM IS CREATED, which is the part that shows on the
 rem bill: a stream is charged per hour whether or not a record is written.
 rem

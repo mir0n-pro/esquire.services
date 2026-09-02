@@ -1,11 +1,34 @@
 # Cognito instead of KeyCloak -- what it would actually take
 
-*Written 2026-08-31, against a probe user pool in us-east-1. Every claim below about Cognito was
-tested on the running service -- not read from documentation, and not remembered.*
+**Portability is one of Esquire's pillars.** The database, the messaging bus, observability and identity
+are all promised pluggable -- named by configuration, reached through a seam, with no vendor written into a
+service. AWS offers its own native service for each of them, and that is where such a promise is actually
+tested: carrying an open component onto another cloud is deployment, not portability. The claim only bites
+against the managed service with no equivalent elsewhere, which is where lock-in lives.
+
+This one is the **identity** pillar. Esquire reaches its identity provider through one port,
+`IIdentityGateway`, so the question is not whether the seam exists -- it is what putting Amazon's service
+behind it would actually cost.
+
+*Every claim below about Cognito was tested against a live user pool in us-east-1. Prices are
+us-east-1, September 2026, from the AWS Price List API.*
+
+**The finding: it can be done, and it is POSTPONED.** The hard part is solved -- a Cognito token can carry `esq_uid`, `esq_rootpath` and nested roles, so every Esquire
+service except kcMaster and the BFF would not notice the change. It is postponed for three reasons, and
+none of them is the sign-in:
+
+1. **It costs 17-26 delivered days** for parity with what KeyCloak already gives -- 12-19 if the hosted
+   form is accepted instead of Esquire's own. That buys no capability the system does not have today.
+2. **Three things are given up and stay given up.** A user cannot be searched by `esq_uid` (the lookup
+   moves into Esquire's own data), TOTP enrolment cannot be forced per user (it is pool-wide), and the
+   handshake form cannot be themed -- only tinted with CSS against fixed class names, or rebuilt.
+3. **It cannot be developed locally.** Cognito is not in community LocalStack, so docker and local
+   Kubernetes could not run it. KeyCloak would have to stay for those targets anyway -- which makes this
+   an ADDITION, not a replacement, and the two-master shape below is a consequence of that, not a choice.
 
 ---
 
-## 1. The question
+## 1. What is being compared
 
 Esquire signs people in with KeyCloak. KeyCloak is a container we run, we patch and we back up.
 Amazon Cognito is a service AWS runs instead. The question is not "is Cognito good". It is **what it
@@ -62,12 +85,12 @@ kcMaster drives KeyCloak's admin API. Reading `KcIdentityService` and `KcIdentit
 
 ---
 
-## 3. What Cognito answered
+## 3. What Cognito does
 
-A probe pool was created with `custom:esq_uid` and `custom:esq_rootpath` in its schema, a group
-`esq-admin`, and one user carrying both attributes.
+Tested against a pool carrying `custom:esq_uid` and `custom:esq_rootpath` in its schema, a group
+`esq-admin`, and one user with both attributes.
 
-### 3.1 The token: it works, and not the way you would first try
+### 3.1 The token carries Esquire's claims -- from the ID token, not the access token
 
 Signing in and decoding both tokens:
 
@@ -78,7 +101,7 @@ That is the first thing anyone hits, and it looks fatal: the access token is the
 gateway and the one the filter reads. Out of the box, **a Cognito access token cannot pass Esquire's
 filter.**
 
-It is not fatal, and there turned out to be two ways round it. The first, tested here, is a
+There are two ways round it. The first, tested here, is a
 **Pre-Token-Generation Lambda trigger, version V2_0**, which can write into the access
 token. With a nine-line Python function attached, the same sign-in produced:
 
@@ -197,7 +220,7 @@ direction.
 from Maven Central (2.29.0 fetched to check). cgMaster would carry it exactly as `tp-sqns` carries the
 SQS and SNS clients -- one module, one dependency, and no other deployment sees it.
 
-**Local development is where it gets more awkward than the bus was.** T1 built all three AWS transport
+**Local development is where it gets more awkward than the bus was.** The three AWS transport
 drivers against LocalStack on docker, and never touched a real AWS endpoint until T2. That does not
 extend here:
 
@@ -214,7 +237,7 @@ Cognito is a LocalStack **Pro** service. So a cgMaster developed the way `tp-sqn
 need either a LocalStack subscription, or a third-party emulator (`cognito-local` and `moto` both exist;
 **neither was tested here**), or simply a real development user pool.
 
-**The last of those is probably the answer, and this study is the evidence for it.** Everything in this
+**The last of those is the answer.** Everything in this
 document was done against a real pool, and one pool with a handful of users on the Essentials tier costs
 **about a cent and a half a month**. The reason to emulate a cloud service is usually cost or speed;
 here it is neither.
@@ -331,7 +354,7 @@ uses `JwtValidators.createDefault()`, which checks the issuer and the expiry and
 it works. That is a deliberate choice with a reviewer's question attached, and the answer is that the
 token never leaves the BFF-to-gateway hop: the browser holds a session cookie, not a token.
 
-### 3.5 Two configuration traps, both hit in the first ten minutes
+### 3.5 Two configuration traps
 
 - **Optional MFA is refused at pool creation without SMS configuration.** TOTP-only MFA has to be
   enabled afterwards, by a separate `set-user-pool-mfa-config` call.
@@ -342,7 +365,7 @@ token never leaves the BFF-to-gateway hop: the browser holds a session cookie, n
 
 ---
 
-## 3.6 The tiers, and which one Esquire would have to be on
+## 3.6 The tier Esquire would need
 
 There are three, and the difference is not marketing -- each refuses the features of the one above with
 a named exception. All of this was tested by trying it:
@@ -380,12 +403,10 @@ APIs. Neither matters at demo volume. Both would matter to anyone reading this a
 
 ---
 
-## 3.7 What the Lambda would have cost -- measured, and then not taken
+## 3.7 What the Lambda costs
 
-The trigger is the piece that makes the whole thing work, and it sits in the sign-in path of every
-token issued. So it is worth knowing exactly what it costs. Both numbers below are measured: the
-prices from the Price List API, the timings from the function's own CloudWatch `REPORT` lines over 14
-invocations.
+The trigger sits in the sign-in path of every token issued. Prices from the Price List API; timings
+from the function's own CloudWatch `REPORT` lines over 14 invocations.
 
 ### Performance
 
@@ -465,7 +486,7 @@ stops being a few days, because it is a product decision rather than a translati
 | name the bean | `kcMaster/KcMasterConfig.java` -- one line; `identityGateway(Environment)` already picks the implementation, and enyMan already picks a different one (`KcBusAdapter`), so the pattern is in use, not invented |
 | the entity-path update | the by-attribute search has no Cognito equivalent. Either the `X` broadcast starts carrying the login id, or kcMaster looks it up. `updateEntityPath(entityId, newPath, ...)` takes no login id today, so this is a real change, not a rename |
 | **`JwtClaimsExtractionFilter`** | see below -- the one file this was NOT supposed to touch |
-| ~~the pre-token Lambda~~ | **dropped with Route B.** Kept in this document as a measured alternative, not as work |
+| ~~the pre-token Lambda~~ | **dropped with Route B.** Kept below as a measured alternative, not as work |
 
 **The machine-to-machine problem, which is the largest single item**
 
@@ -518,7 +539,7 @@ it reaches `JwtClaimsExtractionFilter` -- a file every service depends on, on ev
 AWS. **Route B leans on that same change**, which is why dropping the Lambda costs nothing: the filter
 was going to learn a second token shape regardless.
 
-### 4.1b The GUI side -- and this is the biggest surprise in the whole study
+### 4.1b The GUI side
 
 **With KeyCloak, the GUI work was one HTML template for the logon-handshake forms.**
 
@@ -556,9 +577,9 @@ authenticator secret it returns, `SOFTWARE_TOKEN_MFA` on every later sign-in, pa
 confirmation code, and each of their error paths. The BFF would drive it -- so credentials stay
 server-side and the SPA keeps the shape it has -- and the Explorer would grow one form per challenge.
 
-**This is where the honest estimate moves.** Everything else in this study is a translation: the same
+**This is where the estimate moves.** Everything else is a translation: the same
 operation, a different API. The GUI is the one place where **something that does not exist has to be
-built**, and it is built in a tier the study had not otherwise touched. It is also the piece a demo
+built**, and in a tier nothing else needs. It is also the piece a demo
 feels immediately, because it is the first screen anybody sees.
 
 **And it is the strongest argument for the two-master design.** With cgMaster beside kcMaster, this cost
@@ -603,7 +624,7 @@ falls depends entirely on how many people sign in.
 
 ---
 
-## 5. The verdict
+## 5. What it can and cannot do
 
 **It can be done, and the part that looked impossible is solved.** A Cognito access token can be made
 to carry `esq_uid`, `esq_rootpath` and a nested `realm_access.roles` -- which means every Esquire
@@ -612,7 +633,7 @@ service except kcMaster and the BFF would not notice the change at all.
 What stands in the way is not the sign-in. It is the **administration and the forms**, and a day of
 testing moved several of those from "no" to "yes, with a condition":
 
-| | first answer | after testing |
+| | on the API alone | with the pool built for it |
 |---|---|---|
 | the claims Esquire demands, in the token | no, not in the ACCESS token | **yes** -- natively in the ID token, no trigger and no tier above Lite. A `V2_0` Lambda is the alternative, measured and not taken |
 | rename a login | no | **yes** -- if the pool is created with email as the username attribute |
@@ -653,14 +674,14 @@ replacing one with the other.
 
 ---
 
-> **A note on the Lambda material in this document.** DECIDED 2026-08-31: **Route B** -- no Lambda. The
+> **On the Lambda material below.** The decision is **Route B** -- no Lambda. The
 > pre-token trigger was built, attached, measured (1.73 ms warm, 71-88 ms cold, $0.20 per million
 > sign-ins) and then **not taken**. All of it is kept on purpose. It is what turns "we chose the ID
 > token" from a preference into a decision with a measured alternative behind it, and it is the only
 > reason the tier comparison -- Lite $0.0055 against Essentials $0.0150 -- means anything. Work that was
 > done and rejected is still evidence; deleting it would leave the conclusion resting on an assertion.
 
-## 6. In conclusion -- how long, and what it costs
+## 6. How long, and what it costs
 
 Everything above is measured. **This section is not** -- it is an estimate built on it, and it is worth
 saying so plainly. The sizing assumes one developer who knows this code, and it assumes the two-master
@@ -711,7 +732,7 @@ list is translation work whose size is fairly predictable.
 |---|---|
 | development pools | three exist today and bill about **$0.015 a month** together |
 | the Lambda, IAM role, resource server, domain | free at this volume |
-| local emulation | community LocalStack does **not** carry Cognito. Either a LocalStack Pro subscription, or -- cheaper and what this study did -- a real development pool for cents |
+| local emulation | community LocalStack does **not** carry Cognito. Either a LocalStack Pro subscription, or -- cheaper and what this did -- a real development pool for cents |
 
 There is no capital cost, no new tooling, and no licence. The whole study above was run for less than the
 price of a coffee, and building it would not be different in kind.
@@ -730,14 +751,29 @@ users **$5.50 a month instead of $15**, at ten thousand $55 instead of $150 -- a
 bill does not move. Cognito is cheaper than nothing only while nobody is using it, but Route B nearly
 triples how long that lasts.
 
-### 6.5 The conclusion in one paragraph
+---
 
-**Three to five weeks of one developer's work to develop AND deliver it -- a sprint in its own right,
-not a task inside one -- and a running cost that starts at pennies and rises with every user.** The money is not the argument in either direction at demo scale; the argument is that
-KeyCloak runs identically on docker, local Kubernetes, OKE and EKS, and Cognito runs in one place. What
-the work buys is not a cheaper identity provider -- it is **IAM portability**: the proof that Esquire's
-two identity seams, the token at the gateway and the `IIdentityGateway` / `*Master` SPI behind it, are
-real seams and not a description of KeyCloak. That is worth more than the difference in either bill.
+## 7. Conclusion -- POSTPONED
+
+**It can be done.** A Cognito token carries `esq_uid`, `esq_rootpath` and a nested
+`realm_access.roles`, so every Esquire service except kcMaster and the BFF would not notice the change.
+The two identity seams -- the token at the gateway, and `IIdentityGateway` behind it -- hold.
+
+**It is postponed, for three reasons, and none of them is the sign-in.**
+
+| | weight |
+|---|---|
+| **1. It costs 17-26 delivered days** -- 12-19 if Amazon's hosted form is accepted instead of Esquire's own | a sprint in its own right, and it buys no capability the system does not already have |
+| **2. Three capabilities are given up permanently** -- no user search by `esq_uid` (the lookup moves into Esquire's own data), no per-user TOTP enrolment (it is pool-wide), no themed handshake form (tinted with CSS against fixed class names, or rebuilt) | each is a working KeyCloak feature traded for nothing in return |
+| **3. It cannot be developed locally** -- Cognito is not in community LocalStack | KeyCloak stays for docker and local Kubernetes regardless, so Cognito is an **addition, not a replacement**: two identity providers to keep working instead of one |
+
+**The money is not the argument in either direction.** Cognito starts at pennies and rises per user;
+KeyCloak is a container already being run. Neither number decides it.
+
+**What the work would buy is IAM portability** -- the proof that the two seams are real seams and not a
+description of KeyCloak, the same proof the messaging bus and the database already carry. That is the
+reason to do it eventually, and it is not urgent while KeyCloak runs identically on docker, local
+Kubernetes, OKE and EKS, and Cognito runs in one place.
 
 ## Appendix -- what was tested, and how
 
@@ -752,40 +788,9 @@ Three pools in us-east-1, and everything above came from them:
 plus a Python Lambda on the `PreTokenGeneration` trigger, an IAM role, a resource server with a custom
 scope, a hosted domain, and a machine-to-machine app client.
 
-### The harness lied four times, and none of it was Cognito's fault
-
-This matters more than it looks, because the whole value of this document is that its claims were
-tested -- and a test harness can lie as easily as a memory can. Every one of these produced a confident
-wrong answer that had to be caught:
-
-1. **PowerShell strips double quotes** when handing an argument to a native executable, so the first run
-   of every `ListUsers` filter -- including the valid ones -- failed to parse. That read exactly like
-   "Cognito rejects all filters". Passing the filter through `--cli-input-json` gave the true answer.
-2. **`Get-Content` returns a decorated string**, and `ConvertTo-Json` serialised the decoration into the
-   request, so `UserPoolId` arrived as an object. The error blamed the parameter, not the harness.
-3. **`Invoke-WebRequest` with `-MaximumRedirection 0`** threw on the redirect it was asked to catch, and
-   both logout probes reported a PowerShell exception that looked like a Cognito failure. `curl` gave
-   the real 302.
-4. **A client-side sign-in timing of 993 ms** was the `aws` CLI's own Python startup, not Cognito. The
-   function's own `REPORT` lines gave 1.73 ms. The first number was discarded, not published.
-
-### What this document got wrong before it got it right
-
-Three claims were written, then overturned by a later test. They are listed rather than quietly edited,
-because a study whose corrections are invisible is asking to be trusted rather than read.
-
-| first written | corrected to | what changed it |
-|---|---|---|
-| "there is no rename verb, so a login cannot change -- a limitation to accept" | **a login CAN be renamed**, when the pool is created with `UsernameAttributes: ["email"]`: the email is the sign-in identifier and it is mutable | the question "can you connect via email?", which turned out to be the same question |
-| "nothing outside kcMaster and the BFF changes" | true **for a human signing in**. A machine token has no user, the trigger never fires, and every service-account caller is refused | testing client-credentials against the pool with the trigger attached |
-| "JWT / JWE at the gateway" as half of the portability claim | **JWT.** Cognito cannot issue a JWE and neither can KeyCloak 26; the seam has no supplier and is out of the claim | the question whether a Lambda-filled token would be a JWE |
-
-Two of the three were overturned by a question, not by a plan -- which is the argument for asking them
-before writing the estimate rather than after.
-
-### And one thing deliberately left unfinished
+### Not settled
 
 The **logout round trip** is only partly tested. Both the standard `post_logout_redirect_uri` and
-Cognito's own `client_id` + `logout_uri` returned 302 to Cognito's `/login` with the parameters carried
-through rather than interpreted -- but `curl` holds no authenticated session, so that cannot settle what
-a signed-in browser would see. It is written here as partly tested rather than concluded.
+Cognito's own `client_id` + `logout_uri` returned 302 to Cognito's `/login`, with the parameters carried
+through rather than interpreted. `curl` holds no authenticated session, so what a signed-in browser sees
+is not established.

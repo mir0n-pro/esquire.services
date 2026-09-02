@@ -19,9 +19,9 @@ The Esquire framework spans Java microservices, a Node.js BFF, an Angular SPA + 
       <td width="8%"><img src="logo/junit.svg" alt="Alt text" height="24"></td>
       <td>Java unit + service</td><td><b>JUnit 5</b> + <b>Mockito</b> + <b>AssertJ</b></td>
       <td><code>services/*</code></td>
-      <td><b>824</b> <code>@Test</code> methods across <b>127</b> classes</td>
+      <td><b>842</b> <code>@Test</code> methods across <b>129</b> classes</td>
   </tr>
-  <tr><td><img src="logo/jacoco.png" alt="Alt text" height="24"></td><td>Java code coverage (a test of the tests)</td><td><b>JaCoCo</b></td><td><code>services/*</code> &rarr; <code>test/JaCoCo</code></td><td><b>19</b> per-module line / branch reports (unit + in-JVM ITs)</td></tr>
+  <tr><td><img src="logo/jacoco.svg" alt="Alt text" height="24"></td><td>Java code coverage (a test of the tests)</td><td><b>JaCoCo</b></td><td><code>services/*</code> &rarr; <code>test/JaCoCo</code></td><td><b>19</b> per-module line / branch reports (unit + in-JVM ITs)</td></tr>
   <tr><td><img src="logo/hauberk.svg" alt="Alt text" height="24"> <img src="logo/gatling.svg" alt="Alt text" height="24"></td><td>Running-stack load / stress / race-repro</td><td><b>Haubergeon</b> (on <b>Gatling 3.13</b> Java DSL)</td><td><code>explorer/hauberk</code></td><td><b>22</b> self-validating Simulations (smoke / load / super / race-repro / message-loss / HA) + 3 JUnit catalog tests</td></tr>
   <tr><td><img src="logo/hauberk.svg" alt="Alt text" height="24"> <img src="logo/gatling.svg" alt="Alt text" height="24"></td><td>Running-stack integration matrices</td><td><b>Bash</b> driver + <code>psql</code> / <code>sqlplus</code> / <code>kubectl</code> (drives the <b>hauberk</b> <code>EntitySmoke</code> workload)</td><td><code>services/test</code></td><td><b>~27-cell</b> audit matrix (audit sink x primary DB x environment) + a <b>bus health</b> readiness/liveness chaos smoke</td></tr>
   <tr><td><img src="logo/vitest.svg" alt="Alt text" height="24"></td><td>Node.js (BFF)</td><td><b>Vitest</b> + <b>Supertest</b></td><td><code>explorer/backend</code></td><td><b>47</b> specs across <b>5</b> files (config / cache / trace / tokens / W3C trace-id conformance)</td></tr>
@@ -58,14 +58,14 @@ The Esquire framework spans Java microservices, a Node.js BFF, an Angular SPA + 
 | kcMaster | 41 | includes the parked-path ordering rules (`ParkedPathTest`) |
 | gateway | 80 | gateway typically light on JUnit; reactive WebFlux code is harder to mock-test cleanly |
 | auKeep | 1 | the audit-bus consumer integration test (real Postgres + ActiveMQ via Testcontainers) |
-| tp-activemq | 2 | transport-provider unit checks |
+| tp-activemq | 10 | transport-provider unit checks, and the broker-credential params (`userName` / `password` applied through the setters and kept out of the URI) |
 | tp-redis | 2 | transport-provider unit checks |
 | tp-kafka | 2 | transport-provider unit checks |
 | tp-sqns | 19 | the SQS/SNS driver's own rules: the queue-name split (`SqsSupportTest`), the vendor-param gate with its refuse- AND allow-cases (`SqsSupportParamsTest`), and the prefix sub-group (`SqsSupportParamGroupTest`) |
-| tp-kinesis | 0 | the driver holds no logic of its own to unit-test: the partition rule, the shard poll and the two receive filters are exercised on the running stack by e2e and the audit smoke |
+| tp-kinesis | 10 | the driver's own rules -- the partition key, the stream mode and the shard reader. The two receive filters live in `messaging`, and the shard poll is exercised on the running stack by e2e and the audit smoke |
 | mesnie | 5 | the composed write program: the composition itself and the identity gateway it hands to keySmith and enyMan |
 | gateWard | 8 | the composed read program: the tree routes answered locally, and the gateway wiring around them |
-| **total** | **824** | across **127** classes |
+| **total** | **842** | across **129** classes |
 
 **Coverage tooling — JaCoCo.** Line / branch coverage of this Java tier is measured with **JaCoCo** (0.8.13, wired in the parent `pom.xml`: `prepare-agent` + `report`). It counts whatever runs in the forked test JVM — the unit tests **and** the in-JVM Testcontainers / `@SpringBootTest` integration tests; e2e and hauberk drive a separately deployed stack, so they fall outside its reach. Reports are written to `services/test/JaCoCo/<artifactId>` (deliberately outside module `target/`, so `mvn clean` keeps them). Run via `build-with-JaCoCo.bat` (`mvn clean test`) and browse `test/JaCoCo/framed.html`. Coverage is a signal, not a build gate; mutation testing (PIT) is not used.
 
@@ -118,11 +118,24 @@ shape is sound:
 |---|---|---|
 | classic | `compose\`, `k8s\` | the default: a program per service |
 | compact | `compose-compact\`, `k8s-compact\` | grouping services changes nothing a caller can observe |
-| cloud compact | `k8s-oci-compact\` | the same, with the audit trail written by database triggers |
+| OCI (OKE) compact | `k8s-oci-compact\` | the same, with the audit trail written by database triggers |
+| AWS (EKS) classic | `compose-aws\`, `k8s-aws\` | the same, with the three buses carried by Amazon SNS, SQS and Kinesis instead of a broker |
+| AWS (EKS) compact | `k8s-aws-compact\` | the same again, with the entity bus on Amazon SNS |
 
 A suite that needed editing to pass on a second shape would be reporting a difference the framework promises
 is not there. The scripts take the target as configuration -- the stack folder and the entry URL -- and
 nothing in the assertions moves.
+
+The AWS rows are the strongest form of that claim, because the transport underneath changed completely: the
+Playwright suite passed **44 of 44** against `https://aws-esquire.mir0n.pro` with the entity broadcast on
+Amazon SNS, using the same specs that run against ActiveMQ on docker. `aws-e2e-public.bat` points them at the
+public address and forwards nothing.
+
+**One harness IS AWS-specific, deliberately.** `test/aws/aws-spec.py` checks the things only an AWS deployment
+can get wrong -- that the drivers are attached rather than built in, that no service image carries an AWS byte,
+the three wirings that fail silently, and a depool group that stops AWS and asserts recovery. The generic
+checks are shared with every other shape, so rather than bend them, the AWS-only questions got a harness of
+their own.
 
 ## Node.js (BFF) — Vitest + Supertest
 
@@ -180,7 +193,7 @@ nothing in the assertions moves.
 
 **How wired:** `@playwright/test` v1.49+. `npm test` runs the suite headless; `npm run test:ui` opens the Playwright UI runner. Tests target `localhost`, `localhost:4200` (live SPA), and OKE prod URLs as needed.
 
-**Coverage:** **45** `test()` cases across **17** `.spec.ts` files — what `npx playwright test --list` reports, and what a run executes. There are 21 files under `tests/` (01-prelogin through 20-token-relay and 99-debug-login): the move / delete / withdrawal / transfer specs (09, 10, 12, 13) are placeholders that point at the specs which cover those flows and declare no `test()` of their own. The `_disc` / `cycle` helpers live outside `testDir` and are driven by the cycle launchers, not by `npm test`. Specs 16-session-expiry (expiry notice + pre-empt), 17-login-cancel (the KeyCloak Cancel link), 18-details-esc-focus, 19-access-profile-sync, and 20-token-relay cover the newer flows. The mutating specs (08 entity lifecycle, 11 accounting) now build and tear down their OWN working data under the seeded Test House via the `/api` proxy instead of mutating the shared seed tree. The suite runs green on Docker, local k8s, and OKE (`https://esquire.mir0n.pro`); `timeout: 60s` + `retries: 2` and 30s login-path waits absorb cold-start latency after a (re)deploy.
+**Coverage:** **46** `test()` cases across **18** `.spec.ts` files — what `npx playwright test --list` reports, and what a run executes. There are 22 files under `tests/` (01-prelogin through 21-credential-state-sync, and 99-debug-login): the move / delete / withdrawal / transfer specs (09, 10, 12, 13) are placeholders that point at the specs which cover those flows and declare no `test()` of their own. The `_disc` / `cycle` helpers live outside `testDir` and are driven by the cycle launchers, not by `npm test`. Specs 16-session-expiry (expiry notice + pre-empt), 17-login-cancel (the KeyCloak Cancel link), 18-details-esc-focus, 19-access-profile-sync, and 20-token-relay cover the newer flows. The mutating specs (08 entity lifecycle, 11 accounting) now build and tear down their OWN working data under the seeded Test House via the `/api` proxy instead of mutating the shared seed tree. The suite runs green on Docker, local k8s, OKE (`https://esquire.mir0n.pro`) and EKS (`https://aws-esquire.mir0n.pro`); `timeout: 60s` + `retries: 2` and 30s login-path waits absorb cold-start latency after a (re)deploy.
 
 ---
 

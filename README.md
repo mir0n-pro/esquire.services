@@ -36,30 +36,29 @@ maintenance, permissions, and a working accounting domain. Accounting is the del
 the framework speaks for itself; any other hierarchy sits on the same backbone. The stack is driven **to the end
 of what it can do**: a hybrid REST-and-event engine, vendor-neutral messaging, high availability that shrugs off
 losing a machine, and full, switch-on-anywhere observability. **Released by pipeline and live in production,**
-everything the framework promises, it does — in a running deployment, on three targets, open for anyone to
-check.
+everything the framework promises, it does — in a running deployment, on four targets, open for anyone to
+check. The live demo runs on two clouds — **Oracle OKE** and **Amazon EKS**.
 
-**See it live — [esquire.mir0n.pro](https://esquire.mir0n.pro).** Sign in, browse the tree, run the operations.
+**See it live — [esquire.mir0n.pro](https://esquire.mir0n.pro)**, and on Amazon's cloud at
+[aws-esquire.mir0n.pro](https://aws-esquire.mir0n.pro). Sign in, browse the tree, run the operations.
 
 ---
 > 
-> **v1.2.14 — in progress.** The framework grows by **continuous development** — sprints against a target,
-> rather than one long sequential line. This one takes Esquire to **Amazon's cloud**: running it on Amazon's
-> managed Kubernetes, and teaching the messaging layer to speak the message services Amazon already
-> provides — so a deployment there uses what the cloud runs for you, instead of asking you to run a
-> message broker of your own.
+> **v1.2.14 — complete (09/01/2026).** The **AWS** sprint. Esquire runs on AWS EKS, with the support of
+> AWS-native messaging, database and observability services.
 > 
-> It also looks at Amazon's own sign-in service and its own monitoring service, and writes down plainly why
-> Esquire does not use them today, and what it would take to.
+> The messaging bus carries its three channels on Amazon SNS, SQS and Kinesis, and the ActiveMQ and Kafka
+> drivers reach Amazon MQ and MSK unchanged. The database runs on RDS for PostgreSQL and Aurora PostgreSQL
+> as readily as on its own. Traces, numbers and logs go to X-Ray and CloudWatch.
 > 
-> **Live today is v1.2.13**, on Oracle's cloud at [esquire.mir0n.pro](https://esquire.mir0n.pro) — the same
-> code and the same settings composed into fewer programs, so a small deployment stops paying for a large one.
+> **Live at** [esquire.mir0n.pro](https://esquire.mir0n.pro) on Oracle OKE and
+> [aws-esquire.mir0n.pro](https://aws-esquire.mir0n.pro) on Amazon EKS.
 > 
 > What comes next is chosen from the
 > [continuing-development backlog](doc/Esquire.ContinuingDev.md) — several sprints can run in parallel, each
 > against its own target. See [Release History](#release-history).
->
 
+---
 
 ## Installation
 
@@ -115,9 +114,13 @@ through the moment it is up. Background, the architecture, and the developer wor
 - [Haubergeon — Gatling harness reference](doc/Esquire.Haubergeon.md)
 
 ### Deployment & Setup
-- [Developer Setup](doc/Esquire.DevSetup.md) *(local build, the docker stack, and OCI / OKE cloud setup)*
+- [Developer Setup](doc/Esquire.DevSetup.md) *(local build, the docker stack, and the cloud setup for Oracle OKE and Amazon EKS)*
 - [CI/CD — Automated Build and Release Pipeline](doc/Esquire.GitHubActions.md) *(three stages: automatic build-and-test on every change, deploy to a local test cluster during development, and a human-approved cloud release deploy checked against the live site)*
 - [Configuration Reference — every service parameter, logging, gateway routes, audit-logging modes/options](doc/services.configuring.md)
+
+### AWS
+- [CloudWatch for Esquire](doc/research/CloudWatch.for.Esquire.md) *(AWS-native observability: what it supports, what it costs)*
+- [Cognito for Esquire](doc/research/Cognito.for.Esquire.md) *(AWS-native identity: what it would take, and why not yet)*
 
 ### Development Process
 - [Development Process](doc/Esquire.DevProcess.md) *(the sprint lifecycle, the documentation routine, and the release flow)*
@@ -150,11 +153,15 @@ run as a single instance here; each is a third-party platform that brings its **
       <tr>
         <td style="width: auto; white-space: nowrap;"><b>Esq2025</b></td>
         <td style="width: 8%;"><img src="./doc/logo/postgres.svg" alt="postgres logo" valign="middle" height="24"></td>
-        <td style="width: 100%;"><img src="./doc/logo/oracle.svg" alt="oracle logo" valign="middle" height="24"></td>
+        <td style="width: 8%;"><img src="./doc/logo/oracle.svg" alt="oracle logo" valign="middle" height="24"></td>
+        <td style="width: 8%;"><img src="./doc/logo/RDS-cd.svg" alt="Amazon RDS logo" valign="middle" height="24"></td>
+        <td style="width: 100%;"><img src="./doc/logo/aurora-cd.svg" alt="Amazon Aurora logo" valign="middle" height="24"></td>
       </tr>
     </table>
-    The database (Postgres or Oracle); persistent store for all entity data,
+    The database; persistent store for all entity data,
        transactions, permissions, configuration parameters, and the audit log (when triggers are enabled).
+       <br><br>Supported databases: Postgres, Oracle. With AWS you can use RDS for PostgreSQL or
+       Aurora PostgreSQL.
   </td></tr>
 
   <tr><td style="width: 100%;">
@@ -162,7 +169,9 @@ run as a single instance here; each is a third-party platform that brings its **
       <tr>
         <td style="width: auto; white-space: nowrap;"><b>Esq2025 audit</b></td>
         <td style="width: 8%;"><img src="./doc/logo/postgres.svg" alt="postgres logo" valign="middle" height="24"></td>
-        <td style="width: 100%;"><img src="./doc/logo/oracle.svg" alt="oracle logo" valign="middle" height="24"></td>
+        <td style="width: 8%;"><img src="./doc/logo/oracle.svg" alt="oracle logo" valign="middle" height="24"></td>
+        <td style="width: 8%;"><img src="./doc/logo/RDS-cd.svg" alt="Amazon RDS logo" valign="middle" height="24"></td>
+        <td style="width: 100%;"><img src="./doc/logo/aurora-cd.svg" alt="Amazon Aurora logo" valign="middle" height="24"></td>
       </tr>
     </table>
     Optional, the database (Postgres or Oracle); persistent store for the entity audit log (<code>*_log</code> tables).
@@ -175,7 +184,12 @@ run as a single instance here; each is a third-party platform that brings its **
         <td style="width: auto; white-space: nowrap;"><b>Messaging Bus</b></td>
         <td style="width: 8%;"><img src="./doc/logo/activemq.svg" alt="ActiveMQ logo" valign="middle" height="24"></td>
         <td style="width: 8%;"><img src="./doc/logo/redis.svg" alt="Redis logo" valign="middle" height="24"></td>
-        <td style="width: 100%;"><img src="./doc/logo/kafka.svg" alt="Kafka logo" valign="middle" height="24"></td>
+        <td style="width: 8%;"><img src="./doc/logo/kafka.svg" alt="Kafka logo" valign="middle" height="24"></td>
+        <td style="width: 8%;"><img src="./doc/logo/MQ-cd.svg" alt="Amazon MQ logo" valign="middle" height="24"></td>
+        <td style="width: 8%;"><img src="./doc/logo/sns-cd.svg" alt="Amazon SNS logo" valign="middle" height="24"></td>
+        <td style="width: 8%;"><img src="./doc/logo/sqs-cd.svg" alt="Amazon SQS logo" valign="middle" height="24"></td>
+        <td style="width: 8%;"><img src="./doc/logo/kinesis-cd.svg" alt="Amazon Kinesis logo" valign="middle" height="24"></td>
+        <td style="width: 100%;"><img src="./doc/logo/msk-cd.svg" alt="Amazon MSK logo" valign="middle" height="24"></td>
       </tr>
     </table>
     Three logical channels:
@@ -184,8 +198,9 @@ run as a single instance here; each is a third-party platform that brings its **
        <br> - <i>Entity Broadcast Bus</i> — enyMan and pacMan publish entity change events on every mutation;
          bizTree and other interested consumers subscribe
        <br> - <i>Audit Broadcast Bus</i> — optional (off by default); the entity-updating services (enyMan, pacMan, keySmith)
-         publish each committed change event. Transport vendors: ActiveMQ, Kafka, Redis, or the
-         message services Amazon provides.
+         publish each committed change event.
+       <br><br>Supported messaging vendors / brokers: ActiveMQ, Kafka or Redis. With AWS you can use
+         SNS, SQS, Kinesis, MQ for ActiveMQ or MSK (managed Kafka).
   </td></tr>
 
   <tr><td style="width: 100%;">
@@ -468,6 +483,34 @@ Every piece below is open-source, and any of it can be swapped out — no lock-i
 </table>
 
 For how the pieces connect — the protocols, the ports, and the full detail — see the [Observability Stack](doc/Esquire.ObservabilityStack.md) design doc.
+
+**AWS Observability Stack**
+
+Running on AWS, the same three signals can go to Amazon's own tools instead.
+
+<table style="width: 100%; table-layout: fixed;">
+  <tr></tr>
+  <tr><td style="width: 100%;">
+    <table style="width: 100%; table-layout: fixed;">
+      <tr></tr>
+      <tr>
+        <td style="width: auto; white-space: nowrap;"><b>AWS X-Ray</b></td>
+        <td style="width: 100%;"><img src="doc/logo/x-ray-cd.svg" alt="AWS X-Ray logo" valign="middle" height="24"></td>
+      </tr>
+    </table>
+    The trace store — keeps the traces and shows the path one request took through the services.
+  </td></tr>
+
+  <tr><td style="width: 100%;">
+    <table style="width: 100%; table-layout: fixed;">
+      <tr>
+        <td style="width: auto; white-space: nowrap;"><b>Amazon CloudWatch</b></td>
+        <td style="width: 100%;"><img src="doc/logo/cw-cd.svg" alt="Amazon CloudWatch logo" valign="middle" height="24"></td>
+      </tr>
+    </table>
+    The numbers and the logs — keeps the metrics and the log lines, searchable, and draws the dashboards.
+  </td></tr>
+</table>
 
 **Compact topology**
 

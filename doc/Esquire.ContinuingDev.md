@@ -226,6 +226,35 @@ comprehension / maintenance investment.
 
 ---
 
+### CD-27 -- An installation guide for the cloud demo
+
+**Today:** `doc/install/` holds two guides in a settled shape -- Prerequisites, Steps, What to expect, Update one
+service, Stop / reset -- and both stop at the machine in front of you: [Docker.md](install/Docker.md) and
+[LocalK8s.md](install/LocalK8s.md). Standing the demo up on a cloud has no equivalent. What exists is
+[Esquire.DevSetup.md](Esquire.DevSetup.md) section 7, which is written for somebody who already knows the system:
+7.1 for OCI (OKE) and 7.2 for AWS (EKS), each with its shape, prerequisites, deploy flow and safety notes, plus the
+per-target runbooks beside the scripts. That is a reference, not a guide -- it tells a maintainer what the deploy
+does, not a newcomer how to get one running.
+
+**Improvement:** one guide, `doc/install/Cloud.md`, in the same shape as the other two, for standing up the
+**demo** on a cloud. One guide rather than one per vendor: the steps are the same shape everywhere -- get a
+cluster, push the images, install the charts, point a name at the load balancer, register that name with the
+sign-in server, run the browser suite -- and only the vendor commands differ. Today that is OKE and EKS; the
+sprint's own conclusion was that a cloud other than the demo's is brought up temporarily to answer a question, so
+more vendors are expected and the guide should take a third without being rewritten.
+
+**What makes this harder than the other two, and has to be said in it rather than discovered:** a cloud guide
+cannot be self-contained. The reader must bring things the repository cannot ship -- an account with a payment
+method, a registry token, and a DNS name they control -- and both current paths pause mid-way for a record to be
+pointed at a load balancer that does not exist until the cluster does. The existing guides promise "build, start,
+open the browser"; this one has to promise something honestly different, and say what it costs to run.
+
+**Deferred because** it is new front-door material rather than a correction: the deploys work, are scripted end to
+end, and are documented for a maintainer. This is the pass that makes them followable by somebody who has not
+worked on Esquire.
+
+---
+
 ## Testing / resilience
 
 ### CD-25 -- The "sweet" shutdown: every pending and active task finalised before exit

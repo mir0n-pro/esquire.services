@@ -3,11 +3,11 @@
 rem ===========================================================================
 rem aws-down.bat -- tear the whole of T7 down.
 rem
-rem THIS IS NOT THE END OF A WORKING SESSION. The super-compact deployment STANDS:
-rem it is the sign that Esquire runs on AWS, and taking it down costs the DNS record
-rem its meaning until somebody points it at a new load balancer. Run this only on a
-rem deliberate decision to stop paying the ~$153/month, or to rebuild the cluster
-rem from scratch. (k8s-aws, the CLASSIC shape, is the one where teardown is normal.)
+rem NOT THE END OF A WORKING SESSION. The deployment is left up while there is
+rem something to show, and taking it down costs the DNS record its meaning until
+rem somebody points it at a new load balancer. Run this when there is no longer a
+rem reason to keep paying the ~$153/month -- then bring it back on request with
+rem aws-cluster-up.bat. (k8s-aws, the CLASSIC shape, tears down after every use.)
 rem
 rem FOUR PARTS, and the ORDER is not a preference:
 rem

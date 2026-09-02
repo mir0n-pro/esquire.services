@@ -596,6 +596,31 @@ worse than one that will not start.
 - **Convention key** — `transport.params.group-id` is the consumer group id (a default applies when
   unset); it maps to `group.id` and is removed from the raw producer/consumer config.
 
+#### The managed brokers -- Amazon MQ and Amazon MSK
+
+The two broker drivers were run against Amazon's managed versions of the same brokers, and both reach them
+with **no code change and no extra dependency**. This matters because it is the cheaper half of cloud
+portability: a deployment can move to a cloud without leaving the broker it already runs.
+
+- **`tp-activemq` -> Amazon MQ for ActiveMQ.** OpenWire over `ssl://`, a 6.1.8 client against a 5.19 broker,
+  the classic three-bus topology unchanged. Amazon MQ always requires credentials where our own broker asks
+  for none, which is why the driver takes `userName` / `password` as leg params -- applied through the
+  setters, deliberately NOT appended to the broker URI, because the URI is written to the develop log on
+  every open.
+- **`tp-kafka` -> Amazon MSK.** Every leg param already reaches the Kafka client verbatim, so TLS and
+  SASL/SCRAM are configuration rather than code. IAM auth is the one exception and would need a jar.
+
+**Two things worth carrying, both found by running it:**
+
+**Persistence cost is the STORAGE, not the instance.** A persistent send measured 11.2 ms on EFS-backed
+Amazon MQ and 3.0 ms on EBS-backed -- and an instance ten times the price on EFS measured the same 11.9 ms.
+The broker size is not the lever; the volume behind it is.
+
+**MSK: the driver creates its `.admin` topic and NOT its log topic.** With the cluster's topic auto-create
+turned off, the audit events **vanished while the suite reported 24/24 and the publisher logged nothing** --
+a silent, total loss that every green light missed. A managed broker that does not auto-create topics needs
+them created up front. Recorded as messaging CD item 15.
+
 #### `tp-redis` (stream — producer-only)
 
 - **`supportsConsume()` is `false`** — the stream IS the append-only log (read with `XRANGE` /

@@ -173,6 +173,33 @@ The component model above is the stack Esquire **ships**: Alloy -> Loki for logs
 
 Because every id is the same string end to end (`correlationId` == `traceId`), whichever backends you pick a log line, its trace, and its metrics still line up -- the correlation lives in the data, not in the tool.
 
+#### Proven in both directions -- and the second one is the one that matters
+
+There are two different claims here, and only one of them is hard.
+
+**The shipped stack is cloud-agnostic by construction.** Prometheus, Grafana, Loki and Tempo are open-source components that run wherever containers run. The SAME charts serve docker, local Kubernetes, OKE and EKS -- moving them to another cloud is not portability, it is just deployment. Nothing about that needed proving.
+
+**The hard claim is the AWS-NATIVE stack**, because that is where lock-in actually lives: X-Ray, CloudWatch and CloudWatch Logs are managed services with their own wire formats, their own query language and no equivalent anywhere else. The same test applies at every layer Esquire is portable in -- the AWS-native database (RDS for PostgreSQL, Aurora PostgreSQL) and the AWS-native messaging (SNS, SQS, Kinesis) were run for the same reason. A framework that can only run its own observability is not portable -- it merely brings its own. So v1.2.14 tested the other direction, and moved all three pillars onto Amazon's native services on a running EKS cluster:
+
+| pillar | shipped default | AWS-native | what moved |
+|---|---|---|---|
+| traces | OTLP -> Collector -> Tempo | OTLP -> Collector -> **AWS X-Ray** | one exporter in the collector config |
+| metrics | `/actuator/prometheus` scraped by Prometheus | the SAME page scraped by the collector -> **CloudWatch** (EMF) | one receiver + one exporter |
+| logs | stdout ECS JSON -> Alloy -> Loki | the SAME stdout -> fluent-bit -> **CloudWatch Logs** | a different shipper |
+
+**Not one line of service code changed, and not one image was rebuilt.** The eight image digests running against CloudWatch were the digests that had been running against Prometheus and Tempo. The only value that moved on the application side was `ESQ_OTLP` -- where spans are posted. Everything else was a chart the services never see. Evidence from the run: 1,176 X-Ray traces, 1,535 CloudWatch metrics and 29 log streams.
+
+So Esquire is portable both ways: it does not NEED a cloud's observability, and it can USE one. The first is a property of open components; the second is a property of the seams, and it is the one that would have failed if the emit side were not open.
+
+**The two backends are not equivalent, and the difference is not quality.** It is the cost model and what the query language can express:
+
+- **Cost shape.** The shipped stack is a FIXED cost -- one node hosts all seven components, and it costs the same whether it holds ten series or ten thousand. CloudWatch is METERED per series, per GB, per trace and per dashboard. At Esquire's v1.2.14 inventory (877 series from 108 metric names) the shipped stack was about $24.53/month against roughly $263/month metered. The crossover sits near 80 series -- below it the metered service is cheaper, above it the node is.
+- **What does not port.** 84 of 168 PromQL expressions in the shipped boards use constructs CloudWatch metric math does not have -- partial aggregation, quantiles read from histogram buckets, label rewriting and joins. The topology canvas cannot exist there at all. So the DATA ports completely and the BOARDS do not; rebuilding them is the real work, not the wiring.
+
+Both AWS arms live beside each other in `services/k8s-aws/` and are deliberately isolated -- `aws-o11y-on.bat` installs only `charts/infra/*`, `aws-o11y-cw-on.bat` only `charts/cw/*`, and neither uninstalls the other's releases. The one thing that cannot be shared is TRACES: a service posts OTLP to ONE endpoint, so spans go wherever that switch points. Metrics are pulled and logs are tailed, so those two pillars can feed both backends at once.
+
+Full study, with the per-item budget and the four claims it overturned: `doc/research/CloudWatch.for.Esquire.md`.
+
 ## Part 2 -- The Four Pillars
 
 ### 1. Distributed Tracing
