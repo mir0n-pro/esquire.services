@@ -1,11 +1,13 @@
 # EKS overlay for k8s-compact/charts/esquire-backend (BFF + SPA in one image) -- T7, x1.
 #
-# v1.2.13 image ON PURPOSE: the BFF is Node and the SPA is Angular. Neither carries the Esquire Java
-# messaging jar, so the v1.2.14 change that forced the service images to be rebuilt does not touch this
-# one, and there is nothing to rebuild for AWS.
+# NO TAG HERE. It arrives as --set image.tag from aws-up.bat, which takes it as backend_tag and fails
+# when it is missing. This image is built from the explorer repo, so it does not move with the three
+# service images and once had its own pin -- and the pin went stale: the BFF is Node and the SPA is
+# Angular, which reads as "carries no Esquire Java, nothing to rebuild", but the SPA half bakes
+# explorer/frontend/public and the landing pages live there. The AWS demo served the previous sprint's
+# landing pages for a day while every other target served the new ones.
 image:
   repository: ghcr.io/mir0n-pro/esquire.backend
-  tag: "v1.2.13-2608.2806"
   pullPolicy: IfNotPresent
 
 service:
@@ -72,6 +74,8 @@ spa:
 # k8s-compact/charts/esquire-backend already points at esquire-gateward:8080. Naming the classic gateway
 # service here would proxy /api/* at a workload that does not exist on a super-compact stack.
 
-# IfNotPresent, unlike the three service overlays. This tag is FIXED at v1.2.13 and
-# never moves, so there is nothing to re-pull and Always would only add a registry
-# round trip to every pod start. The moving-tag images are the ones that need Always.
+# IfNotPresent, unlike the three service overlays. This image only ever runs at a release
+# tag, which is written once and never rewritten, so a node that has the image has the
+# right image and Always would add a registry round trip to every pod start for nothing.
+# The three service overlays can take a lab tag that is pushed again under the same name,
+# and that is what needs Always.

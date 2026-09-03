@@ -243,6 +243,11 @@ At sprint end, beyond the per-commit code-change docs:
   does NOT get its own dated `release_notes` change entry. Per-commit `release_notes` entries are for the
   sprint's CODE changes, recorded when each landed; the finalization refresh only re-states them for the
   front door.
+- Put the **standing cloud demos** on the released tag. OKE is deployed by GitHub Actions and needs
+  nothing here. **AWS runs the same chain without a workflow** (`Esquire.GitHubActions.md` section 4.3a),
+  and THIS is where its trigger lives: while the demo is up, `aws-release.bat <tag>` from
+  `services/k8s-aws-compact/`, then `aws-e2e-public.bat`. Nothing turns red if this is skipped; the demo
+  simply serves the previous sprint, which is how it was found.
 - Run the **release finalization** proper: version finalize, then the branch flow
   `pending → PR → develop → tag → archive release/ → new pending` (the maintainer's git step). Each
   sprint runs this flow on **its own pending line** off `develop`; in continuous-development mode more

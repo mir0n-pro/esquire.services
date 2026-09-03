@@ -1,6 +1,12 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v1.2.14-2609.0219  v1.2.14 -- AWS: CI/CD scripts
+    :Doc:         doc\Esquire.DevSetup.md
+                  doc\Esquire.DevProcess.md
+                  doc\Esquire.GitHubActions.md
+    Components:  k8s-aws-compact
+
 v1.2.14-2609.0200  v1.2.14 -- Finalization
     :Doc:         doc\Esquire.Vision.md
                   doc\Esquire.DevSetup.md

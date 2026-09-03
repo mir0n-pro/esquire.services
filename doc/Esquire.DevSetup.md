@@ -403,17 +403,44 @@ controller creates — which does not exist until the cluster is up, so the brin
 **Deploy flow**, from `services/k8s-aws-compact/`:
 
 ```
-aws-images-push.bat <tag>     build + push the four arm64 images to GHCR
 aws-cluster-up.bat            ONE-TIME per cluster: eksctl + gp3 StorageClass + the bus IAM policy
                               + ingress-nginx + cert-manager; prints the load balancer, then STOPS
                               <-- point aws-esquire.mir0n.pro at it, and wait for it to resolve
-aws-up.bat                    deploy the stack (topology, Postgres, KeyCloak, the audit triggers,
-                              the four programs, the public ingress)
+aws-release.bat <tag>         put the deployment on a RELEASED tag — the normal update
 aws-public-origin.ps1         register the public origin on the esq-angular KeyCloak client
 aws-e2e-public.bat            the Playwright suite over the public address, no port-forwarding
 aws-down.bat                  tear it ALL down — see the warning below
 1st.bat                       switch kubectl to this cluster and prove it (local, not committed)
 ```
+
+`aws-release.bat` is one command with one argument. It checks the kubectl context and the four deploy
+inputs, verifies that CI published `esquire.mesnie`, `esquire.gateward`, `esquire.pacman` and
+`esquire.backend` at that tag **with an arm64 image** (the node group is Graviton), builds and pushes
+the driver carrier, and runs `aws-up.bat` for the whole stack. Nothing is pushed or deployed if a
+check fails.
+
+**Two arms, and confusing them is expensive.** The carrier is the only image built here at a release,
+because no pipeline builds it — the drivers belong to no service image, which is the property the
+AWS design rests on. Everything else comes from CI.
+
+| | builds | for |
+|---|---|---|
+| `aws-release.bat <tag>` | the driver carrier only | a released tag |
+| `aws-images-push.bat <tag>` | the three services + the carrier, arm64, from the working tree | a lab tag, for work on the services before there is a release to deploy |
+
+`aws-images-push.bat` **refuses a release tag**: pushing local arm64-only images over CI's multi-arch
+manifests would replace the released artifact on every target, not only this one. It reads
+`esquire.backend` to tell the two apart, which is exact — that image is built from the `explorer`
+repo and nothing here can produce it.
+
+**Four inputs, and each fails rather than defaulting**: `mir0n_pwd` (the Postgres and KeyCloak admin
+password), `kcmaster_admin_secret`, `bff_kc_secret`, `bff_session_secret`. `aws-up.bat` names where
+each is read from. It also takes two tags — `image_tag` for the three service images built from
+this repo, and `backend_tag` for the BFF + SPA image built from the `explorer` repo. On a release they
+are the same value and `aws-release.bat` passes both; on a lab tag they differ, because a lab tag has
+no BFF image behind it. Neither is pinned in a values file: a pin is a value that goes stale silently,
+and one did — the AWS demo served the previous sprint's landing pages for a day, on a release where
+every other target had the new ones.
 
 **Why the bring-up stops for DNS.** cert-manager solves the HTTP-01 challenge by answering a real
 request to the public name, so nothing can be issued until the record resolves. Deploying before then

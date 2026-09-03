@@ -14,18 +14,24 @@ rem   esquire.pacman      accounts
 rem   esquire-tp-aws      the AWS driver carrier (see Dockerfile.tp-aws)
 rem
 rem WHAT IS **NOT** BUILT HERE, and why:
-rem   backend / keycloak  -- Node, Angular and KeyCloak. None carries the Esquire
-rem                          Java messaging jar, so the v1.2.14 change does not
-rem                          touch them and v1.2.13-2608.2806 is still correct.
+rem   backend             -- the BFF + SPA, built from the EXPLORER repo. It cannot be
+rem                          built here at all, which is why a lab tag leaves it on
+rem                          the last release: aws-up.bat takes that as backend_tag.
+rem   keycloak            -- KeyCloak plus the realm. Pinned by 7a, moves on its own.
 rem   postgres            -- PostgreSQL plus db.seed. Same reason.
 rem   activemq / redis    -- not in this shape at all. The one bus is SNS, and the
 rem                          BFF at x1 keeps its sessions in memory.
 rem
-rem WHY NOT CI. .github/scripts/oke-build-push.sh publishes the compact set at an
-rem OKE RELEASE, and the last one was v1.2.13-2608.2805. The `Deploy local` workflow
-rem that runs on a pending-** push builds on the runner and publishes nothing. So
-rem there is no CI path that has a v1.2.14 mesnie or gateWard in it, and attaching a
-rem v1.2.14 driver to a v1.2.13 image would fail at the messaging seam.
+rem THIS IS THE LAB ARM. It builds a tag that no pipeline publishes, for work on the
+rem three services before there is a release to deploy. THE RELEASE ARM IS
+rem aws-release.bat: at a release CI has already published the four images, and
+rem pushing local arm64-only ones over its multi-arch manifests would replace the
+rem released artifact everywhere, not only here. This script REFUSES a release tag
+rem rather than trusting the operator to remember which arm they are on.
+rem
+rem esquire.backend is the discriminator, and it is an exact one: it is built from
+rem the explorer repo, so a tag that has one is a tag CI made. Nothing built here can
+rem produce it, which is also why a lab tag leaves the BFF on the last release.
 rem
 rem ARM64 ONLY, deliberately. CI builds linux/amd64,linux/arm64 because those images
 rem serve everything. These serve one thing: a Graviton node group.
@@ -54,6 +60,17 @@ set HERE=%~dp0
 set SERVICES=%HERE%..
 
 cd /d "%SERVICES%" || exit /b 1
+
+rem --- refuse a release tag --------------------------------------------------
+docker manifest inspect "%REG%/esquire.backend:%TAG%" >nul 2>&1
+if not errorlevel 1 (
+    echo [FAIL] %TAG% is a RELEASE tag -- CI published esquire.backend at it.
+    echo        Building over it would replace CI's multi-arch images with local
+    echo        arm64-only ones. To deploy a release:
+    echo.
+    echo          aws-release.bat %TAG%
+    exit /b 1
+)
 
 docker buildx inspect esq-builder >nul 2>&1
 if errorlevel 1 (

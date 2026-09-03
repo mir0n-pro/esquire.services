@@ -14,6 +14,11 @@ push), **local deploy** (an intermediate `pending-**` commit brings the full sta
 targets), and **OKE deploy** (a sprint PR merged into `develop` releases to the cloud). A stable-release
 flow on `main` is the only piece still reserved.
 
+**The AWS (EKS) deployment runs the same CI/CD chain** -- build, publish, deploy, validate -- driven by
+the scripts in `services/k8s-aws-compact/` instead of a workflow. What is manual there is the TRIGGER,
+not the process: AWS is not a permanent deployment target, so a person starts the chain at sprint
+finalization rather than a merge event. Section 4.3a.
+
 All Esquire repositories are **public**, so GitHub-hosted runner minutes are free and unlimited.
 The only target that needs special handling is the local cluster (see the core rule below).
 
@@ -178,6 +183,30 @@ the other stack must go for a simpler reason as well -- both bind the same host 
   `OKE_REGION` (default `ca-toronto-1`) variables; nothing can use them until the deploy is approved. The
   GHCR push runs in the ungated `build-push` job and authenticates with the `GHCR_TOKEN` PAT.
 
+### 4.3a AWS (EKS) -- the same chain, run by scripts
+
+**The CI/CD process is in place for AWS. What it does not have is a workflow to start it.** Every stage
+the OKE chain runs, the AWS chain runs too, with the same guards and the same release gate; a person
+starts it instead of a merge event.
+
+| stage | OKE | AWS (EKS) |
+|---|---|---|
+| build + test | `ci.yml` | `ci.yml` -- the same reactor, nothing AWS-specific |
+| publish images | `deploy-oke.yml` build-push -> GHCR, multi-arch | the SAME GHCR tags; `aws-release.bat` refuses a tag it cannot find, and builds only the AWS driver carrier |
+| deploy | `deploy-oke.yml` deploy, Environment-gated | `aws-release.bat <tag>` -- checks the kubectl context, the deploy inputs and the published images before it touches anything |
+| validate | `deploy-oke.yml` validate -- e2e + load | `aws-e2e-public.bat` -- the Playwright suite over the public address |
+| bring-up / teardown | the cluster is permanent | `aws-cluster-up.bat` / `aws-down.bat` |
+
+**Why the trigger is a person.** `aws-esquire.mir0n.pro` is not a permanent deployment target: it stands
+for a time, and after that it is brought up on request. A workflow drives what is permanently live, and
+a job that fails because its cluster does not exist teaches everyone to ignore a red run. So the step
+lives in sprint finalization (`Esquire.DevProcess.md` section 8) instead: `aws-release.bat <tag>`, then
+`aws-e2e-public.bat`.
+
+The one image no workflow builds is the AWS driver carrier -- the drivers are attached at deployment and
+belong to no service image, which is the property the AWS design rests on. `Esquire.DevSetup.md`
+section 7.2 carries the full flow.
+
 ### 4.4 `main` -- reserved
 - No workflow yet. When v1.2 is complete: a tag / release flow on `main` that publishes the stable
   `v1.2.xx` images and GitHub Release (from `release_notes.txt`).
@@ -239,13 +268,17 @@ refs.
 
 ## 8. Adoption status
 
-The pipeline was adopted in phases; three are live, one reserved:
+The pipeline was adopted in phases; three are live, one reserved, and one target runs the chain
+without a workflow:
 
 1. **CI** (`ci.yml`) -- LIVE. Hosted, no secrets, no runner; the build stays green per commit.
 2. **Local deploy** (`deploy-local.yml`) -- LIVE. Self-hosted runner on the dev box; `push` to
    `pending-**` only; brings the stack up on docker-compose AND local k8s.
 3. **OKE deploy** (`deploy-oke.yml`) -- LIVE. Behind the manual-approval `oke-production` Environment.
 4. **`main` release flow** -- RESERVED; added when v1.2 is complete (section 4.4).
+5. **AWS (EKS) deploy** -- LIVE as a process, not as a workflow. Build, publish, deploy and validate
+   all run; the `k8s-aws-compact` scripts carry the stages a workflow would, and a person starts them
+   because AWS is not a permanent deployment target (section 4.3a).
 
 ---
 

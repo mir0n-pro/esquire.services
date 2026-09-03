@@ -92,6 +92,20 @@ if "%bff_session_secret%"=="" (
     echo        inventing one.
     exit /b 1
 )
+rem A SECOND TAG, and it is not redundant. image_tag names the three service images, which
+rem are built from THIS repo; backend_tag names the BFF + SPA image, which is built from the
+rem explorer repo. On a release the two are the same value and aws-release.bat passes it
+rem once. On a lab tag they differ: there is no BFF image at a tag pushed from here, so the
+rem BFF stays on the last release. It is an input rather than a pin in a values file because
+rem a pin is a value that goes stale silently -- and did: the AWS demo served the previous
+rem sprint's landing pages for a day, on a release where every other target had the new ones.
+if "%backend_tag%"=="" (
+    echo [FAIL] backend_tag is not set -- the BFF + SPA image, built from the explorer repo.
+    echo        On a release it is the same as image_tag, and aws-release.bat passes it for
+    echo        you. On a lab tag it is the LAST RELEASE tag, because a lab tag has no BFF
+    echo        image behind it.
+    exit /b 1
+)
 
 set IMAGE_TAG=%image_tag%
 set PG_PW=%mir0n_pwd%
@@ -174,6 +188,7 @@ echo.
 echo === backend  (the BFF: the SPA on /, /auth/* and the /api/* proxy)
 helm upgrade --install esquire-backend %CHARTS%\esquire-backend --force-conflicts ^
   -f values\backend.yaml ^
+  --set image.tag=%backend_tag% ^
   --set keycloak.clientSecret=%bff_kc_secret% ^
   --set session.secret=%bff_session_secret% ^
   --wait --timeout 5m || exit /b 1
@@ -185,7 +200,9 @@ rem workload that is not serving yet is a 503 somebody will read as a broken dep
 kubectl apply -f cluster\ingress.yaml || exit /b 1
 
 echo.
-kubectl get pods -o wide
+rem THE IMAGE COLUMN IS THE POINT. `get pods -o wide` prints the node and hides the tag, so a
+rem workload left on an older image reads as a healthy deployment.
+kubectl get pods -o custom-columns="POD:.metadata.name,READY:.status.containerStatuses[0].ready,IMAGE:.spec.containers[0].image"
 echo.
 echo --- certificate (pending until aws-esquire.mir0n.pro resolves to the load balancer):
 kubectl get certificate
