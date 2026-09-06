@@ -204,6 +204,41 @@ the seam and one driver. A second driver is what turns the portability claim int
 
 ---
 
+### CD-28 -- The sign-in realm should not have to know every deployment
+
+**Today:** the `esq-angular` client carries three hand-kept lists -- `redirectUris`, `webOrigins` and
+`post.logout.redirect.uris` -- and each must name EVERY address the system will ever be served from.
+The realm is baked into the KeyCloak image (`keycloak/Dockerfile.keycloak` copies `import/esquire.json`
+into the image), so a new address costs: edit the shared file, rebuild the image, move the hand-set pins
+in `k8s/`, `k8s-compact/` and `k8s-aws-compact/values/keycloak.yaml`, and wipe each KeyCloak's storage --
+`--import-realm` is skipped when the realm already exists.
+
+**What it costs, measured (2026-09-06):** `http://esquire.localhost/` sat in two of the three lists and
+not the third. Nothing could see it: the browser tier sent itself home after logout without reading the
+answer, so KeyCloak had been refusing that address for months while the suite stayed green. It surfaced
+only when logout became a real page visit. `https://aws-esquire.mir0n.pro` was in NONE of the three.
+
+**Why it is weak:** a hostname is deployment knowledge being fixed at build time. Every environment's
+image also carries every other environment's addresses, so the cloud KeyCloak permits redirects to
+`http://localhost:4200`; the list only ever grows. And a missing entry is invisible until someone walks
+that exact path in that exact environment.
+
+**The information already exists in the right place.** Each deployment states its own hostname --
+`k8s-aws-compact/values/backend.yaml` has `publicBaseUrl`, `k8s-compact/values/keycloak.yaml` has
+`hostname`. The deployment knows; the image should not have to.
+
+**Two directions, to be studied before either is chosen:**
+- set the client's three lists at bring-up from the hostname the values file already holds, through the
+  admin API. FEASIBLE AS FAR AS CHECKED: `esq-kcMaster` holds realm-admin and every bring-up script
+  already gates on its secret. Costs one call and leaves the shipped realm carrying only what a fresh
+  developer install needs.
+- placeholders in the realm import, each deployment supplying its own value. Cleaner, no extra call.
+  NOT VERIFIED: whether KeyCloak substitutes environment values into these client attributes during
+  `--import-realm` has not been confirmed, and the item should start by settling that.
+
+Either way the aim is the same: adding an environment stops being a realm edit, an image rebuild and a
+data wipe.
+
 ## Documentation / diagrams
 
 ### CD-3 -- Detailed collaboration / sequence diagrams for every async workflow
@@ -462,6 +497,16 @@ on commit -- so a refused delete leaves no ghost in the cache, in the identity p
 cost is honesty, not correctness: a routine refusal wears an outage-shaped status, it lands in the counters
 that are supposed to mean something broke, and one condition answers two different ways depending on which
 child blocks it.
+
+**The body carries the database's own message.** On Postgres the caller receives `ERROR: update or delete
+on table "esq_org" violates foreign key constraint "esq_org_org_fk"` -- the table and the constraint, in
+the vendor's words (observed 2026-09-06). Oracle refuses the same delete in its own words, which is normal
+and expected. The consequence is simply that this body is not part of any contract: nothing on the other
+side should read it, and a caller that did would be depending on a deployment choice it cannot see.
+The checked cases have no such property -- they answer 409 in Esquire's own words, the same either way. (The
+same response also carries a full Java stack trace when the request arrives with `Esq-Capture-Metrics:
+true`, which the gateway sets from its own service-metrics setting; whether that is on for a public
+deployment has not been checked.)
 
 **The remedy is known and deliberately not applied:** map `DataIntegrityViolationException` to 409 in
 `GlobalExceptionHandler` -- which is also the right answer for a duplicate-key violation on create. It is

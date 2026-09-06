@@ -1,6 +1,15 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v1.2.15-2609.0601  v1.2.15 -- signing out on every deployment address
+    :Fix:         signing out completes on the local Kubernetes and AWS addresses
+    :Config:      every deployment address the sign-in server accepts for signing in it now also
+                  accepts for signing out and for browser calls
+    :Config:      the KeyCloak image carries the v1.2.15 stamp, and the local k8s stack points at it
+    :Doc:         doc\Esquire.ContinuingDev.md
+    Components:   keycloak,
+                  k8s-compact
+
 v1.2.15-2609.0523  v1.2.15 -- a user whose roles are wrong is told so
     :Fix:         a user holding no role is refused with a message naming the account, instead of
                   being reported as an expired session and sent round the login again

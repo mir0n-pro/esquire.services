@@ -1188,7 +1188,8 @@
         "http://host.docker.internal:3000/auth/callback",
         "http://host.docker.internal:4200/auth/callback",
         "http://esquire.localhost/auth/callback",
-        "https://esquire.mir0n.pro/auth/callback"
+        "https://esquire.mir0n.pro/auth/callback",
+        "https://aws-esquire.mir0n.pro/auth/callback"
       ],
       "webOrigins": [
         "http://localhost:4200",
@@ -1196,7 +1197,8 @@
         "http://host.docker.internal:3000",
         "http://host.docker.internal:4200",
         "http://esquire.localhost",
-        "https://esquire.mir0n.pro"
+        "https://esquire.mir0n.pro",
+        "https://aws-esquire.mir0n.pro"
       ],
       "notBefore": 0,
       "bearerOnly": false,
@@ -1213,7 +1215,7 @@
         "standard.token.exchange.enabled": "false",
         "login_theme": "esquire-explorer",
         "frontchannel.logout.session.required": "true",
-        "post.logout.redirect.uris": "http://localhost:4200/##http://localhost:3000/##http://host.docker.internal:3000/##http://host.docker.internal:4200/##https://esquire.mir0n.pro/",
+        "post.logout.redirect.uris": "http://localhost:4200/##http://localhost:3000/##http://host.docker.internal:3000/##http://host.docker.internal:4200/##http://esquire.localhost/##https://esquire.mir0n.pro/##https://aws-esquire.mir0n.pro/",
         "oauth2.device.authorization.grant.enabled": "false",
         "backchannel.logout.revoke.offline.tokens": "false",
         "realm_client": "false",
