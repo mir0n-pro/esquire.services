@@ -700,7 +700,7 @@ positioned to record it. Recorded here so the choice is made deliberately.
 
 ---
 
-## Dependency / upgrade debt -- the time-bomb sweep
+## Dependency / upgrade debt -- the time-bomb sweep 
 
 These items **work today and fail on a future upgrade** -- silent, and only visible if you go looking. They are
 collected in one place so the eventual bump is one deliberate task, not several surprise build breaks.

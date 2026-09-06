@@ -1,5 +1,9 @@
 Esquire Backend common microservice classes
 
+09/05/2026 mir0n  v1.2.15 -- the open path is open to a poor token too
+security.JwtClaimsExtractionFilter
+  - shouldNotFilter() adds /esq-kinds, the path both security configs already permitAll
+
 08/26/2026 mir0n  v1.2.13 -- a refusal that says so, and metrics that ask first
 error.GenericExceptionHandler
   - CommandNotAcceptedException answers 503 Service Unavailable

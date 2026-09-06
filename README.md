@@ -44,12 +44,8 @@ check. The live demo runs on two clouds — **Oracle OKE** and **Amazon EKS**.
 
 ---
 > 
-> **v1.2.14 — complete (09/01/2026).** The **AWS** sprint. Esquire runs on AWS EKS, with the support of
-> AWS-native messaging, database and observability services.
-> 
-> The messaging bus carries its three channels on Amazon SNS, SQS and Kinesis, and the ActiveMQ and Kafka
-> drivers reach Amazon MQ and MSK unchanged. The database runs on RDS for PostgreSQL and Aurora PostgreSQL
-> as readily as on its own. Traces, numbers and logs go to X-Ray and CloudWatch.
+> **v1.2.15 — complete (09/06/2026).** Several minor fixes in the **user activation** routine -- the parts
+> that were awkward to work through or left the operator guessing.
 > 
 > **Live at** [esquire.mir0n.pro](https://esquire.mir0n.pro) on Oracle OKE and
 > [aws-esquire.mir0n.pro](https://aws-esquire.mir0n.pro) on Amazon EKS.

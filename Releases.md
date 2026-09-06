@@ -10,37 +10,17 @@
 
 ## Release Notes
 
+### v1.2.15 — complete (09/06/2026)
+
+v1.2.15 is a small sprint: several minor fixes in the **user activation** routine -- the parts that were
+awkward to work through or left the operator guessing.
+
 ### v1.2.14 — complete (09/01/2026)
 
-v1.2.14 is the **AWS** sprint. It puts Esquire on a second cloud and, more to the point, on that cloud's own
-services — the ones a framework normally gets locked into.
-
-**Esquire runs on Amazon's managed Kubernetes.** The same images and the same charts that run on a laptop,
-on Docker Desktop and on Oracle's cloud, in both the seven-program and the four-program shapes.
-
-**The messaging bus speaks Amazon's own message services.** SNS carries the entity broadcast, SQS the
-identity request and reply, Kinesis the audit log — through the same seam that already carries ActiveMQ,
-Kafka and Redis. Nothing above that seam changed. The two broker drivers also reach Amazon's managed
-brokers, Amazon MQ for ActiveMQ and MSK for Kafka, with no code change at all.
-
-**None of it is built in.** No service depends on the AWS modules and no service image holds a byte of the
-AWS client. The drivers are attached where a deployment wants them, so a deployment that is not on Amazon
-carries none of it.
-
-**The database runs on Amazon's managed ones.** The same Postgres profile runs on RDS for PostgreSQL and on
-Aurora PostgreSQL without touching a line of code or SQL — so the choice could be made on measurement.
-Esquire keeps its own database in a pod: same PostgreSQL version, 20% fewer writes per second than the
-managed one, and a fraction of the price.
-
-**Monitoring runs on Amazon's own tools.** Traces to X-Ray, numbers and logs to CloudWatch — proved by
-moving a running deployment onto them without rebuilding a single image. What does not carry over is the
-dashboards, because a query language is not a data format.
-
-**Amazon's sign-in service was studied and not taken**, with the reasons written down rather than assumed.
-
-**The sign-in server's admin credential is now required.** Every deployment path refuses to run without it
-instead of quietly falling back to the published development value and reporting success.<br>
-[Developer Setup](doc/Esquire.DevSetup.md) · [Messaging Bus](doc/Esquire.MessagingBus.md) · [Observability Stack](doc/Esquire.ObservabilityStack.md) · [v1.2.14 Release Notes](doc/release_notes.txt)
+v1.2.14 is the **AWS** sprint: Esquire runs on Amazon's managed Kubernetes and on that cloud's own messaging,
+database and monitoring services -- none of it built in, all of it attached where a deployment asks for it,
+so a deployment that is not on Amazon carries none of it.<br>
+[More Details: v1.2.14 README](https://github.com/mir0n-pro/esquire.services/tree/release/v1.2.14?tab=readme-ov-file#project-structure)
 
 ### v1.2.13 — complete (08/27/2026)
 
@@ -133,8 +113,8 @@ UI library, and frontend all built, connected, and tested as one working system.
 
 | Repository | Milestone Reports |
 |---|---|
-| **esquire.services**| - [v1.2.14 Milestone Report](doc/reports/report_v1.2.14.md)<br/>- [v1.2.13 Milestone Report](doc/reports/report_v1.2.13.md)<br/>- [v1.2.12 Milestone Report](doc/reports/report_v1.2.12.md)<br/>- [v1.2.11 Milestone Report](doc/reports/report_v1.2.11.md)<br/>- [v1.2.10 Milestone Report](doc/reports/report_v1.2.10.md)<br/>- [v1.2.9 Milestone Report](doc/reports/report_v1.2.9.md)<br/>- [v1.2.8 Milestone Report](doc/reports/report_v1.2.8.md)<br/>- [v1.2.7 Milestone Report](doc/reports/report_v1.2.7.md)<br/>- [v1.2.6 Milestone Report](doc/reports/report_v1.2.6.md)<br/>- [v1.2.5 Milestone Report](doc/reports/report_v1.2.5.md)<br/>- [v1.2.4 Milestone Report](doc/reports/report_v1.2.4.md)<br/>- [v1.2.3 Milestone Report](doc/reports/report_v1.2.3.md)<br/>- [v1.2.2 Milestone Report](doc/reports/report_v1.2.2.md)                                                                                                                                                                                  |
-| **esquire.explorer**| - [v1.2.14 Milestone Report](https://github.com/mir0n-pro/esquire.explorer/blob/develop/doc/reports/report_v1.2.14.md)<br/>- [v1.2.13 Milestone Report](https://github.com/mir0n-pro/esquire.explorer/blob/develop/doc/reports/report_v1.2.13.md)<br/>- [v1.2.12 Milestone Report](https://github.com/mir0n-pro/esquire.explorer/blob/develop/doc/reports/report_v1.2.12.md)<br/>- [v1.2.11 Milestone Report](https://github.com/mir0n-pro/esquire.explorer/blob/develop/doc/reports/report_v1.2.11.md)<br/>- [v1.2.10 Milestone Report](https://github.com/mir0n-pro/esquire.explorer/blob/develop/doc/reports/report_v1.2.10.md)<br/>- [v1.2.9 Milestone Report](https://github.com/mir0n-pro/esquire.explorer/blob/develop/doc/reports/report_v1.2.9.md)<br/>- [v1.2.8 Milestone Report](https://github.com/mir0n-pro/esquire.explorer/blob/develop/doc/reports/report_v1.2.8.md)<br/>- [v1.2.7 Milestone Report](https://github.com/mir0n-pro/esquire.explorer/blob/develop/doc/reports/report_v1.2.7.md)<br/>- [v1.2.6 Milestone Report](https://github.com/mir0n-pro/esquire.explorer/blob/develop/doc/reports/report_v1.2.6.md)<br/>- [v1.2.5 Milestone Report](https://github.com/mir0n-pro/esquire.explorer/blob/develop/doc/reports/report_v1.2.5.md)<br/>- [v1.2.4 Milestone Report](https://github.com/mir0n-pro/esquire.explorer/blob/develop/doc/reports/report_v1.2.4.md)<br/>- [v1.2.3 Milestone Report](https://github.com/mir0n-pro/esquire.explorer/blob/develop/doc/reports/report_v1.2.3.md)<br/>- [v1.2.2 Milestone Report](https://github.com/mir0n-pro/esquire.explorer/blob/develop/doc/reports/report_v1.2.2.md) |
-| **esquire.ui.lib**| - [v1.2.11 Release Report](https://github.com/mir0n-pro/esquire.ui.lib/blob/develop/doc/reports/report_v1.2.11.md)<br/> - [v1.2.3 Release Report](https://github.com/mir0n-pro/esquire.ui.lib/blob/develop/doc/reports/report_v1.2.3.md)<br/> - [v1.2.2 Release Report](https://github.com/mir0n-pro/esquire.ui.lib/blob/develop/doc/reports/report_2026_04_19_31750f3.md)                                                                                                                     |
+| **esquire.services**| - [v1.2.15 Milestone Report](doc/reports/report_v1.2.15.md)<br/>- [v1.2.14 Milestone Report](doc/reports/report_v1.2.14.md)<br/>- [v1.2.13 Milestone Report](doc/reports/report_v1.2.13.md)<br/>- [v1.2.12 Milestone Report](doc/reports/report_v1.2.12.md)<br/>- [v1.2.11 Milestone Report](doc/reports/report_v1.2.11.md)<br/>- [v1.2.10 Milestone Report](doc/reports/report_v1.2.10.md)<br/>- [v1.2.9 Milestone Report](doc/reports/report_v1.2.9.md)<br/>- [v1.2.8 Milestone Report](doc/reports/report_v1.2.8.md)<br/>- [v1.2.7 Milestone Report](doc/reports/report_v1.2.7.md)<br/>- [v1.2.6 Milestone Report](doc/reports/report_v1.2.6.md)<br/>- [v1.2.5 Milestone Report](doc/reports/report_v1.2.5.md)<br/>- [v1.2.4 Milestone Report](doc/reports/report_v1.2.4.md)<br/>- [v1.2.3 Milestone Report](doc/reports/report_v1.2.3.md)<br/>- [v1.2.2 Milestone Report](doc/reports/report_v1.2.2.md)                                                                                                                                                                                  |
+| **esquire.explorer**| - [v1.2.15 Milestone Report](https://github.com/mir0n-pro/esquire.explorer/blob/develop/doc/reports/report_v1.2.15.md)<br/>- [v1.2.14 Milestone Report](https://github.com/mir0n-pro/esquire.explorer/blob/develop/doc/reports/report_v1.2.14.md)<br/>- [v1.2.13 Milestone Report](https://github.com/mir0n-pro/esquire.explorer/blob/develop/doc/reports/report_v1.2.13.md)<br/>- [v1.2.12 Milestone Report](https://github.com/mir0n-pro/esquire.explorer/blob/develop/doc/reports/report_v1.2.12.md)<br/>- [v1.2.11 Milestone Report](https://github.com/mir0n-pro/esquire.explorer/blob/develop/doc/reports/report_v1.2.11.md)<br/>- [v1.2.10 Milestone Report](https://github.com/mir0n-pro/esquire.explorer/blob/develop/doc/reports/report_v1.2.10.md)<br/>- [v1.2.9 Milestone Report](https://github.com/mir0n-pro/esquire.explorer/blob/develop/doc/reports/report_v1.2.9.md)<br/>- [v1.2.8 Milestone Report](https://github.com/mir0n-pro/esquire.explorer/blob/develop/doc/reports/report_v1.2.8.md)<br/>- [v1.2.7 Milestone Report](https://github.com/mir0n-pro/esquire.explorer/blob/develop/doc/reports/report_v1.2.7.md)<br/>- [v1.2.6 Milestone Report](https://github.com/mir0n-pro/esquire.explorer/blob/develop/doc/reports/report_v1.2.6.md)<br/>- [v1.2.5 Milestone Report](https://github.com/mir0n-pro/esquire.explorer/blob/develop/doc/reports/report_v1.2.5.md)<br/>- [v1.2.4 Milestone Report](https://github.com/mir0n-pro/esquire.explorer/blob/develop/doc/reports/report_v1.2.4.md)<br/>- [v1.2.3 Milestone Report](https://github.com/mir0n-pro/esquire.explorer/blob/develop/doc/reports/report_v1.2.3.md)<br/>- [v1.2.2 Milestone Report](https://github.com/mir0n-pro/esquire.explorer/blob/develop/doc/reports/report_v1.2.2.md) |
+| **esquire.ui.lib**| - [v1.2.15 Release Report](https://github.com/mir0n-pro/esquire.ui.lib/blob/develop/doc/reports/report_v1.2.15.md)<br/> - [v1.2.11 Release Report](https://github.com/mir0n-pro/esquire.ui.lib/blob/develop/doc/reports/report_v1.2.11.md)<br/> - [v1.2.3 Release Report](https://github.com/mir0n-pro/esquire.ui.lib/blob/develop/doc/reports/report_v1.2.3.md)<br/> - [v1.2.2 Release Report](https://github.com/mir0n-pro/esquire.ui.lib/blob/develop/doc/reports/report_2026_04_19_31750f3.md)                                                                                                                     |
 | **esquire.db.seed**| - [v1.2.12 Milestone Report](https://github.com/mir0n-pro/esquire.db.seed/blob/develop/doc/reports/report_v1.2.12.md)<br/> - [v1.2.11 Milestone Report](https://github.com/mir0n-pro/esquire.db.seed/blob/develop/doc/reports/report_v1.2.11.md)<br/> - [v1.2.10 Milestone Report](https://github.com/mir0n-pro/esquire.db.seed/blob/develop/doc/reports/report_v1.2.10.md)<br/> - [v1.2.9 Milestone Report](https://github.com/mir0n-pro/esquire.db.seed/blob/develop/doc/reports/report_v1.2.9.md)<br/> - [v1.2.8 Milestone Report](https://github.com/mir0n-pro/esquire.db.seed/blob/develop/doc/reports/report_v1.2.8.md)<br/> - [v1.2.7 Milestone Report](https://github.com/mir0n-pro/esquire.db.seed/blob/develop/doc/reports/report_v1.2.7.md)<br/> - [v1.2.4 Milestone Report](https://github.com/mir0n-pro/esquire.db.seed/blob/develop/doc/reports/report_v1.2.4.md)<br/> - [v1.2.2 Milestone Report](https://github.com/mir0n-pro/esquire.db.seed/blob/develop/doc/reports/report_v1.2.2.md)                                                                                                                          |
 

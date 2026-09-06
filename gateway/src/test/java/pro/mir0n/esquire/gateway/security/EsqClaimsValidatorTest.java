@@ -12,8 +12,9 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * The gateway must refuse at the door exactly what JwtClaimsExtractionFilter refuses at the service door:
- * a subject, an entity id, a root path and at least one realm role.
+ * The gateway refuses a token that carries no Esquire IDENTITY -- a subject, an entity id and a root path.
+ * Roles are not identity: a token naming a real user who holds none is accepted here and refused, if it
+ * must be, by the route rules, which answer 403 rather than 401.
  */
 class EsqClaimsValidatorTest {
 
@@ -66,21 +67,21 @@ class EsqClaimsValidatorTest {
     }
 
     @Test
-    @DisplayName("no realm_access at all is refused")
+    @DisplayName("no realm_access at all still passes -- the identity is whole, the rights are the route's question")
     void noRealmAccess() {
         Jwt jwt = Jwt.withTokenValue("t").header("alg", "RS256").subject("kc-subject")
                 .claim(EsqConstants.JWT_CLAIM_ENTITY_ID, "42")
                 .claim(EsqConstants.JWT_CLAIM_ENTITY_ROOTPATH, "1.2.")
                 .build();
-        assertThat(validator.validate(jwt).hasErrors()).isTrue();
+        assertThat(validator.validate(jwt).hasErrors()).isFalse();
     }
 
     @Test
-    @DisplayName("an empty role list is refused")
+    @DisplayName("an empty role list still passes, so the refusal can be a 403 that names the account")
     void emptyRoles() {
         Jwt jwt = token().claim(EsqConstants.JWT_CLAIM_REALM_ACCESS,
                 Map.of(EsqConstants.JWT_CLAIM_REALM_ACCESS_ROLES, List.of())).build();
-        assertThat(validator.validate(jwt).hasErrors()).isTrue();
+        assertThat(validator.validate(jwt).hasErrors()).isFalse();
     }
 
     @Test
