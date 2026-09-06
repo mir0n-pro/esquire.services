@@ -8,6 +8,8 @@
  *  History:
  * 08/24/2026 mir0n  created: the gateway refuses a token that carries no Esquire identity -- the same
  *                   four claims the services' JwtAuthenticationFilter demands, checked at the door
+ * 09/05/2026 mir0n  v1.2.15 -- validates the identity claims only: the realm-role check and holdsRealmRole()
+ *                   are gone, and the refusal log drops the realmRole field
  */
 package pro.mir0n.esquire.gateway.security;
 
@@ -19,9 +21,6 @@ import org.springframework.security.oauth2.core.OAuth2TokenValidator;
 import org.springframework.security.oauth2.core.OAuth2TokenValidatorResult;
 import org.springframework.security.oauth2.jwt.Jwt;
 import pro.mir0n.esquire.common.EsqConstants;
-
-import java.util.List;
-import java.util.Map;
 
 /**
  * Requires the Esquire identity claims on a token the gateway has already validated.
@@ -41,31 +40,17 @@ public class EsqClaimsValidator implements OAuth2TokenValidator<Jwt> {
         String subject  = token.getSubject();
         String uid      = token.getClaimAsString(EsqConstants.JWT_CLAIM_ENTITY_ID);
         String rootPath = token.getClaimAsString(EsqConstants.JWT_CLAIM_ENTITY_ROOTPATH);
-        boolean roleHeld = holdsRealmRole(token);
 
-        if (isBlank(subject) || isBlank(uid) || isBlank(rootPath) || !roleHeld) {
+        if (isBlank(subject) || isBlank(uid) || isBlank(rootPath)) {
             log.warn("EsqClaimsValidator: token refused -- no Esquire identity");
             // WHICH claim is absent, not the claim set -- the token payload belongs in the develop tier only.
-            devLog.warn("EsqClaimsValidator: refused -- sub={}, {}={}, {}={}, realmRole={}",
+            devLog.warn("EsqClaimsValidator: refused -- sub={}, {}={}, {}={}",
                     !isBlank(subject),
                     EsqConstants.JWT_CLAIM_ENTITY_ID, !isBlank(uid),
-                    EsqConstants.JWT_CLAIM_ENTITY_ROOTPATH, !isBlank(rootPath),
-                    roleHeld);
+                    EsqConstants.JWT_CLAIM_ENTITY_ROOTPATH, !isBlank(rootPath));
             ret = OAuth2TokenValidatorResult.failure(NO_IDENTITY);
         } else {
             ret = OAuth2TokenValidatorResult.success();
-        }
-        return ret;
-    }
-
-    private static boolean holdsRealmRole(Jwt token) {
-        boolean ret = false;
-        Map<String, Object> realmAccess = token.getClaimAsMap(EsqConstants.JWT_CLAIM_REALM_ACCESS);
-        if (realmAccess != null) {
-            Object roles = realmAccess.get(EsqConstants.JWT_CLAIM_REALM_ACCESS_ROLES);
-            if (roles instanceof List) {
-                ret = !((List) roles).isEmpty();
-            }
         }
         return ret;
     }

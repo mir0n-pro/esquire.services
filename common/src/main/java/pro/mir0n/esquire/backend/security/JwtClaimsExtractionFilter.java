@@ -15,6 +15,8 @@
  *                   claims), sets EsqContextHolder + MDC uid; both cleared in a finally
  * 08/27/2026 mir0n  v1.2.13 -- sendErrorResponse() writes through ProblemDetailWriter; the per-call
  *                   ObjectMapper is gone
+ * 09/05/2026 mir0n  v1.2.15 -- shouldNotFilter() adds /esq-kinds, the path both security configs
+ *                   already permitAll
  */
 
 package pro.mir0n.esquire.backend.security;
@@ -73,7 +75,8 @@ public class JwtClaimsExtractionFilter extends OncePerRequestFilter {
         return path.startsWith("/api/public/")
                 || path.startsWith("/swagger-ui/")
                 || path.startsWith("/actuator/health")
-                || path.startsWith("/v3/api-docs");
+                || path.startsWith("/v3/api-docs")
+                || path.equals("/esq-kinds");
     }
 
     @Override

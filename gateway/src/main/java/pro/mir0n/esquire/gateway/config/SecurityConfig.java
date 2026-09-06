@@ -31,6 +31,7 @@
  *                   AND the TREE realm role); comment on why there must be exactly one /esq* rule (first-match-wins)
  * 08/26/2026 mir0n  the JWT decoder carries the default validators through DelegatingOAuth2TokenValidator, and the
  *                   JWE-aware decoder and token-relay wiring leave this class
+ * 09/05/2026 mir0n  v1.2.15 -- exceptionHandling() names EsqAccessDeniedHandler as the access-denied handler
  */
 package pro.mir0n.esquire.gateway.config;
 
@@ -61,6 +62,7 @@ import org.springframework.security.web.server.context.NoOpServerSecurityContext
 import org.springframework.web.reactive.function.client.WebClient;
 import pro.mir0n.esquire.common.EsqConstants;
 import pro.mir0n.esquire.gateway.lab.JweAwareJwtDecoder;
+import pro.mir0n.esquire.gateway.security.EsqAccessDeniedHandler;
 import pro.mir0n.esquire.gateway.security.EsqClaimsValidator;
 import pro.mir0n.esquire.gateway.lab.tokenrelay.ITokenRelayClient;
 import pro.mir0n.esquire.gateway.lab.tokenrelay.ITokenRelayVariant;
@@ -308,6 +310,7 @@ public class SecurityConfig {
                     .pathMatchers("/esq*").hasRole("TREE")  // authenticated + TREE realm role
                     .anyExchange().permitAll()
                 )
+                .exceptionHandling(spec -> spec.accessDeniedHandler(new EsqAccessDeniedHandler()))
                 // Wire KeycloakRoleConverter (realm_access.roles -> ROLE_<role>) so hasRole("TREE") above can
                 // actually match; the default converter emits SCOPE_* only and ROLE_TREE would never be present.
                 .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwtSpec ->

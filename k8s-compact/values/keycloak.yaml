@@ -3,7 +3,7 @@
 # X-Forwarded-* headers and renders absolute URLs under esquire.localhost.
 # Mirrors OKE shape (k8s-oci/values/keycloak.yaml + ingress-nginx in front).
 image:
-  tag: "v1.2.13-2608.2320"
+  tag: "v1.2.15-2609.0523"
 
 service:
   type: ClusterIP

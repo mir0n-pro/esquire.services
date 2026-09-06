@@ -1,5 +1,15 @@
 Esquire Gateway Microservice
 
+09/05/2026 mir0n  v1.2.15 -- a refusal that names the caller
+security.EsqAccessDeniedHandler  (new)
+  - created: writes a ProblemDetail on a refused route, naming the caller from preferred_username,
+    esq_uid or sub, in place of Spring's empty 403
+security.EsqClaimsValidator
+  - validates the identity claims only: the realm-role check and holdsRealmRole() are gone, and the
+    refusal log drops the realmRole field
+config.SecurityConfig
+  - exceptionHandling() names EsqAccessDeniedHandler as the access-denied handler
+
 08/26/2026 mir0n  v1.2.13 -- the decoder validators, and metrics that ask first
 config.SecurityConfig
   - the JWT decoder carries the default validators through DelegatingOAuth2TokenValidator, and the
