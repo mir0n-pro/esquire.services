@@ -239,6 +239,64 @@ that exact path in that exact environment.
 Either way the aim is the same: adding an environment stops being a realm edit, an image rebuild and a
 data wipe.
 
+### CD-29 -- A deploy that ships new seed content, and silently keeps the old
+
+**Today:** the database seed and the sign-in realm both travel inside images, and both are applied only to
+empty storage. Postgres runs `/docker-entrypoint-initdb.d/init.sh` -- the `create/all.sql` + `fill/all.sql`
+pair -- only when PGDATA is empty; KeyCloak skips `--import-realm` when the realm is already there. The
+storage outlives the deploy in every target: a `volumeClaimTemplate` PVC on Kubernetes, a named volume on
+docker. So a deploy can pull a new image, report success, show a Running pod carrying the new tag, and serve
+the previous seed and the previous realm.
+
+**What it costs, measured (2026-09-06):** an OKE release shipped a corrected realm and kept the old one. The
+wipe that followed removed the KeyCloak accounts while the database still held `au_connect_flg='Y'`, which
+strands every connected user -- a state `kc-reconcile` reports and never repairs, one Connect off/on per user
+to undo. The same shape appeared several times in one afternoon on the local targets, each time only visible
+because the realm file inside the running pod was read directly.
+
+**Why it is weak:** nothing in the deploy path compares what the image carries against what the volume holds,
+so the failure is green. It is found by walking the exact path that the change was meant to fix.
+
+**The information already exists to detect it.** The database records its own version --
+`esq_org_par.DB_VERSION`, seeded from `fill/root.sql` -- and every Esquire-built infra image carries its
+release stamp as the label `pro.mir0n.esquire.pin`. An image labelled `v1.2.15-...` over a database reporting
+`1.2.12` is a mismatch a script can state in one line. KeyCloak carries no equivalent marker; the realm's user
+count against the import is the available stand-in.
+
+**Two parts:**
+- a reseed switch on the bring-up scripts, separate from the infra-image flag: never a default, naming the
+  target it is about to clear, dropping BOTH volumes in one action, and asserting afterwards that the database
+  reports the seed's version and the realm holds the seeded logins. Both together is the point -- dropping
+  either one alone produces exactly the drift described above.
+- a version comparison on EVERY deploy, which destroys nothing and prints the mismatch when the volume
+  predates the image.
+
+The second part is the one that removes the silence; the first only makes the fix a single command.
+
+**What removes the hand-work.** The schema already has this split: a fresh database gets `create` + `fill`,
+a running one gets a patch, and `DB_VERSION` says which it needs. Seed data and the realm have only the
+initial load, so clearing the storage is the one lever that applies them -- which is why a change of a few
+values ends as a wipe, or as an upgrade done by hand. Giving both the same split makes a running deployment
+upgradable in place.
+
+This release is the example. On a fresh database it is a reseed; on a running one it is five statements:
+
+```sql
+DELETE FROM esq_usr_role WHERE ur_role_pk IN (9, 10);   -- roles handed out by hand while testing
+DELETE FROM esq_role_et  WHERE rt_role_pk IN (9, 10);
+DELETE FROM esq_role     WHERE role_pk    IN (9, 10);
+UPDATE esq_auth    SET au_connect_flg = 'Y' WHERE au_usr_pk = 10;
+UPDATE esq_org_par SET opr_value = '1.2.15' WHERE opr_org_pk = 1 AND opr_par_name = 'DB_VERSION';
+```
+
+The first line is the part a generated delta would miss: the two roles were added to exercise the access
+profile dialog, so a database that has been used may carry assignments the seed never had. The merchant
+`esq_rootpath` needs no statement at all -- the database always held `1.2.8.`; the realm was the wrong side.
+
+The realm side has the same shape: that `esq_rootpath` and the removal of `esq-rest` are a few admin-API
+calls against a running KeyCloak, with the import file staying the truth for a fresh install. Where the data
+is disposable, wiping remains the shortcut.
+
 ## Documentation / diagrams
 
 ### CD-3 -- Detailed collaboration / sequence diagrams for every async workflow

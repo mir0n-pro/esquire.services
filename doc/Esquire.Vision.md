@@ -425,7 +425,7 @@ whom.
 
 **What it is worth, measured.** On the cloud deployment the same load rig turns **27% more work** with
 observability off and **42% more** with it fully on, the whole application uses **1.5 GiB** of memory under
-load at one replica each, and the fleet is **7 pods instead of 13**. The four running-stack suites pass on
+load at one replica each, and the cloud fleet is **8 pods instead of 14**. The four running-stack suites pass on
 every shape without a change to any of them -- which is the real result, since a suite that needed editing
 would be reporting a difference the framework promises is not there.
 

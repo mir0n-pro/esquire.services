@@ -91,7 +91,7 @@ The Esquire framework spans Java microservices, a Node.js BFF, an Angular SPA + 
 
 ## Running-stack integration matrices — Bash-driven over the running stack
 
-Sits right beside the Haubergeon harness above — **same running stack, different question.** Haubergeon asks *how fast / does it survive concurrency*; these matrices ask *did the data land where the configuration says it should*. They reuse ONE hauberk workload (`EntitySmoke`) as the probe and assert the result in the database across a grid of configurations. (This is the tier that can look like a hauberk duplicate but is not: Haubergeon = 23 Gatling Simulations under `explorer/hauberk`; this = ~27 Bash-orchestrated **config cells** under `services/test`.)
+Sits right beside the Haubergeon harness above — **same running stack, different question.** Haubergeon asks *how fast / does it survive concurrency*; these matrices ask *did the data land where the configuration says it should*. They reuse ONE hauberk workload (`EntitySmoke`) as the probe and assert the result in the database across a grid of configurations. (This is the tier that can look like a hauberk duplicate but is not: Haubergeon = 22 Gatling Simulations under `explorer/hauberk`; this = ~27 Bash-orchestrated **config cells** under `services/test`.)
 
 **Used in:** `services/test/` — three scenario sets: `audit-smoke/`, `health-smoke/` and `freshness-guard/`.
 

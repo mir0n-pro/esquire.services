@@ -1,6 +1,13 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v1.2.15-2609.0618  v1.2.15 -- the seeded logins match the database
+    :Doc:         doc\Esquire.ContinuingDev.md
+    Components:   keycloak,
+                  postgres,
+                  k8s-compact,
+                  k8s
+
 v1.2.15-2609.0601  v1.2.15 -- signing out on every deployment address
     :Fix:         signing out completes on the local Kubernetes and AWS addresses
     :Config:      every deployment address the sign-in server accepts for signing in it now also

@@ -132,12 +132,12 @@ in what each trims for its purpose:
 
 | | docker sandbox | local k8s | cloud OCI (OKE) | cloud AWS (EKS) |
 |---|---|---|---|---|
-| **Instances / service** | 1 | x2 (StatefulSet) | x2, spread across 3 app nodes | — |
-| **Redundancy** | none | rehearsed — x2 on ONE node | real — x2 across nodes / ADs | — |
-| **PostgreSQL** | baked-seed container (same image as k8s; host DB / host Oracle optional) | baked-seed container | OCI Postgres — `ALTER`-migrated, never reseeded | baked-seed container on a gp3 volume |
+| **Instances / service** | 1 | x2 (StatefulSet) | x2, spread across 3 app nodes | x1 -- one node |
+| **Redundancy** | none | rehearsed — x2 on ONE node | real — x2 across nodes / ADs | none — x1 on one node |
+| **PostgreSQL** | baked-seed container (same image as k8s; host DB / host Oracle optional) | baked-seed container | baked-seed container on an `oci-bv` volume | baked-seed container on a gp3 volume |
 | **Messaging** | ActiveMQ (Kafka / Redis / LocalStack AWS available) | ActiveMQ | ActiveMQ | **Amazon SNS** — no broker of our own |
 | **Audit** | bus `audit-c` (ActiveMQ) &rarr; `auKeep` | bus `audit-c` &rarr; `auKeep` | DB triggers — `audit-off`, **no `auKeep` pod** | DB triggers — `audit-off`, **no `auKeep` pod** |
-| **BFF** | 1 | redundant-capable (Redis present) | 1 (no HA Redis yet) | no Redis |
+| **BFF** | 1 | x2 -- Redis present | x2 -- Redis present, single instance | 1 -- no Redis |
 | **Observability** | on demand (section 8) | on demand (section 8) | on demand, **transient** (section 7/8) | none in this tree; both arms live in `k8s-aws` |
 | **Purpose** | fast dev / test | correctness rehearsal of the deploy shape | live public demo | proof Esquire runs on AWS |
 
@@ -159,10 +159,11 @@ in what each trims for its purpose:
   rides Amazon SNS, the audit is DB triggers, and the database is the same baked-seed Postgres image
   every other target uses. It carries no observability node group and no broker of its own, because
   nothing it is asked to answer needs them.
-- **OKE keeps the BFF at a single instance** because the BFF holds the login session in **Redis**,
-  and HA of the browser tier IS HA of Redis. OKE has no HA Redis yet, and scaling the BFF against a
-  single shared Redis only moves the failure (that Redis is then the SPOF). So the BFF stays at 1
-  until HA Redis exists. Local k8s DOES run a Redis, so there the BFF can be redundant.
+- **The BFF runs two replicas wherever the shared session store is on**, because it holds the login
+  session in **Redis**: with `REDIS_URL` set, either replica authenticates any cookie. Both local k8s
+  and OKE run a Redis and both run the BFF at x2. That Redis is a single instance in both, so HA of the
+  browser tier is still HA of Redis -- the store is the remaining point of failure, and losing it logs
+  everyone out however many replicas are running.
 
 Full HA reasoning and the OKE-vs-local comparison: `Esquire.HighAvailability.md`.
 

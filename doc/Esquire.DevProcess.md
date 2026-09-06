@@ -300,3 +300,87 @@ same information — *what* was decided, *why*, how it was *verified*, and *wher
 but does so **inline with the work**: the planning/triage disposition, the durable Q&A rationale, and
 the design-doc mechanism together form a living decision trail that is never detached from the code,
 tests, and docs that carried the decision out. The process *is* the record.
+
+---
+
+## 10. The same process in Scrum terms
+
+Esquire is built by one maintainer across **four repositories** -- `services` (the backend services and the
+project documentation), `explorer` (the frontend, the BFF, the e2e specs and the hauberk load harness),
+`esquire.ui.lib` (the shared component library) and `db.seed` (the schema and its seed, in a Postgres and an
+Oracle branch). The pipeline above is Scrum-shaped. This section says which part is which -- and which parts
+of Scrum are deliberately not here.
+
+The long version -- the same mapping with the four repositories' own numbers behind every claim, sprint
+by sprint -- is [Esquire.Scrum.Process.md](Esquire.Scrum.Process.md).
+
+### The mapping
+
+| Scrum | Esquire | Where it lives |
+|---|---|---|
+| Product backlog | the continuing-development backlog -- numbered `CD-n` items grouped by area; a number is never reused and a finished item stays as a stub | `doc/Esquire.ContinuingDev.md` |
+| Backlog refinement | triage: every item gets a recorded disposition -- accept / reject / postpone -- with its rationale | the sprint tasks doc, then `Esquire.Q&A.md` |
+| Sprint | one **Micro** version, `v1.2.N` | the version scheme (7) |
+| Sprint goal | the sprint headline -- one theme, named when the sprint opens | `doc/v1.2.x.Planning.md` |
+| Sprint backlog | the tasks doc: `T1..Tn`, opened by a list of settled decisions | `doc/plans/tasks12NN.md` |
+| Sprint planning | writing that tasks doc | the same file |
+| Definition of Done | the seven-step per-phase cycle (3) | this doc |
+| Increment | a tag in every repository that had work, and the cloud demo moved onto it | `v1.2.N`, then 8 |
+| Sprint review | release finalization (8) -- the increment is deployed and can be shown running on a public address | 8, 8a |
+| Retrospective | the review rounds and the fix-what-we-noted pass; what they turn up becomes new backlog items | tasks doc -> `Esquire.ContinuingDev.md` |
+| Impediment log | the same backlog -- an obstacle is filed as a numbered item, not carried in the head | `doc/Esquire.ContinuingDev.md` |
+| Daily scrum | none -- see the deviations below | -- |
+
+### One person holding three roles
+
+Product Owner, Scrum Master and Developer are the same person, so nothing is negotiated between them. What
+replaces the negotiation is that **each role's decision is written down before it is acted on**:
+
+- the **Product Owner** decision is the sprint headline and the scope list -- only what the tasks doc names is
+  in the sprint, and nothing is pulled in because it happened to be nearby;
+- the **Scrum Master** decision is this document -- the cycle, the gates, the touch-list -- changed
+  deliberately, not per sprint;
+- the **Developer** decision is the code, and it carries its rationale along the same trail (2).
+
+A written decision can be re-read and contradicted later. That is the guard against one person quietly moving
+the goal to meet the work.
+
+### One sprint, four repositories
+
+A sprint is defined against the **product**, not against a repository. A single item often touches three of the
+four -- a new field is a `db.seed` change, a service change and an explorer change -- and what Scrum would solve
+with a shared sprint goal across teams is solved here by one version number:
+
+- all four repositories run the **same branch flow under the same sprint name**: work on `pending-v1.2.N`, PR to
+  `develop`, tag `v1.2.N`, archive `release/v1.2.N`;
+- an item is **not done until every repository it touched is documented and promoted** -- the commit-prep step
+  diffs each repository against its own mirror, so "documented the one I edited last" does not pass;
+- the repositories are **promoted together**, which is the condition the cloud pipeline rests on when it builds
+  a deployment from `develop` in all of them (7b);
+- a repository the sprint did not touch releases nothing. `esquire.ui.lib` moves in perhaps one sprint in four,
+  and that is a normal outcome, not a missing deliverable.
+
+### Definition of Done, stated plainly
+
+An item is done when, in **every** repository it touched: the code and its configuration are in; unit and
+integration tests are green; the change has been verified live on the docker stack; e2e and the smokes are green
+on docker **and** on local Kubernetes; the history header, `changes.txt` and `release_notes.txt` entries are
+written; and it is committed on the sprint branch. The pipeline then deploys it, and it is verified again on the
+deployed target.
+
+"It compiles and the tests passed" is not done here. Most of that list is about seeing the change work somewhere
+it was not written.
+
+### Where this is deliberately not Scrum
+
+- **No time-box.** A sprint ends when its scope is done, not on a date. Recent ones ran between five days and a
+  little over two weeks. A fixed box would be paid for out of the verification, which is the part worth keeping.
+- **No estimates, no velocity, no points.** With one developer the number would measure nothing the finished
+  tasks doc does not already say.
+- **No daily scrum.** Its job -- knowing what changed and what is blocked -- is done by the tasks doc, and by the
+  rule that the state of the work is read from the diff against the mirror rather than from memory.
+- **Sprints can run in parallel.** In continuous-development mode more than one pending line can be open at once,
+  each against its own target and finalized on its own schedule (7). That is closer to Kanban than to Scrum, and
+  it is the shape support work actually has.
+- **The backlog is not ranked.** Items are grouped by area and picked when a sprint opens; there is no maintained
+  priority order, because the person picking is the person who wrote them.

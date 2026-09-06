@@ -255,8 +255,9 @@ form.
   first; that pod's `rod-id` simply leaves -- the entity topic loses a peer, and its unacknowledged R&R
   requests are redelivered to a surviving copy (competing consumers). A `preStop` drain keeps an in-flight
   reply from being dropped.
-- **The BFF autoscales only with the shared session store on** (`REDIS_URL` set) -- already true on local k8s.
-  On OKE the BFF stays at 1 until HA Redis exists (section 7), so do not autoscale the BFF there yet.
+- **The BFF autoscales only with the shared session store on** (`REDIS_URL` set) -- true on local k8s and on
+  OKE. That Redis is a single instance in both (section 7), so the store is a shared point of failure: losing
+  it logs everyone out however many BFF replicas are running.
 - **Backends do not autoscale.** PostgreSQL, the broker, KeyCloak, and Redis are fixed single instances
   (section 7); scaling the app tier only raises load on them, so backend capacity / HA -- not the autoscaler --
   is the real ceiling.
@@ -717,7 +718,7 @@ HA here is a **deployment choice the operator makes**, not bundled by Esquire.
 |---|---|---|---|---|
 | **PostgreSQL** | all authoritative entity / account state | single instance | **Yes -- total** | OCI **managed** Postgres with a standby (OKE), or a Postgres operator (CloudNativePG / Patroni) with streaming replication + automatic failover |
 | **Message bus broker** | the entity topic + the KC R&R queue (over the bus; ActiveMQ today) | single broker instance | **Yes** | put the bound provider in its HA mode (ActiveMQ **shared-store master/slave** / Artemis HA), or bind the bus to another HA-capable provider via the SPI (ActiveMQ / Redis / Kafka drivers ship) -- no service-code change |
-| **Redis** | BFF login sessions (+ audit stream) | single instance, **local k8s only** | **Yes** (lose it = everyone logged out) | **Redis Sentinel** or **Redis Cluster**, or OCI managed Redis. Required before the BFF is HA -- a shared store that is itself a SPOF only moves the failure |
+| **Redis** | BFF login sessions (+ audit stream) | single instance, on **local k8s and OKE** | **Yes** (lose it = everyone logged out) | **Redis Sentinel** or **Redis Cluster**, or OCI managed Redis. Required before the BFF is HA -- a shared store that is itself a SPOF only moves the failure |
 | **KeyCloak** | identity / login | single replica | **Yes** (login outage) | DB-backed KC at **>= 2 replicas** with a clustered Infinispan cache, plus ingress **session affinity** for the login round-trip; shares the (HA) Postgres |
 | **ingress-nginx** | the front door | typically 1 controller (local) | **Yes** | **>= 2** controller replicas behind the cloud load balancer |
 
@@ -733,7 +734,7 @@ HA of Redis. The same logic applies to every service over Postgres and the broke
 |---|---|---|
 | Redundancy (N replicas, shared session) | Yes -- exercised | Yes |
 | Real node/AD failure tolerance | **No** (one failure domain) | **Yes**, once replicas are spread (3.2) + PDBs (3.3) |
-| Redis (BFF session store) | present | **not deployed** -- BFF stays at 1 replica until Redis (HA) is added |
+| Redis (BFF session store) | present | present -- single instance, so the BFF runs x2 on a store that is itself a SPOF (section 7) |
 | Stateful backend HA | single instances (fine for dev) | needs managed/clustered mode (section 7) |
 
 Local k8s is the **correctness rehearsal** for the deployment shape; it is not a stand-in for HA. OKE is where
@@ -747,10 +748,10 @@ The compact shape groups services into fewer programs -- **Mesnie** carries enyM
 **gateWard** the gateway and the tree cache. Redundancy is unchanged in kind: every program still runs N
 replicas, and every collaboration still survives losing one of them.
 
-What changes is the arithmetic. On OKE, classic is **13 pods** -- six services at x2 plus the BFF at 1 --
-and compact is **7**: Mesnie x2, gateWard x2, pacMan x2 and the BFF. The BFF stays a single replica in both,
-for the reason in section 7: no Redis on OKE, so the in-memory session store cannot be split. Infrastructure
-is untouched at three (Postgres, ActiveMQ, KeyCloak).
+What changes is the arithmetic. On OKE, classic is **14 pods** -- six services at x2 plus the BFF at x2 --
+and compact is **8**: Mesnie x2, gateWard x2, pacMan x2 and the BFF at x2. The BFF runs two replicas in both
+because the shared session store is on there (`REDIS_URL` points at the in-cluster Redis), so either replica
+authenticates any cookie. Infrastructure is four (Postgres, ActiveMQ, KeyCloak, Redis).
 
 Two consequences worth stating plainly:
 

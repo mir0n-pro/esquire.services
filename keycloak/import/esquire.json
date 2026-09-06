@@ -373,7 +373,6 @@
         }
       ],
       "security-admin-console": [],
-      "esq-rest": [],
       "admin-cli": [],
       "esq-kcMaster": [],
       "account-console": [],
@@ -669,7 +668,7 @@
           "8"
         ],
         "esq_rootpath": [
-          "1.2.7."
+          "1.2.8."
         ]
       },
       "enabled": true,
@@ -758,36 +757,6 @@
           "manage-realm"
         ]
       },
-      "notBefore": 0,
-      "groups": []
-    },
-    {
-      "id": "2ab86a74-419d-4999-ac73-27d088a49b2f",
-      "username": "service-account-esq-rest",
-      "firstName": "Mir",
-      "lastName": "On",
-      "email": "mir0n.the.programmer@gmail.com",
-      "emailVerified": false,
-      "attributes": {
-        "esq_uid": [
-          "4"
-        ],
-        "esq_rootpath": [
-          "1."
-        ]
-      },
-      "enabled": true,
-      "createdTimestamp": 1767747592964,
-      "totp": false,
-      "serviceAccountClientId": "esq-rest",
-      "credentials": [],
-      "disableableCredentialTypes": [],
-      "requiredActions": [],
-      "realmRoles": [
-        "SUPERVIZOR",
-        "default-roles-esquire",
-        "TREE"
-      ],
       "notBefore": 0,
       "groups": []
     },
@@ -1363,123 +1332,6 @@
       "authenticationFlowBindingOverrides": {},
       "fullScopeAllowed": true,
       "nodeReRegistrationTimeout": -1,
-      "defaultClientScopes": [
-        "web-origins",
-        "service_account",
-        "acr",
-        "openid",
-        "roles",
-        "profile",
-        "basic",
-        "email"
-      ],
-      "optionalClientScopes": [
-        "address",
-        "phone",
-        "organization",
-        "offline_access",
-        "microprofile-jwt"
-      ]
-    },
-    {
-      "id": "e45fede4-444c-4336-9396-7c81e336bef1",
-      "clientId": "esq-rest",
-      "name": "Esquire REST Client",
-      "description": "Esquire REST Client",
-      "rootUrl": "",
-      "adminUrl": "",
-      "baseUrl": "",
-      "surrogateAuthRequired": false,
-      "enabled": true,
-      "alwaysDisplayInConsole": false,
-      "clientAuthenticatorType": "client-secret",
-      "secret": "fZkNTPjEVSG1grrcXeGqeHpLSKTeVH3S",
-      "redirectUris": [
-        "/*"
-      ],
-      "webOrigins": [
-        "/*"
-      ],
-      "notBefore": 0,
-      "bearerOnly": false,
-      "consentRequired": false,
-      "standardFlowEnabled": false,
-      "implicitFlowEnabled": false,
-      "directAccessGrantsEnabled": false,
-      "serviceAccountsEnabled": true,
-      "publicClient": false,
-      "frontchannelLogout": false,
-      "protocol": "openid-connect",
-      "attributes": {
-        "request.object.signature.alg": "any",
-        "frontchannel.logout.session.required": "true",
-        "post.logout.redirect.uris": "+",
-        "oauth2.device.authorization.grant.enabled": "false",
-        "backchannel.logout.revoke.offline.tokens": "false",
-        "use.refresh.tokens": "true",
-        "realm_client": "false",
-        "oidc.ciba.grant.enabled": "false",
-        "backchannel.logout.session.required": "false",
-        "client_credentials.use_refresh_token": "false",
-        "require.pushed.authorization.requests": "false",
-        "request.object.encryption.enc": "any",
-        "dpop.bound.access.tokens": "false",
-        "id.token.as.detached.signature": "false",
-        "client.secret.creation.time": "1772080963",
-        "request.object.encryption.alg": "any",
-        "client.introspection.response.allow.jwt.claim.enabled": "false",
-        "standard.token.exchange.enabled": "false",
-        "client.use.lightweight.access.token.enabled": "false",
-        "request.object.required": "not required",
-        "access.token.header.type.rfc9068": "false",
-        "tls.client.certificate.bound.access.tokens": "false",
-        "acr.loa.map": "{}",
-        "display.on.consent.screen": "false",
-        "token.response.type.bearer.lower-case": "false"
-      },
-      "authenticationFlowBindingOverrides": {},
-      "fullScopeAllowed": true,
-      "nodeReRegistrationTimeout": -1,
-      "protocolMappers": [
-        {
-          "id": "b9b9afe9-fcf1-4361-b16a-00fbd17e5acf",
-          "name": "esq_uid_mapper",
-          "protocol": "openid-connect",
-          "protocolMapper": "oidc-usermodel-attribute-mapper",
-          "consentRequired": false,
-          "config": {
-            "aggregate.attrs": "false",
-            "introspection.token.claim": "false",
-            "multivalued": "false",
-            "userinfo.token.claim": "false",
-            "user.attribute": "esq_uid",
-            "id.token.claim": "false",
-            "lightweight.claim": "false",
-            "access.token.claim": "true",
-            "claim.name": "esq_uid",
-            "jsonType.label": "String"
-          }
-        },
-        {
-          "id": "61c8e830-cbc7-4dde-9db7-390ad792e47d",
-          "name": "esq_rootpath_mapper",
-          "protocol": "openid-connect",
-          "protocolMapper": "oidc-usermodel-attribute-mapper",
-          "consentRequired": false,
-          "config": {
-            "aggregate.attrs": "false",
-            "introspection.token.claim": "false",
-            "multivalued": "false",
-            "userinfo.token.claim": "false",
-            "user.attribute": "esq_rootpath",
-            "id.token.claim": "false",
-            "lightweight.claim": "false",
-            "access.token.claim": "true",
-            "claim.name": "esq_rootpath",
-            "jsonType.label": "String"
-          }
-        }
-      ],
       "defaultClientScopes": [
         "web-origins",
         "service_account",

@@ -17,7 +17,7 @@ image:
   # v1.2.13 on purpose: this image is PostgreSQL plus db.seed. It carries no Esquire
   # Java, so the v1.2.14 messaging change does not touch it and there is nothing to
   # rebuild for AWS.
-  tag: "v1.2.13-2608.2806"
+  tag: "v1.2.15-2609.0622"
   pullPolicy: IfNotPresent
 
 # gp3, because the in-tree AWS EBS CSI class is the only one that binds here: the

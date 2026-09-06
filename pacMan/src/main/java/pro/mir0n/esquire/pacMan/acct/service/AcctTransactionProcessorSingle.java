@@ -178,7 +178,7 @@ public class AcctTransactionProcessorSingle implements IAcctTransactionProcessor
             result[0] = postAcctTransaction(eek, id, fields, oper, skipValidation, rootPath, uid, correlationId, requestId, convRate, amtIncoming, ccyIncoming, pkTx, counterpartId);
             return null;
         });
-        devLog.debug("srvc: esquireCommandAcct(2): result:{}", result);
+        devLog.debug("srvc: esquireCommandAcct(2): result:{}", result[0]);
         return result[0];
     }
 

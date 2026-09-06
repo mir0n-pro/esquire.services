@@ -526,7 +526,7 @@ trail itself. The browser tier is its own program as always.
 
 Measured, not assumed: on the cloud deployment the same load rig turns **27% more work** with the watching
 switched off and **42% more** with metrics, logs and traces fully on, the whole application uses **1.5 GiB**
-of memory, and it runs on **7 pods instead of 13**. Every running-stack test suite passes on both shapes,
+of memory. The shape is **10 application pods instead of 16**. Every running-stack test suite passes on both shapes,
 unchanged.
 
 The cost is worth saying plainly: services that share a program restart together, scale together, and one
