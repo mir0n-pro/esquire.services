@@ -1,5 +1,11 @@
 mir0n java common frameworks -- pro.mir0n.utils
 
+10/11/2026 mir0n  v1.2.16 -- a cache read that does not take the value away
+concurrent.ExpiringCache
+  - peek(K): reads the value WITHOUT taking it away, with the same age check consume() applies.
+    consume() is hand-off semantics; a cache reads one entry many times over its life, and through
+    consume() every read after the first would be a miss
+
 08/26/2026 mir0n  v1.2.13 -- the queue-rig outcome seam, and the night-watch reaction
 concurrent.IQueueRig
   - outcome seam made symmetric: ISuccessListener + setSuccessListener; single-item only (a bulk worker

@@ -8,6 +8,7 @@
  *  History:
  * 05/15/2026 mir0n  created: JWT plus its cache expiry instant; lets TokenRelayCache do
  *                   HIT-vs-MISS decisions on isBefore() alone without reparsing exp.
+ * 10/11/2026 mir0n  v1.2.16 -- implements Comparable<ExpiringJwt>, ordered by expiresAt
  */
 package pro.mir0n.esquire.gateway.lab.tokenrelay;
 
@@ -19,4 +20,10 @@ import java.time.Instant;
  * {@code now + KC expires_in - safety_buffer}, so the cache only needs
  * to compare against {@code Instant.now()}.
  */
-public record ExpiringJwt(String jwt, Instant expiresAt) {}
+public record ExpiringJwt(String jwt, Instant expiresAt) implements Comparable<ExpiringJwt> {
+
+    @Override
+    public int compareTo(ExpiringJwt other) {
+        return expiresAt.compareTo(other.expiresAt());
+    }
+}

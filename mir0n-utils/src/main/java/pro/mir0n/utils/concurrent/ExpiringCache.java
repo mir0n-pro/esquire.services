@@ -11,6 +11,7 @@
  *                   consume() takes it away, storeIfGreater() parks only when the arrival compares greater
  *                   than what is there, in one atomic merge. The value type is Comparable, so the cache
  *                   needs no comparator and never learns what its callers order by.
+ * 10/11/2026 mir0n  v1.2.16 -- peek(K): reads the value WITHOUT taking it away
  */
 package pro.mir0n.utils.concurrent;
 
@@ -154,6 +155,17 @@ public class ExpiringCache<K, V extends Comparable<? super V>> {
         V ret = null;
         if (key != null) {
             Timestamped<V> e = entries.remove(key);
+            if (e != null && System.currentTimeMillis() - e.ts() <= ttlMs) {
+                ret = e.value();
+            }
+        }
+        return ret;
+    }
+
+    public V peek(K key) {
+        V ret = null;
+        if (key != null) {
+            Timestamped<V> e = entries.get(key);
             if (e != null && System.currentTimeMillis() - e.ts() <= ttlMs) {
                 ret = e.value();
             }

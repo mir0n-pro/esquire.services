@@ -44,8 +44,10 @@ check. The live demo runs on two clouds — **Oracle OKE** and **Amazon EKS**.
 
 ---
 > 
-> **v1.2.15 — complete (09/06/2026).** Several minor fixes in the **user activation** routine -- the parts
-> that were awkward to work through or left the operator guessing.
+> **v1.2.16 — complete (10/11/2026).** The landing page reads on a phone: the comparison table and
+> the header come down to the width there is, and the login button stays on the screen. On the server side
+> the token relay keeps its cached sign-in tokens in the framework's shared expiring cache instead of a map
+> of its own.
 > 
 > **Live at** [esquire.mir0n.pro](https://esquire.mir0n.pro) on Oracle OKE and
 > [aws-esquire.mir0n.pro](https://aws-esquire.mir0n.pro) on Amazon EKS.
@@ -120,6 +122,7 @@ through the moment it is up. Background, the architecture, and the developer wor
 
 ### Development Process
 - [Development Process](doc/Esquire.DevProcess.md) *(the sprint lifecycle, the documentation routine, and the release flow)*
+- [The Process in Scrum Terms](doc/Esquire.Scrum.Process.md) *(the same process in Scrum vocabulary, with the numbers from the four repositories behind every claim)*
 - [Continuing Development](doc/Esquire.ContinuingDev.md) *(cross-cutting backlog and deferred design notes)*
 
 ### Value Proposition & Roadmap
