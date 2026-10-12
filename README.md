@@ -37,10 +37,10 @@ the framework speaks for itself; any other hierarchy sits on the same backbone. 
 of what it can do**: a hybrid REST-and-event engine, vendor-neutral messaging, high availability that shrugs off
 losing a machine, and full, switch-on-anywhere observability. **Released by pipeline and live in production,**
 everything the framework promises, it does — in a running deployment, on four targets, open for anyone to
-check. The live demo runs on two clouds — **Oracle OKE** and **Amazon EKS**.
+check. The live demo runs on **Oracle OKE**, and the same stack deploys to **Amazon EKS**.
 
-**See it live — [esquire.mir0n.pro](https://esquire.mir0n.pro)**, and on Amazon's cloud at
-[aws-esquire.mir0n.pro](https://aws-esquire.mir0n.pro). Sign in, browse the tree, run the operations.
+**See it live — [esquire.mir0n.pro](https://esquire.mir0n.pro).** Sign in, browse the tree, run the
+operations. The Amazon EKS deployment at aws-esquire.mir0n.pro is turned down — available on request.
 
 ---
 > 
@@ -49,8 +49,7 @@ check. The live demo runs on two clouds — **Oracle OKE** and **Amazon EKS**.
 > the token relay keeps its cached sign-in tokens in the framework's shared expiring cache instead of a map
 > of its own.
 > 
-> **Live at** [esquire.mir0n.pro](https://esquire.mir0n.pro) on Oracle OKE and
-> [aws-esquire.mir0n.pro](https://aws-esquire.mir0n.pro) on Amazon EKS.
+> **Live at** [esquire.mir0n.pro](https://esquire.mir0n.pro) on Oracle OKE.
 > 
 > What comes next is chosen from the
 > [continuing-development backlog](doc/Esquire.ContinuingDev.md) — several sprints can run in parallel, each
