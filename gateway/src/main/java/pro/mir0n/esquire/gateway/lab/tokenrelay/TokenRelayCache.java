@@ -17,17 +17,17 @@
  * 07/23/2026 mir0n  v1.2.11 -- note-at-switch: a cache HIT returns the stored JWT WITHOUT re-verifying the caller's
  *                   credential (Vanilla = client_id key, secret not re-checked; Phantom = jti read unvalidated) --
  *                   harmless while the relay is disabled, a prerequisite to fix before any production use
+ * 10/11/2026 mir0n  v1.2.16 -- use ExpiringCache<String instead
  */
 package pro.mir0n.esquire.gateway.lab.tokenrelay;
 
 import pro.mir0n.esquire.backend.o11y.EsqBizMeters;
+import pro.mir0n.utils.concurrent.ExpiringCache;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import reactor.core.publisher.Mono;
 
 import java.time.Instant;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
 
 /**
  * Thread-safe cache of {@link ExpiringJwt} keyed by the variant-derived
@@ -40,15 +40,8 @@ import java.util.concurrent.ConcurrentMap;
  * request, and KC handles parallel grants idempotently. A single-flight
  * wrapper can be added later if measurements warrant it.
  *
- * Eviction note (known, accepted -- experimental path only): entries are
- * never removed on expiry, only overwritten on the next miss for the same
- * key. For Vanilla (key = client_id) the key set is small and stable, so
- * the map does not grow. For Phantom (key = source-token jti) every token
- * is a NEW key, so the map grows without bound -- a slow memory leak. This
- * is acceptable ONLY because the token relay is EXPERIMENTAL and is not
- * used (disabled on OKE). If the relay is ever taken to production, adding
- * entry expiration here (the "Caffeine deferred" above) is a prerequisite.
- * Until then this is a documented limit of the experimental path, not a bug.
+ * Two expiry rules, not one: {@code expiresAt} decides whether a cached token may be SERVED, the cache TTL
+ * only when a dead entry is swept -- so the TTL is set ABOVE any token lifetime.
  *
  * Credential re-check note (known, accepted -- experimental path only): a cache HIT returns the stored JWT
  * WITHOUT re-verifying the inbound caller's credential. Vanilla keys on client_id, so a hit does not re-check
@@ -68,12 +61,19 @@ import java.util.concurrent.ConcurrentMap;
 public class TokenRelayCache {
 
     private static final Logger devLog = LoggerFactory.getLogger("develop." + TokenRelayCache.class.getName());
+    private static final long EVICTION_TTL_MS = 15 * 60 * 1000;
 
     private final ITokenRelayClient delegate;
-    private final ConcurrentMap<String, ExpiringJwt> cache = new ConcurrentHashMap<>();
+    private final ExpiringCache<String, ExpiringJwt> cache;
 
     public TokenRelayCache(ITokenRelayClient delegate) {
+        this(delegate, EVICTION_TTL_MS);
+    }
+
+    TokenRelayCache(ITokenRelayClient delegate, long evictionTtlMs) {
         this.delegate = delegate;
+        this.cache = new ExpiringCache<>(devLog, evictionTtlMs);
+        this.cache.start();
     }
 
     /**
@@ -91,7 +91,7 @@ public class TokenRelayCache {
         // NOTE this is a genuine cache, unlike bizTree's taijitu -- which is why a hit/miss meter belongs HERE
         // and was dropped there (taijitu is DB-backed and has no miss path at all).
         Mono<String> ret;
-        ExpiringJwt existing = cache.get(key);
+        ExpiringJwt existing = cache.peek(key);
         if (existing != null && Instant.now().isBefore(existing.expiresAt())) {
             EsqBizMeters.count("esq.biz.gw.tokenrelay.total", "result", "hit");
             devLog.debug("getOrAcquire: cache HIT for key=[{}], expiresAt={}", key, existing.expiresAt());
@@ -101,7 +101,7 @@ public class TokenRelayCache {
             devLog.debug("getOrAcquire: cache MISS for key=[{}] -- acquiring", key);
             ret = delegate.acquire(request)
                     .map(acquired -> {
-                        cache.put(key, acquired);
+                        cache.storeIfGreater(key, acquired);
                         return acquired.jwt();
                     });
         }
@@ -114,11 +114,16 @@ public class TokenRelayCache {
      * request hot path.
      */
     public void invalidate(String key) {
-        cache.remove(key);
+        cache.consume(key);
         devLog.debug("invalidate: removed key=[{}]", key);
     }
 
     public int size() {
         return cache.size();
     }
+
+    public void stop() {
+        cache.stop();
+    }
+
 }

@@ -229,9 +229,10 @@ comparing on. Six of the eight scope by hierarchy in some form, so having a tree
 half of them the scope is **opt-in** — a filter fragment added per query, a checker called before the work, a
 session wrapper opened around the call — and the opt-in is invisible to review, to the build and to static
 analysis, because **a query missing the filter looks exactly like a correct query**. The three that make it
-structural give the same reason independently: one enforcement point instead of one per method, which an
-oversight in a future endpoint cannot skip. That is the line to hold: not that Esquire has tree-shaped
-authorization, but that here the scope cannot be left out.
+structural put the check in one place instead of one per method, where an oversight in a future endpoint
+cannot skip it. Esquire keeps the position on every row and in every token, so a scoped read is one
+parameter, and every read the framework serves passes it: the entity is found through a scoped read first
+and acted on by id after.
 
 ### 2. The server defines the UI
 

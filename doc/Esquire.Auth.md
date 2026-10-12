@@ -275,6 +275,10 @@ and a root administrator (`ep_path` = `1.`) sees everything. **No per-query filt
 path.** GET reads therefore need no explicit permission check — the `rootPath` already bounds what the query can
 return.
 
+**Adding your own read:** take `rootPath` as a parameter and keep the same prefix match,
+`WHERE ep_path LIKE :rootPath || '%'`. For a write, find the entity through such a read first, then act on it
+by id.
+
 ### 4.1 What `ep_path` holds, per entity type
 
 `esq_entity_path` stores one row per entity; `ep_path` is a dot-separated hierarchical path string

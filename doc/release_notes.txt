@@ -1,6 +1,18 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v1.2.16-2610.1117  v1.2.16 -- expiring cache: shared code
+    :Refactoring: expiring cache: shared code
+    :Fix:         a cached sign-in token is dropped once it is too old to be used
+    :Doc:         doc\Esquire.ContinuingDev.md
+                  doc\Esquire.Auth.md
+                  doc\Esquire.Vision.md
+                  doc\Esquire.DevProcess.md
+    Components:   gateway,
+                  mir0n-utils,
+                  k8s,
+                  k8s-compact
+
 v1.2.15-2609.0618  v1.2.15 -- the seeded logins match the database
     :Doc:         doc\Esquire.ContinuingDev.md
     Components:   keycloak,

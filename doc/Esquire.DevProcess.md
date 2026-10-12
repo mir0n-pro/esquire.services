@@ -262,16 +262,33 @@ points at them: no test fails, no pipeline turns red, and a stale one is only fo
 
 **At SPRINT START (not at release):**
 
+**What is released is a REPOSITORY, and a repository with nothing in it is not released at all** -- so
+nothing in it is bumped, it gets no release_notes entry, and it carries no README roll-down. `db.seed` is
+skipped on a sprint with no schema work; `esquire.ui.lib` is skipped on a sprint that does not touch the
+library. The question is asked per repository FIRST, and only a released repository is read further.
+
+**Inside a released repository, every product versions by itself, to the release Micro.** That product's
+own code or configuration touched this sprint -> it carries the sprint's Micro; untouched -> it keeps the
+number it had. So the numbers are never all equal at once, and that is correct: a version says WHICH
+RELEASE LAST CHANGED THIS PRODUCT, not which release is current -- the same principle as the
+infrastructure `ARG PIN` in 7a. `hauberk` sat at 1.2.13 through v1.2.14 and v1.2.15, which did not touch
+it, and moved to 1.2.16 when v1.2.16 did. A product that does bump takes the RELEASE number, never an
+increment of its own: no product counts for itself.
+
 | Place | Care |
 |---|---|
-| `services/pom.xml` | the Micro version. Bumped here so the build tag and the image tag do not lag. |
-| `explorer/frontend` package version | frontend only. |
+| `services/pom.xml` | the Micro version, for every services module -- they inherit it. Bumped here so the build tag and the image tag do not lag. The root `<version>` is the reactor/parent version and is NOT this. |
+| `explorer/frontend` AND `explorer/backend` package versions | **they move TOGETHER -- touch either one and bump both.** The backend image IS the frontend's delivery: stage 1 of `explorer/backend/Dockerfile` builds `frontend/` and stage 3 bakes the result into `/public`, so a frontend change forces a backend image rebuild and one artifact ships both. Two different numbers on one delivery is the confusion this row exists to prevent. |
+| `explorer/e2e-test` package version | only when a spec or the harness was touched. It delivers nothing, so nothing couples it to the two above. |
+| `explorer/hauberk` `pom.xml` `<version>` | only when the load harness was touched. |
+| `esquire.ui.lib` -- `package.json` AND `projects/esquire.ui/package.json` | only when the library itself changed. Explorer consumes it by tarball URL, not by this number. |
 | `db.seed` `DB_VERSION` | BOTH vendors, and only when the sprint has schema work. |
 
 **At RELEASE (finalization):**
 
 | Place | Care |
 |---|---|
+| `services/k8s/values/*.yaml` and `services/k8s-compact/values/*.yaml` | **REBUILD THE LOCAL K8S STACKS FIRST, BEFORE THE RELEASE COMMIT** -- `k8s/k8s-rebuild.bat` and `k8s-compact/k8s-rebuild.bat all`. Nothing but those scripts writes these tags, and they derive the Micro from the TOP LINE of `release_notes.txt`, so a rebuild run after the version bump stamps every overlay with the release by construction. Skip it and the release commit carries the PREVIOUS release's tags -- a v1.2.16 commit whose overlays all say v1.2.15, which reads as an error and is one. `docker compose` rebuilds do NOT touch these files; only the k8s scripts do. Same shape as the 7a infra pins above: an overlay the release did not rebuild keeps the tag it had, which is why `k8s-compact/values/activemq.yaml` can sit several releases back. |
 | `services/README.md` | the top callout carries the CURRENT sprint only -- the previous sprint's note is REMOVED, not collapsed. It says what the sprint delivered, so re-read it: it was written when the sprint opened and usually describes only half of what shipped. |
 | `services/Releases.md` | the new version added in FULL, with NO "More Details" link (its release branch is not archived yet); the previously-newest collapsed to one paragraph PLUS its `release/vX.Y.Z` link; a milestone-report placeholder row for every repo that had work -- a deliberately dead link that resolves when the report lands. |
 | `explorer/README.md` | same roll-down in its own shape: `## vX -- complete (date)` in full, the prior one collapsed to a sentence plus its link. |

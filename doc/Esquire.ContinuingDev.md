@@ -525,6 +525,93 @@ confidence / regression-safety investment, not a fix.
 
 ---
 
+### CD-32 -- One generic wrapper instead of a wrapper per composition
+
+**Today:** a composed shape needs a wrapper written for it. Mesnie wraps the entity, credentials and
+identity parts; gateWard wraps the gateway and the tree cache. Each is thin -- it imports the configurations of
+the parts it carries and owns the process-level pieces (the roles store, the audit bridge, the bus lifecycle) --
+but each is still a module, a pom, an image and a chart that exist only to describe one grouping. A third
+grouping needs a third wrapper, which is to say new code.
+
+**Improvement:** one generic wrapper that reads the grouping from configuration -- the list of service
+configurations to import and which process-level beans to own -- so a new composition is a deployment value
+and no extra coding. The existing two wrappers become two values of that configuration.
+
+**What it would settle:** whether composition is genuinely a deployment decision in this codebase, or still a
+development one wearing a deployment name. Today the shape is chosen at deployment only among the groupings
+someone has already built a host for.
+
+**Where it came from:** writing the decomposition article. The claim "nothing was rewritten" is true of the
+services and false of the fleet: two wrappers were added, and the article says so.
+
+---
+
+### CD-31 -- A domain service outside Java, to prove the seam is the contract
+
+**Today:** every service in the tree is Java on Spring Boot, and a domain attaches through three published
+surfaces: the REST API the gateway exposes, the messaging bus, and the entity dictionary the frontend reads.
+Nothing in those surfaces is Java-specific, but nothing proves it either -- the only domain that has ever been
+attached is pacMan, written in the same language and the same build as the framework.
+
+**Improvement:** re-implement pacMan's operations in a second language as an independent service that speaks
+the same REST contract, publishes and consumes the same bus messages, carries the same `rootPath` scoping on
+its reads, and appears in the same administrative screens through the same dictionary entries. The existing
+e2e and accounting smokes become the acceptance test: they must pass unchanged against it.
+
+**Scope, deliberately small:** this is one domain service, not a port of the framework. The platform stays
+where it is -- identity at the gateway, the dictionary served by the framework, audit and events on the bus --
+and the new service consumes all of it as a client. Go has no equivalent of much of what the Java side uses,
+which is the reason the port stops at the domain: if the contracts are enough for a service with none of those
+libraries, they are enough.
+
+**What it would settle:** whether "an environment supplies the surroundings, never the domain code" is a
+statement about the architecture or only about this codebase. It would also mark exactly which Java-side
+helpers a domain currently leans on that the contracts do not carry -- the list of those is the real finding,
+whether or not the port is kept.
+
+Distinct from the earlier Go study, which asked whether to port the framework and concluded not to. This asks
+only whether a domain service can live outside it.
+
+---
+
+### CD-30 -- A build check that every read passes the caller's position
+
+**Today:** every entity row carries its position as `ep_path`, and every signed-in caller carries theirs as
+the `rootPath` claim, taken once into `EsqRequestContext` by `JwtClaimsExtractionFilter` (`common`). The
+framework's own reads pass it -- the read methods of `bizTree`'s `IBizTreeCacheRepository`, and `pacMan`'s
+`EsqAcctRepository.detailAcct` / `detailAcctForUpdate` -- and its writes follow one pattern: the entity is
+found through a scoped read first, then changed by id, so nothing outside the caller's subtree is found or
+changed. That pattern is kept by the people who write the code. Nothing checks it: the aspects in `common`
+are tracing and timing only, and the gateway's `EsqClaimsValidator` confirms that the token carries a
+position, not that a query uses it. A repository read method that ignores the position compiles, runs, and
+returns rows from outside the caller's subtree.
+
+**Found, not reasoned:** v1.2.13 found exactly this in `bizTree` -- `findPath(id)` answered for any id until
+`findPathScoped(id, rootPath)` was added on 2026-08-26. It was found by reading the code back; no test
+covered it.
+
+**Why it matters beyond the code:** the claim that the scope "cannot be forgotten" stood in
+`Esquire.Vision.md` and in draft articles, and was corrected on 2026-09-17. This item is what would make that
+stronger claim true.
+
+**Direction, not a design.** The check has to fit the house rules: plain SQL per repository method, no ORM
+filter, no auto-configuration, explicit wiring. The shape that fits is a **build-time test**: every repository
+method that reads entity rows takes the caller's position as a parameter, and its SQL uses it. Methods that
+legitimately do not -- a lookup inside an already-scoped operation, such as `findPath` during insert and move,
+or `EsqAcctRepository.acctPath` -- are named in an explicit allow-list: one file, read at review.
+
+**To settle before building (TBD):**
+- how the test recognises "a read of entity rows" -- by return type, by the tables in the SQL, or by a marker
+  the method carries;
+- whether taking the parameter is enough, or the test must also find it in the SQL;
+- the refuse-cases and the allow-cases, written first as the test set, before the guard itself -- a guard that
+  blocks a legitimate method is worse than the hole it closes.
+
+**Services:** every module with repositories -- `bizTree`, `enyMan`, `keySmith`, `pacMan` -- with the test
+living beside the shared request context in `common`, or in a test module of its own.
+
+---
+
 ## Database
 
 ### CD-5 -- A schema-integrity checker for db.seed
