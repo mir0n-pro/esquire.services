@@ -47,7 +47,7 @@ docker buildx use desktop-linux 2>nul || docker buildx use default
 rem Project layout (workspace; not the git repo):
 rem   C:\MyProjects\esquire\
 rem     db.seed\          (used as build input by postgres)
-rem     services\         (this folder lives here)
+rem     services2\        (this folder lives here)
 rem       mesnie\         (Dockerfile + target\*.jar)
 rem       gateWard\
 rem       pacMan\
@@ -55,7 +55,7 @@ rem       postgres\       (Dockerfile; context = ..\..\ to access db.seed)
 rem       keycloak\       (Dockerfile.keycloak; context = .)
 rem       activemq\       (Dockerfile; context = .)
 rem       k8s-oci-compact\ (this script)
-rem     explorer\backend\ (Dockerfile -- multi-stage; SPA baked in)
+rem     explorer2\backend\ (Dockerfile -- multi-stage; SPA baked in)
 
 set SERVICES=%~dp0..
 set ESQROOT=%SERVICES%\..
@@ -152,13 +152,13 @@ exit /b 0
 :pushBackend
 rem Backend / BFF (multi-stage; explorer/backend/Dockerfile builds frontend
 rem internally and bakes it into /app/public, then runs Node BFF on :3000).
-rem Build context = explorer/ so Dockerfile reaches both backend/ and frontend/.
+rem Build context = explorer2/ so Dockerfile reaches both backend/ and frontend/.
 echo --- Building backend (BFF + baked SPA, multi-arch)...
 docker buildx build --platform %PLATFORMS% ^
   -t %REGISTRY%/esquire.backend:%TAG% ^
   --push ^
-  -f "%ESQROOT%\explorer\backend\Dockerfile" ^
-  "%ESQROOT%\explorer" || goto :fail
+  -f "%ESQROOT%\explorer2\backend\Dockerfile" ^
+  "%ESQROOT%\explorer2" || goto :fail
 exit /b 0
 
 :pushPostgres

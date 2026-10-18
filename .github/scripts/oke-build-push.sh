@@ -14,10 +14,11 @@
 # Pre (done by the workflow before calling this):
 #   - QEMU + docker buildx set up (docker/setup-qemu-action + setup-buildx-action)
 #   - `docker login ghcr.io` done with GITHUB_TOKEN (packages: write) -- no PAT
-#   - the three repos checked out as SIBLINGS in the runner workspace:
-#       <ws>/services   (this repo)
-#       <ws>/explorer   (backend / BFF image is built from here)
+#   - the repos checked out as SIBLINGS in the runner workspace:
+#       <ws>/services2  (this repo)
+#       <ws>/explorer2  (backend / BFF image is built from here)
 #       <ws>/db.seed    (postgres image build input)
+#       <ws>/services   (the 1.2 line, postgres/ only: postgres image build input)
 #
 # Env:
 #   IMAGE_TAG   the stamp to push, e.g. v1.2.7-2606.1009  (computed by the workflow)
@@ -35,8 +36,8 @@ REG="ghcr.io/${OWNER}"
 PLATFORMS="linux/amd64,linux/arm64"
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SERVICES="$(cd "${HERE}/../.." && pwd)"     # <ws>/services
-WS="$(cd "${SERVICES}/.." && pwd)"          # <ws> (services + explorer + db.seed siblings)
+SERVICES="$(cd "${HERE}/../.." && pwd)"     # <ws>/services2
+WS="$(cd "${SERVICES}/.." && pwd)"          # <ws> (services2 + explorer2 + db.seed + services siblings)
 
 echo "=== build context: services=${SERVICES}  workspace=${WS}  tag=${IMAGE_TAG} ==="
 
@@ -63,8 +64,8 @@ bx esquire.mesnie   "${SERVICES}/mesnie"   "${SERVICES}/mesnie/Dockerfile"
 bx esquire.pacman   "${SERVICES}/pacMan"   "${SERVICES}/pacMan/Dockerfile"
 bx esquire.gateward "${SERVICES}/gateWard" "${SERVICES}/gateWard/Dockerfile"
 
-# backend / BFF -- multi-stage; context = explorer/ so it reaches backend/ + frontend/
-bx esquire.backend  "${WS}/explorer"       "${WS}/explorer/backend/Dockerfile"
+# backend / BFF -- multi-stage; context = explorer2/ so it reaches backend/ + frontend/
+bx esquire.backend  "${WS}/explorer2"      "${WS}/explorer2/backend/Dockerfile"
 
 # postgres -- context = workspace root so the Dockerfile can COPY db.seed/postgres/*
 # (incl. create.log -> seeds the *_log tables; the OKE audit option (a) triggers live here too)
