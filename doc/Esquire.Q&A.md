@@ -13,7 +13,7 @@
 > OVERALL: things that *sound like* defects on a first read of Esquire, and why each is a deliberate choice (or a
 > non-issue in the actual usage model) rather than a bug. This is the Esquire-level Q&A; it is NOT tied to any
 > single subsystem -- framework-wide questions live HERE. (A self-contained subframework keeps its own notes --
-> e.g. the messaging bus has its own continuing-development doc, `Esquire.MessagingBus.ContinuingDev.md`.)
+> e.g. the messaging bus has its own continuing-development doc, `Herald.MessagingBus.ContinuingDev.md`.)
 
 ## Contents
 
@@ -25,7 +25,7 @@ Design questions grouped by context. Each group collects the "this *sounds like*
 
 1. [Entity model and lifecycle](#entity-model-and-lifecycle) -- How entities are edited, identified, and deleted -- and why the usual version-column / cascade prescriptions do not apply.
 2. [Move ordering and the bizTree cache](#move-ordering-and-the-biztree-cache) -- Re-parenting a subtree (moving a branch to a new parent), the order events apply in, and the recoverable Taijitu cache that backs it up.
-3. [Messaging bus](#messaging-bus) -- how ESQUIRE uses the x-rod bus: delivery guarantees on its channels and rod identity in its deployment. (Generic bus-framework Q&A: `Esquire.MessagingBus.Q&A.md`.)
+3. [Messaging bus](#messaging-bus) -- how ESQUIRE uses the x-rod bus: delivery guarantees on its channels and rod identity in its deployment. (Generic bus-framework Q&A: `Herald.MessagingBus.Q&A.md`.)
 4. [Audit trail](#audit-trail) -- How the *_log audit is keyed so a redelivered message still makes one row (idempotency), and what audit is on at deploy time.
 5. [Security and authentication](#security-and-authentication) -- Token format and the trusted-perimeter model, onboarding credentials, and CORS.
 6. [Accounting (the pacMan demonstration domain)](#accounting-the-pacman-demonstration-domain) -- What the demonstration accounting service deliberately simplifies, and where the line to a production ledger is.
@@ -310,7 +310,7 @@ and nothing needs them to.
 
 *How ESQUIRE applies the x-rod bus -- delivery guarantees on its channels, and rod identity in its deployment.
 These are questions about Esquire's USE of the bus; questions about the generic bus subframework itself (config
-resolution, subscriptions, the envelope, catalog validation) live in `Esquire.MessagingBus.Q&A.md`.*
+resolution, subscriptions, the envelope, catalog validation) live in `Herald.MessagingBus.Q&A.md`.*
 
 **Q1. The bus consumers run `AUTO_ACKNOWLEDGE` (each message is acknowledged to the broker the moment it is
 received) with a catch-and-log listener -- so a failed DB apply is still acked and LOST (no nack / redelivery /
@@ -342,7 +342,7 @@ A. Two separate concerns, both already handled by design.
   `EVENT_UPDATE_PATH` request/response, so a missed broadcast there costs nothing.
 - **R&R (KeyCloak request/response)** -- the one channel where lost delivery is a genuine reliability question;
   that is the R&R reply-tracking / timeout / replier-down work, tracked in
-  `Esquire.MessagingBus.ContinuingDev.md`, not a generic DLQ.
+  `Herald.MessagingBus.ContinuingDev.md`, not a generic DLQ.
 
 *The `ON CONFLICT` target is deliberate.* The dedup unique indexes DO exist for all eight `*_log` tables
 (`db.seed/.../dedup/all.sql`), keyed on the row plus its change number -- `(pk, change_no)`, or the row's
@@ -374,7 +374,7 @@ exist.
 
 (Note this covers ONLY the rod-id **uniqueness** question. The related R&R **reply-timeout / pending-request
 tracking / replier-down detection** -- and the delivery-reliability piece -- are a separate, still-open question,
-tracked in `Esquire.MessagingBus.ContinuingDev.md`.)
+tracked in `Herald.MessagingBus.ContinuingDev.md`.)
 
 ---
 

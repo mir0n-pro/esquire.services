@@ -7,6 +7,9 @@
  */
 package pro.mir0n.esquire.backend.o11y;
 
+import pro.mir0n.o11y.BizMeters;
+import pro.mir0n.o11y.TraceMark;
+
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import io.micrometer.observation.ObservationRegistry;
 import org.junit.jupiter.api.extension.AfterEachCallback;
@@ -14,7 +17,7 @@ import org.junit.jupiter.api.extension.BeforeEachCallback;
 import org.junit.jupiter.api.extension.ExtensionContext;
 
 /**
- * The by-design cover for I32. {@link EsqBizMeters} / {@link EsqTraceMark} / {@link EsqAsyncTrace} hold their
+ * The by-design cover for I32. {@link BizMeters} / {@link TraceMark} / {@link EsqAsyncTrace} hold their
  * registry in a STATIC field -- unavoidable, because they instrument non-bean / final code the container cannot
  * inject. In production that field is set ONCE at startup by the real registrar and never reset, so nothing leaks.
  * In the TEST JVM, though, one JVM runs many tests over the same statics: a registry set by one test would bleed
@@ -39,14 +42,14 @@ public final class EsqO11yRegistryReset implements BeforeEachCallback, AfterEach
     }
 
     private static void reset() {
-        // EsqBizMeters: a throwaway registry first FLUSHES the PENDING hold -- setRegistry(non-null) replays and
+        // BizMeters: a throwaway registry first FLUSHES the PENDING hold -- setRegistry(non-null) replays and
         // CLEARS the held gauges -- then null turns the facility off. So neither a live registry nor a gauge that
         // was queued before a registrar arrived can leak into the next test.
-        EsqBizMeters.setRegistry(new SimpleMeterRegistry());
-        EsqBizMeters.setRegistry(null);
-        // EsqTraceMark / EsqAsyncTrace default to NOOP, NOT null -- setRegistry(null) on EsqTraceMark would leave a
+        BizMeters.setRegistry(new SimpleMeterRegistry());
+        BizMeters.setRegistry(null);
+        // TraceMark / EsqAsyncTrace default to NOOP, NOT null -- setRegistry(null) on TraceMark would leave a
         // null registry and NPE its around(); reset to the real default.
-        EsqTraceMark.setRegistry(ObservationRegistry.NOOP);
+        TraceMark.setRegistry(ObservationRegistry.NOOP);
         EsqAsyncTrace.setRegistry(ObservationRegistry.NOOP);
     }
 }

@@ -9,30 +9,30 @@
  * 02/28/2026 mir0n  created: usr command/save service (split from EnyManService)
  *                   esquireCommand(), esquireCommandSave(), saveUsr() moved from EnyManService
  *                   person/address/bizaddr subentity read and update support added
- * 03/01/2026 mir0n  prsn.getDob() uncommented — DOB field now active in updatePerson()
+ * 03/01/2026 mir0n  prsn.getDob() uncommented -- DOB field now active in updatePerson()
  * 03/03/2026 mir0n  updatePerson/updateAddress/updateAddress2: use user id instead of sub-entity id
  * 03/06/2026 mir0n  USR_WRITABLE reduced to {name}; dict-driven subLayer for person/address
  *                   ValidatorFactory used for custom field validation
  * 03/08/2026 mir0n  personal = id.equals(uid); self-update context passed to all applyFields/validate calls
  * 03/09/2026 mir0n  esquireCommandSave(): roles param added
  * 03/10/2026 mir0n  import: RequestContextUtils updated to backend.service package
- * 03/10/2026 mir0n  fillКindFieldLayer() call updated to fillKindFieldLayer() — Cyrillic К → ASCII K
- * 03/21/2026 mir0n  devLog added; log.debug→devLog.debug
+ * 03/10/2026 mir0n  fillKindFieldLayer() call updated: the leading K of the name had been a Cyrillic letter, now ASCII K
+ * 03/21/2026 mir0n  devLog added; log.debug->devLog.debug
  * 03/26/2026 mir0n  createUsr() with EmailExistsException on duplicate email;
  *                   deleteUsr() + deleteAuth() (auth deleted before usr, FK constraint);
  *                   esquireCommandNew(), esquireCommandDelete() added
- * 03/28/2026 mir0n  deleteUsr(): connectFlg="Y" → DeleteRestrictedException before delete;
- *                   sequence: deletePersonAddresses → deletePersonBankInfo → deleteUsr
+ * 03/28/2026 mir0n  deleteUsr(): connectFlg="Y" -> DeleteRestrictedException before delete;
+ *                   sequence: deletePersonAddresses -> deletePersonBankInfo -> deleteUsr
  * 03/28/2026 mir0n  createUsr(): injectDefaults before each applyFields (person/usr/address/address2);
  *                   removed hardcoded deleted="N" default; custom field loop restricted to request fields
  * 03/28/2026 mir0n  createUsr(): insertUsrPath before insertUsr; deleteUsr(): deleteEntityPath after deleteUsr
  * 03/31/2026 mir0n  esquireCommandMove() + moveUsr(): mass path update for user+accounts (equality),
  *                   skip-if-same-parent; insertUsrPath: kind param added (ep_et_pk)
  * 04/01/2026 mir0n  move: collects updated records
- * 04/06/2026 mir0n  moveUsr(): admin/regular branch split — admin uses pk-based moveAdminPath (no ACCT cascade);
+ * 04/06/2026 mir0n  moveUsr(): admin/regular branch split -- admin uses pk-based moveAdminPath (no ACCT cascade);
  *                   regular uses equality moveUsrPaths (covers user row + all ACCT rows)
  *                   createUsr(): admin ep_path = parent org path only (no own PK appended)
- * 04/07/2026 mir0n  all kind params Integer → int; moveUsr/createUsr: get kind directly without normalization
+ * 04/07/2026 mir0n  all kind params Integer -> int; moveUsr/createUsr: get kind directly without normalization
  * 04/09/2026 mir0n  applyFields() and enforceDefaults() delegated to EntityFieldUtils
  * 04/16/2026 mir0n  ret declarations moved to top; moveUsr(): null-guard replaces early return
  * 06/01/2026 mir0n  id minting call retargeted: EsqUtils.generateEntityId() -> EntityIdGenerator.generateEntityId()
@@ -91,7 +91,7 @@ import pro.mir0n.esquire.backend.jpa.entity.EsqParRow;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import pro.mir0n.esquire.common.EsqConstants;
-import pro.mir0n.esquire.messaging.RodEvent;
+import pro.mir0n.messaging.RodEvent;
 import pro.mir0n.esquire.audit.AuditBusBridge;
 import pro.mir0n.esquire.enyMan.service.EntityIdGenerator;
 
@@ -210,7 +210,7 @@ public class UsrService  extends AEnyManService {
             em.setFlushMode(FlushModeType.COMMIT);
             saveUsr(kind, id, fields, rootPath, uid, correlationId, requestId, updated, custom, children, person, address, address2);
             return null;
-        }); // ← transaction commits here
+        }); // <- transaction commits here
 
         ret = EsqEntityFactory.getInstance().createUser(updated[0], custom[0], children == null ? null : children[0],
                     person == null ? null : person[0], address == null ? null : address[0], address2 == null ? null : address2[0]);
@@ -296,7 +296,7 @@ public class UsrService  extends AEnyManService {
             }
             String newPath = null;
             if (eek.isPathParentOnly()) {
-                // Admin users own no entities — ep_path has only one row (no ACCT cascade).
+                // Admin users own no entities -- ep_path has only one row (no ACCT cascade).
                 // Multiple admins under the same org share the same ep_path value, so update and query by pk.
                 usrRepository.moveAdminPath(id, destPath);
             } else {
@@ -341,7 +341,7 @@ public class UsrService  extends AEnyManService {
         EsqEntityDictionary dictUser = completedDictionary(kind);
         EsqEntityKindFieldLayer kfl  = new EsqEntityKindFieldLayer();
 
-        // Validate person subentity — derive name and email
+        // Validate person subentity -- derive name and email
         EsqPersonJpa prsn = new EsqPersonJpa();
         prsn.setKind(EsqConstants.KIND_PERSON_PRIMARY);
         Map<String, Object> mprsn = (Map<String, Object>) fields.get(EsqConstants.SUBENTITY_PERSON);
@@ -353,14 +353,14 @@ public class UsrService  extends AEnyManService {
         String email   = prsn.getEmail();
         String loginId = email;
 
-        // Email uniqueness check — must be first write guard in the transaction
+        // Email uniqueness check -- must be first write guard in the transaction
         if (usrRepository.countByEmail(email) > 0) {
             throw new EmailExistsException(email);
         }
 
         fields.put("name", name);
 
-        // Validate user-level fields (desc) — mirrors saveUsr applyFields(usr, fields, ...)
+        // Validate user-level fields (desc) -- mirrors saveUsr applyFields(usr, fields, ...)
         EsqUsrJpa usr = new EsqUsrJpa();
         usr.setId(idStr);
         usr.setKind(kind);
@@ -500,7 +500,7 @@ public class UsrService  extends AEnyManService {
         }
         EnyManService.assertKindMatches("deleteUsr", kind, usr.getKind(), id);
         if ("Y".equals(usr.getConnectFlg())) {
-            throw new DeleteRestrictedException("user", "active auth connection — disable login before deleting");
+            throw new DeleteRestrictedException("user", "active auth connection -- disable login before deleting");
         }
         ValidatorFactory.getInstance().validateDelete(usr);
         // x-Rod audit: capture the child rows BEFORE the cascade (the DB removes them silently, so they must

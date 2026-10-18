@@ -21,7 +21,7 @@
  */
 package pro.mir0n.esquire.gateway.lab.tokenrelay;
 
-import pro.mir0n.esquire.backend.o11y.EsqBizMeters;
+import pro.mir0n.o11y.BizMeters;
 import pro.mir0n.utils.concurrent.ExpiringCache;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -93,11 +93,11 @@ public class TokenRelayCache {
         Mono<String> ret;
         ExpiringJwt existing = cache.peek(key);
         if (existing != null && Instant.now().isBefore(existing.expiresAt())) {
-            EsqBizMeters.count("esq.biz.gw.tokenrelay.total", "result", "hit");
+            BizMeters.count("esq.biz.gw.tokenrelay.total", "result", "hit");
             devLog.debug("getOrAcquire: cache HIT for key=[{}], expiresAt={}", key, existing.expiresAt());
             ret = Mono.just(existing.jwt());
         } else {
-            EsqBizMeters.count("esq.biz.gw.tokenrelay.total", "result", "miss");
+            BizMeters.count("esq.biz.gw.tokenrelay.total", "result", "miss");
             devLog.debug("getOrAcquire: cache MISS for key=[{}] -- acquiring", key);
             ret = delegate.acquire(request)
                     .map(acquired -> {

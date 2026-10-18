@@ -9,7 +9,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import pro.mir0n.esquire.common.EsqConstants;
 import pro.mir0n.esquire.backend.identity.AuthSyncRequest;
-import pro.mir0n.esquire.messaging.BusConstants;
+import pro.mir0n.messaging.BusConstants;
 import pro.mir0n.esquire.kcMaster.service.IKcIdentityService;
 
 import java.util.List;

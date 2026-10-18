@@ -45,7 +45,7 @@ import pro.mir0n.esquire.bizTree.cache.CacheSqlSet;
  *
  * Loads h2-cache-sql.properties and provides BizTreeCacheSql and cacheJdbcTemplate beans.
  * A different embedded DB vendor would provide its own *Config class with its own
- * properties file — no changes to the cache package required.
+ * properties file -- no changes to the cache package required.
  */
 @Configuration
 @Profile("cache-h2")

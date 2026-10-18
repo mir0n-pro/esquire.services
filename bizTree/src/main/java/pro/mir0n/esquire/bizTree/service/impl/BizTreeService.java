@@ -16,7 +16,7 @@
  * 01/24/2026 mir0n  ResourceNotFoundException.java moved to common lib
  * 03/10/2026 mir0n  import: RequestContextUtils updated to backend.service package
  * 03/20/2026 mir0n  switched from EsqTreeNodeRepository to IBizTreeCacheRepository (H2 in-memory cache)
- * 03/21/2026 mir0n  devLog added; log.debug→devLog.debug
+ * 03/21/2026 mir0n  devLog added; log.debug->devLog.debug
  * 04/16/2026 mir0n  rootId extracted as named local variable
  * 05/14/2026 mir0n  esquireSubtree(id, rootPath, uid) implementation for /esq-tree
  *                   (recursive subtree from biztree H2 cache; via IBizTreeCacheRepository.findSubtree)

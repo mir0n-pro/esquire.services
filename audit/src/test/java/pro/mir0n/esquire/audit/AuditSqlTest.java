@@ -1,7 +1,7 @@
 package pro.mir0n.esquire.audit;
 
 import org.junit.jupiter.api.Test;
-import pro.mir0n.esquire.dataKeep.keep.KeepSqlStore;
+import pro.mir0n.dataKeep.keep.KeepSqlStore;
 
 import java.util.List;
 

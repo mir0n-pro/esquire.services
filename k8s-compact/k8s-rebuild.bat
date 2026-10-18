@@ -194,7 +194,7 @@ goto end
 
 :target_backend
 echo [docker] building explorer/backend (BFF + SPA)...
-pushd ..\..\explorer\backend
+pushd ..\..\explorer2\backend
 docker compose build %NOCACHE%
 if errorlevel 1 ( popd & echo backend build failed & exit /b 1 )
 popd

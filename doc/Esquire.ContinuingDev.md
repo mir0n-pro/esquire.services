@@ -19,7 +19,7 @@
 > later cycle.
 
 **Related backlogs (kept separate, on purpose):**
-- **The Messaging Bus keeps its own continuing-dev list** -- [Esquire.MessagingBus.ContinuingDev.md](Esquire.MessagingBus.ContinuingDev.md)
+- **The Messaging Bus keeps its own continuing-dev list** -- [Herald.MessagingBus.ContinuingDev.md](https://github.com/mir0n-pro/herald/blob/main/doc/Herald.MessagingBus.ContinuingDev.md)
   (the alive protocol, the full resilience-pattern set, the FIX-like async protocol, replay/seek, and more). It stays
   a list of its own because **lifting the Messaging Bus out of Esquire into its own product / repository is itself the
   next continuing-dev arc** -- so the bus carries its backlog with it rather than dissolving it into this file.
@@ -75,7 +75,7 @@ claim actually comes from -- which is what a guard would have to compare against
 **So the counters are NOT interchangeable.** A path claim is guarded by the path row's number, an
 auth-derived claim by the auth row's number, and the two are never compared with each other -- the same
 declared exception the wire already makes between an entity and its path (see
-`Esquire.MessagingBus.MessageStructure.md`). One number covering every claim would
+`Herald.MessagingBus.MessageStructure.md`). One number covering every claim would
 repeat that mistake: an auth update would look "older" than a move that had nothing to do with it, and be
 skipped. **Roles have no counter at all**: guarding them means giving them one first, so they stay on
 value comparison.
@@ -951,6 +951,29 @@ several can run in parallel depending on interest and contributors.
   show/hide "deleted" entities, force bizTree cache validation.
 - A **permission** sysadmin tool (manage roles and permissions).
 - A **custom-parameters** sysadmin tool (manage the custom-field dictionary -- the entity dictionary's custom side).
+
+### CD-33 -- ui.lib dialogs: ESC is ignored while focus sits on a disabled button
+
+**A known bug in `esquire.ui.lib`, accepted for v2.0.0.** The Access Profile dialog and the Details
+dialog open with focus on a button that is still disabled. ESC does nothing until the user moves focus
+to another control.
+
+**Why it happens.** Both dialogs open non-modal, with no focus trap. They move focus inside on their own,
+with `btnClose.focus()` on open, so that their ESC listener can catch the key. A disabled button cannot
+take focus. While the data is still loading the button is disabled, the call does nothing, and focus
+stays outside the dialog.
+
+**Why only on a slow network.** On a local stack the data arrives at once and the button is enabled in
+time. On OKE it is not. The e2e test `07-details` (Details dialog closes with ESC) passes on every
+local stack and fails on OKE every time.
+
+**The same class as U1** (v1.2.11), which fixed one way focus missed the dialog: an editable entity had
+no `#btnClose` at all. This is the other way: the button is there but disabled at open.
+
+**The fix belongs in ui.lib**, and ships as a ui.lib release: focus a control that is enabled at open,
+or move focus in again once loading ends.
+
+**Raised:** 2026-10-18, the v2.0.0 OKE e2e run.
 
 ### CD-24 -- Biz-domain isolation: the account's fast state kept apart from the account as an entity
 

@@ -52,7 +52,7 @@ public class ValidatorFactory implements IValidator {
     @Override
     public void validateDelete(EsqEntityJpa origin) {
         if (origin != null && "Y".equals(origin.getSystemFlg())) {
-            throw new DeleteRestrictedException("entity", "system entity — protected from deletion");
+            throw new DeleteRestrictedException("entity", "system entity -- protected from deletion");
         }
         if (bizValidators == null || origin == null || origin.getKind() == null) return;
         IValidator biz = bizValidators.get(origin.getKind());

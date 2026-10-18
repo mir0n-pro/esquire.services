@@ -7,7 +7,7 @@
         <groupId>pro.mir0n.esquire</groupId>
         <artifactId>esquire-parent</artifactId>
 <!-- xxx: we need a stable parent version to be referenced correctly -->
-        <version>1.2.0</version>
+        <version>2.0.0</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
     

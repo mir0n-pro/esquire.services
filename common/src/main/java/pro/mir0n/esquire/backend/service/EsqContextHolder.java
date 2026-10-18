@@ -20,7 +20,7 @@ package pro.mir0n.esquire.backend.service;
 
 import org.slf4j.MDC;
 import pro.mir0n.esquire.common.EsqConstants;
-import pro.mir0n.esquire.messaging.RodEvent;
+import pro.mir0n.messaging.RodEvent;
 
 /**
  * Thread-bound store for the current {@link EsqRequestContext}.

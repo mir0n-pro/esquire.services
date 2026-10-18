@@ -42,7 +42,7 @@ class GenericValidatorTest {
     // ---- personal flag ----
 
     @Test
-    @DisplayName("personal=true, field.personal=N → throws InvalidValueException")
+    @DisplayName("personal=true, field.personal=N -> throws InvalidValueException")
     void personalBlocked_throwsInvalidValue() {
         EsqEntityKindFieldLayer kfl = makeKfl("string", "Y", "N", null, null);
         assertThatThrownBy(() -> validator.validate(null, kfl, true, "someValue"))
@@ -50,7 +50,7 @@ class GenericValidatorTest {
     }
 
     @Test
-    @DisplayName("personal=true, field.personal=Y → returns value")
+    @DisplayName("personal=true, field.personal=Y -> returns value")
     void personalAllowed_returnsValue() {
         EsqEntityKindFieldLayer kfl = makeKfl("string", "Y", "Y", null, null);
         Object ret = validator.validate(null, kfl, true, "ok");
@@ -60,7 +60,7 @@ class GenericValidatorTest {
     // ---- blank / whitespace conversion ----
 
     @Test
-    @DisplayName("blank string → converted to null")
+    @DisplayName("blank string -> converted to null")
     void blankString_convertedToNull() {
         EsqEntityKindFieldLayer kfl = makeKfl("string", "Y", null, null, null);
         Object ret = validator.validate(null, kfl, false, "");
@@ -68,7 +68,7 @@ class GenericValidatorTest {
     }
 
     @Test
-    @DisplayName("whitespace string → converted to null")
+    @DisplayName("whitespace string -> converted to null")
     void whitespaceString_convertedToNull() {
         EsqEntityKindFieldLayer kfl = makeKfl("string", "Y", null, null, null);
         Object ret = validator.validate(null, kfl, false, "   ");
@@ -78,7 +78,7 @@ class GenericValidatorTest {
     // ---- null / nullable ----
 
     @Test
-    @DisplayName("null on nullable field → returns null")
+    @DisplayName("null on nullable field -> returns null")
     void nullOnNullableField_returnsNull() {
         EsqEntityKindFieldLayer kfl = makeKfl("string", "Y", null, null, null);
         Object ret = validator.validate(null, kfl, false, null);
@@ -86,7 +86,7 @@ class GenericValidatorTest {
     }
 
     @Test
-    @DisplayName("null on required field (nullable=N) → throws InvalidValueException")
+    @DisplayName("null on required field (nullable=N) -> throws InvalidValueException")
     void nullOnRequiredField_throwsInvalidValue() {
         EsqEntityKindFieldLayer kfl = makeKfl("string", "N", null, null, null);
         assertThatThrownBy(() -> validator.validate(null, kfl, false, null))
@@ -96,7 +96,7 @@ class GenericValidatorTest {
     // ---- number ----
 
     @Test
-    @DisplayName("number in range → returns value")
+    @DisplayName("number in range -> returns value")
     void numberInRange_returnsValue() {
         EsqEntityKindFieldLayer kfl = makeKfl("number", "Y", null, null, "1,10");
         Object ret = validator.validate(null, kfl, false, "5");
@@ -104,7 +104,7 @@ class GenericValidatorTest {
     }
 
     @Test
-    @DisplayName("number below min → throws InvalidValueException")
+    @DisplayName("number below min -> throws InvalidValueException")
     void numberBelowMin_throwsInvalidValue() {
         EsqEntityKindFieldLayer kfl = makeKfl("number", "Y", null, null, "1,10");
         assertThatThrownBy(() -> validator.validate(null, kfl, false, "0"))
@@ -112,7 +112,7 @@ class GenericValidatorTest {
     }
 
     @Test
-    @DisplayName("number above max → throws InvalidValueException")
+    @DisplayName("number above max -> throws InvalidValueException")
     void numberAboveMax_throwsInvalidValue() {
         EsqEntityKindFieldLayer kfl = makeKfl("number", "Y", null, null, "1,10");
         assertThatThrownBy(() -> validator.validate(null, kfl, false, "11"))
@@ -120,7 +120,7 @@ class GenericValidatorTest {
     }
 
     @Test
-    @DisplayName("non-numeric value for number field → throws InvalidValueException")
+    @DisplayName("non-numeric value for number field -> throws InvalidValueException")
     void numberNonNumeric_throwsInvalidValue() {
         EsqEntityKindFieldLayer kfl = makeKfl("number", "Y", null, null, "1,10");
         assertThatThrownBy(() -> validator.validate(null, kfl, false, "abc"))
@@ -128,7 +128,7 @@ class GenericValidatorTest {
     }
 
     @Test
-    @DisplayName("number with no minmax → accepted without range check")
+    @DisplayName("number with no minmax -> accepted without range check")
     void numberNoMinmax_accepted() {
         EsqEntityKindFieldLayer kfl = makeKfl("number", "Y", null, null, null);
         Object ret = validator.validate(null, kfl, false, "999");
@@ -138,7 +138,7 @@ class GenericValidatorTest {
     // ---- string with pattern ----
 
     @Test
-    @DisplayName("string matching pattern → returns value")
+    @DisplayName("string matching pattern -> returns value")
     void stringMatchesPattern_returnsValue() {
         EsqEntityKindFieldLayer kfl = makeKfl("string", "Y", null, "^[a-z]+$", null);
         Object ret = validator.validate(null, kfl, false, "hello");
@@ -146,7 +146,7 @@ class GenericValidatorTest {
     }
 
     @Test
-    @DisplayName("string not matching pattern → throws InvalidValueException")
+    @DisplayName("string not matching pattern -> throws InvalidValueException")
     void stringPatternMismatch_throwsInvalidValue() {
         EsqEntityKindFieldLayer kfl = makeKfl("string", "Y", null, "^[a-z]+$", null);
         assertThatThrownBy(() -> validator.validate(null, kfl, false, "HELLO"))
@@ -154,7 +154,7 @@ class GenericValidatorTest {
     }
 
     @Test
-    @DisplayName("string longer than maxLen → truncated to maxLen")
+    @DisplayName("string longer than maxLen -> truncated to maxLen")
     void stringTruncatedToMaxLen() {
         EsqEntityKindFieldLayer kfl = makeKfl("string", "Y", null, null, "5");
         Object ret = validator.validate(null, kfl, false, "abcdefgh");
@@ -162,7 +162,7 @@ class GenericValidatorTest {
     }
 
     @Test
-    @DisplayName("string with null pattern → passes through")
+    @DisplayName("string with null pattern -> passes through")
     void stringNullPattern_accepted() {
         EsqEntityKindFieldLayer kfl = makeKfl("string", "Y", null, null, null);
         Object ret = validator.validate(null, kfl, false, "anything");
@@ -172,7 +172,7 @@ class GenericValidatorTest {
     // ---- flag ----
 
     @Test
-    @DisplayName("flag value Y → valid")
+    @DisplayName("flag value Y -> valid")
     void flagY_valid() {
         EsqEntityKindFieldLayer kfl = makeKfl("flag", "Y", null, null, null);
         Object ret = validator.validate(null, kfl, false, "Y");
@@ -180,7 +180,7 @@ class GenericValidatorTest {
     }
 
     @Test
-    @DisplayName("flag value N → valid")
+    @DisplayName("flag value N -> valid")
     void flagN_valid() {
         EsqEntityKindFieldLayer kfl = makeKfl("flag", "Y", null, null, null);
         Object ret = validator.validate(null, kfl, false, "N");
@@ -188,7 +188,7 @@ class GenericValidatorTest {
     }
 
     @Test
-    @DisplayName("flag value other than Y/N → throws InvalidValueException")
+    @DisplayName("flag value other than Y/N -> throws InvalidValueException")
     void flagInvalid_throwsInvalidValue() {
         EsqEntityKindFieldLayer kfl = makeKfl("flag", "Y", null, null, null);
         assertThatThrownBy(() -> validator.validate(null, kfl, false, "X"))
@@ -198,7 +198,7 @@ class GenericValidatorTest {
     // ---- date ----
 
     @Test
-    @DisplayName("date with valid ISO format → returns value")
+    @DisplayName("date with valid ISO format -> returns value")
     void dateValidFormat_returnsValue() {
         EsqEntityKindFieldLayer kfl = makeKfl("date", "Y", null, null, null);
         Object ret = validator.validate(null, kfl, false, "2026-03-10");
@@ -206,7 +206,7 @@ class GenericValidatorTest {
     }
 
     @Test
-    @DisplayName("date with invalid format → throws InvalidValueException")
+    @DisplayName("date with invalid format -> throws InvalidValueException")
     void dateInvalidFormat_throwsInvalidValue() {
         EsqEntityKindFieldLayer kfl = makeKfl("date", "Y", null, null, null);
         assertThatThrownBy(() -> validator.validate(null, kfl, false, "10/03/2026"))

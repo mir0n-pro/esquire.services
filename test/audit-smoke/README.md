@@ -1,12 +1,12 @@
-# Audit smoke matrix — the "whole smoke test"
+# Audit smoke matrix -- the "whole smoke test"
 
 Reproducible smoke + audit-log validation across **every audit variant**, on docker (Postgres primary,
 Oracle primary) and local k8s (Postgres primary). Companion to the perf matrix
-(`doc/research/audit-perf-matrix-*.md`) — that one measures throughput; **this one proves correctness**: for
+(`doc/research/audit-perf-matrix-*.md`) -- that one measures throughput; **this one proves correctness**: for
 each cell it drives a small entity + parameter workload and asserts the audit landed where it should.
 
-Driver: [`run.sh`](run.sh). Per-cell logic: configure env → recreate the audit-path containers/pods →
-smoke → validate → record PASS/FAIL into a results table.
+Driver: [`run.sh`](run.sh). Per-cell logic: configure env -> recreate the audit-path containers/pods ->
+smoke -> validate -> record PASS/FAIL into a results table.
 
 ---
 
@@ -15,14 +15,14 @@ smoke → validate → record PASS/FAIL into a results table.
 1. **Configure** the audit env for the cell (the vars below).
 2. **Recreate** the affected pieces: the producers (enyMan / pacMan / keySmith) always; `auKeep` for the
    bus-consumer sinks (c / ck); the broker is already up. For a primary-DB switch, the whole stack.
-3. **Smoke** (option 1 + param check): one authenticated lifecycle through the gateway —
-   **create office → update a custom parameter → move → delete** — plus an account op (deposit). This
+3. **Smoke** (option 1 + param check): one authenticated lifecycle through the gateway --
+   **create office -> update a custom parameter -> move -> delete** -- plus an account op (deposit). This
    exercises the entity `*_log` AND the parameter `*_par_log` audit paths.
 4. **Validate** the audit landed, by vendor:
    - **(a) triggers / (b) / (c) / (ck):** the `esq_*_log` AND `esq_*_par_log` row counts in the **audit DB**
      grew (entity create/update/delete/move + the param update).
    - **(d) Redis / (dk) Kafka stream:** the stream/topic `esquire.rod.audit` grew; `*_log` does NOT (no
-     consumer). (Stop `auKeep` for d/dk so a leftover subscription can't write `*_log` — see the perf-matrix
+     consumer). (Stop `auKeep` for d/dk so a leftover subscription can't write `*_log` -- see the perf-matrix
      dk note.)
 5. **e2e once per environment:** after the per-cell smokes, run the full Playwright suite
    (`explorer/e2e-test`, 32 specs) once against the running stack in its default audit mode.
@@ -34,7 +34,7 @@ smoke → validate → record PASS/FAIL into a results table.
 | Dimension | Env var(s) | Values |
 |---|---|---|
 | Sink | `AUDIT_BUS_ID` | `audit-b` (in-process) / `audit-c` (AMQ) / `audit-ck` (Kafka) / `audit-d` (Redis) / `audit-dk` (Kafka stream) |
-| (a) triggers | `AUDIT_BUS_ID=` *(blank → audit off)* + apply the trigger DDL to the primary DB | DB writes the `*_log` in-transaction |
+| (a) triggers | `AUDIT_BUS_ID=` *(blank -> audit off)* + apply the trigger DDL to the primary DB | DB writes the `*_log` in-transaction |
 | Audit DB (b / c / ck) | `DB_DATAKEEP_*` (the in-process keep on the producer for b; `auKeep` for c / ck) | `dev-postgres` (`postgres:5432/esq2025`) / `dev-oracle` (`host.docker.internal:1521/MIR0N`) |
 | Primary DB | `DB_<SVC>_VENDOR` / `_HOST` / `_PORT` / `_NAME` (enyman/pacman/keysmith/biztree) | `dev-postgres` (`postgres:5432/esq2025`) / `dev-oracle` (`host.docker.internal:1521/MIR0N`) |
 
@@ -44,37 +44,37 @@ Creds everywhere: `esq2025` / `q`. Oracle service name `MIR0N`; Postgres db `esq
 
 ## The matrix
 
-### Docker — Postgres primary (`DB_*_VENDOR=dev-postgres`, host `postgres`)
+### Docker -- Postgres primary (`DB_*_VENDOR=dev-postgres`, host `postgres`)
 
 | # | Cell | `AUDIT_BUS_ID` | audit DB | validate |
 |---|---|---|---|---|
 | 1 | (a) triggers | *(blank)* + trigger DDL on `postgres` | primary (postgres) | `*_log` + `*_par_log` grow (in-tx) |
-| 2 | (b) keep · pg | `audit-b` | postgres | `*_log` + `*_par_log` grow |
-| 3 | (b) keep · ora | `audit-b` | oracle | `*_log` + `*_par_log` grow (oracle) |
-| 4 | (c) AMQ · pg | `audit-c` | postgres (auKeep) | `*_log` + `*_par_log` grow |
-| 5 | (c) AMQ · ora | `audit-c` | oracle (auKeep) | `*_log` + `*_par_log` grow (oracle) |
-| 6 | (ck) Kafka · pg | `audit-ck` | postgres (auKeep) | `*_log` + `*_par_log` grow |
-| 7 | (ck) Kafka · ora | `audit-ck` | oracle (auKeep) | `*_log` + `*_par_log` grow (oracle) |
-| 8 | (d) Redis | `audit-d` | — (stream) | Redis stream grows; `*_log` +0 |
-| 9 | (dk) Kafka stream | `audit-dk` | — (stream) | Kafka topic grows; `*_log` +0 |
+| 2 | (b) keep / pg | `audit-b` | postgres | `*_log` + `*_par_log` grow |
+| 3 | (b) keep / ora | `audit-b` | oracle | `*_log` + `*_par_log` grow (oracle) |
+| 4 | (c) AMQ / pg | `audit-c` | postgres (auKeep) | `*_log` + `*_par_log` grow |
+| 5 | (c) AMQ / ora | `audit-c` | oracle (auKeep) | `*_log` + `*_par_log` grow (oracle) |
+| 6 | (ck) Kafka / pg | `audit-ck` | postgres (auKeep) | `*_log` + `*_par_log` grow |
+| 7 | (ck) Kafka / ora | `audit-ck` | oracle (auKeep) | `*_log` + `*_par_log` grow (oracle) |
+| 8 | (d) Redis | `audit-d` | -- (stream) | Redis stream grows; `*_log` +0 |
+| 9 | (dk) Kafka stream | `audit-dk` | -- (stream) | Kafka topic grows; `*_log` +0 |
 
-### Docker — Oracle primary (`DB_*_VENDOR=dev-oracle`, host `host.docker.internal`, name `MIR0N`)
+### Docker -- Oracle primary (`DB_*_VENDOR=dev-oracle`, host `host.docker.internal`, name `MIR0N`)
 
 Same 9 cells, with the **primary** DB = Oracle. The audit-DB column is independent (so e.g. cell 4 = oracle
 primary, postgres audit DB). Entity `*_log` for the in-tx (a) case lands in the **Oracle primary**.
 
-### Local k8s — Postgres primary only
+### Local k8s -- Postgres primary only
 
 | # | Cell | `AUDIT_BUS_ID` | audit DB | notes |
 |---|---|---|---|---|
 | 1 | (a) triggers | *(blank)* + trigger DDL | primary (pg) | set `audit.enabled=false` on the producer values |
-| 2 | (b) keep · pg | `audit-b` | postgres | service-level leg |
-| 3 | (c) AMQ · pg | `audit-c` | postgres | auKeep deployed |
-| 4 | (ck) Kafka · pg | `audit-ck` | postgres | needs the kafka infra chart (now shipped) |
-| 5 | (d) Redis | `audit-d` | — | needs the redis infra chart (now shipped) |
-| 6 | (dk) Kafka stream | `audit-dk` | — | needs the kafka infra chart |
+| 2 | (b) keep / pg | `audit-b` | postgres | service-level leg |
+| 3 | (c) AMQ / pg | `audit-c` | postgres | auKeep deployed |
+| 4 | (ck) Kafka / pg | `audit-ck` | postgres | needs the kafka infra chart (now shipped) |
+| 5 | (d) Redis | `audit-d` | -- | needs the redis infra chart (now shipped) |
+| 6 | (dk) Kafka stream | `audit-dk` | -- | needs the kafka infra chart |
 
-(Oracle is not run on k8s — the cluster Postgres is the only DB.)
+(Oracle is not run on k8s -- the cluster Postgres is the only DB.)
 
 ---
 
@@ -92,7 +92,7 @@ SELECT
 **Oracle** (`host.docker.internal:1521/MIR0N`, `esq2025/q`): same five counts (`SELECT count(*) FROM ESQ_*_LOG`).
 
 A cell PASSES when the post-smoke counts exceed the pre-smoke counts on every table the smoke touched
-(entity create/update/delete/move + the param update), or — for d / dk — the stream/topic grew and `*_log`
+(entity create/update/delete/move + the param update), or -- for d / dk -- the stream/topic grew and `*_log`
 did not.
 
 ---

@@ -26,19 +26,19 @@
  * 03/09/2026 mir0n  roles param added; isAdminCmdPermitted(UPDATE) permission check
  *                   PermissionDeniedException thrown; stray debug comment removed
  * 03/10/2026 mir0n  import: RequestContextUtils updated to backend.service package
- * 03/10/2026 mir0n  fillКindFieldLayer() call updated to fillKindFieldLayer() — Cyrillic К → ASCII K
+ * 03/10/2026 mir0n  fillKindFieldLayer() call updated: the leading K of the name had been a Cyrillic letter, now ASCII K
  * 03/17/2026 mir0n  messaging: broadcastPublisher injected; publishEntityEvent() on name/desc update
  * 03/20/2026 mir0n  status broadcast: "status" (acc_status) added to isBroadcastableUpdate()
  *                   publishEntityEvent() emits raw "status" field value; publisher decoupling rule
- * 03/21/2026 mir0n  devLog added; log.debug→devLog.debug; dual error pattern (publishEntityEvent catch: log.warn→log.error+devLog.error)
+ * 03/21/2026 mir0n  devLog added; log.debug->devLog.debug; dual error pattern (publishEntityEvent catch: log.warn->log.error+devLog.error)
  * 03/26/2026 mir0n  createAcct(), deleteAcct(), esquireCommandNew(), esquireCommandDelete() added;
  *                   publishDeleteEvent added; TEXT_* constants replace raw strings
- * 03/28/2026 mir0n  deleteAcct(): status != "C" → DeleteRestrictedException (account must be closed before delete)
+ * 03/28/2026 mir0n  deleteAcct(): status != "C" -> DeleteRestrictedException (account must be closed before delete)
  * 03/28/2026 mir0n  createAcct(): dict-driven defaults via EsqEntityDictionaryStorage.injectDefaults; replaces hardcoded ccy/status ternaries
  * 03/28/2026 mir0n  createAcct(): insertAcctPath before insertAcct; deleteAcct(): deleteEntityPath after deleteAcct
  * 03/31/2026 mir0n  insertAcctPath call: kind param added
- * 04/07/2026 mir0n  all kind params Integer → int; kind normalization removed;
- *                   upfront applicability check (!isAcct → ResourceNotFoundException) at all entry points
+ * 04/07/2026 mir0n  all kind params Integer -> int; kind normalization removed;
+ *                   upfront applicability check (!isAcct -> ResourceNotFoundException) at all entry points
  * 04/09/2026 mir0n  applyFields() and enforceDefaults() delegated to EntityFieldUtils
  * 04/14/2026 mir0n  saveAcct(), deleteAcct(): kind param removed (detailAcctForUpdate aligned)
  * 06/01/2026 mir0n  esquireCommandNew() and private createAcct() helper removed -- account CREATE
@@ -69,7 +69,7 @@
 
 package pro.mir0n.esquire.pacMan.service.impl;
 
-import pro.mir0n.esquire.backend.o11y.EsqBizMeters;
+import pro.mir0n.o11y.BizMeters;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.FlushModeType;
 import java.util.*;
@@ -82,7 +82,7 @@ import pro.mir0n.esquire.backend.dto.access.EsqPermission;
 import pro.mir0n.esquire.backend.error.PermissionDeniedException;
 import pro.mir0n.esquire.backend.jpa.*;
 import pro.mir0n.esquire.backend.jpa.entity.EsqAcctJpa;
-import pro.mir0n.esquire.messaging.RodEvent;
+import pro.mir0n.messaging.RodEvent;
 import pro.mir0n.esquire.audit.AuditBusBridge;
 import pro.mir0n.esquire.backend.service.EntityFieldUtils;
 import pro.mir0n.esquire.backend.storage.EsqObjectKindStorage;
@@ -99,7 +99,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import pro.mir0n.esquire.common.EsqConstants;
-import pro.mir0n.esquire.messaging.BusConstants;
+import pro.mir0n.messaging.BusConstants;
 
 @Slf4j
 @Service
@@ -187,7 +187,7 @@ public class PacManService  implements IPacManService {
             em.setFlushMode(FlushModeType.COMMIT);
             saveAcct(k, id, fields, rootPath, uid, correlationId, requestId, updated);
             return null;
-        }); // ← transaction commits here
+        }); // <- transaction commits here
 
         EsqEntity ret = EsqEntityFactory.getInstance().createEntity(updated[0], null, null);
         publishEntityEvent(ret, k, BusConstants.EVENT_UPDATE, requestId, correlationId, fields);
@@ -209,7 +209,7 @@ public class PacManService  implements IPacManService {
         }
     }
 
-    // Runs synchronously on the request thread — publish failure is absorbed (log.warn),
+    // Runs synchronously on the request thread -- publish failure is absorbed (log.warn),
     // so broker unavailability cannot fail the HTTP response.
     // If broker latency becomes observable in production, promote to @Async with an MDC
     // task decorator to preserve correlationId/requestId in the async thread.
@@ -295,7 +295,7 @@ public class PacManService  implements IPacManService {
         // SUCCEEDED (past the three guards), so a refused delete never inflates it. The purge tag says whether
         // this went through the Test-House branch -- the demo-data path that forces the guards open -- so a real
         // closure is never confused with a test-fixture teardown on the panel.
-        EsqBizMeters.count("esq.biz.acct.close.total", "purge", testHousePurge ? "test-house" : "none");
+        BizMeters.count("esq.biz.acct.close.total", "purge", testHousePurge ? "test-house" : "none");
         // audit: account DELETE (id + kind). ONE bump on the row object; the returned number (for the
         // broadcast) and the audit event (the source) then read the same value, and it matches what the
         // trigger path writes.

@@ -30,5 +30,31 @@ jobs:
           java-version: "24"
           cache: maven
 
+      # Armoury and Herald come from their GitHub Packages registries. Reading another repository's
+      # package uses the repository secret GHCR_TOKEN, the same personal access token (classic) the
+      # image pushes use; its packages scope covers the Maven registry too. The server ids match the
+      # <repositories> in the poms.
+      - name: Maven settings for GitHub Packages
+        run: |
+          mkdir -p ~/.m2
+          cat > ~/.m2/settings.xml <<'EOF'
+          <settings>
+            <servers>
+              <server>
+                <id>armoury</id>
+                <username>${env.GITHUB_ACTOR}</username>
+                <password>${env.GHCR_TOKEN}</password>
+              </server>
+              <server>
+                <id>herald</id>
+                <username>${env.GITHUB_ACTOR}</username>
+                <password>${env.GHCR_TOKEN}</password>
+              </server>
+            </servers>
+          </settings>
+          EOF
+
       - name: Build + verify the reactor
         run: bash .github/scripts/ci.sh
+        env:
+          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}

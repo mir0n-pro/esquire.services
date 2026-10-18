@@ -117,9 +117,9 @@ exit /b %errorlevel%
 :do_backend
 set "SVC=backend"
 set "IMG=ghcr.io/mir0n-pro/esquire.backend"
-set "DOCKERFILE=..\..\explorer\backend\Dockerfile"
+set "DOCKERFILE=..\..\explorer2\backend\Dockerfile"
 rem Build context = explorer/ (parent of backend + frontend) per Dockerfile.
-set "CONTEXT=..\..\explorer"
+set "CONTEXT=..\..\explorer2"
 call :buildAndDeploy
 exit /b %errorlevel%
 
@@ -139,10 +139,10 @@ rem ---------------------------------------------------------------------------
 :target_backend
 set "SVC=backend"
 set "IMG=ghcr.io/mir0n-pro/esquire.backend"
-set "DOCKERFILE=..\..\explorer\backend\Dockerfile"
+set "DOCKERFILE=..\..\explorer2\backend\Dockerfile"
 rem Multi-stage Dockerfile reaches into ../frontend, so context is the
 rem parent explorer/ directory (per Dockerfile header comment).
-set "CONTEXT=..\..\explorer"
+set "CONTEXT=..\..\explorer2"
 goto buildAndDeploy
 
 rem ---------------------------------------------------------------------------

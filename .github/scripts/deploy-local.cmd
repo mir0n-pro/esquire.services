@@ -26,11 +26,13 @@ rem   k8s-rebuild.bat all  -- mvn package + docker build + stamp every image
 rem                           (Java services + the explorer backend/BFF)
 rem   k8s-up.bat           -- helm upgrade --install the full stack, wait ready
 rem
-rem Layout expected in the runner workspace (set by the workflow's two checkouts):
-rem   <workspace>\services\   (this repo)
-rem   <workspace>\explorer\   (sibling -- k8s-rebuild builds ..\..\explorer\backend)
+rem Layout expected in the runner workspace (set by the workflow's checkouts):
+rem   <workspace>\services2\  (this repo, the 2.0 line)
+rem   <workspace>\explorer2\  (sibling -- k8s-rebuild builds ..\..\explorer2\backend)
+rem   <workspace>\services\   (the 1.2 line, postgres\ only -- the postgres image COPYs its init.sh)
+rem   <workspace>\db.seed\    (the postgres image's schema)
 rem
-rem HERE = <workspace>\services\.github\scripts\  ->  k8s is at ..\..\k8s
+rem HERE = <workspace>\services2\.github\scripts\  ->  k8s is at ..\..\k8s
 rem ===========================================================================
 set "HERE=%~dp0"
 

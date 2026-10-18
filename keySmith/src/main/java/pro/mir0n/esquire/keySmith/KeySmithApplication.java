@@ -12,7 +12,7 @@
  * 03/10/2026 mir0n  scanBasePackages: backend.service, backend.security, backend.exception added
  * 03/16/2026 mir0n  @EnableAsync added (virtual thread async for KeycloakIdentityService)
  * 03/20/2026 mir0n  @EnableAsync removed; KeycloakIdentityService removed (moved to kcMaster)
- * 03/21/2026 mir0n  devLog added; log.debug→devLog.debug
+ * 03/21/2026 mir0n  devLog added; log.debug->devLog.debug
  * 06/22/2026 mir0n  MessagingBusLifecycleRegistrar inner class added (ApplicationListener + Ordered.LOWEST_PRECEDENCE)
  *                   and registered LAST; drives MessagingBus.init(env, {BUS_KEY_KC, BUS_KEY_AUDIT}) on
  *                   ApplicationEnvironmentPreparedEvent, start() on ApplicationReadyEvent (after roles load),
@@ -52,8 +52,8 @@ import pro.mir0n.esquire.backend.validator.ValidatorFactory;
 import pro.mir0n.esquire.common.EsqConstants;
 import pro.mir0n.esquire.keySmith.audit.AuditConfig;
 import pro.mir0n.esquire.keySmith.service.BizValidatorFactory;
-import pro.mir0n.esquire.messaging.BusHealthIndicator;
-import pro.mir0n.esquire.messaging.MessagingBus;
+import pro.mir0n.messaging.BusHealthIndicator;
+import pro.mir0n.messaging.MessagingBus;
 
 // @SpringBootConfiguration + @EnableAutoConfiguration is @SpringBootApplication without its implicit
 // @ComponentScan: the scan comes from KeySmithConfig, which is the one place keySmith's packages are

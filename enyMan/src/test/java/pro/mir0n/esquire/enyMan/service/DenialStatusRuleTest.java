@@ -32,8 +32,8 @@ import pro.mir0n.esquire.enyMan.messaging.EntityBusAdapter;
 import pro.mir0n.esquire.enyMan.queue.MoveQueueManager;
 import pro.mir0n.esquire.backend.jpa.entity.EsqUsrJpa;
 import pro.mir0n.esquire.enyMan.service.impl.EnyManService;
-import pro.mir0n.esquire.messaging.IXRod;
-import pro.mir0n.esquire.messaging.xrod.impl.XRodDisabled;
+import pro.mir0n.messaging.IXRod;
+import pro.mir0n.messaging.xrod.impl.XRodDisabled;
 
 import java.util.List;
 

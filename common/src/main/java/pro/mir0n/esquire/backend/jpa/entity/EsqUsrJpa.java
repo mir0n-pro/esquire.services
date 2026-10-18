@@ -8,8 +8,8 @@
  *  History:
  * 01/14/2026 mir0n  email field added
  * 03/20/2026 mir0n  parentId, path fields added
- * 03/26/2026 mir0n  parentId removed — consolidated to EsqEntityJpa
- * 03/28/2026 mir0n  connectFlg field added — pre-delete check for active auth connection
+ * 03/26/2026 mir0n  parentId removed -- consolidated to EsqEntityJpa
+ * 03/28/2026 mir0n  connectFlg field added -- pre-delete check for active auth connection
  * 06/05/2026 mir0n  fillMap() override (IMappable): emits registration/deleted on top of super
  *                   (name/desc/parentId); auth fields excluded (keySmith domain) for the x-Rod user audit body
  */

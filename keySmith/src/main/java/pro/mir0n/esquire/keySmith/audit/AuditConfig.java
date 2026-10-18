@@ -30,7 +30,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import pro.mir0n.esquire.audit.AuditBusBridge;
 import pro.mir0n.esquire.common.EsqConstants;
-import pro.mir0n.esquire.messaging.MessagingBus;
+import pro.mir0n.messaging.MessagingBus;
 
 @Configuration
 public class AuditConfig {

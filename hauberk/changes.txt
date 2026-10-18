@@ -1,0 +1,408 @@
+hauberk changes
+
+10/17/2026 mir0n  v2.0.0 -- the 2.0 line: the bus, the keep and the base libraries moved out
+hauberk  (new project, esquire-hauberk)
+  - the Esquire test routines move in from explorer/hauberk: chain (36 operation classes), simulations (22
+    plus LoadScenarios), reconcile.KcRecover, cli.KcReconcileCommand, config.EntityKinds, the per-target
+    properties and the perf / smoke scripts. The harness they ran on is Armoury's armoury-hauberk now
+config.EsqHauberkConfig  (new)
+  - the Esquire half of the old HauberkConfig: gw.base, bff.base, enyman.base, playground.parent.id and the
+    prepare / move / super shape knobs, read through Armoury's accessors. Every property NAME is unchanged
+simulations.AEsqSimulation  (new)
+  - one line over Armoury's AHauberkSimulation: it supplies the gateway base URL. The 22 Simulations extend
+    this instead of HauberkSimulation; nothing else in them changed
+cli.EsqRunCommand  (new)
+  - the seventeen Esquire shape knobs (--read / --update / --create / --move / --tx / --tree / --readacct /
+    --treesmall / --cache / --cachesmall, --prep-*, --move-*), added back onto Armoury's run subcommand by
+    extension. picocli reads inherited options, so the command line is unchanged from v1.2.16
+cli.EsqHauberkCli  (new)
+  - the Main-Class of the shaded jar: the Esquire run subcommand plus Armoury's list / summary / diff and
+    the Esquire kc-reconcile. finalName stays "hauberk", so hauberk.cmd and every script run as before
+hauberk.properties
+  - the settings the harness itself now needs told: simulations.package, the three health.probe.* /
+    health.auth.probe URLs that used to be hard-coded, the five perf.header.* names that used to be
+    compiled-in mirrors of EsqConstants, perf.run.label, and kc.admin.client.id
+  - cmd.recreate-biztree runs the services2 compose file, not the 1.2 one
+hauberk-compact.properties
+  - cmd.recreate-biztree runs the services2 compose-compact file, not the 1.2 one
+pom.xml
+  - <repositories>: armoury from GitHub Packages (maven.pkg.github.com/mir0n-pro/armoury). The project has
+    no parent, so it declares its own
+perf-pairs.ps1
+  - the default -OutDir is output\perf-pairs inside this project
+hauberk-aws.properties  (removed)
+  - no aws target on the 2.0 line
+(the tree)
+  - the projects that left: mir0n-utils, messaging, dataKeep and tp-* x5. What stays is the Esquire domain
+    and its services, plus the new hauberk project
+  - anything aws left with them: compose-aws, k8s-aws, k8s-aws-compact, test/aws. The 2.0 line has no AWS
+    path until one is built; the 1.2 overlays are frozen and untouched
+  - doc/ is out: the doc set is refined separately, and the rendered 1.2 reports at the root went with it
+pom.xml
+  - version 2.0.0 (the parent too); the module list is common, bizTree, gateway, enyMan, pacMan, keySmith,
+    kcMaster, mesnie, gateWard, audit, auKeep, hauberk. The AWS SDK BOM import is gone with the tp-*
+    providers that used it; ${armoury.version} and ${herald.version} are new
+  - <repositories>: armoury and herald from GitHub Packages (maven.pkg.github.com/mir0n-pro/...)
+.github/workflows/ci.yml
+  - a step writes the Maven settings for GitHub Packages: servers armoury and herald, token GHCR_TOKEN
+build.all.bat
+  - the mir0n-utils, messaging and dataKeep steps are gone (Armoury and Herald build in their own trees);
+    the frontend and backend images build from ..\explorer2
+build.services.bat
+  - the comment names the reactor as it now is, and says where the bus and the base libraries come from
+compose/compose.yaml, compose-compact/compose.yaml
+  - the backend and frontend build contexts point at ../../explorer2, so a 2.0 stack cannot bake the 1.2 SPA
+test/audit-smoke/run.sh
+  - hauberk is found at ${SVCS}/hauberk, inside this tree, instead of ../explorer/hauberk
+enyMan, keySmith, mesnie, pacMan application.yml
+  - rod-class: pro.mir0n.dataKeep.keep.XRodInProcessKeep -- the keep pod is named reflectively in config,
+    so the package move lands here too
+
+10/11/2026 mir0n  v1.2.16 -- one operation per cell: the read scenarios, and the paired driver
+chain.ReadTreeRoot  (new)
+  - Chain GET /esq-cmd-tree on the driver's own root office; used by Tree load
+chain.ReadTreeUser  (new)
+  - Chain GET /esq-cmd-tree on one client user's subtree; used by TreeSmall load
+chain.ReadCacheRoot  (new)
+  - Chain GET /esq-tree on the driver's own root, served from the bizTree cache; used by Cache load
+chain.ReadCacheUser  (new)
+  - Chain GET /esq-tree on one customer's subtree from the bizTree cache; used by CacheSmall load
+chain.ReadAcctDetail  (new)
+  - Chain GET /esq-cmd?kind=50&id=pickedAcctId for a single account; used by ReadAcct load
+simulations.LoadScenarios
+  - five read scenarios added: TREE (ReadTreeRoot), TREE_SMALL (PoolFetchUsers +
+    PickRandomFromPool.userChain + ReadTreeUser), CACHE (ReadCacheRoot), CACHE_SMALL (PoolFetchUsers +
+    PickRandomFromPool.userChain + ReadCacheUser) and READ_ACCT (PoolFetchAccounts +
+    PickRandomFromPool.acctChain + ReadAcctDetail). The three pooled ones carry the same
+    exitHereIfFailed() between the setup and the .forever() loop
+simulations.SuperLoadSimulation
+  - TREE, READ_ACCT, TREE_SMALL, CACHE and CACHE_SMALL join the parallel populations, each injected only
+    when its worker count is above zero; the nothing-to-run guard sums all ten. The javadoc and
+    @SimulationInfo no longer say five
+config.HauberkConfig
+  - added SUPER_TREE_WORKERS, SUPER_READACCT_WORKERS, SUPER_TREESMALL_WORKERS, SUPER_CACHE_WORKERS and
+    SUPER_CACHESMALL_WORKERS (super.tree.workers, super.readacct.workers, super.treesmall.workers,
+    super.cache.workers, super.cachesmall.workers), each requireIntMin0
+cli.RunCommand
+  - added --tree, --readacct, --treesmall, --cache and --cachesmall, each overriding its
+    super.*.workers property
+hauberk.properties
+  - super.tree.workers, super.readacct.workers, super.treesmall.workers, super.cache.workers and
+    super.cachesmall.workers, all 0
+perf-matrix.ps1
+  - -Kinds: ONE KIND PER CELL, named "<config>-<kind>", driving that scenario alone at -KindVus with every
+    other scenario passed an explicit 0; the kinds of a config share one build, and the names are checked
+    against KIND_NAMES
+  - -MetricsVus / -MetricsDuration: a LIGHT --metrics leg pass per kind after the plateau cycles, never
+    sharing a cycle with one, landing as "<config>-<kind>-legs"
+  - -PrepDepth / -PrepClients / -PrepAccounts replace the fixed 5 / 5 / 2 passed to prepare-for-anything
+  - -PoolMax sets BIZTREE_H2_POOL_MAX on the workload that holds the tree cache (gateward in compact,
+    biztree in classic); -ServiceMetrics sets GW_SERVICE_METRICS_ENABLED on the gate after each build
+  - Save-Result takes the duration the row was measured over, so a leg row's rps is not divided by the
+    plateau duration
+  - the resume check matches the exact cell names this invocation produces instead of the config prefix,
+    and the discard sweeps the capture rows with the plateau rows
+perf-pairs.ps1  (new)
+  - per-operation pairs: for each kind, the classic cell then the compact cell back to back, each one a
+    separate perf-matrix.ps1 invocation, with a full helm drain between cells, a refusal to measure while
+    any esquire pod survives the drain, and an optional -RecycleVm restart of the Docker VM
+
+09/07/2026 mir0n  v1.2.15 -- kc-reconcile reads every environment
+KcRecover.java
+  - adminToken() takes a client_credentials token on the realm admin client instead of a
+    master-realm password grant
+HauberkConfig.java
+  - added KC_ADMIN_CLIENT_ID (kc.admin.client.id, default esq-kcMaster) and KC_ADMIN_SECRET, the
+    latter read from the environment only (KC_ADMIN_SECRET / KCMASTER_ADMIN_SECRET)
+hauberk-oke.properties
+  - pg.url added: the OKE database over a port-forward on 35432
+hauberk-aws.properties
+  - pg.url to the in-pod postgres over a port-forward on 45432; cluster and statefulset in cmd.*
+    moved to esquire-aws-compact and esquire-gateward
+
+09/06/2026 mir0n  v1.2.15 -- kc-reconcile reads the stack database
+hauberk.properties
+  - pg.url port 5432 -> 5433, the port the compose stack publishes its own postgres on
+hauberk-compact.properties
+  - pg.url port 5432 -> 5433, the port the compose stack publishes its own postgres on
+
+09/01/2026 mir0n  v1.2.14 -- the AWS run profile
+hauberk-aws.properties  (new)
+  - the AWS overlay: it inherits hauberk.properties and replaces only the endpoints and the
+    infra-orchestration commands. One public host serves all three paths on AWS, so KC, the BFF and the
+    gateway differ by path rather than by hostname
+
+08/26/2026 mir0n  v1.2.13 -- the transfer body, and the test-data marker removed
+Transfer.java
+  - the transfer body sends the amount NEGATED, a rate of 1, and refCode "other"
+EntityKinds.java
+  - TEST_EMAIL_DOMAIN removed
+CreateUser.java
+  - userEmail builds the domain inline
+CreateAccount.java
+  - the account body no longer carries desc
+
+08/20/2026 mir0n  v1.2.13 -- the composed services on the cloud
+perf-matrix.ps1
+  - six k8sc-* configs for the compact stack (x1/x2 x OFF/LOG/FULL), each carrying dir=k8s-compact; APPS_COMPACT
+    is gateward/mesnie/pacman/aukeep/backend, and Wl() returns the workload name per profile -- esquire-<svc>
+    on compact, esquire-<svc>-<svc> on classic
+  - Build-K8s takes its stack folder and its fleet from the config instead of the fixed services\k8s
+  - Wait-Url reads the status: 2xx/3xx passes, and 4xx passes only with -GuardedOk; the gateway gate uses it
+    and compact gates on /esq-enode, classic on /actuator/health
+oke-perf-matrix.ps1
+  - Set-OkeConfig exports ESQ_REPLICAS before the arm, and Restore-Default's helm upgrade carries
+    --force-conflicts
+
+08/15/2026 mir0n  v1.2.13 -- gateWard
+chain.EnsureOffice
+  - the note on the accepted statuses states that an absent office is a 404; 400 stays accepted
+chain.LookupOfficeIdByName
+  - the note on the accepted statuses states that an absent office is a 404; 400 stays accepted
+chain.LookupAccessProfile
+  - the class note states that "no access profile yet" is a 404; 400 stays accepted
+simulations.LoadScenarios
+  - the in-loop transient-failure example no longer names a status code
+
+07/19/2026 mir0n  v1.2.11 -- T12: the OKE performance matrix
+oke-perf-matrix.ps1  (new)
+  - the OKE twin of perf-matrix.ps1: drives the 200-VU super-load across x1/x2 x OFF/LOG/FULL on the LIVE OKE
+    cluster, same CSV schema (perf-matrix-report.py reads it). TOGGLE IN PLACE, not from scratch -- OKE is live
+    and ALTER-migrated, no PVC wipe: each cell scales the replicas + calls oke-o11y-on <arm>, with clean-house
+    between cells. The broker is NEVER rolled (SKIP_INFRA_ROLL -- a broker bounce drops the app's messagingBus,
+    which does not self-heal); Wait-OkePods kicks any straggler. ONE run per config (no from-scratch, so a second
+    run is not an independent replicate -- it only deepens the run-order drift), MaxLoads 12 (OKE warms far
+    slower over the ~55ms RTT). Starts and ends at the OKE default (ERROR logging, no stack, x2)
+oke-perf-matrix.bat  (new)
+  - entry point for the OKE matrix: launches oke-perf-matrix.ps1 detached so a multi-hour run survives the
+    console (resumable); --fresh starts a new CSV, --fg runs in the current console; refuses docker-desktop
+
+07/17/2026 mir0n  v1.2.11 -- T11 cleanup: fix/resolve issues noted during development
+perf-matrix.ps1
+  - the o11y arms go from OFF/ON to three modes OFF / LOG / FULL so logging is isolated from tracing+metrics;
+    the knob is levelMir0n (not levelRoot, which cannot silence the app -- pro.mir0n reaches the console by
+    additivity); -Scale scales the VU count, -Only runs a subset; docker is dropped from the o11y measurement
+    (uncapped -> its sag biases the delta) and kept only as a smoke test; required-infra-only removes kafka and
+    (at x1) redis where nothing under test uses them (I49)
+
+07/15/2026 mir0n  v1.2.11 -- T11 cleanup: fix/resolve issues noted during development
+hauberk-S.properties  (new)
+  - the VANILLA token-relay overlay: tokenRelay.type=vanilla + the esq-hauberk-S client (HTTP Basic at the edge,
+    the gateway runs client_credentials on its behalf) (I8)
+hauberk-M.properties  (new)
+  - the PHANTOM token-relay overlay: tokenRelay.type=phantom + the esq-hauberk-M client (a Bearer the gateway
+    exchanges via RFC 8693) (I8)
+
+07/14/2026 mir0n  v1.2.11 -- the performance matrix; a VU whose setup failed no longer spins; the user pool excludes the create loop's office
+perf-matrix.bat  (new)
+  - entry point for the performance matrix: 6 configurations (docker / k8s x1 / k8s x2, each o11y OFF and ON) x 2
+    runs x 4+ loads. Launches perf-matrix.ps1 detached so a multi-hour matrix survives the console; --fresh starts
+    a new CSV, --fg runs in the current console
+perf-matrix.ps1  (new)
+  - the matrix engine. Every run is built FROM SCRATCH -- the stack is torn down and rebuilt and the Postgres,
+    KeyCloak and broker data dropped (k8s-down.bat leaves the PVCs and `docker compose down` keeps the volume, so
+    both are deleted explicitly). Loads run until the throughput STOPS MOVING (4 minimum, extended while the last
+    load is still climbing >3%, capped at 6). o11y OFF also UNINSTALLS the viewing stack. Only one stack is ever
+    up: before the docker half it uninstalls every esquire helm release and ABORTS if any pod survives. Readiness
+    is gated on the DB being seeded + the realm imported + the gateway UP, and a failed playground prepare aborts
+    the run. Results are appended to matrix.csv after every load and a completed run is skipped on rerun
+perf-matrix-report.py  (new)
+  - reads matrix.csv and prints the three answers: does super-load pass (KO rate per config), what is the noise
+    floor (the gap between a config's own two from-scratch runs), and what each comparison costs. Steady state is
+    the PLATEAU -- the trailing loads within 3% of each other; load 1 (warm-up) and any load still climbing or
+    sagging are excluded. Every comparison is printed next to the noise it must beat, plus a separation check
+simulations.LoadScenarios
+  - exitHereIfFailed() between the setup and the .forever() loop in all five scenarios -- a VU whose setup failed
+    used to walk into the loop with no session attributes, so its requests were never SENT and the loop spun at
+    full CPU issuing nothing
+chain.PoolFetchUsers
+  - userPool EXCLUDES users parented by the deepest office -- the CREATE scenario's churn ground. It fetches the
+    subtree, finds the deepest ORG by the same rule LoadScenarios.CREATE uses, and drops the users whose parentId
+    is that office; an empty pool marks the VU failed
+hauberk-k8s.properties
+  - kc.base and gw.base both moved onto the ingress (esquire.localhost / api.esquire.localhost); no port-forward.
+    gw.base was localhost:8808, a single-threaded userspace proxy that capped every k8s load run; kc.base was
+    localhost:8081 to dodge a JDK-HttpClient/nginx hang that KcTokenClient already fixes by pinning HTTP_1_1, and
+    the forward died on every KeyCloak rollout
+
+07/03/2026 mir0n  v1.2.10 -- KC<->Esquire reconcile utility; write-time X-Request-ID companion
+cli.KcReconcileCommand  (new)
+  - picocli "kc-reconcile" subcommand -- detect (and optionally --repair) drift between esq2025 and KeyCloak, PG(JDBC) + KC(REST) directly, out of the Esquire services
+reconcile.KcRecover  (new)
+  - KC<->Esquire data-recover core: reads connected-user state from esq2025 over PG/JDBC + KeyCloak over REST admin; diffs and (repair mode) fixes a stale KC esq_rootpath in place
+cli.HauberkCli
+  - registered the kc-reconcile subcommand
+config.HauberkConfig
+  - added PG_URL / PG_USER / PG_PASSWORD (pg.url / pg.user / pg.password) for the kc-reconcile utility's direct JDBC read of esq2025
+simulations.HauberkSimulation
+  - every outbound request carries a fresh X-Request-ID (UUID) so hauberk writes satisfy the services' write-time X-Request-ID guard
+pom.xml
+  - added org.postgresql:postgresql (JDBC driver for kc-reconcile)
+hauberk.properties
+  - pg.url / pg.user / pg.password (kc-reconcile, docker: localhost:5432/esq2025)
+hauberk-k8s.properties
+  - pg.url (kc-reconcile, local k8s: port-forward localhost:25432)
+
+06/29/2026 mir0n  v1.2.10 -- R6 query-timeout HA smoke
+simulations.HaTimeoutSmokeSimulation  (new)
+  - hits enyMan's flag-gated /test slow-query hook directly (not via the gateway): a capped slow query
+    (/test/slow-query) is cancelled at the cap (timedOut=true); an opt-out slow query
+    (/test/slow-query-optout, the move / cache-load mechanism) completes (timedOut=false)
+config.HauberkConfig
+  - added ENYMAN_BASE (enyman.base, required) -- enyMan reached directly for the R6 timeout smoke
+hauberk.properties
+  - added enyman.base=http://localhost:3003 (enyMan's own port; compose exposes 3003, local k8s port-forward)
+
+06/10/2026 mir0n  v1.2.7 -- SimulationInfo descriptions trimmed to the hauberk list 90-char cap
+simulations.MessageLossSimulation
+  - @SimulationInfo trimmed 112 -> 86 chars (SimulationCatalogContractTest.descriptionFitsTerminalWidth)
+simulations.MessageLossTerminateSimulation
+  - @SimulationInfo trimmed 114 -> 85 chars
+simulations.ResidueCleanupSimulation
+  - @SimulationInfo trimmed 105 -> 74 chars (dropped the -Dcleanup.prefix default-value note)
+
+06/03/2026 mir0n  v1.2.7 -- PerformanceMatrix AIOOBE fix in the post-run summary
+perf.PerformanceMatrix
+  - printSummary() made synchronized (same monitor as add()) so a straggler response cannot grow a
+    request's row list mid-summary; column() snapshots rows.size() once so the loop bound never exceeds
+    the allocated array (was AIOOBE at high sample counts, aborting the run summary / CSV / HTML report)
+
+06/02/2026 mir0n  v1.2.6 race-8c -- KC esq_rootpath verification + single-shot repro + KC orphan cleanup
+chain.KcAdminAuth  (new)
+  - POST master-realm token endpoint (admin-cli, grant_type=password, kc.admin.user / kc.admin.password);
+    saves access_token as session "kcAdminToken" for subsequent KC admin REST calls
+chain.CleanupKcOrphans  (new)
+  - GET esquire-realm users (search=hauberk-) then DELETE each via admin REST (accepts 200 / 204 / 404);
+    reports kcOrphansDeleted
+simulations.RaceMoveCreateKcSimulation  (new)
+  - race-8c verify: move-oscillate + connected USR creates; verifier diffs DB ep_path (/esq-cmd-tree) against
+    KC esq_rootpath (admin REST). Poll-until-stable with per-tick KcAdminAuth refresh (60s token) and a
+    KC-count stability gate (3 equal ticks) so a zero-mismatch reading is only taken once kcMaster has drained
+simulations.RaceMoveCreateKcSingleShotSimulation  (new)
+  - deterministic single-shot race-8c: one disabled user + exactly ONE move during the keySmith hold, nothing
+    heals it; buffer OFF (ttl=-1) -> FAIL (reproduce), buffer ON (10000) -> PASS (fix proven)
+simulations.KcCleanupSimulation  (new)
+  - standalone teardown: KcAdminAuth + CleanupKcOrphans -- DELETE hauberk-* KC users left behind after CleanHouse
+chain.MoveEntity
+  - accept HTTP 202 in addition to 200 (v1.2.6 Goal 3 made /esq-move async-ack, returns 202 at submit)
+config.HauberkConfig
+  - KC_ADMIN_USER / KC_ADMIN_PASSWORD added (kc.admin.user / kc.admin.password, default admin/q)
+simulations.RaceMoveCreateSimulation
+  - bounded load (during(dur) replaces forever()) + 200ms / 100ms pacing; poll-until-quiescent verifier
+    (5s tick, 5-min budget) replaces the single post-load snapshot; int counters + snapshot maps replace
+    the List<Long> collectors
+hauberk.properties
+  - kc.admin.user / kc.admin.password (default admin/q) for the KC admin REST sims
+simulations.ResidueCleanupSimulation
+  - name-prefix driven: lists offices directly under Test House and runs each whose name starts with
+    -Dcleanup.prefix (default "hauberk-office-smoke") through CleanupOfficeByName (disconnect connected
+    USRs, then delete the subtree bottom-up via the FK /esq-cmd-tree). Catches msgloss / other-named
+    leftovers the old exact-match missed; deletes via the API so it works on prod (direct DB deletes blocked)
+
+05/23/2026 mir0n  v1.2.5 Taijitu night-watch -- message-loss sims + infra-command framework
+chain.Cmd  (new)
+  - sim step that runs a configured infra command (cmd.<key>) through the OS shell (cmd /c on
+    Windows, sh -c elsewhere); {KEY} placeholder substitution from a passed env map; blocks until exit
+chain.ForceSweep  (new)
+  - POST /esq-sweep through the gateway (authenticated) to force a night-watch sweep; checks 202
+chain.WaitCacheReady  (new)
+  - poll GET /esq-tree until bizTree answers 200 (cache loaded + serving), after a restart/recreate
+chain.WaitBizTreeDown  (new)
+  - poll GET /esq-tree until 5xx -- confirms OVER REST that the TERMINATE reaction took bizTree down
+simulations.MessageLossSimulation  (new)
+  - night-watch SWAP scenario: recreate biztree (SWAP), stop AMQ, create a user (CREATE broadcast
+    lost), prove it MISSING, wait one sweep, prove the SWAP promoted the fresh shadow (user present);
+    fully automatic via Cmd
+simulations.MessageLossTerminateSimulation  (new)
+  - night-watch TERMINATE scenario: recreate biztree (TERMINATE), stop AMQ, create a user, prove
+    drift, force a sweep -> mismatch System.exit, assert bizTree DOWN (WaitBizTreeDown); restores the stack
+config.HauberkConfig
+  - added the cmd.* infra-command map (COMMANDS) + static command(key) accessor (cmd.<key> property,
+    -Dcmd.<key> override)
+simulations.RaceCacheLoadSimulation
+  - automated the operator restart: a race-restart population fires Cmd.run("restart-biztree") ~15s in
+    (was a manual banner); verify population waits via WaitCacheReady; maxDuration margin raised
+hauberk.properties
+  - added cmd.* defaults (stop-amq / start-amq / restart-biztree / recreate-biztree -- docker)
+hauberk-k8s.properties
+  - cmd.* overrides for local k8s (kubectl scale/wait AMQ; kubectl set env + rollout restart biztree)
+hauberk-oke.properties
+  - cmd.* overrides for OKE prod (same kubectl steps, -n default); enables the message-loss sims
+    against the live cluster (run with the OKE kubectl context active)
+
+05/17/2026 created: Gatling-based stress / load / smoke / race-repro harness
+auth.KcTokenClient 
+  - plain-Java client_credentials grant against KC /token
+auth.RefreshableToken
+  - thread-safe access-token holder; lazy first fetch; auto-refresh at TTL-30s
+config.HauberkConfig
+   - typed config (endpoints, KC client+secret, playground id, prepare/move/super knobs, metrics)
+     loaded from hauberk.properties + optional overlay via --config
+   - added tokenRelay.type (plain | vanilla | phantom) + isBasicAuth() + basicAuthHeader() 
+     so the harness can present HTTP Basic at the edge for Vanilla Token Relay runs; overlay javadoc decoupled from JWS+ naming
+config.EntityKinds
+    - kind-code constants (ORG=20, USR_CLIENT=34, ACCT_CLIENT=50, TX_DEPOSIT/WITHDRAW/TRANSFER, ...)
+health.HealthPreCheck
+   - KC well-known + gateway health probes run before sim start; aborts on failure
+   - auth-path probe branches on HauberkConfig.AUTH_MODE 
+     presents Basic for Vanilla Token Relay, Bearer otherwise; 
+perf.PerformanceMatrix
+   - per-response transformResponse hook capturing the four observability headers
+    (X-Response-Time / Esq-Gw-Inner-Time / Esq-Srv-Outer-Time / Esq-Srv-Inner-Time);
+cli.HauberkCli
+   - picocli @Command root entry point; dispatches to subcommands
+cli.RunCommand
+   - programmatic Gatling launch with --metrics, --output, --config, --times, shape knobs
+cli.ListCommand
+   - catalogue of discovered Simulations with @SimulationInfo descriptions
+cli.SummaryCommand
+   - per-URL percentile summary from a saved perf-matrix CSV
+cli.DiffCommand
+   - side-by-side per-URL diff of two perf-matrix CSV snapshots
+cli.CsvSnapshot
+   - in-memory snapshot of a perf-matrix CSV (YAML preamble + row arrays)
+cli.SimulationCatalog
+   - classpath scanner for concrete Simulation classes; resolves short / kebab / FQCN names
+chain.*
+  - 26 atomic ChainBuilder building blocks:
+simulations.SimulationInfo
+  - SimulationInfo: class-level annotation carrying the one-line catalog description (read reflectively by ListCommand)
+simulations.HauberkSimulation
+  - abstract base for every hauberk Simulation -- pulls up lazy RefreshableToken, 
+    instrumented httpProtocol with PerformanceMatrix, and after() perf-matrix flush
+  - Authorization header branches on HauberkConfig.AUTH_MODE -- 
+    Basic for Vanilla Token Relay, Bearer (KC JWT) otherwise
+simulations.LoadScenarios
+  - shared scenario library (READ/UPDATE/CREATE/MOVE/TX) used by SuperLoad and the five standalone *LoadSimulation variants
+simulations.SmokeSimulation
+  - single-VU wiring check (KC token + one GET /esq-kinds)
+simulations.EntitySmokeSimulation
+  - end-to-end entity walk -- every CRUD Chain exercised sequentially by a single VU
+simulations.CleanHouseSimulation
+  - stateless name-driven teardown -- find hauberk-office-smoke + delete its subtree
+simulations.CompareTreesSimulation
+  - standalone CompareTrees runner across the playground subtree
+simulations.PrepareForAnythingSimulation
+  - load-test playground builder (D nested offices x N users x M accounts)
+simulations.MoveSmokeSimulation
+  - /esq-move smoke for USR + ORG re-parenting on a D-deep chain
+simulations.KcIntegrationSmokeSimulation
+  - access-profile end-to-end via enyMan + keySmith + kcMaster + KC + BFF login
+simulations.CreateLoadSimulation
+  - standalone variants of the create load scenarios
+simulations.ReadLoadSimulation
+  - standalone variants of the read load scenarios
+simulations.UpdateLoadSimulation
+  - standalone variants of the update load scenarios
+simulations.MoveLoadSimulation
+  - standalone variants of the move load scenarios
+simulations.TxLoadSimulation
+  - standalone variants of the deposit-withdrawal load scenarios
+simulations.SuperLoadSimulation: 
+  - all 5 LoadScenarios in parallel for super.duration.seconds
+simulations.RaceCacheLoadSimulation
+  - Race repro (cache-load race); self-validating PASS/FAIL
+simulations.RaceMoveCreateSimulation
+  - Race repro (move + concurrent create path race); self-validating PASS/FAIL
+simulations.ResidueCleanupSimulation
+  - targeted residue purge for hauberk-office-smoke leftovers

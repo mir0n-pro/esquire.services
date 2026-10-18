@@ -464,5 +464,5 @@ The picocli CLI lives in `cli/` (`HauberkCli`, `RunCommand`,
   overview (every tier + framework); positions Gatling / Haubergeon as the
   Esquire standard for stress / load / race-repro, of which this harness's
   Simulation set is the first.
-- [v1.2.x.Planning.md](v1.2.x.Planning.md) -- the release-line planning /
-  roadmap (the Haubergeon harness first landed in the v1.2.4 sprint).
+- [v2.0.x.Planning.md](v2.0.x.Planning.md) -- the release-line planning (in v2.0.0 the
+  harness became `armoury-hauberk`; the Esquire simulations stay in this repository).

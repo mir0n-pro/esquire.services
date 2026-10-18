@@ -262,7 +262,7 @@ while they are down. It reports three kinds of drift and exits 1 when it finds a
 
 Tracking an answer back to the request that asked for it -- a reply timeout, a pending-request map,
 replier-down detection -- is the messaging bus's continuing work, items 9 and 6 in
-[`Esquire.MessagingBus.ContinuingDev.md`](Esquire.MessagingBus.ContinuingDev.md).
+[`Herald.MessagingBus.ContinuingDev.md`](https://github.com/mir0n-pro/herald/blob/main/doc/Herald.MessagingBus.ContinuingDev.md).
 
 ---
 

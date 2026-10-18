@@ -26,9 +26,9 @@ import pro.mir0n.esquire.backend.service.EsqContextHolder;
 import pro.mir0n.esquire.backend.service.EsqRequestContext;
 import pro.mir0n.esquire.keySmith.jpa.EsqAccessProfileRepository;
 import pro.mir0n.esquire.backend.identity.IIdentityGateway;
-import pro.mir0n.esquire.messaging.BusConstants;
+import pro.mir0n.messaging.BusConstants;
 import pro.mir0n.esquire.keySmith.service.impl.KeySmithService;
-import pro.mir0n.esquire.messaging.RodEvent;
+import pro.mir0n.messaging.RodEvent;
 
 import java.util.List;
 import java.util.Map;
@@ -107,7 +107,7 @@ class KeySmithServiceTest {
 
     // ---- helper: admin storage mock (permits AUTH on any kind) ----
     // connectFlg has personal=N so only admin (id != uid) can change it.
-    // EsqRolesStorage.getInstance() is a static singleton — mock it for admin tests.
+    // EsqRolesStorage.getInstance() is a static singleton -- mock it for admin tests.
 
     private EsqRolesStorage adminStorageMock(MockedStatic<EsqRolesStorage> ms) {
         EsqRolesStorage mockStorage = mock(EsqRolesStorage.class);
@@ -123,7 +123,7 @@ class KeySmithServiceTest {
     // =========================================================
 
     @Test
-    @DisplayName("esquireKey: not found → ResourceNotFoundException")
+    @DisplayName("esquireKey: not found -> ResourceNotFoundException")
     void esquireKey_notFound_throwsResourceNotFoundException() {
         when(accessProfileRepository.access("uid-99", "1.2.3")).thenReturn(null);
 
@@ -137,7 +137,7 @@ class KeySmithServiceTest {
     // =========================================================
 
     @Test
-    @DisplayName("esquireKeySave: missing X-Request-ID → MissingRequestIdException")
+    @DisplayName("esquireKeySave: missing X-Request-ID -> MissingRequestIdException")
     void esquireKeySave_missingRequestId_throwsMissingRequestIdException() {
         EsqContextHolder.set(new EsqRequestContext(null, null, "uid-1", "/root")); // no reqId
         assertThatThrownBy(() -> service.esquireKeySave("10", Map.of(), List.of()))
@@ -149,7 +149,7 @@ class KeySmithServiceTest {
     // =========================================================
 
     @Test
-    @DisplayName("esquireKeySave: not found → ResourceNotFoundException")
+    @DisplayName("esquireKeySave: not found -> ResourceNotFoundException")
     void esquireKeySave_notFound_throwsResourceNotFoundException() {
         executeTransactionInline();
         when(accessProfileRepository.accessForUpdate("other", "1.2.3")).thenReturn(null);
@@ -160,7 +160,7 @@ class KeySmithServiceTest {
     }
 
     @Test
-    @DisplayName("esquireKeySave: id != uid, roles null → PermissionDeniedException")
+    @DisplayName("esquireKeySave: id != uid, roles null -> PermissionDeniedException")
     void esquireKeySave_notSelf_nullRoles_throwsPermissionDeniedException() {
         executeTransactionInline();
         when(accessProfileRepository.accessForUpdate("other", "1.2.3"))
@@ -172,11 +172,11 @@ class KeySmithServiceTest {
     }
 
     // =========================================================
-    // esquireKey: login handshake — confirmPendingFlags
+    // esquireKey: login handshake -- confirmPendingFlags
     // =========================================================
 
     @Test
-    @DisplayName("esquireKey handshake: pwdChangeForced=Y → confirmPendingFlags('N', null)")
+    @DisplayName("esquireKey handshake: pwdChangeForced=Y -> confirmPendingFlags('N', null)")
     void esquireKey_handshake_confirmsPwdForced() {
         EsqAccessProfileJpa jpa = mock(EsqAccessProfileJpa.class);
         when(jpa.getPwdChangeForced()).thenReturn("Y");
@@ -191,7 +191,7 @@ class KeySmithServiceTest {
     }
 
     @Test
-    @DisplayName("esquireKey handshake: tfaMethod=g (pending enable) → confirmPendingFlags(null, 'G')")
+    @DisplayName("esquireKey handshake: tfaMethod=g (pending enable) -> confirmPendingFlags(null, 'G')")
     void esquireKey_handshake_confirmsTfaPendingEnable() {
         EsqAccessProfileJpa jpa = mock(EsqAccessProfileJpa.class);
         when(jpa.getPwdChangeForced()).thenReturn("N");
@@ -206,7 +206,7 @@ class KeySmithServiceTest {
     }
 
     @Test
-    @DisplayName("esquireKey handshake: tfaMethod=n (pending disable) → confirmPendingFlags(null, 'N')")
+    @DisplayName("esquireKey handshake: tfaMethod=n (pending disable) -> confirmPendingFlags(null, 'N')")
     void esquireKey_handshake_confirmsTfaPendingDisable() {
         EsqAccessProfileJpa jpa = mock(EsqAccessProfileJpa.class);
         when(jpa.getPwdChangeForced()).thenReturn("N");
@@ -221,7 +221,7 @@ class KeySmithServiceTest {
     }
 
     @Test
-    @DisplayName("esquireKey handshake: nothing pending → confirmPendingFlags NOT called")
+    @DisplayName("esquireKey handshake: nothing pending -> confirmPendingFlags NOT called")
     void esquireKey_handshake_nothingPending_noConfirm() {
         EsqAccessProfileJpa jpa = mock(EsqAccessProfileJpa.class);
         when(jpa.getPwdChangeForced()).thenReturn("N");
@@ -235,7 +235,7 @@ class KeySmithServiceTest {
     }
 
     @Test
-    @DisplayName("esquireKey handshake: pwdForced=Y + tfaMethod=g → confirmPendingFlags('N', 'G')")
+    @DisplayName("esquireKey handshake: pwdForced=Y + tfaMethod=g -> confirmPendingFlags('N', 'G')")
     void esquireKey_handshake_confirmsBothFlags() {
         EsqAccessProfileJpa jpa = mock(EsqAccessProfileJpa.class);
         when(jpa.getPwdChangeForced()).thenReturn("Y");
@@ -249,7 +249,7 @@ class KeySmithServiceTest {
     }
 
     @Test
-    @DisplayName("esquireKey with explicit id: handshake skipped → confirmPendingFlags NOT called")
+    @DisplayName("esquireKey with explicit id: handshake skipped -> confirmPendingFlags NOT called")
     void esquireKey_explicitId_handshakeSkipped() {
         EsqAccessProfileJpa jpa = mock(EsqAccessProfileJpa.class);
         when(jpa.getPwdChangeForced()).thenReturn("Y");
@@ -263,12 +263,12 @@ class KeySmithServiceTest {
 
     // =========================================================
     // syncToKeycloak: connect flag transitions
-    // connectFlg has personal=N — only admin (id != uid) can change it.
+    // connectFlg has personal=N -- only admin (id != uid) can change it.
     // EsqRolesStorage is mocked to permit AUTH.
     // =========================================================
 
     @Test
-    @DisplayName("kcSync: Y→N → post called with the DELETE command and connectFlg=N")
+    @DisplayName("kcSync: Y->N -> post called with the DELETE command and connectFlg=N")
     void esquireKeySave_connectFlg_YtoN_publishesDelete() {
         executeTransactionInline();
         EsqAccessProfileJpa jpa = jpaWith("Y", "N", "user1");
@@ -285,7 +285,7 @@ class KeySmithServiceTest {
     }
 
     @Test
-    @DisplayName("kcSync: N→Y → post called with the CREATE command and connectFlg=Y")
+    @DisplayName("kcSync: N->Y -> post called with the CREATE command and connectFlg=Y")
     void esquireKeySave_connectFlg_NtoY_publishesCreate() {
         executeTransactionInline();
         EsqAccessProfileJpa jpa = jpaWith("N", "N", "user2");
@@ -302,7 +302,7 @@ class KeySmithServiceTest {
     }
 
     @Test
-    @DisplayName("kcSync: Y→Y (no change) → post called with the UPDATE command and connectFlg=Y")
+    @DisplayName("kcSync: Y->Y (no change) -> post called with the UPDATE command and connectFlg=Y")
     void esquireKeySave_connectFlg_noChange_publishesUpdate() {
         executeTransactionInline();
         EsqAccessProfileJpa jpa = jpaWith("Y", "N", "user3");
@@ -338,11 +338,11 @@ class KeySmithServiceTest {
 
     // =========================================================
     // applyFields: tfaMethod state machine
-    // tfaMethod has personal=Y — users can update their own.
+    // tfaMethod has personal=Y -- users can update their own.
     // =========================================================
 
     @Test
-    @DisplayName("applyFields: N→G submitted → stored as 'g' (pending enable)")
+    @DisplayName("applyFields: N->G submitted -> stored as 'g' (pending enable)")
     void applyFields_tfaMethod_NtoG_pendingEnable() {
         executeTransactionInline();
         EsqAccessProfileJpa jpa = jpaWith("Y", "N", "user4");
@@ -355,7 +355,7 @@ class KeySmithServiceTest {
     }
 
     @Test
-    @DisplayName("applyFields: G→N submitted → stored as 'n' (pending disable)")
+    @DisplayName("applyFields: G->N submitted -> stored as 'n' (pending disable)")
     void applyFields_tfaMethod_GtoN_pendingDisable() {
         executeTransactionInline();
         EsqAccessProfileJpa jpa = jpaWith("Y", "G", "user5");
@@ -368,7 +368,7 @@ class KeySmithServiceTest {
     }
 
     @Test
-    @DisplayName("applyFields: G→G (same value) → no-op, tfaMethod unchanged")
+    @DisplayName("applyFields: G->G (same value) -> no-op, tfaMethod unchanged")
     void applyFields_tfaMethod_sameValue_noOp() {
         executeTransactionInline();
         EsqAccessProfileJpa jpa = jpaWith("Y", "G", "user6");
@@ -381,7 +381,7 @@ class KeySmithServiceTest {
     }
 
     @Test
-    @DisplayName("applyFields: invalid tfaMethod value → InvalidValueException (validator rejects before state machine)")
+    @DisplayName("applyFields: invalid tfaMethod value -> InvalidValueException (validator rejects before state machine)")
     void applyFields_tfaMethod_invalidValue_rejectsWithException() {
         executeTransactionInline();
         EsqAccessProfileJpa jpa = jpaWith("Y", "N", "user7");
@@ -392,11 +392,11 @@ class KeySmithServiceTest {
     }
 
     // =========================================================
-    // saveAccess: TOTP reset on connect N→Y (admin)
+    // saveAccess: TOTP reset on connect N->Y (admin)
     // =========================================================
 
     @Test
-    @DisplayName("saveAccess: connect N→Y with active TOTP → tfaMethod forced to 'N'")
+    @DisplayName("saveAccess: connect N->Y with active TOTP -> tfaMethod forced to 'N'")
     void saveAccess_connectNtoY_resetsTotpToN() {
         executeTransactionInline();
         EsqAccessProfileJpa jpa = jpaWith("N", "G", "user8");
@@ -411,7 +411,7 @@ class KeySmithServiceTest {
     }
 
     @Test
-    @DisplayName("saveAccess: connect N→Y with tfaMethod already N → tfaMethod stays 'N'")
+    @DisplayName("saveAccess: connect N->Y with tfaMethod already N -> tfaMethod stays 'N'")
     void saveAccess_connectNtoY_totpAlreadyN_noReset() {
         executeTransactionInline();
         EsqAccessProfileJpa jpa = jpaWith("N", "N", "user9");

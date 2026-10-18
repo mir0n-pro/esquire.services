@@ -6,7 +6,7 @@
  *  mailto:mir0n.the.programmer@gmail.com
  *
  *  History:
- * 03/06/2026 mir0n created: biz validator — cannot close account with positive balance
+ * 03/06/2026 mir0n created: biz validator -- cannot close account with positive balance
  * 03/08/2026 mir0n  validate(): boolean personal param added (interface alignment, no behavior change)
  * 04/09/2026 mir0n  StatusBizValidator renamed AcctBizValidator; ccy rule: cannot change on funded account;
  *                   validateDelete(): funded account cannot be deleted; account must be closed before delete

@@ -1,7 +1,7 @@
 | ![Alt text](../favicon.ico) | Esquire Frameworks(tm) 2.0 |
 |----------------------------|---------------------------|
 
-# k8s-oci — Oracle Kubernetes Engine: cluster setup, and the classic record
+# k8s-oci -- Oracle Kubernetes Engine: cluster setup, and the classic record
 
 **Two halves, and they have different lives.**
 
@@ -13,8 +13,8 @@ and cluster work. Every cloud deployment starts here.
 **The application overlay.** The `values/*.yaml`, `esquire-topology.yml`,
 `oke-up.bat` / `oke-rebuild.bat` / `oke-down.bat`, the o11y launchers and the
 grafana assets here deploy the **classic** eight-program shape, and they are
-kept as its record. The cloud runs **super-compact** — Mesnie, gateWard,
-pacMan and the BFF — deployed from `../k8s-compact/charts` with the overlays in
+kept as its record. The cloud runs **super-compact** -- Mesnie, gateWard,
+pacMan and the BFF -- deployed from `../k8s-compact/charts` with the overlays in
 `../k8s-oci-compact/values`, by hand through `../k8s-oci-compact/oke-up.bat` or
 by the `deploy-oke` workflow. Read the cloud's settings there.
 
@@ -59,7 +59,7 @@ k8s-oci/
 ## Prerequisites
 
 - OCI account with OKE cluster (4 A1.Flex nodes: 1 infra + 3 app, each 1 OCPU / 6 GB =
-  the full 4 OCPU / 24 GB Always-Free envelope — see `../doc/TodoCloud.md` Phase 3)
+  the full 4 OCPU / 24 GB Always-Free envelope -- see `../doc/TodoCloud.md` Phase 3)
 - OCI CLI installed and configured (`oci setup config`)
 - Domain `esquire.mir0n.pro` A record pointing to OCI LB IP (see step 3)
 - GHCR PAT with `write:packages` (set as `GHCR_TOKEN` env var)
@@ -87,7 +87,7 @@ k8s-oci/
    oke-bootstrap.bat
    ```
    Installs ingress-nginx (creates the public LB), cert-manager, and the
-   Let's Encrypt ClusterIssuer. Prints the LB external IP at the end —
+   Let's Encrypt ClusterIssuer. Prints the LB external IP at the end --
    **set the `esquire.mir0n.pro` A record to that IP before running step 5.**
 
 4. **Label nodes**
@@ -131,7 +131,7 @@ oke-down.bat
 ```
 
 Uninstalls all releases (reverse order). Cluster, ingress, cert-manager,
-PVCs, and OCI LB stay — re-install is fast.
+PVCs, and OCI LB stay -- re-install is fast.
 
 To wipe completely: also run `kubectl delete pvc --all -n default` and
 `helm uninstall ingress-nginx -n ingress-nginx`.
@@ -150,7 +150,7 @@ Recommend using a password manager. Rotated quarterly.
 
 ---
 
-## DNS layout — single A record, path-based ingress
+## DNS layout -- single A record, path-based ingress
 
 ```
 esquire.mir0n.pro   A   <OCI LB IP>
@@ -159,11 +159,11 @@ esquire.mir0n.pro   A   <OCI LB IP>
 Ingress routes by path:
 - `/`        -> frontend
 - `/api/`    -> gateway (path stripped)
-- `/auth/`   -> keycloak (path preserved — KC needs `/auth` prefix or rewrite via `KC_HTTP_RELATIVE_PATH`)
+- `/auth/`   -> keycloak (path preserved -- KC needs `/auth` prefix or rewrite via `KC_HTTP_RELATIVE_PATH`)
 
 Frontend's `apiBasePath` and `keycloakUrl` reset to `https://esquire.mir0n.pro/api`
 and `https://esquire.mir0n.pro/auth` in `values/frontend.yaml`.
 
 ---
 
-*Esquire Frameworks(tm) 2.0 — mir0n&co — mir0n.the.programmer@gmail.com*
+*Esquire Frameworks(tm) 2.0 -- mir0n&co -- mir0n.the.programmer@gmail.com*

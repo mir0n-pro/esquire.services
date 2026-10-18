@@ -18,8 +18,8 @@ package pro.mir0n.esquire.backend.service;
  * Immutable carrier of the four values that describe "who is asking, on whose behalf, under
  * which correlation" for a single user request:
  *
- *   correlationId / requestId — request tracing (origin: request headers).
- *   uid / rootPath            — caller identity and scope (origin: JWT claims).
+ *   correlationId / requestId -- request tracing (origin: request headers).
+ *   uid / rootPath            -- caller identity and scope (origin: JWT claims).
  *
  * All four share one origin class: the inbound user request. They are captured once (on the
  * request thread, in JwtClaimsExtractionFilter) and re-established on worker threads that process

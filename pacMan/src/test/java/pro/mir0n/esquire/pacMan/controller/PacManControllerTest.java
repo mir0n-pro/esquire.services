@@ -75,7 +75,7 @@ class PacManControllerTest {
         verify(service).esquireCommandSave(50, "10", "save", fields, List.of("admin"));
     }
 
-    // ---- esquireCommandSave: null realm_access → null roles ----
+    // ---- esquireCommandSave: null realm_access -> null roles ----
 
     @Test
     @DisplayName("esquireCommandSave: null realm_access passes null roles to service")
@@ -105,7 +105,7 @@ class PacManControllerTest {
         verify(service).esquireCommandDelete(50, "10", "delete", List.of("admin"));
     }
 
-    // ---- esquireCommandDelete: null realm_access → null roles ----
+    // ---- esquireCommandDelete: null realm_access -> null roles ----
 
     @Test
     @DisplayName("esquireCommandDelete: null realm_access passes null roles to service")

@@ -11,7 +11,7 @@
  *                   cache-read scheduler so no blocking JDBC lands on an event-loop thread, and each carrying
  *                   the caller's rootPath / uid across that thread hop. scoped() also takes the two timing
  *                   stamps (out from the gate, in the ward) for TreeRouteTimingFilter
- * 08/26/2026 mir0n  each tree read is wrapped in its own EsqTraceMark span -- read tree, read subtree, read path
+ * 08/26/2026 mir0n  each tree read is wrapped in its own TraceMark span -- read tree, read subtree, read path
  */
 
 package pro.mir0n.esquire.gateWard;
@@ -30,7 +30,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ServerWebExchange;
 import pro.mir0n.esquire.backend.dto.EsqTreeNode;
-import pro.mir0n.esquire.backend.o11y.EsqTraceMark;
+import pro.mir0n.o11y.TraceMark;
 import pro.mir0n.esquire.backend.service.EsqContextHolder;
 import pro.mir0n.esquire.backend.service.EsqRequestContext;
 import pro.mir0n.esquire.bizTree.access.IBizTreeDirector;
@@ -214,7 +214,7 @@ public class BizTreeCacheController {
 
         EsqContextHolder.set(ctx);
         try {
-            ret = EsqTraceMark.aroundChecked(obsName, obsLabel, call::call);
+            ret = TraceMark.aroundChecked(obsName, obsLabel, call::call);
         } finally {
             EsqContextHolder.clear();
             TreeRouteTimingFilter.wardOuter(exchange, inTheWard);

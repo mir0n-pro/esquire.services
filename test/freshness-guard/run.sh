@@ -201,7 +201,7 @@ if [ "$MV" = "200" ] || [ "$MV" = "202" ]; then ok "move accepted ($MV)"; else b
 # Only then does cache-vs-database mean what this smoke says it means.
 #
 # Polling for completion is the right shape, and the framework's own answer to it is
-# `doc/Esquire.MessagingBus.ContinuingDev.md` item 6 -- the FIX-like continuing-processing protocol, where an
+# `herald/doc/Herald.MessagingBus.ContinuingDev.md` item 6 -- the FIX-like continuing-processing protocol, where an
 # async command either streams status updates to a subscriber or returns an ACK the caller then asks about.
 # That gives a completion status to wait ON. This smoke has no such status to ask for, so it waits on the
 # DATA instead and infers the move has landed from the paths themselves. When item 6 exists, this loop asks

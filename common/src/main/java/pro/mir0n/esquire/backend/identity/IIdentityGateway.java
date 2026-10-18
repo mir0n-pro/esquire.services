@@ -12,7 +12,7 @@
  */
 package pro.mir0n.esquire.backend.identity;
 
-import pro.mir0n.esquire.messaging.RodEvent;
+import pro.mir0n.messaging.RodEvent;
 
 import java.util.function.Consumer;
 

@@ -31,16 +31,19 @@ set TEMPO_URL=http://localhost:13200
 set GRAFANA_URL=http://localhost:13009
 set LOKI_JOB=esq-k8s
 set SERVICES=gateway,biztree,enyman,pacman,keysmith,kcmaster,aukeep
+rem LOG_SERVICES = the Loki `service_name` label: on k8s the FULL workload name, not the short
+rem service name (the same list as o11y-verify.bat).
+set LOG_SERVICES=esquire-gateway-gateway,esquire-biztree-biztree,esquire-enyman-enyman,esquire-pacman-pacman,esquire-keysmith-keysmith,esquire-kcmaster-kcmaster,esquire-aukeep-aukeep,esquire-backend-backend
 
 rem Credentials from the e2e's .env -- ONE place for the sandbox login, never a literal in a script.
-if exist "..\..\explorer\e2e-test\.env" (
-    for /f "usebackq tokens=1,2 delims==" %%A in ("..\..\explorer\e2e-test\.env") do (
+if exist "..\..\explorer2\e2e-test\.env" (
+    for /f "usebackq tokens=1,2 delims==" %%A in ("..\..\explorer2\e2e-test\.env") do (
         if /i "%%A"=="E2E_USERNAME" set ESQ_USER=%%B
         if /i "%%A"=="E2E_PASSWORD" set ESQ_PASS=%%B
     )
 )
 if "%ESQ_USER%"=="" (
-    echo [o11y-test] ESQ_USER not set and ..\..\explorer\e2e-test\.env not found.
+    echo [o11y-test] ESQ_USER not set and ..\..\explorer2\e2e-test\.env not found.
     exit /b 2
 )
 

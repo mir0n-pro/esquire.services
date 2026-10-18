@@ -7,7 +7,7 @@
  *
  *  History:
  * 02/13/2026 mir0n @MappedSuperclass
- * 03/26/2026 mir0n  parentId field added — consolidated from EsqAcctJpa/EsqOrgJpa/EsqUsrJpa
+ * 03/26/2026 mir0n  parentId field added -- consolidated from EsqAcctJpa/EsqOrgJpa/EsqUsrJpa
  * 06/05/2026 mir0n  implements IMappable: fillMap() emits the common data fields (name/desc/parentId) by
  *                   property name; concrete entities override to add their own. id/kind are identity ->
  *                   carried in the x-Rod header (entityId/kind), not the body.

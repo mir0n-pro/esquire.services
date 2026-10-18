@@ -1,5 +1,7 @@
 package pro.mir0n.esquire.backend.o11y;
 
+import pro.mir0n.o11y.Gauges;
+
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -11,21 +13,25 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Stream;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
 /**
- * The architecture guard behind {@link EsqGauge} (T7 phase A).
+ * The architecture guard behind {@link Gauges} (T7 phase A).
  *
  * <p>Micrometer holds a gauge's state object WEAKLY. Every Esquire gauge reads its value through a supplier
  * lambda, and that lambda IS the state object -- so without {@code strongReference(true)} the next GC collects it
  * and the gauge silently reports NaN. A hand-written {@code .strongReference(true)} at each call site is a
  * CONVENTION, and a convention does not survive a new author.
  *
- * <p>This test is what turns the convention into a rule: {@code Gauge.builder} may be CALLED in exactly ONE file,
- * {@code EsqGauge.java}. Anywhere else and the build fails, with the offending file named. That is the difference
- * between a trap that is documented and a trap that is removed.
+ * <p>This test is what turns the convention into a rule. On the 1.2 line the rule was "called in exactly one
+ * file, EsqGauge.java". That one file is now {@code pro.mir0n.o11y.Gauges} in armoury-utils, one repository
+ * UP, so in THIS tree the rule is simpler and stricter: {@code Gauge.builder} may not be called at all. Any
+ * call here means someone built a gauge without the seam, and the build fails with the file named. That is the
+ * difference between a trap that is documented and a trap that is removed.
+ *
+ * <p>Armoury carries the other half of this guard -- that {@code Gauges.java} is the only file in ITS tree to
+ * call the builder -- because that is where the one legal call lives and where it can be seen to still exist.
  *
  * <p>It bans the CALL, not the WORD: comments and string literals are stripped before the scan. A guard nobody
  * can write documentation about is broken -- the history header and the changes.txt entry of the very files
@@ -34,13 +40,11 @@ import static org.junit.jupiter.api.Assertions.fail;
 class NoRawGaugeBuilderTest {
 
     private static final String BANNED = "Gauge.builder";
-    private static final String OWNER = "EsqGauge.java";
 
     @Test
-    void gaugeBuilderIsConfinedToEsqGauge() throws IOException {
+    void gaugeBuilderAppearsNowhereInThisTree() throws IOException {
         Path root = servicesRoot();
         List<Path> offenders = new ArrayList<>();
-        List<Path> owners = new ArrayList<>();
 
         for (Path src : mainSourceRoots(root)) {
             try (Stream<Path> walk = Files.walk(src)) {
@@ -50,11 +54,7 @@ class NoRawGaugeBuilderTest {
                 for (Path f : javaFiles) {
                     String body = codeOnly(Files.readString(f, StandardCharsets.UTF_8));
                     if (body.contains(BANNED)) {
-                        if (f.getFileName().toString().equals(OWNER)) {
-                            owners.add(f);
-                        } else {
-                            offenders.add(f);
-                        }
+                        offenders.add(f);
                     }
                 }
             }
@@ -62,20 +62,16 @@ class NoRawGaugeBuilderTest {
 
         if (!offenders.isEmpty()) {
             StringBuilder msg = new StringBuilder();
-            msg.append(BANNED).append(" is confined to ").append(OWNER)
+            msg.append(BANNED).append(" must not be called in this tree")
                .append(" -- Micrometer gauges are WEAK-referenced, so a raw builder without strongReference(true)")
                .append(" reports NaN once the supplier lambda is collected.\n")
-               .append("Use EsqGauge.register(registry, name, supplier, tags...) instead. Offending file(s):\n");
+               .append("Use Gauges.register(registry, name, supplier, tags...) from armoury-utils, or")
+               .append(" BizMeters.gauge(name, supplier, tags...) which goes through it. Offending file(s):\n");
             for (Path f : offenders) {
                 msg.append("  - ").append(root.relativize(f)).append('\n');
             }
             fail(msg.toString());
         }
-
-        // The owner must actually still own it: if EsqGauge stops calling Gauge.builder, this guard has quietly
-        // stopped guarding anything (the ban would pass vacuously against a codebase with no gauges at all).
-        assertEquals(1, owners.size(),
-                "expected exactly one file to hold " + BANNED + " (" + OWNER + "), found " + owners);
     }
 
     /**
@@ -83,7 +79,7 @@ class NoRawGaugeBuilderTest {
      *
      * <p>A plain substring scan would flag a file for merely MENTIONING the banned call, which makes it
      * impossible to write the history header or the changes.txt entry that explain the ban (this test failed in
-     * CI for exactly that: the EsqRodObserver header says it hands off "Gauge.builder" to EsqGauge). Stripping
+     * CI for exactly that: the EsqRodObserver header says it hands off "Gauge.builder" to Gauges). Stripping
      * literals as well as comments also closes the reverse hole -- a URL inside a string ("http://...") must not
      * be mistaken for the start of a line comment and hide real code after it on the same line.
      */
@@ -132,12 +128,12 @@ class NoRawGaugeBuilderTest {
         return ret.toString();
     }
 
-    /** Walk up from the module dir to the services root -- the one directory holding both common and messaging. */
+    /** Walk up from the module dir to the services root -- the one directory holding both common and bizTree. */
     private static Path servicesRoot() {
         Path ret = null;
         Path dir = Paths.get("").toAbsolutePath();
         while (dir != null && ret == null) {
-            if (Files.isDirectory(dir.resolve("common")) && Files.isDirectory(dir.resolve("messaging"))) {
+            if (Files.isDirectory(dir.resolve("common")) && Files.isDirectory(dir.resolve("bizTree"))) {
                 ret = dir;
             }
             dir = dir.getParent();

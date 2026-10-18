@@ -68,7 +68,7 @@ class KcIdentityServiceTest {
     // -------------------------------------------------------------------------
 
     @Test
-    @DisplayName("updateEntityPath: user not found — no KC update")
+    @DisplayName("updateEntityPath: user not found -- no KC update")
     void updateEntityPath_userNotFound_skips() {
         when(usersResource.searchByAttributes(anyString(), any(Boolean.class)))
                 .thenReturn(Collections.emptyList());
@@ -79,7 +79,7 @@ class KcIdentityServiceTest {
     }
 
     @Test
-    @DisplayName("updateEntityPath: path unchanged — no KC update")
+    @DisplayName("updateEntityPath: path unchanged -- no KC update")
     void updateEntityPath_pathUnchanged_skips() {
         UserRepresentation rep = userRepWithPath("1.10.uid-001");
         stubByAttributeSearch("uid-001", rep);
@@ -90,7 +90,7 @@ class KcIdentityServiceTest {
     }
 
     @Test
-    @DisplayName("updateEntityPath: path changed — update called with new path")
+    @DisplayName("updateEntityPath: path changed -- update called with new path")
     void updateEntityPath_pathChanged_updatesAttribute() {
         UserRepresentation rep = userRepWithPath("1.10.uid-001");
         stubByAttributeSearch("uid-001", rep);
@@ -104,7 +104,7 @@ class KcIdentityServiceTest {
     }
 
     @Test
-    @DisplayName("updateEntityPath: user has no attributes yet — update called with new path")
+    @DisplayName("updateEntityPath: user has no attributes yet -- update called with new path")
     void updateEntityPath_noExistingAttributes_updatesAttribute() {
         UserRepresentation rep = new UserRepresentation();
         rep.setId("kc-001");
@@ -140,11 +140,11 @@ class KcIdentityServiceTest {
     }
 
     // -------------------------------------------------------------------------
-    // updateUserAuthState — change detection
+    // updateUserAuthState -- change detection
     // -------------------------------------------------------------------------
 
     @Test
-    @DisplayName("updateUserAuthState: nothing changed — no KC update")
+    @DisplayName("updateUserAuthState: nothing changed -- no KC update")
     void updateUserAuthState_nothingChanged_skipsUpdate() {
         UserRepresentation rep = userRepForUpdate("alice", "alice@example.com");
         stubLoginSearch("alice", rep);
@@ -157,7 +157,7 @@ class KcIdentityServiceTest {
     }
 
     @Test
-    @DisplayName("updateUserAuthState: email changed — update called")
+    @DisplayName("updateUserAuthState: email changed -- update called")
     void updateUserAuthState_emailChanged_callsUpdate() {
         UserRepresentation rep = userRepForUpdate("alice", "alice@example.com");
         stubLoginSearch("alice", rep);
@@ -170,7 +170,7 @@ class KcIdentityServiceTest {
     }
 
     @Test
-    @DisplayName("updateUserAuthState: email same as current — no KC update")
+    @DisplayName("updateUserAuthState: email same as current -- no KC update")
     void updateUserAuthState_emailUnchanged_skipsUpdate() {
         UserRepresentation rep = userRepForUpdate("alice", "alice@example.com");
         stubLoginSearch("alice", rep);
@@ -183,7 +183,7 @@ class KcIdentityServiceTest {
     }
 
     @Test
-    @DisplayName("updateUserAuthState: forcePasswordChange — update called")
+    @DisplayName("updateUserAuthState: forcePasswordChange -- update called")
     void updateUserAuthState_forcePasswordChange_callsUpdate() {
         UserRepresentation rep = userRepForUpdate("alice", "alice@example.com");
         stubLoginSearch("alice", rep);
@@ -196,7 +196,7 @@ class KcIdentityServiceTest {
     }
 
     @Test
-    @DisplayName("updateUserAuthState: requireTotp — update called")
+    @DisplayName("updateUserAuthState: requireTotp -- update called")
     void updateUserAuthState_requireTotp_callsUpdate() {
         UserRepresentation rep = userRepForUpdate("alice", "alice@example.com");
         stubLoginSearch("alice", rep);
@@ -209,7 +209,7 @@ class KcIdentityServiceTest {
     }
 
     @Test
-    @DisplayName("updateUserAuthState: username changed — update called")
+    @DisplayName("updateUserAuthState: username changed -- update called")
     void updateUserAuthState_usernameChanged_callsUpdate() {
         UserRepresentation rep = userRepForUpdate("alice", "alice@example.com");
         stubLoginSearch("alice", rep);
@@ -222,7 +222,7 @@ class KcIdentityServiceTest {
     }
 
     @Test
-    @DisplayName("updateUserAuthState: attributes provided — update called")
+    @DisplayName("updateUserAuthState: attributes provided -- update called")
     void updateUserAuthState_attributesProvided_callsUpdate() {
         UserRepresentation rep = userRepForUpdate("alice", "alice@example.com");
         stubLoginSearch("alice", rep);

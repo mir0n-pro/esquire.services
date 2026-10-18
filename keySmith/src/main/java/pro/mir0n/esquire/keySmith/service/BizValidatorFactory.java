@@ -6,10 +6,10 @@
  *  mailto:mir0n.the.programmer@gmail.com
  *
  *  History:
- * 03/06/2026 mir0n created: biz validator — max 1 admin role per user
+ * 03/06/2026 mir0n created: biz validator -- max 1 admin role per user
  * 03/08/2026 mir0n  personal guard added: throws if personal=true (cannot change own permissions)
  * 03/10/2026 mir0n  unused import removed; getBizValidators() final modifier removed; comment corrected
- * 03/21/2026 mir0n  devLog added; log.debug→devLog.debug
+ * 03/21/2026 mir0n  devLog added; log.debug->devLog.debug
  */
 
 package pro.mir0n.esquire.keySmith.service;

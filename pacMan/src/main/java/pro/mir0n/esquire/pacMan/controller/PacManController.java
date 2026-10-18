@@ -16,12 +16,12 @@
  *                  no more EsqTreeNode methods
  * 02/19/2026 mir0n  added esquireCommandSave() POST /esq-cmd-asave
  * 03/09/2026 mir0n  realm_access.roles extracted from JWT claims; roles passed to esquireCommandSave()
- * 03/21/2026 mir0n  devLog added; log.debug→devLog.debug
- * 03/26/2026 mir0n  POST /esq-anew → esquireCommandNew(); POST /esq-adel → esquireCommandDelete()
- * 04/07/2026 mir0n  unified facade API: /esq-cmd-asave→/esq-cmd-save, /esq-anew→/esq-new, /esq-adel→/esq-del
- *                   /esq-new→/esq-cmd-new, /esq-del→/esq-cmd-del
- * 04/09/2026 mir0n  POST /esq-acct → esquireCommandAcct(); AcctTransactionService injected directly
- * 04/13/2026 mir0n  AcctTransactionSimple → AcctTransactionSingle
+ * 03/21/2026 mir0n  devLog added; log.debug->devLog.debug
+ * 03/26/2026 mir0n  POST /esq-anew -> esquireCommandNew(); POST /esq-adel -> esquireCommandDelete()
+ * 04/07/2026 mir0n  unified facade API: /esq-cmd-asave->/esq-cmd-save, /esq-anew->/esq-new, /esq-adel->/esq-del
+ *                   /esq-new->/esq-cmd-new, /esq-del->/esq-cmd-del
+ * 04/09/2026 mir0n  POST /esq-acct -> esquireCommandAcct(); AcctTransactionService injected directly
+ * 04/13/2026 mir0n  AcctTransactionSimple -> AcctTransactionSingle
  * 06/01/2026 mir0n  esquireCommandNew() / POST /esq-cmd-new mapping removed -- account CREATE
  *                   moved to enyMan
  * 06/04/2026 mir0n  rootPath / uid no longer extracted from claims; delegates without them (roles

@@ -8,7 +8,7 @@
  * 04/09/2026 mir0n  created: account transaction command; POST /esq-acct deposit/credit with amount/status/balance validation
  * 04/12/2026 mir0n  KIND_ACCTTR: 980 -> 1000 (aligns with esq-entity-dictionaries.xml kind)
  *                   skipValidation: explicit boolean parameter (no longer derived from fields map)
- *                   field validation: EntityFieldUtils.applyFields(KIND_ACCTTR, fields) — dictionary-driven with listvalues check
+ *                   field validation: EntityFieldUtils.applyFields(KIND_ACCTTR, fields) -- dictionary-driven with listvalues check
  * 04/13/2026 mir0n  refactored: thin router; processing split to AcctTransactionProcessorSingle / AcctTransactionProcessorTransfer
  *                   pre-validates fields/typeId/UNKNOWN/amount; routes by AcctOperation.Code.transfer flag
  * 06/04/2026 mir0n  esquireCommandAcct: rootPath + uid params removed; read via RequestContextUtils and

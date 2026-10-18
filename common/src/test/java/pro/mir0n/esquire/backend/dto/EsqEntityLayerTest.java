@@ -33,10 +33,10 @@ class EsqEntityLayerTest {
         layer.setFields(new ArrayList<>());
     }
 
-    // ---- injectDefaults: non-nullable, has default, absent → injected ----
+    // ---- injectDefaults: non-nullable, has default, absent -> injected ----
 
     @Test
-    @DisplayName("injectDefaults: non-nullable field with default, absent → injected")
+    @DisplayName("injectDefaults: non-nullable field with default, absent -> injected")
     void injectDefaults_nonNullableWithDefault_absent_injectsValue() {
         layer.getFields().add(field("deleted", "N", "N"));
         Map<String, Object> map = new HashMap<>();
@@ -46,10 +46,10 @@ class EsqEntityLayerTest {
         assertThat(map).containsEntry("deleted", "N");
     }
 
-    // ---- injectDefaults: non-nullable, has default, already present → not overridden ----
+    // ---- injectDefaults: non-nullable, has default, already present -> not overridden ----
 
     @Test
-    @DisplayName("injectDefaults: non-nullable field with default, already present → not overridden")
+    @DisplayName("injectDefaults: non-nullable field with default, already present -> not overridden")
     void injectDefaults_nonNullableWithDefault_present_doesNotOverride() {
         layer.getFields().add(field("deleted", "N", "N"));
         Map<String, Object> map = new HashMap<>();
@@ -60,10 +60,10 @@ class EsqEntityLayerTest {
         assertThat(map).containsEntry("deleted", "Y");
     }
 
-    // ---- injectDefaults: nullable, has default, absent → not injected ----
+    // ---- injectDefaults: nullable, has default, absent -> not injected ----
 
     @Test
-    @DisplayName("injectDefaults: nullable field with default, absent → not injected")
+    @DisplayName("injectDefaults: nullable field with default, absent -> not injected")
     void injectDefaults_nullableWithDefault_absent_doesNotInject() {
         layer.getFields().add(field("desc", "Y", "some default"));
         Map<String, Object> map = new HashMap<>();
@@ -73,10 +73,10 @@ class EsqEntityLayerTest {
         assertThat(map).doesNotContainKey("desc");
     }
 
-    // ---- injectDefaults: non-nullable, no default, absent → not injected ----
+    // ---- injectDefaults: non-nullable, no default, absent -> not injected ----
 
     @Test
-    @DisplayName("injectDefaults: non-nullable field with no default, absent → not injected")
+    @DisplayName("injectDefaults: non-nullable field with no default, absent -> not injected")
     void injectDefaults_nonNullableNoDefault_absent_doesNotInject() {
         layer.getFields().add(field("email", "N", null));
         Map<String, Object> map = new HashMap<>();
@@ -86,19 +86,19 @@ class EsqEntityLayerTest {
         assertThat(map).doesNotContainKey("email");
     }
 
-    // ---- injectDefaults: null fieldValues map → no exception ----
+    // ---- injectDefaults: null fieldValues map -> no exception ----
 
     @Test
-    @DisplayName("injectDefaults: null fieldValues map → no exception")
+    @DisplayName("injectDefaults: null fieldValues map -> no exception")
     void injectDefaults_nullFieldValues_noException() {
         layer.getFields().add(field("deleted", "N", "N"));
         assertThatCode(() -> layer.injectDefaults(null)).doesNotThrowAnyException();
     }
 
-    // ---- injectDefaults: null fields list → no exception ----
+    // ---- injectDefaults: null fields list -> no exception ----
 
     @Test
-    @DisplayName("injectDefaults: null fields list → no exception")
+    @DisplayName("injectDefaults: null fields list -> no exception")
     void injectDefaults_nullFieldsList_noException() {
         layer.setFields(null);
         assertThatCode(() -> layer.injectDefaults(new HashMap<>())).doesNotThrowAnyException();
@@ -107,12 +107,12 @@ class EsqEntityLayerTest {
     // ---- injectDefaults: multiple fields, selective injection ----
 
     @Test
-    @DisplayName("injectDefaults: multiple fields — only absent non-nullable fields with default are injected")
+    @DisplayName("injectDefaults: multiple fields -- only absent non-nullable fields with default are injected")
     void injectDefaults_multipleFields_selectiveInjection() {
-        layer.getFields().add(field("deleted", "N", "N"));          // absent, non-nullable, has default → inject
-        layer.getFields().add(field("status",  "N", "O"));          // present in map → keep existing value
-        layer.getFields().add(field("desc",    "Y", "some desc"));  // nullable → skip
-        layer.getFields().add(field("name",    "N", null));         // no default → skip
+        layer.getFields().add(field("deleted", "N", "N"));          // absent, non-nullable, has default -> inject
+        layer.getFields().add(field("status",  "N", "O"));          // present in map -> keep existing value
+        layer.getFields().add(field("desc",    "Y", "some desc"));  // nullable -> skip
+        layer.getFields().add(field("name",    "N", null));         // no default -> skip
 
         Map<String, Object> map = new HashMap<>();
         map.put("status", "C");

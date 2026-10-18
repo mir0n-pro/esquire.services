@@ -7,6 +7,8 @@
  */
 package pro.mir0n.esquire.backend.o11y;
 
+import pro.mir0n.o11y.BizMeters;
+
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
@@ -32,8 +34,8 @@ class EsqO11yRegistryResetTest {
     @Order(1)
     void arm_setsRegistryAndDoesNotResetIt() {
         leaked = new SimpleMeterRegistry();
-        EsqBizMeters.setRegistry(leaked);
-        EsqBizMeters.count(METER, "cmd", "ONE");
+        BizMeters.setRegistry(leaked);
+        BizMeters.count(METER, "cmd", "ONE");
         assertThat(leaked.find(METER).tag("cmd", "ONE").counter()).isNotNull();
         assertThat(leaked.find(METER).tag("cmd", "ONE").counter().count()).isEqualTo(1.0);
         // NO reset here -- the guard's afterEach must do it. If it does not, test2 below fails.
@@ -45,7 +47,7 @@ class EsqO11yRegistryResetTest {
         // If the guard ran, the facility is OFF now (registry null), so a count is a no-op that CANNOT reach test1's
         // registry. If the guard did NOT run, the facility still points at `leaked` and this count increments it.
         double before = leaked.find(METER).tag("cmd", "ONE").counter().count();
-        EsqBizMeters.count(METER, "cmd", "ONE");
+        BizMeters.count(METER, "cmd", "ONE");
         double after = leaked.find(METER).tag("cmd", "ONE").counter().count();
         assertThat(after)
                 .as("test1's registry was reused -> the auto-reset guard did NOT run (check junit-platform.properties "

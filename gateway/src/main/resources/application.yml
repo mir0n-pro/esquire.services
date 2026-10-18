@@ -156,7 +156,7 @@ spring:
            acquire-timeout: ${GW_POOL_ACQUIRE_TIMEOUT_MS:45000}
        #default-filters:
        #  - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_FIRST #RETAIN_UNIQUE
-       # globalcors DISABLED — conflicts with custom SecurityWebFilterChain CORS
+       # globalcors DISABLED -- conflicts with custom SecurityWebFilterChain CORS
        # Spring Security handles CORS via spring.security.cors (see SecurityConfig.java)
        #globalcors:
        #  add-to-simple-url-handler-mapping: true

@@ -9,7 +9,7 @@
  * 02/03/2026 mir0n  extends EsqThing
  * 03/03/2026 mir0n  rolesAll field added; fill() extended with rolesAll param
  * 03/10/2026 mir0n  fill() DTO overload added: rolesAll as List<EsqRole>, permissions as List<EsqPermission>
- *                   original fill() renamed fillJpa() — accepts List<EsqRoleJpa>, List<EsqPermissionJpa>
+ *                   original fill() renamed fillJpa() -- accepts List<EsqRoleJpa>, List<EsqPermissionJpa>
  * 03/16/2026 mir0n  connectFlg field added; fill() and fillJpa() updated
  * 04/16/2026 mir0n  fill(): null-guard replaces early return
  */

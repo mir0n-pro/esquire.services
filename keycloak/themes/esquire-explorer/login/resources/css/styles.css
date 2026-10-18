@@ -86,7 +86,7 @@ html, body {
     margin: 0;
 }
 
-/* Pre-login container — horizontally centered, 80px from top */
+/* Pre-login container -- horizontally centered, 80px from top */
 .prelogin-container {
     display: flex;
     justify-content: center;
@@ -94,7 +94,7 @@ html, body {
     padding-top: 80px;
 }
 
-/* Login form — styled as Angular dialog surface */
+/* Login form -- styled as Angular dialog surface */
 .login-form-wrapper {
     background: rgb(247, 247, 245);
     border: 2px outset #ccc;
@@ -142,7 +142,7 @@ html, body {
     padding: 10px 10px 6px 10px;
 }
 
-/* Form row — matches .esq-grid-input layout */
+/* Form row -- matches .esq-grid-input layout */
 .form-group {
     display: grid;
     grid-template-columns: 140px minmax(0, 1fr);
@@ -199,7 +199,7 @@ html, body {
     cursor: pointer;
 }
 
-/* Actions area — like mat-dialog-actions */
+/* Actions area -- like mat-dialog-actions */
 .esq-login-actions {
     display: flex;
     align-items: center;
@@ -210,7 +210,7 @@ html, body {
     margin-top: 4px;
 }
 
-/* Login button — like mat-raised-button */
+/* Login button -- like mat-raised-button */
 .btn-login {
     padding: 4px 20px;
     height: 32px;

@@ -22,12 +22,12 @@ package pro.mir0n.esquire.audit;
 
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
-import pro.mir0n.esquire.messaging.BusConstants;
+import pro.mir0n.messaging.BusConstants;
 import pro.mir0n.esquire.backend.jpa.IMappable;
 import pro.mir0n.esquire.backend.service.EsqRequestContext;
 import pro.mir0n.esquire.backend.service.RequestContextUtils;
-import pro.mir0n.esquire.messaging.IXRod;
-import pro.mir0n.esquire.messaging.RodEvent;
+import pro.mir0n.messaging.IXRod;
+import pro.mir0n.messaging.RodEvent;
 
 import java.util.ArrayList;
 import java.util.HashMap;

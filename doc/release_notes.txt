@@ -1,6 +1,22 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v2.0.0-2610.1720  v2.0.0 -- the shared libraries are products of their own
+    :Refactoring: the utilities, the recoverable cache and the load-test harness come from Armoury:
+                  armoury-utils, armoury-taijitu, armoury-hauberk
+    :Refactoring: the messaging bus, its transports and its event store come from Herald:
+                  herald-messaging, herald-tp-*, herald-datakeep
+    :Refactoring: hauberk holds the Esquire load tests, built on the Armoury harness
+    :Config:      Armoury and Herald are taken from GitHub Packages, in the CI and on every machine
+    :Doc:         README.md
+                  doc\v2.0.x.Goals.md (new)
+                  doc\v2.0.x.Planning.md (new)
+                  doc\Esquire.MessagingBus*.md moved to Herald
+                  doc\Esquire.DevProcess.md
+                  doc\Esquire.DevSetup.md
+    Components:   all services,
+                  hauberk
+
 v1.2.16-2610.1117  v1.2.16 -- expiring cache: shared code
     :Refactoring: expiring cache: shared code
     :Fix:         a cached sign-in token is dropped once it is too old to be used

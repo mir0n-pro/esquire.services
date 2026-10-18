@@ -21,25 +21,25 @@ C:\MyProjects\esquire\explorer\frontend\keycloak-theme\esquire-explorer\login\
 
 ```
 esquire-explorer/login/
-├── theme.properties              # parent=keycloak; styles; locales
-├── template.ftl                  # Master layout: toolbars, alert block, <#nested>
-├── login.ftl                     # Credentials form
-├── login-reset-password.ftl      # Forgot-password form
-├── login-update-password.ftl     # Forced password change
-├── login-otp.ftl                 # OTP entry
-├── login-config-totp.ftl         # TOTP setup
-├── login-page-expired.ftl        # Session-expired page
-├── logout-confirm.ftl            # Logout confirmation
-├── error.ftl                     # Generic error page
-├── info.ftl                      # Generic info/redirect page
-├── messages/
-│   └── messages_en.properties   # Text labels and messages
-└── resources/
-    ├── css/
-    │   └── styles.css           # All styling
-    └── img/
-        ├── main.ico             # Logo (48x48)
-        └── unknown.ico          # User icon (24x24)
+|-- theme.properties              # parent=keycloak; styles; locales
+|-- template.ftl                  # Master layout: toolbars, alert block, <#nested>
+|-- login.ftl                     # Credentials form
+|-- login-reset-password.ftl      # Forgot-password form
+|-- login-update-password.ftl     # Forced password change
+|-- login-otp.ftl                 # OTP entry
+|-- login-config-totp.ftl         # TOTP setup
+|-- login-page-expired.ftl        # Session-expired page
+|-- logout-confirm.ftl            # Logout confirmation
+|-- error.ftl                     # Generic error page
+|-- info.ftl                      # Generic info/redirect page
+|-- messages/
+|   `-- messages_en.properties   # Text labels and messages
+`-- resources/
+    |-- css/
+    |   `-- styles.css           # All styling
+    `-- img/
+        |-- main.ico             # Logo (48x48)
+        `-- unknown.ico          # User icon (24x24)
 ```
 
 ### Why every flow needs its own override
@@ -188,7 +188,7 @@ cp -r C:/MyProjects/esquire/services/compose/themes/esquire-explorer/* \
 **Theme not updating?**
 - Clear browser cache (Ctrl+Shift+Delete)
 - Restart Keycloak: `docker compose restart keycloak`
-- Check Admin Console: Realm Settings → Themes → Login Theme = `esquire-explorer`
+- Check Admin Console: Realm Settings -> Themes -> Login Theme = `esquire-explorer`
 
 **Blank page or errors?**
 - Check FreeMarker syntax in .ftl files
@@ -196,7 +196,7 @@ cp -r C:/MyProjects/esquire/services/compose/themes/esquire-explorer/* \
 - Check `docker logs esq-keycloak` for template errors
 
 **Client override issue?**
-- Admin Console → Clients → esq-angular → Settings
+- Admin Console -> Clients -> esq-angular -> Settings
 - Ensure "Login Theme" is blank (uses realm default)
 
 ## Key Files to Remember

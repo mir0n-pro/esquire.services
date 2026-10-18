@@ -1,5 +1,17 @@
 Esquire pacMan Microservice
 
+10/17/2026 mir0n  v2.0.0 -- the 2.0 line: the bus, the keep and the base libraries moved out
+(every file that imported them)
+  - pro.mir0n.esquire.messaging -> pro.mir0n.messaging, pro.mir0n.esquire.dataKeep -> pro.mir0n.dataKeep,
+    pro.mir0n.esquire.tp -> pro.mir0n.tp. The types and the method signatures are unchanged; only the
+    package root moved, because the bus is the Herald Messaging Framework now
+  - o11y.EsqBizMeters / EsqTraceMark -> pro.mir0n.o11y.BizMeters / TraceMark,
+    from armoury-utils; the meter and span names are unchanged
+pom.xml
+  - esquire-messaging -> pro.mir0n:herald-messaging, esquire-dataKeep -> pro.mir0n:herald-datakeep,
+    esquire-tp-* -> pro.mir0n:herald-tp-*, mir0n-utils -> pro.mir0n:armoury-utils. Versions come from
+    ${herald.version} and ${armoury.version} in the parent
+
 08/26/2026 mir0n  v1.2.13 -- the kind checked, both accounts read, every save broadcast
 acct.service.AcctTransactionProcessorSingle
   - assertKindMatches refuses an operation whose request kind differs from the account row kind;
@@ -360,22 +372,22 @@ acct.jpa.EsqAcctTransactionRepository
 acct.service.AcctTransactionProcessorSingle
   - transaction PK: EsqUtils.generateEntityId() replaced by transactionRepository.nextId()
 
-04/14/2026 mir0n  acct transfer fixes — DICT_KIND_TRANSFER corrected; paper account guard; detailAcctForUpdate kind param removed
+04/14/2026 mir0n  acct transfer fixes -- DICT_KIND_TRANSFER corrected; paper account guard; detailAcctForUpdate kind param removed
 acct.AcctOperation
-  - DICT_KIND_TRANSFER corrected: 1002 → 1004
+  - DICT_KIND_TRANSFER corrected: 1002 -> 1004
   - ACCT_KIND_PAPER = 54 added
 acct.service.AcctTransactionProcessorSingle
   - detailAcctForUpdate call: kind param dropped
 acct.service.AcctTransactionProcessorTransfer
   - instanceof check bug fixed (was testing rawKind2 instead of rawId2)
-  - same-account validation added (source == target → InvalidValueException)
-  - paper account restriction added (ACCT_KIND_PAPER → InvalidValueException)
+  - same-account validation added (source == target -> InvalidValueException)
+  - paper account restriction added (ACCT_KIND_PAPER -> InvalidValueException)
 jpa.EsqAcctRepository
   - detailAcctForUpdate: kind param removed; query: AND acc_et_pk = :kind dropped
 service.impl.PacManService
   - saveAcct(), deleteAcct(): kind param removed (detailAcctForUpdate aligned)
 
-04/13/2026 mir0n  account transaction Phase III — single op complete; transfer draft; AcctTransactionService refactored to thin router
+04/13/2026 mir0n  account transaction Phase III -- single op complete; transfer draft; AcctTransactionService refactored to thin router
 + added acct.AcctOperation
   - AmountEffect enum (NEGATIVE/ANY/POSITIVE); Code enum (DEPOSIT/WITHDRAWAL/TRANSFER/ADJUSTMENT/COMMISSION/UNKNOWN)
   - each Code carries id, AmountEffect, transfer flag, dict kind
@@ -387,7 +399,7 @@ service.impl.PacManService
 + added acct.service.AcctTransactionProcessorSingle
   - permission check via EsqRolesStorage.AdminCmd.ACCT
   - amount sign/zero validation per AmountEffect; status and balance checks (skippable)
-  - EntityFieldUtils.applyFields(oper.kind, fields) — dictionary-driven field validation
+  - EntityFieldUtils.applyFields(oper.kind, fields) -- dictionary-driven field validation
   - inserts transaction row, updates account balance
 + added acct.service.AcctTransactionProcessorTransfer
   - two-leg transfer: debit source (first leg), credit target with -amount (second leg, skipValidation=true)
@@ -397,19 +409,19 @@ acct.service.AcctTransactionService
   - pre-validates: fields not null, typeId present, operation not UNKNOWN, amount not null
   - routes by AcctOperation.Code.transfer flag
 controller.PacManController
-  - AcctTransactionSimple → AcctTransactionSingle
+  - AcctTransactionSimple -> AcctTransactionSingle
 
-04/12/2026 mir0n  account transaction Phase II — KIND_ACCTTR=1000; EntityFieldUtils validation; explicit skipValidation param
+04/12/2026 mir0n  account transaction Phase II -- KIND_ACCTTR=1000; EntityFieldUtils validation; explicit skipValidation param
 acct.service.AcctTransactionService
   - KIND_ACCTTR: 980 -> 1000 (aligns with esq-entity-dictionaries.xml kind)
   - skipValidation: explicit boolean parameter (no longer derived from fields map)
-  - field validation: EntityFieldUtils.applyFields(KIND_ACCTTR, fields) — dictionary-driven with listvalues check
+  - field validation: EntityFieldUtils.applyFields(KIND_ACCTTR, fields) -- dictionary-driven with listvalues check
 
-04/09/2026 mir0n  account transaction command Phase I — POST /esq-acct; isolated pacMan.acct package
+04/09/2026 mir0n  account transaction command Phase I -- POST /esq-acct; isolated pacMan.acct package
 + added acct.dto.AcctTransactionSimple  (new)
   - account transaction result DTO: id, kind, typeId, amount, desc, refCode/2/3/4, memo
 + added acct.jpa.EsqAcctTransactionJpa  (new)
-  - JPA entity for ESQ_ACCT_TRANSACTION; no @Table/@Column — XML field mapping only
+  - JPA entity for ESQ_ACCT_TRANSACTION; no @Table/@Column -- XML field mapping only
 + added acct.jpa.EsqAcctTransactionRepository  (new)
   - insertAcctTransaction: 14-param native INSERT
 + added acct.service.AcctTransactionService  (new)
@@ -423,7 +435,7 @@ acct.service.AcctTransactionService
 PacManApplication
   - @EntityScan + @EnableJpaRepositories: pro.mir0n.esquire.pacMan.acct.jpa added
 controller.PacManController
-  - POST /esq-acct → esquireCommandAcct(); AcctTransactionService injected directly
+  - POST /esq-acct -> esquireCommandAcct(); AcctTransactionService injected directly
 jpa.EsqAcctRepository
   - updateAcctBalance native query added
 META-INF/postgres-acct.xml
@@ -436,7 +448,7 @@ service.IPacManService
   - FIELD_CCY constant added
 service.BizValidatorFactory
   - StatusBizValidator renamed to AcctBizValidator
-  - validate(): ccy rule added — cannot change currency on a funded account (fundedDate != null)
+  - validate(): ccy rule added -- cannot change currency on a funded account (fundedDate != null)
   - validateDelete(): funded account cannot be deleted; account must be closed (status="C") before delete
 jpa.EsqAcctRepository
   - insertAcct: negativeAllowed param added
@@ -445,7 +457,7 @@ service.impl.PacManService
   - createAcct(): applyFields + enforceDefaults loop replace direct field extraction; negativeAllowed passed to insertAcct
   - saveAcct(): ccy + negativeAllowed passed to updateAcct; EntityFieldUtils.applyFields replaces private applyFields
   - deleteAcct(): ValidatorFactory.getInstance().validateDelete(acct) replaces explicit status check
-  - private applyFields() removed — delegated to EntityFieldUtils
+  - private applyFields() removed -- delegated to EntityFieldUtils
 META-INF/postgres-acct.xml
   - SELECT: TO_CHAR(acc_funded_dt, 'YYYY-MM-DD'), acct_neg_allowed_flg added; mapping entries added
   - INSERT: acct_neg_allowed_flg column + :negativeAllowed param added
@@ -453,21 +465,21 @@ META-INF/postgres-acct.xml
 META-INF/oracle-acct.xml
   - same changes as postgres-acct.xml (Oracle syntax)
 
-04/07/2026 mir0n  unified facade API: /esq-new→/esq-cmd-new, /esq-del→/esq-cmd-del
+04/07/2026 mir0n  unified facade API: /esq-new->/esq-cmd-new, /esq-del->/esq-cmd-del
 controller.PacManController
-  - @PostMapping paths: /esq-new→/esq-cmd-new, /esq-del→/esq-cmd-del
+  - @PostMapping paths: /esq-new->/esq-cmd-new, /esq-del->/esq-cmd-del
 
 04/07/2026 mir0n  unified facade API: a-prefix POST mappings replaced with unified paths
 controller.PacManController
-  - @PostMapping paths: /esq-cmd-asave→/esq-cmd-save, /esq-anew→/esq-new, /esq-adel→/esq-del
-  - API description updated: "REST API to manage accounts" → "REST API to manage account entities"
+  - @PostMapping paths: /esq-cmd-asave->/esq-cmd-save, /esq-anew->/esq-new, /esq-adel->/esq-del
+  - API description updated: "REST API to manage accounts" -> "REST API to manage account entities"
 
-04/07/2026 mir0n  kind validation: normalization removed; Integer → int service params; upfront applicability checks
+04/07/2026 mir0n  kind validation: normalization removed; Integer -> int service params; upfront applicability checks
 service.IPacManService
-  - all kind params Integer → int (primitive)
+  - all kind params Integer -> int (primitive)
 service.impl.PacManService
-  - all kind params Integer → int; normalization removed
-  - upfront applicability check (!isAcct → ResourceNotFoundException) at all entry points before permission gate
+  - all kind params Integer -> int; normalization removed
+  - upfront applicability check (!isAcct -> ResourceNotFoundException) at all entry points before permission gate
 
 04/06/2026 mir0n  log audit line fix
 messaging.EsqEntityBroadcastPublisher
@@ -483,7 +495,7 @@ META-INF/postgres-acct.xml
 META-INF/oracle-acct.xml
   - insertAcctPath: ep_et_pk column added
 
-03/28/2026 mir0n  ESQ_ENTITY_PATH — path column extracted to satellite table; JOIN-based path resolution
+03/28/2026 mir0n  ESQ_ENTITY_PATH -- path column extracted to satellite table; JOIN-based path resolution
 jpa.EsqAcctRepository
   - insertAcctPath native query added (INSERT INTO esq_entity_path)
   - insertAcct: path param removed (path row inserted separately before entity row)
@@ -498,17 +510,17 @@ META-INF/oracle-acct.xml, postgres-acct.xml
   - insertAcct: path column/value removed
   - deleteEntityPath named query added
 
-03/28/2026 mir0n  default field — dict-driven defaults at account creation
+03/28/2026 mir0n  default field -- dict-driven defaults at account creation
 service.impl.PacManService
   - createAcct(): hardcoded ccy/status ternaries replaced with EsqEntityDictionaryStorage.injectDefaults loop
 
-03/28/2026 mir0n  ACCT delete pre-check — status must be "C" (closed) before delete
+03/28/2026 mir0n  ACCT delete pre-check -- status must be "C" (closed) before delete
 service.impl.PacManService
-  - deleteAcct(): status != "C" → DeleteRestrictedException (HTTP 409)
+  - deleteAcct(): status != "C" -> DeleteRestrictedException (HTTP 409)
 
-03/26/2026 mir0n  Entity CREATE/DELETE — esq-anew/esq-adel endpoints; ACCT create/delete
+03/26/2026 mir0n  Entity CREATE/DELETE -- esq-anew/esq-adel endpoints; ACCT create/delete
 controller.PacManController
-  - POST /esq-anew → esquireCommandNew(); POST /esq-adel → esquireCommandDelete()
+  - POST /esq-anew -> esquireCommandNew(); POST /esq-adel -> esquireCommandDelete()
 service.IPacManService
   - esquireCommandNew(), esquireCommandDelete() added
 service.impl.PacManService
@@ -523,11 +535,11 @@ messaging.EsqEntityBroadcastPublisher
   - dual-mode ENTITY msg audit (isDebugEnabled: full props / compact fields); console echo log.info
   - final variable copies (finalRid, finalCid, finalText) removed
 PacManApplication, controller.PacManController
-  - devLog added; log.debug→devLog.debug
+  - devLog added; log.debug->devLog.debug
 service.impl.PacManService
-  - devLog added; log.debug→devLog.debug; dual error pattern (publishEntityEvent catch: log.warn→log.error+devLog.error)
+  - devLog added; log.debug->devLog.debug; dual error pattern (publishEntityEvent catch: log.warn->log.error+devLog.error)
 
-03/20/2026 mir0n  Messaging Phase 2 — status broadcast; publisher decoupling; service-id fix
+03/20/2026 mir0n  Messaging Phase 2 -- status broadcast; publisher decoupling; service-id fix
 messaging.EsqEntityBroadcastPublisher
   - switched to properties-only transport: Message (no body) replaces TextMessage; FIX-JSON body removed
   - Text serialized as JSON string JMS property (entity state snapshot only, no envelope)
@@ -536,9 +548,9 @@ service.impl.PacManService
   - isBroadcastableUpdate(): "status" (acc_status) added as broadcast trigger
   - publishEntityEvent(): emits "status" raw field value in Text JSON
 resources/application.yml
-  - pacman.messaging.service-id default corrected: pacMan → entity-update-broadcast
+  - pacman.messaging.service-id default corrected: pacMan -> entity-update-broadcast
 
-03/19/2026 mir0n  Messaging Phase 1 — entity broadcast producer
+03/19/2026 mir0n  Messaging Phase 1 -- entity broadcast producer
 messaging.PacManJmsConfig  (new)
   - JMS/ActiveMQ configuration for entity broadcast producer (JmsTemplate)
 messaging.EsqEntityBroadcastPublisher  (new)
@@ -551,11 +563,11 @@ service.impl.PacManService
 resources/application.yml
   - spring.activemq: broker-url, user, password
   - pacman.messaging: service-id, ctrl-id, client-id
-  - LOG_LEVEL_JMS, LOG_LEVEL_AMQ log levels added; pro.mir0n default changed ERROR→INFO
+  - LOG_LEVEL_JMS, LOG_LEVEL_AMQ log levels added; pro.mir0n default changed ERROR->INFO
 
-03/10/2026 mir0n  fillKindFieldLayer() call updated — Cyrillic К → ASCII K
+03/10/2026 mir0n  fillKindFieldLayer() call updated: the leading K of the name had been a Cyrillic letter, now ASCII K
 service.impl.PacManService
-  - fillКindFieldLayer() call updated to fillKindFieldLayer()
+  - fillKindFieldLayer() call updated: the leading K of the name had been a Cyrillic letter, now ASCII K
 
 03/10/2026 mir0n  observability, security, exception handling generalized to common
 x removed exception.GlobalExceptionHandler (moved to common backend.exception)
@@ -588,7 +600,7 @@ service.impl.PacManService
 exception.GlobalExceptionHandler
   - @Slf4j added; logging added to all handlers
   - PermissionDeniedException (HTTP 403) and InvalidValueException (HTTP 400) handlers added
-  - ResourceNotFoundException: NOT_FOUND → BAD_REQUEST
+  - ResourceNotFoundException: NOT_FOUND -> BAD_REQUEST
 
 03/08/2026 mir0n  validate() interface alignment: personal param added (no behavior change)
 service.BizValidatorFactory

@@ -13,7 +13,7 @@
  * 03/06/2026 mir0n  KIND_CL/MR/P_ACCT and FIELD_STATUS constants added
  * 03/09/2026 mir0n  esquireCommandSave(): roles param added; unused imports removed
  * 03/26/2026 mir0n  esquireCommandNew(), esquireCommandDelete() added
- * 04/07/2026 mir0n  all kind params Integer → int (primitive)
+ * 04/07/2026 mir0n  all kind params Integer -> int (primitive)
  * 04/09/2026 mir0n  FIELD_CCY constant added
  * 04/14/2026 mir0n  KIND_P_ACCT spacing corrected
  * 06/01/2026 mir0n  esquireCommandNew() removed -- account CREATE moved to enyMan.

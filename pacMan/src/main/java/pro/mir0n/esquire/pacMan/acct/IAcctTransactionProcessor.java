@@ -22,7 +22,7 @@ public interface  IAcctTransactionProcessor {
         return esquireCommandAcct( kind, id, code, fields, false, rootPath,uid, roles);
     };
 
-    /** For test use only — allows bypassing status/balance/field validation. */
+    /** For test use only -- allows bypassing status/balance/field validation. */
     AcctTransactionSingle esquireCommandAcct(int kind, String id, AcctOperation.Code code, Map<String, Object> fields, boolean skipValidation, String rootPath, String uid, List<String> roles);
 
     default String generateTransId() {

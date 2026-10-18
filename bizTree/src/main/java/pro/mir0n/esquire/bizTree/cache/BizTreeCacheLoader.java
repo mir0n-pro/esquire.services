@@ -8,7 +8,7 @@
  *  History:
  * 03/20/2026 mir0n  created: loads ORG/USR/ACCT entities from DB into H2 in-memory cache on ApplicationReadyEvent;
  *                   builds folder nodes; computes tree paths and levels via BFS
- * 03/21/2026 mir0n  devLog added; log.debug→devLog.debug
+ * 03/21/2026 mir0n  devLog added; log.debug->devLog.debug
  * 03/26/2026 mir0n  magic constants replaced with BizTreeConstants.*;
  *                   folder routing: folderKindForUsr(etPk) replaces hardcoded KIND_USR_* comparisons
  * 03/31/2026 mir0n  devLog debug line added in user-building loop
@@ -26,7 +26,7 @@
  */
 package pro.mir0n.esquire.bizTree.cache;
 
-import pro.mir0n.esquire.backend.o11y.EsqBizMeters;
+import pro.mir0n.o11y.BizMeters;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -113,7 +113,7 @@ public class BizTreeCacheLoader {
             log.info("BizTreeCacheLoader: in-memory tree cache ready");
             outcome = "ok";
         } finally {
-            EsqBizMeters.count("esq.biz.tree.rebuild.total", "outcome", outcome);
+            BizMeters.count("esq.biz.tree.rebuild.total", "outcome", outcome);
         }
     }
 

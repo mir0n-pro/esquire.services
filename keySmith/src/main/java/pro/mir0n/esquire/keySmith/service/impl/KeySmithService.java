@@ -18,20 +18,20 @@
  * 03/09/2026 mir0n  roles var renamed to rolesAssigned; roles param added to saveAccess()
  *                   isAdminCmdPermitted(AUTH) permission check; PermissionDeniedException thrown
  * 03/10/2026 mir0n  import: RequestContextUtils updated to backend.service package
- * 03/10/2026 mir0n  fillКindFieldLayer() calls updated to fillKindFieldLayer() — Cyrillic К → ASCII K
+ * 03/10/2026 mir0n  fillKindFieldLayer() calls updated: the leading K of the name had been a Cyrillic letter, now ASCII K
  *                   @Primary added; rolesAll and permissions loaded from EsqRolesStorage (no JPA call)
  *                   saveAccess(): rolesAll[] param removed; rolesAll set from Storage inside
  *                   esquireKey/esquireKeySave: fillPermissionsForRole() loop over assigned roles
  * 03/16/2026 mir0n  IKeycloakIdentityService injected
  *                   esquireKey(): confirmPendingFlags() on login handshake (id=null)
- *                     pwdChangeForced Y→N; tfaMethod g/n→G/N on confirm
+ *                     pwdChangeForced Y->N; tfaMethod g/n->G/N on confirm
  *                   esquireKeySave(): oldLoginId[], oldConnectFlg[] captured; syncToKeycloak() added
- *                   saveAccess(): connectFlg change detection; TOTP reset to N on connect N→Y
- *                   syncToKeycloak(): three-branch — delete(Y→N) / create(N→Y) / update(else)
- *                   applyFields(): tfaMethod state machine — G/N only; pending via lowercase g/n
+ *                   saveAccess(): connectFlg change detection; TOTP reset to N on connect N->Y
+ *                   syncToKeycloak(): three-branch -- delete(Y->N) / create(N->Y) / update(else)
+ *                   applyFields(): tfaMethod state machine -- G/N only; pending via lowercase g/n
  * 03/20/2026 mir0n  KC sync decoupled: IKeycloakIdentityService replaced with KcSyncPublisher
- *                   syncToKeycloak() replaced with kcSyncPublisher.publish() — fire-and-forget via JMS
- * 03/21/2026 mir0n  devLog added; log.debug→devLog.debug
+ *                   syncToKeycloak() replaced with kcSyncPublisher.publish() -- fire-and-forget via JMS
+ * 03/21/2026 mir0n  devLog added; log.debug->devLog.debug
  * 04/16/2026 mir0n  ret declarations moved to top in esquireKeyDetail() and esquireKeySave()
  * 06/02/2026 mir0n  esquireKeySave(): KEYSMITH_TEST_CONNECT_HOLD_MS test hook (race-8c repro) --
  *                   optional Thread.sleep between the committed path read and the activation URQ
@@ -72,7 +72,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
-import pro.mir0n.esquire.backend.o11y.EsqBizMeters;
+import pro.mir0n.o11y.BizMeters;
 import pro.mir0n.esquire.backend.o11y.EsqTraced;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.LoggerFactory;
@@ -90,8 +90,8 @@ import pro.mir0n.esquire.backend.validator.ValidatorFactory;
 import pro.mir0n.esquire.common.EsqConstants;
 import pro.mir0n.esquire.backend.identity.IIdentityGateway;
 import pro.mir0n.esquire.backend.identity.AuthSyncRequest;
-import pro.mir0n.esquire.messaging.BusConstants;
-import pro.mir0n.esquire.messaging.RodEvent;
+import pro.mir0n.messaging.BusConstants;
+import pro.mir0n.messaging.RodEvent;
 import pro.mir0n.esquire.audit.AuditBusBridge;
 import pro.mir0n.esquire.keySmith.jpa.EsqAccessProfileRepository;
 import pro.mir0n.esquire.backend.service.RequestContextUtils;
@@ -117,7 +117,7 @@ public class KeySmithService implements IKeySmithService {
     // The meter name is spelled out at the call, not held in a constant: the o11y inventory scan reads the tree
     // for the literal, so a name reached through a constant never reaches the sheet.
     private static void meterKeyOp(String op, String outcome) {
-        EsqBizMeters.count("esq.biz.key.ops.total", "op", op, "outcome", outcome);
+        BizMeters.count("esq.biz.key.ops.total", "op", op, "outcome", outcome);
     }
 
     private EsqAccessProfileRepository accessProfileRepository;
@@ -210,7 +210,7 @@ public class KeySmithService implements IKeySmithService {
             em.setFlushMode(FlushModeType.COMMIT);
             saveAccess(upk, fields, rootPath, uid, correlationId, requestId, personal, updated, rolesAssigned, roles, oldLoginId, oldConnectFlg);
             return null;
-        }); // ← transaction commits here
+        }); // <- transaction commits here
 
         // TEST HOOK (race-8c reproduction): hold between capturing the entity path (read in the
         // committed transaction above, now frozen in updated[0].getPath()) and publishing the
@@ -232,7 +232,7 @@ public class KeySmithService implements IKeySmithService {
                 correlationId, requestId));
         // what keySmith ASKED the identity provider to do; kcMaster's esq.biz.kc.sync.total is what was DONE,
         // and a gap between the two is a sync that never landed
-        EsqBizMeters.count("esq.biz.key.identity.total", "op", command);
+        BizMeters.count("esq.biz.key.identity.total", "op", command);
 
         List<EsqRole> rolesAll = EsqRolesStorage.getInstance().roles();
         List<EsqPermission> permissions = null;

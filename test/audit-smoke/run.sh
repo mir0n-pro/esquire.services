@@ -28,7 +28,7 @@ set -uo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SVCS="$(cd "${HERE}/../.." && pwd)"
-HBK="$(cd "${SVCS}/../explorer/hauberk" && pwd)"
+HBK="$(cd "${SVCS}/hauberk" && pwd)"
 SEED="$(cd "${SVCS}/../db.seed" && pwd)"
 STAMP="$(date +%y%m%d-%H%M)"
 RESULTS="${HERE}/results-${STAMP}.md"
@@ -183,9 +183,9 @@ cell_docker_pg() {
     recreate_docker no-aukeep; run_smoke; sleep 6
     local spost; spost="$($streamfn)"; post="$(pg_counts ${DPREFIX}postgres)"
     local sd=$(( ${spost:-0} - ${spre:-0} )); local lg ld; lg="$(grew "$pre" "$post" "")"; ld="${lg#* }"
-    if   [ "$sd" -gt 0 ] && [ "$ld" = "0,0,0,0,0" ]; then res="PASS ${stream}Δ=${sd}; *_log flat"
-    elif [ "$sd" -gt 0 ]; then res="PASS ${stream}Δ=${sd}; *_log Δ=${ld}"
-    else res="FAIL ${stream}Δ=${sd}"; fi
+    if   [ "$sd" -gt 0 ] && [ "$ld" = "0,0,0,0,0" ]; then res="PASS ${stream}-delta=${sd}; *_log flat"
+    elif [ "$sd" -gt 0 ]; then res="PASS ${stream}-delta=${sd}; *_log delta=${ld}"
+    else res="FAIL ${stream}-delta=${sd}"; fi
     [ -n "$DAUKEEP" ] && docker start ${DPREFIX}aukeep >/dev/null 2>&1
   else
     if [ -n "$warm" ]; then
@@ -300,7 +300,7 @@ cell_docker_ora() {
     local spre; spre="$($streamfn)"
     run_smoke; sleep 6
     local spost; spost="$($streamfn)"; local sd=$(( ${spost:-0} - ${spre:-0} ))
-    [ "$sd" -gt 0 ] && res="PASS ${stream}Δ=${sd}" || res="FAIL ${stream}Δ=${sd}"
+    [ "$sd" -gt 0 ] && res="PASS ${stream}-delta=${sd}" || res="FAIL ${stream}-delta=${sd}"
     [ -n "$DAUKEEP" ] && docker start ${DPREFIX}aukeep >/dev/null 2>&1
   else
     recreate_full; run_smoke; sleep 4
@@ -446,9 +446,9 @@ cell_k8s() {
     run_smoke_k8s; sleep 6
     local spost; spost="$($streamfn)"; post="$(k8s_pg_counts)"
     local sd=$(( ${spost:-0} - ${spre:-0} )); local lg ld; lg="$(grew "$pre" "$post" "")"; ld="${lg#* }"
-    if   [ "$sd" -gt 0 ] && [ "$ld" = "0,0,0,0,0" ]; then res="PASS ${stream}Δ=${sd}; *_log flat"
-    elif [ "$sd" -gt 0 ]; then res="PASS ${stream}Δ=${sd}; *_log Δ=${ld}"
-    else res="FAIL ${stream}Δ=${sd}"; fi
+    if   [ "$sd" -gt 0 ] && [ "$ld" = "0,0,0,0,0" ]; then res="PASS ${stream}-delta=${sd}; *_log flat"
+    elif [ "$sd" -gt 0 ]; then res="PASS ${stream}-delta=${sd}; *_log delta=${ld}"
+    else res="FAIL ${stream}-delta=${sd}"; fi
     kubectl scale "$AUKEEP_WORKLOAD" --replicas=1 >/dev/null; restart_k8s_aukeep
   else
     helm_set_producers "$busid"; [ -n "$akbus" ] && helm_set_aukeep "$akbus"

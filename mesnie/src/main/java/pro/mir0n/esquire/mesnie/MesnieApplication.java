@@ -47,8 +47,8 @@ import pro.mir0n.esquire.common.EsqConstants;
 import pro.mir0n.esquire.enyMan.EnyManConfig;
 import pro.mir0n.esquire.keySmith.KeySmithConfig;
 import pro.mir0n.esquire.keySmith.service.BizValidatorFactory;
-import pro.mir0n.esquire.messaging.BusHealthIndicator;
-import pro.mir0n.esquire.messaging.MessagingBus;
+import pro.mir0n.messaging.BusHealthIndicator;
+import pro.mir0n.messaging.MessagingBus;
 
 /**
  * Mesnie -- the household under one roof: enyMan and keySmith in ONE process, with kcMaster's identity work

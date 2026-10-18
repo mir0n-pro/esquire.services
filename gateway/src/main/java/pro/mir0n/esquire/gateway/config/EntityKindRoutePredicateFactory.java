@@ -6,7 +6,7 @@
  *  mailto:mir0n.the.programmer@gmail.com
  *
  *  History:
- * 04/07/2026 mir0n  created: custom route predicate factory — routes by entity kind check (isAcct/isOrg/isUsr)
+ * 04/07/2026 mir0n  created: custom route predicate factory -- routes by entity kind check (isAcct/isOrg/isUsr)
  */
 package pro.mir0n.esquire.gateway.config;
 

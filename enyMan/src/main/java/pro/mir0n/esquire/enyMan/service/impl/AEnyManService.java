@@ -11,10 +11,10 @@
  * 03/06/2026 mir0n  applyFields() refactored: dict-driven validation via ValidatorFactory
  *                   subLayer param added for sub-entity field layer context
  * 03/08/2026 mir0n  applyFields(): boolean personal param added; forwarded to ValidatorFactory
- * 03/10/2026 mir0n  fillКindFieldLayer() call updated to fillKindFieldLayer() — Cyrillic К → ASCII K
+ * 03/10/2026 mir0n  fillKindFieldLayer() call updated: the leading K of the name had been a Cyrillic letter, now ASCII K
  * 03/19/2026 mir0n  esquireDictionary(): kind normalized to even number before dictionary lookup
- * 03/21/2026 mir0n  devLog added; log.debug→devLog.debug
- * 04/07/2026 mir0n  esquireDictionary(): kind param Integer → int; normalization removed
+ * 03/21/2026 mir0n  devLog added; log.debug->devLog.debug
+ * 04/07/2026 mir0n  esquireDictionary(): kind param Integer -> int; normalization removed
  * 04/09/2026 mir0n  applyFields() moved to EntityFieldUtils (backend.service)
  * 04/16/2026 mir0n  ret declaration moved to top of method
  * 06/05/2026 mir0n  completedDictionary(kind) helper extracted: lazy custom-param merge from esq_parameter,

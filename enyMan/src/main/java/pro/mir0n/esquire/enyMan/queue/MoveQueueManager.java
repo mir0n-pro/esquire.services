@@ -58,7 +58,7 @@
 
 package pro.mir0n.esquire.enyMan.queue;
 
-import pro.mir0n.esquire.backend.o11y.EsqBizMeters;
+import pro.mir0n.o11y.BizMeters;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import jakarta.persistence.EntityManager;
@@ -75,8 +75,8 @@ import pro.mir0n.esquire.backend.service.EsqRequestContext;
 import pro.mir0n.esquire.backend.storage.EsqObjectKindStorage;
 import pro.mir0n.esquire.common.EsqConstants;
 import pro.mir0n.esquire.common.QueryTimeouts;
-import pro.mir0n.esquire.messaging.BusConstants;
-import pro.mir0n.esquire.messaging.RodEvent;
+import pro.mir0n.messaging.BusConstants;
+import pro.mir0n.messaging.RodEvent;
 import pro.mir0n.esquire.audit.AuditBusBridge;
 import pro.mir0n.esquire.enyMan.jpa.EntityPathLookup;
 import pro.mir0n.esquire.enyMan.jpa.EsqEntityDictionaryRepository;
@@ -166,8 +166,8 @@ public class MoveQueueManager implements IQueueRig.IQueueWorker<MoveQueueItem>,
         broadcastPublisher.onPeerCreate(this::submitReconcile);
         // esq.biz.move.queue.depth (O1/T8 phase B): the pending move backlog, read live at scrape time. Registered
         // ONCE here, at start-up of the thing that owns the value -- a gauge is registered, never incremented.
-        // Held strongly by EsqGauge (via EsqBizMeters), so the supplier cannot be collected and read NaN.
-        EsqBizMeters.gauge("esq.biz.move.queue.depth", this::queueSize);
+        // Held strongly by Gauges (via BizMeters), so the supplier cannot be collected and read NaN.
+        BizMeters.gauge("esq.biz.move.queue.depth", this::queueSize);
         devLog.info("MoveQueueManager started: capacity={}", capacity);
     }
 
@@ -210,7 +210,7 @@ public class MoveQueueManager implements IQueueRig.IQueueWorker<MoveQueueItem>,
                     reason, rig.size(), capacity, item.kind(), item.id(), item.distId());
             devLog.error("submitMove: move queue {} (size={}, capacity={}) -- REFUSED {}",
                     reason, rig.size(), capacity, item);
-            EsqBizMeters.count("esq.biz.move.refused.total", "kind", String.valueOf(item.kind()), "reason", reason);
+            BizMeters.count("esq.biz.move.refused.total", "kind", String.valueOf(item.kind()), "reason", reason);
             ret = false;
         }
         return ret;
@@ -287,7 +287,7 @@ public class MoveQueueManager implements IQueueRig.IQueueWorker<MoveQueueItem>,
     public void onSuccess(MoveQueueItem item) {
         String kind = moveKind(item);
         if (kind != null) {
-            EsqBizMeters.count("esq.biz.move.processed.total", "kind", kind);
+            BizMeters.count("esq.biz.move.processed.total", "kind", kind);
         }
     }
 
@@ -295,7 +295,7 @@ public class MoveQueueManager implements IQueueRig.IQueueWorker<MoveQueueItem>,
     public MoveQueueItem onError(Throwable error, MoveQueueItem item) {
         String kind = moveKind(item);
         if (kind != null) {
-            EsqBizMeters.count("esq.biz.move.failed.total", "kind", kind);
+            BizMeters.count("esq.biz.move.failed.total", "kind", kind);
         }
         devLog.error("move-queue: item failed: {}", item, error);
         return item;

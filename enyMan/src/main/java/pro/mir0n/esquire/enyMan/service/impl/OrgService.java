@@ -13,15 +13,15 @@
  * 03/08/2026 mir0n  unused imports removed; applyFields/validate calls pass personal=false
  * 03/09/2026 mir0n  esquireCommandSave(): roles param added
  * 03/10/2026 mir0n  import: RequestContextUtils updated to backend.service package
- * 03/10/2026 mir0n  fillКindFieldLayer() call updated to fillKindFieldLayer() — Cyrillic К → ASCII K
- * 03/21/2026 mir0n  devLog added; log.debug→devLog.debug
+ * 03/10/2026 mir0n  fillKindFieldLayer() call updated: the leading K of the name had been a Cyrillic letter, now ASCII K
+ * 03/21/2026 mir0n  devLog added; log.debug->devLog.debug
  * 03/26/2026 mir0n  createOrg(), deleteOrg(), esquireCommandNew(), esquireCommandDelete() added
  * 03/28/2026 mir0n  createOrg(): injectDefaults before applyFields; custom field loop restricted to request fields
  * 03/28/2026 mir0n  createOrg(): insertOrgPath before insertOrg; deleteOrg(): deleteEntityPath after deleteOrg (INSERT uses par_default)
  * 03/31/2026 mir0n  esquireCommandMove() + moveOrg(): subtree path update, descendant guard,
  *                   skip-if-same-parent; insertOrgPath: kind param added (ep_et_pk)
  * 04/01/2026 mir0n  move: collects updated records
- * 04/07/2026 mir0n  all kind params Integer → int (including private createOrg)
+ * 04/07/2026 mir0n  all kind params Integer -> int (including private createOrg)
  * 04/09/2026 mir0n  applyFields() and enforceDefaults() delegated to EntityFieldUtils
  * 04/16/2026 mir0n  ret declarations moved to top; moveOrg(): null-guard replaces early return
  * 06/01/2026 mir0n  id minting call retargeted: EsqUtils.generateEntityId() -> EntityIdGenerator.generateEntityId()
@@ -72,7 +72,7 @@ import pro.mir0n.esquire.backend.error.ResourceNotFoundException;
 import pro.mir0n.esquire.enyMan.jpa.EsqMoveRecord;
 import pro.mir0n.esquire.backend.jpa.entity.EsqParRow;
 import pro.mir0n.esquire.common.EsqConstants;
-import pro.mir0n.esquire.messaging.RodEvent;
+import pro.mir0n.messaging.RodEvent;
 import pro.mir0n.esquire.audit.AuditBusBridge;
 import org.springframework.transaction.support.TransactionTemplate;
 

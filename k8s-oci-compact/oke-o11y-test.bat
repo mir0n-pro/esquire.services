@@ -41,14 +41,14 @@ rem The super-compact fleet is declared ONCE for every environment -- see the sh
 call ..\test\o11y\fleet-supercompact-k8s.bat
 
 rem Credentials from the e2e's .env -- ONE place for the sandbox login, never a literal in a script.
-if exist "..\..\explorer\e2e-test\.env" (
-    for /f "usebackq tokens=1,2 delims==" %%A in ("..\..\explorer\e2e-test\.env") do (
+if exist "..\..\explorer2\e2e-test\.env" (
+    for /f "usebackq tokens=1,2 delims==" %%A in ("..\..\explorer2\e2e-test\.env") do (
         if /i "%%A"=="E2E_USERNAME" set ESQ_USER=%%B
         if /i "%%A"=="E2E_PASSWORD" set ESQ_PASS=%%B
     )
 )
 if "%ESQ_USER%"=="" (
-    echo [oke-o11y-test] ESQ_USER not set and ..\..\explorer\e2e-test\.env not found.
+    echo [oke-o11y-test] ESQ_USER not set and ..\..\explorer2\e2e-test\.env not found.
     exit /b 2
 )
 

@@ -24,9 +24,9 @@ import lombok.extern.slf4j.Slf4j;
 import pro.mir0n.esquire.backend.identity.IIdentityGateway;
 import pro.mir0n.esquire.backend.service.EsqContextHolder;
 import pro.mir0n.esquire.common.EsqConstants;
-import pro.mir0n.esquire.messaging.MessagingBus;
-import pro.mir0n.esquire.messaging.IXRod;
-import pro.mir0n.esquire.messaging.RodEvent;
+import pro.mir0n.messaging.MessagingBus;
+import pro.mir0n.messaging.IXRod;
+import pro.mir0n.messaging.RodEvent;
 
 import java.util.function.Consumer;
 

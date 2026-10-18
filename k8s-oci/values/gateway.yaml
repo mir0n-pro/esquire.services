@@ -1,4 +1,4 @@
-﻿# Prod overrides for k8s/charts/esquire-gateway
+# Prod overrides for k8s/charts/esquire-gateway
 image:
   repository: ghcr.io/mir0n-pro/esquire.gateway
   # tag injected by oke-up.bat (--set image.tag=%image_tag%) -- single release tag for the whole stack.

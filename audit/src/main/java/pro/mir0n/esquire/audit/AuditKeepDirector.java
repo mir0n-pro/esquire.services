@@ -15,7 +15,7 @@
 package pro.mir0n.esquire.audit;
 
 import pro.mir0n.esquire.backend.storage.EsqObjectKindStorage;
-import pro.mir0n.esquire.dataKeep.director.IKeepDirector;
+import pro.mir0n.dataKeep.director.IKeepDirector;
 
 import java.util.Map;
 

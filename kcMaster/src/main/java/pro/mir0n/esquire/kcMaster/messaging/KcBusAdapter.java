@@ -26,8 +26,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import pro.mir0n.esquire.common.EsqConstants;
 import pro.mir0n.esquire.kcMaster.identity.KcIdentityGateway;
-import pro.mir0n.esquire.messaging.MessagingBus;
-import pro.mir0n.esquire.messaging.IXRod;
+import pro.mir0n.messaging.MessagingBus;
+import pro.mir0n.messaging.IXRod;
 
 /**
  * The kcMaster end of the kc bus (SERVER role): one rod, both legs, and nothing else. Each received URQ goes to

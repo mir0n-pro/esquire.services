@@ -10,11 +10,13 @@
  *                   messaging.* tag may take, so an unbounded tag is structurally impossible rather than merely
  *                   asserted. Past the cap a new value collapses to a sentinel instead of minting a new series --
  *                   the runtime PREVENTION that pairs with o11y-verify's detection (I21). The make-the-trap-
- *                   unwritable pattern, same as EsqGauge. Registered as a @Bean in ObservabilityConfig.
+ *                   unwritable pattern, same as Gauges. Registered as a @Bean in ObservabilityConfig.
  * 07/23/2026 mir0n  v1.2.11 -- javadoc: the once-per-id property relies on Micrometer's preFilterIdToMeterMap cache
  *                   (>= 1.12), so map() is not per-op; and the cap is a best-effort SAFETY BOUND, not an exact quota
  */
 package pro.mir0n.esquire.backend.o11y;
+
+import pro.mir0n.o11y.Gauges;
 
 import io.micrometer.core.instrument.Meter;
 import io.micrometer.core.instrument.Tag;

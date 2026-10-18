@@ -1,5 +1,9 @@
 package pro.mir0n.esquire.backend.o11y;
 
+import pro.mir0n.o11y.BizMeters;
+import pro.mir0n.o11y.Gauges;
+import pro.mir0n.o11y.TraceMark;
+
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -49,7 +53,7 @@ import static org.junit.jupiter.api.Assertions.fail;
  *
  * <p><b>Why it reads the arguments and not just the first literal.</b> A meter's name is not always the token
  * after the paren:
- * <pre>    EsqBizMeters.count(moved ? "esq.biz.move.processed.total" : "esq.biz.move.failed.total", "kind", k);</pre>
+ * <pre>    BizMeters.count(moved ? "esq.biz.move.processed.total" : "esq.biz.move.failed.total", "kind", k);</pre>
  * A {@code count\(\s*"([^"]+)"} scan silently drops BOTH names -- it did, which is how those two came to look
  * "declared but never emitted". So the whole argument list is read (paren-matched), and every literal shaped like
  * a signal name is taken. Shape is what separates a NAME from a TAG KEY: names are dotted namespaces
@@ -60,7 +64,7 @@ class O11yMeterDriftTest {
     /**
      * Everything that creates a METER. Keep in step with o11y-inventory.py's CALL_PATTERNS.
      *
-     * <p>The Observation marks ({@code @EsqTraced}, {@code EsqTraceMark.around}) are in this list, which reads
+     * <p>The Observation marks ({@code @EsqTraced}, {@code TraceMark.around}) are in this list, which reads
      * oddly for a "meter" scan until you remember an Observation is CROSS-PILLAR (I41): ONE mark yields a span
      * AND a timer. {@code @EsqTraced(name = "esq.svc.tree")} really does register {@code esq_svc_tree_seconds} --
      * 66 such series are live -- so for meter purposes a mark IS an emitter. Leaving them out made this guard
@@ -68,9 +72,9 @@ class O11yMeterDriftTest {
      * them as "declared but nothing emits them".
      */
     private static final List<String> REGISTRATION_CALLS = List.of(
-            "EsqBizMeters.count",
-            "EsqBizMeters.time",
-            "EsqBizMeters.gauge",
+            "BizMeters.count",
+            "BizMeters.time",
+            "BizMeters.gauge",
             "registry.counter",
             "registry.timer",
             "registry.summary",
@@ -79,12 +83,12 @@ class O11yMeterDriftTest {
             "meterRegistry.timer",
             "meterRegistry.summary",
             "meterRegistry.gauge",
-            "EsqGauge.register",
+            "Gauges.register",
             // Cross-pillar marks -- a span AND a timer. @EsqTraced names itself with a NAMED parameter
             // (name = "..."), which is why the argument span is read rather than the first literal.
             "@EsqTraced",
-            "EsqTraceMark.around",
-            "EsqTraceMark.aroundChecked");
+            "TraceMark.around",
+            "TraceMark.aroundChecked");
 
     /** A mark whose observation name is a CONSTANT rather than a call argument (EsqAsyncTrace's esq.async). */
     private static final Pattern OBS_NAME_CONSTANT =
@@ -146,8 +150,15 @@ class O11yMeterDriftTest {
             // skipped only as a side effect of not matching "esq_". Unifying the prefix pulled them INTO this check
             // and failed the build on two meters that are alive and well -- one repo away. The rule being applied is
             // REPO VISIBILITY, not spelling, so it is now written as such and cannot be re-broken by a rename.
+            //
+            // v2.0.0 adds the keep meters to the same rule, for the same reason: the keep writer moved to the
+            // Herald repository (herald-datakeep), and it still RUNS inside enyMan / keySmith / mesnie / pacMan as
+            // the in-process keep, so the meters are alive on a live stack -- they are simply not scannable from
+            // here any more. They stay DECLARED, because the sweep checks a running stack, not this source tree.
             boolean ours = (declared.startsWith("esq_") || declared.startsWith("messaging_"))
-                           && !declared.startsWith("esq_bff_");
+                           && !declared.startsWith("esq_bff_")
+                           && !declared.startsWith("esq_biz_keep_")
+                           && !declared.startsWith("esq_keep_");
             if (ours && !emittedStems.contains(promStem(declared))) {
                 stale.add(declared);
             }
@@ -339,7 +350,7 @@ class O11yMeterDriftTest {
         Path ret = null;
         Path dir = Paths.get("").toAbsolutePath();
         while (dir != null && ret == null) {
-            if (Files.isDirectory(dir.resolve("common")) && Files.isDirectory(dir.resolve("messaging"))) {
+            if (Files.isDirectory(dir.resolve("common")) && Files.isDirectory(dir.resolve("bizTree"))) {
                 ret = dir;
             }
             dir = dir.getParent();

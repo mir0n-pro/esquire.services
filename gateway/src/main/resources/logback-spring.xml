@@ -7,7 +7,7 @@
     <springProperty scope="context" name="logLevelDevelop" source="logging.level.develop"             defaultValue="DEBUG"/>
     <springProperty scope="context" name="developLogPath"  source="logging.develop.log-path"          defaultValue="logs/gateway-develop.log"/>
 
-    <!-- Console — ECS structured format -->
+    <!-- Console - ECS structured format -->
     <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
         <encoder class="org.springframework.boot.logging.logback.StructuredLogEncoder">
             <format>ecs</format>

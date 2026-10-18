@@ -25,7 +25,7 @@
  *                   inline parse / try-catch, the codec decodes upstream
  * 07/09/2026 mir0n  v1.2.11 -- onEntityBroadcast() signature gains a traceparent parameter (unused: the legacy
  *                   apply is synchronous on the receive thread); the H2 apply wrapped in
- *                   EsqTraceMark.around("esq.svc.cache", "cache apply", ...)
+ *                   TraceMark.around("esq.svc.cache", "cache apply", ...)
  * 08/11/2026 mir0n  v1.2.12 -- onEntityBroadcast takes the change number and passes it to
  *                   handlerHub.dispatch
  */
@@ -37,7 +37,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import pro.mir0n.esquire.backend.dto.EsqTreeNode;
-import pro.mir0n.esquire.backend.o11y.EsqTraceMark;
+import pro.mir0n.o11y.TraceMark;
 import pro.mir0n.esquire.backend.service.RequestContextUtils;
 import pro.mir0n.esquire.bizTree.access.IBizTreeDirector;
 import pro.mir0n.esquire.bizTree.access.MessageHandlerHub;
@@ -146,7 +146,7 @@ public class BizTreeDirectorLegacy implements IBizTreeDirector {
         // Legacy applies SYNCHRONOUSLY on the receive thread (no monad queue), so it is already inside the
         // "receive from <bus>" span -- mark the H2 apply and it nests naturally (traceparent unused here).
         JsonNode textNode = (body == null) ? null : objectMapper.valueToTree(body);
-        EsqTraceMark.around("esq.svc.cache", "cache apply", () ->
+        TraceMark.around("esq.svc.cache", "cache apply", () ->
                 handlerHub.dispatch(eventType, entityId, entityKind, textNode, changeNo));
     }
 }

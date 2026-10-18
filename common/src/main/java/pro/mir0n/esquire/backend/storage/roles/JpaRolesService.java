@@ -6,7 +6,7 @@
  *  mailto:mir0n.the.programmer@gmail.com
  *
  *  History:
- * 03/09/2026 mir0n  new: JPA-backed IRolesService; maps EsqRoleJpa→EsqRole, EsqPermissionJpa→EsqPermission
+ * 03/09/2026 mir0n  new: JPA-backed IRolesService; maps EsqRoleJpa->EsqRole, EsqPermissionJpa->EsqPermission
  */
 
 package pro.mir0n.esquire.backend.storage.roles;

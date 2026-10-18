@@ -15,14 +15,14 @@ class EsqEntityKindFieldLayerTest {
     }
 
     @Test
-    @DisplayName("getLabel() with null field → returns null")
+    @DisplayName("getLabel() with null field -> returns null")
     void getLabel_nullField_returnsNull() {
         EsqEntityKindFieldLayer kfl = makeKfl(null, "Some Layer");
         assertThat(kfl.getLabel()).isNull();
     }
 
     @Test
-    @DisplayName("getLabel() for tab field → returns layerTitle")
+    @DisplayName("getLabel() for tab field -> returns layerTitle")
     void getLabel_tabField_returnsLayerTitle() {
         EsqEntityField field = new EsqEntityField();
         field.setType("tabstring");
@@ -33,7 +33,7 @@ class EsqEntityKindFieldLayerTest {
     }
 
     @Test
-    @DisplayName("getLabel() for regular field → returns field label")
+    @DisplayName("getLabel() for regular field -> returns field label")
     void getLabel_regularField_returnsFieldLabel() {
         EsqEntityField field = new EsqEntityField();
         field.setType("string");

@@ -118,7 +118,7 @@ elif [ "$MODE" = "k8s" ]; then
   # which the producer-leg health CAN detect (~tens of seconds). The readiness DOWN is OBSERVED, not asserted on
   # k8s: a HARD failure (crashed pod / node loss -> half-open socket) is NOT detected, because with
   # jms.useAsyncSend + failover buffering the heartbeat send still "succeeds" so producerTs stays fresh -- the
-  # producer-leg Q&D limit (the round-trip health is its fix; see doc/Esquire.MessagingBus.ContinuingDev.md).
+  # producer-leg Q&D limit (the round-trip health is its fix; see herald/doc/Herald.MessagingBus.ContinuingDev.md).
   # What IS asserted on k8s: the readiness sweep, liveness-stays-200, and recovery.
   log "   scaling broker StatefulSet to 0 (graceful) + observing readiness..."
   kubectl scale statefulset "$BROKER_STS" --replicas=0 >/dev/null 2>&1

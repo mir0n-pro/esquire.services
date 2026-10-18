@@ -6,7 +6,7 @@
  *  mailto:mir0n.the.programmer@gmail.com
  *
  *  History:
- * 03/20/2026 mir0n  initial — dispatches URQ to KC identity service by EventType
+ * 03/20/2026 mir0n  initial -- dispatches URQ to KC identity service by EventType
  * 04/06/2026 mir0n  EVENT_UPDATE_PATH dispatched to kcIdentityService.updateEntityPath()
  * 06/23/2026 mir0n  EsqMsgConstants references -> messaging.BusConstants (wire) + common.EsqConstants (app)
  * 07/11/2026 mir0n  v1.2.11 O1/T8 -- handle() counts esq.biz.kc.sync.total and times esq.biz.kc.sync.duration
@@ -25,12 +25,12 @@
 
 package pro.mir0n.esquire.kcMaster.messaging;
 
-import pro.mir0n.esquire.backend.o11y.EsqBizMeters;
+import pro.mir0n.o11y.BizMeters;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import pro.mir0n.esquire.backend.identity.AuthSyncRequest;
 import pro.mir0n.esquire.common.EsqConstants;
-import pro.mir0n.esquire.messaging.BusConstants;
+import pro.mir0n.messaging.BusConstants;
 import pro.mir0n.esquire.kcMaster.service.IKcIdentityService;
 
 import java.util.Collections;
@@ -84,8 +84,8 @@ public class KcRequestHandler {
             }
             outcome = "ok";
         } finally {
-            EsqBizMeters.count("esq.biz.kc.sync.total", "op", String.valueOf(command), "outcome", outcome);
-            EsqBizMeters.time("esq.biz.kc.sync.duration", System.nanoTime() - startedAt,
+            BizMeters.count("esq.biz.kc.sync.total", "op", String.valueOf(command), "outcome", outcome);
+            BizMeters.time("esq.biz.kc.sync.duration", System.nanoTime() - startedAt,
                     "op", String.valueOf(command));
         }
     }
@@ -100,8 +100,8 @@ public class KcRequestHandler {
                 req.getEmail(),
                 "changeit",   // temporary password
                 true,         // enabled
-                true,         // forcePasswordChange — must change on first login
-                false,        // requireTotp — N on initial connect
+                true,         // forcePasswordChange -- must change on first login
+                false,        // requireTotp -- N on initial connect
                 req.getRoles() != null ? req.getRoles() : Collections.emptyList(),
                 attributes,
                 correlationId,
@@ -114,7 +114,7 @@ public class KcRequestHandler {
         Boolean requireTotp = "g".equals(tfaMethod) ? Boolean.TRUE : null;
         Boolean removeTotp  = "n".equals(tfaMethod) ? Boolean.TRUE : null;
 
-        // NOTE: esq_uid (JWT_CLAIM_ENTITY_ID) is set at creation only — never updated
+        // NOTE: esq_uid (JWT_CLAIM_ENTITY_ID) is set at creation only -- never updated
         kcIdentityService.updateUserAuthState(
                 req.getLoginId(),
                 req.getNewLoginId(),

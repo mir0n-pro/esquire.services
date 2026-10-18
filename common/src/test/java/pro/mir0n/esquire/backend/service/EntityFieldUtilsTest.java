@@ -32,10 +32,10 @@ class EntityFieldUtilsTest {
         layer.setFields(new ArrayList<>());
     }
 
-    // ---- enforceDefaults: non-nullable field, null on entity → default applied ----
+    // ---- enforceDefaults: non-nullable field, null on entity -> default applied ----
 
     @Test
-    @DisplayName("enforceDefaults: non-nullable field, null on entity → default applied")
+    @DisplayName("enforceDefaults: non-nullable field, null on entity -> default applied")
     void enforceDefaults_nonNullable_nullOnEntity_appliesDefault() {
         layer.getFields().add(field("status", "N", "O"));
         EsqAcctJpa acct = new EsqAcctJpa();
@@ -46,10 +46,10 @@ class EntityFieldUtilsTest {
         assertThat(acct.getStatus()).isEqualTo("O");
     }
 
-    // ---- enforceDefaults: non-nullable field, already set → not overwritten ----
+    // ---- enforceDefaults: non-nullable field, already set -> not overwritten ----
 
     @Test
-    @DisplayName("enforceDefaults: non-nullable field, already set → not overwritten")
+    @DisplayName("enforceDefaults: non-nullable field, already set -> not overwritten")
     void enforceDefaults_nonNullable_alreadySet_doesNotOverwrite() {
         layer.getFields().add(field("status", "N", "O"));
         EsqAcctJpa acct = new EsqAcctJpa();
@@ -60,10 +60,10 @@ class EntityFieldUtilsTest {
         assertThat(acct.getStatus()).isEqualTo("C");
     }
 
-    // ---- enforceDefaults: nullable field, null on entity → not touched ----
+    // ---- enforceDefaults: nullable field, null on entity -> not touched ----
 
     @Test
-    @DisplayName("enforceDefaults: nullable field, null on entity → not touched")
+    @DisplayName("enforceDefaults: nullable field, null on entity -> not touched")
     void enforceDefaults_nullable_nullOnEntity_doesNotApply() {
         layer.getFields().add(field("ccy", "Y", "USD"));
         EsqAcctJpa acct = new EsqAcctJpa();
@@ -74,10 +74,10 @@ class EntityFieldUtilsTest {
         assertThat(acct.getCcy()).isNull();
     }
 
-    // ---- enforceDefaults: non-nullable, no defaultValue → not touched ----
+    // ---- enforceDefaults: non-nullable, no defaultValue -> not touched ----
 
     @Test
-    @DisplayName("enforceDefaults: non-nullable field with no defaultValue → not touched")
+    @DisplayName("enforceDefaults: non-nullable field with no defaultValue -> not touched")
     void enforceDefaults_nonNullable_noDefault_doesNotApply() {
         layer.getFields().add(field("ccy", "N", null));
         EsqAcctJpa acct = new EsqAcctJpa();
@@ -88,28 +88,28 @@ class EntityFieldUtilsTest {
         assertThat(acct.getCcy()).isNull();
     }
 
-    // ---- enforceDefaults: null layer → no exception ----
+    // ---- enforceDefaults: null layer -> no exception ----
 
     @Test
-    @DisplayName("enforceDefaults: null layer → no exception")
+    @DisplayName("enforceDefaults: null layer -> no exception")
     void enforceDefaults_nullLayer_noException() {
         EsqAcctJpa acct = new EsqAcctJpa();
         assertThatCode(() -> EntityFieldUtils.enforceDefaults(null, acct)).doesNotThrowAnyException();
     }
 
-    // ---- enforceDefaults: null entity → no exception ----
+    // ---- enforceDefaults: null entity -> no exception ----
 
     @Test
-    @DisplayName("enforceDefaults: null entity → no exception")
+    @DisplayName("enforceDefaults: null entity -> no exception")
     void enforceDefaults_nullEntity_noException() {
         layer.getFields().add(field("status", "N", "O"));
         assertThatCode(() -> EntityFieldUtils.enforceDefaults(layer, null)).doesNotThrowAnyException();
     }
 
-    // ---- enforceDefaults: unknown field name (no matching property) → silently skipped ----
+    // ---- enforceDefaults: unknown field name (no matching property) -> silently skipped ----
 
     @Test
-    @DisplayName("enforceDefaults: unknown field name on entity → silently skipped")
+    @DisplayName("enforceDefaults: unknown field name on entity -> silently skipped")
     void enforceDefaults_unknownField_silentlySkipped() {
         layer.getFields().add(field("nonExistentField", "N", "X"));
         EsqAcctJpa acct = new EsqAcctJpa();

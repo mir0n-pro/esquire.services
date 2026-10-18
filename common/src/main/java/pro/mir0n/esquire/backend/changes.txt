@@ -1,5 +1,26 @@
 Esquire Backend common microservice classes
 
+10/17/2026 mir0n  v2.0.0 -- the 2.0 line: the bus, the keep and the base libraries moved out
+o11y.EsqBizMeters, o11y.EsqTraceMark, o11y.EsqGauge  (removed)
+  - moved to Armoury as pro.mir0n.o11y.BizMeters / TraceMark / Gauges and deleted here. All three imported
+    Micrometer and the JDK only, so they sat below the domain, not in it. They had to move: the keep writer
+    called two of them and the keep travels with the bus, which made the Esquire domain a dependency of
+    Herald. The meter and span NAMES are unchanged, so no dashboard moves
+o11y.ObservabilityConfig
+  - registers the facades in their new package; it still owns the startup hand-off of both registries
+o11y.EsqRodObserver
+  - the gauge seam it hands off to is pro.mir0n.o11y.Gauges
+(every file that imported them)
+  - pro.mir0n.esquire.messaging -> pro.mir0n.messaging, pro.mir0n.esquire.dataKeep -> pro.mir0n.dataKeep,
+    pro.mir0n.esquire.tp -> pro.mir0n.tp. The types and the method signatures are unchanged; only the
+    package root moved, because the bus is the Herald Messaging Framework now
+  - o11y.EsqBizMeters / EsqGauge / EsqTraceMark -> pro.mir0n.o11y.BizMeters / Gauges / TraceMark,
+    from armoury-utils; the meter and span names are unchanged
+pom.xml
+  - esquire-messaging -> pro.mir0n:herald-messaging, esquire-dataKeep -> pro.mir0n:herald-datakeep,
+    esquire-tp-* -> pro.mir0n:herald-tp-*, mir0n-utils -> pro.mir0n:armoury-utils. Versions come from
+    ${herald.version} and ${armoury.version} in the parent
+
 09/05/2026 mir0n  v1.2.15 -- the open path is open to a poor token too
 security.JwtClaimsExtractionFilter
   - shouldNotFilter() adds /esq-kinds, the path both security configs already permitAll
@@ -366,14 +387,14 @@ esq-entity-dictionaries.xml:
 04/09/2026 mir0n  funded account fields; IValidator.validateDelete(); enforceDefaults moved to EntityFieldUtils
 + added service.EntityFieldUtils  (new)
   - applyFields(jpa, fields, personal, subLayer, writables): dict-driven field apply with BeanWrapper; moved from AEnyManService
-  - applyFields(jpa, fields): simple overload — delegates with personal=false, subLayer=0, writables=null
+  - applyFields(jpa, fields): simple overload -- delegates with personal=false, subLayer=0, writables=null
   - enforceDefaults(layer, jpa): post-create safety net for required fields; moved from EsqEntityLayer
 dto.EsqEntityLayer
-  - enforceDefaults() removed — moved to EntityFieldUtils; BeanWrapper/ArrayList imports removed
+  - enforceDefaults() removed -- moved to EntityFieldUtils; BeanWrapper/ArrayList imports removed
 dto.entity.EsqAcct
   - fundedDate, negativeAllowed fields added; wired in fillDetails()
 dto.entity.EsqUsr
-  - deleted @Schema example corrected: "false" → "N"
+  - deleted @Schema example corrected: "false" -> "N"
 jpa.entity.EsqAcctJpa
   - fundedDate, negativeAllowed fields added
 validator.IValidator
@@ -381,7 +402,7 @@ validator.IValidator
 validator.ValidatorFactory
   - validateDelete(): routes to biz validator chain by entity kind; null-safe (null bizValidators/origin/kind guards)
 
-04/07/2026 mir0n  kind validation: storage List → Map; normalization removed; EsqUsr cleanup
+04/07/2026 mir0n  kind validation: storage List -> Map; normalization removed; EsqUsr cleanup
 storage.EsqObjectKindStorage
   - storage changed from List to Map<Integer, EsqObjectKind> for O(1) lookup
   - get(): getOrDefault(id, UNKNOWN); getAll(): returns defensive copy
@@ -393,7 +414,7 @@ dto.entity.EsqUsr
 
 04/06/2026 mir0n  entity path semantics: isPathParentOnly()
 dto.EsqObjectKind
-  - isPathParentOnly(): true for SYS_ADMIN (30) and ADMIN (32) — ep_path equals parent org path, own PK not appended
+  - isPathParentOnly(): true for SYS_ADMIN (30) and ADMIN (32) -- ep_path equals parent org path, own PK not appended
 
 03/31/2026 mir0n  Jackson OffsetDateTime fix
 security.JwtAuthenticationFilter
@@ -401,7 +422,7 @@ security.JwtAuthenticationFilter
 pom.xml
   - jackson-datatype-jsr310 dependency added
 
-03/28/2026 mir0n  default field — parameter metadata default value support
+03/28/2026 mir0n  default field -- parameter metadata default value support
 EsqCustomEntityFieldJpa
   - defaultValue field added (par_default from ESQ_PARAMETER)
 EsqEntityField
@@ -413,42 +434,42 @@ EsqEntityDictionaryMapper
 esq-entity-dictionaries.xml
   - <default> added to non-nullable fields: deleted (N), ccy (USD), balance (0), status (O), connectFlg (N), tfaMethod (N)
 
-03/28/2026 mir0n  DELETE pre-checks — connectFlg guard (USR), status guard (ACCT); DeleteRestrictedException → 409
+03/28/2026 mir0n  DELETE pre-checks -- connectFlg guard (USR), status guard (ACCT); DeleteRestrictedException -> 409
 error.GenericExceptionHandler
   - DeleteRestrictedException added to 409 handler alongside EmailExistsException
 jpa.entity.EsqUsrJpa
-  - connectFlg field added — used for pre-delete active-auth check
+  - connectFlg field added -- used for pre-delete active-auth check
 
-03/26/2026 mir0n  Entity CREATE/DELETE — parentId consolidation; EmailExistsException; CREATE support
+03/26/2026 mir0n  Entity CREATE/DELETE -- parentId consolidation; EmailExistsException; CREATE support
 jpa.EsqEntityJpa
-  - parentId field added — consolidated from EsqAcctJpa/EsqOrgJpa/EsqUsrJpa
+  - parentId field added -- consolidated from EsqAcctJpa/EsqOrgJpa/EsqUsrJpa
 jpa.entity.EsqAcctJpa, EsqOrgJpa, EsqUsrJpa
-  - parentId removed — now inherited from EsqEntityJpa
+  - parentId removed -- now inherited from EsqEntityJpa
 dto.EsqEntity
   - parentId field added
 error.EmailExistsException  (new)
   - thrown when au_email already exists in esq_auth on user creation; @ResponseStatus(CONFLICT)
 error.GenericExceptionHandler
-  - handleEmailExists(): EmailExistsException → 409 CONFLICT RFC 9457 response
+  - handleEmailExists(): EmailExistsException -> 409 CONFLICT RFC 9457 response
 
 03/21/2026 mir0n  three-tier logging normalization; actuator probe filtering; unused imports removed
 service.MdcFilter
-  - devLog added; log.debug→devLog.debug; dual error pattern
+  - devLog added; log.debug->devLog.debug; dual error pattern
   - /actuator/** short-circuit: bypasses MDC setup and all logging (prevents healthcheck noise)
 error.GenericExceptionHandler
-  - devLog added; log.warn on exception→dual error (log.error+devLog.error); unused imports removed
+  - devLog added; log.warn on exception->dual error (log.error+devLog.error); unused imports removed
 exception.GlobalExceptionHandler
   - devLog added; dual error pattern (no stacktrace on console); unused imports removed
 security.JwtAuthenticationFilter
-  - devLog added; log.debug→devLog.debug; unused imports removed
+  - devLog added; log.debug->devLog.debug; unused imports removed
 storage.EsqEntityDictionaryStorage
   - devLog added; dual error pattern; unused imports removed
 storage.EsqObjectKindStorage
   - devLog added; dual error pattern; unused imports removed
 storage.EsqRolesStorage
-  - devLog added; log.debug→devLog.debug; dual error pattern; unused imports removed
+  - devLog added; log.debug->devLog.debug; dual error pattern; unused imports removed
 dto.EsqEntityDictionaryMapper
-  - devLog added; log.debug→devLog.debug; unused imports removed
+  - devLog added; log.debug->devLog.debug; unused imports removed
 dto: EsqColumnHeaderDef, EsqEntity, EsqEntityDictionary, EsqEntityFactory, EsqEntityField,
      EsqEntityLayer, EsqObjectKind, EsqThing, EsqAccessProfile, EsqAcct, EsqAddress,
      EsqOrg, EsqPerson, EsqUsr
@@ -488,9 +509,9 @@ storage.EsqRolesStorage
   - import java.util.ArrayList added
 dto.access.EsqAccessProfile
   - fill() DTO overload added: rolesAll as List<EsqRole>, permissions as List<EsqPermission>
-  - original fill() renamed fillJpa() — accepts List<EsqRoleJpa> rolesAll, List<EsqPermissionJpa>
+  - original fill() renamed fillJpa() -- accepts List<EsqRoleJpa> rolesAll, List<EsqPermissionJpa>
 dto.EsqEntityDictionary
-  - fillКindFieldLayer() renamed to fillKindFieldLayer() (Cyrillic К → ASCII K)
+  - fillKindFieldLayer() renamed: the leading K of the name had been a Cyrillic letter, now ASCII K
 
 03/10/2026 mir0n  observability and security generalized; one canonical GlobalExceptionHandler
 + added backend.service package: MdcFilter, RequestContextUtils, RequestPerformance, PerformanceAspect
@@ -519,9 +540,9 @@ error.InvalidValueException, ResourceNotFoundException, PermissionDeniedExceptio
 + added error.PermissionDeniedException (HTTP 403 FORBIDDEN; message format fixed)
 + added storage.EsqRolesStorage (in-memory roles/permissions; findAdminPermissions(); isAdminCmdPermitted())
 + added storage.roles package:
-  + IRolesService — roles/permissions service interface (roles(); permissions(id))
-  + JpaRolesRepository — JPA repository with native queries: roles(), permissions(id)
-  + JpaRolesService — JPA-backed impl; maps EsqRoleJpa→EsqRole, EsqPermissionJpa→EsqPermission
+  + IRolesService -- roles/permissions service interface (roles(); permissions(id))
+  + JpaRolesRepository -- JPA repository with native queries: roles(), permissions(id)
+  + JpaRolesService -- JPA-backed impl; maps EsqRoleJpa->EsqRole, EsqPermissionJpa->EsqPermission
 
 03/08/2026 mir0n  personal-flag enforcement: users can only update fields marked personal=Y on own records
 dto.EsqEntityField
@@ -531,7 +552,7 @@ dto.EsqEntityKindFieldLayer
   - layerTitle field added
   - getLabel() method added: returns layerTitle for tab fields, field.getLabel() otherwise
 dto.EsqEntityDictionary
-  - fillКindFieldLayer(): setLayerTitle() called to populate layer title context
+  - fillKindFieldLayer(): setLayerTitle() called to populate layer title context
 validator.IValidator
   - validate() signature: boolean personal param added
 validator.GenericValidator
@@ -549,7 +570,7 @@ resources/esq-entity-dictionaries.xml
   - ValidatorFactory: singleton; init() registers generic + biz validators
 dto.EsqEntityDictionary
   - findField() method added
-  - fillКindFieldLayer() method added; reuses EsqEntityKindFieldLayer for allocation reduction
+  - fillKindFieldLayer() method added; reuses EsqEntityKindFieldLayer for allocation reduction
 dto.EsqNameValueSerializer
   - null-safe: writeNullField() when custom field value is null
 dto.entity.EsqOrg
@@ -565,9 +586,9 @@ resources/esq-entity-dictionaries.xml
 
 03/03/2026 mir0n  role/permission JPA and DTO generalized; access profile extended
 jpa.access.EsqRoleJpa
-  - extends EsqEntityJpa; individual fields (id, name, adminFlg) removed — inherited from base
+  - extends EsqEntityJpa; individual fields (id, name, adminFlg) removed -- inherited from base
 jpa.access.EsqPermissionJpa
-  - extends EsqEntityJpa; individual id field removed — inherited from base
+  - extends EsqEntityJpa; individual id field removed -- inherited from base
 dto.access.EsqRole
   - extends EsqThing; adminFlg removed; id/name/kind inherited
 dto.access.EsqAccessProfile

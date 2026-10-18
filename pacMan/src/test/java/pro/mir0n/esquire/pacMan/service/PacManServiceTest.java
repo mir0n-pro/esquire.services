@@ -136,10 +136,10 @@ class PacManServiceTest {
         EsqContextHolder.clear();
     }
 
-    // ---- esquireCommandSave: missing X-Request-ID → MissingRequestIdException ----
+    // ---- esquireCommandSave: missing X-Request-ID -> MissingRequestIdException ----
 
     @Test
-    @DisplayName("esquireCommandSave: missing X-Request-ID → MissingRequestIdException")
+    @DisplayName("esquireCommandSave: missing X-Request-ID -> MissingRequestIdException")
     void esquireCommandSave_missingRequestId_throwsMissingRequestIdException() {
         EsqContextHolder.set(new EsqRequestContext(null, null, "99", "1.2.3")); // no reqId
         assertThatThrownBy(() ->
@@ -147,10 +147,10 @@ class PacManServiceTest {
         ).isInstanceOf(MissingRequestIdException.class);
     }
 
-    // ---- esquireCommand: unknown or odd kind → ResourceNotFoundException ----
+    // ---- esquireCommand: unknown or odd kind -> ResourceNotFoundException ----
 
     @Test
-    @DisplayName("esquireCommand: unknown kind → ResourceNotFoundException")
+    @DisplayName("esquireCommand: unknown kind -> ResourceNotFoundException")
     void esquireCommand_unknownKind_throwsResourceNotFoundException() {
         assertThatThrownBy(() ->
             service.esquireCommand(99, "1", "details")
@@ -158,17 +158,17 @@ class PacManServiceTest {
     }
 
     @Test
-    @DisplayName("esquireCommand: odd kind 51 (sub-variant, not registered) → ResourceNotFoundException")
+    @DisplayName("esquireCommand: odd kind 51 (sub-variant, not registered) -> ResourceNotFoundException")
     void esquireCommand_oddKind_throwsResourceNotFoundException() {
         assertThatThrownBy(() ->
             service.esquireCommand(51, "1", "details")
         ).isInstanceOf(ResourceNotFoundException.class);
     }
 
-    // ---- esquireCommandSave: unknown or odd kind → ResourceNotFoundException ----
+    // ---- esquireCommandSave: unknown or odd kind -> ResourceNotFoundException ----
 
     @Test
-    @DisplayName("esquireCommandSave: unknown kind → ResourceNotFoundException")
+    @DisplayName("esquireCommandSave: unknown kind -> ResourceNotFoundException")
     void esquireCommandSave_unknownKind_throwsResourceNotFoundException() {
         assertThatThrownBy(() ->
             service.esquireCommandSave(99, "1", "save", Map.of(), null)
@@ -176,27 +176,27 @@ class PacManServiceTest {
     }
 
     @Test
-    @DisplayName("esquireCommandSave: odd kind 51 (sub-variant, not registered) → ResourceNotFoundException")
+    @DisplayName("esquireCommandSave: odd kind 51 (sub-variant, not registered) -> ResourceNotFoundException")
     void esquireCommandSave_oddKind_throwsResourceNotFoundException() {
         assertThatThrownBy(() ->
             service.esquireCommandSave(51, "1", "save", Map.of(), null)
         ).isInstanceOf(ResourceNotFoundException.class);
     }
 
-    // ---- esquireCommandSave: acct kind, null roles → PermissionDeniedException ----
+    // ---- esquireCommandSave: acct kind, null roles -> PermissionDeniedException ----
 
     @Test
-    @DisplayName("esquireCommandSave: acct kind, null roles → PermissionDeniedException")
+    @DisplayName("esquireCommandSave: acct kind, null roles -> PermissionDeniedException")
     void esquireCommandSave_acctKind_nullRoles_throwsPermissionDeniedException() {
         assertThatThrownBy(() ->
             service.esquireCommandSave(50, "10", "save", Map.of(), null)
         ).isInstanceOf(PermissionDeniedException.class);
     }
 
-    // ---- esquireCommandDelete: unknown or odd kind → ResourceNotFoundException ----
+    // ---- esquireCommandDelete: unknown or odd kind -> ResourceNotFoundException ----
 
     @Test
-    @DisplayName("esquireCommandDelete: unknown kind → ResourceNotFoundException")
+    @DisplayName("esquireCommandDelete: unknown kind -> ResourceNotFoundException")
     void esquireCommandDelete_unknownKind_throwsResourceNotFoundException() {
         assertThatThrownBy(() ->
             service.esquireCommandDelete(99, "10", "delete", null)
@@ -204,17 +204,17 @@ class PacManServiceTest {
     }
 
     @Test
-    @DisplayName("esquireCommandDelete: odd kind 51 (sub-variant, not registered) → ResourceNotFoundException")
+    @DisplayName("esquireCommandDelete: odd kind 51 (sub-variant, not registered) -> ResourceNotFoundException")
     void esquireCommandDelete_oddKind_throwsResourceNotFoundException() {
         assertThatThrownBy(() ->
             service.esquireCommandDelete(51, "10", "delete", null)
         ).isInstanceOf(ResourceNotFoundException.class);
     }
 
-    // ---- esquireCommandDelete: acct kind, null roles → PermissionDeniedException ----
+    // ---- esquireCommandDelete: acct kind, null roles -> PermissionDeniedException ----
 
     @Test
-    @DisplayName("esquireCommandDelete: acct kind, null roles → PermissionDeniedException")
+    @DisplayName("esquireCommandDelete: acct kind, null roles -> PermissionDeniedException")
     void esquireCommandDelete_acctKind_nullRoles_throwsPermissionDeniedException() {
         assertThatThrownBy(() ->
             service.esquireCommandDelete(50, "10", "delete", null)
@@ -244,10 +244,10 @@ class PacManServiceTest {
         order.verify(entityRepository).deleteEntityPath("10");
     }
 
-    // ---- esquireCommandDelete: account not found → ResourceNotFoundException ----
+    // ---- esquireCommandDelete: account not found -> ResourceNotFoundException ----
 
     @Test
-    @DisplayName("esquireCommandDelete: account not found → ResourceNotFoundException")
+    @DisplayName("esquireCommandDelete: account not found -> ResourceNotFoundException")
     void esquireCommandDelete_acctNotFound_throwsResourceNotFoundException() {
         when(transactionTemplate.execute(any())).thenAnswer(inv -> {
             inv.<org.springframework.transaction.support.TransactionCallback<?>>getArgument(0).doInTransaction(null);
@@ -260,10 +260,10 @@ class PacManServiceTest {
         ).isInstanceOf(ResourceNotFoundException.class);
     }
 
-    // ---- esquireCommandDelete: account not closed → DeleteRestrictedException ----
+    // ---- esquireCommandDelete: account not closed -> DeleteRestrictedException ----
 
     @Test
-    @DisplayName("esquireCommandDelete: account not closed (status=O) → DeleteRestrictedException")
+    @DisplayName("esquireCommandDelete: account not closed (status=O) -> DeleteRestrictedException")
     void esquireCommandDelete_acctNotClosed_throwsDeleteRestrictedException() {
         EsqAcctJpa acct = new EsqAcctJpa();
         acct.setId("10");
@@ -284,7 +284,7 @@ class PacManServiceTest {
     // ---- esquireCommandDelete: Test House subtree purges transactions + forces close ----
 
     @Test
-    @DisplayName("esquireCommandDelete: ep_path starts with 1.14. → purge transactions, force status=C, delete succeeds")
+    @DisplayName("esquireCommandDelete: ep_path starts with 1.14. -> purge transactions, force status=C, delete succeeds")
     void esquireCommandDelete_testHouseSubtree_purgesAndCloses() {
         EsqAcctJpa acct = new EsqAcctJpa();
         acct.setId("10");

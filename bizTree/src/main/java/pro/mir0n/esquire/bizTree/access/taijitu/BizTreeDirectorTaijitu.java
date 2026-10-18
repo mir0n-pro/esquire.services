@@ -19,7 +19,7 @@ import pro.mir0n.esquire.backend.dto.EsqTreeNode;
 import pro.mir0n.esquire.backend.service.RequestContextUtils;
 import pro.mir0n.esquire.bizTree.access.IBizTreeDirector;
 import pro.mir0n.esquire.bizTree.taijitu.Monad;
-import pro.mir0n.utils.taijitu.ATaijituRig;
+import pro.mir0n.taijitu.ATaijituRig;
 
 import java.util.List;
 

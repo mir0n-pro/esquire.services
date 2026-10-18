@@ -14,7 +14,7 @@
  * 03/26/2026 mir0n  esquireCommandNew(), esquireCommandDelete() added
  * 03/31/2026 mir0n  esquireCommandMove() added
  * 04/01/2026 mir0n  esquireCommandMove(): returns List<EsqMoveRecord> (id,kind,path per moved entity)
- * 04/07/2026 mir0n  all kind params Integer → int (primitive)
+ * 04/07/2026 mir0n  all kind params Integer -> int (primitive)
  * 05/14/2026 mir0n  esquireCommandTree(kind, id, rootPath, uid) added for /esq-cmd-tree
  * 06/02/2026 mir0n  esquireCommandMove(): javadoc note -- EnyManService impl now returns null
  *                   (async-ack: submits to move queue); per-kind impls still return records for the worker

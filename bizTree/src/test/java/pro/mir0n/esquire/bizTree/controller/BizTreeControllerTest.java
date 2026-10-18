@@ -64,7 +64,7 @@ class BizTreeControllerTest {
     // ---- esquire: id null ----
 
     @Test
-    @DisplayName("esquire: id null → passes null to director")
+    @DisplayName("esquire: id null -> passes null to director")
     void esquire_noId_passesNullToService() {
         when(director.esquire(null, 0, 0)).thenReturn(List.of());
 
@@ -77,7 +77,7 @@ class BizTreeControllerTest {
     // ---- esquireEntityNode: id provided ----
 
     @Test
-    @DisplayName("esquireEntityNode: id provided → director called with id, returns 200")
+    @DisplayName("esquireEntityNode: id provided -> director called with id, returns 200")
     void esquireEntityNode_withId_returnsOk() {
         EsqTreeNode node = makeNode("10", "ACME", 1);
         when(director.esquireEntityNode(1, "42", null)).thenReturn(node);
@@ -93,7 +93,7 @@ class BizTreeControllerTest {
     // ---- esquireEntityNode: name provided ----
 
     @Test
-    @DisplayName("esquireEntityNode: name provided → director called with name, returns 200")
+    @DisplayName("esquireEntityNode: name provided -> director called with name, returns 200")
     void esquireEntityNode_withName_returnsOk() {
         EsqTreeNode node = makeNode("10", "ACME", 1);
         when(director.esquireEntityNode(1, null, "ACME")).thenReturn(node);
@@ -109,7 +109,7 @@ class BizTreeControllerTest {
     // ---- esquirePath ----
 
     @Test
-    @DisplayName("esquirePath: director returns path list → 200 with path")
+    @DisplayName("esquirePath: director returns path list -> 200 with path")
     void esquirePath_returnsOkWithPath() {
         when(director.esquirePath("5")).thenReturn(List.of("1", "2", "3"));
 

@@ -52,7 +52,7 @@ instead of living in a tracker: `doc/plans/tasks12NN.md`, one per sprint, versio
 | Product backlog | numbered `CD-n` items grouped by area; a number is never reused and a finished item stays as a heading-only stub | `doc/Esquire.ContinuingDev.md` -- **27 open, 2 completed**, in 7 areas |
 | Backlog refinement | triage: every item gets a recorded disposition -- accept / reject / postpone -- with its rationale | the sprint plan, then `Esquire.Q&A.md` |
 | Sprint | one **Micro** version, `v1.2.N` | 14 sprints, v1.2.2 to v1.2.15 |
-| Sprint goal | the sprint headline -- one theme, named when the sprint opens | `doc/v1.2.x.Planning.md` |
+| Sprint goal | the sprint headline -- one theme, named when the sprint opens | `doc/v2.0.x.Planning.md` |
 | Sprint backlog | the sprint plan: `T1..Tn`, opened by a list of settled decisions | `doc/plans/tasks12NN.md` -- 15 to 39 items |
 | Sprint planning | writing that plan | the same file |
 | Definition of Done | the seven-step development cycle, section 4 below | `Esquire.DevProcess.md` section 3 |

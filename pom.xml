@@ -6,7 +6,7 @@
 
     <groupId>pro.mir0n.esquire</groupId>
     <artifactId>esquire-parent</artifactId>
-    <version>1.2.0</version>
+    <version>2.0.0</version>
     <packaging>pom</packaging>
 
     <name>Esquire services</name>
@@ -17,8 +17,6 @@
    
    
     <modules>
-        <module>mir0n-utils</module>
-        <module>messaging</module>
         <module>common</module>
         <module>bizTree</module>
         <module>gateway</module>
@@ -28,14 +26,9 @@
         <module>kcMaster</module>
         <module>mesnie</module>
         <module>gateWard</module>
-        <module>dataKeep</module>
         <module>audit</module>
         <module>auKeep</module>
-        <module>tp-activemq</module>
-        <module>tp-redis</module>
-        <module>tp-kafka</module>
-        <module>tp-sqns</module>
-        <module>tp-kinesis</module>
+        <module>hauberk</module>
      </modules>
 
     <properties>
@@ -58,10 +51,8 @@
    The Equire service set is a single Product but it has a set of modules.
    They might have their own versioning
 -->
-        <esquire.version>1.2.16</esquire.version>
-        <utils.version>${esquire.version}</utils.version>
+        <esquire.version>2.0.0</esquire.version>
         <common.version>${esquire.version}</common.version>
-        <messaging.version>${esquire.version}</messaging.version>
         <bizTree.version>${esquire.version}</bizTree.version>
         <gateway.version>${esquire.version}</gateway.version>
         <enyMan.version>${esquire.version}</enyMan.version>
@@ -70,11 +61,14 @@
         <kcMaster.version>${esquire.version}</kcMaster.version>
         <mesnie.version>${esquire.version}</mesnie.version>
         <gateWard.version>${esquire.version}</gateWard.version>
-        <dataKeep.version>${esquire.version}</dataKeep.version>
         <audit.version>${esquire.version}</audit.version>
         <auKeep.version>${esquire.version}</auKeep.version>
-        <tp.version>${esquire.version}</tp.version>
-        <aws-sdk.version>2.54.6</aws-sdk.version>
+        <hauberk.version>${esquire.version}</hauberk.version>
+
+        <!-- the two products this line now sits on. Armoury is the base (utils + pro.mir0n.o11y) and
+             the generic test harness; Herald is the messaging bus, its transport providers and the keep. -->
+        <armoury.version>2.0.0</armoury.version>
+        <herald.version>2.0.0</herald.version>
         <!-- war version -->
         <!-- war.version>${esquire.version}</war.version -->
 
@@ -115,13 +109,6 @@
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-dependencies</artifactId>
                 <version>${spring-boot.version}</version>
-                <type>pom</type>
-                <scope>import</scope>
-            </dependency>
-            <dependency>
-                <groupId>software.amazon.awssdk</groupId>
-                <artifactId>bom</artifactId>
-                <version>${aws-sdk.version}</version>
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
@@ -308,5 +295,24 @@
             </build>
         </profile>
     </profiles>
+
+    <!--xxx: GitHub Packages needs a token even for a public package; the ids match the <server>
+        entries in the settings the CI writes. A local build finds the jars in ~/.m2 first -->
+    <repositories>
+        <repository>
+            <id>armoury</id>
+            <url>https://maven.pkg.github.com/mir0n-pro/armoury</url>
+            <snapshots>
+                <enabled>false</enabled>
+            </snapshots>
+        </repository>
+        <repository>
+            <id>herald</id>
+            <url>https://maven.pkg.github.com/mir0n-pro/herald</url>
+            <snapshots>
+                <enabled>false</enabled>
+            </snapshots>
+        </repository>
+    </repositories>
 
 </project>

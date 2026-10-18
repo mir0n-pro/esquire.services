@@ -32,7 +32,7 @@
     "refresh": 2,
     "includeAll": true,
     "multi": true,
-    "allValue": ".*",
+    "allValue": ".+",
     "current": {
      "text": "All",
      "value": "$__all"
@@ -220,7 +220,7 @@
      "queryType": "range"
     }
    ],
-   "description": "The full stream for the selected services. Paste a correlationId into the variable at the top and this becomes the complete story of ONE request across every service it touched -- which is the question the whole correlation-id design exists to answer. NOTE what Loki actually HAS: the services' per-request INFO/DEBUG goes to the develop/msg FILES (the 3-tier logging design, additivity=false), so what reaches Loki is the console tier -- errors, warnings and startup. A healthy request leaves no service log line here, and that is by design, not a gap."
+   "description": "The full stream for the selected services. Paste a correlationId into the variable at the top and this becomes the complete story of ONE request across every service it touched -- which is the question the whole correlation-id design exists to answer. WHAT LOKI HOLDS DIFFERS BY TARGET, because the 3-tier design routes on the Spring profile. On docker no profile is set, so develop and msg go to rolling FILES and Loki holds the console tier alone -- errors, warnings, startup -- and a healthy request leaves no line here. On k8s and OKE the pods run SPRING_PROFILES_ACTIVE=console, so develop and msg go to stdout too and Alloy ships all three tiers: there a healthy request DOES leave its per-request trail."
   }
  ]
 }

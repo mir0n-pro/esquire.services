@@ -11,8 +11,8 @@
  *                   used by all service GlobalExceptionHandlers as thin delegates
  * 03/10/2026 mir0n  handleMethodArgumentNotValid, handleException moved back to GlobalExceptionHandler (common)
  *                   only GenericRuntimeException(s) are here
- * 03/21/2026 mir0n  devLog added; log.warn on exception→dual error (log.error+devLog.error); unused imports removed
- * 03/26/2026 mir0n  handleEmailExists(): EmailExistsException → 409 CONFLICT RFC 9457 response
+ * 03/21/2026 mir0n  devLog added; log.warn on exception->dual error (log.error+devLog.error); unused imports removed
+ * 03/26/2026 mir0n  handleEmailExists(): EmailExistsException -> 409 CONFLICT RFC 9457 response
  * 03/28/2026 mir0n  DeleteRestrictedException added to 409 handler alongside EmailExistsException
  * 08/15/2026 mir0n  v1.2.13 -- ResourceNotFoundException gets its own branch: 404 NOT_FOUND, title "Not Found"
  *                   (was the 400 BAD_REQUEST branch it shared with InvalidValueException)

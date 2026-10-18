@@ -16,10 +16,10 @@ import org.junit.jupiter.api.Test;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import pro.mir0n.esquire.backend.dto.EsqObjectKind;
-import pro.mir0n.esquire.backend.o11y.EsqBizMeters;
+import pro.mir0n.o11y.BizMeters;
 import pro.mir0n.esquire.backend.storage.EsqObjectKindStorage;
 import pro.mir0n.esquire.bizTree.cache.IBizTreeCacheRepository;
-import pro.mir0n.esquire.messaging.BusConstants;
+import pro.mir0n.messaging.BusConstants;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -305,7 +305,7 @@ class MessageHandlerHubGuardTest {
         // The outcome starts at "error" for exactly this: the meter is the only thing that says the tree did
         // not change.
         MeterRegistry registry = new SimpleMeterRegistry();
-        EsqBizMeters.setRegistry(registry);
+        BizMeters.setRegistry(registry);
         when(repo.findChangeNumbers(ENTITY_PK)).thenThrow(new IllegalStateException("cache is closed"));
 
         try {

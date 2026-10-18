@@ -1,22 +1,7 @@
 @echo off
 echo ---- common ----
 
-pushd mir0n-utils
-call mvn clean install
-popd 
-rem pause
-
-pushd messaging
-call mvn clean install
-popd 
-rem pause
-
 pushd common
-call mvn clean install
-popd 
-rem pause
-
-pushd dataKeep
 call mvn clean install
 popd 
 rem pause
@@ -64,12 +49,12 @@ rem pause
 
 echo ---- frontend ----
 
-pushd ..\explorer\frontend
+pushd ..\explorer2\frontend
 call docker-build-test-deploy.bat
 popd 
 rem pause
 
-pushd ..\explorer\backend
+pushd ..\explorer2\backend
 call docker-compose-build.bat
 popd 
 rem pause

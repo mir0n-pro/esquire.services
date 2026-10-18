@@ -7,7 +7,7 @@
  *
  *  History:
  * 02/04/2026 mir0n  entityKind renamed with [just] kind
- * 03/03/2026 mir0n  extends EsqEntityJpa; individual id field removed — inherited from base
+ * 03/03/2026 mir0n  extends EsqEntityJpa; individual id field removed -- inherited from base
  */
 
 package pro.mir0n.esquire.backend.jpa.access;

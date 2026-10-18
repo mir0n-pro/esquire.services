@@ -17,7 +17,7 @@ import subprocess
 import urllib.parse
 import urllib.request
 
-SVC = "C:/MyProjects/esquire/services/"
+SVC = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
 os.chdir(SVC)
 
 RESULTS = []          # (aspect-id, name, verdict, detail)
@@ -96,7 +96,7 @@ def a2_metrics_registered():
     known = set()
     # The BFF registers its meters in TypeScript (explorer/backend/src/util/metrics.ts), not java -- a scan of
     # the java tree alone called every esq_bff_* meter unregistered.
-    for f in glob.glob(os.path.join("..", "explorer", "backend", "src", "**", "*.ts"), recursive=True):
+    for f in glob.glob(os.path.join("..", "explorer2", "backend", "src", "**", "*.ts"), recursive=True):
         for m in re.findall(r"name:\s*'([a-z0-9_]+)'", read(f)):
             known.add(m)
     for root, dirs, files in os.walk("."):

@@ -99,7 +99,7 @@ class EnyManControllerTest {
         verify(service).esquireCommandSave(1, "10", "save", fields, List.of("admin"));
     }
 
-    // ---- esquireCommandSave: null realm_access → null roles ----
+    // ---- esquireCommandSave: null realm_access -> null roles ----
 
     @Test
     @DisplayName("esquireCommandSave: null realm_access passes null roles to service")
@@ -133,7 +133,7 @@ class EnyManControllerTest {
         verify(service).esquireCommandNew(10, "100", "new", fields, List.of("admin"));
     }
 
-    // ---- esquireCommandNew: null realm_access → null roles ----
+    // ---- esquireCommandNew: null realm_access -> null roles ----
 
     @Test
     @DisplayName("esquireCommandNew: null realm_access passes null roles to service")
@@ -162,7 +162,7 @@ class EnyManControllerTest {
         verify(service).esquireCommandDelete(10, "100", "delete", List.of("admin"));
     }
 
-    // ---- esquireCommandDelete: null realm_access → null roles ----
+    // ---- esquireCommandDelete: null realm_access -> null roles ----
 
     @Test
     @DisplayName("esquireCommandDelete: null realm_access passes null roles to service")
