@@ -6,7 +6,7 @@
  *  mailto:mir0n.the.programmer@gmail.com
  *
  *  History:
- * 03/09/2026 mir0n  created: thin delegate — all handlers forward to GenericExceptionHandler
+ * 03/09/2026 mir0n  created: thin delegate -- all handlers forward to GenericExceptionHandler
  * 03/10/2026 mir0n  moved to common; handleMethodArgumentNotValid, handleException implemented inline;
  *                   one canonical GlobalExceptionHandler shared by all services via scanBasePackages
  * 03/21/2026 mir0n  devLog added; dual error pattern (no stacktrace on console); unused imports removed

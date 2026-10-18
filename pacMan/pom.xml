@@ -7,7 +7,7 @@
         <groupId>pro.mir0n.esquire</groupId>
         <artifactId>esquire-parent</artifactId>
 <!-- xxx: we need a stable parent version to be referenced correctly -->
-        <version>1.2.0</version>
+        <version>2.0.0</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
    
@@ -28,9 +28,9 @@
             <version>${common.version}</version>
         </dependency>
         <dependency>
-            <groupId>pro.mir0n.esquire</groupId>
-            <artifactId>esquire-messaging</artifactId>
-            <version>${messaging.version}</version>
+            <groupId>pro.mir0n</groupId>
+            <artifactId>herald-messaging</artifactId>
+            <version>${herald.version}</version>
         </dependency>
         <dependency>
             <groupId>pro.mir0n.esquire</groupId>
@@ -43,23 +43,23 @@
              tp-kafka -> spring-kafka), so this service declares NO direct transport starters. -->
         <!-- transport provider (tp): ActiveMQ; the x-Rod audit publish seam (option c default) -->
         <dependency>
-            <groupId>pro.mir0n.esquire</groupId>
-            <artifactId>esquire-tp-activemq</artifactId>
-            <version>${tp.version}</version>
+            <groupId>pro.mir0n</groupId>
+            <artifactId>herald-tp-activemq</artifactId>
+            <version>${herald.version}</version>
         </dependency>
 
         <!-- transport provider (tp): Redis stream (option d) -->
         <dependency>
-            <groupId>pro.mir0n.esquire</groupId>
-            <artifactId>esquire-tp-redis</artifactId>
-            <version>${tp.version}</version>
+            <groupId>pro.mir0n</groupId>
+            <artifactId>herald-tp-redis</artifactId>
+            <version>${herald.version}</version>
         </dependency>
 
         <!-- transport provider (tp): Kafka (option c / d over Kafka) -->
         <dependency>
-            <groupId>pro.mir0n.esquire</groupId>
-            <artifactId>esquire-tp-kafka</artifactId>
-            <version>${tp.version}</version>
+            <groupId>pro.mir0n</groupId>
+            <artifactId>herald-tp-kafka</artifactId>
+            <version>${herald.version}</version>
         </dependency>
 
         <dependency>

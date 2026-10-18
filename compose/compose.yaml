@@ -810,7 +810,7 @@ services:
   backend:
     container_name: esq-backend
     build:
-      context: ../../explorer
+      context: ../../explorer2
       dockerfile: backend/Dockerfile
     image: esquire.backend
     ports:
@@ -866,7 +866,7 @@ services:
   frontend:
     container_name: esq-frontend
     build:
-      context: ../../explorer/frontend
+      context: ../../explorer2/frontend
     image: esquire.frontend
     ports:
       - "4200:4200"

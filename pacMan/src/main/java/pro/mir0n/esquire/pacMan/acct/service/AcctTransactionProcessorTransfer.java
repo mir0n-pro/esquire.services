@@ -15,7 +15,7 @@
  * 06/17/2026 mir0n  audit-producer ctor param IXRod -> AuditBusBridge
  * 06/18/2026 mir0n  audit module left common: AuditBusBridge moved to pro.mir0n.esquire.audit
  * 07/08/2026 mir0n  esquireCommandAcct() delegates to the new private esquireCommandTransfer(), wrapped in
- *                   EsqTraceMark.around("esq.svc.acct.tx", "account transfer", ...) -- this processor is constructed
+ *                   TraceMark.around("esq.svc.acct.tx", "account transfer", ...) -- this processor is constructed
  *                   with new() by AcctTransactionService, so Spring never proxies it and @EsqTraced would not
  *                   be advised
  * 07/11/2026 mir0n  v1.2.11 O1/T8 -- esquireCommandAcct() counts esq.biz.acct.tx.total and times
@@ -31,8 +31,8 @@
 package pro.mir0n.esquire.pacMan.acct.service;
 
 import pro.mir0n.esquire.backend.error.PermissionDeniedException;
-import pro.mir0n.esquire.backend.o11y.EsqBizMeters;
-import pro.mir0n.esquire.backend.o11y.EsqTraceMark;
+import pro.mir0n.o11y.BizMeters;
+import pro.mir0n.o11y.TraceMark;
 import jakarta.persistence.EntityManager;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.LoggerFactory;
@@ -71,15 +71,15 @@ public class AcctTransactionProcessorTransfer extends AcctTransactionProcessorSi
         try {
             // Programmatic mark, not @EsqTraced: this processor is constructed with new() by
             // AcctTransactionService, so Spring never proxies it and the annotation would not be advised.
-            marked = EsqTraceMark.around("esq.svc.acct.tx", "account transfer", () ->
+            marked = TraceMark.around("esq.svc.acct.tx", "account transfer", () ->
                     esquireCommandTransfer(kind, id, oper, fields, skipValidation, rootPath, uid, roles));
             outcome = "ok";
         } catch (PermissionDeniedException e) {
             outcome = "denied";
             throw e;
         } finally {
-            EsqBizMeters.count("esq.biz.acct.tx.total", "type", operTag(oper), "outcome", outcome);
-            EsqBizMeters.time("esq.biz.acct.tx.duration", System.nanoTime() - startedAt, "type", operTag(oper));
+            BizMeters.count("esq.biz.acct.tx.total", "type", operTag(oper), "outcome", outcome);
+            BizMeters.time("esq.biz.acct.tx.duration", System.nanoTime() - startedAt, "type", operTag(oper));
         }
         return marked;
     }

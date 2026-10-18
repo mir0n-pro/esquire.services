@@ -1,5 +1,17 @@
 Esquire Gateway Microservice
 
+10/17/2026 mir0n  v2.0.0 -- the 2.0 line: the bus, the keep and the base libraries moved out
+(every file that imported them)
+  - pro.mir0n.esquire.messaging -> pro.mir0n.messaging, pro.mir0n.esquire.dataKeep -> pro.mir0n.dataKeep,
+    pro.mir0n.esquire.tp -> pro.mir0n.tp. The types and the method signatures are unchanged; only the
+    package root moved, because the bus is the Herald Messaging Framework now
+  - o11y.EsqBizMeters -> pro.mir0n.o11y.BizMeters,
+    from armoury-utils; the meter and span names are unchanged
+pom.xml
+  - esquire-messaging -> pro.mir0n:herald-messaging, esquire-dataKeep -> pro.mir0n:herald-datakeep,
+    esquire-tp-* -> pro.mir0n:herald-tp-*, mir0n-utils -> pro.mir0n:armoury-utils. Versions come from
+    ${herald.version} and ${armoury.version} in the parent
+
 10/11/2026 mir0n  v1.2.16 -- the token relay cache on the shared ExpiringCache
 lab.tokenrelay.TokenRelayCache
   - use ExpiringCache<String, ExpiringJwt>
@@ -270,7 +282,7 @@ GatewayApplication
   - SpringApplication builder; GatewayApplicationStartingListener loads EsqObjectKindStorage on startup
 application.yml
   - Query=kind predicate replaced with EntityKind=isAcct on pacman-route/save/new/del routes
-  - pacman-new/del-route, enyman-new/del-route: Path /esq-new→/esq-cmd-new, /esq-del→/esq-cmd-del
+  - pacman-new/del-route, enyman-new/del-route: Path /esq-new->/esq-cmd-new, /esq-del->/esq-cmd-del
 
 04/07/2026 mir0n  unified facade API routes: kind-discriminated routing for save/new/del
 application.yml

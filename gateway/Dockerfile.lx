@@ -1,5 +1,5 @@
 # =============================================================================
-# Multi-stage build: Maven inside Docker → no local JDK/Maven needed
+# Multi-stage build: Maven inside Docker -> no local JDK/Maven needed
 # Build context must be esquire.services/ (parent POM directory)
 # =============================================================================
 

@@ -25,7 +25,7 @@ class GenericExceptionHandlerTest {
     }
 
     @Test
-    @DisplayName("InvalidValueException → returns 400 BAD_REQUEST")
+    @DisplayName("InvalidValueException -> returns 400 BAD_REQUEST")
     void invalidValueException_returns400() {
         InvalidValueException ex = new InvalidValueException("bad value", "field", "Field Label", "0");
 
@@ -36,7 +36,7 @@ class GenericExceptionHandlerTest {
     }
 
     @Test
-    @DisplayName("ResourceNotFoundException → returns 404 NOT_FOUND")
+    @DisplayName("ResourceNotFoundException -> returns 404 NOT_FOUND")
     void resourceNotFoundException_returns404() {
         ResourceNotFoundException ex = new ResourceNotFoundException("User", "id", "99");
 
@@ -58,7 +58,7 @@ class GenericExceptionHandlerTest {
     }
 
     @Test
-    @DisplayName("PermissionDeniedException → returns 403 FORBIDDEN")
+    @DisplayName("PermissionDeniedException -> returns 403 FORBIDDEN")
     void permissionDeniedException_returns403() {
         PermissionDeniedException ex = new PermissionDeniedException("User", "update");
 

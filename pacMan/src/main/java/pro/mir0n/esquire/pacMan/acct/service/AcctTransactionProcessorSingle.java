@@ -18,7 +18,7 @@
  * 06/18/2026 mir0n  audit module left common: AuditBusBridge moved to pro.mir0n.esquire.audit
  * 06/22/2026 mir0n  RodEvent import: messaging.xrod.RodEvent -> messaging.RodEvent (package move)
  * 06/23/2026 mir0n  EsqMsgConstants app constants -> common.EsqConstants (references repointed)
- * 07/08/2026 mir0n  esquireCommandAcct() body wrapped in EsqTraceMark.around("esq.svc.acct.tx", "account
+ * 07/08/2026 mir0n  esquireCommandAcct() body wrapped in TraceMark.around("esq.svc.acct.tx", "account
  *                   transaction", ...) -- this processor is constructed with new() by AcctTransactionService,
  *                   so Spring never proxies it and @EsqTraced would not be advised
  * 07/11/2026 mir0n  v1.2.11 O1/T8 -- esquireCommandAcct() counts esq.biz.acct.tx.total and times
@@ -38,8 +38,8 @@
 
 package pro.mir0n.esquire.pacMan.acct.service;
 
-import pro.mir0n.esquire.backend.o11y.EsqBizMeters;
-import pro.mir0n.esquire.backend.o11y.EsqTraceMark;
+import pro.mir0n.o11y.BizMeters;
+import pro.mir0n.o11y.TraceMark;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.FlushModeType;
 import lombok.AllArgsConstructor;
@@ -79,11 +79,11 @@ public class AcctTransactionProcessorSingle implements IAcctTransactionProcessor
     private EntityManager em;
     private pro.mir0n.esquire.audit.AuditBusBridge audit;   // audit: balance change -> account UPDATE
 
-    /** skipValidation: For test use only — allows bypassing status/balance/field validation. */
+    /** skipValidation: For test use only -- allows bypassing status/balance/field validation. */
     public AcctTransactionSingle esquireCommandAcct(int kind, String id, AcctOperation.Code oper, Map<String, Object> fields, boolean skipValidation, String rootPath, String uid, List<String> roles) {
         AcctTransactionSingle ret = null;
         // esq.biz.acct.tx.total / .duration (O1/T8 phase B) -- the money path, counted and timed by OPERATION.
-        // EsqBizMeters is static for the same reason EsqTraceMark is (see the mark below): this processor is
+        // BizMeters is static for the same reason TraceMark is (see the mark below): this processor is
         // new()-ed, never proxied, so nothing can be injected into it. Both tags bounded: type is the
         // AcctOperation.Code enum, outcome is ok | denied | error.
         String outcome = "error";
@@ -91,7 +91,7 @@ public class AcctTransactionProcessorSingle implements IAcctTransactionProcessor
         try {
             // Programmatic mark, not @EsqTraced: this processor is constructed with new() by
             // AcctTransactionService, so Spring never proxies it and the annotation would not be advised.
-            ret = EsqTraceMark.around("esq.svc.acct.tx", "account transaction", () -> {
+            ret = TraceMark.around("esq.svc.acct.tx", "account transaction", () -> {
                 String correlationId = RequestContextUtils.getCorrelationId();
                 String requestId = RequestContextUtils.getRequestId();
                 EsqObjectKind eek = validatePermissions(kind, roles);
@@ -102,8 +102,8 @@ public class AcctTransactionProcessorSingle implements IAcctTransactionProcessor
             outcome = "denied";
             throw e;
         } finally {
-            EsqBizMeters.count("esq.biz.acct.tx.total", "type", operTag(oper), "outcome", outcome);
-            EsqBizMeters.time("esq.biz.acct.tx.duration", System.nanoTime() - startedAt, "type", operTag(oper));
+            BizMeters.count("esq.biz.acct.tx.total", "type", operTag(oper), "outcome", outcome);
+            BizMeters.time("esq.biz.acct.tx.duration", System.nanoTime() - startedAt, "type", operTag(oper));
         }
         return ret;
     }
@@ -169,7 +169,7 @@ public class AcctTransactionProcessorSingle implements IAcctTransactionProcessor
         // leg of a transfer, so a non-null convRate IS the FX application -- no new plumbing, just the condition
         // that already decides it. Counted here because both the single and the transfer path come through.
         if (convRate != null) {
-            EsqBizMeters.count("esq.biz.acct.fx.apply.total", "type", operTag(oper));
+            BizMeters.count("esq.biz.acct.fx.apply.total", "type", operTag(oper));
         }
         AcctTransactionSingle result[] = {null}; // xxx: trick to handle lambda syntax
 
@@ -277,7 +277,7 @@ public class AcctTransactionProcessorSingle implements IAcctTransactionProcessor
         if (acct.getFundedDate() == null || acct.getFundedDate().isEmpty()) {
             acct.setFundedDate(java.time.LocalDate.now().toString());
         }
-        audit.post(pro.mir0n.esquire.messaging.RodEvent.Op.UPDATE, acct.getKind(), acctId, null, acct);
+        audit.post(pro.mir0n.messaging.RodEvent.Op.UPDATE, acct.getKind(), acctId, null, acct);
         return ret;
     }
 

@@ -1,0 +1,139 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <!--
+      No parent, as on the 1.2 line. It is a reactor module (listed in ../pom.xml) but it does NOT
+      inherit esquire-parent, because that parent imports the Spring Boot BOM and the BOM would
+      re-manage Gatling's whole transitive tail (netty, caffeine) away from the versions Gatling was
+      built and tested against. A load harness is not a Spring service and has no business on that BOM.
+    -->
+    <groupId>pro.mir0n.esquire</groupId>
+    <artifactId>esquire-hauberk</artifactId>
+    <version>2.0.0</version>
+    <packaging>jar</packaging>
+
+    <name>Esquire Haubergeon</name>
+    <description>
+        The Esquire test routines: the chains (one REST operation each), the Simulations that compose them,
+        the KeyCloak reconcile utility and the per-target properties. The harness itself is Armoury's
+        armoury-hauberk, which this project extends: AEsqSimulation supplies the gateway base URL,
+        EsqHauberkConfig the Esquire settings, EsqRunCommand the shape knobs, EsqHauberkCli the entry point.
+        Pure REST client; OAuth2 client_credentials against the esq-hauberk KC client; targets the gateway
+        directly (no BFF). Run as: hauberk.cmd SUBCOMMAND.
+    </description>
+
+    <properties>
+        <!-- Gatling needs a JDK its bundled Scala runtime is built against; the services compile at 24,
+             this project stays on 21 as it did on the 1.2 line. -->
+        <maven.compiler.source>21</maven.compiler.source>
+        <maven.compiler.target>21</maven.compiler.target>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+
+        <armoury.version>2.0.0</armoury.version>
+        <postgresql.version>42.7.4</postgresql.version>
+        <junit.version>5.10.2</junit.version>
+        <assertj.version>3.25.3</assertj.version>
+    </properties>
+
+    <dependencies>
+        <!-- the harness: the CLI, the config loader, the OIDC client, the health pre-check, the performance
+             matrix and the abstract Simulation base. Gatling, picocli and Jackson ride in with it. -->
+        <dependency>
+            <groupId>pro.mir0n</groupId>
+            <artifactId>armoury-hauberk</artifactId>
+            <version>${armoury.version}</version>
+        </dependency>
+
+        <!-- PostgreSQL JDBC driver: the kc-reconcile utility reads esq2025 DIRECTLY over SQL
+             (out-of-band recovery, not through the Esquire services). -->
+        <dependency>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
+            <version>${postgresql.version}</version>
+        </dependency>
+
+        <!--
+          JUnit 5 + AssertJ for the SimulationCatalog contract test
+          (enforces @SimulationInfo presence on every Simulation).
+        -->
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <version>${junit.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.assertj</groupId>
+            <artifactId>assertj-core</artifactId>
+            <version>${assertj.version}</version>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <!-- kept as "hauberk" so hauberk.cmd and every perf / smoke script run target/hauberk.jar as before -->
+        <finalName>hauberk</finalName>
+        <plugins>
+            <!-- Surefire 3.x is required to run JUnit 5 tests. -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>3.2.5</version>
+            </plugin>
+            <!--
+              Single fat jar with all dependencies + Main-Class manifest, so the
+              user can run:  java -jar target/hauberk.jar <subcommand>
+              shade is preferred over spring-boot-maven-plugin here: no Spring
+              Boot framework in this project; we just need an uber-jar.
+            -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-shade-plugin</artifactId>
+                <version>3.6.0</version>
+                <executions>
+                    <execution>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>shade</goal>
+                        </goals>
+                        <configuration>
+                            <createDependencyReducedPom>false</createDependencyReducedPom>
+                            <transformers>
+                                <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
+                                    <mainClass>pro.mir0n.esquire.hauberk.cli.EsqHauberkCli</mainClass>
+                                </transformer>
+                                <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
+                            </transformers>
+                            <filters>
+                                <filter>
+                                    <artifact>*:*</artifact>
+                                    <excludes>
+                                        <exclude>META-INF/*.SF</exclude>
+                                        <exclude>META-INF/*.DSA</exclude>
+                                        <exclude>META-INF/*.RSA</exclude>
+                                    </excludes>
+                                </filter>
+                            </filters>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+
+    <!--xxx: GitHub Packages needs a token even for a public package; the ids match the <server>
+        entries in the settings the CI writes. A local build finds the jars in ~/.m2 first -->
+    <repositories>
+        <repository>
+            <id>armoury</id>
+            <url>https://maven.pkg.github.com/mir0n-pro/armoury</url>
+            <snapshots>
+                <enabled>false</enabled>
+            </snapshots>
+        </repository>
+    </repositories>
+
+</project>

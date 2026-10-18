@@ -7,7 +7,7 @@
  *
  *  History:
  * 03/10/2026 mir0n  created: generalized from per-service implementations; MDC population, metrics headers
- * 03/21/2026 mir0n  three-tier logging: devLog added; log.debug→devLog.debug; dual error pattern
+ * 03/21/2026 mir0n  three-tier logging: devLog added; log.debug->devLog.debug; dual error pattern
  *                   actuator short-circuit: /actuator/** bypasses MDC setup and logging entirely
  * 04/16/2026 mir0n  jpaTime local variable inlined in log call
  * 04/20/2026 mir0n  String.valueOf() applied to getTotalJpaTime() in log statement

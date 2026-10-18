@@ -18,10 +18,10 @@ package pro.mir0n.esquire.pacMan.messaging;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import pro.mir0n.esquire.common.EsqConstants;
-import pro.mir0n.esquire.messaging.BusConstants;
-import pro.mir0n.esquire.messaging.MessagingBus;
-import pro.mir0n.esquire.messaging.IXRod;
-import pro.mir0n.esquire.messaging.RodEvent;
+import pro.mir0n.messaging.BusConstants;
+import pro.mir0n.messaging.MessagingBus;
+import pro.mir0n.messaging.IXRod;
+import pro.mir0n.messaging.RodEvent;
 
 import java.util.Map;
 

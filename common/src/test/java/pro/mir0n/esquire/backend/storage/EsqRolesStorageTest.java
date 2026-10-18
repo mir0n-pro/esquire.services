@@ -63,14 +63,14 @@ class EsqRolesStorageTest {
     // ---- init ----
 
     @Test
-    @DisplayName("init with roles and permissions → returns true")
+    @DisplayName("init with roles and permissions -> returns true")
     void init_populatesRolesAndPermissions() {
         boolean ret = storage.init(mockRepo);
         assertThat(ret).isTrue();
     }
 
     @Test
-    @DisplayName("init with empty roles list → returns false")
+    @DisplayName("init with empty roles list -> returns false")
     void init_emptyRoles_returnsFalse() {
         JpaRolesRepository emptyRepo = Mockito.mock(JpaRolesRepository.class);
         when(emptyRepo.roles()).thenReturn(new ArrayList<>());
@@ -80,9 +80,9 @@ class EsqRolesStorageTest {
     }
 
     @Test
-    @DisplayName("init with repository throwing → returns false (ERROR log is expected)")
+    @DisplayName("init with repository throwing -> returns false (ERROR log is expected)")
     void init_repositoryThrows_returnsFalse() {
-        // EsqRolesStorage.init() logs ERROR when the repository throws — that is the
+        // EsqRolesStorage.init() logs ERROR when the repository throws -- that is the
         // behaviour under test here. Silence the logger for this test so the expected
         // stack trace does not pollute the test output and mislead the reader.
         Logger logger = (Logger) LoggerFactory.getLogger(EsqRolesStorage.class);
@@ -102,14 +102,14 @@ class EsqRolesStorageTest {
     // ---- findAdminPermissions ----
 
     @Test
-    @DisplayName("findAdminPermissions with admin role name → returns permissions map")
+    @DisplayName("findAdminPermissions with admin role name -> returns permissions map")
     void findAdminPermissions_withAdminRole_returnsMap() {
         Map<Integer, EsqPermission> ret = storage.findAdminPermissions(List.of("ADMIN"));
         assertThat(ret).isNotNull().isNotEmpty();
     }
 
     @Test
-    @DisplayName("findAdminPermissions with non-admin role name → returns null")
+    @DisplayName("findAdminPermissions with non-admin role name -> returns null")
     void findAdminPermissions_noAdminRole_returnsNull() {
         // Add a regular (non-admin) role
         EsqRoleJpa regular = new EsqRoleJpa();
@@ -127,7 +127,7 @@ class EsqRolesStorageTest {
     }
 
     @Test
-    @DisplayName("findAdminPermissions with null list → returns null")
+    @DisplayName("findAdminPermissions with null list -> returns null")
     void findAdminPermissions_nullList_returnsNull() {
         Map<Integer, EsqPermission> ret = storage.findAdminPermissions(null);
         assertThat(ret).isNull();
@@ -136,14 +136,14 @@ class EsqRolesStorageTest {
     // ---- fillPermissionsForRole ----
 
     @Test
-    @DisplayName("fillPermissionsForRole with null list → creates new list and fills it")
+    @DisplayName("fillPermissionsForRole with null list -> creates new list and fills it")
     void fillPermissionsForRole_nullList_createsAndFills() {
         List<EsqPermission> ret = storage.fillPermissionsForRole("ADMIN", null);
         assertThat(ret).isNotNull().isNotEmpty();
     }
 
     @Test
-    @DisplayName("fillPermissionsForRole with existing list → appends to it")
+    @DisplayName("fillPermissionsForRole with existing list -> appends to it")
     void fillPermissionsForRole_existingList_appends() {
         List<EsqPermission> existing = new ArrayList<>();
         EsqPermission existing1 = new EsqPermission();
@@ -155,7 +155,7 @@ class EsqRolesStorageTest {
     }
 
     @Test
-    @DisplayName("fillPermissionsForRole for unknown role → returns empty list")
+    @DisplayName("fillPermissionsForRole for unknown role -> returns empty list")
     void fillPermissionsForRole_unknownRole_returnsEmptyList() {
         List<EsqPermission> ret = storage.fillPermissionsForRole("UNKNOWN_ROLE", null);
         assertThat(ret).isNotNull().isEmpty();
@@ -173,7 +173,7 @@ class EsqRolesStorageTest {
     // ---- isAdminCmdPermitted (static) ----
 
     @Test
-    @DisplayName("isAdminCmdPermitted with flag Y → returns true")
+    @DisplayName("isAdminCmdPermitted with flag Y -> returns true")
     void isAdminCmdPermitted_flagY_returnsTrue() {
         EsqPermission perm = new EsqPermission();
         perm.setFlags(List.of("Y", "Y", "Y", "Y", "Y"));
@@ -182,7 +182,7 @@ class EsqRolesStorageTest {
     }
 
     @Test
-    @DisplayName("isAdminCmdPermitted with flag N → returns false")
+    @DisplayName("isAdminCmdPermitted with flag N -> returns false")
     void isAdminCmdPermitted_flagN_returnsFalse() {
         EsqPermission perm = new EsqPermission();
         perm.setFlags(List.of("N", "N", "N", "N", "N"));
@@ -191,14 +191,14 @@ class EsqRolesStorageTest {
     }
 
     @Test
-    @DisplayName("isAdminCmdPermitted with null permission → returns false")
+    @DisplayName("isAdminCmdPermitted with null permission -> returns false")
     void isAdminCmdPermitted_nullPermission_returnsFalse() {
         boolean ret = EsqRolesStorage.isAdminCmdPermitted(null, EsqRolesStorage.AdminCmd.UPDATE);
         assertThat(ret).isFalse();
     }
 
     @Test
-    @DisplayName("isAdminCmdPermitted with flags list shorter than cmd ordinal → returns false")
+    @DisplayName("isAdminCmdPermitted with flags list shorter than cmd ordinal -> returns false")
     void isAdminCmdPermitted_flagsListTooShort_returnsFalse() {
         EsqPermission perm = new EsqPermission();
         perm.setFlags(List.of("Y")); // only CREATE (0), UPDATE (1) is out of bounds

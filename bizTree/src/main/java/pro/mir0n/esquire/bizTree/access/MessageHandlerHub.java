@@ -29,7 +29,7 @@
  */
 package pro.mir0n.esquire.bizTree.access;
 
-import pro.mir0n.esquire.backend.o11y.EsqBizMeters;
+import pro.mir0n.o11y.BizMeters;
 import com.fasterxml.jackson.databind.JsonNode;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.Logger;
@@ -47,7 +47,7 @@ import pro.mir0n.esquire.bizTree.messaging.handler.MoveAcctHandler;
 import pro.mir0n.esquire.bizTree.messaging.handler.MoveOrgHandler;
 import pro.mir0n.esquire.bizTree.messaging.handler.MoveUsrHandler;
 import pro.mir0n.esquire.bizTree.messaging.handler.UpdateEntityHandler;
-import pro.mir0n.esquire.messaging.BusConstants;
+import pro.mir0n.messaging.BusConstants;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -172,7 +172,7 @@ public final class MessageHandlerHub {
                         eventType, entityKind, entityId, ex.getMessage(), ex);
             }
         } finally {
-            EsqBizMeters.count("esq.biz.tree.handler.dispatch.total",
+            BizMeters.count("esq.biz.tree.handler.dispatch.total",
                     "event", String.valueOf(eventType), "kind", String.valueOf(entityKind), "outcome", outcome);
         }
     }

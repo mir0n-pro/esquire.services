@@ -14,7 +14,7 @@
  *                  ErrorResponse replaced with ProblemDetail
  * 01/23/2026 mir0n use common library
  *                  only EsqTreeNode requests
- * 03/21/2026 mir0n  devLog added; log.debug→devLog.debug
+ * 03/21/2026 mir0n  devLog added; log.debug->devLog.debug
  * 05/14/2026 mir0n  GET /esq-tree added: recursive subtree from biztree H2 cache
  *                   (counterpart to enyMan /esq-cmd-tree authoritative DB walk;
  *                   used together by the hauberk CompareTrees scenario)

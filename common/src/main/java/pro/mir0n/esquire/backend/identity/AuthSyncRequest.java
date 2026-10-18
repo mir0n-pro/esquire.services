@@ -6,7 +6,7 @@
  *  mailto:mir0n.the.programmer@gmail.com
  *
  *  History:
- * 03/20/2026 mir0n  initial — URQ Text payload POJO
+ * 03/20/2026 mir0n  initial -- URQ Text payload POJO
  * 08/12/2026 mir0n  v1.2.13 -- moved from kcMaster.messaging.KcSyncRequest and renamed; toMap() added,
  *                   writing the RodEvent body in declaration order and omitting what was not set
  */

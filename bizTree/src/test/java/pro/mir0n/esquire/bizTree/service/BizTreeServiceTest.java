@@ -35,7 +35,7 @@ class BizTreeServiceTest {
     // ---- esquire: id branch ----
 
     @Test
-    @DisplayName("esquire with id → calls findNodes, returns mapped list")
+    @DisplayName("esquire with id -> calls findNodes, returns mapped list")
     void esquire_withId_callsFindNodes_returnsMappedList() {
         EsqTreeNodeJpa node = makeNode("10", "2", "ACME", 1, "1.2.3");
         when(repo.findNodes("10", 2, "1.2.3")).thenReturn(List.of(node));
@@ -53,7 +53,7 @@ class BizTreeServiceTest {
     // ---- esquire: no-id branch ----
 
     @Test
-    @DisplayName("esquire with no id → calls findRoot with last path element")
+    @DisplayName("esquire with no id -> calls findRoot with last path element")
     void esquire_noId_callsFindRoot_withLastPathElement() {
         EsqTreeNodeJpa node = makeNode("3", "2", "Root", 1, "1.2.3");
         when(repo.findRoot("3", 2, "1.2.3")).thenReturn(List.of(node));
@@ -66,10 +66,10 @@ class BizTreeServiceTest {
         verify(repo, never()).findNodes(any(), anyInt(), any());
     }
 
-    // ---- esquire: null result → exception ----
+    // ---- esquire: null result -> exception ----
 
     @Test
-    @DisplayName("esquire: repo returns null → ResourceNotFoundException")
+    @DisplayName("esquire: repo returns null -> ResourceNotFoundException")
     void esquire_repoReturnsNull_throwsResourceNotFoundException() {
         when(repo.findNodes("10", 2, "1.2.3")).thenReturn(null);
 
@@ -80,9 +80,9 @@ class BizTreeServiceTest {
     // ---- esquire: rootLevel admin (uid != last path element) ----
 
     @Test
-    @DisplayName("esquire: admin uid (not last path element) → rootLevel = path.size - 1")
+    @DisplayName("esquire: admin uid (not last path element) -> rootLevel = path.size - 1")
     void esquire_adminUser_rootLevelIsPathSizeMinusOne() {
-        // rootPath "1.2.3" → size=3, uid="99" ≠ "3" → rootLevel=2
+        // rootPath "1.2.3" -> size=3, uid="99" != "3" -> rootLevel=2
         EsqTreeNodeJpa node = makeNode("10", "2", "Node", 1, "1.2.3");
         when(repo.findNodes("10", 2, "1.2.3")).thenReturn(List.of(node));
 
@@ -94,9 +94,9 @@ class BizTreeServiceTest {
     // ---- esquire: rootLevel non-admin (uid == last path element) ----
 
     @Test
-    @DisplayName("esquire: non-admin uid (equals last path element) → rootLevel = path.size")
+    @DisplayName("esquire: non-admin uid (equals last path element) -> rootLevel = path.size")
     void esquire_nonAdminUser_rootLevelIsPathSize() {
-        // rootPath "1.2.3" → size=3, uid="3" == "3" → rootLevel=3
+        // rootPath "1.2.3" -> size=3, uid="3" == "3" -> rootLevel=3
         EsqTreeNodeJpa node = makeNode("10", "2", "Node", 1, "1.2.3");
         when(repo.findNodes("10", 3, "1.2.3")).thenReturn(List.of(node));
 
@@ -105,12 +105,12 @@ class BizTreeServiceTest {
         verify(repo).findNodes("10", 3, "1.2.3");
     }
 
-    // ---- esquire: rootLevel single-element path → always 0 ----
+    // ---- esquire: rootLevel single-element path -> always 0 ----
 
     @Test
-    @DisplayName("esquire: single-element rootPath → rootLevel = 0")
+    @DisplayName("esquire: single-element rootPath -> rootLevel = 0")
     void esquire_singleElementPath_rootLevelZero() {
-        // rootPath "1" → size=1 → rootLevel stays 0 → id=null → findRoot("1", 0, "1")
+        // rootPath "1" -> size=1 -> rootLevel stays 0 -> id=null -> findRoot("1", 0, "1")
         EsqTreeNodeJpa node = makeNode("1", null, "SystemRoot", 0, "1");
         when(repo.findRoot("1", 0, "1")).thenReturn(List.of(node));
 
@@ -122,7 +122,7 @@ class BizTreeServiceTest {
     // ---- esquireEntityNode: id branch ----
 
     @Test
-    @DisplayName("esquireEntityNode with id → calls findByEntityId")
+    @DisplayName("esquireEntityNode with id -> calls findByEntityId")
     void esquireEntityNode_withId_callsFindByEntityId() {
         EsqTreeNodeJpa node = makeNode("10", "2", "ACME", 1, "1.2.3");
         when(repo.findByEntityId("42", 2, "1.2.3")).thenReturn(node);
@@ -138,7 +138,7 @@ class BizTreeServiceTest {
     // ---- esquireEntityNode: name+kind branch ----
 
     @Test
-    @DisplayName("esquireEntityNode with name and kind → calls findByNameKind")
+    @DisplayName("esquireEntityNode with name and kind -> calls findByNameKind")
     void esquireEntityNode_withNameAndKind_callsFindByNameKind() {
         EsqTreeNodeJpa node = makeNode("10", "2", "ACME", 1, "1.2.3");
         when(repo.findByNameKind("ACME", 1, 2, "1.2.3")).thenReturn(node);
@@ -151,10 +151,10 @@ class BizTreeServiceTest {
         verify(repo, never()).findByEntityId(any(), anyInt(), any());
     }
 
-    // ---- esquireEntityNode: null result → exception ----
+    // ---- esquireEntityNode: null result -> exception ----
 
     @Test
-    @DisplayName("esquireEntityNode: repo returns null → ResourceNotFoundException")
+    @DisplayName("esquireEntityNode: repo returns null -> ResourceNotFoundException")
     void esquireEntityNode_nodeNull_throwsResourceNotFoundException() {
         when(repo.findByEntityId("42", 2, "1.2.3")).thenReturn(null);
 
@@ -162,10 +162,10 @@ class BizTreeServiceTest {
                 .isInstanceOf(ResourceNotFoundException.class);
     }
 
-    // ---- esquireEntityNode: neither id nor name → exception ----
+    // ---- esquireEntityNode: neither id nor name -> exception ----
 
     @Test
-    @DisplayName("esquireEntityNode: neither id nor name → ResourceNotFoundException, no repo calls")
+    @DisplayName("esquireEntityNode: neither id nor name -> ResourceNotFoundException, no repo calls")
     void esquireEntityNode_neitherIdNorName_throwsResourceNotFoundException() {
         assertThatThrownBy(() -> service.esquireEntityNode(1, null, null, "1.2.3", "99"))
                 .isInstanceOf(ResourceNotFoundException.class);
@@ -174,10 +174,10 @@ class BizTreeServiceTest {
         verify(repo, never()).findByNameKind(any(), any(), anyInt(), any());
     }
 
-    // ---- esquirePath: single-element rootPath → full path returned ----
+    // ---- esquirePath: single-element rootPath -> full path returned ----
 
     @Test
-    @DisplayName("esquirePath: rootPath has 1 element → full node path returned")
+    @DisplayName("esquirePath: rootPath has 1 element -> full node path returned")
     void esquirePath_singleElementRootPath_returnsFullPath() {
         when(repo.findPathScoped("5", "1")).thenReturn("1.2.3.4");
 
@@ -186,10 +186,10 @@ class BizTreeServiceTest {
         assertThat(result).containsExactly("1", "2", "3", "4");
     }
 
-    // ---- esquirePath: rootPath larger than node path → empty ----
+    // ---- esquirePath: rootPath larger than node path -> empty ----
 
     @Test
-    @DisplayName("esquirePath: rootPath larger than node path → empty list")
+    @DisplayName("esquirePath: rootPath larger than node path -> empty list")
     void esquirePath_rootPathLargerThanNodePath_returnsEmpty() {
         when(repo.findPathScoped("5", "1.2.3")).thenReturn("1.2");
 
@@ -198,10 +198,10 @@ class BizTreeServiceTest {
         assertThat(result).isEmpty();
     }
 
-    // ---- esquirePath: rootPath shorter than node path → trimmed subList ----
+    // ---- esquirePath: rootPath shorter than node path -> trimmed subList ----
 
     @Test
-    @DisplayName("esquirePath: rootPath shorter than node path → trimmed user-visible slice")
+    @DisplayName("esquirePath: rootPath shorter than node path -> trimmed user-visible slice")
     void esquirePath_subPathExtracted() {
         when(repo.findPathScoped("5", "1.2")).thenReturn("1.2.3.4");
 
@@ -210,10 +210,10 @@ class BizTreeServiceTest {
         assertThat(result).containsExactly("2", "3", "4");
     }
 
-    // ---- esquirePath: findPath returns null → empty ----
+    // ---- esquirePath: findPath returns null -> empty ----
 
     @Test
-    @DisplayName("esquirePath: findPath returns null → empty list")
+    @DisplayName("esquirePath: findPath returns null -> empty list")
     void esquirePath_nullNodePath_returnsEmpty() {
         when(repo.findPathScoped("5", "1.2")).thenReturn(null);
 
@@ -244,7 +244,7 @@ class BizTreeServiceTest {
     void esquireSubtree_callsFindSubtree_returnsMappedList() {
         EsqTreeNodeJpa root  = makeNode("10", "2", "Office",  20, "1.2.10.");
         EsqTreeNodeJpa child = makeNode("11", "10", "User",   34, "1.2.10.11.");
-        // rootPath "1.2.3" → size=3, uid="99" ≠ "3" → rootLevel=2 (admin branch)
+        // rootPath "1.2.3" -> size=3, uid="99" != "3" -> rootLevel=2 (admin branch)
         when(repo.findSubtree("10", 2, "1.2.3")).thenReturn(List.of(root, child));
 
         List<EsqTreeNode> result = service.esquireSubtree("10", "1.2.3", "99");
@@ -255,10 +255,10 @@ class BizTreeServiceTest {
         verify(repo).findSubtree("10", 2, "1.2.3");
     }
 
-    // ---- esquireSubtree: null result → exception ----
+    // ---- esquireSubtree: null result -> exception ----
 
     @Test
-    @DisplayName("esquireSubtree: repo returns null → ResourceNotFoundException")
+    @DisplayName("esquireSubtree: repo returns null -> ResourceNotFoundException")
     void esquireSubtree_repoReturnsNull_throwsResourceNotFoundException() {
         when(repo.findSubtree("10", 2, "1.2.3")).thenReturn(null);
 

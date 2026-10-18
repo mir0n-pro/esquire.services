@@ -8,11 +8,11 @@
  *  History:
  * 03/20/2026 mir0n  created: H2 implementation of IBizTreeCacheRepository
  *                   updateNode(): single CASE-based SQL UPDATE; WHERE tree_entity_pk only (entity_pk unique)
- * 03/21/2026 mir0n  devLog added; log.debug→devLog.debug
+ * 03/21/2026 mir0n  devLog added; log.debug->devLog.debug
  * 03/26/2026 mir0n  insertOrgNodes/insertUsrNode/insertAcctNode: insert cache nodes for ORG/USR/ACCT CREATE events;
  *                   insertAcctNode inserts main node (under user) + shortcut node (under org FOLDER_ACCOUNT);
  *                   deleteNodes(entityPk): DELETE FROM ESQ_TREE WHERE tree_entity_pk = ?;
- *                   insertUsrNode: folder routing via BizTreeConstants.folderKindForUsr() — data-driven from kind metadata
+ *                   insertUsrNode: folder routing via BizTreeConstants.folderKindForUsr() -- data-driven from kind metadata
  * 03/28/2026 mir0n  deleteNodes(String entityId): WHERE ? IN (tree_pk, tree_tree_pk_link, tree_tree_pk_parent)
  * 04/02/2026 mir0n  added moveOrgNode()
  *                   added moveUsrNode();
@@ -46,7 +46,7 @@ import pro.mir0n.esquire.bizTree.BizTreeConstants;
 import pro.mir0n.esquire.bizTree.cache.CacheSqlSet;
 import pro.mir0n.esquire.bizTree.cache.CancelableStatement;
 import pro.mir0n.esquire.bizTree.cache.IBizTreeCacheRepository;
-import pro.mir0n.utils.taijitu.MonadCmd;
+import pro.mir0n.taijitu.MonadCmd;
 
 import java.sql.Connection;
 import java.sql.SQLException;
@@ -212,7 +212,7 @@ public class BizTreeCacheRepository implements IBizTreeCacheRepository {
             devLog.error("BizTreeCacheRepository: insertAcctNode: user not found in cache, usrPk={}", usrPk);
             return;
         }
-        // userTreePath e.g. "1.5.5~4.42." → strip trailing dot, split → second-to-last = "5~4" (folder pk)
+        // userTreePath e.g. "1.5.5~4.42." -> strip trailing dot, split -> second-to-last = "5~4" (folder pk)
         String[] parts    = userTreePath.substring(0, userTreePath.length() - 1).split("\\.");
         long     orgPk    = Long.parseLong(parts[parts.length - 2].split("~")[0]);
         String   orgPkStr = String.valueOf(orgPk);

@@ -32,15 +32,15 @@
  * 03/17/2026 mir0n  messaging: broadcastPublisher injected; publishEntityEvent() on name/desc update
  * 03/20/2026 mir0n  status broadcast: "deleted" (usr_deleted_flg) added to isBroadcastableUpdate()
  *                   publishEntityEvent() emits raw "deleted" field value; publisher decoupling rule
- * 03/21/2026 mir0n  devLog added; dual error pattern (publishEntityEvent catch: log.warn→log.error+devLog.error)
+ * 03/21/2026 mir0n  devLog added; dual error pattern (publishEntityEvent catch: log.warn->log.error+devLog.error)
  * 03/26/2026 mir0n  esquireCommandNew/Delete(): delegates to OrgService/UsrService;
  *                   TEXT_* constants replace raw strings; parentId added to broadcast
  * 03/31/2026 mir0n  esquireCommandMove(): orgRepository injected; dual UPDATE permission check;
  *                   self-move guard (USR cannot move themselves); dest org validation; dispatches to OrgService/UsrService
  * 04/02/2026 mir0n  esquireCommandMove(): collects List<EsqMoveRecord>, publishMoveEvent()
  * 04/06/2026 mir0n  KC path sync: KcRequestPublisher injected; publishKcMoveRequest() sends EVENT_UPDATE_PATH URQ per USR move record
- * 04/07/2026 mir0n  all kind params Integer → int; kind normalization removed;
- *                   upfront applicability check (!isOrg && !isUsr → ResourceNotFoundException) at all entry points
+ * 04/07/2026 mir0n  all kind params Integer -> int; kind normalization removed;
+ *                   upfront applicability check (!isOrg && !isUsr -> ResourceNotFoundException) at all entry points
  * 04/16/2026 mir0n  ret declarations moved to top in detailEntity/saveEntity/newEntity
  * 05/14/2026 mir0n  esquireCommandTree(): EsqSubtreeRepository.findSubtree() + project to EsqTreeNode list;
  *                   leaves-first order via level DESC; populates entityPath from esq_entity_path.ep_path
@@ -90,7 +90,7 @@ import jakarta.persistence.EntityManager;
 import java.util.*;
 
 import pro.mir0n.esquire.backend.o11y.EsqAsyncTrace;
-import pro.mir0n.esquire.backend.o11y.EsqBizMeters;
+import pro.mir0n.o11y.BizMeters;
 import pro.mir0n.esquire.backend.o11y.EsqTraced;
 import lombok.extern.slf4j.Slf4j;
 import pro.mir0n.esquire.backend.dto.*;
@@ -117,7 +117,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import pro.mir0n.esquire.common.EsqConstants;
-import pro.mir0n.esquire.messaging.BusConstants;
+import pro.mir0n.messaging.BusConstants;
 import pro.mir0n.esquire.audit.AuditBusBridge;
 import pro.mir0n.esquire.enyMan.jpa.EsqMoveRecord;
 
@@ -282,7 +282,7 @@ public class EnyManService  extends AEnyManService {
     private static final String OUTCOME_ERROR = "error";
 
     private static void meterEntityOp(String op, int kind, String outcome) {
-        EsqBizMeters.count("esq.biz.entity.ops.total",
+        BizMeters.count("esq.biz.entity.ops.total",
                 "op", op, "kind", String.valueOf(kind), "outcome", outcome);
     }
 
@@ -427,7 +427,7 @@ public class EnyManService  extends AEnyManService {
         }
     }
 
-    // Runs synchronously on the request thread — publish failure is absorbed (log.warn),
+    // Runs synchronously on the request thread -- publish failure is absorbed (log.warn),
     // so broker unavailability cannot fail the HTTP response.
     // If broker latency becomes observable in production, promote to @Async with an MDC
     // task decorator to preserve correlationId/requestId in the async thread.

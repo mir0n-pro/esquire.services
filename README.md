@@ -44,12 +44,13 @@ operations. The Amazon EKS deployment at aws-esquire.mir0n.pro is turned down �
 
 ---
 > 
-> **v1.2.16 — complete (10/11/2026).** The landing page reads on a phone: the comparison table and
-> the header come down to the width there is, and the login button stays on the screen. On the server side
-> the token relay keeps its cached sign-in tokens in the framework's shared expiring cache instead of a map
-> of its own.
+> **v2.0.0 -- the shared parts are products of their own.** The utility library, the recoverable cache
+> and the load-test harness moved to [Armoury](https://github.com/mir0n-pro/armoury). The messaging bus,
+> its transports and its event store moved to [Herald](https://github.com/mir0n-pro/herald). Esquire is
+> built on both. The services, the screens and the settings stay the same.
 > 
-> **Live at** [esquire.mir0n.pro](https://esquire.mir0n.pro) on Oracle OKE.
+> The 1.2 line goes on in parallel. Its last release is
+> [v1.2.16](https://github.com/mir0n-pro/esquire.services/tree/release/v1.2.16?tab=readme-ov-file).
 > 
 > What comes next is chosen from the
 > [continuing-development backlog](doc/Esquire.ContinuingDev.md) — several sprints can run in parallel, each
@@ -82,19 +83,21 @@ through the moment it is up. Background, the architecture, and the developer wor
 | [esquire.explorer](https://github.com/mir0n-pro/esquire.explorer) | Angular frontend: entity tree explorer and operation dialogs |
 | [esquire.ui.lib](https://github.com/mir0n-pro/esquire.ui.lib) | Shared Angular UI library (`@mir0n-pro/esquire.ui`) |
 | [esquire.db.seed](https://github.com/mir0n-pro/esquire.db.seed) | Database schema and seed scripts (Oracle and Postgres) |
+| [armoury](https://github.com/mir0n-pro/armoury) | The utility library, the recoverable cache and the load-test harness Esquire is built on |
+| [herald](https://github.com/mir0n-pro/herald) | The messaging bus and its transports, which carry Esquire's events and commands |
 
 ---
 
 ## Release History
 
-**[Releases.md](Releases.md)** -- full release notes for every version, plus milestone reports across all four repositories.
+**[release_notes.txt](doc/release_notes.txt)** -- the release notes, newest first: v2.0.0, then the whole 1.2 history.
 
 ---
 
 ## Documentation
 
 ### Architecture & Design
-- [Esquire Messaging Bus — the vendor-agnostic bus subframework](doc/Esquire.MessagingBus.md) *(topology catalog, x-rod frontend, and a pluggable transport-provider SPI: tp-activemq / tp-kafka / tp-redis / tp-sqns / tp-kinesis)* — suite: [how Esquire uses the bus](doc/Esquire.Messaging.md), [message structure](doc/Esquire.MessagingBus.MessageStructure.md), [integration guides](doc/Esquire.MessagingBus.Guides.md), [design Q&A](doc/Esquire.MessagingBus.Q&A.md), [continuing development](doc/Esquire.MessagingBus.ContinuingDev.md)
+- [Esquire Messaging Bus — the vendor-agnostic bus subframework](https://github.com/mir0n-pro/herald/blob/main/doc/Herald.MessagingBus.md) *(topology catalog, x-rod frontend, and a pluggable transport-provider SPI: tp-activemq / tp-kafka / tp-redis / tp-sqns / tp-kinesis)* — suite: [how Esquire uses the bus](doc/Esquire.Messaging.md), [message structure](https://github.com/mir0n-pro/herald/blob/main/doc/Herald.MessagingBus.MessageStructure.md), [integration guides](https://github.com/mir0n-pro/herald/blob/main/doc/Herald.MessagingBus.Guides.md), [design Q&A](https://github.com/mir0n-pro/herald/blob/main/doc/Herald.MessagingBus.Q&A.md), [continuing development](https://github.com/mir0n-pro/herald/blob/main/doc/Herald.MessagingBus.ContinuingDev.md)
 - [Observability Stack](doc/Esquire.ObservabilityStack.md) *(metrics, tracing, and logging as common tooling)* — suite: [logging strategy](doc/Esquire.ObservabilityStack.Logging.md), [Grafana dashboards guide](doc/Esquire.GrafanaGuide.md)
 - [Authentication & Authorization — the tree-shaped security model](doc/Esquire.Auth.md) *(identity claims `esq_uid` / `esq_rootpath`; the keySmith / kcMaster / KeyCloak collaboration; `ep_path` visibility + role-based authority)* — suite: [token patterns](doc/Esquire.Auth.TokenPatterns.md) (BFF / JWT / Vanilla & Phantom Token Relay; JWE parked under stock KC) and [keySmith credential routines](doc/Esquire.Auth.keySmithRoutine.md)
 - [bizTree — Taijitu Recoverable Cache Architecture](doc/Esquire.BizTree.md) *(the Supreme Ultimate Cache: two-monad anti-entropy double-buffer + night-watch sweep)*
@@ -126,8 +129,7 @@ through the moment it is up. Background, the architecture, and the developer wor
 
 ### Value Proposition & Roadmap
 - [Esquire Application Frameworks — What, Why, and for Whom](doc/Esquire.Vision.md)
-- [v1.2.x Goal](doc/v1.2.x.Goal.md) *(what the v1.2.x horizon set out to achieve, and the maturity it reached)*
-- [v1.2.x Planning — release-line roadmap, sprint themes, and the road to v1.3.0](doc/v1.2.x.Planning.md) *(rolling roadmap / white paper across all four Esquire repositories)*
+- [v2.0.x Goals](doc/v2.0.x.Goals.md) *(the goal of the 2.0 line, its horizons, and what Esquire is)*
 
 ---
 

@@ -469,7 +469,7 @@ The three backbone ideas — tree-shaped visibility, positional authority, entit
 finished, production-grade cloud-native foundation. The floor is not just laid; it is complete.
 
 The full goal — *what Esquire is, and what the stack was made to deliver* — is stated in
-[`v1.2.x.Goal.md`](v1.2.x.Goal.md).
+[`v2.0.x.Goals.md`](v2.0.x.Goals.md).
 
 ---
 

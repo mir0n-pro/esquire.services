@@ -6,25 +6,25 @@ Custom Keycloak login theme that matches the visual design of the Esquire Explor
 
 ```
 C:\MyProjects\esquire\services\keycloak\themes\esquire-explorer\login\
-├── theme.properties              # parent=keycloak; styles; locales
-├── template.ftl                  # Master layout: toolbars, alert block, <#nested>
-├── login.ftl                     # Credentials form
-├── login-reset-password.ftl      # Forgot-password form
-├── login-update-password.ftl     # Forced password change
-├── login-otp.ftl                 # OTP entry
-├── login-config-totp.ftl         # TOTP setup
-├── login-page-expired.ftl        # Session-expired page
-├── logout-confirm.ftl            # Logout confirmation
-├── error.ftl                     # Generic error page
-├── info.ftl                      # Generic info/redirect page
-├── messages/
-│   └── messages_en.properties   # Text labels and messages
-└── resources/
-    ├── css/
-    │   └── styles.css           # All styling (Roboto, Material-like)
-    └── img/
-        ├── main.ico             # Application logo (48x48)
-        └── unknown.ico          # Default user icon (24x24)
+|-- theme.properties              # parent=keycloak; styles; locales
+|-- template.ftl                  # Master layout: toolbars, alert block, <#nested>
+|-- login.ftl                     # Credentials form
+|-- login-reset-password.ftl      # Forgot-password form
+|-- login-update-password.ftl     # Forced password change
+|-- login-otp.ftl                 # OTP entry
+|-- login-config-totp.ftl         # TOTP setup
+|-- login-page-expired.ftl        # Session-expired page
+|-- logout-confirm.ftl            # Logout confirmation
+|-- error.ftl                     # Generic error page
+|-- info.ftl                      # Generic info/redirect page
+|-- messages/
+|   `-- messages_en.properties   # Text labels and messages
+`-- resources/
+    |-- css/
+    |   `-- styles.css           # All styling (Roboto, Material-like)
+    `-- img/
+        |-- main.ico             # Application logo (48x48)
+        `-- unknown.ico          # Default user icon (24x24)
 ```
 
 ### Template inheritance note
@@ -69,7 +69,7 @@ docker compose up -d
 1. Open Keycloak Admin Console: http://localhost:8080
 2. Login with admin credentials (username: `admin`, password: `q`)
 3. Select your realm: `esquire`
-4. Navigate to **Realm Settings** → **Themes** tab
+4. Navigate to **Realm Settings** -> **Themes** tab
 5. Set **Login Theme** dropdown to `esquire-explorer`
 6. Click **Save**
 
@@ -186,13 +186,13 @@ Then add your image to `resources/img/background.jpg`.
    ls C:/MyProjects/esquire/services/keycloak/themes/esquire-explorer/login/resources/img/
    ```
 
-2. Check browser DevTools → Network tab for 404 errors
+2. Check browser DevTools -> Network tab for 404 errors
 
 3. Verify image paths in `login.ftl` match the resources structure
 
 ### Styling Issues
 
-1. Verify `styles.css` is loaded in browser DevTools → Network tab
+1. Verify `styles.css` is loaded in browser DevTools -> Network tab
 
 2. Check for CSS errors in browser console
 
@@ -239,20 +239,20 @@ When updating the Angular app-explorer component styles:
 
 ```
 C:\MyProjects\esquire\
-├── explorer\frontend\
-│   └── keycloak-theme\          # Source (development)
-│       └── esquire-explorer\
-└── services\
-    ├── keycloak\
-    │   ├── compose.yaml         # Docker Compose config
-    │   └── themes\              # Deployed theme (docker volume mount)
-    │       └── esquire-explorer\
-    └── compose\
-        └── compose.yaml         # Main services compose
+|-- explorer\frontend\
+|   `-- keycloak-theme\          # Source (development)
+|       `-- esquire-explorer\
+`-- services\
+    |-- keycloak\
+    |   |-- compose.yaml         # Docker Compose config
+    |   `-- themes\              # Deployed theme (docker volume mount)
+    |       `-- esquire-explorer\
+    `-- compose\
+        `-- compose.yaml         # Main services compose
 ```
 
 ## Support
 
 For issues or questions:
 - Email: mir0n.the.programmer@gmail.com
-- Copyright © 2001, 2026 mir0n&co www.mir0n.me
+- Copyright (c) 2001, 2026 mir0n&co www.mir0n.me

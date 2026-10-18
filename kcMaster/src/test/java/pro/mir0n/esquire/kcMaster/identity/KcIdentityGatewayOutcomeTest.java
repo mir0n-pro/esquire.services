@@ -13,8 +13,8 @@ package pro.mir0n.esquire.kcMaster.identity;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.env.MockEnvironment;
-import pro.mir0n.esquire.messaging.BusConstants;
-import pro.mir0n.esquire.messaging.RodEvent;
+import pro.mir0n.messaging.BusConstants;
+import pro.mir0n.messaging.RodEvent;
 
 import java.util.ArrayList;
 import java.util.List;

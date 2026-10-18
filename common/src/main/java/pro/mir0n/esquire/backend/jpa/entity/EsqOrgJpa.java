@@ -7,7 +7,7 @@
  *
  *  History:
  * 03/20/2026 mir0n  parentId, path fields added
- * 03/26/2026 mir0n  parentId removed — consolidated to EsqEntityJpa
+ * 03/26/2026 mir0n  parentId removed -- consolidated to EsqEntityJpa
  * 06/05/2026 mir0n  fillMap() override (IMappable): emits fullName on top of super (name/desc/parentId)
  *                   for the x-Rod org audit body
  */

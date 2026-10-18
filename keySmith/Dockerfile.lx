@@ -1,4 +1,4 @@
-# Multi-stage build — build context: esquire.services/
+# Multi-stage build -- build context: esquire.services/
 FROM eclipse-temurin:21-jdk-jammy AS builder
 WORKDIR /build
 RUN apt-get update && apt-get install -y maven && rm -rf /var/lib/apt/lists/*

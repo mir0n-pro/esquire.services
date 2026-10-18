@@ -8,7 +8,7 @@
  *  History:
  * 02/19/2026 mir0n  added esquireKeySave() POST /esq-key-save
  * 03/09/2026 mir0n  realm_access.roles extracted from JWT claims; roles passed to esquireKeySave()
- * 03/21/2026 mir0n  devLog added; log.debug→devLog.debug
+ * 03/21/2026 mir0n  devLog added; log.debug->devLog.debug
  * 06/04/2026 mir0n  rootPath / uid no longer extracted from claims; delegates without them (roles
  *                   still extracted); uid / rootPath ride the unified request context
  * 08/26/2026 mir0n  the develop log lines pass the value itself instead of String.valueOf

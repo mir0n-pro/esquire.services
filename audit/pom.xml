@@ -7,7 +7,7 @@
         <groupId>pro.mir0n.esquire</groupId>
         <artifactId>esquire-parent</artifactId>
 <!-- xxx: we need a stable parent version to be referenced correctly -->
-        <version>1.2.0</version>
+        <version>2.0.0</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
@@ -17,13 +17,13 @@
     <url/>
 
     <name>esquire-audit</name>
-    <description>esquire-audit -- the audit specialization of the keep: AuditKeepDirector (kind -> *_log repository), AuditBusBridge (transactional publish), AuditLogWriter / AuditLogSql / AuditKinds, and the in-process XRodLogDb pod. Built on esquire-dataKeep.</description>
+    <description>esquire-audit -- the audit specialization of the keep: AuditKeepDirector (kind -> *_log repository), AuditBusBridge (transactional publish), AuditLogWriter / AuditLogSql / AuditKinds, and the in-process XRodLogDb pod. Built on herald-datakeep.</description>
 
     <dependencies>
         <dependency>
-            <groupId>pro.mir0n.esquire</groupId>
-            <artifactId>esquire-dataKeep</artifactId>
-            <version>${dataKeep.version}</version>
+            <groupId>pro.mir0n</groupId>
+            <artifactId>herald-datakeep</artifactId>
+            <version>${herald.version}</version>
         </dependency>
         <dependency>
             <groupId>pro.mir0n.esquire</groupId>
@@ -31,9 +31,9 @@
             <version>${common.version}</version>
         </dependency>
         <dependency>
-            <groupId>pro.mir0n.esquire</groupId>
-            <artifactId>esquire-messaging</artifactId>
-            <version>${messaging.version}</version>
+            <groupId>pro.mir0n</groupId>
+            <artifactId>herald-messaging</artifactId>
+            <version>${herald.version}</version>
         </dependency>
 
         <!-- AuditLogWriter uses NamedParameterJdbcTemplate; XRodLogDb opens its OWN HikariDataSource;

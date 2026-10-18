@@ -689,7 +689,7 @@ the round trip is observed); if no send has landed within `alive-timeout` the le
 health signal surfaces to the readiness probe. Known limit -- **provider-dependent**: the health reads the
 producer leg only, so a hard broker crash that leaves the socket half-open is not caught on the ActiveMQ driver
 (its async-send + failover buffering makes the "send" still succeed); other providers differ. See
-`doc/Esquire.MessagingBus.ContinuingDev.md`.
+`herald/doc/Herald.MessagingBus.ContinuingDev.md`.
 
 **Send-retry.** A broker outage makes a send fail; the single send worker holds that message and re-sends it over
 the backoff ladder (default 1, 2, 5, 5 seconds, the last step repeating) until it goes through. Because the one
@@ -705,7 +705,7 @@ send-retry-only leg needs no alive protocol to signal a broker outage. This is t
 -- a restart, a master->slave / failover switchover, a brief blip -- and they do so **for any bound provider**,
 not just ActiveMQ: the resilience is the bus's, so swapping the transport (or putting it in an HA mode) does not
 change the guarantee. Enabled per bus in docker, the local-k8s overlay, AND the OKE overlay -- safe on OKE because its broker
-endpoint uses `failover:`. The mechanism and the sublayer design are in `doc/Esquire.MessagingBus.md`.
+endpoint uses `failover:`. The mechanism and the sublayer design are in `herald/doc/Herald.MessagingBus.md`.
 
 ---
 

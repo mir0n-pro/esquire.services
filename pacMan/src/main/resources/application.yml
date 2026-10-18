@@ -28,7 +28,7 @@ pacman:
       slots:
         - slot-id: audit
           x-rod:
-            rod-class: pro.mir0n.esquire.dataKeep.keep.XRodInProcessKeep
+            rod-class: pro.mir0n.dataKeep.keep.XRodInProcessKeep
             director: pro.mir0n.esquire.audit.AuditKeepDirector
             receiver-pool:
               size: ${AUDIT_POOL_SIZE:4}

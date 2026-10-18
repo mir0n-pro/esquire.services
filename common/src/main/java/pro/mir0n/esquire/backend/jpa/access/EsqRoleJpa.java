@@ -7,7 +7,7 @@
  *
  *  History:
  * 02/04/2026 mir0n adminFlg added
- * 03/03/2026 mir0n  extends EsqEntityJpa; individual fields (id, name, adminFlg) removed — inherited from base
+ * 03/03/2026 mir0n  extends EsqEntityJpa; individual fields (id, name, adminFlg) removed -- inherited from base
  */
 
 package pro.mir0n.esquire.backend.jpa.access;

@@ -14,7 +14,7 @@ class BizTreeConstantsTest {
 
     @BeforeAll
     static void seedStorage() {
-        // FOLDER_SYS_ADMIN first — so iteration encounters it before FOLDER_ADMIN.
+        // FOLDER_SYS_ADMIN first -- so iteration encounters it before FOLDER_ADMIN.
         // Both claim childKinds=[32], reproducing the mis-routing scenario that was fixed.
         EsqObjectKind sysAdminFolder = new EsqObjectKind();
         sysAdminFolder.setId(BizTreeConstants.FOLDER_SYS_ADMIN);   // 2
@@ -30,7 +30,7 @@ class BizTreeConstantsTest {
     // ---- folderKindForUsr ----
 
     @Test
-    @DisplayName("folderKindForUsr: kind matching FOLDER_SYS_ADMIN childKinds → FOLDER_ADMIN, not FOLDER_SYS_ADMIN")
+    @DisplayName("folderKindForUsr: kind matching FOLDER_SYS_ADMIN childKinds -> FOLDER_ADMIN, not FOLDER_SYS_ADMIN")
     void folderKindForUsr_kindMatchesSysAdminChildKinds_returnsFolderAdmin() {
         int result = BizTreeConstants.folderKindForUsr(32);
         assertThat(result).isEqualTo(BizTreeConstants.FOLDER_ADMIN);
@@ -38,7 +38,7 @@ class BizTreeConstantsTest {
     }
 
     @Test
-    @DisplayName("folderKindForUsr: unknown kind → defaults to FOLDER_ADMIN")
+    @DisplayName("folderKindForUsr: unknown kind -> defaults to FOLDER_ADMIN")
     void folderKindForUsr_unknownKind_defaultsToFolderAdmin() {
         int result = BizTreeConstants.folderKindForUsr(999);
         assertThat(result).isEqualTo(BizTreeConstants.FOLDER_ADMIN);
@@ -47,31 +47,31 @@ class BizTreeConstantsTest {
     // ---- decodeStatus ----
 
     @Test
-    @DisplayName("decodeStatus: Y → STATUS_DELETED")
+    @DisplayName("decodeStatus: Y -> STATUS_DELETED")
     void decodeStatus_Y_returnsStatusDeleted() {
         assertThat(BizTreeConstants.decodeStatus("Y")).isEqualTo(BizTreeConstants.STATUS_DELETED);
     }
 
     @Test
-    @DisplayName("decodeStatus: C → STATUS_DELETED")
+    @DisplayName("decodeStatus: C -> STATUS_DELETED")
     void decodeStatus_C_returnsStatusDeleted() {
         assertThat(BizTreeConstants.decodeStatus("C")).isEqualTo(BizTreeConstants.STATUS_DELETED);
     }
 
     @Test
-    @DisplayName("decodeStatus: L → STATUS_LOCKED")
+    @DisplayName("decodeStatus: L -> STATUS_LOCKED")
     void decodeStatus_L_returnsStatusLocked() {
         assertThat(BizTreeConstants.decodeStatus("L")).isEqualTo(BizTreeConstants.STATUS_LOCKED);
     }
 
     @Test
-    @DisplayName("decodeStatus: null → STATUS_OK")
+    @DisplayName("decodeStatus: null -> STATUS_OK")
     void decodeStatus_null_returnsStatusOk() {
         assertThat(BizTreeConstants.decodeStatus(null)).isEqualTo(BizTreeConstants.STATUS_OK);
     }
 
     @Test
-    @DisplayName("decodeStatus: O → STATUS_OK")
+    @DisplayName("decodeStatus: O -> STATUS_OK")
     void decodeStatus_O_returnsStatusOk() {
         assertThat(BizTreeConstants.decodeStatus("O")).isEqualTo(BizTreeConstants.STATUS_OK);
     }

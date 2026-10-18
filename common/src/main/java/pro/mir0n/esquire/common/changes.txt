@@ -1,5 +1,15 @@
 Esquire Common microservice classes
 
+10/17/2026 mir0n  v2.0.0 -- the 2.0 line: the bus, the keep and the base libraries moved out
+(every file that imported them)
+  - pro.mir0n.esquire.messaging -> pro.mir0n.messaging, pro.mir0n.esquire.dataKeep -> pro.mir0n.dataKeep,
+    pro.mir0n.esquire.tp -> pro.mir0n.tp. The types and the method signatures are unchanged; only the
+    package root moved, because the bus is the Herald Messaging Framework now
+pom.xml
+  - esquire-messaging -> pro.mir0n:herald-messaging, esquire-dataKeep -> pro.mir0n:herald-datakeep,
+    esquire-tp-* -> pro.mir0n:herald-tp-*, mir0n-utils -> pro.mir0n:armoury-utils. Versions come from
+    ${herald.version} and ${armoury.version} in the parent
+
 08/27/2026 mir0n  v1.2.13 -- one writer for the error body
 error.ProblemDetailWriter
   - added: the one place a ProblemDetail reaches a servlet response -- a mapper carrying JavaTimeModule
@@ -282,7 +292,7 @@ EsqConstants
   - ESQ_BACKEND_TIME -> ESQ_SRV_INNER_TIME (JPA / inner)
   - ESQ_CAPTURE_METRICS added (hauberk trigger header)
 
-03/26/2026 mir0n  Entity CREATE/DELETE — Phase 3 protocol constants and utilities
+03/26/2026 mir0n  Entity CREATE/DELETE -- Phase 3 protocol constants and utilities
 EsqMsgConstants
   - TEXT_* JSON field name constants: TEXT_ID, TEXT_KIND, TEXT_NAME, TEXT_DESC, TEXT_STATUS,
     TEXT_DELETED, TEXT_PARENT_ID, TEXT_PATH, TEXT_CCY
@@ -291,22 +301,22 @@ EsqMsgConstants
 EsqUtils  (new entry)
   - generateEntityId(): epoch-based long id (ms since esquireEpoch * 1000 + random sub-ms offset)
 
-03/21/2026 mir0n  Messaging Phase 3 — KC sync constants consolidated from KcMsgConstants
+03/21/2026 mir0n  Messaging Phase 3 -- KC sync constants consolidated from KcMsgConstants
 EsqMsgConstants
   - QUEUE_KC_REQUEST = "esquire.kc.request"; QUEUE_KC_RESPONSE = "esquire.kc.response"
   - MSG_TYPE_REQUEST = "URQ"; MSG_TYPE_RESPONSE = "URS"; MSG_TYPE_REJECT = "URR"
   - FIELD_TEST_REQ_ID = "TestReqID" (FIX 112); FIELD_ERROR = "Error" (FIX 50010)
-  - ENTITY_KIND_ACCESS_PROFILE removed — duplicate of EsqConstants.KIND_ACCESS_PROFILE
+  - ENTITY_KIND_ACCESS_PROFILE removed -- duplicate of EsqConstants.KIND_ACCESS_PROFILE
 + added messaging.jms.Utils
   - formatProps(Map<String, Object>): formats publisher props map as key=value | key=value
   - formatProps(Message): formats all JMS properties sorted alphabetically as key=value | key=value
   - setProps(Message, Map): sets all props map entries as JMS message properties (int or string)
 
-03/20/2026 mir0n  Messaging Phase 1/2 — service id constant
+03/20/2026 mir0n  Messaging Phase 1/2 -- service id constant
 EsqMsgConstants
   - SERVICE_ID_ENTITY_BROADCAST = "entity-update-broadcast" added
 
-03/19/2026 mir0n  Messaging Phase 1 — entity broadcast protocol constants
+03/19/2026 mir0n  Messaging Phase 1 -- entity broadcast protocol constants
 EsqMsgConstants  (new)
   - FIX-JSON protocol constants for esquire.entity.broadcast JMS topic
   - TOPIC_ENTITY_BROADCAST = "esquire.entity.broadcast"

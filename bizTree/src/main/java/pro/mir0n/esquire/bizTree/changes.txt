@@ -1,5 +1,19 @@
 Esquire BizTree Microservice
 
+10/17/2026 mir0n  v2.0.0 -- the 2.0 line: the bus, the keep and the base libraries moved out
+(every file that imported them)
+  - pro.mir0n.esquire.messaging -> pro.mir0n.messaging, pro.mir0n.esquire.dataKeep -> pro.mir0n.dataKeep,
+    pro.mir0n.esquire.tp -> pro.mir0n.tp. The types and the method signatures are unchanged; only the
+    package root moved, because the bus is the Herald Messaging Framework now
+  - o11y.EsqBizMeters / EsqTraceMark -> pro.mir0n.o11y.BizMeters / TraceMark,
+    from armoury-utils; the meter and span names are unchanged
+  - pro.mir0n.utils.taijitu -> pro.mir0n.taijitu, from armoury-taijitu; the classes are unchanged
+pom.xml
+  - esquire-messaging -> pro.mir0n:herald-messaging, esquire-dataKeep -> pro.mir0n:herald-datakeep,
+    esquire-tp-* -> pro.mir0n:herald-tp-*, mir0n-utils -> pro.mir0n:armoury-utils. Versions come from
+    ${herald.version} and ${armoury.version} in the parent
+  - pro.mir0n:armoury-taijitu, new: the taijitu cache is a jar of its own in Armoury
+
 08/26/2026 mir0n  v1.2.13 -- the path lookup scoped, and the two change numbers
 access.MessageHandlerHub
   - dispatch reads pathChangeNo from the body: an X is guarded on the PATH number and stamps BOTH columns,
@@ -485,7 +499,7 @@ messaging.handler.MoveUsrHandler
 
 04/06/2026 mir0n  esq-move path semantics fix
 cache.impl.BizTreeCacheRepository
-  - moveUsrNode(): admin-aware orgPk extraction — admin ep_path last segment is org pk
+  - moveUsrNode(): admin-aware orgPk extraction -- admin ep_path last segment is org pk
 
 04/02/2026 mir0n move event processing
 cache.IBizTreeCacheRepository
@@ -508,17 +522,17 @@ messaging.EsqEntityBroadcastConsumer
 
 03/31/2026 mir0n  folderKindForUsr fix; log cleanup
 BizTreeConstants
-  - folderKindForUsr(): skip FOLDER_SYS_ADMIN — admin users no longer mis-routed into root-org sys-admin folder
+  - folderKindForUsr(): skip FOLDER_SYS_ADMIN -- admin users no longer mis-routed into root-org sys-admin folder
 cache.BizTreeCacheLoader
   - devLog debug line added in user-building loop
 
-03/28/2026 mir0n  ESQ_ENTITY_PATH — JOIN esq_entity_path in findAllForTree queries
+03/28/2026 mir0n  ESQ_ENTITY_PATH -- JOIN esq_entity_path in findAllForTree queries
 META-INF/oracle-entity.xml, postgres-entity.xml
   - EsqOrgJpa.findAllForTree: JOIN esq_entity_path; ep_path AS org_path alias
   - EsqUsrJpa.findAllForTree: JOIN esq_entity_path; ep_path AS usr_path alias
   - EsqAcctJpa.findAllForTree: JOIN esq_entity_path; ep_path AS acc_path alias
 
-03/28/2026 mir0n  DELETE workflow — deleteNodes refactored to string entityId; multi-column WHERE covers ORG folders
+03/28/2026 mir0n  DELETE workflow -- deleteNodes refactored to string entityId; multi-column WHERE covers ORG folders
 cache.IBizTreeCacheRepository
   - deleteNodes(String entityId): WHERE ? IN (tree_pk, tree_tree_pk_link, tree_tree_pk_parent)
     covers USR (tree_pk), ACCT main+shortcut (tree_pk+tree_tree_pk_link), ORG folder nodes (tree_tree_pk_parent)
@@ -530,8 +544,8 @@ messaging.handler.DeleteEntityHandler
 03/26/2026 mir0n  Handler dispatch refactoring; CREATE handler support; DELETE skeleton; constants
 BizTreeConstants  (new)
   - centralized constants: status codes, folder kinds/names, entity kind ranges, column names, key separator
-  - decodeStatus(raw): public static — "Y"/"C"→1, "L"→2, other/null→0
-  - folderKindForUsr(etPk): data-driven folder routing — finds folder kind (id < KIND_ORG_MAX)
+  - decodeStatus(raw): public static -- "Y"/"C"->1, "L"->2, other/null->0
+  - folderKindForUsr(etPk): data-driven folder routing -- finds folder kind (id < KIND_ORG_MAX)
     whose childKinds contains etPk via EsqObjectKindStorage; defaults to FOLDER_ADMIN
   - KIND_USR_CLIENT/KIND_USR_MERCHANT removed
 messaging.IBizTreeEventHandler  (new)
@@ -544,10 +558,10 @@ messaging.handler.CreateUsrHandler  (new)
   - handles CREATE events for USR kinds; calls insertUsrNode()
 messaging.handler.CreateAcctHandler  (new)
   - handles CREATE events for ACCT kinds; calls insertAcctNode() (main + shortcut nodes)
-messaging.handler.DeleteEntityHandler  (new — skeleton)
+messaging.handler.DeleteEntityHandler  (new -- skeleton)
   - handles DELETE events for ORG/USR/ACCT; removes nodes by tree_entity_pk; no cascade
 messaging.EsqEntityBroadcastConsumer
-  - handler map dispatch: HandlerKey(eventType,kindBits) → IBizTreeEventHandler
+  - handler map dispatch: HandlerKey(eventType,kindBits) -> IBizTreeEventHandler
   - DeleteEntityHandler registered for (DELETE, ORG/USR/ACCT)
 cache.IBizTreeCacheRepository
   - insertOrgNodes/insertUsrNode/insertAcctNode added; deleteNodes(entityPk) added
@@ -570,16 +584,16 @@ BizTreeApplication
 
 03/21/2026 mir0n  three-tier logging normalization
 messaging.EsqEntityBroadcastConsumer
-  - broadcastLog→msgLog/devLog; MDC set/clear; requestId/correlationId reads
+  - broadcastLog->msgLog/devLog; MDC set/clear; requestId/correlationId reads
   - dual-mode ENTITY msg audit; console echo log.info; dual error pattern; unused imports removed
 cache.BizTreeCacheLoader, cache.impl.BizTreeCacheRepository
-  - devLog added; log.debug→devLog.debug
+  - devLog added; log.debug->devLog.debug
 service.IBizTreeService
   - unused imports removed
 service.impl.BizTreeService, controller.BizTreeController
-  - devLog added; log.debug→devLog.debug
+  - devLog added; log.debug->devLog.debug
 
-03/20/2026 mir0n  Messaging Phase 2 — cache update from entity broadcast events
+03/20/2026 mir0n  Messaging Phase 2 -- cache update from entity broadcast events
 cache.BizTreeCacheLoader  (new)
   - loads ORG/USR/ACCT entities from DB into H2 in-memory cache on ApplicationReadyEvent
   - builds folder nodes per org/usr kind; computes tree paths and levels via BFS
@@ -599,7 +613,7 @@ resources/META-INF/h2-cache-sql.properties  (new)
 messaging.EsqEntityBroadcastConsumer
   - Phase 2: UPDATE events applied to H2 cache via cacheRepository.updateNode()
   - handles "deleted" key (usr_deleted_flg, enyMan/USR) and "status" key (acc_status, pacMan/ACCT)
-  - decodeStatus(): "Y"/"C" → 1 (deleted), "L" → 2 (locked), other/null → 0 (ok)
+  - decodeStatus(): "Y"/"C" -> 1 (deleted), "L" -> 2 (locked), other/null -> 0 (ok)
   - null status/deleted values not propagated (treated as absent)
 service.impl.BizTreeService
   - switched from EsqTreeNodeRepository to IBizTreeCacheRepository (H2 in-memory cache)
@@ -644,7 +658,7 @@ exception.GlobalExceptionHandler
 03/09/2026 mir0n
 exception.GlobalExceptionHandler
   - @Slf4j added; logging added to all handlers
-  - ResourceNotFoundException: NOT_FOUND → BAD_REQUEST
+  - ResourceNotFoundException: NOT_FOUND -> BAD_REQUEST
 
 01/24/2026 mir0n
 x ResourceNotFoundException.java moved to common lib

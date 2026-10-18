@@ -49,7 +49,7 @@ import pro.mir0n.esquire.bizTree.service.IBizTreeService;
 import pro.mir0n.esquire.bizTree.service.impl.BizTreeService;
 import pro.mir0n.esquire.bizTree.access.taijitu.BizTreeDirectorTaijitu;
 import pro.mir0n.esquire.bizTree.taijitu.Monad;
-import pro.mir0n.utils.taijitu.MismatchAction;
+import pro.mir0n.taijitu.MismatchAction;
 
 import java.util.Locale;
 

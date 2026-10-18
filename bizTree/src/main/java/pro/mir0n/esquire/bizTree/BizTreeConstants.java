@@ -10,7 +10,7 @@
  *                   ranges, folder names, H2 column names, JSON field names, key separator
  * 03/26/2026 mir0n  folderKindForUsr(): data-driven folder routing via EsqObjectKindStorage childKinds;
  *                   KIND_USR_CLIENT/KIND_USR_MERCHANT removed
- * 03/31/2026 mir0n  folderKindForUsr(): skip FOLDER_SYS_ADMIN — prevents admin users from being mis-routed into root-org sys-admin folder
+ * 03/31/2026 mir0n  folderKindForUsr(): skip FOLDER_SYS_ADMIN -- prevents admin users from being mis-routed into root-org sys-admin folder
  */
 package pro.mir0n.esquire.bizTree;
 
@@ -33,9 +33,9 @@ public class BizTreeConstants {
     public static final int STATUS_LOCKED  = 2;
 
     // --- Raw DB/JMS status flag values ---
-    public static final String FLAG_DELETED = "Y";   // usr_deleted_flg = Y  → STATUS_DELETED
-    public static final String FLAG_CLOSED  = "C";   // acc_status = C       → STATUS_DELETED
-    public static final String FLAG_LOCKED  = "L";   // acc_status = L       → STATUS_LOCKED
+    public static final String FLAG_DELETED = "Y";   // usr_deleted_flg = Y  -> STATUS_DELETED
+    public static final String FLAG_CLOSED  = "C";   // acc_status = C       -> STATUS_DELETED
+    public static final String FLAG_LOCKED  = "L";   // acc_status = L       -> STATUS_LOCKED
 
     // --- Folder entity kinds (tree_et_pk for virtual folder nodes) ---
     public static final int FOLDER_SYS_ADMIN = 2;    // root-org sys-admin folder
@@ -97,8 +97,8 @@ public class BizTreeConstants {
     }
 
     // --- Status decoding helper ---
-    // usr_deleted_flg: Y/C → deleted(1), L → locked(2), null/other → ok(0)
-    // acc_status:      C   → deleted(1), L → locked(2), O/null/other → ok(0)
+    // usr_deleted_flg: Y/C -> deleted(1), L -> locked(2), null/other -> ok(0)
+    // acc_status:      C   -> deleted(1), L -> locked(2), O/null/other -> ok(0)
     public static int decodeStatus(String raw) {
         int ret = STATUS_OK;
         if (FLAG_DELETED.equals(raw) || FLAG_CLOSED.equals(raw)) {

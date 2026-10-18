@@ -11,7 +11,7 @@
     <springProperty scope="context" name="developLogPath"  source="logging.develop.log-path"              defaultValue="logs/pacMan-develop.log"/>
     <springProperty scope="context" name="msgLogPath"      source="logging.msg.log-path"                  defaultValue="logs/pacMan-msg.log"/>
 
-    <!-- Console — ECS structured format -->
+    <!-- Console - ECS structured format -->
     <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
         <encoder class="org.springframework.boot.logging.logback.StructuredLogEncoder">
             <format>ecs</format>

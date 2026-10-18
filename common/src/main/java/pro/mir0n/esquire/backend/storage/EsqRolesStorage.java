@@ -9,7 +9,7 @@
  * 03/09/2026 mir0n  new: in-memory roles/permissions storage; findAdminPermissions(); isAdminCmdPermitted()
  * 03/10/2026 mir0n  roles() added: all roles as List<EsqRole>
  *                   fillPermissionsForRole() added: accumulates permissions for one role into a list
- * 03/21/2026 mir0n  devLog added; log.debug→devLog.debug; dual error pattern; unused imports removed
+ * 03/21/2026 mir0n  devLog added; log.debug->devLog.debug; dual error pattern; unused imports removed
  * 07/11/2026 mir0n  v1.2.11 O1/T8 -- isAdminCmdPermitted() counts esq.biz.perm.check.total (tags cmd = the
  *                   AdminCmd enum, result = allow|deny): the authorization decision itself, at the one gate every
  *                   service goes through. The gate sees allow and deny ONLY -- a self-update BYPASSES it entirely
@@ -25,7 +25,7 @@ import org.slf4j.LoggerFactory;
 
 import pro.mir0n.esquire.backend.dto.access.EsqRole;
 import pro.mir0n.esquire.backend.dto.access.EsqPermission;
-import pro.mir0n.esquire.backend.o11y.EsqBizMeters;
+import pro.mir0n.o11y.BizMeters;
 import pro.mir0n.esquire.backend.storage.roles.IRolesService;
 import pro.mir0n.esquire.backend.storage.roles.JpaRolesRepository;
 import pro.mir0n.esquire.backend.storage.roles.JpaRolesService;
@@ -134,7 +134,7 @@ devLog.debug("EsqRolesStorage.isAdminCmdPermitted found role {} = {}.", cmd.ordi
         // Both tag values are bounded: cmd is the AdminCmd enum (5 values), result is allow|deny. NOTE the gate
         // sees ALLOW and DENY only -- the self-update bypass never reaches here, it short-circuits at the caller
         // (id.equals(uid) -> permitted), which is not an authorization decision to begin with.
-        EsqBizMeters.count("esq.biz.perm.check.total", "cmd", cmd.name(), "result", ret ? "allow" : "deny");
+        BizMeters.count("esq.biz.perm.check.total", "cmd", cmd.name(), "result", ret ? "allow" : "deny");
         return ret;
     }
 

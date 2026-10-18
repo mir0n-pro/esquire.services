@@ -19,7 +19,7 @@
 > later cycle.
 
 **Related backlogs (kept separate, on purpose):**
-- **The Messaging Bus keeps its own continuing-dev list** -- [Esquire.MessagingBus.ContinuingDev.md](Esquire.MessagingBus.ContinuingDev.md)
+- **The Messaging Bus keeps its own continuing-dev list** -- [Herald.MessagingBus.ContinuingDev.md](https://github.com/mir0n-pro/herald/blob/main/doc/Herald.MessagingBus.ContinuingDev.md)
   (the alive protocol, the full resilience-pattern set, the FIX-like async protocol, replay/seek, and more). It stays
   a list of its own because **lifting the Messaging Bus out of Esquire into its own product / repository is itself the
   next continuing-dev arc** -- so the bus carries its backlog with it rather than dissolving it into this file.
@@ -75,7 +75,7 @@ claim actually comes from -- which is what a guard would have to compare against
 **So the counters are NOT interchangeable.** A path claim is guarded by the path row's number, an
 auth-derived claim by the auth row's number, and the two are never compared with each other -- the same
 declared exception the wire already makes between an entity and its path (see
-`Esquire.MessagingBus.MessageStructure.md`). One number covering every claim would
+`Herald.MessagingBus.MessageStructure.md`). One number covering every claim would
 repeat that mistake: an auth update would look "older" than a move that had nothing to do with it, and be
 skipped. **Roles have no counter at all**: guarding them means giving them one first, so they stay on
 value comparison.

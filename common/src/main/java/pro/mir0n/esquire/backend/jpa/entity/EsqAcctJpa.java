@@ -7,7 +7,7 @@
  *
  *  History:
  * 03/20/2026 mir0n  parentId, path fields added
- * 03/26/2026 mir0n  parentId removed — consolidated to EsqEntityJpa
+ * 03/26/2026 mir0n  parentId removed -- consolidated to EsqEntityJpa
  * 04/09/2026 mir0n  fundedDate, negativeAllowed fields added
  * 06/05/2026 mir0n  fillMap() override (IMappable): emits ccy/balance/status/fundedDate/negativeAllowed
  *                   on top of super (name/desc/parentId) for the x-Rod account audit body

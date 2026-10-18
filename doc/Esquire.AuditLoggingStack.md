@@ -239,18 +239,18 @@ Audit runs on the **Messaging Bus** — a declarative bus catalog with a per-ven
 audit-specific producer/consumer wiring and no hard-coded `transport=activemq|kafka` switch: an option is
 selected by **bus-id**, and the wire vendor is a swappable module the framework never names — (b) in-process,
 (c) bus, (d) redis, plus the Kafka variants. Everything below is the bus, seen from the audit sink. For the
-bus itself, see [Esquire.MessagingBus.md](Esquire.MessagingBus.md).
+bus itself, see [Herald.MessagingBus.md](https://github.com/mir0n-pro/herald/blob/main/doc/Herald.MessagingBus.md).
 
 The bus itself — the access point (x-rod) and its two legs, the rod-class catalogue, the topology-file
 shape, the transport SPI and drivers, and the message logging channel — is **not audited-specific and is not
-described here**. It is the [Messaging Bus](Esquire.MessagingBus.md). This section is only what the **audit
+described here**. It is the [Messaging Bus](https://github.com/mir0n-pro/herald/blob/main/doc/Herald.MessagingBus.md). This section is only what the **audit
 sink** adds on top of it.
 
 ### A.1 The audit sink is one bus leg
 
 Audit reaches the bus the same way any participant does: it takes a per-leg **access point** (an x-rod) from
 the bus for its leg. Nothing about the access point, its transmit/receive legs, or the rod-class model is
-audit's — see [Esquire.MessagingBus.md](Esquire.MessagingBus.md#the-x-rod-engine-axrod-and-the-two-legs).
+audit's — see [Herald.MessagingBus.md](https://github.com/mir0n-pro/herald/blob/main/doc/Herald.MessagingBus.md#the-x-rod-engine-axrod-and-the-two-legs).
 The audit legs use three of the bus's rod-classes:
 
 | Audit leg | Bus rod-class | Ends on |
@@ -267,7 +267,7 @@ audit }`. `AUDIT_BUS_ID` names which catalog bus the producer (and the auKeep) u
 `audit-c`; the code default in `application.yml` is `audit-b`. The in-process (b) leg lives in the service's
 own catalog overlay, because its keep datasource is service-specific. How a catalog is written, unioned and
 loaded is the bus's — see
-[Esquire.MessagingBus.md](Esquire.MessagingBus.md#configuration-and-the-parameter-model).
+[Herald.MessagingBus.md](https://github.com/mir0n-pro/herald/blob/main/doc/Herald.MessagingBus.md#configuration-and-the-parameter-model).
 
 The one logical audit destination is **`esquire.rod.audit`**; the leg's driver maps it to a queue / topic /
 stream, and vendor knobs pass through `transport.params` (e.g. `jms.useAsyncSend`, a Kafka `group-id`, a
@@ -278,7 +278,7 @@ Redis `max-len`) — the driver model itself is the bus's.
 The bus's per-leg message log (a `TX`/`RX` line per hop) shows the audit event under `msgType` **`UA`**: it
 logs `TX` on the producer leg and, for the `audit-c` / `audit-ck` buses, `RX` again on the auKeep leg; the
 producer-only buses (`audit-d` / `audit-dk`) log only `TX`. The channel itself — its per-leg naming, format
-and routing — is the bus's, see [Esquire.MessagingBus.md](Esquire.MessagingBus.md#logging).
+and routing — is the bus's, see [Herald.MessagingBus.md](https://github.com/mir0n-pro/herald/blob/main/doc/Herald.MessagingBus.md#logging).
 
 ---
 
@@ -580,7 +580,7 @@ Kafka concerns, not audit's** — the running guidance lives with the transport.
 
 For running Kafka well on the bus (consumer-per-instance, the dedicated pool, the topic-as-buffer, the
 connection budget, ack-after-write for zero-loss), see
-[Esquire.MessagingBus.md](Esquire.MessagingBus.md).
+[Herald.MessagingBus.md](https://github.com/mir0n-pro/herald/blob/main/doc/Herald.MessagingBus.md).
 
 ---
 
@@ -796,7 +796,7 @@ have none.
 The worker-pool that (b), (c) and the busy end of (d) all lean on to keep up — its sizing, the planned
 multi-worker assignment model (fan writes across `*_log` tables while keeping per-table order) — is the
 messaging/keep enabling infrastructure, not audit's; auKeep is simply its first real user. See
-[Esquire.MessagingBus.md](Esquire.MessagingBus.md).
+[Herald.MessagingBus.md](https://github.com/mir0n-pro/herald/blob/main/doc/Herald.MessagingBus.md).
 
 **The name.** *au* = audit, *Keep* = the keep engine it hosts. The audit event is like a lightning strike
 and the pipeline a **lightning rod** — it catches the event and conducts it to the log store without letting
@@ -806,14 +806,14 @@ it tear through the operational path.
 
 ## 11. Cross-references
 
-- [Esquire.MessagingBus.md](Esquire.MessagingBus.md) — the bus this sink rides: the access point (x-rod) and
+- [Herald.MessagingBus.md](https://github.com/mir0n-pro/herald/blob/main/doc/Herald.MessagingBus.md) — the bus this sink rides: the access point (x-rod) and
   its legs, the rod-class model, the catalog and parameter model, the transport SPI and drivers, the message
   log channel, health, and Kafka on the bus. Everything about the bus mechanism lives there.
 - [services.configuring.md](services.configuring.md) — the external config reference (*Selecting an audit
   option*, the env table, deploy defaults).
 - [EntityDictionary.md](EntityDictionary.md#appendix----the-kind-enumeration) — the `kind` codes (entity + sub-entity kinds 988–998).
 - [DatabaseDictionary.md](DatabaseDictionary.md) — §2 Entity Structure + the `*_log` tables.
-- [Esquire.MessagingBus.MessageStructure.md](Esquire.MessagingBus.MessageStructure.md) — the `UE` entity message this design extends.
+- [Herald.MessagingBus.MessageStructure.md](https://github.com/mir0n-pro/herald/blob/main/doc/Herald.MessagingBus.MessageStructure.md) — the `UE` entity message this design extends.
 - [Esquire.Messaging.md](Esquire.Messaging.md) — the entity-broadcast + IAM buses (the audit queue is parallel to, and
   separate from, the entity-broadcast bus).
 - [Esquire.ObservabilityStack.md](Esquire.ObservabilityStack.md) — the metrics, logs and traces that

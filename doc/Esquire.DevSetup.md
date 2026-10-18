@@ -51,7 +51,7 @@ Behind the services are the **shared libraries**, layered base-first —
 `mir0n-utils` &larr; `messaging` &larr; `common` — plus `dataKeep` (the generic keep engine) and
 the companions `audit` (audit wiring) and the transport drivers `tp-activemq` / `tp-redis` /
 `tp-kafka` / `tp-sqns` / `tp-kinesis` (one module per bus provider; `tp-sqns` carries two, `sqs` and `sns`).
-Details: `Esquire.MessagingBus.md`, `Esquire.BizTree.md`.
+Details: `Herald.MessagingBus.md`, `Esquire.BizTree.md`.
 
 ### 1.2 Browser tier — BFF + SPA (the `explorer` repo)
 
@@ -77,7 +77,7 @@ every service via `spring.config.import`). Three logical buses ship:
 The default transport is an **ActiveMQ** broker; **Kafka**, **Redis**, **Amazon SQS**, **Amazon SNS** and
 **Amazon Kinesis** providers also exist and are selected per slot in the catalog. The AWS three run in their
 own sandbox, `services/compose-aws`, against a local AWS stack. Full model (bus / slot / node / role / rod-class / transport):
-`Esquire.MessagingBus.md`.
+`Herald.MessagingBus.md`.
 
 ### 1.4 Backing infrastructure
 
@@ -216,10 +216,32 @@ From `services/`:
 ```
 mvn -q -DskipTests clean package        # all services + libs, skip tests
 mvn -q -pl enyMan -am package           # one service and everything it needs
-mvn -q -pl messaging -am test           # run one module's tests (see section 9)
+mvn -q -pl bizTree -am test             # run one module's tests (see section 9)
 ```
 
 The compose rebuild script (section 5) runs the Maven build for you.
+
+**Armoury and Herald come from GitHub Packages.** Maven downloads them like any other dependency, so
+nothing has to be built or installed first. GitHub asks for a token even for a public package: put a
+personal access token (classic) with the `read:packages` scope into `~/.m2/settings.xml`, under the
+server ids `armoury` and `herald`:
+
+```xml
+<settings>
+  <servers>
+    <server>
+      <id>armoury</id>
+      <username>your-github-user</username>
+      <password>your-token</password>
+    </server>
+    <server>
+      <id>herald</id>
+      <username>your-github-user</username>
+      <password>your-token</password>
+    </server>
+  </servers>
+</settings>
+```
 
 ---
 

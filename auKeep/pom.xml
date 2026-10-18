@@ -7,7 +7,7 @@
         <groupId>pro.mir0n.esquire</groupId>
         <artifactId>esquire-parent</artifactId>
 <!-- xxx: we need a stable parent version to be referenced correctly -->
-        <version>1.2.0</version>
+        <version>2.0.0</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
@@ -20,7 +20,7 @@
     <description>auKeep -- the audit-keep deployment: a dataKeep runner wired with the esquire-audit director, draining the audit bus to the *_log tables. The only Boot app of the keep stack.</description>
 
     <dependencies>
-        <!-- the audit specialization brings esquire-dataKeep + esquire-common + jdbc + drivers + the full
+        <!-- the audit specialization brings herald-datakeep + esquire-common + jdbc + drivers + the full
              META-INF/audit SQL set transitively. -->
         <dependency>
             <groupId>pro.mir0n.esquire</groupId>
@@ -28,32 +28,32 @@
             <version>${audit.version}</version>
         </dependency>
         <dependency>
-            <groupId>pro.mir0n.esquire</groupId>
-            <artifactId>esquire-dataKeep</artifactId>
-            <version>${dataKeep.version}</version>
+            <groupId>pro.mir0n</groupId>
+            <artifactId>herald-datakeep</artifactId>
+            <version>${herald.version}</version>
         </dependency>
         <dependency>
-            <groupId>pro.mir0n.esquire</groupId>
-            <artifactId>esquire-messaging</artifactId>
-            <version>${messaging.version}</version>
+            <groupId>pro.mir0n</groupId>
+            <artifactId>herald-messaging</artifactId>
+            <version>${herald.version}</version>
         </dependency>
 
         <!-- transport providers (tp): auKeep is the universal consumer; it carries EVERY provider so it
              resolves the configured one by name and supportsConsume() gates a producer-only one. -->
         <dependency>
-            <groupId>pro.mir0n.esquire</groupId>
-            <artifactId>esquire-tp-activemq</artifactId>
-            <version>${tp.version}</version>
+            <groupId>pro.mir0n</groupId>
+            <artifactId>herald-tp-activemq</artifactId>
+            <version>${herald.version}</version>
         </dependency>
         <dependency>
-            <groupId>pro.mir0n.esquire</groupId>
-            <artifactId>esquire-tp-kafka</artifactId>
-            <version>${tp.version}</version>
+            <groupId>pro.mir0n</groupId>
+            <artifactId>herald-tp-kafka</artifactId>
+            <version>${herald.version}</version>
         </dependency>
         <dependency>
-            <groupId>pro.mir0n.esquire</groupId>
-            <artifactId>esquire-tp-redis</artifactId>
-            <version>${tp.version}</version>
+            <groupId>pro.mir0n</groupId>
+            <artifactId>herald-tp-redis</artifactId>
+            <version>${herald.version}</version>
         </dependency>
 
         <dependency>

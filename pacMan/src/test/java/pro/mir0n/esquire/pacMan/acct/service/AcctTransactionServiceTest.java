@@ -83,10 +83,10 @@ class AcctTransactionServiceTest {
         service = new AcctTransactionProcessorSingle(entityRepository, transactionRepository, transactionTemplate, em, Mockito.mock(pro.mir0n.esquire.audit.AuditBusBridge.class));
     }
 
-    // ---- missing X-Request-ID → MissingRequestIdException ----
+    // ---- missing X-Request-ID -> MissingRequestIdException ----
 
     @Test
-    @DisplayName("esquireCommandAcct: missing X-Request-ID → MissingRequestIdException")
+    @DisplayName("esquireCommandAcct: missing X-Request-ID -> MissingRequestIdException")
     void esquireCommandAcct_missingRequestId_throwsMissingRequestIdException() {
         AcctTransactionService svc = new AcctTransactionService(
                 entityRepository, transactionRepository, transactionTemplate, em,
@@ -101,10 +101,10 @@ class AcctTransactionServiceTest {
         }
     }
 
-    // ---- unknown or odd kind → ResourceNotFoundException ----
+    // ---- unknown or odd kind -> ResourceNotFoundException ----
 
     @Test
-    @DisplayName("esquireCommandAcct: unknown kind → ResourceNotFoundException")
+    @DisplayName("esquireCommandAcct: unknown kind -> ResourceNotFoundException")
     void esquireCommandAcct_unknownKind_throwsResourceNotFoundException() {
         assertThatThrownBy(() ->
             service.esquireCommandAcct(99, "10", null, Map.of(), "1.2.3", "99", null)
@@ -112,27 +112,27 @@ class AcctTransactionServiceTest {
     }
 
     @Test
-    @DisplayName("esquireCommandAcct: odd kind 51 → ResourceNotFoundException")
+    @DisplayName("esquireCommandAcct: odd kind 51 -> ResourceNotFoundException")
     void esquireCommandAcct_oddKind_throwsResourceNotFoundException() {
         assertThatThrownBy(() ->
             service.esquireCommandAcct(51, "10", null, Map.of(), "1.2.3", "99", null)
         ).isInstanceOf(ResourceNotFoundException.class);
     }
 
-    // ---- null roles → PermissionDeniedException ----
+    // ---- null roles -> PermissionDeniedException ----
 
     @Test
-    @DisplayName("esquireCommandAcct: null roles → PermissionDeniedException")
+    @DisplayName("esquireCommandAcct: null roles -> PermissionDeniedException")
     void esquireCommandAcct_nullRoles_throwsPermissionDeniedException() {
         assertThatThrownBy(() ->
             service.esquireCommandAcct(50, "10", null, Map.of(), "1.2.3", "99", null)
         ).isInstanceOf(PermissionDeniedException.class);
     }
 
-    // ---- account not found → ResourceNotFoundException ----
+    // ---- account not found -> ResourceNotFoundException ----
 
     @Test
-    @DisplayName("esquireCommandAcct: account not found → ResourceNotFoundException")
+    @DisplayName("esquireCommandAcct: account not found -> ResourceNotFoundException")
     void esquireCommandAcct_acctNotFound_throwsResourceNotFoundException() {
         when(transactionTemplate.execute(any())).thenAnswer(inv -> {
             inv.<org.springframework.transaction.support.TransactionCallback<?>>getArgument(0).doInTransaction(null);
@@ -145,10 +145,10 @@ class AcctTransactionServiceTest {
         ).isInstanceOf(ResourceNotFoundException.class);
     }
 
-    // ---- zero amount → InvalidValueException ----
+    // ---- zero amount -> InvalidValueException ----
 
     @Test
-    @DisplayName("esquireCommandAcct: amount=0 → InvalidValueException")
+    @DisplayName("esquireCommandAcct: amount=0 -> InvalidValueException")
     void esquireCommandAcct_zeroAmount_throwsInvalidValueException() {
         when(transactionTemplate.execute(any())).thenAnswer(inv -> {
             inv.<org.springframework.transaction.support.TransactionCallback<?>>getArgument(0).doInTransaction(null);
@@ -161,10 +161,10 @@ class AcctTransactionServiceTest {
         ).isInstanceOf(InvalidValueException.class);
     }
 
-    // ---- negative amount → InvalidValueException ----
+    // ---- negative amount -> InvalidValueException ----
 
     @Test
-    @DisplayName("esquireCommandAcct: amount < 0 → InvalidValueException")
+    @DisplayName("esquireCommandAcct: amount < 0 -> InvalidValueException")
     void esquireCommandAcct_negativeAmount_throwsInvalidValueException() {
         when(transactionTemplate.execute(any())).thenAnswer(inv -> {
             inv.<org.springframework.transaction.support.TransactionCallback<?>>getArgument(0).doInTransaction(null);
@@ -176,10 +176,10 @@ class AcctTransactionServiceTest {
         ).isInstanceOf(InvalidValueException.class);
     }
 
-    // ---- account not open → InvalidValueException ----
+    // ---- account not open -> InvalidValueException ----
 
     @Test
-    @DisplayName("esquireCommandAcct: account status != O → InvalidValueException")
+    @DisplayName("esquireCommandAcct: account status != O -> InvalidValueException")
     void esquireCommandAcct_accountNotOpen_throwsInvalidValueException() {
         when(transactionTemplate.execute(any())).thenAnswer(inv -> {
             inv.<org.springframework.transaction.support.TransactionCallback<?>>getArgument(0).doInTransaction(null);
@@ -198,7 +198,7 @@ class AcctTransactionServiceTest {
     // ---- negativeAllowed=N: a WITHDRAWAL may not leave the balance negative; a DEPOSIT always may ----
 
     @Test
-    @DisplayName("esquireCommandAcct: withdrawal past zero and negativeAllowed=N → InvalidValueException")
+    @DisplayName("esquireCommandAcct: withdrawal past zero and negativeAllowed=N -> InvalidValueException")
     void esquireCommandAcct_withdrawalPastZero_throwsInvalidValueException() {
         when(transactionTemplate.execute(any())).thenAnswer(inv -> {
             inv.<org.springframework.transaction.support.TransactionCallback<?>>getArgument(0).doInTransaction(null);
@@ -215,7 +215,7 @@ class AcctTransactionServiceTest {
     }
 
     @Test
-    @DisplayName("esquireCommandAcct: deposit into a negative balance with negativeAllowed=N → posts (repayment in parts)")
+    @DisplayName("esquireCommandAcct: deposit into a negative balance with negativeAllowed=N -> posts (repayment in parts)")
     void esquireCommandAcct_depositIntoNegativeBalance_postsSuccessfully() {
         when(transactionTemplate.execute(any())).thenAnswer(inv -> {
             inv.<org.springframework.transaction.support.TransactionCallback<?>>getArgument(0).doInTransaction(null);
@@ -237,10 +237,10 @@ class AcctTransactionServiceTest {
         verify(entityRepository).updateAcctBalance(eq("10"), eq(-850.0), any(), any(), any(), any());
     }
 
-    // ---- invalid refCode value → InvalidValueException ----
+    // ---- invalid refCode value -> InvalidValueException ----
 
     @Test
-    @DisplayName("esquireCommandAcct: refCode not in list → InvalidValueException")
+    @DisplayName("esquireCommandAcct: refCode not in list -> InvalidValueException")
     void esquireCommandAcct_invalidRefCode_throwsInvalidValueException() {
         when(transactionTemplate.execute(any())).thenAnswer(inv -> {
             inv.<org.springframework.transaction.support.TransactionCallback<?>>getArgument(0).doInTransaction(null);
@@ -259,10 +259,10 @@ class AcctTransactionServiceTest {
         ).isInstanceOf(InvalidValueException.class);
     }
 
-    // ---- null refCode2 → InvalidValueException ----
+    // ---- null refCode2 -> InvalidValueException ----
 
     @Test
-    @DisplayName("esquireCommandAcct: refCode2=null → InvalidValueException")
+    @DisplayName("esquireCommandAcct: refCode2=null -> InvalidValueException")
     void esquireCommandAcct_nullRefCode2_throwsInvalidValueException() {
         when(transactionTemplate.execute(any())).thenAnswer(inv -> {
             inv.<org.springframework.transaction.support.TransactionCallback<?>>getArgument(0).doInTransaction(null);
@@ -281,10 +281,10 @@ class AcctTransactionServiceTest {
         ).isInstanceOf(InvalidValueException.class);
     }
 
-    // ---- negativeAllowed=Y → posts even when balance goes negative ----
+    // ---- negativeAllowed=Y -> posts even when balance goes negative ----
 
     @Test
-    @DisplayName("esquireCommandAcct: negativeAllowed=Y → posts without balance check")
+    @DisplayName("esquireCommandAcct: negativeAllowed=Y -> posts without balance check")
     void esquireCommandAcct_negativeAllowedY_postsSuccessfully() {
         when(transactionTemplate.execute(any())).thenAnswer(inv -> {
             inv.<org.springframework.transaction.support.TransactionCallback<?>>getArgument(0).doInTransaction(null);
@@ -305,10 +305,10 @@ class AcctTransactionServiceTest {
         verify(entityRepository).updateAcctBalance(eq("10"), eq(-850.0), any(), any(), any(), any());
     }
 
-    // ---- skipValidation=true → posts despite insufficient balance and closed status ----
+    // ---- skipValidation=true -> posts despite insufficient balance and closed status ----
 
     @Test
-    @DisplayName("esquireCommandAcct: skipValidation=true → posts despite insufficient balance")
+    @DisplayName("esquireCommandAcct: skipValidation=true -> posts despite insufficient balance")
     void esquireCommandAcct_skipValidation_postsSuccessfully() {
         when(transactionTemplate.execute(any())).thenAnswer(inv -> {
             inv.<org.springframework.transaction.support.TransactionCallback<?>>getArgument(0).doInTransaction(null);
@@ -329,10 +329,10 @@ class AcctTransactionServiceTest {
         verify(entityRepository).updateAcctBalance(eq("10"), eq(-850.0), any(), any(), any(), any());
     }
 
-    // ---- success — insertAcctTransaction then updateAcctBalance ----
+    // ---- success -- insertAcctTransaction then updateAcctBalance ----
 
     @Test
-    @DisplayName("esquireCommandAcct: success → insertAcctTransaction called before updateAcctBalance; result fields correct")
+    @DisplayName("esquireCommandAcct: success -> insertAcctTransaction called before updateAcctBalance; result fields correct")
     void esquireCommandAcct_success_insertsTransactionAndUpdatesBalance() {
         when(transactionTemplate.execute(any())).thenAnswer(inv -> {
             inv.<org.springframework.transaction.support.TransactionCallback<?>>getArgument(0).doInTransaction(null);

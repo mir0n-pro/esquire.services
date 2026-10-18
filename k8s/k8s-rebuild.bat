@@ -138,6 +138,15 @@ docker image inspect esquire-activemq:%BASE_TS% >nul 2>&1
 if errorlevel 1 ( set "TS=%BASE_TS%" ) else ( set "TS=%BASE_TS%%MM%" )
 docker tag esquire-activemq:6.1.4 esquire-activemq:%TS%
 call :patch_yaml activemq
+helm status esquire-infra-amq >nul 2>&1
+if errorlevel 1 (
+  echo [skip] esquire-infra-amq not deployed -- yaml stamped %TS%; next k8s-up will deploy it.
+) else (
+  echo [helm] upgrading esquire-infra-amq to tag %TS%...
+  call helm upgrade esquire-infra-amq charts\infra\activemq -f values\activemq.yaml --reset-then-reuse-values --set image.tag=%TS% --force-conflicts
+  if errorlevel 1 ( echo helm upgrade failed for esquire-infra-amq & exit /b 1 )
+  kubectl rollout status statefulset/esquire-infra-amq-activemq --timeout=180s
+)
 
 rem === Infra image: esquire-keycloak (the esquire theme + the realm import). Built HERE because NOTHING in
 rem     this tree did: values\keycloak.yaml named a STAMPED tag that only ever existed in one machine's docker
@@ -152,14 +161,14 @@ docker image inspect esquire-keycloak:%BASE_TS% >nul 2>&1
 if errorlevel 1 ( set "TS=%BASE_TS%" ) else ( set "TS=%BASE_TS%%MM%" )
 docker tag esquire-keycloak:26.4.7 esquire-keycloak:%TS%
 call :patch_yaml keycloak
-helm status esquire-infra-amq >nul 2>&1
+helm status esquire-infra-kc >nul 2>&1
 if errorlevel 1 (
-  echo [skip] esquire-infra-amq not deployed -- yaml stamped %TS%; next k8s-up will deploy it.
+  echo [skip] esquire-infra-kc not deployed -- yaml stamped %TS%; next k8s-up will deploy it.
 ) else (
-  echo [helm] upgrading esquire-infra-amq to tag %TS%...
-  call helm upgrade esquire-infra-amq charts\infra\activemq -f values\activemq.yaml --reset-then-reuse-values --set image.tag=%TS% --force-conflicts
-  if errorlevel 1 ( echo helm upgrade failed for esquire-infra-amq & exit /b 1 )
-  kubectl rollout status statefulset/esquire-infra-amq-activemq --timeout=180s
+  echo [helm] upgrading esquire-infra-kc to tag %TS%...
+  call helm upgrade esquire-infra-kc charts\infra\keycloak -f values\keycloak.yaml --reset-then-reuse-values --set image.tag=%TS% --force-conflicts
+  if errorlevel 1 ( echo helm upgrade failed for esquire-infra-kc & exit /b 1 )
+  kubectl rollout status statefulset/esquire-infra-kc-keycloak --timeout=240s
 )
 
 set "SVC=gateway"&set "DIR=gateway"
@@ -192,7 +201,7 @@ goto end
 
 :target_backend
 echo [docker] building explorer/backend (BFF + SPA)...
-pushd ..\..\explorer\backend
+pushd ..\..\explorer2\backend
 docker compose build %NOCACHE%
 if errorlevel 1 ( popd & echo backend build failed & exit /b 1 )
 popd

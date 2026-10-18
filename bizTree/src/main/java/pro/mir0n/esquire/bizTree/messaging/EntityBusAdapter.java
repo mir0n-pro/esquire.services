@@ -20,9 +20,9 @@ import org.springframework.stereotype.Component;
 import pro.mir0n.esquire.backend.service.EsqContextHolder;
 import pro.mir0n.esquire.bizTree.access.IBizTreeDirector;
 import pro.mir0n.esquire.common.EsqConstants;
-import pro.mir0n.esquire.messaging.MessagingBus;
-import pro.mir0n.esquire.messaging.IXRod;
-import pro.mir0n.esquire.messaging.RodEvent;
+import pro.mir0n.messaging.MessagingBus;
+import pro.mir0n.messaging.IXRod;
+import pro.mir0n.messaging.RodEvent;
 
 /** The bizTree end of the entity bus (CLIENT role): the entity-broadcast receive worker feeding the cache director. */
 @Slf4j

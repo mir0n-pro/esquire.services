@@ -7,9 +7,9 @@
  *
  *  History:
  * 02/01/2026 mir0n removed @AllArgsConstructor
- * 03/06/2026 mir0n findField() and fillКindFieldLayer() methods added; @Slf4j added
- * 03/08/2026 mir0n  fillКindFieldLayer(): setLayerTitle() called to populate layer title context
- * 03/10/2026 mir0n  fillКindFieldLayer() renamed fillKindFieldLayer() — Cyrillic К replaced with ASCII K
+ * 03/06/2026 mir0n findField() and fillKindFieldLayer() methods added; @Slf4j added
+ * 03/08/2026 mir0n  fillKindFieldLayer(): setLayerTitle() called to populate layer title context
+ * 03/10/2026 mir0n  fillKindFieldLayer() renamed: the leading K of the name had been a Cyrillic letter, now ASCII K
  * 06/27/2026 mir0n  completed field made volatile -- AEnyManService double-checks it OUTSIDE the lock, so the warm
  *                   fast-path read must see the completing thread's merged layers (happens-before)
  */

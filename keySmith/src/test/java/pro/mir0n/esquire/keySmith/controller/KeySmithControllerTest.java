@@ -73,7 +73,7 @@ class KeySmithControllerTest {
     // ---- esquireKeySave: null realm_access passes null roles ----
 
     @Test
-    @DisplayName("esquireKeySave: null realm_access → passes null roles to service")
+    @DisplayName("esquireKeySave: null realm_access -> passes null roles to service")
     void esquireKeySave_nullRealmAccess_passesNullRolesToService() {
         when(claims.get(EsqConstants.JWT_CLAIM_REALM_ACCESS, Map.class)).thenReturn(null);
         Map<String, Object> fields = Map.of();

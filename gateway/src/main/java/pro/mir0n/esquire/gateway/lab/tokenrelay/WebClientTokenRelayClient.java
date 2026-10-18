@@ -21,7 +21,7 @@
  */
 package pro.mir0n.esquire.gateway.lab.tokenrelay;
 
-import pro.mir0n.esquire.backend.o11y.EsqBizMeters;
+import pro.mir0n.o11y.BizMeters;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.MediaType;
@@ -108,7 +108,7 @@ public class WebClientTokenRelayClient implements ITokenRelayClient {
     /** One place, so the three terminal signals cannot drift apart. Outcome is bounded: ok | error | cancelled. */
     private static void meterAcquire(long startedAt, String outcome) {
         long elapsed = System.nanoTime() - startedAt;
-        EsqBizMeters.count("esq.biz.gw.tokenrelay.acquire.total", "outcome", outcome);
-        EsqBizMeters.time("esq.biz.gw.tokenrelay.duration", elapsed, "outcome", outcome);
+        BizMeters.count("esq.biz.gw.tokenrelay.acquire.total", "outcome", outcome);
+        BizMeters.time("esq.biz.gw.tokenrelay.duration", elapsed, "outcome", outcome);
     }
 }

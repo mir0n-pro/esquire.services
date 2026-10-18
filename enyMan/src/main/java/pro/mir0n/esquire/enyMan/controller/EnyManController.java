@@ -17,10 +17,10 @@
  * 02/12/2026 mir0n added "/esq-kinds" access point
  * 02/19/2026 mir0n added esquireCommandSave() POST /esq-cmd-save
  * 03/09/2026 mir0n  realm_access.roles extracted from JWT claims; roles passed to esquireCommandSave()
- * 03/21/2026 mir0n  devLog added; log.debug→devLog.debug
- * 03/26/2026 mir0n  POST /esq-new → esquireCommandNew(); POST /esq-del → esquireCommandDelete()
- * 03/31/2026 mir0n  POST /esq-move → esquireCommandMove()
- * 04/07/2026 mir0n  /esq-new→/esq-cmd-new, /esq-del→/esq-cmd-del
+ * 03/21/2026 mir0n  devLog added; log.debug->devLog.debug
+ * 03/26/2026 mir0n  POST /esq-new -> esquireCommandNew(); POST /esq-del -> esquireCommandDelete()
+ * 03/31/2026 mir0n  POST /esq-move -> esquireCommandMove()
+ * 04/07/2026 mir0n  /esq-new->/esq-cmd-new, /esq-del->/esq-cmd-del
  * 05/14/2026 mir0n  GET /esq-cmd-tree added: FK-based natural-tree traversal from seed entity;
  *                   leaves-first ordering; same EsqTreeNode shape as /esq for response compatibility
  * 06/02/2026 mir0n  esquireCommandMove(): /esq-move returns 202 Accepted (ResponseEntity.accepted())
@@ -36,7 +36,7 @@
 
 package pro.mir0n.esquire.enyMan.controller;
 
-import pro.mir0n.esquire.backend.o11y.EsqBizMeters;
+import pro.mir0n.o11y.BizMeters;
 import io.jsonwebtoken.Claims;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.LoggerFactory;
@@ -121,7 +121,7 @@ public class EnyManController {
         // esq.biz.dict.lookup.total (O1/T8 phase B). Not a duplicate of the free http.server.requests: that meter
         // is tagged by the URI TEMPLATE (/esq-dict), so it cannot tell WHICH dictionary was fetched -- kind is a
         // query param. The kind code is a small fixed set, so the tag stays bounded.
-        EsqBizMeters.count("esq.biz.dict.lookup.total", "kind", String.valueOf(kind));
+        BizMeters.count("esq.biz.dict.lookup.total", "kind", String.valueOf(kind));
         return ResponseEntity.status(HttpStatus.OK).body(layers);
     }
 

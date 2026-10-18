@@ -45,7 +45,7 @@ class ValidatorFactoryTest {
     }
 
     @Test
-    @DisplayName("no biz validators → only generic result returned")
+    @DisplayName("no biz validators -> only generic result returned")
     void validate_noBizValidators_returnsGenericResult() {
         EsqEntityKindFieldLayer kfl = makeKfl(1, "string");
         Object ret = factory.validate(null, kfl, false, "hello");
@@ -53,7 +53,7 @@ class ValidatorFactoryTest {
     }
 
     @Test
-    @DisplayName("biz validator registered for same kind → chain called, biz result returned")
+    @DisplayName("biz validator registered for same kind -> chain called, biz result returned")
     void validate_bizValidatorForKind_chainsCalled() {
         IValidator biz = Mockito.mock(IValidator.class);
         when(biz.validate(any(), any(), eq(false), eq("hello"))).thenReturn("biz-result");
@@ -68,7 +68,7 @@ class ValidatorFactoryTest {
     }
 
     @Test
-    @DisplayName("biz validator for different kind → only generic called")
+    @DisplayName("biz validator for different kind -> only generic called")
     void validate_bizValidatorForDifferentKind_onlyGenericCalled() {
         IValidator biz = Mockito.mock(IValidator.class);
         factory.init(Map.of(99, biz));
@@ -81,7 +81,7 @@ class ValidatorFactoryTest {
     }
 
     @Test
-    @DisplayName("generic validator throws → exception propagates")
+    @DisplayName("generic validator throws -> exception propagates")
     void validate_genericThrows_propagates() {
         factory.init(null);
         EsqEntityKindFieldLayer kfl = makeKfl(1, "flag");
@@ -90,7 +90,7 @@ class ValidatorFactoryTest {
     }
 
     @Test
-    @DisplayName("biz validator throws → exception propagates")
+    @DisplayName("biz validator throws -> exception propagates")
     void validate_bizThrows_propagates() {
         IValidator biz = Mockito.mock(IValidator.class);
         when(biz.validate(any(), any(), anyBoolean(), any()))
@@ -115,7 +115,7 @@ class ValidatorFactoryTest {
     }
 
     @Test
-    @DisplayName("validateDelete: system entity (systemFlg='Y') is protected → DeleteRestrictedException")
+    @DisplayName("validateDelete: system entity (systemFlg='Y') is protected -> DeleteRestrictedException")
     void validateDelete_systemEntity_throws() {
         factory.init(null);
         assertThatThrownBy(() -> factory.validateDelete(makeEntity(20, "Y")))
@@ -123,7 +123,7 @@ class ValidatorFactoryTest {
     }
 
     @Test
-    @DisplayName("validateDelete: non-system entity (systemFlg='N') is not protected → no throw")
+    @DisplayName("validateDelete: non-system entity (systemFlg='N') is not protected -> no throw")
     void validateDelete_nonSystemEntity_passes() {
         factory.init(null);
         assertThatCode(() -> factory.validateDelete(makeEntity(20, "N")))
@@ -131,7 +131,7 @@ class ValidatorFactoryTest {
     }
 
     @Test
-    @DisplayName("validateDelete: unset systemFlg (null) is not protected → no throw")
+    @DisplayName("validateDelete: unset systemFlg (null) is not protected -> no throw")
     void validateDelete_nullSystemFlg_passes() {
         factory.init(null);
         assertThatCode(() -> factory.validateDelete(makeEntity(20, null)))

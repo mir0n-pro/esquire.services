@@ -26,7 +26,7 @@ import io.opentelemetry.context.Scope;
  * Carries a trace across an in-process async boundary (e.g. the enyMan move queue). The submitting thread calls
  * {@link #capture} while its span is current and stores the result on the queued item; the worker thread passes
  * it to {@link #continueIn}, which opens a span (trace id = correlationId) parented at the submitting span, so
- * the worker's {@code @EsqTraced} / {@code EsqTraceMark} / bus spans join the originating request's trace.
+ * the worker's {@code @EsqTraced} / {@code TraceMark} / bus spans join the originating request's trace.
  */
 public final class EsqAsyncTrace {
 

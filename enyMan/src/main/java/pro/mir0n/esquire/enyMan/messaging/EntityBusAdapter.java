@@ -29,10 +29,10 @@ import org.springframework.stereotype.Component;
 import pro.mir0n.esquire.backend.identity.IIdentityGateway;
 import pro.mir0n.esquire.common.EsqConstants;
 import pro.mir0n.esquire.enyMan.queue.CreateReconcileItem;
-import pro.mir0n.esquire.messaging.BusConstants;
-import pro.mir0n.esquire.messaging.MessagingBus;
-import pro.mir0n.esquire.messaging.IXRod;
-import pro.mir0n.esquire.messaging.RodEvent;
+import pro.mir0n.messaging.BusConstants;
+import pro.mir0n.messaging.MessagingBus;
+import pro.mir0n.messaging.IXRod;
+import pro.mir0n.messaging.RodEvent;
 
 import java.util.Map;
 import java.util.function.Consumer;

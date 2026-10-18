@@ -15,8 +15,8 @@ today: what each one carries, who publishes and who consumes, over which transpo
 
 It is the *instance* view (Esquire's use of the bus), NOT the generic bus framework. For how the bus works
 underneath — the catalog, the x-rod frontend, rod-classes, and the transport-provider SPI — see
-[Esquire Messaging Bus — Framework](Esquire.MessagingBus.md). For the wire format of each message, see
-[Esquire.MessagingBus.MessageStructure.md](Esquire.MessagingBus.MessageStructure.md).
+[Esquire Messaging Bus — Framework](https://github.com/mir0n-pro/herald/blob/main/doc/Herald.MessagingBus.md). For the wire format of each message, see
+[Herald.MessagingBus.MessageStructure.md](https://github.com/mir0n-pro/herald/blob/main/doc/Herald.MessagingBus.MessageStructure.md).
 
 A bus is one logical conversation: a set of channels (a topic, a queue, or a stream) grouped to serve a
 single purpose. A service never talks to a broker directly — it joins a named bus through the x-rod
@@ -63,7 +63,7 @@ subscribe; more consumers can be added without touching the publishers.
 The event carries raw entity field values only (id, kind, name, path, status, …); each consumer interprets
 them, and a field absent from a message is a no-op. Nothing acknowledges an applied event; the tree
 converges through the night-watch instead (see **Delivery** below). The `UE` wire format is in
-[Esquire.MessagingBus.MessageStructure.md](Esquire.MessagingBus.MessageStructure.md).
+[Herald.MessagingBus.MessageStructure.md](https://github.com/mir0n-pro/herald/blob/main/doc/Herald.MessagingBus.MessageStructure.md).
 
 ---
 
@@ -82,7 +82,7 @@ queue. The requester is the *client* (publishes the request, reads its own reply
   so sharded replicas never steal each other's replies.
 
 kcMaster dispatches each request to a create / update / delete / update-path Keycloak operation. The `URQ` /
-`URS` / `URR` wire formats are in [Esquire.MessagingBus.MessageStructure.md](Esquire.MessagingBus.MessageStructure.md).
+`URS` / `URR` wire formats are in [Herald.MessagingBus.MessageStructure.md](https://github.com/mir0n-pro/herald/blob/main/doc/Herald.MessagingBus.MessageStructure.md).
 
 ---
 
@@ -176,7 +176,7 @@ reads DOWN -- so the signal works the SAME on every transport, not just where th
 callback (that callback stays as a fast diagnostic; the in-process keep instead reports its datasource). The
 keep-alive runs from one shared timer per service. The indicator sits in the **readiness** group, so a broker
 outage takes the pod out of rotation -- but it is **not** in liveness, so a blip never restarts the pod. auKeep
-additionally reports its keep `*_log` database (the apply side). Wiring: [Esquire.MessagingBus.md](Esquire.MessagingBus.md)
+additionally reports its keep `*_log` database (the apply side). Wiring: [Herald.MessagingBus.md](https://github.com/mir0n-pro/herald/blob/main/doc/Herald.MessagingBus.md)
 (Health) + [services.configuring.md](services.configuring.md) (Health checks).
 
 ---

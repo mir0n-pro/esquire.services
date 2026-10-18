@@ -103,7 +103,7 @@ pacMan, keySmith, bizTree; the keep cap also to auKeep).
 Messaging runs behind one facade, **`MessagingBus`**, which builds an **x-rod** per bus. A service references a logical bus and a role;
 the actual transport (ActiveMQ / Kafka / Redis) and its endpoint live in the shared **topology**,
 not in per-service env. The abstract bus framework -- the x-rod engine, the transport-driver SPI, the
-catalog + parameter model -- is documented in `doc/Esquire.MessagingBus.md`; THIS section is the concrete
+catalog + parameter model -- is documented in `herald/doc/Herald.MessagingBus.md`; THIS section is the concrete
 Esquire catalog: which buses exist and the env that drives them. The vocabulary:
 
 - **bus** (`bus-id`): a logical channel (`esquire.entity`, `esquire.kc`, `audit-c`, ...).

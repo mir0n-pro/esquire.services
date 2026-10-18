@@ -99,7 +99,7 @@ class BizTreeCacheLoaderTest {
     // ---- org: root org (etPk == 1) generates org node + sys-admin folder ----
 
     @Test
-    @DisplayName("root org (etPk=1) → 2 nodes: org + sys-admin folder")
+    @DisplayName("root org (etPk=1) -> 2 nodes: org + sys-admin folder")
     void rootOrg_generates2Nodes() {
         when(orgRepo.findAllForTree()).thenReturn(List.of(org("1", 1, null, "1.")));
         when(usrRepo.findAllForTree()).thenReturn(List.of());
@@ -117,7 +117,7 @@ class BizTreeCacheLoaderTest {
     // ---- org: non-root org (etPk > 1) generates org node + 4 folder nodes ----
 
     @Test
-    @DisplayName("non-root org (etPk=3) → 5 nodes: org + 4 folders")
+    @DisplayName("non-root org (etPk=3) -> 5 nodes: org + 4 folders")
     void nonRootOrg_generates5Nodes() {
         when(orgRepo.findAllForTree()).thenReturn(List.of(org("2", 3, "1", "1.2.")));
         when(usrRepo.findAllForTree()).thenReturn(List.of());
@@ -134,10 +134,10 @@ class BizTreeCacheLoaderTest {
         assertThat(rows.get(4)[0]).isEqualTo("2~10");
     }
 
-    // ---- user: orgPk=1 → folder type 2 (sys-admin) ----
+    // ---- user: orgPk=1 -> folder type 2 (sys-admin) ----
 
     @Test
-    @DisplayName("user in org 1 → parent = 1~2")
+    @DisplayName("user in org 1 -> parent = 1~2")
     void user_inRootOrg_parentIsSysAdminFolder() {
         when(orgRepo.findAllForTree()).thenReturn(List.of());
         when(usrRepo.findAllForTree()).thenReturn(List.of(usr("10", 4, "1", "1.10.", null)));
@@ -150,10 +150,10 @@ class BizTreeCacheLoaderTest {
         assertThat(rows.get(0)[4]).isEqualTo("1~2");    // parentPk
     }
 
-    // ---- user: etPk=34 → folder type 8 (clients) ----
+    // ---- user: etPk=34 -> folder type 8 (clients) ----
 
     @Test
-    @DisplayName("user etPk=34 (client) → parent = orgPk~8")
+    @DisplayName("user etPk=34 (client) -> parent = orgPk~8")
     void user_client_parentIsClientsFolder() {
         when(orgRepo.findAllForTree()).thenReturn(List.of());
         when(usrRepo.findAllForTree()).thenReturn(List.of(usr("20", 34, "2", "1.2.20.", null)));
@@ -165,10 +165,10 @@ class BizTreeCacheLoaderTest {
         assertThat(rows.get(0)[4]).isEqualTo("2~8");
     }
 
-    // ---- user: etPk=36 → folder type 10 (merchants) ----
+    // ---- user: etPk=36 -> folder type 10 (merchants) ----
 
     @Test
-    @DisplayName("user etPk=36 (merchant) → parent = orgPk~10")
+    @DisplayName("user etPk=36 (merchant) -> parent = orgPk~10")
     void user_merchant_parentIsMerchantsFolder() {
         when(orgRepo.findAllForTree()).thenReturn(List.of());
         when(usrRepo.findAllForTree()).thenReturn(List.of(usr("30", 36, "2", "1.2.30.", null)));
@@ -180,10 +180,10 @@ class BizTreeCacheLoaderTest {
         assertThat(rows.get(0)[4]).isEqualTo("2~10");
     }
 
-    // ---- user: deleted flag Y → STATUS_DELETED ----
+    // ---- user: deleted flag Y -> STATUS_DELETED ----
 
     @Test
-    @DisplayName("deleted user → status = 1")
+    @DisplayName("deleted user -> status = 1")
     void user_deleted_statusIsDeleted() {
         when(orgRepo.findAllForTree()).thenReturn(List.of());
         when(usrRepo.findAllForTree()).thenReturn(List.of(usr("10", 4, "2", "1.2.10.", "Y")));
@@ -198,7 +198,7 @@ class BizTreeCacheLoaderTest {
     // ---- account: generates direct node + shortcut node ----
 
     @Test
-    @DisplayName("account → 2 nodes: direct (under user) + shortcut (under org~6)")
+    @DisplayName("account -> 2 nodes: direct (under user) + shortcut (under org~6)")
     void account_generates2Nodes_directAndShortcut() {
         when(orgRepo.findAllForTree()).thenReturn(List.of());
         when(usrRepo.findAllForTree()).thenReturn(List.of(usr("10", 4, "2", "1.2.10.", null)));
@@ -222,10 +222,10 @@ class BizTreeCacheLoaderTest {
         assertThat(shortcut[5]).isEqualTo("100");       // link = direct pk
     }
 
-    // ---- account: status L → STATUS_LOCKED ----
+    // ---- account: status L -> STATUS_LOCKED ----
 
     @Test
-    @DisplayName("locked account → status = 2 on both nodes")
+    @DisplayName("locked account -> status = 2 on both nodes")
     void account_locked_statusIsLocked() {
         when(orgRepo.findAllForTree()).thenReturn(List.of());
         when(usrRepo.findAllForTree()).thenReturn(List.of(usr("10", 4, "2", "1.2.10.", null)));
@@ -238,10 +238,10 @@ class BizTreeCacheLoaderTest {
         assertThat(rows.get(2)[10]).isEqualTo(2);   // shortcut STATUS_LOCKED
     }
 
-    // ---- account: status Y → STATUS_DELETED ----
+    // ---- account: status Y -> STATUS_DELETED ----
 
     @Test
-    @DisplayName("closed account (Y) → status = 1 on both nodes")
+    @DisplayName("closed account (Y) -> status = 1 on both nodes")
     void account_closed_statusIsDeleted() {
         when(orgRepo.findAllForTree()).thenReturn(List.of());
         when(usrRepo.findAllForTree()).thenReturn(List.of(usr("10", 4, "2", "1.2.10.", null)));

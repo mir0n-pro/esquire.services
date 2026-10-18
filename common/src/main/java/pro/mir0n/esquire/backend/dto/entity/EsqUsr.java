@@ -17,7 +17,7 @@
  * 02/28/2026 mir0n  person, addr, bizaddr subentity fields added
  *                   fillPerson/fillAddress/fillBizAddress implemented
  * 04/07/2026 mir0n  removed dead findKind() helper; removed debug println
- * 04/09/2026 mir0n  deleted @Schema example corrected: "false" → "N"
+ * 04/09/2026 mir0n  deleted @Schema example corrected: "false" -> "N"
  */
 
 package pro.mir0n.esquire.backend.dto.entity;

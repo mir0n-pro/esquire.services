@@ -14,7 +14,7 @@
  * 03/09/2026 mir0n  EsqRolesStorage.init() via ApplicationReadyEvent listener
  *                   @EnableJpaRepositories extended with backend.storage.roles
  * 03/10/2026 mir0n  scanBasePackages: backend.service, backend.security, backend.exception added
- * 03/21/2026 mir0n  devLog added; log.debug→devLog.debug
+ * 03/21/2026 mir0n  devLog added; log.debug->devLog.debug
  * 04/09/2026 mir0n  @EntityScan + @EnableJpaRepositories extended to pro.mir0n.esquire.pacMan.acct.jpa
  * 06/22/2026 mir0n  the 3 separate bus listeners collapsed into ONE MessagingBusLifecycleRegistrar (Ordered
  *                   LOWEST_PRECEDENCE, registered last): env-prepared -> bus.init(env, {BUS_KEY_ENTITY,
@@ -49,8 +49,8 @@ import pro.mir0n.esquire.backend.storage.EsqRolesStorage;
 import pro.mir0n.esquire.backend.storage.roles.JpaRolesRepository;
 import pro.mir0n.esquire.backend.validator.ValidatorFactory;
 import pro.mir0n.esquire.common.EsqConstants;
-import pro.mir0n.esquire.messaging.BusHealthIndicator;
-import pro.mir0n.esquire.messaging.MessagingBus;
+import pro.mir0n.messaging.BusHealthIndicator;
+import pro.mir0n.messaging.MessagingBus;
 import pro.mir0n.esquire.pacMan.service.BizValidatorFactory;
 
 @Slf4j

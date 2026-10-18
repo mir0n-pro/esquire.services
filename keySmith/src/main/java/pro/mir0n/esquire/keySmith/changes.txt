@@ -1,5 +1,17 @@
 Esquire keySmith Microservice
 
+10/17/2026 mir0n  v2.0.0 -- the 2.0 line: the bus, the keep and the base libraries moved out
+(every file that imported them)
+  - pro.mir0n.esquire.messaging -> pro.mir0n.messaging, pro.mir0n.esquire.dataKeep -> pro.mir0n.dataKeep,
+    pro.mir0n.esquire.tp -> pro.mir0n.tp. The types and the method signatures are unchanged; only the
+    package root moved, because the bus is the Herald Messaging Framework now
+  - o11y.EsqBizMeters -> pro.mir0n.o11y.BizMeters,
+    from armoury-utils; the meter and span names are unchanged
+pom.xml
+  - esquire-messaging -> pro.mir0n:herald-messaging, esquire-dataKeep -> pro.mir0n:herald-datakeep,
+    esquire-tp-* -> pro.mir0n:herald-tp-*, mir0n-utils -> pro.mir0n:armoury-utils. Versions come from
+    ${herald.version} and ${armoury.version} in the parent
+
 08/26/2026 mir0n  v1.2.13 -- develop logging
 controller.KeySmithController
   - the develop log lines pass the value itself instead of String.valueOf
@@ -275,29 +287,29 @@ service.impl.KeySmithService
 service.impl.KeySmithService
   - ret declarations moved to top in esquireKeyDetail() and esquireKeySave()
 
-03/28/2026 mir0n  ESQ_ENTITY_PATH — JOIN esq_entity_path for path resolution in access queries
+03/28/2026 mir0n  ESQ_ENTITY_PATH -- JOIN esq_entity_path for path resolution in access queries
 META-INF/oracle-access-profile.xml, postgres-access-profile.xml
   - access, accessForUpdate: JOIN esq_entity_path; ep_path AS usr_path alias; filter on ep_path
 
-03/26/2026 mir0n  Cleanup — removed dead code; constant rename
-x removed service.impl.KeySmithServiceJpa — alternative JPA implementation, superseded by KeySmithService (@Primary)
+03/26/2026 mir0n  Cleanup -- removed dead code; constant rename
+x removed service.impl.KeySmithServiceJpa -- alternative JPA implementation, superseded by KeySmithService (@Primary)
 messaging.KcSyncPublisher
   - MSG_ENCODING_JSON (renamed from MESSAGE_ENCODING)
 
-03/21/2026 mir0n  KC sync CtrlID — stable instance identifier; response listener selector
+03/21/2026 mir0n  KC sync CtrlID -- stable instance identifier; response listener selector
 messaging.KcSyncPublisher
   - ctrlId injected from keysmith.messaging.ctrl-id config (@Value) instead of derived from correlationId
 messaging.KcSyncResponseListener
-  - JMS selector: CtrlID = '${keysmith.messaging.ctrl-id}' — routes responses to this instance only
+  - JMS selector: CtrlID = '${keysmith.messaging.ctrl-id}' -- routes responses to this instance only
   - full field reads (applMsgId, command, entityId, ctrlId, requestId, correlationId, testReqId)
   - MDC set from requestId/correlationId; cleared in finally
   - three-tier logging (msgLog/devLog); dual-mode msg audit; dual error pattern
 KeySmithApplication, controller.KeySmithController
-  - devLog added; log.debug→devLog.debug
+  - devLog added; log.debug->devLog.debug
 service.BizValidatorFactory, service.impl.KeySmithService, service.impl.KeySmithServiceJpa
-  - devLog added; log.debug→devLog.debug
+  - devLog added; log.debug->devLog.debug
 
-03/21/2026 mir0n  KC sync decoupled to kcMaster — JMS messaging replaces direct Keycloak calls
+03/21/2026 mir0n  KC sync decoupled to kcMaster -- JMS messaging replaces direct Keycloak calls
 x removed config.KeycloakConfig (moved to kcMaster)
 x removed service.IKeycloakIdentityService (moved to kcMaster)
 x removed service.impl.KeycloakIdentityService (moved to kcMaster)
@@ -310,7 +322,7 @@ service.impl.KeySmithService
   - JMS queue listener factory for esquire.kc.request and esquire.kc.response
 + added messaging.KcSyncPublisher
   - builds and publishes URQ to esquire.kc.request after DB transaction commit
-  - command determined by connectFlg transition: C (N→Y) / D (Y→N) / U (else)
+  - command determined by connectFlg transition: C (N->Y) / D (Y->N) / U (else)
   - TestReqID: uses RequestID if present, else generates new UUID; whole message logged via props map
   - all JMS constants from common.EsqMsgConstants (KcMsgConstants removed)
   - setProps/formatProps delegated to common messaging.jms.Utils
@@ -321,12 +333,12 @@ service.impl.KeySmithService
 
 03/16/2026 mir0n  TOTP state machine; reset password handshake; connectFlg lifecycle; KC integration
 service.impl.KeySmithService
-  - applyFields(): tfaMethod state machine — accepts G/N only; pending stored as lowercase (G→g, N→n)
+  - applyFields(): tfaMethod state machine -- accepts G/N only; pending stored as lowercase (G->g, N->n)
   - esquireKey(): confirmPendingFlags() on login handshake (id=null)
-    pwdChangeForced Y→N confirmed; tfaMethod g/n→G/N confirmed
+    pwdChangeForced Y->N confirmed; tfaMethod g/n->G/N confirmed
   - esquireKeySave(): oldLoginId[], oldConnectFlg[] captured before transaction
-  - saveAccess(): connectFlg change captured; TOTP reset to N on N→Y transition
-  - syncToKeycloak() added: three-branch — delete(Y→N) / create(N→Y) / update(else)
+  - saveAccess(): connectFlg change captured; TOTP reset to N on N->Y transition
+  - syncToKeycloak() added: three-branch -- delete(Y->N) / create(N->Y) / update(else)
     create: KC user with esq_uid + esq_rootpath attributes, temporary password, forcePasswordChange=true
 service.impl.KeySmithServiceJpa
   - saveAccess(): connectFlg param added to updateAccess() call
@@ -343,7 +355,7 @@ jpa.EsqAccessProfileRepository
 KeySmithApplication
   - @EnableAsync added (virtual thread async executor for KeycloakIdentityService)
 META-INF/oracle-access-profile.xml, postgres-access-profile.xml
-  - usr_path added to access and accessForUpdate SELECT queries; path→usr_path result mapping added
+  - usr_path added to access and accessForUpdate SELECT queries; path->usr_path result mapping added
   - au_connect_flg added to access and accessForUpdate SELECT queries; connectFlg result mapping added
   - au_connect_flg = :connectFlg added to updateAccess UPDATE
   - confirmPendingFlags named native query added
@@ -361,9 +373,9 @@ service.impl.KeySmithService
 service.BizValidatorFactory
   - unused import removed; getBizValidators() final modifier removed; comment corrected
 
-03/10/2026 mir0n  fillKindFieldLayer() call updated — Cyrillic К → ASCII K
+03/10/2026 mir0n  fillKindFieldLayer() call updated: the leading K of the name had been a Cyrillic letter, now ASCII K
 service.impl.KeySmithService
-  - fillКindFieldLayer() call updated to fillKindFieldLayer()
+  - fillKindFieldLayer() call updated: the leading K of the name had been a Cyrillic letter, now ASCII K
 
 03/10/2026 mir0n  observability, security, exception handling generalized to common
 x removed exception.GlobalExceptionHandler (moved to common backend.exception)
@@ -396,7 +408,7 @@ service.impl.KeySmithService
 exception.GlobalExceptionHandler
   - @Slf4j added; logging added to all handlers
   - PermissionDeniedException (HTTP 403) and InvalidValueException (HTTP 400) handlers added
-  - ResourceNotFoundException: NOT_FOUND → BAD_REQUEST
+  - ResourceNotFoundException: NOT_FOUND -> BAD_REQUEST
 
 03/08/2026 mir0n  personal-flag: users cannot change their own permissions
 service.BizValidatorFactory

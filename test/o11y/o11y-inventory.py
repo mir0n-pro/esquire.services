@@ -60,7 +60,7 @@ import urllib.request
 HERE = os.path.dirname(os.path.abspath(__file__))
 SVC = os.path.abspath(os.path.join(HERE, "..", ".."))           # ...\esquire\services
 ROOT = os.path.abspath(os.path.join(SVC, ".."))                  # ...\esquire
-EXP = os.path.join(ROOT, "explorer")
+EXP = os.path.join(ROOT, "explorer2")
 # The o11y STACK configs (prometheus.yml, grafana boards) live with the compose stack, not with this test
 # script. HERE holds only the test scripts; the stack files are under services/<compose dir>/o11y/.
 #
@@ -569,8 +569,7 @@ def collect_signals():
     for path in glob.glob(os.path.join(SVC, "**", "src", "main", "**", "*.java"), recursive=True):
         if "/target/" in _norm(path):
             continue
-        parts = _norm(path).split("/services/")
-        module = parts[1].split("/")[0] if len(parts) > 1 else "?"
+        module = _norm(os.path.relpath(path, SVC)).split("/")[0]
         for name, kind in names_in_java(_read(path)).items():
             add(name, kind, module)
 
@@ -599,7 +598,7 @@ def collect_log_streams():
     ret = {}
     deployed = verified_services()
     for path in sorted(glob.glob(os.path.join(SVC, "*", "src", "main", "resources", "application.yml"))):
-        module = _norm(path).split("/services/")[1].split("/")[0]
+        module = _norm(os.path.relpath(path, SVC)).split("/")[0]
         if deployed and module.lower() not in deployed:
             continue
         ret["log.stdout." + module.lower()] = {"kind": "log-stream", "where": module, "svc": module.lower(),

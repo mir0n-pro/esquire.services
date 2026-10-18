@@ -10,7 +10,7 @@
  *                   matters -- the OTLP span exporter (endpoint) and the head sampler -- is declared as
  *                   explicit @Beans here; the Micrometer-Tracing bridge assembles them onto the request
  *                   observations. esqTracedAspect backs @EsqTraced; esqTraceRegistrar hands the shared
- *                   ObservationRegistry to EsqTraceMark. esqObservationGate is ONE ObservationPredicate
+ *                   ObservationRegistry to TraceMark. esqObservationGate is ONE ObservationPredicate
  *                   deciding whether an observation is populated -- it governs the esq.* marks
  *                   (esquire.tracing.marks-enabled) and refuses an http.* SERVER observation whose
  *                   request path sits under esquire.tracing.excluded-paths (/actuator), so a health
@@ -48,7 +48,7 @@
  *                   esqRodTraceRegistrar() becomes esqRodObserverRegistrar(): it takes the MeterRegistry too and
  *                   registers ONE EsqRodObserver (trace + meters) into the messaging o11y.RodObserverHolder.
  * 07/11/2026 mir0n  v1.2.11 O1/T8 -- esqBizMetersRegistrar() @Bean hands the MeterRegistry to the esq.biz.*
- *                   business-meter facility (EsqBizMeters), gated by the NEW sub-switch
+ *                   business-meter facility (BizMeters), gated by the NEW sub-switch
  *                   esquire.observability.metrics.business-enabled (default TRUE). Gating the REGISTRAR is what
  *                   makes off free: no registry reaches the facility, so every esq.biz.* call site in the fleet
  *                   collapses to a null check. esqLatencyHistograms(): esq.biz.* timers ride histograms-enabled
@@ -71,6 +71,9 @@
 
 package pro.mir0n.esquire.backend.o11y;
 
+import pro.mir0n.o11y.BizMeters;
+import pro.mir0n.o11y.TraceMark;
+
 
 import io.micrometer.observation.Observation;
 import io.micrometer.observation.ObservationPredicate;
@@ -90,7 +93,7 @@ import org.springframework.http.server.reactive.ServerHttpRequest;
 
 import java.util.ArrayList;
 import java.util.List;
-import pro.mir0n.esquire.messaging.o11y.RodObserverHolder;
+import pro.mir0n.messaging.o11y.RodObserverHolder;
 
 // Observability, wired the Esquire way -- ONE umbrella over the two emit pillars, tracing and metrics, so a
 // service never has one without the other. Everything is EXPLICIT @Beans (no reliance on management.otlp.* /
@@ -367,7 +370,7 @@ public class ObservabilityConfig {
     }
 
     // The single "populate this trace or not" decision point. Both our esq.* marks (from @EsqTraced /
-    // EsqTraceMark.around) and the auto-instrumented http.* request spans are Observations on the same
+    // TraceMark.around) and the auto-instrumented http.* request spans are Observations on the same
     // registry, so ONE predicate governs them together: name-based, config-driven, no per-annotation
     // flags. Boot applies every ObservationPredicate bean to each ObservationRegistry.
     //
@@ -447,12 +450,12 @@ public class ObservabilityConfig {
         return new EsqTracedAspect(observationRegistry);
     }
 
-    // Hand the app's ObservationRegistry to EsqTraceMark so non-Spring / final code (the keep writer, the
-    // account transaction processors) can emit the SAME trace marks via EsqTraceMark.around -- the
+    // Hand the app's ObservationRegistry to TraceMark so non-Spring / final code (the keep writer, the
+    // account transaction processors) can emit the SAME trace marks via TraceMark.around -- the
     // programmatic twin of @EsqTraced that AOP cannot reach.
     @Bean
     public org.springframework.beans.factory.InitializingBean esqTraceRegistrar(ObservationRegistry observationRegistry) {
-        return () -> EsqTraceMark.setRegistry(observationRegistry);
+        return () -> TraceMark.setRegistry(observationRegistry);
     }
 
     // Hand the ONE bus-hop observer to the messaging engine so trace AND metrics continue across the bus (O2/T3
@@ -484,8 +487,8 @@ public class ObservabilityConfig {
     }
 
     // Hand the registry to the esq.biz.* business-meter facility (O1/T8). Registered ONLY here (observability
-    // enabled), so with the umbrella off EsqBizMeters holds no registry and every business call site is a null
-    // check. Static + registrar for the same reason EsqTraceMark is: the domain seams include objects the
+    // enabled), so with the umbrella off BizMeters holds no registry and every business call site is a null
+    // check. Static + registrar for the same reason TraceMark is: the domain seams include objects the
     // container never builds (AcctTransactionProcessor*, the taijitu Monad, KeepSqlStore are new-ed and never
     // proxied), and constructor injection cannot reach those without inventing plumbing to carry a registry in.
     //
@@ -500,7 +503,7 @@ public class ObservabilityConfig {
                            havingValue = "true", matchIfMissing = true)
     public org.springframework.beans.factory.InitializingBean esqBizMetersRegistrar(
             io.micrometer.core.instrument.MeterRegistry meterRegistry) {
-        return () -> EsqBizMeters.setRegistry(meterRegistry);
+        return () -> BizMeters.setRegistry(meterRegistry);
     }
 
     // Spring Security observes its own filter chain, authentications and authorizations. On an Esquire

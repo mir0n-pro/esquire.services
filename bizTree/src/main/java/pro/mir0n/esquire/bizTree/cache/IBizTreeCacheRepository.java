@@ -54,7 +54,7 @@ public interface IBizTreeCacheRepository {
     EsqTreeNodeJpa findByNameKind(String name, Integer kind, int rootLevel, String rootPath);
 
     /**
-     * Sentinel: pass as desc to mean "field absent — do not update this column".
+     * Sentinel: pass as desc to mean "field absent -- do not update this column".
      * Null desc means "present but cleared (set to SQL NULL)".
      * Not used for name (null name = skip) or statusCode (null = skip).
      */
@@ -104,10 +104,10 @@ public interface IBizTreeCacheRepository {
     /**
      * Inserts a new user entity node into the cache under the correct folder.
      * Folder selection mirrors BizTreeCacheLoader.buildUserRows():
-     *   orgPk == 1  → folder type 2 (sys admins)
-     *   etPk  == 34 → folder type 8 (clients)
-     *   etPk  == 36 → folder type 10 (merchants)
-     *   else        → folder type 4 (admins)
+     *   orgPk == 1  -> folder type 2 (sys admins)
+     *   etPk  == 34 -> folder type 8 (clients)
+     *   etPk  == 36 -> folder type 10 (merchants)
+     *   else        -> folder type 4 (admins)
      *
      * @param usrPk      the new user's primary key
      * @param etPk       entity type (30/32/34/36)
@@ -131,7 +131,7 @@ public interface IBizTreeCacheRepository {
      * @param name       display name (acc_id)
      * @param desc       description (may be null)
      * @param usrPk      parent user's primary key
-     * @param entityPath user/account entityPath (same value — acc_path = usr_path)
+     * @param entityPath user/account entityPath (same value -- acc_path = usr_path)
      * @param statusCode 0=ok, 1=deleted/closed, 2=locked
      */
     void insertAcctNode(long acctPk, int etPk, String name, String desc, long usrPk, String entityPath, int statusCode);

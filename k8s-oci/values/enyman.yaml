@@ -1,4 +1,4 @@
-﻿# Prod overrides for k8s/charts/esquire-enyman
+# Prod overrides for k8s/charts/esquire-enyman
 image:
   repository: ghcr.io/mir0n-pro/esquire.enyman
   # tag injected by oke-up.bat (--set image.tag=%image_tag%) -- single release tag for the whole stack.

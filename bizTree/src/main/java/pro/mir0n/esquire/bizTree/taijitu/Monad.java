@@ -41,7 +41,7 @@ import pro.mir0n.esquire.bizTree.cache.CancelableStatement;
 import pro.mir0n.esquire.bizTree.cache.IBizTreeCacheRepository;
 import pro.mir0n.esquire.bizTree.service.IBizTreeService;
 import pro.mir0n.esquire.common.EsqConstants;
-import pro.mir0n.utils.taijitu.*;
+import pro.mir0n.taijitu.*;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.sql.PreparedStatement;

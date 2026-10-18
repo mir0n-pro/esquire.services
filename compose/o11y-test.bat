@@ -37,14 +37,14 @@ set LOKI_JOB=esq-docker
 set SERVICES=gateway,biztree,enyman,pacman,keysmith,kcmaster,aukeep
 
 rem Credentials come from the e2e's .env -- ONE place for the sandbox login, never a literal in a script.
-if exist "..\..\explorer\e2e-test\.env" (
-    for /f "usebackq tokens=1,2 delims==" %%A in ("..\..\explorer\e2e-test\.env") do (
+if exist "..\..\explorer2\e2e-test\.env" (
+    for /f "usebackq tokens=1,2 delims==" %%A in ("..\..\explorer2\e2e-test\.env") do (
         if /i "%%A"=="E2E_USERNAME" set ESQ_USER=%%B
         if /i "%%A"=="E2E_PASSWORD" set ESQ_PASS=%%B
     )
 )
 if "%ESQ_USER%"=="" (
-    echo [o11y-test] ESQ_USER not set and ..\..\explorer\e2e-test\.env not found.
+    echo [o11y-test] ESQ_USER not set and ..\..\explorer2\e2e-test\.env not found.
     echo             Set ESQ_USER / ESQ_PASS, or run from a tree with the e2e .env.
     exit /b 2
 )

@@ -7,7 +7,7 @@
         <groupId>pro.mir0n.esquire</groupId>
         <artifactId>esquire-parent</artifactId>
 <!-- xxx: we need a stable parent version to be referenced correctly -->
-        <version>1.2.0</version>
+        <version>2.0.0</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
@@ -26,16 +26,16 @@
             <version>${common.version}</version>
         </dependency>
         <dependency>
-            <groupId>pro.mir0n.esquire</groupId>
-            <artifactId>esquire-messaging</artifactId>
-            <version>${messaging.version}</version>
+            <groupId>pro.mir0n</groupId>
+            <artifactId>herald-messaging</artifactId>
+            <version>${herald.version}</version>
         </dependency>
 
         <!-- tp-activemq hosts the shared JMS helper (messaging.jms.Utils) used by the KC request/response bus -->
         <dependency>
-            <groupId>pro.mir0n.esquire</groupId>
-            <artifactId>esquire-tp-activemq</artifactId>
-            <version>${tp.version}</version>
+            <groupId>pro.mir0n</groupId>
+            <artifactId>herald-tp-activemq</artifactId>
+            <version>${herald.version}</version>
         </dependency>
 
         <dependency>

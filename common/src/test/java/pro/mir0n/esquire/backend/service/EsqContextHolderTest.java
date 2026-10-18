@@ -4,7 +4,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.slf4j.MDC;
 import pro.mir0n.esquire.common.EsqConstants;
-import pro.mir0n.esquire.messaging.RodEvent;
+import pro.mir0n.messaging.RodEvent;
 
 import java.util.Map;
 

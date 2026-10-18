@@ -89,10 +89,10 @@ class AcctTransactionProcessorTransferTest {
         service = new AcctTransactionProcessorTransfer(entityRepository, transactionRepository, transactionTemplate, em, Mockito.mock(pro.mir0n.esquire.audit.AuditBusBridge.class));
     }
 
-    // ---- missing id2 / kind2 → IllegalArgumentException ----
+    // ---- missing id2 / kind2 -> IllegalArgumentException ----
 
     @Test
-    @DisplayName("transfer: missing id2 → IllegalArgumentException")
+    @DisplayName("transfer: missing id2 -> IllegalArgumentException")
     void transfer_missingId2_throwsIllegalArgumentException() {
         Map<String, Object> fields = new HashMap<>();
         fields.put("amount", -100.0);
@@ -104,7 +104,7 @@ class AcctTransactionProcessorTransferTest {
     }
 
     @Test
-    @DisplayName("transfer: missing kind2 → IllegalArgumentException")
+    @DisplayName("transfer: missing kind2 -> IllegalArgumentException")
     void transfer_missingKind2_throwsIllegalArgumentException() {
         Map<String, Object> fields = new HashMap<>();
         fields.put("amount", -100.0);
@@ -115,10 +115,10 @@ class AcctTransactionProcessorTransferTest {
         ).isInstanceOf(IllegalArgumentException.class);
     }
 
-    // ---- same id for both legs → InvalidValueException ----
+    // ---- same id for both legs -> InvalidValueException ----
 
     @Test
-    @DisplayName("transfer: id == id2 → InvalidValueException")
+    @DisplayName("transfer: id == id2 -> InvalidValueException")
     void transfer_sameId_throwsInvalidValueException() {
         Map<String, Object> fields = new HashMap<>();
         fields.put("amount", -100.0);
@@ -130,10 +130,10 @@ class AcctTransactionProcessorTransferTest {
         ).isInstanceOf(InvalidValueException.class);
     }
 
-    // ---- paper kind on either leg → InvalidValueException ----
+    // ---- paper kind on either leg -> InvalidValueException ----
 
     @Test
-    @DisplayName("transfer: source kind=54 (paper) → InvalidValueException")
+    @DisplayName("transfer: source kind=54 (paper) -> InvalidValueException")
     void transfer_sourcePaper_throwsInvalidValueException() {
         Map<String, Object> fields = new HashMap<>();
         fields.put("amount", -100.0);
@@ -146,7 +146,7 @@ class AcctTransactionProcessorTransferTest {
     }
 
     @Test
-    @DisplayName("transfer: target kind2=54 (paper) → InvalidValueException")
+    @DisplayName("transfer: target kind2=54 (paper) -> InvalidValueException")
     void transfer_targetPaper_throwsInvalidValueException() {
         Map<String, Object> fields = new HashMap<>();
         fields.put("amount", -100.0);
@@ -158,10 +158,10 @@ class AcctTransactionProcessorTransferTest {
         ).isInstanceOf(InvalidValueException.class);
     }
 
-    // ---- unknown kind2 → ResourceNotFoundException ----
+    // ---- unknown kind2 -> ResourceNotFoundException ----
 
     @Test
-    @DisplayName("transfer: unknown kind2 → ResourceNotFoundException")
+    @DisplayName("transfer: unknown kind2 -> ResourceNotFoundException")
     void transfer_unknownKind2_throwsResourceNotFoundException() {
         Map<String, Object> fields = new HashMap<>();
         fields.put("amount", -100.0);
@@ -175,7 +175,7 @@ class AcctTransactionProcessorTransferTest {
     }
 
     @Test
-    @DisplayName("transfer: missing rate → InvalidValueException")
+    @DisplayName("transfer: missing rate -> InvalidValueException")
     void transfer_missingRate_throwsInvalidValueException() {
         Map<String, Object> fields = new HashMap<>();
         fields.put("amount", -100.0);
@@ -188,7 +188,7 @@ class AcctTransactionProcessorTransferTest {
     }
 
     @Test
-    @DisplayName("transfer: rate <= 0 → InvalidValueException")
+    @DisplayName("transfer: rate <= 0 -> InvalidValueException")
     void transfer_zeroRate_throwsInvalidValueException() {
         Map<String, Object> fields = new HashMap<>();
         fields.put("amount", -100.0);
@@ -204,7 +204,7 @@ class AcctTransactionProcessorTransferTest {
     // ---- success: source debited, target credited, first-leg result returned ----
 
     @Test
-    @DisplayName("transfer: success → source debited, target credited, first-leg result returned")
+    @DisplayName("transfer: success -> source debited, target credited, first-leg result returned")
     void transfer_success_debitsSourceCreditsTarget() {
         when(transactionTemplate.execute(any())).thenAnswer(inv -> {
             inv.<org.springframework.transaction.support.TransactionCallback<?>>getArgument(0).doInTransaction(null);
@@ -237,7 +237,7 @@ class AcctTransactionProcessorTransferTest {
     // ---- RD1: an amount exactly on a 3rd-decimal tie must round symmetrically, so the two legs balance ----
 
     @Test
-    @DisplayName("transfer: 3rd-decimal tie amount rounds symmetrically → debit and credit magnitudes balance")
+    @DisplayName("transfer: 3rd-decimal tie amount rounds symmetrically -> debit and credit magnitudes balance")
     void transfer_tieAmount_legsBalance() {
         when(transactionTemplate.execute(any())).thenAnswer(inv -> {
             inv.<org.springframework.transaction.support.TransactionCallback<?>>getArgument(0).doInTransaction(null);

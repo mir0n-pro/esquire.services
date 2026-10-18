@@ -7,11 +7,11 @@
  *
  *  History:
  * 03/20/2026 mir0n  ported from keySmith KeycloakIdentityService
- *                   @Async removed — KC calls are synchronous here so handler can publish URS after completion
- * 03/21/2026 mir0n  three-tier logging: kcAudit→devLog; KC state events (STARTED/SUCCESS) to log.info;
- *                   all log.debug→devLog.debug; unused imports removed
+ *                   @Async removed -- KC calls are synchronous here so handler can publish URS after completion
+ * 03/21/2026 mir0n  three-tier logging: kcAudit->devLog; KC state events (STARTED/SUCCESS) to log.info;
+ *                   all log.debug->devLog.debug; unused imports removed
  * 04/06/2026 mir0n  updateEntityPath(): looks up KC user by esq_uid attribute, updates esq_rootpath
- *                   updateUser(): removed changed-flag guard — attributes always merged and applied
+ *                   updateUser(): removed changed-flag guard -- attributes always merged and applied
  * 04/16/2026 mir0n  updateEntityPath(), syncRoles(): null-guard replaces early returns; for-loops replace streams; explicit types replace var
  * 06/02/2026 mir0n  race-8c (v1.2.6 Goal 3): KcPathBuffer injected; createUser() flushes the buffer --
  *                   consume(entityId) after the KC user is created and applyBufferedPath() writes
@@ -195,7 +195,7 @@ public class KcIdentityService implements IKcIdentityService {
 
         String kcId = users.get(0).getId();
         UserResource userResource = usersResource.get(kcId);
-        // Full representation required — search result carries minimal data (attributes = null).
+        // Full representation required -- search result carries minimal data (attributes = null).
         // Using toRepresentation() preserves existing KC attributes (esq_uid, esq_rootpath, etc.)
         UserRepresentation user = userResource.toRepresentation();
 
@@ -230,7 +230,7 @@ public class KcIdentityService implements IKcIdentityService {
             changed = true;
         }
 
-        // Merge attributes — never replace whole map, preserves esq_uid, esq_rootpath, etc.
+        // Merge attributes -- never replace whole map, preserves esq_uid, esq_rootpath, etc.
         if (attributes != null) {
             Map<String, List<String>> merged = new HashMap<>();
             if (user.getAttributes() != null) {

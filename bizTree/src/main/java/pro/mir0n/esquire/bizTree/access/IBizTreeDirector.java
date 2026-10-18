@@ -27,8 +27,8 @@ package pro.mir0n.esquire.bizTree.access;
 
 import pro.mir0n.esquire.backend.dto.EsqTreeNode;
 import pro.mir0n.esquire.backend.o11y.EsqAsyncTrace;
-import pro.mir0n.esquire.messaging.RodEvent;
-import pro.mir0n.utils.taijitu.ITaijituRig;
+import pro.mir0n.messaging.RodEvent;
+import pro.mir0n.taijitu.ITaijituRig;
 
 import java.util.List;
 

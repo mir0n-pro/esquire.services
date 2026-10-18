@@ -283,6 +283,7 @@ increment of its own: no product counts for itself.
 | `explorer/hauberk` `pom.xml` `<version>` | only when the load harness was touched. |
 | `esquire.ui.lib` -- `package.json` AND `projects/esquire.ui/package.json` | only when the library itself changed. Explorer consumes it by tarball URL, not by this number. |
 | `db.seed` `DB_VERSION` | BOTH vendors, and only when the sprint has schema work. |
+| `armoury/pom.xml`, `herald/pom.xml` `<version>` | only when that product changed. A new version is a new tag and a new publish (8b). The consumers follow it: `armoury.version` in Herald's pom, `armoury.version` and `herald.version` in `services/pom.xml`. |
 
 **At RELEASE (finalization):**
 
@@ -293,8 +294,8 @@ increment of its own: no product counts for itself.
 | `services/Releases.md` | the new version added in FULL, with NO "More Details" link (its release branch is not archived yet); the previously-newest collapsed to one paragraph PLUS its `release/vX.Y.Z` link; a milestone-report placeholder row for every repo that had work -- a deliberately dead link that resolves when the report lands. |
 | `explorer/README.md` | same roll-down in its own shape: `## vX -- complete (date)` in full, the prior one collapsed to a sentence plus its link. |
 | `explorer/frontend/src/index.html` | the JSON-LD `softwareVersion`. It names the RELEASED version -- what a visitor can actually get -- so it is set to the version being tagged. Nothing points at it: it read four releases behind for months. |
-| `doc/v1.2.x.Planning.md` | the roadmap row gets its DATE and what actually shipped. The forecast is usually wrong -- v1.2.13 was planned as "fresh-mind hardening" and shipped as compact topology and hardening. Delivered rows carry a date; do not leave a `*planned*` placeholder row in a table that records deliveries. |
-| `doc/v1.2.x.Goal.md` | only when the sprint changed what Esquire IS. A sprint that adds a deployment shape or a stack part changes statements written as absolutes elsewhere in the file; find them, do not only add. |
+| `doc/v2.0.x.Planning.md` | the roadmap row gets its DATE and what actually shipped. The forecast is usually wrong -- v1.2.13 was planned as "fresh-mind hardening" and shipped as compact topology and hardening. Delivered rows carry a date; do not leave a `*planned*` placeholder row in a table that records deliveries. |
+| `doc/v2.0.x.Goals.md` | when the sprint moved a horizon, or changed what Esquire IS. A sprint that adds a deployment shape or a stack part changes statements written as absolutes elsewhere in the file; find them, do not only add. |
 | `doc/Esquire.ContinuingDev.md` | CD items the sprint discharged move to `## Completed` as heading-only stubs. The numbering is a stable reference and a number is never reused, so an item is never deleted outright. Check the whole file: an item that shipped often still reads as a proposal. |
 | `db.seed/README.md` | the same roll-down, in its own `## vX -- complete (date)` shape -- but ONLY when the sprint touched the seed. A sprint that left it alone adds no section: an entry saying "nothing" is noise in a file that records what changed. |
 | `esquire.ui.lib/README.md` | the same, if the library moved. Easy to forget: it is the repo that changes least. |
@@ -307,6 +308,34 @@ increment of its own: no product counts for itself.
 
 **None of this gets its own `release_notes` entry.** The finalization refresh IS the release-facing
 documentation; per-commit entries record the sprint's CODE changes, made when each landed (see 8).
+
+---
+
+## 8b. Releasing Armoury and Herald -- the products under Esquire
+
+On the 2.0 line Esquire is built on two products of its own, **Armoury** and **Herald**, each in its own
+repository. The services read their jars from GitHub Packages, not from a sibling folder. So a sprint that
+changed one of them releases it first, and the services build only once it is there.
+
+- **The order is fixed: `armoury`, then `herald`, then `esquire.services` / `esquire.explorer`.** Each one
+  reads the one before it from the registry. Released out of order, the next build cannot find its
+  dependency.
+- **A pushed version tag publishes.** Pushing `vX.Y.Z` in the product's repository runs its Publish
+  workflow (`.github/workflows/publish.yml`): build, test, and deploy to
+  `https://maven.pkg.github.com/mir0n-pro/<repo>`. The same workflow runs by hand from
+  **Actions -> Publish -> Run workflow**. Changing a branch or merging does not start it.
+- **A version publishes once.** The registry refuses the same version a second time, so a fix ships as a
+  new version, never as a re-run of the old one.
+- **The token.** GitHub's Maven registry wants a token even for a public package, and a workflow's own
+  token reaches only its own repository's packages. Herald, which reads Armoury, and esquire.services,
+  which reads both, use the repository secret `GHCR_TOKEN`: the classic personal access token the image
+  pushes already use. Armoury reads nothing, so it needs no secret.
+- **A manual run needs the workflow on the default branch.** GitHub shows "Run workflow" only for a
+  workflow file on the repository's default branch. A Publish committed to any other branch is there, and
+  cannot be started.
+- **Nobody installs them first.** A build anywhere -- the CI or a developer's machine -- takes the jars
+  from GitHub Packages like any other dependency. The machine needs the token in `~/.m2/settings.xml`,
+  under the server ids `armoury` and `herald`. A jar already in `~/.m2` is used as it is.
 
 ---
 
@@ -338,7 +367,7 @@ by sprint -- is [Esquire.Scrum.Process.md](Esquire.Scrum.Process.md).
 | Product backlog | the continuing-development backlog -- numbered `CD-n` items grouped by area; a number is never reused and a finished item stays as a stub | `doc/Esquire.ContinuingDev.md` |
 | Backlog refinement | triage: every item gets a recorded disposition -- accept / reject / postpone -- with its rationale | the sprint tasks doc, then `Esquire.Q&A.md` |
 | Sprint | one **Micro** version, `v1.2.N` | the version scheme (7) |
-| Sprint goal | the sprint headline -- one theme, named when the sprint opens | `doc/v1.2.x.Planning.md` |
+| Sprint goal | the sprint headline -- one theme, named when the sprint opens | `doc/v2.0.x.Planning.md` |
 | Sprint backlog | the tasks doc: `T1..Tn`, opened by a list of settled decisions | `doc/plans/tasks12NN.md` |
 | Sprint planning | writing that tasks doc | the same file |
 | Definition of Done | the seven-step per-phase cycle (3) | this doc |

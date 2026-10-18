@@ -51,7 +51,7 @@ class EsqEntityDictionaryTest {
     // ---- sortLayers ----
 
     @Test
-    @DisplayName("sortLayers → layers sorted ascending by layer number")
+    @DisplayName("sortLayers -> layers sorted ascending by layer number")
     void sortLayers_sortsAscending() {
         dict.sortLayers();
         List<EsqEntityLayer> layers = dict.getLayers();
@@ -62,7 +62,7 @@ class EsqEntityDictionaryTest {
     // ---- findLayer ----
 
     @Test
-    @DisplayName("findLayer with existing id → returns layer")
+    @DisplayName("findLayer with existing id -> returns layer")
     void findLayer_found_returnsLayer() {
         EsqEntityLayer ret = dict.findLayer(2);
         assertThat(ret).isNotNull();
@@ -71,7 +71,7 @@ class EsqEntityDictionaryTest {
     }
 
     @Test
-    @DisplayName("findLayer with non-existent id → returns null")
+    @DisplayName("findLayer with non-existent id -> returns null")
     void findLayer_notFound_returnsNull() {
         EsqEntityLayer ret = dict.findLayer(99);
         assertThat(ret).isNull();
@@ -80,7 +80,7 @@ class EsqEntityDictionaryTest {
     // ---- findField ----
 
     @Test
-    @DisplayName("findField in first layer → returns field")
+    @DisplayName("findField in first layer -> returns field")
     void findField_inFirstLayer_returnsField() {
         EsqEntityField ret = dict.findField("firstName");
         assertThat(ret).isNotNull();
@@ -88,7 +88,7 @@ class EsqEntityDictionaryTest {
     }
 
     @Test
-    @DisplayName("findField in middle/second layer → returns field")
+    @DisplayName("findField in middle/second layer -> returns field")
     void findField_inMiddleLayer_returnsField() {
         EsqEntityField ret = dict.findField("email");
         assertThat(ret).isNotNull();
@@ -96,7 +96,7 @@ class EsqEntityDictionaryTest {
     }
 
     @Test
-    @DisplayName("findField with non-existent name → returns null")
+    @DisplayName("findField with non-existent name -> returns null")
     void findField_notFound_returnsNull() {
         EsqEntityField ret = dict.findField("nonExistent");
         assertThat(ret).isNull();
@@ -116,14 +116,14 @@ class EsqEntityDictionaryTest {
     // ---- fillKindFieldLayer ----
 
     @Test
-    @DisplayName("fillKindFieldLayer with null given → creates new KFL")
+    @DisplayName("fillKindFieldLayer with null given -> creates new KFL")
     void fillKindFieldLayer_nullGiven_createsNew() {
         EsqEntityKindFieldLayer ret = dict.fillKindFieldLayer("firstName", null);
         assertThat(ret).isNotNull();
     }
 
     @Test
-    @DisplayName("fillKindFieldLayer with non-null given → reuses the instance")
+    @DisplayName("fillKindFieldLayer with non-null given -> reuses the instance")
     void fillKindFieldLayer_nonNullGiven_reuses() {
         EsqEntityKindFieldLayer existing = new EsqEntityKindFieldLayer();
         EsqEntityKindFieldLayer ret = dict.fillKindFieldLayer("firstName", existing);
@@ -131,7 +131,7 @@ class EsqEntityDictionaryTest {
     }
 
     @Test
-    @DisplayName("fillKindFieldLayer → populates entityKind, layer, field, layerTitle")
+    @DisplayName("fillKindFieldLayer -> populates entityKind, layer, field, layerTitle")
     void fillKindFieldLayer_populatesAllFields() {
         EsqEntityKindFieldLayer ret = dict.fillKindFieldLayer("firstName", null);
         assertThat(ret.getEntityKind()).isEqualTo(5);
@@ -142,7 +142,7 @@ class EsqEntityDictionaryTest {
     }
 
     @Test
-    @DisplayName("fillKindFieldLayer for non-existent field → returns KFL with null field")
+    @DisplayName("fillKindFieldLayer for non-existent field -> returns KFL with null field")
     void fillKindFieldLayer_fieldNotFound_returnsWithNullField() {
         EsqEntityKindFieldLayer ret = dict.fillKindFieldLayer("notExisting", null);
         assertThat(ret).isNotNull();

@@ -63,7 +63,7 @@ class EsqAccessProfileTest {
     // ---- fill() DTO overload ----
 
     @Test
-    @DisplayName("fill() with all inputs present → sets all fields")
+    @DisplayName("fill() with all inputs present -> sets all fields")
     void fill_allInputsPresent_setsAllFields() {
         EsqRoleJpa roleJpa = makeRoleJpa("10", "ADMIN", 980);
         EsqRole rolesAllEntry = new EsqRole();
@@ -91,28 +91,28 @@ class EsqAccessProfileTest {
     }
 
     @Test
-    @DisplayName("fill() with null roles → sets empty roles list")
+    @DisplayName("fill() with null roles -> sets empty roles list")
     void fill_nullRoles_setsEmptyRolesList() {
         EsqAccessProfile ret = new EsqAccessProfile().fill(jpa, null, List.of(), List.of());
         assertThat(ret.getRoles()).isNotNull().isEmpty();
     }
 
     @Test
-    @DisplayName("fill() with null rolesAll → sets empty rolesAll")
+    @DisplayName("fill() with null rolesAll -> sets empty rolesAll")
     void fill_nullRolesAll_setsEmptyRolesAll() {
         EsqAccessProfile ret = new EsqAccessProfile().fill(jpa, List.of(), null, List.of());
         assertThat(ret.getRolesAll()).isNotNull().isEmpty();
     }
 
     @Test
-    @DisplayName("fill() with null permissions → sets empty permissions map")
+    @DisplayName("fill() with null permissions -> sets empty permissions map")
     void fill_nullPermissions_setsEmptyPermissionsMap() {
         EsqAccessProfile ret = new EsqAccessProfile().fill(jpa, List.of(), List.of(), null);
         assertThat(ret.getPermissions()).isNotNull().isEmpty();
     }
 
     @Test
-    @DisplayName("fill() two permissions with same type → grouped in same list")
+    @DisplayName("fill() two permissions with same type -> grouped in same list")
     void fill_permissionsGroupedByType() {
         EsqPermission p1 = makePermDto("1", "admin", List.of("Y"));
         EsqPermission p2 = makePermDto("2", "admin", List.of("N"));
@@ -136,7 +136,7 @@ class EsqAccessProfileTest {
     // ---- fillJpa() ----
 
     @Test
-    @DisplayName("fillJpa() with all inputs present → sets all fields")
+    @DisplayName("fillJpa() with all inputs present -> sets all fields")
     void fillJpa_allInputsPresent_setsAllFields() {
         EsqRoleJpa roleJpa = makeRoleJpa("10", "ADMIN", 980);
         EsqPermissionJpa permJpa = makePermJpa("1", "admin", 1, "Y,N,Y,N,N");

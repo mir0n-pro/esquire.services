@@ -15,10 +15,10 @@ import org.springframework.transaction.support.TransactionTemplate;
 import pro.mir0n.esquire.backend.dto.EsqObjectKind;
 import pro.mir0n.esquire.backend.storage.EsqObjectKindStorage;
 import pro.mir0n.esquire.common.EsqConstants;
-import pro.mir0n.esquire.messaging.BusConstants;
+import pro.mir0n.messaging.BusConstants;
 import pro.mir0n.esquire.audit.AuditBusBridge;
-import pro.mir0n.esquire.messaging.IXRod;
-import pro.mir0n.esquire.messaging.xrod.impl.XRodDisabled;
+import pro.mir0n.messaging.IXRod;
+import pro.mir0n.messaging.xrod.impl.XRodDisabled;
 import pro.mir0n.esquire.enyMan.jpa.EntityPathLookup;
 import pro.mir0n.esquire.enyMan.jpa.EsqEntityDictionaryRepository;
 import pro.mir0n.esquire.enyMan.jpa.EsqOrgRepository;
@@ -30,7 +30,7 @@ import java.util.Map;
 
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
-import pro.mir0n.esquire.backend.o11y.EsqBizMeters;
+import pro.mir0n.o11y.BizMeters;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -264,7 +264,7 @@ class MoveQueueManagerTest {
     @DisplayName("onSuccess counts a move PROCESSED; onError counts it FAILED -- and never both")
     void outcomeListeners_countTheRightMeter() {
         MeterRegistry registry = new SimpleMeterRegistry();
-        EsqBizMeters.setRegistry(registry);
+        BizMeters.setRegistry(registry);
         MoveCommandItem item = new MoveCommandItem(20, "100", "200", "1.", "99",
                 java.util.List.of("ROLE_ADMIN"), "rid-1", "cid-1", null);
 
@@ -285,7 +285,7 @@ class MoveQueueManagerTest {
     @DisplayName("a RECONCILE shares the rig and is not a move outcome -- neither meter moves")
     void reconcileItem_countsNoMoveOutcome() {
         MeterRegistry registry = new SimpleMeterRegistry();
-        EsqBizMeters.setRegistry(registry);
+        BizMeters.setRegistry(registry);
         CreateReconcileItem item = new CreateReconcileItem("acct-42", 50, "parent-7", "1.5.7.",
                 "create-cid", "create-rid");
 
@@ -299,7 +299,7 @@ class MoveQueueManagerTest {
     @Test
     @DisplayName("onError hands the item back -- the rig contract, so a listener cannot silently swallow it")
     void onError_returnsTheItem() {
-        EsqBizMeters.setRegistry(new SimpleMeterRegistry());
+        BizMeters.setRegistry(new SimpleMeterRegistry());
         MoveCommandItem item = new MoveCommandItem(20, "100", "200", "1.", "99",
                 java.util.List.of("ROLE_ADMIN"), "rid-1", "cid-1", null);
 
