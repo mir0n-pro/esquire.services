@@ -67,7 +67,7 @@ echo.
 echo === Publishing %NAME% ===
 
 if /i "%NAME%"=="frontend" (
-  call :buildAndPush esquire.frontend "%ESQROOT%\explorer\frontend\Dockerfile.k8s" "%ESQROOT%\explorer\frontend"
+  call :buildAndPush esquire.frontend "%ESQROOT%\explorer2\frontend\Dockerfile.k8s" "%ESQROOT%\explorer2\frontend"
   call :rollout deployment esquire-frontend-frontend
   goto :eof
 )

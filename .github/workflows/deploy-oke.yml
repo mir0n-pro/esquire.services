@@ -1,6 +1,6 @@
 # Esquire services -- deploy to OKE (phase 3).
 #
-# On a PR merge from a `pending-*` branch into `develop`, a GitHub-HOSTED runner builds +
+# On a PR merge from a `pending-*` branch into `develop2`, a GitHub-HOSTED runner builds +
 # pushes the release images to GHCR, then -- behind a manual-approval Environment -- deploys
 # them to the Oracle OKE cluster and validates the release (e2e + load) against the public
 # domain https://esquire.mir0n.pro.
@@ -37,14 +37,15 @@
 name: Deploy OKE
 
 on:
-  # Run ONLY when a `pending-*` PR is MERGED into develop -- not on a direct push
-  # to develop, and not on a PR that is closed WITHOUT merging. The if: guard on
+  # Run ONLY when a `pending-*` PR is MERGED into develop2 -- not on a direct push
+  # to develop2, and not on a PR that is closed WITHOUT merging. The if: guard on
   # build-push enforces `merged == true` AND head branch = pending-*. Because this
   # is a pull_request event, GitHub evaluates the workflow file from the BASE branch
-  # (develop), so the very PR that first INTRODUCES this file does not self-trigger.
+  # (develop2), so the very PR that first INTRODUCES this file does not self-trigger.
+  # A merge into develop runs develop's own copy of this file -- the 1.2 line.
   pull_request:
     types: [closed]
-    branches: [develop]
+    branches: [develop2]
   workflow_dispatch:
     inputs:
       deploy_infra:
@@ -81,18 +82,30 @@ jobs:
       explorer_ref: ${{ steps.refs.outputs.explorer }}
       dbseed_ref: ${{ steps.refs.outputs.dbseed }}
     steps:
-      - name: Checkout services
+      # The 2.0 line: this repo is checked out as services2, the explorer as explorer2 -- the folder
+      # names the build scripts of this line reach.
+      - name: Checkout services2
         uses: actions/checkout@v5
         with:
-          # PR merge -> the real merge commit on develop; dispatch -> the chosen branch.
+          # PR merge -> the real merge commit on develop2; dispatch -> the chosen branch.
           ref: ${{ github.event.pull_request.merge_commit_sha || github.ref }}
+          path: services2
+
+      # The postgres image is built from the 1.2 line on purpose: its Dockerfile COPYs
+      # services/postgres/initdb/init.sh from the workspace root. Only that folder is needed.
+      - name: Checkout services (1.2, postgres only)
+        uses: actions/checkout@v5
+        with:
+          ref: develop
           path: services
+          sparse-checkout: postgres
 
       # The sibling repos carry a same-named sprint branch when the sprint touches them, and none when it
       # does not. Resolve each ref BEFORE checking it out -- ls-remote asks which branch is actually there --
       # so a workflow_dispatch against pending-* picks the sprint work up, while a merged PR (whose ref_name
-      # is the PR merge ref, not a branch name) matches nothing and lands on develop, which is correct: by
-      # then both repos have merged in lockstep.
+      # is the PR merge ref, not a branch name) matches nothing and lands on the fallback, which is correct:
+      # by then both repos have merged in lockstep. The fallback is develop2 for the explorer (its 2.0 line),
+      # develop for db.seed (the 2.0 line uses the 1.2 database).
       - name: Resolve the explorer / db.seed refs
         id: refs
         run: |
@@ -111,13 +124,13 @@ jobs:
               fi
             done
             if [ -z "$got" ]; then
-              got="develop"
+              got="$2"
             fi
             echo "$got"
           }
 
-          explorer="$(pick mir0n-pro/esquire.explorer)"
-          dbseed="$(pick mir0n-pro/esquire.db.seed)"
+          explorer="$(pick mir0n-pro/esquire.explorer develop2)"
+          dbseed="$(pick mir0n-pro/esquire.db.seed develop)"
           echo "explorer=$explorer" >> "$GITHUB_OUTPUT"
           echo "dbseed=$dbseed"     >> "$GITHUB_OUTPUT"
           echo "explorer -> $explorer"
@@ -128,7 +141,7 @@ jobs:
         with:
           repository: mir0n-pro/esquire.explorer
           ref: ${{ steps.refs.outputs.explorer }}
-          path: explorer
+          path: explorer2
 
       - name: Checkout db.seed (postgres image build input)
         uses: actions/checkout@v5
@@ -144,11 +157,34 @@ jobs:
           java-version: "24"
           cache: maven
 
+      # Armoury and Herald come from their GitHub Packages registries, as in CI. The settings file is
+      # written to the job's temp folder and handed to every mvn call through MAVEN_ARGS. The server ids
+      # match the <repositories> in the poms.
+      - name: Maven settings for GitHub Packages
+        run: |
+          cat > "$RUNNER_TEMP/esq-settings.xml" <<'EOF'
+          <settings>
+            <servers>
+              <server>
+                <id>armoury</id>
+                <username>${env.GITHUB_ACTOR}</username>
+                <password>${env.GHCR_TOKEN}</password>
+              </server>
+              <server>
+                <id>herald</id>
+                <username>${env.GITHUB_ACTOR}</username>
+                <password>${env.GHCR_TOKEN}</password>
+              </server>
+            </servers>
+          </settings>
+          EOF
+          echo "MAVEN_ARGS=-s $RUNNER_TEMP/esq-settings.xml" >> "$GITHUB_ENV"
+
       - name: Compute image stamp (Micro from release_notes + datetime)
         id: stamp
         shell: bash
         run: |
-          micro=$(grep -m1 -oE '^v[0-9]+\.[0-9]+\.[0-9]+' services/doc/release_notes.txt)
+          micro=$(grep -m1 -oE '^v[0-9]+\.[0-9]+\.[0-9]+' services2/doc/release_notes.txt)
           ts=$(date -u +%y%m.%d%H)
           echo "tag=${micro}-${ts}" >> "$GITHUB_OUTPUT"
           echo "image tag = ${micro}-${ts}"
@@ -172,7 +208,8 @@ jobs:
           IMAGE_TAG: ${{ steps.stamp.outputs.tag }}
           OWNER: ${{ env.OWNER }}
           RUN_VERIFY: "false"   # CI already ran full verify on the PR
-        run: bash services/.github/scripts/oke-build-push.sh
+          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
+        run: bash services2/.github/scripts/oke-build-push.sh
 
   # -------------------------------------------------------------------------
   deploy:
@@ -192,11 +229,11 @@ jobs:
       OCI_CLI_REGION: ${{ vars.OKE_REGION || 'ca-toronto-1' }}
       OCI_CLI_AUTH: api_key
     steps:
-      - name: Checkout services (charts + OKE values + deploy script)
+      - name: Checkout services2 (charts + OKE values + deploy script)
         uses: actions/checkout@v5
         with:
           ref: ${{ github.event.pull_request.merge_commit_sha || github.ref }}
-          path: services
+          path: services2
 
       - name: Set up kubectl
         uses: azure/setup-kubectl@v4
@@ -230,18 +267,25 @@ jobs:
           GW_EXCHANGE_SECRET: ${{ secrets.GW_EXCHANGE_SECRET }}
           BFF_SESSION_SECRET: ${{ secrets.BFF_SESSION_SECRET }}
           KCMASTER_ADMIN_SECRET: ${{ secrets.KCMASTER_ADMIN_SECRET }}
-        run: bash services/.github/scripts/deploy-oke.sh
+        run: bash services2/.github/scripts/deploy-oke.sh
 
   # -------------------------------------------------------------------------
   validate:
     needs: [deploy, build-push]
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout explorer (e2e + hauberk)
+      - name: Checkout explorer (e2e)
         uses: actions/checkout@v5
         with:
           repository: mir0n-pro/esquire.explorer
           ref: ${{ needs.build-push.outputs.explorer_ref }}
+          path: explorer2
+
+      - name: Checkout services2 (hauberk)
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha || github.ref }}
+          path: services2
 
       - name: Set up Node 22
         uses: actions/setup-node@v4
@@ -249,7 +293,7 @@ jobs:
           node-version: "22"
 
       - name: e2e -- Playwright vs the public OKE domain
-        working-directory: e2e-test
+        working-directory: explorer2/e2e-test
         env:
           BASE_URL: https://esquire.mir0n.pro
           # 20-token-relay talks to the gate + KeyCloak DIRECTLY (not through the BFF), so it needs the
@@ -281,11 +325,35 @@ jobs:
           distribution: temurin
           java-version: "24"
           cache: maven
+      # Armoury and Herald come from their GitHub Packages registries, as in CI. The settings file is
+      # written to the job's temp folder and handed to every mvn call through MAVEN_ARGS. The server ids
+      # match the <repositories> in the poms.
+      - name: Maven settings for GitHub Packages
+        run: |
+          cat > "$RUNNER_TEMP/esq-settings.xml" <<'EOF'
+          <settings>
+            <servers>
+              <server>
+                <id>armoury</id>
+                <username>${env.GITHUB_ACTOR}</username>
+                <password>${env.GHCR_TOKEN}</password>
+              </server>
+              <server>
+                <id>herald</id>
+                <username>${env.GITHUB_ACTOR}</username>
+                <password>${env.GHCR_TOKEN}</password>
+              </server>
+            </servers>
+          </settings>
+          EOF
+          echo "MAVEN_ARGS=-s $RUNNER_TEMP/esq-settings.xml" >> "$GITHUB_ENV"
       - name: load -- hauberk smoke vs OKE
         continue-on-error: true
-        working-directory: hauberk
+        working-directory: services2/hauberk
+        env:
+          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
         run: |
-          mvn -B -ntp -DskipTests package
+          mvn -B -ntp -DskipTests -f ../pom.xml -pl hauberk -am package
           java --add-opens java.base/java.lang=ALL-UNNAMED \
                --add-opens java.base/java.util=ALL-UNNAMED \
                --add-opens java.base/java.util.concurrent=ALL-UNNAMED \
