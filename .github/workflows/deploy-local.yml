@@ -31,10 +31,21 @@ jobs:
     # self-hosted + windows labels; with a single runner no custom label is needed.
     runs-on: [self-hosted, windows]
     steps:
-      - name: Checkout services
+      # The 2.0 line: this repo on develop2 / pending-v2.* is checked out as services2, the explorer as
+      # explorer2 -- the folder names every compose file and script of this line reaches (../../explorer2).
+      - name: Checkout services2
         uses: actions/checkout@v5
         with:
+          path: services2
+
+      # The postgres image is built from the 1.2 line on purpose: its Dockerfile COPYs
+      # services/postgres/initdb/init.sh from the workspace root. Only that folder is needed.
+      - name: Checkout services (1.2, postgres only)
+        uses: actions/checkout@v5
+        with:
+          ref: develop
           path: services
+          sparse-checkout: postgres
 
       # explorer (backend/BFF image) and db.seed (the postgres-image build input, NOT a deployed service)
       # both live in sibling repos. A sprint that touches them has a same-named pending branch; a sprint that
@@ -43,7 +54,8 @@ jobs:
       # it fail painted two red Error lines and a 12-second retry into every otherwise green run.
       #
       # Both spellings are tried because the branch is named pending-1.2.13 here and may be pending-v1.2.13
-      # there; develop is the answer when neither exists.
+      # there. When neither exists: develop2 for the explorer (its 2.0 line), develop for db.seed (the 2.0
+      # line uses the 1.2 database).
       - name: Resolve the explorer / db.seed refs
         id: refs
         shell: bash
@@ -63,13 +75,13 @@ jobs:
               fi
             done
             if [ -z "$got" ]; then
-              got="develop"
+              got="$2"
             fi
             echo "$got"
           }
 
-          explorer="$(pick mir0n-pro/esquire.explorer)"
-          dbseed="$(pick mir0n-pro/esquire.db.seed)"
+          explorer="$(pick mir0n-pro/esquire.explorer develop2)"
+          dbseed="$(pick mir0n-pro/esquire.db.seed develop)"
           echo "explorer=$explorer" >> "$GITHUB_OUTPUT"
           echo "dbseed=$dbseed"     >> "$GITHUB_OUTPUT"
           echo "explorer -> $explorer"
@@ -80,7 +92,7 @@ jobs:
         with:
           repository: mir0n-pro/esquire.explorer
           ref: ${{ steps.refs.outputs.explorer }}
-          path: explorer
+          path: explorer2
 
       - name: Checkout db.seed
         uses: actions/checkout@v5
@@ -93,11 +105,35 @@ jobs:
       - name: Report the refs used
         shell: bash
         run: |
-          for d in explorer db.seed; do
+          for d in explorer2 db.seed services; do
             cd "$d"
             echo "$d built from: $(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo detached) @ $(git rev-parse --short HEAD)"
             cd ..
           done
+
+      # Armoury and Herald come from their GitHub Packages registries, as in CI. The settings file is
+      # written to the job's temp folder and handed to every mvn call through MAVEN_ARGS, so the runner
+      # account's own ~/.m2/settings.xml is never touched. The server ids match the <repositories> in the poms.
+      - name: Maven settings for GitHub Packages
+        shell: bash
+        run: |
+          cat > "$RUNNER_TEMP/esq-settings.xml" <<'EOF'
+          <settings>
+            <servers>
+              <server>
+                <id>armoury</id>
+                <username>${env.GITHUB_ACTOR}</username>
+                <password>${env.GHCR_TOKEN}</password>
+              </server>
+              <server>
+                <id>herald</id>
+                <username>${env.GITHUB_ACTOR}</username>
+                <password>${env.GHCR_TOKEN}</password>
+              </server>
+            </servers>
+          </settings>
+          EOF
+          echo "MAVEN_ARGS=-s $RUNNER_TEMP/esq-settings.xml" >> "$GITHUB_ENV"
 
       - name: Build + bring up the full stack on Docker Desktop k8s
         shell: cmd
@@ -111,11 +147,14 @@ jobs:
         # explains nothing when it breaks.
         env:
           KCMASTER_ADMIN_SECRET: ${{ secrets.KCMASTER_ADMIN_SECRET }}
-        run: services\.github\scripts\deploy-local.cmd
+          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
+        run: services2\.github\scripts\deploy-local.cmd
 
       - name: Build + bring up the docker-compose stack
         shell: cmd
-        run: services\.github\scripts\deploy-compose.cmd
+        env:
+          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
+        run: services2\.github\scripts\deploy-compose.cmd
 
       # --- e2e on BOTH local targets -------------------------------------------------------------
       # Both bring-ups run first and always complete: a failing test gates the commit, it never leaves
@@ -129,14 +168,14 @@ jobs:
       # anywhere and these two need the LOCAL realm's secret, not the rotated one.
       - name: e2e -- Playwright vs Docker Desktop k8s
         shell: cmd
-        working-directory: explorer\e2e-test
+        working-directory: explorer2\e2e-test
         env:
           KC_ADMIN_SECRET: ${{ secrets.KCMASTER_ADMIN_SECRET }}
         run: e2e-k8s.bat
 
       - name: e2e -- Playwright vs docker-compose
         shell: cmd
-        working-directory: explorer\e2e-test
+        working-directory: explorer2\e2e-test
         env:
           KC_ADMIN_SECRET: ${{ secrets.KCMASTER_ADMIN_SECRET }}
         run: e2e-test.bat

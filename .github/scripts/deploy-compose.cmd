@@ -26,11 +26,13 @@ rem                              services + explorer backend/BFF + frontend), th
 rem                              docker compose up -d --force-recreate.
 rem
 rem Layout expected in the runner workspace (set by the workflow's checkouts):
-rem   <workspace>\services\   (this repo; compose.yaml lives at services\compose\)
-rem   <workspace>\explorer\   (sibling -- compose.yaml backend/frontend build
-rem                            contexts point at ..\..\explorer\ )
+rem   <workspace>\services2\  (this repo, the 2.0 line; compose.yaml lives at services2\compose\)
+rem   <workspace>\explorer2\  (sibling -- compose.yaml backend/frontend build
+rem                            contexts point at ..\..\explorer2\ )
+rem   <workspace>\services\   (the 1.2 line, postgres\ only -- the postgres image COPYs its init.sh)
+rem   <workspace>\db.seed\    (the postgres image's schema)
 rem
-rem HERE = <workspace>\services\.github\scripts\  ->  compose is at ..\..\compose
+rem HERE = <workspace>\services2\.github\scripts\  ->  compose is at ..\..\compose
 rem ===========================================================================
 set "HERE=%~dp0"
 
