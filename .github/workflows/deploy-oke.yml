@@ -39,10 +39,9 @@ name: Deploy OKE
 on:
   # Run ONLY when a `pending-*` PR is MERGED into develop2 -- not on a direct push
   # to develop2, and not on a PR that is closed WITHOUT merging. The if: guard on
-  # build-push enforces `merged == true` AND head branch = pending-*. Because this
-  # is a pull_request event, GitHub evaluates the workflow file from the BASE branch
-  # (develop2), so the very PR that first INTRODUCES this file does not self-trigger.
-  # A merge into develop runs develop's own copy of this file -- the 1.2 line.
+  # build-push enforces `merged == true` AND head branch = pending-*.
+  #xxx: on a merged PR GitHub reads this file from the MERGE commit, so the merge that
+  # changes this file already runs the changed file -- it deploys at once.
   pull_request:
     types: [closed]
     branches: [develop2]

@@ -11,8 +11,11 @@
 
 The CI/CD pipeline: what runs, where, and why. Three phases are live -- **CI** (build + test on every
 push), **local deploy** (an intermediate `pending-**` commit brings the full stack up on both local
-targets), and **OKE deploy** (a sprint PR merged into `develop` releases to the cloud). A stable-release
+targets), and **OKE deploy** (a sprint PR merged into `develop2` releases to the cloud). A stable-release
 flow on `main` is the only piece still reserved.
+
+This file describes the 2.0 line, which lives on `develop2`. The 1.2 line keeps its own copy of the
+workflows on `develop`.
 
 **The AWS (EKS) deployment runs the same CI/CD chain** -- build, publish, deploy, validate -- driven by
 the scripts in `services/k8s-aws-compact/` instead of a workflow. What is manual there is the TRIGGER,
@@ -33,14 +36,14 @@ The day-to-day loop (unchanged -- GitHub Actions only automates the deploy edges
    with what was developed.
 3. **Prepare a release** -> test everything in **local k8s**; collect the sprint's changes; improve
    documentation (README, version / release notes, landing page, etc.).
-4. **PR + merge** the sprint branch into `develop`.
+4. **PR + merge** the sprint branch into `develop2`.
 5. **Deploy to OKE** and validate that everything is correct and in place.
 6. **Fix the sprint release**, then plan the next sprint.
 
 What we want GitHub Actions to do:
 
 - **Every intermediate commit on the `pending-**` branch -> deploy to local k8s.**
-- **PR merge into `develop` -> deploy everything to OKE.**
+- **PR merge into `develop2` -> deploy everything to OKE.**
 
 ---
 
@@ -61,19 +64,19 @@ This single constraint drives the whole design.
 ## 3. Branch model and trigger map
 
 - `pending-vX.Y.Z` -- active sprint; intermediate commits land here.
-- `develop` -- integration; the sprint PR merges here. Stable-enough for OKE.
-- `main` -- reserved for the completed, stable `v1.2.xx`. **Nothing is wired to it yet**; a
-  stable-release / tag flow is added once all of v1.2 is finished.
+- `develop2` -- integration for the 2.0 line; the sprint PR merges here. Stable enough for OKE.
+- `develop` -- the 1.2 line. It carries its own copy of the workflows, and a 2.0 sprint never merges into it.
+- `main` -- reserved for a stable release. **Nothing is wired to it yet.**
 
 | Trigger | Runner | Job |
 |---|---|---|
 | PR opened / push (any branch) | GitHub-hosted | **CI** -- `mvn -B verify` (unit tests + Testcontainers IT) |
 | push to `pending-**` (intermediate commit) | **self-hosted, on the dev box** | build the full stack -> bring it up on **docker-compose AND local k8s** |
-| `pending-*` PR **merged** into `develop` | GitHub-hosted (OCI creds) | build -> **GHCR push** -> `helm upgrade` (OKE) -> validate (e2e + load) |
-| `main` | -- | reserved; stable-release / tag flow added when v1.2 is complete |
+| `pending-*` PR **merged** into `develop2` | GitHub-hosted (OCI creds) | build -> **GHCR push** -> `helm upgrade` (OKE) -> validate (e2e + load) |
+| `main` | -- | reserved; no stable-release / tag flow yet |
 
-Net effect: intermediate commit -> local k8s; sprint PR merge into `develop` -> OKE; `main`
-untouched until v1.2 stable.
+Net effect: intermediate commit -> local k8s and docker-compose; sprint PR merge into `develop2` -> OKE;
+`main` untouched.
 
 ---
 
@@ -82,12 +85,13 @@ untouched until v1.2 stable.
 ### 4.1 CI (GitHub-hosted) -- `ci.yml`
 - **On:** `pull_request` + `push` (all branches). One in-flight run per ref; a newer push cancels the older.
 - **Steps** (logic in `.github/scripts/ci.sh`): checkout -> `setup-java` (**24**, Temurin) with Maven
-  cache -> build the `esquire-activemq:6.1.4` image first -> `mvn -B -ntp clean verify` over the reactor.
+  cache -> a Maven settings file for Armoury and Herald (`GHCR_TOKEN`) -> build the `esquire-activemq:6.1.4` image first -> `mvn -B -ntp clean verify` over the reactor.
 - **Why activemq first:** auKeep's `RodBusIntegrationTest` is `@Testcontainers(disabledWithoutDocker=true)`
   -- on CI (Docker present) it RUNS, starting an `esquire-activemq:6.1.4` container. That image is local
   (built from `activemq/`), so it must exist before the reactor reaches auKeep's test phase or the test
   FAILS on a missing image. (Postgres is pulled by Testcontainers.)
-- **No secrets, no runner, no deploy** -- a broken reactor never reaches a deploy.
+- **One secret, no runner, no deploy** -- `GHCR_TOKEN` only reads the Armoury and Herald jars, and a broken
+  reactor never reaches a deploy.
 
 ### 4.1a Which deployment shape a deploy job brings up
 
@@ -119,20 +123,28 @@ the other stack must go for a simpler reason as well -- both bind the same host 
   Docker Desktop k8s. A green run proves both environments come up on the pending code. Full stack =
   the 6 Java services + the explorer backend/BFF (plus the explorer frontend container on
   docker-compose).
-- **Three repos, checked out as siblings** in the runner workspace so the builds can reach each other
-  (`<ws>\services` + `<ws>\explorer` + `<ws>\db.seed` -- the postgres image `COPY`s `db.seed/postgres/*`
-  from the workspace root):
-  - **services** -- the triggering commit.
-  - **explorer** (backend/BFF image) -- the **same-named sprint branch when it exists**
-    (`ref: ${{ github.ref_name }}`), else **falls back to `develop`** (a sprint that does not touch
-    explorer has no `pending-vX` branch there and must not hard-fail the deploy). The checkout is
-    `continue-on-error` with a `develop` fallback step.
-  - **db.seed** (postgres-image build input) -- same rule: the sprint branch when it carries schema work
-    (the postgres image must match the pending code), else `develop`.
-- **Steps:** the three checkouts -> `services\.github\scripts\deploy-local.cmd` (k8s: reuses
+- **Four checkouts, as siblings** in the runner workspace so the builds can reach each other
+  (`<ws>\services2` + `<ws>\explorer2` + `<ws>\db.seed` + `<ws>\services`). The 2.0 folder names are the
+  ones the 2.0 scripts and compose files reach (`..\..\explorer2`):
+  - **services2** -- this repository, at the triggering commit.
+  - **explorer2** (backend/BFF image + the e2e suite) -- the **same-named sprint branch when it exists**,
+    else **`develop2`**, the explorer's 2.0 line.
+  - **db.seed** (postgres-image build input) -- the sprint branch when it carries schema work, else
+    `develop`: the 2.0 line uses the 1.2 database.
+  - **services** -- the 1.2 line, `postgres/` only (a sparse checkout). The postgres image `COPY`s
+    `services/postgres/initdb/init.sh` and `db.seed/postgres/*` from the workspace root.
+
+  Each ref is resolved with `git ls-remote` BEFORE its checkout, so every repository is checked out once,
+  at a ref known to exist.
+- **Armoury and Herald jars:** a step writes a Maven settings file to the job's temp folder (server ids
+  `armoury` and `herald`, the `GHCR_TOKEN` secret as the password) and hands it to every `mvn` call
+  through `MAVEN_ARGS`. The runner account's own `~/.m2/settings.xml` is not touched.
+- **Steps:** the checkouts -> `services2\.github\scripts\deploy-local.cmd` (k8s: reuses
   `k8s-rebuild.bat all` = mvn package + docker build + stamp every image, then `k8s-up.bat` =
   `helm upgrade --install` infra + services + gateway + backend, wait for readiness) ->
-  `services\.github\scripts\deploy-compose.cmd` (docker-compose: reuses `compose\compose-rebuild.bat`).
+  `services2\.github\scripts\deploy-compose.cmd` (docker-compose: reuses `compose\compose-rebuild.bat`)
+  -> the explorer e2e suite against BOTH targets (`e2e-k8s.bat`, then `e2e-test.bat`). Both bring-ups
+  run first, so a failing test gates the commit but never leaves one stack undeployed.
   The `.bat` scripts stay the single source of deploy logic; both k8s `.bat` guard on
   `kubectl context == docker-desktop`.
 - **Serialization:** `concurrency: deploy-local`, `cancel-in-progress: false` -- never interrupt a
@@ -141,28 +153,30 @@ the other stack must go for a simpler reason as well -- both bind the same host 
   JDK 24 + Maven, PowerShell; MetalLB + ingress-nginx installed once (`addMetalLB.bat`,
   `addIngressNginx.bat`); the runner registered on the box (built-in `self-hosted` + `windows` labels).
 
-### 4.2a Verify -- NOT in the local scope (lives in the OKE release chain)
-- The local scope (`deploy-local`) is **deploy only**. e2e + load validation against the local stack
-  stays a **manual** dev activity via the explorer `.bat` tools (`e2e-test\e2e-k8s.bat`,
-  `hauberk\k8s-smoke.bat`) -- deliberately **not** a GitHub Actions workflow here (decided 2026-06-09).
-- Automated e2e + load belong to the **OKE release chain** (see 4.3): the release is validated, not
-  every intermediate local deploy.
+### 4.2a Verify on the local targets -- e2e yes, load no
+- The local scope runs the **e2e suite** on both targets (4.2). It is the only pipeline that runs the two
+  Token Relay specs, which OKE skips.
+- **Load stays manual** on the local stack: `hauberk.cmd run smoke --config hauberk-k8s.properties` from
+  `hauberk\`, and the other Simulations by hand.
+- Automated load belongs to the **OKE release chain** (see 4.3).
 
-### 4.3 OKE deploy (`develop`) -- `deploy-oke.yml`
-- **On:** a `pending-*` PR **merged** into `develop` -- `pull_request` (`types: [closed]`,
-  `branches: [develop]`) gated by an `if:` on `merged == true` **and** head branch `pending-*`; plus
-  `workflow_dispatch` for a manual re-deploy. Chosen over `push: develop` so that a direct push or a
-  close-without-merge never deploys -- and because `pull_request` evaluates the workflow file from the
-  **base** branch (`develop`), the very PR that first introduces this file does **not** self-trigger; it
-  simply lands on `develop`, after which `workflow_dispatch` can dry-run the chain before the next real
-  merge. (`develop` is the repo's default branch, so once landed the **Run workflow** button is available.)
+### 4.3 OKE deploy (`develop2`) -- `deploy-oke.yml`
+- **On:** a `pending-*` PR **merged** into `develop2` -- `pull_request` (`types: [closed]`,
+  `branches: [develop2]`) gated by an `if:` on `merged == true` **and** head branch `pending-*`; plus
+  `workflow_dispatch` for a manual re-deploy. Chosen over `push: develop2` so that a direct push or a
+  close-without-merge never deploys.
+- **Which copy of the file runs:** on a merged PR, GitHub reads the workflow from the **merge commit**. So
+  the merge that changes this file already runs the changed file, and it deploys at once.
+- **Run workflow** needs the file on the repository's default branch (`develop`). It is there, so the button
+  is available; choose `develop2` (or a `pending-*` branch) and that branch's file runs.
 - **Runner:** **GitHub-hosted with OCI credentials** (mirrors today's manual flow:
   `k8s-oci-compact/oke-login.bat` fetches the kubeconfig via the OCI CLI, then `helm upgrade` per
   `k8s-oci-compact/oke-up.bat`).
-- **Steps (3 jobs):** **build-push** -- checkout services (the merge commit) + explorer (`develop`) +
-  db.seed (`develop`) as siblings -> `setup-java` **24** -> compute the image tag (Micro read from
-  `release_notes.txt` + a UTC datetime stamp) -> `mvn -B package -DskipTests` (CI already ran full verify
-  on the PR) -> multi-arch `buildx` (`linux/amd64,linux/arm64` -- the OKE nodes are Ampere A1.Flex /
+- **Steps (3 jobs):** **build-push** -- checkout `services2` (the merge commit) + `explorer2` (the sprint
+  branch, else `develop2`) + db.seed (the sprint branch, else `develop`) + the 1.2 `services` (`postgres/`
+  only) as siblings -> `setup-java` **24** -> the Maven settings for Armoury and Herald (as in 4.2) ->
+  compute the image tag (Micro read from `release_notes.txt` + a UTC datetime stamp) ->
+  `mvn -B package -DskipTests` (CI already ran full verify on the PR) -> multi-arch `buildx` (`linux/amd64,linux/arm64` -- the OKE nodes are Ampere A1.Flex /
   arm64) -> **push the 8 app images to GHCR** with a `GHCR_TOKEN` PAT (`write:packages`, the same
   `mir0n-pro` identity that created the packages via the manual push). **deploy** (behind the Environment
   gate) -- configure the OCI CLI from the Environment secrets -> fetch the OKE kubeconfig
@@ -173,8 +187,9 @@ the other stack must go for a simpler reason as well -- both bind the same host 
   after the rollout, run the explorer **e2e** (Playwright, `BASE_URL=https://esquire.mir0n.pro`) and the
   **hauberk load** (`hauberk-oke.properties`) against OKE as the release gate. Both target the public OKE
   domain, so this runs on the **GitHub-hosted** runner (install Node + Playwright; no hosts-file needed --
-  a real domain). Load is currently `continue-on-error` until `hauberk-oke.properties` + the sim name are
-  confirmed committed on explorer's `develop`, then it becomes a hard gate.
+  a real domain). The e2e suite comes from `explorer2`; hauberk is built from `services2/hauberk`, with the
+  same Maven settings. Load is `continue-on-error`, and the `smoke` Simulation it runs is a single call, so
+  it proves the load step works, not the load.
 - **Environment gate:** the `deploy` job pins the **`oke-production`** Environment with a required
   reviewer -- a manual approval before the deploy step, where automation bites hardest. The Environment
   holds the OCI api-key secrets (`OCI_CLI_USER` / `OCI_CLI_TENANCY` / `OCI_CLI_FINGERPRINT` /
@@ -208,8 +223,8 @@ belong to no service image, which is the property the AWS design rests on. `Esqu
 section 7.2 carries the full flow.
 
 ### 4.4 `main` -- reserved
-- No workflow yet. When v1.2 is complete: a tag / release flow on `main` that publishes the stable
-  `v1.2.xx` images and GitHub Release (from `release_notes.txt`).
+- No workflow yet. A tag / release flow on `main` that publishes the stable images and a GitHub Release
+  (from `release_notes.txt`) is reserved.
 
 ---
 
@@ -260,9 +275,13 @@ refs.
   `OCI_CLI_TENANCY` / `OCI_CLI_FINGERPRINT` / `OCI_CLI_KEY_CONTENT` + the `OKE_CLUSTER_OCID` / `OKE_REGION`
   vars); the kubeconfig is fetched at run time via `oci ce cluster create-kubeconfig`, not stored. Plus
   `MIR0N_PWD` and the app secrets (`BFF_KC_SECRET` / `GW_EXCHANGE_SECRET` / `BFF_SESSION_SECRET`).
-- **Local deploy:** no GitHub secrets -- the runner uses the local kube context + docker. The four app
-  secrets come from the BOX instead (see the prerequisites below); without them a first install brings
-  the BFF up with no client secret and the browser login answers `unauthorized_client`.
+- **Maven (every build job):** the same `GHCR_TOKEN` reads the Armoury and Herald jars from GitHub
+  Packages.
+- **Local deploy:** two repository secrets, passed explicitly. `KCMASTER_ADMIN_SECRET` -- the k8s
+  `k8s-up.bat` scripts refuse to run without it, and the e2e steps get it as `KC_ADMIN_SECRET`.
+  `GHCR_TOKEN` -- for Maven. The other app secrets come from the BOX (see the prerequisites below);
+  without them a first install brings the BFF up with no client secret and the browser login answers
+  `unauthorized_client`.
 
 ---
 
@@ -271,11 +290,12 @@ refs.
 The pipeline was adopted in phases; three are live, one reserved, and one target runs the chain
 without a workflow:
 
-1. **CI** (`ci.yml`) -- LIVE. Hosted, no secrets, no runner; the build stays green per commit.
+1. **CI** (`ci.yml`) -- LIVE. Hosted, no runner, one secret used only to read the jars; the build stays green per
+   commit.
 2. **Local deploy** (`deploy-local.yml`) -- LIVE. Self-hosted runner on the dev box; `push` to
    `pending-**` only; brings the stack up on docker-compose AND local k8s.
 3. **OKE deploy** (`deploy-oke.yml`) -- LIVE. Behind the manual-approval `oke-production` Environment.
-4. **`main` release flow** -- RESERVED; added when v1.2 is complete (section 4.4).
+4. **`main` release flow** -- RESERVED (section 4.4).
 5. **AWS (EKS) deploy** -- LIVE as a process, not as a workflow. Build, publish, deploy and validate
    all run; the `k8s-aws-compact` scripts carry the stages a workflow would, and a person starts them
    because AWS is not a permanent deployment target (section 4.3a).
@@ -313,12 +333,12 @@ jobs:
     runs-on: [self-hosted, windows]
     steps:
       - uses: actions/checkout@v5
-        with: { path: services }
-      # ... checkout explorer + db.seed (sprint branch or develop) ...
+        with: { path: services2 }
+      # ... checkout explorer2 + db.seed + the 1.2 postgres folder (sprint branch or fallback) ...
       - shell: cmd
-        run: services\.github\scripts\deploy-local.cmd
+        run: services2\.github\scripts\deploy-local.cmd
       - shell: cmd
-        run: services\.github\scripts\deploy-compose.cmd
+        run: services2\.github\scripts\deploy-compose.cmd
 ```
 
 Notes:
@@ -335,10 +355,10 @@ Notes:
 The local git repository is kept **separate from development and from deployment**. Three distinct
 spaces, never sharing a directory:
 
-1. **Development working tree** -- `C:\MyProjects\esquire\services`. Where code is written and run on
+1. **Development working tree** -- `C:\MyProjects\esquire\services2`. Where code is written and run on
    Docker (the inner loop). It is **not** a git repo.
-2. **Local git repository** -- `C:\mir0n-git\esquire.services`. The clean source of truth; commits
-   are made here and pushed to GitHub. Kept apart from the dev tree on purpose.
+2. **Local git repository** -- `C:\mir0n-git\esquire2\esquire.services`, on `develop2`. The clean source
+   of truth; commits are made here and pushed to GitHub. Kept apart from the dev tree on purpose.
 3. **GitHub Actions workspace** -- the runner's own checkout from GitHub (`_work`). For hosted
    runners this is an ephemeral cloud workspace; for the **self-hosted (local) runner it is an
    isolated runner work folder on the dev box** (e.g. `C:\actions-runner\_work`), **NOT** the
@@ -425,9 +445,8 @@ custom `--labels` only once there is more than one self-hosted runner to target 
 `push` to `pending-**` -- never `pull_request` -- so a fork PR can never execute on the box (see 5).
 
 **Cross-repo branch note:** explorer and db.seed are fetched fresh into the runner workspace at the
-**same branch name as the triggering services branch** (`ref: ${{ github.ref_name }}`, e.g.
-`pending-v1.2.7`) WHEN such a branch exists there -- so a sprint touching more than one repo deploys in
-lockstep. When it does not (a sprint that leaves explorer or db.seed untouched has no `pending-vX`
-branch there), the checkout **falls back to `develop`** rather than hard-failing. So the deployed
-backend / schema is the committed *pending-branch* state when the sprint has one, else `develop` --
-never the dev box's local working copy.
+**same branch name as the triggering services branch** (for example `pending-v2.0.0`; the spelling
+without the `v` is tried too) WHEN such a branch exists there -- so a sprint touching more than one repo
+deploys in lockstep. When it does not, the checkout **falls back** rather than hard-failing: to `develop2`
+for the explorer, to `develop` for db.seed. So the deployed backend / schema is the committed
+*pending-branch* state when the sprint has one, else the fallback -- never the dev box's local working copy.

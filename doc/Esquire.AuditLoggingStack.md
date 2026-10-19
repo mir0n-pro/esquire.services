@@ -295,9 +295,9 @@ The bus's per-leg access point is the **x-rod** (**Rod = RoD = Relay of Data**).
 a producer leg captures every committed (sub)entity change and relays it to one or more **sinks**; a
 consumer leg (option c) relays it onward. **Audit is the first sink** — replication, search-index feed,
 webhook, cache-warm are future sinks on the *same* access point, plugged in behind the sink seam without
-touching the write sites. So the bus types carry no "audit" in their names: the access point lives in the
-messaging library (`XRodManager`, the `XRod` and its rod-class impls, the transport SPI), the generic keep
-engine in **`esquire-dataKeep`** (the in-process `XRodInProcess`, `RodEventDbWriter`, `KeepSqlStore`,
+touching the write sites. So the bus types carry no "audit" in their names: the access point lives in
+Herald's messaging library (`XRodManager`, the `XRod` and its rod-class impls, the transport SPI), the generic keep
+engine in **`herald-datakeep`** (the in-process `XRodInProcess`, `RodEventDbWriter`, `KeepSqlStore`,
 `KeepApplier` — none of it audit-aware), and the audit specifics in a thin **`esquire-audit`** module
 (`AuditBusBridge`, the `AuditKeepDirector`, the `*_log` SQL).
 
@@ -466,7 +466,7 @@ stores `adl_pk`=ad_pk, unique); the owner link is the FK chain `address → pers
 The standalone (c) consumer service, **auKeep**, is built **director-agnostic**, not audit-only. It is a
 generic keep host: it reads the audit-bus ref from the catalog, opens the configured bus's consumer via the
 resolved transport provider, decodes each message into a `RodEvent`, and applies it through the generic keep
-engine (`esquire-dataKeep`). What it applies is declared by one **`IKeepDirector`** — reduced to a pure
+engine (`herald-datakeep`). What it applies is declared by one **`IKeepDirector`** — reduced to a pure
 declaration of `sqlGroup()` (the classpath SQL group) + `kinds()` (the kind->statement-key map). The generic
 engine does everything else (builds the pool, the `RodEventDbWriter`, and the kind registry). The audit
 director (`AuditKeepDirector`) declares the SQL group `"audit"` + the audit kinds, so the engine writes the
@@ -478,7 +478,7 @@ sink** (replication, doc-DB) is config-selected — drop in a new `IKeepDirector
 
 The `*_log` INSERT/MERGE statements are **not in code**. They live in a spec folder named by the director's
 SQL group — `src/main/resources/META-INF/audit/{postgres,oracle}.xml` (CDATA, keyed by sql-key);
-`KeepSqlStore` (in `esquire-dataKeep`) is a **generic, dialect-keyed loader** (no SQL of its own, no audit
+`KeepSqlStore` (in `herald-datakeep`) is a **generic, dialect-keyed loader** (no SQL of its own, no audit
 knowledge). The audit `*_log` SQL ships in the `esquire-audit` module; each asset service that produces audit
 carries **only the statements for the tables it writes** (enyMan: org/user/person/address/params/account;
 pacMan: account; keySmith: auth), while the standalone **auKeep** carries the **full set**.
@@ -730,7 +730,7 @@ here). (c)'s payoff remains offload — the `*_log` writes leave the business JV
 
 ### 9.1 Design choices
 - **Generic fan-out frontend, audit the first sink** — `messaging.xrod` (the generic `XRodManager` / `XRod`
-  / rod-class impls / transport SPI) and the generic keep engine `esquire-dataKeep` (`XRodInProcess` +
+  / rod-class impls / transport SPI) and the generic keep engine `herald-datakeep` (`XRodInProcess` +
   the applier engine, audit-unaware) split from the thin `esquire-audit` (the sink specifics:
   `AuditBusBridge`, the `AuditKeepDirector`, the `*_log` SQL); `IMappable` at the JPA layer so entities
   depend downward. Future sinks plug in with a new `IKeepDirector` and no write-site change.
@@ -743,7 +743,7 @@ here). (c)'s payoff remains offload — the `*_log` writes leave the business JV
   the Always-Free demo. (c) is in fact the heaviest on the request path (§8); its merits — first-class
   pipeline, zero-loss-*capable* — are why it is a *good* option, not why dev defaults to it.
 - **SQL externalized to `META-INF/audit/`** — a deployable spec artifact; audit is opt-in at packaging.
-- **The generic engine holds only abstract code** — no SQL, no audit knowledge in `esquire-dataKeep` (the
+- **The generic engine holds only abstract code** — no SQL, no audit knowledge in `herald-datakeep` (the
   audit `*_log` SQL and the kinds live in the thin `esquire-audit` module); the vendor wiring lives in the
   per-vendor `tp-*` transport modules (each behind the `ITransportProvider` SPI), carried only by a
   deployment that uses it.

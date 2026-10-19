@@ -54,8 +54,9 @@ Gatling's terminology, used verbatim across the harness:
 
 ## Where it lives
 
-`explorer/hauberk/` -- Maven module, sibling of `explorer/frontend/`,
-`explorer/backend/` (the BFF tier), and `explorer/e2e-test/`.
+`hauberk/` -- a Maven module of `services`, next to the services it drives. It holds the Esquire
+Simulations and Chains. The harness under them is Armoury's `armoury-hauberk`, which Maven takes from
+GitHub Packages like the other Armoury and Herald jars.
 
 ## Build
 
@@ -63,13 +64,13 @@ Gatling's terminology, used verbatim across the harness:
 mvn -pl hauberk install            (from services/ -- builds + installs)
 ```
 
-Output: `explorer/hauberk/target/hauberk.jar` -- single fat jar with
+Output: `hauberk/target/hauberk.jar` -- single fat jar with
 Gatling 3.13.5, picocli, and all transitive dependencies. One artifact
 to deploy or copy anywhere.
 
 ## Run
 
-`hauberk.cmd <subcommand> [options]` from `explorer/hauberk/`. The
+`hauberk.cmd <subcommand> [options]` from `hauberk/`. The
 launcher is a one-line `.cmd` that adds the JVM `--add-opens` flags
 Gatling 3.13 needs and forwards every argument to the fat jar:
 
@@ -175,10 +176,6 @@ Self-validating Simulations that surface known races in the entity-broadcast + b
 | `RaceMoveCreateSimulation` | Race 8b: move + concurrent create; DB `ep_path` vs bizTree path divergence |
 | `RaceMoveCreateKcSimulation` | Race 8c: move + concurrent create; DB `ep_path` vs KC `esq_rootpath` divergence |
 | `RaceMoveCreateKcSingleShotSimulation` | Race 8c single-shot: one disabled user + one move during the keySmith hold; deterministic, no heal |
-
-Full catalog, repro commands (compose + local k8s), and PASS/FAIL
-behavior live in a dedicated doc: see
-[Race.Conditions.Repro.md](review/Race.Conditions.Repro.md).
 
 ### Message-loss / night-watch repros
 
@@ -422,9 +419,14 @@ hauberk.cmd run clean-house                                    (teardown)
 
 ### Race-condition repro
 
-See [Race.Conditions.Repro.md](review/Race.Conditions.Repro.md) for the
-step-by-step commands (compose + local k8s variants) and self-
-validation behavior.
+```
+hauberk.cmd run race-move-create
+hauberk.cmd run race-move-create-kc
+hauberk.cmd run race-move-create-kc-single-shot
+hauberk.cmd run race-cache-load                     (restart bizTree by hand mid-run)
+```
+
+Each one checks its own result. It passes only while the fix for its race holds.
 
 ## Architecture
 

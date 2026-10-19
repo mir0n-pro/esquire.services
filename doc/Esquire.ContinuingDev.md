@@ -20,9 +20,8 @@
 
 **Related backlogs (kept separate, on purpose):**
 - **The Messaging Bus keeps its own continuing-dev list** -- [Herald.MessagingBus.ContinuingDev.md](https://github.com/mir0n-pro/herald/blob/main/doc/Herald.MessagingBus.ContinuingDev.md)
-  (the alive protocol, the full resilience-pattern set, the FIX-like async protocol, replay/seek, and more). It stays
-  a list of its own because **lifting the Messaging Bus out of Esquire into its own product / repository is itself the
-  next continuing-dev arc** -- so the bus carries its backlog with it rather than dissolving it into this file.
+  (the alive protocol, the full resilience-pattern set, the FIX-like async protocol, replay/seek, and more). The bus
+  is a product of its own, **Herald**, and its backlog lives in Herald's repository, next to the code it is about.
 
 This file collects the **framework-wide** forward work: the "improve what already works" items and the
 **new-feature directions**. It is a running collection.

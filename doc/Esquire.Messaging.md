@@ -100,7 +100,7 @@ variable (`AUDIT_BUS_ID`); the framework default is **off** — a fresh deploy a
 | Redis stream (`audit-d`) | the stream itself is the append-only log (no consumer) |
 | Kafka stream (`audit-dk`) | the topic itself is the log (no consumer) |
 
-Audit is a thin layer on a generic "keep" engine (`esquire-dataKeep`) that applies incoming changes to a
+Audit is a thin layer on a generic "keep" engine (`herald-datakeep`) that applies incoming changes to a
 database; **auKeep** is the standalone consumer service for the bus sinks. The full audit model, the `*_log`
 schema, and the delivery analysis are in [Esquire.AuditLoggingStack.md](Esquire.AuditLoggingStack.md).
 

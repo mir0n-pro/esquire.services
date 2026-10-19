@@ -90,6 +90,8 @@ through the moment it is up. Background, the architecture, and the developer wor
 
 ## Release History
 
+**[Releases.md](Releases.md)** -- every version, plus the milestone reports across all four repositories.
+
 **[release_notes.txt](doc/release_notes.txt)** -- the release notes, newest first: v2.0.0, then the whole 1.2 history.
 
 ---

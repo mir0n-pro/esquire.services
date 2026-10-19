@@ -197,23 +197,28 @@ what is inside each of them.
 ## 7b. What each pipeline builds from
 
 Esquire is three repositories -- `services`, `explorer`, `db.seed` -- and a deployment is built from all
-three. Which branch of the other two a pipeline reads is decided by **when that pipeline runs**, and the two
-answers differ on purpose.
+three, plus the Armoury and Herald jars from GitHub Packages. On the 2.0 line `services` and `explorer` are
+read from `develop2`. `db.seed` stays on `develop`, because the 2.0 line uses the 1.2 database. The postgres
+image also copies one folder of the 1.2 `services` line, `postgres/`, so the deploy pipelines check that
+folder out too.
+
+Which branch of the other repositories a pipeline reads is decided by **when that pipeline runs**.
 
 | pipeline | runs when | reads explorer + db.seed from |
 |---|---|---|
 | **CI** (`ci.yml`) | every push | this repository only -- the reactor build and the unit tests |
-| **local deploy** (`deploy-local.yml`) | a push to `pending-**` | the **sprint branch** when it exists, falling back to `develop` |
-| **cloud deploy** (`deploy-oke.yml`) | a `pending-*` PR **merged** into `develop` | **`develop`** |
+| **local deploy** (`deploy-local.yml`) | a push to `pending-**` | the **sprint branch** when it exists, else `develop2` for the explorer and `develop` for db.seed |
+| **cloud deploy** (`deploy-oke.yml`) | a `pending-*` PR **merged** into `develop2` | `develop2` for the explorer, `develop` for db.seed |
 
 **The local pipeline validates the sprint while it is still in flight**, so it has to read the sprint's own
 work in the other repositories -- an e2e spec added during a sprint lives in `explorer` and is not on
-`develop` yet. **The cloud pipeline runs after the merge**, at the moment `develop` IS the release, so
-`develop` is what it reads. Neither is a fallback for the other.
+`develop2` yet. **The cloud pipeline runs after the merge**, at the moment `develop2` IS the release, so
+`develop2` is what it reads. Both use the same lookup; after a merge the sprint branch is no longer the
+ref, so the lookup lands on the integration branch.
 
-What holds the two together is that **the three repositories are promoted together**: a services release that
-needs a seed or an explorer change reaches `develop` alongside it. That is the condition the cloud pipeline's
-choice rests on -- part of the release, not an assumption about it.
+What holds the two together is that **the repositories are promoted together**: a services release that
+needs a seed or an explorer change reaches its integration branch alongside it. That is the condition the
+cloud pipeline's choice rests on -- part of the release, not an assumption about it.
 
 ## 8. Sprint finalization
 
@@ -249,9 +254,10 @@ At sprint end, beyond the per-commit code-change docs:
   `services/k8s-aws-compact/`, then `aws-e2e-public.bat`. Nothing turns red if this is skipped; the demo
   simply serves the previous sprint, which is how it was found.
 - Run the **release finalization** proper: version finalize, then the branch flow
-  `pending → PR → develop → tag → archive release/ → new pending` (the maintainer's git step). Each
-  sprint runs this flow on **its own pending line** off `develop`; in continuous-development mode more
-  than one such line can be open at once, each finalizing independently.
+  `pending -> PR -> develop2 -> tag -> archive release/ -> new pending` (the maintainer's git step; the 1.2
+  line runs the same flow on `develop`). Each sprint runs this flow on **its own pending line** off its
+  integration branch; in continuous-development mode more than one such line can be open at once, each
+  finalizing independently.
 
 ---
 
@@ -280,7 +286,7 @@ increment of its own: no product counts for itself.
 | `services/pom.xml` | the Micro version, for every services module -- they inherit it. Bumped here so the build tag and the image tag do not lag. The root `<version>` is the reactor/parent version and is NOT this. |
 | `explorer/frontend` AND `explorer/backend` package versions | **they move TOGETHER -- touch either one and bump both.** The backend image IS the frontend's delivery: stage 1 of `explorer/backend/Dockerfile` builds `frontend/` and stage 3 bakes the result into `/public`, so a frontend change forces a backend image rebuild and one artifact ships both. Two different numbers on one delivery is the confusion this row exists to prevent. |
 | `explorer/e2e-test` package version | only when a spec or the harness was touched. It delivers nothing, so nothing couples it to the two above. |
-| `explorer/hauberk` `pom.xml` `<version>` | only when the load harness was touched. |
+| `services/hauberk` | nothing to bump: it is a `services` module and inherits the services version. The harness under it, `armoury-hauberk`, versions with Armoury. |
 | `esquire.ui.lib` -- `package.json` AND `projects/esquire.ui/package.json` | only when the library itself changed. Explorer consumes it by tarball URL, not by this number. |
 | `db.seed` `DB_VERSION` | BOTH vendors, and only when the sprint has schema work. |
 | `armoury/pom.xml`, `herald/pom.xml` `<version>` | only when that product changed. A new version is a new tag and a new publish (8b). The consumers follow it: `armoury.version` in Herald's pom, `armoury.version` and `herald.version` in `services/pom.xml`. |
@@ -351,8 +357,8 @@ tests, and docs that carried the decision out. The process *is* the record.
 
 ## 10. The same process in Scrum terms
 
-Esquire is built by one maintainer across **four repositories** -- `services` (the backend services and the
-project documentation), `explorer` (the frontend, the BFF, the e2e specs and the hauberk load harness),
+Esquire is built by one maintainer across **four repositories** -- `services` (the backend services, the
+hauberk load tests and the project documentation), `explorer` (the frontend, the BFF and the e2e specs),
 `esquire.ui.lib` (the shared component library) and `db.seed` (the schema and its seed, in a Postgres and an
 Oracle branch). The pipeline above is Scrum-shaped. This section says which part is which -- and which parts
 of Scrum are deliberately not here.
@@ -397,12 +403,13 @@ A sprint is defined against the **product**, not against a repository. A single 
 four -- a new field is a `db.seed` change, a service change and an explorer change -- and what Scrum would solve
 with a shared sprint goal across teams is solved here by one version number:
 
-- all four repositories run the **same branch flow under the same sprint name**: work on `pending-v1.2.N`, PR to
-  `develop`, tag `v1.2.N`, archive `release/v1.2.N`;
+- all four repositories run the **same branch flow under the same sprint name**: work on `pending-vX.Y.Z`, PR
+  to the line's integration branch (`develop2` for 2.0, `develop` for 1.2), tag `vX.Y.Z`, archive
+  `release/vX.Y.Z`;
 - an item is **not done until every repository it touched is documented and promoted** -- the commit-prep step
   diffs each repository against its own mirror, so "documented the one I edited last" does not pass;
 - the repositories are **promoted together**, which is the condition the cloud pipeline rests on when it builds
-  a deployment from `develop` in all of them (7b);
+  a deployment from the integration branches (7b);
 - a repository the sprint did not touch releases nothing. `esquire.ui.lib` moves in perhaps one sprint in four,
   and that is a normal outcome, not a missing deliverable.
 

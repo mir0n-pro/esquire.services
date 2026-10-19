@@ -183,12 +183,12 @@ Esquire catalog: which buses exist and the env that drives them. The vocabulary:
 - **rod-class**: `XRod` (standard transceiver), `XRodRR` (request/response, two-node, role-routed),
   `XRodInProcess` (a generic in-process relay that runs a worker applying events locally instead of sending
   them; `messaging.xrod.impl`), `XRodInProcessKeep` (the in-process KEEP that applies events to a DB via a
-  `datasource` + `director`; FQCN `pro.mir0n.esquire.dataKeep.keep.XRodInProcessKeep`),
+  `datasource` + `director`; FQCN `pro.mir0n.dataKeep.keep.XRodInProcessKeep`),
   `XRodInfo` (logs instead of sends), `XRodDisabled` (a no-op; selected EXPLICITLY to run without a bus).
 - **role**: `CLIENT` / `SERVER`.
 
-**Transport providers** are pluggable per-vendor modules (`tp-activemq` / `tp-kafka` / `tp-redis` /
-`tp-sqns` / `tp-kinesis`) implementing `ITransportProvider`, resolved by name via `TransportProviders`.
+**Transport providers** are pluggable per-vendor modules from Herald (`herald-tp-activemq` / `herald-tp-kafka` /
+`herald-tp-redis` / `herald-tp-sqns` / `herald-tp-kinesis`) implementing `ITransportProvider`, resolved by name via `TransportProviders`.
 A deployment carries only the modules it uses; `tp-activemq`, `tp-kafka` and `tp-redis` each ship an
 `AutoConfigurationImportFilter` that suppresses Boot's matching auto-config so a service stays
 transport-agnostic.
@@ -725,7 +725,7 @@ DB read at cache load), messaging bus, logging.
 Standalone **audit-bus consumer** (image `esquire.aukeep`): it drains whichever bus the `audit-bus`
 ref names (`AUDIT_BUS_ID`, default `audit-c`) and applies each decoded event to its keep
 datasource (`esquire.keep.datasource`) via the **generic keep engine** (`KeepApplier` /
-`RodEventDbWriter` / `KeepSqlStore`, in the `esquire-dataKeep` library). The audit keep director
+`RodEventDbWriter` / `KeepSqlStore`, in the `herald-datakeep` library). The audit keep director
 (`AuditKeepDirector`, an `IKeepDirector`) only DECLARES the kinds + the SQL group `audit`; the engine
 does the DB apply. It carries the transport-provider modules, so it consumes the ActiveMQ (`audit-c`),
 Kafka (`audit-ck`), SNS or Kinesis (`audit-k`) sink as the topology leg dictates; producer-only sinks

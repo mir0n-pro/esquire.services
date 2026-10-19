@@ -19,10 +19,10 @@ The Esquire framework spans Java microservices, a Node.js BFF, an Angular SPA + 
       <td width="8%"><img src="logo/junit.svg" alt="Alt text" height="24"></td>
       <td>Java unit + service</td><td><b>JUnit 5</b> + <b>Mockito</b> + <b>AssertJ</b></td>
       <td><code>services/*</code></td>
-      <td><b>842</b> <code>@Test</code> methods across <b>129</b> classes</td>
+      <td><b>587</b> <code>@Test</code> methods across <b>83</b> classes</td>
   </tr>
-  <tr><td><img src="logo/jacoco.svg" alt="Alt text" height="24"></td><td>Java code coverage (a test of the tests)</td><td><b>JaCoCo</b></td><td><code>services/*</code> &rarr; <code>test/JaCoCo</code></td><td><b>19</b> per-module line / branch reports (unit + in-JVM ITs)</td></tr>
-  <tr><td><img src="logo/hauberk.svg" alt="Alt text" height="24"> <img src="logo/gatling.svg" alt="Alt text" height="24"></td><td>Running-stack load / stress / race-repro</td><td><b>Haubergeon</b> (on <b>Gatling 3.13</b> Java DSL)</td><td><code>explorer/hauberk</code></td><td><b>22</b> self-validating Simulations (smoke / load / super / race-repro / message-loss / HA) + 3 JUnit catalog tests</td></tr>
+  <tr><td><img src="logo/jacoco.svg" alt="Alt text" height="24"></td><td>Java code coverage (a test of the tests)</td><td><b>JaCoCo</b></td><td><code>services/*</code> &rarr; <code>test/JaCoCo</code></td><td><b>11</b> per-module line / branch reports (unit + in-JVM ITs)</td></tr>
+  <tr><td><img src="logo/hauberk.svg" alt="Alt text" height="24"> <img src="logo/gatling.svg" alt="Alt text" height="24"></td><td>Running-stack load / stress / race-repro</td><td><b>Haubergeon</b> (on <b>Gatling 3.13</b> Java DSL)</td><td><code>services/hauberk</code></td><td><b>22</b> self-validating Simulations (smoke / load / super / race-repro / message-loss / HA) + 3 JUnit catalog tests</td></tr>
   <tr><td><img src="logo/hauberk.svg" alt="Alt text" height="24"> <img src="logo/gatling.svg" alt="Alt text" height="24"></td><td>Running-stack integration matrices</td><td><b>Bash</b> driver + <code>psql</code> / <code>sqlplus</code> / <code>kubectl</code> (drives the <b>hauberk</b> <code>EntitySmoke</code> workload)</td><td><code>services/test</code></td><td><b>~27-cell</b> audit matrix (audit sink x primary DB x environment) + a <b>bus health</b> readiness/liveness chaos smoke</td></tr>
   <tr><td><img src="logo/vitest.svg" alt="Alt text" height="24"></td><td>Node.js (BFF)</td><td><b>Vitest</b> + <b>Supertest</b></td><td><code>explorer/backend</code></td><td><b>47</b> specs across <b>5</b> files (config / cache / trace / tokens / W3C trace-id conformance)</td></tr>
   <tr><td><img src="logo/karma.svg" alt="Alt text" height="24"> <img src="logo/jasmine.svg" alt="Alt text" height="24"></td><td>Angular SPA</td><td><b>Karma</b> + <b>Jasmine</b> (<code>ng test</code>)</td><td><code>explorer/frontend</code></td><td><b>25</b> <code>it()</code> specs in <b>4</b> files</td></tr>
@@ -34,7 +34,7 @@ The Esquire framework spans Java microservices, a Node.js BFF, an Angular SPA + 
 
 ## Java unit + service tests — JUnit 5 / Mockito / AssertJ
 
-**Used in:** every `services/*` module (mir0n-utils, common, messaging, dataKeep, audit, bizTree, enyMan, pacMan, keySmith, kcMaster, gateway, auKeep, tp-activemq, tp-redis, tp-kafka) and in the hauberk module's catalog contract test.
+**Used in:** every `services/*` module (common, audit, bizTree, enyMan, pacMan, keySmith, kcMaster, gateway, mesnie, gateWard, auKeep) and in the hauberk module's catalog contract test. The utilities, the recoverable cache, the messaging bus, its transports and the keep engine took their tests with them to [Armoury](https://github.com/mir0n-pro/armoury) and [Herald](https://github.com/mir0n-pro/herald).
 
 **What for:** classic unit + service-layer tests. Mock repositories, transaction templates, JMS publishers, KC clients; assert behavior against the mocked collaborators. Test files end in `Test.java` and live next to the production code under `src/test/java/`.
 
@@ -46,11 +46,8 @@ The Esquire framework spans Java microservices, a Node.js BFF, an Angular SPA + 
 
 | Module | `@Test` methods | Notes |
 |---|---|---|
-| mir0n-utils | 60 | base utilities split out of `common` — identity / string / numeric helpers, the worker pool and bounded-queue rig, and the expiring hand-off cache (`ExpiringCacheTest`, `ExpiringCacheStoreIfGreaterTest`, including a 16-thread race on one key) |
-| common | 217 | core framework: entity / field utils, roles storage, access profile, validators, Taijitu cache rigs, request-context guard, worker-pool |
-| messaging | 137 | the messaging-bus + x-rod substrate (the old `XRodManager` dissolved into the facade): catalog / codec / transport, the facade (`MessagingBusTest`, `MessagingBusCatalogTest`, `RodEventCodecTest`, `XRodTest`), bus health (`BusHealthIndicatorTest`, `TransportHealthIndicatorTest`, `TransportHealthTest`, `AliveSessionTest`), role + config-bind validation (`XRodRoleSupportTest`, `XRodValidateTest`, `BusRefBindTest`, `XRodParamsTest`), broker-down resilience (`XRodBrokerDownTest`), and the two receive filters a transport applies when its vendor filters nothing (`SelectingReceiverTest`, `OwnExcludingTest`) |
+| common | 205 | core framework: entity / field utils, roles storage, access profile, validators, request-context guard, the metrics and trace-context checks |
 | audit | 22 | the audit rules on the generic keep engine: `AuditSqlTest`, `AuditKeepDirectorTest`, `AuditBusBridgeTest`, `AuditKindsTest` |
-| dataKeep | 3 | the generic keep-engine SQL / applier units |
 | bizTree | 67 | includes the receiver-side freshness guard (`MessageHandlerHubGuardTest`) and the cache-statement arity check (`InsertNodeArityTest`) |
 | enyMan | 79 | — |
 | pacMan | 55 | includes the ledger-statement dialect guard (`AcctTransactionSqlTest`) |
@@ -58,14 +55,9 @@ The Esquire framework spans Java microservices, a Node.js BFF, an Angular SPA + 
 | kcMaster | 41 | includes the parked-path ordering rules (`ParkedPathTest`) |
 | gateway | 80 | gateway typically light on JUnit; reactive WebFlux code is harder to mock-test cleanly |
 | auKeep | 1 | the audit-bus consumer integration test (real Postgres + ActiveMQ via Testcontainers) |
-| tp-activemq | 10 | transport-provider unit checks, and the broker-credential params (`userName` / `password` applied through the setters and kept out of the URI) |
-| tp-redis | 2 | transport-provider unit checks |
-| tp-kafka | 2 | transport-provider unit checks |
-| tp-sqns | 19 | the SQS/SNS driver's own rules: the queue-name split (`SqsSupportTest`), the vendor-param gate with its refuse- AND allow-cases (`SqsSupportParamsTest`), and the prefix sub-group (`SqsSupportParamGroupTest`) |
-| tp-kinesis | 10 | the driver's own rules -- the partition key, the stream mode and the shard reader. The two receive filters live in `messaging`, and the shard poll is exercised on the running stack by e2e and the audit smoke |
 | mesnie | 5 | the composed write program: the composition itself and the identity gateway it hands to keySmith and enyMan |
 | gateWard | 8 | the composed read program: the tree routes answered locally, and the gateway wiring around them |
-| **total** | **842** | across **129** classes |
+| **total** | **587** | across **83** classes |
 
 **Coverage tooling — JaCoCo.** Line / branch coverage of this Java tier is measured with **JaCoCo** (0.8.13, wired in the parent `pom.xml`: `prepare-agent` + `report`). It counts whatever runs in the forked test JVM — the unit tests **and** the in-JVM Testcontainers / `@SpringBootTest` integration tests; e2e and hauberk drive a separately deployed stack, so they fall outside its reach. Reports are written to `services/test/JaCoCo/<artifactId>` (deliberately outside module `target/`, so `mvn clean` keeps them). Run via `build-with-JaCoCo.bat` (`mvn clean test`) and browse `test/JaCoCo/framed.html`. Coverage is a signal, not a build gate; mutation testing (PIT) is not used.
 
@@ -73,7 +65,7 @@ The Esquire framework spans Java microservices, a Node.js BFF, an Angular SPA + 
 
 ## Running-stack load / stress / race-repro — Haubergeon (Gatling 3.13 harness)
 
-**Used in:** `explorer/hauberk/` only.
+**Used in:** `services/hauberk/` only. The harness itself, Haubergeon, is [Armoury](https://github.com/mir0n-pro/armoury)'s `armoury-hauberk`; this module holds the Esquire Simulations and Chains written on it.
 
 **Harness for Gatling Engine.** **Haubergeon** is the Esquire-grown harness that wraps Gatling: picocli CLI (`hauberk.cmd`), fat-jar (`hauberk.jar`), per-run output layout, `PerformanceMatrix` capture, `@SimulationInfo` catalog contract, and a base `HauberkSimulation` class. Gatling does the load engine; Haubergeon makes it driveable and observable in this project. Full reference: [Esquire.Haubergeon.md](Esquire.Haubergeon.md).
 
@@ -83,7 +75,7 @@ The Esquire framework spans Java microservices, a Node.js BFF, an Angular SPA + 
 
 **Pattern:** Each Simulation extends `HauberkSimulation` (abstract base — pulls up lazy KC token, instrumented `httpProtocol`, perf-matrix flush). Reusable `ChainBuilder` atoms compose into `ScenarioBuilder` flows. `@SimulationInfo("...")` annotation supplies the catalog description; presence enforced by `SimulationCatalogContractTest` (JUnit 5).
 
-**Coverage:** 22 Simulations + 37 reusable Chains + 3 JUnit catalog-contract tests. `@SimulationInfo` descriptions are held under a 90-char `hauberk list` cap enforced by `SimulationCatalogContractTest`.
+**Coverage:** 22 Simulations + 36 reusable Chains + 3 JUnit catalog-contract tests. `@SimulationInfo` descriptions are held under a 90-char `hauberk list` cap enforced by `SimulationCatalogContractTest`.
 
 **Esquire-org standard:** Gatling is the chosen framework for all integration / stress / load / race-repro testing across the project (see *Why this many frameworks* below for the rationale). See [Esquire.Haubergeon.md](Esquire.Haubergeon.md) for the harness reference — build / run / catalog / vocabulary.
 
@@ -91,7 +83,7 @@ The Esquire framework spans Java microservices, a Node.js BFF, an Angular SPA + 
 
 ## Running-stack integration matrices — Bash-driven over the running stack
 
-Sits right beside the Haubergeon harness above — **same running stack, different question.** Haubergeon asks *how fast / does it survive concurrency*; these matrices ask *did the data land where the configuration says it should*. They reuse ONE hauberk workload (`EntitySmoke`) as the probe and assert the result in the database across a grid of configurations. (This is the tier that can look like a hauberk duplicate but is not: Haubergeon = 22 Gatling Simulations under `explorer/hauberk`; this = ~27 Bash-orchestrated **config cells** under `services/test`.)
+Sits right beside the Haubergeon harness above — **same running stack, different question.** Haubergeon asks *how fast / does it survive concurrency*; these matrices ask *did the data land where the configuration says it should*. They reuse ONE hauberk workload (`EntitySmoke`) as the probe and assert the result in the database across a grid of configurations. (This is the tier that can look like a hauberk duplicate but is not: Haubergeon = 22 Gatling Simulations under `services/hauberk`; this = ~27 Bash-orchestrated **config cells** under `services/test`.)
 
 **Used in:** `services/test/` — three scenario sets: `audit-smoke/`, `health-smoke/` and `freshness-guard/`.
 
@@ -212,4 +204,3 @@ The split is by *runtime + concern*, not by team — and that's the right axis: 
 ## Cross-references
 
 - [Esquire.Haubergeon.md](Esquire.Haubergeon.md) — full reference for the Gatling harness (build / run / catalog / vocabulary).
-- [Race.Conditions.Repro.md](review/Race.Conditions.Repro.md) — race-repro Simulations and their PASS/FAIL contract.

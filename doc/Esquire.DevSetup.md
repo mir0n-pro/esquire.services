@@ -47,11 +47,17 @@ same routes and the same bus legs. The compact component model is drawn at the e
 `README.md`; why the framework can do this, and where the boundary sits, is in
 [`Esquire.Vision.md`](Esquire.Vision.md) section 8.
 
-Behind the services are the **shared libraries**, layered base-first —
-`mir0n-utils` &larr; `messaging` &larr; `common` — plus `dataKeep` (the generic keep engine) and
-the companions `audit` (audit wiring) and the transport drivers `tp-activemq` / `tp-redis` /
-`tp-kafka` / `tp-sqns` / `tp-kinesis` (one module per bus provider; `tp-sqns` carries two, `sqs` and `sns`).
-Details: `Herald.MessagingBus.md`, `Esquire.BizTree.md`.
+Behind the services are the **shared libraries**. Most of them are products of their own, taken from
+GitHub Packages (section 4):
+
+- [Armoury](https://github.com/mir0n-pro/armoury) -- the utilities (`armoury-utils`), the recoverable
+  cache (`armoury-taijitu`) and the load-test harness (`armoury-hauberk`).
+- [Herald](https://github.com/mir0n-pro/herald) -- the messaging bus (`herald-messaging`), the generic keep
+  engine (`herald-datakeep`) and one transport driver per bus provider (`herald-tp-*`).
+
+Two library modules stay in this repository: `common`, built on both, and `audit`, the audit wiring.
+Details: [Herald.MessagingBus.md](https://github.com/mir0n-pro/herald/blob/main/doc/Herald.MessagingBus.md),
+[Esquire.BizTree.md](Esquire.BizTree.md).
 
 ### 1.2 Browser tier — BFF + SPA (the `explorer` repo)
 
@@ -195,9 +201,10 @@ The working copy ("dev tree") is a set of SIBLING repos under one folder:
 
 ```
 C:\MyProjects\esquire\
-  services\        (this repo — the seven services + shared libs; compose\ and k8s\ run the classic
-                   shape, compose-compact\ and k8s-compact\ the compact one)
-  explorer\        (Angular SPA "Explorer", the Node BFF, the e2e suite, the hauberk load harness)
+  services2\       (this repo, esquire.services on develop2 -- the seven services, common, audit and the
+                   hauberk load tests; compose\ and k8s\ run the classic shape, compose-compact\ and
+                   k8s-compact\ the compact one)
+  explorer2\       (esquire.explorer on develop2 -- the Angular SPA "Explorer", the Node BFF, the e2e suite)
   db.seed\         (the database schema + seed data — Postgres and Oracle branches)
   esquire.ui.lib\  (the reusable Angular UI library the Explorer consumes)
 ```
@@ -524,7 +531,8 @@ and Tempo → search that same `correlationId` as the trace id — logs and trac
   - `e2e-k8s.bat` — against local k8s (`http://esquire.localhost`).
   - Credentials in `e2e-test/.env` (default `mainadmin` / `q`). The mutating specs build and tear
     down their own working data under the seeded Test House (they do not touch the shared seed tree).
-- **Load / stress** (Gatling) — the `explorer/hauberk` harness (its own `.bat` launchers).
+- **Load / stress** (Gatling) -- the `hauberk` module and its `hauberk.cmd` launcher; see
+  [Esquire.Haubergeon.md](Esquire.Haubergeon.md).
 
 ---
 
@@ -537,7 +545,7 @@ make-javadoc.bat                    # API reference for the reusable library mod
 ```
 
 Output is published OUTSIDE `target`, under `doc/java-doc/<module>/` — a browsable reference for
-extenders (common, messaging, dataKeep, audit, tp-*).
+extenders (common, audit). Armoury and Herald publish their own.
 
 ---
 

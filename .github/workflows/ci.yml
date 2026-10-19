@@ -1,6 +1,7 @@
 # Esquire services -- CI (phase 1)
 # Runs on every push and PR (public repo -> free hosted minutes). Builds the reactor and runs the
-# full test suite (unit + the Testcontainers integration test). No secrets, no deploy, no runner.
+# full test suite (unit + the Testcontainers integration test). One secret, GHCR_TOKEN, for Maven to read
+# the Armoury and Herald jars from GitHub Packages. No deploy, no runner.
 # Design: doc/Esquire.GitHubActions.md (sections 4.1, 8a). Logic lives in .github/scripts/ci.sh.
 name: CI
 

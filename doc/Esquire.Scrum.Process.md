@@ -13,7 +13,8 @@
 thing in the vocabulary of Scrum, and puts the repositories' own numbers behind every claim. Nothing
 here is a second process: it is one process, named twice.
 
-**The product is four repositories, released as one.** Every number below is read from those four.
+**The product is four repositories, released as one.** The numbers below are an example: one snapshot of
+those four, taken at one release.
 
 | Repository | Holds | Commits | Tracked files | Size |
 |---|---|---|---|---|
@@ -22,8 +23,9 @@ here is a second process: it is one process, named twice.
 | `esquire.ui.lib` | the shared component library the frontend is built from | 52 | 130 | 8,997 lines of TypeScript |
 | `esquire.db.seed` | the schema and its seed, in a Postgres and an Oracle branch | 55 | 100 | 7,786 lines of SQL |
 
-**448 commits in total**, first commit 2025-12-26, current release **v1.2.15** tagged 2026-09-07 in all
-four. Figures are as of that tag; how they were produced is in the last section.
+**448 commits in total**, first commit 2025-12-26, at the **v1.2.15** tag (2026-09-07) in all four. The
+figures show the process at work on one release, not the current state of the code; how they were produced
+is in the last section.
 
 ---
 
@@ -131,14 +133,16 @@ A sprint is defined against the **product**, not against a repository. A single 
 the four -- a new field is a `db.seed` change, a service change and an explorer change -- and what Scrum
 would solve with a shared sprint goal across teams is solved here by one version number:
 
-- all four repositories run the **same branch flow under the same sprint name**: work on `pending-v1.2.N`,
-  PR into `develop`, tag `v1.2.N`, archive `release/v1.2.N`;
+- all four repositories run the **same branch flow under the same sprint name**: work on `pending-vX.Y.Z`,
+  PR into the line's integration branch (`develop2` for 2.0, `develop` for 1.2), tag `vX.Y.Z`, archive
+  `release/vX.Y.Z`;
 - an item is **not done until every repository it touched is documented and promoted**. The commit-prep
   step diffs each repository against its own mirror, so "documented the one I edited last" does not pass;
 - the repositories are **promoted together**, which is the condition the cloud pipeline rests on when it
-  builds a deployment from `develop` in all of them;
+  builds a deployment from the integration branches;
 - the local pipeline reads the **sprint branch** of the other repositories, because it validates the sprint
-  while it is still in flight; the cloud pipeline reads `develop`, because by then `develop` is the release.
+  while it is still in flight; the cloud pipeline reads the integration branch, because by then it is the
+  release.
 
 ---
 
