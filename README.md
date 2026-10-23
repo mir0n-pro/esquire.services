@@ -44,17 +44,16 @@ operations. The Amazon EKS deployment at aws-esquire.mir0n.pro is turned down â€
 
 ---
 > 
-> **v2.0.0 -- the shared parts are products of their own.** The utility library, the recoverable cache
-> and the load-test harness moved to [Armoury](https://github.com/mir0n-pro/armoury). The messaging bus,
-> its transports and its event store moved to [Herald](https://github.com/mir0n-pro/herald). Esquire is
-> built on both. The services, the screens and the settings stay the same.
+> **v2.0.1 -- the account commands go over the bus.** The gateway used to call pacMan, the account
+> service, over HTTP. Now it sends the account commands over [Herald](https://github.com/mir0n-pro/herald)
+> to a new service, paacMan, which runs pacMan's code unchanged. The client calls the same REST API, and
+> the screens do not change.
 > 
 > The 1.2 line goes on in parallel. Its last release is
 > [v1.2.16](https://github.com/mir0n-pro/esquire.services/tree/release/v1.2.16?tab=readme-ov-file).
 > 
-> What comes next is chosen from the
-> [continuing-development backlog](doc/Esquire.ContinuingDev.md) â€” several sprints can run in parallel, each
-> against its own target. See [Release History](#release-history).
+> Next on this line: v2.0.2, the claims leave the token, and v2.0.3, a WebSocket face to the business
+> domain. See [Release History](#release-history).
 
 ---
 
@@ -220,10 +219,9 @@ run as a single instance here; each is a third-party platform that brings its **
     Personal Account Manager; the accounting service; manages account balance
        operations: deposit, withdrawal, cross-currency transfer; the place where business logic lives;
        all other services exist to support it.
-       <br><br>paacMan is pacMan's code with a bus face: it takes its commands from the Biz Request-Response
-       Bus instead of HTTP. The same code still runs as pacMan, answering over HTTP, and one gateway setting
-       (<code>PACMAN_SERVICE</code>) chooses which one the account routes reach. The price of the bus is one
-       more hop through the broker on every account command.
+       <br><br>paacMan runs pacMan's code, but takes its commands from the Biz Request-Response Bus instead
+       of HTTP. Every HTTP call between services costs time: a connection, the servlet chain, a second token
+       check. Processing a business request has to be fast. HTTP is the first bottleneck removed.
   </td></tr>
 
   <tr><td style="width: 100%;">
