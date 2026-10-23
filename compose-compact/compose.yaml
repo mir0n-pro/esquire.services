@@ -306,6 +306,89 @@ services:
     networks:
       - esquirenet
 
+  paacman:
+    container_name: esqc-paacman
+    build:
+      context: ../paacMan
+    image: esquire.paacman
+    ports:
+      - "3008:3008"
+    environment:
+      - PAACMAN_PORT=3008
+      - LOG_LEVEL_ROOT=ERROR
+      - LOG_LEVEL_SF=ERROR
+      # I49 knob: o11y-log-off/on.bat set this OFF / INFO. Keep overridable or both arms run identical.
+      - LOG_LEVEL_MIR0N=${LOG_LEVEL_MIR0N:-DEBUG}
+      - LOG_LEVEL_DEVELOP=${LOG_LEVEL_DEVELOP:-DEBUG}
+      - LOG_LEVEL_MSG=${LOG_LEVEL_MSG:-INFO}
+      - LOG_LEVEL_AMQ=${LOG_LEVEL_AMQ:-INFO}
+      - LOG_LEVEL_JMS=${LOG_LEVEL_JMS:-INFO}
+      - DEVELOP_LOG_PATH=logs/paacMan-develop.log
+      - MSG_LOG_PATH=logs/paacMan-msg.log
+      # Distributed tracing (v1.2.11 O2) -- OFF by default; the o11y profile brings up the collector + Tempo.
+      # Enable end-to-end: ESQ_OBSERVABILITY_ENABLED=true docker compose --profile o11y up -d --force-recreate
+      - ESQ_OBSERVABILITY_ENABLED=${ESQ_OBSERVABILITY_ENABLED:-false}
+      # per-pillar enable (I41): default to master; set ESQ_TRACING_ENABLED=false for metrics-only (mesh case)
+      - ESQ_TRACING_ENABLED=${ESQ_TRACING_ENABLED:-${ESQ_OBSERVABILITY_ENABLED:-false}}
+      - ESQ_METRICS_ENABLED=${ESQ_METRICS_ENABLED:-${ESQ_OBSERVABILITY_ENABLED:-false}}
+      - ESQ_METRICS_HISTOGRAMS=${ESQ_METRICS_HISTOGRAMS:-false}
+      - ESQ_METRICS_BANDWIDTH=${ESQ_METRICS_BANDWIDTH:-true}
+      - ESQ_METRICS_BUSINESS=${ESQ_METRICS_BUSINESS:-true}
+      - ESQ_MSG_BUS_ALIVE_TRACE=${ESQ_MSG_BUS_ALIVE_TRACE:-false}   # RR liveness heartbeat spans -- OFF by default on every target (I14); opt in via this env
+      - ESQ_OTLP_ENDPOINT=${ESQ_OTLP_ENDPOINT:-http://otel-collector:4318/v1/traces}
+      - ESQ_TRACING_SAMPLING_RATIO=${ESQ_TRACING_SAMPLING_RATIO:-1.0}
+      - ESQ_TRACING_MARKS_ENABLED=${ESQ_TRACING_MARKS_ENABLED:-true}
+      - ESQ_TRACING_EXCLUDED_PATHS=${ESQ_TRACING_EXCLUDED_PATHS:-/actuator}
+      - TOPOLOGY_IMPORT=optional:file:/etc/esquire/topology.yml
+      - DB_PAACMAN_VENDOR=${DB_PAACMAN_VENDOR:-dev-postgres}
+      - DB_PAACMAN_PORT=${DB_PAACMAN_PORT:-5432}
+      - DB_PAACMAN_NAME=${DB_PAACMAN_NAME:-esq2025}
+      #- DB_PAACMAN_VENDOR=dev-oracle
+      #- DB_PAACMAN_PORT=1521
+      #- DB_PAACMAN_NAME=MIR0N
+      - DB_PAACMAN_HOST=${DB_PAACMAN_HOST:-postgres}
+      - DB_PAACMAN_USERNAME=esq2025
+      - DB_PAACMAN_PASSWORD=q
+      # Messaging
+      - ENTITY_BUS_ID=esquire.entity
+      - ENTITY_SLOT_ID=entity
+      - ENTITY_BROADCAST_PUBLISHER_POOL_SIZE=0
+      # v1.2.10 send-retry on the entity broadcast bus: ON for docker (block mode -- retry until the broker recovers)
+      - ENTITY_BROADCAST_SEND_RETRY=true
+      - ENTITY_BROADCAST_SEND_RETRY_BACKOFF_SEC=1,2,5,5
+      - ENTITY_BROADCAST_SEND_RETRY_MAX_ATTEMPTS=0
+      # v1.2.10 worker-pool mode (platform | virtual | virtual-per-task; default platform -- UNVALIDATED, see HA doc 5.5)
+      # the biz request-response bus (SERVER): the gate's account commands arrive here, not over REST.
+      # The receive pool bounds how many run at once.
+      - BIZ_BUS_ID=esquire.biz
+      - BIZ_SLOT_ID=biz
+      - BIZ_REQUEST_POOL_SIZE=${BIZ_REQUEST_POOL_SIZE:-4}
+      - BIZ_POOL_MODE=${BIZ_POOL_MODE:-platform}
+      - BIZ_REQUEST_CONCURRENCY=${BIZ_REQUEST_CONCURRENCY:-1}
+      - ESQ_VIRTUAL_THREADS=${ESQ_VIRTUAL_THREADS:-false}
+      # v1.2.8 audit logging (x-rod). paacMan owns account UPDATE / DELETE / balance -> esq_account_log.
+      # Per-vendor buses -- pick the sink by id (see Mesnie for the full set). Demo = the bus -> auKeep.
+      - AUDIT_BUS_ID=${AUDIT_BUS_ID:-audit-c}
+      - AUDIT_SLOT_ID=audit
+      - AUDIT_POOL_SIZE=${AUDIT_POOL_SIZE:-4}
+      - AUDIT_POOL_MODE=${AUDIT_POOL_MODE:-platform}
+      - AUDIT_FEED_CAPACITY=${AUDIT_FEED_CAPACITY:-4096}
+      - DB_DATAKEEP_URL=${DB_DATAKEEP_URL:-jdbc:postgresql://postgres:5432/esq2025}
+      - DB_DATAKEEP_USERNAME=${DB_DATAKEEP_USERNAME:-esq2025}
+      - DB_DATAKEEP_PASSWORD=${DB_DATAKEEP_PASSWORD:-q}
+      - DB_DATAKEEP_POOL_SIZE=${DB_DATAKEEP_POOL_SIZE:-2}
+    command: ["java", "-jar", "app.jar"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      activemq:
+        condition: service_healthy
+    volumes:
+      - ./logs:/app/logs
+      - ./topology/esquire-topology.yml:/etc/esquire/topology.yml:ro
+    networks:
+      - esquirenet
+
   # gateWard -- the gate with the bizTree CACHE in the same process. It replaces two containers: there is no
   # biztree service here and no hop to one, because the tree routes are answered from memory in this process.
   gateward:
@@ -339,6 +422,10 @@ services:
       - ENYMAN_HOST=mesnie          # both halves of the household answer on one process
       - PACMAN_PORT=3004
       - PACMAN_HOST=pacman
+      # the service of the pacMan family the pacMan routes go to: paacman (over the biz bus) or pacman (HTTP)
+      - PACMAN_SERVICE=${PACMAN_SERVICE:-paacman}
+      - BIZ_BUS_ID=esquire.biz
+      - BIZ_SLOT_ID=biz
       - KEYSMITH_PORT=3003
       - KEYSMITH_HOST=mesnie
       - BACKEND_HOST=localhost

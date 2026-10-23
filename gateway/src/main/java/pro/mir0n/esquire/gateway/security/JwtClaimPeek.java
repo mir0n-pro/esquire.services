@@ -10,6 +10,8 @@
  *                   validation; used by CredentialBoundAuthenticationFilter and
  *                   PhantomTokenAuthenticationFilter as a routing decision before downstream
  *                   JWS validation runs
+ * 10/19/2026 mir0n  v2.0.1 -- peekClaims(String): all the claims of the token, unverified; empty when there is no
+ *                   token or it cannot be parsed
  */
 package pro.mir0n.esquire.gateway.security;
 
@@ -19,6 +21,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.text.ParseException;
+import java.util.Map;
 
 /**
  * Unauthenticated peek at a JWT's claims. Used by the gateway-side filters
@@ -40,6 +43,20 @@ public final class JwtClaimPeek {
 
     public static String peekJti(String jwtCompact) {
         return peekString(jwtCompact, "jti");
+    }
+
+    /** All the claims of the token, unverified; empty when there is no token or it cannot be parsed. */
+    public static Map<String, Object> peekClaims(String jwtCompact) {
+        Map<String, Object> ret = Map.of();
+        if (jwtCompact != null) {
+            try {
+                JWT jwt = JWTParser.parse(jwtCompact);
+                ret = jwt.getJWTClaimsSet().getClaims();
+            } catch (ParseException ex) {
+                devLog.debug("peekClaims: failed to parse JWT -- {}", ex.toString());
+            }
+        }
+        return ret;
     }
 
     private static String peekString(String jwtCompact, String claim) {

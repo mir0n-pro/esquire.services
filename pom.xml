@@ -22,6 +22,7 @@
         <module>gateway</module>
         <module>enyMan</module>
         <module>pacMan</module>
+        <module>paacMan</module>
         <module>keySmith</module>
         <module>kcMaster</module>
         <module>mesnie</module>
@@ -51,12 +52,13 @@
    The Equire service set is a single Product but it has a set of modules.
    They might have their own versioning
 -->
-        <esquire.version>2.0.0</esquire.version>
+        <esquire.version>2.0.1</esquire.version>
         <common.version>${esquire.version}</common.version>
         <bizTree.version>${esquire.version}</bizTree.version>
         <gateway.version>${esquire.version}</gateway.version>
         <enyMan.version>${esquire.version}</enyMan.version>
         <pacMan.version>${esquire.version}</pacMan.version>
+        <paacMan.version>${esquire.version}</paacMan.version>
         <keySmith.version>${esquire.version}</keySmith.version>
         <kcMaster.version>${esquire.version}</kcMaster.version>
         <mesnie.version>${esquire.version}</mesnie.version>
@@ -68,7 +70,7 @@
         <!-- the two products this line now sits on. Armoury is the base (utils + pro.mir0n.o11y) and
              the generic test harness; Herald is the messaging bus, its transport providers and the keep. -->
         <armoury.version>2.0.0</armoury.version>
-        <herald.version>2.0.0</herald.version>
+        <herald.version>2.0.1</herald.version>
         <!-- war version -->
         <!-- war.version>${esquire.version}</war.version -->
 

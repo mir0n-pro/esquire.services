@@ -21,6 +21,8 @@
  *                   acctPath(parentId, rootPath) -- the parent lookup is now tenant-scoped, like org/usr create
  * 08/11/2026 mir0n  v1.2.12 -- esquireCommandDelete returns the delete's change number; a created account
  *                   is stamped with 1, the column default, for its CREATE event
+ * 10/19/2026 mir0n  v2.0.1 -- esquireCommandSave / esquireCommandNew / esquireCommandDelete / esquireCommandMove:
+ *                   the roles parameter removed
  */
 
 package pro.mir0n.esquire.enyMan.service.impl;
@@ -76,23 +78,22 @@ public class AcctService extends AEnyManService {
     }
 
     @Override
-    public EsqEntity esquireCommandSave(int kind, String id, String cmd, Map<String, Object> fields, List<String> roles) {
+    public EsqEntity esquireCommandSave(int kind, String id, String cmd, Map<String, Object> fields) {
         throw new UnsupportedOperationException("esquireCommandSave(acct) is owned by pacMan");
     }
 
     @Override
-    public Long esquireCommandDelete(int kind, String id, String cmd, List<String> roles) {
+    public Long esquireCommandDelete(int kind, String id, String cmd) {
         throw new UnsupportedOperationException("esquireCommandDelete(acct) is owned by pacMan");
     }
 
     @Override
-    public List<EsqMoveRecord> esquireCommandMove(int kind, String id, String distId, List<String> roles) {
+    public List<EsqMoveRecord> esquireCommandMove(int kind, String id, String distId) {
         throw new UnsupportedOperationException("esquireCommandMove(acct) not supported");
     }
 
     @Override
-    public EsqEntity esquireCommandNew(int kind, String parentId, String cmd, Map<String, Object> fields,
-                                       List<String> roles) {
+    public EsqEntity esquireCommandNew(int kind, String parentId, String cmd, Map<String, Object> fields) {
         EsqEntity ret = null;
         String correlationId = RequestContextUtils.getCorrelationId();
         String requestId = RequestContextUtils.getRequestId();

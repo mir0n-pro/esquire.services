@@ -128,7 +128,7 @@ class PacManServiceTest {
         service = new PacManService(entityRepository, transactionTemplate, em, broadcastPublisher, acctTrxRepo, Mockito.mock(pro.mir0n.esquire.audit.AuditBusBridge.class));
         // uid / rootPath now come from the unified per-request context; default to the rootPath the
         // mocks are stubbed against (the Test-House test overrides to "1.14.").
-        EsqContextHolder.set(new EsqRequestContext(null, "req-test", "99", "1.2.3"));
+        EsqContextHolder.set(new EsqRequestContext(null, "req-test", "99", "1.2.3", List.of(ROLE_ADMIN)));
     }
 
     @AfterEach
@@ -141,9 +141,9 @@ class PacManServiceTest {
     @Test
     @DisplayName("esquireCommandSave: missing X-Request-ID -> MissingRequestIdException")
     void esquireCommandSave_missingRequestId_throwsMissingRequestIdException() {
-        EsqContextHolder.set(new EsqRequestContext(null, null, "99", "1.2.3")); // no reqId
+        EsqContextHolder.set(new EsqRequestContext(null, null, "99", "1.2.3", List.of(ROLE_ADMIN))); // no reqId
         assertThatThrownBy(() ->
-            service.esquireCommandSave(50, "10", "save", Map.of(), List.of(ROLE_ADMIN))
+            service.esquireCommandSave(50, "10", "save", Map.of())
         ).isInstanceOf(MissingRequestIdException.class);
     }
 
@@ -171,7 +171,7 @@ class PacManServiceTest {
     @DisplayName("esquireCommandSave: unknown kind -> ResourceNotFoundException")
     void esquireCommandSave_unknownKind_throwsResourceNotFoundException() {
         assertThatThrownBy(() ->
-            service.esquireCommandSave(99, "1", "save", Map.of(), null)
+            service.esquireCommandSave(99, "1", "save", Map.of())
         ).isInstanceOf(ResourceNotFoundException.class);
     }
 
@@ -179,7 +179,7 @@ class PacManServiceTest {
     @DisplayName("esquireCommandSave: odd kind 51 (sub-variant, not registered) -> ResourceNotFoundException")
     void esquireCommandSave_oddKind_throwsResourceNotFoundException() {
         assertThatThrownBy(() ->
-            service.esquireCommandSave(51, "1", "save", Map.of(), null)
+            service.esquireCommandSave(51, "1", "save", Map.of())
         ).isInstanceOf(ResourceNotFoundException.class);
     }
 
@@ -188,8 +188,9 @@ class PacManServiceTest {
     @Test
     @DisplayName("esquireCommandSave: acct kind, null roles -> PermissionDeniedException")
     void esquireCommandSave_acctKind_nullRoles_throwsPermissionDeniedException() {
+        EsqContextHolder.set(new EsqRequestContext(null, "req-test", "99", "1.2.3", null));
         assertThatThrownBy(() ->
-            service.esquireCommandSave(50, "10", "save", Map.of(), null)
+            service.esquireCommandSave(50, "10", "save", Map.of())
         ).isInstanceOf(PermissionDeniedException.class);
     }
 
@@ -199,7 +200,7 @@ class PacManServiceTest {
     @DisplayName("esquireCommandDelete: unknown kind -> ResourceNotFoundException")
     void esquireCommandDelete_unknownKind_throwsResourceNotFoundException() {
         assertThatThrownBy(() ->
-            service.esquireCommandDelete(99, "10", "delete", null)
+            service.esquireCommandDelete(99, "10", "delete")
         ).isInstanceOf(ResourceNotFoundException.class);
     }
 
@@ -207,7 +208,7 @@ class PacManServiceTest {
     @DisplayName("esquireCommandDelete: odd kind 51 (sub-variant, not registered) -> ResourceNotFoundException")
     void esquireCommandDelete_oddKind_throwsResourceNotFoundException() {
         assertThatThrownBy(() ->
-            service.esquireCommandDelete(51, "10", "delete", null)
+            service.esquireCommandDelete(51, "10", "delete")
         ).isInstanceOf(ResourceNotFoundException.class);
     }
 
@@ -216,8 +217,9 @@ class PacManServiceTest {
     @Test
     @DisplayName("esquireCommandDelete: acct kind, null roles -> PermissionDeniedException")
     void esquireCommandDelete_acctKind_nullRoles_throwsPermissionDeniedException() {
+        EsqContextHolder.set(new EsqRequestContext(null, "req-test", "99", "1.2.3", null));
         assertThatThrownBy(() ->
-            service.esquireCommandDelete(50, "10", "delete", null)
+            service.esquireCommandDelete(50, "10", "delete")
         ).isInstanceOf(PermissionDeniedException.class);
     }
 
@@ -237,7 +239,7 @@ class PacManServiceTest {
         });
         when(entityRepository.detailAcctForUpdate("10", 50, "1.2.3")).thenReturn(acct);
 
-        service.esquireCommandDelete(50, "10", "delete", List.of(ROLE_ADMIN));
+        service.esquireCommandDelete(50, "10", "delete");
 
         InOrder order = inOrder(entityRepository);
         order.verify(entityRepository).deleteAcct("10");
@@ -256,7 +258,7 @@ class PacManServiceTest {
         when(entityRepository.detailAcctForUpdate("10", 50, "1.2.3")).thenReturn(null);
 
         assertThatThrownBy(() ->
-            service.esquireCommandDelete(50, "10", "delete", List.of(ROLE_ADMIN))
+            service.esquireCommandDelete(50, "10", "delete")
         ).isInstanceOf(ResourceNotFoundException.class);
     }
 
@@ -277,7 +279,7 @@ class PacManServiceTest {
         when(entityRepository.detailAcctForUpdate("10", 50, "1.2.3")).thenReturn(acct);
 
         assertThatThrownBy(() ->
-            service.esquireCommandDelete(50, "10", "delete", List.of(ROLE_ADMIN))
+            service.esquireCommandDelete(50, "10", "delete")
         ).isInstanceOf(DeleteRestrictedException.class);
     }
 
@@ -299,8 +301,8 @@ class PacManServiceTest {
         when(entityRepository.detailAcctForUpdate("10", 50, "1.14.")).thenReturn(acct);
         when(entityRepository.acctPath("10")).thenReturn("1.14.15.10.");
 
-        EsqContextHolder.set(new EsqRequestContext(null, "req-test", "99", "1.14."));
-        service.esquireCommandDelete(50, "10", "delete", List.of(ROLE_ADMIN));
+        EsqContextHolder.set(new EsqRequestContext(null, "req-test", "99", "1.14.", List.of(ROLE_ADMIN)));
+        service.esquireCommandDelete(50, "10", "delete");
 
         verify(acctTrxRepo).deleteAcctTransactionsByAccPk(10L);
         InOrder order = inOrder(entityRepository);

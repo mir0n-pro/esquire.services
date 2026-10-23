@@ -25,6 +25,9 @@
  *                   correlationId / requestId fields like every other line in the request
  * 08/26/2026 mir0n  the meter registry is taken only when esquire.observability.metrics.enabled is true, so a
  *                   registry present for other reasons no longer turns request metering on
+ * 10/19/2026 mir0n  v2.0.1 -- the INCOMING / OUTGOING lines and the esq.srv.outer / esq.srv.inner meters go through
+ *                   EsqRequestScope; the constructor takes EsqRequestScope in place of the MeterRegistry provider
+ *                   and the metrics switch
  */
 
 package pro.mir0n.esquire.backend.service;
@@ -33,12 +36,9 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import io.micrometer.core.instrument.MeterRegistry;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
-import org.springframework.beans.factory.ObjectProvider;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
@@ -49,7 +49,6 @@ import pro.mir0n.esquire.common.EsqConstants;
 import java.io.IOException;
 import java.util.Enumeration;
 import java.util.Collection;
-import java.util.concurrent.TimeUnit;
 
 /*
     If your Esquire service ever starts using @Async methods or CompletableFuture,
@@ -68,13 +67,11 @@ public class MdcFilter extends OncePerRequestFilter {
     private static final org.slf4j.Logger devLog = LoggerFactory.getLogger("develop." + MdcFilter.class.getName());
 
     private final RequestPerformance performance;
-    // Non-null only when observability is on (the MeterRegistry bean exists). Resolved once at construction.
-    private final MeterRegistry registry;
+    private final EsqRequestScope scope;
 
-    public MdcFilter(RequestPerformance performance, ObjectProvider<MeterRegistry> registryProvider,
-                     @Value("${esquire.observability.metrics.enabled:false}") boolean metricsOn) {
+    public MdcFilter(RequestPerformance performance, EsqRequestScope scope) {
         this.performance = performance;
-        this.registry = metricsOn ? registryProvider.getIfAvailable() : null;
+        this.scope = scope;
     }
 
     // The matched handler pattern (e.g. /api/{...}) -- a bounded tag; populated only after doFilter, so read in the
@@ -126,23 +123,10 @@ public class MdcFilter extends OncePerRequestFilter {
             // Log arrival AFTER MDC is populated so the INCOMING line carries the correlationId / requestId
             // structured fields -- like every other line in the request, and like the gateway's own INCOMING
             // (RequestTraceFilter wraps its INCOMING in MDC.put/remove for the same reason).
-            log.info("INCOMING: {} {}",
-                givenRequest.getMethod(),
-                givenRequest.getRequestURI()
-            );
+            scope.incoming(log, givenRequest.getMethod() + " " + givenRequest.getRequestURI());
             filterChain.doFilter(givenRequest, response);
         } finally {
             long duration = System.currentTimeMillis() - startTime;
-            // Steady-state latency-band meters (O1/T5-B): the service-outer wall time and the service-inner (JPA/DB)
-            // time, both recorded whenever observability is on -- PerformanceAspect accumulates the JPA time under
-            // the same condition, so the DB band is real here, not a capture-only number. Tagged by the matched
-            // route pattern (bounded), and separate from the response-header instrument below, which stays gated on
-            // the X-Capture-Metrics load-test trigger exactly as before.
-            if (registry != null) {
-                String route = routeTag(givenRequest);
-                registry.timer("esq.srv.outer", "route", route).record(duration, TimeUnit.MILLISECONDS);
-                registry.timer("esq.srv.inner", "route", route).record(performance.getTotalJpaTime(), TimeUnit.MILLISECONDS);
-            }
             if (performance.isMetricsCaptured()
             && wrappedResponse != null) {
                 try {
@@ -162,14 +146,11 @@ public class MdcFilter extends OncePerRequestFilter {
                 wrappedResponse.copyBodyToResponse();
             }
 
-            String jpaTime = performance.isMetricsCaptured() ? String.valueOf(performance.getTotalJpaTime()) : "(n/a)";
-            log.info("OUTGOING: {} {}, Status: {},  Service: {}ms, Backend: {}ms",
-                givenRequest.getMethod(),
-                givenRequest.getRequestURI(),
-                response.getStatus(),
-                duration,
-                jpaTime
-            );
+            // The steady-state meters (O1/T5-B) -- recorded whenever observability is on, tagged by the matched route
+            // pattern (bounded) -- and the OUTGOING line; separate from the response-header instrument above, which
+            // stays gated on the X-Capture-Metrics load-test trigger.
+            scope.outgoing(log, givenRequest.getMethod() + " " + givenRequest.getRequestURI(), routeTag(givenRequest),
+                    response.getStatus(), duration, performance);
 
             // ALWAYS clear the MDC to prevent cross-request contamination in thread pools
             MDC.clear();

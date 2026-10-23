@@ -1,5 +1,29 @@
 Esquire enyMan Microservice
 
+10/22/2026 mir0n  v2.0.1 -- the roles from the request context; the bus refs under herald
+controller.EnyManController
+  - the @AuthenticationPrincipal Claims parameters and the roles read from the token removed
+service.IEnyManService
+  - esquireCommandSave / esquireCommandNew / esquireCommandDelete / esquireCommandMove: the roles parameter
+    removed
+service.impl.EnyManService
+  - esquireCommandSave / esquireCommandNew / esquireCommandDelete / esquireCommandMove: the roles parameter
+    removed; the admin permissions and the queued move's roles come from RequestContextUtils.getRoles()
+service.impl.OrgService
+  - esquireCommandSave / esquireCommandNew / esquireCommandDelete / esquireCommandMove: the roles parameter
+    removed
+service.impl.UsrService
+  - esquireCommandSave / esquireCommandNew / esquireCommandDelete / esquireCommandMove: the roles parameter
+    removed
+service.impl.AcctService
+  - esquireCommandSave / esquireCommandNew / esquireCommandDelete / esquireCommandMove: the roles parameter
+    removed
+queue.MoveQueueManager
+  - the queued move binds the item's roles into the EsqRequestContext; the org / usr move calls drop the roles
+    argument
+resources/application.yml
+  - the bus refs move under herald:; the overlay comment names herald.messaging-bus
+
 10/17/2026 mir0n  v2.0.0 -- the 2.0 line: the bus, the keep and the base libraries moved out
 (every file that imported them)
   - pro.mir0n.esquire.messaging -> pro.mir0n.messaging, pro.mir0n.esquire.dataKeep -> pro.mir0n.dataKeep,

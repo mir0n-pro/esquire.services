@@ -20,7 +20,7 @@ if "%CTX%"=="docker-desktop" (
 set CH=..\k8s\charts
 echo === oke-o11y-off  (context=%CTX%) ===
 echo --- Disabling tracing/metrics on the app services (NO aukeep)...
-for %%s in (gateway enyman biztree pacman keysmith kcmaster) do (
+for %%s in (gateway enyman biztree paacman keysmith kcmaster) do (
   call helm upgrade esquire-%%s %CH%\esquire-%%s --reset-then-reuse-values --set observability.enabled=false --set observability.metricsHistograms=false
   call kubectl rollout restart statefulset esquire-%%s-%%s
 )

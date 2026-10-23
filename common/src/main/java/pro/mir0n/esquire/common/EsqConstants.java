@@ -23,6 +23,9 @@
  *                   FLAG_OPEN, CCY_DEFAULT moved here from common.EsqMsgConstants (the non-wire app constants)
  * 07/08/2026 mir0n  TRACEPARENT ("traceparent") added: the W3C Trace Context header name
  * 08/26/2026 mir0n  TEXT_PATH_CHANGE_NO added -- the path change number carried in a broadcast body
+ * 10/19/2026 mir0n  v2.0.1 -- BUS_KEY_BIZ ("biz-bus"); the biz bus operations BIZ_OP_ACCT / BIZ_OP_CMD /
+ *                   BIZ_OP_CMD_SAVE / BIZ_OP_CMD_DEL and the command and answer keys BIZ_KEY_*; the bus-key comment
+ *                   names herald.<key>.messaging-bus
  */
 package pro.mir0n.esquire.common;
 
@@ -78,11 +81,31 @@ public class EsqConstants {
     public static final String  SUBENTITY_ADDRESS = "addr";
     public static final String  SUBENTITY_ADDRESS2 = "bizaddr";
 
-    // --- logical bus KEYS a service uses to look up its ref (esquire.<key>.messaging-bus -> {bus-id, slot-id}).
+    // --- logical bus KEYS a service uses to look up its ref (herald.<key>.messaging-bus -> {bus-id, slot-id}).
     //     The bus-id / slot-id VALUES are configurable (the topology + refs), NOT hardcoded here. ---
     public static final String BUS_KEY_AUDIT            = "audit-bus";
     public static final String BUS_KEY_KC               = "kc-bus";
     public static final String BUS_KEY_ENTITY           = "entity-bus";
+    public static final String BUS_KEY_BIZ              = "biz-bus";
+
+    // --- the biz request-response bus: a command names its operation (the REST path it stands for) and carries
+    //     the caller's claims (uid in the event header, root path and roles here), the cmd and the body; the
+    //     answer carries the status, the result or the problem, and the two service times. ---
+    public static final String BIZ_OP_ACCT        = "esq-acct";
+    public static final String BIZ_OP_CMD         = "esq-cmd";
+    public static final String BIZ_OP_CMD_SAVE    = "esq-cmd-save";
+    public static final String BIZ_OP_CMD_DEL     = "esq-cmd-del";
+    public static final String BIZ_KEY_OPERATION  = "operation";
+    public static final String BIZ_KEY_CMD        = "cmd";
+    public static final String BIZ_KEY_FIELDS     = "fields";
+    public static final String BIZ_KEY_ROOT_PATH  = "rootPath";
+    public static final String BIZ_KEY_ROLES      = "roles";
+    public static final String BIZ_KEY_CAPTURE    = "capture";
+    public static final String BIZ_KEY_STATUS     = "status";
+    public static final String BIZ_KEY_RESULT     = "result";
+    public static final String BIZ_KEY_PROBLEM    = "problem";
+    public static final String BIZ_KEY_OUTER_MS   = "outerMs";
+    public static final String BIZ_KEY_INNER_MS   = "innerMs";
 
     // --- Text JSON field names (entity state snapshot fields) ---
     public static final String TEXT_ID        = "id";

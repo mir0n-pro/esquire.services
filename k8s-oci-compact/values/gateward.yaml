@@ -38,6 +38,8 @@ backends:
   enymanPort: 3003
   pacmanHost: esquire-pacman
   pacmanPort: 3003
+  # the account routes go to paacMan over the biz bus; pacMan does not run here (its image is pushed)
+  pacmanService: paacman
   keysmithHost: esquire-mesnie
   keysmithPort: 3003
 

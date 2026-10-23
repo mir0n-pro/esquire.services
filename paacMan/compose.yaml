@@ -1,0 +1,24 @@
+services:
+  paacman:
+    build:
+      context: .
+    image: esquire.paacman
+    ports:
+      - "3008:3008"
+    environment:
+      - PAACMAN_PORT=3008
+      - LOG_LEVEL_ROOT=ERROR
+      - LOG_LEVEL_SF=ERROR
+      - LOG_LEVEL_MIR0N=DEBUG
+      - DB_PAACMAN_VENDOR=dev-postgres
+      - DB_PAACMAN_PORT=5432
+      - DB_PAACMAN_HOST=host.docker.internal
+      - DB_PAACMAN_USERNAME=esq2025
+      - DB_PAACMAN_PASSWORD=q
+    command: ["java", "-jar", "app.jar"]
+    networks:
+      - esquirenet
+networks:
+  esquirenet:
+    driver: "bridge"
+   

@@ -55,7 +55,7 @@ replicaCount: 2
 redis:
   url: redis://esquire-infra-redis:6379
 
-# Best-effort spread across distinct app-tier nodes, as Mesnie, gateWard and pacMan carry. Without it
+# Best-effort spread across distinct app-tier nodes, as Mesnie, gateWard and paacMan carry. Without it
 # the two replicas landed on different nodes by luck of least-allocated scoring; this makes it the
 # scheduler's intent rather than an accident, so one node cannot take both. Soft (ScheduleAnyway), so
 # a node loss still schedules.

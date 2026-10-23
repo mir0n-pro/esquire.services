@@ -1,5 +1,19 @@
 hauberk changes
 
+10/22/2026 mir0n  v2.0.1 -- the tx cycle with transfers; the REST / bus pair
+simulations.LoadScenarios
+  - the tx scenario on two random accounts: deposit A, transfer A->B, transfer B->A, withdraw A (net-zero; the
+    transfers skipped when A and B are the same)
+simulations.TxLoadSimulation
+  - the javadoc and @SimulationInfo name the new tx cycle
+perf-matrix.ps1
+  - -GatewayTag: the classic gateway image for both cells; the k8s-x2-OFF-BUS cell (classic, the account routes
+    on the biz bus); the gateway upgraded before the o11y arm; $SVCS points at services2
+perf-pairs.ps1
+  - -Shapes: the two cells of a pair, in run order; -GatewayTag passed to perf-matrix
+oke-perf-matrix.ps1
+  - $SVCS points at services2
+
 10/17/2026 mir0n  v2.0.0 -- the 2.0 line: the bus, the keep and the base libraries moved out
 hauberk  (new project, esquire-hauberk)
   - the Esquire test routines move in from explorer/hauberk: chain (36 operation classes), simulations (22

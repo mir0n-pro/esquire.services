@@ -45,7 +45,7 @@ call helm upgrade esquire-infra-amq charts\infra\activemq -f values\activemq.yam
 call kubectl rollout restart statefulset esquire-infra-amq-activemq
 
 echo --- App services: tracing/metrics OFF, ALL LOGGERS OFF...
-for %%s in (gateward mesnie pacman aukeep) do (
+for %%s in (gateward mesnie pacman paacman aukeep) do (
   call helm upgrade esquire-%%s charts\esquire-%%s --reset-then-reuse-values --set observability.enabled=false --set observability.metricsHistograms=false --set logging.levelMir0n=OFF --set logging.levelDevelop=OFF --set logging.levelMsg=OFF --set logging.levelAmq=OFF --set logging.levelJms=OFF --force-conflicts
   call kubectl rollout restart statefulset esquire-%%s
 )

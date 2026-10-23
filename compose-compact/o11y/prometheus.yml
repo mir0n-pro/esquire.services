@@ -28,6 +28,7 @@ scrape_configs:
           - gateward:8090
           - mesnie:8090
           - pacman:8090
+          - paacman:8090
           - aukeep:8090
       # BFF (Node/prom-client, T5c) -- its own /metrics endpoint, not /actuator/prometheus
   - job_name: esquire-bff

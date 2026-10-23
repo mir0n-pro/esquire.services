@@ -8,7 +8,7 @@ rem Usage:
 rem   k8s-rebuild.bat                  rebuild all images (java services + backend)
 rem   k8s-rebuild.bat backend          rebuild only explorer/backend (SPA + BFF)
 rem   k8s-rebuild.bat <service>        rebuild a single Spring service
-rem                                    (gateway, biztree, enyman, pacman, keysmith, kcmaster)
+rem                                    (gateway, biztree, enyman, pacman, paacman, keysmith, kcmaster)
 rem
 rem Flags (must come AFTER the target):
 rem   --no-cache                       pass --no-cache to docker compose build
@@ -81,12 +81,13 @@ if /i "%TARGET%"=="gateway"  ( set "SVC=gateway"&set "DIR=gateway"&goto target_o
 if /i "%TARGET%"=="biztree"  ( set "SVC=biztree"&set "DIR=bizTree"&goto target_one )
 if /i "%TARGET%"=="enyman"   ( set "SVC=enyman"&set "DIR=enyMan"&goto target_one )
 if /i "%TARGET%"=="pacman"   ( set "SVC=pacman"&set "DIR=pacMan"&goto target_one )
+if /i "%TARGET%"=="paacman"  ( set "SVC=paacman"&set "DIR=paacMan"&goto target_one )
 if /i "%TARGET%"=="keysmith" ( set "SVC=keysmith"&set "DIR=keySmith"&goto target_one )
 if /i "%TARGET%"=="kcmaster" ( set "SVC=kcmaster"&set "DIR=kcMaster"&goto target_one )
 if /i "%TARGET%"=="aukeep"   ( set "SVC=aukeep"&set "DIR=auKeep"&goto target_one )
 
 echo ERROR: unknown target "%TARGET%"
-echo Valid: all ^| backend ^| gateway ^| biztree ^| enyman ^| pacman ^| keysmith ^| kcmaster ^| aukeep
+echo Valid: all ^| backend ^| gateway ^| biztree ^| enyman ^| pacman ^| paacman ^| keysmith ^| kcmaster ^| aukeep
 exit /b 1
 
 :target_all
@@ -181,6 +182,9 @@ set "SVC=enyman"&set "DIR=enyMan"
 call :one
 if errorlevel 1 exit /b 1
 set "SVC=pacman"&set "DIR=pacMan"
+call :one
+if errorlevel 1 exit /b 1
+set "SVC=paacman"&set "DIR=paacMan"
 call :one
 if errorlevel 1 exit /b 1
 set "SVC=keysmith"&set "DIR=keySmith"

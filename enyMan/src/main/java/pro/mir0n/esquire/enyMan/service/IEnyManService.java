@@ -22,6 +22,8 @@
  *                   read from the unified request context (RequestContextUtils)
  * 08/11/2026 mir0n  v1.2.12 -- esquireCommandDelete returns the delete's change number for the caller's
  *                   broadcast
+ * 10/19/2026 mir0n  v2.0.1 -- esquireCommandSave / esquireCommandNew / esquireCommandDelete / esquireCommandMove:
+ *                   the roles parameter removed
  */
 
 package pro.mir0n.esquire.enyMan.service;
@@ -41,17 +43,17 @@ public interface IEnyManService {
     // getRootPath() -- the same uniform way crl_id / req_id are already obtained.
     List<EsqEntityLayer> esquireDictionary(int kind);
     public EsqEntity esquireCommand(int kind, String id, String cmd );
-    public EsqEntity esquireCommandSave(int kind, String id, String cmd, Map<String, Object> fields, List<String> roles );
-    public EsqEntity esquireCommandNew(int kind, String parentId, String cmd, Map<String, Object> fields, List<String> roles);
+    public EsqEntity esquireCommandSave(int kind, String id, String cmd, Map<String, Object> fields);
+    public EsqEntity esquireCommandNew(int kind, String parentId, String cmd, Map<String, Object> fields);
     /** Deletes the entity and RETURNS the delete's change number -- the number the row's own counter took
      *  when it went (see {@code EsqEntityJpa.bumpChangeNo}). The caller needs it for the broadcast; a caller
      *  that does not may ignore it. Null when the implementation has no row behind the delete. */
-    public Long esquireCommandDelete(int kind, String id, String cmd, List<String> roles);
+    public Long esquireCommandDelete(int kind, String id, String cmd);
     // v1.2.6 Goal 3: returns List<EsqMoveRecord> at the OrgService/UsrService level (the per-kind
     // workers still produce them for the worker thread to publish), but the top-level
     // EnyManService implementation returns null because /esq-move is now async-ack: handler
     // submits to the move queue and returns 202 Accepted without the records.
-    public List<EsqMoveRecord> esquireCommandMove(int kind, String id, String distId, List<String> roles);
+    public List<EsqMoveRecord> esquireCommandMove(int kind, String id, String distId);
 
     // Tree query is a cross-cutting concern handled at the top-level orchestrator
     // (EnyManService), not by the per-kind services (OrgService / UsrService).

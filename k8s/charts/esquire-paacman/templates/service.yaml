@@ -1,0 +1,27 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-paacman
+  labels:
+    app: {{ .Release.Name }}-paacman
+spec:
+  type: ClusterIP
+  selector:
+    app: {{ .Release.Name }}-paacman
+  ports:
+    - port: {{ .Values.service.port }}
+      targetPort: {{ .Values.service.port }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-paacman-hl
+  labels:
+    app: {{ .Release.Name }}-paacman
+spec:
+  clusterIP: None
+  selector:
+    app: {{ .Release.Name }}-paacman
+  ports:
+    - port: {{ .Values.service.port }}
+      targetPort: {{ .Values.service.port }}

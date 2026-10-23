@@ -39,7 +39,7 @@ data:
             # name on both targets -- esquire-mesnie on OKE and on the local cluster alike -- so the optional
             # suffix group matches nothing here. It is kept because the CLASSIC charts append the service
             # (app: {{ "{{" }} .Release.Name {{ "}}" }}-enyman), and one regex that serves both costs nothing.
-            regex: "esquire-(gateward|mesnie|pacman|aukeep)(-.*)?"
+            regex: "esquire-(gateward|mesnie|pacman|paacman|aukeep)(-.*)?"
             action: keep
           # scrape the pod IP on the SEPARATE management port 8090 (F0 A6) -- actuator (incl. /actuator/prometheus)
           # lives there now, NOT on the public main port, so the ingress never exposes it.

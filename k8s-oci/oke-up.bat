@@ -97,6 +97,12 @@ call helm upgrade --install esquire-infra-kc %CHARTS%\infra\keycloak ^
   --set image.tag=%IMAGE_TAG% ^
   --set keycloak.adminPassword=%KC_PW% || exit /b 1
 
+rem The BFF session store, pinned to the infra node (values\redis.yaml). It is what lets the BFF run
+rem TWO replicas: without a shared store the in-memory one would round-robin-split logins.
+echo --- Installing redis (BFF session store)...
+call helm upgrade --install esquire-infra-redis %CHARTS%\infra\redis ^
+  -f values\redis.yaml || exit /b 1
+
 echo Waiting for postgres...
 kubectl rollout status statefulset/esquire-infra-postgres -n default --timeout=180s
 echo Waiting for activemq...
@@ -122,9 +128,9 @@ call helm upgrade --install esquire-enyman %CHARTS%\esquire-enyman ^
   --set image.tag=%IMAGE_TAG% ^
   --set db.password=%PG_PW% || exit /b 1
 
-echo --- Installing pacman...
-call helm upgrade --install esquire-pacman %CHARTS%\esquire-pacman ^
-  -f values\pacman.yaml ^
+echo --- Installing paacman...
+call helm upgrade --install esquire-paacman %CHARTS%\esquire-paacman ^
+  -f values\paacman.yaml ^
   --set image.tag=%IMAGE_TAG% ^
   --set db.password=%PG_PW% || exit /b 1
 
@@ -152,6 +158,10 @@ call helm upgrade --install esquire-gateway %CHARTS%\esquire-gateway ^
 
 echo Waiting for gateway...
 kubectl rollout status statefulset/esquire-gateway-gateway -n default --timeout=120s
+
+rem xxx: pacMan goes only AFTER the gateway is ready -- the gateway it replaces still sends the account
+rem routes to pacMan. Not found is the normal case once a cluster runs paacMan.
+call helm uninstall esquire-pacman 2>nul
 
 rem === Backend (BFF) ===
 rem v1.2.3: BFF replaces the standalone frontend. Serves baked SPA on /, owns

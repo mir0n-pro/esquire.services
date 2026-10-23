@@ -10,6 +10,8 @@
  * 06/29/2026 mir0n  messageOf() yields a non-null message for any throwable (own / root-cause / class name) so the
  *                   renderer never NPEs on a null message; added a CallNotPermittedException branch that renders an
  *                   open-circuit 503 ProblemDetail (R1)
+ * 10/20/2026 mir0n  v2.0.1 -- a 504 status is a Network Timeout like a TimeoutException; a ResponseStatusException
+ *                   with a reason gives the reason phrase as the title and the reason as the detail
  */
 //properties:
 //spring.webflux.problemdetails.enabled=true
@@ -77,9 +79,15 @@ public GatewayErrorWebExceptionHandler(ErrorAttributes errorAttributes,
             // depend on which one SCG emits -- both render a populated 503 ProblemDetail.
             title = "Service Unavailable";
             detail = "Esquire Gateway is shedding load away from a failing service (its circuit is open). Please retry shortly.";
-        } else if (error instanceof java.util.concurrent.TimeoutException) {
+        } else if (error instanceof java.util.concurrent.TimeoutException || status == HttpStatus.GATEWAY_TIMEOUT) {
+            //xxx: the circuit breaker hands a timeout over as a ResponseStatusException(504), not as the TimeoutException
             title = "Network Timeout";
             detail = "The downstream service took too long to respond.";
+        } else if (error instanceof org.springframework.web.server.ResponseStatusException rse && rse.getReason() != null) {
+            //xxx: the reason is written for the client (the bus route's 400 / 503); without this branch the detail
+            // falls back to the root cause, a library's internal message
+            title = status.getReasonPhrase();
+            detail = rse.getReason();
         } else if (status == HttpStatus.SERVICE_UNAVAILABLE) {
             title = "Service Unavailable";
             detail = "Esquire Gateway could not find an active instance of the requested service.";

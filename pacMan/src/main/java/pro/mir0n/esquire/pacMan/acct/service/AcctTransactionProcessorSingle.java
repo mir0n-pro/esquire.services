@@ -34,6 +34,8 @@
  *                   account history record it causes
  * 08/26/2026 mir0n  assertKindMatches refuses an operation whose request kind differs from the account row kind;
  *                   entityRepository made protected for the transfer processor
+ * 10/19/2026 mir0n  v2.0.1 -- esquireCommandAcct / validatePermissions: the roles parameter removed; the admin
+ *                   permissions come from RequestContextUtils.getRoles()
  */
 
 package pro.mir0n.esquire.pacMan.acct.service;
@@ -80,7 +82,7 @@ public class AcctTransactionProcessorSingle implements IAcctTransactionProcessor
     private pro.mir0n.esquire.audit.AuditBusBridge audit;   // audit: balance change -> account UPDATE
 
     /** skipValidation: For test use only -- allows bypassing status/balance/field validation. */
-    public AcctTransactionSingle esquireCommandAcct(int kind, String id, AcctOperation.Code oper, Map<String, Object> fields, boolean skipValidation, String rootPath, String uid, List<String> roles) {
+    public AcctTransactionSingle esquireCommandAcct(int kind, String id, AcctOperation.Code oper, Map<String, Object> fields, boolean skipValidation, String rootPath, String uid) {
         AcctTransactionSingle ret = null;
         // esq.biz.acct.tx.total / .duration (O1/T8 phase B) -- the money path, counted and timed by OPERATION.
         // BizMeters is static for the same reason TraceMark is (see the mark below): this processor is
@@ -94,7 +96,7 @@ public class AcctTransactionProcessorSingle implements IAcctTransactionProcessor
             ret = TraceMark.around("esq.svc.acct.tx", "account transaction", () -> {
                 String correlationId = RequestContextUtils.getCorrelationId();
                 String requestId = RequestContextUtils.getRequestId();
-                EsqObjectKind eek = validatePermissions(kind, roles);
+                EsqObjectKind eek = validatePermissions(kind);
                 return _esquireCommandAcct(eek, id, oper, fields, skipValidation, rootPath, uid, correlationId, requestId, null, null, null, null, null);
             });
             outcome = "ok";
@@ -129,14 +131,14 @@ public class AcctTransactionProcessorSingle implements IAcctTransactionProcessor
             throw new ResourceNotFoundException(op, "kind", String.valueOf(givenKind));
         }
     }
-    protected EsqObjectKind validatePermissions(int kind, List<String> roles) {
+    protected EsqObjectKind validatePermissions(int kind) {
         EsqObjectKind eek = EsqObjectKindStorage.getInstance().get(kind);
         int k = eek.getId();
         if (!eek.isAcct()) {
             throw new ResourceNotFoundException("esquireCommandAcct", "kind", String.valueOf(kind));
         }
 
-        Map<Integer, EsqPermission> permissions = EsqRolesStorage.getInstance().findAdminPermissions(roles);
+        Map<Integer, EsqPermission> permissions = EsqRolesStorage.getInstance().findAdminPermissions(RequestContextUtils.getRoles());
         boolean permitted = false;
         if (permissions != null) {
             permitted = EsqRolesStorage.getInstance().isAdminCmdPermitted(

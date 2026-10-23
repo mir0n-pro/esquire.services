@@ -8,7 +8,7 @@ rem Usage:
 rem   k8s-rebuild.bat                  rebuild all images (java services + backend)
 rem   k8s-rebuild.bat backend          rebuild only explorer/backend (SPA + BFF)
 rem   k8s-rebuild.bat <service>        rebuild a single Spring service
-rem                                    (gateward, mesnie, pacman, aukeep)
+rem                                    (gateward, mesnie, pacman, paacman, aukeep)
 rem
 rem Flags (must come AFTER the target):
 rem   --no-cache                       pass --no-cache to docker compose build
@@ -80,6 +80,7 @@ if /i "%TARGET%"=="backend"  goto target_backend
 if /i "%TARGET%"=="gateward" ( set "SVC=gateward"&set "DIR=gateWard"&goto target_one )
 if /i "%TARGET%"=="mesnie"   ( set "SVC=mesnie"&set "DIR=mesnie"&goto target_one )
 if /i "%TARGET%"=="pacman"   ( set "SVC=pacman"&set "DIR=pacMan"&goto target_one )
+if /i "%TARGET%"=="paacman"  ( set "SVC=paacman"&set "DIR=paacMan"&goto target_one )
 if /i "%TARGET%"=="aukeep"   ( set "SVC=aukeep"&set "DIR=auKeep"&goto target_one )
 
 echo ERROR: unknown target "%TARGET%"
@@ -180,6 +181,9 @@ set "SVC=mesnie"&set "DIR=mesnie"
 call :one
 if errorlevel 1 exit /b 1
 set "SVC=pacman"&set "DIR=pacMan"
+call :one
+if errorlevel 1 exit /b 1
+set "SVC=paacman"&set "DIR=paacMan"
 call :one
 if errorlevel 1 exit /b 1
 set "SVC=aukeep"&set "DIR=auKeep"

@@ -38,15 +38,15 @@ set TEMPO_URL=http://localhost:13200
 set GRAFANA_URL=http://localhost:13009
 set LOKI_JOB=esq-k8s
 rem SERVICES = the metrics `application` label (SHORT names, as the app tags its meters).
-set SERVICES=gateway,biztree,enyman,pacman,keysmith,kcmaster
+set SERVICES=gateway,biztree,enyman,paacman,keysmith,kcmaster
 rem LOG_SERVICES = the Loki `service_name` label, which on k8s Loki auto-derives from the pod `app`
 rem label = the FULL workload name (esquire-<svc>-<svc>), NOT the short meter name. The log-stream
 rem sweep needs the full form or it looks for a stream that does not exist. (verify.py exposes
 rem LOG_SERVICES precisely so an environment whose log label differs can override it wholesale.)
-set LOG_SERVICES=esquire-gateway-gateway,esquire-biztree-biztree,esquire-enyman-enyman,esquire-pacman-pacman,esquire-keysmith-keysmith,esquire-kcmaster-kcmaster,esquire-backend-backend
+set LOG_SERVICES=esquire-gateway-gateway,esquire-biztree-biztree,esquire-enyman-enyman,esquire-paacman-paacman,esquire-keysmith-keysmith,esquire-kcmaster-kcmaster,esquire-backend-backend
 rem OKE has NO auKeep (audit = DB triggers): drop its keep-write meters (EXPECTED elsewhere) and its trace node,
 rem or they FAIL forever on a fleet that legitimately does not have them.
-set EXCLUDE_METERS=esq_biz_keep_write_total,esq_biz_keep_write_duration_seconds,esq_keep_apply_seconds
+set EXCLUDE_METERS=herald_keep_write_total,herald_keep_write_duration_seconds,herald_keep_apply_seconds
 set EXCLUDE_TRACE_NODES=aukeep
 python ..\test\o11y\o11y-verify.py
 endlocal

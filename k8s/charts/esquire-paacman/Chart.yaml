@@ -1,0 +1,6 @@
+apiVersion: v2
+name: esquire-paacman
+description: paacMan -- account management service, served over the biz request-response bus
+type: application
+version: 0.1.0
+appVersion: "1.2.6"

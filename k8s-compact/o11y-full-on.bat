@@ -58,7 +58,7 @@ call helm upgrade esquire-infra-amq charts\infra\activemq -f values\activemq.yam
 call kubectl rollout restart statefulset esquire-infra-amq-activemq
 
 echo --- App services: tracing/metrics ON, ONLY pro.mir0n at INFO...
-for %%s in (gateward mesnie pacman aukeep) do (
+for %%s in (gateward mesnie pacman paacman aukeep) do (
   call helm upgrade esquire-%%s charts\esquire-%%s --reset-then-reuse-values --set observability.enabled=true --set observability.metricsHistograms=true --set logging.levelMir0n=INFO --set logging.levelDevelop=OFF --set logging.levelMsg=OFF --set logging.levelAmq=OFF --set logging.levelJms=OFF --force-conflicts
   call kubectl rollout restart statefulset esquire-%%s
 )

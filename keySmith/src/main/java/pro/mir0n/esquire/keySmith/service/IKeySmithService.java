@@ -10,6 +10,7 @@
  * 03/06/2026 mir0n  FIELD_ROLES constant added
  * 03/09/2026 mir0n  esquireKeySave(): roles param added
  * 06/04/2026 mir0n  esquireKey / esquireKeySave: rootPath + uid params removed (read from request context)
+ * 10/19/2026 mir0n  v2.0.1 -- esquireKeySave: the roles parameter removed
  */
 
 package pro.mir0n.esquire.keySmith.service;
@@ -23,6 +24,6 @@ public interface IKeySmithService {
     public final static String FIELD_ROLES = "roles";
     // uid / rootPath come from the unified per-request context (RequestContextUtils), not params.
     public EsqAccessProfile esquireKey(String id);
-    public EsqAccessProfile esquireKeySave(String id, Map<String, Object> fields, List<String> roles);
+    public EsqAccessProfile esquireKeySave(String id, Map<String, Object> fields);
 
 }

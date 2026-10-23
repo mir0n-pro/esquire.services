@@ -157,6 +157,12 @@ Esquire catalog: which buses exist and the env that drives them. The vocabulary:
     instances' events. Leave it off and the rod keeps two connections and excludes its own in code by rod-id
     instead -- same result, one extra connection. A transport with no server-side own-exclusion (SNS, SQS,
     Kinesis) always takes the in-code path, through the framework's `OwnExcluding` filter.
+  - **timeToLiveMs** (`activemq`, `transport.params.timeToLiveMs`, default off): how long a sent message may
+    wait in the broker for a consumer, in ms. Past it the broker drops the message instead of delivering it.
+    The `esquire.biz` leg sets `10000`, the shortest gateway limit (10 s; `/esq-acct` waits 30 s), so a command
+    that waited in the queue while paacMan was down never runs after its client got a 504. The value is one per
+    leg, so it also applies to the answers and the alive heartbeats. The broker judges expiry by the sender's
+    clock, so the sender and the broker need clocks that agree.
   - **AWS param prefixes**: AWS takes its settings through several different calls, so a key names the call
     it belongs to -- `client.` (the SDK client), `queue.` (SQS CreateQueue), `topic.` (SNS CreateTopic),
     `subscription.` (SNS Subscribe), `stream.` (the Kinesis stream). Inside a prefix the key is the vendor's
@@ -200,7 +206,7 @@ image runs with or without AWS. The AWS SDK brings no Boot auto-config, so those
 Credentials always come from the SDK default credential chain -- never a file, never a param.
 
 The catalog is normally ONE shared external **topology file** loaded by every service (a service may
-instead define `esquire.messaging-bus` INLINE in its own application.yml, or not use the bus at all).
+instead define `herald.messaging-bus` INLINE in its own application.yml, or not use the bus at all).
 Docker bind-mounts `compose/topology/esquire-topology.yml`; k8s mounts the `esquire-topology` ConfigMap
 (chart `k8s/charts/esquire-topology`). The file is per-environment with concrete hostnames (no `${}`). The
 import is OPTIONAL. The catalog is validated at startup: a duplicate `bus-id` (across the catalog),
@@ -209,12 +215,12 @@ as a map, so its keys must be unique.
 
 | Env var | Default | Description |
 |---|---|---|
-| `TOPOLOGY_IMPORT` | `file:/etc/esquire/topology.yml` | `spring.config.import` location of the shared bus catalog. Optional (a service may inline its catalog under `esquire.messaging-bus`, or not use the bus). |
+| `TOPOLOGY_IMPORT` | `file:/etc/esquire/topology.yml` | `spring.config.import` location of the shared bus catalog. Optional (a service may inline its catalog under `herald.messaging-bus`, or not use the bus). |
 
-A service references a bus by a logical KEY: `esquire.<key>.messaging-bus -> {bus-id, slot-id [,
+A service references a bus by a logical KEY: `herald.<key>.messaging-bus -> {bus-id, slot-id [,
 x-rod overrides]}`. Keys: `kc-bus`, `entity-bus`, `audit-bus`. The catalog also MERGES a service-local
 overlay under `<spring.application.name>.messaging-bus` BY ID (the service's own-namespace overlay of the
-global `esquire.messaging-bus`, used for the audit-(b) in-process leg, whose datasource is service-specific):
+global `herald.messaging-bus`, used for the audit-(b) in-process leg, whose datasource is service-specific):
 a service bus/slot with a SAME id REPLACES the shared one, a NEW id is added. (A separate 2nd key is needed
 because Spring binds lists by index, so one shared key across two sources would replace, not merge.) The
 `bus-id` / `slot-id` values are env-overridable per service (`KC_BUS_ID` / `KC_SLOT_ID`,

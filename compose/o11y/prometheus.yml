@@ -26,6 +26,7 @@ scrape_configs:
           - biztree:8090
           - enyman:8090
           - pacman:8090
+          - paacman:8090
           - keysmith:8090
           - kcmaster:8090
           - aukeep:8090

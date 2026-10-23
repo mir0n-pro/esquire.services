@@ -43,8 +43,8 @@ rem THE OVERLAY MUST BE RE-APPLIED, not just the observability switch. --reset-t
 rem what the release stored, and oke-o11y-on set logging.levelMir0n=INFO there. Without -f values\<svc>.yaml
 rem the level stays INFO after a disarm: the fleet keeps logging at INFO to stdout with no Loki to read it,
 rem and the ERROR default in the overlay is never reasserted. The infra lines above already pass -f.
-echo --- Disabling tracing/metrics on the app services ^(gateWard, Mesnie, pacMan^)...
-for %%s in (gateward mesnie pacman) do (
+echo --- Disabling tracing/metrics on the app services ^(gateWard, Mesnie, paacMan^)...
+for %%s in (gateward mesnie paacman) do (
   call helm upgrade esquire-%%s %CH%\esquire-%%s -f values\%%s.yaml --reset-then-reuse-values --set observability.enabled=false --set observability.metricsHistograms=false --force-conflicts
   call kubectl rollout restart statefulset esquire-%%s
 )

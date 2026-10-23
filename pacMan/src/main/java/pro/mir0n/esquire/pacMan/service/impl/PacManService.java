@@ -65,6 +65,8 @@
  *                   broadcast carries it on create, save and delete, and esquireCommandDelete returns the
  *                   number the delete raised
  * 08/26/2026 mir0n  every esquireCommandSave publishes an UPDATE -- isBroadcastableUpdate removed
+ * 10/19/2026 mir0n  v2.0.1 -- esquireCommandSave / esquireCommandDelete: the roles parameter removed; the admin
+ *                   permissions come from RequestContextUtils.getRoles()
  */
 
 package pro.mir0n.esquire.pacMan.service.impl;
@@ -150,7 +152,7 @@ public class PacManService  implements IPacManService {
 
     @Override
     @EsqTraced(name = "esq.svc.acct.save", label = "save account")
-    public EsqEntity esquireCommandSave(int kind, String id, String cmd, Map<String, Object> fields, List<String> roles) {
+    public EsqEntity esquireCommandSave(int kind, String id, String cmd, Map<String, Object> fields) {
         String correlationId = RequestContextUtils.getCorrelationId();
         String requestId = RequestContextUtils.requireRequestId();
         String rootPath = RequestContextUtils.getRootPath();
@@ -162,7 +164,7 @@ public class PacManService  implements IPacManService {
             throw new ResourceNotFoundException("esquireCommandSave", "kind", String.valueOf(kind));
         }
 
-        Map<Integer, EsqPermission> permissions = EsqRolesStorage.getInstance().findAdminPermissions(roles);
+        Map<Integer, EsqPermission> permissions = EsqRolesStorage.getInstance().findAdminPermissions(RequestContextUtils.getRoles());
         boolean permitted = false;
 //devLog.debug("srvc: esquireCommandSave: permissions:{} ", permissions);
         if (permissions != null) {
@@ -236,7 +238,7 @@ public class PacManService  implements IPacManService {
 
     @Override
     @EsqTraced(name = "esq.svc.acct.delete", label = "delete account")
-    public Long esquireCommandDelete(int kind, String id, String cmd, List<String> roles) {
+    public Long esquireCommandDelete(int kind, String id, String cmd) {
         String correlationId = RequestContextUtils.getCorrelationId();
         String requestId = RequestContextUtils.requireRequestId();
         String rootPath = RequestContextUtils.getRootPath();
@@ -248,7 +250,7 @@ public class PacManService  implements IPacManService {
             throw new ResourceNotFoundException("esquireCommandDelete", "kind", String.valueOf(kind));
         }
 
-        Map<Integer, EsqPermission> permissions = EsqRolesStorage.getInstance().findAdminPermissions(roles);
+        Map<Integer, EsqPermission> permissions = EsqRolesStorage.getInstance().findAdminPermissions(RequestContextUtils.getRoles());
         boolean permitted = false;
         if (permissions != null) {
             permitted = EsqRolesStorage.getInstance().isAdminCmdPermitted(

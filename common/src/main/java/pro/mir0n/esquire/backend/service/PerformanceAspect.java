@@ -28,6 +28,8 @@
  * 07/17/2026 mir0n  the request-thread test is extracted to isRequestThread() and made the FIRST && operand, so
  *                   the @RequestScope bean is read only on a request thread (no exception-as-detector).
  * 08/26/2026 mir0n  observabilityOn requires esquire.observability.metrics.enabled as well as a registry
+ * 10/19/2026 mir0n  v2.0.1 -- off a request thread the JPA time goes to the PerformanceHolder tracker, when one is
+ *                   bound
  */
 package pro.mir0n.esquire.backend.service;
 
@@ -79,8 +81,14 @@ public class PerformanceAspect {
         Object ret;
         // isRequestThread() MUST be the FIRST operand: it gates the @RequestScope read on the right of the && so
         // the scoped bean (performance.isMetricsCaptured()) is only ever touched on a thread that HAS a request.
-        // Off-request there is nothing to attribute the time to, so there is nothing to do.
-        boolean wanted = isRequestThread() && (observabilityOn || performance.isMetricsCaptured());
+        // Off-request the time goes to the worker's own tracker (a bus request), when one is bound.
+        RequestPerformance target = null;
+        if (isRequestThread()) {
+            target = performance;
+        } else {
+            target = PerformanceHolder.get();
+        }
+        boolean wanted = target != null && (observabilityOn || target.isMetricsCaptured());
         if (!wanted) {
             ret = joinPoint.proceed();     // nobody asked -> do no timing work at all
         } else {
@@ -88,7 +96,7 @@ public class PerformanceAspect {
             try {
                 ret = joinPoint.proceed();
             } finally {
-                performance.addJpaTime(System.currentTimeMillis() - start);
+                target.addJpaTime(System.currentTimeMillis() - start);
             }
         }
         return ret;

@@ -32,7 +32,7 @@ enyman:
     # move but reaches its inMove() check just after the move finished is still caught (gets a reconcile) instead
     # of stranding a stale path. 0 disables the grace (inMove() = a move is queued/in flight only).
     in-move-grace-ms: ${ENYMAN_MOVE_QUEUE_IN_MOVE_GRACE_MS:200}
-  # this service's OWN overlay of the global esquire.messaging-bus catalog (added by MessagingBusCatalog):
+  # this service's OWN overlay of the global herald.messaging-bus catalog (added by MessagingBusCatalog):
   # its in-process audit-b leg, whose datasource is service-specific. Under the service namespace, beside move-queue.
   messaging-bus:
     - bus-id: audit-b
@@ -87,6 +87,7 @@ esquire:
       # default: measured at 1.25% of the series and a few tens of ns per call, against work that is orders of
       # magnitude dearer. Off drops every esq.biz.* call site to a null check -- the lever for a hot-path run.
       business-enabled: ${ESQ_METRICS_BUSINESS:true}
+herald:
   audit-bus:
     messaging-bus:
       bus-id: ${AUDIT_BUS_ID:audit-b}

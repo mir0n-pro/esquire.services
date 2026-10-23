@@ -59,6 +59,8 @@
  *                   delete event and the audit record share
  * 08/26/2026 mir0n  saveUsr / deleteUsr / moveUsr take the kind; moveUsr reads the moved paths AFTER the parent
  *                   write; a person-driven rename puts the derived name into the broadcast fields
+ * 10/19/2026 mir0n  v2.0.1 -- esquireCommandSave / esquireCommandNew / esquireCommandDelete / esquireCommandMove:
+ *                   the roles parameter removed
  */
 
 package pro.mir0n.esquire.enyMan.service.impl;
@@ -183,8 +185,7 @@ public class UsrService  extends AEnyManService {
     }
 
     @Override
-    public EsqEntity esquireCommandSave(int kind, String id, String cmd, Map<String, Object> fields,
-                                        List<String> roles) {
+    public EsqEntity esquireCommandSave(int kind, String id, String cmd, Map<String, Object> fields) {
         EsqEntity ret = null;
         String correlationId = RequestContextUtils.getCorrelationId();
         String requestId = RequestContextUtils.getRequestId();
@@ -219,8 +220,7 @@ public class UsrService  extends AEnyManService {
     }
 
     @Override
-    public EsqEntity esquireCommandNew(int kind, String parentId, String cmd, Map<String, Object> fields,
-                                       List<String> roles) {
+    public EsqEntity esquireCommandNew(int kind, String parentId, String cmd, Map<String, Object> fields) {
         EsqEntity ret = null;
         String correlationId = RequestContextUtils.getCorrelationId();
         String requestId = RequestContextUtils.getRequestId();
@@ -248,7 +248,7 @@ public class UsrService  extends AEnyManService {
     }
 
     @Override
-    public Long esquireCommandDelete(int kind, String id, String cmd, List<String> roles) {
+    public Long esquireCommandDelete(int kind, String id, String cmd) {
         String rootPath = RequestContextUtils.getRootPath();
         devLog.debug("srvc: esquireCommandDelete(usr): kind:{}, id:{}, cmd:{}, rootPath:{}", kind, id, cmd, rootPath);
         return transactionTemplate.execute(status -> {
@@ -265,7 +265,7 @@ public class UsrService  extends AEnyManService {
     }
 
     @Override
-    public List<EsqMoveRecord> esquireCommandMove(int kind, String id, String distId, List<String> roles) {
+    public List<EsqMoveRecord> esquireCommandMove(int kind, String id, String distId) {
         String correlationId = RequestContextUtils.getCorrelationId();
         String requestId = RequestContextUtils.getRequestId();
         String rootPath = RequestContextUtils.getRootPath();

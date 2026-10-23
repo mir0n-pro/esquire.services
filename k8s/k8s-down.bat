@@ -24,6 +24,7 @@ call helm uninstall esquire-aukeep
 call helm uninstall esquire-kcmaster
 call helm uninstall esquire-keysmith
 call helm uninstall esquire-pacman
+call helm uninstall esquire-paacman
 call helm uninstall esquire-enyman
 call helm uninstall esquire-biztree
 

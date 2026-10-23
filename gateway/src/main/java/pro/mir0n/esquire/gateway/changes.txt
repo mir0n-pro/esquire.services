@@ -1,5 +1,39 @@
 Esquire Gateway Microservice
 
+10/22/2026 mir0n  v2.0.1 -- the account routes over the biz bus to paacMan
+bus.BizBusClient  (new)
+  - created: the CLIENT end of the biz bus: send() posts a command and returns a Mono that completes with the
+    answer of the same correlation id; 503 when the leg is DOWN or max-pending commands wait, 409 for a
+    correlation id already waiting, a timeout past timeout-seconds (a sweep every sweep-ms)
+bus.BizBusRoutingFilter  (new)
+  - created: a GlobalFilter for the routes whose uri is bus://biz-bus: builds the command from the request (the
+    operation from the path, kind / id / cmd from the query, the fields from the body, uid / rootPath / roles
+    from the token), sends it with BizBusClient and sets the status and headers from the answer; a body that is
+    not a JSON object, or no numeric kind, answers 400
+bus.BizBusWriteResponseFilter  (new)
+  - created: writes the answer body BizBusRoutingFilter kept on the exchange, in the post-phase at the order of
+    NettyWriteResponseFilter
+GatewayApplication
+  - MessagingBusLifecycleRegistrar, registered last: builds the biz bus at environment-prepared, starts it and
+    registers the bus health indicator at ready, closes it at context close
+security.JwtClaimPeek
+  - peekClaims(String): all the claims of the token, unverified; empty when there is no token or it cannot be
+    parsed
+error.GatewayErrorWebExceptionHandler
+  - a 504 status is a Network Timeout like a TimeoutException; a ResponseStatusException with a reason gives the
+    reason phrase as the title and the reason as the detail
+pom.xml
+  - herald-messaging and herald-tp-activemq, the biz bus client
+resources/application.yml
+  - esq.gateway.biz-bus (timeout-seconds, max-pending, sweep-ms) and esq.gateway.pacman (service, default
+    paacman; services pacman / paacman); the four pacman routes take their uri from it; the herald.biz-bus
+    CLIENT ref (bus-id esquire.biz, the answer and publisher pools, feed-await-ms, send-retry 1,2,5 x3);
+    spring.webflux.problemdetails.enabled false; the topology import; the org.springframework.jms /
+    org.apache.activemq / msg log levels and msg.log-path
+resources/logback-spring.xml
+  - the msg logger with its MSG_FILE / MSG_CONSOLE appenders; the org.springframework.jms and
+    org.apache.activemq levels
+
 10/17/2026 mir0n  v2.0.0 -- the 2.0 line: the bus, the keep and the base libraries moved out
 (every file that imported them)
   - pro.mir0n.esquire.messaging -> pro.mir0n.messaging, pro.mir0n.esquire.dataKeep -> pro.mir0n.dataKeep,

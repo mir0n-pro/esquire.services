@@ -17,6 +17,9 @@
  *                   ObjectMapper is gone
  * 09/05/2026 mir0n  v1.2.15 -- shouldNotFilter() adds /esq-kinds, the path both security configs
  *                   already permitAll
+ * 10/19/2026 mir0n  v2.0.1 -- the realm roles go into the EsqRequestContext; the claim check is
+ *                   EsqRequestScope.claimsComplete(), and the bind / unbind of the context and the MDC uid are
+ *                   EsqRequestScope.bind() / unbind()
  */
 
 package pro.mir0n.esquire.backend.security;
@@ -32,7 +35,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.lang.NonNull;
-import org.slf4j.MDC;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
@@ -46,7 +48,7 @@ import java.util.Map;
 
 import pro.mir0n.esquire.backend.error.ProblemDetailMill;
 import pro.mir0n.esquire.backend.error.ProblemDetailWriter;
-import pro.mir0n.esquire.backend.service.EsqContextHolder;
+import pro.mir0n.esquire.backend.service.EsqRequestScope;
 import pro.mir0n.esquire.backend.service.EsqRequestContext;
 import pro.mir0n.esquire.common.EsqConstants;
 
@@ -90,6 +92,7 @@ public class JwtClaimsExtractionFilter extends OncePerRequestFilter {
         final String username;
         String uid = null;
         String rootPath = null;
+        List<String> roles = null;
 
 
 //devLog.debug("request {} : {}", request.getMethod(),request.getServletPath());
@@ -106,12 +109,11 @@ public class JwtClaimsExtractionFilter extends OncePerRequestFilter {
 
             // REJECT if username is missing or some required custom claim is missing
             Map realmAccess = claims.get(EsqConstants.JWT_CLAIM_REALM_ACCESS, Map.class);
-            List roles = realmAccess != null ? (List) realmAccess.get(EsqConstants.JWT_CLAIM_REALM_ACCESS_ROLES) : null;
-            if (username == null
-            || claims.get(EsqConstants.JWT_CLAIM_ENTITY_ID) == null
-            || claims.get(EsqConstants.JWT_CLAIM_ENTITY_ROOTPATH) == null
+            roles = realmAccess != null ? (List<String>) realmAccess.get(EsqConstants.JWT_CLAIM_REALM_ACCESS_ROLES) : null;
 // todo: add validation of rootpath length > 1 & and has "."
-            || roles == null || roles.isEmpty()
+            if (username == null
+            || !EsqRequestScope.claimsComplete(claims.get(EsqConstants.JWT_CLAIM_ENTITY_ID),
+                    claims.get(EsqConstants.JWT_CLAIM_ENTITY_ROOTPATH), roles)
             ) {
                 sendErrorResponse(request, response, "Missing required claims ");
                 // WHICH claim is absent, not the claim set -- the map is the token's payload, and this line
@@ -144,22 +146,18 @@ public class JwtClaimsExtractionFilter extends OncePerRequestFilter {
         }
 
         // Establish the unified per-request context for the duration of the request: crl/req from
-        // headers, uid/rootPath from the authenticated claims. Bound to this thread; cleared in
+        // headers, uid/rootPath/roles from the authenticated claims. Bound to this thread; cleared in
         // finally so a pooled thread never leaks one caller's identity into the next request.
         String correlationId = request.getHeader(EsqConstants.ESQ_CORRELATION_ID);
         if (correlationId == null) {
             correlationId = request.getHeader(EsqConstants.X_CORRELATION_ID);
         }
         String requestId = request.getHeader(EsqConstants.X_REQUEST_ID);
-        EsqContextHolder.set(new EsqRequestContext(correlationId, requestId, uid, rootPath));
-        if (uid != null) {
-            MDC.put(EsqConstants.PD_UID, uid);
-        }
+        EsqRequestScope.bind(new EsqRequestContext(correlationId, requestId, uid, rootPath, roles));
         try {
             filterChain.doFilter(request, response);
         } finally {
-            MDC.remove(EsqConstants.PD_UID);
-            EsqContextHolder.clear();
+            EsqRequestScope.unbind();
         }
 
     }

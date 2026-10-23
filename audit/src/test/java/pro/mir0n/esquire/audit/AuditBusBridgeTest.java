@@ -141,7 +141,7 @@ class AuditBusBridgeTest {
 
     @Test
     void event_carriesAuditTripleFromContext() {
-        EsqContextHolder.set(new EsqRequestContext("corr-1", "req-1", "uid-9", "1.2."));
+        EsqContextHolder.set(new EsqRequestContext("corr-1", "req-1", "uid-9", "1.2.", List.of()));
         AuditBusBridge bridge = bridge(true);
         inCommittedTx(() -> bridge.post(RodEvent.Op.CREATE, 34, "100", null, Map.of("name", "ACME")));
         RodEvent e = transmitted.get(0);

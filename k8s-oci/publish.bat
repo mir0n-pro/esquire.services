@@ -4,7 +4,7 @@ rem Build + push + redeploy a single component to the YYZ Basic OKE cluster.
 rem
 rem Usage:
 rem   publish.bat <name>            -- one of: frontend, gateway, biztree,
-rem                                   enyman, pacman, keysmith, kcmaster
+rem                                   enyman, paacman, keysmith, kcmaster
 rem   publish.bat all-services      -- all 7 components above (skips infra)
 rem
 rem Requires:
@@ -32,7 +32,7 @@ set ESQROOT=%SERVICES%\..
 
 if "%~1"=="" (
   echo Usage: publish.bat ^<name^>
-  echo   names: frontend ^| gateway ^| biztree ^| enyman ^| pacman ^| keysmith ^| kcmaster ^| all-services
+  echo   names: frontend ^| gateway ^| biztree ^| enyman ^| paacman ^| keysmith ^| kcmaster ^| all-services
   exit /b 1
 )
 
@@ -51,7 +51,7 @@ if /i "%~1"=="all-services" (
   call :one gateway
   call :one biztree
   call :one enyman
-  call :one pacman
+  call :one paacman
   call :one keysmith
   call :one kcmaster
   goto :done
@@ -75,7 +75,7 @@ if /i "%NAME%"=="frontend" (
 if /i "%NAME%"=="gateway"  ( call :spring %NAME% gateway  & call :rollout deployment esquire-gateway-gateway   & goto :eof )
 if /i "%NAME%"=="biztree"  ( call :spring %NAME% bizTree  & call :rollout deployment esquire-biztree-biztree   & goto :eof )
 if /i "%NAME%"=="enyman"   ( call :spring %NAME% enyMan   & call :rollout deployment esquire-enyman-enyman     & goto :eof )
-if /i "%NAME%"=="pacman"   ( call :spring %NAME% pacMan   & call :rollout deployment esquire-pacman-pacman     & goto :eof )
+if /i "%NAME%"=="paacman"  ( call :spring %NAME% paacMan  & call :rollout deployment esquire-paacman-paacman   & goto :eof )
 if /i "%NAME%"=="keysmith" ( call :spring %NAME% keySmith & call :rollout deployment esquire-keysmith-keysmith & goto :eof )
 if /i "%NAME%"=="kcmaster" ( call :spring %NAME% kcMaster & call :rollout deployment esquire-kcmaster-kcmaster & goto :eof )
 

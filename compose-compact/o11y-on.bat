@@ -27,7 +27,7 @@ rem the services below then start against a broker that is already up.
 docker compose up -d --no-deps --force-recreate activemq || exit /b 1
 
 echo --- recreating the app services with observability ON...
-docker compose up -d --no-deps --force-recreate keycloak gateward mesnie pacman aukeep backend || exit /b 1
+docker compose up -d --no-deps --force-recreate keycloak gateward mesnie pacman paacman aukeep backend || exit /b 1
 
 echo.
 echo o11y ON (docker compact). Grafana: http://localhost:3009  (admin/admin)

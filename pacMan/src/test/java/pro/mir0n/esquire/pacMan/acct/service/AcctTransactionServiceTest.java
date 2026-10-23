@@ -40,6 +40,7 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
+import org.junit.jupiter.api.AfterEach;
 
 @ExtendWith(MockitoExtension.class)
 class AcctTransactionServiceTest {
@@ -81,6 +82,13 @@ class AcctTransactionServiceTest {
     @BeforeEach
     void setUp() {
         service = new AcctTransactionProcessorSingle(entityRepository, transactionRepository, transactionTemplate, em, Mockito.mock(pro.mir0n.esquire.audit.AuditBusBridge.class));
+        // the caller's roles come from the request context
+        EsqContextHolder.set(new EsqRequestContext(null, null, null, null, List.of(ROLE_ADMIN)));
+    }
+
+    @AfterEach
+    void tearDown() {
+        EsqContextHolder.clear();
     }
 
     // ---- missing X-Request-ID -> MissingRequestIdException ----
@@ -91,10 +99,10 @@ class AcctTransactionServiceTest {
         AcctTransactionService svc = new AcctTransactionService(
                 entityRepository, transactionRepository, transactionTemplate, em,
                 Mockito.mock(pro.mir0n.esquire.audit.AuditBusBridge.class));
-        EsqContextHolder.set(new EsqRequestContext(null, null, "99", "1.2.3")); // no reqId
+        EsqContextHolder.set(new EsqRequestContext(null, null, "99", "1.2.3", List.of(ROLE_ADMIN))); // no reqId
         try {
             assertThatThrownBy(() ->
-                svc.esquireCommandAcct(50, "10", "acct", Map.of(), List.of(ROLE_ADMIN))
+                svc.esquireCommandAcct(50, "10", "acct", Map.of())
             ).isInstanceOf(MissingRequestIdException.class);
         } finally {
             EsqContextHolder.clear();
@@ -107,7 +115,7 @@ class AcctTransactionServiceTest {
     @DisplayName("esquireCommandAcct: unknown kind -> ResourceNotFoundException")
     void esquireCommandAcct_unknownKind_throwsResourceNotFoundException() {
         assertThatThrownBy(() ->
-            service.esquireCommandAcct(99, "10", null, Map.of(), "1.2.3", "99", null)
+            service.esquireCommandAcct(99, "10", null, Map.of(), "1.2.3", "99")
         ).isInstanceOf(ResourceNotFoundException.class);
     }
 
@@ -115,7 +123,7 @@ class AcctTransactionServiceTest {
     @DisplayName("esquireCommandAcct: odd kind 51 -> ResourceNotFoundException")
     void esquireCommandAcct_oddKind_throwsResourceNotFoundException() {
         assertThatThrownBy(() ->
-            service.esquireCommandAcct(51, "10", null, Map.of(), "1.2.3", "99", null)
+            service.esquireCommandAcct(51, "10", null, Map.of(), "1.2.3", "99")
         ).isInstanceOf(ResourceNotFoundException.class);
     }
 
@@ -124,8 +132,9 @@ class AcctTransactionServiceTest {
     @Test
     @DisplayName("esquireCommandAcct: null roles -> PermissionDeniedException")
     void esquireCommandAcct_nullRoles_throwsPermissionDeniedException() {
+        EsqContextHolder.set(new EsqRequestContext(null, null, null, null, null));
         assertThatThrownBy(() ->
-            service.esquireCommandAcct(50, "10", null, Map.of(), "1.2.3", "99", null)
+            service.esquireCommandAcct(50, "10", null, Map.of(), "1.2.3", "99")
         ).isInstanceOf(PermissionDeniedException.class);
     }
 
@@ -141,7 +150,7 @@ class AcctTransactionServiceTest {
         when(entityRepository.detailAcctForUpdate("10", 50, "1.2.3")).thenReturn(null);
 
         assertThatThrownBy(() ->
-            service.esquireCommandAcct(50, "10", AcctOperation.Code.DEPOSIT,Map.of("amount", 100.0), "1.2.3", "99", List.of(ROLE_ADMIN))
+            service.esquireCommandAcct(50, "10", AcctOperation.Code.DEPOSIT,Map.of("amount", 100.0), "1.2.3", "99")
         ).isInstanceOf(ResourceNotFoundException.class);
     }
 
@@ -157,7 +166,7 @@ class AcctTransactionServiceTest {
 
         assertThatThrownBy(() ->
             service.esquireCommandAcct(50, "10", AcctOperation.Code.DEPOSIT,
-                    Map.of("amount", 0.0), "1.2.3", "99", List.of(ROLE_ADMIN))
+                    Map.of("amount", 0.0), "1.2.3", "99")
         ).isInstanceOf(InvalidValueException.class);
     }
 
@@ -172,7 +181,7 @@ class AcctTransactionServiceTest {
         });
         assertThatThrownBy(() ->
             service.esquireCommandAcct(50, "10", AcctOperation.Code.DEPOSIT,
-                    Map.of("amount", -50.0), "1.2.3", "99", List.of(ROLE_ADMIN))
+                    Map.of("amount", -50.0), "1.2.3", "99")
         ).isInstanceOf(InvalidValueException.class);
     }
 
@@ -191,7 +200,7 @@ class AcctTransactionServiceTest {
 
         assertThatThrownBy(() ->
             service.esquireCommandAcct(50, "10", AcctOperation.Code.DEPOSIT,
-                    Map.of("amount", 100.0), "1.2.3", "99", List.of(ROLE_ADMIN))
+                    Map.of("amount", 100.0), "1.2.3", "99")
         ).isInstanceOf(InvalidValueException.class);
     }
 
@@ -210,7 +219,7 @@ class AcctTransactionServiceTest {
 
         assertThatThrownBy(() ->
             service.esquireCommandAcct(50, "10", AcctOperation.Code.WITHDRAWAL,
-                    Map.of("amount", -50.0), "1.2.3", "99", List.of(ROLE_ADMIN))
+                    Map.of("amount", -50.0), "1.2.3", "99")
         ).isInstanceOf(InvalidValueException.class);
     }
 
@@ -231,7 +240,7 @@ class AcctTransactionServiceTest {
         fields.put("refCode2", "REF-001");
 
         AcctTransactionSingle ret = service.esquireCommandAcct(50, "10", AcctOperation.Code.DEPOSIT, fields,
-                "1.2.3", "99", List.of(ROLE_ADMIN));
+                "1.2.3", "99");
 
         org.assertj.core.api.Assertions.assertThat(ret).isNotNull();
         verify(entityRepository).updateAcctBalance(eq("10"), eq(-850.0), any(), any(), any(), any());
@@ -255,7 +264,7 @@ class AcctTransactionServiceTest {
         fields.put("refCode", "wire");
 
         assertThatThrownBy(() ->
-            service.esquireCommandAcct(50, "10", AcctOperation.Code.DEPOSIT,fields, "1.2.3", "99", List.of(ROLE_ADMIN))
+            service.esquireCommandAcct(50, "10", AcctOperation.Code.DEPOSIT,fields, "1.2.3", "99")
         ).isInstanceOf(InvalidValueException.class);
     }
 
@@ -277,7 +286,7 @@ class AcctTransactionServiceTest {
         fields.put("refCode", "cash");
 
         assertThatThrownBy(() ->
-            service.esquireCommandAcct(50, "10", AcctOperation.Code.DEPOSIT,fields, "1.2.3", "99", List.of(ROLE_ADMIN))
+            service.esquireCommandAcct(50, "10", AcctOperation.Code.DEPOSIT,fields, "1.2.3", "99")
         ).isInstanceOf(InvalidValueException.class);
     }
 
@@ -299,7 +308,7 @@ class AcctTransactionServiceTest {
         fields.put("refCode", "cc");
         fields.put("refCode2", "REF-001");
 
-        AcctTransactionSingle ret = service.esquireCommandAcct(50, "10", AcctOperation.Code.DEPOSIT,fields, "1.2.3", "99", List.of(ROLE_ADMIN));
+        AcctTransactionSingle ret = service.esquireCommandAcct(50, "10", AcctOperation.Code.DEPOSIT,fields, "1.2.3", "99");
 
         org.assertj.core.api.Assertions.assertThat(ret).isNotNull();
         verify(entityRepository).updateAcctBalance(eq("10"), eq(-850.0), any(), any(), any(), any());
@@ -321,7 +330,7 @@ class AcctTransactionServiceTest {
         Map<String, Object> fields = new HashMap<>();
         fields.put("amount", 50.0);
 
-        AcctTransactionSingle ret = service.esquireCommandAcct(50, "10", AcctOperation.Code.DEPOSIT, fields, true, "1.2.3", "99", List.of(ROLE_ADMIN));
+        AcctTransactionSingle ret = service.esquireCommandAcct(50, "10", AcctOperation.Code.DEPOSIT, fields, true, "1.2.3", "99");
 
         org.assertj.core.api.Assertions.assertThat(ret).isNotNull();
         verify(transactionRepository).insertAcctTransaction(anyString(), any(), anyLong(), anyInt(),
@@ -350,7 +359,7 @@ class AcctTransactionServiceTest {
         fields.put("refCode2", "REF-001");
         fields.put("memo", "test deposit");
 
-        AcctTransactionSingle ret = service.esquireCommandAcct(50, "10", AcctOperation.Code.DEPOSIT,fields, "1.2.3", "99", List.of(ROLE_ADMIN));
+        AcctTransactionSingle ret = service.esquireCommandAcct(50, "10", AcctOperation.Code.DEPOSIT,fields, "1.2.3", "99");
 
         org.assertj.core.api.Assertions.assertThat(ret).isNotNull();
         org.assertj.core.api.Assertions.assertThat(ret.getAmount()).isEqualTo(100.0);

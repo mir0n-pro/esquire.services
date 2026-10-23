@@ -75,7 +75,7 @@ call helm uninstall esquire-infra-otel-collector    2>nul
 call helm uninstall esquire-infra-prometheus        2>nul
 call helm uninstall esquire-infra-postgres-exporter 2>nul
 echo --- App services (NO aukeep): tracing/metrics OFF, ONLY pro.mir0n at INFO...
-for %%s in (gateway enyman biztree pacman keysmith kcmaster) do (
+for %%s in (gateway enyman biztree paacman keysmith kcmaster) do (
   call helm upgrade esquire-%%s %CH%\esquire-%%s --reset-then-reuse-values --set observability.enabled=false --set observability.metricsHistograms=false --set logging.levelMir0n=INFO --set logging.levelDevelop=OFF --set logging.levelMsg=OFF --set logging.levelAmq=OFF --set logging.levelJms=OFF
   call kubectl rollout restart statefulset esquire-%%s-%%s
 )
@@ -114,7 +114,7 @@ call helm upgrade --install esquire-infra-prometheus        %CH%\infra\prometheu
 call helm upgrade --install esquire-infra-postgres-exporter %CH%\infra\postgres-exporter --set nodeSelector.tier=o11y || exit /b 1
 call helm upgrade --install esquire-infra-grafana           %CH%\infra\grafana           --set image.repository=docker.io/grafana/grafana                    --set nodeSelector.tier=o11y || exit /b 1
 echo --- App services (NO aukeep): tracing/metrics ON, ONLY pro.mir0n at INFO...
-for %%s in (gateway enyman biztree pacman keysmith kcmaster) do (
+for %%s in (gateway enyman biztree paacman keysmith kcmaster) do (
   call helm upgrade esquire-%%s %CH%\esquire-%%s --reset-then-reuse-values --set observability.enabled=true --set observability.metricsHistograms=true --set logging.levelMir0n=INFO --set logging.levelDevelop=OFF --set logging.levelMsg=OFF --set logging.levelAmq=OFF --set logging.levelJms=OFF
   call kubectl rollout restart statefulset esquire-%%s-%%s
 )
@@ -139,7 +139,7 @@ rem ---------------------------------------------------------------------------
 set CH=..\k8s\charts
 echo === oke-o11y-on OFF  (context=%CTX%) ===
 echo --- App services (NO aukeep): tracing/metrics OFF, pro.mir0n OFF...
-for %%s in (gateway enyman biztree pacman keysmith kcmaster) do (
+for %%s in (gateway enyman biztree paacman keysmith kcmaster) do (
   call helm upgrade esquire-%%s %CH%\esquire-%%s --reset-then-reuse-values --set observability.enabled=false --set observability.metricsHistograms=false --set logging.levelMir0n=OFF --set logging.levelDevelop=OFF --set logging.levelMsg=OFF --set logging.levelAmq=OFF --set logging.levelJms=OFF
   call kubectl rollout restart statefulset esquire-%%s-%%s
 )

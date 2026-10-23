@@ -44,17 +44,16 @@ operations. The Amazon EKS deployment at aws-esquire.mir0n.pro is turned down �
 
 ---
 > 
-> **v2.0.0 -- the shared parts are products of their own.** The utility library, the recoverable cache
-> and the load-test harness moved to [Armoury](https://github.com/mir0n-pro/armoury). The messaging bus,
-> its transports and its event store moved to [Herald](https://github.com/mir0n-pro/herald). Esquire is
-> built on both. The services, the screens and the settings stay the same.
+> **v2.0.1 -- the account commands go over the bus.** The gateway used to call pacMan, the account
+> service, over HTTP. Now it sends the account commands over [Herald](https://github.com/mir0n-pro/herald)
+> to a new service, paacMan, which runs pacMan's code unchanged. The client calls the same REST API, and
+> the screens do not change.
 > 
 > The 1.2 line goes on in parallel. Its last release is
 > [v1.2.16](https://github.com/mir0n-pro/esquire.services/tree/release/v1.2.16?tab=readme-ov-file).
 > 
-> What comes next is chosen from the
-> [continuing-development backlog](doc/Esquire.ContinuingDev.md) — several sprints can run in parallel, each
-> against its own target. See [Release History](#release-history).
+> Next on this line: v2.0.2, the claims leave the token, and v2.0.3, a WebSocket face to the business
+> domain. See [Release History](#release-history).
 
 ---
 
@@ -137,11 +136,11 @@ through the moment it is up. Background, the architecture, and the developer wor
 
 ## Component Model
 
-![Component Model](doc/media/ComponentModel.png)
+![Component Model](doc/media/ComponentModel.svg)
 
 ---
 
-The **gateway**, the six backend **services** (bizTree, enyMan, pacMan, keySmith, kcMaster, auKeep), and the
+The **gateway**, the six backend **services** (bizTree, enyMan, paacMan, keySmith, kcMaster, auKeep), and the
 **BFF** each run **redundant, with (optional) autoscale**, for high availability — spread across separate
 nodes so losing one keeps the site up. The databases, Keycloak, the message broker, and the Session Store
 run as a single instance here; each is a third-party platform that brings its **own** high-availability
@@ -183,7 +182,8 @@ run as a single instance here; each is a third-party platform that brings its **
     <table style="width: 100%; table-layout: fixed;">
       <tr></tr>
       <tr>
-        <td style="width: auto; white-space: nowrap;"><b>Messaging Bus</b></td>
+        <td style="width: auto; white-space: nowrap;"><b>Herald Messaging Bus</b></td>
+        <td style="width: 8%;"><img src="./doc/logo/herald.5.svg" alt="Herald logo" valign="middle" height="24"></td>
         <td style="width: 8%;"><img src="./doc/logo/activemq.svg" alt="ActiveMQ logo" valign="middle" height="24"></td>
         <td style="width: 8%;"><img src="./doc/logo/redis.svg" alt="Redis logo" valign="middle" height="24"></td>
         <td style="width: 8%;"><img src="./doc/logo/kafka.svg" alt="Kafka logo" valign="middle" height="24"></td>
@@ -194,12 +194,14 @@ run as a single instance here; each is a third-party platform that brings its **
         <td style="width: 100%;"><img src="./doc/logo/msk-cd.svg" alt="Amazon MSK logo" valign="middle" height="24"></td>
       </tr>
     </table>
-    Three logical channels:
+    Four logical channels:
+       <br> - <i>Biz Request-Response Bus</i> — carries the account commands (deposit, withdrawal, transfer,
+         account reads) from the gateway to paacMan, and each answer back to the gateway that sent it
        <br> - <i>IAM Request-Response Bus</i> — carries identity commands (create / update / delete user)
          from keySmith to kcMaster, and acknowledgement replies back
-       <br> - <i>Entity Broadcast Bus</i> — enyMan and pacMan publish entity change events on every mutation;
+       <br> - <i>Entity Broadcast Bus</i> — enyMan and paacMan publish entity change events on every mutation;
          bizTree and other interested consumers subscribe
-       <br> - <i>Audit Broadcast Bus</i> — optional (off by default); the entity-updating services (enyMan, pacMan, keySmith)
+       <br> - <i>Audit Broadcast Bus</i> — optional (off by default); the entity-updating services (enyMan, paacMan, keySmith)
          publish each committed change event.
        <br><br>Supported messaging vendors / brokers: ActiveMQ, Kafka or Redis. With AWS you can use
          SNS, SQS, Kinesis, MQ for ActiveMQ or MSK (managed Kafka).
@@ -208,15 +210,18 @@ run as a single instance here; each is a third-party platform that brings its **
   <tr><td style="width: 100%;">
     <table style="width: 100%; table-layout: fixed;">
       <tr>
-        <td style="width: auto; white-space: nowrap;"><b>pacMan</b></td>
+        <td style="width: auto; white-space: nowrap;"><b>paacMan</b></td>
         <td style="width: 8%;"><img src="./doc/logo/java.svg" alt="Java logo" valign="middle" height="24"></td>
         <td style="width: 8%;"><img src="./doc/logo/spring-boot.svg" alt="Spring Boot logo" valign="middle" height="24"></td>
-        <td style="width: 100%;"><img src="./doc/logo/pac-man.svg" alt="pacMan logo" valign="middle" height="24"></td>
+        <td style="width: 100%;"><img src="./doc/logo/pac-man.svg" alt="paacMan logo" valign="middle" height="24"></td>
       </tr>
     </table>
     Personal Account Manager; the accounting service; manages account balance
        operations: deposit, withdrawal, cross-currency transfer; the place where business logic lives;
        all other services exist to support it.
+       <br><br>paacMan runs pacMan's code, but takes its commands from the Biz Request-Response Bus instead
+       of HTTP. Every HTTP call between services costs time: a connection, the servlet chain, a second token
+       check. Processing a business request has to be fast. HTTP is the first bottleneck removed.
   </td></tr>
 
   <tr><td style="width: 100%;">
@@ -523,7 +528,7 @@ installation. Eight programs become five, or four in the cloud, where the audit 
 database itself and the program that drains it is not needed. A small deployment stops paying for a large
 one.
 
-Two programs carry the change, and both hold framework parts only. **pacMan**, the accounting service, is
+Two programs carry the change, and both hold framework parts only. **paacMan**, the accounting service, is
 never a candidate: it is the business domain built *on* the framework, not a part *of* it. A domain grows
 and changes at its own pace, and tying it to the backbone would take that freedom away — so it stays its own
 program in every shape, exactly as any domain you build on Esquire would. The audit keeper stays on its own
@@ -539,7 +544,7 @@ The cost is worth saying plainly: services that share a program restart together
 crash takes all of them down at once. The work itself does not change — the same requests and the same
 messages, carried by fewer machines. It is a deployment choice, and it can be reversed.
 
-<img src="doc/media/ComponentModel.Compact.png" alt="Esquire component model, compact shape" width="650">
+<img src="doc/media/ComponentModel.Compact.svg" alt="Esquire component model, compact shape" width="650">
 
 <table style="width: 100%; table-layout: fixed;">
   <tr></tr>

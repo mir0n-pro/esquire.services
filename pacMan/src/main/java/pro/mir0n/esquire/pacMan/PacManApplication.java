@@ -24,6 +24,8 @@
  *                   HealthContributorRegistry programmatically at ApplicationReadyEvent (no @Bean) -> /actuator/health
  * 06/23/2026 mir0n  EsqMsgConstants app constants -> common.EsqConstants (references repointed)
  * 07/08/2026 mir0n  @Import(TracingConfig.class): the common distributed-tracing wiring (v1.2.11 O2)
+ * 10/19/2026 mir0n  v2.0.1 -- MessagingBusLifecycleRegistrar.busKeys(): the buses the process builds (entity,
+ *                   audit), protected so a service built on pacMan adds its own
  */
 
 package pro.mir0n.esquire.pacMan;
@@ -124,11 +126,16 @@ public class PacManApplication {
             return Ordered.LOWEST_PRECEDENCE;   // each bus phase runs after the service's same-event listeners
         }
 
+        /** The buses this process speaks. A service built on pacMan overrides it to add its own. */
+        protected String[] busKeys() {
+            return new String[]{EsqConstants.BUS_KEY_ENTITY, EsqConstants.BUS_KEY_AUDIT};
+        }
+
         @Override
         public void onApplicationEvent(ApplicationEvent event) {
             MessagingBus bus = MessagingBus.getInstance();
             if (event instanceof ApplicationEnvironmentPreparedEvent e) {
-                bus.init(e.getEnvironment(), new String[]{EsqConstants.BUS_KEY_ENTITY, EsqConstants.BUS_KEY_AUDIT});
+                bus.init(e.getEnvironment(), busKeys());
                 devLog.debug("MessagingBus initiated (rods built, paused)");
             } else if (event instanceof ApplicationReadyEvent e) {
                 bus.start();                             // run them -- traffic flows only from here

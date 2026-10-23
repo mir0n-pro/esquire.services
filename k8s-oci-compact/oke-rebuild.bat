@@ -21,10 +21,11 @@ rem                    (vMaj.Min.Micro-YYMM.DDHH).
 rem
 rem Usage:
 rem   oke-rebuild.bat <component>
-rem     components: all | mesnie | gateward | pacman | backend
+rem     components: all | mesnie | gateward | pacman | paacman | backend
 rem
-rem Four components, not seven: Mesnie carries enyMan, keySmith and the identity
-rem work, and gateWard carries the gate and the tree cache.
+rem Five components, not eight: Mesnie carries enyMan, keySmith and the identity
+rem work, and gateWard carries the gate and the tree cache. pacMan is built and pushed,
+rem but it does not run on OKE.
 rem
 rem What it does:
 rem   1. read Micro from top of ..\doc\release_notes.txt   (e.g. v1.2.13)
@@ -81,11 +82,12 @@ if /i "%TARGET%"=="all"      goto target_all
 if /i "%TARGET%"=="mesnie"   ( set "SVC=mesnie"   & set "DIR=mesnie"   & goto target_spring )
 if /i "%TARGET%"=="gateward" ( set "SVC=gateward" & set "DIR=gateWard" & goto target_spring )
 if /i "%TARGET%"=="pacman"   ( set "SVC=pacman"   & set "DIR=pacMan"   & goto target_spring )
+if /i "%TARGET%"=="paacman"  ( set "SVC=paacman"  & set "DIR=paacMan"  & goto target_spring )
 if /i "%TARGET%"=="backend"  goto target_backend
 
 :usage
 echo Usage: oke-rebuild.bat ^<component^>
-echo   components: all ^| mesnie ^| gateward ^| pacman ^| backend
+echo   components: all ^| mesnie ^| gateward ^| pacman ^| paacman ^| backend
 exit /b 1
 
 rem ---------------------------------------------------------------------------
@@ -101,6 +103,7 @@ popd
 
 set "SVC=mesnie"   & set "DIR=mesnie"   & call :do_spring & if errorlevel 1 goto fail
 set "SVC=pacman"   & set "DIR=pacMan"   & call :do_spring & if errorlevel 1 goto fail
+set "SVC=paacman"  & set "DIR=paacMan"  & call :do_spring & if errorlevel 1 goto fail
 set "SVC=gateward" & set "DIR=gateWard" & call :do_spring & if errorlevel 1 goto fail
 call :do_backend
 if errorlevel 1 goto fail

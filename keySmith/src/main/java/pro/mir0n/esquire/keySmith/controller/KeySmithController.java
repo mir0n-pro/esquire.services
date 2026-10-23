@@ -12,15 +12,15 @@
  * 06/04/2026 mir0n  rootPath / uid no longer extracted from claims; delegates without them (roles
  *                   still extracted); uid / rootPath ride the unified request context
  * 08/26/2026 mir0n  the develop log lines pass the value itself instead of String.valueOf
+ * 10/19/2026 mir0n  v2.0.1 -- the @AuthenticationPrincipal Claims parameters and the roles read from the token
+ *                   removed
  */
 
 package pro.mir0n.esquire.keySmith.controller;
 
-import io.jsonwebtoken.Claims;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ProblemDetail;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import pro.mir0n.esquire.backend.dto.*;
 import pro.mir0n.esquire.backend.dto.access.EsqAccessProfile;
 import io.swagger.v3.oas.annotations.Operation;
@@ -37,10 +37,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
 import java.util.Map;
 
-import pro.mir0n.esquire.common.EsqConstants;
 import pro.mir0n.esquire.keySmith.service.IKeySmithService;
 
 /**
@@ -89,13 +87,10 @@ public class KeySmithController {
     public ResponseEntity<EsqAccessProfile> esquireKeySave(
            @Parameter(description = "User id")
            @RequestParam(name = "id", required = true) String id,
-           @RequestBody Map<String, Object> fields,
-           @AuthenticationPrincipal Claims claims
+           @RequestBody Map<String, Object> fields
     ) {
-        Map<String, Object> realmAccess = claims.get(EsqConstants.JWT_CLAIM_REALM_ACCESS, Map.class);
-        List<String> roles = realmAccess != null ? (List<String>) realmAccess.get(EsqConstants.JWT_CLAIM_REALM_ACCESS_ROLES) : null;
 
-        EsqAccessProfile ret = iKeySmithService.esquireKeySave(id, fields, roles);
+        EsqAccessProfile ret = iKeySmithService.esquireKeySave(id, fields);
         devLog.debug("esquireKeySave: id:{}, result:{}", id, ret);
         return ResponseEntity.status(HttpStatus.OK).body(ret);
     }
@@ -103,8 +98,7 @@ public class KeySmithController {
     @GetMapping("/esq-key")
     public ResponseEntity<EsqAccessProfile>  esquireCommand(
            @Parameter(description = "User id")
-           @RequestParam(name = "id", required = false) String id,
-           @AuthenticationPrincipal Claims claims
+           @RequestParam(name = "id", required = false) String id
     ) {
         EsqAccessProfile profile = iKeySmithService.esquireKey(id);
         devLog.debug("esquireKey: id:{}, result:{}", id, profile);

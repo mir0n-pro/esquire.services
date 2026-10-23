@@ -11,7 +11,7 @@ rem
 rem Usage:
 rem   compose-rebuild.bat                  rebuild ALL images, recreate
 rem   compose-rebuild.bat mesnie           rebuild only Mesnie
-rem   compose-rebuild.bat <service>        gateward | pacman | backend | frontend
+rem   compose-rebuild.bat <service>        gateward | pacman | paacman | backend | frontend
 rem
 rem Flags (after the target):  --no-cache
 rem
@@ -79,6 +79,7 @@ set "MOD="
 if /i "%TARGET%"=="mesnie"   set "MOD=mesnie"
 if /i "%TARGET%"=="gateward" set "MOD=gateWard"
 if /i "%TARGET%"=="pacman"   set "MOD=pacMan"
+if /i "%TARGET%"=="paacman"  set "MOD=paacMan"
 if /i "%TARGET%"=="aukeep"   set "MOD=auKeep"
 if defined MOD (
   echo [mvn] building %MOD%...

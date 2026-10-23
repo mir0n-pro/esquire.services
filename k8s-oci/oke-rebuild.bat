@@ -10,7 +10,7 @@ rem                    (vMaj.Min.Micro-YYMM.DDHH).
 rem
 rem Usage:
 rem   oke-rebuild.bat <component>
-rem     components: gateway | biztree | enyman | pacman | keysmith | kcmaster | backend
+rem     components: gateway | biztree | enyman | pacman | paacman | keysmith | kcmaster | backend
 rem
 rem What it does:
 rem   1. read Micro from top of ..\doc\release_notes.txt   (e.g. v1.2.4)
@@ -68,13 +68,14 @@ if /i "%TARGET%"=="gateway"  ( set "SVC=gateway"  & set "DIR=gateway"  & goto ta
 if /i "%TARGET%"=="biztree"  ( set "SVC=biztree"  & set "DIR=bizTree"  & goto target_spring )
 if /i "%TARGET%"=="enyman"   ( set "SVC=enyman"   & set "DIR=enyMan"   & goto target_spring )
 if /i "%TARGET%"=="pacman"   ( set "SVC=pacman"   & set "DIR=pacMan"   & goto target_spring )
+if /i "%TARGET%"=="paacman"  ( set "SVC=paacman"  & set "DIR=paacMan"  & goto target_spring )
 if /i "%TARGET%"=="keysmith" ( set "SVC=keysmith" & set "DIR=keySmith" & goto target_spring )
 if /i "%TARGET%"=="kcmaster" ( set "SVC=kcmaster" & set "DIR=kcMaster" & goto target_spring )
 if /i "%TARGET%"=="backend"  goto target_backend
 
 :usage
 echo Usage: oke-rebuild.bat ^<component^>
-echo   components: all ^| gateway ^| biztree ^| enyman ^| pacman ^| keysmith ^| kcmaster ^| backend
+echo   components: all ^| gateway ^| biztree ^| enyman ^| pacman ^| paacman ^| keysmith ^| kcmaster ^| backend
 exit /b 1
 
 rem ---------------------------------------------------------------------------
@@ -91,6 +92,7 @@ popd
 set "SVC=biztree"  & set "DIR=bizTree"  & call :do_spring & if errorlevel 1 goto fail
 set "SVC=enyman"   & set "DIR=enyMan"   & call :do_spring & if errorlevel 1 goto fail
 set "SVC=pacman"   & set "DIR=pacMan"   & call :do_spring & if errorlevel 1 goto fail
+set "SVC=paacman"  & set "DIR=paacMan"  & call :do_spring & if errorlevel 1 goto fail
 set "SVC=keysmith" & set "DIR=keySmith" & call :do_spring & if errorlevel 1 goto fail
 set "SVC=kcmaster" & set "DIR=kcMaster" & call :do_spring & if errorlevel 1 goto fail
 set "SVC=gateway"  & set "DIR=gateway"  & call :do_spring & if errorlevel 1 goto fail

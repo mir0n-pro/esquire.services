@@ -115,14 +115,14 @@ class RodBusIntegrationTest {
         r.add("esquire.keep.datasource.username", PG::getUsername);
         r.add("esquire.keep.datasource.password", PG::getPassword);
         // catalog config: the booted dataKeep consumer resolves the audit leg + builds its OWN connection.
-        r.add("esquire.messaging-bus[0].bus-id", () -> "audit-bus");
-        r.add("esquire.messaging-bus[0].slots[0].slot-id", () -> "audit");
-        r.add("esquire.messaging-bus[0].slots[0].x-rod.transport.provider", () -> "activemq");
-        r.add("esquire.messaging-bus[0].slots[0].x-rod.transport.endpoint", RodBusIntegrationTest::brokerUrl);
-        r.add("esquire.messaging-bus[0].slots[0].x-rod.transport.destination", () -> "esquire.rod.audit");
-        r.add("esquire.messaging-bus[0].slots[0].x-rod.transport.topic", () -> "false");
-        // service-level bus ref: dataKeep's consumer reads esquire.audit-bus.messaging-bus.bus-id -> the catalog leg.
-        r.add("esquire.audit-bus.messaging-bus.bus-id", () -> "audit-bus");
+        r.add("herald.messaging-bus[0].bus-id", () -> "audit-bus");
+        r.add("herald.messaging-bus[0].slots[0].slot-id", () -> "audit");
+        r.add("herald.messaging-bus[0].slots[0].x-rod.transport.provider", () -> "activemq");
+        r.add("herald.messaging-bus[0].slots[0].x-rod.transport.endpoint", RodBusIntegrationTest::brokerUrl);
+        r.add("herald.messaging-bus[0].slots[0].x-rod.transport.destination", () -> "esquire.rod.audit");
+        r.add("herald.messaging-bus[0].slots[0].x-rod.transport.topic", () -> "false");
+        // service-level bus ref: dataKeep's consumer reads herald.audit-bus.messaging-bus.bus-id -> the catalog leg.
+        r.add("herald.audit-bus.messaging-bus.bus-id", () -> "audit-bus");
     }
 
     @Test

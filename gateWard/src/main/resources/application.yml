@@ -94,6 +94,19 @@ esq:
           attempts:  ${GW_RETRY_READ:3}
         write:
           attempts: ${GW_RETRY_WRITE:1}
+    # The biz bus seam (BizBusClient): how long a command waits for its answer before the client gets a 504,
+    # how many may wait at once (more is a 503), and how often the waiting ones are checked.
+    biz-bus:
+      timeout-seconds: ${GW_BIZ_TIMEOUT_S:${GW_CB_SLOW_TIMEOUT_S:30}}
+      max-pending:     ${GW_BIZ_MAX_PENDING:10000}
+      sweep-ms:        ${GW_BIZ_SWEEP_MS:500}
+    # WHICH SERVICE OF THE pacMan FAMILY the pacman-* routes go to: a name from `services`. One line per
+    # service; a name not in the list stops the gateway at start, so a typo never routes anywhere.
+    pacman:
+      service: ${PACMAN_SERVICE:paacman}
+      services:
+        pacman:  http://${PACMAN_HOST:pacman}:${PACMAN_PORT:3004}
+        paacman: bus://biz-bus
 esquire:
   # Observability umbrella (v1.2.11 O1/O2) via common.ObservabilityConfig: ONE master switch gates BOTH
   # tracing and metrics -- a service never has one without the other. Off by default = zero cost; the
@@ -129,6 +142,30 @@ esquire:
   gateway:
     service-metrics:
       enabled: ${GW_SERVICE_METRICS_ENABLED:false} # Control whether to collect metrics for the gateway on backend services
+herald:
+  # the biz request-response bus (CLIENT): the account routes whose uri is bus://biz-bus send their command here
+  # and get the answer back on this instance's rod-id. transmit() only feeds the rod, so the event loop never
+  # waits on the broker; a feed that stays full that long drops the command and the request ends as a 504.
+  biz-bus:
+    messaging-bus:
+      bus-id: ${BIZ_BUS_ID:esquire.biz}
+      slot-id: ${BIZ_SLOT_ID:biz}
+      role: CLIENT
+      x-rod:
+        feed-await-ms: ${GW_BIZ_FEED_AWAIT_MS:100}   # never 0 here: 0 holds the event loop until the feed has room
+        receiver-pool:
+          size: ${GW_BIZ_ANSWER_POOL_SIZE:2}
+          mode: ${BIZ_POOL_MODE:platform}   # platform | virtual | virtual-per-task
+        concurrency: ${GW_BIZ_ANSWER_CONCURRENCY:1}
+        publisher-pool:
+          size: ${GW_BIZ_PUBLISHER_POOL_SIZE:0}
+          mode: ${GW_BIZ_PUBLISHER_POOL_MODE:platform}
+        # A held send must give up before the shortest route limit (10 s; 30 s on /esq-acct): 1+2+5 = 8 s, then
+        # the command is dropped and the client gets its 504. Never 0 attempts here -- 0 holds until the broker
+        # returns, which turns a fast 503 into a slow 504.
+        send-retry: ${BIZ_SEND_RETRY:false}
+        send-retry-backoff-sec: ${BIZ_SEND_RETRY_BACKOFF_SEC:1,2,5}
+        send-retry-max-attempts: ${BIZ_SEND_RETRY_MAX_ATTEMPTS:3}
   entity-bus:
     messaging-bus:
       bus-id: ${ENTITY_BUS_ID:esquire.entity}
@@ -160,7 +197,9 @@ spring:
     time-zone: UTC
   webflux:
     problemdetails:
-      enabled: true
+      #xxx: OFF -- when on, Boot's own handler renders a ResponseStatusException raised in the routing (every bus
+      # error, the circuit breaker's 504) as a plain about:blank body before GatewayErrorWebExceptionHandler sees it
+      enabled: false
   application:
     # lowercase on purpose: the messaging-bus catalog binds this name as a CONFIG PROPERTY prefix
     # (<name>.messaging-bus), and Spring rejects a property name that is not kebab-case -- a capital
@@ -194,6 +233,10 @@ spring:
        # biztree / enyman -- processes this profile does not run -- so a gateWard started without its env
        # routed at hosts that are not there. Every deployment (compose, both k8s charts, OKE) sets these three
        # explicitly, so nothing was broken; a default is simply what runs when someone starts it outside those.
+       # The pacMan routes go to the service PACMAN_SERVICE names (esq.gateway.pacman): paacMan over the biz
+       # bus by default (BizBusRoutingFilter), pacMan over HTTP when set to pacman. The route filters stay the same, but on the
+       # bus their Retry never fires: a bus command is never resent -- the 503 / 504 tells the client, and the
+       # client decides whether to send it again.
        routes:
         - id: keysmith-route
           uri: http://${KEYSMITH_HOST:mesnie}:${KEYSMITH_PORT:3003}
@@ -234,7 +277,7 @@ spring:
         # /esq-sweep from the cache in this process (BizTreeCacheController). Routing them to a
         # backend would proxy the gate to itself.
         - id: pacman-route
-          uri: http://${PACMAN_HOST:pacman}:${PACMAN_PORT:3004}
+          uri: ${esq.gateway.pacman.services.${esq.gateway.pacman.service}}
           predicates:
             - Path=/esq-cmd
             - EntityKind=isAcct
@@ -297,7 +340,7 @@ spring:
             - RewritePath=/(?<segment>.*), /$\{segment}
             - TokenRelay=
         - id: pacman-save-route
-          uri: http://${PACMAN_HOST:pacman}:${PACMAN_PORT:3004}
+          uri: ${esq.gateway.pacman.services.${esq.gateway.pacman.service}}
           predicates:
             - Path=/esq-cmd-save
             - Method=POST
@@ -418,7 +461,7 @@ spring:
             - RewritePath=/(?<segment>.*), /$\{segment}
             - TokenRelay=
         - id: pacman-del-route
-          uri: http://${PACMAN_HOST:pacman}:${PACMAN_PORT:3004}
+          uri: ${esq.gateway.pacman.services.${esq.gateway.pacman.service}}
           predicates:
             - Path=/esq-cmd-del
             - Method=POST
@@ -479,7 +522,7 @@ spring:
             - RewritePath=/(?<segment>.*), /$\{segment}
             - TokenRelay=
         - id: pacman-acct-route
-          uri: http://${PACMAN_HOST:pacman}:${PACMAN_PORT:3004}
+          uri: ${esq.gateway.pacman.services.${esq.gateway.pacman.service}}
           predicates:
             - Path=/esq-acct
             - Method=POST

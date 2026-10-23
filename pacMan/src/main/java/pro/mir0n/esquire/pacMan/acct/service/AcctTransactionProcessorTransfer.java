@@ -26,6 +26,7 @@
  *                   amount) and passes it straight through -- per-request map, deliberately not cloned
  * 08/26/2026 mir0n  the transfer reads BOTH accounts before it moves anything and raises ResourceNotFoundException
  *                   when either is absent
+ * 10/19/2026 mir0n  v2.0.1 -- esquireCommandAcct / esquireCommandTransfer: the roles parameter removed
  */
 
 package pro.mir0n.esquire.pacMan.acct.service;
@@ -61,7 +62,7 @@ public class AcctTransactionProcessorTransfer extends AcctTransactionProcessorSi
         super(entityRepository, transactionRepository, transactionTemplate, em, audit);
     }
 
-    public AcctTransactionSingle esquireCommandAcct(int kind, String id, AcctOperation.Code oper, Map<String, Object> fields, boolean skipValidation, String rootPath, String uid, List<String> roles) {
+    public AcctTransactionSingle esquireCommandAcct(int kind, String id, AcctOperation.Code oper, Map<String, Object> fields, boolean skipValidation, String rootPath, String uid) {
         AcctTransactionSingle marked = null;
         // esq.biz.acct.tx.total / .duration (O1/T8 phase B). This override does NOT call super, so the meters on
         // AcctTransactionProcessorSingle.esquireCommandAcct never see a transfer -- it needs its own, or the
@@ -72,7 +73,7 @@ public class AcctTransactionProcessorTransfer extends AcctTransactionProcessorSi
             // Programmatic mark, not @EsqTraced: this processor is constructed with new() by
             // AcctTransactionService, so Spring never proxies it and the annotation would not be advised.
             marked = TraceMark.around("esq.svc.acct.tx", "account transfer", () ->
-                    esquireCommandTransfer(kind, id, oper, fields, skipValidation, rootPath, uid, roles));
+                    esquireCommandTransfer(kind, id, oper, fields, skipValidation, rootPath, uid));
             outcome = "ok";
         } catch (PermissionDeniedException e) {
             outcome = "denied";
@@ -84,7 +85,7 @@ public class AcctTransactionProcessorTransfer extends AcctTransactionProcessorSi
         return marked;
     }
 
-    private AcctTransactionSingle esquireCommandTransfer(int kind, String id, AcctOperation.Code oper, Map<String, Object> fields, boolean skipValidation, String rootPath, String uid, List<String> roles) {
+    private AcctTransactionSingle esquireCommandTransfer(int kind, String id, AcctOperation.Code oper, Map<String, Object> fields, boolean skipValidation, String rootPath, String uid) {
         Object rawId2 = fields.get(AcctTransactionSingle.FIELD_ID2);
         Object rawKind2 = fields.get(AcctTransactionSingle.FIELD_KIND2);
         if (rawId2 == null || rawKind2 == null) {
@@ -107,8 +108,8 @@ public class AcctTransactionProcessorTransfer extends AcctTransactionProcessorSi
             throw new InvalidValueException("Conversion rate must be positive", AcctTransactionSingle.FIELD_RATE, "rate", "1");
         }
 
-        EsqObjectKind eek = validatePermissions(kind, roles);
-        EsqObjectKind eek2 = validatePermissions(kind2, roles);
+        EsqObjectKind eek = validatePermissions(kind);
+        EsqObjectKind eek2 = validatePermissions(kind2);
 
         EsqAcctJpa srcAcct = entityRepository.detailAcct(id, rootPath);
         if (srcAcct == null) {

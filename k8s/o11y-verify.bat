@@ -26,12 +26,12 @@ rem Grafana on the same 1xxxx band as the others (o11y-forward.bat): *.localhost
 rem python's getaddrinfo, so the live datasource check needs a real localhost port.
 set GRAFANA_URL=http://localhost:13009
 set LOKI_JOB=esq-k8s
-set SERVICES=gateway,biztree,enyman,pacman,keysmith,kcmaster,aukeep
+set SERVICES=gateway,biztree,enyman,pacman,paacman,keysmith,kcmaster,aukeep
 rem LOG_SERVICES = the Loki `service_name` label, which on k8s is the FULL workload name
 rem (esquire-<svc>-<svc>), NOT the short meter name. Without this the log-stream sweep looks for
 rem a stream that does not exist and FAILs every service (the logs ARE shipped). Mirrors the OKE
 rem launcher (oke-o11y-verify.bat); k8s keeps aukeep (OKE has none).
-set LOG_SERVICES=esquire-gateway-gateway,esquire-biztree-biztree,esquire-enyman-enyman,esquire-pacman-pacman,esquire-keysmith-keysmith,esquire-kcmaster-kcmaster,esquire-aukeep-aukeep,esquire-backend-backend
+set LOG_SERVICES=esquire-gateway-gateway,esquire-biztree-biztree,esquire-enyman-enyman,esquire-pacman-pacman,esquire-paacman-paacman,esquire-keysmith-keysmith,esquire-kcmaster-kcmaster,esquire-aukeep-aukeep,esquire-backend-backend
 rem BOARDS = the dashboards THIS environment provisions. The dependency and band checks read the
 rem PANELS as the declaration of what must exist, so they have to read the boards that are actually
 rem deployed here -- not another topology's. Path is relative to services/.

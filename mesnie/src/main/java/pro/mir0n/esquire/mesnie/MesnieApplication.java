@@ -12,6 +12,7 @@
  *                   MessagingBusLifecycleRegistrar over the entity and audit buses. No kc rod is built.
  * 08/17/2026 mir0n  v1.2.13 T3.1 -- @Bean IMeterOwner meterOwner(entityBusId) declared here: a
  *                   MesnieMeterOwner, handed the entity bus id from the property the bus itself reads
+ * 10/19/2026 mir0n  v2.0.1 -- the meter owner reads the entity bus id under BusConstants.CONFIG_ROOT
  */
 
 package pro.mir0n.esquire.mesnie;
@@ -49,6 +50,7 @@ import pro.mir0n.esquire.keySmith.KeySmithConfig;
 import pro.mir0n.esquire.keySmith.service.BizValidatorFactory;
 import pro.mir0n.messaging.BusHealthIndicator;
 import pro.mir0n.messaging.MessagingBus;
+import pro.mir0n.messaging.BusConstants;
 
 /**
  * Mesnie -- the household under one roof: enyMan and keySmith in ONE process, with kcMaster's identity work
@@ -95,7 +97,7 @@ public class MesnieApplication {
      *  standing alone contributes none and every one of its meters carries its own name. The entity bus id
      *  comes from the same property the bus itself reads. */
     @Bean
-    public IMeterOwner meterOwner(@Value("${esquire.entity-bus.messaging-bus.bus-id:}") String entityBusId) {
+    public IMeterOwner meterOwner(@Value("${" + BusConstants.CONFIG_ROOT + ".entity-bus.messaging-bus.bus-id:}") String entityBusId) {
         return new MesnieMeterOwner(entityBusId);
     }
 

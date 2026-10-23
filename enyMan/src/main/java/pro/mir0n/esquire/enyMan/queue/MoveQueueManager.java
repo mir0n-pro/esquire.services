@@ -54,6 +54,8 @@
  *                   outcome is counted on either side; submitMove answers false when the queue refuses
  *                   the item. The move broadcast carries pathChangeNo in the body and the entity number
  *                   in the header, and the reconcile reissue reads both back
+ * 10/19/2026 mir0n  v2.0.1 -- the queued move binds the item's roles into the EsqRequestContext; the org / usr move
+ *                   calls drop the roles argument
  */
 
 package pro.mir0n.esquire.enyMan.queue;
@@ -248,11 +250,11 @@ public class MoveQueueManager implements IQueueRig.IQueueWorker<MoveQueueItem>,
     private void processMove(MoveCommandItem item) {
         // Re-establish the unified per-request context on this worker thread from the queued item, and with it
         // the MDC ids -- set() carries both. The request thread's EsqContextHolder / SecurityContext do not follow
-        // here, so without this the service-layer RequestContextUtils.getUid()/getRootPath()/getCorrelationId()
+        // here, so without this the service-layer RequestContextUtils.getUid()/getRootPath()/getRoles()/getCorrelationId()
         // and the log lines would all read empty. Cleared in the finally so this move's identity does not linger on
         // the worker thread; a reconcile item carries its OWN create's cid/rid and stamps them itself.
         EsqContextHolder.set(new EsqRequestContext(
-                item.correlationId(), item.requestId(), item.uid(), item.rootPath()));
+                item.correlationId(), item.requestId(), item.uid(), item.rootPath(), item.roles()));
         try {
             // Continue the request's trace on this worker thread (the "move entity" span was captured at submit):
             // the move + its broadcasts nest under it, so the async move shows in the request's trace (O2/T3).
@@ -262,9 +264,9 @@ public class MoveQueueManager implements IQueueRig.IQueueWorker<MoveQueueItem>,
                 EsqObjectKind eek = EsqObjectKindStorage.getInstance().get(item.kind());
                 List<EsqMoveRecord> records;
                 if (eek.isOrg()) {
-                    records = orgService.esquireCommandMove(item.kind(), item.id(), item.distId(), item.roles());
+                    records = orgService.esquireCommandMove(item.kind(), item.id(), item.distId());
                 } else {
-                    records = usrService.esquireCommandMove(item.kind(), item.id(), item.distId(), item.roles());
+                    records = usrService.esquireCommandMove(item.kind(), item.id(), item.distId());
                 }
                 // Transaction has committed by the time esquireCommandMove returns -- publish outside it.
                 for (EsqMoveRecord r : records) {

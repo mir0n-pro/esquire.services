@@ -12,6 +12,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+import java.util.List;
 
 class RequestContextUtilsTest {
 
@@ -27,7 +28,7 @@ class RequestContextUtilsTest {
 
     @Test
     void holderValuesWin_whenContextBound() {
-        EsqContextHolder.set(new EsqRequestContext("corr", "req", "uid-9", "1.2."));
+        EsqContextHolder.set(new EsqRequestContext("corr", "req", "uid-9", "1.2.", List.of()));
 
         assertThat(RequestContextUtils.getContext()).isNotNull();
         assertThat(RequestContextUtils.getCorrelationId()).isEqualTo("corr");
@@ -62,8 +63,15 @@ class RequestContextUtilsTest {
 
     @Test
     void requireRequestId_returnsId_whenPresent() {
-        EsqContextHolder.set(new EsqRequestContext("corr", "req", "uid-9", "1.2."));
+        EsqContextHolder.set(new EsqRequestContext("corr", "req", "uid-9", "1.2.", List.of()));
         assertThat(RequestContextUtils.requireRequestId()).isEqualTo("req");
+    }
+
+    @Test
+    void getRoles_readsTheContext_nullWithoutOne() {
+        assertThat(RequestContextUtils.getRoles()).isNull();
+        EsqContextHolder.set(new EsqRequestContext("corr", "req", "uid-9", "1.2.", List.of("teller")));
+        assertThat(RequestContextUtils.getRoles()).containsExactly("teller");
     }
 
     @Test
@@ -74,7 +82,7 @@ class RequestContextUtilsTest {
 
     @Test
     void requireRequestId_throws_whenBlank() {
-        EsqContextHolder.set(new EsqRequestContext("corr", "  ", "uid-9", "1.2."));
+        EsqContextHolder.set(new EsqRequestContext("corr", "  ", "uid-9", "1.2.", List.of()));
         assertThatThrownBy(RequestContextUtils::requireRequestId)
                 .isInstanceOf(MissingRequestIdException.class);
     }

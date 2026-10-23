@@ -1,0 +1,20 @@
+Esquire paacMan Microservice
+
+10/22/2026 mir0n  v2.0.1 -- paacMan: pacMan's commands served over the biz bus
+paacMan  (new project, esquire-paac-man)
+  - pacMan's code, from its classes jar, with a bus face and no REST face
+PaacManApplication  (new)
+  - created: the paacMan process: pacMan's code without PacManController and PacManApplication in the scan, the
+    bizBus BusServerAdapter on BizRequestHandler, and the buses entity, audit and biz
+messaging.BizRequestHandler  (new)
+  - created: serves one biz request: the caller's claims from the message into the request context
+    (EsqRequestScope), the JPA timing, the INCOMING / OUTGOING lines and the esq.srv.* meters, then the
+    PacManCommands operation the request names (esq-acct, esq-cmd, esq-cmd-save, esq-cmd-del); the answer is URS
+    on a 2xx, URR with the problem detail otherwise
+pom.xml  (new)
+  - esquire-pac-man (classifier classes), esquire-common, esquire-audit, herald-messaging and the herald-tp-*
+    transports
+resources/application.yml  (new)
+  - pacMan's settings, and the herald.biz-bus SERVER ref (bus-id esquire.biz) beside the entity and audit refs
+resources/logback-spring.xml  (new)
+  - pacMan's logging, the develop and msg logs at logs/paacMan-*.log

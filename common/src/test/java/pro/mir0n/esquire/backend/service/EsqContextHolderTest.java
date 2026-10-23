@@ -9,6 +9,7 @@ import pro.mir0n.messaging.RodEvent;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import java.util.List;
 
 class EsqContextHolderTest {
 
@@ -24,7 +25,7 @@ class EsqContextHolderTest {
 
     @Test
     void setThenGet_returnsSameContext_withFieldsIntact() {
-        EsqRequestContext ctx = new EsqRequestContext("corr", "req", "uid-9", "1.2.");
+        EsqRequestContext ctx = new EsqRequestContext("corr", "req", "uid-9", "1.2.", List.of());
         EsqContextHolder.set(ctx);
 
         assertThat(EsqContextHolder.get()).isSameAs(ctx);
@@ -36,7 +37,7 @@ class EsqContextHolderTest {
 
     @Test
     void clear_removesContext() {
-        EsqContextHolder.set(new EsqRequestContext("c", "r", "u", "p"));
+        EsqContextHolder.set(new EsqRequestContext("c", "r", "u", "p", List.of()));
         EsqContextHolder.clear();
         assertThat(EsqContextHolder.get()).isNull();
     }
@@ -47,7 +48,7 @@ class EsqContextHolderTest {
     void set_alsoStampsCorrelationAndRequestIntoMdc() {
         // set() is the PRIORITY entry point -- binding the context must ALSO carry its ids into MDC, so a worker
         // that called set() needs no separate applyMessage() for its log lines to be correlated.
-        EsqContextHolder.set(new EsqRequestContext("corr", "req", "uid-9", "1.2."));
+        EsqContextHolder.set(new EsqRequestContext("corr", "req", "uid-9", "1.2.", List.of()));
 
         assertThat(MDC.get(EsqConstants.PD_CORRELATION_ID)).isEqualTo("corr");
         assertThat(MDC.get(EsqConstants.PD_REQUEST_ID)).isEqualTo("req");
@@ -96,7 +97,7 @@ class EsqContextHolderTest {
     void clear_removesMdcIds_andContext() {
         // clear() must clear the WHOLE thread state -- MDC ids AND the context -- so a pooled broker/servlet
         // thread never leaks one message's identity into the next.
-        EsqContextHolder.set(new EsqRequestContext("c", "r", "u", "p"));
+        EsqContextHolder.set(new EsqRequestContext("c", "r", "u", "p", List.of()));
         assertThat(MDC.get(EsqConstants.PD_CORRELATION_ID)).isEqualTo("c");
 
         EsqContextHolder.clear();
@@ -108,10 +109,10 @@ class EsqContextHolderTest {
 
     @Test
     void context_isThreadConfined() throws InterruptedException {
-        EsqContextHolder.set(new EsqRequestContext("c", "r", "u", "p"));
+        EsqContextHolder.set(new EsqRequestContext("c", "r", "u", "p", List.of()));
 
         // A different thread must not see this thread's context (ThreadLocal isolation).
-        EsqRequestContext[] seenInOtherThread = { new EsqRequestContext("x", "x", "x", "x") };
+        EsqRequestContext[] seenInOtherThread = { new EsqRequestContext("x", "x", "x", "x", List.of()) };
         Thread t = new Thread(() -> seenInOtherThread[0] = EsqContextHolder.get());
         t.start();
         t.join();

@@ -9,6 +9,7 @@
  * 10/13/2026 mir0n  v2.0.0 -- moved into services2/hauberk, the Esquire half of the harness: the
  *                   generic machinery is Armoury's armoury-hauberk, this project is the Esquire
  *                   routines over it
+ * 10/19/2026 mir0n  v2.0.1 -- the javadoc and @SimulationInfo name the new tx cycle
  */
 package pro.mir0n.esquire.hauberk.simulations;
 
@@ -23,10 +24,11 @@ import static io.gatling.javaapi.core.CoreDsl.*;
 
 /**
  * Standalone tx cycle load -- just the (e) scenario from
- * {@link LoadScenarios}. Each iteration: pick random account, deposit,
- * withdrawal (net-zero). Uses super.tx.workers + super.duration.seconds.
+ * {@link LoadScenarios}. Each iteration: pick random accounts A and B,
+ * deposit A, transfer A->B and back, withdraw A (net-zero). Uses
+ * super.tx.workers + super.duration.seconds.
  */
-@SimulationInfo("Tx cycle load: random account, Deposit + Withdrawal (net-zero per iter)")
+@SimulationInfo("Tx cycle load: random accounts, Deposit + Transfer A->B->A + Withdrawal (net-zero)")
 public class TxLoadSimulation extends AEsqSimulation {
 
     {

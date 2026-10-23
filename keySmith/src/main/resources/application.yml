@@ -21,7 +21,7 @@ keysmith:
   mvc:
     problemdetails:
       enabled: true
-  # this service's OWN overlay of the global esquire.messaging-bus catalog: its in-process audit-b leg
+  # this service's OWN overlay of the global herald.messaging-bus catalog: its in-process audit-b leg
   # (datasource is service-specific), under the service namespace.
   messaging-bus:
     - bus-id: audit-b
@@ -75,6 +75,7 @@ esquire:
       # default: measured at 1.25% of the series and a few tens of ns per call, against work that is orders of
       # magnitude dearer. Off drops every esq.biz.* call site to a null check -- the lever for a hot-path run.
       business-enabled: ${ESQ_METRICS_BUSINESS:true}
+herald:
   audit-bus:
     messaging-bus:
       bus-id: ${AUDIT_BUS_ID:audit-b}

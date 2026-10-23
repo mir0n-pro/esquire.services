@@ -35,7 +35,7 @@ enyman:
     # of stranding a stale path. 0 disables the grace (inMove() = a move is queued/in flight only).
     in-move-grace-ms: ${ENYMAN_MOVE_QUEUE_IN_MOVE_GRACE_MS:200}
 mesnie:
-  # this PROCESS's OWN overlay of the global esquire.messaging-bus catalog (the catalog binds
+  # this PROCESS's OWN overlay of the global herald.messaging-bus catalog (the catalog binds
   # <spring.application.name>.messaging-bus): its in-process audit-b leg, whose datasource is process-specific.
   # One household, one keep -- enyMan's and keySmith's legs were the same leg with a different DB env prefix.
   messaging-bus:
@@ -107,6 +107,7 @@ esquire:
       # default: measured at 1.25% of the series and a few tens of ns per call, against work that is orders of
       # magnitude dearer. Off drops every esq.biz.* call site to a null check -- the lever for a hot-path run.
       business-enabled: ${ESQ_METRICS_BUSINESS:true}
+herald:
   audit-bus:
     messaging-bus:
       bus-id: ${AUDIT_BUS_ID:audit-b}

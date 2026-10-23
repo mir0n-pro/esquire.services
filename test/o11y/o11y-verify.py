@@ -103,8 +103,8 @@ METERS_EXPECTED = [        # present whenever o11y is on and the fleet has serve
     "esq_biz_perm_check_total", "esq_biz_tree_handler_dispatch_total",
     "esq_biz_key_ops_total",                      # keySmith's own throughput -- the sign-in handshake reads an
                                                   # access profile, so any authenticated traffic fires it
-    "esq_biz_keep_write_total",
-    "esq_biz_keep_write_duration_seconds",        # I48: twin of keep_write_total (EXPECTED), was drifting
+    "herald_keep_write_total",
+    "herald_keep_write_duration_seconds",        # I48: twin of keep_write_total (EXPECTED), was drifting
     "http_server_requests_seconds", "esq_bff_inbound_duration_seconds",
     "esq_bff_outbound_duration_seconds",          # I48: the BFF->gw hop (I42/L8+L9). Present after any /api
                                                   # traffic, which is what "after some activity (an e2e run)"
@@ -146,7 +146,7 @@ METERS_CONDITIONAL = [     # legitimately EMPTY until the condition happens -- W
     "esq_svc_key_read_seconds", "esq_svc_key_save_seconds",
     "esq_svc_acct_read_seconds", "esq_svc_acct_save_seconds", "esq_svc_acct_delete_seconds",
     "esq_svc_acct_tx_seconds",
-    "esq_async_seconds", "esq_keep_apply_seconds",
+    "esq_async_seconds", "herald_keep_apply_seconds",
 ]
 # Declared, real, and NOT reachable by the config this environment runs -- so "never driven" is the wrong words:
 # no driver CAN drive it. Says WHICH config would. (Kept in step with o11y-inventory.py's CONFIG_CONDITIONAL.)
@@ -417,7 +417,7 @@ CARD_LIMIT = 64
 def check_cardinality():
     head("METRICS -- label cardinality is BOUNDED (no id leaked into a tag) [I21]")
     bases = sorted(set(_base(m) for m in (METERS_EXPECTED + METERS_CONDITIONAL + GAUGES)
-                       # esq_svc_* / esq_async / esq_keep_apply were OUTSIDE this list -- 19 declared meters
+                       # esq_svc_* / esq_async / herald_keep_apply were OUTSIDE this list -- 19 declared meters
                        # the sweep never examined, and the ones with neither the runtime cap nor this check
                        # behind them. Note esq_srv is the band timer; esq_svc is a different family.
                        if m.startswith(("esq_biz", "esq_gw", "esq_srv", "esq_svc", "esq_async",

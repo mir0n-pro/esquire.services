@@ -49,9 +49,13 @@ nodeEnv: production
 nodeSelector:
   tier: app
 
-# v1.2.10 HA: BFF stays a SINGLE replica on OKE (no Redis shared-session store -> the
-# in-memory MemoryStore would round-robin-split logins across replicas). It joins the
-# memory budget so one of the 13 app pods can't overrun a 6 GB app node.
+# TWO replicas, as on super-compact: with the Redis session store in the cluster the BFF is no longer bound
+# to MemoryStore, so a login on one pod is visible to the other (express-session -> connect-redis).
+replicaCount: 2
+redis:
+  url: redis://esquire-infra-redis:6379
+
+# It joins the memory budget so one of the app pods can't overrun a 6 GB app node.
 resources:
   requests:
     cpu: 100m

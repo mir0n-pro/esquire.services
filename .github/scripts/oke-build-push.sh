@@ -2,7 +2,7 @@
 # ===========================================================================
 # Esquire services -- build + push the SUPER-COMPACT app images to GHCR for OKE.
 #
-# SEVEN images, not ten (mir0n, 2026-08-19): OKE runs super-compact and nothing else.
+# EIGHT images: OKE runs super-compact and nothing else (2026-08-19).
 #
 # Mirrors k8s-oci-compact/ghcr-push.bat (+ the mvn pass of oke-rebuild.bat) but for a
 # GitHub-HOSTED Linux runner. Builds MULTI-ARCH (linux/amd64,linux/arm64) because
@@ -57,11 +57,12 @@ bx() {  # image  context  dockerfile
     -f "$3" "$2"
 }
 
-# 3 Spring services -- context = the service dir; its Dockerfile COPYs its own named jar.
-# Three, not six: Mesnie is the one image for enyMan, keySmith and the identity work, and
+# 4 Spring services -- context = the service dir; its Dockerfile COPYs its own named jar.
+# Four, not seven: Mesnie is the one image for enyMan, keySmith and the identity work, and
 # gateWard is the one image for the gate and the bizTree cache.
 bx esquire.mesnie   "${SERVICES}/mesnie"   "${SERVICES}/mesnie/Dockerfile"
 bx esquire.pacman   "${SERVICES}/pacMan"   "${SERVICES}/pacMan/Dockerfile"
+bx esquire.paacman  "${SERVICES}/paacMan"  "${SERVICES}/paacMan/Dockerfile"
 bx esquire.gateward "${SERVICES}/gateWard" "${SERVICES}/gateWard/Dockerfile"
 
 # backend / BFF -- multi-stage; context = explorer2/ so it reaches backend/ + frontend/
@@ -82,5 +83,5 @@ bx esquire-keycloak "${SERVICES}/keycloak" "${SERVICES}/keycloak/Dockerfile.keyc
 # now ships with the release tag automatically, same as keycloak/postgres.
 bx esquire-activemq "${SERVICES}/activemq" "${SERVICES}/activemq/Dockerfile"
 
-echo "=== pushed 7 images to ${REG} at ${IMAGE_TAG} ==="
-echo "    (3 Spring services + backend/BFF + postgres + keycloak + activemq)"
+echo "=== pushed 8 images to ${REG} at ${IMAGE_TAG} ==="
+echo "    (4 Spring services + backend/BFF + postgres + keycloak + activemq)"

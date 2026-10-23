@@ -151,22 +151,22 @@ class DictionaryCompletionConcurrencyTest {
         }
 
         @Override
-        public EsqEntity esquireCommandSave(int kind, String id, String cmd, Map<String, Object> fields, List<String> roles) {
+        public EsqEntity esquireCommandSave(int kind, String id, String cmd, Map<String, Object> fields) {
             return null;
         }
 
         @Override
-        public EsqEntity esquireCommandNew(int kind, String parentId, String cmd, Map<String, Object> fields, List<String> roles) {
+        public EsqEntity esquireCommandNew(int kind, String parentId, String cmd, Map<String, Object> fields) {
             return null;
         }
 
         @Override
-        public Long esquireCommandDelete(int kind, String id, String cmd, List<String> roles) {
+        public Long esquireCommandDelete(int kind, String id, String cmd) {
             return null;
         }
 
         @Override
-        public List<EsqMoveRecord> esquireCommandMove(int kind, String id, String distId, List<String> roles) {
+        public List<EsqMoveRecord> esquireCommandMove(int kind, String id, String distId) {
             return null;
         }
     }

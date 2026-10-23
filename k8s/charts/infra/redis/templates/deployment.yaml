@@ -14,6 +14,10 @@ spec:
       labels:
         app: {{ .Release.Name }}
     spec:
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       containers:
         - name: redis
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
@@ -22,6 +26,10 @@ spec:
           args: ["redis-server", "--maxmemory", "384mb", "--maxmemory-policy", "noeviction", "--appendonly", "yes"]
           ports:
             - containerPort: 6379
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           readinessProbe:
             exec:
               command: ["redis-cli", "ping"]

@@ -7,7 +7,7 @@ rem Usage:
 rem   ghcr-push.bat                  push ALL 10 images
 rem   ghcr-push.bat backend          push only the BFF (multi-stage; explorer SPA baked in)
 rem   ghcr-push.bat <service>        push a single Spring service
-rem                                  (gateway | biztree | enyman | pacman | keysmith | kcmaster)
+rem                                  (gateway | biztree | enyman | pacman | paacman | keysmith | kcmaster)
 rem   ghcr-push.bat <infra>          push a single infra image
 rem                                  (postgres | keycloak | activemq)
 rem
@@ -48,6 +48,7 @@ rem     services2\        (this folder lives here)
 rem       bizTree\        (Dockerfile + target\*.jar)
 rem       enyMan\
 rem       pacMan\
+rem       paacMan\
 rem       keySmith\
 rem       kcMaster\
 rem       gateway\
@@ -69,11 +70,12 @@ if /i "%TARGET%"=="gateway"    ( set "SVC_LOWER=gateway"  & set "SVC_DIR=gateway
 if /i "%TARGET%"=="biztree"    ( set "SVC_LOWER=biztree"  & set "SVC_DIR=bizTree"  & goto target_spring )
 if /i "%TARGET%"=="enyman"     ( set "SVC_LOWER=enyman"   & set "SVC_DIR=enyMan"   & goto target_spring )
 if /i "%TARGET%"=="pacman"     ( set "SVC_LOWER=pacman"   & set "SVC_DIR=pacMan"   & goto target_spring )
+if /i "%TARGET%"=="paacman"    ( set "SVC_LOWER=paacman"  & set "SVC_DIR=paacMan"  & goto target_spring )
 if /i "%TARGET%"=="keysmith"   ( set "SVC_LOWER=keysmith" & set "SVC_DIR=keySmith" & goto target_spring )
 if /i "%TARGET%"=="kcmaster"   ( set "SVC_LOWER=kcmaster" & set "SVC_DIR=kcMaster" & goto target_spring )
 
 echo ERROR: unknown target "%TARGET%"
-echo Valid: all ^| backend ^| gateway ^| biztree ^| enyman ^| pacman ^| keysmith ^| kcmaster ^| postgres ^| keycloak ^| activemq
+echo Valid: all ^| backend ^| gateway ^| biztree ^| enyman ^| pacman ^| paacman ^| keysmith ^| kcmaster ^| postgres ^| keycloak ^| activemq
 exit /b 1
 
 :target_all
@@ -81,6 +83,7 @@ rem === Spring services (context = service dir; Dockerfile copies target\*.jar) 
 call :pushSpring biztree   bizTree
 call :pushSpring enyman    enyMan
 call :pushSpring pacman    pacMan
+call :pushSpring paacman   paacMan
 call :pushSpring keysmith  keySmith
 call :pushSpring kcmaster  kcMaster
 call :pushSpring gateway   gateway

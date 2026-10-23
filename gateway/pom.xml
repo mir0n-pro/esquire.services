@@ -30,6 +30,17 @@
             <artifactId>esquire-common</artifactId>
             <version>${common.version}</version>
         </dependency>
+        <!-- the biz bus (CLIENT): the account routes reach paacMan over Herald -->
+        <dependency>
+            <groupId>pro.mir0n</groupId>
+            <artifactId>herald-messaging</artifactId>
+            <version>${herald.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>pro.mir0n</groupId>
+            <artifactId>herald-tp-activemq</artifactId>
+            <version>${herald.version}</version>
+        </dependency>
 		<dependency>
 			<groupId>org.springframework.cloud</groupId>
 			<artifactId>spring-cloud-starter-gateway</artifactId>

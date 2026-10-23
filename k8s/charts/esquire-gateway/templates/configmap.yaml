@@ -24,6 +24,12 @@ data:
   ENYMAN_PORT:          {{ .Values.backends.enymanPort | quote }}
   PACMAN_HOST:          {{ .Values.backends.pacmanHost | quote }}
   PACMAN_PORT:          {{ .Values.backends.pacmanPort | quote }}
+  {{- if .Values.backends.pacmanService }}
+  PACMAN_SERVICE:       {{ .Values.backends.pacmanService | quote }}
+  {{- end }}
+  TOPOLOGY_IMPORT:      {{ .Values.topologyImport | quote }}
+  BIZ_BUS_ID:           {{ .Values.biz.busId | quote }}
+  BIZ_SLOT_ID:          {{ .Values.biz.slotId | quote }}
   KEYSMITH_HOST:        {{ .Values.backends.keysmithHost | quote }}
   KEYSMITH_PORT:        {{ .Values.backends.keysmithPort | quote }}
   CORS_ALLOWED_ORIGINS: {{ .Values.cors.allowedOrigins | quote }}
@@ -42,7 +48,11 @@ data:
   LOG_LEVEL_SF:         {{ .Values.logging.levelSf | quote }}
   LOG_LEVEL_MIR0N:      {{ .Values.logging.levelMir0n | quote }}
   LOG_LEVEL_DEVELOP:    {{ .Values.logging.levelDevelop | quote }}
+  LOG_LEVEL_MSG:        {{ .Values.logging.levelMsg | quote }}
+  LOG_LEVEL_AMQ:        {{ .Values.logging.levelAmq | quote }}
+  LOG_LEVEL_JMS:        {{ .Values.logging.levelJms | quote }}
   DEVELOP_LOG_PATH:     {{ .Values.logging.developLogPath | quote }}
+  MSG_LOG_PATH:         {{ .Values.logging.msgLogPath | quote }}
   # --- v1.2.11 O2 distributed tracing (opt-in; OFF by default; o11y-on enables it) ---
   ESQ_OBSERVABILITY_ENABLED:  {{ .Values.observability.enabled | quote }}
   # Per-pillar enable (I41): default to the master, override to run one pillar off. tracingEnabled=false ->
