@@ -171,10 +171,12 @@ helm upgrade --install esquire-mesnie "${CHARTS}/esquire-mesnie" --force-conflic
   --set image.tag="${IMAGE_TAG}" --set db.password="${MIR0N_PWD}" \
   --set keycloak.adminClientSecret="${KCMASTER_ADMIN_SECRET}" --wait --timeout 5m
 
+#xxx: NO --wait here. paacMan's biz leg reads UP only once a client probes it, and its client is the gateWard
+#     installed next -- a wait here never ends. Its pods take commands from the broker before they report ready.
 echo "--- paacman"
 helm upgrade --install esquire-paacman "${CHARTS}/esquire-paacman" --force-conflicts \
   -f "${OCIVALS}/paacman.yaml" \
-  --set image.tag="${IMAGE_TAG}" --set db.password="${MIR0N_PWD}" --wait --timeout 5m
+  --set image.tag="${IMAGE_TAG}" --set db.password="${MIR0N_PWD}"
 
 # --- The gate. gateWard loads the whole tree from postgres before it reports ready, so it takes a
 #     longer timeout than the standalone gateway did: its readiness gate is the defence against a
@@ -184,6 +186,9 @@ helm upgrade --install esquire-gateward "${CHARTS}/esquire-gateward" --force-con
   -f "${OCIVALS}/gateward.yaml" \
   --set image.tag="${IMAGE_TAG}" --set db.password="${MIR0N_PWD}" \
   --set tokenRelay.phantom.exchangeClientSecret="${GW_EXCHANGE_SECRET}" --wait --timeout 6m
+
+echo "--- waiting for paacman (gateWard probes it now)"
+kubectl rollout status statefulset/esquire-paacman --timeout=5m
 
 #xxx: pacMan goes only AFTER gateWard is ready -- the gateWard it replaces still sends the account routes
 #     to pacMan. "not found" is the normal case once a cluster runs paacMan.
