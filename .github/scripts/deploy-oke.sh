@@ -4,7 +4,8 @@
 #
 # OKE runs super-compact and nothing else (2026-08-19): four application processes --
 # Mesnie (enyMan + keySmith + the identity work), gateWard (the gate + the bizTree cache),
-# pacMan and the BFF -- so 8 application pods where classic ran 13. The k8s-oci folder stays
+# paacMan and the BFF -- so 8 application pods. pacMan does not run here:
+# its image is pushed with the release, so it can be installed when needed. The k8s-oci folder stays
 # in place as the classic record; it is no longer maintained.
 #
 # Bash mirror of k8s-oci-compact/oke-up.bat (the proven manual flow) for a GitHub-HOSTED
@@ -154,8 +155,8 @@ infra esquire-infra-redis "${CHARTS}/infra/redis" \
 # --- Shared messaging-bus topology (the one ConfigMap every service mounts at
 #     /etc/esquire/topology.yml). Must exist BEFORE the services -- their pods mount
 #     it as a volume and won't start without it. OKE feeds its own topology
-#     (k8s-oci-compact/esquire-topology.yml) into the chart via --set-file: TWO buses, because
-#     super-compact references exactly two -- esquire.entity, and audit-off for the audit ref.
+#     (k8s-oci-compact/esquire-topology.yml) into the chart via --set-file: THREE buses, because
+#     super-compact references exactly three -- esquire.entity, esquire.biz, and audit-off for the audit ref.
 #     No esquire.kc (Mesnie serves identity in process) and no audit-c/ck/d/dk (no auKeep). ---
 echo "--- topology"
 helm upgrade --install esquire-topology "${CHARTS}/esquire-topology" --force-conflicts \
@@ -170,9 +171,9 @@ helm upgrade --install esquire-mesnie "${CHARTS}/esquire-mesnie" --force-conflic
   --set image.tag="${IMAGE_TAG}" --set db.password="${MIR0N_PWD}" \
   --set keycloak.adminClientSecret="${KCMASTER_ADMIN_SECRET}" --wait --timeout 5m
 
-echo "--- pacman"
-helm upgrade --install esquire-pacman "${CHARTS}/esquire-pacman" --force-conflicts \
-  -f "${OCIVALS}/pacman.yaml" \
+echo "--- paacman"
+helm upgrade --install esquire-paacman "${CHARTS}/esquire-paacman" --force-conflicts \
+  -f "${OCIVALS}/paacman.yaml" \
   --set image.tag="${IMAGE_TAG}" --set db.password="${MIR0N_PWD}" --wait --timeout 5m
 
 # --- The gate. gateWard loads the whole tree from postgres before it reports ready, so it takes a
@@ -183,6 +184,13 @@ helm upgrade --install esquire-gateward "${CHARTS}/esquire-gateward" --force-con
   -f "${OCIVALS}/gateward.yaml" \
   --set image.tag="${IMAGE_TAG}" --set db.password="${MIR0N_PWD}" \
   --set tokenRelay.phantom.exchangeClientSecret="${GW_EXCHANGE_SECRET}" --wait --timeout 6m
+
+#xxx: pacMan goes only AFTER gateWard is ready -- the gateWard it replaces still sends the account routes
+#     to pacMan. "not found" is the normal case once a cluster runs paacMan.
+if helm status esquire-pacman >/dev/null 2>&1; then
+  echo "--- removing esquire-pacman (paacMan answers the account routes)"
+  helm uninstall esquire-pacman || true
+fi
 
 # --- Backend / BFF (serves SPA on /, owns /auth/* + /api/*) ---
 echo "--- backend (BFF)"

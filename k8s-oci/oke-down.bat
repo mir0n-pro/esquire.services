@@ -18,11 +18,14 @@ call helm uninstall esquire-gateway
 
 call helm uninstall esquire-kcmaster
 call helm uninstall esquire-keysmith
+call helm uninstall esquire-paacman
+rem pacMan ran here up to v2.0.0; a cluster still on it holds the release.
 call helm uninstall esquire-pacman
 call helm uninstall esquire-enyman
 call helm uninstall esquire-biztree
 
 call helm uninstall esquire-infra-kc
+call helm uninstall esquire-infra-redis
 call helm uninstall esquire-infra-amq
 call helm uninstall esquire-infra
 

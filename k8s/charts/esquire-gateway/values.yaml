@@ -35,8 +35,17 @@ backends:
   enymanPort: 3003
   pacmanHost: esquire-pacman-pacman
   pacmanPort: 3003
+  # the service of the pacMan family the pacMan routes go to (PACMAN_SERVICE): empty = the gateway's default
+  # (paacman, over the biz bus); pacman = over HTTP
+  pacmanService: ""
   keysmithHost: esquire-keysmith-keysmith
   keysmithPort: 3002
+
+# the biz bus (CLIENT); the shared topology is the esquire-topology ConfigMap, mounted at /etc/esquire-topology
+topologyImport: optional:file:/etc/esquire-topology/topology.yml
+biz:
+  busId: esquire.biz
+  slotId: biz
 
 cors:
   # Ingress hosts (local). OKE overlay overrides to https://esquire.mir0n.pro,
@@ -74,7 +83,11 @@ logging:
   levelSf: ERROR
   levelMir0n: DEBUG
   levelDevelop: DEBUG
+  levelMsg: DEBUG
+  levelAmq: INFO
+  levelJms: INFO
   developLogPath: /tmp/gateway-develop.log
+  msgLogPath: /tmp/gateway-msg.log
 
 # v1.2.11 O2 distributed tracing (opt-in; the o11y stack + o11y-on.bat enable it). OFF by default.
 observability:

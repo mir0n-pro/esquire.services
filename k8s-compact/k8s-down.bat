@@ -22,6 +22,7 @@ call helm uninstall esquire-gateward
 
 call helm uninstall esquire-mesnie
 call helm uninstall esquire-pacman
+call helm uninstall esquire-paacman
 rem auKeep is part of THIS fleet -- compact runs it (audit option b, the audit-c bus drained in its own
 rem process). It was missing here, so every teardown left it running: the pods then outlived a PVC drop,
 rem pointed at a database that had been reseeded underneath them, and never became Ready again -- which

@@ -27,6 +27,7 @@ call helm uninstall esquire-gateward
 
 call helm uninstall esquire-mesnie
 call helm uninstall esquire-pacman
+call helm uninstall esquire-paacman
 
 rem The classic releases this stack replaces. A cluster that ran classic before still holds
 rem them: the gate and the tree cache that gateWard absorbed, and the identity trio that

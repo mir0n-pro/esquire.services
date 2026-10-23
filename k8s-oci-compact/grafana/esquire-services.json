@@ -235,7 +235,7 @@
       "type": "loki",
       "uid": "esq-loki"
      },
-     "expr": "{job=~\"esq-.*\", container=~\"(esqc?-)?(gateward|mesnie|pacman|backend|frontend)\"} | detected_level =~ \"warn|error\"",
+     "expr": "{job=~\"esq-.*\", container=~\"(esqc?-)?(gateward|mesnie|pacman|paacman|backend|frontend)\"} | detected_level =~ \"warn|error\"",
      "queryType": "range"
     }
    ],

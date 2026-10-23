@@ -1,5 +1,10 @@
 Esquire Common microservice classes
 
+10/22/2026 mir0n  v2.0.1 -- the biz bus keys
+EsqConstants
+  - BUS_KEY_BIZ ("biz-bus"); the biz bus operations BIZ_OP_ACCT / BIZ_OP_CMD / BIZ_OP_CMD_SAVE / BIZ_OP_CMD_DEL
+    and the command and answer keys BIZ_KEY_*; the bus-key comment names herald.<key>.messaging-bus
+
 10/17/2026 mir0n  v2.0.0 -- the 2.0 line: the bus, the keep and the base libraries moved out
 (every file that imported them)
   - pro.mir0n.esquire.messaging -> pro.mir0n.messaging, pro.mir0n.esquire.dataKeep -> pro.mir0n.dataKeep,

@@ -1,0 +1,251 @@
+spring:
+  profiles:
+    active: ${DB_PAACMAN_VENDOR:dev-postgres}
+  application:
+    name: paacman
+  # v1.2.10 VT: run each REST request on a virtual thread (Tomcat); opt-in, default OFF (pre-HA). See HA doc 5.5.
+  threads:
+    virtual:
+      enabled: ${ESQ_VIRTUAL_THREADS:false}
+  jpa:
+    hibernate:
+      ddl-auto: none
+    show-sql: false
+  mvc:
+    problemdetails:
+      enabled: true
+  # Request-path query/transaction cap (seconds): -1 = no cap (pre-HA default; behaviour unchanged when unset).
+  # Set ESQ_TX_TIMEOUT_S (e.g. 8) to bound the common request path so a stuck query frees its worker + connection.
+  transaction:
+    default-timeout: ${ESQ_TX_TIMEOUT_S:-1}
+  config:
+    import: "${TOPOLOGY_IMPORT:optional:file:/etc/esquire/topology.yml}"
+# this service's OWN overlay of the global herald.messaging-bus catalog: its in-process audit-b leg
+# (datasource is service-specific), under the service namespace.
+paacman:
+  messaging-bus:
+    - bus-id: audit-b
+      slots:
+        - slot-id: audit
+          x-rod:
+            rod-class: pro.mir0n.dataKeep.keep.XRodInProcessKeep
+            director: pro.mir0n.esquire.audit.AuditKeepDirector
+            receiver-pool:
+              size: ${AUDIT_POOL_SIZE:4}
+              mode: ${AUDIT_POOL_MODE:platform}   # platform | virtual | virtual-per-task
+            feed-capacity: ${AUDIT_FEED_CAPACITY:4096}
+            datasource:
+              # the keep's OWN dedicated *_log pool, from the url/hikari below.
+              url: ${DB_DATAKEEP_URL:jdbc:postgresql://${DB_PAACMAN_HOST:localhost}:${DB_PAACMAN_PORT:5432}/${DB_PAACMAN_NAME:esq2025}}
+              username: ${DB_DATAKEEP_USERNAME:${DB_PAACMAN_USERNAME:esq2025}}
+              password: ${DB_DATAKEEP_PASSWORD:${DB_PAACMAN_PASSWORD:q}}
+              # per-apply statement cap (seconds): 0 = uncapped (pre-HA default). The keep surface of the cap.
+              query-timeout-seconds: ${ESQ_KEEP_QUERY_TIMEOUT_S:0}
+              hikari:
+                maximum-pool-size: ${DB_DATAKEEP_POOL_SIZE:2}
+esquire:
+  # Observability umbrella (v1.2.11 O1/O2) via common.ObservabilityConfig: ONE master switch gates BOTH
+  # tracing and metrics -- a service never has one without the other. Off by default = zero cost; the
+  # collector endpoint + sampling ratio are set per environment (compose / k8s).
+  observability:
+    enabled: ${ESQ_OBSERVABILITY_ENABLED:false}
+    tracing:
+      # the TRACING pillar on/off (I41). Defaults to the master; set OFF (ESQ_TRACING_ENABLED=false) to run
+      # metrics-only -- service-mesh coexistence (a mesh already traces the wire, so avoid double-tracing).
+      enabled: ${ESQ_TRACING_ENABLED:${ESQ_OBSERVABILITY_ENABLED:false}}
+      otlp-endpoint: ${ESQ_OTLP_ENDPOINT:http://localhost:4318/v1/traces}
+      sampling-ratio: ${ESQ_TRACING_SAMPLING_RATIO:1.0}
+      marks-enabled: ${ESQ_TRACING_MARKS_ENABLED:true}
+      excluded-paths: ${ESQ_TRACING_EXCLUDED_PATHS:/actuator}
+      # opt-in RR liveness round-trip trace (TestRequest -> HeartBeat); off by default (heartbeats are frequent)
+      msg-bus-alive-trace: ${ESQ_MSG_BUS_ALIVE_TRACE:false}
+    metrics:
+      # the METRICS pillar on/off (symmetry with tracing.enabled). Defaults to the master; OFF = traces-only.
+      enabled: ${ESQ_METRICS_ENABLED:${ESQ_OBSERVABILITY_ENABLED:false}}
+      # percentile buckets on the extra latency timers (O1/T5-B). THE EXPENSIVE ONE (~+73% series), so opt-in;
+      # off still leaves count/sum/max, so the avg panels stay populated. TWO things go dark with it OFF and
+      # nothing else turns them on: the p95/p99 panels (they read the _bucket series) AND the metric->trace
+      # exemplars (a trace id hangs off a bucket sample -- no buckets, no carrier, the metrics->trace hop is
+      # inert). o11y-on sets it (ESQ_METRICS_HISTOGRAMS=true); a bare ESQ_OBSERVABILITY_ENABLED=true leaves both dark.
+      histograms-enabled: ${ESQ_METRICS_HISTOGRAMS:false}
+      # HTTP byte counters (O1/T5-C). Cheap, so ON by default. ONE knob for BOTH embedded servers: Esquire
+      # turns on Tomcat's MBean registry (servlet services) or Reactor Netty's metrics (the gateway) as needed.
+      bandwidth-enabled: ${ESQ_METRICS_BANDWIDTH:true}
+      # Business meters (O1/T8): the esq.biz.* domain tier -- what a service DOES, not how it runs. ON by
+      # default: measured at 1.25% of the series and a few tens of ns per call, against work that is orders of
+      # magnitude dearer. Off drops every esq.biz.* call site to a null check -- the lever for a hot-path run.
+      business-enabled: ${ESQ_METRICS_BUSINESS:true}
+herald:
+  audit-bus:
+    messaging-bus:
+      bus-id: ${AUDIT_BUS_ID:audit-b}
+      slot-id: ${AUDIT_SLOT_ID:audit}
+      role: SERVER   # the service is the audit SERVER: it broadcasts its log events (in-process keep applies them)
+  entity-bus:
+    messaging-bus:
+      bus-id: ${ENTITY_BUS_ID:esquire.entity}
+      slot-id: ${ENTITY_SLOT_ID:entity}
+      role: SERVER
+      x-rod:
+        publisher-pool:
+          size: ${ENTITY_BROADCAST_PUBLISHER_POOL_SIZE:0}
+          mode: ${ENTITY_BROADCAST_PUBLISHER_POOL_MODE:platform}
+        # A full feed must HOLD the producer, never DROP an entity change: 0 = wait forever. The default (10000ms)
+        # DROPS the item once the feed has been full that long -- and an entity/move broadcast lost that way is
+        # silent, and the night-watch cannot always heal it. Matches the KC leg (F0 B4); this is what makes the
+        # send-retry "back-pressures rather than dropping" below actually TRUE.
+        feed-await-ms: ${ENTITY_BROADCAST_FEED_AWAIT_MS:0}
+        # producer send-retry sublayer (opt-in, default OFF here; turned ON for the entity broadcast bus in docker
+        # compose + the local-k8s AND OKE overlays). Block mode (max-attempts 0): on a broker-down send, retry over
+        # the backoff ladder (seconds) until it goes through; the bounded feed then back-pressures rather than
+        # dropping an entity change (feed-await-ms:0 above). A cap > 0 switches to drop-after-N.
+        send-retry: ${ENTITY_BROADCAST_SEND_RETRY:false}
+        send-retry-backoff-sec: ${ENTITY_BROADCAST_SEND_RETRY_BACKOFF_SEC:1,2,5,5}
+        send-retry-max-attempts: ${ENTITY_BROADCAST_SEND_RETRY_MAX_ATTEMPTS:0}
+  # the biz request-response bus (SERVER): the account commands arrive here instead of over REST. The receive
+  # pool runs the requests -- its size and mode bound how many are served at once.
+  biz-bus:
+    messaging-bus:
+      bus-id: ${BIZ_BUS_ID:esquire.biz}
+      slot-id: ${BIZ_SLOT_ID:biz}
+      role: SERVER
+      x-rod:
+        receiver-pool:
+          size: ${BIZ_REQUEST_POOL_SIZE:4}
+          mode: ${BIZ_POOL_MODE:platform}   # platform | virtual | virtual-per-task
+        concurrency: ${BIZ_REQUEST_CONCURRENCY:1}
+        publisher-pool:
+          size: ${BIZ_RESPONSE_PUBLISHER_POOL_SIZE:0}
+          mode: ${BIZ_RESPONSE_PUBLISHER_POOL_MODE:platform}
+        # A held send must give up before the shortest route limit (10 s; 30 s on /esq-acct): 1+2+5 = 8 s, then
+        # the command is dropped and the client gets its 504. Never 0 attempts here -- 0 holds until the broker
+        # returns, which turns a fast 503 into a slow 504.
+        send-retry: ${BIZ_SEND_RETRY:false}
+        send-retry-backoff-sec: ${BIZ_SEND_RETRY_BACKOFF_SEC:1,2,5}
+        send-retry-max-attempts: ${BIZ_SEND_RETRY_MAX_ATTEMPTS:3}
+logging:
+  level:
+    root: ${LOG_LEVEL_ROOT:ERROR}
+    org:
+      springframework: ${LOG_LEVEL_SF:ERROR}
+      springframework.jms: ${LOG_LEVEL_JMS:INFO}
+      apache:
+        activemq: ${LOG_LEVEL_AMQ:INFO}
+    pro:
+      mir0n: ${LOG_LEVEL_MIR0N:ERROR}
+    develop: ${LOG_LEVEL_DEVELOP:DEBUG}
+    msg: ${LOG_LEVEL_MSG:INFO}
+  develop:
+    log-path: ${DEVELOP_LOG_PATH:logs/paacMan-develop.log}
+  msg:
+    log-path: ${MSG_LOG_PATH:logs/paacMan-msg.log}
+management:
+  # Actuator listens on a SEPARATE, internal-only port (8090), NOT the public server.port -- Prometheus and the
+  # k8s probes hit 8090 in-cluster while the ingress exposes only the main port, so /actuator is unreachable from
+  # the internet (audit F0 A6; 2026-07-20). Override with MANAGEMENT_SERVER_PORT.
+  server:
+    port: ${MANAGEMENT_SERVER_PORT:8090}
+  # The Micrometer-Tracing bridge and Prometheus metrics export are gated PER PILLAR: management.tracing.enabled
+  # follows esquire.observability.tracing.enabled (the span bridge), management.prometheus.metrics.export.enabled
+  # follows esquire.observability.metrics.enabled (the Prometheus registry+scrape). Each sub-switch defaults to
+  # the master esquire.observability.enabled. The OTel exporter + sampler + meter registry are declared explicitly
+  # by common.ObservabilityConfig. Set ESQ_TRACING_ENABLED=false to run metrics-only (service-mesh coexistence).
+  tracing:
+    enabled: ${ESQ_TRACING_ENABLED:${ESQ_OBSERVABILITY_ENABLED:false}}
+  prometheus:
+    metrics:
+      export:
+        enabled: ${ESQ_METRICS_ENABLED:${ESQ_OBSERVABILITY_ENABLED:false}}
+  endpoints:
+    web:
+      exposure:
+        # /actuator/prometheus scraped by the metrics collector; the endpoint bean exists only when the
+        # registry does (observability on), so listing it here is harmless when off.
+        include: health, prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true               # expose the liveness + readiness health groups
+      show-details: always
+      # messagingBus is registered DYNAMICALLY at ApplicationReadyEvent (after the membership-validating context
+      # refresh), so the startup check must be off; the readiness group resolves it at request time.
+      validate-group-membership: false
+      group:
+        # bus health depools the pod (READINESS), never liveness -- a broker outage must not let liveness kill it.
+        readiness:
+          include: readinessState, messagingBus
+
+
+---
+spring:
+  config:
+    activate:
+      on-profile: dev-oracle
+  datasource:
+    url: jdbc:oracle:thin:@//${DB_PAACMAN_HOST:localhost}:${DB_PAACMAN_PORT:1521}/${DB_PAACMAN_NAME:MIR0N}
+    driverClassName: oracle.jdbc.OracleDriver
+    username: ${DB_PAACMAN_USERNAME:esq2025}
+    password: ${DB_PAACMAN_PASSWORD:q}
+    hikari:
+      # pool sizing + connect-timeout: pre-HA defaults = current values; HA values (smaller pool, fast
+      # connect-timeout) set per service in the local-k8s chart (R3/R5).
+      maximum-pool-size: ${ESQ_DB_POOL_MAX:20}
+      minimum-idle: ${ESQ_DB_POOL_MIN_IDLE:20}
+      connection-timeout: ${ESQ_DB_CONNECT_TIMEOUT_MS:30000}
+      max-lifetime: 1800000
+      idle-timeout: 600000
+  jpa:
+    mapping-resources:
+      - META-INF/oracle-acct.xml
+      - META-INF/oracle-acct-transaction.xml
+      - META-INF/oracle-roles.xml
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.OracleDialect
+server:
+  port: ${PAACMAN_PORT:3000}
+  tomcat:
+    threads:
+      # request worker threads (pre-HA default = Boot's 200). HA bounds the worker pool so a slow
+      # downstream cannot exhaust threads fleet-wide; local-k8s value set in the chart (R2).
+      max: ${ESQ_TOMCAT_MAX_THREADS:200}
+    accept-count: ${ESQ_TOMCAT_ACCEPT_COUNT:100}
+
+---
+spring:
+  config:
+    activate:
+      on-profile: dev-postgres
+  datasource:
+    url: jdbc:postgresql://${DB_PAACMAN_HOST:localhost}:${DB_PAACMAN_PORT:5432}/${DB_PAACMAN_NAME:esq2025}
+    username: ${DB_PAACMAN_USERNAME:esq2025}
+    password: ${DB_PAACMAN_PASSWORD:q}
+    hikari:
+      # pool sizing + connect-timeout: pre-HA defaults = current values; HA values (smaller pool, fast
+      # connect-timeout) set per service in the local-k8s chart (R3/R5).
+      maximum-pool-size: ${ESQ_DB_POOL_MAX:20}
+      minimum-idle: ${ESQ_DB_POOL_MIN_IDLE:20}
+      connection-timeout: ${ESQ_DB_CONNECT_TIMEOUT_MS:30000}
+      max-lifetime: 1800000
+      idle-timeout: 600000
+      # pgjdbc socketTimeout (s) + tcpKeepAlive: pre-HA defaults = off (0 / false). HA (local-k8s chart)
+      # makes a vanished DB fail fast on a half-open socket instead of hanging a worker (R1/R5).
+      data-source-properties:
+        socketTimeout: ${ESQ_DB_SOCKET_TIMEOUT_S:0}
+        tcpKeepAlive: ${ESQ_DB_TCP_KEEPALIVE:false}
+  jpa:
+    mapping-resources:
+      - META-INF/postgres-acct.xml
+      - META-INF/postgres-acct-transaction.xml
+      - META-INF/postgres-roles.xml
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+server:
+  port: ${PAACMAN_PORT:3000}
+  tomcat:
+    threads:
+      # request worker threads (pre-HA default = Boot's 200). HA bounds the worker pool so a slow
+      # downstream cannot exhaust threads fleet-wide; local-k8s value set in the chart (R2).
+      max: ${ESQ_TOMCAT_MAX_THREADS:200}
+    accept-count: ${ESQ_TOMCAT_ACCEPT_COUNT:100}

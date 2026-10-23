@@ -7,6 +7,7 @@
  *  History:
  * 04/13/2026 mir0n  created: account transaction processor interface; default 7-param delegates to abstract 8-param with skipValidation (test-only validation bypass)
  * 04/20/2026 mir0n  abstract signature extended: convRate, amtIncoming, ccyIncoming, pkTx, counterpartId for conversion rate support
+ * 10/19/2026 mir0n  v2.0.1 -- esquireCommandAcct: the roles parameter removed
  */
 
 package pro.mir0n.esquire.pacMan.acct;
@@ -18,12 +19,12 @@ import java.util.Map;
 import java.util.UUID;
 
 public interface  IAcctTransactionProcessor {
-    default AcctTransactionSingle esquireCommandAcct(int kind, String id, AcctOperation.Code code, Map<String, Object> fields, String rootPath, String uid, List<String> roles) {
-        return esquireCommandAcct( kind, id, code, fields, false, rootPath,uid, roles);
+    default AcctTransactionSingle esquireCommandAcct(int kind, String id, AcctOperation.Code code, Map<String, Object> fields, String rootPath, String uid) {
+        return esquireCommandAcct( kind, id, code, fields, false, rootPath,uid);
     };
 
     /** For test use only -- allows bypassing status/balance/field validation. */
-    AcctTransactionSingle esquireCommandAcct(int kind, String id, AcctOperation.Code code, Map<String, Object> fields, boolean skipValidation, String rootPath, String uid, List<String> roles);
+    AcctTransactionSingle esquireCommandAcct(int kind, String id, AcctOperation.Code code, Map<String, Object> fields, boolean skipValidation, String rootPath, String uid);
 
     default String generateTransId() {
         return UUID.randomUUID().toString();

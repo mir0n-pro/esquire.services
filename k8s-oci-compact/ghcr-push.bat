@@ -7,7 +7,7 @@ rem Usage:
 rem   ghcr-push.bat                  push ALL 7 images
 rem   ghcr-push.bat backend          push only the BFF (multi-stage; explorer SPA baked in)
 rem   ghcr-push.bat <service>        push a single Spring service
-rem                                  (mesnie | gateward | pacman)
+rem                                  (mesnie | gateward | pacman | paacman)
 rem   ghcr-push.bat <infra>          push a single infra image
 rem                                  (postgres | keycloak | activemq)
 rem
@@ -51,6 +51,7 @@ rem     services2\        (this folder lives here)
 rem       mesnie\         (Dockerfile + target\*.jar)
 rem       gateWard\
 rem       pacMan\
+rem       paacMan\
 rem       postgres\       (Dockerfile; context = ..\..\ to access db.seed)
 rem       keycloak\       (Dockerfile.keycloak; context = .)
 rem       activemq\       (Dockerfile; context = .)
@@ -68,9 +69,10 @@ if /i "%TARGET%"=="activemq"   goto target_activemq
 if /i "%TARGET%"=="mesnie"     ( set "SVC_LOWER=mesnie"   & set "SVC_DIR=mesnie"   & goto target_spring )
 if /i "%TARGET%"=="gateward"   ( set "SVC_LOWER=gateward" & set "SVC_DIR=gateWard" & goto target_spring )
 if /i "%TARGET%"=="pacman"     ( set "SVC_LOWER=pacman"   & set "SVC_DIR=pacMan"   & goto target_spring )
+if /i "%TARGET%"=="paacman"    ( set "SVC_LOWER=paacman"  & set "SVC_DIR=paacMan"  & goto target_spring )
 
 echo ERROR: unknown target "%TARGET%"
-echo Valid: all ^| backend ^| mesnie ^| gateward ^| pacman ^| postgres ^| keycloak ^| activemq
+echo Valid: all ^| backend ^| mesnie ^| gateward ^| pacman ^| paacman ^| postgres ^| keycloak ^| activemq
 exit /b 1
 
 :target_all
@@ -78,11 +80,13 @@ rem Every push runs in a CALLed subroutine, and `exit /b 1` inside one returns t
 rem it does not end this script. So each call is followed by its own errorlevel check: without them a failed
 rem build carried on to the next, and the closing `echo Done.` reset errorlevel to 0, so a run that pushed
 rem nothing exited SUCCESSFULLY. GHCR was then missing that image at the release tag while the operator had
-rem been told all seven landed, and the failure surfaced on the cluster as ImagePullBackOff instead.
+rem been told all eight landed, and the failure surfaced on the cluster as ImagePullBackOff instead.
 rem === Spring services (context = service dir; Dockerfile copies target\*.jar) ===
 call :pushSpring mesnie    mesnie
 if errorlevel 1 exit /b 1
 call :pushSpring pacman    pacMan
+if errorlevel 1 exit /b 1
+call :pushSpring paacman   paacMan
 if errorlevel 1 exit /b 1
 call :pushSpring gateward  gateWard
 if errorlevel 1 exit /b 1

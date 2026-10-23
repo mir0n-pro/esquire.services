@@ -29,7 +29,7 @@ import static org.junit.jupiter.api.Assertions.fail;
  *
  * <p>{@code test/o11y/o11y-verify.py} proves the meters it DECLARES are live. It is therefore structurally
  * blind to a meter nobody declared -- and its list is hand-kept, so the list falls behind the code. It had:
- * {@code esq.biz.acct.tx.duration} and {@code esq.biz.keep.write.duration} were being collected and verified by
+ * {@code esq.biz.acct.tx.duration} and {@code herald.keep.write.duration} were being collected and verified by
  * NOTHING, each of them the {@code .duration} twin of a {@code .total} that IS declared. Two authors added the
  * counter and forgot the timer, independently; a third (this one) then did it again with the BFF's upstream
  * meter. A convention does not survive a new author -- the same lesson {@link NoRawGaugeBuilderTest} exists for.
@@ -157,7 +157,7 @@ class O11yMeterDriftTest {
             // here any more. They stay DECLARED, because the sweep checks a running stack, not this source tree.
             boolean ours = (declared.startsWith("esq_") || declared.startsWith("messaging_"))
                            && !declared.startsWith("esq_bff_")
-                           && !declared.startsWith("esq_biz_keep_")
+                           && !declared.startsWith("herald_keep_")
                            && !declared.startsWith("esq_keep_");
             if (ours && !emittedStems.contains(promStem(declared))) {
                 stale.add(declared);

@@ -61,7 +61,7 @@ call kubectl rollout restart statefulset esquire-infra-amq-activemq
 kubectl rollout status statefulset/esquire-infra-amq-activemq -n default --timeout=150s
 
 echo --- Enabling observability on the app services (mirrors docker ESQ_OBSERVABILITY_ENABLED=true)...
-for %%s in (gateway enyman biztree pacman keysmith kcmaster aukeep) do (
+for %%s in (gateway enyman biztree pacman paacman keysmith kcmaster aukeep) do (
   echo   esquire-%%s observability ON
 rem THE SHIPPED LEVELS ARE SET EXPLICITLY, not left to the chart default. This arm upgrades with
 rem --reset-then-reuse-values, which KEEPS whatever a previous arm set -- so after o11y-full-on (levelMir0n

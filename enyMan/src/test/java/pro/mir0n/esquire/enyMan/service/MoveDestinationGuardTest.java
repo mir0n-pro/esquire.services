@@ -75,7 +75,7 @@ class MoveDestinationGuardTest {
                 ((TransactionCallback<?>) inv.getArgument(0)).doInTransaction(null));
         usrService = new UsrService(dictRepo, usrRepository, transactionTemplate, em, audit);
         orgService = new OrgService(dictRepo, orgRepository, transactionTemplate, em, audit);
-        EsqContextHolder.set(new EsqRequestContext(null, "req-test", UID, ROOT));
+        EsqContextHolder.set(new EsqRequestContext(null, "req-test", UID, ROOT, List.of("ADMIN")));
     }
 
     @AfterEach
@@ -93,7 +93,7 @@ class MoveDestinationGuardTest {
         when(usrRepository.detailUsrForUpdate("42", ROOT)).thenReturn(usr);
         when(usrRepository.usrPath("9", ROOT)).thenReturn(null);   // the destination is no longer in scope
 
-        assertThatThrownBy(() -> usrService.esquireCommandMove(34, "42", "9", List.of("ADMIN")))
+        assertThatThrownBy(() -> usrService.esquireCommandMove(34, "42", "9"))
                 .isInstanceOf(ResourceNotFoundException.class);
 
         verify(usrRepository, never()).moveUsrPaths(anyString(), anyString());
@@ -111,7 +111,7 @@ class MoveDestinationGuardTest {
         when(orgRepository.orgPath("42", ROOT)).thenReturn("1.2.42.");
         when(orgRepository.orgPath("9", ROOT)).thenReturn(null);
 
-        assertThatThrownBy(() -> orgService.esquireCommandMove(20, "42", "9", List.of("ADMIN")))
+        assertThatThrownBy(() -> orgService.esquireCommandMove(20, "42", "9"))
                 .isInstanceOf(ResourceNotFoundException.class);
 
         verify(orgRepository, never()).moveOrgPaths(anyString(), anyString());

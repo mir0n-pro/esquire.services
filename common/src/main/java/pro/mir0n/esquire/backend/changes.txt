@@ -1,5 +1,42 @@
 Esquire Backend common microservice classes
 
+10/22/2026 mir0n  v2.0.1 -- one request scope for REST and the bus; the caller's roles in the request context
+messaging.IBusServer  (new)
+  - created: the server end of a request-response bus: serve(RodEvent) answers one request, setResultHandler()
+    takes where the answer goes
+messaging.BusServerAdapter  (new)
+  - created: one SERVER rod per bus key: start() points the rod's worker at the IBusServer and the server's
+    result handler at the same rod's transmit
+service.EsqRequestScope  (new)
+  - created: the request work every front shares: claimsComplete(), bind() / unbind() of the EsqRequestContext
+    with the MDC uid, the INCOMING / OUTGOING lines (written with the caller's logger) and the esq.srv.outer /
+    esq.srv.inner meters
+service.PerformanceHolder  (new)
+  - created: a ThreadLocal RequestPerformance for a worker thread with no HTTP request behind it (a bus
+    request): set / get / clear
+service.EsqRequestContext
+  - roles (List<String>) added: the caller's realm roles, beside uid and rootPath
+service.RequestContextUtils
+  - getRoles(): the caller's roles from the bound context
+service.MdcFilter
+  - the INCOMING / OUTGOING lines and the esq.srv.outer / esq.srv.inner meters go through EsqRequestScope; the
+    constructor takes EsqRequestScope in place of the MeterRegistry provider and the metrics switch
+service.PerformanceAspect
+  - off a request thread the JPA time goes to the PerformanceHolder tracker, when one is bound
+security.JwtClaimsExtractionFilter
+  - the realm roles go into the EsqRequestContext; the claim check is EsqRequestScope.claimsComplete(), and the
+    bind / unbind of the context and the MDC uid are EsqRequestScope.bind() / unbind()
+error.GenericExceptionHandler
+  - statusOf(Throwable) / titleOf(Throwable): the one exception -> status and title mapping, for the REST
+    response and the bus answer; handlePermissionDeniedException removed (the 403 comes from the same mapping);
+    an exception that is not a GenericRuntimeException maps to 500
+error.ProblemDetailMill
+  - createProblemDetail(instance, correlationId, requestId, captureAsked, status, title, msg, ex): the same
+    problem detail with no HTTP request behind it; the request form calls it
+o11y.ObservabilityConfig
+  - the histogram switch and the trace-mark switch take the herald. meter names too (herald.keep.write.duration,
+    herald.keep.apply)
+
 10/17/2026 mir0n  v2.0.0 -- the 2.0 line: the bus, the keep and the base libraries moved out
 o11y.EsqBizMeters, o11y.EsqTraceMark, o11y.EsqGauge  (removed)
   - moved to Armoury as pro.mir0n.o11y.BizMeters / TraceMark / Gauges and deleted here. All three imported

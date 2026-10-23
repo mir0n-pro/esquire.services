@@ -48,7 +48,7 @@ rem :tag image doesn't exist in the local Docker daemon, alias :latest to it.
 rem Lets the kubelet pull the image when the yaml references a stamp that
 rem only exists as :latest (typical for first-time install after a clean
 rem `docker compose build` with no prior k8s-rebuild stamping).
-for %%s in (gateway biztree enyman pacman keysmith kcmaster backend) do (
+for %%s in (gateway biztree enyman pacman paacman keysmith kcmaster backend) do (
   call :ensure_tag %%s
 )
 call :ensure_tag aukeep
@@ -101,6 +101,8 @@ echo --- Installing enyman...
 call helm upgrade --install esquire-enyman    charts\esquire-enyman    -f values\enyman.yaml    --reset-then-reuse-values --force-conflicts || exit /b 1
 echo --- Installing pacman...
 call helm upgrade --install esquire-pacman    charts\esquire-pacman    -f values\pacman.yaml    --reset-then-reuse-values --force-conflicts || exit /b 1
+echo --- Installing paacman ^(account commands over the biz bus^)...
+call helm upgrade --install esquire-paacman   charts\esquire-paacman   -f values\paacman.yaml   --reset-then-reuse-values --force-conflicts || exit /b 1
 echo --- Installing keysmith...
 call helm upgrade --install esquire-keysmith  charts\esquire-keysmith  -f values\keysmith.yaml  --reset-then-reuse-values --force-conflicts || exit /b 1
 echo --- Installing aukeep ^(audit consumer, option c default^)...

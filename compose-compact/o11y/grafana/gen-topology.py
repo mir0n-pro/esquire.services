@@ -310,6 +310,10 @@ def w_idle(metric, name, r, sel=ASEL):
 
 
 REQ = 'sum(rate(http_server_requests_seconds_count{%s}[5m]))'
+#xxx: paacMan has NO REST door -- its requests are the account commands arriving on the biz bus. Counted on that
+# bus only: a reply is a send, and a heartbeat is counted nowhere, so this is requests and nothing else.
+BUS_REQ = 'sum(rate(messaging_receive_total{%s, bus_id="esquire.biz"}[5m]))'
+BUS_SERVED = {"paacman"}
 SERVICES_D = "/d/esq-services/?var-application=%s"
 
 # ---------------------------------------------------------------------------------------------------------------
@@ -382,9 +386,13 @@ def _svc(n):
     """The four REST services differ only by name -- bind it, or every lambda would close over the loop variable
     and all four would end up describing whichever service happened to be last. FILL = health (cpu/heap/5xx/pool);
     BORDER = alarm (error log + messaging errors + this service's own failure counters)."""
+    req, req_metric = REQ, "http_server_requests_seconds_count"
+    if n in BUS_SERVED:
+        req, req_metric = BUS_REQ, "messaging_receive_total"
+
     def h(r):
         warns = [w_cpu(SSEL(n, r)), w_heap(ASEL(n, r)), w_pool(ASEL(n, r))]
-        warns += w_idle("http_server_requests_seconds_count", n, r)
+        warns += w_idle(req_metric, n, r)
         return health('count(process_uptime_seconds{%s})' % SSEL(n, r), *warns)
 
     def a(r):
@@ -394,12 +402,12 @@ def _svc(n):
         terms += [w_fail(ASEL(n, r), m) for m in SVC_FAIL.get(n, ())]
         return alarm(*terms)
     return (h, a,
-            lambda r: [(REQ % ASEL(n, r), "reqps", "req/s"),
+            lambda r: [(req % ASEL(n, r), "reqps", "req/s"),
                        (CPU % SSEL(n, r), "percent", "cpu"),
                        (HEAP % ASEL(n, r), "bytes", "heap")])
 
 
-for _n, _lbl, _top in (("pacman", "pacMan", 30),):
+for _n, _lbl, _top in (("paacman", "paacMan", 30),):
     _h, _a, _v = _svc(_n)
     comp(_n, _lbl, _h, _v, SERVICES_D % _n, 500, _top, alarm=_a)
 
@@ -412,7 +420,7 @@ _h, _a, _v = _svc("mesnie")
 comp("mesnie", "Mesnie", _h, _v, SERVICES_D % "mesnie", 500, 332, alarm=_a,
      height=178, inner=("enyMan", "keySmith", "kcMaster"))
 
-# ---- the broker: beneath the lanes, CENTRED ON THE MIDDLE ONE ----
+# ---- the broker: beneath the lanes, CENTRED UNDER THEM ----
 # MEMORY is the one that matters here: the broker is NON-PERSISTENT, so the bus lives in RAM and memory% is what
 # back-pressures producers when a consumer dies. There is no store line because there is no store.
 comp("activemq", "ActiveMQ",
@@ -428,7 +436,7 @@ comp("activemq", "ActiveMQ",
      lambda r: [('max(activemq_broker_total_message_count)', "short", "held"),
                 ('max(activemq_broker_current_connections_count)', "short", "conns"),
                 ('max(activemq_broker_memory_percent_usage)', "percent", "memory")],
-     "/d/esq-services/", 293, 596)
+     "/d/esq-services/", 313, 596)
 
 # ---- the edge: gateWard -> Explorer (BFF), and KeyCloak ----
 # gateWard is the gateway with the tree cache inside it. It is NETTY, not Tomcat, so its bandwidth comes from
@@ -519,67 +527,68 @@ ORDER = list(C.keys())
 # Local k8s (k8s/values/*.yaml): every app component is replicaCount: 2. Infra -- Postgres, ActiveMQ, KeyCloak --
 # is x1 and stays a single card, which is itself worth seeing: the board then SHOWS what is redundant and what is
 # not, and the three components with nothing behind them are the three single points of failure.
-K8S_CARDS = {n: 2 for n in ("aukeep", "pacman", "mesnie", "gateward", "backend")}
+K8S_CARDS = {n: 2 for n in ("aukeep", "paacman", "mesnie", "gateward", "backend")}
 
 # The k8s board needs ROOM: a stack is PEEK_X wider than a single card, and the two right-hand columns would
 # otherwise sit ON TOP of the stack in front of them. These three numbers are the ONLY coordinates that differ
 # between the boards -- same arrangement, same lanes, same arrows, same picture.
 # ONE gap between every vertical group, and the value is the gap BETWEEN THE TWO LANES (34) -- the picture's
 # own unit. A stack is 236 wide (a card plus the peek), not 140, so the x2 board cannot inherit the x1 columns:
-# with the docker numbers the gateWard stack ran to within 14px of the Explorer while pacMan/Mesnie had 74.
-#   aukeep ends 266 -> lanes 300 | lanes end 426 -> services 460 | services end 696 -> gate 730 |
-#   gate end 966 -> Explorer 1000
+# with the docker numbers the gateWard stack ran to within 14px of the Explorer while paacMan/Mesnie had 74.
+#   aukeep ends 266 -> lanes 300 | lanes end 466 -> services 500 | services end 736 -> gate 770 |
+#   gate end 1006 -> Explorer 1040
 # The Collector follows gateWard's column, as it does on the x1 board.
-K8S_LEFT = {"pacman": 460, "mesnie": 460,
-            "gateward": 730, "keycloak": 730, "collector": 730,
-            "backend": 1000}
+K8S_LEFT = {"paacman": 500, "mesnie": 500,
+            "gateward": 770, "keycloak": 770, "collector": 770,
+            "backend": 1040}
 
 # OKE (super-compact) COLUMNS -- mir0n's arrangement. auKeep and the audit lane are gone, so the picture is
-# five columns instead of the compact six, and the one surviving lane moves from the far left to BETWEEN the
-# services and the gate -- which is where the messages actually travel:
+# five columns instead of the compact six, and the two surviving lanes (biz, entity) move from the far left to
+# BETWEEN the services and the gate -- which is where the messages actually travel:
 #
-#     Esq2025 | pacMan / Mesnie | msgBus + AMQ | gateWard / KEYCLOAK | Explorer
+#     Esq2025 | paacMan / Mesnie | msgBus + AMQ | gateWard / KEYCLOAK | Explorer
 #
 # Spacing is the picture's own unit (34) throughout, and a stack is 236 wide (W 140 + PEEK_X 96):
 #   postgres 30 ends 170 | services 204 end 440 | lane 474 ends 520 | gate 554 ends 790 | Explorer 824 ends 1060
 # The broker sits centred UNDER the lane: 474 + SPINE_W/2 - W/2 = 427. The Collector cannot follow the gate's
 # column here -- it shares the broker's row and AMQ now ends at 567, so it sits one unit clear at 601.
 # Tops do not move -- only the columns do.
-# Esq2025 sits BETWEEN pacMan and Mesnie vertically, measured from the LAST card of the one above: pacMan 1 ends
+# Esq2025 sits BETWEEN paacMan and Mesnie vertically, measured from the LAST card of the one above: paacMan 1 ends
 # at 130, Mesnie 0 starts at 332, so the midpoint is 231 and an 80-tall card starts at 191. Horizontally it sits
 # on the legend's TROUBLE column (the legend starts at 30 and its second swatch at +66, so 96). The store is the
 # thing both services write to.
 OKE_LEFT = {"postgres": 96,
-            "pacman": 204, "mesnie": 204,
-            "activemq": 473,
-            "gateward": 647, "keycloak": 647, "collector": 647,
-            "backend": 917}
+            "paacman": 204, "mesnie": 204,
+            "activemq": 503,
+            "gateward": 677, "keycloak": 677, "collector": 677,
+            "backend": 947}
 OKE_TOP = {"postgres": 191}
-# The lane clears the services' front card (which ends at 440) by 80, not by the bare 34 -- the taps need room to
-# read as taps. AMQ follows it, centred: 520 + SPINE_W/2 - W/2 = 473. The Collector clears AMQ (ends 613) by 34 at
-# 647, and the gate column lines up ON the Collector. The Explorer then clears the gateWard STACK (ends 883).
-OKE_BUS_LEFT = {"esquire.entity": 520}
-# pacMan and Mesnie sit to the LEFT of the lane now, so their stacks must open AWAY from it: instance 1 behind
+# The biz lane clears the services' front card (which ends at 440) by 80, not by the bare 34 -- the taps need room
+# to read as taps. The entity lane follows one lane step (60) on, ending at 626. AMQ is centred under both:
+# (520 + 626) / 2 - W/2 = 503. The Collector clears AMQ (ends 643) by 34 at 677, and the gate column lines up ON
+# the Collector. The Explorer then clears the gateWard STACK (ends 913) by 34.
+OKE_BUS_LEFT = {"esquire.biz": 520, "esquire.entity": 580}
+# paacMan and Mesnie sit to the LEFT of the lane now, so their stacks must open AWAY from it: instance 1 behind
 # and to the LEFT of instance 0, the same mirror auKeep uses on the other boards. Unmirrored, the strip a card
 # behind keeps for its name and numbers would run straight into the lane its own arrows cross.
-OKE_MIRROR = {"pacman", "mesnie"}
+OKE_MIRROR = {"paacman", "mesnie"}
 # Mesnie now ends at 510 in the left column, so the legend drops below it rather than sitting across it.
 OKE_LEGEND_TOP = 560
 # The store sits to the LEFT of everything that writes to it, so EVERY line into it lands on its RIGHT border --
-# pacMan's, Mesnie's and gateWard's alike, which is what makes the three read as one bundle arriving at one door.
-# The service ends stay on pacMan's BOTTOM and Mesnie's TOP: those two stacks are mirrored, so the cards behind
+# paacMan's, Mesnie's and gateWard's alike, which is what makes the three read as one bundle arriving at one door.
+# The service ends stay on paacMan's BOTTOM and Mesnie's TOP: those two stacks are mirrored, so the cards behind
 # sit against their left borders and a line leaving there would run straight across a card of its own stack.
 OKE_PINNED_EDGE = {
-    ("pacman", "postgres"):   {"x": 0, "y": -1},   # leave pacMan's BOTTOM  (canvas y is UP)
-    ("postgres", "pacman"):   {"x": 1, "y": 0},    # land on Esq2025's RIGHT
+    ("paacman", "postgres"):  {"x": 0, "y": -1},   # leave paacMan's BOTTOM  (canvas y is UP)
+    ("postgres", "paacman"):  {"x": 1, "y": 0},    # land on Esq2025's RIGHT
     ("mesnie", "postgres"):   {"x": 0, "y": 1},    # leave Mesnie's TOP
     ("postgres", "mesnie"):   {"x": 1, "y": 0},    # land on Esq2025's RIGHT
     ("gateward", "postgres"): {"x": -1, "y": 0},   # leave gateWard's LEFT
     ("postgres", "gateward"): {"x": 1, "y": 0},    # land on Esq2025's RIGHT
 }
-# pacMan's tap takes the same point on its edge that the Explorer's line takes on KeyCloak's right border, so the
+# paacMan's tap takes the same point on its edge that the Explorer's line takes on KeyCloak's right border, so the
 # two read alike across the board. (The anchor's y is UP: positive sits above the middle.)
-OKE_EDGE_BIAS = {("pacman", "bus:esquire.entity"): 0.4}
+OKE_EDGE_BIAS = {("paacman", "bus:esquire.entity"): 0.4}
 
 # k8s-only FLOW overrides -- what REDUNDANCY changes about the arrows, which the single-instance picture cannot
 # show. Mesnie is already `both` on the entity lane at x1 (enyMan publishes and listens for its peers'), so this
@@ -705,16 +714,19 @@ BUSES = [
     # for the reply; kcMaster receives the request and sends the reply back. A single arrowhead on that bus would
     # be a lie in one direction or the other -- and the component model draws it with double arrows for exactly
     # this reason.
-    # TWO lanes here, and the missing one is missing for a REASON: the IAM request-response bus is GONE --
+    # THREE lanes here, and the missing one is missing for a REASON: the IAM request-response bus is GONE --
     # kcMaster runs inside Mesnie, so identity is a method call onto an in-memory queue, not a message. There is
-    # no medium left to draw. The other two keep their classic slots, which leaves the broker centred under both.
+    # no medium left to draw. The biz bus is request/reply: gateWard sends the account command, paacMan replies.
     # Mesnie is `both` on the entity lane: enyMan publishes its broadcasts AND listens for its peers' (Goal-4).
     dict(id="audit-c", name="Audit Broadcast Bus", kind="audit-c",
          color="#8FA8C8", left=300,
-         flow={"mesnie": "pub", "pacman": "pub", "aukeep": "sub"}),
+         flow={"mesnie": "pub", "paacman": "pub", "aukeep": "sub"}),
+    dict(id="esquire.biz", name="Biz Request-Response Bus", kind="esquire.biz",
+         color="#C9A0DC", left=360,
+         flow={"gateward": "both", "paacman": "both"}),
     dict(id="esquire.entity", name="Entity Broadcast Bus", kind="esquire.entity",
-         color="#9DC08B", left=380,
-         flow={"mesnie": "both", "pacman": "pub", "gateward": "sub"}),
+         color="#9DC08B", left=420,
+         flow={"mesnie": "both", "paacman": "pub", "gateward": "sub"}),
 ]
 
 # The lanes run the full height of the service column, so any service can tap any of them at its own height.
@@ -727,11 +739,12 @@ SPINE_TOP, SPINE_H, SPINE_W = 25, 500, 46
 # than a missing one: it sends the next reader looking for a coupling that does not exist.
 #
 #   gate routes     : gateWard/src/main/resources/application.yml `routes[].uri`. This profile runs NO gateway
-#                     process -- gateWard is the gate, and it proxies to Mesnie (keySmith + enyMan) and pacMan.
+#                     process -- gateWard is the gate, and it proxies to Mesnie (keySmith + enyMan). The account
+#                     routes reach paacMan over the biz lane, not over REST.
 #                     NOT kcMaster -- there is no route to it. kcMaster is reached ONLY over the bus, which is
 #                     exactly the kind of fact this picture exists to make obvious. (This file drew that arrow
 #                     once; it was invented.)
-#   DB              : the services with a datasource -- enyMan, bizTree, pacMan, keySmith, auKeep.
+#   DB              : the services with a datasource -- enyMan, bizTree, paacMan, keySmith, auKeep.
 #                     kcMaster has NO DB (it owns no state; KeyCloak is its store) and neither does the gateway.
 #   kcMaster -> KC  : the admin sync, REST.
 #   gateway  -> KC  : jwk-set-uri / token-uri -- the gateway fetches the JWK set to validate every JWT. A real
@@ -747,11 +760,10 @@ ARROWS = [
     ("backend", "gateward"),           # BFF proxies /api/* (and relays the session bearer)
     ("backend", "keycloak"),           # the BFF's own server-to-server calls: discovery, token exchange, JWKS
     ("gateward", "mesnie"),            # the proxied routes -- entity, dictionary, key
-    ("gateward", "pacman"),
     ("gateward", "keycloak"),          # JWK set -- every JWT is validated against it
     ("gateward", "postgres"),          # the tree cache loads itself from the database
     ("mesnie", "postgres"),
-    ("pacman", "postgres"),
+    ("paacman", "postgres"),
     ("aukeep", "postgres"),            # the audit sink writes the log rows
     ("mesnie", "keycloak"),            # the KC admin sync -- kcMaster's call, made from inside the household
 ]
@@ -788,7 +800,7 @@ PINNED_EDGE = {
     # gateWard -> Esq2025 lands on the store's RIGHT border, at its middle (mir0n) -- the near side, so the
     # line stops at the box instead of running across it. gateWard keeps the facing
     # (left) edge, so this line takes its place in the even spread with the other three and the order down that
-    # edge falls out of the geometry: pacMan, the entity lane, Esq2025, Mesnie.
+    # edge falls out of the geometry: the biz lane, the entity lane, Esq2025, Mesnie.
     ("postgres", "gateward"): {"x": 1, "y": 0},    # land on Esq2025's RIGHT border, centre
 }
 
@@ -818,7 +830,7 @@ BUS_LEFT, BUS_WIDTH = 180, 817   # the bars run beside the broker, spanning the 
 LAYERS = [
     ["postgres", "aukeep"],                # 1 -- back:  the store, and the audit sink
     ["activemq", "collector"],             # 2 --        the bus lane + the broker; the Collector rides here too
-    ["pacman", "mesnie"],                  # 3 --        the services
+    ["paacman", "mesnie"],                 # 3 --        the services
     ["gateward", "keycloak"],              # 4 --        the edge + identity
     ["backend"],                           # 5 -- front: the BFF
 ]
@@ -955,6 +967,7 @@ def card(name, r):
 # ---------------------------------------------------------------------------------------------------------------
 ICON = {n: "img/icons/esq/%s.svg" % n for n in
         ("pacman", "activemq", "postgres")}
+ICON["paacman"] = ICON["pacman"]
 ICON["keycloak"] = "img/icons/esq/keycloak.svg?v=2"
 # A drawing that CHANGES keeps its filename and carries `?v=N`. The canvas fetches its icons from script at
 # runtime, so a browser holding the old drawing under the old URL keeps showing it through any refresh --
@@ -2166,7 +2179,7 @@ def main():
     arrows0 = list(ARROWS)
     # OKE runs SUPER-COMPACT: the app tier x2, and the BFF x2 as well (redis gives it a shared session store).
     # auKeep is dropped below, so it is not listed.
-    OKE_CARDS = {n: 2 for n in ("pacman", "mesnie", "gateward", "backend")}
+    OKE_CARDS = {n: 2 for n in ("paacman", "mesnie", "gateward", "backend")}
     # (drop_comp, drop_bus, bus_left) per target. OKE: drop auKeep and the audit lane, and slide the surviving
     # entity lane into the vacated slot (300), which puts it over the broker instead of beside it.
     mirror0, legend0 = set(MIRROR), LEGEND_TOP
@@ -2199,7 +2212,7 @@ def main():
         os.makedirs(os.path.dirname(path), exist_ok=True)
         with open(path, "w") as f:
             json.dump(build(), f, indent=1)
-        tag = ("OKE super-compact -- x2, no auKeep, the lane between the services and the gate" if drop_comp
+        tag = ("OKE super-compact -- x2, no auKeep, the lanes between the services and the gate" if drop_comp
                else "k8s compact -- x2, one card per instance" if model
                else "docker compact -- single instance")
         print("wrote", path, "(%s)" % tag)

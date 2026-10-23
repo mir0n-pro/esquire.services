@@ -81,7 +81,7 @@ $ErrorActionPreference = "Continue"
 # stays DOWN until the pod restarts, hanging the run). oke-o11y-on/off honor this flag by SKIPPING the
 # kc/amq metric rolls (broker/kc metrics are their own, not app o11y cost -> skipping is neutral).
 $env:SKIP_INFRA_ROLL = "1"
-$SVCS    = "C:\MyProjects\esquire\services"
+$SVCS    = "C:\MyProjects\esquire\services2"
 $OKEDIR  = "$SVCS\k8s-oci-compact"
 $HAUBERK = $PSScriptRoot
 $HCFG    = @("--config","hauberk-oke.properties")

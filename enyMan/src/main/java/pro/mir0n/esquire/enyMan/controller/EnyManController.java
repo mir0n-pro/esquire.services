@@ -32,16 +32,16 @@
  *                   a query param, so the free meter can say the endpoint is busy but never WHICH dictionary
  * 08/26/2026 mir0n  the develop log lines pass the value itself instead of String.valueOf; the move endpoint
  *                   documents 503 as a response code
+ * 10/19/2026 mir0n  v2.0.1 -- the @AuthenticationPrincipal Claims parameters and the roles read from the token
+ *                   removed
  */
 
 package pro.mir0n.esquire.enyMan.controller;
 
 import pro.mir0n.o11y.BizMeters;
-import io.jsonwebtoken.Claims;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ProblemDetail;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import pro.mir0n.esquire.backend.dto.*;
 import pro.mir0n.esquire.backend.dto.entity.*;
 import pro.mir0n.esquire.backend.storage.EsqObjectKindStorage;
@@ -63,7 +63,6 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.util.Map;
 
-import pro.mir0n.esquire.common.EsqConstants;
 
 /**
  * @author mir0n
@@ -114,8 +113,7 @@ public class EnyManController {
     @GetMapping("/esq-dict")
     public ResponseEntity<List<EsqEntityLayer>>  esquireDictionary(
             @Parameter(description = "Entity kind code")
-            @RequestParam(name = "kind", required = true) Integer kind,
-            @AuthenticationPrincipal Claims claims
+            @RequestParam(name = "kind", required = true) Integer kind
     ) {
         List<EsqEntityLayer> layers = iEnyManService.esquireDictionary(kind);
         // esq.biz.dict.lookup.total (O1/T8 phase B). Not a duplicate of the free http.server.requests: that meter
@@ -132,8 +130,7 @@ public class EnyManController {
            @Parameter(description = "Entity id")
            @RequestParam(name = "id", required = true) String id,
            @Parameter(description = "Command code: 'details' only for now")
-           @RequestParam(name = "cmd", required = false, defaultValue = "details") String cmd,
-           @AuthenticationPrincipal Claims claims
+           @RequestParam(name = "cmd", required = false, defaultValue = "details") String cmd
     ) {
         EsqEntity entity = iEnyManService.esquireCommand(kind, id, cmd);
         devLog.debug("esquireCommand: kind:{}, id:{}, cmd:{}, result:{}", kind, id, cmd, entity);
@@ -148,13 +145,10 @@ public class EnyManController {
            @RequestParam(name = "id", required = true) String id,
            @Parameter(description = "Command code")
            @RequestParam(name = "cmd", required = false, defaultValue = "save") String cmd,
-           @RequestBody Map<String, Object> fields,
-           @AuthenticationPrincipal Claims claims
+           @RequestBody Map<String, Object> fields
     ) {
-        Map<String, Object> realmAccess = claims.get(EsqConstants.JWT_CLAIM_REALM_ACCESS, Map.class);
-        List<String> roles = realmAccess != null ? (List<String>) realmAccess.get(EsqConstants.JWT_CLAIM_REALM_ACCESS_ROLES) : null;
 
-        EsqEntity ret = iEnyManService.esquireCommandSave(kind, id, cmd, fields, roles);
+        EsqEntity ret = iEnyManService.esquireCommandSave(kind, id, cmd, fields);
         devLog.debug("esquireCommandSave: kind:{}, id:{}, cmd:{}, result:{}", kind, id, cmd, ret);
         return ResponseEntity.status(HttpStatus.OK).body(ret);
     }
@@ -167,13 +161,10 @@ public class EnyManController {
            @RequestParam(name = "parentId", required = true) String parentId,
            @Parameter(description = "Command code")
            @RequestParam(name = "cmd", required = false, defaultValue = "new") String cmd,
-           @RequestBody Map<String, Object> fields,
-           @AuthenticationPrincipal Claims claims
+           @RequestBody Map<String, Object> fields
     ) {
-        Map<String, Object> realmAccess = claims.get(EsqConstants.JWT_CLAIM_REALM_ACCESS, Map.class);
-        List<String> roles = realmAccess != null ? (List<String>) realmAccess.get(EsqConstants.JWT_CLAIM_REALM_ACCESS_ROLES) : null;
 
-        EsqEntity ret = iEnyManService.esquireCommandNew(kind, parentId, cmd, fields, roles);
+        EsqEntity ret = iEnyManService.esquireCommandNew(kind, parentId, cmd, fields);
         devLog.debug("esquireCommandNew: kind:{}, parentId:{}, cmd:{}, result:{}", kind, parentId, cmd, ret);
         return ResponseEntity.status(HttpStatus.OK).body(ret);
     }
@@ -185,13 +176,10 @@ public class EnyManController {
            @Parameter(description = "Entity id")
            @RequestParam(name = "id", required = true) String id,
            @Parameter(description = "Command code")
-           @RequestParam(name = "cmd", required = false, defaultValue = "delete") String cmd,
-           @AuthenticationPrincipal Claims claims
+           @RequestParam(name = "cmd", required = false, defaultValue = "delete") String cmd
     ) {
-        Map<String, Object> realmAccess = claims.get(EsqConstants.JWT_CLAIM_REALM_ACCESS, Map.class);
-        List<String> roles = realmAccess != null ? (List<String>) realmAccess.get(EsqConstants.JWT_CLAIM_REALM_ACCESS_ROLES) : null;
 
-        iEnyManService.esquireCommandDelete(kind, id, cmd, roles);
+        iEnyManService.esquireCommandDelete(kind, id, cmd);
         devLog.debug("esquireCommandDelete: kind:{}, id:{}, cmd:{}", kind, id, cmd);
         return ResponseEntity.ok().build();
     }
@@ -229,21 +217,16 @@ public class EnyManController {
            @Parameter(description = "Entity id")
            @RequestParam(name = "id", required = true) String id,
            @Parameter(description = "Destination org id")
-           @RequestParam(name = "dist_id", required = true) String distId,
-           @AuthenticationPrincipal Claims claims
+           @RequestParam(name = "dist_id", required = true) String distId
     ) {
-        Map<String, Object> realmAccess = claims.get(EsqConstants.JWT_CLAIM_REALM_ACCESS, Map.class);
-        List<String> roles = realmAccess != null ? (List<String>) realmAccess.get(EsqConstants.JWT_CLAIM_REALM_ACCESS_ROLES) : null;
 
-        iEnyManService.esquireCommandMove(kind, id, distId, roles);
+        iEnyManService.esquireCommandMove(kind, id, distId);
         devLog.debug("esquireCommandMove: queued kind:{}, id:{}, distId:{}", kind, id, distId);
         return ResponseEntity.accepted().build();
     }
 
     @GetMapping("/esq-kinds")
-    public ResponseEntity<List<EsqObjectKind>>  esquireKinds(
-            @AuthenticationPrincipal Claims claims
-    ) {
+    public ResponseEntity<List<EsqObjectKind>>  esquireKinds() {
         //String rootPath = claims.get(EsqConstants.JWT_CLAIM_ENTITY_ROOTPATH, String.class);
         //String uid = claims.get(EsqConstants.JWT_CLAIM_ENTITY_ID, String.class);
 
@@ -263,8 +246,7 @@ public class EnyManController {
             @Parameter(description = "Seed entity kind code (ORG/USR/ACCT)")
             @RequestParam(name = "kind", required = true) Integer kind,
             @Parameter(description = "Seed entity id")
-            @RequestParam(name = "id", required = true) String id,
-            @AuthenticationPrincipal Claims claims
+            @RequestParam(name = "id", required = true) String id
     ) {
         List<EsqTreeNode> ret = iEnyManService.esquireCommandTree(kind, id);
         devLog.debug("esquireCommandTree: kind:{}, id:{}, rows:{}", kind, id, ret.size());

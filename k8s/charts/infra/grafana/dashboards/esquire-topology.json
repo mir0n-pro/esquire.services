@@ -298,8 +298,8 @@
       "type": "prometheus",
       "uid": "esq-prometheus"
      },
-     "expr": "(clamp_max((count(process_uptime_seconds{job=\"esquire-services\", application=\"pacman\", instance=~\".*-0$\"})) or vector(0), 1)) * (2 - clamp_max(((((max(process_cpu_usage{job=\"esquire-services\", application=\"pacman\", instance=~\".*-0$\"}) > bool 0.8)) or vector(0)) + (((100 * sum(jvm_memory_used_bytes{application=\"pacman\", instance=~\".*-0$\", area=\"heap\"}) / sum(jvm_memory_max_bytes{application=\"pacman\", instance=~\".*-0$\", area=\"heap\"}) > bool 85)) or vector(0)) + (((100 * sum(hikaricp_connections_active{application=\"pacman\", instance=~\".*-0$\"}) / sum(hikaricp_connections_max{application=\"pacman\", instance=~\".*-0$\"}) > bool 90)) or vector(0)) + (((((sum(rate(http_server_requests_seconds_count{application=\"pacman\"}[15m])) or vector(0)) - (sum(rate(http_server_requests_seconds_count{application=\"pacman\", instance=~\".*-0$\"}[15m])) or vector(0)) > bool 0.01) * ((sum(rate(http_server_requests_seconds_count{application=\"pacman\", instance=~\".*-0$\"}[15m])) or vector(0)) == bool 0))) or vector(0))), 1))",
-     "legendFormat": "pacman 0",
+     "expr": "(clamp_max((count(process_uptime_seconds{job=\"esquire-services\", application=\"paacman\", instance=~\".*-0$\"})) or vector(0), 1)) * (2 - clamp_max(((((max(process_cpu_usage{job=\"esquire-services\", application=\"paacman\", instance=~\".*-0$\"}) > bool 0.8)) or vector(0)) + (((100 * sum(jvm_memory_used_bytes{application=\"paacman\", instance=~\".*-0$\", area=\"heap\"}) / sum(jvm_memory_max_bytes{application=\"paacman\", instance=~\".*-0$\", area=\"heap\"}) > bool 85)) or vector(0)) + (((100 * sum(hikaricp_connections_active{application=\"paacman\", instance=~\".*-0$\"}) / sum(hikaricp_connections_max{application=\"paacman\", instance=~\".*-0$\"}) > bool 90)) or vector(0)) + (((((sum(rate(messaging_receive_total{application=\"paacman\"}[15m])) or vector(0)) - (sum(rate(messaging_receive_total{application=\"paacman\", instance=~\".*-0$\"}[15m])) or vector(0)) > bool 0.01) * ((sum(rate(messaging_receive_total{application=\"paacman\", instance=~\".*-0$\"}[15m])) or vector(0)) == bool 0))) or vector(0))), 1))",
+     "legendFormat": "paacman 0",
      "instant": true
     },
     {
@@ -308,8 +308,8 @@
       "type": "prometheus",
       "uid": "esq-prometheus"
      },
-     "expr": "(clamp_max(((((sum(increase(http_server_requests_seconds_count{application=\"pacman\", instance=~\".*-0$\", status=~\"5..\"}[1m])) > bool 0)) or vector(0)) + (((sum(increase(logback_events_total{application=\"pacman\", instance=~\".*-0$\", level=\"error\"}[1m])) > bool 0)) or vector(0)) + ((((sum(increase(messaging_error_total{application=\"pacman\", instance=~\".*-0$\"}[1m])) or vector(0)) > bool 0)) or vector(0))), 1)) or vector(0)",
-     "legendFormat": "pacman 0 alarm",
+     "expr": "(clamp_max(((((sum(increase(http_server_requests_seconds_count{application=\"paacman\", instance=~\".*-0$\", status=~\"5..\"}[1m])) > bool 0)) or vector(0)) + (((sum(increase(logback_events_total{application=\"paacman\", instance=~\".*-0$\", level=\"error\"}[1m])) > bool 0)) or vector(0)) + ((((sum(increase(messaging_error_total{application=\"paacman\", instance=~\".*-0$\"}[1m])) or vector(0)) > bool 0)) or vector(0))), 1)) or vector(0)",
+     "legendFormat": "paacman 0 alarm",
      "instant": true
     },
     {
@@ -318,8 +318,8 @@
       "type": "prometheus",
       "uid": "esq-prometheus"
      },
-     "expr": "(sum(rate(http_server_requests_seconds_count{application=\"pacman\", instance=~\".*-0$\"}[5m]))) or vector(0)",
-     "legendFormat": "pacman 0 req/s",
+     "expr": "(sum(rate(messaging_receive_total{application=\"paacman\", instance=~\".*-0$\", bus_id=\"esquire.biz\"}[5m]))) or vector(0)",
+     "legendFormat": "paacman 0 req/s",
      "instant": true
     },
     {
@@ -328,8 +328,8 @@
       "type": "prometheus",
       "uid": "esq-prometheus"
      },
-     "expr": "(avg(process_cpu_usage{job=\"esquire-services\", application=\"pacman\", instance=~\".*-0$\"}) * 100) or vector(0)",
-     "legendFormat": "pacman 0 cpu",
+     "expr": "(avg(process_cpu_usage{job=\"esquire-services\", application=\"paacman\", instance=~\".*-0$\"}) * 100) or vector(0)",
+     "legendFormat": "paacman 0 cpu",
      "instant": true
     },
     {
@@ -338,8 +338,8 @@
       "type": "prometheus",
       "uid": "esq-prometheus"
      },
-     "expr": "(sum(jvm_memory_used_bytes{application=\"pacman\", instance=~\".*-0$\", area=\"heap\"})) or vector(0)",
-     "legendFormat": "pacman 0 heap",
+     "expr": "(sum(jvm_memory_used_bytes{application=\"paacman\", instance=~\".*-0$\", area=\"heap\"})) or vector(0)",
+     "legendFormat": "paacman 0 heap",
      "instant": true
     },
     {
@@ -348,8 +348,8 @@
       "type": "prometheus",
       "uid": "esq-prometheus"
      },
-     "expr": "(clamp_max((count(process_uptime_seconds{job=\"esquire-services\", application=\"pacman\", instance=~\".*-1$\"})) or vector(0), 1)) * (2 - clamp_max(((((max(process_cpu_usage{job=\"esquire-services\", application=\"pacman\", instance=~\".*-1$\"}) > bool 0.8)) or vector(0)) + (((100 * sum(jvm_memory_used_bytes{application=\"pacman\", instance=~\".*-1$\", area=\"heap\"}) / sum(jvm_memory_max_bytes{application=\"pacman\", instance=~\".*-1$\", area=\"heap\"}) > bool 85)) or vector(0)) + (((100 * sum(hikaricp_connections_active{application=\"pacman\", instance=~\".*-1$\"}) / sum(hikaricp_connections_max{application=\"pacman\", instance=~\".*-1$\"}) > bool 90)) or vector(0)) + (((((sum(rate(http_server_requests_seconds_count{application=\"pacman\"}[15m])) or vector(0)) - (sum(rate(http_server_requests_seconds_count{application=\"pacman\", instance=~\".*-1$\"}[15m])) or vector(0)) > bool 0.01) * ((sum(rate(http_server_requests_seconds_count{application=\"pacman\", instance=~\".*-1$\"}[15m])) or vector(0)) == bool 0))) or vector(0))), 1))",
-     "legendFormat": "pacman 1",
+     "expr": "(clamp_max((count(process_uptime_seconds{job=\"esquire-services\", application=\"paacman\", instance=~\".*-1$\"})) or vector(0), 1)) * (2 - clamp_max(((((max(process_cpu_usage{job=\"esquire-services\", application=\"paacman\", instance=~\".*-1$\"}) > bool 0.8)) or vector(0)) + (((100 * sum(jvm_memory_used_bytes{application=\"paacman\", instance=~\".*-1$\", area=\"heap\"}) / sum(jvm_memory_max_bytes{application=\"paacman\", instance=~\".*-1$\", area=\"heap\"}) > bool 85)) or vector(0)) + (((100 * sum(hikaricp_connections_active{application=\"paacman\", instance=~\".*-1$\"}) / sum(hikaricp_connections_max{application=\"paacman\", instance=~\".*-1$\"}) > bool 90)) or vector(0)) + (((((sum(rate(messaging_receive_total{application=\"paacman\"}[15m])) or vector(0)) - (sum(rate(messaging_receive_total{application=\"paacman\", instance=~\".*-1$\"}[15m])) or vector(0)) > bool 0.01) * ((sum(rate(messaging_receive_total{application=\"paacman\", instance=~\".*-1$\"}[15m])) or vector(0)) == bool 0))) or vector(0))), 1))",
+     "legendFormat": "paacman 1",
      "instant": true
     },
     {
@@ -358,8 +358,8 @@
       "type": "prometheus",
       "uid": "esq-prometheus"
      },
-     "expr": "(clamp_max(((((sum(increase(http_server_requests_seconds_count{application=\"pacman\", instance=~\".*-1$\", status=~\"5..\"}[1m])) > bool 0)) or vector(0)) + (((sum(increase(logback_events_total{application=\"pacman\", instance=~\".*-1$\", level=\"error\"}[1m])) > bool 0)) or vector(0)) + ((((sum(increase(messaging_error_total{application=\"pacman\", instance=~\".*-1$\"}[1m])) or vector(0)) > bool 0)) or vector(0))), 1)) or vector(0)",
-     "legendFormat": "pacman 1 alarm",
+     "expr": "(clamp_max(((((sum(increase(http_server_requests_seconds_count{application=\"paacman\", instance=~\".*-1$\", status=~\"5..\"}[1m])) > bool 0)) or vector(0)) + (((sum(increase(logback_events_total{application=\"paacman\", instance=~\".*-1$\", level=\"error\"}[1m])) > bool 0)) or vector(0)) + ((((sum(increase(messaging_error_total{application=\"paacman\", instance=~\".*-1$\"}[1m])) or vector(0)) > bool 0)) or vector(0))), 1)) or vector(0)",
+     "legendFormat": "paacman 1 alarm",
      "instant": true
     },
     {
@@ -368,8 +368,8 @@
       "type": "prometheus",
       "uid": "esq-prometheus"
      },
-     "expr": "(sum(rate(http_server_requests_seconds_count{application=\"pacman\", instance=~\".*-1$\"}[5m]))) or vector(0)",
-     "legendFormat": "pacman 1 req/s",
+     "expr": "(sum(rate(messaging_receive_total{application=\"paacman\", instance=~\".*-1$\", bus_id=\"esquire.biz\"}[5m]))) or vector(0)",
+     "legendFormat": "paacman 1 req/s",
      "instant": true
     },
     {
@@ -378,8 +378,8 @@
       "type": "prometheus",
       "uid": "esq-prometheus"
      },
-     "expr": "(avg(process_cpu_usage{job=\"esquire-services\", application=\"pacman\", instance=~\".*-1$\"}) * 100) or vector(0)",
-     "legendFormat": "pacman 1 cpu",
+     "expr": "(avg(process_cpu_usage{job=\"esquire-services\", application=\"paacman\", instance=~\".*-1$\"}) * 100) or vector(0)",
+     "legendFormat": "paacman 1 cpu",
      "instant": true
     },
     {
@@ -388,8 +388,8 @@
       "type": "prometheus",
       "uid": "esq-prometheus"
      },
-     "expr": "(sum(jvm_memory_used_bytes{application=\"pacman\", instance=~\".*-1$\", area=\"heap\"})) or vector(0)",
-     "legendFormat": "pacman 1 heap",
+     "expr": "(sum(jvm_memory_used_bytes{application=\"paacman\", instance=~\".*-1$\", area=\"heap\"})) or vector(0)",
+     "legendFormat": "paacman 1 heap",
      "instant": true
     },
     {
@@ -1312,7 +1312,7 @@
      {
       "matcher": {
        "id": "byName",
-       "options": "pacman 0 req/s"
+       "options": "paacman 0 req/s"
       },
       "properties": [
        {
@@ -1328,7 +1328,7 @@
      {
       "matcher": {
        "id": "byName",
-       "options": "pacman 0 cpu"
+       "options": "paacman 0 cpu"
       },
       "properties": [
        {
@@ -1344,7 +1344,7 @@
      {
       "matcher": {
        "id": "byName",
-       "options": "pacman 0 heap"
+       "options": "paacman 0 heap"
       },
       "properties": [
        {
@@ -1360,7 +1360,7 @@
      {
       "matcher": {
        "id": "byName",
-       "options": "pacman 1 req/s"
+       "options": "paacman 1 req/s"
       },
       "properties": [
        {
@@ -1376,7 +1376,7 @@
      {
       "matcher": {
        "id": "byName",
-       "options": "pacman 1 cpu"
+       "options": "paacman 1 cpu"
       },
       "properties": [
        {
@@ -1392,7 +1392,7 @@
      {
       "matcher": {
        "id": "byName",
-       "options": "pacman 1 heap"
+       "options": "paacman 1 heap"
       },
       "properties": [
        {
@@ -2152,7 +2152,7 @@
      {
       "matcher": {
        "id": "byName",
-       "options": "pacman 0 alarm"
+       "options": "paacman 0 alarm"
       },
       "properties": [
        {
@@ -2176,7 +2176,7 @@
      {
       "matcher": {
        "id": "byName",
-       "options": "pacman 1 alarm"
+       "options": "paacman 1 alarm"
       },
       "properties": [
        {
@@ -2760,7 +2760,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 333,
+        "left": 343,
         "top": 596,
         "width": 140,
         "height": 80,
@@ -2794,10 +2794,29 @@
          "direction": "none"
         },
         {
+         "targetName": "bus:esquire.biz",
+         "path": "straight",
+         "source": {
+          "x": -0.22000000000000003,
+          "y": 1
+         },
+         "target": {
+          "x": 0,
+          "y": -1
+         },
+         "color": {
+          "fixed": "#C9A0DC"
+         },
+         "size": {
+          "fixed": 2
+         },
+         "direction": "none"
+        },
+        {
          "targetName": "bus:esquire.kc",
          "path": "straight",
          "source": {
-          "x": 0.0,
+          "x": 0.21999999999999997,
           "y": 1
          },
          "target": {
@@ -2888,17 +2907,17 @@
        "connections": []
       },
       {
-       "name": "pacman 1",
+       "name": "paacman 1",
        "type": "rectangle",
        "background": {
         "color": {
-         "field": "pacman 1",
+         "field": "paacman 1",
          "fixed": "#D9D9D9"
         }
        },
        "border": {
         "color": {
-         "field": "pacman 1 alarm"
+         "field": "paacman 1 alarm"
         },
         "width": 3
        },
@@ -2916,7 +2935,7 @@
         "links": [
          {
           "title": "details",
-          "url": "/d/esq-services/?var-application=pacman",
+          "url": "/d/esq-services/?var-application=paacman",
           "targetBlank": false
          }
         ]
@@ -2934,25 +2953,25 @@
        },
        "links": [
         {
-         "title": "details for pacman",
-         "url": "/d/esq-services/?var-application=pacman",
+         "title": "details for paacman",
+         "url": "/d/esq-services/?var-application=paacman",
          "targetBlank": false
         }
        ],
        "connections": []
       },
       {
-       "name": "pacman 0",
+       "name": "paacman 0",
        "type": "rectangle",
        "background": {
         "color": {
-         "field": "pacman 0",
+         "field": "paacman 0",
          "fixed": "#D9D9D9"
         }
        },
        "border": {
         "color": {
-         "field": "pacman 0 alarm"
+         "field": "paacman 0 alarm"
         },
         "width": 3
        },
@@ -2964,13 +2983,13 @@
         },
         "size": 12,
         "text": {
-         "fixed": "pacMan 0",
+         "fixed": "paacMan 0",
          "mode": "fixed"
         },
         "links": [
          {
           "title": "details",
-          "url": "/d/esq-services/?var-application=pacman",
+          "url": "/d/esq-services/?var-application=paacman",
           "targetBlank": false
          }
         ]
@@ -2988,8 +3007,8 @@
        },
        "links": [
         {
-         "title": "details for pacman",
-         "url": "/d/esq-services/?var-application=pacman",
+         "title": "details for paacman",
+         "url": "/d/esq-services/?var-application=paacman",
          "targetBlank": false
         }
        ],
@@ -3014,15 +3033,34 @@
          "direction": "forward"
         },
         {
+         "targetName": "bus:esquire.biz",
+         "path": "straight",
+         "source": {
+          "x": -1,
+          "y": 0.22000000000000003
+         },
+         "target": {
+          "x": 1,
+          "y": 0.8552000000000001
+         },
+         "color": {
+          "fixed": "#C9A0DC"
+         },
+         "size": {
+          "fixed": 2
+         },
+         "direction": "both"
+        },
+        {
          "targetName": "bus:esquire.entity",
          "path": "straight",
          "source": {
           "x": -1,
-          "y": -0.0
+          "y": -0.21999999999999997
          },
          "target": {
           "x": 1,
-          "y": 0.82
+          "y": 0.7847999999999999
          },
          "color": {
           "fixed": "#9DC08B"
@@ -3093,7 +3131,7 @@
        },
        "placement": {
         "left": 656,
-        "top": 150,
+        "top": 180,
         "width": 140,
         "height": 80,
         "rotation": 0
@@ -3147,7 +3185,7 @@
        },
        "placement": {
         "left": 560,
-        "top": 130,
+        "top": 160,
         "width": 140,
         "height": 80,
         "rotation": 0
@@ -3169,7 +3207,7 @@
          },
          "target": {
           "x": 1,
-          "y": 0.5256000000000001
+          "y": 0.4056
          },
          "color": {
           "fixed": "#9DC08B"
@@ -3240,7 +3278,7 @@
        },
        "placement": {
         "left": 656,
-        "top": 250,
+        "top": 280,
         "width": 140,
         "height": 80,
         "rotation": 0
@@ -3294,7 +3332,7 @@
        },
        "placement": {
         "left": 560,
-        "top": 230,
+        "top": 260,
         "width": 140,
         "height": 80,
         "rotation": 0
@@ -3312,11 +3350,11 @@
          "path": "straight",
          "source": {
           "x": -1,
-          "y": 0.66
+          "y": 0.22000000000000003
          },
          "target": {
           "x": 1,
-          "y": 0.12560000000000002
+          "y": -0.06479999999999995
          },
          "color": {
           "fixed": "#8FA8C8"
@@ -3331,11 +3369,11 @@
          "path": "straight",
          "source": {
           "x": -1,
-          "y": 0.22000000000000003
+          "y": -0.21999999999999997
          },
          "target": {
           "x": 1,
-          "y": 0.05520000000000005
+          "y": -0.13520000000000004
          },
          "color": {
           "fixed": "#D9C48A"
@@ -3350,11 +3388,11 @@
          "path": "straight",
          "source": {
           "x": -1,
-          "y": -0.21999999999999997
+          "y": -0.66
          },
          "target": {
           "x": 1,
-          "y": -0.015200000000000045
+          "y": -0.20559999999999992
          },
          "color": {
           "fixed": "#9DC08B"
@@ -3369,7 +3407,7 @@
          "path": "angled",
          "source": {
           "x": -1,
-          "y": -0.66
+          "y": 0.66
          },
          "target": {
           "x": 1,
@@ -3425,7 +3463,7 @@
        },
        "placement": {
         "left": 656,
-        "top": 350,
+        "top": 380,
         "width": 140,
         "height": 80,
         "rotation": 0
@@ -3479,7 +3517,7 @@
        },
        "placement": {
         "left": 560,
-        "top": 330,
+        "top": 360,
         "width": 140,
         "height": 80,
         "rotation": 0
@@ -3501,7 +3539,7 @@
          },
          "target": {
           "x": 1,
-          "y": -0.38
+          "y": -0.5
          },
          "color": {
           "fixed": "#8FA8C8"
@@ -3520,7 +3558,7 @@
          },
          "target": {
           "x": 1,
-          "y": -0.4855999999999999
+          "y": -0.6055999999999999
          },
          "color": {
           "fixed": "#D9C48A"
@@ -3591,7 +3629,7 @@
        },
        "placement": {
         "left": 656,
-        "top": 450,
+        "top": 480,
         "width": 140,
         "height": 80,
         "rotation": 0
@@ -3645,7 +3683,7 @@
        },
        "placement": {
         "left": 560,
-        "top": 430,
+        "top": 460,
         "width": 140,
         "height": 80,
         "rotation": 0
@@ -3667,7 +3705,7 @@
          },
          "target": {
           "x": 1,
-          "y": -0.6744000000000001
+          "y": -0.7944000000000001
          },
          "color": {
           "fixed": "#D9C48A"
@@ -3686,7 +3724,7 @@
          },
          "target": {
           "x": 1,
-          "y": -0.8855999999999999
+          "y": -1.0055999999999998
          },
          "color": {
           "fixed": "#9DC08B"
@@ -3757,7 +3795,7 @@
        },
        "placement": {
         "left": 926,
-        "top": 200,
+        "top": 125,
         "width": 140,
         "height": 80,
         "rotation": 0
@@ -3811,7 +3849,7 @@
        },
        "placement": {
         "left": 830,
-        "top": 180,
+        "top": 105,
         "width": 140,
         "height": 80,
         "rotation": 0
@@ -3825,15 +3863,34 @@
        ],
        "connections": [
         {
-         "targetName": "enyman 0",
-         "path": "angled",
+         "targetName": "bus:esquire.biz",
+         "path": "straight",
          "source": {
           "x": -1,
-          "y": -0.21999999999999997
+          "y": 0.0
          },
          "target": {
           "x": 1,
-          "y": -0.0
+          "y": 0.52
+         },
+         "color": {
+          "fixed": "#C9A0DC"
+         },
+         "size": {
+          "fixed": 2
+         },
+         "direction": "both"
+        },
+        {
+         "targetName": "enyman 0",
+         "path": "angled",
+         "source": {
+          "x": -0.22000000000000003,
+          "y": -1
+         },
+         "target": {
+          "x": 1,
+          "y": 0.75
          },
          "color": {
           "fixed": "#000000"
@@ -3847,31 +3904,12 @@
          "targetName": "biztree 0",
          "path": "angled",
          "source": {
-          "x": -1,
-          "y": 0.22000000000000003
+          "x": -0.66,
+          "y": -1
          },
          "target": {
           "x": 1,
-          "y": -0.0
-         },
-         "color": {
-          "fixed": "#000000"
-         },
-         "size": {
-          "fixed": 1.25
-         },
-         "direction": "forward"
-        },
-        {
-         "targetName": "pacman 0",
-         "path": "angled",
-         "source": {
-          "x": -1,
-          "y": 0.66
-         },
-         "target": {
-          "x": 1,
-          "y": -0.0
+          "y": 0.75
          },
          "color": {
           "fixed": "#000000"
@@ -3885,12 +3923,12 @@
          "targetName": "keysmith 0",
          "path": "angled",
          "source": {
-          "x": -1,
-          "y": -0.66
+          "x": 0.21999999999999997,
+          "y": -1
          },
          "target": {
           "x": 1,
-          "y": -0.0
+          "y": 0.75
          },
          "color": {
           "fixed": "#000000"
@@ -3904,7 +3942,7 @@
          "targetName": "keycloak",
          "path": "angled",
          "source": {
-          "x": 0.0,
+          "x": 0.66,
           "y": -1
          },
          "target": {
@@ -3961,7 +3999,7 @@
        },
        "placement": {
         "left": 830,
-        "top": 430,
+        "top": 460,
         "width": 140,
         "height": 80,
         "rotation": 0
@@ -4015,7 +4053,7 @@
        },
        "placement": {
         "left": 1176,
-        "top": 200,
+        "top": 125,
         "width": 140,
         "height": 80,
         "rotation": 0
@@ -4069,7 +4107,7 @@
        },
        "placement": {
         "left": 1080,
-        "top": 180,
+        "top": 105,
         "width": 140,
         "height": 80,
         "rotation": 0
@@ -4621,7 +4659,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 338,
+        "left": 348,
         "top": 600,
         "width": 28,
         "height": 28,
@@ -4661,7 +4699,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 333,
+        "left": 343,
         "top": 618,
         "width": 140,
         "height": 19,
@@ -4701,7 +4739,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 333,
+        "left": 343,
         "top": 637,
         "width": 140,
         "height": 19,
@@ -4741,7 +4779,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 333,
+        "left": 343,
         "top": 656,
         "width": 140,
         "height": 19,
@@ -4870,7 +4908,7 @@
        "connections": []
       },
       {
-       "name": "pacman icon",
+       "name": "paacman icon",
        "type": "icon",
        "background": {
         "color": {
@@ -4906,7 +4944,7 @@
        "connections": []
       },
       {
-       "name": "pacman 0 req/s",
+       "name": "paacman 0 req/s",
        "type": "metric-value",
        "background": {
         "color": {
@@ -4927,7 +4965,7 @@
         },
         "size": 12,
         "text": {
-         "field": "pacman 0 req/s",
+         "field": "paacman 0 req/s",
          "mode": "field",
          "fixed": ""
         }
@@ -4946,7 +4984,7 @@
        "connections": []
       },
       {
-       "name": "pacman 0 cpu",
+       "name": "paacman 0 cpu",
        "type": "metric-value",
        "background": {
         "color": {
@@ -4967,7 +5005,7 @@
         },
         "size": 12,
         "text": {
-         "field": "pacman 0 cpu",
+         "field": "paacman 0 cpu",
          "mode": "field",
          "fixed": ""
         }
@@ -4986,7 +5024,7 @@
        "connections": []
       },
       {
-       "name": "pacman 0 heap",
+       "name": "paacman 0 heap",
        "type": "metric-value",
        "background": {
         "color": {
@@ -5007,7 +5045,7 @@
         },
         "size": 12,
         "text": {
-         "field": "pacman 0 heap",
+         "field": "paacman 0 heap",
          "mode": "field",
          "fixed": ""
         }
@@ -5026,7 +5064,7 @@
        "connections": []
       },
       {
-       "name": "pacman 1 name",
+       "name": "paacman 1 name",
        "type": "text",
        "background": {
         "color": {
@@ -5047,7 +5085,7 @@
         },
         "size": 11,
         "text": {
-         "fixed": "pacMan 1",
+         "fixed": "paacMan 1",
          "mode": "fixed"
         }
        },
@@ -5065,7 +5103,7 @@
        "connections": []
       },
       {
-       "name": "pacman 1 req/s",
+       "name": "paacman 1 req/s",
        "type": "metric-value",
        "background": {
         "color": {
@@ -5086,7 +5124,7 @@
         },
         "size": 11,
         "text": {
-         "field": "pacman 1 req/s",
+         "field": "paacman 1 req/s",
          "mode": "field",
          "fixed": ""
         }
@@ -5105,7 +5143,7 @@
        "connections": []
       },
       {
-       "name": "pacman 1 cpu",
+       "name": "paacman 1 cpu",
        "type": "metric-value",
        "background": {
         "color": {
@@ -5126,7 +5164,7 @@
         },
         "size": 11,
         "text": {
-         "field": "pacman 1 cpu",
+         "field": "paacman 1 cpu",
          "mode": "field",
          "fixed": ""
         }
@@ -5145,7 +5183,7 @@
        "connections": []
       },
       {
-       "name": "pacman 1 heap",
+       "name": "paacman 1 heap",
        "type": "metric-value",
        "background": {
         "color": {
@@ -5166,7 +5204,7 @@
         },
         "size": 11,
         "text": {
-         "field": "pacman 1 heap",
+         "field": "paacman 1 heap",
          "mode": "field",
          "fixed": ""
         }
@@ -5213,7 +5251,7 @@
        },
        "placement": {
         "left": 565,
-        "top": 134,
+        "top": 164,
         "width": 28,
         "height": 28,
         "rotation": 0
@@ -5253,7 +5291,7 @@
        },
        "placement": {
         "left": 560,
-        "top": 152,
+        "top": 182,
         "width": 140,
         "height": 19,
         "rotation": 0
@@ -5293,7 +5331,7 @@
        },
        "placement": {
         "left": 560,
-        "top": 171,
+        "top": 201,
         "width": 140,
         "height": 19,
         "rotation": 0
@@ -5333,7 +5371,7 @@
        },
        "placement": {
         "left": 560,
-        "top": 190,
+        "top": 220,
         "width": 140,
         "height": 19,
         "rotation": 0
@@ -5372,7 +5410,7 @@
        },
        "placement": {
         "left": 700,
-        "top": 152,
+        "top": 182,
         "width": 96,
         "height": 18,
         "rotation": 0
@@ -5412,7 +5450,7 @@
        },
        "placement": {
         "left": 700,
-        "top": 172,
+        "top": 202,
         "width": 96,
         "height": 19,
         "rotation": 0
@@ -5452,7 +5490,7 @@
        },
        "placement": {
         "left": 700,
-        "top": 191,
+        "top": 221,
         "width": 96,
         "height": 19,
         "rotation": 0
@@ -5492,7 +5530,7 @@
        },
        "placement": {
         "left": 700,
-        "top": 210,
+        "top": 240,
         "width": 96,
         "height": 19,
         "rotation": 0
@@ -5528,7 +5566,7 @@
        },
        "placement": {
         "left": 565,
-        "top": 234,
+        "top": 264,
         "width": 28,
         "height": 28,
         "rotation": 0
@@ -5568,7 +5606,7 @@
        },
        "placement": {
         "left": 560,
-        "top": 252,
+        "top": 282,
         "width": 140,
         "height": 19,
         "rotation": 0
@@ -5608,7 +5646,7 @@
        },
        "placement": {
         "left": 560,
-        "top": 271,
+        "top": 301,
         "width": 140,
         "height": 19,
         "rotation": 0
@@ -5648,7 +5686,7 @@
        },
        "placement": {
         "left": 560,
-        "top": 290,
+        "top": 320,
         "width": 140,
         "height": 19,
         "rotation": 0
@@ -5687,7 +5725,7 @@
        },
        "placement": {
         "left": 700,
-        "top": 252,
+        "top": 282,
         "width": 96,
         "height": 18,
         "rotation": 0
@@ -5727,7 +5765,7 @@
        },
        "placement": {
         "left": 700,
-        "top": 272,
+        "top": 302,
         "width": 96,
         "height": 19,
         "rotation": 0
@@ -5767,7 +5805,7 @@
        },
        "placement": {
         "left": 700,
-        "top": 291,
+        "top": 321,
         "width": 96,
         "height": 19,
         "rotation": 0
@@ -5807,7 +5845,7 @@
        },
        "placement": {
         "left": 700,
-        "top": 310,
+        "top": 340,
         "width": 96,
         "height": 19,
         "rotation": 0
@@ -5843,7 +5881,7 @@
        },
        "placement": {
         "left": 565,
-        "top": 334,
+        "top": 364,
         "width": 28,
         "height": 28,
         "rotation": 0
@@ -5883,7 +5921,7 @@
        },
        "placement": {
         "left": 560,
-        "top": 352,
+        "top": 382,
         "width": 140,
         "height": 19,
         "rotation": 0
@@ -5923,7 +5961,7 @@
        },
        "placement": {
         "left": 560,
-        "top": 371,
+        "top": 401,
         "width": 140,
         "height": 19,
         "rotation": 0
@@ -5963,7 +6001,7 @@
        },
        "placement": {
         "left": 560,
-        "top": 390,
+        "top": 420,
         "width": 140,
         "height": 19,
         "rotation": 0
@@ -6002,7 +6040,7 @@
        },
        "placement": {
         "left": 700,
-        "top": 352,
+        "top": 382,
         "width": 96,
         "height": 18,
         "rotation": 0
@@ -6042,7 +6080,7 @@
        },
        "placement": {
         "left": 700,
-        "top": 372,
+        "top": 402,
         "width": 96,
         "height": 19,
         "rotation": 0
@@ -6082,7 +6120,7 @@
        },
        "placement": {
         "left": 700,
-        "top": 391,
+        "top": 421,
         "width": 96,
         "height": 19,
         "rotation": 0
@@ -6122,7 +6160,7 @@
        },
        "placement": {
         "left": 700,
-        "top": 410,
+        "top": 440,
         "width": 96,
         "height": 19,
         "rotation": 0
@@ -6158,7 +6196,7 @@
        },
        "placement": {
         "left": 565,
-        "top": 434,
+        "top": 464,
         "width": 28,
         "height": 28,
         "rotation": 0
@@ -6198,7 +6236,7 @@
        },
        "placement": {
         "left": 560,
-        "top": 452,
+        "top": 482,
         "width": 140,
         "height": 19,
         "rotation": 0
@@ -6238,7 +6276,7 @@
        },
        "placement": {
         "left": 560,
-        "top": 471,
+        "top": 501,
         "width": 140,
         "height": 19,
         "rotation": 0
@@ -6278,7 +6316,7 @@
        },
        "placement": {
         "left": 560,
-        "top": 490,
+        "top": 520,
         "width": 140,
         "height": 19,
         "rotation": 0
@@ -6317,7 +6355,7 @@
        },
        "placement": {
         "left": 700,
-        "top": 452,
+        "top": 482,
         "width": 96,
         "height": 18,
         "rotation": 0
@@ -6357,7 +6395,7 @@
        },
        "placement": {
         "left": 700,
-        "top": 472,
+        "top": 502,
         "width": 96,
         "height": 19,
         "rotation": 0
@@ -6397,7 +6435,7 @@
        },
        "placement": {
         "left": 700,
-        "top": 491,
+        "top": 521,
         "width": 96,
         "height": 19,
         "rotation": 0
@@ -6437,7 +6475,7 @@
        },
        "placement": {
         "left": 700,
-        "top": 510,
+        "top": 540,
         "width": 96,
         "height": 19,
         "rotation": 0
@@ -6473,7 +6511,7 @@
        },
        "placement": {
         "left": 835,
-        "top": 184,
+        "top": 109,
         "width": 28,
         "height": 28,
         "rotation": 0
@@ -6513,7 +6551,7 @@
        },
        "placement": {
         "left": 830,
-        "top": 202,
+        "top": 127,
         "width": 140,
         "height": 19,
         "rotation": 0
@@ -6553,7 +6591,7 @@
        },
        "placement": {
         "left": 830,
-        "top": 221,
+        "top": 146,
         "width": 140,
         "height": 19,
         "rotation": 0
@@ -6593,7 +6631,7 @@
        },
        "placement": {
         "left": 830,
-        "top": 240,
+        "top": 165,
         "width": 140,
         "height": 19,
         "rotation": 0
@@ -6632,7 +6670,7 @@
        },
        "placement": {
         "left": 970,
-        "top": 202,
+        "top": 127,
         "width": 96,
         "height": 18,
         "rotation": 0
@@ -6672,7 +6710,7 @@
        },
        "placement": {
         "left": 970,
-        "top": 222,
+        "top": 147,
         "width": 96,
         "height": 19,
         "rotation": 0
@@ -6712,7 +6750,7 @@
        },
        "placement": {
         "left": 970,
-        "top": 241,
+        "top": 166,
         "width": 96,
         "height": 19,
         "rotation": 0
@@ -6752,7 +6790,7 @@
        },
        "placement": {
         "left": 970,
-        "top": 260,
+        "top": 185,
         "width": 96,
         "height": 19,
         "rotation": 0
@@ -6788,7 +6826,7 @@
        },
        "placement": {
         "left": 835,
-        "top": 434,
+        "top": 464,
         "width": 28,
         "height": 28,
         "rotation": 0
@@ -6828,7 +6866,7 @@
        },
        "placement": {
         "left": 830,
-        "top": 452,
+        "top": 482,
         "width": 140,
         "height": 19,
         "rotation": 0
@@ -6868,7 +6906,7 @@
        },
        "placement": {
         "left": 830,
-        "top": 471,
+        "top": 501,
         "width": 140,
         "height": 19,
         "rotation": 0
@@ -6908,7 +6946,7 @@
        },
        "placement": {
         "left": 830,
-        "top": 490,
+        "top": 520,
         "width": 140,
         "height": 19,
         "rotation": 0
@@ -6944,7 +6982,7 @@
        },
        "placement": {
         "left": 1085,
-        "top": 184,
+        "top": 109,
         "width": 28,
         "height": 28,
         "rotation": 0
@@ -6984,7 +7022,7 @@
        },
        "placement": {
         "left": 1080,
-        "top": 202,
+        "top": 127,
         "width": 140,
         "height": 19,
         "rotation": 0
@@ -7024,7 +7062,7 @@
        },
        "placement": {
         "left": 1080,
-        "top": 221,
+        "top": 146,
         "width": 140,
         "height": 19,
         "rotation": 0
@@ -7064,7 +7102,7 @@
        },
        "placement": {
         "left": 1080,
-        "top": 240,
+        "top": 165,
         "width": 140,
         "height": 19,
         "rotation": 0
@@ -7103,7 +7141,7 @@
        },
        "placement": {
         "left": 1220,
-        "top": 202,
+        "top": 127,
         "width": 96,
         "height": 18,
         "rotation": 0
@@ -7143,7 +7181,7 @@
        },
        "placement": {
         "left": 1220,
-        "top": 222,
+        "top": 147,
         "width": 96,
         "height": 19,
         "rotation": 0
@@ -7183,7 +7221,7 @@
        },
        "placement": {
         "left": 1220,
-        "top": 241,
+        "top": 166,
         "width": 96,
         "height": 19,
         "rotation": 0
@@ -7223,7 +7261,7 @@
        },
        "placement": {
         "left": 1220,
-        "top": 260,
+        "top": 185,
         "width": 96,
         "height": 19,
         "rotation": 0
@@ -7309,6 +7347,84 @@
        "connections": []
       },
       {
+       "name": "bus:esquire.biz",
+       "type": "rectangle",
+       "background": {
+        "color": {
+         "fixed": "#C9A0DC"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 10,
+        "text": {
+         "fixed": "",
+         "mode": "fixed"
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 360,
+        "top": 25,
+        "width": 46,
+        "height": 500,
+        "rotation": 0
+       },
+       "connections": []
+      },
+      {
+       "name": "buslabel:esquire.biz",
+       "type": "text",
+       "background": {
+        "color": {
+         "fixed": "transparent"
+        }
+       },
+       "border": {
+        "color": {
+         "fixed": "transparent"
+        },
+        "width": 0
+       },
+       "config": {
+        "align": "center",
+        "valign": "middle",
+        "color": {
+         "fixed": "#FFFFFF"
+        },
+        "size": 12,
+        "text": {
+         "fixed": "Biz Request-Response Bus    (esquire.biz)",
+         "mode": "fixed"
+        }
+       },
+       "constraint": {
+        "horizontal": "left",
+        "vertical": "top"
+       },
+       "placement": {
+        "left": 253.0,
+        "top": 264.0,
+        "width": 260,
+        "height": 22,
+        "rotation": -90
+       },
+       "connections": []
+      },
+      {
        "name": "bus:esquire.kc",
        "type": "rectangle",
        "background": {
@@ -7339,7 +7455,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 380,
+        "left": 420,
         "top": 25,
         "width": 46,
         "height": 500,
@@ -7378,7 +7494,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 273.0,
+        "left": 313.0,
         "top": 264.0,
         "width": 260,
         "height": 22,
@@ -7417,7 +7533,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 460,
+        "left": 480,
         "top": 25,
         "width": 46,
         "height": 500,
@@ -7456,7 +7572,7 @@
         "vertical": "top"
        },
        "placement": {
-        "left": 353.0,
+        "left": 373.0,
         "top": 264.0,
         "width": 260,
         "height": 22,

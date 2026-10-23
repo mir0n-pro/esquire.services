@@ -1,5 +1,17 @@
 Esquire gateWard Microservice
 
+10/22/2026 mir0n  v2.0.1 -- the account routes over the biz bus to paacMan
+GateWardApplication
+  - the bus registrar builds the biz bus beside the entity bus; the meter owner reads the entity bus id under
+    BusConstants.CONFIG_ROOT
+BizTreeCacheController
+  - the request context carries the caller's realm roles from the token
+resources/application.yml
+  - esq.gateway.biz-bus (timeout-seconds, max-pending, sweep-ms) and esq.gateway.pacman (service, default
+    paacman; services pacman / paacman); the four pacman routes take their uri from it; the herald.biz-bus
+    CLIENT ref (bus-id esquire.biz, the answer and publisher pools, feed-await-ms, send-retry 1,2,5 x3);
+    spring.webflux.problemdetails.enabled false; the entity bus ref under herald:
+
 10/17/2026 mir0n  v2.0.0 -- the 2.0 line: the bus, the keep and the base libraries moved out
 (every file that imported them)
   - pro.mir0n.esquire.messaging -> pro.mir0n.messaging, pro.mir0n.esquire.dataKeep -> pro.mir0n.dataKeep,

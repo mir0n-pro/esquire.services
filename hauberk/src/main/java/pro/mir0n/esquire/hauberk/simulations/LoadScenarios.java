@@ -18,6 +18,8 @@
  * 10/13/2026 mir0n  v2.0.0 -- moved into services2/hauberk, the Esquire half of the harness: the
  *                   generic machinery is Armoury's armoury-hauberk, this project is the Esquire
  *                   routines over it
+ * 10/19/2026 mir0n  v2.0.1 -- the tx scenario on two random accounts: deposit A, transfer A->B, transfer B->A,
+ *                   withdraw A (net-zero; the transfers skipped when A and B are the same)
  */
 package pro.mir0n.esquire.hauberk.simulations;
 
@@ -40,9 +42,9 @@ import static io.gatling.javaapi.http.HttpDsl.*;
  *   - {Read,Update,Create,Move,Tx}LoadSimulation (one at a time)
  *
  * Constants:
- *   TX_AMOUNT -- fixed deposit/withdraw amount for the tx scenario; the
- *                deposit-then-withdrawal pair is net-zero so balance
- *                stays predictable under concurrent load.
+ *   TX_AMOUNT -- fixed amount for every step of the tx scenario; the cycle
+ *                (deposit, transfer there and back, withdrawal) is net-zero
+ *                so balance stays predictable under concurrent load.
  *
  * THE SETUP GUARD -- exitHereIfFailed() between the setup and the loop.
  * Every scenario resolves its working set ONCE before .forever(): the user /
@@ -165,7 +167,7 @@ public final class LoadScenarios {
                 .exec(MoveEntity.chain)
             );
 
-    // (e) tx cycle -- deposit then withdrawal on random account; net-zero
+    // (e) tx cycle on random accounts A and B -- deposit A, transfer A->B, transfer B->A, withdraw A; net-zero
     public static final ScenarioBuilder TX = scenario("load-tx")
             .exec(PoolFetchAccounts.chain)
             .exitHereIfFailed()                 // no accounts -> no work; leave rather than spin
@@ -175,6 +177,19 @@ public final class LoadScenarios {
                         .set("acctId",   session.getString("pickedAcctId"))
                         .set("txAmount", TX_AMOUNT))
                 .exec(Deposit.chain)
+                .exec(PickRandomFromPool.acctChain)
+                .exec(session -> session.set("acctId2", session.getString("pickedAcctId")))
+                //xxx: the transfers sit between the deposit and the withdrawal, so A never goes below its start
+                .doIf(session -> !session.getString("acctId").equals(session.getString("acctId2"))).then(
+                    exec(Transfer.chain)
+                    .exec(session -> session
+                            .set("acctId",  session.getString("acctId2"))
+                            .set("acctId2", session.getString("acctId")))
+                    .exec(Transfer.chain)
+                    .exec(session -> session
+                            .set("acctId",  session.getString("acctId2"))
+                            .set("acctId2", session.getString("acctId")))
+                )
                 .exec(Withdrawal.chain)
             );
 

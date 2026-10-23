@@ -12,6 +12,8 @@
  * 07/08/2026 mir0n  createProblemDetail(): the incoming correlation id runs through
  *                   EsqUtils.settleCorrelationId(); the settled value is set on BOTH the traceId and the
  *                   correlationId problem-detail properties (was: traceId only when no correlation id came in)
+ * 10/19/2026 mir0n  v2.0.1 -- createProblemDetail(instance, correlationId, requestId, captureAsked, status, title,
+ *                   msg, ex): the same problem detail with no HTTP request behind it; the request form calls it
  */
 
 package pro.mir0n.esquire.backend.error;
@@ -31,6 +33,15 @@ public class ProblemDetailMill {
     private ProblemDetailMill () {};
 
     public static ProblemDetail createProblemDetail(HttpServletRequest request, HttpStatus status, String title, String msg, Exception ex ) {
+        return createProblemDetail(request.getRequestURI(), getCorrelationId(request), getRequestId(request),
+                "true".equals(request.getHeader(EsqConstants.ESQ_CAPTURE_METRICS)), status, title, msg, ex);
+    }
+
+    /** The same problem detail with no HTTP request behind it (a bus request): the caller names the instance,
+     *  the two ids and whether metrics capture was asked for. */
+    public static ProblemDetail createProblemDetail(String instance, String incomingCorrelationId, String requestId,
+                                                    boolean captureAsked, HttpStatus status, String title, String msg,
+                                                    Exception ex ) {
         // Create standard problem detail
         String details = msg;
         Throwable rootCause = ex == null? null : ExceptionUtils.getRootCause(ex);
@@ -42,15 +53,13 @@ public class ProblemDetailMill {
         }
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(status, details);
         problem.setTitle(title);
-        problem.setInstance(URI.create(request.getRequestURI()));
-        boolean shouldCapture = ex != null && "true".equals(request.getHeader(EsqConstants.ESQ_CAPTURE_METRICS));
+        problem.setInstance(URI.create(instance));
+        boolean shouldCapture = ex != null && captureAsked;
         if (shouldCapture) {
             problem.setProperty(EsqConstants.PD_STACK_TRACE, ExceptionUtils.getStackTrace(rootCause != null ?  rootCause : ex));
         }
 
         problem.setProperty(EsqConstants.PD_TIMESTAMP, OffsetDateTime.now(ZoneOffset.UTC));
-        String incomingCorrelationId = getCorrelationId(request);
-        String requestId = getRequestId(request);
         String traceId = EsqUtils.settleCorrelationId(incomingCorrelationId);
         problem.setProperty(EsqConstants.PD_TRACE_ID, traceId);
         problem.setProperty(EsqConstants.PD_CORRELATION_ID, traceId);

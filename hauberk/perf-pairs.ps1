@@ -31,6 +31,8 @@ param(
     [int]      $PrepAccounts = 1,
     [int]      $PrepDepth = 5,
     [int]      $PoolMax = 0,
+    [string[]] $Shapes = @("k8sc-x2-OFF", "k8s-x2-OFF"),   # the two cells of a pair, in run order
+    [string]   $GatewayTag = "",                          # passed to perf-matrix (classic gateway image)
     [switch]   $RecycleVm
 )
 
@@ -92,7 +94,7 @@ function Cell($cfgName, $kind) {
         -Runs 1 -Duration $Duration -MinLoads $MinLoads -MaxLoads $MaxLoads `
         -MetricsVus $MetricsVus -MetricsDuration $MetricsDuration -ServiceMetrics -PoolMax $PoolMax `
         -PrepDepth $PrepDepth -PrepClients $PrepClients -PrepAccounts $PrepAccounts `
-        -OutDir $OutDir
+        -GatewayTag $GatewayTag -OutDir $OutDir
     $after = RowCount
 
     # A cell that writes NOTHING has not measured anything -- a skipped resume, a failed build, a token
@@ -107,8 +109,9 @@ Write-Host "######## PAIRS START: $($Kinds -join ', ') ########"
 if (-not (Drain)) { throw "cluster not drained at start" }
 
 foreach ($kind in $Kinds) {
-    Cell "k8sc-x2-OFF" $kind
-    Cell "k8s-x2-OFF"  $kind
+    foreach ($shape in $Shapes) {
+        Cell $shape $kind
+    }
 }
 
 Write-Host "######## PAIRS COMPLETE -> $OutDir\matrix.csv ########"

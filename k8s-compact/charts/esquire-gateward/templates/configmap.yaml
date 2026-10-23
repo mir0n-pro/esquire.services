@@ -27,6 +27,11 @@ data:
   ENYMAN_PORT:          {{ .Values.backends.enymanPort | quote }}
   PACMAN_HOST:          {{ .Values.backends.pacmanHost | quote }}
   PACMAN_PORT:          {{ .Values.backends.pacmanPort | quote }}
+  {{- if .Values.backends.pacmanService }}
+  PACMAN_SERVICE:       {{ .Values.backends.pacmanService | quote }}
+  {{- end }}
+  BIZ_BUS_ID:           {{ .Values.biz.busId | quote }}
+  BIZ_SLOT_ID:          {{ .Values.biz.slotId | quote }}
   KEYSMITH_HOST:        {{ .Values.backends.keysmithHost | quote }}
   KEYSMITH_PORT:        {{ .Values.backends.keysmithPort | quote }}
   CORS_ALLOWED_ORIGINS: {{ .Values.cors.allowedOrigins | quote }}

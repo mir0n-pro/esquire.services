@@ -14,7 +14,7 @@ rem   compose-rebuild.bat backend          rebuild only the BFF (and baked SPA)
 rem   compose-rebuild.bat frontend         rebuild only the ng-serve container
 rem                                        (live-reload SPA on port 4200)
 rem   compose-rebuild.bat <service>        rebuild a single Spring service
-rem                                        (gateway, biztree, enyman, pacman,
+rem                                        (gateway, biztree, enyman, pacman, paacman,
 rem                                         keysmith, kcmaster)
 rem
 rem Flags (must come AFTER the target):
@@ -86,12 +86,13 @@ if /i "%TARGET%"=="gateway"  ( set "DIR=gateway"&goto target_java )
 if /i "%TARGET%"=="biztree"  ( set "DIR=bizTree"&goto target_java )
 if /i "%TARGET%"=="enyman"   ( set "DIR=enyMan"&goto target_java )
 if /i "%TARGET%"=="pacman"   ( set "DIR=pacMan"&goto target_java )
+if /i "%TARGET%"=="paacman"  ( set "DIR=paacMan"&goto target_java )
 if /i "%TARGET%"=="keysmith" ( set "DIR=keySmith"&goto target_java )
 if /i "%TARGET%"=="kcmaster" ( set "DIR=kcMaster"&goto target_java )
 if /i "%TARGET%"=="aukeep"   ( set "DIR=auKeep"&goto target_java )
 
 echo ERROR: unknown target "%TARGET%"
-echo Valid: all ^| backend ^| frontend ^| gateway ^| biztree ^| enyman ^| pacman ^| keysmith ^| kcmaster ^| aukeep
+echo Valid: all ^| backend ^| frontend ^| gateway ^| biztree ^| enyman ^| pacman ^| paacman ^| keysmith ^| kcmaster ^| aukeep
 exit /b 1
 
 :target_all
@@ -107,6 +108,8 @@ if errorlevel 1 exit /b 1
 set "DIR=enyMan"   & call :build_java
 if errorlevel 1 exit /b 1
 set "DIR=pacMan"   & call :build_java
+if errorlevel 1 exit /b 1
+set "DIR=paacMan"  & call :build_java
 if errorlevel 1 exit /b 1
 set "DIR=keySmith" & call :build_java
 if errorlevel 1 exit /b 1
@@ -145,7 +148,7 @@ goto end
 
 :build_java
 rem Subroutine: docker-build a single Spring service from its OWN compose.yaml -- the file that service owns.
-rem Caller sets DIR (camelCase: gateway, bizTree, enyMan, pacMan, keySmith, kcMaster).
+rem Caller sets DIR (camelCase: gateway, bizTree, enyMan, pacMan, paacMan, keySmith, kcMaster).
 echo [docker] building %DIR% from services/%DIR%/...
 pushd ..\%DIR%
 docker compose build %NOCACHE%

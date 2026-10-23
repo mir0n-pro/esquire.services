@@ -56,7 +56,7 @@ class MesnieMeterOwnerTest {
         assertThat(OWNER.ownerOf(id("jvm.memory.used"))).isNull();
         assertThat(OWNER.ownerOf(id("hikaricp.connections"))).isNull();
         assertThat(OWNER.ownerOf(id("esq.biz.perm.check.total"))).isNull();
-        assertThat(OWNER.ownerOf(id("esq.biz.keep.write.total"))).isNull();
+        assertThat(OWNER.ownerOf(id("herald.keep.write.total"))).isNull();
         assertThat(OWNER.ownerOf(id("messaging.send.total", "bus-id", "audit-b"))).isNull();
         assertThat(OWNER.ownerOf(id("http.server.requests", "uri", "/actuator/health"))).isNull();
     }

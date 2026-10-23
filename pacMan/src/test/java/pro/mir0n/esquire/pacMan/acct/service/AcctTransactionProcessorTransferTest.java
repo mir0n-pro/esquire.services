@@ -43,6 +43,9 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import org.junit.jupiter.api.AfterEach;
+import pro.mir0n.esquire.backend.service.EsqContextHolder;
+import pro.mir0n.esquire.backend.service.EsqRequestContext;
 
 @ExtendWith(MockitoExtension.class)
 class AcctTransactionProcessorTransferTest {
@@ -87,6 +90,13 @@ class AcctTransactionProcessorTransferTest {
     @BeforeEach
     void setUp() {
         service = new AcctTransactionProcessorTransfer(entityRepository, transactionRepository, transactionTemplate, em, Mockito.mock(pro.mir0n.esquire.audit.AuditBusBridge.class));
+        // the caller's roles come from the request context
+        EsqContextHolder.set(new EsqRequestContext(null, null, null, null, List.of(ROLE_ADMIN)));
+    }
+
+    @AfterEach
+    void tearDown() {
+        EsqContextHolder.clear();
     }
 
     // ---- missing id2 / kind2 -> IllegalArgumentException ----
@@ -99,7 +109,7 @@ class AcctTransactionProcessorTransferTest {
         fields.put("kind2", 50);
 
         assertThatThrownBy(() ->
-            service.esquireCommandAcct(50, "10", AcctOperation.Code.TRANSFER, fields, "1.2.3", "99", List.of(ROLE_ADMIN))
+            service.esquireCommandAcct(50, "10", AcctOperation.Code.TRANSFER, fields, "1.2.3", "99")
         ).isInstanceOf(IllegalArgumentException.class);
     }
 
@@ -111,7 +121,7 @@ class AcctTransactionProcessorTransferTest {
         fields.put("id2", "20");
 
         assertThatThrownBy(() ->
-            service.esquireCommandAcct(50, "10", AcctOperation.Code.TRANSFER, fields, "1.2.3", "99", List.of(ROLE_ADMIN))
+            service.esquireCommandAcct(50, "10", AcctOperation.Code.TRANSFER, fields, "1.2.3", "99")
         ).isInstanceOf(IllegalArgumentException.class);
     }
 
@@ -126,7 +136,7 @@ class AcctTransactionProcessorTransferTest {
         fields.put("kind2", 50);
 
         assertThatThrownBy(() ->
-            service.esquireCommandAcct(50, "10", AcctOperation.Code.TRANSFER, fields, "1.2.3", "99", List.of(ROLE_ADMIN))
+            service.esquireCommandAcct(50, "10", AcctOperation.Code.TRANSFER, fields, "1.2.3", "99")
         ).isInstanceOf(InvalidValueException.class);
     }
 
@@ -141,7 +151,7 @@ class AcctTransactionProcessorTransferTest {
         fields.put("kind2", 50);
 
         assertThatThrownBy(() ->
-            service.esquireCommandAcct(54, "10", AcctOperation.Code.TRANSFER, fields, "1.2.3", "99", List.of(ROLE_ADMIN))
+            service.esquireCommandAcct(54, "10", AcctOperation.Code.TRANSFER, fields, "1.2.3", "99")
         ).isInstanceOf(InvalidValueException.class);
     }
 
@@ -154,7 +164,7 @@ class AcctTransactionProcessorTransferTest {
         fields.put("kind2", 54);
 
         assertThatThrownBy(() ->
-            service.esquireCommandAcct(50, "10", AcctOperation.Code.TRANSFER, fields, "1.2.3", "99", List.of(ROLE_ADMIN))
+            service.esquireCommandAcct(50, "10", AcctOperation.Code.TRANSFER, fields, "1.2.3", "99")
         ).isInstanceOf(InvalidValueException.class);
     }
 
@@ -170,7 +180,7 @@ class AcctTransactionProcessorTransferTest {
         fields.put("rate", 1.0);
 
         assertThatThrownBy(() ->
-            service.esquireCommandAcct(50, "10", AcctOperation.Code.TRANSFER, fields, "1.2.3", "99", List.of(ROLE_ADMIN))
+            service.esquireCommandAcct(50, "10", AcctOperation.Code.TRANSFER, fields, "1.2.3", "99")
         ).isInstanceOf(ResourceNotFoundException.class);
     }
 
@@ -183,7 +193,7 @@ class AcctTransactionProcessorTransferTest {
         fields.put("kind2", 50);
 
         assertThatThrownBy(() ->
-            service.esquireCommandAcct(50, "10", AcctOperation.Code.TRANSFER, fields, "1.2.3", "99", List.of(ROLE_ADMIN))
+            service.esquireCommandAcct(50, "10", AcctOperation.Code.TRANSFER, fields, "1.2.3", "99")
         ).isInstanceOf(InvalidValueException.class);
     }
 
@@ -197,7 +207,7 @@ class AcctTransactionProcessorTransferTest {
         fields.put("rate", 0.0);
 
         assertThatThrownBy(() ->
-            service.esquireCommandAcct(50, "10", AcctOperation.Code.TRANSFER, fields, "1.2.3", "99", List.of(ROLE_ADMIN))
+            service.esquireCommandAcct(50, "10", AcctOperation.Code.TRANSFER, fields, "1.2.3", "99")
         ).isInstanceOf(InvalidValueException.class);
     }
 
@@ -225,7 +235,7 @@ class AcctTransactionProcessorTransferTest {
         fields.put("kind2", 50);
         fields.put("rate", 1.25);
 
-        AcctTransactionSingle ret = service.esquireCommandAcct(50, "10", AcctOperation.Code.TRANSFER, fields, true, "1.2.3", "99", List.of(ROLE_ADMIN));
+        AcctTransactionSingle ret = service.esquireCommandAcct(50, "10", AcctOperation.Code.TRANSFER, fields, true, "1.2.3", "99");
 
         assertThat(ret).isNotNull();
         assertThat(ret.getAmount()).isEqualTo(-100.0);
@@ -258,7 +268,7 @@ class AcctTransactionProcessorTransferTest {
         fields.put("kind2", 50);
         fields.put("rate", 1.0);           // same currency: the legs must be equal and opposite
 
-        service.esquireCommandAcct(50, "10", AcctOperation.Code.TRANSFER, fields, true, "1.2.3", "99", List.of(ROLE_ADMIN));
+        service.esquireCommandAcct(50, "10", AcctOperation.Code.TRANSFER, fields, true, "1.2.3", "99");
 
         ArgumentCaptor<Double> src = ArgumentCaptor.forClass(Double.class);
         ArgumentCaptor<Double> tgt = ArgumentCaptor.forClass(Double.class);
@@ -303,7 +313,7 @@ class AcctTransactionProcessorTransferTest {
         fields.put("kind2", 50);
         fields.put("rate", 1.0);
 
-        service.esquireCommandAcct(50, "10", AcctOperation.Code.TRANSFER, fields, true, "1.2.3", "99", List.of(ROLE_ADMIN));
+        service.esquireCommandAcct(50, "10", AcctOperation.Code.TRANSFER, fields, true, "1.2.3", "99");
 
         // the ledger row of each leg
         verify(transactionRepository).insertAcctTransaction(any(), any(), eq(10L), anyInt(),
@@ -342,7 +352,7 @@ class AcctTransactionProcessorTransferTest {
         fields.put("kind2", 50);
         fields.put("rate", 1.0);
 
-        service.esquireCommandAcct(50, "10", AcctOperation.Code.TRANSFER, fields, true, "1.2.3", "99", List.of(ROLE_ADMIN));
+        service.esquireCommandAcct(50, "10", AcctOperation.Code.TRANSFER, fields, true, "1.2.3", "99");
 
         verify(entityRepository).updateAcctBalance(eq("10"), anyDouble(), eq(1L), any(), any(), any());
         verify(entityRepository).updateAcctBalance(eq("20"), anyDouble(), eq(1L), any(), any(), any());
@@ -374,7 +384,7 @@ class AcctTransactionProcessorTransferTest {
         fields.put("rate", 1.0);
 
         assertThatThrownBy(() ->
-            service.esquireCommandAcct(50, "10", AcctOperation.Code.TRANSFER, fields, true, "1.2.3", "99", List.of(ROLE_ADMIN))
+            service.esquireCommandAcct(50, "10", AcctOperation.Code.TRANSFER, fields, true, "1.2.3", "99")
         ).isInstanceOf(ResourceNotFoundException.class);
 
         // neither leg posted: no balance written, and the debit leg was never even entered
@@ -404,7 +414,7 @@ class AcctTransactionProcessorTransferTest {
         fields.put("rate", 1.0);
 
         assertThatThrownBy(() ->
-            service.esquireCommandAcct(50, "10", AcctOperation.Code.TRANSFER, fields, true, "1.2.3", "99", List.of(ROLE_ADMIN))
+            service.esquireCommandAcct(50, "10", AcctOperation.Code.TRANSFER, fields, true, "1.2.3", "99")
         ).isInstanceOf(ResourceNotFoundException.class);
 
         // The point of the pre-check: the refusal comes before any money moves.
@@ -430,7 +440,7 @@ class AcctTransactionProcessorTransferTest {
         fields.put("rate", 1.0);
 
         assertThatThrownBy(() ->
-            service.esquireCommandAcct(50, "10", AcctOperation.Code.TRANSFER, fields, true, "1.2.3", "99", List.of(ROLE_ADMIN))
+            service.esquireCommandAcct(50, "10", AcctOperation.Code.TRANSFER, fields, true, "1.2.3", "99")
         ).isInstanceOf(InvalidValueException.class);
 
         verify(entityRepository, never()).updateAcctBalance(eq("10"), anyDouble(), any(), any(), any(), any());
@@ -462,7 +472,7 @@ class AcctTransactionProcessorTransferTest {
         fields.put("kind2", 50);
         fields.put("rate", 1000.0);        // a large rate makes the discarded decimal visible
 
-        service.esquireCommandAcct(50, "10", AcctOperation.Code.TRANSFER, fields, true, "1.2.3", "99", List.of(ROLE_ADMIN));
+        service.esquireCommandAcct(50, "10", AcctOperation.Code.TRANSFER, fields, true, "1.2.3", "99");
 
         ArgumentCaptor<Double> src = ArgumentCaptor.forClass(Double.class);
         ArgumentCaptor<Double> tgt = ArgumentCaptor.forClass(Double.class);

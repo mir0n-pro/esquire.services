@@ -297,6 +297,10 @@ def w_idle(metric, name, r, sel=ASEL):
 
 
 REQ = 'sum(rate(http_server_requests_seconds_count{%s}[5m]))'
+#xxx: paacMan has NO REST door -- its requests are the account commands arriving on the biz bus. Counted on that
+# bus only: a reply is a send, and a heartbeat is counted nowhere, so this is requests and nothing else.
+BUS_REQ = 'sum(rate(messaging_receive_total{%s, bus_id="esquire.biz"}[5m]))'
+BUS_SERVED = {"paacman"}
 SERVICES_D = "/d/esq-services/?var-application=%s"
 
 # ---------------------------------------------------------------------------------------------------------------
@@ -367,9 +371,13 @@ def _svc(n):
     """The four REST services differ only by name -- bind it, or every lambda would close over the loop variable
     and all four would end up describing whichever service happened to be last. FILL = health (cpu/heap/5xx/pool);
     BORDER = alarm (error log + messaging errors + this service's own failure counters)."""
+    req, req_metric = REQ, "http_server_requests_seconds_count"
+    if n in BUS_SERVED:
+        req, req_metric = BUS_REQ, "messaging_receive_total"
+
     def h(r):
         warns = [w_cpu(SSEL(n, r)), w_heap(ASEL(n, r)), w_pool(ASEL(n, r))]
-        warns += w_idle("http_server_requests_seconds_count", n, r)
+        warns += w_idle(req_metric, n, r)
         return health('count(process_uptime_seconds{%s})' % SSEL(n, r), *warns)
 
     def a(r):
@@ -379,13 +387,14 @@ def _svc(n):
         terms += [w_fail(ASEL(n, r), m) for m in SVC_FAIL.get(n, ())]
         return alarm(*terms)
     return (h, a,
-            lambda r: [(REQ % ASEL(n, r), "reqps", "req/s"),
+            lambda r: [(req % ASEL(n, r), "reqps", "req/s"),
                        (CPU % SSEL(n, r), "percent", "cpu"),
                        (HEAP % ASEL(n, r), "bytes", "heap")])
 
 
-for _n, _lbl, _top in (("pacman", "pacMan", 30), ("biztree", "bizTree", 130),
-                       ("enyman", "enyMan", 230), ("keysmith", "keySmith", 330)):
+#xxx: the gap above bizTree is wider on purpose -- the gateway's biz lane tap runs through it, at its own height.
+for _n, _lbl, _top in (("paacman", "paacMan", 30), ("biztree", "bizTree", 160),
+                       ("enyman", "enyMan", 260), ("keysmith", "keySmith", 360)):
     _h, _a, _v = _svc(_n)
     comp(_n, _lbl, _h, _v, SERVICES_D % _n, 560, _top, alarm=_a)
 
@@ -399,11 +408,11 @@ comp("kcmaster", "kcMaster",
      lambda r: [(MSG % ASEL("kcmaster", r), "ops", "msg/s"),
                 (CPU % SSEL("kcmaster", r), "percent", "cpu"),
                 (HEAP % ASEL("kcmaster", r), "bytes", "heap")],
-     SERVICES_D % "kcmaster", 560, 430,
+     SERVICES_D % "kcmaster", 560, 460,
      alarm=lambda r: alarm(w_errlog(ASEL("kcmaster", r)),
                            w_fail(ASEL("kcmaster", r), "messaging_error_total")))
 
-# ---- the broker: beneath the lanes, CENTRED ON THE MIDDLE ONE ----
+# ---- the broker: beneath the lanes, CENTRED UNDER THEM ----
 # MEMORY is the one that matters here: the broker is NON-PERSISTENT, so the bus lives in RAM and memory% is what
 # back-pressures producers when a consumer dies. There is no store line because there is no store.
 comp("activemq", "ActiveMQ",
@@ -419,7 +428,7 @@ comp("activemq", "ActiveMQ",
      lambda r: [('max(activemq_broker_total_message_count)', "short", "held"),
                 ('max(activemq_broker_current_connections_count)', "short", "conns"),
                 ('max(activemq_broker_memory_percent_usage)', "percent", "memory")],
-     "/d/esq-services/", 333, 596)
+     "/d/esq-services/", 343, 596)
 
 # ---- the edge: gateway -> Explorer (BFF), and KeyCloak ----
 # The gateway is NETTY, not Tomcat, so its bandwidth comes from reactor-netty; /actuator is excluded or the
@@ -433,7 +442,7 @@ comp("gateway", "gateway",
                 (CPU % SSEL("gateway", r), "percent", "cpu"),
                 ('sum(rate(reactor_netty_http_server_data_sent_bytes_sum{uri!="/actuator"%s}[5m]))' % AND(r),
                  "Bps", "net out")],
-     SERVICES_D % "gateway", 745, 180,
+     SERVICES_D % "gateway", 745, 95,
      # ALL of the gateway's alarms ride the border: 5xx (it is shedding), errors, and a resilience4j breaker OPEN
      # (every breaker lives here -- the gateway wraps each downstream). These are dependency problems, not the
      # gateway's own health, so the fill stays green and the border alarms.
@@ -450,7 +459,7 @@ comp("keycloak", "KEYCLOAK",
      lambda r: [('sum(rate(http_server_requests_seconds_count{job="keycloak"}[5m]))', "reqps", "req/s"),
                 ('avg(process_cpu_usage{job="keycloak"}) * 100', "percent", "cpu"),
                 ('sum(jvm_memory_used_bytes{job="keycloak", area="heap"})', "bytes", "heap")],
-     "/d/esq-services/", 745, 430)
+     "/d/esq-services/", 745, 460)
 # The BFF is a StatefulSet too, so its pods carry the same -0 / -1 ordinal and its cards split like the rest.
 comp("backend", "Explorer",
      lambda r: health('max(up{job="esquire-bff"%s})' % AND(r),
@@ -463,7 +472,7 @@ comp("backend", "Explorer",
      lambda r: [('sum(rate(esq_bff_inbound_duration_seconds_count%s[5m]))' % ONLY(r), "reqps", "req/s"),
                 ('sum(rate(process_cpu_seconds_total{job="esquire-bff"%s}[5m])) * 100' % AND(r), "percent", "cpu"),
                 ('sum(process_resident_memory_bytes{job="esquire-bff"%s})' % AND(r), "bytes", "rss")],
-     "/d/esq-services/", 920, 180)
+     "/d/esq-services/", 920, 95)
 
 # ---- THE OBSERVABILITY STACK IS *NOT* ON THIS BOARD -- with ONE exception, the Collector (mir0n) ----
 # Prometheus / Loki / Tempo / Grafana / Alloy were on it briefly and came straight back off: this board answers
@@ -503,12 +512,17 @@ ORDER = list(C.keys())
 # Local k8s (k8s/values/*.yaml): every app component is replicaCount: 2. Infra -- Postgres, ActiveMQ, KeyCloak --
 # is x1 and stays a single card, which is itself worth seeing: the board then SHOWS what is redundant and what is
 # not, and the three components with nothing behind them are the three single points of failure.
-K8S_CARDS = {n: 2 for n in ("aukeep", "pacman", "biztree", "enyman", "keysmith", "kcmaster", "gateway", "backend")}
+K8S_CARDS = {n: 2 for n in ("aukeep", "paacman", "biztree", "enyman", "keysmith", "kcmaster", "gateway", "backend")}
 
 # The k8s board needs ROOM: a stack is PEEK_X wider than a single card, and the two right-hand columns would
 # otherwise sit ON TOP of the stack in front of them. These three numbers are the ONLY coordinates that differ
 # between the boards -- same arrangement, same lanes, same arrows, same picture.
 K8S_LEFT = {"gateway": 830, "keycloak": 830, "backend": 1080}
+# The gateway and the Explorer sit on the CENTRE LINE of the gap between paacMan and bizTree, so the gateway's biz
+# lane tap runs through the middle of it. A stack is PEEK_Y taller, so the gap is lower on the x2 board:
+#   docker  paacMan ends 110, bizTree starts 160 -> centre 135 -> top 95
+#   k8s     paacMan 1 ends 130, bizTree starts 160 -> centre 145 -> top 105
+K8S_TOP = {"gateway": 105, "backend": 105}
 
 # k8s-only FLOW overrides -- what REDUNDANCY changes about the arrows, which the single-instance picture cannot
 # show. On ONE instance enyMan only PUBLISHES entity CREATEs; with TWO instances a PEER enyMan's CREATE comes
@@ -611,7 +625,7 @@ def ordinal(name, r):
 # (Checked both: the live meters agree, except enyMan on esquire.kc -- declared CLIENT, no traffic in the window.
 #  It belongs on the board. That discrepancy is exactly why the board reads the config and not the metrics.)
 # ---------------------------------------------------------------------------------------------------------------
-# Lanes, left to right: Audit -- IAM Request-Response -- Entity Broadcast.
+# Lanes, left to right: Audit -- Biz Request-Response -- IAM Request-Response -- Entity Broadcast.
 # THE SAME ORDER AS doc/media/ComponentModel.png, and it must stay that way: a monitoring board and an
 # architecture diagram that disagree about WHERE things are make the reader hold two maps at once, and
 # a reader who spots the difference has no way to know which picture to trust. They carry the model's
@@ -626,15 +640,19 @@ BUSES = [
     # for the reply; kcMaster receives the request and sends the reply back. A single arrowhead on that bus would
     # be a lie in one direction or the other -- and the component model draws it with double arrows for exactly
     # this reason.
+    # The biz bus is request/reply too: the gateway sends the account command, paacMan runs it and replies.
     dict(id="audit-c", name="Audit Broadcast Bus", kind="audit-c",
          color="#8FA8C8", left=300,
-         flow={"enyman": "pub", "keysmith": "pub", "pacman": "pub", "aukeep": "sub"}),
+         flow={"enyman": "pub", "keysmith": "pub", "paacman": "pub", "aukeep": "sub"}),
+    dict(id="esquire.biz", name="Biz Request-Response Bus", kind="esquire.biz",
+         color="#C9A0DC", left=360,
+         flow={"gateway": "both", "paacman": "both"}),
     dict(id="esquire.kc", name="IAM Request-Response Bus", kind="esquire.kc",
-         color="#D9C48A", left=380,
+         color="#D9C48A", left=420,
          flow={"enyman": "both", "keysmith": "both", "kcmaster": "both"}),
     dict(id="esquire.entity", name="Entity Broadcast Bus", kind="esquire.entity",
-         color="#9DC08B", left=460,
-         flow={"enyman": "pub", "pacman": "pub", "biztree": "sub", "kcmaster": "sub"}),
+         color="#9DC08B", left=480,
+         flow={"enyman": "pub", "paacman": "pub", "biztree": "sub", "kcmaster": "sub"}),
 ]
 
 # The lanes run the full height of the service column, so any service can tap any of them at its own height.
@@ -646,12 +664,12 @@ SPINE_TOP, SPINE_H, SPINE_W = 25, 500, 46
 # Every edge below is READ OUT OF THE CONFIG, not remembered. A false edge on an architecture diagram is worse
 # than a missing one: it sends the next reader looking for a coupling that does not exist.
 #
-#   gateway routes  : gateway/src/main/resources/application.yml `routes[].uri` -> keySmith, bizTree, pacMan,
-#                     enyMan. FOUR services.
+#   gateway routes  : gateway/src/main/resources/application.yml `routes[].uri` -> keySmith, bizTree, enyMan.
+#                     THREE services. The account routes reach paacMan over the biz lane, not over REST.
 #                     NOT kcMaster -- there is no route to it. kcMaster is reached ONLY over the bus, which is
 #                     exactly the kind of fact this picture exists to make obvious. (This file drew that arrow
 #                     once; it was invented.)
-#   DB              : the services with a datasource -- enyMan, bizTree, pacMan, keySmith, auKeep.
+#   DB              : the services with a datasource -- enyMan, bizTree, paacMan, keySmith, auKeep.
 #                     kcMaster has NO DB (it owns no state; KeyCloak is its store) and neither does the gateway.
 #   kcMaster -> KC  : the admin sync, REST.
 #   gateway  -> KC  : jwk-set-uri / token-uri -- the gateway fetches the JWK set to validate every JWT. A real
@@ -668,12 +686,11 @@ ARROWS = [
     ("backend", "keycloak"),           # the BFF's own server-to-server calls: discovery, token exchange, JWKS
     ("gateway", "enyman"),
     ("gateway", "biztree"),
-    ("gateway", "pacman"),
     ("gateway", "keysmith"),
     ("gateway", "keycloak"),           # JWK set -- every JWT is validated against it
     ("enyman", "postgres"),
     ("biztree", "postgres"),
-    ("pacman", "postgres"),
+    ("paacman", "postgres"),
     ("keysmith", "postgres"),
     ("aukeep", "postgres"),
     ("kcmaster", "keycloak"),          # the KC admin sync
@@ -688,7 +705,27 @@ ARROWS = [
 PINNED_EDGE = {
     ("backend", "keycloak"): {"x": 0, "y": -1},    # leave Explorer's BOTTOM edge  (canvas y is UP)
     ("keycloak", "backend"): {"x": 0, "y": 1},     # land on KeyCloak's TOP edge
+    #xxx: the gateway's LEFT edge belongs to its biz lane tap alone, so its REST calls leave the BOTTOM edge, spread
+    # evenly with the KeyCloak line, and land on each service's RIGHT edge.
+    ("gateway", "biztree"): {"x": 0, "y": -1},     # leave the gateway's BOTTOM edge
+    ("gateway", "enyman"): {"x": 0, "y": -1},
+    ("gateway", "keysmith"): {"x": 0, "y": -1},
+    ("biztree", "gateway"): {"x": 1, "y": 0},      # land on each service's RIGHT edge
+    ("enyman", "gateway"): {"x": 1, "y": 0},
+    ("keysmith", "gateway"): {"x": 1, "y": 0},
 }
+
+# Where a line MUST sit along its edge, when the even spread puts it in the wrong place. The value is the canvas
+# anchor: y is UP, so a POSITIVE number lifts the point above the middle of a side edge. Keyed (box, other end) --
+# a lane is "bus:<id>". The gateway's biz tap takes the MIDDLE of its left edge, so it runs on the gateway's centre
+# line through the gap above bizTree.
+#xxx: the gateway's arrows land HIGH on a service's right edge, 10 px below the card's top. On the x2 board the card
+# behind peeks out 20 px down, so only that top strip of the front card's right edge is uncovered -- landing there
+# reaches the front card ("glue to the upper box") without running across instance 1.
+EDGE_BIAS = {("gateway", "bus:esquire.biz"): 0.0,
+             ("biztree", "gateway"): 0.75,
+             ("enyman", "gateway"): 0.75,
+             ("keysmith", "gateway"): 0.75}
 
 # Line colours. The lanes carry their own (the bus colours, from the component model); these two are
 # for the point-to-point calls -- RED for the database, as ComponentModel.png draws it, grey for REST.
@@ -718,7 +755,7 @@ LAYERS = [
     ["activemq", "collector"],                                 # 2 --        the buses (lanes) + the broker; the
                                                                #             Collector rides here too (bottom-row
                                                                #             infra hub, the I31 exception box)
-    ["pacman", "biztree", "enyman", "keysmith", "kcmaster"],   # 3 --        the services
+    ["paacman", "biztree", "enyman", "keysmith", "kcmaster"],  # 3 --        the services
     ["gateway", "keycloak"],                                   # 4 --        the edge + identity
     ["backend"],                                               # 5 -- front: the BFF
 ]
@@ -855,6 +892,7 @@ def card(name, r):
 # ---------------------------------------------------------------------------------------------------------------
 ICON = {n: "img/icons/esq/%s.svg" % n for n in
         ("pacman", "activemq", "postgres")}
+ICON["paacman"] = ICON["pacman"]
 ICON["enyman"] = "img/icons/esq/enyman.svg?v=2"
 ICON["keysmith"] = "img/icons/esq/keysmith.svg?v=2"
 ICON["kcmaster"] = "img/icons/esq/kcmaster.svg?v=2"
@@ -1254,6 +1292,7 @@ def canvas():
             # The other end of a bus tap is the LANE, at the card's own height (the tap is horizontal), so its
             # vertical offset is ZERO -- it heads straight sideways, neither up nor down.
             item = {"kind": "bus", "comp": name, "bus": b, "flow": flow, "side": side,
+                    "other": "bus:" + b["id"],
                     "ox": b["left"] + SPINE_W / 2.0,
                     "oy": elem_top(name, side) + H / 2.0}
             ends.setdefault(key, []).append(item)
@@ -1301,6 +1340,17 @@ def canvas():
                 item["anchor"] = {"x": 1 if side == "R" else -1, "y": -pos}
             else:
                 item["anchor"] = {"x": pos, "y": 1 if side == "T" else -1}
+            other = item.get("other")
+            if item.get("role") == "src":
+                other = item["pair"]["dst"]
+            elif item.get("role") == "dst":
+                other = item["pair"]["src"]
+            bias = EDGE_BIAS.get((comp_name, other))
+            if bias is not None:
+                if vertical:
+                    item["anchor"]["y"] = bias
+                else:
+                    item["anchor"]["x"] = bias
 
     # ---- 3. emit ------------------------------------------------------------------------------------------
     for item in order:
@@ -1926,8 +1976,7 @@ def main():
     generator header's own rule applies: if the ARCHITECTURE changes, the picture changes. The OKE deltas:
       * NO auKeep and NO audit lane -- OKE audits via DB TRIGGERS; the audit-off bus is a disabled no-op
         (k8s-oci/esquire-topology.yml), so there is no audit medium to draw and no drain to draw it to.
-      * BFF x1 -- the OKE BFF uses an in-memory session store (no redis), so it is a single card, not a pair.
-    Everything else is the k8s board. The two dropped names (component `aukeep`, bus `audit-c`) filter out of
+    Everything else is the k8s board, the BFF x2 included (its sessions live in redis, k8s-oci/values/redis.yaml). The two dropped names (component `aukeep`, bus `audit-c`) filter out of
     VISIBLE / BUSES / ARROWS for the OKE pass; the replica map is OKE_CARDS. FIRST-CUT: the geometry is NOT
     re-tuned for the two gaps this leaves (auKeep's empty slot left of the lanes, the missing audit lane at
     left=300) -- the topology is correct, the hand-laid spacing is mir0n's step, diff-locked to its OWN OKE model.
@@ -1936,21 +1985,22 @@ def main():
     here = os.path.dirname(os.path.abspath(__file__))
     root = os.path.abspath(os.path.join(here, "..", "..", ".."))
     base = {n: C[n]["left"] for n in C}          # the docker x-coordinates, to restore between targets
+    tops0 = {n: C[n]["top"] for n in C}          # the docker y-coordinates, likewise
     layers0 = [list(layer) for layer in LAYERS]  # pristine; a target filters dropped components out of the Z-walk
     buses0 = [dict(b) for b in BUSES]            # pristine COPIES -- the OKE target slides a lane's `left`
     arrows0 = list(ARROWS)
-    # OKE app tier x2 (the six Java services). BFF (backend) is NOT listed -> one card. auKeep is dropped below.
-    OKE_CARDS = {n: 2 for n in ("pacman", "biztree", "enyman", "keysmith", "kcmaster", "gateway")}
-    # (drop_comp, drop_bus, bus_left) per target. OKE: drop auKeep + the audit lane, and slide the IAM (kc) lane
-    # into the vacated audit slot (300) -- with only two lanes left, that puts the broker (which does NOT move)
-    # centred under BOTH of them instead of under the left one (mir0n's alternative to moving the broker).
-    for path, model, lefts, drop_comp, drop_bus, bus_left in (
+    # OKE app tier x2 (the six Java services) and the BFF. auKeep is dropped below.
+    OKE_CARDS = {n: 2 for n in ("paacman", "biztree", "enyman", "keysmith", "kcmaster", "gateway", "backend")}
+    # (drop_comp, drop_bus, bus_left) per target. OKE: drop auKeep + the audit lane, and shift the three lanes
+    # that are left 30px right, so the broker (which does NOT move) stays centred under them.
+    for path, model, lefts, tops, drop_comp, drop_bus, bus_left in (
             (os.path.join(root, "compose", "o11y", "grafana", "provisioning", "dashboards",
-                          "esquire-topology.json"), {}, {}, set(), set(), {}),
+                          "esquire-topology.json"), {}, {}, {}, set(), set(), {}),
             (os.path.join(root, "k8s", "charts", "infra", "grafana", "dashboards",
-                          "esquire-topology.json"), K8S_CARDS, K8S_LEFT, set(), set(), {}),
+                          "esquire-topology.json"), K8S_CARDS, K8S_LEFT, K8S_TOP, set(), set(), {}),
             (os.path.join(root, "k8s-oci", "grafana", "esquire-topology.json"),
-                          OKE_CARDS, K8S_LEFT, {"aukeep"}, {"audit-c"}, {"esquire.kc": 300})):
+                          OKE_CARDS, K8S_LEFT, K8S_TOP, {"aukeep"}, {"audit-c"},
+                          {"esquire.biz": 330, "esquire.kc": 390, "esquire.entity": 450})):
         CARDS = model
         LAYERS = [[n for n in layer if n not in drop_comp] for layer in layers0]
         VISIBLE = [n for layer in LAYERS[:LAYERS_ON] for n in layer]
@@ -1961,10 +2011,11 @@ def main():
         ARROWS = [a for a in arrows0 if not (set(a) & drop_comp)]
         for n in C:
             C[n]["left"] = lefts.get(n, base[n])
+            C[n]["top"] = tops.get(n, tops0[n])
         os.makedirs(os.path.dirname(path), exist_ok=True)
         with open(path, "w") as f:
             json.dump(build(), f, indent=1)
-        tag = ("OKE -- x2, BFF x1, no auKeep, IAM lane in the audit slot (broker centred under both)" if drop_comp
+        tag = ("OKE -- x2, no auKeep, three lanes centred over the broker" if drop_comp
                else "k8s -- x2, one card per instance" if model else "docker -- single instance")
         print("wrote", path, "(%s)" % tag)
 

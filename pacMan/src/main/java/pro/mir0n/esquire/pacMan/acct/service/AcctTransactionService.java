@@ -18,6 +18,7 @@
  * 06/17/2026 mir0n  audit-producer ctor param IXRod -> AuditBusBridge
  * 06/18/2026 mir0n  audit module left common: AuditBusBridge moved to pro.mir0n.esquire.audit
  * 07/02/2026 mir0n  esquireCommandAcct guards X-Request-ID presence via requireRequestId()
+ * 10/19/2026 mir0n  v2.0.1 -- esquireCommandAcct: the roles parameter removed
  */
 
 package pro.mir0n.esquire.pacMan.acct.service;
@@ -52,7 +53,7 @@ public class AcctTransactionService {
         this.processorTransfer = new AcctTransactionProcessorTransfer(entityRepository, transactionRepository, transactionTemplate, em, audit);
     }
 
-    public AcctTransactionSingle esquireCommandAcct(int kind, String id, String cmd, Map<String, Object> fields, List<String> roles) {
+    public AcctTransactionSingle esquireCommandAcct(int kind, String id, String cmd, Map<String, Object> fields) {
         RequestContextUtils.requireRequestId();
         String rootPath = RequestContextUtils.getRootPath();
         String uid = RequestContextUtils.getUid();
@@ -75,9 +76,9 @@ public class AcctTransactionService {
 
         AcctTransactionSingle ret = null;
         if (op.transfer) {
-            ret = processorTransfer.esquireCommandAcct(kind, id, op, fields, rootPath, uid, roles);
+            ret = processorTransfer.esquireCommandAcct(kind, id, op, fields, rootPath, uid);
         } else {
-            ret = processorSingle.esquireCommandAcct(kind, id, op, fields, rootPath, uid, roles);
+            ret = processorSingle.esquireCommandAcct(kind, id, op, fields, rootPath, uid);
         }
         return ret;
     }

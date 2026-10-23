@@ -29,7 +29,7 @@ call helm upgrade esquire-infra-amq charts\infra\activemq -f values\activemq.yam
 call kubectl rollout restart statefulset esquire-infra-amq-activemq
 
 echo --- Disabling tracing on the app services...
-for %%s in (gateway enyman biztree pacman keysmith kcmaster aukeep) do (
+for %%s in (gateway enyman biztree pacman paacman keysmith kcmaster aukeep) do (
 rem THE SHIPPED LEVELS ARE RESTATED HERE, for the reason o11y-on.bat gives: --reset-then-reuse-values
 rem KEEPS whatever a previous arm set. o11y-log-off sets levelMir0n/Develop/Msg to OFF, so a disarm that
 rem named only the observability switches left the everyday stack with the application logger SILENT --

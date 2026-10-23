@@ -28,9 +28,9 @@ data:
             namespaces:
               names: [{{ .Release.Namespace }}]
         relabel_configs:
-          # keep only the seven Java service pods (app label esquire-<svc>-<svc>); infra + the Node BFF drop out.
+          # keep only the eight Java service pods (app label esquire-<svc>-<svc>); infra + the Node BFF drop out.
           - source_labels: [__meta_kubernetes_pod_label_app]
-            regex: "esquire-(gateway|biztree|enyman|pacman|keysmith|kcmaster|aukeep)-.*"
+            regex: "esquire-(gateway|biztree|enyman|pacman|paacman|keysmith|kcmaster|aukeep)-.*"
             action: keep
           # scrape the pod IP on the SEPARATE management port 8090 (F0 A6) -- actuator (incl. /actuator/prometheus)
           # lives there now, NOT on the public main port, so the ingress never exposes it.

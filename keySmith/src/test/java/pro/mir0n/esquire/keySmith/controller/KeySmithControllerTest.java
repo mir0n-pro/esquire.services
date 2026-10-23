@@ -1,6 +1,5 @@
 package pro.mir0n.esquire.keySmith.controller;
 
-import io.jsonwebtoken.Claims;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -10,10 +9,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import pro.mir0n.esquire.backend.dto.access.EsqAccessProfile;
-import pro.mir0n.esquire.common.EsqConstants;
 import pro.mir0n.esquire.keySmith.service.IKeySmithService;
 
-import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.*;
@@ -25,8 +22,6 @@ class KeySmithControllerTest {
     @Mock
     private IKeySmithService service;
 
-    @Mock
-    private Claims claims;
 
     private KeySmithController controller;
 
@@ -35,8 +30,8 @@ class KeySmithControllerTest {
         controller = new KeySmithController(service);
     }
 
-    // uid / rootPath are no longer extracted in the controller -- they ride the unified per-request
-    // context (JwtClaimsExtractionFilter). The controller now reads only roles from realm_access.
+    // uid / rootPath / roles are not read in the controller -- they ride the unified per-request context
+    // (JwtClaimsExtractionFilter).
 
     // ---- esquireCommand: delegation ----
 
@@ -46,42 +41,28 @@ class KeySmithControllerTest {
         EsqAccessProfile profile = mock(EsqAccessProfile.class);
         when(service.esquireKey("10")).thenReturn(profile);
 
-        ResponseEntity<EsqAccessProfile> response = controller.esquireCommand("10", claims);
+        ResponseEntity<EsqAccessProfile> response = controller.esquireCommand("10");
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(response.getBody()).isNotNull();
         verify(service).esquireKey("10");
     }
 
-    // ---- esquireKeySave: roles extracted from realm_access ----
+    // ---- esquireKeySave: delegation ----
 
     @Test
-    @DisplayName("esquireKeySave: extracts roles from realm_access, delegates with roles")
-    void esquireKeySave_extractsRolesFromRealmAccess_delegatesWithRoles() {
-        when(claims.get(EsqConstants.JWT_CLAIM_REALM_ACCESS, Map.class))
-                .thenReturn(Map.of(EsqConstants.JWT_CLAIM_REALM_ACCESS_ROLES, List.of("admin")));
+    @DisplayName("esquireKeySave: delegates to service, returns 200")
+    void esquireKeySave_delegates_returnsOk() {
         EsqAccessProfile profile = mock(EsqAccessProfile.class);
         Map<String, Object> fields = Map.of();
-        when(service.esquireKeySave("10", fields, List.of("admin"))).thenReturn(profile);
+        when(service.esquireKeySave("10", fields)).thenReturn(profile);
 
-        ResponseEntity<EsqAccessProfile> response = controller.esquireKeySave("10", fields, claims);
+        ResponseEntity<EsqAccessProfile> response = controller.esquireKeySave("10", fields);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-        verify(service).esquireKeySave("10", fields, List.of("admin"));
+        verify(service).esquireKeySave("10", fields);
     }
 
-    // ---- esquireKeySave: null realm_access passes null roles ----
 
-    @Test
-    @DisplayName("esquireKeySave: null realm_access -> passes null roles to service")
-    void esquireKeySave_nullRealmAccess_passesNullRolesToService() {
-        when(claims.get(EsqConstants.JWT_CLAIM_REALM_ACCESS, Map.class)).thenReturn(null);
-        Map<String, Object> fields = Map.of();
-        when(service.esquireKeySave("10", fields, null)).thenReturn(null);
-
-        controller.esquireKeySave("10", fields, claims);
-
-        verify(service).esquireKeySave("10", fields, null);
-    }
 
 }

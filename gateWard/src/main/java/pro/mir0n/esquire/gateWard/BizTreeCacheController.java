@@ -12,6 +12,7 @@
  *                   the caller's rootPath / uid across that thread hop. scoped() also takes the two timing
  *                   stamps (out from the gate, in the ward) for TreeRouteTimingFilter
  * 08/26/2026 mir0n  each tree read is wrapped in its own TraceMark span -- read tree, read subtree, read path
+ * 10/19/2026 mir0n  v2.0.1 -- the request context carries the caller's realm roles from the token
  */
 
 package pro.mir0n.esquire.gateWard;
@@ -40,6 +41,8 @@ import reactor.core.scheduler.Scheduler;
 
 import java.util.List;
 import java.util.concurrent.Callable;
+import java.util.ArrayList;
+import java.util.Map;
 
 /**
  * The gate answering the tree routes from the cache in its own memory.
@@ -150,8 +153,16 @@ public class BizTreeCacheController {
     private EsqRequestContext context(Jwt jwt, String requestId, String correlationId) {
         String uid      = (jwt != null) ? jwt.getClaimAsString(EsqConstants.JWT_CLAIM_ENTITY_ID) : null;
         String rootPath = (jwt != null) ? jwt.getClaimAsString(EsqConstants.JWT_CLAIM_ENTITY_ROOTPATH) : null;
+        List<String> roles = null;
+        Map<String, Object> realmAccess = (jwt != null) ? jwt.getClaimAsMap(EsqConstants.JWT_CLAIM_REALM_ACCESS) : null;
+        if (realmAccess != null && realmAccess.get(EsqConstants.JWT_CLAIM_REALM_ACCESS_ROLES) instanceof List<?> list) {
+            roles = new ArrayList<>();
+            for (Object role : list) {
+                roles.add(String.valueOf(role));
+            }
+        }
 
-        EsqRequestContext ret = new EsqRequestContext(correlationId, requestId, uid, rootPath);
+        EsqRequestContext ret = new EsqRequestContext(correlationId, requestId, uid, rootPath, roles);
 
         return ret;
     }

@@ -29,7 +29,7 @@ Columns:
 
 WHY THIS EXISTS (I48).  o11y-verify.py checks that the assets it DECLARES are live -- so it is structurally blind
 to an asset that was never declared, and its declared list is hand-maintained, so it drifts. Three meters
-(esq.bff.outbound.duration, esq.biz.acct.tx.duration, esq.biz.keep.write.duration) were being collected and
+(esq.bff.outbound.duration, esq.biz.acct.tx.duration, herald.keep.write.duration) were being collected and
 verified by nothing, two of them long before anyone noticed. This script reads the TREE, so a new asset appears
 here the moment it is written and nobody has to remember anything.
 
@@ -176,8 +176,8 @@ DESC = {
         "Duration of the WHOLE kc sync operation (the KC round-trip dominates it).",
         "Answers I39: the kcMaster->KC duration IS measured, at the OPERATION grain. Only a per-CALL span is "
         "absent, and a traceparent buys nothing (stock KC is not OTel-traced)."),
-    "esq.biz.keep.write.total": ("dataKeep keep-sink DB writes by op + outcome.", "Audit/keep durability."),
-    "esq.biz.keep.write.duration": (
+    "herald.keep.write.total": ("dataKeep keep-sink DB writes by op + outcome.", "Audit/keep durability."),
+    "herald.keep.write.duration": (
         "Duration of the keep-sink DB write (T8-C).",
         "The DB write cost at the keep sink. NOTE: collected but currently NEITHER verified NOR drawn -- it is "
         "the meter cited in the I39/I40 argument as proof the write is covered, yet nobody can see it (I48)."),
@@ -226,7 +226,7 @@ DESC = {
     "esq.async": (
         "Async-continuation span across an in-process thread hand-off (EsqAsyncTrace).",
         "Keeps a queue worker's spans inside the SUBMITTING request's trace."),
-    "esq.keep.apply": (
+    "herald.keep.apply": (
         "Span around the dataKeep RodEventDbWriter apply (EsqTraceMark -- the writer is not a Spring bean).",
         "Makes the keep write visible in a trace; also times it."),
     "esq.svc.cache": (
@@ -484,7 +484,7 @@ CALL_PATTERNS = [
 # What a SIGNAL NAME looks like, as opposed to a TAG KEY. Our names are dotted namespaces (esq.*, messaging.*);
 # tag keys in the same argument list are bare words ("kind", "op", "outcome"), so shape alone separates them --
 # which is what makes it safe to read the whole argument span instead of just the first literal.
-NAME_SHAPE = re.compile(r'"((?:esq|messaging)\.[a-z][a-z0-9.]*)"')
+NAME_SHAPE = re.compile(r'"((?:esq|messaging|herald)\.[a-z][a-z0-9.]*)"')
 
 
 def _arg_span(src, open_paren):
@@ -902,8 +902,8 @@ def build_rows():
     drawn = dashboard_usage(signals)
 
     # A component this fleet does not deploy has no assets to inventory. EXCLUDE_METERS names them in the
-    # PROMETHEUS spelling (esq_biz_keep_write_total) while a signal here is the METER name
-    # (esq.biz.keep.write), so both go through _stem -- the one form the two notations agree on. Comparing the
+    # PROMETHEUS spelling (herald_keep_write_total) while a signal here is the METER name
+    # (herald.keep.write), so both go through _stem -- the one form the two notations agree on. Comparing the
     # raw spellings matched nothing, and the sheet asserted keep meters on a profile that runs no auKeep.
     excluded = set(_stem(x) for x in _excl("EXCLUDE_METERS"))
 
@@ -1020,8 +1020,8 @@ SELFTEST_CASES = [
 
     ("EsqTraceMark + the OBS_NAME constant -- marks are CROSS-PILLAR, each is a span AND a timer",
      'private static final String OBS_NAME = "esq.async";\n'
-     'EsqTraceMark.around("esq.keep.apply", label, () -> write(e));',
-     {"esq.async", "esq.keep.apply"}, set()),
+     'EsqTraceMark.around("herald.keep.apply", label, () -> write(e));',
+     {"esq.async", "herald.keep.apply"}, set()),
 ]
 
 

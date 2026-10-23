@@ -107,7 +107,7 @@ class DenialStatusRuleTest {
     void setUp() {
         service = new EnyManService(dictRepo, orgRepo, usrRepo, acctRepo, subtreeRepo,
                 transactionTemplate, em, broadcastPublisher, moveQueue, new AuditBusBridge(noopRod()));
-        EsqContextHolder.set(new EsqRequestContext(null, "req-test", UID, ROOT_PATH));
+        EsqContextHolder.set(new EsqRequestContext(null, "req-test", UID, ROOT_PATH, List.of(ROLE_ADMIN)));
     }
 
     @AfterEach
@@ -122,8 +122,9 @@ class DenialStatusRuleTest {
     @Test
     @DisplayName("a role-only refusal answers 403 without reading the entity -- so it cannot confirm one exists")
     void permissionRefusalDoesNotTouchTheEntity() {
+        EsqContextHolder.set(new EsqRequestContext(null, "req-test", UID, ROOT_PATH, null));
         assertThatThrownBy(() ->
-            service.esquireCommandDelete(20, "100", "delete", null)
+            service.esquireCommandDelete(20, "100", "delete")
         ).isInstanceOf(PermissionDeniedException.class);
 
         verifyNoInteractions(orgRepo, usrRepo, acctRepo, subtreeRepo);
@@ -135,7 +136,7 @@ class DenialStatusRuleTest {
         when(orgRepo.detailOrg("200", ROOT_PATH)).thenReturn(null);
 
         assertThatThrownBy(() ->
-            service.esquireCommandMove(20, "100", "200", List.of(ROLE_ADMIN))
+            service.esquireCommandMove(20, "100", "200")
         ).isInstanceOf(ResourceNotFoundException.class);
     }
 
@@ -150,7 +151,7 @@ class DenialStatusRuleTest {
         when(usrRepo.detailUsrForUpdate("8", ROOT_PATH)).thenReturn(row);
 
         assertThatThrownBy(() ->
-            service.esquireCommandSave(34, "8", "save", new java.util.HashMap<>(), List.of(ROLE_ADMIN))
+            service.esquireCommandSave(34, "8", "save", new java.util.HashMap<>())
         ).isInstanceOf(ResourceNotFoundException.class);
 
         verify(usrRepo, never()).updateUsr(any(), any(), any(), any(), any(), any(), any(), any(), any());

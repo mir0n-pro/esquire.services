@@ -1,5 +1,11 @@
 Esquire kcMaster Microservice
 
+10/22/2026 mir0n  v2.0.1 -- the bus refs under herald
+identity.KcIdentityGateway
+  - the trace comment names herald.keep.apply and herald.keep.write.*
+resources/application.yml
+  - the bus refs move under herald:
+
 10/17/2026 mir0n  v2.0.0 -- the 2.0 line: the bus, the keep and the base libraries moved out
 (every file that imported them)
   - pro.mir0n.esquire.messaging -> pro.mir0n.messaging, pro.mir0n.esquire.dataKeep -> pro.mir0n.dataKeep,

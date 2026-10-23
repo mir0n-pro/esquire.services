@@ -30,10 +30,10 @@ set LOKI_URL=http://localhost:13100
 set TEMPO_URL=http://localhost:13200
 set GRAFANA_URL=http://localhost:13009
 set LOKI_JOB=esq-k8s
-set SERVICES=gateway,biztree,enyman,pacman,keysmith,kcmaster,aukeep
+set SERVICES=gateway,biztree,enyman,pacman,paacman,keysmith,kcmaster,aukeep
 rem LOG_SERVICES = the Loki `service_name` label: on k8s the FULL workload name, not the short
 rem service name (the same list as o11y-verify.bat).
-set LOG_SERVICES=esquire-gateway-gateway,esquire-biztree-biztree,esquire-enyman-enyman,esquire-pacman-pacman,esquire-keysmith-keysmith,esquire-kcmaster-kcmaster,esquire-aukeep-aukeep,esquire-backend-backend
+set LOG_SERVICES=esquire-gateway-gateway,esquire-biztree-biztree,esquire-enyman-enyman,esquire-pacman-pacman,esquire-paacman-paacman,esquire-keysmith-keysmith,esquire-kcmaster-kcmaster,esquire-aukeep-aukeep,esquire-backend-backend
 
 rem Credentials from the e2e's .env -- ONE place for the sandbox login, never a literal in a script.
 if exist "..\..\explorer2\e2e-test\.env" (

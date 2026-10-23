@@ -72,6 +72,8 @@ param(
                                       # cache -- gateWard in compact, bizTree in classic. The cache-read
                                       # scheduler sizes itself from this pool, so it is the one knob that
                                       # widens both the connections and the threads waiting on them.
+    [string] $GatewayTag = "",       # non-empty: the classic gateway runs THIS image tag (both REST and bus
+                                      # cells), so the route is the only difference between them
     [switch] $ServiceMetrics          # set GW_SERVICE_METRICS_ENABLED on the gate after each build:
                                       # it only adds a header to the downstream request, and the per-leg
                                       # timings are stamped only for a request that carries the client's
@@ -81,7 +83,7 @@ param(
 # IS $CONFIGS -- it would silently overwrite the matrix definition with a list of strings and select nothing.
 
 $ErrorActionPreference = "Continue"
-$SVCS    = "C:\MyProjects\esquire\services"
+$SVCS    = "C:\MyProjects\esquire\services2"
 $HAUBERK = $PSScriptRoot
 $APPS    = @("gateway","biztree","enyman","pacman","keysmith","kcmaster","aukeep","backend")
 # The COMPACT fleet: gateWard carries the gate and the tree cache, Mesnie carries enyMan, keySmith and the
@@ -169,7 +171,11 @@ $CONFIGS = @(
 
     @{ name = "docker-OFF";  target = "docker"; reps = 1; o11y = "OFF" },
     @{ name = "docker-LOG";  target = "docker"; reps = 1; o11y = "LOG" },
-    @{ name = "docker-ON";   target = "docker"; reps = 1; o11y = "ON"  }
+    @{ name = "docker-ON";   target = "docker"; reps = 1; o11y = "ON"  },
+
+    # CLASSIC WITH THE ACCOUNT ROUTES ON THE BIZ BUS (v2.0.1): the gateway sends them to paacMan instead of
+    # pacMan over HTTP. Paired against k8s-x2-OFF with the same -GatewayTag, the route is the only difference.
+    @{ name = "k8s-x2-OFF-BUS"; target = "k8s"; reps = 2; o11y = "OFF"; bus = $true }
 )
 
 # ONE KIND PER CELL (-Kinds). Each base config becomes one cell per kind, named "<config>-<kind>", and the
@@ -330,6 +336,22 @@ function Build-K8s($cfg) {
     }
 
     Wait-K8sPods
+
+    # THE GATEWAY BEFORE THE o11y ARM: a helm upgrade re-renders the gateway's env, so done after the arm it
+    # would undo the arm's logger settings on the gateway alone.
+    if ($cfg.dir -ne "k8s-compact" -and ($GatewayTag -or $cfg.bus)) {
+        $gwSet = @()
+        if ($GatewayTag) { $gwSet += @("--set", "image.tag=$GatewayTag") }
+        if ($cfg.bus) {
+            $gwSet += @("--set", "backends.pacmanService=paacman")
+            Log "  account routes -> paacMan over the biz bus (gateway $GatewayTag)"
+        } else {
+            Log "  account routes -> pacMan over HTTP (gateway $GatewayTag)"
+        }
+        & helm upgrade esquire-gateway charts\esquire-gateway -f values\gateway.yaml --reset-then-reuse-values `
+            --force-conflicts @gwSet *> $null
+        & kubectl rollout status statefulset (Wl $cfg "gateway") --timeout=300s *> $null
+    }
 
     # k8s-up installs the viewing stack, so every arm must explicitly put it into the state it wants.
     # THREE arms (I49) -- and NO fall-through else: an unknown value must FAIL, never quietly run OFF and file

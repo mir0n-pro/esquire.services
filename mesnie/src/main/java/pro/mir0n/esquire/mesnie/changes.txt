@@ -1,5 +1,11 @@
 Esquire Mesnie Microservice
 
+10/22/2026 mir0n  v2.0.1 -- the bus refs under herald
+MesnieApplication
+  - the meter owner reads the entity bus id under BusConstants.CONFIG_ROOT
+resources/application.yml
+  - the bus refs move under herald:; the overlay comment names herald.messaging-bus
+
 10/17/2026 mir0n  v2.0.0 -- the 2.0 line: the bus, the keep and the base libraries moved out
 (every file that imported them)
   - pro.mir0n.esquire.messaging -> pro.mir0n.messaging, pro.mir0n.esquire.dataKeep -> pro.mir0n.dataKeep,

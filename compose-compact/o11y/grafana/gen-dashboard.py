@@ -1096,7 +1096,7 @@ def build_panels():
     # auKeep is absent on OKE (audit = DB triggers, no keep sink) -- drop this panel there. The OKE pass removes
     # `aukeep` from ESQ_SERVICES, which is the signal (T12).
     ("aukeep" in ESQ_SERVICES) and p.append(ts("Audit keep -- DB writes (by op + outcome)", 8, 191, 8, "ops",
-                [tgt(zero_line("sum by (op, outcome) (rate(esq_biz_keep_write_total{%s}[5m]))" % SVC,
+                [tgt(zero_line("sum by (op, outcome) (rate(herald_keep_write_total{%s}[5m]))" % SVC,
                                "outcome", "error"),
                      "{{op}} {{outcome}}")],
                 desc="THE DB WRITE at the keep sink -- the one thing the bus meters cannot see. "

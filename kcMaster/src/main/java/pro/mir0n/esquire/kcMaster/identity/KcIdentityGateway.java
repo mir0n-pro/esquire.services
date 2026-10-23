@@ -14,6 +14,7 @@
  * 08/26/2026 mir0n  builds the Keycloak admin client itself from KcConnectionSettings -- its own JAX-RS Client
  *                   with JacksonProvider and connect / read timeouts -- and implements
  *                   IQueueRig.IErrorListener so a worker throw is recorded rather than lost
+ * 10/19/2026 mir0n  v2.0.1 -- the trace comment names herald.keep.apply and herald.keep.write.*
  */
 package pro.mir0n.esquire.kcMaster.identity;
 
@@ -112,7 +113,7 @@ public class KcIdentityGateway implements IIdentityGateway, IQueueRig.IQueueWork
         // The KC-sync duration IS measured, at the OPERATION grain: KcRequestHandler times esq.biz.kc.sync.duration
         // (tagged by op, in a finally so a FAILED sync counts too) and KcIdentityService carries @EsqTraced
         // ("esq.kc.*"). The KC round-trip DOMINATES that number, so it is the KC cost in all but name. Same shape as
-        // dataKeep's RodEventDbWriter (esq.keep.apply span + esq.biz.keep.write.* meters): KC is a TRACE LEAF here
+        // dataKeep's RodEventDbWriter (herald.keep.apply span + herald.keep.write.* meters): KC is a TRACE LEAF here
         // exactly as Postgres is under the keep writer -- no per-call CLIENT span, no traceparent propagated in.
         //
         // What a wire-level span would ADD is only sub-operation granularity: createUser is create + setPassword +

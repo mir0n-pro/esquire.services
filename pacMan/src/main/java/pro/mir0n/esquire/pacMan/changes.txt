@@ -1,5 +1,36 @@
 Esquire pacMan Microservice
 
+10/22/2026 mir0n  v2.0.1 -- one set of commands for REST and the biz bus; the roles from the request context
+service.PacManCommands  (new)
+  - created: the pacMan commands for every front: esquireCommandSave / esquireCommandDelete / esquireCommandAcct
+    / esquireCommand over IPacManService and AcctTransactionService, with the develop log lines; the caller is
+    read from the request context
+controller.PacManController
+  - calls PacManCommands; the @AuthenticationPrincipal Claims parameters and the roles read from the token
+    removed
+service.IPacManService
+  - esquireCommandSave / esquireCommandDelete: the roles parameter removed
+service.impl.PacManService
+  - esquireCommandSave / esquireCommandDelete: the roles parameter removed; the admin permissions come from
+    RequestContextUtils.getRoles()
+acct.IAcctTransactionProcessor
+  - esquireCommandAcct: the roles parameter removed
+acct.service.AcctTransactionProcessorSingle
+  - esquireCommandAcct / validatePermissions: the roles parameter removed; the admin permissions come from
+    RequestContextUtils.getRoles()
+acct.service.AcctTransactionProcessorTransfer
+  - esquireCommandAcct / esquireCommandTransfer: the roles parameter removed
+acct.service.AcctTransactionService
+  - esquireCommandAcct: the roles parameter removed
+PacManApplication
+  - MessagingBusLifecycleRegistrar.busKeys(): the buses the process builds (entity, audit), protected so a
+    service built on pacMan adds its own
+pom.xml
+  - a second artifact, classifier classes: the plain classes jar without application.yml and logback-spring.xml,
+    for paacMan to build on
+resources/application.yml
+  - the bus refs move under herald:; the overlay comment names herald.messaging-bus
+
 10/17/2026 mir0n  v2.0.0 -- the 2.0 line: the bus, the keep and the base libraries moved out
 (every file that imported them)
   - pro.mir0n.esquire.messaging -> pro.mir0n.messaging, pro.mir0n.esquire.dataKeep -> pro.mir0n.dataKeep,

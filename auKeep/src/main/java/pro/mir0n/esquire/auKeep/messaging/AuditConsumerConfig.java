@@ -22,6 +22,7 @@
  *                   EsqContextHolder.applyMessage(event) before applying and clears in a finally, correlating its
  *                   log lines to the audited message (I10)
  * 08/26/2026 mir0n  a disabled audit bus names the property that disabled it (AUDIT_BUS_ID) in the refusal
+ * 10/19/2026 mir0n  v2.0.1 -- AUDIT_BUS_ID is built from BusConstants.CONFIG_ROOT
  */
 package pro.mir0n.esquire.auKeep.messaging;
 
@@ -47,6 +48,7 @@ import pro.mir0n.messaging.transport.TransportHealth;
 
 import java.util.function.Consumer;
 import java.util.function.Supplier;
+import pro.mir0n.messaging.BusConstants;
 
 @Configuration
 public class AuditConsumerConfig {
@@ -55,7 +57,7 @@ public class AuditConsumerConfig {
     /** The keep's *_log datasource group (configured the same way a producer's in-process leg is). */
     private static final String KEEP_DATASOURCE = "esquire.keep.datasource";
 
-    private static final String AUDIT_BUS_ID = "esquire.audit-bus.messaging-bus.bus-id";
+    private static final String AUDIT_BUS_ID = BusConstants.CONFIG_ROOT + ".audit-bus.messaging-bus.bus-id";
 
     private final Environment env;
     // The Micrometer registry (present only when observability is enabled) -- handed to the keep pool so its

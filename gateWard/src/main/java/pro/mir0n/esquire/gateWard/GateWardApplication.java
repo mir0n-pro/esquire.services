@@ -12,6 +12,8 @@
  *                   web starter comes in with the cache, so the process stays WebFlux
  * 08/17/2026 mir0n  v1.2.13 T3.2 -- @Bean IMeterOwner meterOwner(entityBusId) declared here: a
  *                   GateWardMeterOwner, handed the entity bus id from the property the bus itself reads
+ * 10/19/2026 mir0n  v2.0.1 -- the bus registrar builds the biz bus beside the entity bus; the meter owner reads the
+ *                   entity bus id under BusConstants.CONFIG_ROOT
  */
 
 package pro.mir0n.esquire.gateWard;
@@ -40,6 +42,7 @@ import pro.mir0n.esquire.common.EsqConstants;
 import pro.mir0n.esquire.gateway.GatewayConfig;
 import pro.mir0n.messaging.BusHealthIndicator;
 import pro.mir0n.messaging.MessagingBus;
+import pro.mir0n.messaging.BusConstants;
 
 /**
  * gateWard -- the gate and the ward behind it: the gateway with the bizTree CACHE in the same process.
@@ -87,7 +90,7 @@ public class GateWardApplication {
      *  standing alone contributes none and every one of its meters carries its own name. The entity bus id
      *  comes from the same property the bus itself reads. */
     @Bean
-    public IMeterOwner meterOwner(@Value("${esquire.entity-bus.messaging-bus.bus-id:}") String entityBusId) {
+    public IMeterOwner meterOwner(@Value("${" + BusConstants.CONFIG_ROOT + ".entity-bus.messaging-bus.bus-id:}") String entityBusId) {
         return new GateWardMeterOwner(entityBusId);
     }
 
@@ -104,7 +107,8 @@ public class GateWardApplication {
         }
     }
 
-    /** One registrar for the process, over the one bus the ward speaks: entity broadcasts feeding the cache. */
+    /** One registrar for the process, over its two buses: entity broadcasts feeding the cache, and the gate's
+     *  biz bus to paacMan. */
     public static class MessagingBusLifecycleRegistrar implements ApplicationListener<ApplicationEvent>, Ordered {
 
         @Override
@@ -116,7 +120,7 @@ public class GateWardApplication {
         public void onApplicationEvent(ApplicationEvent event) {
             MessagingBus bus = MessagingBus.getInstance();
             if (event instanceof ApplicationEnvironmentPreparedEvent e) {
-                bus.init(e.getEnvironment(), new String[]{EsqConstants.BUS_KEY_ENTITY});
+                bus.init(e.getEnvironment(), new String[]{EsqConstants.BUS_KEY_ENTITY, EsqConstants.BUS_KEY_BIZ});
                 devLog.debug("MessagingBus initiated (rods built, paused)");
             } else if (event instanceof ApplicationReadyEvent e) {
                 bus.start();                             // run them -- traffic flows only from here

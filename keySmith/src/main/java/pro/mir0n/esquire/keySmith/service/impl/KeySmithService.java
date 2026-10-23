@@ -58,6 +58,8 @@
  *                   esquireKeySave() body extracted to saveAndSync(), so the meter wraps it with one exit.
  *                   Both meter names are spelled at the call: the o11y inventory scan reads the tree for the
  *                   literal, so a name held in a constant never reaches the sheet
+ * 10/19/2026 mir0n  v2.0.1 -- esquireKeySave / saveAndSync / saveAccess: the roles parameter removed; the admin
+ *                   permissions come from RequestContextUtils.getRoles()
  */
 
 package pro.mir0n.esquire.keySmith.service.impl;
@@ -171,11 +173,11 @@ public class KeySmithService implements IKeySmithService {
 
     @Override
     @EsqTraced(name = "esq.svc.key.save", label = "save access profile")
-    public EsqAccessProfile esquireKeySave(String id, Map<String, Object> fields, List<String> roles) {
+    public EsqAccessProfile esquireKeySave(String id, Map<String, Object> fields) {
         EsqAccessProfile ret = null;
         String outcome = OUTCOME_ERROR;
         try {
-            ret = saveAndSync(id, fields, roles);
+            ret = saveAndSync(id, fields);
             outcome = OUTCOME_OK;
         } finally {
             meterKeyOp(OP_SAVE, outcome);
@@ -183,7 +185,7 @@ public class KeySmithService implements IKeySmithService {
         return ret;
     }
 
-    private EsqAccessProfile saveAndSync(String id, Map<String, Object> fields, List<String> roles) {
+    private EsqAccessProfile saveAndSync(String id, Map<String, Object> fields) {
         EsqAccessProfile ret = null;
         String correlationId = RequestContextUtils.getCorrelationId();
         String requestId = RequestContextUtils.requireRequestId();
@@ -208,7 +210,7 @@ public class KeySmithService implements IKeySmithService {
             //      @Modifying queries clears the context after each native update, so nothing
             //      remains to flush at commit.
             em.setFlushMode(FlushModeType.COMMIT);
-            saveAccess(upk, fields, rootPath, uid, correlationId, requestId, personal, updated, rolesAssigned, roles, oldLoginId, oldConnectFlg);
+            saveAccess(upk, fields, rootPath, uid, correlationId, requestId, personal, updated, rolesAssigned, oldLoginId, oldConnectFlg);
             return null;
         }); // <- transaction commits here
 
@@ -312,7 +314,6 @@ public class KeySmithService implements IKeySmithService {
             boolean personal,
             EsqAccessProfileJpa[] updated,
             List<EsqRoleJpa>[] rolesAssigned,
-            List<String> roles,
             String[] oldLoginId,
             String[] oldConnectFlg) {
         EsqAccessProfileJpa jpa = accessProfileRepository.accessForUpdate(id, rootPath);
@@ -321,7 +322,7 @@ public class KeySmithService implements IKeySmithService {
         }
         oldLoginId[0]   = jpa.getLoginId();
         oldConnectFlg[0] = jpa.getConnectFlg();
-        Map<Integer, EsqPermission> permissions = EsqRolesStorage.getInstance().findAdminPermissions(roles);
+        Map<Integer, EsqPermission> permissions = EsqRolesStorage.getInstance().findAdminPermissions(RequestContextUtils.getRoles());
         boolean permitted = false;
         if (id != null && id.equals(uid)) {
             permitted = true;

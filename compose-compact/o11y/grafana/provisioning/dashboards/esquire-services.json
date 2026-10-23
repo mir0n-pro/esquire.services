@@ -235,7 +235,7 @@
       "type": "loki",
       "uid": "esq-loki"
      },
-     "expr": "{job=~\"esq-.*\", container=~\"(esqc?-)?(gateward|mesnie|pacman|aukeep|backend|frontend)\"} | detected_level =~ \"warn|error\"",
+     "expr": "{job=~\"esq-.*\", container=~\"(esqc?-)?(gateward|mesnie|pacman|paacman|aukeep|backend|frontend)\"} | detected_level =~ \"warn|error\"",
      "queryType": "range"
     }
    ],
@@ -2745,7 +2745,7 @@
       "type": "prometheus",
       "uid": "esq-prometheus"
      },
-     "expr": "(sum by (op, outcome) (rate(esq_biz_keep_write_total{service=~\"$service\"}[5m]))) or label_replace(vector(0), \"outcome\", \"error\", \"\", \"\")",
+     "expr": "(sum by (op, outcome) (rate(herald_keep_write_total{service=~\"$service\"}[5m]))) or label_replace(vector(0), \"outcome\", \"error\", \"\", \"\")",
      "legendFormat": "{{op}} {{outcome}}"
     }
    ],

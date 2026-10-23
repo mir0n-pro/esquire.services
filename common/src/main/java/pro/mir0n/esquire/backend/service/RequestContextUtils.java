@@ -11,6 +11,7 @@
  *                   getContext() added so services read uid/rootPath uniformly instead of via params
  * 07/02/2026 mir0n  requireRequestId(): X-Request-ID presence guard (null/blank -> MissingRequestIdException / 400)
  *                   for write commands
+ * 10/19/2026 mir0n  v2.0.1 -- getRoles(): the caller's roles from the bound context
  */
 
 package pro.mir0n.esquire.backend.service;
@@ -20,6 +21,7 @@ import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 import pro.mir0n.esquire.backend.error.MissingRequestIdException;
 import pro.mir0n.esquire.common.EsqConstants;
+import java.util.List;
 
 public class RequestContextUtils {
 
@@ -72,6 +74,11 @@ public class RequestContextUtils {
     public static String getRootPath() {
         EsqRequestContext ctx = EsqContextHolder.get();
         return (ctx != null) ? ctx.rootPath() : null;
+    }
+
+    public static List<String> getRoles() {
+        EsqRequestContext ctx = EsqContextHolder.get();
+        return (ctx != null) ? ctx.roles() : null;
     }
 
     private static HttpServletRequest getCurrentRequest() {

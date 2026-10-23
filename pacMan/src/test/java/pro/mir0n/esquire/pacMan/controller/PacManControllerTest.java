@@ -1,6 +1,5 @@
 package pro.mir0n.esquire.pacMan.controller;
 
-import io.jsonwebtoken.Claims;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -10,11 +9,9 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import pro.mir0n.esquire.backend.dto.EsqEntity;
-import pro.mir0n.esquire.common.EsqConstants;
-import pro.mir0n.esquire.pacMan.acct.service.AcctTransactionService;
-import pro.mir0n.esquire.pacMan.service.IPacManService;
+import pro.mir0n.esquire.pacMan.acct.dto.AcctTransactionSingle;
+import pro.mir0n.esquire.pacMan.service.PacManCommands;
 
-import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -24,97 +21,59 @@ import static org.mockito.Mockito.*;
 class PacManControllerTest {
 
     @Mock
-    private IPacManService service;
-
-    @Mock
-    private AcctTransactionService acctTransactionService;
-
-    @Mock
-    private Claims claims;
+    private PacManCommands commands;
 
     private PacManController controller;
 
     @BeforeEach
     void setUp() {
-        controller = new PacManController(service, acctTransactionService);
+        controller = new PacManController(commands);
     }
 
-    // uid / rootPath are no longer extracted in the controller -- they ride the unified per-request
-    // context (JwtClaimsExtractionFilter). The controller now reads only roles from realm_access.
-
-    // ---- esquireCommand ----
-
     @Test
-    @DisplayName("esquireCommand: delegates to service, returns 200")
+    @DisplayName("esquireCommand: delegates to the commands, returns 200 with the entity")
     void esquireCommand_delegates_returnsOk() {
-        EsqEntity mockEntity = mock(EsqEntity.class);
-        when(service.esquireCommand(50, "10", "details")).thenReturn(mockEntity);
+        EsqEntity entity = mock(EsqEntity.class);
+        when(commands.esquireCommand(50, "10", "details")).thenReturn(entity);
 
-        ResponseEntity<EsqEntity> response = controller.esquireCommand(50, "10", "details", claims);
+        ResponseEntity<EsqEntity> response = controller.esquireCommand(50, "10", "details");
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(response.getBody()).isNotNull();
-        verify(service).esquireCommand(50, "10", "details");
+        assertThat(response.getBody()).isSameAs(entity);
     }
 
-    // ---- esquireCommandSave: roles extracted from realm_access ----
-
     @Test
-    @DisplayName("esquireCommandSave: extracts roles from realm_access, delegates with roles")
-    void esquireCommandSave_extractsRolesFromRealmAccess_delegatesWithRoles() {
-        Map<String, Object> realmAccess = Map.of(EsqConstants.JWT_CLAIM_REALM_ACCESS_ROLES, List.of("admin"));
-        when(claims.get(EsqConstants.JWT_CLAIM_REALM_ACCESS, Map.class)).thenReturn(realmAccess);
-        EsqEntity mockEntity = mock(EsqEntity.class);
+    @DisplayName("esquireCommandSave: delegates to the commands, returns 200 with the entity")
+    void esquireCommandSave_delegates_returnsOk() {
+        EsqEntity entity = mock(EsqEntity.class);
         Map<String, Object> fields = Map.of("name", "ACME");
-        when(service.esquireCommandSave(50, "10", "save", fields, List.of("admin")))
-            .thenReturn(mockEntity);
+        when(commands.esquireCommandSave(50, "10", "save", fields)).thenReturn(entity);
 
-        ResponseEntity<EsqEntity> response = controller.esquireCommandSave(50, "10", "save", fields, claims);
-
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-        verify(service).esquireCommandSave(50, "10", "save", fields, List.of("admin"));
-    }
-
-    // ---- esquireCommandSave: null realm_access -> null roles ----
-
-    @Test
-    @DisplayName("esquireCommandSave: null realm_access passes null roles to service")
-    void esquireCommandSave_nullRealmAccess_passesNullRolesToService() {
-        when(claims.get(EsqConstants.JWT_CLAIM_REALM_ACCESS, Map.class)).thenReturn(null);
-        Map<String, Object> fields = Map.of();
-        when(service.esquireCommandSave(50, "10", "save", fields, null))
-            .thenReturn(null);
-
-        controller.esquireCommandSave(50, "10", "save", fields, claims);
-
-        verify(service).esquireCommandSave(50, "10", "save", fields, null);
-    }
-
-    // ---- esquireCommandDelete ----
-
-    @Test
-    @DisplayName("esquireCommandDelete: extracts roles, delegates, returns 200")
-    void esquireCommandDelete_extractsRolesAndDelegates_returnsOk() {
-        Map<String, Object> realmAccess = Map.of(EsqConstants.JWT_CLAIM_REALM_ACCESS_ROLES, List.of("admin"));
-        when(claims.get(EsqConstants.JWT_CLAIM_REALM_ACCESS, Map.class)).thenReturn(realmAccess);
-        when(service.esquireCommandDelete(50, "10", "delete", List.of("admin"))).thenReturn(4L);
-
-        ResponseEntity<Void> response = controller.esquireCommandDelete(50, "10", "delete", claims);
+        ResponseEntity<EsqEntity> response = controller.esquireCommandSave(50, "10", "save", fields);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-        verify(service).esquireCommandDelete(50, "10", "delete", List.of("admin"));
+        assertThat(response.getBody()).isSameAs(entity);
     }
 
-    // ---- esquireCommandDelete: null realm_access -> null roles ----
+    @Test
+    @DisplayName("esquireCommandDelete: delegates to the commands, returns 200")
+    void esquireCommandDelete_delegates_returnsOk() {
+        ResponseEntity<Void> response = controller.esquireCommandDelete(50, "10", "delete");
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        verify(commands).esquireCommandDelete(50, "10", "delete");
+    }
 
     @Test
-    @DisplayName("esquireCommandDelete: null realm_access passes null roles to service")
-    void esquireCommandDelete_nullRealmAccess_passesNullRolesToService() {
-        when(claims.get(EsqConstants.JWT_CLAIM_REALM_ACCESS, Map.class)).thenReturn(null);
-        when(service.esquireCommandDelete(50, "10", "delete", null)).thenReturn(4L);
+    @DisplayName("esquireCommandAcct: delegates to the commands, returns 200 with the transaction")
+    void esquireCommandAcct_delegates_returnsOk() {
+        AcctTransactionSingle tx = new AcctTransactionSingle();
+        Map<String, Object> fields = Map.of("typeId", 1000, "amount", 10);
+        when(commands.esquireCommandAcct(50, "10", "acct", fields)).thenReturn(tx);
 
-        controller.esquireCommandDelete(50, "10", "delete", claims);
+        ResponseEntity<AcctTransactionSingle> response = controller.esquireCommandAcct(50, "10", "acct", fields);
 
-        verify(service).esquireCommandDelete(50, "10", "delete", null);
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody()).isSameAs(tx);
     }
 }

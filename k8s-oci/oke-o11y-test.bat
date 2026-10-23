@@ -35,9 +35,9 @@ set LOKI_URL=http://localhost:13100
 set TEMPO_URL=http://localhost:13200
 set GRAFANA_URL=http://localhost:13009
 set LOKI_JOB=esq-k8s
-set SERVICES=gateway,biztree,enyman,pacman,keysmith,kcmaster
-set LOG_SERVICES=esquire-gateway-gateway,esquire-biztree-biztree,esquire-enyman-enyman,esquire-pacman-pacman,esquire-keysmith-keysmith,esquire-kcmaster-kcmaster,esquire-backend-backend
-set EXCLUDE_METERS=esq_biz_keep_write_total,esq_biz_keep_write_duration_seconds,esq_keep_apply_seconds
+set SERVICES=gateway,biztree,enyman,paacman,keysmith,kcmaster
+set LOG_SERVICES=esquire-gateway-gateway,esquire-biztree-biztree,esquire-enyman-enyman,esquire-paacman-paacman,esquire-keysmith-keysmith,esquire-kcmaster-kcmaster,esquire-backend-backend
+set EXCLUDE_METERS=herald_keep_write_total,herald_keep_write_duration_seconds,herald_keep_apply_seconds
 set EXCLUDE_TRACE_NODES=aukeep
 
 rem Credentials from the e2e's .env -- ONE place for the sandbox login, never a literal in a script.

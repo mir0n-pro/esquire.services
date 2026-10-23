@@ -67,6 +67,8 @@
  *                   what every classic service reports. The owner is asked with the meter ID and nothing else:
  *                   a MeterFilter runs at REGISTRATION, so a per-request value would freeze whichever service
  *                   touched the meter first
+ * 10/19/2026 mir0n  v2.0.1 -- the histogram switch and the trace-mark switch take the herald. meter names too
+ *                   (herald.keep.write.duration, herald.keep.apply)
  */
 
 package pro.mir0n.esquire.backend.o11y;
@@ -231,7 +233,7 @@ public class ObservabilityConfig {
     // X-Capture-Metrics load-test header gated it; now steady-state under the o11y umbrella). It renders as the
     // innermost band on the "Request latency bands" panels ("srv inner (db)"). Two more DB-timing views back it:
     // hikaricp.connections.usage -> "DB query rate (connection borrows/s)" = rate(_count) and "Avg DB connection
-    // hold time (ms/borrow)" = _sum/_count (per-query duration); and esq.biz.keep.write.duration for THE write at
+    // hold time (ms/borrow)" = _sum/_count (per-query duration); and herald.keep.write.duration for THE write at
     // the keep sink. What we do NOT add: opentelemetry-jdbc / datasource-proxy per-STATEMENT spans. For a design
     // where reads are served from the in-memory bizTree cache (a request is a cache HIT -- zero SQL; JPA runs
     // only at bulk cache-load in BizTreeCacheLoader, off the request path) and writes are ONE self-contained SQL
@@ -305,7 +307,7 @@ public class ObservabilityConfig {
                 // looked at a percentile. ONE switch now governs every bucket in the fleet: histograms off means
                 // no buckets anywhere, and the p95 panels are dark until you ask for them. That is the honest
                 // trade, and it is the same one the bus / gateway p95 panels already made.
-                boolean gatedName = gated.contains(n) || n.startsWith("esq.biz.");
+                boolean gatedName = gated.contains(n) || n.startsWith("esq.biz.") || n.startsWith("herald.");
                 if (histogramsEnabled && gatedName) {
                     ret = io.micrometer.core.instrument.distribution.DistributionStatisticConfig.builder()
                             .percentilesHistogram(true)
@@ -386,7 +388,7 @@ public class ObservabilityConfig {
         return (name, context) -> {
             boolean ret = true;
             if (name != null) {
-                if (name.startsWith("esq.")) {
+                if (name.startsWith("esq.") || name.startsWith("herald.")) {
                     ret = marks;
                 } else if (name.startsWith("http.")) {
                     ret = !isExcluded(requestPath(context), excluded);

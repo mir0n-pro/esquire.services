@@ -30,7 +30,7 @@ rem No auKeep process on this profile, so the keep-write meters and the keep-app
 rem exist -- asserting them would be a permanent false FAIL. The trace side needs no exclusion:
 rem TRACE_NODES / TRACE_NODES_CONDITIONAL above REPLACE the engine's defaults outright, and
 rem neither names aukeep.
-set EXCLUDE_METERS=esq_biz_keep_write_total,esq_biz_keep_write_duration_seconds,esq_keep_apply_seconds
+set EXCLUDE_METERS=herald_keep_write_total,herald_keep_write_duration_seconds,herald_keep_apply_seconds
 
 rem Super-compact declares ONE destination, the entity broadcast TOPIC, and no queue at all (kcMaster is inside
 rem Mesnie so the identity request/reply pair is never drained, and audit is written by DB triggers). The broker

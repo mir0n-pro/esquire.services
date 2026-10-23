@@ -1,6 +1,47 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v2.0.1-2610.2300  v2.0.1 -- paacMan: the account commands go over the message bus
+    :Feature:     paacMan, a new service: pacMan's account commands, answered from the message bus
+    :Feature:     the gateway sends the account routes to paacMan over the bus; one setting,
+                  PACMAN_SERVICE, sends them to pacMan over HTTP again
+    :Feature:     an account command that waits in the broker longer than the gateway waits is
+                  dropped, so it never runs after the client got its timeout
+    :Fix:         every gateway error answers with the gateway's own error body: its type, title
+                  and trace id
+    :Refactoring: the services read the caller's roles from the request, not from the token, so one
+                  set of commands serves HTTP and the bus
+    :Config:      the bus settings are read under herald, as Herald 2.0.1 names them; the keep meters
+                  are named herald.keep.*
+    :Config:      paacMan runs on docker and local Kubernetes, classic and compact, and on OKE in
+                  place of pacMan; pacMan's image is still published with every release
+    :Feature:     hauberk: the tx load cycle adds a transfer there and back between two accounts
+    :Feature:     hauberk: the perf scripts measure one shape with the account routes on HTTP and on
+                  the bus
+    :Doc:         doc\services.configuring.md
+                  doc\v2.0.x.Goals.md
+                  doc\v2.0.x.Planning.md
+                  doc\Esquire.ObservabilityStack.Inventory.csv
+                  doc\Esquire.ObservabilityStack.Inventory.Compact.csv
+    Components:   paacMan (new),
+                  pacMan,
+                  gateway,
+                  gateWard,
+                  enyMan,
+                  keySmith,
+                  kcMaster,
+                  mesnie,
+                  auKeep,
+                  bizTree,
+                  common,
+                  compose,
+                  compose-compact,
+                  k8s,
+                  k8s-compact,
+                  k8s-oci-compact,
+                  k8s-oci,
+                  hauberk
+
 v2.0.0-2610.1720  v2.0.0 -- the shared libraries are products of their own
     :Refactoring: the utilities, the recoverable cache and the load-test harness come from Armoury:
                   armoury-utils, armoury-taijitu, armoury-hauberk

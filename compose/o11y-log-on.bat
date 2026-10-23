@@ -62,7 +62,7 @@ rem goes first and the services below start against a broker that is already up.
 docker compose up -d --no-deps --force-recreate activemq || exit /b 1
 
 echo --- recreating the app services: tracing/metrics OFF, LOG_LEVEL_MIR0N=INFO...
-docker compose up -d --no-deps --force-recreate keycloak gateway biztree enyman pacman keysmith kcmaster aukeep backend || exit /b 1
+docker compose up -d --no-deps --force-recreate keycloak gateway biztree enyman pacman paacman keysmith kcmaster aukeep backend || exit /b 1
 
 echo --- restarting the gateway so it rediscovers the recreated services...
 docker compose restart gateway

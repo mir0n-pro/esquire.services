@@ -216,7 +216,7 @@
       "type": "loki",
       "uid": "esq-loki"
      },
-     "expr": "{job=~\"esq-.*\", container=~\"(esq-)?(gateway|biztree|enyman|pacman|keysmith|kcmaster|backend|frontend)\"} | detected_level =~ \"warn|error\"",
+     "expr": "{job=~\"esq-.*\", container=~\"(esq-)?(gateway|biztree|enyman|pacman|paacman|keysmith|kcmaster|backend|frontend)\"} | detected_level =~ \"warn|error\"",
      "queryType": "range"
     }
    ],

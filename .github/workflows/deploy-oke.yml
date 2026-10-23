@@ -201,7 +201,7 @@ jobs:
           username: mir0n-pro
           password: ${{ secrets.GHCR_TOKEN }}
 
-      - name: Build + push the 7 super-compact images (multi-arch)
+      - name: Build + push the 8 super-compact images (multi-arch)
         shell: bash
         env:
           IMAGE_TAG: ${{ steps.stamp.outputs.tag }}

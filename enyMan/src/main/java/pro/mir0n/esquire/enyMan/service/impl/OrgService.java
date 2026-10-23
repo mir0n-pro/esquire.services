@@ -46,6 +46,8 @@
  *                   audit record share
  * 08/26/2026 mir0n  saveOrg / deleteOrg / moveOrg take the kind; moveOrg reads the moved paths AFTER the parent
  *                   write, so the broadcast carries the raised entity number rather than the previous one
+ * 10/19/2026 mir0n  v2.0.1 -- esquireCommandSave / esquireCommandNew / esquireCommandDelete / esquireCommandMove:
+ *                   the roles parameter removed
  */
 
 package pro.mir0n.esquire.enyMan.service.impl;
@@ -133,8 +135,7 @@ public class OrgService  extends AEnyManService {
     }
 
     @Override
-    public EsqEntity esquireCommandSave(int kind, String id, String cmd, Map<String, Object> fields,
-                                        List<String> roles) {
+    public EsqEntity esquireCommandSave(int kind, String id, String cmd, Map<String, Object> fields) {
         EsqEntity ret = null;
         String correlationId = RequestContextUtils.getCorrelationId();
         String requestId = RequestContextUtils.getRequestId();
@@ -164,8 +165,7 @@ public class OrgService  extends AEnyManService {
     }
 
     @Override
-    public EsqEntity esquireCommandNew(int kind, String parentId, String cmd, Map<String, Object> fields,
-                                       List<String> roles) {
+    public EsqEntity esquireCommandNew(int kind, String parentId, String cmd, Map<String, Object> fields) {
         EsqEntity ret = null;
         String correlationId = RequestContextUtils.getCorrelationId();
         String requestId = RequestContextUtils.getRequestId();
@@ -196,7 +196,7 @@ public class OrgService  extends AEnyManService {
     }
 
     @Override
-    public Long esquireCommandDelete(int kind, String id, String cmd, List<String> roles) {
+    public Long esquireCommandDelete(int kind, String id, String cmd) {
         String rootPath = RequestContextUtils.getRootPath();
         devLog.debug("srvc: esquireCommandDelete(org): kind:{}, id:{}, cmd:{}, rootPath:{}", kind, id, cmd, rootPath);
         return transactionTemplate.execute(status -> {
@@ -213,7 +213,7 @@ public class OrgService  extends AEnyManService {
     }
 
     @Override
-    public List<EsqMoveRecord> esquireCommandMove(int kind, String id, String distId, List<String> roles) {
+    public List<EsqMoveRecord> esquireCommandMove(int kind, String id, String distId) {
         String correlationId = RequestContextUtils.getCorrelationId();
         String requestId = RequestContextUtils.getRequestId();
         String rootPath = RequestContextUtils.getRootPath();

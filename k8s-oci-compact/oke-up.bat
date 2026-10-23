@@ -3,8 +3,9 @@ rem ===========================================================================
 rem Deploy the SUPER-COMPACT Esquire stack to OKE with prod values overrides.
 rem
 rem Four application processes instead of seven -- Mesnie (enyMan + keySmith +
-rem the identity work), gateWard (the gate + the bizTree cache), pacMan and the
-rem BFF -- so 7 application pods where classic runs 13.
+rem the identity work), gateWard (the gate + the bizTree cache), paacMan and the
+rem BFF -- so 8 application pods. pacMan does not run here:
+rem its image is pushed with the release, so it can be installed when needed.
 rem
 rem SUPER-COMPACT = the compact composition with audit on option (a), DB triggers:
 rem no auKeep process, no audit bus traffic, the audit stack out of the application
@@ -182,9 +183,9 @@ rem     service names (esquire-infra-amq-activemq), the same on OKE. It also def
 rem     audit-off DISABLED bus this profile points its audit ref at. ===
 rem
 rem This folder supplies its OWN topology: TWO buses, because super-compact references exactly two --
-rem esquire.entity, and audit-off for the audit ref. No esquire.kc (Mesnie serves identity in process)
+rem esquire.entity, esquire.biz, and audit-off for the audit ref. No esquire.kc (Mesnie serves identity in process)
 rem and no audit-c/ck/d/dk (no auKeep, audit is in the database). --set-file overrides the chart's file.
-echo --- Installing topology (super-compact: entity + audit-off)...
+echo --- Installing topology (super-compact: entity + biz + audit-off)...
 call helm upgrade --install esquire-topology %CHARTS%\esquire-topology --force-conflicts ^
   --set-file topologyContent=esquire-topology.yml || exit /b 1
 
@@ -199,9 +200,9 @@ call helm upgrade --install esquire-mesnie %CHARTS%\esquire-mesnie --force-confl
   --set db.password=%PG_PW% ^
   %SET_KCMASTER_ADMIN% || exit /b 1
 
-echo --- Installing pacman...
-call helm upgrade --install esquire-pacman %CHARTS%\esquire-pacman --force-conflicts ^
-  -f values\pacman.yaml ^
+echo --- Installing paacman...
+call helm upgrade --install esquire-paacman %CHARTS%\esquire-paacman --force-conflicts ^
+  -f values\paacman.yaml ^
   --set image.tag=%IMAGE_TAG% ^
   --set db.password=%PG_PW% || exit /b 1
 
@@ -220,6 +221,10 @@ call helm upgrade --install esquire-gateward %CHARTS%\esquire-gateward --force-c
 
 echo Waiting for gateward...
 kubectl rollout status statefulset/esquire-gateward -n default --timeout=180s
+
+rem xxx: pacMan goes only AFTER gateWard is ready -- the gateWard it replaces still sends the account
+rem routes to pacMan. Not found is the normal case once a cluster runs paacMan.
+call helm uninstall esquire-pacman 2>nul
 
 rem === Backend (BFF) ===
 rem Serves the baked SPA on /, owns /auth/* (OIDC code+PKCE) and /api/* (server-to-server proxy

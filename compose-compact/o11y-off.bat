@@ -15,7 +15,7 @@ rem is already back up.
 docker compose up -d --no-deps --force-recreate activemq || exit /b 1
 
 echo --- recreating the app services with observability OFF...
-docker compose up -d --no-deps --force-recreate keycloak gateward mesnie pacman aukeep backend || exit /b 1
+docker compose up -d --no-deps --force-recreate keycloak gateward mesnie pacman paacman aukeep backend || exit /b 1
 
 echo --- tearing down the o11y viewing stack...
 docker compose --profile o11y rm -sf loki alloy tempo prometheus otel-collector grafana postgres-exporter

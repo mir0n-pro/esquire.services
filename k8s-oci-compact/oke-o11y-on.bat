@@ -24,7 +24,7 @@ rem
 rem OKE DELTAS vs the local twin (T12 topology):
 rem   - context guard INVERTED: refuses docker-desktop, runs only on the OKE cluster.
 rem   - app-service loop is the THREE compact processes: gateWard (the gate + the tree
-rem     cache), Mesnie (enyMan + keySmith + the identity work) and pacMan. No aukeep line --
+rem     cache), Mesnie (enyMan + keySmith + the identity work) and paacMan. No aukeep line --
 rem     this profile audits by DB triggers, option (a), so no auKeep exists to switch.
 rem   - app charts flipped with --reset-then-reuse-values, so the OKE overlay/tag/
 rem     db-password already applied by oke-up.bat are kept; only the o11y switches move.
@@ -106,8 +106,8 @@ if not defined SKIP_INFRA_ROLL (
   call kubectl rollout restart statefulset esquire-infra-amq-activemq
 )
 
-echo --- App services ^(gateWard, Mesnie, pacMan^): tracing/metrics OFF, ONLY pro.mir0n at INFO...
-for %%s in (gateward mesnie pacman) do (
+echo --- App services ^(gateWard, Mesnie, paacMan^): tracing/metrics OFF, ONLY pro.mir0n at INFO...
+for %%s in (gateward mesnie paacman) do (
   call helm upgrade esquire-%%s %CH%\esquire-%%s --reset-then-reuse-values --set observability.enabled=false --set observability.metricsHistograms=false --set logging.levelMir0n=INFO --set logging.levelDevelop=OFF --set logging.levelMsg=OFF --set logging.levelAmq=OFF --set logging.levelJms=OFF %ESQ_REPS% --force-conflicts
   call kubectl rollout restart statefulset esquire-%%s
 )
@@ -149,8 +149,8 @@ if not defined SKIP_INFRA_ROLL (
   call helm upgrade esquire-infra-amq %CH%\infra\activemq -f values\activemq.yaml --reset-then-reuse-values --set observability.enabled=true --force-conflicts
   call kubectl rollout restart statefulset esquire-infra-amq-activemq
 )
-echo --- App services ^(gateWard, Mesnie, pacMan^): tracing/metrics ON, ONLY pro.mir0n at INFO...
-for %%s in (gateward mesnie pacman) do (
+echo --- App services ^(gateWard, Mesnie, paacMan^): tracing/metrics ON, ONLY pro.mir0n at INFO...
+for %%s in (gateward mesnie paacman) do (
   call helm upgrade esquire-%%s %CH%\esquire-%%s --reset-then-reuse-values --set observability.enabled=true --set observability.metricsHistograms=true --set logging.levelMir0n=INFO --set logging.levelDevelop=OFF --set logging.levelMsg=OFF --set logging.levelAmq=OFF --set logging.levelJms=OFF %ESQ_REPS% --force-conflicts
   call kubectl rollout restart statefulset esquire-%%s
 )
@@ -176,8 +176,8 @@ if not defined SKIP_INFRA_ROLL (
   call helm upgrade esquire-infra-amq %CH%\infra\activemq -f values\activemq.yaml --reset-then-reuse-values --set observability.enabled=false --force-conflicts
   call kubectl rollout restart statefulset esquire-infra-amq-activemq
 )
-echo --- App services ^(gateWard, Mesnie, pacMan^): tracing/metrics OFF, pro.mir0n OFF...
-for %%s in (gateward mesnie pacman) do (
+echo --- App services ^(gateWard, Mesnie, paacMan^): tracing/metrics OFF, pro.mir0n OFF...
+for %%s in (gateward mesnie paacman) do (
   call helm upgrade esquire-%%s %CH%\esquire-%%s --reset-then-reuse-values --set observability.enabled=false --set observability.metricsHistograms=false --set logging.levelMir0n=OFF --set logging.levelDevelop=OFF --set logging.levelMsg=OFF --set logging.levelAmq=OFF --set logging.levelJms=OFF %ESQ_REPS% --force-conflicts
   call kubectl rollout restart statefulset esquire-%%s
 )
