@@ -14,7 +14,7 @@ and cluster work. Every cloud deployment starts here.
 `oke-up.bat` / `oke-rebuild.bat` / `oke-down.bat`, the o11y launchers and the
 grafana assets here deploy the **classic** eight-program shape, and they are
 kept as its record. The cloud runs **super-compact** -- Mesnie, gateWard,
-pacMan and the BFF -- deployed from `../k8s-compact/charts` with the overlays in
+paacMan and the BFF -- deployed from `../k8s-compact/charts` with the overlays in
 `../k8s-oci-compact/values`, by hand through `../k8s-oci-compact/oke-up.bat` or
 by the `deploy-oke` workflow. Read the cloud's settings there.
 
@@ -46,8 +46,9 @@ k8s-oci/
     postgres.yaml
     activemq.yaml
     keycloak.yaml
-    biztree.yaml  enyman.yaml  pacman.yaml  keysmith.yaml  kcmaster.yaml
-    gateway.yaml  backend.yaml
+    biztree.yaml  enyman.yaml  keysmith.yaml  kcmaster.yaml
+    paacman.yaml                the account service (pacman.yaml kept for pacMan)
+    gateway.yaml  backend.yaml  redis.yaml
   cluster/
     letsencrypt-prod.yaml       cert-manager ClusterIssuer
     ingress.yaml                public Ingress for frontend/gateway/keycloak

@@ -10,7 +10,7 @@
 
 ## Release Notes
 
-### v2.0.1 -- complete (10/23/2026)
+### v2.0.1 -- complete (10/24/2026)
 
 v2.0.1 opens the **event-driven business service**. The gateway used to call pacMan, the account service,
 over HTTP. Now it sends the account commands over [Herald](https://github.com/mir0n-pro/herald) to a new

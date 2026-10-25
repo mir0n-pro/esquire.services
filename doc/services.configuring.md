@@ -57,11 +57,11 @@ reading a compact deployment:
 ## Shared parameters (most services)
 
 These follow the same pattern across services; `<SVC>` is the service token in caps
-(`ENYMAN`, `PACMAN`, `KEYSMITH`, `KCMASTER`, `BIZTREE`, `DATAKEEP`). They are listed once here and referenced
+(`ENYMAN`, `PACMAN`, `PAACMAN`, `KEYSMITH`, `KCMASTER`, `BIZTREE`, `DATAKEEP`). They are listed once here and referenced
 from each service section rather than repeated. (The audit consumer service is named **auKeep** but its
 env token is `DATAKEEP` -- a deferred rename, so the env prefix stays `DATAKEEP`.)
 
-### Database (data services: enyMan, pacMan, keySmith, bizTree, auKeep — NOT kcMaster)
+### Database (data services: enyMan, pacMan, paacMan, keySmith, bizTree, auKeep — NOT kcMaster)
 
 | Env var | Default | Description |
 |---|---|---|
@@ -83,7 +83,7 @@ here is the no-redundancy setting** -- the value the stack ran before HA work. T
 per service in BOTH the local-k8s (`k8s/values/*.yaml`, `k8s-compact/values/*.yaml`) AND OKE
 (`k8s-oci-compact/values/*.yaml`) chart overlays;
 a bare install with no overlay inherits the pre-HA defaults below. Applies to the data services (enyMan,
-pacMan, keySmith, bizTree; the keep cap also to auKeep).
+pacMan, paacMan, keySmith, bizTree; the keep cap also to auKeep).
 
 | Env var | Default | Description |
 |---|---|---|
@@ -495,7 +495,8 @@ TOKEN RELAY | off -- no client is allowlisted
 Edge service: Spring Cloud Gateway, KC OIDC + resource-server, CORS, Token Relay, optional JWE,
 and the route table (see [Gateway routes](#gateway-routes)).
 
-**Port:** `GATEWAY_PORT` (default `8080`). **Shared:** messaging bus not used; logging (below).
+**Port:** `GATEWAY_PORT` (default `8080`). **Shared:** messaging bus (biz-bus CLIENT, entity-bus in compact),
+logging (below).
 
 | Env var | Default | Description |
 |---|---|---|
@@ -585,6 +586,29 @@ budget is in the local-k8s AND OKE overlays.
 | `GW_POOL_MAX_CONNECTIONS` | `16` | Backend connection pool max-connections. |
 | `GW_POOL_ACQUIRE_TIMEOUT_MS` | `45000` | Pool acquire-timeout (ms). |
 
+### The account service: pacMan over HTTP or paacMan over the Biz bus
+
+The account routes (`pacman-*`) go to the service `PACMAN_SERVICE` names. `paacman` sends each command over the
+Biz request/response bus and waits for the answer; `pacman` calls pacMan over HTTP. A name not in the list
+stops the gateway at start, so a typo never routes anywhere. The route filters stay the same, but on the bus
+their Retry never fires: a bus command is never resent. The 503 or 504 tells the client, and the client decides
+whether to send it again.
+
+| Env var | Default | Description |
+|---|---|---|
+| `PACMAN_SERVICE` | `paacman` | Which service the account routes go to: `paacman` (the Biz bus) or `pacman` (HTTP, `PACMAN_HOST` / `PACMAN_PORT`). |
+| `BIZ_BUS_ID` | `esquire.biz` | Biz request/response bus-id (R&R CLIENT). |
+| `BIZ_SLOT_ID` | `biz` | Biz slot-id. |
+| `GW_BIZ_TIMEOUT_S` | `GW_CB_SLOW_TIMEOUT_S` (`30`) | How long a command waits for its answer before the client gets a 504. |
+| `GW_BIZ_MAX_PENDING` | `10000` | How many commands may wait for an answer at once; one more is a 503. |
+| `GW_BIZ_SWEEP_MS` | `500` | How often the waiting commands are checked against their timeout. |
+| `GW_BIZ_FEED_AWAIT_MS` | `100` | How long a send waits for room in the rod's feed. A feed that stays full drops the command, and the request ends as a 504. Never `0` here: `0` holds the event loop until the feed has room. |
+| `GW_BIZ_ANSWER_POOL_SIZE` | `2` | Receive pool for the answers. |
+| `GW_BIZ_ANSWER_CONCURRENCY` | `1` | Listener concurrency for the answers. |
+| `BIZ_POOL_MODE` | `platform` | Receive-pool threads: `platform` \| `virtual` \| `virtual-per-task`. |
+| `GW_BIZ_PUBLISHER_POOL_SIZE` / `GW_BIZ_PUBLISHER_POOL_MODE` | `0` / `platform` | Publisher pool for the commands; `0` sends on the caller's thread. |
+| `BIZ_SEND_RETRY` | `false` | Producer [send-retry](#messaging-bus-the-x-rod--topology-import) on the command leg. Ladder `BIZ_SEND_RETRY_BACKOFF_SEC` (`1,2,5`) + cap `BIZ_SEND_RETRY_MAX_ATTEMPTS` (`3`): 8 s in all, so a held send gives up before the 10 s route limit. Never `0` attempts here -- `0` holds until the broker returns, which turns a fast 503 into a slow 504. |
+
 ### Route upstream hosts/ports
 
 The route table targets these (defaults are dev-quirky leftovers — always overridden by compose/k8s):
@@ -638,6 +662,34 @@ pacMan joins **entity-bus** (SERVER -- broadcasts UE) and **audit-bus** (UA prod
 | `ENTITY_SLOT_ID` | `entity` | Entity slot-id. |
 | `ENTITY_BROADCAST_SEND_RETRY` | `false` | Producer [send-retry](#messaging-bus-the-x-rod--topology-import) on the entity broadcast leg; ON in docker, local-k8s, AND OKE. Ladder `ENTITY_BROADCAST_SEND_RETRY_BACKOFF_SEC` (`1,2,5,5`) + cap `ENTITY_BROADCAST_SEND_RETRY_MAX_ATTEMPTS` (`0` = block). |
 | `AUDIT_BUS_ID` | *(see [audit logging](#audit-logging-producers-enyman-pacman-keysmith))* | Audit sink bus-id (UA producer). |
+
+---
+
+## paacMan
+
+Accounting over the bus: pacMan's code, with the account commands taken from the Biz request/response bus
+instead of HTTP. It has no REST face; the gateway reaches it with `PACMAN_SERVICE=paacman` (see
+[the account service](#the-account-service-pacman-over-http-or-paacman-over-the-biz-bus)).
+
+**Port:** `PAACMAN_PORT` (`3000` code / `3008` on docker). **Shared:** DB token `PAACMAN`, messaging bus,
+logging, [audit logging](#audit-logging-producers-enyman-pacman-keysmith).
+
+paacMan joins the same buses as pacMan -- **entity-bus** (SERVER -- broadcasts UE) and **audit-bus** (UA
+producer) -- plus **biz-bus** (R&R SERVER: the account commands arrive here and the answers go back). Its
+entity and audit settings are pacMan's, above. The Biz ones:
+
+| Env var | Default | Description |
+|---|---|---|
+| `BIZ_BUS_ID` | `esquire.biz` | Biz request/response bus-id (R&R SERVER). |
+| `BIZ_SLOT_ID` | `biz` | Biz slot-id. |
+| `BIZ_REQUEST_POOL_SIZE` | `4` | Receive pool that runs the commands: it bounds how many are served at once. |
+| `BIZ_POOL_MODE` | `platform` | Receive-pool threads: `platform` \| `virtual` \| `virtual-per-task`. |
+| `BIZ_REQUEST_CONCURRENCY` | `1` | Listener concurrency on the request queue. |
+| `BIZ_RESPONSE_PUBLISHER_POOL_SIZE` / `BIZ_RESPONSE_PUBLISHER_POOL_MODE` | `0` / `platform` | Publisher pool for the answers; `0` sends on the worker thread. |
+| `BIZ_SEND_RETRY` | `false` | Producer send-retry on the answer leg; the same ladder and cap as the gateway's (`1,2,5`, `3` attempts). |
+
+An R&R server sends no keep-alive of its own, so paacMan's `messagingBus` health reads UP only once a client
+is running: start paacMan, then the gateway, and only then wait for paacMan to be ready.
 
 ---
 
@@ -856,21 +908,22 @@ meter").
 
 All routes apply the same filters: `DedupeResponseHeader=... RETAIN_FIRST`, `RewritePath` (strip
 nothing — identity), and `TokenRelay=`. `EntityKind=isAcct` is a custom predicate routing account
-commands to pacMan; the same path without it falls through to enyMan.
+commands to the account service; the same path without it falls through to enyMan. The account service is
+paacMan over the Biz bus or pacMan over HTTP, by `PACMAN_SERVICE`.
 
 | Route id | Path(s) | Method | Predicate | Upstream |
 |---|---|---|---|---|
 | `keysmith-route` | `/esq-key` | GET, POST | — | keySmith |
 | `biztree-route` | `/esq`, `/esq-path`, `/esq-enode`, `/esq-tree`, `/esq-sweep` | GET, POST | — | bizTree |
-| `pacman-route` | `/esq-cmd` | GET, POST | `EntityKind=isAcct` | pacMan |
+| `pacman-route` | `/esq-cmd` | GET, POST | `EntityKind=isAcct` | paacMan / pacMan |
 | `enyman-route` | `/esq-cmd`, `/esq-dict`, `/esq-kinds` | GET, POST | — | enyMan |
-| `pacman-save-route` | `/esq-cmd-save` | POST | `EntityKind=isAcct` | pacMan |
+| `pacman-save-route` | `/esq-cmd-save` | POST | `EntityKind=isAcct` | paacMan / pacMan |
 | `enyman-save-route` | `/esq-cmd-save` | POST | — | enyMan |
 | `keysmith-save-route` | `/esq-key-save` | POST | — | keySmith |
 | `enyman-new-route` | `/esq-cmd-new` | POST | — | enyMan *(account CREATE routes to enyMan)* |
-| `pacman-del-route` | `/esq-cmd-del` | POST | `EntityKind=isAcct` | pacMan |
+| `pacman-del-route` | `/esq-cmd-del` | POST | `EntityKind=isAcct` | paacMan / pacMan |
 | `enyman-del-route` | `/esq-cmd-del` | POST | — | enyMan |
-| `pacman-acct-route` | `/esq-acct` | POST | `EntityKind=isAcct` | pacMan |
+| `pacman-acct-route` | `/esq-acct` | POST | `EntityKind=isAcct` | paacMan / pacMan |
 | `enyman-move-route` | `/esq-move` | POST | — | enyMan |
 | `enyman-tree-route` | `/esq-cmd-tree` | GET | — | enyMan |
 

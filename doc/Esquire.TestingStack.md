@@ -19,9 +19,9 @@ The Esquire framework spans Java microservices, a Node.js BFF, an Angular SPA + 
       <td width="8%"><img src="logo/junit.svg" alt="Alt text" height="24"></td>
       <td>Java unit + service</td><td><b>JUnit 5</b> + <b>Mockito</b> + <b>AssertJ</b></td>
       <td><code>services/*</code></td>
-      <td><b>587</b> <code>@Test</code> methods across <b>83</b> classes</td>
+      <td><b>600</b> <code>@Test</code> methods across <b>87</b> classes</td>
   </tr>
-  <tr><td><img src="logo/jacoco.svg" alt="Alt text" height="24"></td><td>Java code coverage (a test of the tests)</td><td><b>JaCoCo</b></td><td><code>services/*</code> &rarr; <code>test/JaCoCo</code></td><td><b>11</b> per-module line / branch reports (unit + in-JVM ITs)</td></tr>
+  <tr><td><img src="logo/jacoco.svg" alt="Alt text" height="24"></td><td>Java code coverage (a test of the tests)</td><td><b>JaCoCo</b></td><td><code>services/*</code> &rarr; <code>test/JaCoCo</code></td><td><b>12</b> per-module line / branch reports (unit + in-JVM ITs)</td></tr>
   <tr><td><img src="logo/hauberk.svg" alt="Alt text" height="24"> <img src="logo/gatling.svg" alt="Alt text" height="24"></td><td>Running-stack load / stress / race-repro</td><td><b>Haubergeon</b> (on <b>Gatling 3.13</b> Java DSL)</td><td><code>services/hauberk</code></td><td><b>22</b> self-validating Simulations (smoke / load / super / race-repro / message-loss / HA) + 3 JUnit catalog tests</td></tr>
   <tr><td><img src="logo/hauberk.svg" alt="Alt text" height="24"> <img src="logo/gatling.svg" alt="Alt text" height="24"></td><td>Running-stack integration matrices</td><td><b>Bash</b> driver + <code>psql</code> / <code>sqlplus</code> / <code>kubectl</code> (drives the <b>hauberk</b> <code>EntitySmoke</code> workload)</td><td><code>services/test</code></td><td><b>~27-cell</b> audit matrix (audit sink x primary DB x environment) + a <b>bus health</b> readiness/liveness chaos smoke</td></tr>
   <tr><td><img src="logo/vitest.svg" alt="Alt text" height="24"></td><td>Node.js (BFF)</td><td><b>Vitest</b> + <b>Supertest</b></td><td><code>explorer/backend</code></td><td><b>47</b> specs across <b>5</b> files (config / cache / trace / tokens / W3C trace-id conformance)</td></tr>
@@ -34,7 +34,7 @@ The Esquire framework spans Java microservices, a Node.js BFF, an Angular SPA + 
 
 ## Java unit + service tests — JUnit 5 / Mockito / AssertJ
 
-**Used in:** every `services/*` module (common, audit, bizTree, enyMan, pacMan, keySmith, kcMaster, gateway, mesnie, gateWard, auKeep) and in the hauberk module's catalog contract test. The utilities, the recoverable cache, the messaging bus, its transports and the keep engine took their tests with them to [Armoury](https://github.com/mir0n-pro/armoury) and [Herald](https://github.com/mir0n-pro/herald).
+**Used in:** every `services/*` module (common, audit, bizTree, enyMan, pacMan, paacMan, keySmith, kcMaster, gateway, mesnie, gateWard, auKeep) and in the hauberk module's catalog contract test. The utilities, the recoverable cache, the messaging bus, its transports and the keep engine took their tests with them to [Armoury](https://github.com/mir0n-pro/armoury) and [Herald](https://github.com/mir0n-pro/herald).
 
 **What for:** classic unit + service-layer tests. Mock repositories, transaction templates, JMS publishers, KC clients; assert behavior against the mocked collaborators. Test files end in `Test.java` and live next to the production code under `src/test/java/`.
 
@@ -46,18 +46,19 @@ The Esquire framework spans Java microservices, a Node.js BFF, an Angular SPA + 
 
 | Module | `@Test` methods | Notes |
 |---|---|---|
-| common | 205 | core framework: entity / field utils, roles storage, access profile, validators, request-context guard, the metrics and trace-context checks |
+| common | 209 | core framework: entity / field utils, roles storage, access profile, validators, request-context guard, the metrics and trace-context checks |
 | audit | 22 | the audit rules on the generic keep engine: `AuditSqlTest`, `AuditKeepDirectorTest`, `AuditBusBridgeTest`, `AuditKindsTest` |
 | bizTree | 67 | includes the receiver-side freshness guard (`MessageHandlerHubGuardTest`) and the cache-statement arity check (`InsertNodeArityTest`) |
-| enyMan | 79 | — |
-| pacMan | 55 | includes the ledger-statement dialect guard (`AcctTransactionSqlTest`) |
-| keySmith | 24 | — |
+| enyMan | 75 | — |
+| pacMan | 54 | includes the ledger-statement dialect guard (`AcctTransactionSqlTest`) |
+| paacMan | 4 | the bus face: a command in, the claims checked, the answer and its status out (`BizRequestHandlerTest`); the account code is pacMan's and is tested there |
+| keySmith | 23 | — |
 | kcMaster | 41 | includes the parked-path ordering rules (`ParkedPathTest`) |
-| gateway | 80 | gateway typically light on JUnit; reactive WebFlux code is harder to mock-test cleanly |
+| gateway | 91 | gateway typically light on JUnit; reactive WebFlux code is harder to mock-test cleanly |
 | auKeep | 1 | the audit-bus consumer integration test (real Postgres + ActiveMQ via Testcontainers) |
 | mesnie | 5 | the composed write program: the composition itself and the identity gateway it hands to keySmith and enyMan |
 | gateWard | 8 | the composed read program: the tree routes answered locally, and the gateway wiring around them |
-| **total** | **587** | across **83** classes |
+| **total** | **600** | across **87** classes |
 
 **Coverage tooling — JaCoCo.** Line / branch coverage of this Java tier is measured with **JaCoCo** (0.8.13, wired in the parent `pom.xml`: `prepare-agent` + `report`). It counts whatever runs in the forked test JVM — the unit tests **and** the in-JVM Testcontainers / `@SpringBootTest` integration tests; e2e and hauberk drive a separately deployed stack, so they fall outside its reach. Reports are written to `services/test/JaCoCo/<artifactId>` (deliberately outside module `target/`, so `mvn clean` keeps them). Run via `build-with-JaCoCo.bat` (`mvn clean test`) and browse `test/JaCoCo/framed.html`. Coverage is a signal, not a build gate; mutation testing (PIT) is not used.
 

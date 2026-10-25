@@ -30,9 +30,13 @@ Kinesis.
 
 | Bus | Pattern | Destination(s) | Producers | Consumers |
 |---|---|---|---|---|
-| **Entity Broadcast** | broadcast (many-to-many) | topic `esquire.entity.broadcast` | enyMan, pacMan | bizTree, kcMaster |
+| **Entity Broadcast** | broadcast (many-to-many) | topic `esquire.entity.broadcast` | enyMan, pacMan / paacMan | bizTree, kcMaster |
 | **IAM Request/Response** | request / response | queues `esquire.kc.request` + `esquire.kc.response` | enyMan, keySmith (client) → kcMaster (server) → back | — |
-| **Audit** | broadcast / stream | `esquire.rod.audit` (queue / topic / stream, per sink) | enyMan, pacMan, keySmith | auKeep (bus sinks only) |
+| **Biz Request/Response** | request / response | queues `esquire.biz.request` + `esquire.biz.response` | the gateway (client) -> paacMan (server) -> back | -- |
+| **Audit** | broadcast / stream | `esquire.rod.audit` (queue / topic / stream, per sink) | enyMan, pacMan / paacMan, keySmith | auKeep (bus sinks only) |
+
+paacMan runs pacMan's code and takes the account commands from the Biz bus instead of HTTP. A deployment runs
+one of the two; which one the gateway calls is the setting `PACMAN_SERVICE`.
 
 ---
 
@@ -47,6 +51,8 @@ are the same file, read the same way. What changes is who is on which side of a 
   keySmith and kcMaster -- sit in the same program, so identity commands are a call through the identity
   gateway instead of a queue round trip. The bus stays in the catalog because the catalog describes the
   framework, not one deployment.
+- The **Biz Request/Response** bus is the same: gateWard is its client (the gateway inside it), paacMan its
+  server.
 - The **Audit** bus is unchanged, and auKeep remains its own program. In the cloud profile the audit trail is
   written by database triggers instead, and the audit bus id is set to the DEFINED `audit-off`.
 
@@ -83,6 +89,29 @@ queue. The requester is the *client* (publishes the request, reads its own reply
 
 kcMaster dispatches each request to a create / update / delete / update-path Keycloak operation. The `URQ` /
 `URS` / `URR` wire formats are in [Herald.MessagingBus.MessageStructure.md](https://github.com/mir0n-pro/herald/blob/main/doc/Herald.MessagingBus.MessageStructure.md).
+
+---
+
+## Biz Request/Response Bus
+
+The gateway sends the account commands to **paacMan** over this bus and waits for the answer. The client
+calls the same REST API; the gateway turns the HTTP request into a bus command and the answer back into the
+HTTP response. Four operations go this way, one per REST path: `esq-acct` (deposit, withdrawal, transfer),
+`esq-cmd` (read an account), `esq-cmd-save` and `esq-cmd-del`.
+
+- **Command (`URQ`)** -- the operation, the REST body, the account kind and id, and the caller's claims:
+  user id, root path and roles. paacMan checks the claims the way a service checks them on a REST call. A
+  command without them is answered 401.
+- **Answer** -- **`URS`** on a 2xx status, **`URR`** otherwise, with the HTTP status the REST call would have
+  given. The gateway passes that status to the client.
+- **Reply routing** -- the answer goes back to the gateway copy that asked, by its rod-id, as on the IAM bus.
+
+paacMan runs each command on the bus's receive pool, so the pool size bounds how many commands it serves at
+once. The token is checked once, at the gateway. paacMan does not see it.
+
+The cost is a second path to keep in step. paacMan runs pacMan's code, but its bus face, its claims check and
+its error mapping are its own. The wire format is in
+[Herald.MessagingBus.MessageStructure.md](https://github.com/mir0n-pro/herald/blob/main/doc/Herald.MessagingBus.MessageStructure.md).
 
 ---
 
@@ -141,6 +170,11 @@ Each bus answers loss in its own way, and each answer is a property of the desig
   [Esquire.AuditLoggingStack.md](Esquire.AuditLoggingStack.md).
 - **IAM request/response** — the answer travels back to the instance that asked, by rod-id, and is recorded
   there. A reply that never comes surfaces as the caller's own request timeout.
+- **Biz request/response** -- the broker holds nothing: the client waits on the request, so a stored command
+  would outlive its answer. A command that waits in the queue longer than 10 s, the shortest gateway limit, is
+  dropped by the broker (`timeToLiveMs`), so it never runs after its client got a 504. A broker that is down
+  is a 503 at once; a paacMan that is down is a 504 at the route limit, the same as a REST call to a pacMan
+  that does not answer.
 
 ---
 
@@ -161,6 +195,8 @@ duplication with no extra wiring:
   competing consumers, so each request is handled by exactly ONE copy (the work spreads across them). The reply
   carries the asking copy's instance id and routes back only to it, so sharded requesters never read each
   other's replies.
+- **Biz Request/Response** -- paacMan copies compete on the one request queue, so each command runs on exactly
+  ONE copy. The answer carries the asking gateway copy's instance id and goes back only to it.
 - **Audit** — each producing copy posts its own `UA` independently; for the broker sinks auKeep also runs as
   several copies competing on the one queue, so each audit event lands once. A redelivered duplicate is
   collapsed by the `*_log` unique key (see Current limitations), not by the bus.
@@ -176,7 +212,9 @@ reads DOWN -- so the signal works the SAME on every transport, not just where th
 callback (that callback stays as a fast diagnostic; the in-process keep instead reports its datasource). The
 keep-alive runs from one shared timer per service. The indicator sits in the **readiness** group, so a broker
 outage takes the pod out of rotation -- but it is **not** in liveness, so a blip never restarts the pod. auKeep
-additionally reports its keep `*_log` database (the apply side). Wiring: [Herald.MessagingBus.md](https://github.com/mir0n-pro/herald/blob/main/doc/Herald.MessagingBus.md)
+additionally reports its keep `*_log` database (the apply side). A request/response server sends no keep-alive
+of its own, so paacMan's Biz leg reads UP only once a client, the gateway, is running: a deployment starts
+paacMan, then the gateway, and only then waits for paacMan to be ready. Wiring: [Herald.MessagingBus.md](https://github.com/mir0n-pro/herald/blob/main/doc/Herald.MessagingBus.md)
 (Health) + [services.configuring.md](services.configuring.md) (Health checks).
 
 ---

@@ -1,7 +1,7 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
-v2.0.1-2610.2300  v2.0.1 -- paacMan: the account commands go over the message bus
+v2.0.1-2610.2421  v2.0.1 -- paacMan: the account commands go over the message bus
     :Feature:     paacMan, a new service: pacMan's account commands, answered from the message bus
     :Feature:     the gateway sends the account routes to paacMan over the bus; one setting,
                   PACMAN_SERVICE, sends them to pacMan over HTTP again
@@ -18,11 +18,13 @@ v2.0.1-2610.2300  v2.0.1 -- paacMan: the account commands go over the message bu
     :Feature:     hauberk: the tx load cycle adds a transfer there and back between two accounts
     :Feature:     hauberk: the perf scripts measure one shape with the account routes on HTTP and on
                   the bus
-    :Doc:         doc\services.configuring.md
+    :Doc:         doc\Esquire.Messaging.md
+                  doc\services.configuring.md
                   doc\v2.0.x.Goals.md
                   doc\v2.0.x.Planning.md
                   doc\Esquire.ObservabilityStack.Inventory.csv
                   doc\Esquire.ObservabilityStack.Inventory.Compact.csv
+                  k8s-oci\README.md
     Components:   paacMan (new),
                   pacMan,
                   gateway,
