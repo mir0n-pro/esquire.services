@@ -11,9 +11,9 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.quality.Strictness;
 import org.springframework.transaction.support.TransactionCallback;
 import org.springframework.transaction.support.TransactionTemplate;
-import pro.mir0n.esquire.backend.messaging.ClaimsBusPublisher;
 import pro.mir0n.esquire.backend.dto.access.EsqAccessProfile;
 import pro.mir0n.esquire.backend.dto.access.EsqUserClaims;
 import pro.mir0n.esquire.backend.jpa.access.EsqRoleJpa;
@@ -30,6 +30,8 @@ import pro.mir0n.esquire.backend.service.EsqRequestContext;
 import pro.mir0n.esquire.keySmith.jpa.EsqAccessProfileRepository;
 import pro.mir0n.esquire.backend.identity.IIdentityGateway;
 import pro.mir0n.messaging.BusConstants;
+import pro.mir0n.messaging.IXRod;
+import pro.mir0n.messaging.MessagingBus;
 import pro.mir0n.esquire.keySmith.service.impl.KeySmithService;
 import pro.mir0n.messaging.RodEvent;
 
@@ -58,6 +60,11 @@ class KeySmithServiceTest {
     @Mock
     private pro.mir0n.esquire.audit.AuditBusBridge audit;
 
+    @Mock
+    private IXRod claimsRod;
+
+    private MockedStatic<MessagingBus> messagingBus;
+
     private KeySmithService service;
 
     @BeforeAll
@@ -68,8 +75,11 @@ class KeySmithServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new KeySmithService(accessProfileRepository, transactionTemplate, em, identityGateway, audit,
-                new ClaimsBusPublisher(false));
+        service = new KeySmithService(accessProfileRepository, transactionTemplate, em, identityGateway, audit);
+        MessagingBus bus = mock(MessagingBus.class, withSettings().strictness(Strictness.LENIENT));
+        when(bus.getXRod(pro.mir0n.esquire.common.EsqConstants.BUS_KEY_CLAIMS)).thenReturn(claimsRod);
+        messagingBus = mockStatic(MessagingBus.class, withSettings().strictness(Strictness.LENIENT));
+        messagingBus.when(MessagingBus::getInstance).thenReturn(bus);
         // Default context for the majority of tests (rootPath "/root", uid "uid-1");
         // the three "1.2.3" / "uid-99" tests override it.
         ctx("/root", "uid-1");
@@ -77,6 +87,7 @@ class KeySmithServiceTest {
 
     @AfterEach
     void tearDown() {
+        messagingBus.close();
         EsqContextHolder.clear();
     }
 
@@ -312,6 +323,24 @@ class KeySmithServiceTest {
 
         verify(identityGateway).postRequest(argThat(e -> BusConstants.EVENT_CREATE.equals(e.opCode())
                 && "user2".equals(e.body().get("loginId")) && "Y".equals(e.body().get("connectFlg"))));
+    }
+
+    @Test
+    @DisplayName("kcSync: no root path and no roles go to the identity provider; the gateways are told to drop the claims")
+    void esquireKeySave_noPathNoRoles_evicts() {
+        executeTransactionInline();
+        EsqAccessProfileJpa jpa = jpaWith("N", "N", "user4");
+        when(accessProfileRepository.accessForUpdate("target-1", "/root")).thenReturn(jpa);
+        when(accessProfileRepository.roles("target-1")).thenReturn(List.of());
+
+        try (MockedStatic<EsqRolesStorage> ms = mockStatic(EsqRolesStorage.class)) {
+            adminStorageMock(ms);
+            saveAs(List.of("ADMIN"), "target-1", Map.of("connectFlg", "Y"));
+        }
+
+        verify(identityGateway).postRequest(argThat(e -> BusConstants.EVENT_CREATE.equals(e.opCode())
+                && !e.body().containsKey("path") && !e.body().containsKey("roles")));
+        verify(claimsRod).transmit(argThat(e -> e != null && RodEvent.Op.DELETE == e.op()));
     }
 
     @Test

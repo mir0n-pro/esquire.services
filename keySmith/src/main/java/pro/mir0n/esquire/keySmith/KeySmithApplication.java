@@ -25,6 +25,8 @@
  *                   declared here with initMethod start / destroyMethod stop -- one gateway per PROCESS
  * 11/18/2026 mir0n  v2.0.2 -- the ClaimsBusPublisher bean on esq.pure-oauth; the claims bus is built while
  *                   esq.pure-oauth is on
+ * 11/23/2026 mir0n  v2.0.3 -- the ClaimsBusPublisher bean out; the claims bus is always built beside the kc and
+ *                   audit buses
  */
 
 package pro.mir0n.esquire.keySmith;
@@ -36,9 +38,7 @@ import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
-import org.springframework.beans.factory.annotation.Value;
 import pro.mir0n.esquire.backend.identity.IIdentityGateway;
-import pro.mir0n.esquire.backend.messaging.ClaimsBusPublisher;
 import pro.mir0n.esquire.backend.o11y.ObservabilityConfig;
 import pro.mir0n.esquire.keySmith.messaging.KcBusAdapter;
 import pro.mir0n.esquire.backend.storage.EsqEntityDictionaryStorage;
@@ -89,11 +89,6 @@ public class KeySmithApplication {
         return new KcBusAdapter();
     }
 
-    @Bean(initMethod = "start")
-    public ClaimsBusPublisher claimsBus(@Value("${" + EsqConstants.PROP_PURE_OAUTH + ":false}") boolean pureOAuth) {
-        return new ClaimsBusPublisher(pureOAuth);
-    }
-
     public static class keySmithApplicationStartingListener implements ApplicationListener<ApplicationStartingEvent> {
         @Override
         public void onApplicationEvent(ApplicationStartingEvent event) {
@@ -133,10 +128,7 @@ public class KeySmithApplication {
         public void onApplicationEvent(ApplicationEvent event) {
             MessagingBus bus = MessagingBus.getInstance();
             if (event instanceof ApplicationEnvironmentPreparedEvent e) {
-                String[] keys = {EsqConstants.BUS_KEY_KC, EsqConstants.BUS_KEY_AUDIT};
-                if (e.getEnvironment().getProperty(EsqConstants.PROP_PURE_OAUTH, Boolean.class, Boolean.FALSE)) {
-                    keys = new String[]{EsqConstants.BUS_KEY_KC, EsqConstants.BUS_KEY_AUDIT, EsqConstants.BUS_KEY_CLAIMS};
-                }
+                String[] keys = {EsqConstants.BUS_KEY_KC, EsqConstants.BUS_KEY_AUDIT, EsqConstants.BUS_KEY_CLAIMS};
                 bus.init(e.getEnvironment(), keys);
                 devLog.debug("MessagingBus initiated (rods built, paused)");
             } else if (event instanceof ApplicationReadyEvent e) {

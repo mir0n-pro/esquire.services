@@ -196,9 +196,6 @@ services:
       # enyMan's move queue -- bound by the literal "enyman." prefix, so the name stays as the code reads it.
       - ENYMAN_MOVE_QUEUE_CAPACITY=${ENYMAN_MOVE_QUEUE_CAPACITY:-16384}
       - ENYMAN_VALIDATE_CREATE_DURING_MOVE=${ENYMAN_VALIDATE_CREATE_DURING_MOVE:-true}
-      # TEST race-8c repro ONLY: hold between the committed path read and the identity post, so a move can
-      # land in that window. Default 0 = disabled; never set outside a repro run.
-      - KEYSMITH_TEST_CONNECT_HOLD_MS=${KEYSMITH_TEST_CONNECT_HOLD_MS:-0}
       # KeyCloak -- read by the identity gateway itself, by kcMaster's own property names.
       - KC_BASE_URL=http://keycloak:8080/kc-auth
       - KC_REALM=esquire

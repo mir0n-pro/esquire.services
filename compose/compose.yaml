@@ -656,8 +656,6 @@ services:
       - "3005:3005"
     environment:
       - KEYSMITH_PORT=3005
-      # Pure OAuth, on by default: no root path / roles to KeyCloak, and a change evicts the gateway claims cache
-      - ESQ_PURE_OAUTH=${ESQ_PURE_OAUTH:-true}
       - LOG_LEVEL_ROOT=ERROR
       - LOG_LEVEL_SF=ERROR
       # I49 knob: o11y-log-off/on.bat set this OFF / INFO. Keep overridable or both arms run identical.
@@ -705,8 +703,6 @@ services:
       # v1.2.10 worker-pool mode (platform | virtual | virtual-per-task; default platform -- UNVALIDATED, see HA doc 5.5)
       - ESQ_VIRTUAL_THREADS=${ESQ_VIRTUAL_THREADS:-false}
       - KC_POOL_MODE=${KC_POOL_MODE:-platform}
-      # TEST race-8c repro ONLY (revert after): hold between path read and URQ publish
-      - KEYSMITH_TEST_CONNECT_HOLD_MS=${KEYSMITH_TEST_CONNECT_HOLD_MS:-0}
       # v1.2.8 audit logging (x-rod). keySmith owns the auth UPDATE -> esq_auth_log.
       # Per-vendor buses -- pick the sink by id (see enyMan for the full set). Demo = the bus -> auKeep.
       - AUDIT_BUS_ID=${AUDIT_BUS_ID:-audit-c}

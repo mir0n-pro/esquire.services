@@ -1,6 +1,15 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v2.0.3-2611.2314  v2.0.3 -- pure OAuth only: keySmith
+    :Refactoring: keySmith runs pure OAuth only: a saved access profile always tells the gateways to
+                  drop the user's claims, and the root path and the roles no longer go to Keycloak
+    :Config:      the pure OAuth switch leaves keySmith, the compose keysmith service and the k8s keysmith
+                  chart
+    :Config:      the keySmith test hold for the old create-while-move race is removed, with its compose
+                  settings
+    Components:   keySmith
+
 v2.0.3-2611.2312  v2.0.3 -- pure OAuth only: common
     :Refactoring: the services take the caller's claims from the gateway's headers only; the Esquire
                   claims in a token are no longer read
