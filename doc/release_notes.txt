@@ -1,6 +1,12 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v2.0.3-2611.2317  v2.0.3 -- pure OAuth only: enyMan
+    :Refactoring: enyMan runs pure OAuth only: a moved user always tells the gateways to drop the user's
+                  claims, and the moved path no longer goes to Keycloak
+    :Config:      the pure OAuth switch leaves enyMan, the compose enyman service and the k8s enyman chart
+    Components:   enyMan
+
 v2.0.3-2611.2314  v2.0.3 -- pure OAuth only: keySmith
     :Refactoring: keySmith runs pure OAuth only: a saved access profile always tells the gateways to
                   drop the user's claims, and the root path and the roles no longer go to Keycloak

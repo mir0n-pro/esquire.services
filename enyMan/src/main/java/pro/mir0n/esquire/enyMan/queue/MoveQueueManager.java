@@ -58,6 +58,9 @@
  *                   calls drop the roles argument
  * 11/18/2026 mir0n  v2.0.2 -- with the claims bus on, a moved user is evicted over it in place of the path
  *                   request to KeyCloak; a failed eviction is logged
+ * 11/23/2026 mir0n  v2.0.3 -- evictClaims(): a moved user is evicted on the claims rod itself (the
+ *                   ClaimsBusPublisher out of the constructor); the path request to KeyCloak out, and
+ *                   IIdentityGateway with it (publishKcMoveRequest() replaced)
  */
 
 package pro.mir0n.esquire.enyMan.queue;
@@ -80,6 +83,7 @@ import pro.mir0n.esquire.backend.storage.EsqObjectKindStorage;
 import pro.mir0n.esquire.common.EsqConstants;
 import pro.mir0n.esquire.common.QueryTimeouts;
 import pro.mir0n.messaging.BusConstants;
+import pro.mir0n.messaging.MessagingBus;
 import pro.mir0n.messaging.RodEvent;
 import pro.mir0n.esquire.audit.AuditBusBridge;
 import pro.mir0n.esquire.enyMan.jpa.EntityPathLookup;
@@ -88,9 +92,6 @@ import pro.mir0n.esquire.enyMan.jpa.EsqMoveRecord;
 import pro.mir0n.esquire.enyMan.jpa.EsqOrgRepository;
 import pro.mir0n.esquire.enyMan.jpa.EsqUsrRepository;
 import pro.mir0n.esquire.enyMan.messaging.EntityBusAdapter;
-import pro.mir0n.esquire.backend.identity.IIdentityGateway;
-import pro.mir0n.esquire.backend.identity.AuthSyncRequest;
-import pro.mir0n.esquire.backend.messaging.ClaimsBusPublisher;
 import pro.mir0n.esquire.enyMan.service.IEnyManService;
 import pro.mir0n.esquire.enyMan.service.impl.OrgService;
 import pro.mir0n.esquire.enyMan.service.impl.UsrService;
@@ -100,7 +101,6 @@ import pro.mir0n.utils.concurrent.IQueueRig;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 
 @Slf4j
@@ -125,9 +125,7 @@ public class MoveQueueManager implements IQueueRig.IQueueWorker<MoveQueueItem>,
     private final IEnyManService orgService;
     private final IEnyManService usrService;
     private final EntityBusAdapter broadcastPublisher;
-    private final IIdentityGateway identityGateway;
     private final EntityPathLookup pathLookup;
-    private final ClaimsBusPublisher claimsBus;
 
     private final int capacity;
 
@@ -137,10 +135,8 @@ public class MoveQueueManager implements IQueueRig.IQueueWorker<MoveQueueItem>,
                             TransactionTemplate transactionTemplate,
                             EntityManager em,
                             EntityBusAdapter broadcastPublisher,
-                            IIdentityGateway identityGateway,
                             EntityPathLookup pathLookup,
                             AuditBusBridge audit,
-                            ClaimsBusPublisher claimsBus,
                             @Value("${enyman.move-queue.capacity:1024}") int capacity,
                             @Value("${enyman.move-queue.tx-timeout-s:0}") int moveTxTimeoutS,
                             @Value("${enyman.move-queue.in-move-grace-ms:200}") long inMoveGraceMs) {
@@ -154,9 +150,7 @@ public class MoveQueueManager implements IQueueRig.IQueueWorker<MoveQueueItem>,
         this.orgService = new OrgService(entityDictionaryRepository, orgRepository, moveTx, em, audit);
         this.usrService = new UsrService(entityDictionaryRepository, usrRepository, moveTx, em, audit);
         this.broadcastPublisher = broadcastPublisher;
-        this.identityGateway = identityGateway;
         this.pathLookup = pathLookup;
-        this.claimsBus = claimsBus;
         this.capacity = capacity;
         this.graceNanos = inMoveGraceMs * 1_000_000L;
         this.rig = new BoundedQueueRig<>(this);
@@ -277,7 +271,7 @@ public class MoveQueueManager implements IQueueRig.IQueueWorker<MoveQueueItem>,
                 // Transaction has committed by the time esquireCommandMove returns -- publish outside it.
                 for (EsqMoveRecord r : records) {
                     publishMoveEvent(r, item.requestId(), item.correlationId());
-                    publishKcMoveRequest(r, item.requestId(), item.correlationId());
+                    evictClaims(r, item.requestId(), item.correlationId());
                 }
             });
         } finally {
@@ -388,33 +382,19 @@ public class MoveQueueManager implements IQueueRig.IQueueWorker<MoveQueueItem>,
         }
     }
 
-    // The moved path goes to the identity provider only for USR entities -- only USRs have an identity there.
-    //xxx: pure OAuth (lab) -- the provider holds no path: the user leaves the gateway's cache instead
-    private void publishKcMoveRequest(EsqMoveRecord record, String requestId, String correlationId) {
+    //xxx: only a user has claims; every gateway drops them, so the next call reads the moved path
+    private static void evictClaims(EsqMoveRecord record, String requestId, String correlationId) {
         EsqObjectKind eek = EsqObjectKindStorage.getInstance().get(record.getKind());
-        if (eek.isUsr() && claimsBus.isEnabled()) {
+        if (eek.isUsr()) {
             try {
-                claimsBus.evict(record.getId(), correlationId, requestId);
+                RodEvent e = new RodEvent(RodEvent.Op.DELETE, EsqConstants.KIND_ACCESS_PROFILE, record.getId(), null,
+                        null, System.currentTimeMillis(), correlationId, requestId, null, null,
+                        BusConstants.MSG_TYPE_ENTITY_BROADCASTS, Map.of());
+                MessagingBus.getInstance().getXRod(EsqConstants.BUS_KEY_CLAIMS).transmit(e);
+                log.info("CLAIMS | evict | {} | {}", record.getId(), correlationId);
             } catch (Exception e) {
-                log.error("publishKcMoveRequest: eviction failed for id={}: {}", record.getId(), e.getMessage());
-                devLog.error("publishKcMoveRequest: eviction failed for id={}: {}", record.getId(), e.getMessage(), e);
-            }
-        } else if (eek.isUsr()) {
-            try {
-                AuthSyncRequest req = new AuthSyncRequest();
-                req.setId(record.getId());
-                req.setKind(record.getKind());
-                req.setPath(record.getPath());
-                // guarantee a non-null tracking id (the former testReqId; it rides as the requestId on the wire).
-                String reqId = (requestId != null && !requestId.isBlank()) ? requestId : UUID.randomUUID().toString();
-                // The PATH change number rides along, on both legs: a gateway that has to hold the path keeps
-                // the newest move rather than the last to arrive. It is the ep_change_no the move just raised.
-                identityGateway.postRequest(new RodEvent(RodEvent.Op.UPDATE_PATH, record.getKind(), record.getId(), null,
-                        record.getPathChangeNo(), System.currentTimeMillis(), correlationId, reqId, null, null,
-                        BusConstants.MSG_TYPE_REQUEST, req.toMap()));
-            } catch (Exception e) {
-                log.error("publishKcMoveRequest: failed for id={}: {}", record.getId(), e.getMessage());
-                devLog.error("publishKcMoveRequest: failed for id={}: {}", record.getId(), e.getMessage(), e);
+                log.error("evictClaims: failed for id={}: {}", record.getId(), e.getMessage());
+                devLog.error("evictClaims: failed for id={}: {}", record.getId(), e.getMessage(), e);
             }
         }
     }

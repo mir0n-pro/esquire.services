@@ -1,5 +1,16 @@
 Esquire enyMan Microservice
 
+11/23/2026 mir0n  v2.0.3 -- pure OAuth only: enyMan
+queue.MoveQueueManager
+  - v2.0.3 -- evictClaims(): a moved user is evicted on the claims rod itself (the ClaimsBusPublisher out of
+    the constructor); the path request to KeyCloak out, and IIdentityGateway with it (publishKcMoveRequest()
+    replaced)
+EnyManApplication
+  - v2.0.3 -- the ClaimsBusPublisher bean out; the claims bus is always built beside the entity, kc and audit
+    buses
+resources/application.yml
+  - esq.pure-oauth (ESQ_PURE_OAUTH) out; the claims-bus leg always built
+
 11/22/2026 mir0n  v2.0.2 -- pure OAuth (lab): the claims bus; login ids in lower case
 EnyManApplication
   - the ClaimsBusPublisher bean on esq.pure-oauth; the claims bus is built while esq.pure-oauth is on
