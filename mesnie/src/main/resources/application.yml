@@ -107,6 +107,10 @@ esquire:
       # default: measured at 1.25% of the series and a few tens of ns per call, against work that is orders of
       # magnitude dearer. Off drops every esq.biz.* call site to a null check -- the lever for a hot-path run.
       business-enabled: ${ESQ_METRICS_BUSINESS:true}
+# Pure OAuth (lab): the claims stay in Esq2025 -- no root path and no roles go to KeyCloak, and a change
+# removes the user from the gateway's claims cache over the claims bus. Off = the claims mode, as before.
+esq:
+  pure-oauth: ${ESQ_PURE_OAUTH:false}
 herald:
   audit-bus:
     messaging-bus:
@@ -144,6 +148,18 @@ herald:
         send-retry: ${ENTITY_BROADCAST_SEND_RETRY:false}
         send-retry-backoff-sec: ${ENTITY_BROADCAST_SEND_RETRY_BACKOFF_SEC:1,2,5,5}
         send-retry-max-attempts: ${ENTITY_BROADCAST_SEND_RETRY_MAX_ATTEMPTS:0}
+  # Pure OAuth (lab): the eviction topic to the gateway's claims cache; built only while esq.pure-oauth is on.
+  claims-bus:
+    messaging-bus:
+      bus-id: ${CLAIMS_BUS_ID:esquire.claims}
+      slot-id: ${CLAIMS_SLOT_ID:claims}
+      role: SERVER
+      x-rod:
+        publisher-pool:
+          size: ${CLAIMS_PUBLISHER_POOL_SIZE:0}
+          mode: ${CLAIMS_PUBLISHER_POOL_MODE:platform}
+        # a dropped eviction leaves the old claims in a gateway until the entry goes idle: hold, never drop
+        feed-await-ms: ${CLAIMS_FEED_AWAIT_MS:0}
 logging:
   level:
     root: ${LOG_LEVEL_ROOT:ERROR}

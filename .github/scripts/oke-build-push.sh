@@ -17,8 +17,7 @@
 #   - the repos checked out as SIBLINGS in the runner workspace:
 #       <ws>/services2  (this repo)
 #       <ws>/explorer2  (backend / BFF image is built from here)
-#       <ws>/db.seed    (postgres image build input)
-#       <ws>/services   (the 1.2 line, postgres/ only: postgres image build input)
+#       <ws>/db.seed2   (postgres image build input, the 2.0 line)
 #
 # Env:
 #   IMAGE_TAG   the stamp to push, e.g. v1.2.7-2606.1009  (computed by the workflow)
@@ -37,7 +36,7 @@ PLATFORMS="linux/amd64,linux/arm64"
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SERVICES="$(cd "${HERE}/../.." && pwd)"     # <ws>/services2
-WS="$(cd "${SERVICES}/.." && pwd)"          # <ws> (services2 + explorer2 + db.seed + services siblings)
+WS="$(cd "${SERVICES}/.." && pwd)"          # <ws> (services2 + explorer2 + db.seed2 siblings)
 
 echo "=== build context: services=${SERVICES}  workspace=${WS}  tag=${IMAGE_TAG} ==="
 
@@ -68,7 +67,7 @@ bx esquire.gateward "${SERVICES}/gateWard" "${SERVICES}/gateWard/Dockerfile"
 # backend / BFF -- multi-stage; context = explorer2/ so it reaches backend/ + frontend/
 bx esquire.backend  "${WS}/explorer2"      "${WS}/explorer2/backend/Dockerfile"
 
-# postgres -- context = workspace root so the Dockerfile can COPY db.seed/postgres/*
+# postgres -- context = workspace root so the Dockerfile can COPY db.seed2/postgres/*
 # (incl. create.log -> seeds the *_log tables; the OKE audit option (a) triggers live here too)
 bx esquire-postgres "${WS}"                "${SERVICES}/postgres/Dockerfile"
 

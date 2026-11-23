@@ -157,4 +157,31 @@ class BizBusRoutingFilterTest {
         assertEquals(MediaType.APPLICATION_PROBLEM_JSON, exchange.getResponse().getHeaders().getContentType());
         assertNull(exchange.getResponse().getHeaders().getFirst(EsqConstants.ESQ_SRV_OUTER_TIME));
     }
+
+    @Test
+    @DisplayName("a pure OAuth caller: the command takes uid, root path and roles from the gateway's claim headers")
+    void busRouteTakesClaimHeaders() {
+        String pureToken = new PlainJWT(new JWTClaimsSet.Builder().subject("joe")
+                .claim("azp", "esq-angular-pure-oauth").claim("preferred_username", "joe").build()).serialize();
+        MockServerWebExchange exchange = MockServerWebExchange.from(MockServerHttpRequest
+                .post("/esq-acct?kind=52&id=a1")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + pureToken)
+                .header(EsqConstants.X_ESQ_UID, "u7")
+                .header(EsqConstants.X_ESQ_ROOT_PATH, "1.14.")
+                .header(EsqConstants.X_ESQ_ROLES, "SUPERVIZOR,TREE")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body("{\"typeId\":1000,\"amount\":10}"));
+        exchange.getAttributes().put(ServerWebExchangeUtils.GATEWAY_REQUEST_URL_ATTR,
+                URI.create("bus://biz-bus/esq-acct?kind=52&id=a1"));
+        exchange.getAttributes().put(EsqConstants.ESQ_CORRELATION_ID, "c1");
+        ArgumentCaptor<RodEvent> sent = ArgumentCaptor.forClass(RodEvent.class);
+        when(client.send(sent.capture(), isNull())).thenReturn(Mono.just(answer(Map.of(EsqConstants.BIZ_KEY_STATUS, 200))));
+
+        filter.filter(exchange, chain).block(Duration.ofSeconds(2));
+
+        RodEvent c = sent.getValue();
+        assertEquals("u7", c.uid());
+        assertEquals("1.14.", c.body().get(EsqConstants.BIZ_KEY_ROOT_PATH));
+        assertEquals(List.of("SUPERVIZOR", "TREE"), c.body().get(EsqConstants.BIZ_KEY_ROLES));
+    }
 }

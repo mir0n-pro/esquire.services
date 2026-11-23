@@ -9,8 +9,10 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import pro.mir0n.esquire.backend.dto.access.EsqAccessProfile;
+import pro.mir0n.esquire.backend.dto.access.EsqUserClaims;
 import pro.mir0n.esquire.keySmith.service.IKeySmithService;
 
+import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.*;
@@ -61,6 +63,18 @@ class KeySmithControllerTest {
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         verify(service).esquireKeySave("10", fields);
+    }
+
+    @Test
+    @DisplayName("esquireClaims: delegates the login id to the service, returns 200 with the claims")
+    void esquireClaims_delegates_returnsOk() {
+        EsqUserClaims claims = new EsqUserClaims("mainadmin", "5", "1.", List.of("TREE"), 2L);
+        when(service.esquireClaims("mainadmin")).thenReturn(claims);
+
+        ResponseEntity<EsqUserClaims> response = controller.esquireClaims("mainadmin");
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody()).isEqualTo(claims);
     }
 
 

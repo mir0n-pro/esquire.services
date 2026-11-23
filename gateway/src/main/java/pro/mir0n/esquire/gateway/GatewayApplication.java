@@ -16,6 +16,8 @@
  * 10/19/2026 mir0n  v2.0.1 -- MessagingBusLifecycleRegistrar, registered last: builds the biz bus at
  *                   environment-prepared, starts it and registers the bus health indicator at ready, closes it at
  *                   context close
+ * 11/18/2026 mir0n  v2.0.2 -- the claims bus is built beside the biz bus while esq.gateway.pure-oauth.clients is
+ *                   not empty
  */
 package pro.mir0n.esquire.gateway;
 
@@ -77,7 +79,12 @@ public class GatewayApplication {
         public void onApplicationEvent(ApplicationEvent event) {
             MessagingBus bus = MessagingBus.getInstance();
             if (event instanceof ApplicationEnvironmentPreparedEvent e) {
-                bus.init(e.getEnvironment(), new String[]{EsqConstants.BUS_KEY_BIZ});
+                String[] keys = {EsqConstants.BUS_KEY_BIZ};
+                String pureClients = e.getEnvironment().getProperty(EsqConstants.PROP_PURE_OAUTH_CLIENTS, "");
+                if (!pureClients.isBlank()) {
+                    keys = new String[]{EsqConstants.BUS_KEY_BIZ, EsqConstants.BUS_KEY_CLAIMS};
+                }
+                bus.init(e.getEnvironment(), keys);
                 devLog.debug("MessagingBus initiated (rods built, paused)");
             } else if (event instanceof ApplicationReadyEvent e) {
                 bus.start();                             // run them -- traffic flows only from here

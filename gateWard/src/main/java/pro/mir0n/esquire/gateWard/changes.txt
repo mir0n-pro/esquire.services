@@ -1,5 +1,14 @@
 Esquire gateWard Microservice
 
+11/22/2026 mir0n  v2.0.2 -- pure OAuth (lab): gateWard takes the claims from keySmith in mesnie
+BizTreeCacheController
+  - context(): uid / rootPath / roles from the X-Esq-* headers when the token carries no esq_uid (pure OAuth)
+GateWardApplication
+  - the claims bus is built beside the entity and biz buses while esq.gateway.pure-oauth.clients is not empty
+resources/application.yml
+  - esq.gateway.pure-oauth: clients, cache-idle-ms, claims-uri (keySmith in mesnie), claims-timeout-ms; the
+    claims-bus leg (bus esquire.claims, slot claims, CLIENT)
+
 10/22/2026 mir0n  v2.0.1 -- the account routes over the biz bus to paacMan
 GateWardApplication
   - the bus registrar builds the biz bus beside the entity bus; the meter owner reads the entity bus id under

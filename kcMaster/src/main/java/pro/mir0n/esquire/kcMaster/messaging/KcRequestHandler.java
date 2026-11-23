@@ -21,12 +21,13 @@
  *                   the handler is built by KcIdentityGateway
  * 08/26/2026 mir0n  the updateAccess call drops the password and enabled arguments, neither of which the
  *                   messaging path manages
+ * 11/21/2026 mir0n  v2.0.2 -- with pure OAuth on, no root path attribute and no realm roles reach KeyCloak (null
+ *                   roles leave the realm roles as they are); the constructor written out in place of Lombok's
  */
 
 package pro.mir0n.esquire.kcMaster.messaging;
 
 import pro.mir0n.o11y.BizMeters;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import pro.mir0n.esquire.backend.identity.AuthSyncRequest;
 import pro.mir0n.esquire.common.EsqConstants;
@@ -42,10 +43,16 @@ import java.util.Map;
  * Returns success/failure to caller; caller (KcRequestConsumer) publishes URS.
  */
 @Slf4j
-@RequiredArgsConstructor
 public class KcRequestHandler {
 
     private final IKcIdentityService kcIdentityService;
+    //xxx: pure OAuth (lab) -- the claims stay in Esq2025: no root path and no roles reach KeyCloak
+    private final boolean pureOAuth;
+
+    public KcRequestHandler(IKcIdentityService kcIdentityService, boolean pureOAuth) {
+        this.kcIdentityService = kcIdentityService;
+        this.pureOAuth = pureOAuth;
+    }
 
     public void handle(String command, AuthSyncRequest req, String correlationId, String requestId) {
         // esq.biz.kc.sync.total / .duration (O1/T8 phase D): the identity sync's OUTCOME and how long it took.
@@ -93,7 +100,9 @@ public class KcRequestHandler {
     private void handleCreate(AuthSyncRequest req, String correlationId, String requestId) {
         Map<String, List<String>> attributes = new java.util.HashMap<>();
         attributes.put(EsqConstants.JWT_CLAIM_ENTITY_ID,       Collections.singletonList(req.getId()));
-        attributes.put(EsqConstants.JWT_CLAIM_ENTITY_ROOTPATH, Collections.singletonList(req.getPath()));
+        if (!pureOAuth) {
+            attributes.put(EsqConstants.JWT_CLAIM_ENTITY_ROOTPATH, Collections.singletonList(req.getPath()));
+        }
 
         kcIdentityService.createUser(
                 req.getLoginId(),
@@ -102,7 +111,7 @@ public class KcRequestHandler {
                 true,         // enabled
                 true,         // forcePasswordChange -- must change on first login
                 false,        // requireTotp -- N on initial connect
-                req.getRoles() != null ? req.getRoles() : Collections.emptyList(),
+                realmRoles(req),
                 attributes,
                 correlationId,
                 requestId
@@ -122,11 +131,20 @@ public class KcRequestHandler {
                 "Y".equals(req.getPwdChangeForced()),
                 requireTotp,
                 removeTotp,
-                req.getRoles() != null ? req.getRoles() : Collections.emptyList(),
+                realmRoles(req),
                 null,   // no extra attributes on update
                 correlationId,
                 requestId
         );
+    }
+
+    //xxx: null leaves the realm roles as they are; an empty list removes them all
+    private List<String> realmRoles(AuthSyncRequest req) {
+        List<String> ret = null;
+        if (!pureOAuth) {
+            ret = req.getRoles() != null ? req.getRoles() : Collections.emptyList();
+        }
+        return ret;
     }
 
     private void handleDelete(AuthSyncRequest req, String correlationId, String requestId) {

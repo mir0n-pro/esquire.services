@@ -12,6 +12,8 @@
  *                   filter is JwtClaimsExtractionFilter, and /esq-kinds joins the permitAll list
  * 08/27/2026 mir0n  v1.2.13 -- unauthenticated() writes through ProblemDetailWriter; the class keeps no
  *                   ObjectMapper of its own
+ * 11/17/2026 mir0n  v2.0.2 -- /esq-claims permitted with no token (pure OAuth lab: the gateway's claims lookup;
+ *                   no gateway route exposes it)
  */
 
 package pro.mir0n.esquire.backend.security;
@@ -53,8 +55,10 @@ public class SecurityConfiguration {
             .csrf(AbstractHttpConfigurer::disable)
             .cors(cors -> cors.configurationSource(corsAllowAll()))
             .authorizeHttpRequests(auth -> auth
+                //xxx: /esq-claims is open on the service side: the gateway asks it before any claim is known,
+                // and no gateway route exposes it -- the network is its only guard (pure OAuth lab)
                 .requestMatchers("/api/public/**", "/swagger-ui/**", "/actuator/**", "/v3/api-docs/**",
-                                 "/esq-kinds")
+                                 "/esq-kinds", "/esq-claims")
                     .permitAll()
                 .anyRequest().authenticated()
             )

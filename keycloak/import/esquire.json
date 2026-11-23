@@ -791,6 +791,23 @@
       "groups": []
     },
     {
+      "id": "6360d699-2740-4c8b-9834-6759ac4b3c3d",
+      "username": "service-account-esq-hauberk-p",
+      "emailVerified": false,
+      "enabled": true,
+      "createdTimestamp": 1778400000000,
+      "totp": false,
+      "serviceAccountClientId": "esq-hauberk-P",
+      "credentials": [],
+      "disableableCredentialTypes": [],
+      "requiredActions": [],
+      "realmRoles": [
+        "default-roles-esquire"
+      ],
+      "notBefore": 0,
+      "groups": []
+    },
+    {
       "id": "a17c4e5d-2f88-4b9c-9e21-3a4f5b6c7d80",
       "username": "service-account-esq-hauberk-s",
       "firstName": "Test",
@@ -1273,6 +1290,101 @@
       ]
     },
     {
+      "id": "c0fbcf41-5c34-47b3-8c7c-3e073d9093db",
+      "clientId": "esq-angular-pure-oauth",
+      "name": "Esquire Angular Client, pure OAuth",
+      "description": "Esquire Angular Client (BFF-fronted; confidential client; no Esquire claims in the token)",
+      "rootUrl": "",
+      "adminUrl": "",
+      "baseUrl": "",
+      "surrogateAuthRequired": false,
+      "enabled": true,
+      "alwaysDisplayInConsole": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "esq-angular-pure-oauth-dev-secret-rotate-in-prod",
+      "redirectUris": [
+        "http://localhost:4200/auth/callback",
+        "http://localhost:3000/auth/callback",
+        "http://host.docker.internal:3000/auth/callback",
+        "http://host.docker.internal:4200/auth/callback",
+        "http://esquire.localhost/auth/callback",
+        "https://esquire.mir0n.pro/auth/callback",
+        "https://aws-esquire.mir0n.pro/auth/callback"
+      ],
+      "webOrigins": [
+        "http://localhost:4200",
+        "http://localhost:3000",
+        "http://host.docker.internal:3000",
+        "http://host.docker.internal:4200",
+        "http://esquire.localhost",
+        "https://esquire.mir0n.pro",
+        "https://aws-esquire.mir0n.pro"
+      ],
+      "notBefore": 0,
+      "bearerOnly": false,
+      "consentRequired": false,
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "publicClient": false,
+      "frontchannelLogout": true,
+      "protocol": "openid-connect",
+      "attributes": {
+        "standard.token.exchange.enabled": "false",
+        "login_theme": "esquire-explorer",
+        "frontchannel.logout.session.required": "true",
+        "post.logout.redirect.uris": "http://localhost:4200/##http://localhost:3000/##http://host.docker.internal:3000/##http://host.docker.internal:4200/##http://esquire.localhost/##https://esquire.mir0n.pro/##https://aws-esquire.mir0n.pro/",
+        "oauth2.device.authorization.grant.enabled": "false",
+        "backchannel.logout.revoke.offline.tokens": "false",
+        "realm_client": "false",
+        "oidc.ciba.grant.enabled": "false",
+        "backchannel.logout.session.required": "true",
+        "display.on.consent.screen": "false",
+        "pkce.code.challenge.method": "S256",
+        "dpop.bound.access.tokens": "false"
+      },
+      "authenticationFlowBindingOverrides": {},
+      "fullScopeAllowed": false,
+      "nodeReRegistrationTimeout": -1,
+      "protocolMappers": [
+        {
+          "id": "af4fe046-7c96-411d-8c7f-c4db80588274",
+          "name": "esq_login_mapper",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "consentRequired": false,
+          "config": {
+            "aggregate.attrs": "false",
+            "introspection.token.claim": "true",
+            "multivalued": "false",
+            "userinfo.token.claim": "true",
+            "user.attribute": "username",
+            "id.token.claim": "true",
+            "lightweight.claim": "false",
+            "access.token.claim": "true",
+            "claim.name": "preferred_username",
+            "jsonType.label": "String"
+          }
+        }
+      ],
+      "defaultClientScopes": [
+        "web-origins",
+        "acr",
+        "openid",
+        "profile",
+        "basic",
+        "email"
+      ],
+      "optionalClientScopes": [
+        "address",
+        "phone",
+        "organization",
+        "offline_access",
+        "microprofile-jwt"
+      ]
+    },
+    {
       "id": "c653bce7-8e20-441a-abe9-504e6defd6f4",
       "clientId": "esq-kcMaster",
       "name": "esq-kcMaster",
@@ -1477,6 +1589,105 @@
         "acr",
         "openid",
         "roles",
+        "profile",
+        "basic",
+        "email"
+      ],
+      "optionalClientScopes": [
+        "address",
+        "phone",
+        "organization",
+        "offline_access",
+        "microprofile-jwt"
+      ]
+    },
+    {
+      "id": "e8715c05-2a83-48fd-8555-48f71d29cb3a",
+      "clientId": "esq-hauberk-P",
+      "name": "Esquire Haubergeon Stress-Test Client, pure OAuth",
+      "description": "Esquire hauberk -- the pure OAuth twin of esq-hauberk (client-credentials grant only). No Esquire claims in the token; preferred_username is set by hand to esq-hauberk@mir0n.pro, the login id of the same access profile (user 15).",
+      "rootUrl": "",
+      "adminUrl": "",
+      "baseUrl": "",
+      "surrogateAuthRequired": false,
+      "enabled": true,
+      "alwaysDisplayInConsole": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "esq-hauberk-p-dev-secret-rotate-in-prod",
+      "redirectUris": [
+        "/*"
+      ],
+      "webOrigins": [
+        "/*"
+      ],
+      "notBefore": 0,
+      "bearerOnly": false,
+      "consentRequired": false,
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "publicClient": false,
+      "frontchannelLogout": false,
+      "protocol": "openid-connect",
+      "attributes": {
+        "request.object.signature.alg": "any",
+        "frontchannel.logout.session.required": "true",
+        "post.logout.redirect.uris": "+",
+        "oauth2.device.authorization.grant.enabled": "false",
+        "backchannel.logout.revoke.offline.tokens": "false",
+        "use.refresh.tokens": "true",
+        "realm_client": "false",
+        "oidc.ciba.grant.enabled": "false",
+        "backchannel.logout.session.required": "false",
+        "client_credentials.use_refresh_token": "false",
+        "require.pushed.authorization.requests": "false",
+        "request.object.encryption.enc": "any",
+        "dpop.bound.access.tokens": "false",
+        "id.token.as.detached.signature": "false",
+        "client.secret.creation.time": "1778400000",
+        "request.object.encryption.alg": "any",
+        "client.introspection.response.allow.jwt.claim.enabled": "false",
+        "standard.token.exchange.enabled": "false",
+        "client.use.lightweight.access.token.enabled": "false",
+        "request.object.required": "not required",
+        "access.token.header.type.rfc9068": "false",
+        "tls.client.certificate.bound.access.tokens": "false",
+        "acr.loa.map": "{}",
+        "display.on.consent.screen": "false",
+        "token.response.type.bearer.lower-case": "false",
+        "access.token.encrypted.response.alg": "RSA-OAEP",
+        "access.token.encrypted.response.enc": "A256GCM",
+        "use.jwks.url": "true",
+        "jwks.url": "http://gateway:7070/jwe-jwks"
+      },
+      "authenticationFlowBindingOverrides": {},
+      "fullScopeAllowed": false,
+      "nodeReRegistrationTimeout": -1,
+      "protocolMappers": [
+        {
+          "id": "2be75356-07fc-4426-b3ec-1859127d1889",
+          "name": "esq_login_mapper",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-hardcoded-claim-mapper",
+          "consentRequired": false,
+          "config": {
+            "introspection.token.claim": "true",
+            "claim.value": "esq-hauberk@mir0n.pro",
+            "userinfo.token.claim": "true",
+            "id.token.claim": "true",
+            "lightweight.claim": "false",
+            "access.token.claim": "true",
+            "claim.name": "preferred_username",
+            "jsonType.label": "String"
+          }
+        }
+      ],
+      "defaultClientScopes": [
+        "web-origins",
+        "service_account",
+        "acr",
+        "openid",
         "profile",
         "basic",
         "email"

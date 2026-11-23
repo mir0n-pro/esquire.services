@@ -13,6 +13,7 @@
  * 03/16/2026 mir0n  updateAccess(): connectFlg param added
  *                   confirmPendingFlags() added (replaces clearPwdChangeForced + confirmTfaMethod)
  * 08/11/2026 mir0n  v1.2.12 -- updateAccess takes a changeNo @Param
+ * 11/17/2026 mir0n  v2.0.2 -- claims(loginId): the access profile by login id
  */
 
 package pro.mir0n.esquire.keySmith.jpa;
@@ -34,6 +35,8 @@ public interface EsqAccessProfileRepository extends JpaRepository<EsqAccessProfi
 
     @NativeQuery
     EsqAccessProfileJpa access(@Param("id") String id, @Param("rootPath") String rootPath);
+    @NativeQuery
+    EsqAccessProfileJpa claims(@Param("loginId") String loginId);
     @NativeQuery
     EsqAccessProfileJpa accessForUpdate(@Param("id") String id, @Param("rootPath") String rootPath);
     @NativeQuery

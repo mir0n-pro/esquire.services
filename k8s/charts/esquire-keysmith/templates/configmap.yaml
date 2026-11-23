@@ -46,6 +46,8 @@ data:
   DB_DATAKEEP_USERNAME:  {{ .Values.audit.datasource.username | quote }}
   DB_DATAKEEP_POOL_SIZE: {{ .Values.audit.datasource.poolSize | quote }}
   # DB_DATAKEEP_PASSWORD: chains from DB_KEYSMITH_PASSWORD (Secret) via application.yml
+  # --- pure OAuth (lab): no root path and no roles to KeyCloak; changes evict the gateway's claims cache ---
+  ESQ_PURE_OAUTH:                 {{ .Values.pureOAuth.enabled | quote }}
   # --- logging ---
   LOG_LEVEL_ROOT:                 {{ .Values.logging.levelRoot | quote }}
   LOG_LEVEL_SF:                   {{ .Values.logging.levelSf | quote }}

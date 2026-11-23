@@ -11,6 +11,7 @@
  * 03/09/2026 mir0n  esquireKeySave(): roles param added
  * 06/04/2026 mir0n  esquireKey / esquireKeySave: rootPath + uid params removed (read from request context)
  * 10/19/2026 mir0n  v2.0.1 -- esquireKeySave: the roles parameter removed
+ * 11/17/2026 mir0n  v2.0.2 -- esquireClaims(loginId)
  */
 
 package pro.mir0n.esquire.keySmith.service;
@@ -19,11 +20,14 @@ import java.util.List;
 import java.util.Map;
 
 import pro.mir0n.esquire.backend.dto.access.EsqAccessProfile;
+import pro.mir0n.esquire.backend.dto.access.EsqUserClaims;
 
 public interface IKeySmithService {
     public final static String FIELD_ROLES = "roles";
     // uid / rootPath come from the unified per-request context (RequestContextUtils), not params.
     public EsqAccessProfile esquireKey(String id);
     public EsqAccessProfile esquireKeySave(String id, Map<String, Object> fields);
+    //xxx: the gateway's lookup by the token's login id -- no caller context, so no rootPath scope
+    public EsqUserClaims esquireClaims(String loginId);
 
 }

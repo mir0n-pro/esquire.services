@@ -1,5 +1,17 @@
 Esquire enyMan Microservice
 
+11/22/2026 mir0n  v2.0.2 -- pure OAuth (lab): the claims bus; login ids in lower case
+EnyManApplication
+  - the ClaimsBusPublisher bean on esq.pure-oauth; the claims bus is built while esq.pure-oauth is on
+queue.MoveQueueManager
+  - with the claims bus on, a moved user is evicted over it in place of the path request to KeyCloak; a failed
+    eviction is logged
+service.impl.UsrService
+  - a new user's login id is its email in lower case
+resources/application.yml
+  - esq.pure-oauth (ESQ_PURE_OAUTH, default false); the claims-bus leg (bus esquire.claims, slot claims,
+    SERVER; feed-await-ms 0)
+
 10/22/2026 mir0n  v2.0.1 -- the roles from the request context; the bus refs under herald
 controller.EnyManController
   - the @AuthenticationPrincipal Claims parameters and the roles read from the token removed

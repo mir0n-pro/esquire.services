@@ -56,6 +56,10 @@ esquire:
       # default: measured at 1.25% of the series and a few tens of ns per call, against work that is orders of
       # magnitude dearer. Off drops every esq.biz.* call site to a null check -- the lever for a hot-path run.
       business-enabled: ${ESQ_METRICS_BUSINESS:true}
+# Pure OAuth (lab): the claims stay in Esq2025 -- no root path and no roles are written to KeyCloak, and no
+# moved path is parked. Off = the claims mode, as before.
+esq:
+  pure-oauth: ${ESQ_PURE_OAUTH:false}
 herald:
   kc-bus:
     messaging-bus:

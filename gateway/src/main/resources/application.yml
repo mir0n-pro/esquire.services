@@ -37,6 +37,14 @@ esq:
         clients: ${ESQ_GW_VANILLA_CLIENTS:}
       phantom:
         clients: ${ESQ_GW_PHANTOM_CLIENTS:}
+    # Pure OAuth (lab): for a client on this list the token carries no Esquire claims; the gateway takes
+    # them from keySmith (claims-uri) into a cache kept while asked for, and sends them on as headers.
+    # Off while the list is empty.
+    pure-oauth:
+      clients:           ${ESQ_GW_PURE_OAUTH_CLIENTS:}
+      cache-idle-ms:     ${ESQ_GW_PURE_OAUTH_CACHE_IDLE_MS:60000}
+      claims-uri:        ${ESQ_GW_PURE_OAUTH_CLAIMS_URI:http://${KEYSMITH_HOST:biztree}:${KEYSMITH_PORT:3002}/esq-claims}
+      claims-timeout-ms: ${ESQ_GW_PURE_OAUTH_CLAIMS_TIMEOUT_MS:5000}
     # Resilience knobs (gateway -> backend). All env-overridable; ResilienceConfig
     # reads the circuit-breaker block to build the Resilience4j CircuitBreaker +
     # TimeLimiter, and the Retry filters below reference the retry block. The
@@ -166,6 +174,17 @@ herald:
         send-retry: ${BIZ_SEND_RETRY:false}
         send-retry-backoff-sec: ${BIZ_SEND_RETRY_BACKOFF_SEC:1,2,5}
         send-retry-max-attempts: ${BIZ_SEND_RETRY_MAX_ATTEMPTS:3}
+  # Pure OAuth (lab): the eviction topic; built only while a client is on esq.gateway.pure-oauth.clients.
+  claims-bus:
+    messaging-bus:
+      bus-id: ${CLAIMS_BUS_ID:esquire.claims}
+      slot-id: ${CLAIMS_SLOT_ID:claims}
+      role: CLIENT
+      x-rod:
+        receiver-pool:
+          size: ${CLAIMS_RX_POOL_SIZE:1}
+          mode: ${CLAIMS_RX_POOL_MODE:platform}   # platform | virtual | virtual-per-task
+        concurrency: ${CLAIMS_RX_CONCURRENCY:1}
 server:
   port: ${GATEWAY_PORT:8080} 
 spring:

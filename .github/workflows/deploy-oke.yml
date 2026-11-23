@@ -90,21 +90,11 @@ jobs:
           ref: ${{ github.event.pull_request.merge_commit_sha || github.ref }}
           path: services2
 
-      # The postgres image is built from the 1.2 line on purpose: its Dockerfile COPYs
-      # services/postgres/initdb/init.sh from the workspace root. Only that folder is needed.
-      - name: Checkout services (1.2, postgres only)
-        uses: actions/checkout@v5
-        with:
-          ref: develop
-          path: services
-          sparse-checkout: postgres
-
       # The sibling repos carry a same-named sprint branch when the sprint touches them, and none when it
       # does not. Resolve each ref BEFORE checking it out -- ls-remote asks which branch is actually there --
       # so a workflow_dispatch against pending-* picks the sprint work up, while a merged PR (whose ref_name
       # is the PR merge ref, not a branch name) matches nothing and lands on the fallback, which is correct:
-      # by then both repos have merged in lockstep. The fallback is develop2 for the explorer (its 2.0 line),
-      # develop for db.seed (the 2.0 line uses the 1.2 database).
+      # by then both repos have merged in lockstep. The fallback is develop2, the 2.0 line of each.
       - name: Resolve the explorer / db.seed refs
         id: refs
         run: |
@@ -129,7 +119,7 @@ jobs:
           }
 
           explorer="$(pick mir0n-pro/esquire.explorer develop2)"
-          dbseed="$(pick mir0n-pro/esquire.db.seed develop)"
+          dbseed="$(pick mir0n-pro/esquire.db.seed develop2)"
           echo "explorer=$explorer" >> "$GITHUB_OUTPUT"
           echo "dbseed=$dbseed"     >> "$GITHUB_OUTPUT"
           echo "explorer -> $explorer"
@@ -147,7 +137,7 @@ jobs:
         with:
           repository: mir0n-pro/esquire.db.seed
           ref: ${{ steps.refs.outputs.dbseed }}
-          path: db.seed
+          path: db.seed2
 
       - name: Set up JDK 24
         uses: actions/setup-java@v4
@@ -303,6 +293,10 @@ jobs:
           # k8s-oci-compact/values/gateward.yaml, 2026-07-20). This flag makes 20-token-relay's two specs
           # skip on OKE only; docker / local k8s leave it unset and keep running them.
           RELAY_DISABLED: "true"
+          # OKE runs the claims mode only: no pure OAuth client in its realm and none listed at its gate.
+          # This flag makes 24-pure-oauth-token skip on OKE; 25-pure-oauth-eviction skips there already
+          # (PURE_OAUTH unset). docker / local k8s leave it unset and keep running spec 24.
+          PURE_OAUTH_DISABLED: "true"
           # 21-credential-state-sync reads the user's required actions through KeyCloak's ADMIN api -- that is
           # where a forced password change and a TOTP request actually land. It authenticates as esq-kcMaster,
           # the same service account kcMaster itself uses. A secret that is not configured arrives here as an

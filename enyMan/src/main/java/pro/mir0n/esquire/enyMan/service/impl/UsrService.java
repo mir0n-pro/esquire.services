@@ -61,6 +61,7 @@
  *                   write; a person-driven rename puts the derived name into the broadcast fields
  * 10/19/2026 mir0n  v2.0.1 -- esquireCommandSave / esquireCommandNew / esquireCommandDelete / esquireCommandMove:
  *                   the roles parameter removed
+ * 11/21/2026 mir0n  v2.0.2 -- a new user's login id is its email in lower case
  */
 
 package pro.mir0n.esquire.enyMan.service.impl;
@@ -93,6 +94,7 @@ import pro.mir0n.esquire.backend.jpa.entity.EsqParRow;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import pro.mir0n.esquire.common.EsqConstants;
+import pro.mir0n.esquire.common.EsqUtils;
 import pro.mir0n.messaging.RodEvent;
 import pro.mir0n.esquire.audit.AuditBusBridge;
 import pro.mir0n.esquire.enyMan.service.EntityIdGenerator;
@@ -351,7 +353,7 @@ public class UsrService  extends AEnyManService {
         EntityFieldUtils.applyFields(prsn, mprsn, false, kfl.getLayer(), null);
         String name    = prsn.getName();
         String email   = prsn.getEmail();
-        String loginId = email;
+        String loginId = EsqUtils.loginIdOf(email);
 
         // Email uniqueness check -- must be first write guard in the transaction
         if (usrRepository.countByEmail(email) > 0) {

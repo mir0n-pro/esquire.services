@@ -29,7 +29,7 @@ set -uo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SVCS="$(cd "${HERE}/../.." && pwd)"
 HBK="$(cd "${SVCS}/hauberk" && pwd)"
-SEED="$(cd "${SVCS}/../db.seed" && pwd)"
+SEED="$(cd "${SVCS}/../db.seed2" && pwd)"
 STAMP="$(date +%y%m%d-%H%M)"
 RESULTS="${HERE}/results-${STAMP}.md"
 ORA="esq2025/q@//localhost:1521/MIR0N"
@@ -53,7 +53,7 @@ pg_trig_apply()  { cat "${SEED}"/postgres/triggers/esq_*_briud.sql | hpg >/dev/n
 pg_trig_drop()   { hpg <"${SEED}/postgres/triggers/drop.sql" >/dev/null 2>&1; }
 ora_trig_apply() { ( cd "${SEED}/oracle/triggers" && /c/ora19/bin/sqlplus -S "${ORA}" @all.sql  >/dev/null 2>&1 ); }
 ora_trig_drop()  { ( cd "${SEED}/oracle/triggers" && /c/ora19/bin/sqlplus -S "${ORA}" @drop.sql >/dev/null 2>&1 ); }
-# The *_log dedup unique index is an OPTIONAL overlay (db.seed/<db>/dedup/), NOT in the base seed. It is
+# The *_log dedup unique index is an OPTIONAL overlay (db.seed2/<db>/dedup/), NOT in the base seed. It is
 # mutually exclusive with the triggers: a BRIUD trigger fires per DML op, so an in-request insert+update
 # writes two *_log rows with the same dedup key -> the unique index rolls the business write back. So the
 # (a) cell ensures the index is ABSENT before applying triggers (a no-op on the dedup-free base seed; it

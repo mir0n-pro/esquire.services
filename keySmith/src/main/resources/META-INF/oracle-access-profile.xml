@@ -26,6 +26,25 @@
         </query>
     </named-native-query>
 
+    <named-native-query name="EsqAccessProfileJpa.claims"  result-set-mapping="EsqAccessProfileMapping">
+        <query>
+ SELECT usr_pk
+   ,usr_et_pk
+   ,usr_name
+   ,ep_path AS usr_path
+   ,au_login_id
+   ,au_email
+   ,NVL(au_force_change_flg,'N') AS au_force_change_flg
+   ,au_tfa_method
+   ,au_connect_flg
+  ,au_change_no
+  FROM esq_user, esq_auth, esq_entity_path
+ WHERE usr_pk = au_usr_pk
+   AND ep_pk = usr_pk
+   AND au_login_id = :loginId
+        </query>
+    </named-native-query>
+
     <named-native-query name="EsqAccessProfileJpa.roles"  result-set-mapping="EsqRoleMapping">
         <query>
  SELECT role_pk

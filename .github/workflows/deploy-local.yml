@@ -38,15 +38,6 @@ jobs:
         with:
           path: services2
 
-      # The postgres image is built from the 1.2 line on purpose: its Dockerfile COPYs
-      # services/postgres/initdb/init.sh from the workspace root. Only that folder is needed.
-      - name: Checkout services (1.2, postgres only)
-        uses: actions/checkout@v5
-        with:
-          ref: develop
-          path: services
-          sparse-checkout: postgres
-
       # explorer (backend/BFF image) and db.seed (the postgres-image build input, NOT a deployed service)
       # both live in sibling repos. A sprint that touches them has a same-named pending branch; a sprint that
       # does not has none, and must still deploy. The ref is RESOLVED first -- ls-remote asks which branch is
@@ -54,8 +45,7 @@ jobs:
       # it fail painted two red Error lines and a 12-second retry into every otherwise green run.
       #
       # Both spellings are tried because the branch is named pending-1.2.13 here and may be pending-v1.2.13
-      # there. When neither exists: develop2 for the explorer (its 2.0 line), develop for db.seed (the 2.0
-      # line uses the 1.2 database).
+      # there. When neither exists: develop2, the 2.0 line of each.
       - name: Resolve the explorer / db.seed refs
         id: refs
         shell: bash
@@ -81,7 +71,7 @@ jobs:
           }
 
           explorer="$(pick mir0n-pro/esquire.explorer develop2)"
-          dbseed="$(pick mir0n-pro/esquire.db.seed develop)"
+          dbseed="$(pick mir0n-pro/esquire.db.seed develop2)"
           echo "explorer=$explorer" >> "$GITHUB_OUTPUT"
           echo "dbseed=$dbseed"     >> "$GITHUB_OUTPUT"
           echo "explorer -> $explorer"
@@ -99,13 +89,13 @@ jobs:
         with:
           repository: mir0n-pro/esquire.db.seed
           ref: ${{ steps.refs.outputs.dbseed }}
-          path: db.seed
+          path: db.seed2
 
       # Say what was actually checked out. A deploy that silently substitutes develop is the failure this guards.
       - name: Report the refs used
         shell: bash
         run: |
-          for d in explorer2 db.seed services; do
+          for d in explorer2 db.seed2; do
             cd "$d"
             echo "$d built from: $(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo detached) @ $(git rev-parse --short HEAD)"
             cd ..

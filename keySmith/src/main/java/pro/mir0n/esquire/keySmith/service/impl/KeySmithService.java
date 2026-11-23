@@ -60,6 +60,10 @@
  *                   literal, so a name held in a constant never reaches the sheet
  * 10/19/2026 mir0n  v2.0.1 -- esquireKeySave / saveAndSync / saveAccess: the roles parameter removed; the admin
  *                   permissions come from RequestContextUtils.getRoles()
+ * 11/21/2026 mir0n  v2.0.2 -- esquireClaims(loginId): the access profile and its roles as EsqUserClaims, 404
+ *                   when none (meter op claims, span esq.svc.key.claims); a saved access profile is evicted over
+ *                   the claims bus; with the claims bus on, the identity request carries no path and no roles;
+ *                   the login id is saved in lower case
  */
 
 package pro.mir0n.esquire.keySmith.service.impl;
@@ -90,8 +94,10 @@ import pro.mir0n.esquire.backend.storage.EsqEntityDictionaryStorage;
 import pro.mir0n.esquire.backend.storage.EsqRolesStorage;
 import pro.mir0n.esquire.backend.validator.ValidatorFactory;
 import pro.mir0n.esquire.common.EsqConstants;
+import pro.mir0n.esquire.common.EsqUtils;
 import pro.mir0n.esquire.backend.identity.IIdentityGateway;
 import pro.mir0n.esquire.backend.identity.AuthSyncRequest;
+import pro.mir0n.esquire.backend.messaging.ClaimsBusPublisher;
 import pro.mir0n.messaging.BusConstants;
 import pro.mir0n.messaging.RodEvent;
 import pro.mir0n.esquire.audit.AuditBusBridge;
@@ -113,6 +119,7 @@ public class KeySmithService implements IKeySmithService {
 
     private static final String OP_READ = "read";
     private static final String OP_SAVE = "save";
+    private static final String OP_CLAIMS = "claims";
     private static final String OUTCOME_OK = "ok";
     private static final String OUTCOME_ERROR = "error";
 
@@ -127,6 +134,7 @@ public class KeySmithService implements IKeySmithService {
     private EntityManager em;
     private IIdentityGateway identityGateway;
     private AuditBusBridge audit;
+    private ClaimsBusPublisher claimsBus;
 
     @Override
     @EsqTraced(name = "esq.svc.key.read", label = "read access profile")
@@ -169,6 +177,31 @@ public class KeySmithService implements IKeySmithService {
             meterKeyOp(OP_READ, outcome);
         }
         return  ret;
+    }
+
+    @Override
+    @EsqTraced(name = "esq.svc.key.claims", label = "read user claims")
+    public EsqUserClaims esquireClaims(String loginId) {
+        EsqUserClaims ret = null;
+        String outcome = OUTCOME_ERROR;
+        try {
+            EsqAccessProfileJpa jpa = accessProfileRepository.claims(loginId);
+            if (jpa == null) {
+                throw new ResourceNotFoundException("esquireClaims", "loginId", loginId);
+            }
+            List<EsqRoleJpa> roleRows = accessProfileRepository.roles(jpa.getId());
+            List<String> roles = new ArrayList<>(roleRows.size());
+            for (EsqRoleJpa r : roleRows) {
+                roles.add(r.getName());
+            }
+            long changeNo = jpa.getChangeNo() == null ? 0L : jpa.getChangeNo();
+            ret = new EsqUserClaims(jpa.getLoginId(), jpa.getId(), jpa.getPath(), roles, changeNo);
+            devLog.debug("KeySmithService: esquireClaims: loginId:{}, claims:{}", loginId, ret);
+            outcome = OUTCOME_OK;
+        } finally {
+            meterKeyOp(OP_CLAIMS, outcome);
+        }
+        return ret;
     }
 
     @Override
@@ -235,6 +268,7 @@ public class KeySmithService implements IKeySmithService {
         // what keySmith ASKED the identity provider to do; kcMaster's esq.biz.kc.sync.total is what was DONE,
         // and a gap between the two is a sync that never landed
         BizMeters.count("esq.biz.key.identity.total", "op", command);
+        claimsBus.evict(String.valueOf(updated[0].getId()), correlationId, requestId);
 
         List<EsqRole> rolesAll = EsqRolesStorage.getInstance().roles();
         List<EsqPermission> permissions = null;
@@ -289,16 +323,19 @@ public class KeySmithService implements IKeySmithService {
             req.setPwdChangeForced(jpa.getPwdChangeForced());
             req.setTfaMethod(jpa.getTfaMethod());
             req.setConnectFlg(jpa.getConnectFlg());
-            if (created) {
-                req.setPath(jpa.getPath());
-            }
-            List<String> roleNames = new ArrayList<>();
-            if (roles != null) {
-                for (EsqRoleJpa r : roles) {
-                    roleNames.add(r.getName());
+            //xxx: pure OAuth (lab) -- the root path and the roles stay in Esq2025
+            if (!claimsBus.isEnabled()) {
+                if (created) {
+                    req.setPath(jpa.getPath());
                 }
+                List<String> roleNames = new ArrayList<>();
+                if (roles != null) {
+                    for (EsqRoleJpa r : roles) {
+                        roleNames.add(r.getName());
+                    }
+                }
+                req.setRoles(roleNames);
             }
-            req.setRoles(roleNames);
         }
 
         // guarantee a non-null tracking id (the former testReqId; it rides as the requestId on the wire).
@@ -336,6 +373,7 @@ public class KeySmithService implements IKeySmithService {
             throw new PermissionDeniedException("Access Profile", "modify");
         }
         boolean changed = applyFields(jpa, personal, fields);
+        jpa.setLoginId(EsqUtils.loginIdOf(jpa.getLoginId()));
         if ("N".equals(oldConnectFlg[0]) && "Y".equals(jpa.getConnectFlg()) && !"N".equals(jpa.getTfaMethod())) {
             jpa.setTfaMethod("N");
             changed = true;

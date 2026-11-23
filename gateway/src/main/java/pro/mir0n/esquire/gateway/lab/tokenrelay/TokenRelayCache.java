@@ -18,6 +18,7 @@
  *                   credential (Vanilla = client_id key, secret not re-checked; Phantom = jti read unvalidated) --
  *                   harmless while the relay is disabled, a prerequisite to fix before any production use
  * 10/11/2026 mir0n  v1.2.16 -- use ExpiringCache<String instead
+ * 11/21/2026 mir0n  v2.0.2 -- the Armoury 2.0.1 cache names: get, putIfGreater, remove
  */
 package pro.mir0n.esquire.gateway.lab.tokenrelay;
 
@@ -91,7 +92,7 @@ public class TokenRelayCache {
         // NOTE this is a genuine cache, unlike bizTree's taijitu -- which is why a hit/miss meter belongs HERE
         // and was dropped there (taijitu is DB-backed and has no miss path at all).
         Mono<String> ret;
-        ExpiringJwt existing = cache.peek(key);
+        ExpiringJwt existing = cache.get(key);
         if (existing != null && Instant.now().isBefore(existing.expiresAt())) {
             BizMeters.count("esq.biz.gw.tokenrelay.total", "result", "hit");
             devLog.debug("getOrAcquire: cache HIT for key=[{}], expiresAt={}", key, existing.expiresAt());
@@ -101,7 +102,7 @@ public class TokenRelayCache {
             devLog.debug("getOrAcquire: cache MISS for key=[{}] -- acquiring", key);
             ret = delegate.acquire(request)
                     .map(acquired -> {
-                        cache.storeIfGreater(key, acquired);
+                        cache.putIfGreater(key, acquired);
                         return acquired.jwt();
                     });
         }
@@ -114,7 +115,7 @@ public class TokenRelayCache {
      * request hot path.
      */
     public void invalidate(String key) {
-        cache.consume(key);
+        cache.remove(key);
         devLog.debug("invalidate: removed key=[{}]", key);
     }
 

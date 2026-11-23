@@ -40,6 +40,8 @@ data:
   ESQ_GW_VANILLA_CLIENTS:    {{ .Values.tokenRelay.vanilla.clients | default "" | quote }}
   ESQ_GW_PHANTOM_CLIENTS:    {{ .Values.tokenRelay.phantom.clients | default "" | quote }}
   ESQ_GW_EXCHANGE_CLIENT_ID: {{ .Values.tokenRelay.phantom.exchangeClientId | default "" | quote }}
+  ESQ_GW_PURE_OAUTH_CLIENTS:       {{ .Values.pureOAuth.clients | default "" | quote }}
+  ESQ_GW_PURE_OAUTH_CACHE_IDLE_MS: {{ .Values.pureOAuth.cacheIdleMs | default "60000" | quote }}
   # --- resilience (R1): outbound httpclient connection pool (gate -> backends) ---
   GW_POOL_MAX_CONNECTIONS:    {{ .Values.resilience.gwPoolMaxConnections | quote }}
   GW_POOL_ACQUIRE_TIMEOUT_MS: {{ .Values.resilience.gwPoolAcquireTimeoutMs | quote }}

@@ -98,12 +98,12 @@ call mvn -q -DskipTests clean package
 if errorlevel 1 ( popd & echo mvn failed & exit /b 1 )
 popd
 
-rem === Infra image: esquire-postgres:17 (k8s-only). docker compose no longer builds it -- the Postgres
+rem === Infra image: esquire-postgres:17-2.0 (k8s-only). docker compose no longer builds it -- the Postgres
 rem     container was removed from compose (docker uses the external host pg18); the dockerized Postgres
 rem     is exclusively the k8s esquire-infra-postgres StatefulSet. Build it here so the image stays
-rem     available for k8s-up. Context = repo root (../..) so the Dockerfile can COPY db.seed + initdb. ===
-echo [docker] building infra image esquire-postgres:17 (db.seed schema)...
-docker build %NOCACHE% -f ..\postgres\Dockerfile -t esquire-postgres:17 ..\..
+rem     available for k8s-up. Context = repo root (../..) so the Dockerfile can COPY db.seed2 + initdb. ===
+echo [docker] building infra image esquire-postgres:17-2.0 (db.seed2 schema)...
+docker build %NOCACHE% -f ..\postgres\Dockerfile -t esquire-postgres:17-2.0 ..\..
 if errorlevel 1 ( echo postgres image build failed & exit /b 1 )
 rem STAMPED AND DELIVERED, like the broker below. Building :17 alone changes NOTHING: values\postgres.yaml
 rem carries a tag from an earlier stamp, so the chart keeps pulling that older image and the SEED BAKED INTO
@@ -112,7 +112,7 @@ rem missing and the tree cache could not load, on a rebuild that had reported su
 rem ..\k8s-compact\k8s-rebuild.bat; classic was left without it.)
 docker image inspect esquire-postgres:17-%BASE_TS% >nul 2>&1
 if errorlevel 1 ( set "TS=17-%BASE_TS%" ) else ( set "TS=17-%BASE_TS%%MM%" )
-docker tag esquire-postgres:17 esquire-postgres:%TS%
+docker tag esquire-postgres:17-2.0 esquire-postgres:%TS%
 call :patch_yaml postgres
 helm status esquire-infra >nul 2>&1
 if errorlevel 1 (

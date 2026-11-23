@@ -28,6 +28,7 @@
  *                   holdAction: UPDATE_PASSWORD follows forcePasswordChange, CONFIGURE_TOTP is set on
  *                   request and removed on removeTotp, and the write happens only when something changed.
  *                   deleteUser checks and closes the JAX-RS Response, so a refused delete is not SUCCESS
+ * 11/21/2026 mir0n  v2.0.2 -- consume -> getAndRemove
  */
 
 package pro.mir0n.esquire.kcMaster.service.impl;
@@ -138,7 +139,7 @@ public class KcIdentityService implements IKcIdentityService {
                 && !attributes.get(EsqConstants.JWT_CLAIM_ENTITY_ID).isEmpty())
                 ? attributes.get(EsqConstants.JWT_CLAIM_ENTITY_ID).get(0) : null;
         if (entityId != null) {
-            ParkedPath buffered = pathBuffer.consume(entityId);
+            ParkedPath buffered = pathBuffer.getAndRemove(entityId);
             if (buffered != null) {
                 // The park keeps the NEWEST move, so this is the last known path, not merely the last one to
                 // arrive on the topic (T11). The number is logged, never compared here -- there is nothing on

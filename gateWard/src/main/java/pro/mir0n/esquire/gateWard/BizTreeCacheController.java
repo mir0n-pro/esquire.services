@@ -13,6 +13,8 @@
  *                   stamps (out from the gate, in the ward) for TreeRouteTimingFilter
  * 08/26/2026 mir0n  each tree read is wrapped in its own TraceMark span -- read tree, read subtree, read path
  * 10/19/2026 mir0n  v2.0.1 -- the request context carries the caller's realm roles from the token
+ * 11/17/2026 mir0n  v2.0.2 -- context(): uid / rootPath / roles from the X-Esq-* headers when the token carries
+ *                   no esq_uid (pure OAuth)
  */
 
 package pro.mir0n.esquire.gateWard;
@@ -91,7 +93,7 @@ public class BizTreeCacheController {
             @RequestHeader(name = EsqConstants.X_REQUEST_ID, required = false) String requestId,
             @RequestHeader(name = EsqConstants.X_CORRELATION_ID, required = false) String correlationId,
             ServerWebExchange exchange) {
-        return onCache(exchange, context(jwt, requestId, correlationId),
+        return onCache(exchange, context(exchange, jwt, requestId, correlationId),
                 () -> director.esquire(id, skip, take), "esquire", id, OBS_TREE, "read tree");
     }
 
@@ -102,7 +104,7 @@ public class BizTreeCacheController {
             @RequestHeader(name = EsqConstants.X_REQUEST_ID, required = false) String requestId,
             @RequestHeader(name = EsqConstants.X_CORRELATION_ID, required = false) String correlationId,
             ServerWebExchange exchange) {
-        return onCache(exchange, context(jwt, requestId, correlationId),
+        return onCache(exchange, context(exchange, jwt, requestId, correlationId),
                 () -> director.esquireSubtree(id), "esquireSubtree", id, OBS_SUBTREE, "read subtree");
     }
 
@@ -113,7 +115,7 @@ public class BizTreeCacheController {
             @RequestHeader(name = EsqConstants.X_REQUEST_ID, required = false) String requestId,
             @RequestHeader(name = EsqConstants.X_CORRELATION_ID, required = false) String correlationId,
             ServerWebExchange exchange) {
-        return onCache(exchange, context(jwt, requestId, correlationId),
+        return onCache(exchange, context(exchange, jwt, requestId, correlationId),
                 () -> director.esquirePath(id), "esquirePath", id, OBS_PATH, "read path");
     }
 
@@ -126,7 +128,7 @@ public class BizTreeCacheController {
             @RequestHeader(name = EsqConstants.X_REQUEST_ID, required = false) String requestId,
             @RequestHeader(name = EsqConstants.X_CORRELATION_ID, required = false) String correlationId,
             ServerWebExchange exchange) {
-        return onCacheNode(exchange, context(jwt, requestId, correlationId), kind, id, name);
+        return onCacheNode(exchange, context(exchange, jwt, requestId, correlationId), kind, id, name);
     }
 
     /**
@@ -150,7 +152,7 @@ public class BizTreeCacheController {
     private static final String OBS_NODE    = "esq.svc.node";
 
     /** The caller, taken from the verified token on the request side while the JWT is still in hand. */
-    private EsqRequestContext context(Jwt jwt, String requestId, String correlationId) {
+    private EsqRequestContext context(ServerWebExchange exchange, Jwt jwt, String requestId, String correlationId) {
         String uid      = (jwt != null) ? jwt.getClaimAsString(EsqConstants.JWT_CLAIM_ENTITY_ID) : null;
         String rootPath = (jwt != null) ? jwt.getClaimAsString(EsqConstants.JWT_CLAIM_ENTITY_ROOTPATH) : null;
         List<String> roles = null;
@@ -161,9 +163,27 @@ public class BizTreeCacheController {
                 roles.add(String.valueOf(role));
             }
         }
+        //xxx: a pure OAuth token carries no Esquire claims -- the gateway's header filter set them on the
+        // request (and stripped any inbound copies), so a header here is the gateway's own
+        String headerUid = exchange.getRequest().getHeaders().getFirst(EsqConstants.X_ESQ_UID);
+        if (uid == null && headerUid != null) {
+            uid      = headerUid;
+            rootPath = exchange.getRequest().getHeaders().getFirst(EsqConstants.X_ESQ_ROOT_PATH);
+            roles    = rolesOf(exchange.getRequest().getHeaders().getFirst(EsqConstants.X_ESQ_ROLES));
+        }
 
         EsqRequestContext ret = new EsqRequestContext(correlationId, requestId, uid, rootPath, roles);
 
+        return ret;
+    }
+
+    private static List<String> rolesOf(String header) {
+        List<String> ret = new ArrayList<>();
+        if (header != null && !header.isBlank()) {
+            for (String role : header.split(",")) {
+                ret.add(role.trim());
+            }
+        }
         return ret;
     }
 

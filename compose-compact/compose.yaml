@@ -1,6 +1,6 @@
 name: esq-compact
 services:
-  # Postgres runs as a CONTAINER (esquire-postgres:17, built from db.seed via services/postgres/Dockerfile) --
+  # Postgres runs as a CONTAINER (esquire-postgres:17-2.0, built from db.seed2 via services2/postgres/Dockerfile) --
   # the same image k8s uses. The five DB-backed services reach it at postgres:5432 (DB_*_HOST defaults
   # below). It seeds on first init (empty volume); host access is on :5433 (the host's own pg keeps :5432).
 
@@ -8,8 +8,8 @@ services:
     container_name: esqc-postgres
     build:
       context: ../..
-      dockerfile: services/postgres/Dockerfile
-    image: esquire-postgres:17
+      dockerfile: services2/postgres/Dockerfile
+    image: esquire-postgres:17-2.0
     # Raise max_connections to 200 (stock default is 100): the five DB services' Hikari pools
     # (up to 2 pools x 10 each) sit near 90 at idle and would exhaust 100 on a rolling restart.
     # Matches the k8s postgres chart (maxConnections 200).
@@ -152,6 +152,8 @@ services:
       - "3003:3003"
     environment:
       - MESNIE_PORT=3003
+      # Pure OAuth (lab): on = no root path / roles to KeyCloak, and a change evicts the gateway claims cache
+      - ESQ_PURE_OAUTH=${ESQ_PURE_OAUTH:-false}
       - LOG_LEVEL_ROOT=ERROR
       - LOG_LEVEL_SF=ERROR
       - LOG_LEVEL_MIR0N=${LOG_LEVEL_MIR0N:-DEBUG}
@@ -441,6 +443,10 @@ services:
       - ESQ_GW_PHANTOM_CLIENTS=esq-hauberk-M
       - ESQ_GW_EXCHANGE_CLIENT_ID=esq-gw-exchange
       - ESQ_GW_EXCHANGE_CLIENT_SECRET=esq-gw-exchange-dev-secret-rotate-in-prod
+      # Pure OAuth (lab) -- the two pure clients' tokens carry no Esquire claims; gateWard asks keySmith
+      # in mesnie for them (KEYSMITH_HOST/KEYSMITH_PORT above make the claims URI).
+      - ESQ_GW_PURE_OAUTH_CLIENTS=esq-angular-pure-oauth,esq-hauberk-P
+      - ESQ_GW_PURE_OAUTH_CACHE_IDLE_MS=${ESQ_GW_PURE_OAUTH_CACHE_IDLE_MS:-60000}
       # --- the ward: the cache this process now holds, and the database it fills itself from ---
       - DB_BIZTREE_VENDOR=${DB_BIZTREE_VENDOR:-dev-postgres}
       - DB_BIZTREE_PORT=${DB_BIZTREE_PORT:-5432}

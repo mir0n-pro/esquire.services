@@ -13,7 +13,10 @@ import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.transaction.support.TransactionCallback;
 import org.springframework.transaction.support.TransactionTemplate;
+import pro.mir0n.esquire.backend.messaging.ClaimsBusPublisher;
 import pro.mir0n.esquire.backend.dto.access.EsqAccessProfile;
+import pro.mir0n.esquire.backend.dto.access.EsqUserClaims;
+import pro.mir0n.esquire.backend.jpa.access.EsqRoleJpa;
 import pro.mir0n.esquire.backend.error.InvalidValueException;
 import pro.mir0n.esquire.backend.error.MissingRequestIdException;
 import pro.mir0n.esquire.backend.error.PermissionDeniedException;
@@ -65,7 +68,8 @@ class KeySmithServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new KeySmithService(accessProfileRepository, transactionTemplate, em, identityGateway, audit);
+        service = new KeySmithService(accessProfileRepository, transactionTemplate, em, identityGateway, audit,
+                new ClaimsBusPublisher(false));
         // Default context for the majority of tests (rootPath "/root", uid "uid-1");
         // the three "1.2.3" / "uid-99" tests override it.
         ctx("/root", "uid-1");
@@ -432,6 +436,69 @@ class KeySmithServiceTest {
             EsqAccessProfile result = saveAs(List.of("ADMIN"), "target-1", Map.of("connectFlg", "Y"));
             assertThat(result.getTfaMethod()).isEqualTo("N");
         }
+    }
+
+    // =========================================================
+    // esquireClaims: the gateway's lookup by login id
+    // =========================================================
+
+    private EsqRoleJpa role(String name) {
+        EsqRoleJpa ret = new EsqRoleJpa();
+        ret.setName(name);
+        return ret;
+    }
+
+    @Test
+    @DisplayName("esquireClaims: uid, root path, role names and change number of the login id's access profile")
+    void esquireClaims_found_returnsClaims() {
+        EsqAccessProfileJpa jpa = jpaWith("N", "N", "esq-hauberk-S@mir0n.pro");
+        jpa.setId("16");
+        jpa.setPath("1.14.");
+        jpa.setChangeNo(3L);
+        when(accessProfileRepository.claims("esq-hauberk-s@mir0n.pro")).thenReturn(jpa);
+        when(accessProfileRepository.roles("16")).thenReturn(List.of(role("SUPERVIZOR"), role("TREE")));
+
+        EsqUserClaims claims = service.esquireClaims("esq-hauberk-s@mir0n.pro");
+
+        assertThat(claims).isEqualTo(new EsqUserClaims("esq-hauberk-S@mir0n.pro", "16", "1.14.",
+                List.of("SUPERVIZOR", "TREE"), 3L));
+    }
+
+    @Test
+    @DisplayName("esquireClaims: needs no request context -- the gateway asks before any claim is known")
+    void esquireClaims_noContext_stillAnswers() {
+        EsqContextHolder.clear();
+        EsqAccessProfileJpa jpa = jpaWith("Y", "N", "mainadmin");
+        jpa.setId("5");
+        when(accessProfileRepository.claims("mainadmin")).thenReturn(jpa);
+        when(accessProfileRepository.roles("5")).thenReturn(List.of());
+
+        EsqUserClaims claims = service.esquireClaims("mainadmin");
+
+        assertThat(claims.uid()).isEqualTo("5");
+        assertThat(claims.roles()).isEmpty();
+        assertThat(claims.changeNo()).isZero();
+    }
+
+    @Test
+    @DisplayName("esquireClaims: unknown login id -> ResourceNotFoundException, roles never read")
+    void esquireClaims_notFound_throwsResourceNotFoundException() {
+        when(accessProfileRepository.claims("nobody")).thenReturn(null);
+
+        assertThatThrownBy(() -> service.esquireClaims("nobody"))
+                .isInstanceOf(ResourceNotFoundException.class);
+        verify(accessProfileRepository, never()).roles(any());
+    }
+
+    @Test
+    @DisplayName("EsqUserClaims order: the same user by change number, another user always greater")
+    void userClaims_orderedByChangeNumber() {
+        EsqUserClaims older = new EsqUserClaims("u", "1", "1.", List.of("TREE"), 4L);
+        EsqUserClaims newer = new EsqUserClaims("u", "1", "1.2.", List.of(), 5L);
+
+        assertThat(newer.compareTo(older)).isPositive();
+        assertThat(older.compareTo(newer)).isNegative();
+        assertThat(older.compareTo(new EsqUserClaims("x", "9", "9.", List.of(), 4L))).isPositive();
     }
 
 }

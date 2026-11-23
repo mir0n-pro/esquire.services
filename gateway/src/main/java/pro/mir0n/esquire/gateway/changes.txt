@@ -1,5 +1,45 @@
 Esquire Gateway Microservice
 
+11/22/2026 mir0n  v2.0.2 -- pure OAuth (lab): the gateway takes the claims from keySmith
+lab.pureoauth.IUserClaimsClient  (new)
+  - created (v2.0.2): pure OAuth (lab) -- fetch(loginId): the claims of a login id
+lab.pureoauth.WebClientUserClaimsClient  (new)
+  - created (v2.0.2): pure OAuth (lab) -- GET claims-uri?loginId= (the login id strictly encoded); a 404 is a
+    BadCredentialsException
+lab.pureoauth.PureOAuthClaimsCache  (new)
+  - created (v2.0.2): pure OAuth (lab) -- the claims keyed by the lower-cased login id in an Armoury
+    KeyedExpiringCache (AFTER_ACCESS, evicted by uid); a miss asks keySmith through the read-through get, and
+    an answer an eviction overtook is asked again; meter esq.biz.gw.pureoauth.total, result hit / miss / stale
+lab.pureoauth.PureOAuthAuthenticationConverter  (new)
+  - created (v2.0.2): pure OAuth (lab) -- for a token whose azp is on the pure list, the authentication is
+    built from the cached claims (ROLE_ authorities, the claims on its details); a failed lookup becomes an
+    AuthenticationServiceException with its cause kept; any other token goes to the claims-mode converter
+lab.pureoauth.PureOAuthHeaderFilter  (new)
+  - created (v2.0.2): pure OAuth (lab) -- strips inbound X-Esq-UID / X-Esq-Root-Path / X-Esq-Roles for every
+    caller, and sets them from the claims on the authentication's details
+lab.pureoauth.PureOAuthEvictionListener  (new)
+  - created (v2.0.2): pure OAuth (lab) -- the claims-bus worker: a DELETE of an access profile evicts its uid
+    from PureOAuthClaimsCache; off, it takes no rod
+config.SecurityConfig
+  - pure OAuth (lab): the esq.gateway.pure-oauth.* settings; the PureOAuthClaimsCache bean (a WebClient under
+    the routes' connect timeout and claims-timeout-ms; started only when a client is listed, and claims-uri
+    required then) and the PureOAuthEvictionListener bean; the JWT authentication converter is
+    PureOAuthAuthenticationConverter, PureOAuthHeaderFilter runs LAST, and EsqClaimsValidator gets the pure
+    client list
+security.EsqClaimsValidator
+  - a token whose azp is on the pure OAuth list needs only sub and preferred_username; any other token is
+    checked for the Esquire claims as before
+bus.BizBusRoutingFilter
+  - uid / rootPath / roles from the X-Esq-* headers when the gateway set them (pure OAuth), else from the
+    token
+GatewayApplication
+  - the claims bus is built beside the biz bus while esq.gateway.pure-oauth.clients is not empty
+lab.tokenrelay.TokenRelayCache
+  - the Armoury 2.0.1 cache names: get, putIfGreater, remove
+resources/application.yml
+  - esq.gateway.pure-oauth: clients (ESQ_GW_PURE_OAUTH_CLIENTS, empty = off), cache-idle-ms, claims-uri
+    (keySmith /esq-claims), claims-timeout-ms; the claims-bus leg (bus esquire.claims, slot claims, CLIENT)
+
 10/22/2026 mir0n  v2.0.1 -- the account routes over the biz bus to paacMan
 bus.BizBusClient  (new)
   - created: the CLIENT end of the biz bus: send() posts a command and returns a Mono that completes with the
