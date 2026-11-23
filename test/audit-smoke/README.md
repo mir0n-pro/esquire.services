@@ -113,7 +113,7 @@ false pass:
 
 ```
 cd services/compose
-docker compose build postgres                    # the seed is BAKED INTO the image (db.seed/postgres/*)
+docker compose build postgres                    # the seed is BAKED INTO the image (db.seed2/postgres/*)
 docker compose down
 docker volume rm esq-omnibus_postgres-data       # postgres data is a NAMED VOLUME, not a bind mount
 docker compose up -d

@@ -11,7 +11,7 @@
 # inside it.
 # The seed is what Esquire puts in here, so this pin moves when db.seed does -- and DB_VERSION with it.
 ARG BASE=postgres:17
-ARG PIN=v1.2.15-2609.0618
+ARG PIN=v2.0.2-2611.2114
 
 FROM ${BASE}
 ARG BASE
@@ -19,13 +19,13 @@ ARG PIN
 LABEL pro.mir0n.esquire.base="${BASE}"
 LABEL pro.mir0n.esquire.pin="${PIN}"
 
-COPY db.seed/postgres/create     /db-seed/create
-COPY db.seed/postgres/create.log /db-seed/create.log
-COPY db.seed/postgres/triggers   /db-seed/triggers
-COPY db.seed/postgres/fill       /db-seed/fill
+COPY db.seed2/postgres/create     /db-seed/create
+COPY db.seed2/postgres/create.log /db-seed/create.log
+COPY db.seed2/postgres/triggers   /db-seed/triggers
+COPY db.seed2/postgres/fill       /db-seed/fill
 RUN chown -R postgres:postgres /db-seed
 
-COPY services/postgres/initdb/init.sh /docker-entrypoint-initdb.d/init.sh
+COPY services2/postgres/initdb/init.sh /docker-entrypoint-initdb.d/init.sh
 # The CR strip is not paranoia -- this image shipped BROKEN for months. A Windows checkout with
 # core.autocrlf=true hands over CRLF, the shebang becomes "#!/bin/bash\r", and the kernel looks for an
 # interpreter literally called "bash\r". Postgres then dies at start-up with

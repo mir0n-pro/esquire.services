@@ -29,8 +29,7 @@ rem Layout expected in the runner workspace (set by the workflow's checkouts):
 rem   <workspace>\services2\  (this repo, the 2.0 line; compose.yaml lives at services2\compose\)
 rem   <workspace>\explorer2\  (sibling -- compose.yaml backend/frontend build
 rem                            contexts point at ..\..\explorer2\ )
-rem   <workspace>\services\   (the 1.2 line, postgres\ only -- the postgres image COPYs its init.sh)
-rem   <workspace>\db.seed\    (the postgres image's schema)
+rem   <workspace>\db.seed2\   (the postgres image's schema, the 2.0 line)
 rem
 rem HERE = <workspace>\services2\.github\scripts\  ->  compose is at ..\..\compose
 rem ===========================================================================

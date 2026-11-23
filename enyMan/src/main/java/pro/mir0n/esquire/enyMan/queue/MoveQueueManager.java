@@ -56,6 +56,8 @@
  *                   in the header, and the reconcile reissue reads both back
  * 10/19/2026 mir0n  v2.0.1 -- the queued move binds the item's roles into the EsqRequestContext; the org / usr move
  *                   calls drop the roles argument
+ * 11/18/2026 mir0n  v2.0.2 -- with the claims bus on, a moved user is evicted over it in place of the path
+ *                   request to KeyCloak; a failed eviction is logged
  */
 
 package pro.mir0n.esquire.enyMan.queue;
@@ -88,6 +90,7 @@ import pro.mir0n.esquire.enyMan.jpa.EsqUsrRepository;
 import pro.mir0n.esquire.enyMan.messaging.EntityBusAdapter;
 import pro.mir0n.esquire.backend.identity.IIdentityGateway;
 import pro.mir0n.esquire.backend.identity.AuthSyncRequest;
+import pro.mir0n.esquire.backend.messaging.ClaimsBusPublisher;
 import pro.mir0n.esquire.enyMan.service.IEnyManService;
 import pro.mir0n.esquire.enyMan.service.impl.OrgService;
 import pro.mir0n.esquire.enyMan.service.impl.UsrService;
@@ -124,6 +127,7 @@ public class MoveQueueManager implements IQueueRig.IQueueWorker<MoveQueueItem>,
     private final EntityBusAdapter broadcastPublisher;
     private final IIdentityGateway identityGateway;
     private final EntityPathLookup pathLookup;
+    private final ClaimsBusPublisher claimsBus;
 
     private final int capacity;
 
@@ -136,6 +140,7 @@ public class MoveQueueManager implements IQueueRig.IQueueWorker<MoveQueueItem>,
                             IIdentityGateway identityGateway,
                             EntityPathLookup pathLookup,
                             AuditBusBridge audit,
+                            ClaimsBusPublisher claimsBus,
                             @Value("${enyman.move-queue.capacity:1024}") int capacity,
                             @Value("${enyman.move-queue.tx-timeout-s:0}") int moveTxTimeoutS,
                             @Value("${enyman.move-queue.in-move-grace-ms:200}") long inMoveGraceMs) {
@@ -151,6 +156,7 @@ public class MoveQueueManager implements IQueueRig.IQueueWorker<MoveQueueItem>,
         this.broadcastPublisher = broadcastPublisher;
         this.identityGateway = identityGateway;
         this.pathLookup = pathLookup;
+        this.claimsBus = claimsBus;
         this.capacity = capacity;
         this.graceNanos = inMoveGraceMs * 1_000_000L;
         this.rig = new BoundedQueueRig<>(this);
@@ -383,9 +389,17 @@ public class MoveQueueManager implements IQueueRig.IQueueWorker<MoveQueueItem>,
     }
 
     // The moved path goes to the identity provider only for USR entities -- only USRs have an identity there.
+    //xxx: pure OAuth (lab) -- the provider holds no path: the user leaves the gateway's cache instead
     private void publishKcMoveRequest(EsqMoveRecord record, String requestId, String correlationId) {
         EsqObjectKind eek = EsqObjectKindStorage.getInstance().get(record.getKind());
-        if (eek.isUsr()) {
+        if (eek.isUsr() && claimsBus.isEnabled()) {
+            try {
+                claimsBus.evict(record.getId(), correlationId, requestId);
+            } catch (Exception e) {
+                log.error("publishKcMoveRequest: eviction failed for id={}: {}", record.getId(), e.getMessage());
+                devLog.error("publishKcMoveRequest: eviction failed for id={}: {}", record.getId(), e.getMessage(), e);
+            }
+        } else if (eek.isUsr()) {
             try {
                 AuthSyncRequest req = new AuthSyncRequest();
                 req.setId(record.getId());

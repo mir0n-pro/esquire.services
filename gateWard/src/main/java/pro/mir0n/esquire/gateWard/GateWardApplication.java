@@ -14,6 +14,8 @@
  *                   GateWardMeterOwner, handed the entity bus id from the property the bus itself reads
  * 10/19/2026 mir0n  v2.0.1 -- the bus registrar builds the biz bus beside the entity bus; the meter owner reads the
  *                   entity bus id under BusConstants.CONFIG_ROOT
+ * 11/18/2026 mir0n  v2.0.2 -- the claims bus is built beside the entity and biz buses while
+ *                   esq.gateway.pure-oauth.clients is not empty
  */
 
 package pro.mir0n.esquire.gateWard;
@@ -120,7 +122,12 @@ public class GateWardApplication {
         public void onApplicationEvent(ApplicationEvent event) {
             MessagingBus bus = MessagingBus.getInstance();
             if (event instanceof ApplicationEnvironmentPreparedEvent e) {
-                bus.init(e.getEnvironment(), new String[]{EsqConstants.BUS_KEY_ENTITY, EsqConstants.BUS_KEY_BIZ});
+                String[] keys = {EsqConstants.BUS_KEY_ENTITY, EsqConstants.BUS_KEY_BIZ};
+                String pureClients = e.getEnvironment().getProperty(EsqConstants.PROP_PURE_OAUTH_CLIENTS, "");
+                if (!pureClients.isBlank()) {
+                    keys = new String[]{EsqConstants.BUS_KEY_ENTITY, EsqConstants.BUS_KEY_BIZ, EsqConstants.BUS_KEY_CLAIMS};
+                }
+                bus.init(e.getEnvironment(), keys);
                 devLog.debug("MessagingBus initiated (rods built, paused)");
             } else if (event instanceof ApplicationReadyEvent e) {
                 bus.start();                             // run them -- traffic flows only from here

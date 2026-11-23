@@ -34,6 +34,27 @@ herald:
                 # publications -- the moving instance reconciles only a PEER instance's create-during-move. Inert
                 # for pure consumers (bizTree / kcMaster publish nothing) and publish-only producers (no consumer).
                 noLocal: true
+    # --- pure OAuth (lab), claims eviction (topic): keySmith / enyMan publish, every gateway replica removes the
+    #     user from its own claims cache. Built only on a stack in the pure mode. ---
+    - bus-id: esquire.claims
+      slots:
+        - slot-id: claims
+          x-rod:
+            receiver-pool:
+              size: 1
+              mode: platform
+            concurrency: 1
+            publisher-pool:
+              size: 0
+              mode: platform
+            transport:
+              provider: activemq
+              endpoint: failover:(tcp://activemq:61616)?timeout=3000
+              destination: esquire.claims.broadcast
+              params:
+                pubSubDomain: true
+                # MUST agree with the broker (activemq.xml: persistent="false").
+                persistent: false
     # --- KeyCloak request/response (R&R, two nodes): enyMan/keySmith CLIENT, kcMaster SERVER ---
     - bus-id: esquire.kc
       slots:

@@ -11,6 +11,7 @@
 #                   (compose/o11y-verify.bat for docker, k8s/o11y-verify.bat for the cluster) sets ONLY the
 #                   addresses, because the stack itself is identical everywhere (same meters, gauges, services)
 #                   and only Prometheus/Loki/Tempo live at different URLs. Same shape as e2e-test.bat / e2e-k8s.bat.
+# 11/18/2026 mir0n  v2.0.2 -- esq_biz_gw_pureoauth_total and esq_svc_key_claims_seconds in the expected meters
 """
 Verify the Esquire observability stack is wired end to end, LIVE.
 
@@ -125,6 +126,8 @@ METERS_CONDITIONAL = [     # legitimately EMPTY until the condition happens -- W
     "esq_biz_key_identity_total",                 # only when a save actually asks the identity provider for
                                                   # something -- a read-only run never fires it
     "esq_biz_move_processed_total", "esq_biz_gw_tokenrelay_total", "esq_biz_gw_tokenrelay_acquire_total",
+    "esq_biz_gw_pureoauth_total",                 # the pure OAuth claim cache (hit | miss): empty unless a
+                                                  # client is on esq.gateway.pure-oauth.clients
     "esq_biz_gw_tokenrelay_duration_seconds",
     "messaging_error_total", "messaging_retry_backoff", "messaging_retry_dropped_total",
     # ---- I48: the @EsqTraced / EsqTraceMark OPERATION marks. -------------------------------------------------
@@ -143,7 +146,7 @@ METERS_CONDITIONAL = [     # legitimately EMPTY until the condition happens -- W
     "esq_svc_cache_seconds",
     "esq_svc_read_seconds", "esq_svc_save_seconds", "esq_svc_create_seconds", "esq_svc_delete_seconds",
     "esq_svc_move_seconds",
-    "esq_svc_key_read_seconds", "esq_svc_key_save_seconds",
+    "esq_svc_key_read_seconds", "esq_svc_key_save_seconds", "esq_svc_key_claims_seconds",
     "esq_svc_acct_read_seconds", "esq_svc_acct_save_seconds", "esq_svc_acct_delete_seconds",
     "esq_svc_acct_tx_seconds",
     "esq_async_seconds", "herald_keep_apply_seconds",

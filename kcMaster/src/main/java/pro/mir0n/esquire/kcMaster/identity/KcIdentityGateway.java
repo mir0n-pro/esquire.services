@@ -15,6 +15,8 @@
  *                   with JacksonProvider and connect / read timeouts -- and implements
  *                   IQueueRig.IErrorListener so a worker throw is recorded rather than lost
  * 10/19/2026 mir0n  v2.0.1 -- the trace comment names herald.keep.apply and herald.keep.write.*
+ * 11/21/2026 mir0n  v2.0.2 -- esq.pure-oauth read and logged; on, a moved path is not parked; storeIfGreater ->
+ *                   putIfGreater
  */
 package pro.mir0n.esquire.kcMaster.identity;
 
@@ -93,6 +95,7 @@ public class KcIdentityGateway implements IIdentityGateway, IQueueRig.IQueueWork
     /** The race-8c park, shared with KcIdentityService.createUser, which drains it. */
     private final ExpiringCache<String, ParkedPath> pathBuffer;
     private final KcRequestHandler handler;
+    private final boolean pureOAuth;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     private final BoundedQueueRig<RodEvent> rig = new BoundedQueueRig<>(this);
@@ -138,7 +141,8 @@ public class KcIdentityGateway implements IIdentityGateway, IQueueRig.IQueueWork
         this.pathBuffer = new ExpiringCache<>(
                 LoggerFactory.getLogger("develop.kcmaster.path-buffer"), ttlMs, pruneMs);
 
-        this.handler  = new KcRequestHandler(new KcIdentityService(keycloak, kcConnection, pathBuffer));
+        this.pureOAuth = env.getProperty(EsqConstants.PROP_PURE_OAUTH, Boolean.class, Boolean.FALSE);
+        this.handler  = new KcRequestHandler(new KcIdentityService(keycloak, kcConnection, pathBuffer), pureOAuth);
         this.capacity = env.getProperty(PROP_QUEUE_CAPACITY, Integer.class, 4096);
 
         // A component whose behaviour is switched by config must say what config it got: with the park
@@ -147,9 +151,9 @@ public class KcIdentityGateway implements IIdentityGateway, IQueueRig.IQueueWork
         if (ttlMs <= 0) {
             parkNote = "  (PARK DISABLED -- every consume returns null)";
         }
-        log.info("KC | GATEWAY | realm={} connectTimeoutMs={} readTimeoutMs={} parkTtlMs={} parkPruneMs={} queueCapacity={}{}",
+        log.info("KC | GATEWAY | realm={} connectTimeoutMs={} readTimeoutMs={} parkTtlMs={} parkPruneMs={} queueCapacity={} pureOAuth={}{}",
                 kcConnection.getRealm(), kcConnection.getConnectTimeoutMs(), kcConnection.getReadTimeoutMs(),
-                ttlMs, pruneMs, capacity, parkNote);
+                ttlMs, pruneMs, capacity, pureOAuth, parkNote);
     }
 
     /**
@@ -285,7 +289,10 @@ public class KcIdentityGateway implements IIdentityGateway, IQueueRig.IQueueWork
     private void serveBroadcast(RodEvent event) {
         String newPath = event.body() != null && event.body().get(EsqConstants.TEXT_PATH) != null
                 ? event.body().get(EsqConstants.TEXT_PATH).toString() : null;
-        if (event.op() != RodEvent.Op.UPDATE_PATH) {
+        if (pureOAuth) {
+            //xxx: pure OAuth (lab) -- KeyCloak holds no root path, so a move has nothing to park
+            devLog.debug("KC | TOPIC-X | entityId={} : pure OAuth, no path is kept in KeyCloak", event.entityId());
+        } else if (event.op() != RodEvent.Op.UPDATE_PATH) {
             // Only a MOVE drives the park. Other broadcasts carry a path too -- a create's path is the path it
             // was born at -- and parking one would hold a path nothing is waiting for.
             devLog.debug("KC | TOPIC-X | entityId={} : op {} is not a move, skipping", event.entityId(), event.opCode());
@@ -295,9 +302,9 @@ public class KcIdentityGateway implements IIdentityGateway, IQueueRig.IQueueWork
             // The request owns the update for an identity that exists. The broadcast side stays passive.
             devLog.debug("KC | TOPIC-X | entityId={} : KC user exists, the request owns the update", event.entityId());
         } else {
-            // storeIfGreater orders by the PATH change number the event carries, so two moves of the same
+            // putIfGreater orders by the PATH change number the event carries, so two moves of the same
             // entity settle on the newest in one atomic step rather than on the last to arrive.
-            boolean parked = pathBuffer.storeIfGreater(event.entityId(), new ParkedPath(newPath, event.changeNo()));
+            boolean parked = pathBuffer.putIfGreater(event.entityId(), new ParkedPath(newPath, event.changeNo()));
             if (parked) {
                 log.info("KC | TOPIC-X | entityId={} | path={} | changeNo={} | BUFFERED (no KC user yet, parked={})",
                         event.entityId(), newPath, event.changeNo(), pathBuffer.size());

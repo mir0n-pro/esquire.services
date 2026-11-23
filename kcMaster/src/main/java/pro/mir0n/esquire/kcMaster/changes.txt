@@ -1,5 +1,16 @@
 Esquire kcMaster Microservice
 
+11/22/2026 mir0n  v2.0.2 -- pure OAuth (lab): no root path and no roles in KeyCloak
+identity.KcIdentityGateway
+  - esq.pure-oauth read and logged; on, a moved path is not parked; storeIfGreater -> putIfGreater
+messaging.KcRequestHandler
+  - with pure OAuth on, no root path attribute and no realm roles reach KeyCloak (null roles leave the realm
+    roles as they are); the constructor written out in place of Lombok's
+service.impl.KcIdentityService
+  - consume -> getAndRemove
+resources/application.yml
+  - esq.pure-oauth (ESQ_PURE_OAUTH, default false)
+
 10/22/2026 mir0n  v2.0.1 -- the bus refs under herald
 identity.KcIdentityGateway
   - the trace comment names herald.keep.apply and herald.keep.write.*

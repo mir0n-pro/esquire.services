@@ -46,13 +46,13 @@ docker buildx use desktop-linux 2>nul || docker buildx use default
 
 rem Project layout (workspace; not the git repo):
 rem   C:\MyProjects\esquire\
-rem     db.seed\          (used as build input by postgres)
+rem     db.seed2\         (used as build input by postgres)
 rem     services2\        (this folder lives here)
 rem       mesnie\         (Dockerfile + target\*.jar)
 rem       gateWard\
 rem       pacMan\
 rem       paacMan\
-rem       postgres\       (Dockerfile; context = ..\..\ to access db.seed)
+rem       postgres\       (Dockerfile; context = ..\..\ to access db.seed2)
 rem       keycloak\       (Dockerfile.keycloak; context = .)
 rem       activemq\       (Dockerfile; context = .)
 rem       k8s-oci-compact\ (this script)
@@ -166,7 +166,7 @@ docker buildx build --platform %PLATFORMS% ^
 exit /b 0
 
 :pushPostgres
-rem Context = esquire root; Dockerfile copies db.seed and services/postgres/initdb.
+rem Context = esquire root; Dockerfile copies db.seed2 and services2/postgres/initdb.
 echo --- Building postgres (multi-arch)...
 docker buildx build --platform %PLATFORMS% ^
   -t %REGISTRY%/esquire-postgres:%TAG% ^

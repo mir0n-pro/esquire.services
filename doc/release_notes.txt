@@ -1,6 +1,40 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v2.0.2-2611.2217  v2.0.2 -- pure OAuth, a lab mode: the claims leave the token
+    :Feature:     pure OAuth (lab): the token carries no Esquire claims; the gateway takes them from
+                  keySmith and keeps them while they are asked for
+    :Feature:     a change to a user's access, or a move, removes that user from the cache of every
+                  gateway at once, over the message bus
+    :Feature:     a lookup and a removal that run at the same time never leave the old claims in the
+                  cache
+    :Fix:         login ids are kept in lower case, the way Keycloak keeps its user names, and a
+                  lookup by login id is an exact match
+    :Config:      the mode is off by default on every target; on docker and local Kubernetes the two
+                  pure clients are listed at the gateway, and one setting on the services turns it on
+    :Config:      Keycloak: two new clients for the mode, esq-angular-pure-oauth and esq-hauberk-P
+    :Config:      the database image is built from the 2.0 seed line, db.seed2, as esquire-postgres:17-2.0
+    :Config:      the services use Armoury 2.0.1
+    :Config:      OKE runs the claims mode only; its e2e run skips the pure OAuth token spec
+    :Feature:     hauberk: the perf matrix measures the load as the pure client on docker, classic and
+                  compact
+    Components:   gateway,
+                  gateWard,
+                  keySmith,
+                  enyMan,
+                  kcMaster,
+                  mesnie,
+                  common,
+                  keycloak,
+                  postgres,
+                  compose,
+                  compose-compact,
+                  k8s,
+                  k8s-compact,
+                  k8s-oci,
+                  k8s-oci-compact,
+                  hauberk
+
 v2.0.1-2610.2421  v2.0.1 -- paacMan: the account commands go over the message bus
     :Feature:     paacMan, a new service: pacMan's account commands, answered from the message bus
     :Feature:     the gateway sends the account routes to paacMan over the bus; one setting,

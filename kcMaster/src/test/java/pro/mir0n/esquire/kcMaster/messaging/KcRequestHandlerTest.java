@@ -34,7 +34,7 @@ class KcRequestHandlerTest {
 
     @BeforeEach
     void setUp() {
-        handler = new KcRequestHandler(kcIdentityService);
+        handler = new KcRequestHandler(kcIdentityService, false);
     }
 
     // --- helpers ---

@@ -137,4 +137,12 @@ class EsqUtilsTest {
         assertThat(EsqUtils.traceIdFromTraceparent("not-a-traceparent")).isNull();
     }
 
+    @Test
+    @DisplayName("loginIdOf: lower case, and null stays null")
+    void loginIdOf_lowerCase() {
+        assertThat(EsqUtils.loginIdOf("Esq-Hauberk-S@Mir0n.PRO")).isEqualTo("esq-hauberk-s@mir0n.pro");
+        assertThat(EsqUtils.loginIdOf("mainadmin")).isEqualTo("mainadmin");
+        assertThat(EsqUtils.loginIdOf(null)).isNull();
+    }
+
 }

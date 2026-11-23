@@ -32,6 +32,11 @@
  * 08/26/2026 mir0n  the JWT decoder carries the default validators through DelegatingOAuth2TokenValidator, and the
  *                   JWE-aware decoder and token-relay wiring leave this class
  * 09/05/2026 mir0n  v1.2.15 -- exceptionHandling() names EsqAccessDeniedHandler as the access-denied handler
+ * 11/21/2026 mir0n  v2.0.2 -- pure OAuth (lab): the esq.gateway.pure-oauth.* settings; the PureOAuthClaimsCache
+ *                   bean (a WebClient under the routes' connect timeout and claims-timeout-ms; started only when
+ *                   a client is listed, and claims-uri required then) and the PureOAuthEvictionListener bean;
+ *                   the JWT authentication converter is PureOAuthAuthenticationConverter, PureOAuthHeaderFilter
+ *                   runs LAST, and EsqClaimsValidator gets the pure client list
  */
 package pro.mir0n.esquire.gateway.config;
 
@@ -71,6 +76,11 @@ import pro.mir0n.esquire.gateway.lab.tokenrelay.TokenRelayCache;
 import pro.mir0n.esquire.gateway.lab.tokenrelay.TokenRelayFilter;
 import pro.mir0n.esquire.gateway.lab.tokenrelay.VanillaTokenRelay;
 import pro.mir0n.esquire.gateway.lab.tokenrelay.WebClientTokenRelayClient;
+import pro.mir0n.esquire.gateway.lab.pureoauth.PureOAuthAuthenticationConverter;
+import pro.mir0n.esquire.gateway.lab.pureoauth.PureOAuthClaimsCache;
+import pro.mir0n.esquire.gateway.lab.pureoauth.PureOAuthEvictionListener;
+import pro.mir0n.esquire.gateway.lab.pureoauth.PureOAuthHeaderFilter;
+import pro.mir0n.esquire.gateway.lab.pureoauth.WebClientUserClaimsClient;
 import pro.mir0n.esquire.backend.identity.KcConnectionSettings;
 import reactor.core.publisher.Mono;
 import reactor.netty.http.client.HttpClient;
@@ -113,6 +123,22 @@ public class SecurityConfig {
     @Value("${esq.gateway.token-relay.phantom.clients:}")
     private List<String> phantomClients;
 
+    @Value("${esq.gateway.pure-oauth.clients:}")
+    private List<String> pureOAuthClients;
+
+    @Value("${esq.gateway.pure-oauth.cache-idle-ms:60000}")
+    private long pureOAuthCacheIdleMs;
+
+    @Value("${esq.gateway.pure-oauth.claims-uri:}")
+    private String pureOAuthClaimsUri;
+
+    @Value("${esq.gateway.pure-oauth.claims-timeout-ms:5000}")
+    private long pureOAuthClaimsTimeoutMs;
+
+    //xxx: keySmith is a backend like the routed services -- the claims call connects under the routes' timeout
+    @Value("${spring.cloud.gateway.httpclient.connect-timeout:2000}")
+    private int backendConnectTimeoutMs;
+
     private final KcConnectionSettings kcExchange;
 
     public SecurityConfig(Environment env) {
@@ -135,7 +161,7 @@ public class SecurityConfig {
     @Bean
     public ReactiveJwtDecoder jwtDecoder() {
         OAuth2TokenValidator<Jwt> tokenValidator = new DelegatingOAuth2TokenValidator<>(
-                JwtValidators.createDefault(), new EsqClaimsValidator());
+                JwtValidators.createDefault(), new EsqClaimsValidator(parseAllowlist(pureOAuthClients)));
         NimbusReactiveJwtDecoder jwsDecoder = NimbusReactiveJwtDecoder.withJwkSetUri(jwkSetUri).build();
         jwsDecoder.setJwtValidator(tokenValidator);
         ReactiveJwtDecoder ret = jwsDecoder;
@@ -237,6 +263,42 @@ public class SecurityConfig {
         return ret;
     }
 
+    static void assertPureOAuthWiring(Set<String> pureClients, String claimsUri) {
+        if (!pureClients.isEmpty() && (claimsUri == null || claimsUri.isBlank())) {
+            log.error("PURE OAUTH | clients {} are listed, but esq.gateway.pure-oauth.claims-uri is not set"
+                    + " -- there is nowhere to ask for the claims", pureClients);
+            throw new IllegalStateException("Pure OAuth: clients are listed (" + pureClients
+                    + ") but esq.gateway.pure-oauth.claims-uri is not set");
+        }
+    }
+
+    @Bean(destroyMethod = "stop")
+    public PureOAuthClaimsCache pureOAuthClaimsCache() {
+        Set<String> pureClients = parseAllowlist(pureOAuthClients);
+        assertPureOAuthWiring(pureClients, pureOAuthClaimsUri);
+        HttpClient httpClient = HttpClient.create()
+                .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, backendConnectTimeoutMs)
+                .responseTimeout(Duration.ofMillis(pureOAuthClaimsTimeoutMs));
+        WebClient webClient = WebClient.builder()
+                .clientConnector(new ReactorClientHttpConnector(httpClient))
+                .build();
+        PureOAuthClaimsCache ret = new PureOAuthClaimsCache(
+                new WebClientUserClaimsClient(webClient, pureOAuthClaimsUri), pureOAuthCacheIdleMs);
+        if (pureClients.isEmpty()) {
+            log.info("PURE OAUTH | off -- no client is listed");
+        } else {
+            ret.start();
+            log.info("PURE OAUTH | clients={} | claimsUri={} cacheIdleMs={} connectTimeoutMs={} claimsTimeoutMs={}",
+                    pureClients, pureOAuthClaimsUri, pureOAuthCacheIdleMs, backendConnectTimeoutMs, pureOAuthClaimsTimeoutMs);
+        }
+        return ret;
+    }
+
+    @Bean(initMethod = "start")
+    public PureOAuthEvictionListener pureOAuthEvictionListener(PureOAuthClaimsCache pureOAuthClaimsCache) {
+        return new PureOAuthEvictionListener(pureOAuthClaimsCache, !parseAllowlist(pureOAuthClients).isEmpty());
+    }
+
     private Set<String> parseAllowlist(List<String> raw) {
         Set<String> ret = new HashSet<>();
         if (raw != null) {
@@ -279,8 +341,11 @@ public class SecurityConfig {
 
     @Bean
     public SecurityWebFilterChain springSecurityFilterChain(ServerHttpSecurity serverHttpSecurity,
-                                                            CorsProperties props) {
+                                                            CorsProperties props,
+                                                            PureOAuthClaimsCache pureOAuthClaimsCache) {
         TokenRelayFilter tokenRelayFilter = buildTokenRelayFilter();
+        PureOAuthAuthenticationConverter authenticationConverter = new PureOAuthAuthenticationConverter(
+                parseAllowlist(pureOAuthClients), pureOAuthClaimsCache, grantedAuthoritiesExtractor());
 /*
        serverHttpSecurity.authorizeExchange(exchanges -> exchanges.pathMatchers(HttpMethod.GET).permitAll()
                 .pathMatchers("/eazybank/accounts/**").hasRole("ACCOUNTS")
@@ -304,6 +369,8 @@ public class SecurityConfig {
                 .csrf(csrfSpec -> csrfSpec.disable())
                 .cors(cors -> cors.configurationSource(corsConfigurationSource(props)))
                 .addFilterBefore(tokenRelayFilter, SecurityWebFiltersOrder.AUTHENTICATION)
+                //xxx: LAST, after authorization -- the claims headers need the authenticated caller
+                .addFilterAt(new PureOAuthHeaderFilter(), SecurityWebFiltersOrder.LAST)
                 .authorizeExchange(exchanges -> exchanges
                     .pathMatchers(HttpMethod.OPTIONS,"/**").permitAll()
                     .pathMatchers("/esq-kinds").permitAll()
@@ -314,7 +381,7 @@ public class SecurityConfig {
                 // Wire KeycloakRoleConverter (realm_access.roles -> ROLE_<role>) so hasRole("TREE") above can
                 // actually match; the default converter emits SCOPE_* only and ROLE_TREE would never be present.
                 .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwtSpec ->
-                        jwtSpec.jwtAuthenticationConverter(grantedAuthoritiesExtractor())))
+                        jwtSpec.jwtAuthenticationConverter(authenticationConverter)))
                 .oauth2Client(Customizer.withDefaults())
                 .securityContextRepository(NoOpServerSecurityContextRepository.getInstance());
         return serverHttpSecurity.build();

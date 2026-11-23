@@ -10,6 +10,8 @@
  *                   request (the operation from the path, kind / id / cmd from the query, the fields from the body,
  *                   uid / rootPath / roles from the token), sends it with BizBusClient and sets the status and
  *                   headers from the answer; a body that is not a JSON object, or no numeric kind, answers 400
+ * 11/17/2026 mir0n  v2.0.2 -- uid / rootPath / roles from the X-Esq-* headers when the gateway set them (pure
+ *                   OAuth), else from the token
  */
 
 package pro.mir0n.esquire.gateway.bus;
@@ -134,7 +136,22 @@ public class BizBusRoutingFilter implements GlobalFilter, Ordered {
         MultiValueMap<String, String> query = exchange.getRequest().getQueryParams();
         String path = url.getPath();
         String operation = path.substring(path.lastIndexOf('/') + 1);
-        Map<String, Object> claims = JwtClaimPeek.peekClaims(tokenOf(exchange.getRequest().getHeaders()));
+        HttpHeaders headers = exchange.getRequest().getHeaders();
+        Object uid;
+        Object rootPath;
+        List<String> roles;
+        //xxx: the claim headers exist only when the gateway set them (inbound copies are stripped): a pure
+        // OAuth caller; otherwise the claims are in the token
+        if (headers.getFirst(EsqConstants.X_ESQ_UID) != null) {
+            uid = headers.getFirst(EsqConstants.X_ESQ_UID);
+            rootPath = headers.getFirst(EsqConstants.X_ESQ_ROOT_PATH);
+            roles = rolesOf(headers.getFirst(EsqConstants.X_ESQ_ROLES));
+        } else {
+            Map<String, Object> claims = JwtClaimPeek.peekClaims(tokenOf(headers));
+            uid = claims.get(EsqConstants.JWT_CLAIM_ENTITY_ID);
+            rootPath = claims.get(EsqConstants.JWT_CLAIM_ENTITY_ROOTPATH);
+            roles = rolesOf(claims);
+        }
 
         Map<String, Object> body = new HashMap<>();
         body.put(EsqConstants.BIZ_KEY_OPERATION, operation);
@@ -143,12 +160,11 @@ public class BizBusRoutingFilter implements GlobalFilter, Ordered {
             body.put(EsqConstants.BIZ_KEY_CMD, cmd);
         }
         body.put(EsqConstants.BIZ_KEY_FIELDS, fields);
-        body.put(EsqConstants.BIZ_KEY_ROOT_PATH, claims.get(EsqConstants.JWT_CLAIM_ENTITY_ROOTPATH));
-        body.put(EsqConstants.BIZ_KEY_ROLES, rolesOf(claims));
+        body.put(EsqConstants.BIZ_KEY_ROOT_PATH, rootPath);
+        body.put(EsqConstants.BIZ_KEY_ROLES, roles);
         body.put(EsqConstants.BIZ_KEY_CAPTURE,
                 Boolean.TRUE.equals(exchange.getAttribute(EsqConstants.ESQ_CAPTURE_METRICS)));
 
-        Object uid = claims.get(EsqConstants.JWT_CLAIM_ENTITY_ID);
         return new RodEvent(null, kindOf(query.getFirst("kind")), query.getFirst("id"), null, null,
                 System.currentTimeMillis(), exchange.getAttribute(EsqConstants.ESQ_CORRELATION_ID),
                 exchange.getRequest().getHeaders().getFirst(EsqConstants.X_REQUEST_ID),
@@ -185,6 +201,16 @@ public class BizBusRoutingFilter implements GlobalFilter, Ordered {
             ret = Integer.parseInt(kind);
         } catch (NumberFormatException e) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "kind is required and must be a number", e);
+        }
+        return ret;
+    }
+
+    private static List<String> rolesOf(String header) {
+        List<String> ret = new ArrayList<>();
+        if (header != null && !header.isBlank()) {
+            for (String role : header.split(",")) {
+                ret.add(role.trim());
+            }
         }
         return ret;
     }

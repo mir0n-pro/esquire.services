@@ -71,6 +71,12 @@ tokenRelay:
     exchangeClientId: esq-gw-exchange
     exchangeClientSecret: ""    # passed via --set at install
 
+# Pure OAuth (lab): a client on this list sends a token with no Esquire claims; the gateway asks keySmith
+# (KEYSMITH_HOST/KEYSMITH_PORT above) and keeps the claims while they are asked for. Empty = off.
+pureOAuth:
+  clients: ""                   # comma-separated KC clientId list (e.g. "esq-hauberk-P")
+  cacheIdleMs: "60000"
+
 # R1 outbound HTTP client connection pool (Spring Cloud Gateway -> backend services).
 # Defaults here = the Reactor Netty pool behavior we ran before HA work. The tuned
 # local-k8s budget lives in k8s/values/gateway.yaml; OKE keeps these pre-HA defaults.

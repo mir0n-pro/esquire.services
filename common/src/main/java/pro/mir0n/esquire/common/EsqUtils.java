@@ -23,6 +23,7 @@
  * 07/09/2026 mir0n  v1.2.11 -- instanceNo() / instanceHost() and the private parsePodNameOrdinal() moved to
  *                   pro.mir0n.utils.HostId (mir0n-utils); instanceNo() / instanceHost() and the test seams now
  *                   delegate to it
+ * 11/21/2026 mir0n  v2.0.2 -- loginIdOf(String): the login id in lower case (Locale.ROOT); null stays null
  */
 package pro.mir0n.esquire.common;
 
@@ -231,5 +232,13 @@ public class EsqUtils {
         return ret;
     }
 
+    //xxx: a login id is kept in lower case, as KeyCloak keeps its user names
+    public static String loginIdOf(String loginId) {
+        String ret = null;
+        if (loginId != null) {
+            ret = loginId.toLowerCase(java.util.Locale.ROOT);
+        }
+        return ret;
+    }
 
 }

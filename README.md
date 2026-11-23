@@ -44,16 +44,19 @@ operations. The Amazon EKS deployment at aws-esquire.mir0n.pro is turned down â€
 
 ---
 > 
-> **v2.0.1 -- the account commands go over the bus.** The gateway used to call pacMan, the account
-> service, over HTTP. Now it sends the account commands over [Herald](https://github.com/mir0n-pro/herald)
-> to a new service, paacMan, which runs pacMan's code unchanged. The client calls the same REST API, and
-> the screens do not change.
+> **v2.0.2 -- the user data leaves the sign-in token, as a lab mode.** By default the sign-in token
+> carries the user's place in the tree and the user's roles, as before. In the lab mode it carries only
+> who the user is. The gateway asks Esquire for the rest and keeps the answer while the user works. A
+> change to a user's access, or a move, clears that answer on every gateway at once, over the message
+> bus. The price is a gateway that keeps state: it holds that cache. The lab mode runs on docker and
+> local Kubernetes and is off by default; the public site runs the default mode. Login ids are now kept
+> in lower case.
 > 
 > The 1.2 line goes on in parallel. Its last release is
 > [v1.2.16](https://github.com/mir0n-pro/esquire.services/tree/release/v1.2.16?tab=readme-ov-file).
 > 
-> Next on this line: v2.0.2, the claims leave the token, and v2.0.3, a WebSocket face to the business
-> domain. See [Release History](#release-history).
+> Next on this line: v2.0.3, the clean-up -- the lab mode becomes the only one, and the sync of roles and
+> places with the sign-in server goes. See [Release History](#release-history).
 
 ---
 
@@ -91,7 +94,9 @@ through the moment it is up. Background, the architecture, and the developer wor
 
 **[Releases.md](Releases.md)** -- every version, plus the milestone reports across all four repositories.
 
-**[release_notes.txt](doc/release_notes.txt)** -- the release notes, newest first: v2.0.0, then the whole 1.2 history.
+**[release_notes.txt](doc/release_notes.txt)** -- the release notes, newest first: the 2.0 line, then the whole 1.2 history.
+
+**[report_v2.0.2.md](doc/reports/report_v2.0.2.md)** -- the report of this release.
 
 ---
 

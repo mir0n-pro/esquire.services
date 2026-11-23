@@ -94,16 +94,16 @@ call mvn -q -DskipTests clean package
 if errorlevel 1 ( popd & echo mvn failed & exit /b 1 )
 popd
 
-rem === Infra image: esquire-postgres:17 (k8s-only). docker compose no longer builds it -- the Postgres
+rem === Infra image: esquire-postgres:17-2.0 (k8s-only). docker compose no longer builds it -- the Postgres
 rem     container was removed from compose (docker uses the external host pg18); the dockerized Postgres
 rem     is exclusively the k8s esquire-infra-postgres StatefulSet. Build it here so the image stays
-rem     available for k8s-up. Context = repo root (../..) so the Dockerfile can COPY db.seed + initdb. ===
+rem     available for k8s-up. Context = repo root (../..) so the Dockerfile can COPY db.seed2 + initdb. ===
 call :read_pin ..\postgres\Dockerfile postgres
 if errorlevel 1 exit /b 1
 call :pin_have esquire-postgres
 if "!PIN_HAVE!"=="1" goto pg_pinned
-echo [docker] building infra image esquire-postgres (db.seed schema)...
-docker build %NOCACHE% -f ..\postgres\Dockerfile -t esquire-postgres:17 -t esquire-postgres:!TS! ..\..
+echo [docker] building infra image esquire-postgres (db.seed2 schema)...
+docker build %NOCACHE% -f ..\postgres\Dockerfile -t esquire-postgres:17-2.0 -t esquire-postgres:!TS! ..\..
 if errorlevel 1 ( echo postgres image build failed & exit /b 1 )
 :pg_pinned
 rem STAMPED AND DELIVERED, like the broker below. Building :17 alone changed NOTHING: values\postgres.yaml

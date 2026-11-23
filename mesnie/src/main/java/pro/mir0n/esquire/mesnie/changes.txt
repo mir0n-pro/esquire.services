@@ -1,5 +1,12 @@
 Esquire Mesnie Microservice
 
+11/22/2026 mir0n  v2.0.2 -- pure OAuth (lab): the claims bus
+MesnieApplication
+  - the ClaimsBusPublisher bean on esq.pure-oauth; the claims bus is built while esq.pure-oauth is on
+resources/application.yml
+  - esq.pure-oauth (ESQ_PURE_OAUTH, default false); the claims-bus leg (bus esquire.claims, slot claims,
+    SERVER; feed-await-ms 0)
+
 10/22/2026 mir0n  v2.0.1 -- the bus refs under herald
 MesnieApplication
   - the meter owner reads the entity bus id under BusConstants.CONFIG_ROOT

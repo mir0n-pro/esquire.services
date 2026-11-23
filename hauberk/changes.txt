@@ -1,5 +1,19 @@
 hauberk changes
 
+11/22/2026 mir0n  v2.0.2 -- the load as the pure OAuth client
+hauberk-P.properties  (new)
+  - the pure OAuth overlay for docker: kc.client.id esq-hauberk-P and its dev secret
+hauberk-k8s-P.properties  (new)
+  - the pure OAuth overlay for local k8s classic: hauberk-k8s.properties with kc.client.id esq-hauberk-P
+hauberk-k8s-compact-P.properties  (new)
+  - the pure OAuth overlay for local k8s compact: hauberk-k8s-compact.properties with kc.client.id
+    esq-hauberk-P
+src/main/resources/logback.xml  (new)
+  - the console at INFO for the whole harness, in place of the DEBUG default
+perf-matrix.ps1
+  - the docker-OFF-PURE, k8s-x2-OFF-PURE and k8sc-x2-OFF-PURE cells (pure = the -P properties); the docker
+    gate reads the gateway container's health status
+
 10/22/2026 mir0n  v2.0.1 -- the tx cycle with transfers; the REST / bus pair
 simulations.LoadScenarios
   - the tx scenario on two random accounts: deposit A, transfer A->B, transfer B->A, withdraw A (net-zero; the

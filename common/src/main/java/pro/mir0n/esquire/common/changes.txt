@@ -1,5 +1,12 @@
 Esquire Common microservice classes
 
+11/22/2026 mir0n  v2.0.2 -- pure OAuth (lab); login ids in lower case
+EsqConstants
+  - pure OAuth (lab): X_ESQ_UID / X_ESQ_ROOT_PATH / X_ESQ_ROLES, BUS_KEY_CLAIMS, PROP_PURE_OAUTH and
+    PROP_PURE_OAUTH_CLIENTS
+EsqUtils
+  - loginIdOf(String): the login id in lower case (Locale.ROOT); null stays null
+
 10/22/2026 mir0n  v2.0.1 -- the biz bus keys
 EsqConstants
   - BUS_KEY_BIZ ("biz-bus"); the biz bus operations BIZ_OP_ACCT / BIZ_OP_CMD / BIZ_OP_CMD_SAVE / BIZ_OP_CMD_DEL

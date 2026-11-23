@@ -13,6 +13,8 @@
  * 08/17/2026 mir0n  v1.2.13 T3.1 -- @Bean IMeterOwner meterOwner(entityBusId) declared here: a
  *                   MesnieMeterOwner, handed the entity bus id from the property the bus itself reads
  * 10/19/2026 mir0n  v2.0.1 -- the meter owner reads the entity bus id under BusConstants.CONFIG_ROOT
+ * 11/18/2026 mir0n  v2.0.2 -- the ClaimsBusPublisher bean on esq.pure-oauth; the claims bus is built while
+ *                   esq.pure-oauth is on
  */
 
 package pro.mir0n.esquire.mesnie;
@@ -36,6 +38,7 @@ import org.springframework.core.env.Environment;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 import pro.mir0n.esquire.audit.AuditBusBridge;
 import pro.mir0n.esquire.backend.identity.IIdentityGateway;
+import pro.mir0n.esquire.backend.messaging.ClaimsBusPublisher;
 import pro.mir0n.esquire.backend.o11y.IMeterOwner;
 import pro.mir0n.esquire.backend.o11y.ObservabilityConfig;
 import pro.mir0n.esquire.kcMaster.identity.KcIdentityGateway;
@@ -99,6 +102,11 @@ public class MesnieApplication {
     @Bean
     public IMeterOwner meterOwner(@Value("${" + BusConstants.CONFIG_ROOT + ".entity-bus.messaging-bus.bus-id:}") String entityBusId) {
         return new MesnieMeterOwner(entityBusId);
+    }
+
+    @Bean(initMethod = "start")
+    public ClaimsBusPublisher claimsBus(@Value("${" + EsqConstants.PROP_PURE_OAUTH + ":false}") boolean pureOAuth) {
+        return new ClaimsBusPublisher(pureOAuth);
     }
 
     /**
@@ -175,7 +183,11 @@ public class MesnieApplication {
         public void onApplicationEvent(ApplicationEvent event) {
             MessagingBus bus = MessagingBus.getInstance();
             if (event instanceof ApplicationEnvironmentPreparedEvent e) {
-                bus.init(e.getEnvironment(), new String[]{EsqConstants.BUS_KEY_ENTITY, EsqConstants.BUS_KEY_AUDIT});
+                String[] keys = {EsqConstants.BUS_KEY_ENTITY, EsqConstants.BUS_KEY_AUDIT};
+                if (e.getEnvironment().getProperty(EsqConstants.PROP_PURE_OAUTH, Boolean.class, Boolean.FALSE)) {
+                    keys = new String[]{EsqConstants.BUS_KEY_ENTITY, EsqConstants.BUS_KEY_AUDIT, EsqConstants.BUS_KEY_CLAIMS};
+                }
+                bus.init(e.getEnvironment(), keys);
                 devLog.debug("MessagingBus initiated (rods built, paused)");
             } else if (event instanceof ApplicationReadyEvent e) {
                 bus.start();                             // run them -- traffic flows only from here

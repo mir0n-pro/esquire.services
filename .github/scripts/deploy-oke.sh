@@ -21,7 +21,7 @@
 # Topology note: OKE runs with audit OFF (free-tier demo). The app producers stay
 # OFF (the OKE values point the audit ref at audit-off), so there is NO auKeep pod
 # and no audit bus traffic. The option-(a) DB-trigger DDL is baked into the
-# esquire-postgres image (db.seed/postgres/triggers) but is an OPT-IN overlay -- it
+# esquire-postgres image (db.seed2/postgres/triggers) but is an OPT-IN overlay -- it
 # is NOT applied by this deploy, so OKE writes no *_log rows unless applied by hand
 # (\i ../triggers/all.sql). See Esquire.Q&A.md ("no audit on OKE"). Baked = available,
 # not active.

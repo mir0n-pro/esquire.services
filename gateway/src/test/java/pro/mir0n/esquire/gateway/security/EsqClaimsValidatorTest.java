@@ -8,6 +8,7 @@ import pro.mir0n.esquire.common.EsqConstants;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -91,5 +92,33 @@ class EsqClaimsValidatorTest {
         OAuth2TokenValidatorResult ret = validator.validate(jwt);
         assertThat(ret.getErrors()).isNotEmpty();
         assertThat(ret.getErrors().iterator().next().getErrorCode()).isEqualTo("invalid_token");
+    }
+
+    // ---- pure OAuth: the token carries the login id only ----
+
+    private final EsqClaimsValidator pureValidator = new EsqClaimsValidator(Set.of("esq-angular-pure-oauth"));
+
+    @Test
+    @DisplayName("pure OAuth: a listed client's token with a login id and no Esquire claims passes")
+    void pure_loginOnly_passes() {
+        Jwt jwt = Jwt.withTokenValue("t").header("alg", "RS256").subject("kc-subject")
+                .claim("azp", "esq-angular-pure-oauth").claim("preferred_username", "mainadmin").build();
+        assertThat(pureValidator.validate(jwt).hasErrors()).isFalse();
+    }
+
+    @Test
+    @DisplayName("pure OAuth: a listed client's token with no login id is refused")
+    void pure_noLogin_refused() {
+        Jwt jwt = Jwt.withTokenValue("t").header("alg", "RS256").subject("kc-subject")
+                .claim("azp", "esq-angular-pure-oauth").build();
+        assertThat(pureValidator.validate(jwt).hasErrors()).isTrue();
+    }
+
+    @Test
+    @DisplayName("pure OAuth: a client NOT on the list still needs the Esquire claims")
+    void pure_unlistedClient_stillNeedsClaims() {
+        Jwt jwt = Jwt.withTokenValue("t").header("alg", "RS256").subject("kc-subject")
+                .claim("azp", "esq-angular").claim("preferred_username", "mainadmin").build();
+        assertThat(pureValidator.validate(jwt).hasErrors()).isTrue();
     }
 }

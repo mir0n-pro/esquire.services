@@ -3,8 +3,8 @@ services:
     container_name: esq-postgres
     build:
       context: ../..
-      dockerfile: services/postgres/Dockerfile
-    image: esquire-postgres:17
+      dockerfile: services2/postgres/Dockerfile
+    image: esquire-postgres:17-2.0
     restart: on-failure
     environment:
       POSTGRES_USER: esq2025

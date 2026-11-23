@@ -35,6 +35,8 @@ data:
   ENTITY_BROADCAST_POOL_SIZE:     {{ .Values.entity.broadcastPoolSize | quote }}
   ENTITY_BROADCAST_CONCURRENCY:   {{ .Values.entity.broadcastConcurrency | quote }}
   ENTITY_BROADCAST_POOL_MODE:       {{ .Values.entity.poolMode | quote }}
+  # --- pure OAuth (lab): no root path and no roles to KeyCloak; changes evict the gateway's claims cache ---
+  ESQ_PURE_OAUTH:                 {{ .Values.pureOAuth.enabled | quote }}
   # --- logging ---
   LOG_LEVEL_ROOT:                 {{ .Values.logging.levelRoot | quote }}
   LOG_LEVEL_SF:                   {{ .Values.logging.levelSf | quote }}

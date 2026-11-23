@@ -20,6 +20,9 @@
  * 10/19/2026 mir0n  v2.0.1 -- the realm roles go into the EsqRequestContext; the claim check is
  *                   EsqRequestScope.claimsComplete(), and the bind / unbind of the context and the MDC uid are
  *                   EsqRequestScope.bind() / unbind()
+ * 11/17/2026 mir0n  v2.0.2 -- pure OAuth (lab): with no esq_uid in the token, uid / rootPath / roles come from
+ *                   the X-Esq-UID / X-Esq-Root-Path / X-Esq-Roles headers the gateway set; claimsComplete()
+ *                   checks the values taken
  */
 
 package pro.mir0n.esquire.backend.security;
@@ -110,24 +113,29 @@ public class JwtClaimsExtractionFilter extends OncePerRequestFilter {
             // REJECT if username is missing or some required custom claim is missing
             Map realmAccess = claims.get(EsqConstants.JWT_CLAIM_REALM_ACCESS, Map.class);
             roles = realmAccess != null ? (List<String>) realmAccess.get(EsqConstants.JWT_CLAIM_REALM_ACCESS_ROLES) : null;
+            uid      = claims.get(EsqConstants.JWT_CLAIM_ENTITY_ID, String.class);
+            rootPath = claims.get(EsqConstants.JWT_CLAIM_ENTITY_ROOTPATH, String.class);
+            //xxx: a pure OAuth token carries no Esquire claims -- the gateway sends them as headers, and strips
+            // any inbound copies, so a header here was set by the gateway
+            if (uid == null && request.getHeader(EsqConstants.X_ESQ_UID) != null) {
+                uid      = request.getHeader(EsqConstants.X_ESQ_UID);
+                rootPath = request.getHeader(EsqConstants.X_ESQ_ROOT_PATH);
+                roles    = rolesOf(request.getHeader(EsqConstants.X_ESQ_ROLES));
+            }
 // todo: add validation of rootpath length > 1 & and has "."
             if (username == null
-            || !EsqRequestScope.claimsComplete(claims.get(EsqConstants.JWT_CLAIM_ENTITY_ID),
-                    claims.get(EsqConstants.JWT_CLAIM_ENTITY_ROOTPATH), roles)
+            || !EsqRequestScope.claimsComplete(uid, rootPath, roles)
             ) {
                 sendErrorResponse(request, response, "Missing required claims ");
                 // WHICH claim is absent, not the claim set -- the map is the token's payload, and this line
                 // reaches the log store like any other.
                 devLog.debug("Missing required claims: username={}, {}={}, {}={}, roles={}",
                         username != null,
-                        EsqConstants.JWT_CLAIM_ENTITY_ID, claims.get(EsqConstants.JWT_CLAIM_ENTITY_ID) != null,
-                        EsqConstants.JWT_CLAIM_ENTITY_ROOTPATH, claims.get(EsqConstants.JWT_CLAIM_ENTITY_ROOTPATH) != null,
+                        EsqConstants.JWT_CLAIM_ENTITY_ID, uid != null,
+                        EsqConstants.JWT_CLAIM_ENTITY_ROOTPATH, rootPath != null,
                         roles != null && !roles.isEmpty());
                 return;
             }
-
-            uid      = claims.get(EsqConstants.JWT_CLAIM_ENTITY_ID, String.class);
-            rootPath = claims.get(EsqConstants.JWT_CLAIM_ENTITY_ROOTPATH, String.class);
 
             if (SecurityContextHolder.getContext().getAuthentication() == null) {
                 UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
@@ -160,6 +168,16 @@ public class JwtClaimsExtractionFilter extends OncePerRequestFilter {
             EsqRequestScope.unbind();
         }
 
+    }
+
+    private static List<String> rolesOf(String header) {
+        List<String> ret = new ArrayList<>();
+        if (header != null && !header.isBlank()) {
+            for (String role : header.split(",")) {
+                ret.add(role.trim());
+            }
+        }
+        return ret;
     }
 
     private void sendErrorResponse(HttpServletRequest request, HttpServletResponse response, String message) throws IOException {

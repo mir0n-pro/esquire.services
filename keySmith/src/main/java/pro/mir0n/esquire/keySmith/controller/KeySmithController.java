@@ -14,6 +14,7 @@
  * 08/26/2026 mir0n  the develop log lines pass the value itself instead of String.valueOf
  * 10/19/2026 mir0n  v2.0.1 -- the @AuthenticationPrincipal Claims parameters and the roles read from the token
  *                   removed
+ * 11/17/2026 mir0n  v2.0.2 -- GET /esq-claims?loginId=: the user claims, for the gateway's lookup
  */
 
 package pro.mir0n.esquire.keySmith.controller;
@@ -23,6 +24,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.http.ProblemDetail;
 import pro.mir0n.esquire.backend.dto.*;
 import pro.mir0n.esquire.backend.dto.access.EsqAccessProfile;
+import pro.mir0n.esquire.backend.dto.access.EsqUserClaims;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -103,6 +105,15 @@ public class KeySmithController {
         EsqAccessProfile profile = iKeySmithService.esquireKey(id);
         devLog.debug("esquireKey: id:{}, result:{}", id, profile);
         return ResponseEntity.status(HttpStatus.OK).body(profile);
+    }
+
+    //xxx: called by the gateway only, on a claim-cache miss; no gateway route exposes this path
+    @GetMapping("/esq-claims")
+    public ResponseEntity<EsqUserClaims> esquireClaims(
+           @RequestParam(name = "loginId", required = true) String loginId
+    ) {
+        EsqUserClaims claims = iKeySmithService.esquireClaims(loginId);
+        return ResponseEntity.status(HttpStatus.OK).body(claims);
     }
 
 }
