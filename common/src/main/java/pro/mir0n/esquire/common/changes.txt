@@ -1,5 +1,10 @@
 Esquire Common microservice classes
 
+11/23/2026 mir0n  v2.0.3 -- pure OAuth only: common
+EsqConstants
+  - v2.0.3 -- JWT_CLAIM_PREFERRED_USERNAME added; PROP_PURE_OAUTH_CLIENTS, JWT_CLAIM_REALM_ACCESS and
+    JWT_CLAIM_REALM_ACCESS_ROLES removed
+
 11/22/2026 mir0n  v2.0.2 -- pure OAuth (lab); login ids in lower case
 EsqConstants
   - pure OAuth (lab): X_ESQ_UID / X_ESQ_ROOT_PATH / X_ESQ_ROLES, BUS_KEY_CLAIMS, PROP_PURE_OAUTH and

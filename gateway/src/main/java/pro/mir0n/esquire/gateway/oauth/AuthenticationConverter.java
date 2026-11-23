@@ -13,6 +13,8 @@
  * 11/22/2026 mir0n  v2.0.3 -- lab.pureoauth.PureOAuthAuthenticationConverter -> oauth.AuthenticationConverter;
  *                   every token's authentication is built from the cached claims -- the client list, isPure()
  *                   and the claims-mode converter out
+ * 11/23/2026 mir0n  v2.0.3 -- the preferred_username claim name is EsqConstants.JWT_CLAIM_PREFERRED_USERNAME;
+ *                   the own CLAIM_PREFERRED_USERNAME out
  */
 
 package pro.mir0n.esquire.gateway.oauth;
@@ -26,6 +28,7 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import pro.mir0n.esquire.backend.dto.access.EsqUserClaims;
+import pro.mir0n.esquire.common.EsqConstants;
 import reactor.core.publisher.Mono;
 
 import java.util.ArrayList;
@@ -33,7 +36,6 @@ import java.util.List;
 
 public class AuthenticationConverter implements Converter<Jwt, Mono<AbstractAuthenticationToken>> {
 
-    public static final String CLAIM_PREFERRED_USERNAME = "preferred_username";
 
     private final ClaimsCache cache;
 
@@ -43,7 +45,7 @@ public class AuthenticationConverter implements Converter<Jwt, Mono<AbstractAuth
 
     @Override
     public Mono<AbstractAuthenticationToken> convert(Jwt jwt) {
-        String loginId = jwt.getClaimAsString(CLAIM_PREFERRED_USERNAME);
+        String loginId = jwt.getClaimAsString(EsqConstants.JWT_CLAIM_PREFERRED_USERNAME);
         return cache.claimsOf(loginId)
                 .map(claims -> authenticationOf(jwt, claims))
                 .onErrorMap(AuthenticationConverter::notAuthenticated);

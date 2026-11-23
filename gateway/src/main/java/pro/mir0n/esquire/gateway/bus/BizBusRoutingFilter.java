@@ -14,6 +14,8 @@
  *                   OAuth), else from the token
  * 11/22/2026 mir0n  v2.0.3 -- uid / rootPath / roles from the X-Esq-* headers only; the token is not read
  *                   (tokenOf, rolesOf(Map) and the JwtClaimPeek use out)
+ * 11/23/2026 mir0n  v2.0.3 -- the roles header parse is EsqRequestScope.rolesOf(); the private rolesOf(String)
+ *                   out
  */
 
 package pro.mir0n.esquire.gateway.bus;
@@ -35,13 +37,13 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.server.ServerWebExchange;
+import pro.mir0n.esquire.backend.service.EsqRequestScope;
 import pro.mir0n.esquire.common.EsqConstants;
 import pro.mir0n.messaging.BusConstants;
 import pro.mir0n.messaging.RodEvent;
 import reactor.core.publisher.Mono;
 
 import java.net.URI;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -140,7 +142,7 @@ public class BizBusRoutingFilter implements GlobalFilter, Ordered {
         HttpHeaders headers = exchange.getRequest().getHeaders();
         String uid = headers.getFirst(EsqConstants.X_ESQ_UID);
         String rootPath = headers.getFirst(EsqConstants.X_ESQ_ROOT_PATH);
-        List<String> roles = rolesOf(headers.getFirst(EsqConstants.X_ESQ_ROLES));
+        List<String> roles = EsqRequestScope.rolesOf(headers.getFirst(EsqConstants.X_ESQ_ROLES));
 
         Map<String, Object> body = new HashMap<>();
         body.put(EsqConstants.BIZ_KEY_OPERATION, operation);
@@ -181,16 +183,6 @@ public class BizBusRoutingFilter implements GlobalFilter, Ordered {
             ret = Integer.parseInt(kind);
         } catch (NumberFormatException e) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "kind is required and must be a number", e);
-        }
-        return ret;
-    }
-
-    private static List<String> rolesOf(String header) {
-        List<String> ret = new ArrayList<>();
-        if (header != null && !header.isBlank()) {
-            for (String role : header.split(",")) {
-                ret.add(role.trim());
-            }
         }
         return ret;
     }

@@ -1,5 +1,18 @@
 Esquire Gateway Microservice
 
+11/23/2026 mir0n  v2.0.3 -- the roles header parse and the preferred_username claim name from common
+bus.BizBusRoutingFilter
+  - v2.0.3 -- the roles header parse is EsqRequestScope.rolesOf(); the private rolesOf(String) out
+oauth.AuthenticationConverter
+  - v2.0.3 -- the preferred_username claim name is EsqConstants.JWT_CLAIM_PREFERRED_USERNAME; the own
+    CLAIM_PREFERRED_USERNAME out
+security.EsqAccessDeniedHandler
+  - v2.0.3 -- the preferred_username claim name is EsqConstants.JWT_CLAIM_PREFERRED_USERNAME; the own
+    CLAIM_PREFERRED_USERNAME out
+security.EsqClaimsValidator
+  - v2.0.3 -- the preferred_username claim name is EsqConstants.JWT_CLAIM_PREFERRED_USERNAME; the own
+    CLAIM_PREFERRED_USERNAME out
+
 11/23/2026 mir0n  v2.0.3 -- pure OAuth only: the claims mode and the lab leave the gateway
 oauth.IUserClaimsClient
   - v2.0.3 -- moved from lab.pureoauth to oauth

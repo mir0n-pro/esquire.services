@@ -28,6 +28,8 @@
  *                   names herald.<key>.messaging-bus
  * 11/18/2026 mir0n  v2.0.2 -- pure OAuth (lab): X_ESQ_UID / X_ESQ_ROOT_PATH / X_ESQ_ROLES, BUS_KEY_CLAIMS,
  *                   PROP_PURE_OAUTH and PROP_PURE_OAUTH_CLIENTS
+ * 11/23/2026 mir0n  v2.0.3 -- JWT_CLAIM_PREFERRED_USERNAME added; PROP_PURE_OAUTH_CLIENTS,
+ *                   JWT_CLAIM_REALM_ACCESS and JWT_CLAIM_REALM_ACCESS_ROLES removed
  */
 package pro.mir0n.esquire.common;
 
@@ -66,8 +68,7 @@ public class EsqConstants {
 
     public static final String  JWT_CLAIM_ENTITY_ID = "esq_uid";
     public static final String  JWT_CLAIM_ENTITY_ROOTPATH = "esq_rootpath";
-    public static final String  JWT_CLAIM_REALM_ACCESS = "realm_access";
-    public static final String  JWT_CLAIM_REALM_ACCESS_ROLES = "roles";
+    public static final String  JWT_CLAIM_PREFERRED_USERNAME = "preferred_username";
 
     public static final int  KIND_ADDRESS_POSTAL = 988;
     public static final int  KIND_ADDRESS_BIZ = 990;
@@ -95,10 +96,8 @@ public class EsqConstants {
     public static final String BUS_KEY_BIZ              = "biz-bus";
     public static final String BUS_KEY_CLAIMS           = "claims-bus";
 
-    // --- pure OAuth (lab): the claims stay out of the identity provider; the switch on the services that
-    //     own the claims, and the gateway's list of the clients on this mode ---
+    // --- pure OAuth: the switch on the services that own the claims ---
     public static final String PROP_PURE_OAUTH          = "esq.pure-oauth";
-    public static final String PROP_PURE_OAUTH_CLIENTS  = "esq.gateway.pure-oauth.clients";
 
     // --- the biz request-response bus: a command names its operation (the REST path it stands for) and carries
     //     the caller's claims (uid in the event header, root path and roles here), the cmd and the body; the

@@ -17,6 +17,8 @@
  *                   no esq_uid (pure OAuth)
  * 11/22/2026 mir0n  v2.0.3 -- context(): uid / rootPath / roles from the X-Esq-* headers only; the endpoints
  *                   take no @AuthenticationPrincipal Jwt
+ * 11/23/2026 mir0n  v2.0.3 -- the roles header parse is EsqRequestScope.rolesOf(); the private rolesOf(String)
+ *                   out
  */
 
 package pro.mir0n.esquire.gateWard;
@@ -37,6 +39,7 @@ import pro.mir0n.esquire.backend.dto.EsqTreeNode;
 import pro.mir0n.o11y.TraceMark;
 import pro.mir0n.esquire.backend.service.EsqContextHolder;
 import pro.mir0n.esquire.backend.service.EsqRequestContext;
+import pro.mir0n.esquire.backend.service.EsqRequestScope;
 import pro.mir0n.esquire.bizTree.access.IBizTreeDirector;
 import pro.mir0n.esquire.common.EsqConstants;
 import reactor.core.publisher.Mono;
@@ -44,7 +47,6 @@ import reactor.core.scheduler.Scheduler;
 
 import java.util.List;
 import java.util.concurrent.Callable;
-import java.util.ArrayList;
 
 /**
  * The gate answering the tree routes from the cache in its own memory.
@@ -152,18 +154,8 @@ public class BizTreeCacheController {
         HttpHeaders headers = exchange.getRequest().getHeaders();
         String uid = headers.getFirst(EsqConstants.X_ESQ_UID);
         String rootPath = headers.getFirst(EsqConstants.X_ESQ_ROOT_PATH);
-        List<String> roles = rolesOf(headers.getFirst(EsqConstants.X_ESQ_ROLES));
+        List<String> roles = EsqRequestScope.rolesOf(headers.getFirst(EsqConstants.X_ESQ_ROLES));
         return new EsqRequestContext(correlationId, requestId, uid, rootPath, roles);
-    }
-
-    private static List<String> rolesOf(String header) {
-        List<String> ret = new ArrayList<>();
-        if (header != null && !header.isBlank()) {
-            for (String role : header.split(",")) {
-                ret.add(role.trim());
-            }
-        }
-        return ret;
     }
 
     /** One shape for the three list reads: scope it, run it on the cache scheduler, answer 200. */

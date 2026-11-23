@@ -14,6 +14,8 @@
  *                   any other token is checked for the Esquire claims as before
  * 11/22/2026 mir0n  v2.0.3 -- every token needs sub and preferred_username only; the claims-mode check and the
  *                   client list out
+ * 11/23/2026 mir0n  v2.0.3 -- the preferred_username claim name is EsqConstants.JWT_CLAIM_PREFERRED_USERNAME;
+ *                   the own CLAIM_PREFERRED_USERNAME out
  */
 package pro.mir0n.esquire.gateway.security;
 
@@ -24,6 +26,7 @@ import org.springframework.security.oauth2.core.OAuth2ErrorCodes;
 import org.springframework.security.oauth2.core.OAuth2TokenValidator;
 import org.springframework.security.oauth2.core.OAuth2TokenValidatorResult;
 import org.springframework.security.oauth2.jwt.Jwt;
+import pro.mir0n.esquire.common.EsqConstants;
 
 /**
  * Requires the login id on a token the gateway has already validated; the gateway looks the Esquire claims up by it.
@@ -36,17 +39,16 @@ public class EsqClaimsValidator implements OAuth2TokenValidator<Jwt> {
 
     private static final OAuth2Error NO_LOGIN = new OAuth2Error(OAuth2ErrorCodes.INVALID_TOKEN,
             "The token carries no login id", null);
-    private static final String CLAIM_PREFERRED_USERNAME = "preferred_username";
 
     @Override
     public OAuth2TokenValidatorResult validate(Jwt token) {
         OAuth2TokenValidatorResult ret;
         String subject = token.getSubject();
-        String loginId = token.getClaimAsString(CLAIM_PREFERRED_USERNAME);
+        String loginId = token.getClaimAsString(EsqConstants.JWT_CLAIM_PREFERRED_USERNAME);
         if (isBlank(subject) || isBlank(loginId)) {
             log.warn("EsqClaimsValidator: token refused -- no login id");
             devLog.warn("EsqClaimsValidator: refused -- sub={}, {}={}", !isBlank(subject),
-                    CLAIM_PREFERRED_USERNAME, !isBlank(loginId));
+                    EsqConstants.JWT_CLAIM_PREFERRED_USERNAME, !isBlank(loginId));
             ret = OAuth2TokenValidatorResult.failure(NO_LOGIN);
         } else {
             ret = OAuth2TokenValidatorResult.success();

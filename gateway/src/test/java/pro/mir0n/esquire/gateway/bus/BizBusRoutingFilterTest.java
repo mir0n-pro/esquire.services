@@ -163,10 +163,9 @@ class BizBusRoutingFilterTest {
     @DisplayName("claims in the token are never read: with no claim headers the command carries none")
     void tokenClaimsNotRead() {
         String claimsToken = new PlainJWT(new JWTClaimsSet.Builder().subject("joe")
-                .claim(EsqConstants.JWT_CLAIM_ENTITY_ID, "u1")
-                .claim(EsqConstants.JWT_CLAIM_ENTITY_ROOTPATH, "1.")
-                .claim(EsqConstants.JWT_CLAIM_REALM_ACCESS,
-                        Map.of(EsqConstants.JWT_CLAIM_REALM_ACCESS_ROLES, List.of("SYSADMIN")))
+                .claim("esq_uid", "u1")
+                .claim("esq_rootpath", "1.")
+                .claim("realm_access", Map.of("roles", List.of("SYSADMIN")))
                 .build()).serialize();
         MockServerWebExchange exchange = MockServerWebExchange.from(MockServerHttpRequest
                 .get("/esq-cmd?kind=52&id=a1")

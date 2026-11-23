@@ -1,6 +1,15 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v2.0.3-2611.2312  v2.0.3 -- pure OAuth only: common
+    :Refactoring: the services take the caller's claims from the gateway's headers only; the Esquire
+                  claims in a token are no longer read
+    :Refactoring: the gateway and gateWard share the roles header parse and the login id claim name from
+                  common
+    Components:   common,
+                  gateway,
+                  gateWard
+
 v2.0.3-2611.2300  v2.0.3 -- pure OAuth only: the gateway and gateWard; pure OAuth is the default
     :Refactoring: the gateway and gateWard read every token as a pure OAuth token: the login id comes
                   from the token, the Esquire claims from keySmith

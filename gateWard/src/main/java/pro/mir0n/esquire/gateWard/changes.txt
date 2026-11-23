@@ -1,5 +1,9 @@
 Esquire gateWard Microservice
 
+11/23/2026 mir0n  v2.0.3 -- the roles header parse from common
+BizTreeCacheController
+  - v2.0.3 -- the roles header parse is EsqRequestScope.rolesOf(); the private rolesOf(String) out
+
 11/23/2026 mir0n  v2.0.3 -- pure OAuth only: the claims mode and the lab leave gateWard
 BizTreeCacheController
   - v2.0.3 -- context(): uid / rootPath / roles from the X-Esq-* headers only; the endpoints take no
