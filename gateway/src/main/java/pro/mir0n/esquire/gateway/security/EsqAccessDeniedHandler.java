@@ -8,6 +8,7 @@
  *  History:
  * 09/05/2026 mir0n  created: writes a ProblemDetail on a refused route, naming the caller from
  *                   preferred_username, esq_uid or sub, in place of Spring's empty 403
+ * 11/22/2026 mir0n  v2.0.3 -- the caller is named from preferred_username or sub (esq_uid out)
  */
 package pro.mir0n.esquire.gateway.security;
 
@@ -61,9 +62,6 @@ public class EsqAccessDeniedHandler implements ServerAccessDeniedHandler {
         if (auth != null && auth.getPrincipal() instanceof Jwt) {
             Jwt token = (Jwt) auth.getPrincipal();
             String name = token.getClaimAsString(CLAIM_PREFERRED_USERNAME);
-            if (name == null || name.isBlank()) {
-                name = token.getClaimAsString(EsqConstants.JWT_CLAIM_ENTITY_ID);
-            }
             if (name == null || name.isBlank()) {
                 name = token.getSubject();
             }

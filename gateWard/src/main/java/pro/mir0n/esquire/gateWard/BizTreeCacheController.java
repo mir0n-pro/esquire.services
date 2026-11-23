@@ -15,6 +15,8 @@
  * 10/19/2026 mir0n  v2.0.1 -- the request context carries the caller's realm roles from the token
  * 11/17/2026 mir0n  v2.0.2 -- context(): uid / rootPath / roles from the X-Esq-* headers when the token carries
  *                   no esq_uid (pure OAuth)
+ * 11/22/2026 mir0n  v2.0.3 -- context(): uid / rootPath / roles from the X-Esq-* headers only; the endpoints
+ *                   take no @AuthenticationPrincipal Jwt
  */
 
 package pro.mir0n.esquire.gateWard;
@@ -22,10 +24,9 @@ package pro.mir0n.esquire.gateWard;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestHeader;
@@ -44,7 +45,6 @@ import reactor.core.scheduler.Scheduler;
 import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.ArrayList;
-import java.util.Map;
 
 /**
  * The gate answering the tree routes from the cache in its own memory.
@@ -89,33 +89,30 @@ public class BizTreeCacheController {
             @RequestParam(name = "id", required = false) String id,
             @RequestParam(name = "skip", required = false) Integer skip,
             @RequestParam(name = "take", required = false) Integer take,
-            @AuthenticationPrincipal Jwt jwt,
             @RequestHeader(name = EsqConstants.X_REQUEST_ID, required = false) String requestId,
             @RequestHeader(name = EsqConstants.X_CORRELATION_ID, required = false) String correlationId,
             ServerWebExchange exchange) {
-        return onCache(exchange, context(exchange, jwt, requestId, correlationId),
+        return onCache(exchange, context(exchange, requestId, correlationId),
                 () -> director.esquire(id, skip, take), "esquire", id, OBS_TREE, "read tree");
     }
 
     @GetMapping("/esq-tree")
     public Mono<ResponseEntity<List<EsqTreeNode>>> esquireSubtree(
             @RequestParam(name = "id", required = true) String id,
-            @AuthenticationPrincipal Jwt jwt,
             @RequestHeader(name = EsqConstants.X_REQUEST_ID, required = false) String requestId,
             @RequestHeader(name = EsqConstants.X_CORRELATION_ID, required = false) String correlationId,
             ServerWebExchange exchange) {
-        return onCache(exchange, context(exchange, jwt, requestId, correlationId),
+        return onCache(exchange, context(exchange, requestId, correlationId),
                 () -> director.esquireSubtree(id), "esquireSubtree", id, OBS_SUBTREE, "read subtree");
     }
 
     @GetMapping("/esq-path")
     public Mono<ResponseEntity<List<String>>> esquirePath(
             @RequestParam(name = "id", required = true) String id,
-            @AuthenticationPrincipal Jwt jwt,
             @RequestHeader(name = EsqConstants.X_REQUEST_ID, required = false) String requestId,
             @RequestHeader(name = EsqConstants.X_CORRELATION_ID, required = false) String correlationId,
             ServerWebExchange exchange) {
-        return onCache(exchange, context(exchange, jwt, requestId, correlationId),
+        return onCache(exchange, context(exchange, requestId, correlationId),
                 () -> director.esquirePath(id), "esquirePath", id, OBS_PATH, "read path");
     }
 
@@ -124,11 +121,10 @@ public class BizTreeCacheController {
             @RequestParam(name = "kind", required = true) Integer kind,
             @RequestParam(name = "id", required = false) String id,
             @RequestParam(name = "name", required = false) String name,
-            @AuthenticationPrincipal Jwt jwt,
             @RequestHeader(name = EsqConstants.X_REQUEST_ID, required = false) String requestId,
             @RequestHeader(name = EsqConstants.X_CORRELATION_ID, required = false) String correlationId,
             ServerWebExchange exchange) {
-        return onCacheNode(exchange, context(exchange, jwt, requestId, correlationId), kind, id, name);
+        return onCacheNode(exchange, context(exchange, requestId, correlationId), kind, id, name);
     }
 
     /**
@@ -151,30 +147,13 @@ public class BizTreeCacheController {
     private static final String OBS_PATH    = "esq.svc.path";
     private static final String OBS_NODE    = "esq.svc.node";
 
-    /** The caller, taken from the verified token on the request side while the JWT is still in hand. */
-    private EsqRequestContext context(ServerWebExchange exchange, Jwt jwt, String requestId, String correlationId) {
-        String uid      = (jwt != null) ? jwt.getClaimAsString(EsqConstants.JWT_CLAIM_ENTITY_ID) : null;
-        String rootPath = (jwt != null) ? jwt.getClaimAsString(EsqConstants.JWT_CLAIM_ENTITY_ROOTPATH) : null;
-        List<String> roles = null;
-        Map<String, Object> realmAccess = (jwt != null) ? jwt.getClaimAsMap(EsqConstants.JWT_CLAIM_REALM_ACCESS) : null;
-        if (realmAccess != null && realmAccess.get(EsqConstants.JWT_CLAIM_REALM_ACCESS_ROLES) instanceof List<?> list) {
-            roles = new ArrayList<>();
-            for (Object role : list) {
-                roles.add(String.valueOf(role));
-            }
-        }
-        //xxx: a pure OAuth token carries no Esquire claims -- the gateway's header filter set them on the
-        // request (and stripped any inbound copies), so a header here is the gateway's own
-        String headerUid = exchange.getRequest().getHeaders().getFirst(EsqConstants.X_ESQ_UID);
-        if (uid == null && headerUid != null) {
-            uid      = headerUid;
-            rootPath = exchange.getRequest().getHeaders().getFirst(EsqConstants.X_ESQ_ROOT_PATH);
-            roles    = rolesOf(exchange.getRequest().getHeaders().getFirst(EsqConstants.X_ESQ_ROLES));
-        }
-
-        EsqRequestContext ret = new EsqRequestContext(correlationId, requestId, uid, rootPath, roles);
-
-        return ret;
+    //xxx: the caller's claims are the gateway's own headers -- its header filter stripped every inbound copy
+    private EsqRequestContext context(ServerWebExchange exchange, String requestId, String correlationId) {
+        HttpHeaders headers = exchange.getRequest().getHeaders();
+        String uid = headers.getFirst(EsqConstants.X_ESQ_UID);
+        String rootPath = headers.getFirst(EsqConstants.X_ESQ_ROOT_PATH);
+        List<String> roles = rolesOf(headers.getFirst(EsqConstants.X_ESQ_ROLES));
+        return new EsqRequestContext(correlationId, requestId, uid, rootPath, roles);
     }
 
     private static List<String> rolesOf(String header) {

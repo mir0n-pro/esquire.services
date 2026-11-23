@@ -8,9 +8,10 @@
  *  History:
  * 11/17/2026 mir0n  created (v2.0.2): pure OAuth (lab) -- GET claims-uri?loginId= (the login id strictly
  *                   encoded); a 404 is a BadCredentialsException
+ * 11/22/2026 mir0n  v2.0.3 -- moved from lab.pureoauth to oauth
  */
 
-package pro.mir0n.esquire.gateway.lab.pureoauth;
+package pro.mir0n.esquire.gateway.oauth;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;

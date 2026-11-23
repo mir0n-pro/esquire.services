@@ -152,8 +152,8 @@ services:
       - "3003:3003"
     environment:
       - MESNIE_PORT=3003
-      # Pure OAuth (lab): on = no root path / roles to KeyCloak, and a change evicts the gateway claims cache
-      - ESQ_PURE_OAUTH=${ESQ_PURE_OAUTH:-false}
+      # Pure OAuth, on by default: no root path / roles to KeyCloak, and a change evicts the gateway claims cache
+      - ESQ_PURE_OAUTH=${ESQ_PURE_OAUTH:-true}
       - LOG_LEVEL_ROOT=ERROR
       - LOG_LEVEL_SF=ERROR
       - LOG_LEVEL_MIR0N=${LOG_LEVEL_MIR0N:-DEBUG}
@@ -438,15 +438,9 @@ services:
       - KEYCLOAK_CLIENT_ID=esq-angular
       - CORS_ALLOWED_ORIGINS=http://localhost:4200,http://localhost:3000
       - GW_SERVICE_METRICS_ENABLED=true
-      - KC_EXCHANGE_BASE_URL=http://host.docker.internal:8081/kc-auth
-      - ESQ_GW_VANILLA_CLIENTS=esq-hauberk-S
-      - ESQ_GW_PHANTOM_CLIENTS=esq-hauberk-M
-      - ESQ_GW_EXCHANGE_CLIENT_ID=esq-gw-exchange
-      - ESQ_GW_EXCHANGE_CLIENT_SECRET=esq-gw-exchange-dev-secret-rotate-in-prod
-      # Pure OAuth (lab) -- the two pure clients' tokens carry no Esquire claims; gateWard asks keySmith
-      # in mesnie for them (KEYSMITH_HOST/KEYSMITH_PORT above make the claims URI).
-      - ESQ_GW_PURE_OAUTH_CLIENTS=esq-angular-pure-oauth,esq-hauberk-P
-      - ESQ_GW_PURE_OAUTH_CACHE_IDLE_MS=${ESQ_GW_PURE_OAUTH_CACHE_IDLE_MS:-60000}
+      # OAuth -- the token carries the login id only; gateWard asks keySmith in mesnie for the Esquire
+      # claims (KEYSMITH_HOST/KEYSMITH_PORT above make the claims URI).
+      - ESQ_GW_OAUTH_CACHE_IDLE_MS=${ESQ_GW_OAUTH_CACHE_IDLE_MS:-60000}
       # --- the ward: the cache this process now holds, and the database it fills itself from ---
       - DB_BIZTREE_VENDOR=${DB_BIZTREE_VENDOR:-dev-postgres}
       - DB_BIZTREE_PORT=${DB_BIZTREE_PORT:-5432}

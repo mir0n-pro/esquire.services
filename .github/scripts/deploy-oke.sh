@@ -34,10 +34,9 @@
 #   MIR0N_PWD           postgres + Keycloak admin password (single secret)
 # Optional (default to the realm-import literals; OVERRIDE in prod via secrets):
 #   BFF_KC_SECRET          esq-angular BFF client secret
-#   GW_EXCHANGE_SECRET     gateway phantom-token-relay exchange client secret
 #   BFF_SESSION_SECRET     BFF session-cookie HMAC secret
 #   KCMASTER_ADMIN_SECRET  esq-kcMaster KC admin service-account client secret -- REQUIRED,
-#                          the only one of the four with no fallback (see why below)
+#                          the only one of the three with no fallback (see why below)
 # ===========================================================================
 set -euo pipefail
 
@@ -53,7 +52,6 @@ note_fallback() {   # $1 = name, $2 = value, $3 = published default
 }
 
 BFF_KC_SECRET="${BFF_KC_SECRET:-esq-angular-bff-dev-secret-rotate-in-prod}"
-GW_EXCHANGE_SECRET="${GW_EXCHANGE_SECRET:-esq-gw-exchange-dev-secret-rotate-in-prod}"
 BFF_SESSION_SECRET="${BFF_SESSION_SECRET:-esq-bff-session-secret}"
 
 # esq-kcMaster HAS NO DEFAULT, and it is the only one of the four that does not.
@@ -78,7 +76,6 @@ BFF_SESSION_SECRET="${BFF_SESSION_SECRET:-esq-bff-session-secret}"
     arrives EMPTY in validate.}"
 
 note_fallback BFF_KC_SECRET         "$BFF_KC_SECRET"         "esq-angular-bff-dev-secret-rotate-in-prod"
-note_fallback GW_EXCHANGE_SECRET    "$GW_EXCHANGE_SECRET"    "esq-gw-exchange-dev-secret-rotate-in-prod"
 note_fallback BFF_SESSION_SECRET    "$BFF_SESSION_SECRET"    "esq-bff-session-secret"
 echo "[ok] KCMASTER_ADMIN_SECRET taken from the environment"
 
@@ -184,8 +181,7 @@ helm upgrade --install esquire-paacman "${CHARTS}/esquire-paacman" --force-confl
 echo "--- gateward"
 helm upgrade --install esquire-gateward "${CHARTS}/esquire-gateward" --force-conflicts \
   -f "${OCIVALS}/gateward.yaml" \
-  --set image.tag="${IMAGE_TAG}" --set db.password="${MIR0N_PWD}" \
-  --set tokenRelay.phantom.exchangeClientSecret="${GW_EXCHANGE_SECRET}" --wait --timeout 6m
+  --set image.tag="${IMAGE_TAG}" --set db.password="${MIR0N_PWD}" --wait --timeout 6m
 
 echo "--- waiting for paacman (gateWard probes it now)"
 kubectl rollout status statefulset/esquire-paacman --timeout=5m

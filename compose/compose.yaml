@@ -340,8 +340,8 @@ services:
       - "3003:3003"
     environment:
       - ENYMAN_PORT=3003
-      # Pure OAuth (lab): on = no root path / roles to KeyCloak, and a change evicts the gateway claims cache
-      - ESQ_PURE_OAUTH=${ESQ_PURE_OAUTH:-false}
+      # Pure OAuth, on by default: no root path / roles to KeyCloak, and a change evicts the gateway claims cache
+      - ESQ_PURE_OAUTH=${ESQ_PURE_OAUTH:-true}
       - LOG_LEVEL_ROOT=ERROR
       - LOG_LEVEL_SF=ERROR
       # I49 knob: o11y-log-off/on.bat set this OFF / INFO. Keep overridable or both arms run identical.
@@ -656,8 +656,8 @@ services:
       - "3005:3005"
     environment:
       - KEYSMITH_PORT=3005
-      # Pure OAuth (lab): on = no root path / roles to KeyCloak, and a change evicts the gateway claims cache
-      - ESQ_PURE_OAUTH=${ESQ_PURE_OAUTH:-false}
+      # Pure OAuth, on by default: no root path / roles to KeyCloak, and a change evicts the gateway claims cache
+      - ESQ_PURE_OAUTH=${ESQ_PURE_OAUTH:-true}
       - LOG_LEVEL_ROOT=ERROR
       - LOG_LEVEL_SF=ERROR
       # I49 knob: o11y-log-off/on.bat set this OFF / INFO. Keep overridable or both arms run identical.
@@ -739,8 +739,8 @@ services:
       - "3006:3006"
     environment:
       - KCMASTER_PORT=3006
-      # Pure OAuth (lab): on = no root path / roles to KeyCloak, and a change evicts the gateway claims cache
-      - ESQ_PURE_OAUTH=${ESQ_PURE_OAUTH:-false}
+      # Pure OAuth, on by default: no root path / roles to KeyCloak, and a change evicts the gateway claims cache
+      - ESQ_PURE_OAUTH=${ESQ_PURE_OAUTH:-true}
       - LOG_LEVEL_ROOT=ERROR
       - LOG_LEVEL_SF=ERROR
       # I49 knob: o11y-log-off/on.bat set this OFF / INFO. Keep overridable or both arms run identical.
@@ -835,7 +835,7 @@ services:
       - PACMAN_HOST=pacman
       # the service of the pacMan family the pacMan routes go to: paacman (over the biz bus) or pacman (HTTP)
       - PACMAN_SERVICE=${PACMAN_SERVICE:-paacman}
-      # /etc/esquire is the read-only key mount below, so the topology goes to its own folder
+      # the topology mount below
       - TOPOLOGY_IMPORT=optional:file:/etc/esquire-topology/topology.yml
       - BIZ_BUS_ID=esquire.biz
       - BIZ_SLOT_ID=biz
@@ -867,32 +867,9 @@ services:
       - ESQ_TRACING_SAMPLING_RATIO=${ESQ_TRACING_SAMPLING_RATIO:-1.0}
       - ESQ_TRACING_MARKS_ENABLED=${ESQ_TRACING_MARKS_ENABLED:-true}
       - ESQ_TRACING_EXCLUDED_PATHS=${ESQ_TRACING_EXCLUDED_PATHS:-/actuator}
-      # v1.2.4 JWE re-evaluation -- mounts the gateway RSA private key at the
-      # path below; SecurityConfig switches to JweAwareJwtDecoder when present.
-      # Blank/unset -> plain JWS decoder (v1.2.3 baseline).
-      - ESQ_JWE_PRIVATE_KEY_PATH=/etc/esquire/jwe-private.pem
-      # Vanilla Token Relay -- client sends HTTP Basic with its own
-      # client_id:client_secret; gateway brokers a JWT from KC via the
-      # client_credentials grant and caches it per client_id. Per-client
-      # opt-in via the allowlist below.
-      # Certified clients:
-      #   esq-hauberk   -- Plain JWT (client carries Bearer JWT)
-      #   esq-hauberk-S -- Vanilla Token Relay (client carries Basic; no token)
-      # Use host.docker.internal:8081 (same URL as clients see) so KC token-exchange
-      # iss validation matches between subject_token and gateway's call. Gateway
-      # gets extra_hosts mapping below to resolve host.docker.internal.
-      - KC_EXCHANGE_BASE_URL=http://host.docker.internal:8081/kc-auth
-      - ESQ_GW_VANILLA_CLIENTS=esq-hauberk-S
-      # Phantom Token Relay -- esq-hauberk-M presents a stripped JWT;
-      # gateway exchanges it for a full JWT via RFC 8693 using the
-      # esq-gw-exchange confidential client.
-      - ESQ_GW_PHANTOM_CLIENTS=esq-hauberk-M
-      - ESQ_GW_EXCHANGE_CLIENT_ID=esq-gw-exchange
-      - ESQ_GW_EXCHANGE_CLIENT_SECRET=esq-gw-exchange-dev-secret-rotate-in-prod
-      # Pure OAuth (lab) -- esq-angular-pure-oauth's token carries no Esquire claims; the gateway
-      # asks keySmith for them (KEYSMITH_HOST/KEYSMITH_PORT above make the claims URI).
-      - ESQ_GW_PURE_OAUTH_CLIENTS=esq-angular-pure-oauth,esq-hauberk-P
-      - ESQ_GW_PURE_OAUTH_CACHE_IDLE_MS=${ESQ_GW_PURE_OAUTH_CACHE_IDLE_MS:-60000}
+      # OAuth -- the token carries the login id only; the gateway asks keySmith for the Esquire
+      # claims (KEYSMITH_HOST/KEYSMITH_PORT above make the claims URI).
+      - ESQ_GW_OAUTH_CACHE_IDLE_MS=${ESQ_GW_OAUTH_CACHE_IDLE_MS:-60000}
     # --enable-native-access=ALL-UNNAMED : the gateway is the ONE Netty runtime in the fleet (Spring
     # Cloud Gateway); the rest are Tomcat. Netty loads a native library, and on Java 25 (JEP 472) that
     # is a RESTRICTED method -- the JVM warns today and says so itself: "Restricted methods will be
@@ -908,7 +885,6 @@ services:
         condition: service_healthy
     volumes:
       - ./logs:/app/logs
-      - ../gateway/conf:/etc/esquire:ro
       - ./topology/esquire-topology.yml:/etc/esquire-topology/topology.yml:ro
     networks:
       - esquirenet

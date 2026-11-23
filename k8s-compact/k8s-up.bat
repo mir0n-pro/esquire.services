@@ -120,11 +120,10 @@ rem passed here REPLACES the value the previous install stored, and the release 
 rem that cannot work -- the browser answering unauthorized_client while the deploy itself reported success.
 rem An unset variable therefore contributes NO --set at all, and what the release already holds stands.
 set "SET_KCMASTER_ADMIN="
-set "SET_GW_EXCHANGE="
 set "SET_BFF_KC="
 set "SET_BFF_SESSION="
 rem esq-kcMaster is the ONE published client holding realm-management realm-admin -- every
-rem other service account (esq-rest, esq-hauberk, esq-hauberk-S, esq-hauberk-M) has none. Its
+rem other service account (esq-rest, esq-hauberk) has none. Its
 rem secret is therefore the realm's master key, not one credential among seven.
 rem
 rem NO FALLBACK AND NO SKIP, on any target, deliberately. A default reinstates the published
@@ -138,11 +137,9 @@ if "%KCMASTER_ADMIN_SECRET%"=="" (
     exit /b 1
 )
 set "SET_KCMASTER_ADMIN=--set keycloak.adminClientSecret=%KCMASTER_ADMIN_SECRET%"
-if not "%GW_EXCHANGE_SECRET%"=="" set "SET_GW_EXCHANGE=--set tokenRelay.phantom.exchangeClientSecret=%GW_EXCHANGE_SECRET%"
 if not "%BFF_KC_SECRET%"=="" set "SET_BFF_KC=--set keycloak.clientSecret=%BFF_KC_SECRET%"
 if not "%BFF_SESSION_SECRET%"=="" set "SET_BFF_SESSION=--set session.secret=%BFF_SESSION_SECRET%"
 if "%BFF_KC_SECRET%"=="" echo [!] BFF_KC_SECRET is not set -- the release keeps what it holds; on a FIRST install the browser login will FAIL. KeyCloak: realm esquire -^> clients -^> esq-angular -^> Credentials.
-if "%GW_EXCHANGE_SECRET%"=="" echo [!] GW_EXCHANGE_SECRET is not set -- the release keeps what it holds; on a FIRST install the phantom token relay will FAIL. KeyCloak: realm esquire -^> clients -^> esq-gw-exchange -^> Credentials.
 if "%BFF_SESSION_SECRET%"=="" echo [!] BFF_SESSION_SECRET is not set -- the release keeps what it holds. Set any random string.
 
 rem === KC-dependent ===
@@ -151,11 +148,9 @@ rem so the secret belongs to this process rather than to a separate kcMaster.
 call helm upgrade --install esquire-mesnie    charts\esquire-mesnie    -f values\mesnie.yaml --reset-then-reuse-values --force-conflicts ^
   %SET_KCMASTER_ADMIN% || exit /b 1
 
-rem gateWard: the gate AND the tree cache in one process. Dev exchange-client secret passed via --set
-rem (matches realm import), as the gateway's was.
+rem gateWard: the gate AND the tree cache in one process.
 echo --- Installing gateward...
-call helm upgrade --install esquire-gateward  charts\esquire-gateward  -f values\gateward.yaml --reset-then-reuse-values --force-conflicts ^
-  %SET_GW_EXCHANGE% || exit /b 1
+call helm upgrade --install esquire-gateward  charts\esquire-gateward  -f values\gateward.yaml --reset-then-reuse-values --force-conflicts || exit /b 1
 
 rem A longer wait than the gateway's 60s on purpose: this pod reports ready only once the tree cache has
 rem loaded from the database (the readiness group carries cacheReadiness), so the wait covers a whole

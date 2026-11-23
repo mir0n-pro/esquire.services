@@ -21,7 +21,6 @@
 #   var     OKE_CLUSTER_OCID      the OKE cluster OCID
 #   secret  MIR0N_PWD             postgres + Keycloak admin password
 #   secret  BFF_KC_SECRET         (optional) esq-angular BFF client secret
-#   secret  GW_EXCHANGE_SECRET    (optional) gateWard phantom-relay exchange secret
 #   secret  BFF_SESSION_SECRET    (optional) BFF session-cookie HMAC secret
 #   secret  KCMASTER_ADMIN_SECRET REQUIRED. esq-kcMaster KC admin service-account client secret.
 #                                 It is the one published client holding realm-admin, so the deploy
@@ -253,7 +252,6 @@ jobs:
           DEPLOY_INFRA: ${{ github.event.inputs.deploy_infra || 'false' }}
           MIR0N_PWD: ${{ secrets.MIR0N_PWD }}
           BFF_KC_SECRET: ${{ secrets.BFF_KC_SECRET }}
-          GW_EXCHANGE_SECRET: ${{ secrets.GW_EXCHANGE_SECRET }}
           BFF_SESSION_SECRET: ${{ secrets.BFF_SESSION_SECRET }}
           KCMASTER_ADMIN_SECRET: ${{ secrets.KCMASTER_ADMIN_SECRET }}
         run: bash services2/.github/scripts/deploy-oke.sh

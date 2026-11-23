@@ -59,17 +59,10 @@ rem passed here REPLACES the value the previous install stored and the release c
 rem credential that cannot authenticate, while the deploy reports success. An unset variable therefore
 rem contributes NO --set at all and what the release already holds stands.
 set "SET_BFF_KC="
-set "SET_GW_EXCHANGE="
 set "SET_BFF_SESSION="
 set "SET_KCMASTER_ADMIN="
 if not "%bff_kc_secret%"=="" set "SET_BFF_KC=--set keycloak.clientSecret=%bff_kc_secret%"
 if "%bff_kc_secret%"=="" echo [!] BFF_KC_SECRET is not set -- the release keeps what it holds; on a FIRST install the browser login will FAIL. KeyCloak: realm esquire -^> clients -^> esq-angular -^> Credentials.
-
-rem Phantom Token Relay -- esq-gw-exchange (confidential) client secret used by the
-rem gate to authenticate to KC /token for RFC 8693 exchange. Both relay allowlists
-rem are EMPTY on OKE (values\gateward.yaml), so this is set but dormant.
-if not "%gw_exchange_secret%"=="" set "SET_GW_EXCHANGE=--set tokenRelay.phantom.exchangeClientSecret=%gw_exchange_secret%"
-if "%gw_exchange_secret%"=="" echo [!] GW_EXCHANGE_SECRET is not set -- the release keeps what it holds; on a FIRST install the phantom token relay will FAIL. KeyCloak: realm esquire -^> clients -^> esq-gw-exchange -^> Credentials.
 
 rem BFF session-cookie HMAC secret. Lower-risk than the KC client secret:
 rem leak alone does not grant access (session IDs are server-side random,
@@ -216,8 +209,7 @@ echo --- Installing gateward...
 call helm upgrade --install esquire-gateward %CHARTS%\esquire-gateward --force-conflicts ^
   -f values\gateward.yaml ^
   --set image.tag=%IMAGE_TAG% ^
-  --set db.password=%PG_PW% ^
-  %SET_GW_EXCHANGE% || exit /b 1
+  --set db.password=%PG_PW% || exit /b 1
 
 echo Waiting for gateward...
 kubectl rollout status statefulset/esquire-gateward -n default --timeout=180s

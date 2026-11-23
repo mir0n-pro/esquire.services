@@ -52,29 +52,9 @@ cors:
   # https://api.esquire.mir0n.pro.
   allowedOrigins: http://esquire.localhost,http://api.esquire.localhost
 
-# Token Relay -- the umbrella covering Vanilla Token Relay (HTTP Basic at
-# edge -> client_credentials grant) and Phantom Token Relay (stripped Bearer
-# at edge -> RFC 8693 token-exchange). Both variants share one KC /token
-# endpoint and one cache. A variant is dormant when its `clients` allowlist
-# is empty. exchangeClientSecret is passed at install via --set so it never
-# lands in chart defaults.
-# The gate's own KeyCloak connection -- the endpoint the token relay exchanges against. Same six keys
-# kcMaster configures its admin client with; the token url is built from base-url + realm.
-keycloakExchange:
-  baseUrl: ""                   # http://<kc-host>:<port>/<kc-path>
-
-tokenRelay:
-  vanilla:
-    clients: ""                 # comma-separated KC clientId list (e.g. "esq-hauberk-S")
-  phantom:
-    clients: ""                 # comma-separated KC clientId list (e.g. "esq-hauberk-M")
-    exchangeClientId: esq-gw-exchange
-    exchangeClientSecret: ""    # passed via --set at install
-
-# Pure OAuth (lab): a client on this list sends a token with no Esquire claims; the gateway asks keySmith
-# (KEYSMITH_HOST/KEYSMITH_PORT above) and keeps the claims while they are asked for. Empty = off.
-pureOAuth:
-  clients: ""                   # comma-separated KC clientId list (e.g. "esq-hauberk-P")
+# OAuth: the token carries the login id only; the gateway asks keySmith (KEYSMITH_HOST/KEYSMITH_PORT
+# above) and keeps the claims while they are asked for.
+oauth:
   cacheIdleMs: "60000"
 
 # R1 outbound HTTP client connection pool (Spring Cloud Gateway -> backend services).

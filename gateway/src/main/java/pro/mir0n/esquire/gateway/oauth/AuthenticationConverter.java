@@ -10,9 +10,12 @@
  *                   authentication is built from the cached claims (ROLE_ authorities, the claims on its
  *                   details); a failed lookup becomes an AuthenticationServiceException with its cause kept; any
  *                   other token goes to the claims-mode converter
+ * 11/22/2026 mir0n  v2.0.3 -- lab.pureoauth.PureOAuthAuthenticationConverter -> oauth.AuthenticationConverter;
+ *                   every token's authentication is built from the cached claims -- the client list, isPure()
+ *                   and the claims-mode converter out
  */
 
-package pro.mir0n.esquire.gateway.lab.pureoauth;
+package pro.mir0n.esquire.gateway.oauth;
 
 import org.springframework.core.convert.converter.Converter;
 import org.springframework.security.authentication.AbstractAuthenticationToken;
@@ -27,44 +30,26 @@ import reactor.core.publisher.Mono;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
 
-public class PureOAuthAuthenticationConverter implements Converter<Jwt, Mono<AbstractAuthenticationToken>> {
+public class AuthenticationConverter implements Converter<Jwt, Mono<AbstractAuthenticationToken>> {
 
-    public static final String CLAIM_AZP = "azp";
     public static final String CLAIM_PREFERRED_USERNAME = "preferred_username";
 
-    private final Set<String> pureClients;
-    private final PureOAuthClaimsCache cache;
-    private final Converter<Jwt, Mono<AbstractAuthenticationToken>> claimsMode;
+    private final ClaimsCache cache;
 
-    public PureOAuthAuthenticationConverter(Set<String> pureClients, PureOAuthClaimsCache cache,
-                                            Converter<Jwt, Mono<AbstractAuthenticationToken>> claimsMode) {
-        this.pureClients = pureClients;
+    public AuthenticationConverter(ClaimsCache cache) {
         this.cache = cache;
-        this.claimsMode = claimsMode;
     }
 
     @Override
     public Mono<AbstractAuthenticationToken> convert(Jwt jwt) {
-        Mono<AbstractAuthenticationToken> ret;
-        if (isPure(pureClients, jwt)) {
-            String loginId = jwt.getClaimAsString(CLAIM_PREFERRED_USERNAME);
-            ret = cache.claimsOf(loginId)
-                    .map(claims -> authenticationOf(jwt, claims))
-                    .onErrorMap(PureOAuthAuthenticationConverter::notAuthenticated);
-        } else {
-            ret = claimsMode.convert(jwt);
-        }
-        return ret;
+        String loginId = jwt.getClaimAsString(CLAIM_PREFERRED_USERNAME);
+        return cache.claimsOf(loginId)
+                .map(claims -> authenticationOf(jwt, claims))
+                .onErrorMap(AuthenticationConverter::notAuthenticated);
     }
 
-    public static boolean isPure(Set<String> pureClients, Jwt jwt) {
-        String azp = jwt.getClaimAsString(CLAIM_AZP);
-        return azp != null && pureClients.contains(azp);
-    }
-
-    //xxx: the claims ride on the authentication's details; PureOAuthHeaderFilter turns them into headers
+    //xxx: the claims ride on the authentication's details; HeaderFilter turns them into headers
     private static AbstractAuthenticationToken authenticationOf(Jwt jwt, EsqUserClaims claims) {
         List<GrantedAuthority> authorities = new ArrayList<>();
         for (String role : claims.roles()) {

@@ -4,121 +4,57 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.oauth2.core.OAuth2TokenValidatorResult;
 import org.springframework.security.oauth2.jwt.Jwt;
-import pro.mir0n.esquire.common.EsqConstants;
-
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * The gateway refuses a token that carries no Esquire IDENTITY -- a subject, an entity id and a root path.
- * Roles are not identity: a token naming a real user who holds none is accepted here and refused, if it
- * must be, by the route rules, which answer 403 rather than 401.
+ * The gateway refuses a token that carries no login id -- the key it looks the Esquire claims up by. The
+ * token carries no Esquire claims; a token that does is not refused for them, they are just not read.
  */
 class EsqClaimsValidatorTest {
 
     private final EsqClaimsValidator validator = new EsqClaimsValidator();
 
     private static Jwt.Builder token() {
-        return Jwt.withTokenValue("t")
-                .header("alg", "RS256")
-                .subject("kc-subject")
-                .claim(EsqConstants.JWT_CLAIM_ENTITY_ID, "42")
-                .claim(EsqConstants.JWT_CLAIM_ENTITY_ROOTPATH, "1.2.")
-                .claim(EsqConstants.JWT_CLAIM_REALM_ACCESS,
-                        Map.of(EsqConstants.JWT_CLAIM_REALM_ACCESS_ROLES, List.of("TREE")));
+        return Jwt.withTokenValue("t").header("alg", "RS256").subject("kc-subject")
+                .claim("azp", "esq-angular").claim("preferred_username", "mainadmin");
     }
 
     @Test
-    @DisplayName("a complete Esquire token passes")
-    void complete() {
-        OAuth2TokenValidatorResult ret = validator.validate(token().build());
-        assertThat(ret.hasErrors()).isFalse();
+    @DisplayName("a token with a subject and a login id passes")
+    void loginOnly_passes() {
+        assertThat(validator.validate(token().build()).hasErrors()).isFalse();
     }
 
     @Test
-    @DisplayName("no esq_uid is refused")
-    void noUid() {
+    @DisplayName("no login id is refused")
+    void noLogin_refused() {
         Jwt jwt = Jwt.withTokenValue("t").header("alg", "RS256").subject("kc-subject")
-                .claim(EsqConstants.JWT_CLAIM_ENTITY_ROOTPATH, "1.2.")
-                .claim(EsqConstants.JWT_CLAIM_REALM_ACCESS,
-                        Map.of(EsqConstants.JWT_CLAIM_REALM_ACCESS_ROLES, List.of("TREE")))
-                .build();
+                .claim("azp", "esq-angular").build();
         assertThat(validator.validate(jwt).hasErrors()).isTrue();
     }
 
     @Test
-    @DisplayName("no esq_rootpath is refused -- the scope of every read")
-    void noRootPath() {
-        Jwt jwt = Jwt.withTokenValue("t").header("alg", "RS256").subject("kc-subject")
-                .claim(EsqConstants.JWT_CLAIM_ENTITY_ID, "42")
-                .claim(EsqConstants.JWT_CLAIM_REALM_ACCESS,
-                        Map.of(EsqConstants.JWT_CLAIM_REALM_ACCESS_ROLES, List.of("TREE")))
-                .build();
+    @DisplayName("a blank login id is refused")
+    void blankLogin_refused() {
+        Jwt jwt = token().claim("preferred_username", "  ").build();
         assertThat(validator.validate(jwt).hasErrors()).isTrue();
     }
 
     @Test
-    @DisplayName("a blank esq_rootpath is refused, not treated as a root")
-    void blankRootPath() {
-        Jwt jwt = token().claim(EsqConstants.JWT_CLAIM_ENTITY_ROOTPATH, "  ").build();
+    @DisplayName("no subject is refused")
+    void noSubject_refused() {
+        Jwt jwt = Jwt.withTokenValue("t").header("alg", "RS256")
+                .claim("azp", "esq-angular").claim("preferred_username", "mainadmin").build();
         assertThat(validator.validate(jwt).hasErrors()).isTrue();
-    }
-
-    @Test
-    @DisplayName("no realm_access at all still passes -- the identity is whole, the rights are the route's question")
-    void noRealmAccess() {
-        Jwt jwt = Jwt.withTokenValue("t").header("alg", "RS256").subject("kc-subject")
-                .claim(EsqConstants.JWT_CLAIM_ENTITY_ID, "42")
-                .claim(EsqConstants.JWT_CLAIM_ENTITY_ROOTPATH, "1.2.")
-                .build();
-        assertThat(validator.validate(jwt).hasErrors()).isFalse();
-    }
-
-    @Test
-    @DisplayName("an empty role list still passes, so the refusal can be a 403 that names the account")
-    void emptyRoles() {
-        Jwt jwt = token().claim(EsqConstants.JWT_CLAIM_REALM_ACCESS,
-                Map.of(EsqConstants.JWT_CLAIM_REALM_ACCESS_ROLES, List.of())).build();
-        assertThat(validator.validate(jwt).hasErrors()).isFalse();
     }
 
     @Test
     @DisplayName("the failure names invalid_token, so the gateway answers 401")
     void errorCode() {
-        Jwt jwt = token().claim(EsqConstants.JWT_CLAIM_ENTITY_ROOTPATH, "").build();
+        Jwt jwt = token().claim("preferred_username", "").build();
         OAuth2TokenValidatorResult ret = validator.validate(jwt);
         assertThat(ret.getErrors()).isNotEmpty();
         assertThat(ret.getErrors().iterator().next().getErrorCode()).isEqualTo("invalid_token");
-    }
-
-    // ---- pure OAuth: the token carries the login id only ----
-
-    private final EsqClaimsValidator pureValidator = new EsqClaimsValidator(Set.of("esq-angular-pure-oauth"));
-
-    @Test
-    @DisplayName("pure OAuth: a listed client's token with a login id and no Esquire claims passes")
-    void pure_loginOnly_passes() {
-        Jwt jwt = Jwt.withTokenValue("t").header("alg", "RS256").subject("kc-subject")
-                .claim("azp", "esq-angular-pure-oauth").claim("preferred_username", "mainadmin").build();
-        assertThat(pureValidator.validate(jwt).hasErrors()).isFalse();
-    }
-
-    @Test
-    @DisplayName("pure OAuth: a listed client's token with no login id is refused")
-    void pure_noLogin_refused() {
-        Jwt jwt = Jwt.withTokenValue("t").header("alg", "RS256").subject("kc-subject")
-                .claim("azp", "esq-angular-pure-oauth").build();
-        assertThat(pureValidator.validate(jwt).hasErrors()).isTrue();
-    }
-
-    @Test
-    @DisplayName("pure OAuth: a client NOT on the list still needs the Esquire claims")
-    void pure_unlistedClient_stillNeedsClaims() {
-        Jwt jwt = Jwt.withTokenValue("t").header("alg", "RS256").subject("kc-subject")
-                .claim("azp", "esq-angular").claim("preferred_username", "mainadmin").build();
-        assertThat(pureValidator.validate(jwt).hasErrors()).isTrue();
     }
 }

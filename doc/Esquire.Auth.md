@@ -144,6 +144,12 @@ profile hold the same mapping whatever either of them has been through.
 `esq_uid` is written once, at create, and never changes — identity is stable. `esq_rootpath` is the one attribute
 re-issued on a move, so the token's visibility root always matches the tree.
 
+**In the pure OAuth lab mode the sync is smaller.** With `ESQ_PURE_OAUTH=true` the login id, the email and the
+flags still sync, and `esq_uid` is still written at create. kcMaster writes no `esq_rootpath` and no roles, and a
+move sends KeyCloak nothing. The token then carries the login only, and the gateway takes the claims from keySmith.
+A save or a move removes them from the gateway's cache over the claims bus, so the next request reads the new
+ones. The mode is off by default; see [Pure OAuth](Esquire.Auth.TokenPatterns.md#pure-oauth----the-token-carries-the-login-only).
+
 ### 3.3 Creating a user — two separate transactions
 
 A user comes into being in **two independent steps, by two different services** — the entity first, the ability to
@@ -468,8 +474,9 @@ the role gate does.
 Everything above assumes the services already hold a validated JWT with `esq_uid` / `esq_rootpath`. **How** that
 token reaches them from a client — and how the claims are kept off an untrusted wire — is the gateway's job, and
 Esquire ships four patterns for it (BFF, Plain JWT, Vanilla Token Relay, Phantom Token Relay), plus the JWT / JWE
-format analysis behind the "ideal encrypted, self-contained token" that stock KeyCloak cannot emit. That is the
-subject of [`Esquire.Auth.TokenPatterns.md`](Esquire.Auth.TokenPatterns.md). Whatever the pattern, the services
+format analysis behind the "ideal encrypted, self-contained token" that stock KeyCloak cannot emit. A fifth
+option, pure OAuth, runs as a lab mode: the token carries the login only, and the gateway puts the claims on the
+request. That is the subject of [`Esquire.Auth.TokenPatterns.md`](Esquire.Auth.TokenPatterns.md). Whatever the pattern, the services
 downstream of the gateway always validate a plain signed JWT locally against KeyCloak's cached JWKS — no per-request
 call to KeyCloak.
 
@@ -479,7 +486,7 @@ call to KeyCloak.
 
 - **This doc** — the tree-shaped security model: the two dimensions, the identity claims, the
   keySmith / kcMaster / KeyCloak collaboration, and `ep_path` visibility semantics.
-- [`Esquire.Auth.TokenPatterns.md`](Esquire.Auth.TokenPatterns.md) — the four edge token-handling patterns and the
-  JWT / JWE formats.
+- [`Esquire.Auth.TokenPatterns.md`](Esquire.Auth.TokenPatterns.md) — the four edge token-handling patterns, the
+  pure OAuth lab mode, and the JWT / JWE formats.
 - [`Esquire.Auth.keySmithRoutine.md`](Esquire.Auth.keySmithRoutine.md) — the credential-lifecycle state machines
   (password / TOTP / connection flag).

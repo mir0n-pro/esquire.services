@@ -109,7 +109,7 @@ tracing:
   msgBusAliveTrace: "false"
   excludedPaths: "/actuator"
 
-# Pure OAuth (lab): on = the claims stay in Esq2025 (no root path, no roles to KeyCloak) and a change
+# Pure OAuth, on by default: the claims stay in Esq2025 (no root path, no roles to KeyCloak) and a change
 # removes the user from the gateway's claims cache over the claims bus. Off = the claims mode.
 pureOAuth:
-  enabled: false
+  enabled: true

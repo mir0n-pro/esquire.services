@@ -1216,58 +1216,21 @@
       "nodeReRegistrationTimeout": -1,
       "protocolMappers": [
         {
-          "id": "528c1e10-aadd-44f6-989e-39f12ad7f8d8",
-          "name": "realm roles",
+          "id": "50562d0a-9b68-4f13-aae8-461749bdcf13",
+          "name": "esq_login_mapper",
           "protocol": "openid-connect",
-          "protocolMapper": "oidc-usermodel-realm-role-mapper",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
           "consentRequired": false,
           "config": {
+            "aggregate.attrs": "false",
             "introspection.token.claim": "true",
-            "multivalued": "true",
-            "userinfo.token.claim": "false",
-            "user.attribute": "foo",
-            "id.token.claim": "false",
-            "lightweight.claim": "false",
-            "access.token.claim": "true",
-            "claim.name": "realm_access.roles",
-            "jsonType.label": "String"
-          }
-        },
-        {
-          "id": "082ff893-c36f-4fe7-9e27-98662b6f908d",
-          "name": "esq_id_mapper",
-          "protocol": "openid-connect",
-          "protocolMapper": "oidc-usermodel-attribute-mapper",
-          "consentRequired": false,
-          "config": {
-            "aggregate.attrs": "false",
-            "introspection.token.claim": "false",
             "multivalued": "false",
             "userinfo.token.claim": "true",
-            "user.attribute": "esq_uid",
-            "id.token.claim": "false",
+            "user.attribute": "username",
+            "id.token.claim": "true",
             "lightweight.claim": "false",
             "access.token.claim": "true",
-            "claim.name": "esq_uid",
-            "jsonType.label": "String"
-          }
-        },
-        {
-          "id": "e15e697a-e3a2-437a-b6a4-3acc0e5b2528",
-          "name": "esq_rootpath_mapper",
-          "protocol": "openid-connect",
-          "protocolMapper": "oidc-usermodel-attribute-mapper",
-          "consentRequired": false,
-          "config": {
-            "aggregate.attrs": "false",
-            "introspection.token.claim": "false",
-            "multivalued": "false",
-            "userinfo.token.claim": "true",
-            "user.attribute": "esq_rootpath",
-            "id.token.claim": "false",
-            "lightweight.claim": "false",
-            "access.token.claim": "true",
-            "claim.name": "esq_rootpath",
+            "claim.name": "preferred_username",
             "jsonType.label": "String"
           }
         }
@@ -1276,7 +1239,6 @@
         "web-origins",
         "acr",
         "openid",
-        "roles",
         "profile",
         "basic",
         "email"
@@ -1527,58 +1489,19 @@
       "nodeReRegistrationTimeout": -1,
       "protocolMappers": [
         {
-          "id": "f33a6fc0-d0ee-4486-91b9-5c53528bfab9",
-          "name": "esq_uid_mapper",
+          "id": "7430fa49-2d1e-49e3-b639-87f77a4c4996",
+          "name": "esq_login_mapper",
           "protocol": "openid-connect",
-          "protocolMapper": "oidc-usermodel-attribute-mapper",
-          "consentRequired": false,
-          "config": {
-            "aggregate.attrs": "false",
-            "introspection.token.claim": "true",
-            "multivalued": "false",
-            "userinfo.token.claim": "false",
-            "user.attribute": "esq_uid",
-            "id.token.claim": "false",
-            "lightweight.claim": "false",
-            "access.token.claim": "true",
-            "claim.name": "esq_uid",
-            "jsonType.label": "String"
-          }
-        },
-        {
-          "id": "7d3547e5-e593-4fe3-af0e-58d7b95494a9",
-          "name": "esq_rootpath_mapper",
-          "protocol": "openid-connect",
-          "protocolMapper": "oidc-usermodel-attribute-mapper",
-          "consentRequired": false,
-          "config": {
-            "aggregate.attrs": "false",
-            "introspection.token.claim": "true",
-            "multivalued": "false",
-            "userinfo.token.claim": "false",
-            "user.attribute": "esq_rootpath",
-            "id.token.claim": "false",
-            "lightweight.claim": "false",
-            "access.token.claim": "true",
-            "claim.name": "esq_rootpath",
-            "jsonType.label": "String"
-          }
-        },
-        {
-          "id": "d4407316-b05c-4c59-9ef4-9a18d911a34f",
-          "name": "realm roles",
-          "protocol": "openid-connect",
-          "protocolMapper": "oidc-usermodel-realm-role-mapper",
+          "protocolMapper": "oidc-hardcoded-claim-mapper",
           "consentRequired": false,
           "config": {
             "introspection.token.claim": "true",
-            "multivalued": "true",
-            "userinfo.token.claim": "false",
-            "user.attribute": "foo",
-            "id.token.claim": "false",
+            "claim.value": "esq-hauberk@mir0n.pro",
+            "userinfo.token.claim": "true",
+            "id.token.claim": "true",
             "lightweight.claim": "false",
             "access.token.claim": "true",
-            "claim.name": "realm_access.roles",
+            "claim.name": "preferred_username",
             "jsonType.label": "String"
           }
         }
@@ -1588,7 +1511,6 @@
         "service_account",
         "acr",
         "openid",
-        "roles",
         "profile",
         "basic",
         "email"

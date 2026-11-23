@@ -8,9 +8,11 @@
  *  History:
  * 11/21/2026 mir0n  created (v2.0.2): pure OAuth (lab) -- the claims-bus worker: a DELETE of an access profile
  *                   evicts its uid from PureOAuthClaimsCache; off, it takes no rod
+ * 11/22/2026 mir0n  v2.0.3 -- lab.pureoauth.PureOAuthEvictionListener -> oauth.EvictionListener; always takes
+ *                   the claims rod (the on / off flag out); log prefix OAUTH
  */
 
-package pro.mir0n.esquire.gateway.lab.pureoauth;
+package pro.mir0n.esquire.gateway.oauth;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -19,31 +21,27 @@ import pro.mir0n.messaging.IXRod;
 import pro.mir0n.messaging.MessagingBus;
 import pro.mir0n.messaging.RodEvent;
 
-public class PureOAuthEvictionListener {
+public class EvictionListener {
 
-    private static final Logger log = LoggerFactory.getLogger(PureOAuthEvictionListener.class);
+    private static final Logger log = LoggerFactory.getLogger(EvictionListener.class);
 
-    private final PureOAuthClaimsCache cache;
-    private final boolean enabled;
+    private final ClaimsCache cache;
 
-    public PureOAuthEvictionListener(PureOAuthClaimsCache cache, boolean enabled) {
+    public EvictionListener(ClaimsCache cache) {
         this.cache = cache;
-        this.enabled = enabled;
     }
 
     public void start() {
-        if (enabled) {
-            IXRod rod = MessagingBus.getInstance().getXRod(EsqConstants.BUS_KEY_CLAIMS);
-            rod.setWorker(this::onEvent);   // role-support: throws if the rod has no receive leg
-        }
-        log.info("PURE OAUTH | eviction listener {}", enabled ? "on" : "off");
+        IXRod rod = MessagingBus.getInstance().getXRod(EsqConstants.BUS_KEY_CLAIMS);
+        rod.setWorker(this::onEvent);   // role-support: throws if the rod has no receive leg
+        log.info("OAUTH | eviction listener on");
     }
 
     void onEvent(RodEvent e) {
         if (e != null && e.op() == RodEvent.Op.DELETE && e.kind() == EsqConstants.KIND_ACCESS_PROFILE
                 && e.entityId() != null) {
             cache.evict(e.entityId());
-            log.info("PURE OAUTH | evict | {} | {}", e.entityId(), e.correlationId());
+            log.info("OAUTH | evict | {} | {}", e.entityId(), e.correlationId());
         }
     }
 }

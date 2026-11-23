@@ -37,6 +37,13 @@
  *                   a client is listed, and claims-uri required then) and the PureOAuthEvictionListener bean;
  *                   the JWT authentication converter is PureOAuthAuthenticationConverter, PureOAuthHeaderFilter
  *                   runs LAST, and EsqClaimsValidator gets the pure client list
+ * 11/22/2026 mir0n  v2.0.3 -- pure OAuth only: the JWE-aware decoder, the token relay (TokenRelayFilter, the
+ *                   keycloak.exchange connection, assertRelayWiring) and the claims-mode converter
+ *                   (KeycloakRoleConverter) out; the esq.gateway.oauth.* settings (cache-idle-ms, claims-uri,
+ *                   claims-timeout-ms) in place of esq.gateway.pure-oauth.*, with no client list; the
+ *                   claimsCache bean always started, claims-uri required (assertOAuthWiring); the
+ *                   evictionListener bean; AuthenticationConverter for every token; EsqClaimsValidator with no
+ *                   client list; log prefix OAUTH
  */
 package pro.mir0n.esquire.gateway.config;
 
@@ -46,60 +53,36 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.core.convert.converter.Converter;
 import org.springframework.http.HttpMethod;
-import org.springframework.security.authentication.AbstractAuthenticationToken;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.reactive.EnableWebFluxSecurity;
 import org.springframework.security.config.web.server.SecurityWebFiltersOrder;
 import org.springframework.security.config.web.server.ServerHttpSecurity;
-import org.springframework.security.converter.RsaKeyConverters;
 import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
 import org.springframework.security.oauth2.core.OAuth2TokenValidator;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtValidators;
 import org.springframework.security.oauth2.jwt.NimbusReactiveJwtDecoder;
 import org.springframework.security.oauth2.jwt.ReactiveJwtDecoder;
-import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
-import org.springframework.security.oauth2.server.resource.authentication.ReactiveJwtAuthenticationConverterAdapter;
 import org.springframework.security.web.server.SecurityWebFilterChain;
 import org.springframework.security.web.server.context.NoOpServerSecurityContextRepository;
 import org.springframework.web.reactive.function.client.WebClient;
-import pro.mir0n.esquire.common.EsqConstants;
-import pro.mir0n.esquire.gateway.lab.JweAwareJwtDecoder;
 import pro.mir0n.esquire.gateway.security.EsqAccessDeniedHandler;
 import pro.mir0n.esquire.gateway.security.EsqClaimsValidator;
-import pro.mir0n.esquire.gateway.lab.tokenrelay.ITokenRelayClient;
-import pro.mir0n.esquire.gateway.lab.tokenrelay.ITokenRelayVariant;
-import pro.mir0n.esquire.gateway.lab.tokenrelay.PhantomTokenRelay;
-import pro.mir0n.esquire.gateway.lab.tokenrelay.TokenRelayCache;
-import pro.mir0n.esquire.gateway.lab.tokenrelay.TokenRelayFilter;
-import pro.mir0n.esquire.gateway.lab.tokenrelay.VanillaTokenRelay;
-import pro.mir0n.esquire.gateway.lab.tokenrelay.WebClientTokenRelayClient;
-import pro.mir0n.esquire.gateway.lab.pureoauth.PureOAuthAuthenticationConverter;
-import pro.mir0n.esquire.gateway.lab.pureoauth.PureOAuthClaimsCache;
-import pro.mir0n.esquire.gateway.lab.pureoauth.PureOAuthEvictionListener;
-import pro.mir0n.esquire.gateway.lab.pureoauth.PureOAuthHeaderFilter;
-import pro.mir0n.esquire.gateway.lab.pureoauth.WebClientUserClaimsClient;
-import pro.mir0n.esquire.backend.identity.KcConnectionSettings;
-import reactor.core.publisher.Mono;
+import pro.mir0n.esquire.gateway.oauth.AuthenticationConverter;
+import pro.mir0n.esquire.gateway.oauth.ClaimsCache;
+import pro.mir0n.esquire.gateway.oauth.EvictionListener;
+import pro.mir0n.esquire.gateway.oauth.HeaderFilter;
+import pro.mir0n.esquire.gateway.oauth.WebClientUserClaimsClient;
 import reactor.netty.http.client.HttpClient;
 import io.netty.channel.ChannelOption;
-import org.springframework.core.env.Environment;
 import org.springframework.http.client.reactive.ReactorClientHttpConnector;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.reactive.CorsConfigurationSource;
 import org.springframework.web.cors.reactive.UrlBasedCorsConfigurationSource;
 
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
-import java.security.interfaces.RSAPrivateKey;
 import java.time.Duration;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 
 @Configuration
 @EnableWebFluxSecurity
@@ -108,207 +91,57 @@ public class SecurityConfig {
     private static final Logger log    = LoggerFactory.getLogger(SecurityConfig.class);
     private static final Logger devLog = LoggerFactory.getLogger("develop." + SecurityConfig.class.getName());
 
-    private static final String PROP_KC_PREFIX = "keycloak.exchange";
-
-    @Value("${esq.jwe.private-key-path:}")
-    private String jwePrivateKeyPath;
-
     @Value("${spring.security.oauth2.resourceserver.jwt.jwk-set-uri}")
     private String jwkSetUri;
 
+    @Value("${esq.gateway.oauth.cache-idle-ms:60000}")
+    private long claimsCacheIdleMs;
 
-    @Value("${esq.gateway.token-relay.vanilla.clients:}")
-    private List<String> vanillaClients;
+    @Value("${esq.gateway.oauth.claims-uri:}")
+    private String claimsUri;
 
-    @Value("${esq.gateway.token-relay.phantom.clients:}")
-    private List<String> phantomClients;
-
-    @Value("${esq.gateway.pure-oauth.clients:}")
-    private List<String> pureOAuthClients;
-
-    @Value("${esq.gateway.pure-oauth.cache-idle-ms:60000}")
-    private long pureOAuthCacheIdleMs;
-
-    @Value("${esq.gateway.pure-oauth.claims-uri:}")
-    private String pureOAuthClaimsUri;
-
-    @Value("${esq.gateway.pure-oauth.claims-timeout-ms:5000}")
-    private long pureOAuthClaimsTimeoutMs;
+    @Value("${esq.gateway.oauth.claims-timeout-ms:5000}")
+    private long claimsTimeoutMs;
 
     //xxx: keySmith is a backend like the routed services -- the claims call connects under the routes' timeout
     @Value("${spring.cloud.gateway.httpclient.connect-timeout:2000}")
     private int backendConnectTimeoutMs;
 
-    private final KcConnectionSettings kcExchange;
-
-    public SecurityConfig(Environment env) {
-        this.kcExchange = KcConnectionSettings.from(env, PROP_KC_PREFIX);
-    }
-
-    /**
-     * JWT decoder bean. Two layers (innermost first):
-     *   1. Base JWS decoder: NimbusReactiveJwtDecoder against KC's JWKS.
-     *   2. JWE wrapper (optional): JweAwareJwtDecoder when
-     *      esq.jwe.private-key-path is set and the key file exists.
-     *      Handles 5-part JWE tokens; 3-part JWS pass through untouched.
-     *
-     * Token Relay variants (Vanilla, Phantom) are handled at a different
-     * seam: the TokenRelayFilter (added below) rewrites the inbound
-     * Authorization to Bearer with the relayed/exchanged JWT BEFORE this
-     * decoder runs, so by the time the decoder sees the request it is
-     * indistinguishable from plain JWT traffic.
-     */
     @Bean
     public ReactiveJwtDecoder jwtDecoder() {
         OAuth2TokenValidator<Jwt> tokenValidator = new DelegatingOAuth2TokenValidator<>(
-                JwtValidators.createDefault(), new EsqClaimsValidator(parseAllowlist(pureOAuthClients)));
-        NimbusReactiveJwtDecoder jwsDecoder = NimbusReactiveJwtDecoder.withJwkSetUri(jwkSetUri).build();
-        jwsDecoder.setJwtValidator(tokenValidator);
-        ReactiveJwtDecoder ret = jwsDecoder;
-        if (jwePrivateKeyPath != null && !jwePrivateKeyPath.isBlank()) {
-            try (FileInputStream fis = new FileInputStream(jwePrivateKeyPath)) {
-                RSAPrivateKey privateKey = RsaKeyConverters.pkcs8().convert(fis);
-                devLog.debug("jwtDecoder: JWE-aware decoder configured -- key loaded from [{}]", jwePrivateKeyPath);
-                ret = new JweAwareJwtDecoder(privateKey, jwkSetUri, tokenValidator);
-            } catch (FileNotFoundException ex) {
-                devLog.debug("jwtDecoder: key file absent at [{}] -- JWE disabled, using plain JWS decoder", jwePrivateKeyPath);
-            } catch (Exception ex) {
-                throw new IllegalStateException("Failed to load JWE private key: " + ex.getMessage(), ex);
-            }
-        }
+                JwtValidators.createDefault(), new EsqClaimsValidator());
+        NimbusReactiveJwtDecoder ret = NimbusReactiveJwtDecoder.withJwkSetUri(jwkSetUri).build();
+        ret.setJwtValidator(tokenValidator);
         return ret;
     }
 
-    /**
-     * Build the unified Token Relay filter. NOT a @Bean -- if it were, Spring
-     * WebFlux would auto-register it globally and the filter would run twice
-     * per request (once in the global chain, once in the security chain),
-     * causing the post-rewrite Bearer to re-trigger the filter and fail the
-     * azp check. Constructed inline by springSecurityFilterChain so it only
-     * runs in the security filter chain.
-     *
-     */
-    /**
-     * A gate that was told to relay must be able to. Refuses to start otherwise.
-     */
-    static void assertRelayWiring(Set<String> vanillaClients, Set<String> phantomClients, KcConnectionSettings kc) {
-        boolean anyAllowlisted = !vanillaClients.isEmpty() || !phantomClients.isEmpty();
-        if (anyAllowlisted && !kc.isConfigured()) {
-            log.error("TOKEN RELAY | vanilla={} phantom={} are allowlisted, but keycloak.exchange has no"
-                    + " base-url/realm -- there is nowhere to broker a token", vanillaClients, phantomClients);
-            throw new IllegalStateException("Token Relay: clients are allowlisted (vanilla=" + vanillaClients
-                    + ", phantom=" + phantomClients + ") but keycloak.exchange.base-url / .realm is not set");
-        }
-        if (!phantomClients.isEmpty() && (kc.getClientId() == null || kc.getClientId().isBlank())) {
-            log.error("TOKEN RELAY | phantom clients {} are allowlisted, but keycloak.exchange.client-id is not"
-                    + " set -- there is no client to run the token-exchange as", phantomClients);
-            throw new IllegalStateException("Token Relay: phantom clients are allowlisted (" + phantomClients
-                    + ") but keycloak.exchange.client-id is not set");
+    static void assertOAuthWiring(String claimsUri) {
+        if (claimsUri == null || claimsUri.isBlank()) {
+            log.error("OAUTH | esq.gateway.oauth.claims-uri is not set -- there is nowhere to ask for the claims");
+            throw new IllegalStateException("OAuth: esq.gateway.oauth.claims-uri is not set");
         }
     }
 
-    private TokenRelayFilter buildTokenRelayFilter() {
-        Set<String> vanillaAllowlist = parseAllowlist(vanillaClients);
-        Set<String> phantomAllowlist = parseAllowlist(phantomClients);
-        assertRelayWiring(vanillaAllowlist, phantomAllowlist, kcExchange);
-
-        List<ITokenRelayVariant> variants = new ArrayList<>();
-        if (!vanillaAllowlist.isEmpty()) {
-            variants.add(new VanillaTokenRelay(vanillaAllowlist));
-            devLog.debug("buildTokenRelayFilter: Vanilla variant enabled, clients={}", vanillaAllowlist);
-        }
-        if (!phantomAllowlist.isEmpty()) {
-            variants.add(new PhantomTokenRelay(phantomAllowlist, kcExchange.getClientId(),
-                    kcExchange.getClientSecret()));
-            devLog.debug("buildTokenRelayFilter: Phantom variant enabled, clients={}, exchange-client=[{}]",
-                    phantomAllowlist, kcExchange.getClientId());
-        }
-
-        if (variants.isEmpty()) {
-            log.info("TOKEN RELAY | off -- no client is allowlisted");
-        } else {
-            log.info("TOKEN RELAY | vanilla={} phantom={} | tokenUri={} connectTimeoutMs={} readTimeoutMs={}",
-                    vanillaAllowlist, phantomAllowlist, kcExchange.tokenUri(),
-                    kcExchange.getConnectTimeoutMs(), kcExchange.getReadTimeoutMs());
-        }
-
-        // Both variants funnel through one shared KC client at one shared token-uri.
-        ITokenRelayClient kcClient;
-        if (kcExchange.isConfigured() && !variants.isEmpty()) {
-            kcClient = new WebClientTokenRelayClient(buildKcWebClient(), kcExchange.tokenUri());
-            devLog.debug("buildTokenRelayFilter: KC client enabled, token-uri=[{}], connectTimeoutMs={}, readTimeoutMs={}",
-                    kcExchange.tokenUri(), kcExchange.getConnectTimeoutMs(), kcExchange.getReadTimeoutMs());
-        } else {
-            kcClient = req -> Mono.error(new IllegalStateException(
-                    "Token Relay not configured -- keycloak.exchange unset or no variants enabled"));
-            devLog.debug("buildTokenRelayFilter: KC client disabled (kc-configured={}, variants={})",
-                    kcExchange.isConfigured(), variants.size());
-        }
-
-        TokenRelayCache cache = new TokenRelayCache(kcClient);
-        return new TokenRelayFilter(variants, cache, -100);
-    }
-
-    /**
-     * The relay's http client, with the deadlines from the shared KeyCloak block on it.
-     *
-     */
-    private WebClient buildKcWebClient() {
-        HttpClient httpClient = HttpClient.create()
-                .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, kcExchange.getConnectTimeoutMs())
-                .responseTimeout(Duration.ofMillis(kcExchange.getReadTimeoutMs()));
-        WebClient ret = WebClient.builder()
-                .clientConnector(new ReactorClientHttpConnector(httpClient))
-                .build();
-        return ret;
-    }
-
-    static void assertPureOAuthWiring(Set<String> pureClients, String claimsUri) {
-        if (!pureClients.isEmpty() && (claimsUri == null || claimsUri.isBlank())) {
-            log.error("PURE OAUTH | clients {} are listed, but esq.gateway.pure-oauth.claims-uri is not set"
-                    + " -- there is nowhere to ask for the claims", pureClients);
-            throw new IllegalStateException("Pure OAuth: clients are listed (" + pureClients
-                    + ") but esq.gateway.pure-oauth.claims-uri is not set");
-        }
-    }
-
-    @Bean(destroyMethod = "stop")
-    public PureOAuthClaimsCache pureOAuthClaimsCache() {
-        Set<String> pureClients = parseAllowlist(pureOAuthClients);
-        assertPureOAuthWiring(pureClients, pureOAuthClaimsUri);
+    @Bean(initMethod = "start", destroyMethod = "stop")
+    public ClaimsCache claimsCache() {
+        assertOAuthWiring(claimsUri);
         HttpClient httpClient = HttpClient.create()
                 .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, backendConnectTimeoutMs)
-                .responseTimeout(Duration.ofMillis(pureOAuthClaimsTimeoutMs));
+                .responseTimeout(Duration.ofMillis(claimsTimeoutMs));
         WebClient webClient = WebClient.builder()
                 .clientConnector(new ReactorClientHttpConnector(httpClient))
                 .build();
-        PureOAuthClaimsCache ret = new PureOAuthClaimsCache(
-                new WebClientUserClaimsClient(webClient, pureOAuthClaimsUri), pureOAuthCacheIdleMs);
-        if (pureClients.isEmpty()) {
-            log.info("PURE OAUTH | off -- no client is listed");
-        } else {
-            ret.start();
-            log.info("PURE OAUTH | clients={} | claimsUri={} cacheIdleMs={} connectTimeoutMs={} claimsTimeoutMs={}",
-                    pureClients, pureOAuthClaimsUri, pureOAuthCacheIdleMs, backendConnectTimeoutMs, pureOAuthClaimsTimeoutMs);
-        }
+        ClaimsCache ret = new ClaimsCache(
+                new WebClientUserClaimsClient(webClient, claimsUri), claimsCacheIdleMs);
+        log.info("OAUTH | claimsUri={} cacheIdleMs={} connectTimeoutMs={} claimsTimeoutMs={}",
+                claimsUri, claimsCacheIdleMs, backendConnectTimeoutMs, claimsTimeoutMs);
         return ret;
     }
 
     @Bean(initMethod = "start")
-    public PureOAuthEvictionListener pureOAuthEvictionListener(PureOAuthClaimsCache pureOAuthClaimsCache) {
-        return new PureOAuthEvictionListener(pureOAuthClaimsCache, !parseAllowlist(pureOAuthClients).isEmpty());
-    }
-
-    private Set<String> parseAllowlist(List<String> raw) {
-        Set<String> ret = new HashSet<>();
-        if (raw != null) {
-            for (String s : raw) {
-                if (s != null && !s.isBlank()) {
-                    ret.add(s.trim());
-                }
-            }
-        }
-        return ret;
+    public EvictionListener evictionListener(ClaimsCache claimsCache) {
+        return new EvictionListener(claimsCache);
     }
 
      //we're going to have custom SecurityWebFilterChain so spring.cloud.gateway.globalcors would not work
@@ -342,10 +175,9 @@ public class SecurityConfig {
     @Bean
     public SecurityWebFilterChain springSecurityFilterChain(ServerHttpSecurity serverHttpSecurity,
                                                             CorsProperties props,
-                                                            PureOAuthClaimsCache pureOAuthClaimsCache) {
-        TokenRelayFilter tokenRelayFilter = buildTokenRelayFilter();
-        PureOAuthAuthenticationConverter authenticationConverter = new PureOAuthAuthenticationConverter(
-                parseAllowlist(pureOAuthClients), pureOAuthClaimsCache, grantedAuthoritiesExtractor());
+                                                            ClaimsCache claimsCache) {
+        AuthenticationConverter authenticationConverter = new AuthenticationConverter(
+                claimsCache);
 /*
        serverHttpSecurity.authorizeExchange(exchanges -> exchanges.pathMatchers(HttpMethod.GET).permitAll()
                 .pathMatchers("/eazybank/accounts/**").hasRole("ACCOUNTS")
@@ -368,9 +200,8 @@ public class SecurityConfig {
         serverHttpSecurity
                 .csrf(csrfSpec -> csrfSpec.disable())
                 .cors(cors -> cors.configurationSource(corsConfigurationSource(props)))
-                .addFilterBefore(tokenRelayFilter, SecurityWebFiltersOrder.AUTHENTICATION)
                 //xxx: LAST, after authorization -- the claims headers need the authenticated caller
-                .addFilterAt(new PureOAuthHeaderFilter(), SecurityWebFiltersOrder.LAST)
+                .addFilterAt(new HeaderFilter(), SecurityWebFiltersOrder.LAST)
                 .authorizeExchange(exchanges -> exchanges
                     .pathMatchers(HttpMethod.OPTIONS,"/**").permitAll()
                     .pathMatchers("/esq-kinds").permitAll()
@@ -378,21 +209,13 @@ public class SecurityConfig {
                     .anyExchange().permitAll()
                 )
                 .exceptionHandling(spec -> spec.accessDeniedHandler(new EsqAccessDeniedHandler()))
-                // Wire KeycloakRoleConverter (realm_access.roles -> ROLE_<role>) so hasRole("TREE") above can
-                // actually match; the default converter emits SCOPE_* only and ROLE_TREE would never be present.
+                //xxx: the roles come from keySmith, as ROLE_<role>; the default converter emits SCOPE_* only and
+                // ROLE_TREE would never be present
                 .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwtSpec ->
                         jwtSpec.jwtAuthenticationConverter(authenticationConverter)))
                 .oauth2Client(Customizer.withDefaults())
                 .securityContextRepository(NoOpServerSecurityContextRepository.getInstance());
         return serverHttpSecurity.build();
-    }
-
-    private Converter<Jwt, Mono<AbstractAuthenticationToken>> grantedAuthoritiesExtractor() {
-        JwtAuthenticationConverter jwtAuthenticationConverter =
-                new JwtAuthenticationConverter();
-        jwtAuthenticationConverter.setJwtGrantedAuthoritiesConverter
-                (new KeycloakRoleConverter());
-        return new ReactiveJwtAuthenticationConverterAdapter(jwtAuthenticationConverter);
     }
 
 }

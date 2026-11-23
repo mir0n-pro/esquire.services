@@ -6,21 +6,6 @@
 image:
   tag: "v2.0.2-2611.2217"
 
-# Token Relay -- in-cluster KC endpoint (HTTP, no TLS); same allowlists as OKE.
-# exchangeClientSecret comes via --set at install (k8s-up.bat).
-keycloakExchange:
-  baseUrl: http://esquire-infra-kc-keycloak:8080/kc-auth
-
-tokenRelay:
-  vanilla:
-    clients: esq-hauberk-S
-  phantom:
-    clients: esq-hauberk-M
-
-# Pure OAuth (lab) -- the two pure clients; their tokens carry no Esquire claims.
-pureOAuth:
-  clients: esq-angular-pure-oauth,esq-hauberk-P
-
 # v1.2.10 redundancy: run 2 replicas (StatefulSet ordinal identity).
 # TWO replicas means TWO caches, each loading the whole tree from the database at start and each kept in
 # step by its own entity-bus consumer. A request is served by whichever pod it lands on, so the readiness

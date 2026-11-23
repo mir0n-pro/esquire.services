@@ -1,6 +1,21 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v2.0.3-2611.2300  v2.0.3 -- pure OAuth only: the gateway and gateWard; pure OAuth is the default
+    :Refactoring: the gateway and gateWard read every token as a pure OAuth token: the login id comes
+                  from the token, the Esquire claims from keySmith
+    :Refactoring: the claims mode leaves both; JWE and the token relay (Vanilla, Phantom) are removed
+    :Config:      the services run pure OAuth on every target: ESQ_PURE_OAUTH is true in compose,
+                  compose-compact and the k8s charts
+    :Config:      Keycloak: esq-angular and esq-hauberk carry the login id only, with no Esquire claims and
+                  no roles
+    :Config:      the settings and the claims cache meter are named oauth (esq.gateway.oauth.*,
+                  ESQ_GW_OAUTH_*, esq.biz.gw.oauth.total)
+    :Config:      compose, compose-compact, both local k8s shapes, the frozen OKE shapes and the OKE deploy
+                  lose the relay, JWE and client-list settings and the exchange secret
+    Components:   gateway,
+                  gateWard
+
 v2.0.2-2611.2217  v2.0.2 -- pure OAuth, a lab mode: the claims leave the token
     :Feature:     pure OAuth (lab): the token carries no Esquire claims; the gateway takes them from
                   keySmith and keeps them while they are asked for

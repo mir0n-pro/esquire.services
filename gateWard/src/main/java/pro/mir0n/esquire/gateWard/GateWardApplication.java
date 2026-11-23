@@ -16,6 +16,7 @@
  *                   entity bus id under BusConstants.CONFIG_ROOT
  * 11/18/2026 mir0n  v2.0.2 -- the claims bus is built beside the entity and biz buses while
  *                   esq.gateway.pure-oauth.clients is not empty
+ * 11/22/2026 mir0n  v2.0.3 -- the claims bus is always built beside the entity and biz buses
  */
 
 package pro.mir0n.esquire.gateWard;
@@ -122,12 +123,8 @@ public class GateWardApplication {
         public void onApplicationEvent(ApplicationEvent event) {
             MessagingBus bus = MessagingBus.getInstance();
             if (event instanceof ApplicationEnvironmentPreparedEvent e) {
-                String[] keys = {EsqConstants.BUS_KEY_ENTITY, EsqConstants.BUS_KEY_BIZ};
-                String pureClients = e.getEnvironment().getProperty(EsqConstants.PROP_PURE_OAUTH_CLIENTS, "");
-                if (!pureClients.isBlank()) {
-                    keys = new String[]{EsqConstants.BUS_KEY_ENTITY, EsqConstants.BUS_KEY_BIZ, EsqConstants.BUS_KEY_CLAIMS};
-                }
-                bus.init(e.getEnvironment(), keys);
+                bus.init(e.getEnvironment(), new String[]{EsqConstants.BUS_KEY_ENTITY, EsqConstants.BUS_KEY_BIZ,
+                        EsqConstants.BUS_KEY_CLAIMS});
                 devLog.debug("MessagingBus initiated (rods built, paused)");
             } else if (event instanceof ApplicationReadyEvent e) {
                 bus.start();                             // run them -- traffic flows only from here
