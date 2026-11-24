@@ -1,5 +1,9 @@
 Esquire keySmith Microservice
 
+11/24/2026 mir0n  v2.0.3 -- dead code out
+messaging.KcBusAdapter
+  - v2.0.3 -- the empty postMessage() out
+
 11/23/2026 mir0n  v2.0.3 -- pure OAuth only: keySmith
 service.impl.KeySmithService
   - v2.0.3 -- evictClaims(): a save sends the DELETE of the access profile on the claims rod itself (the

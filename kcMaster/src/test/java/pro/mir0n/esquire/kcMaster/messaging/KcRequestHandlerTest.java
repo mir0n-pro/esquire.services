@@ -45,8 +45,6 @@ class KcRequestHandlerTest {
         req.setKind(998);
         req.setLoginId("alice@example.com");
         req.setEmail("alice@example.com");
-        req.setPath("1.500.uid-001");
-        req.setRoles(List.of("user", "admin"));
         return req;
     }
 
@@ -58,7 +56,6 @@ class KcRequestHandlerTest {
         req.setEmail("alice@example.com");
         req.setTfaMethod(tfaMethod);
         req.setPwdChangeForced(pwdChangeForced);
-        req.setRoles(List.of("user"));
         return req;
     }
 

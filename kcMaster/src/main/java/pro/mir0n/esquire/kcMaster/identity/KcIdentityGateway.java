@@ -21,6 +21,7 @@
  *                   serveBroadcast() and kcUserExists() out; serve() handles a request only; postMessage()
  *                   empty; esq.pure-oauth no longer read; KcRequestHandler and KcIdentityService built without
  *                   the flag and the park
+ * 11/24/2026 mir0n  v2.0.3 -- the empty postMessage() out
  */
 package pro.mir0n.esquire.kcMaster.identity;
 
@@ -177,11 +178,6 @@ public class KcIdentityGateway implements IIdentityGateway, IQueueRig.IQueueWork
             log.error("kcMaster: identity queue FULL at {} -- request dropped: entityId={}, command={}, requestId={}",
                     capacity, event.entityId(), event.opCode(), event.requestId());
         }
-    }
-
-    //xxx: KeyCloak holds no path, so a move has nothing to change here
-    @Override
-    public void postMessage(RodEvent event) {
     }
 
     /** The rig's worker: serve one event that was posted onto the queue. */

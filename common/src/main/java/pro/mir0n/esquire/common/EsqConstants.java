@@ -30,6 +30,7 @@
  *                   PROP_PURE_OAUTH and PROP_PURE_OAUTH_CLIENTS
  * 11/23/2026 mir0n  v2.0.3 -- JWT_CLAIM_PREFERRED_USERNAME added; PROP_PURE_OAUTH_CLIENTS,
  *                   JWT_CLAIM_REALM_ACCESS and JWT_CLAIM_REALM_ACCESS_ROLES removed
+ * 11/24/2026 mir0n  v2.0.3 -- PROP_PURE_OAUTH, ESQ_GW_INNER_START_TIME and PD_DETAILS removed
  */
 package pro.mir0n.esquire.common;
 
@@ -39,7 +40,6 @@ public class EsqConstants {
 
     public static final String ESQ_CORRELATION_ID = "Esq-Correlation-ID";
     public static final String ESQ_START_TIME = "Esq-Start-Time";
-    public static final String ESQ_GW_INNER_START_TIME = "Esq-Gw-Inner-Start-Time";
     public static final String ESQ_GW_INNER_TIME = "Esq-Gw-Inner-Time";
     public static final String ESQ_SRV_OUTER_TIME = "Esq-Srv-Outer-Time";
     public static final String ESQ_SRV_INNER_TIME = "Esq-Srv-Inner-Time";
@@ -62,7 +62,6 @@ public class EsqConstants {
     public static final String PD_UID = "uid";
     public static final String PD_ERRORS = "errors";
     public static final String PD_STACK_TRACE = "stackTrace";
-    public static final String PD_DETAILS = "details";
     public static final String PD_PROCESSING_TIME = "processingTime";
 
 
@@ -95,9 +94,6 @@ public class EsqConstants {
     public static final String BUS_KEY_ENTITY           = "entity-bus";
     public static final String BUS_KEY_BIZ              = "biz-bus";
     public static final String BUS_KEY_CLAIMS           = "claims-bus";
-
-    // --- pure OAuth: the switch on the services that own the claims ---
-    public static final String PROP_PURE_OAUTH          = "esq.pure-oauth";
 
     // --- the biz request-response bus: a command names its operation (the REST path it stands for) and carries
     //     the caller's claims (uid in the event header, root path and roles here), the cmd and the body; the

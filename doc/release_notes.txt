@@ -1,6 +1,16 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v2.0.3-2611.2401  v2.0.3 -- dead code out
+    :Refactoring: what pure OAuth left unused is removed: the claims publisher, the pure OAuth switch name,
+                  the moved-path hand-over to the identity gateway, and the root path and roles fields of the
+                  identity command
+    :Refactoring: three older unused pieces are removed too: a name-value serializer, a gateway timing header
+                  name and an error detail field name
+    Components:   common,
+                  kcMaster,
+                  keySmith
+
 v2.0.3-2611.2323  v2.0.3 -- pure OAuth only: Mesnie
     :Refactoring: Mesnie runs pure OAuth only: the claims bus is always built
     :Config:      the pure OAuth switch and the path hold settings leave Mesnie, the compose-compact mesnie

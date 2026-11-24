@@ -17,6 +17,7 @@
  *                   request leg reports none
  * 08/12/2026 mir0n  v1.2.13 -- implements IIdentityGateway: postRequest(RodEvent) transmits, postMessage is skipped,
  *                   start()/stop() take the kc leg (was the constructor)
+ * 11/24/2026 mir0n  v2.0.3 -- the empty postMessage() out
  */
 package pro.mir0n.esquire.keySmith.messaging;
 
@@ -55,11 +56,6 @@ public class KcBusAdapter implements IIdentityGateway {
     /** Nothing to close: the rod belongs to the messaging bus, which closes it at context close. */
     @Override
     public void stop() {
-    }
-
-    /** Skipped: on the bus, kcMaster subscribes to the entity broadcasts itself. */
-    @Override
-    public void postMessage(RodEvent event) {
     }
 
     @Override

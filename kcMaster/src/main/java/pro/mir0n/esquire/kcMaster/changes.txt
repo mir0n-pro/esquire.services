@@ -1,5 +1,9 @@
 Esquire kcMaster Microservice
 
+11/24/2026 mir0n  v2.0.3 -- dead code out
+identity.KcIdentityGateway
+  - v2.0.3 -- the empty postMessage() out
+
 11/23/2026 mir0n  v2.0.3 -- pure OAuth only: kcMaster
 identity.KcIdentityGateway
   - v2.0.3 -- pure OAuth only: the path park (ExpiringCache, kcmaster.path-buffer.*), serveBroadcast() and
