@@ -1,7 +1,15 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
-v2.0.3-2611.2320  v2.0.3 -- pure OAuth only: kcMaster
+v2.0.3-2611.2323  v2.0.3 -- pure OAuth only: Mesnie
+    :Refactoring: Mesnie runs pure OAuth only: the claims bus is always built
+    :Config:      the pure OAuth switch and the path hold settings leave Mesnie, the compose-compact mesnie
+                  service and the k8s mesnie chart; the mesnie chart names its entity bus role as a client
+    :Config:      the KeyCloak image pin moves to v2.0.3-2611.2300, the release of the pure OAuth realm
+    Components:   mesnie,
+                  keycloak
+
+v2.0.3-2611.2320v2.0.3 -- pure OAuth only: kcMaster
     :Refactoring: kcMaster runs pure OAuth only: a new Keycloak user gets the Esquire id and nothing else,
                   and the root path, the roles and the path moves are no longer written
     :Refactoring: kcMaster no longer listens to the entity broadcasts; the held path for a user who did not

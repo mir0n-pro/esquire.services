@@ -152,8 +152,6 @@ services:
       - "3003:3003"
     environment:
       - MESNIE_PORT=3003
-      # Pure OAuth, on by default: no root path / roles to KeyCloak, and a change evicts the gateway claims cache
-      - ESQ_PURE_OAUTH=${ESQ_PURE_OAUTH:-true}
       - LOG_LEVEL_ROOT=ERROR
       - LOG_LEVEL_SF=ERROR
       - LOG_LEVEL_MIR0N=${LOG_LEVEL_MIR0N:-DEBUG}
@@ -201,9 +199,6 @@ services:
       - KC_REALM=esquire
       - KC_ADMIN_CLIENT_ID=esq-kcMaster
       - KC_ADMIN_CLIENT_SECRET=${KCMASTER_ADMIN_SECRET:-MHgq0Nu69u2uJ2johaK1wxQLMdakELXN}
-      # The race-8c path park. Nothing fills it on one copy; across copies the entity broadcast does.
-      - KCMASTER_PATH_BUFFER_TTL_MS=${KCMASTER_PATH_BUFFER_TTL_MS:-10000}
-      - KCMASTER_PATH_BUFFER_PRUNE_MS=30000
       # Audit -- the BUS (audit-c), drained by auKeep. The compact profile composes the REQUEST path; the audit
       # trail keeps its own sink, so the log rows are written by a process that is not on the request path at all.
       - AUDIT_BUS_ID=${AUDIT_BUS_ID:-audit-c}

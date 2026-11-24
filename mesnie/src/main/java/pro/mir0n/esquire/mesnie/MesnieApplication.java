@@ -15,6 +15,8 @@
  * 10/19/2026 mir0n  v2.0.1 -- the meter owner reads the entity bus id under BusConstants.CONFIG_ROOT
  * 11/18/2026 mir0n  v2.0.2 -- the ClaimsBusPublisher bean on esq.pure-oauth; the claims bus is built while
  *                   esq.pure-oauth is on
+ * 11/23/2026 mir0n  v2.0.3 -- the ClaimsBusPublisher bean out; the claims bus is always built beside the entity
+ *                   and audit buses
  */
 
 package pro.mir0n.esquire.mesnie;
@@ -38,7 +40,6 @@ import org.springframework.core.env.Environment;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 import pro.mir0n.esquire.audit.AuditBusBridge;
 import pro.mir0n.esquire.backend.identity.IIdentityGateway;
-import pro.mir0n.esquire.backend.messaging.ClaimsBusPublisher;
 import pro.mir0n.esquire.backend.o11y.IMeterOwner;
 import pro.mir0n.esquire.backend.o11y.ObservabilityConfig;
 import pro.mir0n.esquire.kcMaster.identity.KcIdentityGateway;
@@ -65,7 +66,7 @@ import pro.mir0n.messaging.BusConstants;
  * this process.
  * <p>
  * What Mesnie owns is what a PROCESS owns: the roles repository, the audit bridge, the identity gateway, the
- * startup storages, and one bus lifecycle over the two buses the household still speaks -- entity and audit.
+ * startup storages, and one bus lifecycle over the buses the household still speaks -- entity, audit and claims.
  * The kc bus is gone: KeyCloak is reached by a method call onto an in-memory queue, which is what lets a
  * create that follows a move find the move already applied.
  */
@@ -104,18 +105,13 @@ public class MesnieApplication {
         return new MesnieMeterOwner(entityBusId);
     }
 
-    @Bean(initMethod = "start")
-    public ClaimsBusPublisher claimsBus(@Value("${" + EsqConstants.PROP_PURE_OAUTH + ":false}") boolean pureOAuth) {
-        return new ClaimsBusPublisher(pureOAuth);
-    }
-
     /**
      * The household's way to the identity provider. The bus is skipped for what is in the house: kcMaster runs
      * in this process, so the call is a method call onto its queue instead of a message onto the kc leg. Both
      * composed services are handed this one gateway and neither can tell.
      *
      * <p>Mesnie names the class and hands over the environment. What a KeyCloak gateway is made of -- the admin
-     * client, the path park, the identity service, the request handler -- is the gateway's own business, the
+     * client, the identity service, the request handler -- is the gateway's own business, the
      * same deal the messaging bus makes with a transport provider.
      *
      * <p>The answer handle is set here because in this process there is no requester rod to receive it. On the
@@ -170,8 +166,8 @@ public class MesnieApplication {
     }
 
 
-    /** One registrar for the whole household, over the buses it still speaks: entity (enyMan) and audit
-     *  (both). The identity gateway is in-process, so there is no kc rod to build. */
+    /** One registrar for the whole household, over the buses it still speaks: entity (enyMan), audit (both)
+     *  and claims (both). The identity gateway is in-process, so there is no kc rod to build. */
     public static class MessagingBusLifecycleRegistrar implements ApplicationListener<ApplicationEvent>, Ordered {
 
         @Override
@@ -183,11 +179,8 @@ public class MesnieApplication {
         public void onApplicationEvent(ApplicationEvent event) {
             MessagingBus bus = MessagingBus.getInstance();
             if (event instanceof ApplicationEnvironmentPreparedEvent e) {
-                String[] keys = {EsqConstants.BUS_KEY_ENTITY, EsqConstants.BUS_KEY_AUDIT};
-                if (e.getEnvironment().getProperty(EsqConstants.PROP_PURE_OAUTH, Boolean.class, Boolean.FALSE)) {
-                    keys = new String[]{EsqConstants.BUS_KEY_ENTITY, EsqConstants.BUS_KEY_AUDIT, EsqConstants.BUS_KEY_CLAIMS};
-                }
-                bus.init(e.getEnvironment(), keys);
+                bus.init(e.getEnvironment(),
+                        new String[]{EsqConstants.BUS_KEY_ENTITY, EsqConstants.BUS_KEY_AUDIT, EsqConstants.BUS_KEY_CLAIMS});
                 devLog.debug("MessagingBus initiated (rods built, paused)");
             } else if (event instanceof ApplicationReadyEvent e) {
                 bus.start();                             // run them -- traffic flows only from here
