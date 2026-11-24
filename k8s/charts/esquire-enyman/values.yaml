@@ -54,19 +54,6 @@ moveQueue:
   capacity: "16384"
   validateCreateDuringMove: "true"
 
-# kc-bus ref: enyMan is the CLIENT (posts KC requests, receives responses).
-kc:
-  busId: esquire.kc
-  slotId: kc
-  responsePoolSize: "2"
-  responseConcurrency: "1"
-  publisherPoolSize: "0"
-  # producer send-retry on the KC R&R bus; pre-HA default OFF; BOTH the local-k8s AND the OKE overlay turn it ON (block mode).
-  sendRetry: "false"
-  sendRetryBackoff: "1,2,5,5"
-  sendRetryMaxAttempts: "0"
-  poolMode: "platform"            # KC_POOL_MODE (platform | virtual | virtual-per-task, default platform)
-
 # entity-bus ref: enyMan is a PUBLISHER (broadcasts entity changes).
 entity:
   busId: esquire.entity

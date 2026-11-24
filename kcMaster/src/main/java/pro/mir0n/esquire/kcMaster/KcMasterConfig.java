@@ -8,6 +8,8 @@
  *  History:
  * 08/12/2026 mir0n  created: kcMaster's @ComponentScan, the one place its packages are named; excludes
  *                   KcMasterApplication; declares the KcIdentityGateway bean
+ * 11/23/2026 mir0n  v2.0.3 -- the identityGateway() doc: one bus adapter, no path park, no kcmaster.path-
+ *                   buffer.*
  */
 
 package pro.mir0n.esquire.kcMaster;
@@ -43,14 +45,14 @@ import pro.mir0n.esquire.kcMaster.identity.KcIdentityGateway;
 public class KcMasterConfig {
 
     /**
-     * The identity workflow, in the one place it lives. kcMaster's two bus adapters hand it what arrives and
-     * transmit what it answers; they hold no identity logic of their own, so the service and a process that
+     * The identity workflow, in the one place it lives. kcMaster's bus adapter hands it what arrives and
+     * transmits what it answers; they hold no identity logic of their own, so the service and a process that
      * composes kcMaster run the same code rather than two copies that have to be kept in step.
      *
-     * <p>It builds what it needs -- the KeyCloak admin client, the path park, the identity service and the
-     * request handler -- from {@code keycloak.admin.*} and {@code kcmaster.path-buffer.*}.
+     * <p>It builds what it needs -- the KeyCloak admin client, the identity service and the request handler --
+     * from {@code keycloak.admin.*}.
      *
-     * <p>The adapters serve on the rod's own worker pool, so how many syncs a pod runs at once is still the
+     * <p>The adapter serves on the rod's own worker pool, so how many syncs a pod runs at once is still the
      * pool's business ({@code KC_REQUEST_POOL_SIZE}); the gateway's queue carries work only where something
      * posts onto it.
      */

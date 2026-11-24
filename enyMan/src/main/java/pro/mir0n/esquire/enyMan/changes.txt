@@ -1,5 +1,17 @@
 Esquire enyMan Microservice
 
+11/23/2026 mir0n  v2.0.3 -- pure OAuth only: enyMan without the kc leg
+messaging.EntityBusAdapter
+  - v2.0.3 -- IIdentityGateway out of the constructor; publish() and the receive worker no longer hand a PATH
+    broadcast to postMessage; the subscription back to EventType = 'I'
+EnyManApplication
+  - v2.0.3 -- the kc leg out: the IIdentityGateway bean (KcBusAdapter) out; the buses are entity, audit and
+    claims
+messaging.KcBusAdapter  (removed)
+  - the kc-bus CLIENT leg (identity requests out, answers in)
+resources/application.yml
+  - the kc-bus leg out
+
 11/23/2026 mir0n  v2.0.3 -- pure OAuth only: enyMan
 queue.MoveQueueManager
   - v2.0.3 -- evictClaims(): a moved user is evicted on the claims rod itself (the ClaimsBusPublisher out of

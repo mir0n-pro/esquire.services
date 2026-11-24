@@ -360,9 +360,6 @@ services:
       - DB_ENYMAN_HOST=${DB_ENYMAN_HOST:-postgres}
       - DB_ENYMAN_USERNAME=esq2025
       - DB_ENYMAN_PASSWORD=q
-      # Messaging
-      - KC_BUS_ID=esquire.kc
-      - KC_SLOT_ID=kc
       # Distributed tracing (v1.2.11 O2) -- OFF by default; the o11y profile brings up the collector + Tempo.
       # Enable end-to-end: ESQ_OBSERVABILITY_ENABLED=true docker compose --profile o11y up -d --force-recreate
       - ESQ_OBSERVABILITY_ENABLED=${ESQ_OBSERVABILITY_ENABLED:-false}
@@ -377,13 +374,7 @@ services:
       - ESQ_TRACING_SAMPLING_RATIO=${ESQ_TRACING_SAMPLING_RATIO:-1.0}
       - ESQ_TRACING_MARKS_ENABLED=${ESQ_TRACING_MARKS_ENABLED:-true}
       - ESQ_TRACING_EXCLUDED_PATHS=${ESQ_TRACING_EXCLUDED_PATHS:-/actuator}
-      - ENYMAN_KC_RESPONSE_POOL_SIZE=2
-      - ENYMAN_KC_RESPONSE_CONCURRENCY=1
-      - ENYMAN_KC_PUBLISHER_POOL_SIZE=0
-      # v1.2.10 send-retry on the KC R&R bus (CLIENT request leg): ON for docker (block mode -- retry until recovery)
-      - KC_SEND_RETRY=true
-      - KC_SEND_RETRY_BACKOFF_SEC=1,2,5,5
-      - KC_SEND_RETRY_MAX_ATTEMPTS=0
+      # Messaging
       - ENTITY_BUS_ID=esquire.entity
       - ENTITY_SLOT_ID=entity
       - ENTITY_BROADCAST_PUBLISHER_POOL_SIZE=0
@@ -393,7 +384,6 @@ services:
       - ENTITY_BROADCAST_SEND_RETRY_MAX_ATTEMPTS=0
       # v1.2.10 worker-pool mode (platform | virtual | virtual-per-task; default platform -- UNVALIDATED, see HA doc 5.5)
       - ESQ_VIRTUAL_THREADS=${ESQ_VIRTUAL_THREADS:-false}
-      - KC_POOL_MODE=${KC_POOL_MODE:-platform}
       - ENTITY_BROADCAST_POOL_MODE=${ENTITY_BROADCAST_POOL_MODE:-platform}
       # v1.2.6 Goal 3: move queue capacity. Default 16384 (also the application.yml fallback)
       # is sized for normal load. Stress tests can override via ENYMAN_MOVE_QUEUE_CAPACITY.
@@ -733,8 +723,6 @@ services:
       - "3006:3006"
     environment:
       - KCMASTER_PORT=3006
-      # Pure OAuth, on by default: no root path / roles to KeyCloak, and a change evicts the gateway claims cache
-      - ESQ_PURE_OAUTH=${ESQ_PURE_OAUTH:-true}
       - LOG_LEVEL_ROOT=ERROR
       - LOG_LEVEL_SF=ERROR
       # I49 knob: o11y-log-off/on.bat set this OFF / INFO. Keep overridable or both arms run identical.
@@ -761,9 +749,6 @@ services:
       - ESQ_TRACING_EXCLUDED_PATHS=${ESQ_TRACING_EXCLUDED_PATHS:-/actuator}
       - TOPOLOGY_IMPORT=optional:file:/etc/esquire/topology.yml
       # Messaging
-      # TEST race-8c repro ONLY (revert after): default 10000 (fix). -1 disables the buffer.
-      - KCMASTER_PATH_BUFFER_TTL_MS=${KCMASTER_PATH_BUFFER_TTL_MS:-10000}
-      - KCMASTER_PATH_BUFFER_PRUNE_MS=30000
       - KC_BUS_ID=esquire.kc
       - KC_SLOT_ID=kc
       - KC_REQUEST_POOL_SIZE=4
@@ -773,14 +758,9 @@ services:
       - KC_SEND_RETRY=true
       - KC_SEND_RETRY_BACKOFF_SEC=1,2,5,5
       - KC_SEND_RETRY_MAX_ATTEMPTS=0
-      - ENTITY_BUS_ID=esquire.entity
-      - ENTITY_SLOT_ID=entity
-      - ENTITY_BROADCAST_POOL_SIZE=4
-      - ENTITY_BROADCAST_CONCURRENCY=1
       # v1.2.10 worker-pool mode (platform | virtual | virtual-per-task; default platform -- UNVALIDATED, see HA doc 5.5)
       - ESQ_VIRTUAL_THREADS=${ESQ_VIRTUAL_THREADS:-false}
       - KC_POOL_MODE=${KC_POOL_MODE:-platform}
-      - ENTITY_BROADCAST_POOL_MODE=${ENTITY_BROADCAST_POOL_MODE:-platform}
       # Keycloak
       - KC_BASE_URL=http://keycloak:8080/kc-auth
       - KC_REALM=esquire

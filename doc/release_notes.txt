@@ -1,6 +1,17 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v2.0.3-2611.2320  v2.0.3 -- pure OAuth only: kcMaster
+    :Refactoring: kcMaster runs pure OAuth only: a new Keycloak user gets the Esquire id and nothing else,
+                  and the root path, the roles and the path moves are no longer written
+    :Refactoring: kcMaster no longer listens to the entity broadcasts; the held path for a user who did not
+                  exist yet is gone with them
+    :Refactoring: enyMan no longer talks to kcMaster
+    :Config:      the pure OAuth switch and the path hold settings leave kcMaster, the compose kcmaster
+                  service and the k8s kcmaster chart; the kcMaster entity bus and the enyMan kc bus settings
+                  leave compose, the k8s charts and the local k8s and OKE overlays
+    Components:   kcMaster, enyMan
+
 v2.0.3-2611.2317  v2.0.3 -- pure OAuth only: enyMan
     :Refactoring: enyMan runs pure OAuth only: a moved user always tells the gateways to drop the user's
                   claims, and the moved path no longer goes to Keycloak

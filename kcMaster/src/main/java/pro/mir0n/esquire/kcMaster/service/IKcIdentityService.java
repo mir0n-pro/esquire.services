@@ -10,6 +10,7 @@
  * 04/06/2026 mir0n  updateEntityPath() added
  * 08/26/2026 mir0n  updateAccess drops the password and enabled parameters; forcePasswordChange becomes a
  *                   Boolean and removeTotp joins it, so each required action can be withdrawn as well as set
+ * 11/23/2026 mir0n  v2.0.3 -- createUser() and updateUserAuthState() lose realmRoles; updateEntityPath() out
  */
 
 package pro.mir0n.esquire.kcMaster.service;
@@ -26,7 +27,6 @@ public interface IKcIdentityService {
             boolean enabled,
             boolean forcePasswordChange,
             boolean requireTotp,
-            List<String> realmRoles,
             Map<String, List<String>> attributes,
             String correlationId,
             String requestId
@@ -39,13 +39,10 @@ public interface IKcIdentityService {
             Boolean forcePasswordChange,
             Boolean requireTotp,
             Boolean removeTotp,
-            List<String> realmRoles,
             Map<String, List<String>> attributes,
             String correlationId,
             String requestId
     );
 
     void deleteUser(String loginId, String correlationId, String requestId);
-
-    void updateEntityPath(String entityId, String newPath, String correlationId, String requestId);
 }

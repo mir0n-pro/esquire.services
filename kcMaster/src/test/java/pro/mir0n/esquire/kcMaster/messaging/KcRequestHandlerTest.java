@@ -34,7 +34,7 @@ class KcRequestHandlerTest {
 
     @BeforeEach
     void setUp() {
-        handler = new KcRequestHandler(kcIdentityService, false);
+        handler = new KcRequestHandler(kcIdentityService);
     }
 
     // --- helpers ---
@@ -85,15 +85,14 @@ class KcRequestHandlerTest {
                 eq(true),
                 eq(false),
                 any(),
-                any(),
                 eq("cid1"),
                 eq("rid1")
         );
     }
 
     @Test
-    @DisplayName("CREATE: attributes contain esq_uid and esq_rootpath")
-    void create_attributesContainEsqUidAndRootPath() {
+    @DisplayName("CREATE: attributes carry esq_uid only -- the root path stays in Esq2025")
+    void create_attributesCarryEsqUidOnly() {
         handler.handle(BusConstants.EVENT_CREATE, buildCreateReq(), "cid1", "rid1");
 
         @SuppressWarnings("unchecked")
@@ -101,47 +100,12 @@ class KcRequestHandlerTest {
         verify(kcIdentityService).createUser(
                 anyString(), anyString(), anyString(),
                 eq(true), eq(true), eq(false),
-                any(), attrCaptor.capture(), anyString(), anyString()
+                attrCaptor.capture(), anyString(), anyString()
         );
 
         Map<String, List<String>> attrs = attrCaptor.getValue();
-        assertThat(attrs).containsKey(EsqConstants.JWT_CLAIM_ENTITY_ID);
-        assertThat(attrs).containsKey(EsqConstants.JWT_CLAIM_ENTITY_ROOTPATH);
+        assertThat(attrs).containsOnlyKeys(EsqConstants.JWT_CLAIM_ENTITY_ID);
         assertThat(attrs.get(EsqConstants.JWT_CLAIM_ENTITY_ID)).containsExactly("uid-001");
-        assertThat(attrs.get(EsqConstants.JWT_CLAIM_ENTITY_ROOTPATH)).containsExactly("1.500.uid-001");
-    }
-
-    @Test
-    @DisplayName("CREATE: roles list forwarded from request")
-    void create_rolesForwarded() {
-        handler.handle(BusConstants.EVENT_CREATE, buildCreateReq(), "cid1", "rid1");
-
-        @SuppressWarnings("unchecked")
-        ArgumentCaptor<List<String>> rolesCaptor = ArgumentCaptor.forClass(List.class);
-        verify(kcIdentityService).createUser(
-                anyString(), anyString(), anyString(),
-                eq(true), eq(true), eq(false),
-                rolesCaptor.capture(), any(), anyString(), anyString()
-        );
-        assertThat(rolesCaptor.getValue()).containsExactly("user", "admin");
-    }
-
-    @Test
-    @DisplayName("CREATE: null roles in request yields empty list")
-    void create_nullRolesYieldsEmptyList() {
-        AuthSyncRequest req = buildCreateReq();
-        req.setRoles(null);
-
-        handler.handle(BusConstants.EVENT_CREATE, req, "cid1", "rid1");
-
-        @SuppressWarnings("unchecked")
-        ArgumentCaptor<List<String>> rolesCaptor = ArgumentCaptor.forClass(List.class);
-        verify(kcIdentityService).createUser(
-                anyString(), anyString(), anyString(),
-                eq(true), eq(true), eq(false),
-                rolesCaptor.capture(), any(), anyString(), anyString()
-        );
-        assertThat(rolesCaptor.getValue()).isEmpty();
     }
 
     // --- UPDATE dispatch ---
@@ -153,7 +117,7 @@ class KcRequestHandlerTest {
 
         verify(kcIdentityService).updateUserAuthState(
                 eq("alice@example.com"), any(), any(), any(), any(),
-                any(), any(), any(), eq("cid1"), eq("rid1"));
+                any(), any(), eq("cid1"), eq("rid1"));
     }
 
     @Test
@@ -163,7 +127,7 @@ class KcRequestHandlerTest {
 
         verify(kcIdentityService).updateUserAuthState(
                 anyString(), any(), any(), any(), eq(Boolean.TRUE),
-                isNull(), any(), any(), anyString(), anyString());
+                isNull(), any(), anyString(), anyString());
     }
 
     @Test
@@ -173,7 +137,7 @@ class KcRequestHandlerTest {
 
         verify(kcIdentityService).updateUserAuthState(
                 anyString(), any(), any(), any(), isNull(),
-                eq(Boolean.TRUE), any(), any(), anyString(), anyString());
+                eq(Boolean.TRUE), any(), anyString(), anyString());
     }
 
     @Test
@@ -183,7 +147,7 @@ class KcRequestHandlerTest {
 
         verify(kcIdentityService).updateUserAuthState(
                 anyString(), any(), any(), any(), isNull(),
-                isNull(), any(), any(), anyString(), anyString());
+                isNull(), any(), anyString(), anyString());
     }
 
     @Test
@@ -193,7 +157,7 @@ class KcRequestHandlerTest {
 
         verify(kcIdentityService).updateUserAuthState(
                 anyString(), any(), any(), eq(Boolean.TRUE), any(),
-                any(), any(), any(), anyString(), anyString());
+                any(), any(), anyString(), anyString());
     }
 
     @Test
@@ -203,7 +167,7 @@ class KcRequestHandlerTest {
 
         verify(kcIdentityService).updateUserAuthState(
                 anyString(), any(), any(), eq(false), any(),
-                any(), any(), any(), anyString(), anyString());
+                any(), any(), anyString(), anyString());
     }
 
     // --- DELETE dispatch ---
@@ -214,22 +178,6 @@ class KcRequestHandlerTest {
         handler.handle(BusConstants.EVENT_DELETE, buildDeleteReq(), "cid1", "rid1");
 
         verify(kcIdentityService).deleteUser("alice@example.com", "cid1", "rid1");
-        verifyNoMoreInteractions(kcIdentityService);
-    }
-
-    // --- UPDATE_PATH dispatch ---
-
-    @Test
-    @DisplayName("UPDATE_PATH: delegates to updateEntityPath with id and path")
-    void updatePath_delegatesWithIdAndPath() {
-        AuthSyncRequest req = new AuthSyncRequest();
-        req.setId("uid-001");
-        req.setKind(20);
-        req.setPath("1.500.999.uid-001.");
-
-        handler.handle(BusConstants.EVENT_UPDATE_PATH, req, "cid1", "rid1");
-
-        verify(kcIdentityService).updateEntityPath("uid-001", "1.500.999.uid-001.", "cid1", "rid1");
         verifyNoMoreInteractions(kcIdentityService);
     }
 
