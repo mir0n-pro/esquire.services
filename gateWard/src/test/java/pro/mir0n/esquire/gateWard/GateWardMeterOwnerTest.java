@@ -23,7 +23,7 @@ class GateWardMeterOwnerTest {
     void theGatesOwnWorkIsTheGateways() {
         assertThat(OWNER.ownerOf(id("esq.gw.outer", "route", "biztree-local"))).isEqualTo("gateway");
         assertThat(OWNER.ownerOf(id("esq.gw.inner", "route", "enyman-route"))).isEqualTo("gateway");
-        assertThat(OWNER.ownerOf(id("esq.biz.gw.tokenrelay.total"))).isEqualTo("gateway");
+        assertThat(OWNER.ownerOf(id("esq.biz.gw.oauth.total"))).isEqualTo("gateway");
         assertThat(OWNER.ownerOf(id("spring.cloud.gateway.requests"))).isEqualTo("gateway");
         assertThat(OWNER.ownerOf(id("resilience4j.circuitbreaker.state"))).isEqualTo("gateway");
     }

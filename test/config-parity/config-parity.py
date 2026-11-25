@@ -12,6 +12,8 @@
 #                   missed a setting on OKE more than once; this makes the miss a failing check, not a surprise.
 # 11/18/2026 mir0n  v2.0.2 -- ESQ_GW_PURE_OAUTH_CLIENTS on the gateway and gateWard is an accepted local-only
 #                   difference: pure OAuth is a lab option, off on OKE
+# 11/24/2026 mir0n  v2.0.3 -- the token relay (vanilla, phantom) and pure-list keys out of the expected
+#                   differences; the exchange secret stub out
 """
 Local-k8s <-> OKE deploy-config parity.
 
@@ -74,9 +76,6 @@ PROFILES = {
         # "expected differences" list). Key by (service, CONFIG_KEY) -> the reason. Anything NOT listed
         # here that comes up empty-on-one-side or key-missing is a genuine miss and fails the run.
         "expected": {
-            ("gateway", "ESQ_GW_VANILLA_CLIENTS"): "Token Relay disabled on OKE by design (empty allowlist, audit A1)",
-            ("gateway", "ESQ_GW_PHANTOM_CLIENTS"): "Token Relay disabled on OKE by design (empty allowlist, audit A1)",
-            ("gateway", "ESQ_GW_PURE_OAUTH_CLIENTS"): "Pure OAuth is a lab option, off on OKE (empty client list)",
             ("backend", "REDIS_URL"): "OKE BFF is a SINGLE replica (no shared-session store) -> no Redis on OKE (overlay note)",
             ("backend", "ALLOWED_ORIGINS"): "OKE BFF is same-origin (SPA served by the BFF); cross-origin allowlist empty by design",
         },
@@ -98,9 +97,6 @@ PROFILES = {
             "aukeep": "esquire-aukeep",
         },
         "expected": {
-            ("gateward", "ESQ_GW_VANILLA_CLIENTS"): "Token Relay disabled on OKE by design (empty allowlist, audit A1)",
-            ("gateward", "ESQ_GW_PHANTOM_CLIENTS"): "Token Relay disabled on OKE by design (empty allowlist, audit A1)",
-            ("gateward", "ESQ_GW_PURE_OAUTH_CLIENTS"): "Pure OAuth is a lab option, off on OKE (empty client list)",
             ("backend", "REDIS_URL"): "OKE BFF is a SINGLE replica (no shared-session store) -> no Redis on OKE (overlay note)",
             ("backend", "ALLOWED_ORIGINS"): "OKE BFF is same-origin (SPA served by the BFF); cross-origin allowlist empty by design",
         },
@@ -129,7 +125,6 @@ STUBS = [
     "keycloak.adminPassword=x",
     "keycloak.clientSecret=x",
     "keycloak.adminClientSecret=x",
-    "tokenRelay.phantom.exchangeClientSecret=x",
     "session.secret=x",
 ]
 

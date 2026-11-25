@@ -15,6 +15,9 @@
  * 10/13/2026 mir0n  v2.0.0 -- moved into services2/hauberk, the Esquire half of the harness: the
  *                   generic machinery is Armoury's armoury-hauberk, this project is the Esquire
  *                   routines over it
+ * 11/24/2026 mir0n  v2.0.3 -- the stale-path check and its repair removed (KeyCloak holds no esq_rootpath): run()
+ *                   reports MISSING_IN_KC and ORPHAN_IN_KC only; EsqUser / KcUser carry no path; the connected-user
+ *                   query reads esq_auth alone; the report counts in a loop
  */
 package pro.mir0n.esquire.hauberk.reconcile;
 
@@ -22,8 +25,6 @@ import pro.mir0n.esquire.hauberk.config.EsqHauberkConfig;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import pro.mir0n.hauberk.config.AuthConfig;
 
 import java.net.URI;
@@ -45,23 +46,20 @@ import java.util.Map;
 /**
  * KC &lt;-&gt; Esquire data reconciliation.
  *
- * <p>Two decoupled stores drift: {@code esq2025} (SQL, the source of truth) and KeyCloak (a mirror of the
- * connected users + their {@code esq_rootpath} + roles, written only by kcMaster). A lost sync request, a
- * broker outage that dropped a path update, or an out-of-band KC edit leaves KC stale. This tool detects
- * that drift and, in repair mode, fixes a stale {@code esq_rootpath} back to the DB {@code ep_path}.
+ * <p>Two decoupled stores drift: {@code esq2025} (SQL, the source of truth) and KeyCloak (the accounts of the
+ * connected users, each one carrying its {@code esq_uid}, written only by kcMaster). A lost sync request or an
+ * out-of-band KC edit leaves the two disagreeing about who exists. This tool detects that drift and reports it.
  *
  * <p>It talks to BOTH stores DIRECTLY via their native APIs -- PG/JDBC for esq2025, the KC REST admin API for
- * KeyCloak -- and does NOT route through the Esquire services or the bus, so it recovers even when they are
+ * KeyCloak -- and does NOT route through the Esquire services or the bus, so it works even when they are
  * down. That is also why it lives in hauberk (out of the services), not as a service endpoint.
  *
- * <p>Drift kinds:
+ * <p>Drift kinds, both REPORTED only:
  * <ul>
- *   <li>STALE_PATH -- a KC user whose {@code esq_rootpath} != the DB {@code ep_path} (the race-8c drift). REPAIRED
- *       in place (PUT the corrected attribute).</li>
- *   <li>MISSING_IN_KC -- a connected Esquire user with no KC account. REPORTED only (re-creating a KC user needs
- *       credential / activation state that is kcMaster's job -- not replicated here).</li>
- *   <li>ORPHAN_IN_KC -- a KC user carrying an {@code esq_uid} that is not a connected Esquire user. REPORTED only
- *       (deletion is destructive).</li>
+ *   <li>MISSING_IN_KC -- a connected Esquire user with no KC account (re-creating a KC user needs credential /
+ *       activation state that is kcMaster's job -- not replicated here).</li>
+ *   <li>ORPHAN_IN_KC -- a KC user carrying an {@code esq_uid} that is not a connected Esquire user (deletion is
+ *       destructive).</li>
  * </ul>
  */
 public final class KcRecover {
@@ -73,22 +71,25 @@ public final class KcRecover {
     private static final ObjectMapper MAPPER = new ObjectMapper();
     private static final int KC_PAGE_MAX = 5000;   // single page; the seed + hauberk playground fit well within
 
+    private static final String MISSING_IN_KC = "MISSING_IN_KC";
+    private static final String ORPHAN_IN_KC = "ORPHAN_IN_KC";
+
     private KcRecover() {}
 
-    /** The authoritative connected user: entity id (esq_uid), login id, and the current DB entity path. */
-    public record EsqUser(String esqUid, String loginId, String path) {}
+    /** The authoritative connected user: entity id (esq_uid) and login id. */
+    public record EsqUser(String esqUid, String loginId) {}
 
-    /** The mirror user in KC: the KC user id, username, and the esq_rootpath attribute (may be null). */
-    public record KcUser(String id, String username, String rootPath) {}
+    /** The mirror user in KC: the KC user id and username. */
+    public record KcUser(String id, String username) {}
 
     /** One detected drift row. */
     public record Drift(String kind, String esqUid, String detail) {}
 
     /**
-     * Run the reconciliation. Reads both stores, diffs, prints a report, and -- when {@code repair} -- fixes a
-     * stale esq_rootpath in place. Returns the number of drifts found (0 = in sync).
+     * Run the reconciliation. Reads both stores, diffs, and prints a report. Returns the number of drifts found
+     * (0 = in sync).
      */
-    public static int run(boolean repair) throws Exception {
+    public static int run() throws Exception {
         int ret;
         Map<String, EsqUser> esq = readEsquire();
         String token = adminToken();
@@ -97,42 +98,29 @@ public final class KcRecover {
                 esq.size(), kc.size());
 
         List<Drift> drifts = new ArrayList<>();
-        int repaired = 0;
-        // Esquire-side pass: missing-in-KC + stale-path.
         for (EsqUser u : esq.values()) {
-            KcUser k = kc.get(u.esqUid());
-            if (k == null) {
-                drifts.add(new Drift("MISSING_IN_KC", u.esqUid(),
-                        "connected user login=" + u.loginId() + " path=" + u.path() + " has no KC account"));
-            } else if (!u.path().equals(k.rootPath())) {
-                drifts.add(new Drift("STALE_PATH", u.esqUid(),
-                        "KC esq_rootpath=" + k.rootPath() + " != DB ep_path=" + u.path()
-                                + " (kcUser=" + k.username() + ")"));
-                if (repair) {
-                    updateKcRootPath(token, k.id(), u.path());
-                    repaired++;
-                    System.err.printf("[kc-reconcile] REPAIRED esq_rootpath for esq_uid=%s -> %s%n",
-                            u.esqUid(), u.path());
-                }
+            if (!kc.containsKey(u.esqUid())) {
+                drifts.add(new Drift(MISSING_IN_KC, u.esqUid(),
+                        "connected user login=" + u.loginId() + " has no KC account"));
             }
         }
-        // KC-side pass: orphan KC users (an esq_uid not in the connected set). The KC map is keyed by esq_uid.
+        // The KC map is keyed by esq_uid.
         for (Map.Entry<String, KcUser> e : kc.entrySet()) {
             if (!esq.containsKey(e.getKey())) {
-                drifts.add(new Drift("ORPHAN_IN_KC", e.getKey(),
+                drifts.add(new Drift(ORPHAN_IN_KC, e.getKey(),
                         "KC user " + e.getValue().username() + " (esq_uid=" + e.getKey()
                                 + ") is not a connected Esquire user"));
             }
         }
 
-        report(drifts, repair, repaired);
+        report(drifts);
         ret = drifts.size();
         return ret;
     }
 
     // ------------------------------------------------------------------ Esquire (PG / JDBC)
 
-    /** Read the connected users and their DB entity path from esq2025 over JDBC. */
+    /** Read the connected users from esq2025 over JDBC. */
     private static Map<String, EsqUser> readEsquire() throws Exception {
         Map<String, EsqUser> ret = new LinkedHashMap<>();
         String url = EsqHauberkConfig.PG_URL;
@@ -140,16 +128,15 @@ public final class KcRecover {
             throw new IllegalStateException("kc-reconcile: pg.url is not set in the hauberk config -- "
                     + "point it at esq2025 (jdbc:postgresql://host:port/db)");
         }
-        String sql = "SELECT a.au_usr_pk, a.au_login_id, ep.ep_path"
+        String sql = "SELECT a.au_usr_pk, a.au_login_id"
                 + " FROM esq_auth a"
-                + " JOIN esq_entity_path ep ON ep.ep_pk = a.au_usr_pk"
                 + " WHERE a.au_connect_flg = 'Y'";
         try (Connection c = DriverManager.getConnection(url, EsqHauberkConfig.PG_USER, EsqHauberkConfig.PG_PASSWORD);
              PreparedStatement ps = c.prepareStatement(sql);
              ResultSet rs = ps.executeQuery()) {
             while (rs.next()) {
                 String esqUid = String.valueOf(rs.getLong("au_usr_pk"));
-                ret.put(esqUid, new EsqUser(esqUid, rs.getString("au_login_id"), rs.getString("ep_path")));
+                ret.put(esqUid, new EsqUser(esqUid, rs.getString("au_login_id")));
             }
         }
         return ret;
@@ -200,44 +187,13 @@ public final class KcRecover {
             throw new IllegalStateException("KC list users returned " + resp.statusCode() + ": " + resp.body());
         }
         for (JsonNode u : MAPPER.readTree(resp.body())) {
-            JsonNode attrs = u.path("attributes");
-            String esqUid = firstAttr(attrs, "esq_uid");
-            if (esqUid == null) {
-                continue;   // a user without esq_uid is not an Esquire-managed identity (e.g. the bootstrap admin)
+            String esqUid = firstAttr(u.path("attributes"), "esq_uid");
+            //xxx: a user without esq_uid is not an Esquire-managed identity (e.g. the bootstrap admin)
+            if (esqUid != null) {
+                ret.put(esqUid, new KcUser(u.path("id").asText(), u.path("username").asText()));
             }
-            ret.put(esqUid, new KcUser(u.path("id").asText(), u.path("username").asText(),
-                    firstAttr(attrs, "esq_rootpath")));
         }
         return ret;
-    }
-
-    /** Fix a KC user's esq_rootpath in place: GET the full representation, replace the attribute, PUT it back
-     *  (KC's PUT replaces the whole representation, so we preserve everything else the GET returned). */
-    private static void updateKcRootPath(String token, String kcUserId, String path) throws Exception {
-        String base = AuthConfig.BASE + "/admin/realms/" + AuthConfig.REALM + "/users/" + kcUserId;
-        HttpRequest get = HttpRequest.newBuilder()
-                .uri(URI.create(base)).header("Authorization", "Bearer " + token)
-                .timeout(Duration.ofSeconds(10)).GET().build();
-        HttpResponse<String> gr = HTTP.send(get, HttpResponse.BodyHandlers.ofString());
-        if (gr.statusCode() != 200) {
-            throw new IllegalStateException("KC get user " + kcUserId + " returned " + gr.statusCode() + ": " + gr.body());
-        }
-        ObjectNode user = (ObjectNode) MAPPER.readTree(gr.body());
-        ObjectNode attrs = user.has("attributes") && user.get("attributes").isObject()
-                ? (ObjectNode) user.get("attributes") : MAPPER.createObjectNode();
-        ArrayNode rp = MAPPER.createArrayNode();
-        rp.add(path);
-        attrs.set("esq_rootpath", rp);
-        user.set("attributes", attrs);
-        HttpRequest put = HttpRequest.newBuilder()
-                .uri(URI.create(base)).header("Authorization", "Bearer " + token)
-                .header("Content-Type", "application/json")
-                .timeout(Duration.ofSeconds(10))
-                .PUT(HttpRequest.BodyPublishers.ofString(MAPPER.writeValueAsString(user))).build();
-        HttpResponse<String> pr = HTTP.send(put, HttpResponse.BodyHandlers.ofString());
-        if (pr.statusCode() != 204 && pr.statusCode() != 200) {
-            throw new IllegalStateException("KC update user " + kcUserId + " returned " + pr.statusCode() + ": " + pr.body());
-        }
     }
 
     private static String firstAttr(JsonNode attrs, String name) {
@@ -249,25 +205,26 @@ public final class KcRecover {
         return ret;
     }
 
-    private static void report(List<Drift> drifts, boolean repair, int repaired) {
+    private static void report(List<Drift> drifts) {
         System.err.println();
         System.err.println("================ KC <-> Esquire reconciliation ================");
         if (drifts.isEmpty()) {
             System.err.println("IN SYNC -- no drift between esq2025 and KeyCloak.");
         } else {
-            long stale   = drifts.stream().filter(d -> d.kind().equals("STALE_PATH")).count();
-            long missing = drifts.stream().filter(d -> d.kind().equals("MISSING_IN_KC")).count();
-            long orphan  = drifts.stream().filter(d -> d.kind().equals("ORPHAN_IN_KC")).count();
-            System.err.printf("DRIFT: stale-path=%d, missing-in-KC=%d, orphan-in-KC=%d%n", stale, missing, orphan);
+            int missing = 0;
+            int orphan = 0;
+            for (Drift d : drifts) {
+                if (MISSING_IN_KC.equals(d.kind())) {
+                    missing++;
+                } else {
+                    orphan++;
+                }
+            }
+            System.err.printf("DRIFT: missing-in-KC=%d, orphan-in-KC=%d%n", missing, orphan);
             for (Drift d : drifts) {
                 System.err.println("  [" + d.kind() + "] esq_uid=" + d.esqUid() + " : " + d.detail());
             }
-            if (repair) {
-                System.err.printf("%nREPAIRED %d stale esq_rootpath value(s). missing-in-KC / orphan-in-KC are "
-                        + "REPORTED only (create / delete are not auto-applied).%n", repaired);
-            } else {
-                System.err.println("\n(--check only; re-run with --repair to fix stale esq_rootpath values.)");
-            }
+            System.err.println("\n(REPORTED only -- create / delete are not auto-applied.)");
         }
         System.err.println("===============================================================");
     }

@@ -94,10 +94,10 @@ class OAuthTest {
         CountingClient client = new CountingClient(Mono.just(ADMIN));
         ClaimsCache cache = new ClaimsCache(client, 60_000L);
 
-        cache.claimsOf("esq-hauberk-S@mir0n.pro").block(WAIT);
-        cache.claimsOf("esq-hauberk-s@mir0n.pro").block(WAIT);
+        cache.claimsOf("Esq-Hauberk@mir0n.pro").block(WAIT);
+        cache.claimsOf("esq-hauberk@mir0n.pro").block(WAIT);
         assertThat(client.calls.get()).isEqualTo(1);
-        assertThat(client.askedFor).isEqualTo("esq-hauberk-s@mir0n.pro");
+        assertThat(client.askedFor).isEqualTo("esq-hauberk@mir0n.pro");
         assertThat(cache.size()).isEqualTo(1);
     }
 

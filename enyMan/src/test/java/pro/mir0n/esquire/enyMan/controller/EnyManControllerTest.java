@@ -43,10 +43,6 @@ class EnyManControllerTest {
         controller = new EnyManController(service);
     }
 
-    // uid / rootPath are no longer extracted in the controller -- they ride the unified per-request
-    // context captured upstream (JwtClaimsExtractionFilter). The controller now extracts only roles
-    // from realm_access and delegates without uid/rootPath.
-
     // ---- esquireDictionary ----
 
     @Test
@@ -77,11 +73,11 @@ class EnyManControllerTest {
         verify(service).esquireCommand(1, "10", "details");
     }
 
-    // ---- esquireCommandSave: roles extracted from realm_access ----
+    // ---- esquireCommandSave ----
 
     @Test
     @DisplayName("esquireCommandSave: delegates to service, returns 200")
-    void esquireCommandSave_extractsRolesFromRealmAccess_delegatesWithRoles() {
+    void esquireCommandSave_delegates_returnsOk() {
         EsqEntity mockEntity = mock(EsqEntity.class);
         Map<String, Object> fields = Map.of("name", "ACME");
         when(service.esquireCommandSave(1, "10", "save", fields))

@@ -12,6 +12,7 @@
  *                   the playground scope, the prepare / move / super shape knobs, and the direct esq2025
  *                   connection the kc-reconcile utility reads. Every setting keeps its property NAME, so
  *                   hauberk.properties and every target overlay read exactly as they did.
+ * 11/24/2026 mir0n  v2.0.3 -- javadoc: the root path is the access profile's, not a token claim
  */
 package pro.mir0n.esquire.hauberk.config;
 
@@ -39,7 +40,7 @@ public final class EsqHauberkConfig {
 
     /**
      * Playground parent ORG id -- where every hauberk-created office / user / account roots itself. The
-     * Test Driver service accounts have esq_rootpath="1.14.", so the hauberk can only create entities
+     * Test Driver access profile has the root path "1.14.", so the hauberk can only create entities
      * under Test House (org 14).
      */
     public static final String PLAYGROUND_PARENT_ID = HauberkConfig.require("playground.parent.id");

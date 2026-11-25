@@ -30,7 +30,7 @@ rem   - kubectl context already on the OKE cluster (oke-login.bat first)
 rem   - docker buildx available
 rem
 rem Infra (postgres, keycloak, activemq) is deliberately out of scope --
-rem infra restamping has separate constraints (secrets, KC_FEATURES pin, etc.)
+rem infra restamping has separate constraints (secrets, etc.)
 rem and is done by hand when those rare changes happen.
 rem ===========================================================================
 

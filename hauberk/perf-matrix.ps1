@@ -172,20 +172,10 @@ $CONFIGS = @(
     @{ name = "docker-OFF";  target = "docker"; reps = 1; o11y = "OFF" },
     @{ name = "docker-LOG";  target = "docker"; reps = 1; o11y = "LOG" },
     @{ name = "docker-ON";   target = "docker"; reps = 1; o11y = "ON"  },
-    # docker-OFF with the load as the pure OAuth client (v2.0.2 lab); the client is the only difference.
-    @{ name = "docker-OFF-PURE"; target = "docker"; reps = 1; o11y = "OFF"; pure = $true },
 
     # CLASSIC WITH THE ACCOUNT ROUTES ON THE BIZ BUS (v2.0.1): the gateway sends them to paacMan instead of
     # pacMan over HTTP. Paired against k8s-x2-OFF with the same -GatewayTag, the route is the only difference.
-    @{ name = "k8s-x2-OFF-BUS"; target = "k8s"; reps = 2; o11y = "OFF"; bus = $true },
-
-    # CLASSIC, THE LOAD AS THE PURE OAUTH CLIENT (v2.0.2 lab): esq-hauberk-P, the same access profile as
-    # esq-hauberk, with no Esquire claims in its token -- the gateway takes them from keySmith into its cache.
-    # The gateway config is the same in both cells (both clients are on its lists); paired against k8s-x2-OFF,
-    # the client the load logs in with is the only difference.
-    @{ name = "k8s-x2-OFF-PURE"; target = "k8s"; reps = 2; o11y = "OFF"; pure = $true },
-    # The same pair in compact: gateWard takes the claims from keySmith in mesnie; paired against k8sc-x2-OFF.
-    @{ name = "k8sc-x2-OFF-PURE"; target = "k8sc"; dir = "k8s-compact"; reps = 2; o11y = "OFF"; pure = $true }
+    @{ name = "k8s-x2-OFF-BUS"; target = "k8s"; reps = 2; o11y = "OFF"; bus = $true }
 )
 
 # ONE KIND PER CELL (-Kinds). Each base config becomes one cell per kind, named "<config>-<kind>", and the
@@ -511,14 +501,11 @@ function Invoke-Run($run, $cfg) {
         # gateWard -- its director/restart commands drive statefulset/esquire-gateward, not esquire-biztree.
         # Handing the classic profile to a compact run leaves those commands pointing at a deployment that
         # does not exist, and only the resilience arms notice.
-        if ($cfg.target -eq "k8sc" -and $cfg.pure) { $hcfg = @("--config","hauberk-k8s-compact-P.properties") }
-        elseif ($cfg.target -eq "k8sc") { $hcfg = @("--config","hauberk-k8s-compact.properties") }
-        elseif ($cfg.pure)          { $hcfg = @("--config","hauberk-k8s-P.properties") }
+        if ($cfg.target -eq "k8sc") { $hcfg = @("--config","hauberk-k8s-compact.properties") }
         else                        { $hcfg = @("--config","hauberk-k8s.properties") }
     } else {
         if (-not (Build-Docker $cfg)) { Log "  ABORTING run $run"; return }
         $hcfg = @()
-        if ($cfg.pure) { $hcfg = @("--config","hauberk-P.properties") }
     }
 
     Set-Location $HAUBERK

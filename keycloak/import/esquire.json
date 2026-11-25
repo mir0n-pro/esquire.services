@@ -48,72 +48,9 @@
   "roles": {
     "realm": [
       {
-        "id": "f29a02e1-e5cb-4525-a117-84ad7f075253",
-        "name": "MANAGER",
-        "description": "Esquire office manager ",
-        "composite": false,
-        "clientRole": false,
-        "containerId": "80458a9a-9909-42ad-9ff0-398f36e3b4dc",
-        "attributes": {}
-      },
-      {
-        "id": "7564fd6e-9713-423f-abb7-24d7045c511e",
-        "name": "CLIENT",
-        "description": "Client Role",
-        "composite": false,
-        "clientRole": false,
-        "containerId": "80458a9a-9909-42ad-9ff0-398f36e3b4dc",
-        "attributes": {}
-      },
-      {
-        "id": "8e57cef7-cbd7-40ff-b508-899e1f452634",
-        "name": "SYSADMIN",
-        "description": "System Administrator role",
-        "composite": false,
-        "clientRole": false,
-        "containerId": "80458a9a-9909-42ad-9ff0-398f36e3b4dc",
-        "attributes": {}
-      },
-      {
-        "id": "1a3c3a4d-25cd-4127-8d40-e5ced59bad26",
-        "name": "MERCHANT",
-        "description": "Merchant role",
-        "composite": false,
-        "clientRole": false,
-        "containerId": "80458a9a-9909-42ad-9ff0-398f36e3b4dc",
-        "attributes": {}
-      },
-      {
         "id": "04a23ce9-5612-4065-b5f1-d5405ca8d21c",
         "name": "offline_access",
         "description": "${role_offline-access}",
-        "composite": false,
-        "clientRole": false,
-        "containerId": "80458a9a-9909-42ad-9ff0-398f36e3b4dc",
-        "attributes": {}
-      },
-      {
-        "id": "4cbc9e11-74aa-48b6-b4e8-3d5a6923db95",
-        "name": "OPERATOR",
-        "description": "Esquire office operator",
-        "composite": false,
-        "clientRole": false,
-        "containerId": "80458a9a-9909-42ad-9ff0-398f36e3b4dc",
-        "attributes": {}
-      },
-      {
-        "id": "69a8002c-5157-4b86-976d-3f001649d7ce",
-        "name": "SUPERVIZOR",
-        "description": "Esquire office supervisor ",
-        "composite": false,
-        "clientRole": false,
-        "containerId": "80458a9a-9909-42ad-9ff0-398f36e3b4dc",
-        "attributes": {}
-      },
-      {
-        "id": "f378bba5-a710-4fb1-9338-e1b55c0f7ed8",
-        "name": "SUPPORT",
-        "description": "Esquire office customer support",
         "composite": false,
         "clientRole": false,
         "containerId": "80458a9a-9909-42ad-9ff0-398f36e3b4dc",
@@ -136,15 +73,6 @@
             ]
           }
         },
-        "clientRole": false,
-        "containerId": "80458a9a-9909-42ad-9ff0-398f36e3b4dc",
-        "attributes": {}
-      },
-      {
-        "id": "74aa159d-172e-468a-9336-c6f6069e2e4b",
-        "name": "TREE",
-        "description": "Esquire generic connect",
-        "composite": false,
         "clientRole": false,
         "containerId": "80458a9a-9909-42ad-9ff0-398f36e3b4dc",
         "attributes": {}
@@ -552,9 +480,6 @@
       "attributes": {
         "esq_uid": [
           "10"
-        ],
-        "esq_rootpath": [
-          "1.2.3.10."
         ]
       },
       "enabled": true,
@@ -573,9 +498,7 @@
       "disableableCredentialTypes": [],
       "requiredActions": [],
       "realmRoles": [
-        "CLIENT",
-        "default-roles-esquire",
-        "TREE"
+        "default-roles-esquire"
       ],
       "notBefore": 0,
       "groups": [
@@ -590,9 +513,6 @@
       "attributes": {
         "esq_uid": [
           "9"
-        ],
-        "esq_rootpath": [
-          "1.2.3."
         ]
       },
       "enabled": true,
@@ -610,9 +530,7 @@
       "disableableCredentialTypes": [],
       "requiredActions": [],
       "realmRoles": [
-        "MANAGER",
-        "default-roles-esquire",
-        "TREE"
+        "default-roles-esquire"
       ],
       "notBefore": 0,
       "groups": []
@@ -627,9 +545,6 @@
       "attributes": {
         "esq_uid": [
           "5"
-        ],
-        "esq_rootpath": [
-          "1."
         ]
       },
       "enabled": true,
@@ -647,9 +562,7 @@
       "disableableCredentialTypes": [],
       "requiredActions": [],
       "realmRoles": [
-        "SUPERVIZOR",
-        "default-roles-esquire",
-        "TREE"
+        "default-roles-esquire"
       ],
       "notBefore": 0,
       "groups": [
@@ -666,9 +579,6 @@
       "attributes": {
         "esq_uid": [
           "8"
-        ],
-        "esq_rootpath": [
-          "1.2.8."
         ]
       },
       "enabled": true,
@@ -687,9 +597,7 @@
       "disableableCredentialTypes": [],
       "requiredActions": [],
       "realmRoles": [
-        "MERCHANT",
-        "default-roles-esquire",
-        "TREE"
+        "default-roles-esquire"
       ],
       "notBefore": 0,
       "groups": [
@@ -706,9 +614,6 @@
       "attributes": {
         "esq_uid": [
           "7"
-        ],
-        "esq_rootpath": [
-          "1.2."
         ]
       },
       "enabled": true,
@@ -727,9 +632,7 @@
       "disableableCredentialTypes": [],
       "requiredActions": [],
       "realmRoles": [
-        "MANAGER",
-        "default-roles-esquire",
-        "TREE"
+        "default-roles-esquire"
       ],
       "notBefore": 0,
       "groups": []
@@ -770,9 +673,6 @@
       "attributes": {
         "esq_uid": [
           "15"
-        ],
-        "esq_rootpath": [
-          "1.14."
         ]
       },
       "enabled": true,
@@ -783,86 +683,7 @@
       "disableableCredentialTypes": [],
       "requiredActions": [],
       "realmRoles": [
-        "SUPERVIZOR",
-        "default-roles-esquire",
-        "TREE"
-      ],
-      "notBefore": 0,
-      "groups": []
-    },
-    {
-      "id": "6360d699-2740-4c8b-9834-6759ac4b3c3d",
-      "username": "service-account-esq-hauberk-p",
-      "emailVerified": false,
-      "enabled": true,
-      "createdTimestamp": 1778400000000,
-      "totp": false,
-      "serviceAccountClientId": "esq-hauberk-P",
-      "credentials": [],
-      "disableableCredentialTypes": [],
-      "requiredActions": [],
-      "realmRoles": [
         "default-roles-esquire"
-      ],
-      "notBefore": 0,
-      "groups": []
-    },
-    {
-      "id": "a17c4e5d-2f88-4b9c-9e21-3a4f5b6c7d80",
-      "username": "service-account-esq-hauberk-s",
-      "firstName": "Test",
-      "lastName": "Driver S",
-      "email": "esq-hauberk-S@mir0n.pro",
-      "emailVerified": false,
-      "attributes": {
-        "esq_uid": [
-          "16"
-        ],
-        "esq_rootpath": [
-          "1.14."
-        ]
-      },
-      "enabled": true,
-      "createdTimestamp": 1778400000000,
-      "totp": false,
-      "serviceAccountClientId": "esq-hauberk-S",
-      "credentials": [],
-      "disableableCredentialTypes": [],
-      "requiredActions": [],
-      "realmRoles": [
-        "SUPERVIZOR",
-        "default-roles-esquire",
-        "TREE"
-      ],
-      "notBefore": 0,
-      "groups": []
-    },
-    {
-      "id": "b28d5f6e-3a99-4c1d-9f32-4b5c6d7e8901",
-      "username": "service-account-esq-hauberk-m",
-      "firstName": "Test",
-      "lastName": "Driver M",
-      "email": "esq-hauberk-M@mir0n.pro",
-      "emailVerified": false,
-      "attributes": {
-        "esq_uid": [
-          "17"
-        ],
-        "esq_rootpath": [
-          "1.14."
-        ]
-      },
-      "enabled": true,
-      "createdTimestamp": 1778600000000,
-      "totp": false,
-      "serviceAccountClientId": "esq-hauberk-M",
-      "credentials": [],
-      "disableableCredentialTypes": [],
-      "requiredActions": [],
-      "realmRoles": [
-        "SUPERVIZOR",
-        "default-roles-esquire",
-        "TREE"
       ],
       "notBefore": 0,
       "groups": []
@@ -877,9 +698,6 @@
       "attributes": {
         "esq_uid": [
           "6"
-        ],
-        "esq_rootpath": [
-          "1.2."
         ]
       },
       "enabled": true,
@@ -898,9 +716,7 @@
       "disableableCredentialTypes": [],
       "requiredActions": [],
       "realmRoles": [
-        "default-roles-esquire",
-        "SUPPORT",
-        "TREE"
+        "default-roles-esquire"
       ],
       "notBefore": 0,
       "groups": [
@@ -917,9 +733,6 @@
       "attributes": {
         "esq_uid": [
           "4"
-        ],
-        "esq_rootpath": [
-          "1."
         ]
       },
       "enabled": true,
@@ -935,8 +748,6 @@
       "disableableCredentialTypes": [],
       "requiredActions": [],
       "realmRoles": [
-        "SYSADMIN",
-        "TREE",
         "default-roles-esquire"
       ],
       "notBefore": 0,
@@ -1252,101 +1063,6 @@
       ]
     },
     {
-      "id": "c0fbcf41-5c34-47b3-8c7c-3e073d9093db",
-      "clientId": "esq-angular-pure-oauth",
-      "name": "Esquire Angular Client, pure OAuth",
-      "description": "Esquire Angular Client (BFF-fronted; confidential client; no Esquire claims in the token)",
-      "rootUrl": "",
-      "adminUrl": "",
-      "baseUrl": "",
-      "surrogateAuthRequired": false,
-      "enabled": true,
-      "alwaysDisplayInConsole": false,
-      "clientAuthenticatorType": "client-secret",
-      "secret": "esq-angular-pure-oauth-dev-secret-rotate-in-prod",
-      "redirectUris": [
-        "http://localhost:4200/auth/callback",
-        "http://localhost:3000/auth/callback",
-        "http://host.docker.internal:3000/auth/callback",
-        "http://host.docker.internal:4200/auth/callback",
-        "http://esquire.localhost/auth/callback",
-        "https://esquire.mir0n.pro/auth/callback",
-        "https://aws-esquire.mir0n.pro/auth/callback"
-      ],
-      "webOrigins": [
-        "http://localhost:4200",
-        "http://localhost:3000",
-        "http://host.docker.internal:3000",
-        "http://host.docker.internal:4200",
-        "http://esquire.localhost",
-        "https://esquire.mir0n.pro",
-        "https://aws-esquire.mir0n.pro"
-      ],
-      "notBefore": 0,
-      "bearerOnly": false,
-      "consentRequired": false,
-      "standardFlowEnabled": true,
-      "implicitFlowEnabled": false,
-      "directAccessGrantsEnabled": false,
-      "serviceAccountsEnabled": false,
-      "publicClient": false,
-      "frontchannelLogout": true,
-      "protocol": "openid-connect",
-      "attributes": {
-        "standard.token.exchange.enabled": "false",
-        "login_theme": "esquire-explorer",
-        "frontchannel.logout.session.required": "true",
-        "post.logout.redirect.uris": "http://localhost:4200/##http://localhost:3000/##http://host.docker.internal:3000/##http://host.docker.internal:4200/##http://esquire.localhost/##https://esquire.mir0n.pro/##https://aws-esquire.mir0n.pro/",
-        "oauth2.device.authorization.grant.enabled": "false",
-        "backchannel.logout.revoke.offline.tokens": "false",
-        "realm_client": "false",
-        "oidc.ciba.grant.enabled": "false",
-        "backchannel.logout.session.required": "true",
-        "display.on.consent.screen": "false",
-        "pkce.code.challenge.method": "S256",
-        "dpop.bound.access.tokens": "false"
-      },
-      "authenticationFlowBindingOverrides": {},
-      "fullScopeAllowed": false,
-      "nodeReRegistrationTimeout": -1,
-      "protocolMappers": [
-        {
-          "id": "af4fe046-7c96-411d-8c7f-c4db80588274",
-          "name": "esq_login_mapper",
-          "protocol": "openid-connect",
-          "protocolMapper": "oidc-usermodel-attribute-mapper",
-          "consentRequired": false,
-          "config": {
-            "aggregate.attrs": "false",
-            "introspection.token.claim": "true",
-            "multivalued": "false",
-            "userinfo.token.claim": "true",
-            "user.attribute": "username",
-            "id.token.claim": "true",
-            "lightweight.claim": "false",
-            "access.token.claim": "true",
-            "claim.name": "preferred_username",
-            "jsonType.label": "String"
-          }
-        }
-      ],
-      "defaultClientScopes": [
-        "web-origins",
-        "acr",
-        "openid",
-        "profile",
-        "basic",
-        "email"
-      ],
-      "optionalClientScopes": [
-        "address",
-        "phone",
-        "organization",
-        "offline_access",
-        "microprofile-jwt"
-      ]
-    },
-    {
       "id": "c653bce7-8e20-441a-abe9-504e6defd6f4",
       "clientId": "esq-kcMaster",
       "name": "esq-kcMaster",
@@ -1522,436 +1238,6 @@
         "offline_access",
         "microprofile-jwt"
       ]
-    },
-    {
-      "id": "e8715c05-2a83-48fd-8555-48f71d29cb3a",
-      "clientId": "esq-hauberk-P",
-      "name": "Esquire Haubergeon Stress-Test Client, pure OAuth",
-      "description": "Esquire hauberk -- the pure OAuth twin of esq-hauberk (client-credentials grant only). No Esquire claims in the token; preferred_username is set by hand to esq-hauberk@mir0n.pro, the login id of the same access profile (user 15).",
-      "rootUrl": "",
-      "adminUrl": "",
-      "baseUrl": "",
-      "surrogateAuthRequired": false,
-      "enabled": true,
-      "alwaysDisplayInConsole": false,
-      "clientAuthenticatorType": "client-secret",
-      "secret": "esq-hauberk-p-dev-secret-rotate-in-prod",
-      "redirectUris": [
-        "/*"
-      ],
-      "webOrigins": [
-        "/*"
-      ],
-      "notBefore": 0,
-      "bearerOnly": false,
-      "consentRequired": false,
-      "standardFlowEnabled": false,
-      "implicitFlowEnabled": false,
-      "directAccessGrantsEnabled": false,
-      "serviceAccountsEnabled": true,
-      "publicClient": false,
-      "frontchannelLogout": false,
-      "protocol": "openid-connect",
-      "attributes": {
-        "request.object.signature.alg": "any",
-        "frontchannel.logout.session.required": "true",
-        "post.logout.redirect.uris": "+",
-        "oauth2.device.authorization.grant.enabled": "false",
-        "backchannel.logout.revoke.offline.tokens": "false",
-        "use.refresh.tokens": "true",
-        "realm_client": "false",
-        "oidc.ciba.grant.enabled": "false",
-        "backchannel.logout.session.required": "false",
-        "client_credentials.use_refresh_token": "false",
-        "require.pushed.authorization.requests": "false",
-        "request.object.encryption.enc": "any",
-        "dpop.bound.access.tokens": "false",
-        "id.token.as.detached.signature": "false",
-        "client.secret.creation.time": "1778400000",
-        "request.object.encryption.alg": "any",
-        "client.introspection.response.allow.jwt.claim.enabled": "false",
-        "standard.token.exchange.enabled": "false",
-        "client.use.lightweight.access.token.enabled": "false",
-        "request.object.required": "not required",
-        "access.token.header.type.rfc9068": "false",
-        "tls.client.certificate.bound.access.tokens": "false",
-        "acr.loa.map": "{}",
-        "display.on.consent.screen": "false",
-        "token.response.type.bearer.lower-case": "false",
-        "access.token.encrypted.response.alg": "RSA-OAEP",
-        "access.token.encrypted.response.enc": "A256GCM",
-        "use.jwks.url": "true",
-        "jwks.url": "http://gateway:7070/jwe-jwks"
-      },
-      "authenticationFlowBindingOverrides": {},
-      "fullScopeAllowed": false,
-      "nodeReRegistrationTimeout": -1,
-      "protocolMappers": [
-        {
-          "id": "2be75356-07fc-4426-b3ec-1859127d1889",
-          "name": "esq_login_mapper",
-          "protocol": "openid-connect",
-          "protocolMapper": "oidc-hardcoded-claim-mapper",
-          "consentRequired": false,
-          "config": {
-            "introspection.token.claim": "true",
-            "claim.value": "esq-hauberk@mir0n.pro",
-            "userinfo.token.claim": "true",
-            "id.token.claim": "true",
-            "lightweight.claim": "false",
-            "access.token.claim": "true",
-            "claim.name": "preferred_username",
-            "jsonType.label": "String"
-          }
-        }
-      ],
-      "defaultClientScopes": [
-        "web-origins",
-        "service_account",
-        "acr",
-        "openid",
-        "profile",
-        "basic",
-        "email"
-      ],
-      "optionalClientScopes": [
-        "address",
-        "phone",
-        "organization",
-        "offline_access",
-        "microprofile-jwt"
-      ]
-    },
-    {
-      "id": "b3e5f1a2-4c6d-4f7e-8b9a-1c2d3e4f5061",
-      "clientId": "esq-hauberk-S",
-      "name": "Esquire Haubergeon Stress-Test Client (S -- Introspection / JWS+ mode)",
-      "description": "Sibling of esq-hauberk for the JWS+ variant: gateway calls RFC 7662 introspect on each request. Same identity (mainadmin esq_uid=5). Future: -M, -L variants.",
-      "rootUrl": "",
-      "adminUrl": "",
-      "baseUrl": "",
-      "surrogateAuthRequired": false,
-      "enabled": true,
-      "alwaysDisplayInConsole": false,
-      "clientAuthenticatorType": "client-secret",
-      "secret": "esq-hauberk-s-dev-secret-rotate-in-prod",
-      "redirectUris": [
-        "/*"
-      ],
-      "webOrigins": [
-        "/*"
-      ],
-      "notBefore": 0,
-      "bearerOnly": false,
-      "consentRequired": false,
-      "standardFlowEnabled": false,
-      "implicitFlowEnabled": false,
-      "directAccessGrantsEnabled": false,
-      "serviceAccountsEnabled": true,
-      "publicClient": false,
-      "frontchannelLogout": false,
-      "protocol": "openid-connect",
-      "attributes": {
-        "oauth2.device.authorization.grant.enabled": "false",
-        "oidc.ciba.grant.enabled": "false",
-        "use.refresh.tokens": "true",
-        "client_credentials.use_refresh_token": "false",
-        "display.on.consent.screen": "false"
-      },
-      "authenticationFlowBindingOverrides": {},
-      "fullScopeAllowed": true,
-      "nodeReRegistrationTimeout": -1,
-      "protocolMappers": [
-        {
-          "id": "c1d2e3f4-1111-4222-8333-444455556666",
-          "name": "esq_uid_mapper",
-          "protocol": "openid-connect",
-          "protocolMapper": "oidc-usermodel-attribute-mapper",
-          "consentRequired": false,
-          "config": {
-            "aggregate.attrs": "false",
-            "introspection.token.claim": "true",
-            "multivalued": "false",
-            "userinfo.token.claim": "false",
-            "user.attribute": "esq_uid",
-            "id.token.claim": "false",
-            "lightweight.claim": "false",
-            "access.token.claim": "true",
-            "claim.name": "esq_uid",
-            "jsonType.label": "String"
-          }
-        },
-        {
-          "id": "c1d2e3f4-2222-4333-8444-555566667777",
-          "name": "esq_rootpath_mapper",
-          "protocol": "openid-connect",
-          "protocolMapper": "oidc-usermodel-attribute-mapper",
-          "consentRequired": false,
-          "config": {
-            "aggregate.attrs": "false",
-            "introspection.token.claim": "true",
-            "multivalued": "false",
-            "userinfo.token.claim": "false",
-            "user.attribute": "esq_rootpath",
-            "id.token.claim": "false",
-            "lightweight.claim": "false",
-            "access.token.claim": "true",
-            "claim.name": "esq_rootpath",
-            "jsonType.label": "String"
-          }
-        },
-        {
-          "id": "c1d2e3f4-4444-4555-8666-777788889999",
-          "name": "realm roles",
-          "protocol": "openid-connect",
-          "protocolMapper": "oidc-usermodel-realm-role-mapper",
-          "consentRequired": false,
-          "config": {
-            "introspection.token.claim": "true",
-            "multivalued": "true",
-            "userinfo.token.claim": "false",
-            "user.attribute": "foo",
-            "id.token.claim": "false",
-            "lightweight.claim": "false",
-            "access.token.claim": "true",
-            "claim.name": "realm_access.roles",
-            "jsonType.label": "String"
-          }
-        }
-      ],
-      "defaultClientScopes": [
-        "web-origins",
-        "service_account",
-        "acr",
-        "openid",
-        "roles",
-        "profile",
-        "basic",
-        "email"
-      ],
-      "optionalClientScopes": [
-        "address",
-        "phone",
-        "organization",
-        "offline_access",
-        "microprofile-jwt"
-      ]
-    },
-    {
-      "id": "b1c2d3e4-aaaa-4bbb-8ccc-dddd11112222",
-      "clientId": "esq-hauberk-M",
-      "name": "Esquire Haubergeon Stress-Test Client (M -- Phantom Token / RFC 8693)",
-      "description": "Sibling of esq-hauberk-S for the Phantom Token variant: client receives a stripped JWT (esq-lightweight scope, no esq_uid/rootpath/roles in payload); gateway exchanges via RFC 8693 token-exchange using esq-gw-exchange to obtain a full JWT for downstream.",
-      "rootUrl": "",
-      "adminUrl": "",
-      "baseUrl": "",
-      "surrogateAuthRequired": false,
-      "enabled": true,
-      "alwaysDisplayInConsole": false,
-      "clientAuthenticatorType": "client-secret",
-      "secret": "esq-hauberk-m-dev-secret-rotate-in-prod",
-      "redirectUris": ["/*"],
-      "webOrigins": ["/*"],
-      "notBefore": 0,
-      "bearerOnly": false,
-      "consentRequired": false,
-      "standardFlowEnabled": false,
-      "implicitFlowEnabled": false,
-      "directAccessGrantsEnabled": false,
-      "serviceAccountsEnabled": true,
-      "publicClient": false,
-      "frontchannelLogout": false,
-      "protocol": "openid-connect",
-      "attributes": {
-        "oauth2.device.authorization.grant.enabled": "false",
-        "oidc.ciba.grant.enabled": "false",
-        "use.refresh.tokens": "false",
-        "client_credentials.use_refresh_token": "false",
-        "display.on.consent.screen": "false",
-        "client.use.lightweight.access.token.enabled": "true"
-      },
-      "authenticationFlowBindingOverrides": {},
-      "fullScopeAllowed": false,
-      "nodeReRegistrationTimeout": -1,
-      "protocolMappers": [
-        {
-          "id": "d1e2f3a4-1111-4222-8333-444455556666",
-          "name": "esq_uid_mapper",
-          "protocol": "openid-connect",
-          "protocolMapper": "oidc-usermodel-attribute-mapper",
-          "consentRequired": false,
-          "config": {
-            "aggregate.attrs": "false",
-            "introspection.token.claim": "true",
-            "multivalued": "false",
-            "userinfo.token.claim": "false",
-            "user.attribute": "esq_uid",
-            "id.token.claim": "false",
-            "lightweight.claim": "false",
-            "access.token.claim": "true",
-            "claim.name": "esq_uid",
-            "jsonType.label": "String"
-          }
-        },
-        {
-          "id": "d1e2f3a4-2222-4333-8444-555566667777",
-          "name": "esq_rootpath_mapper",
-          "protocol": "openid-connect",
-          "protocolMapper": "oidc-usermodel-attribute-mapper",
-          "consentRequired": false,
-          "config": {
-            "aggregate.attrs": "false",
-            "introspection.token.claim": "true",
-            "multivalued": "false",
-            "userinfo.token.claim": "false",
-            "user.attribute": "esq_rootpath",
-            "id.token.claim": "false",
-            "lightweight.claim": "false",
-            "access.token.claim": "true",
-            "claim.name": "esq_rootpath",
-            "jsonType.label": "String"
-          }
-        },
-        {
-          "id": "d1e2f3a4-4444-4555-8666-777788889999",
-          "name": "realm roles",
-          "protocol": "openid-connect",
-          "protocolMapper": "oidc-usermodel-realm-role-mapper",
-          "consentRequired": false,
-          "config": {
-            "introspection.token.claim": "true",
-            "multivalued": "true",
-            "userinfo.token.claim": "false",
-            "user.attribute": "foo",
-            "id.token.claim": "false",
-            "lightweight.claim": "false",
-            "access.token.claim": "true",
-            "claim.name": "realm_access.roles",
-            "jsonType.label": "String"
-          }
-        },
-        {
-          "id": "d1e2f3a4-5555-4666-8777-888899990000",
-          "name": "esq-gw-exchange-audience",
-          "protocol": "openid-connect",
-          "protocolMapper": "oidc-audience-mapper",
-          "consentRequired": false,
-          "config": {
-            "included.client.audience": "esq-gw-exchange",
-            "access.token.claim": "true",
-            "id.token.claim": "false",
-            "introspection.token.claim": "true",
-            "userinfo.token.claim": "false",
-            "lightweight.claim": "true"
-          }
-        }
-      ],
-      "defaultClientScopes": [
-        "service_account",
-        "openid",
-        "basic"
-      ],
-      "optionalClientScopes": []
-    },
-    {
-      "id": "c2d3e4f5-bbbb-4ccc-8ddd-eeee22223333",
-      "clientId": "esq-gw-exchange",
-      "name": "Esquire Gateway Token-Exchange Client",
-      "description": "Confidential client used by the gateway to call KC /token for RFC 8693 token-exchange on behalf of Phantom Token clients (esq-hauberk-M).",
-      "rootUrl": "",
-      "adminUrl": "",
-      "baseUrl": "",
-      "surrogateAuthRequired": false,
-      "enabled": true,
-      "alwaysDisplayInConsole": false,
-      "clientAuthenticatorType": "client-secret",
-      "secret": "esq-gw-exchange-dev-secret-rotate-in-prod",
-      "redirectUris": [],
-      "webOrigins": [],
-      "notBefore": 0,
-      "bearerOnly": false,
-      "consentRequired": false,
-      "standardFlowEnabled": false,
-      "implicitFlowEnabled": false,
-      "directAccessGrantsEnabled": false,
-      "serviceAccountsEnabled": true,
-      "publicClient": false,
-      "frontchannelLogout": false,
-      "protocol": "openid-connect",
-      "attributes": {
-        "oauth2.device.authorization.grant.enabled": "false",
-        "oidc.ciba.grant.enabled": "false",
-        "client_credentials.use_refresh_token": "false",
-        "use.refresh.tokens": "false",
-        "display.on.consent.screen": "false"
-      },
-      "authenticationFlowBindingOverrides": {},
-      "fullScopeAllowed": true,
-      "nodeReRegistrationTimeout": -1,
-      "protocolMappers": [
-        {
-          "id": "e1f2a3b4-1111-4222-8333-444455556666",
-          "name": "esq_uid_mapper",
-          "protocol": "openid-connect",
-          "protocolMapper": "oidc-usermodel-attribute-mapper",
-          "consentRequired": false,
-          "config": {
-            "aggregate.attrs": "false",
-            "introspection.token.claim": "true",
-            "multivalued": "false",
-            "userinfo.token.claim": "false",
-            "user.attribute": "esq_uid",
-            "id.token.claim": "false",
-            "lightweight.claim": "true",
-            "access.token.claim": "true",
-            "claim.name": "esq_uid",
-            "jsonType.label": "String"
-          }
-        },
-        {
-          "id": "e1f2a3b4-2222-4333-8444-555566667777",
-          "name": "esq_rootpath_mapper",
-          "protocol": "openid-connect",
-          "protocolMapper": "oidc-usermodel-attribute-mapper",
-          "consentRequired": false,
-          "config": {
-            "aggregate.attrs": "false",
-            "introspection.token.claim": "true",
-            "multivalued": "false",
-            "userinfo.token.claim": "false",
-            "user.attribute": "esq_rootpath",
-            "id.token.claim": "false",
-            "lightweight.claim": "true",
-            "access.token.claim": "true",
-            "claim.name": "esq_rootpath",
-            "jsonType.label": "String"
-          }
-        },
-        {
-          "id": "e1f2a3b4-4444-4555-8666-777788889999",
-          "name": "realm roles",
-          "protocol": "openid-connect",
-          "protocolMapper": "oidc-usermodel-realm-role-mapper",
-          "consentRequired": false,
-          "config": {
-            "introspection.token.claim": "true",
-            "multivalued": "true",
-            "userinfo.token.claim": "false",
-            "user.attribute": "foo",
-            "id.token.claim": "false",
-            "lightweight.claim": "true",
-            "access.token.claim": "true",
-            "claim.name": "realm_access.roles",
-            "jsonType.label": "String"
-          }
-        }
-      ],
-      "defaultClientScopes": [
-        "service_account",
-        "openid",
-        "basic"
-      ],
-      "optionalClientScopes": []
     },
     {
       "id": "13d7039d-934d-4b19-8b7a-85e0b2bbc5c2",
@@ -2925,7 +2211,7 @@
         "subComponents": {},
         "config": {
           "kc.user.profile.config": [
-            "{\"attributes\":[{\"name\":\"username\",\"displayName\":\"${username}\",\"validations\":{\"length\":{\"min\":3,\"max\":255},\"username-prohibited-characters\":{},\"up-username-not-idn-homograph\":{}},\"permissions\":{\"view\":[\"admin\",\"user\"],\"edit\":[\"admin\",\"user\"]},\"multivalued\":false},{\"name\":\"email\",\"displayName\":\"${email}\",\"validations\":{\"email\":{},\"length\":{\"max\":255}},\"required\":{\"roles\":[\"user\"]},\"permissions\":{\"view\":[\"admin\",\"user\"],\"edit\":[\"admin\",\"user\"]},\"multivalued\":false},{\"name\":\"esq_rootpath\",\"displayName\":\"\",\"validations\":{},\"annotations\":{},\"permissions\":{\"view\":[\"admin\",\"user\"],\"edit\":[\"admin\"]},\"selector\":{\"scopes\":[\"profile\"]},\"multivalued\":false},{\"name\":\"esq_uid\",\"displayName\":\"\",\"validations\":{},\"annotations\":{},\"permissions\":{\"view\":[\"admin\",\"user\"],\"edit\":[\"admin\"]},\"selector\":{\"scopes\":[\"profile\"]},\"multivalued\":false}],\"groups\":[{\"name\":\"user-metadata\",\"displayHeader\":\"User metadata\",\"displayDescription\":\"Attributes, which refer to user metadata\"}]}"
+            "{\"attributes\":[{\"name\":\"username\",\"displayName\":\"${username}\",\"validations\":{\"length\":{\"min\":3,\"max\":255},\"username-prohibited-characters\":{},\"up-username-not-idn-homograph\":{}},\"permissions\":{\"view\":[\"admin\",\"user\"],\"edit\":[\"admin\",\"user\"]},\"multivalued\":false},{\"name\":\"email\",\"displayName\":\"${email}\",\"validations\":{\"email\":{},\"length\":{\"max\":255}},\"required\":{\"roles\":[\"user\"]},\"permissions\":{\"view\":[\"admin\",\"user\"],\"edit\":[\"admin\",\"user\"]},\"multivalued\":false},{\"name\":\"esq_uid\",\"displayName\":\"\",\"validations\":{},\"annotations\":{},\"permissions\":{\"view\":[\"admin\",\"user\"],\"edit\":[\"admin\"]},\"selector\":{\"scopes\":[\"profile\"]},\"multivalued\":false}],\"groups\":[{\"name\":\"user-metadata\",\"displayHeader\":\"User metadata\",\"displayDescription\":\"Attributes, which refer to user metadata\"}]}"
           ]
         }
       }

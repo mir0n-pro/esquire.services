@@ -57,8 +57,8 @@ BFF_SESSION_SECRET="${BFF_SESSION_SECRET:-esq-bff-session-secret}"
 # esq-kcMaster HAS NO DEFAULT, and it is the only one of the four that does not.
 #
 # It is the single published client carrying realm-management realm-admin: the other
-# service accounts -- esq-rest, esq-hauberk, esq-hauberk-S, esq-hauberk-M -- hold no
-# realm-management role at all. So its secret is not one credential among seven, it is
+# service account -- esq-hauberk -- holds no
+# realm-management role at all. So its secret is not one credential among three, it is
 # the realm's master key, and with it anyone can create a user and grant it any role.
 #
 # A DEFAULT HERE MAKES A ROTATION UNDOABLE. Shell ":-" substitutes on an EMPTY value as

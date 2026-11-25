@@ -12,6 +12,7 @@
  * 10/13/2026 mir0n  v2.0.0 -- moved into services2/hauberk, the Esquire half of the harness: the
  *                   generic machinery is Armoury's armoury-hauberk, this project is the Esquire
  *                   routines over it
+ * 11/24/2026 mir0n  v2.0.3 -- javadoc: the wrong path reaches biztree only; KeyCloak holds no path
  */
 package pro.mir0n.esquire.hauberk.simulations;
 
@@ -43,7 +44,7 @@ import static io.gatling.javaapi.http.HttpDsl.*;
  * the parent org's current ep_path; if the move's cascade is mid-flight,
  * the parent's path may be stale and the new USR persists with the wrong
  * path. The same wrong path propagates to biztree's tree_entity_path
- * via JMS and to KC's esq_rootpath attribute via kcMaster's URQ.
+ * via JMS.
  *
  * Repro shape:
  *   1. Preconditions: PrepareForAnything has been run with depth >= 4

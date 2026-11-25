@@ -11,7 +11,7 @@
 # inside it.
 # The seed is what Esquire puts in here, so this pin moves when db.seed does -- and DB_VERSION with it.
 ARG BASE=postgres:17
-ARG PIN=v2.0.2-2611.2114
+ARG PIN=v2.0.3-2611.2418
 
 FROM ${BASE}
 ARG BASE

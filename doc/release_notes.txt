@@ -1,6 +1,24 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v2.0.3-2611.2419  v2.0.3 -- OAuth only: the test routines and the KeyCloak seed
+    :Config:      the KeyCloak realm keeps three Esquire clients: the browser's, the load harness's and
+                  kcMaster's; the lab, token relay and token exchange clients are removed
+    :Config:      the KeyCloak users carry no root path and no Esquire roles, and the realm defines no
+                  Esquire roles
+    :Config:      KeyCloak runs without the token exchange feature on docker and k8s
+    :Config:      the compact Postgres and KeyCloak image pins move to v2.0.3-2611.2418, the release of the
+                  new seed and realm
+    :Config:      the OKE e2e run skips no spec
+    :Config:      the config parity check no longer accepts the removed token relay and lab client keys
+    :Refactoring: the KeyCloak reconcile check reports a missing or an orphan account only; the root path
+                  repair is removed
+    :Refactoring: the load harness drops the race test for a path reaching KeyCloak before its user, the
+                  token relay and lab client overlays, and their perf cells
+    Components:   keycloak,
+                  postgres,
+                  hauberk
+
 v2.0.3-2611.2401  v2.0.3 -- dead code out
     :Refactoring: what pure OAuth left unused is removed: the claims publisher, the pure OAuth switch name,
                   the moved-path hand-over to the identity gateway, and the root path and roles fields of the

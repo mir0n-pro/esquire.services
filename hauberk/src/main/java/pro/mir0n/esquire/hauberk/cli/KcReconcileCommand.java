@@ -11,6 +11,7 @@
  * 10/13/2026 mir0n  v2.0.0 -- moved into services2/hauberk, the Esquire half of the harness: the
  *                   generic machinery is Armoury's armoury-hauberk, this project is the Esquire
  *                   routines over it
+ * 11/24/2026 mir0n  v2.0.3 -- --repair removed; the check reports missing-in-KC and orphan-in-KC only
  */
 package pro.mir0n.esquire.hauberk.cli;
 
@@ -21,26 +22,21 @@ import pro.mir0n.esquire.hauberk.reconcile.KcRecover;
 import java.util.concurrent.Callable;
 
 /**
- * {@code hauberk kc-reconcile [--repair] [--config <file>]}
+ * {@code hauberk kc-reconcile [--config <file>]}
  *
  * <p>A standalone data-recover utility, OUT of the Esquire services: it reads the authoritative connected-user
  * state from esq2025 over PG/JDBC and the mirror from KeyCloak over the REST admin API, and reports the drift
- * (stale {@code esq_rootpath}, missing-in-KC, orphan-in-KC). With {@code --repair} it fixes a stale
- * {@code esq_rootpath} in place. Because it uses the native APIs directly (not the services or the bus), it
- * recovers even when they are down.
+ * (missing-in-KC, orphan-in-KC). Because it uses the native APIs directly (not the services or the bus), it
+ * works even when they are down.
  *
  * <p>Config: PG connection from {@code pg.url} / {@code pg.user} / {@code pg.password}, KC from {@code kc.base} /
  * {@code kc.realm} / {@code kc.admin.user} / {@code kc.admin.password} -- in {@code hauberk.properties} (or the
  * {@code --config} overlay). Exit code: 0 = in sync, 1 = drift found.
  */
 @Command(name = "kc-reconcile",
-        description = "Reconcile KeyCloak against Esquire (esq2025): detect (and optionally --repair) a stale "
-                + "esq_rootpath. Talks PG(JDBC) + KC(REST) directly, out of the services.")
+        description = "Reconcile KeyCloak against Esquire (esq2025): report a connected user with no KC account "
+                + "and a KC account with no connected user. Talks PG(JDBC) + KC(REST) directly, out of the services.")
 public class KcReconcileCommand implements Callable<Integer> {
-
-    @Option(names = "--repair",
-            description = "Fix a stale KC esq_rootpath in place. Default: check only (report, change nothing).")
-    boolean repair;
 
     @Option(names = "--config",
             paramLabel = "FILE",
@@ -53,7 +49,7 @@ public class KcReconcileCommand implements Callable<Integer> {
         if (configFile != null && !configFile.isBlank()) {
             System.setProperty("hauberk.config", configFile);
         }
-        int drifts = KcRecover.run(repair);
+        int drifts = KcRecover.run();
         return drifts == 0 ? 0 : 1;
     }
 }

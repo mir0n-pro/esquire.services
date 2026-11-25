@@ -9,6 +9,7 @@
  * 10/13/2026 mir0n  v2.0.0 -- moved into services2/hauberk, the Esquire half of the harness: the
  *                   generic machinery is Armoury's armoury-hauberk, this project is the Esquire
  *                   routines over it
+ * 11/24/2026 mir0n  v2.0.3 -- the root-path note names the access profile, not the token
  */
 package pro.mir0n.esquire.hauberk.chain;
 
@@ -31,7 +32,7 @@ public final class ReadTreeRoot {
 
     private ReadTreeRoot() {}
 
-    //xxx: the driver's token carries esq_rootpath "1.14.", so its root is the playground parent, not entity 1
+    //xxx: the driver's access profile has the root path "1.14.", so its root is the playground parent, not entity 1
     public static final ChainBuilder chain =
         exec(http("GET /esq-cmd-tree (read tree from root)")
             .get("/esq-cmd-tree")

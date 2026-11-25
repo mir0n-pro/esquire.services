@@ -82,8 +82,8 @@ rem esq-kcMaster KC admin service-account client secret (client_credentials -> K
 rem REST API). Mesnie carries the identity work in process, so it is Mesnie that takes
 rem this now -- the same secret, handed to one workload instead of a kcMaster of its own.
 rem esq-kcMaster is the ONE published client holding realm-management realm-admin -- every
-rem other service account (esq-rest, esq-hauberk, esq-hauberk-S, esq-hauberk-M) has none. Its
-rem secret is therefore the realm's master key, not one credential among seven.
+rem other service account (esq-hauberk) has none. Its
+rem secret is therefore the realm's master key, not one credential among three.
 rem
 rem NO FALLBACK AND NO SKIP, on any target, deliberately. A default reinstates the published
 rem value; a skip leaves the release running the OLD value after a rotation -- and both report

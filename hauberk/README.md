@@ -39,7 +39,7 @@ hauberk.cmd <subcommand> [options]
 | `run <sim> [opts]` | Launch a Gatling simulation |
 | `summary <csv>` | Print per-URL summary for a saved metrics CSV |
 | `diff <csv-a> <csv-b>` | Side-by-side per-URL comparison with deltas |
-| `kc-reconcile` | Check Keycloak against the database for a stale `esq_rootpath`; `--repair` fixes it |
+| `kc-reconcile` | Check Keycloak against the database: a connected user with no Keycloak account, and a Keycloak account with no connected user |
 | `help [command]` | picocli help |
 
 ### Quick start
@@ -47,19 +47,18 @@ hauberk.cmd <subcommand> [options]
 ```
 hauberk.cmd list                                          (catalog)
 hauberk.cmd run entity-smoke --metrics                    (JWT smoke + perf matrix)
-hauberk.cmd run entity-smoke --metrics --S                (same smoke, JWS+ Introspection variant)
 hauberk.cmd summary output/EntitySmoke-.../entity-smoke.csv   (per-URL summary)
 hauberk.cmd diff   output/<run-a>/<scn>.csv output/<run-b>/<scn>.csv  (A vs B)
 ```
 
-## Two certified clients
+## The certified client
 
-| KC client | Mode | Backed by USR | esq_rootpath |
-|---|---|---|---|
-| `esq-hauberk` | JWT (default) | Test Driver, uid=15 | `1.14.` |
-| `esq-hauberk-S` | JWS+ Introspection (`--S` flag) | Test Driver S, uid=16 | `1.14.` |
+| KC client | Backed by USR | Root path |
+|---|---|---|
+| `esq-hauberk` | Test Driver, uid=15 | `1.14.` |
 
-Both scoped to **Test House** (org pk=14, seeded in `db.seed`). The
+Its token carries the login only; the gateway takes the uid, the root path and the roles from keySmith.
+It is scoped to **Test House** (org pk=14, seeded in `db.seed`). The
 hauberk can only create/read/modify entities inside the Test House
 subtree.
 

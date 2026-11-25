@@ -480,16 +480,16 @@ class KeySmithServiceTest {
     @Test
     @DisplayName("esquireClaims: uid, root path, role names and change number of the login id's access profile")
     void esquireClaims_found_returnsClaims() {
-        EsqAccessProfileJpa jpa = jpaWith("N", "N", "esq-hauberk-S@mir0n.pro");
-        jpa.setId("16");
+        EsqAccessProfileJpa jpa = jpaWith("N", "N", "Esq-Hauberk@mir0n.pro");
+        jpa.setId("15");
         jpa.setPath("1.14.");
         jpa.setChangeNo(3L);
-        when(accessProfileRepository.claims("esq-hauberk-s@mir0n.pro")).thenReturn(jpa);
-        when(accessProfileRepository.roles("16")).thenReturn(List.of(role("SUPERVIZOR"), role("TREE")));
+        when(accessProfileRepository.claims("esq-hauberk@mir0n.pro")).thenReturn(jpa);
+        when(accessProfileRepository.roles("15")).thenReturn(List.of(role("SUPERVIZOR"), role("TREE")));
 
-        EsqUserClaims claims = service.esquireClaims("esq-hauberk-s@mir0n.pro");
+        EsqUserClaims claims = service.esquireClaims("esq-hauberk@mir0n.pro");
 
-        assertThat(claims).isEqualTo(new EsqUserClaims("esq-hauberk-S@mir0n.pro", "16", "1.14.",
+        assertThat(claims).isEqualTo(new EsqUserClaims("Esq-Hauberk@mir0n.pro", "15", "1.14.",
                 List.of("SUPERVIZOR", "TREE"), 3L));
     }
 

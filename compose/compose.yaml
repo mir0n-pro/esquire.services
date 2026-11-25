@@ -228,9 +228,6 @@ services:
       # since KC_METRICS_ENABLED is a boot-time option).
       KC_METRICS_ENABLED: "${ESQ_OBSERVABILITY_ENABLED:-false}"
       KC_HTTP_RELATIVE_PATH: /kc-auth
-      # Phantom Token Relay: RFC 8693 token-exchange (KC 26.4 preview).
-      # admin-fine-grained-authz is enabled by default in KC 26 -- no flag needed.
-      KC_FEATURES: token-exchange
     volumes:
       - ./data/keycloak:/opt/keycloak/data
       - ../keycloak/import/esquire.json:/opt/keycloak/data/import/realm.json
