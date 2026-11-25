@@ -34,8 +34,8 @@ herald:
                 # publications -- the moving instance reconciles only a PEER instance's create-during-move. Inert
                 # for pure consumers (bizTree publishes nothing) and publish-only producers (no consumer).
                 noLocal: true
-    # --- pure OAuth (lab), claims eviction (topic): keySmith / enyMan publish, every gateway replica removes the
-    #     user from its own claims cache. Built only on a stack in the pure mode. ---
+    # --- claims eviction (topic): keySmith / enyMan publish, every gateway replica removes the user from its
+    #     own claims cache ---
     - bus-id: esquire.claims
       slots:
         - slot-id: claims

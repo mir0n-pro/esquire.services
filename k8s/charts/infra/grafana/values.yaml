@@ -37,3 +37,12 @@ persistence:
   enabled: false
   storageClass: ""          # "" = the cluster default StorageClass
   size: 2Gi
+
+# The topology board, overridable per SHAPE. Empty = use the chart's own dashboards/esquire-topology.json,
+# which is the local-k8s board. The OKE launcher passes its own board here with
+# --set-file dashboardTopology=grafana/esquire-topology.json -- same chart, the picture its cluster runs.
+dashboardTopology: ""
+# The services and logging boards, overridable the same way -- their container regex names the fleet,
+# and the OKE fleet has no auKeep. The launcher passes k8s-oci/grafana/*.json.
+dashboardServices: ""
+dashboardLogging: ""

@@ -409,7 +409,7 @@ def _svc(n):
 
 for _n, _lbl, _top in (("paacman", "paacMan", 30),):
     _h, _a, _v = _svc(_n)
-    comp(_n, _lbl, _h, _v, SERVICES_D % _n, 500, _top, alarm=_a)
+    comp(_n, _lbl, _h, _v, SERVICES_D % _n, 560, _top, alarm=_a)
 
 # Mesnie -- the household: enyMan, keySmith and kcMaster in ONE process. The card is the PROCESS (that is what
 # `application` names and what has a JVM, a pool and a CPU); the small blocks inside name what it composes. No
@@ -417,7 +417,7 @@ for _n, _lbl, _top in (("paacman", "paacMan", 30),):
 _h, _a, _v = _svc("mesnie")
 # The height is the SMALLEST the layout allows, the same way gateWard's is: the label, the three vitals, the
 # block stack and the bottom margin, and nothing spare. One more inner block is one more 28px, no re-tuning.
-comp("mesnie", "Mesnie", _h, _v, SERVICES_D % "mesnie", 500, 332, alarm=_a,
+comp("mesnie", "Mesnie", _h, _v, SERVICES_D % "mesnie", 560, 332, alarm=_a,
      height=178, inner=("enyMan", "keySmith", "kcMaster"))
 
 # ---- the broker: beneath the lanes, CENTRED UNDER THEM ----
@@ -436,7 +436,7 @@ comp("activemq", "ActiveMQ",
      lambda r: [('max(activemq_broker_total_message_count)', "short", "held"),
                 ('max(activemq_broker_current_connections_count)', "short", "conns"),
                 ('max(activemq_broker_memory_percent_usage)', "percent", "memory")],
-     "/d/esq-services/", 313, 596)
+     "/d/esq-services/", 343, 596)
 
 # ---- the edge: gateWard -> Explorer (BFF), and KeyCloak ----
 # gateWard is the gateway with the tree cache inside it. It is NETTY, not Tomcat, so its bandwidth comes from
@@ -457,7 +457,7 @@ comp("gateward", "gateWard",
                 (CPU % SSEL("gateward", r), "percent", "cpu"),
                 ('sum(rate(reactor_netty_http_server_data_sent_bytes_sum{uri!="/actuator"%s}[5m]))' % AND(r),
                  "Bps", "net out")],
-     SERVICES_D % "gateward", 714, 180, height=150, inner=("gateway", "bizTree"),
+     SERVICES_D % "gateward", 774, 180, height=150, inner=("gateway", "bizTree"),
      # ALL of the gateway's alarms ride the border: 5xx (it is shedding), errors, and a resilience4j breaker OPEN
      # (every breaker lives here -- the gateway wraps each downstream). These are dependency problems, not the
      # gateway's own health, so the fill stays green and the border alarms.
@@ -474,7 +474,7 @@ comp("keycloak", "KEYCLOAK",
      lambda r: [('sum(rate(http_server_requests_seconds_count{job="keycloak"}[5m]))', "reqps", "req/s"),
                 ('avg(process_cpu_usage{job="keycloak"}) * 100', "percent", "cpu"),
                 ('sum(jvm_memory_used_bytes{job="keycloak", area="heap"})', "bytes", "heap")],
-     "/d/esq-services/", 714, 430)
+     "/d/esq-services/", 774, 430)
 # The BFF is a StatefulSet too, so its pods carry the same -0 / -1 ordinal and its cards split like the rest.
 comp("backend", "Explorer",
      lambda r: health('max(up{job="esquire-bff"%s})' % AND(r),
@@ -487,7 +487,7 @@ comp("backend", "Explorer",
      lambda r: [('sum(rate(esq_bff_inbound_duration_seconds_count%s[5m]))' % ONLY(r), "reqps", "req/s"),
                 ('sum(rate(process_cpu_seconds_total{job="esquire-bff"%s}[5m])) * 100' % AND(r), "percent", "cpu"),
                 ('sum(process_resident_memory_bytes{job="esquire-bff"%s})' % AND(r), "bytes", "rss")],
-     "/d/esq-services/", 928, 180)
+     "/d/esq-services/", 988, 180)
 
 # ---- THE OBSERVABILITY STACK IS *NOT* ON THIS BOARD -- with ONE exception, the Collector (mir0n) ----
 # Prometheus / Loki / Tempo / Grafana / Alloy were on it briefly and came straight back off: this board answers
@@ -507,7 +507,7 @@ comp("collector", "COLLECTOR",
      lambda r: [('sum(rate(otelcol_receiver_accepted_spans_total[5m]))', "ops", "spans/s"),
                 ('sum(otelcol_exporter_queue_size)', "short", "queue"),
                 ('sum(increase(otelcol_receiver_refused_spans_total[%s]))' % ALERT_HOLD, "short", "refused")],
-     "/d/esq-services/", 714, 596, shape="ellipse")
+     "/d/esq-services/", 774, 596, shape="ellipse")
 
 ORDER = list(C.keys())
 
@@ -535,15 +535,15 @@ K8S_CARDS = {n: 2 for n in ("aukeep", "paacman", "mesnie", "gateward", "backend"
 # ONE gap between every vertical group, and the value is the gap BETWEEN THE TWO LANES (34) -- the picture's
 # own unit. A stack is 236 wide (a card plus the peek), not 140, so the x2 board cannot inherit the x1 columns:
 # with the docker numbers the gateWard stack ran to within 14px of the Explorer while paacMan/Mesnie had 74.
-#   aukeep ends 266 -> lanes 300 | lanes end 466 -> services 500 | services end 736 -> gate 770 |
-#   gate end 1006 -> Explorer 1040
+#   aukeep ends 266 -> lanes 300 | lanes end 526 -> services 560 | services end 796 -> gate 830 |
+#   gate end 1066 -> Explorer 1100
 # The Collector follows gateWard's column, as it does on the x1 board.
-K8S_LEFT = {"paacman": 500, "mesnie": 500,
-            "gateward": 770, "keycloak": 770, "collector": 770,
-            "backend": 1040}
+K8S_LEFT = {"paacman": 560, "mesnie": 560,
+            "gateward": 830, "keycloak": 830, "collector": 830,
+            "backend": 1100}
 
 # OKE (super-compact) COLUMNS -- mir0n's arrangement. auKeep and the audit lane are gone, so the picture is
-# five columns instead of the compact six, and the two surviving lanes (biz, entity) move from the far left to
+# five columns instead of the compact six, and the three surviving lanes (biz, claims, entity) move from the far left to
 # BETWEEN the services and the gate -- which is where the messages actually travel:
 #
 #     Esq2025 | paacMan / Mesnie | msgBus + AMQ | gateWard / KEYCLOAK | Explorer
@@ -559,15 +559,15 @@ K8S_LEFT = {"paacman": 500, "mesnie": 500,
 # thing both services write to.
 OKE_LEFT = {"postgres": 96,
             "paacman": 204, "mesnie": 204,
-            "activemq": 503,
-            "gateward": 677, "keycloak": 677, "collector": 677,
-            "backend": 947}
+            "activemq": 533,
+            "gateward": 707, "keycloak": 707, "collector": 707,
+            "backend": 977}
 OKE_TOP = {"postgres": 191}
 # The biz lane clears the services' front card (which ends at 440) by 80, not by the bare 34 -- the taps need room
-# to read as taps. The entity lane follows one lane step (60) on, ending at 626. AMQ is centred under both:
-# (520 + 626) / 2 - W/2 = 503. The Collector clears AMQ (ends 643) by 34 at 677, and the gate column lines up ON
-# the Collector. The Explorer then clears the gateWard STACK (ends 913) by 34.
-OKE_BUS_LEFT = {"esquire.biz": 520, "esquire.entity": 580}
+# to read as taps. The claims and entity lanes follow one lane step (60) each, the entity lane ending at 686. AMQ
+# is centred under all three: (520 + 686) / 2 - W/2 = 533. The Collector clears AMQ (ends 673) by 34 at 707, and
+# the gate column lines up ON the Collector. The Explorer then clears the gateWard STACK (ends 943) by 34.
+OKE_BUS_LEFT = {"esquire.biz": 520, "esquire.claims": 580, "esquire.entity": 640}
 # paacMan and Mesnie sit to the LEFT of the lane now, so their stacks must open AWAY from it: instance 1 behind
 # and to the LEFT of instance 0, the same mirror auKeep uses on the other boards. Unmirrored, the strip a card
 # behind keeps for its name and numbers would run straight into the lane its own arrows cross.
@@ -699,7 +699,7 @@ def ordinal(name, r):
 # (Checked both: the live meters agree, except enyMan on esquire.kc -- declared CLIENT, no traffic in the window.
 #  It belongs on the board. That discrepancy is exactly why the board reads the config and not the metrics.)
 # ---------------------------------------------------------------------------------------------------------------
-# Lanes, left to right: Audit -- IAM Request-Response -- Entity Broadcast.
+# Lanes, left to right: Audit -- Biz Request-Response -- Claims Broadcast -- Entity Broadcast.
 # THE SAME ORDER AS doc/media/ComponentModel.Compact.png, and it must stay that way: a monitoring board and an
 # architecture diagram that disagree about WHERE things are make the reader hold two maps at once, and
 # a reader who spots the difference has no way to know which picture to trust. They carry the model's
@@ -714,18 +714,23 @@ BUSES = [
     # for the reply; kcMaster receives the request and sends the reply back. A single arrowhead on that bus would
     # be a lie in one direction or the other -- and the component model draws it with double arrows for exactly
     # this reason.
-    # THREE lanes here, and the missing one is missing for a REASON: the IAM request-response bus is GONE --
+    # FOUR lanes here, and the missing one is missing for a REASON: the IAM request-response bus is GONE --
     # kcMaster runs inside Mesnie, so identity is a method call onto an in-memory queue, not a message. There is
     # no medium left to draw. The biz bus is request/reply: gateWard sends the account command, paacMan replies.
     # Mesnie is `both` on the entity lane: enyMan publishes its broadcasts AND listens for its peers' (Goal-4).
+    # The claims bus: Mesnie (keySmith on a profile save, enyMan on a user move) publishes an eviction; every
+    # gateWard replica drops that user from its claims cache.
     dict(id="audit-c", name="Audit Broadcast Bus", kind="audit-c",
          color="#8FA8C8", left=300,
          flow={"mesnie": "pub", "paacman": "pub", "aukeep": "sub"}),
     dict(id="esquire.biz", name="Biz Request-Response Bus", kind="esquire.biz",
          color="#C9A0DC", left=360,
          flow={"gateward": "both", "paacman": "both"}),
+    dict(id="esquire.claims", name="Claims Broadcast Bus", kind="esquire.claims",
+         color="#7FC4BE", left=420,
+         flow={"mesnie": "pub", "gateward": "sub"}),
     dict(id="esquire.entity", name="Entity Broadcast Bus", kind="esquire.entity",
-         color="#9DC08B", left=420,
+         color="#9DC08B", left=480,
          flow={"mesnie": "both", "paacman": "pub", "gateward": "sub"}),
 ]
 
@@ -1616,10 +1621,11 @@ def canvas():
             "THE SHAPE IS AN ASSERTION ABOUT THE ARCHITECTURE. An ARROW is a point-to-point call (REST / DB): "
             "something called and WAITED for an answer. A DROP onto a BAR is the async bus -- a shared medium, "
             "where a service publishes to a destination and walks away, and who is listening is not its business. "
-            + ("THERE ARE TWO BARS, not one, because there are TWO BUSES -- and which services share a medium "
+            + ("THERE ARE FOUR BARS, not one, because there are FOUR BUSES -- and which services share a medium "
                "(and which never meet) is the whole thing this picture is for: auKeep hears everyone and answers "
-               "no one; gateWard is on the entity lane alone. The IAM request-response bus is GONE: kcMaster runs "
-               "inside Mesnie, so identity is a method call, not a message. ")
+               "no one; gateWard hears the entity and claims lanes and asks on the biz lane. The IAM "
+               "request-response bus is GONE: kcMaster runs inside Mesnie, so identity is a method call, not a "
+               "message. ")
             +
             "The observability stack is deliberately NOT on this board: the viewer is not the system, and six "
             "boxes of tooling watching the tooling would drown the question this board exists to answer."),
@@ -1692,8 +1698,9 @@ def flat_panels(panels):
 def build():
     """THE DRAWN TOPOLOGY -- the picture. This is the dashboard called "Esquire Topology".
 
-    It is the same arrangement as doc/media/ComponentModel.Compact.png: three VERTICAL bus lanes (Audit / IAM
-    Request-Response / Entity Broadcast, in that order), auKeep and the stores to their LEFT, the services to
+    It is the same arrangement as doc/media/ComponentModel.Compact.png: four VERTICAL bus lanes (Audit / Biz
+    Request-Response / Claims Broadcast / Entity Broadcast, in that order), auKeep and the stores to their LEFT,
+    the services to
     their RIGHT, the gateway / Explorer / browser beyond them, and the broker beneath the lanes. The board and the
     document are ONE picture, with the numbers switched on.
 
@@ -1708,9 +1715,10 @@ def build():
     p.append(ts("Traffic per BUS (msg/s)", 0, 26, 8, "ops",
                 [tgt("sum by (bus_id) (rate(messaging_send_total[1m]))", "sent -> {{bus_id}}"),
                  tgt("sum by (bus_id) (rate(messaging_receive_total[1m]))", "recv <- {{bus_id}}")],
-                desc=("The two lanes above, as traffic. audit-c and esquire.entity are SEPARATE MEDIA with "
-                      "different participants -- which is what the two lanes in the picture say, and what a "
-                      "single bar (or a mesh of arrows) would hide. There is no esquire.kc lane on this profile: "
+                desc=("The lanes above, as traffic. audit-c, esquire.biz, esquire.claims and esquire.entity are "
+                      "SEPARATE MEDIA with different participants -- which is what the lanes in the picture say, "
+                      "and what a single bar (or a mesh of arrows) would hide. There is no esquire.kc lane on this "
+                      "profile: "
                       "identity is served inside Mesnie, so it never reaches the wire.")))
     p.append(ts("Queue depth per destination  (what the BROKER holds)", 8, 26, 8, "short",
                 [tgt("activemq_queue_depth", "{{destination}}")],

@@ -33,8 +33,8 @@ herald:
                 noLocal: true
                 # MUST agree with the broker (activemq.xml: persistent="false"). See the KeyCloak bus below.
                 persistent: false
-    # --- pure OAuth (lab), claims eviction (topic): keySmith / enyMan publish, every gateway replica removes the
-    #     user from its own claims cache. Built only on a stack in the pure mode. ---
+    # --- claims eviction (topic): keySmith / enyMan publish, every gateway replica removes the user from its
+    #     own claims cache ---
     - bus-id: esquire.claims
       slots:
         - slot-id: claims

@@ -13,7 +13,7 @@
 #       Overview / JVM / Pool-DB-Logs / CPU / DB-connection-detail / BFF(Node) / Postgres / KeyCloak /
 #       Messaging bus (the x-rod meters) / Latency bands (the 4-layer request timing) / Bandwidth.
 # Rows -- WHAT THE SYSTEM DOES (the esq.biz.* business meters, O1/T8):
-#       Business: entity operations / money / identity + token relay / cache, keep + permissions.
+#       Business: entity operations / money / identity + OAuth claims / cache, keep + permissions.
 #       A service can be perfectly healthy on every row above and still be doing the wrong thing -- or
 #       nothing at all -- and only these rows would show it.
 # The Java-service panels filter by the $application template var (Micrometer common tag); Postgres (via
@@ -103,7 +103,7 @@ JOB_ANY = 'job=~"esq-.*"'
 # not.
 #
 # Fully anchored by Loki, and covers both targets' naming (docker `esq-gateway`, k8s `gateway`).
-ESQ_SERVICES = ('container=~"(esq-)?(gateway|biztree|enyman|pacman|keysmith|kcmaster|aukeep|backend|frontend)"')
+ESQ_SERVICES = ('container=~"(esq-)?(gateway|biztree|enyman|pacman|paacman|keysmith|kcmaster|aukeep|backend|frontend)"')
 
 
 def logs(title, x, y, w, expr, h=9, desc=None):
@@ -860,33 +860,23 @@ def build_panels():
     # HIGHEST_PRECEDENCE, so it runs only once the request has ARRIVED) and closed by ResponseTraceFilter before
     # the response leaves. Both ends are in-process: the bucket is the gateway's SELF overhead, and NO client
     # network can be in it. InnerTimerFilter's javadoc always said so; only this board disagreed.
-    # KC is amortized over GATEWAY REQUESTS, not over relay calls: the relay fires only on a cache MISS, so
-    # avg(tokenrelay.duration) is the cost of A RELAY, not the cost carried by an average request. Dividing the
-    # total relay seconds by the gateway's request count gives what each request actually pays. Valid because both
-    # terms are gateway-side over the SAME population -- unlike the BFF upstream timer (see the RAW panel).
-    KC_PER_REQ = ratio("sum(rate(esq_biz_gw_tokenrelay_duration_seconds_sum[5m]))",
-                       "sum(rate(esq_gw_outer_seconds_count[5m]))")
     p.append(ts("Request latency bands -- DERIVED (avg ms)", 8, 138, 8, "ms",
-                [tgt("1000 * %s" % band(band(GW_OUTER, GW_INNER), KC_PER_REQ), "gw self (auth + routing + assembly)"),
-                 tgt("1000 * %s" % safe(KC_PER_REQ), "KC token-relay (per gw request)"),
+                [tgt("1000 * %s" % band(GW_OUTER, GW_INNER), "gw self (auth + routing + assembly)"),
                  tgt("1000 * %s" % band(GW_INNER, SRV_OUTER), "in-cluster (gw <-> srv)"),
                  tgt("1000 * %s" % band(SRV_OUTER, SRV_INNER), "srv self (compute)"),
                  tgt("1000 * %s" % safe(SRV_INNER), "srv inner (db)")],
                 minv=None,   # a band can dip slightly negative on clock/rounding skew -- do not clamp it away
                 desc="The raw timers SUBTRACTED into the bands they imply. Together they account for gw.outer "
-                     "end to end: gw self + KC token-relay + in-cluster + srv self + srv inner. "
-                     "gw self = (gw.outer - gw.inner) - KC; KC = total relay seconds / gateway requests; "
+                     "end to end: gw self + in-cluster + srv self + srv inner. "
+                     "gw self = gw.outer - gw.inner; "
                      "in-cluster = gw.inner - srv.outer; srv self = srv.outer - srv.inner; srv inner = DB time. "
                      "THERE IS NO client<->gateway NETWORK BAND, and there cannot be one: every timer here is "
                      "stamped by the gateway's own clock AFTER the request arrived, so a server-side metric can "
                      "never see its own client's network. (This band was once drawn as 'net (client <-> gw)' -- "
-                     "I47. It never was: it is the gateway's SELF overhead, and the KC token-relay call sits "
-                     "INSIDE it, so a slow KeyCloak used to read as a slow NETWORK. KC is now its own line.) "
-                     "READ THE KC LINE AS PER-REQUEST, NOT PER-RELAY: the relay only runs on a cache MISS, so "
-                     "this is what an average request pays for KeyCloak -- use the 'Token relay -- KC /token "
-                     "acquire' panel for the cost of one relay, and the hit-rate panel for how often it is paid. "
-                     "The line sits flat at zero when the relay is dormant (a plain-JWT workload never relays) -- "
-                     "correct, not a broken panel. "
+                     "I47. It never was: it is the gateway's SELF overhead.) "
+                     "gw self also holds the claims query to keySmith on an OAuth cache MISS -- use the "
+                     "'OAuth claims -- keySmith query' panel for the cost of one miss, and the hit-rate panel for "
+                     "how often it is paid. "
                      "Fully aggregated (scalars) on purpose: the gw timers are tagged application=gateway and the "
                      "srv timers application=<service>, so they cannot be subtracted label-wise. The DB band is "
                      "STEADY-STATE: the JPA time is collected on every request while observability is on, so it "
@@ -902,8 +892,8 @@ def build_panels():
                      "wall time, which wraps its DB time. "
                      "READ THE TOP LINE AGAINST A DIFFERENT POPULATION -- 'bff -> gw upstream' (I42/L8+L9) times "
                      "the BFF's outbound leg on BOTH its paths, so it covers all traffic THE BFF sends. But the "
-                     "gateway is NOT only the BFF's callee: Token Relay clients (the hauberk load-test IAS "
-                     "clients, any direct API consumer) call it straight, and gw.outer counts them too. So "
+                     "gateway is NOT only the BFF's callee: direct clients (the hauberk load-test client, any "
+                     "direct API consumer) call it straight, and gw.outer counts them too. So "
                      "'bff upstream - gw outer' is NOT a valid band -- under a load test it would compare two "
                      "different populations and can even go negative. That is why the BFF<->gw network has no "
                      "band on the DERIVED panel while every other hop does. Deliberate: a wrong band is worse "
@@ -1008,8 +998,8 @@ def build_panels():
                      "past the three guards; purge=test-house marks the demo-data path that forces those guards "
                      "open, so a real closure is never confused with a fixture teardown."))
 
-    # ---- Business: identity + token relay (kcMaster, gateway) ----
-    p.append(row("Business -- identity + token relay", 173))
+    # ---- Business: identity + OAuth claims (keySmith, kcMaster, gateway) ----
+    p.append(row("Business -- identity + OAuth claims", 173))
     p.append(ts("Access profile reads + saves (by op + outcome)", 0, 182, 6, "ops",
                 [tgt(zero_line("sum by (op, outcome) (rate(esq_biz_key_ops_total{%s}[5m]))" % APP,
                                "outcome", "error"),
@@ -1033,28 +1023,24 @@ def build_panels():
                      "rather than inside the admin client, so it is the sync's wall time -- but the KC "
                      "round-trip dominates it (the attribute mapping either side is microseconds against "
                      "KeyCloak's milliseconds)."))
-    # The hit rate and the acquire cost are TWO UNITS -- a percentage (0..100) and milliseconds. On one axis the
+    # The hit rate and the query cost are TWO UNITS -- a percentage (0..100) and milliseconds. On one axis the
     # percentage owns the scale and the latency line lies flat against zero, unreadable. They are two panels.
-    p.append(ts("Token relay -- cache hit rate", 12, 174, 6, "percent",
-                [tgt(ratio('sum(rate(esq_biz_gw_tokenrelay_total{result="hit"}[5m]))',
-                           'sum(rate(esq_biz_gw_tokenrelay_total[5m]))', scale="100 * "), "cache hit rate")],
+    p.append(ts("OAuth claims -- gateway cache hit rate", 12, 174, 6, "percent",
+                [tgt(ratio('sum(rate(esq_biz_gw_oauth_total{result="hit"}[5m]))',
+                           'sum(rate(esq_biz_gw_oauth_total[5m]))', scale="100 * "), "cache hit rate")],
                 minv=0,
-                desc="THE MOST LOAD-BEARING NUMBER ON THIS DASHBOARD. A cache hit serves the request without "
-                     "touching KeyCloak; a miss is a live /token round-trip on the hot path. So the hit rate IS "
-                     "how much of KeyCloak's latency the users are spared -- read it against the acquire cost on "
-                     "the panel to the right. If it collapses (a TTL change, an unstable cache key, an eviction "
-                     "storm) every request starts paying that cost, and the only other symptom is 'the gateway "
-                     "got slower' with no cause visible anywhere. "
-                     "NOTE: the relay is DORMANT unless the calling client is on the gateway's allowlist, so this "
-                     "is a GAP on a plain-JWT workload -- that is correct, not a broken panel."))
-    p.append(ts("Token relay -- KC /token acquire (avg ms)", 18, 174, 6, "ms",
-                [tgt(avg_ms("esq_biz_gw_tokenrelay_duration_seconds_sum",
-                            "esq_biz_gw_tokenrelay_duration_seconds_count", by="outcome"), "{{outcome}}")],
-                desc="What a cache MISS costs: a live round-trip to KeyCloak, an external server, on the "
-                     "request's hot path. Multiply it by (100 - hit rate) from the panel on the left to get what "
-                     "the relay is actually costing users. Split BY OUTCOME so a failure is still visible without "
-                     "putting a second unit on the axis -- an error or a cancelled relay has a duration too, and "
-                     "those lines simply do not exist on a healthy system."))
+                desc="The token carries the login only, so the gateway holds each user's claims (uid, root path, "
+                     "roles) in a cache. A hit serves the request from it; a miss -- or a stale entry -- is a "
+                     "claims query to keySmith on the request path. Read it against the query cost on the panel "
+                     "to the right. An access profile save or a user move evicts the entry, so a dip after "
+                     "admin work is expected; a rate that stays low is a cache that does not hold."))
+    p.append(ts("OAuth claims -- keySmith query (avg ms)", 18, 174, 6, "ms",
+                [tgt(avg_ms("esq_svc_key_claims_seconds_sum", "esq_svc_key_claims_seconds_count"),
+                     "claims query")],
+                desc="What a cache MISS costs: keySmith reads the access profile and its roles for the login id. "
+                     "Measured in keySmith (the @EsqTraced timer), so it is the service's time, not the gateway's "
+                     "call around it. Multiply it by (100 - hit rate) from the panel on the left to get what the "
+                     "claims cost an average request."))
 
     # ---- Business: cache, keep + permissions (bizTree, dataKeep, cross-cutting) ----
     p.append(row("Business -- cache, keep + permissions", 190))

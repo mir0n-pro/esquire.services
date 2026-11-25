@@ -1,6 +1,20 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v2.0.3-2611.2501  v2.0.3 -- OAuth only: observability
+    :Config:      the services board shows the gateway's claims cache hit rate and the keySmith claims query
+                  time in place of the token relay panels; the KeyCloak line is out of the request time bands
+    :Config:      the topology boards draw the claims bus, right after the biz bus, on every shape
+    :Config:      the classic topology board's gateway calls bizTree from its left side, under the bus lines
+    :Config:      the classic OKE Grafana loads the OKE boards, as compact OKE already did
+    :Config:      the o11y inventory lists the OAuth claims signals; the token relay signals are out
+    Components:   compose,
+                  compose-compact,
+                  k8s,
+                  k8s-compact,
+                  k8s-oci,
+                  k8s-oci-compact
+
 v2.0.3-2611.2419  v2.0.3 -- OAuth only: the test routines and the KeyCloak seed
     :Config:      the KeyCloak realm keeps three Esquire clients: the browser's, the load harness's and
                   kcMaster's; the lab, token relay and token exchange clients are removed
