@@ -699,7 +699,7 @@ def ordinal(name, r):
 # (Checked both: the live meters agree, except enyMan on esquire.kc -- declared CLIENT, no traffic in the window.
 #  It belongs on the board. That discrepancy is exactly why the board reads the config and not the metrics.)
 # ---------------------------------------------------------------------------------------------------------------
-# Lanes, left to right: Audit -- Biz Request-Response -- Claims Broadcast -- Entity Broadcast.
+# Lanes, left to right: Audit -- Biz Request-Response -- Claim Broadcast -- Entity Broadcast.
 # THE SAME ORDER AS doc/media/ComponentModel.Compact.png, and it must stay that way: a monitoring board and an
 # architecture diagram that disagree about WHERE things are make the reader hold two maps at once, and
 # a reader who spots the difference has no way to know which picture to trust. They carry the model's
@@ -726,7 +726,7 @@ BUSES = [
     dict(id="esquire.biz", name="Biz Request-Response Bus", kind="esquire.biz",
          color="#C9A0DC", left=360,
          flow={"gateward": "both", "paacman": "both"}),
-    dict(id="esquire.claims", name="Claims Broadcast Bus", kind="esquire.claims",
+    dict(id="esquire.claims", name="Claim Broadcast Bus", kind="esquire.claims",
          color="#7FC4BE", left=420,
          flow={"mesnie": "pub", "gateward": "sub"}),
     dict(id="esquire.entity", name="Entity Broadcast Bus", kind="esquire.entity",
@@ -1699,7 +1699,7 @@ def build():
     """THE DRAWN TOPOLOGY -- the picture. This is the dashboard called "Esquire Topology".
 
     It is the same arrangement as doc/media/ComponentModel.Compact.png: four VERTICAL bus lanes (Audit / Biz
-    Request-Response / Claims Broadcast / Entity Broadcast, in that order), auKeep and the stores to their LEFT,
+    Request-Response / Claim Broadcast / Entity Broadcast, in that order), auKeep and the stores to their LEFT,
     the services to
     their RIGHT, the gateway / Explorer / browser beyond them, and the broker beneath the lanes. The board and the
     document are ONE picture, with the numbers switched on.

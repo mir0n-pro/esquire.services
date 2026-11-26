@@ -44,19 +44,18 @@ operations. The Amazon EKS deployment at aws-esquire.mir0n.pro is turned down �
 
 ---
 > 
-> **v2.0.2 -- the user data leaves the sign-in token, as a lab mode.** By default the sign-in token
-> carries the user's place in the tree and the user's roles, as before. In the lab mode it carries only
-> who the user is. The gateway asks Esquire for the rest and keeps the answer while the user works. A
-> change to a user's access, or a move, clears that answer on every gateway at once, over the message
-> bus. The price is a gateway that keeps state: it holds that cache. The lab mode runs on docker and
-> local Kubernetes and is off by default; the public site runs the default mode. Login ids are now kept
-> in lower case.
+> **v2.0.3 -- one kind of sign-in.** The sign-in token carries only who the user is, in every shape and
+> on the public site. The gateway asks Esquire for the rest -- the user's place in the tree and the user's
+> roles -- and keeps the answer while the user works. A change to a user's access, or a move, clears that
+> answer on every gateway at once, over the message bus. Keycloak holds no Esquire data: no user id, no
+> place, no roles. Another identity server only has to sign users in and name them. The price is a gateway
+> that keeps state: it holds that cache.
 > 
 > The 1.2 line goes on in parallel. Its last release is
 > [v1.2.16](https://github.com/mir0n-pro/esquire.services/tree/release/v1.2.16?tab=readme-ov-file).
 > 
-> Next on this line: v2.0.3, the clean-up -- the lab mode becomes the only one, and the sync of roles and
-> places with the sign-in server goes. See [Release History](#release-history).
+> Next on this line: v2.0.4, a WebSocket face to the business domain, beside the REST one. See
+> [Release History](#release-history).
 
 ---
 
@@ -96,7 +95,7 @@ through the moment it is up. Background, the architecture, and the developer wor
 
 **[release_notes.txt](doc/release_notes.txt)** -- the release notes, newest first: the 2.0 line, then the whole 1.2 history.
 
-**[report_v2.0.2.md](doc/reports/report_v2.0.2.md)** -- the report of this release.
+**[report_v2.0.3.md](doc/reports/report_v2.0.3.md)** -- the report of this release.
 
 ---
 
@@ -105,7 +104,7 @@ through the moment it is up. Background, the architecture, and the developer wor
 ### Architecture & Design
 - [Esquire Messaging Bus — the vendor-agnostic bus subframework](https://github.com/mir0n-pro/herald/blob/main/doc/Herald.MessagingBus.md) *(topology catalog, x-rod frontend, and a pluggable transport-provider SPI: tp-activemq / tp-kafka / tp-redis / tp-sqns / tp-kinesis)* — suite: [how Esquire uses the bus](doc/Esquire.Messaging.md), [message structure](https://github.com/mir0n-pro/herald/blob/main/doc/Herald.MessagingBus.MessageStructure.md), [integration guides](https://github.com/mir0n-pro/herald/blob/main/doc/Herald.MessagingBus.Guides.md), [design Q&A](https://github.com/mir0n-pro/herald/blob/main/doc/Herald.MessagingBus.Q&A.md), [continuing development](https://github.com/mir0n-pro/herald/blob/main/doc/Herald.MessagingBus.ContinuingDev.md)
 - [Observability Stack](doc/Esquire.ObservabilityStack.md) *(metrics, tracing, and logging as common tooling)* — suite: [logging strategy](doc/Esquire.ObservabilityStack.Logging.md), [Grafana dashboards guide](doc/Esquire.GrafanaGuide.md)
-- [Authentication & Authorization — the tree-shaped security model](doc/Esquire.Auth.md) *(identity claims `esq_uid` / `esq_rootpath`; the keySmith / kcMaster / KeyCloak collaboration; `ep_path` visibility + role-based authority)* — suite: [token patterns](doc/Esquire.Auth.TokenPatterns.md) (BFF / JWT / Vanilla & Phantom Token Relay; JWE parked under stock KC) and [keySmith credential routines](doc/Esquire.Auth.keySmithRoutine.md)
+- [Authentication & Authorization -- the tree-shaped security model](doc/Esquire.Auth.md) *(the login id in the token, the claims from keySmith; the keySmith / kcMaster / KeyCloak collaboration; `ep_path` visibility + role-based authority)* -- suite: [token patterns](doc/Esquire.Auth.TokenPatterns.md) (the patterns weighed for the edge, and why the token carries the login id only) and [keySmith credential routines](doc/Esquire.Auth.keySmithRoutine.md)
 - [bizTree — Taijitu Recoverable Cache Architecture](doc/Esquire.BizTree.md) *(the Supreme Ultimate Cache: two-monad anti-entropy double-buffer + night-watch sweep)*
 - [Audit Logging Stack](doc/Esquire.AuditLoggingStack.md) *(pluggable audit seam over the generic keep engine; selectable strategies, ActiveMQ / Kafka / Redis / Amazon Kinesis transport, the auKeep consumer service)*
 - [High Availability](doc/Esquire.HighAvailability.md) *(replica topology, the resilience budget, and how each delivery channel survives duplication)*
@@ -199,14 +198,16 @@ run as a single instance here; each is a third-party platform that brings its **
         <td style="width: 100%;"><img src="./doc/logo/msk-cd.svg" alt="Amazon MSK logo" valign="middle" height="24"></td>
       </tr>
     </table>
-    Four logical channels:
-       <br> - <i>Biz Request-Response Bus</i> — carries the account commands (deposit, withdrawal, transfer,
+    Five logical channels:
+       <br> - <i>Biz Request-Response Bus</i> -- carries the account commands (deposit, withdrawal, transfer,
          account reads) from the gateway to paacMan, and each answer back to the gateway that sent it
-       <br> - <i>IAM Request-Response Bus</i> — carries identity commands (create / update / delete user)
+       <br> - <i>IAM Request-Response Bus</i> -- carries sign-in commands (create / update / delete user)
          from keySmith to kcMaster, and acknowledgement replies back
-       <br> - <i>Entity Broadcast Bus</i> — enyMan and paacMan publish entity change events on every mutation;
+       <br> - <i>Entity Broadcast Bus</i> -- enyMan and paacMan publish entity change events on every mutation;
          bizTree and other interested consumers subscribe
-       <br> - <i>Audit Broadcast Bus</i> — optional (off by default); the entity-updating services (enyMan, paacMan, keySmith)
+       <br> - <i>Claim Broadcast Bus</i> -- keySmith and enyMan tell every gateway copy that a user's roles
+         or place changed, so the next request reads the new ones
+       <br> - <i>Audit Broadcast Bus</i> -- optional (off by default); the entity-updating services (enyMan, paacMan, keySmith)
          publish each committed change event.
        <br><br>Supported messaging vendors / brokers: ActiveMQ, Kafka or Redis. With AWS you can use
          SNS, SQS, Kinesis, MQ for ActiveMQ or MSK (managed Kafka).
@@ -272,9 +273,10 @@ run as a single instance here; each is a third-party platform that brings its **
         <td style="width: 100%;"><img src="./doc/logo/keySmith.svg" alt="keySmith logo" valign="middle" height="40"></td>
       </tr>
     </table>
-    Authentication and access profile service; manages IAS integration and
-       JWT-based authorization; serves access profiles to the frontend; publishes identity change
-       requests to the IAM bus.
+    The access profile service; keeps each user's login, email, roles and sign-in state; serves access
+       profiles to the frontend; answers the gateway when it asks who a caller is and what they may do;
+       publishes sign-in changes to the IAM bus, and tells the gateways over the Claim Broadcast Bus when a user's
+       rights change.
   </td></tr>
 
   <tr><td style="width: 100%;">
@@ -287,8 +289,8 @@ run as a single instance here; each is a third-party platform that brings its **
       </tr>
     </table>
     Keycloak IAS sync coordinator; the only service that writes to Keycloak directly;
-       consumes identity commands from the IAM bus and executes create / update / delete in the IAM. Also
-       listens on the entity broadcast bus to keep a moved entity's Keycloak path in sync.
+       consumes sign-in commands from the IAM bus and executes create / update / delete in the IAM: the
+       login, the email and the sign-in state. Esquire's own data stays in Esq2025.
   </td></tr>
 
   <tr><td style="width: 100%;">
@@ -328,8 +330,9 @@ run as a single instance here; each is a third-party platform that brings its **
       </tr>
     </table>
     Spring Cloud Gateway; the API router; routes requests to the appropriate
-       backend service by path and entity kind; validates JWT tokens on every request and, for
-       opted-in clients, accepts two additional auth shapes. Reachable two ways: in-cluster
+       backend service by path and entity kind; validates JWT tokens on every request. The token names the
+       caller; the gateway asks keySmith what that caller may see and do, keeps the answer in a cache, and
+       passes it to the services with the request. Reachable two ways: in-cluster
        from the BFF on <code>/api/*</code>, and externally at <code>https://api.esquire.mir0n.pro</code> —
        the <code>public REST API</code> for non-browser callers.
   </td></tr>
@@ -341,8 +344,8 @@ run as a single instance here; each is a third-party platform that brings its **
         <td style="width: 100%;"><img src="./doc/logo/keycloak.svg" alt="Keycloak logo" valign="middle" height="24"></td>
       </tr>
     </table>
-    External IAM; issues JWT access tokens; manages user identities, realm
-       configuration, and authentication flows including TOTP; runs as a containerized service.
+    External IAM; signs users in and issues JWT access tokens that name the user; holds the login, the
+       email and the credential, including TOTP, and no Esquire data; runs as a containerized service.
   </td></tr>
 
   <tr><td style="width: 100%;">

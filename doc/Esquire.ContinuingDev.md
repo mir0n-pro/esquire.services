@@ -49,100 +49,6 @@ prefer to own.
 
 ---
 
-### CD-13 -- A freshness guard on the synchronized identity claims, if it is ever asked for
-
-**Today:** `kcMaster` applies what the KC request queue hands it, and its only defence is a **value
-comparison** -- `updateEntityPath` writes the path only when it differs from the one already on the KeyCloak
-user. There is no change number on `KcSyncRequest`, and the auth row's `au_change_no` is not carried across.
-That is a deliberate decision, and it is recorded here rather than in the code because it is a design
-question, not a detail of any one class.
-
-**The question is not about the path.** Every claim kcMaster writes into the identity store can go stale the
-same way, and the path is only the one that showed itself first (race-8c). The full set, with the row each
-claim actually comes from -- which is what a guard would have to compare against:
-
-| claim in KeyCloak | source row | its counter |
-|---|---|---|
-| `esq_rootpath` | `esq_entity_path` | `EP_CHANGE_NO` |
-| `username` (the login id, and a rename) | `esq_auth` | `AU_CHANGE_NO` |
-| `email` | `esq_auth` | `AU_CHANGE_NO` |
-| `enabled` (the connect flag) | `esq_auth` | `AU_CHANGE_NO` |
-| required actions (`UPDATE_PASSWORD`, `CONFIGURE_TOTP`) | `esq_auth` | `AU_CHANGE_NO` |
-| realm roles | the role tables | **none today** |
-| `esq_uid` | set once at creation, never updated | cannot go stale |
-
-**So the counters are NOT interchangeable.** A path claim is guarded by the path row's number, an
-auth-derived claim by the auth row's number, and the two are never compared with each other -- the same
-declared exception the wire already makes between an entity and its path (see
-`Herald.MessagingBus.MessageStructure.md`). One number covering every claim would
-repeat that mistake: an auth update would look "older" than a move that had nothing to do with it, and be
-skipped. **Roles have no counter at all**: guarding them means giving them one first, so they stay on
-value comparison.
-
-**Why nothing is needed today.** The request leg is a **queue**: one consumer, no fan-out, so there is no
-by-design duplicate to filter. A repeat of the same value was already a no-op, because of the comparison
-above. That leaves exactly one case a number would catch -- an OLDER update arriving after a newer one --
-which is narrow, and is what `hauberk kc-reconcile` exists to repair. A guard here would buy that one case
-and cost a field on the request, a parameter on the publisher, and a second place where "which number wins"
-has to stay correct.
-
-Contrast the entity broadcast, where the number **does** earn its place: a TOPIC, fanned out, applied on a
-worker pool with no per-entity affinity -- duplicates and reordering are by design there, not exceptional.
-That is why bizTree is guarded and kcMaster is not.
-
-**The strategy IF it is ever requested** -- announced here so the shape is settled before anyone starts:
-
-1. **Expand the identity user profile with the change number of each guarded claim's source row.** kcMaster
-   instances would then synchronize against **the identity store itself as the primary source**, rather than
-   each holding a private opinion in memory. That is the point: with more than one instance, an in-process
-   guard is per-instance state that a restart empties and that no two instances share, so the identity store
-   is the only place a shared answer can live. Applied per claim group, not once for the whole user -- one
-   number for the path, one for the auth-derived claims, per the table above.
-2. **Declaring the attribute is part of the work, not a detail.** KeyCloak 26 runs a declarative user profile
-   (`unmanagedAttributePolicy: null`) and **silently discards** an attribute the realm does not declare -- the
-   write succeeds, the log says SUCCESS, the value is not there. So it drags realm configuration with it, and a
-   realm change only re-imports on a FRESH KeyCloak init.
-3. **`hauberk kc-reconcile` / `reconcile.KcRecover` must move with it.** Repair a claim but not its number and
-   kcMaster then SKIPS the next legitimate update for it -- the recovery tool would arm the guard against the
-   truth. It repairs the path today; it would have to carry every guarded claim.
-
-**The blocking issue, and why this stays announced rather than planned: PORTABILITY.** Esquire is meant to take
-other IAM drivers, and a custom-attribute trick may be impossible or costly on another provider. Anything built
-here has to be expressible by whatever identity store sits behind the driver, or it is not a framework feature --
-it is a KeyCloak feature wearing one. Settle that before the first line of code.
-
-**Size it honestly: this is a SEPARATE VERTICAL PROJECT, not a change to kcMaster.** It cuts through every
-layer at once, and each layer has work of its own:
-
-| layer | what it needs |
-|---|---|
-| database | a counter on every source row a guarded claim comes from -- the roles side has none today |
-| message contract | the numbers on `KcSyncRequest`, per claim group, and the producers that fill them |
-| identity driver | the guard itself, and the driver abstraction that lets a NON-KeyCloak store carry it |
-| identity config | the realm user profile declaring each attribute, plus the fresh-init routine that lands it |
-| recovery | `kc-reconcile` / `KcRecover` carrying every guarded claim, not just the path |
-| test | a way to force an out-of-order arrival per claim, which today exists only for the path (race-8c) |
-
-None of those is large on its own; together they are a sprint with its own target, not a task inside someone
-else's. Take it as one vertical slice or not at all -- half of it (a guard with no recovery, or a guard on one
-claim) is worse than none, because it skips real updates while looking like it works.
-
-**Build it only when something requires it.** Not "one day, for completeness" -- today the value comparison
-plus `kc-reconcile` cover the case, and a guard built ahead of a real need buys nothing and adds a way to
-skip a legitimate update. What would make it required, so the condition is checkable rather than a feeling:
-
-- **The request leg stops being a plain queue.** It is guarded by "one consumer, no fan-out, no by-design
-  duplicate" -- and that premise is what the bus dual-channel item would remove, since it publishes the same
-  change on two channels on purpose (see the Messaging Bus backlog). If that lands, re-open this entry first.
-- **A stale claim is observed that recovery cannot explain**, i.e. `kc-reconcile` repairs it and it comes
-  back -- which would mean the ordering, not the repair, is the problem.
-- **An adopter needs the freshness guaranteed rather than repaired** -- a claim that must never be briefly
-  wrong, instead of one that self-corrects on the next sweep.
-
-Until one of those is true, the entry stays as written: the shape is settled, nothing is built.
-
----
-
 ### CD-26 -- IAM portability: more than one identity system behind the seams
 
 **Today:** `IIdentityGateway` is the seam a caller holds instead of the identity provider, and the single
@@ -154,8 +60,8 @@ different things to Esquire and they fail independently:
 
 | seam | side | what it carries |
 |---|---|---|
-| **JWT at the gateway** | the READ side, every request | whatever the provider issues, validated at the gate. The contract is `esq_uid`, `esq_rootpath`, `realm_access.roles` |
-| **`IIdentityGateway` / `<iam>Master` SPI** | the WRITE side, identity changes | create, update, delete, roles, moved paths -- posted provider-blind, served by whichever master is deployed |
+| **JWT at the gateway** | the READ side, every request | whatever the provider issues, validated at the gate. The contract is the login id; the gateway takes the uid, the root path and the roles from keySmith |
+| **`IIdentityGateway` / `<iam>Master` SPI** | the WRITE side, sign-in changes | create, update, delete -- the login id, the email, and the required actions -- posted provider-blind, served by whichever master is deployed |
 
 Support a provider on both and Esquire runs on it. That is narrower and more honest than "we support OIDC":
 OIDC signs a user in; it does not let a system manage the directory it signs in against.
@@ -175,10 +81,10 @@ REJECT with a reason, using a contract that already exists. That is what keeps p
 [doc/research/Cognito.for.Esquire.md](research/Cognito.for.Esquire.md) -- every claim in it tested against a
 running user pool, not read from documentation. The short of it:
 
-- **it works, and the token is solved.** Cognito's ID token natively carries `custom:esq_uid`,
-  `custom:esq_rootpath` and `cognito:groups`, so the BFF injects the id token and the filter reads Cognito's
-  own claim names. **No Lambda** (a pre-token trigger was built and measured, then not taken), and no
-  user-pool tier above **Lite, $0.0055 per monthly active user**.
+- **it works, and the token needs nothing extra.** The gateway needs only the login id from a token, and
+  Cognito's access token carries it as `username` (a tested token in the study). The gateway reads
+  `preferred_username` today, so the claim name it reads becomes provider configuration. **No Lambda**, no
+  custom attributes, and no user-pool tier above **Lite, $0.0055 per monthly active user**.
 - **what it cannot do:** find a user by a custom attribute, force TOTP enrolment per user, or host a themed
   handshake form -- `set-ui-customization` is CSS against fixed class names, not a template.
 - **the biggest single item is the GUI.** With KeyCloak the work is ONE html theme. Parity on Cognito means
@@ -186,9 +92,9 @@ running user pool, not read from documentation. The short of it:
   in the BFF, and one Explorer form per challenge.
 - **estimate: 17-26 days to develop AND deliver**, by Esquire's own cycle.
 
-**JWE is out of the claim.** The gateway's `JweAwareJwtDecoder` works and stays lab code: KeyCloak 26 will not
-emit a JWE on `/token`, and Cognito cannot issue one at all. Two providers examined, zero that can feed it, so
-the claim is **JWT** -- which is what every deployment actually runs.
+**JWE is out of the claim.** KeyCloak 26 will not emit a JWE on `/token`, and Cognito cannot issue one at all.
+With the Esquire claims left out of the token there is nothing to encrypt, so the claim is a signed **JWT**
+naming the user. The lab's JWE decoder was removed in v2.0.3; it is in git at the `v2.0.2` tag.
 
 **SEQUENCING, 2026-08-31: review Okta BEFORE building any of it.** With KeyCloak and Cognito alone, a
 "generic" SPI is really KeyCloak plus one -- the second provider tends to be fitted to the first rather than
@@ -289,10 +195,10 @@ UPDATE esq_org_par SET opr_value = '1.2.15' WHERE opr_org_pk = 1 AND opr_par_nam
 ```
 
 The first line is the part a generated delta would miss: the two roles were added to exercise the access
-profile dialog, so a database that has been used may carry assignments the seed never had. The merchant
-`esq_rootpath` needs no statement at all -- the database always held `1.2.8.`; the realm was the wrong side.
+profile dialog, so a database that has been used may carry assignments the seed never had. The merchant's root
+path needed no statement at all -- the database always held `1.2.8.`; the realm was the wrong side.
 
-The realm side has the same shape: that `esq_rootpath` and the removal of `esq-rest` are a few admin-API
+The realm side has the same shape: a corrected realm value and the removal of `esq-rest` were a few admin-API
 calls against a running KeyCloak, with the import file staying the truth for a fresh install. Where the data
 is disposable, wiping remains the shortcut.
 
@@ -855,7 +761,7 @@ Nothing queryable, no event, no retention beyond whatever the log shipper does.
    [Esquire.AuditLoggingStack.md](Esquire.AuditLoggingStack.md). This is a new event kind on an existing bus,
    not new infrastructure, and it inherits the same off-by-default posture: a deploy with no audit config
    imposes no audit.
-3. **An extra table on the keep side.** Principal (`esq_uid`), their `esq_rootpath` at the time, requested
+3. **An extra table on the keep side.** Principal (the uid), their root path at the time, requested
    kind and id, the guard that refused (**visibility / permission / domain constraint** -- the three-way
    split), resulting status, timestamp, correlation and request id.
 
@@ -1051,4 +957,8 @@ Delivered in v1.2.12.
 ### CD-12 -- "Mesnie": running several services under one roof, to cut the pod count (Completed)
 
 Delivered in v1.2.13, with gateWard alongside it.
+
+### CD-13 -- A freshness guard on the synchronized identity claims (Completed)
+
+Discharged in v2.0.3: KeyCloak holds no Esquire claims, so there is nothing left to guard.
 

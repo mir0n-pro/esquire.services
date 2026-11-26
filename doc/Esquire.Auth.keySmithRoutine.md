@@ -26,10 +26,10 @@ for the three credential lifecycle operations: reset password, TOTP, and connect
 ## What the flags drive in KeyCloak
 
 Esquire never changes a password and never configures TOTP. It records the **request** -- `au_force_change_flg`,
-`au_tfa_method` -- and keySmith syncs it to KeyCloak as a **required action**, which KeyCloak puts in front of
-the user at the next login and clears once the user has done it.
+`au_tfa_method` -- and keySmith posts it to kcMaster, which sets it on the KeyCloak user as a **required action**.
+KeyCloak puts it in front of the user at the next login and clears it once the user has done it.
 
-`esq2025` owns those two actions the way it owns the realm role mapping, so **the flag is the answer in both
+`esq2025` owns those two actions, so **the flag is the answer in both
 directions**: raised, KeyCloak asks; lowered, KeyCloak stops asking. A user who was forced and then let off is
 not left facing a screen the database no longer asks for. Any other required action on the KeyCloak user --
 one the realm set for its own reasons -- is left where it is.
@@ -47,7 +47,7 @@ that login: raised, then lowered, with the user not yet through the door.
 |------|-------|--------|
 | 1 | Admin UI | Sends `POST /esq-key-save` with `{ pwdChangeForced: "Y" }` |
 | 2 | keySmith | Writes `au_force_change_flg = 'Y'` to DB via `updateAccess` |
-| 3 | keySmith | Syncs to KC: `forcePasswordChange = true` → KC adds `UPDATE_PASSWORD` required action. Set back to `'N'` before the user logs in and the same sync takes the action off again |
+| 3 | keySmith | Posts the update to kcMaster, which applies it in KC: `forcePasswordChange = true` -> KC adds `UPDATE_PASSWORD` required action. Set back to `'N'` before the user logs in and the same sync takes the action off again |
 | 4 | User | Logs in to KC; KC intercepts and forces new password entry |
 | 5 | KC | Clears `UPDATE_PASSWORD` required action after user completes the change |
 | 6 | User UI | Calls `GET /esq-key` (no `id` — self-read) |
@@ -78,7 +78,7 @@ that login: raised, then lowered, with the user not yet through the door.
 | 1 | User UI | Sends `POST /esq-key-save` with `{ tfaMethod: "G" }` |
 | 2 | keySmith | `applyFields` validates: only `"G"` or `"N"` accepted; value differs from current → stores `"g"` (lowercase = pending) |
 | 3 | keySmith | Writes `au_tfa_method = 'g'` to DB |
-| 4 | keySmith | Syncs to KC: `requireTotp = true` → KC adds `CONFIGURE_TOTP` required action |
+| 4 | keySmith | Posts the update to kcMaster, which applies it in KC: `requireTotp = true` -> KC adds `CONFIGURE_TOTP` required action |
 | 5 | User | Logs in to KC; KC intercepts and forces TOTP setup (QR code scan) |
 | 6 | KC | Clears `CONFIGURE_TOTP` required action after user completes setup |
 | 7 | User UI | Calls `GET /esq-key` (no `id` — self-read) |
@@ -92,7 +92,7 @@ that login: raised, then lowered, with the user not yet through the door.
 | 1 | User UI | Sends `POST /esq-key-save` with `{ tfaMethod: "N" }` |
 | 2 | keySmith | `applyFields` validates; value differs from current → stores `"n"` (lowercase = pending) |
 | 3 | keySmith | Writes `au_tfa_method = 'n'` to DB |
-| 4 | keySmith | Syncs to KC: `removeTotp = true` → KC deletes all `otp`-type credentials for the user, and drops a still-pending `CONFIGURE_TOTP` -- a TOTP that was requested but never set up has no credential to delete, only a request to withdraw |
+| 4 | keySmith | Posts the update to kcMaster, which applies it in KC: `removeTotp = true` -> KC deletes all `otp`-type credentials for the user, and drops a still-pending `CONFIGURE_TOTP` -- a TOTP that was requested but never set up has no credential to delete, only a request to withdraw |
 | 5 | User | Re-logs in (no TOTP prompt — credential removed) |
 | 6 | User UI | Calls `GET /esq-key` (no `id` — self-read) |
 | 7 | keySmith | Detects `au_tfa_method = 'n'` on self-read → confirms to `'N'` via `confirmPendingFlags` |
@@ -126,7 +126,7 @@ that login: raised, then lowered, with the user not yet through the door.
 | 2 | keySmith | `saveAccess`: runs `applyFields`; detects N→Y transition |
 | 3 | keySmith | If `tfaMethod != 'N'`: forces `au_tfa_method = 'N'` before `updateAccess` (TOTP must be clean on activation) |
 | 4 | keySmith | Writes `au_connect_flg = 'Y'` (and `au_tfa_method = 'N'` if corrected) to DB |
-| 5 | keySmith | Syncs to KC: `createUser(loginId, email, password="changeit", enabled=true, forcePasswordChange=true, requireTotp=false, roles, {esq_uid, esq_rootpath})` |
+| 5 | keySmith | Posts the create to kcMaster, which applies it in KC: `createUser(loginId, email, password="changeit", enabled=true, forcePasswordChange=true, requireTotp=false)` -- no roles, no attributes |
 | 6 | KC | User created with temporary password; `UPDATE_PASSWORD` required action set |
 | 7 | User | Logs in with `"changeit"` → KC forces new password |
 
@@ -136,19 +136,20 @@ that login: raised, then lowered, with the user not yet through the door.
 |------|-------|--------|
 | 1 | Admin UI | Sends `POST /esq-key-save` with `{ connectFlg: "N" }` |
 | 2 | keySmith | Writes `au_connect_flg = 'N'` to DB |
-| 3 | keySmith | Syncs to KC: `deleteUser(loginId)` — KC identity fully removed |
+| 3 | keySmith | Posts the delete to kcMaster, which applies it in KC: `deleteUser(loginId)` -- KC identity fully removed |
 
 ### State diagram
 
 ![Connection-flag state machine for au_connect_flg: N to Y when an admin activates (KC user created with a temporary password, TOTP off); Y to N when an admin deactivates (KC user deleted, entity stays).](img/keysmith-connect.svg)
 
-### KC attributes set at creation
-| Attribute | Value | Constant |
-|-----------|-------|----------|
-| `esq_uid` | user DB primary key | `EsqConstants.JWT_CLAIM_ENTITY_ID` |
-| `esq_rootpath` | user path | `EsqConstants.JWT_CLAIM_ENTITY_ROOTPATH` |
+### What KeyCloak holds
 
-> These attributes are set **once at creation only** and never updated by keySmith.
+The login id (the KC username), the email, the credential, and the required actions -- and nothing else. No
+Esquire attribute is set on a KC user, and no Esquire role is assigned: the uid, the root path, and the roles stay
+in `esq2025`, and the gateway takes them from keySmith (see [`Esquire.Auth.md`](Esquire.Auth.md)).
+
+After every save in this document, keySmith also sends a claims eviction for the user on the Claim Broadcast Bus, so each
+gateway drops its cached copy and the next request reads the saved state.
 
 ---
 

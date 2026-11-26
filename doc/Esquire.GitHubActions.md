@@ -154,8 +154,8 @@ the other stack must go for a simpler reason as well -- both bind the same host 
   `addIngressNginx.bat`); the runner registered on the box (built-in `self-hosted` + `windows` labels).
 
 ### 4.2a Verify on the local targets -- e2e yes, load no
-- The local scope runs the **e2e suite** on both targets (4.2). It is the only pipeline that runs the two
-  Token Relay specs, which OKE skips.
+- The local scope runs the **e2e suite** on both targets (4.2). The OKE release chain runs the same suite
+  against the public domain (4.3), with no spec skipped.
 - **Load stays manual** on the local stack: `hauberk.cmd run smoke --config hauberk-k8s.properties` from
   `hauberk\`, and the other Simulations by hand.
 - Automated load belongs to the **OKE release chain** (see 4.3).
@@ -194,7 +194,7 @@ the other stack must go for a simpler reason as well -- both bind the same host 
   reviewer -- a manual approval before the deploy step, where automation bites hardest. The Environment
   holds the OCI api-key secrets (`OCI_CLI_USER` / `OCI_CLI_TENANCY` / `OCI_CLI_FINGERPRINT` /
   `OCI_CLI_KEY_CONTENT`), `MIR0N_PWD` (postgres + Keycloak admin), the app secrets
-  (`BFF_KC_SECRET` / `GW_EXCHANGE_SECRET` / `BFF_SESSION_SECRET`), and the `OKE_CLUSTER_OCID` /
+  (`BFF_KC_SECRET` / `BFF_SESSION_SECRET` / `KCMASTER_ADMIN_SECRET`), and the `OKE_CLUSTER_OCID` /
   `OKE_REGION` (default `ca-toronto-1`) variables; nothing can use them until the deploy is approved. The
   GHCR push runs in the ungated `build-push` job and authenticates with the `GHCR_TOKEN` PAT.
 
@@ -274,7 +274,7 @@ refs.
 - **OKE deploy:** the OCI api-key set in the `oke-production` Environment (`OCI_CLI_USER` /
   `OCI_CLI_TENANCY` / `OCI_CLI_FINGERPRINT` / `OCI_CLI_KEY_CONTENT` + the `OKE_CLUSTER_OCID` / `OKE_REGION`
   vars); the kubeconfig is fetched at run time via `oci ce cluster create-kubeconfig`, not stored. Plus
-  `MIR0N_PWD` and the app secrets (`BFF_KC_SECRET` / `GW_EXCHANGE_SECRET` / `BFF_SESSION_SECRET`).
+  `MIR0N_PWD` and the app secrets (`BFF_KC_SECRET` / `BFF_SESSION_SECRET` / `KCMASTER_ADMIN_SECRET`).
 - **Maven (every build job):** the same `GHCR_TOKEN` reads the Armoury and Herald jars from GitHub
   Packages.
 - **Local deploy:** two repository secrets, passed explicitly. `KCMASTER_ADMIN_SECRET` -- the k8s
@@ -418,10 +418,10 @@ new toolchain.
   installed the `bash.exe` in System32 wins. WSL's bash cannot take the Windows path of the temp script the
   runner writes -- it eats the backslashes and the job dies on its first shell step.
 - **The app secrets set on the box** (`setx`): `KCMASTER_ADMIN_SECRET`, `BFF_KC_SECRET`,
-  `GW_EXCHANGE_SECRET`, `BFF_SESSION_SECRET`. `k8s-up.bat` passes each to helm only when it is set, so a
-  deploy without one keeps the value the release already holds -- but a FIRST install then has none. The
-  three client secrets live on their clients in the realm (`esq-kcMaster`, `esq-angular`,
-  `esq-gw-exchange`); the session secret is any random string, it only signs the BFF's cookie.
+  `BFF_SESSION_SECRET`. `k8s-up.bat` passes each to helm only when it is set, so a deploy without one keeps
+  the value the release already holds -- but a FIRST install then has none. The two client secrets live on
+  their clients in the realm (`esq-kcMaster`, `esq-angular`); the session secret is any random string, it only
+  signs the BFF's cookie.
 - A runner started from a shell predating any of these carries the OLD environment: restart it after
   setting them.
 

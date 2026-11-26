@@ -1,7 +1,13 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 656" font-family="Calibri, Segoe UI, sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 850 699" font-family="Calibri, Segoe UI, sans-serif">
   <defs>
     <marker id="arw" markerUnits="userSpaceOnUse" markerWidth="12" markerHeight="9" refX="10" refY="4.5" orient="auto">
       <path d="M0,0 L10,4.5 L0,9 Z" fill="#6ca43d"/>
+    </marker>
+    <marker id="arwo" markerUnits="userSpaceOnUse" markerWidth="12" markerHeight="9" refX="10" refY="4.5" orient="auto">
+      <path d="M0,0 L10,4.5 L0,9 Z" fill="#ffffff" stroke="#6ca43d" stroke-width="1.2"/>
+    </marker>
+    <marker id="arwb" markerUnits="userSpaceOnUse" markerWidth="12" markerHeight="9" refX="10" refY="4.5" orient="auto">
+      <path d="M0,0 L10,4.5 L0,9 Z" fill="#c55a11"/>
     </marker>
   </defs>
   <style>
@@ -9,69 +15,62 @@
     .hdrtxt{fill:#ffffff;font-weight:bold;font-size:15px}
     .life{stroke:#5592c9;stroke-width:1.2;stroke-dasharray:4,3}
     .msg{stroke:#6ca43d;stroke-width:1.7;fill:none;marker-end:url(#arw)}
+    .ret{stroke:#6ca43d;stroke-width:1.3;fill:none;stroke-dasharray:6,3;marker-end:url(#arwo)}
+    .bus{stroke:#c55a11;stroke-width:1.7;fill:none;stroke-dasharray:8,3;marker-end:url(#arwb)}
     .mt{fill:#2b2b2b;font-size:12.5px}
     .note{fill:#fff3cd;stroke:#e0c068;stroke-width:1}
     .nt{fill:#5b4a00;font-size:12px}
-    .race{fill:#fde2e2;stroke:#d98b8b;stroke-width:1.2}
-    .racet{fill:#7a2b2b;font-size:12px}
     .title{fill:#1f3864;font-size:18px;font-weight:bold}
+    .sec{fill:#1f3864;font-size:12.5px;font-weight:bold}
     .stk1{fill:#9ec3e6;stroke:#5a8bc0;stroke-width:1}
     .stk2{fill:#c5daf0;stroke:#7ba7d4;stroke-width:1}
     .xn{fill:#dbe9f7;font-size:10px}
     .leg{fill:#eef2f7;stroke:#c9d6e5;stroke-width:1}
     .legt{fill:#404040;font-size:11.5px}
     .legb{fill:#1f3864;font-size:11.5px;font-weight:bold}
-    .div{stroke:#b0b0b0;stroke-width:1.2;stroke-dasharray:7,4}
-    .divbox{fill:#eef2f7;stroke:#b0b0b0;stroke-width:1}
-    .divtxt{fill:#404040;font-size:12px;font-style:italic}
+    .box{fill:#5b9bd5;stroke:#41719c;stroke-width:1.5}
+    .boxs{fill:#dbe9f7;font-size:11px}
+    .busbox{fill:#fbe5d6;stroke:#c55a11;stroke-width:1.2}
+    .bust{fill:#843c0c;font-size:12.5px;font-weight:bold}
+    .bussub{fill:#843c0c;font-size:11px}
+    .lbl{fill:#2b2b2b;font-size:11.5px}
   </style>
 
-  <text class="title" x="20" y="28">Move a user -- rootpath synchronization (+ create-while-move safety-net)</text>
+  <text class="title" x="20" y="28">Move a user -- the root path follows on the next request</text>
 
-  <g>
-    <rect class="hdr" x="20"  y="44" width="140" height="34" rx="5"/><text class="hdrtxt" x="90"  y="66" text-anchor="middle">UI</text><line class="life" x1="90"  y1="78" x2="90"  y2="590"/>
-    <rect class="stk2" x="203" y="34" width="140" height="34" rx="5"/><rect class="stk1" x="199" y="39" width="140" height="34" rx="5"/><rect class="hdr" x="195" y="44" width="140" height="34" rx="5"/><text class="hdrtxt" x="265" y="66" text-anchor="middle">enyMan</text><text class="xn" x="329" y="55" text-anchor="end">xN</text><line class="life" x1="265" y1="78" x2="265" y2="590"/>
-    <rect class="hdr" x="370" y="44" width="140" height="34" rx="5"/><text class="hdrtxt" x="440" y="66" text-anchor="middle">esq2025</text><line class="life" x1="440" y1="78" x2="440" y2="590"/>
-    <rect class="stk2" x="553" y="34" width="140" height="34" rx="5"/><rect class="stk1" x="549" y="39" width="140" height="34" rx="5"/><rect class="hdr" x="545" y="44" width="140" height="34" rx="5"/><text class="hdrtxt" x="615" y="66" text-anchor="middle">kcMaster</text><text class="xn" x="679" y="55" text-anchor="end">xN</text><line class="life" x1="615" y1="78" x2="615" y2="590"/>
-    <rect class="hdr" x="720" y="44" width="140" height="34" rx="5"/><text class="hdrtxt" x="790" y="66" text-anchor="middle">KeyCloak</text><line class="life" x1="790" y1="78" x2="790" y2="590"/>
-  </g>
+  <!-- participants -->
+  <rect class="hdr" x="27" y="44" width="136" height="34" rx="5"/><text class="hdrtxt" x="95" y="66" text-anchor="middle">UI</text><line class="life" x1="95" y1="78" x2="95" y2="617"/>
+  <rect class="stk2" x="200" y="34" width="136" height="34" rx="5"/><rect class="stk1" x="196" y="39" width="136" height="34" rx="5"/><rect class="hdr" x="192" y="44" width="136" height="34" rx="5"/><text class="hdrtxt" x="260" y="66" text-anchor="middle">enyMan</text><text class="xn" x="322" y="55" text-anchor="end">xN</text><line class="life" x1="260" y1="78" x2="260" y2="617"/>
+  <rect class="hdr" x="357" y="44" width="136" height="34" rx="5"/><text class="hdrtxt" x="425" y="66" text-anchor="middle">esq2025</text><line class="life" x1="425" y1="78" x2="425" y2="617"/>
+  <rect class="stk2" x="530" y="34" width="136" height="34" rx="5"/><rect class="stk1" x="526" y="39" width="136" height="34" rx="5"/><rect class="hdr" x="522" y="44" width="136" height="34" rx="5"/><text class="hdrtxt" x="590" y="66" text-anchor="middle">gateway</text><text class="xn" x="652" y="55" text-anchor="end">xN</text><line class="life" x1="590" y1="78" x2="590" y2="617"/>
+  <rect class="stk2" x="695" y="34" width="136" height="34" rx="5"/><rect class="stk1" x="691" y="39" width="136" height="34" rx="5"/><rect class="hdr" x="687" y="44" width="136" height="34" rx="5"/><text class="hdrtxt" x="755" y="66" text-anchor="middle">keySmith</text><text class="xn" x="817" y="55" text-anchor="end">xN</text><line class="life" x1="755" y1="78" x2="755" y2="617"/>
 
-  <line class="msg" x1="90" y1="122" x2="261" y2="122"/>
-  <text class="mt" x="176" y="109" text-anchor="middle">POST /esq-command</text>
-  <text class="mt" x="176" y="118" text-anchor="middle" font-size="11">MOVE (subtree)</text>
-
-  <line class="msg" x1="265" y1="172" x2="436" y2="172"/>
-  <text class="mt" x="352" y="159" text-anchor="middle">update ep_path</text>
-  <text class="mt" x="352" y="168" text-anchor="middle" font-size="11">(subtree, parents-first)</text>
-
-  <line class="msg" x1="265" y1="226" x2="611" y2="226"/>
-  <text class="mt" x="440" y="213" text-anchor="middle">URQ - EVENT_UPDATE_PATH   (authoritative)</text>
-  <text class="mt" x="440" y="222" text-anchor="middle" font-size="11">over the IAM request bus</text>
-
-  <line class="msg" x1="615" y1="274" x2="786" y2="274"/>
-  <text class="mt" x="702" y="261" text-anchor="middle">re-stamp esq_rootpath</text>
-  <text class="mt" x="702" y="270" text-anchor="middle" font-size="11">(if the KC user exists)</text>
-
-  <line class="div" x1="20" y1="316" x2="860" y2="316"/>
-  <rect class="divbox" x="250" y="304" width="380" height="24" rx="4"/>
-  <text class="divtxt" x="440" y="320" text-anchor="middle">create-while-move safety-net (the race-8c fix)</text>
-
-  <line class="msg" x1="265" y1="366" x2="611" y2="366"/>
-  <text class="mt" x="440" y="353" text-anchor="middle">entity broadcast - EVENT_UPDATE_PATH   (topic)</text>
-  <text class="mt" x="440" y="362" text-anchor="middle" font-size="11">fan-out copy of the same move</text>
-
-  <!-- self-message: park in buffer -->
-  <path class="msg" d="M615,392 h46 v26 h-42"/>
-  <text class="mt" x="668" y="404" font-size="11">park in</text>
-  <text class="mt" x="668" y="416" font-size="11">path buffer</text>
-
-  <rect class="race" x="20" y="446" width="840" height="70" rx="6"/>
-  <text class="racet" x="34" y="468" font-weight="bold">The race we fought (race-8c): a user created WHILE being moved.</text>
-  <text class="racet" x="34" y="486">If the KC identity does not exist yet, the authoritative URQ silently skips -- so the broadcast copy parks the new</text>
-  <text class="racet" x="34" y="502">path in a per-pod expiring path buffer -- keeping the NEWEST path by change number, not the last to arrive. The</text>
-  <text class="racet" x="34" y="518">next keySmith CREATE URQ flushes it and applies that path. When the user already exists, the URQ owns it and the topic stays passive.</text>
-
-  <rect class="leg" x="20" y="540" width="840" height="42" rx="5"/>
-  <text class="legt" x="30" y="559"><tspan class="legb">Redundancy:</tspan> enyMan and kcMaster run at N replicas (stacked). The URQ is competing-consumed by ONE kcMaster;</text>
-  <text class="legt" x="30" y="575">the entity topic fans out to EVERY kcMaster replica, each with its own path buffer -- which is why the race-8c fix is per-pod.</text>
+  <line class="msg" x1="95" y1="128" x2="256" y2="128"/>
+  <text class="mt" x="177" y="106" text-anchor="middle">POST /esq-move</text>
+  <text class="mt" x="177" y="121" text-anchor="middle" font-size="11">(queued -- 202 Accepted)</text>
+  <line class="msg" x1="260" y1="180" x2="421" y2="180"/>
+  <text class="mt" x="342" y="158" text-anchor="middle">update ep_path</text>
+  <text class="mt" x="342" y="173" text-anchor="middle" font-size="11">(the subtree, parents first)</text>
+  <line class="bus" x1="260" y1="232" x2="586" y2="232"/>
+  <text class="mt" x="425" y="210" text-anchor="middle">claims eviction for each moved user</text>
+  <text class="mt" x="425" y="225" text-anchor="middle" font-size="11">over the Claim Broadcast Bus</text>
+  <rect class="note" x="330" y="262" width="330" height="29" rx="4"/>
+  <text class="nt" x="340" y="279">every gateway replica drops the user from its cache</text>
+  <text class="sec" x="20" y="323">Next request of the moved user -- the same token, no new sign-in</text>
+  <line class="msg" x1="95" y1="357" x2="586" y2="357"/>
+  <text class="mt" x="342" y="335" text-anchor="middle">a request through the BFF</text>
+  <text class="mt" x="342" y="350" text-anchor="middle" font-size="11">(the BFF adds the token: login id)</text>
+  <line class="msg" x1="590" y1="409" x2="751" y2="409"/>
+  <text class="mt" x="672" y="387" text-anchor="middle">GET /esq-claims?loginId=...</text>
+  <text class="mt" x="672" y="402" text-anchor="middle" font-size="11">(cache miss)</text>
+  <line class="msg" x1="755" y1="461" x2="429" y2="461"/>
+  <text class="mt" x="590" y="454" text-anchor="middle" font-size="11.5">read the access profile and ep_path</text>
+  <line class="ret" x1="755" y1="513" x2="594" y2="513"/>
+  <text class="mt" x="672" y="506" text-anchor="middle" font-size="11.5">uid, new root path, roles</text>
+  <rect class="note" x="20" y="543" width="700" height="44" rx="4"/>
+  <text class="nt" x="30" y="560">KeyCloak takes no part: it holds no path, so a move changes nothing there, and a user created while</text>
+  <text class="nt" x="30" y="575">its subtree moves needs nothing from it. The move queue and the tree cache are in Esquire.BizTree.md.</text>
+  <rect class="leg" x="20" y="631" width="810" height="44" rx="5"/>
+  <text class="legt" x="30" y="650"><tspan class="legb">Redundancy:</tspan> enyMan, the gateway and keySmith run at N replicas (stacked). The eviction is a broadcast: it</text>
+  <text class="legt" x="30" y="666">reaches every gateway replica, because each one keeps its own claims cache. A dashed orange arrow is a bus broadcast.</text>
 </svg>

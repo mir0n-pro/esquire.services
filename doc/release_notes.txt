@@ -1,6 +1,30 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v2.0.3-2611.2602  v2.0.3 -- finalization: the docs describe one kind of sign-in
+    :Doc:         README.md
+                  Releases.md
+                  Esquire.Auth.md
+                  Esquire.Auth.TokenPatterns.md
+                  Esquire.Auth.keySmithRoutine.md
+                  Esquire.ContinuingDev.md
+                  Esquire.GitHubActions.md
+                  Esquire.GrafanaGuide.md
+                  Esquire.Haubergeon.md
+                  Esquire.ObservabilityStack.md
+                  Esquire.Q&A.md
+                  Esquire.TestingStack.md
+                  services.configuring.md
+                  v2.0.x.Goals.md
+                  v2.0.x.Planning.md
+    Components:   doc,
+                  compose,
+                  compose-compact,
+                  k8s,
+                  k8s-compact,
+                  k8s-oci,
+                  k8s-oci-compact
+
 v2.0.3-2611.2522  v2.0.3 -- OKE by hand: the observability check on the cloud
     :Fix:         the cloud observability check looks for paacMan, the service the cloud runs, in place of pacMan
     :Fix:         the latency check reads all its numbers at the same moment, so a check run right after traffic

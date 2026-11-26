@@ -623,7 +623,7 @@ def ordinal(name, r):
 # is the design.
 #
 # ---------------------------------------------------------------------------------------------------------------
-# Lanes, left to right: Audit -- Biz Request-Response -- Claims Broadcast -- IAM Request-Response -- Entity
+# Lanes, left to right: Audit -- Biz Request-Response -- Claim Broadcast -- IAM Request-Response -- Entity
 # Broadcast.
 # THE SAME ORDER AS doc/media/ComponentModel.png, and it must stay that way: a monitoring board and an
 # architecture diagram that disagree about WHERE things are make the reader hold two maps at once, and
@@ -648,7 +648,7 @@ BUSES = [
          flow={"gateway": "both", "paacman": "both"}),
     # The claims bus: keySmith (a profile saved) and enyMan (a user moved) publish an eviction; every gateway
     # replica drops that user from its claims cache.
-    dict(id="esquire.claims", name="Claims Broadcast Bus", kind="esquire.claims",
+    dict(id="esquire.claims", name="Claim Broadcast Bus", kind="esquire.claims",
          color="#7FC4BE", left=420,
          flow={"keysmith": "pub", "enyman": "pub", "gateway": "sub"}),
     dict(id="esquire.kc", name="IAM Request-Response Bus", kind="esquire.kc",
@@ -1512,7 +1512,7 @@ def build():
     """THE DRAWN TOPOLOGY -- the picture. This is the dashboard called "Esquire Topology".
 
     It is the same arrangement as doc/media/ComponentModel.png: five VERTICAL bus lanes (Audit / Biz
-    Request-Response / Claims Broadcast / IAM Request-Response / Entity Broadcast, in that order), auKeep and the
+    Request-Response / Claim Broadcast / IAM Request-Response / Entity Broadcast, in that order), auKeep and the
     stores to their LEFT, the services to
     their RIGHT, the gateway / Explorer / browser beyond them, and the broker beneath the lanes. The board and the
     document are ONE picture, with the numbers switched on.

@@ -16,8 +16,8 @@ separately per feature.
 
 Two members complete the **Esquire.Auth** suite:
 
-- [`Esquire.Auth.TokenPatterns.md`](Esquire.Auth.TokenPatterns.md) — the four token-handling patterns at the edge
-  (BFF / Plain JWT / Vanilla Token Relay / Phantom Token Relay) and the JWT / JWE formats behind them.
+- [`Esquire.Auth.TokenPatterns.md`](Esquire.Auth.TokenPatterns.md) -- the token formats and the edge patterns
+  weighed for Esquire, and why the token carries the login id only.
 - [`Esquire.Auth.keySmithRoutine.md`](Esquire.Auth.keySmithRoutine.md) — the credential-lifecycle state machines
   (reset password, TOTP, connection flag) keySmith runs with KeyCloak.
 
@@ -25,17 +25,24 @@ Two members complete the **Esquire.Auth** suite:
 
 ## 1. The idea
 
-A caller authenticates once, over **OAuth 2.0 / OIDC** (against KeyCloak — Section 3). Once verified, their token
-carries **everything that defines authorization** — the caller's **claims** and **roles**. That token rides on
-**every REST request**, and each service reads the caller's identity and rights **from the request itself** —
-**never** from the `esq2025` database and **never** from a KeyCloak session. The token is validated locally
-(against KeyCloak's cached JWKS), so there is no per-request DB read and no per-request call to KeyCloak. A service
-decides what the caller may see and do **from the token alone**:
+A caller signs in once, over **OAuth 2.0 / OIDC**, against KeyCloak (Section 3). The token KeyCloak issues says
+who the caller is -- the **login id** -- and carries nothing else Esquire needs. Everything that defines
+authorization stays in `esq2025`, where it is managed:
 
-- **Claims define visibility.** `esq_uid` (the caller's entity **id**) and `esq_rootpath` (their **path** in the
-  tree) fix *which slice of the tree* the caller can see (Section 4).
+- **Claims define visibility.** The caller's entity **id** and **root path** fix *which slice of the tree* the
+  caller can see (Section 4).
 - **Roles define permissions.** The caller's roles fix *which operations* they may perform, per entity kind
   (Section 5).
+
+**The gateway joins the two.** It validates the token locally, against KeyCloak's cached keys (JWKS), takes the
+login id from it, and asks keySmith for that user's claims and roles. It keeps the answer in a cache and sends it
+on with the request: as the `X-Esq-UID`, `X-Esq-Root-Path`, and `X-Esq-Roles` headers to a REST service, and as
+fields of the command to a service on the bus. Each service reads the caller's identity and rights **from the
+request itself**. There is no per-request call to KeyCloak, and no per-request database read in the services; the
+gateway asks keySmith only when its cache does not hold the user.
+
+A token holds nothing a reader could use to learn the caller's position or rights. Anyone who holds it can still
+use it until it expires; the token is signed, not encrypted, and short-lived (five minutes on the shipped realm).
 
 Two orthogonal dimensions, both read from the same tree: **position (the claims) → what you see; role → what you
 do.** Traditional role-based access control answers only the second; Esquire makes visibility a first-class,
@@ -45,66 +52,73 @@ you may do it.
 
 ---
 
-## 2. Identity — the two claims
+## 2. Identity -- the login id and the claims
 
-Every authenticated caller carries two Esquire claims in their token, alongside the standard OIDC claims:
+The token names the caller; `esq2025` says what the caller is. Four values make up a caller:
 
-| Claim | Constant | What it is |
+| Value | Kept in | What it is |
 |---|---|---|
-| `esq_uid` | `EsqConstants.JWT_CLAIM_ENTITY_ID` | the caller's **entity id** — the primary key of their `esq_usr` row (globally unique across kinds, branches, and services). |
-| `esq_rootpath` | `EsqConstants.JWT_CLAIM_ENTITY_ROOTPATH` | the caller's **visibility root** — the `ep_path` of the subtree they belong to (Section 4). |
+| login id | `esq_auth.au_login_id`; the KeyCloak username | who signs in. The one Esquire value in the token (`preferred_username`). |
+| uid | the `esq_usr` primary key | the caller's **entity id** -- unique across kinds, branches, and services. |
+| root path | `esq_entity_path.ep_path` | the caller's **visibility root** -- the path of the subtree they belong to (Section 4). |
+| roles | the access profile | what the caller may do (Section 5). |
 
-**Set once, at creation.** Both are written onto the KeyCloak user as attributes at user-creation time and are
-**never updated** afterward by the services — except `esq_rootpath`, which is re-issued when the user is **moved**
-(their position in the tree changes). Identity is stable; only position follows a move.
+**The gateway asks keySmith by login id.** The call is `GET /esq-claims?loginId=<login id>`, and the answer is
+`EsqUserClaims(loginId, uid, rootPath, roles, changeNo)`. The endpoint is open on the service side and no gateway
+route exposes it, so only a caller inside the cluster network can reach it. A failed lookup fails the
+authentication: a login id with no access profile is refused, and a keySmith that does not answer gives a 503.
 
-Inside a service these two land in the per-request context: `EsqRequestContext(correlationId, requestId, uid,
-rootPath)` — `uid` and `rootPath` originate from the JWT claims, read once by the `JwtAuthenticationFilter` and
-carried through the request. The correlation / request ids are the tracing pair (see
-`Esquire.ObservabilityStack.md`); `uid` and `rootPath` are the security pair.
+**The cache keeps an answer while it is used.** An entry not read for a minute (`esq.gateway.oauth.cache-idle-ms`,
+default 60000) is dropped. A change to the user's claims drops it at once (Section 3.2), so the next request reads
+the new values. Every gateway instance keeps its own cache.
 
-**KeyCloak username = loginId.** A user is looked up in KeyCloak by their `loginId` (the KC `username`), so the
-services never need the KC user UUID to address a principal.
+Inside a service the values land in the per-request context, `EsqRequestContext`. The `JwtClaimsExtractionFilter`
+reads them from the `X-Esq-*` headers. The gateway removes those headers from every inbound request before it sets
+its own, so a client cannot send claims of its own choosing. The correlation and request ids are the tracing pair
+(see `Esquire.ObservabilityStack.md`); `uid` and `rootPath` are the security pair.
+
+**KeyCloak username = login id.** A user is looked up in KeyCloak by the login id, so the services never need the
+KeyCloak user UUID. A user may also sign in with their email (`loginWithEmailAllowed`); the token then still names
+them by login id.
 
 ---
 
 ## 3. The collaboration — keySmith / kcMaster / KeyCloak
 
-Esquire never writes to KeyCloak from the business path. Identity changes are **queued work handed to a
-gateway**, so the entity mutation and the KeyCloak sync never block each other:
+Esquire never writes to KeyCloak from the business path. A change to a user's sign-in is **queued work handed to
+a gateway**, so the entity change and the KeyCloak sync never block each other:
 
-![The esq2025 to KeyCloak sync collaboration: keySmith (access profile) and enyMan (entity + move) publish onto two channels -- the authoritative IAM request bus (URQ) and the entity-broadcast topic (the race-8c safety-net); kcMaster consumes both and is the only writer to KeyCloak.](img/auth-collaboration.svg)
+![The collaboration: keySmith writes the access profile and posts create, update and delete requests on the IAM request bus to kcMaster, the only KeyCloak writer, and gets a URS or a rejection back by rod-id. After every save keySmith, and for every moved user enyMan, broadcast a claims eviction on the Claim Broadcast Bus to every gateway replica. The gateway asks keySmith for the claims on a cache miss and passes the uid, root path and roles to the services as X-Esq-* headers or command fields. KeyCloak holds the login id, the email and the credential, and issues a token that carries the login id only.](img/auth-collaboration.svg)
 
-- **keySmith** owns the credential side of a user: it writes the `esq_usr` access columns (connection flag,
-  force-password-change, TOTP method) and **posts** the matching identity command to the identity gateway. It
-  never touches KeyCloak directly.
-- **The identity gateway** (`IIdentityGateway`) is what a caller holds instead of the provider. keySmith and
-  enyMan hand it the command and return; how far the work then travels is the gateway's business, and the
-  caller is told nothing about it. In the classic shape the gateway each service is given puts the command on
-  the IAM bus. In the **compact** shape keySmith, enyMan and kcMaster share one program, and the gateway they
-  are given calls the KeyCloak agent directly: the same command, the same single writer, no queue round trip.
-  Neither caller can tell which gateway it holds -- that is what the seam is for.
-- **kcMaster** is the **only** service that writes to KeyCloak. It consumes the request, performs the create /
-  update / delete / update-path against KC, and replies. Because it is the single writer, KeyCloak state has one
+- **keySmith** owns the access profile: it writes the `esq_auth` row (login id, email, connection flag,
+  force-password-change, TOTP method) and the user's roles, and **posts** the matching identity command to the
+  identity gateway. It never touches KeyCloak directly. After every save it also sends a claims eviction on the
+  Claim Broadcast Bus (Section 3.2).
+- **The identity gateway** (`IIdentityGateway`) is what keySmith holds instead of the provider. keySmith hands it
+  the command and returns; how far the work then travels is the gateway's business. In the classic shape the
+  gateway puts the command on the IAM bus. In the **compact** shape keySmith, enyMan, and kcMaster share one
+  program, and the gateway calls the KeyCloak agent directly: the same command, the same single writer, no queue
+  round trip. keySmith cannot tell which gateway it holds -- that is what the seam is for.
+- **kcMaster** is the **only** service that writes to KeyCloak. It consumes the request, performs the create,
+  update, or delete against KeyCloak, and replies. Because it is the single writer, KeyCloak state has one
   authority.
 - **KeyCloak** is the identification host (below).
 
-> **Everything here runs redundant.** keySmith, enyMan, and kcMaster each run at **N replicas** (in the
-> compact shape, N replicas of the one program that holds all three), and that is what
-> gives these flows their shape: a request (`URQ`) is competing-consumed by **one** kcMaster and its reply routes
-> back to the **originating** instance by rod-id, while the entity-broadcast **topic** fans out to **every** kcMaster
-> replica (each holding its own path buffer). The sequence diagrams below draw the services as stacked replicas,
-> and each legend calls out where the redundancy adds routing complexity.
+> **Everything here runs redundant.** keySmith and kcMaster each run at **N replicas** (in the compact shape, N
+> replicas of the one program that holds both, with enyMan). A request (`URQ`) is taken by **one** kcMaster, and
+> its reply goes back to the **originating** keySmith instance by rod-id. A claims eviction is a broadcast: it
+> reaches **every** gateway instance, because each one keeps its own cache. The sequence diagrams below draw the
+> services as stacked replicas.
 
 ### 3.1 KeyCloak — the identification host
 
-KeyCloak is Esquire's **authentication authority**. Per user it holds the **credentials** (the password hash, the
-TOTP / OTP credential), the Esquire **claims** (`esq_uid`, `esq_rootpath`), and the user's **roles**. It runs the
-login — OIDC authorization-code + PKCE for the browser — and, on success, issues the signed JWT that carries all
-three (`esq_uid`, `esq_rootpath`, and the roles in `realm_access.roles`). The Esquire services store **no
-password** and never authenticate a user themselves; they only *validate* the KeyCloak-signed JWT locally against
-its cached JWKS. Authentication is KeyCloak's; authorization (Sections 4-5) is Esquire's, off the claims KeyCloak
-stamped.
+KeyCloak is Esquire's **authentication authority**. Per user it holds the **login id** (the username), the
+**email**, the **credentials** (the password hash, the TOTP / OTP credential), and the required actions (change the
+password, set up TOTP). It holds **no Esquire data**: no entity id, no root path, no Esquire roles, and the realm
+defines no Esquire roles. It runs the sign-in -- OIDC authorization-code + PKCE for the browser -- and, on success,
+issues a signed JWT that names the user by login id. The Esquire services store **no password** and never
+authenticate a user themselves; the gateway *validates* the KeyCloak-signed JWT locally against its cached JWKS.
+Authentication is KeyCloak's; authorization (Sections 4-5) is Esquire's, from what keySmith answers.
 
 ### 3.2 Keeping esq2025 and KeyCloak in sync
 
@@ -112,43 +126,30 @@ The two stores hold two views of the same user, and **`esq2025` is the source of
 
 - **`esq2025`** (the database) owns identity-as-*data* — who exists, their kind, their position (`ep_path`), their
   role, their access flags. This is where a change originates.
-- **KeyCloak** mirrors only the auth-relevant slice — the login credential, the two claims, and the roles — so it
-  can authenticate and stamp a token.
+- **KeyCloak** mirrors only what sign-in needs -- the login id, the email, the credential, and the required
+  actions. The claims and the roles stay in `esq2025`.
 
-Every change flows one way, **DB → KeyCloak, always through kcMaster** (the single writer), by two paths. The
-gateway has an arm for each, and a caller picks the arm by what it has in hand — a command it is asking for, or
-a move it merely heard about:
+**Sign-in data flows one way, DB -> KeyCloak, always through kcMaster** (the single writer). When an access
+profile is activated, changed, or deactivated, keySmith posts a request (`postRequest`). It travels as a `URQ` on
+the KeyCloak request/response bus, and kcMaster applies it:
 
-1. **The command path (authoritative)** — `postRequest`. When a user is created / updated / deleted, or a
-   credential state changes (activation, password reset, TOTP), keySmith — or enyMan for a **move** — posts a
-   request. It travels as a `URQ` on the KC request/response bus, and kcMaster applies it to KeyCloak: create /
-   update / delete the user, set the **roles** (`req.getRoles()`), write the **claim** attributes (`esq_uid`,
-   `esq_rootpath`), or update the path (`EVENT_UPDATE_PATH`, which re-stamps `esq_rootpath` when a user is
-   moved). A request that finds no KeyCloak user is skipped — path 2 is what catches that case.
-2. **The broadcast safety-net** — `postMessage`. kcMaster consumes the entity-broadcast topic. If a moved user's
-   new path arrives before KeyCloak has that user (the race a create-during-move opens), kcMaster parks it in a
-   small path buffer (a per-pod expiring cache) and the pending create flushes the post-move path. enyMan relays
-   the moves — the ones it receives and the ones it makes — to its gateway: a path broadcast is the whole of what
-   this arm takes, and a gateway whose provider subscribes to the topic itself skips them.
+| Command | What kcMaster does in KeyCloak |
+|---|---|
+| create | a user with the login id as username, the email, the temporary password `changeit`, and the change-password action |
+| update | renames the username when the login id changed; sets the email; adds or removes the change-password and TOTP actions; removes the OTP credential when TOTP is turned off |
+| delete | removes the user, found by login id |
 
-The command path is authoritative; the broadcast is belt-and-suspenders so a relocation is never lost. The two
-are not interchangeable: a **request** reaches one replica, a **broadcast** reaches every replica, which is
-exactly why the safety-net is the broadcast and not a second request.
+A request kcMaster cannot apply -- an update for a user KeyCloak does not have, for example -- is answered as a
+failure (see *When a sync fails*).
 
-**The role mapping is set, not merged.** `esq2025` owns it whole: after a sync, the realm roles of an
-Esquire-managed identity are exactly the roles Esquire assigned -- the update empties the mapping and fills it
-from the access profile. That is what "the database is the source of truth" means for roles: read the mapping
-in KeyCloak and you are reading Esquire's answer, with nothing else mixed in, and two users with the same
-profile hold the same mapping whatever either of them has been through.
+**The claims are evicted, not copied.** Position and rights live only in `esq2025`, so a change to them needs no
+KeyCloak write. What it needs is that every gateway stops using the values it cached. keySmith
+sends a claims eviction on the Claim Broadcast Bus after every access-profile save, and enyMan sends one for every user a
+move relocates. Every gateway instance drops that user from its cache, and the next request reads the new values
+from keySmith. A role change or a move reaches a signed-in user on their next request, with no new sign-in.
 
-`esq_uid` is written once, at create, and never changes — identity is stable. `esq_rootpath` is the one attribute
-re-issued on a move, so the token's visibility root always matches the tree.
-
-**In the pure OAuth lab mode the sync is smaller.** With `ESQ_PURE_OAUTH=true` the login id, the email and the
-flags still sync, and `esq_uid` is still written at create. kcMaster writes no `esq_rootpath` and no roles, and a
-move sends KeyCloak nothing. The token then carries the login only, and the gateway takes the claims from keySmith.
-A save or a move removes them from the gateway's cache over the claims bus, so the next request reads the new
-ones. The mode is off by default; see [Pure OAuth](Esquire.Auth.TokenPatterns.md#pure-oauth----the-token-carries-the-login-only).
+A user's token stays valid through a move or a role change, because it names only the login id. KeyCloak holds no
+path, so a move has nothing to send it.
 
 ### 3.3 Creating a user — two separate transactions
 
@@ -160,8 +161,9 @@ log in second:
    in**: the connection flag is `N`, and **no KeyCloak identity exists** yet.
 2. **Activate the access profile (keySmith).** A separate operation flips the connection flag `N → Y`. keySmith
    writes the access columns and posts the identity command; kcMaster creates the KeyCloak user with the
-   user's **roles + claims**, a **temporary password `"changeit"`**, and a force-password-change action. Only now
-   can the user log in — and on first login KeyCloak makes them replace `"changeit"` with a real password.
+   **login id and email**, a **temporary password `"changeit"`**, and a force-password-change action -- no roles
+   and no claims. Only now can the user log in -- and on first login KeyCloak makes them replace `"changeit"` with
+   a real password.
 
 The connection flag is an **up / down switch on login ability**, run through keySmith (the
 [credential state machine](Esquire.Auth.keySmithRoutine.md)): `N → Y` creates the KeyCloak identity (access
@@ -169,7 +171,7 @@ granted); `Y → N` deletes it (access revoked) while the `esq_usr` entity stays
 without access, be granted it, and have it taken away — **entity and login are decoupled** (deleting the entity is
 even blocked while the connection is still `Y` — disable the login first).
 
-![Allow-connect UP: the UI posts connectFlg Y to keySmith, which writes au_connect_flg N to Y in esq2025 and publishes an EVENT_CREATE URQ; kcMaster creates the KeyCloak user with roles, claims, and a temporary changeit password plus a force-password-change action.](img/auth-connect-up.svg)
+![Allow-connect UP: the UI posts connectFlg Y to keySmith, which writes au_connect_flg N to Y in esq2025 and publishes an EVENT_CREATE URQ; kcMaster creates the KeyCloak user with the login id, the email, and a temporary changeit password plus a force-password-change action.](img/auth-connect-up.svg)
 
 ![Allow-connect DOWN: the UI posts connectFlg N to keySmith, which writes au_connect_flg Y to N and publishes an EVENT_DELETE URQ; kcMaster deletes the KeyCloak identity while the esq_usr entity stays in the tree.](img/auth-connect-down.svg)
 
@@ -202,51 +204,34 @@ example:
 The exact flag values, validation rules, and the disable path are in
 [`Esquire.Auth.keySmithRoutine.md`](Esquire.Auth.keySmithRoutine.md).
 
-### 3.5 The enyMan side — email / login-id and rootpath
+### 3.5 The enyMan side -- moves and the claims
 
-keySmith owns the *credential* side (Sections 3.3–3.4). **enyMan** owns the *entity* side, and it runs its own
-synchronization routines for the two identity fields carried on the entity: the **email / login-id** (when a
-person's properties change) and the **rootpath** (when a user moves).
+keySmith owns the access profile (Sections 3.3-3.4). **enyMan** owns the entity side, and two of its operations
+touch what a caller is:
 
-**Change person properties — email / login-id.** A person-property change flows to enyMan, which keeps the
-`esq_auth` access-profile row (`au_login_id` / `au_email`) in step with the person inside `esq2025` (guarded by an
-email-uniqueness check). Propagating a login / email change on to **KeyCloak** is the separate keySmith leg
-(`EVENT_UPDATE`, Section 3.2) — the KC username *is* the loginId — so the two legs together keep `esq2025` and
-KeyCloak aligned.
+**The login id and the email live on the access profile.** They are fields of the `esq_auth` row, which only
+keySmith writes. A change to either is an access-profile save: keySmith writes the row, posts an update that
+renames the KeyCloak user or sets its email (Section 3.2), and evicts the user's claims.
 
-![Change person properties: the UI posts person fields to enyMan, which checks email uniqueness and updates the person and the esq_auth row (au_login_id / au_email) in esq2025; a separate keySmith leg carries a login/email change on to KeyCloak via an EVENT_UPDATE URQ that kcMaster applies as a username/email update.](img/auth-person-props.svg)
+![Change the login id or the email: the UI posts loginId and email to keySmith, which updates esq_auth in esq2025, posts an EVENT_UPDATE URQ that kcMaster applies as a username rename and an email update in KeyCloak, gets URS back, and broadcasts a claims eviction to the gateways.](img/auth-profile-change.svg)
 
-**Move — rootpath.** A move rewrites the whole subtree's `ep_path` in `esq2025` (parents-first) and enyMan
-re-stamps each moved user's `esq_rootpath` in KeyCloak. This is where the **create-while-move race (race-8c)** is
-fought:
+**A move changes the root path, and only in `esq2025`.** A move rewrites the whole subtree's `ep_path` in
+`esq2025`, parents first (Section 4.3). KeyCloak holds no path, so enyMan sends it nothing. What enyMan sends is a
+claims eviction for every user the move relocates, on the Claim Broadcast Bus. Each gateway drops that user from its cache,
+and the user's next request reads the new root path from keySmith -- with the same token, and with no new
+sign-in.
 
-![Move rootpath sync with the create-while-move safety-net: enyMan updates ep_path in esq2025 and publishes an authoritative EVENT_UPDATE_PATH URQ that kcMaster applies to KeyCloak when the user exists; the same move is also broadcast on the entity topic, and when the KeyCloak identity does not exist yet kcMaster parks the new path in a per-pod expiring path buffer, keeping the newest path by change number, which the next keySmith CREATE URQ flushes, so the relocation is never lost.](img/auth-move.svg)
+![Move a user: the UI posts the move to enyMan, which queues it and answers 202, rewrites ep_path for the subtree parents first, and broadcasts a claims eviction for each moved user to every gateway replica. On the moved user's next request the gateway misses its cache, asks keySmith for the claims by login id, and keySmith reads the access profile and the new ep_path from esq2025.](img/auth-move.svg)
 
-- **Authoritative path.** enyMan posts an `EVENT_UPDATE_PATH` request and its gateway transmits it as a URQ;
-  kcMaster re-stamps `esq_rootpath` on the KC user — *if that user exists*.
-- **The race.** A user can be **created while it is being moved**: the move's `UPDATE_PATH` can reach kcMaster
-  before the user's KeyCloak identity has been created. The authoritative URQ then finds no user and **silently
-  skips** — the new path would be lost.
-- **The safety-net.** The same move is also broadcast on the entity-broadcast topic; kcMaster's topic worker parks
-  the new path in a per-pod **expiring path buffer** (an `ExpiringCache` the identity gateway builds and owns). The next keySmith `CREATE` URQ for that user **flushes the buffer**
-  and applies the post-move path — so the relocation is never lost. When the user already exists, the URQ owns the
-  update and the topic side stays passive (no double write).
-- **The buffer keeps the newest path, not the last one to arrive.** A path is parked with the change number of
-  the path row it came from, and a park only replaces what is there when its number is greater. That matters
-  because the topic worker runs on a pool: two moves of the same entity can be handled at once, and in either
-  order. The comparison is one atomic step inside the cache, so two workers cannot both decide they are newer and
-  have the slower one land last. A path with no number parks into an empty slot but never displaces a numbered
-  one — an arrival that says nothing about its order cannot outrank one that does.
+A user created while its subtree is being moved is handled on the tree side -- the move queue, parents-first
+ordering, and the bizTree cache, in [`Esquire.BizTree.md`](Esquire.BizTree.md). KeyCloak takes no part in it,
+because it holds nothing a move changes.
 
-The broader create-while-move handling on the entity / tree side (the move queue, parents-first ordering, and the
-bizTree cache) is in [`Esquire.BizTree.md`](Esquire.BizTree.md); here it matters only for keeping `esq_rootpath`
-correct in the token.
+Replacing KeyCloak means replacing kcMaster with a service that speaks to a different IAM -- the rest of the
+system is unchanged (the pluggable-IAM property; see [`Esquire.Vision.md`](Esquire.Vision.md)).
 
-Replacing KeyCloak means replacing kcMaster with a service that speaks to a different IAM — the rest of the system
-is unchanged (the pluggable-IAM property; see [`Esquire.Vision.md`](Esquire.Vision.md)).
-
-Which token shape reaches the services from the edge — a browser cookie, a plain JWT, or a relayed one — is the
-gateway's concern, covered in [`Esquire.Auth.TokenPatterns.md`](Esquire.Auth.TokenPatterns.md).
+What the token carries, and why it is the login id only, is covered in
+[`Esquire.Auth.TokenPatterns.md`](Esquire.Auth.TokenPatterns.md).
 
 ### When a sync fails
 
@@ -255,16 +240,22 @@ request it was given. The requester records the answer, and kcMaster counts the 
 (`esq.biz.kc.sync.total{outcome}`) and times it (`esq.biz.kc.sync.duration`), so a failed sync shows on the
 board and in the log with its request and correlation ids.
 
-Two stores can then disagree: `esq2025` holds the user, KeyCloak does not know it yet -- or knows an older
-path. **`hauberk kc-reconcile`** is the repair path. It reads the truth from esq2025 over JDBC and the mirror
+Two stores can then disagree: `esq2025` holds the user and KeyCloak does not know it yet, or holds an older login
+id or email. **`hauberk kc-reconcile`** finds that drift. It reads the truth from esq2025 over JDBC and the mirror
 from KeyCloak over the REST admin API, talking to both directly rather than through the services, so it works
-while they are down. It reports three kinds of drift and exits 1 when it finds any:
+while they are down. It pairs the two sides by login id -- `esq_auth.au_login_id` against the KeyCloak username,
+both in lower case -- and reports three kinds of drift, exiting 1 when it finds any:
 
-| drift | meaning | `--repair` |
-|---|---|---|
-| `STALE_PATH` | the KC `esq_rootpath` differs from the DB `ep_path` | fixed in place |
-| `MISSING_IN_KC` | a connected Esquire user with no KeyCloak account | reported -- creating the account needs the credential and activation work that is kcMaster's |
-| `ORPHAN_IN_KC` | a KeyCloak user whose `esq_uid` is not a connected Esquire user | reported -- deletion is destructive |
+| drift | meaning |
+|---|---|
+| `MISSING_IN_KC` | a connected Esquire user with no KeyCloak account |
+| `ORPHAN_IN_KC` | a KeyCloak user whose username is no connected Esquire user's login id |
+| `EMAIL_MISMATCH` | a paired user whose KeyCloak email is not `esq_auth.au_email` |
+
+It repairs nothing: creating an account needs the credential and activation work that is kcMaster's, and a
+deletion cannot be undone. A login id change that never reached KeyCloak shows as two rows, the new login MISSING
+and the old one ORPHAN. An email mismatch matters because a user may sign in with the email: with the wrong one in
+KeyCloak, the address Esquire shows them is refused at sign-in.
 
 Tracking an answer back to the request that asked for it -- a reply timeout, a pending-request map,
 replier-down detection -- is the messaging bus's continuing work, items 9 and 6 in
@@ -274,8 +265,8 @@ replier-down detection -- is the messaging bus's continuing work, items 9 and 6 
 
 ## 4. Dimension 1 — hierarchical visibility (`ep_path`)
 
-Visibility is structural: it is the `ep_path` of the `esq_entity_path` row. `esq_rootpath` (Section 2) is exactly
-this value for the caller. A read is scoped to the caller's subtree with a single prefix match —
+Visibility is structural: it is the `ep_path` of the `esq_entity_path` row. The caller's root path (Section 2) is
+exactly this value. A read is scoped to the caller's subtree with a single prefix match --
 `... WHERE ep_path LIKE :rootPath || '%'` — so a user sees their own branch, a regional manager sees their region,
 and a root administrator (`ep_path` = `1.`) sees everything. **No per-query filter is written; the scope is the
 path.** GET reads therefore need no explicit permission check — the `rootPath` already bounds what the query can
@@ -339,12 +330,12 @@ The org-move ordering (parents processed before children so a child's new path i
 already-updated one) and the create-while-move race are the bizTree concern —
 see [`Esquire.BizTree.md`](Esquire.BizTree.md).
 
-### 4.4 `ep_path` == `esq_rootpath`
+### 4.4 The root path is `ep_path`, read when asked
 
-When a user is created or moved, keySmith / kcMaster write exactly this value onto the KeyCloak user as
-`esq_rootpath` — no transformation. So the visibility root the services scope reads by (`rootPath` in the request
-context) is the same string that lives in the token and in `esq_entity_path`. One value, three places: the DB
-column, the KC attribute, the JWT claim.
+The root path a service scopes its reads by (`rootPath` in the request context) is the caller's `ep_path`, as
+keySmith reads it when the gateway asks. Nothing copies it anywhere else: it is not in the token and not in
+KeyCloak. One value, one place. After a move the gateway drops the cached copy (Section 3.5), so the next request
+scopes by the new path.
 
 ### 4.5 Where the path rules live
 
@@ -352,7 +343,7 @@ column, the KC attribute, the JWT claim.
 |---|---|
 | `enyMan / UsrService.createUsr()` | path computed via `isPathParentOnly()` |
 | `enyMan / UsrService.moveUsr()` | admin: `moveAdminPath` by pk; regular: `moveUsrPaths` by equality |
-| `enyMan / EnyManService.publishKcMoveRequest()` | sends the new path straight to KeyCloak (no stripping) |
+| `enyMan / MoveQueueManager.evictClaims()` | after the move of a user, sends its claims eviction on the Claim Broadcast Bus |
 | `bizTree / BizTreeCacheRepository.moveUsrNode()` | org PK extracted via `isPathParentOnly()` |
 | `enyMan / AcctService.createAcct()` | account path fetched from the parent user's `ep_path` (`EsqAcctRepository.acctPath`) — account CREATE lives in enyMan; pacMan works only with existing accounts (read / update / delete + transactions) |
 
@@ -428,7 +419,7 @@ decides *which entities* it can touch. A `DENY` at the gate, or an out-of-subtre
 ### 5.2a One administrative role per user
 
 A user holds **at most one admin role**. That is the model, not a convention: the gate resolves the caller's
-permission matrix by finding the admin role among the token's roles and reading its per-kind record, so one
+permission matrix by finding the admin role among the caller's roles and reading its per-kind record, so one
 role means one matrix and one answer. A user may hold tool roles (TREE) alongside it -- those govern what the
 Explorer shows, not what a command may do.
 
@@ -471,22 +462,27 @@ the role gate does.
 
 ## 6. Token flow at the edge
 
-Everything above assumes the services already hold a validated JWT with `esq_uid` / `esq_rootpath`. **How** that
-token reaches them from a client — and how the claims are kept off an untrusted wire — is the gateway's job, and
-Esquire ships four patterns for it (BFF, Plain JWT, Vanilla Token Relay, Phantom Token Relay), plus the JWT / JWE
-format analysis behind the "ideal encrypted, self-contained token" that stock KeyCloak cannot emit. A fifth
-option, pure OAuth, runs as a lab mode: the token carries the login only, and the gateway puts the claims on the
-request. That is the subject of [`Esquire.Auth.TokenPatterns.md`](Esquire.Auth.TokenPatterns.md). Whatever the pattern, the services
-downstream of the gateway always validate a plain signed JWT locally against KeyCloak's cached JWKS — no per-request
-call to KeyCloak.
+Everything above assumes a request reaches a service with the caller's claims on it. **The gateway is where that
+is decided.** It validates the token's signature and expiry against KeyCloak's cached keys, takes the login id,
+puts the claims from keySmith on the request, and strips any `X-Esq-*` header the client sent. A service behind it
+does not check the token again: it reads the subject from the bearer and the claims from the headers, and trusts
+both because only the gateway can have set them.
+
+That trust has a cost. A request that reaches a service without passing the gateway is believed as sent -- the
+network is that boundary, the same one that guards `/esq-claims`. Exposing a service port outside the cluster
+removes the check.
+
+How a browser holds its session (the BFF keeps the token on the server; the browser gets a cookie), what a direct
+client does with its own token, and why the token carries the login id only, are the subject of
+[`Esquire.Auth.TokenPatterns.md`](Esquire.Auth.TokenPatterns.md).
 
 ---
 
 ## The Esquire.Auth suite
 
-- **This doc** — the tree-shaped security model: the two dimensions, the identity claims, the
+- **This doc** -- the tree-shaped security model: the two dimensions, the login id and the claims, the
   keySmith / kcMaster / KeyCloak collaboration, and `ep_path` visibility semantics.
-- [`Esquire.Auth.TokenPatterns.md`](Esquire.Auth.TokenPatterns.md) — the four edge token-handling patterns, the
-  pure OAuth lab mode, and the JWT / JWE formats.
+- [`Esquire.Auth.TokenPatterns.md`](Esquire.Auth.TokenPatterns.md) -- the token formats and the edge patterns
+  weighed for Esquire, and why the token carries the login id only.
 - [`Esquire.Auth.keySmithRoutine.md`](Esquire.Auth.keySmithRoutine.md) — the credential-lifecycle state machines
   (password / TOTP / connection flag).

@@ -9,12 +9,23 @@
 
 # Keycloak / Gateway -- Authentication Patterns
 
-> Part of the **[Esquire.Auth suite](Esquire.Auth.md)** — this member covers the token-handling patterns at the
-> edge; the tree-shaped security model and identity claims are in [`Esquire.Auth.md`](Esquire.Auth.md).
+> Part of the **[Esquire.Auth suite](Esquire.Auth.md)** -- this member records the token patterns weighed for the
+> edge, and why the token Esquire uses carries the login id only. The security model is in
+> [`Esquire.Auth.md`](Esquire.Auth.md).
 
-The platform ships four working authentication patterns. Each pattern wins on a different combination of properties; clients pick by kind. JWE is the only access-token format in the standards space that satisfies both *claim-hidden from client* and *self-contained on the hot path* simultaneously, but stock Keycloak does not emit JWE on its standard `/token` endpoint -- so the platform compromises across patterns instead. The gateway-side JWE decoder lives in tree as a latent lab, inert under the current IAS.
+Esquire ships one way to carry a caller to the services: the token names the user by login id, and the gateway
+takes the Esquire claims -- the uid, the root path, and the roles -- from keySmith. Nothing in the token needs
+hiding, because the claims are not in it.
 
-A fifth option runs beside the four as a lab mode, off by default: [pure OAuth](#pure-oauth----the-token-carries-the-login-only). Its token carries the login only, and the gateway takes the Esquire claims from Esquire itself. It does not hide the claims. It leaves them out of the token.
+This document is the record of how that answer was reached. Before it, a token carried the claims, and they had
+to be kept from the client that held it. JWE would do that in one token, but stock Keycloak does not encrypt on
+its standard `/token` endpoint. So a lab built the alternatives, ran them against the stack, and measured them:
+the BFF, the JWT with claims, two token relays, and a token with the login only -- pure OAuth. The sections below
+describe each pattern as it was built and measured. Two of them are what Esquire runs: the BFF in front of the
+browser, and the login-id-only token. The code for the others -- the token relays and the JWE decoder -- is in git
+at the `v2.0.2` tag. The conclusion at the end says why the simplest way is the one Esquire uses.
+
+---
 
 ## Token formats -- JWT, JWS, JWE, JWK, JWKS
 
@@ -38,11 +49,11 @@ The "perfect" handshake protocol from the platform's perspective has two simulta
 
 Only one single-token answer meets both properties simultaneously: JWE. Every other option in the standards space trades one property for the other -- as the catalog of generic options below shows.
 
-## The detour: Plain JWT → Vanilla Token Relay → Phantom Token Relay
+## The detour: JWT with claims -> Vanilla Token Relay -> Phantom Token Relay
 
 Stock Keycloak 26 does not emit JWE on its standard `/token` endpoint for any standard grant; `DefaultTokenManager` has no encryption code path there. **Plain JWE is therefore inaccessible** until KC ships it or the platform swaps the IAS. The working answer is a detour — three patterns that incrementally hide more from the client, together approximating what a single JWE token would have given us:
 
-![The detour around the inaccessible Plain JWE goal: three steps -- Plain JWT (client holds a JWT with readable claims, the OAuth baseline), then Vanilla Token Relay (client holds no token, only credentials), then Phantom Token Relay (client holds a JWT whose claims are empty). Each step hides one more thing from the client; together they approximate what a single JWE token would have given.](media/token-detour.svg)
+![The detour around the inaccessible Plain JWE goal: three steps -- JWT with claims (client holds a JWT with readable claims, the OAuth baseline), then Vanilla Token Relay (client holds no token, only credentials), then Phantom Token Relay (client holds a JWT whose claims are empty). Each step hides one more thing from the client; together they approximate what a single JWE token would have given.](media/token-detour.svg)
 
 Each step hides one more thing from the client. The three together form the working answer KC's missing JWE forced us into. The pattern catalog below details each option; the chosen ones are the ones along this detour.
 
@@ -67,7 +78,7 @@ Three rows in the table -- Opaque + Introspection (RFC 7662), Lightweight Access
 - **Opaque + Introspection:** client carries a random string; every resource server (gateway *and* every microservice behind it) calls `/introspect` per request to learn anything about the token. The local-validation property JWT was invented to deliver is gone -- every request pays a KC roundtrip, pre-JWT session-style.
 - **Lightweight Access Tokens + Userinfo:** client carries a stripped JWT; the resource server calls `/userinfo` per request to fetch claims. Same per-request regression as introspection, *plus* a leak: `/userinfo` accepts the bearer itself, so the holder can pump it for the claims that were supposedly hidden.
 
-**Phantom Token closes the loop.** Same wire form on the client as Lightweight, but instead of a claims-blob endpoint (`/userinfo` or `/introspect`), the gateway uses `/token grant=token-exchange` to receive a *real signed JWT* from the IAS. The gateway caches that JWT per `jti` and forwards it downstream as-is; services validate it locally against IAS JWKS, exactly as they do for plain JWT. The "fetch on demand" cost is borne once per token TTL at the gateway tier, not per request, and the regression doesn't propagate past the gateway. Phantom Token is the clean successor to the previous two -- it keeps their wire shape on the client side, drops their per-request cost on the resource-server side.
+**Phantom Token closes the loop.** Same wire form on the client as Lightweight, but instead of a claims-blob endpoint (`/userinfo` or `/introspect`), the gateway uses `/token grant=token-exchange` to receive a *real signed JWT* from the IAS. The gateway caches that JWT per `jti` and forwards it downstream as-is; services validate it locally against IAS JWKS, exactly as they do for a JWT with claims. The "fetch on demand" cost is borne once per token TTL at the gateway tier, not per request, and the regression doesn't propagate past the gateway. Phantom Token is the clean successor to the previous two -- it keeps their wire shape on the client side, drops their per-request cost on the resource-server side.
 
 ### Partition patterns
 
@@ -83,7 +94,7 @@ All three keep the property that matters most for performance -- KC off the hot 
 
 ## Token Relay -- the umbrella shared by Vanilla Token Relay and Phantom Token Relay
 
-Vanilla Token Relay and Phantom Token Relay are both **Token Relay** patterns. The gateway acts as an OAuth 2.0 client on behalf of downstream services: it ingests an edge credential from the inbound request, resolves or exchanges it for a JWT, caches the result, and relays the JWT down the service chain. Downstream services don't authenticate against KC themselves; they validate the gateway-relayed JWT locally against cached JWKS -- the same mechanism Plain JWT uses. The two patterns differ only in **what the edge credential is**:
+Vanilla Token Relay and Phantom Token Relay are both **Token Relay** patterns. The gateway acts as an OAuth 2.0 client on behalf of downstream services: it ingests an edge credential from the inbound request, resolves or exchanges it for a JWT, caches the result, and relays the JWT down the service chain. Downstream services don't authenticate against KC themselves; they validate the gateway-relayed JWT locally against cached JWKS -- the same mechanism the JWT with claims uses. The two patterns differ only in **what the edge credential is**:
 
 - **Vanilla Token Relay:** edge credential = static OAuth client credentials (HTTP Basic, or mTLS in the strongest form). Gateway runs the `client_credentials` grant against KC to obtain the JWT.
 - **Phantom Token Relay:** edge credential = a *phantom token* (a stripped JWT whose payload has been emptied). Gateway runs RFC 8693 token-exchange to restore the full claim-rich JWT.
@@ -137,7 +148,7 @@ what the cloud run does -- the internet-facing gate ships empty allowlists by de
 
 JWKS is shared signature-validation infrastructure used by every microservice on every request -- without it none of the patterns would be hot-path-local. The Vanilla Token Relay and Phantom Token Relay JWT caches are gateway-tier state, pattern-specific; they absorb the per-request KC roundtrip that would otherwise happen on every call. Downstream of the gateway, only the JWKS cache exists -- services see plain Bearer JWTs and validate locally.
 
-## What we use with Keycloak
+## What Keycloak allowed
 
 The generic options above assume an IAS that cleanly implements the relevant standards. Stock Keycloak 26.6.0 doesn't, in two specific ways:
 
@@ -158,7 +169,7 @@ The generic options above assume an IAS that cleanly implements the relevant sta
 > [#39686](https://github.com/keycloak/keycloak/issues/39686) -- both worth watching, and both a reasonable
 > place to contribute this deployment's use case as a data point.
 
-The platform builds all four -- **BFF + JWT + Vanilla Token Relay + Phantom Token Relay** -- and duplicates the claim mappers on the exchange client to work around the audience gap. **BFF and plain JWT are the RECOMMENDED production paths.** Vanilla and Phantom Token Relay are the lab / exploration patterns of the JWE detour, and they are **NOT armed on the public OKE API** -- their gateway allowlists (`vanilla.clients` / `phantom.clients` in `k8s-oci-compact/values/gateward.yaml`) are empty there, so the gateway never brokers or caches a relay token. Re-arm only for a deliberate load-test window, never as standing config.
+The lab built all four -- **BFF + JWT with claims + Vanilla Token Relay + Phantom Token Relay** -- and duplicated the claim mappers on the exchange client to work around the audience gap. The two relays were the exploration of the JWE detour. They never ran on the public OKE API: their gateway allowlists were empty there. Their code is in git at the `v2.0.2` tag.
 
 ### Phantom Token Relay -- what it delivers
 
@@ -188,7 +199,7 @@ The exchange cannot mint **for a downstream (audience) client**, so that client'
 claim mappers (`esq_uid`, `esq_rootpath`, `realm_access.roles`) are therefore **duplicated on the
 `esq-gw-exchange` requesting client**, and the exchange runs without `audience=`; Keycloak mints for the
 requesting client and the duplicated mappers put the principal's claims on the exchanged token. Downstream
-services validate it as they do a plain JWT.
+services validated it as they did a JWT with claims.
 
 An `audience=` exchange is refused:
 
@@ -214,13 +225,13 @@ both -- the client sees nothing, services validate locally against JWKS.
 
 What it costs:
 
-- **~6 ms per request on a cache HIT** against ~1 ms for plain JWT, plus ~11-16 ms on MISS
+- **~6 ms per request on a cache HIT** against ~1 ms for a JWT with claims, plus ~11-16 ms on MISS
 - **a stateful per-`jti` cache** at the gateway -- the one stateful hop in the design
 - **a deprecated foundation** -- v1 exchange, and the audience form permanently unavailable
 
 So it is a working demonstration of the pattern and a genuine claim-hiding option, not a reason to move BFF
-or plain JWT off the recommended path. The JWE design reopens on the conditions listed at the end of this
-document, none of which this upgrade changes.
+or the JWT with claims off the path they were on then. The conclusion at the end of this document says where
+the evaluation came out.
 
 ## Implementation -- the four patterns, and pure OAuth
 
@@ -236,11 +247,11 @@ Use case: browser-based clients (the Angular SPA via `explorer/backend/`). The b
 - **Claim-hidden:** yes (by absence -- there's no token on the browser tier)
 - **Self-contained on hot path:** yes from gateway onwards (gateway + services do local JWT validation against KC's JWKS)
 - **Cost:** one extra tier (BFF) + session-store sizing + cookie/CSRF semantics
-- **Where wired:** `explorer/backend/src/auth/` (the BFF: the login, the session store, the token refresh), `services/gateway/` (the `TokenRelay=` filter on the routes in `application.yml`), `services/keycloak/import/esquire.json` (`esq-angular` client with auth-code + PKCE)
+- **Where it runs:** `explorer/backend/src/auth/` (the BFF: the login, the session store, the token refresh) and the `esq-angular` client in `services/keycloak/import/esquire.json` (auth-code + PKCE). The BFF adds the session's token to every `/api/*` call; the gateway takes it as any bearer.
 
 ![seq 1](media/seq-1.svg)
 
-### Plain JWT -- client holds the JWT, gateway validates locally
+### JWT with claims -- client holds the JWT, gateway validates locally
 
 Use case: non-browser clients that can be trusted to carry a JWT (service-to-service callers, future mobile or API consumers when claim-visibility is acceptable).
 ![block 2](media/block-2.svg)
@@ -253,7 +264,7 @@ Use case: non-browser clients that can be trusted to carry a JWT (service-to-ser
 - **Claim-hidden:** no (anyone with the JWT can base64-decode and read claims)
 - **Self-contained on hot path:** yes (gateway + services local-validate; KC JWKS cached)
 - **Cost:** lowest -- nothing extra; the standard OAuth2 / OIDC bearer flow
-- **Where wired:** every Esquire client by default
+- **Where it was built:** the Esquire claim mappers (`esq_uid`, `esq_rootpath`, `realm_access.roles`) on the `esq-angular` and `esq-hauberk` clients. It was the default until v2.0.3, which removed the mappers; both clients now issue the login-id-only token (pure OAuth).
 
 ![seq 2](media/seq-2.svg)
 
@@ -273,14 +284,14 @@ Use case: non-browser clients that need **maximum claim-hiding and bearer-replay
 - **Self-contained on hot path:** yes, after first cache fill. First request pays one KC roundtrip (~3 ms); subsequent requests within JWT TTL hit gateway cache and pay zero
 - **Revocation visibility:** bounded by cache TTL (default ~5 min). For faster revocation, shorten cache TTL; for immediate revocation, invalidate cache on KC admin events
 - **Cost:** +3 ms p50 on cache MISS (one `client_credentials` grant); zero on cache HIT; cache memory ~1 KB per active client_id; +1 KC roundtrip per ~5 min per client_id (not per request)
-- **Where wired:** `VanillaTokenRelay` variant under the shared `TokenRelayFilter` + `TokenRelayCache` + `WebClientTokenRelayClient` (impl of `ITokenRelayClient`) seam in `services/gateway/src/.../security/tokenrelay/`; per-client opt-in via `ESQ_GW_VANILLA_CLIENTS` env.
+- **Where it was built:** the `VanillaTokenRelay` variant under a shared `TokenRelayFilter` + `TokenRelayCache` + `WebClientTokenRelayClient` seam in the gateway, armed per client by `ESQ_GW_VANILLA_CLIENTS`. The code is in git at the `v2.0.2` tag.
 - **Inbound-Bearer enforcement:** `VanillaTokenRelay.examine()` also inspects inbound `Authorization: Bearer` requests. `JwtClaimPeek.peekAzp()` extracts the `azp` claim **without signature check**; if the value is in this variant's allowlist, the variant returns `VariantAction.Reject("Bearer JWT with azp=[X] is in Vanilla Token Relay allowlist -- must use HTTP Basic")` and `TokenRelayFilter` short-circuits the chain with **401**. This closes an architectural bypass: a misconfigured or compromised client could otherwise call KC's `/token` endpoint directly and present the resulting JWT as Bearer to skip the no-token-on-client property. The peek's role is catching *honest misconfigurations* with a clear error; a *forged* token (lying `azp` that escapes the allowlist match) would still fail JWS signature validation one step later at the service tier -- so the unauthenticated peek costs nothing on the attack path.
 
 ![seq 3](media/seq-3.svg)
 
 **mTLS variant (strongest form):** replace HTTP Basic with mutual TLS. Client presents a certificate during the TLS handshake; gateway maps the cert's subject (or SAN) to a configured `client_id` and looks up a server-held secret to perform the `client_credentials` grant. The wire then carries **neither bearer token nor shared-secret credential** -- only the client's **public certificate** is exposed during the handshake; the matching private key never leaves the client. All other components (cache, KC call, forward) are identical. Operational cost: cert lifecycle management on the client side.
 
-**Threat-model contrast vs Plain JWT:** a stolen bearer in Plain JWT grants the attacker the user's full identity (claims base64-readable) until natural expiry. In Vanilla Token Relay, there is no bearer to steal at the client side -- only credentials, which the gateway can additionally protect with IP allowlists, rate limits, or mTLS. The full JWT exists only between gateway and service, never crosses the cluster boundary.
+**Threat-model contrast vs JWT with claims:** a stolen bearer with claims grants the attacker the user's full identity (claims base64-readable) until natural expiry. In Vanilla Token Relay, there is no bearer to steal at the client side -- only credentials, which the gateway can additionally protect with IP allowlists, rate limits, or mTLS. The full JWT exists only between gateway and service, never crosses the cluster boundary.
 
 > **Anti-pattern note: Credential Over-Exposure.** Sending the client secret on every request -- even over TLS -- is classified in formal OAuth 2.0 security reviews as *Credential Over-Exposure*. Standard OAuth practice uses the secret once to obtain a token and then carries only the token; this pattern accepts that regression to get *no bearer at the client* in exchange. The mTLS variant above removes the regression entirely (no shared secret on the wire). For HTTP Basic deployments, mitigations are TLS-only transport, IP allowlists or rate limits at the gateway, and short cache TTLs to bound the blast radius of any leaked credential.
 
@@ -303,7 +314,7 @@ Use case: non-browser clients that need claim-hiding **and** the standard OAuth 
 - **Bearer-replay risk at client edge:** yes -- the stripped JWT is a stealable bearer; an attacker with it has the same gateway access as the legitimate client until natural expiry. Mitigated by claim-hiding -- the stolen token reveals nothing -- and by short TTLs.
 - **Revocation visibility:** bounded by gateway cache TTL (same as Vanilla Token Relay).
 - **Cost:** +5-15 ms p50 on cache MISS (token-exchange roundtrip); zero on cache HIT; cache memory ~1 KB per active `jti`; +1 KC roundtrip per token TTL per active `jti`.
-- **Where wired:** `PhantomTokenRelay` variant under the shared `TokenRelayFilter` + `TokenRelayCache` + `WebClientTokenRelayClient` (impl of `ITokenRelayClient`) seam in `services/gateway/src/.../security/tokenrelay/`; gateway authenticates to KC token-exchange as the dedicated `esq-gw-exchange` client; per-client opt-in via `ESQ_GW_PHANTOM_CLIENTS` env.
+- **Where it was built:** the `PhantomTokenRelay` variant under the same seam; the gateway authenticated to Keycloak's token exchange as the `esq-gw-exchange` client, armed per client by `ESQ_GW_PHANTOM_CLIENTS`. The code is in git at the `v2.0.2` tag.
   ![seq 4](media/seq-4.svg)
 **Vanilla Token Relay vs Phantom Token Relay -- when to pick which:**
 
@@ -349,18 +360,17 @@ So a stripped token tells the holder: "you're authenticated, here's a token id, 
 ### Pure OAuth -- the token carries the login only
 
 Use case: a client whose token says who the user is, and nothing more. The Esquire claims (`esq_uid`,
-`esq_rootpath`, the roles) stay in Esq2025, and the gateway puts them on the request. It is a lab mode, off
-by default, and off on the public OKE API. It works on both lines. The BFF logs in with the pure client by
-configuration only (`KC_CLIENT_ID`), and a service client gets a pure client of its own.
+`esq_rootpath`, the roles) stay in Esq2025, and the gateway puts them on the request. It began as a lab mode
+beside the claims-carrying token, and it is now the only way Esquire runs, on both lines: the BFF's client
+(`esq-angular`) and the load harness's client (`esq-hauberk`) issue tokens with the login only.
 
 A request, step by step:
 
 1. Keycloak issues the pure client's access token with `sub` and `preferred_username`. No Esquire claim
    mapper runs, and the client has no `roles` scope. The username is the Esq2025 login id, in lower case
    on both sides.
-2. The gateway validates the signature and the expiry against the cached JWKS, as for a plain JWT. For a
-   client on its pure list (`ESQ_GW_PURE_OAUTH_CLIENTS`), `EsqClaimsValidator` requires only `sub` and
-   `preferred_username`.
+2. The gateway validates the signature and the expiry against the cached JWKS, as for any signed JWT.
+   `EsqClaimsValidator` requires `sub` and `preferred_username`.
 3. The gateway finds the claims in its own cache by the login id. On a miss it asks keySmith,
    `GET /esq-claims?loginId=`, which reads the access profile and its roles from Esq2025. No gateway route
    exposes that endpoint.
@@ -383,10 +393,8 @@ entry never goes idle, so a change has to remove it:
 So a role change or a move reaches a signed-in user at once, not at the next token. The e2e spec
 `25-pure-oauth-eviction` checks both.
 
-**The Esquire side has one switch,** `ESQ_PURE_OAUTH` (keySmith, enyMan, kcMaster; mesnie in the compact
-shape). On, the evictions are published, and kcMaster writes no `esq_rootpath` and no roles to Keycloak.
-The login id, the email and the flags still sync. A stack runs one mode at a time: on a pure stack, a
-claims client reads the roles and the path Keycloak held before the change.
+**Keycloak holds no Esquire data.** kcMaster writes the login id, the email and the sign-in flags; it writes
+no path, no roles, and no user id, and the realm defines no Esquire roles.
 
 - **Claim-hidden:** yes, by absence -- the claims are not in the token, so there is nothing to decode and
   nothing for `/userinfo` to return
@@ -399,10 +407,9 @@ claims client reads the roles and the path Keycloak held before the change.
   on every miss, so it needs the gateway's availability; a lost eviction leaves an active user's old
   claims in place until the entry goes idle; and a claim header that the services accept without a
   signature, so they must be reachable only through the gateway
-- **Where wired:** `PureOAuthClaimsCache`, `PureOAuthAuthenticationConverter`, `PureOAuthHeaderFilter`,
-  `PureOAuthEvictionListener` and `WebClientUserClaimsClient` in `services/gateway/src/.../lab/pureoauth/`,
-  wired in `config.SecurityConfig`; `/esq-claims` in keySmith; `ClaimsBusPublisher` in `common`; the realm
-  clients `esq-angular-pure-oauth` and `esq-hauberk-P`
+- **Where it runs:** the gateway's `oauth` package (`ClaimsCache`, `AuthenticationConverter`, `HeaderFilter`,
+  `EvictionListener`, `WebClientUserClaimsClient`), wired in `config.SecurityConfig`; `/esq-claims` in keySmith;
+  the evictions sent by keySmith after a save and by enyMan's `MoveQueueManager` after a move
 
 #### What the lookup costs
 
@@ -431,7 +438,7 @@ per pattern (gw_self band, ms; only the varying column shown):
 
   Pattern                                       cache    gw_self
   ----------------------------------------------------------+----
-  BFF / JWT (baseline)                          n/a         ~1
+  BFF / JWT with claims (baseline)              n/a         ~1
   Vanilla Token Relay                           HIT         ~1
   Vanilla Token Relay                           MISS        ~10
   Phantom Token Relay                           HIT         ~6
@@ -453,11 +460,11 @@ instrument for that, and this measurement exists only to show nothing large is h
 What is deterministic is the token: **806 bytes and 9 claims** stripped, against 857 bytes and 11 claims
 unstripped. And there is no code difference at all -- stripping is a single realm attribute.
 
-### And against plain JWT
+### And against the JWT with claims
 
-Same method, plain JWT measured through the same gateway with the `esq-hauberk` client:
+Same method, the JWT with claims measured through the same gateway with the `esq-hauberk` client:
 
-| | plain JWT | Phantom Token Relay |
+| | JWT with claims | Phantom Token Relay |
 |---|---|---|
 | handshake p50 | 6.4 ms | 4.8-5.4 ms |
 | request min | 7.7 ms | 8.3 ms |
@@ -466,11 +473,11 @@ Same method, plain JWT measured through the same gateway with the `esq-hauberk` 
 Under a millisecond apart at cache HIT, on a rig whose own spread is 8-34 ms. The costs that are real and do
 not go away: **one exchange per `jti` per token TTL** on MISS, **~1 KB of gateway cache per active `jti`** --
 the single stateful hop in the design -- the duplicated mappers, and a deprecated v1 exchange. That is the
-price of claim-hiding, and it is why BFF and plain JWT remain the recommended production paths.
+price of claim-hiding, and it is why the relays stayed in the lab.
 
 ## Decision matrix (which pattern, when)
 
-| Property needed | BFF | JWT | Vanilla Token Relay | Phantom Token Relay | Pure OAuth (lab) |
+| Property needed | BFF | JWT with claims | Vanilla Token Relay | Phantom Token Relay | Pure OAuth |
 |---|---|---|---|---|---|
 | Browser client (no JWT on wire) | ✓ | -- | -- | -- | yes (the BFF on the pure client) |
 | Service-to-service or trusted client | -- | ✓ | ✓ | ✓ | yes |
@@ -479,9 +486,9 @@ price of claim-hiding, and it is why BFF and plain JWT remain the recommended pr
 | Token portability (one token, many gateways) | -- | ✓ | -- | ✓ | yes (each gateway fills its own cache) |
 | Zero-overhead hot path | (yes, behind BFF) | ✓ | ✓ (after cache fill) | ✓ (after cache fill) | yes (after cache fill) |
 | Token bytes opaque to holder | ✓ (absence) | -- | ✓ (absence) | ✓ (claims stripped) | yes (no claims in the token) |
-| Standards-compliant on the wire | ✓ | ✓ | ✓ (HTTP Basic / mTLS) | ✓ (RFC 8693 exchange) | yes (a plain JWT) |
+| Standards-compliant on the wire | ✓ | ✓ | ✓ (HTTP Basic / mTLS) | ✓ (RFC 8693 exchange) | yes (a signed JWT) |
 
-The four patterns coexist in one realm. Each client opts in via its KC config: Vanilla Token Relay clients via gateway env allowlist; Phantom Token Relay clients via both gateway env allowlist and KC token-exchange permission grant. Pure OAuth clients via the gateway's pure list, while the Esquire side runs the mode that matches (`ESQ_PURE_OAUTH`).
+In the lab the patterns ran side by side in one realm, each client choosing its pattern by configuration.
 
 ### Why neither Phantom Token Relay nor JWE belongs on the BFF path
 
@@ -493,8 +500,8 @@ no `/userinfo` question to ask. Applying it to the BFF-to-gateway hop is worse t
 
 - the holder there is the BFF itself -- our own tier, inside the cluster, already trusted with the session.
   Hiding claims from it protects against nothing.
-- it breaks a real dependency: the BFF reads `preferred_username` and `realm_access.roles` to answer
-  `/auth/me`. A stripped token takes those away, so the BFF must fetch them back -- reintroducing exactly the
+- it broke a real dependency at the time: the BFF read `preferred_username` and `realm_access.roles` to answer
+  `/auth/me`. A stripped token took those away, so the BFF would have had to fetch them back -- the same
   per-request claims lookup that disqualified Lightweight Access Tokens + Userinfo.
 - it adds the exchange, the per-`jti` cache and the duplicated mappers to a path that gains nothing from them.
 
@@ -518,119 +525,68 @@ STORE or shortening TTLs -- not changing the token format the whole platform val
 need Phantom Token Relay. That is the one carrying the exchange, the cache and the deprecated v1 -- and the
 only place a single self-contained claim-hidden token removes machinery instead of adding it.
 
-## When JWE reopens
+## Conclusion -- a token with claims buys nothing, so Esquire carries none
 
-Reopen this design only when one of:
+Every pattern above was built, run against the stack, and measured. They differ in where the claims sit and
+who can read them. The comparison that settles the choice is not between the patterns. It is between a token
+that carries the Esquire claims and a token that does not.
 
-1. **KC ships proper access-token JWE on `/token` for standard grants.** No roadmap signals for this.
-2. **An alternative IAS enters the deployment story.** Auth0, Okta, ForgeRock, and Ping all emit JWE on the standard token endpoint natively; the gateway-side decoder we keep in tree (`JweAwareJwtDecoder` + `/jwe-jwks` exposure) is the standard consumer-side pattern and would work without code changes -- just swap the issuer URL and adjust realm / issuer claim configuration.
-3. **A new threat model demands claim-hidden + local-validation together in a single token format** -- which none of BFF, Vanilla Token Relay, or Phantom Token Relay can satisfy without partitioning across tiers. (Only JWE achieves both properties in one token.)
+### What putting the claims in the token costs
 
-### What JWE would buy, stated as what it removes
+**A signed token with claims (JWS) shows them to whoever holds it.** Hiding them needs a pattern on top: the
+BFF for the browser, and for a direct client one of the two relays -- an exchange at the gateway, a cache per
+token, the claim mappers copied onto the exchange client, and Keycloak's token exchange v1, which is a
+deprecated preview.
 
-JWE carries both properties in ONE token, so the whole partition apparatus stops being necessary. Against the
-Phantom Token Relay deployed today:
+**An encrypted token with claims (JWE) is not on offer where Esquire runs.**
 
-| Phantom Token Relay needs | JWE needs |
-|---|---|
-| RFC 8693 token-exchange at the gateway | -- |
-| a per-`jti` gateway cache -- the single stateful hop | -- |
-| the `esq-gw-exchange` client and its secret | -- |
-| claim mappers duplicated onto that client | -- |
-| a gateway allowlist, armed per client | -- |
-| v1 exchange, deprecated preview, FGAP:v1 | -- |
-| one exchange per `jti` per token TTL on MISS | -- |
+- Keycloak 26 does not encrypt an access token on `/token` for the standard grants. The client attribute
+  `access.token.encrypted.response.alg` is accepted and ignored; the shipped realm carried it, and the token
+  still came out as a plain signed JWT.
+- AWS documents signed access tokens only. Amazon Cognito signs its access tokens with RS256 and states that
+  anyone can decode them; only its refresh tokens are encrypted, and those are opaque
+  ([Cognito access token](https://docs.aws.amazon.com/cognito/latest/developerguide/amazon-cognito-user-pools-using-the-access-token.html)).
+  The API Gateway JWT authorizer checks a signature against the issuer's keys and describes no decryption
+  ([JWT authorizers](https://docs.aws.amazon.com/apigateway/latest/developerguide/http-api-jwt-authorizer.html)).
+  Neither page says "no JWE" in those words; we found no AWS option to issue or accept one.
+- Auth0, Okta, ForgeRock, and Ping can encrypt access tokens. Using that ties Esquire to one of them, and it
+  moves the decryption key to every service that reads the token, with the key rotation that follows.
 
-The gateway also stops being a REQUIRED participant. A phantom token is useful only to a gateway holding the
-exchange grant; a JWE is useful to any resource server holding the decryption key, so token portability comes
-back without a broker in the path.
+**Either form makes Keycloak a copy of Esquire data.** The roles and the root path have to be written into the
+identity provider and kept in step with `esq2025`. A move has to re-stamp a path in Keycloak, a user created
+during a move can lose that path, and the lab needed a broadcast and a path buffer to close the gap. A role
+change reaches a signed-in user only with the next token.
 
-**What it costs instead, and this is the half worth planning for:**
+**Neither form stops a stolen token.** A signed token and an encrypted token are both bearer tokens: whoever
+holds one can use it until it expires. Encryption hides what the token says, not what it can do.
 
-- **Key distribution becomes the problem.** Signature validation needs only the public JWKS; decryption needs
-  the private key at EVERY resource server. The operational question moves from "one gateway holds an exchange
-  secret" to "every service holds a decryption key", with the rotation story that implies.
-- **A decrypt per request** at each service -- CPU, but local, with no network hop.
-- **Claim-hiding is against the CLIENT only.** Every service still sees every claim, exactly as with Phantom
-  Token Relay. JWE hides the payload from the holder, not from the fleet.
+### What leaving the claims out costs
 
-**The consumer half is already built.** `JweAwareJwtDecoder` and the `/jwe-jwks` exposure are in tree and are
-the standard consumer-side pattern, so the work that reopening implies is issuer configuration and key
-handling -- not a new pattern in the services.
+This is the half to plan for.
 
-So the blocker is the IAS, not this codebase. The experiment that would settle it is pointing the existing
-decoder at an IAS that emits JWE natively:
+- **The gateway keeps state.** Each replica keeps its own claims cache, so a user misses once per replica.
+- **keySmith is on the path of every miss,** so the gateway needs keySmith up. Measured on local k8s, a cold
+  call costs about 5.5 ms more; a hot call costs the same as with claims in the token, and throughput under
+  load was level (see *What the lookup costs* above).
+- **A lost eviction leaves old claims in place** until the cache entry goes idle (60 s by default).
+- **The services trust the gateway's headers.** They take the claims from `X-Esq-*` without a signature, so
+  they must be reachable only through the gateway; the network is that boundary.
+- **The login id is in the token,** readable by its holder. It is the one Esquire value there.
 
-| IAS | JWE access-token capability |
-|---|---|
-| **Auth0**            | Specific APIs can be configured to encrypt access tokens using JWE Compact Serialization. Available for all supported grant types. JWKS-based key exchange. |
-| **Okta**             | OIDC token JWE encryption is a configurable feature on Custom Authorization Servers; algorithms selected per CAS. |
-| **ForgeRock / Ping** | Both support encrypted access tokens per OIDC profile / OAuth2 enterprise extensions. |
+### The way Esquire works
 
-## Conclusion -- what we use on each line, and what we still want
+The token carries the login id and nothing else Esquire needs. Keycloak holds the login id, the email, and the
+credential, and no Esquire data. The gateway validates the token's signature and expiry, looks the user up in
+keySmith by login id, keeps the answer in its cache, and puts the uid, the root path, and the roles on the
+request -- as headers for a REST service, as fields of the command on the bus. keySmith and enyMan evict a
+user's cached claims over the Claim Broadcast Bus whenever they change, so a role change or a move reaches a signed-in
+user on the next request.
 
-**Phantom Token Relay is not applied generically -- on either line.** It is a conditional, per-client option
-on the direct API line, and it is never used on the BFF line. Plain JWT and BFF remain the platform's answers.
+A browser reaches Esquire through the BFF and holds only a session cookie. A direct client, such as the load
+harness, gets its own token from Keycloak and calls the gateway with it.
 
-Two connection lines reach Esquire, and they take different answers. Stating them separately is the whole
-point: a single "which token pattern do we use" answer would be wrong on one of them.
-
-### The BFF line (browser -> BFF -> gateway)
-
-**Plain BFF. Phantom Token Relay is not used here, and JWE would add nothing.**
-
-The browser holds an opaque session cookie and no token at all, so claim-hiding is delivered by ABSENCE --
-stronger than stripping, and free. Phantom Token Relay on this line would hide claims from our own BFF, which
-reads `preferred_username` and `realm_access.roles` to answer `/auth/me`, forcing a per-request claims lookup
-back into the design. JWE on this line encrypts a token whose holder already holds the key.
-
-This line is settled. Nothing pending on it.
-
-### The direct API line (service-to-service client -> gateway)
-
-**Plain JWT by default. Phantom Token Relay when claim-hiding at the client is actually required -- which is
-a deliberate opt-in, not the general case.**
-
-Phantom Token Relay is verified: the wire token really is stripped, `/userinfo` cannot be pumped for what was
-removed, and services still validate locally. It is a working, standards-based claim-hiding option, and it
-costs nothing measurable against the workaround it replaces.
-
-It is NOT the generally accepted solution on this line, for four reasons that survive the upgrade:
-
-1. **Plain JWT already answers the common case** -- no exchange, no cache, no state, nothing to arm.
-2. **It introduces the only stateful hop in the design** -- a per-`jti` cache at the gateway, ~1 KB per active
-   token, plus one exchange per `jti` per TTL.
-3. **The mapper duplication is structural**, not temporary: the audience form of the exchange cannot be
-   granted (`501 Feature not enabled`), so the claims must be duplicated onto the requesting client.
-4. **It stands on a deprecated foundation** -- v1 token exchange, preview, FGAP:v1-bound, with v2 as the
-   stated route forward.
-
-So: armed per client, for a client that genuinely must not read its own claims. Allowlists stay empty
-otherwise, and empty on the public API by design.
-
-### Is JWE still what we want?
-
-**Yes -- and only for the direct API line.** That refinement is the result of this work.
-
-On the BFF line JWE is redundant; the pattern already achieves the outcome. On the direct API line JWE remains
-the only single-token answer that carries claim-hidden AND locally-validated together, and it would delete the
-exchange, the cache, the exchange client, the duplicated mappers, the allowlist and the deprecated v1 -- it
-REMOVES machinery rather than adding it. That is why it stays the goal.
-
-What changed is the price, now that it is understood: key distribution moves to every resource server, and
-claim-hiding remains a property against the CLIENT only -- the fleet sees everything either way.
-
-And the blocker is not this codebase. The consumer half (`JweAwareJwtDecoder`, `/jwe-jwks`) is in tree; stock
-Keycloak still has no encryption branch on `/token`. JWE reopens when an IAS that emits it enters the
-deployment story -- which is the single experiment worth running, and the reason all four patterns stay in
-code until it is.
-
-### Where pure OAuth stands
-
-JWE and the two token relays hide the claims that are in the token. Pure OAuth leaves them out. Then there
-is nothing to hide: no exchange, no duplicated mappers, and nothing kept in step with Keycloak beyond the
-login id, the email and the flags. A changed role reaches a signed-in user at once.
-
-The price is a stateful gateway, keySmith on every miss, and a claim header the services trust because only
-the gateway can reach them. It runs as a lab mode beside the four patterns, and it is off on the public OKE
-API.
+Nothing in this asks the identity provider for more than a signed token that names the user. That is the
+whole reason it is the simple way: no exchange, no encryption keys, no claim mappers, and no Esquire data to
+keep in step. Moving to it shrank the services repository: from the `v2.0.2` tag to v2.0.3, 195 files
+changed, 2,877 lines added and 7,303 removed -- 4,426 fewer. In the code itself (Java, Python, SQL), 552
+lines came in and 3,275 went. The lab code for the patterns above stays in git at the `v2.0.2` tag.
