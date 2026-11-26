@@ -1,6 +1,12 @@
 Esquire Frameworks(tm) 2.0
 Esquire services
 
+v2.0.3-2611.2522  v2.0.3 -- OKE by hand: the observability check on the cloud
+    :Fix:         the cloud observability check looks for paacMan, the service the cloud runs, in place of pacMan
+    :Fix:         the latency check reads all its numbers at the same moment, so a check run right after traffic
+                  no longer reports a gap that is not there
+    Components:   o11y
+
 v2.0.3-2611.2518  v2.0.3 -- code review: what the claims mode left behind
     - the gateway no longer carries the token relay filter and a sign-in client setup it never used
     - the KeyCloak load harness client loses its token encryption settings, which KeyCloak never applied

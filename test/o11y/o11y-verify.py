@@ -14,6 +14,8 @@
 # 11/18/2026 mir0n  v2.0.2 -- esq_biz_gw_pureoauth_total and esq_svc_key_claims_seconds in the expected meters
 # 11/22/2026 mir0n  v2.0.3 -- the token relay meters out; esq_biz_gw_oauth_total (was
 #                   esq_biz_gw_pureoauth_total) in the expected meters
+# 11/25/2026 mir0n  v2.0.3 -- check_bands(): gw.outer and every band read at one instant; promq() and _scalar()
+#                   take an optional evaluation time
 """
 Verify the Esquire observability stack is wired end to end, LIVE.
 
@@ -237,8 +239,10 @@ def _get(url, timeout=15):
         return json.load(r)
 
 
-def promq(expr):
+def promq(expr, at=None):
     url = PROM + "/api/v1/query?query=" + urllib.parse.quote(expr)
+    if at is not None:
+        url = url + "&time=" + at
     return _get(url)["data"]["result"]
 
 
@@ -822,11 +826,11 @@ def _panel_targets(title_prefix):
     return ret
 
 
-def _scalar(expr):
+def _scalar(expr, at=None):
     """The single value of a scalar PromQL expression, or None when it has no data (idle stack)."""
     ret = None
     try:
-        res = promq(expr)
+        res = promq(expr, at)
         if res:
             v = float(res[0]["value"][1])
             ret = None if v != v else v          # NaN -> None: honestly "no data", not a number
@@ -858,7 +862,11 @@ def check_bands():
         fail("the DERIVED latency-bands panel was not found -- renamed? Then this check guards nothing.")
         return
 
-    outer = _scalar("1000 * (sum(rate(esq_gw_outer_seconds_sum[5m])) / sum(rate(esq_gw_outer_seconds_count[5m])))")
+    #xxx: one instant for every query -- read apart, the rate windows move while samples land, and a sum that
+    # closes exactly by construction drifts past the tolerance
+    at = "%.3f" % time.time()
+    outer = _scalar("1000 * (sum(rate(esq_gw_outer_seconds_sum[5m])) / sum(rate(esq_gw_outer_seconds_count[5m])))",
+                    at)
     if outer is None:
         warn("no gateway traffic in the rate window -- skipping the band checks (they need live requests, the "
              "same contract as the rest of this sweep)")
@@ -867,7 +875,7 @@ def check_bands():
     total = 0.0
     resolved = 0
     for legend, expr in targets:
-        v = _scalar(expr)
+        v = _scalar(expr, at)
         if v is None:
             fail("band %-38s does NOT resolve (empty) -- a band deleted by an empty subtrahend is invisible on "
                  "the panel, not loud" % legend)
