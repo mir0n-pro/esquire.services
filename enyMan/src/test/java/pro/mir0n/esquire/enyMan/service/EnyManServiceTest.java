@@ -29,6 +29,7 @@ import pro.mir0n.esquire.backend.storage.EsqObjectKindStorage;
 import pro.mir0n.esquire.backend.storage.EsqRolesStorage;
 import pro.mir0n.esquire.backend.storage.roles.JpaRolesRepository;
 import pro.mir0n.esquire.common.EsqConstants;
+import pro.mir0n.esquire.common.EsqUtils;
 import pro.mir0n.esquire.audit.AuditBusBridge;
 import pro.mir0n.messaging.IXRod;
 import pro.mir0n.messaging.xrod.impl.XRodDisabled;
@@ -44,6 +45,7 @@ import pro.mir0n.esquire.enyMan.queue.MoveCommandItem;
 import pro.mir0n.esquire.enyMan.queue.MoveQueueManager;
 import pro.mir0n.esquire.enyMan.service.impl.EnyManService;
 
+import java.lang.reflect.Method;
 import java.util.List;
 import java.util.Map;
 
@@ -159,13 +161,28 @@ class EnyManServiceTest {
     }
 
     @BeforeEach
-    void setUp() {
+    void setUp() throws Exception {
+        //xxx: a new entity mints a real id, and its instance digit comes from the host name -- pinned, so a runner named "...-163" does not fail
+        setInstanceNo(0);
         service = new EnyManService(dictRepo, orgRepo, usrRepo, acctRepo, subtreeRepo, transactionTemplate, em, broadcastPublisher, moveQueue, new AuditBusBridge(noopRod()));
     }
 
     @AfterEach
-    void tearDown() {
+    void tearDown() throws Exception {
         EsqContextHolder.clear();
+        resetInstanceNoCache();
+    }
+
+    private static void setInstanceNo(int instanceNo) throws Exception {
+        Method seam = EsqUtils.class.getDeclaredMethod("setInstanceNoForTests", int.class);
+        seam.setAccessible(true);
+        seam.invoke(null, instanceNo);
+    }
+
+    private static void resetInstanceNoCache() throws Exception {
+        Method seam = EsqUtils.class.getDeclaredMethod("resetInstanceNoCacheForTests");
+        seam.setAccessible(true);
+        seam.invoke(null);
     }
 
     // uid / rootPath now come from the unified per-request context (read via RequestContextUtils),
